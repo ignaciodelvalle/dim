@@ -287,6 +287,68 @@ Las cuatro estaban bloqueando código escrito. Ninguna bloquea nada ahora.
 | **#41** | **Detalle de caso: acciones de operador.** `components/casos/CaseDetailView.tsx` (327 líneas) tiene **cero controles de operador** — verificado el 07/08: cero `<form>`, cero `<button>`, cero `OpButton`, cero `action=`. Ni cerrar, ni escalar, ni asentar una nota. La cola de Casos ahora ordena por urgencia **en SQL** (SC-6, cerrado el 07/08), así que la fila #1 es de verdad el expediente más urgente de la jurisdicción… **y abre a una página muerta**. El arreglo de SC-6 vuelve esto MÁS visible, no menos: antes el operador llegaba al callejón sin salida por casualidad, ahora el producto lo manda derecho | **BLOQUEADO POR EL PO — falta acotar cuáles acciones.** No es "poner botones": cada tipo de caso tiene su propio cierre legítimo (`src/modules/cases/domain/lifecycles/<kind>.ts` declara los eventos terminales) y hay 12 tipos. Las preguntas que hay que responder antes de escribir código: (a) ¿qué subconjunto de tipos gana controles en la primera entrega —¿sólo `bite_incident` + `welfare_denuncia`, los dos que más tráfico tienen?—; (b) ¿el operador cierra, o sólo escala y asienta nota?; (c) ¿la acción vive en el detalle, en la cola por lote (ya existe `OpBulkBar`), o en ambos? Origen: auditoría 26/07 rojo **#2** (y gate vivo del 28/07, punto #7). Nunca salió de "stretch" en ningún plan |
 | **Lote E** | **Partir la hidratación del `PanoramaConsole`.** `components/panorama/PanoramaConsole.tsx` sigue siendo **una sola unidad cliente de 4.993 líneas** con `"use client"` en la línea 1 y **49 `useState`**, sin un solo `next/dynamic` ni `React.lazy` (medido el 07/08 contra el árbol). Es el S9 de la tanda 1, diferido **por decisión** y nunca planificado | **CANDIDATO A SDD** (no a un lote nocturno): 12-15 tareas largas, y el riesgo real no es partir el archivo sino **partirlo sin medir**. **Criterio de aceptación que hay que fijar ANTES de empezar: una reja de INP.** Hoy no existe ninguna en el repo — ni gate, ni presupuesto, ni medición de long-tasks — así que un refactor de hidratación no tendría con qué demostrar que mejoró algo, y "se siente más rápido" no es evidencia bajo la regla de este documento. Orden propuesto: (1) medir INP/long-tasks del Panorama actual y dejar el número escrito, (2) reja que no deje empeorarlo, (3) recién entonces partir. Origen: auditoría 26/07 rojo **#1** / S9 |
 
+### #41 y Lote E — DISEÑADOS Y REFUTADOS, listos para ejecutar (2026-08-10)
+
+> Los dos pasaron por diseño y por un escéptico que los verificó contra el árbol.
+> Ninguno se ejecutó: el de #41 volvió con tres bloqueantes que cambian su
+> alcance, y el de Lote E con un cambio de instrumento. Lo que sigue es el plan
+> **corregido**, con sus números medidos — no la propuesta original.
+
+#### #41 — el alcance real es mucho más chico de lo que parecía
+
+La refutación midió la cola y encontró que el diseño se apoyaba en premisas falsas:
+
+| Qué se creía | Qué se midió |
+|---|---|
+| `custody_episode` "ya tiene pantalla propia" en `/gob/decomisos` | **215 de 215** tienen `opened_by_organization_id IS NULL`, y esa pantalla filtra por opener para rol govt (`app/gob/decomisos/page.tsx:148`). Un funcionario ve **cero**. Sacarlos de la cola no los deja de contar dos veces: los **desaparece** del portal |
+| El detalle de decomiso es una pantalla aparte | `app/gob/decomisos/[publicCode]/page.tsx:24` es `redirect('/gob/casos/…')`. La "pantalla propia" **es** el detalle genérico: un link-out sería un rebote circular, y el guard de rebotes de `link-integrity.test.ts` §5 sólo ve rutas estáticas |
+| Escalar y cerrar sirven a la cola | La cola real es `custody_episode` 215 · `lost_pet_episode` 41 · `adoption_listing` 1. **`microchip_remediation` tiene CERO filas** — y era el único kind al que el diseño le daba los tres verbos. El 100% de la cola recibiría exactamente **una** acción nueva: la nota |
+
+Más una carrera sin resolver: `CasesRepository.closeCase` devuelve la fila ya
+cerrada cuando pierde (`cases-repository.ts:219-232`), y una dep tipada
+`Promise<void>` tira ese retorno. El perdedor ya insertó su `case_closed` en
+`case_events`, que es **append-only por trigger** — dos cierres con dos motivos y
+dos actores, permanentes, en un sistema cuyo invariante es que el registro no
+miente.
+
+**Alcance corregido, y es una sola cosa**: la acción de **nota** sobre el detalle,
+que es la que sirve al 100% de la cola real, con la mutación ANTES del evento y
+el evento sólo si la mutación ganó la carrera. Escalar y cerrar quedan fuera
+hasta que exista cola que los use.
+
+#### Lote E — el instrumento correcto no es INP
+
+La refutación descartó medir INP/TBT: no es reproducible entre corridas y una
+reja que oscila entrena a todos a ignorarla. El proxy correcto y determinístico
+son los **bytes exclusivos de la ruta**, leídos de `.next/app-build-manifest.json`.
+
+**Número de partida medido: `/admin/panorama/page` = 242.526 B exclusivos**
+(total 1.058.740 B, compartidos 816.214 B — estos dos se imprimen y **no** gatean,
+así que un salto del framework se ve sin enrojecer Panorama).
+
+- **Paso 0** — `scripts/check-route-weight.ts` + baseline, en `verify` después de
+  `pnpm build`, con cuatro pisos anti-vacuidad y verificación en rojo obligatoria
+  antes de mergear (borrar 6 KB → rojo; correr sin `.next` → skip que dice "no
+  probé nada"; sacar una ruta del baseline → rojo). 2-3 h.
+- **Paso 1** — `MapLegends` a `next/dynamic`. Es el **único** de los cinco
+  candidatos que no toca un solo `it` del console (cero menciones en
+  `PanoramaConsole.test.tsx`), y vive en un tab que no es el default. −5.500 B.
+- **Paso 2** — `MapDataTable`, con la frontera **adentro** de
+  `PanoramaDockRegistros`, no colgada del console. Rompe exactamente un `it`
+  síncrono (`:1192`), que pasa a `findByText`. −3.000 B más.
+
+**Fuera hoy, con razón**: `CalendarHeatmap` y `PanoramaDataTable` viven en el tab
+**default**, así que diferirlos regala latencia en la primera interacción a cambio
+de bytes — un trueque que el instrumento no puede juzgar. `TimeScrubber` tiene el
+mejor rendimiento por byte y el peor costo de test: día propio, con la migración
+de `openTimeline` a async como commit previo y separado.
+
+**Criterio de aceptación**: además del número, una confirmación **estructural** que
+no depende del estimador — el chunk lazy tiene que existir en `.next/static/chunks`
+y estar **ausente** del manifest de la ruta, verificado por huella. Determinístico
+y gratis.
+
+
 ### Hallazgos del loop de pulido — 2026-08-10
 
 > Los de severidad ALTA que quedaron SIN arreglar esa noche. Evidencia completa
