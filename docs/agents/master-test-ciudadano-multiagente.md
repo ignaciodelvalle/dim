@@ -18,6 +18,75 @@ Tres cosas lo separan de un clickthrough:
 
 **Todo lo que crees queda.** Es material histórico para las revisiones que vienen — no lo borres al final.
 
+## 0.1 El encuadre: los hechos pasan afuera, vos los anotás
+
+Esto es lo más importante del documento y es fácil de perder de vista.
+
+**No estás ejecutando un formulario. Estás siendo una persona a la que le pasaron cosas.**
+
+A Rocco no "se le marca perdido": Rocco **se escapó el martes a la tarde** y su dueño, esa noche, agarra el celular y trata de avisar. La mordedura **ocurrió en una plaza**, y Noelí la reporta al día siguiente porque antes fue al médico. La vacuna **se dio en el consultorio**, y la veterinaria la firma después de aplicarla.
+
+De ahí salen tres consecuencias prácticas:
+
+1. **Cargá los hechos con la fecha en que ocurrieron**, no con la de hoy, cuando el formulario te lo permita. Una libreta real tiene fechas del pasado.
+2. **Entrá por donde entraría esa persona.** Si a Graciela le llega un aviso, seguí el aviso. No vayas a la URL directa porque sabés cuál es: si no la encontrás navegando, **eso es el hallazgo**.
+3. **Si dudarías, anotá que dudaste.** No busques la manera correcta de hacerlo hasta encontrarla y después reportar "OK". La primera reacción es el dato.
+
+> Regla operativa: **si tuviste que adivinar dónde estaba algo, escribilo**, aunque después lo hayas encontrado.
+
+## 0.2 Las cinco lentes — qué estamos midiendo en realidad
+
+Los hitos de abajo son la excusa. **Esto es lo que buscamos.** En cada hito, además de "salió / no salió", pasá el resultado por estas cinco lentes. Cada hallazgo debe decir cuál lente lo detectó.
+
+### L1 — Claridad: ¿se entiende sin que nadie te explique?
+
+Para cada pantalla nueva, antes de tocar nada, respondé en una línea: **"esta pantalla es para ______ y lo próximo que tengo que hacer es ______"**. Si no podés, el hallazgo es la pantalla, no vos. Reportá también cuando **el nombre no coincide con lo que hace**, o cuando dos cosas distintas se llaman igual.
+
+### L2 — Unificación: ¿el dato está donde lo buscás, o hay que ir a juntarlo?
+
+Contá los **saltos**. "¿Está vacunado?" debería costar cero o un salto desde donde estás parado. Si para armar una respuesta simple tuviste que abrir tres pantallas y acordarte de la primera, **eso es el hallazgo** — y decí cuál era el dato y cuántos saltos costó.
+
+También: cuando el mismo dato aparece en dos lugares, ¿está escrito igual? Una fecha como `05/08/2026` en una pantalla y `5 de agosto` en otra no es un error, pero sí es fricción — anotala.
+
+### L3 — Seguimiento: ¿podés saber qué tenés abierto y a qué estás esperando?
+
+Ésta es la más importante y la más fácil de que falle. Después de cada vuelta de rotación, con cada persona, preguntate:
+
+> **"Si cierro el navegador ahora y vuelvo mañana, ¿desde dónde me entero de en qué quedó cada cosa que empecé?"**
+
+Y en concreto:
+- ¿Hay **un solo lugar** donde ves todo lo tuyo pendiente, o tenés que acordarte de mirar cinco pantallas?
+- Lo que está esperando por **otra persona**, ¿se distingue de lo que espera por vos?
+- Cuando algo avanzó mientras no mirabas, ¿**te enteraste**, o lo descubriste porque fuiste a buscarlo?
+- ¿Se puede saber **hace cuánto** está esperando?
+
+### L4 — Consistencia multi-rol y multi-pantalla: ¿todos ven el mismo estado?
+
+**El protocolo:** cada vez que un hito cambia el estado de un caso, hacé un **corte transversal** antes de seguir. Mirá ese mismo caso desde **todos los roles que pueden verlo** y anotá qué dice cada uno:
+
+```
+[CORTE] <id del hito> — <el caso>
+  dueño (<cuenta>)  →  "<lo que dice la pantalla, textual>"
+  organización      →  "<...>"
+  gobierno          →  "<...>"
+  credencial /p/    →  "<...>"
+  ¿Coinciden?       sí | no — <en qué difieren>
+```
+
+Diferencias **legítimas**: cada rol ve distinto nivel de detalle, y hay datos ocultos por privacidad a propósito. Eso no es hallazgo.
+
+Diferencia que **SÍ es hallazgo**: los tres dicen algo distinto **sobre el mismo hecho**. Que para el dueño esté "aprobado", para la organización "pendiente" y el gobierno no lo vea — eso es lo que venimos a buscar.
+
+Hacé al menos un `[CORTE]` en cada uno de estos momentos: una adopción aprobada, una mordedura reportada, una mascota marcada como perdida y después encontrada, una vacuna aplicada, un traspaso de titularidad.
+
+### L5 — Confianza: ¿le creés a lo que la pantalla afirma?
+
+Una pantalla que carga no es una pantalla correcta. Cuando veas un número, un estado o un "última actualización", preguntate si **podés verificarlo con algo que vos mismo hiciste**. Si un contador dice 12 y vos creaste 3, ¿cierra? Si dice "actualizado recién" pero vos sabés que el dato es de anoche, **eso es hallazgo**, aunque el número esté bien.
+
+---
+
+**En el informe final, un párrafo por lente.** No una lista de bugs: tu opinión, con los hitos que la sostienen.
+
 ---
 
 ## 1. Cómo se ejecuta
@@ -86,14 +155,35 @@ Antes de que empieces, ya se dejó preparado:
 
 ---
 
-# FASE 2 — Construir el pasado (`Alejo` + `Lilian`)
+# FASE 2 — El pasado: leer el que existe, y escribir uno nuevo
 
 **Esta fase es la que hace que el sistema tenga algo que decir.** Sin ella, todas las proyecciones miran un mes de datos.
 
+## 2.0 Primero LEER — el patrón de oro ya está en la base
+
+La base tiene mascotas históricas con **biografías reales**, y son la referencia contra la cual juzgar todo lo demás. No las toques: **leelas**.
+
+| Mascota | Token | Vida registrada | Tipos de evento |
+|---|---|---|---|
+| **Kabosu** (el Doge) | `DIM-KABO-0019` | 2005–2024 | 24 |
+| **Terry** (Toto, *El Mago de Oz*) | `DIM-TRRY-0018` | 1933–1945 | 23 |
+| **Pal** (el Lassie original) | `DIM-PAL2-0017` | 1940–1958 | 18 |
+| **Hachikō** | `DIM-HACH-0016` | 1923–1935 | 18 |
+| **Frida** (rescatista, México) | `DIM-FRID-0023` | 2009–2022 | 15 |
+| **Pampa** (flagship) | `DIM-PAMP-0001` | 2022–2026 | 8 |
+
 | # | Hito | Qué hacer |
 |---|---|---|
-| **B1** | Un animal con años | Registrar `CIU-Matusalén` y cargarle **eventos fechados hacia atrás**: vacunas de 2023, 2024 y 2025, desparasitaciones, pesos que cambian, una visita al veterinario. Usá las fechas de los formularios, no la de hoy |
-| **B2** | La libreta que resulta | Abrir su libreta y **mirar si la historia se lee**. ¿Se ordena bien? ¿Se entiende qué está vigente y qué venció? ¿La credencial pública dice la verdad sobre un animal con años? |
+| **B0** | Leer una vida entera | Abrir la libreta de **Kabosu** (la más rica: 24 tipos, 19 años). ¿Se puede **recorrer** esa historia o hay que scrollear a ciegas? ¿Encontrás rápido "cuándo fue su última antirrábica"? ¿Se distingue lo vigente de lo vencido de lo histórico? |
+| **B0b** | Una vida de otra época | Abrir **Hachikō** (1923–1935). Fechas de hace un siglo. ¿La interfaz las soporta o se rompe algo — orden, cálculo de edad, "próximo a vencer" sobre una vacuna de 1930? **Este es un borde real y gratis** |
+| **B0c** | La credencial pública de un histórico | Abrir el `/p/` de uno de ellos. Está fallecido: ¿la credencial es honesta al respecto o parece un animal vivo? |
+
+## 2.1 Después ESCRIBIR — probar el camino de carga
+
+| # | Hito | Qué hacer |
+|---|---|---|
+| **B1** | Un animal con años, hecho a mano | Registrar `CIU-Matusalén` y cargarle **eventos fechados hacia atrás**: vacunas de 2023, 2024 y 2025, desparasitaciones, pesos que cambian, una visita al veterinario. Usá las fechas de los formularios, no la de hoy |
+| **B2** | Comparar contra el patrón de oro | Abrir su libreta **y la de Kabosu al lado**. ¿La que armaste a mano se lee igual de bien? Si no, ¿qué le falta — y es porque el formulario no lo pide, o porque la pantalla no lo muestra? |
 | **B3** | Firmado vs declarado | En el mismo animal, que **Lilian firme** una vacuna con su matrícula y que el **dueño declare** otra. Verificar que la libreta las distingue y que se entiende cuál vale más |
 | **B4** | Un animal sin nada | Registrar `CIU-Fantasma` y **no cargarle nada**. Es el otro extremo: ¿qué muestra su credencial pública? ¿Es honesta sobre lo que no sabe? |
 | **B5** | Un animal que ya no está | Registrar `CIU-Ausente`, darle historia breve, y registrar su **fallecimiento con disposición final**. Verificar qué avisos aparecen y qué pasa con su credencial |
@@ -219,12 +309,15 @@ Además de la línea del hito, un bloque:
 
 ```
 [HALLAZGO] <id del hito>
+Lente:        L1 claridad | L2 unificación | L3 seguimiento | L4 consistencia | L5 confianza
 Dónde:        <la pantalla, como la nombrarías vos>
 Qué esperaba: 
 Qué pasó:     
 Cuánto frenó: me trabó | dudé | sólo me molestó
 Reproducir:   <pasos exactos>
 ```
+
+Si no sabés qué lente es, ponelo igual y escribí `Lente: no sé`. **Nunca dejes de reportar algo porque no encaja.**
 
 ## Al cerrar cada vuelta de rotación
 
@@ -237,9 +330,11 @@ Eso es lo que hace visible el comportamiento que el test busca medir: **cuánto 
 ## El informe final
 
 1. **La bitácora completa**, en orden.
-2. **Tabla de todo lo creado `CIU-`**: tipo, nombre, token, cuenta creadora, hito que lo creó.
-3. **El antes y el después de admin y de Lucas**: qué mostraban al empezar y al terminar, y si la diferencia se corresponde con lo que ocurrió.
-4. **Lo que no pudiste probar y por qué.** Vale tanto como un hallazgo.
+2. **Un párrafo por lente (L1 a L5).** Tu opinión, sostenida por hitos concretos. Esto es lo que más nos importa — más que la lista de bugs.
+3. **Todos los `[CORTE]` juntos en una tabla**, para poder leer de un vistazo dónde los roles dejaron de coincidir.
+4. **Tabla de todo lo creado `CIU-`**: tipo, nombre, token, cuenta creadora, hito que lo creó.
+5. **El antes y el después de admin y de Lucas**: qué mostraban al empezar y al terminar, y si la diferencia se corresponde con lo que ocurrió.
+6. **Lo que no pudiste probar y por qué.** Vale tanto como un hallazgo.
 
 ### Las tres preguntas del cierre
 
