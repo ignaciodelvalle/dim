@@ -37,7 +37,7 @@ import { LegendCaptionBlock } from "@/components/panorama/LegendCaptionBlock";
 import { LegendPill } from "@/components/panorama/LegendPill";
 import { type MapTableRow, useMapTableCsvHref } from "@/components/panorama/MapDataTable";
 import { MapErrorBoundary } from "@/components/panorama/MapErrorBoundary";
-import { MapLegends } from "@/components/panorama/MapLegends";
+import { MapLegendsDynamic } from "@/components/panorama/MapLegendsDynamic";
 import { ModeSwitcher } from "@/components/panorama/ModeSwitcher";
 import { OverlayDisclosure } from "@/components/panorama/OverlayDisclosure";
 import { PanoramaBoardNotices } from "@/components/panorama/PanoramaBoardNotices";
@@ -4026,7 +4026,7 @@ export function PanoramaConsole({
   // moved, so the province ramp / division fill / graduated / bivariate
   // legends still stay in lockstep with what the map paints.
   const dockReferencias = (
-    <MapLegends
+    <MapLegendsDynamic
       layers={mapLayers}
       divisionLegend={divisionLegend}
       graduatedScale={graduatedScale}
