@@ -485,6 +485,17 @@ const ADMIN_OBSERVACIONES: ScreenManifestEntry = {
   decision: "¿Qué observación de rabia en curso necesita seguimiento o cierre?",
 };
 
+// El gemelo de gobierno de ADMIN_OBSERVACIONES (2026-08-10). Es la MISMA
+// pantalla —`app/gob/observaciones/page.tsx` re-exporta el componente— servida
+// bajo el otro portal, porque el layout de /admin rebota al rol govt y la
+// observación antirrábica es competencia sanitaria. Misma decisión, mismo layer:
+// nav-presets la ubica en la sección Situación de gobierno igual que su gemela.
+const GOB_OBSERVACIONES: ScreenManifestEntry = {
+  route: "/gob/observaciones",
+  layer: "situacion",
+  decision: "¿Qué observación de rabia en curso necesita seguimiento o cierre?",
+};
+
 const ADMIN_INTELIGENCIA: ScreenManifestEntry = {
   route: "/admin/inteligencia",
   layer: "profundidad",
@@ -583,6 +594,7 @@ export const SCREEN_MANIFEST: readonly ScreenManifestEntry[] = [
   GOB_USUARIOS,
   GOB_SERVICIOS,
   GOB_DIRECTORIO,
+  GOB_OBSERVACIONES,
   // /admin
   ADMIN_PANEL,
   ADMIN_PANORAMA,

@@ -31,6 +31,7 @@
     "/gob/maltrato/[id]",
     "/gob/mascotas/[token]",
     "/gob/moderacion/[id]",
+    "/gob/observaciones/[publicToken]",
     "/gob/reglas/[country]/[province]/[locality]",
     "/gob/reglas/[country]/[province]/[locality]/editar/[ruleId]",
     "/gob/reglas/[country]/[province]/[locality]/nueva",
