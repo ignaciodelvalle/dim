@@ -120,7 +120,7 @@ describe("WorklistSection — ranked rows with honest affordances", () => {
     render(<WorklistSection result={mixedResult()} />);
     const row = screen.getAllByRole("listitem")[0];
     const link = within(row).getByRole("link", { name: /Cerrar/ });
-    expect(link).toHaveAttribute("href", "/admin/observaciones/DIM-TEST-0001");
+    expect(link).toHaveAttribute("href", "/gob/observaciones/DIM-TEST-0001");
     expect(within(row).queryByRole("button")).not.toBeInTheDocument();
   });
 

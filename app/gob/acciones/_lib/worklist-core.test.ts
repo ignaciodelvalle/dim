@@ -77,7 +77,7 @@ describe("mapObservationRows — deadline supplied by the caller (resolveObserva
     expect(item.code).toBe("DIM-TEST-0001");
     expect(item.action).toEqual({
       type: "link",
-      href: "/admin/observaciones/DIM-TEST-0001",
+      href: "/gob/observaciones/DIM-TEST-0001",
       label: "Cerrar",
     });
   });

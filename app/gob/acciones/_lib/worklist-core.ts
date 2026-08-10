@@ -145,7 +145,16 @@ export function mapObservationRows(rows: ObservationWorklistRow[], now: Date): W
     due: computeDueInfo(r.dueAt, now, OBSERVATION_DUE_SOON_DAYS),
     action: {
       type: "link" as const,
-      href: `/admin/observaciones/${r.petPublicToken}`,
+      // /gob, not /admin (2026-08-10). This worklist lives under app/gob and is
+      // read by government operators, but it emitted an /admin href — whose
+      // LAYOUT calls requireAdminOrRedirect and bounces govt to the home before
+      // the destination page (which does admit govt) ever runs. The product
+      // offered the action and then denied it, silently.
+      //
+      // /gob/observaciones/[publicToken] re-exports the same page, and the /gob
+      // layout admits admin as well as govt, so this href is correct for every
+      // viewer of this screen.
+      href: `/gob/observaciones/${r.petPublicToken}`,
       label: "Cerrar",
     },
   }));

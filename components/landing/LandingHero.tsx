@@ -222,35 +222,6 @@ export function LandingHero({ qrSvg, publicHref, publicToken }: LandingHeroProps
     <section className="lp-section lp-section--paper lp-hero" id="top" data-section="landing-hero">
       <div className="lp-wrap-wide">
         <div className="lp-hero-grid">
-          <div>
-            <p className="lp-eyebrow lp-eyebrow--dot lp-reveal">
-              República Argentina · Ministerio de Salud
-            </p>
-            <h1 className="lp-display lp-h-hero lp-reveal mt-4" data-d="1">
-              Toda una vida,
-              <br />
-              en una sola miMAR.
-            </h1>
-            <p className="lp-lead lp-reveal mt-6" data-d="2">
-              miMAR es el registro nacional de mascotas: una identidad pública y un historial
-              inmutable, compartido por todas las manos que la cuidan.
-            </p>
-            <div className="lp-hero-cta lp-reveal" data-d="3">
-              {/* The primary "Crear tu miMAR" CTA that used to live here was
-                  removed (PO feedback 2026-07-21): it duplicated LandingNav's
-                  "Crear mi miMAR" (/signup), both visible above the fold at
-                  once. "Cómo funciona" is a distinct secondary action (scrolls
-                  to #idea) and stays as the hero's own CTA. */}
-              <a href="#idea" className="lp-btn lp-btn--ghost">
-                Cómo funciona
-              </a>
-            </div>
-            {/* Hero triad — exact copy is a PO-locked decision (#4). */}
-            <p className="lp-hero-kill lp-reveal" data-d="4">
-              <b>Gratis para siempre.</b> Sin papeleo. Datos abiertos.
-            </p>
-          </div>
-
           <div className="lp-hero-photo lp-reveal" data-d="2">
             <div className="flex w-full flex-col items-center">
               <div className="lp-hcardwrap">
@@ -406,6 +377,35 @@ export function LandingHero({ qrSvg, publicHref, publicToken }: LandingHeroProps
                 ))}
               </div>
             </div>
+          </div>
+
+          <div>
+            <p className="lp-eyebrow lp-eyebrow--dot lp-reveal">
+              República Argentina · Ministerio de Salud
+            </p>
+            <h1 className="lp-display lp-h-hero lp-reveal mt-4" data-d="1">
+              Toda una vida,
+              <br />
+              en una sola miMAR.
+            </h1>
+            <p className="lp-lead lp-reveal mt-6" data-d="2">
+              miMAR es el registro nacional de mascotas: una identidad pública y un historial
+              inmutable, compartido por todas las manos que la cuidan.
+            </p>
+            <div className="lp-hero-cta lp-reveal" data-d="3">
+              {/* The primary "Crear tu miMAR" CTA that used to live here was
+                  removed (PO feedback 2026-07-21): it duplicated LandingNav's
+                  "Crear mi miMAR" (/signup), both visible above the fold at
+                  once. "Cómo funciona" is a distinct secondary action (scrolls
+                  to #idea) and stays as the hero's own CTA. */}
+              <a href="#idea" className="lp-btn lp-btn--ghost">
+                Cómo funciona
+              </a>
+            </div>
+            {/* Hero triad — exact copy is a PO-locked decision (#4). */}
+            <p className="lp-hero-kill lp-reveal" data-d="4">
+              <b>Gratis para siempre.</b> Sin papeleo. Datos abiertos.
+            </p>
           </div>
         </div>
       </div>
