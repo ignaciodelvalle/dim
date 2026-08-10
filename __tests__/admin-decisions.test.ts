@@ -9,6 +9,8 @@ import { createClient } from "@supabase/supabase-js";
 import { and, eq, isNull, or, sql } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
+import { WHOLE_PROVINCE_LOCALITY } from "@/lib/domain/jurisdiction-canonical";
+
 import {
   approvalRequests,
   auditLog,
@@ -466,10 +468,24 @@ describe("scope enforcement — govt cannot decide out-of-scope requests", () =>
       .update(profiles)
       .set({ role: "govt", accountType: "institutional" })
       .where(eq(profiles.id, govtUserId));
+    // WHOLE_PROVINCE_SENTINEL, not "Capital" (fixed 2026-08-10).
+    //
+    // "Capital" does not exist in ar_localities for Mendoza, and
+    // __tests__/govt-assignments-locality-integrity.test.ts is explicit about
+    // what that means: a locality that does not resolve "silently produces an
+    // EMPTY scope in jurisdictionPairClause". So this fixture was proving the
+    // wrong thing — the govt would have been rejected even if the scoping logic
+    // were broken, because their scope matched nothing at all.
+    //
+    // The sentinel gives them a REAL scope (all of Mendoza) that genuinely does
+    // not contain the CABA request below, so the rejection now tests the rule
+    // instead of testing a typo. Note jurisdiction-canonical.ts warns that the
+    // province's own name is NOT the sentinel: "Mendoza" is itself a real
+    // locality inside Mendoza.
     await db.insert(govtAssignments).values({
       userId: govtUserId,
       jurisdictionProvince: "Mendoza",
-      jurisdictionLocality: "Capital",
+      jurisdictionLocality: WHOLE_PROVINCE_LOCALITY.Mendoza,
       grantedByUserId: adminUserId,
     });
 
