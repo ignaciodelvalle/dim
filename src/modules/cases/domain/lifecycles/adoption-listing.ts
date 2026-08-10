@@ -28,5 +28,8 @@ export const adoptionListingLifecycle: CaseLifecycle = {
   cronCloseRoute: "/api/cron/close-followup-expired-adoptions",
   cronCloseScheduleHours: 24,
   manualOpenAllowed: false,
+  // Nadie documentó una política de cierre manual para este kind.  no
+  // es una prohibición decidida: es la ausencia de una decisión escrita.
+  manualCloseAllowed: false,
   reopenAllowed: true,
 };

@@ -229,6 +229,62 @@ export class CasesRepository {
     return updatedRows[0];
   }
 
+  /**
+   * `closeCase`, pero diciendo si ESTE llamador fue el que cerró.
+   *
+   * POR QUÉ EXISTE (2026-08-10). `closeCase` resuelve la carrera bien — el
+   * guard va dentro del WHERE del UPDATE, así que sólo el primero escribe — y su
+   * propio comentario advierte que "this caller is NOT the winner and must not
+   * run close-dependent downstream". Pero devuelve `Case | null` en los dos
+   * casos: ganador y perdedor reciben una fila cerrada, indistinguibles.
+   *
+   * Con efectos secundarios idempotentes eso alcanza, y por eso los ~12
+   * llamadores existentes están bien. No alcanza cuando el efecto es un evento
+   * en `case_events`, que es **append-only por trigger**: el perdedor insertaría
+   * un segundo `case_closed` con otro motivo y otro actor, imposible de borrar o
+   * corregir, mientras `closed_by_user_id` guarda sólo al primero. El expediente
+   * terminaría contando dos cierres de un caso que se cerró una vez.
+   *
+   * Método nuevo en vez de cambiar la firma: los llamadores existentes no
+   * necesitan esto y tocarlos sería mover doce sitios para ganar nada.
+   */
+  async closeCaseOwned(
+    input: CloseCaseInput,
+    executor: CaseExecutor = db,
+  ): Promise<{ won: boolean; case: Case | null }> {
+    const [existing] = await executor
+      .select()
+      .from(cases)
+      .where(eq(cases.id, input.caseId))
+      .limit(1);
+    if (!existing) return { won: false, case: null };
+    if (existing.status === "closed" || existing.status === "merged") {
+      return { won: false, case: existing };
+    }
+
+    const updatedRows = await executor
+      .update(cases)
+      .set({
+        status: "closed",
+        closedReason: input.reason,
+        closedAt: new Date(),
+        closedByUserId: input.closedByUserId ?? null,
+        updatedAt: new Date(),
+      })
+      .where(and(eq(cases.id, input.caseId), notInArray(cases.status, ["closed", "merged"])))
+      .returning();
+
+    if (updatedRows.length === 0) {
+      const [current] = await executor
+        .select()
+        .from(cases)
+        .where(eq(cases.id, input.caseId))
+        .limit(1);
+      return { won: false, case: current ?? null };
+    }
+    return { won: true, case: updatedRows[0] };
+  }
+
   // -------------------------------------------------------------------------
   // escalateCase
   // -------------------------------------------------------------------------

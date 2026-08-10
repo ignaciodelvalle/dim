@@ -30,5 +30,8 @@ export const lostPetEpisodeLifecycle: CaseLifecycle = {
   cronCloseRoute: "/api/cron/close-stale-lost-episodes",
   cronCloseScheduleHours: 24,
   manualOpenAllowed: false,
+  // Nadie documentó una política de cierre manual para este kind.  no
+  // es una prohibición decidida: es la ausencia de una decisión escrita.
+  manualCloseAllowed: false,
   reopenAllowed: false,
 };

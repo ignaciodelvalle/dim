@@ -22,5 +22,8 @@ export const biteIncidentLifecycle: CaseLifecycle = {
   cronCloseRoute: "/api/cron/close-rabies-observations",
   cronCloseScheduleHours: 12,
   manualOpenAllowed: false,
+  // Nadie documentó una política de cierre manual para este kind.  no
+  // es una prohibición decidida: es la ausencia de una decisión escrita.
+  manualCloseAllowed: false,
   reopenAllowed: false,
 };

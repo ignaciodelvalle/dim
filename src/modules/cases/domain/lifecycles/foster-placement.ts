@@ -22,5 +22,8 @@ export const fosterPlacementLifecycle: CaseLifecycle = {
   cronCloseRoute: null,
   cronCloseScheduleHours: 24,
   manualOpenAllowed: false,
+  // Nadie documentó una política de cierre manual para este kind.  no
+  // es una prohibición decidida: es la ausencia de una decisión escrita.
+  manualCloseAllowed: false,
   reopenAllowed: false,
 };

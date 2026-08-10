@@ -37,5 +37,8 @@ export const custodyEpisodeLifecycle: CaseLifecycle = {
   cronCloseRoute: null,
   cronCloseScheduleHours: 0,
   manualOpenAllowed: true,
+  // Único de los doce con política de cierre manual DOCUMENTADA: el spec de
+  // decomiso da a admin/govt la autoridad de cancelar (DC).
+  manualCloseAllowed: true,
   reopenAllowed: false,
 };

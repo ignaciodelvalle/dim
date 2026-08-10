@@ -3907,6 +3907,15 @@ export const CASE_EVENT_ENTRY_TYPES = [
   // CaseDetailView filters these entries for every non-govt/non-admin viewer
   // (the disputing parties can read the case detail, but must never see tips).
   "finder_tip",
+  // Nota de operador (#41, 2026-08-10) — un funcionario o admin asienta texto
+  // libre en el expediente desde el detalle genérico de caso. Es la única acción
+  // legítima para los DOCE kinds: no toca el estado, no pretende ser una
+  // transición, y por eso no depende del ciclo de vida de ninguno.
+  //
+  // Distinta de `reporter_comment`, que es del denunciante sobre su propia
+  // denuncia. Se separan porque el lector necesita saber quién habla: una nota
+  // de autoridad y un comentario de particular no pesan igual en un expediente.
+  "operator_note",
   // outbreak_investigation entry types
   "classification",
   "lab_result",

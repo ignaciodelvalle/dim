@@ -51,6 +51,26 @@ export interface CaseLifecycle {
   /** True for kinds an admin/govt can open without an event (welfare_denuncia). */
   manualOpenAllowed: boolean;
 
+  /**
+   * True for kinds an admin/govt can CLOSE by hand, without waiting for a
+   * terminal event.
+   *
+   * Added 2026-08-10, y vale explicar por qué era necesario. `custody-episode.ts`
+   * decía en prosa "Manual close: allowed (admin/govt can cancel decomiso per DC
+   * authority)" — una frase correcta que ningún código podía leer. Cuando el
+   * detalle de caso ganó su botón de cerrar, la regla de la casa era que las
+   * acciones se DERIVAN del ciclo de vida y no se inventan; con la política
+   * viviendo en un comentario, "derivar" habría sido imposible y el botón habría
+   * quedado apoyado en que alguien se acuerde.
+   *
+   * Arranca en `true` SÓLO para `custody_episode`, que es el único de los doce
+   * cuya política estaba documentada. Los otros once son `false` no porque se
+   * haya decidido prohibirlo, sino porque nadie lo escribió — y un cierre manual
+   * cierra un expediente legal. Habilitar uno nuevo es una línea acá más la
+   * razón al lado, que es exactamente la fricción que corresponde.
+   */
+  manualCloseAllowed: boolean;
+
   /** Re-open from closed back to open. Only adoption_listing allows it. */
   reopenAllowed: boolean;
 }

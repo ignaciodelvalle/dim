@@ -23,5 +23,8 @@ export const custodyTransferHandshakeLifecycle: CaseLifecycle = {
   cronCloseRoute: "/api/cron/expire-cross-org-transfers",
   cronCloseScheduleHours: 24,
   manualOpenAllowed: false,
+  // Nadie documentó una política de cierre manual para este kind.  no
+  // es una prohibición decidida: es la ausencia de una decisión escrita.
+  manualCloseAllowed: false,
   reopenAllowed: false,
 };

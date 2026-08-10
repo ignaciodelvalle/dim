@@ -23,5 +23,8 @@ export const custodyDisputeLifecycle: CaseLifecycle = {
   // Owners can self-raise via /mis-mascotas/reclamar (P3-1, 2026-05-28).
   // Govt/admin still adjudicate resolution.
   manualOpenAllowed: true,
+  // Nadie documentó una política de cierre manual para este kind.  no
+  // es una prohibición decidida: es la ausencia de una decisión escrita.
+  manualCloseAllowed: false,
   reopenAllowed: false,
 };
