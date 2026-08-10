@@ -329,7 +329,7 @@ Las cuatro estaban bloqueando código escrito. Ninguna bloquea nada ahora.
 | `lint:plural` — plurales a mano | **95 en 59 archivos** | `scripts/pluralize-es-baseline.json` |
 | `lint:select` — `<select>` crudos | **48** | `scripts/check-raw-select.mjs` |
 | `lint:professionalism` — símbolo-como-ícono | **6 en 1 archivo** (el mapa `STATUS_ICON` de `AlertInboxTable`, excepción aprobada por el PO) | `scripts/professionalism-baseline.json` |
-| **Q5** — tipografías por debajo del piso | **24** (`fontBelowFloor`: 11 core + 8 landing + 5 chapita) | `scripts/design-tokens-css-baseline.json` |
+| **Q5** — tipografías por debajo del piso | **19** (core 6 + landing 8 + chapita 5) — re-medido 2026-08-10 con `--list-css`; el núcleo bajó de 11 a 6, el documento decía 24. **Y de los 19, los 5 de `chapita-print.css` son exención legítima, no deuda**: ese archivo dimensiona en milímetros reales (`width:50mm`) para corte a escala 100%, así que el piso de 10px es una regla de PANTALLA aplicada a papel — 7px impresos en una chapa de 50×30mm se leen | `scripts/design-tokens-css-baseline.json` |
 | `lint:empty-states` — "Sin resultados" fuera de `LnEmptyState` | **2** (los dos casos de picker, legítimos) | `scripts/empty-state-baseline.json` |
 | Formas de fecha hand-rolled | **~35** que no convergieron a un shape canónico | Documentado en `625e6eba`. **Todas son timezone-safe y reloj de 24h — la fence lo garantiza**; lo que falta es que compartan helper |
 
@@ -337,20 +337,27 @@ Las cuatro estaban bloqueando código escrito. Ninguna bloquea nada ahora.
 8px a 10px **cambia el layout de la credencial**. Se retiran de a uno, con ojo
 encima.
 
-### Cola larga de estética (RA-10)
+### Cola larga de estética (RA-10) — RE-VERIFICADA 2026-08-10
 
-**~20 hallazgos**, ninguno bloqueante, ninguno con fecha de re-verificación
-reciente. Los que se veían a simple vista ya cayeron en esta corrida (foco,
-columnas que saltan, dock que teletransporta, vocabularios de estado). Lo que
-queda es de a uno y con criterio: **21 pesos de fuente inertes** (Mono carga
-400/600 y Serif 500/600, así que `font-bold` da 600 y `font-medium` da **400** —
-el arreglo es genuinamente ambiguo: 400 es honesto pero consagra un peso no
-buscado, 600 respeta la intención pero cambia visiblemente la credencial
-insignia, y sumar 500 a `layout.tsx` es una decisión de performance), 5 radios
-de chip conviviendo, la micro-tipografía de la credencial pública a 8px.
+> La advertencia que este documento traía —"re-verificar antes de tocar, la lista
+> es del 04/08 y esta corrida movió mucho CSS"— era correcta **y se quedó corta**:
+> de 20 ítems, **13 están muertos**, 2 nunca fueron hallazgos, y quedan **5 vivos**.
+> El descarte vale tanto como el hallazgo; lo que sigue es sólo lo vivo, con
+> evidencia de hoy.
 
-**Antes de tocar cualquiera de éstos: re-verificar contra el árbol.** La lista
-tiene fecha del 04/08 y esta corrida movió mucho CSS.
+| # | Qué | Estado |
+|---|---|---|
+| **E-1** | **Los 21 pesos de fuente inertes NO existen.** `d5146543` (01/08) los cerró, *antes* de que se escribiera la lista que los reporta. Hoy `app/layout.tsx` carga mono 400/500/600/700 y serif 500/600/700; demanda ⊆ oferta re-derivada con un scanner independiente del test: **337 pares en .tsx + 30 en .css, DEAD = 0**, y `deadWeight: 0` en los tres buckets de `scripts/design-tokens-css-baseline.json` | **CERRADO.** La fila anterior era un rumor con cinco días — exactamente lo que la regla de evidencia de este documento existe para evitar |
+| **E-2** | **El radio de chip no tiene 5 valores: tiene 6 geometrías.** El "5" del documento midió sólo CSS. Barriendo la familia entera (30 archivos con nombre de chip/badge/pill/tag/flag/crumb más las reglas de `globals.css` con forma de etiqueta): píldora 9999px (10 miembros, todos de superficie ciudadana), `999px` literal (1 — desvío de **grafía**, rinde idéntico), 6px (1), 5px crudo (1), 4px (4), 3px crudo (4), 2px (3) | **DECISIÓN DEL PO.** La píldora domina por frecuencia, pero converger toca la credencial insignia, y el propio documento pide ojo humano encima para ésos |
+| **E-3** | **`order: -1` del hero rompe el orden de tabulación en móvil** (`app/globals.css:1478-1483`). El bloque de foto va SEGUNDO en el DOM (`components/landing/LandingHero.tsx:254`) y primero en pantalla bajo 900px, y contiene controles reales: el link a la credencial de demo (`:301`) y un `role="toolbar"` de estados (`:394`). Visualmente primero, en tab último — WCAG 2.4.3 | **DECISIÓN DEL PO.** No es corrección mecánica: invertir el DOM mueve el desajuste de móvil a desktop. Hay que elegir qué breakpoint paga, y es la landing |
+| **E-4** | **Dos comentarios de geometría mentían sobre el tamaño**: `OpStatusPill` decía "9px" y rinde `text-xs`, que `--text-xs` fija en 10px (`globals.css:251`); `OpKpiSm` igual. `d5146543` arregló la mitad del PESO de ese mismo comentario y dejó la mitad del TAMAÑO | **CERRADO 2026-08-10** — ahora nombran el TOKEN y no un píxel, que es lo que evita que vuelvan a divergir |
+| **E-5** | **Micro-tipografía de la credencial pública** (`.ln-qr-cap`, `app/globals.css:4031-4038`) | **VIVO**, y se cruza con Q5. Subirlo cambia el layout de la credencial: de a uno y con ojo encima |
+
+**No son hallazgos, no los toques**: los 5 de `chapita-print.css` (dimensiona en
+milímetros reales para corte a escala 100% — el piso de 10px es una regla de
+PANTALLA aplicada a papel) y los 7 "considerados y rechazados" que ya viven más
+abajo con su razón técnica cada uno.
+
 
 ### Infraestructura de tests
 

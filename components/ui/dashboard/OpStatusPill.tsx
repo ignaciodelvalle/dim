@@ -33,7 +33,10 @@ interface Props {
 /**
  * Canonical status primitive for all operator status surfaces.
  *
- * Geometry: rounded-[3px] · font-ln-mono · 9px bold uppercase 0.06em tracking.
+ * Geometry: rounded-[3px] · font-ln-mono · text-xs (10px) bold uppercase
+ * 0.06em tracking. Said "9px" until 2026-08-10 while rendering text-xs, which
+ * --text-xs pins at 10px (globals.css:251). Naming the TOKEN instead of a
+ * pixel value is what keeps the two from drifting apart again.
  * Color: resolved via st-* tokens (remapped to ln-op-* under .op-surface).
  *
  * Do not use this component directly in feature code — prefer the domain-

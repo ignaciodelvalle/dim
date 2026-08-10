@@ -895,7 +895,9 @@ type SmProps = Pick<Props, "label" | "value" | "tone" | "sub" | "href">;
 const SM_DISPLAY_MAX_CHARS = 16;
 
 /**
- * Compact KPI tile. Smaller value (--text-2xl, 24px), 9px label, optional hint row.
+ * Compact KPI tile. Smaller value (--text-2xl, 24px), text-xs label, optional
+ * hint row. The label said "9px" until 2026-08-10; it renders text-xs, which is
+ * 10px (globals.css:251). Same drift as OpStatusPill, same fix: name the token.
  *
  * A long STRING value automatically steps down to body size (see
  * SM_DISPLAY_MAX_CHARS). Automatic rather than a caller prop on purpose: the
