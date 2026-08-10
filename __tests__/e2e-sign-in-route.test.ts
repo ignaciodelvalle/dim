@@ -44,6 +44,24 @@ function walk(dir: string): string[] {
 
 const FILES = walk(E2E_DIR).filter((f) => !f.endsWith(OWNER));
 
+/**
+ * Las líneas que son CÓDIGO — se descartan las de comentario entero.
+ *
+ * La prosa SÍ puede nombrar `/login`, y conviene que lo haga: media docena de
+ * comentarios de este repo explican por qué la ruta se movió y qué se rompió
+ * cuando lo hizo. Prohibirla ahí borraría la historia que evita repetir el
+ * error. Lo que no puede nombrarla es una línea que se ejecuta.
+ *
+ * Se descartan sólo comentarios de línea completa (`//`, `/*`, `*`), no los de
+ * cola: en `goto("/login") // legacy` la parte de código sigue delatándose.
+ */
+function codeLines(src: string): string[] {
+  return src.split("\n").filter((line) => {
+    const t = line.trim();
+    return !(t.startsWith("//") || t.startsWith("*") || t.startsWith("/*"));
+  });
+}
+
 describe("la ruta de ingreso vive en un solo lugar", () => {
   it("el barrido encuentra archivos (si no, este test no prueba nada)", () => {
     // Piso de no-vacuidad: un walk() roto dejaría FILES vacío y las dos reglas
@@ -52,26 +70,55 @@ describe("la ruta de ingreso vive en un solo lugar", () => {
     expect(FILES.length).toBeGreaterThan(20);
   });
 
-  it("ningún spec usa el predicado viejo basado en /login", () => {
+  it("ningún archivo de e2e nombra /login, en NINGUNA sintaxis", () => {
+    // ESTA REGLA EMPEZÓ SIENDO MÁS ANGOSTA QUE SU PROPIO NOMBRE, y por eso se
+    // escribe así. La primera versión buscaba dos formas concretas —
+    // `pathname.startsWith("/login")` y `.goto("/login")`— y dejó pasar una
+    // tercera que estaba a la vista en dos archivos:
+    //
+    //     .not.toMatch(/^\/login/)
+    //
+    // Un literal de expresión regular, no un string. `/iniciar-sesion` tampoco
+    // matchea ESA, así que el poll se cumplía parado en el formulario y
+    // `stateFor` cacheaba un storageState ANÓNIMO para los doce tests del
+    // archivo. La reja pasó verde sobre el defecto que existía para atrapar.
+    //
+    // La lección, que es la de toda esta corrida: una reja que enumera formas
+    // sólo atrapa las formas que enumeró. Enumerar la RUTA es exhaustivo;
+    // enumerar las maneras de escribirla, nunca. Por eso ahora se prohíbe la
+    // cadena, y el único módulo autorizado a nombrarla está excluido arriba.
+    // `(?<![\w-])` en vez de enumerar los caracteres que pueden precederla:
+    // enumerar comillas y barras dejó afuera el literal de regex `/^\/login/`,
+    // donde lo que precede es una CONTRABARRA. Prohibir el segmento y no sus
+    // envoltorios es lo único exhaustivo. El `\b` final deja pasar
+    // `/logins-antiguos`, que es otra ruta.
+    const LOGIN_LITERAL = /(?<![\w-])\/login\b/;
     const offenders = FILES.filter((f) =>
-      /pathname\s*\.\s*startsWith\(\s*["'`]\/login["'`]\s*\)/.test(readFileSync(f, "utf8")),
+      codeLines(readFileSync(f, "utf8")).some((l) => LOGIN_LITERAL.test(l)),
     ).map((f) => f.slice(E2E_DIR.length + 1));
 
     expect(
       offenders,
-      "usá leftSignIn de e2e/_sign-in-route: /iniciar-sesion no empieza con /login, así que este predicado es verdadero estando parado en el login",
+      "importá SIGN_IN_PATH / LEGACY_SIGN_IN_PATH / leftSignIn de e2e/_sign-in-route en vez de escribir /login: /iniciar-sesion no empieza con /login ni matchea /^\\/login/, así que toda condición basada en esa cadena es verdadera estando parado en el formulario",
     ).toEqual([]);
   });
 
-  it("ningún spec navega a la ruta vieja en inglés", () => {
-    // El 308 funciona, pero pasar por él en cada login agrega una redirección y
-    // una superficie de falla por nada — y es lo que hacía que el predicado
-    // roto pareciera razonable al leerlo.
-    const offenders = FILES.filter((f) =>
-      /\.goto\(\s*["'`]\/login["'`]/.test(readFileSync(f, "utf8")),
-    ).map((f) => f.slice(E2E_DIR.length + 1));
-
-    expect(offenders, "usá SIGN_IN_PATH de e2e/_sign-in-route").toEqual([]);
+  it("la regla anterior reconoce las tres formas que ya aparecieron", () => {
+    // Piso de no-vacuidad con dientes: si el patrón se afloja, esto falla antes
+    // de que un defecto real se cuele. Son las tres formas VIVAS que tuvo este
+    // bug, no ejemplos inventados.
+    // `(?<![\w-])` en vez de enumerar los caracteres que pueden precederla:
+    // enumerar comillas y barras dejó afuera el literal de regex `/^\/login/`,
+    // donde lo que precede es una CONTRABARRA. Prohibir el segmento y no sus
+    // envoltorios es lo único exhaustivo. El `\b` final deja pasar
+    // `/logins-antiguos`, que es otra ruta.
+    const LOGIN_LITERAL = /(?<![\w-])\/login\b/;
+    expect(LOGIN_LITERAL.test('await page.goto("/login");')).toBe(true);
+    expect(LOGIN_LITERAL.test('!url.pathname.startsWith("/login")')).toBe(true);
+    expect(LOGIN_LITERAL.test(".not.toMatch(/^\\/login/)")).toBe(true);
+    // Y no se dispara con la ruta canónica ni con una palabra que la contenga.
+    expect(LOGIN_LITERAL.test('page.goto("/iniciar-sesion")')).toBe(false);
+    expect(LOGIN_LITERAL.test('href="/logins-antiguos"')).toBe(false);
   });
 });
 

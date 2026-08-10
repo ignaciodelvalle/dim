@@ -1,6 +1,6 @@
 import { type Browser, type BrowserContext, type Page, expect, test } from "@playwright/test";
 
-import { SIGN_IN_PATH } from "./_sign-in-route";
+import { SIGN_IN_PATH, leftSignIn } from "./_sign-in-route";
 import { uniqueIp } from "./demo/_helpers";
 
 /**
@@ -75,11 +75,15 @@ async function login(page: Page, email: string) {
           ).trim();
           if (txt) throw new Error(`login blocked for ${email}: "${txt}"`);
         }
-        return new URL(page.url()).pathname;
+        // Booleano, no pathname — el gemelo exacto del helper de
+        // owner-ia-p6.spec.ts, con el mismo defecto: `/iniciar-sesion` no
+        // matchea `/^\/login/`, así que la condición se cumplía parada en el
+        // formulario y el storageState cacheado era ANÓNIMO.
+        return leftSignIn(new URL(page.url()));
       },
       { timeout: 30_000, intervals: [150, 250, 500, 500, 1000, 1500] },
     )
-    .not.toMatch(/^\/login/);
+    .toBe(true);
 }
 
 async function stateFor(browser: Browser, email: string): Promise<StorageState> {

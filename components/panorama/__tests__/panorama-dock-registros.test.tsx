@@ -11,6 +11,7 @@
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 
+import { MapDataTable } from "@/components/panorama/MapDataTable";
 import type { MapTableRow } from "@/components/panorama/map-table-csv";
 import { buildViewMeta, initialState } from "@/components/panorama/panorama-console-helpers";
 import type { DockRecordSummary } from "@/components/panorama/panorama-map-table";
@@ -142,15 +143,42 @@ describe("Registros caption — the scope it names is the scope the operator has
     );
   });
 
-  it("renders the composed caption into the pane it titles", () => {
-    // The caption rides the table, so the pane must HAVE rows — with none it
-    // renders the empty-state line instead and states no scope at all.
+  it("renders the composed caption onto the surface that shows it", () => {
+    // LA COSTURA SE MOVIÓ, NO LA PROPIEDAD (Lote E paso 2, 2026-08-10).
+    //
+    // Antes esto renderizaba el PANE y buscaba la copia. Desde que MapDataTable
+    // entra por next/dynamic, el primer frame del pane es el placeholder, así
+    // que `renderToStaticMarkup` sobre el pane ya no puede ver la leyenda —
+    // devolvería un verde vacío o un rojo por el motivo equivocado.
+    //
+    // Lo que importa sigue siendo lo mismo y sigue probado acá: la cadena de
+    // caption compuesta para un funcionario nombra SU alcance y no "Nacional"
+    // (el bug real que este bloque existe para impedir), y esa cadena llega
+    // efectivamente al DOM. Se afirma sobre el componente que la pinta.
+    const caption = captionFor({ role: "govt", jurisdictions: CABA_JURISDICTIONS });
+    const html = renderToStaticMarkup(
+      <MapDataTable
+        rows={[{ layer: "Desierto veterinario", unit: "Palermo", value: "12" }]}
+        caption={caption}
+        filename="panorama-mapa"
+        metrics={[]}
+        truncatedLayers={[]}
+      />,
+    );
+    expect(html).toContain("CABA · 5 localidades");
+    expect(html).not.toContain("Nacional");
+  });
+
+  it("el pane monta la tabla detrás de una frontera perezosa, y la anuncia", () => {
+    // El complemento del test de arriba: acá se prueba que el pane SÍ pone la
+    // tabla, aunque su contenido llegue después. Sin esto, borrar
+    // MapDataTableDynamic del pane no rompería nada.
     const html = render({
       caption: captionFor({ role: "govt", jurisdictions: CABA_JURISDICTIONS }),
       rows: [{ layer: "Desierto veterinario", unit: "Palermo", value: "12" }],
     });
-    expect(html).toContain("CABA · 5 localidades");
-    expect(html).not.toContain("Nacional");
+    expect(html).toContain("Cargando la tabla de registros");
+    expect(html, "el placeholder declara que está ocupado").toContain('aria-busy="true"');
   });
 });
 

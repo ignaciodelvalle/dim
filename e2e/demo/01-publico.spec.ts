@@ -1,4 +1,5 @@
 import { expect, test } from "@playwright/test";
+import { SIGN_IN_PATH } from "../_sign-in-route";
 import { fullScroll, showScreen, visit, walkDenunciaWizard } from "./_helpers";
 
 // SEGMENT 01 — PÚBLICO (unauthenticated). Real clicks + real form input.
@@ -82,7 +83,7 @@ test("segmento 01 — publico", async ({ page }) => {
   }
 
   // 8. Auth screens (no submit)
-  await visit(page, "/login");
+  await visit(page, SIGN_IN_PATH);
   await visit(page, "/registro");
   await visit(page, "/recuperar");
 

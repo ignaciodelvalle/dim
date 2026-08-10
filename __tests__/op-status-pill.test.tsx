@@ -106,9 +106,14 @@ describe("OpStatusPill — tone → CSS variable mapping", () => {
     expect(html).toContain("Pendiente");
   });
 
-  it("uses unified rounded-[3px] geometry", () => {
+  it("uses the unified operator-chip geometry, from the token", () => {
+    // E-2 (2026-08-10): el valor no cambió, cambió de dónde sale. Cuatro sitios
+    // tipeaban `rounded-[3px]` por separado; ahora los cuatro leen
+    // --radius-op-chip. La aserción sigue al token, y
+    // __tests__/chip-radius-doctrine.test.ts ancla que ese token siga valiendo
+    // 3px — sin ese ancla, esto pasaría aunque alguien lo moviera a 16px.
     const html = renderToStaticMarkup(<OpStatusPill tone="st-ok">Label</OpStatusPill>);
-    expect(html).toContain("rounded-[3px]");
+    expect(html).toContain("rounded-[var(--radius-op-chip)]");
   });
 
   it("uses font-ln-mono typography", () => {

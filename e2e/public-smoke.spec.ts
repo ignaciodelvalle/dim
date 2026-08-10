@@ -3,6 +3,7 @@ import { type Page, expect, test } from "@playwright/test";
 
 import { BRANDED_NOT_FOUND_TESTID } from "./_page-identity";
 import { SEED_PROFILE, seedFixtureVerdict } from "./_seed-profile";
+import { SIGN_IN_PATH } from "./_sign-in-route";
 import { assertRealPage } from "./demo/_helpers";
 
 /**
@@ -47,7 +48,9 @@ const PUBLIC_ROUTES = [
   { path: "/perdidas", landmark: "main" },
   { path: "/refugios", landmark: "main" },
   { path: "/denuncias", landmark: "main" },
-  { path: "/login", landmark: "main" },
+  // La canónica, no la vieja: el 308 de `/login` tiene su propia cobertura en
+  // e2e/auth.spec.ts, y humear la vieja acá medía la redirección, no la página.
+  { path: SIGN_IN_PATH, landmark: "main" },
   { path: "/registro", landmark: "main" },
 ] as const;
 

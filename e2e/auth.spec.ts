@@ -45,7 +45,7 @@ test.describe("login flow", () => {
  * `__tests__/e2e-sign-in-route.test.ts`), así que si no se prueba acá, no se
  * prueba en ningún lado.
  */
-test.describe("la ruta vieja /login sigue funcionando", () => {
+test.describe("la ruta vieja en inglés sigue funcionando", () => {
   test("redirige a /iniciar-sesion conservando el query string", async ({ page }) => {
     // `returnTo` es el que importa: es lo que devuelve al visitante adonde
     // estaba yendo cuando lo mandaron a autenticarse. Perderlo lo vara.

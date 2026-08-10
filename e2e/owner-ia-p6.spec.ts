@@ -1,7 +1,7 @@
 import { type Browser, type BrowserContext, type Page, expect, test } from "@playwright/test";
 
 import { ZERO_PET_OWNER_EMAIL } from "../scripts/seed-reserved-accounts";
-import { SIGN_IN_PATH } from "./_sign-in-route";
+import { SIGN_IN_PATH, leftSignIn } from "./_sign-in-route";
 import { resetAuthLoginRateLimits } from "./demo/_db-cleanup";
 import { ACCOUNTS, discoverPetToken, resolveOrgToken } from "./demo/_helpers";
 
@@ -130,11 +130,16 @@ async function login(page: Page, email: string) {
           ).trim();
           if (txt) throw new Error(`login blocked for ${email}: "${txt}"`);
         }
-        return new URL(page.url()).pathname;
+        // Devuelve un BOOLEANO, no el pathname: la versión anterior cerraba
+        // con `.not.toMatch(/^\/login/)`, y `/iniciar-sesion` no matchea esa
+        // expresión. La condición se cumplía de entrada, parados en el
+        // formulario, y `stateFor` cacheaba un storageState ANÓNIMO para los
+        // doce tests del archivo. Ver e2e/_sign-in-route.ts.
+        return leftSignIn(new URL(page.url()));
       },
       { timeout: 30_000, intervals: [150, 250, 500, 500, 1000, 1500] },
     )
-    .not.toMatch(/^\/login/);
+    .toBe(true);
 }
 
 async function stateFor(browser: Browser, email: string): Promise<StorageState> {
