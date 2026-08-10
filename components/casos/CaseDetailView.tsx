@@ -21,6 +21,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
+import { CaseOperatorActions } from "@/components/casos/CaseOperatorActions";
 import { casePetLink } from "@/components/casos/case-pet-link";
 import { shouldRedactPetName } from "@/components/casos/pet-name-redaction";
 import { StaticFirstMap } from "@/components/maps/StaticFirstMap";
@@ -39,6 +40,7 @@ import { getJurisdictionsCached, getProfileCached } from "@/lib/infra/request-ca
 import { petPhotoUrl } from "@/lib/infra/storage";
 import { createClient } from "@/lib/supabase/server";
 import { eventTypeLabel, formatDateTime, sexLabel, speciesLabel } from "@/lib/utils/format";
+import { availableCaseActions } from "@/src/modules/cases/domain/available-actions";
 
 interface CaseDetailViewProps {
   publicCode: string;
@@ -225,6 +227,17 @@ export async function CaseDetailView({ publicCode, casosHref }: CaseDetailViewPr
         isPublic={isPublic}
         breadcrumb={breadcrumb}
       >
+        {/* Acciones de operador (#41). Sólo gobierno y admin: asentar en un
+            expediente o darlo por terminado es un acto de la autoridad, no
+            algo que una membresía de organización pueda conferir. Las acciones
+            concretas las decide el ciclo de vida del kind, no esta pantalla. */}
+        {(viewerRole === "govt" || viewerRole === "admin") && (
+          <CaseOperatorActions
+            publicCode={detail.publicCode}
+            actions={availableCaseActions(detail.caseKind, detail.status)}
+          />
+        )}
+
         {/* map-QOL P3: primary-location embed (institutional viewers only). */}
         {showCaseMap && (
           <section aria-label="Ubicación del caso">
