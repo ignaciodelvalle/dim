@@ -181,7 +181,7 @@ Antes de que empieces, ya se dejó preparado:
 | **A2** | Reglas de negocio | En `/admin/reglas`, cargar reglas reales en **al menos tres jurisdicciones distintas**, incluyendo una a nivel **provincia** y otra a nivel **localidad** de esa misma provincia. Objetivo explícito: **probar la cascada** — que la más específica gane |
 | **A3** | Regla que NO se puede crear | Intentar crear una regla **idéntica al default**. El sistema debería negarse y explicar por qué. Anotá si el botón te deja apretarlo igual y qué te dice |
 | **A4** | Chapas físicas | Emitir un lote chico en `/admin/chapas`. **Descargá el CSV de un solo uso y guardalo** — los códigos no se recuperan, sólo se persiste el hash. Recargá y verificá que ni seriales ni códigos vuelven a mostrarse |
-| **A5** | Suscripciones de alerta | Crear **tres** con umbrales que la actividad de este test **sí** vaya a cruzar: mordeduras, zoonosis/brotes, denuncias de maltrato |
+| **A5** | Suscripciones de alerta | Crear **tres**, con umbrales que la actividad de este test **sí** vaya a cruzar. Las métricas disponibles son seis y sólo seis: señales de zoonosis activas, denuncias de maltrato abiertas, SLA ENO a tiempo, antigüedad de la cola, cobertura de castración, penetración de microchip. **No hay una de mordeduras** — si la buscás no está, y su ausencia no es hallazgo (la mordedura alimenta la señal de zoonosis, no una métrica propia). Elegí zoonosis, maltrato y una tercera |
 | **A6** | Capacidades | Revisar en `/admin/cola` si hay solicitudes pendientes. Aprobar al menos una y **rechazar otra con motivo**, para que existan ambos desenlaces en el historial |
 | **A7** | Verificación de organización | Si hay alguna sin verificar, verificarla. Y mirar qué cambia en el producto después |
 
@@ -231,10 +231,11 @@ Cada línea alterna **ACTO** (lo que hace) y **ESPERA** (lo que depende de otro)
 En **cada vuelta**: entrar a `/gob/vigilancia`, `/gob/vigilancia/brotes`, `/gob/casos`, `/gob/denuncias`, `/gob/perdidas` y anotar **si algo se movió y si coincide con lo que realmente pasó**.
 
 - **L1.** Triar la denuncia de Graciela: asignar, registrar intervención.
-- **L2.** Sobre la mordedura de Noelí: **iniciar la observación antirrábica**.
+- **L2.** Sobre la mordedura de Noelí: **verificar que la observación antirrábica arrancó sola**. No busques un botón de "iniciar": no existe, y su ausencia **no es un hallazgo**. El sistema abre la observación en el mismo momento en que el dueño reporta la mordedura (N2). Lo que sí se mide acá: ¿te enteraste vos, o la encontraste porque fuiste a buscarla? Entrá por `/gob/acciones` ("Acciones que vencen"), que es el camino navegable real, y anotá cuántos saltos te costó llegar.
 - **L3.** Generar el **PDF de exportación MPF** de un caso de maltrato.
 - **L4.** Armar un **operativo de alcance** (lista + recordatorio) sin enviar masivos.
-- **L5.** Cerrar un caso y verificar que sale de la cola.
+- **L5.** Cerrar un caso y verificar que sale de la cola. Incluí el **cierre de la observación antirrábica** de N2 si sigue abierta — ese sí tiene botón.
+- **L6.** El extremo: **ejecutar un decomiso** en `/gob/decomisos/nuevo`, con sus adjuntos obligatorios, y traspasarlo a una organización. **ESPERA:** que Alejo lo reciba. *(Este hito estaba en la línea de Alejo. Se movió acá porque `requireDecomisoPrincipal` exige rol `govt` o `admin` y ninguna capability de organización lo habilita — Alejo no podía ejecutarlo.)*
 
 ### Línea I — Ignacio, el perdido y el viaje
 
@@ -243,15 +244,16 @@ En **cada vuelta**: entrar a `/gob/vigilancia`, `/gob/vigilancia/brotes`, `/gob/
 - **I3.** Marcarlo **perdido**, eligiendo qué se muestra. Abrir la credencial pública y verificar que coincide. **ESPERA:** que alguien lo vea.
 - **I4.** Tras el avistaje de Graciela: ¿se enteró? ¿cómo? ¿el mapa muestra lo prometido?
 - **I5.** Recuperarlo. Verificar que sale del listado público.
-- **I6.** Sacar **turno de antirrábica** en la clínica. **ESPERA:** que lo atiendan.
-- **I7.** Tras la atención: verificar la vacuna firmada en la libreta.
-- **I8.** **Exportar el documento de viaje** de Rocco. Verificar que el PDF dice la verdad sobre su estado sanitario.
+- **I6.** Sacar **turno de antirrábica** en la clínica. **ESPERA:** que lo atienda **Lilian** (no Alejo — ver V1).
+- **I7.** Tras la atención: verificar la vacuna firmada en la libreta. Mirá **quién figura como firmante** y con qué rol: es lo que distingue una vacuna firmada por profesional de una declarada por el dueño.
+- **I8.** Entrar a **"Viaje y movilidad"** desde la mascota. **Esto es una prueba de honestidad, no de función:** la movilidad jurisdiccional **no está construida** (decisión de PO, 2026-07-19) y la pantalla debería decirlo. Lo que se mide: ¿te queda claro que no está disponible, o parece que algo falló? ¿El ítem de menú se ofrece como si funcionara? **No busques un botón de exportar: no existe, y su ausencia no es hallazgo.** Que la pantalla te haga creer que sí, lo sería.
 - **I9.** **Revocar la chapa.** Verificar que `/t/<serial>` queda honesto: sin datos, sin razón.
 
 ### Línea N — Noelí, la línea zoonótica
 
 - **N1.** Registrar `CIU-Nube`.
-- **N2.** Reportar una **mordedura**. Esta es la línea que alimenta vigilancia. **ESPERA:** que el funcionario reaccione.
+- **N2.** Reportar una **mordedura**. Esta es la línea que alimenta vigilancia. **ESPERA:** que el funcionario reaccione. *(Ojo: esto además abre sola la observación antirrábica. Anotá si el formulario te lo avisa — si no te lo dice, es hallazgo: acabás de disparar un procedimiento sanitario sin saberlo.)*
+- **N2b.** **Verificar tu DNI** en `/cuenta/verificar-dni`. Verificado el 2026-08-09: **ninguna cuenta del elenco tiene el DNI verificado**, y el pool de tránsito lo exige. Sin este paso, N3 se traba en un pre-chequeo. Lo que se mide acá: llegando desde N3, **¿el sistema te explica qué te falta y te lleva a resolverlo**, o te deja adivinando? Hacé N3 primero a propósito para verlo.
 - **N3.** Ofrecerse como **tránsito**. **ESPERA:** que el refugio le proponga.
 - **N4.** Al recibir la propuesta: aceptar, y registrarle eventos al animal en tránsito.
 - **N5.** Reportar un **síntoma** y, si se puede, una **enfermedad**. Anotar si genera señal en vigilancia o queda sólo en la libreta.
@@ -266,7 +268,7 @@ En **cada vuelta**: entrar a `/gob/vigilancia`, `/gob/vigilancia/brotes`, `/gob/
 - **G4.** **Denuncia de maltrato con evidencia**, como ciudadana. Guardar el código. **ESPERA:** el funcionario.
 - **G5.** Volver al comprobante con el código: ¿cambió el estado?
 - **G6.** Proponerle a Ignacio una **transferencia**. **ESPERA:** que acepte.
-- **G7.** El extremo: **devolver** el animal adoptado. Verificar qué pasa con la custodia y con el historial.
+- **G7.** El extremo: querer **devolver** el animal adoptado. **Buscalo vos primero, desde tu cuenta.** No existe — la reversión es una acción de la organización (`adoption.finalize`), la ejecuta Alejo en **A-7**. Lo que se mide acá es real y vale: una adoptante que se arrepiente, ¿tiene por dónde empezar? ¿Encuentra a quién avisar, o es un callejón sin salida? Anotá lo que intentaste antes de rendirte. Después de que Alejo la ejecute, volvé y verificá **tu** lado: ¿te avisaron? ¿desapareció de tus mascotas? ¿queda rastro en el historial?
 
 ### Línea A — Alejo, la contraparte
 
@@ -275,14 +277,15 @@ En **cada vuelta**: entrar a `/gob/vigilancia`, `/gob/vigilancia/brotes`, `/gob/
 - **A-1.** En el refugio: **ingreso** de un animal `CIU-`, publicarlo en adopción.
 - **A-2.** Resolver la postulación de Graciela y **finalizar la adopción**.
 - **A-3.** Proponerle el **tránsito** a Noelí.
-- **A-4.** **Atender el turno** de Ignacio.
+- **A-4.** **NO atiendas el turno de antirrábica de Ignacio.** Es de Lilian (V1), y esto no es un detalle de reparto. En este producto **atender un turno ES firmarlo**: la acción flipea el turno a `atendido` e inserta el evento de la vacuna en la misma transacción, con el rol del que la ejecuta. Alejo es admin de la clínica, así que el sistema **te va a dejar** — y la vacuna quedaría firmada como refugio, no como profesional, matando la distinción que el test quiere medir. Sí anotá esto: **¿la pantalla te advierte que atender es firmar?** Si te deja hacerlo sin decir que estás firmando un acto sanitario, **eso es un hallazgo grande**.
 - **A-5.** Un **walk-in**: alguien sin turno. Verificar que el dueño se entera.
 - **A-6.** **Importar animales por CSV** si la interfaz lo ofrece. Probar con un archivo que tenga **filas malas a propósito** y mirar qué dice.
-- **A-7.** El extremo: **decomiso**. Si el rol lo permite, ejecutar uno con sus adjuntos obligatorios.
+- **A-7.** **Revertir la adopción** de Graciela (ver G7): ella no tiene por dónde, la acción vive acá. Verificar qué pasa con la custodia y con el historial.
+- **A-8.** Recibir el **decomiso** que ejecutó Lucas (L6) en `/org/[orgToken]/transferencias/recibidas`. **ESPERA:** que Lucas lo ejecute primero.
 
 ### Línea V — Lilian, la que firma
 
-- **V1.** Firmar la antirrábica de Ignacio (turno agendado).
+- **V1.** **Atender y firmar** la antirrábica de Ignacio (turno agendado). Es una sola acción, no dos: acá se decide si el evento queda con firma profesional. Verificá después, en la libreta, que dice quién firmó.
 - **V2.** Firmar un **microchip** en otro animal.
 - **V3.** El extremo: intentar firmar algo **fuera de su jurisdicción o sin permiso**, y anotar qué le dice el sistema.
 
@@ -385,6 +388,18 @@ Eso es lo que hace visible el comportamiento que el test busca medir: **cuánto 
 - El **mapa provincial** puede mostrar pocas burbujas: hay supresión por privacidad con números chicos.
 - `/adoptar` muestra **sólo el booleano** de microchip: es decisión de privacidad.
 - Una **denuncia de maltrato NO es señal epidemiológica** y no debería aparecer en el mapa de vigilancia. Si aparece, **eso sí es hallazgo**.
+
+### Cinco ausencias verificadas — no las reportes como falta
+
+Cada una se comprobó contra el código el 2026-08-10. Lo que **sí** es hallazgo en cada caso está al lado.
+
+| No existe | Por qué | Lo que sí es hallazgo |
+|---|---|---|
+| Botón de **exportar documento de viaje** (I8) | La movilidad jurisdiccional no está construida — decisión de PO, 2026-07-19, fachada honesta | Que la pantalla te haga creer que sí funciona |
+| Botón de **iniciar observación antirrábica** (L2) | Arranca sola cuando el dueño reporta la mordedura | Que el formulario de mordedura no te avise que la disparaste |
+| Métrica de alerta de **mordeduras** (A5) | Sólo hay seis claves y esa no está | Que el desplegable insinúe que existe |
+| **Devolver una adopción desde la cuenta del adoptante** (G7) | La reversión es acción de la organización | Que la adoptante no encuentre a quién avisar |
+| **Decomiso desde una organización** (A-8) | Exige rol `govt` o `admin`; ninguna capability de org lo habilita | Que el producto ofrezca el botón y después lo rechace |
 
 Si algo de esto está **mal comunicado en la pantalla**, es hallazgo. La diferencia es entre "el dato está mal" (no) y "la pantalla no me avisa que el dato es de anoche" (sí).
 
