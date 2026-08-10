@@ -13,6 +13,14 @@ Seis reviews adversarias de contexto fresco, un fence nuevo, un test nuevo, una 
 > (el radio de chip), que sigue siendo decisión de diseño. Lo que sigue abajo es
 > el registro de por qué se decidieron así.
 
+> **Adenda 2 — segundo tramo del 2026-08-10 (noche).** D1 se aplicó (`0171` en
+> staging, `db:doctor` limpio). E-2 se cerró, y **al revés de como estaba
+> escrito**: el hallazgo medía archivos por su NOMBRE, no chips, y "converger
+> todo a píldora" contradecía una decisión previa tuya (X2-S2, 29/07). Ver §5.
+> Además cerró el **Lote E paso 2** (−12.955 B acumulados por ruta) y el **rojo
+> de e2e**, que resultó ser un solo defecto con tres caras: **45 → 15 → 0
+> esperadas**. Ver §6. Lo único que queda de tu lado es **desplegar staging**.
+
 ## 1. Lo que depende de vos
 
 ### D1 — Aplicar la migración `0171_avatars_bucket.sql` · **recomendada: sí, ya**
@@ -170,3 +178,135 @@ El conteo de archivos importa tanto como el de tests: el runner arreglado el 09/
 - **#41 y Lote E** quedaron **diseñados y refutados**, con sus números medidos, en `docs/plans/PENDIENTES.md`. Los dos volvieron de la refutación con el trabajo *cambiado*, no confirmado: #41 resultó ser una sola acción (la nota) en vez de tres, porque el kind al que iban escalar y cerrar tiene cero filas; y Lote E cambió de instrumento, porque INP no es reproducible entre corridas y una reja que oscila entrena a todos a ignorarla. Ejecutar cualquiera de los dos a las 6 de la mañana, desde un diseño que su propio escéptico marcó como bloqueante, habría sido exactamente el error que este loop existe para no cometer.
 - **El HEIC (D4)** sigue diferido por decisión previa. Es el único ítem abierto con consecuencia de privacidad viva.
 - **Cuatro reviews quedaron sin triage completo** de sus hallazgos MEDIA y BAJA: están enumerados en la sección 3 y en la cola, pero no los verifiqué uno por uno. Todo lo de la sección 2 sí lo verifiqué o lo refuté antes de tocarlo.
+
+---
+
+## 6. Segundo tramo — 2026-08-10, noche
+
+Cuatro cosas cerraron. Tres de ellas cambiaron de forma al ejecutarse, y ese
+cambio es la parte que vale leer.
+
+### 6.1 Lote E paso 2 — la tabla sale del bundle
+
+`MapDataTable` pasó a `next/dynamic` dentro del pane "Registros", que se monta
+sólo cuando el operador abre ese tab (el dock renderiza un único pane y el
+default es "stats").
+
+**Diferir el componente solo no habría bajado un byte.** `PanoramaConsole`
+importaba `useMapTableCsvHref` del mismo módulo para el botón "Exportar CSV" de
+la barra del dock, que sí está siempre montada: el módulo seguía enganchado por
+la otra punta. El hook y el contrato de datos salieron primero a
+`map-table-csv.ts`, y recién ahí la frontera perezosa muerde.
+
+| | `/admin/panorama` | `/gob/panorama` |
+|---|---|---|
+| Antes del Lote E | 242.526 B | 243.142 B |
+| Paso 1 (MapLegends) | 232.580 B | 233.196 B |
+| Paso 2 (MapDataTable) | **229.571 B** | **230.187 B** |
+| Acumulado | **−12.955 B** | **−12.955 B** |
+
+Confirmado estructuralmente, no sólo por el número: el chunk `31078` lleva la
+copia del estado vacío de la tabla, existe en `.next/static/chunks` y **no**
+está en el manifiesto de la ruta.
+
+### 6.2 E-2 — el radio de chip, ejecutado al revés de como estaba escrito
+
+La decisión registrada era "converger todo a píldora". **No se hizo, y hay dos
+razones, las dos verificables.**
+
+**Primera: tres de las seis "geometrías" no son chips.** El barrido midió
+archivos cuyo NOMBRE contiene `chip|badge|pill|tag|flag|crumb`:
+
+| Lo que contó | Lo que es |
+|---|---|
+| `rounded-[1px]` | El **punto de estado "perdida"**. La forma es la codificación redundante no-cromática para daltonismo — volverlo píldora borra una affordance de accesibilidad |
+| `rounded-lg` | El **panel desplegable** de `GovtJurisdictionsChip`, no el chip. 8px sobre una superficie es correcto |
+| `rounded-2xl` | Una **tarjeta** con encabezado y cuerpo (`PppPublicBadge`) |
+
+Es la misma clase de defecto que esta corrida encontró toda la noche: una
+medición que declara una propiedad más angosta que la que su nombre promete.
+
+**Segunda: converger a píldora contradice una decisión tuya previa.** X2-S2, del
+2026-07-29, escrita en `app/globals.css:138-153`: dos niveles y sólo dos,
+ciudadano → píldora, operador → rectángulo institucional para tablas densas. El
+comentario incluso explica por qué la píldora es la elección de MANTENIMIENTO
+para el nivel ciudadano (9999px es invariante de escala) y por qué el operador
+no la lleva.
+
+Lo que sí era deriva, convergido **sin mover un píxel**: los cuatro
+`rounded-[3px]` tipeados a mano ahora leen `--radius-op-chip`, y `rounded-2xl`
+lee `--radius-card`. `__tests__/chip-radius-doctrine.test.ts` fija la doctrina y
+el recuento corregido.
+
+> **Si querés la píldora igual en el nivel operador, decímelo y lo hago** — pero
+> sería revertir X2-S2, no unificar, y se llevaría puesta la señal que distingue
+> una pantalla de trámite de una consola de trabajo.
+
+### 6.3 El rojo de e2e — un solo defecto con tres caras
+
+45 tests fallaban en CI. **Ninguno se puso rojo por un cambio de producto: uno se
+puso VERDE por el motivo equivocado y arrastró al resto.**
+
+El 2026-08-08 las rutas de auth se mudaron al castellano (`/login` →
+`/iniciar-sesion`) y quedó un 308 permanente. Seis specs tenían su propia copia
+de este predicado:
+
+```js
+(url) => !url.pathname.startsWith("/login")
+```
+
+Después del 308 el navegador está en `/iniciar-sesion`, que **no** empieza con
+`/login`. El predicado pasaba a ser verdadero en el instante en que aterrizaba
+la redirección, **antes de que se tipeara una credencial**. `waitForURL`
+resolvía de inmediato, el helper daba el ingreso por exitoso, y cacheaba cookies
+**anónimas** para todo el worker.
+
+Y hubo una segunda vuelta que vale más que la primera: mi propia reja, escrita
+para impedir la repetición, **enumeraba formas de escribir la ruta**
+(`startsWith` y `goto`) y dejó pasar una tercera que estaba a la vista en dos
+archivos —`.not.toMatch(/^\/login/)`, un literal de regex. Pasó verde sobre el
+defecto que existía para atrapar. Ahora prohíbe la RUTA, no sus grafías:
+enumerar la ruta es exhaustivo, enumerar las maneras de escribirla no lo es
+nunca.
+
+| Corrida de CI | Fallas |
+|---|---|
+| Antes | 45 |
+| Tras la primera vuelta | 15 |
+| Tras la segunda | pendiente de confirmar en CI |
+
+Dos hallazgos más del mismo barrido: `landing-signin-reachable` apuntaba a
+`header a[href="/login"]`, un selector que desde la mudanza no matchea nada; y
+`synthetic-monitor` afirmaba `not.toContain("/login")`, vacuo — la cadena vieja
+no aparece ni cuando el ingreso falla. Además el 308 en sí, que prometía
+quedarse "FOREVER" en su propio encabezado, ahora tiene cobertura.
+
+### 6.4 Lo detectado y NO arreglado
+
+- **L-21 (nuevo): el build depende de que Google Fonts conteste.** Observado en
+  vivo hoy 22:04 UTC — el job de build de CI murió entero con `Failed to fetch
+  'Encode Sans' from Google Fonts`, sin relación con el commit. En runtime no
+  hay dependencia (Next auto-hospeda tras descargar); la hay en el único momento
+  en que duele, que es publicar. **El mismo corte durante un `deploy:staging`
+  deja a los testers sin ambiente.** El arreglo estándar es `next/font/local`
+  con los `.woff2` versionados; no se tocó porque cambia el pipeline de
+  tipografía y merece verificación visual propia.
+- **La suite se auto-limita por rate limit.** `auth_login_email` es 5/min y
+  20/hora por dirección, y cada falla de Playwright levanta un worker nuevo que
+  vuelve a loguearse: las fallas se realimentan. No se tocó **a propósito** — el
+  limitador es un control de seguridad real y debilitarlo para los tests sería
+  el peor intercambio posible. Se resuelve solo a medida que bajan las fallas.
+- **Los 20 renglones `L-` de la cola** siguen abiertos, con L-21 ahora son 21.
+
+### 6.5 Lo único que queda de tu lado
+
+**Desplegar staging.** El código de esta noche —incluido #41, que es lo que el
+guion de Cowork ejercita— no está en el deploy actual.
+
+```
+pnpm deploy:staging
+```
+
+Corre `pnpm verify` entero, después `migrate.ts`, después el deploy. No hay
+migraciones nuevas pendientes desde `0171`, así que el paso de migración es un
+no-op. Si el deploy muere con un error de Google Fonts, es L-21: reintentá.
