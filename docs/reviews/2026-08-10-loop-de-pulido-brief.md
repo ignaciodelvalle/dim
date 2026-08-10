@@ -5,6 +5,14 @@ Seis reviews adversarias de contexto fresco, un fence nuevo, un test nuevo, una 
 
 ---
 
+> **Adenda — las cuatro decisiones se tomaron y se ejecutaron el 2026-08-10.**
+> D2 (secuenciar los proyectos de vitest), D3 (`/gob/observaciones`), D4 (la
+> deriva del padrón: era omisión del seed) y E-3 (el orden del hero: paga
+> desktop) están cerradas, con el gate verde encima: **1227 archivos, 14792
+> tests, exit 0**. Queda D1 — aplicar la migración `0171` — que es tuya, y E-2
+> (el radio de chip), que sigue siendo decisión de diseño. Lo que sigue abajo es
+> el registro de por qué se decidieron así.
+
 ## 1. Lo que depende de vos
 
 ### D1 — Aplicar la migración `0171_avatars_bucket.sql` · **recomendada: sí, ya**
