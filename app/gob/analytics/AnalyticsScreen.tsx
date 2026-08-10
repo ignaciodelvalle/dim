@@ -189,6 +189,23 @@ export async function AnalyticsScreen({
     />
   );
 
+  // Hoisted with the header so the degraded branch keeps it: every axis here is
+  // built from `sp` and from module constants, resolved before the load. The
+  // filter bar is exactly what an operator would reach for to narrow the query
+  // that just timed out, so it is the worst thing to drop on that render.
+  // Same shape as app/gob/censo/CensoScreen.tsx.
+  const filtersRow = (
+    <OpFilterBar
+      period={{ defaultPreset: "trailing12m" }}
+      jurisdiction={{ allowedProvinces, localities }}
+      actions={
+        <a href={exportHref} className="text-md text-ln-op-azul hover:underline">
+          Exportar datos →
+        </a>
+      }
+    />
+  );
+
   // D2: bound the fetcher set with a deadline so a pathological query degrades
   // to an honest "tardando… reintentar" state instead of hanging the page.
   const load = await loadWithTimeout(
@@ -219,6 +236,7 @@ export async function AnalyticsScreen({
     return (
       <div className="space-y-6">
         {header}
+        {filtersRow}
         {/* F9: retry returns to the HUB url with this vista selected, never
             to /gob/analytics — that route is now a redirect, so retrying
             through it would cost an extra hop on an already-degraded page. */}
@@ -285,15 +303,7 @@ export async function AnalyticsScreen({
 
       {/* Unified filter bar — jurisdiction + period, with "Exportar datos" rendered
           via the bar's `actions` slot (same pattern as /gob/censo's "Exportar CSV"). */}
-      <OpFilterBar
-        period={{ defaultPreset: "trailing12m" }}
-        jurisdiction={{ allowedProvinces, localities }}
-        actions={
-          <a href={exportHref} className="text-md text-ln-op-azul hover:underline">
-            Exportar datos →
-          </a>
-        }
-      />
+      {filtersRow}
 
       {/* F9 CONTENT RULE (PO, 2026-08-01): a figure already published by the
           Resumen vista is LINKED from here, never restated. This strip used to

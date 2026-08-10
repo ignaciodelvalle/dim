@@ -255,6 +255,22 @@ export default async function GobiernoDashboardPage({
     />
   );
 
+  // Hoisted with the header, and for the same reason: `allowedProvinces` and
+  // `localities` come from resolveJurisdictionScope, resolved above — the bar
+  // does not depend on the load below. A degraded briefing that also loses its
+  // jurisdiction switcher leaves the operator unable to narrow the very query
+  // that just timed out. See app/gob/censo/CensoScreen.tsx for the shape.
+  const filtersRow = (
+    /* PO visual-validation (2026-07-23): the home rendered a bespoke standalone
+       <JurisdictionSwitcher> instead of the canonical filter component every
+       other /gob screen commits through. The home has no period control (fixed
+       trailing-12m ctx, no picker) and no screen-specific domain axes —
+       jurisdiction-only, same as /gob/reglas's showPeriod={false} bar, same URL
+       contract (province=ISO, locality=slug) and commit strategy
+       (serverNavCommit) as every other screen. */
+    <OpFilterBar showPeriod={false} jurisdiction={{ allowedProvinces, localities }} />
+  );
+
   // D2: bound the fetcher set with a deadline so a pathological query degrades
   // to an honest "tardando… reintentar" state instead of hanging the page.
   const load = await loadWithTimeout(
@@ -357,6 +373,7 @@ export default async function GobiernoDashboardPage({
     return (
       <div className="space-y-6">
         {header}
+        {filtersRow}
         <AnalyticsLoadFallback
           reason={load.reason}
           retryHref={analyticsRetryHref("/gob", {
@@ -571,15 +588,7 @@ export default async function GobiernoDashboardPage({
       {/* Page header — mandate chrome (C3) only, no primary action */}
       {header}
 
-      {/* Filters — PO visual-validation (2026-07-23): the home rendered a
-          bespoke standalone <JurisdictionSwitcher>, not the canonical filter
-          component every other /gob screen commits through. The home has no
-          period control (fixed trailing-12m ctx, no picker) and no
-          screen-specific domain axes — jurisdiction-only, same as
-          /gob/reglas's showPeriod={false} bar, same URL contract
-          (province=ISO, locality=slug) and commit strategy
-          (serverNavCommit) as every other screen. */}
-      <OpFilterBar showPeriod={false} jurisdiction={{ allowedProvinces, localities }} />
+      {filtersRow}
 
       {/* ===================================================================
           BLOCK 1 — Alertas priorizadas (the hero, max 5)

@@ -129,6 +129,28 @@ export async function AdminCensoScreen({
     />
   );
 
+  // Hoisted with the header so the degraded branch keeps it: every axis here is
+  // built from `sp` and from module constants, resolved before the load. The
+  // filter bar is exactly what an operator would reach for to narrow the query
+  // that just timed out, so it is the worst thing to drop on that render.
+  // Same shape as app/gob/censo/CensoScreen.tsx.
+  const filtersRow = (
+    <OpFilterBar
+      period={{ defaultPreset: DEFAULT_DASHBOARD_PRESET }}
+      axes={
+        [
+          {
+            id: "species",
+            label: "Especie",
+            paramKey: "species",
+            options: SPECIES_OPTIONS,
+            current: sp.species ?? null,
+          },
+        ] satisfies OpFilterAxis[]
+      }
+    />
+  );
+
   // D2: bound the fetcher set with a deadline so a pathological query degrades
   // to an honest "tardando… reintentar" state instead of hanging the page.
   // species narrows all four sub-queries identically (twin of /gob/censo's
@@ -147,6 +169,7 @@ export async function AdminCensoScreen({
     return (
       <div className="space-y-6">
         {header}
+        {filtersRow}
         <AnalyticsLoadFallback
           reason={load.reason}
           retryHref={analyticsRetryHref("/admin/padron", { ...sp, vista: "censo" })}
@@ -201,20 +224,7 @@ export async function AdminCensoScreen({
 
       {/* Unified filter bar — period + species (no jurisdiction for admin —
           universal scope). Twin of /gob/censo's rail. */}
-      <OpFilterBar
-        period={{ defaultPreset: DEFAULT_DASHBOARD_PRESET }}
-        axes={
-          [
-            {
-              id: "species",
-              label: "Especie",
-              paramKey: "species",
-              options: SPECIES_OPTIONS,
-              current: sp.species ?? null,
-            },
-          ] satisfies OpFilterAxis[]
-        }
-      />
+      {filtersRow}
 
       {/* KPI row */}
       <section

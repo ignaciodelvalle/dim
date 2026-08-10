@@ -132,6 +132,12 @@ export default async function CuentaPage() {
   if (!load.ok) {
     return (
       <div className="mx-auto max-w-4xl px-8 py-7">
+        {/* The heading is static — it named the page before the load and still
+            names it after the load failed. Dropping it left the fallback card
+            floating with no indication of which page the user is even on. */}
+        <h1 className="m-0 mb-7 font-ln-serif text-4xl font-semibold leading-tight tracking-[-0.02em] text-[var(--color-ln-ink)]">
+          Mi cuenta
+        </h1>
         <LnCard>
           <LnCardHead title="No pudimos cargar tu cuenta" />
           <LnCardBody>

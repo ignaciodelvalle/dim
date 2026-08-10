@@ -1,0 +1,6 @@
+{
+  "app/admin/auditoria/AuditoriaScreen.tsx": {
+    "reason": "Chrome atrapado bajo un padre contaminado, no una omision. El <OpFilterBar> depende legitimamente de la carga: su eje `actor` se arma con `actorOptions`, que sale de `load.value`. <DateRangeFilterFields> es hijo de esa barra y NO depende de nada — `fromValid`/`toValid` salen de searchParams — pero no se puede conservar sin extraerlo del padre. Vale arreglarlo: un operador cuyo log de auditoria expira pierde justo el filtro de fecha que habria abaratado la consulta. Es refactor (partir la barra en ejes limpios + eje contaminado), no izado, asi que queda documentado en vez de hecho a las apuradas.",
+    "chrome": ["DateRangeFilterFields"]
+  }
+}

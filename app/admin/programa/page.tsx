@@ -148,6 +148,13 @@ export default async function AdminProgramaPage({
     </header>
   );
 
+  // Hoisted with the header so the degraded branch keeps it. The bar depends on
+  // nothing but a default preset, and changing the period is exactly how an
+  // operator retries with a cheaper window — dropping it on the one render where
+  // the query timed out removes the only lever they had. The explanatory copy
+  // around it stays in the success branch, where the projection it names exists.
+  const filtersRow = <OpFilterBar period={{ defaultPreset: DEFAULT_DASHBOARD_PRESET }} />;
+
   // D2: bound the fetcher set with a deadline (see /admin/censo).
   // getCensusPopulationsCached is a process-lifetime cache (lib/metrics/census.ts)
   // — ZERO new fan-out after the first render; added here so the same
@@ -171,6 +178,7 @@ export default async function AdminProgramaPage({
     return (
       <div className="space-y-6">
         {header}
+        {filtersRow}
         <AnalyticsLoadFallback
           reason={load.reason}
           retryHref={analyticsRetryHref("/admin/programa", sp)}
@@ -452,7 +460,7 @@ export default async function AdminProgramaPage({
           El período aplica a la proyección de abajo; los indicadores de estado actual no varían con
           él.
         </p>
-        <OpFilterBar period={{ defaultPreset: DEFAULT_DASHBOARD_PRESET }} />
+        {filtersRow}
       </div>
 
       {/* Antirrábica vaccination forecast — Paquete J (additive) */}

@@ -86,7 +86,7 @@ jobs:
       - name: Lint (metric contracts + query budget)
         run: >-
           pnpm lint:metric-labels && pnpm lint:metric-contract &&
-          pnpm lint:opened-reason && pnpm lint:db-budget && pnpm lint:timezone
+          pnpm lint:opened-reason && pnpm lint:db-budget && pnpm lint:degraded-chrome && pnpm lint:timezone
 
       - name: Lint (UI conventions)
         run: >-
