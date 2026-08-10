@@ -477,8 +477,20 @@ export async function executeDecomiso(
       severity: "urgent",
       title: "Custodia oficial transferida",
       body: `La autoridad sanitaria ${govtOrg.displayName} ejecutó un decomiso sobre tu mascota ${activePet.name}. Motivo: ${motiveLabel(input.seizureMotive)}.${input.judicialProceedingReference ? ` Referencia judicial: ${input.judicialProceedingReference}.` : ""} Para más información contactá a la autoridad sanitaria de tu jurisdicción.`,
-      ctaLabel: "Más información",
-      ctaUrl: `/casos/${caseRow.publicCode}`,
+      // The primary CTA used to be `/casos/${caseRow.publicCode}` — a 404 for
+      // the very person it was sent to. canReadCase() admits an owner only via
+      // an ownership row with endedAt IS NULL, and step 13 above just closed
+      // that row; `custody_episode` is not in PUBLIC_ANONYMOUS_KINDS either, so
+      // CaseDetailView calls notFound(). The person whose animal was just seized
+      // pressed the blue button and got "page not found".
+      //
+      // The pet page IS reachable for them — getFormerOwnerReadAccess exists for
+      // exactly this window — so that is where the primary CTA now points. The
+      // card already rendered a working secondary "Ver {mascota}" link; the
+      // review that reasoned about this case (NotificationCard.tsx) checked the
+      // small button and not the big one.
+      ctaLabel: `Ver ${activePet.name}`,
+      ctaUrl: `/mis-mascotas/${activePet.publicToken}`,
       relatedCaseId: caseRow.id,
       relatedPetId: activePet.id,
     });

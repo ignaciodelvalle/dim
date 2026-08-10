@@ -31,7 +31,23 @@ export async function withdrawDisputeUseCase(
         .select()
         .from(custodyDisputes)
         .where(eq(custodyDisputes.publicToken, input.disputeToken))
-        .limit(1);
+        .limit(1)
+        // FOR UPDATE, added 2026-08-10. Its twin resolve-dispute.ts took this
+        // lock and wrote down why (TR-M1); this one read the row unlocked and
+        // then wrote over it. Under READ COMMITTED that is a lost update, and
+        // the state it loses is titularidad: an admin resolves with
+        // `ownership_transferred` — closing the ownerships, emitting
+        // custody_transferred, opening the new one — while the govt who raised
+        // the dispute reads status='open' from the older snapshot. The UPDATE
+        // blocks until the admin commits, then overwrites: status='withdrawn',
+        // resolutionSummary replaced by the withdrawal reason. The transfer is
+        // already committed and is NOT undone. The file ends up saying
+        // "Retirada — sin resolución" about an animal that changed hands, with
+        // resolution='ownership_transferred' and a resolutionEventId hanging off
+        // an event the status denies. closeCase being idempotent makes it worse,
+        // not better: the `cases` row stays closed/resolved and the two rows of
+        // one file contradict each other.
+        .for("update");
       if (!dispute) throw new Error("Disputa no encontrada.");
       if (dispute.status !== "open") throw new Error("La disputa no está abierta.");
 

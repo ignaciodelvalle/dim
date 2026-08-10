@@ -65,5 +65,17 @@ export type UseCaseResult<T = void> =
   | { ok: false; error: string };
 
 export const MAX_ATTACHMENT_BYTES = 25 * 1024 * 1024; // 25 MB per DC5
-export const ATTACHMENT_BUCKET = "pet-attachments";
+// FIXED 2026-08-10. This said "pet-attachments", a bucket that does not exist —
+// verified against BOTH the local database and staging. Every decomiso uploads
+// its evidence here before opening the transaction, and evidence is a hard
+// server-side requirement (validateAttachments demands >= 2 files), so the
+// entire flow died on its first step with `Bucket not found`. Nobody noticed
+// because the 408 custody_episode rows in the seed were written by script,
+// skipping the action.
+//
+// "event-attachments" is the right target, not just an existing one: it is the
+// private bucket that lib/infra/storage.ts signs against
+// (eventAttachmentSignedUrl). Pointing the upload anywhere else would have
+// written rows into `attachments` that no surface could ever render.
+export const ATTACHMENT_BUCKET = "event-attachments";
 export const ALLOWED_SPECIES = ["dog", "cat", "other"];
