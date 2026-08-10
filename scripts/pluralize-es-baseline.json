@@ -1,6 +1,6 @@
 {
   "_meta": {
-    "generatedAt": "2026-08-05",
+    "generatedAt": "2026-08-10",
     "description": "Files with ad-hoc `n === 1 ? \"\" : \"s\"` pluralization ternaries, grandfathered at the recorded count. New files, or counts above baseline, fail lint:plural — use pluralizeEs (lib/utils/format.ts) instead. Migrating a file lets its entry be removed; the ratchet only tightens."
   },
   "files": {
@@ -17,12 +17,10 @@
     "app/admin/auditoria/AuditoriaScreen.tsx": 1,
     "app/admin/censo/AdminCensoScreen.tsx": 6,
     "app/admin/observaciones/page.tsx": 1,
-    "app/admin/outbox/page.tsx": 1,
     "app/api/cron/cron-health/route.ts": 1,
     "app/gob/acciones/_components/WorklistSection.tsx": 1,
     "app/gob/adopciones/page.tsx": 1,
     "app/gob/censo/CensoScreen.tsx": 6,
-    "app/gob/outbox/page.tsx": 1,
     "app/gob/page.tsx": 5,
     "app/gob/perdidas/page.tsx": 3,
     "app/gob/programa/ProgramaResumenScreen.tsx": 1,

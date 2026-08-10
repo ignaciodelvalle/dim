@@ -48,7 +48,13 @@ import { globSync, readFileSync } from "node:fs";
  *  Lower this number as files migrate — never raise it without a design
  *  review sign-off (raw <select> reintroduces an inconsistent chevron,
  *  missing mobile focus-scroll, and un-localized native validation bubbles). */
-const BASELINE = 27;
+// TIGHTENED 2026-08-10 from 27 to the real count. The fence itself was asking
+// for it — it printed "raw <select> count improved: 19 (baseline 27). Lower
+// BASELINE to 19 to lock in the gain" and nobody did, so eight fresh raw
+// <select> could land without turning it red. A ratchet with slack is not a
+// ratchet; same shape as RAW_BUTTON_BASELINE, which sat at 47 against a real
+// count of 25 until 2026-08-10.
+const BASELINE = 19;
 
 const SCAN_GLOB = "{app,components}/**/*.tsx";
 const RAW_SELECT = /<select\b/g;
