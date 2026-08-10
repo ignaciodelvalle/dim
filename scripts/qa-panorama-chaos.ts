@@ -698,7 +698,12 @@ async function recoveryForcedThrow(page: Page, report: Report, cw: ConsoleWatch)
 async function login(page: Page, base: string, email: string, password: string): Promise<void> {
   await page.goto(`${base}/login`, { waitUntil: "domcontentloaded" });
   await page.getByLabel(/correo electrónico/i).fill(email);
-  await page.getByLabel(/contraseña/i).fill(password);
+  // getByLabel(/contraseña/i) is AMBIGUOUS: the field grew a "Mostrar
+  // contraseña" toggle whose aria-label matches the same regex, so Playwright
+  // fails on strict mode and these four QA drivers could not log in AT ALL.
+  // Found 2026-08-10 by smoke-testing the driver before depending on it —
+  // nobody had run them since the toggle landed. getByRole pins the input.
+  await page.getByRole("textbox", { name: /contraseña/i }).fill(password);
   await page.getByRole("button", { name: /iniciar sesión/i }).click();
   await page.waitForURL((u) => !u.pathname.startsWith("/login"), { timeout: 25_000 });
 }
