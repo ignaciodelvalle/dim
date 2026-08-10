@@ -1,5 +1,6 @@
 import { expect, test } from "@playwright/test";
 
+import { speciesLabel } from "../lib/utils/species";
 import { deletePetsByNamePrefix } from "./demo/_db-cleanup";
 import { loginAs } from "./demo/_helpers";
 
@@ -22,7 +23,7 @@ import { loginAs } from "./demo/_helpers";
  *
  * Fields driven here (app/(app)/mis-mascotas/nueva/MinimalNewPetForm.tsx):
  *   - name     → text input labelled "Nombre"
- *   - species  → chip button "Perro/a" sets hidden input name="species"
+ *   - species  → chip button rotulado por `speciesLabel` sets hidden input name="species"
  *   - sex      → radio group, value "male"/"female"/"unknown"
  *   - province → <select> labelled "Provincia" (ISO 3166-2:AR value)
  *   - locality → LocalityPickerAcross labelled "Localidad o barrio", scoped to
@@ -83,8 +84,14 @@ test("owner creates a pet with location and it appears in /mis-mascotas", async 
   // -- Name -------------------------------------------------------------
   await page.getByLabel(/^nombre/i).fill(PET_NAME);
 
-  // -- Species: click the "Perro/a" chip --------------------------------
-  await page.getByRole("button", { name: /perro\/a/i }).click();
+  // -- Species: click the dog chip ---------------------------------------
+  // La etiqueta sale de `speciesLabel`, la ÚNICA fuente (lib/utils/species.ts).
+  // Estaba escrita a mano como /perro\/a/i y el 2026-08-09 el PO decidió "Perro"
+  // a secas —el desdoblamiento en un selector de ESPECIE es un error de
+  // categoría—. La constante se unificó y estos dos specs no; quedaron colgados
+  // 15s esperando un botón que ya no se llama así. Leerla de la fuente hace que
+  // el próximo cambio de ortografía no pueda romperlos en silencio.
+  await page.getByRole("button", { name: speciesLabel("dog"), exact: true }).click();
 
   // -- Sex: pick "Macho" radio ------------------------------------------
   await page.getByRole("radio", { name: /macho/i }).check();

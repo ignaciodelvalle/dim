@@ -8,6 +8,7 @@ import {
   RETRY_DISABLE_MS,
 } from "@/lib/ui/degraded-states";
 
+import { speciesLabel } from "../lib/utils/species";
 import { deletePetsByNamePrefix, isLocalDatabase } from "./demo/_db-cleanup";
 import { ACCOUNTS, loginAs } from "./demo/_helpers";
 
@@ -508,7 +509,9 @@ async function registerPet(page: Page, name: string): Promise<string> {
   ).toBeVisible({ timeout: 20_000 });
 
   await page.getByLabel(/^nombre/i).fill(name);
-  await page.getByRole("button", { name: /perro\/a/i }).click();
+  // Etiqueta desde `speciesLabel`, la única fuente — ver la nota en
+  // e2e/create-pet.spec.ts: el literal /perro\/a/i quedó obsoleto el 2026-08-09.
+  await page.getByRole("button", { name: speciesLabel("dog"), exact: true }).click();
   await page.getByRole("radio", { name: /macho/i }).check();
 
   await page.getByLabel(/provincia/i).selectOption(PROVINCE_CODE);
