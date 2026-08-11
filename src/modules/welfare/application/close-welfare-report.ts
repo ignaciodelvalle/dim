@@ -119,9 +119,20 @@ export async function closeWelfareReport(
   }
 
   // 5. Reporter notification (non-anon only).
+  //
+  // `category` is what routes this into the notification centre's "Denuncias"
+  // tab, and it was the ONE welfare writer that never set it (take-derived,
+  // return-derived, add-intervention-note and welfare/actions.ts all do). The
+  // centre only renders a tab whose count is > 0, so the row landed with a null
+  // category, the tab never appeared, and a citizen who reported animal cruelty
+  // got a reference code and then silence — cowork found the closure only
+  // because it went looking in another account (master test CIU, §9 #5).
+  //
+  // The notification was always being written. It just had nowhere to show up.
   if (report.reporterUserId) {
     pendingNotifications.push({
       userId: report.reporterUserId,
+      category: "welfare",
       notificationType: "welfare_report_status_changed",
       title: "Tu denuncia fue cerrada",
       body: "La autoridad cerró tu denuncia con una resolución. Podés ver el detalle desde el panel.",

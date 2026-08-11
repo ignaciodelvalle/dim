@@ -132,6 +132,9 @@ export async function startWelfareReport(
   if (report.reporterUserId) {
     pendingNotifications.push({
       userId: report.reporterUserId,
+      // See close-welfare-report.ts: without a category this lands outside the
+      // notification centre's "Denuncias" tab and the reporter never finds it.
+      category: "welfare",
       notificationType: "welfare_report_status_changed",
       title: "Tu denuncia avanzó",
       body: "Tu denuncia pasó a seguimiento activo. Vas a recibir un aviso cuando se cierre.",

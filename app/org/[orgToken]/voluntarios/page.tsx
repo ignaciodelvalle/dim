@@ -15,7 +15,14 @@ export default async function VoluntariosPage({
   searchParams,
 }: {
   params: Promise<{ orgToken: string }>;
-  searchParams: Promise<{ species?: string; province?: string; locality?: string; pet?: string }>;
+  searchParams: Promise<{
+    species?: string;
+    province?: string;
+    locality?: string;
+    pet?: string;
+    /** Set by VolunteerRow after a successful proposal — see the banner below. */
+    propuesta?: string;
+  }>;
 }) {
   const { orgToken } = await params;
   const { organization } = await requireOrgAccessByToken(orgToken);
@@ -90,6 +97,25 @@ export default async function VoluntariosPage({
           Propuestas
         </a>
       </nav>
+
+      {/* Post-action confirmation. The proposal writer sets a local success
+          message and then reloads the document (router.refresh is banned, see
+          lib/ui/full-page-action-nav.ts) — which wiped that message before
+          anyone could read it. The pool card came back looking IDENTICAL to
+          before ("1 slot · 0 aceptadas", "Proponer tránsito" available again),
+          so cowork had to open the Propuestas tab to find out it had worked,
+          with a live risk of sending the same proposal twice (master test CIU,
+          A-3-a). A signal that has to survive a full reload belongs in the URL,
+          which is also what the org listing already does with `?adopcion=`. */}
+      {filters.propuesta && (
+        <output className="block rounded-[var(--radius-md)] border border-ln-op-ok bg-ln-op-ok-050 px-4 py-3 text-md text-ln-op-ink">
+          Propuesta enviada ({filters.propuesta}). La vas a ver en{" "}
+          <a href={`/org/${orgToken}/voluntarios/propuestas`} className="underline">
+            Propuestas
+          </a>{" "}
+          hasta que el voluntario la acepte o la rechace.
+        </output>
+      )}
 
       <form
         action={`/org/${orgToken}/voluntarios`}

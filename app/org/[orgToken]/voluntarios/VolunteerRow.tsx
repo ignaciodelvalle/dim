@@ -68,7 +68,13 @@ export function VolunteerRow({
       // Full document reload so the volunteer's SSR slot count reflects the
       // new pending proposal (router.refresh() is banned — see
       // lib/ui/full-page-action-nav.ts).
-      navigateAfterActionSuccess(window.location.href);
+      //
+      // The reload also WIPES the okMessage set one line above, which is why
+      // sending a proposal used to leave no trace on screen (A-3-a). Carry the
+      // receipt in the URL so it survives the trip and the page can render it.
+      const back = new URL(window.location.href);
+      back.searchParams.set("propuesta", result.proposalPublicToken);
+      navigateAfterActionSuccess(back.toString());
     });
   }
 

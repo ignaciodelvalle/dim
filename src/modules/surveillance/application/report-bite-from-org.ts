@@ -221,6 +221,14 @@ export async function reportBiteFromOrg(
           recordedAt: now,
           recordedByUserId: user.id,
           ...eventAuthorship,
+          // Same rule as the owner-side reporter (report-bite.ts, N2-a): the
+          // observation is opened by law, not declared by whoever reported the
+          // bite, so the asiento is authored by the system. Fixed in both
+          // writers at once — one of them keeping the reporter's authorship
+          // would just move the false stamp to the org path.
+          authorRole: "system",
+          authorOrganizationId: null,
+          authorVerified: false,
           payload: observationPayload,
           caseId: caseRow.id,
         } as Parameters<typeof repo.insertObservationStarted>[0],

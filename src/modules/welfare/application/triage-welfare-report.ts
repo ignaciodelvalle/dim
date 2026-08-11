@@ -132,6 +132,11 @@ export async function triageWelfareReport(
     if (input.decision === "triaged") {
       pendingNotifications.push({
         userId: report.reporterUserId,
+        // Routes into the "Denuncias" tab of the notification centre — the tab
+        // only renders when its count is > 0, so an uncategorised row is a
+        // notification the reporter cannot find (same gap as
+        // close-welfare-report.ts, master test CIU §9 #5).
+        category: "welfare",
         notificationType: "welfare_report_status_changed",
         title: "Tu denuncia fue revisada",
         body: "Una autoridad revisó tu denuncia y la marcó para seguimiento. Vas a recibir un aviso cuando avance.",
@@ -142,6 +147,11 @@ export async function triageWelfareReport(
     } else {
       pendingNotifications.push({
         userId: report.reporterUserId,
+        // Routes into the "Denuncias" tab of the notification centre — the tab
+        // only renders when its count is > 0, so an uncategorised row is a
+        // notification the reporter cannot find (same gap as
+        // close-welfare-report.ts, master test CIU §9 #5).
+        category: "welfare",
         notificationType: "welfare_report_status_changed",
         title: "Tu denuncia fue cerrada",
         body:

@@ -59,12 +59,46 @@ export default async function AdoptionPage({
     )
     .limit(1);
   if (!petRow) {
+    // "No disponible" is the WRONG story for the commonest way to arrive here:
+    // having just finalized the adoption. Custody ends as part of that write, so
+    // this guard fires on the re-render and the most important action a refugio
+    // performs ended on a screen that reads as a failure — cowork had to open
+    // another account to find out it had worked (master test CIU, A-2-a).
+    //
+    // finalizeAdoption DOES return `redirectTo` to the listing's success banner,
+    // and the listing DOES consume `?adopcion=`. What is unreliable is the trip:
+    // the client half of the N3 contract (useActionRedirect → location.assign)
+    // does not always fire under the Next 15.5.x post-action navigation drop
+    // this repo documents in lib/ui/full-page-action-nav.ts — the same defect
+    // family as the dead sheet links. Rather than fight it again, the screen the
+    // operator actually lands on now tells the truth: a custody row that ENDED
+    // means the animal left this org, and that is the successful outcome.
+    const [endedCustody] = await db
+      .select({ endedAt: ownerships.endedAt })
+      .from(ownerships)
+      .innerJoin(pets, eq(ownerships.petId, pets.id))
+      .where(
+        and(
+          eq(pets.publicToken, publicToken),
+          eq(ownerships.ownerOrganizationId, organization.id),
+          eq(ownerships.role, "shelter_custody"),
+          sql`${ownerships.endedAt} IS NOT NULL`,
+        ),
+      )
+      .limit(1);
+
     return (
       <main className="min-h-screen bg-ln-op-page p-6 flex items-center justify-center">
         <div className="max-w-md text-center space-y-4">
-          <h1 className="text-title font-semibold text-ln-op-ink">Animal no disponible</h1>
+          <h1 className="text-title font-semibold text-ln-op-ink">
+            {endedCustody
+              ? "Listo — el animal ya no está bajo tu custodia"
+              : "Animal no disponible"}
+          </h1>
           <p className="text-md text-ln-op-ink-2">
-            Este animal no figura bajo custodia activa de {organization.displayName}.
+            {endedCustody
+              ? `La salida de la custodia de ${organization.displayName} quedó registrada como evento inmutable. Si acabás de finalizar una adopción, ya está hecha: la persona adoptante la ve en "Mis mascotas" y recibió su notificación.`
+              : `Este animal no figura bajo custodia activa de ${organization.displayName}.`}
           </p>
           <Link
             href={`/org/${orgToken}/mascotas`}

@@ -597,7 +597,15 @@ export default async function OrgDashboardPage({
       {isShelter && (
         <OpCard accent={actionItems.length > 0 ? "warn" : undefined}>
           <OpCardHead
-            title="Requieren acción"
+            // Names its population — ANIMALES. As "Requieren acción" it was the
+            // only block on the panel claiming to say what needs doing, and it
+            // said "Todo en orden" while the sidebar of the same screen showed 2
+            // postulaciones and 2 casos pendientes, one of them 35 days old
+            // (master test CIU, A-2-b). It never counted queues and was never
+            // meant to — the sibling "Pendientes" card owns those — so the title
+            // was the only thing overreaching. The list's own aria-label has
+            // read "Animales que requieren atención" the whole time.
+            title="Animales que requieren atención"
             actions={
               actionItems.length > 0 ? (
                 <Link
@@ -615,9 +623,11 @@ export default async function OrgDashboardPage({
               <div className="flex items-center gap-3 px-4 py-5">
                 <Icon name="check-circle" size="md" className="text-ln-op-ok shrink-0" decorative />
                 <div>
-                  <p className="text-md font-semibold text-ln-op-ink">Todo en orden</p>
+                  <p className="text-md font-semibold text-ln-op-ink">
+                    Ningún animal requiere atención
+                  </p>
                   <p className="text-sm text-ln-op-mute">
-                    Ningún animal requiere atención inmediata.
+                    Mirá igual las colas de "Pendientes" más abajo.
                   </p>
                 </div>
               </div>

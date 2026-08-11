@@ -195,8 +195,22 @@ export async function reportBite(input: ReportBiteInput, deps: Deps): Promise<Re
           eventType: "rabies_observation_started",
           occurredAt: now,
           recordedAt: now,
+          // WHO recorded it stays the triggering user — that is the audit fact.
           recordedByUserId: user.id,
           ...eventAuthorship,
+          // But the AUTHOR of this asiento is the system, not the person who
+          // reported the bite. Nobody declares a rabies observation: the law
+          // opens it, this transaction writes it, and the reporter never chose
+          // it. Inheriting `eventAuthorship` stamped it "CARGADO POR VOS" in the
+          // owner's own libreta, next to the events they really did load
+          // (master test CIU, N2-a) — in a ledger that advertises itself as
+          // immutable and signed, authorship is precisely what has to be
+          // believable. The "system" role already renders as "Registrado
+          // automáticamente" (asiento-fields.ts); this writer just never
+          // claimed it. Ordered AFTER the spread so it wins.
+          authorRole: "system",
+          authorOrganizationId: null,
+          authorVerified: false,
           payload: observationPayload,
           caseId: caseRow.id,
         } as Parameters<typeof repo.insertObservationStarted>[0],
