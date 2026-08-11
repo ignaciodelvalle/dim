@@ -101,6 +101,8 @@ describe("triageWelfareReport — valid transitions", () => {
     expect(result.notifications).toHaveLength(1);
     expect(result.notifications[0].userId).toBe("user-reporter-01");
     expect(result.notifications[0].notificationType).toBe("welfare_report_status_changed");
+    // Routes it into the "Denuncias" tab — see close-welfare-report.test.ts.
+    expect(result.notifications[0].category).toBe("welfare");
 
     // closeCase NOT called for non-terminal decision
     expect(closeCase).not.toHaveBeenCalled();

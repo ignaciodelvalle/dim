@@ -81,6 +81,13 @@ describe("closeWelfareReport — valid transitions", () => {
 
     expect(result.notifications).toHaveLength(1);
     expect(result.notifications[0].notificationType).toBe("welfare_report_status_changed");
+    // The category is what routes this into the centre's "Denuncias" tab, and
+    // the tab only renders when its count is > 0. Without it the row was written
+    // and had nowhere to appear, so a citizen who reported animal cruelty got a
+    // reference code and then silence (master test CIU §9 #5). The old assertion
+    // covered the TYPE and passed the whole time this was broken — which is why
+    // it is pinned here now.
+    expect(result.notifications[0].category).toBe("welfare");
   });
 
   it("open → closed is allowed per state machine", async () => {
