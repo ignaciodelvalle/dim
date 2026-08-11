@@ -75,6 +75,31 @@ function detailIsInThePill(card: ObligationCard): boolean {
   return false;
 }
 
+/**
+ * Whether the dual block's currency chip would repeat the card's own pill.
+ *
+ * The dual chip was added for the "0 de 4 · DECLARADA" case (task #78 #4): when
+ * the main pill speaks the REGISTRY lens ("Declarada · sin verificar"), the chip
+ * is the only place that states the dose's real vigencia, and it must stay.
+ *
+ * But when the main pill is already the vaccine-currency VSTAMP, both speak the
+ * SAME lens with the SAME tone — so the card printed "VENCIDA" as its stamp and
+ * "Vencida" again inside the green owner block two lines below. On a pet with a
+ * single expired dose the profile said "vencida" three times in ~120px, one on
+ * top of the other, plus the "Venció 11/02" line (PO 2026-08-11). Worse, the
+ * repeat landed inside a green success-toned row with a check icon — a reassuring
+ * container carrying an alarming chip.
+ *
+ * The row keeps ONE statement of currency: the stamp plus its "Venció …" date.
+ */
+function dualCurrencyIsInThePill(card: ObligationCard): boolean {
+  if (card.key !== "rabies" || !card.dual?.currencyTone) return false;
+  // Mirrors StatusBadge's branch order: `currencyKnown === false` renders the
+  // "SIN DATO" stamp, which makes no currency claim, so the chip still informs.
+  if (card.currencyKnown === false) return false;
+  return VSTAMP_TONES.has(card.tone) && card.dual.currencyTone === card.tone;
+}
+
 function StatusBadge({ card }: { card: ObligationCard }) {
   // A dose on record with no next_due_at has UNKNOWN currency, and the stamp
   // has a variant that says so. This used to render `tone: "ok"` as "VIGENTE"
@@ -180,14 +205,16 @@ function ObligationCardView({
             <span className="text-xs font-medium leading-relaxed text-[var(--color-ln-ink)]">
               {card.dual.ownerLabel}
             </span>
-            {card.dual.currencyLabel && card.dual.currencyTone && (
-              <LnBadge
-                variant={CURRENCY_TO_BADGE[card.dual.currencyTone]}
-                className="flex-shrink-0"
-              >
-                {card.dual.currencyLabel}
-              </LnBadge>
-            )}
+            {card.dual.currencyLabel &&
+              card.dual.currencyTone &&
+              !dualCurrencyIsInThePill(card) && (
+                <LnBadge
+                  variant={CURRENCY_TO_BADGE[card.dual.currencyTone]}
+                  className="flex-shrink-0"
+                >
+                  {card.dual.currencyLabel}
+                </LnBadge>
+              )}
           </div>
           <p className="flex items-start gap-2 rounded-[var(--radius-lg)] border border-[var(--color-ln-warn-100)] bg-[var(--color-ln-warn-025)] px-3 py-2.5 text-xs leading-relaxed text-[var(--color-ln-warn)]">
             <Icon name="info" size="sm" decorative className="mt-px flex-shrink-0" />

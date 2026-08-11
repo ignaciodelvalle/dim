@@ -390,6 +390,18 @@ export function CredentialFace({
             {/* Desktop (≥md) has the room: one summary row (counter + stamp)
                 above the full provenance-gated grid, inline. */}
             <div className="hidden md:block">
+              {/* Cumplimiento dedup, second pass (PO 2026-08-11). The counter
+                  stays; the STAMP does not. `complianceStamp` is `worstTone`,
+                  and the card carrying that worst tone renders its own stamp
+                  with the same word in the grid IMMEDIATELY below — so on a pet
+                  with one expired vaccine this row said VENCIDA and the next
+                  row said VENCIDA again, ~40px apart, about the same dose.
+                  "0 de 4 al día" already carries the severity at a glance.
+
+                  The mobile variant below KEEPS its stamp on purpose: there the
+                  grid is collapsed inside a <details>, so the stamp is the only
+                  severity signal until the reader expands it. Same data, two
+                  breakpoints, different amounts of context on screen. */}
               <div
                 data-section="compliance-summary"
                 className="mb-2.5 flex items-center justify-between gap-3"
@@ -397,9 +409,6 @@ export function CredentialFace({
                 <p className="m-0 text-sm font-medium text-[var(--color-ln-ink-2)]">
                   {complianceSummary}
                 </p>
-                {complianceStamp && (
-                  <LnVstamp variant={complianceStamp} label={complianceStampLabel} />
-                )}
               </div>
               <ComplianceObligationsPanel
                 state={complianceState}
