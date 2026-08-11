@@ -338,11 +338,18 @@ export default async function PublicCredentialPage({
     latestVaccinationTier !== null && isAtLeast(latestVaccinationTier, "professional_verified");
 
   // Approximate age — year only (Tier 0 doesn't expose exact DOB).
+  //
+  // Counted up to the DEATH date when there is one. `Date.now()` alone kept
+  // ageing the dead: Kabosu (died 2024) read "20 años" and Hachikō (died 1935)
+  // read "102 años" on the public credential — absurd on its face for the
+  // historical records, and quietly wrong for any pet whose death was recorded
+  // last month (master test CIU, B0b/B0c). A life stops at its end.
+  const ageEndsAt = pet.deceasedAt ? new Date(pet.deceasedAt).getTime() : Date.now();
   const ageYears = pet.dateOfBirth
     ? Math.max(
         0,
         Math.floor(
-          (Date.now() - new Date(pet.dateOfBirth).getTime()) / (1000 * 60 * 60 * 24 * 365.25),
+          (ageEndsAt - new Date(pet.dateOfBirth).getTime()) / (1000 * 60 * 60 * 24 * 365.25),
         ),
       )
     : null;
@@ -889,8 +896,18 @@ export default async function PublicCredentialPage({
               name/contact to the contested owner. PO 2026-07-24: instead of a
               dead-end notice, they get the neutral dispute-tip form — the
               submission lands on the dispute case for the reviewing authority
-              only (see DisputeTipForm / report-dispute-tip.ts). */}
-          {pet.inCustodyDispute ? (
+              only (see DisputeTipForm / report-dispute-tip.ts).
+
+              A DECEASED pet gets neither. There is no street action for an
+              animal that died, and asking a stranger to "avisarle al dueño" that
+              they found it is the cruelest thing this page could say to the
+              person who registered the death. The sticky action bar already had
+              this rule (CredentialActionBar: "deceased → page renders NO bar");
+              this inline block, one screen below it, never received it — so
+              Kabosu (2024), Hachikō (1935) and a pet whose death was recorded
+              minutes earlier all still offered it (master test CIU, B0b/B0c/
+              B5-c — three independent sightings of one missing guard). */}
+          {pet.status === "deceased" ? null : pet.inCustodyDispute ? (
             <div
               data-section="found-form-disputed"
               className="border-t border-ln-line bg-ln-stripe px-4 py-3.5"

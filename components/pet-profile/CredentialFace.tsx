@@ -371,7 +371,17 @@ export function CredentialFace({
 
       {/* Cumplimiento — the provenance-gated obligation grid, bare (the divider
           labels it; no card-in-card outer box). */}
-      {complianceState.cards.length > 0 && (
+      {/* A DECEASED pet has no pending obligations. The panel derives from the
+          event stream and never asked for the animal's state, so a profile whose
+          header already read EN MEMORIA went on showing "0 de 4 al día", "Vacuna
+          antirrábica SIN REGISTRO" and "Completá la raza y el peso para saber si
+          entra en el régimen PPP" — a checklist of things to do for an animal
+          the owner had just reported dead (master test CIU, B5-a). It is the one
+          finding in that report filed as "sólo me molestó" that would actually
+          hurt someone in production. The obligations are computed all the same
+          (they still feed the hero's status mapper); they are simply not shown
+          to a person in mourning. */}
+      {complianceState.cards.length > 0 && !memorial && (
         <>
           <div className="ln-divider">
             <span className="ln-divider-label">

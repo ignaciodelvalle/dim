@@ -1434,11 +1434,27 @@ export function formatDiasAgo(n: number): string {
   return `hace ${n} ${pluralizeEs(n, "día")}`;
 }
 
-export function ageFromDateOfBirth(dateOfBirth: string | null | undefined): string | null {
+/**
+ * Age from a date of birth, counted UP TO `until` when the animal has died.
+ *
+ * Without a cut-off this counted to today for every pet, including the dead
+ * ones: Kabosu (died 2024) read "20 años" and Hachikō (died 1935) read "102
+ * años" on their public credentials — a number that is absurd on its face for
+ * the historical record and quietly wrong for a pet that died last month
+ * (master test CIU, B0b/B0c). A life has a length; it stops at the end of it.
+ *
+ * `until` is the death date. Callers pass it whenever they have it; omitting it
+ * keeps the previous behaviour for living animals, which is correct for them.
+ */
+export function ageFromDateOfBirth(
+  dateOfBirth: string | null | undefined,
+  until?: Date | string | null,
+): string | null {
   if (!dateOfBirth) return null;
   const dob = new Date(dateOfBirth);
   if (Number.isNaN(dob.getTime())) return null;
-  const now = new Date();
+  const cutoff = until ? new Date(until) : null;
+  const now = cutoff && !Number.isNaN(cutoff.getTime()) ? cutoff : new Date();
   let years = now.getFullYear() - dob.getFullYear();
   let months = now.getMonth() - dob.getMonth();
   if (months < 0 || (months === 0 && now.getDate() < dob.getDate())) {

@@ -628,7 +628,7 @@ export default async function PetDetailPage({
   // duplicated the Cumplimiento card; the scan-activity signal's outside
   // surface dies per PO (the libreta remains the one place scans surface).
 
-  const age = ageFromDateOfBirth(pet.dateOfBirth);
+  const age = ageFromDateOfBirth(pet.dateOfBirth, pet.deceasedAt);
 
   // H1 display contradiction fix (clickthrough audit 2026-07-03/04, Segmento
   // 1 #6): the "chip" hero tag used to be pushed here from mere microchip
@@ -1240,6 +1240,10 @@ function FormerOwnerCustodyReadOnlyView({
   };
   casePublicCode: string;
 }) {
+  // No death cut-off here: getFormerOwnerReadAccess's pet payload is a narrow
+  // read-only projection that does not carry deceasedAt, and widening that query
+  // for a pet that is BOTH deceased and under an open custody dispute buys
+  // nothing. The main profile above passes it (master test CIU, B0b).
   const age = ageFromDateOfBirth(pet.dateOfBirth);
   const breedLine = [pet.breed, pet.sex ? sexLabel(pet.sex) : null, age, speciesLabel(pet.species)]
     .filter(Boolean)

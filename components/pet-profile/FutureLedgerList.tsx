@@ -19,7 +19,7 @@ import { LnLinkButton } from "@/components/ui/LinkButton";
 import { LnListRow } from "@/components/ui/ListRow";
 import { buildReminderVaccineUrl } from "@/lib/ui/reminder-urls";
 import { useActionRedirect } from "@/lib/ui/use-action-redirect";
-import { AR_TIME_ZONE } from "@/lib/utils/format";
+import { AR_TIME_ZONE, formatDiasAgo } from "@/lib/utils/format";
 import { type EventFormState, markMedicationDoseTakenAction } from "@/src/modules/events/actions";
 import Link from "next/link";
 import { useActionState, useState, useTransition } from "react";
@@ -41,6 +41,21 @@ function formatDueAt(date: Date): string {
     year: "numeric",
     timeZone: AR_TIME_ZONE,
   });
+}
+
+/**
+ * Whole days between `date` and today, negative when the date has passed.
+ *
+ * Both sides are normalised to the AR calendar day before subtracting, so the
+ * count is a difference of DATES and not of instants — an item due "today" at
+ * 23:00 is 0 days away, not -1 because the clock says 23:59.
+ */
+function daysUntil(date: Date, now: Date): number {
+  const dayOf = (d: Date) => {
+    const s = d.toLocaleDateString("en-CA", { timeZone: AR_TIME_ZONE }); // YYYY-MM-DD
+    return Date.parse(`${s}T00:00:00Z`);
+  };
+  return Math.round((dayOf(date) - dayOf(now)) / 86_400_000);
 }
 
 // MarkDoseForm — "Marcar dada" per medication row. The action returns
@@ -189,10 +204,22 @@ export function FutureLedgerList({
   const visible = items.filter((item) => !snoozedIds.has(item.id));
   if (visible.length === 0) return null;
 
+  // This list is sorted ascending by dueAt and includes what is already PAST
+  // due, under a heading that called all of it "Próximo". A refuerzo whose date
+  // fell four months ago sat there reading "Refuerzo: Antirrábica — 22 de abr de
+  // 2026" next to a "Posponer 7 días" button, as if nothing had happened — while
+  // the panel above it already said "1 VENCIDA" (master test CIU, B1-b). Two
+  // sections of the same screen disagreeing about whether a date has passed.
+  //
+  // The heading now names what is actually in the list, and each overdue row
+  // says how long it has been overdue instead of a bare date.
+  const now = new Date();
+  const hasOverdue = visible.some((item) => daysUntil(item.dueAt, now) < 0);
+
   return (
     <div data-section="future-ledger">
       <p className="mb-2 font-ln-mono text-xs uppercase tracking-[.06em] font-semibold text-[var(--color-ln-mute)]">
-        Próximo
+        {hasOverdue ? "Vencido y próximo" : "Próximo"}
       </p>
       <ul className="divide-y divide-[var(--color-ln-line)]">
         {visible.map((item) => (
@@ -230,9 +257,21 @@ export function FutureLedgerList({
               <span className="block text-sm font-medium text-[var(--color-ln-ink)]">
                 {item.label}
               </span>
-              <span className="mt-0.5 block text-xs text-[var(--color-ln-mute)]">
-                {formatDueAt(item.dueAt)}
-              </span>
+              {(() => {
+                const d = daysUntil(item.dueAt, now);
+                if (d >= 0) {
+                  return (
+                    <span className="mt-0.5 block text-xs text-[var(--color-ln-mute)]">
+                      {formatDueAt(item.dueAt)}
+                    </span>
+                  );
+                }
+                return (
+                  <span className="mt-0.5 block text-xs font-medium text-[var(--color-ln-seal)]">
+                    Venció {formatDiasAgo(Math.abs(d))} · {formatDueAt(item.dueAt)}
+                  </span>
+                );
+              })()}
             </LnListRow>
           </li>
         ))}
