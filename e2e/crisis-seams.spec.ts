@@ -914,7 +914,16 @@ test.describe("crisis seams — cross-POV critical journeys", () => {
     // mode, worst on CI cold starts) — when the reload still shows the
     // finalize form, the first click never reached the action; submit once
     // more before judging the transfer.
-    const custodyGone = page.getByText(/animal no disponible|no figura bajo custodia/i).first();
+    // Matches BOTH stories the guard can now tell. The page used to say only
+    // "Animal no disponible" — which reads as a failure right after the most
+    // important action a refugio performs — so a pet whose custody ENDED now
+    // gets success framing instead ("ya no está bajo tu custodia"). Same
+    // post-condition either way: the finalize form is gone because the animal
+    // left. Keep both alternatives; the neutral wording still renders for a pet
+    // this org never had custody of.
+    const custodyGone = page
+      .getByText(/animal no disponible|no figura bajo custodia|ya no está bajo tu custodia/i)
+      .first();
     await page.goto(`/org/${orgToken}/mascotas/${petToken}/adoption`, {
       waitUntil: "domcontentloaded",
     });
