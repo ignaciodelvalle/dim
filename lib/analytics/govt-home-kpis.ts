@@ -1282,7 +1282,21 @@ export async function fetchOpenWelfareReportsCount(
   const scope = welfareReportsScopeClause(ctx);
 
   // Backlog (secondary): all-time non-terminal work queue, period-independent.
-  const backlogCondition = not(inArray(welfareReports.status, [...WELFARE_TERMINAL_STATUSES]));
+  //
+  // Moderation-visible, like every OTHER surface that shows this work. Flagged
+  // rows awaiting admin review are hidden from /gob/maltrato and from
+  // /gob/acciones (buildMaltratoListConditions, "2. Moderation exclusion"), so
+  // counting them here inflated a funcionario's backlog with denuncias they
+  // could neither see nor act on: the briefing read 31 while their own worklist
+  // read 26, with nothing explaining the five (master test CIU, L-4).
+  //
+  // Note the `periodCondition` arm below ALREADY carries this predicate — the
+  // two arms of this same fetcher disagreed about whether a flagged report
+  // counts. This is the arm that was out of step, not the screens.
+  const backlogCondition = and(
+    not(inArray(welfareReports.status, [...WELFARE_TERMINAL_STATUSES])),
+    sql`(${welfareReports.flaggedAt} IS NULL OR ${welfareReports.moderationResolvedAt} IS NOT NULL)`,
+  );
 
   // In-period (primary): reports created within [since, until], moderation-visible,
   // ANY status — MIRRORS repository.loadDenunciasByUnit (the map + Registros

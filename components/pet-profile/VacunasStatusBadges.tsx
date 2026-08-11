@@ -233,11 +233,17 @@ export function VacunasStatusBadges({ summary }: { summary: VaccinationSummary }
         </p>
       )}
 
+      {/* "distintas" names the UNIT. otherCount is otherNames.size — DISTINCT
+          off-catalog vaccine names — while the libreta's "Vacunas N" chip counts
+          ASIENTOS. Kabosu showed "3 sin confirmar" here against a chip reading
+          "Vacunas 6", and the two looked like a contradiction: six doses under
+          three names, both counts correct, neither saying what it counted
+          (master test CIU, B0). Same disease as L-1, one screen down. */}
       {summary.otherCount > 0 && (
         <p className="mt-2 text-xs" style={{ color: "var(--color-ln-mute)" }}>
           {summary.otherCount === 1
-            ? "1 vacuna registrada fuera del calendario"
-            : `${summary.otherCount} vacunas registradas fuera del calendario`}
+            ? "1 vacuna distinta registrada fuera del calendario"
+            : `${summary.otherCount} vacunas distintas registradas fuera del calendario`}
         </p>
       )}
     </section>
