@@ -165,9 +165,14 @@ export function AlertInboxTable({ rows }: { rows: AlertInboxRow[] }) {
                 </td>
                 <td className="py-2.5 pr-4 text-ln-op-ink-2">{jurisdiction}</td>
                 <td className="py-2.5 pr-4 text-right tabular-nums">
-                  {/* "observado X · meta Y" — explicit framing instead of a bare
-                      "X ≤ Y" comparison the operator has to decode (D3). */}
-                  <span className="text-ln-op-mute">observado </span>
+                  {/* "observado al disparo X · meta Y" — explicit framing instead
+                      of a bare "X ≤ Y" comparison the operator has to decode (D3).
+                      "al disparo" because observed_value is FROZEN when the alert
+                      fires (record-firings.ts) while /admin/suscripciones shows
+                      the cube's value TODAY: the same CABA sterilization alert
+                      read "observado 38" here and "actual 37" there, at the same
+                      moment, 34 days apart in meaning (master test CIU, A5). */}
+                  <span className="text-ln-op-mute">observado al disparo </span>
                   <span className="font-semibold text-ln-op-ink">
                     {Number(row.observedValue).toLocaleString("es-AR")}
                   </span>

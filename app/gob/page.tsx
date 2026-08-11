@@ -850,7 +850,16 @@ export default async function GobiernoDashboardPage({
               openRabiesObservations.deltaWeek !== 0
                 ? {
                     value: openRabiesObservations.deltaWeek,
-                    period: "vs semana ant.",
+                    // Names what the delta compares, because it is NOT a change
+                    // in the number beside it. The value is a STOCK (pets under
+                    // observation right now); the delta is a FLOW (observations
+                    // OPENED this 7d vs the prior 7d — see fetchOpenRabies-
+                    // Observations). Unlabelled, the pair read as arithmetic
+                    // that cannot be: "1 ↑ Sube: +2,0 vs semana ant." — a value
+                    // of 1 with a delta of +2 (master test CIU, one of the four
+                    // numbers cowork said it did not believe). Both figures were
+                    // right; the label let them be read as one.
+                    period: "aperturas vs semana ant.",
                     unit: "count",
                     // Bad-when-up: more open observations must never scan green.
                     valence: "goodWhenDown" as const,

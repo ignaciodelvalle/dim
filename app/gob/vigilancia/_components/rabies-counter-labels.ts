@@ -43,6 +43,23 @@ import { pluralizeEs } from "@/lib/utils/format";
 export const RABIES_CASES_KPI_LABEL = KPI_CATALOG.rabies_observation_cases_open.label;
 
 /**
+ * THE THIRD COUNTER, and why it is not on this screen (master test CIU, L-1).
+ *
+ * The discipline above stopped at this file's own two tiles. A THIRD rabies
+ * figure lives on the /gob briefing — `open_rabies_observations`, the PETS
+ * counter — and it was still labelled "Observaciones rábicas abiertas", naming
+ * no unit at all. A funcionario comparing the two screens therefore met 1 here,
+ * 3 there and "8 vs 1" in the escalation tile, and read them as one number
+ * contradicting itself — on the figure that decides whether a biting animal has
+ * to be chased down. Its catalog label now names its unit too ("Mascotas en
+ * observación rábica").
+ *
+ * Unifying the three would be the wrong fix: they are different populations and
+ * the catalog's `exclusions` has said so in full the whole time. The defect was
+ * never the arithmetic — it was that the screens did not say what they counted.
+ */
+
+/**
  * The disambiguating caveat carried by the CASE counter's info popover. Points
  * at the other two rabies figures on the same screen and says what each one is
  * for, so the operator never has to guess which number a question is about.

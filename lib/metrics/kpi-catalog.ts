@@ -584,17 +584,6 @@ export const KPI_CATALOG: Record<KpiId, KpiDefinition> = {
 
   open_rabies_observations: {
     id: "open_rabies_observations",
-    // Names the UNIT — mascotas, not "observaciones". The same discipline
-    // app/gob/vigilancia/_components/rabies-counter-labels.ts already applies
-    // to its two rabies tiles ("make each label name the thing it counts");
-    // this one, on the /gob briefing, never got it. The result was three
-    // figures a funcionario read as one contradicted number: 1 here, 3 in
-    // /gob/vigilancia (EXPEDIENTES) and "8 vs 1" in the escalation tile
-    // (master test CIU, L-1 — the finding cowork ranked most serious, on the
-    // number that decides whether a biting animal has to be chased down).
-    //
-    // The catalog's `exclusions` below has spelled the distinction out in full
-    // the whole time. It just never reached the screen.
     label: "Mascotas en observación rábica",
     numerator: "COUNT active/lost pets where rabies_observation_status = 'in_progress'",
     denominator: "n/a — absolute count",
