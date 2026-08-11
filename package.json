@@ -78,6 +78,7 @@
     "rls:smoke": "tsx scripts/rls-smoke.ts",
     "rebuild:projections": "node --import ./scripts/register-server-only-stub.mjs --import tsx scripts/rebuild-projections.ts",
     "cube:refresh": "node --import ./scripts/register-server-only-stub.mjs --import tsx scripts/refresh-cube.ts",
+    "repair:dni": "node --conditions=react-server --import tsx scripts/repair-dni-half-state.ts",
     "seed:test": "node --import ./scripts/register-server-only-stub.mjs --import tsx scripts/seed-test-users.ts",
     "seed:perf": "node --import ./scripts/register-server-only-stub.mjs --import tsx scripts/seed-perf.ts",
     "seed:demo": "node --import ./scripts/register-server-only-stub.mjs --import tsx scripts/seed-demo.ts",
