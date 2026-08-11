@@ -168,8 +168,37 @@ firma como `vet_individual` **en la clínica**.
 
 Antes de que empieces, ya se dejó preparado:
 
-- **Turnos reservables.** La clínica de Recoleta tiene la campaña antirrábica `DEMO-SVO-CABA-RABIES` con una regla de agenda **vigente y abierta** (Lun-Vie 08:00-12:00) y turnos materializados. `/turnos/buscar` devuelve resultados.
+- **Turnos reservables.** La clínica de Recoleta tiene la campaña antirrábica `DEMO-SVO-CABA-RABIES` con una regla de agenda **vigente y abierta** (Lun-Vie 08:00-12:00) y turnos materializados. `/turnos/buscar` pide sesión iniciada — eso es normal, no un bug: se reserva estando adentro.
 - **Por qué estaba vacío antes**, para que no lo reportes como bug ajeno: la regla anterior vencía el **6 de agosto** y el test corre después. Fue una regla expirada, no una falta de datos.
+
+### 3.1 Qué se verificó, y cuándo — para que sepas de qué fecha es cada afirmación
+
+Este documento afirma muchas cosas sobre el estado de la base. Éstas se
+comprobaron **contra staging el 2026-08-10 a la noche**, justo antes de
+entregártelo:
+
+| Afirmación | Estado |
+|---|---|
+| Las seis mascotas históricas (§2.0) responden en `/p/` | ✅ las seis, 200 |
+| Los dos portales de organización (§2.1) responden | ✅ ambos, 200 |
+| Las siete rutas públicas del guion | ✅ todas, 200 |
+| El elenco demo intacto (`DIM-PAMP-0001`, `DIM-DEMO-*`) | ✅ |
+| Las siete cuentas del elenco entran con `Test1234!` | verificado el **2026-08-09** — si alguna falla, es hallazgo |
+| Ninguna cuenta tiene el DNI verificado (N2b) | verificado el **2026-08-09** |
+
+**Lo que cambió la noche del 2026-08-10, después de la última revisión de este
+documento** — importa porque tres hitos hablaban de cosas que ya no son ciertas:
+
+- **El detalle de expediente ahora TIENE controles de operador** (nota y, donde
+  el ciclo de vida lo admite, cierre). El hito **L5** decía lo contrario y fue
+  reescrito. Es lo más nuevo del producto: **miralo con ojo duro.**
+- Se arregló el callejón de la observación antirrábica desde `/gob` (**L5b**).
+- Se crearon dos buckets de Storage que el código usaba y no existían: sin
+  ellos, **ningún decomiso podía ejecutarse** (L6) y **ninguna foto de perfil
+  podía subirse**. Si alguno de esos dos falla ahora, es hallazgo nuevo.
+
+> Si algo de esta tabla no se cumple cuando lo tocás, **reportalo y seguí**. Una
+> afirmación vieja en este documento es un hallazgo tan válido como un bug.
 
 ---
 
@@ -236,9 +265,17 @@ En **cada vuelta**: entrar a `/gob/vigilancia`, `/gob/vigilancia/brotes`, `/gob/
 - **L2.** Sobre la mordedura de Noelí: **verificar que la observación antirrábica arrancó sola**. No busques un botón de "iniciar": no existe, y su ausencia **no es un hallazgo**. El sistema abre la observación en el mismo momento en que el dueño reporta la mordedura (N2). Lo que sí se mide acá: ¿te enteraste vos, o la encontraste porque fuiste a buscarla? Entrá por `/gob/acciones` ("Acciones que vencen"), que es el camino navegable real, y anotá cuántos saltos te costó llegar.
 - **L3.** Generar el **PDF de exportación MPF** de un caso de maltrato.
 - **L4.** Armar un **operativo de alcance** (lista + recordatorio) sin enviar masivos.
-- **L5.** Entrar a `/gob/casos` y abrir el expediente que la cola te pone **primero** — ordena por urgencia, así que es el más urgente de tu jurisdicción. Intentá cerrarlo. **Sabemos que no vas a poder:** el detalle de caso no tiene ningún control de operador, ni cerrar, ni escalar, ni asentar una nota. Está en el backlog desde el 26/07, bloqueado por una decisión de alcance. **Es hallazgo conocido, no lo investigues** — pero sí contanos lo que importa: llegar hasta ahí y descubrir que no hay nada que hacer, ¿cuánto te costó, y la pantalla te lo dice de entrada o lo descubrís buscando?
-- **L5c.** El cierre que **sí** existe: en `/gob/maltrato/[id]`, sobre la denuncia de Graciela. Ahí están triage, asignación y el export. Verificá que sale de la cola.
+- **L5.** Entrar a `/gob/casos` y abrir el expediente que la cola te pone **primero** — ordena por urgencia, así que es el más urgente de tu jurisdicción. Ahí hay un bloque **"Acciones"**. *(Hasta el 2026-08-10 esta pantalla no tenía NINGÚN control de operador y este hito decía "sabemos que no vas a poder". Se construyó anoche: si no ves el bloque, es hallazgo nuevo y lo queremos con URL.)*
+
+  Tres cosas para medir, en este orden:
+
+  1. **Asentá una nota.** Está disponible en todos los tipos de expediente mientras estén abiertos. Después verificá que aparece en el historial del expediente **con tu nombre y la fecha**. Buen momento para un `[CORTE]`: ¿la ve la organización involucrada? ¿el dueño?
+  2. **Intentá cerrarlo.** Según qué tipo de expediente te toque, puede que **no puedas** — el cierre manual sólo existe donde el ciclo de vida lo admite. Si no está disponible, la pantalla debería **decirte por qué y nombrar qué lo cierra**. Copiá esa frase textual. Lo que se mide: ¿te alcanza para entender, o te quedás pensando que el botón falta?
+  3. **Si sí podés cerrar**, mirá qué te advierte **antes** de confirmar. Un expediente cerrado no se reabre — ¿te lo dice de antemano o lo descubrís después?
+
+  > Un botón ausente **con motivo escrito** no es hallazgo. Un botón ausente **en silencio** sí. Y un motivo que no se entiende, también.
 - **L5b.** **Cerrar la observación antirrábica** de N2. Entrá por `/gob/acciones`, que es donde el producto te la ofrece, y seguí el botón "Cerrar". *(Hasta el 2026-08-10 ese botón te mandaba a una pared: apuntaba a `/admin`, cuyo layout rebota a gobierno. Se arregló — si igual chocás, es hallazgo nuevo y queremos el detalle.)* Lo que se mide: desde que ves que hay una observación por vencer hasta que la cerrás, **¿cuántos saltos y cuántas pantallas?**
+- **L5c.** El tercer cierre, en otra pantalla más: `/gob/maltrato/[id]`, sobre la denuncia de Graciela. Ahí están triage, asignación y el export. Verificá que sale de la cola. **Y comparalo con L5 y L5b:** ya cerraste tres cosas en tres lugares distintos, con tres controles distintos. ¿Se parecen entre sí? ¿Un funcionario que aprendió uno sabe usar los otros dos? Ésa es la pregunta de la lente L1 acá, y vale más que los tres cierres por separado.
 - **L6.** El extremo: **ejecutar un decomiso** en `/gob/decomisos/nuevo`, con sus adjuntos obligatorios, y traspasarlo a una organización. **ESPERA:** que Alejo lo reciba. *(Este hito estaba en la línea de Alejo. Se movió acá porque `requireDecomisoPrincipal` exige rol `govt` o `admin` y ninguna capability de organización lo habilita — Alejo no podía ejecutarlo.)*
 
 ### Línea I — Ignacio, el perdido y el viaje
