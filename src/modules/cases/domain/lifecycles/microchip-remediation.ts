@@ -18,7 +18,12 @@ export const microchipRemediationLifecycle: CaseLifecycle = {
       whenPayload: (p) => p.reason === "fraud_detected" || p.reason === "duplicate_detected",
     },
   ],
-  terminalEvents: [], // closed manually via case action, not via event
+  // NO terminal events — and `manualCloseAllowed` below is false, so this kind
+  // has NO closing path at all today. The previous comment here said "closed
+  // manually via case action", which stopped being true when #41 shipped the
+  // manual close gated on `manualCloseAllowed` (2026-08-10). Left as a declared
+  // gap rather than a silent one; see L-22 in docs/plans/PENDIENTES.md.
+  terminalEvents: [],
   cronCloseRoute: null,
   cronCloseScheduleHours: 24,
   manualOpenAllowed: true,

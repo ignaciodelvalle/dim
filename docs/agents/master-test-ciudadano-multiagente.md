@@ -274,6 +274,16 @@ En **cada vuelta**: entrar a `/gob/vigilancia`, `/gob/vigilancia/brotes`, `/gob/
   3. **Si sí podés cerrar**, mirá qué te advierte **antes** de confirmar. Un expediente cerrado no se reabre — ¿te lo dice de antemano o lo descubrís después?
 
   > Un botón ausente **con motivo escrito** no es hallazgo. Un botón ausente **en silencio** sí. Y un motivo que no se entiende, también.
+
+  > **La cola arranca VACÍA, y eso es correcto.** Verificado el 2026-08-10: no
+  > hay ningún expediente en las cinco localidades de Lucas todavía. Los crea
+  > este test — la mordedura de Noelí (N2), la denuncia de Graciela (G4), el
+  > decomiso (L6). **Hacé L5 recién cuando esas líneas hayan avanzado**, no en
+  > la primera vuelta.
+  >
+  > Pero la vuelta 1 sí tiene algo que medir acá, y es de la lente L1: una cola
+  > vacía, ¿te explica que está vacía porque no hay nada, o parece que algo
+  > falló? ¿Te ofrece a dónde ir, o es una lápida? Anotalo y seguí.
 - **L5b.** **Cerrar la observación antirrábica** de N2. Entrá por `/gob/acciones`, que es donde el producto te la ofrece, y seguí el botón "Cerrar". *(Hasta el 2026-08-10 ese botón te mandaba a una pared: apuntaba a `/admin`, cuyo layout rebota a gobierno. Se arregló — si igual chocás, es hallazgo nuevo y queremos el detalle.)* Lo que se mide: desde que ves que hay una observación por vencer hasta que la cerrás, **¿cuántos saltos y cuántas pantallas?**
 - **L5c.** El tercer cierre, en otra pantalla más: `/gob/maltrato/[id]`, sobre la denuncia de Graciela. Ahí están triage, asignación y el export. Verificá que sale de la cola. **Y comparalo con L5 y L5b:** ya cerraste tres cosas en tres lugares distintos, con tres controles distintos. ¿Se parecen entre sí? ¿Un funcionario que aprendió uno sabe usar los otros dos? Ésa es la pregunta de la lente L1 acá, y vale más que los tres cierres por separado.
 - **L6.** El extremo: **ejecutar un decomiso** en `/gob/decomisos/nuevo`, con sus adjuntos obligatorios, y traspasarlo a una organización. **ESPERA:** que Alejo lo reciba. *(Este hito estaba en la línea de Alejo. Se movió acá porque `requireDecomisoPrincipal` exige rol `govt` o `admin` y ninguna capability de organización lo habilita — Alejo no podía ejecutarlo.)*

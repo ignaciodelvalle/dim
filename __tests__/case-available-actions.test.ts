@@ -12,6 +12,7 @@ import { describe, expect, it } from "vitest";
 import {
   availableCaseActions,
   canPerformCaseAction,
+  describeTerminalEvents,
 } from "@/src/modules/cases/domain/available-actions";
 import { CASE_KINDS } from "@/src/modules/cases/domain/case-kinds";
 import { getLifecycle } from "@/src/modules/cases/domain/lifecycles";
@@ -59,16 +60,59 @@ describe("availableCaseActions — el cierre manual se DERIVA del ciclo de vida"
     expect(conCierreManual).toEqual(["custody_episode"]);
   });
 
-  it("cuando no se puede cerrar a mano, el motivo NOMBRA qué lo cierra", () => {
+  it("cuando no se puede cerrar a mano, el motivo NOMBRA el hecho en castellano", () => {
     // Un motivo que sólo dice "no se puede" manda al operador a buscar el botón
-    // tres veces. Nombrar el evento terminal cierra la pregunta.
+    // tres veces. Nombrar el hecho terminal cierra la pregunta.
     const [, close] = availableCaseActions("lost_pet_episode", "open");
     expect(close.available).toBe(false);
-    const terminales = getLifecycle("lost_pet_episode")?.terminalEvents ?? [];
-    expect(terminales.length).toBeGreaterThan(0);
-    for (const t of terminales) {
-      expect(close.unavailableReason).toContain(t);
+    expect(close.unavailableReason).toMatch(/no se cierra a mano/i);
+    // `status_changed` y `custody_transferred`, dichos como los vive el operador.
+    expect(close.unavailableReason).toMatch(/cambia el estado del animal/i);
+    expect(close.unavailableReason).toMatch(/cambia de responsable/i);
+  });
+
+  it("NINGÚN motivo filtra un identificador de evento crudo", () => {
+    // La versión original de este módulo interpolaba `terminalEvents` directo, y
+    // en staging se leía textual: "se cierra solo cuando ocurre el hecho que lo
+    // termina (custody_dispute_resolved)". Un identificador en inglés, en la
+    // copia de un expediente legal, contra el invariante #4 — y justo en la
+    // frase que existe para que la ausencia del botón se ENTIENDA.
+    //
+    // El test viejo hacía `expect(reason).toContain(eventType)`: no sólo dejaba
+    // pasar el defecto, lo EXIGÍA. Éste afirma lo contrario, sobre los doce
+    // kinds y los dos estados.
+    const idsCrudos = new Set<string>();
+    for (const kind of CASE_KINDS) {
+      for (const e of getLifecycle(kind)?.terminalEvents ?? []) idsCrudos.add(e);
     }
+    expect(idsCrudos.size, "hay eventos terminales que revisar").toBeGreaterThan(5);
+
+    for (const kind of CASE_KINDS) {
+      for (const status of ["open", "closed"] as const) {
+        for (const a of availableCaseActions(kind, status)) {
+          const reason = a.unavailableReason ?? "";
+          for (const id of idsCrudos) {
+            expect(reason, `${kind}/${status} filtra "${id}"`).not.toContain(id);
+          }
+          // Ningún snake_case en general, no sólo los que hoy conocemos.
+          expect(reason, `${kind}/${status} tiene forma de identificador`).not.toMatch(
+            /[a-z]+_[a-z]+/,
+          );
+        }
+      }
+    }
+  });
+
+  it("un evento terminal sin prosa degrada a la frase genérica, no al identificador", () => {
+    // La garantía que hace que lo de arriba siga siendo cierto mañana: agregar
+    // un evento nuevo a un ciclo de vida empeora la explicación, nunca la
+    // convierte en jerga.
+    expect(describeTerminalEvents(["custody_transferred"])).toBe("el animal cambia de responsable");
+    expect(describeTerminalEvents([])).toBeNull();
+    expect(
+      describeTerminalEvents(["custody_transferred", "evento_inventado" as never]),
+      "un evento sin traducir invalida la enumeración entera",
+    ).toBeNull();
   });
 
   it("un expediente ya cerrado no ofrece cerrarse otra vez", () => {

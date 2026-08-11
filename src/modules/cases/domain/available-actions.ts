@@ -19,9 +19,54 @@
 // La autorización va aparte y aguas arriba — esto dice qué es POSIBLE, no quién
 // puede.
 
+import type { EventType } from "@/db/schema";
 import type { CaseKind } from "./case-kinds";
 import { getLifecycle } from "./lifecycles";
 import type { CaseStatus } from "./lifecycles/types";
+
+/**
+ * El HECHO que cierra un expediente, dicho en es-AR.
+ *
+ * POR QUÉ EXISTE ESTE MAPA. La primera versión interpolaba
+ * `lifecycle.terminalEvents` directo en la frase, y un funcionario en staging
+ * leía textual: *"se cierra solo cuando ocurre el hecho que lo termina
+ * (custody_dispute_resolved)"*. Un identificador de evento en inglés, crudo, en
+ * la copia de un expediente legal — contra el invariante #4 del proyecto y
+ * justo en la frase que existe para que la ausencia del botón se ENTIENDA.
+ * Encontrado mirando la pantalla en staging, no leyendo el código.
+ *
+ * Cada entrada describe el hecho desde donde lo vive el operador, no desde el
+ * nombre de la tabla.
+ */
+const TERMINAL_EVENT_PROSE: Partial<Record<EventType, string>> = {
+  rabies_observation_ended: "termina el período de observación antirrábica",
+  custody_dispute_resolved: "se resuelve la disputa de custodia",
+  custody_transferred: "el animal cambia de responsable",
+  adoption_finalized: "se concreta la adopción",
+  death_recorded: "se registra el fallecimiento del animal",
+  adoption_application_resolved: "se resuelve la postulación",
+  foster_ended: "termina el tránsito",
+  adoption_eligibility_set: "cambia la elegibilidad para adopción",
+  foster_proposal_resolved: "se resuelve la propuesta de tránsito",
+  status_changed: "cambia el estado del animal",
+};
+
+/**
+ * Une los hechos terminales en una enumeración legible, o devuelve `null` si
+ * alguno no tiene prosa.
+ *
+ * FALLA CERRADO A PROPÓSITO: ante un evento sin traducir prefiere la frase
+ * genérica antes que filtrar el identificador. Un evento nuevo agregado a un
+ * ciclo de vida degrada la explicación; nunca la convierte en jerga.
+ */
+export function describeTerminalEvents(events: readonly EventType[]): string | null {
+  if (events.length === 0) return null;
+  const prose = events.map((e) => TERMINAL_EVENT_PROSE[e]);
+  if (prose.some((p) => p === undefined)) return null;
+  const parts = prose as string[];
+  if (parts.length === 1) return parts[0];
+  return `${parts.slice(0, -1).join(", ")} o ${parts[parts.length - 1]}`;
+}
 
 export type CaseAction =
   /** Asentar texto libre. No cambia el estado. Legítima para los doce kinds. */
@@ -97,13 +142,20 @@ export function availableCaseActions(kind: CaseKind, status: CaseStatus): CaseAc
     // El motivo nombra QUÉ lo cierra, no sólo que el botón no está. Un
     // funcionario que sabe que el expediente se cierra solo cuando el animal
     // sale de custodia no vuelve tres veces a buscar el botón.
-    const terminals = lifecycle.terminalEvents.join(", ");
+    const terminals = describeTerminalEvents(lifecycle.terminalEvents);
     close = {
       action: "close",
       available: false,
       unavailableReason: terminals
-        ? `Este tipo de expediente no se cierra a mano: se cierra solo cuando ocurre el hecho que lo termina (${terminals}).`
-        : "Este tipo de expediente no admite cierre manual.",
+        ? `Este tipo de expediente no se cierra a mano: se cierra solo cuando ${terminals}.`
+        : // Sin eventos terminales Y sin cierre manual, este expediente HOY no
+          // tiene ninguna vía de cierre. Decir sólo "no admite cierre manual"
+          // insinuaría que algo más lo cierra, y no es cierto: es el caso de
+          // microchip_remediation y outbreak_investigation, donde nadie escribió
+          // todavía la política. Un operador que se queda esperando un cierre
+          // automático que no existe es peor que uno que sabe que tiene que
+          // pedir la decisión.
+          "Este expediente todavía no tiene una vía de cierre definida: no se cierra a mano ni hay un hecho declarado que lo termine. Si necesitás darlo por terminado, escribilo en una nota y pedí que se defina la política.",
     };
   } else {
     close = { action: "close", available: true, unavailableReason: null };

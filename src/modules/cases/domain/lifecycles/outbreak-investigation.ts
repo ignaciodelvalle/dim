@@ -35,7 +35,14 @@ export const outbreakInvestigationLifecycle: CaseLifecycle = {
       eventType: "outbreak_signal",
     },
   ],
-  terminalEvents: [], // closed manually via case action
+  // NO terminal events — and `manualCloseAllowed` below is false, so this kind
+  // has NO closing path at all today. The previous comment said "closed manually
+  // via case action", which stopped being true when #41 shipped the manual close
+  // gated on `manualCloseAllowed` (2026-08-10). It matters more here than in
+  // microchip_remediation: an outbreak investigation is legally sensitive and
+  // may run for weeks, so an operator WILL eventually want to close one. See
+  // L-22 in docs/plans/PENDIENTES.md.
+  terminalEvents: [],
   // No auto-close cron — outbreak investigations are legally sensitive and
   // may run for weeks (ENO pipeline spec marks brote cron as v2 out-of-scope).
   cronCloseRoute: null,
