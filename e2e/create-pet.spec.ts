@@ -131,6 +131,26 @@ test("owner creates a pet with location and it appears in /mis-mascotas", async 
   // Paso 2 revealed: prominent photo field + the final submit button.
   await expect(page.getByText(/tomar o elegir una foto/i)).toBeVisible();
 
+  // ADVANCING IS NOT CREATING. This assertion is the one that matters, and its
+  // absence is why "Continuar creates the pet and skips the photo step" shipped
+  // (PO 2026-08-11) with this spec green over it.
+  //
+  // The visibility check above CANNOT catch that bug: on the broken build the
+  // click both advanced the wizard AND submitted the form, so paso 2 genuinely
+  // rendered for the ~300ms the server action took, satisfied the assertion,
+  // and only then did the client push to /credencial. Everything downstream
+  // then passed too — waitForURL's predicate was already true on the credential
+  // screen, and the pet showed up in the list because the bug had created it.
+  // Every assertion in this spec was satisfied BY the defect.
+  //
+  // The URL is the honest contract: paso 1 → paso 2 is client-side step state,
+  // so the location must not have moved. Checked twice on purpose — once now,
+  // and once after a beat, because the navigation that this guards against is
+  // asynchronous and would otherwise land just after a single instant check.
+  await expect(page).toHaveURL(/\/mis-mascotas\/nueva$/);
+  await page.waitForTimeout(1500);
+  await expect(page).toHaveURL(/\/mis-mascotas\/nueva$/);
+
   // ── Paso 2 — submit (foto is optional; skip it) ──────────────────────
   //
   // The click is fired but NOT awaited. Its promise never resolves here, and
