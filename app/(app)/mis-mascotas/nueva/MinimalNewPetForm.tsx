@@ -477,17 +477,40 @@ export function MinimalNewPetForm({
         )}
 
         {/* ── Footer actions ─────────────────────────────────────────── */}
+        {/* PO bug 2026-08-11, "el paso de la foto se pasa volando": ONE click on
+            "Continuar" created the pet and jumped straight to the credencial —
+            paso 2 never rendered, so no owner could ever attach a photo during
+            the alta.
+
+            Cause: both footer buttons occupied the SAME slot with no `key`, so
+            React reconciled them as one <button> and merely PATCHED `type` from
+            "button" to "submit". A click's activation behaviour runs AFTER the
+            listeners, and by then React had already flipped the very node being
+            activated into a submit button — so the browser submitted the form.
+            Note this reproduces ONLY in a real browser: jsdom/RTL flush on a
+            different tick and report the flow as healthy (verified 2026-08-11).
+
+            Two independent guards, because one silent regression here costs the
+            photo on every pet created: distinct `key`s so React builds a FRESH
+            node per step instead of mutating the clicked one, and an explicit
+            preventDefault so a cancelled click has no activation behaviour to
+            run even if the keys are ever dropped. */}
         <div className="mt-6">
           {step === 1 ? (
             <button
+              key="wizard-continue"
               type="button"
-              onClick={goToStep2}
+              onClick={(e) => {
+                e.preventDefault();
+                goToStep2();
+              }}
               className="inline-flex w-full cursor-pointer items-center justify-center gap-2 rounded-[var(--radius-sm)] border border-[var(--color-ln-azul)] bg-[var(--color-ln-azul)] px-4 py-2.5 text-md font-semibold text-white transition-colors hover:border-[var(--color-ln-azul-700)] hover:bg-[var(--color-ln-azul-700)]"
             >
               Continuar
             </button>
           ) : duplicatePrompt || chipMatchActive ? null : (
             <button
+              key="wizard-submit"
               type="submit"
               disabled={busy}
               className="inline-flex w-full cursor-pointer items-center justify-center gap-2 rounded-[var(--radius-sm)] border border-[var(--color-ln-azul)] bg-[var(--color-ln-azul)] px-4 py-2.5 text-md font-semibold text-white transition-colors hover:border-[var(--color-ln-azul-700)] hover:bg-[var(--color-ln-azul-700)] disabled:cursor-not-allowed disabled:opacity-60"
