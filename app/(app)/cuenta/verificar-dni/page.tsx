@@ -32,12 +32,17 @@ export default async function VerificarDniPage({
   const next = sanitizeNext(params.next);
 
   const [profile] = await db
-    .select({ dniVerified: profiles.dniVerified })
+    .select({ dniVerified: profiles.dniVerified, dniLast4: profiles.dniLast4 })
     .from(profiles)
     .where(eq(profiles.id, user.id))
     .limit(1);
 
-  if (profile?.dniVerified) {
+  // "Nothing left to do" is the flag AND a DNI actually on file — the same
+  // condition verifyDniForUser uses to short-circuit. Bouncing on the flag alone
+  // sent a half-state profile away from the only screen that could repair it
+  // (master test CIU, N2b: the sheet no-oped and this route redirected, so both
+  // doors were shut on the same non-state).
+  if (profile?.dniVerified && profile.dniLast4) {
     redirect(next);
   }
 

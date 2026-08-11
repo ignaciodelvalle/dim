@@ -1,4 +1,4 @@
-import Link from "next/link";
+import { SheetTriggerLink } from "@/components/pet-profile/SheetTriggerLink";
 
 import { Icon } from "@/components/Icon";
 import { LnBadge } from "@/components/ui/Badge";
@@ -94,11 +94,11 @@ export function OrgHero({ org, localityLabel, adoptionCount, serviceCount }: Pro
                 {org.displayName}
               </h1>
               {/* Verified chip (inline with name) */}
-              <Link href="?sheet=verificacion-info">
+              <SheetTriggerLink href={`/refugios/${org.publicToken}?sheet=verificacion-info`}>
                 <LnBadge variant="success" icon="shield-check">
                   Verificado
                 </LnBadge>
-              </Link>
+              </SheetTriggerLink>
             </div>
             <div className="flex flex-wrap items-center gap-2">
               <LnBadge variant="neutral">{orgTypeChipLabel}</LnBadge>
@@ -127,20 +127,20 @@ export function OrgHero({ org, localityLabel, adoptionCount, serviceCount }: Pro
 
           {/* CTA buttons */}
           <div className="flex flex-col sm:flex-row gap-2">
-            <Link
-              href="?sheet=contactar"
+            <SheetTriggerLink
+              href={`/refugios/${org.publicToken}?sheet=contactar`}
               className="inline-flex items-center justify-center gap-2 rounded-[var(--radius-sm)] bg-[var(--color-ln-azul)] text-white text-sm font-semibold px-4 py-2.5 hover:bg-[var(--color-ln-azul-700)] focus:outline-none focus-visible:ring-[3px] focus-visible:ring-[var(--color-ln-celeste-050)] transition-colors"
             >
               <Icon name="mail" size="sm" decorative />
               Contactar al refugio
-            </Link>
-            <Link
-              href="?sheet=compartir-org"
+            </SheetTriggerLink>
+            <SheetTriggerLink
+              href={`/refugios/${org.publicToken}?sheet=compartir-org`}
               className="inline-flex items-center justify-center gap-2 rounded-[var(--radius-sm)] border border-[var(--color-ln-line-strong)] bg-[var(--color-ln-card)] text-[var(--color-ln-ink)] text-sm font-medium px-4 py-2.5 hover:bg-[var(--color-ln-stripe)] focus:outline-none focus-visible:ring-[3px] focus-visible:ring-[var(--color-ln-celeste-050)] transition-colors"
             >
               <Icon name="externo" size="sm" decorative />
               Compartir
-            </Link>
+            </SheetTriggerLink>
           </div>
         </div>
       </div>

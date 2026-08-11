@@ -1,5 +1,7 @@
 import Link from "next/link";
 
+import { SheetTriggerLink } from "@/components/pet-profile/SheetTriggerLink";
+
 import { Icon } from "@/components/Icon";
 import { LnCard, LnCardBody } from "@/components/ui/Card";
 import { LnSectionHead } from "@/components/ui/DocElements";
@@ -24,6 +26,10 @@ type HelpCard = {
   icon: string;
   label: string;
   href: string;
+  /** Same-route `?sheet=` target — must open via the History API, not a soft
+   *  navigation (see lib/ui/sheet-nav.ts). "Doná" and "Sumate como voluntario"
+   *  were plain <Link>s and neither did anything on click. */
+  opensSheet?: boolean;
 };
 
 export function HelpPanel({ org, isAuthed }: Props) {
@@ -56,7 +62,12 @@ export function HelpPanel({ org, isAuthed }: Props) {
   // website if donation_methods is null but a website exists; otherwise
   // the card is omitted entirely (no greyed-out card per handoff).
   if (org.donationMethods && Object.values(org.donationMethods).some((v) => v)) {
-    cards.push({ key: "donar", icon: "regalo", label: "Doná", href: "?sheet=donar" });
+    cards.push({
+      key: "donar",
+      icon: "regalo",
+      label: "Doná",
+      href: `/refugios/${org.publicToken}?sheet=donar`,
+    });
   } else if (org.website) {
     cards.push({
       key: "donar",
@@ -70,7 +81,8 @@ export function HelpPanel({ org, isAuthed }: Props) {
     key: "voluntario",
     icon: "usuarios",
     label: "Sumate como voluntario",
-    href: "?sheet=ser-voluntario",
+    href: `/refugios/${org.publicToken}?sheet=ser-voluntario`,
+    opensSheet: true,
   });
 
   return (
@@ -79,18 +91,23 @@ export function HelpPanel({ org, isAuthed }: Props) {
       <LnCard>
         <LnCardBody>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-            {cards.map((card) => (
-              <Link
-                key={card.key}
-                href={card.href}
-                className="flex flex-col items-center justify-center gap-2 rounded-[var(--radius-sm)] border border-[var(--color-ln-line)] bg-[var(--color-ln-card)] px-4 py-6 text-center hover:bg-[var(--color-ln-stripe)] focus:outline-none focus-visible:ring-[3px] focus-visible:ring-[var(--color-ln-celeste-050)] transition-colors"
-              >
-                <span aria-hidden className="text-[var(--color-ln-azul)]">
-                  <Icon name={card.icon} size={28} decorative />
-                </span>
-                <span className="text-sm font-medium text-[var(--color-ln-ink)]">{card.label}</span>
-              </Link>
-            ))}
+            {cards.map((card) => {
+              const Trigger = card.opensSheet ? SheetTriggerLink : Link;
+              return (
+                <Trigger
+                  key={card.key}
+                  href={card.href}
+                  className="flex flex-col items-center justify-center gap-2 rounded-[var(--radius-sm)] border border-[var(--color-ln-line)] bg-[var(--color-ln-card)] px-4 py-6 text-center hover:bg-[var(--color-ln-stripe)] focus:outline-none focus-visible:ring-[3px] focus-visible:ring-[var(--color-ln-celeste-050)] transition-colors"
+                >
+                  <span aria-hidden className="text-[var(--color-ln-azul)]">
+                    <Icon name={card.icon} size={28} decorative />
+                  </span>
+                  <span className="text-sm font-medium text-[var(--color-ln-ink)]">
+                    {card.label}
+                  </span>
+                </Trigger>
+              );
+            })}
           </div>
         </LnCardBody>
       </LnCard>

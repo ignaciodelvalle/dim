@@ -107,7 +107,12 @@ export function CuentaSheetMounter({ initialProfile, role, dniVerified }: Props)
   }
 
   if (sheet === "verificar-dni") {
-    if (dniVerified) return null; // already verified — no-op
+    // No-op only when there is nothing left to do. `dniVerified` alone was the
+    // condition and the /cuenta affordance branched on `dniLast4`, so the two
+    // disagreed on the seed's half-state and the button opened nothing (master
+    // test CIU, N2b). The page now offers this sheet iff `!dniVerified`, so this
+    // guard and that affordance are the same predicate read from two places.
+    if (dniVerified) return null;
     return (
       <Sheet
         id="verificar-dni"

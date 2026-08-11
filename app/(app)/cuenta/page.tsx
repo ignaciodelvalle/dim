@@ -30,6 +30,8 @@ import { LnBadge } from "@/components/ui/Badge";
 import { LnCard, LnCardBody, LnCardHead } from "@/components/ui/Card";
 import { LnSectionHead } from "@/components/ui/DocElements";
 
+import { SheetTriggerLink } from "@/components/pet-profile/SheetTriggerLink";
+
 import { CuentaSheetMounter } from "./CuentaSheetMounter";
 import { DeactivateAccountDialog } from "./_components/DeactivateAccountDialog";
 import { PushNotificationsCard } from "./_components/PushNotificationsCard";
@@ -244,27 +246,56 @@ export default async function CuentaPage() {
         <LnCardBody>
           <div className="flex flex-col gap-3">
             {/* DNI — Wave 5 Item 25a: show last-4 only (no plaintext).
-                Full DNI is never stored; disambiguation via dniLast4. */}
-            {profile.dniLast4 ? (
+                Full DNI is never stored; disambiguation via dniLast4.
+
+                THE AFFORDANCE BRANCHES ON THE SAME COLUMN THE SHEET DOES.
+                This block used to branch on `dniLast4` while CuentaSheetMounter
+                short-circuits on `dniVerified` (`if (dniVerified) return null`),
+                so a profile with dniVerified=true and dniLast4=null rendered
+                "Declarar ahora", changed the URL to ?sheet=verificar-dni, and
+                opened nothing — a dead button, deterministically, forever. Every
+                demo persona was in that state (master test CIU, hallazgo N2b).
+                Whatever the columns say, the rule now holds structurally: the
+                button renders if and only if the sheet will open.
+
+                The same restructuring closes a second dead end nobody reported.
+                `complete-identity.ts` writes dniLast4 WITHOUT dniVerified (the
+                alta declares, it does not verify), and the old first branch
+                rendered that state as "DNI ••••1234 no declarado" — digits on
+                screen under a line denying they exist — with no way to finish.
+                Now it says "sin verificar" and offers the step. */}
+            {profile.dniVerified ? (
               <div className="flex items-center gap-2.5">
-                <VerificationBadge verified={profile.dniVerified} />
+                <VerificationBadge verified />
                 <span className="text-md text-[var(--color-ln-ink-2)]">
-                  DNI <span className="font-ln-mono">{`••••${profile.dniLast4}`}</span>{" "}
+                  DNI{" "}
+                  {profile.dniLast4 && (
+                    <span className="font-ln-mono">{`••••${profile.dniLast4}`}</span>
+                  )}{" "}
                   {/* DNI verification is self-declared (trust-on-input) until the Mi Argentina
                       integration lands. Use "declarado" to avoid overclaiming identity assurance. */}
-                  {profile.dniVerified ? "declarado" : "no declarado"}
+                  declarado
                 </span>
               </div>
             ) : (
               <div className="flex items-center gap-2.5">
                 <span className="h-[8px] w-[8px] flex-shrink-0 rounded-full bg-[var(--color-ln-mute)]" />
-                <span className="text-md text-[var(--color-ln-mute)]">DNI no declarado</span>
-                <Link
-                  href="?sheet=verificar-dni"
+                <span className="text-md text-[var(--color-ln-mute)]">
+                  {profile.dniLast4 ? (
+                    <>
+                      DNI <span className="font-ln-mono">{`••••${profile.dniLast4}`}</span> sin
+                      verificar
+                    </>
+                  ) : (
+                    "DNI no declarado"
+                  )}
+                </span>
+                <SheetTriggerLink
+                  href="/cuenta?sheet=verificar-dni"
                   className="inline-flex items-center justify-center gap-[7px] rounded-[var(--radius-pill)] border border-[var(--color-ln-line-strong)] bg-[var(--color-ln-card)] px-[11px] py-1.5 text-sm font-semibold text-[var(--color-ln-ink)] transition-colors hover:bg-[var(--color-ln-stripe)] focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-[var(--color-ln-celeste-050)] no-underline"
                 >
-                  Declarar ahora
-                </Link>
+                  {profile.dniLast4 ? "Verificar ahora" : "Declarar ahora"}
+                </SheetTriggerLink>
               </div>
             )}
 
@@ -326,7 +357,8 @@ export default async function CuentaPage() {
 
       <div className="mb-8 overflow-hidden rounded-[var(--radius-sm)] border border-[var(--color-ln-line)]">
         <ActionRow
-          href="?sheet=editar-perfil"
+          href="/cuenta?sheet=editar-perfil"
+          opensSheet
           label="Editar mi información"
           description="Nombre, teléfono y foto de perfil"
         />
@@ -356,7 +388,8 @@ export default async function CuentaPage() {
                     sheet — org creation (/cuenta/upgrade, OrgCreateForm) was
                     fully built and unreachable from here. */}
                 <ActionRow
-                  href="?sheet=solicitar-upgrade-vet"
+                  href="/cuenta?sheet=solicitar-upgrade-vet"
+                  opensSheet
                   label="Convertirme en profesional"
                   description="Registrá tu matrícula veterinaria y firmá eventos clínicos verificados"
                 />
@@ -411,7 +444,8 @@ export default async function CuentaPage() {
             />
             {profile.role === "vet" && (
               <ActionRow
-                href="?sheet=renunciar-rol"
+                href="/cuenta?sheet=renunciar-rol"
+                opensSheet
                 label="Renunciar a rol veterinario"
                 description="Volvés a rol dueño/a"
                 danger
@@ -546,6 +580,7 @@ function ActionRow({
   description,
   danger = false,
   badge,
+  opensSheet = false,
 }: {
   href: string;
   label: string;
@@ -553,9 +588,17 @@ function ActionRow({
   danger?: boolean;
   /** Pending-count pill (e.g. tránsitos propuestas/activos), folded in from the removed hub page. */
   badge?: number;
+  /**
+   * Same-route `?sheet=` target: render the History-API trigger instead of a
+   * plain <Link>. A soft navigation to a sheet is exactly the hot path the App
+   * Router 15.5 defect drops on the floor (lib/ui/sheet-nav.ts) — every row
+   * that opened a sheet through <Link> here was dead on click.
+   */
+  opensSheet?: boolean;
 }) {
+  const Trigger = opensSheet ? SheetTriggerLink : Link;
   return (
-    <Link
+    <Trigger
       href={href}
       className={[
         "flex items-center justify-between gap-4 border-b border-[var(--color-ln-line-2)] px-[18px] py-3.5 no-underline last:border-b-0",
@@ -583,6 +626,6 @@ function ActionRow({
           ›
         </span>
       </div>
-    </Link>
+    </Trigger>
   );
 }

@@ -33,6 +33,8 @@
  *   pnpm seed:test
  */
 
+import { createHash } from "node:crypto";
+
 import { type SupabaseClient, createClient as createSdkClient } from "@supabase/supabase-js";
 import { config as loadEnv } from "dotenv";
 
@@ -87,7 +89,11 @@ if (!isLocal && ALLOW_REMOTE) {
 // Deferred imports (after env load)
 // ---------------------------------------------------------------------------
 
-const { and, eq, isNull } = await import("drizzle-orm");
+const { and, eq, isNull, ne, or } = await import("drizzle-orm");
+// Deferred like the rest: getPepper() reads DNI_HASH_PEPPER from the env this
+// script loads above, and the seed must hash with the same helper the real
+// writer uses — a second implementation here would drift from migration 0106.
+const { hashDni, dniLast4 } = await import("@/lib/utils/dni-hash");
 const { approveRequestForAuthority } = await import(
   "../src/modules/organizations/application/admin-decisions/approve-request"
 );
@@ -255,20 +261,71 @@ async function setPassword(userId: string, password: string): Promise<void> {
 }
 
 /**
- * Seed-only shortcut: sets dni_verified=true for a user without going through
- * the real Mi Argentina flow (which doesn't exist yet). Idempotent — only
- * updates when dni_verified is currently false, leaves dni_number=NULL so the
- * partial unique index (IS NOT NULL) is never triggered by seed accounts.
+ * Seed-only shortcut: marks a user's DNI as verified without going through the
+ * real Mi Argentina flow (which doesn't exist yet). Idempotent — only updates
+ * when dni_verified is currently false.
  *
- * This is the "seed bypass" described in docs/patterns/petition-prerequisites.md.
+ * For a PERSONAL account it writes dni_hash + dni_last4 ALONGSIDE the flag,
+ * exactly as the real writer (verifyDniForUser) does in one transaction. It used
+ * to set only the flag and leave the DNI columns NULL, which left a personal
+ * profile "verified" with no DNI on file — a state the product's own screens
+ * cannot represent. Every seeded persona was in it, and it cost two findings in
+ * the master test CIU: the "Declarar ahora" button opened nothing (N2b, the
+ * run's only hard blocker), and the tránsito pool let a user enrol with an
+ * undeclared DNI (N3-b). The pool gate was never broken — it asked `dniVerified`,
+ * as docs/patterns/petition-prerequisites.md specifies, and the seed had lied.
+ *
+ * INSTITUTIONAL accounts are left flag-only, and that is not an oversight: the
+ * `profiles_institutional_no_pii` CHECK forbids dni_hash on a non-personal
+ * profile outright. An institution has no DNI, so "verified with no DNI" is its
+ * CORRECT shape — the incoherent state was only ever the personal one.
+ *
+ * The synthetic DNI is derived from the user id so it is stable across re-runs
+ * and distinct per account — profiles_dni_hash_unique (migration 0106) is a
+ * partial unique index over dni_hash, so two seeded accounts must never collide.
+ *
  * TODO(mi-argentina): remove this once the real OAuth callback is wired; the
  * seed should instead exercise the real verifyDniForUser writer.
  */
 async function syncDniVerified(userId: string): Promise<void> {
+  // 8 digits, deterministic per user id, never colliding across seed accounts.
+  const digits = createHash("sha256").update(userId).digest("hex");
+  const syntheticDni = String(10_000_000 + (Number.parseInt(digits.slice(0, 12), 16) % 90_000_000));
+
+  // Institutional profiles: flag only — writing a DNI here trips
+  // profiles_institutional_no_pii and aborts the whole seed.
   await db
     .update(profiles)
-    .set({ dniVerified: true, updatedAt: new Date() })
-    .where(and(eq(profiles.id, userId), eq(profiles.dniVerified, false)));
+    .set({ dniVerified: true, dniVerifiedAt: new Date(), updatedAt: new Date() })
+    .where(
+      and(
+        eq(profiles.id, userId),
+        eq(profiles.dniVerified, false),
+        ne(profiles.accountType, "personal"),
+      ),
+    );
+
+  await db
+    .update(profiles)
+    .set({
+      dniVerified: true,
+      dniHash: hashDni(syntheticDni),
+      dniLast4: dniLast4(syntheticDni),
+      dniVerifiedAt: new Date(),
+      updatedAt: new Date(),
+    })
+    // Self-healing, not merely idempotent: it also fires on an ALREADY-verified
+    // profile whose dni_last4 is NULL. Gating on `dniVerified = false` alone
+    // would have left every account seeded before this fix stranded in the
+    // half-state forever — re-running the seed is how an existing environment
+    // (local or staging) gets repaired.
+    .where(
+      and(
+        eq(profiles.id, userId),
+        eq(profiles.accountType, "personal"),
+        or(eq(profiles.dniVerified, false), isNull(profiles.dniLast4)),
+      ),
+    );
 }
 
 async function readProfileRole(userId: string): Promise<string | null> {

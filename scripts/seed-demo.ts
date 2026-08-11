@@ -463,15 +463,59 @@ async function ensureAuthUser(
   return { id: data.user.id, created: true };
 }
 
+/**
+ * Twin of `syncDniVerified` in scripts/seed-test-users.ts — keep the two in
+ * step. Both are the "seed bypass" of docs/patterns/petition-prerequisites.md,
+ * and both used to set the flag alone, leaving a PERSONAL profile marked
+ * verified with no DNI on file. That state is one the product's own screens
+ * cannot represent, and it is what the demo personas were in: it produced the
+ * dead "Declarar ahora" button (master test CIU, N2b) and let the tránsito pool
+ * accept an enrolment with an undeclared DNI (N3-b).
+ *
+ * Institutional profiles stay flag-only — `profiles_institutional_no_pii`
+ * forbids dni_hash on them, and an institution has no DNI to declare.
+ *
+ * Self-healing: it also fires on an already-verified personal profile whose
+ * dni_last4 is NULL, so re-seeding repairs an environment rather than skipping.
+ */
 async function syncDniVerified(deps: DbDeps, userId: string): Promise<void> {
   const { db, drizzle, schemas } = deps;
+  const { createHash } = await import("node:crypto");
+  const { hashDni, dniLast4 } = await import("@/lib/utils/dni-hash");
+
+  // Deterministic per user id (stable across re-runs) and distinct per account —
+  // profiles_dni_hash_unique is a partial unique index over dni_hash.
+  const digits = createHash("sha256").update(userId).digest("hex");
+  const syntheticDni = String(10_000_000 + (Number.parseInt(digits.slice(0, 12), 16) % 90_000_000));
+
   await db
     .update(schemas.profiles)
-    .set({ dniVerified: true, updatedAt: new Date() })
+    .set({ dniVerified: true, dniVerifiedAt: new Date(), updatedAt: new Date() })
     .where(
       drizzle.and(
         drizzle.eq(schemas.profiles.id, userId),
         drizzle.eq(schemas.profiles.dniVerified, false),
+        drizzle.ne(schemas.profiles.accountType, "personal"),
+      ),
+    );
+
+  await db
+    .update(schemas.profiles)
+    .set({
+      dniVerified: true,
+      dniHash: hashDni(syntheticDni),
+      dniLast4: dniLast4(syntheticDni),
+      dniVerifiedAt: new Date(),
+      updatedAt: new Date(),
+    })
+    .where(
+      drizzle.and(
+        drizzle.eq(schemas.profiles.id, userId),
+        drizzle.eq(schemas.profiles.accountType, "personal"),
+        drizzle.or(
+          drizzle.eq(schemas.profiles.dniVerified, false),
+          drizzle.isNull(schemas.profiles.dniLast4),
+        ),
       ),
     );
 }

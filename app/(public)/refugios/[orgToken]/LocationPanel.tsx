@@ -1,4 +1,4 @@
-import Link from "next/link";
+import { SheetTriggerLink } from "@/components/pet-profile/SheetTriggerLink";
 
 import { StaticFirstMap } from "@/components/maps/StaticFirstMap";
 import { LnCard, LnCardBody } from "@/components/ui/Card";
@@ -52,12 +52,12 @@ export function LocationPanel({ org, localityLabel }: Props) {
                   {localityLabel}
                 </p>
               )}
-              <Link
-                href="?sheet=como-llegar"
+              <SheetTriggerLink
+                href={`/refugios/${org.publicToken}?sheet=como-llegar`}
                 className="inline-flex items-center gap-1 mt-2 text-sm text-[var(--color-ln-azul)] hover:underline focus:outline-none focus-visible:ring-[3px] focus-visible:ring-[var(--color-ln-celeste-050)] rounded"
               >
                 Cómo llegar →
-              </Link>
+              </SheetTriggerLink>
             </>
           ) : (
             localityLabel && (

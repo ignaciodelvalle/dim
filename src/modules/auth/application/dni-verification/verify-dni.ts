@@ -65,15 +65,24 @@ export async function verifyDniForUser(userId: string, rawDni: string): Promise<
 
   // Load profile — need current state to check idempotency.
   const [profile] = await db
-    .select({ dniVerified: profiles.dniVerified })
+    .select({ dniVerified: profiles.dniVerified, dniLast4: profiles.dniLast4 })
     .from(profiles)
     .where(eq(profiles.id, userId))
     .limit(1);
 
   if (!profile) return { ok: false, error: "Perfil no encontrado." };
 
-  // Idempotent short-circuit: already verified — nothing to do.
-  if (profile.dniVerified) return { ok: true };
+  // Idempotent short-circuit: already verified AND there is a DNI on file.
+  //
+  // The flag alone was the condition, and it made a half-state UNREPAIRABLE:
+  // a profile flagged verified with no dni_hash/dni_last4 got `ok: true` back
+  // without a single write, so submitting the form reported success and changed
+  // nothing, forever. The seed produced exactly that state on every demo account
+  // (master test CIU, N2b) — but the guard is not about the seed. The two
+  // columns are written together by the transaction below, so if they are ever
+  // apart, something skipped this writer and the repair has to be allowed
+  // through rather than reported as already-done.
+  if (profile.dniVerified && profile.dniLast4) return { ok: true };
 
   const dniHashValue = hashDni(trimmed);
   const dniLast4Value = dniLast4(trimmed);
