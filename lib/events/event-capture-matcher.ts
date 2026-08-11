@@ -471,7 +471,10 @@ const PATTERNS: Pattern[] = [
  *  - "anteayer"
  *  - "hace N días"
  *  - "el DD/MM[/AAAA]" or "DD-MM-AAAA"
- *  - "el DD de {mes}"
+ *  - "el DD de {mes}[ de[l] AAAA]"
+ *
+ * An explicit year is always honored. Where none is written the current year
+ * is assumed — the same assumption the DD/MM branch makes.
  */
 export function extractDateFromText(text: string, now: Date = new Date()): string | null {
   const lower = text.toLowerCase();
@@ -515,11 +518,26 @@ export function extractDateFromText(text: string, now: Date = new Date()): strin
     noviembre: 11,
     diciembre: 12,
   };
-  const spanish = lower.match(/\b(\d{1,2})\s+de\s+([a-záéíóú]+)/);
+  // "el DD de {mes}" — con año explícito OPCIONAL ("de 2024" / "del 2024").
+  //
+  // Sin ese año esta rama descartaba en silencio el que el usuario había
+  // escrito: "lo desparasitamos el 15 de marzo de 2024" prellenaba 15/03/2026 y
+  // lo dejaba en la URL (master test CIU, hallazgo B1-a). El dueño cargaba un
+  // evento con la fecha equivocada en una libreta que se declara inmutable, y
+  // corregirla exige un evento nuevo — el peor lugar donde equivocarse.
+  //
+  // La rama DD/MM/AAAA de arriba ya respetaba el año: de las dos gramáticas de
+  // fecha que entiende este parser, una sola nunca lo aprendió.
+  //
+  // Cuatro dígitos a propósito: `\d{2,4}` como el separador barra convertiría
+  // "el 15 de marzo de 24" en un año, pero también se comería un peso o una
+  // edad que venga detrás. Sin año explícito el comportamiento no cambia.
+  const spanish = lower.match(/\b(\d{1,2})\s+de\s+([a-záéíóú]+)(?:\s+del?\s+(\d{4}))?/);
   if (spanish) {
     const d = Number.parseInt(spanish[1], 10);
     const m = months[spanish[2]];
-    if (m && validYMD(now.getFullYear(), m, d)) return formatYMD(now.getFullYear(), m, d);
+    const y = spanish[3] ? Number.parseInt(spanish[3], 10) : now.getFullYear();
+    if (m && validYMD(y, m, d)) return formatYMD(y, m, d);
   }
 
   return null;

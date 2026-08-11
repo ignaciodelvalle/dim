@@ -143,6 +143,22 @@ describe("extractDateFromText", () => {
   it("'el DD de {mes}' parses correctly", () => {
     expect(extractDateFromText("le di la antirrábica el 15 de marzo", NOW)).toBe("2026-03-15");
   });
+  // Master test CIU, hallazgo B1-a. The frase escrita por el usuario, textual:
+  // el año iba al evento equivocado y quedaba en la URL como occurredAt.
+  it("'el DD de {mes} de AAAA' honors the explicit year", () => {
+    expect(extractDateFromText("lo desparasitamos el 15 de marzo de 2024", NOW)).toBe("2024-03-15");
+  });
+  it("'{mes} del AAAA' (rioplatense) honors the explicit year too", () => {
+    expect(extractDateFromText("la castramos el 3 de julio del 2019", NOW)).toBe("2019-07-03");
+  });
+  it("a trailing number that is NOT a year leaves the current year alone", () => {
+    // "de 12 kg" no es un año: sin AAAA explícito el default sigue siendo el
+    // año en curso, igual que antes de que esta rama aprendiera a leerlo.
+    expect(extractDateFromText("el 15 de marzo pesaba 12 kg", NOW)).toBe("2026-03-15");
+  });
+  it("an explicit year still gets validated (Feb 30 of a real year)", () => {
+    expect(extractDateFromText("el 30 de febrero de 2024", NOW)).toBeNull();
+  });
   it("returns null when no date phrase fired", () => {
     expect(extractDateFromText("pesa 12 kg", NOW)).toBeNull();
   });
