@@ -280,13 +280,27 @@ export function MarkLostWizard({
               }}
             />
 
-            <LnField label="Detalles">
+            {/* Asks for what paso 2 does NOT. Its placeholder used to read
+                "collar, comportamiento, hora aproximada" — the exact three
+                fields paso 2 then asks for one by one, so the owner wrote the
+                same thing twice and only the paso-2 version reached the public
+                credential (master test CIU, I3-a; it is also cowork's answer to
+                "¿hiciste algo dos veces?").
+
+                Not deleted: `reason` is stored as the episode's ownerNote, and
+                paso 2 only exists when the animal has no chip or tattoo — for a
+                chipped pet this is the only free-text field in the flow. The
+                fix is to stop asking twice, and to say where this one goes. */}
+            <LnField
+              label="Nota para el expediente"
+              hint="Queda asentada en el evento, no se publica en la credencial. Las señas para quien la encuentre van en el paso siguiente."
+            >
               {({ id, describedBy }) => (
                 <LnTextarea
                   id={id}
                   name="reason"
                   rows={3}
-                  placeholder="Cualquier detalle que pueda ayudar (collar, comportamiento, hora aproximada)"
+                  placeholder="Contexto que quieras dejar registrado (opcional)"
                   aria-describedby={describedBy}
                 />
               )}

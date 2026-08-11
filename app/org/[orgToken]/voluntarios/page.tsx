@@ -108,7 +108,7 @@ export default async function VoluntariosPage({
           A-3-a). A signal that has to survive a full reload belongs in the URL,
           which is also what the org listing already does with `?adopcion=`. */}
       {filters.propuesta && (
-        <output className="block rounded-[var(--radius-md)] border border-ln-op-ok bg-ln-op-ok-050 px-4 py-3 text-md text-ln-op-ink">
+        <output className="block rounded-[var(--radius-md)] border border-ln-op-ok-bd bg-ln-op-ok-bg px-4 py-3 text-md text-ln-op-ink">
           Propuesta enviada ({filters.propuesta}). La vas a ver en{" "}
           <a href={`/org/${orgToken}/voluntarios/propuestas`} className="underline">
             Propuestas

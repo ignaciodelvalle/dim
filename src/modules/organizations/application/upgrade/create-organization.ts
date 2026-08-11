@@ -123,7 +123,7 @@ export async function createOrganizationForUser(
   if (!profile) return { error: "Perfil no encontrado." };
   if (!profile.dniVerified) {
     return {
-      error: "Necesitás verificar tu DNI antes de crear una organización.",
+      error: "Necesitás declarar tu DNI antes de crear una organización.",
       missingPrereq: "dni",
       prereqUrl: "/cuenta/verificar-dni?next=/cuenta/upgrade",
     };

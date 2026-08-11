@@ -121,7 +121,7 @@ export async function requestVetUpgradeForUser(
   // placeholder form. The contract (dniVerified=true before petition) stays.
   if (!profile.dniVerified) {
     return {
-      error: "Necesitás verificar tu DNI antes de enviar una solicitud de veterinario.",
+      error: "Necesitás declarar tu DNI antes de enviar una solicitud de veterinario.",
       missingPrereq: "dni",
       prereqUrl: "/cuenta/verificar-dni?next=/cuenta/upgrade",
     };

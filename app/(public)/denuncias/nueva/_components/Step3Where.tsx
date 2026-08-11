@@ -167,8 +167,19 @@ export function Step3Where({
           style={{ fontFamily: "var(--font-ln-mono)" }}
         >
           {description.length} / {DESCRIPTION_MAX}
-          {description.length >= DESCRIPTION_MAX && (
+          {/* Two states, not one. ">= max" showed the SAME "llegaste al máximo"
+              whether you were exactly at the limit or 50 characters past it
+              (master test CIU, X1-a). The browser's maxlength stops normal
+              typing and pasting, so the over state is only reachable by forcing
+              the value — but a counter that reads "2050 / 2000 · llegaste al
+              máximo" is telling the writer their text fits when it does not. */}
+          {description.length === DESCRIPTION_MAX && (
             <span className="ml-1">· llegaste al máximo</span>
+          )}
+          {description.length > DESCRIPTION_MAX && (
+            <span className="text-[var(--color-ln-err)] ml-1">
+              · te pasaste por {description.length - DESCRIPTION_MAX}
+            </span>
           )}
           {description.length < 20 && description.length > 0 && (
             <span className="text-[var(--color-ln-warn)] ml-1">(mínimo 20)</span>
