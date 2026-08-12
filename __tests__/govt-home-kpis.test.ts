@@ -1081,3 +1081,131 @@ describe("decomposed zoonosis signals — three independent counts", () => {
     });
   });
 });
+
+// ---------------------------------------------------------------------------
+// Deceased dogs: numerator ⊆ denominator (cowork audit finding #3, 2026-08-12)
+// ---------------------------------------------------------------------------
+//
+// The denominator (dogsInScopeCondition) has always been
+// `status IN ('active','lost')`. The numerator joined pet_events to pets and
+// filtered species + scope but NOT status, so a dog vaccinated and later dead
+// kept counting on top while dropping out of the bottom. Coverage — the
+// flagship legal figure on /gob and Panorama — ran high, and in a small
+// jurisdiction could exceed 100% outright. There is no clamp downstream, by
+// design: a rate over 100 is the symptom, not the disease.
+//
+// WHAT WOULD HAVE TO BREAK FOR THESE TO FAIL: the status filter on the
+// numerator. These count real rows through the real fetchers.
+describe("fetchRabiesCoverage — a dog that died leaves BOTH sides of the ratio", () => {
+  const DEAD_PROVINCE = "Santa Fe";
+  const DEAD_LOCALITY = "DeceasedKpiVille"; // unique to this suite
+  const TOKEN_LIVE_UNVAX = "HK-DEAD-KPI-01"; // alive, never vaccinated
+  const TOKEN_DEAD_VAX = "HK-DEAD-KPI-02"; // vaccinated, then died
+  const TOKEN_LIVE_VAX = "HK-DEAD-KPI-03"; // alive and vaccinated
+
+  const scopedCtx = () =>
+    buildProjectionContext(
+      { role: "govt" },
+      [{ province: DEAD_PROVINCE, locality: DEAD_LOCALITY }],
+      windows.trailing12m(),
+    );
+
+  async function cleanupDeceasedFixtures() {
+    await withMutationOverride(async (tx) => {
+      await tx.execute(sql`
+        DELETE FROM pet_events
+        WHERE pet_id IN (
+          SELECT id FROM pets
+          WHERE public_token IN (${TOKEN_LIVE_UNVAX}, ${TOKEN_DEAD_VAX}, ${TOKEN_LIVE_VAX})
+        )
+      `);
+      await tx.execute(sql`
+        DELETE FROM pets
+        WHERE public_token IN (${TOKEN_LIVE_UNVAX}, ${TOKEN_DEAD_VAX}, ${TOKEN_LIVE_VAX})
+      `);
+    });
+  }
+
+  async function insertRabiesVaccination(petId: string) {
+    await db.insert(petEvents).values({
+      petId,
+      eventType: "vaccination_administered",
+      occurredAt: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000),
+      payload: {
+        payload_version: 1,
+        vaccine_name: "Antirrábica",
+        brand: null,
+        batch: null,
+        administered_by: null,
+        next_due_at: null,
+        pet_jurisdiction_province: DEAD_PROVINCE,
+        pet_jurisdiction_locality: DEAD_LOCALITY,
+      },
+      authorRole: "owner",
+      recordedByUserId: null,
+    });
+  }
+
+  async function insertDog(token: string, status: "active" | "deceased"): Promise<string> {
+    const [row] = await db
+      .insert(pets)
+      .values({
+        publicToken: token,
+        name: `DeceasedKpiDog-${token.slice(-2)}`,
+        species: "dog",
+        status,
+        jurisdictionProvince: DEAD_PROVINCE,
+        jurisdictionLocality: DEAD_LOCALITY,
+      })
+      .returning({ id: pets.id });
+    return row.id;
+  }
+
+  beforeAll(async () => {
+    await cleanupDeceasedFixtures();
+    // The vaccination is recorded while the dog is alive; death_recorded later
+    // projects pets.status = 'deceased'. The spine is append-only, so the dose
+    // event survives the death — which is exactly why the numerator has to
+    // re-check status instead of trusting that the event implies a live pet.
+    const deadVaxId = await insertDog(TOKEN_DEAD_VAX, "deceased");
+    await insertRabiesVaccination(deadVaxId);
+    await insertDog(TOKEN_LIVE_UNVAX, "active");
+  });
+
+  afterAll(cleanupDeceasedFixtures);
+
+  it("does not count a deceased dog's dose against the live population", async () => {
+    // 1 live unvaccinated + 1 dead vaccinated. Denominator = 1 (the live dog).
+    // Before the fix the numerator counted the dead dog → 1/1 = 100% coverage
+    // in a jurisdiction where the only living dog is unvaccinated.
+    const kpi = await fetchRabiesCoverage(scopedCtx());
+
+    expect(kpi.current).toBe(0);
+  });
+
+  it("never reports coverage above 100%", async () => {
+    // Add a live vaccinated dog: denominator 2, numerator 1 → 50%. Before the
+    // fix this was 2/2 with the dead dog also counted... but drop the live
+    // unvaccinated one and the pre-fix arithmetic gives 2 vaccinated over 1
+    // live dog = 200%. Assert the invariant directly, not just this instance.
+    const liveVaxId = await insertDog(TOKEN_LIVE_VAX, "active");
+    await insertRabiesVaccination(liveVaxId);
+
+    const kpi = await fetchRabiesCoverage(scopedCtx());
+
+    expect(kpi.current).toBeLessThanOrEqual(100);
+    expect(kpi.current).toBe(50);
+  });
+
+  it("the per-province breakdown that feeds the choropleth agrees with the KPI", async () => {
+    // #5 in the same audit: the alerts table filters activeCond while the
+    // choropleth numerator did not, so the same province could show two
+    // coverages depending on which panel you read.
+    const byProvince = await fetchRabiesCoverageByProvince(scopedCtx());
+    const row = byProvince.find((r) => r.province === DEAD_PROVINCE);
+
+    expect(row?.total).toBe(2); // live only
+    expect(row?.vaccinated).toBe(1); // the dead dog's dose is excluded
+    expect(row?.ratePct).toBeLessThanOrEqual(100);
+  });
+});

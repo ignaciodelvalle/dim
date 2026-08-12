@@ -301,6 +301,19 @@ export async function fetchRabiesCoverage(
   if (petsScope) rabiesVaccConditions.push(sql`(${petsScope})`);
   // Scope to dogs only by joining pets.
   rabiesVaccConditions.push(sql`${pets.species} = ${"dog"}`);
+  // NUMERATOR ⊆ DENOMINATOR. The denominator (dogsInScopeCondition,
+  // lib/metrics/population.ts) is `status IN ('active','lost')` — it excludes
+  // deceased dogs. This numerator used to omit the status filter entirely, so a
+  // dog vaccinated and later dead kept counting on top while dropping out of
+  // the bottom: the flagship rabies-coverage figure ran high, and in a small
+  // jurisdiction it could exceed 100% outright (1 live unvaccinated + 1 dead
+  // vaccinated → 1/1 = 100%; add a live vaccinated → 2/1 = 200%). There is no
+  // LEAST(…,100) clamp downstream, and there should not be one: a rate over 100
+  // is the symptom, not the disease. Sibling metrics already filter status
+  // (fetchCrossJurisdictionOutliers via activeCond; the census identification
+  // funnel documents this exact class at census.ts:594) — this KPI was the
+  // inconsistent one.
+  rabiesVaccConditions.push(sql`${pets.status} IN ('active', 'lost')`);
 
   // Numerator: distinct dog petIds with a qualifying rabies vax event (join pets
   // to filter species). The DENOMINATOR (total dogs + partidos + census
@@ -499,6 +512,10 @@ export async function fetchRabiesCoverageByProvince(
   // the whole-province subsumption). Covers govt and the admin province drill-down.
   if (petsScope) rabiesVaccConditions.push(sql`(${petsScope})`);
   rabiesVaccConditions.push(sql`${pets.species} = ${"dog"}`);
+  // Same numerator ⊆ denominator fix as the national KPI above — this is the
+  // per-province twin that feeds the Panorama choropleth, so leaving it out
+  // would make the map and the alerts table disagree for the same province.
+  rabiesVaccConditions.push(sql`${pets.status} IN ('active', 'lost')`);
 
   // Per-province total dogs (same dogsCondition as the national KPI).
   const totalByProvince = await db

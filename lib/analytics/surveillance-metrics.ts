@@ -460,6 +460,12 @@ export async function fetchAmrDensity(ctx: ProjectionContext): Promise<AmrDensit
       WHERE med.event_type = 'medication_started'
         AND med.occurred_at >= ${sinceIso}::timestamptz
         AND med.occurred_at <= ${untilIso}::timestamptz
+        -- NUMERATOR ⊆ DENOMINATOR: the rate below divides by
+        -- cachedActivePetCount(ctx), which counts status IN ('active','lost').
+        -- Without this filter a prescription written for a pet that later died
+        -- kept counting on top while the pet left the bottom, inflating
+        -- doses-per-1000. Same class as the rabies-coverage numerator.
+        AND pets.status IN ('active', 'lost')
         ${scopeFragment}
     `),
     cachedActivePetCount(ctx),

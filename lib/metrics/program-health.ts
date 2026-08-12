@@ -340,13 +340,28 @@ export async function fetchCrossJurisdictionOutliers(
   )`;
 
   // EXISTS: rabies vaccination event (for dogs only — compliance-metrics.ts C1 analog).
-  // Uses the SHARED rabiesVaccinatedExists predicate (lib/metrics/rabies.ts) so the
-  // /admin panel counts the SAME numerator as fetchRabiesCoverage, the province
-  // breakdown, and the Panorama choropleth: anchored accent-aware regex on the
-  // amended vaccine_name AND the "currently-valid" condition (next_due_at expiry,
-  // with a trailing-12m proxy fallback — issue #52). Before C3 this EXISTS had the
-  // regex but NO time window, so the panel read ALL-TIME coverage (~54%) while the
-  // KPI read the last-12-months figure (~42%) — the same-label/different-number drift.
+  // Uses the SHARED rabiesVaccinatedExists predicate (lib/metrics/rabies.ts): the
+  // same anchored accent-aware regex on the amended vaccine_name AND the same
+  // "currently-valid" condition (next_due_at expiry, with a trailing-12m proxy
+  // fallback — issue #52) as fetchRabiesCoverage, the province breakdown and the
+  // Panorama choropleth. Before C3 this EXISTS had the regex but NO time window,
+  // so the panel read ALL-TIME coverage (~54%) while the KPI read the
+  // last-12-months figure (~42%) — the same-label/different-number drift.
+  //
+  // ONE AXIS STILL DIFFERS — the WINDOW, and it is deliberate. fetchRabiesCoverage
+  // anchors a FIXED trailing 12 months ending at ctx.period.until (the legal
+  // cadence is annual regardless of what period the operator is looking at);
+  // this table passes ctx.period.since/until, i.e. the SELECTED period, because
+  // "provinces below target during the period you are reviewing" is the question
+  // an alerts table answers. On the default view (trailing12m) the two windows
+  // are byte-identical; off-default the period is labelled on screen. Do not
+  // "fix" this into parity without changing what the table means — but do not
+  // read the sentence above as claiming the windows are always equal either.
+  // (Audit 2026-08-12: the earlier wording claimed unqualified parity, which
+  // sent a reviewer hunting for a divergence bug that was really this choice.)
+  //
+  // The DECEASED axis, which used to differ, no longer does: this query filters
+  // activeCond and the choropleth numerator now filters pets.status the same way.
   const hasRabiesVax = rabiesVaccinatedExists(sql`${pets.id}`, {
     since: ctx.period.since,
     until: ctx.period.until,

@@ -683,8 +683,22 @@ export default async function GobVigilanciaPage({
           />
           <OpCardBody className="p-0">
             <div className="flex items-baseline justify-between px-4 py-3 border-b border-ln-op-line-2">
-              {/* (A10) internal code dropped from copy — qa-triage-2026-07-23 #8 */}
-              <span className="text-sm text-ln-op-mute">Confirmación de laboratorio</span>
+              {/* (A10) internal code dropped from copy — qa-triage-2026-07-23 #8.
+                  The percentage is computed over EVERY reportable notification in
+                  scope, including the diseases hidden below by k-anonymity, so
+                  adding up the visible rows does not reproduce it. That is the
+                  right population for an epidemiological rate — suppression is a
+                  display rule, not a reason to bias the number — but it has to
+                  say so, or the operator reads it as arithmetic that does not
+                  add up (audit 2026-08-12). The underlying total is deliberately
+                  NOT rendered: printing it next to the visible rows would let a
+                  reader recover the suppressed volume by subtraction. */}
+              <span className="text-sm text-ln-op-mute">
+                Confirmación de laboratorio
+                <span className="block text-ln-op-mute">
+                  sobre el total notificado, incluidas las celdas ocultas
+                </span>
+              </span>
               <span className="font-semibold text-ln-op-ink">
                 {pct(reportableIncidence.labConfirmationPct)}
               </span>
