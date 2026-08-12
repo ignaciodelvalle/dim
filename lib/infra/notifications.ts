@@ -49,6 +49,21 @@ const WINDOW_AHEAD_DAYS = 14;
 const VACCINE_SCAN_BATCH_SIZE = 500;
 const VACCINE_SCAN_MAX_DURATION_MS = 45_000;
 
+// Mismos límites para el barrido de check-ins post-adopción. Su fase 2 cargaba
+// TODOS los candidatos vencidos sin limit, sin cursor y sin deadline, y hacía 3
+// queries secuenciales por candidato — o sea la forma exacta del hermano de
+// arriba antes de que lo endurecieran, y del bug que se arregló en b3d152a3:
+// correcto por ítem, ruinoso por barrido.
+//
+// El contexto es lo que lo vuelve serio: los 22 crons corren en UNA función de
+// Vercel (maxDuration 60s) vía el dispatcher `daily`, que chequea presupuesto
+// ANTES de cada job pero no interrumpe uno en curso. Este es el puesto 5 de 22;
+// detrás vienen los drains de entrega y la purga TTL de la Ley 25.326. Que este
+// barrido se coma la función no lo rompe solo a él: se lleva puestos los 17
+// jobs que siguen ese día.
+const POST_ADOPTION_SCAN_BATCH_SIZE = 500;
+const POST_ADOPTION_SCAN_MAX_DURATION_MS = 45_000;
+
 /**
  * Scan for vaccine reminders and emit per-variant throttled `vaccine_due`
  * notifications. Replaces the old single-dedup approach with per-variant
@@ -430,90 +445,120 @@ export async function runPostAdoptionCheckinScan(
   // reminders.created_at as the "since" anchor, not dueAt, so a check-in
   // that arrived a few days before the dueAt still counts as fulfilling
   // the obligation.
-  const missedCandidates = await dbInstance
-    .select({
-      reminderId: reminders.id,
-      petId: reminders.petId,
-      sourceEventId: reminders.sourceEventId,
-      title: reminders.title,
-      petName: pets.name,
-      publicToken: pets.publicToken,
-    })
-    .from(reminders)
-    .innerJoin(pets, eq(pets.id, reminders.petId))
-    .where(
-      and(
-        eq(reminders.reminderType, "post_adoption_checkin"),
-        isNull(reminders.completedAt),
-        isNotNull(reminders.sourceEventId),
-        lt(reminders.dueAt, missedThreshold),
-        sql`NOT EXISTS (
-          SELECT 1 FROM ${petEvents} e
-          WHERE e.pet_id = ${reminders.petId}
-            AND e.event_type = 'post_adoption_checkin'
-            AND e.recorded_at > ${reminders.createdAt}
-        )`,
-        sql`NOT EXISTS (
-          SELECT 1 FROM ${notifications} n
-          WHERE n.related_reminder_id = ${reminders.id}
-            AND n.notification_type = 'post_adoption_checkin_missed'
-        )`,
-      ),
-    );
-
   const missedInsertedIds: string[] = [];
-  for (const row of missedCandidates) {
-    if (!row.sourceEventId) continue;
-    // Resolve the originating org from the adoption_finalized event payload.
-    // Stored as JSON; cast safely.
-    const [adoption] = await dbInstance
-      .select({ payload: petEvents.payload })
-      .from(petEvents)
-      .where(eq(petEvents.id, row.sourceEventId))
-      .limit(1);
-    const orgId = (adoption?.payload as { previous_owner_organization_id?: string } | undefined)
-      ?.previous_owner_organization_id;
-    if (!orgId) continue;
+  const missedStart = Date.now();
+  let missedCursor: string | null = null;
 
-    const admins = await dbInstance
-      .select({ userId: organizationMemberships.userId })
+  for (;;) {
+    if (Date.now() - missedStart >= POST_ADOPTION_SCAN_MAX_DURATION_MS) break;
+
+    // El JOIN a petEvents reemplaza la primera de las tres queries por
+    // candidato Y además saca del barrido, en el propio WHERE, a los que no
+    // tienen organización de origen en el payload. Esos nunca insertaban nada,
+    // así que el guard NOT EXISTS nunca los excluía: se re-escaneaban todos los
+    // días para siempre. Filtrarlos acá los elimina del conjunto, no sólo del
+    // trabajo.
+    const missedCandidates = await dbInstance
+      .select({
+        reminderId: reminders.id,
+        petId: reminders.petId,
+        title: reminders.title,
+        petName: pets.name,
+        publicToken: pets.publicToken,
+        orgId: sql<string>`(${petEvents.payload}->>'previous_owner_organization_id')`,
+      })
+      .from(reminders)
+      .innerJoin(pets, eq(pets.id, reminders.petId))
+      .innerJoin(petEvents, eq(petEvents.id, reminders.sourceEventId))
+      .where(
+        and(
+          eq(reminders.reminderType, "post_adoption_checkin"),
+          isNull(reminders.completedAt),
+          isNotNull(reminders.sourceEventId),
+          lt(reminders.dueAt, missedThreshold),
+          sql`(${petEvents.payload}->>'previous_owner_organization_id') IS NOT NULL`,
+          sql`NOT EXISTS (
+            SELECT 1 FROM ${petEvents} e
+            WHERE e.pet_id = ${reminders.petId}
+              AND e.event_type = 'post_adoption_checkin'
+              AND e.recorded_at > ${reminders.createdAt}
+          )`,
+          sql`NOT EXISTS (
+            SELECT 1 FROM ${notifications} n
+            WHERE n.related_reminder_id = ${reminders.id}
+              AND n.notification_type = 'post_adoption_checkin_missed'
+          )`,
+          ...(missedCursor ? [gt(reminders.id, missedCursor)] : []),
+        ),
+      )
+      .orderBy(asc(reminders.id))
+      .limit(POST_ADOPTION_SCAN_BATCH_SIZE);
+
+    if (missedCandidates.length === 0) break;
+
+    // Los otros dos lookups, una vez por PÁGINA en vez de una vez por fila.
+    const pageOrgIds = [...new Set(missedCandidates.map((r) => r.orgId))];
+
+    const adminRows = await dbInstance
+      .select({
+        organizationId: organizationMemberships.organizationId,
+        userId: organizationMemberships.userId,
+      })
       .from(organizationMemberships)
       .where(
         and(
-          eq(organizationMemberships.organizationId, orgId),
+          inArray(organizationMemberships.organizationId, pageOrgIds),
           eq(organizationMemberships.role, "admin"),
           isNull(organizationMemberships.leftAt),
         ),
       );
-    if (admins.length === 0) continue;
-
-    const [orgRow] = await dbInstance
-      .select({ publicToken: organizations.publicToken })
-      .from(organizations)
-      .where(eq(organizations.id, orgId))
-      .limit(1);
-
-    // Canonical write path, one row per refugio admin. dedupeKey is
-    // per-(reminder, admin) — matches the NOT EXISTS guard above and makes a
-    // re-run idempotent. Low fan-out (org admins), so per-row is fine here.
-    for (const a of admins) {
-      const result = await createNotification(
-        {
-          userId: a.userId,
-          notificationType: "post_adoption_checkin_missed",
-          title: `Check-in pendiente: ${row.petName}`,
-          body: `El adoptante de ${row.petName} no envió el seguimiento esperado. Considerá ponerte en contacto.`,
-          severity: "warning",
-          relatedPetId: row.petId,
-          relatedReminderId: row.reminderId,
-          ctaLabel: "Ver mascota",
-          ctaUrl: orgRow ? `/org/${orgRow.publicToken}/mascotas` : "/org",
-          dedupeKey: `post-adoption-missed:${row.reminderId}:${a.userId}`,
-        },
-        dbInstance,
-      );
-      if (result.status === "inserted" && result.id) missedInsertedIds.push(result.id);
+    const adminsByOrg = new Map<string, string[]>();
+    for (const a of adminRows) {
+      const list = adminsByOrg.get(a.organizationId) ?? [];
+      list.push(a.userId);
+      adminsByOrg.set(a.organizationId, list);
     }
+
+    const orgRows = await dbInstance
+      .select({ id: organizations.id, publicToken: organizations.publicToken })
+      .from(organizations)
+      .where(inArray(organizations.id, pageOrgIds));
+    const tokenByOrg = new Map(orgRows.map((o) => [o.id, o.publicToken]));
+
+    for (const row of missedCandidates) {
+      const admins = adminsByOrg.get(row.orgId) ?? [];
+      // Una org sin admin activo se vuelve a escanear mañana, y eso es
+      // DELIBERADO: si mañana suma un admin, queremos avisarle. Es trabajo
+      // repetido acotado por el keyset, no un conjunto atascado que crece.
+      if (admins.length === 0) continue;
+
+      const publicToken = tokenByOrg.get(row.orgId);
+
+      // Canonical write path, one row per refugio admin. dedupeKey is
+      // per-(reminder, admin) — matches the NOT EXISTS guard above and makes a
+      // re-run idempotent. Low fan-out (org admins), so per-row is fine here.
+      for (const userId of admins) {
+        const result = await createNotification(
+          {
+            userId,
+            notificationType: "post_adoption_checkin_missed",
+            title: `Check-in pendiente: ${row.petName}`,
+            body: `El adoptante de ${row.petName} no envió el seguimiento esperado. Considerá ponerte en contacto.`,
+            severity: "warning",
+            relatedPetId: row.petId,
+            relatedReminderId: row.reminderId,
+            ctaLabel: "Ver mascota",
+            ctaUrl: publicToken ? `/org/${publicToken}/mascotas` : "/org",
+            dedupeKey: `post-adoption-missed:${row.reminderId}:${userId}`,
+          },
+          dbInstance,
+        );
+        if (result.status === "inserted" && result.id) missedInsertedIds.push(result.id);
+      }
+    }
+
+    missedCursor = missedCandidates[missedCandidates.length - 1].reminderId;
+    if (missedCandidates.length < POST_ADOPTION_SCAN_BATCH_SIZE) break; // drained
   }
 
   return {
