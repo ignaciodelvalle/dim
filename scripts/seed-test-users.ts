@@ -342,7 +342,6 @@ async function bootstrapAdmin(): Promise<string> {
   log("STEP", "1/9 — bootstrap admin");
   const { id, created } = await ensureAuthUser(EMAILS.admin, DISPLAY.admin, "admin");
   log(created ? "OK" : "SKIP", `auth.users ${EMAILS.admin} (admin)`);
-  await syncDniVerified(id);
 
   // The trigger set role='admin' via app_metadata. We still need account_type
   // and a known password (it was set on create, but be idempotent if re-running).
@@ -352,10 +351,23 @@ async function bootstrapAdmin(): Promise<string> {
       role: "admin",
       accountType: "institutional",
       displayName: DISPLAY.admin,
+      // Una institución no tiene DNI: el CHECK profiles_institutional_no_pii lo
+      // prohíbe. Limpiarlo acá hace la operación INDEPENDIENTE DEL ORDEN y además
+      // repara una fila que ya haya quedado mal — sin esto, un perfil personal con
+      // DNI no puede volverse institucional nunca más y el seed muere en el paso 1.
+      dniHash: null,
+      dniLast4: null,
       updatedAt: new Date(),
     })
     .where(eq(profiles.id, id));
   log("OK", "profile role=admin accountType=institutional");
+
+  // DESPUES de fijar account_type, nunca antes. El trigger crea el perfil como
+  // 'personal', asi que llamar a esto arriba le escribia un DNI a una cuenta que
+  // una linea despues pasa a institucional — y el CHECK
+  // profiles_institutional_no_pii aborta el seed entero (2026-08-12). El guard
+  // de syncDniVerified mira el estado ACTUAL; el orden es lo que lo hace cierto.
+  await syncDniVerified(id);
   return id;
 }
 
@@ -566,8 +578,6 @@ async function provisionGovt(
   } else {
     log("SKIP", `auth.users ${config.email} already exists`);
   }
-  await syncDniVerified(id);
-
   const currentRole = await readProfileRole(id);
   if (currentRole !== "govt") {
     await db.transaction(async (tx) => {
@@ -577,6 +587,9 @@ async function provisionGovt(
           role: "govt",
           accountType: "institutional",
           displayName: config.displayName,
+          // Idem admin: sin DNI, y limpiándolo por si la fila ya venía mal.
+          dniHash: null,
+          dniLast4: null,
           updatedAt: new Date(),
         })
         .where(eq(profiles.id, id));
