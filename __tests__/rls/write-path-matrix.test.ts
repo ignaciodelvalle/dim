@@ -47,12 +47,17 @@ import { db } from "@/db";
 // These are the ONLY tables allowed to accept an unconditional anon/auth write.
 // ---------------------------------------------------------------------------
 const INTENTIONAL_UNCONDITIONAL_WRITES: Readonly<Record<string, string>> = {
-  // Anonymous denúncia (welfare complaint) intake — the public 5-step wizard
-  // submits with no account (createWelfareReportAction path). WITH CHECK (true)
-  // is the point: any citizen, signed in or not, can file. The report body is
-  // not linked to the submitter's identity, and read-back is separately gated.
-  "welfare_reports.INSERT":
-    "Anonymous welfare-complaint intake (public denuncia wizard); submitter identity is not attached to the row.",
+  // welfare_reports.INSERT vivía acá hasta la migración 0173. La justificación
+  // era falsa en su premisa: decía que "the public 5-step wizard submits with no
+  // account (createWelfareReportAction path)" y que "WITH CHECK (true) is the
+  // point". El wizard NO escribe por PostgREST — llama a una server action que
+  // inserta por Drizzle con BYPASSRLS (welfare-repository.ts:120). La policy no
+  // habilitaba al ciudadano: habilitaba a cualquiera con la anon key a saltear
+  // rate-limit, honeypot, dwell-time, strip de EXIF y auto-flag, y a spoofear
+  // reporter_user_id. Ver 0173 para el detalle.
+  //
+  // Este test es el que avisó que la excepción quedaba obsoleta al dropear la
+  // policy — funcionó exactamente como está diseñado.
   // Self-service pet registration — "Pets insertable by any authenticated user".
   // A freshly-inserted pet row carries no PII and no ownership until the paired
   // server action (Drizzle/BYPASSRLS) writes the ownerships row; an orphan pet

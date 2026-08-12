@@ -8,13 +8,19 @@
 
 alter table public.welfare_reports enable row level security;
 
--- Anyone (including anon) can submit a denuncia.
+-- NO HAY POLICY DE INSERT — Y NO DEBE AGREGARSE (migración 0173).
+-- Acá vivía "Anyone can insert welfare report" con `with check (true)`, sin
+-- restricción de columnas: permitía escribir denuncias por PostgREST con la
+-- anon key salteando rate-limit, honeypot, dwell-time, strip de EXIF y
+-- auto-flag (todo eso es app-side y post-commit), elegir `severity='critical'`
+-- para ordenar al tope de la cola de la autoridad, y spoofear
+-- `reporter_user_id` para que una denuncia forjada le apareciera a otra persona
+-- en "Mis denuncias".
+-- La app nunca usó este camino: el insert real corre por Drizzle
+-- (welfare-repository.ts:120) con BYPASSRLS. Las denuncias anónimas siguen
+-- funcionando igual, por la server action.
+-- Misma clase que 0099 cerró en welfare_report_attachments.
 drop policy if exists "Anyone can insert welfare report" on public.welfare_reports;
-create policy "Anyone can insert welfare report"
-  on public.welfare_reports
-  for insert
-  to anon, authenticated
-  with check (true);
 
 -- Reporter can read their own submissions when logged in.
 -- Anonymous reports (reporter_user_id is null) are NOT readable by any user
