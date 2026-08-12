@@ -2,6 +2,7 @@ import { db, welfareReportAttachments, welfareReports } from "@/db";
 import { coarsenPoint, readPoint } from "@/lib/domain/location";
 import { RateLimitError, callerIp, enforceRateLimit } from "@/lib/infra/rate-limit";
 import { welfareAttachmentSignedUrl } from "@/lib/infra/storage";
+import { isMetadataStripped } from "@/lib/infra/welfare-uploads";
 import { formatDate, formatDateTime } from "@/lib/utils/format";
 import { maskEmail, maskPhone } from "@/lib/utils/mask-contact";
 import {
@@ -162,12 +163,27 @@ export default async function WelfareReportByCodePage({
     .from(welfareReportAttachments)
     .where(eq(welfareReportAttachments.welfareReportId, report.id));
 
+  // Sólo se firma (y por lo tanto sólo se sirve) la evidencia cuyos metadatos
+  // pudimos garantizar que fueron removidos al subirla. Un HEIC de iPhone o un
+  // video se guardan con el GPS de la cámara intacto, y esta página es una
+  // lectura sin sesión: servir el original derrotaría el mismo control de
+  // ubicación que aplicamos dos líneas más abajo (coarsenPoint + exclusión de
+  // la dirección de calle, Ley 25.326).
+  //
+  // La autoridad conserva el original completo por su propio camino autenticado
+  // (Ley 14.346, cadena de evidencia) — acá sólo se recorta lo que ve el público.
+  // No se mintea URL firmada para el resto: sin URL no hay descarga posible.
   const attachments = await Promise.all(
-    attachmentRows.map(async (a) => ({
-      ...a,
-      signedUrl: await welfareAttachmentSignedUrl(a.storagePath),
-    })),
+    attachmentRows.map(async (a) => {
+      const canShow = isMetadataStripped(a.mimeType);
+      return {
+        ...a,
+        canShow,
+        signedUrl: canShow ? await welfareAttachmentSignedUrl(a.storagePath) : null,
+      };
+    }),
   );
+  const withheldCount = attachments.filter((a) => !a.canShow).length;
 
   const locationPoint = readPoint(report);
   // Public tracking receipt: show an APPROXIMATE point only (Ley 25.326 — data
@@ -397,6 +413,19 @@ export default async function WelfareReportByCodePage({
                 ) : null,
               )}
             </div>
+            {withheldCount > 0 && (
+              /* Sin esta línea la persona cuenta 3 adjuntos y ve 1, y concluye
+                 que se perdieron. Decir por qué no se muestran es parte de la
+                 honestidad de la pantalla: el archivo está guardado y la
+                 autoridad lo tiene completo. */
+              <p className="text-sm text-[var(--color-ln-mute)] leading-relaxed">
+                {withheldCount === 1
+                  ? "Otro archivo que adjuntaste no se muestra acá"
+                  : `Otros ${withheldCount} archivos que adjuntaste no se muestran acá`}{" "}
+                porque su formato puede conservar datos de ubicación en los metadatos, y esta página
+                es pública. La autoridad los recibe completos.
+              </p>
+            )}
           </section>
         )}
 

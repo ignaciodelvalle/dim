@@ -39,6 +39,31 @@ const ALLOWED_MIME = new Set([
 const STRIP_EXIF_MIME = new Set(["image/jpeg", "image/png", "image/webp"]);
 
 /**
+ * ¿Podemos garantizar que este archivo se guardó SIN metadatos (GPS incluido)?
+ *
+ * Sólo para los tipos que `sharp` re-encodea acá. Para HEIC/HEIF/GIF y video los
+ * bytes se suben tal cual, así que el GPS de la cámara sobrevive — y HEIC es el
+ * formato por defecto del iPhone, o sea el camino más común de un denunciante.
+ *
+ * POR QUÉ ESTO ES EXPORTADO Y NO UN DETALLE INTERNO. El comprobante público
+ * (`/denuncias/codigo/[code]`) es una lectura SIN sesión: cualquiera con el
+ * código ve la denuncia. Esa página se esfuerza en no revelar el lugar exacto
+ * —redondea el punto con `coarsenPoint(…, "approx")` y excluye la dirección de
+ * calle por Ley 25.326— pero servía el archivo original, que derrota justamente
+ * ese control: se descarga y se lee la coordenada del metadato.
+ *
+ * La autoridad SÍ necesita el original intacto (Ley 14.346, cadena de
+ * evidencia), así que la respuesta no es dejar de guardarlo ni transcodificarlo:
+ * es no servirlo en la superficie pública. Esta función es el gate.
+ *
+ * Falla cerrado por construcción: si mañana se agrega un formato a ALLOWED_MIME
+ * sin sumarlo acá, el comprobante público no lo muestra en vez de filtrarlo.
+ */
+export function isMetadataStripped(mimeType: string | null | undefined): boolean {
+  return mimeType !== null && mimeType !== undefined && STRIP_EXIF_MIME.has(mimeType);
+}
+
+/**
  * Strips EXIF metadata (including GPS) from a raster image buffer via sharp.
  * `.rotate()` bakes orientation into pixels; omitting `.withMetadata()` means
  * sharp outputs the result with NO metadata attached.

@@ -15,6 +15,8 @@ import { join } from "node:path";
 
 import { describe, expect, it } from "vitest";
 
+import { isMetadataStripped } from "@/lib/infra/welfare-uploads";
+
 const PUBLIC_RECEIPT = join(
   process.cwd(),
   "app",
@@ -118,5 +120,62 @@ describe("authority surfaces — exact location, labelled, and logged (Ley 14.34
     expect(render).not.toContain("logWelfareLocationViewed");
     // The CALL, not the import and not the header comment that names it.
     expect(loader).toMatch(/await\s+logWelfareLocationViewed\(/);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Evidencia con metadatos: qué se sirve en la superficie pública
+// (segunda pasada de auditoría, hallazgo #1, 2026-08-12)
+// ---------------------------------------------------------------------------
+//
+// El comprobante público firma y sirve los adjuntos de la denuncia. `sharp`
+// sólo re-encodea jpeg/png/webp; HEIC/HEIF/GIF y video se guardan con los bytes
+// originales, o sea con el GPS de la cámara intacto — y HEIC es el default del
+// iPhone. Servirlos derrotaba el mismo control que esta página aplica al punto
+// del mapa (coarsenPoint "approx") y a la dirección de calle (Ley 25.326): se
+// descarga el archivo y se lee la coordenada exacta del metadato.
+//
+// El riesgo estaba anotado como aceptado (LOW-2, "readable by an operator …
+// never the public") con una premisa que nunca fue cierta: el comprobante ES
+// público.
+//
+// QUÉ TENDRÍA QUE ROMPERSE PARA QUE ESTO FALLE: que el gate se saque o que se
+// agregue un formato a ALLOWED_MIME sin poder estriparlo.
+describe("evidencia de denuncia — sólo se sirve en público lo que pudimos estripar", () => {
+  it("acepta subir HEIC y video, pero NO los declara con metadatos removidos", () => {
+    // Las dos mitades importan: si dejáramos de aceptarlos perderíamos evidencia
+    // real (el denunciante filma con el teléfono), así que la respuesta no es
+    // rechazarlos sino no servirlos crudos al público.
+    expect(isMetadataStripped("image/heic")).toBe(false);
+    expect(isMetadataStripped("image/heif")).toBe(false);
+    expect(isMetadataStripped("image/gif")).toBe(false);
+    expect(isMetadataStripped("video/mp4")).toBe(false);
+    expect(isMetadataStripped("video/quicktime")).toBe(false);
+    expect(isMetadataStripped("video/webm")).toBe(false);
+  });
+
+  it("declara removidos los tres formatos que sharp sí re-encodea", () => {
+    expect(isMetadataStripped("image/jpeg")).toBe(true);
+    expect(isMetadataStripped("image/png")).toBe(true);
+    expect(isMetadataStripped("image/webp")).toBe(true);
+  });
+
+  it("falla cerrado ante un formato desconocido, null o vacío", () => {
+    // Si mañana alguien suma un tipo a ALLOWED_MIME y olvida el strip, el
+    // comprobante público no lo muestra en vez de filtrarlo.
+    expect(isMetadataStripped("image/avif")).toBe(false);
+    expect(isMetadataStripped("application/pdf")).toBe(false);
+    expect(isMetadataStripped(null)).toBe(false);
+    expect(isMetadataStripped(undefined)).toBe(false);
+    expect(isMetadataStripped("")).toBe(false);
+  });
+
+  it("el comprobante público sólo mintea URL firmada si el gate lo permite", () => {
+    // Sobre CÓDIGO, no sobre texto crudo (readCode blanquea comentarios): la
+    // llamada a welfareAttachmentSignedUrl tiene que estar condicionada. Sin URL
+    // firmada no hay descarga posible, que es el punto.
+    const src = readCode(PUBLIC_RECEIPT);
+    expect(src).toMatch(/isMetadataStripped\(/);
+    expect(src).toMatch(/canShow\s*\?\s*await\s+welfareAttachmentSignedUrl\(/);
   });
 });
