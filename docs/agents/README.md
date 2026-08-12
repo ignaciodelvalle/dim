@@ -12,6 +12,8 @@ short role docs in this repo were followed on first use).
 | A QA or data agent that MUTATES the local DB | `docs/agents/qa-mutation-contract.md` |
 | A subagent spawned by the main agent | `docs/agents/subagent-card.md` |
 | A human newcomer | `/README.md` → `AGENTS.md` slim index |
+| Cowork, haciendo el clickthrough de staging | `docs/agents/prompt-cowork-clickthrough-staging.md` (+ el guion `master-test-ciudadano-multiagente.md`) |
+| Un revisor externo auditando el código | `docs/agents/prompt-cowork-review-codigo.md` |
 
 `AGENTS.md` is the knowledge base (data model, event catalog, legal framework)
 — load its anchored sections on demand. It is context, not a contract.
