@@ -94,12 +94,33 @@ Two things this page used to claim, both now disproved by measurement:
   the main process anyway. Pools are now drained per file by `closeDbPools()`
   in `__tests__/setup.ts`. That change alone recovered 5 tests that were being
   lost with the sockets (the reported total now reconciles exactly).
-- ~~The error is postgres.js socket teardown.~~ Run alone, **each project is
-  clean**: `--project unit` exits 0 and `--project db` exits 0, with no worker
-  error in either. The crash appears only when the two run **together**, so it
-  is an interaction between the parallel unit workers and the serial db worker.
+- ~~The error is postgres.js socket teardown.~~ Pools are not the cause; see
+  above.
+- ~~Run alone, each project is clean, so the crash is an interaction between the
+  parallel unit workers and the serial db worker.~~ **DISPROVED 2026-08-12.**
+  That was true when measured and is not true now. Measured the same day, same
+  machine, same DB, five runs:
 
-Do not spend time on the pool when chasing this; that ground is covered.
+  | project | runs | result |
+  |---|---|---|
+  | `--project unit` | 2 | exit 0 both times, 7860 tests, no worker error |
+  | `--project db`   | 4 | exit 0 **once**, exit 1 three times with `Worker exited unexpectedly` |
+
+  So `--project db` crashes ON ITS OWN, and the one clean run was luck. A
+  control run at an earlier commit crashed the same way, which rules out any
+  particular recent change. The "only when run together" framing sent one
+  investigation down a bisect that could not have found anything — the treatment
+  and the control both fail.
+
+  Two symptoms worth recognising: the TEST COUNT moves between runs (7003 /
+  6997 / 6982) while the file count barely does — tests disappear rather than
+  fail, which is a worker dying mid-file, not an assertion breaking. And
+  `app/org/[orgToken]/mascotas/[publicToken]/adoption/FinalizeAdoptionForm.interaction.test.tsx`
+  failed in exactly one of the five runs and passed in the other four.
+
+Do not spend time on the pool when chasing this; that ground is covered. And do
+not use "`--project db` alone is clean" as a green light — it is not a reliable
+signal any more. Read the counts.
 
 Run a single file (e.g. a new fence) without the full 12-minute suite:
 
