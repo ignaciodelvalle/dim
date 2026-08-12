@@ -33,6 +33,8 @@ import { createHash } from "node:crypto";
 
 import { config as loadEnv } from "dotenv";
 
+import { describeTarget } from "./_env-target";
+
 // El env ya presente en el proceso GANA: dotenv no pisa lo que ya está seteado,
 // así que exportar DATABASE_URL de staging antes de correr esto es suficiente.
 loadEnv({ path: ".env.local" });
@@ -52,9 +54,15 @@ if (process.env.NODE_ENV === "production") {
 }
 
 const isLocal = DATABASE_URL.includes("127.0.0.1") || DATABASE_URL.includes("localhost");
-// El host, sin credenciales, para que quien lo corre VEA contra qué está apuntando
-// antes de que escriba nada. Un entorno mal cargado es la falla más cara acá.
-const host = DATABASE_URL.replace(/.*@/, "").replace(/\/.*/, "");
+// Host + REF DEL PROYECTO, sin credenciales, para que quien lo corre VEA contra
+// qué está apuntando antes de que escriba nada.
+//
+// El ref es imprescindible, no adorno: esta cuenta tiene DOS proyectos Supabase
+// (DIM producción y DIM-staging) detrás del MISMO host de pooler, así que el host
+// solo produce una línea idéntica en los dos casos — justo la pregunta que este
+// mensaje existe para responder. Se reusa el helper compartido para que la forma
+// de nombrar un destino sea una sola en todos los scripts.
+const host = describeTarget(DATABASE_URL);
 
 if (!isLocal && !ALLOW_REMOTE) {
   console.error(

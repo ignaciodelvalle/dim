@@ -1,4 +1,4 @@
-# Carga el entorno de STAGING en la sesión actual de PowerShell y verifica que
+﻿# Carga el entorno de STAGING en la sesión actual de PowerShell y verifica que
 # haya quedado COMPLETO antes de dejarte correr nada.
 #
 # POR QUÉ EXISTE
@@ -35,19 +35,39 @@ Get-Content $envFile | Where-Object { $_ -match '^\s*[^#].*=' } | ForEach-Object
 $required = @("DATABASE_URL", "NEXT_PUBLIC_SUPABASE_URL", "SUPABASE_SERVICE_ROLE_KEY")
 $missing = $required | Where-Object { -not [Environment]::GetEnvironmentVariable($_, 'Process') }
 
+# Host + REF del proyecto. El ref no es adorno: DIM (producción) y DIM-staging
+# comparten el MISMO host de pooler, así que el host solo no distingue uno de otro
+# — justo la pregunta que este script existe para responder. El ref viaja en el
+# usuario del pooler (postgres.<ref>@) o en el host (<ref>.supabase.co).
 function Get-HostOnly([string]$url) {
   if (-not $url) { return "(sin definir)" }
-  return ($url -replace '^[a-z+]+://', '' -replace '.*@', '' -replace '[/?].*', '')
+  $noScheme = $url -replace '^[a-z+]+://', ''
+  $userInfo = if ($noScheme -match '@') { $noScheme.Substring(0, $noScheme.LastIndexOf('@')) } else { '' }
+  $h = $noScheme -replace '.*@', '' -replace '[/?].*', ''
+  $ref = $null
+  if ($userInfo -match '^[^:]*\.([a-z0-9]{20})') { $ref = $Matches[1] }
+  elseif ($h -match '(?:^|\.)([a-z0-9]{20})\.supabase\.(?:co|com)') { $ref = $Matches[1] }
+  if ($ref) { return "$h (proyecto $ref)" }
+  return $h
 }
 
 $dbHost = Get-HostOnly $env:DATABASE_URL
 $sbHost = Get-HostOnly $env:NEXT_PUBLIC_SUPABASE_URL
-$dbLocal = $dbHost -match '127\.0\.0\.1|localhost'
-$sbLocal = $sbHost -match '127\.0\.0\.1|localhost'
+# Una URL sin definir no es "remota": es una variable que falta, y decir REMOTO
+# manda a buscar el problema equivocado (mismo criterio que el gemelo .sh).
+function Get-Kind([string]$h) {
+  if ($h -eq "(sin definir)") { return "" }
+  if ($h -match '127\.0\.0\.1|localhost') { return "(LOCAL)" }
+  return "(REMOTO)"
+}
+$dbKind = Get-Kind $dbHost
+$sbKind = Get-Kind $sbHost
+$dbLocal = $dbKind -eq "(LOCAL)"
+$sbLocal = $sbKind -eq "(LOCAL)"
 
 Write-Host ""
-Write-Host "  Base de datos  -> $dbHost  $(if ($dbLocal) {'(LOCAL)'} else {'(REMOTO)'})"
-Write-Host "  Supabase Auth  -> $sbHost  $(if ($sbLocal) {'(LOCAL)'} else {'(REMOTO)'})"
+Write-Host "  Base de datos  -> $dbHost  $dbKind"
+Write-Host "  Supabase Auth  -> $sbHost  $sbKind"
 Write-Host ""
 
 if ($missing.Count -gt 0) {

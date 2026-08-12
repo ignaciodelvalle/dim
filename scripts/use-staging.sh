@@ -26,8 +26,20 @@ set -a
 . "$ENV_FILE"
 set +a
 
+# Host + REF del proyecto. DIM (producción) y DIM-staging comparten el MISMO host
+# de pooler, así que el host solo no distingue uno de otro.
 host_only() {
-  printf '%s' "$1" | sed -E 's#^[a-z+]+://##; s#.*@##; s#[/?].*##'
+  raw="$(printf '%s' "$1" | sed -E 's#^[a-z+]+://##')"
+  h="$(printf '%s' "$raw" | sed -E 's#.*@##; s#[/?].*##')"
+  # grep -o en vez de backreferences de sed: el ref son 20 caracteres [a-z0-9] y
+  # buscarlos directo evita una expresion fragil de escapar.
+  userinfo="${raw%%@*}"
+  [ "$userinfo" = "$raw" ] && userinfo=""
+  ref="$(printf '%s' "$userinfo" | grep -oE '[a-z0-9]{20}' | head -1)"
+  if [ -z "$ref" ]; then
+    ref="$(printf '%s' "$h" | grep -oE '[a-z0-9]{20}[.]supabase[.](co|com)' | grep -oE '^[a-z0-9]{20}' | head -1)"
+  fi
+  if [ -n "$ref" ]; then printf '%s (proyecto %s)' "$h" "$ref"; else printf '%s' "$h"; fi
 }
 
 DB_HOST="$(host_only "${DATABASE_URL:-}")"

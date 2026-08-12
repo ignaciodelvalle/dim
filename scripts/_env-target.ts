@@ -33,12 +33,32 @@ export type EnvTarget = {
 
 const isLocalUrl = (u: string) => u.includes("127.0.0.1") || u.includes("localhost");
 
-/** Host de una URL de Postgres o HTTP, descartando usuario/contraseña. */
-function hostOf(url: string): string {
-  return url
-    .replace(/^[a-z+]+:\/\//i, "")
-    .replace(/.*@/, "")
-    .replace(/[/?].*/, "");
+/**
+ * Host + REF DEL PROYECTO, sin credenciales.
+ *
+ * El ref no es decoración: esta cuenta tiene dos proyectos Supabase —
+ * `DIM` (producción) y `DIM-staging`— y AMBOS se conectan por el mismo host de
+ * pooler, `aws-1-sa-east-1.pooler.supabase.com`. Imprimir sólo el host produce
+ * una línea idéntica antes de escribir en staging o en producción, que es
+ * exactamente la pregunta que este mensaje existe para responder.
+ *
+ * El ref viaja en el USUARIO de la URL del pooler (`postgres.<ref>@…`), que el
+ * strip de credenciales se llevaba puesto, o en el host de conexión directa
+ * (`db.<ref>.supabase.co`) y en la URL de la API (`<ref>.supabase.co`).
+ */
+export function describeTarget(url: string): string {
+  const noScheme = url.replace(/^[a-z+]+:\/\//i, "");
+  const userInfo = noScheme.includes("@") ? noScheme.slice(0, noScheme.lastIndexOf("@")) : "";
+  const host = noScheme.replace(/.*@/, "").replace(/[/?].*/, "");
+
+  const ref =
+    // pooler: postgres.<ref>
+    userInfo.match(/^[^:]*\.([a-z0-9]{20})/i)?.[1] ??
+    // conexión directa: db.<ref>.supabase.co · API: <ref>.supabase.co
+    host.match(/(?:^|\.)([a-z0-9]{20})\.supabase\.(?:co|com)/i)?.[1] ??
+    null;
+
+  return ref ? `${host} (proyecto ${ref})` : host;
 }
 
 /**
@@ -67,8 +87,8 @@ export function assertNotSplitEnv(supabaseUrl: string, databaseUrl: string, labe
     [
       `\n[${label}] ENTORNO PARTIDO — me niego a escribir.`,
       "",
-      `  Supabase Auth  → ${hostOf(supabaseUrl)}  (${supabaseLocal ? "LOCAL" : "REMOTO"})`,
-      `  Base de datos  → ${hostOf(databaseUrl)}  (${databaseLocal ? "LOCAL" : "REMOTO"})`,
+      `  Supabase Auth  → ${describeTarget(supabaseUrl)}  (${supabaseLocal ? "LOCAL" : "REMOTO"})`,
+      `  Base de datos  → ${describeTarget(databaseUrl)}  (${databaseLocal ? "LOCAL" : "REMOTO"})`,
       "",
       "  Las dos tienen que apuntar al MISMO entorno. Escribir con una en cada",
       "  lado deja usuarios en una base y perfiles en la otra.",
@@ -99,8 +119,8 @@ export function resolveEnvTarget(
 ): EnvTarget {
   const supabaseLocal = isLocalUrl(supabaseUrl);
   const databaseLocal = isLocalUrl(databaseUrl);
-  const supabaseHost = hostOf(supabaseUrl);
-  const dbHost = hostOf(databaseUrl);
+  const supabaseHost = describeTarget(supabaseUrl);
+  const dbHost = describeTarget(databaseUrl);
 
   assertNotSplitEnv(supabaseUrl, databaseUrl, label);
 
