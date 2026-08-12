@@ -14,6 +14,7 @@ short role docs in this repo were followed on first use).
 | A human newcomer | `/README.md` → `AGENTS.md` slim index |
 | Cowork, haciendo el clickthrough de staging | `docs/agents/prompt-cowork-clickthrough-staging.md` (+ el guion `master-test-ciudadano-multiagente.md`) |
 | Un revisor externo auditando el código | `docs/agents/prompt-cowork-review-codigo.md` |
+| Un agente escribiendo material de onboarding para usuarios externos (funcionario, vet, refugio, dueño, vecino) | `docs/agents/prompt-cowork-onboarding-externos.md` |
 
 `AGENTS.md` is the knowledge base (data model, event catalog, legal framework)
 — load its anchored sections on demand. It is context, not a contract.
