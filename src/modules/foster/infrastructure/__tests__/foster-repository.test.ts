@@ -8,7 +8,7 @@
 //   outbreak-investigation, import-indec-localities, caba-barrios,
 //   ar-localidades, admin-decisions/admin-revocations/role-upgrade
 
-import { and, eq, isNull } from "drizzle-orm";
+import { and, desc, eq, isNull } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { hashDni } from "@/lib/utils/dni-hash";
@@ -645,5 +645,85 @@ describe("AF-C1 — insertConvertFosterToOwner: closes the org's shelter_custody
         custodyOwnershipId = custody.id;
       });
     }
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Authorship honesty on accept (cowork audit finding #7 / AF-L3, 2026-08-12)
+// ---------------------------------------------------------------------------
+//
+// foster_assigned used to be emitted with authorVerified hardcoded `true`,
+// regardless of whether the proposing organization had passed personería
+// review. The libreta renders that flag as "verified by an organization", so an
+// unverified org's assignment claimed a vouching that never happened — a lie in
+// the one log whose whole job is to record who vouched for what.
+//
+// WHAT WOULD HAVE TO BREAK FOR THIS TO FAIL: reverting to a constant. The test
+// flips organizations.verified and asserts the emitted event follows it.
+describe("insertAcceptFosterProposal — foster_assigned authorship follows the org", () => {
+  async function acceptWithOrgVerified(verified: boolean): Promise<boolean> {
+    await db.update(organizations).set({ verified }).where(eq(organizations.id, orgId));
+
+    const now = new Date();
+    const [proposal] = await db
+      .insert(fosterProposals)
+      .values({
+        publicToken: `FP-VERIF-${verified ? "V" : "U"}-${Date.now()}`,
+        organizationId: orgId,
+        volunteerUserId,
+        petId,
+        proposedByUserId: proposerUserId,
+        proposedAt: now,
+        expiresAt: new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000),
+        status: "pending",
+        matchWarnings: [],
+        createdAt: now,
+        updatedAt: now,
+      })
+      .returning();
+
+    await db.transaction(async (tx) => {
+      await FosterRepository.insertAcceptFosterProposal(
+        {
+          proposal,
+          petId,
+          petName: "FosterRepTestPet",
+          volunteerUserId,
+          volunteerId,
+          volunteerCurrentSlots: 1,
+          allowCoFoster: false,
+          responseNotes: null,
+          actorUserId: proposerUserId,
+          actorOrgId: orgId,
+          now,
+        },
+        tx,
+      );
+    });
+
+    const [assigned] = await db
+      .select({ authorVerified: petEvents.authorVerified })
+      .from(petEvents)
+      .where(and(eq(petEvents.petId, petId), eq(petEvents.eventType, "foster_assigned")))
+      .orderBy(desc(petEvents.recordedAt))
+      .limit(1);
+
+    return assigned.authorVerified;
+  }
+
+  afterAll(async () => {
+    // Leave the shared fixture as the rest of the suite expects it.
+    await db.update(organizations).set({ verified: true }).where(eq(organizations.id, orgId));
+    await withMutationOverride(async (tx) => {
+      await tx.delete(petEvents).where(eq(petEvents.petId, petId));
+    }).catch(() => {});
+  });
+
+  it("stamps authorVerified=false when the assigning org is NOT verified", async () => {
+    expect(await acceptWithOrgVerified(false)).toBe(false);
+  });
+
+  it("stamps authorVerified=true when the assigning org IS verified", async () => {
+    expect(await acceptWithOrgVerified(true)).toBe(true);
   });
 });

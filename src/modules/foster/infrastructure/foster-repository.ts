@@ -1037,7 +1037,24 @@ export const FosterRepository = {
       (await findOpenCaseForPetAndKind(args.petId, "foster_proposal", tx))?.id ??
       null;
 
-    // Emit foster_proposal_resolved (authorVerified=false) + foster_assigned (authorVerified=TRUE hardcoded).
+    // authorVerified for foster_assigned used to be hardcoded `true` ("PARITY:
+    // design §parity quirk 3", tracked as AF-L3 in docs/reviews/tier4-decisions.md).
+    // That stamped "verified by an organization" onto the libreta's authorship
+    // line for orgs that had never passed personería review — a small lie, but a
+    // lie in the one log whose job is to say who vouched for what. The direct
+    // assignment path already reads organizations.verified; this one now does
+    // too, so the two paths cannot disagree about the same org.
+    const [assigningOrg] = args.proposal.organizationId
+      ? await tx
+          .select({ verified: organizations.verified })
+          .from(organizations)
+          .where(eq(organizations.id, args.proposal.organizationId))
+          .limit(1)
+      : [];
+    // Fail closed: no org row resolved → not verified.
+    const assigningOrgVerified = assigningOrg?.verified === true;
+
+    // Emit foster_proposal_resolved (authorVerified=false) + foster_assigned.
     const acceptedPayload = validateEventPayload("foster_proposal_resolved", {
       proposal_public_token: args.proposal.publicToken,
       outcome: "accepted",
@@ -1067,10 +1084,9 @@ export const FosterRepository = {
         occurredAt: args.now,
         recordedAt: args.now,
         recordedByUserId: args.actorUserId,
-        // PARITY: authorVerified hardcoded TRUE for foster_assigned (design §parity quirk 3)
         authorRole: "shelter",
         authorOrganizationId: args.proposal.organizationId,
-        authorVerified: true,
+        authorVerified: assigningOrgVerified,
         payload: assignedPayload,
         caseId: proposalCaseId,
       },

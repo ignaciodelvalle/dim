@@ -57,6 +57,7 @@ describe("dni-hash pepper fail-closed", () => {
 
   it("does NOT throw in production MODE against a LOCAL db (next start QA) — keeps the dev fallback", () => {
     vi.stubEnv("NODE_ENV", "production");
+    vi.stubEnv("VERCEL", "");
     vi.stubEnv("DATABASE_URL", LOCAL_DB);
     vi.stubEnv("DNI_HASH_PEPPER", "");
     expect(hashDni(DNI)).toMatch(HEX_64);
@@ -64,7 +65,52 @@ describe("dni-hash pepper fail-closed", () => {
 
   it("keeps the dev-pepper fallback outside production (local/test unchanged)", () => {
     vi.stubEnv("NODE_ENV", "test");
+    vi.stubEnv("VERCEL", "");
     vi.stubEnv("DNI_HASH_PEPPER", "");
+    expect(hashDni(DNI)).toMatch(HEX_64);
+  });
+
+  // ---------------------------------------------------------------------------
+  // Second, independent trigger (audit 2026-08-12).
+  //
+  // Keying the guard ONLY on NODE_ENV left a residual: a real deployment that
+  // never sets NODE_ENV, or whose DATABASE_URL happens to contain the substring
+  // "localhost", fell back to the COMMITTED dev pepper in silence — and every
+  // DNI hashed under a known pepper is rainbow-table reversible across a ~10^8
+  // space. Running on a deploy platform is decisive on its own.
+  // ---------------------------------------------------------------------------
+
+  it("throws on Vercel even when NODE_ENV is NOT production", () => {
+    vi.stubEnv("NODE_ENV", "development");
+    vi.stubEnv("VERCEL", "1");
+    vi.stubEnv("DATABASE_URL", REMOTE_DB);
+    vi.stubEnv("DNI_HASH_PEPPER", "");
+    expect(() => hashDni(DNI)).toThrow(/DNI_HASH_PEPPER/);
+  });
+
+  it("throws on Vercel even when DATABASE_URL contains the substring 'localhost'", () => {
+    // The isLocalDb escape hatch exists for `next start` QA. There is no such
+    // case on a deploy platform, so it must not apply there.
+    vi.stubEnv("NODE_ENV", "development");
+    vi.stubEnv("VERCEL", "1");
+    vi.stubEnv("DATABASE_URL", LOCAL_DB);
+    vi.stubEnv("DNI_HASH_PEPPER", "");
+    expect(() => hashDni(DNI)).toThrow(/DNI_HASH_PEPPER/);
+  });
+
+  it("throws on Vercel when the pepper is explicitly set to the public dev default", () => {
+    vi.stubEnv("NODE_ENV", "development");
+    vi.stubEnv("VERCEL", "1");
+    vi.stubEnv("DATABASE_URL", REMOTE_DB);
+    vi.stubEnv("DNI_HASH_PEPPER", "dim-test-pepper-v1");
+    expect(() => hashDni(DNI)).toThrow(/DNI_HASH_PEPPER/);
+  });
+
+  it("hashes on Vercel once a real secret pepper is set", () => {
+    vi.stubEnv("NODE_ENV", "production");
+    vi.stubEnv("VERCEL", "1");
+    vi.stubEnv("DATABASE_URL", REMOTE_DB);
+    vi.stubEnv("DNI_HASH_PEPPER", "a-real-secret-from-the-deploy-env");
     expect(hashDni(DNI)).toMatch(HEX_64);
   });
 });
