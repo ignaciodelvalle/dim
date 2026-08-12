@@ -11,7 +11,7 @@
 // Both return the same { microchip?, tattoo? } shape. Callers that only need
 // one kind can destructure what they need.
 
-import { and, eq, inArray, isNotNull, sql } from "drizzle-orm";
+import { and, desc, eq, inArray, isNotNull, sql } from "drizzle-orm";
 
 import { db, petIdentifications } from "@/db";
 
@@ -69,7 +69,13 @@ export async function fetchActiveIdentifications(petId: string): Promise<ActiveI
         eq(petIdentifications.status, "active"),
         inArray(petIdentifications.kind, ["microchip_iso", "tattoo"]),
       ),
-    );
+    )
+    // Defensa en profundidad. El modelo es una fila activa por kind, y los
+    // writers ahora superseden antes de insertar — pero si alguna vez quedan
+    // dos, sin ORDER BY cuál gana depende del orden físico de Postgres, o sea
+    // que la credencial mostraría el dato viejo o el nuevo de forma
+    // no-determinística entre requests. Con orden, gana el más reciente.
+    .orderBy(desc(petIdentifications.recordedAt), desc(petIdentifications.createdAt));
 
   // The single-pet projection omits petId (the WHERE already filters by it),
   // so rowsToIdentifications keys these rows under SINGLE_PET_KEY — indexing

@@ -6,6 +6,8 @@
 // The outer shim (app/actions/tattoo.ts) gates via requireAlivePetAccess.
 // Tests call createTattooForUser directly with a known userId.
 
+import { and, eq } from "drizzle-orm";
+
 import { attachments, db, petIdentifications } from "@/db";
 import { insertEventIdempotent } from "@/lib/events/event-idempotency";
 import { validateEventPayload } from "@/lib/events/event-schemas";
@@ -86,6 +88,34 @@ export async function createTattooForUser(
           fileSize: input.uploadedAttachment.size,
         })
         .returning();
+
+      // Supersede any active tattoo BEFORE inserting the new one.
+      //
+      // El modelo es UN tatuaje activo por mascota. La ausencia de índice único
+      // parcial para tatuaje (a diferencia de pet_identifications_chip_unique)
+      // no es para permitir varios: es porque distintos registros reusan códigos
+      // entre mascotas distintas (0056:90-91, 0045:24-26). La vista de compat
+      // lee con LIMIT 1 y la proyección es latest-wins.
+      //
+      // Como no hay flujo de "editar tatuaje", corregir un código mal cargado
+      // obliga a re-registrar. Sin este supersede quedaban DOS filas con
+      // status='active', y como el read (pet-identifiers.ts) y el harness de
+      // deriva no ordenan, cuál ganaba dependía del orden físico de Postgres: la
+      // credencial podía mostrar de forma no-determinística el dato viejo o el
+      // corregido. O sea, la corrección "no tomaba" a veces.
+      //
+      // replace-microchip.ts:291 ya hacía exactamente esto para el chip; el
+      // tatuaje quedó sin el hermano.
+      await tx
+        .update(petIdentifications)
+        .set({ status: "replaced", updatedAt: now })
+        .where(
+          and(
+            eq(petIdentifications.petId, petId),
+            eq(petIdentifications.kind, "tattoo"),
+            eq(petIdentifications.status, "active"),
+          ),
+        );
 
       // Canonical write to pet_identifications (legacy pets.* tattoo columns
       // removed — ARCH-R. Migration 0084 drops the columns next PR).

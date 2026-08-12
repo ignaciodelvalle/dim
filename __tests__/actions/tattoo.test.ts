@@ -6,7 +6,7 @@
 // a synthetic { path, mimeType, size } without touching Supabase storage.
 
 import { createClient } from "@supabase/supabase-js";
-import { eq, sql } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { attachments, db, ownerships, petEvents, petIdentifications, pets } from "@/db";
@@ -268,5 +268,74 @@ describe("createTattooForUser", () => {
     expect(canonicalRows).toHaveLength(2);
     const codes = canonicalRows.map((r) => r.code).sort();
     expect(codes).toEqual(["FIRST-CODE", "SECOND-CODE"]);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Re-registro: una sola fila activa (hallazgo #3 de la 2a pasada, 2026-08-12)
+// ---------------------------------------------------------------------------
+//
+// El modelo es UN tatuaje activo por mascota, pero no hay flujo de "editar
+// tatuaje": corregir un código mal cargado obliga a re-registrar. Sin supersede
+// quedaban DOS filas con status='active', y como el read no ordenaba, cuál
+// ganaba dependía del orden físico de Postgres — la corrección "no tomaba" de
+// forma no-determinística. replace-microchip ya hacía el supersede; el tatuaje
+// no lo tenía.
+//
+// QUÉ TENDRÍA QUE ROMPERSE PARA QUE FALLE: que se saque el supersede.
+describe("createTattooForUser — re-registro supersede la fila anterior", () => {
+  it("deja exactamente UNA fila activa y es la corregida", async () => {
+    const first = await createTattooForUser(petId, ownerUserId, OWNER_AUTHORSHIP, {
+      code: "K9-MAL-CARGADO",
+      location: "inner_ear_left",
+      description: "Código mal tipeado",
+      recordedAt: new Date("2015-05-10"),
+      recordedBy: "Vet Dra. López",
+      uploadedAttachment: FAKE_UPLOAD,
+    });
+    expect("ok" in first && first.ok).toBe(true);
+
+    // La corrección, con fecha ATRASADA respecto de la primera carga — que es
+    // justo el caso que hacía divergir el read del latest-wins.
+    const corrected = await createTattooForUser(petId, ownerUserId, OWNER_AUTHORSHIP, {
+      code: "K9-CORRECTO",
+      location: "inner_thigh",
+      description: "Corregido",
+      recordedAt: new Date("2015-05-09"),
+      recordedBy: "Vet Dra. López",
+      uploadedAttachment: FAKE_UPLOAD,
+    });
+    expect("ok" in corrected && corrected.ok).toBe(true);
+
+    const active = await db
+      .select({ code: petIdentifications.code, status: petIdentifications.status })
+      .from(petIdentifications)
+      .where(
+        and(
+          eq(petIdentifications.petId, petId),
+          eq(petIdentifications.kind, "tattoo"),
+          eq(petIdentifications.status, "active"),
+        ),
+      );
+
+    expect(active).toHaveLength(1);
+    expect(active[0].code).toBe("K9-CORRECTO");
+  });
+
+  it("la fila vieja queda como 'replaced', no borrada", async () => {
+    // El registro histórico no se destruye: se supersede. Misma disciplina que
+    // el spine append-only.
+    const replaced = await db
+      .select({ code: petIdentifications.code })
+      .from(petIdentifications)
+      .where(
+        and(
+          eq(petIdentifications.petId, petId),
+          eq(petIdentifications.kind, "tattoo"),
+          eq(petIdentifications.status, "replaced"),
+        ),
+      );
+
+    expect(replaced.some((r) => r.code === "K9-MAL-CARGADO")).toBe(true);
   });
 });

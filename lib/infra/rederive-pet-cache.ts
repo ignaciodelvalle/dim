@@ -52,7 +52,7 @@
 // rewritten to catalog spelling on write is rewritten identically here and can
 // never register as false drift.
 
-import { and, asc, eq, inArray } from "drizzle-orm";
+import { and, asc, desc, eq, inArray } from "drizzle-orm";
 
 import { custodyDisputes, db, petEvents, petIdentifications, pets } from "@/db";
 import { normalizeLocationForWrite } from "@/lib/domain/location-normalize";
@@ -252,7 +252,13 @@ export async function rederivePetCache(
           eq(petIdentifications.status, "active"),
           inArray(petIdentifications.kind, ["microchip_iso", "tattoo"]),
         ),
-      ),
+      )
+      // Mismo motivo que en fetchActiveIdentifications: sin orden, `stored`
+      // sería no-determinístico si alguna vez hay dos filas activas, y el
+      // detector compararía un valor que cambia entre corridas contra una
+      // proyección que es latest-wins. Un detector de deriva no puede tener
+      // entrada inestable.
+      .orderBy(desc(petIdentifications.recordedAt), desc(petIdentifications.createdAt)),
     executor
       .select({ id: custodyDisputes.id })
       .from(custodyDisputes)
