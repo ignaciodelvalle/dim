@@ -1143,8 +1143,8 @@ Leyenda: ✅ en producción · 🔵 en progreso (migración parcial en curso) ·
 | ✅ | Org portal — intake, foster, custody, adoption, scheduling, member management | `/org/[orgToken]/*` |
 | ✅ | Intake (new pet) + transfer-in con microchip cross-check | `/org/[orgToken]/intake` |
 | ✅ | Foster assign / end (member-based) | dentro de `/org/[orgToken]/mascotas/[petToken]` |
-| ✅ | Custody transfer org→org (propose → accept / reject). `cancelCrossOrgTransferAction` existe en `src/modules/transfers/actions.ts` pero no está wired a ninguna UI — el sender no puede cancelar una transferencia en curso hoy, solo ver el caso ("Ver caso →"). | `/org/[orgToken]/transferencias` |
-| ✅ | Adoption pipeline completo (submitted/approved/rejected/finalized; cron `post-adoption-checkin`). `adoption_reversed` está modelado end-to-end (métricas, timeline) pero sin acción/formulario en `app/` que lo dispare — hoy solo seed scripts/tests lo emiten. | `/org/[orgToken]/adopciones` |
+| ✅ | Custody transfer org→org (propose → accept / reject / **cancel**). El sender SÍ puede cancelar una transferencia pendiente: `CancelTransferAction.tsx`, cableado en `transferencias/page.tsx:156`. (Esta fila decía lo contrario hasta 2026-08-12 — quedó stale tras el facades-harvest del 2026-07-21.) | `/org/[orgToken]/transferencias` |
+| ✅ | Adoption pipeline completo (submitted/approved/rejected/finalized; cron `post-adoption-checkin`). `adoption_reversed` tiene acción y formulario: `ReverseAdoptionAction.tsx`, cableado en `mascotas/[publicToken]/page.tsx:118`. (Esta fila decía "sin acción/formulario que lo dispare" hasta 2026-08-12 — misma staleness.) | `/org/[orgToken]/adopciones` |
 | ✅ | Post-adoption check-ins | `/org/[orgToken]/checkins` |
 | ✅ | Service offerings + scheduling con materialización vía cron | `/org/[orgToken]/servicios` |
 | ✅ | Coverage zones para targeting de lost-pet broadcast | `/org/[orgToken]/cobertura` |

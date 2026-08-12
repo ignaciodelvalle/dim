@@ -24,14 +24,24 @@ export default function AyudaPage() {
           </h2>
           <ol className="text-md text-[var(--color-ln-ink-2)] leading-relaxed space-y-1 list-decimal pl-5">
             <li>
+              {/* El paso dice "creá tu cuenta" y enlazaba a la pantalla de
+                  INGRESO, mostrando además "/login" — la ruta inglesa que hoy
+                  es sólo un redirect permanente. Crear cuenta es /registro. */}
               Creá tu cuenta en{" "}
+              <Link
+                href="/registro"
+                className="text-[var(--color-ln-azul)] no-underline hover:underline"
+              >
+                Crear cuenta
+              </Link>
+              . Si ya tenés una, entrá desde{" "}
               <Link
                 href="/iniciar-sesion"
                 className="text-[var(--color-ln-azul)] no-underline hover:underline"
               >
-                /login
-              </Link>{" "}
-              o desde el botón "Crear cuenta".
+                Iniciar sesión
+              </Link>
+              .
             </li>
             <li>
               Una vez dentro, accedé a <strong>Mis mascotas</strong> y usá el botón "Agregar
@@ -85,12 +95,16 @@ export default function AyudaPage() {
               También puede reportar un avistamiento desde la misma página.
             </li>
             <li>
-              Consultá el mapa de{" "}
+              {/* Decía "el mapa de mascotas perdidas". /perdidas es un LISTADO
+                  con filtros por provincia — no renderiza ningún mapa. El único
+                  punto en un mapa vive dentro de la credencial individual, y
+                  sólo si el dueño habilitó divulgar la ubicación. */}
+              Consultá el{" "}
               <Link
                 href="/perdidas"
                 className="text-[var(--color-ln-azul)] no-underline hover:underline"
               >
-                mascotas perdidas
+                listado de mascotas perdidas
               </Link>{" "}
               para ver reportes recientes.
             </li>
@@ -111,8 +125,27 @@ export default function AyudaPage() {
               Denuncias
             </Link>{" "}
             y completá el formulario. No necesitás cuenta para denunciar. Podés indicar el tipo de
-            situación (maltrato, abandono, mordedura, entre otros), la gravedad estimada y la
-            ubicación. Las denuncias son recibidas por las autoridades sanitarias pertinentes.
+            situación (abandono, negligencia, maltrato físico, animal encadenado, sin refugio,
+            acumulación, peleas, venta clandestina u otra), la gravedad estimada y la ubicación.
+          </p>
+          {/* Dos correcciones (auditoría 2026-08-12), las dos eran falsas:
+              · "mordedura" NO es un tipo de denuncia. Los tipos reales son los 9
+                de WELFARE_REPORT_KINDS (src/modules/welfare/domain/types.ts:12);
+                la mordedura viaja por el circuito clínico/organizacional.
+              · "Las denuncias son recibidas por las autoridades sanitarias
+                pertinentes" contradecía a /denuncias, que aclara que la
+                integración con canales estatales está en desarrollo. El código
+                respalda a /denuncias: la gestión es interna. Esta era la
+                contradicción con consecuencia física — alguien podía no llamar
+                al 911 creyendo que ya había avisado a la autoridad. */}
+          <p className="text-md text-[var(--color-ln-ink-2)] leading-relaxed">
+            Tu denuncia queda registrada y llega a la bandeja del organismo de tu jurisdicción
+            dentro de miMAR. La derivación automática a canales gubernamentales externos todavía
+            está en desarrollo.{" "}
+            <strong className="font-semibold text-[var(--color-ln-ink)]">
+              Si hay un animal en peligro inmediato, llamá al 911
+            </strong>{" "}
+            además de dejar la denuncia acá.
           </p>
         </section>
 

@@ -63,9 +63,11 @@ export default function AcercaPage() {
           <p className="text-md text-[var(--color-ln-ink-2)] leading-relaxed">
             miMAR funciona como una <strong>libreta sanitaria digital portable</strong>: cada evento
             en la vida de la mascota (vacuna, desparasitación, visita al vet, cambio de estado)
-            queda registrado de forma inmutable y ordenada. El objetivo es que cualquier
-            veterinario, refugio o autoridad pueda ver el historial de un animal escaneando su QR,
-            sin depender de papeles que se pierden o datos que se olvidan.
+            queda registrado de forma inmutable y ordenada, sin depender de papeles que se pierden o
+            datos que se olvidan. Escanear el QR muestra la identidad del animal, no su historial:
+            la libreta clínica la comparte el dueño cuando quiere y con quien quiere, con un enlace
+            temporal que puede revocar. El objetivo a futuro es que un veterinario o una autoridad
+            pueda acceder al historial por su propio rol verificado.
           </p>
           <p className="text-md text-[var(--color-ln-ink-2)] leading-relaxed">
             El proyecto está diseñado para integrarse en el futuro con <strong>Mi Argentina</strong>
