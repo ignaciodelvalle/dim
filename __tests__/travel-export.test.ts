@@ -25,6 +25,13 @@ import { generateTravelExport } from "@/src/modules/pets/application/travel-expo
 import { withMutationOverride } from "./_helpers/db-overrides";
 
 vi.mock("@/lib/supabase/server", () => ({ createClient: vi.fn() }));
+
+// Service-role storage client (migration 0172) — `travel-exports` has no
+// authenticated policy, so upload/sign run as service role.
+const adminHolder = vi.hoisted(() => ({ current: null as unknown }));
+vi.mock("@/lib/supabase/admin", () => ({
+  createAdminClient: () => adminHolder.current,
+}));
 vi.mock("@/lib/infra/auth-guards", () => ({
   requireUserOrRedirect: vi.fn(),
   requireAdminOrGovtOrRedirect: vi.fn(),
@@ -152,7 +159,7 @@ const mockCreateClient = vi.mocked(supabaseServer.createClient);
 const mockRequireUserOrRedirect = vi.mocked(authGuards.requireUserOrRedirect);
 
 function buildSupabaseMock() {
-  return {
+  const mock = {
     auth: {
       getUser: vi.fn().mockResolvedValue({
         data: { user: { id: MOCK_OWNER_ID, email: "travel-owner@dim-test.local" } },
@@ -167,6 +174,8 @@ function buildSupabaseMock() {
       }),
     },
   };
+  adminHolder.current = mock;
+  return mock;
 }
 
 async function purgeFixtures() {

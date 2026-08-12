@@ -58,16 +58,24 @@ insert into storage.buckets (id, name, public)
 values ('event-attachments', 'event-attachments', false)
 on conflict (id) do nothing;
 
--- Authenticated users can SELECT (needed to request signed URLs); discovery
--- is gated by what the SSR layer shows, not by storage RLS.
-drop policy if exists "event_attachments_authenticated_read" on storage.objects;
-create policy "event_attachments_authenticated_read"
-  on storage.objects for select
-  to authenticated
-  using (bucket_id = 'event-attachments');
+-- NO SELECT POLICY — AND NONE MAY BE ADDED (migration 0172).
+-- This bucket used to carry `event_attachments_authenticated_read`:
+--   for select to authenticated using (bucket_id = 'event-attachments')
+-- The predicate is the bucket name and nothing else, so it was TRUE for every
+-- object. POST /storage/v1/object/list/event-attachments is filtered by that
+-- policy — not, as the old comment claimed, "by what the SSR layer shows" — so
+-- any signed-up account could enumerate and download every pet's vaccine cards,
+-- vet receipts and note photos in the country. Tier-3 owner-only data.
+-- (The 2026-07-04 scope review logged this as LOW on the "discovery gated by
+-- app" reasoning; that reasoning was wrong for the same reason it was wrong for
+-- welfare-evidence in 0164 and the export buckets in 0172.)
+-- Reads now sign as service role via lib/infra/storage.ts, whose callers have
+-- already run requirePetAccess. Signed URLs are redeemed by token, not by RLS.
 
 -- Any authenticated user can upload (the server action verifies pet ownership
--- before calling storage).
+-- before calling storage). INSERT is kept as the caller's own grant: an
+-- insert-only policy cannot enumerate, and ~30 upload sites legitimately run as
+-- the signed-in user.
 drop policy if exists "event_attachments_authenticated_upload" on storage.objects;
 create policy "event_attachments_authenticated_upload"
   on storage.objects for insert

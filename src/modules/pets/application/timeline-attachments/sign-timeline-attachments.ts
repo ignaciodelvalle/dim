@@ -11,7 +11,7 @@ import { z } from "zod";
 
 import { attachments, db } from "@/db";
 import { requirePetAccess } from "@/lib/infra/pet-access";
-import { createClient } from "@/lib/supabase/server";
+import { eventAttachmentSignedUrl } from "@/lib/infra/storage";
 
 import type { SignTimelineAttachmentsResult } from "./types";
 
@@ -94,20 +94,20 @@ export async function signTimelineAttachments(
     return {};
   }
 
-  // 5. Sign URLs via the event-attachments bucket.
-  const supabase = await createClient();
+  // 5. Sign URLs via the event-attachments bucket. Signing runs as service role
+  //    (migration 0172) — the pet access check and the pet_id fence above are
+  //    the authorization, and the bucket no longer has an authenticated SELECT
+  //    policy to enumerate it through.
   const signed: Record<string, string> = {};
 
   await Promise.all(
     rows.map(async (row) => {
       if (!row.eventId || !row.storagePath) return;
-      const { data, error } = await supabase.storage
-        .from("event-attachments")
-        .createSignedUrl(row.storagePath, 3600);
-      if (error || !data?.signedUrl) return;
+      const url = await eventAttachmentSignedUrl(row.storagePath, 3600);
+      if (!url) return;
       // Last attachment wins if multiple exist for the same event. In
       // practice the timeline preview shows one thumbnail per event.
-      signed[row.eventId] = data.signedUrl;
+      signed[row.eventId] = url;
     }),
   );
 

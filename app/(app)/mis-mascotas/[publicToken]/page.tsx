@@ -266,7 +266,7 @@ export default async function PetDetailPage({
     }
     notFound();
   }
-  const { supabase, user, pet, accessPath, organization } = access;
+  const { user, pet, accessPath, organization } = access;
 
   const isOwner = accessPath === "owner";
 
@@ -506,7 +506,7 @@ export default async function PetDetailPage({
         const lostScans = await Promise.all(
           rawScans.map(async (item) => {
             if ((item.kind === "sighting" || item.kind === "finder") && item.photoStoragePath) {
-              const url = await eventAttachmentSignedUrl(supabase, item.photoStoragePath);
+              const url = await eventAttachmentSignedUrl(item.photoStoragePath);
               return { ...item, photoUrl: url };
             }
             return item;

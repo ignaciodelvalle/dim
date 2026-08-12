@@ -152,19 +152,16 @@ export async function generatePppExport(petPublicToken: string): Promise<Generat
   const timestamp = exportGeneratedAt.getTime();
   const storagePath = `${petPublicToken}/caba/${timestamp}.pdf`;
 
-  const uploadResult = await uploadExportToStorage(supabase, "ppp-exports", storagePath, pdfBytes);
+  // Storage runs as service role (migration 0172) — the strict ownership check
+  // above is the authorization; the bucket has no authenticated policy.
+  const uploadResult = await uploadExportToStorage("ppp-exports", storagePath, pdfBytes);
   if ("error" in uploadResult) {
     console.error("[ppp-export-caba] Storage upload failed:", uploadResult.error);
     return { ok: false, error: "storage_upload_failed" };
   }
 
   // Create signed URL (24h).
-  const signedUrl = await createSignedExportUrl(
-    supabase,
-    "ppp-exports",
-    storagePath,
-    EXPORT_URL_TTL_SECONDS,
-  );
+  const signedUrl = await createSignedExportUrl("ppp-exports", storagePath, EXPORT_URL_TTL_SECONDS);
   if (!signedUrl) {
     return { ok: false, error: "signed_url_failed" };
   }

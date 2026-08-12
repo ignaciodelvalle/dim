@@ -8,6 +8,11 @@
 //   3. Every policy names its ROLES explicitly — pg_policies.roles is not
 //        `{public}` — unless allowlisted in PUBLIC_ROLE_ALLOWLIST with a reason.
 //
+// And, outside the public schema, one check on storage.objects:
+//   4. No SELECT/ALL policy grants a caller role (anon/authenticated/public)
+//        read access with a predicate that never references auth.uid() — that
+//        is a bucket enumeration grant. See "check 4" below.
+//
 // WHY 3 EXISTS (2026-08-05). Checks 1 and 2 are existence checks: RLS on, at
 // least one policy. That is a COUNT, and a count cannot tell you who the policy
 // lets in. Ten live policies were found with no TO clause at all — across
@@ -227,6 +232,107 @@ export function evaluatePolicyRoles(rows: PolicyRoleRow[]): {
   return { violations, allowlisted };
 }
 
+// ---------------------------------------------------------------------------
+// Storage bucket READ policies — check 4
+// ---------------------------------------------------------------------------
+//
+// WHY 4 EXISTS (2026-08-12). Checks 1-3 sweep the PUBLIC schema. storage.objects
+// lives in the `storage` schema, so every one of them — and rls-smoke.ts too —
+// was structurally blind to it. Three separate incidents landed in that blind
+// spot: migration 0123(B) (pet-photos public list), 0164 (welfare-evidence, the
+// national cruelty-evidence corpus, anonymously listable) and 0172 (the three
+// export buckets plus event-attachments and revocations). All five had a fully
+// green gate at the time.
+//
+// The shared shape: a SELECT policy on storage.objects whose USING clause is
+// `bucket_id = '<name>'` and nothing else. That predicate never mentions the
+// caller, so it is TRUE for every object in the bucket — and Supabase's list
+// endpoint (POST /storage/v1/object/list/{bucket}) is filtered by exactly this
+// policy. Every one of them shipped with a comment claiming "discovery is gated
+// by the SSR layer", which is false: SSR gates the PAGE, not the REST API.
+//
+// THE RULE: a SELECT (or ALL) policy on storage.objects that admits anon,
+// authenticated or public must reference auth.uid() in its predicate. A read
+// grant that cannot name the caller is an enumeration grant. Allowlist entries
+// need a one-line reason.
+//
+// This check is row-independent — it reads pg_policies, not objects — so an
+// empty bucket cannot make it pass vacuously.
+
+/**
+ * storage.objects read policies allowed to skip the auth.uid() requirement,
+ * keyed by policy name. Every entry needs a one-line reason. Empty is the goal:
+ * the durable fix for "the server needs to read this" is to sign as service
+ * role behind a caller that has already authorized, not to grant the bucket to
+ * every logged-in account.
+ */
+export const STORAGE_READ_POLICY_ALLOWLIST: Record<string, string> = {};
+
+/** Roles that reach the client bundle or any logged-in account. */
+const CALLER_ROLES = new Set(["anon", "authenticated", "public"]);
+
+export type StoragePolicyRow = {
+  policy_name: string;
+  roles: string[];
+  cmd: string;
+  qual: string | null;
+};
+
+export async function fetchStoragePolicies(client: postgres.Sql): Promise<StoragePolicyRow[]> {
+  return await client<StoragePolicyRow[]>`
+    SELECT policyname AS policy_name,
+           roles::text[] AS roles,
+           cmd,
+           qual
+    FROM pg_policies
+    WHERE schemaname = 'storage'
+      AND tablename  = 'objects'
+    ORDER BY policyname
+  `;
+}
+
+export type StoragePolicyViolation = {
+  policy_name: string;
+  cmd: string;
+  roles: string;
+  qual: string;
+};
+
+/** Read policies that admit a caller role but cannot name the caller. */
+export function evaluateStorageReadPolicies(rows: StoragePolicyRow[]): {
+  violations: StoragePolicyViolation[];
+  allowlisted: string[];
+} {
+  const violations: StoragePolicyViolation[] = [];
+  const allowlisted: string[] = [];
+
+  for (const row of rows) {
+    const cmd = row.cmd.toUpperCase();
+    // Only read paths enumerate. INSERT is a write grant and cannot list;
+    // UPDATE/DELETE carry their own USING clause but do not expose content.
+    if (cmd !== "SELECT" && cmd !== "ALL") continue;
+    if (!row.roles.some((r) => CALLER_ROLES.has(r))) continue;
+
+    // auth.uid() is the only way a storage policy can name who is asking.
+    // `owner = auth.uid()`, `auth.uid() = owner`, or a subquery that joins
+    // through auth.uid() all satisfy this; `bucket_id = 'x'` alone does not.
+    if ((row.qual ?? "").includes("auth.uid()")) continue;
+
+    if (Object.hasOwn(STORAGE_READ_POLICY_ALLOWLIST, row.policy_name)) {
+      allowlisted.push(row.policy_name);
+    } else {
+      violations.push({
+        policy_name: row.policy_name,
+        cmd,
+        roles: row.roles.join(", "),
+        qual: row.qual ?? "(none)",
+      });
+    }
+  }
+
+  return { violations, allowlisted };
+}
+
 type Violation = {
   table_name: string;
   kind: "rls_disabled" | "no_policies";
@@ -237,7 +343,7 @@ type Violation = {
 // ---------------------------------------------------------------------------
 
 const SKIPPED_CHECKS =
-  "  NOT run: RLS-enabled, policy-count and policy-roles coverage over every public table (the whole fence).";
+  "  NOT run: RLS-enabled, policy-count and policy-roles coverage over every public table, plus storage.objects bucket-read scoping (the whole fence).";
 
 /**
  * Read RLS state and policy roles for every public table, or return null when
@@ -247,10 +353,18 @@ const SKIPPED_CHECKS =
 async function fetchCoverage(
   rawUrl: string,
   target: DbTarget,
-): Promise<{ tables: TableRlsRow[]; policies: PolicyRoleRow[] } | null> {
+): Promise<{
+  tables: TableRlsRow[];
+  policies: PolicyRoleRow[];
+  storagePolicies: StoragePolicyRow[];
+} | null> {
   const sql = postgres(rawUrl, { max: 1, connect_timeout: 5 });
   try {
-    return { tables: await fetchRlsCoverage(sql), policies: await fetchPolicyRoles(sql) };
+    return {
+      tables: await fetchRlsCoverage(sql),
+      policies: await fetchPolicyRoles(sql),
+      storagePolicies: await fetchStoragePolicies(sql),
+    };
   } catch (err) {
     // A DB-less box is not a failure — but it is not a pass either, and it has
     // to say which checks did not run. Same contract as lint:scope-authz and
@@ -333,8 +447,13 @@ export async function runCheck(argv: string[] = []): Promise<void> {
   const totalTables = rows.length;
   const { violations, allowlisted } = evaluateCoverage(rows);
   const roleCheck = evaluatePolicyRoles(fetched.policies);
+  const storageCheck = evaluateStorageReadPolicies(fetched.storagePolicies);
 
-  if (violations.length > 0 || roleCheck.violations.length > 0) {
+  if (
+    violations.length > 0 ||
+    roleCheck.violations.length > 0 ||
+    storageCheck.violations.length > 0
+  ) {
     for (const v of violations) {
       if (v.kind === "rls_disabled") {
         console.error(
@@ -351,12 +470,18 @@ export async function runCheck(argv: string[] = []): Promise<void> {
         `✗ ${v.table_name} — policy "${v.policy_name}" (${v.cmd}) has NO TO clause, so it applies to PUBLIC: every role, including anon (the key that ships in the client bundle). Name the roles in a forward-only migration — ALTER POLICY "${v.policy_name}" ON public.${v.table_name} TO authenticated; — or, with a reviewed reason, add "${v.table_name}:${v.policy_name}" to PUBLIC_ROLE_ALLOWLIST in scripts/check-rls-coverage.ts. A predicate that happens to reject anon today is not a role set.`,
       );
     }
+    for (const v of storageCheck.violations) {
+      console.error(
+        `✗ storage.objects — policy "${v.policy_name}" (${v.cmd}, TO ${v.roles}) grants READ with a predicate that never names the caller: ${v.qual}. That is TRUE for every object in the bucket, and POST /storage/v1/object/list/{bucket} is filtered by this policy — so any account with that role can ENUMERATE and download the whole bucket. "Discovery is gated by the SSR layer" is not true of the Storage REST API. Fix: drop the policy in a forward-only migration and sign reads as service role behind a caller that has already authorized (see lib/infra/storage.ts, migrations 0164 and 0172) — or, with a reviewed reason, add "${v.policy_name}" to STORAGE_READ_POLICY_ALLOWLIST in scripts/check-rls-coverage.ts.`,
+      );
+    }
     console.error(
       lines(
         "",
-        `✗ RLS coverage check FAILED — ${violations.length} table violation(s) and ` +
-          `${roleCheck.violations.length} PUBLIC-role policy violation(s) across ${totalTables} tables ` +
-          `and ${fetched.policies.length} policies. ` +
+        `✗ RLS coverage check FAILED — ${violations.length} table violation(s), ` +
+          `${roleCheck.violations.length} PUBLIC-role policy violation(s) and ` +
+          `${storageCheck.violations.length} storage-bucket read violation(s) across ${totalTables} tables, ` +
+          `${fetched.policies.length} public policies and ${fetched.storagePolicies.length} storage.objects policies. ` +
           `Allowlisted deny-all tables (excluded): ${allowlisted.length}.`,
         dbLine,
       ),
@@ -372,6 +497,13 @@ export async function runCheck(argv: string[] = []): Promise<void> {
   console.log(
     `✓ Policy roles explicit — ${fetched.policies.length} policies checked, none default to PUBLIC` +
       `${roleCheck.allowlisted.length > 0 ? ` (${roleCheck.allowlisted.length} allowlisted: ${roleCheck.allowlisted.join(", ")})` : ""}.`,
+  );
+  const storageAllowNote =
+    storageCheck.allowlisted.length > 0
+      ? ` (${storageCheck.allowlisted.length} allowlisted: ${storageCheck.allowlisted.join(", ")})`
+      : "";
+  console.log(
+    `✓ Storage bucket reads scoped — ${fetched.storagePolicies.length} storage.objects policies checked, no caller-role READ grant without auth.uid()${storageAllowNote}.`,
   );
   console.log(dbLine);
 }

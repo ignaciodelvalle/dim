@@ -841,8 +841,6 @@ export async function generateMpfExportAction(
     locality: loaded.row.jurisdictionLocality,
   });
 
-  const supabase = await createClient();
-
   const result = await generateMpfExport(
     {
       welfareReportId,
@@ -880,10 +878,14 @@ export async function generateMpfExportAction(
         });
         return generateWelfareMpfPdf(properDto);
       },
+      // Storage runs as service role (migration 0172): the export buckets have
+      // no authenticated policy to enumerate them through. The caller was
+      // already authorized above by requireAdminOrGovtOrRedirect +
+      // loadAndVerifyScopeFor.
       createSignedUrl: (bucket, path, expiresIn) =>
-        createSignedExportUrl(supabase, bucket as "welfare-exports", path, expiresIn),
+        createSignedExportUrl(bucket as "welfare-exports", path, expiresIn),
       upload: (bucket, path, bytes) =>
-        uploadExportToStorage(supabase, bucket as "welfare-exports", path, bytes),
+        uploadExportToStorage(bucket as "welfare-exports", path, bytes),
       actor: { user },
     },
   );

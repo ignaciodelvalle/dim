@@ -1,5 +1,5 @@
--- DIM export buckets — private, authenticated-scoped
--- ---------------------------------------------------
+-- DIM export buckets — private, service-role only
+-- -----------------------------------------------
 -- Apply once per environment (Supabase Studio → SQL Editor, or the MCP).
 -- Idempotent. Version-controlled so prod parity is reproducible (closes the
 -- EXPORT-buckets half of the W2 deploy-readiness gap; org-logos and avatars
@@ -13,14 +13,32 @@
 -- Path convention per module: {scope_id}/{export_id}.pdf
 -- Retention: exports are regenerable; a TTL purge can be added per bucket later.
 --
--- TODO(deploy): the durable long-term fix is service-role uploads for these
--- server-generated legal exports (the export writer runs server-side and can use
--- the service-role client, which bypasses RLS entirely — then NO storage.objects
--- INSERT/SELECT policy for `authenticated` is needed at all, tightening the
--- surface). Until the export writers are moved to the service-role client, the
--- INSERT + SELECT policies below are required so the current authenticated-client
--- upload/download path does not 500 with "permission denied" (the exact gap that
--- had to be hot-patched by hand on the first staging deploy).
+-- NO storage.objects POLICY IS CREATED HERE — AND NONE MAY BE ADDED.
+-- ------------------------------------------------------------------
+-- This file used to ship an INSERT and a SELECT policy, both `TO authenticated`
+-- with `bucket_id in (...)` as the entire predicate. That predicate never
+-- mentions the caller, so it was TRUE for every object in every export bucket:
+-- any self-serve signup could POST /storage/v1/object/list/welfare-exports,
+-- enumerate the national corpus of MPF prosecution bundles, and GET each one —
+-- reporter names, exact incident addresses, and signed evidence links. The
+-- header's old defense ("discovery is gated by the SSR layer; the private
+-- bucket refuses a raw GET") was wrong on both halves: the list endpoint is
+-- filtered by this very policy, not by SSR, and a private bucket refuses anon,
+-- not an authenticated bearer token. Migration 0164 had already closed exactly
+-- this class for the sibling `welfare-evidence` bucket; migration 0172 drops
+-- these and finishes the sweep.
+--
+-- The paired commit points every export writer at the service-role client
+-- (lib/analytics/welfare-exports.ts, lib/analytics/travel-exports.ts), which
+-- bypasses RLS. Authorization moves from a policy that cannot see who is asking
+-- to the server code that already knows: requireAdminOrGovtOrRedirect +
+-- loadAndVerifyScopeFor for the MPF export, strict ownership for PPP and
+-- travel. Signed-URL downloads are redeemed by their token, not by RLS, so the
+-- user-facing download path is unchanged.
+--
+-- With RLS enabled on storage.objects and no policy for anon/authenticated on
+-- these buckets, the answer is deny — fail-closed, which is what a private
+-- legal-export bucket should have said from the start.
 
 insert into storage.buckets (id, name, public)
 values
@@ -29,22 +47,7 @@ values
   ('travel-exports',  'travel-exports',  false)
 on conflict (id) do nothing;
 
--- INSERT (upload) — authenticated may write to each export bucket. The server
--- action that generates the export verifies the caller's authorization before
--- calling storage; the bucket_id guard scopes the policy to these buckets only.
+-- Drop the pre-0172 policies if this file is applied to an environment that
+-- still carries them (idempotent; a no-op on a fresh project).
 drop policy if exists "export_buckets_authenticated_upload" on storage.objects;
-create policy "export_buckets_authenticated_upload"
-  on storage.objects
-  for insert
-  to authenticated
-  with check (bucket_id in ('welfare-exports', 'ppp-exports', 'travel-exports'));
-
--- SELECT — authenticated may read (needed to mint signed URLs). Discovery is
--- gated by the SSR layer that renders the URLs, not by storage RLS; the private
--- bucket means a raw object GET without a signed URL is still refused.
 drop policy if exists "export_buckets_authenticated_read" on storage.objects;
-create policy "export_buckets_authenticated_read"
-  on storage.objects
-  for select
-  to authenticated
-  using (bucket_id in ('welfare-exports', 'ppp-exports', 'travel-exports'));

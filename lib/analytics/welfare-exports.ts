@@ -826,9 +826,14 @@ export async function generateWelfareMpfPdf(dto: WelfareMpfDto): Promise<Uint8Ar
 // Storage helpers (shared between F1 and F2)
 // ---------------------------------------------------------------------------
 
-import type { createClient } from "@/lib/supabase/server";
-
-type SupabaseServerClient = Awaited<ReturnType<typeof createClient>>;
+// The service-role client is imported dynamically (lib/supabase/admin.ts is
+// `server-only`). The promise is memoised so concurrent export flows share ONE
+// module load rather than racing N dynamic imports.
+let adminModule: Promise<typeof import("@/lib/supabase/admin")> | null = null;
+function loadAdmin(): Promise<typeof import("@/lib/supabase/admin")> {
+  adminModule ??= import("@/lib/supabase/admin");
+  return adminModule;
+}
 
 /**
  * Uploads a PDF buffer to a private Supabase Storage bucket.
@@ -838,34 +843,68 @@ type SupabaseServerClient = Awaited<ReturnType<typeof createClient>>;
  *   - welfare-exports  (private)
  *   - ppp-exports      (private)
  * Do NOT auto-create buckets from application code.
+ *
+ * Takes NO caller client on purpose (migration 0172) — see the module note on
+ * createSignedExportUrl below.
  */
 export async function uploadExportToStorage(
-  supabase: SupabaseServerClient,
   bucket: "welfare-exports" | "ppp-exports",
   path: string,
   bytes: Uint8Array,
 ): Promise<{ storagePath: string } | { error: string }> {
-  const { error } = await supabase.storage.from(bucket).upload(path, bytes, {
-    contentType: "application/pdf",
-    upsert: false,
-  });
-  if (error) return { error: error.message };
-  return { storagePath: path };
+  try {
+    const { createAdminClient } = await loadAdmin();
+    const { error } = await createAdminClient().storage.from(bucket).upload(path, bytes, {
+      contentType: "application/pdf",
+      upsert: false,
+    });
+    if (error) return { error: error.message };
+    return { storagePath: path };
+  } catch (err) {
+    return { error: err instanceof Error ? err.message : "storage_client_unavailable" };
+  }
 }
 
 /**
  * Creates a signed URL for a private export PDF.
+ *
+ * Takes NO caller client on purpose (migration 0172, mirroring 0164's fix for
+ * `welfare-evidence`). The export buckets carry no authenticated storage
+ * policy: the previous one gated SELECT on `bucket_id in (...)` alone, which
+ * names no caller, so the RLS-filtered list endpoint
+ * (POST /storage/v1/object/list/welfare-exports) let ANY signed-up user
+ * enumerate and download every MPF prosecution bundle, PPP registry entry and
+ * travel bundle in the country — reporter identity, exact incident address and
+ * signed evidence links included.
+ *
+ * RLS cannot express the actual rule, which is jurisdictional scope plus role,
+ * evaluated per welfare report. So signing runs as service role and the
+ * AUTHORIZATION LIVES IN THE CALLER — which is where it already was:
+ * `generateMpfExportAction` runs requireAdminOrGovtOrRedirect +
+ * loadAndVerifyScopeFor, and the PPP/travel exports are strict owner-path.
+ * A signed URL is redeemed by its token, not by RLS, so downloads are unchanged.
+ *
+ * Consequence for new call sites: calling this is equivalent to handing out the
+ * document. Do not call it from a path that has not first decided the viewer
+ * may see this export.
+ *
  * @param expiresIn TTL in seconds (default: 86400 = 24 h)
  */
 export async function createSignedExportUrl(
-  supabase: SupabaseServerClient,
   bucket: "welfare-exports" | "ppp-exports",
   path: string,
   expiresIn = 86400,
 ): Promise<string | null> {
-  const { data, error } = await supabase.storage.from(bucket).createSignedUrl(path, expiresIn);
-  if (error || !data?.signedUrl) return null;
-  return data.signedUrl;
+  try {
+    const { createAdminClient } = await loadAdmin();
+    const { data, error } = await createAdminClient()
+      .storage.from(bucket)
+      .createSignedUrl(path, expiresIn);
+    if (error || !data?.signedUrl) return null;
+    return data.signedUrl;
+  } catch {
+    return null;
+  }
 }
 
 // Re-export attachment type for convenience

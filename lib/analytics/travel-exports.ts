@@ -249,31 +249,51 @@ export async function generateTravelExportPdf(dto: TravelExportDto): Promise<Uin
 // Do NOT auto-create buckets from application code.
 // ---------------------------------------------------------------------------
 
-import type { createClient } from "@/lib/supabase/server";
+// The service-role client is imported dynamically (lib/supabase/admin.ts is
+// `server-only`), memoised so concurrent calls share one module load.
+let adminModule: Promise<typeof import("@/lib/supabase/admin")> | null = null;
+function loadAdmin(): Promise<typeof import("@/lib/supabase/admin")> {
+  adminModule ??= import("@/lib/supabase/admin");
+  return adminModule;
+}
 
-type SupabaseServerClient = Awaited<ReturnType<typeof createClient>>;
+// Both helpers take NO caller client on purpose (migration 0172) — the rationale
+// lives on createSignedExportUrl in welfare-exports.ts; `travel-exports` was the
+// third bucket covered by the same over-permissive authenticated SELECT policy.
+// Authorization for this bucket is the strict owner-path check in
+// generate-travel-export.ts, which runs before either helper is called.
 
 export async function uploadTravelExportToStorage(
-  supabase: SupabaseServerClient,
   path: string,
   bytes: Uint8Array,
 ): Promise<{ storagePath: string } | { error: string }> {
-  const { error } = await supabase.storage.from(TRAVEL_EXPORTS_BUCKET).upload(path, bytes, {
-    contentType: "application/pdf",
-    upsert: false,
-  });
-  if (error) return { error: error.message };
-  return { storagePath: path };
+  try {
+    const { createAdminClient } = await loadAdmin();
+    const { error } = await createAdminClient()
+      .storage.from(TRAVEL_EXPORTS_BUCKET)
+      .upload(path, bytes, {
+        contentType: "application/pdf",
+        upsert: false,
+      });
+    if (error) return { error: error.message };
+    return { storagePath: path };
+  } catch (err) {
+    return { error: err instanceof Error ? err.message : "storage_client_unavailable" };
+  }
 }
 
 export async function createSignedTravelExportUrl(
-  supabase: SupabaseServerClient,
   path: string,
   expiresIn = 86400,
 ): Promise<string | null> {
-  const { data, error } = await supabase.storage
-    .from(TRAVEL_EXPORTS_BUCKET)
-    .createSignedUrl(path, expiresIn);
-  if (error || !data?.signedUrl) return null;
-  return data.signedUrl;
+  try {
+    const { createAdminClient } = await loadAdmin();
+    const { data, error } = await createAdminClient()
+      .storage.from(TRAVEL_EXPORTS_BUCKET)
+      .createSignedUrl(path, expiresIn);
+    if (error || !data?.signedUrl) return null;
+    return data.signedUrl;
+  } catch {
+    return null;
+  }
 }

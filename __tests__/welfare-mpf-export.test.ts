@@ -31,6 +31,14 @@ vi.mock("@/lib/infra/auth-guards", () => ({
   requireUserOrRedirect: vi.fn(),
 }));
 
+// Service-role storage client (migration 0172). buildSupabaseMock() below points
+// this holder at the same mock object it returns, so a test that installs the
+// storage mock installs it for the real code path too.
+const adminHolder = vi.hoisted(() => ({ current: null as unknown }));
+vi.mock("@/lib/supabase/admin", () => ({
+  createAdminClient: () => adminHolder.current,
+}));
+
 // ---------------------------------------------------------------------------
 // Unit tests — welfareReportToMpfDto (pure function, no DB)
 // ---------------------------------------------------------------------------
@@ -416,9 +424,13 @@ describe("welfareReportToMpfDto — MPF export format cascade", () => {
 // Integration tests — generateMpfExportAction (with Storage mocked)
 // ---------------------------------------------------------------------------
 //
-// Mocking strategy: mock the Supabase client's storage methods so tests don't
-// require a live `welfare-exports` bucket. The DB insert (audit_log) is real.
+// Mocking strategy: mock the storage methods so tests don't require a live
+// `welfare-exports` bucket. The DB insert (audit_log) is real.
 // Full Storage integration is marked TODO(E6-followup) per govt-exports.test.ts convention.
+//
+// Storage runs on the SERVICE-ROLE client since migration 0172 (the bucket has
+// no authenticated policy to read through), so the storage mock is installed on
+// @/lib/supabase/admin, not on the cookie-bound server client.
 
 const WELFARE_REPORT_REF = "DEN-MPF-TEST01";
 const WELFARE_PET_TOKEN = "DIM-MPF-PA01";
@@ -434,7 +446,7 @@ const mockCreateClient = vi.mocked(supabaseServer.createClient);
 const mockRequireAdminOrGovt = vi.mocked(authGuards.requireAdminOrGovtOrRedirect);
 
 function buildSupabaseMock(uploadError: null | string = null) {
-  return {
+  const mock = {
     auth: {
       getUser: vi
         .fn()
@@ -453,6 +465,9 @@ function buildSupabaseMock(uploadError: null | string = null) {
       }),
     },
   };
+  // The export helpers sign and upload as service role — same mock, both doors.
+  adminHolder.current = mock;
+  return mock;
 }
 
 async function purgeFixtures() {

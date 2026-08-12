@@ -16,7 +16,6 @@ import { eventPayloadDetails, eventPayloadSummary } from "@/lib/events/events";
 import { applyAmendments } from "@/lib/infra/amendment";
 import { requireOwnedPetByToken } from "@/lib/infra/pets";
 import { eventAttachmentSignedUrl } from "@/lib/infra/storage";
-import { createClient } from "@/lib/supabase/server";
 import { eventTypeLabel, formatDateTime } from "@/lib/utils/format";
 import { fetchLatestAmendmentsForEvents } from "@/src/modules/events/application/amendment/fetch-latest-amendments";
 import { and, eq } from "drizzle-orm";
@@ -82,12 +81,11 @@ export default async function EventDetailPage({
     .select()
     .from(attachments)
     .where(eq(attachments.eventId, event.id));
-  const supabase = await createClient();
   const attachmentUrls = await Promise.all(
     eventAttachments.map(async (a) => ({
       id: a.id,
       mimeType: a.mimeType,
-      url: await eventAttachmentSignedUrl(supabase, a.storagePath),
+      url: await eventAttachmentSignedUrl(a.storagePath),
     })),
   );
 

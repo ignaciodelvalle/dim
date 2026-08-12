@@ -1,5 +1,5 @@
--- DIM revocation/deactivation evidence — private, authenticated-scoped
--- --------------------------------------------------------------------
+-- DIM revocation/deactivation evidence — private, authenticated upload only
+-- ------------------------------------------------------------------------
 -- Apply once per environment (Supabase Studio → SQL Editor, or the DIM
 -- provisioner). Idempotent. Version-controlled so prod parity is reproducible
 -- (closes the "revocations bucket has no SQL coverage" deploy gap — the org /
@@ -36,13 +36,15 @@ create policy "revocations_authenticated_upload"
   to authenticated
   with check (bucket_id = 'revocations');
 
--- SELECT — authenticated may read (needed to mint signed URLs for the evidence
--- viewer). Discovery is gated by the SSR/admin layer that renders the URLs, not
--- by storage RLS; the private bucket means a raw object GET without a signed URL
--- is still refused.
-drop policy if exists "revocations_authenticated_read" on storage.objects;
-create policy "revocations_authenticated_read"
-  on storage.objects
-  for select
-  to authenticated
-  using (bucket_id = 'revocations');
+-- NO SELECT POLICY — AND NONE MAY BE ADDED (migration 0172).
+-- This bucket used to carry `revocations_authenticated_read`:
+--   for select to authenticated using (bucket_id = 'revocations')
+-- The predicate names no caller, so it was TRUE for every object: any
+-- signed-up account could POST /storage/v1/object/list/revocations and download
+-- the disciplinary evidence attached to named admin/govt operators. The old
+-- comment justified it as "needed to mint signed URLs for the evidence viewer" —
+-- but there is no such viewer: nothing in the repo mints a signed URL for this
+-- bucket. The policy was pure exposure with no consumer.
+-- If an evidence viewer is built later, sign as service role behind the same
+-- institutional guard that authorizes the revocation itself (see
+-- lib/infra/storage.ts for the shape); do not reintroduce this policy.

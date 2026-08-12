@@ -2,6 +2,12 @@
 //
 // Uses vi.hoisted + vi.mock to isolate DB queries, requirePetAccess, and
 // Supabase storage signing. No live DB or storage required.
+//
+// The storage mock sits on the SERVICE-ROLE client (migration 0172): the
+// event-attachments bucket has no authenticated SELECT policy, so a signer that
+// used the caller's client would fail closed in production. Mocking the same
+// door the code uses is the point — the previous mock on @/lib/supabase/server
+// would have kept passing after the signer moved.
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -9,11 +15,11 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 // Hoisted mocks
 // ---------------------------------------------------------------------------
 
-const { mockSelect, mockRequirePetAccess, mockCreateClient, mockCreateSignedUrl } = vi.hoisted(
+const { mockSelect, mockRequirePetAccess, mockCreateAdminClient, mockCreateSignedUrl } = vi.hoisted(
   () => ({
     mockSelect: vi.fn(),
     mockRequirePetAccess: vi.fn(),
-    mockCreateClient: vi.fn(),
+    mockCreateAdminClient: vi.fn(),
     mockCreateSignedUrl: vi.fn(),
   }),
 );
@@ -32,8 +38,10 @@ vi.mock("@/lib/infra/pet-access", () => ({
   requirePetAccess: mockRequirePetAccess,
 }));
 
-vi.mock("@/lib/supabase/server", () => ({
-  createClient: mockCreateClient,
+// Signing runs as service role since migration 0172 — the event-attachments
+// bucket no longer has an authenticated SELECT policy to read through.
+vi.mock("@/lib/supabase/admin", () => ({
+  createAdminClient: mockCreateAdminClient,
 }));
 
 import { PgDialect } from "drizzle-orm/pg-core";
@@ -90,7 +98,7 @@ function chainReturning(rows: unknown[]) {
 beforeEach(() => {
   vi.resetAllMocks();
   mockCreateSignedUrl.mockResolvedValue({ data: { signedUrl: null }, error: null });
-  mockCreateClient.mockResolvedValue({
+  mockCreateAdminClient.mockReturnValue({
     storage: {
       from: () => ({
         createSignedUrl: mockCreateSignedUrl,
@@ -194,9 +202,17 @@ describe("signTimelineAttachments", () => {
           makeAttachment("event-2", "pet-1/event-2/doc.pdf"),
         ]),
       );
-      mockCreateSignedUrl
-        .mockResolvedValueOnce({ data: { signedUrl: "https://signed.url/photo.jpg" }, error: null })
-        .mockResolvedValueOnce({ data: { signedUrl: "https://signed.url/doc.pdf" }, error: null });
+      // Keyed by PATH, not by call order. The two signers run concurrently, so
+      // call order is not a contract — but "each event gets the URL of its own
+      // attachment" is, and only a path-keyed mock can catch a cross-wiring bug.
+      const urlByPath: Record<string, string> = {
+        "pet-1/event-1/photo.jpg": "https://signed.url/photo.jpg",
+        "pet-1/event-2/doc.pdf": "https://signed.url/doc.pdf",
+      };
+      mockCreateSignedUrl.mockImplementation(async (path: string) => ({
+        data: { signedUrl: urlByPath[path] ?? null },
+        error: null,
+      }));
 
       const result = await signTimelineAttachments("token-abc", ["event-1", "event-2"]);
 
@@ -225,7 +241,7 @@ describe("signTimelineAttachments", () => {
     it("uses the event-attachments bucket (NOT pet-photos — known gotcha from tattoo work)", async () => {
       mockRequirePetAccess.mockResolvedValue(makeOwnerAccess());
       const fromSpy = vi.fn().mockReturnValue({ createSignedUrl: mockCreateSignedUrl });
-      mockCreateClient.mockResolvedValue({ storage: { from: fromSpy } });
+      mockCreateAdminClient.mockReturnValue({ storage: { from: fromSpy } });
       mockSelect.mockReturnValue(
         chainReturning([makeAttachment("event-1", "pet-1/event-1/photo.jpg")]),
       );

@@ -48,7 +48,6 @@ import { resolveBusinessRule } from "@/lib/infra/business-rules-resolver";
 import { HIDDEN_FROM_SUBJECT_CASE_KINDS } from "@/lib/infra/case-access";
 import { fetchActiveIdentifications } from "@/lib/infra/pet-identifiers";
 import { eventAttachmentSignedUrl } from "@/lib/infra/storage";
-import { createClient } from "@/lib/supabase/server";
 import type { HistorialEventRow, LibretaFaceData } from "./types";
 
 // Owner-path guard against the welfare_denuncia bridge-event leak
@@ -245,12 +244,11 @@ export async function getLibretaFaceData(context: {
       : Promise.resolve([]),
   ]);
   const orgNameById = new Map(authorOrgRows.map((o) => [o.id, o.displayName]));
-  const supabase = await createClient();
   const urlByEventId = new Map<string, string>();
   await Promise.all(
     attachmentRows.map(async (a) => {
       if (!a.eventId) return;
-      const url = await eventAttachmentSignedUrl(supabase, a.storagePath);
+      const url = await eventAttachmentSignedUrl(a.storagePath);
       if (url) urlByEventId.set(a.eventId, url);
     }),
   );

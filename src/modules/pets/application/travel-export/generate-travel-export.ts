@@ -33,7 +33,7 @@ const EXPORT_URL_TTL_SECONDS = 24 * 60 * 60;
 export async function generateTravelExport(
   petPublicToken: string,
 ): Promise<GenerateTravelExportResult> {
-  const { supabase, user } = await requireUserOrRedirect();
+  const { user } = await requireUserOrRedirect();
 
   // Ownership check: pet must exist and belong to this user (strict owner-path).
   const [ownerRow] = await db
@@ -139,17 +139,15 @@ export async function generateTravelExport(
     exportGeneratedAt.getTime(),
   );
 
-  const uploadResult = await uploadTravelExportToStorage(supabase, storagePath, pdfBytes);
+  // Storage runs as service role (migration 0172) — the strict ownership check
+  // above is the authorization; the bucket has no authenticated policy.
+  const uploadResult = await uploadTravelExportToStorage(storagePath, pdfBytes);
   if ("error" in uploadResult) {
     console.error("[travel-export] Storage upload failed:", uploadResult.error);
     return { ok: false, error: "storage_upload_failed" };
   }
 
-  const signedUrl = await createSignedTravelExportUrl(
-    supabase,
-    storagePath,
-    EXPORT_URL_TTL_SECONDS,
-  );
+  const signedUrl = await createSignedTravelExportUrl(storagePath, EXPORT_URL_TTL_SECONDS);
   if (!signedUrl) return { ok: false, error: "signed_url_failed" };
 
   // Audit log (R5.3): petId, petPublicToken, corridor ids, schemaVersion.
