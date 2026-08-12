@@ -3,7 +3,7 @@ import { coarsenPoint, readPoint } from "@/lib/domain/location";
 import { RateLimitError, callerIp, enforceRateLimit } from "@/lib/infra/rate-limit";
 import { welfareAttachmentSignedUrl } from "@/lib/infra/storage";
 import { isMetadataStripped } from "@/lib/infra/welfare-uploads";
-import { formatDate, formatDateTime } from "@/lib/utils/format";
+import { formatDate, formatDateTime, pluralizeEs } from "@/lib/utils/format";
 import { maskEmail, maskPhone } from "@/lib/utils/mask-contact";
 import {
   isValidReferenceCodeFormat,
@@ -419,11 +419,11 @@ export default async function WelfareReportByCodePage({
                  honestidad de la pantalla: el archivo está guardado y la
                  autoridad lo tiene completo. */
               <p className="text-sm text-[var(--color-ln-mute)] leading-relaxed">
-                {withheldCount === 1
-                  ? "Otro archivo que adjuntaste no se muestra acá"
-                  : `Otros ${withheldCount} archivos que adjuntaste no se muestran acá`}{" "}
-                porque su formato puede conservar datos de ubicación en los metadatos, y esta página
-                es pública. La autoridad los recibe completos.
+                {withheldCount === 1 ? "Otro" : `Otros ${withheldCount}`}{" "}
+                {pluralizeEs(withheldCount, "archivo")} que adjuntaste{" "}
+                {withheldCount === 1 ? "no se muestra" : "no se muestran"} acá porque su formato
+                puede conservar datos de ubicación en los metadatos, y esta página es pública. La
+                autoridad los recibe completos.
               </p>
             )}
           </section>
