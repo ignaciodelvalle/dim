@@ -782,3 +782,96 @@ describe("pet-cache jurisdiction — derived from the spine", () => {
     expect(report.jurisdictionProvince.matches).toBe(true);
   });
 });
+
+// ---------------------------------------------------------------------------
+// Fecha de implante: stored y derived tienen que hablar el mismo modelo
+// (2a pasada de auditoría, hallazgo #5, 2026-08-12)
+// ---------------------------------------------------------------------------
+//
+// La proyección devuelve `implant_date_known ? formatDate(occurredAt) : null`.
+// Los writers escribían `recordedAt` no-nulo en la fila canónica igual, así que
+// cada alta de chip generaba deriva: stored=una fecha, derived=null.
+//
+// No llegaba a ninguna pantalla del usuario (la credencial muestra Sí/No y la
+// libreta sólo el código), pero spameaba el detector de deriva con
+// falsos positivos — y un detector ruidoso se termina ignorando, que es la forma
+// en que un fence muere sin que nadie lo apague.
+//
+// El test que ya existía armaba exactamente esta combinación y sólo asserteaba
+// `microchipId.matches`, nunca `microchipImplantedAt.matches`. Misma forma que
+// los tres tests históricos que verdeaban sobre el bug que debían atrapar.
+describe("pet-cache — fecha de implante desconocida", () => {
+  async function insertChip(
+    petIdArg: string,
+    opts: { dateKnown: boolean; recordedAt: string | null; code: string },
+  ) {
+    const when = new Date();
+    await withMutationOverride(async (tx) => {
+      await tx.insert(petEvents).values({
+        petId: petIdArg,
+        eventType: "microchip_implanted",
+        occurredAt: when,
+        recordedAt: when,
+        authorRole: "owner",
+        recordedByUserId: ownerUserId,
+        payload: validateEventPayload("microchip_implanted", {
+          chip_number: opts.code,
+          country_code: "100",
+          implant_date_known: opts.dateKnown,
+          implanted_by: null,
+          location_on_body: null,
+        }),
+      });
+      await tx.insert(petIdentifications).values({
+        petId: petIdArg,
+        kind: "microchip_iso" as const,
+        status: "active" as const,
+        code: opts.code,
+        isoCountryCode: "100",
+        isoManufacturerCode: "0000",
+        isoNationalId: opts.code.slice(7, 15),
+        isoCompliant: true,
+        recordedAt: opts.recordedAt,
+        recordedByLabel: "dr-real-vet",
+      });
+    });
+  }
+
+  it("DETECTA la deriva cuando el caché inventa una fecha que el spine marca desconocida", async () => {
+    // El estado que producían los writers antes del arreglo. Que el harness lo
+    // vea es lo que hace que el arreglo sea verificable.
+    const pet = await insertTestPet("CHIP-DATE-DRIFT");
+    await insertChip(pet.id, {
+      dateKnown: false,
+      recordedAt: new Date().toISOString().slice(0, 10),
+      code: "100000000000021",
+    });
+
+    const report = await rederivePetCache(pet.id);
+
+    expect(report.microchipImplantedAt.matches).toBe(false);
+    expect(report.microchipImplantedAt.derived).toBeNull();
+  });
+
+  it("no hay deriva cuando ambos lados dicen 'no sé' (el modelo corregido del intake)", async () => {
+    const pet = await insertTestPet("CHIP-DATE-NULL");
+    await insertChip(pet.id, { dateKnown: false, recordedAt: null, code: "100000000000022" });
+
+    const report = await rederivePetCache(pet.id);
+
+    expect(report.microchipImplantedAt.matches).toBe(true);
+  });
+
+  it("no hay deriva cuando la fecha SÍ se conoce y el caché la guarda (el alta normal de chip)", async () => {
+    const pet = await insertTestPet("CHIP-DATE-KNOWN");
+    await insertChip(pet.id, {
+      dateKnown: true,
+      recordedAt: new Date().toISOString().slice(0, 10),
+      code: "100000000000023",
+    });
+
+    const report = await rederivePetCache(pet.id);
+
+    expect(report.microchipImplantedAt.matches).toBe(true);
+  });
+});

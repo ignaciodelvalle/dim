@@ -510,7 +510,13 @@ export async function createIntake(
           petId: newPet.id,
           kind: "microchip_iso",
           code: chipCode,
-          recordedAt: parsed.occurredAt.toISOString().slice(0, 10),
+          // El evento de arriba declara implant_date_known:false — en un intake
+          // de refugio el animal llega con el chip puesto y nadie sabe cuándo se
+          // lo implantaron. Escribir acá la fecha del intake inventaba un dato
+          // que el spine marca como desconocido, y dejaba stored y derived
+          // hablando modelos distintos (la proyección devuelve null). null es la
+          // verdad: no sabemos la fecha.
+          recordedAt: null,
           recordedByUserId: user.id,
           isoCountryCode: chipCode.slice(0, 3),
           isoManufacturerCode: chipCode.slice(3, 7),
@@ -542,7 +548,8 @@ export async function createIntake(
           petId: newPet.id,
           kind: "tattoo",
           code: parsed.tattooCode,
-          recordedAt: parsed.occurredAt.toISOString().slice(0, 10),
+          // Mismo caso que el chip: el evento declara tattoo_date_known:false.
+          recordedAt: null,
           recordedByUserId: user.id,
         });
       }

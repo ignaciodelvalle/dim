@@ -101,6 +101,19 @@ export async function createMicrochip(
       country_code: countryCode,
       implanted_by: implantedBy,
       location_on_body: locationOnBody,
+      // La proyección deriva `microchipImplantedAt` como
+      // `implant_date_known ? formatDate(occurredAt) : null`
+      // (pet-microchip.ts:60), y este campo es .optional() en el schema, así que
+      // omitirlo NO significa "true por defecto": significa null derivado.
+      // Mientras tanto la fila canónica de abajo escribe `recordedAt` no-nulo,
+      // con lo cual cada alta de chip por este camino generaba deriva entre el
+      // caché y la proyección — ruido permanente en el detector, que es como se
+      // termina ignorando un detector.
+      //
+      // Acá la fecha SÍ se conoce: la acción la exige antes de llegar hasta acá
+      // ("Falta la fecha de implantación", actions.ts:744), así que lo correcto
+      // es afirmarlo, no omitirlo.
+      implant_date_known: true,
     });
 
     const { event, wasNoop } = await repo.insertEventIdempotent(
