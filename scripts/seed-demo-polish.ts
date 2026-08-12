@@ -39,6 +39,8 @@
 
 import { config as loadEnv } from "dotenv";
 
+import { assertNotSplitEnv } from "./_env-target";
+
 import { rejectReservedAccounts } from "./seed-reserved-accounts";
 
 loadEnv({ path: ".env.local" });
@@ -64,6 +66,10 @@ if (process.env.NODE_ENV === "production") {
   console.error("Refusing to seed: NODE_ENV=production.");
   process.exit(2);
 }
+// Mismo agujero que en sus hermanos: la condicion de abajo declara "remoto" con
+// UNA sola URL remota, asi que con --allow-remote el entorno PARTIDO pasaba.
+assertNotSplitEnv(SUPABASE_URL, DATABASE_URL, "seed:demo-polish");
+
 if (!ALLOW_REMOTE && (!isLocalUrl(SUPABASE_URL) || !isLocalUrl(DATABASE_URL))) {
   console.error(
     `Refusing to seed: NEXT_PUBLIC_SUPABASE_URL (${SUPABASE_URL}) or DATABASE_URL is not local.`,

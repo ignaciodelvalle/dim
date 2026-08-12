@@ -42,6 +42,48 @@ function hostOf(url: string): string {
 }
 
 /**
+ * Aborta si Supabase Auth y la base apuntan a entornos DISTINTOS.
+ *
+ * Se exporta aparte porque la mayoría de los seeds ya traen su propio bloque de
+ * aborto para el caso remoto, con mensajes que explican bien el riesgo de cada
+ * uno. Lo único que a todos les faltaba era ESTE caso, así que agregan una línea
+ * en vez de reescribir un aborto que ya estaba bien.
+ *
+ * No recibe `allowRemote` a propósito: no hay flag que habilite escribir la
+ * mitad de una operación en cada base.
+ */
+export function assertNotSplitEnv(supabaseUrl: string, databaseUrl: string, label: string): void {
+  // Una URL vacía no se puede clasificar, y no es este el lugar donde reportarlo:
+  // cada script ya valida sus variables obligatorias con su propio mensaje. Sin
+  // esta salida, "" se leería como REMOTO y el guard acusaría un entorno partido
+  // donde lo que falta es una variable.
+  if (!supabaseUrl || !databaseUrl) return;
+
+  const supabaseLocal = isLocalUrl(supabaseUrl);
+  const databaseLocal = isLocalUrl(databaseUrl);
+  if (supabaseLocal === databaseLocal) return;
+
+  console.error(
+    [
+      `\n[${label}] ENTORNO PARTIDO — me niego a escribir.`,
+      "",
+      `  Supabase Auth  → ${hostOf(supabaseUrl)}  (${supabaseLocal ? "LOCAL" : "REMOTO"})`,
+      `  Base de datos  → ${hostOf(databaseUrl)}  (${databaseLocal ? "LOCAL" : "REMOTO"})`,
+      "",
+      "  Las dos tienen que apuntar al MISMO entorno. Escribir con una en cada",
+      "  lado deja usuarios en una base y perfiles en la otra.",
+      "",
+      "  Causa habitual: cargaste .env.staging.local, que trae DATABASE_URL pero",
+      "  no NEXT_PUBLIC_SUPABASE_URL ni SUPABASE_SERVICE_ROLE_KEY — y dotenv",
+      "  completó las que faltaban desde .env.local.",
+      "",
+      "  Usá scripts/use-staging.ps1 (o .sh), que cargan las tres y verifican antes.\n",
+    ].join("\n"),
+  );
+  process.exit(2);
+}
+
+/**
  * Clasifica el destino y aborta el proceso si no es seguro escribir.
  *
  * @param supabaseUrl NEXT_PUBLIC_SUPABASE_URL — lo que usa el SDK de Auth.
@@ -60,27 +102,7 @@ export function resolveEnvTarget(
   const supabaseHost = hostOf(supabaseUrl);
   const dbHost = hostOf(databaseUrl);
 
-  // Entorno PARTIDO — nunca es intencional, así que no hay flag que lo habilite.
-  if (supabaseLocal !== databaseLocal) {
-    console.error(
-      [
-        `\n[${label}] ENTORNO PARTIDO — me niego a escribir.`,
-        "",
-        `  Supabase Auth  → ${supabaseHost}  (${supabaseLocal ? "LOCAL" : "REMOTO"})`,
-        `  Base de datos  → ${dbHost}  (${databaseLocal ? "LOCAL" : "REMOTO"})`,
-        "",
-        "  Las dos tienen que apuntar al MISMO entorno. Escribir con una en cada",
-        "  lado deja usuarios en una base y perfiles en la otra.",
-        "",
-        "  Causa habitual: cargaste .env.staging.local, que trae DATABASE_URL pero",
-        "  no NEXT_PUBLIC_SUPABASE_URL ni SUPABASE_SERVICE_ROLE_KEY — y dotenv",
-        "  completó las que faltaban desde .env.local.",
-        "",
-        "  Usá scripts/use-staging.ps1, que carga las tres y verifica antes.\n",
-      ].join("\n"),
-    );
-    process.exit(2);
-  }
+  assertNotSplitEnv(supabaseUrl, databaseUrl, label);
 
   const isLocal = supabaseLocal && databaseLocal;
 

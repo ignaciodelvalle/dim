@@ -88,6 +88,8 @@ import type { EventType } from "../db/schema";
 
 import { config as loadEnv } from "dotenv";
 
+import { assertNotSplitEnv } from "./_env-target";
+
 loadEnv({ path: ".env.local" });
 loadEnv({ path: ".env" });
 
@@ -149,6 +151,13 @@ if (process.env.NODE_ENV === "production") {
 }
 
 const dbHost = DATABASE_URL ? parsePgHost(DATABASE_URL) : null;
+// Los guards de abajo colapsan tres estados en dos: `!isLocalDb || !isLocalSupabase`
+// declara "remoto" con UNA sola URL remota, asi que con --allow-remote el entorno
+// PARTIDO (una local, la otra remota) pasaba igual — que fue como un seed llego a
+// escribir en staging leyendo auth de local. Esto lo corta antes; el aborto
+// especifico de este script sigue siendo el que explica el caso remoto.
+assertNotSplitEnv(SUPABASE_URL, DATABASE_URL, "seed:perf");
+
 const isLocalDb = dbHost ? LOCAL_HOSTS.has(dbHost) : true; // if no URL yet, let it fail at import
 const isLocalSupabase =
   !SUPABASE_URL || SUPABASE_URL.includes("127.0.0.1") || SUPABASE_URL.includes("localhost");

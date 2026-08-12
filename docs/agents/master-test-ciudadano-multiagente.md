@@ -6,6 +6,25 @@
 
 ---
 
+## 0.0 Antes de nada: declará contra qué build estás hablando
+
+**Este es el paso cero y no es opcional.** Staging se redeploya solo con cada push, así que "el producto" cambia debajo tuyo sin avisarte. Un informe que no dice contra qué versión se escribió no se puede leer después: no hay forma de distinguir un hallazgo real de uno ya arreglado.
+
+Toda página publica el commit que está sirviendo:
+
+```
+curl -s https://dim-staging.vercel.app/ | grep mimar-version
+→ <meta name="mimar-version" content="ad0581d">
+```
+
+1. **Leelo antes de tocar nada** y ponelo en el encabezado del informe.
+2. Si te dijeron qué commit revisar y **no coincide**, pará y avisá. No sigas.
+3. **Volvé a leerlo al terminar.** Si cambió a mitad de corrida, decilo en el informe: parte de lo que probaste era otro producto, y hay que saber qué parte.
+
+> Esto existe porque ya pasó: una corrida entera se hizo contra un build viejo y el informe reportó como defectos cosas arregladas horas antes. El costo no fue el tiempo del agente — fue tener que releer todo para separar lo vigente de lo vencido.
+
+---
+
 ## 0. Qué es esto y qué NO es
 
 No es un recorrido de flujos. Es la construcción de **una historia con años adentro**, hecha por siete personas que se esperan entre sí, sobre un sistema que primero hay que **configurar**.
