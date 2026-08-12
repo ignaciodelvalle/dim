@@ -1,5 +1,4 @@
 {
-  "achievement-views.test.ts": 149,
   "achievement-views.ts": 15,
   "admin-decisions.ts": 91,
   "admin-institutional.ts": 143,
@@ -18,7 +17,6 @@
   "bulk-adoption-actions.ts": 43,
   "bulk-pet-events.ts": 191,
   "bulk-vaccinate-types.ts": 19,
-  "business-rules-parse-registries.test.ts": 141,
   "business-rules.ts": 217,
   "checkin.ts": 42,
   "chip-match.ts": 86,
@@ -57,7 +55,6 @@
   "schedule-rules.ts": 180,
   "service-dog.ts": 79,
   "service-offerings.ts": 338,
-  "sign-timeline-attachments.test.ts": 248,
   "sign-timeline-attachments.ts": 47,
   "slot-materialization.ts": 77,
   "subject-rights.ts": 16,

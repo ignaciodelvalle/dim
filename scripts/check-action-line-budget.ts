@@ -115,8 +115,23 @@ function runScan(): void {
     process.exit(1);
   }
 
-  // Discover action files.
-  const paths = globSync(ACTIONS_GLOB).sort();
+  // Discover action files — PRODUCTION actions only.
+  //
+  // The glob `app/actions/*.ts` also matches colocated `*.test.ts`, so this
+  // fence used to ratchet test files too. That is not what it is for: rule (A)
+  // above is "existing fat actions can only shrink — no new code in files
+  // already scheduled for migration", and a test file is neither fat-by-
+  // migration nor scheduled for anything. The effect was backwards — it billed
+  // ADDED TEST COVERAGE against a budget meant to discourage business logic in
+  // the wrong layer, and a security fix had to shed comments from its own test
+  // to get through (2026-08-12, cowork audit follow-up).
+  //
+  // Excluding them does not open a hole: a test file cannot host the leaking
+  // business logic this fence exists to catch, and the production sibling
+  // (sign-timeline-attachments.ts, 47 lines) is still ratcheted.
+  const paths = globSync(ACTIONS_GLOB)
+    .filter((p) => !/\.test\.tsx?$/.test(p))
+    .sort();
   if (paths.length === 0) {
     console.error("✗ check-action-line-budget: no files found under app/actions/.");
     process.exit(1);
