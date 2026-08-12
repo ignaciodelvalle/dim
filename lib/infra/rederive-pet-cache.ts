@@ -141,6 +141,29 @@ const CHECKED_COLUMNS: Record<string, CompareKind> = {
 export const CHECKED_COLUMN_NAMES = Object.keys(CHECKED_COLUMNS);
 
 /**
+ * Memo for canonicalized jurisdiction pairs, keyed `province|locality`.
+ *
+ * NOT an optimisation for its own sake — without it this harness is unusable at
+ * scale. normalizeLocationForWrite resolves the locality through
+ * localityByName, which issues a DB query per call and caches nothing
+ * (lib/infra/ar-localidades.ts). rederivePetCache runs PER PET: the fitness
+ * sweep walks every DIM-* pet and scripts/detect-pet-cache-drift.ts walks the
+ * whole table, so an uncached lookup adds one query per pet and, measured
+ * 2026-08-12, was enough to kill vitest workers in the db project — a project
+ * that had been clean twice before the jurisdiction column was added.
+ *
+ * The pairs repeat heavily (every pet in a locality shares one), so the memo
+ * collapses thousands of queries into a handful. Reference data does not change
+ * inside a process, which is what makes caching it safe here.
+ */
+const jurisdictionCanonicalMemo = new Map<string, PetJurisdictionProjection>();
+
+/** Clears the canonicalization memo — for tests that mutate the locality catalog. */
+export function resetJurisdictionCanonicalMemo(): void {
+  jurisdictionCanonicalMemo.clear();
+}
+
+/**
  * Canonicalize a raw (event-payload) jurisdiction the way the write path does.
  *
  * Mirrors recordMovementWriter.canonicalizeMovement and refreshJurisdiction:
@@ -153,6 +176,10 @@ async function canonicalizeDerivedJurisdiction(
   if (raw.jurisdictionCountry !== "AR" || !raw.jurisdictionProvince || !raw.jurisdictionLocality) {
     return raw;
   }
+  const memoKey = `${raw.jurisdictionProvince}|${raw.jurisdictionLocality}`;
+  const memoized = jurisdictionCanonicalMemo.get(memoKey);
+  if (memoized) return memoized;
+
   const normalized = await normalizeLocationForWrite(
     {
       province: raw.jurisdictionProvince,
@@ -165,11 +192,13 @@ async function canonicalizeDerivedJurisdiction(
     },
     { locality: "soft" },
   );
-  return {
+  const result: PetJurisdictionProjection = {
     jurisdictionCountry: raw.jurisdictionCountry,
     jurisdictionProvince: normalized.province ?? raw.jurisdictionProvince,
     jurisdictionLocality: normalized.locality ?? raw.jurisdictionLocality,
   };
+  jurisdictionCanonicalMemo.set(memoKey, result);
+  return result;
 }
 
 /**
