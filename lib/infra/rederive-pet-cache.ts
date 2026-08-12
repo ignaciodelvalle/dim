@@ -35,6 +35,20 @@
 //     tier2PublicEnabledUntil) → flipping them emits no event by design.
 //   - PII/metadata (createdBy, updatedBy, purpose, deletedAt, retentionUntil,
 //     createdAt, updatedAt).
+//   - permanentConditions / permanentConditionsOther / acquisitionMethod →
+//     dual-written in updatePetProfile (pets-repository.ts:350) and at
+//     registration. These were in NEITHER list until 2026-08-12 — the same
+//     silent gap jurisdiction had, found by the second audit pass. They stay
+//     EXCLUDED rather than checked, and here is the reason: acquisition_method
+//     does ride in the pet_registered payload, but all three are only ever
+//     UPDATED through pet_profile_updated's generic `changes` diff — a
+//     field-by-field array, not a typed payload. A faithful projection would
+//     have to interpret that diff (replayPetWeight already does exactly this
+//     for weight, so it is doable) — one new projection per column, for three
+//     values that gate nothing: not PPP, not compliance, not authority routing.
+//     They are profile metadata.
+//     REVISIT IF: any of them starts feeding a business rule or a dashboard.
+//     At that point the work is writing the projections, not extending this note.
 //   - localityId → the denormalized FK twin of jurisdictionLocality. Left out
 //     because the three text columns above already fail when the locality
 //     drifts, and resolving the id would double the per-pet catalog lookups for
