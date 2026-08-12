@@ -530,19 +530,25 @@ async function provisionUsers(deps: DbDeps): Promise<Record<UserKey, string>> {
     const initialRole = u.role === "admin" ? "admin" : "owner";
     const { id, created } = await ensureAuthUser(deps, u.email, u.displayName, initialRole);
     log(created ? "OK" : "SKIP", `${u.email.padEnd(24)} (${u.displayName})`);
-    await syncDniVerified(deps, id);
 
     if (u.role === "admin") {
       await setProfileFields(deps, id, {
         role: "admin",
         accountType: "institutional",
         displayName: u.displayName,
+        // Una institución no tiene DNI — profiles_institutional_no_pii lo prohíbe.
+        // Limpiarlo acá hace el paso independiente del orden Y repara una fila que
+        // ya haya quedado mal (gemelo del fix en seed-test-users.ts).
+        dniHash: null,
+        dniLast4: null,
       });
     } else if (u.role === "govt") {
       await setProfileFields(deps, id, {
         role: "govt",
         accountType: "institutional",
         displayName: u.displayName,
+        dniHash: null,
+        dniLast4: null,
       });
     } else if (u.role === "vet") {
       await setProfileFields(deps, id, {
@@ -562,6 +568,10 @@ async function provisionUsers(deps: DbDeps): Promise<Record<UserKey, string>> {
         phone: u.phone,
       });
     }
+    // DESPUES de fijar account_type: syncDniVerified mira el estado ACTUAL y el
+    // trigger crea todo perfil como 'personal'. Llamarlo antes le escribia un DNI
+    // a las cuentas institucionales y el CHECK abortaba el seed (2026-08-12).
+    await syncDniVerified(deps, id);
     ids[key] = id;
   }
   return ids as Record<UserKey, string>;
