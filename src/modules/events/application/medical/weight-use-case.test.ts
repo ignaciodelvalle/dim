@@ -77,15 +77,13 @@ describe("createWeight", () => {
     );
   });
 
-  it("calls updateWeightProjection with pet.id and kgStr", async () => {
+  it("calls updateWeightProjection for the pet, inside the transaction", async () => {
+    // No kg argument: the projection re-derives the value from the spine rather
+    // than trusting the caller's number, so a back-dated weighing cannot make
+    // the cache contradict the event log (audit finding #4, 2026-08-12).
     const { repo, transaction } = makeDeps();
     await createWeight(BASE_INPUT, { repo, transaction });
-    expect(repo.updateWeightProjection).toHaveBeenCalledWith(
-      "pet-1",
-      "4.50",
-      expect.any(Date),
-      "fake-tx",
-    );
+    expect(repo.updateWeightProjection).toHaveBeenCalledWith("pet-1", expect.any(Date), "fake-tx");
   });
 
   it("inserts attachment when uploadedPath present", async () => {

@@ -14,7 +14,7 @@
 
 import "server-only";
 
-import { and, desc, eq, gt, gte, inArray, isNull, lte, ne } from "drizzle-orm";
+import { and, asc, desc, eq, gt, gte, inArray, isNull, lte, ne } from "drizzle-orm";
 
 import {
   attachments,
@@ -31,7 +31,17 @@ import type { NewAuditLogRow, NewPetEvent, NewPetIdentification, PetEvent } from
 import { insertEventIdempotent } from "@/lib/events/event-idempotency";
 import { enqueueOutboxForEvent } from "@/lib/events/event-outbox-enqueue";
 import { validatedEventValues } from "@/lib/events/validated-event-values";
+import { replayPetWeight } from "@/lib/projections/pet-weight";
+import type { ProjectionEvent } from "@/lib/projections/types";
 import { AR_TIME_ZONE } from "@/lib/utils/format";
+
+/**
+ * Event types replayPetWeight considers weight-bearing. Kept in sync with
+ * lib/projections/pet-weight.ts::weightFromEvent — narrowing the read to these
+ * three keeps the re-derivation cheap without changing its result, because
+ * every other type returns NOT_WEIGHT_BEARING anyway.
+ */
+const WEIGHT_BEARING_TYPES = ["weight_recorded", "pet_registered", "pet_profile_updated"];
 
 // ---------------------------------------------------------------------------
 // Type aliases
@@ -320,17 +330,63 @@ export class EventsRepository {
   // ===========================================================================
 
   /**
-   * Update pets.estimatedWeightKg (weight_recorded projection).
+   * Update pets.estimatedWeightKg by RE-DERIVING it from the spine.
+   *
+   * WHY NOT JUST WRITE `kgStr`. It used to. The canonical projection
+   * (replayPetWeight, lib/projections/pet-weight.ts) is latest-by-occurredAt,
+   * and every derivation path orders that way — rederivePetCache,
+   * rebuild-projections, refresh-pet-cache-after-amendment. Writing the
+   * incoming value blind only agrees with the projection when the incoming
+   * event happens to be the newest by DATE OF THE FACT, and the weight form
+   * exposes occurredAt as a free `<input type="date">` whose only guard
+   * (checkOccurredAtPlausible) rejects the future and pre-birth dates.
+   *
+   * So the ordinary act of logging a FORGOTTEN weighing — 9 kg dated three
+   * months back, entered today — overwrote the cache with 9 while the spine
+   * still said 12. The pet card and the libreta showed a current weight that
+   * the weight-history chart (which reads events directly) contradicted, and
+   * nothing surfaced the disagreement: detect-pet-cache-drift.ts does flag it,
+   * but repair-pet-cache-drift.ts only repairs status/deceasedAt, so it stayed
+   * drifted until someone ran rebuild-projections --apply by hand.
+   *
+   * Invariant #3 tolerates caches; it does not tolerate a cache that
+   * contradicts the spine, still less a write path that MANUFACTURES the
+   * contradiction during normal use. Re-deriving costs one indexed read per
+   * weight write and makes the cache a function of the log rather than of
+   * arrival order — so it also self-heals any pet whose cache was already
+   * drifted the moment a new weight is recorded.
+   *
+   * Runs on the caller's executor: inside the use-case transaction the event
+   * just inserted is visible, so the replay includes it.
+   *
+   * Takes no kg argument on purpose — the value is a function of the log, and a
+   * parameter here would invite exactly the "write what the caller handed me"
+   * behaviour this replaced.
    */
   async updateWeightProjection(
     petId: string,
-    kgStr: string,
     now: Date = new Date(),
     executor: DbOrTx = db,
   ): Promise<void> {
+    const events = await executor
+      .select({
+        id: petEvents.id,
+        eventType: petEvents.eventType,
+        occurredAt: petEvents.occurredAt,
+        recordedAt: petEvents.recordedAt,
+        payload: petEvents.payload,
+      })
+      .from(petEvents)
+      .where(and(eq(petEvents.petId, petId), inArray(petEvents.eventType, WEIGHT_BEARING_TYPES)))
+      // Same ordering as rederivePetCache — occurredAt first, then recordedAt
+      // and id to break ties deterministically.
+      .orderBy(asc(petEvents.occurredAt), asc(petEvents.recordedAt), asc(petEvents.id));
+
+    const { estimatedWeightKg } = replayPetWeight(events as ProjectionEvent[]);
+
     await executor
       .update(pets)
-      .set({ estimatedWeightKg: kgStr, updatedAt: now })
+      .set({ estimatedWeightKg, updatedAt: now })
       .where(eq(pets.id, petId));
   }
 

@@ -2,14 +2,16 @@
 
 import { and, eq, gt, inArray, isNull, sql } from "drizzle-orm";
 
-import { db, notifications, petEvents, pets, reminders } from "@/db";
+import { db, notifications, petEvents, reminders } from "@/db";
 import { validateEventPayload } from "@/lib/events/event-schemas";
 
-import type { PregnancyOutcome, RecordPregnancyEndedParams, RecordPregnancyResult } from "./types";
+import { rederivePregnancyStatus } from "./rederive-pregnancy-status";
+import type { RecordPregnancyEndedParams, RecordPregnancyResult } from "./types";
 
-function statusFromOutcome(outcome: PregnancyOutcome): string {
-  return `completed_${outcome}`;
-}
+// statusFromOutcome (`completed_${outcome}`) lived here until 2026-08-12. The
+// status now comes from replayPetPregnancy via rederivePregnancyStatus, which
+// owns that same mapping — keeping a second copy here would be a rule with two
+// definitions free to drift apart.
 
 export async function recordPregnancyEndedWriter(
   params: RecordPregnancyEndedParams,
@@ -59,10 +61,9 @@ export async function recordPregnancyEndedWriter(
         .returning();
       eventId = event.id;
 
-      await tx
-        .update(pets)
-        .set({ pregnancyStatus: statusFromOutcome(params.outcome) })
-        .where(eq(pets.id, params.pet.id));
+      // Re-derive rather than assert the outcome: latest-by-occurredAt wins, so
+      // a back-dated end cannot clobber a later pregnancy's status.
+      await rederivePregnancyStatus(tx, params.pet.id);
 
       // Cancel future pregnancy checkup reminders tied to the open
       // pregnancy_started event(s) of this pet. Filter on payload.sub_kind

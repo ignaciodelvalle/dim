@@ -102,12 +102,15 @@ export async function createWeight(
       );
     }
 
-    // Projection: update denormalized weight cache so pet card/detail show latest weight.
+    // Projection: re-derive the denormalized weight cache from the spine so the
+    // pet card/detail show the latest weight BY DATE OF THE FACT. Passing kgStr
+    // straight through used to be enough only when the new event was also the
+    // newest — a back-dated weighing (the form allows one) left the cache
+    // contradicting the event log.
     await repo.updateWeightProjection(
       pet.id,
-      kgStr,
       now,
-      tx as Parameters<typeof repo.updateWeightProjection>[3],
+      tx as Parameters<typeof repo.updateWeightProjection>[2],
     );
 
     return event.id;

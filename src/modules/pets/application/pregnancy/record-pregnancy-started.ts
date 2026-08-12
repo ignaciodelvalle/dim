@@ -1,10 +1,7 @@
-// Writer: recordPregnancyStartedWriter (strangler migration 18/61).
-
-import { eq } from "drizzle-orm";
-
-import { db, notifications, petEvents, pets, reminders } from "@/db";
+import { db, notifications, petEvents, reminders } from "@/db";
 import { validateEventPayload } from "@/lib/events/event-schemas";
 
+import { rederivePregnancyStatus } from "./rederive-pregnancy-status";
 import type { RecordPregnancyResult, RecordPregnancyStartedParams } from "./types";
 
 // Species-specific gestation window. Spec PR6 + §9 reminders.
@@ -67,10 +64,10 @@ export async function recordPregnancyStartedWriter(
         .returning();
       eventId = event.id;
 
-      await tx
-        .update(pets)
-        .set({ pregnancyStatus: "in_progress" })
-        .where(eq(pets.id, params.pet.id));
+      // Re-derive rather than assert "in_progress": a back-dated start recorded
+      // after this pregnancy already ended must not overwrite the terminal
+      // status the spine holds.
+      await rederivePregnancyStatus(tx, params.pet.id);
 
       // Biweekly checkup reminders until expected birth date.
       const reminderRows: (typeof reminders.$inferInsert)[] = [];

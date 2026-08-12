@@ -19,6 +19,8 @@ import { and, eq, sql } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { db, petEvents, pets } from "@/db";
+import { replayPetWeight } from "@/lib/projections/pet-weight";
+import type { ProjectionEvent } from "@/lib/projections/types";
 import { withMutationOverride } from "../../../../__tests__/_helpers/db-overrides";
 import { EventsRepository } from "./events-repository";
 
@@ -189,27 +191,81 @@ describe("insertEvent (plain)", () => {
 // Projection write-through
 // ---------------------------------------------------------------------------
 
+// updateWeightProjection re-derives from the spine rather than writing the
+// value it is handed (cowork audit finding #4, 2026-08-12). The old
+// write-through agreed with replayPetWeight — which is latest-by-occurredAt —
+// only when the incoming event also happened to be the newest by date of the
+// fact. The weight form exposes occurredAt as a free date input, so logging a
+// FORGOTTEN weighing pointed the cache at an old measurement while the event
+// log said otherwise, and nothing repaired it (repair-pet-cache-drift.ts covers
+// only status/deceasedAt).
+//
+// WHAT WOULD HAVE TO BREAK FOR THESE TO FAIL: the re-derivation. They insert
+// real weight_recorded rows and read the real pets column.
 describe("updateWeightProjection", () => {
-  it("sets pets.estimatedWeightKg", async () => {
-    await repo.updateWeightProjection(petId, "12.50");
+  async function insertWeighing(kg: string, occurredAt: Date) {
+    await db.insert(petEvents).values({
+      petId,
+      eventType: "weight_recorded",
+      occurredAt,
+      recordedAt: new Date(),
+      payload: { payload_version: 1, kg },
+      authorRole: "owner",
+      recordedByUserId: null,
+    });
+  }
 
+  async function cachedWeight(): Promise<string | null> {
     const [row] = await db
       .select({ estimatedWeightKg: pets.estimatedWeightKg })
       .from(pets)
       .where(eq(pets.id, petId));
+    return row.estimatedWeightKg;
+  }
 
-    expect(row.estimatedWeightKg).toBe("12.50");
+  it("projects the most recent weighing", async () => {
+    await insertWeighing("12.50", new Date("2026-08-10T12:00:00Z"));
+    await repo.updateWeightProjection(petId);
+
+    expect(await cachedWeight()).toBe("12.50");
   });
 
-  it("overwrites on subsequent calls", async () => {
-    await repo.updateWeightProjection(petId, "14.00");
+  it("keeps the newest weighing when an OLDER one is recorded afterwards", async () => {
+    // The bug, exactly: a forgotten weighing of 9 kg dated two months back,
+    // entered after the 12,5 kg one above. The pre-fix write-through set the
+    // cache to 9,00 while replayPetWeight — and the weight-history chart —
+    // still said 12,50.
+    await insertWeighing("9.00", new Date("2026-06-01T12:00:00Z"));
+    await repo.updateWeightProjection(petId);
 
-    const [row] = await db
-      .select({ estimatedWeightKg: pets.estimatedWeightKg })
-      .from(pets)
-      .where(eq(pets.id, petId));
+    expect(await cachedWeight()).toBe("12.50");
+  });
 
-    expect(row.estimatedWeightKg).toBe("14.00");
+  it("moves to a newer weighing when one is actually newer", async () => {
+    await insertWeighing("14.00", new Date("2026-08-12T12:00:00Z"));
+    await repo.updateWeightProjection(petId);
+
+    expect(await cachedWeight()).toBe("14.00");
+  });
+
+  it("agrees with replayPetWeight over the same events — cache never contradicts the spine", async () => {
+    // The invariant itself, not one instance of it: whatever the projection
+    // says, the cache says.
+    const events = await db
+      .select({
+        id: petEvents.id,
+        eventType: petEvents.eventType,
+        occurredAt: petEvents.occurredAt,
+        recordedAt: petEvents.recordedAt,
+        payload: petEvents.payload,
+      })
+      .from(petEvents)
+      .where(eq(petEvents.petId, petId))
+      .orderBy(petEvents.occurredAt, petEvents.recordedAt, petEvents.id);
+
+    const projected = replayPetWeight(events as ProjectionEvent[]).estimatedWeightKg;
+
+    expect(Number(await cachedWeight())).toBe(Number(projected));
   });
 });
 

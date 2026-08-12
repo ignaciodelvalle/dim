@@ -35,6 +35,36 @@
 //     tier2PublicEnabledUntil) → flipping them emits no event by design.
 //   - PII/metadata (createdBy, updatedBy, purpose, deletedAt, retentionUntil,
 //     createdAt, updatedAt).
+//   - jurisdictionCountry / jurisdictionProvince / jurisdictionLocality /
+//     localityId → THESE ARE DERIVED CACHES AND THEY ARE NOT CHECKED. Read the
+//     next paragraph before assuming that is an oversight; it was one until
+//     2026-08-12 (they were in neither list, so they fell through the gap in
+//     silence), and this entry is the decision, not the excuse.
+//
+//     They are written from pet_registered and from
+//     movement_recorded(sub_kind="jurisdiction_changed"), and the amendment path
+//     re-derives them (refreshJurisdiction in
+//     src/modules/events/application/amendment/refresh-pet-cache-after-amendment.ts).
+//     A faithful checker cannot live in lib/projections/*: deriving the stored
+//     value requires normalizeLocationForWrite — an ASYNC, DB-backed
+//     canonicalization that rewrites province/locality to catalog spelling and
+//     resolves localityId. Comparing the raw payload against the canonicalized
+//     column would flag every canonicalized move as drift, which is worse than
+//     no check: a fence that cries wolf gets muted.
+//
+//     WHY THE GAP IS SAFE TODAY: recordMoveAction stamps
+//     `occurredAt: new Date()` (src/modules/pets/actions.ts), so movements are
+//     always "now" and the last-written cache always IS the latest by
+//     occurredAt. There is no path that records an out-of-order move.
+//
+//     WHAT MAKES IT UNSAFE — check this list before shipping any of them:
+//       · a movement form with an editable date,
+//       · a bulk import of historical movements,
+//       · any writer that sets movement occurredAt to anything but now.
+//     Any one of those lets an out-of-order move point the cache at the OLD
+//     jurisdiction with nothing to detect it — and jurisdiction feeds the PPP
+//     gate, the compliance cards and authority routing. The fix at that point is
+//     a checker that runs the same canonicalization, not a pure replay.
 
 import { and, asc, eq, inArray } from "drizzle-orm";
 
