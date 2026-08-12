@@ -42,6 +42,8 @@
 
 import path from "node:path";
 import { config as loadEnv } from "dotenv";
+
+import { resolveEnvTarget } from "./_env-target";
 loadEnv({ path: ".env.local" });
 loadEnv({ path: ".env" });
 
@@ -54,7 +56,6 @@ const ALLOW_REMOTE = process.argv.includes("--allow-remote");
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL ?? "";
 const SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY ?? "";
 const DATABASE_URL = process.env.DATABASE_URL ?? "";
-const isLocalUrl = (u: string) => u.includes("127.0.0.1") || u.includes("localhost");
 
 if (!STATS_ONLY) {
   if (!SUPABASE_URL || !SERVICE_ROLE_KEY) {
@@ -67,18 +68,8 @@ if (!STATS_ONLY) {
     console.error("Refusing to seed: NODE_ENV=production.");
     process.exit(2);
   }
-  const isLocal = isLocalUrl(SUPABASE_URL) && isLocalUrl(DATABASE_URL);
-  if (!isLocal && !ALLOW_REMOTE) {
-    console.error(
-      `Refusing to seed: NEXT_PUBLIC_SUPABASE_URL (${SUPABASE_URL}) or DATABASE_URL is not local. Re-run with --allow-remote to seed a remote (e.g. staging) project.`,
-    );
-    process.exit(2);
-  }
-  if (!isLocal && ALLOW_REMOTE) {
-    console.warn(
-      `WARNING: --allow-remote in effect — seeding the demo dataset into a REMOTE project (${SUPABASE_URL}).`,
-    );
-  }
+  // Tres estados, no dos — incluido el PARTIDO. Ver scripts/_env-target.ts.
+  resolveEnvTarget(SUPABASE_URL, DATABASE_URL, ALLOW_REMOTE, "seed:demo");
 }
 
 // ---------------------------------------------------------------------------

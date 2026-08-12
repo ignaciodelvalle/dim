@@ -38,6 +38,7 @@ import { createHash } from "node:crypto";
 import { type SupabaseClient, createClient as createSdkClient } from "@supabase/supabase-js";
 import { config as loadEnv } from "dotenv";
 
+import { resolveEnvTarget } from "./_env-target";
 import { ZERO_PET_OWNER_DISPLAY_NAME, ZERO_PET_OWNER_EMAIL } from "./seed-reserved-accounts";
 
 // IMPORTANT: load env BEFORE importing anything that reads process.env at
@@ -56,7 +57,6 @@ const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL ?? "";
 const SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY ?? "";
 const DATABASE_URL = process.env.DATABASE_URL ?? "";
 
-const isLocalUrl = (u: string) => u.includes("127.0.0.1") || u.includes("localhost");
 // --allow-remote opts out of the local-only guard so the test accounts can be
 // seeded into a remote (e.g. staging) project. NODE_ENV=production stays hard-
 // blocked regardless. This script is idempotent (skips already-existing users).
@@ -72,18 +72,11 @@ if (process.env.NODE_ENV === "production") {
   console.error("Refusing to seed: NODE_ENV=production.");
   process.exit(2);
 }
-const isLocal = isLocalUrl(SUPABASE_URL) && isLocalUrl(DATABASE_URL);
-if (!isLocal && !ALLOW_REMOTE) {
-  console.error(
-    `Refusing to seed: NEXT_PUBLIC_SUPABASE_URL (${SUPABASE_URL}) or DATABASE_URL is not local. Re-run with --allow-remote to seed a remote (e.g. staging) project.`,
-  );
-  process.exit(2);
-}
-if (!isLocal && ALLOW_REMOTE) {
-  console.warn(
-    `WARNING: --allow-remote in effect — seeding test users into a REMOTE project (${SUPABASE_URL}).`,
-  );
-}
+// Un solo resolvedor para los tres estados posibles (local / remoto / PARTIDO).
+// El guard anterior hacia `local(SUPABASE_URL) && local(DATABASE_URL)`, que con
+// una sola URL remota ya se declaraba "remoto" y seguia: asi es como este script
+// llego a escribir en staging leyendo auth de local. Ver scripts/_env-target.ts.
+resolveEnvTarget(SUPABASE_URL, DATABASE_URL, ALLOW_REMOTE, "seed:test");
 
 // ---------------------------------------------------------------------------
 // Deferred imports (after env load)
