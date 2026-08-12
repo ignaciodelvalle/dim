@@ -90,7 +90,16 @@ export type OutbreakInvestigationDeps = {
 // Shared scope guard — mirrors original app/actions/outbreak-investigation.ts
 // ---------------------------------------------------------------------------
 
-function isInScope(
+/**
+ * Exported for tests ONLY — production callers are the four actions below.
+ *
+ * It is exported because __tests__/jurisdiction-subsumption-class.test.ts used
+ * to lock this rule against a hand-written COPY of the predicate pasted into
+ * the test file: the copy could stay green while this function drifted, which
+ * is the opposite of what an authorization-scope test is for (audit 2026-08-12).
+ * A guard worth testing is worth importing.
+ */
+export function isInScope(
   caseRow: {
     jurisdictionProvince: string | null;
     jurisdictionLocality: string | null;

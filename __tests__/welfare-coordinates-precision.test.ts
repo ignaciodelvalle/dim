@@ -55,7 +55,13 @@ function readCode(path: string): string {
 }
 
 describe("public comprobante — approximate location only (Ley 25.326)", () => {
-  const src = readFileSync(PUBLIC_RECEIPT, "utf8");
+  // readCode, not readFileSync: this is the most sensitive surface in the file
+  // (de-anonymisation of the reporter) and it was the one still scanning RAW
+  // text — so `expect(src).toMatch(/coarsenPoint\([^)]*"approx"\)/)` was
+  // satisfied by a COMMENT naming the call, even with the call itself deleted.
+  // The helper right above exists precisely to prevent that and had been
+  // applied to the inspector surfaces but not to this one (audit 2026-08-12).
+  const src = readCode(PUBLIC_RECEIPT);
 
   it("never renders an exact coordinate (no toFixed(6))", () => {
     expect(src).not.toMatch(/toFixed\(6\)/);
@@ -76,7 +82,7 @@ describe("public comprobante — approximate location only (Ley 25.326)", () => 
 
 describe("authority surfaces — exact location, labelled, and logged (Ley 14.346)", () => {
   it("gob detail keeps the exact coordinate, labels official use, and logs the view", () => {
-    const src = readFileSync(GOB_DETAIL, "utf8");
+    const src = readCode(GOB_DETAIL);
     // Exact precision preserved — do NOT degrade the investigative surface.
     expect(src).toMatch(/toFixed\(6\)/);
     expect(src).toContain("uso oficial (Ley 14.346)");
@@ -84,7 +90,7 @@ describe("authority surfaces — exact location, labelled, and logged (Ley 14.34
   });
 
   it("admin moderation renders the EXACT point (un-coarsened), labels official use, and logs the view", () => {
-    const src = readFileSync(ADMIN_DETAIL, "utf8");
+    const src = readCode(ADMIN_DETAIL);
     // The map must receive the raw exact point — admin must NOT coarsen.
     expect(src).toMatch(/LocationMap lat=\{locationPoint\.lat\}/);
     expect(src).not.toMatch(/coarsenPoint/);

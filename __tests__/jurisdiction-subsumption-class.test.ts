@@ -27,6 +27,7 @@ import {
 import { canDecideRequest, visibleRequestsClause } from "@/lib/infra/approval-scope";
 import { type CaseViewer, canReadCase } from "@/lib/infra/case-access";
 import type { CaseDetail } from "@/lib/infra/case-queries";
+import { isInScope } from "@/src/modules/surveillance/application/outbreak-investigation";
 
 // --- Canonical operator profiles -------------------------------------------
 // Whole-CABA: locality IS the whole-province INDEC single entry.
@@ -204,28 +205,37 @@ describe("subsumption class — isWholeProvinceLocality primitive", () => {
     expect(isWholeProvinceLocality("CABA", "Almagro")).toBe(false);
   });
 
-  // Locks the outbreak-investigation isInScope shape: a whole-CABA operator (j)
-  // covers a barrio-tagged case; Salta does not; Palermo stays narrow. This
-  // mirrors the inline predicate `isWholeProvinceLocality(j) || j.locality === case`.
+  // Locks the outbreak-investigation isInScope: a whole-CABA operator covers a
+  // barrio-tagged case; Salta does not; Palermo stays narrow.
+  //
+  // This used to run against a COPY of the predicate written out inside this
+  // file. The comment claimed it "locks the shape", but what it locked was the
+  // copy: production could drift to something more permissive and this stayed
+  // green (audit 2026-08-12). It now imports the real function — the one the
+  // four outbreak actions actually call.
   const outbreakInScope = (
     jurisdictions: ReadonlyArray<{ province: string; locality: string }>,
     caseProvince: string | null,
     caseLocality: string | null,
-  ): boolean => {
-    if (!caseProvince) return true;
-    return jurisdictions.some(
-      (j) =>
-        j.province === caseProvince &&
-        (!caseLocality ||
-          isWholeProvinceLocality(j.province, j.locality) ||
-          j.locality === caseLocality),
+  ): boolean =>
+    isInScope(
+      { jurisdictionProvince: caseProvince, jurisdictionLocality: caseLocality },
+      jurisdictions,
     );
-  };
 
-  it("outbreak isInScope shape: whole-CABA covers an Almagro case; Salta denied; Palermo narrow", () => {
+  it("outbreak isInScope: whole-CABA covers an Almagro case; Salta denied; Palermo narrow", () => {
     expect(outbreakInScope(WHOLE_CABA, "CABA", "Almagro")).toBe(true);
     expect(outbreakInScope(SALTA, "CABA", "Almagro")).toBe(false);
     expect(outbreakInScope(PALERMO, "CABA", "Almagro")).toBe(false);
     expect(outbreakInScope(PALERMO, "CABA", "Palermo")).toBe(true);
+  });
+
+  it("a national case (no province) is in scope for any operator", () => {
+    expect(outbreakInScope(SALTA, null, null)).toBe(true);
+  });
+
+  it("a province-wide case (no locality) matches any operator in that province", () => {
+    expect(outbreakInScope(PALERMO, "CABA", null)).toBe(true);
+    expect(outbreakInScope(SALTA, "CABA", null)).toBe(false);
   });
 });

@@ -35,6 +35,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import {
   cases,
   db,
+  eventNotificationOutbox,
   ownerships,
   petAchievementViews,
   petEvents,
@@ -115,6 +116,9 @@ let ownerPetId: string | null = null;
 let setupError: string | null = null;
 let fixtureCaseId: string | null = null;
 let fixtureAchievementViewId: string | null = null;
+// Fixture event_notification_outbox row — anchors the 16 deny cells so they
+// measure a policy rather than an empty table. See the insert in beforeAll.
+let fixtureOutboxId: string | null = null;
 // Fixture pet_transfers row. The owner/admin SELECT cells were corrected to
 // `allow` (matrix.data.ts) once someone noticed they only said `deny` because
 // the table happened to be empty — but no fixture followed, so on a database
@@ -196,6 +200,48 @@ let cleanEventsEventId: string | null = null;
  * ONE pending transfer owner → admin. Returns a setup-error string, or null on
  * success. See the `transferFixturePetId` docblock for the full rationale.
  */
+/**
+ * Fixture event_notification_outbox row — returns its id, or null if none could
+ * be provisioned.
+ *
+ * Every outbox cell in matrix.data.ts is `deny`, and — unlike every other table
+ * here — nothing guaranteed the table held a row. The probe reads
+ * `rows === 0 → deny`, so on an empty table all 16 cells passed WITHOUT
+ * EVALUATING A SINGLE POLICY: the exact "a cell that asserts an accident is not
+ * a fitness check" failure this file already diagnosed and fixed for
+ * pet_transfers (matrix.data.ts:337). The outbox never got the sibling fixture
+ * (audit 2026-08-12).
+ *
+ * Anchoring it makes `deny` mean "RLS refused a row that is really there". The
+ * table is deny-all by design (no policy at all — it sits in
+ * check-rls-coverage's DENY_ALL_ALLOWLIST), so with a row present every cell
+ * must STILL read deny; add a permissive policy and these cells go red here
+ * instead of staying quietly green. Verified by doing exactly that.
+ *
+ * source_event_id reuses an EXISTING pet_event rather than inserting one:
+ * pet_events is append-only at the trigger level, so a fixture event could not
+ * be cleaned up afterwards. The outbox row itself deletes normally in afterAll.
+ */
+async function provisionOutboxFixture(petId: string | null): Promise<string | null> {
+  if (!petId) return null;
+  const [anyEvent] = await db
+    .select({ id: petEvents.id })
+    .from(petEvents)
+    .where(eq(petEvents.petId, petId))
+    .limit(1);
+  if (!anyEvent) return null;
+
+  const [outboxRow] = await db
+    .insert(eventNotificationOutbox)
+    .values({
+      sourceEventId: anyEvent.id,
+      targetKind: "internal_dashboard",
+      slaDueAt: new Date(Date.now() + 24 * 60 * 60 * 1000),
+    })
+    .returning({ id: eventNotificationOutbox.id });
+  return outboxRow?.id ?? null;
+}
+
 async function provisionTransferFixture(): Promise<string | null> {
   const ownerCtxForTransfer = contexts.get("owner");
   const adminCtxForTransfer = contexts.get("admin");
@@ -373,6 +419,8 @@ async function runSetup(): Promise<void> {
     fixtureAchievementViewId = avRow?.id ?? null;
   }
 
+  fixtureOutboxId = await provisionOutboxFixture(ownerPetId);
+
   const transferSetupError = await provisionTransferFixture();
   if (transferSetupError) {
     setupError = transferSetupError;
@@ -526,6 +574,12 @@ afterAll(async () => {
   }
   if (fixtureIdentificationId) {
     await db.delete(petIdentifications).where(eq(petIdentifications.id, fixtureIdentificationId));
+  }
+  if (fixtureOutboxId) {
+    await db
+      .delete(eventNotificationOutbox)
+      .where(eq(eventNotificationOutbox.id, fixtureOutboxId))
+      .catch(() => {});
   }
   if (fixtureCaseId) {
     await db
