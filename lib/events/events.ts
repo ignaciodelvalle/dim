@@ -609,11 +609,34 @@ export function caseTimelineSummary(
     return { primary: summary.primary, secondary: null };
   }
 
-  if (isLostSightingNote(eventType, payload) && !opts.discloseLastLocation) {
-    // Here the address is in `primary` ("Nota: {text}"), so the fact has to be
-    // restated rather than merely stripped — an empty entry would read as a
-    // rendering bug on a page whose whole purpose is a legible timeline.
-    return { primary: "Actualización de la última ubicación conocida", secondary: null };
+  // note_added is FREE TEXT, so it is allow-listed rather than pattern-matched.
+  //
+  // The first version of this function redacted the lost-sighting note and let
+  // every other note through. That was redaction BY COLUMN — the CaseDetailView
+  // hides the `notes` column and this hid one payload shape — and free text does
+  // not respect column boundaries. A concrete leak got through it: when two orgs
+  // report the same animal, create-org-welfare-report.ts writes a
+  // note_added(category:"system") whose text names the reporting organisation,
+  // attached by caseId to an anonymously-readable welfare_denuncia case.
+  //
+  // The org's identity is public by design elsewhere (it appears as a case
+  // party), so that instance is marginal — but the DEFAULT was the bug: any
+  // future free-text note attached to an anon-readable case leaked on arrival,
+  // with no one having decided it should. Now nothing free-form reaches an
+  // anonymous viewer unless it is listed here.
+  if (eventType === "note_added") {
+    if (!isLostSightingNote(eventType, payload)) {
+      // Not on the allow-list: the entry still appears (the timeline should not
+      // develop silent holes) but says only that something was recorded.
+      return { primary: "Nota registrada en el caso", secondary: null };
+    }
+    if (!opts.discloseLastLocation) {
+      // Allow-listed, but the address is in `primary` ("Nota: {text}"), so the
+      // fact has to be restated rather than merely stripped — an empty entry
+      // would read as a rendering bug on a page whose purpose is a legible
+      // timeline.
+      return { primary: "Actualización de la última ubicación conocida", secondary: null };
+    }
   }
 
   if (COMPLAINT_TEXT_EVENT_TYPES.has(eventType)) {

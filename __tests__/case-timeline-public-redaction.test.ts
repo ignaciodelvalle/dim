@@ -173,3 +173,48 @@ describe("the redaction is driven by the CURRENT preference, not the payload sna
     expect(text).not.toContain(HOME_ADDRESS);
   });
 });
+
+describe("note_added es allow-list, no pattern-match (hallazgo #7 de la 2a pasada)", () => {
+  const publicOpts = { isPublic: true, discloseLastLocation: true };
+
+  // La nota que escribe create-org-welfare-report.ts cuando una segunda
+  // organización denuncia al mismo animal. Va con caseId del caso original, que
+  // es welfare_denuncia — legible por anónimos.
+  const systemNotePayload = {
+    category: "system",
+    text: "Otra organización (Refugio Patitas del Sur) reportó un caso adicional sobre esta mascota. Ver caso CAS-9K2M-4TQX para el detalle.",
+  };
+
+  it("no emite el nombre de la organización denunciante", () => {
+    const text = renderedText(caseTimelineSummary("note_added", systemNotePayload, publicOpts));
+
+    expect(text).not.toContain("Refugio Patitas del Sur");
+    expect(text).not.toContain("CAS-9K2M-4TQX");
+  });
+
+  it("deja la entrada visible en vez de un hueco mudo", () => {
+    // Un timeline con filas vacías se lee como un bug de render.
+    const summary = caseTimelineSummary("note_added", systemNotePayload, publicOpts);
+
+    expect(summary.primary).toBe("Nota registrada en el caso");
+  });
+
+  it("una nota libre CUALQUIERA queda fuera por defecto, no sólo la de sistema", () => {
+    // El punto del hallazgo no era esa nota: era que el default dejaba pasar
+    // texto libre. Cualquier note_added futuro adjuntado a un caso anónimo tiene
+    // que estar cerrado de entrada.
+    const arbitrary = { category: "otro", text: "El vecino de la esquina, Juan Pérez, dice que…" };
+    const text = renderedText(caseTimelineSummary("note_added", arbitrary, publicOpts));
+
+    expect(text).not.toContain("Juan Pérez");
+  });
+
+  it("el viewer autenticado sigue viendo la nota completa", () => {
+    expect(
+      caseTimelineSummary("note_added", systemNotePayload, {
+        isPublic: false,
+        discloseLastLocation: false,
+      }),
+    ).toEqual(eventPayloadSummary("note_added", systemNotePayload));
+  });
+});
