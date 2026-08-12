@@ -541,3 +541,84 @@ export function eventPayloadSummary(eventType: string, payload: unknown): EventP
       return { primary: null, secondary: null };
   }
 }
+
+/**
+ * Event types whose `secondary` is owner-supplied free text describing WHERE the
+ * animal was last seen. For a lost pet that text is routinely the owner's own
+ * address ("last seen" = where it got out).
+ */
+const LOCATION_BEARING_EVENT_TYPES = new Set(["status_changed"]);
+
+/**
+ * The "update last-seen location" flow does NOT write a second status_changed —
+ * it writes note_added(kind="sighting") scoped to the open lost case
+ * (update-lost-last-seen-use-case.ts), whose `text` is composed as
+ * `${locationDescription} — ${reason}`. So the same address reaches the same
+ * public page through a different event type, and lands in `primary` rather
+ * than `secondary`. Redacting only status_changed would have closed the front
+ * door and left this one open.
+ */
+function isLostSightingNote(eventType: string, payload: unknown): boolean {
+  if (eventType !== "note_added") return false;
+  const p = payload as Record<string, unknown> | null;
+  return typeof p === "object" && p !== null && p.kind === "sighting";
+}
+
+/**
+ * Event types whose `secondary` is the free-text body of a cruelty complaint.
+ */
+const COMPLAINT_TEXT_EVENT_TYPES = new Set(["maltreatment_reported", "abandonment_reported"]);
+
+/**
+ * Summary for a case timeline entry, with the redactions a PUBLIC (anonymous)
+ * viewer requires. Non-public viewers get eventPayloadSummary unchanged.
+ *
+ * WHY THIS EXISTS. /casos/[publicCode] is readable by anyone holding the CAS
+ * code — canReadCase(null) admits anonymous viewers for lost_pet_episode and
+ * welfare_denuncia. It rendered every event through eventPayloadSummary with no
+ * viewer distinction, which leaked two things:
+ *
+ *   1. The last-seen location of a lost pet, even when the owner had turned
+ *      "show the location publicly" OFF. The credential (/p/[publicToken])
+ *      honours that toggle at the SELECT — so the owner sees the field hidden
+ *      where they set it and has no reason to suspect the case page shows it.
+ *      Silently defeating an opt-in privacy control is the whole of the bug.
+ *   2. The description of a cruelty complaint. The public receipt
+ *      (/denuncias/codigo/[code]) already shows this to a DEN-code holder, so
+ *      the exposure is narrower — but a second anonymous surface emitting
+ *      complaint prose is not something to add by omission.
+ *
+ * `discloseLastLocation` must come from the pet's CURRENT
+ * disclose_last_location_when_lost column, not the disclosure_prefs_snapshot in
+ * the event payload: the snapshot records what the preference was at lost-time,
+ * so honouring it would ignore an owner who turned disclosure off afterwards.
+ * Same source as the credential — one preference, one meaning.
+ */
+export function caseTimelineSummary(
+  eventType: string,
+  payload: unknown,
+  opts: { isPublic: boolean; discloseLastLocation: boolean },
+): EventPayloadSummary {
+  const summary = eventPayloadSummary(eventType, payload);
+  if (!opts.isPublic) return summary;
+
+  if (LOCATION_BEARING_EVENT_TYPES.has(eventType) && !opts.discloseLastLocation) {
+    // `secondary` is `location_description || reason` — indistinguishable once
+    // joined, so the whole field goes. The primary ("Marcada como perdida")
+    // carries the fact, which is the point of a public case page.
+    return { primary: summary.primary, secondary: null };
+  }
+
+  if (isLostSightingNote(eventType, payload) && !opts.discloseLastLocation) {
+    // Here the address is in `primary` ("Nota: {text}"), so the fact has to be
+    // restated rather than merely stripped — an empty entry would read as a
+    // rendering bug on a page whose whole purpose is a legible timeline.
+    return { primary: "Actualización de la última ubicación conocida", secondary: null };
+  }
+
+  if (COMPLAINT_TEXT_EVENT_TYPES.has(eventType)) {
+    return { primary: summary.primary, secondary: null };
+  }
+
+  return summary;
+}

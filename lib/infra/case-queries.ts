@@ -175,6 +175,13 @@ export interface CaseDetail {
     sex: string;
     primaryPhotoStoragePath: string | null;
     status: string;
+    /**
+     * Owner's opt-in for showing the last-seen location publicly. Carried here
+     * so the case timeline can honour the SAME preference the credential
+     * honours — /p/[publicToken] gates this field at the SELECT, and the case
+     * page used to render it unconditionally from the status_changed payload.
+     */
+    discloseLastLocationWhenLost: boolean;
   } | null;
   // Linked welfare_report (when welfare_denuncia kind)
   welfareReport: {
@@ -220,6 +227,7 @@ export async function getCaseDetailByPublicCode(publicCode: string): Promise<Cas
         sex: pets.sex,
         primaryPhotoStoragePath: attachments.storagePath,
         status: pets.status,
+        discloseLastLocationWhenLost: pets.discloseLastLocationWhenLost,
       },
       openedByUser: {
         id: profiles.id,
@@ -353,6 +361,9 @@ export async function getCaseDetailByPublicCode(publicCode: string): Promise<Cas
           sex: row.pet.sex ?? "",
           primaryPhotoStoragePath: row.pet.primaryPhotoStoragePath ?? null,
           status: row.pet.status ?? "",
+          // Fail closed: a null column (no pet row joined, or a legacy row)
+          // means "not disclosed", never "disclosed".
+          discloseLastLocationWhenLost: row.pet.discloseLastLocationWhenLost === true,
         }
       : null,
     welfareReport: welfareReportRow,

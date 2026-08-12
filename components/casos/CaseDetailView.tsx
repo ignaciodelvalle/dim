@@ -33,7 +33,7 @@ import {
 } from "@/components/ui/dashboard/CaseDetailShell";
 import type { EventType } from "@/db/schema";
 import { getNormativesForCase } from "@/lib/domain/case-normatives";
-import { eventPayloadSummary } from "@/lib/events/events";
+import { caseTimelineSummary } from "@/lib/events/events";
 import { canReadCase } from "@/lib/infra/case-access";
 import { getCaseDetailByPublicCode } from "@/lib/infra/case-queries";
 import { getJurisdictionsCached, getProfileCached } from "@/lib/infra/request-cache";
@@ -281,7 +281,13 @@ export async function CaseDetailView({ publicCode, casosHref }: CaseDetailViewPr
                     </time>
                   </div>
                   {(() => {
-                    const summary = eventPayloadSummary(e.eventType, e.payload);
+                    // Anonymous viewers get the redacted summary: the owner's
+                    // last-seen-location opt-in is honoured here exactly as the
+                    // credential honours it, and complaint prose is withheld.
+                    const summary = caseTimelineSummary(e.eventType, e.payload, {
+                      isPublic,
+                      discloseLastLocation: detail.pet?.discloseLastLocationWhenLost ?? false,
+                    });
                     const text = [summary.primary, summary.secondary].filter(Boolean).join(" · ");
                     return text ? <p className="mt-1 text-md text-ln-mute">{text}</p> : null;
                   })()}
