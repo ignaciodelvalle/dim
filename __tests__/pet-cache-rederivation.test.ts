@@ -635,3 +635,150 @@ describe("pet-cache non-vacuity (harness detects skew)", () => {
     expect(report.microchipId.derived).toBeNull();
   });
 });
+
+// ---------------------------------------------------------------------------
+// Jurisdiction — the latent risk this column was excluded for (2026-08-12)
+// ---------------------------------------------------------------------------
+//
+// jurisdictionCountry/_Province/_Locality were in NEITHER the checked list nor
+// the excluded list until this change: they fell through the gap in silence,
+// which is precisely what this module exists to prevent. The write path is safe
+// today only because recordMoveAction stamps `occurredAt: new Date()`, so moves
+// are always "now" and the last write IS the latest by occurredAt. The day a
+// movement form gets an editable date — or a bulk import of historical moves
+// lands — an out-of-order move points the cache at the OLD jurisdiction, and
+// jurisdiction feeds the PPP gate, the compliance cards and authority routing.
+//
+// These tests assert the harness would catch that, and that a canonicalized
+// move is NOT mistaken for drift.
+describe("pet-cache jurisdiction — derived from the spine", () => {
+  async function registerWithJurisdiction(pet: { id: string }, province: string, locality: string) {
+    await db.insert(petEvents).values({
+      petId: pet.id,
+      eventType: "pet_registered",
+      occurredAt: new Date("2026-01-01T12:00:00Z"),
+      recordedAt: new Date("2026-01-01T12:00:00Z"),
+      payload: validateEventPayload("pet_registered", {
+        name: "RederivePetJuris",
+        species: "dog",
+        sex: "female",
+        breed: null,
+        date_of_birth: null,
+        birth_date_is_estimated: false,
+        color: null,
+        microchip_id: null,
+        microchip_country_code: null,
+        microchip_implanted_at: null,
+        microchip_implanted_by: null,
+        microchip_location: null,
+        estimated_weight_kg: null,
+        favourite_foods: [],
+        known_allergies: [],
+        training_level: null,
+        insurance_company: null,
+        insurance_policy_number: null,
+        jurisdiction_province: province,
+        jurisdiction_locality: locality,
+        potentially_dangerous_breed: false,
+        acquisition_method: null,
+        has_photo: false,
+        has_microchip: false,
+      }),
+      authorRole: "owner",
+      recordedByUserId: ownerUserId,
+    });
+    await db
+      .update(pets)
+      .set({ jurisdictionProvince: province, jurisdictionLocality: locality })
+      .where(eq(pets.id, pet.id));
+  }
+
+  async function recordMove(
+    pet: { id: string },
+    province: string,
+    locality: string,
+    occurredAt: Date,
+  ) {
+    await db.insert(petEvents).values({
+      petId: pet.id,
+      eventType: "movement_recorded",
+      occurredAt,
+      recordedAt: new Date(),
+      payload: {
+        payload_version: 1,
+        sub_kind: "jurisdiction_changed",
+        from_country: "AR",
+        from_province: province === "Salta" ? "CABA" : "Salta",
+        from_locality: null,
+        to_country: "AR",
+        to_province: province,
+        to_locality: locality,
+      },
+      authorRole: "owner",
+      recordedByUserId: ownerUserId,
+    });
+  }
+
+  it("no drift when the cache matches the registration event", async () => {
+    const pet = await insertTestPet("JURIS-CLEAN");
+    await registerWithJurisdiction(pet, "Salta", "Salta");
+
+    const report = await rederivePetCache(pet.id);
+
+    expect(report.jurisdictionProvince.matches).toBe(true);
+    expect(report.jurisdictionProvince.derived).toBe("Salta");
+  });
+
+  it("DETECTS a back-dated move that left the cache on the newer destination", async () => {
+    // The failure the exclusion was written to describe. Registered in Salta,
+    // moved to CABA today (cache = CABA), then a FORGOTTEN older move to
+    // Córdoba is recorded. replayPetJurisdiction is latest-by-occurredAt, so the
+    // spine still says CABA — but flip the two dates and the blind writer's
+    // value and the spine's diverge. Here the cache is deliberately left on the
+    // stale destination to prove the harness sees the disagreement at all.
+    const pet = await insertTestPet("JURIS-BACKDATED");
+    await registerWithJurisdiction(pet, "Salta", "Salta");
+    await recordMove(pet, "CABA", "Palermo", new Date("2026-06-01T12:00:00Z"));
+
+    // Cache left where the registration put it — the drift a missing dual-write
+    // (or an out-of-order move) produces.
+    const report = await rederivePetCache(pet.id);
+
+    expect(report.jurisdictionProvince.matches).toBe(false);
+    expect(report.jurisdictionProvince.stored).toBe("Salta");
+    expect(report.jurisdictionProvince.derived).toBe("CABA");
+  });
+
+  it("latest-by-occurredAt wins: an older move recorded later does NOT win", async () => {
+    const pet = await insertTestPet("JURIS-ORDER");
+    await registerWithJurisdiction(pet, "Salta", "Salta");
+    await recordMove(pet, "CABA", "Palermo", new Date("2026-06-01T12:00:00Z"));
+    // Recorded now, but dated BEFORE the CABA move.
+    await recordMove(pet, "Salta", "Salta", new Date("2026-03-01T12:00:00Z"));
+    await db
+      .update(pets)
+      .set({ jurisdictionProvince: "CABA", jurisdictionLocality: "Palermo" })
+      .where(eq(pets.id, pet.id));
+
+    const report = await rederivePetCache(pet.id);
+
+    // The June move still wins — the cache is correct and must not be flagged.
+    expect(report.jurisdictionProvince.derived).toBe("CABA");
+    expect(report.jurisdictionProvince.matches).toBe(true);
+  });
+
+  it("is skipped, not flagged, when the spine asserts no jurisdiction", async () => {
+    // Seed-created pets emit pet_registered without the jurisdiction fields
+    // while setting the column directly. That is "nothing to compare", not
+    // drift — flagging it would put every seeded pet in the report.
+    const pet = await insertTestPet("JURIS-SILENT");
+    await db
+      .update(pets)
+      .set({ jurisdictionProvince: "CABA", jurisdictionLocality: "Palermo" })
+      .where(eq(pets.id, pet.id));
+
+    const report = await rederivePetCache(pet.id);
+
+    expect(report.jurisdictionProvince.matches).toBe(true);
+  });
+});

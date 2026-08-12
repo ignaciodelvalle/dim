@@ -35,42 +35,33 @@
 //     tier2PublicEnabledUntil) → flipping them emits no event by design.
 //   - PII/metadata (createdBy, updatedBy, purpose, deletedAt, retentionUntil,
 //     createdAt, updatedAt).
-//   - jurisdictionCountry / jurisdictionProvince / jurisdictionLocality /
-//     localityId → THESE ARE DERIVED CACHES AND THEY ARE NOT CHECKED. Read the
-//     next paragraph before assuming that is an oversight; it was one until
-//     2026-08-12 (they were in neither list, so they fell through the gap in
-//     silence), and this entry is the decision, not the excuse.
+//   - localityId → the denormalized FK twin of jurisdictionLocality. Left out
+//     because the three text columns above already fail when the locality
+//     drifts, and resolving the id would double the per-pet catalog lookups for
+//     a value that cannot drift independently of the name it is resolved from.
 //
-//     They are written from pet_registered and from
-//     movement_recorded(sub_kind="jurisdiction_changed"), and the amendment path
-//     re-derives them (refreshJurisdiction in
-//     src/modules/events/application/amendment/refresh-pet-cache-after-amendment.ts).
-//     A faithful checker cannot live in lib/projections/*: deriving the stored
-//     value requires normalizeLocationForWrite — an ASYNC, DB-backed
-//     canonicalization that rewrites province/locality to catalog spelling and
-//     resolves localityId. Comparing the raw payload against the canonicalized
-//     column would flag every canonicalized move as drift, which is worse than
-//     no check: a fence that cries wolf gets muted.
-//
-//     WHY THE GAP IS SAFE TODAY: recordMoveAction stamps
-//     `occurredAt: new Date()` (src/modules/pets/actions.ts), so movements are
-//     always "now" and the last-written cache always IS the latest by
-//     occurredAt. There is no path that records an out-of-order move.
-//
-//     WHAT MAKES IT UNSAFE — check this list before shipping any of them:
-//       · a movement form with an editable date,
-//       · a bulk import of historical movements,
-//       · any writer that sets movement occurredAt to anything but now.
-//     Any one of those lets an out-of-order move point the cache at the OLD
-//     jurisdiction with nothing to detect it — and jurisdiction feeds the PPP
-//     gate, the compliance cards and authority routing. The fix at that point is
-//     a checker that runs the same canonicalization, not a pure replay.
+// jurisdictionCountry / _Province / _Locality WERE in neither list until
+// 2026-08-12 — they fell through the gap in silence, which is exactly the
+// failure this module exists to prevent. They are checked now. The objection
+// that stopped an earlier attempt ("a faithful checker needs the async,
+// DB-backed normalizeLocationForWrite, which cannot live in a pure projection")
+// dissolves once you notice inCustodyDispute already set the precedent: a
+// column whose source is not a pure event replay is handled in the ORCHESTRATOR.
+// replayPetJurisdiction stays pure and returns the raw payload values; this file
+// canonicalizes them with the same normalizer the write path calls, so a move
+// rewritten to catalog spelling on write is rewritten identically here and can
+// never register as false drift.
 
 import { and, asc, eq, inArray } from "drizzle-orm";
 
 import { custodyDisputes, db, petEvents, petIdentifications, pets } from "@/db";
+import { normalizeLocationForWrite } from "@/lib/domain/location-normalize";
 import { normalizeMicrochipLocation } from "@/lib/infra/pet-identifier-mapping";
 import { replayPetAdoptionEligibility } from "@/lib/projections/pet-adoption-eligibility";
+import {
+  type PetJurisdictionProjection,
+  replayPetJurisdiction,
+} from "@/lib/projections/pet-jurisdiction";
 import { replayPetMicrochip } from "@/lib/projections/pet-microchip";
 import { replayPetPregnancy } from "@/lib/projections/pet-pregnancy";
 import { replayPetRabiesObservation } from "@/lib/projections/pet-rabies-observation";
@@ -131,6 +122,12 @@ const CHECKED_COLUMNS: Record<string, CompareKind> = {
   pregnancyStatus: "strict",
   // rabies (events: rabies_observation_started / _ended)
   rabiesObservationStatus: "strict",
+  // jurisdiction (events: pet_registered, movement_recorded sub_kind=jurisdiction_changed).
+  // Derived raw by replayPetJurisdiction, then canonicalized in the orchestrator
+  // through the same normalizeLocationForWrite the write path uses.
+  jurisdictionCountry: "strict",
+  jurisdictionProvince: "strict",
+  jurisdictionLocality: "strict",
   // custody dispute (custody_disputes table — NOT events)
   inCustodyDispute: "boolean",
   // adoption eligibility (events: adoption_eligibility_set, latest-wins)
@@ -142,6 +139,38 @@ const CHECKED_COLUMNS: Record<string, CompareKind> = {
 };
 
 export const CHECKED_COLUMN_NAMES = Object.keys(CHECKED_COLUMNS);
+
+/**
+ * Canonicalize a raw (event-payload) jurisdiction the way the write path does.
+ *
+ * Mirrors recordMovementWriter.canonicalizeMovement and refreshJurisdiction:
+ * only AR destinations with BOTH province and locality present are resolved;
+ * anything else is left as-is. `locality: "soft"` never throws.
+ */
+async function canonicalizeDerivedJurisdiction(
+  raw: PetJurisdictionProjection,
+): Promise<PetJurisdictionProjection> {
+  if (raw.jurisdictionCountry !== "AR" || !raw.jurisdictionProvince || !raw.jurisdictionLocality) {
+    return raw;
+  }
+  const normalized = await normalizeLocationForWrite(
+    {
+      province: raw.jurisdictionProvince,
+      provinceCode: null,
+      locality: raw.jurisdictionLocality,
+      localityIndecId: null,
+      lat: null,
+      lng: null,
+      address: null,
+    },
+    { locality: "soft" },
+  );
+  return {
+    jurisdictionCountry: raw.jurisdictionCountry,
+    jurisdictionProvince: normalized.province ?? raw.jurisdictionProvince,
+    jurisdictionLocality: normalized.locality ?? raw.jurisdictionLocality,
+  };
+}
 
 /**
  * Re-derive every derivable cache column for one pet and compare against the
@@ -270,6 +299,45 @@ export async function rederivePetCache(
     tattooRecordedBy: TATTOO_RECORDED_BY_STORED,
   };
 
+  // Jurisdiction — derived from events, then canonicalized through the SAME
+  // normalizer the write path uses (recordMovementWriter.canonicalizeMovement /
+  // refreshJurisdiction both call normalizeLocationForWrite with
+  // `{ locality: "soft" }`). Running the identical function on both sides is
+  // what makes this comparison honest: a move whose locality was rewritten to
+  // catalog spelling on write is rewritten the same way here, so it can never
+  // register as drift. "soft" never throws — an off-catalog pair falls through
+  // unchanged, exactly as on the write path.
+  //
+  // COMPARABLE ONLY WHEN THE SPINE ACTUALLY ASSERTS A PROVINCE.
+  //
+  // Two distinct "nothing to compare" cases, both skipped by falling back to the
+  // stored values (the same "skip by matching" idiom the backfill sentinels
+  // above use):
+  //   · replayPetJurisdiction returns null — no jurisdiction-bearing event at
+  //     all (pets inserted directly, legacy rows).
+  //   · it returns a province of null — the event exists but says nothing about
+  //     jurisdiction. Production always writes it (pets-repository.ts:230), so
+  //     this is the seed population, which emits pet_registered without those
+  //     fields while setting the column directly.
+  //
+  // Skipping loses nothing real: when the spine asserts nothing AND the column
+  // is also null the two match anyway, so the only cases suppressed are ones
+  // where the spine is silent. Scoring those as drift would put every seeded pet
+  // in the report and get the whole check muted — which is how a fence dies.
+  const rawJurisdiction = replayPetJurisdiction(events);
+  const jurisdictionComparable = rawJurisdiction?.jurisdictionProvince != null;
+  const derivedJurisdiction = jurisdictionComparable
+    ? await canonicalizeDerivedJurisdiction(rawJurisdiction as PetJurisdictionProjection)
+    : {
+        jurisdictionCountry: (pet as Record<string, unknown>).jurisdictionCountry as string | null,
+        jurisdictionProvince: (pet as Record<string, unknown>).jurisdictionProvince as
+          | string
+          | null,
+        jurisdictionLocality: (pet as Record<string, unknown>).jurisdictionLocality as
+          | string
+          | null,
+      };
+
   const derived = {
     ...replayPetStatus(events),
     ...replayPetWeight(events),
@@ -278,6 +346,7 @@ export async function rederivePetCache(
     ...replayPetPregnancy(events),
     ...replayPetRabiesObservation(events),
     ...replayPetAdoptionEligibility(events),
+    ...derivedJurisdiction,
     inCustodyDispute: openDisputeRows.length > 0,
   } as Record<string, unknown>;
 
