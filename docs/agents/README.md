@@ -14,7 +14,7 @@ short role docs in this repo were followed on first use).
 | A human newcomer | `/README.md` → `AGENTS.md` slim index |
 | Cowork, haciendo el clickthrough de staging | `docs/agents/prompt-cowork-clickthrough-staging.md` (+ el guion `master-test-ciudadano-multiagente.md`) |
 | Cowork, recorriendo lo que nunca se recorrió | `docs/agents/prompt-cowork-clickthrough-territorio-nuevo.md` — el complemento del anterior: las 115 rutas que ningún guion ni spec nombró nunca |
-| Cowork, verificando arreglos + explorando | `docs/agents/prompt-cowork-clickthrough-verificacion-y-nuevo.md` — parte A con resultado esperado escrito, parte B con lo que quedó sin recorrer. Lleva las tres reglas de método que salieron de los 5 falsos positivos de TN0813 |
+| Cowork, verificando arreglos + explorando | `docs/agents/prompt-cowork-clickthrough-verificacion-y-nuevo.md` — A verifica con el resultado esperado escrito, B explora lo no recorrido, C pregunta si el servidor rechaza lo que la UI esconde, D toma seis tiempos. Lleva las tres reglas de método que salieron de los 5 falsos positivos de TN0813, y una segunda vuelta de la parte A a las dos semanas |
 | Un revisor externo auditando el código | `docs/agents/prompt-cowork-review-codigo.md` |
 | Un agente escribiendo material de onboarding para usuarios externos (funcionario, vet, refugio, dueño, vecino) | `docs/agents/prompt-cowork-onboarding-externos.md` |
 

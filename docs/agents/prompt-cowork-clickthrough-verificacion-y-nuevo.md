@@ -4,10 +4,13 @@
 > commit a revisar. El SHA no está escrito acá a propósito: un documento con un
 > commit hardcodeado miente al día siguiente.
 >
-> **Esta pasada tiene TRES partes y no se mezclan.** La A verifica arreglos
+> **Esta pasada tiene CUATRO partes y no se mezclan.** La A verifica arreglos
 > concretos, con el resultado esperado escrito de antemano. La B explora lo que
 > nadie recorrió. La C pregunta si el servidor rechaza lo que la interfaz apenas
-> esconde. Se hacen en ese orden y se informan por separado.
+> esconde. La D toma seis tiempos que hoy no existen. Se informan por separado.
+>
+> Y al final hay una quinta cosa que NO se ejecuta hoy: repetir la parte A sola,
+> dentro de dos semanas, para ver si lo arreglado se quedó arreglado.
 
 ---
 
@@ -203,10 +206,11 @@ en los números.
 pasado? ¿hiciste algo dos veces por no saber si salió? ¿hubo algún número que no
 le creíste? ¿qué pareció abandonado, inalcanzable o contradictorio?
 
-**Entregable:** un solo markdown con el SHA en el encabezado, **las partes A, B
-y C en secciones separadas**, y la lista de lo no ejecutado al final. En la parte
-A, cada punto con COINCIDE / NO COINCIDE; en la C, cada caso diciendo si el
-rechazo vino del servidor o sólo de la interfaz.
+**Entregable:** un solo markdown con el SHA en el encabezado, **las partes A, B,
+C y D en secciones separadas**, y la lista de lo no ejecutado al final. En la
+parte A, cada punto con COINCIDE / NO COINCIDE; en la C, cada caso diciendo si el
+rechazo vino del servidor o sólo de la interfaz; en la D, el número y la
+condición en que se tomó.
 
 ---
 
@@ -291,3 +295,83 @@ ven iguales en pantalla y son cosas opuestas.
 Y lo mismo que en las otras partes, con más razón acá: **listá también lo que
 probaste y resultó correctamente bloqueado.** Un informe que sólo trae lo que
 falló no permite distinguir "está bien defendido" de "no lo miré".
+
+---
+
+# PARTE D — cuánto se espera, y qué se ve mientras tanto
+
+Corta. Seis pantallas, un número cada una. Se puede hacer intercalada con A y B
+—son las mismas pantallas— o al final.
+
+**Por qué existe.** Este repo tiene un fence que vigila el peso de dos rutas en
+bytes, y ninguna medición de cuánto tarda una pantalla en ser usable. **No es lo
+mismo.** Los bytes son un proxy: dicen cuánto hay que bajar, no cuánto espera
+una persona ni qué ve mientras espera. Hoy no existe una línea base, así que la
+próxima vez que alguien diga "esto está más lento" no vamos a tener contra qué
+compararlo. Esta parte crea esa línea base.
+
+Medido en el build actual, las pantallas más pesadas del producto rondan **1 MB**
+de JavaScript:
+
+| pantalla | JS | quién la abre |
+|---|---|---|
+| `/gob/directorio` · `/admin/directorio` | ~1031 KB | gobierno / admin, escritorio |
+| `/mis-mascotas/[token]` | ~1025 KB | **el dueño, en el teléfono** |
+| `/gob/panorama` · `/admin/panorama` | ~1024 KB | gobierno, escritorio |
+| `/admin/reglas/nueva` | ~973 KB | admin, escritorio |
+| `/libreta/compartir/[token]` | ~357 KB | un veterinario con un link |
+| `/p/[token]` | ~483 KB | **un desconocido en la calle** |
+
+Las dos en negrita son las que más importan y son las que nadie midió: la
+credencial pública es la promesa central del producto —cualquiera la abre desde
+un QR, con la red que tenga— y la página de la mascota es la que un dueño abre
+todas las semanas desde el celular.
+
+**Qué anotar, por pantalla:**
+
+1. **Cuántos segundos hasta poder usarla.** No hasta que "cargó" — hasta que
+   pudiste leer o tocar lo que fuiste a hacer. Cronómetro o estimación honesta:
+   más vale un "como 4 segundos" que ningún número.
+2. **Qué se ve mientras tanto.** Y esto importa tanto como el número: ¿esqueleto,
+   spinner, blanco, o contenido que salta de lugar cuando termina de cargar? Una
+   pantalla lenta que muestra que está trabajando se siente muy distinta de una
+   rápida que se queda en blanco. Si algo salta después de aparecer, decilo — es
+   lo que hace que la gente clickee el botón equivocado.
+3. **Si algo se sintió roto en vez de lento.** Es la única distinción que un
+   número no captura y una persona sí.
+
+**Hacelo en las dos condiciones que existen de verdad:** las dos pantallas en
+negrita **en teléfono** (390 px), y las de gobierno/admin en escritorio. Si tu
+navegador permite simular una red móvil, hacelo y decilo; si no, alcanza con
+anotar en qué red estabas. Un número sin la condición en que se tomó no sirve
+para comparar después.
+
+**No hace falta herramienta ni perfilado.** Esto no es una auditoría de
+rendimiento: son seis números y seis observaciones que hoy valen cero porque no
+existen. La auditoría, si hace falta, viene después y con esto como punto de
+partida.
+
+---
+
+# La segunda vuelta — dentro de dos semanas, sólo la parte A
+
+**Esto no se ejecuta hoy.** Queda escrito acá porque es la pieza que ningún
+informe suele traer, y la más barata de todas.
+
+Dentro de **dos semanas**, correr **sólo la parte A**, sin tocarle una coma, y
+comparar contra el informe de esta corrida. Cinco minutos.
+
+Sirve para lo único que hoy no sabemos: **si lo que arreglamos se queda
+arreglado.** Un arreglo verificado el día que se hizo prueba que el arreglo
+funcionó; no prueba que sobreviva a las tres semanas siguientes de cambios. La
+regresión silenciosa —la que reintroduce un bug sin romper ningún test— es
+justo la que ningún gate agarra, porque el gate prueba lo que alguien pensó en
+escribir.
+
+La parte A está escrita con el resultado esperado a la vista, así que se puede
+repetir tal cual, por cualquiera, sin contexto de esta sesión. Esa es la razón
+de que esté escrita así, además de la de evitar que se adivinen causas.
+
+**Regla:** si en la segunda vuelta un punto pasa de COINCIDE a NO COINCIDE, eso
+no es un hallazgo nuevo — es una **regresión**, y se trata distinto: primero
+buscar qué cambió entre las dos fechas, después el síntoma.
