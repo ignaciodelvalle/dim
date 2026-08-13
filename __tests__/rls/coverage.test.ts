@@ -23,6 +23,7 @@ import { sql } from "drizzle-orm";
 import { describe, expect, it } from "vitest";
 
 import { db } from "@/db";
+import { DENY_ALL_ALLOWLIST } from "../../scripts/check-rls-coverage";
 
 // ---------------------------------------------------------------------------
 // Designated PII / tenant-scoped tables — RLS MUST be enabled on each.
@@ -128,23 +129,21 @@ const RLS_REQUIRED: ReadonlyArray<string> = [
 // while being wide open. This set makes the zero-policy contract explicit.
 // Every entry is documented as deny-all in RLS_REQUIRED above.
 // ---------------------------------------------------------------------------
-const RLS_DENY_ALL: ReadonlyArray<string> = [
-  "rate_limit_buckets",
-  "_dim_migrations",
-  "govt_business_rules",
-  "jurisdictions_census",
-  "notification_dead_letter",
-  "panorama_cube",
-  "panorama_cube_meta",
-  "panorama_kpi_cube",
-  "panorama_kpi_cube_meta",
-  "case_events",
-  "organization_invitations",
-  "alert_firings",
-  "eno_processing_queue",
-  "event_notification_outbox",
-  "physical_tag_interest",
-];
+// UNA SOLA DEFINICIÓN (2026-08-13). Acá vivía una copia literal de 15 nombres
+// que había que mantener en sincronía a mano con DENY_ALL_ALLOWLIST de
+// scripts/check-rls-coverage.ts. Estaban idénticas —lo verifiqué antes de
+// tocarlas— pero dos listas de la misma cosa en dos archivos es una que se
+// olvida de un miembro nuevo, que es exactamente cómo las columnas de
+// jurisdicción y los buckets de storage se cayeron por el hueco.
+//
+// El script es la fuente porque además hace la INVERSIÓN que a esta lista le
+// falta: itera el catálogo y exige que TODA tabla con RLS y cero policies esté
+// declarada, así que una tabla deny-all nueva y no declarada ya falla en
+// `pnpm lint:rls`. Este test consume esa misma lista para verificar el otro
+// lado: que las declaradas efectivamente tengan cero policies.
+//
+// scripts/check-ledger-honesty.ts importa lo mismo por la misma razón.
+const RLS_DENY_ALL: ReadonlyArray<string> = Object.keys(DENY_ALL_ALLOWLIST);
 
 // ---------------------------------------------------------------------------
 // Deliberately NOT under RLS — non-PII reference / system data. Each entry
