@@ -62,6 +62,54 @@ tests que pasaban en verde SOBRE el bug que debían atrapar. Cuando evalúes un
 test, no preguntes si pasa — preguntá **qué tendría que romperse para que falle**,
 y si esa es realmente la condición que importa.
 
+Sumale una segunda pregunta que apareció midiendo de verdad: **¿qué fixture
+haría invisible este bug?** Un test de un barrido con UNA sola organización no
+puede ver un error de agrupado por organización, por más que assertee mucho. Si
+el fixture no tiene dos de la cosa que el código agrupa, el test no cubre el
+agrupado.
+
+---
+
+### Cuatro reglas que salieron de las dos pasadas anteriores
+
+Estas no son consejos: son fallas concretas que ya ocurrieron, incluida una de
+la revisión escrita para no cometerla.
+
+**1. El barrido de clase es obligatorio, no una opción.** La 1a pasada encontró
+tres de cinco buckets de storage con la misma policy permisiva porque razonó
+hacia afuera desde un archivo. La 2a fue escrita para corregir eso — y encontró
+su hallazgo #2 (INSERT anónimo en `welfare_reports`) leyendo el ledger de
+riesgos aceptados, otra vez sin enumerar la clase. Salió bien de casualidad: el
+barrido posterior mostró un solo hermano y era inofensivo.
+
+REGLA: cuando un hallazgo pertenece a una clase enumerable —policies, buckets,
+columnas caché, barridos, rutas públicas, funciones SECURITY DEFINER— el informe
+tiene que incluir la enumeración COMPLETA de la clase, aunque el hallazgo haya
+aparecido por otro camino. Y la enumeración va en el informe, no en tu cabeza:
+es lo que permite auditar tu cobertura en vez de confiar en ella.
+
+**2. Verificá la magnitud antes de proponer la causa.** Un crash de worker se
+atribuyó a un N+1 en un barrido sin medir la población: eran 45 filas en el
+test. El dato que importaba —32.428 filas en la tabla real— estaba a una query
+de distancia. Una historia que explica la evidencia no es evidencia. Si tu
+hallazgo depende de un volumen, medí el volumen.
+
+**3. Tu arreglo propuesto también tiene una premisa. Verificala.** La 2a pasada
+propuso borrar una policy diciendo "la app inserta por Drizzle". Era cierto —
+pero si hubiera sido falso, el fix rompía las denuncias anónimas en producción.
+Decí qué verificaste y qué asumiste, con la diferencia explícita.
+
+**4. Lo que enumeraste desde SQL versionado no es el estado de la base.** El
+Paso 1 de la 2a pasada concluyó "sin superficie SSRF: pg_net, http, dblink y
+pgjwt están ausentes (verificado)". `pg_net` ESTÁ instalado — lo pone la
+plataforma Supabase, no nuestras migraciones, así que un barrido del SQL del
+repo no puede verlo. El informe ya lo había anticipado en su sección de
+limitaciones, y la limitación mordió justo ahí.
+
+REGLA: si una conclusión de seguridad depende de que algo NO exista, decí contra
+qué lo verificaste. "No está en las migraciones" y "no está en la base" son
+afirmaciones distintas, y sólo una de las dos cierra el argumento.
+
 **Formato:** por hallazgo, archivo y línea, qué invariante viola, cómo se
 manifiesta para un usuario real, y qué tan seguro estás. Ordená por daño, no por
 cantidad. Listá explícitamente qué miraste y está bien. Un solo markdown, con el
