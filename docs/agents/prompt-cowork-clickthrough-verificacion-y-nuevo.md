@@ -4,9 +4,10 @@
 > commit a revisar. El SHA no está escrito acá a propósito: un documento con un
 > commit hardcodeado miente al día siguiente.
 >
-> **Esta pasada tiene DOS mitades y no se mezclan.** La parte A verifica arreglos
-> concretos, con un resultado esperado escrito de antemano. La parte B explora
-> lo que nadie recorrió. Se hacen en ese orden y se informan por separado.
+> **Esta pasada tiene TRES partes y no se mezclan.** La A verifica arreglos
+> concretos, con el resultado esperado escrito de antemano. La B explora lo que
+> nadie recorrió. La C pregunta si el servidor rechaza lo que la interfaz apenas
+> esconde. Se hacen en ese orden y se informan por separado.
 
 ---
 
@@ -202,6 +203,91 @@ en los números.
 pasado? ¿hiciste algo dos veces por no saber si salió? ¿hubo algún número que no
 le creíste? ¿qué pareció abandonado, inalcanzable o contradictorio?
 
-**Entregable:** un solo markdown con el SHA en el encabezado, **la parte A y la
-parte B en secciones separadas**, y la lista de lo no ejecutado al final. En la
-parte A, cada punto con COINCIDE / NO COINCIDE.
+**Entregable:** un solo markdown con el SHA en el encabezado, **las partes A, B
+y C en secciones separadas**, y la lista de lo no ejecutado al final. En la parte
+A, cada punto con COINCIDE / NO COINCIDE; en la C, cada caso diciendo si el
+rechazo vino del servidor o sólo de la interfaz.
+
+---
+
+# PARTE C — lo que el servidor permite cuando la UI escondió el botón
+
+Última, y sólo si te queda margen después de A y B.
+
+**Alcance y límites — leelos antes de tocar nada.** Esto es QA autorizado sobre
+el entorno de staging de este mismo producto, con las cuentas de prueba que
+vienen más arriba. Dentro de eso:
+
+- **Parás en la prueba.** Alcanza con mostrar que una acción fue aceptada o
+  rechazada. No hace falta —ni se quiere— extraer datos, listar registros
+  ajenos ni encadenar un acceso con otro.
+- **Nada destructivo.** No borres, no desactives cuentas, no revoques nada que
+  no hayas creado vos. Si un flujo llega a una confirmación irreversible,
+  describila y **cancelá**.
+- **Nada de carga.** Un intento por caso, no cien. No estamos midiendo si se
+  cae, estamos preguntando si valida.
+- Si algo **sí** pasa cuando no debería: anotalo con el detalle mínimo para
+  reproducirlo y **no sigas por esa puerta**.
+
+**Lo que NO hay que probar acá, porque ya lo cubren specs automáticos que corren
+en cada push:** un dueño abriendo la mascota de otro, tokens de mascota
+inventados, lectura directa contra PostgREST, un no-miembro entrando al portal
+de otra organización, y un dueño entrando a `/admin` o `/gob`. Todo eso da 404 o
+redirige, está testeado, y repetirlo a mano gasta la corrida.
+
+**La pregunta de esta parte es otra**, y es la que ninguna máquina está mirando:
+cuando la interfaz **esconde o deshabilita** una acción, ¿el servidor también la
+rechaza? Una UI que oculta un botón no es un control de acceso; es una
+sugerencia. La corrida anterior encontró un caso donde el servidor SÍ cumplía
+—el reporte profesional de maltrato exige adjunto y lo rechaza server-side
+aunque el campo dijera "opcional"— y eso es exactamente la forma que buscamos,
+en los dos sentidos.
+
+**C1 · El último administrador.** En `/cuenta/memberships`, `alejo@` es único
+admin de 3 organizaciones y el botón "Renunciar" aparece deshabilitado con un
+tooltip. En la cuarta, donde hay otro admin, sí se puede. Pregunta: ¿la
+protección vive sólo en el botón? Intentá renunciar en una de las tres
+bloqueadas por la vía que la interfaz no ofrece. **Esperado: el servidor lo
+rechaza.** Si lo acepta, una organización queda sin administrador y nadie puede
+volver a entrar a gestionarla.
+
+**C2 · Alcance jurisdiccional de gobierno.** `lucas@` es gobierno de 5
+localidades de CABA (Palermo, Puerto Madero, Recoleta, Retiro, San Nicolás).
+Conseguí el token de una mascota de OTRA provincia —las hay de Córdoba, Santa
+Fe, Chaco— y abrí `/gob/mascotas/[token]` con esa cuenta. **Esperado: no la ve.**
+Probá también una de CABA pero de un barrio fuera de esas cinco (Flores,
+Caballito, Belgrano). Ese es el borde fino: la subsunción de jurisdicción es el
+mecanismo que decide quién ve a quién, y un error ahí no se nota nunca desde
+adentro.
+
+**C3 · Aprobarse a uno mismo.** Las solicitudes de verificación (matrícula
+veterinaria, verificación de organización, credencial de perro de asistencia)
+las resuelve una autoridad, no quien las pide. Con una cuenta ciudadana, generá
+una solicitud y después intentá aprobarla vos. **Esperado: rechazado.**
+
+**C4 · Rol dentro de una organización.** Invitar miembros ofrece roles Admin,
+Coordinador, Miembro, Voluntario y Veterinario. La interfaz muestra distintas
+acciones según el rol. Con una cuenta de rol bajo, intentá una acción que la
+interfaz sólo le ofrece al admin de esa organización. **Esperado: rechazado.**
+
+**C5 · El link de libreta con vencimiento.** Generá uno desde
+`/mis-mascotas/[token]/mostrar-libreta`, comprobá que abre sin sesión, después
+**revocalo** y volvé a abrirlo. **Esperado: deja de funcionar en el acto.** Ese
+link expone historia clínica a cualquiera que lo tenga: si sobrevive a su
+revocación, la promesa de "revocable" es falsa.
+
+**C6 · La forma del error, que también dice cosas.** Cuando pediste algo que no
+te corresponde, ¿el sistema dijo "no existe" o "no es tuyo"? Las dos respuestas
+son defendibles y la elección tiene que ser deliberada: "no existe" no filtra si
+el recurso existe, pero confunde a un usuario legítimo que se equivocó de
+cuenta. Anotá qué pasó en cada caso — no como falla, como inventario.
+
+**Cómo informar la parte C.** Por caso: qué intentaste, con qué cuenta, qué
+respondió el sistema, y **si el rechazo vino del servidor o sólo de la
+interfaz**. Esa distinción es todo el valor de esta sección. Un "no se puede
+porque el botón está gris" y un "no se puede porque el servidor lo rechazó" se
+ven iguales en pantalla y son cosas opuestas.
+
+Y lo mismo que en las otras partes, con más razón acá: **listá también lo que
+probaste y resultó correctamente bloqueado.** Un informe que sólo trae lo que
+falló no permite distinguir "está bien defendido" de "no lo miré".
