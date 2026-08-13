@@ -58,12 +58,22 @@ const INTENTIONAL_UNCONDITIONAL_WRITES: Readonly<Record<string, string>> = {
   //
   // Este test es el que avisó que la excepción quedaba obsoleta al dropear la
   // policy — funcionó exactamente como está diseñado.
-  // Self-service pet registration — "Pets insertable by any authenticated user".
-  // A freshly-inserted pet row carries no PII and no ownership until the paired
-  // server action (Drizzle/BYPASSRLS) writes the ownerships row; an orphan pet
-  // with no ownership is inert. Owner mutation is separately owner-scoped.
-  "pets.INSERT":
-    "Authenticated self-service pet registration; a pet row with no ownerships row is inert and carries no PII.",
+  // pets.INSERT vivió acá hasta la migración 0175. Su justificación —"una fila
+  // recién insertada no tiene PII ni ownership, así que es inerte"— hablaba del
+  // DAÑO, no del USO: nunca dijo que la app la necesitara. Cuando la defensa de
+  // una apertura describe por qué no duele en vez de quién la usa, casi siempre
+  // es que no la usa nadie.
+  //
+  // Medido antes de borrarla: el cliente de browser se usa en 4 archivos y los
+  // cuatro sólo suben a storage; los tres caminos de alta escriben por Drizzle;
+  // ni e2e ni rls-smoke insertan en pets. Y matrix.data.ts YA declaraba
+  // `deny` para el INSERT de pets en los cuatro roles — la policy contradecía
+  // una intención que el repo tenía escrita, sin que nada lo cazara porque
+  // OPERATIONS_UNDER_TEST sólo prueba `select`.
+  //
+  // La allowlist quedó VACÍA a propósito. Si algún día vuelve a tener una
+  // entrada, que sea porque alguien pudo escribir qué la usa, no por qué no
+  // duele.
 };
 
 // ---------------------------------------------------------------------------
