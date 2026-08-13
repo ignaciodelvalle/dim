@@ -122,6 +122,23 @@ Do not spend time on the pool when chasing this; that ground is covered. And do
 not use "`--project db` alone is clean" as a green light — it is not a reliable
 signal any more. Read the counts.
 
+  Medición del 2026-08-13, suite completa, cuatro corridas seguidas, mismo
+  commit y misma máquina:
+
+  | corrida | archivos | tests | exit |
+  |---|---|---|---|
+  | 1 | 1240 | 14927 | 0 |
+  | 2 | 1239 | 14922 | 1 · `Worker exited unexpectedly` |
+  | 3 | 1239 | 14922 | 1 · idéntica a la 2 |
+  | 4 | 5028 suites | 14927 | 0 (`--reporter=json`, `success: true`) |
+
+  Dos de cuatro. Y una trampa que costó una hora: **las corridas 2 y 3 dieron
+  números IDÉNTICOS**, y de ahí se infirió "determinista, entonces lo rompió un
+  cambio reciente". No se sigue. Un crash con disparador consistente puede
+  repetir el mismo recuento sin ser reproducible siempre — la corrida 4, con
+  exactamente los mismos cambios, pasó entera. Antes de bisectar por un exit 1,
+  correr de nuevo: dos resultados iguales no son una prueba, son dos muestras.
+
 Run a single file (e.g. a new fence) without the full 12-minute suite:
 
 ```sh

@@ -426,10 +426,21 @@ describe("migrate runner e2e (local DB, scratch dir + table)", { timeout: 30_000
   });
 
   it("schema-populated guard: refuses apply when tracking is empty but sentinel table exists; allows baseline", async () => {
-    // Use a throwaway sentinel so we do not touch the real public.pets table.
-    const SENTINEL = "public._dim_e2e_guard_sentinel";
+    // Throwaway sentinel, so we do not touch the real public.pets table.
+    //
+    // Vive en su PROPIO SCHEMA y no en `public` (2026-08-13). Antes era
+    // `public._dim_e2e_guard_sentinel`, y el `finally` de abajo la borraba —
+    // salvo cuando el proceso muere de golpe (una corrida interrumpida, un
+    // kill). Ahí quedaba huérfana en `public` y hacía fallar `lint:rls`, que
+    // audita `public` y con razón exige RLS en cada tabla.
+    //
+    // La respuesta no es limpiar mejor ni relajar el fence: es que el andamio
+    // de test no viva donde el fence mira. Un fence que hay que enseñarle a
+    // ignorar cosas deja de ser un fence.
+    const SENTINEL = "_dim_e2e.guard_sentinel";
     const guardEnv = { DIM_SCHEMA_SENTINEL: SENTINEL };
 
+    await sql.unsafe("create schema if not exists _dim_e2e");
     await sql.unsafe(`create table if not exists ${SENTINEL} (id int primary key)`);
 
     try {
@@ -453,7 +464,7 @@ describe("migrate runner e2e (local DB, scratch dir + table)", { timeout: 30_000
       expect(statusRes.status).toBe(0);
       expect(statusRes.stdout).toContain("Pending        : 0");
     } finally {
-      await sql.unsafe(`drop table if exists ${SENTINEL}`);
+      await sql.unsafe("drop schema if exists _dim_e2e cascade");
     }
   });
 });

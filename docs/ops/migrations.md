@@ -201,3 +201,60 @@ Triage one-liner (shows all HIGH/CRITICAL advisory details as JSON):
 ```bash
 pnpm audit --json | jq '.advisories | to_entries[] | select(.value.severity == "high" or .value.severity == "critical") | .value | {id: .id, title: .title, module_name: .module_name, patched_versions: .patched_versions}'
 ```
+
+---
+
+## Un entorno nuevo no está listo hasta que se compara contra el repo
+
+Lo escribo acá porque el 2026-08-13 costó caro: **el repo describía una base que
+no existía.** Staging tenía 23 diferencias estructurales que ninguna lectura del
+código podía encontrar — objetos que migraciones habían borrado y ese entorno
+nunca ejecutó, cinco reglas con dos nombres distintos, y dos columnas muertas.
+
+Una de esas diferencias rompía un flujo legal: `approval_type_valid` aceptaba
+`service_dog_credential_verification` en staging y **no** en una base construida
+desde las migraciones, mientras el código inserta ese valor. La solicitud de
+credencial de perro de asistencia (Ley 26.858) andaba sólo porque alguien había
+parcheado la constraint a mano.
+
+### El comando
+
+```bash
+# La REFERENCIA es un local recién bootstrapeado: la única base que sí
+# representa lo que el repo dice. El DESTINO es el entorno del que se sospecha.
+DATABASE_URL="<url-del-entorno>" pnpm db:drift --allow-remote
+```
+
+Compara **columnas**, CHECK constraints, índices y constraints de unicidad, por
+nombre y por definición. Sale 0 si no hay deriva, 7 si hay.
+
+La categoría que hay que mirar primero es **MISMO NOMBRE, DEFINICIÓN DISTINTA**:
+las dos bases creen tener la misma regla y no la tienen. Es la que rompió el
+flujo de arriba, y es la misma trampa que hizo que la migración 0172 dijera "ok"
+sin hacer nada — `DROP ... IF EXISTS` por un nombre que ese entorno no usa.
+
+### Cuándo correrlo
+
+- **Al levantar un entorno nuevo**, antes de darlo por bueno. Un `db:bootstrap`
+  que termina sin error no prueba que el resultado sea el que el repo declara.
+- **Después de aplicar migraciones a un entorno remoto.** Verificar el efecto,
+  no el `ok`. Un `DROP ... IF EXISTS` que no encuentra el nombre reporta éxito.
+- **Cuando algo anda en un entorno y no en otro.** Es el primer comando, no el
+  último: responde en segundos una pregunta que a mano lleva horas.
+
+### Y los catálogos
+
+```bash
+DATABASE_URL="<url-del-entorno>" pnpm db:catalogs --allow-remote
+```
+
+Verifica que todo valor guardado de raza y especie esté en su catálogo. Corre
+además dentro de `pnpm verify` y en CI (`lint:catalogs`). Existe porque la raza
+era texto libre y **dos perros que la ley alcanza estaban sin marcar** por cómo
+se escribieron: `"Pit Bull Terrier Americano"` y `"Ovejero alemán"`.
+
+### Lo que estos dos comandos NO hacen
+
+No miran datos más allá de esos catálogos, ni RLS (eso es `pnpm lint:rls`), ni
+funciones, triggers o vistas. Un `✓` de `db:drift` dice que la estructura
+coincide — no que el entorno esté sano. Es un piso, no un veredicto.
