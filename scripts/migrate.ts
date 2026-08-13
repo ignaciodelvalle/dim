@@ -105,6 +105,8 @@ import path from "node:path";
 import { config as loadEnv } from "dotenv";
 import postgres from "postgres";
 
+import { describeTarget } from "./_db-target";
+
 loadEnv({ path: ".env.local" });
 loadEnv({ path: ".env" });
 
@@ -347,6 +349,26 @@ async function main(): Promise<void> {
     );
     process.exit(2);
   }
+
+  // A QUÉ BASE, ANTES DE TOCARLA.
+  //
+  // Este script hace lo más irreversible del repo y era el ÚNICO que no decía
+  // dónde estaba parado: los seeds y repair:dni imprimen su destino desde
+  // 5bee0f27, migrate.ts no. Al aplicar a staging el 2026-08-13 hubo que
+  // comparar los refs a mano contra NEXT_PUBLIC_SUPABASE_URL porque la
+  // herramienta no lo mostraba — un paso manual justo antes de la operación que
+  // menos admite equivocarse de destino.
+  //
+  // El ref importa más que el host: los dos proyectos Supabase de la cuenta
+  // comparten el mismo pooler, así que el host solo no distingue producción de
+  // staging. describeTarget lo recupera del usuario de la URL.
+  const target = describeTarget(DATABASE_URL);
+  console.log("");
+  console.log(`  Destino: ${target.label}${target.isLocal ? "  [LOCAL]" : "  [REMOTO]"}`);
+  if (target.parseError) {
+    console.log(`  (no se pudo parsear la URL: ${target.parseError})`);
+  }
+  console.log("");
 
   const allFiles = listMigrationFiles(MIGRATIONS_DIR);
   const diskChecksums = new Map<string, string>();

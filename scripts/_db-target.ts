@@ -39,9 +39,37 @@ export type DbTarget = {
   label: string;
   host: string;
   isLocal: boolean;
+  /**
+   * Ref del proyecto Supabase, cuando la URL lo trae.
+   *
+   * POR QUÉ EL HOST NO ALCANZA (2026-08-13): la cuenta tiene DOS proyectos
+   * —producción y staging— y los dos se conectan por el MISMO host de pooler,
+   * `aws-1-sa-east-1.pooler.supabase.com`. Así que `label` era literalmente
+   * idéntico para los dos, y "Database looked at: …" no respondía la única
+   * pregunta que existe para responder: ¿cuál de las dos?
+   *
+   * El commit 5bee0f27 arregló exactamente esto para los seeds y repair:dni,
+   * pero no llegó a este helper — el mismo patrón "el fix no alcanzó al
+   * hermano" que este repo viene encontrando. Se notó al migrar staging: hubo
+   * que comparar los refs a mano porque ninguna herramienta lo imprimía.
+   *
+   * El ref viaja en el usuario de la URL del pooler (`postgres.<ref>`), que el
+   * strip de credenciales se lleva puesto, y también en `db.<ref>.supabase.co`.
+   */
+  projectRef: string | null;
   /** Set when the URL could not be parsed at all. */
   parseError: string | null;
 };
+
+/** Recupera el ref del proyecto de las tres formas en que Supabase lo expone. */
+function extractProjectRef(u: URL): string | null {
+  // Pooler: postgres://postgres.<ref>:<pass>@aws-…pooler.supabase.com
+  const fromUser = u.username.match(/^postgres\.([a-z0-9]+)$/)?.[1];
+  if (fromUser) return fromUser;
+  // Conexión directa: db.<ref>.supabase.co  |  <ref>.supabase.co
+  const fromHost = u.hostname.match(/^(?:db\.)?([a-z0-9]{20})\.supabase\.co$/)?.[1];
+  return fromHost ?? null;
+}
 
 /**
  * Describe the target database WITHOUT connecting and WITHOUT ever echoing a
@@ -53,10 +81,15 @@ export function describeTarget(rawUrl: string): DbTarget {
     const host = u.hostname.toLowerCase();
     const port = u.port === "" ? "5432" : u.port;
     const database = u.pathname.replace(/^\//, "") || "(default)";
+    const projectRef = extractProjectRef(u);
     return {
-      label: `${host}:${port}/${database}`,
+      // El ref va en el label porque el label es lo que se imprime en TODOS los
+      // mensajes de skip y de veredicto. Sin él, dos bases distintas producen
+      // exactamente la misma línea.
+      label: `${host}:${port}/${database}${projectRef ? `  ref=${projectRef}` : ""}`,
       host,
       isLocal: LOCAL_HOSTS.has(host),
+      projectRef,
       parseError: null,
     };
   } catch (err) {
@@ -64,6 +97,7 @@ export function describeTarget(rawUrl: string): DbTarget {
       label: "(unparseable DATABASE_URL)",
       host: "(unparseable)",
       isLocal: false,
+      projectRef: null,
       parseError: err instanceof Error ? err.message : String(err),
     };
   }
