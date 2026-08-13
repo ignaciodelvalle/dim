@@ -157,7 +157,7 @@ export async function proposeFoster(
       pendingNotifications.push({
         userId: input.volunteerUserId,
         notificationType: "foster_proposal_received",
-        severity: "info",
+        severity: "warning",
         title: `${organization.displayName} te propuso un tránsito`,
         body: `Mascota: ${pet.name}. Revisá los detalles y aceptá o rechazá.`,
         ctaLabel: "Ver propuesta",

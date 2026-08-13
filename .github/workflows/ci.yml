@@ -495,24 +495,29 @@ jobs:
         run: pnpm seed:panorama && pnpm cube:refresh
 
       - name: Lint (DB-backed security fences)
-        # The three fences in `pnpm verify` that need a real database. They live
-        # in this job and not in `check` because a DB-less box makes all three
-        # skip — honestly, and loudly, but a skip proves nothing. Here, right
-        # after bootstrap, they run against the same schema the tests will use.
+        # The DB-backed fences in `pnpm verify`. They live in this job and not in
+        # `check` because a DB-less box makes them all skip — honestly, and
+        # loudly, but a skip proves nothing. Here, right after bootstrap, they
+        # run against the same schema the tests will use.
         #
         #   lint:rls         every public table has RLS + at least one policy
         #   lint:scope-authz the jurisdiction WHERE-clauses are backed by RLS
         #   lint:spine       no pet exists as a cache row without its
         #                    pet_registered event (invariant #3)
         #   lint:locality    the INDEC locality catalogue is internally coherent
+        #   lint:catalogs    every stored breed/species value is in its catalog
+        #                    (2026-08-13: raza era texto libre y dos perros que
+        #                    la ley alcanza estaban sin marcar por cómo se
+        #                    escribieron — "Pit Bull Terrier Americano" y
+        #                    "Ovejero alemán")
         #
-        # These three close the DB-backed half of the CI ↔ `pnpm verify` drift.
+        # These close the DB-backed half of the CI ↔ `pnpm verify` drift.
         # The offline half is still open and is WIDER than it looks: measured
         # 2026-07-27, `verify` runs 43 lints and this workflow runs 14 of them.
         # See docs/plans/ola1-spec-conflicts.md §SC-1 for the list and why
         # closing it was left out of this batch. When you add a lint to
         # `verify`, add it here or to `check` — the parity is the whole point.
-        run: pnpm lint:rls && pnpm lint:scope-authz && pnpm lint:spine && pnpm lint:locality
+        run: pnpm lint:rls && pnpm lint:scope-authz && pnpm lint:spine && pnpm lint:locality && pnpm lint:catalogs
 
       - name: Run tests with coverage (vitest) + suite verdict
         # Coverage-threshold enforcement (V1-9). The thresholds in

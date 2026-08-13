@@ -131,7 +131,7 @@ export default async function OrgNuevaDenunciaPage({
         }
       />
 
-      <WelfareReportForm action={boundAction} isAnonymous={false} />
+      <WelfareReportForm action={boundAction} isAnonymous={false} evidenceRequired />
 
       <footer className="pt-4 border-t border-ln-op-line">
         <p className="text-sm text-ln-op-mute">

@@ -199,7 +199,7 @@ export async function transferCustody(
         pendingNotifications.push({
           userId: r.userId,
           notificationType: "cross_org_transfer_proposed_receiver",
-          severity: "info",
+          severity: "warning",
           title: `Propuesta de transferencia entrante para ${petRow.pet.name}`,
           body: `${organization.displayName} propone transferirte a ${petRow.pet.name} (${
             toRole === "shelter_custody" ? "custodia temporal" : "dueño permanente"

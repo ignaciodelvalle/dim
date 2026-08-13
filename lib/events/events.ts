@@ -392,11 +392,22 @@ export function eventPayloadSummary(eventType: string, payload: unknown): EventP
     case "clinical_info_logged": {
       const subKind = str("sub_kind");
       const title = str("title");
+      // One entry per sub_kind in `clinicalInfoLogged` (lib/events/event-schemas.ts).
+      // The schema had SEVEN and this map had five, so `disease_diagnosis` and
+      // `pregnancy` fell through the `?? subKind` fallback and printed a raw
+      // English identifier into a Spanish medical record: the staging
+      // clickthrough of 2026-08-13 read "Información clínica · pregnancy" in a
+      // pet's timeline. The fallback is what made it silent — it produces
+      // something plausible-looking for anything, so a missing label never
+      // looks like a bug. `__tests__/clinical-sub-kind-labels.test.ts` now
+      // fails if the two lists drift apart again.
       const subKindLabels: Record<string, string> = {
         lab_work: "Laboratorio",
         imaging: "Imagen",
         surgery: "Cirugía",
         allergy_detection: "Alergia",
+        disease_diagnosis: "Diagnóstico",
+        pregnancy: "Embarazo",
         other: "Otro",
       };
       const subKindLabel = subKind ? (subKindLabels[subKind] ?? subKind) : null;

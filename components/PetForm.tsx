@@ -20,7 +20,12 @@ import { LnField, LnInput, LnSelect } from "@/components/ui/Field";
 import { LnToggle } from "@/components/ui/Toggle";
 import type { Pet } from "@/db";
 import { provinceByName } from "@/lib/reference/ar-provincias";
-import { breedsForSpecies, isPotentiallyDangerousBreed } from "@/lib/reference/breeds";
+import {
+  breedListIncludes,
+  breedsForSpecies,
+  isPotentiallyDangerousBreed,
+  resolveBreedLabel,
+} from "@/lib/reference/breeds";
 import {
   COMMON_ALLERGIES,
   COMMON_FOODS,
@@ -160,7 +165,18 @@ export function PetForm({
     });
   }
 
-  const breedOptions = useMemo(() => breedsForSpecies(species), [species]);
+  // Catalog options for the breed SELECT (2026-08-13: the field stopped being
+  // free text — see the field below for why).
+  //
+  // A breed already on file that is NOT in the catalog is appended as its own
+  // option. Without that, a <select> whose value matches no <option> renders
+  // blank and the next save WIPES a recorded breed — turning a data-quality fix
+  // into data loss. Legacy values stay selectable and stay saved.
+  const breedOptions = useMemo(() => {
+    const catalog = breedsForSpecies(species);
+    const current = breed.trim();
+    return current && !catalog.includes(current) ? [...catalog, current] : catalog;
+  }, [species, breed]);
   // Inline "raza peligrosa" warning. When the page threads the jurisdiction-
   // resolved `ppp_breed_list` down (2026-07-04), a breed a locality ADDED via
   // the admin console is flagged too; without it we fall back to the static
@@ -171,7 +187,12 @@ export function PetForm({
   const breedIsDangerous = useMemo(() => {
     const trimmed = breed.trim();
     if (species !== "dog" || !trimmed) return false;
-    if (pppBreedList) return pppBreedList.some((b) => b.trim() === trimmed);
+    // Normalised comparison, NOT `b.trim() === trimmed`. Exact equality here is
+    // the same defect that let "Pitbull" escape the PPP regime server-side; a
+    // warning that disagrees with the classification is worse than no warning,
+    // because the owner reads it as confirmation that the regime does not apply.
+    const resolved = resolveBreedLabel(trimmed) ?? trimmed;
+    if (pppBreedList) return breedListIncludes(pppBreedList, resolved);
     return isPotentiallyDangerousBreed(species, breed);
   }, [species, breed, pppBreedList]);
 
@@ -424,25 +445,34 @@ export function PetForm({
                   : undefined
               }
             >
+              {/* CATÁLOGO, no texto libre (PO, 2026-08-13).
+                  Era un <input list="breed-options">, o sea un datalist: sugiere
+                  y acepta cualquier cosa. Medido en staging ese día: 69 mascotas
+                  con raza cargada en 44 valores distintos, 34 usados una sola
+                  vez. Y una de esas filas era "Pit Bull Terrier Americano" SIN
+                  marcar como PPP, mientras un perro idéntico en otro barrio de
+                  la misma ciudad sí lo estaba — bajo la misma ley. Lo que decidía
+                  si el régimen te alcanza era cómo lo tipeó el dueño.
+                  La raza define un régimen legal; no puede depender de la
+                  ortografía. */}
               {({ id, describedBy }) => (
-                <LnInput
+                <LnSelect
                   id={id}
                   name="breed"
-                  type="text"
-                  list="breed-options"
                   value={breed}
                   onChange={(e) => setBreed(e.target.value)}
-                  placeholder={species ? "Empezá a tipear o elegí…" : "Elegí especie primero"}
                   disabled={!species}
                   aria-describedby={describedBy}
-                />
+                >
+                  <option value="">{species ? "Elegí una raza…" : "Elegí especie primero"}</option>
+                  {breedOptions.map((b) => (
+                    <option key={b} value={b}>
+                      {b}
+                    </option>
+                  ))}
+                </LnSelect>
               )}
             </LnField>
-            <datalist id="breed-options">
-              {breedOptions.map((b) => (
-                <option key={b} value={b} />
-              ))}
-            </datalist>
 
             {breedIsDangerous && (
               <LnCallout tone="warn" title="Raza potencialmente peligrosa">

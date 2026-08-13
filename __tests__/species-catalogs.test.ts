@@ -25,13 +25,32 @@ describe("breedsForSpecies — companion species", () => {
     expect(breedsForSpecies("dog").length).toBeGreaterThan(10);
     expect(breedsForSpecies("cat").length).toBeGreaterThan(5);
   });
-  it("rabbit/guinea_pig/ferret return only the SPECIAL options, as a literal list", () => {
+  it("ferret still returns only the SPECIAL options, as a literal list", () => {
     // Literal array (audit 2026-07): the former length-equality assertion
     // could not tell "both correct" apart from "both equally wrong".
     const SPECIAL_ONLY = ["Mixto / Cruza", "Pura raza no listada"];
-    expect(breedsForSpecies("rabbit")).toEqual(SPECIAL_ONLY);
-    expect(breedsForSpecies("guinea_pig")).toEqual(SPECIAL_ONLY);
     expect(breedsForSpecies("ferret")).toEqual(SPECIAL_ONLY);
+    expect(breedsForSpecies("other")).toEqual(SPECIAL_ONLY);
+  });
+
+  it("rabbit/guinea_pig now have their own catalogs", () => {
+    // CAMBIO DE CONTRATO respecto del spec 2026-05-17 (additional-species-design),
+    // que preveía degradar a sólo-especiales para toda especie fuera de perro y
+    // gato. Ese spec se escribió sin datos. Con datos: staging tenía "Conejo
+    // común" y "Cobayo americano" — dos razas reales que no tenían dónde caer,
+    // así que quedaban como texto libre indefinidamente. No era que el dato
+    // estuviera mal; era que faltaba el catálogo.
+    //
+    // Decisión del PO (2026-08-13): usar catálogo siempre que se pueda. Hurón
+    // sigue degradando porque no apareció un solo dato que justifique inventarle
+    // una lista — el criterio es la evidencia, no la simetría.
+    expect(breedsForSpecies("rabbit")).toContain("Común");
+    expect(breedsForSpecies("guinea_pig")).toContain("Americano");
+    // Las especiales siguen primero: son la salida honesta cuando no se sabe.
+    expect(breedsForSpecies("rabbit").slice(0, 2)).toEqual([
+      "Mixto / Cruza",
+      "Pura raza no listada",
+    ]);
   });
 });
 

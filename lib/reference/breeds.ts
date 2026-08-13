@@ -6,9 +6,24 @@
 // `pets.potentially_dangerous_breed = true` so projections and the eventual
 // dangerous_breed_attested flow can find them quickly.
 //
-// Breed names are stored as free text on `pets.breed`. The lists below
-// populate the autocomplete <datalist> on the new-pet form. Users can also
-// type a breed not in the list — we just don't get the auto-flag if so.
+// `pets.breed` USED to be free text: the lists below only populated a
+// <datalist>, and the header said "users can also type a breed not in the list
+// — we just don't get the auto-flag if so". That sentence described a legal
+// regime you could opt out of by spelling. On 2026-08-13 it had already
+// happened: a dog recorded as "Pit Bull Terrier Americano" sat unflagged while
+// an identical dog in the next barrio, under the same law, was flagged.
+//
+// The field is now a CATALOG SELECT (components/PetForm.tsx) and the stored
+// values are normalised to these labels (scripts/repair-breeds.ts), so a breed
+// off this list is a defect, not a shrug. `scripts/check-catalog-drift.ts`
+// fails when one appears.
+//
+// Adding a breed here is cheap and expected — the alternative is flattening a
+// real animal into "Pura raza no listada", which destroys information. Seven
+// breeds were added on 2026-08-13 for exactly that reason (Shiba Inu, Cairn
+// Terrier, Gran Danés, San Bernardo, Pastor Australiano, Pastor Suizo Blanco,
+// Spinone Italiano). Adding to POTENTIALLY_DANGEROUS_DOG_BREEDS is NOT cheap:
+// that set is the law's, not ours.
 
 export const SPECIAL_BREED_OPTIONS = ["Mixto / Cruza", "Pura raza no listada"] as const;
 
@@ -24,34 +39,41 @@ export const DOG_BREEDS = [
   "Bulldog Francés",
   "Bulldog Inglés",
   "Bullmastiff",
+  "Cairn Terrier",
   "Cane Corso",
   "Caniche",
   "Chihuahua",
   "Cocker Spaniel",
   "Collie",
-  "Dálmata",
   "Doberman",
   "Dogo Argentino",
   "Dogo Canario (Presa Canario)",
+  "Dálmata",
   "Fila Brasileiro",
   "Galgo",
   "Golden Retriever",
+  "Gran Danés",
   "Husky Siberiano",
   "Jack Russell Terrier",
   "Labrador",
   "Maltés",
   "Mastín Napolitano",
   "Pastor Alemán",
+  "Pastor Australiano",
   "Pastor Belga",
+  "Pastor Suizo Blanco",
   "Pequinés",
   "Pit Bull Terrier",
   "Pomerania",
   "Pug",
   "Rottweiler",
   "Salchicha (Dachshund)",
+  "San Bernardo",
   "Schnauzer",
   "Setter",
+  "Shiba Inu",
   "Shih Tzu",
+  "Spinone Italiano",
   "Staffordshire Bull Terrier",
   "Tosa Inu",
   "Yorkshire Terrier",
@@ -74,6 +96,24 @@ export const CAT_BREEDS = [
   "Siamés",
   "Sphynx",
 ];
+
+// Conejo y cobayo no tenían catálogo: `breedsForSpecies` devolvía sólo las dos
+// opciones especiales, así que "Conejo común" y "Cobayo americano" —dos filas
+// reales de staging, dos razas de verdad— no tenían dónde caer. Listas de
+// arranque, cortas a propósito y pensadas para crecer cuando aparezcan datos:
+// agregar una entrada acá es barato, aplastar un animal a "Pura raza no
+// listada" no se deshace.
+export const RABBIT_BREEDS = [
+  "Angora",
+  "Belier (Lop)",
+  "Cabeza de León",
+  "Común",
+  "Gigante de Flandes",
+  "Holandés enano",
+  "Mini Rex",
+];
+
+export const GUINEA_PIG_BREEDS = ["Abisinio", "Americano", "Coronet", "Peruano", "Rex", "Sheltie"];
 
 export const POTENTIALLY_DANGEROUS_DOG_BREEDS: ReadonlySet<string> = new Set([
   "Akita Inu",
@@ -134,14 +174,26 @@ export function normalizeBreedKey(breed: string): string {
 /**
  * Colloquial Argentine names → the catalog label they mean.
  *
- * Keys are already normalised. Every value MUST be a label that appears in
- * `DOG_BREEDS`, so an alias can never invent a breed — it only spells an
- * existing one the way people actually write it.
+ * Keys are already normalised. Every value MUST be a label that appears in one
+ * of the catalogs, so an alias can never invent a breed — it only spells an
+ * existing one the way people actually write it. Guarded by
+ * `breeds-matching.test.ts`, which fails if a value falls off the catalogs.
+ *
+ * Not only PPP: "Ovejero Alemán" is what most of Argentina calls a Pastor
+ * Alemán, and it appeared twice in staging under two different capitalisations.
  */
-const PPP_BREED_ALIASES: Readonly<Record<string, string>> = {
+const BREED_ALIASES: Readonly<Record<string, string>> = {
   pitbull: "Pit Bull Terrier",
   pitbullamericano: "American Pit Bull Terrier",
   americanpitbull: "American Pit Bull Terrier",
+  // Castellanised word order. Found UNFLAGGED in staging on 2026-08-13 — a real
+  // dog in CABA/Palermo whose breed reads "Pit Bull Terrier Americano" and
+  // whose potentially_dangerous_breed was false, while an identical dog in
+  // CABA/Recoleta was flagged. Under the same law. This entry is also the
+  // clearest argument that a curated list is a stopgap: nothing about the
+  // matcher predicted this spelling, a human had to find it in the data.
+  pitbullterrieramericano: "American Pit Bull Terrier",
+  terrieramericanopitbull: "American Pit Bull Terrier",
   amstaff: "American Staffordshire Terrier",
   americanstaffordshire: "American Staffordshire Terrier",
   staffordshire: "Staffordshire Bull Terrier",
@@ -158,6 +210,26 @@ const PPP_BREED_ALIASES: Readonly<Record<string, string>> = {
   rottweilers: "Rottweiler",
   akita: "Akita Inu",
   tosa: "Tosa Inu",
+
+  // No-PPP: nombres coloquiales o comerciales que aparecieron en los datos
+  // reales de staging. Ninguno cambia la clasificación legal de nada.
+  ovejeroaleman: "Pastor Alemán",
+  ovejero: "Pastor Alemán",
+  pastoralemanovejero: "Pastor Alemán",
+  canichetoy: "Caniche",
+  poodle: "Caniche",
+  salchicha: "Salchicha (Dachshund)",
+  dachshund: "Salchicha (Dachshund)",
+  labradorretriever: "Labrador",
+  greyhound: "Galgo",
+  galgogreyhound: "Galgo",
+  roughcollie: "Collie",
+  scotchcollie: "Collie",
+  grandanes: "Gran Danés",
+  pastoraustralianoblueheeler: "Pastor Australiano",
+  blueheeler: "Pastor Australiano",
+  conejocomun: "Común",
+  cobayoamericano: "Americano",
 };
 
 /**
@@ -168,13 +240,29 @@ const PPP_BREED_ALIASES: Readonly<Record<string, string>> = {
 export function resolveBreedLabel(breed: string): string | null {
   const key = normalizeBreedKey(breed);
   if (!key) return null;
-  const alias = PPP_BREED_ALIASES[key];
+  const alias = BREED_ALIASES[key];
   if (alias) return alias;
-  for (const candidate of DOG_BREEDS) {
+  // Los TRES catálogos, no sólo el de perros. Buscar únicamente en DOG_BREEDS
+  // dejaba sin resolver toda raza de gato ("Común europeo", 6 filas en staging)
+  // y las dos opciones especiales — que son valores perfectamente válidos.
+  for (const candidate of ALL_BREEDS) {
     if (normalizeBreedKey(candidate) === key) return candidate;
   }
   return null;
 }
+
+/**
+ * Toda etiqueta de raza válida, de cualquier especie. Es la referencia del
+ * auditor de catálogo y del reparador: un valor guardado fuera de este conjunto
+ * es un defecto, no una variante.
+ */
+export const ALL_BREEDS: readonly string[] = [
+  ...SPECIAL_BREED_OPTIONS,
+  ...DOG_BREEDS,
+  ...CAT_BREEDS,
+  ...RABBIT_BREEDS,
+  ...GUINEA_PIG_BREEDS,
+];
 
 /** True when `label` is in `list`, compared by normalised key. */
 export function breedListIncludes(list: Iterable<string>, label: string): boolean {
@@ -199,6 +287,15 @@ export function isPotentiallyDangerousBreed(
 // pulling in `db` via the business-rules-resolver.
 
 export function breedsForSpecies(species: string): string[] {
-  const named = species === "cat" ? CAT_BREEDS : species === "dog" ? DOG_BREEDS : [];
+  const named =
+    species === "cat"
+      ? CAT_BREEDS
+      : species === "dog"
+        ? DOG_BREEDS
+        : species === "rabbit"
+          ? RABBIT_BREEDS
+          : species === "guinea_pig"
+            ? GUINEA_PIG_BREEDS
+            : [];
   return [...SPECIAL_BREED_OPTIONS, ...named];
 }

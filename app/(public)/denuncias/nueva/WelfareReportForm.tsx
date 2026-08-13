@@ -71,9 +71,20 @@ type EvidenceFile = {
 export function WelfareReportForm({
   action,
   isAnonymous,
+  evidenceRequired = false,
 }: {
   action: FormAction;
   isAnonymous: boolean;
+  /**
+   * The professional channel (`/org/[t]/maltrato/nuevo`) REQUIRES at least one
+   * attachment, and the server enforces it: "Un reporte profesional requiere al
+   * menos un adjunto de evidencia." The page header said "Mínimo 1 archivo de
+   * evidencia" while this shared field rendered the "opcional" suffix right
+   * below it — the same screen contradicting itself (staging clickthrough,
+   * 2026-08-13). Not derivable from `isAnonymous`: a logged-in citizen on the
+   * public form is also non-anonymous and does NOT owe evidence.
+   */
+  evidenceRequired?: boolean;
 }) {
   const [subjectKind, setSubjectKind] = useState<string>("unowned_animal");
   const [description, setDescription] = useState("");
@@ -321,7 +332,8 @@ export function WelfareReportForm({
           handles label/id/hint wiring; evidenceError surfaces as the field error. */}
       <LnField
         label="Evidencia"
-        hint={`Hasta ${MAX_EVIDENCE_FILES} archivos, 25 MB cada uno. Imágenes (JPG, PNG, WebP, HEIC, GIF) y videos (MP4, WebM, MOV).`}
+        required={evidenceRequired}
+        hint={`${evidenceRequired ? "Al menos 1 archivo. " : ""}Hasta ${MAX_EVIDENCE_FILES} archivos, 25 MB cada uno. Imágenes (JPG, PNG, WebP, HEIC, GIF) y videos (MP4, WebM, MOV).`}
         error={evidenceError ?? undefined}
       >
         {({ id }) => (

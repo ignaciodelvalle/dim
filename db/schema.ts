@@ -820,6 +820,14 @@ export const pets = pgTable(
       "pets_jurisdiction_province_canonical",
       sql`${table.jurisdictionProvince} is null or ${table.jurisdictionProvince} in ${CANONICAL_PROVINCE_SQL_LIST}`,
     ),
+    // Migration 0178. `species` gates the entire PPP regime
+    // (`isPotentiallyDangerousBreed` returns false for anything but 'dog'), so a
+    // 'Perro' or a 'DOG' switches a legal regime off in silence. Values from
+    // lib/utils/species.ts, the single source of truth for the labels.
+    petsSpeciesValid: check(
+      "pets_species_valid",
+      sql`${table.species} in ('dog', 'cat', 'rabbit', 'guinea_pig', 'ferret', 'other')`,
+    ),
   }),
 );
 

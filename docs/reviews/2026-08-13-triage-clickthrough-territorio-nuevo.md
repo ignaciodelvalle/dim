@@ -31,7 +31,7 @@ Verificación: código en `fac92e19` + consultas **read-only** a la base de stag
 
 | # | Reportado | Medido |
 |---|---|---|
-| B2·3 | "El cron de materialización no corre en staging" | **Corre todos los días y devuelve `ok`** — 41 corridas, la última 13-ago 04:15:44Z. Pero insertó **0 slots el 12-ago** (y el 4, 5 y 6), y **no corrió el 7 ni el 8**. El horizonte avanza de a un día y se atrasa. Ver RAÍZ E. |
+| B2·3 | "El cron no corre en staging; los slots no existían" | **Falso en las dos mitades, y la segunda medición corrigió a la primera.** El cron corre a diario y devuelve `ok` (41 corridas). Y al momento del test la campaña tenía **688 turnos futuros** — el horizonte es de **+60 días**, así que un día con `slotsInserted: 0` es normal, no un atasco. Lo que el agente vio en la agenda del día no se explica con estos datos y **no se toca**: ver "Lo que NO vamos a arreglar". |
 | B7·2 | "Nadie cierra casos (584 abiertos)" | **813 cerrados**, 499 abiertos, 88 escalados. El 58% se cierra. La inferencia salió de un caso QA viejo. |
 
 ### No es bug — guard correcto, probado mal
@@ -102,11 +102,18 @@ rotula el campo "opcional". El antiparasitario muestra "Vía Oral" sin haberla
 preguntado nunca. El historial dice "Información clínica · pregnancy". El portal
 GOB se encabeza "ADMIN · VIGILANCIA".
 
-### RAÍZ E — El horizonte de materialización se atrasa sin avisar
+### RAÍZ E — retirada. No existe.
 
-El cron corre y devuelve `ok` con `slotsInserted: 0`. Un `ok` que no produjo nada
-es indistinguible de un `ok` que sí, y nadie mira. Días sin inserción: 4, 5, 6 y
-12 de agosto; sin corrida: 7 y 8.
+Esta sección decía que el horizonte de materialización se atrasaba, a partir de
+los `slotsInserted: 0` del 4, 5, 6 y 12 de agosto. **Estaba mal, y la que se
+equivocó fue esta misma hoja**: medí las corridas del cron antes de medir los
+datos. El horizonte es de **+60 días** y la campaña tenía **688 turnos futuros**
+en el momento exacto del test. Con una ventana de 60 días y reglas semanales, un
+día que no inserta nada es lo esperado, no un síntoma.
+
+Queda como recordatorio de que un número solo (`slotsInserted: 0`) no es un
+hallazgo hasta que sabés contra qué compararlo. Lo que el agente vio en la agenda
+de un día puntual sigue sin explicación, y por eso no se toca.
 
 ---
 
@@ -133,9 +140,14 @@ Orden por daño, no por esfuerzo.
 
 5. **C1 · Reclasificar severidades por urgencia, no por tono.** Empezar por
    `foster_proposal_received` → `warning`. Auditar todo tipo con vencimiento.
-6. **E1 · Que el cron de materialización avise cuando no materializa nada**, y
-   revisar el horizonte para que un día perdido no deje una campaña sin turnos.
-7. **Link del adoptante al check-in.** La página existe y es correcta; nadie llega.
+6. **Link del adoptante al check-in.** La página existe y es correcta; nadie llega.
+
+### Lo que NO vamos a arreglar
+
+- **El cron de materialización.** Ver RAÍZ E: la hipótesis era mía y la medición
+  la desmintió. 688 turnos futuros, horizonte de 60 días. No hay defecto que
+  arreglar, y escribir un fix igual sería peor que no hacer nada: dejaría el
+  código con una cicatriz que documenta un problema inexistente.
 
 ### Ola 3 — textos que mienten
 

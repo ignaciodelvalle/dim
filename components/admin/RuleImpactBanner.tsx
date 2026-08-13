@@ -99,8 +99,10 @@ export function RuleImpactBanner({ input, onResult }: Props) {
       className="text-md rounded-[var(--radius-md)] border border-ln-op-warn-bd bg-ln-op-warn-bg px-4 py-3 text-ln-op-warn"
       aria-live="polite"
     >
+      {/* El adjetivo concuerda con el sustantivo: con count === 1 decía
+          "~1 mascota actualmente no clasificadAS". */}
       Esta regla afecta a ~{count.toLocaleString("es-AR")} {count === 1 ? "mascota" : "mascotas"}{" "}
-      actualmente no clasificadas como PPP.
+      actualmente {count === 1 ? "no clasificada" : "no clasificadas"} como PPP.
     </p>
   );
 }

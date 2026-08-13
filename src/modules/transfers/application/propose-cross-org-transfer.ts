@@ -181,7 +181,7 @@ export async function proposeCrossOrgTransfer(
         pendingNotifications.push({
           userId: r.userId,
           notificationType: "cross_org_transfer_proposed_receiver",
-          severity: "info",
+          severity: "warning",
           title: `Propuesta de transferencia entrante para ${pet.name}`,
           body: `${organization.displayName} propone transferirte la custodia de ${pet.name}. Tenés 30 días para aceptar o rechazar.`,
           ctaLabel: "Ver propuesta",

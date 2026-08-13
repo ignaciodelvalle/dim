@@ -150,7 +150,7 @@ export async function initiatePetTransfer(
     pendingNotifications.push({
       userId: toOwnerId,
       notificationType: "pet_transfer_received",
-      severity: "info",
+      severity: "warning",
       title: `Te ofrecen la titularidad de ${pet.name}`,
       body: "Recibiste una propuesta de transferencia. Tenés 7 días para aceptar o rechazar.",
       ctaLabel: "Ver propuesta",

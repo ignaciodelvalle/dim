@@ -12,7 +12,7 @@ export default async function NewAdminPage() {
         title="Crear cuenta administrador"
         subtitle={
           <p className="text-sm text-ln-op-ink-2 mt-1">
-            El administrador tendra acceso universal. Se le enviara un magic link de acceso.
+            El administrador tendrá acceso universal. Se le enviará un magic link de acceso.
           </p>
         }
       />

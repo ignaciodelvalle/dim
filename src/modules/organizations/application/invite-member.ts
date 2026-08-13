@@ -144,7 +144,7 @@ export async function inviteMember(
       pendingNotifications.push({
         userId: uid,
         notificationType: "org_invitation_created",
-        severity: "info",
+        severity: "warning",
         title: `Nueva invitación enviada en ${input.organization.displayName}`,
         body: `Se invitó a ${normalizedEmail} con el rol ${input.invitedRole}.`,
         ctaLabel: "Ver miembros",

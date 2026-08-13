@@ -9,7 +9,10 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  CAT_BREEDS,
+  DOG_BREEDS,
   POTENTIALLY_DANGEROUS_DOG_BREEDS,
+  SPECIAL_BREED_OPTIONS,
   breedListIncludes,
   isPotentiallyDangerousBreed,
   normalizeBreedKey,
@@ -30,6 +33,13 @@ describe("normalizeBreedKey", () => {
 describe("isPotentiallyDangerousBreed", () => {
   it("classifies the exact case that shipped: 'Pitbull'", () => {
     expect(isPotentiallyDangerousBreed("dog", "Pitbull")).toBe(true);
+  });
+
+  it("classifies the row found UNFLAGGED in staging: 'Pit Bull Terrier Americano'", () => {
+    // A real dog in CABA/Palermo, potentially_dangerous_breed = false, while an
+    // identical dog in CABA/Recoleta was flagged — under the same law. Found by
+    // reading the data, not by reasoning about the matcher.
+    expect(isPotentiallyDangerousBreed("dog", "Pit Bull Terrier Americano")).toBe(true);
   });
 
   it("classifies orthographic variants of a catalog name", () => {
@@ -67,8 +77,48 @@ describe("resolveBreedLabel", () => {
     expect(resolveBreedLabel("presa canario")).toBe("Dogo Canario (Presa Canario)");
   });
 
+  it("resolves the non-PPP colloquials found in real data", () => {
+    expect(resolveBreedLabel("Ovejero Alemán")).toBe("Pastor Alemán");
+    expect(resolveBreedLabel("Caniche toy")).toBe("Caniche");
+    expect(resolveBreedLabel("Salchicha")).toBe("Salchicha (Dachshund)");
+    expect(resolveBreedLabel("Galgo (Greyhound)")).toBe("Galgo");
+    expect(resolveBreedLabel("Rough Collie")).toBe("Collie");
+  });
+
+  it("resolves cat breeds and the special options, not only dogs", () => {
+    // Buscaba sólo en DOG_BREEDS: toda raza de gato quedaba sin resolver.
+    expect(resolveBreedLabel("común europeo")).toBe("Común europeo");
+    expect(resolveBreedLabel("Mixto / Cruza")).toBe("Mixto / Cruza");
+  });
+
   it("returns null for something that is not a breed at all", () => {
     expect(resolveBreedLabel("cualquier cosa")).toBeNull();
+  });
+});
+
+describe("los alias no pueden inventar una raza", () => {
+  it("todo alias resuelve a una etiqueta que existe en algún catálogo", () => {
+    // Sin esto, un typo en el mapa crea un valor que ningún <select> ofrece y
+    // que el auditor de catálogo va a marcar como inválido para siempre.
+    const catalogo = new Set([...DOG_BREEDS, ...CAT_BREEDS, ...SPECIAL_BREED_OPTIONS]);
+    const coloquiales = [
+      "Pitbull",
+      "Pit Bull Terrier Americano",
+      "amstaff",
+      "presa canario",
+      "Ovejero Alemán",
+      "Caniche toy",
+      "Salchicha",
+      "Galgo (Greyhound)",
+      "Rough Collie",
+      "Gran Danes",
+      "Blue Heeler",
+    ];
+    for (const entrada of coloquiales) {
+      const resuelto = resolveBreedLabel(entrada);
+      expect(resuelto, `"${entrada}" no resolvió`).not.toBeNull();
+      expect(catalogo, `"${entrada}" → "${resuelto}" no está en el catálogo`).toContain(resuelto);
+    }
   });
 });
 
