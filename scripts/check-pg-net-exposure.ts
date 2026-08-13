@@ -26,6 +26,23 @@
 // las funciones pueden estar concedidas a `anon` y ser inalcanzables si su
 // schema no está expuesto.
 //
+// MEDIDO EN STAGING (2026-08-13): NO alcanzable. Se le preguntó el OpenAPI a
+// PostgREST — `GET {SUPABASE_URL}/rest/v1/` con la service-role key, que ve todo
+// lo expuesto — y devolvió 408 KB de spec con CERO apariciones de http_get,
+// http_post o pg_net. Las funciones existen y anon tiene EXECUTE, pero viven en
+// el schema `net` y PostgREST no lo expone. La conclusión del informe era
+// correcta; su premisa no.
+//
+// Ese camino es preferible a llamar al RPC: llamar `http_get` haría que la base
+// emitiera una request HTTP saliente real. Pedir el spec no ejecuta nada.
+//
+// CORRECCIÓN A LA MIGRACIÓN 0174: su header dice que las funciones están en
+// `extensions` y que eso importa porque ese schema está en `extra_search_path`.
+// Están en `net`, que NO está en el search path — así que el argumento de riesgo
+// de esa migración está sobreestimado. Pinnear el search_path sigue siendo lo
+// correcto por sí mismo. El archivo de migración no se edita: cambiaría su
+// checksum y dispararía la detección de drift de migrate.ts.
+//
 // Uso:
 //   DATABASE_URL="<url>" pnpm exec tsx scripts/check-pg-net-exposure.ts
 //
