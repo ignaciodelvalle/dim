@@ -55,8 +55,13 @@ Antes de escribir una línea de informe:
 curl -s https://dim-staging.vercel.app/ | grep mimar-version
 ```
 
-Escribí ese SHA en el encabezado. Si no coincide con `{SHA}`, pará y avisá.
-Volvé a leerlo al terminar: si cambió a mitad de corrida, decilo.
+Escribí ese SHA en el encabezado. **El meta tag trae 7 caracteres**, así que
+compará por PREFIJO: si `{SHA}` es más largo, tiene que empezar igual. Si no
+coinciden, pará y avisá — staging redeploya solo con cada push, y media corrida
+contra otro build no se puede usar para nada.
+
+Volvé a leerlo al terminar: si cambió a mitad de corrida, decilo, porque parte
+de lo que probaste era otro producto.
 
 **Qué es esto.** Credencial sanitaria digital para animales de Argentina. La
 mascota ES la credencial: cada animal tiene un token público (`DIM-XXXX-XXXX`)
