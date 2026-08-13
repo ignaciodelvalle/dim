@@ -2,6 +2,7 @@
 
 import { LnSectionHead } from "@/components/ui/DocElements";
 import { db, organizations, profiles, serviceOfferings, timeSlots } from "@/db";
+import { offeringCoverageLabel } from "@/lib/domain/jurisdiction-canonical";
 import { requireUserOrRedirect } from "@/lib/infra/auth-guards";
 import { findServiceKind } from "@/lib/reference/service-kinds";
 import { formatTime, pluralizeEs } from "@/lib/utils/format";
@@ -23,7 +24,10 @@ export default async function OfferingDetailPage({
       org: {
         displayName: organizations.displayName,
         avatarUrl: organizations.avatarUrl,
-        jurisdictionLocality: organizations.jurisdictionLocality,
+        // The organisation's own locality is deliberately NOT selected: this
+        // page used it as the coverage label while the search matched the
+        // offering's, so the label named a place the search rejected. Leaving
+        // the column out keeps that mistake from being made again by reflex.
       },
       provider: {
         displayName: profiles.displayName,
@@ -39,6 +43,10 @@ export default async function OfferingDetailPage({
   if (!row || row.offering.status !== "approved") notFound();
 
   const { offering, org, provider } = row;
+  const coverageLabel = offeringCoverageLabel(
+    offering.jurisdictionProvince,
+    offering.jurisdictionLocality,
+  );
 
   const now = new Date();
   const windowEnd = new Date(now.getTime() + 60 * 24 * 60 * 60 * 1000);
@@ -116,7 +124,10 @@ export default async function OfferingDetailPage({
               ? ` · $${Number(offering.priceArs).toLocaleString("es-AR")}`
               : " · Gratuito"}
             {` · ${offering.durationMinutes} min`}
-            {org?.jurisdictionLocality ? ` · ${org.jurisdictionLocality}` : ""}
+            {/* The OFFERING's coverage, not the organisation's address — the
+                search matches on this field, so labelling it with the org's
+                locality named a place the search would never accept. */}
+            {coverageLabel ? ` · ${coverageLabel}` : ""}
           </p>
           {offering.description && (
             <p className="mt-1.5 text-md text-[var(--color-ln-ink-2)]">{offering.description}</p>

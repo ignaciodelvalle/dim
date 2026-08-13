@@ -2,11 +2,12 @@
 // SearchFiltersForm (client component) unchanged.
 
 import { db, organizations, ownerships, pets, profiles, serviceOfferings, timeSlots } from "@/db";
+import { localitiesCoveringSearch } from "@/lib/domain/jurisdiction-canonical";
 import { requireUserOrRedirect } from "@/lib/infra/auth-guards";
 import { SERVICE_KINDS, findServiceKind } from "@/lib/reference/service-kinds";
 import { pluralizeEs } from "@/lib/utils/format";
 import { trimmedSearchParam } from "@/lib/utils/search-params";
-import { and, eq, isNull, sql } from "drizzle-orm";
+import { type SQL, and, eq, inArray, isNull, sql } from "drizzle-orm";
 import Link from "next/link";
 
 import { SearchFiltersForm } from "./SearchFiltersForm";
@@ -93,13 +94,23 @@ export default async function BuscarTurnosPage({
       ? new Date(Math.max(now.getTime(), new Date(fechaDesde).getTime()))
       : now;
 
-  const offeringConditions = [
+  const offeringConditions: SQL[] = [
     eq(serviceOfferings.serviceKind, serviceKind),
     eq(serviceOfferings.status, "approved"),
-  ] as ReturnType<typeof eq>[];
+  ];
 
   if (province) offeringConditions.push(eq(serviceOfferings.jurisdictionProvince, province));
-  if (locality) offeringConditions.push(eq(serviceOfferings.jurisdictionLocality, locality));
+  // Locality is subsumption-aware, NOT plain equality. An offering tagged to the
+  // whole province (CABA's INDEC "Ciudad Autónoma de Buenos Aires", or the ""
+  // sentinel elsewhere) MUST be reachable from a barrio search — otherwise the
+  // campaign that covers all of CABA is invisible to every citizen in it, which
+  // is exactly what staging was doing on 2026-08-13. Same subsumption
+  // narrowGovtScope applies to govt scope, read in the other direction.
+  if (locality) {
+    offeringConditions.push(
+      inArray(serviceOfferings.jurisdictionLocality, localitiesCoveringSearch(province, locality)),
+    );
+  }
   if (soloGratis) offeringConditions.push(isNull(serviceOfferings.priceArs));
 
   const offeringRows = await db

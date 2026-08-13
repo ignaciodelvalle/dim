@@ -13,7 +13,7 @@
 //      line of defense — if two transactions somehow raced past the lock, the
 //      UPDATE triggers a constraint violation and the transaction rolls back.
 
-import { eq, sql } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
 
 import { appointments, db, timeSlots } from "@/db";
 import { matchesDbError } from "@/lib/infra/db-errors";
@@ -90,6 +90,27 @@ export async function bookSlotWriter(
         throw new BookingError("El turno ya pasó.");
       }
 
+      // Identity guard — this pet must not already hold this slot. Capacity was
+      // guarded from day one; identity was not, so an anxious double click
+      // booked the same pet twice and ate a second place in a free campaign
+      // (staging clickthrough, 2026-08-13). Inside the advisory lock, so two
+      // concurrent submits cannot both read "no existing booking". The partial
+      // unique index from migration 0177 is the safety net below.
+      const [existing] = await tx
+        .select({ id: appointments.id })
+        .from(appointments)
+        .where(
+          and(
+            eq(appointments.petId, petId),
+            eq(appointments.slotId, slotId),
+            eq(appointments.status, "confirmed"),
+          ),
+        )
+        .limit(1);
+      if (existing) {
+        throw new BookingError("Esta mascota ya tiene este turno reservado.");
+      }
+
       // Step 3 — Fetch offering to denormalize organizationId AND re-check its
       // status under the lock (SC3). The UI hides slots of paused/archived
       // offerings, but a pre-materialized slot of a non-approved offering is
@@ -142,6 +163,12 @@ export async function bookSlotWriter(
     if (isSlotCapacityViolation(err)) {
       return { error: "Sin cupo disponible." };
     }
+    // Same treatment for the identity invariant: if two submits raced past the
+    // in-lock check, the partial unique index catches it and the user gets the
+    // same sentence as the in-tx path, not a raw index name.
+    if (isDuplicateLiveBooking(err)) {
+      return { error: "Esta mascota ya tiene este turno reservado." };
+    }
     throw err;
   }
 
@@ -157,5 +184,14 @@ function isSlotCapacityViolation(err: unknown): boolean {
   return matchesDbError(err, {
     code: "23514",
     constraint: /slot_bookings_within_capacity/,
+  });
+}
+
+// Postgres 23505 = unique_violation, from the partial unique index
+// `appointments_one_live_per_pet_slot` (db/migrations/0177).
+function isDuplicateLiveBooking(err: unknown): boolean {
+  return matchesDbError(err, {
+    code: "23505",
+    constraint: /appointments_one_live_per_pet_slot/,
   });
 }

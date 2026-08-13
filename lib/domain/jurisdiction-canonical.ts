@@ -236,3 +236,59 @@ export function narrowGovtScope(
     ? [{ province: selectedProvince, locality: selectedLocality }]
     : [];
 }
+
+/**
+ * The stored locality strings a `(province, locality)` SEARCH must accept.
+ *
+ * THE BUG THIS EXISTS FOR (measured on staging, 2026-08-13). A citizen searching
+ * "vacunación antirrábica · Recoleta, CABA" got "sin servicios", while the very
+ * campaign meant for them sat approved, public and with ~16 slots a day. The
+ * offering is stored as `CABA / Ciudad Autónoma de Buenos Aires` — WHOLE CABA,
+ * the INDEC entry — and the search filtered locality with plain equality, so a
+ * barrio search could never reach it. In CABA that is not an edge case: this
+ * module documents CABA as THE canonical two-tier province, where the catalog
+ * holds one city entry and the 48 barrios are a finer overlay. Every
+ * whole-province offering was unreachable from every barrio search.
+ *
+ * It is also the SAME bug `narrowGovtScope` was written to fix for govt scope
+ * (critique of PR #762) — exact-locality equality erasing a whole-province row.
+ * That fix never reached the appointment search. Hence one shared helper.
+ *
+ * Direction matters, and it is the opposite of `jurisdictionScopeContains`:
+ * there, a whole-province ACTOR reaches a barrio ROW. Here, a barrio SEARCH
+ * reaches a whole-province ROW. Same subsumption, read the other way.
+ *
+ * Fail-closed like the rest of the module: a non-canonical province never
+ * widens — only the literal locality is accepted.
+ */
+export function localitiesCoveringSearch(province: string, locality: string): string[] {
+  if (!CANONICAL_PROVINCE_NAMES.has(province)) return [locality];
+  const accepted = new Set<string>([locality, WHOLE_PROVINCE_SENTINEL]);
+  const indecWholeProvince = WHOLE_PROVINCE_LOCALITY[province];
+  if (indecWholeProvince) accepted.add(indecWholeProvince);
+  return [...accepted];
+}
+
+/**
+ * How to LABEL an offering's own coverage to a citizen.
+ *
+ * Must be derived from the OFFERING's jurisdiction, never the organisation's.
+ * On 2026-08-13 the appointment detail page printed the organisation's locality
+ * ("Recoleta") while the search matched the offering's ("Ciudad Autónoma de
+ * Buenos Aires"). The label named a place the search would never accept, so a
+ * citizen who read it and typed it got zero results — the label was lying about
+ * what was findable.
+ *
+ * A whole-province offering is labelled by its PROVINCE, because that is both
+ * what it covers and what a citizen would search. Spanish gender is dodged on
+ * purpose: "CABA" is right for all 24 jurisdictions, "Toda CABA"/"Todo Buenos
+ * Aires" is not.
+ */
+export function offeringCoverageLabel(
+  province: string | null | undefined,
+  locality: string | null | undefined,
+): string | null {
+  if (!province) return locality || null;
+  if (isWholeProvinceLocality(province, locality)) return province;
+  return locality || province;
+}

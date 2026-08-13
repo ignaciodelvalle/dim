@@ -3196,6 +3196,27 @@ async function seedHealthCampaigns(
         // shows enrollment (and the within-capacity CHECK still holds).
         if (bookings === 0 && !plan.future && plan.daysFromAnchor <= 27) bookings = 1;
 
+        // Pick the DISTINCT pets for this slot BEFORE inserting it, so
+        // bookings_count always equals the number of appointments actually
+        // created. The pool is sampled WITH replacement, so two draws could
+        // land on the same pet and write two live appointments for the same
+        // (pet, slot) — not a plausible history (nobody books the same slot
+        // twice) and a violation of the partial unique index from migration
+        // 0177, which would make `pnpm db:bootstrap` fail for everyone.
+        // Bounded redraws: a tiny pool must not spin forever.
+        const slotPets: string[] = [];
+        const usedPets = new Set<string>();
+        for (let b = 0; b < bookings && usedPets.size < pool.length; b++) {
+          for (let attempt = 0; attempt < 8; attempt++) {
+            const candidate = pool[Math.floor(rng() * pool.length)];
+            if (usedPets.has(candidate)) continue;
+            usedPets.add(candidate);
+            slotPets.push(candidate);
+            break;
+          }
+        }
+        bookings = slotPets.length;
+
         const slotStatus = bookings >= capacity ? "full" : "open";
         const [slotRow] = await db
           .insert(timeSlots)
@@ -3218,8 +3239,7 @@ async function seedHealthCampaigns(
         if (bookings === 0) continue;
 
         const apptRows: Array<Record<string, unknown>> = [];
-        for (let b = 0; b < bookings; b++) {
-          const petId = pool[Math.floor(rng() * pool.length)];
+        for (const petId of slotPets) {
           const aptToken = `PANO-APT-${String(aptIdx).padStart(5, "0")}`;
           aptIdx++;
 
@@ -4451,6 +4471,25 @@ async function seedHistoryCampaigns(
           }
           if (bookings === 0) bookings = 1;
 
+          // Distinct pets per slot — same reason as the forward-looking block
+          // above: sampling with replacement wrote two appointments for one
+          // (pet, slot). These are all terminal (attended/no_show) so they do
+          // not trip migration 0177's partial index, but "the same animal
+          // no-showed the same appointment twice" is not history anyone should
+          // read off a national dashboard.
+          const slotPets: string[] = [];
+          const usedPets = new Set<string>();
+          for (let b = 0; b < bookings && usedPets.size < pool.length; b++) {
+            for (let attempt = 0; attempt < 8; attempt++) {
+              const candidate = pool[Math.floor(rng() * pool.length)];
+              if (usedPets.has(candidate)) continue;
+              usedPets.add(candidate);
+              slotPets.push(candidate);
+              break;
+            }
+          }
+          bookings = slotPets.length;
+
           const [slotRow] = await db
             .insert(timeSlots)
             .values({
@@ -4474,8 +4513,7 @@ async function seedHistoryCampaigns(
           // fetchCampaignDashboard period filter (gte/lt on createdAt) returns these
           // rows when the window is scoped to `year`.
           const apptRows: Array<Record<string, unknown>> = [];
-          for (let b = 0; b < bookings; b++) {
-            const petId = pool[Math.floor(rng() * pool.length)];
+          for (const petId of slotPets) {
             const aptToken = `PANO-APT-HIST-${String(histAptIdx).padStart(6, "0")}`;
             histAptIdx++;
 

@@ -2714,6 +2714,16 @@ export const appointments = pgTable(
       table.serviceOfferingId,
       table.status,
     ),
+    // One LIVE booking per (pet, slot) — migration 0177, mirrored here for
+    // schema↔migration agreement. Capacity was already guarded (advisory lock +
+    // slot_bookings_within_capacity); identity was not, so the same pet could
+    // hold the same slot twice and eat a second place in a free campaign.
+    // Partial on 'confirmed' because the other four statuses are terminal: a
+    // cancelled booking followed by a new one is legitimate, and it is also what
+    // let this ship without deleting a single historical row.
+    oneLivePerPetSlot: uniqueIndex("appointments_one_live_per_pet_slot")
+      .on(table.petId, table.slotId)
+      .where(sql`${table.status} = 'confirmed'`),
     appointmentStatusValid: check(
       "appointment_status_valid",
       sql`${table.status} in ('confirmed', 'attended', 'no_show', 'cancelled_by_owner', 'cancelled_by_org')`,

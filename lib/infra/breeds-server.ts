@@ -7,6 +7,7 @@
 import "server-only";
 
 import { resolveBusinessRule } from "@/lib/infra/business-rules-resolver";
+import { breedListIncludes, resolveBreedLabel } from "@/lib/reference/breeds";
 
 /**
  * Jurisdiction-aware variant of `isPotentiallyDangerousBreed` that
@@ -27,5 +28,10 @@ export async function isPotentiallyDangerousBreedForJurisdiction(
 ): Promise<boolean> {
   if (species !== "dog" || !breed) return false;
   const rule = await resolveBusinessRule("ppp_breed_list", jurisdiction);
-  return rule.payload.breeds.includes(breed.trim());
+  // Same matcher as the synchronous variant — case/accent folding plus the
+  // curated colloquial aliases. `breeds` is the EFFECTIVE jurisdiction list, so
+  // resolving an alias never widens the regime: the resolved label still has to
+  // be on the list a province actually enacted.
+  const resolved = resolveBreedLabel(breed) ?? breed;
+  return breedListIncludes(rule.payload.breeds, resolved);
 }
