@@ -13,6 +13,7 @@ short role docs in this repo were followed on first use).
 | A subagent spawned by the main agent | `docs/agents/subagent-card.md` |
 | A human newcomer | `/README.md` → `AGENTS.md` slim index |
 | Cowork, haciendo el clickthrough de staging | `docs/agents/prompt-cowork-clickthrough-staging.md` (+ el guion `master-test-ciudadano-multiagente.md`) |
+| Cowork, recorriendo lo que nunca se recorrió | `docs/agents/prompt-cowork-clickthrough-territorio-nuevo.md` — el complemento del anterior: las 115 rutas que ningún guion ni spec nombró nunca |
 | Un revisor externo auditando el código | `docs/agents/prompt-cowork-review-codigo.md` |
 | Un agente escribiendo material de onboarding para usuarios externos (funcionario, vet, refugio, dueño, vecino) | `docs/agents/prompt-cowork-onboarding-externos.md` |
 
