@@ -866,6 +866,65 @@ describe("leaveOrganization", () => {
     expect(repo.softLeave).toHaveBeenCalledWith("mem-1", expect.anything());
   });
 
+  it("LAST-ADMIN multi-org: the same user is blocked per-org where sole admin, allowed where another admin exists", async () => {
+    // QA C1 shape: one user is the SOLE admin of org-a/org-b/org-c and one of
+    // TWO admins in org-d. The block must be evaluated per organizationId —
+    // this pins that leaveOrganization passes the org being left to
+    // lockActiveAdmins instead of leaking a global admin count.
+    const adminsByOrg: Record<string, { id: string }[]> = {
+      "org-a": [{ id: "mem-a" }],
+      "org-b": [{ id: "mem-b" }],
+      "org-c": [{ id: "mem-c" }],
+      "org-d": [{ id: "mem-d" }, { id: "mem-d2" }],
+    };
+    const membershipByOrg: Record<string, string> = {
+      "org-a": "mem-a",
+      "org-b": "mem-b",
+      "org-c": "mem-c",
+      "org-d": "mem-d",
+    };
+    const repo = {
+      ...baseRepo(),
+      findOwnActiveMembership: vi
+        .fn()
+        .mockImplementation(async (_userId: string, organizationId: string) =>
+          makeMembership({
+            id: membershipByOrg[organizationId],
+            userId: "user-1",
+            role: "admin",
+          }),
+        ),
+      lockActiveAdmins: vi
+        .fn()
+        .mockImplementation(async (orgId: string) => adminsByOrg[orgId] ?? []),
+      softLeave: vi.fn().mockResolvedValue(undefined),
+    };
+    const txFn = vi.fn().mockImplementation(async (cb: (tx: unknown) => Promise<void>) => {
+      await cb({});
+    });
+
+    for (const orgId of ["org-a", "org-b", "org-c"]) {
+      const result = await leaveOrganization(
+        { userId: "user-1", organizationId: orgId, organization: { publicToken: "TKN" } },
+        { repo, transaction: txFn },
+      );
+      expect(result).toEqual({
+        ok: false,
+        error: "No podés salir porque sos el único administrador. Asigná otro administrador primero.",
+      });
+      expect(repo.lockActiveAdmins).toHaveBeenCalledWith(orgId, expect.anything());
+    }
+    expect(repo.softLeave).not.toHaveBeenCalled();
+
+    const result = await leaveOrganization(
+      { userId: "user-1", organizationId: "org-d", organization: { publicToken: "TKN" } },
+      { repo, transaction: txFn },
+    );
+    expect(result.ok).toBe(true);
+    expect(repo.lockActiveAdmins).toHaveBeenCalledWith("org-d", expect.anything());
+    expect(repo.softLeave).toHaveBeenCalledWith("mem-d", expect.anything());
+  });
+
   it("allows non-admin self-leave (wrapped in tx for atomicity with audit)", async () => {
     const repo = {
       ...baseRepo(),
