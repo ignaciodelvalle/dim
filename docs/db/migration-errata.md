@@ -114,6 +114,69 @@ certify — nothing more, nothing less.
 
 ---
 
+## E-3 — staging ran a pre-0085 body of `enforce_audit_log_append_only()` while the ledger claimed 0085 applied
+
+| | |
+|---|---|
+| **File** | `db/migrations/0085_audit_log_target_user_set_null.sql` (file is correct) |
+| **Nature** | **Environment drift**, not a file error: staging's deployed function body predated 0085 even though `_dim_migrations` recorded `0085 … applied_at 2026-07-07`. |
+| **Recorded** | Out-of-band repair 2026-08-14 |
+
+### Symptom
+
+`seed-panorama.ts --allow-remote` against staging failed deleting PANO
+organizations with SQLSTATE `23001`:
+
+```
+audit_log is append-only. UPDATE blocked.
+  SQL statement "UPDATE ONLY audit_log SET target_organization_id = NULL …"
+```
+
+That UPDATE is the `ON DELETE SET NULL` cascade that 0085 explicitly
+whitelists. It cannot fail on a database actually running 0085's function.
+
+### Diagnosis
+
+```sql
+SELECT prosrc FROM pg_proc WHERE proname = 'enforce_audit_log_append_only';
+```
+
+returned a short body — GUC bypass + RAISE only, **no cascade-nullification
+rules** — while `SELECT filename, applied_at FROM _dim_migrations WHERE
+filename LIKE '0085%'` returned an applied row dated 2026-07-07. Ledger row
+and deployed body disagreed. A ledger entry proves a file was *recorded as
+run*, not that the current object still matches it: `CREATE OR REPLACE
+FUNCTION` from any later manual patch or partial restore silently wins, and
+**function-body drift is invisible to table-level schema diffs** (the 2026-08
+repo↔staging reconciliation compared relations, not `pg_proc` bodies).
+
+### Repair (out-of-band, 2026-08-14)
+
+Re-applied 0085's `CREATE OR REPLACE FUNCTION` byte-equivalent body, then
+re-applied 0114's hardening (`ALTER FUNCTION … SET search_path = ''`), both
+idempotent by their own files' declaration. Verified after:
+
+```sql
+SELECT length(prosrc)  AS body_len,        -- 2009 (was ~180)
+       prosrc LIKE '%target_organization_id IS NOT DISTINCT FROM%' AS has_rules,  -- t
+       proconfig                            -- {search_path=""}
+  FROM pg_proc WHERE proname = 'enforce_audit_log_append_only';
+```
+
+The PANO org deletion cascade then succeeded on the next seed run.
+
+### The fence this suggests
+
+`migrate.ts --strict` fences file bytes against the ledger, but nothing fences
+**deployed object bodies** against the files. Environments that were ever
+patched by hand or restored partially can hold this class of drift on any
+`CREATE OR REPLACE`d object (functions, triggers, views). A future
+`check-function-parity` sweep (hash `pg_proc.prosrc` for repo-owned functions
+against the last migration that defines each) would catch it before a seed or
+a cascade does.
+
+---
+
 ## Adding an entry
 
 One `## E-N` section per erratum. Include, in this order: the file, the exact lines, whether SQL or prose is affected, the claim, the truth, and how the truth was verified. Say the verification out loud — an erratum that only asserts is a second unverified claim stacked on the first.
