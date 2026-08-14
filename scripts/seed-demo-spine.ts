@@ -3,8 +3,10 @@
  * los 5 ciclos del demo institucional corran sin altas mid-demo.
  *
  * Ejecutar DESPUÉS de seed-demo.ts:
- *   pnpm tsx scripts/seed-demo.ts
- *   pnpm tsx scripts/seed-demo-spine.ts
+ *   pnpm seed:demo
+ *   node --conditions=react-server --import tsx scripts/seed-demo-spine.ts
+ * (el plain `pnpm tsx` NO alcanza: los módulos de dominio importan código
+ *  react-server; ver scripts/reset-demo-pets.ts para la cadena completa.)
  *
  * Qué agrega:
  *   1. Argo  — perro callejero en intake en "Patitas del Norte", con
@@ -44,7 +46,10 @@
  *   está, defectos incluidos.
  *
  * Notas:
- *   - Refusa correr contra Supabase no-local o NODE_ENV=production.
+ *   - Local-only por defecto; `--allow-remote` habilita un destino remoto
+ *     (p. ej. staging) con banner. NODE_ENV=production se rechaza SIEMPRE,
+ *     y el entorno partido (Auth y DB en lados distintos) también — sin flag
+ *     que lo saltee (ver scripts/_env-target.ts).
  *   - Comparte el patrón de log/safety de seed-demo.ts.
  *   - El org "Refugio Pendiente" (verified=false) que va a aprobar
  *     Lucas en cycle 5 ya está creado por seed-demo.ts — no se toca acá.
@@ -59,10 +64,18 @@
 // See scripts/_load-env.ts for why.
 import "./_load-env";
 
+import { resolveEnvTarget } from "./_env-target";
+
+// --allow-remote opts out of the local-only guard so the spine storylines
+// (Argo, Bruno's dispute, Mora/adoptante) can be seeded into a remote (e.g.
+// staging) project — same pattern as seed-demo.ts. NODE_ENV=production stays
+// hard-blocked. The seed is idempotent (every entity is looked up by a stable
+// key before insert), so a remote re-run converges instead of duplicating.
+const ALLOW_REMOTE = process.argv.includes("--allow-remote");
+
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL ?? "";
 const SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY ?? "";
 const DATABASE_URL = process.env.DATABASE_URL ?? "";
-const isLocalUrl = (u: string) => u.includes("127.0.0.1") || u.includes("localhost");
 
 if (!SUPABASE_URL || !SERVICE_ROLE_KEY) {
   console.error("Missing NEXT_PUBLIC_SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY — aborting.");
@@ -72,12 +85,9 @@ if (process.env.NODE_ENV === "production") {
   console.error("Refusing to seed: NODE_ENV=production.");
   process.exit(2);
 }
-if (!isLocalUrl(SUPABASE_URL) || !isLocalUrl(DATABASE_URL)) {
-  console.error(
-    `Refusing to seed: NEXT_PUBLIC_SUPABASE_URL (${SUPABASE_URL}) or DATABASE_URL is not local.`,
-  );
-  process.exit(2);
-}
+// Tres estados, no dos — incluido el PARTIDO. Ver scripts/_env-target.ts.
+// Local-only by default; --allow-remote opts out with a loud banner.
+resolveEnvTarget(SUPABASE_URL, DATABASE_URL, ALLOW_REMOTE, "seed:demo-spine");
 
 // ---------------------------------------------------------------------------
 // 2. Logger
