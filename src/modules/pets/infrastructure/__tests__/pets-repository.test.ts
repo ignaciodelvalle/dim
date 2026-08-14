@@ -553,7 +553,7 @@ describe("PetsRepository.updatePetProfile", () => {
 
   it("correctSpecies: emits pet_profile_updated with the species change and updates the column", async () => {
     const [before] = await db
-      .select({ species: pets.species })
+      .select({ species: pets.species, breed: pets.breed })
       .from(pets)
       .where(eq(pets.id, updatePetId));
     const newSpecies = before.species === "cat" ? "dog" : "cat";
@@ -565,6 +565,8 @@ describe("PetsRepository.updatePetProfile", () => {
           petId: updatePetId,
           oldSpecies: before.species,
           newSpecies,
+          oldBreed: before.breed,
+          newBreed: before.breed,
           potentiallyDangerousBreed: false,
           userId,
           eventAuthorship: {
@@ -600,7 +602,7 @@ describe("PetsRepository.updatePetProfile", () => {
     // flips PPP to true must record BOTH changes so the correction is fully
     // event-derivable (F5 — the dual-written flag needs its paired fact).
     const [before] = await db
-      .select({ species: pets.species, ppp: pets.potentiallyDangerousBreed })
+      .select({ species: pets.species, breed: pets.breed, ppp: pets.potentiallyDangerousBreed })
       .from(pets)
       .where(eq(pets.id, updatePetId));
     const newSpecies = before.species === "cat" ? "dog" : "cat";
@@ -612,6 +614,8 @@ describe("PetsRepository.updatePetProfile", () => {
           petId: updatePetId,
           oldSpecies: before.species,
           newSpecies,
+          oldBreed: before.breed,
+          newBreed: before.breed,
           potentiallyDangerousBreed: true,
           userId,
           eventAuthorship: {
@@ -639,6 +643,55 @@ describe("PetsRepository.updatePetProfile", () => {
       .from(pets)
       .where(eq(pets.id, updatePetId));
     expect(after.ppp).toBe(true);
+  });
+
+  it("correctSpecies: clears a breed that does not resolve in the NEW species' catalog and records the change", async () => {
+    // Arrange: a dog with a dog-only breed. actions.ts resolves the breed
+    // against the NEW catalog and passes newBreed: null when it doesn't
+    // survive; the repository must dual-write the clear AND carry it in the
+    // event (adversarial review 2026-08-14 — the grandfather rule otherwise
+    // preserved the cross-species label forever).
+    await db
+      .update(pets)
+      .set({ species: "dog", breed: "Labrador", potentiallyDangerousBreed: false })
+      .where(eq(pets.id, updatePetId));
+    const now = new Date();
+
+    const result = await db.transaction(async (tx) => {
+      return PetsRepository.correctSpecies(
+        {
+          petId: updatePetId,
+          oldSpecies: "dog",
+          newSpecies: "cat",
+          oldBreed: "Labrador",
+          newBreed: null, // "Labrador" does not resolve in the cat catalog
+          potentiallyDangerousBreed: false,
+          userId,
+          eventAuthorship: {
+            authorRole: "owner" as const,
+            authorOrganizationId: null,
+            authorVerified: false,
+          },
+          now,
+        },
+        tx,
+      );
+    });
+
+    const [after] = await db
+      .select({ species: pets.species, breed: pets.breed })
+      .from(pets)
+      .where(eq(pets.id, updatePetId));
+    expect(after.species).toBe("cat");
+    expect(after.breed).toBeNull();
+
+    const [event] = await db.select().from(petEvents).where(eq(petEvents.id, result.eventId));
+    const changes = (event.payload as { changes: { field: string; old: unknown; new: unknown }[] })
+      .changes;
+    expect(changes).toEqual([
+      { field: "species", old: "dog", new: "cat" },
+      { field: "breed", old: "Labrador", new: null },
+    ]);
   });
 
   it("emits microchip_implanted event when chipNewlyAdded=true", async () => {

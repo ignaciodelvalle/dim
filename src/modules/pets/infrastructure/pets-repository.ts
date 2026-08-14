@@ -70,6 +70,15 @@ type CorrectSpeciesArgs = {
   petId: string;
   oldSpecies: string;
   newSpecies: string;
+  /** Stored breed before the correction (for the event's change entry). */
+  oldBreed: string | null;
+  /**
+   * Breed after the correction — null when the stored breed does not resolve
+   * within the NEW species' catalog (actions.ts clears it in the same write;
+   * otherwise the grandfather rule preserves a cross-species label forever).
+   * Pass the stored breed unchanged when it survives the correction.
+   */
+  newBreed: string | null;
   /** Recomputed PPP flag for the corrected species (a non-dog clears PPP). */
   potentiallyDangerousBreed: boolean;
   userId: string;
@@ -460,6 +469,8 @@ export const PetsRepository = {
       petId,
       oldSpecies,
       newSpecies,
+      oldBreed,
+      newBreed,
       potentiallyDangerousBreed,
       userId,
       eventAuthorship,
@@ -483,6 +494,13 @@ export const PetsRepository = {
     const changes: Array<{ field: string; old: unknown; new: unknown }> = [
       { field: "species", old: oldSpecies, new: newSpecies },
     ];
+    // A breed that does not survive the species correction (cleared by
+    // actions.ts against the NEW species' catalog) is dual-written below, so
+    // the event must carry that change too — same event-pairing reasoning as
+    // the PPP flag.
+    if (oldBreed !== newBreed) {
+      changes.push({ field: "breed", old: oldBreed, new: newBreed });
+    }
     if (oldPpp !== potentiallyDangerousBreed) {
       changes.push({
         field: "potentially_dangerous_breed",
@@ -513,7 +531,7 @@ export const PetsRepository = {
 
     await tx
       .update(pets)
-      .set({ species: newSpecies, potentiallyDangerousBreed, updatedAt: now })
+      .set({ species: newSpecies, breed: newBreed, potentiallyDangerousBreed, updatedAt: now })
       .where(eq(pets.id, petId));
 
     return { eventId: event.id };

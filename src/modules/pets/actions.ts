@@ -644,10 +644,20 @@ export async function correctPetSpeciesAction(
     return { error: "La especie es la misma; no hay nada que corregir." };
   }
 
-  // Recompute PPP for the corrected species (a cat/rabbit/etc. clears it).
+  // A stored breed that does not resolve within the NEW species' catalog is
+  // cleared in the same write. Without this, the correction left a
+  // cross-species breed behind and the grandfather rule (breed-validation.ts,
+  // QA A5) then preserved it through every later edit — forever. The special
+  // options ("Mixto / Cruza", "Pura raza no listada") resolve in every
+  // species' catalog, so they survive the correction.
+  const breedResolution = resolveBreedForWrite(newSpecies, pet.breed);
+  const correctedBreed: string | null = breedResolution.ok ? pet.breed : null;
+
+  // Recompute PPP for the corrected species AND the possibly-cleared breed
+  // (a cat/rabbit/etc. clears it).
   const potentiallyDangerousBreed = await resolvePppClassificationForJurisdiction(
     newSpecies,
-    pet.breed,
+    correctedBreed,
     parseEstimatedWeightKg(pet.estimatedWeightKg),
     {
       country: "AR",
@@ -663,6 +673,8 @@ export async function correctPetSpeciesAction(
           petId: pet.id,
           oldSpecies: pet.species,
           newSpecies,
+          oldBreed: pet.breed,
+          newBreed: correctedBreed,
           potentiallyDangerousBreed,
           userId: user.id,
           eventAuthorship,

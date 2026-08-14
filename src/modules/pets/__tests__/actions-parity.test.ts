@@ -162,6 +162,7 @@ vi.mock("@/src/modules/pets/infrastructure/pets-repository", () => ({
     generatePublicToken: vi.fn(),
     insertPetRegistered: vi.fn(),
     updatePetProfile: vi.fn(),
+    correctSpecies: vi.fn().mockResolvedValue({ eventId: "event-1" }),
   },
 }));
 
@@ -659,5 +660,120 @@ describe("updatePetAction", () => {
 
       expect(insertSpy).toHaveBeenCalled();
     });
+  });
+});
+
+describe("correctPetSpeciesAction", () => {
+  let correctPetSpeciesAction: typeof import("../actions").correctPetSpeciesAction;
+
+  function mockPetAccess(petOverrides: Record<string, unknown>) {
+    return vi.fn().mockResolvedValue({
+      ok: true,
+      user: { id: "user-1" },
+      supabase: { storage: { from: vi.fn().mockReturnValue({ remove: vi.fn() }) } },
+      pet: {
+        id: "pet-existing",
+        name: "Luna",
+        species: "dog",
+        sex: "female",
+        breed: "Labrador",
+        dateOfBirth: "2022-01-01",
+        color: "negro",
+        estimatedWeightKg: null,
+        favouriteFoods: null,
+        knownAllergies: null,
+        trainingLevel: null,
+        potentiallyDangerousBreed: false,
+        insuranceCompany: null,
+        insurancePolicyNumber: null,
+        jurisdictionProvince: "Buenos Aires",
+        jurisdictionLocality: "La Plata",
+        acquisitionMethod: "adopted",
+        emergencyInfoVisible: false,
+        permanentConditions: [],
+        permanentConditionsOther: null,
+        discloseConditionsPublicly: false,
+        ...petOverrides,
+      },
+      eventAuthorship: { authorRole: "owner", authorOrganizationId: null, authorVerified: false },
+      accessPath: "owner",
+    });
+  }
+
+  function makeSpeciesFormData(species: string): FormData {
+    const fd = new FormData();
+    fd.append("species", species);
+    return fd;
+  }
+
+  beforeEach(async () => {
+    vi.resetModules();
+    const mod = await import("../actions");
+    correctPetSpeciesAction = mod.correctPetSpeciesAction;
+    vi.clearAllMocks();
+  });
+
+  // F2 (adversarial review 2026-08-14): a species correction must not leave a
+  // breed behind that is off-catalog for the NEW species — the grandfather
+  // rule (QA A5) would then preserve it through every later edit, forever.
+
+  it("clears a breed that does not resolve in the NEW species' catalog", async () => {
+    const petAccessMod = await import("@/lib/infra/pet-access");
+    petAccessMod.requirePetAccess = mockPetAccess({ species: "dog", breed: "Labrador" });
+    const { PetsRepository } = await import("@/src/modules/pets/infrastructure/pets-repository");
+
+    const state = await correctPetSpeciesAction(
+      "DIM-TEST-0001",
+      { error: null },
+      makeSpeciesFormData("cat"),
+    );
+    expect(state.redirectTo).toBe("/mis-mascotas/DIM-TEST-0001");
+
+    expect(PetsRepository.correctSpecies).toHaveBeenCalledWith(
+      expect.objectContaining({
+        oldSpecies: "dog",
+        newSpecies: "cat",
+        oldBreed: "Labrador",
+        newBreed: null,
+      }),
+      expect.anything(),
+    );
+  });
+
+  it("keeps a special option — it resolves in every species' catalog", async () => {
+    const petAccessMod = await import("@/lib/infra/pet-access");
+    petAccessMod.requirePetAccess = mockPetAccess({ species: "dog", breed: "Mixto / Cruza" });
+    const { PetsRepository } = await import("@/src/modules/pets/infrastructure/pets-repository");
+
+    const state = await correctPetSpeciesAction(
+      "DIM-TEST-0001",
+      { error: null },
+      makeSpeciesFormData("cat"),
+    );
+    expect(state.redirectTo).toBe("/mis-mascotas/DIM-TEST-0001");
+
+    expect(PetsRepository.correctSpecies).toHaveBeenCalledWith(
+      expect.objectContaining({ newSpecies: "cat", newBreed: "Mixto / Cruza" }),
+      expect.anything(),
+    );
+  });
+
+  it("recomputes PPP with the new species AND the possibly-cleared breed", async () => {
+    const petAccessMod = await import("@/lib/infra/pet-access");
+    petAccessMod.requirePetAccess = mockPetAccess({ species: "cat", breed: "Persa" });
+    const { resolvePppClassificationForJurisdiction } = await import(
+      "@/lib/infra/ppp-classification"
+    );
+
+    // cat "Persa" corrected to dog: "Persa" does not resolve in the dog
+    // catalog, so classification must see (dog, null) — never (dog, "Persa").
+    await correctPetSpeciesAction("DIM-TEST-0001", { error: null }, makeSpeciesFormData("dog"));
+
+    expect(resolvePppClassificationForJurisdiction).toHaveBeenCalledWith(
+      "dog",
+      null,
+      null,
+      expect.objectContaining({ country: "AR" }),
+    );
   });
 });
