@@ -288,9 +288,7 @@ export default async function PetDetailPage({
     // so the server-side no-flash redirect can't send a non-adopter into the
     // 404 (adversarial review 2026-08-14). The batched read further down
     // feeds the sheet catalog; this one has to exist BEFORE the redirect.
-    const checkinAllowed = captureText?.trim()
-      ? await isPetAdoptedByUser(pet.id, user.id)
-      : false;
+    const checkinAllowed = captureText?.trim() ? await isPetAdoptedByUser(pet.id, user.id) : false;
     const captureTarget = resolveCaptureIntentUrl(
       publicToken,
       {
