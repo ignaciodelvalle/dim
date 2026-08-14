@@ -129,6 +129,33 @@ test("segmento 02 — dueno", async ({ page }) => {
   // de emergencia" / "Editar" affordance.
   await showScreen(page, `/mis-mascotas/${token}?sheet=emergencia`);
 
+  // 6-pre. GUARD HYGIENE — the per-campaign identity guard (QA A3, migration
+  // 0181: one CONFIRMED appointment per pet+offering) makes a straight re-run
+  // against a persisted DB fail: an earlier run's Luna still holds a live
+  // turno on the same first-listed offering, and the booking form's pet
+  // <select> matches by label, so it can pick that older Luna. Cancel any
+  // live "Luna" turno through the real cancel flow first (filmable product
+  // surface in itself) so the booking below always starts clean. Bounded:
+  // each earlier run left at most one live turno.
+  await visit(page, "/mis-turnos");
+  for (let i = 0; i < 6; i++) {
+    // Upcoming confirmed cards are the only cancellable ones — they carry the
+    // "Ver QR de check-in" affordance; past/cancelled cards do not.
+    const lunaTurno = page
+      .locator('a[href^="/mis-turnos/"]')
+      .filter({ hasText: "Luna" })
+      .filter({ hasText: "Ver QR de check-in" })
+      .first();
+    if ((await lunaTurno.count()) === 0) break;
+    await lunaTurno.click();
+    await page.getByRole("button", { name: "Cancelar turno" }).click();
+    await page.getByRole("button", { name: /sí, cancelar/i }).click();
+    // Outcome, not URL (e2e/README): the sheet closes with a full reload and
+    // the server-rendered status flips to "Cancelado por vos".
+    await expect(page.getByText("Cancelado por vos").first()).toBeVisible({ timeout: 15_000 });
+    await visit(page, "/mis-turnos");
+  }
+
   // 6. TURNOS — search → offering → slot → confirm booking (fail loud: needs seeded slots).
   // Drive the real filter form: seed-coverage's castración campaign lives in Palermo.
   await visit(page, "/turnos/buscar");
