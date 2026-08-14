@@ -47,6 +47,32 @@ describe("loadWithTimeout()", () => {
     }
   });
 
+  it("does not double-log when the abandoned promise rejects AFTER the deadline won", async () => {
+    // The timeout mints and logs its id; the pending promise's later
+    // rejection used to mint a SECOND id and log again — two lines, two ids,
+    // one user-visible failure (adversarial review 2026-08-14).
+    const spy = vi.spyOn(console, "error").mockImplementation(() => {});
+    try {
+      let rejectLate: (e: Error) => void = () => {};
+      const late = new Promise<never>((_, reject) => {
+        rejectLate = reject;
+      });
+
+      const res = await loadWithTimeout(late, 20);
+      expect(res).toMatchObject({ ok: false, reason: "timeout" });
+      const linesAfterTimeout = spy.mock.calls.filter((c) => c[0] === "[reportError]");
+      expect(linesAfterTimeout).toHaveLength(1);
+
+      rejectLate(new Error("late-boom"));
+      await new Promise((r) => setTimeout(r, 0));
+
+      const linesAfterLateRejection = spy.mock.calls.filter((c) => c[0] === "[reportError]");
+      expect(linesAfterLateRejection).toHaveLength(1); // still the timeout line only
+    } finally {
+      spy.mockRestore();
+    }
+  });
+
   it("does not reject — a rejecting promise never throws out of the helper", async () => {
     await expect(loadWithTimeout(Promise.reject(new Error("x")), 1000)).resolves.toMatchObject({
       ok: false,

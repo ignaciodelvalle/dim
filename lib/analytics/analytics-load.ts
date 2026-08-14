@@ -66,8 +66,17 @@ export async function loadWithTimeout<T>(
   ms: number = ANALYTICS_LOAD_TIMEOUT_MS,
 ): Promise<AnalyticsLoad<T>> {
   let timer: ReturnType<typeof setTimeout> | undefined;
+  // Settled-once guard: when the deadline wins the race, the abandoned
+  // promise keeps running and its LATER rejection used to mint a SECOND
+  // correlation id and log a second line — two ids for one user-visible
+  // failure, and the id the operator quotes from the fallback UI may be the
+  // one that names the timeout, not the real error. First settle owns the id;
+  // the late rejection is swallowed (the timeout line already logged, and the
+  // caller can no longer observe anything).
+  let deadlineWon = false;
   const deadline = new Promise<AnalyticsLoad<T>>((resolve) => {
     timer = setTimeout(() => {
+      deadlineWon = true;
       const id = newCorrelationId();
       reportError(new Error(`analytics load timed out after ${ms} ms`), {
         source: "loadWithTimeout",
@@ -82,6 +91,11 @@ export async function loadWithTimeout<T>(
       promise.then(
         (value): AnalyticsLoad<T> => ({ ok: true, value }),
         (err): AnalyticsLoad<T> => {
+          if (deadlineWon) {
+            // Race already resolved with the timeout result — this return
+            // value is discarded, so do NOT mint another id or log again.
+            return { ok: false, reason: "timeout" };
+          }
           const id = newCorrelationId();
           reportError(err instanceof Error ? err : new Error(String(err)), {
             source: "loadWithTimeout",
