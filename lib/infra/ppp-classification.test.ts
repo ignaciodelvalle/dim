@@ -55,3 +55,42 @@ describe("classifyPpp — weight-threshold enforcement seam (design ADR-3)", () 
     expect(classifyPpp("dog", null, null, rules)).toBe(false);
   });
 });
+
+describe("classifyPpp — breed membership folds before matching (QA A4)", () => {
+  // Raw Set.has was exact, case- and accent-sensitive equality: an
+  // already-stored "pitbull" or "Mastin Napolitano" silently fell out of the
+  // legal regime while lib/reference/breeds.ts had the canonicalization
+  // written and in use everywhere else.
+  const rules = { breeds: new Set(["Pit Bull Terrier"]), kg: null, appliesIfBreedNotPPP: false };
+
+  it("classifies a stored colloquial alias", () => {
+    expect(classifyPpp("dog", "pitbull", null, rules)).toBe(true);
+  });
+
+  it("classifies orthographic variants (case/accents/separators)", () => {
+    const napolitano = {
+      breeds: new Set(["Mastín Napolitano"]),
+      kg: null,
+      appliesIfBreedNotPPP: false,
+    };
+    expect(classifyPpp("dog", "mastin  napolitano", null, napolitano)).toBe(true);
+    expect(classifyPpp("dog", "PIT BULL TERRIER", null, rules)).toBe(true);
+  });
+
+  it("never widens the regime: an alias off the effective list stays off", () => {
+    const shortList = { breeds: new Set(["Rottweiler"]), kg: null, appliesIfBreedNotPPP: false };
+    expect(classifyPpp("dog", "pitbull", null, shortList)).toBe(false);
+  });
+
+  it("weight OR-composition is untouched by the folding", () => {
+    const weightRules = {
+      breeds: new Set(["Pit Bull Terrier"]),
+      kg: 20,
+      appliesIfBreedNotPPP: false,
+    };
+    // Folded breed match → PPP regardless of weight.
+    expect(classifyPpp("dog", "pitbull", 5, weightRules)).toBe(true);
+    // Non-matching breed, appliesIfBreedNotPPP=false → weight alone never flips.
+    expect(classifyPpp("dog", "caniche", 30, weightRules)).toBe(false);
+  });
+});

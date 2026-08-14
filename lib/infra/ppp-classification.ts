@@ -21,6 +21,7 @@
 import "server-only";
 
 import { resolveBusinessRule } from "@/lib/infra/business-rules-resolver";
+import { breedListIncludes, resolveBreedLabel } from "@/lib/reference/breeds";
 
 export interface PppRules {
   breeds: ReadonlySet<string>;
@@ -69,8 +70,15 @@ export function classifyPpp(
 ): boolean {
   if (species !== "dog") return false;
 
+  // Membership is by the SAME matcher every other classifier uses — case/
+  // accent folding plus the curated colloquial aliases — never raw Set.has.
+  // Exact equality here was QA A4's escape hatch: an already-stored "pitbull"
+  // (or any legacy variant) fell out of the legal regime by spelling. An
+  // alias never widens the regime: the resolved label still has to be on the
+  // effective jurisdiction list to count.
   const breedLabel = breed?.trim() ?? "";
-  const breedInList = breedLabel.length > 0 && rules.breeds.has(breedLabel);
+  const resolvedBreed = breedLabel.length > 0 ? (resolveBreedLabel(breedLabel) ?? breedLabel) : "";
+  const breedInList = resolvedBreed.length > 0 && breedListIncludes(rules.breeds, resolvedBreed);
 
   const weight = estimatedWeightKg ?? null;
   const weightHits =

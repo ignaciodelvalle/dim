@@ -26,6 +26,7 @@
 // and are inserted AFTER the transaction commits (best-effort, logged on failure).
 
 import { db, notifications, ownerships, petEvents, petIdentifications, pets } from "@/db";
+import { resolveBreedForWrite } from "@/lib/domain/breed-validation";
 import {
   CoordError,
   JurisdictionValidationError,
@@ -132,7 +133,15 @@ export function parseIntakeForm(formData: FormData) {
     if (plausibility) return { parsed: null, error: plausibility.error };
   }
 
-  const breed = String(formData.get("breed") ?? "").trim() || null;
+  // Breed catalog gate (QA A4): resolve to the canonical catalog label
+  // (folding + colloquial aliases) or reject. Lives HERE — not in
+  // createIntake — so the bulk CSV import preview, which validates rows
+  // through this exact parser, rejects an invented breed at preview time
+  // instead of at insert time. Intake creates a NEW pet, so there is no
+  // stored value to grandfather.
+  const breedResolution = resolveBreedForWrite(species, String(formData.get("breed") ?? ""));
+  if (!breedResolution.ok) return { parsed: null, error: breedResolution.error };
+  const breed = breedResolution.breed;
   // Config-theater fix (handoff 2026-07-03 #3): the intake form previously had
   // no weight field at all, so ppp_weight_threshold could never fire for
   // shelter-intaken dogs (PPP classification degraded to breed-only). Kept as

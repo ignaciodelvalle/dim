@@ -230,6 +230,15 @@ const BREED_ALIASES: Readonly<Record<string, string>> = {
   blueheeler: "Pastor Australiano",
   conejocomun: "Común",
   cobayoamericano: "Americano",
+
+  // Palabras que todo el país usa para un perro sin raza definida. Importan
+  // desde que el servidor RECHAZA razas fuera de catálogo (QA A4, 2026-08-13):
+  // sin estos alias, "mestizo" — la respuesta más honesta que puede dar un
+  // dueño — rebotaría con "elegí de la lista" en vez de resolver a la opción
+  // que significa exactamente eso.
+  mestizo: "Mixto / Cruza",
+  mestiza: "Mixto / Cruza",
+  cruza: "Mixto / Cruza",
 };
 
 /**

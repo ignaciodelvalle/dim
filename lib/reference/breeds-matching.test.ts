@@ -113,6 +113,8 @@ describe("los alias no pueden inventar una raza", () => {
       "Rough Collie",
       "Gran Danes",
       "Blue Heeler",
+      "mestizo",
+      "Cruza",
     ];
     for (const entrada of coloquiales) {
       const resuelto = resolveBreedLabel(entrada);

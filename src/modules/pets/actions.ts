@@ -20,6 +20,7 @@
 // NO business logic beyond edge orchestration. NO direct pet row writes.
 
 import { db, notifications } from "@/db";
+import { resolveBreedForWrite } from "@/lib/domain/breed-validation";
 import {
   JurisdictionValidationError,
   normalizeLocationForWrite,
@@ -115,6 +116,13 @@ export async function createPetAction(
   }
   // Safe: parseResult.error === null implies parsed is non-null (discriminated union).
   const parsed = parseResult.parsed as NonNullable<typeof parseResult.parsed>;
+
+  // Breed catalog gate (QA A4): the form's control only SUGGESTS; the server
+  // decides. Resolve to the canonical catalog label (folding + aliases) or
+  // reject — a misspelled PPP breed must not escape the legal regime.
+  const breedResolution = resolveBreedForWrite(parsed.species, parsed.breed);
+  if (!breedResolution.ok) return { error: breedResolution.error };
+  parsed.breed = breedResolution.breed;
 
   // Jurisdiction canonicalization (pre-tx, request-edge I/O).
   // locality:"strict" — resolveCanonicalJurisdiction (createPet behavior unchanged).
@@ -408,6 +416,16 @@ export async function updatePetAction(
   }
   // Safe: parseResult.error === null implies parsed is non-null (discriminated union).
   const parsed = parseResult.parsed as NonNullable<typeof parseResult.parsed>;
+
+  // Breed catalog gate (QA A4) — same as createPetAction, with one exception:
+  // re-submitting the pet's CURRENT stored breed unchanged is accepted even
+  // when off-catalog (QA A5 — a legacy value must survive an unrelated edit;
+  // the edit form appends it as its own <option> for exactly this reason).
+  const breedResolution = resolveBreedForWrite(parsed.species, parsed.breed, {
+    storedBreed: existingPet.breed,
+  });
+  if (!breedResolution.ok) return { error: breedResolution.error };
+  parsed.breed = breedResolution.breed;
 
   // Jurisdiction canonicalization (same posture as createPetAction).
   // locality:"strict" — resolveCanonicalJurisdiction (updatePet behavior unchanged).
