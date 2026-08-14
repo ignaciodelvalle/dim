@@ -162,7 +162,7 @@ if (ALLOW_REMOTE && !isLocalDb) {
 // 4. Deferred imports (after env is populated)
 // ---------------------------------------------------------------------------
 
-const { and, eq, inArray, isNull, like, sql } = await import("drizzle-orm");
+const { and, eq, inArray, isNull, like, or, sql } = await import("drizzle-orm");
 const {
   db,
   pets,
@@ -1257,14 +1257,24 @@ async function runClean(): Promise<void> {
         //      it never cascades; delete explicitly by the PANO pet_event IDs.
         //   2. event_notification_outbox.source_event_id — ON DELETE CASCADE on
         //      pet_events (auto-cleans), but we delete explicitly for clarity.
-        //   3. cases.primary_pet_id — ON DELETE CASCADE on pets (auto-cleans);
-        //      seeded cases never set pet_events.case_id (which is ON DELETE
-        //      RESTRICT), so there is no restrict dependency to order around.
+        //   3. cases.primary_pet_id — ON DELETE CASCADE on pets (auto-cleans),
+        //      BUT pet_events.case_id is ON DELETE RESTRICT and pre-2026-07
+        //      seed versions DID set it (rabies-observation events) — staging
+        //      still carries that dataset. So events must go before cases,
+        //      and the event sweep must also cover events that reference this
+        //      batch's cases from a pet OUTSIDE the batch (bite cases span
+        //      two pets, which may land in different DEL_BATCH windows).
+        const batchCaseIds = (
+          await tx.select({ id: cases.id }).from(cases).where(inArray(cases.primaryPetId, batch))
+        ).map((r) => r.id);
+
+        const eventSweepWhere =
+          batchCaseIds.length > 0
+            ? or(inArray(petEvents.petId, batch), inArray(petEvents.caseId, batchCaseIds))
+            : inArray(petEvents.petId, batch);
+
         const batchEventIds = (
-          await tx
-            .select({ id: petEvents.id })
-            .from(petEvents)
-            .where(inArray(petEvents.petId, batch))
+          await tx.select({ id: petEvents.id }).from(petEvents).where(eventSweepWhere)
         ).map((r) => r.id);
 
         if (batchEventIds.length > 0) {
@@ -1275,15 +1285,15 @@ async function runClean(): Promise<void> {
             .delete(eventNotificationOutbox)
             .where(inArray(eventNotificationOutbox.sourceEventId, batchEventIds));
         }
-        await tx.delete(cases).where(inArray(cases.primaryPetId, batch));
 
         if (actorId) {
           await tx.execute(sql`SELECT set_config('app.allow_event_mutation', 'true', true)`);
           await tx.execute(
             sql`SELECT set_config('app.allow_event_mutation_actor', ${actorId}, true)`,
           );
-          await tx.delete(petEvents).where(inArray(petEvents.petId, batch));
+          await tx.delete(petEvents).where(eventSweepWhere);
         }
+        await tx.delete(cases).where(inArray(cases.primaryPetId, batch));
         await tx.delete(ownerships).where(inArray(ownerships.petId, batch));
         await tx.delete(pets).where(inArray(pets.id, batch));
       });
