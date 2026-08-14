@@ -9,6 +9,8 @@
  *   PETS_PER_CAPITA       default 0.5    — fraction of people that own a pet
  *   SCALE                 default 0.002  — down-sample ratio (1:500 ≈ 46k pets)
  *   PANORAMA_WINDOW_DAYS  default 90     — event window in days back from anchor
+ *   PANO_PROVINCE_BOOST   default none   — per-province allocation multiplier,
+ *                         e.g. "Buenos Aires:3" (see the knob comment below)
  *
  * ─── DETERMINISM CONTRACT ──────────────────────────────────────────────────
  *   A fixed-seed mulberry32 PRNG drives ALL random choices. Re-running
@@ -59,6 +61,10 @@ import {
   pickRegisteredYear,
   provinceProfile,
 } from "./seed-history-utils";
+
+// PANO_PROVINCE_BOOST parser — pure and db-free, same static-import rationale
+// as seed-history-utils above. Colocated test: pano-province-boost.test.ts.
+import { boostedProvinceCount, parseProvinceBoost } from "./pano-province-boost";
 
 // CABA barrio reference data (names + centroids + weights). Pure data — safe to
 // import statically (no db side-effect). Used to replace the whole-city
@@ -253,6 +259,39 @@ const SCALE = Number(process.env.SCALE ?? "0.0005");
  * for denser stress-test datasets or to 0.1 for quick CI runs.
  */
 const HISTORY_SCALE = Number(process.env.HISTORY_SCALE ?? "1");
+
+/**
+ * PANO_PROVINCE_BOOST — per-province allocation multiplier, applied AFTER the
+ * population-weighted split (base = population × PETS_PER_CAPITA × SCALE) and
+ * ONLY to the provinces listed. Global SCALE stays untouched. Format is
+ * comma-separated "Provincia:multiplier" entries:
+ *
+ *   PANO_PROVINCE_BOOST="Buenos Aires:3" HISTORY_SCALE=2
+ *
+ * is the intended STAGING use: Provincia de Buenos Aires gets 3× pets so its
+ * partidos (Tigre, La Plata, Quilmes, Morón…) carry enough density for the
+ * gov-pba@ demo tour, without inflating the other 23 provinces the way a
+ * global SCALE bump would.
+ *
+ * Unknown province names FAIL FAST at startup (exit 2) — a typo must not
+ * silently no-op through a full seed run. Determinism is preserved: the
+ * multiplier reshapes the per-province counts BEFORE any RNG draw is spent,
+ * so the same env in → the same dataset out (the fixed-seed mulberry32
+ * contract). --dry-run reflects the boosted counts so the operator can
+ * preview before writing.
+ */
+function resolveProvinceBoost(): Map<string, number> {
+  try {
+    return parseProvinceBoost(
+      process.env.PANO_PROVINCE_BOOST,
+      PROVINCES.map((p) => p.name),
+    );
+  } catch (err) {
+    console.error(`[FAIL] ${err instanceof Error ? err.message : String(err)}`);
+    process.exit(2);
+  }
+}
+const PROVINCE_BOOST = resolveProvinceBoost();
 
 const BATCH_SIZE = 500;
 
@@ -1611,11 +1650,18 @@ async function seedPets(
 
   for (const censusProv of census) {
     const provinceName = censusProv.provinceName;
-    const provinceCount = Math.max(1, Math.round(censusProv.population * PETS_PER_CAPITA * SCALE));
+    // Population-weighted base, then the per-province PANO_PROVINCE_BOOST
+    // multiplier (identity for unlisted provinces) — see the knob comment.
+    const baseCount = Math.max(1, Math.round(censusProv.population * PETS_PER_CAPITA * SCALE));
+    const provinceCount = boostedProvinceCount(baseCount, provinceName, PROVINCE_BOOST);
 
+    const boostNote =
+      provinceCount !== baseCount
+        ? ` — boost ×${PROVINCE_BOOST.get(provinceName)} (base ${baseCount})`
+        : "";
     log(
       "INFO",
-      `  ${provinceName}: ${provinceCount} pets (pop ${censusProv.population.toLocaleString()})`,
+      `  ${provinceName}: ${provinceCount} pets (pop ${censusProv.population.toLocaleString()})${boostNote}`,
     );
 
     // Collect the per-pet plan for this province. Pets are no longer bulk
@@ -4865,13 +4911,41 @@ async function main(): Promise<void> {
 
   if (DRY_RUN) {
     log("INFO", "DRY RUN — no writes. Estimating counts:");
-    // Print what we would do
-    const censusMock = PROVINCES.map((p) => ({ provinceName: p.name, population: 1_000_000 }));
-    const total = censusMock.reduce(
-      (s, c) => s + Math.round(c.population * PETS_PER_CAPITA * SCALE),
-      0,
-    );
-    log("INFO", `  Would insert ~${total} pets (with mock 1M pop each province)`);
+    // Prefer the REAL census (same source the seed uses) so the preview shows
+    // the counts an actual run would produce — that is the whole point of
+    // previewing PANO_PROVINCE_BOOST before writing. Fall back to a mock
+    // uniform population when the DB is unreachable (the historical behavior).
+    let censusRows: CensusRow[];
+    let censusSource = "jurisdictions_census";
+    try {
+      censusRows = await loadCensus();
+      if (censusRows.length === 0) throw new Error("jurisdictions_census is empty");
+    } catch {
+      censusRows = PROVINCES.map((p) => ({ provinceName: p.name, population: 1_000_000 }));
+      censusSource = "mock 1M pop each province (DB unreachable)";
+    }
+    let baseTotal = 0;
+    let boostedTotal = 0;
+    for (const c of censusRows) {
+      const base = Math.max(1, Math.round(c.population * PETS_PER_CAPITA * SCALE));
+      const boosted = boostedProvinceCount(base, c.provinceName, PROVINCE_BOOST);
+      baseTotal += base;
+      boostedTotal += boosted;
+      if (boosted !== base) {
+        log(
+          "INFO",
+          `  ${c.provinceName}: ${base} → ${boosted} pets (boost ×${PROVINCE_BOOST.get(c.provinceName)})`,
+        );
+      }
+    }
+    if (PROVINCE_BOOST.size > 0) {
+      log(
+        "INFO",
+        `  Would insert ~${boostedTotal} pets total (~${baseTotal} without boost; ${censusSource})`,
+      );
+    } else {
+      log("INFO", `  Would insert ~${baseTotal} pets (${censusSource})`);
+    }
     process.exit(0);
   }
 
