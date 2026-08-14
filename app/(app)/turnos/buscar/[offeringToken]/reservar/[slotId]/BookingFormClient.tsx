@@ -7,7 +7,7 @@
 // the App Router drops in production: the slot was booked and the user was left
 // looking at the form.
 
-import { useActionState } from "react";
+import { useActionState, useEffect, useState } from "react";
 
 import { type BookSlotResult, bookSlotAction } from "@/app/actions/booking";
 import { LnButton } from "@/components/ui/Button";
@@ -39,6 +39,19 @@ export function BookingFormClient({
   const [state, dispatch, pending] = useActionState(formAction, initialState);
   useActionRedirect(state.redirectTo, state);
 
+  // Hydration gate (the documented task-#39 dropped-click class, QA repro on
+  // this form): `dispatch` is a CLIENT closure, so this form gets no
+  // progressive-enhancement POST — a click before hydration attaches handlers
+  // silently no-ops. Ship the button disabled in the SSR HTML (honest
+  // affordance: LnButton's disabled opacity/cursor) and enable it in the
+  // mount effect, which by definition runs only once hydration made the
+  // submit actionable. Same mounted-flag idiom as DegradedFallback /
+  // MilestoneNav.
+  const [hydrated, setHydrated] = useState(false);
+  useEffect(() => {
+    setHydrated(true);
+  }, []);
+
   return (
     <form action={dispatch} className="flex flex-col gap-4">
       <div>
@@ -69,7 +82,16 @@ export function BookingFormClient({
         </p>
       )}
 
-      <LnButton type="submit" variant="primary" size="lg" block disabled={pending}>
+      {/* loading (not bare disabled) while the action runs: spinner + aria-busy
+          make the in-flight state visible instead of a mute disabled button. */}
+      <LnButton
+        type="submit"
+        variant="primary"
+        size="lg"
+        block
+        disabled={!hydrated}
+        loading={pending}
+      >
         {pending ? "Reservando…" : "Confirmar reserva"}
       </LnButton>
     </form>
