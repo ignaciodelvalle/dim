@@ -25,7 +25,8 @@ import { type IntakeFormState, createIntakeAction } from "@/app/actions/intake";
 import { LnRadio } from "@/components/ui/Field";
 import { LnSuccessScreen } from "@/components/ui/SuccessScreen";
 import { LnWizardShell } from "@/components/ui/WizardShell";
-import { OpButton } from "@/components/ui/dashboard";
+import { OpButton, OpSelect } from "@/components/ui/dashboard";
+import { breedsForSpecies } from "@/lib/reference/breeds";
 import { useIdempotencyKey } from "@/lib/ui/use-idempotency-key";
 import { formatDate, speciesLabel, todayIsoInAr } from "@/lib/utils/format";
 
@@ -110,6 +111,43 @@ function buildIntakeFormData(fields: IntakeFields): FormData {
   fd.set("noRedirect", "1");
   fd.set("clientIdempotencyKey", fields.idempotencyKey);
   return fd;
+}
+
+/**
+ * Species-scoped breed CATALOG select — not free text (QA A4, 2026-08-13):
+ * the server now rejects off-catalog breeds, so a free input here would only
+ * manufacture rejections with no list to pick from. OpSelect (the sanctioned
+ * primitive), not a raw <select> — the lint:select ratchet stays flat.
+ * Extracted from IntakeForm to keep the wizard under the cognitive-complexity
+ * fence (same reason buildIntakeFormData exists).
+ */
+function BreedSelectField({
+  species,
+  breed,
+  onChange,
+}: {
+  species: string;
+  breed: string;
+  onChange: (value: string) => void;
+}) {
+  return (
+    <label className="space-y-1" htmlFor="intake-breed">
+      <span className="text-md text-ln-op-ink">Raza</span>
+      <OpSelect
+        id="intake-breed"
+        value={breed}
+        onChange={(e) => onChange(e.target.value)}
+        disabled={!species}
+      >
+        <option value="">{species ? "Sin especificar" : "Elegí la especie primero"}</option>
+        {breedsForSpecies(species).map((b) => (
+          <option key={b} value={b}>
+            {b}
+          </option>
+        ))}
+      </OpSelect>
+    </label>
+  );
 }
 
 export function IntakeForm({ orgToken }: { orgToken: string }) {
@@ -333,7 +371,12 @@ export function IntakeForm({ orgToken }: { orgToken: string }) {
             <span className="text-md text-ln-op-ink">Especie *</span>
             <select
               value={species}
-              onChange={(e) => setSpecies(e.target.value)}
+              onChange={(e) => {
+                setSpecies(e.target.value);
+                // The breed catalog is species-scoped — a lingering dog breed
+                // under "cat" would bounce server-side (QA A4 catalog gate).
+                setBreed("");
+              }}
               required
               className={inputCls}
             >
@@ -388,16 +431,7 @@ export function IntakeForm({ orgToken }: { orgToken: string }) {
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-          <label className="space-y-1">
-            <span className="text-md text-ln-op-ink">Raza</span>
-            <input
-              type="text"
-              value={breed}
-              onChange={(e) => setBreed(e.target.value)}
-              maxLength={120}
-              className={inputCls}
-            />
-          </label>
+          <BreedSelectField species={species} breed={breed} onChange={setBreed} />
           <label className="space-y-1">
             <span className="text-md text-ln-op-ink">Color / pelaje</span>
             <input

@@ -342,7 +342,13 @@ export function MinimalNewPetForm({
             }}
           />
 
-          {/* Breed — optional, species-dependent autocomplete. */}
+          {/* Breed — optional, species-dependent CATALOG select (QA A4,
+              2026-08-13). This was an <input list="breed-options">, i.e. a
+              datalist: it suggests catalog entries but accepts ANY text, and
+              "Raza-Falsa-CW0813" reached the database through it. Same
+              catalog-not-free-text conversion PetForm.tsx (edición) got on
+              2026-08-13 — the server now rejects off-catalog breeds, so a
+              permissive control here would only manufacture rejections. */}
           <LnField
             label="Raza"
             hint={
@@ -352,25 +358,23 @@ export function MinimalNewPetForm({
             }
           >
             {({ id, describedBy }) => (
-              <LnInput
+              <LnSelect
                 id={id}
                 name="breed"
-                type="text"
-                list="breed-options"
                 value={breed}
                 onChange={(e) => setBreed(e.target.value)}
-                placeholder={species ? "Empezá a tipear o elegí…" : "Elegí la especie primero"}
                 disabled={!species}
                 aria-describedby={describedBy}
-                autoComplete="off"
-              />
+              >
+                <option value="">{species ? "Elegí una raza…" : "Elegí la especie primero"}</option>
+                {breedOptions.map((b) => (
+                  <option key={b} value={b}>
+                    {b}
+                  </option>
+                ))}
+              </LnSelect>
             )}
           </LnField>
-          <datalist id="breed-options">
-            {breedOptions.map((b) => (
-              <option key={b} value={b} />
-            ))}
-          </datalist>
 
           {/* PPP notice — appears/disappears live with the breed selection. */}
           {breedIsDangerous && (

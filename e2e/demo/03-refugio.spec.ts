@@ -78,7 +78,9 @@ test("segmento 03 — refugio", async ({ page }) => {
   // Exact match — a loose /raza/i regex also matches the "Peso estimado (kg)"
   // field, whose helper text ("razas potencialmente peligrosas") contains
   // "raza" as a substring, causing a strict-mode violation (2 elements).
-  await step.getByLabel("Raza", { exact: true }).fill("Mestiza");
+  // Catalog select since QA A4 (was free text "Mestiza"): the server rejects
+  // off-catalog breeds, and "mestiza" resolves to the "Mixto / Cruza" option.
+  await step.getByLabel("Raza", { exact: true }).selectOption("Mixto / Cruza");
   await step.getByLabel(/color/i).fill("Negra con pecho blanco");
   await step
     .getByLabel(/señas particulares/i)
