@@ -3176,6 +3176,15 @@ async function seedHealthCampaigns(
       // Per-offering booking probability, layered with the province demand.
       const bookingProb = Math.min(0.95, CAMPAIGN_BOOKING_RATE * demand.demand + 0.1);
 
+      // Pets already holding a CONFIRMED (future) appointment anywhere in THIS
+      // offering. Future slots always seed 'confirmed', and migration 0181
+      // allows only ONE live appointment per (pet, offering) — the same
+      // campaign-level invariant 0177 enforced per slot. Without this set the
+      // per-slot dedupe below could still draw the same pet for two future
+      // slots of one campaign, and db:bootstrap would die on the index (the
+      // 0177 rollout failed on exactly that shape, seeded per slot).
+      const confirmedPetsInOffering = new Set<string>();
+
       for (let slotSeq = 0; slotSeq < slotPlan.length; slotSeq++) {
         const plan = slotPlan[slotSeq];
         const offsetMs = plan.daysFromAnchor * 24 * 3600 * 1000;
@@ -3210,12 +3219,18 @@ async function seedHealthCampaigns(
           for (let attempt = 0; attempt < 8; attempt++) {
             const candidate = pool[Math.floor(rng() * pool.length)];
             if (usedPets.has(candidate)) continue;
+            // Future slots write 'confirmed' rows — a pet that already holds a
+            // confirmed booking in this offering must not be drawn again
+            // (campaign-level unique index, migration 0181). Past slots write
+            // terminal statuses, which the partial index ignores.
+            if (plan.future && confirmedPetsInOffering.has(candidate)) continue;
             usedPets.add(candidate);
             slotPets.push(candidate);
             break;
           }
         }
         bookings = slotPets.length;
+        if (plan.future) for (const p of slotPets) confirmedPetsInOffering.add(p);
 
         const slotStatus = bookings >= capacity ? "full" : "open";
         const [slotRow] = await db

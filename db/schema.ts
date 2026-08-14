@@ -2732,6 +2732,14 @@ export const appointments = pgTable(
     oneLivePerPetSlot: uniqueIndex("appointments_one_live_per_pet_slot")
       .on(table.petId, table.slotId)
       .where(sql`${table.status} = 'confirmed'`),
+    // One LIVE booking per (pet, offering/campaign) — migration 0181 (QA A3).
+    // 0177 closed identity at the SLOT level; the same pet could still hold
+    // the 08:00 AND the 08:15 of the SAME free campaign and eat two places.
+    // Partial on 'confirmed' for the same reason as above: cancel-and-rebook
+    // stays legitimate, terminal history stays untouched.
+    oneLivePerPetOffering: uniqueIndex("appointments_one_live_per_pet_offering")
+      .on(table.petId, table.serviceOfferingId)
+      .where(sql`${table.status} = 'confirmed'`),
     appointmentStatusValid: check(
       "appointment_status_valid",
       sql`${table.status} in ('confirmed', 'attended', 'no_show', 'cancelled_by_owner', 'cancelled_by_org')`,

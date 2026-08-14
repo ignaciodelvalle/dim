@@ -144,6 +144,40 @@ async function purgeUserByEmail(email: string) {
   if (found) await supabase.auth.admin.deleteUser(found.id);
 }
 
+// Every offering created by these fixtures — afterAll sweeps this list.
+const insertedOfferingIds: string[] = [];
+
+// Offering factory — one offering PER confirmed fixture appointment. The
+// campaign-level partial unique index (migration 0181, QA A3) allows a single
+// LIVE appointment per (pet, offering); these fixtures deliberately hold
+// several confirmed appointments for the SAME pet at the same time, so each
+// one needs its own offering. serviceKind and org/vet side are preserved —
+// they are all the attendance writers read from the offering.
+async function createOffering(opts: {
+  serviceKind: string;
+  displayName: string;
+  organizationId?: string | null;
+  providerUserId?: string | null;
+}): Promise<string> {
+  const [row] = await db
+    .insert(serviceOfferings)
+    .values({
+      publicToken: generateOfferingToken(),
+      organizationId: opts.organizationId ?? null,
+      providerUserId: opts.providerUserId ?? null,
+      serviceKind: opts.serviceKind,
+      displayName: opts.displayName,
+      durationMinutes: 15,
+      slotCapacity: 2,
+      status: "approved",
+      jurisdictionProvince: "Buenos Aires",
+      jurisdictionLocality: "CABA",
+    })
+    .returning({ id: serviceOfferings.id });
+  insertedOfferingIds.push(row.id);
+  return row.id;
+}
+
 async function createAppointment(
   slotId: string,
   petIdArg: string,
@@ -267,66 +301,72 @@ beforeAll(async () => {
     role: "owner",
   });
 
-  // Org-side service offering (vaccination).
-  const orgOfferingToken = generateOfferingToken();
-  const [orgOffering] = await db
-    .insert(serviceOfferings)
-    .values({
-      publicToken: orgOfferingToken,
-      organizationId: orgId,
-      serviceKind: "vaccination_rabies",
-      displayName: "Vacuna antirrábica test",
-      durationMinutes: 15,
-      slotCapacity: 2,
-      status: "approved",
-      jurisdictionProvince: "Buenos Aires",
-      jurisdictionLocality: "CABA",
-    })
-    .returning();
-  offeringOrgId = orgOffering.id;
+  // Org-side service offering (vaccination). Kept as the shared offering for
+  // the DYNAMIC tests further down (real owner-cancel CTA, SC1, SC2): those
+  // run sequentially after the fixture appointments have gone terminal, so
+  // they never hold two confirmed rows at once. The beforeAll fixtures below
+  // DO — several confirmed appointments for the same pet at the same time —
+  // so each of those gets its own offering (campaign-level unique index,
+  // migration 0181; see createOffering above).
+  offeringOrgId = await createOffering({
+    serviceKind: "vaccination_rabies",
+    displayName: "Vacuna antirrábica test",
+    organizationId: orgId,
+  });
 
   // Vet-side service offering.
-  const vetOfferingToken = generateOfferingToken();
-  const [vetOffering] = await db
-    .insert(serviceOfferings)
-    .values({
-      publicToken: vetOfferingToken,
-      providerUserId: vetProviderUserId,
-      serviceKind: "vaccination_rabies",
-      displayName: "Vacuna antirrábica vet test",
-      durationMinutes: 15,
-      slotCapacity: 2,
-      status: "approved",
-      jurisdictionProvince: "Buenos Aires",
-      jurisdictionLocality: "CABA",
-    })
-    .returning();
-  offeringVetId = vetOffering.id;
+  offeringVetId = await createOffering({
+    serviceKind: "vaccination_rabies",
+    displayName: "Vacuna antirrábica vet test",
+    providerUserId: vetProviderUserId,
+  });
 
-  // Create slots + appointments for each test.
+  // Create slots + appointments for each test — one offering per confirmed
+  // fixture appointment (see the note on createOffering).
   vaccinationSlotId = await createSlot(offeringOrgId, 2);
   const vacc = await createAppointment(vaccinationSlotId, petId, ownerUserId, orgId, offeringOrgId);
   vaccinationApptId = vacc.id;
   vaccinationApptToken = vacc.token;
 
-  invalidPayloadSlotId = await createSlot(offeringOrgId, 3);
+  const invalidPayloadOfferingId = await createOffering({
+    serviceKind: "vaccination_rabies",
+    displayName: "Vacuna antirrábica test (invalid payload)",
+    organizationId: orgId,
+  });
+  invalidPayloadSlotId = await createSlot(invalidPayloadOfferingId, 3);
   const inv = await createAppointment(
     invalidPayloadSlotId,
     petId,
     ownerUserId,
     orgId,
-    offeringOrgId,
+    invalidPayloadOfferingId,
   );
   invalidPayloadApptId = inv.id;
   invalidPayloadApptToken = inv.token;
 
-  noShowSlotId = await createSlot(offeringOrgId, 4);
-  const ns = await createAppointment(noShowSlotId, petId, ownerUserId, orgId, offeringOrgId);
+  const noShowOfferingId = await createOffering({
+    serviceKind: "vaccination_rabies",
+    displayName: "Vacuna antirrábica test (no-show)",
+    organizationId: orgId,
+  });
+  noShowSlotId = await createSlot(noShowOfferingId, 4);
+  const ns = await createAppointment(noShowSlotId, petId, ownerUserId, orgId, noShowOfferingId);
   noShowApptId = ns.id;
   noShowApptToken = ns.token;
 
-  orgCancelSlotId = await createSlot(offeringOrgId, 5);
-  const oc = await createAppointment(orgCancelSlotId, petId, ownerUserId, orgId, offeringOrgId);
+  const orgCancelOfferingId = await createOffering({
+    serviceKind: "vaccination_rabies",
+    displayName: "Vacuna antirrábica test (org cancel)",
+    organizationId: orgId,
+  });
+  orgCancelSlotId = await createSlot(orgCancelOfferingId, 5);
+  const oc = await createAppointment(
+    orgCancelSlotId,
+    petId,
+    ownerUserId,
+    orgId,
+    orgCancelOfferingId,
+  );
   orgCancelApptId = oc.id;
   orgCancelApptToken = oc.token;
 
@@ -335,8 +375,19 @@ beforeAll(async () => {
   ownerCancelApptId = owc.id;
   ownerCancelApptToken = owc.token;
 
-  vetAttendSlotId = await createSlot(offeringVetId, 7);
-  const va = await createAppointment(vetAttendSlotId, petId, ownerUserId, null, offeringVetId);
+  const vetAttendOfferingId = await createOffering({
+    serviceKind: "vaccination_rabies",
+    displayName: "Vacuna antirrábica vet test (attend)",
+    providerUserId: vetProviderUserId,
+  });
+  vetAttendSlotId = await createSlot(vetAttendOfferingId, 7);
+  const va = await createAppointment(
+    vetAttendSlotId,
+    petId,
+    ownerUserId,
+    null,
+    vetAttendOfferingId,
+  );
   vetAttendApptId = va.id;
   vetAttendApptToken = va.token;
 
@@ -356,23 +407,13 @@ beforeAll(async () => {
     }
   }
 
-  // Org-side microchip-implantation offering.
-  const microchipOfferingToken = generateOfferingToken();
-  const [microchipOffering] = await db
-    .insert(serviceOfferings)
-    .values({
-      publicToken: microchipOfferingToken,
-      organizationId: orgId,
-      serviceKind: "microchip_implantation",
-      displayName: "Colocación de microchip test",
-      durationMinutes: 15,
-      slotCapacity: 2,
-      status: "approved",
-      jurisdictionProvince: "Buenos Aires",
-      jurisdictionLocality: "CABA",
-    })
-    .returning();
-  offeringMicrochipId = microchipOffering.id;
+  // Org-side microchip-implantation offerings — same one-offering-per-
+  // confirmed-appointment rule as above.
+  offeringMicrochipId = await createOffering({
+    serviceKind: "microchip_implantation",
+    displayName: "Colocación de microchip test",
+    organizationId: orgId,
+  });
 
   microchipSlotId = await createSlot(offeringMicrochipId, 8);
   const mc = await createAppointment(
@@ -384,23 +425,33 @@ beforeAll(async () => {
   );
   microchipApptId = mc.id;
 
-  microchipDupSlotId = await createSlot(offeringMicrochipId, 9);
+  const microchipDupOfferingId = await createOffering({
+    serviceKind: "microchip_implantation",
+    displayName: "Colocación de microchip test (dup)",
+    organizationId: orgId,
+  });
+  microchipDupSlotId = await createSlot(microchipDupOfferingId, 9);
   const mcDup = await createAppointment(
     microchipDupSlotId,
     petId,
     ownerUserId,
     orgId,
-    offeringMicrochipId,
+    microchipDupOfferingId,
   );
   microchipDupApptId = mcDup.id;
 
-  microchipConflictSlotId = await createSlot(offeringMicrochipId, 10);
+  const microchipConflictOfferingId = await createOffering({
+    serviceKind: "microchip_implantation",
+    displayName: "Colocación de microchip test (conflict)",
+    organizationId: orgId,
+  });
+  microchipConflictSlotId = await createSlot(microchipConflictOfferingId, 10);
   const mcConflict = await createAppointment(
     microchipConflictSlotId,
     petId,
     ownerUserId,
     orgId,
-    offeringMicrochipId,
+    microchipConflictOfferingId,
   );
   microchipConflictApptId = mcConflict.id;
 
@@ -468,7 +519,9 @@ afterAll(async () => {
     });
   }
 
-  const offeringList = [offeringOrgId, offeringVetId, offeringMicrochipId].filter(Boolean);
+  // insertedOfferingIds already contains offeringOrgId / offeringVetId /
+  // offeringMicrochipId — every offering goes through createOffering now.
+  const offeringList = insertedOfferingIds.filter(Boolean);
   if (offeringList.length > 0 || orgId) {
     await withMutationOverride(async (tx) => {
       // Delete appointments + slots by service_offering_id (broader than pet_id —

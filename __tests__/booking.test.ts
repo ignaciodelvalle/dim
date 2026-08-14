@@ -6,6 +6,9 @@
 //   3. Slot in the past — returns "El turno ya pasó.".
 //   4. Pet not owned by user — wrapper returns "Esta mascota no te pertenece.".
 //   5. Deceased pet — wrapper refuses even though the tenencia is active.
+//   6. Campaign-level identity guard (QA A3) — one confirmed appointment per
+//      (pet, offering): same-slot dup, cross-slot dup, cancel→rebook, and the
+//      0181 partial unique index as the race backstop.
 //
 // All DB rows are seeded + cleaned in beforeAll/afterAll.
 
@@ -36,8 +39,14 @@ import {
   serviceOfferings,
   timeSlots,
 } from "@/db";
-import { generateOfferingToken, generatePublicToken } from "@/lib/infra/publicToken";
+import { matchesDbError } from "@/lib/infra/db-errors";
+import {
+  generateAppointmentToken,
+  generateOfferingToken,
+  generatePublicToken,
+} from "@/lib/infra/publicToken";
 import { bookSlotWriter } from "@/src/modules/events/application/booking/book-slot";
+import { cancelAppointmentByOwner } from "@/src/modules/events/application/booking/cancel-appointment-by-owner";
 
 const SUPABASE_URL = "http://127.0.0.1:54321";
 const SECRET = "sb_secret_N7UND0UgjKTVK-Uodkm0Hg_xSvEMPvz";
@@ -61,6 +70,10 @@ let offeringId: string;
 let futureSlotId: string;
 let fullSlotId: string;
 let pastSlotId: string;
+// The action-wrapper tests book petId AGAIN — they need their own offering,
+// or the campaign-level guard (one confirmed per pet+offering, QA A3) would
+// reject what is actually a legitimate booking in a different campaign.
+let actionOfferingId: string;
 let actionSlotId: string;
 
 // Track inserted appointment public tokens for cleanup.
@@ -218,12 +231,30 @@ beforeAll(async () => {
     .returning();
   pastSlotId = pastSlot.id;
 
-  // Dedicated slot for the action-wrapper tests, so they never race the
-  // writer-level ones over bookings_count.
+  // Dedicated OFFERING + slot for the action-wrapper tests, so they never
+  // race the writer-level ones over bookings_count — and so booking petId a
+  // second time stays legitimate under the one-confirmed-per-(pet, offering)
+  // guard (QA A3): different campaign, different regime.
+  const [actionOffering] = await db
+    .insert(serviceOfferings)
+    .values({
+      publicToken: generateOfferingToken(),
+      providerUserId: otherUserId,
+      serviceKind: "general_checkup",
+      displayName: "Test offering (action wrapper)",
+      durationMinutes: 30,
+      slotCapacity: 1,
+      status: "approved",
+      jurisdictionProvince: "Buenos Aires",
+      jurisdictionLocality: "CABA",
+    })
+    .returning();
+  actionOfferingId = actionOffering.id;
+
   const [actionSlot] = await db
     .insert(timeSlots)
     .values({
-      serviceOfferingId: offeringId,
+      serviceOfferingId: actionOfferingId,
       startsAt: new Date(Date.now() + 4 * 24 * 60 * 60 * 1000), // +4 days
       endsAt: new Date(Date.now() + 4 * 24 * 60 * 60 * 1000 + 30 * 60 * 1000),
       capacity: 1,
@@ -244,9 +275,11 @@ afterAll(async () => {
     await db.delete(appointments).where(eq(appointments.publicToken, token));
   }
 
-  // Delete slots, offering, pet, ownerships, users.
+  // Delete slots, offerings, pet, ownerships, users.
   await db.delete(timeSlots).where(eq(timeSlots.serviceOfferingId, offeringId));
   await db.delete(serviceOfferings).where(eq(serviceOfferings.id, offeringId));
+  await db.delete(timeSlots).where(eq(timeSlots.serviceOfferingId, actionOfferingId));
+  await db.delete(serviceOfferings).where(eq(serviceOfferings.id, actionOfferingId));
   await db.delete(ownerships).where(eq(ownerships.petId, petId));
   await db.execute(sql`DELETE FROM pets WHERE id = ${petId}`);
   await db.delete(ownerships).where(eq(ownerships.petId, deceasedPetId));
@@ -364,5 +397,139 @@ describe("bookSlotAction — server-side guards", () => {
     expect(result).toMatchObject({ ok: true });
     if (!("ok" in result) || !result.ok) throw new Error("Expected ok result");
     insertedAppointmentTokens.push(result.appointmentToken);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Campaign-level identity guard (QA A3, 2026-08-13) — one CONFIRMED
+// appointment per (pet, offering). The per-slot guard (0177) let the same pet
+// take the 08:00 AND the 08:15 of the SAME free campaign: N materialized
+// slots, N eaten places. Self-contained fixtures: petId already holds live
+// bookings in the offerings above, so this describe gets its own.
+// ---------------------------------------------------------------------------
+
+describe("bookSlotWriter — campaign-level identity guard (QA A3)", () => {
+  let campaignOfferingId: string;
+  let otherCampaignOfferingId: string;
+  let slotAId: string; // "08:00" — capacity 2, so the per-slot duplicate reaches the identity guard
+  let slotBId: string; // "08:15" — same campaign, different slot
+  let otherCampaignSlotId: string;
+  const localTokens: string[] = [];
+
+  async function createCampaignOffering(displayName: string): Promise<string> {
+    const [offering] = await db
+      .insert(serviceOfferings)
+      .values({
+        publicToken: generateOfferingToken(),
+        providerUserId: otherUserId,
+        serviceKind: "vaccination_rabies",
+        displayName,
+        durationMinutes: 15,
+        slotCapacity: 2,
+        status: "approved",
+        jurisdictionProvince: "Buenos Aires",
+        jurisdictionLocality: "CABA",
+      })
+      .returning({ id: serviceOfferings.id });
+    return offering.id;
+  }
+
+  async function createCampaignSlot(offering: string, hourOffset: number): Promise<string> {
+    const base = Date.now() + 6 * 24 * 60 * 60 * 1000;
+    const [slot] = await db
+      .insert(timeSlots)
+      .values({
+        serviceOfferingId: offering,
+        startsAt: new Date(base + hourOffset * 60 * 60 * 1000),
+        endsAt: new Date(base + hourOffset * 60 * 60 * 1000 + 15 * 60 * 1000),
+        capacity: 2,
+        bookingsCount: 0,
+        status: "open",
+      })
+      .returning({ id: timeSlots.id });
+    return slot.id;
+  }
+
+  beforeAll(async () => {
+    campaignOfferingId = await createCampaignOffering("Campaña test (guard A3)");
+    otherCampaignOfferingId = await createCampaignOffering("Otra campaña test (guard A3)");
+    slotAId = await createCampaignSlot(campaignOfferingId, 0);
+    slotBId = await createCampaignSlot(campaignOfferingId, 1);
+    otherCampaignSlotId = await createCampaignSlot(otherCampaignOfferingId, 0);
+  });
+
+  afterAll(async () => {
+    // Self-contained: appointments first (FK RESTRICT on time_slots), then
+    // slots, then offerings.
+    for (const token of localTokens) {
+      await db.delete(appointments).where(eq(appointments.publicToken, token));
+    }
+    for (const oid of [campaignOfferingId, otherCampaignOfferingId]) {
+      await db.delete(timeSlots).where(eq(timeSlots.serviceOfferingId, oid));
+      await db.delete(serviceOfferings).where(eq(serviceOfferings.id, oid));
+    }
+  });
+
+  it("books the first slot of the campaign (baseline)", async () => {
+    const result = await bookSlotWriter(slotAId, petId, ownerUserId);
+    expect(result).toMatchObject({ ok: true });
+    if ("ok" in result) localTokens.push(result.appointmentToken);
+  });
+
+  it("same slot again — still the per-slot message (capacity permits, identity refuses)", async () => {
+    const result = await bookSlotWriter(slotAId, petId, ownerUserId);
+    expect(result).toEqual({ error: "Esta mascota ya tiene este turno reservado." });
+  });
+
+  it("DIFFERENT slot of the SAME campaign — rejected with the campaign message", async () => {
+    const result = await bookSlotWriter(slotBId, petId, ownerUserId);
+    expect(result).toEqual({ error: "Esta mascota ya tiene un turno reservado en esta campaña." });
+  });
+
+  it("a different campaign is unaffected", async () => {
+    const result = await bookSlotWriter(otherCampaignSlotId, petId, ownerUserId);
+    expect(result).toMatchObject({ ok: true });
+    if ("ok" in result) localTokens.push(result.appointmentToken);
+  });
+
+  it("cancel → rebook another slot of the same campaign is allowed (partial index frees on cancel)", async () => {
+    // Real owner-cancel use-case, not a raw UPDATE — proves the whole
+    // cancel-then-rebook path the index must keep legitimate.
+    const cancelResult = await cancelAppointmentByOwner(localTokens[0]!, ownerUserId);
+    expect(cancelResult).toMatchObject({ ok: true });
+
+    const rebook = await bookSlotWriter(slotBId, petId, ownerUserId);
+    expect(rebook).toMatchObject({ ok: true });
+    if ("ok" in rebook) localTokens.push(rebook.appointmentToken);
+  });
+
+  it("the DB partial unique index is VALID and enforcing (0181 rebuilt what 0177 left INVALID)", async () => {
+    // Direct insert, bypassing the writer — the backstop must hold for ANY
+    // writer (0177's motivation: two of the three duplicate pairs in staging
+    // came from a seed, not the form). This also regression-proves the
+    // CONCURRENTLY + IF NOT EXISTS trap: a failed create left 0177's index
+    // sitting INVALID (existing but enforcing nothing) in local for days.
+    const token = generateAppointmentToken();
+    let thrown: unknown = null;
+    try {
+      await db.insert(appointments).values({
+        publicToken: token,
+        slotId: slotAId, // different slot than the live slotB booking…
+        petId, // …same pet, same offering, status confirmed → must violate
+        ownerUserId,
+        serviceOfferingId: campaignOfferingId,
+        status: "confirmed",
+      });
+      localTokens.push(token); // only reached on failure-to-throw — clean it up
+    } catch (err) {
+      thrown = err;
+    }
+    expect(thrown).not.toBeNull();
+    expect(
+      matchesDbError(thrown, {
+        code: "23505",
+        constraint: /appointments_one_live_per_pet_offering/,
+      }),
+    ).toBe(true);
   });
 });

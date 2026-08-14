@@ -155,25 +155,30 @@ beforeAll(async () => {
     .returning({ id: timeSlots.id });
   futureSlotBId = slotB.id;
 
-  // Create a minimal pet + ownership so we can insert appointments for slotB.
-  const [pet] = await db
-    .insert(pets)
-    .values({
-      publicToken: generatePublicToken(),
-      species: "dog",
-      name: "Capacity Sync Dog",
-    })
-    .returning({ id: pets.id });
-  insertedPetIds.push(pet.id);
-
-  await db.insert(ownerships).values({
-    petId: pet.id,
-    ownerUserId,
-    role: "owner",
-  });
-
-  // Two confirmed appointments on slotB (matching bookingsCount = 2).
+  // Two minimal pets + ownerships so we can insert appointments for slotB.
+  // TWO pets, one appointment each — not one pet twice: the partial unique
+  // indexes from migrations 0177/0181 allow a single LIVE appointment per
+  // (pet, slot) AND per (pet, offering). The old single-pet loop seeded a
+  // state the schema now (correctly) refuses — and only ever passed because
+  // the 0177 index sat INVALID in local after its failed CONCURRENTLY create.
   for (let i = 0; i < 2; i++) {
+    const [pet] = await db
+      .insert(pets)
+      .values({
+        publicToken: generatePublicToken(),
+        species: "dog",
+        name: `Capacity Sync Dog ${i + 1}`,
+      })
+      .returning({ id: pets.id });
+    insertedPetIds.push(pet.id);
+
+    await db.insert(ownerships).values({
+      petId: pet.id,
+      ownerUserId,
+      role: "owner",
+    });
+
+    // One confirmed appointment per pet on slotB (bookingsCount = 2 total).
     const token = generateAppointmentToken();
     insertedAppointmentTokens.push(token);
     await db.insert(appointments).values({

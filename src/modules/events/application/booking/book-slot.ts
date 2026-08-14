@@ -111,6 +111,30 @@ export async function bookSlotWriter(
         throw new BookingError("Esta mascota ya tiene este turno reservado.");
       }
 
+      // Campaign-level identity guard (QA A3, 2026-08-13): one CONFIRMED
+      // appointment per (pet, offering). The per-slot guard above let the same
+      // pet take the 08:00 AND the 08:15 of the SAME free campaign — N slots,
+      // N eaten places. NOTE the advisory lock is keyed per SLOT, so two
+      // concurrent submits against DIFFERENT slots of the same campaign do NOT
+      // serialize here; the partial unique index from migration 0181
+      // (appointments_one_live_per_pet_offering) is the race-proof backstop
+      // below. Cancelled/attended/no_show rows don't count — cancel-and-rebook
+      // stays legitimate.
+      const [existingInCampaign] = await tx
+        .select({ id: appointments.id })
+        .from(appointments)
+        .where(
+          and(
+            eq(appointments.petId, petId),
+            eq(appointments.serviceOfferingId, slot.serviceOfferingId),
+            eq(appointments.status, "confirmed"),
+          ),
+        )
+        .limit(1);
+      if (existingInCampaign) {
+        throw new BookingError("Esta mascota ya tiene un turno reservado en esta campaña.");
+      }
+
       // Step 3 — Fetch offering to denormalize organizationId AND re-check its
       // status under the lock (SC3). The UI hides slots of paused/archived
       // offerings, but a pre-materialized slot of a non-approved offering is
@@ -169,6 +193,13 @@ export async function bookSlotWriter(
     if (isDuplicateLiveBooking(err)) {
       return { error: "Esta mascota ya tiene este turno reservado." };
     }
+    // Campaign-level identity: the per-slot advisory lock cannot serialize two
+    // submits against DIFFERENT slots of the same offering, so unlike the two
+    // above this one is not a belt-and-braces net — it is the primary guard
+    // for that race (migration 0181).
+    if (isDuplicateLiveCampaignBooking(err)) {
+      return { error: "Esta mascota ya tiene un turno reservado en esta campaña." };
+    }
     throw err;
   }
 
@@ -188,10 +219,19 @@ function isSlotCapacityViolation(err: unknown): boolean {
 }
 
 // Postgres 23505 = unique_violation, from the partial unique index
-// `appointments_one_live_per_pet_slot` (db/migrations/0177).
+// `appointments_one_live_per_pet_slot` (db/migrations/0177, rebuilt in 0181).
 function isDuplicateLiveBooking(err: unknown): boolean {
   return matchesDbError(err, {
     code: "23505",
     constraint: /appointments_one_live_per_pet_slot/,
+  });
+}
+
+// Postgres 23505 = unique_violation, from the partial unique index
+// `appointments_one_live_per_pet_offering` (db/migrations/0181).
+function isDuplicateLiveCampaignBooking(err: unknown): boolean {
+  return matchesDbError(err, {
+    code: "23505",
+    constraint: /appointments_one_live_per_pet_offering/,
   });
 }
