@@ -107,6 +107,14 @@ const client =
   // is the missing-url proxy), and postgres() constructs lazily either way.
   postgres(process.env.DATABASE_URL as string, {
     prepare: false,
+    // keep_alive: TCP SO_KEEPALIVE probe delay. Without it, a socket silently
+    // dropped by a NAT/pooler between packets becomes a zombie: the pool never
+    // learns it died and the next query queues forever behind it (observed
+    // twice on 2026-08-14 — multi-hour remote seed runs wedging mid-province
+    // with zero errors). With probes the OS errors the socket, the pool evicts
+    // it, and the next query reconnects. Short-lived serverless connections
+    // never reach the first probe, so this is a no-op in lambdas.
+    keep_alive: 30,
     ...(isTest
       ? {
           max: 3,
@@ -218,6 +226,7 @@ const analyticsClient = isTest
       // instead of serializing over one warm backend, without re-risking
       // EMAXCONNSESSION.
       max: 2,
+      keep_alive: 30, // TCP probes — evict silently-dropped sockets (see main client note)
       connect_timeout: 10, // seconds — fail fast when the pooler is saturated
       idle_timeout: 5, // seconds — release session-pooler backends fast (was 10; see max note)
       max_lifetime: 300, // seconds — recycle to avoid stale/degraded connections
