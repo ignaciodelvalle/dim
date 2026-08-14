@@ -282,6 +282,26 @@ export function breedListIncludes(list: Iterable<string>, label: string): boolea
   return false;
 }
 
+/**
+ * Like `breedListIncludes`, but resolves BOTH sides through the alias matcher
+ * before folding. A jurisdiction's admin-stored list entry can itself be a
+ * colloquial form ("Pitbull"): key-folding alone never matches it against the
+ * canonical stored label ("Pit Bull Terrier"), because folding cannot make a
+ * short name equal a long one — the same two-failure split the header above
+ * describes, replayed on the LIST side. That asymmetry dropped a dog out of
+ * the legal regime by the ADMIN's spelling (adversarial review 2026-08-14).
+ * Resolution is conservative both ways: an unresolvable side falls back to
+ * its own folded key, so this can only ever equate names the curated alias
+ * table already declares equivalent — it never widens by substring.
+ */
+export function breedListIncludesResolved(list: Iterable<string>, label: string): boolean {
+  const key = normalizeBreedKey(resolveBreedLabel(label) ?? label);
+  for (const entry of list) {
+    if (normalizeBreedKey(resolveBreedLabel(entry) ?? entry) === key) return true;
+  }
+  return false;
+}
+
 export function isPotentiallyDangerousBreed(
   species: string | null | undefined,
   breed: string | null | undefined,

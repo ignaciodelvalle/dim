@@ -21,7 +21,7 @@
 import "server-only";
 
 import { resolveBusinessRule } from "@/lib/infra/business-rules-resolver";
-import { breedListIncludes, resolveBreedLabel } from "@/lib/reference/breeds";
+import { breedListIncludesResolved, resolveBreedLabel } from "@/lib/reference/breeds";
 
 export interface PppRules {
   breeds: ReadonlySet<string>;
@@ -76,9 +76,16 @@ export function classifyPpp(
   // (or any legacy variant) fell out of the legal regime by spelling. An
   // alias never widens the regime: the resolved label still has to be on the
   // effective jurisdiction list to count.
+  //
+  // BOTH sides resolve through the alias table: the jurisdiction list is
+  // admin-stored free text too, so a list entry in alias form ("Pitbull")
+  // must match a canonically-stored breed ("Pit Bull Terrier") — resolving
+  // only the candidate left that pairing unmatched (adversarial review
+  // 2026-08-14, folding asymmetry).
   const breedLabel = breed?.trim() ?? "";
   const resolvedBreed = breedLabel.length > 0 ? (resolveBreedLabel(breedLabel) ?? breedLabel) : "";
-  const breedInList = resolvedBreed.length > 0 && breedListIncludes(rules.breeds, resolvedBreed);
+  const breedInList =
+    resolvedBreed.length > 0 && breedListIncludesResolved(rules.breeds, resolvedBreed);
 
   const weight = estimatedWeightKg ?? null;
   const weightHits =

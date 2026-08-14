@@ -82,6 +82,18 @@ describe("classifyPpp — breed membership folds before matching (QA A4)", () =>
     expect(classifyPpp("dog", "pitbull", null, shortList)).toBe(false);
   });
 
+  it("matches when the JURISDICTION list entry is the alias form (folding asymmetry)", () => {
+    // The admin-stored list is free text too: an entry "Pitbull" must catch a
+    // canonically-stored "Pit Bull Terrier". Resolving only the candidate
+    // left this pairing unmatched (adversarial review 2026-08-14).
+    const aliasList = { breeds: new Set(["Pitbull"]), kg: null, appliesIfBreedNotPPP: false };
+    expect(classifyPpp("dog", "Pit Bull Terrier", null, aliasList)).toBe(true);
+    // Alias on BOTH sides still matches (both resolve to the same canonical).
+    expect(classifyPpp("dog", "pitbull", null, aliasList)).toBe(true);
+    // Never widens: a different breed stays off the regime.
+    expect(classifyPpp("dog", "Labrador", null, aliasList)).toBe(false);
+  });
+
   it("weight OR-composition is untouched by the folding", () => {
     const weightRules = {
       breeds: new Set(["Pit Bull Terrier"]),
