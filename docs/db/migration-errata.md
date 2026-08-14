@@ -70,6 +70,50 @@ Its ROLLBACK paragraph is the part most likely to hurt someone, because it is re
 
 ---
 
+## E-2 — `0181_appointments_one_live_booking_per_pet_offering.sql`: remediation note lacks the operator SQL
+
+| | |
+|---|---|
+| **File** | `db/migrations/0181_appointments_one_live_booking_per_pet_offering.sql` |
+| **Lines** | 35–39 (the "Si el CREATE del índice por campaña falla acá" paragraph) |
+| **Nature** | Comments only — an **addendum**, not a falsehood. **The SQL is correct.** |
+| **Recorded** | Adversarial review fix 2026-08-14 |
+
+### What is missing
+
+The header correctly says that a failure of the per-campaign `CREATE UNIQUE
+INDEX CONCURRENTLY` means the environment holds duplicate confirmed pairs per
+(mascota, oferta), and that the fix is cancelling one of the two turnos — but
+it never gives the operator the query that FINDS those pairs. Under pressure
+(a failed migration on staging), that query should not have to be derived from
+the index definition by hand. It is:
+
+```sql
+SELECT pet_id, service_offering_id, count(*)
+  FROM appointments
+ WHERE status = 'confirmed'
+ GROUP BY pet_id, service_offering_id
+HAVING count(*) > 1;
+```
+
+For each row returned: cancel the extra appointment **via the normal flow**
+(owner cancel, or an org-side `cancelled_by_org` with a stated reason — never
+by deleting history), then re-run the migration. The no-transaction re-run is
+safe: the file's `DROP INDEX CONCURRENTLY IF EXISTS` + bare `CREATE` pattern
+retries the invalid leftover instead of skipping it (see the file's own
+"POR QUÉ SE RECONSTRUYE" section).
+
+### Verified against the index definition
+
+The query's shape is the index's predicate read back: `0181` lines 49–51
+create `appointments_one_live_per_pet_offering` as `UNIQUE ... ON appointments
+(pet_id, service_offering_id) WHERE status = 'confirmed'`. Grouping by exactly
+those two columns under exactly that predicate and keeping `count(*) > 1`
+enumerates precisely the rows that violate the uniqueness the CREATE tries to
+certify — nothing more, nothing less.
+
+---
+
 ## Adding an entry
 
 One `## E-N` section per erratum. Include, in this order: the file, the exact lines, whether SQL or prose is affected, the claim, the truth, and how the truth was verified. Say the verification out loud — an erratum that only asserts is a second unverified claim stacked on the first.

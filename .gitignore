@@ -106,3 +106,8 @@ scripts/bulk-cursor-pets-staging.mjs
 
 # vitest --reporter=json output consumed by scripts/check-suite-coverage.ts
 .vitest-report.json
+
+# QA session-minting output — carries live session tokens for seed accounts.
+# The repo is public: this file must never be committable, same reasoning as
+# e2e/.auth/ above.
+qa-sessions*.json
