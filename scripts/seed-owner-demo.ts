@@ -608,6 +608,30 @@ async function seedAppointment(ownerUserId: string): Promise<void> {
     log("INFO", `  using fallback pet ${petId.slice(0, 8)}…`);
   }
 
+  // One LIVE appointment per (pet, offering) — migration 0181. On a
+  // panorama-seeded DB the chosen pet may already hold a confirmed booking in
+  // the offering that owns the first open slot; inserting anyway would die on
+  // appointments_one_live_per_pet_offering. Skip instead — same posture as
+  // every other guard in this item.
+  const [liveInOffering] = await db
+    .select({ id: appointments.id })
+    .from(appointments)
+    .where(
+      and(
+        eq(appointments.petId, petId),
+        eq(appointments.serviceOfferingId, offering.id),
+        eq(appointments.status, "confirmed"),
+      ),
+    )
+    .limit(1);
+  if (liveInOffering) {
+    log(
+      "SKIP",
+      "[SKIP] ITEM-3: the pet already holds a confirmed appointment in this offering (one live booking per pet+offering) — appointment skipped",
+    );
+    return;
+  }
+
   const publicToken = generatePrefixedToken("APT");
 
   await db.insert(appointments).values({
