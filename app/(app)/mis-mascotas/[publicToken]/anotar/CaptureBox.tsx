@@ -6,7 +6,11 @@ import { useEffect, useState, useTransition } from "react";
 
 import { Icon } from "@/components/Icon";
 import type { EventType } from "@/db/schema";
-import { matchCaptureIntent, matchToCaptureUrl } from "@/lib/events/event-capture-matcher";
+import {
+  gateMatchForViewer,
+  matchCaptureIntent,
+  matchToCaptureUrl,
+} from "@/lib/events/event-capture-matcher";
 import { EVENT_CAPTURE_REGISTRY, buildCaptureDeeplink } from "@/lib/events/event-capture-registry";
 import { goToCaptureUrl } from "@/lib/ui/capture-nav";
 import { todayIsoInAr } from "@/lib/utils/format";
@@ -29,11 +33,20 @@ export function CaptureBox({
   petName,
   initialText,
   initialKind,
+  showCheckinOption = false,
 }: {
   petPublicToken: string;
   petName: string;
   initialText?: string;
   initialKind?: string;
+  /**
+   * QA A9 viewer gate, threaded from the server host (isPetAdoptedByUser —
+   * same flag CaptureOptionsList receives). Free text matching
+   * post_adoption_checkin for a NON-adopter falls through to the generic
+   * no-match affordances instead of deep-linking into a page that 404s.
+   * Defaults to false: fail closed for any host that doesn't compute it.
+   */
+  showCheckinOption?: boolean;
 }) {
   const router = useRouter();
   const pathname = usePathname();
@@ -63,7 +76,7 @@ export function CaptureBox({
       const trimmed = initialText.trim();
       if (!trimmed) return;
       setUnmatched(false);
-      const match = matchCaptureIntent(trimmed);
+      const match = gateMatchForViewer(matchCaptureIntent(trimmed), { showCheckinOption });
       if (!match) {
         setUnmatched(true);
         return;
@@ -86,7 +99,7 @@ export function CaptureBox({
     const trimmed = text.trim();
     if (!trimmed) return;
 
-    const match = matchCaptureIntent(trimmed);
+    const match = gateMatchForViewer(matchCaptureIntent(trimmed), { showCheckinOption });
     if (!match) {
       setUnmatched(true);
       return;

@@ -614,6 +614,25 @@ export function matchCaptureIntent(text: string): MatchResult | null {
 }
 
 /**
+ * Viewer-context gate over a match result. The matcher itself is pure and
+ * viewer-blind, but some deep-links are only valid for a subset of viewers:
+ * `post_adoption_checkin`'s target page 404s for anyone but the registered
+ * adopter. QA A9 gated the FIXED options list on `showCheckinOption`
+ * (CaptureOptionsList); free text bypassed that gate and deep-linked
+ * non-adopters straight into the 404 (adversarial review 2026-08-14).
+ * Filtering lives here — at the boundary, keeping the matcher pure — and
+ * returns null so the caller falls through to its generic no-match
+ * affordances (retry copy, quick actions, save-as-note) instead.
+ */
+export function gateMatchForViewer(
+  match: MatchResult | null,
+  ctx: { showCheckinOption: boolean },
+): MatchResult | null {
+  if (match && match.eventType === "post_adoption_checkin" && !ctx.showCheckinOption) return null;
+  return match;
+}
+
+/**
  * THE single match-to-URL assembler. Before 2026-07-04 this logic existed in
  * FOUR copies (quick-capture use-case, resolveCaptureIntentUrl, and twice
  * inside CaptureBox) — the override-slot bug lived in all four. Override

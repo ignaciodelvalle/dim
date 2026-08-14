@@ -281,10 +281,24 @@ export default async function PetDetailPage({
   // owners capture (REQ-4.4) and never for a deceased pet (REQ-9.3); an
   // unresolvable `?sheet=anotar` falls through to SheetMounter's sheet.
   if (sp.sheet === "anotar" && isOwner && pet.status !== "deceased") {
-    const captureTarget = resolveCaptureIntentUrl(publicToken, {
-      kind: typeof sp.kind === "string" ? sp.kind : undefined,
-      text: typeof sp.text === "string" ? sp.text : undefined,
-    });
+    const captureText = typeof sp.text === "string" ? sp.text : undefined;
+    // QA A9 viewer gate for the free-text branch: the matcher can resolve
+    // "check-in" to post_adoption_checkin, whose page 404s for anyone but the
+    // registered adopter. One indexed read, only on this rare deep-link shape,
+    // so the server-side no-flash redirect can't send a non-adopter into the
+    // 404 (adversarial review 2026-08-14). The batched read further down
+    // feeds the sheet catalog; this one has to exist BEFORE the redirect.
+    const checkinAllowed = captureText?.trim()
+      ? await isPetAdoptedByUser(pet.id, user.id)
+      : false;
+    const captureTarget = resolveCaptureIntentUrl(
+      publicToken,
+      {
+        kind: typeof sp.kind === "string" ? sp.kind : undefined,
+        text: captureText,
+      },
+      { showCheckinOption: checkinAllowed },
+    );
     if (captureTarget) redirect(captureTarget);
   }
 

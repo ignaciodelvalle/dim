@@ -5,6 +5,7 @@
 
 import type { EventType } from "@/db/schema";
 import {
+  gateMatchForViewer,
   matchCaptureIntent,
   matchToCaptureUrl,
   ymdLocal,
@@ -182,10 +183,17 @@ export function buildKindDeeplink(
  * Returns null when there is nothing to resolve (no kind/text, or the
  * matcher didn't recognize the text) — the anotar sheet then renders
  * normally and CaptureBox surfaces the "no reconocemos eso" UI.
+ *
+ * `viewer` threads the QA A9 check-in gate through the FREE-TEXT branch
+ * (gateMatchForViewer): a non-adopter's "check-in" must fall through to the
+ * anotar sheet, not redirect server-side into a page that 404s. Defaults to
+ * fail-closed so a call site that doesn't compute the flag can't deep-link
+ * anyone into the 404 (adversarial review 2026-08-14).
  */
 export function resolveCaptureIntentUrl(
   publicToken: string,
   opts: { kind?: string; text?: string },
+  viewer: { showCheckinOption: boolean } = { showCheckinOption: false },
 ): string | null {
   if (opts.kind) {
     const url = buildKindDeeplink(
@@ -197,7 +205,7 @@ export function resolveCaptureIntentUrl(
   }
   const trimmed = opts.text?.trim();
   if (!trimmed) return null;
-  const match = matchCaptureIntent(trimmed);
+  const match = gateMatchForViewer(matchCaptureIntent(trimmed), viewer);
   if (!match) return null;
   return matchToCaptureUrl(publicToken, match, buildCaptureDeeplink);
 }

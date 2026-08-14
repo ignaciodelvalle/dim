@@ -447,3 +447,38 @@ describe("deep-review regressions (2026-07-04)", () => {
     expect(url).toContain(`occurredAt=${ymdLocal()}`);
   });
 });
+
+// ---------------------------------------------------------------------------
+// gateMatchForViewer — QA A9 viewer gate over the matcher (adversarial review
+// 2026-08-14). The fixed options list already hides "Check-in post-adopción"
+// from non-adopters; free text bypassed that gate and deep-linked them into
+// the checkin page's 404. The gate filters at the boundary, keeping the
+// matcher itself pure and viewer-blind.
+// ---------------------------------------------------------------------------
+
+import { gateMatchForViewer } from "@/lib/events/event-capture-matcher";
+
+describe("gateMatchForViewer", () => {
+  it("drops a checkin match for a non-adopter — caller falls through to the generic selector", () => {
+    const match = _match("check-in de Toby");
+    expect(match?.eventType).toBe("post_adoption_checkin");
+    expect(gateMatchForViewer(match, { showCheckinOption: false })).toBeNull();
+  });
+
+  it("keeps the checkin match for the registered adopter", () => {
+    const match = _match("control post adopción de Toby");
+    expect(match?.eventType).toBe("post_adoption_checkin");
+    expect(gateMatchForViewer(match, { showCheckinOption: true })).toBe(match);
+  });
+
+  it("passes every other match through untouched, whatever the flag says", () => {
+    const match = _match("le di la antirrábica hoy");
+    expect(match?.eventType).toBe("vaccination_administered");
+    expect(gateMatchForViewer(match, { showCheckinOption: false })).toBe(match);
+    expect(gateMatchForViewer(match, { showCheckinOption: true })).toBe(match);
+  });
+
+  it("passes null through (no match stays no match)", () => {
+    expect(gateMatchForViewer(null, { showCheckinOption: false })).toBeNull();
+  });
+});

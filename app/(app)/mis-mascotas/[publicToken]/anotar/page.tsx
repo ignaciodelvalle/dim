@@ -53,7 +53,13 @@ export default async function CapturePage({
         </p>
       </div>
 
-      <CaptureBox petPublicToken={token} petName={pet.name} initialText={text} initialKind={kind} />
+      <CaptureBox
+        petPublicToken={token}
+        petName={pet.name}
+        initialText={text}
+        initialKind={kind}
+        showCheckinOption={showCheckinOption}
+      />
 
       {/* WP-7: Full discoverability list — all loggable events and owner flows,
           grouped by category, driven by ALL_CAPTURE_OPTIONS + registry so it

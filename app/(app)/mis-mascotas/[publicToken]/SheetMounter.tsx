@@ -244,6 +244,7 @@ export function SheetMounter({
             petName={petName}
             initialText={text}
             initialKind={kind}
+            showCheckinOption={showCheckinOption}
           />
           <div className="flex items-center gap-3 text-xs text-[var(--color-ln-mute)]">
             <div className="h-px flex-1 bg-[var(--color-ln-stripe)]" />
