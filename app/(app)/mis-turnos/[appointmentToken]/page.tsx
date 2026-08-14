@@ -111,6 +111,28 @@ export default async function AppointmentDetailPage({
         </span>
       </div>
 
+      {/* Cancelled-by-owner confirmation (QA fix 5). The cancel sheet closes
+          via full reload — sanctioned confirmation mechanism #1 in
+          lib/ui/action-feedback.ts, which BANS stacking a toast on top — so
+          the reloaded page itself must state the outcome prominently. The
+          small header badge alone was easy to miss; this callout is the first
+          block after the header, where a fresh reload lands the viewport.
+          It describes the STATE (also on later visits), not the click. */}
+      {appointment.status === "cancelled_by_owner" && (
+        <div className="mb-5">
+          <LnCallout title="Turno cancelado">
+            Cancelaste este turno y el horario quedó liberado. Si lo necesitás de nuevo,{" "}
+            <Link
+              href="/turnos/buscar"
+              className="text-[var(--color-ln-azul)] underline underline-offset-2"
+            >
+              buscá un turno nuevo
+            </Link>
+            .
+          </LnCallout>
+        </div>
+      )}
+
       {/* Details */}
       <LnCard className="mb-5">
         <LnCardHead title="Detalle del turno" />
