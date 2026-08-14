@@ -294,7 +294,11 @@ export async function IntelIndexPanel({
     // Suspense (not a grid item), so the extra div is layout-safe.
     return (
       <div className="op-fade-in">
-        <AnalyticsLoadFallback reason={result.reason} retryHref={retryHref(sp)} />
+        <AnalyticsLoadFallback
+          reason={result.reason}
+          correlationId={result.id}
+          retryHref={retryHref(sp)}
+        />
       </div>
     );
   }
@@ -510,7 +514,11 @@ export async function IntelPolicyPanel({
     // A5: see IntelIndexPanel's identical note above.
     return (
       <div className="op-fade-in">
-        <AnalyticsLoadFallback reason={result.reason} retryHref={retryHref(sp)} />
+        <AnalyticsLoadFallback
+          reason={result.reason}
+          correlationId={result.id}
+          retryHref={retryHref(sp)}
+        />
       </div>
     );
   }
@@ -631,7 +639,11 @@ export async function IntelQualityPanel({
     // A5: see IntelIndexPanel's identical note above.
     return (
       <div className="op-fade-in">
-        <AnalyticsLoadFallback reason={result.reason} retryHref={retryHref(sp)} />
+        <AnalyticsLoadFallback
+          reason={result.reason}
+          correlationId={result.id}
+          retryHref={retryHref(sp)}
+        />
       </div>
     );
   }

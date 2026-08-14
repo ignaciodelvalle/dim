@@ -258,6 +258,7 @@ export default async function DecomisosDashboardPage({
         {shell}
         <AnalyticsLoadFallback
           reason={load.reason}
+          correlationId={load.id}
           retryHref={analyticsRetryHref("/gob/decomisos")}
         />
       </div>

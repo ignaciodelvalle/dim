@@ -153,6 +153,7 @@ export default async function GobVigilanciaBrotesPage({
         {shell}
         <AnalyticsLoadFallback
           reason={load.reason}
+          correlationId={load.id}
           retryHref={analyticsRetryHref("/gob/vigilancia/brotes", sp)}
         />
       </div>

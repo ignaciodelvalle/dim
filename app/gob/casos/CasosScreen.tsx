@@ -250,6 +250,8 @@ async function loadCasosForViewer(sp: GovtCasosSearchParams, scope: ViewerScope)
   // break every consumer of its fields — which is exactly what the first
   // attempt did.
   const degradedReason = load.ok ? null : load.reason;
+  // QA fix 6: correlation id minted by loadWithTimeout, surfaced by the fallback.
+  const degradedId = load.ok ? null : (load.id ?? null);
   const [rawItems, totalCount] = load.ok ? load.value : [[], 0];
   const hasMore = rawItems.length > GOVT_CASOS_PAGE_LIMIT;
   const items = hasMore ? rawItems.slice(0, GOVT_CASOS_PAGE_LIMIT) : rawItems;
@@ -325,6 +327,7 @@ async function loadCasosForViewer(sp: GovtCasosSearchParams, scope: ViewerScope)
 
   return {
     degradedReason,
+    degradedId,
     activeStatus,
     casoEstado,
     kindFilter,
@@ -406,6 +409,7 @@ export async function CasosScreen({ searchParams: sp, underHub = false }: CasosS
     emptyMessage,
     hasFilters,
     degradedReason,
+    degradedId,
   } = await loadCasosForViewer(sp, scope);
 
   // Q1 (CSV export parity) — the shared CaseQueue CSV projection: exactly the
@@ -425,6 +429,7 @@ export async function CasosScreen({ searchParams: sp, underHub = false }: CasosS
       {degradedReason && (
         <AnalyticsLoadFallback
           reason={degradedReason}
+          correlationId={degradedId ?? undefined}
           retryHref={analyticsRetryHref("/gob/casos", sp)}
         />
       )}

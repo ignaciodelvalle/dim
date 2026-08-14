@@ -242,6 +242,7 @@ export async function AnalyticsScreen({
             through it would cost an extra hop on an already-degraded page. */}
         <AnalyticsLoadFallback
           reason={load.reason}
+          correlationId={load.id}
           retryHref={analyticsRetryHref("/gob/programa", { ...sp, vista: "analitica" })}
         />
       </div>

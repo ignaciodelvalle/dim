@@ -440,6 +440,7 @@ export async function AlcanceScreen({ underHub = false, searchParams }: AlcanceS
         {header}
         <AnalyticsLoadFallback
           reason={load.reason}
+          correlationId={load.id}
           retryHref={analyticsRetryHref("/gob/operativos", {
             ...(searchParams ?? {}),
             vista: "alcance",

@@ -101,6 +101,7 @@ export async function AuditoriaScreen({
         />
         <AnalyticsLoadFallback
           reason={load.reason}
+          correlationId={load.id}
           retryHref={analyticsRetryHref("/admin/auditoria", {
             vista: sp.vista,
             action: sp.action,

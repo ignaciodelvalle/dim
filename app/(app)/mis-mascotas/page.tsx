@@ -173,7 +173,11 @@ export default async function MisMascotasPage({
             <PetSearchInput initialQuery={query} />
           </Suspense>
         </div>
-        <AnalyticsLoadFallback reason={load.reason} retryHref="/mis-mascotas" />
+        <AnalyticsLoadFallback
+          reason={load.reason}
+          correlationId={load.id}
+          retryHref="/mis-mascotas"
+        />
       </div>
     );
   }

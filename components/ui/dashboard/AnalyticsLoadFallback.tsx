@@ -14,9 +14,16 @@ type Props = {
   reason: "timeout" | "error";
   /** Where "Reintentar" points — the same page path + period search params. */
   retryHref: string;
+  /**
+   * Short correlation id minted by loadWithTimeout on failure (QA fix 6). The
+   * same id is logged server-side with the real error, so a human quoting
+   * "Código: <id>" lets us find the log line. Rendered subtly; omitted when
+   * the caller's load result predates the id (optional field).
+   */
+  correlationId?: string;
 };
 
-export function AnalyticsLoadFallback({ reason, retryHref }: Props) {
+export function AnalyticsLoadFallback({ reason, retryHref, correlationId }: Props) {
   const title =
     reason === "timeout"
       ? "Los datos están tardando más de lo normal"
@@ -42,6 +49,11 @@ export function AnalyticsLoadFallback({ reason, retryHref }: Props) {
             </a>
           }
         />
+        {correlationId && (
+          <p className="mt-3 select-all text-center font-ln-mono text-xs text-ln-op-mute">
+            Código: {correlationId}
+          </p>
+        )}
       </OpCardBody>
     </OpCard>
   );

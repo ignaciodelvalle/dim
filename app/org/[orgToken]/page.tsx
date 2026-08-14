@@ -280,10 +280,14 @@ export default async function OrgDashboardPage({
   );
 
   /** Degraded panel: the header stays, the body says so honestly. */
-  const degradedPanel = (reason: "timeout" | "error") => (
+  const degradedPanel = (reason: "timeout" | "error", correlationId?: string) => (
     <div className="space-y-6">
       {header}
-      <AnalyticsLoadFallback reason={reason} retryHref={`/org/${orgToken}`} />
+      <AnalyticsLoadFallback
+        reason={reason}
+        correlationId={correlationId}
+        retryHref={`/org/${orgToken}`}
+      />
     </div>
   );
 
@@ -344,7 +348,7 @@ export default async function OrgDashboardPage({
             .limit(1),
     ]),
   );
-  if (!setupLoad.ok) return degradedPanel(setupLoad.reason);
+  if (!setupLoad.ok) return degradedPanel(setupLoad.reason, setupLoad.id);
   const [coverageCountRow, memberCountRow, servicesCountRow, firstAnimalRow, firstSignedEventRow] =
     setupLoad.value;
 
@@ -391,7 +395,7 @@ export default async function OrgDashboardPage({
     // an option worth faking: an empty agenda would read as "no tenés turnos
     // hoy", which is the opposite of the truth.
     const agendaLoad = await loadWithTimeout(fetchTodayAgenda(organization.id));
-    if (!agendaLoad.ok) return degradedPanel(agendaLoad.reason);
+    if (!agendaLoad.ok) return degradedPanel(agendaLoad.reason, agendaLoad.id);
     return (
       <SoloVetAgendaLanding
         orgToken={orgToken}
@@ -440,7 +444,7 @@ export default async function OrgDashboardPage({
       isShelter ? fetchActiveAdoptions(organization.id) : Promise.resolve(0),
     ]),
   );
-  if (!dashboardLoad.ok) return degradedPanel(dashboardLoad.reason);
+  if (!dashboardLoad.ok) return degradedPanel(dashboardLoad.reason, dashboardLoad.id);
   const [queueCounts, census, actionItems, intakesLastWeek, availableForAdopt, activeAdoptions] =
     dashboardLoad.value;
 

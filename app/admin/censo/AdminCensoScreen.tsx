@@ -172,6 +172,7 @@ export async function AdminCensoScreen({
         {filtersRow}
         <AnalyticsLoadFallback
           reason={load.reason}
+          correlationId={load.id}
           retryHref={analyticsRetryHref("/admin/padron", { ...sp, vista: "censo" })}
         />
       </div>

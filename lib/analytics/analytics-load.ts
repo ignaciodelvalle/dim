@@ -15,21 +15,48 @@
 // nothing Promise.all race). Same contract everywhere: the deadline bounds the
 // wait, it does NOT cancel the underlying queries.
 
+import { reportError } from "@/lib/observability/report-error";
+
 /** Deadline for an analytics page's fetcher set before it degrades (D2: 10 s). */
 export const ANALYTICS_LOAD_TIMEOUT_MS = 10_000;
 
-/** Discriminated result: data on success, a reason on timeout/error. */
-export type AnalyticsLoad<T> = { ok: true; value: T } | { ok: false; reason: "timeout" | "error" };
+/**
+ * Discriminated result: data on success, a reason on timeout/error.
+ *
+ * `id` (QA fix 6) is a short correlation id minted on every failure: the same
+ * id is logged server-side with the REAL error (this module used to swallow
+ * the rejection entirely) and rendered subtly by AnalyticsLoadFallback
+ * ("Código: <id>") so a human report can be matched to the server log line.
+ * Optional in the type so hand-built fixtures/older constructions still fit.
+ */
+export type AnalyticsLoad<T> =
+  | { ok: true; value: T }
+  | { ok: false; reason: "timeout" | "error"; id?: string };
+
+/** Short, human-quotable correlation id (8 hex chars of a UUID). */
+function newCorrelationId(): string {
+  try {
+    return globalThis.crypto.randomUUID().replace(/-/g, "").slice(0, 8);
+  } catch {
+    // Extremely defensive — every supported runtime (Node 18+, edge) has
+    // crypto.randomUUID; keep the fallback so the degraded path can't throw.
+    return Math.random().toString(36).slice(2, 10);
+  }
+}
 
 /**
  * Race `promise` against a `ms` deadline.
  *
  * - Resolves `{ ok: true, value }` when the promise settles first.
- * - Resolves `{ ok: false, reason: "timeout" }` when the deadline wins.
- * - Resolves `{ ok: false, reason: "error" }` when the promise rejects.
+ * - Resolves `{ ok: false, reason: "timeout", id }` when the deadline wins.
+ * - Resolves `{ ok: false, reason: "error", id }` when the promise rejects.
  *
  * Never rejects — the caller branches on `ok`. The timer is always cleared so a
  * fast success does not keep the event loop alive.
+ *
+ * Failures log the underlying error server-side through reportError (the
+ * repo's structured {message, stack, digest, context} shape) tagged with the
+ * correlation id the fallback UI displays.
  *
  * NOTE: a timeout does not cancel the underlying work (DB queries keep running
  * to completion in the background); it only bounds how long the request waits.
@@ -40,14 +67,28 @@ export async function loadWithTimeout<T>(
 ): Promise<AnalyticsLoad<T>> {
   let timer: ReturnType<typeof setTimeout> | undefined;
   const deadline = new Promise<AnalyticsLoad<T>>((resolve) => {
-    timer = setTimeout(() => resolve({ ok: false, reason: "timeout" }), ms);
+    timer = setTimeout(() => {
+      const id = newCorrelationId();
+      reportError(new Error(`analytics load timed out after ${ms} ms`), {
+        source: "loadWithTimeout",
+        correlationId: id,
+      });
+      resolve({ ok: false, reason: "timeout", id });
+    }, ms);
   });
 
   try {
     return await Promise.race([
       promise.then(
         (value): AnalyticsLoad<T> => ({ ok: true, value }),
-        (): AnalyticsLoad<T> => ({ ok: false, reason: "error" }),
+        (err): AnalyticsLoad<T> => {
+          const id = newCorrelationId();
+          reportError(err instanceof Error ? err : new Error(String(err)), {
+            source: "loadWithTimeout",
+            correlationId: id,
+          });
+          return { ok: false, reason: "error", id };
+        },
       ),
       deadline,
     ]);

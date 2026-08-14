@@ -270,6 +270,7 @@ export default async function GobMortalidadPage({
         {shell}
         <AnalyticsLoadFallback
           reason={load.reason}
+          correlationId={load.id}
           retryHref={analyticsRetryHref("/gob/mortalidad", sp)}
         />
       </div>

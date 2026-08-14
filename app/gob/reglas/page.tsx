@@ -123,7 +123,11 @@ async function GovtReglasReadOnlyView({
     return (
       <div className="space-y-6 max-w-3xl">
         {header}
-        <AnalyticsLoadFallback reason={load.reason} retryHref={analyticsRetryHref("/gob/reglas")} />
+        <AnalyticsLoadFallback
+          reason={load.reason}
+          correlationId={load.id}
+          retryHref={analyticsRetryHref("/gob/reglas")}
+        />
       </div>
     );
   }

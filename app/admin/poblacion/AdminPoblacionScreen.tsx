@@ -249,6 +249,7 @@ export async function AdminPoblacionScreen({
         {filtersRow}
         <AnalyticsLoadFallback
           reason={load.reason}
+          correlationId={load.id}
           retryHref={analyticsRetryHref("/admin/padron", { ...sp, vista: "poblacion" })}
         />
       </div>

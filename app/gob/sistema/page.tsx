@@ -149,6 +149,7 @@ export default async function GobSistemaPage({
         {shell}
         <AnalyticsLoadFallback
           reason={load.reason}
+          correlationId={load.id}
           retryHref={analyticsRetryHref("/gob/sistema", sp)}
         />
       </div>

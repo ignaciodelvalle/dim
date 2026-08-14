@@ -590,6 +590,7 @@ export async function MaltratoQueueScreen({
         {shell()}
         <AnalyticsLoadFallback
           reason={load.reason}
+          correlationId={load.id}
           retryHref={analyticsRetryHref("/gob/denuncias", { ...sp, etapa: "triage" })}
         />
       </div>

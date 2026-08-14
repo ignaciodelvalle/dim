@@ -139,6 +139,7 @@ export default async function AdminAdopcionesPage({
         {shell}
         <AnalyticsLoadFallback
           reason={load.reason}
+          correlationId={load.id}
           retryHref={analyticsRetryHref("/admin/adopciones", sp)}
         />
       </div>

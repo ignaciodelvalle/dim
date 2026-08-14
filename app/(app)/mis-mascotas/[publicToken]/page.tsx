@@ -569,6 +569,7 @@ export default async function PetDetailPage({
         <h1 className="m-0 font-ln-serif text-3xl font-semibold text-ln-ink">{pet.name}</h1>
         <AnalyticsLoadFallback
           reason={profileLoad.reason}
+          correlationId={profileLoad.id}
           retryHref={`/mis-mascotas/${pet.publicToken}`}
         />
       </div>

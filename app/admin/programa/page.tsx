@@ -181,6 +181,7 @@ export default async function AdminProgramaPage({
         {filtersRow}
         <AnalyticsLoadFallback
           reason={load.reason}
+          correlationId={load.id}
           retryHref={analyticsRetryHref("/admin/programa", sp)}
         />
       </div>

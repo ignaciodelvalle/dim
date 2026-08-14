@@ -250,6 +250,7 @@ export async function ProgramaResumenScreen({
         {filtersRow}
         <AnalyticsLoadFallback
           reason={load.reason}
+          correlationId={load.id}
           retryHref={analyticsRetryHref("/gob/programa", sp)}
         />
       </div>

@@ -225,6 +225,7 @@ export async function CampanasScreen({ searchParams: sp, underHub = false }: Cam
         {shell}
         <AnalyticsLoadFallback
           reason={load.reason}
+          correlationId={load.id}
           retryHref={analyticsRetryHref("/gob/operativos", { ...sp, vista: "campanas" })}
         />
       </div>

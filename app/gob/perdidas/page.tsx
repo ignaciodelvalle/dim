@@ -340,6 +340,7 @@ export default async function GobPerdidasPage({
         {filtersRow()}
         <AnalyticsLoadFallback
           reason={load.reason}
+          correlationId={load.id}
           retryHref={analyticsRetryHref("/gob/perdidas", sp)}
         />
       </div>

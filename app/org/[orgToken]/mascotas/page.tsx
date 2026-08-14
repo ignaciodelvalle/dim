@@ -178,7 +178,11 @@ export default async function OrgMascotasPage({
             species={sp.species ?? ""}
             adoptionEligible={adoptionEligibleFilter}
           />
-          <AnalyticsLoadFallback reason={listLoad.reason} retryHref={`/org/${orgToken}/mascotas`} />
+          <AnalyticsLoadFallback
+            reason={listLoad.reason}
+            correlationId={listLoad.id}
+            retryHref={`/org/${orgToken}/mascotas`}
+          />
         </div>
       </main>
     );

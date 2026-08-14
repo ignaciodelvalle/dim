@@ -89,6 +89,7 @@ export default async function CheckinsPage({
         <PageHeader orgName={organization.displayName} />
         <AnalyticsLoadFallback
           reason={adoptedLoad.reason}
+          correlationId={adoptedLoad.id}
           retryHref={`/org/${orgToken}/checkins`}
         />
         <BackLink orgToken={orgToken} />
@@ -169,7 +170,11 @@ export default async function CheckinsPage({
     return (
       <div className="max-w-3xl space-y-8">
         <PageHeader orgName={organization.displayName} />
-        <AnalyticsLoadFallback reason={listsLoad.reason} retryHref={`/org/${orgToken}/checkins`} />
+        <AnalyticsLoadFallback
+          reason={listsLoad.reason}
+          correlationId={listsLoad.id}
+          retryHref={`/org/${orgToken}/checkins`}
+        />
         <BackLink orgToken={orgToken} />
       </div>
     );

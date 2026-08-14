@@ -31,4 +31,18 @@ describe("AnalyticsLoadFallback", () => {
     expect(html).not.toContain("animate-pulse");
     expect(html).not.toContain("animate-spin");
   });
+
+  it("renders the correlation id subtly when provided (QA fix 6)", () => {
+    const html = renderToStaticMarkup(
+      <AnalyticsLoadFallback reason="error" retryHref="/admin/censo" correlationId="ab12cd34" />,
+    );
+    expect(html).toContain("Código: ab12cd34");
+  });
+
+  it("omits the código line when no correlation id is provided", () => {
+    const html = renderToStaticMarkup(
+      <AnalyticsLoadFallback reason="error" retryHref="/admin/censo" />,
+    );
+    expect(html).not.toContain("Código:");
+  });
 });

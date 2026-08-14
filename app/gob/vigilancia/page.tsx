@@ -214,6 +214,7 @@ export default async function GobVigilanciaPage({
         {header}
         <AnalyticsLoadFallback
           reason={load.reason}
+          correlationId={load.id}
           retryHref={analyticsRetryHref("/gob/vigilancia", sp)}
         />
       </div>

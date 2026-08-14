@@ -376,6 +376,7 @@ export default async function GobiernoDashboardPage({
         {filtersRow}
         <AnalyticsLoadFallback
           reason={load.reason}
+          correlationId={load.id}
           retryHref={analyticsRetryHref("/gob", {
             province: selectedProvinceIso ?? undefined,
             locality: selectedLocalitySlug ?? undefined,

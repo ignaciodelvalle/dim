@@ -383,6 +383,7 @@ export async function PoblacionScreen({
         {filtersRow}
         <AnalyticsLoadFallback
           reason={load.reason}
+          correlationId={load.id}
           retryHref={analyticsRetryHref("/gob/padron", { ...sp, vista: "poblacion" })}
         />
       </div>

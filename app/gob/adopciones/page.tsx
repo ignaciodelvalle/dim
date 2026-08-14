@@ -225,6 +225,7 @@ export default async function GobAdopcionesPage({
         {shell}
         <AnalyticsLoadFallback
           reason={load.reason}
+          correlationId={load.id}
           retryHref={analyticsRetryHref("/gob/adopciones", sp)}
         />
       </div>

@@ -73,7 +73,11 @@ export default async function AdminDashboardPage() {
     return (
       <div className="space-y-6">
         {header}
-        <AnalyticsLoadFallback reason={load.reason} retryHref={analyticsRetryHref("/admin")} />
+        <AnalyticsLoadFallback
+          reason={load.reason}
+          correlationId={load.id}
+          retryHref={analyticsRetryHref("/admin")}
+        />
       </div>
     );
   }
