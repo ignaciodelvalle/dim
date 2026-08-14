@@ -6,9 +6,11 @@
  *   pnpm tsx scripts/seed-demo.ts --stats    # print coverage stats (no DB)
  *
  * What this file does:
- *   1. Bootstraps 7 demo users (shared password "Test1234!").
- *   2. Creates 5 organizations and Lucas's govt assignment (whole CABA —
- *      see provisionGovtAssignments below; C5 fix, 2026-07-22).
+ *   1. Bootstraps 8 demo users (shared password "Test1234!").
+ *   2. Creates 5 organizations, Lucas's govt assignment (whole CABA —
+ *      see provisionGovtAssignments below; C5 fix, 2026-07-22) and the
+ *      gov-pba@ Provincia de Buenos Aires assignments (Tigre + 3 partidos —
+ *      see provisionPbaGovtAssignments).
  *   3. Wires memberships (Alejo as multi-org coordinator, Lilian as vet,
  *      Noelí + Graciela as foster volunteers).
  *   4. Creates the `seed-photos` Supabase Storage bucket and uploads pet
@@ -205,6 +207,17 @@ export const USERS = {
     displayName: "Lucas Etcheverry",
     role: "govt" as const,
     phone: "+54 9 11 5555-2006",
+  },
+  // Provincia de Buenos Aires funcionaria — the second govt persona (demo tour
+  // 8). Her jurisdictions include Tigre on purpose: the PANO custody disputes
+  // and panorama data concentrate in PBA partidos (Tigre ×2 among the open
+  // disputes), so this account sees real data on day one, while Lucas stays
+  // CABA-scoped (his empty /gob/disputas is coverage, not a bug).
+  govPba: {
+    email: "gov-pba@dim.test",
+    displayName: "Valeria Ocampo",
+    role: "govt" as const,
+    phone: "+54 9 221 5555-2007",
   },
   admin: {
     email: "admin@dim.test",
@@ -524,7 +537,7 @@ async function setProfileFields(
 }
 
 async function provisionUsers(deps: DbDeps): Promise<Record<UserKey, string>> {
-  log("STEP", "Provisioning 7 users");
+  log("STEP", `Provisioning ${Object.keys(USERS).length} users`);
   const ids: Partial<Record<UserKey, string>> = {};
   for (const [key, u] of Object.entries(USERS) as Array<[UserKey, (typeof USERS)[UserKey]]>) {
     const initialRole = u.role === "admin" ? "admin" : "owner";
@@ -648,6 +661,82 @@ async function provisionGovtAssignments(
     grantedByUserId: adminId,
   });
   log("OK", `${province} / ${locality}`);
+}
+
+// Valeria's PBA scope — Tigre FIRST (the partido where the seeded PANO custody
+// disputes live, so /gob/disputas is populated for her from day one), plus
+// three of the most populous METRO_ANCHORS partidos (seed-panorama.ts) so the
+// panorama choropleth and dashboards carry density inside her jurisdiction.
+const GOV_PBA_PROVINCE = "Buenos Aires";
+const GOV_PBA_LOCALITIES = ["Tigre", "La Plata", "Quilmes", "Morón"] as const;
+
+/**
+ * gov-pba@'s govt scope — individual PBA partidos, same mechanism as Lucas's
+ * assignment above (one govt_assignments row per jurisdiction, granted by
+ * admin). Each locality is canonicalized through resolveCanonicalJurisdiction
+ * — the SAME resolver the real writers use — and FAILS LOUD on a name the
+ * catalog does not know (mirrors seed-test-users.ts provisionGovt, issue
+ * #758): silently inserting an unresolvable locality would scope her queries
+ * to nothing at read time.
+ */
+async function provisionPbaGovtAssignments(
+  deps: DbDeps,
+  govPbaId: string,
+  adminId: string,
+): Promise<void> {
+  const { db, drizzle, schemas } = deps;
+  log("STEP", `gov-pba govt assignments — ${GOV_PBA_PROVINCE} (${GOV_PBA_LOCALITIES.join(", ")})`);
+
+  const { JurisdictionValidationError, resolveCanonicalJurisdiction } = await import(
+    "@/lib/infra/jurisdiction-validation"
+  );
+
+  for (const locality of GOV_PBA_LOCALITIES) {
+    let canonicalProvince: string;
+    let canonicalLocality: string;
+    try {
+      const resolved = await resolveCanonicalJurisdiction({
+        rawProvince: GOV_PBA_PROVINCE,
+        rawLocality: locality,
+      });
+      canonicalProvince = resolved.province.name;
+      canonicalLocality = resolved.locality.localityName;
+    } catch (err) {
+      if (err instanceof JurisdictionValidationError) {
+        log(
+          "FAIL",
+          `gov-pba: jurisdicción inválida (${GOV_PBA_PROVINCE} / ${locality}) — ${err.message}`,
+        );
+        process.exit(2);
+      }
+      throw err;
+    }
+
+    const [existing] = await db
+      .select({ id: schemas.govtAssignments.id })
+      .from(schemas.govtAssignments)
+      .where(
+        drizzle.and(
+          drizzle.eq(schemas.govtAssignments.userId, govPbaId),
+          drizzle.eq(schemas.govtAssignments.jurisdictionProvince, canonicalProvince),
+          drizzle.eq(schemas.govtAssignments.jurisdictionLocality, canonicalLocality),
+          drizzle.isNull(schemas.govtAssignments.revokedAt),
+        ),
+      )
+      .limit(1);
+    if (existing) {
+      log("SKIP", `${canonicalProvince} / ${canonicalLocality} (already assigned)`);
+      continue;
+    }
+
+    await db.insert(schemas.govtAssignments).values({
+      userId: govPbaId,
+      jurisdictionProvince: canonicalProvince,
+      jurisdictionLocality: canonicalLocality,
+      grantedByUserId: adminId,
+    });
+    log("OK", `${canonicalProvince} / ${canonicalLocality}`);
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -1516,6 +1605,7 @@ async function main(): Promise<void> {
 
   const userIds = await provisionUsers(deps);
   await provisionGovtAssignments(deps, userIds.lucas, userIds.admin);
+  await provisionPbaGovtAssignments(deps, userIds.govPba, userIds.admin);
   const orgIds = await provisionOrgs(deps, userIds.alejo);
   await provisionMemberships(deps, userIds, orgIds);
   await ensureStorageBucket(deps);

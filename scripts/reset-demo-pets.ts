@@ -102,12 +102,17 @@ function log(level: LogLevel, msg: string): void {
 /**
  * The curated demo cut, and nothing else. Matches seed-demo-scenario's
  * DIM-DEMO-NNNN cohort plus seed-demo-spine's named assets (DIM-ARGO-DEMO,
- * DIM-BRUNO-DEMO). Deliberately NOT a bare `DIM-%` — that is every real pet in
- * the database.
+ * DIM-BRUNO-DEMO, DIM-MORA-DEMO). Deliberately NOT a bare `DIM-%` — that is
+ * every real pet in the database.
  */
-const DEMO_TOKEN_PATTERNS = ["DIM-DEMO-%", "DIM-ARGO-DEMO", "DIM-BRUNO-DEMO"] as const;
+const DEMO_TOKEN_PATTERNS = [
+  "DIM-DEMO-%",
+  "DIM-ARGO-DEMO",
+  "DIM-BRUNO-DEMO",
+  "DIM-MORA-DEMO",
+] as const;
 
-const TOKEN_SCOPE = sql`public_token LIKE 'DIM-DEMO-%' OR public_token IN ('DIM-ARGO-DEMO', 'DIM-BRUNO-DEMO')`;
+const TOKEN_SCOPE = sql`public_token LIKE 'DIM-DEMO-%' OR public_token IN ('DIM-ARGO-DEMO', 'DIM-BRUNO-DEMO', 'DIM-MORA-DEMO')`;
 
 /** Actor recorded on every audit_log row the override writes. */
 const RESET_ACTOR_EMAIL = "admin@dim.test";

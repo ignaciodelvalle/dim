@@ -25,6 +25,12 @@
  *              2026-07-23, item 13 ("sembrar UNA disputa de demo"): sin
  *              esto /gob/casos?expediente=disputas y el picker V9 de
  *              búsqueda de partes no tenían ningún dato real para demostrar.
+ *   5. Adoptante — adoptante@dim.test (Adriana Sosa) con
+ *              "Mora" (DIM-MORA-DEMO): intake en Patitas del Norte →
+ *              apta para adopción → adoption_finalized con su uuid REAL
+ *              como adopter_user_id + recordatorios post-adopción abiertos.
+ *              Habilita el check-in post-adopción (QA A9) y el recorrido
+ *              demo 3 sin finalizar una adopción en vivo.
  *
  * Idempotente:
  *   Cada entidad se busca por una clave estable antes de insertarse.
@@ -88,16 +94,18 @@ function log(level: LogLevel, msg: string): void {
 // ---------------------------------------------------------------------------
 
 import { validateEventPayload } from "@/lib/events/event-schemas";
+import { isPetAdoptedByUser } from "@/lib/infra/adoption-checkin";
 import { openCase } from "@/lib/infra/case-helpers";
 import { resolveCanonicalJurisdiction } from "@/lib/infra/jurisdiction-validation";
 import { generateApprovalRequestToken } from "@/lib/infra/publicToken";
+import { resolveBreedLabel } from "@/lib/reference/breeds";
 import { dniLast4, hashDni } from "@/lib/utils/dni-hash";
 import { openDisputeFromEvent } from "@/src/modules/custody-disputes/application/open-dispute";
 import { registerPet } from "@/src/modules/pets/application/register-pet";
 import type { ParsedPet } from "@/src/modules/pets/domain/types";
 import { PetsRepository } from "@/src/modules/pets/infrastructure/pets-repository";
 import { createClient } from "@supabase/supabase-js";
-import { and, eq, sql } from "drizzle-orm";
+import { and, eq, isNull, sql } from "drizzle-orm";
 import { db } from "../db";
 import * as schemas from "../db/schema";
 import { generateReferenceCode } from "../src/modules/welfare/domain/reference-code";
@@ -203,6 +211,17 @@ type SpinePetSpec = {
 };
 
 async function registerSpinePet(spec: SpinePetSpec): Promise<string | null> {
+  // Breeds come from the catalog (lib/reference/breeds.ts) — the alta wizard
+  // only offers catalog values, so a seed that writes "Mestizo" raw drifts
+  // pets.breed off-catalog and check-catalog-drift (pnpm verify) rejects the
+  // whole database. Normalize through the same resolver the repair tool uses;
+  // an unresolvable breed is a spec bug, so fail loud instead of inserting it.
+  const canonicalBreed = resolveBreedLabel(spec.breed);
+  if (!canonicalBreed) {
+    log("FAIL", `Raza fuera de catálogo para ${spec.token}: "${spec.breed}"`);
+    return null;
+  }
+
   // Resolve the canonical locality FK exactly as the write path does
   // (normalizeLocationForWrite → resolveCanonicalJurisdiction). A miss leaves
   // the FK NULL — what a real registration outside the INDEC catalogue
@@ -222,7 +241,7 @@ async function registerSpinePet(spec: SpinePetSpec): Promise<string | null> {
     name: spec.name,
     species: "dog",
     sex: spec.sex,
-    breed: spec.breed,
+    breed: canonicalBreed,
     dateOfBirth: spec.dateOfBirth,
     birthDateIsEstimated: spec.birthDateIsEstimated,
     color: spec.color,
@@ -1043,6 +1062,310 @@ async function seedCustodyDisputeDemo(): Promise<void> {
 }
 
 // ---------------------------------------------------------------------------
+// 8b. Asset 6 — Adriana Sosa (adoptante) + Mora (check-in post-adopción, QA A9)
+// ---------------------------------------------------------------------------
+//
+// The check-in page (mis-mascotas/[token]/eventos/nuevo/checkin) gates on
+// THREE facts at once: owner-path access, the pet's LATEST adoption_finalized
+// event carrying the CURRENT user's REAL auth uuid as adopter_user_id, and an
+// OPEN post_adoption_checkin reminder. The anotar capture catalog gates its
+// "Check-in post-adopción" entry on the same isPetAdoptedByUser predicate
+// (lib/infra/adoption-checkin.ts). Nothing seeded satisfied all three, so the
+// A9 positive path was only demonstrable by finalizing an adoption live.
+//
+// adopter_user_id MUST be the auth uuid — the Zod schema says z.string().uuid()
+// and isPetAdoptedByUser compares === against user.id. Several older seeds
+// wrongly stored display names in that field; do NOT copy that pattern.
+//
+// The write shape mirrors AdoptionRepository.insertAdoptionFinalized
+// (src/modules/adoption/infrastructure/adoption-repository.ts): close the
+// shelter_custody ownership, insert the owner row (transferred_from_id), keep
+// the listing cache columns clear, insert the validated adoption_finalized
+// event and the production-shaped check-in reminders, in one transaction.
+
+const ADOPTANTE_EMAIL = "adoptante@dim.test";
+const ADOPTANTE_DISPLAY_NAME = "Adriana Sosa";
+// Synthetic DNI — hashed only (Wave 5 Item 25a), distinct from Carla's.
+const ADOPTANTE_DNI = "27889314";
+const MORA_PUBLIC_TOKEN = "DIM-MORA-DEMO";
+
+async function seedAdoptanteMora(): Promise<void> {
+  log("STEP", "Asset 6 — Adriana Sosa (adoptante) + Mora (check-in post-adopción)");
+
+  const orgId = await findOrgByEmail(PATITAS_EMAIL);
+  if (!orgId) {
+    log("FAIL", `No se encontró org ${PATITAS_EMAIL}. ¿Corriste seed-demo.ts primero?`);
+    return;
+  }
+
+  const operator = await findProfileByEmail(SHELTER_OPERATOR_EMAIL);
+  if (!operator) {
+    log("FAIL", `No se encontró ${SHELTER_OPERATOR_EMAIL}. ¿Corriste seed-demo.ts primero?`);
+    return;
+  }
+
+  // 1) Auth user + profile (same pattern as Carla above).
+  let adoptanteId = await findUserIdByEmail(ADOPTANTE_EMAIL);
+  if (!adoptanteId) {
+    const { data, error } = await supabase.auth.admin.createUser({
+      email: ADOPTANTE_EMAIL,
+      password: SHARED_PASSWORD,
+      email_confirm: true,
+      user_metadata: { display_name: ADOPTANTE_DISPLAY_NAME, user_role: "owner" },
+    });
+    if (error || !data.user) {
+      log("FAIL", `No pude crear auth user para ${ADOPTANTE_EMAIL}: ${error?.message}`);
+      return;
+    }
+    adoptanteId = data.user.id;
+    log("OK", `Auth user creado para ${ADOPTANTE_EMAIL}`);
+  } else {
+    log("SKIP", `Auth user ${ADOPTANTE_EMAIL} ya existe`);
+  }
+
+  const [existingProfile] = await db
+    .select({ id: schemas.profiles.id })
+    .from(schemas.profiles)
+    .where(eq(schemas.profiles.id, adoptanteId))
+    .limit(1);
+
+  if (!existingProfile) {
+    await db.insert(schemas.profiles).values({
+      id: adoptanteId,
+      accountType: "personal",
+      role: "owner",
+      displayName: ADOPTANTE_DISPLAY_NAME,
+      dniHash: hashDni(ADOPTANTE_DNI),
+      dniLast4: dniLast4(ADOPTANTE_DNI),
+      dniVerified: true,
+    });
+    log("OK", "Profile de Adriana creado con DNI verificado");
+  } else {
+    // Same self-healing backfill as Carla: repair a profile created before
+    // this asset carried a DNI hash, instead of silently skipping.
+    await db
+      .update(schemas.profiles)
+      .set({
+        dniHash: hashDni(ADOPTANTE_DNI),
+        dniLast4: dniLast4(ADOPTANTE_DNI),
+        dniVerified: true,
+      })
+      .where(eq(schemas.profiles.id, adoptanteId));
+    log("OK", "Profile de Adriana ya existía — DNI hash backfilled");
+  }
+
+  // 2) Mora — idempotent by existence, like Argo. To REGENERATE her (defects
+  // included), delete first via scripts/reset-demo-pets.ts.
+  const [existingPet] = await db
+    .select({ id: schemas.pets.id })
+    .from(schemas.pets)
+    .where(eq(schemas.pets.publicToken, MORA_PUBLIC_TOKEN))
+    .limit(1);
+
+  if (existingPet) {
+    log("SKIP", `Mora (${MORA_PUBLIC_TOKEN}) ya existe.`);
+    // Still re-run the verification below so a partially-seeded Mora (pet
+    // present, adoption or reminder missing) is reported loudly, not hidden
+    // behind the skip.
+    await verifyAdoptanteCheckinGates(existingPet.id, adoptanteId);
+    return;
+  }
+
+  const intakeDate = daysAgo(75);
+  const eligibilityDate = daysAgo(50);
+  const adoptionDate = daysAgo(20);
+
+  // Registered by the shelter operator the day she is taken in (same rationale
+  // as Argo). estimatedWeightKg stays null — no weight_recorded events back a
+  // cache value, and the re-derivation sweep would read one as drift.
+  const petId = await registerSpinePet({
+    token: MORA_PUBLIC_TOKEN,
+    name: "Mora",
+    breed: "Mestiza",
+    color: "Negra con pecho blanco",
+    sex: "female",
+    dateOfBirth: "2024-02-10",
+    birthDateIsEstimated: true,
+    estimatedWeightKg: null,
+    acquisitionMethod: "found_stray",
+    province: "CABA",
+    locality: "Palermo",
+    registeredAt: intakeDate,
+    actorUserId: operator.id,
+  });
+  if (!petId) return;
+
+  // Shelter custody: same correction as Argo — registerPet always writes an
+  // OWNER ownership, so the row is re-pointed at the refuge.
+  await db
+    .update(schemas.ownerships)
+    .set({ ownerUserId: null, ownerOrganizationId: orgId, role: "shelter_custody" })
+    .where(eq(schemas.ownerships.petId, petId));
+
+  // Intake asiento.
+  await db.insert(schemas.petEvents).values({
+    petId,
+    eventType: "shelter_intake_recorded",
+    occurredAt: intakeDate,
+    authorRole: "shelter",
+    authorOrganizationId: orgId,
+    authorVerified: true,
+    payload: {
+      intake_kind: "stray",
+      location_found: "Plaza Inmigrantes de Armenia, Palermo",
+      condition_on_intake: "good",
+      notes: "Perra joven, sociable. Sin chip. Se adapta bien al refugio.",
+    },
+  });
+
+  // Apta para adopción — event + cache dual-write. replayPetAdoptionEligibility
+  // derives eligibilitySetAt from the event's recordedAt (latest event wins),
+  // so the cache mirrors the value the DB actually stored.
+  const eligibilityPayload = validateEventPayload("adoption_eligibility_set", {
+    eligible: true,
+  });
+  const [eligibilityEvent] = await db
+    .insert(schemas.petEvents)
+    .values({
+      petId,
+      eventType: "adoption_eligibility_set",
+      occurredAt: eligibilityDate,
+      recordedAt: eligibilityDate,
+      authorRole: "shelter",
+      authorOrganizationId: orgId,
+      authorVerified: true,
+      payload: eligibilityPayload,
+    })
+    .returning({ recordedAt: schemas.petEvents.recordedAt });
+  await db
+    .update(schemas.pets)
+    .set({ adoptionEligible: true, adoptionEligibilitySetAt: eligibilityEvent.recordedAt })
+    .where(eq(schemas.pets.id, petId));
+
+  // 3) Adoption finalization — transactional, mirroring insertAdoptionFinalized.
+  const adoptionPayload = validateEventPayload("adoption_finalized", {
+    previous_owner_organization_id: orgId,
+    adopter_user_id: adoptanteId,
+    foster_user_id: null,
+    contract_attachment_id: null,
+    post_adoption_followup_months: 6,
+    notes: "Adopción presencial en el refugio. Entrevista y visita al hogar completadas.",
+    adopted_from_application_id: null,
+  });
+
+  await db.transaction(async (tx) => {
+    const [custody] = await tx
+      .select({ id: schemas.ownerships.id })
+      .from(schemas.ownerships)
+      .where(
+        and(
+          eq(schemas.ownerships.petId, petId),
+          eq(schemas.ownerships.role, "shelter_custody"),
+          isNull(schemas.ownerships.endedAt),
+        ),
+      )
+      .limit(1);
+    if (!custody) throw new Error("Mora sin fila de custodia activa — estado inesperado.");
+
+    await tx
+      .update(schemas.ownerships)
+      .set({ endedAt: adoptionDate })
+      .where(eq(schemas.ownerships.id, custody.id));
+
+    await tx.insert(schemas.ownerships).values({
+      petId,
+      ownerUserId: adoptanteId,
+      role: "owner",
+      startedAt: adoptionDate,
+      transferredFromId: custody.id,
+    });
+
+    const [adoptionEvent] = await tx
+      .insert(schemas.petEvents)
+      .values({
+        petId,
+        eventType: "adoption_finalized",
+        occurredAt: adoptionDate,
+        recordedAt: adoptionDate,
+        recordedByUserId: operator.id,
+        authorRole: "shelter",
+        authorOrganizationId: orgId,
+        authorVerified: true,
+        payload: adoptionPayload,
+      })
+      .returning({ id: schemas.petEvents.id });
+
+    // Post-adoption check-in reminders — same windows (≤ followup 6 months)
+    // and copy as the production writer, so the 1-month reminder is OPEN and
+    // ~10 days out from today's re-anchored daysAgo(20) adoption.
+    const checkinWindows = [1, 3, 6] as const;
+    await tx.insert(schemas.reminders).values(
+      checkinWindows.map((m) => {
+        const dueDate = new Date(adoptionDate);
+        dueDate.setMonth(dueDate.getMonth() + m);
+        return {
+          petId,
+          userId: adoptanteId as string,
+          reminderType: "post_adoption_checkin" as const,
+          dueAt: dueDate,
+          title: `Seguimiento post-adopción a los ${m} ${m === 1 ? "mes" : "meses"}`,
+          description:
+            "Refugio Patitas del Norte pidió un check-in sobre Mora. Subí fotos y contanos cómo está.",
+          sourceEventId: adoptionEvent.id,
+        };
+      }),
+    );
+  });
+
+  log(
+    "OK",
+    `Mora creada (${MORA_PUBLIC_TOKEN}) — intake → apta → adoptada por ${ADOPTANTE_EMAIL}, 3 recordatorios de check-in`,
+  );
+
+  await verifyAdoptanteCheckinGates(petId, adoptanteId);
+}
+
+/**
+ * Verifies the exact gates the check-in page enforces: the shared
+ * isPetAdoptedByUser predicate (latest adoption_finalized names this user)
+ * and an OPEN post_adoption_checkin reminder for the pair. Runs on every
+ * spine execution — including the existence-skip path — so a half-seeded
+ * Mora fails loudly instead of silently demoing a 404.
+ */
+async function verifyAdoptanteCheckinGates(petId: string, userId: string): Promise<void> {
+  const adopted = await isPetAdoptedByUser(petId, userId);
+  const [openReminder] = await db
+    .select({ id: schemas.reminders.id, dueAt: schemas.reminders.dueAt })
+    .from(schemas.reminders)
+    .where(
+      and(
+        eq(schemas.reminders.petId, petId),
+        eq(schemas.reminders.userId, userId),
+        eq(schemas.reminders.reminderType, "post_adoption_checkin"),
+        isNull(schemas.reminders.completedAt),
+      ),
+    )
+    .orderBy(schemas.reminders.dueAt)
+    .limit(1);
+
+  if (!adopted) {
+    log("FAIL", "Verificación A9: isPetAdoptedByUser=false — el check-in va a responder 404.");
+    return;
+  }
+  if (!openReminder) {
+    log(
+      "FAIL",
+      "Verificación A9: no hay reminder post_adoption_checkin abierto — la página va a mostrar 'Sin check-ins pendientes'.",
+    );
+    return;
+  }
+  log(
+    "OK",
+    `Verificación A9: isPetAdoptedByUser=true, reminder abierto (vence ${openReminder.dueAt.toISOString().slice(0, 10)}).`,
+  );
+}
+
+// ---------------------------------------------------------------------------
 // 9. Main
 // ---------------------------------------------------------------------------
 
@@ -1057,6 +1380,7 @@ async function main(): Promise<void> {
     await seedInScopeSubjectReport();
     await deriveWelfareToAuthority();
     await seedCustodyDisputeDemo();
+    await seedAdoptanteMora();
     log("DONE", "Spine seeded. Cycles 1, 3, 4 y 5 listos.");
     log("INFO", "Próximo paso: ver docs/demo-runbook.md para el guión de ensayo.");
   } catch (e) {
