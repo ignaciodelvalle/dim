@@ -567,3 +567,25 @@ export function presetLayerIds(p: PanoramaPreset): LayerId[] {
 export function getPreset(id: PresetId): PanoramaPreset | undefined {
   return PANORAMA_PRESETS.find((p) => p.id === id);
 }
+
+/**
+ * The period preset the DEFAULT landing preset activates — i.e. the window the
+ * console actually requests on an admin's first visit (bare URL → the default
+ * preset auto-activates and commits its periodPreset).
+ *
+ * The KPI cube builder builds at THIS window (QA fix 7: it used to build at
+ * the 3y PANORAMA_DEFAULT_PRESET while the landing requested the default
+ * preset's 90d, so the period gate in loadPanoramaKpisFromCube never matched
+ * and every admin first visit paid the live 20-query fan-out). Deriving it
+ * here keeps builder and landing single-sourced: change
+ * DEFAULT_PANORAMA_PRESET_ID (or its periodPreset) and the cube follows.
+ */
+export function defaultPanoramaPresetPeriod(): PanoramaPreset["periodPreset"] {
+  const preset = getPreset(DEFAULT_PANORAMA_PRESET_ID);
+  if (!preset) {
+    // Structurally unreachable (presets.test.ts pins the default id resolves);
+    // throwing keeps the cube build honest instead of silently mis-windowing.
+    throw new Error(`DEFAULT_PANORAMA_PRESET_ID "${DEFAULT_PANORAMA_PRESET_ID}" has no preset`);
+  }
+  return preset.periodPreset;
+}

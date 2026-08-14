@@ -18,6 +18,7 @@ import {
   PANORAMA_PRESETS,
   type PanoramaPreset,
   type PresetFraming,
+  defaultPanoramaPresetPeriod,
   getPreset,
   presetLayerIds,
   shouldEmitPresetFrame,
@@ -473,6 +474,17 @@ describe("DEFAULT_PANORAMA_PRESET_ID", () => {
     // The welfare preset draws at locality granularity and stays framing-less
     // (a drill-down question, not a national choropleth overview).
     expect(p.base).toBe("denuncias");
+  });
+
+  it("defaultPanoramaPresetPeriod() is the default preset's window — the one the KPI cube builds at (QA fix 7)", () => {
+    // The cube builder derives its build window from this helper so the
+    // landing's first KPI request (which commits the default preset's
+    // periodPreset) matches the stored cube within the reader's 26h period
+    // tolerance. Pinning the concrete value: if the default preset (or its
+    // periodPreset) changes, this updates WITH the cube window — that is the
+    // point — but the change should be a conscious one.
+    expect(defaultPanoramaPresetPeriod()).toBe(getPreset(DEFAULT_PANORAMA_PRESET_ID)!.periodPreset);
+    expect(defaultPanoramaPresetPeriod()).toBe("90d");
   });
 });
 

@@ -42,10 +42,11 @@ import {
 } from "@/db";
 import * as schema from "@/db/schema";
 import type { NewPanoramaCubeRow, NewPanoramaKpiCubeRow } from "@/db/schema";
-import { PANORAMA_DEFAULT_PRESET, resolveAnalyticsPeriod } from "@/lib/analytics/analytics-period";
+import { resolveAnalyticsPeriod } from "@/lib/analytics/analytics-period";
 import type { AnalyticsPeriod, DashboardActor, DashboardJurisdiction } from "@/lib/metrics";
 import { buildProjectionContext } from "@/lib/metrics";
 import { fetchNetGrowth } from "@/lib/metrics/population-control";
+import { defaultPanoramaPresetPeriod } from "@/src/modules/panorama/domain/presets";
 
 import type { PanoramaKpis } from "@/src/modules/panorama/application/get-panorama-kpis";
 import { getPanoramaKpis } from "@/src/modules/panorama/application/get-panorama-kpis";
@@ -332,8 +333,9 @@ export function buildProvinceCubeRows(
 //
 // SAME AMENDMENT PHILOSOPHY as the layer cube: REUSE the live use-case. The
 // builder runs getPanoramaKpis — the EXACT ~20-fetcher fan-out the request path
-// runs — as the admin-national actor with the panorama DEFAULT period (the
-// console's landing view, the most common and most expensive request), and
+// runs — as the admin-national actor with the window the LANDING preset
+// requests (defaultPanoramaPresetPeriod(), the console's landing view — the
+// most common and most expensive request), and
 // stores the FINISHED PanoramaKpi tiles as jsonb. The reader reassembles the
 // strip from the stored tiles, so cube-vs-live drift is structurally
 // impossible (parity is near-tautology).
@@ -368,7 +370,14 @@ export type KpiCubeBuild = {
  * an error and the last-good KPI cube stays untouched.
  */
 async function buildKpiCube(): Promise<KpiCubeBuild> {
-  const period = resolveAnalyticsPeriod({ period: PANORAMA_DEFAULT_PRESET });
+  // QA fix 7: build at the window the LANDING actually requests. A bare admin
+  // visit auto-activates DEFAULT_PANORAMA_PRESET_ID, whose periodPreset (90d
+  // for "bienestar") is what the console asks the KPI strip for — NOT the 3y
+  // PANORAMA_DEFAULT_PRESET this used to hardcode, which made the reader's
+  // period gate reject the cube on every first visit (always-live fan-out).
+  // Single-sourced via defaultPanoramaPresetPeriod(): if the default preset
+  // (or its period) changes, the cube window follows automatically.
+  const period = resolveAnalyticsPeriod({ period: defaultPanoramaPresetPeriod() });
   const strip = await getPanoramaKpis(ADMIN, NO_JURISDICTIONS, period);
   if (strip.degraded || strip.kpis.length === 0 || strip.kpis.some((k) => k.unavailable)) {
     throw new Error(

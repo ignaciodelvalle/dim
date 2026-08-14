@@ -638,7 +638,9 @@ describe("KPI cube eligibility + staleness gates fall back to live (null)", () =
         jurisdictions: [{ province: "La Pampa", locality: "Santa Rosa" }],
       }),
     ).toBeNull();
-    // A different preset (12m vs the stored 3y) misses the period gate.
+    // A different preset (12m vs the stored landing window — 90d since QA
+    // fix 7 aligned the build to defaultPanoramaPresetPeriod()) misses the
+    // period gate.
     const twelveMonths: AnalyticsPeriod = {
       since: new Date(Date.now() - 365 * 24 * 60 * 60 * 1000),
       until: new Date(),
