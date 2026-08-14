@@ -910,7 +910,8 @@ describe("leaveOrganization", () => {
       );
       expect(result).toEqual({
         ok: false,
-        error: "No podés salir porque sos el único administrador. Asigná otro administrador primero.",
+        error:
+          "No podés salir porque sos el único administrador. Asigná otro administrador primero.",
       });
       expect(repo.lockActiveAdmins).toHaveBeenCalledWith(orgId, expect.anything());
     }

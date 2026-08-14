@@ -65,6 +65,7 @@ const baseSheetMounterProps = {
   },
   ownerFirstName: "Martín",
   alertsOriginShelter: false,
+  showCheckinOption: false,
 };
 
 const mockAssign = vi.fn();

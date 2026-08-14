@@ -33,7 +33,7 @@ vi.mock("@/lib/infra/pets", () => ({
 
 // QA A9: the page resolves the check-in gate server-side; default to
 // non-adopter (entry hidden). Individual tests override via mockResolvedValue.
-const isPetAdoptedByUserMock = vi.fn(async () => false);
+const isPetAdoptedByUserMock = vi.fn(async (_petId: string, _userId: string) => false);
 vi.mock("@/lib/infra/adoption-checkin", () => ({
   isPetAdoptedByUser: (petId: string, userId: string) => isPetAdoptedByUserMock(petId, userId),
 }));

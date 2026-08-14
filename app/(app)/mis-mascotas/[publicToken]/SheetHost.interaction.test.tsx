@@ -92,6 +92,7 @@ const baseSheetMounterProps = {
   },
   ownerFirstName: "Martín",
   alertsOriginShelter: false,
+  showCheckinOption: false,
 };
 
 function Harness() {

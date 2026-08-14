@@ -29,7 +29,10 @@ describe("chipMatchActiveBlockMessage (QA B1)", () => {
   });
 
   it("both variants stay hard blocks over the same chip-uniqueness fact", () => {
-    for (const msg of [chipMatchActiveBlockMessage("user-123"), chipMatchActiveBlockMessage(null)]) {
+    for (const msg of [
+      chipMatchActiveBlockMessage("user-123"),
+      chipMatchActiveBlockMessage(null),
+    ]) {
       expect(msg).toContain("No se puede crear un segundo ingreso con el mismo chip");
     }
   });
