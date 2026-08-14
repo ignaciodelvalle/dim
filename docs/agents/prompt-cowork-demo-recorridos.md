@@ -120,7 +120,7 @@ del rate limiter:
 | 4 | `lilian@dim.test` | Veterinaria de planta | Clínica Veterinaria Recoleta |
 | 5 | `noeli@dim.test` | Voluntaria / transitante | cuenta ciudadana común |
 | 6 | `alejo@dim.test` | Admin de organización (multi-org) | admin de 4 orgs, incl. Recoleta y Patitas del Norte |
-| 7 | `lucas@dim.test` | Gobierno CABA | 5 localidades: Palermo, Puerto Madero, Recoleta, Retiro, San Nicolás |
+| 7 | `lucas@dim.test` | Gobierno CABA | CABA entera (re-escopado 2026-08-14; antes 5 barrios) |
 | 8 | `gov-pba@dim.test` | Gobierno PBA | ⚠️ **requiere seed batch 3** — La Plata, Quilmes, Morón |
 | 9 | `admin@dim.test` | Admin | universal |
 
@@ -442,13 +442,19 @@ corridas no es un bug, el token no está fijo.
 
 ## TOUR 7 — Gobierno CABA `lucas@dim.test`
 
-**Historia:** autoridad de 5 localidades de CABA — vigila el territorio,
-aprueba matrículas y habilitaciones, media denuncias, coordina campañas.
+**Historia:** autoridad de CABA — vigila el territorio, aprueba matrículas
+y habilitaciones, media denuncias, coordina campañas.
 
-**Datos seed:** cobertura de **Palermo, Puerto Madero, Recoleta, Retiro y
-San Nicolás** (CABA). Argo vive en Palermo (bajo custodia de Patitas del
-Norte) y la disputa de Bruno (Palermo, `noeli@` vs `graciela@`) también cae
-en su jurisdicción.
+**Datos seed:** cobertura de **CABA entera** (el seed 2026-08-14 revocó las
+5 asignaciones por barrio que Lucas tenía antes — Palermo, Puerto Madero,
+Recoleta, Retiro, San Nicolás — y las reemplazó por una asignación de
+provincia completa). OJO: la corrida QA CW0813 verificó "subsunción a nivel
+localidad" con el scope viejo (Belgrano daba 404 para Lucas); ese borde ya
+NO aplica a esta cuenta — el contraste inter-provincia sigue (una mascota de
+Salta le da 404) y el borde por-localidad ahora se demuestra con `gov-pba@`
+(Tour 8), que sí tiene partidos acotados. Argo vive en Palermo (bajo
+custodia de Patitas del Norte) y la disputa de Bruno (Palermo, `noeli@` vs
+`graciela@`) cae en su jurisdicción.
 
 > **Nota de rutas:** este tour usa el nav ACTUAL
 > (`components/layout/nav-presets.ts`, `GOB_NAV_SECTIONS`), que fusionó
@@ -461,8 +467,8 @@ en su jurisdicción.
 
 **Pasos:**
 
-1. `/gob` — Briefing. **Checkpoint:** chip de alcance (las 5 localidades),
-   cola operativa resumida.
+1. `/gob` — Briefing. **Checkpoint:** chip de alcance (CABA), cola
+   operativa resumida.
 2. `/gob/panorama?preset=sintomas&period=30d` — mapa. **Checkpoint:** carga
    el "Centro de Situación Nacional"; si en el primer intento ves "No
    pudimos cargar los indicadores", recargá — es un problema de caché fría
