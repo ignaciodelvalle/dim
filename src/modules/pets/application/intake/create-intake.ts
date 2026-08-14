@@ -79,6 +79,24 @@ const CUSTODY_ROLES: readonly CustodyRole[] = ["shelter_custody", "owner"];
 const CHIP_MATCH_ACTIVE_BLOCK_MSG =
   "Este microchip ya está registrado en miMAR para una mascota activa con familia. No se puede crear un segundo ingreso con el mismo chip. Si la familia entregó al animal, tiene que iniciar la transferencia de titularidad desde su cuenta. Si el animal está perdido, pedile a la familia que lo marque como perdido en miMAR: recién ahí el sistema te propone confirmar la coincidencia y registrar la custodia.";
 
+// QA B1 — same hard block, different guidance: when the active pet has NO
+// individual owner (lookupByChip's ownerUserId is null) it is under another
+// organization's custody, so "la familia inicia la transferencia" is wrong
+// advice. Point the operator at the org-to-org path instead.
+const CHIP_MATCH_ACTIVE_ORG_CUSTODY_BLOCK_MSG =
+  "Este microchip ya está registrado en miMAR para una mascota activa bajo custodia de otra organización. No se puede crear un segundo ingreso con el mismo chip. Coordiná el traspaso directamente con esa organización para que registre la salida o la transferencia de custodia. Si el animal está perdido, pedile a esa organización que lo marque como perdido en miMAR: recién ahí el sistema te propone confirmar la coincidencia y registrar la custodia.";
+
+/**
+ * Picks the active-chip hard-block copy by custody shape: an individual owner
+ * (ownerUserId set) gets the with-family guidance; null means org custody and
+ * gets the org-to-org guidance. Exported for unit tests.
+ */
+export function chipMatchActiveBlockMessage(ownerUserId: string | null): string {
+  return ownerUserId === null
+    ? CHIP_MATCH_ACTIVE_ORG_CUSTODY_BLOCK_MSG
+    : CHIP_MATCH_ACTIVE_BLOCK_MSG;
+}
+
 // Exported for the bulk CSV import (org-pilot-pack D1): the preview validates
 // each row through THESE exact write-time rules on synthetic FormData, so the
 // preview can never diverge from what createIntake would accept. Export-only
@@ -267,8 +285,9 @@ export async function createIntake(
       if (match.pet.status === "active") {
         // HARD BLOCK: the chip belongs to a live active pet. A second intake for
         // the same chip would always violate pet_identifications_chip_unique, so
-        // there is no honest "continue anyway" — return helpful guidance instead.
-        return { error: CHIP_MATCH_ACTIVE_BLOCK_MSG };
+        // there is no honest "continue anyway" — return helpful guidance instead,
+        // worded for the actual custody shape (family vs another org — QA B1).
+        return { error: chipMatchActiveBlockMessage(match.pet.ownerUserId) };
       }
 
       if (match.pet.status === "deceased") {
