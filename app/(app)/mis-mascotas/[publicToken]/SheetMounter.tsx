@@ -160,6 +160,12 @@ type Props = {
    * notifier's own predicate (lib/infra/origin-shelter-alert.ts).
    */
   alertsOriginShelter: boolean;
+  /**
+   * QA A9 — whether the anotar catalog shows the "Check-in post-adopción"
+   * entry. Resolved server-side by page.tsx via isPetAdoptedByUser (same
+   * predicate the check-in page 404-gates on).
+   */
+  showCheckinOption: boolean;
 };
 
 export function SheetMounter({
@@ -181,6 +187,7 @@ export function SheetMounter({
   disclosurePrefs,
   ownerFirstName,
   alertsOriginShelter,
+  showCheckinOption,
 }: Props) {
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -245,7 +252,7 @@ export function SheetMounter({
             <span>Todos los tipos de registro</span>
             <div className="h-px flex-1 bg-[var(--color-ln-stripe)]" />
           </div>
-          <CaptureOptionsList petPublicToken={petToken} />
+          <CaptureOptionsList petPublicToken={petToken} showCheckinOption={showCheckinOption} />
         </div>
       </Sheet>
     );

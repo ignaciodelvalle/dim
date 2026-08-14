@@ -104,6 +104,7 @@ import {
   shouldShowCarousel,
 } from "@/lib/domain/owner-carousel";
 import { buildFromLostRedirectTarget, resolvePetFace } from "@/lib/domain/pet-face-nav";
+import { isPetAdoptedByUser } from "@/lib/infra/adoption-checkin";
 import { resolveBusinessRule } from "@/lib/infra/business-rules-resolver";
 import { GENERIC_CASE_LIST_EXCLUDED_KINDS } from "@/lib/infra/case-queries";
 import { fetchLostEpisodeForPet, fetchLostScanEvents } from "@/lib/infra/lost-mode";
@@ -407,6 +408,10 @@ export default async function PetDetailPage({
   let physicalCredentialChannels: Awaited<
     ReturnType<typeof resolvePhysicalCredentialChannels>
   > | null = null;
+  // QA A9 — gates the "Check-in post-adopción" entry in the anotar catalog
+  // (SheetMounter → CaptureOptionsList). Same predicate the check-in page
+  // 404s on; false for org viewers (anotar is owner-only anyway).
+  let showCheckinOption = false;
 
   if (accessPath === "owner") {
     // "Confirmar devolución": only the legal owner, only when a pending return
@@ -444,17 +449,23 @@ export default async function PetDetailPage({
           locality: pet.jurisdictionLocality ?? null,
         });
 
-    const [returnProposalResult, [profileRow], chapitaState, channels] = await Promise.all([
-      returnProposalQuery,
-      contactsQuery,
-      chapitaQuery,
-      physicalCredentialChannelsQuery,
-    ]);
+    // Deceased pets never mount the anotar sheet (REQ-9.3), so skip the read.
+    const adoptedQuery = isDeceased ? Promise.resolve(false) : isPetAdoptedByUser(pet.id, user.id);
+
+    const [returnProposalResult, [profileRow], chapitaState, channels, adoptedByViewer] =
+      await Promise.all([
+        returnProposalQuery,
+        contactsQuery,
+        chapitaQuery,
+        physicalCredentialChannelsQuery,
+        adoptedQuery,
+      ]);
 
     hasPendingReturnProposal = returnProposalResult;
     viewerContacts = profileRow ?? null;
     chapitaData = chapitaState;
     physicalCredentialChannels = channels;
+    showCheckinOption = adoptedByViewer;
   }
 
   // Parallel fan-out (perf audit 2026-07-19 qw#3): these reads are independent —
@@ -1174,6 +1185,7 @@ export default async function PetDetailPage({
         }}
         chapitaData={chapitaData}
         alertsOriginShelter={alertsOriginShelter}
+        showCheckinOption={showCheckinOption}
         physicalCredentialChannels={physicalCredentialChannels}
         emergencyContacts={
           // The edit sheet writes the PET-LEVEL override (owner-ia-redesign P2),

@@ -1,5 +1,5 @@
 /**
- * <CaptureOptionsList> — accessible-name regression guard.
+ * <CaptureOptionsList> — accessible-name regression guard + QA A9 gating.
  *
  * medianos-sesión-2 finding #5 (verified against current code — not
  * reproducible: every row already renders its label as visible <span> text
@@ -7,6 +7,10 @@
  * trailing "→" glyph is additional visible text, never the ONLY content).
  * Pinned here so a future edit can't turn a row into an icon-only link with
  * no accessible name.
+ *
+ * QA A9: the "Check-in post-adopción" entry (and its "Adopción" section
+ * header) render ONLY when showCheckinOption is true — for everyone else the
+ * target page 404s, so the entry must not exist.
  *
  * Pattern: react-dom/server renderToStaticMarkup (repo convention — no
  * jsdom, see anotar/page.test.tsx / CaptureBox.test.tsx).
@@ -19,7 +23,9 @@ import { CaptureOptionsList } from "./CaptureOptionsList";
 
 describe("<CaptureOptionsList> — every row link carries a real accessible name", () => {
   it("every option link's visible text is non-empty", () => {
-    const html = renderToStaticMarkup(<CaptureOptionsList petPublicToken="DIM-TEST-0001" />);
+    const html = renderToStaticMarkup(
+      <CaptureOptionsList petPublicToken="DIM-TEST-0001" showCheckinOption={false} />,
+    );
     const links = [...html.matchAll(/<a\b[^>]*>([\s\S]*?)<\/a>/g)];
     expect(links.length).toBeGreaterThan(0);
     for (const [, inner] of links) {
@@ -29,8 +35,28 @@ describe("<CaptureOptionsList> — every row link carries a real accessible name
   });
 
   it("renders the known category labels as real link text, not just the trailing arrow", () => {
-    const html = renderToStaticMarkup(<CaptureOptionsList petPublicToken="DIM-TEST-0001" />);
+    const html = renderToStaticMarkup(
+      <CaptureOptionsList petPublicToken="DIM-TEST-0001" showCheckinOption={false} />,
+    );
     expect(html).toContain("Registrar vacuna");
     expect(html).toContain("Marcar como perdida");
+  });
+});
+
+describe("<CaptureOptionsList> — QA A9 check-in gating", () => {
+  it("hides the check-in entry AND its emptied 'Adopción' header for non-adopters", () => {
+    const html = renderToStaticMarkup(
+      <CaptureOptionsList petPublicToken="DIM-TEST-0001" showCheckinOption={false} />,
+    );
+    expect(html).not.toContain("Check-in post-adopción");
+    expect(html).not.toContain("Adopción");
+  });
+
+  it("renders the check-in entry for the registered adopter", () => {
+    const html = renderToStaticMarkup(
+      <CaptureOptionsList petPublicToken="DIM-TEST-0001" showCheckinOption={true} />,
+    );
+    expect(html).toContain("Check-in post-adopción");
+    expect(html).toContain("Adopción");
   });
 });

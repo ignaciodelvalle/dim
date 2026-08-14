@@ -1,8 +1,9 @@
 import { recordPostAdoptionCheckinAction } from "@/app/actions/checkin";
 import { LnSheetCard, LnSheetWrap } from "@/components/ui/Sheet";
-import { db, petEvents, reminders } from "@/db";
+import { db, reminders } from "@/db";
+import { isPetAdoptedByUser } from "@/lib/infra/adoption-checkin";
 import { requirePetAccess } from "@/lib/infra/pet-access";
-import { and, desc, eq, isNull } from "drizzle-orm";
+import { and, eq, isNull } from "drizzle-orm";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { CheckinForm } from "./CheckinForm";
@@ -35,16 +36,10 @@ export default async function PostAdoptionCheckinPage({
   if (access.accessPath !== "owner") notFound();
   const { user, pet } = access;
 
-  const [adoption] = await db
-    .select({ payload: petEvents.payload })
-    .from(petEvents)
-    .where(and(eq(petEvents.petId, pet.id), eq(petEvents.eventType, "adoption_finalized")))
-    .orderBy(desc(petEvents.occurredAt))
-    .limit(1);
-
-  const adopterId = (adoption?.payload as { adopter_user_id?: string } | undefined)
-    ?.adopter_user_id;
-  if (!adoption || adopterId !== user.id) notFound();
+  // Single source of truth with the anotar option assembly (QA A9): the same
+  // predicate that decides whether the "Check-in post-adopción" entry renders
+  // also gates this page — defense in depth for hand-typed URLs.
+  if (!(await isPetAdoptedByUser(pet.id, user.id))) notFound();
 
   const [openReminder] = await db
     .select({ id: reminders.id, dueAt: reminders.dueAt })

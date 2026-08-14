@@ -31,6 +31,13 @@ vi.mock("@/lib/infra/pets", () => ({
   })),
 }));
 
+// QA A9: the page resolves the check-in gate server-side; default to
+// non-adopter (entry hidden). Individual tests override via mockResolvedValue.
+const isPetAdoptedByUserMock = vi.fn(async () => false);
+vi.mock("@/lib/infra/adoption-checkin", () => ({
+  isPetAdoptedByUser: (petId: string, userId: string) => isPetAdoptedByUserMock(petId, userId),
+}));
+
 import CapturePage from "./page";
 
 describe("/anotar fallback host page — REQ-4.2 host contract", () => {
@@ -62,5 +69,26 @@ describe("/anotar fallback host page — REQ-4.2 host contract", () => {
     });
     const html = renderToStaticMarkup(node);
     expect(html).toContain("Anotar algo de Firulais");
+  });
+
+  it("QA A9: hides the check-in entry for a non-adopter viewer", async () => {
+    isPetAdoptedByUserMock.mockResolvedValueOnce(false);
+    const node = await CapturePage({
+      params: Promise.resolve({ publicToken: "abc123" }),
+      searchParams: Promise.resolve({}),
+    });
+    const html = renderToStaticMarkup(node);
+    expect(html).not.toContain("Check-in post-adopción");
+  });
+
+  it("QA A9: shows the check-in entry when the viewer is the registered adopter", async () => {
+    isPetAdoptedByUserMock.mockResolvedValueOnce(true);
+    const node = await CapturePage({
+      params: Promise.resolve({ publicToken: "abc123" }),
+      searchParams: Promise.resolve({}),
+    });
+    const html = renderToStaticMarkup(node);
+    expect(html).toContain("Check-in post-adopción");
+    expect(isPetAdoptedByUserMock).toHaveBeenCalledWith("pet-1", "user-1");
   });
 });

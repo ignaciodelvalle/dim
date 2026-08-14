@@ -61,6 +61,7 @@ const baseProps = {
   },
   ownerFirstName: "Martín",
   alertsOriginShelter: false,
+  showCheckinOption: false,
 };
 
 describe("<SheetMounter> — sheet=anotar, owner path", () => {

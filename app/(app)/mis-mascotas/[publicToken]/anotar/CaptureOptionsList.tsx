@@ -15,10 +15,26 @@ import { buildCaptureDeeplink } from "@/lib/events/event-capture-registry";
 import { todayIsoInAr } from "@/lib/utils/format";
 import { ALL_CAPTURE_OPTIONS } from "./handoff";
 
-export function CaptureOptionsList({ petPublicToken }: { petPublicToken: string }) {
+export function CaptureOptionsList({
+  petPublicToken,
+  showCheckinOption,
+}: {
+  petPublicToken: string;
+  /**
+   * QA A9: the "Check-in post-adopción" entry renders only when the viewer is
+   * the pet's registered adopter (isPetAdoptedByUser, resolved server-side by
+   * the host page) — otherwise the target page 404s. Both hosts (anotar
+   * fallback page and SheetMounter's ?sheet=anotar) must thread this.
+   */
+  showCheckinOption: boolean;
+}) {
   const today = todayIsoInAr();
 
-  const optionsWithHref = ALL_CAPTURE_OPTIONS.map((opt) => {
+  const visibleOptions = ALL_CAPTURE_OPTIONS.filter(
+    (opt) => opt.eventType !== "post_adoption_checkin" || showCheckinOption,
+  );
+
+  const optionsWithHref = visibleOptions.map((opt) => {
     let href: string;
     if (opt.routeOverride) {
       href = `/mis-mascotas/${petPublicToken}${opt.routeOverride}`;
@@ -30,7 +46,9 @@ export function CaptureOptionsList({ petPublicToken }: { petPublicToken: string 
     return { ...opt, href };
   });
 
-  const categories = Array.from(new Set(ALL_CAPTURE_OPTIONS.map((o) => o.category)));
+  // Derived from the FILTERED set so a category emptied by the gate (e.g.
+  // "Adopción" for a non-adopter) never renders a header with no rows.
+  const categories = Array.from(new Set(visibleOptions.map((o) => o.category)));
 
   return (
     <div className="space-y-7">

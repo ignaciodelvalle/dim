@@ -9,6 +9,7 @@
 
 import Link from "next/link";
 
+import { isPetAdoptedByUser } from "@/lib/infra/adoption-checkin";
 import { requireOwnedPetByToken } from "@/lib/infra/pets";
 import { CaptureBox } from "./CaptureBox";
 import { CaptureOptionsList } from "./CaptureOptionsList";
@@ -23,9 +24,13 @@ export default async function CapturePage({
   const { publicToken } = await params;
   const { text, kind } = await searchParams;
   const session = await requireOwnedPetByToken(publicToken);
-  const { pet } = session;
+  const { pet, user } = session;
 
   const token = pet.publicToken;
+
+  // QA A9: the "Check-in post-adopción" catalog entry only renders for the
+  // registered adopter — the target page 404s for anyone else.
+  const showCheckinOption = await isPetAdoptedByUser(pet.id, user.id);
 
   return (
     <div className="mx-auto max-w-2xl px-8 py-7 pb-12">
@@ -62,7 +67,7 @@ export default async function CapturePage({
           <div className="flex-1 h-px bg-[var(--color-ln-stripe)]" />
         </div>
 
-        <CaptureOptionsList petPublicToken={token} />
+        <CaptureOptionsList petPublicToken={token} showCheckinOption={showCheckinOption} />
       </div>
     </div>
   );
