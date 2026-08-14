@@ -124,6 +124,14 @@ vi.mock("@/lib/infra/breeds-server", () => ({
   isPotentiallyDangerousBreedForJurisdiction: vi.fn().mockResolvedValue(false),
 }));
 
+// F1 (adversarial review 2026-08-14): the update path must classify PPP with
+// the PERSISTED species, never the submitted one. Mocked so the regression
+// tests below can assert the call arguments without touching the
+// business-rules resolver (which needs a DB).
+vi.mock("@/lib/infra/ppp-classification", () => ({
+  resolvePppClassificationForJurisdiction: vi.fn().mockResolvedValue(false),
+}));
+
 vi.mock("@/db", () => ({
   db: {
     transaction: vi.fn().mockImplementation(async (cb: (tx: unknown) => Promise<void>) => cb({})),
@@ -527,6 +535,101 @@ describe("updatePetAction", () => {
       )) as { error: string };
       expect(result.error).toMatch(/ya figura registrado/i);
       expect(updatePet).not.toHaveBeenCalled();
+    });
+  });
+
+  describe("persisted-species validation (adversarial review 2026-08-14)", () => {
+    // updatePetProfile never writes species (FULL-LOCK, PO decision #40), so
+    // the submitted species is free input with no corresponding write. Both
+    // the breed catalog gate and the PPP classification must therefore run
+    // against existingPet.species — the persisted truth.
+
+    function mockPetAccessOnce(petOverrides: Record<string, unknown>) {
+      return vi.fn().mockResolvedValue({
+        ok: true,
+        user: { id: "user-1" },
+        supabase: { storage: { from: vi.fn().mockReturnValue({ remove: vi.fn() }) } },
+        pet: {
+          id: "pet-existing",
+          name: "Luna",
+          species: "dog",
+          sex: "female",
+          breed: "Labrador",
+          dateOfBirth: "2022-01-01",
+          color: "negro",
+          estimatedWeightKg: null,
+          favouriteFoods: null,
+          knownAllergies: null,
+          trainingLevel: null,
+          potentiallyDangerousBreed: false,
+          insuranceCompany: null,
+          insurancePolicyNumber: null,
+          jurisdictionProvince: "Buenos Aires",
+          jurisdictionLocality: "La Plata",
+          acquisitionMethod: "adopted",
+          emergencyInfoVisible: false,
+          permanentConditions: [],
+          permanentConditionsOther: null,
+          discloseConditionsPublicly: false,
+          ...petOverrides,
+        },
+        eventAuthorship: { authorRole: "owner", authorOrganizationId: null, authorVerified: false },
+        accessPath: "owner",
+      });
+    }
+
+    it("attack A: species=cat&breed=Persa on a dog is rejected against the DOG catalog", async () => {
+      const petAccessMod = await import("@/lib/infra/pet-access");
+      petAccessMod.requirePetAccess = mockPetAccessOnce({ species: "dog", breed: "Labrador" });
+      const { updatePet } = await import("@/src/modules/pets/application/update-pet");
+
+      const result = (await updatePetAction(
+        "DIM-TEST-0001",
+        { error: null },
+        makeUpdateFormData({ species: "cat", breed: "Persa" }),
+      )) as { error: string };
+
+      // "Persa" resolves — but only in the CAT catalog. The persisted species
+      // is dog, so the gate must reject; the submitted species must not pick
+      // the catalog.
+      expect(result.error).toBe("Elegí una raza de la lista.");
+      expect(updatePet).not.toHaveBeenCalled();
+    });
+
+    it("attack B: species=cat with the unchanged PPP breed still classifies as a DOG (flag not cleared)", async () => {
+      const petAccessMod = await import("@/lib/infra/pet-access");
+      petAccessMod.requirePetAccess = mockPetAccessOnce({
+        species: "dog",
+        breed: "Pit Bull Terrier",
+        potentiallyDangerousBreed: true,
+      });
+      const { resolvePppClassificationForJurisdiction } = await import(
+        "@/lib/infra/ppp-classification"
+      );
+      (resolvePppClassificationForJurisdiction as ReturnType<typeof vi.fn>).mockResolvedValueOnce(
+        true,
+      );
+      const { updatePet } = await import("@/src/modules/pets/application/update-pet");
+
+      const state = await updatePetAction(
+        "DIM-TEST-0001",
+        { error: null },
+        makeUpdateFormData({ species: "cat", breed: "Pit Bull Terrier" }),
+      );
+      expect(state.redirectTo).toBe("/mis-mascotas/DIM-TEST-0001");
+
+      // The classification must run with the persisted species ("dog"), not
+      // the submitted "cat" — otherwise the legally load-bearing flag clears.
+      expect(resolvePppClassificationForJurisdiction).toHaveBeenCalledWith(
+        "dog",
+        "Pit Bull Terrier",
+        null,
+        expect.objectContaining({ country: "AR" }),
+      );
+      expect(updatePet).toHaveBeenCalledWith(
+        expect.objectContaining({ potentiallyDangerousBreed: true }),
+        expect.anything(),
+      );
     });
   });
 

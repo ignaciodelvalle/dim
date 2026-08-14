@@ -421,7 +421,14 @@ export async function updatePetAction(
   // re-submitting the pet's CURRENT stored breed unchanged is accepted even
   // when off-catalog (QA A5 — a legacy value must survive an unrelated edit;
   // the edit form appends it as its own <option> for exactly this reason).
-  const breedResolution = resolveBreedForWrite(parsed.species, parsed.breed, {
+  //
+  // Validated against existingPet.species — the PERSISTED species, never the
+  // submitted one. updatePetProfile never writes species (FULL-LOCK, PO
+  // decision #40), so `parsed.species` here is attacker-controllable free
+  // input with no corresponding write: a crafted species=cat&breed=Persa POST
+  // used to pass the gate against the CAT catalog and persist a cross-species
+  // breed onto a dog (adversarial review 2026-08-14).
+  const breedResolution = resolveBreedForWrite(existingPet.species, parsed.breed, {
     storedBreed: existingPet.breed,
   });
   if (!breedResolution.ok) return { error: breedResolution.error };
@@ -475,8 +482,12 @@ export async function updatePetAction(
   const upload = await uploadAttachmentIfPresent(supabase, photoFile, "pet-photos");
   if (upload.error) return { error: upload.error };
 
+  // PPP classified with the persisted species too (same reasoning as the
+  // breed gate above): a species=cat POST with the unchanged PPP breed would
+  // otherwise clear potentially_dangerous_breed on a real dog — legally
+  // load-bearing state — while the species column itself stays locked.
   const potentiallyDangerousBreed = await resolvePppClassificationForJurisdiction(
-    parsed.species,
+    existingPet.species,
     parsed.breed,
     parseEstimatedWeightKg(parsed.estimatedWeightKg),
     {
