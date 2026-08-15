@@ -23,7 +23,7 @@ const AT = new Date("2026-07-04T12:00:00.000Z").getTime();
 /** A successful (non-degraded) strip carrying one placeholder tile. */
 function okKpis(marker: string): PanoramaKpis {
   return {
-    kpis: [{ id: "mascotas", value: marker } as PanoramaKpis["kpis"][number]],
+    kpis: [{ id: "cobertura", value: marker } as PanoramaKpis["kpis"][number]],
     recalculatedFor: marker,
     dataAsOf: null,
   };

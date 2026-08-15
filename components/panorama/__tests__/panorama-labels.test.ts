@@ -30,7 +30,6 @@ const CANONICAL_KPI: Record<PanoramaKpiId, string> = {
   zoonosis: "Zoonosis activas",
   denuncias: "Denuncias activas",
   mortalidad: "Mortalidad registrada",
-  mascotas: "Mascotas en cobertura",
 };
 
 describe("activeVistaName", () => {

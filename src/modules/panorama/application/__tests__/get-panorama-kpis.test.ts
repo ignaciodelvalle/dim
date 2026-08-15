@@ -233,8 +233,6 @@ describe("getPanoramaKpis", () => {
       "govt-home-kpis.fetchOpenWelfareReportsCount",
       "repository.loadMortalityByProvince",
     ]);
-    // The coverage denominator is NOT a headline tile anymore.
-    expect(kpis.some((k) => k.id === "mascotas")).toBe(false);
   });
 
   it("demotes the coverage denominator to a footer field, not a headline tile (metric-honesty)", async () => {

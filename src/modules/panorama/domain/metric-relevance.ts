@@ -11,8 +11,9 @@
 // MAPPING: every headline KPI id (get-panorama-kpis) shares its name with the
 // registry layer that measures the same subject (cobertura KPI ↔ cobertura
 // layer, etc.). A KPI is RELEVANT when any of its related layers is active.
-// The `mascotas` denominator is not a headline KPI (it is a footer caption),
-// so it carries no mapping. Cross-links are added ONLY where a genuine derived
+// The coverage denominator is not a headline KPI (it rides the
+// `coverageDenominator` footer field, outside PanoramaKpiId), so it carries no
+// mapping. Cross-links are added ONLY where a genuine derived
 // relationship exists (reunificación is the OUTCOME of lost episodes — the
 // reunificación layer's source is derived from the same lost-episode stream),
 // never as a loose thematic association.
@@ -39,8 +40,6 @@ export const KPI_RELATED_LAYERS: Record<PanoramaKpiId, readonly LayerId[]> = {
   zoonosis: ["zoonosis"],
   denuncias: ["denuncias"],
   mortalidad: ["mortalidad"],
-  // Context denominator (footer caption), never a headline KPI → no map subject.
-  mascotas: [],
 };
 
 /**

@@ -366,5 +366,4 @@ export type PanoramaKpiId =
   | "mordeduras"
   | "zoonosis"
   | "denuncias"
-  | "mortalidad"
-  | "mascotas";
+  | "mortalidad";

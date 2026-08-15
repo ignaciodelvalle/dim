@@ -3,7 +3,6 @@
 import { describe, expect, it } from "vitest";
 
 import {
-  KPI_RELATED_LAYERS,
   isKpiRelevant,
   partitionKpiIdsByRelevance,
 } from "@/src/modules/panorama/domain/metric-relevance";
@@ -27,11 +26,6 @@ describe("isKpiRelevant", () => {
   it("cross-links pérdidas ↔ reunificación (derived outcome of the same events)", () => {
     expect(isKpiRelevant("reunificacion", ["perdidas"])).toBe(true);
     expect(isKpiRelevant("perdidas", ["reunificacion"])).toBe(true);
-  });
-
-  it("treats the mascotas denominator as never map-relevant (footer caption)", () => {
-    expect(isKpiRelevant("mascotas", ["cobertura", "denuncias"])).toBe(false);
-    expect(KPI_RELATED_LAYERS.mascotas).toEqual([]);
   });
 });
 

@@ -508,7 +508,6 @@ describe("PANORAMA_PRESETS — metrics field", () => {
     "zoonosis",
     "denuncias",
     "mortalidad",
-    "mascotas",
   ];
 
   it("every preset has 2-4 decision metrics", () => {
@@ -518,12 +517,6 @@ describe("PANORAMA_PRESETS — metrics field", () => {
     for (const p of PANORAMA_PRESETS) {
       expect(p.metrics.length).toBeGreaterThanOrEqual(2);
       expect(p.metrics.length).toBeLessThanOrEqual(4);
-    }
-  });
-
-  it("no preset lists the coverage denominator (mascotas) — it is a footer caption", () => {
-    for (const p of PANORAMA_PRESETS) {
-      expect(p.metrics).not.toContain("mascotas");
     }
   });
 

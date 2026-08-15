@@ -2303,7 +2303,7 @@ describe("PanoramaConsole — reading aligned with the metrics column (QA fix, f
       />,
     );
 
-    // bienestar's curated metrics are denuncias/mordeduras/mascotas — cobertura
+    // bienestar's curated metrics are denuncias/mordeduras — cobertura
     // (the larger-magnitude delta) is excluded. The full-kpis reading would
     // headline cobertura; the aligned reading must headline mordeduras instead.
     openVista();
