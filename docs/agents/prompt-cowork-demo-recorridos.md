@@ -195,7 +195,7 @@ del dataset — no hace falta un token fijo, click en la primera tarjeta real.
     gracia (mensaje claro, sin stack trace, sin 500). Si el operador te
     pasó un serial real de un lote emitido, seguilo y anotá a dónde lleva.
 12. `/casos/[publicCode]` — la vista pública de un expediente. Necesita un
-    código real (`CASE-`/`DEN-` según lo que hayas anotado en la corrida);
+    código real (`CAS-`/`DEN-` según lo que hayas anotado en la corrida);
     con el código de tu denuncia del paso 6, `/denuncias/buscar` ya es el
     camino — si además conseguiste un código de caso de una corrida
     anterior, abrilo acá. Si no tenés ninguno, marcalo no ejecutado.
@@ -382,15 +382,16 @@ te redirige directo, sin picker.
 
 1. `/org` — **Checkpoint:** redirige directo a `/org/[token]` de Clínica
    Recoleta (sin picker — un solo membership).
-2. **Checkpoint de permisos (anotalo, no lo asumas):** el menú lateral
-   debería mostrar como mínimo **Atender** y **Agenda** (capacidad
-   `event.write` / `appointment.manage`, gateadas en
-   `components/layout/nav-presets.ts`). Si ves **Miembros**,
-   **Configuración** o **Servicios** — módulos admin-only/coordinator-only
-   por rol o por `service_offering.create` — anotalo como hallazgo de
-   permisos (con qué rol exacto tiene la membership, visible en
-   `/org/[t]/miembros` si lo podés ver) y NO lo des por bug hasta confirmar
-   contra el código; puede que su membership tenga capacidades extra.
+2. **Checkpoint de permisos (anotalo, no lo asumas):** el rol
+   `vet_individual` trae de fábrica SOLO tres capacidades — atender
+   pacientes, escribir eventos, registrar ingresos (`event.write`,
+   `pet.read_held`, `intake.create`; el resto se gana por flujo de
+   aprobación, decisión de spec D8). El menú lateral debería mostrar
+   **Atender** e **Ingresos**, y NO debería mostrar **Agenda**,
+   **Mordeduras**, **Miembros**, **Configuración** ni **Servicios**. Si ve
+   alguno de esos, anotalo como hallazgo de permisos (con qué rol exacto
+   tiene la membership) y NO lo des por bug hasta confirmar: puede que su
+   membership tenga un grant extra aprobado.
 3. **Atender** (`/org/[t]/atender`): buscá una mascota real por su token
    `DIM-XXXX-XXXX` (podés usar `DIM-PAMP-0001` u otro que hayas visto en
    tours previos) → registrá **dos eventos de tipo distinto** — una vacuna
@@ -399,24 +400,17 @@ te redirige directo, sin picker.
    matrícula — en la libreta del animal deben distinguirse de un evento
    cargado por el dueño (verificado por veterinario matriculado vs.
    declarado), y cada tipo con su formulario propio.
-4. `/org/[t]/agenda` — dashboard de turnos. **Si el Tour 2 de esta corrida
-   reservó en esta clínica**, su turno RD tiene que estar acá: abrilo y
-   **marcá la asistencia** (`attended`) — es dato de esta misma corrida,
-   marcarlo es parte del ciclo que estamos probando. **Checkpoint:** el
-   estado cambia y el dueño lo ve reflejado en `/mis-turnos`. Sobre
-   cualquier OTRO turno (de otra cuenta o corrida): **SHOW-ONLY, no marques
-   asistencia** — abrí el detalle, describí las acciones (asistió / no
-   asistió / cancelar por la org) y no ejecutes ninguna.
+4. **Checkpoint de guard (el complemento del paso 2):** entrá A MANO a
+   `/org/[t]/agenda` y a `/org/[t]/mordedura/nuevo`. **Esperado:** la
+   agenda da 404 y mordedura muestra "Sin acceso" pidiendo el permiso
+   «Reportar mordeduras» — la UI ya te los escondió del menú y el servidor
+   TAMBIÉN te rechaza. Si alguna de las dos pantallas se abre y te deja
+   operar, ES un hallazgo (el guard de servidor no acompaña al de UI). La
+   gestión real de la agenda y el reporte de mordedura los ejecuta el Tour
+   6 con la cuenta admin de esta misma clínica.
 5. `/org/[t]/mascotas` — pacientes en custodia/atención, abrí uno.
    SHOW-ONLY.
-6. `/org/[t]/mordedura/nuevo` — el reporte clínico de mordedura (el circuito
-   que el Tour 1 aclara que NO es denuncia pública). Es additivo: podés
-   enviarlo con la descripción prefijada `RD<fecha>`. **Checkpoint:** el
-   reporte queda creado; si dispara una observación antirrábica de 10 días,
-   anotá dónde se ve (es la vigilancia que el Tour 9 mira en
-   `/admin/observaciones` y el gobierno debería ver en
-   `/gob/observaciones`).
-7. **STOP-BEFORE-SUBMIT:** `/cuenta/renunciar` — con esta cuenta el flujo
+6. **STOP-BEFORE-SUBMIT:** `/cuenta/renunciar` — con esta cuenta el flujo
    ABRE (exige rol veterinario, y lo tiene). Llegá hasta la confirmación,
    describila, y **cancelá** — no ejecutes la baja.
 
@@ -518,9 +512,8 @@ Recoleta" (clinic) y "Patitas del Norte" (shelter — donde vive Argo,
    `adoption_reversed` como acción real), `/foster`, `/foster-fin`,
    `/transfer`, `/microchip/reemplazar`, `/devolver-al-dueno`,
    `/pets/no-aptas`, `/transferencias/nueva`. Además
-   `/org/[t]/intake?tab=importar` (o `/intake/importar`) — el alta masiva
-   por CSV: mirá la pantalla de carga y describí el flujo, NO subas un
-   archivo.
+   `/org/[t]/intake/importar` — el alta masiva por CSV: mirá la pantalla
+   de carga y describí el flujo, NO subas un archivo.
 8. `/org/[t]/transferencias` y `/transferencias/recibidas` — el HUB de
    transferencias entre organizaciones (distinto del `/transfer` por
    mascota del paso 7). SHOW-ONLY: si hay una transferencia pendiente
@@ -533,21 +526,36 @@ Recoleta" (clinic) y "Patitas del Norte" (shelter — donde vive Argo,
     (crea un caso nuevo, no toca los de otros) — podés enviarlo con
     descripción prefijada `RD<fecha>`.
 11. **Proponerle un tránsito real a `noeli@`** (desde Patitas del Norte,
-    sección Tránsitos): elegí a Noelia entre las voluntarias (su oferta del
-    Tour 5 debería estar visible) y mandale una propuesta con la nota
-    prefijada `RD<fecha>`. Es additiva y es EL dato que la coda de abajo y
+    sección **Voluntarios** — el hub "Tránsitos" solo lista fosters
+    activos, la propuesta nace acá): elegí a Noelia entre las voluntarias
+    (su oferta del Tour 5 debería estar visible) y mandale una propuesta
+    con la nota prefijada `RD<fecha>`. Es additiva y es EL dato que la coda de abajo y
     el punto A6 necesitan. **Checkpoint:** la propuesta queda como
     pendiente del lado org.
 12. Cambiá de organización: volvé a `/org`, elegí **Clínica Veterinaria
     Recoleta**. **Checkpoint:** el rail cambia de forma — Agenda/Atender
     suben al tope (foco clínico), Ingresos/Custodia/Postulaciones
-    desaparecen (no son org de rehoming). Acá es donde, si el momento lo
-    permite, se crea un **servicio nuevo** (`/servicios/nuevo`, wizard de 3
-    pasos: Tipo → Capacidad → Elegibilidad) y una regla de agenda
-    (`/servicios/[token]/agenda`, horario semanal) — additivo, seguro de
-    repetir. **Checkpoint de coherencia:** los slots que esa regla genere
-    tienen que respetar el horario que definiste (regla martes 9-12 → sin
-    slots de jueves).
+    desaparecen (no son org de rehoming). En este contexto, como admin con
+    capacidades completas:
+    - `/org/[t]/agenda` — **si el Tour 2 de esta corrida reservó en esta
+      clínica**, su turno RD tiene que estar acá: abrilo y **marcá la
+      asistencia** (`attended`) — es dato de esta misma corrida, marcarlo
+      es parte del ciclo. **Checkpoint:** el estado cambia (y el dueño lo
+      vería en `/mis-turnos`). Sobre cualquier OTRO turno: SHOW-ONLY,
+      describí las acciones (asistió / no asistió / cancelar por la org)
+      sin ejecutar.
+    - `/org/[t]/mordedura/nuevo` — el reporte clínico de mordedura (el
+      circuito que el Tour 1 aclara que NO es denuncia pública). Additivo:
+      envialo con la descripción prefijada `RD<fecha>`. **Checkpoint:** el
+      reporte queda creado; si dispara una observación antirrábica de 10
+      días, anotá dónde se ve (la vigilancia de `/gob/observaciones` y
+      `/admin/observaciones`).
+    - Si el momento lo permite, un **servicio nuevo** (`/servicios/nuevo`,
+      wizard de 3 pasos: Tipo → Capacidad → Elegibilidad) y una regla de
+      agenda (`/servicios/[token]/agenda`, horario semanal) — additivo,
+      seguro de repetir. **Checkpoint de coherencia:** los slots que esa
+      regla genere tienen que respetar el horario que definiste (regla
+      martes 9-12 → sin slots de jueves).
 13. `/cuenta/memberships` — **Checkpoint:** en 3 de las 4 organizaciones el
     botón "Renunciar" debería estar deshabilitado con tooltip (único admin);
     en la cuarta, habilitado (hay otro admin). **STOP-BEFORE-SUBMIT en
@@ -649,8 +657,9 @@ custodia de Patitas del Norte) y la disputa de Bruno (Palermo, `noeli@` vs
    ejecutes.
 10. `/gob/observaciones` — la vigilancia antirrábica de 10 días (mordedura →
     observación con auto-cierre y escalamiento). SHOW-ONLY sobre
-    observaciones ajenas. **Checkpoint:** si el Tour 4 de esta corrida
-    reportó una mordedura RD, su observación debería estar acá; y la
+    observaciones ajenas. **Checkpoint:** si el Tour 6 de esta corrida
+    reportó una mordedura RD (paso 12, clínica Recoleta), su observación
+    debería estar acá; y la
     pantalla tiene que existir en este portal — su gemela
     `/admin/observaciones` está en el Tour 9, y una asimetría entre
     portales es hallazgo.
@@ -822,9 +831,9 @@ libremente de lo que necesita cuidado.
 | 1 — Público | denuncia anónima (limitada a 1/min·3/hora por IP; el Tour 8 crea una segunda en La Plata) |
 | 2 — Dueño | mascota nueva, eventos (vacuna, peso, antiparasitario), ciclo perdida/desmarcada sobre su propia mascota, reserva + cancelación + re-reserva de turno |
 | 3 — Adoptante | check-in post-adopción (**una sola vez por seed** — ver abajo), postulación de adopción |
-| 4 — Veterinaria | dos eventos clínicos firmados, reporte de mordedura, marca de asistencia (solo sobre el turno RD del Tour 2) |
+| 4 — Veterinaria | dos eventos clínicos firmados |
 | 5 — Voluntaria | oferta de tránsito |
-| 6 — Org admin | ingreso de animal, publicación de adopción, servicio + regla de agenda, caso de maltrato, propuesta de tránsito a `noeli@` (queda pendiente, expira sola a los 7 días) |
+| 6 — Org admin | ingreso de animal, publicación de adopción, servicio + regla de agenda, caso de maltrato, reporte de mordedura, marca de asistencia (solo sobre el turno RD del Tour 2), propuesta de tránsito a `noeli@` (queda pendiente, expira sola a los 7 días) |
 | 7 / 8 — Gobierno | investigación de brote (limitada por catálogo ENO — se agota) |
 
 ### Consume un dato finito — NO repetible sin resiembra
@@ -857,7 +866,7 @@ libremente de lo que necesita cuidado.
 - "Resolver" una alerta — Tour 9.
 - Cualquier finalización, reversión, transferencia, foster o devolución
   sobre una mascota que NO creaste en esta misma corrida — Tour 6.
-- Marcar asistencia sobre un turno que no reservó esta corrida — Tour 4.
+- Marcar asistencia sobre un turno que no reservó esta corrida — Tour 6.
 - "¿Encontraste a esta mascota?" / reportar avistaje sobre una mascota
   perdida ajena — Tour 1 (notifica a un dueño real).
 - Crear cuentas de gobierno/admin — Tour 9.

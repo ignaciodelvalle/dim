@@ -145,10 +145,12 @@ persona real.*
 proceso de adopción hasta donde el sistema te deje llegar (mensaje
 prefijado `RC<fecha>`).*
 
-**O9 — El perro que mordió al cartero** (cuenta `lilian@dim.test`).
-*Sos veterinaria. Hoy atendiste un perro que ayer mordió a un cartero. Sabés
-que en estos casos hay obligaciones — hacé lo que corresponde, con la
-descripción prefijada `RC<fecha>`.*
+**O9 — El perro que mordió al cartero** (cuenta `alejo@dim.test`, en el
+contexto de la Clínica Veterinaria Recoleta).
+*Administrás una clínica veterinaria. Hoy atendieron un perro que ayer
+mordió a un cartero. Sabés que en estos casos hay obligaciones — hacé lo
+que corresponde, con la descripción prefijada `RC<fecha>`. (La cuenta
+maneja varias organizaciones: el escenario es en la clínica.)*
 
 **O10 — La camada del cartón** (cuenta `alejo@dim.test`).
 *Administrás un refugio. Esta mañana apareció una caja con dos cachorros en
