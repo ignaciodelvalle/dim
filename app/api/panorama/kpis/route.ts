@@ -15,13 +15,10 @@
 import { NextResponse } from "next/server";
 
 import { resolveAnalyticsPeriod } from "@/lib/analytics/analytics-period";
-import { narrowGovtScope } from "@/lib/domain/jurisdiction-canonical";
-import { localityByName } from "@/lib/infra/ar-localidades";
 import type { DashboardJurisdiction } from "@/lib/metrics";
-import { provinceByCode } from "@/lib/reference/ar-provincias";
-import type { ProvinceCode } from "@/lib/reference/ar-provincias";
 import { degradedPanoramaKpis } from "@/src/modules/panorama/application/get-panorama-kpis";
 import { loadCachedPanoramaKpis } from "@/src/modules/panorama/application/load-panorama-kpis";
+import { resolvePanoramaRequestScope } from "@/src/modules/panorama/application/resolve-request-scope";
 
 import { resolveInstitutionalPanoramaActor } from "../_guard";
 
@@ -34,7 +31,7 @@ export async function GET(request: Request) {
   //    401/403, never data. See _guard.ts.
   const auth = await resolveInstitutionalPanoramaActor();
   if (!auth.ok) return auth.response;
-  const { profile, role } = auth.actor;
+  const { role } = auth.actor;
 
   const actor = { role };
   const jurisdictions: DashboardJurisdiction[] = auth.actor.jurisdictions;
@@ -58,31 +55,18 @@ export async function GET(request: Request) {
   const asOfDate = asOfParam ? new Date(asOfParam) : null;
   const asOf = asOfDate && !Number.isNaN(asOfDate.getTime()) ? asOfDate : null;
 
-  // Resolve the selected province/locality once — shared by govt scope-narrowing
-  // and admin drill-down below (mirrors /api/panorama/[layer]).
-  const provinceObj = provinceIso ? provinceByCode(provinceIso) : null;
-  const localityRow =
-    provinceObj && localitySlug
-      ? await localityByName(provinceObj.code as ProvinceCode, localitySlug)
-      : null;
-
-  // 3. Intersect scope with the viewer's assignments (never widens for govt).
-  // narrowGovtScope applies whole-province SUBSUMPTION: a whole-province
-  // assignment narrows to the selected locality instead of being emptied by an
-  // exact-locality mismatch (critique of PR #762, finding 4).
-  const scoped =
-    provinceObj && profile.role !== "admin"
-      ? narrowGovtScope(jurisdictions, provinceObj.name, localityRow?.localityName ?? null)
-      : jurisdictions;
-
-  // Admin drill-down: mirror /api/panorama/[layer] and app/admin/panorama/page.tsx
-  // so a client KPI refetch on a filter change scopes to the selected
-  // province/locality. Without this the route ignored the admin filter and a
-  // refetch silently returned NATIONAL KPIs (critique of PR #762, finding 1).
-  // Only passed for admin — govt scope lives in `scoped`.
-  const adminProvince = profile.role === "admin" ? (provinceObj?.name ?? undefined) : undefined;
-  const adminLocality =
-    profile.role === "admin" ? (localityRow?.localityName ?? undefined) : undefined;
+  // 3. Resolve the effective scope via the SHARED resolver (same block as the
+  //    layer route and both panorama pages): govt narrowing with whole-province
+  //    subsumption + the admin drill-down names. The admin drill matters here so
+  //    a client KPI refetch on a filter change scopes to the selected
+  //    province/locality — without it the route ignored the admin filter and a
+  //    refetch silently returned NATIONAL KPIs (critique of PR #762, finding 1).
+  const { scoped, adminProvince, adminLocality } = await resolvePanoramaRequestScope({
+    role,
+    jurisdictions,
+    province: provinceIso,
+    locality: localitySlug,
+  });
 
   // 5. Delegate to the shared cached loader (src/.../load-panorama-kpis.ts).
   //    Short-TTL server cache (60s) keyed by the FULL authorization scope, so a

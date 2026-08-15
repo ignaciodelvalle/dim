@@ -12,17 +12,14 @@
 import { NextResponse } from "next/server";
 
 import { resolveAnalyticsPeriod } from "@/lib/analytics/analytics-period";
-import { narrowGovtScope } from "@/lib/domain/jurisdiction-canonical";
-import { localityByName } from "@/lib/infra/ar-localidades";
 import type { DashboardJurisdiction } from "@/lib/metrics";
-import { provinceByCode } from "@/lib/reference/ar-provincias";
-import type { ProvinceCode } from "@/lib/reference/ar-provincias";
 import { withDbBudget } from "@/src/modules/panorama/application/db-budget";
 import {
   emptyLayerFeatures,
   resolvePointsMode,
 } from "@/src/modules/panorama/application/get-layer-features";
 import { loadLayerFeaturesCubeOrCachedWithMeta } from "@/src/modules/panorama/application/load-layer-features-cube";
+import { resolvePanoramaRequestScope } from "@/src/modules/panorama/application/resolve-request-scope";
 import { isLayerId } from "@/src/modules/panorama/domain/layers";
 import { clampAsOf, parseAsOf, parseTimeBasis } from "@/src/modules/panorama/domain/time-scrub";
 import { loadScopeDailyCounts } from "@/src/modules/panorama/infrastructure/repository";
@@ -49,7 +46,7 @@ export async function GET(request: Request, ctx: { params: Promise<{ layer: stri
   //    deactivated or an erased operator gets 401/403, never data. See _guard.ts.
   const auth = await resolveInstitutionalPanoramaActor();
   if (!auth.ok) return auth.response;
-  const { profile, role } = auth.actor;
+  const { role } = auth.actor;
 
   const actor = { role };
   const jurisdictions: DashboardJurisdiction[] = auth.actor.jurisdictions;
@@ -89,31 +86,20 @@ export async function GET(request: Request, ctx: { params: Promise<{ layer: stri
   // the `cobertura` layer only; every other layer ignores it.
   const verifiedOnly = url.searchParams.get("verified") === "1";
 
-  // Resolve the selected province/locality once — shared by govt scope-narrowing
-  // and admin drill-down below.
-  const provinceObj = provinceIso ? provinceByCode(provinceIso) : null;
-  const localityRow =
-    provinceObj && localitySlug
-      ? await localityByName(provinceObj.code as ProvinceCode, localitySlug)
-      : null;
-
-  // 4. Intersect scope with the viewer's assignments (never widens for govt).
-  // narrowGovtScope applies whole-province SUBSUMPTION: a whole-province
-  // assignment narrows to the selected locality instead of being emptied by an
-  // exact-locality mismatch (critique of PR #762, finding 4).
-  const scoped =
-    provinceObj && profile.role !== "admin"
-      ? narrowGovtScope(jurisdictions, provinceObj.name, localityRow?.localityName ?? null)
-      : jurisdictions;
-
-  // Admin drill-down: mirror app/admin/panorama/page.tsx so toggled layers scope
-  // to the selected province/locality exactly like the server-rendered default
-  // layer + KPIs. Without this the API ignored the filter for admins and every
-  // toggled layer returned national data while the default layer showed the
-  // selected province. Only passed for admin — govt scope lives in `scoped`.
-  const adminProvince = profile.role === "admin" ? (provinceObj?.name ?? undefined) : undefined;
-  const adminLocality =
-    profile.role === "admin" ? (localityRow?.localityName ?? undefined) : undefined;
+  // 4. Resolve the effective scope via the SHARED resolver (same block as the
+  //    KPI route and both panorama pages): govt narrowing with whole-province
+  //    subsumption + the admin drill-down names. The admin drill matters here so
+  //    toggled layers scope to the selected province/locality exactly like the
+  //    server-rendered default layer + KPIs — without it the API ignored the
+  //    filter for admins and every toggled layer returned national data while
+  //    the default layer showed the selected province. `provinceObj` is kept for
+  //    the points-mode gate below.
+  const { provinceObj, scoped, adminProvince, adminLocality } = await resolvePanoramaRequestScope({
+    role,
+    jurisdictions,
+    province: provinceIso,
+    locality: localitySlug,
+  });
 
   // panorama-event-points Slice 1 — SERVER-AUTHORITATIVE points-mode gate (A1).
   // The client sends `mode=points` when zoomed into a jurisdiction, but the
