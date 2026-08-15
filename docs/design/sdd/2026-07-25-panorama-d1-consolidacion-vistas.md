@@ -1,118 +1,142 @@
-# D1 — Consolidar las vistas de Panorama (propuesta para decisión de PO)
+# D1 — Consolidar las vistas de Panorama (EJECUTADO 2026-08-15)
 
 > Item D1 del plan del mapa (`2026-07-25-panorama-mapa-todas-las-mejoras.md`).
-> **Esto es una propuesta, no un cambio.** No se fusionó ninguna vista: cuáles
-> sobreviven es decisión de producto, y una vista de menos es una pregunta que
-> el ministerio deja de poder hacer.
+> **Estado: ejecutado.** El PO ratificó la fusión de la familia de cumplimiento
+> (5 vistas → 1 con selector de métrica) y el renombre de `riesgo-ppp`; la
+> corrida WP1 del programa de decrowding (2026-08-15) la implementó. Los
+> hallazgos 3 y 4 quedaron explícitamente FUERA de esta ejecución (ver abajo).
 >
 > Test que uso en todo el documento: **¿un ministro puede nombrar esta vista sin
 > confundirla con otra?** Si no, sobra o está mal nombrada.
 
-## Las 11 vistas de hoy
+## Las 15 vistas previas a la fusión
+
+Cuando esta propuesta se escribió había 11 vistas; entre la propuesta y la
+ejecución la ola de orphan-wiring (2026-07-26) sumó cuatro más (`microchip`,
+`antiparasitario`, `acceso-veterinario`, `indice-territorial`), tres de ellas
+del MISMO molde de cumplimiento — el problema que este documento nombraba se
+agravó solo. El estado real pre-fusión:
 
 | # | id | Pregunta que declara | base | señal | grano |
 |---|---|---|---|---|---|
 | 1 | `brotes-activos` | ¿Dónde hay brotes sobre huecos de vacunación? | cobertura | zoonosis | provincia |
 | 2 | `sintomas` | ¿Dónde se concentran los síntomas con alerta? | sintomas | zoonosis | localidad |
 | 3 | `cumplimiento` | ¿Quién está bajo la meta antirrábica? | cobertura | — | provincia |
-| 4 | `registro-ppp` | ¿Quién tiene bajo registro PPP? | ppp | — | provincia |
-| 5 | `bienestar` | ¿Dónde se acumulan denuncias y decomisos? | denuncias | decomisos | localidad |
-| 6 | `control-poblacional` | ¿Estamos conteniendo la población? | esterilizacion | — | provincia |
-| 7 | `mortalidad` | ¿Dónde se concentra la mortalidad? | mortalidad | — | provincia |
-| 8 | `perdidas-reunificacion` | ¿Cuántas perdidas se reencuentran? | perdidas | reunificacion | localidad |
-| 9 | `desierto-veterinario` | ¿Qué zonas llevan más días sin veterinaria? | desierto-veterinario | — | provincia |
-| 10 | `tendencia` | ¿Dónde hay más o menos que el período anterior? | tendencia | — | provincia |
-| 11 | `riesgo-ppp` | ¿Dónde se cruzan mordeduras altas con bajo registro PPP? | ppp | mordeduras | provincia |
+| 4 | `antiparasitario` | ¿Quién tiene baja cobertura antiparasitaria? | antiparasitario | — | provincia |
+| 5 | `microchip` | ¿Quién está lejos de la meta de identificación? | microchip | — | provincia |
+| 6 | `registro-ppp` | ¿Quién tiene bajo registro PPP? | ppp | — | provincia |
+| 7 | `bienestar` | ¿Dónde se acumulan denuncias y decomisos? | denuncias | decomisos | localidad |
+| 8 | `control-poblacional` | ¿Estamos conteniendo la población? | esterilizacion | — | provincia |
+| 9 | `mortalidad` | ¿Dónde se concentra la mortalidad? | mortalidad | — | provincia |
+| 10 | `perdidas-reunificacion` | ¿Cuántas perdidas se reencuentran? | perdidas | reunificacion | localidad |
+| 11 | `desierto-veterinario` | ¿Qué proporción no recibió NINGUNA atención? | desierto-veterinario | — | provincia |
+| 12 | `acceso-veterinario` | ¿Cuánta atención sostiene cada jurisdicción? | acceso-veterinario | — | provincia |
+| 13 | `tendencia` | ¿Dónde hay más o menos que el período anterior? | tendencia | — | provincia |
+| 14 | `riesgo-ppp` | ¿Dónde se cruzan mordeduras altas con bajo registro PPP? | ppp | mordeduras | provincia |
+| 15 | `indice-territorial` | ¿Quién está más lejos de las tres metas a la vez? | indice-territorial | — | provincia |
 
-## Hallazgo 1 — Hay UNA vista de cumplimiento disfrazada de cuatro
+## Hallazgo 1 — Había UNA vista de cumplimiento disfrazada de cinco (EJECUTADO)
 
-`cumplimiento`, `registro-ppp` y `control-poblacional` son **la misma vista con
-distinta métrica**: tasa contra meta, grano provincial, encuadre nacional,
-ranking por brecha. Cambia el layer, no la pregunta ni la lectura.
+`cumplimiento`, `registro-ppp`, `control-poblacional`, `microchip` y
+`antiparasitario` eran **la misma vista con distinta métrica**: tasa contra
+meta, grano provincial, encuadre nacional, ranking por brecha. Cambiaba el
+layer, no la pregunta ni la lectura.
 
-El propio código lo dice, en `presets.ts` sobre `cumplimiento`:
+**Lo que se implementó** (`src/modules/panorama/domain/presets.ts`):
 
-> *"Future: a metric selector (microchip / PPP / esterilización) requires
-> dedicated rate layers that don't exist yet; cobertura is the sole rate layer
-> in v1."*
+- UNA vista `cumplimiento` (label "Cumplimiento") con `metricOptions` — el
+  selector de métrica del rail Vista (`ComplianceMetricSelector`, patrón
+  radiogroup igual al PresetPanel):
+  Antirrábica · Esterilización · Registro PPP · Microchip · Desparasitación.
+- Cada opción porta el `base` y el `metrics` (columna de métricas curada) de la
+  vista absorbida, textual. La PRIMERA opción (Antirrábica) espeja el
+  base/metrics del preset — todo camino de código que no conoce el selector se
+  comporta como el `cumplimiento` pre-fusión.
+- Cambiar de métrica pasa por el MISMO `applyPreset` que un click de vista
+  (base/metrics/URL `layers=` sustituidos antes del commit — sin camino
+  paralelo), y `derivePreset` matchea el set de capas de CADA opción, así el
+  badge queda en "Cumplimiento" y nunca cae a "personalizada".
+- La brecha conocida se mantiene declarada: no existe un `PanoramaKpiId`
+  `antiparasitario`, así que esa opción no puede encabezar su propio indicador
+  (hereda los vecinos honestos zoonosis + cobertura de la vista absorbida).
 
-**Ese futuro ya llegó**: `ppp`, `esterilizacion` y `microchip` existen hoy como
-layers. La razón por la que se abrieron tres vistas separadas dejó de aplicar, y
-nadie volvió a cerrarlas.
+La mitigación de descubribilidad que la propuesta pedía (que "esterilización"
+siga siendo encontrable) es exactamente el selector: las métricas se listan como
+sub-entradas de Cumplimiento en el panel Vista.
 
-**Propuesta**: UNA vista "Cumplimiento" con selector de métrica (antirrábica ·
-esterilización · PPP · microchip). **4 → 1** (se lleva también el `metrics` de
-cada una como preselección por métrica).
+## Hallazgo 2 — `registro-ppp` y `riesgo-ppp` fallaban el test del ministro (EJECUTADO)
 
-Riesgo a nombrar: hoy cada vista aparece en el rail con su propio nombre, y un
-funcionario que busca "esterilización" la encuentra por lectura directa. Con el
-selector, esa entrada se vuelve un clic más adentro. Mitigación posible: que el
-rail liste las métricas como sub-entradas de Cumplimiento.
+`registro-ppp` se absorbió en Cumplimiento (hallazgo 1) y `riesgo-ppp` se
+renombró a **`cruce-mordeduras-ppp`** — label "Mordeduras sobre bajo registro
+PPP" — que dice el CRUCE que muestra. Conserva idénticos base/señal/rankBy/
+encodings (`bivariate`)/framing/metrics; solo cambian id y label.
 
-## Hallazgo 2 — `registro-ppp` y `riesgo-ppp` fallan el test del ministro
+## Hallazgo 3 — `tendencia` como codificación: **NO ratificado**
 
-Mismo base (`ppp`), nombres a una letra de distancia. `registro-ppp` es la tasa
-sola; `riesgo-ppp` es la misma tasa con mordeduras encima y ranking por
-mordeduras. **No son dos vistas: es una vista con un overlay.**
+La propuesta de convertir `tendencia` en `?encoding=trend` **no fue ratificada
+por el PO**. `tendencia` SIGUE siendo una vista propia (es un layer con su
+escala divergente anclada en cero — convertirla era trabajo real de datos, no
+un renombre). Cualquier retoma requiere decisión de producto nueva.
 
-**Propuesta**: `registro-ppp` se absorbe en Cumplimiento (hallazgo 1), y
-`riesgo-ppp` sobrevive como lo que realmente es — la vista de CRUCE
-mordeduras × registro — renombrada a algo que diga el cruce, p. ej. **"Mordeduras
-sobre bajo registro PPP"**. Nadie la confunde con "Cumplimiento · PPP".
+## Hallazgo 4 — Smells menores: **fuera de alcance, diferido**
 
-## Hallazgo 3 — `tendencia` probablemente es una codificación, no una vista
+Ni el `metrics` de `desierto-veterinario` (no se lista a sí misma — sigue sin
+existir su KPI) ni el renombre de `sintomas` ("Síntomas reportados") entraron
+en esta ejecución. Quedan como deuda nombrada, no como olvido.
 
-Las otras diez vistas responden *dónde está el problema X*. `tendencia` responde
-*¿esto sube o baja?* sobre un delta de dos ventanas — que es exactamente la
-naturaleza de `bivariate` y `percapita`, que YA son codificaciones dentro de una
-vista (`encodings: ["bivariate"]`), no vistas propias.
+## El catálogo final — 11 vistas
 
-**Propuesta a evaluar**: convertir `tendencia` en una tercera codificación
-(`?encoding=trend`) aplicable a la vista activa. Ganancia: podés preguntar
-"¿la mortalidad sube?" o "¿las denuncias suben?" en vez de solo "¿los eventos
-suben?" en abstracto.
+La cuenta: 15 pre-fusión − 4 absorbidas = **11** (la aritmética "→ 8" de la
+propuesta original asumía también el hallazgo 3 y contaba sobre las 11 de
+entonces; no aplica al catálogo ejecutado).
 
-**Contra, y es serio**: hoy `tendencia` es un layer con su propia escala
-divergente anclada en cero, no una transformación genérica. Convertirla es
-trabajo real de datos, no un renombre. Si no hay apetito, la alternativa barata
-es renombrarla a lo que mide de verdad ("Variación vs período anterior").
+| # | id | label |
+|---|---|---|
+| 1 | `brotes-activos` | Brotes activos |
+| 2 | `sintomas` | Síntomas / vigilancia sindrómica |
+| 3 | `cumplimiento` | Cumplimiento (selector: antirrábica · esterilización · PPP · microchip · desparasitación) |
+| 4 | `bienestar` | Bienestar y fiscalización |
+| 5 | `mortalidad` | Mortalidad |
+| 6 | `perdidas-reunificacion` | Pérdidas y reunificación |
+| 7 | `desierto-veterinario` | Desierto veterinario |
+| 8 | `acceso-veterinario` | Acceso veterinario |
+| 9 | `tendencia` | Tendencia |
+| 10 | `cruce-mordeduras-ppp` | Mordeduras sobre bajo registro PPP |
+| 11 | `indice-territorial` | Índice territorial |
 
-## Hallazgo 4 — Dos smells menores que conviene arreglar igual
+## La garantía de compatibilidad — `LEGACY_PRESET_ALIASES`
 
-1. **`desierto-veterinario` no se lista a sí misma**: su `metrics` es
-   `["cobertura", "esterilizacion"]` — la columna de métricas no incluye el
-   indicador que la vista pinta. Un operador ve el mapa de días sin actividad
-   veterinaria y ningún número que lo cuantifique.
-2. **`sintomas` se llama "Síntomas / vigilancia sindrómica"**: la barra tiene
-   una barra y jerga epidemiológica. Falla el test del ministro por nombre, no
-   por solape. Sugerencia: "Síntomas reportados".
+Los ids retirados **resuelven para siempre** (tableros guardados, links
+compartidos, deep links de /gob, historial del navegador). La tabla en
+`presets.ts`:
 
-## Resumen de la propuesta
+| id legado | resuelve a | base que reconstruye |
+|---|---|---|
+| `registro-ppp` | `cumplimiento` | `ppp` |
+| `control-poblacional` | `cumplimiento` | `esterilizacion` |
+| `microchip` | `cumplimiento` | `microchip` |
+| `antiparasitario` | `cumplimiento` | `antiparasitario` |
+| `riesgo-ppp` | `cruce-mordeduras-ppp` | (sin override — set completo ppp + mordeduras) |
 
-| Acción | Vistas |
-|---|---|
-| Fusionar en "Cumplimiento" con selector de métrica | `cumplimiento` + `registro-ppp` + `control-poblacional` |
-| Renombrar (dice el cruce) | `riesgo-ppp` → "Mordeduras sobre bajo registro PPP" |
-| Decidir: codificación o renombre | `tendencia` |
-| Renombrar (sacar jerga) | `sintomas` → "Síntomas reportados" |
-| Arreglar `metrics` | `desierto-veterinario` |
-| Sin cambios | `brotes-activos`, `bienestar`, `mortalidad`, `perdidas-reunificacion` |
+La garantía es DOBLE, y la segunda mitad es la que importa: el id resuelve **y
+sus CAPAS también**. `getPreset()` acepta alias (todo call site que solo
+necesita el objeto lo obtiene gratis); `resolveLegacyPreset()` reconstruye
+además el set de capas que ese id siempre pintó, y es lo que consume la siembra
+SSR (`build-panorama-board.ts`) y el resync de popstate. El modo de falla que
+esto previene: un `?preset=control-poblacional` pelado que resuelve el id pero
+siembra la cobertura por defecto — pérdida de métrica silenciosa. Está pineado
+por `build-panorama-board.seed.test.ts` (un caso por alias) y por los tests de
+alias en `presets.test.ts` / `view-state-url.test.ts` (el parse normaliza al id
+canónico, así las URLs se auto-curan).
 
-**11 → 8 vistas** (7 si `tendencia` pasa a codificación), cada una con una
-pregunta que no se confunde con la de al lado.
-
-## Lo que NO propongo, y por qué
+## Lo que NO se hizo, y por qué
 
 - **No fusionar `brotes-activos` con `sintomas`.** Comparten la señal `zoonosis`,
   pero difieren en base, grano (provincia vs localidad) y ventana (90d vs 30d).
-  Son dos preguntas de vigilancia distintas: *dónde hay brote confirmado sobre
-  hueco de vacunación* vs *dónde aparecen síntomas antes de que haya brote*. La
-  segunda es justamente la de detección temprana; fusionarlas la mata.
+  Son dos preguntas de vigilancia distintas; fusionarlas mata la de detección
+  temprana.
 - **No tocar `mortalidad`, `bienestar` ni `perdidas-reunificacion`.** Bases
   únicas, preguntas únicas, cero colisión de nombre.
-
-## Verificación pendiente antes de ejecutar
-
-Nada de esto se midió contra uso real: no hay telemetría de qué vistas abren los
-funcionarios. Si existe (o se puede instrumentar rápido), una semana de datos
-vale más que este análisis para decidir qué se fusiona.
+- **No fusionar `desierto-veterinario` con `acceso-veterinario`.** Déficit e
+  intensidad son dos medidas que divergen en el medio de la distribución (ver
+  el razonamiento en `presets.ts`); ninguna subsume a la otra.
