@@ -446,19 +446,19 @@ describe("PanoramaConsole — Tendencia vista (new-vistas wave)", () => {
   });
 });
 
-describe("PanoramaConsole — Riesgo PPP vista (new-vistas wave, declared bivariate pair)", () => {
-  it("commits the riesgo-ppp board shallow (ppp base + mordeduras overlay) and fetches both axes", async () => {
+describe("PanoramaConsole — Mordeduras×PPP vista (D1 rename of riesgo-ppp, declared bivariate pair)", () => {
+  it("commits the cruce-mordeduras-ppp board shallow (ppp base + mordeduras overlay) and fetches both axes", async () => {
     renderConsole();
     const pushSpy = vi.spyOn(window.history, "pushState");
     pushSpy.mockClear();
 
     openVista();
-    fireEvent.click(screen.getByRole("radio", { name: /Riesgo PPP/ }));
+    fireEvent.click(screen.getByRole("radio", { name: /Mordeduras sobre bajo registro PPP/ }));
 
     expect(pushSpy).toHaveBeenCalledTimes(1);
     expect(routerPush).not.toHaveBeenCalled();
     const params = new URLSearchParams(window.location.search);
-    expect(params.get("preset")).toBe("riesgo-ppp");
+    expect(params.get("preset")).toBe("cruce-mordeduras-ppp");
     expect(params.get("period")).toBe("90d");
     // Registry order (canonicalLayersKey): mordeduras precedes ppp.
     expect(params.get("layers")).toBe("mordeduras,ppp");
@@ -493,11 +493,11 @@ describe("PanoramaConsole — Riesgo PPP vista (new-vistas wave, declared bivari
     // every commit, mirroring the mount-time seed.
     renderConsole();
     openVista();
-    fireEvent.click(screen.getByRole("radio", { name: /Riesgo PPP/ }));
+    fireEvent.click(screen.getByRole("radio", { name: /Mordeduras sobre bajo registro PPP/ }));
 
     await waitFor(() => {
       const params = new URLSearchParams(window.location.search);
-      expect(params.get("preset")).toBe("riesgo-ppp");
+      expect(params.get("preset")).toBe("cruce-mordeduras-ppp");
       expect(params.get("encoding")).toBe("bivariate");
     });
 
@@ -506,13 +506,88 @@ describe("PanoramaConsole — Riesgo PPP vista (new-vistas wave, declared bivari
     // does when the axes themselves drop out) — it must never stick around
     // into an unrelated vista.
     openVista();
-    fireEvent.click(screen.getByRole("radio", { name: /Cumplimiento antirrábico/ }));
+    fireEvent.click(screen.getByRole("radio", { name: /^Cumplimiento$/ }));
 
     await waitFor(() => {
       const params = new URLSearchParams(window.location.search);
       expect(params.get("preset")).toBe("cumplimiento");
       expect(params.get("encoding")).toBeNull();
     });
+  });
+});
+
+describe("PanoramaConsole — D1 metric selector (merged Cumplimiento vista)", () => {
+  it("switching metric keeps the preset id, swaps base layer + URL layers through the same commit", async () => {
+    renderConsole();
+
+    openVista();
+    fireEvent.click(screen.getByRole("radio", { name: /^Cumplimiento$/ }));
+    let params = new URLSearchParams(window.location.search);
+    expect(params.get("preset")).toBe("cumplimiento");
+    expect(params.get("layers")).toBe("cobertura");
+
+    // The selector renders INSIDE the vista panel, only for the merged vista.
+    openVista();
+    const metricGroup = screen.getByRole("radiogroup", { name: "Métrica" });
+    expect(
+      within(metricGroup)
+        .getAllByRole("radio")
+        .map((r) => r.textContent),
+    ).toEqual(["Antirrábica", "Esterilización", "Registro PPP", "Microchip", "Desparasitación"]);
+    // Default metric derived from the layer set: Antirrábica.
+    expect(within(metricGroup).getByRole("radio", { name: "Antirrábica" })).toHaveAttribute(
+      "aria-checked",
+      "true",
+    );
+
+    fireEvent.click(within(metricGroup).getByRole("radio", { name: "Esterilización" }));
+
+    // SAME preset id, DIFFERENT base — the metric switch is a board commit, not
+    // a parallel path: URL, persistence and fetches all move together.
+    params = new URLSearchParams(window.location.search);
+    expect(params.get("preset")).toBe("cumplimiento");
+    expect(params.get("layers")).toBe("esterilizacion");
+    expect(params.get("period")).toBe("90d");
+    const raw = window.localStorage.getItem("panorama:board:v1");
+    const board = JSON.parse(raw as string) as Record<string, unknown>;
+    expect(board.preset).toBe("cumplimiento");
+    expect(board.layers).toBe("esterilizacion");
+
+    await waitFor(() => {
+      const layerCalls = fetchMock.mock.calls
+        .map((c) => String(c[0]))
+        .filter(
+          (u) =>
+            u.startsWith("/api/panorama/") &&
+            !u.includes("/kpis") &&
+            !u.includes("histogram=1") &&
+            !u.includes("/rule-changes"),
+        );
+      expect(layerCalls.some((u) => u.includes("/api/panorama/esterilizacion"))).toBe(true);
+    });
+
+    // Re-derivation round-trip: the vista radio stays checked (the badge never
+    // flips to "personalizada") and the metric radio re-derives from the layers.
+    openVista();
+    expect(screen.getByRole("radio", { name: /^Cumplimiento$/ })).toHaveAttribute(
+      "aria-checked",
+      "true",
+    );
+    expect(
+      within(screen.getByRole("radiogroup", { name: "Métrica" })).getByRole("radio", {
+        name: "Esterilización",
+      }),
+    ).toHaveAttribute("aria-checked", "true");
+  });
+
+  it("does not offer the selector on a vista without metricOptions", () => {
+    renderConsole();
+
+    openVista();
+    fireEvent.click(screen.getByRole("radio", { name: /Brotes activos/ }));
+
+    openVista();
+    expect(screen.queryByRole("radiogroup", { name: "Métrica" })).not.toBeInTheDocument();
   });
 });
 
@@ -592,6 +667,9 @@ describe("PanoramaConsole — the bivariate strip describes the frame it is over
     // only `mockClear`ed between tests, so an implementation swap would leak
     // into every later case (it broke the two deferMode abort tests).
     vi.stubGlobal("fetch", vi.fn(bivariateFetch));
+    // DELIBERATELY the LEGACY `?preset=riesgo-ppp` id (D1 rename): a pre-merge
+    // shared link must keep reproducing the bivariate view — the alias resolves
+    // and the strip below still engages.
     setUrl("/gob/panorama?layers=mordeduras,ppp&period=90d&preset=riesgo-ppp&encoding=bivariate");
     renderConsole();
     // Wait until the encoding has actually engaged — the strip only makes its
@@ -1047,9 +1125,9 @@ describe("PanoramaConsole — PERÍODO commits shallow, no reload (Root B, QA #3
     ).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: "30 días" })).toBeEnabled();
 
-    // Cumplimiento antirrábico: base cobertura, a current-state rate.
+    // Cumplimiento (default metric antirrábica): base cobertura, a current-state rate.
     openVista();
-    fireEvent.click(screen.getByRole("radio", { name: /Cumplimiento antirrábico/ }));
+    fireEvent.click(screen.getByRole("radio", { name: /^Cumplimiento$/ }));
     openPeriodo();
     expect(
       screen.getByText("Esta vista muestra estado actual; el período no aplica."),
@@ -3206,7 +3284,7 @@ describe("PanoramaConsole — RA-7 F5: the measured-units count is a MEASUREMENT
     renderConsole();
 
     openVista();
-    fireEvent.click(screen.getByRole("radio", { name: /Cumplimiento antirrábico/ }));
+    fireEvent.click(screen.getByRole("radio", { name: /^Cumplimiento$/ }));
     fireEvent.click(screen.getByRole("tab", { name: /Estadísticas/ }));
 
     expect(await screen.findByText(/Se midieron 24 jurisdicciones/)).toBeVisible();
@@ -3225,7 +3303,7 @@ describe("PanoramaConsole — RA-7 F5: the measured-units count is a MEASUREMENT
     renderConsole();
 
     openVista();
-    fireEvent.click(screen.getByRole("radio", { name: /Cumplimiento antirrábico/ }));
+    fireEvent.click(screen.getByRole("radio", { name: /^Cumplimiento$/ }));
     fireEvent.click(screen.getByRole("tab", { name: /Estadísticas/ }));
 
     // "6 jurisdicciones · …" — the small-scope heading, not "Peores 6".
@@ -3276,7 +3354,7 @@ describe("PanoramaConsole — RA-7 F4: a FAILED level change says so; it never r
     renderConsole();
 
     openVista();
-    fireEvent.click(screen.getByRole("radio", { name: /Cumplimiento antirrábico/ }));
+    fireEvent.click(screen.getByRole("radio", { name: /^Cumplimiento$/ }));
     await waitFor(() => {
       expect(mapProps?.onZoom).toBeInstanceOf(Function);
     });
@@ -3308,7 +3386,7 @@ describe("PanoramaConsole — RA-7 F4: a FAILED level change says so; it never r
     renderConsole();
 
     openVista();
-    fireEvent.click(screen.getByRole("radio", { name: /Cumplimiento antirrábico/ }));
+    fireEvent.click(screen.getByRole("radio", { name: /^Cumplimiento$/ }));
     // The province-grain answer disclosed 7 protected cells.
     expect(await screen.findByText(/^7 celdas con menos de 5 casos/)).toBeInTheDocument();
 
@@ -3363,7 +3441,7 @@ describe("PanoramaConsole — RA-7 F4: a FAILED level change says so; it never r
     renderConsole();
 
     openVista();
-    fireEvent.click(screen.getByRole("radio", { name: /Cumplimiento antirrábico/ }));
+    fireEvent.click(screen.getByRole("radio", { name: /^Cumplimiento$/ }));
     // Let the preset's own (successful) fetch burst settle first, so the
     // degraded flag below can only come from the drill's failed refetch.
     await waitFor(() => {
@@ -3408,7 +3486,7 @@ describe("PanoramaConsole — RA-7 F6: every protected-cell figure names the uni
     renderConsole();
 
     openVista();
-    fireEvent.click(screen.getByRole("radio", { name: /Cumplimiento antirrábico/ }));
+    fireEvent.click(screen.getByRole("radio", { name: /^Cumplimiento$/ }));
     fireEvent.click(screen.getByRole("tab", { name: /Estadísticas/ }));
 
     return waitFor(() => {
@@ -3427,7 +3505,7 @@ describe("PanoramaConsole — RA-7 F6: every protected-cell figure names the uni
     renderConsole();
 
     openVista();
-    fireEvent.click(screen.getByRole("radio", { name: /Cumplimiento antirrábico/ }));
+    fireEvent.click(screen.getByRole("radio", { name: /^Cumplimiento$/ }));
 
     return waitFor(() => {
       expect(

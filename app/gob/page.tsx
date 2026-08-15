@@ -942,8 +942,10 @@ export default async function GobiernoDashboardPage({
             // mentioned PPP at all. The one surface that DOES break this exact
             // metric down is the Panorama `ppp` choropleth, fed by the same
             // fetchDangerousBreedCompliance this tile reads, opened by the
-            // "Riesgo PPP" vista (base: ppp).
-            href="/gob/panorama?preset=riesgo-ppp"
+            // "Mordeduras sobre bajo registro PPP" vista (base: ppp; D1 rename
+            // of riesgo-ppp — the legacy id still resolves, but our own links
+            // carry the canonical one).
+            href="/gob/panorama?preset=cruce-mordeduras-ppp"
             descriptorId="ppp_registry_compliance"
             provenance={kpiProvenance}
           />

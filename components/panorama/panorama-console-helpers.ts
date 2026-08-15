@@ -822,8 +822,12 @@ function restoreSavedBoard(
   nextParams.set("layers", canonicalLayersKey(savedIds));
   const savedLevel: AggregationLevel = saved.level === "locality" ? "locality" : "province";
   if (savedLevel === "locality") nextParams.set("level", "locality");
-  if (saved.preset !== null && getPreset(saved.preset as PresetId)) {
-    nextParams.set("preset", saved.preset);
+  // D1: a saved board may carry a RETIRED preset id. `saved.layers` is the
+  // ground truth (no re-derivation), but the URL write must use the RESOLVED
+  // canonical id so restored URLs self-heal instead of re-propagating aliases.
+  const savedPreset = saved.preset !== null ? getPreset(saved.preset) : undefined;
+  if (savedPreset) {
+    nextParams.set("preset", savedPreset.id);
   }
   if (saved.period !== null) nextParams.set("period", saved.period);
   // P5: restore the encoding selection with the board (tolerant — older boards

@@ -298,7 +298,14 @@ export function countFiltroModifiers(input: {
   let deviations = 0;
   const preset = input.presetId ? getPreset(input.presetId) : null;
   if (preset) {
-    if (input.baseLayerId != null && input.baseLayerId !== preset.base) deviations += 1;
+    if (input.baseLayerId != null && input.baseLayerId !== preset.base) {
+      // D1: a metric-selector option's base is a vista DEFAULT (one of the
+      // curated metrics), not an operator filter deviation — only a base
+      // re-based OUTSIDE the declared options counts.
+      const isMetricOptionBase =
+        preset.metricOptions?.some((o) => o.base === input.baseLayerId) === true;
+      if (!isMetricOptionBase) deviations += 1;
+    }
     if (input.activePeriod !== preset.periodPreset) deviations += 1;
   } else if (input.activePeriod !== PANORAMA_DEFAULT_PRESET) {
     deviations += 1;

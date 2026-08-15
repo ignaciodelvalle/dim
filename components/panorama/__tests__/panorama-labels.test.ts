@@ -116,37 +116,7 @@ describe("de-dup — shortKpiLabel / shortLayerLabel", () => {
           "layers": [
             "Cobertura antirrábica (perros, 12m)",
           ],
-          "vista": "Cumplimiento antirrábico",
-        },
-        {
-          "kpis": [
-            "Zoonosis activas",
-            "Cobertura antirrábica (perros, 12m)",
-          ],
-          "layers": [
-            "Cobertura antiparasitaria (12m)",
-          ],
-          "vista": "Desparasitación",
-        },
-        {
-          "kpis": [
-            "Microchip",
-            "Registro PPP",
-          ],
-          "layers": [
-            "Penetración microchip (C1)",
-          ],
-          "vista": "Identificación por microchip",
-        },
-        {
-          "kpis": [
-            "Registro PPP",
-            "Microchip",
-          ],
-          "layers": [
-            "Registro PPP (C7)",
-          ],
-          "vista": "Registro PPP",
+          "vista": "Cumplimiento",
         },
         {
           "kpis": [
@@ -158,16 +128,6 @@ describe("de-dup — shortKpiLabel / shortLayerLabel", () => {
             "Decomisos",
           ],
           "vista": "Bienestar y fiscalización",
-        },
-        {
-          "kpis": [
-            "Cobertura de esterilización",
-            "Pérdidas activas",
-          ],
-          "layers": [
-            "Cobertura de esterilización",
-          ],
-          "vista": "Control poblacional",
         },
         {
           "kpis": [
@@ -235,7 +195,7 @@ describe("de-dup — shortKpiLabel / shortLayerLabel", () => {
             "Registro PPP (C7)",
             "Mordeduras / antirrábica",
           ],
-          "vista": "Riesgo PPP",
+          "vista": "Mordeduras sobre bajo registro PPP",
         },
         {
           "kpis": [
@@ -294,13 +254,31 @@ describe("countFiltroModifiers", () => {
   it("counts a re-based base layer as one deviation", () => {
     expect(
       countFiltroModifiers({
-        activeLayerIds: ["esterilizacion"],
+        activeLayerIds: ["mortalidad"],
         presetId: "cumplimiento", // default base is cobertura
-        baseLayerId: "esterilizacion",
+        baseLayerId: "mortalidad", // NOT one of the vista's metric options
         activePeriod: "90d",
         verifiedOnly: false,
       }),
     ).toBe(1);
+  });
+
+  it("D1: a metric-option base is a vista DEFAULT, not a deviation (badge stays 0)", () => {
+    // Switching cumplimiento's selector to Esterilización re-bases the map, but
+    // that base is one of the vista's declared metrics — counting it would make
+    // every metric switch read as a hand-modified board.
+    for (const base of ["esterilizacion", "ppp", "microchip", "antiparasitario"] as const) {
+      expect(
+        countFiltroModifiers({
+          activeLayerIds: [base],
+          presetId: "cumplimiento",
+          baseLayerId: base,
+          activePeriod: "90d",
+          verifiedOnly: false,
+        }),
+        base,
+      ).toBe(0);
+    }
   });
 
   it("counts verifiedOnly as one deviation", () => {

@@ -27,6 +27,7 @@ import {
   JurisdictionSwitcher,
 } from "@/components/gob/JurisdictionSwitcher";
 import { CalendarHeatmap } from "@/components/panorama/CalendarHeatmap";
+import { ComplianceMetricSelector } from "@/components/panorama/ComplianceMetricSelector";
 import { ConsoleNotice } from "@/components/panorama/ConsoleNotice";
 import { ContextBar } from "@/components/panorama/ContextBar";
 import { DetailDrawer, type SelectedFeature } from "@/components/panorama/DetailDrawer";
@@ -147,7 +148,10 @@ import {
 import { captionFor } from "@/src/modules/panorama/domain/caption";
 import { checkCompatibility, roleOf } from "@/src/modules/panorama/domain/compatibility";
 import { rankingAvailability } from "@/src/modules/panorama/domain/data-availability";
-import { derivePreset } from "@/src/modules/panorama/domain/derive-preset";
+import {
+  deriveActiveComplianceMetric,
+  derivePreset,
+} from "@/src/modules/panorama/domain/derive-preset";
 import {
   AGGREGATED_POINT_IDS,
   AGGREGATED_POINT_LAYERS,
@@ -170,6 +174,7 @@ import {
   projectPerCapita,
 } from "@/src/modules/panorama/domain/percapita";
 import {
+  type ComplianceMetricId,
   DEFAULT_PANORAMA_PRESET_ID,
   PANORAMA_PRESETS,
   type PanoramaPreset,
@@ -177,6 +182,8 @@ import {
   type PresetId,
   getPreset,
   presetLayerIds,
+  presetLayerIdsWithBase,
+  resolveLegacyPreset,
   shouldEmitPresetFrame,
 } from "@/src/modules/panorama/domain/presets";
 import {
@@ -2159,6 +2166,22 @@ export function PanoramaConsole({
   const activePresetIdRef = useRef(activePresetId);
   activePresetIdRef.current = activePresetId;
 
+  // D1 metric selector: which metric OPTION of the derived preset the current
+  // layer set corresponds to (non-null exactly when the active preset declares
+  // metricOptions — the default set matches the first option by contract).
+  // Derived, never stored: switching metric flips the layers and this follows,
+  // the same discipline as activePresetId itself.
+  const activeMetricOption = useMemo(() => {
+    if (activePresetId === null) return null;
+    const preset = getPreset(activePresetId);
+    if (!preset?.metricOptions) return null;
+    const metric = deriveActiveComplianceMetric(
+      PANORAMA_LAYERS.filter((l) => states[l.id]?.active).map((l) => l.id),
+      preset,
+    );
+    return preset.metricOptions.find((o) => o.metric === metric) ?? null;
+  }, [activePresetId, states]);
+
   // #53 QOL — the honest "personalizada" moment. When the derived vista flips
   // from a named preset to null (a hand-edit via Personalizar / a chip-less
   // layer toggle), the board changed SILENTLY before; now an inline note says
@@ -2595,9 +2618,21 @@ export function PanoramaConsole({
   }, []);
 
   const applyPreset = useCallback(
-    (id: PresetId, commit: "push" | "replace", opts?: { preserveSeededCaches?: boolean }) => {
+    (
+      id: PresetId,
+      commit: "push" | "replace",
+      opts?: { preserveSeededCaches?: boolean; metric?: ComplianceMetricId },
+    ) => {
       const preset = getPreset(id);
       if (!preset) return;
+      // D1 metric selector: an explicit metric override substitutes the option's
+      // BASE before the layer set / URL are built — the SAME commit path as a
+      // plain preset click, never a parallel one. An unknown metric (or one on a
+      // preset without options) falls back to the preset's default base.
+      const metricOption =
+        opts?.metric !== undefined
+          ? (preset.metricOptions?.find((o) => o.metric === opts.metric) ?? null)
+          : null;
       // perf plan 1.2: preserve mode keeps the SERVER-seeded caches (first-visit
       // fast path). The scrubber is already parked at live (asOf init null), so
       // the only work is fetching layers MISSING from the seed (normally none).
@@ -2621,7 +2656,9 @@ export function PanoramaConsole({
       // are fetched at — and the URL reflects — that current level.
       const lvl = levelRef.current;
 
-      const presetIds = presetLayerIds(preset);
+      const presetIds = metricOption
+        ? presetLayerIdsWithBase(preset, metricOption.base)
+        : presetLayerIds(preset);
       // preserve → only the layers missing from the seeded caches; else all.
       const toFetch = preserve ? missingFromCache(presetIds, lvl) : presetIds;
       const toFetchSet = new Set(toFetch);
@@ -2786,8 +2823,13 @@ export function PanoramaConsole({
   //   - URL: never rewritten (it is already the popped one).
   resyncBoardFromUrlRef.current = (params: URLSearchParams) => {
     const rawPreset = params.get("preset");
-    const poppedPreset =
-      rawPreset !== null && getPreset(rawPreset as PresetId) ? (rawPreset as PresetId) : null;
+    // D1: a popped historical URL may carry a RETIRED preset id (a pre-merge
+    // entry still in this session's history). resolveLegacyPreset normalizes
+    // the id AND reconstructs the legacy layer set for the ?layers-less
+    // fallback below — resolving only the id would repaint the merged
+    // preset's default base (silent metric loss).
+    const resolvedPopped = rawPreset !== null ? resolveLegacyPreset(rawPreset) : undefined;
+    const poppedPreset = resolvedPopped?.preset.id ?? null;
     const poppedPeriod = params.get("period");
     const poppedFrom = params.get("from");
     const poppedTo = params.get("to");
@@ -2806,11 +2848,9 @@ export function PanoramaConsole({
       nextPeriod !== loadedPeriod || poppedFrom !== loadedFrom || poppedTo !== loadedTo;
 
     // Popped layer set: explicit ?layers wins; a preset URL without ?layers
-    // falls back to the preset's canonical set; a bare manual URL is all-off.
-    const poppedPresetObj = poppedPreset !== null ? getPreset(poppedPreset) : null;
-    const ids =
-      parseLayersParam(params.get("layers")) ??
-      (poppedPresetObj ? presetLayerIds(poppedPresetObj) : []);
+    // falls back to the RESOLVED set (legacy alias base included); a bare
+    // manual URL is all-off.
+    const ids = parseLayersParam(params.get("layers")) ?? resolvedPopped?.layerIds ?? [];
     const idSet = new Set<LayerId>(ids);
     const currentKey = canonicalLayersKey(
       PANORAMA_LAYERS.filter((l) => statesRef.current[l.id]?.active).map((l) => l.id),
@@ -3143,14 +3183,17 @@ export function PanoramaConsole({
   // "Relleno/Tamaño" describes). Reference pins carry no per-view narrative.
   const captionLayer = useMemo(() => {
     if (activePresetId !== null) {
-      const base = getPreset(activePresetId)?.base;
+      // D1: under a metric-selector preset the EFFECTIVE base is the active
+      // option's, not the preset default — captioning cobertura over an
+      // esterilizacion fill would be a label≠paint lie.
+      const base = activeMetricOption?.base ?? getPreset(activePresetId)?.base;
       if (base) return getLayer(base) ?? null;
     }
     for (const l of PANORAMA_LAYERS) {
       if (states[l.id]?.active && l.dataType !== "reference") return l;
     }
     return null;
-  }, [activePresetId, states]);
+  }, [activePresetId, activeMetricOption, states]);
 
   // The active period as a PanoramaPeriod (ISO dates) for the caption's
   // "últimos N días" phrase. since/until already resolve the active window.
@@ -3647,7 +3690,9 @@ export function PanoramaConsole({
   // panorama-vista-redesign Phase 3 (design Decision 3): the active preset's
   // curated metric ids, in display order. Null (manual/advanced mode, no
   // active preset) → PanoramaMetricsColumn shows every KPI, nothing hidden.
-  const metricIds = activePreset?.metrics ?? null;
+  // D1: under a metric-selector preset the active OPTION's curated column wins
+  // (each absorbed vista's metrics ported into its option).
+  const metricIds = activeMetricOption?.metrics ?? activePreset?.metrics ?? null;
 
   // C2a: the active layer ids, for the manual-mode KPI relevance partition
   // (KpiChips hides indicators whose subject layer is not on the map).
@@ -4307,6 +4352,19 @@ export function PanoramaConsole({
           <p id="panorama-vista-label" className="sr-only">
             Vista
           </p>
+          {/* D1 metric selector: only a metric-selector vista (cumplimiento)
+              offers it. Switching metric keeps the active preset id and swaps
+              base/metrics/URL layers through the same applyPreset commit. */}
+          {activePreset?.metricOptions ? (
+            <ComplianceMetricSelector
+              options={activePreset.metricOptions}
+              activeMetric={activeMetricOption?.metric ?? activePreset.metricOptions[0].metric}
+              onSelect={(metric) => {
+                applyPreset(activePreset.id, "push", { metric });
+                setRailOpen(null);
+              }}
+            />
+          ) : null}
         </div>
       ),
     },

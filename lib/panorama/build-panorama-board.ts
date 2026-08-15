@@ -34,7 +34,12 @@ import {
 import { loadCachedPanoramaKpis } from "@/src/modules/panorama/application/load-panorama-kpis";
 import type { PanoramaRequestScope } from "@/src/modules/panorama/application/resolve-request-scope";
 import { getLayer } from "@/src/modules/panorama/domain/layers";
-import { type PresetId, getPreset, presetLayerIds } from "@/src/modules/panorama/domain/presets";
+import {
+  type PresetId,
+  getPreset,
+  presetLayerIds,
+  resolveLegacyPreset,
+} from "@/src/modules/panorama/domain/presets";
 import type {
   AggregationLevel,
   FeatureCollection,
@@ -169,13 +174,18 @@ export async function buildPanoramaBoard(args: {
   //      and fell through to the orphan perdidas seed — the deep-link never
   //      painted its own board (pre-existing bug, not a P2 regression). An
   //      explicit `?layers=` still wins: a hand-built board is not a preset seed.
-  const urlPreset =
+  // D1 METRIC FIDELITY: the raw `?preset=` value resolves through
+  // resolveLegacyPreset, which reconstructs BOTH the surviving preset AND the
+  // layer set that id has always meant. A bare legacy `?preset=control-poblacional`
+  // must seed `esterilizacion` — resolving only the id would silently seed the
+  // merged preset's default cobertura (the metric-loss failure mode).
+  const urlResolved =
     sp.layers === undefined && sp.preset !== undefined
-      ? (getPreset(sp.preset as PresetId) ?? null)
+      ? (resolveLegacyPreset(sp.preset) ?? null)
       : null;
   // biome-ignore lint/style/noNonNullAssertion: defaultPresetId is a static registry id.
   const roleDefaultPreset = isFirstVisit ? getPreset(defaultPresetId)! : null;
-  const seedPreset = urlPreset ?? roleDefaultPreset;
+  const seedPreset = urlResolved?.preset ?? roleDefaultPreset;
 
   if (seedPreset) {
     const preset = seedPreset;
@@ -194,10 +204,12 @@ export async function buildPanoramaBoard(args: {
     // `?preset=X&period=Y` deep-link honors its explicit window (`period`, already
     // resolved above from sp.period); a bare `?preset=X` uses the preset's window.
     const seedPeriod =
-      urlPreset && sp.period !== undefined
+      urlResolved && sp.period !== undefined
         ? period
         : resolveAnalyticsPeriod({ period: preset.periodPreset });
-    const seedIds = presetLayerIds(preset);
+    // The deep-link path seeds the RESOLVED layer set (legacy alias base
+    // included); the first-visit path seeds the role default's own set.
+    const seedIds = urlResolved?.layerIds ?? presetLayerIds(preset);
     // Streamed KPIs — NOT awaited here. `.catch` degrades an early rejection so
     // the promise always resolves to an honest strip (the loader carries its own
     // 20s budget; the console shows "Cargando indicadores…" until it lands).

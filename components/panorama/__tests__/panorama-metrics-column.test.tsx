@@ -59,14 +59,18 @@ describe("PanoramaMetricsColumn — switching vista updates the column", () => {
     expect(screen.queryByText("Mascotas en cobertura")).not.toBeInTheDocument();
   });
 
-  it("switching to control-poblacional shows esterilizacion/perdidas instead", () => {
-    const controlPoblacional = getPreset("control-poblacional")!;
+  it("switching to cumplimiento's esterilizacion metric option shows esterilizacion/perdidas instead", () => {
+    // D1: control-poblacional is now the `esterilizacion` METRIC OPTION of the
+    // merged cumplimiento vista — same curated column, one selector deeper.
+    const esterilizacionOption = getPreset("cumplimiento")!.metricOptions!.find(
+      (o) => o.metric === "esterilizacion",
+    )!;
     const { rerender } = render(
       <PanoramaMetricsColumn kpis={ALL_KPIS} metricIds={getPreset("bienestar")!.metrics} />,
     );
     expect(screen.getByText("Denuncias activas")).toBeInTheDocument();
 
-    rerender(<PanoramaMetricsColumn kpis={ALL_KPIS} metricIds={controlPoblacional.metrics} />);
+    rerender(<PanoramaMetricsColumn kpis={ALL_KPIS} metricIds={esterilizacionOption.metrics} />);
 
     expect(screen.getByText("Cobertura de esterilización")).toBeInTheDocument();
     expect(screen.getByText("Pérdidas activas")).toBeInTheDocument();
