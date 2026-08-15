@@ -17,18 +17,42 @@ export type PresetId =
   | "brotes-activos"
   | "sintomas"
   | "cumplimiento"
-  | "antiparasitario"
-  | "microchip"
-  | "registro-ppp"
   | "bienestar"
-  | "control-poblacional"
   | "mortalidad"
   | "perdidas-reunificacion"
   | "desierto-veterinario"
   | "acceso-veterinario"
   | "tendencia"
-  | "riesgo-ppp"
+  | "cruce-mordeduras-ppp"
   | "indice-territorial";
+
+/**
+ * D1 preset merge (PO-ratified, 2026-08-15): the metric axis of the merged
+ * "Cumplimiento" vista. The five same-shaped compliance vistas (cumplimiento /
+ * registro-ppp / control-poblacional / microchip / antiparasitario) collapsed
+ * into ONE preset with a metric selector — each old vista survives as an option
+ * here, and its old id survives as a LEGACY_PRESET_ALIASES entry.
+ */
+export type ComplianceMetricId =
+  | "cobertura"
+  | "esterilizacion"
+  | "ppp"
+  | "microchip"
+  | "antiparasitario";
+
+/**
+ * One selectable metric of a metric-selector preset: the base layer it paints
+ * and the curated decision KPIs its metrics column shows. The parent preset's
+ * signal/references (none today for cumplimiento) ride along unchanged — an
+ * option only substitutes the BASE and the metrics list.
+ */
+export type ComplianceMetricOption = {
+  metric: ComplianceMetricId;
+  /** es-AR short label shown on the metric radio. */
+  label: string;
+  base: LayerId;
+  metrics: readonly PanoramaKpiId[];
+};
 
 /**
  * Optional map framing a preset applies on activation (panorama-redesign Fase 1).
@@ -146,6 +170,16 @@ export type PanoramaPreset = {
    * (`bivariate`, the "Riesgo" toggle); #24's mode switcher broadens this.
    */
   encodings?: readonly EncodingId[];
+  /**
+   * D1 preset merge: the selectable metrics of a metric-selector vista. When
+   * present, the FIRST option mirrors the preset's own base/metrics (the
+   * default), so every non-selector code path is unchanged for the default
+   * case; the remaining options substitute base+metrics while keeping the
+   * preset's identity, level, period, framing and signal/references. Selecting
+   * an option keeps the derived preset id (derivePreset also matches each
+   * option's layer set). Only `cumplimiento` declares this today.
+   */
+  metricOptions?: readonly ComplianceMetricOption[];
 };
 
 // ---------------------------------------------------------------------------
@@ -191,19 +225,19 @@ export const PANORAMA_PRESETS: readonly PanoramaPreset[] = [
   },
   {
     id: "cumplimiento",
-    label: "Cumplimiento antirrábico",
-    description: "¿Qué jurisdicciones están por debajo de la meta de cobertura antirrábica?",
-    // base: cobertura — the antirrábica rate (Ley 22.953).
+    label: "Cumplimiento",
+    description: "¿Qué jurisdicciones están por debajo de la meta de la métrica elegida?",
+    // D1 preset merge (EXECUTED, PO-ratified 2026-08-15 — see
+    // docs/design/sdd/2026-07-25-panorama-d1-consolidacion-vistas.md): the five
+    // same-shaped compliance vistas (cumplimiento, registro-ppp,
+    // control-poblacional, microchip, antiparasitario) are now ONE vista with a
+    // metric selector. Same question (rate vs meta, province grain, national
+    // framing, gap ranking), five bases. F2's one-base-per-preset rule still
+    // holds — an option swaps the base, it never stacks two.
     //
-    // The old note here ("a metric selector requires dedicated rate layers that
-    // don't exist yet") is obsolete: microchip, ppp, esterilizacion and
-    // antiparasitario ALL exist as rate layers today. They can't share this
-    // map (one base per preset — F2), so each has its own vista, and the
-    // compliance family is now five same-shaped vistas. D1
-    // (docs/design/sdd/2026-07-25-panorama-d1-consolidacion-vistas.md) proposes
-    // collapsing them into ONE vista with a metric selector — that is the right
-    // end state and it is a PO decision, not a wiring one. Until it lands, a
-    // dedicated vista is the only way an operator can see these layers at all.
+    // base: cobertura — the antirrábica rate (Ley 22.953). This is the DEFAULT
+    // metric (metricOptions[0] mirrors it exactly), so every non-selector code
+    // path behaves as the pre-merge cumplimiento did.
     base: "cobertura",
     level: "province",
     periodPreset: "90d",
@@ -215,69 +249,44 @@ export const PANORAMA_PRESETS: readonly PanoramaPreset[] = [
     // target-progress meter (bar) against TARGETS via toneForTarget. The
     // coverage denominator now rides the shared footer caption.
     metrics: ["cobertura", "esterilizacion", "microchip"],
-  },
-  {
-    id: "antiparasitario",
-    label: "Desparasitación",
-    description: "¿Qué jurisdicciones tienen baja cobertura antiparasitaria (últimos 12 meses)?",
-    // base: antiparasitario (rate choropleth, benchmark 80%) — a sanitary
-    // coverage of the SAME shape as cobertura/esterilizacion/microchip, so it
-    // renders a target-anchored (META) fill and a below-meta gap ranking with no
-    // polarity ambiguity. Orphan wiring: the layer shipped 2026-07-16 with a
-    // loader, tests and 17 production sites, and no preset ever activated it.
-    base: "antiparasitario",
-    level: "province",
-    periodPreset: "90d",
-    // A province-level coverage-vs-benchmark ranking is a national question —
-    // same framing as cumplimiento / control-poblacional.
-    framing: { kind: "national" },
-    // KNOWN GAP, stated rather than hidden: there is no `antiparasitario`
-    // PanoramaKpiId — get-panorama-kpis emits no deworming tile — so this vista
-    // cannot headline its own indicator (the same smell D1 §4.1 flags on
-    // desierto-veterinario). The two shown are the honest neighbours: the
-    // parasitic-zoonosis signal deworming exists to prevent (hidatidosis is
-    // named in the zoonosis layer) and the sibling 12-month sanitary coverage.
-    // When a deworming KPI lands it becomes the headline and these follow it.
-    metrics: ["zoonosis", "cobertura"],
-  },
-  {
-    id: "microchip",
-    label: "Identificación por microchip",
-    description: "¿Qué jurisdicciones están más lejos de la meta de identificación (microchip)?",
-    // base: microchip (rate choropleth, Ley Prov 14.107 · meta 80%).
-    //
-    // WHY its own vista: microchip is a HEADLINE legal KPI on /gob and the most
-    // widely referenced layer in the codebase (195 production files), yet no
-    // preset activated it — an operator could read the national percentage and
-    // had NO way to ask "¿dónde?". It cannot ride cumplimiento's map (one base
-    // per preset — F2), so it gets its own, exactly like registro-ppp and
-    // mortalidad before it.
-    base: "microchip",
-    level: "province",
-    periodPreset: "90d",
-    // A province-level compliance ranking is a national question (cumplimiento
-    // precedent) — frame the country so the laggards are comparable at a glance.
-    framing: { kind: "national" },
-    // The Ley Prov 14.107 pair, mirroring registro-ppp's column in reverse: the
-    // vista's own indicator leads, its legal sibling follows.
-    metrics: ["microchip", "ppp"],
-  },
-  {
-    id: "registro-ppp",
-    label: "Registro PPP",
-    description:
-      "¿Qué jurisdicciones tienen bajo registro de perros potencialmente peligrosos (PPP)?",
-    // base: ppp (rate choropleth) — the C7 registry-adoption rate (Ley Prov 14.107).
-    // A dedicated compliance vista so the orphaned PPP layer has an honest home;
-    // it can't share cumplimiento's map (one base per preset — F2), so it gets its own.
-    base: "ppp",
-    level: "province",
-    periodPreset: "90d",
-    // A province-level registry-adoption ranking is a national question — frame the
-    // whole country so under-registry jurisdictions are comparable (like cumplimiento).
-    framing: { kind: "national" },
-    // Same Ley Prov 14.107 compliance family as microchip — the two ride together.
-    metrics: ["ppp", "microchip"],
+    // The merged metric axis. Each option ports its old vista's base + curated
+    // metrics column verbatim (the old per-vista rationale lives with each):
+    metricOptions: [
+      // Antirrábica (the pre-merge cumplimiento default — MUST stay first and
+      // mirror base/metrics above).
+      {
+        metric: "cobertura",
+        label: "Antirrábica",
+        base: "cobertura",
+        metrics: ["cobertura", "esterilizacion", "microchip"],
+      },
+      // Ex control-poblacional: esterilizacion is the North-Star population
+      // layer (divergent scale anchored at TARGETS.STERILIZATION_COVERAGE_PCT).
+      {
+        metric: "esterilizacion",
+        label: "Esterilización",
+        base: "esterilizacion",
+        metrics: ["esterilizacion", "perdidas"],
+      },
+      // Ex registro-ppp: the C7 registry-adoption rate (Ley Prov 14.107);
+      // microchip rides along — same legal family.
+      { metric: "ppp", label: "Registro PPP", base: "ppp", metrics: ["ppp", "microchip"] },
+      // Ex microchip: the headline legal KPI on /gob (Ley Prov 14.107 · meta
+      // 80%); its own indicator leads, its legal sibling follows.
+      { metric: "microchip", label: "Microchip", base: "microchip", metrics: ["microchip", "ppp"] },
+      // Ex antiparasitario. KNOWN GAP, stated rather than hidden: there is no
+      // `antiparasitario` PanoramaKpiId — get-panorama-kpis emits no deworming
+      // tile — so this option cannot headline its own indicator. The two shown
+      // are the honest neighbours: the parasitic-zoonosis signal deworming
+      // exists to prevent, and the sibling 12-month sanitary coverage. When a
+      // deworming KPI lands it becomes the headline and these follow it.
+      {
+        metric: "antiparasitario",
+        label: "Desparasitación",
+        base: "antiparasitario",
+        metrics: ["zoonosis", "cobertura"],
+      },
+    ],
   },
   {
     id: "bienestar",
@@ -297,20 +306,6 @@ export const PANORAMA_PRESETS: readonly PanoramaPreset[] = [
     // so a shared link reproduces the normalized view. It only APPLIES at
     // province framing — the map projection gates that (percapitaEligibleFor).
     encodings: ["percapita"],
-  },
-  {
-    id: "control-poblacional",
-    label: "Control poblacional",
-    description: "¿Estamos conteniendo la población? Cobertura de esterilización vs meta.",
-    // base: esterilizacion (rate choropleth) — North-Star layer for population control.
-    // Province level with divergent scale anchored at TARGETS.STERILIZATION_COVERAGE_PCT (70%).
-    base: "esterilizacion",
-    level: "province",
-    periodPreset: "90d",
-    // Same national-overview question as cumplimiento: a province choropleth
-    // vs the 70% target only reads when the whole country is in frame.
-    framing: { kind: "national" },
-    metrics: ["esterilizacion", "perdidas"],
   },
   {
     id: "mortalidad",
@@ -474,8 +469,12 @@ export const PANORAMA_PRESETS: readonly PanoramaPreset[] = [
     metrics: ["mordeduras", "perdidas", "denuncias"],
   },
   {
-    id: "riesgo-ppp",
-    label: "Riesgo PPP",
+    // D1 (Hallazgo 2): renamed from `riesgo-ppp` — one letter away from the old
+    // `registro-ppp` vista, and "riesgo" overclaimed (it is a reporting cross,
+    // not measured epidemiological risk). The id/label now NAME the cross the
+    // vista shows. The old id keeps resolving via LEGACY_PRESET_ALIASES.
+    id: "cruce-mordeduras-ppp",
+    label: "Mordeduras sobre bajo registro PPP",
     description: "¿Dónde se cruzan mordeduras altas con bajo registro PPP?",
     // base: ppp (registry-adoption rate surface). The overlay is mordeduras —
     // a DENSITY layer riding the signal slot via the declared bivariate pair
@@ -494,16 +493,16 @@ export const PANORAMA_PRESETS: readonly PanoramaPreset[] = [
     metrics: ["mordeduras", "ppp", "microchip"],
     // The vista OWNS the bivariate encoding — navigating here opens in it (the
     // encoding-seeding rule kept from the a948c975 revert), and the badge stays
-    // "Riesgo PPP" while it is selected (?encoding=bivariate round-trips).
+    // on this vista while it is selected (?encoding=bivariate round-trips).
     encodings: ["bivariate"],
   },
   {
     id: "indice-territorial",
     label: "Índice territorial",
     description: "¿Qué jurisdicciones están más lejos de cumplir las tres metas a la vez?",
-    // base: indice-territorial (0-100 composite). The compliance family already
-    // has one vista per meta (cumplimiento, control-poblacional, microchip);
-    // none of them answers "¿quién está peor EN CONJUNTO?", which is the
+    // base: indice-territorial (0-100 composite). The compliance vista covers
+    // one meta at a time (the D1 metric selector);
+    // none of its metrics answers "¿quién está peor EN CONJUNTO?", which is the
     // question a national director actually asks before allocating anything.
     // This vista is that synthesis, and it is the layer's first home: it shipped
     // with a loader, a tested computation (lib/analytics/territorial-index.ts)
@@ -560,12 +559,63 @@ export const DEFAULT_PANORAMA_PRESET_ID: PresetId = "bienestar";
  * (base first, then signal, then unlimited references).
  */
 export function presetLayerIds(p: PanoramaPreset): LayerId[] {
-  return [p.base, ...(p.signal ? [p.signal] : []), ...(p.references ?? [])];
+  return presetLayerIdsWithBase(p, p.base);
 }
 
-/** Look up a preset by id. Returns undefined if not found. */
-export function getPreset(id: PresetId): PanoramaPreset | undefined {
-  return PANORAMA_PRESETS.find((p) => p.id === id);
+/**
+ * The layer set a preset activates with a SUBSTITUTED base — the D1 metric
+ * selector's contract: an option (or a legacy alias) swaps the base while the
+ * preset's signal/references ride along unchanged.
+ */
+export function presetLayerIdsWithBase(p: PanoramaPreset, base: LayerId): LayerId[] {
+  return [base, ...(p.signal ? [p.signal] : []), ...(p.references ?? [])];
+}
+
+/**
+ * D1 preset merge — the ids retired on 2026-08-15 keep RESOLVING forever
+ * (saved boards, shared links, bookmarks, /gob deep links). Each maps to its
+ * surviving preset; a `base` override reconstructs the metric the old vista
+ * showed, so a bare legacy `?preset=` link seeds the SAME map it always did —
+ * silent metric loss (resolving the id but dropping its layers) is the failure
+ * mode this table exists to prevent.
+ */
+export const LEGACY_PRESET_ALIASES: Readonly<Record<string, { id: PresetId; base?: LayerId }>> = {
+  "registro-ppp": { id: "cumplimiento", base: "ppp" },
+  "control-poblacional": { id: "cumplimiento", base: "esterilizacion" },
+  microchip: { id: "cumplimiento", base: "microchip" },
+  antiparasitario: { id: "cumplimiento", base: "antiparasitario" },
+  "riesgo-ppp": { id: "cruce-mordeduras-ppp" },
+};
+
+/**
+ * Look up a preset by id. Returns undefined if not found.
+ *
+ * Accepts a LEGACY alias id too (LEGACY_PRESET_ALIASES) and resolves it to its
+ * surviving preset — every call site that only needs the preset OBJECT gets
+ * alias resolution for free. NOTE: the returned preset carries the CANONICAL
+ * id (an alias's `p.id` differs from the raw id passed in), and an alias's
+ * base override is NOT applied here — a caller that needs the legacy LAYER SET
+ * must use {@link resolveLegacyPreset}.
+ */
+export function getPreset(id: PresetId | (string & {})): PanoramaPreset | undefined {
+  const canonical = LEGACY_PRESET_ALIASES[id]?.id ?? (id as PresetId);
+  return PANORAMA_PRESETS.find((p) => p.id === canonical);
+}
+
+/**
+ * Resolve a raw `?preset=` value (canonical OR legacy) to its preset AND the
+ * layer set that value has always meant. For a canonical id this is exactly
+ * `presetLayerIds(preset)`; for a legacy alias the base override is applied
+ * (alias base ∪ parent signal/references), so `?preset=control-poblacional`
+ * still seeds `esterilizacion` — never the merged preset's default cobertura.
+ */
+export function resolveLegacyPreset(
+  rawId: string,
+): { preset: PanoramaPreset; layerIds: LayerId[] } | undefined {
+  const preset = getPreset(rawId);
+  if (!preset) return undefined;
+  const base = LEGACY_PRESET_ALIASES[rawId]?.base ?? preset.base;
+  return { preset, layerIds: presetLayerIdsWithBase(preset, base) };
 }
 
 /**

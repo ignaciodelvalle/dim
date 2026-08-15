@@ -311,9 +311,10 @@ describe("panorama view-projection characterization (P0 fence)", () => {
     // cumplimiento base cobertura (rate, target 80) → meta at province level.
     const cumpl = PANORAMA_PRESETS.find((p) => p.id === "cumplimiento")!;
     expect(project(cumpl, "national", 3, false).baseEncoding).toBe("choropleth-meta");
-    // control-poblacional base esterilizacion (rate, target) → meta.
-    const control = PANORAMA_PRESETS.find((p) => p.id === "control-poblacional")!;
-    expect(project(control, "national", 3, false).baseEncoding).toBe("choropleth-meta");
+    // D1: cumplimiento's esterilizacion METRIC OPTION (ex control-poblacional)
+    // — base esterilizacion (rate, target) → meta.
+    const esterilizacion = { ...cumpl, base: "esterilizacion" as const };
+    expect(project(esterilizacion, "national", 3, false).baseEncoding).toBe("choropleth-meta");
     // bienestar base denuncias (density point) → graduated (aggregated).
     const bienestar = PANORAMA_PRESETS.find((p) => p.id === "bienestar")!;
     expect(project(bienestar, "national", 3, false).baseEncoding).toBe("graduated");

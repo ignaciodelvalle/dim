@@ -221,7 +221,12 @@ function parseLayers(raw: string | undefined): LayerId[] {
 
 function parsePreset(raw: string | undefined): PanoramaViewState["preset"] {
   if (!raw) return null;
-  return getPreset(raw as never) ? (raw as PanoramaViewState["preset"]) : null;
+  // D1: a LEGACY alias id (LEGACY_PRESET_ALIASES) parses too and NORMALIZES to
+  // the surviving preset's canonical id, so a stored/shared legacy link
+  // self-heals on parse. The legacy LAYER SET is not this parser's job — the
+  // URL's own `?layers=` (written alongside `?preset=`) or the server seed
+  // (resolveLegacyPreset) carries it.
+  return getPreset(raw)?.id ?? null;
 }
 
 /** Only preset-declared (operator-selectable) encodings parse; anything else is

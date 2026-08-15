@@ -15,12 +15,15 @@ import { roleOf } from "@/src/modules/panorama/domain/compatibility";
 import { PANORAMA_LAYERS } from "@/src/modules/panorama/domain/layers";
 import {
   DEFAULT_PANORAMA_PRESET_ID,
+  LEGACY_PRESET_ALIASES,
   PANORAMA_PRESETS,
   type PanoramaPreset,
   type PresetFraming,
   defaultPanoramaPresetPeriod,
   getPreset,
   presetLayerIds,
+  presetLayerIdsWithBase,
+  resolveLegacyPreset,
   shouldEmitPresetFrame,
 } from "@/src/modules/panorama/domain/presets";
 import { rankWorstUnits } from "@/src/modules/panorama/domain/ranking";
@@ -35,8 +38,8 @@ import type {
 // ---------------------------------------------------------------------------
 
 describe("PANORAMA_PRESETS — catalogue integrity", () => {
-  it("contains exactly 15 presets", () => {
-    expect(PANORAMA_PRESETS).toHaveLength(15);
+  it("contains exactly 11 presets (D1 merge: 15 → 11, five compliance vistas → one)", () => {
+    expect(PANORAMA_PRESETS).toHaveLength(11);
   });
 
   it("all preset ids are unique", () => {
@@ -44,15 +47,15 @@ describe("PANORAMA_PRESETS — catalogue integrity", () => {
     expect(new Set(ids).size).toBe(ids.length);
   });
 
-  it("all 15 expected preset ids are present", () => {
+  it("all 11 expected preset ids are present", () => {
     const ids = new Set(PANORAMA_PRESETS.map((p) => p.id));
     expect(ids.has("brotes-activos")).toBe(true);
     expect(ids.has("sintomas")).toBe(true);
+    // D1 merge (2026-08-15): the five compliance-family vistas (cumplimiento,
+    // registro-ppp, control-poblacional, microchip, antiparasitario) are ONE
+    // metric-selector vista; the retired ids live in LEGACY_PRESET_ALIASES.
     expect(ids.has("cumplimiento")).toBe(true);
-    // Orphaned-layer wiring: dedicated PPP + mortality vistas.
-    expect(ids.has("registro-ppp")).toBe(true);
     expect(ids.has("bienestar")).toBe(true);
-    expect(ids.has("control-poblacional")).toBe(true);
     expect(ids.has("mortalidad")).toBe(true);
     expect(ids.has("perdidas-reunificacion")).toBe(true);
     // New-vistas wave (PO 2026-07-18): the vet-activity vista. Its base
@@ -64,11 +67,8 @@ describe("PANORAMA_PRESETS — catalogue integrity", () => {
     // question — the LAST orphan layer in the registry.
     expect(ids.has("acceso-veterinario")).toBe(true);
     expect(ids.has("tendencia")).toBe(true);
-    expect(ids.has("riesgo-ppp")).toBe(true);
-    // Orphan-wiring wave (2026-07-26): the two rate layers that had a loader,
-    // tests and production call sites but no vista that activated them.
-    expect(ids.has("microchip")).toBe(true);
-    expect(ids.has("antiparasitario")).toBe(true);
+    // D1 (Hallazgo 2): renamed from `riesgo-ppp` to name the cross it shows.
+    expect(ids.has("cruce-mordeduras-ppp")).toBe(true);
     // Polarity wave (2026-07-26): the composite scorecard, wirable once a
     // higher-is-better layer could be ranked and painted without inverting.
     expect(ids.has("indice-territorial")).toBe(true);
@@ -202,14 +202,21 @@ describe("PANORAMA_PRESETS — role constraints", () => {
 // ---------------------------------------------------------------------------
 
 // Replays the activation order [base, signal?, ...references?] through
-// checkCompatibility, asserting allowed:true at each step.
+// checkCompatibility, asserting allowed:true at each step. D1: a metric-selector
+// preset must be replayable for EVERY option's layer set too — an incompatible
+// option would strand the vista the moment the operator switches metric.
 function assertPresetIsCompatible(p: PanoramaPreset) {
-  const activationOrder = presetLayerIds(p);
-  const accumulated: LayerId[] = [];
-  for (const id of activationOrder) {
-    const result = checkCompatibility(accumulated, id, PANORAMA_LAYERS);
-    expect(result.allowed).toBe(true);
-    accumulated.push(id);
+  const orders: LayerId[][] = [
+    presetLayerIds(p),
+    ...(p.metricOptions ?? []).map((o) => presetLayerIdsWithBase(p, o.base)),
+  ];
+  for (const activationOrder of orders) {
+    const accumulated: LayerId[] = [];
+    for (const id of activationOrder) {
+      const result = checkCompatibility(accumulated, id, PANORAMA_LAYERS);
+      expect(result.allowed).toBe(true);
+      accumulated.push(id);
+    }
   }
 }
 
@@ -234,11 +241,6 @@ describe("PANORAMA_PRESETS — F2 compatibility (activation sequence)", () => {
     assertPresetIsCompatible(p);
   });
 
-  it("control-poblacional: each layer in activation order is allowed by checkCompatibility", () => {
-    const p = PANORAMA_PRESETS.find((x) => x.id === "control-poblacional")!;
-    assertPresetIsCompatible(p);
-  });
-
   it("perdidas-reunificacion: each layer in activation order is allowed by checkCompatibility", () => {
     const p = PANORAMA_PRESETS.find((x) => x.id === "perdidas-reunificacion")!;
     assertPresetIsCompatible(p);
@@ -247,8 +249,9 @@ describe("PANORAMA_PRESETS — F2 compatibility (activation sequence)", () => {
   it("every preset passes the compatibility replay (parametric)", () => {
     // Titled "all 6 presets" while iterating 15 (H8.4). The count belongs in an
     // assertion, where it cannot drift unnoticed — and where it also proves the
-    // loop ran at all.
-    expect(PANORAMA_PRESETS).toHaveLength(15);
+    // loop ran at all. D1: 11 presets, and assertPresetIsCompatible also
+    // replays every metricOption layer set (cumplimiento ×5).
+    expect(PANORAMA_PRESETS).toHaveLength(11);
     for (const p of PANORAMA_PRESETS) {
       assertPresetIsCompatible(p);
     }
@@ -310,20 +313,16 @@ describe("presetLayerIds()", () => {
 describe("PANORAMA_PRESETS — optional framing field", () => {
   it("national-overview presets carry the national framing (design-QA 2026-07-04 expansion)", () => {
     // brotes-activos (Fase 1 demonstrator) + the province-choropleth compliance /
-    // population presets — all answer a cross-province question. Orphaned-layer
-    // wiring adds two more national vistas: registro-ppp and mortalidad.
+    // population presets — all answer a cross-province question. D1: the merged
+    // cumplimiento carries the national framing for all five of its metrics.
     for (const id of [
       "brotes-activos",
       "cumplimiento",
-      "antiparasitario",
-      "microchip",
-      "registro-ppp",
-      "control-poblacional",
       "mortalidad",
       "desierto-veterinario",
       "acceso-veterinario",
       "tendencia",
-      "riesgo-ppp",
+      "cruce-mordeduras-ppp",
     ] as const) {
       expect(getPreset(id)!.framing).toEqual({ kind: "national" });
     }
@@ -382,7 +381,7 @@ describe("PANORAMA_PRESETS — optional framing field", () => {
     ).toThrow();
   });
 
-  it("pins the framing composition of the corpus (12 national, 0 bbox today)", () => {
+  it("pins the framing composition of the corpus (8 national, 0 bbox today)", () => {
     const composition = PANORAMA_PRESETS.reduce<Record<string, number>>((acc, p) => {
       const key = p.framing?.kind ?? "none";
       acc[key] = (acc[key] ?? 0) + 1;
@@ -390,8 +389,10 @@ describe("PANORAMA_PRESETS — optional framing field", () => {
     }, {});
     // If C.3 gives a preset AR_BBOX framing, this fails and the next assertion
     // starts doing real work. That is the intended handoff, not a nuisance.
+    // D1 merge: 12 → 8 national (four national compliance vistas folded into
+    // the one merged cumplimiento).
     expect(composition.bbox ?? 0).toBe(0);
-    expect(composition.national).toBe(12);
+    expect(composition.national).toBe(8);
   });
 
   it("every framing in the corpus is a member of the union, and each bbox is well-formed", () => {
@@ -510,33 +511,38 @@ describe("PANORAMA_PRESETS — metrics field", () => {
     "mortalidad",
   ];
 
-  it("every preset has 2-4 decision metrics", () => {
+  it("every preset (and every metric option) has 2-4 decision metrics", () => {
     // metric-honesty 2026-07-09: the coverage denominator ("mascotas") left the
     // per-vista lists for the shared footer caption, so a preset can now carry
     // as few as 2 decision metrics.
     for (const p of PANORAMA_PRESETS) {
-      expect(p.metrics.length).toBeGreaterThanOrEqual(2);
-      expect(p.metrics.length).toBeLessThanOrEqual(4);
+      for (const metrics of [p.metrics, ...(p.metricOptions ?? []).map((o) => o.metrics)]) {
+        expect(metrics.length).toBeGreaterThanOrEqual(2);
+        expect(metrics.length).toBeLessThanOrEqual(4);
+      }
     }
   });
 
   it("every metric id is a known PanoramaKpiId", () => {
     for (const p of PANORAMA_PRESETS) {
-      for (const id of p.metrics) {
-        expect(KNOWN_KPI_IDS).toContain(id);
+      for (const metrics of [p.metrics, ...(p.metricOptions ?? []).map((o) => o.metrics)]) {
+        for (const id of metrics) {
+          expect(KNOWN_KPI_IDS).toContain(id);
+        }
       }
     }
   });
 
-  it("no preset has duplicate metrics", () => {
+  it("no preset (nor metric option) has duplicate metrics", () => {
     for (const p of PANORAMA_PRESETS) {
-      expect(new Set(p.metrics).size).toBe(p.metrics.length);
+      for (const metrics of [p.metrics, ...(p.metricOptions ?? []).map((o) => o.metrics)]) {
+        expect(new Set(metrics).size).toBe(metrics.length);
+      }
     }
   });
 
-  it("bienestar → control-poblacional shows the expected metrics (spec table)", () => {
+  it("bienestar shows the expected metrics (spec table)", () => {
     expect(getPreset("bienestar")!.metrics).toEqual(["denuncias", "mordeduras"]);
-    expect(getPreset("control-poblacional")!.metrics).toEqual(["esterilizacion", "perdidas"]);
   });
 
   // v+1 rail: meta-progress meters headline the presets they were built for.
@@ -555,40 +561,132 @@ describe("PANORAMA_PRESETS — metrics field", () => {
     expect(getPreset("perdidas-reunificacion")!.metrics).toEqual(["perdidas", "reunificacion"]);
   });
 
-  // Orphaned-layer wiring: the PPP + mortality vistas headline their own layer's KPI.
-  it("registro-ppp surfaces the PPP layer as base and headlines ppp (Ley Prov 14.107 family)", () => {
-    const p = getPreset("registro-ppp")!;
-    expect(p.base).toBe("ppp");
-    expect(p.metrics).toEqual(["ppp", "microchip"]);
-  });
-
   it("mortalidad surfaces the mortalidad layer as base and headlines mortalidad", () => {
     const p = getPreset("mortalidad")!;
     expect(p.base).toBe("mortalidad");
     expect(p.metrics).toEqual(["mortalidad", "esterilizacion"]);
   });
+});
 
-  // Orphan-wiring wave (2026-07-26).
-  it("microchip surfaces the microchip layer as base and headlines its own KPI first", () => {
-    // The layer was the most-referenced orphan in the codebase (195 production
-    // files) and a headline legal KPI on /gob, with no way to see it
-    // territorially. Its own indicator LEADS the column — the vista is not
-    // allowed to headline a neighbour's metric.
-    const p = getPreset("microchip")!;
-    expect(p.base).toBe("microchip");
-    expect(p.metrics[0]).toBe("microchip");
-    expect(p.metrics).toEqual(["microchip", "ppp"]);
+// ---------------------------------------------------------------------------
+// D1 metric selector — the merged cumplimiento vista
+// ---------------------------------------------------------------------------
+
+describe("cumplimiento — the D1 metric selector", () => {
+  const vista = () => getPreset("cumplimiento")!;
+
+  it("declares the five compliance metrics, default (Antirrábica) first", () => {
+    expect(vista().metricOptions!.map((o) => o.metric)).toEqual([
+      "cobertura",
+      "esterilizacion",
+      "ppp",
+      "microchip",
+      "antiparasitario",
+    ]);
   });
 
-  it("antiparasitario surfaces the deworming layer as base", () => {
-    const p = getPreset("antiparasitario")!;
-    expect(p.base).toBe("antiparasitario");
-    // KNOWN GAP, asserted so it is not mistaken for an oversight: there is no
-    // `antiparasitario` PanoramaKpiId (get-panorama-kpis emits no deworming
-    // tile), so this vista cannot list its own indicator yet. When that KPI
-    // lands, this expectation should FLIP to `metrics[0] === "antiparasitario"`.
-    expect(p.metrics).toEqual(["zoonosis", "cobertura"]);
-    expect(p.metrics).not.toContain("antiparasitario" as never);
+  it("the FIRST option mirrors the preset's own base + metrics (the default contract)", () => {
+    // Every non-selector code path reads preset.base/preset.metrics — the
+    // default option must be indistinguishable from them.
+    const first = vista().metricOptions![0];
+    expect(first.base).toBe(vista().base);
+    expect(first.metrics).toEqual(vista().metrics);
+  });
+
+  it("each option ports its absorbed vista's base + curated metrics verbatim", () => {
+    const byMetric = new Map(vista().metricOptions!.map((o) => [o.metric, o]));
+    // Ex control-poblacional.
+    expect(byMetric.get("esterilizacion")).toMatchObject({
+      base: "esterilizacion",
+      metrics: ["esterilizacion", "perdidas"],
+    });
+    // Ex registro-ppp (Ley Prov 14.107 family).
+    expect(byMetric.get("ppp")).toMatchObject({ base: "ppp", metrics: ["ppp", "microchip"] });
+    // Ex microchip: its own indicator LEADS the column.
+    expect(byMetric.get("microchip")).toMatchObject({
+      base: "microchip",
+      metrics: ["microchip", "ppp"],
+    });
+    // Ex antiparasitario. KNOWN GAP, asserted so it is not mistaken for an
+    // oversight: there is no `antiparasitario` PanoramaKpiId, so the option
+    // cannot list its own indicator yet — when that KPI lands, this should
+    // FLIP to `metrics[0] === "antiparasitario"`.
+    const deworming = byMetric.get("antiparasitario")!;
+    expect(deworming.base).toBe("antiparasitario");
+    expect(deworming.metrics).toEqual(["zoonosis", "cobertura"]);
+    expect(deworming.metrics).not.toContain("antiparasitario" as never);
+  });
+
+  it("every option label is non-empty es-AR copy", () => {
+    for (const o of vista().metricOptions!) {
+      expect(o.label.trim().length).toBeGreaterThan(0);
+    }
+  });
+
+  it("no other preset declares metricOptions (cumplimiento-only today)", () => {
+    for (const p of PANORAMA_PRESETS) {
+      if (p.id === "cumplimiento") continue;
+      expect(p.metricOptions).toBeUndefined();
+    }
+  });
+});
+
+// ---------------------------------------------------------------------------
+// D1 legacy aliases — retired ids keep resolving, WITH their layers
+// ---------------------------------------------------------------------------
+
+describe("LEGACY_PRESET_ALIASES / resolveLegacyPreset", () => {
+  it("every retired id resolves to its surviving preset via getPreset", () => {
+    expect(getPreset("registro-ppp")?.id).toBe("cumplimiento");
+    expect(getPreset("control-poblacional")?.id).toBe("cumplimiento");
+    expect(getPreset("microchip")?.id).toBe("cumplimiento");
+    expect(getPreset("antiparasitario")?.id).toBe("cumplimiento");
+    expect(getPreset("riesgo-ppp")?.id).toBe("cruce-mordeduras-ppp");
+  });
+
+  it("every alias base override names a declared metric option of its target", () => {
+    for (const [raw, alias] of Object.entries(LEGACY_PRESET_ALIASES)) {
+      const target = getPreset(alias.id)!;
+      expect(target).toBeDefined();
+      if (alias.base !== undefined) {
+        expect(
+          target.metricOptions?.some((o) => o.base === alias.base),
+          `${raw} → base ${alias.base}`,
+        ).toBe(true);
+      }
+    }
+  });
+
+  it("METRIC FIDELITY: each legacy id reconstructs the layer set its vista showed", () => {
+    // The failure mode the alias table exists to prevent: resolving the ID but
+    // dropping its LAYERS (a bare legacy link silently painting cobertura).
+    expect(resolveLegacyPreset("registro-ppp")!.layerIds).toEqual(["ppp"]);
+    expect(resolveLegacyPreset("control-poblacional")!.layerIds).toEqual(["esterilizacion"]);
+    expect(resolveLegacyPreset("microchip")!.layerIds).toEqual(["microchip"]);
+    expect(resolveLegacyPreset("antiparasitario")!.layerIds).toEqual(["antiparasitario"]);
+    // The rename keeps the FULL bivariate pair (base + overlay).
+    expect(resolveLegacyPreset("riesgo-ppp")!.preset.id).toBe("cruce-mordeduras-ppp");
+    expect(resolveLegacyPreset("riesgo-ppp")!.layerIds).toEqual(["ppp", "mordeduras"]);
+    expect(resolveLegacyPreset("riesgo-ppp")!.preset.encodings).toEqual(["bivariate"]);
+  });
+
+  it("a canonical id resolves to its own full layer set (identity path)", () => {
+    for (const p of PANORAMA_PRESETS) {
+      const r = resolveLegacyPreset(p.id)!;
+      expect(r.preset).toBe(p);
+      expect(r.layerIds).toEqual(presetLayerIds(p));
+    }
+  });
+
+  it("an unknown id resolves to nothing (no accidental default)", () => {
+    expect(resolveLegacyPreset("unknown")).toBeUndefined();
+  });
+
+  it("no alias shadows a live preset id", () => {
+    const live = new Set<string>(PANORAMA_PRESETS.map((p) => p.id));
+    for (const raw of Object.keys(LEGACY_PRESET_ALIASES)) {
+      expect(live.has(raw), raw).toBe(false);
+    }
   });
 });
 
@@ -597,7 +695,15 @@ describe("PANORAMA_PRESETS — metrics field", () => {
 // ---------------------------------------------------------------------------
 
 describe("PANORAMA_PRESETS — layer reachability", () => {
-  const activated = new Set<LayerId>(PANORAMA_PRESETS.flatMap((p) => presetLayerIds(p)));
+  // D1: a layer is reachable through a preset's default set OR through any of
+  // its metric options (microchip/antiparasitario now live behind cumplimiento's
+  // selector — one click deeper, still reachable).
+  const activated = new Set<LayerId>(
+    PANORAMA_PRESETS.flatMap((p) => [
+      ...presetLayerIds(p),
+      ...(p.metricOptions ?? []).flatMap((o) => presetLayerIdsWithBase(p, o.base)),
+    ]),
+  );
 
   /**
    * The layers NO vista activates. An orphaned layer is invisible to every

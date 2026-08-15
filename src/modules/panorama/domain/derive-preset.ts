@@ -16,7 +16,13 @@
 //
 // Pure — NO @/db, NO next, NO React (hexagonal domain purity).
 
-import { type PanoramaPreset, type PresetId, presetLayerIds } from "./presets";
+import {
+  type ComplianceMetricId,
+  type PanoramaPreset,
+  type PresetId,
+  presetLayerIds,
+  presetLayerIdsWithBase,
+} from "./presets";
 import type { LayerId } from "./types";
 import type { EncodingId } from "./view-state";
 
@@ -40,9 +46,38 @@ export function derivePreset(
 ): PresetId | null {
   const active = new Set<LayerId>(activeLayers);
   for (const preset of presets) {
-    if (!sameLayerSet(active, presetLayerIds(preset))) continue;
+    // D1 metric selector: a metric-selector preset (cumplimiento) is matched by
+    // its default layer set OR by ANY of its options' sets — switching the
+    // metric stays WITHIN the vista, it never derives "personalizada".
+    const matchesSet =
+      sameLayerSet(active, presetLayerIds(preset)) ||
+      (preset.metricOptions?.some((o) =>
+        sameLayerSet(active, presetLayerIdsWithBase(preset, o.base)),
+      ) ??
+        false);
+    if (!matchesSet) continue;
     // Auto (null) always matches; an explicit encoding needs the preset to own it.
     if (encoding === null || preset.encodings?.includes(encoding)) return preset.id;
+  }
+  return null;
+}
+
+/**
+ * D1 metric selector: which of a metric-selector preset's options the current
+ * layer set corresponds to. `null` when the preset declares no options or the
+ * set matches none of them (the caller is then outside the vista anyway —
+ * derivePreset would not have derived it). The default set matches the FIRST
+ * option (it mirrors the preset's own base by contract), so a freshly-activated
+ * cumplimiento reports its default metric, not null.
+ */
+export function deriveActiveComplianceMetric(
+  activeLayers: readonly LayerId[],
+  preset: PanoramaPreset,
+): ComplianceMetricId | null {
+  if (!preset.metricOptions) return null;
+  const active = new Set<LayerId>(activeLayers);
+  for (const option of preset.metricOptions) {
+    if (sameLayerSet(active, presetLayerIdsWithBase(preset, option.base))) return option.metric;
   }
   return null;
 }

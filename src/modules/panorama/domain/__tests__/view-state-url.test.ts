@@ -150,6 +150,19 @@ describe("view-state URL boundary — robustness", () => {
     expect(viewStateFromParams({ preset: "nope" }).preset).toBeNull();
   });
 
+  it("D1: a LEGACY preset alias parses and NORMALIZES to the canonical id (self-healing)", () => {
+    // A stored/shared pre-merge link must keep resolving — and re-serializing
+    // the parsed state writes the SURVIVING id, so URLs self-heal over time.
+    expect(viewStateFromParams({ preset: "registro-ppp" }).preset).toBe("cumplimiento");
+    expect(viewStateFromParams({ preset: "control-poblacional" }).preset).toBe("cumplimiento");
+    expect(viewStateFromParams({ preset: "microchip" }).preset).toBe("cumplimiento");
+    expect(viewStateFromParams({ preset: "antiparasitario" }).preset).toBe("cumplimiento");
+    expect(viewStateFromParams({ preset: "riesgo-ppp" }).preset).toBe("cruce-mordeduras-ppp");
+    // And the round-trip serializes the canonical id, not the legacy one.
+    const healed = viewStateToParams(viewStateFromParams({ preset: "riesgo-ppp" }));
+    expect(healed.get("preset")).toBe("cruce-mordeduras-ppp");
+  });
+
   it("locality without a province degrades to national (no illegal state)", () => {
     expect(viewStateFromParams({ locality: "Palermo" }).scope).toEqual({ kind: "national" });
   });

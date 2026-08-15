@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { derivePreset } from "../derive-preset";
-import { PANORAMA_PRESETS, presetLayerIds } from "../presets";
+import { deriveActiveComplianceMetric, derivePreset } from "../derive-preset";
+import { PANORAMA_PRESETS, getPreset, presetLayerIds, presetLayerIdsWithBase } from "../presets";
 import type { EncodingId } from "../view-state";
 
 describe("derivePreset", () => {
@@ -67,5 +67,47 @@ describe("derivePreset", () => {
   it("matches against the passed catalogue only", () => {
     // Empty catalogue → nothing can match.
     expect(derivePreset(["cobertura"], null, [])).toBeNull();
+  });
+
+  // D1 metric selector: every metric's layer set stays WITHIN the vista.
+  it("derives cumplimiento from EVERY metric option's layer set (metric switch ≠ personalizada)", () => {
+    const cumplimiento = getPreset("cumplimiento")!;
+    for (const option of cumplimiento.metricOptions!) {
+      expect(
+        derivePreset(presetLayerIdsWithBase(cumplimiento, option.base), null, PANORAMA_PRESETS),
+        option.metric,
+      ).toBe("cumplimiento");
+    }
+  });
+
+  it("still refuses a metric-option set carrying an extra layer (personalizada)", () => {
+    expect(derivePreset(["esterilizacion", "denuncias"], null, PANORAMA_PRESETS)).toBeNull();
+  });
+});
+
+describe("deriveActiveComplianceMetric", () => {
+  const cumplimiento = () => getPreset("cumplimiento")!;
+
+  it("reports each option's metric for its exact layer set", () => {
+    for (const option of cumplimiento().metricOptions!) {
+      expect(
+        deriveActiveComplianceMetric(
+          presetLayerIdsWithBase(cumplimiento(), option.base),
+          cumplimiento(),
+        ),
+      ).toBe(option.metric);
+    }
+  });
+
+  it("reports the DEFAULT metric (cobertura) for the preset's own layer set", () => {
+    expect(deriveActiveComplianceMetric(presetLayerIds(cumplimiento()), cumplimiento())).toBe(
+      "cobertura",
+    );
+  });
+
+  it("returns null for a set matching no option, and for option-less presets", () => {
+    expect(deriveActiveComplianceMetric(["denuncias"], cumplimiento())).toBeNull();
+    const bienestar = getPreset("bienestar")!;
+    expect(deriveActiveComplianceMetric(presetLayerIds(bienestar), bienestar)).toBeNull();
   });
 });

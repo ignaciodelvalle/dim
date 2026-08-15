@@ -122,15 +122,15 @@ describe("capabilitiesFor — registry cross-check (P2 gate)", () => {
     // The two pair-owning presets at national→province framing.
     const brotes = PANORAMA_PRESETS.find((p) => p.id === "brotes-activos")!;
     expect(gateFor(brotes, "national", 3).caps.allowedControls.bivariateEligible).toBe(true);
-    const riesgoPpp = PANORAMA_PRESETS.find((p) => p.id === "riesgo-ppp")!;
-    expect(gateFor(riesgoPpp, "national", 3).caps.allowedControls.bivariateEligible).toBe(true);
+    const crucePpp = PANORAMA_PRESETS.find((p) => p.id === "cruce-mordeduras-ppp")!;
+    expect(gateFor(crucePpp, "national", 3).caps.allowedControls.bivariateEligible).toBe(true);
     // province scope forces locality level → not eligible.
     expect(gateFor(brotes, "province", 7).caps.allowedControls.bivariateEligible).toBe(false);
-    expect(gateFor(riesgoPpp, "province", 7).caps.allowedControls.bivariateEligible).toBe(false);
-    // No OTHER preset matches a declared pair (cumplimiento/control have a
-    // rate+target base but NO overlay; sintomas/bienestar/perdidas have a non-rate base).
+    expect(gateFor(crucePpp, "province", 7).caps.allowedControls.bivariateEligible).toBe(false);
+    // No OTHER preset matches a declared pair (cumplimiento has a rate+target
+    // base but NO overlay; sintomas/bienestar/perdidas have a non-rate base).
     for (const preset of PANORAMA_PRESETS) {
-      if (preset.id === "brotes-activos" || preset.id === "riesgo-ppp") continue;
+      if (preset.id === "brotes-activos" || preset.id === "cruce-mordeduras-ppp") continue;
       for (const scopeKey of Object.keys(SCOPES)) {
         expect(
           gateFor(preset, scopeKey, 3).caps.allowedControls.bivariateEligible,
@@ -144,7 +144,10 @@ describe("capabilitiesFor — registry cross-check (P2 gate)", () => {
     expect(gateFor(getPreset("cumplimiento"), "national", 3).caps.encoding.kind).toBe(
       "choropleth-meta",
     );
-    expect(gateFor(getPreset("control-poblacional"), "national", 3).caps.encoding.kind).toBe(
+    // D1: the esterilizacion METRIC OPTION of cumplimiento (ex control-poblacional)
+    // is the same rate-with-target shape → meta.
+    const esterilizacionView = makeViewState({ layers: ["esterilizacion"] });
+    expect(capabilitiesFor(esterilizacionView, { zoom: 3, level: "province" }).encoding.kind).toBe(
       "choropleth-meta",
     );
     expect(gateFor(getPreset("bienestar"), "national", 3).caps.encoding.kind).toBe("graduated");
