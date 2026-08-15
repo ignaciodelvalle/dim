@@ -116,12 +116,12 @@ del rate limiter:
 |---|---|---|---|
 | 1 | (sin sesión) | Público | — |
 | 2 | `owner@dim.test` | Dueño | bootstrap tier |
-| 3 | `adoptante@dim.test` | Adoptante | ⚠️ **requiere seed batch 3** — puede no existir todavía |
+| 3 | `adoptante@dim.test` | Adoptante | verificada en staging 2026-08-15 (Mora + recordatorio A9 abierto) |
 | 4 | `lilian@dim.test` | Veterinaria de planta | Clínica Veterinaria Recoleta |
 | 5 | `noeli@dim.test` | Voluntaria / transitante | cuenta ciudadana común |
 | 6 | `alejo@dim.test` | Admin de organización (multi-org) | admin de 4 orgs, incl. Recoleta y Patitas del Norte |
 | 7 | `lucas@dim.test` | Gobierno CABA | CABA entera (re-escopado 2026-08-14; antes 5 barrios) |
-| 8 | `gov-pba@dim.test` | Gobierno PBA | ⚠️ **requiere seed batch 3** — La Plata, Quilmes, Morón |
+| 8 | `gov-pba@dim.test` | Gobierno PBA | La Plata, Quilmes, Morón y Tigre (verificado en staging 2026-08-15) |
 | 9 | `admin@dim.test` | Admin | universal |
 
 **Qué es esto.** Credencial sanitaria digital para animales de Argentina. La
@@ -310,15 +310,14 @@ que aparece en `/mis-mascotas` y elegí sobre eso.
 
 ---
 
-## TOUR 3 — Adoptante `adoptante@dim.test` ⚠️ requiere seed batch 3
+## TOUR 3 — Adoptante `adoptante@dim.test`
 
-> **Este tour puede no ser ejecutable todavía.** La cuenta `adoptante@dim.test`
-> con una mascota `adoption_finalized` + un recordatorio `post_adoption_checkin`
-> abierto está planificada en `docs/plans/2026-08-14-consolidated-qa-fixes-demo-load-plan.md`
-> ("Batch 3", después de Batch 1 y 2) y **no hay evidencia en el repo de que
-> ya se haya corrido contra staging.** Si el login falla o `/mis-mascotas`
-> aparece vacío, marcá el tour como "no ejecutable — falta seed batch 3" y
-> no sigas insistiendo.
+> **Verificado en staging (2026-08-15):** la cuenta existe, Mora
+> (`DIM-MORA-DEMO`) está adoptada por ella (`isPetAdoptedByUser=true`) y el
+> recordatorio `post_adoption_checkin` está abierto (vence 2026-08-25). Si
+> aun así el login falla o `/mis-mascotas` aparece vacío, marcá el tour como
+> "no ejecutable" y avisá al operador — sería una regresión de seed, no un
+> faltante esperado.
 
 **Historia:** alguien que adoptó a través de miMAR ve su mascota adoptada y
 responde al check-in de seguimiento que el refugio le pide.
@@ -672,7 +671,7 @@ custodia de Patitas del Norte) y la disputa de Bruno (Palermo, `noeli@` vs
     hallazgo).
 13. `/gob/padron`, `/gob/padron?vista=censo`, `/gob/mortalidad`,
     `/gob/adopciones` — dashboards, ⤓ scroll completo. **Checkpoint de
-    subsunción (espejo del Tour 8):** nada de La Plata / Quilmes / Morón —
+    subsunción (espejo del Tour 8):** nada de La Plata / Quilmes / Morón / Tigre —
     ni de ninguna otra provincia — puede aparecer en estos números: esta
     cuenta es CABA. El aislamiento se prueba en los DOS sentidos.
 14. **Omnibox (⌘K / búsqueda global):** buscá `DIM-BRUNO-DEMO` y saltá a la
@@ -696,21 +695,21 @@ custodia de Patitas del Norte) y la disputa de Bruno (Palermo, `noeli@` vs
 
 ---
 
-## TOUR 8 — Gobierno PBA `gov-pba@dim.test` ⚠️ requiere seed batch 3
+## TOUR 8 — Gobierno PBA `gov-pba@dim.test`
 
-> **Este tour puede no ser ejecutable todavía.** `gov-pba@dim.test` está
-> planificada en el mismo Batch 3 que `adoptante@dim.test`
-> (`docs/plans/2026-08-14-consolidated-qa-fixes-demo-load-plan.md`), como
-> respuesta directa a que **hoy todas las cuentas de gobierno existentes
-> están ancladas a CABA o a Tierra del Fuego/Santa Cruz** — no hay ninguna
-> con jurisdicción de Buenos Aires para demostrar el filtro. Si el login
-   falla, marcá "no ejecutable — falta seed batch 3".
+> **Verificado en staging (2026-08-15):** la cuenta existe con rol govt y
+> **4 asignaciones activas**: La Plata, Quilmes, Morón y Tigre. Existe como
+> respuesta directa a que las demás cuentas de gobierno están ancladas a
+> CABA o a Tierra del Fuego/Santa Cruz — esta es la que demuestra el filtro
+> por-partido en Buenos Aires. Si el login falla, avisá al operador — sería
+> regresión, no faltante.
 
 **Historia:** el mismo portal que el Tour 7, pero desde una jurisdicción
 distinta — la prueba real de que el alcance por localidad FILTRA de verdad
 y no es un chip decorativo.
 
-**Datos seed (cuando exista):** cobertura de **La Plata, Quilmes y Morón**
+**Datos seed (verificado en staging 2026-08-15):** cobertura de **La Plata,
+Quilmes, Morón y Tigre**
 (provincia de Buenos Aires).
 
 **Pasos:** mismos que el Tour 7, con dos adaptaciones y un checkpoint eje.
@@ -730,7 +729,7 @@ Checkpoint eje, en cada pantalla con datos filtrados (Panorama, Padrón,
 Casos, Cola, Denuncias, Programa):
 
 - **Checkpoint de subsunción jurisdiccional:** todo lo que ve esta cuenta
-  tiene que ser de La Plata / Quilmes / Morón. Si aparece algo de CABA
+  tiene que ser de La Plata / Quilmes / Morón / Tigre. Si aparece algo de CABA
   (Argo, Bruno, Pampa, cualquier dato de Palermo/Recoleta), **es un
   hallazgo de aislamiento entre jurisdicciones** — anotalo con la ruta
   exacta y qué mascota/caso se filtró. Es el mismo borde que el brief
