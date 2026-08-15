@@ -165,7 +165,10 @@ del dataset — no hace falta un token fijo, click en la primera tarjeta real.
    - Paso 2: gravedad.
    - Paso 3: descripción (mínimo 20 caracteres, empezá el texto con
      `RD<fecha>`) + **el pin en el mapa es obligatorio** ("Marcá el lugar
-     exacto para continuar" — un domicilio tipeado no alcanza).
+     exacto para continuar" — un domicilio tipeado no alcanza). **Clavá el
+     pin en Palermo (CABA)**: esta denuncia es la que el Tour 7, paso
+     "derivaciones", va a abrir desde el lado gobierno — si la pinchás en
+     otra provincia, Lucas no la ve y esa cadena se corta.
    - Paso 4: quién es el animal (opcional).
    - Paso 5: enviar como anónima + adjuntar evidencia (hasta 5 archivos de
      25 MB) → enviar.
@@ -180,11 +183,27 @@ del dataset — no hace falta un token fijo, click en la primera tarjeta real.
 9. `/libreta/compartir/[shareToken]` — necesita un token real generado por
    un dueño (Tour 2 lo genera). Si no tenés uno a mano en esta corrida,
    marcalo como no ejecutado, no como hallazgo.
-10. Estáticas: `/acerca`, `/ayuda`, `/accesibilidad`, `/privacidad`,
+10. **Las tres públicas que un funcionario mira primero:**
+    `/funcionalidades` (qué hace el producto), `/transparencia` (datos
+    abiertos, Ley 27.275) y `/leyes` (marco normativo). **Checkpoint:**
+    las tres cargan y su contenido no contradice lo que acabás de ver en
+    los pasos anteriores (si `/funcionalidades` promete algo que el tour
+    demostró que no existe, anotalo).
+11. `/t/[serial]` — el resolver de la **chapa física grabada** (el QR de la
+    chapa apunta acá, no a `/p/`). Sin un serial real a mano, entrá con uno
+    inventado (`/t/ZZZZ9999`): **Checkpoint:** la pantalla degrada con
+    gracia (mensaje claro, sin stack trace, sin 500). Si el operador te
+    pasó un serial real de un lote emitido, seguilo y anotá a dónde lleva.
+12. `/casos/[publicCode]` — la vista pública de un expediente. Necesita un
+    código real (`CASE-`/`DEN-` según lo que hayas anotado en la corrida);
+    con el código de tu denuncia del paso 6, `/denuncias/buscar` ya es el
+    camino — si además conseguiste un código de caso de una corrida
+    anterior, abrilo acá. Si no tenés ninguno, marcalo no ejecutado.
+13. Estáticas: `/acerca`, `/ayuda`, `/accesibilidad`, `/privacidad`,
     `/terminos`, `/cookies`, `/sugerencias` (este último tiene formulario —
     podés enviarlo con prefijo `RD<fecha>`, es additivo y no tiene efecto
     sobre otros datos).
-11. Pantallas de auth sin enviar: `/iniciar-sesion`, `/registro`,
+14. Pantallas de auth sin enviar: `/iniciar-sesion`, `/registro`,
     `/recuperar`.
 
 **Trampas conocidas:**
@@ -223,21 +242,58 @@ que aparece en `/mis-mascotas` y elegí sobre eso.
    "Registrar vacuna" → completá todos los campos, adjuntá una foto real
    (`docs/archive/Fotos/`), enviá. **Checkpoint:** vuelve al perfil, y la
    Libreta / `/historial` ya muestran la vacuna.
-5. `/turnos/buscar` → elegí un servicio (ej. "Castración perro macho") →
-   localidad Palermo → Buscar → abrí la oferta → elegí un slot →
-   `/reservar/[slotId]` → elegí la mascota → Confirmar reserva.
-   **Checkpoint:** aparece en `/mis-turnos`.
-6. `/denuncias/mias` — lista de denuncias propias (si hay alguna de una
-   corrida anterior con tu cuenta) → abrí el detalle.
-7. `/notificaciones` — campanita, pestañas por categoría.
-8. `/cuenta` — perfil, y sub-pantallas SHOW-ONLY (no las envíes salvo que
-   sean reversibles a simple vista): `/cuenta/privacidad`,
-   `/cuenta/verificar-dni`, `/cuenta/upgrade`, `/cuenta/memberships`,
-   `/cuenta/solicitudes`, `/cuenta/casos`.
-9. **STOP-BEFORE-SUBMIT:** `/cuenta/crear-consultorio` — mostrá el wizard,
-   NO lo envíes (crea una organización nueva y compite en capacidad con el
-   escenario del Tour 6).
-10. `/mis-mascotas/[token]/mostrar-libreta` — generá el enlace temporal de
+5. `/turnos/buscar` → elegí un servicio y buscá. **Preferí una oferta de
+   "Clínica Veterinaria Recoleta"** si aparece (probá localidad Recoleta, o
+   CABA): es la clínica de Lilian, y esta reserva es la que el Tour 4 va a
+   ver en su agenda — si reservás en otra org, esa cadena no corta el tour
+   pero el paso de asistencia del Tour 4 queda sin dato propio. Abrí la
+   oferta → elegí un slot → `/reservar/[slotId]` → elegí la mascota RD de
+   esta corrida → Confirmar reserva. **Checkpoint:** aparece en
+   `/mis-turnos`.
+6. **Ramas del turno (sobre TU reserva del paso 5, no sobre otra):**
+   - Intentá reservar OTRO slot de la **misma oferta** con la **misma
+     mascota** mientras la reserva sigue confirmada. **Checkpoint:** el
+     sistema la rechaza con un mensaje en castellano (guard por
+     mascota+oferta — es el fix A4/A3 de CW0813 funcionando, no un bug).
+   - Abrí `/mis-turnos/[token]` → **Cancelar**. **Checkpoint:** el estado
+     pasa a cancelado y el turno deja de contar contra el guard.
+   - Volvé a reservar la misma oferta (cancelar→re-reservar tiene que
+     estar permitido). **Checkpoint:** la segunda reserva entra — dejala
+     confirmada: es el turno que el Tour 4 va a mirar (y marcar) desde el
+     lado de la clínica.
+7. **Dos eventos médicos más, sobre la mascota RD** (el registro sanitario
+   es el core del producto y "vacuna" sola no lo demuestra): registrá un
+   **peso** y un **antiparasitario** desde `?sheet=anotar` (notas prefijadas
+   `RD<fecha>`). **Checkpoint:** los tres tipos de evento conviven en la
+   Libreta con su forma propia — el peso como dato numérico, el
+   antiparasitario con su fecha de próxima dosis si la cargaste. Los ~13
+   formularios restantes del selector NO hace falta enviarlos: abrí el
+   selector completo una vez y anotá qué opciones ves (eso ya detecta un
+   formulario roto de entrada).
+8. **Marcar perdida / desmarcar (sobre la mascota RD, no sobre la
+   pre-sembrada):** `/mis-mascotas/[token]/perdida` → marcala perdida.
+   **Checkpoint:** su `/p/[token]` público pasa a modo búsqueda (Tier 1 —
+   podés verificarlo en una pestaña de incógnito) y aparece en `/perdidas`.
+   Después **desmarcala** y verificá que el público vuelve a Tier 0. Las dos
+   ramas son tuyas y reversibles — repetibles sin degradar nada.
+9. `/transferencias` — el hub de transferencias entre dueños (Enviadas /
+   Recibidas, estados pendiente/aceptada/rechazada/expirada/cancelada).
+   SHOW-ONLY sobre la transferencia pre-sembrada del seed: abrí el detalle
+   si hay una, describí las acciones que ofrece, no ejecutes ninguna.
+10. `/mis-mascotas/postulaciones` — tus postulaciones de adopción (puede
+    estar vacío para esta cuenta; el flujo de postular de punta a punta lo
+    ejecuta el Tour 3, que es el rol natural).
+11. `/denuncias/mias` — lista de denuncias propias (si hay alguna de una
+    corrida anterior con tu cuenta) → abrí el detalle.
+12. `/notificaciones` — campanita, pestañas por categoría.
+13. `/cuenta` — perfil, y sub-pantallas SHOW-ONLY (no las envíes salvo que
+    sean reversibles a simple vista): `/cuenta/privacidad`,
+    `/cuenta/verificar-dni`, `/cuenta/upgrade`, `/cuenta/memberships`,
+    `/cuenta/solicitudes`, `/cuenta/casos`.
+14. **STOP-BEFORE-SUBMIT:** `/cuenta/crear-consultorio` — mostrá el wizard,
+    NO lo envíes (crea una organización nueva y compite en capacidad con el
+    escenario del Tour 6).
+15. `/mis-mascotas/[token]/mostrar-libreta` — generá el enlace temporal de
     libreta compartida. **Este es el token que el Tour 1, paso 9,
     necesita** — anotalo si vas a encadenar los tours.
 
@@ -285,6 +341,16 @@ recordatorio (`reminders`) de tipo `post_adoption_checkin` sin
    hay otro hasta que se resiembre. **STOP-BEFORE-SUBMIT** no aplica acá
    porque no hay nada que enviar dos veces; lo que hay que anotar es que la
    pantalla vacía es la CORRECTA, no una regresión.
+5. **Postular a una adopción de punta a punta** (el rol natural para esto es
+   justo esta cuenta): `/adoptar` → abrí una ficha real publicada →
+   `/adoptar/[petToken]/postular` → completá el formulario con el mensaje
+   prefijado `RD<fecha>` → enviá. **Checkpoint:** la postulación queda
+   registrada — es additiva (se acumula en la cola del refugio; el Tour 6,
+   paso de adopciones, la va a ver llegar con tu prefijo). Ningún otro tour
+   completa este flujo: si este paso falla, la postulación de un ciudadano
+   común está rota y nadie más lo va a detectar.
+6. `/mis-mascotas/postulaciones` — **Checkpoint:** la postulación del paso 5
+   aparece en tu historial con su estado.
 
 **Trampa conocida (real, ya en el código — no la reportes como hallazgo):**
 el selector de eventos (`?sheet=anotar`) muestra "Check-in post-adopción"
@@ -327,17 +393,30 @@ te redirige directo, sin picker.
    contra el código; puede que su membership tenga capacidades extra.
 3. **Atender** (`/org/[t]/atender`): buscá una mascota real por su token
    `DIM-XXXX-XXXX` (podés usar `DIM-PAMP-0001` u otro que hayas visto en
-   tours previos) → registrá un evento clínico (ej. una vacuna o una
-   consulta), prefijá la nota con `RD<fecha>`. **Checkpoint central de este
-   tour:** el evento queda firmado con su matrícula — en la libreta del
-   animal debe distinguirse de un evento cargado por el dueño (verificado
-   por veterinario matriculado vs. declarado).
-4. `/org/[t]/agenda` — dashboard de turnos. Abrí un turno si hay alguno.
-   **SHOW-ONLY: no marques asistencia** sobre un turno que no reservaste
-   vos (es dato compartido de otra cuenta/tour).
+   tours previos) → registrá **dos eventos de tipo distinto** — una vacuna
+   Y una consulta clínica — con las notas prefijadas `RD<fecha>`.
+   **Checkpoint central de este tour:** ambos quedan firmados con su
+   matrícula — en la libreta del animal deben distinguirse de un evento
+   cargado por el dueño (verificado por veterinario matriculado vs.
+   declarado), y cada tipo con su formulario propio.
+4. `/org/[t]/agenda` — dashboard de turnos. **Si el Tour 2 de esta corrida
+   reservó en esta clínica**, su turno RD tiene que estar acá: abrilo y
+   **marcá la asistencia** (`attended`) — es dato de esta misma corrida,
+   marcarlo es parte del ciclo que estamos probando. **Checkpoint:** el
+   estado cambia y el dueño lo ve reflejado en `/mis-turnos`. Sobre
+   cualquier OTRO turno (de otra cuenta o corrida): **SHOW-ONLY, no marques
+   asistencia** — abrí el detalle, describí las acciones (asistió / no
+   asistió / cancelar por la org) y no ejecutes ninguna.
 5. `/org/[t]/mascotas` — pacientes en custodia/atención, abrí uno.
    SHOW-ONLY.
-6. **STOP-BEFORE-SUBMIT:** `/cuenta/renunciar` — con esta cuenta el flujo
+6. `/org/[t]/mordedura/nuevo` — el reporte clínico de mordedura (el circuito
+   que el Tour 1 aclara que NO es denuncia pública). Es additivo: podés
+   enviarlo con la descripción prefijada `RD<fecha>`. **Checkpoint:** el
+   reporte queda creado; si dispara una observación antirrábica de 10 días,
+   anotá dónde se ve (es la vigilancia que el Tour 9 mira en
+   `/admin/observaciones` y el gobierno debería ver en
+   `/gob/observaciones`).
+7. **STOP-BEFORE-SUBMIT:** `/cuenta/renunciar` — con esta cuenta el flujo
    ABRE (exige rol veterinario, y lo tiene). Llegá hasta la confirmación,
    describila, y **cancelá** — no ejecutes la baja.
 
@@ -367,21 +446,32 @@ protagonista de ese escenario.
 
 1. `/cuenta/transitos/propuestas` — **Checkpoint:** revisá si hay
    propuestas activas (pestaña "Activas" vs "pasadas"). Puede estar vacío.
-2. Si está vacío: `/cuenta/ofrecerme-como-transito` — completá la oferta,
+2. **Si hay una propuesta pendiente, abrí el detalle**
+   (`/cuenta/transitos/propuestas/[proposalToken]`). **STOP-BEFORE-SUBMIT:**
+   el detalle ofrece **Aceptar** y **Rechazar** — describí las dos ramas
+   (qué promete cada botón, qué información te da la propuesta para
+   decidir) y NO ejecutes ninguna. Si no hay ninguna pendiente ahora, no es
+   fallo: la **coda del Tour 6** genera una de verdad y vuelve acá — esa
+   coda es donde este paso se completa.
+3. Si está vacío: `/cuenta/ofrecerme-como-transito` — completá la oferta,
    prefijá cualquier nota libre con `RD<fecha>`, enviá. **Checkpoint:**
    queda registrada la oferta.
-3. `/cuenta/transitos` → `/activos` y `/historial` — SHOW-ONLY.
-4. `/notificaciones` — campanita.
+4. `/cuenta/transitos` → `/activos` y `/historial` — SHOW-ONLY.
+5. **La ficha de Bruno** (`DIM-BRUNO-DEMO`, en `/mis-mascotas`): esta cuenta
+   es la dueña actual en una disputa de custodia real. **Checkpoint:** abrí
+   la ficha y anotá cómo (y si) la disputa se manifiesta desde el lado del
+   dueño — referencia cruzada con el Tour 7, que la ve desde
+   `/gob/casos?expediente=disputas`.
+6. `/notificaciones` — campanita.
 
-**Trampa conocida (candidata a segunda vuelta):** el brief hermano
+**Trampa conocida (ahora resuelta como coda del Tour 6):** el brief hermano
 (`prompt-cowork-clickthrough-verificacion-y-nuevo.md`, punto A6) documentó
 que la notificación de una propuesta de tránsito nacía en el rango más bajo
 y se hundía debajo de avisos viejos; el arreglo esperado es que compita con
-lo urgente (vence a los 7 días). Si en algún momento otra org (Tour 6,
-`alejo@`) le propone un tránsito a `noeli@` de verdad, este es el mejor
-punto para volver a mirar la campanita y confirmar que el arreglo se
-sostiene — pero es cross-tour: requiere coordinar el orden con el operador,
-no es algo que este tour resuelva solo.
+lo urgente (vence a los 7 días). La verificación quedó como paso numerado:
+el Tour 6 le propone un tránsito real a `noeli@` y su coda vuelve a esta
+cuenta (cambio de cookie, sin re-login) a mirar la campanita y el detalle.
+No hace falta coordinar nada por fuera del orden natural de los tours.
 
 ---
 
@@ -406,33 +496,75 @@ Recoleta" (clinic) y "Patitas del Norte" (shelter — donde vive Argo,
    token nuevo.
 3. `/org/[t]/censo`, `/transitos`, `/voluntarios`,
    `/voluntarios/propuestas` — SHOW-ONLY.
-4. `/org/[t]/mascotas/[nuevoToken]/adoptar` — completá la ficha de adopción
+4. **Equipo — la parte del rol que ningún tour miraba:**
+   `/org/[t]/miembros` (**Checkpoint:** lista de miembros con sus roles) →
+   `/org/[t]/miembros/invitar` — **STOP-BEFORE-SUBMIT**: completá el
+   formulario de invitación, describí qué promete (mail, rol propuesto), NO
+   la envíes (crea una invitación pendiente real). Después
+   `/org/[t]/admin/permisos` — SHOW-ONLY: **Checkpoint:** acá viven las
+   capacidades por miembro — esta pantalla es la EXPLICACIÓN de por qué
+   Lilian (Tour 4) ve un menú distinto del tuyo; anotá qué capacidades
+   tiene ella si aparece en la lista.
+5. `/org/[t]/mensajes`, `/org/[t]/cobertura`, `/org/[t]/configuracion` —
+   SHOW-ONLY: bandeja institucional, zonas de cobertura para difusión de
+   perdidas, y configuración de la org.
+6. `/org/[t]/mascotas/[nuevoToken]/adoptar` — completá la ficha de adopción
    (historia, requisitos, edad/tamaño/energía, convivencia, costo) →
    Guardar y continuar → Publicar adopción. **Checkpoint:** el animal que
    VOS ingresaste queda publicado en `/adoptar` público.
-5. **SHOW-ONLY, nunca enviar** sobre el animal recién ingresado ni sobre
-   ningún otro: `/adoption` (finalizar), `/foster`, `/foster-fin`,
+7. **SHOW-ONLY, nunca enviar** sobre el animal recién ingresado ni sobre
+   ningún otro: `/adoption` (finalizar — y si la pantalla ofrece revertir
+   una adopción ya finalizada, describí también esa rama: existe
+   `adoption_reversed` como acción real), `/foster`, `/foster-fin`,
    `/transfer`, `/microchip/reemplazar`, `/devolver-al-dueno`,
-   `/pets/no-aptas`, `/transferencias/nueva`.
-6. `/org/[t]/adopciones` — cola de postulaciones, abrí una si hay.
-   **STOP-BEFORE-SUBMIT** en aprobar/rechazar.
-7. `/org/[t]/casos`, `/maltrato/recibidos` — SHOW-ONLY sobre casos
-   existentes. Si querés generar uno nuevo, `/maltrato/nuevo` es additivo
-   (crea un caso nuevo, no toca los de otros) — podés enviarlo con
-   descripción prefijada `RD<fecha>`.
-8. Cambiá de organización: volvé a `/org`, elegí **Clínica Veterinaria
-   Recoleta**. **Checkpoint:** el rail cambia de forma — Agenda/Atender
-   suben al tope (foco clínico), Ingresos/Custodia/Postulaciones
-   desaparecen (no son org de rehoming). Acá es donde, si el momento lo
-   permite, se crea un **servicio nuevo** (`/servicios/nuevo`, wizard de 3
-   pasos: Tipo → Capacidad → Elegibilidad) y una regla de agenda
-   (`/servicios/[token]/agenda`, horario semanal) — additivo, seguro de
-   repetir.
-9. `/cuenta/memberships` — **Checkpoint:** en 3 de las 4 organizaciones el
-   botón "Renunciar" debería estar deshabilitado con tooltip (único admin);
-   en la cuarta, habilitado (hay otro admin). **STOP-BEFORE-SUBMIT en
-   cualquiera** — no renuncies a nada, es irreversible sin intervención
-   manual.
+   `/pets/no-aptas`, `/transferencias/nueva`. Además
+   `/org/[t]/intake?tab=importar` (o `/intake/importar`) — el alta masiva
+   por CSV: mirá la pantalla de carga y describí el flujo, NO subas un
+   archivo.
+8. `/org/[t]/transferencias` y `/transferencias/recibidas` — el HUB de
+   transferencias entre organizaciones (distinto del `/transfer` por
+   mascota del paso 7). SHOW-ONLY: si hay una transferencia pendiente
+   enviada, abrila y describí la rama **Cancelar** sin ejecutarla.
+9. `/org/[t]/adopciones` — cola de postulaciones. **Checkpoint:** si el
+   Tour 3 de esta corrida postuló, su postulación `RD<fecha>` tiene que
+   estar acá. Abrí una. **STOP-BEFORE-SUBMIT** en aprobar/rechazar.
+10. `/org/[t]/casos`, `/maltrato/recibidos` — SHOW-ONLY sobre casos
+    existentes. Si querés generar uno nuevo, `/maltrato/nuevo` es additivo
+    (crea un caso nuevo, no toca los de otros) — podés enviarlo con
+    descripción prefijada `RD<fecha>`.
+11. **Proponerle un tránsito real a `noeli@`** (desde Patitas del Norte,
+    sección Tránsitos): elegí a Noelia entre las voluntarias (su oferta del
+    Tour 5 debería estar visible) y mandale una propuesta con la nota
+    prefijada `RD<fecha>`. Es additiva y es EL dato que la coda de abajo y
+    el punto A6 necesitan. **Checkpoint:** la propuesta queda como
+    pendiente del lado org.
+12. Cambiá de organización: volvé a `/org`, elegí **Clínica Veterinaria
+    Recoleta**. **Checkpoint:** el rail cambia de forma — Agenda/Atender
+    suben al tope (foco clínico), Ingresos/Custodia/Postulaciones
+    desaparecen (no son org de rehoming). Acá es donde, si el momento lo
+    permite, se crea un **servicio nuevo** (`/servicios/nuevo`, wizard de 3
+    pasos: Tipo → Capacidad → Elegibilidad) y una regla de agenda
+    (`/servicios/[token]/agenda`, horario semanal) — additivo, seguro de
+    repetir. **Checkpoint de coherencia:** los slots que esa regla genere
+    tienen que respetar el horario que definiste (regla martes 9-12 → sin
+    slots de jueves).
+13. `/cuenta/memberships` — **Checkpoint:** en 3 de las 4 organizaciones el
+    botón "Renunciar" debería estar deshabilitado con tooltip (único admin);
+    en la cuarta, habilitado (hay otro admin). **STOP-BEFORE-SUBMIT en
+    cualquiera** — no renuncies a nada, es irreversible sin intervención
+    manual.
+
+**Coda cruzada (cierra el ciclo del Tour 5):** cambiá la cookie de sesión a
+`noeli@dim.test` (sin re-login — es el modo primario de la sección de
+logística) y:
+
+- `/notificaciones` — **Checkpoint A6:** el aviso de la propuesta del paso
+  11 tiene que estar ARRIBA, compitiendo con lo urgente — no hundido al
+  fondo (esa fue la falla A6 original; si nace abajo, es regresión).
+- `/cuenta/transitos/propuestas` → abrí el detalle de la propuesta RD.
+  **STOP-BEFORE-SUBMIT** en Aceptar/Rechazar: describí las dos ramas y no
+  ejecutes ninguna — la propuesta queda pendiente y expira sola a los 7
+  días, sin degradar el dataset.
 
 **Trampa conocida:** el picker de `/org` resuelve por MEMBERSHIP real, no
 por nombre hardcodeado — si el orden de las 4 organizaciones cambia entre
@@ -487,19 +619,63 @@ custodia de Patitas del Norte) y la disputa de Bruno (Palermo, `noeli@` vs
    operativa.
 6. `/gob/denuncias?etapa=moderacion` y `?etapa=triage` — SHOW-ONLY, no
    moderes ni triagees denuncias ajenas.
-7. `/gob/cola` — Aprobaciones (matrículas, habilitación de organizaciones,
+7. **Las tres derivaciones de una denuncia (el corazón del circuito Ley
+   14.346):** buscá en la lista la denuncia `RD<fecha>` que el Tour 1 creó
+   con el pin en Palermo (si esta corrida no corrió el Tour 1, usá el
+   código `DEN-` que haya anotado la corrida anterior; NO uses una denuncia
+   del dataset curado) y abrí su **detalle** (`/gob/maltrato/[id]`).
+   **Checkpoint:** el detalle ofrece TRES salidas, y las tres tienen que
+   estar visibles y descritas en tu reporte:
+   - **Derivar a organización** (refugio/rescate de la zona) —
+     **STOP-BEFORE-SUBMIT**: abrí el panel, describí qué orgs ofrece y qué
+     promete, no derives.
+   - **Derivar a decomiso** — el link arma un decomiso pre-cargado con la
+     denuncia (`/gob/decomisos/nuevo?welfareReportId=…`).
+     **STOP-BEFORE-SUBMIT**: entrá, describí el formulario pre-poblado, no
+     lo crees.
+   - **Generar PDF para el MPF** (fiscalía) — **STOP-BEFORE-SUBMIT**:
+     describí el botón y su promesa, no generes el export (deja rastro en
+     el sistema).
+   Un funcionario evalúa el producto por ESTE paso: si alguna de las tres
+   salidas no aparece en el detalle de una denuncia abierta, es hallazgo
+   mayor.
+8. `/gob/cola` — Aprobaciones (matrículas, habilitación de organizaciones,
    credencial de perro de asistencia). Abrí un detalle. **STOP-BEFORE-SUBMIT**
    en aprobar/rechazar.
-8. `/gob/casos` y `/gob/casos?expediente=disputas` — **Checkpoint:** si la
+9. `/gob/casos` y `/gob/casos?expediente=disputas` — **Checkpoint:** si la
    disputa de Bruno (Palermo) está sembrada y activa, debería aparecer acá
-   — es territorio de esta cuenta.
-9. `/gob/decomisos`, `/gob/perdidas` — SHOW-ONLY.
-10. `/gob/padron`, `/gob/padron?vista=censo`, `/gob/mortalidad`,
-    `/gob/adopciones` — dashboards, ⤓ scroll completo.
-11. `/gob/reglas` — SHOW-ONLY, no edites reglas jurisdiccionales.
-12. `/gob/directorio` y `/gob/directorio?registro=credenciales` — SHOW-ONLY.
-13. `/gob/historial`, `/gob/outbox`, `/gob/suscripciones`, `/gob/servicios`
-    — SHOW-ONLY.
+   — es territorio de esta cuenta. Abrí el detalle de la disputa:
+   **STOP-BEFORE-SUBMIT** si ofrece escalarla — describí la rama, no la
+   ejecutes.
+10. `/gob/observaciones` — la vigilancia antirrábica de 10 días (mordedura →
+    observación con auto-cierre y escalamiento). SHOW-ONLY sobre
+    observaciones ajenas. **Checkpoint:** si el Tour 4 de esta corrida
+    reportó una mordedura RD, su observación debería estar acá; y la
+    pantalla tiene que existir en este portal — su gemela
+    `/admin/observaciones` está en el Tour 9, y una asimetría entre
+    portales es hallazgo.
+11. `/gob/decomisos`, `/gob/perdidas` — SHOW-ONLY.
+12. `/gob/programa` (y `?vista=analitica`) — **el resumen ejecutivo, la
+    pantalla que un funcionario pediría primero.** ⤓ scroll completo.
+    **Checkpoint:** los números del resumen tienen que ser consistentes con
+    los dashboards de detalle del paso 13 (mismo territorio, mismos
+    órdenes de magnitud — un resumen que contradice su propio detalle es
+    hallazgo).
+13. `/gob/padron`, `/gob/padron?vista=censo`, `/gob/mortalidad`,
+    `/gob/adopciones` — dashboards, ⤓ scroll completo. **Checkpoint de
+    subsunción (espejo del Tour 8):** nada de La Plata / Quilmes / Morón —
+    ni de ninguna otra provincia — puede aparecer en estos números: esta
+    cuenta es CABA. El aislamiento se prueba en los DOS sentidos.
+14. **Omnibox (⌘K / búsqueda global):** buscá `DIM-BRUNO-DEMO` y saltá a la
+    ficha de mascota del portal (`/gob/mascotas/[token]`). **Checkpoint:**
+    del agregado al registro puntual por búsqueda directa — es el mecanismo
+    canónico del portal operativo y ningún tour lo usaba.
+15. `/gob/reglas` — SHOW-ONLY, no edites reglas jurisdiccionales.
+16. `/gob/directorio` y `/gob/directorio?registro=credenciales` — SHOW-ONLY.
+17. `/gob/historial`, `/gob/outbox`, `/gob/suscripciones`,
+    `/gob/directorio?registro=servicios` — SHOW-ONLY. (`/gob/servicios` ya no
+    es destino de nav: quedó absorbida por el Directorio en la fusión F3+F7 —
+    el redirect viejo resuelve, pero la canónica es la del Directorio.)
 
 **Trampas conocidas:**
 - Panorama corre sobre un cubo nocturno pero el scrub por fecha (`asOf`)
@@ -528,8 +704,21 @@ y no es un chip decorativo.
 **Datos seed (cuando exista):** cobertura de **La Plata, Quilmes y Morón**
 (provincia de Buenos Aires).
 
-**Pasos:** mismos que el Tour 7, con este checkpoint como eje central en
-cada pantalla con datos filtrados (Panorama, Padrón, Casos, Cola, Denuncias):
+**Pasos:** mismos que el Tour 7, con dos adaptaciones y un checkpoint eje.
+
+**Adaptación 1 (derivaciones):** la denuncia RD del Tour 1 está pinchada en
+Palermo — esta cuenta NO debe verla (si la ve, es el hallazgo de aislamiento
+de abajo). Para caminar el paso de las tres derivaciones desde PBA, creá
+antes una segunda denuncia anónima (pestaña sin sesión, wizard del Tour 1,
+descripción `RD<fecha>`) **con el pin en La Plata**, y abrí ESA. El límite
+anónimo es 1/min · 3/hora por IP — una más entra sin problema.
+
+**Adaptación 2 (Bruno):** la disputa de Bruno es de Palermo — acá el
+checkpoint es el inverso del Tour 7: **no tiene que aparecer** en
+`/gob/casos?expediente=disputas`.
+
+Checkpoint eje, en cada pantalla con datos filtrados (Panorama, Padrón,
+Casos, Cola, Denuncias, Programa):
 
 - **Checkpoint de subsunción jurisdiccional:** todo lo que ve esta cuenta
   tiene que ser de La Plata / Quilmes / Morón. Si aparece algo de CABA
@@ -575,20 +764,38 @@ nacionales, audita el libro de eventos append-only.
 7. `/admin/sistema/crons` — **Checkpoint:** lista de 21 crons con su
    estado.
 8. `/admin/outbox` — bandeja de salida, abrí un detalle.
-9. `/admin/auditoria` — ⤓.
-10. `/admin/usuarios`, `/admin/govts`, `/admin/admins`,
-    `/admin/organizaciones`, `/admin/cuentas`, `/admin/cuentas?registro=admins`
-    — listas SHOW-ONLY, **no crees cuentas de gobierno ni de admin desde
-    acá** (a diferencia de las mascotas/servicios, esto no es tuyo para
-    crear en una corrida de QA).
+9. `/admin/auditoria` y `/admin/auditoria?vista=actividad` — ⤓. (La vista
+   `actividad` es lo que antes era `/admin/historial`, absorbido en la
+   fusión de audit-trail 2026-08-02 — el redirect viejo resuelve, pero el
+   destino canónico es este.)
+10. `/admin/directorio`, `/admin/directorio?registro=organizaciones`,
+    `/admin/directorio?registro=servicios`, `/admin/cuentas`,
+    `/admin/cuentas?registro=govts`, `/admin/cuentas?registro=admins` —
+    listas SHOW-ONLY, **no crees cuentas de gobierno ni de admin desde acá**
+    (a diferencia de las mascotas/servicios, esto no es tuyo para crear en
+    una corrida de QA). **Nota de rutas (misma fusión F3+F7 que el Tour 7):**
+    `/admin/usuarios`, `/admin/govts`, `/admin/admins` y
+    `/admin/organizaciones` ya NO tienen entrada de nav — sobreviven solo
+    como redirects permanentes hacia el Directorio y Cuentas. Si llegás por
+    la ruta vieja y redirige, es lo esperado; la canónica es la de arriba.
 11. `/admin/reglas` → drill a una jurisdicción real (`/admin/reglas/AR/...`)
     — SHOW-ONLY, no edites ni crees reglas.
-12. `/admin/historial`.
+12. `/admin/chapas` — SHOW-ONLY: la emisión por lote de chapas físicas
+    (CSV `serial,activation_code,url` para el proveedor de grabado). NO
+    emitas un lote. **Checkpoint:** la pantalla renderiza y explica el
+    flujo; si aparece vacía o deshabilitada, anotá si la regla
+    jurisdiccional de chapa oficial está apagada (arranca OFF — ver "Fuera
+    de alcance") antes de llamarlo hallazgo.
 13. `/admin/libro` — **Checkpoint fail-loud:** "Libro de eventos" renderiza,
     con el footer de frescura ("calculado al…"). Si hay una fila
     "Corregido por enmienda", expandila (lectura, no mutación) y mirá
     `/admin/libro?tipo=event_amended`.
-14. `/admin/servicios`.
+14. **Omnibox (⌘K / botón de búsqueda):** buscá `DIM-PAMP-0001` y saltá a
+    la ficha. **Checkpoint:** la búsqueda global va del agregado al
+    registro puntual; anotá si el salto te avisa de algún modo que la
+    consulta de PII queda auditada (queda un rastro `pii_queried` — no es
+    visible necesariamente, pero el mecanismo de búsqueda tiene que
+    funcionar desde cualquier pantalla del portal).
 15. `/admin/acerca/integracion-miarg` — **Checkpoint:** disclaimer NO
     ocultable de que Mi Argentina es ilustrativo (OIDC sigue siendo un
     stub).
@@ -612,11 +819,12 @@ libremente de lo que necesita cuidado.
 
 | Tour | Qué crea |
 |---|---|
-| 1 — Público | denuncia anónima (limitada a 1/min·3/hora por IP) |
-| 2 — Dueño | mascota nueva, evento de vacuna, reserva de turno |
-| 3 — Adoptante | check-in post-adopción (**una sola vez por seed** — ver abajo) |
+| 1 — Público | denuncia anónima (limitada a 1/min·3/hora por IP; el Tour 8 crea una segunda en La Plata) |
+| 2 — Dueño | mascota nueva, eventos (vacuna, peso, antiparasitario), ciclo perdida/desmarcada sobre su propia mascota, reserva + cancelación + re-reserva de turno |
+| 3 — Adoptante | check-in post-adopción (**una sola vez por seed** — ver abajo), postulación de adopción |
+| 4 — Veterinaria | dos eventos clínicos firmados, reporte de mordedura, marca de asistencia (solo sobre el turno RD del Tour 2) |
 | 5 — Voluntaria | oferta de tránsito |
-| 6 — Org admin | ingreso de animal, publicación de adopción, servicio + regla de agenda, caso de maltrato |
+| 6 — Org admin | ingreso de animal, publicación de adopción, servicio + regla de agenda, caso de maltrato, propuesta de tránsito a `noeli@` (queda pendiente, expira sola a los 7 días) |
 | 7 / 8 — Gobierno | investigación de brote (limitada por catálogo ENO — se agota) |
 
 ### Consume un dato finito — NO repetible sin resiembra
@@ -637,10 +845,19 @@ libremente de lo que necesita cuidado.
 - `/cuenta/crear-consultorio` (envío) — Tour 2.
 - Aprobar/rechazar en `/gob/cola`, `/admin/cola`, `/org/[t]/adopciones` —
   Tours 6, 7, 8.
+- Aceptar/Rechazar una propuesta de tránsito — Tour 5 y coda del Tour 6
+  (queda pendiente; expira sola).
+- Las tres derivaciones de una denuncia (derivar a org, crear el decomiso,
+  generar el PDF MPF) — Tours 7, 8: se describen, no se ejecutan.
+- Escalar una disputa de custodia — Tour 7.
+- Enviar una invitación de miembro (`/org/[t]/miembros/invitar`) y subir un
+  CSV en el alta masiva — Tour 6.
+- Emitir un lote de chapas (`/admin/chapas`) — Tour 9.
 - Moderar/triagear denuncias ajenas — Tours 7, 8, 9.
 - "Resolver" una alerta — Tour 9.
-- Cualquier finalización, transferencia, foster o devolución sobre una
-  mascota que NO creaste en esta misma corrida — Tour 6.
+- Cualquier finalización, reversión, transferencia, foster o devolución
+  sobre una mascota que NO creaste en esta misma corrida — Tour 6.
+- Marcar asistencia sobre un turno que no reservó esta corrida — Tour 4.
 - "¿Encontraste a esta mascota?" / reportar avistaje sobre una mascota
   perdida ajena — Tour 1 (notifica a un dueño real).
 - Crear cuentas de gobierno/admin — Tour 9.
