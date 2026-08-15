@@ -79,8 +79,12 @@ export const BUDGET_WRAPPERS = [
 
 // The dashboard pages scanned (specific paths, not a tree).
 export const DASHBOARD_PAGES = [
-  "app/admin/panorama/page.tsx",
-  "app/gob/panorama/page.tsx",
+  // WP3 decrowding (2026-08-15): the two panorama pages' seed/KPI fan-outs
+  // (and their withDbBudget/loadCachedPanoramaKpis wrappers) relocated
+  // byte-equivalent into the shared board builder, so the scan target moves
+  // with it — the same relocation shape as the F8/F9 pairs below. The pages
+  // themselves are now thin: guard + scope resolution + <PanoramaShell>.
+  "lib/panorama/build-panorama-board.ts",
   "app/admin/programa/page.tsx",
   // D2 analytics pages (same shape as admin/programa — already wrapped with
   // loadWithTimeout today; enforced here so a future silent drop is caught).

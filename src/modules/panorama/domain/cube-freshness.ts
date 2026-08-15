@@ -32,9 +32,10 @@ import { formatDateTimeNumericAr } from "@/lib/utils/format";
  * RA-7 F7 (2026-07-31) — THE CAP NOTICE IS NEVER SWALLOWED. This used to
  * `return` inside the `builtAt` branch, on the reasoning that "a cube-served
  * view is not subject to the live cap". That reasoning does not survive contact
- * with either caller. `builtAt` is ONE stamp for the WHOLE board: app/gob/
- * panorama/page.tsx walks the seeded layers and `break`s on the FIRST that
- * resolves a cube freshness, so any single cubeable layer produces it. And
+ * with either caller. `builtAt` is ONE stamp for the WHOLE board: the shared
+ * board builder (lib/panorama/build-panorama-board.ts) takes the FIRST seeded
+ * layer actually served from the cube, so any single cubeable layer produces
+ * it. And
  * `truncatedLayers` is not "the cube layer's residual truncation" — it is the
  * label list of every ACTIVE layer whose own response came back `truncated`
  * (PanoramaConsole's `mapTableTruncatedLayers`), which on a mixed board is a

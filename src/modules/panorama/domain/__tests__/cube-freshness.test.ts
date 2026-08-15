@@ -60,9 +60,10 @@ describe("panoramaFreshnessCaption", () => {
   // badge". It was certifying a data-loss bug as a contract, on two false
   // premises:
   //
-  //   1. `builtAt` is not a per-layer fact. app/gob/panorama/page.tsx loops the
-  //      seeded layers and `break`s on the FIRST one that resolves a cube
-  //      freshness, so ONE cubeable layer stamps the whole board.
+  //   1. `builtAt` is not a per-layer fact. The shared board builder
+  //      (lib/panorama/build-panorama-board.ts) takes the FIRST seeded layer
+  //      actually served from the cube, so ONE cubeable layer stamps the
+  //      whole board.
   //   2. `truncatedLayers` is not "the cube layer's residual truncation". It is
   //      PanoramaConsole's `mapTableTruncatedLayers` — every ACTIVE layer whose
   //      own response came back `truncated`, which on a mixed board is a set of
