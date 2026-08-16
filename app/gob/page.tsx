@@ -555,8 +555,13 @@ export default async function GobiernoDashboardPage({
       // "organizaciones" tab (the default) — link straight there instead of
       // through the old /gob/organizaciones redirect.
       href: "/gob/directorio?registro=organizaciones",
-      label: "Habilitación de organizaciones",
+      // D-5 (Lote D): this tile and "Casos regulatorios" below were the two of
+      // five WITHOUT a descriptorId — same tile primitive, half the provenance.
+      // Both labels now come FROM the catalog rather than being retyped here
+      // (registry-import fence, scripts/check-metric-labels.ts).
+      label: KPI_CATALOG.queue_org_verification_scoped.label,
       count: orgVerificationPendingCount,
+      descriptorId: "queue_org_verification_scoped",
     },
     {
       // F1 fusion (2026-07-22): Maltrato is now the Denuncias hub's "Triage"
@@ -573,8 +578,9 @@ export default async function GobiernoDashboardPage({
       // is the same lie told twice; the count above and this link are the two
       // halves of one claim.
       href: casosHref,
-      label: "Casos regulatorios",
+      label: KPI_CATALOG.queue_regulatory_cases_open.label,
       count: openCasesTotal,
+      descriptorId: "queue_regulatory_cases_open",
     },
     {
       href: "/gob/perdidas",

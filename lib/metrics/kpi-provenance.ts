@@ -311,6 +311,48 @@ export const KPI_PROVENANCE: Record<KpiId, KpiProvenance> = {
     formulaEs:
       "Aprobaciones más rechazos registrados en los últimos 7 días; la variación compara contra una semana previa aproximada.",
   },
+  // Lote D (D-1 / D-5) — the /admin cockpit's eight queues and the two /gob
+  // cola tiles that shipped without a descriptor. All are live "now" counts.
+  queue_approvals_role_upgrade_vet: {
+    formulaEs:
+      "Solicitudes de alta de matrícula veterinaria en estado pendiente, al momento de la consulta.",
+  },
+  queue_approvals_org_verification: {
+    formulaEs:
+      "Solicitudes de verificación de organizaciones en estado pendiente, a nivel nacional, al momento de la consulta.",
+  },
+  queue_approvals_service_dog_credential: {
+    formulaEs:
+      "Solicitudes de verificación de credencial RUPGA (perro de asistencia) en estado pendiente, al momento de la consulta.",
+  },
+  queue_moderation_pending: {
+    formulaEs:
+      "Denuncias marcadas por las heurísticas de moderación cuya moderación todavía no fue resuelta, al momento de la consulta.",
+  },
+  queue_alerts_open: {
+    formulaEs:
+      "Disparos de alerta en estado no terminal (abiertos), al momento de la consulta — el mismo conteo que alimenta el badge del nav y la bandeja de alertas.",
+  },
+  queue_outbox_sla_breaches: {
+    formulaEs:
+      "Filas del outbox todavía pendientes cuyo plazo de SLA de despacho ya venció, al momento de la consulta.",
+  },
+  queue_cases_open_national: {
+    formulaEs:
+      "Casos sin fecha de cierre (closed_at nulo) en todo el país, al momento de la consulta.",
+  },
+  queue_rabies_observations_in_progress: {
+    formulaEs:
+      "Mascotas cuyo estado de observación antirrábica es «en curso», a nivel nacional, al momento de la consulta.",
+  },
+  queue_org_verification_scoped: {
+    formulaEs:
+      "Solicitudes de habilitación de organizaciones pendientes visibles en la jurisdicción del funcionario, al momento de la consulta.",
+  },
+  queue_regulatory_cases_open: {
+    formulaEs:
+      "Casos regulatorios abiertos dentro de la jurisdicción (o de la provincia/localidad filtrada), al momento de la consulta.",
+  },
 };
 
 /** Resolve a KPI's provenance copy. Total by construction (Record<KpiId, …>),

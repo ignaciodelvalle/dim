@@ -94,7 +94,16 @@ function hasDescriptorId(block: string): boolean {
 // ratchet: the repo is clean today, so any violation is a hard failure.
 // ---------------------------------------------------------------------------
 
-const CATALOG_PATH = resolve(ROOT, "lib/metrics/kpi-catalog.ts");
+// EVERY module that declares KPI_CATALOG entries. kpi-catalog.ts sits at its
+// file-size ratchet ceiling, so descriptor families are split into sibling
+// modules (kpi-catalog-queues.ts) and spread back in. This rule reads a
+// catalog TEXTUALLY, so a family that moved out of the main file would silently
+// stop being guard-checked unless it is listed here — the list, not the single
+// path, is what keeps the dead-guard rule total.
+const CATALOG_PATHS = [
+  resolve(ROOT, "lib/metrics/kpi-catalog.ts"),
+  resolve(ROOT, "lib/metrics/kpi-catalog-queues.ts"),
+];
 
 type GuardNeeds = { needsN: boolean; needsPriorBase: boolean; manual: boolean };
 
@@ -118,10 +127,12 @@ function sliceBraceBlock(content: string, openIdx: number): string {
   return content.slice(openIdx);
 }
 
-/** Parse KPI_CATALOG textually: descriptor id → what its guards need. */
+/** Parse a KPI catalog module textually: descriptor id → what its guards need.
+ *  Anchors on any `export const …KPI_CATALOG` declaration so a split-out family
+ *  (QUEUE_KPI_CATALOG) is parsed exactly like the main one. */
 export function parseCatalogGuardNeeds(catalogSrc: string): Map<string, GuardNeeds> {
   const needs = new Map<string, GuardNeeds>();
-  const catalogStart = catalogSrc.indexOf("export const KPI_CATALOG");
+  const catalogStart = catalogSrc.search(/export const \w*KPI_CATALOG\b/);
   if (catalogStart === -1) return needs;
   const body = catalogSrc.slice(catalogStart);
   const entryRe = /^ {2}([a-z0-9_]+): \{/gm;
@@ -230,7 +241,12 @@ function runScan(): void {
 
   // Rule 2 — guard feeding: hard failure, no baseline (repo verified clean on
   // the day this landed; see the rule's comment block above).
-  const guardNeeds = parseCatalogGuardNeeds(readFileSync(CATALOG_PATH, "utf8"));
+  const guardNeeds = new Map<string, GuardNeeds>();
+  for (const catalogPath of CATALOG_PATHS) {
+    for (const [id, need] of parseCatalogGuardNeeds(readFileSync(catalogPath, "utf8"))) {
+      guardNeeds.set(id, need);
+    }
+  }
   const guardViolations = scanGuardFeeding(SCAN_FILES, guardNeeds);
   if (guardViolations.length > 0) {
     for (const v of guardViolations) {

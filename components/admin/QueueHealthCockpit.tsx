@@ -7,6 +7,31 @@
 // cockpit renders EVERY queue an admin owns as a compact tile with its live
 // count and a jump-off to its page — approvals broken out per type.
 //
+// D-1 (Lote D, 2026-08-16) — THE METRIC CONTRACT REACHES THESE TILES. Until
+// now every one of the eight rendered through a bespoke local `QueueTile`: a
+// retyped label, a raw count and an ad-hoc tone, with no descriptorId, no ⓘ, no
+// "Ver origen" — the single largest descriptor-less reporting surface of either
+// operator portal, on the FIRST screen an admin sees. They are now <OpKpi>
+// tiles resolving descriptors from lib/metrics/kpi-catalog-queues.ts, so each
+// one carries its own definition, caveat and provenance card. Every label comes
+// FROM the catalog (never retyped — registry-import fence,
+// scripts/check-metric-labels.ts), which is why several read more precisely
+// than the old copy — the open-cases tile now names its national scope, because
+// the bare wording it used to carry also names a page title, a choropleth scale
+// and an owner-side list elsewhere in the app.
+//
+// D-3 (same lote) — MEASURED ZERO, SAID OUT LOUD. A bare "0" cannot tell an
+// operator whether the queue was queried and is genuinely empty or whether
+// nothing ever fed it. Here the answer is unambiguous and worth stating: every
+// count in QueueCockpit comes from an UNCONDITIONAL aggregate over a live table
+// (approval_requests, welfare_reports, cases, pets, outbox, alert firings — see
+// fetchQueueCockpit), so a 0 is always a MEASURED zero, never a no-signal one.
+// The zero tiles say so in their sub-line, matching the epistemic vocabulary
+// app/gob/* already uses via LnEmptyState's nature="measured-zero"
+// (components/ui/EmptyState.tsx). No tile here is ever "no-signal": if a count
+// query fails the whole cockpit degrades upstream through the page's
+// loadWithTimeout, it does not render a fabricated 0.
+//
 // PRESENTATIONAL ONLY — no data fetching. The page computes the counts via
 // `fetchQueueCockpit` (lib/analytics/admin-metrics) and passes them in.
 //
@@ -17,66 +42,26 @@ import Link from "next/link";
 
 import { Icon } from "@/components/Icon";
 import { OpCard, OpCardBody, OpCardHead } from "@/components/ui/dashboard";
+import { OpKpi } from "@/components/ui/dashboard/OpKpi";
+import type { ProvenanceContext } from "@/components/ui/dashboard/ProvenanceCard";
 import type { QueueCockpit } from "@/lib/analytics/admin-metrics";
+import { KPI_CATALOG } from "@/lib/metrics/kpi-catalog";
 import { pluralizeEs } from "@/lib/utils/format";
 
-type TileTone = "neutral" | "warn" | "danger";
-
-// Token maps mirror OpKpi's toneCard/toneValue so the tiles read as one system
-// with the KPI strip below. st-* tokens resolve to ln-op-* via .op-surface.
-const TONE_CARD: Record<TileTone, string> = {
-  neutral: "bg-ln-op-card border-ln-op-line",
-  warn: "bg-[var(--color-st-warn-bg)] border-[var(--color-st-warn-bd)]",
-  danger: "bg-[var(--color-st-err-bg)] border-[var(--color-st-err-bd)]",
-};
-
-const TONE_VALUE: Record<TileTone, string> = {
-  neutral: "text-ln-op-ink",
-  warn: "text-[var(--color-st-warn)]",
-  danger: "text-[var(--color-st-err)]",
-};
-
-function QueueTile({
-  href,
-  label,
-  count,
-  tone,
-  sub,
-}: {
-  href: string;
-  label: string;
-  count: number;
-  tone: TileTone;
-  sub?: string;
-}) {
-  return (
-    <Link
-      href={href}
-      className={[
-        "flex min-h-[104px] flex-col rounded-[var(--radius-md)] border p-[12px_14px]",
-        "no-underline text-inherit transition-colors hover:brightness-[0.98]",
-        TONE_CARD[tone],
-      ].join(" ")}
-    >
-      <span className="text-sm font-bold uppercase leading-tight tracking-[0.1em] text-ln-op-mute">
-        {label}
-      </span>
-      <span
-        className={[
-          "mt-1.5 font-ln-serif text-2xl font-semibold leading-none tracking-[-0.02em] tabular-nums",
-          TONE_VALUE[tone],
-        ].join(" ")}
-      >
-        {count}
-      </span>
-      {sub ? <span className="mt-1 text-sm text-ln-op-mute">{sub}</span> : null}
-    </Link>
-  );
+/** count > 0 → warn, else neutral. */
+function warnIf(count: number): "warn" | "neutral" {
+  return count > 0 ? "warn" : "neutral";
 }
 
-/** count > 0 → warn, else neutral. */
-function warnIf(count: number): TileTone {
-  return count > 0 ? "warn" : "neutral";
+/**
+ * D-3: the sub-line every tile carries at zero. Not decoration — it is the
+ * CLAIM that the number was measured (see the module comment). A non-zero tile
+ * needs no such line: the count itself is the evidence.
+ */
+const MEASURED_ZERO_NOTE = "Consultado ahora: la cola está vacía.";
+
+function measuredZeroSub(count: number): string | undefined {
+  return count === 0 ? MEASURED_ZERO_NOTE : undefined;
 }
 
 export function QueueHealthCockpit({ cockpit }: { cockpit: QueueCockpit }) {
@@ -86,6 +71,14 @@ export function QueueHealthCockpit({ cockpit }: { cockpit: QueueCockpit }) {
     approvals.oldestPendingDaysAgo != null
       ? `Más antigua pendiente: ${approvals.oldestPendingDaysAgo}d`
       : "Sin pendientes";
+
+  // Every count here is national and unfiltered, and the page renders a
+  // DashboardFreshnessFooter — so the provenance card defers freshness to it
+  // instead of inventing a second timestamp.
+  const provenance: ProvenanceContext = {
+    scopeLabel: "Nacional — todas las jurisdicciones",
+    pageHasFreshnessFooter: true,
+  };
 
   return (
     <OpCard>
@@ -115,23 +108,32 @@ export function QueueHealthCockpit({ cockpit }: { cockpit: QueueCockpit }) {
                 (the cola page validates it against APPROVAL_REQUEST_TYPES —
                 app/gob/cola/page.tsx) so the tile lands on exactly the queue it
                 counts, not the lumped list. */}
-            <QueueTile
+            <OpKpi
               href="/admin/cola?type=role_upgrade_vet"
-              label="Matrículas veterinarias"
-              count={approvals.roleUpgradeVet}
+              label={KPI_CATALOG.queue_approvals_role_upgrade_vet.label}
+              value={approvals.roleUpgradeVet}
               tone={warnIf(approvals.roleUpgradeVet)}
+              sub={measuredZeroSub(approvals.roleUpgradeVet)}
+              descriptorId="queue_approvals_role_upgrade_vet"
+              provenance={provenance}
             />
-            <QueueTile
+            <OpKpi
               href="/admin/cola?type=organization_verification"
-              label="Verificación de organizaciones"
-              count={approvals.organizationVerification}
+              label={KPI_CATALOG.queue_approvals_org_verification.label}
+              value={approvals.organizationVerification}
               tone={warnIf(approvals.organizationVerification)}
+              sub={measuredZeroSub(approvals.organizationVerification)}
+              descriptorId="queue_approvals_org_verification"
+              provenance={provenance}
             />
-            <QueueTile
+            <OpKpi
               href="/admin/cola?type=service_dog_credential_verification"
-              label="Credenciales RUPGA"
-              count={approvals.serviceDogCredentialVerification}
+              label={KPI_CATALOG.queue_approvals_service_dog_credential.label}
+              value={approvals.serviceDogCredentialVerification}
               tone={warnIf(approvals.serviceDogCredentialVerification)}
+              sub={measuredZeroSub(approvals.serviceDogCredentialVerification)}
+              descriptorId="queue_approvals_service_dog_credential"
+              provenance={provenance}
             />
           </div>
         </div>
@@ -142,7 +144,7 @@ export function QueueHealthCockpit({ cockpit }: { cockpit: QueueCockpit }) {
             Colas operativas
           </h4>
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
-            <QueueTile
+            <OpKpi
               // The Denuncias hub's Moderación stage, addressed directly.
               // /admin/moderacion is a redirect-only shim since the F1 fusion
               // (buildDenunciasHubRedirectUrl(sp, "moderacion")), so the old
@@ -152,28 +154,37 @@ export function QueueHealthCockpit({ cockpit }: { cockpit: QueueCockpit }) {
               // exception recorded on the ADMIN_NAV "Moderación" entry — this
               // only removes the bounce, not the jump.
               href="/gob/denuncias?etapa=moderacion"
-              label="Moderación de denuncias"
-              count={cockpit.moderationPending}
+              label={KPI_CATALOG.queue_moderation_pending.label}
+              value={cockpit.moderationPending}
               tone={warnIf(cockpit.moderationPending)}
+              sub={measuredZeroSub(cockpit.moderationPending)}
+              descriptorId="queue_moderation_pending"
+              provenance={provenance}
             />
-            <QueueTile
+            <OpKpi
               href="/admin/alertas"
-              label="Alertas abiertas"
-              count={cockpit.alertsOpen}
+              label={KPI_CATALOG.queue_alerts_open.label}
+              value={cockpit.alertsOpen}
               tone={warnIf(cockpit.alertsOpen)}
+              sub={measuredZeroSub(cockpit.alertsOpen)}
+              descriptorId="queue_alerts_open"
+              provenance={provenance}
             />
-            <QueueTile
+            <OpKpi
               // Deep-link to the breached rows only (breach=yes → pending AND
               // past SLA — app/admin/outbox/page.tsx), not the full outbox.
               href="/admin/outbox?breach=yes"
-              label="Vencimientos de SLA (outbox)"
-              count={cockpit.outboxBreaches}
+              label={KPI_CATALOG.queue_outbox_sla_breaches.label}
+              value={cockpit.outboxBreaches}
               tone={cockpit.outboxBreaches > 0 ? "danger" : "neutral"}
+              sub={measuredZeroSub(cockpit.outboxBreaches)}
+              descriptorId="queue_outbox_sla_breaches"
+              provenance={provenance}
             />
-            <QueueTile
+            <OpKpi
               href="/admin/casos"
-              label="Casos abiertos"
-              count={cockpit.casesOpen}
+              label={KPI_CATALOG.queue_cases_open_national.label}
+              value={cockpit.casesOpen}
               // W2: open cases are ongoing INVENTORY, not a "decide now" alarm.
               // Warm tones are reserved for tiles that need an operator decision
               // this moment (pending approvals, moderación, alertas, SLA breaches,
@@ -181,15 +192,22 @@ export function QueueHealthCockpit({ cockpit }: { cockpit: QueueCockpit }) {
               // orange next to the pink SLA breach mis-ranks attention, so this
               // tile stays NEUTRAL regardless of count.
               tone="neutral"
+              sub={measuredZeroSub(cockpit.casesOpen)}
+              descriptorId="queue_cases_open_national"
+              provenance={provenance}
             />
-            <QueueTile
+            <OpKpi
               href="/admin/observaciones"
               // red-team-admin #3: this counts only in-progress observations, so
               // a "0" here sits next to a full /admin/observaciones list (which
-              // also shows recently-closed ones) — "(en curso)" preempts that.
-              label="Observaciones antirrábicas (en curso)"
-              count={cockpit.rabiesInProgress}
+              // also shows recently-closed ones) — the label's "(en curso)"
+              // preempts that, and the descriptor's caveat spells it out.
+              label={KPI_CATALOG.queue_rabies_observations_in_progress.label}
+              value={cockpit.rabiesInProgress}
               tone={warnIf(cockpit.rabiesInProgress)}
+              sub={measuredZeroSub(cockpit.rabiesInProgress)}
+              descriptorId="queue_rabies_observations_in_progress"
+              provenance={provenance}
             />
           </div>
         </div>

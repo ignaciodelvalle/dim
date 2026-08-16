@@ -49,11 +49,15 @@
 //   lib/analytics/{govt-home-kpis,compliance-metrics,mortality-metrics} has a matching
 //   `fetcherName` in this catalog — CI fails if a new home-page KPI ships undocumented.
 
+import { QUEUE_KPI_CATALOG, type QueueKpiId } from "./kpi-catalog-queues";
 import { REUNIFICATION_RATE_LABEL_ES } from "./kpi-label-constants";
 import { TARGETS } from "./targets";
 
 /** Stable identifier for a catalogued KPI. Snake_case, never reused once shipped. */
 export type KpiId =
+  // Operational-queue descriptors live in kpi-catalog-queues.ts (this file is
+  // at its file-size ratchet ceiling) — same contract, same KPI_CATALOG.
+  | QueueKpiId
   | "rabies_coverage_dogs_12m"
   | "rabies_vaccination_rate_all_species"
   | "sterilization_coverage_population"
@@ -89,7 +93,6 @@ export type KpiId =
   | "rabies_observation_compliance_10d"
   | "amr_density"
   | "registry_total_pets"
-  | "queue_oldest_pending_days"
   | "alerted_provinces_below_target"
   | "registry_active_pets"
   | "registry_dormant_pets"
@@ -124,9 +127,7 @@ export type KpiId =
   | "territorial_index_provinces_evaluated"
   | "territorial_index_average_score"
   | "policy_outcome_rule_changes_analyzed"
-  | "ghost_records_count"
-  | "queue_pending_total"
-  | "queue_decisions_7d";
+  | "ghost_records_count";
 
 /** Unit of the KPI's `value` field, for consistent formatting across surfaces. */
 export type KpiUnit = "percent" | "count" | "rate_per_10k" | "ratio" | "days";
@@ -362,6 +363,9 @@ export type KpiDefinition = {
 };
 
 export const KPI_CATALOG: Record<KpiId, KpiDefinition> = {
+  // Operational-queue descriptors — declared in kpi-catalog-queues.ts, spread
+  // in here so `KPI_CATALOG.<id>` stays the ONE lookup every render site uses.
+  ...QUEUE_KPI_CATALOG,
   rabies_coverage_dogs_12m: {
     id: "rabies_coverage_dogs_12m",
     label: "Cobertura antirrábica — perros (12 meses)",
@@ -1472,28 +1476,6 @@ export const KPI_CATALOG: Record<KpiId, KpiDefinition> = {
     semaphore: { paintAgainst: "none" },
   },
 
-  queue_oldest_pending_days: {
-    id: "queue_oldest_pending_days",
-    label: "Antigüedad de la cola de aprobaciones",
-    numerator: "MAX(now() − created_at) sobre filas pendientes de la cola de aprobaciones, en días",
-    denominator:
-      "n/a — absolute count (days), paired with pendingTotal / pending14dPlus / pending30dPlus / pending60dPlus buckets",
-    source: "cola de aprobaciones (ver fetchQueueHealth / fetchQueueHealthScoped)",
-    fetcherName: "fetchQueueHealth (admin) / fetchQueueHealthScoped (govt)",
-    fetcherPath: "lib/analytics/admin-metrics.ts",
-    cadence: "'now' live snapshot",
-    unit: "days",
-    suppression: "none",
-    caveat:
-      "Los umbrales de color (14/30 días) son heurísticas operativas internas, no una meta legal o programática con fuente citable — por eso semaphore: none pese a que el tile sigue pintando ámbar/rojo por antigüedad.",
-    window: "now",
-    species: "n/a",
-    basis: "stock",
-    question:
-      "¿Cuántos días de antigüedad tiene la solicitud pendiente más vieja en la cola de aprobaciones?",
-    semaphore: { paintAgainst: "none" },
-  },
-
   alerted_provinces_below_target: {
     id: "alerted_provinces_below_target",
     label: "Provincias bajo meta",
@@ -2413,71 +2395,6 @@ export const KPI_CATALOG: Record<KpiId, KpiDefinition> = {
     question:
       "¿Cuántos registros activos no tienen titular ni actividad reciente (candidatos a conciliación de datos)?",
     semaphore: { paintAgainst: "none" },
-  },
-
-  // ---------------------------------------------------------------------------
-  // C1 sweep (2026-07-22) — /gob/sistema's remaining KPI tile (queue depth;
-  // queue_oldest_pending_days and eno_sla_compliance were already catalogued
-  // by earlier consumers in this same sweep and are reused here as-is).
-  // ---------------------------------------------------------------------------
-
-  queue_pending_total: {
-    id: "queue_pending_total",
-    // C1 label precision (2026-07-22): renamed from bare "Cola pendiente" —
-    // that string collided (registry-import fence, lint:metric-labels) with
-    // the SAME KPI rendered on components/admin/AdminKpiStrip.tsx (outside
-    // this sweep's scope) and generic comment prose elsewhere discussing
-    // "the pending queue" informally. The disambiguating "(aprobaciones)"
-    // suffix is gone as of the PO interview 2026-07-23 nav rename ("Cola" →
-    // "Aprobaciones", item 5): the word itself now disambiguates from
-    // moderación/alertas/outbox queues, so the parenthetical is redundant.
-    // AdminKpiStrip.tsx's twin was renamed the same way — still allowlisted
-    // in scripts/check-metric-labels.ts under the new name (national vs
-    // jurisdiction-scoped wording, same legitimate reuse as before).
-    label: "Aprobaciones pendientes",
-    numerator: "COUNT approval-queue rows where status='pending', in scope",
-    denominator: "n/a — absolute count",
-    source: "cola de aprobaciones (ver fetchQueueHealth / fetchQueueHealthScoped)",
-    fetcherName: "fetchQueueHealth (admin) / fetchQueueHealthScoped (govt) (pendingTotal)",
-    fetcherPath: "lib/analytics/admin-metrics.ts",
-    cadence: "'now' live snapshot",
-    unit: "count",
-    suppression: "none",
-    caveat:
-      "Sin meta formal — el tono de atención (ámbar cuando >0) es una señal operativa de carga de trabajo, no un veredicto de cumplimiento.",
-    window: "now",
-    species: "n/a",
-    basis: "stock",
-    methodologyVersion: 2, // K8: label renamed 2026-07-22/23 (see above)
-    question: "¿Cuántas solicitudes de aprobación están pendientes en la cobertura?",
-    semaphore: { paintAgainst: "none" },
-  },
-  // T4.10 (2026-08-01): AdminKpiStrip's delta painted a colored verdict against ANY prior-week base, incl. 1-2 decisions — noise, not a trend.
-  queue_decisions_7d: {
-    id: "queue_decisions_7d",
-    label: "Decisiones 7d",
-    numerator: "COUNT request_approved + request_rejected audit_log rows in the trailing 7 days",
-    denominator: "n/a — flow count vs an approximated prior-7d baseline (decisionsDeltaPct)",
-    source: "audit_log (request_approved, request_rejected)",
-    fetcherName: "fetchDecisionsMetrics",
-    fetcherPath: "lib/analytics/admin-metrics.ts",
-    cadence: "trailing 7d vs an approximated prior 7d (decisionsDeltaPct, lib/metrics/targets.ts)",
-    unit: "count",
-    suppression: "none",
-    caveat:
-      "Sin baseline dedicado de semana previa — se aproxima desde los días 8-30 de la ventana de 30d (decisionsDeltaPct). Compartido por /admin y /admin/sistema (C28).",
-    window: "7d",
-    species: "n/a",
-    basis: "flow",
-    question: "¿Cuántas decisiones se tomaron esta semana y cómo viene la tendencia?",
-    semaphore: { paintAgainst: "none" },
-    // Same floor as sterilizations_per_month — below priorBase=5 the % swing is noise.
-    guards: { unstableDeltaBase: { minPriorBase: 5 } },
-    ui: {
-      definition:
-        "Decisiones (aprobaciones + rechazos) tomadas en los últimos 7 días, con variación vs la semana anterior (aproximada).",
-      formula: "request_approved + request_rejected en audit_log (últimos 7d) vs semana previa",
-    },
   },
 };
 
