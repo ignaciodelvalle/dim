@@ -136,7 +136,7 @@ const OPERATOR_LABEL = "operator (app/gob, app/admin, app/org)";
 // directory-based and everything under components/ lands here. That is a
 // measurement artifact, not a claim about the surface.
 // If a second disclosure pill appears, extract OpDisclosurePill and fold both.
-const CITIZEN_BASELINE = 308;
+const CITIZEN_BASELINE = 307;
 const CITIZEN_SCAN_GLOB = "{components,app/(app),app/(public),app/(auth)}/**/*.tsx";
 const CITIZEN_LABEL = "citizen (components/**, app/(app), app/(public), app/(auth))";
 

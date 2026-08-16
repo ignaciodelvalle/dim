@@ -73,14 +73,15 @@ export function ConsoleNoticeStack({
         </ConsoleNotice>
       )}
       {hiddenCount > 0 && (
-        <button
-          type="button"
+        <OpButton
+          variant="ghost"
+          size="sm"
           aria-expanded={showAll}
           onClick={() => setShowAll(true)}
-          className="w-fit text-xs font-medium text-ln-op-azul hover:underline"
+          className="w-fit px-1 py-1 text-xs font-medium text-ln-op-azul hover:underline"
         >
           +{hiddenCount} {hiddenCount === 1 ? "aviso" : "avisos"}
-        </button>
+        </OpButton>
       )}
     </>
   );

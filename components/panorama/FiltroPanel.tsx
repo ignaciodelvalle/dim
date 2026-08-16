@@ -21,6 +21,7 @@ import { useState } from "react";
 
 import type { LayerPanelState } from "@/components/panorama/LayerPanel";
 import { activeVistaName, shortLayerLabel } from "@/components/panorama/panorama-labels";
+import { OpButton } from "@/components/ui/dashboard/OpButton";
 import { type LayerRole, roleOf } from "@/src/modules/panorama/domain/compatibility";
 import { PANORAMA_LAYERS, isTemporalLayer } from "@/src/modules/panorama/domain/layers";
 import type { PresetId } from "@/src/modules/panorama/domain/presets";
@@ -243,14 +244,15 @@ export function FiltroPanel({
         );
       })}
       {(hiddenCount > 0 || (showAll && presetRelevantLayerIds !== null)) && (
-        <button
-          type="button"
+        <OpButton
+          variant="ghost"
+          size="sm"
           aria-expanded={showAll}
           onClick={() => setShowAll((v) => !v)}
-          className="w-fit text-xs font-medium text-ln-op-azul hover:underline"
+          className="w-fit px-1 py-1 text-xs font-medium text-ln-op-azul hover:underline"
         >
           {showAll ? "Ver solo las capas de la vista" : `Ver todas las capas (${hiddenCount} más)`}
-        </button>
+        </OpButton>
       )}
       {!detail && (
         <p className="text-xs leading-snug text-ln-op-faint">
