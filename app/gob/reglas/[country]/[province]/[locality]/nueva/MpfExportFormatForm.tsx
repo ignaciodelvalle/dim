@@ -35,6 +35,8 @@ import { MPF_EXPORT_FORMATS, type MpfExportFormatId } from "@/lib/domain/busines
 import { MPF_EXPORT_FORMAT_LABELS } from "@/lib/domain/rule-types-registry";
 import { navigateAfterActionSuccess } from "@/lib/ui/full-page-action-nav";
 
+import { LegalMetadataFieldset, type LegalMetadataInitial } from "./LegalMetadataFieldset";
+
 const initialState: BusinessRuleFormState = { error: null };
 
 type Props = {
@@ -46,6 +48,7 @@ type Props = {
   base: "/admin" | "/gob";
   initialFormat: MpfExportFormatId;
   initialNotes: string;
+  initialLegalMetadata?: LegalMetadataInitial;
 };
 
 export function MpfExportFormatForm({
@@ -57,6 +60,7 @@ export function MpfExportFormatForm({
   base,
   initialFormat,
   initialNotes,
+  initialLegalMetadata,
 }: Props) {
   const action =
     mode === "edit" && ruleId
@@ -102,6 +106,8 @@ export function MpfExportFormatForm({
           </LnSelect>
         )}
       </LnField>
+
+      <LegalMetadataFieldset initial={initialLegalMetadata} />
 
       <LnField label="Notas internas">
         {({ id, describedBy, invalid }) => (

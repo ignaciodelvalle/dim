@@ -45,6 +45,7 @@ import {
   timeSlots,
   welfareReports,
 } from "@/db";
+import { microchipObligationApplies } from "@/lib/domain/business-rules-defaults";
 import {
   type VaccinationSummary,
   computeVaccinationSummary,
@@ -1435,7 +1436,9 @@ export async function fetchComplianceStatesForPets(
         province: j.province,
         locality: j.locality,
       });
-      microchipRuleByKey.set(key, rule.payload.required !== false);
+      // Tier-aware gate (migration 0183, spec OR5): requirement_level wins
+      // when set; rows/defaults without a tier keep the boolean semantics.
+      microchipRuleByKey.set(key, microchipObligationApplies(rule));
     }),
   );
 

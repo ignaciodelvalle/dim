@@ -145,6 +145,23 @@ export const RULE_OUTCOME_METRICS: Record<GovtBusinessRuleType, RuleOutcomeMetri
     rationale:
       "The export format rule governs how maltreatment denuncias reach the fiscalía (MPF); denuncia volume is the closest existing observable this rule type touches.",
   },
+  // Obligation tiers (migration 0183, jurisdiction-compliance WU1).
+  rabies_vaccination: {
+    eventType: "vaccination_administered",
+    metricLabel: "Vacunaciones registradas",
+    rationale: "Mandating rabies vaccination exists to drive vaccination volume.",
+  },
+  sterilization: {
+    eventType: "sterilization_performed",
+    metricLabel: "Esterilizaciones registradas",
+    rationale: "A sterilization mandate's direct output is sterilization events.",
+  },
+  compliance_targets: {
+    eventType: "vaccination_administered",
+    metricLabel: "Vacunaciones registradas",
+    rationale:
+      "Jurisdiction targets tune coverage KPIs; vaccination volume is the broadest existing observable those targets steer (coarse by design — the map requires one metric per rule type).",
+  },
 };
 
 // ---------------------------------------------------------------------------

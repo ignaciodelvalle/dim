@@ -9,6 +9,12 @@
 // could ever override the default: true. Follows the PhysicalCredentialChannelsForm
 // template — no impact-preview gate (decision #651): this rule changes
 // notification/compliance-panel derivation, not record legal status.
+//
+// Migration 0183 (jurisdiction-compliance WU1, spec OR5): the old boolean
+// checkbox became a requirement-tier select. The form writes BOTH the
+// requirement_level column AND the hidden payload.required boolean — the
+// select drives the boolean (required = tier === "mandatory") — so readers
+// that still gate on payload.required never skew against the tier.
 
 import { useActionState, useEffect, useState } from "react";
 
@@ -18,9 +24,12 @@ import {
   updateBusinessRuleAction,
 } from "@/app/actions/business-rules";
 import { LnAlert } from "@/components/ui/Alert";
-import { LnCheckbox, LnField, LnTextarea } from "@/components/ui/Field";
+import { LnField, LnTextarea } from "@/components/ui/Field";
 import { OpButton } from "@/components/ui/dashboard";
+import type { RequirementLevel } from "@/db";
 import { navigateAfterActionSuccess } from "@/lib/ui/full-page-action-nav";
+
+import { LegalMetadataFieldset, type LegalMetadataInitial } from "./LegalMetadataFieldset";
 
 const initialState: BusinessRuleFormState = { error: null };
 
@@ -33,6 +42,7 @@ type Props = {
   base: "/admin" | "/gob";
   initialRequired: boolean;
   initialNotes: string;
+  initialLegalMetadata?: LegalMetadataInitial;
 };
 
 export function MicrochipRequiredForm({
@@ -44,13 +54,20 @@ export function MicrochipRequiredForm({
   base,
   initialRequired,
   initialNotes,
+  initialLegalMetadata,
 }: Props) {
   const action =
     mode === "edit" && ruleId
       ? updateBusinessRuleAction.bind(null, ruleId)
       : createBusinessRuleAction;
   const [state, formAction, isPending] = useActionState(action, initialState);
-  const [required, setRequired] = useState(initialRequired);
+  // Rows created before 0183 have no tier — derive the initial selection from
+  // the boolean exactly as the migration's backfill does (required=true →
+  // mandatory, false → not_regulated). No "Sin definir" option here: the
+  // hidden boolean below needs a well-defined tier to derive from.
+  const [level, setLevel] = useState<RequirementLevel>(
+    initialLegalMetadata?.requirementLevel ?? (initialRequired ? "mandatory" : "not_regulated"),
+  );
 
   // Router-drop workaround (verify-report #650 WARNING-1) — see
   // lib/ui/full-page-action-nav.ts's module docblock.
@@ -72,13 +89,20 @@ export function MicrochipRequiredForm({
         NO exigirlo.
       </p>
 
-      <LnCheckbox
-        name="required"
-        checked={required}
-        onChange={(e) => setRequired(e.target.checked)}
-      >
-        Microchip obligatorio en esta jurisdicción
-      </LnCheckbox>
+      {/* Write-both contract (spec OR5): the tier select drives this hidden
+          boolean so pre-tier readers (payload.required) never disagree with
+          the requirement_level column. */}
+      <input type="hidden" name="required" value={level === "mandatory" ? "on" : "off"} />
+
+      <LegalMetadataFieldset
+        initial={initialLegalMetadata}
+        requirementLevel={{
+          value: level,
+          onChange: (next) => {
+            if (next !== "") setLevel(next);
+          },
+        }}
+      />
 
       <LnField label="Notas internas">
         {({ id, describedBy, invalid }) => (

@@ -14,6 +14,8 @@ import { OpButton } from "@/components/ui/dashboard";
 import { canSaveWithImpactGate, requiresImpactConfirmation } from "@/lib/domain/rule-impact-gate";
 import { navigateAfterActionSuccess } from "@/lib/ui/full-page-action-nav";
 
+import { LegalMetadataFieldset, type LegalMetadataInitial } from "./LegalMetadataFieldset";
+
 const initialState: BusinessRuleFormState = { error: null };
 
 type Props = {
@@ -26,6 +28,7 @@ type Props = {
   initialKg: number | null;
   initialAppliesIfBreedNotPPP: boolean;
   initialNotes: string;
+  initialLegalMetadata?: LegalMetadataInitial;
 };
 
 export function PppWeightThresholdForm({
@@ -38,6 +41,7 @@ export function PppWeightThresholdForm({
   initialKg,
   initialAppliesIfBreedNotPPP,
   initialNotes,
+  initialLegalMetadata,
 }: Props) {
   const action =
     mode === "edit" && ruleId
@@ -147,6 +151,8 @@ export function PppWeightThresholdForm({
           mascotas afectadas.
         </LnCheckbox>
       )}
+
+      <LegalMetadataFieldset initial={initialLegalMetadata} />
 
       <LnField label="Notas internas">
         {({ id, describedBy, invalid }) => (

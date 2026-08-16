@@ -2419,8 +2419,30 @@ export const GOVT_BUSINESS_RULE_TYPES = [
   // jurisdiction gets the national default format unless configured
   // otherwise" — no fake per-province integrations.
   "mpf_export_format",
+  // Jurisdiction-aware compliance obligations (migration 0183, rules-engine
+  // v2). Per-pet obligation tiers resolved through the same cascade; thin
+  // payloads — the tier + legal provenance live in dedicated columns below.
+  "rabies_vaccination",
+  "sterilization",
+  // Per-jurisdiction metric targets (ADR-8) — PARTIAL record over the four
+  // legally-varying TARGETS keys; national programmatic benchmarks stay flat.
+  "compliance_targets",
 ] as const;
 export type GovtBusinessRuleType = (typeof GOVT_BUSINESS_RULE_TYPES)[number];
+
+/**
+ * Requirement tier for obligation-carrying rule types (migration 0183).
+ * NULL on a row (or an unresolved cascade) means "tier not established" —
+ * consumers fall back to their pre-tier behavior (e.g. microchip_required's
+ * payload.required boolean) so the rollout is non-breaking.
+ */
+export const REQUIREMENT_LEVELS = [
+  "mandatory",
+  "recommended",
+  "not_regulated",
+  "optional",
+] as const;
+export type RequirementLevel = (typeof REQUIREMENT_LEVELS)[number];
 
 export const govtBusinessRules = pgTable(
   "govt_business_rules",
@@ -2433,6 +2455,18 @@ export const govtBusinessRules = pgTable(
     rulePayload: jsonb("rule_payload").notNull(),
     notes: text("notes"),
     legalAnchorIds: text("legal_anchor_ids").array(),
+    // Jurisdiction-aware compliance provenance (migration 0183) — all
+    // nullable/additive. requirement_level carries the obligation tier;
+    // legal_basis/authority/source_url/effective_* document WHICH law backs
+    // the rule; baseline_version tags rows applied by the legal-baseline seed
+    // (NULL = admin-authored; the seed never clobbers admin rows).
+    requirementLevel: text("requirement_level").$type<RequirementLevel>(),
+    legalBasis: text("legal_basis"),
+    authority: text("authority"),
+    sourceUrl: text("source_url"),
+    effectiveFrom: date("effective_from"),
+    effectiveUntil: date("effective_until"),
+    baselineVersion: text("baseline_version"),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     createdByUserId: uuid("created_by_user_id").references(() => profiles.id, {
       onDelete: "set null",
@@ -2444,10 +2478,30 @@ export const govtBusinessRules = pgTable(
   },
   (table) => ({
     ruleTypeIdx: index("govt_business_rules_rule_type_idx").on(table.ruleType),
+    // NOTE: this list is wider than GOVT_BUSINESS_RULE_TYPES — it also allows
+    // travel_corridor_requirements (migration 0120), which has no TS enum
+    // entry. When widening, copy the live DB list verbatim, never regenerate
+    // it from the enum (migration-errata.md).
     govtBusinessRulesRuleTypeValid: check(
       "govt_business_rules_rule_type_valid",
-      sql`${table.ruleType} in ('ppp_breed_list', 'ppp_weight_threshold', 'ppp_attestation_required_registries', 'physical_credential_channels', 'microchip_required', 'rabies_observation_window', 'due_soon_window', 'reminder_windows', 'long_stay_days', 'travel_corridor_requirements', 'mpf_export_format')`,
+      sql`${table.ruleType} in ('ppp_breed_list', 'ppp_weight_threshold', 'ppp_attestation_required_registries', 'physical_credential_channels', 'microchip_required', 'rabies_observation_window', 'due_soon_window', 'reminder_windows', 'long_stay_days', 'travel_corridor_requirements', 'mpf_export_format', 'rabies_vaccination', 'sterilization', 'compliance_targets')`,
     ),
+    govtBusinessRulesRequirementLevelValid: check(
+      "govt_business_rules_requirement_level_valid",
+      sql`${table.requirementLevel} is null or ${table.requirementLevel} in ('mandatory', 'recommended', 'not_regulated', 'optional')`,
+    ),
+    // One row per (rule_type, jurisdiction tuple) — NULLS NOT DISTINCT so
+    // country-level rows (province/locality NULL) deduplicate too. The
+    // baseline seed (scripts/seed-legal-baseline.ts) upserts on this
+    // constraint; the app writer's duplicate check predates it.
+    govtBusinessRulesTypeJurisdictionUnique: unique("govt_business_rules_type_jurisdiction_unique")
+      .on(
+        table.ruleType,
+        table.jurisdictionCountry,
+        table.jurisdictionProvince,
+        table.jurisdictionLocality,
+      )
+      .nullsNotDistinct(),
     govtBusinessRulesJurisdictionProvinceCanonical: check(
       "govt_business_rules_jurisdiction_province_canonical",
       sql`${table.jurisdictionProvince} is null or ${table.jurisdictionProvince} in ${CANONICAL_PROVINCE_SQL_LIST}`,

@@ -21,6 +21,7 @@ import {
   RabiesObservationWindowForm,
   ReminderWindowsForm,
 } from "./NumericWindowRuleForm";
+import { RabiesVaccinationForm, SterilizationForm } from "./ObligationRuleForm";
 import { PhysicalCredentialChannelsForm } from "./PhysicalCredentialChannelsForm";
 import { PppAttestationRegistriesForm } from "./PppAttestationRegistriesForm";
 import { PppBreedListForm } from "./PppBreedListForm";
@@ -61,6 +62,12 @@ export const RULE_FORM_REGISTRY: Partial<
   reminder_windows: ReminderWindowsForm as ComponentType<RuleFormProps>,
   long_stay_days: LongStayDaysForm as ComponentType<RuleFormProps>,
   mpf_export_format: MpfExportFormatForm as ComponentType<RuleFormProps>,
+  // Jurisdiction-aware compliance obligations (migration 0183, WU1). NOTE:
+  // compliance_targets intentionally has NO entry yet — its console editor
+  // ships with the ADR-8 targets resolver (WU4); a rule type absent from this
+  // map is simply unavailable in the console (see the module docblock).
+  rabies_vaccination: RabiesVaccinationForm as ComponentType<RuleFormProps>,
+  sterilization: SterilizationForm as ComponentType<RuleFormProps>,
 };
 
 /**
@@ -125,6 +132,12 @@ export function buildCreateFormExtraProps(
             : BUSINESS_RULES_DEFAULTS.mpf_export_format.format,
         initialNotes: "",
       };
+    case "rabies_vaccination":
+    case "sterilization":
+      // ObligationRuleForm reads its optional numeric fields off the payload
+      // record directly — the defaults are {} (honest-by-default, see
+      // business-rules-defaults.ts).
+      return { initialPayload: payload, initialNotes: "" };
     default:
       return { initialNotes: "" };
   }
@@ -174,6 +187,9 @@ export function buildEditFormExtraProps(
             ? payload.format
             : BUSINESS_RULES_DEFAULTS.mpf_export_format.format,
       };
+    case "rabies_vaccination":
+    case "sterilization":
+      return { initialPayload: payload };
     default:
       return {};
   }

@@ -273,6 +273,87 @@ describe("updateBusinessRuleWriter", () => {
       true,
     );
   });
+
+  it("persists legal-metadata COLUMNS (migration 0183) and audits previous/new legal metadata in the same transaction", async () => {
+    // rabies_vaccination's default payload is {} — the legal metadata is what
+    // makes this row worth creating (the no-op guard must NOT fire).
+    const created = await createBusinessRuleWriter({
+      actorUserId: adminUserId,
+      ruleType: "rabies_vaccination",
+      jurisdictionCountry: "AR",
+      jurisdictionProvince: TEST_PROVINCE,
+      jurisdictionLocality: UPDATE_LOCALITY,
+      rulePayload: {},
+      notes: null,
+      legalAnchorIds: [],
+      legalMetadata: {
+        requirementLevel: "mandatory",
+        legalBasis: "Ley 22.953",
+        authority: "SENASA",
+        sourceUrl: null,
+        effectiveFrom: null,
+        effectiveUntil: null,
+      },
+    });
+    expect(created.ok).toBe(true);
+    if (!created.ok || created.ruleId === null) return;
+    createdRuleIds.push(created.ruleId);
+
+    const [inserted] = await db
+      .select()
+      .from(govtBusinessRules)
+      .where(eq(govtBusinessRules.id, created.ruleId));
+    expect(inserted.requirementLevel).toBe("mandatory");
+    expect(inserted.legalBasis).toBe("Ley 22.953");
+    expect(inserted.authority).toBe("SENASA");
+
+    const upd = await updateBusinessRuleWriter({
+      actorUserId: adminUserId,
+      ruleId: created.ruleId,
+      rulePayload: { frequency_months: 12 },
+      notes: null,
+      legalAnchorIds: [],
+      legalMetadata: {
+        requirementLevel: "recommended",
+        legalBasis: "Ley 22.953 (mod.)",
+        // authority intentionally ABSENT (undefined) — the writer must leave
+        // the existing column value untouched, not null it out.
+        sourceUrl: "https://normativa.example/22953",
+        effectiveFrom: "2026-01-01",
+        effectiveUntil: null,
+      },
+    });
+    expect(upd.ok).toBe(true);
+
+    const [row] = await db
+      .select()
+      .from(govtBusinessRules)
+      .where(eq(govtBusinessRules.id, created.ruleId));
+    expect(row.requirementLevel).toBe("recommended");
+    expect(row.legalBasis).toBe("Ley 22.953 (mod.)");
+    expect(row.authority).toBe("SENASA"); // undefined field left untouched
+    expect(row.sourceUrl).toBe("https://normativa.example/22953");
+    expect(row.effectiveFrom).toBe("2026-01-01");
+
+    const audits = await db
+      .select()
+      .from(auditLog)
+      .where(eq(auditLog.action, "govt_business_rule_updated"));
+    const audit = audits.find((a) => (a.payload as { ruleId: string }).ruleId === created.ruleId);
+    expect(audit).toBeDefined();
+    const payload = audit?.payload as {
+      previousPayload: unknown;
+      newPayload: unknown;
+      previousLegalMetadata: { requirementLevel: string | null; legalBasis: string | null };
+      newLegalMetadata: { requirementLevel: string | null; legalBasis: string | null };
+    };
+    expect(payload.previousPayload).toEqual({});
+    expect(payload.newPayload).toEqual({ frequency_months: 12 });
+    expect(payload.previousLegalMetadata.requirementLevel).toBe("mandatory");
+    expect(payload.previousLegalMetadata.legalBasis).toBe("Ley 22.953");
+    expect(payload.newLegalMetadata.requirementLevel).toBe("recommended");
+    expect(payload.newLegalMetadata.legalBasis).toBe("Ley 22.953 (mod.)");
+  });
 });
 
 describe("deleteBusinessRuleWriter", () => {

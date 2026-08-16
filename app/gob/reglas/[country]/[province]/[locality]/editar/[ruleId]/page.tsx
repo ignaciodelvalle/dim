@@ -82,6 +82,16 @@ export default async function EditRulePage({
         locality={locality}
         base={base}
         initialNotes={initialNotes}
+        // Legal-metadata COLUMNS (migration 0183) — read off the row, not the
+        // payload, so the shared fieldset round-trips them on every form.
+        initialLegalMetadata={{
+          requirementLevel: rule.requirementLevel,
+          legalBasis: rule.legalBasis,
+          authority: rule.authority,
+          sourceUrl: rule.sourceUrl,
+          effectiveFrom: rule.effectiveFrom,
+          effectiveUntil: rule.effectiveUntil,
+        }}
         {...extraProps}
       />
     </div>

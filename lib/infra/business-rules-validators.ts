@@ -91,6 +91,37 @@ export const longStayDaysSchema = z.object({ days: z.number().int().min(1).max(3
 // exactly one member today.
 export const mpfExportFormatSchema = z.object({ format: z.enum(MPF_EXPORT_FORMATS) }).strict();
 
+// ---------------------------------------------------------------------------
+// Jurisdiction-aware compliance obligations (migration 0183) — thin payloads;
+// the tier + legal provenance are table COLUMNS, not payload fields. See
+// lib/domain/business-rules-defaults.ts for shapes + rationale.
+// ---------------------------------------------------------------------------
+
+export const rabiesVaccinationSchema = z
+  .object({
+    frequency_months: z.number().int().min(1).max(120).optional(),
+    min_age_months: z.number().int().min(0).max(60).optional(),
+  })
+  .strict();
+
+export const sterilizationSchema = z
+  .object({
+    min_age_months: z.number().int().min(0).max(60).optional(),
+    mandatory_from_months: z.number().int().min(0).max(120).optional(),
+  })
+  .strict();
+
+const targetPct = z.number().min(0).max(100).optional();
+
+export const complianceTargetsSchema = z
+  .object({
+    rabies_coverage_pct: targetPct,
+    microchip_penetration_pct: targetPct,
+    sterilization_coverage_pct: targetPct,
+    ppp_attestation_pct: targetPct,
+  })
+  .strict();
+
 export const BUSINESS_RULE_VALIDATORS: Record<GovtBusinessRuleType, z.ZodSchema> = {
   ppp_breed_list: pppBreedListSchema,
   ppp_weight_threshold: pppWeightThresholdSchema,
@@ -102,6 +133,9 @@ export const BUSINESS_RULE_VALIDATORS: Record<GovtBusinessRuleType, z.ZodSchema>
   reminder_windows: reminderWindowsSchema,
   long_stay_days: longStayDaysSchema,
   mpf_export_format: mpfExportFormatSchema,
+  rabies_vaccination: rabiesVaccinationSchema,
+  sterilization: sterilizationSchema,
+  compliance_targets: complianceTargetsSchema,
 };
 
 export function validateRulePayload(

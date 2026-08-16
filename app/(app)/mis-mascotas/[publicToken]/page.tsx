@@ -96,6 +96,7 @@ import {
   fetchLivePetsForCarouselRanking,
   fetchPetEventsForProfileV2,
 } from "@/lib/analytics/owner-dashboard";
+import { microchipObligationApplies } from "@/lib/domain/business-rules-defaults";
 import { resolveEmergencyContacts } from "@/lib/domain/emergency-contacts";
 import { computeMedicationsActive } from "@/lib/domain/libreta-health-status";
 import {
@@ -700,7 +701,9 @@ export default async function PetDetailPage({
         }
       : null,
     microchipCode: canonicalIds.microchip?.code ?? null,
-    microchipApplies: microchipRule.payload.required,
+    // Tier-aware gate (migration 0183, spec OR5): requirement_level wins when
+    // set; rows/defaults without a tier keep the boolean semantics.
+    microchipApplies: microchipObligationApplies(microchipRule),
     pppApplies: Boolean(pet.potentiallyDangerousBreed),
     // PPP-indeterminado inputs: a DOG missing breed and/or weight surfaces the
     // obligation instead of hiding it (2026-07-04).

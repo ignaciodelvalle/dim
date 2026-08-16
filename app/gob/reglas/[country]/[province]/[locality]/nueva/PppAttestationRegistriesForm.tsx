@@ -11,6 +11,8 @@ import { LnCheckbox, LnField, LnInput, LnTextarea } from "@/components/ui/Field"
 import { OpButton } from "@/components/ui/dashboard";
 import { navigateAfterActionSuccess } from "@/lib/ui/full-page-action-nav";
 
+import { LegalMetadataFieldset, type LegalMetadataInitial } from "./LegalMetadataFieldset";
+
 const initialState: BusinessRuleFormState = { error: null };
 
 type Registry = { id: string; label: string; required: boolean };
@@ -24,6 +26,7 @@ type Props = {
   base: "/admin" | "/gob";
   initialRegistries: Registry[];
   initialNotes: string;
+  initialLegalMetadata?: LegalMetadataInitial;
 };
 
 export function PppAttestationRegistriesForm({
@@ -35,6 +38,7 @@ export function PppAttestationRegistriesForm({
   base,
   initialRegistries,
   initialNotes,
+  initialLegalMetadata,
 }: Props) {
   const action =
     mode === "edit" && ruleId
@@ -154,6 +158,8 @@ export function PppAttestationRegistriesForm({
           + Agregar registro
         </button>
       </fieldset>
+
+      <LegalMetadataFieldset initial={initialLegalMetadata} />
 
       <LnField label="Notas internas">
         {({ id, describedBy, invalid }) => (

@@ -5,10 +5,32 @@ import { BUSINESS_RULES_DEFAULTS } from "@/lib/domain/business-rules-defaults";
 import { validateRulePayload } from "@/lib/infra/business-rules-validators";
 import { runReevalHookIfRegistered } from "@/lib/infra/rule-types-effects";
 
-import type { CreateBusinessRuleResult, CreateBusinessRuleWriterParams } from "./types";
+import type {
+  BusinessRuleLegalMetadata,
+  CreateBusinessRuleResult,
+  CreateBusinessRuleWriterParams,
+} from "./types";
 
 function deepEqual(a: unknown, b: unknown): boolean {
   return JSON.stringify(a) === JSON.stringify(b);
+}
+
+/**
+ * True when the caller supplied ANY legal-metadata value (migration 0183).
+ * Gates the no-op refusal below: a payload identical to the default is still
+ * worth a row when it carries an explicit tier or a legal citation — the
+ * resolver would NOT return those from the hardcoded default.
+ */
+function hasLegalMetadata(lm: BusinessRuleLegalMetadata | undefined): boolean {
+  if (!lm) return false;
+  return (
+    lm.requirementLevel != null ||
+    lm.legalBasis != null ||
+    lm.authority != null ||
+    lm.sourceUrl != null ||
+    lm.effectiveFrom != null ||
+    lm.effectiveUntil != null
+  );
 }
 
 export async function createBusinessRuleWriter(
@@ -24,9 +46,11 @@ export async function createBusinessRuleWriter(
 
   // No-op detection: if the proposed payload matches the hardcoded
   // default, refuse to insert — the resolver would return the same
-  // value anyway and the row would just add noise.
+  // value anyway and the row would just add noise. Skipped when legal
+  // metadata is present: the tier/citation columns (migration 0183) are
+  // resolver output the default cannot supply.
   const defaultPayload = BUSINESS_RULES_DEFAULTS[params.ruleType];
-  if (deepEqual(validation.data, defaultPayload)) {
+  if (deepEqual(validation.data, defaultPayload) && !hasLegalMetadata(params.legalMetadata)) {
     return {
       ok: true,
       ruleId: null,
@@ -63,6 +87,7 @@ export async function createBusinessRuleWriter(
         );
       }
 
+      const legalMetadata = params.legalMetadata;
       const [created] = await tx
         .insert(govtBusinessRules)
         .values({
@@ -73,6 +98,15 @@ export async function createBusinessRuleWriter(
           rulePayload: validation.data,
           notes: params.notes,
           legalAnchorIds: params.legalAnchorIds.length > 0 ? params.legalAnchorIds : null,
+          // Legal-metadata columns (migration 0183). On create, "field not in
+          // the form" and "field empty" both mean NULL — there is no prior
+          // value to preserve.
+          requirementLevel: legalMetadata?.requirementLevel ?? null,
+          legalBasis: legalMetadata?.legalBasis ?? null,
+          authority: legalMetadata?.authority ?? null,
+          sourceUrl: legalMetadata?.sourceUrl ?? null,
+          effectiveFrom: legalMetadata?.effectiveFrom ?? null,
+          effectiveUntil: legalMetadata?.effectiveUntil ?? null,
           createdByUserId: params.actorUserId,
           updatedByUserId: params.actorUserId,
         })
@@ -90,6 +124,21 @@ export async function createBusinessRuleWriter(
             locality: params.jurisdictionLocality,
           },
           newPayload: validation.data,
+          // Same-transaction capture as previous/newPayload (spec RM6) —
+          // only present when the caller carried legal metadata, so pre-0183
+          // audit rows keep their exact historical shape.
+          ...(legalMetadata !== undefined
+            ? {
+                newLegalMetadata: {
+                  requirementLevel: legalMetadata.requirementLevel ?? null,
+                  legalBasis: legalMetadata.legalBasis ?? null,
+                  authority: legalMetadata.authority ?? null,
+                  sourceUrl: legalMetadata.sourceUrl ?? null,
+                  effectiveFrom: legalMetadata.effectiveFrom ?? null,
+                  effectiveUntil: legalMetadata.effectiveUntil ?? null,
+                },
+              }
+            : {}),
         },
       });
 

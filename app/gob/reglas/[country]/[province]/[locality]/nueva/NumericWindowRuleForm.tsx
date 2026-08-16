@@ -27,6 +27,8 @@ import { OpButton } from "@/components/ui/dashboard";
 import type { GovtBusinessRuleType } from "@/db";
 import { navigateAfterActionSuccess } from "@/lib/ui/full-page-action-nav";
 
+import { LegalMetadataFieldset, type LegalMetadataInitial } from "./LegalMetadataFieldset";
+
 const initialState: BusinessRuleFormState = { error: null };
 
 type Props = {
@@ -45,6 +47,7 @@ type Props = {
   max: number;
   initialValue: number;
   initialNotes: string;
+  initialLegalMetadata?: LegalMetadataInitial;
 };
 
 export function NumericWindowRuleForm({
@@ -62,6 +65,7 @@ export function NumericWindowRuleForm({
   max,
   initialValue,
   initialNotes,
+  initialLegalMetadata,
 }: Props) {
   const action =
     mode === "edit" && ruleId
@@ -104,6 +108,8 @@ export function NumericWindowRuleForm({
           />
         )}
       </LnField>
+
+      <LegalMetadataFieldset initial={initialLegalMetadata} />
 
       <LnField label="Notas internas">
         {({ id, describedBy, invalid }) => (
@@ -156,6 +162,7 @@ type WrapperProps = {
   base: "/admin" | "/gob";
   initialValue: number;
   initialNotes: string;
+  initialLegalMetadata?: LegalMetadataInitial;
 };
 
 export function RabiesObservationWindowForm(props: WrapperProps) {

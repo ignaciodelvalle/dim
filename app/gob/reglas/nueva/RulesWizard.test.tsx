@@ -79,11 +79,11 @@ describe("<RulesWizard> — step flow", () => {
     fireEvent.click(within(activeSection()).getByRole("button", { name: "Continuar" }));
 
     // Step 4 — Configuración específica: the REAL MicrochipRequiredForm, not
-    // a wizard-owned reimplementation.
+    // a wizard-owned reimplementation. Since migration 0183 (WU1) the form's
+    // primary control is the requirement-tier select, defaulting to
+    // "Obligatorio" (mandatory).
     expect(screen.getByText("Paso 4 de 4")).toBeInTheDocument();
-    expect(
-      screen.getByRole("checkbox", { name: "Microchip obligatorio en esta jurisdicción" }),
-    ).toBeInTheDocument();
+    expect(screen.getByRole("combobox", { name: /Nivel de exigencia/ })).toHaveValue("mandatory");
     expect(screen.getByRole("button", { name: "Crear regla" })).toBeInTheDocument();
   });
 

@@ -19,6 +19,8 @@ import { LnCheckbox, LnField, LnInput, LnTextarea } from "@/components/ui/Field"
 import { OpButton } from "@/components/ui/dashboard";
 import { navigateAfterActionSuccess } from "@/lib/ui/full-page-action-nav";
 
+import { LegalMetadataFieldset, type LegalMetadataInitial } from "./LegalMetadataFieldset";
+
 const initialState: BusinessRuleFormState = { error: null };
 
 type ProviderChannel = { enabled: boolean; providerName?: string; providerUrl?: string };
@@ -34,6 +36,7 @@ type Props = {
   initialEngravedPlate: ProviderChannel;
   initialNfcTag: ProviderChannel;
   initialNotes: string;
+  initialLegalMetadata?: LegalMetadataInitial;
 };
 
 function ProviderFields({
@@ -98,6 +101,7 @@ export function PhysicalCredentialChannelsForm({
   initialEngravedPlate,
   initialNfcTag,
   initialNotes,
+  initialLegalMetadata,
 }: Props) {
   const action =
     mode === "edit" && ruleId
@@ -161,6 +165,8 @@ export function PhysicalCredentialChannelsForm({
         providerUrl={nfcUrl}
         onProviderUrlChange={setNfcUrl}
       />
+
+      <LegalMetadataFieldset initial={initialLegalMetadata} />
 
       <LnField label="Notas internas">
         {({ id, describedBy, invalid }) => (

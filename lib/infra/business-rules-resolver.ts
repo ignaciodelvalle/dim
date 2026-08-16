@@ -7,7 +7,7 @@
 
 import { and, eq, isNull } from "drizzle-orm";
 
-import { type GovtBusinessRuleType, db, govtBusinessRules } from "@/db";
+import { type GovtBusinessRuleType, type RequirementLevel, db, govtBusinessRules } from "@/db";
 
 import {
   BUSINESS_RULES_DEFAULTS,
@@ -29,6 +29,22 @@ export interface Jurisdiction {
 export interface ResolvedRule<T extends GovtBusinessRuleType> {
   payload: BusinessRulePayload<T>;
   source: "default" | "country" | "province" | "locality";
+  /**
+   * Requirement tier + legal provenance (migration 0183) carried by the
+   * matched row. All optional and ABSENT on the `default` path: when no row
+   * matches anywhere in the cascade, nothing is claimed about the
+   * jurisdiction's law — the tier is "not established", NEVER a hardcoded
+   * `mandatory`. Consumers with a pre-tier boolean gate (microchip_required)
+   * fall back to their payload semantics via
+   * `microchipObligationApplies` (lib/domain/business-rules-defaults.ts).
+   */
+  requirementLevel?: RequirementLevel | null;
+  legalBasis?: string | null;
+  authority?: string | null;
+  sourceUrl?: string | null;
+  effectiveFrom?: string | null;
+  effectiveUntil?: string | null;
+  baselineVersion?: string | null;
   matchedRow: {
     id: string;
     country: string;
@@ -91,6 +107,13 @@ export async function resolveBusinessRule<T extends GovtBusinessRuleType>(
       return {
         payload: row.rulePayload as BusinessRulePayload<T>,
         source: c.source,
+        requirementLevel: row.requirementLevel,
+        legalBasis: row.legalBasis,
+        authority: row.authority,
+        sourceUrl: row.sourceUrl,
+        effectiveFrom: row.effectiveFrom,
+        effectiveUntil: row.effectiveUntil,
+        baselineVersion: row.baselineVersion,
         matchedRow: {
           id: row.id,
           country: row.jurisdictionCountry,

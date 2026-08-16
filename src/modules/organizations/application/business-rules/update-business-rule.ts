@@ -21,12 +21,39 @@ export async function updateBusinessRuleWriter(
       const validation = validateRulePayload(existing.ruleType, params.rulePayload);
       if (!validation.ok) throw new Error(`Payload inválido: ${validation.error}`);
 
+      // Legal-metadata columns (migration 0183). Per-field semantics:
+      // `undefined` = the form did not carry the field → leave the column
+      // untouched (a form without the tier select must never erase a
+      // backfilled tier); `null` = present-but-empty → clear it.
+      const legalMetadata = params.legalMetadata;
+      const nextLegalMetadata = {
+        requirementLevel:
+          legalMetadata?.requirementLevel !== undefined
+            ? legalMetadata.requirementLevel
+            : existing.requirementLevel,
+        legalBasis:
+          legalMetadata?.legalBasis !== undefined ? legalMetadata.legalBasis : existing.legalBasis,
+        authority:
+          legalMetadata?.authority !== undefined ? legalMetadata.authority : existing.authority,
+        sourceUrl:
+          legalMetadata?.sourceUrl !== undefined ? legalMetadata.sourceUrl : existing.sourceUrl,
+        effectiveFrom:
+          legalMetadata?.effectiveFrom !== undefined
+            ? legalMetadata.effectiveFrom
+            : existing.effectiveFrom,
+        effectiveUntil:
+          legalMetadata?.effectiveUntil !== undefined
+            ? legalMetadata.effectiveUntil
+            : existing.effectiveUntil,
+      };
+
       await tx
         .update(govtBusinessRules)
         .set({
           rulePayload: validation.data,
           notes: params.notes,
           legalAnchorIds: params.legalAnchorIds.length > 0 ? params.legalAnchorIds : null,
+          ...(legalMetadata !== undefined ? nextLegalMetadata : {}),
           updatedByUserId: params.actorUserId,
           updatedAt: new Date(),
         })
@@ -45,6 +72,22 @@ export async function updateBusinessRuleWriter(
           },
           previousPayload: existing.rulePayload,
           newPayload: validation.data,
+          // Same-transaction capture as previous/newPayload (spec RM6) —
+          // only present when the caller carried legal metadata, so pre-0183
+          // audit rows keep their exact historical shape.
+          ...(legalMetadata !== undefined
+            ? {
+                previousLegalMetadata: {
+                  requirementLevel: existing.requirementLevel,
+                  legalBasis: existing.legalBasis,
+                  authority: existing.authority,
+                  sourceUrl: existing.sourceUrl,
+                  effectiveFrom: existing.effectiveFrom,
+                  effectiveUntil: existing.effectiveUntil,
+                },
+                newLegalMetadata: nextLegalMetadata,
+              }
+            : {}),
         },
       });
     });

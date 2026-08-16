@@ -5,7 +5,10 @@ import { sql } from "drizzle-orm";
 import { afterEach, beforeAll, describe, expect, it } from "vitest";
 
 import { db, govtBusinessRules, profiles } from "@/db";
-import { BUSINESS_RULES_DEFAULTS } from "@/lib/domain/business-rules-defaults";
+import {
+  BUSINESS_RULES_DEFAULTS,
+  microchipObligationApplies,
+} from "@/lib/domain/business-rules-defaults";
 import {
   canonicalJurisdictionKey,
   resolveBusinessRule,
@@ -346,6 +349,129 @@ describe("resolveBusinessRule — mpf_export_format cascade", () => {
       locality: "Quilmes", // no row for Quilmes
     });
     expect(r.source).toBe("province");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Requirement tier + legal metadata (jurisdiction-compliance WU1, migration
+// 0183). The tier and citation columns ride the SAME cascade as the payload:
+// the most-specific matched row supplies them, and the default path supplies
+// NOTHING — no row anywhere means no claim about the jurisdiction's law
+// (never a hardcoded `mandatory`).
+// ---------------------------------------------------------------------------
+describe("resolveBusinessRule — requirement tier + legal metadata (migration 0183)", () => {
+  it("province row's tier + citation win over the country row's (cascade precedence)", async () => {
+    await db.insert(govtBusinessRules).values([
+      {
+        jurisdictionCountry: "AR",
+        jurisdictionProvince: null,
+        jurisdictionLocality: null,
+        ruleType: "rabies_vaccination",
+        rulePayload: { frequency_months: 12 },
+        requirementLevel: "recommended",
+        legalBasis: "Ley 22.953",
+        authority: "SENASA",
+        createdByUserId: ACTOR_ID,
+        updatedByUserId: ACTOR_ID,
+      },
+      {
+        jurisdictionCountry: "AR",
+        // Canonical province spelling (migration 0055 CHECK) — "CABA", never
+        // the long form (lib/domain/jurisdiction-canonical.ts).
+        jurisdictionProvince: "CABA",
+        jurisdictionLocality: null,
+        ruleType: "rabies_vaccination",
+        rulePayload: { frequency_months: 12 },
+        requirementLevel: "mandatory",
+        legalBasis: "Ord. 41.831",
+        authority: "GCBA",
+        sourceUrl: "https://boletinoficial.example/41831",
+        effectiveFrom: "1987-06-01",
+        createdByUserId: ACTOR_ID,
+        updatedByUserId: ACTOR_ID,
+      },
+    ]);
+
+    const caba = await resolveBusinessRule("rabies_vaccination", {
+      country: "AR",
+      province: "CABA",
+    });
+    expect(caba.source).toBe("province");
+    expect(caba.requirementLevel).toBe("mandatory");
+    expect(caba.legalBasis).toBe("Ord. 41.831");
+    expect(caba.authority).toBe("GCBA");
+    expect(caba.sourceUrl).toBe("https://boletinoficial.example/41831");
+    expect(caba.effectiveFrom).toBe("1987-06-01");
+
+    // A province with no override falls through to the country row's tier —
+    // and NEVER sees another jurisdiction's citation (CS6 groundwork).
+    const chaco = await resolveBusinessRule("rabies_vaccination", {
+      country: "AR",
+      province: "Chaco",
+    });
+    expect(chaco.source).toBe("country");
+    expect(chaco.requirementLevel).toBe("recommended");
+    expect(chaco.legalBasis).toBe("Ley 22.953");
+    expect(chaco.legalBasis).not.toContain("41.831");
+  });
+
+  it("default path claims NO tier: requirementLevel is undefined, never 'mandatory'", async () => {
+    const r = await resolveBusinessRule("rabies_vaccination", {
+      country: "AR",
+      province: "Mendoza",
+      locality: "Godoy Cruz",
+    });
+    expect(r.source).toBe("default");
+    expect(r.payload).toEqual({});
+    expect(r.requirementLevel).toBeUndefined();
+    expect(r.legalBasis).toBeUndefined();
+  });
+
+  it("microchip consumer-gate parity: rows without a tier gate exactly as before; a tier supersedes the boolean; the default still gates ON (RG2)", async () => {
+    // Pre-0183-style row: boolean only, no tier.
+    await db.insert(govtBusinessRules).values({
+      jurisdictionCountry: "AR",
+      jurisdictionProvince: "Chaco",
+      jurisdictionLocality: null,
+      ruleType: "microchip_required",
+      rulePayload: { required: false },
+      createdByUserId: ACTOR_ID,
+      updatedByUserId: ACTOR_ID,
+    });
+    const noTier = await resolveBusinessRule("microchip_required", {
+      country: "AR",
+      province: "Chaco",
+    });
+    expect(noTier.requirementLevel).toBeNull();
+    expect(microchipObligationApplies(noTier)).toBe(noTier.payload.required !== false);
+    expect(microchipObligationApplies(noTier)).toBe(false);
+
+    // Tiered row where the tier CONTRADICTS the stale boolean: tier wins.
+    await db.insert(govtBusinessRules).values({
+      jurisdictionCountry: "AR",
+      jurisdictionProvince: "Formosa",
+      jurisdictionLocality: null,
+      ruleType: "microchip_required",
+      rulePayload: { required: true },
+      requirementLevel: "not_regulated",
+      createdByUserId: ACTOR_ID,
+      updatedByUserId: ACTOR_ID,
+    });
+    const tiered = await resolveBusinessRule("microchip_required", {
+      country: "AR",
+      province: "Formosa",
+    });
+    expect(microchipObligationApplies(tiered)).toBe(false);
+
+    // No row anywhere: default {required: true} keeps gating ON — flipping
+    // this default is RG2, ratification-gated, NOT this change.
+    const fallback = await resolveBusinessRule("microchip_required", {
+      country: "AR",
+      province: "Mendoza",
+    });
+    expect(fallback.source).toBe("default");
+    expect(fallback.requirementLevel).toBeUndefined();
+    expect(microchipObligationApplies(fallback)).toBe(true);
   });
 });
 

@@ -70,6 +70,26 @@ function parseDaysField(formData: FormData): { days: number } {
   return { days: Number.isNaN(days) ? 0 : days };
 }
 
+/**
+ * Parses an OPTIONAL integer form field: empty/absent/NaN -> omitted from the
+ * payload (the new obligation payloads are all-optional — see
+ * business-rules-defaults.ts).
+ */
+function parseOptionalIntField(formData: FormData, name: string): { [k: string]: number } {
+  const raw = (formData.get(name) as string | null)?.trim();
+  if (!raw) return {};
+  const value = Number.parseInt(raw, 10);
+  return Number.isNaN(value) ? {} : { [name]: value };
+}
+
+/** Optional float variant for the compliance_targets percentage fields. */
+function parseOptionalPctField(formData: FormData, name: string): { [k: string]: number } {
+  const raw = (formData.get(name) as string | null)?.trim();
+  if (!raw) return {};
+  const value = Number.parseFloat(raw);
+  return Number.isNaN(value) ? {} : { [name]: value };
+}
+
 function parseProviderChannel(formData: FormData, channel: string) {
   const enabled = formData.get(`enabled_${channel}`) === "on";
   const providerNameRaw = (formData.get(`provider_name_${channel}`) as string | null)?.trim();
@@ -210,7 +230,63 @@ export const RULE_TYPE_REGISTRY: { [K in GovtBusinessRuleType]: RuleTypeDef<K> }
       };
     },
   },
+  // Jurisdiction-aware compliance obligations (migration 0183) — the tier
+  // (requirement_level) and legal provenance are table COLUMNS parsed by
+  // parseLegalMetadata in the writer, NOT payload fields; these payloads
+  // carry only operational parameters (all optional).
+  rabies_vaccination: {
+    id: "rabies_vaccination",
+    label: "Vacunación antirrábica",
+    description:
+      "Qué exige esta jurisdicción sobre la vacunación antirrábica (nivel de exigencia, frecuencia, edad mínima).",
+    schema: BUSINESS_RULE_VALIDATORS.rabies_vaccination,
+    default: BUSINESS_RULES_DEFAULTS.rabies_vaccination,
+    resolutionScope: "pet",
+    parseFromForm: (formData) => ({
+      ...parseOptionalIntField(formData, "frequency_months"),
+      ...parseOptionalIntField(formData, "min_age_months"),
+    }),
+  },
+  sterilization: {
+    id: "sterilization",
+    label: "Esterilización",
+    description:
+      "Qué exige esta jurisdicción sobre la esterilización (nivel de exigencia, edad mínima, edad desde la que aplica).",
+    schema: BUSINESS_RULE_VALIDATORS.sterilization,
+    default: BUSINESS_RULES_DEFAULTS.sterilization,
+    resolutionScope: "pet",
+    parseFromForm: (formData) => ({
+      ...parseOptionalIntField(formData, "min_age_months"),
+      ...parseOptionalIntField(formData, "mandatory_from_months"),
+    }),
+  },
+  compliance_targets: {
+    id: "compliance_targets",
+    label: "Metas de cumplimiento",
+    description:
+      "Metas locales para los indicadores de cobertura que la normativa jurisdiccional ajusta (antirrábica, microchip, esterilización, atestación PPP).",
+    schema: BUSINESS_RULE_VALIDATORS.compliance_targets,
+    default: BUSINESS_RULES_DEFAULTS.compliance_targets,
+    resolutionScope: "jurisdiction-metric",
+    parseFromForm: (formData) => ({
+      ...parseOptionalPctField(formData, "rabies_coverage_pct"),
+      ...parseOptionalPctField(formData, "microchip_penetration_pct"),
+      ...parseOptionalPctField(formData, "sterilization_coverage_pct"),
+      ...parseOptionalPctField(formData, "ppp_attestation_pct"),
+    }),
+  },
 };
+
+/**
+ * es-AR labels for the requirement tier (govt_business_rules.requirement_level,
+ * migration 0183) — shared by the console forms and listings.
+ */
+export const REQUIREMENT_LEVEL_LABELS = {
+  mandatory: "Obligatorio",
+  recommended: "Recomendado",
+  not_regulated: "No regulado",
+  optional: "Opcional",
+} as const;
 
 /**
  * es-AR labels for each mpf_export_format enum value — see
@@ -296,6 +372,38 @@ export function summarizeRulePayload(ruleType: GovtBusinessRuleType, payload: un
       return format
         ? (MPF_EXPORT_FORMAT_LABELS[format] ?? format)
         : "Sin formato de export configurado";
+    }
+    // Obligation types (migration 0183): the tier + citation live in table
+    // COLUMNS, so the payload summary covers only the operational parameters.
+    case "rabies_vaccination": {
+      const parts: string[] = [];
+      if (typeof p.frequency_months === "number")
+        parts.push(`refuerzo cada ${p.frequency_months} ${pluralizeEs(p.frequency_months, "mes")}`);
+      if (typeof p.min_age_months === "number")
+        parts.push(`desde los ${p.min_age_months} ${pluralizeEs(p.min_age_months, "mes")}`);
+      return parts.length === 0 ? "Sin parámetros configurados" : parts.join(" · ");
+    }
+    case "sterilization": {
+      const parts: string[] = [];
+      if (typeof p.min_age_months === "number")
+        parts.push(`edad mínima ${p.min_age_months} ${pluralizeEs(p.min_age_months, "mes")}`);
+      if (typeof p.mandatory_from_months === "number")
+        parts.push(
+          `aplica desde los ${p.mandatory_from_months} ${pluralizeEs(p.mandatory_from_months, "mes")}`,
+        );
+      return parts.length === 0 ? "Sin parámetros configurados" : parts.join(" · ");
+    }
+    case "compliance_targets": {
+      const labels: Record<string, string> = {
+        rabies_coverage_pct: "antirrábica",
+        microchip_penetration_pct: "microchip",
+        sterilization_coverage_pct: "esterilización",
+        ppp_attestation_pct: "atestación PPP",
+      };
+      const parts = Object.entries(labels)
+        .filter(([key]) => typeof p[key] === "number")
+        .map(([key, label]) => `${label} ${p[key]}%`);
+      return parts.length === 0 ? "Sin metas configuradas" : parts.join(" · ");
     }
     default:
       return JSON.stringify(payload);

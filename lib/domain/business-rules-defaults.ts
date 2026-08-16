@@ -5,6 +5,7 @@
 // no per-jurisdiction override row exists. Defaults snapshot the pre-POC
 // behavior so the rollout is non-breaking.
 
+import type { RequirementLevel } from "@/db/schema";
 import { POTENTIALLY_DANGEROUS_DOG_BREEDS } from "@/lib/reference/breeds";
 
 export interface PppBreedList {
@@ -97,6 +98,57 @@ export interface MpfExportFormat {
   format: MpfExportFormatId;
 }
 
+// ---------------------------------------------------------------------------
+// Jurisdiction-aware compliance obligations (migration 0183, rules-engine v2).
+// The obligation TIER (mandatory/recommended/not_regulated/optional) and the
+// legal provenance live in dedicated govt_business_rules COLUMNS, not in
+// these payloads — payloads carry only the operational parameters. Defaults
+// are EMPTY: with no override row anywhere, nothing is claimed about any
+// jurisdiction's law (honest-by-default; the tier resolves to "no tier
+// established", never to mandatory).
+// ---------------------------------------------------------------------------
+
+export interface RabiesVaccination {
+  /** Booster cadence, in months (e.g. 12 = annual). */
+  frequency_months?: number;
+  /** Minimum age at which the obligation starts, in months. */
+  min_age_months?: number;
+}
+
+export interface Sterilization {
+  /** Minimum age at which sterilization is allowed, in months. */
+  min_age_months?: number;
+  /** Age from which the obligation applies, in months. */
+  mandatory_from_months?: number;
+}
+
+/**
+ * Per-jurisdiction metric targets (ADR-8) — PARTIAL record over the four
+ * legally-varying TARGETS keys (lib/metrics/targets.ts). Absent keys fall
+ * back to the flat national default; values are percentages 0..100.
+ */
+export interface ComplianceTargets {
+  rabies_coverage_pct?: number;
+  microchip_penetration_pct?: number;
+  sterilization_coverage_pct?: number;
+  ppp_attestation_pct?: number;
+}
+
+/**
+ * OR5 consumer gate for the microchip obligation: the resolved
+ * requirement_level SUPERSEDES payload.required when set; where no tier is
+ * set the boolean keeps governing, so behavior is preserved during the
+ * migration window (rows and defaults without a tier act exactly as before).
+ */
+export function microchipObligationApplies(rule: {
+  requirementLevel?: RequirementLevel | null;
+  payload: { required?: boolean };
+}): boolean {
+  return rule.requirementLevel != null
+    ? rule.requirementLevel === "mandatory"
+    : rule.payload.required !== false;
+}
+
 export interface BusinessRulePayloadByType {
   ppp_breed_list: PppBreedList;
   ppp_weight_threshold: PppWeightThreshold;
@@ -108,6 +160,9 @@ export interface BusinessRulePayloadByType {
   reminder_windows: ReminderWindows;
   long_stay_days: LongStayDays;
   mpf_export_format: MpfExportFormat;
+  rabies_vaccination: RabiesVaccination;
+  sterilization: Sterilization;
+  compliance_targets: ComplianceTargets;
 }
 
 export type BusinessRulePayload<T extends keyof BusinessRulePayloadByType> =
@@ -141,4 +196,10 @@ export const BUSINESS_RULES_DEFAULTS: {
   // The only format the codebase renders today — see the module docblock
   // above for why the enum has exactly one member.
   mpf_export_format: { format: "estandar_nacional" },
+  // Empty by design (see the section docblock): no override row anywhere
+  // means no claim about any jurisdiction's law — tier + citation resolve
+  // from rows, never from a hardcoded national assumption.
+  rabies_vaccination: {},
+  sterilization: {},
+  compliance_targets: {},
 };

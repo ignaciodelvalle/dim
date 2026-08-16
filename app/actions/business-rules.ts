@@ -25,6 +25,7 @@ import { requireAdminOrRedirect } from "@/lib/infra/auth-guards";
 
 import { createBusinessRuleWriter as _createBusinessRuleWriter } from "@/src/modules/organizations/application/business-rules/create-business-rule";
 import { deleteBusinessRuleWriter as _deleteBusinessRuleWriter } from "@/src/modules/organizations/application/business-rules/delete-business-rule";
+import { parseLegalMetadata } from "@/src/modules/organizations/application/business-rules/parse-legal-metadata";
 import type { BusinessRuleFormState } from "@/src/modules/organizations/application/business-rules/types";
 import { updateBusinessRuleWriter as _updateBusinessRuleWriter } from "@/src/modules/organizations/application/business-rules/update-business-rule";
 
@@ -73,6 +74,10 @@ function parseLegalAnchorIds(formData: FormData): string[] {
     .filter((s) => s.length > 0);
 }
 
+// parseLegalMetadata (migration 0183) lives in
+// src/modules/organizations/application/business-rules/parse-legal-metadata.ts
+// — the action line-budget fence keeps parsing logic out of this shim.
+
 /**
  * Reads the `portalBase` hidden field the form threads down from
  * lib/ui/portal-base.ts (portal-follows-viewer, 2026-07-02) so the
@@ -109,6 +114,8 @@ export async function createBusinessRuleAction(
   const { country, province, locality } = normalizeJurisdiction(formData);
   const notes = (formData.get("notes") as string | null)?.trim() || null;
   const legalAnchorIds = parseLegalAnchorIds(formData);
+  const legalMetadata = parseLegalMetadata(formData);
+  if (!legalMetadata.ok) return { error: legalMetadata.error };
 
   const result = await _createBusinessRuleWriter({
     actorUserId: user.id,
@@ -119,6 +126,7 @@ export async function createBusinessRuleAction(
     rulePayload: parseRulePayloadFromForm(ruleType, formData),
     notes,
     legalAnchorIds,
+    legalMetadata: legalMetadata.value,
   });
   if (!result.ok) return { error: result.error };
   if (result.noOp) {
@@ -145,6 +153,8 @@ export async function updateBusinessRuleAction(
   const ruleType = ruleTypeRaw as GovtBusinessRuleType;
   const notes = (formData.get("notes") as string | null)?.trim() || null;
   const legalAnchorIds = parseLegalAnchorIds(formData);
+  const legalMetadata = parseLegalMetadata(formData);
+  if (!legalMetadata.ok) return { error: legalMetadata.error };
 
   const result = await _updateBusinessRuleWriter({
     actorUserId: user.id,
@@ -152,6 +162,7 @@ export async function updateBusinessRuleAction(
     rulePayload: parseRulePayloadFromForm(ruleType, formData),
     notes,
     legalAnchorIds,
+    legalMetadata: legalMetadata.value,
   });
   if (!result.ok) return { error: result.error };
 

@@ -16,6 +16,8 @@ import { canSaveWithImpactGate, requiresImpactConfirmation } from "@/lib/domain/
 import { DOG_BREEDS, POTENTIALLY_DANGEROUS_DOG_BREEDS } from "@/lib/reference/breeds";
 import { navigateAfterActionSuccess } from "@/lib/ui/full-page-action-nav";
 
+import { LegalMetadataFieldset, type LegalMetadataInitial } from "./LegalMetadataFieldset";
+
 const initialState: BusinessRuleFormState = { error: null };
 
 const DEFAULT_BREEDS_SET = new Set([...POTENTIALLY_DANGEROUS_DOG_BREEDS]);
@@ -29,6 +31,7 @@ type Props = {
   base: "/admin" | "/gob";
   initialBreeds: string[];
   initialNotes: string;
+  initialLegalMetadata?: LegalMetadataInitial;
 };
 
 export function PppBreedListForm({
@@ -40,6 +43,7 @@ export function PppBreedListForm({
   base,
   initialBreeds,
   initialNotes,
+  initialLegalMetadata,
 }: Props) {
   const action =
     mode === "edit" && ruleId
@@ -175,6 +179,8 @@ export function PppBreedListForm({
           mascotas afectadas.
         </LnCheckbox>
       )}
+
+      <LegalMetadataFieldset initial={initialLegalMetadata} />
 
       <LnField label="Notas internas (visible solo a admin/govt)">
         {({ id, describedBy, invalid }) => (
