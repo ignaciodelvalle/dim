@@ -522,23 +522,21 @@ export class OrgRepository {
   }
 
   /**
-   * Revoke an approved capability grant (set status = 'revoked', stamp decidedAt/By/Reason).
+   * Set ONLY the status of a capability grant — used for revoke, which must
+   * NOT overwrite decidedAt/decidedByUserId/decisionReason: those columns are
+   * the provenance of who originally granted it (Lote B1 audit-hole fix — the
+   * old revokeGrant stamped the revoker over the approver, destroying it).
+   * Who revoked, and why, lives in the caller's audit_log row instead.
    * No-op when grantId does not exist.
    */
-  async revokeGrant(
+  async setGrantStatus(
     grantId: string,
-    revokedByUserId: string,
-    reason: string | null,
+    status: OrganizationCapabilityGrant["status"],
     e: Exec = db,
   ): Promise<void> {
     await e
       .update(organizationCapabilityGrants)
-      .set({
-        status: "revoked",
-        decidedAt: new Date(),
-        decidedByUserId: revokedByUserId,
-        decisionReason: reason,
-      })
+      .set({ status })
       .where(eq(organizationCapabilityGrants.id, grantId));
   }
 

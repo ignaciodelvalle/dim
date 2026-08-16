@@ -18,7 +18,9 @@ import type { NewNotification, UseCaseResult } from "./types";
 export interface DecideCapabilityRepo {
   findGrant: OrgRepository["findGrant"];
   updateGrant: OrgRepository["updateGrant"];
+  setGrantStatus: OrgRepository["setGrantStatus"];
   findGrantMemberUserId: OrgRepository["findGrantMemberUserId"];
+  insertAuditLog: OrgRepository["insertAuditLog"];
 }
 
 // ---------------------------------------------------------------------------
@@ -132,13 +134,53 @@ export async function decideCapability(
     await transaction(async (tx) => {
       const e = tx as Exec;
 
-      await repo.updateGrant(
-        input.grantId,
+      if (input.decision === "revoked") {
+        // Lote B1 — revoke must NOT overwrite decidedAt/By/Reason: those are
+        // the provenance of who originally GRANTED the capability. The
+        // revocation's own who/when/why lives in the audit_log row below.
+        await repo.setGrantStatus(input.grantId, "revoked", e);
+      } else {
+        // First-ever decision on the row — no provenance to protect.
+        await repo.updateGrant(
+          input.grantId,
+          {
+            status: input.decision,
+            decidedAt: new Date(),
+            decidedByUserId: input.deciderId,
+            decisionReason: input.reason,
+          },
+          e,
+        );
+      }
+
+      // Lote B1 — every capability decision is answerable in audit_log
+      // (there was NO capability.* action before; a revoke erased the
+      // approver with zero trace).
+      const actionByDecision = {
+        approved: "capability_granted",
+        denied: "capability_denied",
+        revoked: "capability_revoked",
+      } as const;
+      await repo.insertAuditLog(
         {
-          status: input.decision,
-          decidedAt: new Date(),
-          decidedByUserId: input.deciderId,
-          decisionReason: input.reason,
+          actorUserId: input.deciderId,
+          action: actionByDecision[input.decision],
+          targetOrganizationId: input.active.organization.id,
+          payload: {
+            org_id: input.active.organization.id,
+            grant_id: input.grantId,
+            membership_id: grant.membershipId,
+            capability,
+            reason: input.reason,
+            ...(input.decision === "revoked"
+              ? {
+                  revoked_by_user_id: input.deciderId,
+                  revoked_at: new Date().toISOString(),
+                  original_decided_by_user_id: grant.decidedByUserId,
+                  original_decided_at: grant.decidedAt?.toISOString() ?? null,
+                }
+              : {}),
+          },
         },
         e,
       );

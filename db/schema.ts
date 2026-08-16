@@ -2326,6 +2326,15 @@ export const AUDIT_LOG_ACTIONS = [
   "tag.activate",
   "tag.revoke",
   "tag.lote_issue",
+  // Capability grant lifecycle (Lote B1) — decide-capability.ts writes one of
+  // these per decision; grant-capability.ts writes capability_granted for a
+  // direct grant. Payload: { org_id, grant_id, membership_id, capability,
+  // reason }. Revoked additionally carries { revoked_by_user_id, revoked_at,
+  // original_decided_by_user_id, original_decided_at } — the grants-table row
+  // itself is NOT overwritten on revoke (provenance stays in decided*).
+  "capability_granted",
+  "capability_denied",
+  "capability_revoked",
 ] as const;
 export type AuditLogAction = (typeof AUDIT_LOG_ACTIONS)[number];
 

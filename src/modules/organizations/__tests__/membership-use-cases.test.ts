@@ -548,7 +548,7 @@ describe("setMemberEventWrite", () => {
     insertAuditLog: vi.fn().mockResolvedValue(undefined),
     insertGrant: vi.fn().mockResolvedValue({ id: "grant-1" }),
     findApprovedGrant: vi.fn().mockResolvedValue(null),
-    revokeGrant: vi.fn().mockResolvedValue(undefined),
+    setGrantStatus: vi.fn().mockResolvedValue(undefined),
   });
 
   // Transparent transaction mock: immediately invokes the callback with a fake tx.
@@ -727,8 +727,12 @@ describe("setMemberEventWrite", () => {
     expect(repo.insertGrant).not.toHaveBeenCalled();
   });
 
-  it("revokes event.write capability with reason 'toggle' when canWrite=false and grant exists", async () => {
-    const existingGrant = { id: "grant-existing" };
+  it("revokes event.write capability when canWrite=false and grant exists — status-only, provenance in audit payload (B1)", async () => {
+    const existingGrant = {
+      id: "grant-existing",
+      decidedByUserId: "original-approver",
+      decidedAt: new Date("2026-07-01T00:00:00Z"),
+    };
     const repo = {
       ...baseRepo(),
       findActiveMembership: vi
@@ -754,16 +758,28 @@ describe("setMemberEventWrite", () => {
       "event.write",
       expect.anything(),
     );
-    expect(repo.revokeGrant).toHaveBeenCalledWith(
+    // B1 — the grant row keeps who originally granted it: status-only update…
+    expect(repo.setGrantStatus).toHaveBeenCalledWith(
       "grant-existing",
-      "user-actor",
-      "toggle",
+      "revoked",
+      expect.anything(),
+    );
+    // …and the audit payload carries the revocation + original provenance.
+    expect(repo.insertAuditLog).toHaveBeenCalledWith(
+      expect.objectContaining({
+        action: "org_member_event_write_changed",
+        payload: expect.objectContaining({
+          grant_id: "grant-existing",
+          original_decided_by_user_id: "original-approver",
+          original_decided_at: "2026-07-01T00:00:00.000Z",
+        }),
+      }),
       expect.anything(),
     );
     expect(repo.insertGrant).not.toHaveBeenCalled();
   });
 
-  it("skips revokeGrant when canWrite=false and no active grant exists", async () => {
+  it("skips the revoke when canWrite=false and no active grant exists", async () => {
     const repo = {
       ...baseRepo(),
       findActiveMembership: vi
@@ -785,8 +801,8 @@ describe("setMemberEventWrite", () => {
     );
     expect(result.ok).toBe(true);
     expect(repo.findApprovedGrant).toHaveBeenCalled();
-    // No grant to revoke — revokeGrant must NOT be called.
-    expect(repo.revokeGrant).not.toHaveBeenCalled();
+    // No grant to revoke — the status update must NOT be called.
+    expect(repo.setGrantStatus).not.toHaveBeenCalled();
   });
 });
 

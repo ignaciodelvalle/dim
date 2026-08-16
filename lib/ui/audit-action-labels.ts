@@ -119,6 +119,10 @@ export const AUDIT_ACTION_LABELS: Record<string, string> = {
   subject_erasure: "Datos del titular eliminados",
   // PII
   adopter_pii_viewed: "Datos del adoptante vistos",
+  // Capability grant lifecycle (Lote B1)
+  capability_granted: "Permiso concedido",
+  capability_denied: "Permiso denegado",
+  capability_revoked: "Permiso revocado",
 };
 
 /** Human es-AR label for an audit action, falling back to the raw code. */

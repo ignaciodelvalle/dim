@@ -312,7 +312,9 @@ describe("decideCapability", () => {
     return {
       findGrant: vi.fn().mockResolvedValue(makeGrant()),
       updateGrant: vi.fn().mockResolvedValue(undefined),
+      setGrantStatus: vi.fn().mockResolvedValue(undefined),
       findGrantMemberUserId: vi.fn().mockResolvedValue("user-requester"),
+      insertAuditLog: vi.fn().mockResolvedValue(undefined),
       ...overrides,
     };
   }
@@ -360,6 +362,72 @@ describe("decideCapability", () => {
       { repo, transaction: txFn, isUniqueViolation },
     );
     expect(result.ok).toBe(true);
+  });
+
+  // Lote B1 — revoke keeps the ORIGINAL approver on the grant row and records
+  // the revocation (who/when + original provenance) in audit_log instead.
+  it("B1: revoke does NOT overwrite the grant row — setGrantStatus, never updateGrant", async () => {
+    const repo = makeRepo({
+      findGrant: vi.fn().mockResolvedValue(
+        makeGrant({
+          status: "approved",
+          decidedByUserId: "original-approver",
+          decidedAt: new Date("2026-07-01T00:00:00Z"),
+        }),
+      ),
+    });
+    await decideCapability(
+      {
+        deciderId: "admin-1",
+        grantId: "grant-1",
+        decision: "revoked",
+        reason: "ya no corresponde",
+        active: activeOrg,
+        granted: new Set(["capability.grant"]),
+      },
+      { repo, transaction: txFn, isUniqueViolation },
+    );
+    expect(repo.updateGrant).not.toHaveBeenCalled();
+    expect(repo.setGrantStatus).toHaveBeenCalledWith("grant-1", "revoked", expect.anything());
+    expect(repo.insertAuditLog).toHaveBeenCalledWith(
+      expect.objectContaining({
+        actorUserId: "admin-1",
+        action: "capability_revoked",
+        payload: expect.objectContaining({
+          grant_id: "grant-1",
+          capability: "foster.assign",
+          reason: "ya no corresponde",
+          revoked_by_user_id: "admin-1",
+          original_decided_by_user_id: "original-approver",
+          original_decided_at: "2026-07-01T00:00:00.000Z",
+        }),
+      }),
+      expect.anything(),
+    );
+  });
+
+  it("B1: approve writes capability_granted to audit_log; deny writes capability_denied", async () => {
+    for (const [decision, action] of [
+      ["approved", "capability_granted"],
+      ["denied", "capability_denied"],
+    ] as const) {
+      const repo = makeRepo();
+      await decideCapability(
+        {
+          deciderId: "admin-1",
+          grantId: "grant-1",
+          decision,
+          reason: null,
+          active: activeOrg,
+          granted: new Set(["capability.grant"]),
+        },
+        { repo, transaction: txFn, isUniqueViolation },
+      );
+      expect(repo.insertAuditLog).toHaveBeenCalledWith(
+        expect.objectContaining({ action }),
+        expect.anything(),
+      );
+    }
   });
 
   it("returns error when grant not found", async () => {
@@ -517,6 +585,7 @@ describe("grantCapability", () => {
       insertGrant: vi.fn().mockResolvedValue(makeGrantRow()),
       updateGrant: vi.fn().mockResolvedValue(undefined),
       findGrantMemberUserId: vi.fn().mockResolvedValue("user-target"),
+      insertAuditLog: vi.fn().mockResolvedValue(undefined),
       ...overrides,
     };
   }
@@ -534,6 +603,22 @@ describe("grantCapability", () => {
     active: activeOrg,
     granted: new Set(["capability.grant"]),
   };
+
+  it("B1: a direct grant writes capability_granted to audit_log", async () => {
+    const repo = makeRepo();
+    await grantCapability(baseInput, { repo, transaction: txFn, isUniqueViolation });
+    expect(repo.insertAuditLog).toHaveBeenCalledWith(
+      expect.objectContaining({
+        actorUserId: "admin-1",
+        action: "capability_granted",
+        payload: expect.objectContaining({
+          grant_id: "grant-new",
+          capability: "foster.assign",
+        }),
+      }),
+      expect.anything(),
+    );
+  });
 
   it("inserts an approved grant and queues notification for the recipient", async () => {
     const repo = makeRepo();

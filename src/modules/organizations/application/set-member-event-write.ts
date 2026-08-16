@@ -44,7 +44,7 @@ type RepoDeps = Pick<
   | "insertAuditLog"
   | "insertGrant"
   | "findApprovedGrant"
-  | "revokeGrant"
+  | "setGrantStatus"
 >;
 
 type Deps = {
@@ -86,6 +86,7 @@ export async function setMemberEventWrite(
   // Capability is the authoritative enforcement gate (authz-resolver reads
   // organizationCapabilityGrants, NOT the canWritePetEvents column).
   // The legacy column is kept for backward compat and marked deprecated.
+  let revokedGrant: Awaited<ReturnType<OrgRepository["findApprovedGrant"]>> = null;
   await transaction(async (tx) => {
     const e = tx as Exec;
 
@@ -111,9 +112,13 @@ export async function setMemberEventWrite(
       }
     } else {
       // Revoke: find and revoke the existing approved grant (if any).
+      // Lote B1 — status-only: the grant row keeps who originally granted it
+      // (decidedBy/At/Reason); the revocation provenance rides the audit
+      // payload below.
       const existing = await repo.findApprovedGrant(input.membershipId, "event.write", e);
       if (existing) {
-        await repo.revokeGrant(existing.id, input.actor.userId, "toggle", e);
+        await repo.setGrantStatus(existing.id, "revoked", e);
+        revokedGrant = existing;
       }
     }
 
@@ -131,6 +136,15 @@ export async function setMemberEventWrite(
           member_user_id: target.userId,
           can_write_pet_events_before: target.canWritePetEvents,
           can_write_pet_events_after: input.canWrite,
+          // Lote B1 — the revoked grant's provenance, now that the row itself
+          // keeps the original approver instead of being overwritten.
+          ...(revokedGrant
+            ? {
+                grant_id: revokedGrant.id,
+                original_decided_by_user_id: revokedGrant.decidedByUserId,
+                original_decided_at: revokedGrant.decidedAt?.toISOString() ?? null,
+              }
+            : {}),
         },
       },
       e,

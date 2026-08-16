@@ -29,6 +29,7 @@ export interface GrantCapabilityRepo {
   insertGrant: OrgRepository["insertGrant"];
   updateGrant: OrgRepository["updateGrant"];
   findGrantMemberUserId: OrgRepository["findGrantMemberUserId"];
+  insertAuditLog: OrgRepository["insertAuditLog"];
 }
 
 // ---------------------------------------------------------------------------
@@ -171,6 +172,24 @@ export async function grantCapability(
           decidedAt: now,
           decidedByUserId: input.granterId,
           decisionReason: null,
+        },
+        e,
+      );
+
+      // Lote B1 — a direct grant is answerable in audit_log like any other
+      // capability decision.
+      await repo.insertAuditLog(
+        {
+          actorUserId: input.granterId,
+          action: "capability_granted",
+          targetOrganizationId: input.active.organization.id,
+          payload: {
+            org_id: input.active.organization.id,
+            grant_id: grant.id,
+            membership_id: input.membershipId,
+            capability,
+            reason: null,
+          },
         },
         e,
       );
