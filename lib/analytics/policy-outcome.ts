@@ -232,6 +232,13 @@ export type RuleChangeRow = {
   province: string | null;
   locality: string | null;
   changedAt: Date;
+  /**
+   * Lote B4 — the rule content before/after, straight from the audit payload
+   * (durable since the writers landed; never rendered until now). Created
+   * rows carry only newPayload; deleted rows only previousPayload.
+   */
+  previousPayload: unknown;
+  newPayload: unknown;
 };
 
 /**
@@ -292,6 +299,8 @@ export async function fetchRuleChanges(
       province: provinceCol,
       locality: localityCol,
       changedAt: auditLog.performedAt,
+      previousPayload: sql<unknown>`${auditLog.payload}->'previousPayload'`,
+      newPayload: sql<unknown>`${auditLog.payload}->'newPayload'`,
     })
     .from(auditLog)
     .where(and(...conditions))
@@ -308,6 +317,8 @@ export async function fetchRuleChanges(
       province: r.province,
       locality: r.locality,
       changedAt: r.changedAt,
+      previousPayload: r.previousPayload ?? null,
+      newPayload: r.newPayload ?? null,
     }));
 }
 

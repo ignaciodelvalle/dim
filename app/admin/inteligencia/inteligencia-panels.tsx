@@ -139,6 +139,64 @@ const ACTION_LABELS: Record<PolicyOutcomeRow["action"], string> = {
   govt_business_rule_deleted: "eliminada",
 };
 
+/**
+ * Lote B4 — key-level diff between two rule payloads (generic v1: raw JSON
+ * values per changed key). The payloads have been durable in audit_log since
+ * the rule writers landed; this is the first surface that renders them.
+ */
+export function diffEntries(
+  before: unknown,
+  after: unknown,
+): Array<{ key: string; before: string; after: string }> {
+  const b = (before ?? {}) as Record<string, unknown>;
+  const a = (after ?? {}) as Record<string, unknown>;
+  const keys = new Set([...Object.keys(b), ...Object.keys(a)]);
+  const out: Array<{ key: string; before: string; after: string }> = [];
+  for (const key of keys) {
+    if (JSON.stringify(b[key]) === JSON.stringify(a[key])) continue;
+    out.push({
+      key,
+      before: key in b ? JSON.stringify(b[key]) : "—",
+      after: key in a ? JSON.stringify(a[key]) : "—",
+    });
+  }
+  return out;
+}
+
+/** The "Ver cambios" disclosure for one rule-change row (B4). */
+function RuleChangeDiff({ row }: { row: PolicyOutcomeRow }) {
+  if (row.previousPayload == null && row.newPayload == null) return null;
+  return (
+    <details className="mt-1 text-xs">
+      <summary className="cursor-pointer text-ln-op-mute">Ver cambios</summary>
+      <div className="mt-1 space-y-0.5">
+        {row.action === "govt_business_rule_created" && (
+          <p>
+            Configuración inicial: <code>{JSON.stringify(row.newPayload)}</code>
+          </p>
+        )}
+        {row.action === "govt_business_rule_deleted" && (
+          <p>
+            Última configuración: <code>{JSON.stringify(row.previousPayload)}</code>
+          </p>
+        )}
+        {row.action === "govt_business_rule_updated" && (
+          <dl className="space-y-0.5">
+            {diffEntries(row.previousPayload, row.newPayload).map((d) => (
+              <div key={d.key}>
+                <dt className="inline font-semibold">{d.key}:</dt>{" "}
+                <dd className="inline">
+                  <code>{d.before}</code> → <code>{d.after}</code>
+                </dd>
+              </div>
+            ))}
+          </dl>
+        )}
+      </div>
+    </details>
+  );
+}
+
 /** Honest degraded KPI tile — an explicit "sin datos" state, never a zero. */
 function DegradedKpi({ label, descriptorId }: { label: string; descriptorId: KpiId }) {
   return (
@@ -583,6 +641,7 @@ export async function IntelPolicyPanel({
                     <td className="py-2 pr-4">
                       {RULE_TYPE_REGISTRY[row.ruleType].label}{" "}
                       <span className="text-ln-op-mute">({ACTION_LABELS[row.action]})</span>
+                      <RuleChangeDiff row={row} />
                     </td>
                     <td className="py-2 pr-4">{ruleScopeLabel(row)}</td>
                     <td className="py-2 pr-4">
@@ -610,9 +669,10 @@ export async function IntelPolicyPanel({
             </table>
             <p className="mt-2 text-xs text-ln-op-mute">
               Conteo de eventos agregados en la jurisdicción de la regla,{" "}
-              {POLICY_OUTCOME_WINDOW_DAYS} días antes y después del cambio. Correlación temporal —
-              no implica causalidad. Pares con ambas ventanas &lt;5 se enmascaran (privacidad). El
-              selector de período de arriba no afecta esta tabla: la ventana de ±
+              {POLICY_OUTCOME_WINDOW_DAYS} días antes y después del cambio. «Ver cambios» muestra
+              qué decía la regla antes y después, directo del registro de auditoría. Correlación
+              temporal — no implica causalidad. Pares con ambas ventanas &lt;5 se enmascaran
+              (privacidad). El selector de período de arriba no afecta esta tabla: la ventana de ±
               {POLICY_OUTCOME_WINDOW_DAYS} días es fija y se ancla a la fecha de cada cambio de
               regla, porque cada regla necesita su propio antes/después.
             </p>

@@ -201,6 +201,31 @@ describe("fetchRuleChanges — jurisdiction scope (integration)", () => {
     expect(ids).not.toContain(foreign);
   });
 
+  it("B4: threads previousPayload/newPayload through from the audit payload", async () => {
+    const [row] = await db
+      .insert(auditLog)
+      .values({
+        action: "govt_business_rule_updated",
+        payload: {
+          ruleType: "ppp_breed_list",
+          jurisdiction: { country: "AR", province: null, locality: null },
+          previousPayload: { breeds: ["a"] },
+          newPayload: { breeds: ["a", "b"] },
+        },
+      })
+      .returning({ id: auditLog.id });
+    seededIds.push(row.id);
+
+    const rows = await fetchRuleChanges(100);
+    const mine = rows.find((r) => r.auditId === row.id);
+    expect(mine).toBeDefined();
+    expect(mine?.previousPayload).toEqual({ breeds: ["a"] });
+    expect(mine?.newPayload).toEqual({ breeds: ["a", "b"] });
+    // Created rows (no previousPayload key) surface null, never undefined.
+    const created = rows.find((r) => r.action === "govt_business_rule_created");
+    if (created) expect(created.previousPayload).toBeNull();
+  });
+
   it("national rules are always included under a scope — the honesty-critical branch", async () => {
     // A national rule must never disappear from a jurisdiction-scoped view:
     // it genuinely governs that jurisdiction too. Regression shape: a naive

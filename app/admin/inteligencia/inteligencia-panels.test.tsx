@@ -23,6 +23,7 @@ import {
   IntelPolicyPanel,
   IntelQualityKpi,
   IntelQualityPanel,
+  diffEntries,
 } from "./inteligencia-panels";
 
 const ok = <T,>(value: T): Promise<AnalyticsLoad<T>> => Promise.resolve({ ok: true, value });
@@ -126,6 +127,8 @@ describe("es-AR decimal formatting (T4.16)", () => {
             province: "Córdoba",
             locality: null,
             changedAt: new Date("2026-07-01T00:00:00Z"),
+            previousPayload: null,
+            newPayload: null,
             metricLabel: "Cobertura antirrábica",
             eventType: "vaccination_administered",
             before: 100,
@@ -155,6 +158,8 @@ describe("es-AR decimal formatting (T4.16)", () => {
             province: "Santa Fe",
             locality: null,
             changedAt: new Date("2026-07-01T00:00:00Z"),
+            previousPayload: null,
+            newPayload: null,
             metricLabel: "Mordeduras",
             eventType: "incident_reported",
             before: 17,
@@ -244,5 +249,31 @@ describe("es-AR decimal formatting (T4.16)", () => {
     // case a whole-number-only fixture could not have caught.
     expect(html).toContain("15,0%");
     expect(html).not.toContain(">15%<");
+  });
+});
+
+// Lote B4 — the key-level diff behind «Ver cambios». Pure function: the render
+// path just maps its output, so the edge cases live here.
+describe("diffEntries (B4)", () => {
+  it("returns empty for identical payloads (including both null)", () => {
+    expect(diffEntries({ days: 10 }, { days: 10 })).toEqual([]);
+    expect(diffEntries(null, null)).toEqual([]);
+  });
+
+  it("reports changed keys with before → after values", () => {
+    expect(diffEntries({ days: 10 }, { days: 14 })).toEqual([
+      { key: "days", before: "10", after: "14" },
+    ]);
+  });
+
+  it("reports added and removed keys with an em-dash placeholder", () => {
+    const out = diffEntries({ old: true }, { nuevo: [1, 2] });
+    expect(out).toContainEqual({ key: "old", before: "true", after: "—" });
+    expect(out).toContainEqual({ key: "nuevo", before: "—", after: "[1,2]" });
+  });
+
+  it("compares nested values structurally, not by reference", () => {
+    expect(diffEntries({ list: [1, 2] }, { list: [1, 2] })).toEqual([]);
+    expect(diffEntries({ list: [1, 2] }, { list: [1, 3] })).toHaveLength(1);
   });
 });
