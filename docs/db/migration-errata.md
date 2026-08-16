@@ -175,6 +175,16 @@ patched by hand or restored partially can hold this class of drift on any
 against the last migration that defines each) would catch it before a seed or
 a cascade does.
 
+**BUILT (Lote B5, 2026-08-16)**: `scripts/check-function-parity.ts` — standalone
+(`pnpm check:function-parity`) and as section D of `pnpm db:doctor`, which now
+runs nightly against staging via `.github/workflows/db-doctor-staging.yml`
+(gated on the `STAGING_DATABASE_URL` secret). One authority nuance discovered
+while building it: for the functions `db/triggers.sql` defines, the LIVE body
+matches *that file*, not their older migration snapshots (e.g.
+`enforce_pet_events_append_only` vs 0127) — so triggers.sql wins the authority
+rule for its functions, and a migration that patches one without updating
+triggers.sql gets flagged until the two sources reconcile.
+
 ---
 
 ## Adding an entry

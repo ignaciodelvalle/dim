@@ -70,6 +70,7 @@ import {
   lines,
   remoteSkipReason,
 } from "./_db-target";
+import { checkFunctionParity } from "./check-function-parity";
 import { DENY_ALL_ALLOWLIST, evaluateCoverage, fetchRlsCoverage } from "./check-rls-coverage";
 import { checksum, listMigrationFiles } from "./migrate";
 
@@ -405,6 +406,10 @@ export async function runDoctor(argv: string[] = []): Promise<void> {
       sections.push(await checkLedger(client));
       sections.push(await checkRealRlsState(client));
       sections.push(await checkProbes(client));
+      // Section D (Lote B5): every repo-owned function's LIVE body vs the last
+      // source that defines it — the general sweep for the E-3 drift class the
+      // per-function probes above only spot-check.
+      sections.push(await checkFunctionParity(client));
     } catch (err) {
       refuse(
         `Could not reach the database (${err instanceof Error ? err.message : String(err)}).`,
