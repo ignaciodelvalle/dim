@@ -11,6 +11,7 @@
 
 import { eq } from "drizzle-orm";
 
+import { MATRICULA_VERIFICATION_NOTE } from "@/app/gob/cola/_lib/matricula-verification";
 import {
   type ApprovalRequest,
   approvalRequests,
@@ -21,7 +22,6 @@ import {
   petServiceDog,
   profiles,
 } from "@/db";
-import { MATRICULA_VERIFICATION_NOTE } from "@/app/gob/cola/_lib/matricula-verification";
 import { canDecideRequest } from "@/lib/infra/approval-scope";
 
 import { ctaForApplicant, loadActorAuthority } from "./helpers";
