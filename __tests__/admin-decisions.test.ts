@@ -9,6 +9,7 @@ import { createClient } from "@supabase/supabase-js";
 import { and, eq, isNull, or, sql } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
+import { composeMatriculaApprovalNotes } from "@/app/gob/cola/_lib/matricula-verification";
 import { WHOLE_PROVINCE_LOCALITY } from "@/lib/domain/jurisdiction-canonical";
 
 import {
@@ -179,7 +180,12 @@ describe("approveRequestForAuthority — role_upgrade_vet", () => {
       )
       .limit(1);
 
-    const result = await approveRequestForAuthority(adminUserId, req.publicToken, "OK");
+    // A3: a vet-matricula approval must carry the checklist's structured note.
+    const result = await approveRequestForAuthority(
+      adminUserId,
+      req.publicToken,
+      composeMatriculaApprovalNotes("OK"),
+    );
     expect(result).toEqual({ ok: true });
 
     const [profile] = await db
@@ -197,7 +203,7 @@ describe("approveRequestForAuthority — role_upgrade_vet", () => {
       .limit(1);
     expect(updated.status).toBe("approved");
     expect(updated.decidedByUserId).toBe(adminUserId);
-    expect(updated.decisionNotes).toBe("OK");
+    expect(updated.decisionNotes).toBe(composeMatriculaApprovalNotes("OK"));
 
     const [logEntry] = await db
       .select()
@@ -345,6 +351,52 @@ describe("matrícula verification flow (UI/UX audit 2026-07)", () => {
       .limit(1);
     expect(decided.status).toBe("approved");
     expect(decided.decisionNotes).toBe(structuredNotes);
+  });
+
+  it("A3: rejects an individual vet approval WITHOUT the verification note — direct call, bare notes", async () => {
+    // The client checklist only disables the submit button; this proves the
+    // server refuses the upgrade when the structured proof is absent. Fresh
+    // request so no earlier approve in this suite can make the case vacuous.
+    const submit = await requestVetUpgradeForUser(orgApplicantId, {
+      matriculaNumber: "MN-A3000",
+      matriculaJurisdiccion: "Buenos Aires",
+      operationalProvince: "Buenos Aires",
+      operationalLocality: "Quilmes",
+    });
+    expect(submit.ok).toBe(true);
+    const [req] = await db
+      .select({ publicToken: approvalRequests.publicToken, id: approvalRequests.id })
+      .from(approvalRequests)
+      .where(
+        and(
+          eq(approvalRequests.applicantUserId, orgApplicantId),
+          eq(approvalRequests.type, "role_upgrade_vet"),
+          eq(approvalRequests.status, "pending"),
+        ),
+      )
+      .limit(1);
+    expect(req).toBeDefined();
+
+    const bare = await approveRequestForAuthority(adminUserId, req.publicToken, "OK");
+    expect("error" in bare && bare.error).toMatch(/verificaci|checklist/i);
+    const nullNotes = await approveRequestForAuthority(adminUserId, req.publicToken, null);
+    expect("error" in nullNotes && nullNotes.error).toMatch(/verificaci|checklist/i);
+
+    const [row] = await db
+      .select({ status: approvalRequests.status })
+      .from(approvalRequests)
+      .where(eq(approvalRequests.id, req.id))
+      .limit(1);
+    expect(row.status).toBe("pending");
+
+    // Cleanup: clear the pending request so the later reject suite can mint
+    // its own for the same applicant (and the applicant keeps role != vet).
+    const cleanup = await rejectRequestForAuthority(
+      adminUserId,
+      req.publicToken,
+      "A3 cleanup — solicitud de prueba del gate de verificación.",
+    );
+    expect(cleanup).toEqual({ ok: true });
   });
 });
 

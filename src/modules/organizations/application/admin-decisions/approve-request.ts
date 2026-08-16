@@ -21,6 +21,7 @@ import {
   petServiceDog,
   profiles,
 } from "@/db";
+import { MATRICULA_VERIFICATION_NOTE } from "@/app/gob/cola/_lib/matricula-verification";
 import { canDecideRequest } from "@/lib/infra/approval-scope";
 
 import { ctaForApplicant, loadActorAuthority } from "./helpers";
@@ -58,6 +59,23 @@ export async function approveRequestForAuthority(
   if (!auth.ok) return { error: auth.error };
   if (!canDecideRequest(auth.profile, request, auth.jurisdictions)) {
     return { error: "No tenés permiso para decidir esta solicitud (fuera de tu jurisdicción)." };
+  }
+
+  // Lote A3 — the individual path must carry PROOF of the verification too.
+  // The client checklist only disabled a button; a direct call could approve a
+  // vet upgrade with empty notes. The structured note prefix is the artifact
+  // the checklist produces (composeMatriculaApprovalNotes), so its presence is
+  // the server-side mirror of "the checklist was completed". Ordered AFTER the
+  // authorization guards: an out-of-scope caller gets the permission error,
+  // never validation detail.
+  if (request.type === "role_upgrade_vet") {
+    const trimmedNotes = notes?.trim() ?? "";
+    if (!trimmedNotes.startsWith(MATRICULA_VERIFICATION_NOTE)) {
+      return {
+        error:
+          "La aprobación de matrícula requiere completar la verificación (checklist) desde el detalle de la solicitud.",
+      };
+    }
   }
 
   type PendingNotification = typeof notifications.$inferInsert;
