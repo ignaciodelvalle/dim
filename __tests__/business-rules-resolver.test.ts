@@ -428,7 +428,7 @@ describe("resolveBusinessRule — requirement tier + legal metadata (migration 0
     expect(r.legalBasis).toBeUndefined();
   });
 
-  it("microchip consumer-gate parity: rows without a tier gate exactly as before; a tier supersedes the boolean; the default still gates ON (RG2)", async () => {
+  it("microchip consumer-gate parity: rows without a tier gate exactly as before; a tier supersedes the boolean; the no-row default gates OFF (RG2 ratified)", async () => {
     // Pre-0183-style row: boolean only, no tier.
     await db.insert(govtBusinessRules).values({
       jurisdictionCountry: "AR",
@@ -464,15 +464,16 @@ describe("resolveBusinessRule — requirement tier + legal metadata (migration 0
     });
     expect(microchipObligationApplies(tiered)).toBe(false);
 
-    // No row anywhere: default {required: true} keeps gating ON — flipping
-    // this default is RG2, ratification-gated, NOT this change.
+    // No row anywhere: the default gates OFF (RG2, PO-ratified 2026-08-16).
+    // The old assumed-mandatory {required: true} default is gone — a cascade
+    // that matches nothing claims nothing, so the obligation does not apply.
     const fallback = await resolveBusinessRule("microchip_required", {
       country: "AR",
       province: "Mendoza",
     });
     expect(fallback.source).toBe("default");
     expect(fallback.requirementLevel).toBeUndefined();
-    expect(microchipObligationApplies(fallback)).toBe(true);
+    expect(microchipObligationApplies(fallback)).toBe(false);
   });
 });
 

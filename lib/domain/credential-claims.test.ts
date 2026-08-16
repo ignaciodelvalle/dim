@@ -23,8 +23,11 @@ const TATTOOED_ONLY = { hasMicrochip: false, hasTattoo: true };
 
 describe("deriveCredentialRegistryClaim — CT scenario table", () => {
   it("no rule resolved (default path) → neutral, no state-registration claim (CT1)", () => {
-    // The default payload {required: true} is the RG2 product stopgap, NOT a
-    // law of the pet's province — it must never back the full claim.
+    // Even a payload claiming required:true must never back the full claim
+    // without a matched row — a default is not a law of the pet's province.
+    // (The real default payload is {required: false}: no Argentine norm
+    // mandates the chip, so silence in the cascade means not_regulated. The
+    // harder shape is pinned here on purpose.)
     const claim = deriveCredentialRegistryClaim(
       { payload: { required: true }, matchedRow: null },
       CHIPPED,

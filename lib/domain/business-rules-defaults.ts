@@ -43,7 +43,12 @@ export interface PhysicalCredentialChannels {
 }
 
 export interface MicrochipRequired {
-  /** Whether this jurisdiction requires a microchip. Default TRUE. */
+  /**
+   * Whether this jurisdiction requires a microchip. Default FALSE since RG2's
+   * ratification (2026-08-16): with no rule row anywhere in the cascade the
+   * obligation is NOT claimed — a jurisdiction opts IN by declaring the rule
+   * mandatory, never by our silence.
+   */
   required: boolean;
 }
 
@@ -191,8 +196,11 @@ export function obligationRuleInfo(
  * OR5 boolean gate (`payload.required`) instead of a flat default, so
  * `requirementLevel === "mandatory"` here is EXACTLY
  * `microchipObligationApplies(rule)` (parity-tested in
- * business-rules-defaults.test.ts). Keeps the RG2-gated default intact: with
- * no row anywhere, the default payload `{required: true}` still gates ON.
+ * business-rules-defaults.test.ts). The default payload is `{required: false}`
+ * because no Argentine norm mandates the chip (see BUSINESS_RULES_DEFAULTS
+ * below for the sources), so with no row anywhere the effective tier is
+ * `not_regulated` — the obligation surfaces only where a rule row claims it,
+ * which today is nowhere.
  */
 export function microchipObligationRuleInfo(
   rule: ResolvedObligationRuleLike & { payload: { required?: boolean } },
@@ -237,9 +245,30 @@ export const BUSINESS_RULES_DEFAULTS: {
     engraved_plate: { enabled: false },
     nfc_tag: { enabled: false },
   },
-  // Default TRUE — every jurisdiction requires a microchip until one opts out,
-  // preserving the pre-gate universal microchip obligation (migration 0150).
-  microchip_required: { required: true },
+  // Default FALSE — RG2, PO-ratified 2026-08-16, restored 2026-08-17.
+  //
+  // WHY, not just what: NO ARGENTINE NORM MANDATES THE MICROCHIP. PBA Ley
+  // 14.107 art. 8 inc. b admits "un chip O DE UN TATUAJE" and only for PPP
+  // dogs; Ley CABA 4.078 art. 6 requires a collar with chapa and never
+  // mentions a chip; SENASA states no national electronic-identification
+  // regulation exists (engram legal/claims-refutadas-2026-08-17). So silence
+  // in the cascade is not a gap waiting to be filled — it is the accurate
+  // answer, and `{required: true}` (migration 0150's assumed-mandatory
+  // default) claimed an obligation that has no source anywhere in the country.
+  //
+  // This flip was parked once (revert 88689beb) because /gob simultaneously
+  // cited Ley 14.107 as the chip mandate, and the two would have contradicted
+  // each other in front of a funcionario. The resolution was NOT to wait for a
+  // baseline row that could never exist: the citation was the false half, and
+  // it was removed (see lib/metrics/metric-legal-basis.ts). The park's
+  // precondition — "seed the baseline first so the not_regulated window is
+  // transitory" — is void, because the window is not transitory and should
+  // not be: not_regulated is simply true until some jurisdiction legislates.
+  //
+  // Matched rows are untouched: an explicit tier still wins, and a NULL-tier
+  // row still gates on its own payload.required — so the day a province does
+  // mandate the chip, one row turns it on for that province alone.
+  microchip_required: { required: false },
   rabies_observation_window: { days: 10 },
   due_soon_window: { days: 30 },
   reminder_windows: { aheadDays: 14 },
