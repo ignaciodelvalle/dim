@@ -1002,11 +1002,12 @@ describe("citation composition (CS5/CS6)", () => {
     );
   });
 
-  it("an Ushuaia pet never sees CABA legal text on the tiered cards (CS6)", () => {
+  it("an Ushuaia pet never sees CABA legal text on ANY card — rabies included (CS6, RG1 ratified)", () => {
     // A CABA pet's resolved rules carry the CABA citation; an Ushuaia pet's
-    // carry their own (or none). The NON-rabies cards must reflect ONLY what
-    // resolved — the rabies footnote is the RG1-gated hardcoded literal and is
-    // asserted separately below, unchanged.
+    // carry their own (or none). EVERY card must reflect ONLY what resolved —
+    // since RG1's ratification (2026-08-16) the rabies footnote composes from
+    // the resolved row too, so the old hardcoded CABA ordinance can reach no
+    // pet whose own jurisdiction did not resolve it.
     const ushuaia = deriveComplianceState(
       baseInput({
         microchipCode: "982000123456789",
@@ -1015,29 +1016,43 @@ describe("citation composition (CS5/CS6)", () => {
         pppRule: null,
       }),
     );
-    const nonRabies = ushuaia.cards.filter((c) => c.key !== "rabies");
-    const serialized = JSON.stringify(nonRabies);
+    const serialized = JSON.stringify(ushuaia.cards);
     expect(serialized).not.toContain("41.831");
     expect(serialized).not.toContain("22.953");
     expect(serialized).not.toContain("CABA");
   });
 
-  it("RG1 boundary: the rabies footnote literal is untouched until ratification", () => {
-    const state = deriveComplianceState(baseInput({ obligations: obligations() }));
+  it("rabies footnote composes from the resolved rule row (RG1 ratified 2026-08-16)", () => {
+    // The CABA baseline row carries the composed national+local citation; a
+    // pet resolving it sees BOTH laws — sourced from the row, not a constant.
+    const state = deriveComplianceState(
+      baseInput({
+        obligations: obligations({
+          rabies: { legalBasis: "Ley 22.953 · Ord. CABA 41.831", authority: null },
+        }),
+      }),
+    );
     const rabies = state.cards.find((c) => c.key === "rabies");
     expect(rabies?.legalFootnote).toBe(
-      "Obligación del propietario · Ord. CABA 41.831 · Ley 22.953",
+      "Obligación del propietario · Ley 22.953 · Ord. CABA 41.831",
     );
+  });
+
+  it("rabies footnote keeps the generic stopgap when nothing resolves — never invents law", () => {
+    const state = deriveComplianceState(baseInput({ obligations: obligations() }));
+    const rabies = state.cards.find((c) => c.key === "rabies");
+    expect(rabies?.legalFootnote).toBe("Obligación del propietario · según normativa jurisdiccional");
   });
 });
 
-describe("regression fence — no NEW jurisdiction-literal copies in the compliance module", () => {
+describe("regression fence — ZERO jurisdiction literals in the compliance module (RG1 ratified)", () => {
   // Scope (WU2 note): data/legal-baseline/ar-v1.ts legitimately carries these
   // literals as dataset CONTENT, so the fence scans ONLY the compliance module
-  // (lib/projections + components/pet-profile), excluding test files. The ONE
-  // permitted line is the RG1-gated FOOTNOTE.rabies constant in
-  // pet-compliance.ts — any second occurrence is a new hardcode sneaking in.
-  it("finds the CABA literals only on the FOOTNOTE.rabies line of pet-compliance.ts", () => {
+  // (lib/projections + components/pet-profile), excluding test files. Since
+  // RG1's ratification (2026-08-16) the old FOOTNOTE.rabies exemption is GONE:
+  // every citation composes from the resolved rule row, so ANY occurrence of
+  // the CABA literals in module source is a hardcode sneaking back in.
+  it("finds NO CABA literal anywhere in the compliance module source", () => {
     const root = process.cwd();
     const dirs = [join(root, "lib", "projections"), join(root, "components", "pet-profile")];
     const offenders: string[] = [];
@@ -1052,8 +1067,6 @@ describe("regression fence — no NEW jurisdiction-literal copies in the complia
         });
       }
     }
-    expect(offenders).toHaveLength(1);
-    expect(offenders[0]).toContain("pet-compliance.ts");
-    expect(offenders[0]).toContain("rabies:");
+    expect(offenders).toEqual([]);
   });
 });

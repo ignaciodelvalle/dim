@@ -226,15 +226,14 @@ export type ComplianceInput = {
   viewerUserId?: string | null;
 };
 
-// Legal footnotes — real norms per docs/legal-framework-full.md / AGENTS.md.
-// Kept as one muted line each; never a banner (handoff §5).
+// Legal footnotes — generic stopgaps only (spec CS5, RG1 ratified 2026-08-16).
+// Kept as one muted line each; never a banner (handoff §5). Every REAL citation
+// composes from the resolved rule row in deriveComplianceState; these are the
+// fallbacks when nothing resolves — the module never hardcodes another
+// jurisdiction's ordinance (the old CABA rabies literal included; a pet outside
+// CABA must not be shown a CABA article as if it were its own norm).
 const FOOTNOTE = {
-  rabies: "Obligación del propietario · Ord. CABA 41.831 · Ley 22.953",
-  // Neutralized from a hardcoded CABA ordinance: the microchip obligation is now
-  // gated per-jurisdiction (microchip_required rule), so a pet outside CABA must
-  // not be shown a CABA article as if it were its own norm. The rule's resolved
-  // jurisdiction context is not plumbed this far; cite the applicable-norm class
-  // instead of inventing per-province ordinance numbers.
+  rabies: "Obligación del propietario · según normativa jurisdiccional",
   microchip: "Identificación · según normativa jurisdiccional",
   ppp: "Régimen perros potencialmente peligrosos · regla jurisdiccional",
 } as const;
@@ -256,9 +255,9 @@ const STERILIZATION_FOOTNOTE = {
  * `[legalBasis, authority].filter(Boolean).join(" · ")`. Returns null when the
  * row carries no citation — the caller then keeps the generic stopgap wording
  * ("según normativa jurisdiccional"), NEVER inventing law. Used for the
- * already-neutralized footnotes (microchip, PPP); the rabies footnote stays
- * hardcoded until RG1 is ratified, and the sterilization footnotes are
- * provenance lines, not legal citations.
+ * rabies, microchip and PPP footnotes (RG1 ratified 2026-08-16 — the rabies
+ * CABA literal is gone); the sterilization footnotes are provenance lines,
+ * not legal citations.
  */
 export function composeLegalCitation(
   info: { legalBasis: string | null; authority: string | null } | null | undefined,
@@ -813,10 +812,18 @@ export function deriveComplianceState(input: ComplianceInput): ComplianceState {
   let pppCard = derivePpp(input);
 
   if (obligations) {
-    // Citation composition (CS5) — microchip only among the three: the rabies
-    // footnote literal is RG1-gated (untouched until PO ratification) and the
-    // sterilization footnotes are provenance lines, not legal citations. The
-    // generic stopgap stays when the resolved row carries no citation.
+    // Citation composition (CS5, RG1 ratified 2026-08-16) — rabies + microchip
+    // compose from the resolved rule row; the sterilization footnotes are
+    // provenance lines, not legal citations. The generic stopgap stays when
+    // the resolved row carries no citation — never invent law (CS6: a CABA
+    // citation reaches ONLY pets whose own jurisdiction resolved it).
+    const rabiesCitation = composeLegalCitation(obligations.rabies);
+    if (rabiesCard && rabiesCitation) {
+      rabiesCard = {
+        ...rabiesCard,
+        legalFootnote: `Obligación del propietario · ${rabiesCitation}`,
+      };
+    }
     const microchipCitation = composeLegalCitation(obligations.microchip);
     if (microchipCard && microchipCitation) {
       microchipCard = { ...microchipCard, legalFootnote: `Identificación · ${microchipCitation}` };
