@@ -41,6 +41,7 @@ import { petPhotoUrl } from "@/lib/infra/storage";
 import { createClient } from "@/lib/supabase/server";
 import { eventTypeLabel, formatDateTime, sexLabel, speciesLabel } from "@/lib/utils/format";
 import { availableCaseActions } from "@/src/modules/cases/domain/available-actions";
+import { logPiiReadSafely } from "@/src/modules/organizations/application/admin-proposals/log-pii-query";
 
 interface CaseDetailViewProps {
   publicCode: string;
@@ -83,6 +84,13 @@ export async function CaseDetailView({ publicCode, casosHref }: CaseDetailViewPr
     viewerUserId && viewerRole ? { userId: viewerUserId, role: viewerRole, jurisdictions } : null,
   );
   if (!allowed) notFound();
+
+  // Lote B3 — an AUTHORITY reading a case detail is a PII read and leaves a
+  // pii_queried trail. Gated to admin/govt only: this same component renders
+  // the public and owner views, which must never log self-views. Fail-soft.
+  if ((viewerRole === "admin" || viewerRole === "govt") && viewerUserId) {
+    await logPiiReadSafely(viewerUserId, publicCode, 1, "case_detail");
+  }
 
   // Anonymous viewers see a redacted view: no opener/closer names, no
   // event notes, generic "Ver perfil público" pet link instead of the

@@ -10,13 +10,24 @@ import { auditLog, db } from "@/db";
 // page returns. AC2: list pages log BOTH the typed-query search and the
 // no-query landing (query=""), since the landing still exposes the first N
 // users' name/id/role.
+// Every surface that reads PII and leaves a pii_queried trail. List/search
+// surfaces log the typed query; DETAIL surfaces (Lote B3: pet_profile,
+// case_detail, observacion_detail — the highest-exposure reads, previously
+// untraced) log the viewed subject's public token/code as the query. Free-form
+// JSONB payload value, not a schema column — no migration needed.
+export type PiiSurface =
+  | "users"
+  | "organizations"
+  | "omnibox"
+  | "pet_profile"
+  | "case_detail"
+  | "observacion_detail";
+
 export async function logPiiQueryForAuthority(
   actorUserId: string,
   query: string,
   resultCount: number,
-  // "omnibox" is the operator global-search surface (Wave 2 Item 10). It is a
-  // free-form JSONB payload value, not a schema column — no migration needed.
-  surface: "users" | "organizations" | "omnibox",
+  surface: PiiSurface,
 ): Promise<void> {
   await db.insert(auditLog).values({
     actorUserId,
@@ -37,7 +48,7 @@ export async function logPiiReadSafely(
   actorUserId: string,
   query: string,
   resultCount: number,
-  surface: "users" | "organizations",
+  surface: PiiSurface,
 ): Promise<boolean> {
   try {
     await logPiiQueryForAuthority(actorUserId, query, resultCount, surface);

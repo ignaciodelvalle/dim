@@ -14,6 +14,7 @@ import { jurisdictionScopeContains } from "@/lib/domain/jurisdiction-canonical";
 import { requireAdminOrGovtOrRedirect } from "@/lib/infra/auth-guards";
 import { PET_OBSERVATION_SELECT } from "@/lib/infra/pet-projections";
 import { formatDateShort, formatDateTimeNumericAr, speciesLabel } from "@/lib/utils/format";
+import { logPiiReadSafely } from "@/src/modules/organizations/application/admin-proposals/log-pii-query";
 import { professionalCloseRabiesObservationAction } from "@/src/modules/surveillance/actions";
 import { diseaseCodeToEnoCode, getEnoDisease } from "@/src/modules/surveillance/domain/eno-catalog";
 
@@ -48,6 +49,12 @@ export default async function ObservationDetailPage({
     );
     if (!inScope) notFound();
   }
+
+  // Lote B3 — the observation detail exposes the pet + owner context; the
+  // read leaves a pii_queried trail like every other authority PII surface.
+  // Covers /gob/observaciones/[publicToken] too (that route re-exports this
+  // page). Fail-soft.
+  await logPiiReadSafely(profile.id, publicToken, 1, "observacion_detail");
 
   const [startedEvent] = await db
     .select({ id: petEvents.id, occurredAt: petEvents.occurredAt, payload: petEvents.payload })

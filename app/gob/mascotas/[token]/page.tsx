@@ -4,6 +4,7 @@ import { notFound } from "next/navigation";
 import { PetSubView } from "@/app/gob/maltrato/_inspector/PetSubView";
 import { requireAdminOrGovtOrRedirect } from "@/lib/infra/auth-guards";
 import { loadOperatorPetSubView } from "@/lib/infra/gob-pet-subview";
+import { logPiiReadSafely } from "@/src/modules/organizations/application/admin-proposals/log-pii-query";
 
 // Govt/admin operator pet profile — the destination for the omnibox pet search
 // (search/omnibox-upgrade). Renders the SAME PetSubView used by the maltrato
@@ -34,6 +35,10 @@ export default async function GobMascotaPage({ params }: PageProps) {
     profile.role === "admin" ? { role: "admin" } : { role: "govt", jurisdictions },
   );
   if (!pet) notFound();
+
+  // Lote B3 — the full profile is the highest-exposure PII read; list/search
+  // paths already logged pii_queried, this detail view did not. Fail-soft.
+  await logPiiReadSafely(profile.id, token, 1, "pet_profile");
 
   return (
     <div className="space-y-6">

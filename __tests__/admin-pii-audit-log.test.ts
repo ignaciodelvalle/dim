@@ -73,6 +73,24 @@ describe("logPiiQueryForAuthority (C3)", () => {
     expect(payload.surface).toBe("users");
   });
 
+  // Lote B3 — the detail-view surfaces (the highest-exposure reads, untraced
+  // before B3) log through the same writer: subject token/code as the query.
+  it("writes rows for the B3 detail surfaces (pet_profile / case_detail / observacion_detail)", async () => {
+    await logPiiQueryForAuthority(actorId, "DIM-TEST-0001", 1, "pet_profile");
+    await logPiiQueryForAuthority(actorId, "CAS-TEST-0001", 1, "case_detail");
+    await logPiiQueryForAuthority(actorId, "DIM-TEST-0001", 1, "observacion_detail");
+
+    const rows = await db
+      .select({ payload: auditLog.payload })
+      .from(auditLog)
+      .where(and(eq(auditLog.actorUserId, actorId), eq(auditLog.action, "pii_queried")))
+      .orderBy(desc(auditLog.performedAt))
+      .limit(3);
+
+    const surfaces = rows.map((r) => (r.payload as { surface?: string }).surface).sort();
+    expect(surfaces).toEqual(["case_detail", "observacion_detail", "pet_profile"]);
+  });
+
   it("resolves before its caller can return (awaitable promise)", async () => {
     // The fix is `await logPiiQueryForAuthority(...)` instead of `void`. Guard
     // that the function returns a settleable promise whose effect is visible
