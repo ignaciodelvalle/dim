@@ -67,7 +67,9 @@ export function MpfExportGate({
             ? "Error al generar el PDF. Intentá de nuevo."
             : result.error === "storage_upload_failed"
               ? "Error al subir el PDF. Verificá la conectividad con el servidor."
-              : "Error al generar el export. Intentá de nuevo.",
+              : result.error === "untriaged"
+                ? "La denuncia todavía no fue triada. Triala antes de generar el export."
+                : "Error al generar el export. Intentá de nuevo.",
         );
       } else {
         setSignedUrl(result.signedUrl);

@@ -514,7 +514,9 @@ describe("generateMpfExportAction — mocked storage", () => {
         description: "Integration test welfare report for MPF export (at least 20 chars here).",
         subjectKind: "registered_pet",
         subjectPetId: petId,
-        status: "open",
+        // A2: the triage gate now rejects status "open" server-side — this
+        // success-path fixture represents an already-triaged report.
+        status: "triaged",
         jurisdictionProvince: "CABA",
         jurisdictionLocality: "CABA",
       })
@@ -582,6 +584,52 @@ describe("generateMpfExportAction — mocked storage", () => {
     expect(result.error).toBe("not_found");
   });
 
+  it("A2: rejects an UNTRIAGED report on a direct call — no PDF, no audit row", async () => {
+    // The client MpfExportGate only disables a button; this proves the server
+    // refuses a formal Ley 14.346 document for a report nobody triaged yet.
+    const [openReport] = await db
+      .insert(welfareReports)
+      .values({
+        referenceCode: "WR-A2-UNTRIAGED",
+        kind: "neglect",
+        severity: "medium",
+        description: "Integration test untriaged report for the A2 server-side gate.",
+        subjectKind: "unowned_animal",
+        subjectDescription: "Perro sin dueño",
+        status: "open",
+        jurisdictionProvince: "CABA",
+        jurisdictionLocality: "CABA",
+      })
+      .returning();
+
+    const supabaseMock = buildSupabaseMock();
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    mockCreateClient.mockResolvedValue(supabaseMock as any);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    mockRequireAdminOrGovt.mockResolvedValue({
+      profile: { id: govtUserId, role: "govt" },
+      jurisdictions: [{ province: "CABA", locality: "CABA" }],
+      user: { id: govtUserId },
+      supabase: supabaseMock,
+    } as any);
+
+    const result = await generateMpfExportAction(openReport.id);
+
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.error).toBe("untriaged");
+    // Nothing was generated or recorded for the refused export.
+    expect(supabaseMock.storage.from("welfare-exports").upload).not.toHaveBeenCalled();
+    const auditRows = (await db.execute(
+      sql`SELECT id FROM audit_log
+          WHERE action = 'welfare_mpf_export_generated'
+            AND payload->>'welfareReportId' = ${openReport.id}`,
+    )) as Array<{ id: string }>;
+    expect(auditRows).toHaveLength(0);
+
+    await db.execute(sql`DELETE FROM welfare_reports WHERE id = ${openReport.id}`);
+  });
+
   it("returns not_found for a non-existent welfareReportId", async () => {
     const supabaseMock = buildSupabaseMock();
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -619,7 +667,8 @@ describe("generateMpfExportAction — mocked storage", () => {
         description: "Integration test welfare report outside the old MPF-configured jurisdiction.",
         subjectKind: "unowned_animal",
         subjectDescription: "Perro sin dueño",
-        status: "open",
+        // A2: success-path fixture — already triaged (see the untriaged test).
+        status: "triaged",
         jurisdictionProvince: "Buenos Aires",
         jurisdictionLocality: "Buenos Aires",
       })

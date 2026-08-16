@@ -825,6 +825,13 @@ export async function generateMpfExportAction(
   const loaded = await loadAndVerifyScopeFor(repo, welfareReportId, profile, jurisdictions);
   if ("error" in loaded) return { ok: false, error: "not_found" };
 
+  // Lote A2 — triage gate (server-side mirror of MpfExportGate.tsx): a formal
+  // Ley 14.346 fiscal document must not be generated for an untriaged report.
+  // The client gate only disabled a button; a direct call bypassed it.
+  if (loaded.row.status === "open") {
+    return { ok: false, error: "untriaged" };
+  }
+
   // MPF export format cascade (jurisdiction-compliance, 2026-07-22) —
   // replaces the old CABA-only gate (MPF_CONFIGURED_PROVINCES /
   // isMpfConfiguredForProvince, removed). The export is no longer blocked by
