@@ -6,9 +6,9 @@
 //
 // Usage (server must be running on :3000 with the fresh build):
 //   pnpm exec tsx scripts/qa-panorama-vis.ts --email=admin@dim.test
-//   pnpm exec tsx scripts/qa-panorama-vis.ts --email=lucas@dim.test
+//   pnpm exec tsx scripts/qa-panorama-vis.ts --email=lucas@dim.test [--out=DIR]
 
-import { resolve } from "node:path";
+import { join, resolve } from "node:path";
 
 import { type Page, chromium } from "@playwright/test";
 
@@ -29,6 +29,7 @@ const args = new Map(
 const EMAIL = args.get("email") ?? "admin@dim.test";
 const PASSWORD = args.get("password") ?? "Test1234!";
 const BASE = args.get("base") ?? "http://localhost:3000";
+const OUT = args.get("out") ?? ".";
 const panoramaPath = EMAIL.startsWith("admin@") ? "/admin/panorama" : "/gob/panorama";
 const tag = EMAIL.startsWith("admin@") ? "admin" : "lucas";
 
@@ -56,8 +57,9 @@ async function waitForMap(page: Page): Promise<void> {
 }
 
 async function shot(page: Page, name: string): Promise<void> {
-  await page.screenshot({ path: `panorama-vis-qa-${name}.png` });
-  console.log(`  shot -> panorama-vis-qa-${name}.png`);
+  const path = join(OUT, `panorama-vis-qa-${name}.png`);
+  await page.screenshot({ path });
+  console.log(`  shot -> ${path}`);
 }
 
 type AxeViolation = { id: string; impact: string; nodes: unknown[] };

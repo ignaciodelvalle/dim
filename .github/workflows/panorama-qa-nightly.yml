@@ -1,0 +1,206 @@
+name: Panorama QA nightly (local stack)
+
+# Nightly report-only pass of the three standalone panorama QA harnesses
+# (report-panorama-a11y, qa-panorama-vis, qa-panorama-chaos) against the LOCAL
+# stack — not staging: the scripts drive chromium.launch() themselves (no
+# playwright.config.ts webServer) and need the deterministic seeded accounts +
+# panorama data the local bootstrap provides.
+#
+# REPORT, NOT GATE — by design. The scripts' own headers say nothing here can
+# turn a run red (report-panorama-a11y exits 0 with violations on the page);
+# the value is the uploaded artifacts a human reviews. Converting any of them
+# into a ratcheted gate is a separate, larger decision (needs a violation
+# baseline like lint:action-redirect's pattern) — do not do it silently here.
+#
+# Cron is UTC: 06:30 UTC = 03:30 in Argentina (UTC-3, no DST) — offset from
+# e2e-nightly's 06:00 so the two never compete for attention on a red morning.
+on:
+  schedule:
+    - cron: "30 6 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  a11y-vis:
+    name: A11y + visual reports
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 11
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Install Playwright browsers (chromium only)
+        run: pnpm exec playwright install --with-deps chromium
+
+      - name: Start Supabase local stack
+        run: pnpm exec supabase start --exclude studio,inbucket,imgproxy,edge-runtime,realtime
+
+      - name: Extract Supabase env vars for runtime
+        uses: ./.github/actions/supabase-env
+
+      - name: Bootstrap DB (schema + triggers + RLS + seeds)
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:54322/postgres
+          NEXT_PUBLIC_SUPABASE_URL: http://127.0.0.1:54321
+          SUPABASE_SERVICE_ROLE_KEY: sb_secret_N7UND0UgjKTVK-Uodkm0Hg_xSvEMPvz
+        run: pnpm db:bootstrap
+
+      - name: Seed panorama data + refresh cube
+        # Without this the map is empty and the reports exercise almost no
+        # surface. Same reduced SCALE the vitest job uses.
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:54322/postgres
+          NEXT_PUBLIC_SUPABASE_URL: http://127.0.0.1:54321
+          SUPABASE_SERVICE_ROLE_KEY: sb_secret_N7UND0UgjKTVK-Uodkm0Hg_xSvEMPvz
+          SCALE: "0.0004"
+        run: pnpm seed:panorama && pnpm cube:refresh
+
+      - name: Build Next.js app
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:54322/postgres
+          NEXT_PUBLIC_SUPABASE_URL: http://127.0.0.1:54321
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ env.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
+          SUPABASE_SERVICE_ROLE_KEY: sb_secret_N7UND0UgjKTVK-Uodkm0Hg_xSvEMPvz
+        run: pnpm build
+
+      - name: Start server on :3000 and wait
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:54322/postgres
+          NEXT_PUBLIC_SUPABASE_URL: http://127.0.0.1:54321
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ env.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
+          SUPABASE_SERVICE_ROLE_KEY: sb_secret_N7UND0UgjKTVK-Uodkm0Hg_xSvEMPvz
+          PORT: "3000"
+        run: |
+          pnpm start &
+          for i in $(seq 1 60); do
+            curl -sf -o /dev/null http://localhost:3000/ && exit 0
+            sleep 2
+          done
+          echo "server never answered on :3000" && exit 1
+
+      - name: A11y report (admin + lucas)
+        run: |
+          mkdir -p panorama-qa-out
+          pnpm qa:panorama-a11y --email=admin@dim.test --out=panorama-qa-out
+          pnpm qa:panorama-a11y --email=lucas@dim.test --out=panorama-qa-out
+
+      - name: Visual report (admin + lucas)
+        run: |
+          pnpm qa:panorama-vis --email=admin@dim.test --out=panorama-qa-out
+          pnpm qa:panorama-vis --email=lucas@dim.test --out=panorama-qa-out
+
+      - name: Upload reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: panorama-a11y-vis-reports
+          path: panorama-qa-out/
+          retention-days: 14
+
+      - name: Stop Supabase local stack
+        if: always()
+        run: pnpm exec supabase stop --no-backup
+
+  chaos:
+    name: Chaos harness
+    runs-on: ubuntu-latest
+    timeout-minutes: 50
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 11
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Install Playwright browsers (chromium only)
+        run: pnpm exec playwright install --with-deps chromium
+
+      - name: Start Supabase local stack
+        run: pnpm exec supabase start --exclude studio,inbucket,imgproxy,edge-runtime,realtime
+
+      - name: Extract Supabase env vars for runtime
+        uses: ./.github/actions/supabase-env
+
+      - name: Bootstrap DB (schema + triggers + RLS + seeds)
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:54322/postgres
+          NEXT_PUBLIC_SUPABASE_URL: http://127.0.0.1:54321
+          SUPABASE_SERVICE_ROLE_KEY: sb_secret_N7UND0UgjKTVK-Uodkm0Hg_xSvEMPvz
+        run: pnpm db:bootstrap
+
+      - name: Seed panorama data + refresh cube
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:54322/postgres
+          NEXT_PUBLIC_SUPABASE_URL: http://127.0.0.1:54321
+          SUPABASE_SERVICE_ROLE_KEY: sb_secret_N7UND0UgjKTVK-Uodkm0Hg_xSvEMPvz
+          SCALE: "0.0004"
+        run: pnpm seed:panorama && pnpm cube:refresh
+
+      - name: Build Next.js app
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:54322/postgres
+          NEXT_PUBLIC_SUPABASE_URL: http://127.0.0.1:54321
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ env.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
+          SUPABASE_SERVICE_ROLE_KEY: sb_secret_N7UND0UgjKTVK-Uodkm0Hg_xSvEMPvz
+        run: pnpm build
+
+      - name: Start server on :3000 and wait
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:54322/postgres
+          NEXT_PUBLIC_SUPABASE_URL: http://127.0.0.1:54321
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ env.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
+          SUPABASE_SERVICE_ROLE_KEY: sb_secret_N7UND0UgjKTVK-Uodkm0Hg_xSvEMPvz
+          PORT: "3000"
+        run: |
+          pnpm start &
+          for i in $(seq 1 60); do
+            curl -sf -o /dev/null http://localhost:3000/ && exit 0
+            sleep 2
+          done
+          echo "server never answered on :3000" && exit 1
+
+      - name: Chaos rounds (seeded, deterministic)
+        run: |
+          mkdir -p panorama-qa-out
+          pnpm qa:panorama-chaos --email=admin@dim.test --seed=1337 --out=panorama-qa-out
+
+      - name: Upload reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: panorama-chaos-reports
+          path: panorama-qa-out/
+          retention-days: 14
+
+      - name: Stop Supabase local stack
+        if: always()
+        run: pnpm exec supabase stop --no-backup

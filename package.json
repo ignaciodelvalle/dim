@@ -108,6 +108,9 @@
     "test:coverage": "vitest run --coverage",
     "e2e": "playwright test",
     "test:e2e:smoke": "playwright test e2e/public-smoke.spec.ts e2e/crisis-owner-lost-flow.spec.ts",
+    "qa:panorama-a11y": "tsx scripts/report-panorama-a11y.ts",
+    "qa:panorama-chaos": "tsx scripts/qa-panorama-chaos.ts",
+    "qa:panorama-vis": "tsx scripts/qa-panorama-vis.ts",
     "lint:empty-states": "tsx scripts/check-empty-state-consistency.ts"
   },
   "dependencies": {
