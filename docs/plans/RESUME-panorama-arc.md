@@ -1,5 +1,17 @@
 # RESUME — panorama ViewState arc (as of 2026-07-12)
 
+> **STATUS 2026-08-15: ARCHIVED — the WS-4 arc this doc tracks (P2→P5) is COMPLETE.**
+> P3 (Encoding/inset/bivariate), P4 (LOD + decoupled nav), and P5 (explainViewState,
+> embed, presentation mode) all shipped after the 2026-07-14 update below. Since
+> then the panorama console has also absorbed WP3 (request-scope dedup,
+> `src/modules/panorama/application/resolve-request-scope.ts`) and D1 (the 5
+> compliance vistas merged into one `cumplimiento` preset with a metric selector +
+> `LEGACY_PRESET_ALIASES`, `src/modules/panorama/domain/presets.ts`), neither of
+> which this doc ever mentions. Treat everything below as a HISTORICAL record of
+> a specific mid-2026-07 session, not a current-state reference. For current
+> architecture, read the code directly (`presets.ts`, `capabilities.ts`,
+> `lib/panorama/build-panorama-board.ts`) and `docs/agents/README.md`.
+
 > The repo anchor for continuing the ViewState refactor if a session ends. The full,
 > auto-loaded version lives in Engram (`resume/panorama-viewstate-arc`). Branch:
 > `integration/all-20260703`.
@@ -56,18 +68,11 @@ re-narrow the map (route only fences govt to full assignments), a coherence gap 
 (admin is unaffected — poblacion is always national for admin). Carrying scope is NOT a fix: a
 scoped view flips the embed to the locality count-density axis (rate-by-locality deferred).
 
-## Other implementable arcs
-#14 onboarding · #44c attribute filters (REAL version gated behind ViewState `ViewScope`; dept-rate
-coverage was #44a — DONE) · #31c shared `toChoroplethData` (#31a perdidas divergence CLOSED as the
-documented D4 variant, `9bb90fca`) · #19 owner-process-clarity (`docs/plans/owner-process-clarity.md` —
-UNBLOCKED: its gates #9/#10 shipped `fa6c0578`/`52ada95e`) · #15b/d (#15c never existed — numbering typo)
-· #16a `/p` streaming. Minor: #56a error sink (seam DONE `da9f8047`, vendor choice PO-gated).
-Done since the 07-12 triage: #55 `f0043191` · #15a `46d39636` · #52a+b `4714f919` · #53 draft `a67f6ba5`
-(PO prioritization pending) · #42 file `85760e2b` (remote apply PO-gated) · #16b investigated, no safe move.
-
-## Not mine to unblock
-Blocked external: #28 Mi Argentina (convenio), #29 PPP BA (format). PO action = staging: **#3 deploy +
-apply migration `0141`**.
+## Other implementable arcs — SEE CURRENT TRACKING
+The per-task backlog this section listed (2026-07-12 snapshot: #14, #44c, #31c, #19,
+#15b/d, #16a, #56a, and the external blocks #28/#29) is stale; do not treat any item
+here as still-open without re-checking. Current work tracking lives outside this doc
+(engram + `docs/plans/`).
 
 ## Gotchas that bit us (repeat the fix)
 1. **Gate the REAL test result** — grep the log for `TEST EXIT=`, NOT the background wrapper's
