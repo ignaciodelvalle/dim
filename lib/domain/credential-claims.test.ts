@@ -16,8 +16,10 @@ const MATCHED = { id: "rule-1", country: "AR", province: "CABA", locality: null 
 
 describe("deriveCredentialRegistryClaim — CT scenario table", () => {
   it("no rule resolved (default path) → neutral, no state-registration claim (CT1)", () => {
-    // The default payload {required: true} is the RG2 product stopgap, NOT a
-    // law of the pet's province — it must never back the full claim.
+    // Even a payload claiming required:true must never back the full claim
+    // without a matched row — a default is not a law of the pet's province.
+    // (Since RG2's ratification the real default payload is {required: false};
+    // the harder shape is pinned here on purpose.)
     const claim = deriveCredentialRegistryClaim({ payload: { required: true }, matchedRow: null });
     expect(claim.registryBacked).toBe(false);
     expect(claim.identityHeading).toBe(IDENTITY_HEADING_NEUTRAL);

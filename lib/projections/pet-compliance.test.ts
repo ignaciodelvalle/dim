@@ -1041,7 +1041,9 @@ describe("citation composition (CS5/CS6)", () => {
   it("rabies footnote keeps the generic stopgap when nothing resolves — never invents law", () => {
     const state = deriveComplianceState(baseInput({ obligations: obligations() }));
     const rabies = state.cards.find((c) => c.key === "rabies");
-    expect(rabies?.legalFootnote).toBe("Obligación del propietario · según normativa jurisdiccional");
+    expect(rabies?.legalFootnote).toBe(
+      "Obligación del propietario · según normativa jurisdiccional",
+    );
   });
 });
 

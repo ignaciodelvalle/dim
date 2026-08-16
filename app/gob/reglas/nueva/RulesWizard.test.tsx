@@ -80,10 +80,13 @@ describe("<RulesWizard> — step flow", () => {
 
     // Step 4 — Configuración específica: the REAL MicrochipRequiredForm, not
     // a wizard-owned reimplementation. Since migration 0183 (WU1) the form's
-    // primary control is the requirement-tier select, defaulting to
-    // "Obligatorio" (mandatory).
+    // primary control is the requirement-tier select; since RG2's ratification
+    // (2026-08-16) the create default is "No regulado" (not_regulated) — an
+    // admin claims `mandatory` actively, the form never pre-claims it.
     expect(screen.getByText("Paso 4 de 4")).toBeInTheDocument();
-    expect(screen.getByRole("combobox", { name: /Nivel de exigencia/ })).toHaveValue("mandatory");
+    expect(screen.getByRole("combobox", { name: /Nivel de exigencia/ })).toHaveValue(
+      "not_regulated",
+    );
     expect(screen.getByRole("button", { name: "Crear regla" })).toBeInTheDocument();
   });
 
