@@ -47,7 +47,6 @@ import { PanoramaDock, type PanoramaDockTab } from "@/components/panorama/Panora
 import { PanoramaDockRegistros } from "@/components/panorama/PanoramaDockRegistros";
 import { PanoramaInformeSituacion } from "@/components/panorama/PanoramaInformeSituacion";
 import { PanoramaKpiFooter } from "@/components/panorama/PanoramaKpiFooter";
-import { selectMetricKpis } from "@/components/panorama/PanoramaMetricsColumn";
 import {
   PanoramaRail,
   type RailItem,
@@ -110,6 +109,7 @@ import {
 import { useAsOfFrame } from "@/components/panorama/use-asof-frame";
 import { useKeyedAbort } from "@/components/panorama/use-keyed-abort";
 import { usePanoramaKpis } from "@/components/panorama/use-panorama-kpis";
+import { useVistaMetricProjection } from "@/components/panorama/use-vista-metric-projection";
 import { OpButton } from "@/components/ui/dashboard/OpButton";
 import { PANORAMA_DEFAULT_PRESET, resolveAnalyticsPeriod } from "@/lib/analytics/analytics-period";
 import type { LocalityCentroids } from "@/lib/infra/ar-localidades";
@@ -148,10 +148,7 @@ import {
 import { captionFor } from "@/src/modules/panorama/domain/caption";
 import { checkCompatibility, roleOf } from "@/src/modules/panorama/domain/compatibility";
 import { rankingAvailability } from "@/src/modules/panorama/domain/data-availability";
-import {
-  deriveActiveComplianceMetric,
-  derivePreset,
-} from "@/src/modules/panorama/domain/derive-preset";
+import { derivePreset } from "@/src/modules/panorama/domain/derive-preset";
 import {
   AGGREGATED_POINT_IDS,
   AGGREGATED_POINT_LAYERS,
@@ -163,7 +160,6 @@ import {
   isProvinceOnlyChoropleth,
   isTemporalLayer,
 } from "@/src/modules/panorama/domain/layers";
-import { partitionKpiIdsByRelevance } from "@/src/modules/panorama/domain/metric-relevance";
 import {
   PERCAPITA_UNIT_LABEL,
   censusMetaOf,
@@ -2166,21 +2162,11 @@ export function PanoramaConsole({
   const activePresetIdRef = useRef(activePresetId);
   activePresetIdRef.current = activePresetId;
 
-  // D1 metric selector: which metric OPTION of the derived preset the current
-  // layer set corresponds to (non-null exactly when the active preset declares
-  // metricOptions — the default set matches the first option by contract).
-  // Derived, never stored: switching metric flips the layers and this follows,
-  // the same discipline as activePresetId itself.
-  const activeMetricOption = useMemo(() => {
-    if (activePresetId === null) return null;
-    const preset = getPreset(activePresetId);
-    if (!preset?.metricOptions) return null;
-    const metric = deriveActiveComplianceMetric(
-      PANORAMA_LAYERS.filter((l) => states[l.id]?.active).map((l) => l.id),
-      preset,
-    );
-    return preset.metricOptions.find((o) => o.metric === metric) ?? null;
-  }, [activePresetId, states]);
+  // The active vista's metric projection (D1 metric option, curated metric
+  // ids, reading/informe KPI subset) — use-vista-metric-projection.ts
+  // (file-size split, behavior-preserving).
+  const { activePreset, activeMetricOption, metricIds, activeLayerIdList, readingKpis } =
+    useVistaMetricProjection({ activePresetId, states, activeLayers, kpis });
 
   // #53 QOL — the honest "personalizada" moment. When the derived vista flips
   // from a named preset to null (a hand-edit via Personalizar / a chip-less
@@ -3680,50 +3666,6 @@ export function PanoramaConsole({
     }
     setScopeAnnouncement(`Alcance: ${liveScopeLabel || "Argentina"}`);
   }, [liveScopeLabel]);
-
-  // panorama-vista-redesign Phase 1 (design Decision 1): Vista panel (VISTA
-  // label + active question line + PresetPanel row tabs) → 2-col body
-  // (map column: map + honesty lines + scrubber | metrics column: ~342px
-  // right rail). Supersedes the Fase 1 flat reflow.
-  const activePreset = activePresetId !== null ? getPreset(activePresetId) : null;
-
-  // panorama-vista-redesign Phase 3 (design Decision 3): the active preset's
-  // curated metric ids, in display order. Null (manual/advanced mode, no
-  // active preset) → PanoramaMetricsColumn shows every KPI, nothing hidden.
-  // D1: under a metric-selector preset the active OPTION's curated column wins
-  // (each absorbed vista's metrics ported into its option).
-  const metricIds = activeMetricOption?.metrics ?? activePreset?.metrics ?? null;
-
-  // C2a: the active layer ids, for the manual-mode KPI relevance partition
-  // (KpiChips hides indicators whose subject layer is not on the map).
-  const activeLayerIdList = useMemo<LayerId[]>(
-    () => activeLayers.map((l) => l.id as LayerId),
-    [activeLayers],
-  );
-
-  // QA fix (finding 5): feed PanoramaReading the SAME preset-subset the
-  // metrics column shows — previously the reading headlined off the FULL
-  // kpis.kpis array while the column right below it only showed the active
-  // preset's curated metrics, so the one-line sentence could reference a KPI
-  // the operator can't see anywhere on screen. selectMetricKpis is the exact
-  // filter PanoramaMetricsColumn uses; buildPanoramaReading only looks at
-  // known ids + deltas (reading.ts qualify()), so narrowing the input array
-  // just narrows which deltas are eligible to headline — it never breaks the
-  // sentence construction.
-  // Relevance gating (review finding 5): C2a hid off-map KPIs in the KpiChips
-  // overlay ONLY — the one-line reading (PanoramaReading) and the printable
-  // Informe still headlined off the FULL set in manual mode, so both could
-  // surface a metric absent from the active layers (the exact "projection lie"
-  // C2a fixed for the chips). In MANUAL mode (no preset), narrow the reading +
-  // Informe input to the KPIs whose subject layer is on the map — the SAME
-  // partition KpiChips applies. Preset mode is immune (metricIds already curates
-  // a coherent set) and must not be re-filtered, so the gate is scoped to
-  // metricIds === null.
-  const readingKpis = useMemo(() => {
-    const selected = selectMetricKpis(kpis, metricIds);
-    if (metricIds !== null) return selected;
-    return partitionKpiIdsByRelevance(selected, activeLayerIdList).relevant;
-  }, [kpis, metricIds, activeLayerIdList]);
 
   // trust/safety invariant (2026-07-10): the KPI fan-out resolved to the honest
   // degraded payload (no real numbers). Every CONCLUSION surface fed by the KPI
