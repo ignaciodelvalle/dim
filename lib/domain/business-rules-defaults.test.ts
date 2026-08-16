@@ -4,15 +4,9 @@
 // 1. PARITY: while no tier is set (every pre-0183 row, and the hardcoded
 //    default), the gate MUST behave exactly like the boolean expression it
 //    replaced (`payload.required !== false`) at both call sites (pet-profile
-//    resolution, owner-dashboard batch gate) — zero behavior diff per ROW.
+//    resolution, owner-dashboard batch gate) — zero behavior diff at rollout.
 // 2. SUPERSESSION: once a tier IS set, it wins over the boolean — only
 //    `mandatory` gates the obligation on.
-//
-// RG2 (PO-ratified 2026-08-16): the DEFAULT payload flipped to
-// {required: false} — when NO row resolves anywhere in the cascade the
-// obligation is not claimed (not_regulated), instead of assumed-mandatory.
-// This is a deliberate behavior change of the no-rule path ONLY; the per-row
-// parity contract above is unchanged.
 
 import { describe, expect, it } from "vitest";
 
@@ -40,17 +34,10 @@ describe("microchipObligationApplies — parity with the pre-tier boolean gate",
     },
   );
 
-  it("the hardcoded default ({required: false}) gates OFF when nothing resolves — RG2 ratified 2026-08-16: no rule row means no claimed obligation", () => {
+  it("the hardcoded default ({required: true}) keeps gating ON when nothing resolves — RG2 preserved until ratified", () => {
     expect(
       microchipObligationApplies({ payload: BUSINESS_RULES_DEFAULTS.microchip_required }),
-    ).toBe(false);
-  });
-
-  it("the default maps to not_regulated through microchipObligationRuleInfo — the honest no-rule tier (RG2)", () => {
-    expect(
-      microchipObligationRuleInfo({ payload: BUSINESS_RULES_DEFAULTS.microchip_required })
-        .requirementLevel,
-    ).toBe("not_regulated");
+    ).toBe(true);
   });
 });
 

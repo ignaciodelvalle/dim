@@ -84,9 +84,9 @@ export function MicrochipRequiredForm({
       <input type="hidden" name="portalBase" value={base} />
 
       <p className="text-md text-ln-op-ink-2">
-        Si esta jurisdicción exige la identificación por microchip. Sin una regla explícita no se
-        asume ninguna obligación — esta regla permite que una jurisdicción declare la exigencia (o
-        la descarte) con su respaldo legal.
+        Si esta jurisdicción exige la identificación por microchip. Por defecto es obligatorio en
+        todo el país (migración 0150) — esta regla permite que una jurisdicción específica opte por
+        NO exigirlo.
       </p>
 
       {/* Write-both contract (spec OR5): the tier select drives this hidden

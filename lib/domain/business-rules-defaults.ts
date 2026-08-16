@@ -43,12 +43,7 @@ export interface PhysicalCredentialChannels {
 }
 
 export interface MicrochipRequired {
-  /**
-   * Whether this jurisdiction requires a microchip. Default FALSE since RG2's
-   * ratification (2026-08-16): with no rule row anywhere in the cascade the
-   * obligation is NOT claimed — a jurisdiction opts IN by declaring the rule
-   * mandatory, never by our silence.
-   */
+  /** Whether this jurisdiction requires a microchip. Default TRUE. */
   required: boolean;
 }
 
@@ -196,10 +191,8 @@ export function obligationRuleInfo(
  * OR5 boolean gate (`payload.required`) instead of a flat default, so
  * `requirementLevel === "mandatory"` here is EXACTLY
  * `microchipObligationApplies(rule)` (parity-tested in
- * business-rules-defaults.test.ts). Since RG2's ratification (2026-08-16) the
- * default payload is `{required: false}`: with no row anywhere the effective
- * tier is `not_regulated` — the obligation surfaces only where a rule row
- * claims it.
+ * business-rules-defaults.test.ts). Keeps the RG2-gated default intact: with
+ * no row anywhere, the default payload `{required: true}` still gates ON.
  */
 export function microchipObligationRuleInfo(
   rule: ResolvedObligationRuleLike & { payload: { required?: boolean } },
@@ -244,14 +237,9 @@ export const BUSINESS_RULES_DEFAULTS: {
     engraved_plate: { enabled: false },
     nfc_tag: { enabled: false },
   },
-  // Default FALSE — RG2, PO-ratified 2026-08-16 (conditional on the baseline
-  // sign-off, recorded, and the seed reaching each environment BEFORE this
-  // code does — deploy sequencing in the runbook). With no rule row anywhere
-  // the obligation is not claimed (honest default: not_regulated via the OR5
-  // gate), replacing the pre-RG2 assumed-mandatory `{required: true}` from
-  // migration 0150. Matched rows are untouched: an explicit tier still wins,
-  // and a NULL-tier row still gates on its own payload.required.
-  microchip_required: { required: false },
+  // Default TRUE — every jurisdiction requires a microchip until one opts out,
+  // preserving the pre-gate universal microchip obligation (migration 0150).
+  microchip_required: { required: true },
   rabies_observation_window: { days: 10 },
   due_soon_window: { days: 30 },
   reminder_windows: { aheadDays: 14 },

@@ -139,10 +139,6 @@ describe("fetchComplianceStatesForPets microchip sourcing", () => {
   it("feeds the pet's active chip code into the list compliance state for its owner", async () => {
     const states = await fetchComplianceStatesForPets(OWNER_ID, seedPetIds);
     const chipCard = states.get(seedPetIds[0])?.cards.find((c) => c.key === "microchip");
-    // These pets carry NO jurisdiction and no rule row resolves, so since RG2
-    // (ratified 2026-08-16) the microchip is not an obligation here — but a
-    // chip ON RECORD is information the credential still surfaces, as an
-    // informational (not_regulated) card.
     expect(chipCard).toBeDefined();
     // Code known from identifications, no professional implant event → declared.
     expect(chipCard?.state).toBe("Declarado");
@@ -152,21 +148,19 @@ describe("fetchComplianceStatesForPets microchip sourcing", () => {
   it("withholds the chip code from a caller who owns none of the pets", async () => {
     const states = await fetchComplianceStatesForPets(STRANGER_ID, seedPetIds);
     const chipCard = states.get(seedPetIds[0])?.cards.find((c) => c.key === "microchip");
-    // The PII fence degrades the read to "no chip on record" rather than
-    // printing 15 digits the caller has no relationship to — and with no chip
-    // visible and no rule row claiming the obligation (RG2, ratified
-    // 2026-08-16), there is no microchip card at all for this caller.
-    expect(chipCard).toBeUndefined();
+    // The card still renders — this is a PII fence, not a crash or a blank
+    // dashboard — but it degrades to "no chip on record" rather than printing
+    // 15 digits the caller has no relationship to.
+    expect(chipCard?.detail).toBeNull();
+    expect(chipCard?.detail).not.toBe(CHIP_CODE);
     // Belt-and-braces: the code is nowhere in the serialized state.
     expect(JSON.stringify([...states.values()])).not.toContain(CHIP_CODE);
   });
 
-  it("omits the microchip card for an owned pet without identifications — no rule row claims the obligation (RG2)", async () => {
-    // Pre-RG2 this read "Sin registro" (assumed-mandatory default). Since the
-    // ratified flip (2026-08-16), a jurisdiction with no microchip_required
-    // rule row does not surface the obligation at all — the honest default.
+  it("keeps 'Sin registro' for an owned pet without identifications", async () => {
     const states = await fetchComplianceStatesForPets(OWNER_ID, [seedPetIds[1]]);
     const chipCard = states.get(seedPetIds[1])?.cards.find((c) => c.key === "microchip");
-    expect(chipCard).toBeUndefined();
+    expect(chipCard?.state).toBe("Sin registro");
+    expect(chipCard?.detail).toBeNull();
   });
 });

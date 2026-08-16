@@ -167,17 +167,12 @@ describe("fetchComplianceStatesForPets — tier + citation threading (CS1/CS4/CS
     expect(ruled?.cards.some((c) => c.key === "rabies")).toBe(false);
     expect(ruled?.summary.total).toBe(2); // sterilization + microchip only
 
-    // The OTHER jurisdiction matched no rules: rabies/sterilization keep the
-    // pre-tier fallback (obligations), while microchip is NOT claimed (RG2,
-    // ratified 2026-08-16 — the no-rule default is not_regulated, so with no
-    // chip on record the card is omitted, honestly).
     const other = states.get(seedPetIds[2]);
     expect(other?.cards.some((c) => c.key === "rabies")).toBe(true);
-    expect(other?.cards.some((c) => c.key === "microchip")).toBe(false);
-    expect(other?.summary.total).toBe(2); // rabies + sterilization
+    expect(other?.summary.total).toBe(3);
   });
 
-  it("the microchip citation reaches its own jurisdiction and never leaks into another (CS6 + RG2)", async () => {
+  it("the microchip citation reaches its own jurisdiction and never leaks into another (CS6)", async () => {
     const states = await fetchComplianceStatesForPets(OWNER_ID, seedPetIds);
 
     const ruledChip = states.get(seedPetIds[0])?.cards.find((c) => c.key === "microchip");
@@ -185,13 +180,11 @@ describe("fetchComplianceStatesForPets — tier + citation threading (CS1/CS4/CS
       `Identificación · ${CITATION_BASIS} · ${CITATION_AUTHORITY}`,
     );
 
-    // The OTHER jurisdiction resolved nothing → since RG2 (ratified
-    // 2026-08-16) there is NO microchip obligation card at all (the pre-RG2
-    // behavior was a generic-stopgap card), and the ruled province's citation
-    // appears NOWHERE in its serialized state.
+    // The OTHER jurisdiction resolved nothing → generic stopgap, and the ruled
+    // province's citation appears NOWHERE in its serialized state.
     const otherState = states.get(seedPetIds[2]);
     const otherChip = otherState?.cards.find((c) => c.key === "microchip");
-    expect(otherChip).toBeUndefined();
+    expect(otherChip?.legalFootnote).toBe("Identificación · según normativa jurisdiccional");
     expect(JSON.stringify(otherState)).not.toContain(CITATION_BASIS);
   });
 });
