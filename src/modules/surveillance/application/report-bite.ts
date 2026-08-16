@@ -87,6 +87,17 @@ type Deps = {
     province: string;
     locality: string;
   }) => Promise<string[]>;
+  /**
+   * A1 — the per-jurisdiction `rabies_observation_window` business rule,
+   * resolved against the INCIDENT jurisdiction at report time. The stored
+   * `observation_until` is what the close cron later reads verbatim, so the
+   * window is prospective by construction: already-open observations keep
+   * their computed deadline.
+   */
+  resolveObservationWindow: (jurisdiction: {
+    province: string | null;
+    locality: string | null;
+  }) => Promise<{ days: number }>;
 };
 
 export type ReportBiteResult = UseCaseResult<{ petToken: string; casePublicCode: string }>;
@@ -96,7 +107,8 @@ export type ReportBiteResult = UseCaseResult<{ petToken: string; casePublicCode:
 // ---------------------------------------------------------------------------
 
 export async function reportBite(input: ReportBiteInput, deps: Deps): Promise<ReportBiteResult> {
-  const { repo, openCase, transaction, findAuthoritiesForJurisdiction } = deps;
+  const { repo, openCase, transaction, findAuthoritiesForJurisdiction, resolveObservationWindow } =
+    deps;
   const { pet, user, eventAuthorship, occurredAt } = input;
 
   // 1. Snapshot rabies-vaccine status at the moment of the bite (pre-tx).
@@ -104,11 +116,6 @@ export async function reportBite(input: ReportBiteInput, deps: Deps): Promise<Re
   const rabiesVaccineValid = isRabiesVaccineValid(latestVaccineEvent, occurredAt);
 
   const now = new Date();
-  const observationUntil = computeObservationUntil(occurredAt);
-  const pendingNotifications: NewNotification[] = [];
-  // Case public code (CAS-XXXX-XXXX) — surfaced on the bite receipt so the
-  // reporter can quote the incident later. Captured inside the tx.
-  let casePublicCode = "";
   // LEGAL-ROUTING fix: a bite must route to the INCIDENT jurisdiction (where
   // it happened), not the pet's home jurisdiction — a mordedura in Córdoba by
   // a pet registered in CABA is Córdoba's sanitary authority's problem, not
@@ -118,6 +125,17 @@ export async function reportBite(input: ReportBiteInput, deps: Deps): Promise<Re
   // no pin. Mirrors reportBiteFromOrg's caseProvince/caseLocality pattern.
   const caseProvince = input.eventJurisdictionProvince ?? pet.jurisdictionProvince;
   const caseLocality = input.eventJurisdictionLocality ?? pet.jurisdictionLocality;
+  // A1 — the statutory window comes from the rules engine (same jurisdiction
+  // the case routes to), not a hardcoded constant the dashboard disagrees with.
+  const rabiesWindow = await resolveObservationWindow({
+    province: caseProvince,
+    locality: caseLocality,
+  });
+  const observationUntil = computeObservationUntil(occurredAt, rabiesWindow.days);
+  const pendingNotifications: NewNotification[] = [];
+  // Case public code (CAS-XXXX-XXXX) — surfaced on the bite receipt so the
+  // reporter can quote the incident later. Captured inside the tx.
+  let casePublicCode = "";
 
   try {
     await transaction(async (tx) => {

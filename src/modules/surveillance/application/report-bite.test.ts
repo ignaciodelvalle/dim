@@ -42,7 +42,8 @@ function makeDeps(repoOverrides: FakeRepo = {}) {
     return cb("fake-tx");
   });
   const findAuthoritiesForJurisdiction = vi.fn().mockResolvedValue([]);
-  return { repo, openCase, transaction, findAuthoritiesForJurisdiction };
+  const resolveObservationWindow = vi.fn().mockResolvedValue({ days: 10 });
+  return { repo, openCase, transaction, findAuthoritiesForJurisdiction, resolveObservationWindow };
 }
 
 const BASE_INPUT: ReportBiteInput = {
@@ -333,6 +334,42 @@ describe("reportBite — incident jurisdiction overrides pet home jurisdiction",
       province: "Buenos Aires",
       locality: "Lomas de Zamora",
     });
+  });
+
+  // A1 (Lote A): the statutory window resolves against the SAME incident
+  // jurisdiction the case routes to — the same convention as the two pins above.
+  it("resolves the observation window against the incident jurisdiction (A1)", async () => {
+    const deps = makeDeps();
+    await reportBite(INCIDENT_ELSEWHERE_INPUT, deps);
+    expect(deps.resolveObservationWindow).toHaveBeenCalledWith({
+      province: "Córdoba",
+      locality: "Río Cuarto",
+    });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// A1 (Lote A) — the observation deadline honors the per-jurisdiction
+// `rabies_observation_window` rule at report time. The cron later reads the
+// stored `observation_until` verbatim, so this write is the whole enforcement.
+// The dashboard already measured against the rule; the writers hardcoded 10 —
+// this pins the split-brain closed.
+// ---------------------------------------------------------------------------
+
+describe("reportBite — per-jurisdiction observation window (A1)", () => {
+  it("writes observation_until at occurredAt + the RESOLVED days, not the hardcoded 10", async () => {
+    const deps = makeDeps();
+    deps.resolveObservationWindow.mockResolvedValue({ days: 14 });
+    await reportBite(BASE_INPUT, deps);
+    expect(deps.repo.insertObservationStarted).toHaveBeenCalledWith(
+      expect.objectContaining({
+        payload: expect.objectContaining({
+          // occurredAt 2024-06-01 + 14 days (calendar arithmetic).
+          observation_until: new Date("2024-06-15T10:00:00Z").toISOString(),
+        }),
+      }),
+      "fake-tx",
+    );
   });
 });
 

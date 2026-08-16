@@ -72,15 +72,23 @@ export function outcomeToStatus(outcome: RabiesObservationOutcome): RabiesObserv
 // ---------------------------------------------------------------------------
 
 /**
- * Add RABIES_OBSERVATION_DAYS calendar days to the bite date.
+ * Add the observation window (calendar days) to the bite date.
  * Uses setDate (calendar day arithmetic) — NOT +240h — so DST transitions
  * do not shift the closure date.
  *
+ * A1 (2026-08-16): `days` defaults to the statutory national baseline, but the
+ * bite writers now pass the per-jurisdiction `rabies_observation_window` rule
+ * resolved at report time — the dashboard was already measuring against that
+ * rule while this arithmetic hardcoded 10, the exact split-brain Lote A closes.
+ *
  * Returns a new Date; does NOT mutate the input.
  */
-export function computeObservationUntil(biteOccurredAt: Date): Date {
+export function computeObservationUntil(
+  biteOccurredAt: Date,
+  days: number = RABIES_OBSERVATION_DAYS,
+): Date {
   const due = new Date(biteOccurredAt);
-  due.setDate(due.getDate() + RABIES_OBSERVATION_DAYS);
+  due.setDate(due.getDate() + days);
   return due;
 }
 

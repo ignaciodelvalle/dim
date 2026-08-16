@@ -92,6 +92,15 @@ type Deps = {
     province: string;
     locality: string;
   }) => Promise<string[]>;
+  /**
+   * A1 — the per-jurisdiction `rabies_observation_window` business rule,
+   * resolved against the INCIDENT jurisdiction at report time (see
+   * report-bite.ts for the prospective-deadline rationale).
+   */
+  resolveObservationWindow: (jurisdiction: {
+    province: string | null;
+    locality: string | null;
+  }) => Promise<{ days: number }>;
 };
 
 export type ReportBiteFromOrgResult = UseCaseResult<{
@@ -108,7 +117,8 @@ export async function reportBiteFromOrg(
   input: ReportBiteFromOrgInput,
   deps: Deps,
 ): Promise<ReportBiteFromOrgResult> {
-  const { repo, openCase, transaction, findAuthoritiesForJurisdiction } = deps;
+  const { repo, openCase, transaction, findAuthoritiesForJurisdiction, resolveObservationWindow } =
+    deps;
   const { pet, user, organization, occurredAt } = input;
 
   const reporterRole = orgTypeToReporterRole(organization.orgType);
@@ -133,7 +143,13 @@ export async function reportBiteFromOrg(
   const rabiesVaccineValid = isRabiesVaccineValid(latestVaccineEvent, occurredAt);
 
   const now = new Date();
-  const observationUntil = computeObservationUntil(occurredAt);
+  // A1 — the statutory window comes from the rules engine (same jurisdiction
+  // the case routes to), not a hardcoded constant the dashboard disagrees with.
+  const rabiesWindow = await resolveObservationWindow({
+    province: caseProvince,
+    locality: caseLocality,
+  });
+  const observationUntil = computeObservationUntil(occurredAt, rabiesWindow.days);
   const pendingNotifications: NewNotification[] = [];
   // Case public code (CAS-XXXX-XXXX) — surfaced on the bite receipt so the
   // clinic/refugio can quote the incident later. Captured inside the tx.

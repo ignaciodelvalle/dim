@@ -32,6 +32,7 @@ import { parseLocationFromFormData } from "@/lib/domain/location-value";
 import { assertOccurredAtPlausible } from "@/lib/events/plausibility";
 import { findAuthoritiesForJurisdiction } from "@/lib/infra/approval-routing";
 import { requireAdminOrGovtOrRedirect } from "@/lib/infra/auth-guards";
+import { resolveBusinessRule } from "@/lib/infra/business-rules-resolver";
 import { closeCase, escalateCase, openCase } from "@/lib/infra/case-helpers";
 import { requireAlivePetAccess } from "@/lib/infra/pet-access";
 import { checkboxOn } from "@/lib/ui/form-checkbox";
@@ -217,6 +218,10 @@ export async function reportBiteAction(
         openCase(input as Parameters<typeof openCase>[0], tx as Parameters<typeof openCase>[1]),
       transaction: db.transaction.bind(db),
       findAuthoritiesForJurisdiction,
+      resolveObservationWindow: (jurisdiction) =>
+        resolveBusinessRule("rabies_observation_window", { country: "AR", ...jurisdiction }).then(
+          (r) => r.payload,
+        ),
     },
   );
 
@@ -402,6 +407,10 @@ export async function reportBiteFromOrgAction(
         openCase(input as Parameters<typeof openCase>[0], tx as Parameters<typeof openCase>[1]),
       transaction: db.transaction.bind(db),
       findAuthoritiesForJurisdiction,
+      resolveObservationWindow: (jurisdiction) =>
+        resolveBusinessRule("rabies_observation_window", { country: "AR", ...jurisdiction }).then(
+          (r) => r.payload,
+        ),
     },
   );
 

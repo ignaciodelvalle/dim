@@ -197,6 +197,25 @@ describe("closeEligibleRabiesObservations", () => {
     expect(freshRow.status).toBe("in_progress");
   });
 
+  it("A1 prospective — a stored per-jurisdiction deadline beats the hardcoded 10 days", async () => {
+    // occurredAt is 11 days ago (past the OLD hardcoded 10-day mark), but the
+    // stored observation_until reflects a 14-day jurisdiction rule → 3 days
+    // out. The cron reads the stored deadline VERBATIM: the pet must stay in
+    // observation. This is what makes the A1 rule change prospective — the
+    // sweep never recomputes a deadline that was already written.
+    const jurisdictionRuled = await makeRabiesPet({
+      observationUntil: new Date(Date.now() + 3 * 24 * 60 * 60 * 1000),
+    });
+
+    await closeEligibleRabiesObservations();
+
+    const [row] = await db
+      .select({ status: pets.rabiesObservationStatus })
+      .from(pets)
+      .where(eq(pets.id, jurisdictionRuled.id));
+    expect(row.status).toBe("in_progress");
+  });
+
   it("idempotency — second run on the same closed pet is a no-op", async () => {
     const pet = await makeRabiesPet({
       observationUntil: new Date(Date.now() - 5 * 60 * 1000),

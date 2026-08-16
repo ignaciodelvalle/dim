@@ -7,6 +7,7 @@
 
 import { describe, expect, it, vi } from "vitest";
 
+import { computeObservationUntil } from "../domain/rabies-observation";
 import type { SurveillanceRepository } from "../infrastructure/surveillance-repository";
 import { type ReportBiteFromOrgInput, reportBiteFromOrg } from "./report-bite-from-org";
 
@@ -35,7 +36,8 @@ function makeDeps(repoOverrides: Partial<Record<keyof SurveillanceRepository, un
     return cb("fake-tx");
   });
   const findAuthoritiesForJurisdiction = vi.fn().mockResolvedValue([]);
-  return { repo, openCase, transaction, findAuthoritiesForJurisdiction };
+  const resolveObservationWindow = vi.fn().mockResolvedValue({ days: 10 });
+  return { repo, openCase, transaction, findAuthoritiesForJurisdiction, resolveObservationWindow };
 }
 
 const BASE_INPUT: ReportBiteFromOrgInput = {
@@ -268,5 +270,26 @@ describe("reportBiteFromOrg — incident jurisdiction overrides pet home jurisdi
       province: "CABA",
       locality: "Palermo",
     });
+  });
+
+  // A1 (Lote A): same convention as the pin above — the statutory window
+  // resolves against the incident jurisdiction, and the stored deadline honors
+  // the RESOLVED days, not the hardcoded 10.
+  it("resolves the observation window against the incident jurisdiction and honors its days (A1)", async () => {
+    const deps = makeDeps();
+    deps.resolveObservationWindow.mockResolvedValue({ days: 14 });
+    await reportBiteFromOrg(INCIDENT_ELSEWHERE_INPUT, deps);
+    expect(deps.resolveObservationWindow).toHaveBeenCalledWith({
+      province: "Córdoba",
+      locality: "Río Cuarto",
+    });
+    expect(deps.repo.insertObservationStarted).toHaveBeenCalledWith(
+      expect.objectContaining({
+        payload: expect.objectContaining({
+          observation_until: computeObservationUntil(BASE_INPUT.occurredAt, 14).toISOString(),
+        }),
+      }),
+      "fake-tx",
+    );
   });
 });
