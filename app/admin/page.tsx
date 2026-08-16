@@ -3,6 +3,7 @@ import Link from "next/link";
 import { Icon } from "@/components/Icon";
 import { AdminKpiStrip } from "@/components/admin/AdminKpiStrip";
 import { CronsDownBanner } from "@/components/admin/CronsDownBanner";
+import { OutlierProvincesTeaser } from "@/components/admin/OutlierProvincesTeaser";
 import { QueueHealthCockpit } from "@/components/admin/QueueHealthCockpit";
 import { NovedadesCard } from "@/components/operator/NovedadesCard";
 import { AnalyticsLoadFallback } from "@/components/ui/dashboard/AnalyticsLoadFallback";
@@ -15,8 +16,16 @@ import {
   fetchUserMetrics,
 } from "@/lib/analytics/admin-metrics";
 import { analyticsRetryHref, loadWithTimeout } from "@/lib/analytics/analytics-load";
+import {
+  computeJurisdictionIndex,
+  selectLowestScoringJurisdictions,
+} from "@/lib/analytics/territorial-index";
 import { requireAdminOrRedirect } from "@/lib/infra/auth-guards";
-import { buildProjectionContext, decisionsDeltaPct } from "@/lib/metrics";
+import {
+  buildProjectionContext,
+  decisionsDeltaPct,
+  fetchCrossJurisdictionOutliers,
+} from "@/lib/metrics";
 import { fetchNovedadesGroupedFeed } from "@/lib/metrics/novedades-feed";
 import { windows } from "@/lib/metrics/period";
 import { decisionsAuditDrillHref } from "@/lib/ui/audit-filters";
@@ -51,6 +60,16 @@ export default async function AdminDashboardPage() {
     />
   );
 
+  // D-2 (Lote D) — the compliance teaser's fan-out, kicked off HERE so it races
+  // the operational batch below instead of queueing behind it. It gets its OWN
+  // budget and its OWN degraded branch on purpose: the territorial index is a
+  // heavier, province-wide scan than any queue count, and a slow one must cost
+  // this page a single card, never the queues an admin came here to triage.
+  // The budget mirrors /admin/inteligencia's INTEL_INDEX_TIMEOUT_MS for the
+  // identical fetch (that constant lives in a component module this server page
+  // deliberately does not pull in).
+  const outlierLoad = loadWithTimeout(fetchCrossJurisdictionOutliers(adminCtx), 6_000);
+
   // BOUNDED (outage pass 2026-08-09) — the admin landing page's five
   // aggregates. Unbounded, a degraded pooler made the first screen an operator
   // sees hang with nothing in the logs.
@@ -83,6 +102,13 @@ export default async function AdminDashboardPage() {
   }
   const [users, cockpit, decisions, novedades, failedCronNames] = load.value;
 
+  // D-2: fold the outlier rows into the composite index, then take the tail.
+  // Both steps are pure (lib/analytics/territorial-index) and produce the SAME
+  // rows — same ranks — that /admin/inteligencia's full table renders.
+  const outliers = await outlierLoad;
+  const outlierIndex = outliers.ok ? computeJurisdictionIndex(outliers.value) : null;
+  const outlierTail = outlierIndex ? selectLowestScoringJurisdictions(outlierIndex, 4) : [];
+
   // deltaV2 for decisions: compare 7d vs the approximated prior 7d window.
   // Shared helper (decisionsDeltaPct) is the single source of truth — same
   // approximation as /admin/sistema, so the two strips can't drift (C28).
@@ -113,7 +139,22 @@ export default async function AdminDashboardPage() {
           Leads the page: it is what an admin comes here to triage. */}
       <QueueHealthCockpit cockpit={cockpit} />
 
-      {/* (2) System metrics — the shared operational KPI strip (C26). The
+      {/* (2) Compliance teaser (D-2) — the national portal finally asks its own
+          landing "¿dónde estamos más lejos de la meta?". Sits right under the
+          queues: an admin triages work first, then reads the country. Degrades
+          ALONE (its own budget above), so a slow province-wide scan costs this
+          card and nothing else. */}
+      {outlierIndex === null ? (
+        <AnalyticsLoadFallback
+          reason={outliers.ok ? "error" : outliers.reason}
+          correlationId={outliers.ok ? undefined : outliers.id}
+          retryHref={analyticsRetryHref("/admin")}
+        />
+      ) : (
+        <OutlierProvincesTeaser rows={outlierTail} evaluatedTotal={outlierIndex.length} />
+      )}
+
+      {/* (3) System metrics — the shared operational KPI strip (C26). The
           pending-queue tile is OMITTED here: the QueueHealthCockpit above already
           owns that number (per type), so showing "Cola pendiente" again just
           duplicated it (PO ronda 4 + Cowork B1). The strip promotes
@@ -148,7 +189,7 @@ export default async function AdminDashboardPage() {
         />
       </section>
 
-      {/* (3) Novedades — session-start orientation feed, DEMOTED below the
+      {/* (4) Novedades — session-start orientation feed, DEMOTED below the
           cockpit and collapsible so it no longer competes with the queues.
           Starts collapsed on the admin home; "Marcar como visto" is intact. */}
       <NovedadesCard feed={novedades} collapsible defaultCollapsed />

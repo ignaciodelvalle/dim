@@ -120,3 +120,37 @@ export function computeJurisdictionIndex(rows: OutlierRow[]): JurisdictionIndexR
     .sort((a, b) => b.score - a.score || a.province.localeCompare(b.province, "es"))
     .map((row, i) => ({ ...row, rank: i + 1 }));
 }
+
+/**
+ * The N LOWEST-scoring jurisdictions — the outlier tail of an already-computed
+ * index, worst first.
+ *
+ * D-2 (Lote D, 2026-08-16): the /admin home had no compliance content at all.
+ * The national portal owns the territorial index and the policy→outcome lens,
+ * and asked its admin to go find them. This is the teaser that ends that: the
+ * few provinces furthest from their programmatic targets, on the landing.
+ *
+ * PURE, and a REORDERING — never a recomputation. It takes the output of
+ * `computeJurisdictionIndex` and returns a subset of those exact rows, `rank`
+ * intact, so the teaser's "puesto 23 de 24" is literally the same rank the full
+ * table on /admin/inteligencia shows. Re-deriving a private "worst" score here
+ * would be a second opinion about the same question, which is the class of bug
+ * the whole catalog/contract effort exists to prevent.
+ *
+ * `componentsUsed < 3` rows are KEPT, not dropped: a province whose rabies
+ * component was k-anon-suppressed is still a real jurisdiction with a real
+ * score, and hiding it would quietly bias the tail. The caller must disclose the
+ * partial index, exactly as the full table's asterisk does.
+ */
+export function selectLowestScoringJurisdictions(
+  rows: readonly JurisdictionIndexRow[],
+  limit: number,
+): JurisdictionIndexRow[] {
+  if (limit <= 0) return [];
+  // Sorted explicitly rather than by slicing computeJurisdictionIndex's tail:
+  // the tail trick is correct only while the input happens to arrive best-first,
+  // and a caller that filters or re-sorts upstream would silently get the wrong
+  // provinces. The tiebreak follows `rank`, which already encodes the alphabetic
+  // tiebreak the full table uses, so equal scores order identically on both.
+  return [...rows].sort((a, b) => a.score - b.score || b.rank - a.rank).slice(0, limit);
+}
