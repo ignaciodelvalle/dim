@@ -47,7 +47,6 @@ import { checkboxOn } from "@/lib/ui/form-checkbox";
 import { parseDateInput } from "@/lib/utils/format";
 import { and, eq } from "drizzle-orm";
 
-import { resolveBusinessRule } from "@/lib/infra/business-rules-resolver";
 import { enqueueEnoTrigger } from "@/src/modules/surveillance/application/enqueue-eno-trigger";
 import { SurveillanceRepository } from "@/src/modules/surveillance/infrastructure/surveillance-repository";
 import { createClinicalInfo } from "./application/clinical/clinical-info-use-case";
@@ -56,6 +55,7 @@ import { createVetVisit } from "./application/clinical/vet-visit-use-case";
 import { createDangerousBreedAttestation } from "./application/identity/dangerous-breed-attestation-use-case";
 import { createMicrochip } from "./application/identity/microchip-use-case";
 import { createNote } from "./application/identity/note-use-case";
+import { validateAttestationRegistry } from "./application/identity/validate-attestation-registry";
 import { createDeathRecord } from "./application/lifecycle/death-record-use-case";
 import { setPetFound } from "./application/lifecycle/set-pet-found-use-case";
 import { setPetLostWriter } from "./application/lifecycle/set-pet-lost-use-case";
@@ -70,7 +70,6 @@ import { createWeight } from "./application/medical/weight-use-case";
 import { createSymptomObservedWriter } from "./application/surveillance/symptom-observed-use-case";
 import { CLINICAL_SUB_KINDS } from "./domain/enums";
 
-import { allowedAttestationRegistries } from "./domain/enums";
 import { NOTE_CATEGORIES } from "./domain/enums";
 import { EventsRepository } from "./infrastructure/events-repository";
 
@@ -815,21 +814,13 @@ export async function createDangerousBreedAttestationAction(
   const attestedAtRaw = String(formData.get("attestedAt") ?? "").trim();
   const notes = String(formData.get("notes") ?? "").trim() || null;
 
-  // Lote A4 — the accepted registries mirror what the form OFFERED: the
-  // per-jurisdiction `ppp_attestation_required_registries` rule when a
-  // jurisdiction overrode it, the national fallback list otherwise, plus
-  // "other" always (the exact shape buildRegistryOptions renders client-side).
-  // The old hardcoded check silently split-brained the moment a jurisdiction
-  // configured real registries via /gob/reglas.
-  const resolvedRegistryRule = await resolveBusinessRule("ppp_attestation_required_registries", {
-    country: "AR",
+  // Lote A4 — the accepted registries mirror what the form OFFERED (the
+  // per-jurisdiction rule; see validate-attestation-registry.ts).
+  const registryError = await validateAttestationRegistry(registry, {
     province: pet.jurisdictionProvince,
     locality: pet.jurisdictionLocality,
   });
-  const allowedRegistries = allowedAttestationRegistries(resolvedRegistryRule.payload);
-  if (!allowedRegistries.has(registry)) {
-    return { error: "Registro inválido. Elegí uno de los disponibles." };
-  }
+  if (registryError) return { error: registryError };
   if (!attestedAtRaw) return { error: "Falta la fecha de atestación." };
   const attestedAt = parseDateInput(attestedAtRaw);
   if (!attestedAt) return { error: "Fecha inválida." };
