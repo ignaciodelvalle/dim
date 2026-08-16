@@ -160,8 +160,7 @@ export async function checkFunctionParity(client: Client): Promise<Section> {
     }
     if (normalizeBody(deployed) !== normalizeBody(fn.body)) {
       failures.push(
-        `${name}: live body DIFFERS from ${fn.source} — the E-3 drift class. ` +
-          `Re-apply that source (and find out how the drift happened).`,
+        `${name}: live body DIFFERS from ${fn.source} — the E-3 drift class. Re-apply that source (and find out how the drift happened).`,
       );
     }
   }
