@@ -8,11 +8,14 @@
 //   pnpm exec tsx scripts/qa-panorama-vis.ts --email=admin@dim.test
 //   pnpm exec tsx scripts/qa-panorama-vis.ts --email=lucas@dim.test [--out=DIR]
 
-import { join, resolve } from "node:path";
+import { createRequire } from "node:module";
+import { join } from "node:path";
 
 import { type Page, chromium } from "@playwright/test";
 
-const AXE_PATH = resolve("node_modules/.pnpm/axe-core@4.11.4/node_modules/axe-core/axe.min.js");
+// Review F8 (2026-08-15): resolve through the package graph, not a hardcoded
+// .pnpm store path — an axe-core version bump silently broke the old constant.
+const AXE_PATH = createRequire(import.meta.url).resolve("axe-core/axe.min.js");
 const TARGET_RULES = new Set([
   "aria-valid-attr-value",
   "nested-interactive",

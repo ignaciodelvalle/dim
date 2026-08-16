@@ -8,9 +8,11 @@
 // 77497967). The contract (see the dropCubeStamp comment in PanoramaConsole) is:
 // "dropCubeStamp() sits beside every layer-data fetch dispatch."
 //
-// This test enforces that structurally. It reads PanoramaConsole.tsx and, for
+// This test enforces that structurally. It reads every SCANNED file and, for
 // every LAYER-DATA fetch site, asserts dropCubeStamp() appears in the enclosing
-// dispatch.
+// dispatch. Review F6 (2026-08-15): the scan set now includes use-asof-frame.ts —
+// the temporal fan-out extracted from the console carries a layer fetch of its
+// own, and fencing only the console left it invisible to this contract.
 //
 // WINDOW HEURISTIC (documented): a "layer-data fetch site" is a template literal
 // `\`/api/panorama/${...}\`` whose FIRST path segment is a dynamic expression
@@ -32,11 +34,17 @@ import { join } from "node:path";
 
 import { describe, expect, it } from "vitest";
 
-const SRC = readFileSync(
-  join(__dirname, "..", "components", "panorama", "PanoramaConsole.tsx"),
-  "utf8",
-);
-const LINES = SRC.split(/\r?\n/);
+// Every file that dispatches a layer-data fetch, with the minimum number of
+// sites the regex must find there (vacuous-pass guard for each file).
+const SCANNED: ReadonlyArray<{ name: string; minSites: number }> = [
+  { name: "PanoramaConsole.tsx", minSites: 7 },
+  { name: "use-asof-frame.ts", minSites: 1 },
+];
+
+const FILES = SCANNED.map(({ name, minSites }) => {
+  const src = readFileSync(join(__dirname, "..", "components", "panorama", name), "utf8");
+  return { name, minSites, src, lines: src.split(/\r?\n/) };
+});
 
 // Layer-data fetch: backtick + `/api/panorama/${` (dynamic FIRST segment). The
 // KPI/scope fetches read `/api/panorama/kpis${` / `/api/panorama/scope?${` — a
@@ -52,45 +60,48 @@ const WINDOW = 6;
 const KNOWN_GAP_HELPERS = new Set<string>([]);
 
 /** The nearest `const <name> = useCallback(` at or above `lineIdx`, or null. */
-function enclosingCallbackName(lineIdx: number): string | null {
+function enclosingCallbackName(lines: string[], lineIdx: number): string | null {
   for (let i = lineIdx; i >= 0; i--) {
-    const m = LINES[i].match(/const\s+(\w+)\s*=\s*useCallback\(/);
+    const m = lines[i].match(/const\s+(\w+)\s*=\s*useCallback\(/);
     if (m) return m[1];
   }
   return null;
 }
 
-function layerFetchLineIndices(): number[] {
+function layerFetchLineIndices(lines: string[]): number[] {
   const out: number[] = [];
-  LINES.forEach((line, i) => {
+  lines.forEach((line, i) => {
     if (LAYER_FETCH.test(line)) out.push(i);
   });
   return out;
 }
 
-describe("PanoramaConsole — dropCubeStamp sits beside every layer-data fetch", () => {
-  it("defines the dropCubeStamp latch", () => {
-    expect(SRC).toMatch(/const dropCubeStamp = useCallback\(/);
+describe("panorama — dropCubeStamp sits beside every layer-data fetch", () => {
+  it("defines the dropCubeStamp latch in the console", () => {
+    const console_ = FILES[0];
+    expect(console_.src).toMatch(/const dropCubeStamp = useCallback\(/);
   });
 
-  it("finds the expected family of layer-data fetch sites", () => {
-    // Guard against the regex silently matching nothing (vacuous pass).
-    expect(layerFetchLineIndices().length).toBeGreaterThanOrEqual(7);
-  });
+  for (const file of FILES) {
+    it(`${file.name}: finds the expected family of layer-data fetch sites`, () => {
+      // Guard against the regex silently matching nothing (vacuous pass).
+      expect(layerFetchLineIndices(file.lines).length).toBeGreaterThanOrEqual(file.minSites);
+    });
 
-  it("every layer-data fetch drops the cube stamp in its enclosing dispatch", () => {
-    const violations: string[] = [];
-    for (const idx of layerFetchLineIndices()) {
-      const window = LINES.slice(Math.max(0, idx - WINDOW), idx + 1).join("\n");
-      if (window.includes("dropCubeStamp()")) continue; // adjacent latch — OK.
+    it(`${file.name}: every layer-data fetch drops the cube stamp in its enclosing dispatch`, () => {
+      const violations: string[] = [];
+      for (const idx of layerFetchLineIndices(file.lines)) {
+        const window = file.lines.slice(Math.max(0, idx - WINDOW), idx + 1).join("\n");
+        if (window.includes("dropCubeStamp()")) continue; // adjacent latch — OK.
 
-      const enclosing = enclosingCallbackName(idx);
-      if (enclosing && KNOWN_GAP_HELPERS.has(enclosing)) continue; // flagged gap.
+        const enclosing = enclosingCallbackName(file.lines, idx);
+        if (enclosing && KNOWN_GAP_HELPERS.has(enclosing)) continue; // flagged gap.
 
-      violations.push(
-        `${idx + 1}: ${LINES[idx].trim()} — no dropCubeStamp() within ${WINDOW} lines (enclosing: ${enclosing ?? "?"})`,
-      );
-    }
-    expect(violations, `\n${violations.join("\n")}`).toEqual([]);
-  });
+        violations.push(
+          `${file.name}:${idx + 1}: ${file.lines[idx].trim()} — no dropCubeStamp() within ${WINDOW} lines (enclosing: ${enclosing ?? "?"})`,
+        );
+      }
+      expect(violations, `\n${violations.join("\n")}`).toEqual([]);
+    });
+  }
 });
