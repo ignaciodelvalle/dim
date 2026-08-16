@@ -121,8 +121,7 @@ export function OutlierProvincesTeaser({
               esterilización y microchip. Es una señal de atención sobre metas programáticas, no un
               veredicto legal. Provincias con menos de 5 mascotas activas no se evalúan (privacidad)
               — el ranking es sobre {evaluatedTotal} {pluralizeEs(evaluatedTotal, "provincia")}{" "}
-              evaluada
-              {evaluatedTotal === 1 ? "" : "s"}.
+              {pluralizeEs(evaluatedTotal, "evaluada")}.
               {anyPartial && " * = índice parcial (2 de 3 componentes)."}
             </p>
           </>
