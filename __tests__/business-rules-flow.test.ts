@@ -29,6 +29,7 @@ const NOOP_LOCALITY = "BR-NOOP-LOCALITY";
 const INVALID_LOCALITY = "BR-INVALID-LOCALITY";
 const UPDATE_LOCALITY = "BR-UPDATE-LOCALITY";
 const DELETE_LOCALITY = "BR-DELETE-LOCALITY";
+const DETACH_LOCALITY = "BR-DETACH-LOCALITY";
 
 let adminUserId: string;
 let ownerUserId: string;
@@ -117,7 +118,7 @@ afterAll(async () => {
   await db.execute(sql`
     delete from govt_business_rules
     where jurisdiction_locality in (${TEST_LOCALITY}, ${NOOP_LOCALITY},
-      ${INVALID_LOCALITY}, ${UPDATE_LOCALITY}, ${DELETE_LOCALITY})
+      ${INVALID_LOCALITY}, ${UPDATE_LOCALITY}, ${DELETE_LOCALITY}, ${DETACH_LOCALITY})
   `);
   for (const petId of insertedPetIds) {
     await withMutationOverride(async (tx) => {
@@ -353,6 +354,64 @@ describe("updateBusinessRuleWriter", () => {
     expect(payload.previousLegalMetadata.legalBasis).toBe("Ley 22.953");
     expect(payload.newLegalMetadata.requirementLevel).toBe("recommended");
     expect(payload.newLegalMetadata.legalBasis).toBe("Ley 22.953 (mod.)");
+  });
+
+  // T6 review M3. The legal-baseline seed protects ONLY rows with
+  // `baseline_version IS NULL` (spec BD2). A legal reviewer's correction used
+  // to keep the baseline tag, so the next same-version re-seed silently
+  // reverted it. An admin edit now DETACHES the row from the baseline.
+  it("clears baseline_version on edit — an admin-corrected row is no longer pristine baseline", async () => {
+    const created = await createBusinessRuleWriter({
+      actorUserId: adminUserId,
+      ruleType: "rabies_vaccination",
+      jurisdictionCountry: "AR",
+      jurisdictionProvince: TEST_PROVINCE,
+      jurisdictionLocality: DETACH_LOCALITY,
+      rulePayload: { frequency_months: 12 },
+      notes: null,
+      legalAnchorIds: [],
+      legalMetadata: {
+        requirementLevel: "mandatory",
+        legalBasis: "Ley seedeada",
+        authority: null,
+        sourceUrl: null,
+        effectiveFrom: null,
+        effectiveUntil: null,
+      },
+    });
+    expect(created.ok).toBe(true);
+    if (!created.ok || created.ruleId === null) return;
+    createdRuleIds.push(created.ruleId);
+
+    // Tag it as the seed would (the console never SETS a version).
+    await db
+      .update(govtBusinessRules)
+      .set({ baselineVersion: "ar-v1" })
+      .where(eq(govtBusinessRules.id, created.ruleId));
+
+    const upd = await updateBusinessRuleWriter({
+      actorUserId: adminUserId,
+      ruleId: created.ruleId,
+      rulePayload: { frequency_months: 24 },
+      notes: null,
+      legalAnchorIds: [],
+      legalMetadata: {
+        requirementLevel: "mandatory",
+        legalBasis: "Ley corregida por revisión legal",
+        authority: null,
+        sourceUrl: null,
+        effectiveFrom: null,
+        effectiveUntil: null,
+      },
+    });
+    expect(upd.ok).toBe(true);
+
+    const [row] = await db
+      .select()
+      .from(govtBusinessRules)
+      .where(eq(govtBusinessRules.id, created.ruleId));
+    expect(row.baselineVersion).toBeNull();
+    expect(row.legalBasis).toBe("Ley corregida por revisión legal");
   });
 });
 

@@ -28,6 +28,8 @@ import {
   type BaselineSignoff,
   buildManifest,
   computeDatasetChecksum,
+  isLocalSeedTarget,
+  parsePgHost,
   runSeedLegalBaseline,
 } from "../scripts/seed-legal-baseline";
 
@@ -36,6 +38,7 @@ const PROVINCE = "Buenos Aires";
 const LOC_A = `${PREFIX}A`;
 const LOC_B = `${PREFIX}B`;
 const LOC_ADMIN = `${PREFIX}ADMIN`;
+const LOC_M3 = `${PREFIX}M3`;
 
 const ROW_A: LegalBaselineRow = {
   ruleKey: "rabies_vaccination",
@@ -313,6 +316,39 @@ describe("seeding (spec BD2/BD3/BD6)", () => {
     // The seed wrote no audit row for the protected rule.
     expect(await auditRowsForRule(adminRow.id)).toHaveLength(0);
   });
+
+  // T6 review M3: the console's update writer now CLEARS baseline_version (the
+  // detach is pinned end-to-end in __tests__/business-rules-flow.test.ts —
+  // "clears baseline_version on edit"). This asserts the consequence the seed
+  // owns: once detached, a legal reviewer's correction to a row THIS seed wrote
+  // survives a re-run of the very same version, instead of being silently
+  // reverted with an audit row that looks like routine seed maintenance.
+  it("an admin correction to a SEEDED row survives a re-run of the same version (M3)", async () => {
+    const dataset = makeDataset("ar-v903", [
+      { ...ROW_A, jurisdiction: { country: "AR", province: PROVINCE, locality: LOC_M3 } },
+    ]);
+    const first = await runSeedLegalBaseline({ db, dataset, ...approvalFor(dataset) });
+    expect(first.ok).toBe(true);
+    const [seeded] = await ruleRowAt(LOC_M3);
+    expect(seeded.baselineVersion).toBe("ar-v903");
+
+    // What updateBusinessRuleWriter does when a reviewer corrects the citation:
+    // new value + baseline detach in the same statement.
+    await db
+      .update(govtBusinessRules)
+      .set({ legalBasis: "Corrección del revisor legal", baselineVersion: null })
+      .where(sql`${govtBusinessRules.id} = ${seeded.id}`);
+
+    const second = await runSeedLegalBaseline({ db, dataset, ...approvalFor(dataset) });
+    expect(second.ok).toBe(true);
+    if (!second.ok) return;
+    expect(second.summary.protectedRows).toHaveLength(1);
+    expect(second.summary.updated).toHaveLength(0);
+
+    const [after] = await ruleRowAt(LOC_M3);
+    expect(after.legalBasis).toBe("Corrección del revisor legal");
+    expect(after.baselineVersion).toBeNull();
+  });
 });
 
 describe("dataset schema fences", () => {
@@ -344,5 +380,33 @@ describe("dataset schema fences", () => {
       ]),
     );
     expect(parsed.success).toBe(false);
+  });
+});
+
+// T6 review M6: the target guard used to FAIL OPEN. Its host regex required an
+// `@`, so a credential-less DSN (auth via PGPASSWORD / .pgpass / client cert)
+// parsed to null, and null was treated as "local" — a remote DB could receive
+// the legal baseline without anyone passing --allow-remote.
+describe("seed target guard (M6 — fail closed)", () => {
+  it("recognises the local hosts, with or without credentials in the DSN", () => {
+    expect(isLocalSeedTarget("postgresql://postgres:postgres@127.0.0.1:54322/postgres")).toBe(true);
+    expect(isLocalSeedTarget("postgresql://localhost:5432/dim")).toBe(true);
+    expect(isLocalSeedTarget("postgres://host.docker.internal:5432/dim")).toBe(true);
+    expect(isLocalSeedTarget("postgresql://[::1]:5432/dim")).toBe(true);
+  });
+
+  it("a CREDENTIAL-LESS remote DSN is NOT local (the fail-open hole)", () => {
+    expect(isLocalSeedTarget("postgresql://prod-db.example.com:5432/dim")).toBe(false);
+    expect(parsePgHost("postgresql://prod-db.example.com:5432/dim")).toBe("prod-db.example.com");
+  });
+
+  it("a remote DSN with credentials is NOT local", () => {
+    expect(isLocalSeedTarget("postgresql://u:p@db.prod.supabase.co:5432/postgres")).toBe(false);
+  });
+
+  it("an UNPARSEABLE DSN is NOT local — cannot prove local means the gate applies", () => {
+    expect(isLocalSeedTarget("")).toBe(false);
+    expect(isLocalSeedTarget("not-a-url")).toBe(false);
+    expect(isLocalSeedTarget("mysql://127.0.0.1:3306/dim")).toBe(false);
   });
 });

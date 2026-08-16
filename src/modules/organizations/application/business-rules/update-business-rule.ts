@@ -54,6 +54,15 @@ export async function updateBusinessRuleWriter(
           notes: params.notes,
           legalAnchorIds: params.legalAnchorIds.length > 0 ? params.legalAnchorIds : null,
           ...(legalMetadata !== undefined ? nextLegalMetadata : {}),
+          // BASELINE DETACH (T6 review M3). The legal-baseline seed protects
+          // only rows with `baseline_version IS NULL` (spec BD2), and it used
+          // to be the sole writer of the column — so a legal reviewer's
+          // correction to a seeded row kept its baseline tag and the next
+          // same-version re-seed overwrote it, leaving an audit row that looked
+          // like routine seed maintenance. An admin-edited row is no longer
+          // pristine baseline: clearing the tag makes it admin-authored, which
+          // is exactly what BD2 already promises to protect.
+          baselineVersion: null,
           updatedByUserId: params.actorUserId,
           updatedAt: new Date(),
         })

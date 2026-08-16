@@ -16,13 +16,17 @@
 // __tests__/mandated-denominator-cascade.test.ts.
 //
 // MANDATE SEMANTICS (deliberate, and STRICTER than the owner surface):
-//   - No matched row at any cascade tier → NOT mandated. The RG2-gated
-//     microchip default (`{required: true}`) keeps gating the owner-facing
-//     compliance card ON (behavior-preserving, OR5), but it NEVER puts a
-//     jurisdiction into the mandated DENOMINATOR: "donde es obligatorio" is a
-//     claim about resolved law, not about our fallback — same posture as
+//   - No matched row at any cascade tier → NOT mandated. The microchip default
+//     (`{required: true}`) keeps gating the owner-facing compliance card ON
+//     (behavior-preserving, OR5), but it NEVER puts a jurisdiction into the
+//     mandated DENOMINATOR: "donde es obligatorio" is a claim about resolved
+//     law, not about our fallback — same posture as
 //     deriveCredentialRegistryClaim (ADR-7), where the default cannot back a
-//     public claim either.
+//     public claim either. (RG2 — flipping that default to `{required: false}`
+//     — is PARKED, not cancelled: PO-ratified, then reverted in 88689beb
+//     because the ar-v1 baseline carries no microchip rows to seed. Restore
+//     with `git cherry-pick 96277c05` once ar-v2 does. THIS module's semantics
+//     do not depend on which way the default points.)
 //   - rabies_vaccination / sterilization: mandated iff the matched row's
 //     requirement_level is EXPLICITLY 'mandatory'. A matched row with a NULL
 //     tier claims nothing — the owner surface falls back to the pre-tier
@@ -38,10 +42,11 @@
 // EXCLUDE that locality from the mandated denominator — the most specific row
 // wins, exactly as in resolveBusinessRule. Dedicated test required (T4.10).
 
-import { and, eq } from "drizzle-orm";
+import { and, eq, gte, isNull, lte, or } from "drizzle-orm";
 
 import { type RequirementLevel, analyticsDb, govtBusinessRules } from "@/db";
 import { microchipObligationApplies } from "@/lib/domain/business-rules-defaults";
+import { todayIsoInAr } from "@/lib/utils/format";
 
 /** The three per-pet obligation rule types the mandated KPIs read (OR1). */
 export type ObligationRuleType = "microchip_required" | "rabies_vaccination" | "sterilization";
@@ -116,6 +121,7 @@ export function buildMandatingClassifier(
 export async function resolveMandatingJurisdictions(
   ruleType: ObligationRuleType,
 ): Promise<MandatingClassifier> {
+  const today = todayIsoInAr();
   const rows = await analyticsDb
     .select({
       province: govtBusinessRules.jurisdictionProvince,
@@ -128,6 +134,12 @@ export async function resolveMandatingJurisdictions(
       and(
         eq(govtBusinessRules.ruleType, ruleType),
         eq(govtBusinessRules.jurisdictionCountry, "AR"),
+        // Same effective window as resolveBusinessRule (T6 review M2) — the
+        // parity contract at the top of this file is SEMANTIC, so a row the
+        // owner surface no longer applies must not keep its jurisdiction in the
+        // mandated denominator. NULL bounds = no bound. AR calendar day.
+        or(isNull(govtBusinessRules.effectiveFrom), lte(govtBusinessRules.effectiveFrom, today)),
+        or(isNull(govtBusinessRules.effectiveUntil), gte(govtBusinessRules.effectiveUntil, today)),
       ),
     );
   return buildMandatingClassifier(ruleType, rows);

@@ -4,8 +4,19 @@
 // Order: locality > province > country > hardcoded defaults.
 // The first matching row wins; if none, the typed default from
 // BUSINESS_RULES_DEFAULTS is returned.
+//
+// EFFECTIVE WINDOW (jurisdiction-compliance, T6 review M2). Migration 0183
+// added `effective_from` / `effective_until`; the console collects them on all
+// 13 rule forms ("Vigente desde" / "Vigente hasta") and the audit trail records
+// them — but NOTHING read them, so an admin who marked an ordinance superseded
+// kept seeing it gate the obligation and print as the citation forever. A row
+// outside its window is now SKIPPED, and the cascade falls through to the next
+// level (locality → province → country → default) exactly as if the row did
+// not exist. Scope note: this is render-time evaluation against TODAY, which is
+// v1's stated behavior. Re-judging a past EVENT against the law in force on its
+// own date (historical re-judgment) stays deferred to v2.
 
-import { and, eq, isNull } from "drizzle-orm";
+import { and, eq, gte, isNull, lte, or } from "drizzle-orm";
 
 import { type GovtBusinessRuleType, type RequirementLevel, db, govtBusinessRules } from "@/db";
 
@@ -14,6 +25,7 @@ import {
   type BusinessRulePayload,
   type BusinessRulePayloadByType,
 } from "@/lib/domain/business-rules-defaults";
+import { todayIsoInAr } from "@/lib/utils/format";
 
 export interface Jurisdiction {
   country?: string;
@@ -69,6 +81,10 @@ export async function resolveBusinessRule<T extends GovtBusinessRuleType>(
   const country = jurisdiction.country ?? "AR";
   const province = jurisdiction.province ?? null;
   const locality = jurisdiction.locality ?? null;
+  // The Argentine calendar day, not the server's UTC one: at 22:00 in Buenos
+  // Aires `toISOString()` already says tomorrow, which would activate a
+  // future-dated rule (or expire a live one) hours early.
+  const today = todayIsoInAr();
 
   const candidates: {
     country: string;
@@ -100,6 +116,14 @@ export async function resolveBusinessRule<T extends GovtBusinessRuleType>(
           c.locality === null
             ? isNull(govtBusinessRules.jurisdictionLocality)
             : eq(govtBusinessRules.jurisdictionLocality, c.locality),
+          // Effective window (M2). NULL on either end means "no bound" — a row
+          // with no dates always applies, which is every pre-0183 row. Both
+          // bounds are INCLUSIVE: "vigente hasta el 31/12" governs the 31st.
+          or(isNull(govtBusinessRules.effectiveFrom), lte(govtBusinessRules.effectiveFrom, today)),
+          or(
+            isNull(govtBusinessRules.effectiveUntil),
+            gte(govtBusinessRules.effectiveUntil, today),
+          ),
         ),
       )
       .limit(1);
@@ -151,18 +175,36 @@ export function canonicalJurisdictionKey(jurisdiction: Jurisdiction): string {
  * default cascade as resolveBusinessRule. Duplicate jurisdictions are
  * deduped — one cascade per distinct key.
  *
- * Sequential on purpose: `executor` may be a transaction, and drizzle tx
- * executors are not safe under concurrent queries.
+ * Sequential ONLY on a transaction executor: drizzle tx executors are not safe
+ * under concurrent queries. On the pool (`db`, the default and what every
+ * dashboard caller passes) the distinct jurisdictions are resolved in PARALLEL
+ * — T6 review MINOR 8: the owner dashboard used to fan its per-jurisdiction
+ * resolution out with Promise.all, and routing it through this batch helper
+ * serialized it into ~3 sequential cascades per distinct jurisdiction on the
+ * owner's hottest read. The tx-safety constraint is real, but it does not
+ * apply to the pool.
  */
 export async function resolveBusinessRuleForJurisdictions<T extends GovtBusinessRuleType>(
   ruleType: T,
   jurisdictions: Jurisdiction[],
   executor: Executor = db,
 ): Promise<Map<string, ResolvedRule<T>>> {
-  const resolved = new Map<string, ResolvedRule<T>>();
+  const distinct = new Map<string, Jurisdiction>();
   for (const jurisdiction of jurisdictions) {
     const key = canonicalJurisdictionKey(jurisdiction);
-    if (resolved.has(key)) continue;
+    if (!distinct.has(key)) distinct.set(key, jurisdiction);
+  }
+  const entries = [...distinct.entries()];
+
+  if (executor === db) {
+    const rules = await Promise.all(
+      entries.map(([, jurisdiction]) => resolveBusinessRule(ruleType, jurisdiction, executor)),
+    );
+    return new Map(entries.map(([key], i) => [key, rules[i]]));
+  }
+
+  const resolved = new Map<string, ResolvedRule<T>>();
+  for (const [key, jurisdiction] of entries) {
     resolved.set(key, await resolveBusinessRule(ruleType, jurisdiction, executor));
   }
   return resolved;

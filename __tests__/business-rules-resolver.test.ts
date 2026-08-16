@@ -14,6 +14,7 @@ import {
   resolveBusinessRule,
   resolveBusinessRuleForJurisdictions,
 } from "@/lib/infra/business-rules-resolver";
+import { todayIsoInAr } from "@/lib/utils/format";
 
 // Stable test actor referenced by FK on created_by_user_id.
 const ACTOR_ID = "11111111-2222-4333-8444-555555555555";
@@ -472,6 +473,141 @@ describe("resolveBusinessRule — requirement tier + legal metadata (migration 0
     expect(fallback.source).toBe("default");
     expect(fallback.requirementLevel).toBeUndefined();
     expect(microchipObligationApplies(fallback)).toBe(true);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Effective window (T6 review M2). The console collected effective_from /
+// effective_until on all 13 forms and the resolver carried them through — but
+// no consumer ever read them, so a superseded ordinance kept gating the
+// obligation and printing as the citation forever. A row outside its window is
+// now invisible to the cascade, which falls through as if it did not exist.
+// ---------------------------------------------------------------------------
+describe("resolveBusinessRule — effective window", () => {
+  const today = todayIsoInAr();
+  const shiftDays = (days: number): string => {
+    const d = new Date(`${today}T12:00:00Z`);
+    d.setUTCDate(d.getUTCDate() + days);
+    return d.toISOString().slice(0, 10);
+  };
+
+  it("an EXPIRED locality row falls through to the province row", async () => {
+    await db.insert(govtBusinessRules).values([
+      {
+        jurisdictionCountry: "AR",
+        jurisdictionProvince: "CABA",
+        jurisdictionLocality: null,
+        ruleType: "rabies_vaccination",
+        rulePayload: { frequency_months: 12 },
+        requirementLevel: "mandatory",
+        legalBasis: "Ley provincial vigente",
+        createdByUserId: ACTOR_ID,
+        updatedByUserId: ACTOR_ID,
+      },
+      {
+        jurisdictionCountry: "AR",
+        jurisdictionProvince: "CABA",
+        jurisdictionLocality: "Palermo",
+        ruleType: "rabies_vaccination",
+        rulePayload: { frequency_months: 6 },
+        requirementLevel: "mandatory",
+        legalBasis: "Ord. derogada",
+        effectiveFrom: "2010-01-01",
+        effectiveUntil: shiftDays(-1),
+        createdByUserId: ACTOR_ID,
+        updatedByUserId: ACTOR_ID,
+      },
+    ]);
+
+    const r = await resolveBusinessRule("rabies_vaccination", {
+      country: "AR",
+      province: "CABA",
+      locality: "Palermo",
+    });
+    expect(r.source).toBe("province");
+    expect(r.legalBasis).toBe("Ley provincial vigente");
+    expect(r.payload.frequency_months).toBe(12);
+  });
+
+  it("a FUTURE-dated row does not apply yet — the cascade reaches the default", async () => {
+    await db.insert(govtBusinessRules).values({
+      jurisdictionCountry: "AR",
+      jurisdictionProvince: "Chubut",
+      jurisdictionLocality: null,
+      ruleType: "rabies_vaccination",
+      rulePayload: { frequency_months: 6 },
+      requirementLevel: "mandatory",
+      legalBasis: "Ley que entra en vigencia mañana",
+      effectiveFrom: shiftDays(1),
+      createdByUserId: ACTOR_ID,
+      updatedByUserId: ACTOR_ID,
+    });
+
+    const r = await resolveBusinessRule("rabies_vaccination", {
+      country: "AR",
+      province: "Chubut",
+    });
+    expect(r.source).toBe("default");
+    expect(r.requirementLevel).toBeUndefined();
+    expect(r.legalBasis).toBeUndefined();
+  });
+
+  it("NULL dates always apply, and both bounds are INCLUSIVE (today itself is inside)", async () => {
+    await db.insert(govtBusinessRules).values([
+      {
+        jurisdictionCountry: "AR",
+        jurisdictionProvince: "Salta",
+        jurisdictionLocality: null,
+        ruleType: "rabies_vaccination",
+        rulePayload: { frequency_months: 12 },
+        legalBasis: "Sin fechas — siempre vigente",
+        createdByUserId: ACTOR_ID,
+        updatedByUserId: ACTOR_ID,
+      },
+      {
+        jurisdictionCountry: "AR",
+        jurisdictionProvince: "Jujuy",
+        jurisdictionLocality: null,
+        ruleType: "rabies_vaccination",
+        rulePayload: { frequency_months: 12 },
+        legalBasis: "Vigente exactamente hoy",
+        effectiveFrom: today,
+        effectiveUntil: today,
+        createdByUserId: ACTOR_ID,
+        updatedByUserId: ACTOR_ID,
+      },
+    ]);
+
+    const undated = await resolveBusinessRule("rabies_vaccination", {
+      country: "AR",
+      province: "Salta",
+    });
+    expect(undated.source).toBe("province");
+    expect(undated.legalBasis).toBe("Sin fechas — siempre vigente");
+
+    const boundary = await resolveBusinessRule("rabies_vaccination", {
+      country: "AR",
+      province: "Jujuy",
+    });
+    expect(boundary.source).toBe("province");
+    expect(boundary.legalBasis).toBe("Vigente exactamente hoy");
+  });
+
+  it("the batch variant applies the same window (an expired row is invisible there too)", async () => {
+    await db.insert(govtBusinessRules).values({
+      jurisdictionCountry: "AR",
+      jurisdictionProvince: "La Pampa",
+      jurisdictionLocality: null,
+      ruleType: "ppp_breed_list",
+      rulePayload: { breeds: ["Boxer"] },
+      effectiveUntil: shiftDays(-1),
+      createdByUserId: ACTOR_ID,
+      updatedByUserId: ACTOR_ID,
+    });
+
+    const pampa = { country: "AR", province: "La Pampa", locality: null };
+    const result = await resolveBusinessRuleForJurisdictions("ppp_breed_list", [pampa]);
+    expect(result.get(canonicalJurisdictionKey(pampa))?.source).toBe("default");
   });
 });
 

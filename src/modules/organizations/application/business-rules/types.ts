@@ -26,8 +26,15 @@ export type BusinessRuleFormState = {
  * field, leave the column untouched (so a form without the tier select never
  * erases a backfilled tier); `null` = the field was present and empty, clear
  * the column. Dates are `YYYY-MM-DD` strings (drizzle date columns, string
- * mode). `baseline_version` is intentionally absent: only the legal-baseline
- * seed (WU2) writes it, never the console.
+ * mode).
+ *
+ * `baseline_version` is intentionally absent from this type — the console never
+ * SETS a version. It does, however, CLEAR it: an admin edit detaches the row
+ * from the baseline (`baseline_version = NULL`, see updateBusinessRuleWriter),
+ * because a row a legal reviewer has corrected is no longer pristine baseline
+ * and the seed's BD2 protection only covers NULL-version rows. Without that
+ * detach, the next same-version re-seed silently reverted the correction (T6
+ * review M3).
  */
 export type BusinessRuleLegalMetadata = {
   requirementLevel?: RequirementLevel | null;

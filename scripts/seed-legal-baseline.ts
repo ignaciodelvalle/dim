@@ -260,7 +260,12 @@ export async function seedLegalBaseline(
         existing.legalBasis === row.legalBasis &&
         existing.authority === row.authority &&
         existing.sourceUrl === row.sourceUrl &&
-        existing.effectiveFrom === row.effectiveFrom;
+        existing.effectiveFrom === row.effectiveFrom &&
+        // T6 review MINOR 11: effectiveUntil was omitted here while BOTH write
+        // paths force it to null. A row carrying a set effectiveUntil compared
+        // "unchanged", so the re-seed skipped it and the value survived until
+        // some unrelated field changed and silently wiped it. Compare it.
+        existing.effectiveUntil === null;
       if (unchanged) {
         summary.unchanged.push(rowLabel(row));
         continue;
@@ -391,9 +396,39 @@ function manifestPath(dataset: LegalBaselineDataset): string {
 
 const LOCAL_HOSTS = new Set(["127.0.0.1", "localhost", "host.docker.internal", "::1"]);
 
-function parsePgHost(url: string): string | null {
-  const match = url.match(/^postgres(?:ql)?:\/\/[^@]+@([^:/]+)/);
-  return match ? match[1] : null;
+/**
+ * Host of a Postgres DSN, or null when it cannot be determined.
+ *
+ * Uses `new URL()`, NOT a regex (T6 review M6): the previous
+ * `postgres(?:ql)?:\/\/[^@]+@([^:/]+)` REQUIRED credentials, so a perfectly
+ * valid credential-less DSN (`postgresql://prod-db.example.com:5432/dim`, auth
+ * via PGPASSWORD / .pgpass / client cert) parsed to null. `new URL` also strips
+ * the IPv6 brackets that the regex would have captured.
+ */
+export function parsePgHost(url: string): string | null {
+  try {
+    const parsed = new URL(url);
+    if (parsed.protocol !== "postgres:" && parsed.protocol !== "postgresql:") return null;
+    const host = parsed.hostname;
+    if (!host) return null;
+    // new URL renders an IPv6 hostname bracketed ("[::1]"); LOCAL_HOSTS holds
+    // the bare form.
+    return host.startsWith("[") && host.endsWith("]") ? host.slice(1, -1) : host;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * FAIL CLOSED (T6 review M6): an unparseable DSN is NOT local. The old
+ * `dbHost ? LOCAL_HOSTS.has(dbHost) : true` treated "I could not tell" as
+ * "local", which let an unrecognised DSN shape write the legal baseline to a
+ * remote DB without ever asking for --allow-remote. When we cannot prove the
+ * target is local, the Ignacio gate applies.
+ */
+export function isLocalSeedTarget(databaseUrl: string): boolean {
+  const host = parsePgHost(databaseUrl);
+  return host !== null && LOCAL_HOSTS.has(host);
 }
 
 function writeManifestFile(dataset: LegalBaselineDataset): void {
@@ -452,10 +487,9 @@ async function guardSeedTarget(argv: string[]): Promise<void> {
     process.exit(2);
   }
   const dbHost = parsePgHost(databaseUrl);
-  const isLocalDb = dbHost ? LOCAL_HOSTS.has(dbHost) : true;
-  if (!argv.includes("--allow-remote") && !isLocalDb) {
+  if (!argv.includes("--allow-remote") && !isLocalSeedTarget(databaseUrl)) {
     console.error(
-      `ABORT: DATABASE_URL host "${dbHost}" is not local. Applying the legal baseline to a remote DB is Ignacio-gated — re-run with --allow-remote only under that gate.`,
+      `ABORT: DATABASE_URL host "${dbHost ?? "(unparseable DSN)"}" is not a known local host. Applying the legal baseline to a remote DB is Ignacio-gated — re-run with --allow-remote only under that gate.`,
     );
     process.exit(2);
   }
