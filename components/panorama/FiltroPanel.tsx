@@ -17,6 +17,8 @@
 // Toggling ALWAYS delegates to the parent's onToggle → checkCompatibility (the
 // F2 role model is untouched); this is a presentational surface only.
 
+import { useState } from "react";
+
 import type { LayerPanelState } from "@/components/panorama/LayerPanel";
 import { activeVistaName, shortLayerLabel } from "@/components/panorama/panorama-labels";
 import { type LayerRole, roleOf } from "@/src/modules/panorama/domain/compatibility";
@@ -44,6 +46,15 @@ type Props = {
    * presentational — the console derives it (lodProvinceRollupHint).
    */
   lodRollupHints?: Partial<Record<LayerId, string>>;
+  /**
+   * WP2 progressive disclosure: the layer ids the active vista actually uses
+   * (base — the ACTIVE metric option's base under a metric-selector vista —
+   * plus signal/references). When present, only these rows plus any layer the
+   * operator hand-activated render by default; the rest sit behind a single
+   * panel-wide "Ver todas las capas" expander. Null/absent (manual mode, no
+   * active vista) → all rows render, no expander.
+   */
+  presetRelevantLayerIds?: ReadonlySet<LayerId> | null;
 };
 
 const ROLE_GROUPS: readonly { role: LayerRole; title: string }[] = [
@@ -63,8 +74,19 @@ export function FiltroPanel({
   verifiedOnly = false,
   onToggleVerified,
   lodRollupHints = {},
+  presetRelevantLayerIds = null,
 }: Props) {
   const vista = activeVistaName(presetId);
+  const [showAll, setShowAll] = useState(false);
+  // A row is always visible when it is vista-relevant OR already active (a
+  // hand-picked layer must never be swallowed by the collapse); only
+  // "inactive ∧ not relevant" hides behind the expander.
+  const rowVisible = (id: LayerId): boolean =>
+    showAll ||
+    presetRelevantLayerIds === null ||
+    presetRelevantLayerIds.has(id) ||
+    (states[id]?.active ?? false);
+  const hiddenCount = PANORAMA_LAYERS.filter((l) => !rowVisible(l.id)).length;
   return (
     <div className="space-y-2">
       {vista && (
@@ -75,7 +97,7 @@ export function FiltroPanel({
         </p>
       )}
       {ROLE_GROUPS.map(({ role, title }) => {
-        const layers = PANORAMA_LAYERS.filter((l) => roleOf(l) === role);
+        const layers = PANORAMA_LAYERS.filter((l) => roleOf(l) === role && rowVisible(l.id));
         if (layers.length === 0) return null;
         return (
           <fieldset key={role} className="m-0 space-y-0.5 border-0 p-0">
@@ -220,6 +242,16 @@ export function FiltroPanel({
           </fieldset>
         );
       })}
+      {(hiddenCount > 0 || (showAll && presetRelevantLayerIds !== null)) && (
+        <button
+          type="button"
+          aria-expanded={showAll}
+          onClick={() => setShowAll((v) => !v)}
+          className="w-fit text-xs font-medium text-ln-op-azul hover:underline"
+        >
+          {showAll ? "Ver solo las capas de la vista" : `Ver todas las capas (${hiddenCount} más)`}
+        </button>
+      )}
       {!detail && (
         <p className="text-xs leading-snug text-ln-op-faint">
           Cambiá a Detalle para ver qué mide cada capa y sus conteos.

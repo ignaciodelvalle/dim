@@ -14,7 +14,11 @@ import type { PanoramaKpis } from "@/src/modules/panorama/application/get-panora
 import { deriveActiveComplianceMetric } from "@/src/modules/panorama/domain/derive-preset";
 import { PANORAMA_LAYERS } from "@/src/modules/panorama/domain/layers";
 import { partitionKpiIdsByRelevance } from "@/src/modules/panorama/domain/metric-relevance";
-import { type PresetId, getPreset } from "@/src/modules/panorama/domain/presets";
+import {
+  type PresetId,
+  getPreset,
+  presetLayerIdsWithBase,
+} from "@/src/modules/panorama/domain/presets";
 import type { LayerId } from "@/src/modules/panorama/domain/types";
 
 type UseVistaMetricProjectionInput = {
@@ -94,5 +98,23 @@ export function useVistaMetricProjection({
     return partitionKpiIdsByRelevance(selected, activeLayerIdList).relevant;
   }, [kpis, metricIds, activeLayerIdList]);
 
-  return { activePreset, activeMetricOption, metricIds, activeLayerIdList, readingKpis };
+  // WP2 progressive disclosure: the layer set the active vista actually uses —
+  // under a metric-selector vista the ACTIVE option's base substitutes the
+  // preset default (the same base-substitution contract applyPreset commits).
+  // Null in manual mode (no vista → the layers panel shows everything).
+  const presetRelevantLayerIds = useMemo<ReadonlySet<LayerId> | null>(() => {
+    if (!activePreset) return null;
+    return new Set(
+      presetLayerIdsWithBase(activePreset, activeMetricOption?.base ?? activePreset.base),
+    );
+  }, [activePreset, activeMetricOption]);
+
+  return {
+    activePreset,
+    activeMetricOption,
+    metricIds,
+    activeLayerIdList,
+    readingKpis,
+    presetRelevantLayerIds,
+  };
 }

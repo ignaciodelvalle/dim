@@ -170,7 +170,7 @@ export function PanoramaShell({
     // exactly like the operator shell above it does (PRN-3). The informe's own
     // print sheet neutralises it — see PanoramaInformeSituacion.tsx.
     <div
-      className="panorama-console-shell -mx-6 -my-5.5 flex flex-col overflow-hidden bg-ln-op-page text-ln-op-ink"
+      className="op-fade-in panorama-console-shell -mx-6 -my-5.5 flex flex-col overflow-hidden bg-ln-op-page text-ln-op-ink"
       style={{ height: "calc(100% + 44px)", width: "calc(100% + 48px)" }}
     >
       {/* The masthead (identity line + scope pill + "Acerca" popover + fresh

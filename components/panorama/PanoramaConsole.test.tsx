@@ -1628,6 +1628,10 @@ describe("PanoramaConsole — TimeScrubber temporal gating (panorama-vista-redes
     // so just open it and click the zoonosis row's checkbox for real.
     openFiltro();
 
+    // WP2 progressive disclosure: under the cumplimiento vista only its own
+    // layers render by default — zoonosis sits behind the panel expander.
+    fireEvent.click(screen.getByRole("button", { name: /Ver todas las capas/ }));
+
     // zoonosis is temporal — activating it must flip temporalAvailable true.
     await act(async () => {
       fireEvent.click(screen.getByRole("checkbox", { name: /Zoonosis/ }));

@@ -28,7 +28,7 @@ import {
 } from "@/components/gob/JurisdictionSwitcher";
 import { CalendarHeatmap } from "@/components/panorama/CalendarHeatmap";
 import { ComplianceMetricSelector } from "@/components/panorama/ComplianceMetricSelector";
-import { ConsoleNotice } from "@/components/panorama/ConsoleNotice";
+import { ConsoleNoticeStack } from "@/components/panorama/ConsoleNoticeStack";
 import { ContextBar } from "@/components/panorama/ContextBar";
 import { DetailDrawer, type SelectedFeature } from "@/components/panorama/DetailDrawer";
 import { FiltroPanel } from "@/components/panorama/FiltroPanel";
@@ -2165,8 +2165,14 @@ export function PanoramaConsole({
   // The active vista's metric projection (D1 metric option, curated metric
   // ids, reading/informe KPI subset) — use-vista-metric-projection.ts
   // (file-size split, behavior-preserving).
-  const { activePreset, activeMetricOption, metricIds, activeLayerIdList, readingKpis } =
-    useVistaMetricProjection({ activePresetId, states, activeLayers, kpis });
+  const {
+    activePreset,
+    activeMetricOption,
+    metricIds,
+    activeLayerIdList,
+    readingKpis,
+    presetRelevantLayerIds,
+  } = useVistaMetricProjection({ activePresetId, states, activeLayers, kpis });
 
   // #53 QOL — the honest "personalizada" moment. When the derived vista flips
   // from a named preset to null (a hand-edit via Personalizar / a chip-less
@@ -4353,6 +4359,7 @@ export function PanoramaConsole({
             verifiedOnly={verifiedOnly}
             onToggleVerified={onToggleVerified}
             lodRollupHints={lodRollupHints}
+            presetRelevantLayerIds={presetRelevantLayerIds}
           />
         </div>
       ),
@@ -4799,42 +4806,24 @@ export function PanoramaConsole({
                   "state the view four times" era. The ContextBar above the map
                   states scope, period and layer count once; this line restated
                   the period and the layers beside truncated KPI numbers. */}
-              {/* T1.6 — the honest "restored" moment: a bare URL reopened the
-                  operator's last board from localStorage, not the canonical
-                  default. Same visual pattern as the personalizada note. */}
-              {restoredBoardNotice && (
-                <ConsoleNotice onDismiss={() => setRestoredBoardNotice(false)}>
-                  <span>Continuando tu vista anterior.</span>
-                </ConsoleNotice>
-              )}
-              {/* T2.7 — the preset reset the operator's explicit período; the
-                  contract stands (preset defaults win) but never silently. */}
-              {periodResetNotice !== null && (
-                <ConsoleNotice
-                  dismissLabel="Descartar aviso de período"
-                  onDismiss={() => setPeriodResetNotice(null)}
-                >
-                  <span>El período volvió a {periodResetNotice} con la vista.</span>
-                </ConsoleNotice>
-              )}
-              {/* #53 QOL — the honest "personalizada" moment: a hand-edit never
-                  changes the board silently; one tap returns to the vista left. */}
-              {personalizadaFrom !== null && activePresetId === null && (
-                <ConsoleNotice onDismiss={() => setPersonalizadaFrom(null)}>
-                  <span>
-                    Editaste la vista — ahora es{" "}
-                    <span className="font-semibold">personalizada</span>.
-                  </span>
-                  <OpButton
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => applyPreset(personalizadaFrom, "replace")}
-                    className="-my-1 px-1 py-1 font-semibold text-ln-op-azul underline-offset-2 hover:underline"
-                  >
-                    Volver a {getPreset(personalizadaFrom)?.label ?? personalizadaFrom}
-                  </OpButton>
-                </ConsoleNotice>
-              )}
+              {/* Board-state notices (T1.6 restored / T2.7 period reset / #53
+                  personalizada) — ConsoleNoticeStack caps the stack at one
+                  visible notice with a "+N avisos" expander (WP2). */}
+              <ConsoleNoticeStack
+                restored={restoredBoardNotice}
+                onDismissRestored={() => setRestoredBoardNotice(false)}
+                periodResetLabel={periodResetNotice}
+                onDismissPeriodReset={() => setPeriodResetNotice(null)}
+                personalizadaLabel={
+                  personalizadaFrom !== null && activePresetId === null
+                    ? (getPreset(personalizadaFrom)?.label ?? personalizadaFrom)
+                    : null
+                }
+                onVolver={() => {
+                  if (personalizadaFrom !== null) applyPreset(personalizadaFrom, "replace");
+                }}
+                onDismissPersonalizada={() => setPersonalizadaFrom(null)}
+              />
               <KpiChips
                 kpis={kpis}
                 metricIds={metricIds}
