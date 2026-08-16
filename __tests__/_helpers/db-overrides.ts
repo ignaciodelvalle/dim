@@ -22,9 +22,16 @@ import { db } from "@/db";
 
 let cachedActorId: string | null = null;
 
-async function resolveCleanupActorId(): Promise<string> {
+// The executor matters: resolving through the POOL while the caller already
+// holds a transaction connection deadlocks under parallel cleanup (each tx
+// occupies a slot and waits for another slot to run the lookup — measured as
+// the 30s afterAll timeout in trigger-role-from-app-metadata, 2026-08-16).
+// Callers inside a tx must pass THAT tx as the executor.
+async function resolveCleanupActorId(
+  executor: { execute: typeof db.execute } = db,
+): Promise<string> {
   if (cachedActorId) return cachedActorId;
-  const rows = (await db.execute(sql`
+  const rows = (await executor.execute(sql`
     select p.id::text as id
     from public.profiles p
     join auth.users u on u.id = p.id
@@ -93,7 +100,9 @@ export async function withMutationOverride<T>(fn: (tx: Tx) => Promise<T>): Promi
  * test cleanup — same transaction shape, one extra GUC.
  */
 export async function setAuditMutationGucs(tx: Tx): Promise<void> {
-  const actorId = await resolveCleanupActorId();
+  // Resolve THROUGH the caller's tx — a pool query here deadlocks under
+  // parallel cleanup (see resolveCleanupActorId's executor note).
+  const actorId = await resolveCleanupActorId(tx);
   if (!UUID_RE.test(actorId)) {
     throw new Error(`setAuditMutationGucs: resolved actor id is not a UUID: ${actorId}`);
   }
