@@ -9,6 +9,7 @@ import {
   getReportableVaccines,
   isReminderProximo,
   isVaccineReportable,
+  splitProximosReminders,
 } from "@/lib/domain/vaccine-reminder-state";
 
 // ---------------------------------------------------------------------------
@@ -156,5 +157,46 @@ describe("countProximosReminders", () => {
   test("horizonte configurable", () => {
     const reminders = [{ daysUntilDue: 75 }, { daysUntilDue: 100 }];
     expect(countProximosReminders(reminders, 90)).toBe(1);
+  });
+});
+
+// D-11 (Lote D) — el rollup de /mis-mascotas plegaba "ya vencida" y "vence
+// dentro de 60 días" en un solo número, así que dos dueños en situaciones
+// opuestas leían la misma cifra: uno en incumplimiento hoy, otro sin nada que
+// hacer hasta el mes que viene. El landing por-mascota siempre las distinguió.
+describe("splitProximosReminders", () => {
+  const rem = (daysUntilDue: number) => ({ daysUntilDue });
+
+  test("separa vencidas de por-vencer sobre el mismo conjunto que cuenta el total", () => {
+    const reminders = [rem(-40), rem(-1), rem(0), rem(5), rem(59), rem(120)];
+    const split = splitProximosReminders(reminders);
+    // -40, -1 y 0 ya vencieron (0 = vence hoy = vencida, según getReminderVariant).
+    expect(split.vencidas).toBe(3);
+    // 5 y 59 están dentro del horizonte; 120 queda fuera y no cuenta.
+    expect(split.porVencer).toBe(2);
+    expect(split.total).toBe(5);
+  });
+
+  test("el total coincide SIEMPRE con countProximosReminders — un solo bucket, dos lentes", () => {
+    const reminders = [rem(-90), rem(-3), rem(2), rem(30), rem(61), rem(364)];
+    expect(splitProximosReminders(reminders).total).toBe(countProximosReminders(reminders));
+  });
+
+  test("respeta un horizonte personalizado, igual que el contador", () => {
+    const reminders = [rem(-5), rem(20), rem(80)];
+    const split = splitProximosReminders(reminders, 90);
+    expect(split).toEqual({ vencidas: 1, porVencer: 2, total: 3 });
+  });
+
+  test("una vacuna vencida hace más de 30 días sigue siendo vencida (overdue_critical no es otra cosa)", () => {
+    expect(splitProximosReminders([rem(-200)])).toEqual({
+      vencidas: 1,
+      porVencer: 0,
+      total: 0 + 1,
+    });
+  });
+
+  test("sin recordatorios devuelve ceros, no nulls", () => {
+    expect(splitProximosReminders([])).toEqual({ vencidas: 0, porVencer: 0, total: 0 });
   });
 });

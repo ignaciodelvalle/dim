@@ -80,6 +80,48 @@ export function countProximosReminders<T extends { daysUntilDue: number }>(
   );
 }
 
+/** Los "próximos" partidos en las dos cosas distintas que son. */
+export type ProximosSplit = {
+  /** Ya vencidos (el plazo pasó). */
+  vencidas: number;
+  /** Todavía en plazo, pero vencen dentro del horizonte. */
+  porVencer: number;
+  /** vencidas + porVencer — el total que `countProximosReminders` devuelve. */
+  total: number;
+};
+
+/**
+ * Parte el bucket "próximos" en VENCIDAS y POR VENCER (D-11, Lote D).
+ *
+ * El landing por-mascota ya distingue las dos: `getReminderVariant` arriba las
+ * separa y `rabiesFromVariant` (lib/projections/pet-compliance.ts) las rotula
+ * "Vencida" y "Por vencer", con fecha. El rollup de /mis-mascotas las plegaba en
+ * un solo número — así, dos dueños con la misma cifra podían estar en
+ * situaciones opuestas: uno con tres dosis fuera de plazo (incumplimiento hoy) y
+ * otro con tres dosis por vencer el mes que viene (nada que hacer todavía).
+ *
+ * REUSA el clasificador, no lo reimplementa: la línea vencida/por-vencer sale de
+ * `getReminderVariant`, la misma función que alimenta las tarjetas por mascota,
+ * así que el rollup y el detalle no pueden discrepar. `isReportable` se pasa en
+ * false a propósito: sólo separa `overdue` de `overdue_critical`, y ambas SON
+ * vencidas — la criticidad es otra pregunta, y fingir que la conocemos acá
+ * exigiría la especie de cada mascota, que este módulo puro no tiene.
+ */
+export function splitProximosReminders<T extends { daysUntilDue: number }>(
+  reminders: readonly T[],
+  horizonDays: number = PROXIMOS_HORIZON_DAYS,
+): ProximosSplit {
+  let vencidas = 0;
+  let porVencer = 0;
+  for (const r of reminders) {
+    if (!isReminderProximo(r.daysUntilDue, horizonDays)) continue;
+    const variant = getReminderVariant(r.daysUntilDue, false);
+    if (variant === "overdue" || variant === "overdue_critical") vencidas += 1;
+    else porVencer += 1;
+  }
+  return { vencidas, porVencer, total: vencidas + porVencer };
+}
+
 /**
  * Deriva la variante `success` cuando el recordatorio está marcado como completado.
  *

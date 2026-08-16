@@ -47,7 +47,7 @@ import {
   fetchPreviousWorkflows,
 } from "@/lib/analytics/owner-dashboard";
 import { petUrgencyRank } from "@/lib/domain/pet-urgency-rank";
-import { countProximosReminders } from "@/lib/domain/vaccine-reminder-state";
+import { splitProximosReminders } from "@/lib/domain/vaccine-reminder-state";
 import { requireUserOrRedirect } from "@/lib/infra/auth-guards";
 import { PET_CARD_PHOTO_SELECT, PET_CARD_SELECT } from "@/lib/infra/pet-projections";
 import { getProfileCached } from "@/lib/infra/request-cache";
@@ -240,7 +240,11 @@ export default async function MisMascotasPage({
   // and casos are household-wide (dedicated bounded fetchers); "al día" is over
   // the shown active pets — for the common 1-8 pet owner that IS the household,
   // and under a search it honestly reflects the matched subset.
-  const proximosVencimientos = countProximosReminders(reminders);
+  // D-11: the same reminders, split into the two states the per-pet landing
+  // already distinguishes — vencida vs por vencer. Same classifier
+  // (getReminderVariant, via splitProximosReminders), so the rollup and the
+  // per-pet cards cannot disagree about which side a dose is on.
+  const vencimientos = splitProximosReminders(reminders);
   const alDia = sortedActivePets.filter(({ pet }) => statusForPet(pet) === "ok").length;
   const openCases = openWorkflows.map(adaptWorkflow);
   const previousCases = previousWorkflows.map(adaptWorkflow);
@@ -309,7 +313,8 @@ export default async function MisMascotasPage({
       {/* ------------------------------------------------------------------ */}
       {activePets.length > 0 && (
         <OwnerRollupStrip
-          proximosVencimientos={proximosVencimientos}
+          vencidas={vencimientos.vencidas}
+          porVencer={vencimientos.porVencer}
           alDia={alDia}
           totalPets={activePets.length}
           casosAbiertos={openWorkflows.length}

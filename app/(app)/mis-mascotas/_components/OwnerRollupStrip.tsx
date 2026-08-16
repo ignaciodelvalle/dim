@@ -9,17 +9,20 @@
 // cards below and the profile read, so the numbers can never disagree).
 
 import { Icon, type IconName } from "@/components/Icon";
-import { capCount } from "@/lib/utils/format";
+import { capCount, pluralizeEs } from "@/lib/utils/format";
 
 function RollupCell({
   icon,
   value,
   label,
+  detail,
   tone,
 }: {
   icon: IconName;
   value: string;
   label: string;
+  /** Optional breakdown line under the label (D-11: vencidas vs por vencer). */
+  detail?: string;
   /** Calm (nothing pending) reads muted; a non-zero count reads with emphasis. */
   tone: "calm" | "attention";
 }) {
@@ -42,22 +45,49 @@ function RollupCell({
         <p className="mt-1 font-ln-mono text-xs uppercase tracking-[.06em] text-[var(--color-ln-mute)]">
           {label}
         </p>
+        {detail && <p className="mt-0.5 text-xs text-[var(--color-ln-mute)]">{detail}</p>}
       </div>
     </div>
   );
 }
 
+/**
+ * D-11 (Lote D): the breakdown line under "vencimientos próximos".
+ *
+ * The rollup used to fold "already past its date" and "due within 60 days" into
+ * one number, so two owners in opposite situations read the same figure — one in
+ * breach today, one with nothing to do until next month. The per-pet landing has
+ * always separated them ("Vencida" / "Por vencer", with the date); this restores
+ * that rigor at the household level without adding a fourth cell to a
+ * three-column strip.
+ *
+ * Says only what is true: with nothing overdue the line names just what is
+ * coming, and vice versa. es-AR agreement throughout ("1 vencida", "2 vencidas").
+ */
+function vencimientosDetail(vencidas: number, porVencer: number): string | undefined {
+  if (vencidas === 0 && porVencer === 0) return undefined;
+  const parts: string[] = [];
+  if (vencidas > 0) parts.push(`${vencidas} ${pluralizeEs(vencidas, "vencida")}`);
+  if (porVencer > 0) parts.push(`${porVencer} por vencer`);
+  return parts.join(" · ");
+}
+
 export function OwnerRollupStrip({
-  proximosVencimientos,
+  vencidas,
+  porVencer,
   alDia,
   totalPets,
   casosAbiertos,
 }: {
-  proximosVencimientos: number;
+  /** Recordatorios cuyo plazo ya pasó (splitProximosReminders). */
+  vencidas: number;
+  /** Recordatorios en plazo que vencen dentro del horizonte de 60 días. */
+  porVencer: number;
   alDia: number;
   totalPets: number;
   casosAbiertos: number;
 }) {
+  const proximosVencimientos = vencidas + porVencer;
   return (
     <section
       aria-label="Resumen de tus mascotas"
@@ -68,6 +98,7 @@ export function OwnerRollupStrip({
         icon="reloj"
         value={capCount(proximosVencimientos)}
         label={proximosVencimientos === 1 ? "vencimiento próximo" : "vencimientos próximos"}
+        detail={vencimientosDetail(vencidas, porVencer)}
         tone={proximosVencimientos > 0 ? "attention" : "calm"}
       />
       <RollupCell
