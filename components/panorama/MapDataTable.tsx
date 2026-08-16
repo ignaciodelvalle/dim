@@ -166,7 +166,18 @@ export function MapDataTable({
           </a>
         )}
       </div>
-      <div className="max-h-80 overflow-auto rounded-[var(--radius-md)] border border-ln-op-line">
+      {/* L-19: the scroll container is keyboard-focusable (axe
+          scrollable-region-focusable) — a table taller than max-h-80 was
+          mouse-scroll-only. A named <section> is a region; the caption doubles
+          as its accessible name. Same shape as Ledger.tsx's scroll container:
+          a scrollable region is the documented exception to the tabindex rule
+          (WCAG 2.1.1 — without a tab stop a keyboard user can never scroll). */}
+      <section
+        // biome-ignore lint/a11y/noNoninteractiveTabindex: scrollable region, see above
+        tabIndex={0}
+        aria-label={caption}
+        className="max-h-80 overflow-auto rounded-[var(--radius-md)] border border-ln-op-line"
+      >
         <table className="w-full table-fixed border-collapse text-sm">
           <caption className="sr-only">{caption}</caption>
           <colgroup>
@@ -227,7 +238,7 @@ export function MapDataTable({
             ))}
           </tbody>
         </table>
-      </div>
+      </section>
     </div>
   );
 }

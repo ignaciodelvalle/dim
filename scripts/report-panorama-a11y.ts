@@ -34,6 +34,7 @@ const TARGET_RULES = new Set([
   "nested-interactive", // A3
   "listitem", // A4
   "color-contrast", // A2/A5/A6
+  "scrollable-region-focusable", // L-19 (MapDataTable scroll container)
 ]);
 
 const args = new Map(
@@ -144,6 +145,13 @@ async function main() {
       ),
     }));
     kb.dockRoving = { tabIdxBefore, afterArrow };
+
+    // --- Registros pane (L-19): actually OPEN the tab so MapDataTable's DOM
+    // exists before the axe pass — the roving-tabindex probe above only
+    // focuses the tab, so this surface was never scanned before. ---
+    await page.getByRole("tab", { name: /Registros/ }).click();
+    await page.waitForTimeout(400);
+    states.dockRegistros = await runAxe(page, "dock-registros(records-table)");
 
     // Collapse the dock again for the panel scans.
     await page.getByRole("button", { name: /Colapsar/ }).click();

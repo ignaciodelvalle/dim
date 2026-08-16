@@ -191,3 +191,15 @@ describe("MapDataTable — the empty state names WHY it is empty (UX audit 2026-
     expect(screen.getByText(/Sin datos por unidad/i)).toBeInTheDocument();
   });
 });
+
+// L-19: a table taller than the max-h-80 scroll container was reachable only
+// by mouse wheel — axe `scrollable-region-focusable`. The wrapper must be
+// focusable and named so a keyboard user can Tab to it and arrow-scroll.
+describe("MapDataTable — keyboard-reachable scroll region (L-19)", () => {
+  it("the scroll container is a focusable, caption-named region", () => {
+    render(<MapDataTable rows={ONE_LAYER} caption="Datos por unidad" filename="f" />);
+
+    const region = screen.getByRole("region", { name: "Datos por unidad" });
+    expect(region).toHaveAttribute("tabindex", "0");
+  });
+});
