@@ -24,6 +24,15 @@ import "server-only";
 // TARGETS on ANY read failure — a broken rules read must degrade a meta, never
 // fail a dashboard page.
 //
+// BOUNDED BY CONSTRUCTION (T6 review M1, 2026-08-16): a try/catch catches
+// REJECTIONS, not HANGS. `resolveBusinessRule` issues up to three sequential
+// un-timeouted SELECTs, and every /gob caller used to await this OUTSIDE its
+// `loadWithTimeout` group — so a degraded pooler hung the whole government
+// dashboard with no deadline, no degraded chrome and nothing logged (the same
+// incident class documented at app/(app)/mis-mascotas/[publicToken]/page.tsx).
+// The deadline now lives HERE, at the single seam every caller shares, so the
+// module's fail-safe claim is true wherever it is awaited.
+//
 // HONEST LABELING (JT4): every tile rendering an ADJUSTED value must disclose
 // it (JURISDICTION_ADJUSTED_TARGET_NOTE) — no silent number swap. `adjusted`
 // is per-key and only true when the resolved override actually CHANGES the
@@ -32,9 +41,19 @@ import "server-only";
 import { resolveBusinessRule } from "@/lib/infra/business-rules-resolver";
 import type { DashboardJurisdiction } from "@/lib/metrics/context";
 import { TARGETS } from "@/lib/metrics/targets";
+import { loadWithTimeout } from "./analytics-load";
 
 /** es-AR disclosure sub-line for any tile whose meta was locally adjusted. */
 export const JURISDICTION_ADJUSTED_TARGET_NOTE = "Meta ajustada por normativa jurisdiccional";
+
+/**
+ * Deadline for the targets resolution (T6 review M1). Deliberately a SUB-budget
+ * of ANALYTICS_LOAD_TIMEOUT_MS (10 s): this is at most three indexed single-row
+ * lookups and it runs BEFORE the page's own fetcher deadline, so it must not be
+ * able to consume the whole request budget on its own. On expiry the caller
+ * gets the flat national tier — a meta degrades, a dashboard never hangs.
+ */
+export const JURISDICTION_TARGETS_TIMEOUT_MS = 3_000;
 
 /** The four legally-varying TARGETS keys (JT1) — the whitelist, nothing else. */
 export type JurisdictionTargetKey =
@@ -85,31 +104,44 @@ const clampPct = (value: number): number => Math.min(100, Math.max(0, value));
 
 /**
  * Resolve the effective compliance targets for ONE jurisdiction (JT2).
- * Never throws: any resolver failure falls back to the flat TARGETS.
+ *
+ * Never throws AND never hangs: any resolver failure falls back to the flat
+ * TARGETS, and a resolver that never settles is cut at
+ * JURISDICTION_TARGETS_TIMEOUT_MS with the same flat fallback (the timeout is
+ * logged with a correlation id by loadWithTimeout — silence was the M1 bug).
  */
 export async function resolveJurisdictionTargets(jurisdiction: {
   province?: string | null;
   locality?: string | null;
 }): Promise<JurisdictionTargets> {
+  const load = await loadWithTimeout(
+    resolveTargetsUnbounded(jurisdiction),
+    JURISDICTION_TARGETS_TIMEOUT_MS,
+  );
+  // Fail-safe (JT2 scenario "resolver throws", plus the M1 hang path): a
+  // rules-read failure or a stalled pooler must never take a gob dashboard
+  // down — degrade to the flat national tier.
+  return load.ok ? load.value : flatJurisdictionTargets();
+}
+
+/** The read + merge itself. Bounded by its caller; may reject, may stall. */
+async function resolveTargetsUnbounded(jurisdiction: {
+  province?: string | null;
+  locality?: string | null;
+}): Promise<JurisdictionTargets> {
   const result = flatJurisdictionTargets();
-  try {
-    const resolved = await resolveBusinessRule("compliance_targets", jurisdiction);
-    const payload = (resolved.payload ?? {}) as Record<string, unknown>;
-    for (const [payloadKey, targetKey] of Object.entries(PAYLOAD_KEY_MAP)) {
-      const raw = payload[payloadKey];
-      if (typeof raw !== "number" || Number.isNaN(raw)) continue;
-      const clamped = clampPct(raw);
-      if (clamped === result.values[targetKey]) continue; // same number — nothing to disclose
-      result.values[targetKey] = clamped;
-      result.adjusted[targetKey] = true;
-      result.anyAdjusted = true;
-    }
-    return result;
-  } catch {
-    // Fail-safe (JT2 scenario "resolver throws"): a rules-read failure must
-    // never take a gob dashboard down — degrade to the flat national tier.
-    return flatJurisdictionTargets();
+  const resolved = await resolveBusinessRule("compliance_targets", jurisdiction);
+  const payload = (resolved.payload ?? {}) as Record<string, unknown>;
+  for (const [payloadKey, targetKey] of Object.entries(PAYLOAD_KEY_MAP)) {
+    const raw = payload[payloadKey];
+    if (typeof raw !== "number" || Number.isNaN(raw)) continue;
+    const clamped = clampPct(raw);
+    if (clamped === result.values[targetKey]) continue; // same number — nothing to disclose
+    result.values[targetKey] = clamped;
+    result.adjusted[targetKey] = true;
+    result.anyAdjusted = true;
   }
+  return result;
 }
 
 /**

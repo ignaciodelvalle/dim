@@ -192,8 +192,10 @@ export async function ProgramaResumenScreen({
   // ADR-8 (jurisdiction-compliance WU4b): jurisdiction-resolved targets for
   // the legally-varying metas this screen judges (esterilización, microchip,
   // and the outliers table's three columns). Resolved ONCE per request in the
-  // RSC — fail-safe (flat TARGETS on any read failure), so it sits outside
-  // the bounded load. Admin national/cross-province views stay flat by policy;
+  // RSC — fail-safe (flat TARGETS on any read failure) and bounded inside the
+  // module by JURISDICTION_TARGETS_TIMEOUT_MS, since it runs before the page's
+  // own loadWithTimeout group (T6 review M1: a try/catch does not catch a
+  // hang). Admin national/cross-province views stay flat by policy;
   // every adjusted tile discloses the swap (JURISDICTION_ADJUSTED_TARGET_NOTE).
   const jurisdictionTargets = await resolveJurisdictionTargetsForScope(
     profile.role === "admin"

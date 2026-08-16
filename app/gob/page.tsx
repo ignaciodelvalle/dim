@@ -243,10 +243,11 @@ export default async function GobiernoDashboardPage({
   // ADR-8 (jurisdiction-compliance WU4b): resolve the four legally-varying
   // targets ONCE per request for the effective view — govt: the fenced
   // filteredJurisdictions; admin: the drill-down pair (national/undrilled and
-  // cross-province views stay on the flat TARGETS by policy). Fail-safe by
-  // construction (resolver falls back to flat on any read failure), so it can
-  // sit outside the bounded load below without adding a hang path — three
-  // indexed single-row lookups at most. Every adjusted tile below DISCLOSES
+  // cross-province views stay on the flat TARGETS by policy). Bounded INSIDE
+  // the module by JURISDICTION_TARGETS_TIMEOUT_MS (T6 review M1: a try/catch
+  // catches rejections, not hangs — this await sits before the load group, so
+  // an unbounded stall here hung the whole briefing). Every adjusted tile below
+  // DISCLOSES
   // the adjustment (JURISDICTION_ADJUSTED_TARGET_NOTE) — no silent number swap.
   const jurisdictionTargets = await resolveJurisdictionTargetsForScope(
     profile.role === "admin"

@@ -152,7 +152,7 @@ export type ObligationCard = {
    * real obligation (mandatory, or a legacy caller without threaded
    * obligations).
    */
-  requirementTier?: "recommended" | "not_regulated";
+  requirementTier?: "recommended" | "optional" | "not_regulated";
 };
 
 export type ComplianceState = {
@@ -297,6 +297,26 @@ const DECLARADA_STATE = "Declarada";
 const DECLARADO_STATE = "Declarado";
 const VERIFICADA_STATE = "Verificada";
 const VERIFICADO_STATE = "Verificado";
+/**
+ * "Nothing on record" state, shared by every derivation.
+ *
+ * A CONSTANT, not a literal (T6 review MINOR 6): `applyTierOverlay` decides
+ * whether a not_regulated card is dropped by comparing `card.state` to this
+ * exact string. As a bare literal, a copy tweak in any one derivation would
+ * have silently resurrected empty not_regulated cards with nothing to say.
+ */
+const SIN_REGISTRO_STATE = "Sin registro";
+
+/**
+ * Summary label when NO obligation is counted (M = 0) — every resolved rule is
+ * recommended / not_regulated and the pet is not a flagged PPP.
+ *
+ * "0 de 0 al día" used to render here, in green (T6 review M5): a compliance
+ * seal earned by an empty denominator. This says what is actually true — the
+ * jurisdiction has no mandatory obligation loaded for this pet — and the
+ * summary tone goes neutral so nothing reads as approval.
+ */
+export const NO_COUNTED_OBLIGATIONS_LABEL = "Sin obligaciones cargadas para tu jurisdicción";
 
 // Rabies dual-state copy (task #78 Part 1 / #4). The registry line is educational
 // AND a nudge — a vet signature turns declared data into verified data, which is
@@ -439,7 +459,7 @@ function deriveRabies(input: ComplianceInput): ObligationCard {
     return {
       key: "rabies",
       label: "Vacuna antirrábica",
-      state: "Sin registro",
+      state: SIN_REGISTRO_STATE,
       tone: "neutral",
       detail: null,
       legalFootnote: FOOTNOTE.rabies,
@@ -561,7 +581,7 @@ function deriveSterilization(input: ComplianceInput): ObligationCard {
     return {
       key: "sterilization",
       label: "Esterilización",
-      state: "Sin registro",
+      state: SIN_REGISTRO_STATE,
       tone: "neutral",
       detail: null,
       legalFootnote: STERILIZATION_FOOTNOTE.none,
@@ -638,7 +658,7 @@ function deriveMicrochip(input: ComplianceInput): ObligationCard | null {
   return {
     key: "microchip",
     label: "Microchip",
-    state: "Sin registro",
+    state: SIN_REGISTRO_STATE,
     tone: "neutral",
     detail: null,
     legalFootnote: FOOTNOTE.microchip,
@@ -731,7 +751,7 @@ export function microchipHeroTag(compliance: ComplianceState): string | null {
   const card = compliance.cards.find((c) => c.key === "microchip");
   if (!card) return null;
   if (card.tone === "ok") return "Microchip verificado";
-  if (card.state !== "Sin registro") return "Microchip declarado";
+  if (card.state !== SIN_REGISTRO_STATE) return "Microchip declarado";
   return null;
 }
 
@@ -761,28 +781,37 @@ export function lnPetStatusFromCompliance(
   if (pet.status === "lost") return "lost";
   if (pet.status === "deceased") return "deceased";
   if (pet.pregnancyStatus === "in_progress") return "pregnant";
+  // An EMPTY denominator is not compliance (T6 review M5): with no counted
+  // obligation, `ok === total` is 0 === 0 and every list row stamped "AL DÍA"
+  // over a pet nothing had judged. "registered" is the honest status.
+  if (compliance.summary.total === 0) return "registered";
   return compliance.summary.ok === compliance.summary.total ? "ok" : "registered";
 }
 
 /**
  * Jurisdiction-tier overlay (spec CS2-CS4). A `mandatory` tier keeps the card
- * exactly as derived (existing urgency). A `recommended`/`optional` tier keeps
- * the card but SOFTENS it: never "vencida"/overdue styling (over/due tones
- * clamp to neutral), marked `requirementTier: "recommended"` so the panel adds
- * its distinct treatment and the summary excludes it from M. A
+ * exactly as derived (existing urgency). A `recommended` or `optional` tier
+ * keeps the card but SOFTENS it: never "vencida"/overdue styling (over/due
+ * tones clamp to neutral), marked with its own `requirementTier` so the panel
+ * adds the matching disclosure line and the summary excludes it from M. A
  * `not_regulated` tier renders information only: a card with nothing on
  * record ("Sin registro") is omitted entirely — there is no obligation to
  * surface and nothing to inform — while real data (a dose, a chip) stays
  * visible as an informational card, tones clamped, hint dropped (the hint
  * says "para que cuente", and there is nothing to count toward).
+ *
+ * `optional` keeps its OWN tier (T6 review MINOR 7). It used to fold into
+ * `recommended`, so an explicitly-optional rule told the owner "Recomendación
+ * de tu jurisdicción" — a claim the jurisdiction never made. The tier is a real
+ * value of the DB CHECK, so it gets real copy instead of a borrowed one.
  */
 function applyTierOverlay(
   card: ObligationCard | null,
   level: ObligationRequirementLevel,
 ): ObligationCard | null {
   if (card === null || level === "mandatory") return card;
-  const tier = level === "not_regulated" ? "not_regulated" : "recommended";
-  if (tier === "not_regulated" && card.state === "Sin registro") return null;
+  const tier = level;
+  if (tier === "not_regulated" && card.state === SIN_REGISTRO_STATE) return null;
   const tone: ComplianceTone = card.tone === "over" || card.tone === "due" ? "neutral" : card.tone;
   return {
     ...card,
@@ -864,14 +893,25 @@ export function deriveComplianceState(input: ComplianceInput): ComplianceState {
   // neutral while every counted obligation is ok. `filter` preserves the
   // worst-first sort, so countable[0] is the worst counted obligation.
   const worstCard = countable[0] ?? null;
-  const worstTone = worstCard?.tone ?? "ok";
+  // NO COUNTED OBLIGATIONS ≠ COMPLIANT (T6 review M5). With every obligation
+  // resolved recommended/not_regulated (reachable today through the admin rules
+  // console on a non-PPP pet), M is 0 — and "0 de 0 al día" rendered GREEN, a
+  // green seal for a pet nobody has judged. An empty denominator is a fact
+  // about the JURISDICTION's rule coverage, not about this animal, so it says
+  // so, in neutral.
+  const empty = total === 0;
+  const worstTone: ComplianceTone = empty ? "neutral" : (worstCard?.tone ?? "ok");
   // Read off the SAME card the tone comes from, so the two can never disagree
   // about which obligation the summary is describing.
-  const worstIsUnknown = worstCard?.dataUnknown === true;
+  const worstIsUnknown = empty ? false : worstCard?.dataUnknown === true;
 
   return {
     cards,
-    summary: { total, ok, label: `${ok} de ${total} al día` },
+    summary: {
+      total,
+      ok,
+      label: empty ? NO_COUNTED_OBLIGATIONS_LABEL : `${ok} de ${total} al día`,
+    },
     worstTone,
     worstIsUnknown,
   };

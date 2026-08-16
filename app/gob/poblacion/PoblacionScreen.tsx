@@ -323,7 +323,10 @@ export async function PoblacionScreen({
 
   // ADR-8 (jurisdiction-compliance WU4b): jurisdiction-resolved sterilization
   // target for this screen's tone/sub/gap-table. Fail-safe (flat TARGETS on
-  // any read failure); admin national/cross-province views stay flat (JT5).
+  // any read failure) AND bounded inside the module by
+  // JURISDICTION_TARGETS_TIMEOUT_MS (T6 review M1 — this await precedes the
+  // page's loadWithTimeout group, so it needs its own deadline); admin
+  // national/cross-province views stay flat (JT5).
   const jurisdictionTargets = await resolveJurisdictionTargetsForScope(
     profile.role === "admin"
       ? adminProvince

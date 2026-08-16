@@ -51,12 +51,7 @@ import { publicPetByToken } from "@/lib/infra/public-pet-lookup";
 import { RateLimitError, callerIp, enforceRateLimit } from "@/lib/infra/rate-limit";
 import { reportError } from "@/lib/infra/report-error";
 import { petPhotoUrl } from "@/lib/infra/storage";
-import {
-  type PermanentCondition,
-  isPermanentCondition,
-  permanentConditionShortLabel,
-  resolveLostSpecialConditions,
-} from "@/lib/reference/permanent-conditions";
+import { resolveLostSpecialConditions } from "@/lib/reference/permanent-conditions";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { BRANDING } from "@/lib/ui/branding";
 import { DISPUTE_TIP_INTRO } from "@/lib/ui/dispute-copy";
@@ -96,6 +91,11 @@ import { DisputeTipForm } from "./DisputeTipForm";
 import { FoundPetForm } from "./FoundPetForm";
 import { ScanLogger } from "./ScanLogger";
 import { type CredentialEvent, deriveRabiesSemaphore, isRabiesAtRisk } from "./credential-badges";
+import {
+  PermanentConditionsBanner,
+  RabiesObservationBanner,
+  ServiceDogBanner,
+} from "./credential-banners";
 
 // The page calls headers() at runtime — mark it dynamic explicitly so Next.js
 // does not attempt to statically render it (matches the sibling encontre /
@@ -1339,7 +1339,12 @@ async function loadCredentialViewData(pet: Pet) {
     serviceDog,
     lostContext,
     lostTattooPhotoUrl,
-    registryClaim: deriveCredentialRegistryClaim(microchipRegistryRule),
+    // The rule proves the OBLIGATION exists; canonicalIds prove THIS animal is
+    // identified. The unqualified "Identidad registrada" needs both (M4).
+    registryClaim: deriveCredentialRegistryClaim(microchipRegistryRule, {
+      hasMicrochip: canonicalIds.microchip !== null,
+      hasTattoo: canonicalIds.tattoo !== null,
+    }),
   };
 }
 
@@ -1399,100 +1404,5 @@ function CredField({
         {value}
       </p>
     </div>
-  );
-}
-
-// ---------------------------------------------------------------------------
-// ServiceDogBanner — Ley 26.858 access notice (LN tone)
-// ---------------------------------------------------------------------------
-
-function ServiceDogBanner({ rabiesAtRisk }: { rabiesAtRisk: boolean }) {
-  return (
-    <section
-      aria-label="Banner de acceso — perro de asistencia"
-      className="mb-4 rounded-[var(--radius-sm)] border border-ln-celeste-100 border-l-[3px] border-l-ln-azul bg-ln-celeste-050 px-4 py-3.5"
-    >
-      <p className="mb-1.5 font-ln-mono text-xs font-semibold uppercase tracking-[.1em] text-ln-azul">
-        Perro de Asistencia
-      </p>
-      <p className="mb-1.5 font-ln-serif text-md font-semibold leading-[1.45] text-ln-ink">
-        Esta persona tiene derecho a ingresar, deambular y permanecer con su perro en este
-        establecimiento, espacio privado de acceso público y transporte público.
-      </p>
-      <p className="text-sm text-ln-ink-2">
-        Marco legal: <strong className="text-ln-ink">Arts. 1 y 7, Ley 26.858</strong> · Reg. Decreto
-        792/2019 · Credencial RUPGA vigente (Res. ANDIS 2588/2022).
-      </p>
-      {rabiesAtRisk && (
-        <p className="mt-2.5 border-t border-ln-celeste-100 pt-2.5 text-sm text-ln-warn">
-          Aviso: la vacunación antirrábica figura vencida en el registro. La credencial requiere
-          mantener la vacunación al día (Art. 8, Ley 26.858).
-        </p>
-      )}
-    </section>
-  );
-}
-
-// ---------------------------------------------------------------------------
-// RabiesObservationBanner — active 10-day antirrábica observation (public safety)
-// ---------------------------------------------------------------------------
-//
-// Public-safe, PII-free signal shown to anyone scanning the QR while the pet is
-// under an active rabies observation (Decreto 4669/1973 PBA, Ord. CABA 41.831).
-// A vecino who was bitten, or who sees the animal, must know it is under formal
-// observation and whom to contact. No owner data, no bite details — just the
-// state and the safety instruction.
-function RabiesObservationBanner() {
-  return (
-    <section
-      role="alert"
-      aria-label="Aviso — mascota en observación antirrábica"
-      className="mb-4 rounded-[var(--radius-sm)] border border-ln-warn-100 border-l-[3px] border-l-ln-warn bg-ln-warn-050 px-4 py-3"
-    >
-      <p className="mb-1 font-ln-mono text-xs font-semibold uppercase tracking-[.1em] text-ln-warn">
-        Observación antirrábica
-      </p>
-      <p className="m-0 text-md font-semibold text-ln-ink">
-        Esta mascota está en observación antirrábica activa (período de 10 días).
-      </p>
-      <p className="mt-1 text-sm text-ln-mute">
-        Si te mordió o tuviste contacto, comunicate con la autoridad sanitaria o el centro
-        antirrábico de tu localidad.
-      </p>
-    </section>
-  );
-}
-
-// ---------------------------------------------------------------------------
-// PermanentConditionsBanner — special-needs chips (LN tone)
-// ---------------------------------------------------------------------------
-
-function PermanentConditionsBanner({
-  codes,
-  other,
-}: {
-  codes: string[];
-  other: string | null;
-}) {
-  const safe: PermanentCondition[] = codes.filter(isPermanentCondition);
-  if (safe.length === 0) return null;
-  const hasOther = safe.includes("otra");
-  return (
-    <section className="mb-4 rounded-[var(--radius-sm)] border border-ln-celeste-100 border-l-[3px] border-l-ln-azul bg-ln-celeste-050 px-4 py-3">
-      <p className="mb-2 font-ln-mono text-xs font-semibold uppercase tracking-[.1em] text-ln-azul">
-        Necesidades especiales
-      </p>
-      <div className="flex flex-wrap gap-1.5">
-        {safe.map((code) => (
-          <span
-            key={code}
-            className="inline-flex rounded-full bg-ln-azul px-2.5 py-1 text-sm font-semibold text-white"
-          >
-            {permanentConditionShortLabel(code)}
-          </span>
-        ))}
-      </div>
-      {hasOther && other && <p className="mt-1.5 text-sm text-ln-ink-2">{other}</p>}
-    </section>
   );
 }

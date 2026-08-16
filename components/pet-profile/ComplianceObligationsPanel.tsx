@@ -53,8 +53,12 @@ const VSTAMP_TONES = new Set<ComplianceTone>(["ok", "due", "over"]);
 // "N de M al día" count by the projection; this line is what tells the owner
 // WHY the card does not press. Noun-based phrasing so the copy stays
 // gender-safe across "Vacuna antirrábica" (f) and "Microchip" (m).
-const TIER_NOTE: Record<"recommended" | "not_regulated", string> = {
+// `optional` has its OWN line (T6 review MINOR 7): it used to borrow the
+// `recommended` copy, so a rule the jurisdiction merely PERMITS was announced
+// as a jurisdictional recommendation — a claim nobody made.
+const TIER_NOTE: Record<"recommended" | "optional" | "not_regulated", string> = {
   recommended: "Recomendación de tu jurisdicción — no es una obligación legal.",
+  optional: "Opcional en tu jurisdicción — no es una obligación legal.",
   not_regulated: "Solo informativo — no es una obligación en tu jurisdicción.",
 };
 

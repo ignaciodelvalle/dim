@@ -14,6 +14,7 @@ import { resolveBusinessRule } from "@/lib/infra/business-rules-resolver";
 import { TARGETS } from "@/lib/metrics/targets";
 
 import {
+  JURISDICTION_TARGETS_TIMEOUT_MS,
   flatJurisdictionTargets,
   resolveJurisdictionTargets,
   resolveJurisdictionTargetsForScope,
@@ -87,6 +88,22 @@ describe("resolveJurisdictionTargets — merge over flat defaults (JT2)", () => 
     resolverMock.mockRejectedValue(new Error("pooler down"));
     const result = await resolveJurisdictionTargets({ province: "Chubut" });
     expect(result).toEqual(flatJurisdictionTargets());
+  });
+
+  // T6 review M1: the try/catch only ever covered REJECTIONS. A pooler that
+  // accepts the connection and never answers made every /gob screen await this
+  // forever, OUTSIDE its own loadWithTimeout group. The deadline now lives in
+  // the module, so a stall degrades the meta instead of hanging the dashboard.
+  it("resolver HANGS → flat TARGETS at the deadline, never an unbounded await", async () => {
+    vi.useFakeTimers();
+    try {
+      resolverMock.mockImplementation(() => new Promise(() => {}));
+      const pending = resolveJurisdictionTargets({ province: "Chubut" });
+      await vi.advanceTimersByTimeAsync(JURISDICTION_TARGETS_TIMEOUT_MS + 1);
+      await expect(pending).resolves.toEqual(flatJurisdictionTargets());
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });
 

@@ -116,8 +116,13 @@ vi.mock("@/lib/reference/permanent-conditions", () => ({
   permanentConditionLabel: vi.fn(() => ""),
   resolveLostSpecialConditions: vi.fn(() => null),
 }));
+// Hoisted handle so a test can give the pet a real identifier: the credential's
+// registry claim needs BOTH a backing rule and an identified animal (M4).
+const { mockFetchActiveIdentifications } = vi.hoisted(() => ({
+  mockFetchActiveIdentifications: vi.fn(),
+}));
 vi.mock("@/lib/infra/pet-identifiers", () => ({
-  fetchActiveIdentifications: vi.fn(async () => ({ microchip: null, tattoo: null })),
+  fetchActiveIdentifications: mockFetchActiveIdentifications,
 }));
 vi.mock("@/lib/supabase/admin", () => ({ createAdminClient: vi.fn(() => ({})) }));
 vi.mock("@/components/PppPublicBadge", () => ({ PppPublicBadge: vi.fn(() => null) }));
@@ -244,6 +249,9 @@ describe("/p/[publicToken] — #16a streaming + next/image", () => {
       source: "default",
       matchedRow: null,
     });
+    // Default fixture pet carries NO identifier (its credential body prints
+    // "Microchip: No" / "Tatuaje: No") — tests that need one say so.
+    mockFetchActiveIdentifications.mockResolvedValue({ microchip: null, tattoo: null });
   });
 
   // -------------------------------------------------------------------------
@@ -403,7 +411,8 @@ describe("/p/[publicToken] — #16a streaming + next/image", () => {
     expect(html).toContain("Identidad registrada en miMAR");
   });
 
-  it("mandatory + registry-backed → preserves the existing full claim (CT2)", async () => {
+  /** Mandatory microchip rule resolved for the pet's province. */
+  function mockMandatoryRegistryRule(): void {
     mockResolveBusinessRule.mockImplementation(async (ruleType: string) =>
       ruleType === "microchip_required"
         ? {
@@ -414,8 +423,31 @@ describe("/p/[publicToken] — #16a streaming + next/image", () => {
           }
         : { payload: { days: 30 }, source: "default", matchedRow: null },
     );
+  }
+
+  it("mandatory + registry-backed + pet IDENTIFIED → preserves the full claim (CT2)", async () => {
+    mockMandatoryRegistryRule();
+    // The claim's second half (T6 review M4): a chip actually on record. The
+    // fixture's default is an UNIDENTIFIED pet, which is the case below.
+    mockFetchActiveIdentifications.mockResolvedValue({
+      microchip: { code: "982000123456789" },
+      tattoo: null,
+    });
     const html = await renderCredentialHtml();
     expect(html).toContain("Identidad registrada");
     expect(html).not.toContain("Identidad registrada en miMAR");
+  });
+
+  // T6 review M4. This test used to assert the OPPOSITE — it rendered the
+  // unqualified "Identidad registrada" over a credential whose own body says
+  // "Microchip: No" and "Tatuaje: No". The rule proves the OBLIGATION exists in
+  // CABA; it says nothing about whether THIS animal is in any registry.
+  it("mandatory rule but the pet has NO identifier → the claim stays scoped to miMAR", async () => {
+    mockMandatoryRegistryRule();
+    mockFetchActiveIdentifications.mockResolvedValue({ microchip: null, tattoo: null });
+    const html = await renderCredentialHtml();
+    expect(html).toContain("Identidad registrada en miMAR");
+    // The credential must not contradict the field printed a few lines below it.
+    expect(html).toContain("Microchip</p>");
   });
 });

@@ -149,9 +149,12 @@ export async function CensoScreen({ searchParams: sp, underHub = false }: CensoS
   });
 
   // ADR-8 (jurisdiction-compliance WU4b): jurisdiction-resolved microchip
-  // target for the identification funnel's chip stage. Fail-safe (flat
-  // TARGETS on any read failure); admin national/cross-province views stay
-  // flat (JT5); an adjusted meta is disclosed in the funnel footnote (JT4).
+  // target for the identification funnel's chip stage. Fail-safe (flat TARGETS
+  // on any read failure) AND bounded inside the module by
+  // JURISDICTION_TARGETS_TIMEOUT_MS (T6 review M1 — this await precedes the
+  // page's loadWithTimeout group, so it needs its own deadline); admin
+  // national/cross-province views stay flat (JT5); an adjusted meta is
+  // disclosed in the funnel footnote (JT4).
   const jurisdictionTargets = await resolveJurisdictionTargetsForScope(
     profile.role === "admin"
       ? adminProvince

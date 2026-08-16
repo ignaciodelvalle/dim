@@ -7,6 +7,7 @@ import {
   type ComplianceInput,
   type ComplianceObligationRule,
   type ComplianceObligations,
+  NO_COUNTED_OBLIGATIONS_LABEL,
   composeLegalCitation,
   deriveComplianceState,
   lnPetStatusFromCompliance,
@@ -951,6 +952,56 @@ describe("MN2 scenario fence — no obligation nudge where the tier is not_regul
     expect(state.cards.some((c) => c.key === "microchip")).toBe(false);
     expect(state.summary.total).toBe(0);
   });
+
+  // T6 review M5. This scenario used to render "0 de 0 al día" in GREEN on the
+  // panel badge, the credential face and the mobile disc — a compliance seal
+  // earned by an empty denominator. The LABEL is asserted, not just the count:
+  // pinning `total: 0` alone is exactly what let the green copy ship.
+  it("M = 0 renders honest NEUTRAL copy, never a green '0 de 0 al día'", () => {
+    const state = deriveComplianceState({
+      ...nonPppDog,
+      obligations: obligations({
+        rabies: { requirementLevel: "not_regulated" },
+        sterilization: { requirementLevel: "recommended" },
+        microchip: { requirementLevel: "not_regulated" },
+      }),
+    });
+    expect(state.summary.total).toBe(0);
+    expect(state.summary.label).toBe(NO_COUNTED_OBLIGATIONS_LABEL);
+    expect(state.summary.label).not.toContain("al día");
+    expect(state.worstTone).toBe("neutral");
+    expect(state.worstIsUnknown).toBe(false);
+  });
+
+  it("an empty denominator is NOT 'al día' on the list chip either (lnPetStatusFromCompliance)", () => {
+    const state = deriveComplianceState({
+      ...nonPppDog,
+      obligations: obligations({
+        rabies: { requirementLevel: "not_regulated" },
+        sterilization: { requirementLevel: "not_regulated" },
+        microchip: { requirementLevel: "not_regulated" },
+      }),
+    });
+    expect(state.summary.total).toBe(0);
+    expect(lnPetStatusFromCompliance({ status: "active", pregnancyStatus: null }, state)).toBe(
+      "registered",
+    );
+  });
+
+  // T6 review MINOR 7: `optional` used to fold into the `recommended` bucket,
+  // so a merely-permitted rule announced itself as a jurisdictional
+  // recommendation. It is a real value of the DB CHECK and keeps its own tier.
+  it("an `optional` tier keeps its OWN tier — it does not borrow 'recommended'", () => {
+    const state = deriveComplianceState({
+      ...nonPppDog,
+      obligations: obligations({ sterilization: { requirementLevel: "optional" } }),
+    });
+    const sterilization = state.cards.find((c) => c.key === "sterilization");
+    expect(sterilization?.requirementTier).toBe("optional");
+    // Still excluded from M and still softened, exactly like `recommended`.
+    expect(state.summary.total).toBe(2);
+    expect(sterilization?.tone === "over" || sterilization?.tone === "due").toBe(false);
+  });
 });
 
 describe("citation composition (CS5/CS6)", () => {
@@ -1041,7 +1092,9 @@ describe("citation composition (CS5/CS6)", () => {
   it("rabies footnote keeps the generic stopgap when nothing resolves — never invents law", () => {
     const state = deriveComplianceState(baseInput({ obligations: obligations() }));
     const rabies = state.cards.find((c) => c.key === "rabies");
-    expect(rabies?.legalFootnote).toBe("Obligación del propietario · según normativa jurisdiccional");
+    expect(rabies?.legalFootnote).toBe(
+      "Obligación del propietario · según normativa jurisdiccional",
+    );
   });
 });
 

@@ -110,7 +110,14 @@ export function buildCreateFormExtraProps(
       };
     case "microchip_required":
       return {
-        initialRequired: typeof payload.required === "boolean" ? payload.required : true,
+        // Fall back to THE default, not a re-typed `true` (T6 review MINOR 4):
+        // the create form's pre-selection must follow whatever
+        // BUSINESS_RULES_DEFAULTS says, so RG2's parked flip cannot land with
+        // this literal still pointing the other way.
+        initialRequired:
+          typeof payload.required === "boolean"
+            ? payload.required
+            : BUSINESS_RULES_DEFAULTS.microchip_required.required,
         initialNotes: "",
       };
     case "rabies_observation_window":
@@ -172,7 +179,10 @@ export function buildEditFormExtraProps(
       };
     case "microchip_required":
       return {
-        initialRequired: typeof payload.required === "boolean" ? payload.required : true,
+        initialRequired:
+          typeof payload.required === "boolean"
+            ? payload.required
+            : BUSINESS_RULES_DEFAULTS.microchip_required.required,
       };
     case "rabies_observation_window":
     case "due_soon_window":
