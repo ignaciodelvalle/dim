@@ -66,7 +66,7 @@ import type {
   ProvinceSeqLegend,
 } from "@/components/panorama/SituationalMap";
 import { SituationalMapDynamic } from "@/components/panorama/SituationalMapDynamic";
-import { TimeScrubber } from "@/components/panorama/TimeScrubber";
+import { TimeScrubberDynamic } from "@/components/panorama/TimeScrubberDynamic";
 import { buildAllSuppressedNotice } from "@/components/panorama/all-suppressed-notice";
 import { coalescedGet } from "@/components/panorama/coalesced-get";
 import { buildContextSegments } from "@/components/panorama/context-bar-model";
@@ -3773,7 +3773,7 @@ export function PanoramaConsole({
   const scrubberDock = (
     <>
       <PanoramaBoardNotices staleFrame={staleFrame} droppedLayerIds={droppedLayerIds} />
-      <TimeScrubber
+      <TimeScrubberDynamic
         since={since}
         until={until}
         onChange={onScrub}
