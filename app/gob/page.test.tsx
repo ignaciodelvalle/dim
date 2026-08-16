@@ -75,6 +75,19 @@ vi.mock("@/lib/analytics/surveillance-metrics", () => ({
   fetchRabiesObservationCompliance: vi.fn(async () => surveillanceComplianceFixture),
 }));
 
+// D-4 (Lote D): the two SLA-bearing Cola-operativa tiles carry an aging
+// sub-line. Both aggregates are DB-backed, so the home's fixtures must supply
+// them or the whole page degrades. Denuncias: an overdue tail; casos: a queue
+// entirely within SLA that still has an old row — the two shapes the tile copy
+// distinguishes (see lib/domain/queue-aging.test.ts for the copy rules).
+const welfareAgingFixture = { oldestAgeDays: 42, overdueCount: 3 };
+const casesAgingFixture = { oldestAgeDays: 9, overdueCount: 0 };
+
+vi.mock("@/lib/analytics/govt-queue-aging", () => ({
+  fetchWelfareQueueAging: vi.fn(async () => ({ ...welfareAgingFixture })),
+  fetchCasesQueueAging: vi.fn(async () => ({ ...casesAgingFixture })),
+}));
+
 vi.mock("@/app/actions/novedades", () => ({
   markNovedadesSeenAction: vi.fn(),
 }));
@@ -268,6 +281,27 @@ describe("/gob (home) — C6b briefing block order", () => {
     expect(html).toContain("2"); // orgVerificationPendingCount (Habilitación)
     expect(html).toContain("6"); // openCasesTotal (Casos regulatorios)
     expect(html).toContain("5"); // perdidas.activeCount (Pérdidas activas)
+  });
+
+  // D-4 (Lote D). "12 denuncias" and "12 denuncias, tres of them weeks past
+  // their SLA" rendered identically until now — the operator had to open the
+  // queue to learn which one they were looking at. Only the two SLA-bearing
+  // queues get this line; the other three are pure workload counts with no
+  // deadline to be past, and inventing one for them would be the dishonesty
+  // this whole lote is against.
+  it("the two SLA-bearing queues carry an aging line — with agreement, and no one else does", async () => {
+    const node = await GobHomePage({ searchParams: Promise.resolve({}) });
+    const html = renderToStaticMarkup(node);
+    // Denuncias: overdue tail present → the overdue count LEADS, feminine.
+    expect(html).toContain("3 vencidas · la más antigua: 42 días");
+    // Casos: nothing overdue, but the tail is still named — masculine noun, so
+    // a regression to the feminine form here would be visible.
+    expect(html).toContain("La más antigua: 9 días");
+    expect(html).not.toContain("vencidos");
+    // The other three tiles stay silent: exactly two aging lines on the page.
+    expect(html.split("la más antigua").length - 1 + html.split("La más antigua").length - 1).toBe(
+      2,
+    );
   });
 
   it("a real gap (mortality traceability 33% vs meta 75%) surfaces as a priority-alta alert with its action + confidence", async () => {

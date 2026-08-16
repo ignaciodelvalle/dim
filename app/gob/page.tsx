@@ -68,9 +68,11 @@ import {
   fetchRabiesCoverage,
   fetchSterilizationMetrics,
 } from "@/lib/analytics/govt-home-kpis";
+import { fetchCasesQueueAging, fetchWelfareQueueAging } from "@/lib/analytics/govt-queue-aging";
 import { resolveJurisdictionScope } from "@/lib/analytics/jurisdiction-scope";
 import { fetchMortalityHeadline } from "@/lib/analytics/mortality-metrics";
 import { fetchRabiesObservationCompliance } from "@/lib/analytics/surveillance-metrics";
+import { queueAgingNote } from "@/lib/domain/queue-aging";
 import {
   countVisiblePendingRequests,
   countVisiblePendingRequestsByType,
@@ -366,6 +368,26 @@ export default async function GobiernoDashboardPage({
       // escalation-gap candidate below costs ZERO new queries (bitesPer10k +
       // openRabiesObservations are both already fetched above).
       fetchRabiesObservationCompliance(ctx12m),
+      // D-4 (Lote D): the two SLA-BEARING queues gain aging. Every other tile in
+      // the Cola operativa row is a pure workload count — these two carry real
+      // deadlines (the maltrato severity tiers, CASE_SLA_WARNING_DAYS), and
+      // "12 denuncias" said nothing about whether any of them had blown past
+      // one. Two cheap aggregates (MIN + one filtered COUNT each) over the SAME
+      // scope predicates the counts above already use — never a second opinion
+      // about which rows are in the queue.
+      fetchWelfareQueueAging(actor, filteredJurisdictions, user.id, {
+        selectedProvince: adminProvince,
+        selectedLocality: adminLocality,
+      }),
+      profile.role === "admin"
+        ? fetchCasesQueueAging(
+            { role: "admin", province: adminProvince ?? null, locality: adminLocality ?? null },
+            CASOS_QUEUE_FILTERS,
+          )
+        : fetchCasesQueueAging(
+            { role: "govt", jurisdictions: filteredJurisdictions },
+            CASOS_QUEUE_FILTERS,
+          ),
     ]),
   );
 
@@ -409,6 +431,8 @@ export default async function GobiernoDashboardPage({
     myAssignedWelfareCount,
     orgVerificationPendingCount,
     rabiesObservationCompliance,
+    welfareQueueAging,
+    casesQueueAging,
   ] = load.value;
 
   // G3: collapse the recent-activity feed's repeated PII-search rows into a
@@ -543,7 +567,14 @@ export default async function GobiernoDashboardPage({
     pageHasFreshnessFooter: true,
   };
 
-  const queueItems: Array<{ href: string; label: string; count: number; descriptorId?: KpiId }> = [
+  const queueItems: Array<{
+    href: string;
+    label: string;
+    count: number;
+    descriptorId?: KpiId;
+    /** D-4: es-AR aging line, only for the two queues with a real deadline. */
+    aging?: string | null;
+  }> = [
     {
       href: "/gob/cola",
       label: "Aprobaciones",
@@ -570,6 +601,8 @@ export default async function GobiernoDashboardPage({
       label: openWelfareReports.count === 1 ? "Denuncia de maltrato" : "Denuncias de maltrato",
       count: openWelfareReports.count,
       descriptorId: "open_welfare_reports",
+      // "la denuncia" — feminine agreement on "vencidas".
+      aging: queueAgingNote(welfareQueueAging, "f"),
     },
     {
       // Carries the ACTIVE jurisdiction filter through to the queue, in the
@@ -581,6 +614,8 @@ export default async function GobiernoDashboardPage({
       label: KPI_CATALOG.queue_regulatory_cases_open.label,
       count: openCasesTotal,
       descriptorId: "queue_regulatory_cases_open",
+      // "el caso" — masculine agreement on "vencidos".
+      aging: queueAgingNote(casesQueueAging, "m"),
     },
     {
       href: "/gob/perdidas",
@@ -1047,6 +1082,11 @@ export default async function GobiernoDashboardPage({
                 label={item.label}
                 value={formatCount(item.count)}
                 href={item.href}
+                // D-4: the SLA-bearing queues say what their count hides — how
+                // many rows are already past a deadline, and how old the oldest
+                // one is. Null (and absent on the other three tiles) when there
+                // is nothing honest to add; never a fabricated "0 días".
+                sub={item.aging ?? undefined}
                 descriptorId={item.descriptorId}
                 provenance={kpiProvenance}
               />
