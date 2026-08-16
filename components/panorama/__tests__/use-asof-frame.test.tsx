@@ -120,4 +120,73 @@ describe("useAsOfFrame", () => {
     await drain(settled);
     expect(result.result.current).toBeNull();
   });
+
+  // WP4 — drag debounce. Without `dragging` the tests above prove the fan-out
+  // fires immediately (default false); these two prove the drag path waits out
+  // the window and coalesces rapid instants into one request for the LAST one.
+  it("while dragging, the fan-out waits out the debounce window", async () => {
+    vi.useFakeTimers();
+    const calls: string[] = [];
+    vi.stubGlobal("fetch", (async (url: unknown) => {
+      calls.push(String(url));
+      return new Response(JSON.stringify({ features: EMPTY }), { status: 200 });
+    }) as typeof fetch);
+    renderHook(() =>
+      useAsOfFrame({
+        asOfIso: ISO,
+        baseQs: "period=90d",
+        timeBasis: "valid",
+        level: "province",
+        activeLayerIds: () => ["zoonosis"] as LayerId[],
+        asOfData: new Map<LayerId, FeatureCollection>(),
+        signalFor: () => new AbortController().signal,
+        dropCubeStamp: () => {},
+        onFrameSettled: () => {},
+        dragging: true,
+      }),
+    );
+
+    expect(calls).toHaveLength(0);
+    await vi.advanceTimersByTimeAsync(99);
+    expect(calls).toHaveLength(0);
+    await vi.advanceTimersByTimeAsync(1);
+    expect(calls).toHaveLength(1);
+    vi.useRealTimers();
+  });
+
+  it("rapid drag instants coalesce into one fan-out for the LAST instant", async () => {
+    vi.useFakeTimers();
+    const calls: string[] = [];
+    vi.stubGlobal("fetch", (async (url: unknown) => {
+      calls.push(String(url));
+      return new Response(JSON.stringify({ features: EMPTY }), { status: 200 });
+    }) as typeof fetch);
+    const LAST = "2026-07-03T00:00:00.000Z";
+    const { rerender } = renderHook(
+      ({ iso }: { iso: string }) =>
+        useAsOfFrame({
+          asOfIso: iso,
+          baseQs: "period=90d",
+          timeBasis: "valid",
+          level: "province",
+          activeLayerIds: () => ["zoonosis"] as LayerId[],
+          asOfData: new Map<LayerId, FeatureCollection>(),
+          signalFor: () => new AbortController().signal,
+          dropCubeStamp: () => {},
+          onFrameSettled: () => {},
+          dragging: true,
+        }),
+      { initialProps: { iso: ISO } },
+    );
+
+    await vi.advanceTimersByTimeAsync(50);
+    rerender({ iso: "2026-07-02T00:00:00.000Z" });
+    await vi.advanceTimersByTimeAsync(50);
+    rerender({ iso: LAST });
+    await vi.advanceTimersByTimeAsync(100);
+
+    expect(calls).toHaveLength(1);
+    expect(calls[0]).toContain(`asOf=${encodeURIComponent(LAST)}`);
+    vi.useRealTimers();
+  });
 });

@@ -41,6 +41,13 @@ import type {
 /** What the CURRENT frame failed to load. Null once every layer has landed. */
 export type StaleFrame = { layers: string[]; rateLimited: boolean };
 
+/**
+ * WP4 — while the scrub thumb is DRAGGED, frames closer together than this
+ * are coalesced into one fan-out. Click-to-seek never sets `dragging`, so a
+ * plain click stays instant by construction.
+ */
+const DRAG_FAN_OUT_DEBOUNCE_MS = 100;
+
 type LayerOutcome = { id: LayerId; failed: boolean; rateLimited: boolean };
 
 export function useAsOfFrame(input: {
@@ -58,6 +65,8 @@ export function useAsOfFrame(input: {
   dropCubeStamp: () => void;
   /** Bumped once the frame settles, so the map repaints. */
   onFrameSettled: () => void;
+  /** WP4 — true while the scrub thumb is dragged; debounces the fan-out. */
+  dragging?: boolean;
 }): StaleFrame | null {
   const {
     asOfIso,
@@ -69,6 +78,7 @@ export function useAsOfFrame(input: {
     signalFor,
     dropCubeStamp,
     onFrameSettled,
+    dragging = false,
   } = input;
 
   const [staleFrame, setStaleFrame] = useState<StaleFrame | null>(null);
@@ -93,51 +103,62 @@ export function useAsOfFrame(input: {
     }
 
     let cancelled = false;
-    Promise.all(
-      active.map(async (id): Promise<LayerOutcome> => {
-        const params = new URLSearchParams(baseQs);
-        params.set("asOf", asOfIso);
-        if (currentLevel === "province") params.set("level", "province");
-        else if (isAggregatedPointLayer(id)) params.set("level", "locality");
-        if (timeBasis === "transaction") params.set("basis", "transaction");
-        try {
-          // Keyed abort: a rapid scrub supersedes its own prior request for this
-          // layer instead of racing it into the cache out of order.
-          dropCubeStamp();
-          const res = await fetch(`/api/panorama/${id}?${params.toString()}`, {
-            headers: { accept: "application/json" },
-            signal: signalFor(`${id}:asOf`),
-          });
-          if (!res.ok) {
-            // Keep the last-known features (a blank map is worse) but REPORT it.
-            return { id, failed: true, rateLimited: res.status === 429 };
+    const runFrame = () =>
+      Promise.all(
+        active.map(async (id): Promise<LayerOutcome> => {
+          const params = new URLSearchParams(baseQs);
+          params.set("asOf", asOfIso);
+          if (currentLevel === "province") params.set("level", "province");
+          else if (isAggregatedPointLayer(id)) params.set("level", "locality");
+          if (timeBasis === "transaction") params.set("basis", "transaction");
+          try {
+            // Keyed abort: a rapid scrub supersedes its own prior request for this
+            // layer instead of racing it into the cache out of order.
+            dropCubeStamp();
+            const res = await fetch(`/api/panorama/${id}?${params.toString()}`, {
+              headers: { accept: "application/json" },
+              signal: signalFor(`${id}:asOf`),
+            });
+            if (!res.ok) {
+              // Keep the last-known features (a blank map is worse) but REPORT it.
+              return { id, failed: true, rateLimited: res.status === 429 };
+            }
+            const body = (await res.json()) as ApiResponse;
+            asOfData.set(id, body.features);
+            return { id, failed: false, rateLimited: false };
+          } catch (err) {
+            // Superseded — the newer request owns this layer and reports for it.
+            if (isAbortError(err)) return { id, failed: false, rateLimited: false };
+            return { id, failed: true, rateLimited: false };
           }
-          const body = (await res.json()) as ApiResponse;
-          asOfData.set(id, body.features);
-          return { id, failed: false, rateLimited: false };
-        } catch (err) {
-          // Superseded — the newer request owns this layer and reports for it.
-          if (isAbortError(err)) return { id, failed: false, rateLimited: false };
-          return { id, failed: true, rateLimited: false };
-        }
-      }),
-    ).then((outcomes) => {
-      if (cancelled) return;
-      const failed = outcomes.filter((o) => o.failed);
-      setStaleFrame(
-        failed.length === 0
-          ? null
-          : {
-              layers: failed.map((o) => PANORAMA_LAYERS.find((l) => l.id === o.id)?.label ?? o.id),
-              rateLimited: failed.some((o) => o.rateLimited),
-            },
-      );
-      onFrameSettled();
-    });
+        }),
+      ).then((outcomes) => {
+        if (cancelled) return;
+        const failed = outcomes.filter((o) => o.failed);
+        setStaleFrame(
+          failed.length === 0
+            ? null
+            : {
+                layers: failed.map(
+                  (o) => PANORAMA_LAYERS.find((l) => l.id === o.id)?.label ?? o.id,
+                ),
+                rateLimited: failed.some((o) => o.rateLimited),
+              },
+        );
+        onFrameSettled();
+      });
+    if (dragging) {
+      const timer = setTimeout(runFrame, DRAG_FAN_OUT_DEBOUNCE_MS);
+      return () => {
+        cancelled = true;
+        clearTimeout(timer);
+      };
+    }
+    runFrame();
     return () => {
       cancelled = true;
     };
-  }, [asOfIso, baseQs, timeBasis, level, signalFor, dropCubeStamp, asOfData]);
+  }, [asOfIso, baseQs, timeBasis, level, signalFor, dropCubeStamp, asOfData, dragging]);
 
   return staleFrame;
 }

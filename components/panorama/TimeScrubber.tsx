@@ -131,6 +131,13 @@ type Props = {
    */
   onPlayingChange?: (playing: boolean) => void;
   /**
+   * WP4 — fired on the pointer-drag transitions of the track (true on the first
+   * captured pointermove, false on release/cancel). A plain click never fires
+   * it, so the parent can debounce the drag fan-out while click-to-seek stays
+   * instant. Optional: a caller that does not care keeps today's behavior.
+   */
+  onDraggingChange?: (dragging: boolean) => void;
+  /**
    * panorama-vista-redesign: whether the ACTIVE layer set has at least one
    * temporal layer (parent-derived via `isTemporalLayer()` — single source,
    * no scrubber-local set). false → the track is replaced by an empty state.
@@ -229,6 +236,7 @@ function TimeScrubberImpl({
   basis,
   onBasisChange,
   onPlayingChange,
+  onDraggingChange,
   temporalAvailable = true,
   currentStateBaseLabel,
   scrubDetail = false,
@@ -280,6 +288,9 @@ function TimeScrubberImpl({
   // click). `trackRef` measures the bar; `inputRef` receives focus.
   const trackRef = useRef<HTMLDivElement | null>(null);
   const inputRef = useRef<HTMLInputElement | null>(null);
+  // WP4 — whether a captured pointer-drag is in progress (transition-edged so
+  // onDraggingChange fires once per drag, not once per pointermove).
+  const draggingRef = useRef(false);
 
   const labelId = useId();
   const liveId = useId();
@@ -488,16 +499,27 @@ function TimeScrubberImpl({
   const onTrackPointerMove = useCallback(
     (e: React.PointerEvent<HTMLDivElement>) => {
       if (!scrubbable || !e.currentTarget.hasPointerCapture(e.pointerId)) return;
+      if (!draggingRef.current) {
+        draggingRef.current = true;
+        onDraggingChange?.(true);
+      }
       seekFromClientX(e.clientX);
     },
-    [scrubbable, seekFromClientX],
+    [scrubbable, seekFromClientX, onDraggingChange],
   );
 
-  const onTrackPointerUp = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
-    if (e.currentTarget.hasPointerCapture(e.pointerId)) {
-      e.currentTarget.releasePointerCapture(e.pointerId);
-    }
-  }, []);
+  const onTrackPointerUp = useCallback(
+    (e: React.PointerEvent<HTMLDivElement>) => {
+      if (e.currentTarget.hasPointerCapture(e.pointerId)) {
+        e.currentTarget.releasePointerCapture(e.pointerId);
+      }
+      if (draggingRef.current) {
+        draggingRef.current = false;
+        onDraggingChange?.(false);
+      }
+    },
+    [onDraggingChange],
+  );
 
   const startLoop = useCallback(
     (days: LoopWindow) => {

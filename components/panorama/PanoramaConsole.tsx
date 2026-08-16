@@ -770,6 +770,9 @@ export function PanoramaConsole({
   // Two-step timeline (PO 2026-08-01): configure tall, play minimal. Held here
   // because the dock sizes on it and the scrubber owns it.
   const [scrubberPlaying, setScrubberPlaying] = useState(false);
+  // WP4 — true while the scrub thumb is dragged; useAsOfFrame debounces the
+  // layer fan-out on it (click-to-seek never sets it, so clicks stay instant).
+  const [scrubDragging, setScrubDragging] = useState(false);
 
   // Round-2: apply a deep-linked ?asOf AFTER hydration (SSR can't read window, so
   // the render-affecting states above start at their SSR defaults — asOf null, dock
@@ -950,6 +953,7 @@ export function PanoramaConsole({
     signalFor,
     dropCubeStamp,
     onFrameSettled: () => setAsOfVersion((v) => v + 1),
+    dragging: scrubDragging,
   });
 
   // Selected map feature → DetailDrawer. Null when the drawer is closed.
@@ -3784,6 +3788,7 @@ export function PanoramaConsole({
         // default. The date-tick / basis content is additive, so nothing is lost.
         scrubDetail={true}
         onPlayingChange={setScrubberPlaying}
+        onDraggingChange={setScrubDragging}
         resetToken={scrubResetToken}
         initialAsOf={initialAsOf}
         // SUGGESTION 9: while a scope/period refetch is in flight the last-known
