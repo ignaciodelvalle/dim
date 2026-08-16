@@ -70,6 +70,34 @@ describe("buildExportFooter — auditable provenance (§3.6)", () => {
     });
     expect(footer).toContain("Datos al 15 de enero de 2026");
   });
+
+  // L-7 — a cube-served board must not print today's date over up-to-26h-old
+  // data; an explicit scrub still wins (one stamp per board).
+  it("states the cube stamp when live-edged AND cube-served", () => {
+    const footer = buildExportFooter({
+      ...base,
+      asOf: null,
+      cubeBuiltAt: new Date("2026-07-04T04:30:00.000Z"),
+      now: new Date("2026-07-05T00:00:00.000Z"),
+    });
+    expect(footer).toContain("Datos precalculados al");
+    expect(footer).not.toContain("Datos al 5 de julio de 2026");
+  });
+
+  it("an explicit asOf scrub takes precedence over the cube stamp", () => {
+    const footer = buildExportFooter({
+      ...base,
+      cubeBuiltAt: new Date("2026-07-01T04:30:00.000Z"),
+    });
+    expect(footer).toContain("Datos al 4 de julio de 2026");
+    expect(footer).not.toContain("precalculados");
+  });
+
+  it("absent cube stamp keeps the pre-L-7 behavior byte-identical", () => {
+    expect(buildExportFooter({ ...base, suppressedCount: 0 })).toBe(
+      "Datos al 4 de julio de 2026 · miMAR · Nacional · últimos 90 días",
+    );
+  });
 });
 
 describe("buildExportFooter — the CABA inset caveat (MAP-1)", () => {

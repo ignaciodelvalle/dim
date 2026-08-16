@@ -3420,6 +3420,10 @@ export function PanoramaConsole({
     return {
       asOf,
       viewScope,
+      // L-7: the one-way dropCubeStamp latch — present only while the board is
+      // still the SSR cube-served seed, so exports state the cube's stamp
+      // instead of claiming today/live over up-to-26h-old data.
+      cubeBuiltAt: seedCubeBuiltAt,
       ...view,
       scopeLabel: resolveScopeLabel(liveScopeLabel, view.scopeLabel),
     };
@@ -3433,6 +3437,7 @@ export function PanoramaConsole({
     periodParam,
     viewScope,
     liveScopeLabel,
+    seedCubeBuiltAt,
   ]);
 
   // Registros (dock) — the accessible table of what the map paints: the map is
@@ -4194,6 +4199,7 @@ export function PanoramaConsole({
         scopeLabel: viewMeta.scopeLabel,
         periodLabel: viewMeta.periodLabel,
         asOf,
+        cubeBuiltAt: viewMeta.cubeBuiltAt,
         generatedAt: informeGeneratedAt,
         viewUrl: typeof window === "undefined" ? null : window.location.href,
         isDemo: demoNotice != null,

@@ -7,6 +7,7 @@
 
 import { encodeAsOfToParams } from "@/lib/ui/map-layer-nav";
 import { type ViewScopeDescriptor, viewScopeDigest } from "@/lib/ui/view-scope-descriptor";
+import { formatDateTimeNumericAr } from "@/lib/utils/format";
 import { formatAsOfDayLong } from "@/src/modules/panorama/domain/time-scrub";
 
 /**
@@ -51,6 +52,14 @@ export function pinCitationAsOf(params: URLSearchParams, asOf: Date | null, now?
 export type ExportFooterInput = {
   /** The data-as-of date (scrub time), or null for "live" current data. */
   asOf: Date | null;
+  /**
+   * L-7 — the cube's build timestamp when this board was served from the
+   * precomputed cube. Present only for the SSR-seeded frame (PanoramaConsole's
+   * one-way dropCubeStamp latch, see cube-freshness.ts) — absent after any
+   * client refetch, or when live-served throughout. An explicit `asOf` scrub
+   * takes precedence (one stamp per board, same order as informeAsOfLabel).
+   */
+  cubeBuiltAt?: Date | string | null;
   /** es-AR scope label, e.g. "Nacional" or "Provincia de Buenos Aires". */
   scopeLabel: string;
   /** es-AR period label, e.g. "últimos 90 días" or "estado actual". */
@@ -94,13 +103,14 @@ export type ExportFooterInput = {
  *   "Datos al 4 de julio de 2026 · miMAR · Nacional · últimos 90 días · 3 celdas protegidas por privacidad"
  */
 export function buildExportFooter(input: ExportFooterInput): string {
-  const asOfDate = input.asOf ?? input.now ?? new Date();
-  const parts = [
-    `Datos al ${formatAsOfDate(asOfDate)}`,
-    "miMAR",
-    input.scopeLabel,
-    input.periodLabel,
-  ];
+  // L-7: a cube-served board must not claim today's date — up to 26h of
+  // honest drift. Precedence: explicit scrub > cube stamp > generation time.
+  const freshness = input.asOf
+    ? `Datos al ${formatAsOfDate(input.asOf)}`
+    : input.cubeBuiltAt
+      ? `Datos precalculados al ${formatDateTimeNumericAr(input.cubeBuiltAt)}`
+      : `Datos al ${formatAsOfDate(input.now ?? new Date())}`;
+  const parts = [freshness, "miMAR", input.scopeLabel, input.periodLabel];
   if (input.suppressedCount > 0) {
     const phrase =
       input.suppressedCount === 1

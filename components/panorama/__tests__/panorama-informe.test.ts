@@ -89,6 +89,19 @@ describe("informeAsOfLabel", () => {
   it("never fakes a date at the live edge", () => {
     expect(informeAsOfLabel(null)).toBe("Datos en vivo (sin corte temporal)");
   });
+
+  // L-7 — same precedence as buildExportFooter: scrub > cube stamp > live.
+  it("states the cube stamp instead of 'en vivo' when cube-served", () => {
+    const label = informeAsOfLabel(null, new Date("2026-07-04T04:30:00.000Z"));
+    expect(label).toContain("Datos precalculados al");
+    expect(label).toContain("(sin corte temporal)");
+  });
+
+  it("an explicit corte wins over the cube stamp", () => {
+    expect(
+      informeAsOfLabel(new Date("2026-07-04T12:00:00Z"), new Date("2026-07-01T04:30:00.000Z")),
+    ).toBe("Situación al 4 de julio de 2026");
+  });
 });
 
 describe("buildInformeModel", () => {

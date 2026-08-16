@@ -368,6 +368,8 @@ export type SituationalMapProps = {
     scopeLabel: string;
     periodLabel: string;
     suppressedCount: number;
+    /** L-7 — cube build stamp when the board was cube-served (see ExportFooterInput). */
+    cubeBuiltAt?: Date | string | null;
   };
   /**
    * ARCHETYPE A (situation-room full-bleed): when true the map card fills its

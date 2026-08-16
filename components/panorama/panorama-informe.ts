@@ -24,7 +24,7 @@ import {
   serializeViewScope,
   viewScopeDigest,
 } from "@/lib/ui/view-scope-descriptor";
-import { AR_TIME_ZONE } from "@/lib/utils/format";
+import { AR_TIME_ZONE, formatDateTimeNumericAr } from "@/lib/utils/format";
 
 /** One KPI as the console strip renders it (value + estado-actual + delta). */
 export type InformeKpiInput = {
@@ -88,6 +88,8 @@ export type BuildInformeInput = {
   periodLabel: string;
   /** The temporal corte, or null when parked at the live edge. */
   asOf: Date | null;
+  /** L-7 — cube build stamp when the board was cube-served (see ExportFooterInput). */
+  cubeBuiltAt?: Date | string | null;
   /** When the operator generated the informe (null until they trigger it). */
   generatedAt: Date | null;
   /** TRUE when the console is showing the "Datos de demostración" banner. */
@@ -253,9 +255,15 @@ function formatGeneratedAt(now: Date): string {
 /**
  * The "situación al" header line. A temporal corte reads "Situación al {fecha}";
  * the live edge reads honestly as live data with no corte (never a fake date).
+ * L-7: a cube-served board at the live edge states the cube's build stamp
+ * instead of claiming "en vivo" — same precedence as buildExportFooter.
  */
-export function informeAsOfLabel(asOf: Date | null): string {
-  return asOf ? `Situación al ${formatAsOfDate(asOf)}` : "Datos en vivo (sin corte temporal)";
+export function informeAsOfLabel(asOf: Date | null, cubeBuiltAt?: Date | string | null): string {
+  if (asOf) return `Situación al ${formatAsOfDate(asOf)}`;
+  if (cubeBuiltAt) {
+    return `Datos precalculados al ${formatDateTimeNumericAr(cubeBuiltAt)} (sin corte temporal)`;
+  }
+  return "Datos en vivo (sin corte temporal)";
 }
 
 /** Format a ranked value for display — mirrors RankedUnitsPanel.formatValue. */
@@ -379,7 +387,7 @@ export function buildInformeModel(input: BuildInformeInput): InformeModel {
 
   return {
     title: `Informe de situación · ${input.scopeLabel}`,
-    asOfLabel: informeAsOfLabel(input.asOf),
+    asOfLabel: informeAsOfLabel(input.asOf, input.cubeBuiltAt),
     periodLabel: input.periodLabel,
     scopeLabel: input.scopeLabel,
     generatedAtLabel: input.generatedAt ? formatGeneratedAt(input.generatedAt) : null,
