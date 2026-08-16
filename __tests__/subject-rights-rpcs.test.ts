@@ -38,7 +38,7 @@ import {
 import { pgErrorCode } from "@/lib/infra/db-errors";
 import { generatePublicToken } from "@/lib/infra/publicToken";
 import { LEGAL_VERSION } from "@/lib/reference/legal-version";
-import { withMutationOverride } from "./_helpers/db-overrides";
+import { setAuditMutationGucs, withMutationOverride } from "./_helpers/db-overrides";
 
 // Mock next/navigation redirect so completeIdentityAction doesn't throw NEXT_REDIRECT.
 vi.mock("next/navigation", () => ({ redirect: vi.fn() }));
@@ -1230,7 +1230,7 @@ describe("ARCH-H: audit_log actor hard-delete survivability", () => {
       // But if there are leftover audit rows from a crashed previous run, we
       // need to clean those up to keep the test's own assertions clean.
       await db.transaction(async (tx) => {
-        await tx.execute(sql`set local app.allow_audit_mutation = 'true'`);
+        await setAuditMutationGucs(tx);
         await tx.delete(auditLog).where(eq(auditLog.actorUserId, existing.id));
       });
       await db.delete(profiles).where(eq(profiles.id, existing.id));
@@ -1249,7 +1249,7 @@ describe("ARCH-H: audit_log actor hard-delete survivability", () => {
     // Insert two audit_log rows attributed to this actor (bypass append-only
     // guard with allow_audit_mutation so the rows are directly controlled).
     await db.transaction(async (tx) => {
-      await tx.execute(sql`set local app.allow_audit_mutation = 'true'`);
+      await setAuditMutationGucs(tx);
       const rows = await tx
         .insert(auditLog)
         .values([
@@ -1273,7 +1273,7 @@ describe("ARCH-H: audit_log actor hard-delete survivability", () => {
     // Clean up the test audit rows.
     if (archHAuditIds.length > 0) {
       await db.transaction(async (tx) => {
-        await tx.execute(sql`set local app.allow_audit_mutation = 'true'`);
+        await setAuditMutationGucs(tx);
         await tx.delete(auditLog).where(inArray(auditLog.id, archHAuditIds));
       });
     }
@@ -1368,7 +1368,7 @@ describe("ARCH-H: trigger passthrough abuse rejection", () => {
       abuseActorId = existing.id;
       // Clean up any leftover audit rows from a previous crashed run.
       await db.transaction(async (tx) => {
-        await tx.execute(sql`set local app.allow_audit_mutation = 'true'`);
+        await setAuditMutationGucs(tx);
         await tx.delete(auditLog).where(eq(auditLog.actorUserId, existing.id));
       });
     } else {
@@ -1383,7 +1383,7 @@ describe("ARCH-H: trigger passthrough abuse rejection", () => {
 
     // Insert two controlled audit rows.
     await db.transaction(async (tx) => {
-      await tx.execute(sql`set local app.allow_audit_mutation = 'true'`);
+      await setAuditMutationGucs(tx);
       const rows = await tx
         .insert(auditLog)
         .values([
@@ -1406,7 +1406,7 @@ describe("ARCH-H: trigger passthrough abuse rejection", () => {
   afterAll(async () => {
     if (abuseAuditIds.length > 0) {
       await db.transaction(async (tx) => {
-        await tx.execute(sql`set local app.allow_audit_mutation = 'true'`);
+        await setAuditMutationGucs(tx);
         await tx.delete(auditLog).where(inArray(auditLog.id, abuseAuditIds));
       });
     }
@@ -1509,7 +1509,7 @@ describe("ARCH-H: trigger passthrough abuse rejection", () => {
       // Reuse abuseActorId as the target_user_id (an existing profile UUID).
       targetUserId = abuseActorId;
       await db.transaction(async (tx) => {
-        await tx.execute(sql`set local app.allow_audit_mutation = 'true'`);
+        await setAuditMutationGucs(tx);
         const rows = await tx
           .insert(auditLog)
           .values([
@@ -1547,7 +1547,7 @@ describe("ARCH-H: trigger passthrough abuse rejection", () => {
     } finally {
       if (rowIds.length > 0) {
         await db.transaction(async (tx) => {
-          await tx.execute(sql`set local app.allow_audit_mutation = 'true'`);
+          await setAuditMutationGucs(tx);
           await tx.delete(auditLog).where(inArray(auditLog.id, rowIds));
         });
       }
@@ -1561,7 +1561,7 @@ describe("ARCH-H: trigger passthrough abuse rejection", () => {
     const rowIds: string[] = [];
     try {
       await db.transaction(async (tx) => {
-        await tx.execute(sql`set local app.allow_audit_mutation = 'true'`);
+        await setAuditMutationGucs(tx);
         const rows = await tx
           .insert(auditLog)
           .values([
@@ -1599,7 +1599,7 @@ describe("ARCH-H: trigger passthrough abuse rejection", () => {
     } finally {
       if (rowIds.length > 0) {
         await db.transaction(async (tx) => {
-          await tx.execute(sql`set local app.allow_audit_mutation = 'true'`);
+          await setAuditMutationGucs(tx);
           await tx.delete(auditLog).where(inArray(auditLog.id, rowIds));
         });
       }
@@ -1646,7 +1646,7 @@ describe("ARCH-H: trigger passthrough abuse rejection", () => {
       if (!testOrg) throw new Error("Failed to insert test org");
 
       await db.transaction(async (tx) => {
-        await tx.execute(sql`set local app.allow_audit_mutation = 'true'`);
+        await setAuditMutationGucs(tx);
         const rows = await tx
           .insert(auditLog)
           .values([
@@ -1688,7 +1688,7 @@ describe("ARCH-H: trigger passthrough abuse rejection", () => {
     } finally {
       if (rowIds.length > 0) {
         await db.transaction(async (tx) => {
-          await tx.execute(sql`set local app.allow_audit_mutation = 'true'`);
+          await setAuditMutationGucs(tx);
           // The row may already have target_organization_id = NULL at this point
           // (either from the allowed UPDATE or from the org DELETE cascade).
           await tx.delete(auditLog).where(inArray(auditLog.id, rowIds));

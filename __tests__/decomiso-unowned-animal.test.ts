@@ -85,7 +85,7 @@ import { validateEventPayload } from "@/lib/events/event-schemas";
 import { openCase } from "@/lib/infra/case-helpers";
 import { generatePublicToken } from "@/lib/infra/publicToken";
 import { generateUniqueToken } from "@/lib/infra/unique-token";
-import { withMutationOverride } from "./_helpers/db-overrides";
+import { setAuditMutationGucs, withMutationOverride } from "./_helpers/db-overrides";
 
 // ---------------------------------------------------------------------------
 // Fixture tokens
@@ -184,7 +184,7 @@ beforeAll(async () => {
 afterAll(async () => {
   if (govtUserId) {
     await db.transaction(async (tx) => {
-      await tx.execute(sql`set local app.allow_audit_mutation = 'true'`);
+      await setAuditMutationGucs(tx);
       await tx.execute(sql`DELETE FROM audit_log WHERE actor_user_id = ${govtUserId}`);
     });
   }

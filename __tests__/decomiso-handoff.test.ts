@@ -52,7 +52,7 @@ import {
 } from "@/db";
 import { validateEventPayload } from "@/lib/events/event-schemas";
 import { closeCase, openCase } from "@/lib/infra/case-helpers";
-import { withMutationOverride } from "./_helpers/db-overrides";
+import { setAuditMutationGucs, withMutationOverride } from "./_helpers/db-overrides";
 
 // ---------------------------------------------------------------------------
 // Fixture tokens
@@ -225,7 +225,7 @@ beforeAll(async () => {
 afterAll(async () => {
   if (govtUserId) {
     await db.transaction(async (tx) => {
-      await tx.execute(sql`set local app.allow_audit_mutation = 'true'`);
+      await setAuditMutationGucs(tx);
       await tx.execute(
         sql`DELETE FROM audit_log WHERE actor_user_id IN (${govtUserId}, ${receiverUserId}, ${receiver2UserId})`,
       );
@@ -329,7 +329,7 @@ async function cleanPetState() {
     await tx.execute(sql`DELETE FROM ownerships WHERE pet_id = ${petId}`);
   });
   await db.transaction(async (tx) => {
-    await tx.execute(sql`set local app.allow_audit_mutation = 'true'`);
+    await setAuditMutationGucs(tx);
     await tx.execute(
       sql`DELETE FROM audit_log WHERE actor_user_id IN (${govtUserId}, ${receiverUserId}, ${receiver2UserId})`,
     );

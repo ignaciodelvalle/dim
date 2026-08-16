@@ -114,6 +114,7 @@ export const AUDIT_ACTION_LABELS: Record<string, string> = {
   ppp_export_generated: "Exportación PPP generada",
   // Pet events override
   pet_events_mutation_override: "Mutación forzada de evento de mascota (override)",
+  audit_log_mutation_override: "Mutación forzada del registro de auditoría (override)",
   // Subject rights
   subject_data_exported: "Datos del titular exportados",
   subject_erasure: "Datos del titular eliminados",

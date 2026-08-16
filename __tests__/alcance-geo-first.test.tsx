@@ -11,7 +11,7 @@
 // actor profile is inserted directly (no Supabase Auth user needed — mirrors
 // outreach-pipelines.test.ts's own logOutreachPiiQuery test).
 
-import { and, eq, sql } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import React from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
@@ -54,7 +54,7 @@ vi.mock("@/components/ui/dashboard/DashboardFreshnessFooter", () => ({
 import { AlcanceScreen } from "@/app/gob/outreach/AlcanceScreen";
 import { auditLog, db, pets, profiles } from "@/db";
 import { requireAdminOrGovtOrRedirect } from "@/lib/infra/auth-guards";
-import { withMutationOverride } from "./_helpers/db-overrides";
+import { setAuditMutationGucs, withMutationOverride } from "./_helpers/db-overrides";
 
 const TEST_PROVINCE = "Buenos Aires";
 const LOCALITY_A = `alcance-geo-a-${Date.now()}`;
@@ -116,7 +116,7 @@ afterAll(async () => {
   // profiles/audit_log rows for the test actor (audit_log via the GUC bypass,
   // same pattern used elsewhere in this suite).
   await db.transaction(async (tx) => {
-    await tx.execute(sql`set local app.allow_audit_mutation = 'true'`);
+    await setAuditMutationGucs(tx);
     await tx.delete(auditLog).where(eq(auditLog.actorUserId, actorId));
   });
   await db.delete(profiles).where(eq(profiles.id, actorId));

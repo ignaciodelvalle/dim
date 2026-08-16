@@ -12,12 +12,12 @@
 // here, not silently in production.
 
 import { createClient } from "@supabase/supabase-js";
-import { eq, sql } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { approvalRequests, auditLog, db, ownerships, pets, profiles } from "@/db";
 import { generateApprovalRequestToken } from "@/lib/infra/publicToken";
-import { withMutationOverride } from "./_helpers/db-overrides";
+import { setAuditMutationGucs, withMutationOverride } from "./_helpers/db-overrides";
 import { expectDbError } from "./_helpers/expect-db-error";
 
 const SUPABASE_URL = "http://127.0.0.1:54321";
@@ -47,7 +47,7 @@ async function purgeUserByEmail(email: string) {
   ];
   for (const uid of ids) {
     await db.transaction(async (tx) => {
-      await tx.execute(sql`set local app.allow_audit_mutation = 'true'`);
+      await setAuditMutationGucs(tx);
       await tx.delete(auditLog).where(eq(auditLog.actorUserId, uid));
     });
     const owned = await db
@@ -173,7 +173,7 @@ describe("enforce_audit_log_append_only trigger", () => {
 
     // Cleanup with the bypass.
     await db.transaction(async (tx) => {
-      await tx.execute(sql`set local app.allow_audit_mutation = 'true'`);
+      await setAuditMutationGucs(tx);
       await tx.delete(auditLog).where(eq(auditLog.id, row.id));
     });
   });
@@ -193,7 +193,7 @@ describe("enforce_audit_log_append_only trigger", () => {
     });
 
     await db.transaction(async (tx) => {
-      await tx.execute(sql`set local app.allow_audit_mutation = 'true'`);
+      await setAuditMutationGucs(tx);
       await tx.delete(auditLog).where(eq(auditLog.id, row.id));
     });
   });
@@ -209,7 +209,7 @@ describe("enforce_audit_log_append_only trigger", () => {
       .returning();
 
     await db.transaction(async (tx) => {
-      await tx.execute(sql`set local app.allow_audit_mutation = 'true'`);
+      await setAuditMutationGucs(tx);
       await tx
         .update(auditLog)
         .set({ payload: { source: "test-bypass-updated" } })

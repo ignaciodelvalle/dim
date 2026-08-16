@@ -8,11 +8,12 @@
 //   - Tests call the inner withdrawApprovalRequestForUser writer directly
 
 import { createClient } from "@supabase/supabase-js";
-import { and, desc, eq, sql } from "drizzle-orm";
+import { and, desc, eq } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { approvalRequests, auditLog, db, profiles } from "@/db";
 import { withdrawApprovalRequestForUser } from "@/src/modules/organizations/application/approval-requests/withdraw-approval-request";
+import { setAuditMutationGucs } from "./_helpers/db-overrides";
 
 const SUPABASE_URL = "http://127.0.0.1:54321";
 const SECRET = "sb_secret_N7UND0UgjKTVK-Uodkm0Hg_xSvEMPvz";
@@ -33,7 +34,7 @@ async function deleteTestUser(email: string) {
   if (!found) return;
 
   await db.transaction(async (tx) => {
-    await tx.execute(sql`set local app.allow_audit_mutation = 'true'`);
+    await setAuditMutationGucs(tx);
     await tx.delete(auditLog).where(eq(auditLog.actorUserId, found.id));
     await tx.delete(auditLog).where(eq(auditLog.targetUserId, found.id));
   });

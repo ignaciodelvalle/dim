@@ -3,11 +3,12 @@
 // Tests call the pure inner writer directly. Pattern mirrors profile-self-service.test.ts.
 
 import { createClient } from "@supabase/supabase-js";
-import { eq, sql } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { auditLog, db, notifications, profiles } from "@/db";
 import { verifyDniForUser } from "@/src/modules/auth/application/dni-verification/verify-dni";
+import { setAuditMutationGucs } from "./_helpers/db-overrides";
 
 const SUPABASE_URL = "http://127.0.0.1:54321";
 const SECRET = "sb_secret_N7UND0UgjKTVK-Uodkm0Hg_xSvEMPvz";
@@ -41,7 +42,7 @@ async function deleteTestUser(email: string): Promise<void> {
     await db.delete(notifications).where(eq(notifications.userId, uid));
     // audit_log rows are append-only; the GUC bypass is required for cleanup.
     await db.transaction(async (tx) => {
-      await tx.execute(sql`set local app.allow_audit_mutation = 'true'`);
+      await setAuditMutationGucs(tx);
       await tx.delete(auditLog).where(eq(auditLog.actorUserId, uid));
     });
     await db.delete(profiles).where(eq(profiles.id, uid));

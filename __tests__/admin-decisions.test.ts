@@ -6,7 +6,7 @@
 // status flip, the audit_log entry, and the applicant notification.
 
 import { createClient } from "@supabase/supabase-js";
-import { and, eq, isNull, or, sql } from "drizzle-orm";
+import { and, eq, isNull, or } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { composeMatriculaApprovalNotes } from "@/app/gob/cola/_lib/matricula-verification";
@@ -30,7 +30,7 @@ import { rejectRequestForAuthority } from "@/src/modules/organizations/applicati
 import { requestInfoForAuthority } from "@/src/modules/organizations/application/admin-decisions/request-info";
 import { createOrganizationForUser } from "@/src/modules/organizations/application/upgrade/create-organization";
 import { requestVetUpgradeForUser } from "@/src/modules/organizations/application/upgrade/request-vet-upgrade";
-import { withMutationOverride } from "./_helpers/db-overrides";
+import { setAuditMutationGucs, withMutationOverride } from "./_helpers/db-overrides";
 import { expectDbError } from "./_helpers/expect-db-error";
 
 const SUPABASE_URL = "http://127.0.0.1:54321";
@@ -76,7 +76,7 @@ async function deleteTestUser(email: string) {
     // this user in either role before deleting the profile, and wipe rows
     // referencing each org as target before deleting the org.
     await db.transaction(async (tx) => {
-      await tx.execute(sql`set local app.allow_audit_mutation = 'true'`);
+      await setAuditMutationGucs(tx);
       await tx
         .delete(auditLog)
         .where(or(eq(auditLog.actorUserId, uid), eq(auditLog.targetUserId, uid)));
@@ -91,7 +91,7 @@ async function deleteTestUser(email: string) {
       );
     for (const { orgId } of adminRows) {
       await db.transaction(async (tx) => {
-        await tx.execute(sql`set local app.allow_audit_mutation = 'true'`);
+        await setAuditMutationGucs(tx);
         await tx.delete(auditLog).where(eq(auditLog.targetOrganizationId, orgId));
       });
       await db.delete(organizations).where(eq(organizations.id, orgId));

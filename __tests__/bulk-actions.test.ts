@@ -15,7 +15,7 @@
 // `@/lib/supabase/server`.
 
 import { createClient as createSupabaseClient } from "@supabase/supabase-js";
-import { eq, inArray, or, sql } from "drizzle-orm";
+import { eq, inArray, or } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 
 vi.mock("@/lib/supabase/server", () => ({
@@ -34,6 +34,7 @@ import {
 } from "@/app/actions/bulk-actions";
 import { approvalRequests, auditLog, db, notifications, profiles } from "@/db";
 import { createClient } from "@/lib/supabase/server";
+import { setAuditMutationGucs } from "./_helpers/db-overrides";
 
 const SUPABASE_URL = "http://127.0.0.1:54321";
 const SECRET = "sb_secret_N7UND0UgjKTVK-Uodkm0Hg_xSvEMPvz";
@@ -92,7 +93,7 @@ async function purgeUserByEmail(email: string) {
     // audit_log is append-only — strip the bulk audit rows via the dedicated
     // audit-mutation GUC (same pattern as admin-revocations.test.ts cleanup).
     await db.transaction(async (tx) => {
-      await tx.execute(sql`set local app.allow_audit_mutation = 'true'`);
+      await setAuditMutationGucs(tx);
       await tx
         .delete(auditLog)
         .where(or(eq(auditLog.actorUserId, uid), eq(auditLog.targetUserId, uid)));

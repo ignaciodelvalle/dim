@@ -27,12 +27,13 @@
 //   - Each test calls inner *ForAuthority writers directly (no Next.js runtime)
 
 import { createClient } from "@supabase/supabase-js";
-import { and, eq, inArray, notInArray, or, sql } from "drizzle-orm";
+import { and, eq, inArray, notInArray, or } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { attachments, auditLog, db, govtAssignments, notifications, profiles } from "@/db";
 import { createInstitutionalAccountForAuthority } from "@/src/modules/organizations/application/admin-institutional/create-institutional-account";
 import { vetSelfResignForUser } from "@/src/modules/pets/application/profile/vet-self-resign";
+import { setAuditMutationGucs } from "./_helpers/db-overrides";
 
 // ---------------------------------------------------------------------------
 // Client + constants
@@ -78,7 +79,7 @@ async function deleteTestUser(email: string): Promise<void> {
 
   for (const uid of allIds) {
     await db.transaction(async (tx) => {
-      await tx.execute(sql`set local app.allow_audit_mutation = 'true'`);
+      await setAuditMutationGucs(tx);
       await tx.delete(auditLog).where(eq(auditLog.actorUserId, uid));
       await tx.delete(auditLog).where(eq(auditLog.targetUserId, uid));
     });

@@ -19,7 +19,7 @@
 // Integration tests run against local Postgres + bootstrapped schema, same
 // posture as __tests__/outreach-pipelines.test.ts.
 
-import { and, eq, sql } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { auditLog, db, notifications, ownerships, petEvents, pets, profiles } from "@/db";
@@ -28,7 +28,7 @@ import {
   sendOverdueRabiesReminders,
 } from "@/lib/infra/outreach-reminders";
 import { buildProjectionContext } from "@/lib/metrics";
-import { withMutationOverride } from "./_helpers/db-overrides";
+import { setAuditMutationGucs, withMutationOverride } from "./_helpers/db-overrides";
 
 const TEST_PROVINCE = "Buenos Aires";
 const TEST_LOCALITY = `outreach-reminder-locality-${Date.now()}`;
@@ -149,7 +149,7 @@ afterAll(async () => {
   // audit_log is append-only — GUC bypass, same pattern as
   // __tests__/outreach-pipelines.test.ts.
   await db.transaction(async (tx) => {
-    await tx.execute(sql`set local app.allow_audit_mutation = 'true'`);
+    await setAuditMutationGucs(tx);
     await tx.delete(auditLog).where(eq(auditLog.actorUserId, actorId));
   });
 

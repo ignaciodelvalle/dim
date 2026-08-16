@@ -51,7 +51,7 @@ import {
 import { validateEventPayload } from "@/lib/events/event-schemas";
 import { findOpenCaseForPetAndKind, openCase } from "@/lib/infra/case-helpers";
 import { resolveGovtOrgForUser } from "@/src/modules/decomiso/application/resolve-govt-org";
-import { withMutationOverride } from "./_helpers/db-overrides";
+import { setAuditMutationGucs, withMutationOverride } from "./_helpers/db-overrides";
 
 // ---------------------------------------------------------------------------
 // Fixture tokens
@@ -224,7 +224,7 @@ afterAll(async () => {
   // own tx because `set local` scopes to the current tx only.
   if (govtUserId) {
     await db.transaction(async (tx) => {
-      await tx.execute(sql`set local app.allow_audit_mutation = 'true'`);
+      await setAuditMutationGucs(tx);
       await tx.execute(sql`DELETE FROM audit_log WHERE actor_user_id = ${govtUserId}`);
     });
   }

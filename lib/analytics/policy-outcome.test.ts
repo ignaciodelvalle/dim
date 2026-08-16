@@ -3,9 +3,10 @@
 // integration block for fetchRuleChanges' jurisdiction scope (F3
 // prerequisite / G1 posture), which needs real rows to prove the SQL filter.
 
-import { inArray, sql } from "drizzle-orm";
+import { inArray } from "drizzle-orm";
 import { afterAll, describe, expect, it } from "vitest";
 
+import { setAuditMutationGucs } from "@/__tests__/_helpers/db-overrides";
 // The pure tests below only need GOVT_BUSINESS_RULE_TYPES, imported from the
 // schema module directly rather than the "@/db" barrel. The integration
 // block further down needs the barrel (auditLog, db) to seed/query real rows.
@@ -159,7 +160,7 @@ describe("fetchRuleChanges — jurisdiction scope (integration)", () => {
       // append_only trigger blocks DELETE unless the explicit test-cleanup
       // GUC bypass is set (mirrors __tests__/profile.test.ts deleteTestUser).
       await db.transaction(async (tx) => {
-        await tx.execute(sql`set local app.allow_audit_mutation = 'true'`);
+        await setAuditMutationGucs(tx);
         await tx.delete(auditLog).where(inArray(auditLog.id, seededIds));
       });
     }

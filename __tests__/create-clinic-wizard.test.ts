@@ -12,7 +12,7 @@
 // - Matrícula revocation cascade → auto-verified clinic loses verification
 
 import { createClient } from "@supabase/supabase-js";
-import { and, eq, isNull, or, sql } from "drizzle-orm";
+import { and, eq, isNull, or } from "drizzle-orm";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import {
@@ -27,7 +27,7 @@ import {
 } from "@/db";
 import { revokeVetRoleForAuthority } from "@/src/modules/organizations/application/revocations/revoke-vet-role";
 import { createOrganizationForUser } from "@/src/modules/organizations/application/upgrade/create-organization";
-import { withMutationOverride } from "./_helpers/db-overrides";
+import { setAuditMutationGucs, withMutationOverride } from "./_helpers/db-overrides";
 
 const SUPABASE_URL = "http://127.0.0.1:54321";
 const SECRET = "sb_secret_N7UND0UgjKTVK-Uodkm0Hg_xSvEMPvz";
@@ -50,7 +50,7 @@ async function purgeUser(email: string) {
 
   // Cleanup audit_log rows (append-only trigger requires the GUC bypass).
   await db.transaction(async (tx) => {
-    await tx.execute(sql`set local app.allow_audit_mutation = 'true'`);
+    await setAuditMutationGucs(tx);
     await tx
       .delete(auditLog)
       .where(or(eq(auditLog.actorUserId, uid), eq(auditLog.targetUserId, uid)));
@@ -68,7 +68,7 @@ async function purgeUser(email: string) {
   for (const o of autoOrgs) {
     // Clean up audit_log rows targeting this org before deleting the org.
     await db.transaction(async (tx) => {
-      await tx.execute(sql`set local app.allow_audit_mutation = 'true'`);
+      await setAuditMutationGucs(tx);
       await tx.delete(auditLog).where(eq(auditLog.targetOrganizationId, o.id));
     });
     await db.delete(approvalRequests).where(eq(approvalRequests.targetOrganizationId, o.id));

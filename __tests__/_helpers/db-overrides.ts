@@ -80,3 +80,35 @@ export async function withMutationOverride<T>(fn: (tx: Tx) => Promise<T>): Promi
     return fn(tx);
   });
 }
+
+/**
+ * Sets BOTH audit_log escape-hatch GUCs on an already-open transaction —
+ * `app.allow_audit_mutation = 'true'` AND `app.allow_audit_mutation_actor`
+ * (admin@dim.test), as migration 0182 requires: the bypass without an
+ * accountable actor is refused, and every override self-logs an
+ * `audit_log_mutation_override` row attributed to that actor.
+ *
+ * Use this to replace the old bare
+ * `tx.execute(sql\`set local app.allow_audit_mutation = 'true'\`)` lines in
+ * test cleanup — same transaction shape, one extra GUC.
+ */
+export async function setAuditMutationGucs(tx: Tx): Promise<void> {
+  const actorId = await resolveCleanupActorId();
+  if (!UUID_RE.test(actorId)) {
+    throw new Error(`setAuditMutationGucs: resolved actor id is not a UUID: ${actorId}`);
+  }
+  await tx.execute(sql`set local app.allow_audit_mutation = 'true'`);
+  await tx.execute(sql.raw(`set local app.allow_audit_mutation_actor = '${actorId}'`));
+}
+
+/**
+ * Runs `fn` inside a transaction with the audit_log escape hatch enabled —
+ * the audit_log sibling of withMutationOverride. The override row written by
+ * the trigger is attributed to admin@dim.test.
+ */
+export async function withAuditMutationOverride<T>(fn: (tx: Tx) => Promise<T>): Promise<T> {
+  return db.transaction(async (tx) => {
+    await setAuditMutationGucs(tx);
+    return fn(tx);
+  });
+}

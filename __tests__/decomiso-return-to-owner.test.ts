@@ -45,7 +45,7 @@ import {
   pets,
   profiles,
 } from "@/db";
-import { withMutationOverride } from "./_helpers/db-overrides";
+import { setAuditMutationGucs, withMutationOverride } from "./_helpers/db-overrides";
 
 // ---------------------------------------------------------------------------
 // Mock: @/lib/supabase/server — only the requirePetAccess/getFormerOwnerReadAccess
@@ -251,7 +251,7 @@ afterAll(async () => {
     );
   });
   await db.transaction(async (tx) => {
-    await tx.execute(sql`set local app.allow_audit_mutation = 'true'`);
+    await setAuditMutationGucs(tx);
     await tx.execute(
       sql`DELETE FROM audit_log WHERE actor_user_id IN (${govtUserId}, ${otherGovtUserId})`,
     );

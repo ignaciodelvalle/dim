@@ -9,7 +9,7 @@
 // user creation, app.allow_audit_mutation GUC for cleanup.
 
 import { createClient } from "@supabase/supabase-js";
-import { and, eq, or, sql } from "drizzle-orm";
+import { and, eq, or } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import {
@@ -29,7 +29,7 @@ import { revokeOrgVerificationForAuthority } from "@/src/modules/organizations/a
 import { revokeVetRoleForAuthority } from "@/src/modules/organizations/application/revocations/revoke-vet-role";
 import { uploadRevocationEvidence } from "@/src/modules/organizations/application/revocations/upload-evidence";
 import { createOrganizationForUser } from "@/src/modules/organizations/application/upgrade/create-organization";
-import { withMutationOverride } from "./_helpers/db-overrides";
+import { setAuditMutationGucs, withMutationOverride } from "./_helpers/db-overrides";
 
 const SUPABASE_URL = "http://127.0.0.1:54321";
 const SECRET = "sb_secret_N7UND0UgjKTVK-Uodkm0Hg_xSvEMPvz";
@@ -75,7 +75,7 @@ async function deleteTestUser(email: string) {
   ];
   for (const uid of ids) {
     await db.transaction(async (tx) => {
-      await tx.execute(sql`set local app.allow_audit_mutation = 'true'`);
+      await setAuditMutationGucs(tx);
       await tx
         .delete(auditLog)
         .where(or(eq(auditLog.actorUserId, uid), eq(auditLog.targetUserId, uid)));
@@ -102,7 +102,7 @@ async function deleteTestUser(email: string) {
       );
     for (const { orgId } of adminRows) {
       await db.transaction(async (tx) => {
-        await tx.execute(sql`set local app.allow_audit_mutation = 'true'`);
+        await setAuditMutationGucs(tx);
         await tx.delete(auditLog).where(eq(auditLog.targetOrganizationId, orgId));
       });
       await db.delete(organizations).where(eq(organizations.id, orgId));

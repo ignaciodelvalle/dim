@@ -8,7 +8,7 @@
 // Auth guard tests use the real local Supabase DB.
 
 import { createClient } from "@supabase/supabase-js";
-import { eq, sql } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 
 import { db, govtAssignments, notifications, profiles } from "@/db";
@@ -21,6 +21,7 @@ import {
 } from "@/lib/domain/institutional-scope";
 import type { ActorProfile } from "@/lib/domain/institutional-scope";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { setAuditMutationGucs } from "./_helpers/db-overrides";
 
 // ============================================================================
 // createAdminClient tests (A-2.1 / A-2.2)
@@ -91,7 +92,7 @@ async function deleteGuardTestUser(email: string) {
 
   for (const uid of allIds) {
     await db.transaction(async (tx) => {
-      await tx.execute(sql`set local app.allow_audit_mutation = 'true'`);
+      await setAuditMutationGucs(tx);
       await tx.delete(notifications).where(eq(notifications.userId, uid));
     });
     await db.delete(govtAssignments).where(eq(govtAssignments.userId, uid));

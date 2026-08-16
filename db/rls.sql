@@ -483,7 +483,9 @@ create policy "audit log visible to actor or admin"
 -- No INSERT policy: every audit entry is written by a server action as a
 -- side-effect of an authority decision. UPDATE and DELETE are blocked by
 -- the append-only trigger (with app.allow_audit_mutation GUC bypass for
--- test cleanup) — no RLS rule needed.
+-- test cleanup — since 0182 the bypass also requires
+-- app.allow_audit_mutation_actor and self-logs the override) — no RLS
+-- rule needed.
 
 
 -- ============================================================================

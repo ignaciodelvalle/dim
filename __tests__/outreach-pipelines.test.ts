@@ -9,7 +9,7 @@
 // Integration tests run against local Postgres + bootstrapped schema.
 // Known pre-existing flakes are elsewhere; these are new tests.
 
-import { and, eq, sql } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { auditLog, db, petEvents, pets, profiles } from "@/db";
@@ -22,7 +22,7 @@ import {
   logOutreachPiiQuery,
 } from "@/lib/infra/outreach-pipelines";
 import { buildProjectionContext } from "@/lib/metrics";
-import { withMutationOverride } from "./_helpers/db-overrides";
+import { setAuditMutationGucs, withMutationOverride } from "./_helpers/db-overrides";
 
 // ---------------------------------------------------------------------------
 // Shared test fixtures
@@ -361,7 +361,7 @@ describe("logOutreachPiiQuery — mandatory audit row", () => {
     // Cleanup: audit_log is append-only — use the GUC bypass inside a
     // transaction (same pattern as profile.test.ts afterAll).
     await db.transaction(async (tx) => {
-      await tx.execute(sql`set local app.allow_audit_mutation = 'true'`);
+      await setAuditMutationGucs(tx);
       await tx.delete(auditLog).where(eq(auditLog.actorUserId, actorId));
     });
     await db.delete(profiles).where(eq(profiles.id, actorId));
@@ -393,7 +393,7 @@ describe("logOutreachPiiQuery — mandatory audit row", () => {
     expect(payload.zone_locality).toBe(TEST_LOCALITY);
 
     await db.transaction(async (tx) => {
-      await tx.execute(sql`set local app.allow_audit_mutation = 'true'`);
+      await setAuditMutationGucs(tx);
       await tx.delete(auditLog).where(eq(auditLog.actorUserId, actorId));
     });
     await db.delete(profiles).where(eq(profiles.id, actorId));

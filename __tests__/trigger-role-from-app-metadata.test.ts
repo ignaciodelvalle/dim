@@ -27,10 +27,11 @@
 //   4. explicit service-role UPDATE    → role='admin' (the ONLY elevation path)
 
 import { createClient } from "@supabase/supabase-js";
-import { eq, sql } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { attachments, auditLog, db, govtAssignments, notifications, profiles } from "@/db";
+import { setAuditMutationGucs } from "./_helpers/db-overrides";
 
 const SUPABASE_URL = "http://127.0.0.1:54321";
 const SECRET = "sb_secret_N7UND0UgjKTVK-Uodkm0Hg_xSvEMPvz";
@@ -55,7 +56,7 @@ async function deleteTestUser(email: string): Promise<void> {
 
   const uid = found.id;
   await db.transaction(async (tx) => {
-    await tx.execute(sql`set local app.allow_audit_mutation = 'true'`);
+    await setAuditMutationGucs(tx);
     await tx.delete(auditLog).where(eq(auditLog.actorUserId, uid));
     await tx.delete(auditLog).where(eq(auditLog.targetUserId, uid));
   });

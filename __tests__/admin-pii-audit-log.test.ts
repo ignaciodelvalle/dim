@@ -9,12 +9,13 @@
 // and surface. (The callers awaiting it is what makes that durable.)
 
 import { createClient } from "@supabase/supabase-js";
-import { and, desc, eq, sql } from "drizzle-orm";
+import { and, desc, eq } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { auditLog, db, profiles } from "@/db";
 import { logPiiReadSafely } from "@/src/modules/organizations/application/admin-proposals/log-pii-query";
 import { logPiiQueryForAuthority } from "@/src/modules/organizations/application/admin-proposals/log-pii-query";
+import { setAuditMutationGucs } from "./_helpers/db-overrides";
 
 const SUPABASE_URL = "http://127.0.0.1:54321";
 const SECRET = "sb_secret_N7UND0UgjKTVK-Uodkm0Hg_xSvEMPvz";
@@ -28,7 +29,7 @@ async function deleteActor() {
   const found = list?.users.find((u) => u.email === ACTOR_EMAIL);
   if (found) {
     await db.transaction(async (tx) => {
-      await tx.execute(sql`set local app.allow_audit_mutation = 'true'`);
+      await setAuditMutationGucs(tx);
       await tx.delete(auditLog).where(eq(auditLog.actorUserId, found.id));
     });
     await db.delete(profiles).where(eq(profiles.id, found.id));

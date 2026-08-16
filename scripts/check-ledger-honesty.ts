@@ -205,6 +205,17 @@ const PROBES: Probe[] = [
       )) > 0 AS ok
     `,
   },
+  {
+    id: "audit-log-override-requires-actor",
+    migration: "0182",
+    expectation:
+      "enforce_audit_log_append_only's live body requires app.allow_audit_mutation_actor (the E-3 drift class, for this exact function)",
+    query: `
+      SELECT position('allow_audit_mutation_actor' IN pg_get_functiondef(
+        'public.enforce_audit_log_append_only()'::regprocedure
+      )) > 0 AS ok
+    `,
+  },
 ];
 
 // ---------------------------------------------------------------------------

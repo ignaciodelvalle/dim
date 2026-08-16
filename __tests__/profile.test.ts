@@ -10,7 +10,7 @@
 //   - uploadAvatarForUser: happy path (storage stub), validation rejections
 
 import { createClient } from "@supabase/supabase-js";
-import { and, desc, eq, sql } from "drizzle-orm";
+import { and, desc, eq } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 
 // updateEmergencyContactsAction (pet-document-redesign ADR-13, Phase 5) calls
@@ -34,6 +34,7 @@ import { auditLog, db, notifications, ownerships, pets, profiles } from "@/db";
 import { requireUserOrRedirect } from "@/lib/infra/auth-guards";
 import { updateProfileForUser } from "@/src/modules/pets/application/profile/update-profile";
 import { uploadAvatarForUser } from "@/src/modules/pets/application/profile/upload-avatar";
+import { setAuditMutationGucs } from "./_helpers/db-overrides";
 
 const SUPABASE_URL = "http://127.0.0.1:54321";
 const SECRET = "sb_secret_N7UND0UgjKTVK-Uodkm0Hg_xSvEMPvz";
@@ -53,7 +54,7 @@ async function deleteTestUser(email: string) {
 
   for (const uid of allIds) {
     await db.transaction(async (tx) => {
-      await tx.execute(sql`set local app.allow_audit_mutation = 'true'`);
+      await setAuditMutationGucs(tx);
       await tx.delete(auditLog).where(eq(auditLog.actorUserId, uid));
       await tx.delete(auditLog).where(eq(auditLog.targetUserId, uid));
     });
