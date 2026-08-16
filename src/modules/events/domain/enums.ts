@@ -38,3 +38,22 @@ export type ClinicalSubKind = (typeof CLINICAL_SUB_KINDS)[number];
 export const DANGEROUS_BREED_REGISTRIES = ["caba_4078", "prov_14107", "other"] as const;
 
 export type DangerousBreedRegistry = (typeof DANGEROUS_BREED_REGISTRIES)[number];
+
+/**
+ * Lote A4 — the registries the attestation SERVER accepts for a pet's
+ * jurisdiction: the per-jurisdiction `ppp_attestation_required_registries`
+ * rule when a jurisdiction overrode it, the national fallback list otherwise,
+ * plus "other" always. Pure mirror of the client's buildRegistryOptions
+ * (DangerousBreedAttestationForm) so the form and the action can never offer
+ * and accept different sets.
+ */
+export function allowedAttestationRegistries(resolved: {
+  registries: ReadonlyArray<{ id: string }>;
+}): Set<string> {
+  return new Set<string>([
+    ...(resolved.registries.length > 0
+      ? resolved.registries.map((r) => r.id)
+      : (DANGEROUS_BREED_REGISTRIES as readonly string[]).filter((id) => id !== "other")),
+    "other",
+  ]);
+}
