@@ -52,6 +52,31 @@ export type ReservedRabiesTurno = {
 
 export type ObligationKey = "rabies" | "sterilization" | "microchip" | "ppp";
 
+// Mirror of the DB `requirement_level` union (db/schema.ts REQUIREMENT_LEVELS)
+// — declared locally so this projection stays import-light and pure.
+export type ObligationRequirementLevel = "mandatory" | "recommended" | "not_regulated" | "optional";
+
+/**
+ * EFFECTIVE resolved rule for one obligation, threaded in by RSC callers
+ * (spec CS1 — resolved once per distinct jurisdiction, never fetched here).
+ * `requirementLevel` is already the effective tier: callers map a NULL tier
+ * to the pre-tier legacy behavior via `obligationRuleInfo` /
+ * `microchipObligationRuleInfo` (lib/domain/business-rules-defaults.ts), so
+ * dev/test environments with no seeded tiers see zero behavior diff.
+ */
+export type ComplianceObligationRule = {
+  requirementLevel: ObligationRequirementLevel;
+  legalBasis: string | null;
+  authority: string | null;
+  sourceUrl: string | null;
+};
+
+/** The three jurisdiction-tiered obligations (PPP has its own gate + input). */
+export type ComplianceObligations = Record<
+  "rabies" | "sterilization" | "microchip",
+  ComplianceObligationRule
+>;
+
 // Visual tone shared across the obligation cards. `ok`/`due`/`over` map onto the
 // existing LnVstamp variants; `reserved` uses the celeste family (WS-2);
 // `neutral` is "sin registro / no aplica todavía".
@@ -118,6 +143,16 @@ export type ObligationCard = {
   dataUnknown?: boolean;
   // Dual honest vaccine state — see ComplianceDual. Rabies-only, declared-dose-only.
   dual?: ComplianceDual;
+  /**
+   * Resolved jurisdiction tier when the obligation is NOT mandatory here
+   * (spec CS2-CS4): `recommended` renders with a distinct softer treatment and
+   * never with "vencida"/overdue styling; `not_regulated` renders as
+   * information only. Cards carrying this field are EXCLUDED from the
+   * "N de M al día" count — M counts mandatory obligations only. Absent = a
+   * real obligation (mandatory, or a legacy caller without threaded
+   * obligations).
+   */
+  requirementTier?: "recommended" | "not_regulated";
 };
 
 export type ComplianceState = {
@@ -139,14 +174,32 @@ export type ComplianceInput = {
   rabiesReminder: RabiesReminder | null;
   reservedRabiesTurno: ReservedRabiesTurno | null; // WS-2
   microchipCode: string | null; // from fetchActiveIdentifications().microchip
-  // Jurisdiction gate for the microchip obligation, resolved from the
-  // `microchip_required` business rule for the pet's jurisdiction (default
-  // TRUE — every jurisdiction requires a chip until one opts out). Optional so
-  // pre-existing callers/tests keep the old universal behavior. When FALSE and
-  // no chip is on record, the obligation card is omitted entirely (it drops out
-  // of the "N de M al día" count); a chip that IS registered still shows,
-  // because a registered chip is information, not an unmet obligation.
+  // LEGACY jurisdiction gate for the microchip obligation (pre-`obligations`
+  // callers/tests only — IGNORED when `obligations` is provided, which now
+  // carries the microchip tier via the same OR5 semantics). Default TRUE.
+  // When FALSE and no chip is on record, the obligation card is omitted
+  // entirely (it drops out of the "N de M al día" count); a chip that IS
+  // registered still shows, because a registered chip is information, not an
+  // unmet obligation.
   microchipApplies?: boolean;
+  /**
+   * Jurisdiction-resolved obligation tiers + legal provenance (spec CS1),
+   * threaded by RSC callers — this module stays PURE, nothing is fetched
+   * here. Optional so pre-existing callers/tests keep the legacy universal
+   * behavior (everything treated as a mandatory obligation, generic
+   * footnotes). When present it supersedes `microchipApplies`.
+   */
+  obligations?: ComplianceObligations;
+  /**
+   * Legal provenance of the resolved PPP rule (ppp_breed_list) for citation
+   * composition (CS5). Tier is NOT read from here — `pppApplies` stays the
+   * authoritative PPP gate. Null/absent → generic stopgap footnote.
+   */
+  pppRule?: {
+    legalBasis: string | null;
+    authority: string | null;
+    sourceUrl: string | null;
+  } | null;
   pppApplies: boolean; // authoritative jurisdiction gate (pet.potentiallyDangerousBreed)
   // PPP-determinability inputs (2026-07-04). PPP is dogs-only, and the size rule
   // needs the pet's WEIGHT while the breed rule needs its BREED. A dog registered
@@ -197,6 +250,23 @@ const STERILIZATION_FOOTNOTE = {
   declared: "Declarado por el titular, sin verificación profesional",
   none: "Sin registro en la libreta",
 } as const;
+
+/**
+ * Compose a legal citation from a resolved rule row's provenance (spec CS5):
+ * `[legalBasis, authority].filter(Boolean).join(" · ")`. Returns null when the
+ * row carries no citation — the caller then keeps the generic stopgap wording
+ * ("según normativa jurisdiccional"), NEVER inventing law. Used for the
+ * already-neutralized footnotes (microchip, PPP); the rabies footnote stays
+ * hardcoded until RG1 is ratified, and the sterilization footnotes are
+ * provenance lines, not legal citations.
+ */
+export function composeLegalCitation(
+  info: { legalBasis: string | null; authority: string | null } | null | undefined,
+): string | null {
+  if (!info) return null;
+  const joined = [info.legalBasis, info.authority].filter(Boolean).join(" · ");
+  return joined.length > 0 ? joined : null;
+}
 
 // Worst-first ordering. Lower number = more urgent = shown first.
 const TONE_SEVERITY: Record<ComplianceTone, number> = {
@@ -527,8 +597,11 @@ function deriveSterilization(input: ComplianceInput): ObligationCard {
 // information the credential should surface, not an unmet obligation.
 function deriveMicrochip(input: ComplianceInput): ObligationCard | null {
   const code = input.microchipCode;
-  // Default TRUE: undefined preserves the pre-gate universal behavior.
-  const applies = input.microchipApplies !== false;
+  // With threaded `obligations`, the tier overlay in deriveComplianceState
+  // owns the omission decision (not_regulated + nothing on record → no card),
+  // so the raw card is always derived. Legacy callers keep the boolean gate;
+  // default TRUE preserves the pre-gate universal behavior.
+  const applies = input.obligations ? true : input.microchipApplies !== false;
   // Best-provenance selection, not earliest (H1 fix): a later vet/institution
   // implant event must clear the obligation even if an earlier owner-declared
   // one exists. `some` picks any satisfying event instead of `find`'s oldest.
@@ -693,36 +766,101 @@ export function lnPetStatusFromCompliance(
 }
 
 /**
+ * Jurisdiction-tier overlay (spec CS2-CS4). A `mandatory` tier keeps the card
+ * exactly as derived (existing urgency). A `recommended`/`optional` tier keeps
+ * the card but SOFTENS it: never "vencida"/overdue styling (over/due tones
+ * clamp to neutral), marked `requirementTier: "recommended"` so the panel adds
+ * its distinct treatment and the summary excludes it from M. A
+ * `not_regulated` tier renders information only: a card with nothing on
+ * record ("Sin registro") is omitted entirely — there is no obligation to
+ * surface and nothing to inform — while real data (a dose, a chip) stays
+ * visible as an informational card, tones clamped, hint dropped (the hint
+ * says "para que cuente", and there is nothing to count toward).
+ */
+function applyTierOverlay(
+  card: ObligationCard | null,
+  level: ObligationRequirementLevel,
+): ObligationCard | null {
+  if (card === null || level === "mandatory") return card;
+  const tier = level === "not_regulated" ? "not_regulated" : "recommended";
+  if (tier === "not_regulated" && card.state === "Sin registro") return null;
+  const tone: ComplianceTone = card.tone === "over" || card.tone === "due" ? "neutral" : card.tone;
+  return {
+    ...card,
+    tone,
+    requirementTier: tier,
+    hint: tier === "not_regulated" ? null : card.hint,
+  };
+}
+
+/**
  * Compose the owner obligations into an ordered, summarized compliance view.
- * Cards are sorted worst-state first. The microchip card is omitted when the
- * jurisdiction does not require a chip (microchipApplies=false) and none is on
- * record. The PPP card is attestation when the pet is a flagged PPP,
- * "indeterminado" when a DOG is missing breed and/or weight, and omitted
- * otherwise (non-dog, or a dog with both fields known and no flag).
+ * Cards are sorted worst-state first. With threaded `obligations` (CS1) each
+ * card carries its jurisdiction tier: only `mandatory` obligations (and the
+ * PPP gate, which is authoritative on its own) enter the "N de M al día"
+ * count (CS2/CS4); `recommended` renders softer and `not_regulated` renders
+ * informational, both excluded from M. Without `obligations` (legacy
+ * callers/tests) behavior is exactly the pre-tier one: the microchip card is
+ * omitted when microchipApplies=false and none is on record. The PPP card is
+ * attestation when the pet is a flagged PPP, "indeterminado" when a DOG is
+ * missing breed and/or weight, and omitted otherwise.
  */
 export function deriveComplianceState(input: ComplianceInput): ComplianceState {
-  const cards: ObligationCard[] = [deriveRabies(input), deriveSterilization(input)];
-  const microchipCard = deriveMicrochip(input);
-  if (microchipCard) {
-    cards.push(microchipCard);
+  const { obligations } = input;
+  let rabiesCard: ObligationCard | null = deriveRabies(input);
+  let sterilizationCard: ObligationCard | null = deriveSterilization(input);
+  let microchipCard = deriveMicrochip(input);
+  let pppCard = derivePpp(input);
+
+  if (obligations) {
+    // Citation composition (CS5) — microchip only among the three: the rabies
+    // footnote literal is RG1-gated (untouched until PO ratification) and the
+    // sterilization footnotes are provenance lines, not legal citations. The
+    // generic stopgap stays when the resolved row carries no citation.
+    const microchipCitation = composeLegalCitation(obligations.microchip);
+    if (microchipCard && microchipCitation) {
+      microchipCard = { ...microchipCard, legalFootnote: `Identificación · ${microchipCitation}` };
+    }
+    rabiesCard = applyTierOverlay(rabiesCard, obligations.rabies.requirementLevel);
+    sterilizationCard = applyTierOverlay(
+      sterilizationCard,
+      obligations.sterilization.requirementLevel,
+    );
+    microchipCard = applyTierOverlay(microchipCard, obligations.microchip.requirementLevel);
   }
-  const pppCard = derivePpp(input);
-  if (pppCard) {
-    cards.push(pppCard);
+  const pppCitation = composeLegalCitation(input.pppRule);
+  if (pppCard && pppCitation) {
+    pppCard = {
+      ...pppCard,
+      legalFootnote: `Régimen perros potencialmente peligrosos · ${pppCitation}`,
+    };
   }
+
+  const cards: ObligationCard[] = [rabiesCard, sterilizationCard, microchipCard, pppCard].filter(
+    (c): c is ObligationCard => c !== null,
+  );
 
   cards.sort((a, b) => TONE_SEVERITY[a.tone] - TONE_SEVERITY[b.tone]);
 
-  const total = cards.length;
+  // M counts MANDATORY obligations only (CS4): recommended / not_regulated
+  // cards are visible but never enter the compliance percentage. Legacy
+  // callers (no `obligations`) mark nothing, so countable === cards.
+  const countable = cards.filter((c) => c.requirementTier === undefined);
+  const total = countable.length;
   // `currencyKnown === false` is a dose on record whose vigencia is unknowable.
   // It is NOT "al día": counting it produced "3 de 3 al día" beside a card the
   // panel now stamps SIN DATO — the same self-contradiction the vigilancia tile
   // had (C5, external design review).
-  const ok = cards.filter((c) => c.tone === "ok" && c.currencyKnown !== false).length;
-  const worstTone = cards.length > 0 ? cards[0].tone : "ok";
+  const ok = countable.filter((c) => c.tone === "ok" && c.currencyKnown !== false).length;
+  // The header chip describes the OBLIGATIONS the summary counts — an
+  // informational/recommended card must not drag the "N de M al día" badge to
+  // neutral while every counted obligation is ok. `filter` preserves the
+  // worst-first sort, so countable[0] is the worst counted obligation.
+  const worstCard = countable[0] ?? null;
+  const worstTone = worstCard?.tone ?? "ok";
   // Read off the SAME card the tone comes from, so the two can never disagree
   // about which obligation the summary is describing.
-  const worstIsUnknown = cards.length > 0 && cards[0].dataUnknown === true;
+  const worstIsUnknown = worstCard?.dataUnknown === true;
 
   return {
     cards,

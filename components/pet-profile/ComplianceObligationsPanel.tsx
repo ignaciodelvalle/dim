@@ -46,6 +46,18 @@ const ICON_FOR: Record<ObligationKey, string> = {
 // reserved / neutral fall back to LnBadge (the stamp has no such variants).
 const VSTAMP_TONES = new Set<ComplianceTone>(["ok", "due", "over"]);
 
+// Jurisdiction-tier disclosure lines (spec CS3/CS4). A `recommended` card gets
+// a distinct softer treatment — the projection already clamped its tone so it
+// can never carry "vencida"/overdue styling — and a `not_regulated` card is
+// information only, never an obligation. Both are excluded from the
+// "N de M al día" count by the projection; this line is what tells the owner
+// WHY the card does not press. Noun-based phrasing so the copy stays
+// gender-safe across "Vacuna antirrábica" (f) and "Microchip" (m).
+const TIER_NOTE: Record<"recommended" | "not_regulated", string> = {
+  recommended: "Recomendación de tu jurisdicción — no es una obligación legal.",
+  not_regulated: "Solo informativo — no es una obligación en tu jurisdicción.",
+};
+
 // Currency-chip variant for the dual vaccine block (task #78 — the "0 de 4 ·
 // DECLARADA" #4 fix). The chip shows the owner's REAL vaccine currency alongside
 // the "registro needs a firma" nudge, so the card is dual + honest.
@@ -221,6 +233,12 @@ function ObligationCardView({
             <span>{card.dual.registryLine}</span>
           </p>
         </div>
+      )}
+
+      {card.requirementTier && (
+        <p className="font-ln-sans text-xs italic leading-relaxed text-[var(--color-ln-mute)]">
+          {TIER_NOTE[card.requirementTier]}
+        </p>
       )}
 
       <p className="font-ln-sans text-xs leading-relaxed text-[var(--color-ln-faint)]">

@@ -1,8 +1,13 @@
+import { readFileSync, readdirSync } from "node:fs";
+import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 
 import {
   type ComplianceEvent,
   type ComplianceInput,
+  type ComplianceObligationRule,
+  type ComplianceObligations,
+  composeLegalCitation,
   deriveComplianceState,
   lnPetStatusFromCompliance,
   microchipHeroTag,
@@ -758,5 +763,255 @@ describe("deriveMicrochip — jurisdiction applicability gate (microchip_require
     const state = deriveComplianceState(baseInput({ microchipApplies: true }));
     const chip = state.cards.find((c) => c.key === "microchip");
     expect(chip?.legalFootnote).not.toMatch(/CABA/);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Jurisdiction-tiered obligations (spec CS1-CS6, WU3)
+// ---------------------------------------------------------------------------
+
+const RULE_MANDATORY: ComplianceObligationRule = {
+  requirementLevel: "mandatory",
+  legalBasis: null,
+  authority: null,
+  sourceUrl: null,
+};
+
+function obligations(
+  overrides: Partial<Record<keyof ComplianceObligations, Partial<ComplianceObligationRule>>> = {},
+): ComplianceObligations {
+  return {
+    rabies: { ...RULE_MANDATORY, ...overrides.rabies },
+    sterilization: { ...RULE_MANDATORY, ...overrides.sterilization },
+    microchip: { ...RULE_MANDATORY, ...overrides.microchip },
+  };
+}
+
+describe("deriveComplianceState — obligations tier table (CS2/CS3/CS4)", () => {
+  // An OVERDUE verified rabies dose: under `mandatory` this must scream red;
+  // under `recommended` the same facts must never wear overdue styling.
+  const overdueRabies = baseInput({
+    events: [vaccination("Antirrábica", "2026-06-01", VET)],
+  });
+
+  it("mandatory keeps the existing urgency — an expired dose stays tone 'over' and counted", () => {
+    const state = deriveComplianceState({ ...overdueRabies, obligations: obligations() });
+    const rabies = state.cards.find((c) => c.key === "rabies");
+    expect(rabies?.tone).toBe("over");
+    expect(rabies?.requirementTier).toBeUndefined();
+    expect(state.summary.total).toBe(3); // rabies + sterilization + microchip
+  });
+
+  it("recommended never renders 'vencida'/overdue styling and leaves the N-de-M count", () => {
+    const state = deriveComplianceState({
+      ...overdueRabies,
+      obligations: obligations({ rabies: { requirementLevel: "recommended" } }),
+    });
+    const rabies = state.cards.find((c) => c.key === "rabies");
+    expect(rabies).toBeDefined();
+    expect(rabies?.tone).not.toBe("over");
+    expect(rabies?.tone).not.toBe("due");
+    expect(rabies?.requirementTier).toBe("recommended");
+    // Excluded from M: only sterilization + microchip count.
+    expect(state.summary.total).toBe(2);
+  });
+
+  it("not_regulated with data on record renders informational, never in the percentage", () => {
+    const state = deriveComplianceState(
+      baseInput({
+        microchipCode: "982000123456789",
+        obligations: obligations({ microchip: { requirementLevel: "not_regulated" } }),
+      }),
+    );
+    const chip = state.cards.find((c) => c.key === "microchip");
+    expect(chip).toBeDefined(); // a registered chip is information
+    expect(chip?.requirementTier).toBe("not_regulated");
+    expect(chip?.tone).not.toBe("over");
+    expect(chip?.tone).not.toBe("due");
+    expect(chip?.hint).toBeFalsy(); // no "para que cuente" nudge — nothing counts
+    expect(state.summary.total).toBe(2); // rabies + sterilization only
+  });
+
+  it("not_regulated with nothing on record omits the card entirely", () => {
+    const state = deriveComplianceState(
+      baseInput({
+        obligations: obligations({
+          sterilization: { requirementLevel: "not_regulated" },
+          microchip: { requirementLevel: "not_regulated" },
+        }),
+      }),
+    );
+    expect(state.cards.some((c) => c.key === "sterilization")).toBe(false);
+    expect(state.cards.some((c) => c.key === "microchip")).toBe(false);
+    expect(state.summary.total).toBe(1); // rabies only
+  });
+
+  it("recommended with nothing on record keeps a softer 'Sin registro' card, uncounted", () => {
+    const state = deriveComplianceState(
+      baseInput({
+        obligations: obligations({ sterilization: { requirementLevel: "recommended" } }),
+      }),
+    );
+    const sterilization = state.cards.find((c) => c.key === "sterilization");
+    expect(sterilization?.state).toBe("Sin registro");
+    expect(sterilization?.requirementTier).toBe("recommended");
+    expect(state.summary.total).toBe(2); // rabies + microchip
+  });
+
+  it("N-de-M counts mandatory obligations only, and ok tracks the same subset", () => {
+    const state = deriveComplianceState(
+      baseInput({
+        events: [
+          vaccination("Antirrábica", "2027-06-01", VET),
+          { eventType: "microchip_implanted", occurredAt: NOW, payload: {}, ...VET },
+        ],
+        microchipCode: "982000123456789",
+        obligations: obligations({ sterilization: { requirementLevel: "recommended" } }),
+      }),
+    );
+    expect(state.summary.total).toBe(2); // rabies + microchip (sterilization recommended)
+    expect(state.summary.ok).toBe(2); // vigente verified dose + verified chip
+    expect(state.summary.label).toBe("2 de 2 al día");
+  });
+
+  it("the header chip reads the worst COUNTED obligation, not an informational card", () => {
+    // Verified vigente rabies + verified chip (both ok, counted) + a declared
+    // sterilization that is only recommended here (neutral, uncounted). The
+    // "2 de 2 al día" badge must not turn neutral because of the uncounted card.
+    const state = deriveComplianceState(
+      baseInput({
+        events: [
+          vaccination("Antirrábica", "2027-06-01", VET),
+          { eventType: "microchip_implanted", occurredAt: NOW, payload: {}, ...VET },
+          { eventType: "sterilization_performed", occurredAt: NOW, payload: {}, ...SELF },
+        ],
+        microchipCode: "982000123456789",
+        obligations: obligations({ sterilization: { requirementLevel: "recommended" } }),
+      }),
+    );
+    expect(state.summary.ok).toBe(state.summary.total);
+    expect(state.worstTone).toBe("ok");
+  });
+
+  it("is pure — identical resolved inputs produce identical outputs (CS1)", () => {
+    const input = {
+      ...baseInput({
+        events: [vaccination("Antirrábica", "2026-06-01", VET)],
+        microchipCode: "982000123456789",
+        obligations: obligations({
+          microchip: {
+            requirementLevel: "mandatory",
+            legalBasis: "Ley 22.953",
+            authority: "GCBA",
+          },
+        }),
+      }),
+    };
+    expect(deriveComplianceState(input)).toEqual(deriveComplianceState(input));
+  });
+});
+
+describe("citation composition (CS5/CS6)", () => {
+  it("composeLegalCitation joins legalBasis · authority, dropping blanks", () => {
+    expect(composeLegalCitation({ legalBasis: "Ley 14.107", authority: "Municipalidad" })).toBe(
+      "Ley 14.107 · Municipalidad",
+    );
+    expect(composeLegalCitation({ legalBasis: "Ley 14.107", authority: null })).toBe("Ley 14.107");
+    expect(composeLegalCitation({ legalBasis: null, authority: null })).toBeNull();
+    expect(composeLegalCitation(null)).toBeNull();
+  });
+
+  it("microchip footnote composes from the resolved row when a citation exists", () => {
+    const state = deriveComplianceState(
+      baseInput({
+        obligations: obligations({
+          microchip: { legalBasis: "Ordenanza 999/2026", authority: "Municipalidad de Ushuaia" },
+        }),
+      }),
+    );
+    const chip = state.cards.find((c) => c.key === "microchip");
+    expect(chip?.legalFootnote).toBe(
+      "Identificación · Ordenanza 999/2026 · Municipalidad de Ushuaia",
+    );
+  });
+
+  it("keeps the generic stopgap when nothing resolves — never invents law", () => {
+    const state = deriveComplianceState(baseInput({ obligations: obligations() }));
+    const chip = state.cards.find((c) => c.key === "microchip");
+    expect(chip?.legalFootnote).toBe("Identificación · según normativa jurisdiccional");
+  });
+
+  it("PPP footnote composes from the resolved ppp rule row", () => {
+    const state = deriveComplianceState(
+      baseInput({
+        pppApplies: true,
+        pppRule: { legalBasis: "Ley 14.107", authority: null, sourceUrl: null },
+      }),
+    );
+    const ppp = state.cards.find((c) => c.key === "ppp");
+    expect(ppp?.legalFootnote).toBe("Régimen perros potencialmente peligrosos · Ley 14.107");
+  });
+
+  it("PPP footnote keeps the generic stopgap without a resolved citation", () => {
+    const state = deriveComplianceState(baseInput({ pppApplies: true }));
+    const ppp = state.cards.find((c) => c.key === "ppp");
+    expect(ppp?.legalFootnote).toBe(
+      "Régimen perros potencialmente peligrosos · regla jurisdiccional",
+    );
+  });
+
+  it("an Ushuaia pet never sees CABA legal text on the tiered cards (CS6)", () => {
+    // A CABA pet's resolved rules carry the CABA citation; an Ushuaia pet's
+    // carry their own (or none). The NON-rabies cards must reflect ONLY what
+    // resolved — the rabies footnote is the RG1-gated hardcoded literal and is
+    // asserted separately below, unchanged.
+    const ushuaia = deriveComplianceState(
+      baseInput({
+        microchipCode: "982000123456789",
+        pppApplies: true,
+        obligations: obligations(), // nothing resolved beyond tiers
+        pppRule: null,
+      }),
+    );
+    const nonRabies = ushuaia.cards.filter((c) => c.key !== "rabies");
+    const serialized = JSON.stringify(nonRabies);
+    expect(serialized).not.toContain("41.831");
+    expect(serialized).not.toContain("22.953");
+    expect(serialized).not.toContain("CABA");
+  });
+
+  it("RG1 boundary: the rabies footnote literal is untouched until ratification", () => {
+    const state = deriveComplianceState(baseInput({ obligations: obligations() }));
+    const rabies = state.cards.find((c) => c.key === "rabies");
+    expect(rabies?.legalFootnote).toBe(
+      "Obligación del propietario · Ord. CABA 41.831 · Ley 22.953",
+    );
+  });
+});
+
+describe("regression fence — no NEW jurisdiction-literal copies in the compliance module", () => {
+  // Scope (WU2 note): data/legal-baseline/ar-v1.ts legitimately carries these
+  // literals as dataset CONTENT, so the fence scans ONLY the compliance module
+  // (lib/projections + components/pet-profile), excluding test files. The ONE
+  // permitted line is the RG1-gated FOOTNOTE.rabies constant in
+  // pet-compliance.ts — any second occurrence is a new hardcode sneaking in.
+  it("finds the CABA literals only on the FOOTNOTE.rabies line of pet-compliance.ts", () => {
+    const root = process.cwd();
+    const dirs = [join(root, "lib", "projections"), join(root, "components", "pet-profile")];
+    const offenders: string[] = [];
+    for (const dir of dirs) {
+      for (const file of readdirSync(dir)) {
+        if (!/\.(ts|tsx)$/.test(file) || /\.test\./.test(file)) continue;
+        const lines = readFileSync(join(dir, file), "utf8").split("\n");
+        lines.forEach((line, i) => {
+          if (line.includes("41.831") || line.includes("22.953")) {
+            offenders.push(`${file}:${i + 1}:${line.trim()}`);
+          }
+        });
+      }
+    }
+    expect(offenders).toHaveLength(1);
+    expect(offenders[0]).toContain("pet-compliance.ts");
+    expect(offenders[0]).toContain("rabies:");
   });
 });

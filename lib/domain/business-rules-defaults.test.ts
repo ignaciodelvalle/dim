@@ -13,6 +13,8 @@ import { describe, expect, it } from "vitest";
 import {
   BUSINESS_RULES_DEFAULTS,
   microchipObligationApplies,
+  microchipObligationRuleInfo,
+  obligationRuleInfo,
 } from "@/lib/domain/business-rules-defaults";
 
 describe("microchipObligationApplies — parity with the pre-tier boolean gate", () => {
@@ -54,4 +56,73 @@ describe("microchipObligationApplies — a resolved tier supersedes the boolean"
       ).toBe(false);
     },
   );
+});
+
+// ---------------------------------------------------------------------------
+// Effective obligation info (WU3 — the CS1 threading mappers)
+// ---------------------------------------------------------------------------
+
+describe("obligationRuleInfo — effective tier + metadata mapping", () => {
+  it("an explicit tier passes through, with legal metadata defaulted to null", () => {
+    expect(obligationRuleInfo({ requirementLevel: "not_regulated" })).toEqual({
+      requirementLevel: "not_regulated",
+      legalBasis: null,
+      authority: null,
+      sourceUrl: null,
+    });
+  });
+
+  it("NULL tier falls back to mandatory — the pre-tier surface behavior for rabies/sterilization", () => {
+    expect(obligationRuleInfo({ requirementLevel: null }).requirementLevel).toBe("mandatory");
+    expect(obligationRuleInfo({}).requirementLevel).toBe("mandatory");
+  });
+
+  it("carries the resolved row's legal provenance verbatim", () => {
+    expect(
+      obligationRuleInfo({
+        requirementLevel: "mandatory",
+        legalBasis: "Ley 22.953",
+        authority: "GCBA",
+        sourceUrl: "https://example.gob.ar",
+      }),
+    ).toEqual({
+      requirementLevel: "mandatory",
+      legalBasis: "Ley 22.953",
+      authority: "GCBA",
+      sourceUrl: "https://example.gob.ar",
+    });
+  });
+});
+
+describe("microchipObligationRuleInfo — OR5 parity with microchipObligationApplies", () => {
+  // The obligation-gate parity theorem: for every rule shape, "effective tier
+  // is mandatory" must coincide exactly with the boolean gate — otherwise the
+  // panel and the (retired) boolean path could disagree mid-migration.
+  it.each([
+    [{ payload: { required: true } }],
+    [{ payload: { required: false } }],
+    [{ payload: {} as { required?: boolean } }],
+    [{ requirementLevel: null, payload: { required: true } }],
+    [{ requirementLevel: "mandatory", payload: { required: false } }],
+    [{ requirementLevel: "recommended", payload: { required: true } }],
+    [{ requirementLevel: "not_regulated", payload: { required: true } }],
+    [{ requirementLevel: "optional", payload: { required: true } }],
+  ] as const)("parity holds for %j", (rule) => {
+    expect(microchipObligationRuleInfo(rule).requirementLevel === "mandatory").toBe(
+      microchipObligationApplies(rule),
+    );
+  });
+
+  it("an explicit non-mandatory tier passes through (recommended stays recommended, not not_regulated)", () => {
+    expect(
+      microchipObligationRuleInfo({ requirementLevel: "recommended", payload: { required: true } })
+        .requirementLevel,
+    ).toBe("recommended");
+  });
+
+  it("NULL tier + required:false maps to not_regulated (the boolean opt-out)", () => {
+    expect(microchipObligationRuleInfo({ payload: { required: false } }).requirementLevel).toBe(
+      "not_regulated",
+    );
+  });
 });

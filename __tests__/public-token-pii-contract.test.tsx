@@ -115,6 +115,17 @@ vi.mock("drizzle-orm", async (importOriginal) => {
   return actual as object;
 });
 
+// Business-rule resolver — the page resolves the registry-claim rule (ADR-7)
+// and the streamed Tier-2 section resolves the observation window; neither may
+// touch real infra here. matchedRow null → the neutral miMAR-scoped claim.
+vi.mock("@/lib/infra/business-rules-resolver", () => ({
+  resolveBusinessRule: vi.fn(async () => ({
+    payload: { days: 30 },
+    source: "default",
+    matchedRow: null,
+  })),
+}));
+
 vi.mock("@/lib/events/event-confidence", () => ({
   computeConfidence: vi.fn(() => "self_reported"),
   isAtLeast: vi.fn(() => false),

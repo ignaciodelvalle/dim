@@ -149,6 +149,57 @@ export function microchipObligationApplies(rule: {
     : rule.payload.required !== false;
 }
 
+/**
+ * Effective obligation info threaded into `deriveComplianceState` (spec CS1).
+ *
+ * `requirementLevel` is the EFFECTIVE tier for the surface, never null: a
+ * resolved row's explicit tier always wins; with no tier established the
+ * fallback preserves the pre-tier surface behavior (rabies/sterilization were
+ * always rendered as obligations), so dev/test environments with NULL tiers
+ * everywhere see zero behavior diff until baseline rows are seeded (WU2
+ * sign-off pending). Legal metadata defaults to null — the projection then
+ * keeps its generic stopgap footnote instead of inventing law (CS5).
+ */
+export interface ObligationRuleInfo {
+  requirementLevel: RequirementLevel;
+  legalBasis: string | null;
+  authority: string | null;
+  sourceUrl: string | null;
+}
+
+type ResolvedObligationRuleLike = {
+  requirementLevel?: RequirementLevel | null;
+  legalBasis?: string | null;
+  authority?: string | null;
+  sourceUrl?: string | null;
+};
+
+export function obligationRuleInfo(
+  rule: ResolvedObligationRuleLike,
+  fallbackLevel: RequirementLevel = "mandatory",
+): ObligationRuleInfo {
+  return {
+    requirementLevel: rule.requirementLevel ?? fallbackLevel,
+    legalBasis: rule.legalBasis ?? null,
+    authority: rule.authority ?? null,
+    sourceUrl: rule.sourceUrl ?? null,
+  };
+}
+
+/**
+ * Microchip variant of `obligationRuleInfo` — the tier fallback follows the
+ * OR5 boolean gate (`payload.required`) instead of a flat default, so
+ * `requirementLevel === "mandatory"` here is EXACTLY
+ * `microchipObligationApplies(rule)` (parity-tested in
+ * business-rules-defaults.test.ts). Keeps the RG2-gated default intact: with
+ * no row anywhere, the default payload `{required: true}` still gates ON.
+ */
+export function microchipObligationRuleInfo(
+  rule: ResolvedObligationRuleLike & { payload: { required?: boolean } },
+): ObligationRuleInfo {
+  return obligationRuleInfo(rule, microchipObligationApplies(rule) ? "mandatory" : "not_regulated");
+}
+
 export interface BusinessRulePayloadByType {
   ppp_breed_list: PppBreedList;
   ppp_weight_threshold: PppWeightThreshold;

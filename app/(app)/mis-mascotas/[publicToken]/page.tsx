@@ -96,7 +96,10 @@ import {
   fetchLivePetsForCarouselRanking,
   fetchPetEventsForProfileV2,
 } from "@/lib/analytics/owner-dashboard";
-import { microchipObligationApplies } from "@/lib/domain/business-rules-defaults";
+import {
+  microchipObligationRuleInfo,
+  obligationRuleInfo,
+} from "@/lib/domain/business-rules-defaults";
 import { resolveEmergencyContacts } from "@/lib/domain/emergency-contacts";
 import { computeMedicationsActive } from "@/lib/domain/libreta-health-status";
 import {
@@ -486,8 +489,10 @@ export default async function PetDetailPage({
   // ~5 SEQUENTIAL awaits, adding ~150-250 ms of serial round-trips to every
   // profile TTFB in prod. One Promise.all collapses them. Only the pregnancy card
   // (derives from typedEvents) and ownerFirstName (pure) stay AFTER the fan-out.
-  //   - pppBreedRule / microchipRule: jurisdiction business rules for the edit
-  //     sheet + microchip obligation (display-only; submit-time stays authoritative).
+  //   - pppBreedRule / microchipRule / rabiesObligationRule /
+  //     sterilizationObligationRule: jurisdiction business rules for the edit
+  //     sheet + the tiered compliance obligations (display-only; submit-time
+  //     stays authoritative).
   //   - typedEvents: v2 targeted events (replaces the old O(N) events + signing).
   //   - lostData: lost-episode + scans, a self-contained async unit — its internal
   //     episode→scans dependency (scoped so a lost→found→lost pet never pollutes
@@ -495,7 +500,7 @@ export default async function PetDetailPage({
   //     org viewers (LostCaseBlock needs it for both roles).
   //   - reminders / canonicalIds / rabies turno: the compliance-projection reads.
   //
-  // BOUNDED (2026-08-09, discovery scan). Seven concurrent reads — the widest
+  // BOUNDED (2026-08-09, discovery scan). Nine concurrent reads — the widest
   // fan-out outside the dashboards — on the screen an owner opens to check
   // their own animal, and on the screen a vet will open during the pilot. It
   // had no deadline: a degraded pooler left it hanging with nothing logged.
@@ -506,6 +511,16 @@ export default async function PetDetailPage({
         locality: pet.jurisdictionLocality,
       }),
       resolveBusinessRule("microchip_required", {
+        province: pet.jurisdictionProvince,
+        locality: pet.jurisdictionLocality,
+      }),
+      // Tiered obligation rules (spec CS1) — resolved once here, threaded into
+      // the pure compliance projection below.
+      resolveBusinessRule("rabies_vaccination", {
+        province: pet.jurisdictionProvince,
+        locality: pet.jurisdictionLocality,
+      }),
+      resolveBusinessRule("sterilization", {
         province: pet.jurisdictionProvince,
         locality: pet.jurisdictionLocality,
       }),
@@ -591,6 +606,8 @@ export default async function PetDetailPage({
   const [
     pppBreedRule,
     microchipRule,
+    rabiesObligationRule,
+    sterilizationObligationRule,
     { typedEvents },
     lostData,
     petActiveReminders,
@@ -701,9 +718,22 @@ export default async function PetDetailPage({
         }
       : null,
     microchipCode: canonicalIds.microchip?.code ?? null,
-    // Tier-aware gate (migration 0183, spec OR5): requirement_level wins when
-    // set; rows/defaults without a tier keep the boolean semantics.
-    microchipApplies: microchipObligationApplies(microchipRule),
+    // Jurisdiction obligations (spec CS1) — effective tiers + legal
+    // provenance, resolved once in the fan-out above. A NULL tier preserves
+    // the pre-tier behavior: rabies/sterilization stay obligations, microchip
+    // keeps the OR5 boolean gate (requirement_level wins when set).
+    obligations: {
+      rabies: obligationRuleInfo(rabiesObligationRule),
+      sterilization: obligationRuleInfo(sterilizationObligationRule),
+      microchip: microchipObligationRuleInfo(microchipRule),
+    },
+    // PPP citation source (CS5): composed by the projection from the resolved
+    // ppp_breed_list row; generic stopgap when nothing resolves.
+    pppRule: {
+      legalBasis: pppBreedRule.legalBasis ?? null,
+      authority: pppBreedRule.authority ?? null,
+      sourceUrl: pppBreedRule.sourceUrl ?? null,
+    },
     pppApplies: Boolean(pet.potentiallyDangerousBreed),
     // PPP-indeterminado inputs: a DOG missing breed and/or weight surfaces the
     // obligation instead of hiding it (2026-07-04).

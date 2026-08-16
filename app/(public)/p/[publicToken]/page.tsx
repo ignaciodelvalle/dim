@@ -42,8 +42,10 @@ import {
   pets,
   profiles,
 } from "@/db";
+import { deriveCredentialRegistryClaim } from "@/lib/domain/credential-claims";
 import { readPoint } from "@/lib/domain/location";
 import { computeConfidence, isAtLeast } from "@/lib/events/event-confidence";
+import { resolveBusinessRule } from "@/lib/infra/business-rules-resolver";
 import { fetchActiveIdentifications } from "@/lib/infra/pet-identifiers";
 import { publicPetByToken } from "@/lib/infra/public-pet-lookup";
 import { RateLimitError, callerIp, enforceRateLimit } from "@/lib/infra/rate-limit";
@@ -312,6 +314,7 @@ export default async function PublicCredentialPage({
     serviceDog,
     lostContext,
     lostTattooPhotoUrl,
+    registryClaim,
   } = data;
 
   // Tri-state antirrábica vigencia for the identity grid (R4). One boolean of
@@ -835,8 +838,9 @@ export default async function PublicCredentialPage({
 
           {/* Identity section */}
           <div className="border-t border-ln-line-2 px-4 py-[13px]">
+            {/* Claim tiering (ADR-7, CT1/CT2) — see lib/domain/credential-claims.ts. */}
             <p className="mb-[9px] font-ln-mono text-xs font-semibold uppercase tracking-[.1em] text-ln-mute">
-              Identidad registrada
+              {registryClaim.identityHeading}
             </p>
             <div className="grid grid-cols-2 gap-x-3.5 gap-y-[11px]">
               <CredField label="Credencial" value={statusLabel(pet.status)} mono={false} />
@@ -1026,6 +1030,7 @@ async function loadCredentialViewData(pet: Pet) {
     latestVaccinationRows,
     openCustodyEpisodeRows,
     rabiesVaccinationRows,
+    microchipRegistryRule,
   ] = await Promise.all([
     // Canonical identifier rows — boolean indicators + lost-branch display.
     fetchActiveIdentifications(pet.id),
@@ -1085,6 +1090,12 @@ async function loadCredentialViewData(pet: Pet) {
       .where(and(eq(petEvents.petId, pet.id), eq(petEvents.eventType, "vaccination_administered")))
       .orderBy(desc(petEvents.occurredAt))
       .limit(50),
+    // Credential claim tiering (ADR-7, CT1/CT2) — PII-free rule lookup keyed
+    // by the pet's jurisdiction; see lib/domain/credential-claims.ts.
+    resolveBusinessRule("microchip_required", {
+      province: pet.jurisdictionProvince,
+      locality: pet.jurisdictionLocality,
+    }),
   ]);
 
   // Corrections fold into the semaphore + banner (WAVE D1) — one fetch, cached
@@ -1328,6 +1339,7 @@ async function loadCredentialViewData(pet: Pet) {
     serviceDog,
     lostContext,
     lostTattooPhotoUrl,
+    registryClaim: deriveCredentialRegistryClaim(microchipRegistryRule),
   };
 }
 

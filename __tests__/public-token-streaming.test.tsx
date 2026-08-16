@@ -138,9 +138,14 @@ vi.mock("@/lib/infra/origin-org", () => ({
 }));
 
 // Business-rule resolver — called synchronously in CredentialTier2Medical's
-// query prefix (even when the render suspends), so it must not touch real infra.
+// query prefix (even when the render suspends) AND by the page's registry-claim
+// resolution (ADR-7), so it must not touch real infra. Configurable per test:
+// the default resolves nothing (matchedRow: null → neutral claim).
+const { mockResolveBusinessRule } = vi.hoisted(() => ({
+  mockResolveBusinessRule: vi.fn(),
+}));
 vi.mock("@/lib/infra/business-rules-resolver", () => ({
-  resolveBusinessRule: vi.fn(async () => ({ payload: { days: 30 } })),
+  resolveBusinessRule: mockResolveBusinessRule,
 }));
 
 // Tier2MedicalView — prop-dumping spy so the characterization test can assert
@@ -231,6 +236,14 @@ describe("/p/[publicToken] — #16a streaming + next/image", () => {
     mockEnforceRateLimit.mockResolvedValue(undefined);
     mockResolveOriginOrg.mockResolvedValue(null);
     mockShouldShowOriginOrgBadge.mockReturnValue(false);
+    // Default: nothing resolves anywhere in the cascade (payload keeps the
+    // rabies-observation window consumers happy; matchedRow null → the
+    // registry claim stays neutral).
+    mockResolveBusinessRule.mockResolvedValue({
+      payload: { days: 30 },
+      source: "default",
+      matchedRow: null,
+    });
   });
 
   // -------------------------------------------------------------------------
@@ -366,5 +379,43 @@ describe("/p/[publicToken] — #16a streaming + next/image", () => {
     );
     const html = renderToStaticMarkup(await CredentialOriginOrg({ petId: "pet-strm-1" }));
     expect(html).toBe("");
+  });
+
+  // -------------------------------------------------------------------------
+  // 5. Credential claim tiering (ADR-7, spec CT1/CT2): the identity heading's
+  //    unqualified "registrada" claim renders only where a registry rule backs
+  //    it; a province with no rule resolved gets the miMAR-scoped claim.
+  // -------------------------------------------------------------------------
+  async function renderCredentialHtml(): Promise<string> {
+    mockDbSelect.mockImplementation(() =>
+      buildSelectChain([{ pet: BASE_PET, photo: { storagePath: "pampa.jpg" } }]),
+    );
+    const { default: PublicCredentialPage } = await import("@/app/(public)/p/[publicToken]/page");
+    const element = await PublicCredentialPage({
+      params: Promise.resolve({ publicToken: BASE_PET.publicToken }),
+    });
+    return renderToStaticMarkup(element as React.ReactElement);
+  }
+
+  it("no registry rule resolved → the identity claim scopes itself to miMAR (CT1)", async () => {
+    // Default resolver mock: matchedRow null (nothing resolves in the cascade).
+    const html = await renderCredentialHtml();
+    expect(html).toContain("Identidad registrada en miMAR");
+  });
+
+  it("mandatory + registry-backed → preserves the existing full claim (CT2)", async () => {
+    mockResolveBusinessRule.mockImplementation(async (ruleType: string) =>
+      ruleType === "microchip_required"
+        ? {
+            payload: { required: true },
+            requirementLevel: "mandatory",
+            source: "province",
+            matchedRow: { id: "rule-1", country: "AR", province: "CABA", locality: null },
+          }
+        : { payload: { days: 30 }, source: "default", matchedRow: null },
+    );
+    const html = await renderCredentialHtml();
+    expect(html).toContain("Identidad registrada");
+    expect(html).not.toContain("Identidad registrada en miMAR");
   });
 });

@@ -45,7 +45,10 @@ import {
   timeSlots,
   welfareReports,
 } from "@/db";
-import { microchipObligationApplies } from "@/lib/domain/business-rules-defaults";
+import {
+  microchipObligationRuleInfo,
+  obligationRuleInfo,
+} from "@/lib/domain/business-rules-defaults";
 import {
   type VaccinationSummary,
   computeVaccinationSummary,
@@ -57,7 +60,11 @@ import {
 } from "@/lib/domain/vaccine-reminder-state";
 import { excludeAuthorityOnlyClause } from "@/lib/events/events";
 import { overlayAmendments } from "@/lib/infra/amendment";
-import { resolveBusinessRule } from "@/lib/infra/business-rules-resolver";
+import {
+  type Jurisdiction,
+  canonicalJurisdictionKey,
+  resolveBusinessRuleForJurisdictions,
+} from "@/lib/infra/business-rules-resolver";
 import {
   excludeResolvedLostEpisodeSql,
   excludeStaleWelcomeSql,
@@ -1419,33 +1426,38 @@ export async function fetchComplianceStatesForPets(
 
   const petInfoByPet = new Map(petRows.map((r) => [r.id, r]));
 
-  // Resolve microchip_required once per DISTINCT jurisdiction pair — the rule
-  // resolver hits the DB per call, and an owner's pets cluster in few
-  // jurisdictions. Same gate the profile applies; default { required: true }.
-  const jurisdictionKeys = new Map<string, { province: string | null; locality: string | null }>();
+  // Resolve the three tiered obligation rules once per DISTINCT jurisdiction
+  // (spec CS1 — the pre-tier version resolved microchip_required only). The
+  // rule resolver cascades per call and an owner's pets cluster in few
+  // jurisdictions, so this stays O(distinct jurisdictions × 3 rule types),
+  // never O(pets) — same batch pattern, widened. Same tiers the profile
+  // threads; NULL tiers preserve the pre-tier behavior via the
+  // obligationRuleInfo / microchipObligationRuleInfo (OR5) fallbacks.
+  const distinctJurisdictions = new Map<string, Jurisdiction>();
   for (const r of petRows) {
-    jurisdictionKeys.set(`${r.jurisdictionProvince ?? ""}|${r.jurisdictionLocality ?? ""}`, {
+    const jurisdiction: Jurisdiction = {
       province: r.jurisdictionProvince,
       locality: r.jurisdictionLocality,
-    });
+    };
+    distinctJurisdictions.set(canonicalJurisdictionKey(jurisdiction), jurisdiction);
   }
-  const microchipRuleByKey = new Map<string, boolean>();
-  await Promise.all(
-    [...jurisdictionKeys.entries()].map(async ([key, j]) => {
-      const rule = await resolveBusinessRule("microchip_required", {
-        province: j.province,
-        locality: j.locality,
-      });
-      // Tier-aware gate (migration 0183, spec OR5): requirement_level wins
-      // when set; rows/defaults without a tier keep the boolean semantics.
-      microchipRuleByKey.set(key, microchipObligationApplies(rule));
-    }),
-  );
+  const jurisdictionList = [...distinctJurisdictions.values()];
+  const [rabiesRuleByKey, sterilizationRuleByKey, microchipRuleByKey] = await Promise.all([
+    resolveBusinessRuleForJurisdictions("rabies_vaccination", jurisdictionList),
+    resolveBusinessRuleForJurisdictions("sterilization", jurisdictionList),
+    resolveBusinessRuleForJurisdictions("microchip_required", jurisdictionList),
+  ]);
 
   const result = new Map<string, ComplianceState>();
   for (const petId of petIds) {
     const petInfo = petInfoByPet.get(petId);
-    const jurisdictionKey = `${petInfo?.jurisdictionProvince ?? ""}|${petInfo?.jurisdictionLocality ?? ""}`;
+    const jurisdictionKey = canonicalJurisdictionKey({
+      province: petInfo?.jurisdictionProvince ?? null,
+      locality: petInfo?.jurisdictionLocality ?? null,
+    });
+    const rabiesRule = rabiesRuleByKey.get(jurisdictionKey);
+    const sterilizationRule = sterilizationRuleByKey.get(jurisdictionKey);
+    const microchipRule = microchipRuleByKey.get(jurisdictionKey);
     result.set(
       petId,
       deriveComplianceState({
@@ -1455,7 +1467,17 @@ export async function fetchComplianceStatesForPets(
         reservedRabiesTurno: turnoByPet.get(petId) ?? null,
         microchipCode: identsByPet.get(petId)?.microchip?.code ?? null,
         pppApplies: Boolean(petInfo?.ppp),
-        microchipApplies: microchipRuleByKey.get(jurisdictionKey) ?? true,
+        // All three maps are keyed off the same distinct-jurisdiction set, so
+        // they hit/miss together; a miss (pet row absent from petRows) falls
+        // back to the legacy universal behavior, exactly as `?? true` did.
+        obligations:
+          rabiesRule && sterilizationRule && microchipRule
+            ? {
+                rabies: obligationRuleInfo(rabiesRule),
+                sterilization: obligationRuleInfo(sterilizationRule),
+                microchip: microchipObligationRuleInfo(microchipRule),
+              }
+            : undefined,
         // Same PPP-determinability inputs the profile passes (review 02-6).
         species: petInfo?.species ?? null,
         breed: petInfo?.breed ?? null,
