@@ -140,7 +140,8 @@ export type RabiesCoverageKpi = {
    * DENOMINATOR: the REGISTRY (registered/active dogs), i.e. `registryDenominator`.
    */
   current: number;
-  /** Public-health target from TARGETS.RABIES_COVERAGE_PCT. */
+  /** Public-health target — the flat TARGETS.RABIES_COVERAGE_PCT default, or
+   *  the jurisdiction-resolved value when the caller injected one (ADR-8). */
   target: number;
   /** Number of distinct localities in scope with ≥1 dog. */
   partidos: number;
@@ -221,11 +222,16 @@ export type RabiesCoverageKpi = {
 export async function fetchRabiesCoverage(
   ctx: ProjectionContext,
   sharedDenom?: RabiesDenominator,
+  // ADR-8 (jurisdiction-compliance WU4b): gob RSC callers may inject the
+  // jurisdiction-resolved rabies target (resolveJurisdictionTargets); the flat
+  // TARGETS default keeps every legacy/national caller byte-identical (JT5 —
+  // admin + Panorama stay national).
+  targetPct: number = TARGETS.RABIES_COVERAGE_PCT,
 ): Promise<RabiesCoverageKpi> {
   if (ctx.scope.kind === "jurisdictions" && ctx.scope.jurisdictions.length === 0) {
     return {
       current: 0,
-      target: TARGETS.RABIES_COVERAGE_PCT,
+      target: targetPct,
       partidos: 0,
       hasData: false,
       registryDenominator: 0,
@@ -384,7 +390,7 @@ export async function fetchRabiesCoverage(
 
   return {
     current,
-    target: TARGETS.RABIES_COVERAGE_PCT,
+    target: targetPct,
     partidos: denom.partidos,
     hasData: totalDogs > 0,
     registryDenominator: totalDogs,

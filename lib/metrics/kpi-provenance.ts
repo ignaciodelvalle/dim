@@ -80,6 +80,21 @@ export const KPI_PROVENANCE: Record<KpiId, KpiProvenance> = {
     formulaEs:
       "Mascotas activas o extraviadas con microchip ISO activo ÷ mascotas activas o extraviadas del alcance × 100.",
   },
+  // Mandated-denominator family (jurisdiction-compliance WU4a) — the honest
+  // twins: same numerators as sus gemelas brutas, denominator restricted to
+  // jurisdictions whose RESOLVED rules actually mandate the obligation.
+  microchip_compliance_mandated: {
+    formulaEs:
+      "Mascotas activas o extraviadas con microchip ISO activo ÷ mascotas activas o extraviadas SOLO en jurisdicciones cuya normativa cargada declara el microchip obligatorio × 100.",
+  },
+  rabies_compliance_mandated: {
+    formulaEs:
+      "Perros activos o extraviados con dosis antirrábica vigente (últimos 12 meses) ÷ perros activos o extraviados SOLO en jurisdicciones cuya normativa cargada declara la vacunación obligatoria × 100.",
+  },
+  sterilization_compliance_mandated: {
+    formulaEs:
+      "Mascotas activas o extraviadas con al menos una esterilización registrada ÷ mascotas activas o extraviadas SOLO en jurisdicciones cuya normativa cargada declara la esterilización obligatoria × 100.",
+  },
   ppp_registry_compliance: {
     formulaEs:
       "Mascotas PPP con atestación registrada en miMAR ÷ mascotas PPP activas × 100 (mide adopción del flujo en la plataforma, no cumplimiento registral externo).",

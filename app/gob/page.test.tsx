@@ -181,10 +181,35 @@ const complianceFixture = {
   breed: { flaggedCount: 0, ratePct: 0, attested: 0 },
 };
 
+// Mandated-denominator family (WU4a): dev-state default — no obligation rules
+// loaded anywhere, so the tiles dash via the zeroDenominator guard.
+const emptyMandatedKpi = {
+  ratePct: 0,
+  compliant: 0,
+  inMandated: 0,
+  mandatedJurisdictions: 0,
+  hasMandate: false,
+};
+
 vi.mock("@/lib/analytics/compliance-metrics", () => ({
   fetchMicrochipPenetration: vi.fn(async () => complianceFixture.microchip),
   fetchDangerousBreedCompliance: vi.fn(async () => complianceFixture.breed),
+  fetchMicrochipComplianceInMandated: vi.fn(async () => emptyMandatedKpi),
+  fetchRabiesComplianceInMandated: vi.fn(async () => emptyMandatedKpi),
+  fetchSterilizationComplianceInMandated: vi.fn(async () => emptyMandatedKpi),
 }));
+
+// ADR-8 targets (WU4b): flat national tier, nothing adjusted — the page must
+// render exactly as before the resolver existed.
+vi.mock("@/lib/analytics/jurisdiction-targets", async () => {
+  const actual = await vi.importActual<typeof import("@/lib/analytics/jurisdiction-targets")>(
+    "@/lib/analytics/jurisdiction-targets",
+  );
+  return {
+    ...actual,
+    resolveJurisdictionTargetsForScope: vi.fn(async () => actual.flatJurisdictionTargets()),
+  };
+});
 
 const govtDashboardsFixture = { perdidasActiveCount: 5, myAssignedWelfareCount: 3 };
 

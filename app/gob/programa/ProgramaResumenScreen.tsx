@@ -57,13 +57,16 @@ import { fetchQueueHealthScoped } from "@/lib/analytics/admin-metrics";
 import { analyticsRetryHref, loadWithTimeout } from "@/lib/analytics/analytics-load";
 import { fetchMicrochipPenetration } from "@/lib/analytics/compliance-metrics";
 import { resolveJurisdictionScope } from "@/lib/analytics/jurisdiction-scope";
+import {
+  JURISDICTION_ADJUSTED_TARGET_NOTE,
+  resolveJurisdictionTargetsForScope,
+} from "@/lib/analytics/jurisdiction-targets";
 import { fetchEnoSla } from "@/lib/analytics/surveillance-metrics";
 import { govtProvinceHref } from "@/lib/infra/admin-province-link";
 import { requireAdminOrGovtOrRedirect } from "@/lib/infra/auth-guards";
 import {
   NO_CENSUS_NOTE,
   type OutlierMetric,
-  TARGETS,
   buildProjectionContext,
   countAlertedProvinces,
   enoSlaTone,
@@ -186,6 +189,20 @@ export async function ProgramaResumenScreen({
     adminLocality,
   });
 
+  // ADR-8 (jurisdiction-compliance WU4b): jurisdiction-resolved targets for
+  // the legally-varying metas this screen judges (esterilización, microchip,
+  // and the outliers table's three columns). Resolved ONCE per request in the
+  // RSC — fail-safe (flat TARGETS on any read failure), so it sits outside
+  // the bounded load. Admin national/cross-province views stay flat by policy;
+  // every adjusted tile discloses the swap (JURISDICTION_ADJUSTED_TARGET_NOTE).
+  const jurisdictionTargets = await resolveJurisdictionTargetsForScope(
+    profile.role === "admin"
+      ? adminProvince
+        ? [{ province: adminProvince, locality: adminLocality ?? "" }]
+        : []
+      : filteredJurisdictions,
+  );
+
   // Header + filters render in both the data and degraded (timeout) branches.
   const header = (
     <ScreenHeader
@@ -237,7 +254,10 @@ export async function ProgramaResumenScreen({
       fetchEnoSla(ctx),
       fetchQueueHealthScoped(filteredJurisdictions, { adminProvince, adminLocality }),
       fetchDataQuality(ctx),
-      fetchCrossJurisdictionOutliers(ctx),
+      // The outliers table judges its three metrics against the SAME
+      // jurisdiction-resolved targets the KPI tiles above render (ADR-8);
+      // admin callers of this fetcher elsewhere stay flat (JT5).
+      fetchCrossJurisdictionOutliers(ctx, jurisdictionTargets.values),
       fetchPiiOversight(ctx),
       getCensusPopulationsCached(),
     ]),
@@ -349,7 +369,7 @@ export async function ProgramaResumenScreen({
     ? (resourceGap(
         {
           current: sterilRatePct,
-          target: TARGETS.STERILIZATION_COVERAGE_PCT,
+          target: jurisdictionTargets.values.STERILIZATION_COVERAGE_PCT,
           denominator: registry.total,
         },
         KPI_CATALOG.sterilization_coverage_population.resourceUnit,
@@ -359,7 +379,7 @@ export async function ProgramaResumenScreen({
     ? (resourceGap(
         {
           current: chipRatePct,
-          target: TARGETS.MICROCHIP_PENETRATION_PCT,
+          target: jurisdictionTargets.values.MICROCHIP_PENETRATION_PCT,
           denominator: registry.total,
         },
         KPI_CATALOG.microchip_penetration.resourceUnit,
@@ -414,8 +434,8 @@ export async function ProgramaResumenScreen({
         <OpKpi
           label="Esterilización"
           value={sterilRatePct > 0 ? formatPercent(sterilRatePct) : "—"}
-          tone={toneForTarget(sterilRatePct, TARGETS.STERILIZATION_COVERAGE_PCT)}
-          sub={`meta ${TARGETS.STERILIZATION_COVERAGE_PCT}%`}
+          tone={toneForTarget(sterilRatePct, jurisdictionTargets.values.STERILIZATION_COVERAGE_PCT)}
+          sub={`meta ${jurisdictionTargets.values.STERILIZATION_COVERAGE_PCT}%${jurisdictionTargets.adjusted.STERILIZATION_COVERAGE_PCT ? ` · ${JURISDICTION_ADJUSTED_TARGET_NOTE}` : ""}`}
           href="/gob/padron?vista=poblacion"
           info={getKpiInfo("sterilization_coverage_population")}
           descriptorId="sterilization_coverage_population"
@@ -426,8 +446,8 @@ export async function ProgramaResumenScreen({
         <OpKpi
           label="Microchip"
           value={chipRatePct > 0 ? formatPercent(chipRatePct) : "—"}
-          tone={toneForTarget(chipRatePct, TARGETS.MICROCHIP_PENETRATION_PCT)}
-          sub={`meta ${TARGETS.MICROCHIP_PENETRATION_PCT}%`}
+          tone={toneForTarget(chipRatePct, jurisdictionTargets.values.MICROCHIP_PENETRATION_PCT)}
+          sub={`meta ${jurisdictionTargets.values.MICROCHIP_PENETRATION_PCT}%${jurisdictionTargets.adjusted.MICROCHIP_PENETRATION_PCT ? ` · ${JURISDICTION_ADJUSTED_TARGET_NOTE}` : ""}`}
           href="/gob/padron?vista=censo"
           info={getKpiInfo("microchip_penetration")}
           descriptorId="microchip_penetration"
@@ -518,6 +538,11 @@ export async function ProgramaResumenScreen({
             <p className="text-md text-ln-op-mute">Sin datos provinciales disponibles.</p>
           ) : (
             <div className="space-y-2">
+              {/* JT4: the table's "meta" column carries the resolved values —
+                  disclose when any of them was locally adjusted. */}
+              {jurisdictionTargets.anyAdjusted && (
+                <p className="text-sm text-ln-op-mute">{JURISDICTION_ADJUSTED_TARGET_NOTE}.</p>
+              )}
               {topImpactSummary && (
                 <p className="text-md font-medium text-ln-op-ink-2">
                   {/* Scope honesty (red-team 2026-07 #5): this summary is built

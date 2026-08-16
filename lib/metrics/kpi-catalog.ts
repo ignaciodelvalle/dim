@@ -49,15 +49,18 @@
 //   lib/analytics/{govt-home-kpis,compliance-metrics,mortality-metrics} has a matching
 //   `fetcherName` in this catalog — CI fails if a new home-page KPI ships undocumented.
 
+import { COMPLIANCE_KPI_CATALOG, type ComplianceKpiId } from "./kpi-catalog-compliance";
 import { QUEUE_KPI_CATALOG, type QueueKpiId } from "./kpi-catalog-queues";
 import { REUNIFICATION_RATE_LABEL_ES } from "./kpi-label-constants";
 import { TARGETS } from "./targets";
 
 /** Stable identifier for a catalogued KPI. Snake_case, never reused once shipped. */
 export type KpiId =
-  // Operational-queue descriptors live in kpi-catalog-queues.ts (this file is
-  // at its file-size ratchet ceiling) — same contract, same KPI_CATALOG.
+  // Operational-queue + mandated-compliance descriptors live in sibling
+  // modules (this file is against its file-size ratchet) — same contract,
+  // same KPI_CATALOG.
   | QueueKpiId
+  | ComplianceKpiId
   | "rabies_coverage_dogs_12m"
   | "rabies_vaccination_rate_all_species"
   | "sterilization_coverage_population"
@@ -363,9 +366,11 @@ export type KpiDefinition = {
 };
 
 export const KPI_CATALOG: Record<KpiId, KpiDefinition> = {
-  // Operational-queue descriptors — declared in kpi-catalog-queues.ts, spread
-  // in here so `KPI_CATALOG.<id>` stays the ONE lookup every render site uses.
+  // Operational-queue + mandated-compliance descriptors — declared in their
+  // sibling modules, spread in here so `KPI_CATALOG.<id>` stays the ONE
+  // lookup every render site uses.
   ...QUEUE_KPI_CATALOG,
+  ...COMPLIANCE_KPI_CATALOG,
   rabies_coverage_dogs_12m: {
     id: "rabies_coverage_dogs_12m",
     label: "Cobertura antirrábica — perros (12 meses)",

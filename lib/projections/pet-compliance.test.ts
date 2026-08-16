@@ -911,6 +911,48 @@ describe("deriveComplianceState — obligations tier table (CS2/CS3/CS4)", () =>
   });
 });
 
+describe("MN2 scenario fence — no obligation nudge where the tier is not_regulated (WU4a T4.4)", () => {
+  // The metrics-spec scenario, pinned at the projection boundary the owner
+  // dashboard renders from (fetchComplianceStatesForPets threads `obligations`
+  // into THIS derivation — WU3 T3.2; the DB threading itself is pinned by
+  // __tests__/owner-dashboard-obligations-batch.test.ts): a NON-PPP dog in a
+  // jurisdiction where microchip is not mandatory must never see "sin
+  // microchip" fire as an obligation nudge — no card, no hint, no count.
+  const nonPppDog = baseInput({
+    species: "dog",
+    breed: "Caniche",
+    estimatedWeightKg: 8,
+    pppApplies: false,
+  });
+
+  it("non-PPP dog, microchip not_regulated, no chip on record → NO microchip nudge anywhere", () => {
+    const state = deriveComplianceState({
+      ...nonPppDog,
+      obligations: obligations({ microchip: { requirementLevel: "not_regulated" } }),
+    });
+    expect(state.cards.some((c) => c.key === "microchip")).toBe(false);
+    // Belt-and-braces: no OTHER card smuggles the microchip nudge in as copy.
+    const serialized = JSON.stringify(state.cards).toLowerCase();
+    expect(serialized).not.toContain("microchip");
+    expect(state.summary.total).toBe(2); // rabies + sterilization only
+  });
+
+  it("the rabies and sterilization equivalents hold too — nothing not_regulated ever nudges", () => {
+    const state = deriveComplianceState({
+      ...nonPppDog,
+      obligations: obligations({
+        rabies: { requirementLevel: "not_regulated" },
+        sterilization: { requirementLevel: "not_regulated" },
+        microchip: { requirementLevel: "not_regulated" },
+      }),
+    });
+    expect(state.cards.some((c) => c.key === "rabies")).toBe(false);
+    expect(state.cards.some((c) => c.key === "sterilization")).toBe(false);
+    expect(state.cards.some((c) => c.key === "microchip")).toBe(false);
+    expect(state.summary.total).toBe(0);
+  });
+});
+
 describe("citation composition (CS5/CS6)", () => {
   it("composeLegalCitation joins legalBasis · authority, dropping blanks", () => {
     expect(composeLegalCitation({ legalBasis: "Ley 14.107", authority: "Municipalidad" })).toBe(

@@ -13,6 +13,7 @@ import { describe, expect, it } from "vitest";
 
 import { buildProjectionContext } from "@/lib/metrics";
 import { windows } from "@/lib/metrics/period";
+
 import {
   completeness,
   countAlertedProvinces,
@@ -21,6 +22,7 @@ import {
   fetchPiiOversight,
   isOutlier,
 } from "./program-health";
+import { TARGETS } from "./targets";
 
 // ---------------------------------------------------------------------------
 // PURE helpers
@@ -246,5 +248,50 @@ describe("program-health — tsc shape contracts (no DB)", () => {
 
   it("completeness pure contract: full population → 100%", () => {
     expect(completeness({ total: 50, missingAny: 0 })).toBe(100);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// ADR-8 injected targets (jurisdiction-compliance WU4b — T4.8/T4.10)
+// ---------------------------------------------------------------------------
+// Live regression against the local Postgres: the SAME ctx queried with and
+// without injected targets must return the same measured rates, with ONLY the
+// judgment columns (target/gap/isOutlier) recomputed — injection changes what
+// the rows are judged AGAINST, never what was measured. Default call = flat
+// TARGETS byte-identical (JT5 — every admin caller passes nothing).
+
+describe("fetchCrossJurisdictionOutliers — injected jurisdiction targets (ADR-8)", () => {
+  const INJECTED = {
+    MICROCHIP_PENETRATION_PCT: 55,
+    STERILIZATION_COVERAGE_PCT: 45,
+    RABIES_COVERAGE_PCT: 65,
+  } as const;
+
+  it("judges every row against the injected target for its metric; default stays flat", async () => {
+    const ctx = buildProjectionContext({ role: "admin" }, [], windows.trailing12m());
+    const [flat, injected] = await Promise.all([
+      fetchCrossJurisdictionOutliers(ctx),
+      fetchCrossJurisdictionOutliers(ctx, INJECTED),
+    ]);
+
+    // Same population measured — row set and rates identical.
+    expect(injected.map((r) => [r.province, r.metric, r.rate])).toEqual(
+      flat.map((r) => [r.province, r.metric, r.rate]),
+    );
+
+    const metricKey = {
+      microchip: "MICROCHIP_PENETRATION_PCT",
+      sterilization: "STERILIZATION_COVERAGE_PCT",
+      rabies: "RABIES_COVERAGE_PCT",
+    } as const;
+    for (const row of injected) {
+      const target = INJECTED[metricKey[row.metric]];
+      expect(row.target).toBe(target);
+      expect(row.gap).toBe(Math.round((target - row.rate) * 10) / 10);
+      expect(row.isOutlier).toBe(row.rate < target);
+    }
+    for (const row of flat) {
+      expect(row.target).toBe(TARGETS[metricKey[row.metric]]);
+    }
   });
 });

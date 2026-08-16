@@ -53,8 +53,11 @@ import {
   type SuppressedCells,
   activePetsCondition,
   petsScopeClause,
+  rabiesVaccinatedExists,
   suppressedMetric,
 } from "@/lib/metrics";
+
+import { type MandatingClassifier, resolveMandatingJurisdictions } from "./mandating-jurisdictions";
 
 // Re-export so callers that import from this module don't need to change.
 export type { ProjectionContext } from "@/lib/metrics";
@@ -191,6 +194,180 @@ export async function fetchMicrochipPenetrationByProvince(
       chipped: Number(r.chipped),
       ratePct: pct(Number(r.chipped), r.active),
     }));
+}
+
+// ---------------------------------------------------------------------------
+// Mandated-denominator compliance family (jurisdiction-compliance WU4a — spec
+// MN1/MN3, design ADR-5 dual-report)
+// ---------------------------------------------------------------------------
+// Each fetcher reports compliance over the MANDATORY-jurisdiction denominator
+// ONLY: pets whose (province, locality) resolves an ACTUAL mandate for the
+// obligation (lib/analytics/mandating-jurisdictions.ts — matched rows only,
+// never the RG2-gated default). DUAL-REPORT, not a replacement: the legacy
+// bruta metrics above (fetchMicrochipPenetration et al.) are UNCHANGED —
+// DB-configured alert thresholds (metric_key CHECK, schema.ts) reference
+// their definitions, and a silent denominator swap would move persisted
+// thresholds (ADR-5).
+//
+// With NO obligation rows loaded (dev/staging until the WU2 baseline is
+// signed off and seeded) every jurisdiction classifies as not mandated, so
+// `inMandated` is 0 and `hasMandate` false — the tiles render "—" via the
+// zeroDenominator guard instead of a fabricated 0% (an HONEST empty state,
+// spec-intended, not a bug).
+
+export type MandatedComplianceKpi = {
+  /** % of pets (dogs, for rabies) compliant within mandating jurisdictions. */
+  ratePct: number;
+  /** Compliant pets within mandating jurisdictions (numerator). */
+  compliant: number;
+  /** Pets in scope whose jurisdiction mandates the obligation (denominator). */
+  inMandated: number;
+  /** Distinct pet (province, locality) pairs in scope classified as mandating. */
+  mandatedJurisdictions: number;
+  /** False when no jurisdiction in scope carries a resolved mandate. */
+  hasMandate: boolean;
+};
+
+const EMPTY_MANDATED_KPI: MandatedComplianceKpi = {
+  ratePct: 0,
+  compliant: 0,
+  inMandated: 0,
+  mandatedJurisdictions: 0,
+  hasMandate: false,
+};
+
+type JurisdictionAggRow = {
+  province: string | null;
+  locality: string | null;
+  denom: number;
+  num: number;
+};
+
+/** Fold per-jurisdiction aggregates through the mandate classifier. Pure. */
+export function sumOverMandated(
+  rows: readonly JurisdictionAggRow[],
+  classifier: MandatingClassifier,
+): MandatedComplianceKpi {
+  let inMandated = 0;
+  let compliant = 0;
+  let mandatedJurisdictions = 0;
+  for (const row of rows) {
+    if (!classifier.isMandated(row.province, row.locality)) continue;
+    mandatedJurisdictions += 1;
+    inMandated += Number(row.denom);
+    compliant += Number(row.num);
+  }
+  return {
+    ratePct: pct(compliant, inMandated),
+    compliant,
+    inMandated,
+    mandatedJurisdictions,
+    hasMandate: mandatedJurisdictions > 0,
+  };
+}
+
+/**
+ * KPI: microchip_compliance_mandated (lib/metrics/kpi-catalog-compliance.ts).
+ * C1's mandated-denominator twin: active/lost pets with an active ISO chip /
+ * active/lost pets, restricted to jurisdictions where microchip_required
+ * resolves as an actual mandate (OR5 gate over MATCHED rows). The bruta twin
+ * (fetchMicrochipPenetration) keeps the all-pets denominator.
+ */
+export async function fetchMicrochipComplianceInMandated(
+  ctx: ProjectionContext,
+): Promise<MandatedComplianceKpi> {
+  if (govtWithoutScope(ctx)) return EMPTY_MANDATED_KPI;
+
+  const chippedExists = sql`EXISTS (
+    SELECT 1 FROM pet_identifications pi
+    WHERE pi.pet_id = ${pets.id}
+      AND pi.kind = 'microchip_iso'
+      AND pi.status = 'active'
+  )`;
+
+  const [rows, classifier] = await Promise.all([
+    db
+      .select({
+        province: pets.jurisdictionProvince,
+        locality: pets.jurisdictionLocality,
+        denom: count(),
+        num: sql<number>`count(*) FILTER (WHERE ${chippedExists})::int`,
+      })
+      .from(pets)
+      .where(activePetsCondition(ctx))
+      .groupBy(pets.jurisdictionProvince, pets.jurisdictionLocality),
+    resolveMandatingJurisdictions("microchip_required"),
+  ]);
+
+  return sumOverMandated(rows, classifier);
+}
+
+/**
+ * KPI: rabies_compliance_mandated. Antirrábica coverage over jurisdictions
+ * where rabies_vaccination resolves `mandatory` (MN3). Same numerator
+ * predicate as fetchRabiesCoverage — the SHARED currently-valid check over a
+ * FIXED trailing 12 months ending at ctx.period.until (the legal cadence is
+ * annual regardless of the display period) — and the same dogs-only
+ * active/lost denominator, just restricted to mandating jurisdictions.
+ */
+export async function fetchRabiesComplianceInMandated(
+  ctx: ProjectionContext,
+): Promise<MandatedComplianceKpi> {
+  if (govtWithoutScope(ctx)) return EMPTY_MANDATED_KPI;
+
+  const until = ctx.period.until;
+  const since12m = new Date(until.getTime() - 365 * 24 * 60 * 60 * 1000);
+  const vaccinated = rabiesVaccinatedExists(sql`${pets.id}`, { since: since12m, until });
+
+  const [rows, classifier] = await Promise.all([
+    db
+      .select({
+        province: pets.jurisdictionProvince,
+        locality: pets.jurisdictionLocality,
+        denom: count(),
+        num: sql<number>`count(*) FILTER (WHERE ${vaccinated})::int`,
+      })
+      .from(pets)
+      .where(and(activePetsCondition(ctx), eq(pets.species, "dog")))
+      .groupBy(pets.jurisdictionProvince, pets.jurisdictionLocality),
+    resolveMandatingJurisdictions("rabies_vaccination"),
+  ]);
+
+  return sumOverMandated(rows, classifier);
+}
+
+/**
+ * KPI: sterilization_compliance_mandated. Sterilization coverage over
+ * jurisdictions where sterilization resolves `mandatory` (MN3). Same
+ * numerator as the program-health per-province table (≥1
+ * sterilization_performed event), same active/lost all-species denominator.
+ */
+export async function fetchSterilizationComplianceInMandated(
+  ctx: ProjectionContext,
+): Promise<MandatedComplianceKpi> {
+  if (govtWithoutScope(ctx)) return EMPTY_MANDATED_KPI;
+
+  const sterilized = sql`EXISTS (
+    SELECT 1 FROM pet_events pe
+    WHERE pe.pet_id = ${pets.id}
+      AND pe.event_type = 'sterilization_performed'
+  )`;
+
+  const [rows, classifier] = await Promise.all([
+    db
+      .select({
+        province: pets.jurisdictionProvince,
+        locality: pets.jurisdictionLocality,
+        denom: count(),
+        num: sql<number>`count(*) FILTER (WHERE ${sterilized})::int`,
+      })
+      .from(pets)
+      .where(activePetsCondition(ctx))
+      .groupBy(pets.jurisdictionProvince, pets.jurisdictionLocality),
+    resolveMandatingJurisdictions("sterilization"),
+  ]);
+
+  return sumOverMandated(rows, classifier);
 }
 
 // ---------------------------------------------------------------------------

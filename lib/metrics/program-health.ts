@@ -316,11 +316,22 @@ export async function fetchDataQuality(ctx: ProjectionContext): Promise<DataQual
  */
 export async function fetchCrossJurisdictionOutliers(
   ctx: ProjectionContext,
+  // ADR-8 (jurisdiction-compliance WU4b): gob RSC callers may inject the
+  // jurisdiction-resolved targets for the three metrics this table judges
+  // (resolveJurisdictionTargets values). Omitted → the flat national TARGETS,
+  // byte-identical for every admin/* caller (JT5). This module never resolves
+  // jurisdiction rules itself — injection keeps it target-source-agnostic.
+  injectedTargets?: {
+    MICROCHIP_PENETRATION_PCT: number;
+    STERILIZATION_COVERAGE_PCT: number;
+    RABIES_COVERAGE_PCT: number;
+  },
 ): Promise<OutlierRow[]> {
   if (isEmptyScope(ctx)) return [];
 
   // Import targets at call time — avoids circular-module risk during tests.
-  const { TARGETS } = await import("./targets");
+  const { TARGETS: FLAT_TARGETS } = await import("./targets");
+  const TARGETS = injectedTargets ?? FLAT_TARGETS;
 
   const activeCond = activePetsCondition(ctx);
 

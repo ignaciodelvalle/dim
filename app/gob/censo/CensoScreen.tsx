@@ -36,6 +36,10 @@ import { ScreenHeader } from "@/components/ui/dashboard/ScreenHeader";
 import { analyticsRetryHref, loadWithTimeout } from "@/lib/analytics/analytics-load";
 import { toChoroplethData } from "@/lib/analytics/choropleth-data";
 import { resolveJurisdictionScope } from "@/lib/analytics/jurisdiction-scope";
+import {
+  JURISDICTION_ADJUSTED_TARGET_NOTE,
+  resolveJurisdictionTargetsForScope,
+} from "@/lib/analytics/jurisdiction-targets";
 import { requireAdminOrGovtOrRedirect } from "@/lib/infra/auth-guards";
 import {
   DORMANT_MONTHS_DEFAULT,
@@ -143,6 +147,20 @@ export async function CensoScreen({ searchParams: sp, underHub = false }: CensoS
     adminProvince,
     adminLocality,
   });
+
+  // ADR-8 (jurisdiction-compliance WU4b): jurisdiction-resolved microchip
+  // target for the identification funnel's chip stage. Fail-safe (flat
+  // TARGETS on any read failure); admin national/cross-province views stay
+  // flat (JT5); an adjusted meta is disclosed in the funnel footnote (JT4).
+  const jurisdictionTargets = await resolveJurisdictionTargetsForScope(
+    profile.role === "admin"
+      ? adminProvince
+        ? [{ province: adminProvince, locality: adminLocality ?? "" }]
+        : []
+      : filteredJurisdictions,
+  );
+  const chipTargetPct = jurisdictionTargets.values.MICROCHIP_PENETRATION_PCT;
+  const chipTargetAdjusted = jurisdictionTargets.adjusted.MICROCHIP_PENETRATION_PCT;
 
   // Header + filters render in both the data and degraded (timeout) branches.
   const header = (
@@ -438,7 +456,7 @@ export async function CensoScreen({ searchParams: sp, underHub = false }: CensoS
                 {/* Stage 2: Chipped */}
                 {(() => {
                   const pct = fPct.chipped;
-                  const tone = toneForTarget(chipPct, TARGETS.MICROCHIP_PENETRATION_PCT);
+                  const tone = toneForTarget(chipPct, chipTargetPct);
                   const barColor =
                     tone === "ok"
                       ? "bg-ln-op-ok"
@@ -534,8 +552,10 @@ export async function CensoScreen({ searchParams: sp, underHub = false }: CensoS
                 })()}
               </ul>
               <p className="mt-2 text-xs text-ln-op-mute">
-                Meta chip: {TARGETS.MICROCHIP_PENETRATION_PCT}% · Escaneada en el período: solo
-                últimos 90 días (los eventos se purgan automáticamente).
+                Meta chip: {chipTargetPct}%
+                {chipTargetAdjusted ? ` (${JURISDICTION_ADJUSTED_TARGET_NOTE.toLowerCase()})` : ""}{" "}
+                · Escaneada en el período: solo últimos 90 días (los eventos se purgan
+                automáticamente).
               </p>
             </figure>
           )}

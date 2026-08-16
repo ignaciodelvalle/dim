@@ -13,6 +13,7 @@ import type { ComponentType } from "react";
 import type { GovtBusinessRuleType } from "@/db";
 import { BUSINESS_RULES_DEFAULTS } from "@/lib/domain/business-rules-defaults";
 
+import { ComplianceTargetsForm } from "./ComplianceTargetsForm";
 import { MicrochipRequiredForm } from "./MicrochipRequiredForm";
 import { MpfExportFormatForm } from "./MpfExportFormatForm";
 import {
@@ -62,12 +63,12 @@ export const RULE_FORM_REGISTRY: Partial<
   reminder_windows: ReminderWindowsForm as ComponentType<RuleFormProps>,
   long_stay_days: LongStayDaysForm as ComponentType<RuleFormProps>,
   mpf_export_format: MpfExportFormatForm as ComponentType<RuleFormProps>,
-  // Jurisdiction-aware compliance obligations (migration 0183, WU1). NOTE:
-  // compliance_targets intentionally has NO entry yet — its console editor
-  // ships with the ADR-8 targets resolver (WU4); a rule type absent from this
-  // map is simply unavailable in the console (see the module docblock).
+  // Jurisdiction-aware compliance obligations (migration 0183, WU1).
   rabies_vaccination: RabiesVaccinationForm as ComponentType<RuleFormProps>,
   sterilization: SterilizationForm as ComponentType<RuleFormProps>,
+  // ADR-8 jurisdiction-aware targets (WU4b) — shipped alongside the
+  // resolveJurisdictionTargets resolver that reads these rows.
+  compliance_targets: ComplianceTargetsForm as ComponentType<RuleFormProps>,
 };
 
 /**
@@ -134,8 +135,9 @@ export function buildCreateFormExtraProps(
       };
     case "rabies_vaccination":
     case "sterilization":
-      // ObligationRuleForm reads its optional numeric fields off the payload
-      // record directly — the defaults are {} (honest-by-default, see
+    case "compliance_targets":
+      // These forms read their optional numeric fields off the payload record
+      // directly — the defaults are {} (honest-by-default, see
       // business-rules-defaults.ts).
       return { initialPayload: payload, initialNotes: "" };
     default:
@@ -189,6 +191,7 @@ export function buildEditFormExtraProps(
       };
     case "rabies_vaccination":
     case "sterilization":
+    case "compliance_targets":
       return { initialPayload: payload };
     default:
       return {};

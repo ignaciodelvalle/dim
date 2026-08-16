@@ -56,7 +56,10 @@ import { auditLog, db } from "@/db";
 import { analyticsRetryHref, loadWithTimeout } from "@/lib/analytics/analytics-load";
 import {
   fetchDangerousBreedCompliance,
+  fetchMicrochipComplianceInMandated,
   fetchMicrochipPenetration,
+  fetchRabiesComplianceInMandated,
+  fetchSterilizationComplianceInMandated,
 } from "@/lib/analytics/compliance-metrics";
 import { fetchMyAssignedWelfareCount, fetchPerdidasMetrics } from "@/lib/analytics/govt-dashboards";
 import {
@@ -70,6 +73,10 @@ import {
 } from "@/lib/analytics/govt-home-kpis";
 import { fetchCasesQueueAging, fetchWelfareQueueAging } from "@/lib/analytics/govt-queue-aging";
 import { resolveJurisdictionScope } from "@/lib/analytics/jurisdiction-scope";
+import {
+  JURISDICTION_ADJUSTED_TARGET_NOTE,
+  resolveJurisdictionTargetsForScope,
+} from "@/lib/analytics/jurisdiction-targets";
 import { fetchMortalityHeadline } from "@/lib/analytics/mortality-metrics";
 import { fetchRabiesObservationCompliance } from "@/lib/analytics/surveillance-metrics";
 import { queueAgingNote } from "@/lib/domain/queue-aging";
@@ -233,6 +240,22 @@ export default async function GobiernoDashboardPage({
     adminLocality,
   });
 
+  // ADR-8 (jurisdiction-compliance WU4b): resolve the four legally-varying
+  // targets ONCE per request for the effective view — govt: the fenced
+  // filteredJurisdictions; admin: the drill-down pair (national/undrilled and
+  // cross-province views stay on the flat TARGETS by policy). Fail-safe by
+  // construction (resolver falls back to flat on any read failure), so it can
+  // sit outside the bounded load below without adding a hang path — three
+  // indexed single-row lookups at most. Every adjusted tile below DISCLOSES
+  // the adjustment (JURISDICTION_ADJUSTED_TARGET_NOTE) — no silent number swap.
+  const jurisdictionTargets = await resolveJurisdictionTargetsForScope(
+    profile.role === "admin"
+      ? adminProvince
+        ? [{ province: adminProvince, locality: adminLocality ?? "" }]
+        : []
+      : filteredJurisdictions,
+  );
+
   // Page header — rendered in both the data and degraded (D2) branches.
   // PO visual-validation (2026-07-23): the header keeps ONLY title + mandate
   // chrome + ViewScopeCaption. The old lone "Aprobaciones" (nee "Cola de
@@ -290,7 +313,7 @@ export default async function GobiernoDashboardPage({
         .where(and(eq(auditLog.actorUserId, user.id), gte(auditLog.performedAt, sevenDaysAgo)))
         .orderBy(desc(auditLog.performedAt))
         .limit(10),
-      fetchRabiesCoverage(ctx12m),
+      fetchRabiesCoverage(ctx12m, undefined, jurisdictionTargets.values.RABIES_COVERAGE_PCT),
       fetchSterilizationMetrics(ctx30d),
       fetchBitesPer10k(ctx12m),
       // "Zoonosis activas" composite decomposed (PO-ratified) into 3 legible signals.
@@ -303,6 +326,13 @@ export default async function GobiernoDashboardPage({
       // is carried for ctx consistency but not used as a numerator filter.
       fetchMicrochipPenetration(ctx12m),
       fetchDangerousBreedCompliance(ctx12m),
+      // MN1/MN3 (jurisdiction-compliance WU4a) — the mandated-denominator
+      // family: compliance counted ONLY over jurisdictions whose resolved
+      // rules actually mandate each obligation. Dual-report — the bruta
+      // metrics above are untouched (alert-threshold continuity, ADR-5).
+      fetchMicrochipComplianceInMandated(ctx12m),
+      fetchRabiesComplianceInMandated(ctx12m),
+      fetchSterilizationComplianceInMandated(ctx12m),
       // D1 — mordeduras por período (trend), so the operator sees direction, not
       // just the "Mordeduras / 10k hab." snapshot KPI above. Reuses the 12m ctx.
       fetchBitesTrend(ctx12m),
@@ -420,6 +450,9 @@ export default async function GobiernoDashboardPage({
     openWelfareReports,
     microchipPenetration,
     breedCompliance,
+    microchipMandated,
+    rabiesMandated,
+    sterilizationMandated,
     bitesTrend,
     sterilizationTrend,
     zoonosisTrend,
@@ -531,7 +564,10 @@ export default async function GobiernoDashboardPage({
   const rabiesCensusGuard = rabiesCoverage.hasData
     ? applyCensusCoverageGuard(KPI_CATALOG.rabies_coverage_dogs_12m, {
         censusCoveragePct: rabiesCoverage.censusCoveragePct,
-        computedTone: toneForTarget(rabiesCoverage.current, TARGETS.RABIES_COVERAGE_PCT),
+        // rabiesCoverage.target carries the jurisdiction-resolved value when
+        // one was injected above (ADR-8) — the tone and the "meta" sub-line
+        // below must judge against the SAME number.
+        computedTone: toneForTarget(rabiesCoverage.current, rabiesCoverage.target),
       })
     : null;
 
@@ -793,8 +829,14 @@ export default async function GobiernoDashboardPage({
                   <span className="block text-ln-op-mute">
                     {formatCount(rabiesCoverage.registryDenominator)}{" "}
                     {rabiesCoverage.registryDenominator === 1 ? "perro" : "perros"} en el padrón ·
-                    meta {TARGETS.RABIES_COVERAGE_PCT}%
+                    meta {rabiesCoverage.target}%
                   </span>
+                  {/* JT4 — an adjusted meta is never a silent number swap. */}
+                  {jurisdictionTargets.adjusted.RABIES_COVERAGE_PCT && (
+                    <span className="block text-ln-op-mute">
+                      {JURISDICTION_ADJUSTED_TARGET_NOTE}
+                    </span>
+                  )}
                   {/* Dual-lens disclosure (T1): the declared % stays the
                       headline; this names the vet-signed portion alongside. */}
                   <span className="block text-ln-op-mute">
@@ -942,9 +984,12 @@ export default async function GobiernoDashboardPage({
           <OpKpi
             label={KPI_CATALOG.microchip_penetration.label}
             value={formatPercent(microchipPenetration.ratePct)}
-            tone={toneForTarget(microchipPenetration.ratePct, TARGETS.MICROCHIP_PENETRATION_PCT)}
+            tone={toneForTarget(
+              microchipPenetration.ratePct,
+              jurisdictionTargets.values.MICROCHIP_PENETRATION_PCT,
+            )}
             bar={microchipPenetration.ratePct}
-            sub={`meta ${TARGETS.MICROCHIP_PENETRATION_PCT}% · ${microchipPenetration.chipped.toLocaleString("es-AR")} de ${microchipPenetration.active.toLocaleString("es-AR")} activas/perdidas${microchipLegalBasis ? ` · ${microchipLegalBasis}` : ""}`}
+            sub={`meta ${jurisdictionTargets.values.MICROCHIP_PENETRATION_PCT}% · ${microchipPenetration.chipped.toLocaleString("es-AR")} de ${microchipPenetration.active.toLocaleString("es-AR")} activas/perdidas${microchipLegalBasis ? ` · ${microchipLegalBasis}` : ""}${jurisdictionTargets.adjusted.MICROCHIP_PENETRATION_PCT ? ` · ${JURISDICTION_ADJUSTED_TARGET_NOTE}` : ""}`}
             // F9: the identification funnel ("Con chip ISO activo" measured
             // against this same TARGETS.MICROCHIP_PENETRATION_PCT, then ISO
             // validity and scan recency) lives in the Padrón hub's Censo
@@ -967,14 +1012,17 @@ export default async function GobiernoDashboardPage({
                 ? "neutral"
                 : resolveSemaphoreTone(
                     KPI_CATALOG.ppp_registry_compliance,
-                    toneForTarget(breedCompliance.ratePct, TARGETS.PPP_ATTESTATION_PCT),
+                    toneForTarget(
+                      breedCompliance.ratePct,
+                      jurisdictionTargets.values.PPP_ATTESTATION_PCT,
+                    ),
                   )
             }
             bar={breedCompliance.flaggedCount === 0 ? undefined : breedCompliance.ratePct}
             sub={
               breedCompliance.flaggedCount === 0
                 ? `sin PPP en cobertura${pppLegalBasis ? ` · ${pppLegalBasis}` : ""}`
-                : `${breedCompliance.attested} de ${breedCompliance.flaggedCount} atestadas en miMAR · no mide cumplimiento registral externo${pppLegalBasis ? ` · ${pppLegalBasis}` : ""}`
+                : `${breedCompliance.attested} de ${breedCompliance.flaggedCount} atestadas en miMAR · no mide cumplimiento registral externo${pppLegalBasis ? ` · ${pppLegalBasis}` : ""}${jurisdictionTargets.adjusted.PPP_ATTESTATION_PCT ? ` · ${JURISDICTION_ADJUSTED_TARGET_NOTE}` : ""}`
             }
             // F9: the weakest of the four re-points, and worth saying why.
             // NOTHING renders a PPP attestation breakdown in a server-rendered
@@ -989,6 +1037,59 @@ export default async function GobiernoDashboardPage({
             href="/gob/panorama?preset=cruce-mordeduras-ppp"
             descriptorId="ppp_registry_compliance"
             provenance={kpiProvenance}
+          />
+
+          {/* Mandated-denominator compliance family (MN1/MN3, ADR-5 dual-
+              report): each obligation's compliance counted ONLY over the
+              jurisdictions whose resolved rules actually mandate it. The
+              bruta twins above keep their all-pets denominators. Until the
+              legal baseline (WU2) is seeded, no jurisdiction mandates
+              anything → denominator 0 → the zeroDenominator guard dashes the
+              tile (honest empty state, not a bug). */}
+          <OpKpi
+            label={KPI_CATALOG.microchip_compliance_mandated.label}
+            value={formatPercent(microchipMandated.ratePct)}
+            bar={microchipMandated.hasMandate ? microchipMandated.ratePct : undefined}
+            sub={
+              microchipMandated.hasMandate
+                ? `${formatCount(microchipMandated.compliant)} de ${formatCount(microchipMandated.inMandated)} donde la norma lo exige`
+                : "sin reglas de obligatoriedad cargadas en la cobertura"
+            }
+            href="/gob/reglas"
+            info={getKpiInfo("microchip_compliance_mandated")}
+            descriptorId="microchip_compliance_mandated"
+            provenance={kpiProvenance}
+            guardInput={{ n: microchipMandated.inMandated }}
+          />
+          <OpKpi
+            label={KPI_CATALOG.rabies_compliance_mandated.label}
+            value={formatPercent(rabiesMandated.ratePct)}
+            bar={rabiesMandated.hasMandate ? rabiesMandated.ratePct : undefined}
+            sub={
+              rabiesMandated.hasMandate
+                ? `${formatCount(rabiesMandated.compliant)} de ${formatCount(rabiesMandated.inMandated)} ${pluralizeEs(rabiesMandated.inMandated, "perro")} donde la norma lo exige`
+                : "sin reglas de obligatoriedad cargadas en la cobertura"
+            }
+            href="/gob/reglas"
+            info={getKpiInfo("rabies_compliance_mandated")}
+            descriptorId="rabies_compliance_mandated"
+            provenance={kpiProvenance}
+            guardInput={{ n: rabiesMandated.inMandated }}
+          />
+          <OpKpi
+            label={KPI_CATALOG.sterilization_compliance_mandated.label}
+            value={formatPercent(sterilizationMandated.ratePct)}
+            bar={sterilizationMandated.hasMandate ? sterilizationMandated.ratePct : undefined}
+            sub={
+              sterilizationMandated.hasMandate
+                ? `${formatCount(sterilizationMandated.compliant)} de ${formatCount(sterilizationMandated.inMandated)} donde la norma lo exige`
+                : "sin reglas de obligatoriedad cargadas en la cobertura"
+            }
+            href="/gob/reglas"
+            info={getKpiInfo("sterilization_compliance_mandated")}
+            descriptorId="sterilization_compliance_mandated"
+            provenance={kpiProvenance}
+            guardInput={{ n: sterilizationMandated.inMandated }}
           />
 
           {/* Mortalidad y disposición (§5 narrative) — the third citizen-

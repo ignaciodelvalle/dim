@@ -103,6 +103,7 @@ function hasDescriptorId(block: string): boolean {
 const CATALOG_PATHS = [
   resolve(ROOT, "lib/metrics/kpi-catalog.ts"),
   resolve(ROOT, "lib/metrics/kpi-catalog-queues.ts"),
+  resolve(ROOT, "lib/metrics/kpi-catalog-compliance.ts"),
 ];
 
 type GuardNeeds = { needsN: boolean; needsPriorBase: boolean; manual: boolean };

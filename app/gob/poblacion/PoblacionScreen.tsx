@@ -48,6 +48,10 @@ import { ScreenHeader } from "@/components/ui/dashboard/ScreenHeader";
 import { analyticsRetryHref, loadWithTimeout } from "@/lib/analytics/analytics-load";
 import { formatDelta } from "@/lib/analytics/campaign-metrics";
 import { resolveJurisdictionScope } from "@/lib/analytics/jurisdiction-scope";
+import {
+  JURISDICTION_ADJUSTED_TARGET_NOTE,
+  resolveJurisdictionTargetsForScope,
+} from "@/lib/analytics/jurisdiction-targets";
 import { requireAdminOrGovtOrRedirect } from "@/lib/infra/auth-guards";
 import {
   TARGETS,
@@ -125,8 +129,11 @@ export function rankProvincesBelowTarget(
 /** Rate color for a below-target row — warn near the target, danger far below
  *  (same `toneForTarget` verdict the KPI tile uses; "ok" is unreachable here
  *  because every ranked row is below target by construction). */
-function gapRateColor(ratePct: number): string {
-  const tone = toneForTarget(ratePct, TARGETS.STERILIZATION_COVERAGE_PCT);
+function gapRateColor(
+  ratePct: number,
+  targetPct: number = TARGETS.STERILIZATION_COVERAGE_PCT,
+): string {
+  const tone = toneForTarget(ratePct, targetPct);
   return tone === "warn" ? "text-ln-op-warn" : "text-ln-op-danger";
 }
 
@@ -151,11 +158,18 @@ const ALCANCE_HREF = "/gob/operativos?vista=alcance";
 export function SterilizationGapCard({
   byProvince,
   suppressedCount,
+  // ADR-8: the RSC may thread a jurisdiction-resolved target; the flat
+  // TARGETS default keeps every legacy caller/test byte-identical (JT4 —
+  // `targetAdjusted` drives the disclosure line, never a silent swap).
+  targetPct = TARGETS.STERILIZATION_COVERAGE_PCT,
+  targetAdjusted = false,
 }: {
   byProvince: readonly ProvinceSterlizationRow[];
   suppressedCount: number;
+  targetPct?: number;
+  targetAdjusted?: boolean;
 }) {
-  const rows = rankProvincesBelowTarget(byProvince);
+  const rows = rankProvincesBelowTarget(byProvince, targetPct);
   const suppressionNote = provinceSuppressionNotice(suppressedCount);
   const panelId = "panel-brecha-esterilizacion-titulo";
   return (
@@ -171,14 +185,15 @@ export function SterilizationGapCard({
       <OpCardBody>
         {rows.length === 0 ? (
           <p className="text-sm text-ln-op-mute">
-            Ninguna provincia publicable está por debajo de la meta del 70%.
+            Ninguna provincia publicable está por debajo de la meta del {targetPct}%.
           </p>
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-sm border-collapse">
               <caption className="pb-2 text-left text-sm text-ln-op-mute">
-                Provincias por debajo de la meta de esterilización (70%), mayor brecha primero.
-                Cobertura calculada a nivel provincia.
+                Provincias por debajo de la meta de esterilización ({targetPct}%), mayor brecha
+                primero. Cobertura calculada a nivel provincia.
+                {targetAdjusted ? ` ${JURISDICTION_ADJUSTED_TARGET_NOTE}.` : ""}
               </caption>
               <thead>
                 <tr className="border-b border-ln-op-line">
@@ -198,7 +213,7 @@ export function SterilizationGapCard({
                   <tr key={row.province} className="border-b border-ln-op-line/50 last:border-0">
                     <td className="py-1.5 pr-4 text-ln-op-ink">{row.province}</td>
                     <td
-                      className={`py-1.5 pl-4 text-right tabular-nums font-medium ${gapRateColor(row.ratePct)}`}
+                      className={`py-1.5 pl-4 text-right tabular-nums font-medium ${gapRateColor(row.ratePct, targetPct)}`}
                     >
                       {formatPercent(row.ratePct)}
                     </td>
@@ -305,6 +320,19 @@ export async function PoblacionScreen({
     adminProvince,
     adminLocality,
   });
+
+  // ADR-8 (jurisdiction-compliance WU4b): jurisdiction-resolved sterilization
+  // target for this screen's tone/sub/gap-table. Fail-safe (flat TARGETS on
+  // any read failure); admin national/cross-province views stay flat (JT5).
+  const jurisdictionTargets = await resolveJurisdictionTargetsForScope(
+    profile.role === "admin"
+      ? adminProvince
+        ? [{ province: adminProvince, locality: adminLocality ?? "" }]
+        : []
+      : filteredJurisdictions,
+  );
+  const sterilTargetPct = jurisdictionTargets.values.STERILIZATION_COVERAGE_PCT;
+  const sterilTargetAdjusted = jurisdictionTargets.adjusted.STERILIZATION_COVERAGE_PCT;
 
   // Header + filters render in both the data and degraded (timeout) branches.
   const header = (
@@ -431,10 +459,14 @@ export async function PoblacionScreen({
   );
 
   const hasData = coverage.total > 0;
+  // Deworming has no jurisdiction-varying legal target (JT1 whitelist) — it
+  // borrows the FLAT sterilization benchmark as its proxy, deliberately NOT
+  // the jurisdiction-adjusted value (a local sterilization mandate says
+  // nothing about deworming).
   const dewormingTone = toneForTarget(deworming.rate, TARGETS.STERILIZATION_COVERAGE_PCT);
   const hasTrend = sterilTrend.points.length > 0;
 
-  const coverageTone = toneForTarget(coverage.rate, TARGETS.STERILIZATION_COVERAGE_PCT);
+  const coverageTone = toneForTarget(coverage.rate, sterilTargetPct);
 
   // Net growth: directional only. Tone is neutral — sign alone is meaningful
   // but exact value is not because registeredBirths under-counts natalidad.
@@ -472,7 +504,7 @@ export async function PoblacionScreen({
           tone={hasData ? coverageTone : "neutral"}
           sub={
             hasData
-              ? `meta programática 70% · ${coverage.sterilized.toLocaleString("es-AR")} de ${coverage.total.toLocaleString("es-AR")}`
+              ? `meta ${sterilTargetAdjusted ? "" : "programática "}${sterilTargetPct}% · ${coverage.sterilized.toLocaleString("es-AR")} de ${coverage.total.toLocaleString("es-AR")}${sterilTargetAdjusted ? ` · ${JURISDICTION_ADJUSTED_TARGET_NOTE}` : ""}`
               : "Sin datos en la cobertura"
           }
           sparkline={hasTrend ? sterilTrend.points.map((p) => p.y) : undefined}
@@ -698,6 +730,8 @@ export async function PoblacionScreen({
         <SterilizationGapCard
           byProvince={coverage.byProvince}
           suppressedCount={coverage.byProvinceSuppressedCount}
+          targetPct={sterilTargetPct}
+          targetAdjusted={sterilTargetAdjusted}
         />
       )}
 

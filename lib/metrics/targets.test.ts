@@ -418,3 +418,24 @@ describe("rabiesComplianceTone — a statutory deadline is painted against its t
     expect(rabiesComplianceTone({ compliancePct: null, openBreaches: 0 })).toBeUndefined();
   });
 });
+
+// ---------------------------------------------------------------------------
+// JT3 import-boundary fence (jurisdiction-compliance WU4b — T4.7)
+// ---------------------------------------------------------------------------
+// targets.ts is the flat national default tier and MUST stay pure: zero DB
+// imports, ever. Jurisdiction resolution lives ONLY in the server-side RSC
+// path (lib/analytics/jurisdiction-targets.ts) — a DB import here would make
+// every client-component consumer DB-bound and break the module's whole
+// contract (its own docblock + the check-function-parity posture).
+
+describe("targets.ts purity — zero DB import (JT3)", () => {
+  it("never imports the db client, drizzle, or the jurisdiction resolver", async () => {
+    const { readFileSync } = await import("node:fs");
+    const source = readFileSync("lib/metrics/targets.ts", "utf8");
+    expect(source).not.toMatch(/from\s+["']@\/db/);
+    expect(source).not.toMatch(/from\s+["']drizzle-orm/);
+    expect(source).not.toMatch(/business-rules-resolver/);
+    expect(source).not.toMatch(/jurisdiction-targets/);
+    expect(source).not.toMatch(/["']server-only["']/);
+  });
+});
