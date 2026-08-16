@@ -249,7 +249,7 @@ export async function reportBite(input: ReportBiteInput, deps: Deps): Promise<Re
         notificationType: "rabies_observation_started_owner",
         severity: "warning",
         title: `Observación antirrábica iniciada — ${pet.name}`,
-        body: `Por la mordedura del ${occurredAt.toLocaleDateString("es-AR", { timeZone: AR_TIME_ZONE })}, ${pet.name} entra en observación antirrábica de 10 días. Cierre estimado: ${observationUntil.toLocaleDateString("es-AR", { timeZone: AR_TIME_ZONE })}. Si notás síntomas raros (salivación excesiva, agresividad inusual, parálisis), consultá al veterinario de inmediato.`,
+        body: `Por la mordedura del ${occurredAt.toLocaleDateString("es-AR", { timeZone: AR_TIME_ZONE })}, ${pet.name} entra en observación antirrábica de ${rabiesWindow.days} días. Cierre estimado: ${observationUntil.toLocaleDateString("es-AR", { timeZone: AR_TIME_ZONE })}. Si notás síntomas raros (salivación excesiva, agresividad inusual, parálisis), consultá al veterinario de inmediato.`,
         relatedPetId: pet.id,
         relatedCaseId: caseRow.id,
         ctaLabel: "Ver mascota",
@@ -281,7 +281,7 @@ export async function reportBite(input: ReportBiteInput, deps: Deps): Promise<Re
           notificationType: "bite_reported_authority",
           severity: input.severity === "severe" ? "urgent" : "warning",
           title: `Mordedura reportada — ${pet.name} (${speciesLabel(pet.species)})`,
-          body: `Reportada por el dueño. Víctima: ${input.victimKind}. Severidad: ${input.severity}. Antirrábica vigente al momento: ${rabiesVaccineValid ? "sí" : "NO"}. Observación 10 días iniciada.`,
+          body: `Reportada por el dueño. Víctima: ${input.victimKind}. Severidad: ${input.severity}. Antirrábica vigente al momento: ${rabiesVaccineValid ? "sí" : "NO"}. Observación de ${rabiesWindow.days} días iniciada.`,
           relatedPetId: pet.id,
           // Authority recipient: surveillance hub (cannot open /mis-mascotas).
           ctaLabel: "Ver vigilancia",

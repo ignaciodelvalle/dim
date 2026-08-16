@@ -51,7 +51,10 @@ import { ownerCloseObservation } from "./application/owner-close-observation";
 import { professionalCloseObservation } from "./application/professional-close-observation";
 import { reportBite } from "./application/report-bite";
 import { reportBiteFromOrg } from "./application/report-bite-from-org";
-import type { RabiesObservationOutcome } from "./domain/rabies-observation";
+import {
+  RABIES_OBSERVATION_DAYS,
+  type RabiesObservationOutcome,
+} from "./domain/rabies-observation";
 import { SurveillanceRepository } from "./infrastructure/surveillance-repository";
 
 // ---------------------------------------------------------------------------
@@ -161,7 +164,7 @@ export async function reportBiteAction(
   if (!confirmed) {
     return {
       error:
-        "Tenés que confirmar que entendés que esto inicia una observación obligatoria de 10 días.",
+        "Tenés que confirmar que entendés que esto inicia una observación antirrábica obligatoria.",
     };
   }
 
@@ -218,10 +221,25 @@ export async function reportBiteAction(
         openCase(input as Parameters<typeof openCase>[0], tx as Parameters<typeof openCase>[1]),
       transaction: db.transaction.bind(db),
       findAuthoritiesForJurisdiction,
-      resolveObservationWindow: (jurisdiction) =>
-        resolveBusinessRule("rabies_observation_window", { country: "AR", ...jurisdiction }).then(
-          (r) => r.payload,
-        ),
+      resolveObservationWindow: async (jurisdiction) => {
+        // Review F3/F6: a rules-table read hiccup must not turn bite reporting
+        // into an outage — fall back to the statutory national baseline. And a
+        // hand-patched rule row can never shrink the window below 1 day (the
+        // write path validates 1..60; the read path re-clamps).
+        try {
+          const r = await resolveBusinessRule("rabies_observation_window", {
+            country: "AR",
+            ...jurisdiction,
+          });
+          return { days: Math.max(1, r.payload.days) };
+        } catch (err) {
+          console.error(
+            "[surveillance] rabies_observation_window resolve failed — statutory fallback:",
+            err,
+          );
+          return { days: RABIES_OBSERVATION_DAYS };
+        }
+      },
     },
   );
 
@@ -342,7 +360,7 @@ export async function reportBiteFromOrgAction(
   if (!checkboxOn(formData, "confirmObservation")) {
     return {
       error:
-        "Tenés que confirmar que entendés que esto inicia una observación obligatoria de 10 días.",
+        "Tenés que confirmar que entendés que esto inicia una observación antirrábica obligatoria.",
     };
   }
 
@@ -407,10 +425,25 @@ export async function reportBiteFromOrgAction(
         openCase(input as Parameters<typeof openCase>[0], tx as Parameters<typeof openCase>[1]),
       transaction: db.transaction.bind(db),
       findAuthoritiesForJurisdiction,
-      resolveObservationWindow: (jurisdiction) =>
-        resolveBusinessRule("rabies_observation_window", { country: "AR", ...jurisdiction }).then(
-          (r) => r.payload,
-        ),
+      resolveObservationWindow: async (jurisdiction) => {
+        // Review F3/F6: a rules-table read hiccup must not turn bite reporting
+        // into an outage — fall back to the statutory national baseline. And a
+        // hand-patched rule row can never shrink the window below 1 day (the
+        // write path validates 1..60; the read path re-clamps).
+        try {
+          const r = await resolveBusinessRule("rabies_observation_window", {
+            country: "AR",
+            ...jurisdiction,
+          });
+          return { days: Math.max(1, r.payload.days) };
+        } catch (err) {
+          console.error(
+            "[surveillance] rabies_observation_window resolve failed — statutory fallback:",
+            err,
+          );
+          return { days: RABIES_OBSERVATION_DAYS };
+        }
+      },
     },
   );
 

@@ -213,7 +213,12 @@ export default async function OrgDashboardPage({
     } else if (row.status === "denied") {
       stateByCapability.set(row.capability, { kind: "denied", reason: row.decisionReason });
     } else if (row.status === "revoked") {
-      stateByCapability.set(row.capability, { kind: "revoked", reason: row.decisionReason });
+      // Review F1 (post-B1): decisionReason now keeps the ORIGINAL GRANT's
+      // reason (revoke is status-only, provenance preserved) — rendering it
+      // here labeled a revocation with the approval's motive. The revoke's
+      // own reason lives in the capability_revoked audit payload and the
+      // member's notification; this surface states the fact without a motive.
+      stateByCapability.set(row.capability, { kind: "revoked", reason: null });
     }
   }
 

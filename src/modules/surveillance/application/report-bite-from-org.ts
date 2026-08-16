@@ -270,7 +270,7 @@ export async function reportBiteFromOrg(
           notificationType: "bite_reported_by_org_owner",
           severity: "warning",
           title: `Mordedura reportada por ${organization.displayName} — ${pet.name}`,
-          body: `${organization.displayName} reportó una mordedura del ${occurredAt.toLocaleDateString("es-AR", { timeZone: AR_TIME_ZONE })} en ${pet.name}. Inicia un período de observación antirrábica de 10 días. Cierre estimado: ${observationUntil.toLocaleDateString("es-AR", { timeZone: AR_TIME_ZONE })}. Si discrepás con el reporte, contactá al refugio/clínica o a tu autoridad sanitaria.`,
+          body: `${organization.displayName} reportó una mordedura del ${occurredAt.toLocaleDateString("es-AR", { timeZone: AR_TIME_ZONE })} en ${pet.name}. Inicia un período de observación antirrábica de ${rabiesWindow.days} días. Cierre estimado: ${observationUntil.toLocaleDateString("es-AR", { timeZone: AR_TIME_ZONE })}. Si discrepás con el reporte, contactá al refugio/clínica o a tu autoridad sanitaria.`,
           relatedPetId: pet.id,
           relatedCaseId: caseRow.id,
           ctaLabel: "Ver mascota",
@@ -302,7 +302,7 @@ export async function reportBiteFromOrg(
           notificationType: "bite_reported_authority",
           severity: input.severity === "severe" ? "urgent" : "warning",
           title: `Mordedura reportada — ${pet.name} (${speciesLabel(pet.species)})`,
-          body: `Reportada por ${organization.displayName} (${reporterRole}). Víctima: ${input.victimKind}. Severidad: ${input.severity}. Antirrábica vigente al momento: ${rabiesVaccineValid ? "sí" : "NO"}. Observación 10 días iniciada.`,
+          body: `Reportada por ${organization.displayName} (${reporterRole}). Víctima: ${input.victimKind}. Severidad: ${input.severity}. Antirrábica vigente al momento: ${rabiesVaccineValid ? "sí" : "NO"}. Observación de ${rabiesWindow.days} días iniciada.`,
           relatedPetId: pet.id,
           // Authority recipient: surveillance hub (cannot open /mis-mascotas).
           ctaLabel: "Ver vigilancia",
