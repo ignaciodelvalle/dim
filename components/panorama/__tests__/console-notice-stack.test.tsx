@@ -74,6 +74,41 @@ describe("ConsoleNoticeStack — WP2 notice cap", () => {
     expect(screen.queryByRole("button", { name: /\+\d+ aviso/ })).not.toBeInTheDocument();
   });
 
+  it("re-arms the cap once the stack empties (review F3)", () => {
+    const { rerender } = renderStack({ restored: true, periodResetLabel: "90 días" });
+    fireEvent.click(screen.getByRole("button", { name: /\+1 aviso/ }));
+    expect(screen.getByText(/El período volvió a/)).toBeInTheDocument();
+
+    // Every notice clears...
+    rerender(
+      <ConsoleNoticeStack
+        restored={false}
+        onDismissRestored={noop}
+        periodResetLabel={null}
+        onDismissPeriodReset={noop}
+        personalizadaLabel={null}
+        onVolver={noop}
+        onDismissPersonalizada={noop}
+      />,
+    );
+
+    // ...and a FUTURE co-occurrence is capped again — the stack lives for the
+    // console's lifetime, so a sticky showAll would defeat the cap forever.
+    rerender(
+      <ConsoleNoticeStack
+        restored={true}
+        onDismissRestored={noop}
+        periodResetLabel="30 días"
+        onDismissPeriodReset={noop}
+        personalizadaLabel={null}
+        onVolver={noop}
+        onDismissPersonalizada={noop}
+      />,
+    );
+    expect(screen.queryByText(/El período volvió a/)).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /\+1 aviso/ })).toBeInTheDocument();
+  });
+
   it("the personalizada notice keeps its Volver a action reachable after expanding", () => {
     const onVolver = vi.fn();
     renderStack({ restored: true, personalizadaLabel: "Bienestar", onVolver });

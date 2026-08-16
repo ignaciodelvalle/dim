@@ -291,6 +291,20 @@ function TimeScrubberImpl({
   // WP4 — whether a captured pointer-drag is in progress (transition-edged so
   // onDraggingChange fires once per drag, not once per pointermove).
   const draggingRef = useRef(false);
+  // Review F4 (2026-08-15): if the scrubber unmounts MID-DRAG (dock collapse,
+  // temporalAvailable flip) no pointerup ever fires, and the parent's dragging
+  // flag would latch true — debouncing every later scrub for the session.
+  // Same ref-current idiom as onChangeRef below.
+  const onDraggingChangeRef = useRef(onDraggingChange);
+  onDraggingChangeRef.current = onDraggingChange;
+  useEffect(() => {
+    return () => {
+      if (draggingRef.current) {
+        draggingRef.current = false;
+        onDraggingChangeRef.current?.(false);
+      }
+    };
+  }, []);
 
   const labelId = useId();
   const liveId = useId();

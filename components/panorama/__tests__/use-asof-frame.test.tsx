@@ -154,6 +154,45 @@ describe("useAsOfFrame", () => {
     vi.useRealTimers();
   });
 
+  it("release after a settled debounced frame does not refetch it (review F1)", async () => {
+    vi.useFakeTimers();
+    const calls: string[] = [];
+    vi.stubGlobal("fetch", (async (url: unknown) => {
+      calls.push(String(url));
+      return new Response(JSON.stringify({ features: EMPTY }), { status: 200 });
+    }) as typeof fetch);
+    const settled = vi.fn();
+    const { rerender } = renderHook(
+      ({ dragging }: { dragging: boolean }) =>
+        useAsOfFrame({
+          asOfIso: ISO,
+          baseQs: "period=90d",
+          timeBasis: "valid",
+          level: "province",
+          activeLayerIds: () => ["zoonosis"] as LayerId[],
+          asOfData: new Map<LayerId, FeatureCollection>(),
+          signalFor: () => new AbortController().signal,
+          dropCubeStamp: () => {},
+          onFrameSettled: settled,
+          dragging,
+        }),
+      { initialProps: { dragging: true } },
+    );
+
+    // The debounced fetch fires and settles cleanly while still dragging.
+    await vi.advanceTimersByTimeAsync(100);
+    expect(calls).toHaveLength(1);
+    await vi.advanceTimersByTimeAsync(1);
+    expect(settled).toHaveBeenCalled();
+
+    // Release (dragging → false, SAME instant): the most common gesture must
+    // not pay the whole fan-out a second time for an already-painted frame.
+    rerender({ dragging: false });
+    await vi.advanceTimersByTimeAsync(200);
+    expect(calls).toHaveLength(1);
+    vi.useRealTimers();
+  });
+
   it("rapid drag instants coalesce into one fan-out for the LAST instant", async () => {
     vi.useFakeTimers();
     const calls: string[] = [];

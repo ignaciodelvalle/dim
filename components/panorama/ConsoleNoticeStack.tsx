@@ -42,6 +42,14 @@ export function ConsoleNoticeStack({
     ...(periodResetLabel !== null ? (["period"] as const) : []),
     ...(personalizadaLabel !== null ? (["personalizada"] as const) : []),
   ];
+  // Review F3 (2026-08-15): re-arm the cap once the stack empties — the stack
+  // lives for the console's lifetime, so a sticky showAll would defeat the
+  // one-notice cap for every future co-occurrence after the first expansion.
+  const [prevCount, setPrevCount] = useState(active.length);
+  if (prevCount !== active.length) {
+    setPrevCount(active.length);
+    if (active.length === 0 && showAll) setShowAll(false);
+  }
   const primary = active[0] ?? null;
   const hiddenCount = showAll ? 0 : Math.max(0, active.length - 1);
   const visible = (key: NoticeKey): boolean => showAll || key === primary;

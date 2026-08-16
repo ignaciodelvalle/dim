@@ -23,7 +23,7 @@
 //     previous frame's features while the caption advanced to the new date —
 //     frame N's label over frame M's data, which invariant 3 exists to prevent.
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import { isAbortError } from "@/components/panorama/panorama-console-helpers";
 import type { ApiResponse } from "@/components/panorama/panorama-console-helpers";
@@ -82,9 +82,18 @@ export function useAsOfFrame(input: {
   } = input;
 
   const [staleFrame, setStaleFrame] = useState<StaleFrame | null>(null);
+  // Review F1 (2026-08-15): drag release flips `dragging` false with the SAME
+  // instant, re-running the effect — without this, the most common gesture
+  // (drag, pause past the window, release) fetched its final frame twice.
+  // Scoped narrowly to the release transition of an already-settled key so a
+  // plain re-scrub to the same instant still refetches as before.
+  const prevDraggingRef = useRef(dragging);
+  const lastSettledKeyRef = useRef<string | null>(null);
 
   // biome-ignore lint/correctness/useExhaustiveDependencies: activeLayerIds and onFrameSettled are read live at run time by design — including them would re-fire the fan-out on every parent render, which is the bug this hook exists to fix.
   useEffect(() => {
+    const wasDragging = prevDraggingRef.current;
+    prevDraggingRef.current = dragging;
     if (asOfIso === null) {
       // Back to live — repaint from the live cache, which is never partial.
       setStaleFrame(null);
@@ -99,6 +108,13 @@ export function useAsOfFrame(input: {
     if (active.length === 0) {
       setStaleFrame(null);
       onFrameSettled();
+      return;
+    }
+
+    const frameKey = `${asOfIso}|${baseQs}|${timeBasis}|${currentLevel}`;
+    if (wasDragging && !dragging && lastSettledKeyRef.current === frameKey) {
+      // Release after a clean debounced settle of this exact frame — the map
+      // is already painted; refetching would only duplicate the fan-out.
       return;
     }
 
@@ -135,6 +151,7 @@ export function useAsOfFrame(input: {
       ).then((outcomes) => {
         if (cancelled) return;
         const failed = outcomes.filter((o) => o.failed);
+        if (failed.length === 0) lastSettledKeyRef.current = frameKey;
         setStaleFrame(
           failed.length === 0
             ? null

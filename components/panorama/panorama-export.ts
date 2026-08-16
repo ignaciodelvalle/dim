@@ -49,6 +49,18 @@ export function pinCitationAsOf(params: URLSearchParams, asOf: Date | null, now?
   return pinned;
 }
 
+/**
+ * L-7 (review F5) — the es-AR datetime label for a cube stamp, or null when the
+ * value is absent/unparseable. Mirrors panoramaFreshnessCaption's tolerance:
+ * a malformed serialized stamp must fall back to the live/now wording, never
+ * print "Datos precalculados al —" (or Invalid Date) on an exported artifact.
+ */
+export function cubeStampLabel(builtAt: Date | string | null | undefined): string | null {
+  if (!builtAt) return null;
+  const date = builtAt instanceof Date ? builtAt : new Date(builtAt);
+  return Number.isNaN(date.getTime()) ? null : formatDateTimeNumericAr(date);
+}
+
 export type ExportFooterInput = {
   /** The data-as-of date (scrub time), or null for "live" current data. */
   asOf: Date | null;
@@ -105,10 +117,11 @@ export type ExportFooterInput = {
 export function buildExportFooter(input: ExportFooterInput): string {
   // L-7: a cube-served board must not claim today's date — up to 26h of
   // honest drift. Precedence: explicit scrub > cube stamp > generation time.
+  const cubeStamp = cubeStampLabel(input.cubeBuiltAt);
   const freshness = input.asOf
     ? `Datos al ${formatAsOfDate(input.asOf)}`
-    : input.cubeBuiltAt
-      ? `Datos precalculados al ${formatDateTimeNumericAr(input.cubeBuiltAt)}`
+    : cubeStamp
+      ? `Datos precalculados al ${cubeStamp}`
       : `Datos al ${formatAsOfDate(input.now ?? new Date())}`;
   const parts = [freshness, "miMAR", input.scopeLabel, input.periodLabel];
   if (input.suppressedCount > 0) {

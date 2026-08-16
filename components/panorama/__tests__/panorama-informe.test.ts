@@ -97,6 +97,10 @@ describe("informeAsOfLabel", () => {
     expect(label).toContain("(sin corte temporal)");
   });
 
+  it("an unparseable cube stamp falls back to the live wording (review F5)", () => {
+    expect(informeAsOfLabel(null, "garbage-not-a-date")).toBe("Datos en vivo (sin corte temporal)");
+  });
+
   it("an explicit corte wins over the cube stamp", () => {
     expect(
       informeAsOfLabel(new Date("2026-07-04T12:00:00Z"), new Date("2026-07-01T04:30:00.000Z")),

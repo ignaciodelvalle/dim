@@ -580,6 +580,34 @@ describe("PanoramaConsole — D1 metric selector (merged Cumplimiento vista)", (
     ).toHaveAttribute("aria-checked", "true");
   });
 
+  it("Volver a returns to the metric the operator LEFT, not the default (review F2)", async () => {
+    renderConsole();
+
+    openVista();
+    fireEvent.click(screen.getByRole("radio", { name: /^Cumplimiento$/ }));
+    openVista();
+    const metricGroup = screen.getByRole("radiogroup", { name: "Métrica" });
+    fireEvent.click(within(metricGroup).getByRole("radio", { name: "Esterilización" }));
+    expect(new URLSearchParams(window.location.search).get("layers")).toBe("esterilizacion");
+
+    // Hand-edit: deactivating the base flips the board to personalizada.
+    openFiltro();
+    await act(async () => {
+      fireEvent.click(screen.getByRole("checkbox", { name: /Cobertura de esterilización/ }));
+    });
+    await screen.findByText(/personalizada/);
+
+    // The one-tap return must repaint Cumplimiento·Esterilización — a bare
+    // preset id here would silently paint the DEFAULT metric (cobertura), the
+    // exact metric-loss class the D1 aliases fence on the URL path.
+    fireEvent.click(screen.getByRole("button", { name: /Volver a Cumplimiento/ }));
+    await waitFor(() => {
+      const params = new URLSearchParams(window.location.search);
+      expect(params.get("preset")).toBe("cumplimiento");
+      expect(params.get("layers")).toBe("esterilizacion");
+    });
+  });
+
   it("does not offer the selector on a vista without metricOptions", () => {
     renderConsole();
 

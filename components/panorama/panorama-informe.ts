@@ -17,14 +17,14 @@
 // es-AR user copy, English identifiers (project invariant #4).
 
 import { smallScopeRankingHeading } from "@/components/panorama/panorama-console-helpers";
-import { formatAsOfDate } from "@/components/panorama/panorama-export";
+import { cubeStampLabel, formatAsOfDate } from "@/components/panorama/panorama-export";
 import {
   type ViewScopeDescriptor,
   describeViewScope,
   serializeViewScope,
   viewScopeDigest,
 } from "@/lib/ui/view-scope-descriptor";
-import { AR_TIME_ZONE, formatDateTimeNumericAr } from "@/lib/utils/format";
+import { AR_TIME_ZONE } from "@/lib/utils/format";
 
 /** One KPI as the console strip renders it (value + estado-actual + delta). */
 export type InformeKpiInput = {
@@ -260,9 +260,8 @@ function formatGeneratedAt(now: Date): string {
  */
 export function informeAsOfLabel(asOf: Date | null, cubeBuiltAt?: Date | string | null): string {
   if (asOf) return `Situación al ${formatAsOfDate(asOf)}`;
-  if (cubeBuiltAt) {
-    return `Datos precalculados al ${formatDateTimeNumericAr(cubeBuiltAt)} (sin corte temporal)`;
-  }
+  const cubeStamp = cubeStampLabel(cubeBuiltAt);
+  if (cubeStamp) return `Datos precalculados al ${cubeStamp} (sin corte temporal)`;
   return "Datos en vivo (sin corte temporal)";
 }
 

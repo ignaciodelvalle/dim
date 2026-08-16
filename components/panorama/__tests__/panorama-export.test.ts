@@ -93,6 +93,17 @@ describe("buildExportFooter — auditable provenance (§3.6)", () => {
     expect(footer).not.toContain("precalculados");
   });
 
+  it("an unparseable cube stamp falls back to the generation date, never Invalid Date (review F5)", () => {
+    const footer = buildExportFooter({
+      ...base,
+      asOf: null,
+      cubeBuiltAt: "garbage-not-a-date",
+      now: new Date("2026-01-15T00:00:00.000Z"),
+    });
+    expect(footer).toContain("Datos al 15 de enero de 2026");
+    expect(footer).not.toContain("precalculados");
+  });
+
   it("absent cube stamp keeps the pre-L-7 behavior byte-identical", () => {
     expect(buildExportFooter({ ...base, suppressedCount: 0 })).toBe(
       "Datos al 4 de julio de 2026 · miMAR · Nacional · últimos 90 días",

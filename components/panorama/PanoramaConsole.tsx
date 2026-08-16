@@ -2185,7 +2185,12 @@ export function PanoramaConsole({
   // TRANSITION (a personalizada board restored from a URL shows no note), and
   // clears itself the moment any preset re-derives. Dismissible.
   const prevPresetRef = useRef<PresetId | null>(null);
+  // Review F2 (2026-08-15): the metric option left behind rides along — a bare
+  // preset id would repaint cumplimiento's DEFAULT metric on "Volver a", the
+  // exact silent-metric-loss D1's aliases exist to prevent, on an internal path.
+  const prevMetricRef = useRef<ComplianceMetricId | null>(null);
   const [personalizadaFrom, setPersonalizadaFrom] = useState<PresetId | null>(null);
+  const [personalizadaMetric, setPersonalizadaMetric] = useState<ComplianceMetricId | null>(null);
   // T1.6 — the honest "restored" moment (same visual pattern as personalizada):
   // a genuinely bare URL restored the saved board from localStorage, silently
   // rewriting the URL. One terse dismissible line says so.
@@ -2193,11 +2198,15 @@ export function PanoramaConsole({
   useEffect(() => {
     if (activePresetId !== null) {
       prevPresetRef.current = activePresetId;
+      prevMetricRef.current = activeMetricOption?.metric ?? null;
       setPersonalizadaFrom(null);
       return;
     }
-    if (prevPresetRef.current !== null) setPersonalizadaFrom(prevPresetRef.current);
-  }, [activePresetId]);
+    if (prevPresetRef.current !== null) {
+      setPersonalizadaFrom(prevPresetRef.current);
+      setPersonalizadaMetric(prevMetricRef.current);
+    }
+  }, [activePresetId, activeMetricOption]);
 
   // task #63: the bivariate "riesgo-brotes" encoding is OFFERED only for the
   // "Brotes activos" preset at province framing with both inputs active — the
@@ -4831,7 +4840,14 @@ export function PanoramaConsole({
                     : null
                 }
                 onVolver={() => {
-                  if (personalizadaFrom !== null) applyPreset(personalizadaFrom, "replace");
+                  if (personalizadaFrom !== null) {
+                    // F2: return to the metric the operator LEFT, not the default.
+                    applyPreset(
+                      personalizadaFrom,
+                      "replace",
+                      personalizadaMetric !== null ? { metric: personalizadaMetric } : undefined,
+                    );
+                  }
                 }}
                 onDismissPersonalizada={() => setPersonalizadaFrom(null)}
               />
