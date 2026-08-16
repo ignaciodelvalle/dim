@@ -14,10 +14,11 @@
 
 import { randomUUID } from "node:crypto";
 
-import { inArray } from "drizzle-orm";
+import { eq, inArray } from "drizzle-orm";
 import { afterEach, describe, expect, it } from "vitest";
 
 import {
+  cases,
   db,
   organizations,
   ownerships,
@@ -38,6 +39,7 @@ import {
   fetchIntakesLastWeek,
   fetchOrgDashboardMetrics,
   fetchOrgQueueCounts,
+  fetchOrgQueueSignals,
   fetchRequiresAction,
 } from "@/lib/analytics/org-dashboard";
 import { withMutationOverride } from "./_helpers/db-overrides";
@@ -241,6 +243,50 @@ async function makeDerivedWelfare(
     })
     .returning({ id: welfareReports.id });
   fixtureWelfareIds.push(row.id);
+}
+
+/**
+ * A case row for the queue tests (D-6 / D-7). `primaryPetId` is always a
+ * fixture pet, so the row cascade-deletes with it — no separate cleanup list.
+ */
+async function makeCase(
+  petId: string,
+  opts: {
+    caseKind: string;
+    openedByOrganizationId?: string;
+    receiverOrganizationId?: string;
+    openedAt?: Date;
+  },
+): Promise<string> {
+  const [row] = await db
+    .insert(cases)
+    .values({
+      publicCode: next("CAS"),
+      caseKind: opts.caseKind,
+      status: "open",
+      primarySubjectKind: "registered_pet",
+      primaryPetId: petId,
+      openedByOrganizationId: opts.openedByOrganizationId,
+      receiverOrganizationId: opts.receiverOrganizationId,
+      openedAt: opts.openedAt ?? new Date(),
+    })
+    .returning({ id: cases.id });
+  return row.id;
+}
+
+/** A custody_transfer_proposed event pinning a decomiso handoff's 7-day clock. */
+async function makeProposalEvent(petId: string, caseId: string, occurredAt: Date): Promise<void> {
+  const [row] = await db
+    .insert(petEvents)
+    .values({
+      petId,
+      caseId,
+      eventType: "custody_transfer_proposed",
+      occurredAt,
+      payload: {},
+    })
+    .returning({ id: petEvents.id });
+  fixtureEventIds.push(row.id);
 }
 
 afterEach(async () => {
@@ -547,6 +593,21 @@ describe("applicableOrgQueues — org-type gating", () => {
     expect(keys).not.toContain("activeAdoptions");
   });
 
+  // D-6 (Lote D): the vet's 10-day statutory clock had NO queue at all. It is
+  // gated on pet.read_held — the same capability the org's casos list requires,
+  // because the row links into that list — so it reaches clinics and sanitary
+  // authorities, not only shelters.
+  it("the rabies-observation queue reaches every org type that can read held pets", () => {
+    for (const orgType of ["shelter", "clinic", "sanitary_authority", "rescue_network"]) {
+      expect(keysFor(orgType), orgType).toContain("rabiesObservations");
+    }
+  });
+
+  it("the rabies-observation queue disappears without pet.read_held", () => {
+    const granted = new Set(["org.transfer.accept", "capability.grant"]);
+    expect(keysFor("clinic", granted)).not.toContain("rabiesObservations");
+  });
+
   it("welfare queue is role-gated — a foster never sees derived maltrato", () => {
     const keys = keysFor("shelter", ALL_CAPS, "foster");
     expect(keys).not.toContain("derivedWelfare");
@@ -730,5 +791,109 @@ describe("derivedWelfare — derived maltrato count", () => {
 
     expect((await fetchOrgQueueCounts(orgA, ["derivedWelfare"])).derivedWelfare).toBe(1);
     expect((await fetchOrgQueueCounts(orgB, ["derivedWelfare"])).derivedWelfare).toBe(1);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// D-6 — the rabies-observation queue. The vet's 10-day statutory clock had no
+// presence on their landing at all; this is the count behind that row.
+// ---------------------------------------------------------------------------
+
+describe("rabiesObservations — the 10-day statutory clock, counted", () => {
+  it("counts an open bite expediente whose pet is under an in-progress observation", async () => {
+    const orgId = await makeOrg({ orgType: "clinic" });
+    const petId = await makePet();
+    await db.update(pets).set({ rabiesObservationStatus: "in_progress" }).where(eq(pets.id, petId));
+    await makeCase(petId, { caseKind: "bite_incident", openedByOrganizationId: orgId });
+
+    const counts = await fetchOrgQueueCounts(orgId, ["rabiesObservations"]);
+    expect(counts.rabiesObservations).toBe(1);
+  });
+
+  it("reaches a pet the org only HOLDS — custody counts, not just authorship", async () => {
+    const opener = await makeOrg({ orgType: "sanitary_authority" });
+    const holder = await makeOrg();
+    const petId = await makePet();
+    await makeCustody(petId, holder);
+    await db.update(pets).set({ rabiesObservationStatus: "in_progress" }).where(eq(pets.id, petId));
+    await makeCase(petId, { caseKind: "bite_incident", openedByOrganizationId: opener });
+
+    expect((await fetchOrgQueueCounts(holder, ["rabiesObservations"])).rabiesObservations).toBe(1);
+  });
+
+  it("excludes an ENDED observation — the case may stay open, the clock stopped", async () => {
+    const orgId = await makeOrg();
+    const petId = await makePet();
+    await db
+      .update(pets)
+      .set({ rabiesObservationStatus: "completed_negative" })
+      .where(eq(pets.id, petId));
+    await makeCase(petId, { caseKind: "bite_incident", openedByOrganizationId: orgId });
+
+    expect((await fetchOrgQueueCounts(orgId, ["rabiesObservations"])).rabiesObservations).toBe(0);
+  });
+
+  it("excludes another org's expediente — no cross-org leak", async () => {
+    const orgA = await makeOrg();
+    const orgB = await makeOrg();
+    const petId = await makePet();
+    await db.update(pets).set({ rabiesObservationStatus: "in_progress" }).where(eq(pets.id, petId));
+    await makeCase(petId, { caseKind: "bite_incident", openedByOrganizationId: orgA });
+
+    expect((await fetchOrgQueueCounts(orgB, ["rabiesObservations"])).rabiesObservations).toBe(0);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// D-7 — the decomiso handoff's 7-day legal window (Ley 14.346), as a SIGNAL.
+// The pure tone/copy rules live in
+// app/org/[orgToken]/_lib/queue-signal-display.test.ts; this asserts the query
+// that feeds them actually finds a stale handoff.
+// ---------------------------------------------------------------------------
+
+describe("fetchOrgQueueSignals — pendingTransfers", () => {
+  const DAY = 24 * 60 * 60 * 1000;
+
+  async function makeDecomisoHandoff(receiverId: string, proposedDaysAgo: number): Promise<void> {
+    const authority = await makeOrg({ orgType: "sanitary_authority" });
+    const petId = await makePet();
+    const caseId = await makeCase(petId, {
+      caseKind: "custody_episode",
+      openedByOrganizationId: authority,
+      receiverOrganizationId: receiverId,
+      openedAt: new Date(Date.now() - proposedDaysAgo * DAY),
+    });
+    await makeProposalEvent(petId, caseId, new Date(Date.now() - proposedDaysAgo * DAY));
+  }
+
+  it("THE D-7 CASE: a decomiso handoff proposed 20 days ago reports hasOverdue", async () => {
+    const orgId = await makeOrg();
+    await makeDecomisoHandoff(orgId, 20);
+
+    const signals = await fetchOrgQueueSignals(orgId, ["pendingTransfers"]);
+    expect(signals.pendingTransfers?.hasOverdue).toBe(true);
+    expect(signals.pendingTransfers?.oldestAgeDays).toBe(20);
+  });
+
+  it("a handoff proposed 2 days ago is NOT overdue, but its age is still reported", async () => {
+    const orgId = await makeOrg();
+    await makeDecomisoHandoff(orgId, 2);
+
+    const signals = await fetchOrgQueueSignals(orgId, ["pendingTransfers"]);
+    expect(signals.pendingTransfers?.hasOverdue).toBe(false);
+    expect(signals.pendingTransfers?.oldestAgeDays).toBe(2);
+  });
+
+  it("an empty queue reports a null age and nothing overdue", async () => {
+    const orgId = await makeOrg();
+    const signals = await fetchOrgQueueSignals(orgId, ["pendingTransfers"]);
+    expect(signals.pendingTransfers).toEqual({ oldestAgeDays: null, hasOverdue: false });
+  });
+
+  it("returns nothing for a queue that carries no signal — never a fabricated zero-age", async () => {
+    const orgId = await makeOrg();
+    const signals = await fetchOrgQueueSignals(orgId, ["openCases", "derivedWelfare"]);
+    expect(signals.openCases).toBeUndefined();
+    expect(signals.derivedWelfare).toBeUndefined();
   });
 });

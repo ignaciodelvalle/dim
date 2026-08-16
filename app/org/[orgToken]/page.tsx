@@ -40,13 +40,13 @@ import {
 import { loadWithTimeout } from "@/lib/analytics/analytics-load";
 import { computeOccupancyBreakdown, fetchOrgCensus } from "@/lib/analytics/org-census";
 import {
-  type OrgQueueKey,
   actionReasonIcon,
   actionReasonLabel,
   applicableOrgQueues,
   fetchActiveAdoptions,
   fetchAvailableForAdoption,
   fetchIntakesLastWeek,
+  fetchOrgQueueSignals,
   fetchRequiresAction,
   fetchTodayAgenda,
 } from "@/lib/analytics/org-dashboard";
@@ -66,6 +66,7 @@ import { getGrantedCapabilities } from "@/src/modules/organizations/infrastructu
 import { OrgDailyLoopOrientation } from "./OrgDailyLoopOrientation";
 import { RequestCapabilityForm } from "./RequestCapabilityForm";
 import { SoloVetAgendaLanding } from "./SoloVetAgendaLanding";
+import { pendingQueueTone, queueSignalNote } from "./_lib/queue-signal-display";
 
 const ROLE_LABELS: Record<string, string> = {
   admin: "Administrador/a",
@@ -114,18 +115,6 @@ const STATE_DOT: Record<CapabilityState["kind"], string> = {
   revoked: "bg-ln-op-danger",
   none: "bg-ln-op-line",
 };
-
-// Pending-queue pill tone. Time-sensitive / legally-sensitive queues (derived
-// welfare reports, overdue post-adoption check-ins) read as danger when
-// non-empty; everything else uses the neutral "open" work tone. Zero is always
-// the calm neutral "all clear". `n === null` (adversarial review 2026-07-10,
-// HIGH 4: that one queue's count query failed) is handled by the caller,
-// which omits the pill entirely instead of asking for a tone.
-function pendingQueueTone(key: OrgQueueKey, n: number): "open" | "danger" | "neutral" {
-  if (n === 0) return "neutral";
-  if (key === "derivedWelfare" || key === "overdueCheckins") return "danger";
-  return "open";
-}
 
 // ---------------------------------------------------------------------------
 // Occupancy KPI helpers (pure)
@@ -435,6 +424,15 @@ export default async function OrgDashboardPage({
   const dashboardLoad = await loadWithTimeout(
     Promise.all([
       getOrgQueueCountsCached(organization.id, orgQueueCacheKey(orgQueues.map((q) => q.key))),
+      // D-7 / D-10: the deadline + aging facts a count cannot carry. A separate
+      // fetch on purpose — the counts above are ALSO the nav badges, which want
+      // a number and nothing else (see fetchOrgQueueSignals' own comment). Only
+      // three queues have anything to report, so this is at most three small
+      // aggregates, and each degrades alone.
+      fetchOrgQueueSignals(
+        organization.id,
+        orgQueues.map((q) => q.key),
+      ),
       isShelter ? fetchOrgCensus(organization.id) : Promise.resolve(null),
       isShelter ? fetchRequiresAction(organization.id) : Promise.resolve([]),
       // Shelter-only KPIs. Non-shelters resolve to 0 without touching the DB —
@@ -445,8 +443,15 @@ export default async function OrgDashboardPage({
     ]),
   );
   if (!dashboardLoad.ok) return degradedPanel(dashboardLoad.reason, dashboardLoad.id);
-  const [queueCounts, census, actionItems, intakesLastWeek, availableForAdopt, activeAdoptions] =
-    dashboardLoad.value;
+  const [
+    queueCounts,
+    queueSignals,
+    census,
+    actionItems,
+    intakesLastWeek,
+    availableForAdopt,
+    activeAdoptions,
+  ] = dashboardLoad.value;
 
   // Occupancy breakdown — only meaningful for shelters with capacity columns.
   const occupancyBreakdown =
@@ -696,15 +701,23 @@ export default async function OrgDashboardPage({
             <ul className="divide-y divide-ln-op-line-2">
               {orgQueues.map((q) => {
                 const n = queueCounts[q.key];
+                // A signal only ever qualifies a NON-EMPTY queue: an empty one
+                // has no oldest row and nothing past a deadline, and a stale
+                // note beside a "0" would be the worst of both.
+                const signal = n !== null && n > 0 ? queueSignals[q.key] : undefined;
+                const note = queueSignalNote(signal);
                 return (
-                  <li key={q.key} className="flex items-center justify-between px-4 py-3">
-                    <Link
-                      href={`/org/${orgToken}/${q.path}`}
-                      className="text-md text-ln-op-ink hover:underline no-underline"
-                    >
-                      {q.label}
-                    </Link>
-                    {n !== null && <OpPill tone={pendingQueueTone(q.key, n)}>{n}</OpPill>}
+                  <li key={q.key} className="flex items-center justify-between gap-3 px-4 py-3">
+                    <div className="min-w-0">
+                      <Link
+                        href={`/org/${orgToken}/${q.path}`}
+                        className="text-md text-ln-op-ink hover:underline no-underline"
+                      >
+                        {q.label}
+                      </Link>
+                      {note && <p className="mt-0.5 text-sm text-ln-op-mute">{note}</p>}
+                    </div>
+                    {n !== null && <OpPill tone={pendingQueueTone(q.key, n, signal)}>{n}</OpPill>}
                   </li>
                 );
               })}

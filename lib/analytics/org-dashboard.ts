@@ -33,7 +33,9 @@ import {
   timeSlots,
   welfareReports,
 } from "@/db";
+import { ageInDays } from "@/lib/domain/queue-aging";
 import { resolveBusinessRule } from "@/lib/infra/business-rules-resolver";
+import { DECOMISO_HANDOFF_STALE_DAYS } from "@/src/modules/cases/domain/case-sla";
 import { capabilityAppliesToOrgType } from "@/src/modules/organizations/domain/capabilities";
 
 // ---------------------------------------------------------------------------
@@ -444,6 +446,7 @@ export function actionReasonIcon(reason: ActionReason): string {
 export type OrgQueueKey =
   | "derivedWelfare"
   | "openCases"
+  | "rabiesObservations"
   | "pendingTransfers"
   | "pendingFosterProposals"
   | "activeAdoptions"
@@ -501,6 +504,27 @@ export const ORG_QUEUE_DEFS: readonly OrgQueueDef[] = [
     label: "Casos abiertos",
     path: "casos",
     navPath: "casos",
+    requiredCapability: "pet.read_held",
+  },
+  {
+    // D-6 (Lote D). The vet's ONLY statutory clock had no presence on their own
+    // landing: a 10-day rabies observation (Ley 22.953) ran invisibly while the
+    // panel showed adoption pipelines. The bite expediente IS the observation
+    // (case_kind 'bite_incident' — reportBite opens it and emits
+    // rabies_observation_started), so the row links to that kind, filtered open,
+    // in the org's own casos list.
+    //
+    // The count is a SUBSET of what that link shows: it counts only cases whose
+    // pet is under an IN-PROGRESS observation, while the list also shows open
+    // bite cases whose observation already ended. Same honest asymmetry as the
+    // /admin cockpit's "(en curso)" tile (red-team-admin #3), and the label says
+    // so rather than letting the two numbers look like a bug.
+    //
+    // No navPath: the "casos" nav badge already counts every open case, these
+    // included. A second queue badging the same item would double-count it.
+    key: "rabiesObservations",
+    label: "Observaciones antirrábicas en curso",
+    path: "casos?kind=bite_incident&status=open",
     requiredCapability: "pet.read_held",
   },
   {
@@ -622,6 +646,49 @@ async function countOpenCases(orgId: string): Promise<number> {
           ),
         ),
         isNull(cases.closedAt),
+      ),
+    );
+  return Number(row?.n ?? 0);
+}
+
+/**
+ * Pets under an IN-PROGRESS rabies observation whose bite expediente belongs to
+ * this org (D-6).
+ *
+ * Org membership uses the SAME predicate as countOpenCases — opener OR active
+ * custody holder, the shape `listCasesForOrg` uses — so the tile counts rows the
+ * org's own casos list can actually show. Narrowed twice from there: to
+ * `bite_incident` (the rabies expediente kind) and to pets the pets-table cache
+ * still marks `in_progress`. That last predicate is the STATUTORY clock: an
+ * observation closed by a professional flips the status even while the case
+ * stays open for its own reasons, and this queue is about the 10-day window,
+ * not about case bookkeeping.
+ */
+async function countRabiesObservations(orgId: string): Promise<number> {
+  const [row] = await db
+    .select({ n: count() })
+    .from(cases)
+    .innerJoin(pets, eq(pets.id, cases.primaryPetId))
+    .where(
+      and(
+        eq(cases.caseKind, "bite_incident"),
+        isNull(cases.closedAt),
+        eq(pets.rabiesObservationStatus, "in_progress"),
+        or(
+          eq(cases.openedByOrganizationId, orgId),
+          exists(
+            db
+              .select({ one: sql`1` })
+              .from(ownerships)
+              .where(
+                and(
+                  eq(ownerships.petId, cases.primaryPetId),
+                  isNull(ownerships.endedAt),
+                  eq(ownerships.ownerOrganizationId, orgId),
+                ),
+              ),
+          ),
+        ),
       ),
     );
   return Number(row?.n ?? 0);
@@ -777,6 +844,7 @@ async function countPendingPermits(orgId: string): Promise<number> {
 const QUEUE_COUNTERS: Record<OrgQueueKey, (orgId: string) => Promise<number>> = {
   derivedWelfare: countDerivedWelfare,
   openCases: countOpenCases,
+  rabiesObservations: countRabiesObservations,
   pendingTransfers: countPendingTransfers,
   pendingFosterProposals: countPendingFosterProposals,
   activeAdoptions: fetchActiveAdoptions,
@@ -812,6 +880,7 @@ export async function fetchOrgQueueCounts(
   const counts = {
     derivedWelfare: 0,
     openCases: 0,
+    rabiesObservations: 0,
     pendingTransfers: 0,
     pendingFosterProposals: 0,
     activeAdoptions: 0,
@@ -829,4 +898,188 @@ export async function fetchOrgQueueCounts(
     }
   });
   return counts;
+}
+
+// ===========================================================================
+// Queue SIGNALS — what a count alone cannot say (D-7 / D-10, Lote D)
+//
+// A count answers "how many?". Two questions the org landing was asking its
+// operator to answer by opening every queue:
+//
+//   D-7  Is any of these past a HARD legal deadline? `pendingQueueTone` decided
+//        the pill colour from the queue KEY alone — a pure switch, blind to
+//        time — so a decomiso handoff sitting 20 days past the 7-day window of
+//        Ley 14.346 painted the same calm "open" tone as one proposed today,
+//        while the escalation cron was already paging the authority about it.
+//   D-10 How long has the oldest one been waiting? The code itself documented
+//        the real case: a panel reading "Todo en orden" beside 2 postulaciones
+//        and 2 casos, one of them 35 days old (master test CIU, A-2-b).
+//
+// DELIBERATELY A SEPARATE FETCH from fetchOrgQueueCounts, not a widened return
+// type. The counts feed the nav badges too (app/org/[orgToken]/layout.tsx via
+// getOrgQueueCountsCached), and a badge needs a number and nothing else —
+// changing that shape would ripple into the layout, the request cache and every
+// counts test to serve a panel-only concern. Only the three queues that HAVE a
+// deadline or a meaningful wait are covered; asking for any other key returns
+// nothing rather than a fabricated zero-age.
+//
+// Same never-crash posture as the counts: allSettled, and a failed signal is
+// simply absent, so the row still renders its count and its link.
+// ===========================================================================
+
+/** Aging / deadline facts a queue may carry beyond its count. */
+export type OrgQueueSignal = {
+  /**
+   * AR calendar days the OLDEST pending row has been waiting. null when the
+   * queue is empty — never 0-as-unknown.
+   */
+  oldestAgeDays: number | null;
+  /**
+   * At least one row is past a hard LEGAL deadline. Only ever true for queues
+   * that actually have one (today: decomiso handoffs, Ley 14.346) — a queue
+   * with no statutory clock reports false, it does not borrow someone else's.
+   */
+  hasOverdue: boolean;
+};
+
+/** Only these queues carry a signal; the rest have no deadline to report. */
+const SIGNAL_QUEUE_KEYS = [
+  "pendingTransfers",
+  "pendingFosterProposals",
+  "activeAdoptions",
+] as const satisfies readonly OrgQueueKey[];
+
+type SignalRow = { oldest: Date | string | null; overdue?: number | string | null };
+
+function toSignal(row: SignalRow | undefined, now: Date): OrgQueueSignal {
+  const raw = row?.oldest ?? null;
+  const oldest = raw === null ? null : raw instanceof Date ? raw : new Date(raw);
+  return {
+    oldestAgeDays:
+      oldest === null || Number.isNaN(oldest.getTime()) ? null : ageInDays(oldest, now),
+    hasOverdue: Number(row?.overdue ?? 0) > 0,
+  };
+}
+
+/**
+ * Incoming transfers: age of the oldest open handoff, plus whether any DECOMISO
+ * handoff has blown its 7-day window.
+ *
+ * The overdue predicate mirrors `findStaleDecomisoCandidates` exactly — same
+ * discriminators (custody_episode + opener org_type 'sanitary_authority'), same
+ * clock (the LATEST custody_transfer_proposed event, so a reassign to another
+ * receiver legitimately resets the window), same threshold constant. The tile
+ * and the escalation cron therefore cannot disagree about which case is stale.
+ */
+async function signalPendingTransfers(orgId: string, now: Date): Promise<OrgQueueSignal> {
+  const staleBefore = new Date(now.getTime() - DECOMISO_HANDOFF_STALE_DAYS * MS_PER_DAY);
+  const rows = await db.execute<SignalRow>(sql`
+    SELECT
+      MIN(c.opened_at) AS oldest,
+      COUNT(*) FILTER (
+        WHERE c.case_kind = 'custody_episode'
+          AND EXISTS (
+            SELECT 1 FROM organizations o
+            WHERE o.id = c.opened_by_organization_id
+              AND o.org_type = 'sanitary_authority'
+          )
+          AND (
+            SELECT MAX(pe.occurred_at)
+            FROM pet_events pe
+            WHERE pe.case_id = c.id
+              AND pe.event_type = 'custody_transfer_proposed'
+          ) < ${staleBefore.toISOString()}::timestamptz
+      )::int AS overdue
+    FROM cases c
+    WHERE c.receiver_organization_id = ${orgId}
+      AND c.status = 'open'
+      AND (
+        c.case_kind = 'custody_transfer_handshake'
+        OR (
+          c.case_kind = 'custody_episode'
+          AND EXISTS (
+            SELECT 1 FROM organizations o
+            WHERE o.id = c.opened_by_organization_id
+              AND o.org_type = 'sanitary_authority'
+          )
+        )
+      )
+  `);
+  return toSignal(rows[0], now);
+}
+
+/**
+ * Pending foster proposals: age of the oldest one. No statutory deadline exists
+ * for a foster proposal, so `hasOverdue` stays false by construction — the wait
+ * is real and worth showing, but calling it "vencida" would invent a rule.
+ */
+async function signalPendingFosterProposals(orgId: string, now: Date): Promise<OrgQueueSignal> {
+  const [row] = await db
+    .select({ oldest: sql<Date | null>`min(${fosterProposals.proposedAt})` })
+    .from(fosterProposals)
+    .where(and(eq(fosterProposals.organizationId, orgId), eq(fosterProposals.status, "pending")));
+  return toSignal(row, now);
+}
+
+/**
+ * Open adoption applications: age of the oldest unresolved postulación. The
+ * predicate is `fetchActiveAdoptions`' query verbatim with MIN in place of
+ * COUNT, so the age describes exactly the applications the count counts.
+ */
+async function signalActiveAdoptions(orgId: string, now: Date): Promise<OrgQueueSignal> {
+  const rows = await db.execute<SignalRow>(sql`
+    SELECT MIN(s.occurred_at) AS oldest
+    FROM pet_events s
+    JOIN ownerships o
+      ON o.pet_id = s.pet_id
+      AND o.role = 'shelter_custody'
+      AND o.ended_at IS NULL
+      AND o.owner_organization_id = ${orgId}
+    WHERE s.event_type = 'adoption_application_submitted'
+      AND NOT EXISTS (
+        SELECT 1 FROM pet_events d
+        WHERE d.pet_id = s.pet_id
+          AND d.event_type = 'adoption_application_resolved'
+          AND d.payload->>'application_event_id' = s.id::text
+      )
+      AND NOT EXISTS (
+        SELECT 1 FROM pet_events f
+        WHERE f.pet_id = s.pet_id AND f.event_type = 'adoption_finalized'
+      )
+  `);
+  return toSignal(rows[0], now);
+}
+
+const QUEUE_SIGNALS: Record<
+  (typeof SIGNAL_QUEUE_KEYS)[number],
+  (orgId: string, now: Date) => Promise<OrgQueueSignal>
+> = {
+  pendingTransfers: signalPendingTransfers,
+  pendingFosterProposals: signalPendingFosterProposals,
+  activeAdoptions: signalActiveAdoptions,
+};
+
+/**
+ * Batch-fetch the deadline/aging signals for the requested queues, in parallel.
+ * Keys with no signal fetcher are skipped silently (they have nothing to
+ * report), and a failed one is ABSENT rather than false-y — the caller renders
+ * the row without a note instead of asserting "nothing is overdue".
+ */
+export async function fetchOrgQueueSignals(
+  orgId: string,
+  keys: readonly OrgQueueKey[],
+  now: Date = new Date(),
+): Promise<Partial<Record<OrgQueueKey, OrgQueueSignal>>> {
+  const wanted = SIGNAL_QUEUE_KEYS.filter((k) => keys.includes(k));
+  const settled = await Promise.allSettled(wanted.map((key) => QUEUE_SIGNALS[key](orgId, now)));
+  const signals: Partial<Record<OrgQueueKey, OrgQueueSignal>> = {};
+  wanted.forEach((key, i) => {
+    const result = settled[i];
+    if (result.status === "fulfilled") {
+      signals[key] = result.value;
+    } else {
+      console.error(`[org-dashboard] queue signal "${key}" failed`, result.reason);
+    }
+  });
+  return signals;
 }

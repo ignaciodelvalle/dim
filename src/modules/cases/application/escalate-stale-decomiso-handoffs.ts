@@ -30,6 +30,10 @@
 import { and, asc, eq, gt, inArray, isNotNull, isNull, sql } from "drizzle-orm";
 
 import { cases, db, notifications, organizationMemberships, organizations, profiles } from "@/db";
+// The 7-day window is the case DOMAIN's rule, shared with the org landing's
+// queue signal — see DECOMISO_HANDOFF_STALE_DAYS' own comment for why it lives
+// in the pure module rather than here.
+import { DECOMISO_HANDOFF_STALE_DAYS } from "@/src/modules/cases/domain/case-sla";
 
 export interface EscalateStaleDecomisosOptions {
   now?: Date;
@@ -67,7 +71,8 @@ export async function findStaleDecomisoCandidates(
   options?: EscalateStaleDecomisosOptions,
 ): Promise<StaleDecomisoCandidateFull[]> {
   const now = options?.now ?? new Date();
-  const staleAfterMs = (options?.staleAfterDays ?? 7) * 24 * 60 * 60 * 1000;
+  const staleAfterMs =
+    (options?.staleAfterDays ?? DECOMISO_HANDOFF_STALE_DAYS) * 24 * 60 * 60 * 1000;
   const staleBefore = new Date(now.getTime() - staleAfterMs);
 
   const rows = await db
