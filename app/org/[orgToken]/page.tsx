@@ -35,6 +35,7 @@ import {
   organizationMemberships,
   ownerships,
   petEvents,
+  profiles,
   serviceOfferings,
 } from "@/db";
 import { loadWithTimeout } from "@/lib/analytics/analytics-load";
@@ -66,6 +67,7 @@ import { getGrantedCapabilities } from "@/src/modules/organizations/infrastructu
 import { OrgDailyLoopOrientation } from "./OrgDailyLoopOrientation";
 import { RequestCapabilityForm } from "./RequestCapabilityForm";
 import { SoloVetAgendaLanding } from "./SoloVetAgendaLanding";
+import { deriveMatriculaStatus } from "./_lib/member-matricula";
 import { pendingQueueTone, queueSignalNote } from "./_lib/queue-signal-display";
 
 const ROLE_LABELS: Record<string, string> = {
@@ -222,6 +224,25 @@ export default async function OrgDashboardPage({
 
   const canCreateServices = granted.has("service_offering.create");
 
+  // D-9 (Lote D) — the acting member's matrícula, as a STATUS instead of a
+  // conditional clause. Fetched only for members who can actually sign a
+  // clinical event, because that is the only context where the licence changes
+  // anything (the same gate the "Registrar / firmar evento clínico" card uses).
+  // A dedicated 2-column select: getProfileCached's contract deliberately keeps
+  // its column set to what every guard/layout needs, and pages needing more
+  // fetch their own (see its header comment).
+  const matricula = canWriteEvents
+    ? await db
+        .select({
+          matriculaNumber: profiles.matriculaNumber,
+          matriculaVerified: profiles.matriculaVerified,
+        })
+        .from(profiles)
+        .where(eq(profiles.id, user.id))
+        .limit(1)
+        .then(([row]) => (row ? deriveMatriculaStatus(row) : null))
+    : null;
+
   // Header renders in BOTH the data and the degraded branches below. It reads
   // only `organization` / `membership` / `userRole`, all resolved by the auth
   // guard before any dashboard query runs, so a degraded DB still leaves the
@@ -259,6 +280,30 @@ export default async function OrgDashboardPage({
           </>
         )}
       </p>
+      {/* D-9: the acting vet's licence status, at a glance. Sits beside the
+          org's own verification breach on purpose — the two are the same
+          question at two levels (is this signature worth anything?), and a
+          reader who sees the org verified must not have to infer that their
+          OWN matrícula still is not. A pill, not a breach: an unverified
+          matrícula is a limitation on what a signature means, not an
+          emergency, and the detail line names that consequence rather than
+          restating the state. */}
+      {matricula && (
+        <p className="flex flex-wrap items-center gap-2 pt-0.5 text-sm text-ln-op-mute">
+          <OpPill tone={matricula.tone}>{matricula.label}</OpPill>
+          <span className="min-w-0">
+            {matricula.detail}
+            {matricula.href && (
+              <>
+                {" "}
+                <Link href={matricula.href} className="text-ln-op-azul hover:underline">
+                  Cargar matrícula
+                </Link>
+              </>
+            )}
+          </span>
+        </p>
+      )}
       {!organization.verified && (
         <OpBreach
           title="Verificación pendiente"
