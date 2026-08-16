@@ -26,6 +26,7 @@ import { type NextRequest, NextResponse } from "next/server";
 import { desc, eq } from "drizzle-orm";
 
 import { analyticsDb, cronRuns, db } from "@/db";
+import { STUCK_RUNNING_MS } from "@/lib/analytics/admin-metrics";
 import { authorizeCronRequest } from "@/lib/domain/cron-auth";
 import { sendCronAlert } from "@/lib/infra/cron-alert";
 import { CRON_REGISTRY } from "@/lib/infra/cron-registry";
@@ -46,7 +47,7 @@ type CronHealthResult = {
   cronName: string;
   schedule: string;
   healthy: boolean;
-  reason: "ok" | "never_ran" | "stale" | "last_failed" | "drift";
+  reason: "ok" | "never_ran" | "stale" | "last_failed" | "drift" | "stuck_running";
   lastRunAt: Date | null;
   lastStatus: string | null;
   lastItemsProcessed: number | null;
@@ -124,6 +125,24 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
           schedule: entry.schedule,
           healthy: false,
           reason: "last_failed",
+          lastRunAt: latest.startedAt,
+          lastStatus: latest.status,
+          lastItemsProcessed: latest.itemsProcessed,
+          ageMs,
+        });
+        continue;
+      }
+
+      // C-b: a run stuck at 'running' past the orphan threshold pages — the
+      // ONLY thing that used to catch a hard-killed run was the staleness
+      // window (up to 26h of silence). Mirrors fetchCronHealth's branch so the
+      // human is paged with the same verdict the UI shows.
+      if (latest.status === "running" && ageMs > STUCK_RUNNING_MS) {
+        results.push({
+          cronName: entry.cronName,
+          schedule: entry.schedule,
+          healthy: false,
+          reason: "stuck_running",
           lastRunAt: latest.startedAt,
           lastStatus: latest.status,
           lastItemsProcessed: latest.itemsProcessed,

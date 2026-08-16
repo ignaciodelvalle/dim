@@ -61,6 +61,14 @@ export interface DispatchOptions {
   budgetMs?: number;
   /** Injectable clock for tests. Default: Date.now. */
   now?: () => number;
+  /**
+   * C-b: called after EACH job's outcome is recorded (including
+   * `skipped_budget`), before the next job starts. The daily route uses it to
+   * persist partial progress onto its cron_runs row so a hard kill
+   * (SIGKILL at maxDuration) no longer loses every outcome computed so far.
+   * A throwing callback is contained (logged, never aborts the fleet).
+   */
+  onOutcome?: (outcome: DispatchOutcome, soFar: readonly DispatchOutcome[]) => Promise<void> | void;
 }
 
 /**
@@ -85,16 +93,29 @@ export async function dispatchJobs(
   let failed = 0;
   let skipped = 0;
 
+  // C-b: report each outcome as soon as it exists — contained so a broken
+  // persistence callback can never take the fleet down with it.
+  const report = async (outcome: DispatchOutcome) => {
+    if (!options.onOutcome) return;
+    try {
+      await options.onOutcome(outcome, outcomes);
+    } catch (err) {
+      console.error(`[cron-dispatcher] onOutcome failed after ${outcome.name}:`, err);
+    }
+  };
+
   for (const job of jobs) {
     if (now() - start >= budgetMs) {
-      outcomes.push({
+      const outcome: DispatchOutcome = {
         name: job.name,
         status: "skipped_budget",
         httpStatus: null,
         error: null,
         durationMs: 0,
-      });
+      };
+      outcomes.push(outcome);
       skipped += 1;
+      await report(outcome);
       continue;
     }
 
@@ -103,26 +124,30 @@ export async function dispatchJobs(
       const res = await job.run();
       const durationMs = now() - jobStart;
       const ok = res.status < 400;
-      outcomes.push({
+      const outcome: DispatchOutcome = {
         name: job.name,
         status: ok ? "ok" : "failed",
         httpStatus: res.status,
         error: null,
         durationMs,
-      });
+      };
+      outcomes.push(outcome);
       ran += 1;
       if (!ok) failed += 1;
+      await report(outcome);
     } catch (err) {
       const durationMs = now() - jobStart;
-      outcomes.push({
+      const outcome: DispatchOutcome = {
         name: job.name,
         status: "threw",
         httpStatus: null,
         error: err instanceof Error ? err.message : String(err),
         durationMs,
-      });
+      };
+      outcomes.push(outcome);
       ran += 1;
       failed += 1;
+      await report(outcome);
     }
   }
 
@@ -133,17 +158,26 @@ export async function dispatchJobs(
  * Ordered SSOT of the job names the daily dispatcher runs — every cron that was
  * previously its own vercel.json entry.
  *
- * Order rationale (S8, revised): the delivery drains (process_eno_queue,
- * drain_outbox, drain_notification_dead_letter) run right after the first,
- * cheap producer batch (materialize_slots..evaluate_alerts) — BEFORE the
- * heavier expiry/escalation/retention block. Previously the drains sat near
- * the END of the list (after that whole heavy block), so a tight BUDGET_MS
- * cutoff could skip them entirely, starving delivery indefinitely rather than
- * by a bounded one-day delay. Running them early means a budget cutoff now
- * only defers a LATER job's own outbox rows to the next daily invocation —
- * every job is idempotent/resumable, so that's an acceptable trade for
- * "delivery never starved". cron_health still runs last (unchanged), so it
- * observes fresh telemetry from every job that ran this invocation.
+ * Order rationale (S8, revised; C-b 2026-08-16): the delivery drains
+ * (process_eno_queue, drain_outbox, drain_notification_dead_letter) run right
+ * after the first, cheap producer batch (materialize_slots..evaluate_alerts)
+ * — BEFORE the heavier expiry/escalation/retention block. Previously the
+ * drains sat near the END of the list (after that whole heavy block), so a
+ * tight BUDGET_MS cutoff could skip them entirely, starving delivery
+ * indefinitely rather than by a bounded one-day delay. Running them early
+ * means a budget cutoff now only defers a LATER job's own outbox rows to the
+ * next daily invocation — every job is idempotent/resumable, so that's an
+ * acceptable trade for "delivery never starved".
+ *
+ * cron_health runs FIRST — a DELIBERATE REVERSAL (C-b, governance review
+ * 2026-08-15) of the earlier "last, so it sees this run's fresh telemetry"
+ * decision. The old position had a structurally worse failure mode: any
+ * earlier job hard-killing the function meant the one job whose purpose is
+ * detecting a dead fleet never ran AT ALL — and nothing noticed, because the
+ * thing that would notice was the thing that didn't run. First guarantees it
+ * executes every day; the cost is that it examines YESTERDAY's runs, so a
+ * same-day cascade surfaces one day later. That lag is bounded; the silence
+ * was not.
  *
  * Sub-daily jobs are folded to daily here (drain_outbox, process_eno_queue,
  * drain_notification_dead_letter, expire_decomiso_handoffs). Vercel Hobby only
@@ -151,7 +185,9 @@ export async function dispatchJobs(
  * regardless of cron count — the minimum plan for sub-daily draining is Pro.
  */
 export const DAILY_JOB_ORDER: readonly string[] = [
-  // --- producers / scans / materializers (cheap, run first) ---
+  // --- fleet health (FIRST — deliberate reversal, see header) ---
+  "cron_health",
+  // --- producers / scans / materializers (cheap) ---
   "materialize_slots",
   "business_rules_reeval",
   "reconcile_pet_status",
@@ -176,6 +212,4 @@ export const DAILY_JOB_ORDER: readonly string[] = [
   // --- retention purges ---
   "purge_scan_events",
   "data_lifecycle",
-  // --- fleet health (last, so it sees this run's fresh telemetry) ---
-  "cron_health",
 ] as const;

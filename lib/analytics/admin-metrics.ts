@@ -506,14 +506,19 @@ export async function fetchCronRuns(): Promise<CronRunRow[]> {
 // status there is a genuine incident. Do NOT suppress by env — the banner just
 // mirrors telemetry.
 export async function fetchFailedCronNames(): Promise<string[]> {
+  // C-b: a run STUCK at 'running' past the orphan threshold counts as down
+  // too — the banner had the same blind spot as fetchCronHealth (a hard-
+  // killed run stayed invisible for up to 26h).
   const rows = (await db.execute(sql`
     SELECT cron_name
     FROM (
-      SELECT DISTINCT ON (cron_name) cron_name, status
+      SELECT DISTINCT ON (cron_name) cron_name, status, started_at
       FROM cron_runs
       ORDER BY cron_name, started_at DESC, id DESC
     ) latest
     WHERE latest.status = 'failed'
+       OR (latest.status = 'running'
+           AND latest.started_at < now() - make_interval(secs => ${STUCK_RUNNING_MS / 1000}))
     ORDER BY cron_name
   `)) as { cron_name: string }[];
   return rows.map((r) => r.cron_name);
@@ -645,12 +650,29 @@ export type CronHealthRow = {
   cronName: string;
   schedule: string;
   healthy: boolean;
-  reason: "ok" | "never_ran" | "stale" | "last_failed";
+  reason: "ok" | "never_ran" | "stale" | "last_failed" | "stuck_running";
   lastRunAt: Date | null;
   lastStatus: "ok" | "failed" | "running" | null;
   lastItemsProcessed: number | null;
   ageMs: number | null;
+  /**
+   * C-b: the last run that actually FINISHED (finished_at IS NOT NULL) — the
+   * "last completed run" the operator needs when the latest ATTEMPT is stuck
+   * at 'running'. Null when the cron never completed a run.
+   */
+  lastCompletedAt: Date | null;
+  lastCompletedStatus: "ok" | "failed" | null;
 };
+
+/**
+ * C-b: a run still at 'running' past this age is provably orphaned — every
+ * fleet function shares maxDuration 60s, so anything beyond ~90s never
+ * finished; 10 minutes is a conservative margin over cold starts and clock
+ * skew. Well under DAILY_STALENESS_MS (26h), which used to be the ONLY thing
+ * that caught these — meaning a hard-killed run rendered a green "Saludable"
+ * pill for up to 26 hours.
+ */
+export const STUCK_RUNNING_MS = 10 * 60 * 1000;
 
 const CRON_SCHEDULE_MAP: Record<string, string> = {
   vaccine_due: "0 12 * * *",
@@ -698,6 +720,27 @@ export async function fetchCronHealth(): Promise<CronHealthRow[]> {
     items_processed: number | string | null;
   }[];
 
+  // C-b: the latest COMPLETED run per cron — distinct from the latest attempt,
+  // which may be stuck at 'running'. One extra indexed pass, same shape.
+  const completedRows = (await db.execute(sql`
+    SELECT DISTINCT ON (cron_name)
+      cron_name, finished_at, status
+    FROM cron_runs
+    WHERE finished_at IS NOT NULL
+    ORDER BY cron_name, finished_at DESC, id DESC
+  `)) as {
+    cron_name: string;
+    finished_at: Date | string;
+    status: string;
+  }[];
+  const completedByName = new Map<string, { finishedAt: Date; status: "ok" | "failed" }>();
+  for (const r of completedRows) {
+    completedByName.set(r.cron_name, {
+      finishedAt: new Date(r.finished_at),
+      status: r.status as "ok" | "failed",
+    });
+  }
+
   const latestByName = new Map<
     string,
     { startedAt: Date; status: string; itemsProcessed: number }
@@ -714,6 +757,9 @@ export async function fetchCronHealth(): Promise<CronHealthRow[]> {
   for (const cronName of CRON_REGISTRY_NAMES) {
     const schedule = CRON_SCHEDULE_MAP[cronName] ?? "?";
     const latest = latestByName.get(cronName) ?? null;
+    const completed = completedByName.get(cronName) ?? null;
+    const lastCompletedAt = completed?.finishedAt ?? null;
+    const lastCompletedStatus = completed?.status ?? null;
 
     if (!latest) {
       rows.push({
@@ -725,6 +771,8 @@ export async function fetchCronHealth(): Promise<CronHealthRow[]> {
         lastStatus: null,
         lastItemsProcessed: null,
         ageMs: null,
+        lastCompletedAt,
+        lastCompletedStatus,
       });
       continue;
     }
@@ -742,6 +790,27 @@ export async function fetchCronHealth(): Promise<CronHealthRow[]> {
         lastStatus: status,
         lastItemsProcessed: latest.itemsProcessed,
         ageMs,
+        lastCompletedAt,
+        lastCompletedStatus,
+      });
+      continue;
+    }
+
+    // C-b: a run stuck at 'running' past the orphan threshold is UNHEALTHY —
+    // it used to fall through to the green "ok" branch for up to 26 hours
+    // (the staleness window), indistinguishable from a job mid-flight.
+    if (status === "running" && ageMs > STUCK_RUNNING_MS) {
+      rows.push({
+        cronName,
+        schedule,
+        healthy: false,
+        reason: "stuck_running",
+        lastRunAt: latest.startedAt,
+        lastStatus: status,
+        lastItemsProcessed: latest.itemsProcessed,
+        ageMs,
+        lastCompletedAt,
+        lastCompletedStatus,
       });
       continue;
     }
@@ -756,6 +825,8 @@ export async function fetchCronHealth(): Promise<CronHealthRow[]> {
         lastStatus: status,
         lastItemsProcessed: latest.itemsProcessed,
         ageMs,
+        lastCompletedAt,
+        lastCompletedStatus,
       });
       continue;
     }
@@ -769,6 +840,8 @@ export async function fetchCronHealth(): Promise<CronHealthRow[]> {
       lastStatus: status,
       lastItemsProcessed: latest.itemsProcessed,
       ageMs,
+      lastCompletedAt,
+      lastCompletedStatus,
     });
   }
 

@@ -25,6 +25,9 @@
 
 import { NextRequest, NextResponse } from "next/server";
 
+import { eq } from "drizzle-orm";
+
+import { cronRuns, db } from "@/db";
 import { authorizeCronRequest } from "@/lib/domain/cron-auth";
 import { withCronRun } from "@/lib/infra/case-cron";
 import { sendCronAlert } from "@/lib/infra/cron-alert";
@@ -129,7 +132,20 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
   const start = Date.now();
   const result = await withCronRun(
     CRON_NAME,
-    () => dispatchJobs(jobs, { budgetMs: BUDGET_MS }),
+    // C-b: persist partial progress after EACH job — a hard kill at
+    // maxDuration used to lose every outcome computed so far (the row stayed
+    // at 'running' with empty details). status stays 'running' on purpose:
+    // a killed run must keep signaling it never finished.
+    (runId) =>
+      dispatchJobs(jobs, {
+        budgetMs: BUDGET_MS,
+        onOutcome: async (_outcome, soFar) => {
+          await db
+            .update(cronRuns)
+            .set({ details: { partial: true, outcomes: [...soFar] } })
+            .where(eq(cronRuns.id, runId));
+        },
+      }),
     (r) => ({
       itemsProcessed: r.ran,
       // A failing job flips cron_daily to failed so it alerts + returns 500.

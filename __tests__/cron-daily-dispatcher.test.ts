@@ -115,4 +115,53 @@ describe("dispatchJobs", () => {
     expect(DAILY_JOB_ORDER.length).toBe(22);
     expect(new Set(DAILY_JOB_ORDER).size).toBe(22);
   });
+
+  it("C-b: cron_health runs FIRST — the deliberate reversal", () => {
+    // The one job whose purpose is detecting a dead fleet must be immune to
+    // anything that happens later in the run. See the header's rationale.
+    expect(DAILY_JOB_ORDER[0]).toBe("cron_health");
+  });
+
+  it("C-b: onOutcome fires once per job, in order, before the next job starts", async () => {
+    const seen: Array<{ name: string; soFarLen: number; callsAtReport: number }> = [];
+    const calls: string[] = [];
+    const jobs = ["one", "two"].map((n) => okJob(n, calls));
+
+    await dispatchJobs(jobs, {
+      onOutcome: (outcome, soFar) => {
+        seen.push({ name: outcome.name, soFarLen: soFar.length, callsAtReport: calls.length });
+      },
+    });
+
+    expect(seen.map((s) => s.name)).toEqual(["one", "two"]);
+    // "one"'s report fired while only "one" had run — before "two" started.
+    expect(seen[0]).toEqual({ name: "one", soFarLen: 1, callsAtReport: 1 });
+    expect(seen[1]).toEqual({ name: "two", soFarLen: 2, callsAtReport: 2 });
+  });
+
+  it("C-b: onOutcome fires for budget-skipped jobs too, and a throwing callback never aborts the fleet", async () => {
+    const reported: string[] = [];
+    const calls: string[] = [];
+    let t = 0;
+    const now = () => {
+      const v = t;
+      t += 40;
+      return v;
+    };
+    const jobs = ["one", "two"].map((n) => okJob(n, calls));
+
+    const result = await dispatchJobs(jobs, {
+      budgetMs: 50,
+      now,
+      onOutcome: (outcome) => {
+        reported.push(`${outcome.name}:${outcome.status}`);
+        throw new Error("persistence exploded");
+      },
+    });
+
+    // The skip was reported AND the throwing callback was contained.
+    expect(reported).toEqual(["one:ok", "two:skipped_budget"]);
+    expect(result.ran).toBe(1);
+    expect(result.skipped).toBe(1);
+  });
 });

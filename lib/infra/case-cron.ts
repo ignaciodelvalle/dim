@@ -176,7 +176,12 @@ export async function runCaseCron<TCandidate>(
  */
 export async function withCronRun<T>(
   cronName: string,
-  fn: () => Promise<T>,
+  // C-b: `fn` receives the cron_runs row id so long-running callers (the
+  // daily dispatcher) can persist PARTIAL progress onto their own row — a
+  // hard kill (SIGKILL at maxDuration) used to lose every outcome computed
+  // so far, leaving the row at 'running' with empty details. Existing 0-arg
+  // callers are unaffected (TS allows a 0-arg function here).
+  fn: (runId: string) => Promise<T>,
   summarize?: (result: T) => {
     itemsProcessed?: number;
     details?: Record<string, unknown>;
@@ -193,7 +198,7 @@ export async function withCronRun<T>(
 ): Promise<T> {
   const [run] = await db.insert(cronRuns).values({ cronName, status: "running" }).returning();
   try {
-    const result = await fn();
+    const result = await fn(run.id);
     const summary = summarize?.(result) ?? {};
     const status: "ok" | "failed" = summary.failed ? "failed" : "ok";
     await db

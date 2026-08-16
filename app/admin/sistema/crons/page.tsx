@@ -32,6 +32,9 @@ const REASON_LABEL: Record<string, string> = {
   never_ran: "Sin ejecución",
   stale: "Desactualizado",
   last_failed: "Falló",
+  // C-b: a run orphaned at 'running' (hard kill) — used to render as a green
+  // "Saludable" for up to 26 horas.
+  stuck_running: "Colgado",
 };
 
 const STATUS_LABEL: Record<string, string> = {
@@ -189,6 +192,17 @@ export default async function AdminSistemaCronsPage() {
                       </td>
                       <td className="px-3 py-2 text-xs tabular-nums text-ln-op-ink-2">
                         {formatDateTimeShortAr(c.lastRunAt)}
+                        {/* C-b: when the latest ATTEMPT never finished, show
+                            the last run that actually completed — the number
+                            the operator needs while a run is stuck. */}
+                        {c.lastCompletedAt !== null &&
+                          c.lastRunAt !== null &&
+                          c.lastStatus === "running" && (
+                            <span className="block text-ln-op-mute">
+                              Última completa: {formatDateTimeShortAr(c.lastCompletedAt)} (
+                              {c.lastCompletedStatus === "ok" ? "OK" : "fallo"})
+                            </span>
+                          )}
                       </td>
                       <td className="px-3 py-2 text-xs tabular-nums text-ln-op-mute">
                         {formatAgeMs(c.ageMs)}

@@ -82,8 +82,13 @@ const MAX_PETS_PER_RUN = 2000;
 
 // Absolute wall-clock budget per invocation (ms). Stops the batch loop before
 // Vercel's function timeout so we can still write the cronRuns row.
-// Vercel Hobby cron functions time out at 60 s; we use 45 s to leave margin.
-const MAX_DURATION_MS = 45_000;
+// C-b (2026-08-16): 45s → 20s. This job no longer runs alone — the daily
+// dispatcher runs the WHOLE fleet inside one 60s function with a 55s total
+// budget, and the dispatcher's soft check only fires BETWEEN jobs: a single
+// job legitimately using its own 45s could bust the shared ceiling from
+// inside a "safe" budget. 20s means no early job can plausibly exhaust the
+// window; the sweep is keyset-resumable, so the tail rolls to tomorrow.
+const MAX_DURATION_MS = 20_000;
 
 // Maximum divergence samples to store in cronRuns.details (keeps the JSONB
 // payload small while still giving operators something actionable to inspect).

@@ -58,9 +58,11 @@ const MAX_SCOPES_PER_RUN = 25;
 
 // Wall-clock budget per invocation (ms), checked BETWEEN scope calls (a
 // single scope's internal work cannot be interrupted mid-call — see header
-// comment). Vercel Hobby cron functions time out at 60 s; 45 s leaves margin
-// to still finalize the cronRuns row.
-const MAX_DURATION_MS = 45_000;
+// comment). C-b (2026-08-16): 45s → 20s — this job runs inside the daily
+// dispatcher's shared 55s budget, whose soft check only fires BETWEEN jobs;
+// an uncoordinated 45s here could bust the fleet's 60s hard cap from inside
+// a "safe" budget. The reeval is cursor-resumable; the tail rolls over.
+const MAX_DURATION_MS = 20_000;
 
 type Scope = { country: string; province: string | null; locality: string | null };
 
