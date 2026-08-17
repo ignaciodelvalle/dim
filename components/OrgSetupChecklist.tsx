@@ -122,14 +122,20 @@ export function OrgSetupChecklist({ steps, orgToken, autoFocusFirst = false }: P
                       {step.cta}
                     </Link>
                   )}
-                  {!step.done && step.waitingOn === "mimar" && (
+                  {/* The miMAR row is tagged in BOTH states, not just while
+                      pending. Once approved it used to render exactly like an
+                      org step — so a reader counted five ticks against a
+                      counter reading "4 / 5" and had no way to tell which row
+                      was outside the denominator. The tag is what makes the
+                      excluded row identifiable. */}
+                  {step.waitingOn === "mimar" && (
                     <span
                       className={[
                         "shrink-0 rounded-[var(--radius-sm)] border border-ln-op-line-2 px-3 py-1",
                         "text-sm font-semibold text-ln-op-mute",
                       ].join(" ")}
                     >
-                      En revisión de miMAR
+                      {step.done ? "Verificada por miMAR" : "En revisión de miMAR"}
                     </span>
                   )}
                 </li>

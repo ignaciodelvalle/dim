@@ -106,6 +106,46 @@ describe("<OrgSetupChecklist> — the verification row is a status, not a task",
     expect(html).not.toContain("0 de 5 pasos completados");
   });
 
+  it("keeps the miMAR row tagged once it is approved, so the counter's exclusion is visible", () => {
+    // Found on staging: an approved shelter rendered SIX rows with FIVE ticks
+    // beside a counter reading "4 / 5". The counter was right — it measures
+    // org-actionable steps — but the approved verification row looked exactly
+    // like a counted one, so nothing on screen said which row sat outside the
+    // denominator. The tag is the only thing that distinguishes it.
+    const steps = deriveSetupSteps({
+      orgType: "shelter",
+      hasEverHeldAnimal: true,
+      hasSignedEvent: false,
+      hasCoverage: true,
+      memberCount: 2,
+      canCreateServices: true,
+      hasServices: true,
+      hasCapacityDeclared: false,
+      isVerified: true,
+    });
+    // Guard the guard: this is the exact shape the staging screen had — one
+    // pending org step, an approved miMAR row, five actionable rows total.
+    expect(steps.find((s) => s.key === "verification")?.done).toBe(true);
+    expect(steps.filter((s) => s.waitingOn === "org")).toHaveLength(5);
+    expect(steps.filter((s) => s.waitingOn === "org" && !s.done).map((s) => s.key)).toEqual([
+      "capacity",
+    ]);
+
+    const html = render(<OrgSetupChecklist steps={steps} orgToken="ORG-TEST" />);
+    expect(html).toContain("4 de 5 pasos completados");
+    expect(html).toContain("Verificada por miMAR");
+    // The approved row still carries no action of its own. Read the row itself
+    // rather than the whole document — the pending capacity step legitimately
+    // links to /configuracion, so a document-wide assertion would be checking
+    // the wrong row.
+    const verificationRow = html.split("<li").find((row) => row.includes("Verificada por miMAR"));
+    expect(verificationRow).toBeDefined();
+    expect(verificationRow).not.toContain("<a ");
+    // Sanity: the one pending org step still renders its CTA, so the
+    // assertions above are about the miMAR row and not a broken render.
+    expect(html).toContain('href="/org/ORG-TEST/configuracion"');
+  });
+
   it("autofocuses the FIRST org-actionable pending step — the intake row for a shelter", () => {
     // The shelter's first job is registering an animal (org-first readiness
     // #5), so that is the row autoFocus must land on and the row aria-current
