@@ -21,6 +21,16 @@ export function formatKpiTarget(target: KpiTarget, unit: KpiUnit): string {
   }
   // statutory-obligation and benchmark: the number and the source are either
   // the same fact (statutory) or carry no legal weight to conflate with
-  // (benchmark) — the plain "Meta: X% (fuente)" form stays honest for both.
-  return `Meta: ${valueStr} (${target.source})`;
+  // (benchmark) — one plain "Meta: X — fuente" form stays honest for both.
+  //
+  // SEPARATOR, NOT PARENTHESES (2026-08-17). This used to wrap the source in
+  // parentheses, and several sources carry their own: the briefing's top alert
+  // rendered "Meta: 80% (meta programática de identificación (sin mandato legal
+  // argentino))" on the first screen a funcionario sees. The nesting was not a
+  // one-off — it hit every source with a parenthetical, and those parentheticals
+  // are load-bearing (the identification one exists because a legal review found
+  // the earlier copy asserted a chip mandate no Argentine statute contains).
+  // A dash separates without competing, and matches the `·` the
+  // programmatic-target branch above already uses.
+  return `Meta: ${valueStr} — ${target.source}`;
 }

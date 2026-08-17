@@ -5,23 +5,27 @@
 // ----------------
 // C1's primitive: every KPI rendered on an operator surface SHOULD come from
 // a lib/metrics/kpi-catalog.ts descriptor (question/target/semaphore/guards
-// declared as data), consumed via <OpKpi descriptorId="…">. Today most of the
-// ~80 OpKpi tiles across /gob + /admin still render descriptor-less (a label
-// string + a raw value + an ad-hoc tone) — that gap is exactly what produced
-// the dual-rabies label collision, the PPP "Peligro" verdict on a 0% uptake
-// number, and the rest of the S1 findings this plan fences.
+// declared as data), consumed via <OpKpi descriptorId="…">. Rendering a tile
+// descriptor-less (a label string + a raw value + an ad-hoc tone) is what
+// produced the dual-rabies label collision, the PPP "Peligro" verdict on a 0%
+// uptake number, and the rest of the S1 findings this plan fences.
+//
+// STATUS (verified 2026-08-17 by running this script): the sweep is DONE.
+// `metric-contract-baseline.json` is empty and the fence reports 0
+// grandfathered tiles across 0 baselined files — every `<OpKpi` on /gob and
+// /admin goes through the guard engine. This note used to say "today most of
+// the ~80 tiles still render descriptor-less", which stopped being true at some
+// point and would send the next reader off to redo finished work.
 //
 // This is a RATCHET, same shape as check-eyebrow-title.ts / check-tablist-
-// ratchet.ts / check-state-coverage.ts's rule 4: the baseline below is the
-// count of descriptor-less `<OpKpi` usages MEASURED on the day this fence
-// landed — every one of those is grandfathered (green today, per the task's
-// explicit instruction: "grandfather ALL current ones"). A file's count can
-// only go DOWN from here (regenerate the baseline with --write-baseline after
-// migrating a tile to `descriptorId`); a NEW descriptor-less tile, or an
-// EXISTING file's count going UP, fails CI. The full ~80-tile sweep (giving
-// every tile a catalog entry) is deliberately NOT this task — see the plan's
-// "Ola II" for that; this fence just stops the count from growing while the
-// sweep is pending.
+// ratchet.ts / check-state-coverage.ts's rule 4: the baseline is the count of
+// descriptor-less `<OpKpi` usages grandfathered when the fence landed, and a
+// file's count can only go DOWN (regenerate with --write-baseline after
+// migrating a tile to `descriptorId`). With the baseline now EMPTY the ratchet
+// has reached its floor, so it enforces something stronger than it was built
+// for: not "the count must not grow" but "there is no descriptor-less tile at
+// all". Keep it there — `--write-baseline` would re-grandfather whatever exists
+// at that moment, which is how a floor quietly becomes a ceiling again.
 //
 // Detection: `<OpKpi` (word-boundary — deliberately does NOT match
 // `<OpKpiSm`, which has no descriptorId/guard-engine integration and isn't

@@ -21,6 +21,7 @@ import { describe, expect, it } from "vitest";
 import {
   KPI_CATALOG,
   KPI_CATALOG_LIST,
+  type KpiTarget,
   findKpiByFetcherName,
   formatKpiTarget,
 } from "./kpi-catalog";
@@ -213,7 +214,7 @@ describe("formatKpiTarget — law-vs-meta separation (claim #6)", () => {
       },
       "percent",
     );
-    expect(out).toBe("Meta: 100% (Ley CABA 4078 / Ley Prov. 14.107)");
+    expect(out).toBe("Meta: 100% — Ley CABA 4078 / Ley Prov. 14.107");
   });
 
   it("benchmark renders plainly (no legal weight to conflate)", () => {
@@ -221,7 +222,29 @@ describe("formatKpiTarget — law-vs-meta separation (claim #6)", () => {
       { value: 39, source: "benchmark RSPCA (Reino Unido)", sourceKind: "benchmark" },
       "percent",
     );
-    expect(out).toBe("Meta: 39% (benchmark RSPCA (Reino Unido))");
+    // A source with its own parenthetical keeps it, and is no longer wrapped in
+    // a second pair — this expectation used to read "…(benchmark RSPCA (Reino
+    // Unido))", copied from the output rather than decided.
+    expect(out).toBe("Meta: 39% — benchmark RSPCA (Reino Unido)");
+  });
+
+  it("never renders a source nested inside a second pair of parentheses", () => {
+    // Catalog-wide, because the defect was systemic: five descriptors carry a
+    // parenthetical inside `target.source`, and the briefing's highest-priority
+    // alert was one of them. Asserting only the two hand-written cases above
+    // would leave the next one to be found on a funcionario's screen.
+    const rendered = Object.values(KPI_CATALOG)
+      .filter((d) => d.target)
+      .map((d) => ({ id: d.id, copy: formatKpiTarget(d.target as KpiTarget, d.unit) }));
+
+    // Non-vacuity in two directions: the catalog must actually have targets,
+    // and at least one of them must carry a parenthetical — otherwise this
+    // fence would pass on a catalog where the hazard simply is not present.
+    expect(rendered.length).toBeGreaterThan(0);
+    expect(rendered.some((r) => r.copy.includes("("))).toBe(true);
+
+    const nested = rendered.filter((r) => /\([^()]*\(/.test(r.copy));
+    expect(nested.map((r) => `${r.id}: ${r.copy}`)).toEqual([]);
   });
 
   it("rabies_coverage_dogs_12m (law-sourced obligation, non-statutory %) is classified programmatic-target", () => {
