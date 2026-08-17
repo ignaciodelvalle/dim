@@ -22,6 +22,7 @@ export const RABIES_OBSERVATION_DAYS = 10;
 
 export type RabiesObservationStatus =
   | "in_progress"
+  | "window_expired_unclosed"
   | "completed_negative"
   | "completed_positive_rabies"
   | "completed_dead"
@@ -29,16 +30,63 @@ export type RabiesObservationStatus =
 
 export const RABIES_OBSERVATION_STATUSES = [
   "in_progress",
+  "window_expired_unclosed",
   "completed_negative",
   "completed_positive_rabies",
   "completed_dead",
   "completed_lost_to_followup",
 ] as const satisfies readonly RabiesObservationStatus[];
 
+/**
+ * `window_expired_unclosed` — the statutory window elapsed and NOBODY with a
+ * clinical mandate asserted an outcome (PO decision 2026-08-17, engram
+ * roadmap/decisiones-legales-flujos-2026-08-17 item 1).
+ *
+ * WHY THE STATE EXISTS. Until 2026-08-17 the daily sweep closed the observation
+ * as `completed_negative` with `recordedByUserId: null`, `authorRole: "system"`,
+ * `authorVerified: false`, and the owner of the biting animal could close it the
+ * same way. Both wrote the State's own document asserting a bitten person's
+ * exposure was clear — an assertion neither actor is competent to make. Removing
+ * those two paths without a landing state would have left the observation open
+ * forever: the credential's public banner never clears, and the owner has no
+ * remedy. That is a different harm, not an acceptable side effect.
+ *
+ * WHAT IT ASSERTS. Nothing clinical, in either direction. It is a fact about the
+ * PROCESS: the window closed, no matriculated closure arrived. It is a
+ * NON-TERMINAL state — a professional close still transitions it into one of the
+ * `completed_*` values, and the bite case stays OPEN so the sanitary authority
+ * keeps seeing it as work.
+ *
+ * WHY NO NEW EVENT TYPE. `pet_events` records ACTS and OBSERVATIONS by an
+ * author. Nothing happened here: the state is the passage of time over facts the
+ * spine already holds (`rabies_observation_started.observation_until`, and the
+ * absence of a `rabies_observation_ended`). Minting an event would require
+ * inventing an author for a non-act — the exact lie this change deletes. See
+ * lib/projections/pet-rabies-observation.ts for how the cache and the spine
+ * stay reconciled.
+ */
+export const OBSERVATION_WINDOW_EXPIRED_UNCLOSED = "window_expired_unclosed" as const;
+
+/**
+ * Statuses in which an observation is still OPEN — no clinical outcome has been
+ * asserted by anyone. Both block a second concurrent observation, both keep the
+ * pet in the authority's queue, and both admit a professional close.
+ */
+export const OPEN_OBSERVATION_STATUSES = [
+  "in_progress",
+  "window_expired_unclosed",
+] as const satisfies readonly RabiesObservationStatus[];
+
+/** True when the pet has an observation that nobody has clinically closed yet. */
+export function isObservationOpen(status: string | null | undefined): boolean {
+  return status === "in_progress" || status === "window_expired_unclosed";
+}
+
 export type RabiesObservationOutcome = "negative" | "positive_rabies" | "dead" | "lost_to_followup";
 
-// Outcomes available to professional closure (vet/govt/admin).
-// NOT available to owner closure (which is hardcoded to 'negative').
+// Outcomes available to professional closure (admin/govt sanitary authority).
+// Since 2026-08-17 this is the ONLY way an outcome enters the record: neither
+// the cron nor the owner may assert one.
 export const PROFESSIONAL_OUTCOMES: readonly RabiesObservationOutcome[] = [
   "negative",
   "positive_rabies",
@@ -108,6 +156,27 @@ export function computeObservationUntil(
  *   read off the event (`unknown` because payload fields are untyped JSON).
  * @param startedAt - The observation's `occurredAt` — the fallback anchor.
  */
+/**
+ * The window that was ACTUALLY applied to this observation, in days, as recorded
+ * by the writer in `rabies_observation_started.observation_days` (field added
+ * 2026-08-17).
+ *
+ * Returns null for observations written before that field existed. Callers MUST
+ * NOT substitute RABIES_OBSERVATION_DAYS there: quoting "10 días" at an owner
+ * whose jurisdiction runs a 14-day rule is precisely the defect this field was
+ * added to end. When it is null, phrase the copy around the DEADLINE DATE
+ * (resolveObservationDeadline), which is always computable and always true.
+ */
+export function resolveObservationWindowDays(rawObservationDays: unknown): number | null {
+  const n =
+    typeof rawObservationDays === "number"
+      ? rawObservationDays
+      : typeof rawObservationDays === "string"
+        ? Number.parseInt(rawObservationDays, 10)
+        : Number.NaN;
+  return Number.isFinite(n) && n > 0 ? n : null;
+}
+
 export function resolveObservationDeadline(rawObservationUntil: unknown, startedAt: Date): Date {
   const parsed =
     typeof rawObservationUntil === "string" || rawObservationUntil instanceof Date

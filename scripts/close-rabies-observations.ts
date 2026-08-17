@@ -19,7 +19,7 @@ async function main() {
   const stats = await closeEligibleRabiesObservations();
   const ms = Date.now() - start;
   console.log(
-    `[close-rabies] scanned=${stats.scanned} closedNegative=${stats.closedNegative} flaggedForReview=${stats.flaggedForReview} skippedNotYetDue=${stats.skippedNotYetDue} errors=${stats.errors.length} (${ms}ms)`,
+    `[close-rabies] scanned=${stats.scanned} windowExpiredUnclosed=${stats.windowExpiredUnclosed} flaggedForReview=${stats.flaggedForReview} skippedNotYetDue=${stats.skippedNotYetDue} errors=${stats.errors.length} (${ms}ms)`,
   );
   if (stats.errors.length > 0) {
     for (const e of stats.errors) {

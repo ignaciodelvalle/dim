@@ -14,22 +14,31 @@
 // resolving that scope (via resolveJurisdictionScope) BEFORE calling this
 // function — this module only applies it, it never re-derives the fence.
 
-import { and, eq, sql } from "drizzle-orm";
+import { and, eq, inArray, or, sql } from "drizzle-orm";
 
 import { db, petEvents, pets } from "@/db";
 import type { DashboardJurisdiction } from "@/lib/metrics/context";
 import { jurisdictionPairClause } from "@/lib/metrics/scope";
 import {
+  OPEN_OBSERVATION_STATUSES,
   RABIES_OBSERVATION_STATUSES,
   type RabiesObservationStatus,
 } from "@/src/modules/surveillance/domain/rabies-observation";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
+
+/** `status IN ('in_progress','window_expired_unclosed')` — an observation with
+ *  no clinical outcome asserted by anyone. Derived from the domain constant so
+ *  the list cannot drift from the state machine. A function, not a const: this
+ *  predicate is embedded twice per query (WHERE and ORDER BY) and drizzle SQL
+ *  nodes are not meant to be shared across chunk positions. */
+const openObservationClause = () =>
+  inArray(pets.rabiesObservationStatus, [...OPEN_OBSERVATION_STATUSES]);
 const RECENT_COMPLETED_WINDOW_DAYS = 30;
 const OBSERVACIONES_ROW_LIMIT = 500;
 
 export type ObservacionesFilters = {
-  /** null = default composite view (in_progress OR completed in the last
+  /** null = default composite view (open OR completed in the last
    * RECENT_COMPLETED_WINDOW_DAYS days) — genuinely "all", not one status. */
   status: RabiesObservationStatus | null;
 };
@@ -47,9 +56,9 @@ export function parseObservacionEstado(raw: string | undefined): RabiesObservati
 
 /**
  * Rows for the observaciones list. Default view (no `status` filter) = pets
- * currently `in_progress` OR with a `rabies_observation_ended` event in the
- * last 30 days (mirrors the pre-migration page's hardcoded query exactly —
- * zero behavior change at the default). A specific `status` filter narrows to
+ * whose observation is still OPEN (`in_progress` or `window_expired_unclosed`)
+ * OR with a `rabies_observation_ended` event in the last 30 days. A specific
+ * `status` filter narrows to
  * exactly that status, with NO time bound ("every pet whose CURRENT status is
  * X" — e.g. every historically negative-closed observation, not just recent
  * ones); the row cap below still bounds the result size.
@@ -63,15 +72,21 @@ export async function fetchObservaciones(scope: ObservacionesScope, filters: Obs
     conditions.push(eq(pets.rabiesObservationStatus, filters.status));
   } else {
     const since30 = new Date(Date.now() - RECENT_COMPLETED_WINDOW_DAYS * DAY_MS);
-    conditions.push(sql`(
-      ${pets.rabiesObservationStatus} = 'in_progress'
-      OR EXISTS (
+    // OPEN, not just running: an observation whose window expired with no
+    // professional closure is the row this screen most needs to show — it is the
+    // only one that requires an operator to act. Dropping it from the default
+    // view would hide the entire queue the 2026-08-17 change creates.
+    conditions.push(
+      or(
+        openObservationClause(),
+        sql`EXISTS (
         SELECT 1 FROM ${petEvents}
         WHERE ${petEvents.petId} = ${pets.id}
           AND ${petEvents.eventType} = 'rabies_observation_ended'
           AND ${petEvents.occurredAt} >= ${since30.toISOString()}
-      )
-    )`);
+      )`,
+      ) ?? sql`false`,
+    );
   }
 
   if (scope.role === "govt") {
@@ -105,9 +120,10 @@ export async function fetchObservaciones(scope: ObservacionesScope, filters: Obs
     })
     .from(pets)
     .where(and(...conditions))
-    // W1: the single "En curso" observation must LEAD — it is the only row
-    // that needs a professional cierre (see the page for the full rationale).
-    .orderBy(sql`(${pets.rabiesObservationStatus} = 'in_progress') DESC`, pets.name)
+    // W1: open observations must LEAD — they are the only rows that need a
+    // professional cierre (see the page for the full rationale). "Open" now
+    // includes window_expired_unclosed, which needs it MORE, not less.
+    .orderBy(sql`(${openObservationClause()}) DESC`, pets.name)
     .limit(OBSERVACIONES_ROW_LIMIT);
 
   return rows.map((r) => ({

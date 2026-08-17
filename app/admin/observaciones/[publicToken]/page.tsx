@@ -17,6 +17,7 @@ import { formatDateShort, formatDateTimeNumericAr, speciesLabel } from "@/lib/ut
 import { logPiiReadSafely } from "@/src/modules/organizations/application/admin-proposals/log-pii-query";
 import { professionalCloseRabiesObservationAction } from "@/src/modules/surveillance/actions";
 import { diseaseCodeToEnoCode, getEnoDisease } from "@/src/modules/surveillance/domain/eno-catalog";
+import { isObservationOpen } from "@/src/modules/surveillance/domain/rabies-observation";
 
 import { CloseObservationForm } from "./CloseObservationForm";
 
@@ -34,7 +35,10 @@ export default async function ObservationDetailPage({
     .where(eq(pets.publicToken, publicToken))
     .limit(1);
   if (!pet) notFound();
-  if (pet.rabiesObservationStatus !== "in_progress") {
+  // OPEN, not just running: the close form must reach an observation whose
+  // window expired without a professional closure — that is the only reason
+  // this screen exists after 2026-08-17.
+  if (!isObservationOpen(pet.rabiesObservationStatus)) {
     notFound();
   }
 

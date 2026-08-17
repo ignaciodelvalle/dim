@@ -43,12 +43,18 @@ let petCompletedPositiveAId = "";
 let petInProgressBId = "";
 let petCabaPalermoId = "";
 let petCabaAlmagroId = "";
+let petWindowExpiredAId = "";
 
 async function insertPet(opts: {
   token: string;
   province: string;
   locality: string;
-  status: "in_progress" | "completed_negative" | "completed_positive_rabies" | null;
+  status:
+    | "in_progress"
+    | "window_expired_unclosed"
+    | "completed_negative"
+    | "completed_positive_rabies"
+    | null;
 }): Promise<string> {
   const [row] = await db
     .insert(pets)
@@ -103,6 +109,13 @@ beforeAll(async () => {
     province: PROV_A,
     locality: LOC_A,
     status: "in_progress",
+  });
+
+  petWindowExpiredAId = await insertPet({
+    token: `${PREFIX}WINDOW-EXPIRED-A`,
+    province: PROV_A,
+    locality: LOC_A,
+    status: "window_expired_unclosed",
   });
 
   petCompletedRecentAId = await insertPet({
@@ -179,6 +192,30 @@ describe("fetchObservaciones — default composite view", () => {
     expect(ids).toContain(petInProgressBId);
     expect(ids).not.toContain(petCompletedOldAId);
     expect(ids).not.toContain(petCompletedPositiveAId);
+  });
+
+  // 2026-08-17: window_expired_unclosed is the ONLY row on this screen that
+  // still needs an operator. It has no rabies_observation_ended event, so the
+  // recency arm can never pick it up — if the open-status arm forgot it, the
+  // entire new queue would be invisible on the screen built to work it.
+  it("includes window_expired_unclosed pets in the default view", async () => {
+    const rows = await fetchObservaciones(
+      { role: "admin", province: null, locality: null },
+      { status: null },
+    );
+    expect(rows.map((r) => r.petId)).toContain(petWindowExpiredAId);
+  });
+
+  it("sorts open observations (including window_expired_unclosed) ahead of closed ones", async () => {
+    const rows = await fetchObservaciones(
+      { role: "admin", province: PROV_A, locality: LOC_A },
+      { status: null },
+    );
+    const openIdx = rows.findIndex((r) => r.petId === petWindowExpiredAId);
+    const closedIdx = rows.findIndex((r) => r.petId === petCompletedRecentAId);
+    expect(openIdx).toBeGreaterThanOrEqual(0);
+    expect(closedIdx).toBeGreaterThanOrEqual(0);
+    expect(openIdx).toBeLessThan(closedIdx);
   });
 });
 

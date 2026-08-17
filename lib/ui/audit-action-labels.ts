@@ -99,6 +99,8 @@ export const AUDIT_ACTION_LABELS: Record<string, string> = {
   outbreak_investigation_closed_resolved: "Investigación de brote cerrada (resuelta)",
   outbreak_investigation_closed_dismissed: "Investigación de brote cerrada (descartada)",
   outbreak_investigation_note_added: "Nota de investigación de brote añadida",
+  // Rabies observation
+  rabies_observation_closed_professional: "Observación antirrábica cerrada por profesional",
   // ENO
   eno_notification_emitted: "Notificación ENO emitida",
   eno_backfill_run_completed: "Backfill ENO ejecutado",

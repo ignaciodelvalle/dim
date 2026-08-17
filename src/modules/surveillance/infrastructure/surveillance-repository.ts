@@ -29,6 +29,7 @@ import {
 } from "@/db";
 import type { NewPetEvent, PetEvent } from "@/db/schema";
 import { insertEventIdempotent } from "@/lib/events/event-idempotency";
+import { type AuditLogEntry, writeAuditLog } from "@/lib/infra/audit-log";
 
 // ---------------------------------------------------------------------------
 // Type aliases
@@ -624,5 +625,15 @@ export class SurveillanceRepository {
       action: values.action as (typeof auditLog.$inferInsert)["action"],
       payload: values.payload,
     });
+  }
+
+  /**
+   * Insert the `rabies_observation_closed_professional` audit_log row through
+   * the shared writeAuditLog helper (before/after contract), inside the caller's
+   * transaction. Kept as a repository method rather than a direct import in the
+   * use-case so the application layer stays free of `@/db` (lint:deps).
+   */
+  async insertObservationCloseAuditLog(entry: AuditLogEntry, executor: DbOrTx = db): Promise<void> {
+    await writeAuditLog(executor as Parameters<typeof writeAuditLog>[0], entry);
   }
 }

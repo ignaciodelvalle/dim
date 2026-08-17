@@ -137,19 +137,23 @@ import { PET_SITUATIONS, derivePetSituation } from "@/lib/ui/pet-situation";
 import {
   ageFromDateOfBirth,
   formatDateShort,
+  pluralizeEs,
   sexLabel,
   situationLabelForSex,
   speciesLabel,
 } from "@/lib/utils/format";
 import { getLibretaFaceData } from "@/src/modules/pets/application/tab-data/get-libreta-face-data";
 import { fetchPendingReturnProposalForOwner } from "@/src/modules/return-to-owner/application/proposal-queries";
+import {
+  isObservationOpen,
+  resolveObservationWindowDays,
+} from "@/src/modules/surveillance/domain/rabies-observation";
 import { and, asc, desc, eq, gt, inArray, isNull, notInArray } from "drizzle-orm";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import QRCode from "qrcode";
 import { Suspense } from "react";
 import { SheetMounter } from "./SheetMounter";
-import { CloseRabiesObservationButton } from "./_components/CloseRabiesObservationButton";
 import { ConvertFosterButton } from "./_components/ConvertFosterButton";
 import { resolveCaptureIntentUrl } from "./anotar/handoff";
 
@@ -796,10 +800,13 @@ export default async function PetDetailPage({
       ),
     });
   }
-  if (pet.rabiesObservationStatus === "in_progress") {
+  // Both open states raise the banner. `window_expired_unclosed` is no longer
+  // "urgent" — nothing is known to be wrong with the animal; what is pending is
+  // a professional signature, which the banner now asks for.
+  if (isObservationOpen(pet.rabiesObservationStatus)) {
     petAlerts.push({
       id: "rabies",
-      tone: "urgent",
+      tone: pet.rabiesObservationStatus === "in_progress" ? "urgent" : "warning",
       node: <RabiesObservationBanner pet={pet} events={typedEvents} />,
     });
   }
@@ -1350,11 +1357,28 @@ type RabiesObservationBannerProps = {
   events: Array<{ id: string; eventType: string; occurredAt: Date | string; payload: unknown }>;
 };
 
+/**
+ * Owner-facing observation banner.
+ *
+ * 2026-08-17: the "Confirmar fin de observación" button is GONE. It called
+ * ownerCloseRabiesObservationAction, which wrote outcome='negative' on the
+ * State's own record — an owner declaring that the animal which bit somebody was
+ * clinically clear, gated only on the window having elapsed and on that same
+ * owner not having self-reported a symptom. What replaces it is not another
+ * button: it is the truth that the owner cannot close this, and the instruction
+ * for who can (PO decision, engram roadmap/decisiones-legales-flujos-2026-08-17).
+ *
+ * The window is read from the started event's `observation_days` (the value
+ * actually resolved for this jurisdiction). Older observations have no such
+ * field, and the copy then quotes only the deadline DATE rather than inventing
+ * the national 10.
+ */
 function RabiesObservationBanner({ pet, events }: RabiesObservationBannerProps) {
   const startedEvent = events.find((e) => e.eventType === "rabies_observation_started");
   const startedPayload = (startedEvent?.payload ?? {}) as Record<string, unknown>;
   const observationUntilRaw = startedPayload.observation_until as string | undefined;
   const observationUntil = observationUntilRaw ? new Date(observationUntilRaw) : null;
+  const windowDays = resolveObservationWindowDays(startedPayload.observation_days);
 
   const biteEvent = events.find(
     (e) =>
@@ -1375,18 +1399,21 @@ function RabiesObservationBanner({ pet, events }: RabiesObservationBannerProps) 
         {biteDate
           ? `Por la mordedura del ${formatDateShort(biteDate)}, `
           : "Por una mordedura reportada recientemente, "}
-        {pet.name} está en observación obligatoria de 10 días.
+        {pet.name} está en observación obligatoria
+        {windowDays === null ? "" : ` de ${windowDays} ${pluralizeEs(windowDays, "día")}`}.
         {observationUntil && ` Cierre estimado: ${formatDateShort(observationUntil)}.`}
       </p>
       <p className="text-sm text-[var(--color-ln-warn)]">
         Si {pet.name} muestra salivación excesiva, agresividad inusual, parálisis o cambios bruscos
         de comportamiento, consultá al veterinario de inmediato.
       </p>
-      {/* RA-2 F3: this close can be REFUSED, and the most important refusal is
-          "hubo síntomas compatibles con rabia … Contactá a tu vet." The inline
-          server action that used to live here awaited the result and threw it
-          away, so that warning never reached the owner. */}
-      {periodClosed && <CloseRabiesObservationButton petPublicToken={pet.publicToken} />}
+      {periodClosed && (
+        <p className="text-sm text-[var(--color-ln-warn)]">
+          El período ya se cumplió. El cierre lo registra un veterinario matriculado o la autoridad
+          sanitaria de tu localidad — no podés cerrarlo vos, porque el resultado de la observación
+          es un dato clínico. Pedíselo a tu veterinario o a la autoridad sanitaria.
+        </p>
+      )}
     </section>
   );
 }

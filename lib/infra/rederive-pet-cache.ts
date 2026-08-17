@@ -94,7 +94,20 @@ type Executor = typeof db | Parameters<Parameters<typeof db.transaction>[0]>[0];
 // implantation_site) and derived (event payload location_on_body) are normalized
 // through chipImplantSiteFromLocation before comparison because the legacy free-
 // text form value and canonical enum are aliases of each other.
-type CompareKind = "strict" | "numeric" | "dateOnly" | "instant" | "boolean" | "implantSite";
+// "observationStatus" is a special kind for rabiesObservationStatus: the daily
+// sweep may refine a stored `in_progress` into `window_expired_unclosed` purely
+// because the statutory window elapsed, and that transition writes NO event (see
+// lib/projections/pet-rabies-observation.ts). The projection is deliberately
+// clockless, so the stored value legitimately runs one step ahead of the derived
+// one. Only THAT pair is forgiven; everything else is drift.
+type CompareKind =
+  | "strict"
+  | "numeric"
+  | "dateOnly"
+  | "instant"
+  | "boolean"
+  | "implantSite"
+  | "observationStatus";
 
 export type ColumnReport = {
   stored: unknown;
@@ -134,8 +147,9 @@ const CHECKED_COLUMNS: Record<string, CompareKind> = {
   tattooRecordedBy: "strict",
   // pregnancy (events: clinical_info_logged sub_kind=pregnancy)
   pregnancyStatus: "strict",
-  // rabies (events: rabies_observation_started / _ended)
-  rabiesObservationStatus: "strict",
+  // rabies (events: rabies_observation_started / _ended, plus the clock-driven
+  // window_expired_unclosed refinement the sweep writes with no event).
+  rabiesObservationStatus: "observationStatus",
   // jurisdiction (events: pet_registered, movement_recorded sub_kind=jurisdiction_changed).
   // Derived raw by replayPetJurisdiction, then canonicalized in the orchestrator
   // through the same normalizeLocationForWrite the write path uses.
@@ -465,9 +479,25 @@ function valuesMatch(stored: unknown, derived: unknown, kind: CompareKind): bool
       // from event payload vs "interescapular" from canonical enum). Normalize
       // both through chipImplantSiteFromLocation before comparing.
       return sameImplantSite(stored, derived);
+    case "observationStatus":
+      return sameObservationStatus(stored, derived);
     default:
       return normalizeStrict(stored) === normalizeStrict(derived);
   }
+}
+
+/**
+ * Equal, OR the one asymmetry the sweep is allowed to introduce: stored
+ * `window_expired_unclosed` against derived `in_progress`.
+ *
+ * The reverse is NOT accepted. A stored `in_progress` against a derived
+ * `window_expired_unclosed` cannot happen (the projection never produces that
+ * value), and a stored `window_expired_unclosed` against a derived `completed_*`
+ * WOULD be real drift — a professional close whose cache half was lost.
+ */
+export function sameObservationStatus(stored: unknown, derived: unknown): boolean {
+  if (normalizeStrict(stored) === normalizeStrict(derived)) return true;
+  return stored === "window_expired_unclosed" && derived === "in_progress";
 }
 
 function normalizeStrict(v: unknown): unknown {

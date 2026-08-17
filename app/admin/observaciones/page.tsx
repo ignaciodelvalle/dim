@@ -34,6 +34,7 @@ import { OBSERVATION_DUE_SOON_DAYS } from "@/src/modules/surveillance/domain/obs
 import {
   RABIES_OBSERVATION_STATUSES,
   type RabiesObservationStatus,
+  isObservationOpen,
   resolveObservationDeadline,
 } from "@/src/modules/surveillance/domain/rabies-observation";
 
@@ -47,6 +48,9 @@ const DAY_MS = 24 * 60 * 60 * 1000;
 
 const STATUS_LABEL: Record<RabiesObservationStatus, string> = {
   in_progress: "En curso",
+  // Names the fact, not a verdict: the window closed and nobody with a clinical
+  // mandate signed anything. It is neither "cerrada" nor "en curso".
+  window_expired_unclosed: "Vencida sin cierre",
   completed_negative: "Cerrada negativa",
   completed_positive_rabies: "Cerrada positiva",
   completed_dead: "Cerrada por fallecimiento",
@@ -57,6 +61,9 @@ type PillTone = "open" | "ok" | "danger" | "neutral";
 
 const STATUS_PILL: Record<RabiesObservationStatus, PillTone> = {
   in_progress: "open",
+  // "open" and not "danger": the pet is not known to be dangerous, the FILE is
+  // unfinished. The due badge below carries the overdue pressure.
+  window_expired_unclosed: "open",
   completed_negative: "ok",
   completed_positive_rabies: "danger",
   completed_dead: "danger",
@@ -297,7 +304,7 @@ export default async function ObservacionesPage({
   // already jurisdiction-fenced by fetchObservaciones, and the action
   // re-validates role + scope server-side (professionalCloseObservation).
   const inspectorRows: ObservationCloseRow[] = rows
-    .filter((r) => r.status === "in_progress")
+    .filter((r) => isObservationOpen(r.status))
     .map((r) => {
       const started = startedByPet.get(r.petId);
       return {
@@ -325,9 +332,11 @@ export default async function ObservacionesPage({
       {header}
       <ViewScopeCaption scope={narrowedView} />
       <p className="text-md text-ln-op-ink-2">
-        Período de 10 días por Decreto 4669/1973 (PBA), Ord. CABA 41.831/1987. Las activas requieren
-        cierre profesional cuando hubo síntomas escalables; las completadas se muestran como
-        referencia (últimos 30 días) salvo que filtres por un estado específico.
+        Período de 10 días por Decreto 4669/1973 (PBA), Ord. CABA 41.831/1987 — cada jurisdicción
+        puede fijar el suyo. El resultado clínico solo lo registra un cierre profesional: cuando el
+        período vence sin ese cierre, la observación queda «Vencida sin cierre» y no afirma ningún
+        resultado. Las completadas se muestran como referencia (últimos 30 días) salvo que filtres
+        por un estado específico.
       </p>
       {filterBar}
 
@@ -346,7 +355,7 @@ export default async function ObservacionesPage({
           // overdue / vence-pronto rows — on-time keeps just its "Cierre
           // estimado" date).
           const due =
-            status === "in_progress" && started
+            isObservationOpen(status) && started
               ? computeDueInfo(started.observationUntil, now, OBSERVATION_DUE_SOON_DAYS)
               : null;
           const dueBadge = due && due.state !== "onTime" ? dueDateBadge(due) : null;
@@ -393,7 +402,7 @@ export default async function ObservacionesPage({
                           opens the slide-over inspector below (?cerrar=token,
                           shallow history — list state survives); modifier
                           clicks / new tab still land on the detail route. */}
-                      {status === "in_progress" && (
+                      {isObservationOpen(status) && (
                         <ObservationCloseTrigger publicToken={r.petPublicToken} />
                       )}
                     </div>

@@ -337,8 +337,9 @@ export const QUEUE_KPI_CATALOG: Record<QueueKpiId, KpiDefinition> = {
 
   queue_rabies_observations_in_progress: {
     id: "queue_rabies_observations_in_progress",
-    label: "Observaciones antirrábicas (en curso)",
-    numerator: "COUNT pets where rabies_observation_status = 'in_progress' (national, unscoped)",
+    label: "Observaciones antirrábicas abiertas",
+    numerator:
+      "COUNT pets where rabies_observation_status IN ('in_progress','window_expired_unclosed') (national, unscoped)",
     denominator: "n/a — absolute count",
     source: "pets (rabies_observation_status)",
     fetcherName: "countRabiesInProgress",
@@ -347,18 +348,19 @@ export const QUEUE_KPI_CATALOG: Record<QueueKpiId, KpiDefinition> = {
     unit: "count",
     suppression: "none",
     caveat:
-      "Solo observaciones EN CURSO: /admin/observaciones además lista las cerradas hace poco, así que un 0 acá convive legítimamente con una lista no vacía (red-team-admin #3). No mide cumplimiento del plazo legal de 10 días — eso es rabies_observation_compliance_10d.",
+      "Observaciones ABIERTAS: en curso, o con el período vencido y sin cierre profesional (estado agregado el 2026-08-17, cuando el barrido dejó de cerrarlas como negativas por su cuenta). /admin/observaciones además lista las cerradas hace poco, así que un 0 acá convive legítimamente con una lista no vacía (red-team-admin #3). No mide cumplimiento del plazo legal — eso es rabies_observation_compliance_10d.",
     window: "now",
     species: "n/a",
     basis: "stock",
-    question: "¿Cuántas mascotas están hoy bajo observación antirrábica en curso?",
+    question: "¿Cuántas mascotas tienen hoy una observación antirrábica sin cerrar?",
     semaphore: { paintAgainst: "none" },
     ui: {
       definition:
-        "Mascotas con una observación antirrábica en curso en este momento, en todo el país.",
-      formula: "COUNT pets WHERE rabies_observation_status = 'in_progress'",
+        "Mascotas con una observación antirrábica sin cerrar en este momento, en todo el país: en curso, o con el período vencido y sin cierre profesional.",
+      formula:
+        "COUNT pets WHERE rabies_observation_status IN ('in_progress','window_expired_unclosed')",
       caveat:
-        "No dice si esas observaciones están dentro del plazo legal de 10 días (Ley 22.953) — esa es otra métrica.",
+        "No dice si esas observaciones están dentro del plazo legal (Ley 22.953) — esa es otra métrica.",
     },
   },
 

@@ -18,6 +18,26 @@
 //
 // null when no observation event exists.
 //
+// ---------------------------------------------------------------------------
+// `window_expired_unclosed` IS NOT DERIVED HERE — ON PURPOSE
+// ---------------------------------------------------------------------------
+// Since 2026-08-17 the daily sweep moves an observation whose statutory window
+// elapsed with no professional closure to `window_expired_unclosed` (see
+// src/modules/surveillance/domain/rabies-observation.ts for why that state
+// exists). No event is written, because nothing happened: the state is
+// `rabies_observation_started` + `observation_until` + the passage of time.
+//
+// This projection stays CLOCKLESS and keeps returning `in_progress` for that
+// stream. Reading the wall clock here would make the drift harness report every
+// pet whose deadline passed between the sweep's runs — a false alarm on a
+// self-healing lag — and would make a pure replay non-deterministic.
+//
+// The two sides are reconciled in the harness instead: lib/infra/rederive-pet-
+// cache.ts compares this column with the "observationStatus" CompareKind, which
+// accepts a stored `window_expired_unclosed` against a derived `in_progress`
+// (the stored value is a TIME REFINEMENT of the derived one) and treats every
+// other disagreement as drift.
+//
 // Pure function. Caller orders events ascending by (occurredAt, recordedAt, id).
 
 import { outcomeToStatus } from "@/src/modules/surveillance/domain/rabies-observation";

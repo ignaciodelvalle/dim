@@ -7,15 +7,18 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  OPEN_OBSERVATION_STATUSES,
   PROFESSIONAL_OUTCOMES,
   RABIES_OBSERVATION_DAYS,
   RABIES_OBSERVATION_STATUSES,
   type RabiesObservationOutcome,
   type RabiesObservationStatus,
   computeObservationUntil,
+  isObservationOpen,
   isRabiesVaccineValid,
   outcomeToStatus,
   resolveObservationDeadline,
+  resolveObservationWindowDays,
 } from "./rabies-observation";
 
 // ---------------------------------------------------------------------------
@@ -344,5 +347,60 @@ describe("isRabiesVaccineValid", () => {
       payload: { vaccine_name: "antirrábica" },
     };
     expect(isRabiesVaccineValid(event, biteDate)).toBe(false);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// window_expired_unclosed — the state that asserts nothing (2026-08-17)
+// ---------------------------------------------------------------------------
+
+describe("window_expired_unclosed", () => {
+  it("is a declared status, and is NOT one of the completed_* terminal values", () => {
+    expect(RABIES_OBSERVATION_STATUSES).toContain("window_expired_unclosed");
+    expect("window_expired_unclosed".startsWith("completed_")).toBe(false);
+  });
+
+  it("is NOT reachable from any outcome — no clinical result maps onto it", () => {
+    const reachable = PROFESSIONAL_OUTCOMES.map((o) => outcomeToStatus(o));
+    expect(reachable).not.toContain("window_expired_unclosed");
+  });
+
+  it("counts as OPEN alongside in_progress, and nothing else does", () => {
+    expect(isObservationOpen("in_progress")).toBe(true);
+    expect(isObservationOpen("window_expired_unclosed")).toBe(true);
+    for (const s of RABIES_OBSERVATION_STATUSES) {
+      if (s === "in_progress" || s === "window_expired_unclosed") continue;
+      expect(isObservationOpen(s)).toBe(false);
+    }
+    expect(isObservationOpen(null)).toBe(false);
+    expect(isObservationOpen(undefined)).toBe(false);
+  });
+
+  it("OPEN_OBSERVATION_STATUSES matches the predicate exactly", () => {
+    expect([...OPEN_OBSERVATION_STATUSES].every(isObservationOpen)).toBe(true);
+    expect(RABIES_OBSERVATION_STATUSES.filter(isObservationOpen)).toEqual([
+      ...OPEN_OBSERVATION_STATUSES,
+    ]);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// resolveObservationWindowDays — never invents the national baseline
+// ---------------------------------------------------------------------------
+
+describe("resolveObservationWindowDays", () => {
+  it("returns the recorded window", () => {
+    expect(resolveObservationWindowDays(14)).toBe(14);
+    expect(resolveObservationWindowDays("14")).toBe(14);
+  });
+
+  it("returns null — NOT 10 — when the observation predates the field", () => {
+    expect(resolveObservationWindowDays(undefined)).toBeNull();
+    expect(resolveObservationWindowDays(null)).toBeNull();
+    expect(resolveObservationWindowDays("no")).toBeNull();
+    expect(resolveObservationWindowDays(0)).toBeNull();
+    expect(resolveObservationWindowDays(-3)).toBeNull();
+    // The whole point: an absent window must not silently become RABIES_OBSERVATION_DAYS.
+    expect(resolveObservationWindowDays(undefined)).not.toBe(RABIES_OBSERVATION_DAYS);
   });
 });

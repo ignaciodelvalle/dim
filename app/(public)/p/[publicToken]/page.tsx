@@ -69,6 +69,7 @@ import {
   statusLabel,
 } from "@/lib/utils/format";
 import { withDbBudget, withDbBudgetOrThrow } from "@/src/modules/panorama/application/db-budget";
+import { isObservationOpen } from "@/src/modules/surveillance/domain/rabies-observation";
 import { and, desc, eq, gte, isNull, sql } from "drizzle-orm";
 import { headers } from "next/headers";
 import { notFound } from "next/navigation";
@@ -618,9 +619,16 @@ export default async function PublicCredentialPage({
           </div>
         )}
 
-        {/* Active rabies observation — public-safety signal (no PII). A vecino
-            scanning a dog currently under a 10-day observation must see it. */}
-        {pet.rabiesObservationStatus === "in_progress" && <RabiesObservationBanner />}
+        {/* Open rabies observation — public-safety signal (no PII). A vecino
+            scanning a dog under observation must see it, and must ALSO see when
+            the window closed without anyone signing a result (2026-08-17): that
+            second state is neither a danger nor an all-clear, and the banner
+            says exactly that. */}
+        {isObservationOpen(pet.rabiesObservationStatus) && (
+          <RabiesObservationBanner
+            windowExpired={pet.rabiesObservationStatus === "window_expired_unclosed"}
+          />
+        )}
 
         {/* Service dog banner — Ley 26.858 */}
         {showServiceDogBanner && <ServiceDogBanner rabiesAtRisk={rabiesAtRisk} />}

@@ -35,6 +35,7 @@ import {
 } from "@/db";
 import { ageInDays } from "@/lib/domain/queue-aging";
 import { resolveBusinessRule } from "@/lib/infra/business-rules-resolver";
+import { openObservationStatusSql } from "@/lib/metrics/observation-status";
 import { DECOMISO_HANDOFF_STALE_DAYS } from "@/src/modules/cases/domain/case-sla";
 import { capabilityAppliesToOrgType } from "@/src/modules/organizations/domain/capabilities";
 
@@ -652,17 +653,23 @@ async function countOpenCases(orgId: string): Promise<number> {
 }
 
 /**
- * Pets under an IN-PROGRESS rabies observation whose bite expediente belongs to
- * this org (D-6).
+ * Pets under an OPEN rabies observation whose bite expediente belongs to this
+ * org (D-6).
  *
  * Org membership uses the SAME predicate as countOpenCases — opener OR active
  * custody holder, the shape `listCasesForOrg` uses — so the tile counts rows the
  * org's own casos list can actually show. Narrowed twice from there: to
- * `bite_incident` (the rabies expediente kind) and to pets the pets-table cache
- * still marks `in_progress`. That last predicate is the STATUTORY clock: an
- * observation closed by a professional flips the status even while the case
- * stays open for its own reasons, and this queue is about the 10-day window,
- * not about case bookkeeping.
+ * `bite_incident` (the rabies expediente kind) and to pets whose observation the
+ * pets-table cache still marks OPEN. That last predicate is the STATUTORY clock:
+ * an observation closed by a professional flips the status even while the case
+ * stays open for its own reasons, and this queue is about the observation
+ * window, not about case bookkeeping.
+ *
+ * "Open" includes `window_expired_unclosed` since 2026-08-17. Those are exactly
+ * the animals whose observation nobody has closed — and a vet or refugio reading
+ * this tile is who can get that closure signed. Keeping the narrow
+ * `in_progress` literal would have emptied the tile a day after each window
+ * expired, which is when the work STARTS.
  */
 async function countRabiesObservations(orgId: string): Promise<number> {
   const [row] = await db
@@ -673,7 +680,7 @@ async function countRabiesObservations(orgId: string): Promise<number> {
       and(
         eq(cases.caseKind, "bite_incident"),
         isNull(cases.closedAt),
-        eq(pets.rabiesObservationStatus, "in_progress"),
+        openObservationStatusSql(),
         or(
           eq(cases.openedByOrganizationId, orgId),
           exists(

@@ -1206,6 +1206,7 @@ const NOTIFICATION_TYPE_LABELS: Record<string, string> = {
   rabies_observation_escalation_owner: "Observación antirrábica: requiere atención",
   rabies_observation_pending_review: "Observación antirrábica pendiente de revisión",
   rabies_observation_started_owner: "Observación antirrábica iniciada",
+  rabies_observation_window_expired_owner: "Observación antirrábica: período cumplido",
   // Revocations / service
   revocation_executed_org: "Revocación de verificación ejecutada",
   revocation_executed_vet: "Revocación de matrícula ejecutada",

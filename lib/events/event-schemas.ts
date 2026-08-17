@@ -783,10 +783,15 @@ const credentialScanned = z
   .strict();
 
 // Rabies observation lifecycle — emitted atomically with the originating
-// incident_reported (bite_inflicted) event and closed either by the daily
-// cron (negative happy path), by the owner manually after 10 days, by a vet
-// or govt professionally with a specific outcome, or auto-closed when a
-// death_recorded event fires during the period.
+// incident_reported (bite_inflicted) event.
+//
+// CLOSED ONLY BY A PROFESSIONAL since 2026-08-17 (PO decision, engram
+// roadmap/decisiones-legales-flujos-2026-08-17): the sanitary authority / admin
+// close with an outcome, or the death_recorded cascade fires outcome='dead'.
+// The daily cron and the owner USED to write outcome='negative' here; neither
+// can competently assert that a bitten person's exposure was clear. An
+// observation whose window elapses without a professional closure lands in
+// pets.rabies_observation_status='window_expired_unclosed' and emits NO event.
 //
 // The bite_event_id references a `pet_events.id` row whose `event_type` is
 // `incident_reported` and whose `payload.incident_type` is `'bite_inflicted'`.
@@ -794,8 +799,14 @@ const rabiesObservationStarted = z
   .object(
     withVersion({
       bite_event_id: z.string().uuid(),
-      // ISO date — bite occurred_at + 10 calendar days.
+      // ISO date — bite occurred_at + the jurisdiction's window in calendar days.
       observation_until: z.string(),
+      // Window (calendar days) resolved from the `rabies_observation_window`
+      // rule at report time — 10 nationally, 14 in some jurisdictions. Recorded
+      // so copy quotes the window ACTUALLY applied. Optional: rows before
+      // 2026-08-17 predate it and readers must phrase around observation_until
+      // instead of inventing a number (see resolveObservationWindowDays).
+      observation_days: z.number().int().positive().optional(),
       // in_situ (domicilio del dueño) vs official_site (Instituto Pasteur,
       // dispensario antirrábico). v1 defaults to in_situ; a professional flow
       // can promote to official_site when implemented.
@@ -816,6 +827,9 @@ const rabiesObservationEnded = z
       bite_event_id: z.string().uuid().nullable(),
       observation_started_event_id: z.string().uuid(),
       outcome: z.enum(["negative", "positive_rabies", "dead", "lost_to_followup"]),
+      // "owner"/"system" are RETAINED only to keep historical rows readable
+      // (append-only log). No writer emits them since 2026-08-17: the reachable
+      // paths are the professional close and the death_recorded cascade.
       closed_by_role: z.enum(["owner", "vet", "govt", "admin", "system"]),
       closure_notes: z.string().nullable(),
       // Set when outcome='dead' — the death_recorded event id that triggered

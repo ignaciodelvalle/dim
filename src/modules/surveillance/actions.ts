@@ -13,8 +13,14 @@
 // AUTH SCOPE CONTRACT:
 //   reportBiteAction:                    requireAlivePetAccess (owner+alive)
 //   reportBiteFromOrgAction:             requireCapability("bite.report")
-//   ownerCloseRabiesObservation:         requireAlivePetAccess
 //   professionalCloseRabiesObservation:  requireAdminOrGovtOrRedirect + jurisdiction scope
+//
+// ownerCloseRabiesObservationAction was DELETED on 2026-08-17 (PO decision,
+// engram roadmap/decisiones-legales-flujos-2026-08-17 item 1). It let the owner
+// of the animal that bit somebody write outcome='negative' on the State's own
+// record, gated only on the window having elapsed and on that same owner not
+// having self-reported a symptom. Only professionalCloseRabiesObservationAction
+// may assert a clinical outcome now.
 //   openOutbreakInvestigationAction:     requireAdminOrGovtOrRedirect + isInScope (via use-case)
 //   addInvestigationNoteAction:          requireAdminOrGovtOrRedirect + isInScope (via use-case)
 //   escalateInvestigationAction:         requireAdminOrGovtOrRedirect + isInScope (via use-case)
@@ -47,13 +53,13 @@ import {
   escalateInvestigation,
   openOutbreakInvestigation,
 } from "./application/outbreak-investigation";
-import { ownerCloseObservation } from "./application/owner-close-observation";
 import { professionalCloseObservation } from "./application/professional-close-observation";
 import { reportBite } from "./application/report-bite";
 import { reportBiteFromOrg } from "./application/report-bite-from-org";
 import {
   RABIES_OBSERVATION_DAYS,
   type RabiesObservationOutcome,
+  isObservationOpen,
 } from "./domain/rabies-observation";
 import { SurveillanceRepository } from "./infrastructure/surveillance-repository";
 
@@ -123,8 +129,10 @@ export async function reportBiteAction(
   if (!access.ok) return { error: access.error };
   const { pet, user, eventAuthorship } = access;
 
-  // 2. Refuse if an observation is already active.
-  if (pet.rabiesObservationStatus === "in_progress") {
+  // 2. Refuse if an observation is already open — including one whose window
+  // expired without a professional closure. That one is unresolved, not over:
+  // opening a second observation on top of it would bury the first.
+  if (isObservationOpen(pet.rabiesObservationStatus)) {
     return {
       error: "Esta mascota ya está en observación antirrábica por otra mordedura activa.",
     };
@@ -263,44 +271,6 @@ export async function reportBiteAction(
 }
 
 // ---------------------------------------------------------------------------
-// ownerCloseRabiesObservationAction (spec §C)
-// ---------------------------------------------------------------------------
-
-export async function ownerCloseRabiesObservationAction(
-  publicToken: string,
-): Promise<{ error: string | null }> {
-  const access = await requireAlivePetAccess(publicToken);
-  if (!access.ok) return { error: access.error };
-  const { pet, user, eventAuthorship } = access;
-
-  const result = await ownerCloseObservation(
-    {
-      pet,
-      user,
-      eventAuthorship: eventAuthorship as {
-        authorRole: string;
-        authorOrganizationId: string | null;
-        authorVerified: boolean;
-      },
-    },
-    {
-      repo,
-      closeCase: async (args, tx) => {
-        await closeCase(args, tx as Parameters<typeof closeCase>[1]);
-      },
-      transaction: db.transaction.bind(db),
-    },
-  );
-
-  if (!result.ok) return { error: result.error };
-
-  await flushNotifications(result.notifications as (typeof notifications.$inferInsert)[]);
-
-  revalidatePath(`/mis-mascotas/${publicToken}`);
-  return { error: null };
-}
-
-// ---------------------------------------------------------------------------
 // reportBiteFromOrgAction — org path (spec §B)
 // ---------------------------------------------------------------------------
 
@@ -323,7 +293,8 @@ export async function reportBiteFromOrgAction(
   if (pet.status === "deceased") {
     return { error: "Esta mascota está registrada como fallecida." };
   }
-  if (pet.rabiesObservationStatus === "in_progress") {
+  // Same guard as the owner path: an expired-unclosed observation is still open.
+  if (isObservationOpen(pet.rabiesObservationStatus)) {
     return {
       error: "Esta mascota ya está en observación antirrábica por otra mordedura activa.",
     };

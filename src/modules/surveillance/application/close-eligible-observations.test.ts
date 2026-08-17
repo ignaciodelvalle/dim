@@ -1,11 +1,20 @@
-// Unit tests for application/close-eligible-observations.ts (spec §E)
-// Strict TDD — tests written BEFORE implementation.
+// Unit tests for application/close-eligible-observations.ts (spec §E).
 //
-// KEY PARITY QUIRKS:
-//   1. auto-expired path: DIRECT cases UPDATE with closedReason='auto_expired'
-//      via repo.autoExpireBiteCase — NOT closeCase('resolved')
-//   2. Owner notification is INSIDE the tx (not post-tx)
-//   3. Escalating symptom → block + notify authorities, no event change
+// THE CONTRACT THIS FILE PINS (rewritten 2026-08-17)
+// ---------------------------------------------------------------------------
+// The sweep must NEVER assert a clinical outcome. It used to insert
+// rabies_observation_ended with outcome='negative', closed_by_role='system' and
+// recorded_by_user_id NULL — the State's own document saying the animal that bit
+// somebody was clear, authored by a cron. The tests below exist to make that
+// impossible to reintroduce silently:
+//
+//   1. no rabies_observation_ended event, ever, from this sweep;
+//   2. the status lands on `window_expired_unclosed`, never on a completed_*;
+//   3. the bite expediente is NOT auto-expired (nothing was resolved);
+//   4. the owner message does not read as an all-clear and does name who can
+//      close it;
+//   5. copy quotes the window resolved for THIS observation, never a
+//      hardcoded 10.
 
 import { describe, expect, it, vi } from "vitest";
 
@@ -42,7 +51,7 @@ function makePet(overrides: Partial<SurveillancePet> = {}): SurveillancePet {
   } as unknown as SurveillancePet;
 }
 
-function makeStartedEvent(observationUntil: Date): PetEvent {
+function makeStartedEvent(observationUntil: Date, observationDays: number | null = 10): PetEvent {
   return {
     id: FAKE_STARTED_ID,
     petId: "pet-cron-1",
@@ -56,6 +65,7 @@ function makeStartedEvent(observationUntil: Date): PetEvent {
     payload: {
       bite_event_id: FAKE_BITE_ID,
       observation_until: observationUntil.toISOString(),
+      ...(observationDays === null ? {} : { observation_days: observationDays }),
       location: "in_situ",
       official_site_organization_id: null,
     },
@@ -90,73 +100,107 @@ function makeDeps(repoOverrides: FakeRepo = {}) {
   return { repo, transaction, findAuthoritiesForJurisdiction };
 }
 
+/** Every notification row handed to the repo across all calls, flattened. */
+function allNotifications(repo: SurveillanceRepository): Record<string, unknown>[] {
+  return (repo.insertNotifications as unknown as ReturnType<typeof vi.fn>).mock.calls.flatMap(
+    (c) => c[0] as Record<string, unknown>[],
+  );
+}
+
 const BASE_OPTIONS: CloseEligibleObservationsOptions = { now: NOW };
 
 // ---------------------------------------------------------------------------
-// Happy path: auto-close as negative
+// Window elapsed with no professional closure
 // ---------------------------------------------------------------------------
 
-describe("closeEligibleObservations — auto-close path", () => {
-  it("returns stats with closedNegative=1 for an eligible pet", async () => {
+describe("closeEligibleObservations — expired window, no professional closure", () => {
+  it("returns stats with windowExpiredUnclosed=1 for an eligible pet", async () => {
     const deps = makeDeps();
     const stats = await closeEligibleObservations(BASE_OPTIONS, deps);
-    expect(stats.closedNegative).toBe(1);
+    expect(stats.windowExpiredUnclosed).toBe(1);
     expect(stats.scanned).toBe(1);
   });
 
-  it("inserts rabies_observation_ended with outcome=negative, closed_by_role=system", async () => {
+  it("NEVER inserts a rabies_observation_ended event — no outcome is asserted", async () => {
     const deps = makeDeps();
     await closeEligibleObservations(BASE_OPTIONS, deps);
-    const call = (deps.repo.insertObservationEnded as ReturnType<typeof vi.fn>).mock
-      .calls[0][0] as { payload: Record<string, unknown>; authorRole: string };
-    expect(call.payload.outcome).toBe("negative");
-    expect(call.payload.closed_by_role).toBe("system");
-    expect(call.authorRole).toBe("system");
+    expect(deps.repo.insertObservationEnded).not.toHaveBeenCalled();
   });
 
-  it("sets pet status to completed_negative", async () => {
+  it("sets pet status to window_expired_unclosed, never to a completed_* value", async () => {
     const deps = makeDeps();
     await closeEligibleObservations(BASE_OPTIONS, deps);
     expect(deps.repo.setObservationStatus).toHaveBeenCalledWith(
       "pet-cron-1",
-      "completed_negative",
+      "window_expired_unclosed",
       NOW,
       "fake-tx",
     );
+    const statuses = (deps.repo.setObservationStatus as ReturnType<typeof vi.fn>).mock.calls.map(
+      (c) => c[1] as string,
+    );
+    expect(statuses.some((s) => s.startsWith("completed_"))).toBe(false);
   });
 
-  it("uses autoExpireBiteCase (NOT closeCase resolved) — parity quirk §E", async () => {
+  it("leaves the bite expediente OPEN — nothing was resolved", async () => {
     const deps = makeDeps();
     await closeEligibleObservations(BASE_OPTIONS, deps);
-    // autoExpireBiteCase must be called
-    expect(deps.repo.autoExpireBiteCase).toHaveBeenCalledWith("case-cron-1", NOW, "fake-tx");
+    expect(deps.repo.autoExpireBiteCase).not.toHaveBeenCalled();
   });
 
-  it("does NOT call closeCase at all (uses direct UPDATE path)", async () => {
+  it("does NOT call closeCase either", async () => {
     const deps = makeDeps();
-    // closeCase should not exist on deps
     const closeCaseSpy = vi.fn();
     (deps as unknown as Record<string, unknown>).closeCase = closeCaseSpy;
     await closeEligibleObservations(BASE_OPTIONS, deps);
     expect(closeCaseSpy).not.toHaveBeenCalled();
   });
 
-  it("inserts owner notification INSIDE tx when owner exists", async () => {
+  it("tells the owner the observation is still open and who can close it", async () => {
     const deps = makeDeps();
     await closeEligibleObservations(BASE_OPTIONS, deps);
-    // Transaction was called (all ops including notification inside it)
-    expect(deps.transaction).toHaveBeenCalled();
-    // The notification insertion should happen inside the tx callback
-    // We verify by checking that insertNotifications was called (the repo method)
-    expect(deps.repo.insertNotifications).toHaveBeenCalled();
+    const owner = allNotifications(deps.repo).find((n) => n.userId === "owner-cron-1");
+    expect(owner).toBeDefined();
+    expect(owner?.notificationType).toBe("rabies_observation_window_expired_owner");
+    const body = String(owner?.body);
+    expect(body).toContain("sigue abierta");
+    expect(body).toContain("veterinario matriculado");
+    // The all-clear the old message gave must be gone in every spelling.
+    expect(body).not.toMatch(/sin incidentes|sigue normal|negativ/i);
   });
 
-  it("skips autoExpireBiteCase when no open bite case", async () => {
+  it("hands the expired observation to the jurisdiction's authorities", async () => {
+    const deps = makeDeps();
+    deps.findAuthoritiesForJurisdiction = vi.fn().mockResolvedValue(["auth-1"]);
+    await closeEligibleObservations(BASE_OPTIONS, deps);
+    expect(deps.findAuthoritiesForJurisdiction).toHaveBeenCalledWith({
+      province: "Santa Fe",
+      locality: "Rosario",
+    });
+    const auth = allNotifications(deps.repo).find((n) => n.userId === "auth-1");
+    expect(auth?.notificationType).toBe("rabies_observation_pending_review");
+    expect(String(auth?.body)).toContain("sin cierre profesional");
+  });
+
+  it("quotes the window resolved for THIS observation, not the national baseline", async () => {
     const deps = makeDeps({
-      findOpenBiteCase: vi.fn().mockResolvedValue(null),
+      findLatestObservationStarted: vi.fn().mockResolvedValue(makeStartedEvent(PAST_DUE, 14)),
     });
     await closeEligibleObservations(BASE_OPTIONS, deps);
-    expect(deps.repo.autoExpireBiteCase).not.toHaveBeenCalled();
+    const owner = allNotifications(deps.repo).find((n) => n.userId === "owner-cron-1");
+    expect(String(owner?.body)).toContain("de 14 días");
+    expect(String(owner?.body)).not.toContain("10 días");
+  });
+
+  it("quotes NO day count when the observation predates observation_days", async () => {
+    const deps = makeDeps({
+      findLatestObservationStarted: vi.fn().mockResolvedValue(makeStartedEvent(PAST_DUE, null)),
+    });
+    await closeEligibleObservations(BASE_OPTIONS, deps);
+    const body = String(allNotifications(deps.repo).find((n) => n.userId === "owner-cron-1")?.body);
+    expect(body).not.toMatch(/\d+ días/);
+    // …but it still names the exact deadline, which is always computable.
+    expect(body).toContain("vencía el");
   });
 });
 
@@ -165,13 +209,16 @@ describe("closeEligibleObservations — auto-close path", () => {
 // ---------------------------------------------------------------------------
 
 describe("closeEligibleObservations — escalation path", () => {
-  it("does NOT close when escalating symptom found, flags instead", async () => {
+  it("flags instead of transitioning when an escalating symptom exists", async () => {
     const deps = makeDeps({
       findEscalatingSymptom: vi.fn().mockResolvedValue({ id: "symptom-1" }),
     });
     const stats = await closeEligibleObservations(BASE_OPTIONS, deps);
-    expect(stats.closedNegative).toBe(0);
+    expect(stats.windowExpiredUnclosed).toBe(0);
     expect(stats.flaggedForReview).toBe(1);
+    // Stays in_progress ON PURPOSE: symptoms compatible with rabies are an
+    // ongoing danger, so the public banner must keep saying so.
+    expect(deps.repo.setObservationStatus).not.toHaveBeenCalled();
   });
 
   it("does NOT insert observation_ended when escalating", async () => {
@@ -183,8 +230,13 @@ describe("closeEligibleObservations — escalation path", () => {
   });
 
   it("notifies authorities when escalating symptom exists (urgent severity)", async () => {
+    // 14-day jurisdiction on purpose: this message hardcoded "El período de 10
+    // días terminó" until 2026-08-17, so it lied to every jurisdiction that
+    // runs a longer window — on the ONE notification that says an animal may
+    // be rabid.
     const deps = makeDeps({
       findEscalatingSymptom: vi.fn().mockResolvedValue({ id: "symptom-1" }),
+      findLatestObservationStarted: vi.fn().mockResolvedValue(makeStartedEvent(PAST_DUE, 14)),
     });
     deps.findAuthoritiesForJurisdiction = vi.fn().mockResolvedValue(["auth-1"]);
     await closeEligibleObservations(BASE_OPTIONS, deps);
@@ -192,6 +244,10 @@ describe("closeEligibleObservations — escalation path", () => {
       province: "Santa Fe",
       locality: "Rosario",
     });
+    const auth = allNotifications(deps.repo).find((n) => n.userId === "auth-1");
+    expect(auth?.severity).toBe("urgent");
+    expect(String(auth?.body)).toContain("de 14 días");
+    expect(String(auth?.body)).not.toContain("10 días");
   });
 });
 
@@ -206,7 +262,7 @@ describe("closeEligibleObservations — not yet due", () => {
     });
     const stats = await closeEligibleObservations(BASE_OPTIONS, deps);
     expect(stats.skippedNotYetDue).toBe(1);
-    expect(stats.closedNegative).toBe(0);
+    expect(stats.windowExpiredUnclosed).toBe(0);
   });
 });
 
@@ -237,7 +293,7 @@ describe("closeEligibleObservations — error handling", () => {
     });
     const stats = await closeEligibleObservations(BASE_OPTIONS, deps);
     expect(stats.errors).toHaveLength(1);
-    expect(stats.closedNegative).toBe(1);
+    expect(stats.windowExpiredUnclosed).toBe(1);
   });
 });
 
@@ -245,8 +301,8 @@ describe("closeEligibleObservations — error handling", () => {
 // Robustness: seed/older observations with missing payload fields (QA 2026-07-08)
 // ---------------------------------------------------------------------------
 
-describe("closeEligibleObservations — resilient close for incomplete payloads", () => {
-  it("auto-closes when observation_until is MISSING (fallback = started.occurredAt + 10d)", async () => {
+describe("closeEligibleObservations — resilient sweep for incomplete payloads", () => {
+  it("transitions when observation_until is MISSING (fallback = started.occurredAt + 10d)", async () => {
     // started.occurredAt = 2024-08-10 → fallback deadline 2024-08-20 < NOW.
     const startedNoUntil = {
       ...makeStartedEvent(PAST_DUE),
@@ -261,10 +317,10 @@ describe("closeEligibleObservations — resilient close for incomplete payloads"
     });
     const stats = await closeEligibleObservations(BASE_OPTIONS, deps);
     expect(stats.errors).toHaveLength(0);
-    expect(stats.closedNegative).toBe(1);
+    expect(stats.windowExpiredUnclosed).toBe(1);
   });
 
-  it("auto-closes when bite_event_id is MISSING — records null, never throws", async () => {
+  it("transitions when bite_event_id is MISSING — never throws", async () => {
     const startedNoBite = {
       ...makeStartedEvent(PAST_DUE),
       payload: {
@@ -278,15 +334,12 @@ describe("closeEligibleObservations — resilient close for incomplete payloads"
     });
     const stats = await closeEligibleObservations(BASE_OPTIONS, deps);
     expect(stats.errors).toHaveLength(0);
-    expect(stats.closedNegative).toBe(1);
-    const call = (deps.repo.insertObservationEnded as ReturnType<typeof vi.fn>).mock
-      .calls[0][0] as { payload: Record<string, unknown> };
-    expect(call.payload.bite_event_id).toBeNull();
+    expect(stats.windowExpiredUnclosed).toBe(1);
   });
 });
 
 // ---------------------------------------------------------------------------
-// Audit log parity (spec §E AUDIT_LOG: NONE)
+// Audit log parity (spec §E AUDIT_LOG: NONE — no operator acts here)
 // ---------------------------------------------------------------------------
 
 describe("closeEligibleObservations — audit_log absence", () => {

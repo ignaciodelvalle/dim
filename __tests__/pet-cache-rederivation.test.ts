@@ -31,7 +31,12 @@ import {
   profiles,
 } from "@/db";
 import { validateEventPayload } from "@/lib/events/event-schemas";
-import { CHECKED_COLUMN_NAMES, hasDrift, rederivePetCache } from "@/lib/infra/rederive-pet-cache";
+import {
+  CHECKED_COLUMN_NAMES,
+  hasDrift,
+  rederivePetCache,
+  sameObservationStatus,
+} from "@/lib/infra/rederive-pet-cache";
 import { replayPetStatus } from "@/lib/projections/pet-status";
 import type { ProjectionEvent } from "@/lib/projections/types";
 import { recordPregnancyStartedWriter } from "@/src/modules/pets/application/pregnancy/record-pregnancy-started";
@@ -970,5 +975,36 @@ describe("pet-cache — fecha de implante desconocida", () => {
     const report = await rederivePetCache(pet.id);
 
     expect(report.microchipImplantedAt.matches).toBe(true);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// rabiesObservationStatus — the ONE forgiven asymmetry (2026-08-17)
+//
+// The daily sweep refines a stored `in_progress` into `window_expired_unclosed`
+// purely because the statutory window elapsed, and writes NO event for it (see
+// lib/projections/pet-rabies-observation.ts: the projection stays clockless on
+// purpose). The comparator forgives exactly that pair and nothing else — a
+// stored `window_expired_unclosed` against a derived `completed_*` is a lost
+// professional close, which is real drift.
+// ---------------------------------------------------------------------------
+
+describe("sameObservationStatus", () => {
+  it("forgives stored window_expired_unclosed vs derived in_progress", () => {
+    expect(sameObservationStatus("window_expired_unclosed", "in_progress")).toBe(true);
+  });
+
+  it("does NOT forgive the reverse", () => {
+    expect(sameObservationStatus("in_progress", "window_expired_unclosed")).toBe(false);
+  });
+
+  it("does NOT forgive a lost professional close", () => {
+    expect(sameObservationStatus("window_expired_unclosed", "completed_negative")).toBe(false);
+    expect(sameObservationStatus("in_progress", "completed_positive_rabies")).toBe(false);
+  });
+
+  it("still matches on equality, including null vs undefined", () => {
+    expect(sameObservationStatus("completed_dead", "completed_dead")).toBe(true);
+    expect(sameObservationStatus(null, undefined)).toBe(true);
   });
 });

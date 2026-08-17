@@ -576,7 +576,7 @@ export const KPI_CATALOG: Record<KpiId, KpiDefinition> = {
     id: "active_zoonosis_signals",
     label: "Casos de zoonosis activos",
     numerator:
-      "COUNT DISTINCT pets with an active rabies observation (rabies_observation_status = 'in_progress') OR an open bite_incident case (deduplicated via UNION, not summed) + COUNT disease_reported events where payload.disease = 'lepto' (trailing 30d) + COUNT disease_reported events where payload.disease = 'hidatidosis' (trailing 30d)",
+      "COUNT DISTINCT pets with an OPEN rabies observation (rabies_observation_status IN 'in_progress','window_expired_unclosed') OR an open bite_incident case (deduplicated via UNION, not summed) + COUNT disease_reported events where payload.disease = 'lepto' (trailing 30d) + COUNT disease_reported events where payload.disease = 'hidatidosis' (trailing 30d)",
     denominator: "n/a — absolute count",
     source: "pets, cases, pet_events (disease_reported, rabies_observation_started)",
     fetcherName: "fetchActiveZoonosis",
@@ -594,7 +594,8 @@ export const KPI_CATALOG: Record<KpiId, KpiDefinition> = {
   open_rabies_observations: {
     id: "open_rabies_observations",
     label: "Mascotas en observación rábica",
-    numerator: "COUNT active/lost pets where rabies_observation_status = 'in_progress'",
+    numerator:
+      "COUNT active/lost pets whose rabies observation is still open — rabies_observation_status IN ('in_progress','window_expired_unclosed')",
     denominator: "n/a — absolute count",
     source: "pets, pet_events (rabies_observation_started, for the weekly delta)",
     fetcherName: "fetchOpenRabiesObservations",
@@ -603,14 +604,15 @@ export const KPI_CATALOG: Record<KpiId, KpiDefinition> = {
     unit: "count",
     suppression: "none",
     caveat:
-      "Decomposed from active_zoonosis_signals's rabies arm (PO-ratified split of the opaque composite into legible signals) — same predicate and same deltaWeek computation, just no longer merged with the open-bite-case count.",
+      "Decomposed from active_zoonosis_signals's rabies arm (PO-ratified split of the opaque composite into legible signals) — same predicate and same deltaWeek computation, just no longer merged with the open-bite-case count. WIDENED 2026-08-17: 'open' now covers window_expired_unclosed too. Before that date the daily sweep closed an elapsed observation as completed_negative with no clinical author; now it leaves it unclosed, and a counter still keyed on in_progress alone would have drained to zero exactly as the unfinished backlog grew — taking rabies_observation_compliance_10d's openBreaches, which is fenced to be a subset of this KPI, down with it.",
     window: "now",
     species: "all_species",
     basis: "stock",
     ui: {
       definition:
-        "Mascotas con una observación antirrábica actualmente en curso (rabies_observation_status='in_progress') en la jurisdicción. Deriva de la observación tras mordedura (Ley 22.953).",
-      formula: "COUNT(pets donde rabies_observation_status='in_progress') en alcance",
+        "Mascotas con una observación antirrábica todavía abierta en la jurisdicción: en curso, o con el período vencido y sin cierre profesional registrado. Deriva de la observación tras mordedura (Ley 22.953).",
+      formula:
+        "COUNT(pets donde rabies_observation_status IN ('in_progress','window_expired_unclosed')) en alcance",
     },
   },
 

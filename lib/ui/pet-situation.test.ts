@@ -28,6 +28,24 @@ describe("derivePetSituation", () => {
     expect(derivePetSituation({ status: "active", inTransit: true }).key).toBe("en-transito");
   });
 
+  // 2026-08-17: an observation whose window elapsed with no professional
+  // closure resolved NOTHING, so the credential must not fall back to "al día".
+  it("keeps the observación skin when the window expired without a closure", () => {
+    expect(
+      derivePetSituation({
+        status: "active",
+        rabiesObservationStatus: "window_expired_unclosed",
+      }).key,
+    ).toBe("observacion-antirrabica");
+  });
+
+  it("drops the observación skin only once a professional actually closed it", () => {
+    expect(
+      derivePetSituation({ status: "active", rabiesObservationStatus: "completed_negative" })
+        .isDefault,
+    ).toBe(true);
+  });
+
   it("formalizes custodia-oficial: warn-family tone, shield icon, es-AR label", () => {
     const sit = derivePetSituation({ status: "active", underOfficialCustody: true });
     expect(sit.key).toBe("custodia-oficial");

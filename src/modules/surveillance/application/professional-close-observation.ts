@@ -12,13 +12,29 @@
 // (petEvents.authorRole enum doesn't include 'admin' — both log as 'govt').
 // payload.closed_by_role keeps the precise distinction (admin|govt).
 //
-// AUDIT_LOG: NONE.
+// AUDIT_LOG: YES since 2026-08-17 — `rabies_observation_closed_professional`,
+// written INSIDE the transaction. The whole Ley 22.953 surface wrote no audit
+// rows, and for the reporting paths that is defensible: the pet_events spine
+// already carries the author of every assertion. This close is different now.
+// After removing the cron and owner paths it is the ONLY way a clinical outcome
+// enters the record, it is performed by an identified operator exercising
+// jurisdiction power, and it terminates a legal obligation and flips a
+// public-facing banner. The event row records the ASSERTION; the audit row
+// records the ADMINISTRATIVE ACT with its before/after state, which is what an
+// accountability query over audit_log is expected to find. Note that
+// scripts/check-audit-log-coverage.ts could never have caught the absence: the
+// mutation sits two hops down (action → use-case → repo) and the fence
+// documents ONE HOP as a known blind spot.
 
 import { jurisdictionScopeContains } from "@/lib/domain/jurisdiction-canonical";
 import { validateEventPayload } from "@/lib/events/event-schemas";
 import { rabiesObservationOutcomeLabel } from "@/lib/utils/format";
 
-import { PROFESSIONAL_OUTCOMES, outcomeToStatus } from "../domain/rabies-observation";
+import {
+  PROFESSIONAL_OUTCOMES,
+  isObservationOpen,
+  outcomeToStatus,
+} from "../domain/rabies-observation";
 import type { RabiesObservationOutcome } from "../domain/rabies-observation";
 import type { SurveillanceRepository } from "../infrastructure/surveillance-repository";
 import type { NewNotification, UseCaseResult } from "./types";
@@ -46,6 +62,7 @@ type Deps = {
     | "insertObservationEnded"
     | "setObservationStatus"
     | "findActiveOwnership"
+    | "insertObservationCloseAuditLog"
   >;
   closeCase: (
     input: { caseId: string; reason: "resolved" | "cancelled"; closedByUserId: string },
@@ -86,9 +103,12 @@ export async function professionalCloseObservation(
   const pet = await repo.findPetByToken(input.petPublicToken);
   if (!pet) return { ok: false, error: "Mascota no encontrada." };
 
-  // 3. Guard: observation must be active.
-  if (pet.rabiesObservationStatus !== "in_progress") {
-    return { ok: false, error: "Esta mascota no tiene una observación activa." };
+  // 3. Guard: observation must still be OPEN — either running (`in_progress`)
+  // or past its window with nobody having closed it (`window_expired_unclosed`).
+  // The expired state is precisely the queue this close exists to drain, so
+  // refusing it would strand every observation the sweep hands over.
+  if (!isObservationOpen(pet.rabiesObservationStatus)) {
+    return { ok: false, error: "Esta mascota no tiene una observación abierta." };
   }
 
   // 4. Govt scope check — admin is universal. Subsumption-aware: a whole-province
@@ -159,6 +179,27 @@ export async function professionalCloseObservation(
         outcomeToStatus(input.outcome),
         now,
         tx as Parameters<typeof repo.setObservationStatus>[3],
+      );
+
+      // 8b. Accountability row for the administrative act, in the SAME tx as
+      // the mutation it describes — a rollback takes it with the close.
+      await repo.insertObservationCloseAuditLog(
+        {
+          action: "rabies_observation_closed_professional",
+          actorUserId: actor.profile.id,
+          payload: {
+            pet_id: pet.id,
+            pet_public_token: pet.publicToken,
+            case_id: biteCase?.id ?? null,
+            observation_started_event_id: startedEvent.id,
+            outcome: input.outcome,
+            closed_by_role: actor.profile.role,
+            closure_notes: input.closureNotes,
+          },
+          before: { rabies_observation_status: pet.rabiesObservationStatus },
+          after: { rabies_observation_status: outcomeToStatus(input.outcome) },
+        },
+        tx as Parameters<typeof repo.insertObservationCloseAuditLog>[1],
       );
 
       // 9. Close bite case.

@@ -47,6 +47,7 @@ import {
   suppressedMetric,
 } from "@/lib/metrics";
 import type { Cell, MetricResult, SuppressedCells } from "@/lib/metrics";
+import { openObservationStatusSql } from "@/lib/metrics/observation-status";
 import { DRUG_CATALOG, isAntimicrobial, isClassifiedDrug } from "@/lib/reference/drugs";
 
 // Re-export the context type so callers can import everything from one place.
@@ -277,7 +278,7 @@ async function fetchRabiesComplianceForScope(
     JOIN pets ON pets.id = started.pet_id
     WHERE started.event_type = 'rabies_observation_started'
       AND started.occurred_at < ${breachCutoffIso}::timestamptz
-      AND pets.rabies_observation_status = 'in_progress'
+      AND ${openObservationStatusSql()}
       AND NOT EXISTS (
         SELECT 1 FROM pet_events ended
         WHERE ended.event_type = 'rabies_observation_ended'

@@ -669,11 +669,13 @@ export const pets = pgTable(
     // custody_dispute_resolved. Features that should respect the flag
     // (transfers, adoption finalize, scheduling) opt in per-feature.
     inCustodyDispute: boolean("in_custody_dispute").notNull().default(false),
-    // 10-day rabies observation lifecycle. Set by reportBiteAction (in_progress),
-    // by the daily cron (completed_negative on happy path), by death_recorded
-    // hook (completed_dead), or by professional close (completed_positive_rabies
-    // / completed_lost_to_followup). null when no active observation.
-    // See lib/rabies-observation.ts → RabiesObservationStatus.
+    // Rabies observation lifecycle. Set by reportBiteAction (in_progress), by
+    // the daily sweep (window_expired_unclosed when the statutory window elapses
+    // with no professional closure — 2026-08-17; it used to write
+    // completed_negative with no clinical author), by the death_recorded hook
+    // (completed_dead), or by professional close (any completed_*). null when no
+    // observation ever existed.
+    // See src/modules/surveillance/domain/rabies-observation.ts.
     rabiesObservationStatus: text("rabies_observation_status"),
     // Denormalized pregnancy lifecycle flag — spec pregnancy-tracking PR4.
     // Re-derivable from clinical_info_logged(sub_kind='pregnancy') events.
@@ -788,7 +790,7 @@ export const pets = pgTable(
     // CHECK constraints also declared via ALTER in migrations 0021, 0030, 0031, 0036.
     petsRabiesObservationStatusValid: check(
       "pets_rabies_observation_status_valid",
-      sql`${table.rabiesObservationStatus} is null or ${table.rabiesObservationStatus} in ('in_progress', 'completed_negative', 'completed_positive_rabies', 'completed_dead', 'completed_lost_to_followup')`,
+      sql`${table.rabiesObservationStatus} is null or ${table.rabiesObservationStatus} in ('in_progress', 'window_expired_unclosed', 'completed_negative', 'completed_positive_rabies', 'completed_dead', 'completed_lost_to_followup')`,
     ),
     petsAdoptionEnergyLevelValid: check(
       "pets_adoption_energy_level_valid",
@@ -2295,6 +2297,15 @@ export const AUDIT_LOG_ACTIONS = [
   "outbreak_investigation_closed_resolved",
   "outbreak_investigation_closed_dismissed",
   "outbreak_investigation_note_added",
+  // Professional closure of a 10-day rabies observation (Ley 22.953, Decreto
+  // 4669/1973 PBA). Added 2026-08-17 with the PO decision that ONLY a
+  // professional may assert a clinical outcome: the cron and the owner used to
+  // write outcome='negative' with no clinical author, and this action is now the
+  // sole path by which an outcome enters the record. Emitted inside the close
+  // transaction by professionalCloseObservation.
+  // Payload: { pet_id, pet_public_token, case_id, observation_started_event_id,
+  //            outcome, closed_by_role, closure_notes, before_values, after_values }.
+  "rabies_observation_closed_professional",
   // One-time backfill script for missed ENO notifications (bug fix PR #137).
   // Written once per script invocation (not per event).
   // Payload: { since, until, limit, processed, notified, skipped, errors, dry_run }.

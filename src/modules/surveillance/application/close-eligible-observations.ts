@@ -1,21 +1,58 @@
-// Use-case: close-eligible-rabies-observations (cron — spec §E).
+// Use-case: sweep rabies observations whose statutory window has elapsed
+// (cron — spec §E).
 //
 // Migrated from lib/rabies-observation-closer.ts::closeEligibleRabiesObservations.
 // No user auth — cron actor (x-cron-secret header checked at route level).
 //
-// Parity quirks:
-//   - Auto-expired close: direct cases UPDATE with closed_reason='auto_expired'
-//     via repo.autoExpireBiteCase — NOT closeCase('resolved').
+// ---------------------------------------------------------------------------
+// THIS SWEEP NO LONGER CLOSES ANYTHING (PO decision 2026-08-17, engram
+// roadmap/decisiones-legales-flujos-2026-08-17 item 1)
+// ---------------------------------------------------------------------------
+// It used to insert `rabies_observation_ended` with outcome='negative',
+// closed_by_role='system', recordedByUserId=null, authorVerified=false and the
+// note "Auto-cerrado tras 10 días sin síntomas escalables". That row is the
+// State's own document asserting that the animal which bit somebody was
+// clinically clear — written by a scheduled job, with no clinical author, on the
+// strength of the OWNER not having self-reported a symptom. If the exposed
+// person later develops rabies, that row is what our registry says.
+//
+// The sweep now moves the observation to `window_expired_unclosed`: a factual,
+// verifiable state that asserts NOTHING in either direction, keeps the bite case
+// OPEN as work for the sanitary authority, and is visible on every surface that
+// already read the status column. Only professionalCloseObservation can put an
+// outcome in the record.
+//
+// Parity quirks that SURVIVE:
 //   - Owner notification INSIDE the tx (not post-tx).
-//   - Escalating symptom → block auto-close, notify authorities urgent.
+//   - Escalating symptom → skip the transition, notify authorities urgent, and
+//     leave the pet `in_progress` ON PURPOSE: symptoms compatible with rabies
+//     ARE an ongoing danger, the public banner must keep saying so, and the
+//     daily re-notification is the nag that keeps the case in front of somebody.
 //   - Per-pet try/catch isolates failures (one failure doesn't stop the batch).
-//   - AUDIT_LOG: NONE.
+//   - AUDIT_LOG: NONE — no operator acts here; the professional close is the
+//     act that now carries an audit row.
+//
+// Parity quirk DELETED: repo.autoExpireBiteCase (closed_reason='auto_expired').
+// Closing the bite expediente was downstream of asserting a negative outcome.
+// With no outcome asserted there is nothing resolved, so the case stays open.
 
-import { validateEventPayload } from "@/lib/events/event-schemas";
-
-import { resolveObservationDeadline } from "../domain/rabies-observation";
+import { AR_TIME_ZONE, pluralizeEs } from "@/lib/utils/format";
+import {
+  resolveObservationDeadline,
+  resolveObservationWindowDays,
+} from "../domain/rabies-observation";
 import type { SurveillanceRepository } from "../infrastructure/surveillance-repository";
 import type { NewNotification } from "./types";
+
+/**
+ * es-AR fragment naming the window that was actually applied — " de 14 días" —
+ * or "" when the observation predates `observation_days`. Never substitutes the
+ * national baseline: quoting "10 días" inside a 14-day jurisdiction is the exact
+ * copy defect this fragment exists to end.
+ */
+function windowPhrase(days: number | null): string {
+  return days === null ? "" : ` de ${days} ${pluralizeEs(days, "día")}`;
+}
 
 // ---------------------------------------------------------------------------
 // Types
@@ -23,7 +60,14 @@ import type { NewNotification } from "./types";
 
 export type CloseRabiesObservationsStats = {
   scanned: number;
-  closedNegative: number;
+  /**
+   * Observations whose window elapsed with no professional closure and were
+   * moved to `window_expired_unclosed`. Was `closedNegative` until 2026-08-17,
+   * when the sweep stopped asserting a clinical outcome — the rename is
+   * deliberate so no dashboard keeps reading "closed negative" off a counter
+   * that no longer means it.
+   */
+  windowExpiredUnclosed: number;
   flaggedForReview: number;
   skippedNotYetDue: number;
   errors: { petId: string; reason: string }[];
@@ -52,9 +96,7 @@ type Deps = {
     | "findLatestObservationStarted"
     | "findEscalatingSymptom"
     | "findOpenBiteCase"
-    | "insertObservationEnded"
     | "setObservationStatus"
-    | "autoExpireBiteCase"
     | "findActiveOwnership"
     | "insertNotifications"
   >;
@@ -78,7 +120,7 @@ export async function closeEligibleObservations(
 
   const stats: CloseRabiesObservationsStats = {
     scanned: 0,
-    closedNegative: 0,
+    windowExpiredUnclosed: 0,
     flaggedForReview: 0,
     skippedNotYetDue: 0,
     errors: [],
@@ -113,13 +155,22 @@ export async function closeEligibleObservations(
       // Fallback deadline (T4.13 extracted this into the shared domain
       // helper, 2026-08-01): when the started payload has no (or an invalid)
       // observation_until, derive it from when the observation started + the
-      // legal 10-day window. Older/seed observations without the field would
-      // otherwise stay EN CURSO forever — the deadline is always computable.
-      // Reused verbatim by /admin/observaciones's "Cierre estimado" fallback.
+      // statutory national window. Older/seed observations without the field
+      // would otherwise stay EN CURSO forever — the deadline is always
+      // computable. Reused verbatim by /admin/observaciones's "Cierre
+      // estimado" fallback.
       const observationUntil = resolveObservationDeadline(
         startedPayload.observation_until,
         startedEvent.occurredAt,
       );
+      // The window this observation ACTUALLY ran under (null on rows written
+      // before 2026-08-17). Every message below quotes it or says nothing —
+      // never the national 10 as a stand-in.
+      const windowDays = resolveObservationWindowDays(startedPayload.observation_days);
+      const window = windowPhrase(windowDays);
+      const deadlineLabel = observationUntil.toLocaleDateString("es-AR", {
+        timeZone: AR_TIME_ZONE,
+      });
 
       // 2. Not yet due — skip.
       if (observationUntil > now) {
@@ -130,7 +181,12 @@ export async function closeEligibleObservations(
       // 3. Check for escalating symptom during observation period.
       const escalating = await repo.findEscalatingSymptom(pet.id, startedEvent.occurredAt);
       if (escalating) {
-        // Block auto-close — escalation requires human professional.
+        // Escalation requires a human professional — and the pet DELIBERATELY
+        // stays `in_progress` rather than moving to `window_expired_unclosed`:
+        // symptoms compatible with rabies are an ongoing danger, so the public
+        // banner must keep saying so and this sweep must keep nagging the
+        // authority every day (the notification's related_event_id dedupes the
+        // repeats against the same started event).
         stats.flaggedForReview += 1;
         try {
           const authorityIds =
@@ -146,7 +202,7 @@ export async function closeEligibleObservations(
               notificationType: "rabies_observation_pending_review",
               severity: "urgent" as const,
               title: `Observación vencida pendiente de revisión — ${pet.name}`,
-              body: "El período de 10 días terminó pero hubo síntomas compatibles con rabia durante la observación. Cierre profesional requerido (negativo o positivo).",
+              body: `El período de observación antirrábica${window} venció el ${deadlineLabel} y hubo síntomas compatibles con rabia durante la observación. Cierre profesional requerido (negativo o positivo).`,
               relatedPetId: pet.id,
               relatedEventId: startedEvent.id,
               // Authority recipient: surveillance hub (cannot open /mis-mascotas).
@@ -166,56 +222,25 @@ export async function closeEligibleObservations(
         continue;
       }
 
-      // 4. Happy path: auto-close as negative.
-      // Coalesce to null (schema now accepts it) so a seed/older observation
-      // without a linked bite event still auto-closes instead of throwing a
-      // zod error that would leave it EN CURSO indefinitely.
-      const biteEventId = (startedPayload.bite_event_id as string | undefined) ?? null;
+      // 4. Window elapsed, no escalating symptom, no professional closure.
+      //    NOTHING is asserted about the animal: the status moves to
+      //    `window_expired_unclosed` and the bite case stays OPEN. No
+      //    rabies_observation_ended event is written — nobody acted.
       const biteCase = await repo.findOpenBiteCase(pet.id);
 
       await transaction(async (tx) => {
-        const endedPayload = validateEventPayload("rabies_observation_ended", {
-          bite_event_id: biteEventId,
-          observation_started_event_id: startedEvent.id,
-          outcome: "negative",
-          closed_by_role: "system",
-          closure_notes: "Auto-cerrado tras 10 días sin síntomas escalables",
-          death_event_id: null,
-        });
-        await repo.insertObservationEnded(
-          {
-            petId: pet.id,
-            eventType: "rabies_observation_ended",
-            occurredAt: now,
-            recordedAt: now,
-            recordedByUserId: null,
-            authorRole: "system",
-            authorOrganizationId: null,
-            authorVerified: false,
-            payload: endedPayload,
-            caseId: biteCase?.id ?? null,
-          } as Parameters<typeof repo.insertObservationEnded>[0],
-          tx as Parameters<typeof repo.insertObservationEnded>[1],
-        );
-
         await repo.setObservationStatus(
           pet.id,
-          "completed_negative",
+          "window_expired_unclosed",
           now,
           tx as Parameters<typeof repo.setObservationStatus>[3],
         );
 
-        // 5. Auto-expire case via direct UPDATE (NOT closeCase('resolved')).
-        //    closed_reason='auto_expired' is load-bearing parity (spec §E).
-        if (biteCase) {
-          await repo.autoExpireBiteCase(
-            biteCase.id,
-            now,
-            tx as Parameters<typeof repo.autoExpireBiteCase>[2],
-          );
-        }
-
-        // 6. Owner notification INSIDE tx (cron path — parity with original).
+        // 5. Owner notification INSIDE tx (cron path — parity with original).
+        //    It states the window is over and that the observation is STILL
+        //    OPEN. The message it replaced ("terminó automáticamente sin
+        //    incidentes. {pet} sigue normal.") was an all-clear nobody was
+        //    entitled to give.
         const activeOwnership = await repo.findActiveOwnership(
           pet.id,
           tx as Parameters<typeof repo.findActiveOwnership>[1],
@@ -224,11 +249,13 @@ export async function closeEligibleObservations(
           const ownerNotifications: NewNotification[] = [
             {
               userId: activeOwnership.ownerUserId,
-              notificationType: "rabies_observation_completed_negative_owner",
+              notificationType: "rabies_observation_window_expired_owner",
               severity: "info",
-              title: `Observación completada — ${pet.name}`,
-              body: `La observación antirrábica de 10 días terminó automáticamente sin incidentes. ${pet.name} sigue normal.`,
+              title: `Período de observación cumplido — ${pet.name}`,
+              body: `Se cumplió el período de observación antirrábica${window} de ${pet.name} (vencía el ${deadlineLabel}). La observación sigue abierta: el resultado clínico solo puede registrarlo un veterinario matriculado o la autoridad sanitaria. Pedí el cierre a tu veterinario o a la autoridad sanitaria de tu localidad.`,
               relatedPetId: pet.id,
+              relatedCaseId: biteCase?.id ?? null,
+              relatedEventId: startedEvent.id,
               ctaLabel: "Ver mascota",
               ctaUrl: `/mis-mascotas/${pet.publicToken}`,
             },
@@ -239,9 +266,48 @@ export async function closeEligibleObservations(
         }
       });
 
-      stats.closedNegative += 1;
+      // 6. Authority hand-off (post-tx, best-effort): the expired observation is
+      //    actionable work for whoever can actually close it. A routing miss
+      //    never undoes the state transition.
+      try {
+        const authorityIds =
+          pet.jurisdictionProvince && pet.jurisdictionLocality
+            ? await findAuthoritiesForJurisdiction({
+                province: pet.jurisdictionProvince,
+                locality: pet.jurisdictionLocality,
+              })
+            : [];
+        if (authorityIds.length > 0) {
+          const authNotifications: NewNotification[] = authorityIds.map((authorityId) => ({
+            userId: authorityId,
+            notificationType: "rabies_observation_pending_review",
+            severity: "warning" as const,
+            title: `Observación vencida sin cierre profesional — ${pet.name}`,
+            body: `El período de observación antirrábica${window} venció el ${deadlineLabel} sin síntomas escalables reportados y sin cierre profesional. No hay resultado clínico registrado: hace falta que un profesional cierre la observación.`,
+            relatedPetId: pet.id,
+            relatedEventId: startedEvent.id,
+            relatedCaseId: biteCase?.id ?? null,
+            // Authority recipient: surveillance hub (cannot open /mis-mascotas).
+            ctaLabel: "Ver observaciones",
+            ctaUrl: "/admin/observaciones",
+          }));
+          await repo.insertNotifications(
+            authNotifications as Parameters<typeof repo.insertNotifications>[0],
+          );
+        }
+      } catch (notifyErr) {
+        console.error(
+          `[close-eligible-observations] authority notification failed for pet ${pet.publicToken}:`,
+          notifyErr,
+        );
+      }
+
+      stats.windowExpiredUnclosed += 1;
     } catch (err) {
-      console.error(`[close-eligible-observations] pet ${pet.publicToken} auto-close failed:`, err);
+      console.error(
+        `[close-eligible-observations] pet ${pet.publicToken} window-expiry sweep failed:`,
+        err,
+      );
       stats.errors.push({
         petId: pet.id,
         reason: err instanceof Error ? err.message : "unknown error",

@@ -17,8 +17,12 @@
 // monochrome viewer still reads the situation. Consumers MUST render all three.
 //
 // Pure module: no React, no color literals (tones map to design tokens in CSS /
-// the consuming component), so it stays trivially unit-testable.
+// the consuming component), so it stays trivially unit-testable. The one import
+// is the rabies-observation state machine, itself a zero-runtime-import domain
+// module — so "is this observation still open?" is answered in ONE place rather
+// than re-spelled as a status literal here.
 // ---------------------------------------------------------------------------
+import { isObservationOpen } from "@/src/modules/surveillance/domain/rabies-observation";
 
 /** The set of situations a pet can be in. `al-dia` is the DEFAULT (nothing is
  *  happening) — it carries `isDefault: true` so a surface can skip the skin
@@ -133,7 +137,8 @@ export const PET_SITUATIONS: Record<PetSituationKey, PetSituation> = {
 export type PetSituationInput = {
   /** pets.status — "active" | "lost" | "deceased" (projection). */
   status?: string | null;
-  /** pets.rabiesObservationStatus — "in_progress" opens the observation. */
+  /** pets.rabiesObservationStatus — "in_progress" and "window_expired_unclosed"
+   *  both mean an observation nobody has clinically closed. */
   rabiesObservationStatus?: string | null;
   /** pets.pregnancyStatus — "in_progress" while pregnant. */
   pregnancyStatus?: string | null;
@@ -154,7 +159,9 @@ export function derivePetSituation(input: PetSituationInput): PetSituation {
   if (input.status === "deceased") return PET_SITUATIONS.fallecida;
   if (input.status === "lost") return PET_SITUATIONS.perdida;
   if (input.underOfficialCustody) return PET_SITUATIONS["custodia-oficial"];
-  if (input.rabiesObservationStatus === "in_progress")
+  // An expired-unclosed observation keeps the situation: nothing was resolved,
+  // so the credential must not go back to reading "al día".
+  if (isObservationOpen(input.rabiesObservationStatus))
     return PET_SITUATIONS["observacion-antirrabica"];
   if (input.inTreatment) return PET_SITUATIONS["en-tratamiento"];
   if (input.pregnancyStatus === "in_progress") return PET_SITUATIONS.prenada;

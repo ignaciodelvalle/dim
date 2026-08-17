@@ -226,6 +226,10 @@ export async function reportBiteFromOrg(
       const observationPayload = validateEventPayload("rabies_observation_started", {
         bite_event_id: biteEvent.id,
         observation_until: observationUntil.toISOString(),
+        // Record the window that was actually applied, not just its end date:
+        // downstream copy quotes a day count and, until 2026-08-17, quoted the
+        // national 10 at owners whose jurisdiction runs 14.
+        observation_days: rabiesWindow.days,
         location: "in_situ",
         official_site_organization_id: null,
       });

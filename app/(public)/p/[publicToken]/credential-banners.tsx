@@ -46,15 +46,48 @@ export function ServiceDogBanner({ rabiesAtRisk }: { rabiesAtRisk: boolean }) {
 }
 
 // ---------------------------------------------------------------------------
-// RabiesObservationBanner — active 10-day antirrábica observation (public safety)
+// RabiesObservationBanner — open antirrábica observation (public safety)
 // ---------------------------------------------------------------------------
 //
 // Public-safe, PII-free signal shown to anyone scanning the QR while the pet is
-// under an active rabies observation (Decreto 4669/1973 PBA, Ord. CABA 41.831).
+// under an open rabies observation (Decreto 4669/1973 PBA, Ord. CABA 41.831).
 // A vecino who was bitten, or who sees the animal, must know it is under formal
 // observation and whom to contact. No owner data, no bite details — just the
 // state and the safety instruction.
-export function RabiesObservationBanner() {
+//
+// TWO STATES, TWO REGISTERS (2026-08-17). The window is no longer closed by a
+// cron writing "negativo" with no clinical author, so an observation can sit
+// past its deadline with nothing asserted about the animal. That must not read
+// as an ongoing danger (it is not one) nor as an all-clear (nobody gave one):
+//   · running  → alert register, "activa", warn palette.
+//   · expired  → informational register, neutral palette, states the two facts
+//                that are true (the period ended; no professional closed it) and
+//                nothing else.
+// The period length is deliberately NOT quoted here: this component has no
+// access to the jurisdiction's resolved window, and "10 días" was wrong for
+// every jurisdiction running 14.
+export function RabiesObservationBanner({ windowExpired = false }: { windowExpired?: boolean }) {
+  if (windowExpired) {
+    return (
+      <section
+        aria-label="Aviso — observación antirrábica vencida sin cierre profesional"
+        className="mb-4 rounded-[var(--radius-sm)] border border-ln-line-strong border-l-[3px] border-l-ln-azul bg-ln-celeste-050 px-4 py-3"
+      >
+        <p className="mb-1 font-ln-mono text-xs font-semibold uppercase tracking-[.1em] text-ln-azul">
+          Observación antirrábica
+        </p>
+        <p className="m-0 text-md font-semibold text-ln-ink">
+          El período de observación terminó y todavía no hay un cierre profesional registrado.
+        </p>
+        <p className="mt-1 text-sm text-ln-mute">
+          El registro no afirma ningún resultado: solo un veterinario matriculado o la autoridad
+          sanitaria puede cerrarla. Si te mordió o tuviste contacto, comunicate con la autoridad
+          sanitaria o el centro antirrábico de tu localidad.
+        </p>
+      </section>
+    );
+  }
+
   return (
     <section
       role="alert"
@@ -65,7 +98,7 @@ export function RabiesObservationBanner() {
         Observación antirrábica
       </p>
       <p className="m-0 text-md font-semibold text-ln-ink">
-        Esta mascota está en observación antirrábica activa (período de 10 días).
+        Esta mascota está en observación antirrábica activa.
       </p>
       <p className="mt-1 text-sm text-ln-mute">
         Si te mordió o tuviste contacto, comunicate con la autoridad sanitaria o el centro

@@ -35,13 +35,13 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
       CRON_NAME,
       () => closeEligibleRabiesObservations({ afterId: resumeCursor }),
       (s) => ({
-        itemsProcessed: s.closedNegative + s.flaggedForReview,
-        // Per-row failures in a legal 10-day auto-close must NOT report success
+        itemsProcessed: s.windowExpiredUnclosed + s.flaggedForReview,
+        // Per-row failures in a legally-loaded sweep must NOT report success
         // (review 23 item 2): flip the run to failed so Vercel retries.
         failed: s.errors.length > 0,
         details: {
           scanned: s.scanned,
-          closedNegative: s.closedNegative,
+          windowExpiredUnclosed: s.windowExpiredUnclosed,
           flaggedForReview: s.flaggedForReview,
           skippedNotYetDue: s.skippedNotYetDue,
           errorCount: s.errors.length,

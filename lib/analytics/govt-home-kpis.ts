@@ -29,6 +29,7 @@ import {
   rabiesCurrentlyValidCondition,
   rabiesSignedByMatriculaCondition,
 } from "@/lib/metrics";
+import { openObservationStatusSql } from "@/lib/metrics/observation-status";
 import { TERMINAL_STATUSES as WELFARE_TERMINAL_STATUSES } from "@/src/modules/welfare/domain/welfare-status-rules";
 
 // Re-export types so callers that import from this module don't need to change.
@@ -856,7 +857,8 @@ export async function fetchBitesPer10k(ctx: ProjectionContext): Promise<BitesPer
 export type ActiveZoonosisKpi = {
   /** Total active zoonosis signals: open bite_incident cases + active rabies observations. */
   count: number;
-  /** Pets with an active rabies observation (rabies_observation_status='in_progress'). */
+  /** Pets with an OPEN rabies observation (rabies_observation_status IN
+   *  'in_progress','window_expired_unclosed' — see lib/metrics/observation-status.ts). */
   rabies: number;
   /**
    * Leptospirosis cases — disease_reported events with disease='lepto'
@@ -881,7 +883,8 @@ export type ActiveZoonosisKpi = {
  * KPI: active_zoonosis_signals (see lib/metrics/kpi-catalog.ts)
  *
  * NUMERATOR:   COUNT DISTINCT pets with an active rabies observation
- *              (rabies_observation_status='in_progress') OR an open
+ *              (rabies_observation_status IN 'in_progress',
+ *              'window_expired_unclosed') OR an open
  *              bite_incident case — deduplicated via UNION, not summed — PLUS
  *              COUNT disease_reported events (payload.disease='lepto', 30d)
  *              PLUS COUNT disease_reported events (payload.disease='hidatidosis', 30d).
@@ -931,7 +934,7 @@ export async function fetchActiveZoonosis(ctx: ProjectionContext): Promise<Activ
 
   // 1. Pets with active rabies observation (status column on pets table).
   //    Returned separately for the sub-label in the KPI tile ("X rabia").
-  const rabiesConditions = [sql`${pets.rabiesObservationStatus} = ${"in_progress"}`];
+  const rabiesConditions = [openObservationStatusSql()];
   if (petsScope) rabiesConditions.push(sql`(${petsScope})`);
 
   // 2. Deduplicated rabies+bite count: distinct pets that have EITHER an active
@@ -946,9 +949,7 @@ export async function fetchActiveZoonosis(ctx: ProjectionContext): Promise<Activ
   //    casesScope and petsScope are built with different column references
   //    (cases.jurisdiction* vs pets.jurisdiction*) — we build each WHERE arm
   //    separately and UNION the pet IDs before counting.
-  const rabiesWhereFragments: ReturnType<typeof sql>[] = [
-    sql`${pets.rabiesObservationStatus} = ${"in_progress"}`,
-  ];
+  const rabiesWhereFragments: ReturnType<typeof sql>[] = [sql`(${openObservationStatusSql()})`];
   if (petsScope) rabiesWhereFragments.push(sql`(${petsScope})`);
   const rabiesWhere = sql.join(rabiesWhereFragments, sql` AND `);
 
@@ -1041,7 +1042,7 @@ export async function fetchActiveZoonosis(ctx: ProjectionContext): Promise<Activ
 //
 // MAPPING vs the old composite:
 //   - fetchOpenRabiesObservations → the composite's `rabies` arm (pets with
-//     rabies_observation_status='in_progress') plus its `deltaWeek` (net change in
+//     an open rabies_observation_status) plus its `deltaWeek` (net change in
 //     rabies_observation_started opens vs the prior 7-day window).
 //   - fetchOpenBiteCases          → the open-bite-case side of the composite's
 //     dedup UNION (cases.case_kind='bite_incident' AND status='open'), now counted
@@ -1051,7 +1052,8 @@ export async function fetchActiveZoonosis(ctx: ProjectionContext): Promise<Activ
 //     notificadas" axis), keeping lepto/hidat as a sub-breakdown for continuity.
 
 export type OpenRabiesObservationsKpi = {
-  /** Pets with an active rabies observation (rabies_observation_status='in_progress') in scope. */
+  /** Pets with an OPEN rabies observation (status IN 'in_progress',
+   *  'window_expired_unclosed') in scope. */
   count: number;
   /**
    * Net change in rabies_observation_started opens vs the prior 7-day window
@@ -1063,7 +1065,10 @@ export type OpenRabiesObservationsKpi = {
 /**
  * KPI: open_rabies_observations (decomposed from active_zoonosis_signals).
  *
- * NUMERATOR:   COUNT pets with rabies_observation_status='in_progress' in scope.
+ * NUMERATOR:   COUNT pets whose rabies observation is still OPEN in scope —
+ *              status IN ('in_progress','window_expired_unclosed'). The second
+ *              value landed 2026-08-17: an observation whose window elapsed with
+ *              no professional closure is unfinished, not finished.
  * DENOMINATOR: n/a — absolute count.
  * SOURCE:      pets (status), pet_events (rabies_observation_started, for the delta).
  * CADENCE:     "now" snapshot; deltaWeek compares this 7d vs the prior 7d of opens.
@@ -1088,7 +1093,7 @@ export async function fetchOpenRabiesObservations(
   const petsScope = petsScopeClause(ctx);
   const petsGuard = petsCurrentJurisdictionGuard(ctx);
 
-  const rabiesConditions = [sql`${pets.rabiesObservationStatus} = ${"in_progress"}`];
+  const rabiesConditions = [openObservationStatusSql()];
   if (petsScope) rabiesConditions.push(sql`(${petsScope})`);
 
   const startedBaseConditions = [eq(petEvents.eventType, "rabies_observation_started")];

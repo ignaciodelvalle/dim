@@ -1,8 +1,10 @@
 // Cron invariants test — close-rabies-observations handler (P7-1).
 //
 // Three invariants per the handoff:
-//  1. Runtime window — only obs whose period elapsed get closed; future obs stay in_progress.
-//  2. Idempotency — second run on closed pets is a no-op (scanned=0).
+//  1. Runtime window — only obs whose period elapsed move to window_expired_unclosed;
+//     future obs stay in_progress. NOTHING is closed here: since 2026-08-17 the
+//     sweep asserts no clinical outcome (only a professional may).
+//  2. Idempotency — second run on already-transitioned pets is a no-op (scanned=0).
 //  3. Recovery — bad payload (missing observation_until) is recorded as an error but does
 //     not abort the batch.
 //
@@ -79,7 +81,7 @@ afterAll(async () => {
 
 async function makeRabiesPet(opts: {
   observationUntil: Date | null | "missing";
-  status?: "in_progress" | "completed_negative";
+  status?: "in_progress" | "completed_negative" | "window_expired_unclosed";
 }): Promise<{ id: string; publicToken: string }> {
   const [pet] = await db
     .insert(pets)
@@ -181,14 +183,14 @@ describe("closeEligibleRabiesObservations", () => {
     const stats = await closeEligibleRabiesObservations();
 
     expect(stats.scanned).toBeGreaterThanOrEqual(2);
-    expect(stats.closedNegative).toBeGreaterThanOrEqual(1);
+    expect(stats.windowExpiredUnclosed).toBeGreaterThanOrEqual(1);
     expect(stats.skippedNotYetDue).toBeGreaterThanOrEqual(1);
 
     const [staleRow] = await db
       .select({ status: pets.rabiesObservationStatus })
       .from(pets)
       .where(eq(pets.id, stale.id));
-    expect(staleRow.status).toBe("completed_negative");
+    expect(staleRow.status).toBe("window_expired_unclosed");
 
     const [freshRow] = await db
       .select({ status: pets.rabiesObservationStatus })
@@ -222,25 +224,25 @@ describe("closeEligibleRabiesObservations", () => {
     });
 
     const first = await closeEligibleRabiesObservations();
-    expect(first.closedNegative).toBeGreaterThanOrEqual(1);
+    expect(first.windowExpiredUnclosed).toBeGreaterThanOrEqual(1);
 
     const second = await closeEligibleRabiesObservations();
-    // The pet is now completed_negative; the scanner only picks in_progress.
+    // The pet is now window_expired_unclosed; the scanner only picks in_progress.
     const [row] = await db
       .select({ status: pets.rabiesObservationStatus })
       .from(pets)
       .where(eq(pets.id, pet.id));
-    expect(row.status).toBe("completed_negative");
+    expect(row.status).toBe("window_expired_unclosed");
     // Stats from the second run: the closed pet must not appear in scanned.
     // (Other in_progress pets may, so we only assert this pet stayed terminal.)
-    expect(second.closedNegative).toBe(0);
+    expect(second.windowExpiredUnclosed).toBe(0);
   });
 
-  it("recovery — missing observation_until falls back to the computed 10-day deadline and auto-closes (commit 923e5079)", async () => {
+  it("recovery — missing observation_until falls back to the computed 10-day deadline and transitions (commit 923e5079)", async () => {
     // No observation_until in the started payload, but the event occurred 11
     // days ago (see makeRabiesPet) — computeObservationUntil derives a
     // deadline 10 days after occurredAt, which is already past. The old
-    // behavior recorded this as an error; the closer now auto-closes it.
+    // behavior recorded this as an error; the sweep now transitions it.
     const recovered = await makeRabiesPet({ observationUntil: "missing" });
 
     const stats = await closeEligibleRabiesObservations();
@@ -250,7 +252,7 @@ describe("closeEligibleRabiesObservations", () => {
       .select({ status: pets.rabiesObservationStatus })
       .from(pets)
       .where(eq(pets.id, recovered.id));
-    expect(row.status).toBe("completed_negative");
+    expect(row.status).toBe("window_expired_unclosed");
   });
 
   it("recovery — in_progress pet with no rabies_observation_started event is recorded as an error, batch survives", async () => {
@@ -264,11 +266,11 @@ describe("closeEligibleRabiesObservations", () => {
     expect(badError).toBeDefined();
     expect(badError?.reason).toContain("no rabies_observation_started event found");
 
-    // The good pet still got closed despite the bad row in the same batch.
+    // The good pet still transitioned despite the bad row in the same batch.
     const [goodRow] = await db
       .select({ status: pets.rabiesObservationStatus })
       .from(pets)
       .where(eq(pets.id, good.id));
-    expect(goodRow.status).toBe("completed_negative");
+    expect(goodRow.status).toBe("window_expired_unclosed");
   });
 });

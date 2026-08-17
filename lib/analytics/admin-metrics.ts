@@ -28,6 +28,7 @@ import {
 import { countOutboxBreaches } from "@/lib/infra/outbox-queries";
 import { isTestAccount } from "@/lib/infra/test-accounts";
 import { countOpenAlertFirings } from "@/lib/metrics/alert-firing-inbox";
+import { openObservationStatusSql } from "@/lib/metrics/observation-status";
 import { jurisdictionPairClause } from "@/lib/metrics/scope";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -301,12 +302,17 @@ async function countOpenCases(): Promise<number> {
   return Number(row?.n ?? 0);
 }
 
-/** Pets currently under an in-progress rabies observation (/admin/observaciones). */
+/**
+ * Pets with an OPEN rabies observation — the queue /admin/observaciones shows.
+ * Includes `window_expired_unclosed` (2026-08-17): those rows are the ones that
+ * still need an operator, so a queue tile that dropped them would count down to
+ * zero precisely as the backlog grew.
+ */
 async function countRabiesInProgress(): Promise<number> {
   const [row] = await db
     .select({ n: sql<number>`count(*)::int` })
     .from(pets)
-    .where(eq(pets.rabiesObservationStatus, "in_progress"));
+    .where(openObservationStatusSql());
   return Number(row?.n ?? 0);
 }
 

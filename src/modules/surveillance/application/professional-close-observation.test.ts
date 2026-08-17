@@ -58,6 +58,7 @@ function makeRepo(overrides: FakeRepo = {}): SurveillanceRepository {
     insertObservationEnded: vi.fn().mockResolvedValue(undefined),
     setObservationStatus: vi.fn().mockResolvedValue(undefined),
     findActiveOwnership: vi.fn().mockResolvedValue(null),
+    insertObservationCloseAuditLog: vi.fn().mockResolvedValue(undefined),
     ...overrides,
   } as unknown as SurveillanceRepository;
 }
@@ -305,7 +306,30 @@ describe("professionalCloseObservation — error paths", () => {
     const result = await professionalCloseObservation(BASE_INPUT, deps);
     expect(result.ok).toBe(false);
     if (result.ok) return;
-    expect(result.error).toMatch(/no tiene una observación activa/i);
+    expect(result.error).toMatch(/no tiene una observación abierta/i);
+  });
+
+  it("ACCEPTS a window_expired_unclosed observation — that is the queue it drains", async () => {
+    const deps = makeDeps({
+      findPetByToken: vi.fn().mockResolvedValue({
+        id: "pet-3",
+        publicToken: "tok-prof-1",
+        name: "Luna",
+        species: "cat",
+        status: "alive",
+        rabiesObservationStatus: "window_expired_unclosed",
+        jurisdictionProvince: "Buenos Aires",
+        jurisdictionLocality: "La Plata",
+      }),
+    });
+    const result = await professionalCloseObservation(BASE_INPUT, deps);
+    expect(result.ok).toBe(true);
+    expect(deps.repo.setObservationStatus).toHaveBeenCalledWith(
+      "pet-3",
+      "completed_negative",
+      expect.any(Date),
+      "fake-tx",
+    );
   });
 
   it("returns error when no started event found (internal inconsistency)", async () => {
@@ -320,15 +344,31 @@ describe("professionalCloseObservation — error paths", () => {
 });
 
 // ---------------------------------------------------------------------------
-// Audit log parity (spec §D AUDIT_LOG: NONE)
+// Audit log — REQUIRED since 2026-08-17
+//
+// This close is the only path by which a clinical outcome enters the record, so
+// the administrative act carries an audit row with before/after state, written
+// inside the same transaction as the mutation it describes.
 // ---------------------------------------------------------------------------
 
-describe("professionalCloseObservation — audit_log absence", () => {
-  it("does NOT call any insertAudit method", async () => {
+describe("professionalCloseObservation — audit_log", () => {
+  it("writes rabies_observation_closed_professional with before/after state", async () => {
     const deps = makeDeps();
-    const insertAuditSpy = vi.fn();
-    (deps.repo as unknown as Record<string, unknown>).insertAudit = insertAuditSpy;
-    await professionalCloseObservation(BASE_INPUT, deps);
-    expect(insertAuditSpy).not.toHaveBeenCalled();
+    await professionalCloseObservation({ ...BASE_INPUT, outcome: "positive_rabies" }, deps);
+    const spy = deps.repo.insertObservationCloseAuditLog as ReturnType<typeof vi.fn>;
+    expect(spy).toHaveBeenCalledTimes(1);
+    const [entry, executor] = spy.mock.calls[0] as [Record<string, unknown>, unknown];
+    expect(entry.action).toBe("rabies_observation_closed_professional");
+    expect(entry.actorUserId).toBe("admin-user-1");
+    expect(entry.before).toEqual({ rabies_observation_status: "in_progress" });
+    expect(entry.after).toEqual({ rabies_observation_status: "completed_positive_rabies" });
+    // Same transaction as the close — a rollback must take the audit row too.
+    expect(executor).toBe("fake-tx");
+  });
+
+  it("writes NO audit row when the close is refused (out-of-jurisdiction govt)", async () => {
+    const deps = makeDeps();
+    await professionalCloseObservation({ ...BASE_INPUT, actor: GOVT_OUT_JURISDICTION }, deps);
+    expect(deps.repo.insertObservationCloseAuditLog).not.toHaveBeenCalled();
   });
 });
