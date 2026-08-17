@@ -222,7 +222,6 @@ export async function fetchReunificationByUnit(
     const kanon = suppressSmallCells(units, {
       count: (u) => u.lostEpisodes,
       key: (u) => u.province,
-      k: 5,
     });
     const byUnit: ReunificationByUnitRow[] = (kanon.visible as unknown as UnitAgg[]).map((u) => ({
       province: u.province,
@@ -356,7 +355,6 @@ export async function fetchReunificationByUnit(
   const { visible, suppressed, suppressedCount } = suppressSmallCells([...byDept.values()], {
     count: (u) => u.lostEpisodes,
     key: (u) => `${u.province}|${u.label}`,
-    k: 5,
   });
   const centroid = (u: DeptAgg) => ({
     centroidLat: u.centroidN > 0 ? String(u.latSum / u.centroidN) : null,

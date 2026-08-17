@@ -50,6 +50,23 @@ describe("/transparencia — the published k-anonymity threshold IS the implemen
     expect(OPEN_DATA_K).toBe(ANONYMITY_K);
   });
 
+  it("OPEN_DATA_K is DERIVED from ANONYMITY_K, not a second literal that happens to match", () => {
+    // The assertion above went tautological on 2026-08-17, when OPEN_DATA_K
+    // became `= ANONYMITY_K`. `toBe` can no longer fail — a test that cannot
+    // fail is not a fence, it is a comment with a green tick. What CAN still
+    // regress is someone re-typing a literal in a future edit ("just make it
+    // explicit"), which restores the two-unlinked-numbers shape this parity
+    // suite was written to prevent. So the fence moves to the SOURCE: the
+    // export must name the shared constant.
+    const suppression = readCode(SUPPRESSION);
+    const decl = suppression.match(/export\s+const\s+OPEN_DATA_K\s*=\s*([^;]+);/);
+    expect(decl, "OPEN_DATA_K is no longer exported from province-suppression.ts").not.toBeNull();
+    // Non-vacuity: the scan really found a declaration with a right-hand side.
+    expect((decl?.[1] ?? "").trim().length).toBeGreaterThan(0);
+    expect(decl?.[1]).toContain("ANONYMITY_K");
+    expect(decl?.[1], "OPEN_DATA_K re-typed as a bare number").not.toMatch(/^\s*\d+\s*$/);
+  });
+
   it("states the LIVE k value, not a hardcoded 5", () => {
     // Interpolated: lower OPEN_DATA_K to 3 and this fails, because the page
     // still says "k = 5". That is the whole point.

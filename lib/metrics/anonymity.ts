@@ -15,20 +15,24 @@ export type { Cell, MetricResult, SuppressedCells };
  * THE k. One constant so every grain (locality, department, province, open
  * data) reads the same policy number instead of re-typing `5`. Changing the
  * policy is a one-line change here, not a grep.
+ *
+ * NOT OVERRIDABLE PER CALL SITE (2026-08-17). Every k-anon entry point in this
+ * module used to accept a `k` argument, and four call sites answered it with a
+ * literal `5` — no-ops that read like decisions. The cost of that shape is not
+ * the redundancy: it is that WEAKENING the floor was one token away, in a
+ * caller, reviewed as a number rather than as a privacy change. A policy floor
+ * that any caller may lower is not a floor. Raising or lowering k is now a
+ * one-line edit HERE, on the line that documents itself as the policy — where
+ * a reviewer cannot miss what changed.
  */
 export const ANONYMITY_K = 5;
 
-/** Options for suppressSmallCells. */
+/** Options for suppressSmallCells. There is deliberately no `k` — see ANONYMITY_K. */
 export type SuppressOpts<Row> = {
-  /** Extract the population count for a row (used to compare against k). */
+  /** Extract the population count for a row (compared against ANONYMITY_K). */
   count: (r: Row) => number;
   /** Extract the grouping key (e.g. locality name) for audit/reporting. */
   key: (r: Row) => string;
-  /**
-   * Minimum cell size. Cells with count < k are suppressed.
-   * Default: 5 (per AGENTS.md "Aggregation & privacy policy").
-   */
-  k?: number;
   /**
    * Optional rollup: fold suppressed rows into a coarser jurisdiction instead
    * of dropping them. Receives the array of suppressed rows; return a
@@ -60,7 +64,7 @@ export function suppressSmallCells<Row>(
   suppressed: Row[];
   suppressedCount: number;
 } {
-  const k = opts.k ?? ANONYMITY_K;
+  const k = ANONYMITY_K;
   const visible: Row[] = [];
   const suppressed: Row[] = [];
 
@@ -207,11 +211,16 @@ export function suppressedMetric<Row>(
  * against a protected prior). Route raw rows here FIRST; suppress the
  * single-window render separately.
  *
- * Pure predicate; k defaults to 5 (AGENTS.md "Aggregation & privacy policy").
+ * Pure predicate at the SHARED ANONYMITY_K. It used to carry a `k = 5` default
+ * of its own — a second, unlinked copy of the policy number inside the module
+ * whose docblock claims to hold the only one. Lowering ANONYMITY_K would have
+ * left the delta rule protecting a wider interval than the single-window rule,
+ * so the two would have disagreed about which counts are protected: exactly the
+ * asymmetry the differencing rule exists to close.
  * Pin THIS before any delta render (verification contract, viz-suite plan).
  */
-export function suppressDelta(currentCount: number, priorCount: number, k = 5): boolean {
-  const protectedCount = (n: number) => n > 0 && n < k;
+export function suppressDelta(currentCount: number, priorCount: number): boolean {
+  const protectedCount = (n: number) => n > 0 && n < ANONYMITY_K;
   return protectedCount(currentCount) || protectedCount(priorCount);
 }
 
@@ -246,7 +255,7 @@ export type DeltaCell<Row> = {
 export function deltaCells<Row>(
   currentRows: readonly Row[],
   priorRows: readonly Row[],
-  opts: { key: (r: Row) => string; count: (r: Row) => number; k?: number },
+  opts: { key: (r: Row) => string; count: (r: Row) => number },
 ): DeltaCell<Row>[] {
   const priorByKey = new Map(priorRows.map((r) => [opts.key(r), r]));
   const out: DeltaCell<Row>[] = [];
@@ -257,14 +266,14 @@ export function deltaCells<Row>(
     const prior = priorByKey.get(key) ?? null;
     const curN = opts.count(cur);
     const priN = prior ? opts.count(prior) : 0;
-    const suppressed = suppressDelta(curN, priN, opts.k);
+    const suppressed = suppressDelta(curN, priN);
     out.push({ key, current: cur, prior, delta: suppressed ? null : curN - priN, suppressed });
   }
   for (const pri of priorRows) {
     const key = opts.key(pri);
     if (seen.has(key)) continue;
     const priN = opts.count(pri);
-    const suppressed = suppressDelta(0, priN, opts.k);
+    const suppressed = suppressDelta(0, priN);
     out.push({
       key,
       current: null,

@@ -306,7 +306,6 @@ export async function fetchMortalityDisposition(
   const suppressed = suppressSmallCells<Cell>(cells, {
     count: (c) => c.count,
     key: (c) => c.key,
-    k: K_ANON_MIN,
     rollup: rollupSuppressedLocalities,
   });
 

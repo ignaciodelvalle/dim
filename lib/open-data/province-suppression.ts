@@ -58,10 +58,34 @@
 // never publish its base while hiding its own pct). This module only TAGS rows;
 // the dataset layer decides what is emitted.
 
-import { complementarySuppress, suppressSmallCells } from "@/lib/metrics/anonymity";
+import { ANONYMITY_K, complementarySuppress, suppressSmallCells } from "@/lib/metrics/anonymity";
 
-/** k-anonymity threshold — AGENTS.md "Aggregation & privacy policy" (k=5). */
-export const OPEN_DATA_K = 5;
+/**
+ * k-anonymity threshold for the open-data tier — AGENTS.md "Aggregation &
+ * privacy policy".
+ *
+ * DERIVED, NOT SEVERABLE (decided 2026-08-17). This was a second literal `5`
+ * three directories from ANONYMITY_K, and the question worth asking was whether
+ * it was a deliberate seam — a public download might reasonably warrant a
+ * HIGHER floor than an authenticated dashboard. It was not. Three pieces of
+ * evidence, all pointing the same way:
+ *
+ *   1. Its own doc cited the SAME clause of AGENTS.md as ANONYMITY_K. One
+ *      policy, written down twice.
+ *   2. `app/(public)/transparencia/__tests__/privacy-disclosure-parity.test.ts`
+ *      already asserted `OPEN_DATA_K === ANONYMITY_K`. Severability was ALREADY
+ *      forbidden by a test — the literal bought no freedom, only the standing
+ *      possibility of a red suite.
+ *   3. What actually makes this tier stronger than the map is the NATIONAL
+ *      complementary pass below, not a bigger k. The strength is in the
+ *      differencing defence, and that is orthogonal to the floor.
+ *
+ * If the open-data tier ever DOES need a stricter floor, express it as
+ * `ANONYMITY_K + n` (or a named constant that says why) and update the parity
+ * test to assert `>=` instead of source-derivation. What must never come back
+ * is a bare literal: two unlinked numbers claiming to be one policy.
+ */
+export const OPEN_DATA_K = ANONYMITY_K;
 
 /** The exact string a suppressed numeric cell renders/exports as. Never 0 — a
  *  suppressed value is WITHHELD, not zero (a false zero would itself leak that
@@ -108,8 +132,8 @@ export type TaggedRow<Row> = { row: Row; suppressed: boolean };
 /** A strictly-positive count below k is a PROTECTED small group. Exactly 0 is
  *  NOT protected: an empty group re-identifies no one (same "zero nuance" as
  *  suppressDelta in lib/metrics/anonymity.ts). */
-function isProtectedCount(n: number, k: number): boolean {
-  return n > 0 && n < k;
+function isProtectedCount(n: number): boolean {
+  return n > 0 && n < OPEN_DATA_K;
 }
 
 /**
@@ -123,13 +147,9 @@ function isProtectedCount(n: number, k: number): boolean {
  *     e.g. "8 998 of 9 000 vaccinated" isolates the 2 who are NOT.
  * Pure; exported for direct unit testing.
  */
-export function isRateCellProtected(
-  numerator: number,
-  denominator: number,
-  k = OPEN_DATA_K,
-): boolean {
-  if (denominator < k) return true;
-  return isProtectedCount(numerator, k) || isProtectedCount(denominator - numerator, k);
+export function isRateCellProtected(numerator: number, denominator: number): boolean {
+  if (denominator < OPEN_DATA_K) return true;
+  return isProtectedCount(numerator) || isProtectedCount(denominator - numerator);
 }
 
 /** Tag original rows by identity against the final suppressed partition,
@@ -151,14 +171,10 @@ function tagByIdentity<Row>(
  * visible province is also suppressed so the lone hidden count cannot be
  * recovered from the national total.
  */
-export function suppressDensityProvinces(
-  rows: readonly DensityRow[],
-  k = OPEN_DATA_K,
-): TaggedRow<DensityRow>[] {
+export function suppressDensityProvinces(rows: readonly DensityRow[]): TaggedRow<DensityRow>[] {
   const primary = suppressSmallCells([...rows], {
     count: (r) => r.count,
     key: (r) => r.provinceCode,
-    k,
   });
   const { suppressed } = complementarySuppress(
     primary.visible as unknown as readonly DensityRow[],
@@ -177,14 +193,11 @@ export function suppressDensityProvinces(
  * numerator, or complement is sub-k is suppressed; a lone national suppression
  * pulls in the next-smallest-numerator visible province.
  */
-export function suppressRateProvinces(
-  rows: readonly RateRow[],
-  k = OPEN_DATA_K,
-): TaggedRow<RateRow>[] {
+export function suppressRateProvinces(rows: readonly RateRow[]): TaggedRow<RateRow>[] {
   const primaryVisible: RateRow[] = [];
   const primarySuppressed: RateRow[] = [];
   for (const r of rows) {
-    if (isRateCellProtected(r.numerator, r.denominator, k)) primarySuppressed.push(r);
+    if (isRateCellProtected(r.numerator, r.denominator)) primarySuppressed.push(r);
     else primaryVisible.push(r);
   }
   const { suppressed } = complementarySuppress(primaryVisible, primarySuppressed, {

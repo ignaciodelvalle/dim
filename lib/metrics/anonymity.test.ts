@@ -3,6 +3,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  ANONYMITY_K,
   complementarySuppress,
   deltaCells,
   suppressDelta,
@@ -36,16 +37,28 @@ describe("suppressSmallCells", () => {
     expect(suppressed).toHaveLength(3);
   });
 
-  it("respects a custom k value", () => {
-    const rows = [mkRow("A", 2), mkRow("B", 3), mkRow("C", 5)];
-    // k=3: rows with count >= 3 are visible
+  // Replaced "respects a custom k value" (2026-08-17). It asserted that a caller
+  // could lower the floor to 3 and have the primitive comply — the behaviour was
+  // the defect, and the test was its warrant. What must hold now is that the
+  // policy number cannot be argued down from a call site at all.
+  it("applies ANONYMITY_K and offers no per-call-site override", () => {
+    const rows = [mkRow("A", ANONYMITY_K - 1), mkRow("B", ANONYMITY_K), mkRow("C", 100)];
     const { visible, suppressedCount } = suppressSmallCells(rows, {
       count: (r) => r.count,
       key: (r) => r.key,
-      k: 3,
     });
-    expect(visible).toHaveLength(2); // B (3) and C (5)
-    expect(suppressedCount).toBe(1); // A (2)
+    // Derived from the constant: change ANONYMITY_K and this moves with it.
+    expect(visible).toHaveLength(2); // B (== k, boundary inclusive) and C
+    expect(suppressedCount).toBe(1); // A (k − 1)
+
+    // The lowered floor a caller used to be able to ask for is now unreachable:
+    // `{ k: 3 }` is a type error, and at runtime the extra key is inert.
+    const lowered = suppressSmallCells(rows, {
+      count: (r) => r.count,
+      key: (r) => r.key,
+      ...({ k: 1 } as unknown as Record<string, never>),
+    });
+    expect(lowered.suppressedCount).toBe(1);
   });
 
   it("keeps cells at exactly k=5 (boundary inclusive)", () => {
@@ -122,7 +135,7 @@ describe("complementarySuppress", () => {
   // Partition a set of cells at k=5 then apply complementary suppression — the
   // full pipeline the repository runs.
   function run(cells: Cell[]) {
-    const p = suppressSmallCells(cells, { count: (r) => r.count, key: (r) => r.unit, k: 5 });
+    const p = suppressSmallCells(cells, { count: (r) => r.count, key: (r) => r.unit });
     return complementarySuppress(p.visible as unknown as readonly Cell[], p.suppressed, opts);
   }
 
@@ -256,9 +269,17 @@ describe("suppressDelta (the differencing privacy rule)", () => {
     expect(suppressDelta(0, 3)).toBe(true);
   });
 
-  it("honors a custom k", () => {
-    expect(suppressDelta(7, 9, 10)).toBe(true);
-    expect(suppressDelta(10, 10, 10)).toBe(false);
+  // Replaced "honors a custom k" (2026-08-17). That test PROVED the defect: the
+  // delta rule accepted a per-call k, so a caller could publish a Δ against a
+  // count the single-window rule protects. The contract is now the opposite —
+  // there is no k to pass, and the boundary is the shared constant.
+  it("reads its floor from ANONYMITY_K, with no per-call override to pass", () => {
+    // Derived from the constant, never re-typed: change ANONYMITY_K and these
+    // move with it. A hardcoded 4/5 here would go green against a policy change.
+    expect(suppressDelta(ANONYMITY_K - 1, 100)).toBe(true);
+    expect(suppressDelta(ANONYMITY_K, ANONYMITY_K)).toBe(false);
+    // Arity is the enforcement: a third argument cannot be supplied at all.
+    expect(suppressDelta.length).toBe(2);
   });
 });
 

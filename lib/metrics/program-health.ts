@@ -34,6 +34,7 @@ import { and, count, desc, gte, inArray, sql } from "drizzle-orm";
 import { auditLog, analyticsDb as db, govtAssignments, pets } from "@/db";
 import { activePetsCondition, petsScopeClause } from "@/lib/metrics";
 
+import { ANONYMITY_K } from "./anonymity";
 import type { ProjectionContext } from "./context";
 import { rabiesVaccinatedExists } from "./rabies";
 
@@ -41,8 +42,18 @@ import { rabiesVaccinatedExists } from "./rabies";
 // Constants
 // ---------------------------------------------------------------------------
 
-/** Minimum province denominator — provinces with fewer active pets are skipped. */
-export const K_ANON_MIN = 5;
+/**
+ * Minimum province denominator — provinces with fewer active pets are skipped.
+ *
+ * DERIVED from ANONYMITY_K (2026-08-17). The guards below are hand-written
+ * comparisons rather than `suppressSmallCells` calls (they skip a province
+ * outright instead of partitioning cells), so nothing structural kept this
+ * number equal to the shared floor — it was equal by coincidence and a comment.
+ * `mortality-metrics.ts` fed it straight into `suppressSmallCells`, which now
+ * applies ANONYMITY_K unconditionally; had the two ever diverged, the same
+ * province would have been "too small" on one screen and publishable on another.
+ */
+export const K_ANON_MIN = ANONYMITY_K;
 
 /** Maximum PII oversight rows returned (top actors by count). */
 const PII_OVERSIGHT_TOP_N = 20;

@@ -199,11 +199,12 @@ export function planProvinceDisclosure(
     candidates.push(r);
   }
 
-  // (2) k and the comparison come from the shared primitive, never re-typed.
+  // (2) k and the comparison come from the shared primitive, never re-typed —
+  // and since 2026-08-17 they cannot be re-typed: suppressSmallCells takes no
+  // `k`, so ANONYMITY_K is the only floor it can apply.
   const primary = suppressSmallCells(candidates, {
     count: (r) => r.denominator,
     key: (r) => r.province,
-    k: ANONYMITY_K,
   });
 
   const suppressed = primary.suppressed;

@@ -353,7 +353,6 @@ describe("department fold + k-anon (aggregated point loader pipeline)", () => {
     const { visible, suppressed, suppressedCount } = suppressSmallCells(folded, {
       count: (r) => r.count,
       key: (r) => r.key,
-      k: 5,
     });
     // At locality granularity all three cells (count 2) are suppressed; folded to
     // the department the total is 6 (>= 5) → exactly one visible cell, zero suppressed.
@@ -371,7 +370,6 @@ describe("department fold + k-anon (aggregated point loader pipeline)", () => {
     const { visible, suppressedCount } = suppressSmallCells(folded, {
       count: (r) => r.count,
       key: (r) => r.key,
-      k: 5,
     });
     // The barrio is the unit in CABA — a below-k barrio stays suppressed (the fold
     // never merges barrios into a department, so the privacy floor is unchanged).

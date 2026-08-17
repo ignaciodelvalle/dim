@@ -55,13 +55,23 @@ import { count, sql } from "drizzle-orm";
 import { analyticsDb as db, pets } from "@/db";
 import type { ProjectionContext } from "@/lib/metrics";
 import { DORMANT_MONTHS_DEFAULT, suppressSmallCells } from "@/lib/metrics";
+import { ANONYMITY_K } from "@/lib/metrics/anonymity";
 
 // ---------------------------------------------------------------------------
 // Constants
 // ---------------------------------------------------------------------------
 
-/** k=5 small-cell suppression (AGENTS.md "Aggregation & privacy policy"). */
-export const DATA_QUALITY_K_ANON = 5;
+/**
+ * Small-cell suppression floor (AGENTS.md "Aggregation & privacy policy").
+ *
+ * DERIVED from ANONYMITY_K (2026-08-17), not a literal of its own. This one is
+ * load-bearing beyond the maths: `app/admin/inteligencia/inteligencia-panels.tsx`
+ * INTERPOLATES it into the operator-facing copy ("… por k<{N} (privacidad)").
+ * The suppression itself runs through `suppressSmallCells`, which now applies
+ * ANONYMITY_K and accepts no override — so a bare literal here would be a label
+ * free to disagree with the behaviour it describes.
+ */
+export const DATA_QUALITY_K_ANON = ANONYMITY_K;
 
 // ---------------------------------------------------------------------------
 // Types
@@ -215,11 +225,12 @@ export async function fetchProvinceDataQuality(
     .filter((r): r is typeof r & { province: string } => r.province !== null)
     .map((r) => ({ province: r.province, ...toSignals(r) }));
 
-  // k=5 suppression via the canonical boundary (lib/metrics/anonymity.ts).
+  // Suppression via the canonical boundary (lib/metrics/anonymity.ts), which
+  // owns the floor — DATA_QUALITY_K_ANON exists only so the panel copy can NAME
+  // the same number this call applies.
   const { suppressed, suppressedCount } = suppressSmallCells(named, {
     count: (r) => r.total,
     key: (r) => r.province,
-    k: DATA_QUALITY_K_ANON,
   });
   const suppressedSet = new Set(suppressed.map((r) => r.province));
   const visible = named.filter((r) => !suppressedSet.has(r.province));

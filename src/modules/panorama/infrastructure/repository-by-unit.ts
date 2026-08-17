@@ -146,7 +146,6 @@ function toAggregatedCells(
   const primary = suppressSmallCells(rollup, {
     count: (r) => r.count,
     key: (r) => r.key,
-    k: 5,
   });
   // Complementary suppression: the differencing-attack defense. A group with a
   // LONE suppressed cell leaks it by subtraction from the published group total,

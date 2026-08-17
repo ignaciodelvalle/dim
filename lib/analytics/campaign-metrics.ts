@@ -381,19 +381,19 @@ async function fetchOfferingOutcomes(
  * k-anonymity suppression for geo-reach cells (pure — no DB, unit-testable).
  *
  * A locality with a handful of vaccinated animals is individually identifiable,
- * so localities whose attendance count is below `k` (default 5) are withheld and
- * folded into ONE per-province "Otras localidades (privacidad)" rollup row — the
+ * so localities whose attendance count is below the shared ANONYMITY_K are
+ * withheld and folded into ONE per-province "Otras localidades (privacidad)"
+ * rollup row — the
  * same proven-safe pattern the mortality-by-locality projection uses
  * (lib/analytics/mortality-metrics.ts, `suppressSmallCells` + province rollup).
  * The rollup preserves the province-level attendance total without exposing the
  * sub-threshold locality. Because both the /gob/campanas table and its CSV export
  * consume the SAME suppressed rows, the leak is closed on every surface.
  */
-export function suppressGeoReach(cells: CampaignGeoReach[], k = 5): CampaignGeoReachResult {
+export function suppressGeoReach(cells: CampaignGeoReach[]): CampaignGeoReachResult {
   const { visible, suppressed, suppressedCount } = suppressSmallCells<CampaignGeoReach>(cells, {
     count: (c) => c.attendedCount,
     key: (c) => c.locality,
-    k,
   });
 
   // Fold every suppressed locality into a single rollup row per province.

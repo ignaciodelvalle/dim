@@ -656,7 +656,6 @@ export function provinceCell(
   const { suppressedCount } = suppressSmallCells([denominator], {
     count: (n) => n,
     key: () => provinceCode,
-    k: PROVINCE_K,
   });
   const suppressed = suppressedCount > 0;
   return { provinceCode, label, value: suppressed ? null : value, suppressed };

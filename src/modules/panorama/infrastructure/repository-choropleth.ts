@@ -51,7 +51,6 @@ import type {
   ProvinceChoroplethCell,
 } from "@/src/modules/panorama/application/build-features";
 import {
-  PROVINCE_K,
   aggregateCellsToDepartment,
   provinceCell,
   provinceCellPreDecided,
@@ -93,7 +92,6 @@ function toChoroplethCells(rollup: RollupRow[]): {
   const primary = suppressSmallCells(rollup, {
     count: (r) => r.count,
     key: (r) => r.key,
-    k: 5,
   });
   // Complementary suppression (differencing-attack defense): when the SEPARATE
   // province-level choropleth's own total for this province is VISIBLE (not
@@ -1162,7 +1160,6 @@ export async function loadVetDesertByProvince(
   const { visible, suppressed } = suppressSmallCells(universe, {
     count: (r) => r.count,
     key: (r) => r.province,
-    k: PROVINCE_K,
   });
 
   // Numerator complement: DISTINCT active pets with ≥1 veterinary act inside the
