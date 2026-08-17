@@ -4,7 +4,7 @@
 // while a DECOMISO case rendered fine.
 //
 // The case_events query is IDENTICAL for every case kind — it filters by
-// case_id alone and projects a constant 'system' authorRole. A missing/renamed
+// case_id alone and projects a constant authorRole. A missing/renamed
 // column would therefore fail Postgres at PLAN time for BOTH the DISPUTE and the
 // DECOMISO case, yet DECOMISO worked. That rules out a code/schema bug and points
 // at local DB schema drift in the QA sandbox (consistent with the session-expiry
@@ -12,8 +12,8 @@
 //
 // This test pins the merge path against the canonical, fully-migrated test DB:
 // a case WITH case_events rows resolves without throwing and surfaces those
-// entries in the unified timeline (authorRole 'system'). It is the lasting
-// regression guard the 🔴 report deserved — there is no production code change.
+// entries in the unified timeline (with a null author role — that table records
+// none). It is the lasting regression guard the 🔴 report deserved — there is no production code change.
 
 import { sql } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
@@ -101,14 +101,20 @@ describe("getCaseDetailByPublicCode — case_events merge (PR-2 repro)", () => {
     expect(detail).not.toBeNull();
   });
 
-  it("merges case_events into the unified timeline with authorRole 'system'", async () => {
+  it("merges case_events into the unified timeline with a NULL author role", async () => {
+    // Was `authorRole === "system"` until 2026-08-17. `case_events` records no
+    // author role, and the merge used to synthesize the literal 'system' for
+    // every row from it so both halves of the union would share a shape. That
+    // labelled an operator's own manual case closure — which carries a real
+    // `recordedByUserId` — as if the machine had written it. Null is the honest
+    // projection: this source does not record the field.
     const detail = await getCaseDetailByPublicCode(casePublicCode);
-    const systemTypes = (detail?.events ?? [])
-      .filter((e) => e.authorRole === "system")
+    const unattributed = (detail?.events ?? [])
+      .filter((e) => e.authorRole === null)
       .map((e) => e.eventType);
     // Subset assertion (not exact count): openCase may emit its own case_opened
-    // entry, which also projects authorRole 'system'.
-    expect(systemTypes).toContain("classification");
-    expect(systemTypes).toContain("control_action");
+    // entry, which comes from the same table and is likewise unattributed.
+    expect(unattributed).toContain("classification");
+    expect(unattributed).toContain("control_action");
   });
 });
