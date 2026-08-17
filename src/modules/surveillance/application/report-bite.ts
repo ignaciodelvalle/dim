@@ -273,28 +273,33 @@ export async function reportBite(input: ReportBiteInput, deps: Deps): Promise<Re
   // 8. Authority fan-out (best-effort — post-tx). Add to pendingNotifications.
   // Routes to the INCIDENT jurisdiction (caseProvince/caseLocality), not the
   // pet's home — see LEGAL-ROUTING fix note above.
-  if (caseProvince && caseLocality) {
-    try {
-      const authorityIds = await findAuthoritiesForJurisdiction({
-        province: caseProvince,
-        locality: caseLocality,
+  //
+  // A null jurisdiction does NOT skip the resolver (2026-08-17). It used to:
+  // `caseProvince && caseLocality ? … : []` meant the admin fallback — the whole
+  // reason the resolver exists — never ran for an incident with no geocoded
+  // jurisdiction, and a rabies observation opened with no authority aware of it.
+  // Coercing null to "" lets the resolver find no govt and page the admins,
+  // which is the same shape route-outbreak-signal-notifications already used.
+  try {
+    const authorityIds = await findAuthoritiesForJurisdiction({
+      province: caseProvince ?? "",
+      locality: caseLocality ?? "",
+    });
+    for (const authorityId of authorityIds) {
+      pendingNotifications.push({
+        userId: authorityId,
+        notificationType: "bite_reported_authority",
+        severity: input.severity === "severe" ? "urgent" : "warning",
+        title: `Mordedura reportada — ${pet.name} (${speciesLabel(pet.species)})`,
+        body: `Reportada por el dueño. Víctima: ${input.victimKind}. Severidad: ${input.severity}. Antirrábica vigente al momento: ${rabiesVaccineValid ? "sí" : "NO"}. Observación de ${rabiesWindow.days} días iniciada.`,
+        relatedPetId: pet.id,
+        // Authority recipient: surveillance hub (cannot open /mis-mascotas).
+        ctaLabel: "Ver vigilancia",
+        ctaUrl: "/gob/vigilancia",
       });
-      for (const authorityId of authorityIds) {
-        pendingNotifications.push({
-          userId: authorityId,
-          notificationType: "bite_reported_authority",
-          severity: input.severity === "severe" ? "urgent" : "warning",
-          title: `Mordedura reportada — ${pet.name} (${speciesLabel(pet.species)})`,
-          body: `Reportada por el dueño. Víctima: ${input.victimKind}. Severidad: ${input.severity}. Antirrábica vigente al momento: ${rabiesVaccineValid ? "sí" : "NO"}. Observación de ${rabiesWindow.days} días iniciada.`,
-          relatedPetId: pet.id,
-          // Authority recipient: surveillance hub (cannot open /mis-mascotas).
-          ctaLabel: "Ver vigilancia",
-          ctaUrl: "/gob/vigilancia",
-        });
-      }
-    } catch (err) {
-      console.error("reportBite authority fan-out failed:", err);
     }
+  } catch (err) {
+    console.error("reportBite authority fan-out failed:", err);
   }
 
   return {

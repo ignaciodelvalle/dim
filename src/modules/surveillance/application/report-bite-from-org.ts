@@ -294,28 +294,30 @@ export async function reportBiteFromOrg(
 
   // 7. Authority fan-out (best-effort — post-tx). Routes to the INCIDENT
   // jurisdiction (caseProvince/caseLocality), not the pet's home.
-  if (caseProvince && caseLocality) {
-    try {
-      const authorityIds = await findAuthoritiesForJurisdiction({
-        province: caseProvince,
-        locality: caseLocality,
+  //
+  // A null jurisdiction does NOT skip the resolver (2026-08-17) — see the twin
+  // comment in report-bite.ts. The guard used to mean the admin fallback never
+  // ran for an incident with no geocoded jurisdiction.
+  try {
+    const authorityIds = await findAuthoritiesForJurisdiction({
+      province: caseProvince ?? "",
+      locality: caseLocality ?? "",
+    });
+    for (const authorityId of authorityIds) {
+      pendingNotifications.push({
+        userId: authorityId,
+        notificationType: "bite_reported_authority",
+        severity: input.severity === "severe" ? "urgent" : "warning",
+        title: `Mordedura reportada — ${pet.name} (${speciesLabel(pet.species)})`,
+        body: `Reportada por ${organization.displayName} (${reporterRole}). Víctima: ${input.victimKind}. Severidad: ${input.severity}. Antirrábica vigente al momento: ${rabiesVaccineValid ? "sí" : "NO"}. Observación de ${rabiesWindow.days} días iniciada.`,
+        relatedPetId: pet.id,
+        // Authority recipient: surveillance hub (cannot open /mis-mascotas).
+        ctaLabel: "Ver vigilancia",
+        ctaUrl: "/gob/vigilancia",
       });
-      for (const authorityId of authorityIds) {
-        pendingNotifications.push({
-          userId: authorityId,
-          notificationType: "bite_reported_authority",
-          severity: input.severity === "severe" ? "urgent" : "warning",
-          title: `Mordedura reportada — ${pet.name} (${speciesLabel(pet.species)})`,
-          body: `Reportada por ${organization.displayName} (${reporterRole}). Víctima: ${input.victimKind}. Severidad: ${input.severity}. Antirrábica vigente al momento: ${rabiesVaccineValid ? "sí" : "NO"}. Observación de ${rabiesWindow.days} días iniciada.`,
-          relatedPetId: pet.id,
-          // Authority recipient: surveillance hub (cannot open /mis-mascotas).
-          ctaLabel: "Ver vigilancia",
-          ctaUrl: "/gob/vigilancia",
-        });
-      }
-    } catch (err) {
-      console.error("reportBiteFromOrg authority fan-out failed:", err);
     }
+  } catch (err) {
+    console.error("reportBiteFromOrg authority fan-out failed:", err);
   }
 
   return {

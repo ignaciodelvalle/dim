@@ -6,9 +6,11 @@
 // Scan: welfare_denuncia cases with status='open', linked welfareReport.status
 // IN ('triaged', 'in_progress'), NO pet_events in last 90 days.
 // Process: resolve authorities = findAuthoritiesForJurisdiction(prov, loc)
-// (govt ONLY — no institutional admins, unlike disputes);
-// in ONE tx — UPDATE status='escalated' (guarded AND status='open');
-// if 0 rows → return (anti-race); if authorities > 0 → insert notifications.
+// — govt-first, with the resolver's own institutional-admin fallback when no
+// govt covers the jurisdiction (a null jurisdiction is coerced to "" so the
+// fallback still runs); in ONE tx — UPDATE status='escalated' (guarded AND
+// status='open'); if 0 rows → return (anti-race); if authorities > 0 → insert
+// notifications, else write the notification_fanout_empty trace.
 //
 // Does NOT modify welfare_reports.status — sensitive, manual-triage only.
 // Auth: none (system-initiated cron). No user authz inside.
@@ -17,6 +19,7 @@ import { and, asc, eq, gt, inArray, sql } from "drizzle-orm";
 
 import { cases, db, notifications, petEvents, welfareReports } from "@/db";
 import { findAuthoritiesForJurisdiction } from "@/lib/infra/approval-routing";
+import { writeAuditLog } from "@/lib/infra/audit-log";
 
 export interface EscalateStaleWelfareOptions {
   now?: Date;
@@ -82,13 +85,16 @@ export async function escalateStaleWelfareCase(
 ): Promise<void> {
   const now = options?.now ?? new Date();
 
-  const authorities =
-    candidate.jurisdictionProvince && candidate.jurisdictionLocality
-      ? await findAuthoritiesForJurisdiction({
-          province: candidate.jurisdictionProvince,
-          locality: candidate.jurisdictionLocality,
-        })
-      : [];
+  // Null jurisdiction is coerced, not skipped (2026-08-17). The guard this
+  // replaces meant a denuncia whose case never got a jurisdiction escalated to
+  // NOBODY — the resolver, and therefore its admin fallback, was never called.
+  const authorities = await findAuthoritiesForJurisdiction(
+    {
+      province: candidate.jurisdictionProvince ?? "",
+      locality: candidate.jurisdictionLocality ?? "",
+    },
+    { route: "welfare_denuncia_stale_govt" },
+  );
 
   await db.transaction(async (tx) => {
     const updated = await tx
@@ -98,7 +104,26 @@ export async function escalateStaleWelfareCase(
       .returning({ id: cases.id });
     if (updated.length === 0) return;
 
-    if (authorities.length === 0) return;
+    if (authorities.length === 0) {
+      // The case IS now `escalated` and nobody was told. `escalated` has no
+      // worklist of its own, so without this row the denuncia would simply stop
+      // being anywhere. Written INSIDE the tx that performed the transition, so
+      // the trace and the state change stand or fall together.
+      await writeAuditLog(tx, {
+        action: "notification_fanout_empty",
+        actorUserId: null,
+        payload: {
+          route: "welfare_denuncia_stale_govt",
+          province: candidate.jurisdictionProvince ?? "",
+          locality: candidate.jurisdictionLocality ?? "",
+          reason: "no_govt_no_admin",
+          case_id: candidate.id,
+          case_public_code: candidate.publicCode,
+          reference_code: candidate.referenceCode,
+        },
+      });
+      return;
+    }
 
     await tx.insert(notifications).values(
       authorities.map((authorityId) => ({

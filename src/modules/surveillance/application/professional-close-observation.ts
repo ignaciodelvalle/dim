@@ -244,32 +244,34 @@ export async function professionalCloseObservation(
   // POSITIVE rabies escalation hook (public-health critical): fan out an urgent
   // alert to the jurisdiction's sanitary authorities. Best-effort and post-tx —
   // like the bite-report fan-out — a routing miss NEVER undoes a recorded close.
+  // A null jurisdiction does NOT skip the resolver (2026-08-17): a CONFIRMED
+  // RABIES case reaching nobody because the animal's home was never geocoded is
+  // the worst instance of the null-jurisdiction short-circuit in the codebase.
+  // Coerced to "" so the resolver's admin fallback runs.
   if (input.outcome === "positive_rabies" && findAuthoritiesForJurisdiction) {
-    if (pet.jurisdictionProvince && pet.jurisdictionLocality) {
-      try {
-        const authorityIds = await findAuthoritiesForJurisdiction({
-          province: pet.jurisdictionProvince,
-          locality: pet.jurisdictionLocality,
+    try {
+      const authorityIds = await findAuthoritiesForJurisdiction({
+        province: pet.jurisdictionProvince ?? "",
+        locality: pet.jurisdictionLocality ?? "",
+      });
+      for (const authorityId of authorityIds) {
+        pendingNotifications.push({
+          userId: authorityId,
+          notificationType: "rabies_observation_positive_authority",
+          severity: "urgent",
+          title: `RABIA CONFIRMADA — ${pet.name}`,
+          body: `Se cerró una observación antirrábica con resultado POSITIVO para ${pet.name}. Activá el protocolo de salud pública para la jurisdicción.${input.closureNotes ? ` Notas: ${input.closureNotes}` : ""}`,
+          relatedPetId: pet.id,
+          relatedCaseId: biteCase?.id ?? null,
+          ctaLabel: "Ver vigilancia",
+          ctaUrl: "/gob/vigilancia",
         });
-        for (const authorityId of authorityIds) {
-          pendingNotifications.push({
-            userId: authorityId,
-            notificationType: "rabies_observation_positive_authority",
-            severity: "urgent",
-            title: `RABIA CONFIRMADA — ${pet.name}`,
-            body: `Se cerró una observación antirrábica con resultado POSITIVO para ${pet.name}. Activá el protocolo de salud pública para la jurisdicción.${input.closureNotes ? ` Notas: ${input.closureNotes}` : ""}`,
-            relatedPetId: pet.id,
-            relatedCaseId: biteCase?.id ?? null,
-            ctaLabel: "Ver vigilancia",
-            ctaUrl: "/gob/vigilancia",
-          });
-        }
-      } catch (notifyErr) {
-        console.error(
-          "[professionalCloseObservation] authority escalation notification failed:",
-          notifyErr,
-        );
       }
+    } catch (notifyErr) {
+      console.error(
+        "[professionalCloseObservation] authority escalation notification failed:",
+        notifyErr,
+      );
     }
   }
 

@@ -278,9 +278,16 @@ describe("reportBite — authority fan-out", () => {
     expect(authNotif?.severity).toBe("urgent");
   });
 
-  it("skips authority notifications when no pet jurisdiction", async () => {
+  it("STILL routes when there is no jurisdiction — the admin fallback must get its chance", async () => {
+    // This used to assert `not.toHaveBeenCalled()`, i.e. it pinned the bug: with
+    // a null jurisdiction the resolver was never invoked, so the one real
+    // fallback in the system (govt-first, active institutional admins second)
+    // never ran, and a bite opened a rabies observation with NO authority aware
+    // of it while the action returned ok. Coercing null to "" makes the resolver
+    // find no govt and page the admins — the shape
+    // route-outbreak-signal-notifications already used.
     const deps = makeDeps();
-    deps.findAuthoritiesForJurisdiction = vi.fn();
+    deps.findAuthoritiesForJurisdiction = vi.fn().mockResolvedValue(["admin-fallback-1"]);
     const petNoJurisdiction = {
       ...BASE_INPUT,
       pet: {
@@ -288,9 +295,19 @@ describe("reportBite — authority fan-out", () => {
         jurisdictionProvince: null,
         jurisdictionLocality: null,
       },
+      eventJurisdictionProvince: null,
+      eventJurisdictionLocality: null,
     };
-    await reportBite(petNoJurisdiction, deps);
-    expect(deps.findAuthoritiesForJurisdiction).not.toHaveBeenCalled();
+    const result = await reportBite(petNoJurisdiction, deps);
+    expect(deps.findAuthoritiesForJurisdiction).toHaveBeenCalledWith({
+      province: "",
+      locality: "",
+    });
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(
+      result.notifications.find((n) => n.notificationType === "bite_reported_authority")?.userId,
+    ).toBe("admin-fallback-1");
   });
 });
 

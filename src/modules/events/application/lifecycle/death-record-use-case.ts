@@ -365,34 +365,39 @@ export async function createDeathRecord(
   // Post-tx: urgent authority fan-out when rabies observation was auto-closed by this death.
   if (rabiesObservationClosed && insertedEventId) {
     try {
-      if (pet.jurisdictionProvince && pet.jurisdictionLocality) {
-        const authorityIds = await findAuthoritiesForJurisdiction({
-          province: pet.jurisdictionProvince,
-          locality: pet.jurisdictionLocality,
-        });
-        if (authorityIds.length > 0) {
-          const { db, notifications } = await import("@/db");
-          // The disposal is always named (compliant or not): the authority's
-          // first question after a death-in-observation is whether the body
-          // remains analyzable — "sin registrar" is itself signal.
-          const dispositionSentence = `Disposición declarada: ${
-            dispositionMethod ? dispositionMethodLabel(dispositionMethod) : "sin registrar"
-          }${facility ? ` (${facility})` : ""}.`;
-          await db.insert(notifications).values(
-            authorityIds.map((authorityId) => ({
-              userId: authorityId,
-              notificationType: "rabies_observation_completed_dead_authority",
-              severity: "urgent" as const,
-              title: `URGENTE — fallecimiento durante observación antirrábica (${pet.name})`,
-              body: `La mascota falleció dentro del período de 10 días de observación post-mordedura. Causa declarada: ${cause}. ${dispositionSentence} Requiere revisión inmediata por riesgo de rabia.`,
-              relatedPetId: pet.id,
-              relatedEventId: insertedEventId as string,
-              // Authority recipient: surveillance hub (cannot open /mis-mascotas).
-              ctaLabel: "Ver vigilancia",
-              ctaUrl: "/gob/vigilancia",
-            })),
-          );
-        }
+      // Null jurisdiction coerced, not skipped (2026-08-17): a death INSIDE a
+      // rabies observation window is the single most urgent thing this module
+      // emits, and the old guard dropped it silently whenever the animal's home
+      // had never been geocoded.
+      const authorityIds = await findAuthoritiesForJurisdiction(
+        {
+          province: pet.jurisdictionProvince ?? "",
+          locality: pet.jurisdictionLocality ?? "",
+        },
+        { route: "rabies_observation_completed_dead_authority" },
+      );
+      if (authorityIds.length > 0) {
+        const { db, notifications } = await import("@/db");
+        // The disposal is always named (compliant or not): the authority's
+        // first question after a death-in-observation is whether the body
+        // remains analyzable — "sin registrar" is itself signal.
+        const dispositionSentence = `Disposición declarada: ${
+          dispositionMethod ? dispositionMethodLabel(dispositionMethod) : "sin registrar"
+        }${facility ? ` (${facility})` : ""}.`;
+        await db.insert(notifications).values(
+          authorityIds.map((authorityId) => ({
+            userId: authorityId,
+            notificationType: "rabies_observation_completed_dead_authority",
+            severity: "urgent" as const,
+            title: `URGENTE — fallecimiento durante observación antirrábica (${pet.name})`,
+            body: `La mascota falleció dentro del período de 10 días de observación post-mordedura. Causa declarada: ${cause}. ${dispositionSentence} Requiere revisión inmediata por riesgo de rabia.`,
+            relatedPetId: pet.id,
+            relatedEventId: insertedEventId as string,
+            // Authority recipient: surveillance hub (cannot open /mis-mascotas).
+            ctaLabel: "Ver vigilancia",
+            ctaUrl: "/gob/vigilancia",
+          })),
+        );
       }
     } catch (err) {
       console.error("[death] rabies-observation authority escalation failed:", err);

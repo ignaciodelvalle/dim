@@ -43,7 +43,13 @@ function makeTx() {
       values: (data: unknown) => {
         const rows = Array.isArray(data) ? data : [data];
         insertedRows.push(rows as Record<string, unknown>[]);
-        return Promise.resolve();
+        // Awaitable AND chainable: writeAuditLog (lib/infra/audit-log.ts) ends
+        // its insert with `.returning({ id })`, every other writer just awaits.
+        const result = Promise.resolve() as Promise<unknown> & {
+          returning: (fields?: unknown) => Promise<{ id: string }[]>;
+        };
+        result.returning = () => Promise.resolve([{ id: "audit-row-1" }]);
+        return result;
       },
     }),
   };
@@ -69,6 +75,7 @@ const fakeDb = {
 
 vi.mock("@/db", () => ({
   db: fakeDb,
+  auditLog: Symbol("auditLog"),
   cases: Symbol("cases"),
   petEvents: Symbol("petEvents"),
   notifications: Symbol("notifications"),
@@ -99,6 +106,10 @@ function petEventRows() {
 
 function notificationRows() {
   return allInserted().filter((r) => "notificationType" in r);
+}
+
+function auditRows() {
+  return allInserted().filter((r) => "action" in r);
 }
 
 // --------------------------------------------------------------------------
@@ -313,8 +324,10 @@ describe("escalate-stale-disputes (use-case)", () => {
     expect(notificationRows().length).toBe(0);
   });
 
-  it("no notifications when recipients list is empty", async () => {
-    // No govt authorities, no admins
+  it("no notifications when recipients list is empty — but the empty fan-out IS traced", async () => {
+    // No govt authorities, no admins. The case still transitions to `escalated`,
+    // and `escalated` has no worklist of its own, so without the audit row the
+    // dispute would simply stop being anywhere (routing audit, 2026-08-17).
     const { escalateStaleDispute } = await import(
       "@/src/modules/cases/application/escalate-stale-disputes"
     );
@@ -327,6 +340,33 @@ describe("escalate-stale-disputes (use-case)", () => {
     });
 
     expect(notificationRows().length).toBe(0);
+
+    const trace = auditRows().find((r) => r.action === "notification_fanout_empty");
+    expect(trace, "an empty fan-out must leave a trace").toBeDefined();
+    expect(trace?.payload).toMatchObject({
+      route: "custody_dispute_stale",
+      reason: "no_govt_no_admin",
+      case_public_code: "CAS-X",
+    });
+  });
+
+  it("a null jurisdiction still CALLS the resolver — the admin fallback must get its chance", async () => {
+    // The guard this replaces (`prov && loc ? … : []`) never called the
+    // resolver, so the one real fallback in the system never ran for a case
+    // with no geocoded jurisdiction.
+    const { escalateStaleDispute } = await import(
+      "@/src/modules/cases/application/escalate-stale-disputes"
+    );
+
+    mockFindAuthorities.mockClear();
+    await escalateStaleDispute({
+      id: "case-4",
+      publicCode: "CAS-Y",
+      jurisdictionProvince: null,
+      jurisdictionLocality: null,
+    });
+
+    expect(mockFindAuthorities).toHaveBeenCalledWith({ province: "", locality: "" });
   });
 });
 

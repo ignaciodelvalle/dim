@@ -26,6 +26,11 @@ export async function closeEligibleRabiesObservations(options?: {
   return closeEligibleObservations(options ?? {}, {
     repo,
     transaction: db.transaction.bind(db),
-    findAuthoritiesForJurisdiction,
+    // Route label lives at the composition root so an empty fan-out's audit row
+    // names the notification that went nowhere.
+    findAuthoritiesForJurisdiction: (jurisdiction) =>
+      findAuthoritiesForJurisdiction(jurisdiction, {
+        route: "rabies_observation_pending_review",
+      }),
   });
 }

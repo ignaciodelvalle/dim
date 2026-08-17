@@ -7,7 +7,9 @@
 // Process: resolve recipients = findAuthoritiesForJurisdiction(prov, loc)
 // ∪ institutional admins (role=admin, accountType=institutional);
 // in ONE tx — UPDATE status='escalated' (guarded AND status='open');
-// if 0 rows → return (anti-race); if recipients > 0 → insert notifications.
+// if 0 rows → return (anti-race); if recipients > 0 → insert notifications,
+// else write the notification_fanout_empty trace (an escalation nobody heard is
+// not an escalation, and `escalated` has no worklist of its own).
 //
 // Does NOT close the case (legal disputes can run for years).
 // Auth: none (system-initiated cron). No user authz inside.
@@ -16,6 +18,7 @@ import { and, asc, eq, gt, lt } from "drizzle-orm";
 
 import { cases, db, notifications, profiles } from "@/db";
 import { findAuthoritiesForJurisdiction } from "@/lib/infra/approval-routing";
+import { writeAuditLog } from "@/lib/infra/audit-log";
 
 export interface EscalateStaleDisputesOptions {
   now?: Date;
@@ -70,13 +73,15 @@ export async function escalateStaleDispute(
 ): Promise<void> {
   const now = options?.now ?? new Date();
 
-  const govtAuthorities =
-    candidate.jurisdictionProvince && candidate.jurisdictionLocality
-      ? await findAuthoritiesForJurisdiction({
-          province: candidate.jurisdictionProvince,
-          locality: candidate.jurisdictionLocality,
-        })
-      : [];
+  // Null jurisdiction is coerced, not skipped (2026-08-17) — the guard this
+  // replaces never called the resolver, so its admin fallback never ran.
+  const govtAuthorities = await findAuthoritiesForJurisdiction(
+    {
+      province: candidate.jurisdictionProvince ?? "",
+      locality: candidate.jurisdictionLocality ?? "",
+    },
+    { route: "custody_dispute_stale" },
+  );
 
   const admins = await db
     .select({ id: profiles.id })
@@ -94,7 +99,24 @@ export async function escalateStaleDispute(
       .returning({ id: cases.id });
     if (updated.length === 0) return;
 
-    if (recipients.length === 0) return;
+    if (recipients.length === 0) {
+      // The dispute IS now `escalated` and nobody was told. This recipient set is
+      // assembled here (govt ∪ every institutional admin), not by the resolver,
+      // so the resolver's own trace does not cover it — write our own.
+      await writeAuditLog(tx, {
+        action: "notification_fanout_empty",
+        actorUserId: null,
+        payload: {
+          route: "custody_dispute_stale",
+          province: candidate.jurisdictionProvince ?? "",
+          locality: candidate.jurisdictionLocality ?? "",
+          reason: "no_govt_no_admin",
+          case_id: candidate.id,
+          case_public_code: candidate.publicCode,
+        },
+      });
+      return;
+    }
 
     await tx.insert(notifications).values(
       recipients.map((userId) => ({

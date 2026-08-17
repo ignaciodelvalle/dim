@@ -189,13 +189,14 @@ export async function closeEligibleObservations(
         // repeats against the same started event).
         stats.flaggedForReview += 1;
         try {
-          const authorityIds =
-            pet.jurisdictionProvince && pet.jurisdictionLocality
-              ? await findAuthoritiesForJurisdiction({
-                  province: pet.jurisdictionProvince,
-                  locality: pet.jurisdictionLocality,
-                })
-              : [];
+          // Null jurisdiction is coerced, not skipped (2026-08-17): the guard it
+          // replaces meant a pet with no geocoded home never reached the admin
+          // fallback, so an observation with rabies-compatible symptoms nagged
+          // nobody, every day, forever.
+          const authorityIds = await findAuthoritiesForJurisdiction({
+            province: pet.jurisdictionProvince ?? "",
+            locality: pet.jurisdictionLocality ?? "",
+          });
           if (authorityIds.length > 0) {
             const authNotifications: NewNotification[] = authorityIds.map((authorityId) => ({
               userId: authorityId,
@@ -270,13 +271,12 @@ export async function closeEligibleObservations(
       //    actionable work for whoever can actually close it. A routing miss
       //    never undoes the state transition.
       try {
-        const authorityIds =
-          pet.jurisdictionProvince && pet.jurisdictionLocality
-            ? await findAuthoritiesForJurisdiction({
-                province: pet.jurisdictionProvince,
-                locality: pet.jurisdictionLocality,
-              })
-            : [];
+        // Null jurisdiction coerced, not skipped — same reason as the escalating
+        // branch above.
+        const authorityIds = await findAuthoritiesForJurisdiction({
+          province: pet.jurisdictionProvince ?? "",
+          locality: pet.jurisdictionLocality ?? "",
+        });
         if (authorityIds.length > 0) {
           const authNotifications: NewNotification[] = authorityIds.map((authorityId) => ({
             userId: authorityId,

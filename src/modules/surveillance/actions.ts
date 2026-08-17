@@ -228,7 +228,10 @@ export async function reportBiteAction(
       openCase: async (input, tx) =>
         openCase(input as Parameters<typeof openCase>[0], tx as Parameters<typeof openCase>[1]),
       transaction: db.transaction.bind(db),
-      findAuthoritiesForJurisdiction,
+      // Route label supplied at the composition root — see the org-side reporter
+      // below for why the use-case does not carry it.
+      findAuthoritiesForJurisdiction: (jurisdiction) =>
+        findAuthoritiesForJurisdiction(jurisdiction, { route: "bite_reported_authority" }),
       resolveObservationWindow: async (jurisdiction) => {
         // Review F3/F6: a rules-table read hiccup must not turn bite reporting
         // into an outage — fall back to the statutory national baseline. And a
@@ -395,7 +398,11 @@ export async function reportBiteFromOrgAction(
       openCase: async (input, tx) =>
         openCase(input as Parameters<typeof openCase>[0], tx as Parameters<typeof openCase>[1]),
       transaction: db.transaction.bind(db),
-      findAuthoritiesForJurisdiction,
+      // The route label is supplied HERE, at the composition root, so an empty
+      // fan-out's audit row names the notification that went nowhere. The
+      // use-case keeps a one-argument dep and stays ignorant of audit plumbing.
+      findAuthoritiesForJurisdiction: (jurisdiction) =>
+        findAuthoritiesForJurisdiction(jurisdiction, { route: "bite_reported_authority_org" }),
       resolveObservationWindow: async (jurisdiction) => {
         // Review F3/F6: a rules-table read hiccup must not turn bite reporting
         // into an outage — fall back to the statutory national baseline. And a
@@ -474,7 +481,10 @@ export async function professionalCloseRabiesObservationAction(
         await closeCase(args, tx as Parameters<typeof closeCase>[1]);
       },
       transaction: db.transaction.bind(db),
-      findAuthoritiesForJurisdiction,
+      findAuthoritiesForJurisdiction: (jurisdiction) =>
+        findAuthoritiesForJurisdiction(jurisdiction, {
+          route: "rabies_observation_positive_authority",
+        }),
     },
   );
 

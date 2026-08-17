@@ -363,23 +363,19 @@ export async function replaceMicrochipForUser(
 
       if (parsed.reason === "duplicate_detected" && secondaryPetId) {
         // Fan out to govt users covering the jurisdiction, falling back to admins.
-        const govtOrAdminIds =
-          pet.jurisdictionProvince && pet.jurisdictionLocality
-            ? await findAuthoritiesForJurisdiction({
-                province: pet.jurisdictionProvince,
-                locality: pet.jurisdictionLocality,
-              })
-            : await tx
-                .select({ id: profiles.id })
-                .from(profiles)
-                .where(
-                  and(
-                    eq(profiles.role, "admin"),
-                    eq(profiles.accountType, "institutional"),
-                    isNull(profiles.deactivatedAt),
-                  ),
-                )
-                .then((rows) => rows.map((r) => r.id));
+        //
+        // The null-jurisdiction branch used to re-implement the admin fallback
+        // inline, right here, with its own copy of the role/accountType/
+        // deactivatedAt predicate — a second definition of "who is a fallback
+        // admin" that could drift from the resolver's. Coercing null to "" gets
+        // the SAME fallback from the SAME place (2026-08-17).
+        const govtOrAdminIds = await findAuthoritiesForJurisdiction(
+          {
+            province: pet.jurisdictionProvince ?? "",
+            locality: pet.jurisdictionLocality ?? "",
+          },
+          { route: "microchip_duplicate_detected" },
+        );
 
         for (const uid of govtOrAdminIds) {
           pendingNotifications.push({

@@ -715,13 +715,12 @@ async function findGovInterventionRecipients(input: {
 }): Promise<string[]> {
   const ids = new Set<string>();
   if (input.derivedByUserId) ids.add(input.derivedByUserId);
-  if (input.jurisdictionProvince && input.jurisdictionLocality) {
-    const authorities = await findAuthoritiesForJurisdiction({
-      province: input.jurisdictionProvince,
-      locality: input.jurisdictionLocality,
-    });
-    for (const id of authorities) ids.add(id);
-  }
+  // Null jurisdiction coerced, not skipped (2026-08-17) — see approval-routing.ts.
+  const authorities = await findAuthoritiesForJurisdiction(
+    { province: input.jurisdictionProvince ?? "", locality: input.jurisdictionLocality ?? "" },
+    { route: "welfare_org_intervention" },
+  );
+  for (const id of authorities) ids.add(id);
   return [...ids];
 }
 
@@ -1485,7 +1484,8 @@ export async function createOrgWelfareReportAction(
     {
       repo,
       openCase: async (input) => openCase(input as Parameters<typeof openCase>[0]),
-      findGovtRecipients: async (opts) => findAuthoritiesForJurisdiction(opts),
+      findGovtRecipients: async (opts) =>
+        findAuthoritiesForJurisdiction(opts, { route: "welfare_org_side_critical_received" }),
       signal: async (opts) => {
         await signalWelfareReport(opts);
       },
