@@ -22,6 +22,11 @@ type DevolverAlDuenoButtonProps = {
 export function DevolverAlDuenoButton({ casePublicCode }: DevolverAlDuenoButtonProps) {
   const [open, setOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // Delivery warning: the return SUCCEEDED but one or more notifications could
+  // not be handed over. We do not navigate away then — the reload would wipe the
+  // only message telling the funcionario that the former owner was never told
+  // their animal is theirs again.
+  const [notice, setNotice] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
   // OpButton forwards no ref (see scripts/check-raw-buttons.mjs baseline note),
   // so the trigger stays a plain HTML button to give ConfirmDialog a
@@ -34,6 +39,10 @@ export function DevolverAlDuenoButton({ casePublicCode }: DevolverAlDuenoButtonP
       const result = await returnCustodyToOwnerAction({ casePublicCode });
       if ("error" in result) {
         setError(result.error);
+        return;
+      }
+      if (result.warning) {
+        setNotice(result.warning);
         return;
       }
       setOpen(false);
@@ -58,7 +67,13 @@ export function DevolverAlDuenoButton({ casePublicCode }: DevolverAlDuenoButtonP
         onClose={() => !isPending && setOpen(false)}
         onConfirm={handleConfirm}
         title={`Devolver al dueño — ${casePublicCode}`}
-        description="Esto cierra el episodio de custodia y le restituye al dueño anterior el acceso completo sobre la mascota — una transferencia real de responsabilidad legal. Esta acción no se puede deshacer."
+        // "Esta acción no se puede deshacer" was the same overclaim the execute
+        // form carried (PO fix list 2026-08-17): the episode closes, but nothing
+        // stops this authority from executing a new decomiso on the same animal.
+        // What is true — and more useful — is that this hands legal
+        // responsibility back, so the honest warning names the consequence
+        // instead of inventing finality.
+        description="Esto cierra el episodio de custodia y le restituye al dueño anterior el acceso completo sobre la mascota — una transferencia real de responsabilidad legal. Para volver a intervenir haría falta un decomiso nuevo, con su propia evidencia."
         confirmLabel="Devolver al dueño"
         tone="neutral"
         pending={isPending}
@@ -69,6 +84,7 @@ export function DevolverAlDuenoButton({ casePublicCode }: DevolverAlDuenoButtonP
             {error}
           </p>
         )}
+        {notice && <output className="block px-5 pb-3 text-sm text-ln-op-warn">{notice}</output>}
       </ConfirmDialog>
     </>
   );

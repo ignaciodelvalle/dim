@@ -40,6 +40,12 @@ export function DecomisoHandoffActions({
 }) {
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
+  // Delivery warning: the act SUCCEEDED but one or more notifications could not
+  // be handed over. We deliberately do NOT navigate away in that case — the
+  // reload would wipe the only message telling this operator that the other side
+  // was never informed. An in-app row is the whole notification instrument in
+  // this product (no email channel exists), so a silent loss means nobody knows.
+  const [notice, setNotice] = useState<string | null>(null);
   // Which ConfirmDialog is open, or null when neither is. The trigger refs are
   // ConfirmDialog's focus-restore targets (OpButton takes a ref as of
   // 2026-07-30, so these stay OpButtons instead of the hand-styled raw buttons
@@ -63,6 +69,11 @@ export function DecomisoHandoffActions({
         setConfirming(null);
         return;
       }
+      if (result.warning) {
+        setNotice(result.warning);
+        setConfirming(null);
+        return;
+      }
       navigateAfterActionSuccess(window.location.href);
     });
   }
@@ -80,6 +91,11 @@ export function DecomisoHandoffActions({
         setConfirming(null);
         return;
       }
+      if (result.warning) {
+        setNotice(result.warning);
+        setConfirming(null);
+        return;
+      }
       navigateAfterActionSuccess(window.location.href);
     });
   }
@@ -87,6 +103,7 @@ export function DecomisoHandoffActions({
   return (
     <div className="flex flex-wrap gap-2 pt-1">
       {error && <output className="block w-full text-sm text-ln-op-danger">{error}</output>}
+      {notice && <output className="block w-full text-sm text-ln-op-warn">{notice}</output>}
       <OpButton
         ref={acceptTriggerRef}
         type="button"

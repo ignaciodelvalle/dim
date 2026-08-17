@@ -34,6 +34,7 @@
 import { Icon } from "@/components/Icon";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { OpButton, OpFileInput, OpInput, OpSelect, OpTextarea } from "@/components/ui/dashboard";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useRef, useState, useTransition } from "react";
 
@@ -155,6 +156,15 @@ export function DecomisoForm({
   const [attachmentError, setAttachmentError] = useState<string | null>(null);
 
   const [formError, setFormError] = useState<string | null>(null);
+  // The decomiso was RECORDED but one or more notifications could not be
+  // delivered. Not an error — we do not undo a seizure over a delivery blip —
+  // but we stop navigating to the case, because the redirect would wipe the only
+  // message telling the funcionario that the owner or the refugio was never
+  // informed. An in-app row is the entire notification instrument here.
+  const [deliveryNotice, setDeliveryNotice] = useState<{
+    message: string;
+    publicCode: string;
+  } | null>(null);
   const [showConfirmModal, setShowConfirmModal] = useState(false);
   const [isPending, startTransition] = useTransition();
 
@@ -303,6 +313,11 @@ export function DecomisoForm({
       const result: ExecuteDecomisoResult = await executeDecomisoAction(input);
       if ("error" in result) {
         setFormError(result.error);
+        return;
+      }
+      if (result.warning) {
+        setShowConfirmModal(false);
+        setDeliveryNotice({ message: result.warning, publicCode: result.publicCode });
         return;
       }
       router.push(`/casos/${result.publicCode}?origin=decomiso`);
@@ -836,6 +851,19 @@ export function DecomisoForm({
           )}
         </section>
 
+        {/* --- Aviso de entrega parcial (el decomiso SI se registro) --- */}
+        {deliveryNotice && (
+          <output className="text-md text-ln-op-warn rounded-[var(--radius-md)] border border-ln-op-line px-4 py-3 block">
+            {deliveryNotice.message}{" "}
+            <Link
+              href={`/casos/${deliveryNotice.publicCode}?origin=decomiso`}
+              className="underline"
+            >
+              Ver caso {deliveryNotice.publicCode}
+            </Link>
+          </output>
+        )}
+
         {/* --- Error global --- */}
         {formError && (
           <p
@@ -860,9 +888,22 @@ export function DecomisoForm({
           {isPending ? "Ejecutando decomiso..." : "Ejecutar decomiso"}
         </OpButton>
 
+        {/* CORRECTED 2026-08-17 (PO fix list, engram
+            roadmap/decisiones-legales-flujos-2026-08-17 item 2b/2c). This said
+            "Esta acción es irreversible". It is not, and our own codebase says
+            so: returnCustodyToOwnerAction and reassignDecomisoToAnotherReceiver
+            Action exist. What IS true is that the reversal has a hard expiry
+            nobody was told about — validateReturnCustodyToOwner requires the
+            seizing authority to still hold active shelter_custody, and
+            accept-decomiso-handoff ends that row the instant the refugio
+            accepts. So the window closes on a THIRD PARTY's action, not on a
+            timer the funcionario controls. */}
         <p className="text-sm text-ln-op-mute text-center">
-          Esta acción es irreversible — el decomiso quedará registrado en el sistema de casos bajo
-          Ley 14.346. El refugio destinatario recibirá una notificación de handoff.
+          El decomiso queda registrado en el sistema de casos y auditado. Podés devolver el animal
+          al dueño o reasignar el destinatario{" "}
+          <strong>mientras el refugio no acepte el traspaso</strong>; una vez que lo acepta, la
+          custodia pasa a esa organización y esta autoridad ya no puede devolverla. El refugio
+          destinatario recibirá una notificación de handoff y tiene 7 días para responder.
         </p>
       </div>
 
@@ -879,9 +920,18 @@ export function DecomisoForm({
           onClose={() => setShowConfirmModal(false)}
           onConfirm={executeDecomiso}
           title="Ejecutar decomiso"
+          /* CORRECTED 2026-08-17 (PO fix list item 2a). This said "Esta acción
+             está amparada en Ley 14.346". Ley 14.346 art. 1 establishes a CRIME
+             ("Será reprimido con prisión de quince días a un año…"); it confers
+             no administrative power of seizure. The product was telling the
+             funcionario his act was legally covered at the exact moment he
+             should have been doubting it. Nothing in this codebase sources the
+             authority for the seizure, so the honest output is to make NO legal
+             claim — not to swap in a different one. "Queda auditada" stays,
+             because it is true (execute-decomiso writes decomiso_executed). */
           description={`Esta mascota tiene un dueño registrado. Vas a quitarle la custodia legal de ${petPreview.name}${
             petPreview.ownerDisplayName ? ` a ${petPreview.ownerDisplayName}` : " al dueño actual"
-          }. El sistema le notificará que el animal fue decomisado. Esta acción está amparada en Ley 14.346, queda auditada y no se puede deshacer.`}
+          }. El sistema le notificará que el animal fue decomisado. La acción queda auditada. Podés revertirla mientras el refugio destinatario no acepte el traspaso.`}
           confirmLabel="Ejecutar decomiso"
           tone="danger"
           pending={isPending}

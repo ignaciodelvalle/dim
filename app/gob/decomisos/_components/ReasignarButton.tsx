@@ -46,6 +46,12 @@ export function ReasignarButton({
   const [newReceiverId, setNewReceiverId] = useState("");
   const [reason, setReason] = useState("");
   const [error, setError] = useState<string | null>(null);
+  // Delivery warning: the reassignment SUCCEEDED but one or more notifications
+  // could not be handed over. We do not navigate away in that case — the reload
+  // would wipe the only message telling the funcionario that the new refugio was
+  // never actually informed, and an in-app row is the whole instrument (this
+  // product has no email channel).
+  const [notice, setNotice] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
   // OpButton forwards no ref (see scripts/check-raw-buttons.mjs baseline note),
   // so the trigger stays a plain HTML button to give ConfirmDialog a
@@ -68,6 +74,10 @@ export function ReasignarButton({
       });
       if ("error" in result) {
         setError(result.error);
+        return;
+      }
+      if (result.warning) {
+        setNotice(result.warning);
         return;
       }
       setOpen(false);
@@ -144,6 +154,8 @@ export function ReasignarButton({
               {error}
             </p>
           )}
+
+          {notice && <output className="block text-md text-ln-op-warn">{notice}</output>}
         </div>
       </ConfirmDialog>
     </>

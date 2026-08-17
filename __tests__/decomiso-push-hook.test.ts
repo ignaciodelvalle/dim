@@ -1,11 +1,17 @@
-// Wiring test: the decomiso notification flushes call the Web Push seam
-// (lib/infra/web-push.ts sendPushForNotifications) after a successful insert.
+// Wiring test: the decomiso notification flush goes through the canonical
+// notification write path, and a failed delivery does NOT read as success.
 //
-// PO decision 2026-07-16: decomiso (and welfare) flushes join the 13 sites
-// already hooked to the push seam. This pins ONE decomiso path
-// (rejectDecomisoHandoffAction) — the other three flush blocks are the same
-// 3-line pattern in the same file. Urgent-only filtering lives INSIDE the
-// seam, so the flush passes every pending row through.
+// HISTORY. This file used to pin the old shape directly: the action inserted
+// rows with `db.insert(notifications)` and then called the Web Push seam, and
+// the second test asserted — approvingly — that a failed insert still returned
+// `{ ok: true, publicCode }` with nothing else. That was the defect (PO fix
+// list 2026-08-17, item 2e), not the contract: this product has NO email
+// channel, so a lost in-app row means the person is never told, and the
+// operator was shown plain success either way.
+//
+// The action now delivers through createNotificationsBulk, which owns BOTH legs
+// this file cares about — the Web Push call and the dead-letter on failure — and
+// returns counts the action turns into an operator-visible warning.
 //
 // Everything is mocked — no DB, no auth session.
 
@@ -15,23 +21,29 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 // Mocks
 // ---------------------------------------------------------------------------
 
-const mockSendPushForNotifications = vi.hoisted(() => vi.fn().mockResolvedValue(undefined));
-vi.mock("@/lib/infra/web-push", () => ({
-  sendPushForNotifications: mockSendPushForNotifications,
+type DeliveredRow = { userId: string; dedupeKey: string };
+const mockCreateNotificationsBulk = vi.hoisted(() =>
+  vi.fn(async (_rows: unknown[]) => ({
+    insertedCount: 1,
+    duplicateCount: 0,
+    deadLetteredCount: 0,
+  })),
+);
+vi.mock("@/lib/infra/notification-service", () => ({
+  createNotificationsBulk: mockCreateNotificationsBulk,
 }));
 
 const PENDING_ROWS = [
   {
     userId: "govt-user-1",
     notificationType: "decomiso_handoff_rejected",
-    severity: "urgent",
+    severity: "urgent" as const,
     title: "Handoff de decomiso rechazado",
     body: "La organización destinataria rechazó la custodia.",
     ctaUrl: "/gob/decomisos",
   },
 ];
 
-const mockInsertValues = vi.hoisted(() => vi.fn().mockResolvedValue(undefined));
 vi.mock("@/db", () => ({
   db: {
     select: vi.fn(() => ({
@@ -44,7 +56,7 @@ vi.mock("@/db", () => ({
     transaction: vi
       .fn()
       .mockImplementation(async (cb: (tx: unknown) => Promise<unknown>) => cb({})),
-    insert: vi.fn(() => ({ values: mockInsertValues })),
+    insert: vi.fn(() => ({ values: vi.fn().mockResolvedValue(undefined) })),
   },
   notifications: {},
   organizations: { publicToken: "publicToken" },
@@ -109,13 +121,14 @@ vi.mock("@/src/modules/decomiso/application/reject-decomiso-handoff", () => ({
 // Test
 // ---------------------------------------------------------------------------
 
-describe("rejectDecomisoHandoffAction — web-push hook", () => {
+describe("rejectDecomisoHandoffAction — notification delivery", () => {
   beforeEach(() => {
-    mockSendPushForNotifications.mockClear();
-    mockInsertValues.mockClear().mockResolvedValue(undefined);
+    mockCreateNotificationsBulk
+      .mockClear()
+      .mockResolvedValue({ insertedCount: 1, duplicateCount: 0, deadLetteredCount: 0 });
   });
 
-  it("calls sendPushForNotifications with the flushed rows after a successful insert", async () => {
+  it("delivers through the canonical path (which owns the push + dead-letter legs)", async () => {
     const { rejectDecomisoHandoffAction } = await import("@/app/actions/decomiso");
 
     const result = await rejectDecomisoHandoffAction({
@@ -123,15 +136,23 @@ describe("rejectDecomisoHandoffAction — web-push hook", () => {
       casePublicCode: "DEC-0001",
     });
 
-    expect(result).toEqual({ ok: true, publicCode: "DEC-0001" });
-    expect(mockInsertValues).toHaveBeenCalledWith(PENDING_ROWS);
-    expect(mockSendPushForNotifications).toHaveBeenCalledOnce();
-    expect(mockSendPushForNotifications).toHaveBeenCalledWith(PENDING_ROWS);
+    expect(result).toEqual({ ok: true, publicCode: "DEC-0001", warning: null });
+    expect(mockCreateNotificationsBulk).toHaveBeenCalledOnce();
+    const delivered = mockCreateNotificationsBulk.mock.calls[0][0] as DeliveredRow[];
+    expect(delivered).toHaveLength(1);
+    expect(delivered[0].userId).toBe("govt-user-1");
+    // Idempotent across a retry of the SAME act.
+    expect(delivered[0].dedupeKey).toBe(
+      "decomiso:DEC-0001:handoff_rejected:decomiso_handoff_rejected:govt-user-1",
+    );
   });
 
-  it("does not call the push seam when the notifications insert fails (best-effort chain)", async () => {
-    mockInsertValues.mockRejectedValueOnce(new Error("insert down"));
-    const consoleSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+  it("a dead-lettered delivery surfaces a warning instead of plain success", async () => {
+    mockCreateNotificationsBulk.mockResolvedValueOnce({
+      insertedCount: 0,
+      duplicateCount: 0,
+      deadLetteredCount: 1,
+    });
 
     const { rejectDecomisoHandoffAction } = await import("@/app/actions/decomiso");
     const result = await rejectDecomisoHandoffAction({
@@ -139,9 +160,13 @@ describe("rejectDecomisoHandoffAction — web-push hook", () => {
       casePublicCode: "DEC-0001",
     });
 
-    // Action still succeeds — the flush is best-effort.
-    expect(result).toEqual({ ok: true, publicCode: "DEC-0001" });
-    expect(mockSendPushForNotifications).not.toHaveBeenCalled();
-    consoleSpy.mockRestore();
+    // The act still stands — it was committed, and undoing it over a delivery
+    // blip would be worse. But it is NO LONGER indistinguishable from a run
+    // where everybody was reached.
+    expect("error" in result).toBe(false);
+    if ("error" in result) return;
+    expect(result.publicCode).toBe("DEC-0001");
+    expect(result.warning).toBeTruthy();
+    expect(result.warning).toContain("1 de 1");
   });
 });

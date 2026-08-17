@@ -413,6 +413,22 @@ export default async function DecomisosDashboardPage({
                           {!c.receiverOrganizationId && c.status === "open" && (
                             <p className="text-ln-op-warn">Sin refugio asignado</p>
                           )}
+                          {/* The reversibility window, named (PO fix list
+                              2026-08-17, item 2c). "Devolver al dueño" is only
+                              reachable while THIS authority still holds the
+                              shelter_custody row — validateReturnCustodyToOwner
+                              requires it — and accept-decomiso-handoff ends that
+                              row the moment the refugio accepts. The window
+                              therefore closes on a third party's decision, not
+                              on anything the funcionario does or a clock he can
+                              read, and until now nothing on this screen said
+                              so. */}
+                          {canReturnToOwner && (
+                            <p className="text-ln-op-mute">
+                              Podés devolver o reasignar hasta que el refugio acepte el traspaso;
+                              después la custodia es suya y esta autoridad ya no puede devolverla.
+                            </p>
+                          )}
                         </div>
 
                         <div className="flex gap-2">

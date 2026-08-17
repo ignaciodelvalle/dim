@@ -100,3 +100,42 @@ export function straySyntheticName(unownedData: UnownedAnimalInput): string {
     .trim();
   return candidate || "Animal sin registrar";
 }
+
+// ---------------------------------------------------------------------------
+// Seizure addressees
+// ---------------------------------------------------------------------------
+
+/** One `ownerships` row, reduced to the two columns that name its holder. */
+export type OwnershipHolder = {
+  ownerUserId: string | null;
+  ownerOrganizationId: string | null;
+};
+
+/**
+ * Split the ownerships a decomiso terminates into the two addressee shapes the
+ * notification fan-out can actually reach.
+ *
+ * WHY THIS IS A FUNCTION AND NOT A LOOP INSIDE THE TRANSACTION
+ * ---------------------------------------------------------------------------
+ * executeDecomiso ends EVERY active ownership on the pet, but collected only
+ * `ownerUserId` for the notification pass. An `ownerships` row carries either a
+ * user or an organization, never both — so an animal held by a refugio, a rescue
+ * network or a clinic was seized, its ownership terminated, and NOBODY was told.
+ * The bug was invisible from the action's return value, which reports `ok: true`
+ * whether it notified three people or none.
+ *
+ * Pulling the split out here makes "an org-held ownership produces an addressee"
+ * a property a test can assert without a database.
+ */
+export function splitOwnershipAddressees(rows: readonly OwnershipHolder[]): {
+  userIds: string[];
+  organizationIds: string[];
+} {
+  const userIds: string[] = [];
+  const organizationIds: string[] = [];
+  for (const row of rows) {
+    if (row.ownerUserId) userIds.push(row.ownerUserId);
+    else if (row.ownerOrganizationId) organizationIds.push(row.ownerOrganizationId);
+  }
+  return { userIds, organizationIds };
+}

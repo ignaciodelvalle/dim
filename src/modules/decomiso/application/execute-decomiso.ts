@@ -39,6 +39,7 @@ import { generateUniqueToken, isUniqueViolation } from "@/lib/infra/unique-token
 
 import {
   motiveLabel,
+  splitOwnershipAddressees,
   straySyntheticName,
   validateAttachments,
   validateReceiverOrg,
@@ -372,17 +373,28 @@ export async function executeDecomiso(
 
   // ---------- Ownership transitions ----------
   const prevOwnerUserIds: string[] = [];
+  const prevOwnerOrganizationIds: string[] = [];
 
   if (!ctx.unownedData) {
     // Registered pet path only.
     const prevOwnerOwnerships = await tx
-      .select({ ownerUserId: ownerships.ownerUserId })
+      .select({
+        ownerUserId: ownerships.ownerUserId,
+        ownerOrganizationId: ownerships.ownerOrganizationId,
+      })
       .from(ownerships)
       .where(and(eq(ownerships.petId, activePet.id), isNull(ownerships.endedAt)));
 
-    for (const o of prevOwnerOwnerships) {
-      if (o.ownerUserId) prevOwnerUserIds.push(o.ownerUserId);
-    }
+    // An ownership row carries EITHER a user or an organization. Collecting only
+    // the user half meant an animal held by a refugio, a rescue network or a
+    // clinic was seized with ZERO notification to anybody — the UPDATE below
+    // terminates that ownership all the same. Nothing in the flow noticed,
+    // because "no addressee" and "notified" look identical from the action's
+    // return value. The split is a pure domain function so that property is
+    // testable without a database (see splitOwnershipAddressees).
+    const addressees = splitOwnershipAddressees(prevOwnerOwnerships);
+    prevOwnerUserIds.push(...addressees.userIds);
+    prevOwnerOrganizationIds.push(...addressees.organizationIds);
 
     await tx
       .update(ownerships)
@@ -494,6 +506,40 @@ export async function executeDecomiso(
       relatedCaseId: caseRow.id,
       relatedPetId: activePet.id,
     });
+  }
+
+  // 14a-bis. Previous ORGANISATION owner(s) — urgent. Same fact, different
+  // addressee shape: an organisation has no `userId`, so the notification goes
+  // to the humans who can act for it (the same admin/coordinator predicate the
+  // receiver fan-out below uses). Without this the seizure of an org-held animal
+  // reached nobody at all.
+  if (prevOwnerOrganizationIds.length > 0) {
+    const prevOrgCoords = await tx
+      .select({
+        userId: organizationMemberships.userId,
+        organizationId: organizationMemberships.organizationId,
+      })
+      .from(organizationMemberships)
+      .where(
+        and(
+          inArray(organizationMemberships.organizationId, prevOwnerOrganizationIds),
+          inArray(organizationMemberships.role, ["admin", "coordinator"]),
+          isNull(organizationMemberships.leftAt),
+        ),
+      );
+    for (const coord of prevOrgCoords) {
+      pendingNotifications.push({
+        userId: coord.userId,
+        notificationType: "decomiso_owner_lost_custody",
+        severity: "urgent",
+        title: "Custodia oficial transferida",
+        body: `La autoridad sanitaria ${govtOrg.displayName} ejecutó un decomiso sobre ${activePet.name}, un animal bajo la titularidad de tu organización. Motivo: ${motiveLabel(input.seizureMotive)}.${input.judicialProceedingReference ? ` Referencia judicial: ${input.judicialProceedingReference}.` : ""} Para más información contactá a la autoridad sanitaria de tu jurisdicción.`,
+        ctaLabel: `Ver ${activePet.name}`,
+        ctaUrl: `/mis-mascotas/${activePet.publicToken}`,
+        relatedCaseId: caseRow.id,
+        relatedPetId: activePet.id,
+      });
+    }
   }
 
   // 14b. Receiver org coordinators — urgent.

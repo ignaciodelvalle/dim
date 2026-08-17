@@ -3,7 +3,7 @@
 // Decomiso (Ley 14.346) — thin server action controllers.
 //
 // Business logic lives in src/modules/decomiso/application/.
-// This file: auth guard → delegate to use-case → flush notifications → return.
+// This file: auth guard → delegate to use-case → deliver notifications → return.
 //
 // Spec: docs/superpowers/specs/2026-05-19-decomiso-welfare-authority-design.md §5.1–5.3.
 
@@ -11,12 +11,14 @@ import { randomUUID } from "node:crypto";
 import { eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 
-import { db, notifications, organizations } from "@/db";
+import { db, organizations } from "@/db";
 import { requireDecomisoPrincipal } from "@/lib/infra/auth-guards";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { requireCapability } from "@/src/modules/organizations/infrastructure/authz-resolver";
 
 import { resolveGovtOrgForUser } from "@/src/modules/decomiso/application/resolve-govt-org";
+
+import { deliverDecomisoNotifications } from "@/src/modules/decomiso/application/deliver-decomiso-notifications";
 
 import {
   acceptDecomisoHandoffInTx,
@@ -38,14 +40,25 @@ import {
   returnCustodyToOwnerInTx,
   validateReturnCustodyToOwner,
 } from "@/src/modules/decomiso/application/return-custody-to-owner";
-import { ATTACHMENT_BUCKET } from "@/src/modules/decomiso/domain/types";
+import { ATTACHMENT_BUCKET, type NewNotification } from "@/src/modules/decomiso/domain/types";
 
 // ---------------------------------------------------------------------------
 // Re-export public types (callers must not change)
 // ---------------------------------------------------------------------------
 
-export type ExecuteDecomisoResult = { ok: true; publicCode: string } | { error: string };
-export type DecomisoHandshakeResult = { ok: true; publicCode: string } | { error: string };
+// `warning` is set when the act SUCCEEDED but one or more notifications could
+// not be delivered. It is not an error: the decomiso stands, and undoing a
+// recorded seizure over a notification blip would be worse. But the funcionario
+// has to be told, because an in-app row is the only channel this product has —
+// there is no email leg anywhere in lib/infra/ — so a lost notification means
+// the person is simply never informed. The failed payloads are parked in
+// notification_dead_letter by the delivery path, so the trail survives too.
+export type ExecuteDecomisoResult =
+  | { ok: true; publicCode: string; warning?: string | null }
+  | { error: string };
+export type DecomisoHandshakeResult =
+  | { ok: true; publicCode: string; warning?: string | null }
+  | { error: string };
 
 export type SeizureMotive =
   | "maltrato_fisico"
@@ -160,7 +173,7 @@ export async function executeDecomisoAction(
 
   // ---- 8. Run the transaction via use-case -------------------------------
   let createdPublicCode = "";
-  let pendingNotifications: (typeof notifications.$inferInsert)[] = [];
+  let pendingNotifications: NewNotification[] = [];
 
   try {
     await db.transaction(async (tx) => {
@@ -180,7 +193,7 @@ export async function executeDecomisoAction(
 
       if (!result.ok) throw new Error(result.error);
       createdPublicCode = result.publicCode;
-      pendingNotifications = result.pendingNotifications as (typeof notifications.$inferInsert)[];
+      pendingNotifications = result.pendingNotifications as NewNotification[];
     });
   } catch (err) {
     // Compensating cleanup: best-effort delete uploaded blobs on tx failure.
@@ -197,21 +210,17 @@ export async function executeDecomisoAction(
     };
   }
 
-  // Insert notifications outside the main tx — best-effort.
-  if (pendingNotifications.length > 0) {
-    try {
-      await db.insert(notifications).values(pendingNotifications);
-      // Web Push leg — urgent-only filtering happens inside the seam;
-      // best-effort, never throws into the action path.
-      const { sendPushForNotifications } = await import("@/lib/infra/web-push");
-      await sendPushForNotifications(pendingNotifications);
-    } catch (e) {
-      console.error("notifications insert failed (executeDecomisoAction succeeded)", e);
-    }
-  }
+  // Deliver notifications outside the main tx. Durable (dead-lettered on
+  // failure) and VISIBLE (the warning rides back to the operator) — see
+  // deliver-decomiso-notifications.ts for why a swallowed failure here was the
+  // worst of the five identical sites.
+  const delivery = await deliverDecomisoNotifications(pendingNotifications, {
+    casePublicCode: createdPublicCode,
+    stage: "executed",
+  });
 
   revalidatePath("/gob/decomisos");
-  return { ok: true, publicCode: createdPublicCode };
+  return { ok: true, publicCode: createdPublicCode, warning: delivery.warning };
 }
 
 // ---------------------------------------------------------------------------
@@ -250,7 +259,7 @@ export async function acceptDecomisoHandoffAction(input: {
   if (!validated.ok) return { error: validated.error };
   const { caseRow, govtOrgId, govtOrgName } = validated;
 
-  let pendingNotifications: (typeof notifications.$inferInsert)[] = [];
+  let pendingNotifications: NewNotification[] = [];
 
   try {
     await db.transaction(async (tx) => {
@@ -261,7 +270,7 @@ export async function acceptDecomisoHandoffAction(input: {
         { user, organization },
         tx,
       );
-      pendingNotifications = result.pendingNotifications as (typeof notifications.$inferInsert)[];
+      pendingNotifications = result.pendingNotifications as NewNotification[];
     });
   } catch (err) {
     return {
@@ -269,20 +278,14 @@ export async function acceptDecomisoHandoffAction(input: {
     };
   }
 
-  if (pendingNotifications.length > 0) {
-    try {
-      await db.insert(notifications).values(pendingNotifications);
-      // Web Push leg — urgent-only inside the seam; best-effort, never throws.
-      const { sendPushForNotifications } = await import("@/lib/infra/web-push");
-      await sendPushForNotifications(pendingNotifications);
-    } catch (e) {
-      console.error("notifications insert failed (acceptDecomisoHandoffAction succeeded)", e);
-    }
-  }
+  const delivery = await deliverDecomisoNotifications(pendingNotifications, {
+    casePublicCode: input.casePublicCode,
+    stage: "handoff_accepted",
+  });
 
   revalidatePath(`/org/${input.receiverOrgToken}/transferencias/recibidas`);
   revalidatePath("/gob/decomisos");
-  return { ok: true, publicCode: input.casePublicCode };
+  return { ok: true, publicCode: input.casePublicCode, warning: delivery.warning };
 }
 
 // ---------------------------------------------------------------------------
@@ -321,7 +324,7 @@ export async function rejectDecomisoHandoffAction(input: {
   if (!validated.ok) return { error: validated.error };
   const { caseRow, govtOrgId, reasonNote } = validated;
 
-  let pendingNotifications: (typeof notifications.$inferInsert)[] = [];
+  let pendingNotifications: NewNotification[] = [];
 
   try {
     await db.transaction(async (tx) => {
@@ -332,7 +335,7 @@ export async function rejectDecomisoHandoffAction(input: {
         { user, organization },
         tx,
       );
-      pendingNotifications = result.pendingNotifications as (typeof notifications.$inferInsert)[];
+      pendingNotifications = result.pendingNotifications as NewNotification[];
     });
   } catch (err) {
     return {
@@ -340,20 +343,14 @@ export async function rejectDecomisoHandoffAction(input: {
     };
   }
 
-  if (pendingNotifications.length > 0) {
-    try {
-      await db.insert(notifications).values(pendingNotifications);
-      // Web Push leg — urgent-only inside the seam; best-effort, never throws.
-      const { sendPushForNotifications } = await import("@/lib/infra/web-push");
-      await sendPushForNotifications(pendingNotifications);
-    } catch (e) {
-      console.error("notifications insert failed (rejectDecomisoHandoffAction succeeded)", e);
-    }
-  }
+  const delivery = await deliverDecomisoNotifications(pendingNotifications, {
+    casePublicCode: input.casePublicCode,
+    stage: "handoff_rejected",
+  });
 
   revalidatePath(`/org/${input.receiverOrgToken}/transferencias/recibidas`);
   revalidatePath("/gob/decomisos");
-  return { ok: true, publicCode: input.casePublicCode };
+  return { ok: true, publicCode: input.casePublicCode, warning: delivery.warning };
 }
 
 // ---------------------------------------------------------------------------
@@ -393,7 +390,7 @@ export async function reassignDecomisoToAnotherReceiverAction(input: {
   if (!validated.ok) return { error: validated.error };
   const { caseRow, newReceiverOrg: validatedNewReceiverOrg, petName, reassignReason } = validated;
 
-  let pendingNotifications: (typeof notifications.$inferInsert)[] = [];
+  let pendingNotifications: NewNotification[] = [];
 
   try {
     await db.transaction(async (tx) => {
@@ -405,7 +402,7 @@ export async function reassignDecomisoToAnotherReceiverAction(input: {
         { user, govtOrg },
         tx,
       );
-      pendingNotifications = result.pendingNotifications as (typeof notifications.$inferInsert)[];
+      pendingNotifications = result.pendingNotifications as NewNotification[];
     });
   } catch (err) {
     return {
@@ -413,22 +410,15 @@ export async function reassignDecomisoToAnotherReceiverAction(input: {
     };
   }
 
-  if (pendingNotifications.length > 0) {
-    try {
-      await db.insert(notifications).values(pendingNotifications);
-      // Web Push leg — urgent-only inside the seam; best-effort, never throws.
-      const { sendPushForNotifications } = await import("@/lib/infra/web-push");
-      await sendPushForNotifications(pendingNotifications);
-    } catch (e) {
-      console.error(
-        "notifications insert failed (reassignDecomisoToAnotherReceiverAction succeeded)",
-        e,
-      );
-    }
-  }
+  const delivery = await deliverDecomisoNotifications(pendingNotifications, {
+    casePublicCode: input.casePublicCode,
+    // Distinct per reassignment: a case can be reassigned more than once, and a
+    // dedupe key shared with the first would swallow the second announcement.
+    stage: `reassigned:${input.newReceiverOrgId}`,
+  });
 
   revalidatePath("/gob/decomisos");
-  return { ok: true, publicCode: input.casePublicCode };
+  return { ok: true, publicCode: input.casePublicCode, warning: delivery.warning };
 }
 
 // ---------------------------------------------------------------------------
@@ -466,7 +456,7 @@ export async function returnCustodyToOwnerAction(input: {
   if (!validated.ok) return { error: validated.error };
   const { caseRow, formerOwner, petName, petPublicToken } = validated;
 
-  let pendingNotifications: (typeof notifications.$inferInsert)[] = [];
+  let pendingNotifications: NewNotification[] = [];
 
   try {
     await db.transaction(async (tx) => {
@@ -477,7 +467,7 @@ export async function returnCustodyToOwnerAction(input: {
         { user, govtOrg },
         tx,
       );
-      pendingNotifications = result.pendingNotifications as (typeof notifications.$inferInsert)[];
+      pendingNotifications = result.pendingNotifications as NewNotification[];
     });
   } catch (err) {
     return {
@@ -485,16 +475,10 @@ export async function returnCustodyToOwnerAction(input: {
     };
   }
 
-  if (pendingNotifications.length > 0) {
-    try {
-      await db.insert(notifications).values(pendingNotifications);
-      // Web Push leg — urgent-only inside the seam; best-effort, never throws.
-      const { sendPushForNotifications } = await import("@/lib/infra/web-push");
-      await sendPushForNotifications(pendingNotifications);
-    } catch (e) {
-      console.error("notifications insert failed (returnCustodyToOwnerAction succeeded)", e);
-    }
-  }
+  const delivery = await deliverDecomisoNotifications(pendingNotifications, {
+    casePublicCode: input.casePublicCode,
+    stage: "returned_to_owner",
+  });
 
   revalidatePath("/gob/decomisos");
   revalidatePath(`/gob/casos/${input.casePublicCode}`);
@@ -502,5 +486,5 @@ export async function returnCustodyToOwnerAction(input: {
     revalidatePath(`/mis-mascotas/${petPublicToken}`);
   }
   revalidatePath("/mis-mascotas");
-  return { ok: true, publicCode: input.casePublicCode };
+  return { ok: true, publicCode: input.casePublicCode, warning: delivery.warning };
 }
