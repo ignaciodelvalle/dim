@@ -81,6 +81,29 @@ const BASELINE_FILE = "scripts/degraded-chrome-baseline.json";
  */
 export const MIN_DEGRADED_BRANCHES = 25;
 
+/**
+ * Companion floors, moved INTO the script 2026-08-17.
+ *
+ * The branch floor above already lived here — this fence was the one that got
+ * that right. Its two SIBLING anti-vacuity assertions did not: "scans a corpus
+ * well above the floor" (`files > 0`) and "has a vocabulary to compare against
+ * at all" sat only in `__tests__/check-degraded-chrome.test.ts`. `pnpm
+ * lint:degraded-chrome` runs as a `pnpm verify` step that executes no tests, so
+ * on the lane that actually gates a push those two guarantees were absent.
+ *
+ * The branch floor covers the glob failure transitively (no files ⇒ no
+ * branches), but only transitively — and the vocabulary failure it does NOT
+ * cover at all: `findMissingChrome` returns [] on an empty vocabulary, so a
+ * broken `components/ui/dashboard/index.ts` read yields 32 branches inspected,
+ * zero findings, and a green "✓ degraded-chrome clean". A number that looks
+ * healthy over a check that compares against nothing is the worst shape of the
+ * three, because the floor that exists reassures you.
+ *
+ * Measured 2026-08-17: 888 app/**.tsx files, 10 design-system chrome exports.
+ */
+export const MIN_SCANNED_FILES = 400;
+export const MIN_DS_CHROME = 5;
+
 // ---------------------------------------------------------------------------
 // Chrome vocabulary — computed, never hardcoded
 // ---------------------------------------------------------------------------
@@ -437,6 +460,21 @@ function runScan(): void {
   if (branches < MIN_DEGRADED_BRANCHES) {
     console.error(
       `✗ degraded-chrome: only ${branches} degraded branch(es) found, expected at least ${MIN_DEGRADED_BRANCHES}. The anchor stopped matching — a budget wrapper was probably renamed, or the \`if (!x.ok)\` convention changed. This check cannot pass having judged nothing.`,
+    );
+    process.exit(1);
+  }
+
+  // Anti-vacuity, the two the test held alone until 2026-08-17.
+  if (files < MIN_SCANNED_FILES) {
+    console.error(
+      `✗ degraded-chrome: only ${files} file(s) matched ${SCANNED_GLOBS.join(", ")}, expected at least ${MIN_SCANNED_FILES}. The glob stopped matching the tree.`,
+    );
+    process.exit(1);
+  }
+  const dsChromeSize = designSystemChrome().size;
+  if (dsChromeSize < MIN_DS_CHROME) {
+    console.error(
+      `✗ degraded-chrome: the design-system chrome vocabulary is ${dsChromeSize} name(s), expected at least ${MIN_DS_CHROME}. ${DESIGN_SYSTEM_INDEX} could not be read, or DS_CHROME_RE stopped matching its exports. With an empty vocabulary every branch has "no chrome to lose" and this check reports clean over a tree it never compared against anything.`,
     );
     process.exit(1);
   }

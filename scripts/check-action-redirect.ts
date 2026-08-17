@@ -81,6 +81,41 @@ import { stripComments } from "./check-scope-discipline";
 
 export const BASELINE_PATH = "scripts/action-redirect-baseline.json";
 
+// ---------------------------------------------------------------------------
+// Anti-vacuity floors — IN THE SCRIPT, not only in the test (2026-08-17)
+// ---------------------------------------------------------------------------
+//
+// `__tests__/check-action-redirect.test.ts` already pinned the scan set, and
+// that was the right instinct: BOTH of this fence's real failures were scan-set
+// failures, and no assertion about counting or comment-stripping could have
+// caught either. But the assertion lived in a LANE THAT DOES NOT RUN HERE.
+// `pnpm lint:action-redirect` is a `pnpm verify` step; it executes no tests. So
+// on the path that actually gates a push, a glob that stops matching produced
+// "✓ No new post-mutation redirect() — 0 baselined call(s) across 0 file(s)" and
+// exit 0. That is precisely the sentence the header warns about: "A fence whose
+// globs miss the naming convention is worse than no fence: it reports success
+// and is believed."
+//
+// The floors below are therefore duplicated deliberately. The test keeps the
+// NAMED pins (a concrete path, a concrete use-case module) because those catch
+// a narrowing that still leaves the count healthy; the script keeps the CRUDE
+// counts because those are what must fire in a lane with no test runner.
+//
+// Measured 2026-08-17: 417 files scanned — 86 in the directive tier, 331 in the
+// use-case tier, of which 14 `actions.ts` and 4 `action.ts`. Every floor sits
+// far below its measurement (room for refactors) and far above zero.
+
+/** Total files the fence must open, across both tiers. */
+export const MIN_SCANNED_FILES = 200;
+/** Files in the DIRECTIVE tier (`"use server"` modules). */
+export const MIN_DIRECTIVE_TIER = 40;
+/** Files in the USE-CASE tier — the tier whose absence hid 11 redirect() calls. */
+export const MIN_USE_CASE_TIER = 100;
+/** Route-colocated `action.ts` (SINGULAR) — the naming convention that once cost
+ *  this fence its whole point. A floor of 1 is enough: it is the CLASS that must
+ *  not silently drop out of the scan set. */
+export const MIN_COLOCATED_ACTION_FILES = 1;
+
 /**
  * Modules that DECLARE themselves server actions. A file here only counts if
  * the "use server" directive is present.
@@ -210,7 +245,60 @@ function writeBaseline(counts: Record<string, number>): void {
   );
 }
 
+/**
+ * Fail loudly when the scan set collapsed. Returns the messages rather than
+ * exiting so `--write-baseline` can refuse to freeze a baseline built from a
+ * broken scan — writing `{}` over a real baseline is how a fence forgets its
+ * own debt.
+ */
+export function scanSetProblems(files: string[]): string[] {
+  const declared = files.filter((f) => !f.includes("/application/"));
+  const useCases = files.filter((f) => f.includes("/application/"));
+  const colocated = files.filter((f) => f.endsWith("/action.ts"));
+  const problems: string[] = [];
+  const floor = (label: string, n: number, min: number, hint: string) => {
+    if (n < min) problems.push(`✗ ${label}: ${n} file(s), expected at least ${min}. ${hint}`);
+  };
+
+  floor(
+    "scan set",
+    files.length,
+    MIN_SCANNED_FILES,
+    "The globs stopped matching — a directory was renamed or DIRECTIVE_GLOBS/USE_CASE_GLOBS was narrowed.",
+  );
+  floor(
+    "directive tier",
+    declared.length,
+    MIN_DIRECTIVE_TIER,
+    'No "use server" modules found. isServerActionModule or the app/ layout changed.',
+  );
+  floor(
+    "use-case tier",
+    useCases.length,
+    MIN_USE_CASE_TIER,
+    "src/modules/**/application/** went missing — this is the tier that hid 11 redirect() calls for months.",
+  );
+  floor(
+    "route-colocated action.ts",
+    colocated.length,
+    MIN_COLOCATED_ACTION_FILES,
+    'The `action.ts` (SINGULAR) convention dropped out of the scan set — the exact regression that once made this fence print "0 baselined call(s) across 0 file(s)" over three live redirects.',
+  );
+  return problems;
+}
+
 function runCheck(argv: string[]): void {
+  // Anti-vacuity FIRST: a fence that judged nothing must never reach a verdict,
+  // and must never be allowed to freeze that nothing into the baseline.
+  const scanProblems = scanSetProblems(listServerActionFiles());
+  if (scanProblems.length > 0) {
+    for (const p of scanProblems) console.error(p);
+    console.error(
+      "\n✗ check-action-redirect judged an implausibly small corpus. This check cannot pass — or write a baseline — having opened almost no files.",
+    );
+    process.exit(1);
+  }
+
   const counts = collectCounts();
 
   if (argv.includes("--write-baseline")) {
