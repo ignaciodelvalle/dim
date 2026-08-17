@@ -43,10 +43,19 @@ const OTHER_LOCALITY = "Río Grande";
 // Deterministic ids — greppable in a failed run, and unique enough to clean up.
 const WHOLE_PROVINCE_GOVT_ID = "d1a90000-0000-4000-8000-00000000fa01";
 const LOCALITY_GOVT_ID = "d1a90000-0000-4000-8000-00000000fa02";
+// A service account: role admin, accountType institutional, never deactivated —
+// it satisfies every predicate the fallback used to apply. See defect 3 below.
+const SYSTEM_ADMIN_ID = "d1a90000-0000-4000-8000-00000000fa03";
 
-const FIXTURE_IDS = [WHOLE_PROVINCE_GOVT_ID, LOCALITY_GOVT_ID];
+const FIXTURE_IDS = [WHOLE_PROVINCE_GOVT_ID, LOCALITY_GOVT_ID, SYSTEM_ADMIN_ID];
 const TRACE_ROUTE = "test_empty_fanout";
 
+/**
+ * The admins the fallback is actually FOR. Mirrors the production query,
+ * `isSystem` clause included — a helper that drifted from it would deactivate a
+ * different set than the resolver reads, and the tests below would be measuring
+ * two different populations.
+ */
 async function activeInstitutionalAdminIds(): Promise<string[]> {
   const rows = await db
     .select({ id: profiles.id })
@@ -56,6 +65,7 @@ async function activeInstitutionalAdminIds(): Promise<string[]> {
         eq(profiles.role, "admin"),
         eq(profiles.accountType, "institutional"),
         isNull(profiles.deactivatedAt),
+        eq(profiles.isSystem, false),
       ),
     );
   return rows.map((r) => r.id);
@@ -94,6 +104,13 @@ beforeAll(async () => {
       displayName: "routing-fixture-locality-govt",
       role: "govt",
       accountType: "institutional",
+    },
+    {
+      id: SYSTEM_ADMIN_ID,
+      displayName: "routing-fixture-system-admin",
+      role: "admin",
+      accountType: "institutional",
+      isSystem: true,
     },
   ]);
 });
@@ -216,6 +233,47 @@ describe("findAuthoritiesForJurisdiction — an empty fan-out leaves a trace", (
     // No human acted — the row exists precisely because the system produced no
     // recipient. The FK is nullable for system writers like this one.
     expect(row?.actorUserId).toBeNull();
+  });
+
+  it("does not count a service account as somebody the fan-out reached", async () => {
+    // DEFECT 3 (2026-08-17). The fallback filtered role, accountType and
+    // deactivatedAt — every one of which a service account satisfies. So it was
+    // notified about real bite reports and outbreaks nobody would read, and,
+    // worse, it PADDED the list this very check reads: with a system account
+    // present the fan-out looked successful and the silence was never recorded.
+    // The audit row's own reason is "no_govt_no_admin"; the surrounding comment
+    // says the announcement "reaches zero humans". A service account is not one.
+    const humans = await activeInstitutionalAdminIds();
+    expect(humans).not.toContain(SYSTEM_ADMIN_ID);
+
+    const before = await db
+      .select({ id: auditLog.id })
+      .from(auditLog)
+      .where(eq(auditLog.action, "notification_fanout_empty"));
+
+    let recipients: string[] = [];
+    try {
+      for (const id of humans) {
+        await db.update(profiles).set({ deactivatedAt: new Date() }).where(eq(profiles.id, id));
+      }
+      // The system admin stays ACTIVE for this call — that is the whole point.
+      recipients = await findAuthoritiesForJurisdiction(
+        { province: PROVINCE, locality: OTHER_LOCALITY },
+        { route: TRACE_ROUTE },
+      );
+    } finally {
+      for (const id of humans) {
+        await db.update(profiles).set({ deactivatedAt: null }).where(eq(profiles.id, id));
+      }
+    }
+
+    expect(recipients).toEqual([]);
+
+    const after = await db
+      .select({ id: auditLog.id })
+      .from(auditLog)
+      .where(eq(auditLog.action, "notification_fanout_empty"));
+    expect(after.length).toBe(before.length + 1);
   });
 
   it("writes NO row when the admin fallback DOES reach somebody", async () => {
