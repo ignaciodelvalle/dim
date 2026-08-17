@@ -90,6 +90,14 @@ function makeDeps(repoOverrides: Partial<WelfareRepository> = {}) {
   return { repo, openCase, findGovtRecipients, signal, transaction };
 }
 
+/** Every notification row the use-case handed to the repo, flattened. */
+function insertedNotifications(repo: {
+  insertNotifications: unknown;
+}): { notificationType?: string; body?: string }[] {
+  const calls = (repo.insertNotifications as ReturnType<typeof vi.fn>).mock.calls;
+  return calls.flatMap((c) => (c[0] ?? []) as { notificationType?: string; body?: string }[]);
+}
+
 const ORG_MEMBER = {
   userId: "user-org-01",
   orgId: "org-001",
@@ -150,9 +158,14 @@ describe("createOrgWelfareReport — audit_log presence (spec R2 REQUIRED)", () 
     });
 
     expect(result.ok).toBe(true);
-    expect(repo.insertAudit).toHaveBeenCalledOnce();
-    const auditCall = (repo.insertAudit as ReturnType<typeof vi.fn>).mock.calls[0];
-    expect(auditCall[0]).toMatchObject({
+    // Located by action, not by call index: this fixture has no recipients at
+    // all, so an empty-fan-out trace is legitimately written alongside it.
+    const auditCalls = (repo.insertAudit as ReturnType<typeof vi.fn>).mock.calls.map(
+      (c) => c[0] as { action: string },
+    );
+    const submitted = auditCalls.find((a) => a.action === "welfare_report_submitted_by_org");
+    expect(submitted).toBeDefined();
+    expect(submitted).toMatchObject({
       actorUserId: ORG_MEMBER.userId,
       action: "welfare_report_submitted_by_org",
       payload: expect.objectContaining({
@@ -162,6 +175,84 @@ describe("createOrgWelfareReport — audit_log presence (spec R2 REQUIRED)", () 
         subjectKind: BASE_INPUT.subjectKind,
       }),
     });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Tests — the reporter confirmation must not lie about delivery
+// ---------------------------------------------------------------------------
+
+describe("createOrgWelfareReport — the confirmation follows the fact", () => {
+  it("does NOT claim the authorities were notified when NOBODY was, and traces it", async () => {
+    // The old copy asserted "Las autoridades en jurisdicción ya fueron
+    // notificadas" unconditionally. That is worse than silence: an affirmative
+    // "ya está avisado" suppresses the phone call the reporter would otherwise
+    // make (routing audit, 2026-08-17).
+    const { repo, openCase, findGovtRecipients, signal, transaction } = makeDeps();
+
+    const result = await createOrgWelfareReport(BASE_INPUT, {
+      repo,
+      openCase,
+      findGovtRecipients,
+      signal,
+      transaction,
+    });
+
+    expect(result.ok).toBe(true);
+
+    const confirmation = insertedNotifications(repo).find(
+      (n) => n.notificationType === "welfare_org_side_confirmed_reporter",
+    );
+    expect(confirmation).toBeDefined();
+    expect(confirmation?.body).not.toContain("ya fueron notificadas");
+    expect(confirmation?.body).toContain("Todavía no pudimos avisar");
+
+    const auditCalls = (repo.insertAudit as ReturnType<typeof vi.fn>).mock.calls.map(
+      (c) => c[0] as { action: string; payload: Record<string, unknown> },
+    );
+    const trace = auditCalls.find((a) => a.action === "notification_fanout_empty");
+    expect(trace, "an empty fan-out must leave a trace").toBeDefined();
+    expect(trace?.payload).toMatchObject({
+      route: "welfare_org_side_critical_received",
+      reason: "no_govt_no_admin",
+    });
+  });
+
+  it("DOES say the authorities were notified when somebody actually was", async () => {
+    const { repo, openCase, signal, transaction } = makeDeps();
+    const findGovtRecipients = vi.fn().mockResolvedValue(["govt-user-1"]);
+
+    const result = await createOrgWelfareReport(BASE_INPUT, {
+      repo,
+      openCase,
+      findGovtRecipients,
+      signal,
+      transaction,
+    });
+
+    expect(result.ok).toBe(true);
+
+    const confirmation = insertedNotifications(repo).find(
+      (n) => n.notificationType === "welfare_org_side_confirmed_reporter",
+    );
+    expect(confirmation?.body).toContain("ya fueron notificadas");
+
+    const auditCalls = (repo.insertAudit as ReturnType<typeof vi.fn>).mock.calls.map(
+      (c) => c[0] as { action: string },
+    );
+    expect(auditCalls.some((a) => a.action === "notification_fanout_empty")).toBe(false);
+  });
+
+  it("calls the resolver even with a null jurisdiction — the admin fallback must get its chance", async () => {
+    const { repo, openCase, signal, transaction } = makeDeps();
+    const findGovtRecipients = vi.fn().mockResolvedValue([]);
+
+    await createOrgWelfareReport(
+      { ...BASE_INPUT, jurisdictionProvince: null, jurisdictionLocality: null },
+      { repo, openCase, findGovtRecipients, signal, transaction },
+    );
+
+    expect(findGovtRecipients).toHaveBeenCalledWith({ province: "", locality: "" });
   });
 });
 

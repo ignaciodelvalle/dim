@@ -329,10 +329,13 @@ export async function createOrgWelfareReport(
       }
 
       // 3f. Build notifications (OA4 fan-out: govt ∪ institutional admins, deduped)
+      // Null jurisdiction is coerced, not skipped (2026-08-17) — the resolver is
+      // always called so its admin fallback can run.
       const [govtRecipients, adminRecipients] = await Promise.all([
-        jurisdictionProvince && jurisdictionLocality
-          ? findGovtRecipients({ province: jurisdictionProvince, locality: jurisdictionLocality })
-          : Promise.resolve([] as string[]),
+        findGovtRecipients({
+          province: jurisdictionProvince ?? "",
+          locality: jurisdictionLocality ?? "",
+        }),
         repo.findInstitutionalAdmins(tx as Parameters<typeof repo.findInstitutionalAdmins>[0]),
       ]);
 
@@ -351,13 +354,41 @@ export async function createOrgWelfareReport(
         });
       }
 
-      // Reporter confirmation
+      // Reporter confirmation.
+      //
+      // The message used to assert "Las autoridades en jurisdicción ya fueron
+      // notificadas" UNCONDITIONALLY — including when recipientSet was empty and
+      // literally nobody had been notified. That is worse than silence: an
+      // affirmative "ya está avisado" suppresses the manual workaround (phoning
+      // the authority) that the reporter would otherwise reach for. The sentence
+      // now follows the fact.
+      const authoritiesNotified = recipientSet.size > 0;
+      if (!authoritiesNotified) {
+        await repo.insertAudit(
+          {
+            actorUserId: orgMember.userId,
+            action: "notification_fanout_empty",
+            payload: {
+              route: "welfare_org_side_critical_received",
+              province: jurisdictionProvince ?? "",
+              locality: jurisdictionLocality ?? "",
+              reason: "no_govt_no_admin",
+              welfare_report_id: reportId,
+              reference_code: referenceCode,
+              case_id: caseRow.id,
+            },
+          },
+          tx as Parameters<typeof repo.insertAudit>[1],
+        );
+      }
       pendingNotifications.push({
         userId: orgMember.userId,
         notificationType: "welfare_org_side_confirmed_reporter",
         severity: "info",
         title: "Recibimos tu denuncia profesional",
-        body: `La denuncia ${referenceCode} entró al sistema con prioridad crítica. Las autoridades en jurisdicción ya fueron notificadas.`,
+        body: authoritiesNotified
+          ? `La denuncia ${referenceCode} entró al sistema con prioridad crítica. Las autoridades en jurisdicción ya fueron notificadas.`
+          : `La denuncia ${referenceCode} entró al sistema con prioridad crítica y quedó registrada. Todavía no pudimos avisar a ninguna autoridad para esta jurisdicción: si es urgente, contactá directamente a la autoridad sanitaria de tu localidad.`,
         ctaLabel: "Ver caso",
         ctaUrl: `/casos/${caseRow.publicCode}`,
         relatedCaseId: caseRow.id,

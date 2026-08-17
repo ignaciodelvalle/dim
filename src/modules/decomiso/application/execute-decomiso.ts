@@ -33,6 +33,7 @@ import {
 } from "@/db";
 import { jurisdictionScopeContains } from "@/lib/domain/jurisdiction-canonical";
 import { validateEventPayload } from "@/lib/events/event-schemas";
+import { writeAuditLog } from "@/lib/infra/audit-log";
 import { findOpenCaseForPetAndKind, openCase as libOpenCase } from "@/lib/infra/case-helpers";
 import { generatePublicToken } from "@/lib/infra/publicToken";
 import { generateUniqueToken, isUniqueViolation } from "@/lib/infra/unique-token";
@@ -568,12 +569,37 @@ export async function executeDecomiso(
   }
 
   // 14c. Govt actor confirmation — info.
+  //
+  // This message used to assert "El refugio … fue notificado y tiene 7 días para
+  // aceptar" UNCONDITIONALLY. When the receiver org has no admin/coordinator
+  // member, the loop above pushes ZERO notifications: nobody at the shelter is
+  // told, the 7-day backstop closes nothing, and the operator is affirmatively
+  // told the opposite — which suppresses the phone call they would otherwise
+  // make. An animal's custody hangs off this sentence, so it now follows the
+  // fact (2026-08-17).
+  const receiverWasNotified = receiverCoords.length > 0;
+  if (!receiverWasNotified) {
+    await writeAuditLog(tx, {
+      action: "notification_fanout_empty",
+      actorUserId: user.id,
+      payload: {
+        route: "decomiso_handoff_proposed_receiver",
+        reason: "no_receiver_coordinators",
+        case_id: caseRow.id,
+        case_public_code: caseRow.publicCode,
+        pet_id: activePet.id,
+        receiver_org_id: receiverOrg.id,
+      },
+    });
+  }
   pendingNotifications.push({
     userId: user.id,
     notificationType: "decomiso_confirmed_govt",
     severity: "info",
     title: `Decomiso ejecutado — ${activePet.name}`,
-    body: `El decomiso de ${activePet.name} fue registrado. El refugio ${receiverOrg.displayName} fue notificado y tiene 7 días para aceptar.`,
+    body: receiverWasNotified
+      ? `El decomiso de ${activePet.name} fue registrado. El refugio ${receiverOrg.displayName} fue notificado y tiene 7 días para aceptar.`
+      : `El decomiso de ${activePet.name} fue registrado, pero ${receiverOrg.displayName} no tiene ningún admin o coordinador activo a quien avisar: nadie del refugio fue notificado. Contactalos por fuera del sistema para coordinar la entrega.`,
     ctaLabel: "Ver caso",
     ctaUrl: `/casos/${caseRow.publicCode}`,
     relatedCaseId: caseRow.id,
