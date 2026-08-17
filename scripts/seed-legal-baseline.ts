@@ -34,6 +34,10 @@
 //   pnpm seed:legal-baseline --write-manifest
 //   pnpm seed:legal-baseline --approved-checksum <sha256> \
 //     --signoff-file data/legal-baseline/ar-v1.signoff.json [--actor <uuid>]
+//
+// `--dataset <version>` selects which dataset to act on; it DEFAULTS to ar-v1,
+// so the PO's signed runbook command (which passes no --dataset) is unchanged.
+//   pnpm seed:legal-baseline --dataset ar-v2 --write-manifest
 
 import { createHash } from "node:crypto";
 import { readFileSync, writeFileSync } from "node:fs";
@@ -47,6 +51,7 @@ import { z } from "zod";
 import { auditLog, govtBusinessRules } from "@/db/schema";
 
 import { AR_V1 } from "../data/legal-baseline/ar-v1";
+import { AR_V2 } from "../data/legal-baseline/ar-v2";
 import {
   type LegalBaselineDataset,
   type LegalBaselineRow,
@@ -54,6 +59,21 @@ import {
 } from "../data/legal-baseline/schema";
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
+
+/**
+ * Every dataset version the CLI can address, keyed by its version tag.
+ *
+ * `--dataset` DEFAULTS to ar-v1 on purpose: the PO's signed runbook invokes
+ * this script with no such flag, so its behaviour must stay byte-identical to
+ * before this registry existed. A newer draft is opt-in, never the default —
+ * a dataset only reaches a DB when someone names it AND clears the sign-off
+ * gate for that exact version.
+ */
+const DATASETS: Record<string, LegalBaselineDataset> = {
+  [AR_V1.version]: AR_V1,
+  [AR_V2.version]: AR_V2,
+};
+const DEFAULT_DATASET_VERSION = AR_V1.version;
 
 type DbHandle = PostgresJsDatabase<typeof import("@/db/schema")>;
 
@@ -508,7 +528,15 @@ function reportSummary(dataset: LegalBaselineDataset, summary: SeedSummary): voi
 
 async function main(): Promise<void> {
   const argv = process.argv.slice(2);
-  const dataset = AR_V1;
+
+  const requestedVersion = getFlag(argv, "--dataset") ?? DEFAULT_DATASET_VERSION;
+  const dataset = DATASETS[requestedVersion];
+  if (dataset === undefined) {
+    console.error(
+      `ABORT: unknown dataset "${requestedVersion}". Known versions: ${Object.keys(DATASETS).join(", ")}`,
+    );
+    process.exit(1);
+  }
 
   const parsed = legalBaselineDatasetSchema.safeParse(dataset);
   if (!parsed.success) {
