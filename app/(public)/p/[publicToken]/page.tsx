@@ -48,7 +48,7 @@ import { computeConfidence, isAtLeast } from "@/lib/events/event-confidence";
 import { resolveBusinessRule } from "@/lib/infra/business-rules-resolver";
 import { fetchActiveIdentifications } from "@/lib/infra/pet-identifiers";
 import { publicPetByToken } from "@/lib/infra/public-pet-lookup";
-import { RateLimitError, callerIp, enforceRateLimit } from "@/lib/infra/rate-limit";
+import { isPublicTokenReadThrottled } from "@/lib/infra/public-token-throttle";
 import { reportError } from "@/lib/infra/report-error";
 import { petPhotoUrl } from "@/lib/infra/storage";
 import { resolveLostSpecialConditions } from "@/lib/reference/permanent-conditions";
@@ -68,10 +68,9 @@ import {
   speciesLabel,
   statusLabel,
 } from "@/lib/utils/format";
-import { withDbBudget, withDbBudgetOrThrow } from "@/src/modules/panorama/application/db-budget";
+import { withDbBudgetOrThrow } from "@/src/modules/panorama/application/db-budget";
 import { isObservationOpen } from "@/src/modules/surveillance/domain/rabies-observation";
 import { and, desc, eq, gte, isNull, sql } from "drizzle-orm";
-import { headers } from "next/headers";
 import { notFound } from "next/navigation";
 import { Suspense } from "react";
 import {
@@ -194,15 +193,12 @@ export async function generateMetadata({
   };
 }
 
-// Per-IP limit for the public credential read path.
-// 60/min: generous enough for a legitimate user refreshing in a noisy carrier-
-//   grade NAT environment (many users behind one IP) or a viral lost-pet post
-//   getting rapid repeat scans from the same household.
-// 400/hr: proportionally raised from 200/hr to match the higher per-minute cap
-//   while still blocking sustained enumeration from a single IP.
-// A truly viral lost-pet QR gets scans from MANY different IPs, so per-IP
-// limiting never blocks that case even at these raised limits.
-const PUBLIC_TOKEN_PAGE_LIMIT = { maxPerMinute: 60, maxPerHour: 400 } as const;
+// The per-IP read limit, its budget and its fail-open behaviour moved to
+// lib/infra/public-token-throttle.ts on 2026-08-17. They lived here, inline,
+// under a comment claiming the guard ran "before touching any pet data" — true
+// of this file and of nothing else: the /encontre and /sighting siblings
+// resolve the same token through the same lookup and had no limiter at all.
+// Sharing the helper is what makes the claim true for the route family.
 
 // DB time budgets (public-surface resilience). The QR credential is the one
 // page an anonymous finder in the street depends on — it must NEVER hang with
@@ -210,19 +206,9 @@ const PUBLIC_TOKEN_PAGE_LIMIT = { maxPerMinute: 60, maxPerHour: 400 } as const;
 // family) and every failure path renders <DegradedCredentialCard> instead of
 // the 500 error boundary. Budgets are generous for the shared micro DB under
 // load, short enough that the finder gets an honest degraded card, not a spin.
-const RATE_LIMIT_BUDGET_MS = 1500;
 const METADATA_BUDGET_MS = 2500;
 const PET_ROW_BUDGET_MS = 3000;
 const VIEW_DATA_BUDGET_MS = 5000;
-
-async function callerIpFromHeaders(): Promise<string> {
-  try {
-    const reqHeaders = await headers();
-    return callerIp(reqHeaders);
-  } catch {
-    return "unknown";
-  }
-}
 
 export default async function PublicCredentialPage({
   params,
@@ -236,20 +222,8 @@ export default async function PublicCredentialPage({
   // FAIL-OPEN on limiter infrastructure failure (budgeted, like /api/health):
   // the limiter is itself a DB write — when the DB is degraded it must not be
   // the thing that crashes the page before the degraded render can happen.
-  const ip = await callerIpFromHeaders();
-  try {
-    await withDbBudget(
-      enforceRateLimit("public_token_page", ip, PUBLIC_TOKEN_PAGE_LIMIT).then(() => null),
-      RATE_LIMIT_BUDGET_MS,
-      "GET /p/[publicToken] rate-limit",
-      null,
-    );
-  } catch (err) {
-    if (err instanceof RateLimitError) {
-      return <ThrottleNotice />;
-    }
-    reportError("public-credential/rate-limit", err, { publicToken });
-    // fall through — the pet-row read below has its own degraded path.
+  if (await isPublicTokenReadThrottled("public_token_page")) {
+    return <ThrottleNotice />;
   }
 
   // Pet row — the ONE read the degraded card depends on for name/status. On

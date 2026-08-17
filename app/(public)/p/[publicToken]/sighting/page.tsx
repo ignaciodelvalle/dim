@@ -12,6 +12,7 @@ import { notFound } from "next/navigation";
 import { db, pets } from "@/db";
 import { fetchLostEpisodeForPet, publicSightingMapCenter } from "@/lib/infra/lost-mode";
 import { publicPetByToken } from "@/lib/infra/public-pet-lookup";
+import { isPublicTokenReadThrottled } from "@/lib/infra/public-token-throttle";
 import { DISPUTE_TIP_HEADING, DISPUTE_TIP_INTRO } from "@/lib/ui/dispute-copy";
 import { sightingPhrase } from "@/lib/utils/format";
 
@@ -26,6 +27,19 @@ export default async function PetSightingPage({
   params: Promise<{ publicToken: string }>;
 }) {
   const { publicToken } = await params;
+
+  // Per-IP read limit BEFORE the token lookup — this route resolves the same
+  // public credential as /p/[publicToken] and was reachable without one.
+  if (await isPublicTokenReadThrottled("public_token_sighting")) {
+    return (
+      <main className="mx-auto max-w-lg px-4 py-10">
+        <h1 className="text-title font-semibold text-ln-ink">Demasiadas consultas</h1>
+        <p className="mt-2 text-md text-ln-mute">
+          Recibimos muchas consultas desde tu conexión. Esperá un momento y volvé a intentarlo.
+        </p>
+      </main>
+    );
+  }
 
   const [pet] = await db
     .select({

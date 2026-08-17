@@ -22,6 +22,7 @@ import { notFound } from "next/navigation";
 import { Icon } from "@/components/Icon";
 import { attachments, db, ownerships, pets, profiles } from "@/db";
 import { publicPetByToken } from "@/lib/infra/public-pet-lookup";
+import { isPublicTokenReadThrottled } from "@/lib/infra/public-token-throttle";
 import { reportError } from "@/lib/infra/report-error";
 import { petPhotoUrl } from "@/lib/infra/storage";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -40,6 +41,22 @@ export default async function FinderInPossessionPage({
   params: Promise<{ publicToken: string }>;
 }) {
   const { publicToken } = await params;
+
+  // Per-IP read limit BEFORE the token lookup. This route needs it more than
+  // its siblings: the "allowFinderFormWhenLost=false" branch below renders the
+  // owner's tel:/mailto: and calls the Supabase ADMIN API to resolve their
+  // email, so without a limiter an anonymous caller had an unthrottled path to
+  // a privileged lookup — once per request, for as many requests as they liked.
+  if (await isPublicTokenReadThrottled("public_token_encontre")) {
+    return (
+      <main className="mx-auto max-w-lg px-4 py-10">
+        <h1 className="text-title font-semibold text-ln-ink">Demasiadas consultas</h1>
+        <p className="mt-2 text-md text-ln-mute">
+          Recibimos muchas consultas desde tu conexión. Esperá un momento y volvé a intentarlo.
+        </p>
+      </main>
+    );
+  }
 
   // Resolve the pet + primary photo in one join.
   const [petRow] = await db
