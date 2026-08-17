@@ -53,6 +53,18 @@ const NO_STORE_PREFIXES: readonly string[] = [
   // (auth-cookie dependent PII) — a shared cache could cross-serve one
   // viewer's PII-bearing variant to another.
   "/casos/",
+  // Denuncia reference-code stub. It was NOT in this set while it was serving
+  // the denunciante's free text, the description of the accused and signed
+  // evidence URLs to any code holder — a CDN was free to retain all of it at the
+  // exact shared URL. It now renders only existence + date, but it stays here:
+  // it answers "does this code exist", which must reflect a deletion promptly,
+  // and it renders differently once a reporter session cookie is present.
+  "/denuncias/codigo/",
+  // Reporter view. Cookie-gated PII whose whole design is a 60-minute window —
+  // a shared cache retaining a rendered variant would defeat both the expiry and
+  // the "Salir" button, and could cross-serve one reporter's denuncia to the
+  // next visitor on the same edge node.
+  "/denuncias/seguimiento",
 ];
 
 // Exact paths (no subtree) that must always be live.

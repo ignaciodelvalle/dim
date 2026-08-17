@@ -53,6 +53,7 @@ import {
 } from "@/lib/infra/auth-guards";
 import { resolveBusinessRule } from "@/lib/infra/business-rules-resolver";
 import { closeCase, openCase } from "@/lib/infra/case-helpers";
+import { mintFreshReporterSession } from "@/lib/infra/denuncia-reporter-token";
 import { resolveRoutableJurisdiction } from "@/lib/infra/jurisdiction-from-text";
 import { RateLimitError, callerIp, enforceRateLimit } from "@/lib/infra/rate-limit";
 import { welfareAttachmentSignedUrl } from "@/lib/infra/storage";
@@ -1253,6 +1254,11 @@ export async function createWelfareReportAction(
     await removeWelfareEvidence(uploadResult?.uploadedPaths ?? []);
     return { error: result.error };
   }
+
+  // Anonymous reporter → hand them a session now (rationale in
+  // mintFreshReporterSession). Authenticated ones land on /denuncias/mias, which
+  // is gated by a real session.
+  if (!reporterUserId) await mintFreshReporterSession(insertedId);
 
   return { error: null, redirectTo: result.redirectTo };
 }
