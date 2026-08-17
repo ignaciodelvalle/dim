@@ -43,6 +43,7 @@ import { closeCase, escalateCase, openCase } from "@/lib/infra/case-helpers";
 import { requireAlivePetAccess } from "@/lib/infra/pet-access";
 import { checkboxOn } from "@/lib/ui/form-checkbox";
 import { parseDateInput } from "@/lib/utils/format";
+import { resolveSignerProvenance } from "@/src/modules/events/application/attendance/resolve-signer-provenance";
 import { requireCapability } from "@/src/modules/organizations/infrastructure/authz-resolver";
 
 import type { OpenedReason } from "@/src/modules/cases/domain/opened-reason";
@@ -403,6 +404,10 @@ export async function reportBiteFromOrgAction(
       // use-case keeps a one-argument dep and stays ignorant of audit plumbing.
       findAuthoritiesForJurisdiction: (jurisdiction) =>
         findAuthoritiesForJurisdiction(jurisdiction, { route: "bite_reported_authority_org" }),
+      // The same resolver the walk-in and scheduled-attendance paths use, so
+      // all three stamp a clinical signature from one place. Passed at the
+      // composition root because the use case owns no DB handle.
+      resolveSignerProvenance,
       resolveObservationWindow: async (jurisdiction) => {
         // Review F3/F6: a rules-table read hiccup must not turn bite reporting
         // into an outage — fall back to the statutory national baseline. And a

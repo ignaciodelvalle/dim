@@ -101,6 +101,17 @@ type Deps = {
     province: string | null;
     locality: string | null;
   }) => Promise<{ days: number }>;
+  /**
+   * Who is signing, and with what authority — read from the SIGNER's validated
+   * matrícula, never from the organization's `verified` flag or its org_type.
+   * Injected rather than imported so this use case keeps its no-DB shape.
+   *
+   * See the authorship note at the call in the body for what it replaced.
+   */
+  resolveSignerProvenance: (
+    userId: string,
+    organizationId: string,
+  ) => Promise<{ authorRole: "vet" | "shelter"; authorVerified: boolean }>;
 };
 
 export type ReportBiteFromOrgResult = UseCaseResult<{
@@ -131,11 +142,30 @@ export async function reportBiteFromOrg(
   const caseProvince = input.eventJurisdictionProvince ?? pet.jurisdictionProvince;
   const caseLocality = input.eventJurisdictionLocality ?? pet.jurisdictionLocality;
 
-  // eventAuthorship for org: authorRole=vet when vet, shelter otherwise
+  // AUTHORSHIP — #43/#45 provenance, applied here late (2026-08-17).
+  //
+  // This block used to read:
+  //   authorRole: reporterRole === "vet" ? "vet" : "shelter"   // from org_type
+  //   authorVerified: organization.verified                    // from the org
+  //
+  // Both halves asked the ORGANIZATION a question only the PERSON can answer.
+  // `orgTypeToReporterRole` maps org_type "clinic" to "vet", so every bite
+  // report filed from a veterinaria was stamped authorRole "vet"; pairing that
+  // with the org's `verified` flag — which an admin sets with one click —
+  // resolved to `professional_verified` in computeConfidence, whose own table
+  // defines that tier as "licensed veterinarian with verified matriculation".
+  // A receptionist filing the report got the matriculated vet's seal, and this
+  // is the path that opens a rabies observation window: a legally consequential
+  // act (Ley 22.953) carrying a provenance claim nobody checked.
+  //
+  // `reporterRole` below still comes from org_type, and correctly so — it
+  // records WHAT KIND of institution reported, which is a fact about the org.
+  // Only the authorship claim moved to the signer.
+  const signer = await deps.resolveSignerProvenance(user.id, organization.id);
   const eventAuthorship = {
-    authorRole: reporterRole === "vet" ? ("vet" as const) : ("shelter" as const),
+    authorRole: signer.authorRole,
     authorOrganizationId: organization.id,
-    authorVerified: organization.verified,
+    authorVerified: signer.authorVerified,
   };
 
   // 1. Snapshot rabies-vaccine status pre-tx.

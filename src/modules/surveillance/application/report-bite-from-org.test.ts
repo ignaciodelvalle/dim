@@ -37,7 +37,21 @@ function makeDeps(repoOverrides: Partial<Record<keyof SurveillanceRepository, un
   });
   const findAuthoritiesForJurisdiction = vi.fn().mockResolvedValue([]);
   const resolveObservationWindow = vi.fn().mockResolvedValue({ days: 10 });
-  return { repo, openCase, transaction, findAuthoritiesForJurisdiction, resolveObservationWindow };
+  // Default signer: an org member WITHOUT a validated matrícula — the common
+  // case, and the one whose authorship used to be inflated by the org's flag.
+  // Tests that need a matriculated vet override this explicitly, so no test can
+  // get the professional seal by accident.
+  const resolveSignerProvenance = vi
+    .fn()
+    .mockResolvedValue({ authorRole: "shelter" as const, authorVerified: false });
+  return {
+    repo,
+    openCase,
+    transaction,
+    findAuthoritiesForJurisdiction,
+    resolveObservationWindow,
+    resolveSignerProvenance,
+  };
 }
 
 const BASE_INPUT: ReportBiteFromOrgInput = {
@@ -103,6 +117,62 @@ describe("reportBiteFromOrg (org path)", () => {
       payload: Record<string, unknown>;
     };
     expect(call.payload.reporter_role).toBe("vet");
+  });
+
+  // #43/#45 provenance, applied to this path on 2026-08-17.
+  //
+  // The distinction these three tests hold apart: `reporter_role` describes the
+  // INSTITUTION that reported (derived from org_type — a fact about the org),
+  // while `authorRole`/`authorVerified` describe the PERSON's authority to sign
+  // (derived from their validated matrícula). This file's BASE_INPUT is a
+  // clinic, so before the fix both came out "vet"+verified from the org alone,
+  // and computeConfidence read that as `professional_verified` — the tier its
+  // own table defines as "licensed veterinarian with verified matriculation".
+  describe("authorship comes from the signer, not from the organization", () => {
+    function authorshipOf(deps: ReturnType<typeof makeDeps>) {
+      return (deps.repo.insertIncidentEventIdempotent as ReturnType<typeof vi.fn>).mock
+        .calls[0][0] as { authorRole: string; authorVerified: boolean };
+    }
+
+    it("does NOT stamp a professional signature for an unmatriculated reporter at a clinic", async () => {
+      // The receptionist case. The organization is a verified clinic — so
+      // `reporter_role` is still "vet" (asserted above) — but the person
+      // holds no matrícula.
+      const deps = makeDeps();
+      await reportBiteFromOrg(BASE_INPUT, deps);
+
+      const authorship = authorshipOf(deps);
+      expect(authorship.authorRole).toBe("shelter");
+      expect(authorship.authorVerified).toBe(false);
+    });
+
+    it("stamps the professional signature when the SIGNER holds a validated matrícula", async () => {
+      // The positive control. Without it the assertions above could be
+      // satisfied by a build that never grants the seal to anyone.
+      const deps = makeDeps();
+      deps.resolveSignerProvenance.mockResolvedValue({
+        authorRole: "vet" as const,
+        authorVerified: true,
+      });
+      await reportBiteFromOrg(BASE_INPUT, deps);
+
+      const authorship = authorshipOf(deps);
+      expect(authorship.authorRole).toBe("vet");
+      expect(authorship.authorVerified).toBe(true);
+    });
+
+    it("asks about the person who is signing, not about the organization's flag", async () => {
+      // Pins the QUESTION being asked. A future refactor could restore the old
+      // behaviour while leaving the dep wired but unused, and the two tests
+      // above would still pass on a default fixture that happens to agree.
+      const deps = makeDeps();
+      await reportBiteFromOrg(BASE_INPUT, deps);
+
+      expect(deps.resolveSignerProvenance).toHaveBeenCalledWith(
+        BASE_INPUT.user.id,
+        BASE_INPUT.organization.id,
+      );
+    });
   });
 
   // panorama-event-points Slice 2: the org map pin persists COLUMNAR coords.
