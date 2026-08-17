@@ -12,13 +12,19 @@
 //
 // PARITY QUIRKS preserved (spec §G):
 //   - BATCH_SIZE=50, oldest first.
-//   - audit_log conditional on vetUserId — wired via insertAuditLog dep.
 //   - Owner notification only if !stigmaSensitive AND ownerUserId !== null.
 //   - Per-row try/catch via use-case internals.
+//
+// ONE PARITY QUIRK DELIBERATELY DROPPED (2026-08-17): the eno_notification_emitted
+// audit row used to be conditional on vetUserId. That made the trace of the
+// highest-legal-risk route in the system disappear exactly when the diagnosis had
+// no identified clinician — so a fan-out to nobody could be perfectly invisible.
+// The row is now unconditional with a NULL actor (the FK is nullable by design).
 
-import { and, eq, isNull, or } from "drizzle-orm";
+import { and, eq, isNull } from "drizzle-orm";
 
-import { type AuditLogAction, auditLog, db, govtAssignments, ownerships, pets } from "@/db";
+import { type AuditLogAction, auditLog, db, ownerships, pets } from "@/db";
+import { findAuthoritiesForJurisdiction } from "@/lib/infra/approval-routing";
 import { processEnoQueueBatch as _processEnoQueueBatch } from "@/src/modules/surveillance/application/process-eno-queue-batch";
 import { getEnoDisease } from "@/src/modules/surveillance/domain/eno-catalog";
 import { SurveillanceRepository } from "@/src/modules/surveillance/infrastructure/surveillance-repository";
@@ -70,24 +76,27 @@ export async function processEnoQueueBatch() {
       return getEnoDisease(code);
     },
 
+    // The mandatory-reportable-disease route (Ley 15.465) gets the SAME fallback
+    // as everything else (2026-08-17). This used to query govt_assignments raw:
+    // govt-only, no admin fallback, and a subsumption of its own that knew the
+    // `locality = ''` sentinel but not CABA's INDEC whole-city form. A rabies /
+    // leptospirosis / brucelosis diagnosis in an unseeded locality produced
+    // targetsCount = 0, the queue row was marked processed, and the disease's
+    // notifyHours SLA was satisfied on paper with nobody in government aware.
+    //
+    // findAuthoritiesForJurisdiction is govt-first, active-institutional-admin
+    // fallback, one subsumption predicate — and it writes the
+    // notification_fanout_empty audit row when even the fallback is empty.
     getGovtTargets: async (province: string, locality: string) => {
-      return db
-        .select({ userId: govtAssignments.userId })
-        .from(govtAssignments)
-        .where(
-          and(
-            eq(govtAssignments.jurisdictionProvince, province),
-            isNull(govtAssignments.revokedAt),
-            or(
-              eq(govtAssignments.jurisdictionLocality, locality),
-              eq(govtAssignments.jurisdictionLocality, ""),
-            ),
-          ),
-        );
+      const userIds = await findAuthoritiesForJurisdiction(
+        { province, locality },
+        { route: "eno_disease_diagnosis" },
+      );
+      return userIds.map((userId) => ({ userId }));
     },
 
     insertAuditLog: async (row: {
-      actorUserId: string;
+      actorUserId: string | null;
       action: string;
       payload: Record<string, unknown>;
     }) => {

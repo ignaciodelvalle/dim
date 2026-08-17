@@ -569,9 +569,19 @@ describe("processEnoEventTrigger", () => {
     expect(auditRows.length).toBe(0);
   });
 
-  it("no govt in scope → graceful no-op (no notifications, function resolves without error)", async () => {
+  it("no govt in scope → the ADMIN FALLBACK fires (Ley 15.465 does not accept 'nobody')", async () => {
+    // REWRITTEN 2026-08-17. This test used to assert `govtNotifs.length === 0`
+    // and call it "graceful". It was not graceful — it was the pinned bug: the
+    // mandatory-reportable-disease route queried govt_assignments raw, with no
+    // admin fallback, so a rabies diagnosis in an unseeded locality produced
+    // targets_count = 0, the queue row was marked processed, and the disease's
+    // notifyHours SLA was satisfied on paper with NOBODY in government aware.
+    // The route now goes through findAuthoritiesForJurisdiction like every
+    // other fan-out in the system: govt-first, active institutional admins as
+    // the fallback.
+    //
     // Insert a pet in a jurisdiction with NO govt_assignments.
-    // Uses a synthetic province name that is guaranteed to have no seeded govts.
+    // Uses a synthetic locality that is guaranteed to have no seeded govts.
     const token = `ENO-NOJURIS-${Date.now()}`;
     const [pet] = await db
       .insert(pets)
@@ -618,7 +628,8 @@ describe("processEnoEventTrigger", () => {
     ).resolves.toBeUndefined();
     await processEnoQueueBatch();
 
-    // Zero govt notifications (no targets)
+    // The diagnosis reaches SOMEBODY with a mandate: no govt covers this
+    // locality, so the resolver falls back to the active institutional admins.
     const govtNotifs = await db
       .select()
       .from(notifications)
@@ -628,7 +639,21 @@ describe("processEnoEventTrigger", () => {
           eq(notifications.relatedPetId, pet.id),
         ),
       );
-    expect(govtNotifs.length).toBe(0);
+    expect(govtNotifs.length).toBeGreaterThan(0);
+
+    const fallbackAdmins = await db
+      .select({ id: profiles.id })
+      .from(profiles)
+      .where(
+        and(
+          eq(profiles.role, "admin"),
+          eq(profiles.accountType, "institutional"),
+          isNull(profiles.deactivatedAt),
+        ),
+      );
+    const fallbackIds = new Set(fallbackAdmins.map((a) => a.id));
+    // Every recipient is one of them — this is the fallback, not a stray govt.
+    expect(govtNotifs.every((n) => fallbackIds.has(n.userId))).toBe(true);
 
     // Owner notification is still created (rabies is not stigmaSensitive)
     const ownerNotifs = await db
@@ -643,7 +668,7 @@ describe("processEnoEventTrigger", () => {
       );
     expect(ownerNotifs.length).toBe(1);
 
-    // Audit log has targets_count=0
+    // Audit log records the fan-out it actually performed.
     const auditRows = (await db.execute(
       sql`SELECT payload FROM audit_log
           WHERE actor_user_id = ${vetUserId}
@@ -654,7 +679,7 @@ describe("processEnoEventTrigger", () => {
     )) as Array<{ payload: Record<string, unknown> }>;
 
     expect(auditRows.length).toBe(1);
-    expect(auditRows[0].payload.targets_count).toBe(0);
+    expect(auditRows[0].payload.targets_count).toBe(govtNotifs.length);
     expect(auditRows[0].payload.owner_was_notified).toBe(true);
   });
 });

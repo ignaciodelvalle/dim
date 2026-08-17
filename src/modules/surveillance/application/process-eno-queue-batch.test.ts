@@ -237,10 +237,10 @@ describe("processEnoQueueBatch — processOne happy path", () => {
 });
 
 // ---------------------------------------------------------------------------
-// audit_log — CONDITIONAL on vetUserId (spec §G PARITY QUIRK)
+// audit_log — UNCONDITIONAL since 2026-08-17 (spec §G parity quirk, dropped)
 // ---------------------------------------------------------------------------
 
-describe("processEnoQueueBatch — audit_log conditional on vetUserId", () => {
+describe("processEnoQueueBatch — audit_log is unconditional", () => {
   it("writes audit_log when vetUserId is present", async () => {
     const deps = makeDeps({
       findEnoEventRow: vi
@@ -249,17 +249,25 @@ describe("processEnoQueueBatch — audit_log conditional on vetUserId", () => {
     });
     await processEnoQueueBatch(deps);
     expect(deps.insertAuditLog).toHaveBeenCalledWith(
-      expect.objectContaining({ action: "eno_notification_emitted" }),
+      expect.objectContaining({ action: "eno_notification_emitted", actorUserId: "vet-user-1" }),
     );
   });
 
-  it("DOES NOT write audit_log when vetUserId is null (parity: conditional guard)", async () => {
+  it("STILL writes audit_log when vetUserId is null — with a null actor", async () => {
+    // This used to assert the opposite, and that assertion was the bug written
+    // down as a spec. Gating the row on vetUserId deleted the ONLY trace of the
+    // mandatory-notification route (Ley 15.465) in exactly the case where the
+    // diagnosis had no identified clinician — so a fan-out to nobody could be
+    // perfectly invisible while the queue row was marked processed and the
+    // notifyHours SLA was satisfied on paper. audit_log.actor_user_id is
+    // nullable by design for system writers.
     const deps = makeDeps({
       findEnoEventRow: vi.fn().mockResolvedValue(makePetEventRow({ recordedByUserId: null })),
     });
     await processEnoQueueBatch(deps);
-    // This is the critical parity test — null vetUserId means NO audit log
-    expect(deps.insertAuditLog).not.toHaveBeenCalled();
+    expect(deps.insertAuditLog).toHaveBeenCalledWith(
+      expect.objectContaining({ action: "eno_notification_emitted", actorUserId: null }),
+    );
   });
 
   it("audit_log payload includes disease_code, targets_count, owner_was_notified", async () => {

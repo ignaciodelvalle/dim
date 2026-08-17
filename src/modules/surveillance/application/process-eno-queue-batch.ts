@@ -8,7 +8,8 @@
 //
 // PARITY QUIRKS (spec §G):
 //   - BATCH_SIZE=50, oldest first.
-//   - audit_log (eno_notification_emitted) CONDITIONAL on vetUserId — preserve exactly.
+//   - audit_log (eno_notification_emitted) was CONDITIONAL on vetUserId. NO LONGER
+//     (2026-08-17) — see the comment at step 6 for why that quirk had to die.
 //   - owner notification ONLY if !stigmaSensitive AND ownerUserId !== null.
 //   - processOne returns false → mark processed with lastError "skipped".
 //   - Throw → markEnoFailed. retryCount≥2 → status='failed'; else stays pending.
@@ -49,11 +50,15 @@ export type EnoBatchDeps = {
   getOwnership: (petId: string) => Promise<{ ownerUserId: string } | null>;
   /** Resolve a disease code to an EnoDisease record. */
   getDisease: (code: string) => Promise<EnoDisease | null>;
-  /** Load all non-revoked govt assignment userIds for a province+locality. */
+  /**
+   * Resolve the authorities to notify for a province+locality. Production wires
+   * this to findAuthoritiesForJurisdiction — govt-first with the institutional
+   * admin fallback — so this route is no longer the one path with no fallback.
+   */
   getGovtTargets: (province: string, locality: string) => Promise<{ userId: string }[]>;
-  /** Write an audit_log row. */
+  /** Write an audit_log row. Actor is nullable: a diagnosis can have no identified clinician. */
   insertAuditLog: (row: {
-    actorUserId: string;
+    actorUserId: string | null;
     action: string;
     payload: Record<string, unknown>;
   }) => Promise<void>;
@@ -182,23 +187,31 @@ async function processOne(petEventId: string, deps: EnoBatchDeps): Promise<boole
     await deps.repo.insertNotifications(notifications);
   }
 
-  // 6. Audit log — CONDITIONAL on vetUserId (spec §G parity quirk).
-  if (vetUserId) {
-    await deps.insertAuditLog({
-      actorUserId: vetUserId,
-      action: "eno_notification_emitted",
-      payload: {
-        disease_code: diseaseCode,
-        disease_severity: disease.severity,
-        pet_id: petRow.id,
-        targets_count: targetsCount,
-        owner_was_notified: ownerWasNotified,
-        legal_anchor: disease.legalAnchor,
-        diagnosis_date: diagnosisDate,
-        vet_org_id: vetOrgId,
-      },
-    });
-  }
+  // 6. Audit log — UNCONDITIONAL since 2026-08-17.
+  //
+  // It used to be gated on vetUserId (spec §G listed that as a parity quirk).
+  // The consequence: for a diagnosis with no identified clinician, the ONLY
+  // record that the mandatory notification had been attempted at all was
+  // skipped — so `targets_count: 0` on the highest-legal-risk route in the
+  // system (Ley 15.465) could be perfectly invisible while the queue row was
+  // marked processed and the notifyHours SLA was satisfied on paper.
+  //
+  // audit_log.actor_user_id is nullable by design (FK ON DELETE SET NULL,
+  // migration 0080) precisely for system writers with no human actor.
+  await deps.insertAuditLog({
+    actorUserId: vetUserId ?? null,
+    action: "eno_notification_emitted",
+    payload: {
+      disease_code: diseaseCode,
+      disease_severity: disease.severity,
+      pet_id: petRow.id,
+      targets_count: targetsCount,
+      owner_was_notified: ownerWasNotified,
+      legal_anchor: disease.legalAnchor,
+      diagnosis_date: diagnosisDate,
+      vet_org_id: vetOrgId,
+    },
+  });
 
   return true;
 }
