@@ -32,6 +32,7 @@ import {
 } from "@/lib/analytics/admin-metrics";
 import type { EnoSlaMetric } from "@/lib/analytics/surveillance-metrics";
 import { cronDisplayLabel } from "@/lib/infra/cron-registry";
+import { type OutboundChannelStatus, deriveOutboundChannels } from "@/lib/infra/outbound-channels";
 import { decisionsDeltaPct } from "@/lib/metrics";
 import { decisionsAuditDrillHref } from "@/lib/ui/audit-filters";
 import { formatDateShort, formatDateTimeShortAr } from "@/lib/utils/format";
@@ -132,6 +133,79 @@ export function SectionDegradedCard({
     </OpCard>
   );
 }
+
+// ---------------------------------------------------------------------------
+// Outbound channels — can the system still reach a person who left the screen?
+// ---------------------------------------------------------------------------
+
+/**
+ * Reports which outbound channels this deployment can actually attempt, and
+ * what a real person loses while one is down. No DB call and no budget wrapper:
+ * it reads env-var PRESENCE only (never values), so there is nothing to time
+ * out and no secret to leak into the tree.
+ *
+ * It earns a slot on this screen because of an asymmetry the rest of the
+ * product cannot fix: the denuncia access endpoint answers identically whether
+ * mail went out or was never configured — deliberately, so it cannot be used
+ * as an existence oracle — which leaves the operator as the only party who can
+ * be told the truth, and only ahead of time.
+ */
+export function SistemaChannelsCard() {
+  const channels = deriveOutboundChannels(process.env);
+
+  return (
+    <OpCard className="op-fade-in">
+      <OpCardHead title="Canales de salida" />
+      <OpCardBody>
+        <ul className="space-y-3">
+          {channels.map((c) => (
+            <li key={c.key} className="space-y-1">
+              <div className="flex items-baseline justify-between gap-3">
+                <span className="text-sm text-ln-op-ink-2">{c.label}</span>
+                <OpPill tone={CHANNEL_TONE[c.status]}>{CHANNEL_LABEL[c.status]}</OpPill>
+              </div>
+              {/* The consequence renders only when the channel cannot deliver.
+                  On a healthy deployment this card is three short rows; the
+                  prose appears exactly when someone has to act on it. */}
+              {c.status !== "configured" && (
+                <p className="text-sm text-ln-op-mute">{c.consequence}</p>
+              )}
+              {c.status === "unconfigured" && c.requires.length > 0 && (
+                <p className="text-xs text-ln-op-mute">
+                  Falta configurar en el entorno: {c.requires.join(", ")}
+                </p>
+              )}
+            </li>
+          ))}
+        </ul>
+        {/* The honest ceiling of this card. A present key proves the app can
+            ATTEMPT a send — an unverified sending domain or a suspended
+            account still bounces every message, and this screen cannot see
+            that. Saying so here is what keeps a green pill from being read as
+            a delivery guarantee. */}
+        <p className="mt-4 text-xs text-ln-op-mute">
+          "Configurado" significa que la aplicación puede intentar el envío. No prueba que el
+          mensaje llegue: un dominio sin verificar o una cuenta suspendida rebotan igual, y eso no
+          se ve desde acá.
+        </p>
+      </OpCardBody>
+    </OpCard>
+  );
+}
+
+const CHANNEL_TONE: Record<OutboundChannelStatus, "ok" | "danger" | "neutral"> = {
+  configured: "ok",
+  unconfigured: "danger",
+  // A product gap is not an outage: rendering it red would send an operator
+  // hunting for a key that does not exist.
+  "not-built": "neutral",
+};
+
+const CHANNEL_LABEL: Record<OutboundChannelStatus, string> = {
+  configured: "Configurado",
+  unconfigured: "Sin configurar",
+  "not-built": "No implementado",
+};
 
 // ---------------------------------------------------------------------------
 // Crons-down banner — cheap fetchFailedCronNames (not the full fetchCronRuns)

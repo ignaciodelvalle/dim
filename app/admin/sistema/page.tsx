@@ -31,6 +31,7 @@ import { windows } from "@/lib/metrics/period";
 
 import {
   SISTEMA_KPI_BUDGET_MS,
+  SistemaChannelsCard,
   SistemaCronsBanner,
   SistemaCronsCard,
   SistemaDriftCard,
@@ -158,6 +159,9 @@ async function AdminSistemaShell() {
         <Suspense fallback={<OpCardSkeleton rows={4} />}>
           <SistemaDriftCard />
         </Suspense>
+        {/* Env-presence only — no DB call, so no Suspense boundary and no
+            degraded branch to own. */}
+        <SistemaChannelsCard />
       </section>
 
       <section className="space-y-3">
