@@ -518,7 +518,7 @@ type ContractResolution = {
   deltaImplausible: boolean;
 };
 
-/** "Meta: X% (fuente)" / "Confianza: …" / methodology popover extras from a
+/** "Meta: X% — fuente" / "Confianza: …" / methodology popover extras from a
  *  resolved descriptor. `trendMonths` is the live render's real trend-point
  *  count (guardInput.trendMonths) — undefined falls back to an N-less
  *  sentence rather than inventing a number. */
