@@ -126,6 +126,9 @@ export const AUDIT_ACTION_LABELS: Record<string, string> = {
   capability_granted: "Permiso concedido",
   capability_denied: "Permiso denegado",
   capability_revoked: "Permiso revocado",
+  // Routing (migration 0187) — the notification reached NOBODY. Labelled as the
+  // operational gap it is, not as an action somebody performed.
+  notification_fanout_empty: "Aviso sin destinatarios",
 };
 
 /** Human es-AR label for an audit action, falling back to the raw code. */

@@ -2379,6 +2379,22 @@ export const AUDIT_LOG_ACTIONS = [
   "capability_granted",
   "capability_denied",
   "capability_revoked",
+  // An authority fan-out resolved to ZERO recipients (2026-08-17, migration 0187).
+  //
+  // An empty fan-out was the only failure in the system that left NO trace at
+  // all: the loop runs zero times, the action returns ok, and nothing is written
+  // anywhere — so it would have been the last failure anyone ever found. This
+  // action IS that trace. Written best-effort (never rolls back the business
+  // write it accompanies) and always with the route that went nowhere.
+  //
+  // NOT written when the admin fallback fires — that path DID reach humans.
+  // Only a genuinely empty recipient set produces a row.
+  //
+  // Payload: { route, province, locality, reason } — `reason` is
+  // "no_govt_no_admin" for the resolver, or a route-specific string
+  // ("no_receiver_coordinators", "no_govt_targets", …) for the sites that build
+  // their own recipient set.
+  "notification_fanout_empty",
 ] as const;
 export type AuditLogAction = (typeof AUDIT_LOG_ACTIONS)[number];
 
