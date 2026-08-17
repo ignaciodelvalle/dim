@@ -1,0 +1,42 @@
+{
+  "$comment": [
+    "Pre-existing operator actions with no reachable audit write (lint:audit-log).",
+    "This list may only SHRINK. Adding an entry means accepting a mutating",
+    "operator action whose occurrence leaves no trace — fix it or write a",
+    "`// @no-audit-required: <reason>` comment above the export instead.",
+    "",
+    "MEASURED 2026-08-16, first run: 88 \"use server\" modules scanned, 37",
+    "operator+mutating actions derived, 25 already reach an audit write. These",
+    "12 are DEBT, not a verdict — each still owes a decision, and the three",
+    "shapes they fall into are NOT equally defensible:",
+    "",
+    "  · case-operator (addCaseNote/closeCase) — the fact lands in the",
+    "    append-only case_events spine, which carries its own actor. Arguably",
+    "    covered by a different ledger; needs a PO call on whether the",
+    "    accountability query is expected to find it in audit_log.",
+    "  · admin-proposals, service-offerings, revocation-evidence — the mutated",
+    "    row itself records who acted (approval_requests, offerings), so the",
+    "    trail exists but is not queryable alongside every other operator act.",
+    "  · alert-subscriptions, novedades, outbox retry — operator preferences,",
+    "    a read watermark, and a delivery retry. The weakest case for an audit",
+    "    row, and the best candidates for an explicit @no-audit-required.",
+    "",
+    "Regenerate with: pnpm tsx scripts/check-audit-log-coverage.ts --write-baseline",
+    "(only ever to SHRINK the list — the fence fails on a stale entry, so a",
+    "fixed action must be removed here in the same commit that fixes it.)"
+  ],
+  "unaudited": [
+    "app/actions/admin-proposals.ts#proposeOrgVerificationAction",
+    "app/actions/admin-proposals.ts#proposeVetUpgradeAction",
+    "app/actions/alert-subscriptions.ts#createAlertSubscriptionAction",
+    "app/actions/alert-subscriptions.ts#deleteAlertSubscriptionAction",
+    "app/actions/alert-subscriptions.ts#toggleAlertSubscriptionAction",
+    "app/actions/case-operator.ts#addCaseNoteAction",
+    "app/actions/case-operator.ts#closeCaseAction",
+    "app/actions/novedades.ts#markNovedadesSeenAction",
+    "app/actions/revocation-evidence.ts#uploadRevocationEvidence",
+    "app/actions/service-offerings.ts#approveServiceOfferingAction",
+    "app/actions/service-offerings.ts#rejectServiceOfferingAction",
+    "app/admin/outbox/actions.ts#retryOutboxRowAction"
+  ]
+}

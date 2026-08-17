@@ -55,6 +55,20 @@ jobs:
         # the real stack.
         run: pnpm lint:authz
 
+      - name: "Fence: audit-log coverage (lint:audit-log)"
+        # The sibling lint:authz never had. An unguarded server action was
+        # caught; an operator action that MUTATES and writes no audit_log row
+        # was caught by nothing, and afterwards the absence of the row is
+        # indistinguishable from the absence of the act (Ley 25.326).
+        #
+        # Offline — pure static analysis over the "use server" surface, so it
+        # belongs in this job, not the DB-backed `test` job. Its own step (not
+        # appended to a chain) so a failure names THIS fence, matching the
+        # 2026-08-16 split that stopped one fence from starving the rest.
+        # See scripts/check-audit-log-coverage.ts for the two anti-rot guards
+        # (non-vacuity + no stale baseline).
+        run: pnpm lint:audit-log
+
       - name: Lint (actions, UI, deps, guardrails)
         run: pnpm lint:ui && pnpm lint:actions && pnpm lint:deps && pnpm lint:lib-root && pnpm lint:mocks && pnpm lint:buttons
 
