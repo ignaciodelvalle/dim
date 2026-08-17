@@ -750,6 +750,31 @@ label:has(input.sr-only:focus-visible) {
  * route body that starts at opacity 0 adds the fade's duration to
  * time-to-legible-text. Skeletons have no legible text to delay, which is
  * exactly why they are the safe half of this. */
+/* ---- Operator hit-area extension ------------------------------------------ *
+ * Pads a small inline control's TOUCH target to 24×24 without changing what is
+ * drawn. Same technique as .lp .lp-hcard-flip::after further down; written as
+ * plain CSS rather than Tailwind `after:` utilities because nothing else in
+ * this codebase uses that variant, and a utility that silently fails to
+ * generate would leave the target at its original size with no visual change
+ * to catch in review.
+ *
+ * Sized for a 14px glyph (14 + 5 + 5 = 24) — the ⓘ disclosure on every KPI
+ * tile, which a 390px sweep found repeated across 58 sub-24px targets.
+ *
+ * DELIBERATELY 24 AND NOT THIS PROJECT'S 44px FLOOR. That floor is for primary
+ * controls standing alone. This one is a disclosure nested INSIDE a tile that
+ * is itself a link on /gob/programa, so a 44×44 target would carve a large
+ * region out of the tile where an operator aiming at the card gets a tooltip
+ * instead of navigating. Requires a positioning context on the element. */
+.op-hit-24 {
+  position: relative;
+}
+.op-hit-24::after {
+  content: "";
+  position: absolute;
+  inset: -5px;
+}
+
 .op-fade-in {
   transition: opacity var(--motion-fast) ease-out;
   opacity: 1;

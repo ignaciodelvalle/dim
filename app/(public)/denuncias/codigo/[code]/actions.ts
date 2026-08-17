@@ -14,6 +14,25 @@
 // this the reporter's address". This is why the neutral string is a module
 // constant returned from a single place rather than repeated per branch: a
 // future edit cannot accidentally make one branch distinguishable.
+//
+// THE RESPONSE BODY IS NOT THE ONLY CHANNEL — the clock is one too.
+// This action used to `await sendAccessLink(...)`, and that await ran on
+// exactly ONE branch: the full match. Every other branch returned without
+// touching the network. The string was identical and the LATENCY was not, so
+// the endpoint stayed an oracle through a side door: hold a reference code,
+// submit a handful of suspected addresses, and the one that takes an extra
+// network round trip is the reporter's. Precisely what unpublishing the
+// denuncia page exists to prevent, and against precisely the person it exists
+// to protect the reporter from.
+//
+// The mail is therefore SCHEDULED, not awaited: `after()` runs it once the
+// response is already on its way out, so every branch returns after the same
+// local work (one indexed lookup, and on the matching branch an HMAC). The
+// remaining differences are microseconds of CPU, not a network hop.
+//
+// A note for whoever adds the next channel here: do not await it either. The
+// property this file needs is that NOTHING observable from outside varies with
+// which branch was taken — response body, status, and time to respond alike.
 
 import { db, welfareReports } from "@/db";
 import { generateReporterToken, reporterAccessRevoked } from "@/lib/infra/denuncia-reporter-token";
@@ -25,6 +44,7 @@ import {
 } from "@/src/modules/welfare/domain/reference-code";
 import { eq } from "drizzle-orm";
 import { headers } from "next/headers";
+import { after } from "next/server";
 
 export type SolicitarAccesoState = { message: string | null; throttled?: boolean };
 
@@ -97,7 +117,16 @@ export async function solicitarAccesoDenunciaAction(
     const token = generateReporterToken("access_link", report.id);
     const url = `${resolveSiteUrl()}/denuncias/seguimiento/entrar?r=${encodeURIComponent(report.id)}&t=${encodeURIComponent(token)}`;
 
-    await sendAccessLink(onFile, code, url);
+    // Scheduled, never awaited — see the timing note in the header. The
+    // callback runs after the response is flushed, so it owns its own error
+    // handling: the try/catch around this block has already returned by then.
+    after(async () => {
+      try {
+        await sendAccessLink(onFile, code, url);
+      } catch (err) {
+        console.error("[denuncias] deferred access-link send failed:", err);
+      }
+    });
   } catch (err) {
     // Swallowed on purpose: an error string here would be a side channel.
     console.error("[denuncias] solicitarAccesoDenunciaAction failed (non-fatal):", err);

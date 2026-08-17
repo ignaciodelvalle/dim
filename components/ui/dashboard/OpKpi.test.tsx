@@ -55,6 +55,25 @@ describe("OpKpi — ⓘ inside an href-wrapped tile", () => {
     expect(trigger.querySelector('[data-icon-name="info"]')).toBeTruthy();
     expect(container.textContent ?? "").not.toContain("ⓘ");
   });
+
+  // A 390px sweep of the operator screens counted 58 tap targets under 24px,
+  // and most of them were THIS button repeated once per KPI — the glyph is
+  // 14×14 and the button had no padding. The fix is the hit-area extension
+  // already used by .lp-hcard-flip::after: the visual stays 14px, an invisible
+  // ::after pads the target to 24×24.
+  //
+  // WHAT THIS TEST CAN AND CANNOT PROVE. jsdom does no layout and does not
+  // resolve ::after boxes, so it cannot measure 24px — asserting a computed
+  // size here would be theatre. It pins the HOOK instead: the class that
+  // carries the extension must stay on the trigger, because dropping it
+  // returns the target to 14×14 with no visual change to catch in review. That
+  // the class itself still has a rule behind it is pinned separately, in
+  // __tests__/hit-area-utility.test.ts, against globals.css.
+  it("keeps the ⓘ hit-area extension — the glyph is 14px, the target must not be", () => {
+    render(<OpKpi label="Cobertura" value="64,3%" info={info} />);
+    const trigger = screen.getByRole("button", { name: /Información sobre este indicador/i });
+    expect(trigger.className).toContain("op-hit-24");
+  });
 });
 
 // Track B (dashboards milestone) — legibility / honesty.

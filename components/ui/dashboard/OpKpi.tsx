@@ -388,7 +388,10 @@ function InfoButton({
         onKeyDown={(e) => {
           if (e.key === "Escape") closeNow();
         }}
-        className="ml-1 inline-flex items-center align-middle text-ln-op-mute hover:text-ln-op-ink focus:outline-none focus-visible:ring-2 focus-visible:ring-ln-op-azul rounded-sm"
+        // op-hit-24 (globals.css) pads this 14×14 glyph's TOUCH target to
+        // 24×24 without changing what is drawn. Its rationale — including why
+        // 24 and not the project's 44px floor — lives with the rule.
+        className="op-hit-24 ml-1 inline-flex items-center align-middle text-ln-op-mute hover:text-ln-op-ink focus:outline-none focus-visible:ring-2 focus-visible:ring-ln-op-azul rounded-sm"
       >
         {/* PO directive: no loose glyphs. The ⓘ literal is replaced by the app's
             Icon registry (b026716c standardized all glyphs on it). */}
