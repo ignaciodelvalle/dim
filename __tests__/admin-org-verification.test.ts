@@ -404,4 +404,22 @@ describe("verifyOrgAction — wrapper gate", () => {
       verifyOrgAction({ organizationId: "00000000-0000-0000-0000-000000000000" }),
     ).rejects.toThrow();
   });
+
+  it("exposes NO network-addressable un-verify — that act needs a motivo", async () => {
+    // Removed 2026-08-17. `unverifyOrgAction` wrapped a use case whose `reason`
+    // is OPTIONAL, so an omitted reason wrote an audit_log payload with no
+    // `reason` key. It had no UI — UnverifyOrgButton was deleted as dead code —
+    // but every export of a "use server" file is an independently addressable
+    // endpoint, so "no UI" was never "unreachable": any admin session could
+    // strip an organization's verification and leave a record answering WHO and
+    // WHEN but not WHY, while `revokeOrgVerificationForAuthority` demands a
+    // 30-character motivo plus evidence for the identical act.
+    //
+    // Asserted on the MODULE, not by reading the source: re-adding the export
+    // is what must fail, whatever it gets named or however it is formatted.
+    const actions = await import("@/app/actions/admin-org-verification");
+    expect(Object.keys(actions)).not.toContain("unverifyOrgAction");
+    // Non-vacuity: the module really did load and really does export actions.
+    expect(Object.keys(actions)).toContain("verifyOrgAction");
+  });
 });

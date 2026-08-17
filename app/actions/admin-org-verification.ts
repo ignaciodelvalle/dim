@@ -19,7 +19,6 @@
 import { revalidatePath } from "next/cache";
 
 import { requireAdminOrRedirect } from "@/lib/infra/auth-guards";
-import { unverifyOrgForAuthority as _unverifyOrg } from "@/src/modules/organizations/application/admin-org-verification/unverify-org";
 import { verifyOrgForAuthority as _verifyOrg } from "@/src/modules/organizations/application/admin-org-verification/verify-org";
 
 // ---------------------------------------------------------------------------
@@ -45,18 +44,21 @@ export async function verifyOrgAction(input: { organizationId: string }) {
   return result;
 }
 
-export async function unverifyOrgAction(input: {
-  organizationId: string;
-  reason?: string;
-}) {
-  const { user } = await requireAdminOrRedirect();
-  const result = await _unverifyOrg(user.id, input);
-  if ("ok" in result) {
-    // Organizaciones is a dual-portal surface (portal-follows-viewer,
-    // 2026-07-02): F3+F7 fusion (2026-07-22) made it the Directorio hub's
-    // "organizaciones" tab in BOTH portals — revalidate both hub routes.
-    revalidatePath("/gob/directorio");
-    revalidatePath("/admin/directorio");
-  }
-  return result;
-}
+// `unverifyOrgAction` was REMOVED on 2026-08-17. It wrapped
+// `unverifyOrgForAuthority` with `reason?: string` — optional — so an omitted
+// reason produced an audit_log payload with no `reason` key at all.
+//
+// It had no UI: `UnverifyOrgButton` was deleted as dead code and the note in
+// components/VerifyOrgButton.tsx says the action was "kept for future
+// surfaces". But every export of a "use server" file is an independently
+// addressable endpoint — this file's own header says so — so "no UI" never
+// meant "unreachable". Any admin session could strip an organization of its
+// verification over the network and leave a record that answers WHO and WHEN
+// and not WHY, while the formal path
+// (`revokeOrgVerificationForAuthority`) demands a 30-character motivo plus
+// evidence for the same act. Two doors to one effect, and the unguarded one
+// was the one nobody could see.
+//
+// The use case itself stays — it is not network-addressable and its tests
+// document the behaviour. A future surface that needs it must add its own
+// guarded wrapper, and decide then whether a reason is optional.
