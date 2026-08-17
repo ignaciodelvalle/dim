@@ -38,6 +38,7 @@ import { createHash } from "node:crypto";
 import { type SupabaseClient, createClient as createSdkClient } from "@supabase/supabase-js";
 import { config as loadEnv } from "dotenv";
 
+import { composeMatriculaApprovalNotes } from "../app/gob/cola/_lib/matricula-verification";
 import { resolveEnvTarget } from "./_env-target";
 import { ZERO_PET_OWNER_DISPLAY_NAME, ZERO_PET_OWNER_EMAIL } from "./seed-reserved-accounts";
 
@@ -449,10 +450,19 @@ async function provisionVet(adminId: string): Promise<string> {
     log("OK", `submitted vet upgrade request ${requestToken}`);
   }
 
+  // The matrícula approval path refuses any note that does not carry the
+  // checklist prefix — a deliberate "verification, not rubber stamp" guard
+  // (app/gob/cola/_lib/matricula-verification.ts, UI/UX audit 2026-07). A seed
+  // has no real matrícula to verify, so it satisfies the guard's SHAPE and then
+  // says so in the free text: the prefix lands verbatim in audit_log and in the
+  // applicant's notification, and anyone reading either must be able to tell
+  // seeded data from a decision a human actually made.
   const decision = await approveRequestForAuthority(
     adminId,
     requestToken,
-    "Matrícula verificada vía seed script.",
+    composeMatriculaApprovalNotes(
+      "Alta por script de datos de prueba — ningún registro oficial fue consultado.",
+    ),
   );
   if ("error" in decision) {
     throw new Error(`approveRequestForAuthority(vet) failed: ${decision.error}`);
