@@ -7,6 +7,8 @@
 //
 // Spec §REQ-5, design §2e.
 
+import { jurisdictionScopeContains } from "@/lib/domain/jurisdiction-canonical";
+
 import type { AdminOrGovtJurisdiction } from "@/lib/infra/auth-guards";
 
 export type { AdminOrGovtJurisdiction };
@@ -42,12 +44,24 @@ export type RevocationTarget =
 // - admin: always returns true (universal scope).
 // - govt: must hold at least one active jurisdiction assignment that covers
 //   the target's scope. The rule varies by revocation type:
-//   * org_verification / govt_locality: exact (province, locality) match.
+//   * org_verification / govt_locality: the target's (province, locality) must
+//     be COVERED by an assignment — exact for a barrio-scoped mandate, and
+//     province-wide for a whole-province one (see the subsumption note below).
 //   * vet_role: OR between matricula_jurisdiccion (province-only) and
 //     operational (province, locality). This is intentionally liberal —
 //     a govt can revoke a vet if EITHER the vet's license province OR
 //     their operational locality falls within the govt's scope.
 //     Spec §7.7 — vet scope = matricula jurisdiction OR operational locality.
+//
+// WHOLE-PROVINCE SUBSUMPTION (2026-08-17, found by the hardened
+// check-jurisdiction-subsumption fence). Both comparisons used to be plain
+// exact-pair equality, which silently excluded the WHOLE-PROVINCE operator:
+// their assignment row's locality is the `""` sentinel (or the CABA whole-city
+// entry), never a barrio name, so a provincial official could not revoke an org
+// verification, a locality assignment, or a vet inside their own province.
+// `jurisdictionScopeContains` is the canonical predicate — it widens ONLY for a
+// whole-province assignment and keeps a barrio-scoped mandate exact, so this
+// grants nothing beyond the mandate the actor already holds.
 //
 // Does NOT cover the self-revocation footgun for govt_locality — that lives
 // in the writer because canRevoke does not receive the actor's user_id.
@@ -61,19 +75,20 @@ export function canRevoke(
   if (target.type === "vet_role") {
     // Govt can revoke if the vet's matricula province OR operational locality
     // falls within one of the govt's active assignment (province, locality) pairs.
-    return jurisdictions.some(
-      (j) =>
-        // Province-only match on matricula_jurisdiccion
-        j.province === target.matriculaJurisdiccion ||
-        // Exact (province, locality) match on operational address
-        (target.operationalProvince === j.province && target.operationalLocality === j.locality),
+    return (
+      // Province-only match on matricula_jurisdiccion.
+      jurisdictions.some((j) => j.province === target.matriculaJurisdiccion) ||
+      // Operational address, covered rather than exactly equal.
+      jurisdictionScopeContains(
+        jurisdictions,
+        target.operationalProvince,
+        target.operationalLocality,
+      )
     );
   }
 
   if (target.type === "org_verification" || target.type === "govt_locality") {
-    return jurisdictions.some(
-      (j) => j.province === target.province && j.locality === target.locality,
-    );
+    return jurisdictionScopeContains(jurisdictions, target.province, target.locality);
   }
 
   return false;

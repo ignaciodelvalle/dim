@@ -115,6 +115,75 @@ describe("canRevoke — govt, govt_locality", () => {
 });
 
 // ---------------------------------------------------------------------------
+// Whole-province subsumption (2026-08-17)
+//
+// Both comparisons in canRevoke used to be plain exact-pair equality, so a
+// WHOLE-PROVINCE operator could not revoke anything inside their own province:
+// their assignment's locality is the `""` sentinel (or the CABA whole-city
+// entry), never a barrio name. The hardened check-jurisdiction-subsumption
+// fence found it; these tests keep it found.
+// ---------------------------------------------------------------------------
+
+describe("canRevoke — whole-province operators cover their own province", () => {
+  const WHOLE_BA = [{ province: "Buenos Aires", locality: "" }];
+  const WHOLE_CABA = [{ province: "CABA", locality: "Ciudad Autónoma de Buenos Aires" }];
+
+  it('lets a `""`-sentinel provincial operator revoke a locality assignment inside it', () => {
+    const target: RevocationTarget = {
+      type: "govt_locality",
+      province: "Buenos Aires",
+      locality: "La Plata",
+    };
+    expect(canRevoke(govtProfile, target, WHOLE_BA)).toBe(true);
+  });
+
+  it("lets a whole-CABA operator revoke an org verification in a barrio", () => {
+    const target: RevocationTarget = {
+      type: "org_verification",
+      province: "CABA",
+      locality: "Palermo",
+    };
+    expect(canRevoke(govtProfile, target, WHOLE_CABA)).toBe(true);
+  });
+
+  it("covers a vet whose OPERATIONAL address is a barrio of the held province", () => {
+    // The matrícula province deliberately does NOT match, so this can only pass
+    // through the operational-address branch — the one that was exact-pair.
+    const target: RevocationTarget = {
+      type: "vet_role",
+      matriculaJurisdiccion: "Córdoba",
+      operationalProvince: "Buenos Aires",
+      operationalLocality: "Mar del Plata",
+    };
+    expect(canRevoke(govtProfile, target, WHOLE_BA)).toBe(true);
+  });
+
+  it("does NOT let a whole-province operator reach another province", () => {
+    // The assertion that keeps the fix from being a widening. Subsumption
+    // applies WITHIN a held province and nowhere else.
+    const target: RevocationTarget = {
+      type: "govt_locality",
+      province: "Córdoba",
+      locality: "Córdoba",
+    };
+    expect(canRevoke(govtProfile, target, WHOLE_BA)).toBe(false);
+  });
+
+  it("does NOT let a barrio-scoped operator reach a sibling barrio", () => {
+    // A locality mandate must stay exact — otherwise the fix would hand every
+    // local official their whole province.
+    const target: RevocationTarget = {
+      type: "org_verification",
+      province: "Buenos Aires",
+      locality: "Mar del Plata",
+    };
+    expect(
+      canRevoke(govtProfile, target, [{ province: "Buenos Aires", locality: "La Plata" }]),
+    ).toBe(false);
+  });
+});
+
+// ---------------------------------------------------------------------------
 // Govt — vet_role: matches matricula_jurisdiccion (province-only string)
 //         OR operational (province, locality) — OR semantics
 // ---------------------------------------------------------------------------

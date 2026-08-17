@@ -121,11 +121,52 @@ const ANTI_PATTERN_BUILDER: RegExp[] = [
   /\$\{[\w.]*jurisdictionLocality\}\s*=\s*\$\{[\w.]+\}\s*AND\s*\$\{[\w.]*jurisdictionProvince\}\s*=\s*\$\{[\w.]+\}/i,
 ];
 
+// Shape 4 — the SCOPE-OBJECT field names, added 2026-08-17 after this fence
+// stayed green through a real instance of its own bug class.
+//
+// Every pattern above keys on the DB COLUMN names (`jurisdictionProvince` /
+// `jurisdictionLocality`). `lib/infra/gov-scope.ts::resolveScopedJurisdictions`
+// — described in its own callers as "THE FENCE", wired into ~32 /gob screens —
+// narrowed with `j.province === selectedProvinceName && j.locality ===
+// selectedLocalityName`. Same bug, both sides spelled with the SCOPE object's
+// short field names, so no pattern here could see it: the fence enumerated the
+// spellings of the bug rather than the bug. It kept a whole-province operator's
+// own dashboard empty until 2026-08-17.
+//
+// Gated by REQUIRE_ARRAY_TOKEN below rather than `.map(`, because this shape
+// appears inside `.filter(` / `.some(` over the assignment list.
+const ANTI_PATTERN_SCOPE_FIELDS: RegExp[] = [
+  /\.province\s*===\s*[\w.]+\s*&&\s*[\w.]*\.?locality\s*===\s*[\w.]+/,
+  /\.locality\s*===\s*[\w.]+\s*&&\s*[\w.]*\.?province\s*===\s*[\w.]+/,
+];
+
 // A nearby `.map(` means this exact pair was built per-item from a jurisdiction
 // ARRAY (the real bug shape — an OR-of-pairs over the viewer's own
 // assignments). Its absence means a single hand-chosen value (admin drill-down
 // / UI selection) — not this bug class.
 const REQUIRE_TOKEN = ".map(";
+
+// Shape 4's equivalent: the predicate must be applied ACROSS the assignment
+// list. A bare `a.province === b.province && a.locality === b.locality` between
+// two single objects is an equality check, not an authorization gate.
+const REQUIRE_ARRAY_TOKENS = [".filter(", ".some(", ".every(", ".find(", ".map("];
+
+// …and the array must be the viewer's JURISDICTION ASSIGNMENTS. Without this,
+// Shape 4 also flags `pickObligationRule` (lib/analytics/mandating-
+// jurisdictions.ts), which walks business-rule ROWS in a deliberate cascade —
+// exact locality row, then the province row with `locality === null`, then the
+// country default. There the exact match is the correct FIRST TIER and the
+// widening happens in the next branch, so it is subsumption done right, not
+// missing.
+//
+// KNOWN LIMIT, stated rather than discovered later: this keys on the word
+// "jurisdiction" appearing near the predicate, which is how every real instance
+// has been written (`jurisdictions.some(...)`, `jurisdictions.filter(...)`). An
+// assignment list named something else — `scopes`, `assignments` — would slip
+// past. That is the same failure this whole shape exists to correct, one level
+// up: a fence that recognises the SPELLINGS it has seen. Prefer widening this
+// token over adding exceptions when the next instance appears.
+const REQUIRE_SCOPE_TOKEN = /jurisdiction/i;
 // A nearby call to the canonical whole-province primitive means this exact
 // pair is the deliberately-narrow branch of already subsumption-aware logic,
 // not an unconditional under-scoping bug. See lib/infra/approval-scope.ts.
@@ -146,9 +187,24 @@ export function findSubsumptionOffenders(relPath: string, src: string): string[]
       continue;
     }
 
+    const lookback = lines.slice(Math.max(0, i - LOOKBACK_LINES), i + 3).join("\n");
+
+    if (ANTI_PATTERN_SCOPE_FIELDS.some((re) => re.test(window))) {
+      // Only when the predicate runs across the assignment list, and only when
+      // subsumption is not already handled nearby.
+      if (
+        REQUIRE_ARRAY_TOKENS.some((t) => lookback.includes(t)) &&
+        REQUIRE_SCOPE_TOKEN.test(lookback) &&
+        !lookback.includes(GUARD_TOKEN) &&
+        !KNOWN_EXCEPTIONS.has(`${relPath}:${i + 1}`)
+      ) {
+        out.push(`${relPath}:${i + 1}`);
+        continue;
+      }
+    }
+
     if (!ANTI_PATTERN_BUILDER.some((re) => re.test(window))) continue;
 
-    const lookback = lines.slice(Math.max(0, i - LOOKBACK_LINES), i + 3).join("\n");
     if (!lookback.includes(REQUIRE_TOKEN)) continue; // single hand-chosen value, not an array scope
     if (lookback.includes(GUARD_TOKEN)) continue; // already subsumption-guarded
     if (KNOWN_EXCEPTIONS.has(`${relPath}:${i + 1}`)) continue;

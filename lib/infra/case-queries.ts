@@ -207,7 +207,21 @@ export interface CaseEventRow {
   occurredAt: Date;
   payload: unknown;
   notes: string | null;
-  authorRole: string;
+  /**
+   * The author's role AS RECORDED ON THE EVENT, or null when the source table
+   * does not record one.
+   *
+   * Nullable since 2026-08-17. `case_events` has no author-role column, and the
+   * merge below used to synthesize the literal `'system'` for every row from it
+   * so both halves would share a shape. That made a confident false statement:
+   * an operator's manual case closure carries a real `recordedByUserId` and was
+   * labelled as if the machine had done it. Nothing renders this field today,
+   * which is exactly why it was worth fixing now — a false datum sitting in a
+   * shared row type is waiting for its first consumer to read it as true, the
+   * same way `scan_event_purged` sat undeclared for months. Null says "this
+   * source does not record it", which is the truth and cannot be misread.
+   */
+  authorRole: string | null;
 }
 
 /**
@@ -320,7 +334,10 @@ export async function getCaseDetailByPublicCode(publicCode: string): Promise<Cas
         occurredAt: caseEvents.occurredAt,
         payload: caseEvents.payload,
         notes: caseEvents.notes,
-        authorRole: sql<string>`'system'`,
+        // NOT `'system'` — case_events records no author role, and claiming
+        // one for an operator's own entry is a lie the shared row type would
+        // carry forward. See the field's note on CaseEventRow.
+        authorRole: sql<string | null>`NULL`,
       })
       .from(caseEvents)
       .where(eq(caseEvents.caseId, row.c.id))
