@@ -10,13 +10,26 @@
 // approval_request lands. Admin fallback fires only when no govt covers
 // the locality, matching the visibility rule on the read side.
 
-import { and, eq, isNull } from "drizzle-orm";
+import { and, eq, inArray, isNull } from "drizzle-orm";
 
 import { db, govtAssignments, profiles } from "@/db";
+import { localitiesCoveringSearch } from "@/lib/domain/jurisdiction-canonical";
+import { recordEmptyFanout } from "@/lib/infra/empty-fanout-trace";
 
 export type ApprovalJurisdiction = {
   province: string;
   locality: string;
+};
+
+/**
+ * Optional caller context. `route` names the fan-out that is about to happen, so
+ * the audit row written when NOBODY can be reached says which notification went
+ * nowhere instead of just "some notification". Optional because the resolver has
+ * 17 call sites and they are labelled as they are touched; an unlabelled site
+ * still gets a row, just a vaguer one.
+ */
+export type ApprovalRoutingContext = {
+  route?: string;
 };
 
 // Returns the user IDs of every authority that should be notified about a
@@ -31,17 +44,39 @@ export type ApprovalJurisdiction = {
 //
 // Empty result is possible only when there are no admins seeded — in
 // which case the caller still writes the approval_request row and the
-// founder will see it on next login.
+// founder will see it on next login. That case now leaves a
+// `notification_fanout_empty` audit row (migration 0187): before it did, an
+// empty fan-out was the one failure in the system with no trace anywhere.
+//
+// WHOLE-PROVINCE SUBSUMPTION (2026-08-17). This used to match locality with
+// plain equality, which made a whole-province operator STRUCTURALLY INVISIBLE
+// to every writer: she SAW the request in her queue (the read side was fixed in
+// July — case-queries.ts, approval-scope.ts, jurisdictionPairClause) and was
+// never notified, while the resolver concluded "no govt covers this locality"
+// and paged national admins instead. Wording, query and ROUTING must never
+// disagree about what counts as the whole province (C3, plan-maestro-integridad).
+//
+// The subsumption direction here is the SEARCH one — a locality-grain event must
+// reach a whole-province assignment ROW — i.e. exactly `localitiesCoveringSearch`
+// (lib/domain/jurisdiction-canonical.ts), the same helper the appointment search
+// uses. Deliberately NOT a second implementation: four jurisdiction predicates
+// already coexist in this codebase and a fifth would be one more thing to drift.
+//
+// It fails closed the same way the helper does: a non-canonical province accepts
+// only its literal locality, and a locality-specific assignment never widens.
 export async function findAuthoritiesForJurisdiction(
   jurisdiction: ApprovalJurisdiction,
+  context?: ApprovalRoutingContext,
 ): Promise<string[]> {
+  const coveringLocalities = localitiesCoveringSearch(jurisdiction.province, jurisdiction.locality);
+
   const govts = await db
     .select({ userId: govtAssignments.userId })
     .from(govtAssignments)
     .where(
       and(
         eq(govtAssignments.jurisdictionProvince, jurisdiction.province),
-        eq(govtAssignments.jurisdictionLocality, jurisdiction.locality),
+        inArray(govtAssignments.jurisdictionLocality, coveringLocalities),
         isNull(govtAssignments.revokedAt),
       ),
     );
@@ -65,6 +100,20 @@ export async function findAuthoritiesForJurisdiction(
         isNull(profiles.deactivatedAt),
       ),
     );
+
+  if (admins.length === 0) {
+    // Nobody at all. Govt-first found no one, and the fallback that exists
+    // precisely for that case found no one either — so whatever the caller was
+    // about to announce reaches zero humans. This row is the only evidence that
+    // will ever exist of it. Awaited (not fire-and-forget) so a serverless
+    // invocation cannot be frozen before the insert lands; it never throws.
+    await recordEmptyFanout({
+      route: context?.route ?? "approval_routing_unlabelled",
+      province: jurisdiction.province,
+      locality: jurisdiction.locality,
+      reason: "no_govt_no_admin",
+    });
+  }
 
   return admins.map((a) => a.id);
 }
