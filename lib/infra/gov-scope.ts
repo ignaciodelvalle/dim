@@ -10,6 +10,7 @@
 import { and, isNotNull, isNull, or, sql } from "drizzle-orm";
 
 import { arLocalities, db } from "@/db";
+import { narrowGovtScope } from "@/lib/domain/jurisdiction-canonical";
 import { provinceByName } from "@/lib/reference/ar-provincias";
 
 import type { DashboardJurisdiction } from "@/lib/metrics";
@@ -35,7 +36,31 @@ export type { DashboardJurisdiction } from "@/lib/metrics";
  * Admin (role === "admin") → returned as-is (empty jurisdictions = universal).
  * Govt + no selection → returned as-is (all assignments visible).
  * Govt + province selected → filtered to that province.
- * Govt + province + locality selected → filtered to the exact pair.
+ * Govt + province + locality selected → narrowed to that single unit, WITH
+ *   whole-province subsumption (see below).
+ *
+ * WHOLE-PROVINCE SUBSUMPTION — why this delegates instead of filtering inline.
+ * This function used to close with an exact-pair filter:
+ *
+ *     j.province === selectedProvinceName && j.locality === selectedLocalityName
+ *
+ * which erased a WHOLE-PROVINCE assignment the moment a locality was picked:
+ * that row's locality is the `""` sentinel (or the CABA whole-city entry), never
+ * a barrio name, so the filter returned `[]`, lib/metrics/scope.ts compiled that
+ * to `sql`false``, and a provincial operator's own dashboard came back empty for
+ * data they plainly govern. It fails CLOSED, so it is not a leak — it is the
+ * central feature breaking for exactly the class of official being onboarded.
+ *
+ * It was also reachable by invitation, not by accident: `resolveJurisdictionScope`
+ * feeds the locality switcher through `constrainLocalitiesToMandate`, which
+ * deliberately OFFERS every barrio to a whole-province operator. The UI led them
+ * to the one selection this filter could not answer.
+ *
+ * `narrowGovtScope` is the same fix already made for Panorama (critique of PR
+ * #762) and for the appointment search (`localitiesCoveringSearch`); its own
+ * docstring notes each time it failed to reach a third caller. This was the
+ * third caller. Delegating — rather than re-implementing the predicate here —
+ * is what keeps there from being a fourth.
  */
 export function resolveScopedJurisdictions(args: {
   jurisdictions: DashboardJurisdiction[];
@@ -46,15 +71,8 @@ export function resolveScopedJurisdictions(args: {
   const { jurisdictions, role, selectedProvinceName, selectedLocalityName } = args;
 
   if (role === "admin") return jurisdictions;
-  if (!selectedProvinceName) return jurisdictions;
 
-  if (selectedLocalityName) {
-    return jurisdictions.filter(
-      (j) => j.province === selectedProvinceName && j.locality === selectedLocalityName,
-    );
-  }
-
-  return jurisdictions.filter((j) => j.province === selectedProvinceName);
+  return narrowGovtScope(jurisdictions, selectedProvinceName, selectedLocalityName);
 }
 
 // ---------------------------------------------------------------------------

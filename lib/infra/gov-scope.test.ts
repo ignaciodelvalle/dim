@@ -84,6 +84,71 @@ describe("resolveScopedJurisdictions", () => {
     });
     expect(result).toHaveLength(0);
   });
+
+  // Whole-province subsumption (2026-08-17). The exact-pair filter this fence
+  // used to end with erased a whole-province assignment as soon as a locality
+  // was picked, because that row's locality is a sentinel or the whole-city
+  // entry — never a barrio name. Empty scope compiles to `sql`false``, so the
+  // provincial operator's own dashboard came back blank for data they govern.
+  //
+  // Both encodings are covered because both exist in the data: the `""`
+  // sentinel for ordinary provinces, and the INDEC whole-city row for CABA,
+  // which this project documents as THE canonical two-tier province.
+  describe("whole-province assignments subsume their localities", () => {
+    const WHOLE_BA: DashboardJurisdiction = { province: "Buenos Aires", locality: "" };
+    const WHOLE_CABA: DashboardJurisdiction = {
+      province: "CABA",
+      locality: "Ciudad Autónoma de Buenos Aires",
+    };
+
+    it('narrows a `""`-sentinel province assignment to the selected locality', () => {
+      const result = resolveScopedJurisdictions({
+        jurisdictions: [WHOLE_BA],
+        role: "govt",
+        selectedProvinceName: "Buenos Aires",
+        selectedLocalityName: "La Plata",
+      });
+      expect(result).toStrictEqual([{ province: "Buenos Aires", locality: "La Plata" }]);
+    });
+
+    it("narrows a whole-CABA assignment to the selected barrio", () => {
+      // The switcher offers every barrio to this operator on purpose
+      // (constrainLocalitiesToMandate), so this is the selection the UI itself
+      // invites — it must not empty the dashboard.
+      const result = resolveScopedJurisdictions({
+        jurisdictions: [WHOLE_CABA],
+        role: "govt",
+        selectedProvinceName: "CABA",
+        selectedLocalityName: "Palermo",
+      });
+      expect(result).toStrictEqual([{ province: "CABA", locality: "Palermo" }]);
+    });
+
+    it("still refuses a locality in a province the operator does not hold", () => {
+      // Subsumption must widen WITHIN a held province and nowhere else — this
+      // is the assertion that keeps the fix from becoming a leak.
+      const result = resolveScopedJurisdictions({
+        jurisdictions: [WHOLE_BA],
+        role: "govt",
+        selectedProvinceName: "Córdoba",
+        selectedLocalityName: "Córdoba",
+      });
+      expect(result).toHaveLength(0);
+    });
+
+    it("leaves a locality-scoped assignment unable to reach a sibling locality", () => {
+      // A barrio-scoped mandate is NOT whole-province and must keep failing
+      // closed, otherwise the fix would hand every local official their whole
+      // province.
+      const result = resolveScopedJurisdictions({
+        jurisdictions: [{ province: "Buenos Aires", locality: "La Plata" }],
+        role: "govt",
+        selectedProvinceName: "Buenos Aires",
+        selectedLocalityName: "Mar del Plata",
+      });
+      expect(result).toHaveLength(0);
+    });
+  });
 });
 
 // ---------------------------------------------------------------------------
