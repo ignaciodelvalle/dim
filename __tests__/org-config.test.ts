@@ -1,4 +1,4 @@
-﻿// Tests for:
+// Tests for:
 //  1. updateOrganizationForUser — admin-only, whitelisted columns enforced,
 //     cross-org rejected, orgType/verified NOT writable.
 //  2. createOrganizationForUser — server-side rejection of sanitary_authority.

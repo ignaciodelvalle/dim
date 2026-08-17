@@ -318,7 +318,7 @@ const PATTERNS: Pattern[] = [
 
   // Checkin post-adopción — BEFORE vet_visit: its trigger
   // /control.*post.?adopci[óo]n/ was unreachable behind vet's greedy
-  // control (deep review 2026-07-04: "control post adopción" routed
+  // \bcontrol\b (deep review 2026-07-04: "control post adopción" routed
   // to vet_visit_logged).
   {
     eventType: "post_adoption_checkin",

@@ -1,4 +1,4 @@
-﻿// Unit tests for the decomiso (Ley 14.346) foundation slice (S1).
+// Unit tests for the decomiso (Ley 14.346) foundation slice (S1).
 //
 // Coverage:
 //   1. shelterIntakeRecorded schema — superRefine conditional rules (spec §4.3)
