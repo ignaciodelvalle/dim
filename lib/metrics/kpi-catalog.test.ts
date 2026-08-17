@@ -224,9 +224,21 @@ describe("formatKpiTarget — law-vs-meta separation (claim #6)", () => {
     expect(out).toBe("Meta: 39% (benchmark RSPCA (Reino Unido))");
   });
 
-  it("rabies_coverage_dogs_12m and microchip_penetration (law-sourced, non-statutory %) are classified programmatic-target", () => {
+  it("rabies_coverage_dogs_12m (law-sourced obligation, non-statutory %) is classified programmatic-target", () => {
     expect(KPI_CATALOG.rabies_coverage_dogs_12m.target?.sourceKind).toBe("programmatic-target");
-    expect(KPI_CATALOG.microchip_penetration.target?.sourceKind).toBe("programmatic-target");
+  });
+
+  // microchip_penetration was here too until 2026-08-17, on the premise that
+  // its obligation was law-sourced and only the 80% was programmatic. The
+  // legal research killed the premise: no Argentine norm mandates the chip
+  // (engram legal/claims-refutadas-2026-08-17). "programmatic-target" is now
+  // the WRONG kind for it, because formatKpiTarget prints the literal word
+  // "Obligación:" ahead of the source for that kind — there is no obligation
+  // to print. It is a benchmark: a goal with no legal weight to conflate.
+  it("microchip_penetration is a benchmark — the target has no legal source at all", () => {
+    expect(KPI_CATALOG.microchip_penetration.target?.sourceKind).toBe("benchmark");
+    const target = KPI_CATALOG.microchip_penetration.target;
+    expect(target && formatKpiTarget(target, "percent")).not.toContain("Obligación");
   });
 
   it("ppp_registry_compliance and rabies_observation_compliance_10d (100% IS the legal literal) are classified statutory-obligation", () => {

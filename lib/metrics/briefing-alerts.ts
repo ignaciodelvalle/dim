@@ -485,10 +485,19 @@ function buildUrgencyAlert(
  *
  * The national caller ("all") used to short-circuit to `undefined` here and
  * keep `descriptor.target.source` verbatim, which is how /gob told national
- * officials that the obligation behind a country-wide microchip figure was
- * "Ley Prov. 14.107 (PBA)" (demo review 2026-08-01). It now goes through the
- * same resolver as everyone else, which qualifies a provincial-only citation
- * with NATIONAL_VIEW_PROVINCIAL_ONLY_ES instead of presenting it as binding.
+ * officials that a country-wide figure's obligation was a single province's
+ * statute (demo review 2026-08-01). It now goes through the same resolver as
+ * everyone else, which qualifies a provincial-only citation with
+ * NATIONAL_VIEW_PROVINCIAL_ONLY_ES instead of presenting it as binding.
+ *
+ * MIND THE FALLBACK when removing a registry entry: `?? undefined` means a
+ * KPI with no registered basis keeps `descriptor.target.source` VERBATIM.
+ * That is right for rabies (its Ley 22.953 is national), and it is why
+ * dropping microchip_penetration from METRIC_LEGAL_BASIS on 2026-08-17 was
+ * not enough on its own — the alert would have fallen straight back to the
+ * catalog's old "Ley Prov. 14.107 (PBA)" and re-asserted the refuted claim.
+ * The catalog descriptor was corrected in the same commit. A registry
+ * deletion here degrades to the CATALOG's claim, never to silence.
  */
 function resolveScopedSource(kpiId: KpiId, mandateProvinces: MandateProvinces): string | undefined {
   return formatMetricLegalBasis(kpiId, mandateProvinces) ?? undefined;
@@ -754,8 +763,8 @@ export function buildBriefingAlerts(
   // Mandate-scoped legal citation (red-team CRITICAL follow-up 2026-07-24). The
   // gob tile fix (formatMetricLegalBasis) scoped the KPI tile but NOT this
   // briefing alert — a jurisdictional operator still saw a foreign province's
-  // law (e.g. "PBA: Ley Prov. 14.107" to a CABA+TdF+SC operator) in the
-  // microchip alert. Admin/national callers pass "all" (the default) and keep
+  // law (e.g. "CABA: Ley 5470" to a Tierra del Fuego operator) in the
+  // alert. Admin/national callers pass "all" (the default) and keep
   // the catalog's canonical source wording; a jurisdictional operator passes
   // their mandate provinces and gets the resolved citation — or neutral framing
   // when no mandate province regulates the metric, never a foreign law.

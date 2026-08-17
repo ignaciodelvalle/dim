@@ -252,7 +252,9 @@ describe("hostile reader — microchip: el denominador declarado coincide con el
       <OpKpi
         label={KPI_CATALOG.microchip_penetration.label}
         value="64,3%"
-        sub="meta 80% · 320 de 500 activas/perdidas · Ley 14.107"
+        // No legal clause: the chip mandate this used to cite does not exist
+        // (2026-08-17 — see lib/metrics/metric-legal-basis.ts).
+        sub="meta 80% · 320 de 500 activas/perdidas"
         descriptorId="microchip_penetration"
       />,
     );

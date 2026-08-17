@@ -1,7 +1,8 @@
 // Mandate-scoped resolution of KPI legal citations (red-team CRITICAL,
 // PO-approved 2026-07): a government operator whose mandate is e.g.
-// CABA + Tierra del Fuego + Santa Cruz used to see "PBA: Ley 14.107"
-// (microchip) and "Ley CABA 5470" (mortality) cited on their tiles as THEIR
+// CABA + Tierra del Fuego + Santa Cruz used to see "PBA: Ley 14.107" (then
+// mapped to microchip — see the registry note, that mapping was false and is
+// gone) and "Ley CABA 5470" (mortality) cited on their tiles as THEIR
 // legal obligation — laws of provinces NOT in their mandate. This module
 // resolves a metric's legal basis against the operator's mandate provinces so
 // a province's law is only ever shown to an operator whose mandate includes
@@ -45,13 +46,27 @@ export type MetricLegalBasis = {
 export type MandateProvinces = readonly string[] | "all";
 
 // Per-metric legal basis — populated ONLY from citations that already exist
-// in lib/metrics/kpi-catalog.ts today. None of these three metrics has a
+// in lib/metrics/kpi-catalog.ts today. Neither of these metrics has a
 // national anchor in the repo's citations; `national` stays absent until the
 // catalog cites one.
+//
+// microchip_penetration HAS NO ENTRY, AND MUST NOT GET ONE (legal research
+// 2026-08-17, engram legal/claims-refutadas-2026-08-17). It used to map to
+// `{"Buenos Aires": ["Ley Prov. 14.107"]}`, presented as PBA's microchip
+// mandate. The sources refute that:
+//   - Ley 14.107 (PBA) art. 8 inc. b requires identifying the dog "por medio
+//     de un chip O DE UN TATUAJE", and only for potentially-dangerous breeds.
+//     It permits a chip; it does not mandate one, and it does not reach the
+//     general padrón this metric counts.
+//   - Ley CABA 4.078 art. 6 covers PPP only and requires a collar with a
+//     chapa identificatoria — it never mentions a microchip at all.
+//   - SENASA states no national electronic-identification regulation exists.
+// So there is no Argentine jurisdiction whose law can be sourced as mandating
+// the chip, and the honest output is NO citation rather than a narrower or
+// substituted one. The two statutes stay cited below for the PPP registry
+// obligation, which IS what they actually regulate — do not read their
+// absence here as doubt about that entry.
 export const METRIC_LEGAL_BASIS: Partial<Record<KpiId, MetricLegalBasis>> = {
-  microchip_penetration: {
-    byProvince: { "Buenos Aires": ["Ley Prov. 14.107"] },
-  },
   ppp_registry_compliance: {
     byProvince: { CABA: ["Ley 4078"], "Buenos Aires": ["Ley Prov. 14.107"] },
   },
@@ -74,21 +89,26 @@ export const PROVINCIAL_GAP_FALLBACK_ES = "Según la normativa provincial de tu 
  * es-AR qualifier prepended when the VIEW is national ("all") and every
  * citation the metric has is provincial (no `national` anchor).
  *
- * WHY (demo review 2026-08-01): at national scope /gob rendered "Penetración
- * de microchip 36,6% — Obligación: Ley Prov. 14.107 (PBA)" and "Disposición
- * trazable — Obligación: Ley CABA 5470". In front of national officials that
- * is not a copy nit, it is a legal error: a provincial statute presented as
- * the obligation of the whole country.
+ * WHY (demo review 2026-08-01): at national scope /gob rendered "Disposición
+ * trazable — Obligación: Ley CABA 5470" and the equivalent line for the PPP
+ * registry. In front of national officials that is not a copy nit, it is a
+ * legal error: a provincial statute presented as the obligation of the whole
+ * country.
  *
- * The fix is NOT to swap the law. Ley 14.107 really is PBA's microchip
- * mandate and Ley 5470 really is CABA's disposal law; no national equivalent
- * is cited anywhere in kpi-catalog.ts, and this module's contract forbids
- * inventing legal research to fill the gap. Suppressing the citation would be
- * worse still — the obligation genuinely exists, it just does not bind
- * uniformly. What was missing is the SCOPE of the norm: say that the
- * obligation is provincial, that it does not cover the national figure on
- * screen, and keep naming which province it comes from so the reader can
- * check it.
+ * The fix is NOT to swap the law. Ley 5470 really is CABA's disposal law and
+ * Ley 4078 / Ley 14.107 really do impose the PPP registry duty in their own
+ * jurisdictions; no national equivalent is cited anywhere in kpi-catalog.ts,
+ * and this module's contract forbids inventing legal research to fill the
+ * gap. Suppressing THOSE citations would be worse still — the obligation
+ * genuinely exists, it just does not bind uniformly. What was missing is the
+ * SCOPE of the norm: say that the obligation is provincial, that it does not
+ * cover the national figure on screen, and keep naming which province it
+ * comes from so the reader can check it.
+ *
+ * That reasoning holds only where a real obligation exists. It is NOT a
+ * licence to keep a citation whose underlying claim is false: the microchip
+ * mapping was dropped outright (see the registry note) because no scope
+ * qualifier can rescue a law that never imposed the duty being measured.
  */
 export const NATIONAL_VIEW_PROVINCIAL_ONLY_ES = "normativa provincial (no nacional)";
 

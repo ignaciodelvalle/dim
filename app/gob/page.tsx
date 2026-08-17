@@ -200,15 +200,21 @@ export default async function GobiernoDashboardPage({
   // the view is the whole country and the resolver qualifies a
   // provincial-only citation instead of passing it off as national — see
   // NATIONAL_VIEW_PROVINCIAL_ONLY_ES (demo review 2026-08-01: /gob told
-  // national officials the obligation behind a country-wide microchip figure
-  // was "Ley Prov. 14.107 (PBA)").
+  // national officials the obligation behind a country-wide PPP-registry
+  // figure was a single province's statute).
+  //
+  // The microchip tile deliberately resolves NOTHING. It used to cite
+  // "PBA: Ley Prov. 14.107" as the obligation behind the chip; the legal
+  // research of 2026-08-17 refuted that claim outright (see the registry note
+  // in metric-legal-basis.ts), so the entry is gone and the tile's `sub`
+  // simply carries no citation clause. Do not reintroduce a call here — there
+  // is no Argentine norm to resolve to.
   const legalBasisProvinces =
     profile.role === "admin"
       ? adminProvince
         ? [adminProvince]
         : ("all" as const)
       : [...new Set(jurisdictions.map((j) => j.province))];
-  const microchipLegalBasis = formatMetricLegalBasis("microchip_penetration", legalBasisProvinces);
   const pppLegalBasis = formatMetricLegalBasis("ppp_registry_compliance", legalBasisProvinces);
   const narrowedView = describeNarrowedView({
     role: profile.role,
@@ -990,7 +996,7 @@ export default async function GobiernoDashboardPage({
               jurisdictionTargets.values.MICROCHIP_PENETRATION_PCT,
             )}
             bar={microchipPenetration.ratePct}
-            sub={`meta ${jurisdictionTargets.values.MICROCHIP_PENETRATION_PCT}% · ${microchipPenetration.chipped.toLocaleString("es-AR")} de ${microchipPenetration.active.toLocaleString("es-AR")} activas/perdidas${microchipLegalBasis ? ` · ${microchipLegalBasis}` : ""}${jurisdictionTargets.adjusted.MICROCHIP_PENETRATION_PCT ? ` · ${JURISDICTION_ADJUSTED_TARGET_NOTE}` : ""}`}
+            sub={`meta ${jurisdictionTargets.values.MICROCHIP_PENETRATION_PCT}% · ${microchipPenetration.chipped.toLocaleString("es-AR")} de ${microchipPenetration.active.toLocaleString("es-AR")} activas/perdidas${jurisdictionTargets.adjusted.MICROCHIP_PENETRATION_PCT ? ` · ${JURISDICTION_ADJUSTED_TARGET_NOTE}` : ""}`}
             // F9: the identification funnel ("Con chip ISO activo" measured
             // against this same TARGETS.MICROCHIP_PENETRATION_PCT, then ISO
             // validity and scan recency) lives in the Padrón hub's Censo

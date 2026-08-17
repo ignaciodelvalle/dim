@@ -673,17 +673,27 @@ export const KPI_CATALOG: Record<KpiId, KpiDefinition> = {
     unit: "percent",
     suppression:
       "k-anon (k=5) on the per-locality breakdown; the national/province figure is unsuppressed",
-    caveat: "Legal basis: Ley Prov. 14.107 (PBA). Only counts microchips registered in miMAR.",
+    caveat:
+      "No legal basis: no Argentine norm mandates microchipping (see target.sourceKind). Only counts microchips registered in miMAR.",
     window: "all_time",
     species: "all_species",
     basis: "ratio",
     question:
-      "¿Qué porcentaje de mascotas del padrón (activas/perdidas) tiene un microchip ISO activo registrado, según lo exige la ley?",
+      "¿Qué porcentaje de mascotas del padrón (activas/perdidas) tiene un microchip ISO activo registrado?",
     target: {
       value: TARGETS.MICROCHIP_PENETRATION_PCT,
-      source: "Ley Prov. 14.107 (PBA)",
-      // The law mandates registration, not an 80% threshold — programmatic benchmark (claim #6).
-      sourceKind: "programmatic-target",
+      // NOT a legal citation, deliberately (legal research 2026-08-17, engram
+      // legal/claims-refutadas-2026-08-17). This read "Ley Prov. 14.107 (PBA)"
+      // and, with sourceKind "programmatic-target", rendered as "Obligación:
+      // Ley Prov. 14.107 (PBA) · Meta programática: 80%" — asserting a chip
+      // mandate that statute does not contain (art. 8 inc. b admits "un chip O
+      // DE UN TATUAJE", and only for PPP; Ley CABA 4.078 never mentions a chip;
+      // SENASA confirms no national electronic-ID rule exists). There is no
+      // Argentine jurisdiction to substitute, so the honest classification is
+      // "benchmark": an internal program goal carrying no legal weight, which
+      // formatKpiTarget renders WITHOUT the word "Obligación".
+      source: "meta programática de identificación (sin mandato legal argentino)",
+      sourceKind: "benchmark",
     },
     semaphore: { paintAgainst: "target" },
     // Red-team 2026-07 #3: 0/0 padrón (out-of-mandate locality) dashes, never a "0%" n=0 alert.
@@ -698,7 +708,7 @@ export const KPI_CATALOG: Record<KpiId, KpiDefinition> = {
     },
     ui: {
       definition:
-        "Porcentaje de mascotas activas/extraviadas en la jurisdicción con al menos una identificación microchip ISO activa registrada (C1). Exigido por Ley Prov. 14.107 (PBA).",
+        "Porcentaje de mascotas activas/extraviadas en la jurisdicción con al menos una identificación microchip ISO activa registrada (C1). Ninguna norma argentina exige el microchip: la meta es programática, no una obligación legal.",
       formula:
         "COUNT(pets activos/extraviados con pet_identifications.kind='microchip_iso' y status='active') / COUNT(pets activos/extraviados en scope)",
       caveat: "Solo cuenta microchips registrados en miMAR.",

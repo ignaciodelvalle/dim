@@ -102,7 +102,7 @@ Every metric is a projection over the existing event log. Status: **now** = ship
 | E10 | PII-query audit volume | `auditLog` (`pii_queried`) | now (live) | existing |
 
 ### Legal anchors (Argentina) referenced by metrics
-- **Ley Prov 14.107** (obligatory microchip) → C1/C2
+- **C1/C2 (microchip) have NO legal anchor** — corrected 2026-08-17. This line read "Ley Prov 14.107 (obligatory microchip)"; that statute admits a chip **or a tattoo** and only for PPP dogs, Ley CABA 4.078 requires a collar with chapa and never mentions a chip, and SENASA states no national electronic-ID regulation exists. C1/C2 measure adoption against a programmatic benchmark, not compliance with a norm.
 - **Ley CABA 4078** / 14.107 (dangerous-breed registry) → C7
 - **Ley CABA 5470** (cremation traceability) → B2/B3/B4
 - **Ley Nacional 14.346** (cruelty) → D1/D5

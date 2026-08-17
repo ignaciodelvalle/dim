@@ -306,39 +306,62 @@ describe("buildBriefingAlerts — mandate-scoped legal citation (red-team CRITIC
   // briefing alert citing a foreign province's law to a jurisdictional
   // operator. The alert's title AND evidence.source must resolve the citation
   // against the operator's mandate — same contract as the tile.
+  //
+  // The vehicle used to be microchip_penetration. It stopped being a legal
+  // citation at all on 2026-08-17 (the PBA/CABA chip mandate turned out not to
+  // exist — see metric-legal-basis.ts), so these moved to
+  // mortality_disposal_traceability, whose Ley CABA 5470 is a real CABA
+  // obligation and therefore still exercises the scoping contract.
   const candidates: BriefingAlertCandidate[] = [
-    { kpiId: "microchip_penetration", value: 30, n: 500 },
+    { kpiId: "mortality_disposal_traceability", value: 30, n: 500 },
   ];
 
   // Demo review 2026-08-01. This test pinned the defect: at national scope the
   // alert kept `descriptor.target.source` verbatim, so the briefing read
-  // "Penetración de microchip 36,6% — Obligación: Ley Prov. 14.107 (PBA)" to a
-  // national official. The law is right and stays cited; what it lacked was
-  // its reach. See NATIONAL_VIEW_PROVINCIAL_ONLY_ES for why the answer is
-  // disclosure rather than swapping — or hiding — the statute.
+  // "Disposición trazable 30% — Obligación: Ley CABA 5470" to a national
+  // official. The law is right and stays cited; what it lacked was its reach.
+  // See NATIONAL_VIEW_PROVINCIAL_ONLY_ES for why the answer is disclosure
+  // rather than swapping — or hiding — the statute.
   it("default (national/'all') qualifies a provincial-only citation instead of presenting it as binding", () => {
     const [alert] = buildBriefingAlerts(candidates);
-    expect(alert.evidence.source).toBe(
-      "normativa provincial (no nacional) · PBA: Ley Prov. 14.107",
-    );
+    expect(alert.evidence.source).toBe("normativa provincial (no nacional) · CABA: Ley 5470");
     expect(alert.title).toContain("Obligación: normativa provincial (no nacional)");
     // Still names the actual statute and the province it comes from — a
     // funcionario has to be able to go look it up.
-    expect(alert.title).toContain("PBA: Ley Prov. 14.107");
+    expect(alert.title).toContain("CABA: Ley 5470");
   });
 
   it("cites the province's law to an operator whose mandate INCLUDES it", () => {
-    const [alert] = buildBriefingAlerts(candidates, [], ["Buenos Aires"]);
-    expect(alert.evidence.source).toBe("PBA: Ley Prov. 14.107");
-    expect(alert.title).toContain("PBA: Ley Prov. 14.107");
+    const [alert] = buildBriefingAlerts(candidates, [], ["CABA"]);
+    expect(alert.evidence.source).toBe("CABA: Ley 5470");
+    expect(alert.title).toContain("CABA: Ley 5470");
   });
 
   it("NEVER cites a foreign province's law to an operator whose mandate EXCLUDES it", () => {
-    const [alert] = buildBriefingAlerts(candidates, [], ["CABA", "Tierra del Fuego", "Santa Cruz"]);
-    // Neutral framing — never "Ley Prov. 14.107 (PBA)", never a blank.
+    const [alert] = buildBriefingAlerts(candidates, [], ["Buenos Aires", "Tierra del Fuego"]);
+    // Neutral framing — never "Ley CABA 5470", never a blank.
     expect(alert.evidence.source).toBe("Según la normativa provincial de tu jurisdicción");
-    expect(alert.title).not.toContain("14.107");
-    expect(alert.title).not.toContain("PBA");
+    expect(alert.title).not.toContain("5470");
+    expect(alert.title).not.toContain("CABA");
+  });
+
+  // 2026-08-17. resolveScopedSource does `?? undefined`, so a KPI absent from
+  // METRIC_LEGAL_BASIS keeps `descriptor.target.source` VERBATIM. Deleting the
+  // microchip registry entry alone would therefore have re-asserted the
+  // refuted claim straight out of the catalog. Both halves are pinned here at
+  // the surface a funcionario actually reads.
+  it("the microchip alert asserts no legal obligation at any scope", () => {
+    for (const mandate of [undefined, ["Buenos Aires"], ["CABA", "Tierra del Fuego"]] as const) {
+      const [alert] = buildBriefingAlerts(
+        [{ kpiId: "microchip_penetration", value: 30, n: 500 }],
+        [],
+        mandate ?? "all",
+      );
+      expect(alert.title).not.toContain("14.107");
+      expect(alert.title).not.toContain("4078");
+      expect(alert.title).not.toContain("Obligación");
+      expect(alert.evidence.source ?? "").not.toMatch(/Ley/i);
+    }
   });
 });
 
