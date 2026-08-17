@@ -39,11 +39,50 @@ import { TERMINAL_STATUSES } from "@/src/modules/welfare/domain/welfare-status-r
 
 const MS_PER_DAY = 86_400_000;
 
-/** Row shape both aggregates return. `oldest` is null on an empty queue. */
-type AgingRow = { oldest: Date | null; overdue: number };
+/**
+ * Row shape both aggregates return. `oldest` is null on an empty queue.
+ *
+ * It is typed as a STRING, not a Date, and that is the whole point.
+ * drizzle-orm's postgres-js driver installs identity ("transparent") parsers for
+ * every timestamp OID — 1082/1083/1114/1184 and their array twins — so that its
+ * own COLUMN mappers own the conversion (drizzle-orm/postgres-js/driver.cjs).
+ * A raw `sql` fragment has no column mapper, so `min(created_at)` arrives as the
+ * wire text postgres sent — "2024-01-01 00:00:00+00" — and `sql<Date>` there is
+ * a compile-time claim the runtime never honours. TypeScript then vouches for
+ * the lie all the way down to the formatter.
+ *
+ * This is the SECOND surface it took down. First /admin/sistema (digest
+ * 1282362471 — see the same warning over `lastAt` in lib/analytics/
+ * admin-metrics.ts), then /gob (RangeError: Invalid time value, correlationId
+ * 063a76c4): ageInDays → calendarDaysAgoInAr → Intl.DateTimeFormat.format(str)
+ * coerces the text with ToNumber, gets NaN, and throws — which the briefing's
+ * loadWithTimeout caught as a whole-page degrade, chrome and all.
+ *
+ * Note which state is the dangerous one: an EMPTY queue returns null and is
+ * perfectly safe. The crash needs ROWS. That is why every local suite stayed
+ * green (the page test mocks this module, and the pure day-math test feeds it
+ * real Dates) while a jurisdiction with real denuncias fell over.
+ */
+type AgingRow = { oldest: string | Date | null; overdue: number };
+
+/**
+ * Turn the driver's raw aggregate value into the Date the rest of this module
+ * assumes. Accepts a Date as well as the string postgres-js actually returns, so
+ * a future driver — or a caller that maps the column itself — needs no second
+ * fix; this is the posture lib/analytics/org-dashboard.ts's `toSignal` already
+ * takes over the identical MIN aggregate.
+ *
+ * The NaN branch is a fail-safe, not the fix: a MIN over a timestamptz column
+ * emits either NULL or parseable text, never garbage. The fix is the parse.
+ */
+function coerceAggregateDate(value: string | Date | null | undefined): Date | null {
+  if (value == null) return null;
+  const date = value instanceof Date ? value : new Date(value);
+  return Number.isNaN(date.getTime()) ? null : date;
+}
 
 function toAging(row: AgingRow | undefined, now: Date): QueueAging {
-  const oldest = row?.oldest ?? null;
+  const oldest = coerceAggregateDate(row?.oldest);
   return {
     oldestAgeDays: oldest === null ? null : ageInDays(oldest, now),
     overdueCount: Number(row?.overdue ?? 0),
@@ -99,7 +138,8 @@ export async function fetchWelfareQueueAging(
 
   const [row] = await db
     .select({
-      oldest: sql<Date | null>`min(${welfareReports.createdAt})`,
+      // sql<string | null>, never sql<Date>: see AgingRow above.
+      oldest: sql<string | null>`min(${welfareReports.createdAt})`,
       overdue: sql<number>`count(*) filter (where ${overdueClause})::int`,
     })
     .from(welfareReports)
@@ -148,7 +188,8 @@ export async function fetchCasesQueueAging(
 
   const [row] = await db
     .select({
-      oldest: sql<Date | null>`min(${cases.openedAt})`,
+      // sql<string | null>, never sql<Date>: see AgingRow above.
+      oldest: sql<string | null>`min(${cases.openedAt})`,
       overdue: sql<number>`count(*) filter (where ${overdueClause})::int`,
     })
     .from(cases)
