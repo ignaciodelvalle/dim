@@ -470,6 +470,12 @@ jobs:
         run: pnpm db:bootstrap
 
       - name: Seed the analytic population + build the cube
+        # `id: seed` is load-bearing: every fence and the test step below gate on
+        # `steps.seed.outcome == 'success'`. Because GitHub SKIPS a step whose
+        # predecessor failed, a `success` here also proves `db:bootstrap` ran —
+        # one condition covers the whole setup chain. Renaming this id silently
+        # disarms that guard.
+        id: seed
         # Five suites measure a POPULATION, not a fixture: the outbreak history,
         # the cube↔live parity, the province/locality choropleth rollups. On a
         # database that only holds catalogues and six test users they assert
@@ -494,32 +500,117 @@ jobs:
           SCALE: "0.0004"
         run: pnpm seed:panorama && pnpm cube:refresh
 
-      - name: Lint (DB-backed security fences)
-        # The DB-backed fences in `pnpm verify`. They live in this job and not in
-        # `check` because a DB-less box makes them all skip — honestly, and
-        # loudly, but a skip proves nothing. Here, right after bootstrap, they
-        # run against the same schema the tests will use.
+      # ---------------------------------------------------------------------
+      # DB-backed fences — ONE STEP PER FENCE.
+      #
+      # They live in this job and not in `check` because a DB-less box makes
+      # them all skip — honestly, and loudly, but a skip proves nothing. Here,
+      # right after bootstrap, they run against the same schema the tests use.
+      #
+      # WHY THEY ARE NOT ONE `a && b && c` LINE ANYMORE
+      # ---------------------------------------------------------------------
+      # They were, until 2026-08-16. Two structural defects came with the
+      # chain, and both fired for real:
+      #
+      #   1. A failure did not NAME ITSELF. The step was called "Lint (DB-backed
+      #      security fences)"; whichever link died, that is the name the run
+      #      summary showed, and you had to open the log to learn which fence
+      #      it was.
+      #   2. `&&` short-circuits, and the step AFTER a failed step is SKIPPED.
+      #      So one red fence hid the other four AND starved the whole vitest
+      #      suite of a chance to report. That is not hypothetical: a two-string
+      #      seed-data defect suppressed ~13k tests for 13 consecutive pushes
+      #      (fixed at 3494ff1d). Thirteen pushes of "CI is red for a known
+      #      reason" while nothing was actually testing the code.
+      #
+      # THE FIX, AND WHY IT DOES NOT WEAKEN THE GATE
+      # ---------------------------------------------------------------------
+      # Each fence is its own step, and every step below carries
+      #   if: ${{ !cancelled() && steps.seed.outcome == 'success' }}
+      # which means:
+      #   · a FAILED predecessor no longer skips it — all fences report, and
+      #     the suite still runs;
+      #   · the job CONCLUSION is still failure, because none of these steps is
+      #     `continue-on-error`. A red fence is red, full stop. This is
+      #     deliberately NOT `continue-on-error: true` + an aggregation step:
+      #     that shape goes green the day someone deletes the aggregator.
+      #   · a CANCELLED run stops, instead of grinding through 20 minutes of
+      #     vitest on a runner that is going away;
+      #   · a broken SETUP (bootstrap or seed) still short-circuits everything
+      #     — `steps.seed.outcome` is `skipped`, not `success`, when bootstrap
+      #     failed. Fences and 13k tests against a half-built database are
+      #     noise, not signal.
+      #
+      # When you add a fence here, add the same `if:` or you reintroduce the
+      # skip. When you add a lint to `verify`, add it here or to `check` —
+      # scripts/check-ci-lint-parity.ts (pnpm lint:ci-parity) enforces that
+      # by looking for a literal `pnpm lint:<name>` token in this file.
+      # The offline half of the drift is still open and is WIDER than it looks:
+      # measured 2026-07-27, `verify` runs 43 lints and this workflow runs 14.
+      # See docs/plans/ola1-spec-conflicts.md §SC-1.
+      # ---------------------------------------------------------------------
+
+      - name: "Fence: RLS coverage (lint:rls)"
+        # Every public table has RLS enabled AND at least one policy.
+        if: ${{ !cancelled() && steps.seed.outcome == 'success' }}
+        run: pnpm lint:rls
+
+      - name: "Fence: jurisdiction scope ↔ RLS (lint:scope-authz)"
+        # The jurisdiction WHERE-clauses are backed by a real RLS policy.
+        if: ${{ !cancelled() && steps.seed.outcome == 'success' }}
+        run: pnpm lint:scope-authz
+
+      - name: "Fence: event spine integrity (lint:spine)"
+        # No pet exists as a cache row without its pet_registered event
+        # (invariant #3 — caches never outrank the spine).
+        if: ${{ !cancelled() && steps.seed.outcome == 'success' }}
+        run: pnpm lint:spine
+
+      - name: "Fence: INDEC locality catalogue (lint:locality)"
+        if: ${{ !cancelled() && steps.seed.outcome == 'success' }}
+        run: pnpm lint:locality
+
+      - name: "Fence: breed/species catalogues (lint:catalogs)"
+        # 2026-08-13: raza era texto libre y dos perros que la ley alcanza
+        # estaban sin marcar por cómo se escribieron — "Pit Bull Terrier
+        # Americano" y "Ovejero alemán".
+        if: ${{ !cancelled() && steps.seed.outcome == 'success' }}
+        run: pnpm lint:catalogs
+
+      - name: "Fence: live function bodies match their source (check:function-parity)"
+        # THE APPEND-ONLY GUARD'S ONLY STRUCTURAL FENCE (added 2026-08-16).
         #
-        #   lint:rls         every public table has RLS + at least one policy
-        #   lint:scope-authz the jurisdiction WHERE-clauses are backed by RLS
-        #   lint:spine       no pet exists as a cache row without its
-        #                    pet_registered event (invariant #3)
-        #   lint:locality    the INDEC locality catalogue is internally coherent
-        #   lint:catalogs    every stored breed/species value is in its catalog
-        #                    (2026-08-13: raza era texto libre y dos perros que
-        #                    la ley alcanza estaban sin marcar por cómo se
-        #                    escribieron — "Pit Bull Terrier Americano" y
-        #                    "Ovejero alemán")
+        # Invariant #2 ("events are append-only") is enforced by trigger
+        # functions in db/triggers.sql. Relaxing one of them is invisible to the
+        # test suite from the inside: dozens of fixtures call
+        # `withMutationOverride` to get PAST the guard, so a WEAKER guard makes
+        # them pass more easily. Only two things can see it —
+        # __tests__/{pet,case}-events-append-only.test.ts (live behaviour, which
+        # this job runs below) and this script, which compares pg_proc.prosrc
+        # against the body in the source that owns it.
         #
-        # These close the DB-backed half of the CI ↔ `pnpm verify` drift.
-        # The offline half is still open and is WIDER than it looks: measured
-        # 2026-07-27, `verify` runs 43 lints and this workflow runs 14 of them.
-        # See docs/plans/ola1-spec-conflicts.md §SC-1 for the list and why
-        # closing it was left out of this batch. When you add a lint to
-        # `verify`, add it here or to `check` — the parity is the whole point.
-        run: pnpm lint:rls && pnpm lint:scope-authz && pnpm lint:spine && pnpm lint:locality && pnpm lint:catalogs
+        # It also catches the OTHER half, which no test can: a function that is
+        # correct in the repo and stale in the deployed database (errata E-3 —
+        # staging ran a pre-0085 body while the ledger said 0085 was applied).
+        # See scripts/check-ledger-honesty.ts:14-28.
+        #
+        # It was already written and already fast (~1s). It ran in exactly one
+        # place: db-doctor-staging.yml, a cron that is not on `main` and has
+        # therefore never fired. On a pull request, nothing ran it at all.
+        #
+        # Safe here without any new flag: DATABASE_URL for this job is
+        # 127.0.0.1:54322, so the script's remote-refusal path is not taken, and
+        # an unreachable database is a hard exit 2 ("an unreachable database is
+        # a FAILURE here") — never a silent skip. Verified locally 2026-08-16.
+        # NOT added to `pnpm verify`: that would make the PO's DoD command
+        # unrunnable without Docker up, which is a worse trade.
+        if: ${{ !cancelled() && steps.seed.outcome == 'success' }}
+        run: pnpm check:function-parity
 
       - name: Run tests with coverage (vitest) + suite verdict
+        # `if:` — see the fence block above. The suite must get its chance to
+        # report even when a fence is red; the job stays red either way.
+        if: ${{ !cancelled() && steps.seed.outcome == 'success' }}
         # Coverage-threshold enforcement (V1-9). The thresholds in
         # vitest.config.ts are RATCHET FLOORS set just under current coverage —
         # they prevent regression below today's level. vitest exits non-zero if
