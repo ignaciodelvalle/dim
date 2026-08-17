@@ -71,11 +71,22 @@ export const LEGAL_KNOWLEDGE_GROUPS: LegalKnowledgeGroup[] = [
           "https://www.argentina.gob.ar/normativa/nacional/resoluci%C3%B3n-284-2024-398615/texto",
       },
       {
+        // Corrected 2026-08-17. `plainMeaning` used to read "el microchip no es
+        // opcional: es obligatorio antes de los 6 meses" — false, and it
+        // contradicted this entry's own `whatItSays` two fields below. Art. 8.b
+        // of Ley 14.107 requires identification "por medio de un chip O DE UN
+        // TATUAJE": the chip is ONE accepted method, never the requirement.
+        // Verified against the official text by two independent legal reviews
+        // (engram legal/claims-refutadas-2026-08-17 and
+        // legal/cruce-dos-fuentes-2026-08-17); SENASA states there is no
+        // national electronic-identification regime for dogs and cats at all.
+        // The obligation that IS real is narrow: Anexo I breeds, in the
+        // provinces that regulate them. Do not re-broaden this copy.
         id: "ley-14107-pba",
         lawLabel: "Ley Provincial 14.107 / 2009",
         jurisdictionBadge: "Buenos Aires",
         plainMeaning:
-          "Si vivís en la Provincia de Buenos Aires y tu perro es de una raza del Anexo I, el microchip no es opcional: es obligatorio antes de los 6 meses.",
+          "Si vivís en la Provincia de Buenos Aires y tu perro es de una raza del Anexo I, tenés que identificarlo e inscribirlo antes de los 6 meses. La ley te deja elegir el método: microchip o tatuaje. El chip es una de las formas aceptadas, no la exigencia.",
         whatItSays:
           "Régimen de tenencia de perros potencialmente peligrosos en la Provincia de Buenos Aires: identificación obligatoria por microchip o tatuaje, inscripción antes de los 6 meses de edad.",
         whoItAppliesTo:
