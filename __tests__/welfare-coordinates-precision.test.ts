@@ -56,29 +56,59 @@ function readCode(path: string): string {
     .replace(/(^|[^:])\/\/[^\n]*/g, (m, before) => before + " ".repeat(m.length - before.length));
 }
 
-describe("public comprobante — approximate location only (Ley 25.326)", () => {
-  // readCode, not readFileSync: this is the most sensitive surface in the file
-  // (de-anonymisation of the reporter) and it was the one still scanning RAW
-  // text — so `expect(src).toMatch(/coarsenPoint\([^)]*"approx"\)/)` was
-  // satisfied by a COMMENT naming the call, even with the call itself deleted.
-  // The helper right above exists precisely to prevent that and had been
-  // applied to the inspector surfaces but not to this one (audit 2026-08-12).
+// STRENGTHENED, legal/denuncias-despublicadas (2026-08-17).
+//
+// This block used to assert that the public comprobante COARSENED the point and
+// LABELLED the map "aproximada". Those assertions passed for a year and protected
+// the wrong subject. Coarsening a coordinate defends against a precision attack;
+// it does nothing against a sentence, and the page was also rendering the
+// locality, the province, the denunciante's free text and a physical description
+// of the ACCUSED. In a town of five thousand, "el hombre de unos sesenta, del
+// galpón de chapa sobre la ruta" plus a coarse point is one person — an unverified
+// allegation of a crime that carries prison (Ley 14.346 art. 1), against someone
+// who has not been investigated and cannot answer.
+//
+// So the assertions inverted rather than relaxed: the surface now renders NO point
+// at all, coarse or otherwise. `not.toMatch(coarsenPoint)` is a strictly stronger
+// claim than `toMatch(coarsenPoint with "approx")` — there is no precision left to
+// argue about. The reporter's own view (/denuncias/seguimiento) does not render
+// location either; see __tests__/denuncia-reporter-view-contract.test.tsx.
+describe("public comprobante — NO location at all (legal/denuncias-despublicadas)", () => {
+  // readCode, not readFileSync: this is the most sensitive surface in the file and
+  // it was the one still scanning RAW text — so a positive match could be
+  // satisfied by a COMMENT naming the call even with the call itself deleted. The
+  // helper right above exists precisely to prevent that (audit 2026-08-12). It
+  // matters just as much for the negative assertions below, in the other
+  // direction: the file's header comment DISCUSSES coarsenPoint at length, and a
+  // raw-text `not.toMatch` would fail on the prose while the code was clean.
   const src = readCode(PUBLIC_RECEIPT);
 
   it("never renders an exact coordinate (no toFixed(6))", () => {
     expect(src).not.toMatch(/toFixed\(6\)/);
   });
 
-  it("coarsens the point to approximate before display", () => {
-    expect(src).toMatch(/coarsenPoint\([^)]*"approx"\)/);
+  it("renders no coordinate whatsoever — not even a coarsened one", () => {
+    expect(src).not.toMatch(/coarsenPoint\(/);
+    expect(src).not.toMatch(/readPoint\(/);
+    expect(src).not.toMatch(/locationLat|locationLng/);
   });
 
-  it("labels the map as approximate (no street-level pin implied)", () => {
-    expect(src).toContain("Ubicación aproximada");
+  it("embeds no map", () => {
+    expect(src).not.toMatch(/LocationMap|StaticFirstMap/);
+    expect(src).not.toContain("Ubicación aproximada");
   });
 
-  it("does not render the street-level locationAddress", () => {
+  it("renders neither the street address nor the locality/province", () => {
+    // Locality is the field that, combined with free text, identifies the accused.
+    // It was rendered here for a year under a data-minimisation rationale that
+    // only ever considered the coordinate.
     expect(src).not.toMatch(/report\.locationAddress/);
+    expect(src).not.toMatch(/jurisdictionLocality|jurisdictionProvince/);
+  });
+
+  it("renders neither the denunciante's free text nor the description of the accused", () => {
+    expect(src).not.toMatch(/report\.description/);
+    expect(src).not.toMatch(/report\.subjectDescription/);
   });
 });
 
@@ -170,12 +200,25 @@ describe("evidencia de denuncia — sólo se sirve en público lo que pudimos es
     expect(isMetadataStripped("")).toBe(false);
   });
 
-  it("el comprobante público sólo mintea URL firmada si el gate lo permite", () => {
-    // Sobre CÓDIGO, no sobre texto crudo (readCode blanquea comentarios): la
-    // llamada a welfareAttachmentSignedUrl tiene que estar condicionada. Sin URL
-    // firmada no hay descarga posible, que es el punto.
+  it("el comprobante público NO mintea ninguna URL firmada, con gate o sin gate", () => {
+    // ANTES este caso exigía que la llamada estuviera CONDICIONADA a
+    // isMetadataStripped: se servía la evidencia cuyos metadatos habíamos podido
+    // remover, y se retenía el HEIC/video que podía conservar el GPS de la cámara.
+    // Ese gate resolvía el problema equivocado. Una URL firmada es una capacidad
+    // al portador: vive 3600s (WELFARE_ATTACHMENT_URL_TTL_SECONDS), sobrevive a la
+    // visita, se reenvía por WhatsApp y viaja directo a Supabase Storage sin pasar
+    // por nuestro rate limiter. Que la foto no traiga GPS no la vuelve publicable
+    // cuando muestra el patio de una persona que todavía no fue investigada.
+    //
+    // Ahora la afirmación es más fuerte y no admite matices: en esta superficie no
+    // se firma nada. El denunciante ya tiene sus propios archivos y el organismo
+    // los recibe completos por su camino autenticado (cadena de evidencia, Ley
+    // 14.346). Sobre CÓDIGO, no sobre texto crudo: readCode blanquea comentarios,
+    // y este archivo NOMBRA las dos funciones en prosa.
     const src = readCode(PUBLIC_RECEIPT);
-    expect(src).toMatch(/isMetadataStripped\(/);
-    expect(src).toMatch(/canShow\s*\?\s*await\s+welfareAttachmentSignedUrl\(/);
+    expect(src).not.toMatch(/welfareAttachmentSignedUrl\(/);
+    expect(src).not.toMatch(/isMetadataStripped\(/);
+    // Ni siquiera se leen los adjuntos: sin fila no hay storagePath que firmar.
+    expect(src).not.toMatch(/welfareReportAttachments/);
   });
 });

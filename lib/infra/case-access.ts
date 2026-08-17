@@ -8,10 +8,12 @@
 // Anonymous viewers (viewer = null, per handoff P0-1): allowed only for
 // case kinds whose existence + outline is intentionally public — bite
 // incidents (public-health interest), lost pet episodes (already public
-// via /p/[token]), adoption listings (already public via /adoptar), and
-// welfare denuncias (transparency over the abuse-reporting flow). All
-// other kinds 404 for anon. The page additionally redacts PII for the
+// via /p/[token]) and adoption listings (already public via /adoptar).
+// All other kinds 404 for anon. The page additionally redacts PII for the
 // anonymous render path.
+//
+// welfare_denuncia used to be a fourth entry; see the note on
+// PUBLIC_ANONYMOUS_KINDS for why it is gone.
 
 import { and, eq, isNull } from "drizzle-orm";
 
@@ -29,11 +31,25 @@ export interface CaseViewer {
 // Case kinds whose existence + redacted outline can be shown without auth.
 // Keep this list narrow — every new entry exposes a new surface to scraping
 // and competing-fact harassment. Off-list kinds 404 for anon (no leak).
+// `welfare_denuncia` was REMOVED from this set (legal review 2026-08-17,
+// change `legal/denuncias-despublicadas`). It was here under a transparency
+// rationale — "so the community can follow the institutional response" — and
+// that rationale collapses on contact with what the anonymous branch of
+// CaseDetailView actually renders for the kind: jurisdictionProvince,
+// jurisdictionLocality and openedReason. A denuncia is an UNVERIFIED allegation
+// of a crime that carries prison (Ley 14.346 art. 1) against a person who has
+// not been investigated and cannot answer; locality + prose is enough to
+// identify that person in a small town. Transparency about the state's response
+// does not require publishing the accusation.
+//
+// This removal is load-bearing for the change, not incidental. Unpublishing
+// /denuncias/codigo/[code] while leaving welfare_denuncia here would have shut
+// the front door and left /casos/[publicCode] open on the same data — and that
+// URL is not even protected by the DEN code's ~31^8 entropy.
 const PUBLIC_ANONYMOUS_KINDS: ReadonlySet<CaseKind> = new Set<CaseKind>([
   "bite_incident",
   "lost_pet_episode",
   "adoption_listing",
-  "welfare_denuncia",
 ]);
 
 export function isPubliclyVisibleKind(kind: string): boolean {

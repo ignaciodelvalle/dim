@@ -363,10 +363,23 @@ export function Step5Contact({
         </button>
       )}
 
-      <p className="text-xs text-[var(--color-ln-mute)] text-center leading-relaxed">
-        Al enviar confirmás que lo que describiste es lo que viste. No se requiere certeza — solo
-        buena fe.
-      </p>
+      {/* Liability notice. Two sentences that have to coexist: the reader is
+          usually someone who just saw an animal being hurt and is afraid of
+          getting it wrong, so the good-faith reassurance stays FIRST and stays
+          the louder of the two. But a denuncia names a person who has not been
+          investigated and cannot answer, and a knowingly false one is not a
+          mistake — it exposes the reporter civilly and criminally. Saying so is
+          part of what makes the accusation worth taking seriously. */}
+      <div className="space-y-1.5 text-xs text-[var(--color-ln-mute)] text-center leading-relaxed">
+        <p>
+          Al enviar confirmás que lo que describiste es lo que viste. No se requiere certeza — solo
+          buena fe.
+        </p>
+        <p>
+          Una denuncia falsa hecha a sabiendas no es un error de buena fe: puede hacerte responsable
+          civil y penalmente.
+        </p>
+      </div>
     </section>
   );
 }

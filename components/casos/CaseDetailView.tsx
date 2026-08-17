@@ -10,8 +10,10 @@
 //     org member, applicant, dispute party) → full view with PII
 //   - anonymous (no session) → redacted public view, only for the case
 //     kinds in PUBLIC_ANONYMOUS_KINDS (bite_incident, lost_pet_episode,
-//     adoption_listing, welfare_denuncia). Other kinds 404 to avoid
-//     leaking existence.
+//     adoption_listing). Other kinds 404 to avoid leaking existence.
+//     welfare_denuncia left that set in legal/denuncias-despublicadas
+//     (2026-08-17) — the anon branch below renders jurisdiction + openedReason,
+//     which identifies the ACCUSED in an unverified crime allegation.
 //
 // Access is gated via canReadCase. Outside parties get notFound() (not
 // 403) so case existence is never leaked. Mounting this under the /gob
@@ -329,8 +331,12 @@ function PublicTransparencyBanner({ caseKind }: { caseKind: string }) {
       "Las alertas de mascotas perdidas son públicas para que cualquier persona que la encuentre pueda ayudar a devolverla a su familia.",
     adoption_listing:
       "Los procesos de adopción de refugios verificados son transparentes para facilitar el encuentro entre mascotas y familias.",
-    welfare_denuncia:
-      "Las denuncias de bienestar animal son públicas para que la comunidad pueda hacer seguimiento del proceso y la respuesta institucional.",
+    // welfare_denuncia intentionally absent. Its copy used to read "las
+    // denuncias de bienestar animal son públicas para que la comunidad pueda
+    // hacer seguimiento" — a claim the product no longer makes and never should
+    // have. canReadCase now 404s the kind for anon, so this branch is
+    // unreachable; leaving the string here would be a stale promise waiting for
+    // someone to re-add the kind to the allow-list on its authority.
   };
 
   const reason = reasons[caseKind];

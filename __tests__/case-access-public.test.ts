@@ -45,15 +45,11 @@ function fixtureDetail(kind: CaseKind): CaseDetail {
   } as unknown as CaseDetail;
 }
 
+const PUBLIC_KINDS: CaseKind[] = ["bite_incident", "lost_pet_episode", "adoption_listing"];
+
 describe("canReadCase — anonymous branch (P0-1)", () => {
   it("returns true for every kind in the public allow-list", async () => {
-    const publicKinds: CaseKind[] = [
-      "bite_incident",
-      "lost_pet_episode",
-      "adoption_listing",
-      "welfare_denuncia",
-    ];
-    for (const kind of publicKinds) {
+    for (const kind of PUBLIC_KINDS) {
       const ok = await canReadCase(fixtureDetail(kind), ANON);
       expect(ok, `${kind} should be publicly visible`).toBe(true);
     }
@@ -61,13 +57,24 @@ describe("canReadCase — anonymous branch (P0-1)", () => {
 
   it("returns false for every kind NOT in the public allow-list", async () => {
     const privateKinds = CASE_KINDS.filter(
-      (k): k is CaseKind =>
-        !["bite_incident", "lost_pet_episode", "adoption_listing", "welfare_denuncia"].includes(k),
+      (k): k is CaseKind => !PUBLIC_KINDS.includes(k as CaseKind),
     );
     for (const kind of privateKinds) {
       const ok = await canReadCase(fixtureDetail(kind), ANON);
       expect(ok, `${kind} must NOT be publicly visible (anon should 404)`).toBe(false);
     }
+  });
+
+  // Regression guard for legal/denuncias-despublicadas (2026-08-17). This case
+  // used to assert the OPPOSITE. welfare_denuncia was public under a
+  // transparency rationale, and the anonymous branch of CaseDetailView renders
+  // jurisdictionProvince + jurisdictionLocality + openedReason for it — locality
+  // plus prose about an unverified crime allegation (Ley 14.346 art. 1, prison)
+  // against someone who cannot answer. Unpublishing /denuncias/codigo/[code]
+  // without this would have shut the front door and left this one open.
+  it("welfare_denuncia is NOT anonymously readable — /casos/[publicCode] must 404 for anon", async () => {
+    expect(await canReadCase(fixtureDetail("welfare_denuncia"), ANON)).toBe(false);
+    expect(isPubliclyVisibleKind("welfare_denuncia")).toBe(false);
   });
 
   it("admin retains universal access for every kind (regression guard)", async () => {
@@ -79,14 +86,14 @@ describe("canReadCase — anonymous branch (P0-1)", () => {
 });
 
 describe("isPubliclyVisibleKind", () => {
-  it("matches the four critique-mandated kinds", () => {
+  it("matches the three remaining public kinds", () => {
     expect(isPubliclyVisibleKind("bite_incident")).toBe(true);
     expect(isPubliclyVisibleKind("lost_pet_episode")).toBe(true);
     expect(isPubliclyVisibleKind("adoption_listing")).toBe(true);
-    expect(isPubliclyVisibleKind("welfare_denuncia")).toBe(true);
   });
 
   it("rejects every other kind", () => {
+    expect(isPubliclyVisibleKind("welfare_denuncia")).toBe(false);
     expect(isPubliclyVisibleKind("custody_dispute")).toBe(false);
     expect(isPubliclyVisibleKind("adoption_application")).toBe(false);
     expect(isPubliclyVisibleKind("foster_placement")).toBe(false);
