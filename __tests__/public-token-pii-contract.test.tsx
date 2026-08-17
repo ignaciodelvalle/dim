@@ -12,8 +12,31 @@
 //   2. LOST credential, ALL disclose_*_when_lost flags OFF: the mocked DB
 //      returns REAL, sensitive-looking owner data (simulating what would
 //      happen if the SQL-level gate had a bug) — the page's prop-passing
-//      gate (page.tsx lines ~565-575) is the last line of defense and must
-//      still null everything out. This is the meaningful "flags OFF" case.
+//      gate (page.tsx ~759-784) is the last line of defense and must still
+//      null everything out. This is the meaningful "flags OFF" case.
+//
+//      HOW FAR THAT CLAIM GOES, verified 2026-08-17 by instrumenting the
+//      PublicLostSections spy rather than by reading the page. An audit had
+//      called this case inert on the theory that page.tsx skips the owner
+//      query when the flags are off, leaving `ownerRow` null and the gate
+//      untouched. That is NOT what happens: the owner query at page.tsx ~1149
+//      runs unconditionally inside `if (isLost)` — only individual COLUMNS are
+//      projected as SQL null — so the sequenced mock's OWNER_ROW (index 7) does
+//      reach `lostContext`. Proof: cases 2 and 3 share the same DB sequence and
+//      case 3 observes FULL_NAME/PHONE/coords in the props, while case 2
+//      observes null in every one. The difference between them is the prop
+//      gate, and nothing else. Three of the four PII channels — first name,
+//      phone, last-seen location — are genuinely exercised here.
+//
+//      THE ONE THAT IS NOT, stated so nobody re-derives false comfort from
+//      this header: ownerEmail. Its value is produced by an admin-API call
+//      that is ITSELF behind `pet.discloseEmailWhenLost` (page.tsx ~1270), so
+//      with the flag off `lostContext.email` is already null before the prop
+//      gate at ~767 ever looks at it. The prop gate nulls a null. What case 2
+//      can honestly assert for email is that the FETCH gate held — that no
+//      admin lookup was issued at all — and it now asserts exactly that,
+//      instead of leaning on a `not.toContain(EMAIL)` that would pass whether
+//      or not the gate exists.
 //   3. LOST credential, ALL disclose_*_when_lost flags ON: only the
 //      consented fields (first name, phone, location) reach the rendered
 //      output — never the owner's DNI (never queried on this route at all)
@@ -383,6 +406,49 @@ describe("/p/[publicToken] — Tier-0 PII contract (task #33)", () => {
         `PII marker "${marker}" leaked into the rendered lost credential despite all disclose flags being OFF`,
       ).not.toContain(marker);
     }
+
+    // ---------------------------------------------------------------------
+    // Non-vacuity: prove the gate RAN, not merely that the page is quiet.
+    // ---------------------------------------------------------------------
+    // Every assertion above is negative, and a negative assertion is satisfied
+    // just as well by a page that never had the data as by a page that had it
+    // and withheld it. Those are completely different security postures, and
+    // only the second is what this case claims to test. So: assert the props
+    // EXIST and are explicitly null. Delete the `discloseXWhenLost &&` from any
+    // of the three gates at page.tsx ~759-784 and these go red, because the
+    // sequenced mock puts real values on the other side of them.
+    for (const prop of [
+      "ownerFirstName",
+      "ownerPhoneE164",
+      "ownerEmail",
+      "lastSeenPlaceName",
+      "lastSeenCoords",
+      "lastSeenLat",
+      "lastSeenLng",
+    ]) {
+      expect(
+        html,
+        `${prop} is not being passed to PublicLostSections as an explicit null — the prop-passing gate may have been removed rather than closed`,
+      ).toContain(`&quot;${prop}&quot;:null`);
+    }
+
+    // …and prove the owner row really was on the other side of that gate: the
+    // page reached a lost render with a populated `lostSince`, which comes from
+    // the SAME sequenced mock that supplies OWNER_ROW. If the sequence ever
+    // drifts so `ownerRow` lands undefined, this case would silently become the
+    // inert test an audit once believed it already was.
+    expect(
+      html,
+      "the lost-event row did not reach the page — the DB sequence drifted, so the owner row probably did not either and this case is no longer testing the gate",
+    ).toContain("&quot;lostSince&quot;:");
+
+    // Email: the gate that actually holds here is the FETCH gate (page.tsx
+    // ~1270), not the prop gate. Assert the admin lookup was never issued —
+    // the owner's email must not even be read out of auth.users.
+    expect(
+      mockGetUserById,
+      "the admin API was queried for the owner's email despite discloseEmailWhenLost being OFF",
+    ).not.toHaveBeenCalled();
   });
 
   it("LOST credential, ALL disclose_*_when_lost flags ON: only the consented fields (first name, phone, location) reach the page — never DNI, never the full legal name", async () => {

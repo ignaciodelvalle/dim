@@ -32,6 +32,8 @@ import {
 } from "@/db";
 import { validateEventPayload } from "@/lib/events/event-schemas";
 import { CHECKED_COLUMN_NAMES, hasDrift, rederivePetCache } from "@/lib/infra/rederive-pet-cache";
+import { replayPetStatus } from "@/lib/projections/pet-status";
+import type { ProjectionEvent } from "@/lib/projections/types";
 import { recordPregnancyStartedWriter } from "@/src/modules/pets/application/pregnancy/record-pregnancy-started";
 import { createTattooForUser } from "@/src/modules/pets/application/tattoo/create-tattoo";
 import { sql } from "drizzle-orm";
@@ -215,6 +217,101 @@ describe("pet-cache fitness sweep", () => {
       rows.map((r) => `${r.publicToken} (status=${r.status})`),
       "Pets with death_recorded in the spine and a cache that disagrees. The spine is the fact; the column is the cache. Fix the writer that skipped the dual-write — see the reconciliation pass at the end of scripts/seed-panorama.ts for the shape.",
     ).toEqual([]);
+  });
+
+  // -------------------------------------------------------------------------
+  // The DERIVATION rule itself, pinned (2026-08-17 audit)
+  // -------------------------------------------------------------------------
+  //
+  // WHY THIS IS SEPARATE FROM THE SWEEP ABOVE. A mutation forcing the status
+  // derivation to return "active" unconditionally WAS caught — but only because
+  // the local seed happens to hold pets that are not active. The catch was a
+  // property of the DATA, not of the test: bootstrap a database whose every pet
+  // is active (an empty corpus, a fresh install, a future seed that stops
+  // emitting deaths) and the same mutation ships green. The `deaths > 0` guard
+  // above protects against a vacuous corpus, but it protects the CACHE-DRIFT
+  // query, not the derivation rule — that query finds nothing when the rule is
+  // broken in the direction that makes stored and derived agree on "active".
+  //
+  // So: pin the rule directly, on an event list built here. No seed, no
+  // database, no way for tomorrow's fixtures to decide whether this test has
+  // teeth.
+  it("the STATUS RULE itself: an event list carrying death_recorded derives 'deceased'", () => {
+    const occurredAt = new Date("2026-03-04T10:00:00Z");
+    const events: ProjectionEvent[] = [
+      { id: "e1", eventType: "pet_registered", occurredAt, recordedAt: occurredAt, payload: {} },
+      {
+        id: "e2",
+        eventType: "death_recorded",
+        occurredAt,
+        recordedAt: occurredAt,
+        payload: { cause: "natural" },
+      },
+    ];
+
+    const projected = replayPetStatus(events);
+    expect(projected.status).toBe("deceased");
+    expect(projected.deceasedAt?.toISOString()).toBe(occurredAt.toISOString());
+
+    // Death is TERMINAL (lib/projections/pet-status.ts): a later status_changed
+    // must not resurrect the pet. Without this line a mutation that simply
+    // reorders the two rules still passes the assertion above.
+    const withLaterStatusChange: ProjectionEvent[] = [
+      ...events,
+      {
+        id: "e3",
+        eventType: "status_changed",
+        occurredAt: new Date("2026-05-01T10:00:00Z"),
+        recordedAt: new Date("2026-05-01T10:00:00Z"),
+        payload: { to_status: "active" },
+      },
+    ];
+    expect(replayPetStatus(withLaterStatusChange).status).toBe("deceased");
+
+    // Non-vacuity in the other direction: the rule must not answer "deceased"
+    // to everything. A constant-return mutation has to fail SOMETHING here.
+    expect(replayPetStatus([events[0]]).status).toBe("active");
+    expect(replayPetStatus([]).status).toBe("active");
+  });
+
+  // The rule above is pure; this proves the HARNESS is wired to it, so a
+  // regression in rederivePetCache's status column cannot hide behind a
+  // correct projection. Builds its own pet — independent of any seed.
+  it("the HARNESS reads that rule: a pet with death_recorded re-derives 'deceased' against an 'active' cache", async () => {
+    const pet = await insertTestPet("SKEW-DEATH");
+    const now = new Date();
+    await db.insert(petEvents).values({
+      petId: pet.id,
+      eventType: "death_recorded",
+      occurredAt: now,
+      recordedAt: now,
+      recordedByUserId: ownerUserId,
+      ...ownerAuthorship,
+      payload: validateEventPayload("death_recorded", {
+        cause: "natural",
+        cause_detail: null,
+        confirmed_by_vet: null,
+        vet_name: null,
+        disposition_method: null,
+        facility: null,
+        death_at_clinic: null,
+        clinic_name: null,
+        vet_contacted_owner: null,
+        vet_decided_alone: null,
+        owner_to_private_crematorium: null,
+        disease_code: null,
+        confirmed_by_lab: null,
+        is_reportable: false,
+      }),
+    });
+
+    // insertTestPet leaves the cache at status='active' — the exact drift the
+    // PANO-* corpus carried across 2.733 pets.
+    const report = await rederivePetCache(pet.id);
+    expect(report.status.stored).toBe("active");
+    expect(report.status.derived).toBe("deceased");
+    expect(report.status.matches).toBe(false);
+    expect(hasDrift(report)).toBe(true);
   });
 });
 
