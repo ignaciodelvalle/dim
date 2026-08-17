@@ -94,8 +94,8 @@ export function PrivacyActions() {
           <h2 className="text-base font-semibold text-[var(--color-ln-ink)]">Eliminar mi cuenta</h2>
           <p className="text-sm text-[var(--color-ln-ink-2)] mt-1">
             Soft-delete con hash de PII. Tu cuenta queda fuera del sistema; los eventos sanitarios
-            de tus mascotas se preservan por norma (ver nota debajo). Ley 25.326, art. 16 (derecho
-            de supresión).
+            de tus mascotas se conservan como historial de salud del animal (ver nota debajo). Ley
+            25.326, art. 16 (derecho de supresión).
           </p>
         </div>
         {showErase ? (

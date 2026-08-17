@@ -48,10 +48,14 @@ export default async function PrivacidadPage() {
           <p className="text-md leading-[1.6] text-[var(--color-ln-ink-2)]">
             La supresión es <strong>soft-delete con hash de PII</strong>: nombre, teléfono y DNI
             quedan anonimizados; tu cuenta sale de las consultas habituales. Los eventos sanitarios
-            de tus mascotas (libreta, vacunas, observaciones antirrábicas) se preservan porque su
-            conservación es obligatoria por norma (Res. SENASA, Ord. CABA 41.831, Ley 14.072). Si
-            necesitás el borrado de esos registros sanitarios, contactanos y lo evaluamos caso por
-            caso bajo la base legal de auditoría.
+            de tus mascotas (libreta, vacunas, observaciones antirrábicas) se conservan por una
+            razón práctica: son el historial de salud del animal, y ese historial lo acompaña aunque
+            cambie de responsable. Todavía estamos definiendo por cuánto tiempo se conservan después
+            de un pedido de borrado; cuando esté decidido lo vamos a publicar en la política de
+            privacidad. Si querés que borremos también esos registros sanitarios, pedínoslo y lo
+            revisamos con vos:{" "}
+            <strong>no invocamos ninguna obligación legal de conservación</strong> para negarte ese
+            borrado.
           </p>
           <p className="mt-3 text-md leading-[1.6] text-[var(--color-ln-ink-2)]">
             Dentro de esos eventos preservados, el texto libre que hayas escrito vos (notas,

@@ -8,6 +8,43 @@ import { createClient } from "@/lib/supabase/server";
 
 import type { EraseSubjectDataResult } from "./types";
 
+// ---------------------------------------------------------------------------
+// ERRATA — the retention rationale written into the migrations is FALSE
+// ---------------------------------------------------------------------------
+// Migrations are immutable, so the wrong premise cannot be corrected where it
+// was written. It is corrected HERE, at the live code site, so nobody inherits
+// it by reading the migration headers:
+//
+//   * 0059_subject_rights_rpcs.sql:102-104 — "sus eventos sanitarios (libreta)
+//     se preservan para la conservación obligatoria por norma (Res. SENASA,
+//     Ley 14.072 ejercicio profesional, etc)".
+//   * 0159_erase_subject_data_free_text_payload_keys.sql:6-7 — "retains
+//     sanitary events by design (SENASA/Ord. CABA 41.831/Ley 14.072 retention
+//     — see app/(app)/cuenta/privacidad/page.tsx)".
+//
+// Both cite the privacy page, and the privacy page cited them back. The claim
+// was verified against docs/legal-framework-full.md and does not hold:
+//   1. Ord. CABA 41.831 imposes registration and reporting duties on the OWNER
+//      (art. 23 inscription at four months; art. 25 report of transfer, baja or
+//      death). It fixes no event-log retention period at all.
+//   2. Ley 14.072/1951 regulates the professional practice of veterinary
+//      medicine (matriculación); it is not a data-retention rule, and its reach
+//      is national/CABA — not a duty binding this system for a user in Salta.
+//   3. No SENASA resolution in docs/legal-framework-full.md establishes a
+//      retention period for these records either.
+//
+// Consequence: retention here is a PRODUCT decision (the health history
+// outlives a single owner), not a legal obligation — and it may NOT be used to
+// refuse a supresión request under Ley 25.326 art. 16 inc. 5, which permits
+// refusal only "cuando existiera una obligación legal de conservar los datos".
+// The user-facing copy was corrected accordingly (2026-08-17).
+//
+// This errata records what we SAY. It deliberately changes nothing about what
+// we DO: the retention period itself is still an open PO + legal decision —
+// docs/architecture/retention-policy-pending-decision.md. Do not add purge
+// logic here on the strength of this note.
+// ---------------------------------------------------------------------------
+
 // Storage objects the RPC cannot reach (SQL has no object-store access): pet
 // photos and event attachments hanging off the subject's owned pets. Each
 // attachment row's bucket is inferred from its shape — an attachment carrying an

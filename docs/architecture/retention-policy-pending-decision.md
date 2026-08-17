@@ -35,6 +35,64 @@ requires so it can be made once, deliberately.
   periods are defined, wiring is a writer per table + one purge entry in the
   existing cron. Estimated effort: one small PR.
 
+## ERRATA (2026-08-17) — the sanitary-event retention rationale was false
+
+Until 2026-08-17 the codebase justified retaining sanitary events after an
+erasure request with a **legal obligation that does not exist**, and used it to
+condition the exercise of a right. Recorded here because the two places the
+claim was written (migrations) are immutable and cannot be corrected in place.
+
+**Where it was written**
+
+| Site | Text |
+|---|---|
+| `db/migrations/0059_subject_rights_rpcs.sql:102-104` | "sus eventos sanitarios (libreta) se preservan para la conservación obligatoria por norma (Res. SENASA, Ley 14.072 ejercicio profesional, etc)" |
+| `db/migrations/0159_erase_subject_data_free_text_payload_keys.sql:6-7` | "retains sanitary events by design (SENASA/Ord. CABA 41.831/Ley 14.072 retention — see `app/(app)/cuenta/privacidad/page.tsx`)" |
+| `app/(app)/cuenta/privacidad/page.tsx:48-55` (fixed) | "su conservación es obligatoria por norma (Res. SENASA, Ord. CABA 41.831, Ley 14.072) … lo evaluamos caso por caso bajo la base legal de auditoría" |
+| `app/(app)/cuenta/privacidad/PrivacyActions.tsx:96-98` (fixed) | "los eventos sanitarios de tus mascotas se preservan por norma (ver nota debajo)" |
+| `AGENTS.md:1071` (fixed) | "eventos sanitarios preservados por conservación obligatoria de norma SENASA / Ley 14.072" |
+
+The migrations cited the privacy page and the privacy page cited the migrations.
+Nothing outside that loop sourced the duty.
+
+**Why it is false** (verified against `docs/legal-framework-full.md`)
+
+1. **Ord. CABA 41.831** imposes registration and reporting duties on the
+   **owner** (art. 23 inscription at four months; art. 25 duty to report
+   transfer, baja or death). It establishes no event-log retention duty and
+   fixes no period.
+2. **Ley 14.072/1951** governs the **professional practice of veterinary
+   medicine** (matriculación) — not data retention. Its reach is
+   national/CABA (`docs/legal-framework-full.md:43,221`), so it binds nothing
+   for a user in Salta. *(An external review described it as a Buenos Aires
+   provincial law; the repo's own legal reference says national/CABA. Either
+   way it is not a retention rule.)*
+3. No **SENASA** resolution catalogued in `docs/legal-framework-full.md`
+   establishes a retention period for these records.
+
+**Why it mattered.** Ley 25.326 art. 16 inc. 5 permits refusing supresión only
+*"cuando existiera una obligación legal de conservar los datos"*. Invoking a
+non-existent obligation converts a documentation defect into grounds for a
+hábeas data — it denied the exercise of a right, not merely misinformed.
+
+**What changed (2026-08-17).** Only the copy. The user-facing pages now give
+the real, factual reason (the health history outlives a single owner), state
+that the retention period is still being defined, and state explicitly that no
+legal obligation is invoked to refuse an erasure request. Pinned by
+`__tests__/privacy-retention-claim.guard.test.ts`. **Behaviour is unchanged**:
+`erase_subject_data` still retains the events.
+
+**New open question this errata adds to the decision.** `pet_events` carries no
+`retention_until` column and is absent from the table above, yet it is now the
+only record class whose post-erasure retention we promise the user we are
+defining. Add it to the decision: period (or indefinite-by-policy) and anchor
+event for sanitary events on a soft-deleted pet after an art. 16 request.
+
+**What this errata does NOT decide.** Whether sanitary events should be purged,
+and after how long, is exactly the open decision this document exists to carry.
+The removal of a false legal shield does not by itself create a purge duty — it
+removes the pretext for not deciding.
+
 ## What the decision must produce
 
 For each table: **(period | indefinite-by-policy)**, the **anchor event** the

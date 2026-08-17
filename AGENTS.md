@@ -1068,8 +1068,8 @@ Compliance PR 1 (2026-05-28) ancla las bases de la Ley 25.326 al schema:
 - **`data_purpose` enum** (8 valores) — ata cada fila PII a su base legal (Ley 25.326 art. 4°): `identidad_mascota`, `salud_animal`, `notificacion_zoonosis`, `reunificacion_perdida`, `control_poblacional`, `razas_peligrosas`, `auditoria_legal`, `consentimiento_marketing`.
 - **RPCs en `migrations/0059`** (SECURITY DEFINER, GRANT a `authenticated`):
   - `export_subject_data(p_user_id uuid) → jsonb` — Ley 25.326 art. 14 (derecho de acceso). Devuelve perfil + mascotas + identificaciones + eventos del sujeto. Auth: self o admin institucional.
-  - `erase_subject_data(p_user_id, p_reason) → void` — Ley 25.326 art. 16 (derecho de supresión). Soft-delete + hash de PII; eventos sanitarios preservados por conservación obligatoria de norma SENASA / Ley 14.072.
-- **UI** en `/cuenta/privacidad` — botones "Descargar mis datos" (JSON download) y "Eliminar mi cuenta" (con motivo). Disclaimer explica qué se conserva por norma.
+  - `erase_subject_data(p_user_id, p_reason) → void` — Ley 25.326 art. 16 (derecho de supresión). Soft-delete + hash de PII; los eventos sanitarios se conservan **por decisión de producto** (el historial de salud sobrevive a un cambio de responsable), NO por una obligación legal de conservación. La justificación normativa que escribieron `0059:102-104` y `0159:6-7` (SENASA / Ord. CABA 41.831 / Ley 14.072) es **falsa** y no puede invocarse para negar una supresión (art. 16 inc. 5) — errata completa en `docs/architecture/retention-policy-pending-decision.md`.
+- **UI** en `/cuenta/privacidad` — botones "Descargar mis datos" (JSON download) y "Eliminar mi cuenta" (con motivo). El disclaimer explica qué se conserva y por qué, **sin** afirmar obligación legal alguna (fence: `__tests__/privacy-retention-claim.guard.test.ts`).
 - **Audit log** registra cada llamada con la cita normativa: `subject_data_exported` (art. 14), `subject_erasure` (art. 16).
 - **`<html lang="es-AR">`** + `prefers-reduced-motion` + biome a11y rules a level error documentan el baseline WCAG 2.1 AA (Ley 26.653, Disp. ONTI 6/2019). Audit de contraste en `docs/a11y/contrast-audit.md`.
 
