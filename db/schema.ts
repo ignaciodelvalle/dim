@@ -2089,8 +2089,22 @@ export const approvalRequests = pgTable(
 export type ApprovalRequest = typeof approvalRequests.$inferSelect;
 export type NewApprovalRequest = typeof approvalRequests.$inferInsert;
 
-// audit_log action catalog. TEXT (no enum) per spec §4.5 — escalable. Listed
-// here for IDE autocomplete + reference; the DB does NOT constrain.
+// audit_log action catalog. TEXT (no enum) per spec §4.5 — escalable.
+//
+// SINGLE SOURCE OF TRUTH since migration 0184: this list is also the DB CHECK
+// constraint `audit_log_action_valid`, and
+// __tests__/audit-log-action-check.test.ts fails if the two ever drift. Adding
+// an action here therefore REQUIRES a migration that widens the CHECK — which
+// is the point: `action` used to be a bare `text` column typed only in
+// TypeScript, so any writer outside drizzle (a trigger, an RPC, a `as
+// typeof auditLog.$inferInsert` cast) could mint an action nobody had declared.
+// One did: `scan_event_purged`, written by the scan-retention trigger since
+// migration 0104, was absent from this list for ~4 months with 160 rows in the
+// local database to show for it.
+//
+// ORDER IS FREE, DUPLICATES ARE NOT — the parity test asserts set equality and
+// also that this array has no repeated entries (it carried a duplicate
+// `self_resignation_vet` until 2026-08-16).
 export const AUDIT_LOG_ACTIONS = [
   "request_viewed",
   "evidence_viewed",
@@ -2131,10 +2145,12 @@ export const AUDIT_LOG_ACTIONS = [
   "profile_avatar_upload_failed",
   // Slice 3b: applicant self-service withdrawal
   "approval_request_withdrawn_by_applicant",
-  // Slice 3d: user self-service role transitions
-  // self_resignation_vet — vet demotes themselves to owner (§7.8).
-  //   Notification type: self_resignation_confirmed (to vet after resignation)
-  "self_resignation_vet",
+  // Slice 3d: user self-service role transitions.
+  // self_resignation_vet — vet demotes themselves to owner (§7.8) — is already
+  // declared above; its notification type is self_resignation_confirmed (sent
+  // to the vet after resignation). It used to be listed a SECOND time right
+  // here; the duplicate was removed 2026-08-16 when this array became the
+  // source of the DB CHECK.
   // govt_self_deactivated — govt deactivates their own institutional account (§7.5).
   //   Notification types:
   //     govt_self_deactivated_admin_notice — to every active admin
@@ -2204,6 +2220,17 @@ export const AUDIT_LOG_ACTIONS = [
   // Same append-only escape hatch for case_events (migration 0121), sharing the
   // app.allow_event_mutation + app.allow_event_mutation_actor GUC pair.
   "case_events_mutation_override",
+  // Scan-retention purge (migration 0104 / db/triggers.sql
+  // enforce_pet_events_append_only): under app.allow_scan_purge='true' the
+  // trigger permits DELETE of a scanner-authored credential_scanned event past
+  // its 90-day TTL and writes ONE of these rows per deleted event.
+  // Payload: { pet_event_id, pet_id, occurred_at, retention_days }.
+  // MISSING FROM THIS CATALOG UNTIL 2026-08-16 — see the header note. It was
+  // reported as a LOW finding in docs/reviews/results/01-event-sourcing.md
+  // (item 11) alongside the two mutation_override actions; only those two were
+  // ever added. Nothing could notice, because nothing compared the catalog to
+  // what the database actually stored. Migration 0184's CHECK now does.
+  "scan_event_purged",
   // Same hatch for audit_log itself (Lote B2, migration 0182): the
   // app.allow_audit_mutation bypass now REQUIRES app.allow_audit_mutation_actor
   // (uuid) and self-logs the override — a privileged session can no longer
