@@ -918,7 +918,7 @@ async function seedShelterPets(orgId: string, intakeActorId: string): Promise<vo
     {
       name: "Lola",
       species: "dog",
-      breed: "Mestizo",
+      breed: "Mixto / Cruza",
       sex: "female" as const,
       color: "negro",
       distinguishingFeatures: "Mancha blanca en el pecho",
@@ -927,7 +927,7 @@ async function seedShelterPets(orgId: string, intakeActorId: string): Promise<vo
     {
       name: "Toby",
       species: "dog",
-      breed: "Labrador (mestizo)",
+      breed: "Mixto / Cruza",
       sex: "male" as const,
       color: "marrón claro",
       distinguishingFeatures: null,
@@ -1357,7 +1357,7 @@ async function seedOwnerBPet(ownerBId: string): Promise<void> {
     .values({
       publicToken: generatePublicToken(),
       species: "dog",
-      breed: "Mestizo",
+      breed: "Mixto / Cruza",
       name: "Rocco",
       sex: "male",
       color: "marrón",
