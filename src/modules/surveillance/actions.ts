@@ -41,9 +41,9 @@ import { requireAdminOrGovtOrRedirect } from "@/lib/infra/auth-guards";
 import { resolveBusinessRule } from "@/lib/infra/business-rules-resolver";
 import { closeCase, escalateCase, openCase } from "@/lib/infra/case-helpers";
 import { requireAlivePetAccess } from "@/lib/infra/pet-access";
+import { resolveSignerProvenance } from "@/lib/infra/signer-provenance";
 import { checkboxOn } from "@/lib/ui/form-checkbox";
 import { parseDateInput } from "@/lib/utils/format";
-import { resolveSignerProvenance } from "@/src/modules/events/application/attendance/resolve-signer-provenance";
 import { requireCapability } from "@/src/modules/organizations/infrastructure/authz-resolver";
 
 import type { OpenedReason } from "@/src/modules/cases/domain/opened-reason";

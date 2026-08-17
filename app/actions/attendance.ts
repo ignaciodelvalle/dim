@@ -16,10 +16,10 @@ import { eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 
 import { appointments, db, pets } from "@/db";
+import { resolveSignerProvenance } from "@/lib/infra/signer-provenance";
 import { cancelAppointmentByOrg as _cancelAppointmentByOrg } from "@/src/modules/events/application/attendance/cancel-appointment-by-org";
 import { markAppointmentAttendedWriter as _markAppointmentAttendedWriter } from "@/src/modules/events/application/attendance/mark-appointment-attended";
 import { markAppointmentNoShow as _markAppointmentNoShow } from "@/src/modules/events/application/attendance/mark-appointment-no-show";
-import { resolveSignerProvenance } from "@/src/modules/events/application/attendance/resolve-signer-provenance";
 import {
   type RequireCapabilitySuccess,
   requireCapability,
@@ -82,7 +82,7 @@ export async function markAppointmentAttendedAction(
   if (capResult.error) return { error: capResult.error };
   const cap = capResult as RequireCapabilitySuccess;
 
-  // #43/#45 provenance. See resolve-signer-provenance.ts for what this used to
+  // #43/#45 provenance. See lib/infra/signer-provenance.ts for what this used to
   // get wrong and why it is not derived from the membership role.
   const provenance = await resolveSignerProvenance(cap.user.id, appt.organizationId);
 

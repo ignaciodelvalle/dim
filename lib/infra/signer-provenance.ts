@@ -1,8 +1,22 @@
-// resolve-signer-provenance.ts — who is signing this clinical act, and with what
+// signer-provenance.ts — who is signing this clinical act, and with what
 // authority.
 //
 // #43/#45 PROVENANCE. The tier is bound to the SIGNER's validated matrícula —
 // not to their membership role, and not to the ORGANIZATION's `verified` flag.
+//
+// WHY IT LIVES IN lib/infra AND NOT UNDER A MODULE (moved 2026-08-17).
+// It started inside `src/modules/events/application/attendance/`, which was
+// right while attendance was its only caller. Then the bite-report path needed
+// the same stamp — it had the identical defect, see report-bite-from-org.ts —
+// and importing it from there tripped check-dependency-direction.ts:
+// `surveillance → events` is forbidden, and `events → surveillance` is already
+// an ALLOWED edge, so the import would have closed a cycle between the two
+// modules. The fence was right and the honest reading is that this helper was
+// never an events concern: "does this person hold a validated matrícula" is a
+// question about the signer, asked by every module that records a signed act.
+// Adding the edge would have bought one import at the price of a module cycle;
+// duplicating the function would have recreated the exact drift that made this
+// bug show up in three places. So it moved out to where both can reach it.
 //
 // WHY THIS IS ITS OWN MODULE. Until 2026-08-10 the scheduled-appointment path
 // derived provenance inline in app/actions/attendance.ts as
