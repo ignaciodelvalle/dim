@@ -11,7 +11,8 @@
 import { eq } from "drizzle-orm";
 import { z } from "zod/v4";
 
-import { auditLog, db, profiles } from "@/db";
+import { db, profiles } from "@/db";
+import { writeAuditLog } from "@/lib/infra/audit-log";
 import { createAdminClient } from "@/lib/supabase/admin";
 
 import type { UploadAvatarResult } from "./types";
@@ -101,7 +102,9 @@ export async function uploadAvatarForUser(
 
   // 2. Existence check
   const [current] = await db
-    .select({ id: profiles.id })
+    // avatarUrl is read for the audit row's `before` state — replacing an
+    // avatar and setting the first one are different facts.
+    .select({ id: profiles.id, avatarUrl: profiles.avatarUrl })
     .from(profiles)
     .where(eq(profiles.id, userId))
     .limit(1);
@@ -120,11 +123,13 @@ export async function uploadAvatarForUser(
       mimeType: input.mimeType,
     });
   } catch (err) {
-    // Graceful failure: log to audit_log and return error
+    // Graceful failure: log to audit_log and return error.
+    // Deliberately NOT transactional — there is no DB mutation to pair with;
+    // the failed thing was a storage upload, and this row IS the whole fact.
     try {
-      await db.insert(auditLog).values({
-        actorUserId: userId,
+      await writeAuditLog(db, {
         action: "profile_avatar_upload_failed",
+        actorUserId: userId,
         targetUserId: userId,
         payload: {
           error: err instanceof Error ? err.message : String(err),
@@ -138,20 +143,24 @@ export async function uploadAvatarForUser(
     return { error: `STORAGE_FAILED: ${err instanceof Error ? err.message : "unknown error"}` };
   }
 
-  // 4. Update profile
-  await db
-    .update(profiles)
-    .set({ avatarUrl: uploadResult.publicUrl, updatedAt: new Date() })
-    .where(eq(profiles.id, userId));
+  // 4+5. Update profile + audit — ONE transaction (2026-08-16). The storage
+  // object is already written and cannot join a Postgres transaction, but the
+  // profiles row pointing AT it and the record of who pointed it there are one
+  // fact and must commit together.
+  await db.transaction(async (tx) => {
+    await tx
+      .update(profiles)
+      .set({ avatarUrl: uploadResult.publicUrl, updatedAt: new Date() })
+      .where(eq(profiles.id, userId));
 
-  // 5. Audit log
-  await db.insert(auditLog).values({
-    actorUserId: userId,
-    action: "profile_avatar_updated",
-    targetUserId: userId,
-    payload: {
-      storage_path: uploadResult.storagePath,
-    },
+    await writeAuditLog(tx, {
+      action: "profile_avatar_updated",
+      actorUserId: userId,
+      targetUserId: userId,
+      payload: { storage_path: uploadResult.storagePath },
+      before: { avatar_url: current.avatarUrl },
+      after: { avatar_url: uploadResult.publicUrl },
+    });
   });
 
   return { ok: true, avatarUrl: uploadResult.publicUrl };

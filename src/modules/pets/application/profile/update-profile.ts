@@ -1,13 +1,16 @@
 // update-profile.ts — updateProfileForUser use-case.
 //
 // Validates input, checks profile existence, computes before-values for the
-// audit payload, updates the profiles row, and inserts an audit_log entry.
-// No notifications, no transaction wrapper (plain Drizzle queries).
+// audit payload, then updates the profiles row and inserts the audit_log entry
+// in ONE transaction (2026-08-16 — they used to be separate autocommits, so a
+// crash in between could change a user's contact details with no trace).
+// No notifications.
 
 import { eq } from "drizzle-orm";
 import { z } from "zod/v4";
 
-import { auditLog, db, profiles } from "@/db";
+import { db, profiles } from "@/db";
+import { writeAuditLog } from "@/lib/infra/audit-log";
 
 import type { UpdateProfileResult } from "./types";
 
@@ -89,13 +92,17 @@ export async function updateProfileForUser(
 
   if (!current) return { error: "NOT_FOUND" };
 
-  // 3. Build changed_fields + before_values for the audit payload
+  // 3. Build changed_fields + before/after values for the audit payload.
+  // Both sides are accumulated at the same moment they are decided, so the
+  // audit row can never claim a transition that the update did not perform.
   const changedFields: string[] = [];
   const beforeValues: Record<string, unknown> = {};
+  const afterValues: Record<string, unknown> = {};
 
   if (displayName !== current.displayName) {
     changedFields.push("displayName");
     beforeValues.displayName = current.displayName;
+    afterValues.displayName = displayName;
   }
 
   // phone: undefined → don't touch DB value.
@@ -106,6 +113,7 @@ export async function updateProfileForUser(
   if (newPhone !== current.phone) {
     changedFields.push("phone");
     beforeValues.phone = current.phone;
+    afterValues.phone = newPhone;
   }
 
   // Same semantics for the 4 emergency / vet fields.
@@ -129,6 +137,7 @@ export async function updateProfileForUser(
     if (next !== current[key]) {
       changedFields.push(key);
       beforeValues[key] = current[key];
+      afterValues[key] = next;
       emergencyUpdates[key] = next;
     }
   }
@@ -143,17 +152,20 @@ export async function updateProfileForUser(
   }
   Object.assign(updateSet, emergencyUpdates);
 
-  await db.update(profiles).set(updateSet).where(eq(profiles.id, userId));
+  // 4+5. Update profiles + audit — ONE transaction.
+  await db.transaction(async (tx) => {
+    await tx.update(profiles).set(updateSet).where(eq(profiles.id, userId));
 
-  // 5. Insert audit_log
-  await db.insert(auditLog).values({
-    actorUserId: userId,
-    action: "profile_self_updated",
-    targetUserId: userId,
-    payload: {
-      changed_fields: changedFields,
-      before_values: beforeValues,
-    },
+    await writeAuditLog(tx, {
+      action: "profile_self_updated",
+      actorUserId: userId,
+      targetUserId: userId,
+      payload: { changed_fields: changedFields },
+      // Lands at payload.before_values / payload.after_values — the same key
+      // this call site had already invented by hand, now with its other half.
+      before: beforeValues,
+      after: afterValues,
+    });
   });
 
   return { ok: true };

@@ -8,7 +8,8 @@
 
 import { and, eq } from "drizzle-orm";
 
-import { approvalRequests, auditLog, db } from "@/db";
+import { approvalRequests, db } from "@/db";
+import { writeAuditLog } from "@/lib/infra/audit-log";
 
 import type { WithdrawApprovalRequestResult } from "./types";
 
@@ -37,26 +38,34 @@ export async function withdrawApprovalRequestForUser(
     return { error: `NOT_PENDING: current status is '${request.status}'` };
   }
 
-  // 4. Transition to withdrawn.
+  // 4+5. Transition to withdrawn + audit — ONE transaction (2026-08-16).
+  //
   // DB constraint approval_decision_consistent requires:
   //   withdrawn → decided_at IS NULL AND decided_by_user_id IS NULL
   // The self-withdrawal timestamp lives in withdrawn_at instead.
-  await db
-    .update(approvalRequests)
-    .set({
-      status: "withdrawn",
-      withdrawnAt: new Date(),
-      updatedAt: new Date(),
-    })
-    .where(and(eq(approvalRequests.id, requestId), eq(approvalRequests.status, "pending")));
+  //
+  // The status change and its accountability record are one fact: separate
+  // autocommits meant a crash in between left a withdrawn request whose
+  // withdrawal nobody could prove happened.
+  await db.transaction(async (tx) => {
+    await tx
+      .update(approvalRequests)
+      .set({
+        status: "withdrawn",
+        withdrawnAt: new Date(),
+        updatedAt: new Date(),
+      })
+      .where(and(eq(approvalRequests.id, requestId), eq(approvalRequests.status, "pending")));
 
-  // 5. Audit log
-  await db.insert(auditLog).values({
-    actorUserId: userId,
-    action: "approval_request_withdrawn_by_applicant",
-    approvalRequestId: requestId,
-    targetUserId: userId,
-    payload: { request_id: requestId },
+    await writeAuditLog(tx, {
+      action: "approval_request_withdrawn_by_applicant",
+      actorUserId: userId,
+      approvalRequestId: requestId,
+      targetUserId: userId,
+      payload: { request_id: requestId },
+      before: { status: request.status },
+      after: { status: "withdrawn" },
+    });
   });
 
   return { ok: true };

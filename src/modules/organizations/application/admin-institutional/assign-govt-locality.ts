@@ -4,9 +4,9 @@
 //   1. Capability check (admin only)
 //   2. Validate target is active institutional govt
 //   3. Check for duplicate active assignment (noOp if exists)
-//   4. INSERT govt_assignments row
-//   5. INSERT audit_log action='govt_locality_assigned'
-//   6. INSERT notification to target (single insert — best-effort, try/catch)
+//   4. ONE transaction: INSERT govt_assignments row
+//                     + INSERT audit_log action='govt_locality_assigned'
+//   5. INSERT notification to target (single insert — best-effort, try/catch)
 //
 // ARCH-P: the notification insert is wrapped in try/catch so a failure
 // does not propagate to the caller (single-insert hardening pattern).
@@ -14,7 +14,7 @@
 import { and, eq, isNull } from "drizzle-orm";
 import { z } from "zod/v4";
 
-import { auditLog, db, govtAssignments, notifications, profiles } from "@/db";
+import { db, govtAssignments, notifications, profiles } from "@/db";
 import { canAssignGovtLocality } from "@/lib/domain/institutional-scope";
 import {
   WHOLE_PROVINCE_SENTINEL,
@@ -25,6 +25,7 @@ import {
   JurisdictionValidationError,
   normalizeLocationForWrite,
 } from "@/lib/domain/location-normalize";
+import { writeAuditLog } from "@/lib/infra/audit-log";
 
 import { loadActorProfile } from "./helpers";
 import type { AssignGovtLocalityResult } from "./types";
@@ -151,27 +152,41 @@ export async function assignGovtLocalityForAuthority(
     return { ok: true, assignmentId: existing.id, noOp: true };
   }
 
-  // 5. INSERT govt_assignments
-  const [newAssignment] = await db
-    .insert(govtAssignments)
-    .values({
-      userId: targetUserId,
-      jurisdictionProvince: canonicalProvince,
-      jurisdictionLocality: canonicalLocality,
-      grantedByUserId: actorUserId,
-    })
-    .returning({ id: govtAssignments.id });
+  // 5+6. INSERT govt_assignments + audit_log — ONE transaction.
+  //
+  // These were two separate autocommits until 2026-08-16. A crash between them
+  // left a GRANTED JURISDICTION AUTHORITY with no audit trace, and the absence
+  // of that row is indistinguishable from the absence of the grant. The
+  // assignment and its accountability record are one fact; they commit or they
+  // both roll back.
+  const newAssignment = await db.transaction(async (tx) => {
+    const [assignment] = await tx
+      .insert(govtAssignments)
+      .values({
+        userId: targetUserId,
+        jurisdictionProvince: canonicalProvince,
+        jurisdictionLocality: canonicalLocality,
+        grantedByUserId: actorUserId,
+      })
+      .returning({ id: govtAssignments.id });
 
-  // 6. INSERT audit_log
-  await db.insert(auditLog).values({
-    actorUserId,
-    action: "govt_locality_assigned",
-    targetUserId,
-    payload: {
-      province: canonicalProvince,
-      locality: canonicalLocality,
-      govt_assignment_id: newAssignment.id,
-    },
+    await writeAuditLog(tx, {
+      action: "govt_locality_assigned",
+      actorUserId,
+      targetUserId,
+      targetGovtAssignmentId: assignment.id,
+      payload: {
+        province: canonicalProvince,
+        locality: canonicalLocality,
+        govt_assignment_id: assignment.id,
+      },
+      // A grant has no prior state — the duplicate-assignment check above
+      // already returned noOp if one existed.
+      before: null,
+      after: { province: canonicalProvince, locality: canonicalLocality },
+    });
+
+    return assignment;
   });
 
   // 7. INSERT notification to target govt — best-effort, must not undo the assignment.

@@ -4,9 +4,9 @@
 //   1. Load profile
 //   2. Idempotency: if already owner → noOp
 //   3. Capability check: role must be 'vet' AND accountType must be 'personal'
-//   4. UPDATE profiles: role='owner', matriculaVerified=false (anti-race WHERE)
-//   5. INSERT audit_log action='self_resignation_vet'
-//   6. INSERT notification to self (type='self_resignation_confirmed')
+//   4. ONE transaction: UPDATE profiles (role='owner', matriculaVerified=false,
+//      anti-race WHERE) + INSERT audit_log action='self_resignation_vet'
+//   5. INSERT notification to self (type='self_resignation_confirmed')
 //
 // Note: matriculaNumber and matriculaJurisdiccion are PRESERVED — they are
 // biographical facts, not a live entitlement. Only the verified flag is cleared.
@@ -16,7 +16,8 @@
 
 import { and, eq } from "drizzle-orm";
 
-import { auditLog, db, notifications, profiles } from "@/db";
+import { db, notifications, profiles } from "@/db";
+import { writeAuditLog } from "@/lib/infra/audit-log";
 
 import type { VetSelfResignResult } from "./types";
 
@@ -30,6 +31,9 @@ export async function vetSelfResignForUser(
       id: profiles.id,
       role: profiles.role,
       accountType: profiles.accountType,
+      // Read for the audit row's `before` state. The payload must state what
+      // was actually true, not what the demotion assumes was true.
+      matriculaVerified: profiles.matriculaVerified,
     })
     .from(profiles)
     .where(eq(profiles.id, userId))
@@ -47,25 +51,34 @@ export async function vetSelfResignForUser(
     return { error: "ROLE_MISMATCH: only a personal vet account can self-resign" };
   }
 
-  // 4. UPDATE profiles with anti-race WHERE (only transitions from role='vet')
-  const updated = await db
-    .update(profiles)
-    .set({ role: "owner", matriculaVerified: false, updatedAt: new Date() })
-    .where(and(eq(profiles.id, userId), eq(profiles.role, "vet")))
-    .returning({ id: profiles.id });
+  // 4+5. UPDATE profiles (anti-race WHERE — only transitions from role='vet')
+  // + audit, in ONE transaction (2026-08-16). A role demotion whose audit row
+  // was a separate autocommit could commit with no trace of who dropped the
+  // vet entitlement or why.
+  const demoted = await db.transaction(async (tx) => {
+    const updated = await tx
+      .update(profiles)
+      .set({ role: "owner", matriculaVerified: false, updatedAt: new Date() })
+      .where(and(eq(profiles.id, userId), eq(profiles.role, "vet")))
+      .returning({ id: profiles.id });
 
-  if (updated.length < 1) {
-    // Race: another request already changed the role
-    return { ok: true, noOp: true };
-  }
+    // Race: another request already changed the role. Nothing happened, so
+    // nothing is audited — returning here rolls back an empty transaction.
+    if (updated.length < 1) return false;
 
-  // 5. Audit log
-  await db.insert(auditLog).values({
-    actorUserId: userId,
-    action: "self_resignation_vet",
-    targetUserId: userId,
-    payload: { reason: input?.reason ?? null },
+    await writeAuditLog(tx, {
+      action: "self_resignation_vet",
+      actorUserId: userId,
+      targetUserId: userId,
+      payload: { reason: input?.reason ?? null },
+      before: { role: profile.role, matricula_verified: profile.matriculaVerified },
+      after: { role: "owner", matricula_verified: false },
+    });
+
+    return true;
   });
+
+  if (!demoted) return { ok: true, noOp: true };
 
   // 6. Notification to self — best-effort, must not roll back the role change.
   try {
