@@ -367,6 +367,15 @@ jobs:
         #      (drizzle's sql template emits without parens, PG stores with)
         #   3. organization_coverage unique constraint — drizzle-kit 0.45 introspection
         #      churn: drops and re-adds as UNIQUE NULLS NOT DISTINCT
+        #   3b. govt_business_rules_type_jurisdiction_unique — same class, same
+        #      cause. Verified 2026-08-17 to be a false positive and NOT drift
+        #      being silenced: schema.ts declares it with .nullsNotDistinct()
+        #      (db/schema.ts), migration 0183 creates it as UNIQUE NULLS NOT
+        #      DISTINCT, and the live DB reports
+        #      `UNIQUE NULLS NOT DISTINCT (rule_type, jurisdiction_country,
+        #      jurisdiction_province, jurisdiction_locality)`. All three agree —
+        #      drizzle-kit simply cannot round-trip NULLS NOT DISTINCT, so it
+        #      re-emits DROP+ADD on every run.
         #   4. org_invitations_active_unique index — drizzle-kit 0.45 introspection
         #      churn: drops and re-creates expression+partial index
         #   5. organization_invitations.expires_at default — same class as (1)/(2),
@@ -383,6 +392,8 @@ jobs:
             | grep -vF 'ALTER TABLE "pet_achievement_views" ALTER COLUMN "pulse_until" SET DEFAULT' \
             | grep -vF 'ALTER TABLE "organization_coverage" DROP CONSTRAINT "org_coverage_org_province_locality_unique"' \
             | grep -vF 'ALTER TABLE "organization_coverage" ADD CONSTRAINT "org_coverage_org_province_locality_unique" UNIQUE NULLS NOT DISTINCT' \
+            | grep -vF 'ALTER TABLE "govt_business_rules" DROP CONSTRAINT "govt_business_rules_type_jurisdiction_unique"' \
+            | grep -vF 'ALTER TABLE "govt_business_rules" ADD CONSTRAINT "govt_business_rules_type_jurisdiction_unique" UNIQUE NULLS NOT DISTINCT' \
             | grep -vF 'DROP INDEX "org_invitations_active_unique"' \
             | grep -vF 'CREATE UNIQUE INDEX "org_invitations_active_unique"' \
             | grep -vF 'ALTER TABLE "organization_invitations" ALTER COLUMN "expires_at" SET DEFAULT')
@@ -390,7 +401,7 @@ jobs:
             echo "::error::Drizzle reports pending changes — schema.ts ↔ migrations drift"
             exit 1
           fi
-          echo "::notice::Only known false-positive drifts detected (permanent_conditions, pulse_until, org_coverage constraint, org_invitations index, expires_at default); treating as no-op."
+          echo "::notice::Only known false-positive drifts detected (permanent_conditions, pulse_until, org_coverage constraint, govt_business_rules constraint, org_invitations index, expires_at default); treating as no-op."
 
   test:
     name: Tests (vitest)
