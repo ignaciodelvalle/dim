@@ -590,17 +590,39 @@ describe("PanoramaConsole — D1 metric selector (merged Cumplimiento vista)", (
     fireEvent.click(within(metricGroup).getByRole("radio", { name: "Esterilización" }));
     expect(new URLSearchParams(window.location.search).get("layers")).toBe("esterilizacion");
 
+    // The metric switch is a BOARD COMMIT with an async tail (the new base's
+    // layer fetch, which lands with `active: true`). Hand-editing before that
+    // tail settles races it: the commit re-activates `esterilizacion` after the
+    // uncheck, the vista re-derives, and `personalizadaFrom` is cleared — the
+    // notice below never appears (or appears and vanishes). This is exactly the
+    // wait its sibling test above already performs; only this test omitted it,
+    // which is why it passed on a fast machine and went red on CI.
+    await waitFor(() => {
+      expect(
+        fetchMock.mock.calls
+          .map((c) => String(c[0]))
+          .some((u) => u.startsWith("/api/panorama/esterilizacion")),
+      ).toBe(true);
+    });
+
     // Hand-edit: deactivating the base flips the board to personalizada.
     openFiltro();
     await act(async () => {
       fireEvent.click(screen.getByRole("checkbox", { name: /Cobertura de esterilización/ }));
     });
-    await screen.findByText(/personalizada/);
 
     // The one-tap return must repaint Cumplimiento·Esterilización — a bare
     // preset id here would silently paint the DEFAULT metric (cobertura), the
     // exact metric-loss class the D1 aliases fence on the URL path.
-    fireEvent.click(screen.getByRole("button", { name: /Volver a Cumplimiento/ }));
+    //
+    // Wait for the AFFORDANCE ITSELF, never for a proxy element: the old
+    // `findByText(/personalizada/)` + synchronous `getByRole` pair synchronized
+    // on the notice's prose and then read its button in the same tick, so any
+    // extra render between the two lost the button. The guarantee asserted is
+    // unchanged — a button named "Volver a Cumplimiento" must exist, and
+    // clicking it must restore BOTH the preset and the metric the operator left.
+    const volver = await screen.findByRole("button", { name: /Volver a Cumplimiento/ });
+    fireEvent.click(volver);
     await waitFor(() => {
       const params = new URLSearchParams(window.location.search);
       expect(params.get("preset")).toBe("cumplimiento");
