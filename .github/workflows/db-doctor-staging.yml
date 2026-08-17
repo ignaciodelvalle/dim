@@ -1,0 +1,60 @@
+name: DB doctor (staging)
+
+# Nightly read-only audit of the STAGING database: migration-ledger honesty,
+# real RLS state, and effect probes — the "ledger says applied, DB disagrees"
+# tripwire, automated.
+#
+# Requires the STAGING_DATABASE_URL secret (the Session-pooler connection
+# string, docs/ops/staging-deploy.md) — provisioning it is Ignacio-gated. The
+# job FAILS LOUDLY when the secret is absent: a nightly green that ran zero
+# checks is exactly the "silence read as safety" failure this workflow exists
+# to catch, so the missing secret is reported as a red with instructions
+# rather than skipped with a notice. Alerting = GitHub's failed-workflow
+# email, the same channel staging-health.yml relies on.
+#
+# Cron is UTC: 09:00 UTC = 06:00 in Argentina (UTC-3, no DST) — after the
+# nightly QA runs, before the workday.
+on:
+  schedule:
+    - cron: "0 9 * * *"
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+jobs:
+  doctor:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Require STAGING_DATABASE_URL secret
+        env:
+          HAS_SECRET: ${{ secrets.STAGING_DATABASE_URL != '' }}
+        run: |
+          if [ "$HAS_SECRET" != "true" ]; then
+            echo "::error title=STAGING_DATABASE_URL is not configured::db:doctor cannot audit the staging database without a connection string, so this run checked NOTHING. Fix: add a repository secret named STAGING_DATABASE_URL under Settings -> Secrets and variables -> Actions -> New repository secret, set to the staging Session-pooler connection string (see docs/ops/staging-deploy.md). Until then this workflow fails every night by design — a red that names the fix beats a green that audited nothing."
+            exit 1
+          fi
+          echo "STAGING_DATABASE_URL is present — proceeding with the audit."
+
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 11
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Run db:doctor against staging (read-only)
+        env:
+          DATABASE_URL: ${{ secrets.STAGING_DATABASE_URL }}
+        run: pnpm db:doctor -- --allow-remote
