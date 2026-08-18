@@ -137,9 +137,20 @@ export default async function OfferingDetailPage({
       {/* Status banner */}
       <div className="flex items-center gap-3">
         <OpPill tone={statusConfig.tone}>{statusConfig.label}</OpPill>
+        {/* Decía "te notificaremos por email y en el panel". El email no existe
+            para este flujo: approve-service-offering.ts y
+            reject-service-offering.ts solo insertan una fila en la tabla
+            notifications — el aviso del panel — sin ningún canal de correo.
+            Prometer un mail
+            que nadie manda deja a la veterinaria esperando en la bandeja
+            equivocada. Y la espera además no decía quién decide ni qué hacer si
+            no pasa nada: nombrar al responsable es la mitad de la lección de
+            org-setup-checklist.ts; la otra mitad es no dejar la espera huérfana. */}
         {offering.status === "pending_approval" && (
           <span className="text-sm text-ln-op-mute">
-            La autoridad revisará tu solicitud y te notificaremos por email y en el panel.
+            Lo revisa la autoridad sanitaria de tu jurisdicción. Cuando decida, el aviso te llega
+            acá mismo y a tus notificaciones. Si pasan varios días sin respuesta, escribile al
+            organismo mencionando el código de este servicio.
           </span>
         )}
         {offering.status === "approved" && (
@@ -154,8 +165,18 @@ export default async function OfferingDetailPage({
             y empezar a recibir reservas.
           </span>
         )}
-        {offering.status === "rejected" && offering.rejectionReason && (
-          <span className="text-sm text-ln-op-danger">Motivo: {offering.rejectionReason}</span>
+        {/* El motivo se mostraba SOLO si venía cargado, así que un rechazo sin
+            motivo dejaba la pastilla "Rechazado" sola, sin una palabra de por
+            qué ni de qué sigue. Un estado terminal mudo es la peor clase de
+            callejón: la persona ve que perdió y no sabe si puede volver a
+            intentar. Ahora siempre dice qué pasó y cuál es el camino. */}
+        {offering.status === "rejected" && (
+          <span className="text-sm text-ln-op-danger">
+            {offering.rejectionReason
+              ? `Motivo: ${offering.rejectionReason}`
+              : "La autoridad no dejó un motivo registrado."}{" "}
+            Podés cargar el servicio de nuevo con los datos corregidos desde “Mis servicios”.
+          </span>
         )}
       </div>
 
@@ -257,16 +278,21 @@ export default async function OfferingDetailPage({
         </div>
       )}
 
-      {/* Pause / archive actions — available when not archived */}
-      {offering.status !== "archived" && offering.status !== "pending_approval" && (
-        <div className="pt-2">
-          <OfferingActions
-            orgToken={orgToken}
-            offeringToken={offeringToken}
-            status={offering.status}
-          />
-        </div>
-      )}
+      {/* Pausar / eliminar solo tienen sentido sobre un servicio que existe en
+          la calle. Un RECHAZADO no se puede pausar —nunca estuvo activo— y
+          ofrecer esos botones ahí sugería que el estado se podía administrar
+          cuando lo único que corresponde es volver a presentarlo. */}
+      {offering.status !== "archived" &&
+        offering.status !== "pending_approval" &&
+        offering.status !== "rejected" && (
+          <div className="pt-2">
+            <OfferingActions
+              orgToken={orgToken}
+              offeringToken={offeringToken}
+              status={offering.status}
+            />
+          </div>
+        )}
 
       <footer className="pt-4 border-t border-ln-op-line">
         <Link
