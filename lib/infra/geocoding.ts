@@ -73,7 +73,7 @@ const NOMINATIM_BASE = "https://nominatim.openstreetmap.org";
 // Cuando haya dominio propio verificado (la misma decisión que destraba
 // RESEND_FROM — ver lib/infra/outbound-channels.ts), esta cadena vuelve a
 // llevar su URL, ya con la marca pública y no con el nombre en clave.
-const USER_AGENT = "MiMAR/1.0 (contact: ignaciodelvalle2014@gmail.com)";
+const USER_AGENT = "miMAR/1.0 (contact: ignaciodelvalle2014@gmail.com)";
 const RATE_LIMIT_PER_SECOND = 5;
 const DEFAULT_REQUEST_TIMEOUT_MS = 8000;
 const MIN_REQUEST_TIMEOUT_MS = 1000;
