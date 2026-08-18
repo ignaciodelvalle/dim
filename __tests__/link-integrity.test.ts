@@ -514,3 +514,74 @@ describe("link-integrity: no shipped link points at a redirect-only route", () =
     expect(navBounces).toEqual([]);
   });
 });
+
+// ─── Source: ctaUrl destinations built in analytics / domain modules ─────────
+//
+// WHY THIS BLOCK EXISTS — A BUTTON THAT 404s ON THE OWNER'S OWN DASHBOARD
+//
+// `lib/analytics/owner-dashboard.ts` built two workflow cards whose `ctaUrl`
+// pointed at `/cuenta/aprobaciones/{token}` — a route that has NEVER existed.
+// Every applicant with a pending or decided approval request (a vet role
+// upgrade, an org verification, a jurisdiction grant) saw a card about their
+// own request with a button that dead-ended in a 404. Found on staging
+// 2026-08-18 by crawling the org portal, not by any test.
+//
+// The fence above was already scanning nav presets and JSX `href=` literals —
+// and it passed, because these destinations are assembled as `ctaUrl` VALUES in
+// a lib module and rendered generically by CasesWidget / NotificationCard. The
+// link map knew every route; nothing compared these strings against it. Same
+// shape as the rest of this codebase's fence failures: the guard covered the
+// place the last bug was found in, not the concept.
+//
+// Template literals are normalised by replacing every `${…}` with a dummy
+// segment, so a dynamic destination is checked against the route PATTERN — the
+// same way `resolves()` already handles `[publicToken]`.
+describe("link integrity — ctaUrl destinations resolve to a real route", () => {
+  const CTA_SOURCE_DIRS = ["lib", "src"];
+
+  /** Every `ctaUrl:` value in the scanned tree, with its file and line. */
+  function collectCtaUrls(): Array<{ where: string; raw: string; probe: string }> {
+    const found: Array<{ where: string; raw: string; probe: string }> = [];
+    for (const dir of CTA_SOURCE_DIRS) {
+      walkDir(path.join(REPO_ROOT, dir), (filePath) => {
+        if (!filePath.endsWith(".ts") && !filePath.endsWith(".tsx")) return;
+        if (filePath.includes(".test.")) return;
+        const src = fs.readFileSync(filePath, "utf8");
+        src.split("\n").forEach((line, i) => {
+          const m = line.match(/ctaUrl:\s*(["'`])([^"'`]+)\1/);
+          if (!m) return;
+          const raw = m[2] as string;
+          if (!raw.startsWith("/")) return; // relative/dynamic-only, not a route claim
+          found.push({
+            where: `${path.relative(REPO_ROOT, filePath).replaceAll("\\", "/")}:${i + 1}`,
+            raw,
+            // `${expr}` → a dummy segment so the dynamic form is matched
+            // against the route pattern rather than treated as a literal.
+            probe: raw.replace(/\$\{[^}]*\}/g, "x"),
+          });
+        });
+      });
+    }
+    return found;
+  }
+
+  it("finds the ctaUrl call sites at all", () => {
+    // NON-VACUITY. A regex that stops matching would turn the assertion below
+    // into a pass over an empty list — the exact failure this file keeps
+    // catching elsewhere.
+    expect(collectCtaUrls().length).toBeGreaterThan(5);
+  });
+
+  it("every ctaUrl points at a route that exists", () => {
+    const rotos = collectCtaUrls()
+      .filter(({ probe }) => !shouldSkip(probe) && !resolves(probe))
+      .map(({ where, raw }) => `${where} → ${raw}`);
+
+    expect(
+      rotos,
+      `ctaUrl destinations with no matching route (${rotos.length}):\n${rotos
+        .map((r) => `  • ${r}`)
+        .join("\n")}\n\nEach one is a button a real person can press that lands on a 404.`,
+    ).toEqual([]);
+  });
+});

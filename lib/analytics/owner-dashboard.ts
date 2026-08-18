@@ -680,7 +680,13 @@ async function fetchPendingApprovalRequests(userId: string): Promise<WorkflowIte
     kind: "approval_request_pending" as const,
     title: humanizeApprovalRequestType(r.type),
     subtitle: "Esperando aprobación de la autoridad",
-    ctaUrl: `/cuenta/aprobaciones/${r.publicToken}`,
+    // /cuenta/solicitudes, NOT /cuenta/aprobaciones/{token} (2026-08-18). That
+    // second route has never existed — `git ls-files app/**/aprobaciones/**`
+    // returns nothing — so this card, which every applicant with a pending
+    // request sees, offered a button that 404s. /cuenta/solicitudes is the
+    // applicant's own list: it reads approval_requests filtered by
+    // applicantUserId and shows type, status, dates and the decision notes.
+    ctaUrl: "/cuenta/solicitudes",
     since: r.createdAt,
     severity: "info" as const,
   }));
@@ -983,7 +989,8 @@ async function fetchDecidedApprovalRequests(
     title: humanizeApprovalRequestType(r.type),
     // Was `Resuelta: ${r.status}` — same raw-enum leak as the foster row above.
     subtitle: requestOutcomeLabel(r.status) ?? "",
-    ctaUrl: `/cuenta/aprobaciones/${r.publicToken}`,
+    // Same dead link as the pending twin above — see its note.
+    ctaUrl: "/cuenta/solicitudes",
     since: r.decidedAt ?? r.createdAt,
     severity: "info" as const,
   }));
