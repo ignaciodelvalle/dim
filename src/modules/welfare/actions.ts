@@ -1397,7 +1397,7 @@ export async function createOrgWelfareReportAction(
     .filter((e): e is File => e instanceof File)
     .filter((f) => f.size > 0);
   if (files.length === 0) {
-    return { error: "Un reporte profesional requiere al menos un adjunto de evidencia." };
+    return { error: "Una denuncia profesional requiere al menos un adjunto de evidencia." };
   }
 
   // Insert the report row (outside tx — parity with original createOrgWelfareReportAction)

@@ -107,7 +107,7 @@ export default function DenunciasPage() {
             <strong className="font-semibold text-[var(--color-ln-ink-2)]">Aviso:</strong> Las
             denuncias registradas en este portal son derivadas a las autoridades competentes
             conforme a la Ley 14.346. La integración con canales gubernamentales está en desarrollo
-            — tu reporte queda guardado y será enviado cuando esté disponible.
+            — tu denuncia queda guardada y será enviada cuando esté disponible.
           </p>
         </aside>
       </div>

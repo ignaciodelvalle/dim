@@ -30,9 +30,26 @@ const STATUS_LABEL: Record<string, string> = {
   merged: "Fusionada",
 };
 
+// "Rechazada / Cancelada", no "Cancelada" a secas (2026-08-18).
+//
+// `cases.closedReason` guarda el MISMO valor `cancelled` en los dos casos:
+// cuando la organización receptora rechaza (reject-cross-org-transfer.ts) y
+// cuando la emisora cancela (cancel-cross-org-transfer.ts). La base no distingue
+// quién actuó, así que esta pantalla no puede saberlo — y decir "Cancelada" a
+// secas afirmaba lo que no sabe: la organización que propuso la transferencia y
+// fue RECHAZADA leía en su propia lista de salientes que la había cancelado
+// ella, con lo cual la negativa de la otra parte desaparecía de la vista.
+//
+// La pantalla hermana de entrantes ya usaba el hedge honesto; esta era la que
+// faltaba. La nota del timeline del caso sí distingue ("Rechazada por el
+// receptor" vs "Cancelada por el sender"), así que el dato existe para quien
+// abre el detalle — lo que faltaba era no mentir en la lista.
+//
+// El arreglo de fondo es que los dos escritores dejen de compartir el mismo
+// `closedReason`, y eso es una migración: queda anotado, no se hace acá.
 const CLOSED_REASON_LABEL: Record<string, string> = {
   resolved: "Aceptada",
-  cancelled: "Cancelada",
+  cancelled: "Rechazada / Cancelada",
   auto_expired: "Expirada (30d sin respuesta)",
   merged: "Fusionada",
 };
