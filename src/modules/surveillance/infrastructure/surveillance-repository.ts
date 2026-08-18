@@ -15,7 +15,7 @@
 
 import "server-only";
 
-import { and, asc, desc, eq, gt, gte, isNull, sql } from "drizzle-orm";
+import { and, asc, desc, eq, gt, gte, inArray, isNull, sql } from "drizzle-orm";
 
 import {
   cases,
@@ -30,6 +30,7 @@ import {
 import type { NewPetEvent, PetEvent } from "@/db/schema";
 import { insertEventIdempotent } from "@/lib/events/event-idempotency";
 import { type AuditLogEntry, writeAuditLog } from "@/lib/infra/audit-log";
+import { OPEN_OBSERVATION_STATUSES } from "../domain/rabies-observation";
 
 // ---------------------------------------------------------------------------
 // Type aliases
@@ -309,6 +310,48 @@ export class SurveillanceRepository {
       .update(pets)
       .set({ rabiesObservationStatus: status, updatedAt: now })
       .where(eq(pets.id, petId));
+  }
+
+  /**
+   * CIERRE de una observación, con la guarda de estado adentro del propio
+   * UPDATE. Devuelve `true` si esta llamada fue la que la cerró.
+   *
+   * POR QUÉ NO ALCANZA `setObservationStatus` PARA CERRAR.
+   * Quien cierra lee `isObservationOpen(pet.rabiesObservationStatus)` antes de
+   * abrir la transacción, y ese chequeo no dice nada sobre lo que pasó mientras
+   * tanto. Dos cierres casi simultáneos —dos veterinarios, o un veterinario
+   * contra el cron de expiración— pasaban los dos y escribían los dos. El
+   * evento `rabies_observation_ended` se inserta ANTES de tocar el estado, así
+   * que el perdedor ya había dejado en el espinazo un resultado clínico
+   * contradictorio con el del ganador: uno "negativo" y otro "positive_rabies"
+   * sobre el mismo animal, append-only, imposibles de corregir. Y el dueño
+   * recibía dos notificaciones que se contradicen.
+   *
+   * Con la condición adentro del WHERE, el perdedor actualiza cero filas y su
+   * llamador aborta la transacción, con lo cual el evento que ya había
+   * insertado se revierte. El estado final es el del ganador, y en el registro
+   * queda un solo resultado.
+   *
+   * Mismo patrón que cases-repository.ts::closeCase y que la guarda de las
+   * decisiones de autoridad (approve/reject-request.ts).
+   */
+  async closeObservationIfOpen(
+    petId: string,
+    status: string,
+    now: Date,
+    executor: DbOrTx = db,
+  ): Promise<boolean> {
+    const rows = await executor
+      .update(pets)
+      .set({ rabiesObservationStatus: status, updatedAt: now })
+      .where(
+        and(
+          eq(pets.id, petId),
+          inArray(pets.rabiesObservationStatus, [...OPEN_OBSERVATION_STATUSES]),
+        ),
+      )
+      .returning({ id: pets.id });
+    return rows.length > 0;
   }
 
   /**

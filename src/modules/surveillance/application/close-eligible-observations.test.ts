@@ -83,6 +83,9 @@ function makeRepo(overrides: FakeRepo = {}): SurveillanceRepository {
     findOpenBiteCase: vi.fn().mockResolvedValue({ id: "case-cron-1" }),
     insertObservationEnded: vi.fn().mockResolvedValue(undefined),
     setObservationStatus: vi.fn().mockResolvedValue(undefined),
+    // Por defecto GANA la carrera: devuelve true. Los tests que quieren
+    // ejercitar al perdedor lo sobreescriben con false.
+    closeObservationIfOpen: vi.fn().mockResolvedValue(true),
     autoExpireBiteCase: vi.fn().mockResolvedValue(undefined),
     findActiveOwnership: vi.fn().mockResolvedValue({ ownerUserId: "owner-cron-1" }),
     insertNotifications: vi.fn().mockResolvedValue(undefined),
@@ -130,13 +133,13 @@ describe("closeEligibleObservations — expired window, no professional closure"
   it("sets pet status to window_expired_unclosed, never to a completed_* value", async () => {
     const deps = makeDeps();
     await closeEligibleObservations(BASE_OPTIONS, deps);
-    expect(deps.repo.setObservationStatus).toHaveBeenCalledWith(
+    expect(deps.repo.closeObservationIfOpen).toHaveBeenCalledWith(
       "pet-cron-1",
       "window_expired_unclosed",
       NOW,
       "fake-tx",
     );
-    const statuses = (deps.repo.setObservationStatus as ReturnType<typeof vi.fn>).mock.calls.map(
+    const statuses = (deps.repo.closeObservationIfOpen as ReturnType<typeof vi.fn>).mock.calls.map(
       (c) => c[1] as string,
     );
     expect(statuses.some((s) => s.startsWith("completed_"))).toBe(false);
@@ -218,7 +221,7 @@ describe("closeEligibleObservations — escalation path", () => {
     expect(stats.flaggedForReview).toBe(1);
     // Stays in_progress ON PURPOSE: symptoms compatible with rabies are an
     // ongoing danger, so the public banner must keep saying so.
-    expect(deps.repo.setObservationStatus).not.toHaveBeenCalled();
+    expect(deps.repo.closeObservationIfOpen).not.toHaveBeenCalled();
   });
 
   it("does NOT insert observation_ended when escalating", async () => {

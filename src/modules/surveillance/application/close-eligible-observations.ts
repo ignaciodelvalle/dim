@@ -96,7 +96,7 @@ type Deps = {
     | "findLatestObservationStarted"
     | "findEscalatingSymptom"
     | "findOpenBiteCase"
-    | "setObservationStatus"
+    | "closeObservationIfOpen"
     | "findActiveOwnership"
     | "insertNotifications"
   >;
@@ -230,12 +230,22 @@ export async function closeEligibleObservations(
       const biteCase = await repo.findOpenBiteCase(pet.id);
 
       await transaction(async (tx) => {
-        await repo.setObservationStatus(
+        // Guarda adentro del UPDATE: si un veterinario ya asento un resultado
+        // clinico entre el escaneo y esta transaccion, la observacion dejo de
+        // estar abierta y el cron no debe tocarla. Marcar la ventana vencida
+        // encima de un cierre profesional borraria el resultado.
+        //
+        // Ojo con la asimetria: window_expired_unclosed SIGUE siendo un estado
+        // abierto --el cron no afirma ningun resultado, solo constata que la
+        // ventana paso sin que nadie cerrara-- asi que la guarda lo admite y
+        // solo bloquea contra un cierre real.
+        const marco = await repo.closeObservationIfOpen(
           pet.id,
           "window_expired_unclosed",
           now,
-          tx as Parameters<typeof repo.setObservationStatus>[3],
+          tx as Parameters<typeof repo.closeObservationIfOpen>[3],
         );
+        if (!marco) return;
 
         // 5. Owner notification INSIDE tx (cron path — parity with original).
         //    It states the window is over and that the observation is STILL

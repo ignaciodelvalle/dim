@@ -57,6 +57,9 @@ function makeRepo(overrides: FakeRepo = {}): SurveillanceRepository {
     findOpenBiteCase: vi.fn().mockResolvedValue({ id: "case-2" }),
     insertObservationEnded: vi.fn().mockResolvedValue(undefined),
     setObservationStatus: vi.fn().mockResolvedValue(undefined),
+    // Por defecto GANA la carrera: devuelve true. Los tests que quieren
+    // ejercitar al perdedor lo sobreescriben con false.
+    closeObservationIfOpen: vi.fn().mockResolvedValue(true),
     findActiveOwnership: vi.fn().mockResolvedValue(null),
     insertObservationCloseAuditLog: vi.fn().mockResolvedValue(undefined),
     ...overrides,
@@ -324,7 +327,7 @@ describe("professionalCloseObservation — error paths", () => {
     });
     const result = await professionalCloseObservation(BASE_INPUT, deps);
     expect(result.ok).toBe(true);
-    expect(deps.repo.setObservationStatus).toHaveBeenCalledWith(
+    expect(deps.repo.closeObservationIfOpen).toHaveBeenCalledWith(
       "pet-3",
       "completed_negative",
       expect.any(Date),
@@ -369,6 +372,36 @@ describe("professionalCloseObservation — audit_log", () => {
   it("writes NO audit row when the close is refused (out-of-jurisdiction govt)", async () => {
     const deps = makeDeps();
     await professionalCloseObservation({ ...BASE_INPUT, actor: GOVT_OUT_JURISDICTION }, deps);
+    expect(deps.repo.insertObservationCloseAuditLog).not.toHaveBeenCalled();
+  });
+
+  // CARRERA ENTRE DOS CIERRES (2026-08-18).
+  //
+  // El chequeo de "sigue abierta" ocurre ANTES de la transacción, así que dos
+  // veterinarios —o un veterinario y el cron de expiración— lo pasaban los dos.
+  // Y el evento `rabies_observation_ended` se inserta ANTES de tocar el estado,
+  // de modo que el perdedor ya había dejado en el espinazo un resultado clínico
+  // que contradice al del ganador: uno "negativo" y otro "positive_rabies"
+  // sobre el mismo animal, append-only, imposibles de corregir después.
+  //
+  // `closeObservationIfOpen` devolviendo false ES el perdedor: la fila ya no
+  // estaba abierta cuando llegó su UPDATE.
+  it("no deja el cierre asentado cuando otro lo ganó por milisegundos", async () => {
+    const deps = makeDeps();
+    (deps.repo.closeObservationIfOpen as ReturnType<typeof vi.fn>).mockResolvedValue(false);
+
+    const result = await professionalCloseObservation(BASE_INPUT, deps);
+
+    // El llamador se entera de que no fue suyo…
+    expect(result.ok).toBe(false);
+    // …y aborta ANTES de escribir la fila de rendición de cuentas.
+    //
+    // Lo que este test prueba y lo que no: el doble de `transaction` acá
+    // ejecuta el callback sin simular rollback, así que verifica el corte del
+    // flujo, no la reversión. Que el evento clínico insertado un paso antes
+    // desaparezca es una propiedad de la transacción real de Postgres —
+    // garantizada porque ambas escrituras ocurren dentro de la misma— y no algo
+    // que este doble pueda demostrar.
     expect(deps.repo.insertObservationCloseAuditLog).not.toHaveBeenCalled();
   });
 });

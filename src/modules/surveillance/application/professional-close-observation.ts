@@ -60,7 +60,7 @@ type Deps = {
     | "findLatestObservationStarted"
     | "findOpenBiteCase"
     | "insertObservationEnded"
-    | "setObservationStatus"
+    | "closeObservationIfOpen"
     | "findActiveOwnership"
     | "insertObservationCloseAuditLog"
   >;
@@ -173,13 +173,27 @@ export async function professionalCloseObservation(
         tx as Parameters<typeof repo.insertObservationEnded>[1],
       );
 
-      // 8. Update pet status.
-      await repo.setObservationStatus(
+      // 8. Cerrar el estado de la mascota, con la guarda adentro del UPDATE.
+      //
+      // El chequeo de isObservationOpen que hace el paso 2 se evalua ANTES de
+      // esta transaccion. Dos cierres casi simultaneos --dos veterinarios, o un
+      // veterinario contra el cron-- lo pasaban los dos. Y como el evento
+      // rabies_observation_ended se inserta en el paso 7, ANTES de esto, el
+      // perdedor ya habia dejado en el espinazo un resultado clinico que
+      // contradice al del ganador: uno negativo y otro positive_rabies sobre el
+      // mismo animal, append-only, imposibles de corregir. Abortar aca revierte
+      // ese evento junto con todo lo demas.
+      const cerro = await repo.closeObservationIfOpen(
         pet.id,
         outcomeToStatus(input.outcome),
         now,
-        tx as Parameters<typeof repo.setObservationStatus>[3],
+        tx as Parameters<typeof repo.closeObservationIfOpen>[3],
       );
+      if (!cerro) {
+        throw new Error(
+          "otra persona cerro esta observacion mientras tanto — recarga para ver el resultado asentado",
+        );
+      }
 
       // 8b. Accountability row for the administrative act, in the SAME tx as
       // the mutation it describes — a rollback takes it with the close.
