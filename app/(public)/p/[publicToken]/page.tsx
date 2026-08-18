@@ -840,13 +840,40 @@ export default async function PublicCredentialPage({
                 <p className="m-0 font-ln-mono text-xs uppercase tracking-[.06em] text-ln-faint">
                   Antirrábica
                 </p>
+                {/* PROVENANCE RIDES WITH THE CLAIM (2026-08-17). A dose the
+                    owner typed in used to render the same green VIGENTE seal as
+                    one a matriculated vet signed, and the only provenance
+                    signal on the page appeared exclusively when the record was
+                    ALREADY verified — present when unnecessary, absent when it
+                    mattered. An unqualified green stamp on the one legally
+                    mandated vaccine is a verification this registry never
+                    performed.
+
+                    A declared dose keeps its factual word — the date IS current
+                    — but loses the OK tone, reusing the neutral variant the
+                    stamp already has for "we do not know". Same reasoning as
+                    that variant's own note: what is unconfirmed must never read
+                    as confirmed. The `detail` suffix says which of the two it
+                    is, so the qualifier cannot be missed by reading colour
+                    alone. */}
                 <p className="mt-px text-md font-medium text-ln-ink">
-                  {rabiesSemaphore === "vigente" ? (
-                    <LnVstamp variant="ok" />
-                  ) : rabiesSemaphore === "vencida" ? (
-                    <LnVstamp variant="over" />
-                  ) : rabiesSemaphore === "sin-vencimiento" ? (
-                    "Con registro"
+                  {rabiesSemaphore.estado === "vigente" ? (
+                    rabiesSemaphore.respaldo === "profesional" ? (
+                      <LnVstamp variant="ok" detail="firmada" />
+                    ) : (
+                      <LnVstamp variant="unknown" label="VIGENTE" detail="declarada" />
+                    )
+                  ) : rabiesSemaphore.estado === "vencida" ? (
+                    <LnVstamp
+                      variant="over"
+                      detail={rabiesSemaphore.respaldo === "profesional" ? "firmada" : "declarada"}
+                    />
+                  ) : rabiesSemaphore.estado === "sin-vencimiento" ? (
+                    rabiesSemaphore.respaldo === "profesional" ? (
+                      "Con registro firmado"
+                    ) : (
+                      "Con registro declarado"
+                    )
                   ) : (
                     "Sin registro"
                   )}
@@ -1067,6 +1094,12 @@ async function loadCredentialViewData(pet: Pet) {
         eventType: petEvents.eventType,
         occurredAt: petEvents.occurredAt,
         payload: petEvents.payload,
+        // Authorship travels with the dose so the semaphore can say whether a
+        // professional signed it. Selected here rather than in a second query:
+        // the provenance must describe the SAME row the vigencia describes.
+        authorRole: petEvents.authorRole,
+        authorVerified: petEvents.authorVerified,
+        authorOrganizationId: petEvents.authorOrganizationId,
       })
       .from(petEvents)
       .where(and(eq(petEvents.petId, pet.id), eq(petEvents.eventType, "vaccination_administered")))

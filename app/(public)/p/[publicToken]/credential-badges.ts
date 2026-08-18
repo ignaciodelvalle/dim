@@ -14,6 +14,7 @@
 // Kept pure + co-located (no DB, no React) so the "corrected vaccination flips
 // the public badge" contract is unit-testable without rendering the page.
 
+import { computeConfidence, isAtLeast } from "@/lib/events/event-confidence";
 import { overlayAmendments } from "@/lib/infra/amendment";
 import { parseDateInput } from "@/lib/utils/format";
 
@@ -34,7 +35,21 @@ export type CredentialEvent = {
   eventType: string;
   occurredAt: Date | string;
   payload: unknown;
+  /**
+   * Authorship, as stamped on the event at signing time. Optional because most
+   * badge helpers here do not need it; `deriveRabiesSemaphore` does — see its
+   * note on why a vigencia claim without its provenance is a false statement.
+   * Absent fields are read as "not professionally backed", which is the
+   * fail-closed reading: a caller that forgets to select these columns
+   * understates the claim rather than inventing a verification.
+   */
+  authorRole?: string | null;
+  authorVerified?: boolean | null;
+  authorOrganizationId?: string | null;
 };
+
+/** Whether the record behind a badge carries a professional signature. */
+export type CredentialProvenance = "profesional" | "declarada";
 
 // countActiveVaccineNames (Tier 2 "vacunas vigentes" v1 — a 12-month distinct
 // name dedupe) was REMOVED (staging validation 2026-07-04, bug 3): its counts
@@ -99,8 +114,27 @@ export function deriveActiveMedications(events: CredentialEvent[]): string[] {
  * FIRST — accent/case-insensitive match on "rabi" — then takes the latest, so
  * a later non-rabies vaccine can never mask an expired rabies dose.
  *
- * Privacy proportionality (checklist argued in the spec): the disclosed datum
- * is ONE boolean vigencia — no dates, no vet, no batch, no other vaccine.
+ * Privacy proportionality (checklist argued in the spec): the disclosed data are
+ * ONE vigencia and ONE provenance bit — no dates, no vet name, no batch, no
+ * other vaccine. The provenance bit was added 2026-08-17; it says something
+ * about the RECORD, never about the owner, so it does not widen the personal
+ * data on this page.
+ *
+ * WHY PROVENANCE TRAVELS WITH THE STATE.
+ * This used to return the vigencia alone, computed from `next_due_at` and
+ * nothing else, and the page painted it as a green VIGENTE seal. A dose the
+ * owner typed in and nobody confirmed was therefore indistinguishable from one
+ * a matriculated vet signed. The mechanism meant to cover that —
+ * `showVaccinationConfidence` in page.tsx — was inverted: it renders a badge
+ * only when the record is ALREADY professionally verified, so it appears
+ * exactly when it is not needed and is absent exactly when it is. And absence
+ * of a badge is not a statement: an inspector, a finder or an adopter reads a
+ * bare green stamp as a verified fact.
+ *
+ * Rabies is the one legally mandated vaccine (Ley 22.953), so it is also the
+ * one where acting on a false reading has consequences. The owner-facing
+ * projection (lib/projections/pet-compliance.ts) has always drawn this
+ * distinction correctly; the public face reimplemented the logic without it.
  *
  * Pass the pet's `vaccination_administered` rows + `event_amended` (WAVE D1:
  * corrections fold before deriving, same contract as every badge here).
@@ -108,7 +142,7 @@ export function deriveActiveMedications(events: CredentialEvent[]): string[] {
 export function deriveRabiesSemaphore(
   events: CredentialEvent[],
   now: Date,
-): "vigente" | "vencida" | "sin-vencimiento" | "none" {
+): { estado: "vigente" | "vencida" | "sin-vencimiento" | "none"; respaldo: CredentialProvenance } {
   const isRabiesName = (name: unknown): boolean =>
     typeof name === "string" &&
     name
@@ -126,13 +160,32 @@ export function deriveRabiesSemaphore(
     .sort((a, b) => new Date(b.occurredAt).getTime() - new Date(a.occurredAt).getTime());
 
   const latest = rabiesDoses[0];
-  if (!latest) return "none";
+  if (!latest) return { estado: "none", respaldo: "declarada" };
+
+  // Provenance of THE SAME dose the state describes — returned together, and
+  // from one selection, on purpose. Two functions each picking "the latest
+  // dose" is how a qualifier ends up describing a different record than the
+  // claim it qualifies.
+  const respaldo: CredentialProvenance = isAtLeast(
+    computeConfidence({
+      // Coerced, not asserted: a row whose authorship columns were never
+      // selected reads as an unsigned owner record and lands on "declarada".
+      // Understating a claim is the safe direction here; inventing one is not.
+      authorRole: latest.authorRole ?? "",
+      authorVerified: latest.authorVerified === true,
+      authorOrganizationId: latest.authorOrganizationId ?? null,
+      payload: (latest.payload ?? {}) as Record<string, unknown>,
+    }),
+    "professional_verified",
+  )
+    ? "profesional"
+    : "declarada";
 
   const nextDueRaw = (latest.payload as { next_due_at?: unknown })?.next_due_at;
-  if (typeof nextDueRaw !== "string" || !nextDueRaw) return "sin-vencimiento";
+  if (typeof nextDueRaw !== "string" || !nextDueRaw) return { estado: "sin-vencimiento", respaldo };
   const nextDueAt = parseNextDue(nextDueRaw);
-  if (!nextDueAt) return "sin-vencimiento";
-  return nextDueAt >= now ? "vigente" : "vencida";
+  if (!nextDueAt) return { estado: "sin-vencimiento", respaldo };
+  return { estado: nextDueAt >= now ? "vigente" : "vencida", respaldo };
 }
 
 export function isRabiesAtRisk(events: CredentialEvent[], now: Date): boolean {

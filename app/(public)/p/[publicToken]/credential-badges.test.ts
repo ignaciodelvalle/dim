@@ -19,11 +19,19 @@ const vaccination = (
   name: string,
   at: string,
   nextDueAt?: string,
+  // Authorship defaults to an OWNER-declared dose — the common case and, until
+  // 2026-08-17, the one the public credential rendered as a verified green
+  // seal. Tests that want the professional signature must ask for it, so no
+  // assertion can acquire it by accident.
+  signer: "owner" | "vet" = "owner",
 ): CredentialEvent => ({
   id,
   eventType: "vaccination_administered",
   occurredAt: at,
   payload: { vaccine_name: name, ...(nextDueAt ? { next_due_at: nextDueAt } : {}) },
+  authorRole: signer,
+  authorVerified: signer === "vet",
+  authorOrganizationId: signer === "vet" ? "org-1" : null,
 });
 
 const amend = (
@@ -169,29 +177,29 @@ describe("deriveRabiesSemaphore — tri-state antirrábica vigencia (R4)", () =>
 
   it("latest rabies dose with a future next_due_at → vigente", () => {
     const events = [vaccination("v1", "Antirrábica", "2026-01-01", "2027-01-01")];
-    expect(deriveRabiesSemaphore(events, now)).toBe("vigente");
+    expect(deriveRabiesSemaphore(events, now).estado).toBe("vigente");
   });
 
   it("latest rabies dose with a past next_due_at → vencida", () => {
     const events = [vaccination("v1", "Antirrábica", "2025-01-01", "2026-01-01")];
-    expect(deriveRabiesSemaphore(events, now)).toBe("vencida");
+    expect(deriveRabiesSemaphore(events, now).estado).toBe("vencida");
   });
 
   it("no rabies dose at all → none (even with other vaccines present)", () => {
-    expect(deriveRabiesSemaphore([], now)).toBe("none");
+    expect(deriveRabiesSemaphore([], now).estado).toBe("none");
     const events = [vaccination("v1", "Quíntuple", "2026-01-01", "2027-01-01")];
-    expect(deriveRabiesSemaphore(events, now)).toBe("none");
+    expect(deriveRabiesSemaphore(events, now).estado).toBe("none");
   });
 
   it("rabies dose without next_due_at → sin-vencimiento (no vigencia claim)", () => {
     const events = [vaccination("v1", "Antirrábica", "2026-01-01")];
-    expect(deriveRabiesSemaphore(events, now)).toBe("sin-vencimiento");
+    expect(deriveRabiesSemaphore(events, now).estado).toBe("sin-vencimiento");
   });
 
   it("matches rabies names accent- and case-insensitively (Antirrábica / RABIA / antirrabica)", () => {
     for (const name of ["Antirrábica", "ANTIRRABICA", "Vacuna Rabia", "rabia"]) {
       const events = [vaccination("v1", name, "2026-01-01", "2027-01-01")];
-      expect(deriveRabiesSemaphore(events, now), name).toBe("vigente");
+      expect(deriveRabiesSemaphore(events, now).estado, name).toBe("vigente");
     }
   });
 
@@ -203,7 +211,7 @@ describe("deriveRabiesSemaphore — tri-state antirrábica vigencia (R4)", () =>
     // The service-dog heuristic goes dark here (latest vaccine isn't rabies)…
     expect(isRabiesAtRisk(events, now)).toBe(false);
     // …but the semaphore must still say VENCIDA.
-    expect(deriveRabiesSemaphore(events, now)).toBe("vencida");
+    expect(deriveRabiesSemaphore(events, now).estado).toBe("vencida");
   });
 
   it("takes the LATEST rabies dose when several exist", () => {
@@ -211,7 +219,7 @@ describe("deriveRabiesSemaphore — tri-state antirrábica vigencia (R4)", () =>
       vaccination("v1", "Antirrábica", "2024-01-01", "2025-01-01"), // old, expired
       vaccination("v2", "Antirrábica", "2026-01-01", "2027-01-01"), // newer, vigente
     ];
-    expect(deriveRabiesSemaphore(events, now)).toBe("vigente");
+    expect(deriveRabiesSemaphore(events, now).estado).toBe("vigente");
   });
 
   it("a date-only next_due_at due TODAY is still vigente in the early-AR-morning window", () => {
@@ -221,7 +229,7 @@ describe("deriveRabiesSemaphore — tri-state antirrábica vigencia (R4)", () =>
     // keeps it vigente through the 21:00-prev-day → 09:00 AR window.
     const midnightAr = new Date("2026-06-01T03:00:00Z"); // 00:00 AR on 2026-06-01
     const events = [vaccination("v1", "Antirrábica", "2025-06-01", "2026-06-01")];
-    expect(deriveRabiesSemaphore(events, midnightAr)).toBe("vigente");
+    expect(deriveRabiesSemaphore(events, midnightAr).estado).toBe("vigente");
     expect(isRabiesAtRisk(events, midnightAr)).toBe(false);
   });
 
@@ -233,7 +241,7 @@ describe("deriveRabiesSemaphore — tri-state antirrábica vigencia (R4)", () =>
         { field: "vaccine_name", old: "Sextuple typo", new: "Antirrábica" },
       ]),
     ];
-    expect(deriveRabiesSemaphore(renamed, now)).toBe("vencida");
+    expect(deriveRabiesSemaphore(renamed, now).estado).toBe("vencida");
 
     // …and correcting the due date forward flips vencida → vigente.
     const extended = [
@@ -242,6 +250,87 @@ describe("deriveRabiesSemaphore — tri-state antirrábica vigencia (R4)", () =>
         { field: "next_due_at", old: "2026-01-01", new: "2027-01-01" },
       ]),
     ];
-    expect(deriveRabiesSemaphore(extended, now)).toBe("vigente");
+    expect(deriveRabiesSemaphore(extended, now).estado).toBe("vigente");
+  });
+});
+
+// PROVENANCE (2026-08-17). The semaphore used to return the vigencia alone, and
+// the page painted it as a green VIGENTE seal — so a dose the owner typed in
+// and nobody confirmed was indistinguishable from one a matriculated vet
+// signed. Rabies is the one legally mandated vaccine (Ley 22.953), which makes
+// it the one where acting on a false reading has consequences: an inspector, a
+// finder, an adopter.
+//
+// The old shape could not be tested for this at all — there was nothing in the
+// return value to assert on. That is the point: a claim with no room for its
+// own qualifier cannot be made honest by a test.
+describe("deriveRabiesSemaphore — the vigencia carries its provenance", () => {
+  const now = new Date("2026-06-01T00:00:00Z");
+
+  it("marks an owner-declared dose as declarada even when the date is current", () => {
+    const events = [vaccination("v1", "Antirrábica", "2026-01-01", "2027-01-01", "owner")];
+    const { estado, respaldo } = deriveRabiesSemaphore(events, now);
+    // Both halves matter: the date IS current, and nobody verified it.
+    expect(estado).toBe("vigente");
+    expect(respaldo).toBe("declarada");
+  });
+
+  it("marks a dose signed by a matriculated vet as profesional", () => {
+    // Positive control. Without it, a build that returned "declarada"
+    // unconditionally would satisfy every other assertion here.
+    const events = [vaccination("v1", "Antirrábica", "2026-01-01", "2027-01-01", "vet")];
+    expect(deriveRabiesSemaphore(events, now).respaldo).toBe("profesional");
+  });
+
+  it("describes the SAME dose the state describes when both exist", () => {
+    // The failure this prevents: a professional dose that expired, followed by
+    // a fresh one the owner typed in. Deriving state and provenance from two
+    // separate "latest" lookups could report VIGENTE (from the new dose) with
+    // profesional (from the old one) — a combination that was never true of
+    // any single record.
+    const events = [
+      vaccination("v1", "Antirrábica", "2024-01-01", "2025-01-01", "vet"),
+      vaccination("v2", "Antirrábica", "2026-01-01", "2027-01-01", "owner"),
+    ];
+    const { estado, respaldo } = deriveRabiesSemaphore(events, now);
+    expect(estado).toBe("vigente");
+    expect(respaldo).toBe("declarada");
+  });
+
+  it("keeps the professional signature when a correction only changes the payload", () => {
+    // An amendment rewrites the corrected FIELDS, never the authorship — a vet
+    // who signed still signed. Pins that overlayAmendments carries the
+    // authorship columns through, which is what makes the lookup above work.
+    const events = [
+      vaccination("v1", "Antirrábica", "2025-01-01", "2026-01-01", "vet"),
+      amend("a1", "v1", "2026-05-01", [
+        { field: "next_due_at", old: "2026-01-01", new: "2027-01-01" },
+      ]),
+    ];
+    const { estado, respaldo } = deriveRabiesSemaphore(events, now);
+    expect(estado).toBe("vigente");
+    expect(respaldo).toBe("profesional");
+  });
+
+  it("reads a row with NO authorship columns as declarada, not as verified", () => {
+    // Fail-closed. A caller that forgets to select the authorship columns must
+    // understate the claim; the alternative is inventing a verification that
+    // never happened.
+    const bare: CredentialEvent = {
+      id: "v1",
+      eventType: "vaccination_administered",
+      occurredAt: "2026-01-01",
+      payload: { vaccine_name: "Antirrábica", next_due_at: "2027-01-01" },
+    };
+    expect(deriveRabiesSemaphore([bare], now).respaldo).toBe("declarada");
+  });
+
+  it("reports provenance on an EXPIRED dose too", () => {
+    // "Vencida" is equally a claim about a record, and the reader deserves to
+    // know whether the record that expired was ever verified.
+    const events = [vaccination("v1", "Antirrábica", "2024-01-01", "2025-01-01", "vet")];
+    const { estado, respaldo } = deriveRabiesSemaphore(events, now);
+    expect(estado).toBe("vencida");
+    expect(respaldo).toBe("profesional");
   });
 });
