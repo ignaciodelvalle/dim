@@ -127,6 +127,35 @@ describe("ACCENT_WORDS", () => {
     expect(bads).toContain("despues");
   });
 
+  // "aun" y "aún" son DOS PALABRAS, no una con y sin acento:
+  //   aún = todavía  → lleva tilde
+  //   aun = incluso  → no lleva
+  // La regla escrita a secas rechazaba copy correcto: frenó la frase "y aun así
+  // no aparece" del not-found de denuncias (2026-08-18). Una fence que obliga a
+  // escribir mal es peor que no tenerla, y más en un producto cuyo argumento
+  // entero es no afirmar cosas falsas. Estas cuatro aserciones fijan la
+  // distinción en las dos direcciones — sin la segunda mitad, alguien
+  // "simplifica" el lookahead y vuelve el rechazo.
+  describe("aun / aún — dos palabras, no un acento faltante", () => {
+    // Vive en ACCENT_NOUNS, no en ACCENT_WORDS — la lista se partió cuando el
+    // filtro por posición pasó a llevar el peso (ver el comentario del script).
+    const entry = ACCENT_NOUNS.find((w) => w.bad === "aun")!;
+
+    it("NO marca las concesivas, que van sin tilde", () => {
+      for (const frase of ["y aun así no aparece", "aun cuando falte el dato"]) {
+        entry.re.lastIndex = 0;
+        expect(frase, frase).not.toMatch(entry.re);
+      }
+    });
+
+    it("sí marca el adverbio temporal, al que le falta la tilde", () => {
+      for (const frase of ["aun no llegó la respuesta", "esto aun falta"]) {
+        entry.re.lastIndex = 0;
+        expect(frase, frase).toMatch(entry.re);
+      }
+    });
+  });
+
   describe("pais", () => {
     const entry = ACCENT_WORDS.find((w) => w.bad === "pais")!;
 

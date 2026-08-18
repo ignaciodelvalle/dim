@@ -370,7 +370,17 @@ export const ACCENT_NOUNS: Array<{ bad: string; good: string; re: RegExp }> = [
   { bad: "ningun", good: "ningún", re: /\bningun\b/g },
   { bad: "algun", good: "algún", re: /\balgun\b/g },
   { bad: "estan", good: "están", re: /\bestan\b/g },
-  { bad: "aun", good: "aún", re: /\baun\b/g },
+  // `aun` y `aún` son dos palabras distintas, no un error de acento:
+  //   aún = todavía   ("aún no llegó")        → lleva tilde
+  //   aun = incluso   ("aun así", "aun cuando") → NO lleva tilde
+  // La regla escrita a secas marcaba como error toda ocurrencia de `aun`, así
+  // que rechazaba copy correcto — encontrado 2026-08-18 cuando frenó la frase
+  // "y aun así no aparece" en el not-found de denuncias. Una fence que exige
+  // escribir mal es peor que no tenerla, sobre todo en un producto cuyo
+  // argumento es no afirmar cosas falsas. El lookahead exime las dos
+  // construcciones concesivas frecuentes y deja intacto el caso real
+  // ("aun no llegó" → "aún no llegó").
+  { bad: "aun", good: "aún", re: /\baun\b(?!\s+(?:así|asi|cuando))/g },
   { bad: "aca", good: "acá", re: /\baca\b/g },
   { bad: "alli", good: "allí", re: /\balli\b/g },
   { bad: "asi", good: "así", re: /\basi\b/g },
