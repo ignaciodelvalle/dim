@@ -44,6 +44,43 @@ function channel(env: EnvLike, key: string) {
   return found;
 }
 
+// --- Escaneo de fuente para la fence del remitente -------------------------
+// Extraído del `it` porque ahí adentro el linter medía complejidad 37 sobre un
+// máximo de 25. Partirlo en piezas nombradas también hace legible QUÉ se
+// escanea, que es la mitad del valor de una fence.
+
+const ROOT = join(__dirname, "..");
+/** Su casa: el único archivo donde el literal del fallback debe vivir. */
+const CANONICO = "lib/infra/outbound-channels.ts";
+const FROM_LITERAL = /from:\s*["'`][^"'`]*@[^"'`]+["'`]/;
+
+/** Rutas relativas de todo el código de producto (sin tests). */
+function archivosFuente(): string[] {
+  const out: string[] = [];
+  for (const raiz of ["app", "lib", "src"]) {
+    for (const e of readdirSync(join(ROOT, raiz), { withFileTypes: true, recursive: true })) {
+      const esFuente = e.isFile() && (e.name.endsWith(".ts") || e.name.endsWith(".tsx"));
+      if (!esFuente || e.name.includes(".test.")) continue;
+      out.push(
+        join(e.parentPath, e.name)
+          .slice(ROOT.length + 1)
+          .replaceAll("\\", "/"),
+      );
+    }
+  }
+  return out;
+}
+
+/** Líneas de código (no comentarios) que fijan una dirección de envío. */
+function lineasConRemitenteFijo(rel: string): string[] {
+  return readFileSync(join(ROOT, rel), "utf8")
+    .split("\n")
+    .map((l) => l.trim())
+    .filter((l) => !l.startsWith("//") && !l.startsWith("*"))
+    .filter((l) => FROM_LITERAL.test(l))
+    .map((l) => l.slice(0, 60));
+}
+
 describe("deriveOutboundChannels", () => {
   it("reports email unconfigured when the key is absent, and names what is missing", () => {
     const email = channel({}, "email");
@@ -161,34 +198,17 @@ describe("estado restringido — clave puesta, sin dominio propio", () => {
 // inválida. Ahora sale de configuración y esta fence lo mantiene así.
 describe("el remitente sale de configuración, no del código", () => {
   it("ningún archivo fija una dirección de envío", () => {
-    const ROOT = join(__dirname, "..");
-    const CANONICO = "lib/infra/outbound-channels.ts";
-    const FROM_LITERAL = /from:\s*["'`][^"'`]*@[^"'`]+["'`]/;
-
-    const culpables: string[] = [];
-    for (const raiz of ["app", "lib", "src"]) {
-      for (const entry of readdirSync(join(ROOT, raiz), { withFileTypes: true, recursive: true })) {
-        if (!entry.isFile()) continue;
-        if (!entry.name.endsWith(".ts") && !entry.name.endsWith(".tsx")) continue;
-        if (entry.name.includes(".test.")) continue;
-        const rel = join(entry.parentPath, entry.name)
-          .slice(ROOT.length + 1)
-          .replaceAll("\\", "/");
-        if (rel === CANONICO) continue; // su casa: ahí vive el fallback
-        const src = readFileSync(join(ROOT, rel), "utf8");
-        for (const linea of src.split("\n")) {
-          if (linea.trim().startsWith("//") || linea.trim().startsWith("*")) continue;
-          if (FROM_LITERAL.test(linea)) culpables.push(`${rel} → ${linea.trim().slice(0, 60)}`);
-        }
-      }
-    }
+    const culpables = archivosFuente()
+      .filter((rel) => rel !== CANONICO)
+      .flatMap((rel) => lineasConRemitenteFijo(rel).map((l) => `${rel} → ${l}`));
     expect(culpables).toEqual([]);
   });
 
-  it("y el fallback vive en un solo lugar", () => {
-    // NO VACUIDAD: si el escaneo de arriba dejara de encontrar archivos, la
-    // aserción pasaría sobre una lista vacía. Esto confirma que el literal que
-    // sí debe existir, existe.
+  it("escanea un árbol real, y el fallback vive en un solo lugar", () => {
+    // NO VACUIDAD en las dos mitades: si el escaneo dejara de encontrar
+    // archivos, la aserción de arriba pasaría sobre una lista vacía; y el
+    // literal que SÍ debe existir tiene que seguir existiendo.
+    expect(archivosFuente().length).toBeGreaterThan(500);
     expect(FALLBACK_MAIL_SENDER).toMatch(/@resend\.dev/);
   });
 });
