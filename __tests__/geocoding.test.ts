@@ -170,10 +170,25 @@ describe("geocodeAddress — forward", () => {
   });
 
   it("sends User-Agent header per Nominatim policy", async () => {
+    // La política de OSM pide un identificador de aplicación y un contacto
+    // GENUINAMENTE MONITOREADO. Esta aserción pedía además que empezara con
+    // "DIM/", cosa que la política no pide y que ataba el header al nombre en
+    // clave interno: cuando el 2026-08-18 se descubrió que `dim.ar` no existe y
+    // el header pasó a llevar la marca pública, este test falló por la razón
+    // equivocada — el problema no era el prefijo, era el dominio muerto que
+    // anunciaba. Ahora afirma la FORMA que la política sí exige.
     fetchMock.mockResolvedValueOnce({ ok: true, json: async () => [] });
     await geocodeAddress("test");
     const init = fetchMock.mock.calls[0][1] as RequestInit;
-    expect((init.headers as Record<string, string>)["User-Agent"]).toMatch(/^DIM\/.+\(.+\)$/);
+    const ua = (init.headers as Record<string, string>)["User-Agent"] as string;
+
+    // producto/versión + un contacto entre paréntesis
+    expect(ua).toMatch(/^\S+\/\d[\w.]*\s+\(.+\)$/);
+    // y que ese contacto sea alcanzable de verdad, no una etiqueta
+    expect(ua).toMatch(/@/);
+    // nunca más un dominio inexistente: si OSM necesita avisarnos de un abuso,
+    // no puede terminar en un enlace muerto
+    expect(ua).not.toMatch(/dim\.ar/i);
   });
 });
 
