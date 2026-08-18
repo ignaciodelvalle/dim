@@ -299,11 +299,23 @@ export function VaccinationForm({
 
               The replacement says what IS true and what the owner can actually
               do about it, reusing the wording pet-compliance.ts already shows
-              them on the pet's own card so the two surfaces agree. */}
+              them on the pet's own card so the two surfaces agree.
+
+              CORRECTED SAME DAY, by a review of this very commit: the first
+              draft replaced the false promise with a DIFFERENT false claim —
+              "no se puede editar ni borrar despues". Vaccination IS in
+              AMENDABLE_EVENT_TYPES and the owner has a working "Corregir
+              registro" button on the event page, so that sentence would have
+              hidden a feature the product offers. Append-only means the record
+              cannot be DELETED or overwritten; a correction adds a new entry
+              and the original stays in the history, which is exactly what
+              AmendEventForm tells them. Pinned by
+              __tests__/event-form-amendability-copy.test.ts. */}
           <LnCallout tone="azul" title="Queda como dato declarado">
-            Este registro entra en la libreta a tu nombre y no se puede editar ni borrar después.
-            Para figurar “al día” en el registro oficial, un veterinario matriculado tiene que
-            firmarla: mostrale el código de la credencial de tu mascota y la firma con su matrícula.
+            Este registro entra en la libreta a tu nombre. Si te equivocás podés corregirlo después:
+            la corrección agrega un registro nuevo y el original queda visible en el historial. Para
+            figurar “al día” en el registro oficial, un veterinario matriculado tiene que firmarla:
+            mostrale el código de la credencial de tu mascota y la firma con su matrícula.
           </LnCallout>
 
           <LnField label="Notas">
