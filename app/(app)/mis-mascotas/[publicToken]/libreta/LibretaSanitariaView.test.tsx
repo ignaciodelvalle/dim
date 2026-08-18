@@ -156,3 +156,58 @@ describe("<LibretaSanitariaView> — clinical timeline cannot widen the page", (
     expect(html).toContain("96px 34px 1fr");
   });
 });
+
+describe("<LibretaSanitariaView> — Profesional column falls back to the signature", () => {
+  // A vet-SIGNED dose with the free-text applier left blank used to render
+  // PROFESIONAL "—" while an owner-declared dose showed its cited name — the
+  // row with MORE provenance looked like it had less (9-role external run,
+  // 2026-08-18). Events are append-only, so pre-existing signed doses can
+  // only be repaired at render.
+  function vaccineEvent(overrides: Partial<Event>): Event {
+    return {
+      id: "evt-vac",
+      eventType: "vaccination_administered",
+      payload: { vaccine_name: "Antirrábica" },
+      occurredAt: new Date("2026-06-01T00:00:00Z"),
+      notes: null,
+      authorRole: "owner",
+      authorVerified: false,
+      authorOrganizationId: null,
+      ...overrides,
+    };
+  }
+
+  function renderWith(event: Event): string {
+    const groups = emptyGroups();
+    groups.vacunas = [event];
+    return renderToStaticMarkup(
+      <LibretaSanitariaView groupedEvents={groups} publicToken="abc123" vista="agrupada" />,
+    );
+  }
+
+  it("a signed dose with no typed applier shows the verified signature, not a dash", () => {
+    const html = renderWith(
+      vaccineEvent({ id: "evt-signed", authorRole: "vet", authorVerified: true }),
+    );
+    expect(html).toContain("Profesional matriculado (firma verificada)");
+  });
+
+  it("an owner-declared dose with no applier keeps the dash — the fallback is signature-only", () => {
+    const html = renderWith(vaccineEvent({ id: "evt-declared" }));
+    expect(html).not.toContain("Profesional matriculado (firma verificada)");
+    expect(html).toContain("—");
+  });
+
+  it("typed free text always wins over the fallback", () => {
+    const html = renderWith(
+      vaccineEvent({
+        id: "evt-typed",
+        authorRole: "vet",
+        authorVerified: true,
+        payload: { vaccine_name: "Antirrábica", administered_by: "Dra. Prueba QA" },
+      }),
+    );
+    expect(html).toContain("Dra. Prueba QA");
+    expect(html).not.toContain("Profesional matriculado (firma verificada)");
+  });
+});

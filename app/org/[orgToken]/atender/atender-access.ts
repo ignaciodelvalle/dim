@@ -65,6 +65,10 @@ export type AtenderSigner = {
   /** How the signature is attributed in the UI header. */
   label: string;
   matriculaVerified: boolean;
+  /** How the signer reads on a printed record ("Nombre (matrícula X)"), or
+   * null when the profile has no display name. Writers use it to default
+   * "aplicada por"-style payload fields left blank by the signer. */
+  recordName: string | null;
 };
 
 export type AtenderAccessSuccess = {
@@ -136,6 +140,7 @@ export async function resolveAtenderContext(orgToken: string): Promise<
   // art. 16, same guard as requirePetAccess / requireCapability).
   const [signerProfile] = await db
     .select({
+      displayName: profiles.displayName,
       matriculaNumber: profiles.matriculaNumber,
       matriculaVerified: profiles.matriculaVerified,
       deletedAt: profiles.deletedAt,
@@ -180,12 +185,24 @@ export async function resolveAtenderContext(orgToken: string): Promise<
       ? `matrícula ${signerProfile.matriculaNumber}`
       : membershipRow.organizationName;
 
+  // How the signer reads on a printed record: name + matrícula for a verified
+  // vet, plain name otherwise. Used by writers to fill "aplicada por"-style
+  // payload fields the professional understandably leaves blank when they ARE
+  // the applier — without it, the shared libreta's Profesional column showed
+  // "—" on a SIGNED dose while an owner-declared one showed its cited name
+  // (9-role external run, 2026-08-18).
+  const signerRecordName = signerProfile?.displayName
+    ? matriculaVerified && signerProfile.matriculaNumber
+      ? `${signerProfile.displayName} (matrícula ${signerProfile.matriculaNumber})`
+      : signerProfile.displayName
+    : null;
+
   return {
     ok: true,
     user: { id: user.id },
     organizationId: membershipRow.organizationId,
     organizationName: membershipRow.organizationName,
-    signer: { label: signerLabel, matriculaVerified },
+    signer: { label: signerLabel, matriculaVerified, recordName: signerRecordName },
     eventAuthorship,
   };
 }

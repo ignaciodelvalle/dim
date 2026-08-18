@@ -44,6 +44,7 @@ import {
 } from "@/lib/infra/admin-search";
 import { requireAdminOrGovtOrRedirect } from "@/lib/infra/auth-guards";
 import { SERVICE_TYPE_LABELS } from "@/lib/infra/service-dog-labels";
+import { panoramaScopeLabel } from "@/lib/panorama/scope-label";
 import { acronymPurpose, expandAcronym } from "@/lib/ui/operator-vocabulary";
 import { pluralizeEs } from "@/lib/utils/format";
 
@@ -105,7 +106,9 @@ export async function CredencialesScreen({
             <p className="text-sm text-ln-op-ink-2">
               {profile.role === "admin"
                 ? "Buscá por nombre de la mascota, token o número RUPGA. Tu vista es universal."
-                : `Credenciales en tus ${jurisdictions.length} ${pluralizeEs(jurisdictions.length, "localidad")}.`}
+                : // Same fix as OrganizacionesScreen: scope label, not a raw
+                  // locality count that misreads whole-province assignments.
+                  `Credenciales de tu alcance: ${panoramaScopeLabel(profile.role, jurisdictions)}.`}
             </p>
           </>
         }

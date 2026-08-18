@@ -174,9 +174,14 @@ export const CASE_NORMATIVES: CaseNormativesEntry[] = [
       },
       {
         id: "caso_por_caso",
-        label: "Proceeding judicial específico",
+        // This text renders VERBATIM on the public case page (/casos/[code]).
+        // It used to carry spec-speak — a raw column name in backticks and the
+        // English word "proceeding" — shown to a pet owner reading their own
+        // dispute (found live by the 9-role external run, 2026-08-18). Copy
+        // here is user-facing es-AR: no schema identifiers, no jargon.
+        label: "Causa judicial del caso",
         scope:
-          "Detalle en `external_proceeding_reference` del dispute. Cada caso tiene su propia carátula y juzgado",
+          "Si la disputa llega a la justicia, cada caso tiene su propia carátula y juzgado; la referencia del expediente queda registrada en el caso",
       },
     ],
   },

@@ -446,7 +446,13 @@ export async function createOrgWelfareReport(
 
   // 6. Redirect target
   const token = orgToken ?? "unknown";
-  const redirectTo = `/org/${token}/maltrato/recibidos`;
+  // Land on EMITIDOS — the tab that actually contains the report just
+  // created — carrying its reference code so the hub can confirm it. The
+  // bare hub URL defaulted to "Recibidos" (reports derived TO this org,
+  // usually empty), so the professional's critical report vanished into a
+  // blank screen with no code and no confirmation (9-role external run,
+  // 2026-08-18).
+  const redirectTo = `/org/${token}/maltrato/recibidos?tab=emitidos&creado=${encodeURIComponent(referenceCode)}`;
 
   return { ok: true, reportId, referenceCode, redirectTo };
 }

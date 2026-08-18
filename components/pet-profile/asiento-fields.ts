@@ -429,7 +429,22 @@ export function toAsientoView(
         kind: typeLabel ? `Antiparasitario · ${typeLabel}` : "Antiparasitario",
         title: str(p, "product") ?? "Antiparasitario",
         facts: [
-          fact("Vía", typeLabel === "externo" ? "Externa" : "Oral", "Sin dato"),
+          // The route is INFERRED from the type (the payload has no route
+          // field), so each type maps to its own label — the old else-branch
+          // stamped "Oral" on a "both" product, contradicting the "interno +
+          // externo" eyebrow one line above (9-role external run, 2026-08-18).
+          // Unknown type → "Sin dato", never a guess.
+          fact(
+            "Vía",
+            typeRaw === "external"
+              ? "Externa"
+              : typeRaw === "both"
+                ? "Oral + externa"
+                : typeRaw === "internal"
+                  ? "Oral"
+                  : null,
+            "Sin dato",
+          ),
           fact("Dosis", str(p, "dose"), "Sin dato"),
           { key: "Aplicada", value: aplicada },
           fact("Próxima dosis", dateStr(p, "next_due_at"), "Sin dato"),

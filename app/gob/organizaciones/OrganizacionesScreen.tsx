@@ -29,6 +29,7 @@ import { ScreenHeader } from "@/components/ui/dashboard/ScreenHeader";
 import type { OrgTypeFilter, OrgVerifiedFilter } from "@/lib/infra/admin-search";
 import { searchOrganizations } from "@/lib/infra/admin-search";
 import { requireAdminOrGovtOrRedirect } from "@/lib/infra/auth-guards";
+import { panoramaScopeLabel } from "@/lib/panorama/scope-label";
 import { portalBase } from "@/lib/ui/portal-base";
 import { pluralizeEs } from "@/lib/utils/format";
 import { logPiiReadSafely } from "@/src/modules/organizations/application/admin-proposals/log-pii-query";
@@ -114,7 +115,11 @@ export async function OrganizacionesScreen({
           <p className="text-sm text-ln-op-ink-2">
             {profile.role === "admin"
               ? "Buscá por nombre, razón social o CUIT. Tu vista es universal."
-              : `Buscá entre las orgs en tus ${jurisdictions.length} ${pluralizeEs(jurisdictions.length, "localidad")}.`}
+              : // panoramaScopeLabel, not a raw count: "tus 1 localidad" is
+                // broken grammar, and for a whole-province assignment (one
+                // sentinel row) it also understated the real scope (9-role
+                // external run, 2026-08-18).
+                `Buscá entre las orgs de tu alcance: ${panoramaScopeLabel(profile.role, jurisdictions)}.`}
           </p>
         }
       />

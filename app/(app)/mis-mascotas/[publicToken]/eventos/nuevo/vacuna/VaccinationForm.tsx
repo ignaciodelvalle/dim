@@ -34,12 +34,22 @@ export function VaccinationForm({
   sourceReminderId,
   defaults,
   autoConfirm,
+  signedContext,
 }: {
   action: FormAction;
   species: string;
   initialVaccineName?: string;
   sourceReminderId?: string;
   defaults?: { occurredAt: string | null; notes: string | null };
+  /**
+   * True when the surrounding surface signs the event with a verified
+   * matrícula (atender). Suppresses the owner-facing "Queda como dato
+   * declarado" callout, which is FALSE in that context — the header right
+   * above it says "Firmás como matrícula … verificado por profesional", and
+   * both texts were rendering together (9-role external run, 2026-08-18).
+   * Display-only: free-text behavior and submission are untouched.
+   */
+  signedContext?: boolean;
   /**
    * Notification quick-reply autoconfirm (capture-console surface #4): when
    * true AND the required fields (vaccine name, application date) are
@@ -311,12 +321,15 @@ export function VaccinationForm({
               and the original stays in the history, which is exactly what
               AmendEventForm tells them. Pinned by
               __tests__/event-form-amendability-copy.test.ts. */}
-          <LnCallout tone="azul" title="Queda como dato declarado">
-            Este registro entra en la libreta a tu nombre. Si te equivocás podés corregirlo después:
-            la corrección agrega un registro nuevo y el original queda visible en el historial. Para
-            figurar “al día” en el registro oficial, un veterinario matriculado tiene que firmarla:
-            mostrale el código de la credencial de tu mascota y la firma con su matrícula.
-          </LnCallout>
+          {!signedContext && (
+            <LnCallout tone="azul" title="Queda como dato declarado">
+              Este registro entra en la libreta a tu nombre. Si te equivocás podés corregirlo
+              después: la corrección agrega un registro nuevo y el original queda visible en el
+              historial. Para figurar “al día” en el registro oficial, un veterinario matriculado
+              tiene que firmarla: mostrale el código de la credencial de tu mascota y la firma con
+              su matrícula.
+            </LnCallout>
+          )}
 
           <LnField label="Notas">
             {({ id, describedBy }) => (

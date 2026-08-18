@@ -74,14 +74,22 @@ async function simulateIntake(opts: {
   const publicToken = `INTAKE-DW-${generatePublicToken()}`.slice(0, 30);
   const now = new Date();
 
-  // Resolve a real userId from seeded data — pick any profile row.
+  // Resolve a real userId from seeded data. MUST be an owner-role profile:
+  // the bare `LIMIT 1` (no role filter, no ORDER BY) picked an ARBITRARY row,
+  // and whenever the heap handed back an institutional profile — or one some
+  // concurrently-running test had flipped to govt — the DB trigger
+  // enforce_institutional_no_pets rejected the ownership insert. Three
+  // phantom failures in a full run, 5/5 green standalone (2026-08-18).
+  // ORDER BY makes the pick stable; the role filter makes it valid.
   let userId = opts.userId;
   if (!userId) {
     const rows = (await db.execute(sql`
-      SELECT id::text as id FROM public.profiles LIMIT 1
+      SELECT id::text as id FROM public.profiles
+      WHERE role = 'owner' AND deleted_at IS NULL
+      ORDER BY created_at ASC, id ASC LIMIT 1
     `)) as Array<{ id: string }>;
     userId = rows[0]?.id;
-    if (!userId) throw new Error("No profile rows found — run seed-test-users.ts first");
+    if (!userId) throw new Error("No owner-role profile found — run seed-test-users.ts first");
   }
 
   await db.transaction(async (tx) => {

@@ -59,7 +59,7 @@ export function ProposeReturnForm({
         description="El dueño recibió una notificación para confirmar la devolución. La custodia sigue con tu org hasta que acepte."
         next={[
           {
-            label: "Volver al panel del refugio",
+            label: "Volver al panel de la organización",
             href: `/org/${orgToken}`,
           },
           {

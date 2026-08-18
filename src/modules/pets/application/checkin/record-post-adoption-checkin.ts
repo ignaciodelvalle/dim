@@ -123,6 +123,11 @@ export async function recordPostAdoptionCheckin(
           recordedByUserId: user.id,
           authorRole: "owner",
           payload,
+          // The answer lives in the payload for the typed schema, AND in the
+          // notes column for every generic surface that renders event.notes
+          // (timeline, detail). Payload-only meant the adopter's text appeared
+          // NOWHERE in the UI (9-role external run, 2026-08-18).
+          notes,
           clientIdempotencyKey,
         },
         tx as Parameters<typeof insertEventIdempotent>[1],
@@ -207,5 +212,9 @@ export async function recordPostAdoptionCheckin(
   }
 
   // Nav contract N3: RETURN the destination; the form navigates (useActionRedirect).
-  return { error: null, redirectTo: `/mis-mascotas/${publicToken}` };
+  // Land on the LIBRETA tab, not the credential face: the freshly created
+  // "Seguimiento post-adopción" asiento at the top — now rendering the
+  // adopter's own text — IS the confirmation. The bare profile redirect gave
+  // no visible sign anything happened (9-role external run, 2026-08-18).
+  return { error: null, redirectTo: `/mis-mascotas/${publicToken}?tab=libreta` };
 }

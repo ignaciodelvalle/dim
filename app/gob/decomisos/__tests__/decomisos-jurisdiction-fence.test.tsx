@@ -48,15 +48,21 @@ vi.mock("@/lib/infra/auth-guards", () => ({
 }));
 
 // The operator "belongs to" the CABA authority in every case below — that
-// membership is exactly the credential the old scoping trusted.
-const orgState = { id: "" };
+// membership is exactly the credential the old scoping trusted. `missing`
+// simulates a govt principal with jurisdiction assignments but no
+// sanitary_authority membership (the read-only mode).
+const orgState = { id: "", missing: false };
 vi.mock("@/src/modules/decomiso/application/resolve-govt-org", () => ({
-  resolveGovtOrgForUser: vi.fn(async () => ({
-    id: orgState.id,
-    displayName: "Autoridad Fence CABA",
-    jurisdictionProvince: "CABA",
-    jurisdictionLocality: "Ciudad Autónoma de Buenos Aires",
-  })),
+  resolveGovtOrgForUser: vi.fn(async () =>
+    orgState.missing
+      ? null
+      : {
+          id: orgState.id,
+          displayName: "Autoridad Fence CABA",
+          jurisdictionProvince: "CABA",
+          jurisdictionLocality: "Ciudad Autónoma de Buenos Aires",
+        },
+  ),
 }));
 
 vi.mock("@/lib/analytics/compliance-metrics", () => ({
@@ -175,6 +181,34 @@ describe("/gob/decomisos — jurisdictional fence on the LIST (RA-8 R3)", () => 
 
     expect(html).not.toContain(CABA_PET);
     expect(html).not.toContain(MENDOZA_PET);
+  });
+
+  it("a govt operator WITHOUT an authority org reads their jurisdiction, with every mutation affordance gone", async () => {
+    guardState.role = "govt";
+    guardState.jurisdictions = [{ province: "CABA", locality: "Ciudad Autónoma de Buenos Aires" }];
+    orgState.missing = true;
+    try {
+      const html = await renderPage();
+
+      // Reads like /gob/casos: jurisdiction decides visibility, not org
+      // membership — the old behavior was a hard dead-end instead of a list.
+      expect(html, "the read-only mode hid the in-jurisdiction episode").toContain(CABA_PET);
+      expect(html, "read-only mode leaked an out-of-jurisdiction episode").not.toContain(
+        MENDOZA_PET,
+      );
+
+      // No dead-end affordances: the wizard link and both mutation buttons
+      // would all be rejected server-side for this principal.
+      expect(html).not.toContain("Nuevo decomiso");
+      expect(html).not.toContain("Reasignar");
+      expect(html).not.toContain("Devolver al dueño");
+
+      // The requirement is stated, and the old blanket rejection is gone.
+      expect(html).toContain("pertenecer a una autoridad sanitaria");
+      expect(html).not.toContain("Tu usuario no está asociado a ninguna autoridad sanitaria");
+    } finally {
+      orgState.missing = false;
+    }
   });
 
   it("admin keeps universal visibility", async () => {

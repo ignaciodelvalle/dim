@@ -202,6 +202,23 @@ export function matchVaccineFreeText(
   // vaccinesForSpecies already returns the full catalog for "other".
   const pool = vaccinesForSpecies(species);
 
+  // Tier 0 — the input IS a catalog entry's full printed label (modulo
+  // normalization). Strict equality cannot be ambiguous — one string cannot
+  // equal two distinct catalog names — so this tier is exempt from the
+  // ambiguous-tie rule below by construction, and returns immediately.
+  //
+  // Without it, "Séxtuple (DHPPi-L)" — the EXACT label a picker hands back —
+  // never auto-selects: its own root scores 0.9, but Quíntuple's altRoot
+  // "dhppi" also whole-word-matches inside "(dhppi-l)" at 0.9, and the tie
+  // rule demotes both below the cutoff. The catalog's own label was trapped
+  // by its own parenthetical, which locked the atender gate in a confirm loop
+  // (found live 2026-08-18: three submits, zero registered doses).
+  for (const vaccine of pool) {
+    if (normalizeText(vaccine.name) === normalizedInput) {
+      return [{ vaccine, confidence: 0.99 }];
+    }
+  }
+
   const scored: VaccineMatchCandidate[] = [];
   for (const vaccine of pool) {
     const confidence = scoreVaccine(vaccine, normalizedInput, inputWords);

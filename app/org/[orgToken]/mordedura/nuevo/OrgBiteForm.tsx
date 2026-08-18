@@ -162,7 +162,7 @@ export function OrgBiteForm({ action, orgToken }: { action: FormAction; orgToken
             href: `/p/${state.petToken}`,
           },
           {
-            label: "Volver al panel del refugio",
+            label: "Volver al panel de la organización",
             href: `/org/${orgToken}`,
             variant: "secondary",
           },

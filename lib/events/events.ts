@@ -138,6 +138,13 @@ export function eventPayloadDetails(
     case "note_added":
       push("Nota", "text");
       break;
+    case "post_adoption_checkin":
+      // The adopter's "¿Cómo está?" answer. Without this case the detail
+      // page said "Sin campos adicionales" and the text the adopter wrote
+      // appeared NOWHERE in the UI (9-role external run, 2026-08-18) — a
+      // record whose whole content is the answer rendered as if it had none.
+      push("¿Cómo está?", "notes");
+      break;
     case "dangerous_breed_attested":
       push("Registro", "registry", (v) =>
         v === "caba_4078"
@@ -291,6 +298,15 @@ export function eventPayloadSummary(eventType: string, payload: unknown): EventP
       return {
         primary: reason ? `Visita: ${reason}` : null,
         secondary: tail,
+      };
+    }
+    case "post_adoption_checkin": {
+      // Same truncation treatment as note_added — the adopter's answer IS the
+      // record's content, so the timeline row shows a snippet of it.
+      const answer = str("notes");
+      return {
+        primary: null, // falls back to the event-type label
+        secondary: answer ? (answer.length > 60 ? `${answer.slice(0, 60)}…` : answer) : null,
       };
     }
     case "note_added": {

@@ -459,7 +459,7 @@ describe("createOrgWelfareReport — severity forced to critical (OA2)", () => {
 // ---------------------------------------------------------------------------
 
 describe("createOrgWelfareReport — redirect", () => {
-  it("redirects to /org/{orgToken}/maltrato/recibidos", async () => {
+  it("redirects to the EMITIDOS tab carrying the fresh report's reference code", async () => {
     const { repo, openCase, findGovtRecipients, signal, transaction } = makeDeps();
 
     const result = await createOrgWelfareReport(
@@ -469,7 +469,13 @@ describe("createOrgWelfareReport — redirect", () => {
 
     expect(result.ok).toBe(true);
     if (!result.ok) return;
-    expect(result.redirectTo).toBe("/org/refugio-patitas/maltrato/recibidos");
+    // The bare hub URL defaulted to "Recibidos" (usually empty) and gave no
+    // confirmation — the report the professional just filed lives in
+    // Emitidos, and the `creado` param drives the hub's confirmation banner
+    // (9-role external run, 2026-08-18).
+    expect(result.redirectTo).toBe(
+      `/org/refugio-patitas/maltrato/recibidos?tab=emitidos&creado=${encodeURIComponent(result.referenceCode)}`,
+    );
   });
 });
 

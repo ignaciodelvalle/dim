@@ -13,6 +13,7 @@ import { db, organizations, welfareReports } from "@/db";
 import { jurisdictionScopeContains } from "@/lib/domain/jurisdiction-canonical";
 import { requireDecomisoPrincipal } from "@/lib/infra/auth-guards";
 import { jurisdictionPairClause } from "@/lib/metrics/scope";
+import { resolveGovtOrgForUser } from "@/src/modules/decomiso/application/resolve-govt-org";
 
 import { DecomisoForm } from "./_components/DecomisoForm";
 
@@ -28,7 +29,52 @@ const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
 export default async function NuevoDecomisoPage({ searchParams }: PageProps) {
   const { welfareReportId, pet } = await searchParams;
 
-  const { profile, jurisdictions } = await requireDecomisoPrincipal();
+  const { profile, jurisdictions, user } = await requireDecomisoPrincipal();
+
+  // Executing a decomiso is anchored on a REAL sanitary_authority organization
+  // (openedByOrganizationId) — executeDecomisoAction rejects any principal
+  // without that membership. Checking it here, before the wizard, is what
+  // keeps this page honest: without it, a govt operator filled all four steps
+  // (photos, acta, receiver) only to be told at submit that none of it could
+  // ever have been accepted (found live by the 9-role external run,
+  // 2026-08-18).
+  if (profile.role !== "admin") {
+    const govtOrg = await resolveGovtOrgForUser(user.id);
+    if (!govtOrg) {
+      return (
+        <div className="max-w-2xl space-y-6">
+          <header className="space-y-1">
+            <nav className="text-sm text-ln-op-mute mb-4" aria-label="Breadcrumb">
+              <Link
+                href="/gob/decomisos"
+                className="hover:text-ln-op-ink transition-colors no-underline text-ln-op-mute"
+              >
+                Decomisos
+              </Link>
+              <span className="mx-2 text-ln-op-line">{"›"}</span>
+              <span className="text-ln-op-ink">Nuevo decomiso</span>
+            </nav>
+            <h1 className="text-title font-semibold text-ln-op-ink">Ejecutar decomiso</h1>
+          </header>
+          <div className="rounded-[var(--radius-md)] border border-dashed border-ln-op-line p-8 text-center space-y-2">
+            <p className="text-md text-ln-op-ink font-medium">
+              Para ejecutar un decomiso, tu usuario tiene que pertenecer a una autoridad sanitaria.
+            </p>
+            <p className="text-md text-ln-op-mute">
+              El acta se registra a nombre de la organización, no del funcionario. Pedile al
+              administrador que te asocie a la autoridad que corresponda; mientras tanto podés
+              consultar los episodios de custodia de tu jurisdicción desde el listado.
+            </p>
+            <p className="text-md">
+              <Link href="/gob/decomisos" className="text-ln-op-azul no-underline hover:underline">
+                Volver al listado de decomisos
+              </Link>
+            </p>
+          </div>
+        </div>
+      );
+    }
+  }
 
   // Resolve the linked denuncia's public reference code from its id, so the
   // form displays DEN-XXXX-XXXX (never the raw UUID). Guard the UUID shape first

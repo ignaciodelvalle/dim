@@ -20,9 +20,19 @@ export function CheckinForm({
   action,
   defaults,
   autoConfirm,
+  windowDueLabel,
 }: {
   action: FormAction;
   defaults?: { notes: string | null };
+  /**
+   * Formatted due date of the OPEN reminder window this submission answers.
+   * Check-ins are milestone-based (30d/90d/…): submitting one closes only the
+   * soonest window, so re-opening the page legitimately shows the form again
+   * for the NEXT window. Without naming the window, that read as "my submit
+   * didn't register" (9-role external run, 2026-08-18) — the date changing is
+   * the visible proof the previous one was consumed.
+   */
+  windowDueLabel?: string;
   /**
    * Notification quick-reply autoconfirm (capture-console surface #4) — see
    * VaccinationForm's autoConfirm doc for the full contract. CheckinForm has
@@ -57,7 +67,11 @@ export function CheckinForm({
         tone="azul"
         icon={<Icon name="checkin" decorative />}
         title="Check-in"
-        subtitle="Libreta sanitaria oficial"
+        subtitle={
+          windowDueLabel
+            ? `Ventana de seguimiento que vence el ${windowDueLabel}`
+            : "Libreta sanitaria oficial"
+        }
       />
       <LnSheetBody>
         <form id={FORM_ID} ref={formRef} action={formAction} className="contents">

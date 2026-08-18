@@ -36,18 +36,23 @@ export function VerificacionInfoSheet({ verifiedByName, verifiedAt }: Props) {
       size="md"
     >
       <div className="space-y-4 text-sm text-[var(--color-ln-ink-2)] leading-relaxed">
+        {/* "Organización", not "refugio": /refugios profiles also cover
+            rescue networks (and could cover other org types), and the badge
+            copy was calling a Red de Rescate a refugio (9-role external run,
+            2026-08-18). */}
         <p>
           <span className="font-semibold text-[var(--color-ln-ink)]">Verificado por miMAR</span>{" "}
-          significa que el equipo confirmó que este refugio existe, tiene personería jurídica activa
-          o un convenio con autoridad sanitaria, y que el contacto que figura responde.
+          significa que el equipo confirmó que esta organización existe, tiene personería jurídica
+          activa o un convenio con autoridad sanitaria, y que el contacto que figura responde.
         </p>
         <p>
-          Las postulaciones de adopción que mandás desde miMAR llegan directo al equipo del refugio.
-          Coordinan los próximos pasos por email con cada candidato. miMAR no interviene en la
-          decisión final ni en la entrega del animal.
+          Las postulaciones de adopción que mandás desde miMAR llegan directo al equipo de la
+          organización. Coordinan los próximos pasos por email con cada candidato. miMAR no
+          interviene en la decisión final ni en la entrega del animal.
         </p>
         <p>
-          Si tenés dudas sobre este refugio en particular o pensás que algo no encaja, escribinos a{" "}
+          Si tenés dudas sobre esta organización en particular o pensás que algo no encaja,
+          escribinos a{" "}
           <a className="text-[var(--color-ln-azul)] underline" href="mailto:hola@mimar.ar">
             hola@mimar.ar
           </a>

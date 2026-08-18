@@ -1226,8 +1226,11 @@ const NOTIFICATION_TYPE_LABELS: Record<string, string> = {
   welfare_report_derived_to_org: "Denuncia derivada a organización",
   welfare_report_rederived_away: "Denuncia re-derivada a otra organización",
   welfare_report_status_changed: "Estado de denuncia actualizado",
-  // Vaccines
-  vaccine_due: "Vacuna próxima a vencer",
+  // Vaccines — one notificationType covers both "due soon" and "already
+  // overdue" (the body carries the specifics), so the label must not assert
+  // "próxima a vencer": it sat on a dose expired 117 days earlier (9-role
+  // external run, 2026-08-18).
+  vaccine_due: "Vencimiento de vacuna",
   // Rehome
   rehome_request_received: "Solicitud de re-hogar recibida",
   // Scans

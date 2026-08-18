@@ -95,7 +95,10 @@ export default async function AdoptarPage({
               <strong className="text-[var(--color-ln-ink)] font-semibold">
                 {items.length} {pluralizeEs(items.length, "mascota")}
               </strong>
-              {nextCursor ? " publicadas · mostrando las más recientes" : " publicadas"}
+              {/* The adjective agrees with the noun — "1 mascota publicadas"
+                  shipped live (9-role external run, 2026-08-18). */}
+              {` ${pluralizeEs(items.length, "publicada")}`}
+              {nextCursor ? " · mostrando las más recientes" : ""}
             </p>
             <ul className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-[18px]">
               {items.map((item) => (

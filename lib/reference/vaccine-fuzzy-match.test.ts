@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 
+import { vaccinesForSpecies } from "@/lib/reference/lookups";
 import {
   VACCINE_AUTOSELECT_CONFIDENCE,
   matchVaccineFreeText,
@@ -80,6 +81,38 @@ describe("matchVaccineFreeText — ambiguous pair must NOT auto-select", () => {
     const results = matchVaccineFreeText("aplicaron la quintuple", "dog");
     expect(results[0].vaccine.name).toBe("Quíntuple (DHPPi)");
     expect(results[0].confidence).toBeGreaterThanOrEqual(VACCINE_AUTOSELECT_CONFIDENCE);
+  });
+});
+
+describe("matchVaccineFreeText — exact full catalog label always auto-selects (tier 0)", () => {
+  // Regression, found live 2026-08-18: the EXACT label the atender picker
+  // hands back ("Séxtuple (DHPPi-L)") never auto-selected, because
+  // Quíntuple's altRoot "dhppi" also whole-word-matched inside "(dhppi-l)"
+  // and the ambiguous-tie rule demoted both — locking the gate in a confirm
+  // loop where picking the candidate re-triggered the same review forever.
+  it('"Séxtuple (DHPPi-L)" — the full printed label — is a single auto-selectable candidate', () => {
+    const results = matchVaccineFreeText("Séxtuple (DHPPi-L)", "dog");
+    expect(results).toHaveLength(1);
+    expect(results[0].vaccine.name).toBe("Séxtuple (DHPPi-L)");
+    expect(results[0].confidence).toBeGreaterThanOrEqual(VACCINE_AUTOSELECT_CONFIDENCE);
+  });
+
+  it("EVERY catalog entry's full label auto-selects for its species (no label is trapped by its parenthetical)", () => {
+    for (const species of ["dog", "cat", "other"] as const) {
+      const pool = vaccinesForSpecies(species);
+      expect(pool.length).toBeGreaterThan(0); // non-vacuity: an empty pool would pass silently
+      for (const vaccine of pool) {
+        const results = matchVaccineFreeText(vaccine.name, species);
+        expect(results[0]?.vaccine.name).toBe(vaccine.name);
+        expect(results[0]?.confidence).toBeGreaterThanOrEqual(VACCINE_AUTOSELECT_CONFIDENCE);
+      }
+    }
+  });
+
+  it("the ambiguous-sentence protection is untouched — equality, not containment, is what exempts", () => {
+    const results = matchVaccineFreeText("quintuple (dhppi) o sextuple (dhppi-l)?", "dog");
+    const atCutoff = results.filter((r) => r.confidence >= VACCINE_AUTOSELECT_CONFIDENCE);
+    expect(atCutoff).toHaveLength(0);
   });
 });
 

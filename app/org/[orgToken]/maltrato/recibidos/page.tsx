@@ -87,11 +87,15 @@ export default async function OrgMaltratoRecibidosPage({
   searchParams,
 }: {
   params: Promise<{ orgToken: string }>;
-  searchParams: Promise<{ tab?: string }>;
+  searchParams: Promise<{ tab?: string; creado?: string }>;
 }) {
   const { orgToken } = await params;
-  const { tab: tabParam } = await searchParams;
+  const { tab: tabParam, creado } = await searchParams;
   const activeTab: TabKey = tabParam === "emitidos" ? "emitidos" : "recibidos";
+  // Post-submit confirmation: the create use-case redirects here with the
+  // fresh report's reference code. Shape-validated before render — this is a
+  // URL param anyone can type.
+  const confirmedCode = creado && /^DEN-[A-Z0-9]{4}-[A-Z0-9]{4}$/.test(creado) ? creado : null;
 
   const { user, organization } = await requireOrgAccessByToken(orgToken);
 
@@ -163,6 +167,20 @@ export default async function OrgMaltratoRecibidosPage({
   return (
     <div className="space-y-6">
       <OpCrumbs items={[{ label: "Panel", href: `/org/${orgToken}` }, { label: "Maltrato" }]} />
+
+      {/* The submit's only visible acknowledgement — without it, the report
+          landed on a (usually empty) list with no code and no confirmation
+          (9-role external run, 2026-08-18). */}
+      {confirmedCode && (
+        <output className="block rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-stripe px-4 py-3 text-md text-ln-op-ink">
+          {/* No claim about authority notification here — whether any authority
+              was actually notified depends on the jurisdiction (the use-case
+              has an honest no-authority branch) and the reporter's in-app
+              notification already carries the accurate version. */}
+          Denuncia <span className="font-mono font-semibold">{confirmedCode}</span> registrada con
+          prioridad crítica. El seguimiento queda en esta lista.
+        </output>
+      )}
 
       <header className="flex items-baseline justify-between gap-4">
         <div className="space-y-1">

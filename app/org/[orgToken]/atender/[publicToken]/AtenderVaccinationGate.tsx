@@ -38,10 +38,15 @@ export function AtenderVaccinationGate({
   action,
   species,
   initialVaccineName,
+  signedContext,
 }: {
   action: FormAction;
   species: string;
   initialVaccineName?: string;
+  /** Forwarded to VaccinationForm — true only for a matrícula-verified
+   * signer, whose events land verified and must not show the owner-facing
+   * "dato declarado" callout. */
+  signedContext?: boolean;
 }) {
   const [review, setReview] = useState<ReviewState | null>(null);
   // VaccinationForm's own vaccine field is uncontrolled by us — initialVaccineName
@@ -95,6 +100,7 @@ export function AtenderVaccinationGate({
         species={species}
         initialVaccineName={prefillName}
         defaults={{ occurredAt: null, notes: null }}
+        signedContext={signedContext}
       />
       {review && (
         <div className="mt-3 space-y-2 rounded-[var(--radius-sm)] border border-[var(--color-ln-warn)] bg-[var(--color-ln-card)] p-3">

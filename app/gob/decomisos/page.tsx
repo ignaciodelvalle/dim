@@ -95,22 +95,27 @@ export default async function DecomisosDashboardPage({
 }) {
   const session = await requireDecomisoPrincipal();
 
-  // Admin sees every custody_episode. Govt is narrowed twice — by the authority
-  // that opened the episode AND by the operator's own jurisdiction assignments.
+  // READ is governed by jurisdiction; EXECUTION by authority-org membership.
+  //
+  // These are different credentials and this page used to conflate them: a
+  // govt operator without a sanitary_authority membership got a hard "contactá
+  // al administrador" dead-end, while the rail said "Decomisos" and /nuevo
+  // happily opened a wizard whose submit would fail on the same missing org
+  // (found live by the 9-role external run, 2026-08-18 — both CABA and PBA
+  // accounts). But that operator can already read every one of these episodes
+  // through /gob/casos (canReadCase fences on session.jurisdictions alone), so
+  // hiding the LIST protected nothing — it just contradicted the navigation.
+  //
+  // Now: no authority org → read-only, jurisdiction-fenced view (any opener),
+  // with the execution requirement stated instead of implied. With an org →
+  // unchanged: ownership + jurisdiction, mutations enabled.
   let govtOrgId: string | null = null;
   let jurisdictionFence: SQL | undefined;
+  const govtOrg =
+    session.profile.role !== "admin" ? await resolveGovtOrgForUser(session.user.id) : null;
+  const readOnly = session.profile.role !== "admin" && govtOrg === null;
   if (session.profile.role !== "admin") {
-    const govtOrg = await resolveGovtOrgForUser(session.user.id);
-    if (!govtOrg) {
-      return (
-        <div className="space-y-6">
-          <p className="text-md text-ln-op-mute rounded-[var(--radius-md)] border border-dashed border-ln-op-line p-8 text-center">
-            Tu usuario no está asociado a ninguna autoridad sanitaria. Contactá al administrador.
-          </p>
-        </div>
-      );
-    }
-    govtOrgId = govtOrg.id;
+    govtOrgId = govtOrg?.id ?? null;
 
     // The SQL mirror of jurisdictionScopeContains — same whole-province
     // subsumption the CREATE guard and canReadCase apply, so the list can never
@@ -143,13 +148,17 @@ export default async function DecomisosDashboardPage({
     .leftJoin(pets, eq(pets.id, cases.primaryPetId))
     .leftJoin(organizations, eq(organizations.id, cases.receiverOrganizationId))
     .where(
-      govtOrgId
-        ? and(
+      session.profile.role === "admin"
+        ? eq(cases.caseKind, "custody_episode")
+        : and(
             eq(cases.caseKind, "custody_episode"),
-            eq(cases.openedByOrganizationId, govtOrgId),
+            // Ownership narrowing only applies when an authority org binds the
+            // operator; the read-only view shows every episode inside the
+            // jurisdiction fence regardless of which authority opened it —
+            // the same visibility /gob/casos already grants.
+            ...(govtOrgId ? [eq(cases.openedByOrganizationId, govtOrgId)] : []),
             jurisdictionFence,
-          )
-        : eq(cases.caseKind, "custody_episode"),
+          ),
     )
     // openedAt alone is not unique — most custody_episode rows share an
     // identical batch-seeded timestamp (verified against the local DB), so
@@ -188,22 +197,24 @@ export default async function DecomisosDashboardPage({
   // server-side (verified + active + shelter/rescue_network) — this is a
   // display-only convenience list, not a security boundary; the use-case
   // re-validates on submit regardless of what's shown here.
-  const receiverOrgs = await db
-    .select({
-      id: organizations.id,
-      displayName: organizations.displayName,
-      orgType: organizations.orgType,
-    })
-    .from(organizations)
-    .where(
-      and(
-        eq(organizations.verified, true),
-        eq(organizations.status, "active"),
-        inArray(organizations.orgType, ["shelter", "rescue_network"]),
-      ),
-    )
-    .orderBy(organizations.displayName)
-    .limit(200);
+  const receiverOrgs = readOnly
+    ? []
+    : await db
+        .select({
+          id: organizations.id,
+          displayName: organizations.displayName,
+          orgType: organizations.orgType,
+        })
+        .from(organizations)
+        .where(
+          and(
+            eq(organizations.verified, true),
+            eq(organizations.status, "active"),
+            inArray(organizations.orgType, ["shelter", "rescue_network"]),
+          ),
+        )
+        .orderBy(organizations.displayName)
+        .limit(200);
 
   // D5 seizures (Item 4) — shelter_intake_recorded(intake_reason='seizure')
   // in the selected period (default trailing 30d), grouped by seizure_motive,
@@ -230,17 +241,35 @@ export default async function DecomisosDashboardPage({
             <p className="text-md text-ln-op-mute">
               {session.profile.role === "admin"
                 ? "Todos los episodios de custodia del sistema."
-                : "Decomisos ejecutados por tu autoridad sanitaria."}
+                : readOnly
+                  ? "Episodios de custodia en tu jurisdicción (solo consulta)."
+                  : "Decomisos ejecutados por tu autoridad sanitaria."}
             </p>
           }
         />
-        <Link
-          href="/gob/decomisos/nuevo"
-          className="px-3 py-1.5 rounded-[var(--radius-md)] bg-ln-op-azul text-white text-md font-medium hover:bg-ln-op-azul-700 transition-colors no-underline"
-        >
-          {"+ Nuevo decomiso"}
-        </Link>
+        {/* The execute entry point only renders when the submit can actually
+            succeed — executeDecomisoAction rejects any principal without a
+            sanitary_authority membership, so offering the wizard here would be
+            a four-step dead-end. */}
+        {!readOnly && (
+          <Link
+            href="/gob/decomisos/nuevo"
+            className="px-3 py-1.5 rounded-[var(--radius-md)] bg-ln-op-azul text-white text-md font-medium hover:bg-ln-op-azul-700 transition-colors no-underline"
+          >
+            {"+ Nuevo decomiso"}
+          </Link>
+        )}
       </div>
+
+      {/* Read-only mode states the execution requirement instead of implying
+          it with missing buttons. */}
+      {readOnly && (
+        <p className="text-md text-ln-op-mute rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-stripe px-4 py-3">
+          Podés consultar los episodios de custodia de tu jurisdicción. Para ejecutar o gestionar
+          decomisos, tu usuario tiene que pertenecer a una autoridad sanitaria — pedile al
+          administrador que te asocie a la organización que corresponda.
+        </p>
+      )}
 
       {/* Unified filter bar — period only (no jurisdiction/domain axes: rows
           are org-scoped via govtOrgId above, and the seizures KPI below is
@@ -335,22 +364,32 @@ export default async function DecomisosDashboardPage({
         </div>
         {rows.length === 0 ? (
           <div className="rounded-[var(--radius-md)] border border-dashed border-ln-op-line p-12 text-center space-y-2">
-            <p className="text-md text-ln-op-mute">No hay decomisos registrados todavía.</p>
-            <p className="text-sm text-ln-op-mute">
-              {'Usá el botón "Nuevo decomiso" para registrar una incautación por Ley 14.346.'}
+            <p className="text-md text-ln-op-mute">
+              {readOnly
+                ? "No hay decomisos registrados en tu jurisdicción todavía."
+                : "No hay decomisos registrados todavía."}
             </p>
+            {!readOnly && (
+              <p className="text-sm text-ln-op-mute">
+                {'Usá el botón "Nuevo decomiso" para registrar una incautación por Ley 14.346.'}
+              </p>
+            )}
           </div>
         ) : (
           <ul className="space-y-3">
             {rows.map(({ c, petName, petToken, petSpecies, receiverName }) => {
               const days = daysElapsed(c.openedAt, c.closedAt ?? null);
-              const canReassign = c.status === "open" && Boolean(c.receiverOrganizationId);
+              // Mutations additionally require the authority-org binding —
+              // both server actions re-resolve and reject without it, so in
+              // read-only mode the buttons would be dead-ends, not shortcuts.
+              const canReassign =
+                !readOnly && c.status === "open" && Boolean(c.receiverOrganizationId);
               // The episode is still in the OPENING govt org's direct custody
               // while status='open' (any accept/handoff closes THIS case and
               // opens a new one for the receiver — see accept-decomiso-handoff.ts).
               // Subject-kind (registered pet with a former owner) is validated
               // server-side; unowned strays fail cleanly with a clear error.
-              const canReturnToOwner = c.status === "open";
+              const canReturnToOwner = !readOnly && c.status === "open";
 
               return (
                 <li key={c.id}>

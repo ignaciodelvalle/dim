@@ -79,26 +79,53 @@ export default async function AdoptarFichaPage({
 }) {
   const { petToken } = await params;
 
-  const [row] = await db
+  // Pet first, custody second — two lookups on purpose. The old single query
+  // inner-joined ownerships on petId alone, so for a pet transferred between
+  // orgs `.limit(1)` returned one ARBITRARY ownership row — in the wild, the
+  // ORIGINAL shelter's ended row: the public detail credited "Refugio Patitas
+  // del Norte · en custodia desde 7/7" while the catalog card, the receiving
+  // org's profile, and the transfer hub all said Puerto Madero had accepted
+  // custody on 8/7 (found live by the 9-role external run, 2026-08-18). The
+  // card that exists to say who answers for this animal named an org that no
+  // longer does. Splitting the lookup also keeps the D7.2 "ya encontró hogar"
+  // branch reachable after an adoption ends the shelter_custody row — a
+  // current-custody inner join alone would have turned that stale-link soft
+  // page into a hard 404.
+  const [petRow] = await db
     .select({
       pet: pets,
-      org: organizations,
-      ownerStartedAt: ownerships.startedAt,
       primaryPhotoStoragePath: attachments.storagePath,
     })
     .from(pets)
-    .innerJoin(ownerships, eq(ownerships.petId, pets.id))
-    .innerJoin(organizations, eq(organizations.id, ownerships.ownerOrganizationId))
     .leftJoin(attachments, eq(attachments.id, pets.primaryPhotoId))
     // PO-4: soft-deleted pets do not resolve on any public surface.
     .where(publicPetByToken(petToken))
     .limit(1);
 
-  // No row at all → 404. We don't differentiate "doesn't exist" vs "exists
-  // under a non-shelter ownership" because either way it's not a public
-  // adoption surface.
-  if (!row) notFound();
-  const { pet, org } = row;
+  if (!petRow) notFound();
+  const row = petRow;
+  const { pet } = petRow;
+
+  // CURRENT custody only — same predicate pair queryAdoptionListing uses
+  // (role='shelter_custody' AND ended_at IS NULL), so detail and catalog can
+  // never disagree about who holds the animal.
+  const [custodyRow] = await db
+    .select({
+      org: organizations,
+      ownerStartedAt: ownerships.startedAt,
+    })
+    .from(ownerships)
+    .innerJoin(organizations, eq(organizations.id, ownerships.ownerOrganizationId))
+    .where(
+      and(
+        eq(ownerships.petId, pet.id),
+        eq(ownerships.role, "shelter_custody"),
+        isNull(ownerships.endedAt),
+      ),
+    )
+    .limit(1);
+  const org = custodyRow?.org ?? null;
+  const ownerStartedAt = custodyRow?.ownerStartedAt ?? null;
 
   // D7.2 — if a recent adoption_finalized exists, render a soft "ya
   // encontró hogar" instead of 404. Captures the case of someone clicking
@@ -117,7 +144,11 @@ export default async function AdoptarFichaPage({
   // Mirrors EVERY isListable suppression guard except the pause itself:
   // custody disputes and rabies observations must keep returning 404, and a
   // recent finalization wins over the paused view (spec D7.2).
+  // Both gates require a CURRENT custodian org — a pet with no active
+  // shelter_custody row (adopted out, or returned to a private owner) can be
+  // neither listed nor "paused", only recently-adopted or gone.
   const isPausedByOrg =
+    org !== null &&
     pet.adoptionListedAt !== null &&
     pet.adoptionListingPausedAt !== null &&
     pet.status !== "deceased" &&
@@ -131,6 +162,7 @@ export default async function AdoptarFichaPage({
   // Same listability guards as queryAdoptionListing. If any fails, fall
   // through to recently-adopted, then paused, else 404.
   const isListable =
+    org !== null &&
     pet.adoptionListedAt !== null &&
     pet.adoptionListingPausedAt === null &&
     pet.status !== "deceased" &&
@@ -141,11 +173,11 @@ export default async function AdoptarFichaPage({
     org.verified &&
     (org.orgType === "shelter" || org.orgType === "rescue_network");
 
-  if (!isListable) {
+  if (!isListable || org === null) {
     if (recentlyAdopted) {
       return <RecentlyAdopted name={pet.name} />;
     }
-    if (isPausedByOrg) {
+    if (isPausedByOrg && org !== null) {
       return <PausedView name={pet.name} orgName={org.displayName} />;
     }
     notFound();
@@ -616,7 +648,7 @@ export default async function AdoptarFichaPage({
                 </p>
               )}
               <p className="mt-1.5 font-ln-mono text-sm" style={{ color: "var(--color-ln-mute)" }}>
-                En custodia desde {formatDate(row.ownerStartedAt)}
+                En custodia desde {ownerStartedAt ? formatDate(ownerStartedAt) : "—"}
               </p>
               <Link
                 href={`/refugios/${org.publicToken}`}

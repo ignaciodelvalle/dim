@@ -302,6 +302,15 @@ export function localizedValidationMessage(el: ValidatableControl): string {
   return "Revisá este campo.";
 }
 
+// One scroll per submit attempt, aimed at the FIRST invalid control. The
+// browser fires `invalid` on every failing control in DOM order and shows its
+// transient bubble only on the first — in a long form (the org maltrato
+// report was the live case, 2026-08-18) that bubble can appear far above the
+// submit button the user is looking at and vanish before they scroll, so the
+// click reads as "nothing happened". The re-arm window collapses the burst of
+// invalid events from a single submit into one scroll.
+let invalidScrollArmed = true;
+
 /**
  * Compose the caller's handlers with the localization ones. The `invalid`
  * handler must set the message synchronously so the bubble the browser is
@@ -317,6 +326,19 @@ function withLocalizedValidity<E extends ValidatableControl>(rest: {
       rest.onInvalid?.(e);
       if (!e.defaultPrevented) {
         e.currentTarget.setCustomValidity(localizedValidationMessage(e.currentTarget));
+      }
+      if (invalidScrollArmed) {
+        invalidScrollArmed = false;
+        setTimeout(() => {
+          invalidScrollArmed = true;
+        }, 150);
+        // Instant (non-smooth) — safe under prefers-reduced-motion without a
+        // media query, and the jump itself is the signal. Optional call:
+        // jsdom doesn't implement scrollIntoView, and an uncaught throw
+        // inside this handler killed a whole vitest worker — the run
+        // reported 1290/1292 files with zero failures, and only the summary
+        // arithmetic (25 tests unaccounted) betrayed the missing file.
+        e.currentTarget.scrollIntoView?.({ block: "center" });
       }
     },
     onInput: (e) => {

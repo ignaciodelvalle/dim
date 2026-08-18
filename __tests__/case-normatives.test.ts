@@ -73,3 +73,26 @@ describe("getNormativesForCase — hierarchy", () => {
     expect(ids.length).toBe(unique.size);
   });
 });
+
+describe("CASE_NORMATIVES — copy is user-facing, never spec-speak", () => {
+  // Every label/scope renders VERBATIM on the public case page. One entry
+  // shipped with a raw column name in backticks ("Detalle en
+  // `external_proceeding_reference` del dispute") and an English legalism
+  // ("Proceeding") — read by a pet owner on their own dispute (9-role
+  // external run, 2026-08-18). This bans the SUBJECT — schema identifiers
+  // and code formatting in any entry — not that one spelling.
+  it("no label or scope contains backticks or snake_case identifiers", () => {
+    expect(CASE_NORMATIVES.length).toBeGreaterThan(0); // non-vacuity
+    for (const entry of CASE_NORMATIVES) {
+      for (const law of entry.laws) {
+        for (const text of [law.label, law.scope ?? ""]) {
+          expect(text, `${entry.kind}/${law.id} has a backtick`).not.toContain("`");
+          expect(
+            /\b[a-z]+_[a-z_]+\b/.test(text),
+            `${entry.kind}/${law.id} leaks a snake_case identifier: "${text}"`,
+          ).toBe(false);
+        }
+      }
+    }
+  });
+});

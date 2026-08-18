@@ -125,7 +125,15 @@ export async function atenderVaccinationAction(
   const occurredAtRaw = String(formData.get("occurredAt") ?? "").trim();
   const brand = String(formData.get("brand") ?? "").trim() || null;
   const batch = String(formData.get("batch") ?? "").trim() || null;
-  const administeredBy = String(formData.get("administeredBy") ?? "").trim() || null;
+  // The signer IS the applier on this surface — when the field is left blank
+  // (a vet understandably doesn't type their own name), the record fills it
+  // from the signing identity instead of committing an anonymous dose. The
+  // shared libreta's Profesional column reads this payload field, and a
+  // SIGNED dose was rendering "—" beside an owner-declared one showing its
+  // cited name (9-role external run, 2026-08-18). Typed input still wins:
+  // a vet recording a colleague's application can name them.
+  const administeredBy =
+    String(formData.get("administeredBy") ?? "").trim() || access.signer.recordName;
   const nextDueAtRaw = String(formData.get("nextDueAt") ?? "").trim();
   const notes = String(formData.get("notes") ?? "").trim() || null;
   const clientIdempotencyKey = String(formData.get("clientIdempotencyKey") ?? "").trim() || null;

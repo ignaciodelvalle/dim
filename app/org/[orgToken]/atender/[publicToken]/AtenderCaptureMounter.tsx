@@ -61,10 +61,15 @@ export function AtenderCaptureMounter({
   orgToken,
   publicToken,
   species,
+  signerVerified,
 }: {
   orgToken: string;
   publicToken: string;
   species: string;
+  /** signer.matriculaVerified from resolveAtenderPet — display-only: decides
+   * whether the vaccine form suppresses its owner-facing "dato declarado"
+   * callout (false and contradictory under a verified signature). */
+  signerVerified?: boolean;
 }) {
   const searchParams = useSearchParams();
   const evento = searchParams.get("evento");
@@ -81,6 +86,7 @@ export function AtenderCaptureMounter({
         action={action}
         species={species}
         initialVaccineName={sp("vaccineName") ?? undefined}
+        signedContext={signerVerified === true}
       />
     );
   } else if (evento === "desparasitacion") {

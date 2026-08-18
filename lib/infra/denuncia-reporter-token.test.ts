@@ -55,7 +55,13 @@ describe("generateReporterToken / validateReporterToken", () => {
 
     const token = generateReporterToken("session", REPORT_A);
     const dot = token.lastIndexOf(".");
-    const tampered = `${token.slice(0, dot - 1)}X${token.slice(dot)}`;
+    // Flip to a character GUARANTEED different from the original: hardcoding
+    // "X" made the "tampered" token identical to the real one whenever the
+    // MAC already had an X at that position — a ~1-in-64 die roll that came
+    // up during a full run (2026-08-18) and passed on every standalone rerun.
+    const original = token[dot - 1];
+    const flipped = original === "X" ? "Y" : "X";
+    const tampered = `${token.slice(0, dot - 1)}${flipped}${token.slice(dot)}`;
     expect(validateReporterToken("session", REPORT_A, tampered)).toBe(false);
   });
 

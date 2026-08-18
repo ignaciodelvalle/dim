@@ -88,6 +88,11 @@ export default async function PostAdoptionCheckinPage({
           action={boundAction}
           defaults={{ notes: sp.notes ?? null }}
           autoConfirm={sp.autoconfirm === "1"}
+          windowDueLabel={openReminder.dueAt.toLocaleDateString("es-AR", {
+            day: "numeric",
+            month: "long",
+            timeZone: "America/Argentina/Buenos_Aires",
+          })}
         />
       </LnSheetCard>
     </LnSheetWrap>

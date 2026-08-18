@@ -62,10 +62,10 @@ export function ApplyButton({
 
   const inlineIdleLabel = isAuthenticated
     ? `Postular para adoptar a ${petName}`
-    : "Iniciá sesión para postular";
+    : "Creá tu cuenta para postular";
   const stickyIdleLabel = isAuthenticated
     ? `Postularme a ${petName}`
-    : "Iniciá sesión para postular";
+    : "Creá tu cuenta para postular";
 
   return (
     <>

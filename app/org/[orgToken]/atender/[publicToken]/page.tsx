@@ -201,6 +201,7 @@ export default async function AtenderSignPage({
             orgToken={orgToken}
             publicToken={pet.publicToken}
             species={pet.species}
+            signerVerified={access.signer.matriculaVerified}
           />
         </Suspense>
 

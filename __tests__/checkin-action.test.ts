@@ -390,7 +390,8 @@ describe("recordPostAdoptionCheckinAction", () => {
     // the App Router drops a Server Action's own redirect. It RETURNS the
     // destination and the form navigates (useActionRedirect).
     expect(result.error).toBeNull();
-    expect(result.redirectTo).toBe(`/mis-mascotas/${PUBLIC_TOKEN}`);
+    // Lands on the libreta tab — the fresh asiento is the visible confirmation.
+    expect(result.redirectTo).toBe(`/mis-mascotas/${PUBLIC_TOKEN}?tab=libreta`);
 
     // Event was inserted.
     expect(mockInsertEventIdempotent).toHaveBeenCalledOnce();
@@ -436,7 +437,8 @@ describe("recordPostAdoptionCheckinAction", () => {
 
     // Still navigates (noop is treated as success), via the N3 redirectTo contract.
     expect(result.error).toBeNull();
-    expect(result.redirectTo).toBe(`/mis-mascotas/${PUBLIC_TOKEN}`);
+    // Lands on the libreta tab — the fresh asiento is the visible confirmation.
+    expect(result.redirectTo).toBe(`/mis-mascotas/${PUBLIC_TOKEN}?tab=libreta`);
 
     // No reminder closed, no notification sent (noop path returns early).
     expect(capturedReminderUpdate).toBeNull();

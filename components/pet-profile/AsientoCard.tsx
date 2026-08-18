@@ -5,8 +5,8 @@
 // value, missing data shown faint), an optional full-width handwritten note or
 // weight sparkline, and a foot carrying the provenance stamp (green "Verificado"
 // vs neutral "Cargado por vos"), an optional amber verification warning, and a
-// single action ("Pedir verificación" for a self-declared rabies dose, else
-// "Ver detalle").
+// "Ver detalle" action on every row, plus "Pedir verificación" for a
+// self-declared rabies dose.
 //
 // Append-only: an asiento is never edited. A correction is a NEW asiento; when
 // a later amendment supersedes this row, the foot notes "corregido" and links
@@ -165,7 +165,12 @@ export function AsientoCard({
           </span>
         )}
         <span className="ln-fspace" />
-        {view.verifyHref ? (
+        {/* "Pedir verificación" ACCOMPANIES the detail link, never replaces
+            it. As an either/or, a self-declared vaccine was the only asiento
+            type with no route to its own detail page — which is also the only
+            place its photo attachment renders, so the photo was unreachable
+            from the UI entirely (9-role external run, 2026-08-18). */}
+        {view.verifyHref && (
           <Link
             href={view.verifyHref}
             prefetch={false}
@@ -173,15 +178,14 @@ export function AsientoCard({
           >
             Pedir verificación →
           </Link>
-        ) : (
-          <Link
-            href={eventHref}
-            prefetch={false}
-            className="text-sm font-semibold text-[var(--color-ln-azul)] no-underline hover:underline"
-          >
-            Ver detalle →
-          </Link>
         )}
+        <Link
+          href={eventHref}
+          prefetch={false}
+          className="text-sm font-semibold text-[var(--color-ln-azul)] no-underline hover:underline"
+        >
+          Ver detalle →
+        </Link>
       </div>
     </article>
   );

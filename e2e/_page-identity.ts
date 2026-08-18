@@ -58,6 +58,11 @@ export const BRANDED_NOT_FOUND_TITLES = [
   // and the shared boundary answered them about pets. This guard caught the new
   // file on its first full run, which is what it is for.
   "No encontramos ese código",
+  // app/(public)/casos/[publicCode]/not-found.tsx — same scoping as the
+  // denuncia code above, for CAS-XXXX-XXXX case codes (most case kinds are
+  // not public by design, and the credential copy misnamed what the visitor
+  // was looking for — 9-role external run, 2026-08-18).
+  "No encontramos ese caso",
 ] as const;
 
 /**
