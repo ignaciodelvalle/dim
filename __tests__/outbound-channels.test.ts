@@ -133,6 +133,28 @@ describe("deriveOutboundChannels", () => {
     expect(channel({}, "email").consequence).toMatch(/denunci/i);
   });
 
+  it("la consecuencia CONCUERDA con la pastilla, no la contradice", () => {
+    // ESTE ES EL TEST QUE FALTABA, y su ausencia costó un defecto en vivo.
+    //
+    // La consecuencia elegía su texto mirando solo el remitente, no el estado.
+    // Como sin RESEND_FROM el remitente es el compartido haya clave o no, la
+    // tarjeta mostró en staging la pastilla "SIN CONFIGURAR" con el párrafo del
+    // estado restringido debajo: negaba estar configurada y a la vez explicaba
+    // cómo estaba enviando.
+    //
+    // La aserción de arriba no lo cazó porque pedía que el texto contuviera
+    // "denunci" — y AMBOS textos lo contienen. Una aserción que las dos ramas
+    // satisfacen no distingue nada. Estas sí: cada estado exige una frase que
+    // SOLO su rama tiene.
+    expect(channel({}, "email").consequence).toMatch(/espera un correo que nunca sale/i);
+    expect(channel({}, "email").consequence).not.toMatch(/remitente compartido/i);
+
+    expect(channel(SIN_DOMINIO_PROPIO, "email").consequence).toMatch(/remitente compartido/i);
+    expect(channel(SIN_DOMINIO_PROPIO, "email").consequence).not.toMatch(
+      /espera un correo que nunca sale/i,
+    );
+  });
+
   it("never carries a secret VALUE, only variable names", () => {
     // The card is rendered in a React tree. A value on this object is one
     // serialization mistake away from the browser.

@@ -123,6 +123,14 @@ export function deriveOutboundChannels(env: EnvLike): OutboundChannel[] {
   const emailKeys = ["RESEND_API_KEY"] as const;
   const pushKeys = ["NEXT_PUBLIC_VAPID_PUBLIC_KEY", "VAPID_PRIVATE_KEY"] as const;
 
+  // Un solo lugar donde se decide el estado del correo, para que el texto de
+  // abajo no pueda contradecir a la pastilla.
+  const emailStatus: OutboundChannelStatus = !emailKeys.every((k) => present(env, k))
+    ? "unconfigured"
+    : senderIsProviderFallback(resolveMailSender(env))
+      ? "restricted"
+      : "configured";
+
   return [
     {
       key: "email",
@@ -130,15 +138,21 @@ export function deriveOutboundChannels(env: EnvLike): OutboundChannel[] {
       // Tres estados, no dos: tener la clave no basta si el remitente es el
       // compartido del proveedor, porque entonces el único destinatario posible
       // es la casilla de la propia cuenta.
-      status: !emailKeys.every((k) => present(env, k))
-        ? "unconfigured"
-        : senderIsProviderFallback(resolveMailSender(env))
-          ? "restricted"
-          : "configured",
+      status: emailStatus,
       requires: emailKeys,
-      consequence: senderIsProviderFallback(resolveMailSender(env))
-        ? "Se envía desde el remitente compartido del proveedor, que solo entrega a la casilla de la cuenta. Sirve para comprobar que el mecanismo anda; a un denunciante cualquiera no le llega. Para que salga de verdad hace falta un dominio propio verificado y setear RESEND_FROM."
-        : "Sin esto, quien denunció y dejó un email no recibe el enlace para ver el estado de su denuncia. La pantalla le dice lo mismo de siempre, así que espera un correo que nunca sale. También queda sin enviarse la entrega de exportaciones analíticas.",
+      // LA CONSECUENCIA SE DERIVA DEL ESTADO, no de una condición paralela.
+      //
+      // Estuvo un rato eligiendo su texto mirando SOLO el remitente, y como sin
+      // RESEND_FROM el remitente es el compartido haya clave o no, la tarjeta
+      // llegó a mostrar la pastilla "SIN CONFIGURAR" con el párrafo del estado
+      // restringido debajo: decía que no está configurado y a la vez explicaba
+      // cómo está enviando. Encontrado mirando la pantalla en staging, no por
+      // los tests — la aserción que debía cubrirlo pedía que el texto
+      // contuviera "denunci", y AMBOS textos lo contienen.
+      consequence:
+        emailStatus === "restricted"
+          ? "Se envía desde el remitente compartido del proveedor, que solo entrega a la casilla de la cuenta. Sirve para comprobar que el mecanismo anda; a un denunciante cualquiera no le llega. Para que salga de verdad hace falta un dominio propio verificado y setear RESEND_FROM."
+          : "Sin esto, quien denunció y dejó un email no recibe el enlace para ver el estado de su denuncia. La pantalla le dice lo mismo de siempre, así que espera un correo que nunca sale. También queda sin enviarse la entrega de exportaciones analíticas.",
     },
     {
       key: "webPush",
