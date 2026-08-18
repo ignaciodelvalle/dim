@@ -138,6 +138,27 @@ export function DeathRecordForm({
         <form id={FORM_ID} action={formAction} className="contents">
           <input type="hidden" name="clientIdempotencyKey" value={idempotencyKey} />
 
+          {/* Irreversibility notice, BEFORE the fields (2026-08-17).
+              `death_recorded` is deliberately excluded from AMENDABLE_EVENT_TYPES
+              in lib/infra/amendment.ts ("no reversal path; forensic"), and this
+              route redirects away as soon as `pet.status === "deceased"` — so
+              the owner cannot even return here to file a correction. Every other
+              form in this folder writes an event the owner CAN amend later, and
+              AmendEventForm explains the model well; this one had no warning at
+              all, which meant the only irreversible act was the only one that
+              never said so. Placed first, following the pattern the
+              dangerous-breed attestation already uses. */}
+          <div
+            className="rounded-[var(--radius-sm)] border border-[var(--color-ln-warn)] px-4 py-3"
+            role="note"
+          >
+            <p className="text-sm text-[var(--color-ln-warn)] leading-relaxed">
+              Este registro cierra la libreta de la mascota y no se puede editar, corregir ni
+              deshacer después — a diferencia de los demás registros sanitarios. Revisá la causa y
+              la fecha antes de confirmar.
+            </p>
+          </div>
+
           <LnField label="Causa" required>
             {({ id, describedBy, invalid }) => (
               <LnSelect

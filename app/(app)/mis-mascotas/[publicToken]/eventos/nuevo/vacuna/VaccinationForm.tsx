@@ -289,9 +289,21 @@ export function VaccinationForm({
             )}
           </LnField>
 
-          <LnCallout tone="azul" title="Asiento certificable">
-            Este registro queda firmado digitalmente en la libreta oficial. Si la aplicó un
-            veterinario matriculado y agregás su nombre, el asiento puede certificarse como oficial.
+          {/* Was titled "Asiento certificable" and promised that naming the vet
+              could make the entry official. It cannot: `administeredBy` is free
+              text in the payload, and the server stamps OWNER_AUTHORSHIP
+              (authorRole "owner", authorVerified false) on every event written
+              from this form — see lib/infra/pet-access.ts. Nothing typed here
+              can reach `professional_verified`, so the callout was selling a
+              path that does not exist.
+
+              The replacement says what IS true and what the owner can actually
+              do about it, reusing the wording pet-compliance.ts already shows
+              them on the pet's own card so the two surfaces agree. */}
+          <LnCallout tone="azul" title="Queda como dato declarado">
+            Este registro entra en la libreta a tu nombre y no se puede editar ni borrar después.
+            Para figurar “al día” en el registro oficial, un veterinario matriculado tiene que
+            firmarla: mostrale el código de la credencial de tu mascota y la firma con su matrícula.
           </LnCallout>
 
           <LnField label="Notas">
