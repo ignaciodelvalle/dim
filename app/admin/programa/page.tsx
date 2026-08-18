@@ -269,6 +269,9 @@ export default async function AdminProgramaPage({
   const alertedProvinceCount = countAlertedProvinces(outliers);
   const chipRatePct = microchip.ratePct;
   const sterilRatePct = sterilization.rate;
+  // Denominadores: un 0 significa algo distinto según si estos también son 0.
+  const hasPadron = sterilization.total > 0;
+  const hasChipPadron = microchip.active > 0;
 
   // PO-interview decision 2, item 1 — gap×población ranking: "24 provincias en
   // alerta" doesn't say WHICH one matters most. Each outlier row gets an
@@ -357,13 +360,20 @@ export default async function AdminProgramaPage({
           }}
           descriptorId="registry_total_pets"
         />
+        {/* Gemelo del de /gob/programa — misma corrección, mismo motivo: ver la
+            nota extensa en ProgramaResumenScreen.tsx. En corto: "—" solo cuando
+            no hay padrón que medir, y en tono NEUTRO, porque pintar de rojo una
+            jurisdicción que todavía no cargó nada la hace ver como una que está
+            incumpliendo su meta. */}
         <OpKpi
           label="Esterilización"
-          value={sterilRatePct > 0 ? formatPercent(sterilRatePct) : "—"}
-          animatedValue={sterilRatePct > 0 ? sterilRatePct : undefined}
+          value={hasPadron ? formatPercent(sterilRatePct) : "—"}
+          animatedValue={hasPadron ? sterilRatePct : undefined}
           animatedFormat="percent"
           animatedStartAt={0}
-          tone={toneForTarget(sterilRatePct, TARGETS.STERILIZATION_COVERAGE_PCT)}
+          tone={
+            hasPadron ? toneForTarget(sterilRatePct, TARGETS.STERILIZATION_COVERAGE_PCT) : "neutral"
+          }
           sub={`meta ${TARGETS.STERILIZATION_COVERAGE_PCT}%`}
           href="/admin/padron?vista=poblacion"
           info={getKpiInfo("sterilization_coverage_population")}
@@ -374,11 +384,15 @@ export default async function AdminProgramaPage({
         />
         <OpKpi
           label="Microchip"
-          value={chipRatePct > 0 ? formatPercent(chipRatePct) : "—"}
-          animatedValue={chipRatePct > 0 ? chipRatePct : undefined}
+          value={hasChipPadron ? formatPercent(chipRatePct) : "—"}
+          animatedValue={hasChipPadron ? chipRatePct : undefined}
           animatedFormat="percent"
           animatedStartAt={0}
-          tone={toneForTarget(chipRatePct, TARGETS.MICROCHIP_PENETRATION_PCT)}
+          tone={
+            hasChipPadron
+              ? toneForTarget(chipRatePct, TARGETS.MICROCHIP_PENETRATION_PCT)
+              : "neutral"
+          }
           sub={`meta ${TARGETS.MICROCHIP_PENETRATION_PCT}%`}
           href="/admin/padron?vista=censo"
           info={getKpiInfo("microchip_penetration")}

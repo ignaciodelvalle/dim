@@ -338,6 +338,11 @@ export async function ProgramaResumenScreen({
   const alertedProvinceCount = countAlertedProvinces(outliers);
   const chipRatePct = microchip.ratePct;
   const sterilRatePct = sterilization.rate;
+  // The denominator each rate is computed over. A rate of 0 means something
+  // completely different depending on whether these are 0 too — see the note
+  // at the tiles below.
+  const hasPadron = sterilization.total > 0;
+  const hasChipPadron = microchip.active > 0;
 
   // PO-interview decision 2, item 1 — gap×población ranking: "24 provincias en
   // alerta" doesn't say WHICH one matters most. Each outlier row gets an
@@ -433,10 +438,27 @@ export async function ProgramaResumenScreen({
           }}
           descriptorId="registry_total_pets"
         />
+        {/* "—" ONLY when there is no padrón to measure, and NEUTRAL when so
+            (2026-08-18). Both tiles used to key the dash off `rate > 0`, which
+            collapses two different facts into one glyph: "there is nothing
+            registered here, so we do not know" and "there IS a padrón and the
+            measured coverage is 0%". Worse, `toneForTarget` ran on the raw 0 in
+            both cases, painting the tile RED — so a jurisdiction that has not
+            loaded anything yet looked like a jurisdiction failing its target.
+            That is the day-one shape of every new jurisdiction, which makes it
+            the first thing a funcionario sees rather than an edge case.
+
+            The denominator is the honest discriminator, and the sibling screens
+            (PoblacionScreen, AdminPoblacionScreen, mortalidad, adopciones)
+            already branch on exactly this. */}
         <OpKpi
           label="Esterilización"
-          value={sterilRatePct > 0 ? formatPercent(sterilRatePct) : "—"}
-          tone={toneForTarget(sterilRatePct, jurisdictionTargets.values.STERILIZATION_COVERAGE_PCT)}
+          value={hasPadron ? formatPercent(sterilRatePct) : "—"}
+          tone={
+            hasPadron
+              ? toneForTarget(sterilRatePct, jurisdictionTargets.values.STERILIZATION_COVERAGE_PCT)
+              : "neutral"
+          }
           sub={`meta ${jurisdictionTargets.values.STERILIZATION_COVERAGE_PCT}%${jurisdictionTargets.adjusted.STERILIZATION_COVERAGE_PCT ? ` · ${JURISDICTION_ADJUSTED_TARGET_NOTE}` : ""}`}
           href="/gob/padron?vista=poblacion"
           info={getKpiInfo("sterilization_coverage_population")}
@@ -447,8 +469,12 @@ export async function ProgramaResumenScreen({
         />
         <OpKpi
           label="Microchip"
-          value={chipRatePct > 0 ? formatPercent(chipRatePct) : "—"}
-          tone={toneForTarget(chipRatePct, jurisdictionTargets.values.MICROCHIP_PENETRATION_PCT)}
+          value={hasChipPadron ? formatPercent(chipRatePct) : "—"}
+          tone={
+            hasChipPadron
+              ? toneForTarget(chipRatePct, jurisdictionTargets.values.MICROCHIP_PENETRATION_PCT)
+              : "neutral"
+          }
           sub={`meta ${jurisdictionTargets.values.MICROCHIP_PENETRATION_PCT}%${jurisdictionTargets.adjusted.MICROCHIP_PENETRATION_PCT ? ` · ${JURISDICTION_ADJUSTED_TARGET_NOTE}` : ""}`}
           href="/gob/padron?vista=censo"
           info={getKpiInfo("microchip_penetration")}
