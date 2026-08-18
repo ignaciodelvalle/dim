@@ -16,9 +16,10 @@
 
 import { and, asc, eq, gt, lt } from "drizzle-orm";
 
-import { cases, db, notifications, profiles } from "@/db";
+import { cases, db, notifications } from "@/db";
 import { findAuthoritiesForJurisdiction } from "@/lib/infra/approval-routing";
 import { writeAuditLog } from "@/lib/infra/audit-log";
+import { activeHumanInstitutionalAdminIds } from "@/lib/infra/notification-recipients";
 
 export interface EscalateStaleDisputesOptions {
   now?: Date;
@@ -83,12 +84,15 @@ export async function escalateStaleDispute(
     { route: "custody_dispute_stale" },
   );
 
-  const admins = await db
-    .select({ id: profiles.id })
-    .from(profiles)
-    .where(and(eq(profiles.role, "admin"), eq(profiles.accountType, "institutional")));
+  // Shared predicate (2026-08-17). This was a hand-rolled copy that filtered
+  // role and accountType ONLY — it counted DEACTIVATED administrators and
+  // SERVICE ACCOUNTS as people who had been told. Either one makes the
+  // recipient set non-empty, which silently skips the empty-fan-out trace
+  // below: a 365-day-stale custody dispute could escalate to nobody and leave
+  // no evidence anywhere that it had.
+  const adminIds = await activeHumanInstitutionalAdminIds();
 
-  const recipientSet = new Set<string>([...govtAuthorities, ...admins.map((a) => a.id)]);
+  const recipientSet = new Set<string>([...govtAuthorities, ...adminIds]);
   const recipients = Array.from(recipientSet);
 
   await db.transaction(async (tx) => {

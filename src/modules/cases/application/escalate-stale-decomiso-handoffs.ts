@@ -29,10 +29,12 @@
 
 import { and, asc, eq, gt, inArray, isNotNull, isNull, sql } from "drizzle-orm";
 
-import { cases, db, notifications, organizationMemberships, organizations, profiles } from "@/db";
+import { cases, db, notifications, organizationMemberships, organizations } from "@/db";
 // The 7-day window is the case DOMAIN's rule, shared with the org landing's
 // queue signal — see DECOMISO_HANDOFF_STALE_DAYS' own comment for why it lives
 // in the pure module rather than here.
+import { writeAuditLog } from "@/lib/infra/audit-log";
+import { activeHumanInstitutionalAdminIds } from "@/lib/infra/notification-recipients";
 import { DECOMISO_HANDOFF_STALE_DAYS } from "@/src/modules/cases/domain/case-sla";
 
 export interface EscalateStaleDecomisosOptions {
@@ -58,6 +60,9 @@ export interface StaleDecomisoCandidateFull {
   govtOrgId: string;
   /** ISO string of the latest custody_transfer_proposed event's occurred_at. */
   latestProposalAt: string | null;
+  /** Only read when the fan-out reaches nobody — see the trace below. */
+  jurisdictionProvince: string | null;
+  jurisdictionLocality: string | null;
 }
 
 // ---------------------------------------------------------------------------
@@ -84,6 +89,11 @@ export async function findStaleDecomisoCandidates(
       receiverOrganizationId: cases.receiverOrganizationId,
       govtOrgName: organizations.displayName,
       govtOrgId: organizations.id,
+      // Carried for the empty-fan-out trace only, so this escalation's evidence
+      // has the same shape as its two siblings and a future digest can group
+      // all three by jurisdiction instead of special-casing this one.
+      jurisdictionProvince: cases.jurisdictionProvince,
+      jurisdictionLocality: cases.jurisdictionLocality,
       latestProposalAt: sql<string | null>`(
         SELECT MAX(pe.occurred_at)::text
         FROM pet_events pe
@@ -156,25 +166,35 @@ export async function escalateStaleDecomiso(
       ),
     );
 
-  // Active institutional admins (same query as escalate-stale-disputes.ts).
-  const adminProfiles = await db
-    .select({ id: profiles.id })
-    .from(profiles)
-    .where(
-      and(
-        eq(profiles.role, "admin"),
-        eq(profiles.accountType, "institutional"),
-        isNull(profiles.deactivatedAt),
-      ),
-    );
+  // Shared predicate (2026-08-17). The comment this replaces said "same query
+  // as escalate-stale-disputes.ts" — and it WAS the same query, including the
+  // same missing clause: a service account satisfies every predicate here, so
+  // it landed in the recipient list and made it non-empty.
+  const adminIds = await activeHumanInstitutionalAdminIds();
 
-  const recipientSet = new Set<string>([
-    ...govtMembers.map((m) => m.userId),
-    ...adminProfiles.map((a) => a.id),
-  ]);
+  const recipientSet = new Set<string>([...govtMembers.map((m) => m.userId), ...adminIds]);
   const recipients = Array.from(recipientSet);
 
-  if (recipients.length === 0) return;
+  if (recipients.length === 0) {
+    // Was a bare `return`. Its two siblings (escalate-stale-disputes and
+    // escalate-stale-welfare-cases) both write this trace; this one did not, so
+    // a decomiso handoff stalled past 7 days could escalate to nobody and leave
+    // no record of it in any surface. An escalation nobody heard is not an
+    // escalation, and there is no worklist that would surface it later.
+    await writeAuditLog(db, {
+      action: "notification_fanout_empty",
+      actorUserId: null,
+      payload: {
+        route: "decomiso_handoff_stale",
+        province: candidate.jurisdictionProvince ?? "",
+        locality: candidate.jurisdictionLocality ?? "",
+        reason: "no_govt_no_admin",
+        case_id: candidate.id,
+        case_public_code: candidate.publicCode,
+      },
+    });
+    return;
+  }
 
   await db.insert(notifications).values(
     recipients.map((userId) => ({

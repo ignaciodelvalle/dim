@@ -12,9 +12,10 @@
 
 import { and, eq, inArray, isNull } from "drizzle-orm";
 
-import { db, govtAssignments, profiles } from "@/db";
+import { db, govtAssignments } from "@/db";
 import { localitiesCoveringSearch } from "@/lib/domain/jurisdiction-canonical";
 import { recordEmptyFanout } from "@/lib/infra/empty-fanout-trace";
+import { activeHumanInstitutionalAdminIds } from "@/lib/infra/notification-recipients";
 
 export type ApprovalJurisdiction = {
   province: string;
@@ -91,27 +92,13 @@ export async function findAuthoritiesForJurisdiction(
   // Tightened per migration 0015: only active, non-deactivated institutional
   // admins receive fallback notifications.
   //
-  // `isSystem = false` (2026-08-17) — a service account satisfies every other
-  // predicate here: role "admin", accountType "institutional", deactivatedAt
-  // null. Without this clause it lands in the fallback for all 17 call sites,
-  // which is wrong twice over. It is notified about real bite reports, rabies
-  // observations and outbreaks that nobody will read, and — worse — it PADS
-  // the count the empty-fan-out check below reads. That check exists to leave
-  // the only evidence that an announcement reached, in its own words, "zero
-  // humans"; a residual service account makes the list non-empty and the
-  // silence goes unrecorded. Same partition `/admin/admins` and
-  // `lib/infra/admin-search.ts` already apply.
-  const admins = await db
-    .select({ id: profiles.id })
-    .from(profiles)
-    .where(
-      and(
-        eq(profiles.role, "admin"),
-        eq(profiles.accountType, "institutional"),
-        isNull(profiles.deactivatedAt),
-        eq(profiles.isSystem, false),
-      ),
-    );
+  // The predicate moved to lib/infra/notification-recipients.ts (2026-08-17,
+  // same day it was written here). It was fixed HERE first — this is the site
+  // the audit named — and a second audit hours later found the identical query
+  // hand-rolled in eight more recipient paths, none of which had the fix. The
+  // shared helper is the answer to that, not another copy. Its header carries
+  // the full rationale for each clause.
+  const admins = await activeHumanInstitutionalAdminIds();
 
   if (admins.length === 0) {
     // Nobody at all. Govt-first found no one, and the fallback that exists
@@ -127,5 +114,5 @@ export async function findAuthoritiesForJurisdiction(
     });
   }
 
-  return admins.map((a) => a.id);
+  return admins;
 }
