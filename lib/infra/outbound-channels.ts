@@ -34,6 +34,18 @@ export type OutboundChannelKey = "email" | "sms" | "webPush";
 export type OutboundChannelStatus =
   /** The app can attempt a send. Says nothing about whether it arrives. */
   | "configured"
+  /**
+   * Wired and keyed, but able to reach only the provider account's own
+   * mailbox — not the public. Added 2026-08-18 (see RESEND_FROM below): with
+   * no verified sending domain the only usable sender is the provider's shared
+   * test address, and Resend refuses every recipient except the account owner.
+   *
+   * It is its OWN state on purpose. Folding it into "configured" would put a
+   * green pill on a channel that cannot reach a single citizen, which is the
+   * exact class of false comfort this module exists to remove; folding it into
+   * "unconfigured" would hide that the mechanism does work and is testable.
+   */
+  | "restricted"
   /** Wiring exists but this environment has not been given its secrets. */
   | "unconfigured"
   /** No implementation exists at all — not a deployment gap, a product gap. */
@@ -66,6 +78,43 @@ function present(env: EnvLike, name: string): boolean {
 }
 
 /**
+ * Provider-owned shared sender. Works with no DNS at all, and Resend will only
+ * deliver from it to the account owner's own verified address.
+ */
+export const FALLBACK_MAIL_SENDER = "miMAR <onboarding@resend.dev>";
+
+/**
+ * The From: address every outbound mail uses.
+ *
+ * WHY THIS IS AN ENV VAR AND NOT A CONSTANT (2026-08-18).
+ * It used to be hardcoded, twice, as `miMAR <noreply@dim.ar>` — and `dim.ar`
+ * does not exist. So the address was unusable on two counts. First the
+ * practical one: a provider will not send from a domain nobody has verified,
+ * so every send would have been refused no matter what key was set. Second the
+ * one this project already has a rule for: DIM is the INTERNAL codename and
+ * MiMAR is the public brand (there is a lint fence for exactly this), so mail
+ * signed by the codename domain was off-brand even in the hypothetical where
+ * the domain existed. The canonical public domain the rest of the code uses is
+ * `mimar.ar` (PUBLIC_BRAND_DOMAIN, site-url.ts).
+ *
+ * Making it configuration means the day a domain is registered and verified,
+ * the switch is one env var — no code change, no redeploy of a constant.
+ */
+export function resolveMailSender(env: EnvLike): string {
+  const configured = (env.RESEND_FROM ?? "").trim();
+  return configured.length > 0 ? configured : FALLBACK_MAIL_SENDER;
+}
+
+/**
+ * True when the sender is the provider's shared test address, which can only
+ * reach the account owner. Keyed on the provider domain rather than on string
+ * equality so a variant of the same shared sender is still recognised.
+ */
+export function senderIsProviderFallback(sender: string): boolean {
+  return /@resend\.dev\b/i.test(sender);
+}
+
+/**
  * Derives channel readiness from environment presence. Pure: takes the env as
  * an argument rather than reading the global, so the whole table is testable
  * without touching process.env.
@@ -78,10 +127,18 @@ export function deriveOutboundChannels(env: EnvLike): OutboundChannel[] {
     {
       key: "email",
       label: "Correo electrónico",
-      status: emailKeys.every((k) => present(env, k)) ? "configured" : "unconfigured",
+      // Tres estados, no dos: tener la clave no basta si el remitente es el
+      // compartido del proveedor, porque entonces el único destinatario posible
+      // es la casilla de la propia cuenta.
+      status: !emailKeys.every((k) => present(env, k))
+        ? "unconfigured"
+        : senderIsProviderFallback(resolveMailSender(env))
+          ? "restricted"
+          : "configured",
       requires: emailKeys,
-      consequence:
-        "Sin esto, quien denunció y dejó un email no recibe el enlace para ver el estado de su denuncia. La pantalla le dice lo mismo de siempre, así que espera un correo que nunca sale. También queda sin enviarse la entrega de exportaciones analíticas.",
+      consequence: senderIsProviderFallback(resolveMailSender(env))
+        ? "Se envía desde el remitente compartido del proveedor, que solo entrega a la casilla de la cuenta. Sirve para comprobar que el mecanismo anda; a un denunciante cualquiera no le llega. Para que salga de verdad hace falta un dominio propio verificado y setear RESEND_FROM."
+        : "Sin esto, quien denunció y dejó un email no recibe el enlace para ver el estado de su denuncia. La pantalla le dice lo mismo de siempre, así que espera un correo que nunca sale. También queda sin enviarse la entrega de exportaciones analíticas.",
     },
     {
       key: "webPush",
@@ -111,7 +168,12 @@ export function deriveOutboundChannels(env: EnvLike): OutboundChannel[] {
  * True when every channel that COULD be configured in this environment is.
  * `not-built` channels are excluded: a product gap must not be reportable as
  * an environment failure an operator could fix by pasting a key.
+ *
+ * `restricted` is NOT ready. A channel that can only reach the provider
+ * account's own mailbox reaches zero citizens, and calling that ready is the
+ * same false comfort as calling an unset key ready — it just costs more to
+ * discover, because the send appears to succeed.
  */
 export function outboundChannelsReady(channels: readonly OutboundChannel[]): boolean {
-  return channels.every((c) => c.status !== "unconfigured");
+  return channels.every((c) => c.status !== "unconfigured" && c.status !== "restricted");
 }

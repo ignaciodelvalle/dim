@@ -36,6 +36,7 @@
 
 import { db, welfareReports } from "@/db";
 import { generateReporterToken, reporterAccessRevoked } from "@/lib/infra/denuncia-reporter-token";
+import { resolveMailSender } from "@/lib/infra/outbound-channels";
 import { RateLimitError, callerIp, enforceRateLimit } from "@/lib/infra/rate-limit";
 import { resolveSiteUrl } from "@/lib/infra/site-url";
 import {
@@ -156,7 +157,7 @@ async function sendAccessLink(to: string, code: string, url: string): Promise<vo
   }
   const { Resend } = await import("resend");
   const { error } = await new Resend(apiKey).emails.send({
-    from: "miMAR <noreply@dim.ar>",
+    from: resolveMailSender(process.env),
     to,
     subject: `Acceso al seguimiento de tu denuncia ${code}`,
     html: `

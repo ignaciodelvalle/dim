@@ -24,6 +24,7 @@ import {
 } from "@/lib/analytics/govt-exports";
 import { resolveJurisdictionScope } from "@/lib/analytics/jurisdiction-scope";
 import { requireAdminOrGovtOrRedirect } from "@/lib/infra/auth-guards";
+import { resolveMailSender } from "@/lib/infra/outbound-channels";
 import { UnknownExportPeriodError, resolveExportPeriod } from "./export-period";
 
 export type GenerateExportResult =
@@ -233,7 +234,7 @@ export async function generateExportAction(formData: FormData): Promise<Generate
       try {
         const resend = new Resend(resendKey);
         const { error: emailError } = await resend.emails.send({
-          from: "miMAR Analytics <noreply@dim.ar>",
+          from: resolveMailSender(process.env),
           to: recipientEmail,
           subject: "Tu export de analytics está listo",
           html: `

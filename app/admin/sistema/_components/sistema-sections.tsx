@@ -193,8 +193,12 @@ export function SistemaChannelsCard() {
   );
 }
 
-const CHANNEL_TONE: Record<OutboundChannelStatus, "ok" | "danger" | "neutral"> = {
+const CHANNEL_TONE: Record<OutboundChannelStatus, "ok" | "open" | "danger" | "neutral"> = {
   configured: "ok",
+  // Ámbar, ni verde ni rojo: el canal ANDA, pero solo llega a la casilla de la
+  // cuenta del proveedor. Pintarlo verde diría que el aviso sale, y pintarlo
+  // rojo escondería que el mecanismo está probado y funcionando.
+  restricted: "open",
   unconfigured: "danger",
   // A product gap is not an outage: rendering it red would send an operator
   // hunting for a key that does not exist.
@@ -203,6 +207,7 @@ const CHANNEL_TONE: Record<OutboundChannelStatus, "ok" | "danger" | "neutral"> =
 
 const CHANNEL_LABEL: Record<OutboundChannelStatus, string> = {
   configured: "Configurado",
+  restricted: "Solo a la casilla de la cuenta",
   unconfigured: "Sin configurar",
   "not-built": "No implementado",
 };

@@ -7,15 +7,32 @@
 // "configured" when it cannot send would put the last honest signal on the
 // wrong side of the truth.
 
+import { readFileSync, readdirSync } from "node:fs";
+import { join } from "node:path";
+
 import { describe, expect, it } from "vitest";
 
 import {
   type EnvLike,
+  FALLBACK_MAIL_SENDER,
   deriveOutboundChannels,
   outboundChannelsReady,
+  resolveMailSender,
+  senderIsProviderFallback,
 } from "@/lib/infra/outbound-channels";
 
 const FULLY_WIRED: EnvLike = {
+  RESEND_API_KEY: "re_live_xxx",
+  // Un dominio propio verificado. Sin esto el remitente cae al compartido del
+  // proveedor y el canal queda RESTRINGIDO, no listo — que es exactamente lo
+  // que pasa hoy en staging.
+  RESEND_FROM: "miMAR <noreply@mimar.ar>",
+  NEXT_PUBLIC_VAPID_PUBLIC_KEY: "BPub",
+  VAPID_PRIVATE_KEY: "priv",
+};
+
+/** La forma real de staging al 2026-08-18: con clave, sin dominio propio. */
+const SIN_DOMINIO_PROPIO: EnvLike = {
   RESEND_API_KEY: "re_live_xxx",
   NEXT_PUBLIC_VAPID_PUBLIC_KEY: "BPub",
   VAPID_PRIVATE_KEY: "priv",
@@ -90,7 +107,100 @@ describe("deriveOutboundChannels", () => {
   });
 });
 
+// Tener la clave no es lo mismo que poder escribirle a una persona.
+//
+// El remitente estaba fijo en el código como `noreply@dim.ar`, un dominio que
+// no existe: ningún proveedor envía desde un dominio que nadie verificó, así
+// que todo envío habría sido rechazado con la clave puesta o sin ella. Sin
+// dominio propio, la única dirección usable es la compartida del proveedor, y
+// esa solo entrega a la casilla de la cuenta. Un tercer estado, porque las dos
+// mentiras posibles son simétricas: verde diría que el aviso sale, y rojo
+// escondería que el mecanismo anda.
+describe("estado restringido — clave puesta, sin dominio propio", () => {
+  it("no dice CONFIGURADO cuando el remitente es el compartido del proveedor", () => {
+    expect(channel(SIN_DOMINIO_PROPIO, "email").status).toBe("restricted");
+  });
+
+  it("dice CONFIGURADO recién cuando hay un remitente con dominio propio", () => {
+    // Control positivo: sin esto, un build que devolviera "restricted" siempre
+    // satisfaría la aserción de arriba.
+    expect(channel(FULLY_WIRED, "email").status).toBe("configured");
+  });
+
+  it("explica que a un denunciante cualquiera no le llega", () => {
+    // La consecuencia es lo que el operador lee para decidir si puede abrir el
+    // flujo a gente real. Un estado sin su explicación no sirve de nada.
+    const c = channel(SIN_DOMINIO_PROPIO, "email");
+    expect(c.consequence).toMatch(/solo entrega a la casilla de la cuenta/i);
+    expect(c.consequence).toMatch(/RESEND_FROM/);
+  });
+
+  it("reconoce el remitente compartido aunque cambie el nombre visible", () => {
+    // La detección va por el dominio del proveedor, no por igualdad de cadena:
+    // "Equipo <onboarding@resend.dev>" sigue siendo el compartido.
+    expect(senderIsProviderFallback("Equipo <onboarding@resend.dev>")).toBe(true);
+    expect(senderIsProviderFallback("miMAR <noreply@mimar.ar>")).toBe(false);
+  });
+
+  it("usa el remitente configurado cuando existe, y el compartido cuando no", () => {
+    expect(resolveMailSender(FULLY_WIRED)).toBe("miMAR <noreply@mimar.ar>");
+    expect(resolveMailSender(SIN_DOMINIO_PROPIO)).toBe(FALLBACK_MAIL_SENDER);
+    // Una cadena vacía NO es un remitente configurado — mismo criterio que el
+    // resto del módulo aplica a las claves.
+    expect(resolveMailSender({ RESEND_FROM: "   " })).toBe(FALLBACK_MAIL_SENDER);
+  });
+});
+
+// El remitente no vuelve a quedar fijo en el código.
+//
+// Estuvo hardcodeado en DOS archivos como `miMAR <noreply@dim.ar>`, y el
+// dominio no existía. Nadie lo notó porque un remitente inválido no rompe
+// nada en desarrollo: falla recién en el envío real, contra un proveedor, en
+// una rama que además se traga los errores a propósito para no ser un oráculo
+// de existencia. O sea, el peor lugar posible para esconder una dirección
+// inválida. Ahora sale de configuración y esta fence lo mantiene así.
+describe("el remitente sale de configuración, no del código", () => {
+  it("ningún archivo fija una dirección de envío", () => {
+    const ROOT = join(__dirname, "..");
+    const CANONICO = "lib/infra/outbound-channels.ts";
+    const FROM_LITERAL = /from:\s*["'`][^"'`]*@[^"'`]+["'`]/;
+
+    const culpables: string[] = [];
+    for (const raiz of ["app", "lib", "src"]) {
+      for (const entry of readdirSync(join(ROOT, raiz), { withFileTypes: true, recursive: true })) {
+        if (!entry.isFile()) continue;
+        if (!entry.name.endsWith(".ts") && !entry.name.endsWith(".tsx")) continue;
+        if (entry.name.includes(".test.")) continue;
+        const rel = join(entry.parentPath, entry.name)
+          .slice(ROOT.length + 1)
+          .replaceAll("\\", "/");
+        if (rel === CANONICO) continue; // su casa: ahí vive el fallback
+        const src = readFileSync(join(ROOT, rel), "utf8");
+        for (const linea of src.split("\n")) {
+          if (linea.trim().startsWith("//") || linea.trim().startsWith("*")) continue;
+          if (FROM_LITERAL.test(linea)) culpables.push(`${rel} → ${linea.trim().slice(0, 60)}`);
+        }
+      }
+    }
+    expect(culpables).toEqual([]);
+  });
+
+  it("y el fallback vive en un solo lugar", () => {
+    // NO VACUIDAD: si el escaneo de arriba dejara de encontrar archivos, la
+    // aserción pasaría sobre una lista vacía. Esto confirma que el literal que
+    // sí debe existir, existe.
+    expect(FALLBACK_MAIL_SENDER).toMatch(/@resend\.dev/);
+  });
+});
+
 describe("outboundChannelsReady", () => {
+  it("un canal restringido NO cuenta como listo", () => {
+    // Alcanza a cero ciudadanos. Llamarlo listo es la misma falsa comodidad que
+    // llamar listo a una clave sin setear, y cuesta más descubrirla porque el
+    // envío parece tener éxito.
+    expect(outboundChannelsReady(deriveOutboundChannels(SIN_DOMINIO_PROPIO))).toBe(false);
+  });
+
   it("is true when every configurable channel is wired, despite SMS not existing", () => {
     // A product gap must not read as an environment failure an operator could
     // fix by pasting a key — otherwise this signal is red forever and stops

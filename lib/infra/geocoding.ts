@@ -61,13 +61,19 @@ import { provinceViewbox } from "@/lib/reference/ar-viewboxes";
 const NOMINATIM_BASE = "https://nominatim.openstreetmap.org";
 // dim-codename-ok: machine-to-machine header sent to Nominatim — no human
 // reader, so this is not the "two issuers on one document" failure Rule 2
-// exists to catch. Left alone on purpose: OSM's usage policy requires a
-// genuinely monitored contact, and which mailbox that is remains an open PO
-// call already documented in __tests__/no-personal-contact-in-ui.test.ts.
-// Rewriting the brand half now would touch that decision sideways. When the
-// mailbox lands, this whole string (brand, domain and contact) gets rewritten
-// once — this annotation is what makes it resurface then.
-const USER_AGENT = "DIM/1.0 (https://dim.ar; contact: ignaciodelvalle2014@gmail.com)";
+// exists to catch.
+//
+// EL DOMINIO SE FUE, EL CONTACTO SE QUEDA (2026-08-18). Esta cadena anunciaba
+// `https://dim.ar`, un dominio que NO EXISTE — confirmado por el PO. La política
+// de uso de OSM pide un contacto genuinamente monitoreado, y anunciar un sitio
+// inexistente es lo contrario de eso: si alguien de OSM necesitara avisarnos de
+// un abuso, seguiría un enlace muerto. El mail sí está monitoreado, así que
+// queda como el contacto real y se cae la URL falsa.
+//
+// Cuando haya dominio propio verificado (la misma decisión que destraba
+// RESEND_FROM — ver lib/infra/outbound-channels.ts), esta cadena vuelve a
+// llevar su URL, ya con la marca pública y no con el nombre en clave.
+const USER_AGENT = "MiMAR/1.0 (contact: ignaciodelvalle2014@gmail.com)";
 const RATE_LIMIT_PER_SECOND = 5;
 const DEFAULT_REQUEST_TIMEOUT_MS = 8000;
 const MIN_REQUEST_TIMEOUT_MS = 1000;
