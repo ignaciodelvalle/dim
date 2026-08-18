@@ -9,7 +9,7 @@
 //
 // Returns { ok: true } on success or { error: string } on any failure.
 
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 
 import { MATRICULA_VERIFICATION_NOTE } from "@/app/gob/cola/_lib/matricula-verification";
 import {
@@ -85,7 +85,24 @@ export async function approveRequestForAuthority(
     await db.transaction(async (tx) => {
       const mutationSummary = await applyApprovalMutation(tx, request, actorUserId);
 
-      await tx
+      // GUARDA DE ESTADO EN EL PROPIO UPDATE, y no solo en la lectura previa.
+      //
+      // El `request.status !== "pending"` de arriba se evalúa ANTES de abrir la
+      // transacción, así que no dice nada sobre lo que pasó mientras tanto. Dos
+      // operadores sobre la misma solicitud —uno aprobando, otro rechazando con
+      // la pestaña vieja abierta— pasaban los dos ese chequeo y los dos
+      // escribían. El perdedor pisaba el `status` sin revertir la mutación del
+      // perfil que el ganador ya había aplicado: quedaba un veterinario con
+      // matrícula verificada y privilegios de firma clínica activos cuya
+      // solicitud figuraba "rechazada", detectable solo cruzando dos filas
+      // contradictorias de audit_log.
+      //
+      // Con la condición adentro del WHERE, el perdedor actualiza cero filas y
+      // aborta. Como `applyApprovalMutation` corrió ANTES en esta misma
+      // transacción, el rollback la deshace: o se aplica todo, o nada. Es el
+      // patrón que este repo ya usa en cases-repository.ts::closeCase, con su
+      // propio comentario diciendo que quien pierde la carrera no debe seguir.
+      const decided = await tx
         .update(approvalRequests)
         .set({
           status: "approved",
@@ -94,7 +111,12 @@ export async function approveRequestForAuthority(
           decisionNotes: notes?.trim() || null,
           updatedAt: new Date(),
         })
-        .where(eq(approvalRequests.id, request.id));
+        .where(and(eq(approvalRequests.id, request.id), eq(approvalRequests.status, "pending")))
+        .returning({ id: approvalRequests.id });
+
+      if (decided.length === 0) {
+        throw new Error("otra persona la resolvió mientras tanto — recargá para ver en qué quedó");
+      }
 
       await tx.insert(auditLog).values({
         actorUserId,

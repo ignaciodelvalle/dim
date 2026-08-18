@@ -52,6 +52,12 @@ export const BRANDED_NOT_FOUND_TITLES = [
   // app/(public)/not-found.tsx — the credential boundary. The one A7's guard
   // missed.
   "No encontramos esa credencial",
+  // app/(public)/denuncias/codigo/[code]/not-found.tsx — an unknown denuncia
+  // reference code. Scoped away from the credential copy above because someone
+  // holding a DEN-XXXX-XXXX code is looking for the cruelty report they filed,
+  // and the shared boundary answered them about pets. This guard caught the new
+  // file on its first full run, which is what it is for.
+  "No encontramos ese código",
 ] as const;
 
 /**

@@ -8,7 +8,7 @@
 //
 // Returns { ok: true } on success or { error: string } on any failure.
 
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 
 import { type ApprovalRequest, approvalRequests, auditLog, db, notifications } from "@/db";
 import { canDecideRequest } from "@/lib/infra/approval-scope";
@@ -48,7 +48,12 @@ export async function rejectRequestForAuthority(
 
   try {
     await db.transaction(async (tx) => {
-      await tx
+      // Misma guarda que en approve-request.ts, y por la misma carrera: el
+      // chequeo de "pending" ocurre antes de abrir la transacción, así que sin
+      // esta condición un rechazo podía commitear encima de una aprobación ya
+      // aplicada y dejar el privilegio otorgado con la solicitud marcada como
+      // rechazada. Cero filas actualizadas ⇒ perdimos la carrera ⇒ abortamos.
+      const decided = await tx
         .update(approvalRequests)
         .set({
           status: "rejected",
@@ -57,7 +62,12 @@ export async function rejectRequestForAuthority(
           decisionNotes: trimmedReason,
           updatedAt: new Date(),
         })
-        .where(eq(approvalRequests.id, request.id));
+        .where(and(eq(approvalRequests.id, request.id), eq(approvalRequests.status, "pending")))
+        .returning({ id: approvalRequests.id });
+
+      if (decided.length === 0) {
+        throw new Error("otra persona la resolvió mientras tanto — recargá para ver en qué quedó");
+      }
 
       await tx.insert(auditLog).values({
         actorUserId,
