@@ -25,6 +25,7 @@ import {
   profiles,
   welfareReports,
 } from "@/db";
+import { CRON_REGISTRY } from "@/lib/infra/cron-registry";
 import { countOutboxBreaches } from "@/lib/infra/outbox-queries";
 import { isTestAccount } from "@/lib/infra/test-accounts";
 import { countOpenAlertFirings } from "@/lib/metrics/alert-firing-inbox";
@@ -680,33 +681,20 @@ export type CronHealthRow = {
  */
 export const STUCK_RUNNING_MS = 10 * 60 * 1000;
 
-const CRON_SCHEDULE_MAP: Record<string, string> = {
-  vaccine_due: "0 12 * * *",
-  post_adoption_checkin: "0 13 * * *",
-  expire_foster_proposals: "0 3 * * *",
-  auto_expire_approvals: "0 4 * * *",
-  close_rabies_observations: "0 0 * * *",
-  close_stale_lost_episodes: "0 4 * * *",
-  close_followup_expired_adoptions: "0 4 * * *",
-  escalate_stale_welfare_cases: "0 4 * * *",
-  escalate_stale_disputes: "0 4 * * *",
-  expire_cross_org_transfers: "0 4 * * *",
-  drain_outbox: "0 6 * * *",
-  process_eno_queue: "0 7 * * *",
-  expire_pet_transfers: "0 4 * * *",
-  expire_decomiso_handoffs: "0 0 * * *",
-  materialize_slots: "0 2 * * *",
-  business_rules_reeval: "0 5 * * *",
-  data_lifecycle: "30 3 * * *",
-  purge_scan_events: "0 1 * * *",
-  evaluate_alerts: "0 8 * * *",
-  reconcile_pet_status: "0 9 * * *",
-  // Standalone scheduled job (cube-ON 2026-07-24): own vercel.json cron entry.
-  refresh_cube: "0 3 * * *",
-  cron_health: "0 10 * * *",
-};
-
-const CRON_REGISTRY_NAMES = Object.keys(CRON_SCHEDULE_MAP);
+// Los horarios salen del REGISTRO CANONICO, no de una copia local.
+//
+// Aca vivia CRON_SCHEDULE_MAP, una segunda tabla de horarios mantenida a mano —
+// y ya habia derivado: decia que drain_outbox corre a las 06:00 cuando el
+// registro dice 04:00. Esa divergencia se renderiza tal cual en
+// /admin/sistema/crons, que es la pantalla donde un operador va justamente a
+// verificar si un trabajo corrio cuando debia. Una consola de salud que miente
+// sobre el horario es peor que no tener consola: no se puede distinguir un cron
+// atrasado de un cron que corre a otra hora de la que uno cree.
+//
+// El monitoreo real (/api/cron/cron-health) siempre uso CRON_REGISTRY. Ahora la
+// consola tambien, asi que hay un solo lugar donde cambiar un horario.
+const CRON_REGISTRY_NAMES = CRON_REGISTRY.map((e) => e.cronName);
+const CRON_SCHEDULE_BY_NAME = new Map(CRON_REGISTRY.map((e) => [e.cronName, e.schedule]));
 
 export async function fetchCronHealth(): Promise<CronHealthRow[]> {
   const now = Date.now();
@@ -761,7 +749,7 @@ export async function fetchCronHealth(): Promise<CronHealthRow[]> {
 
   const rows: CronHealthRow[] = [];
   for (const cronName of CRON_REGISTRY_NAMES) {
-    const schedule = CRON_SCHEDULE_MAP[cronName] ?? "?";
+    const schedule = CRON_SCHEDULE_BY_NAME.get(cronName) ?? "?";
     const latest = latestByName.get(cronName) ?? null;
     const completed = completedByName.get(cronName) ?? null;
     const lastCompletedAt = completed?.finishedAt ?? null;
