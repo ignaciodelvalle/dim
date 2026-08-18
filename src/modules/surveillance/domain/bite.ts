@@ -58,34 +58,12 @@ export type GovtJurisdiction = {
   locality: string;
 };
 
-/**
- * Returns true when the actor is in scope to act on the given case.
- *
- * Rules (spec scenarios H, I — outbreak; also professional-close D):
- *   - admin → universal (always in scope).
- *   - govt, zero jurisdictions → false (no assignments).
- *   - national case (province = null) → any govt with ≥1 jurisdiction is in scope.
- *   - located case → at least one assigned jurisdiction must match:
- *       province === case.province AND
- *       (case.locality === null OR jurisdiction.locality === case.locality).
- */
-export function isInScope(
-  actorRole: "admin" | "govt",
-  govtJurisdictions: readonly GovtJurisdiction[],
-  caseJurisdiction: CaseJurisdiction,
-): boolean {
-  if (actorRole === "admin") return true;
-
-  // govt with no assignments can never be in scope.
-  if (govtJurisdictions.length === 0) return false;
-
-  // National case (no province) → any govt with assignments is in scope.
-  if (caseJurisdiction.province === null) return true;
-
-  // Located case: find a matching jurisdiction.
-  return govtJurisdictions.some(
-    (j) =>
-      j.province === caseJurisdiction.province &&
-      (caseJurisdiction.locality === null || j.locality === caseJurisdiction.locality),
-  );
-}
+// isInScope was DELETED here on 2026-08-18. The live scope guard for bite and
+// outbreak cases is outbreak-investigation.ts::isInScope, which is
+// subsumption-aware (a whole-province assignment covers every barrio in it).
+// This one was a same-named copy with plain exact-pair equality: it answered
+// FALSE for a whole-CABA operator asked about a case in Palermo. Zero
+// production importers, so never exploitable — but a domain helper with THE
+// name and shape of the bite scope predicate is a trap, and its tests still
+// claimed parity with guards that had been fixed without it. See the note in
+// bite.test.ts.

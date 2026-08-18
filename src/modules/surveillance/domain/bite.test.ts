@@ -1,11 +1,11 @@
 // Unit tests for domain/bite.ts
-// Spec source: task 1.3 — victimKind/severity enums, orgTypeToReporterRole, isInScope.
+// Spec source: task 1.3 — victimKind/severity enums, orgTypeToReporterRole.
 // Parity: orgTypeToReporterRole mirrors app/actions/bite.ts; isInScope mirrors
 //         professionalCloseRabiesObservationAction and outbreak use-cases.
 
 import { describe, expect, it } from "vitest";
 
-import { BITE_SEVERITIES, VICTIM_KINDS, isInScope, orgTypeToReporterRole } from "./bite";
+import { BITE_SEVERITIES, VICTIM_KINDS, orgTypeToReporterRole } from "./bite";
 
 // ---------------------------------------------------------------------------
 // VICTIM_KINDS constant
@@ -74,91 +74,24 @@ describe("orgTypeToReporterRole", () => {
 });
 
 // ---------------------------------------------------------------------------
-// isInScope — govt jurisdiction predicate (spec scenarios H,I)
+// isInScope was DELETED from domain/bite.ts on 2026-08-18, and its tests with it.
 //
-// Spec: national case (no province) → any govt actor;
-//       province match AND (no locality OR locality match) → in scope;
-//       admin = universal (always in scope);
-//       govt with different province → out of scope.
+// There were TWO functions named isInScope. The live one — the guard the four
+// outbreak actions actually call — is outbreak-investigation.ts::isInScope, and
+// it is subsumption-aware: a whole-province assignment covers every barrio in
+// that province. The one here was a second copy with the same name, the same
+// stated rules, and plain exact-pair equality — so it answered FALSE for a
+// whole-CABA operator asked about a case in Palermo.
+//
+// It had zero production importers, so it was never exploitable. What it was is
+// a loaded gun: a domain helper named and shaped like THE scope predicate for
+// bites, whose tests claimed "isInScope mirrors professionalCloseRabiesObservation
+// and outbreak use-cases" — a parity that stopped being true when those two
+// were fixed. The next person to import it would have reintroduced the bug that
+// took two separate fixes to remove on 2026-08-17.
+//
+// The live guard states the principle this deletion follows, in its own export
+// comment: a guard worth testing is worth importing. Its tests live in
+// outbreak-investigation.test.ts and __tests__/jurisdiction-subsumption-class.ts,
+// against the real function.
 // ---------------------------------------------------------------------------
-
-type JurisdictionCase = {
-  province: string | null;
-  locality: string | null;
-};
-
-type GovtJurisdiction = {
-  province: string;
-  locality: string;
-};
-
-describe("isInScope", () => {
-  // ---- Admin is always in scope ----
-
-  it("returns true for admin regardless of case province", () => {
-    const investCase: JurisdictionCase = { province: "Buenos Aires", locality: "Tigre" };
-    expect(isInScope("admin", [], investCase)).toBe(true);
-  });
-
-  it("returns true for admin on national case (no province)", () => {
-    const investCase: JurisdictionCase = { province: null, locality: null };
-    expect(isInScope("admin", [], investCase)).toBe(true);
-  });
-
-  // ---- National case (no province): any govt is in scope ----
-
-  it("returns true for govt when case has no province (national)", () => {
-    const govtJurisdictions: GovtJurisdiction[] = [
-      { province: "Córdoba", locality: "Córdoba Capital" },
-    ];
-    const investCase: JurisdictionCase = { province: null, locality: null };
-    expect(isInScope("govt", govtJurisdictions, investCase)).toBe(true);
-  });
-
-  it("returns false for govt with empty jurisdictions on national case (no assignments)", () => {
-    const investCase: JurisdictionCase = { province: null, locality: null };
-    expect(isInScope("govt", [], investCase)).toBe(false);
-  });
-
-  // ---- Province match + any locality ----
-
-  it("returns true when province matches and case has no locality", () => {
-    const govtJurisdictions: GovtJurisdiction[] = [{ province: "Buenos Aires", locality: "Tigre" }];
-    const investCase: JurisdictionCase = { province: "Buenos Aires", locality: null };
-    expect(isInScope("govt", govtJurisdictions, investCase)).toBe(true);
-  });
-
-  it("returns true when province matches and locality matches", () => {
-    const govtJurisdictions: GovtJurisdiction[] = [{ province: "Buenos Aires", locality: "Tigre" }];
-    const investCase: JurisdictionCase = { province: "Buenos Aires", locality: "Tigre" };
-    expect(isInScope("govt", govtJurisdictions, investCase)).toBe(true);
-  });
-
-  it("returns false when province matches but locality does not match", () => {
-    const govtJurisdictions: GovtJurisdiction[] = [{ province: "Buenos Aires", locality: "Tigre" }];
-    const investCase: JurisdictionCase = { province: "Buenos Aires", locality: "San Isidro" };
-    expect(isInScope("govt", govtJurisdictions, investCase)).toBe(false);
-  });
-
-  it("returns false when province does not match", () => {
-    const govtJurisdictions: GovtJurisdiction[] = [
-      { province: "Córdoba", locality: "Córdoba Capital" },
-    ];
-    const investCase: JurisdictionCase = { province: "Buenos Aires", locality: "Tigre" };
-    expect(isInScope("govt", govtJurisdictions, investCase)).toBe(false);
-  });
-
-  it("returns true when one of multiple jurisdictions matches", () => {
-    const govtJurisdictions: GovtJurisdiction[] = [
-      { province: "Córdoba", locality: "Río Cuarto" },
-      { province: "Buenos Aires", locality: "Tigre" },
-    ];
-    const investCase: JurisdictionCase = { province: "Buenos Aires", locality: "Tigre" };
-    expect(isInScope("govt", govtJurisdictions, investCase)).toBe(true);
-  });
-
-  it("returns false for govt with zero jurisdictions on a located case", () => {
-    const investCase: JurisdictionCase = { province: "Buenos Aires", locality: "Tigre" };
-    expect(isInScope("govt", [], investCase)).toBe(false);
-  });
-});
