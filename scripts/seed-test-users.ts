@@ -716,6 +716,77 @@ async function seedOrgCoverage(orgId: string): Promise<void> {
 }
 
 // ---------------------------------------------------------------------------
+// Step 5c — sanitary authority + govt memberships (DIRECT INSERT — no writer)
+// ---------------------------------------------------------------------------
+//
+// Decomiso execution is anchored on a REAL sanitary_authority organization:
+// executeDecomisoAction resolves the principal's active membership in one
+// (resolve-govt-org.ts) and rejects without it, for every role. Until
+// 2026-08-18 the seeded govt accounts had jurisdiction assignments but no
+// authority membership, so /gob/decomisos/nuevo rendered a wizard whose
+// submit could never succeed — and once the page started saying so up front,
+// the e2e specs that walk the wizard (mobile-390, review-readiness) landed on
+// the explanation instead. The seed models the real requirement.
+
+async function attachGovtToSanitaryAuthority(govtUserIds: string[]): Promise<void> {
+  log("STEP", "6c/9 — autoridad sanitaria + memberships de las cuentas govt");
+  const AUTHORITY_TOKEN = "DIM-AUTH-SEED1";
+
+  let [authority] = await db
+    .select({ id: organizations.id })
+    .from(organizations)
+    .where(eq(organizations.publicToken, AUTHORITY_TOKEN))
+    .limit(1);
+
+  if (authority) {
+    log("SKIP", "autoridad sanitaria seed ya existe");
+  } else {
+    [authority] = await db
+      .insert(organizations)
+      .values({
+        publicToken: AUTHORITY_TOKEN,
+        displayName: "Autoridad Sanitaria Test",
+        legalName: "Autoridad Sanitaria Test (Seed)",
+        orgType: "sanitary_authority",
+        email: "autoridad@dim.test",
+        verified: true,
+        status: "active",
+        // A province is a hard execute-time requirement
+        // (executeDecomisoAction rejects an authority without one).
+        jurisdictionProvince: "Buenos Aires",
+        jurisdictionLocality: "La Plata",
+      })
+      .returning({ id: organizations.id });
+    log("OK", `autoridad sanitaria creada (${AUTHORITY_TOKEN})`);
+  }
+
+  for (const userId of govtUserIds) {
+    const [existing] = await db
+      .select({ id: organizationMemberships.id })
+      .from(organizationMemberships)
+      .where(
+        and(
+          eq(organizationMemberships.organizationId, authority.id),
+          eq(organizationMemberships.userId, userId),
+          isNull(organizationMemberships.leftAt),
+        ),
+      )
+      .limit(1);
+    if (existing) {
+      log("SKIP", `membership govt ${userId.slice(0, 8)} ya presente`);
+      continue;
+    }
+    await db.insert(organizationMemberships).values({
+      organizationId: authority.id,
+      userId,
+      role: "admin",
+      title: "Operador/a de autoridad sanitaria",
+    });
+    log("OK", `govt ${userId.slice(0, 8)} asociado a la autoridad sanitaria`);
+  }
+}
+
+// ---------------------------------------------------------------------------
 // Step 6 — vet membership at the refugio (DIRECT INSERT — no writer)
 // ---------------------------------------------------------------------------
 
@@ -1400,18 +1471,19 @@ async function main() {
   const vetId = await provisionVet(adminId);
   const { orgAdminUserId, orgId, orgToken } = await provisionOrg(adminId);
   await seedOrgCoverage(orgId);
-  await provisionGovt(adminId, {
+  const govtId = await provisionGovt(adminId, {
     stepLabel: "6a/9",
     email: EMAILS.govt,
     displayName: DISPLAY.govt,
     localities: GOVT_REMOTE_LOCALITIES,
   });
-  await provisionGovt(adminId, {
+  const govtLocalId = await provisionGovt(adminId, {
     stepLabel: "6b/9",
     email: EMAILS.govtLocal,
     displayName: DISPLAY.govtLocal,
     localities: GOVT_LOCAL_LOCALITIES,
   });
+  await attachGovtToSanitaryAuthority([govtId, govtLocalId]);
   await attachVetToOrg(orgId, vetId);
   await seedOwnerPets(ownerId);
   await seedOwnerBPet(ownerBId);
