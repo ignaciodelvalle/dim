@@ -856,6 +856,11 @@ const EVENT_TYPE_LABELS = {
   // Physical tag (chapa) lifecycle — migration 0169
   tag_activated: "Chapa activada",
   tag_revoked: "Chapa dada de baja",
+  // Cuidado temporal (custodia-temporal, 0189). "Cuidado temporal" es el
+  // vocabulario provisorio: la decisión de nomenclatura sigue abierta con el PO
+  // (Q1), así que estas dos etiquetas son el único lugar donde hay que tocarla.
+  caretaker_designated: "Cuidado temporal iniciado",
+  caretaker_ended: "Cuidado temporal finalizado",
 } satisfies Record<EventType, string>;
 
 export function eventTypeLabel(eventType: EventType): string {

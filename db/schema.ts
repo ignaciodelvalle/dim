@@ -393,6 +393,16 @@ export const EVENT_TYPES = [
   // would destroy the enum fact on subject erasure (design D5).
   "tag_activated",
   "tag_revoked",
+  // Temporary caretaker (custodia-temporal, migration 0189). TWO events, not
+  // three: there is NO `caretaker_proposed`, because a pending invitation is
+  // workflow state (pet_caretaker_grants.status) and not a fact about the
+  // animal. `caretaker_designated` is emitted AT ACCEPT — the name means "the
+  // grant became active" — in the same transaction as the
+  // ownerships(role='caretaker') row. `caretaker_ended` carries the outcome
+  // discriminator (returned | expired | revoked_by_owner | withdrawn_by_caretaker)
+  // so ending a grant never needs a fourth event type.
+  "caretaker_designated",
+  "caretaker_ended",
 ] as const;
 export type EventType = (typeof EVENT_TYPES)[number];
 
@@ -1102,8 +1112,16 @@ export const organizationCapabilityGrants = pgTable(
 // adoption_finalized event.
 //
 // Active-owner constraint: at most one active row per pet WHERE role='owner'.
-// Multiple shelter_custody, foster, caretaker, or co_owner rows can coexist
-// with an active owner, or with each other when there is no permanent owner yet.
+// Multiple shelter_custody, foster, or co_owner rows can coexist with an active
+// owner, or with each other when there is no permanent owner yet.
+//
+// caretaker (custodia-temporal, migration 0189): the temporary caretaker of an
+// owned pet — petsitter, vecina, family. NO LONGER "UI deferred": the role is
+// implemented end to end, its lifecycle lives in `pet_caretaker_grants`, and it
+// is capped at ONE ACTIVE ROW PER PET by its own partial unique index below.
+// The cap is duplicated on purpose: the grants table protects the WORKFLOW, but
+// `ownerships` is what every RLS policy and every read path joins, so the
+// invariant consumers depend on has to hold where consumers read it.
 
 export const ownerships = pgTable(
   "ownerships",
@@ -1135,6 +1153,14 @@ export const ownerships = pgTable(
     oneActiveOwnerPerPet: uniqueIndex("ownerships_one_active_owner_per_pet")
       .on(table.petId)
       .where(sql`${table.role} = 'owner' AND ${table.endedAt} IS NULL`),
+    // custodia-temporal (0189). ownerships_one_active_owner_per_pet is
+    // `where role='owner'`, so it constrained caretaker rows not at all: a seed
+    // or a future feature could have opened two active caretaker rows on one
+    // pet and every consumer that joins ownerships would have silently picked
+    // one. Now it fails loudly — which is the point.
+    oneActiveCaretakerPerPet: uniqueIndex("ownerships_one_active_caretaker_per_pet")
+      .on(table.petId)
+      .where(sql`${table.role} = 'caretaker' AND ${table.endedAt} IS NULL`),
     oneActiveShelterCustodyPerPetOrg: uniqueIndex(
       "ownerships_one_active_shelter_custody_per_pet_org",
     )
@@ -1148,6 +1174,133 @@ export const ownerships = pgTable(
     // all-rows lookup; without this the check seq-scanned ownerships per pet
     // (~135 s on the seed). A FK does not create an index in Postgres (0112).
     petIdIdx: index("ownerships_pet_id_idx").on(table.petId),
+  }),
+);
+
+// ============================================================================
+// PetCaretakerGrants — the temporary-caretaker invitation lifecycle
+// ============================================================================
+// custodia-temporal, migration 0189.
+//
+// WHY ITS OWN TABLE, and not a reuse of `pet_transfers`. The shape matches
+// almost exactly (to_owner_email, a status machine, a public token), but a
+// transfers row that transfers nothing poisons every existing query on that
+// table — the transfer dashboards, the cross-org expiry sweep, the handshake
+// case. The relationship is TEMPLATE, not table.
+//
+// WHY IT IS NOT A SPINE EVENT. There is no `caretaker_proposed` event: a
+// pending invitation is workflow state, not a fact about the animal. Only an
+// explicit ACCEPT produces a fact, and that is `caretaker_designated`, emitted
+// in the same transaction as the `ownerships(role='caretaker')` row. This table
+// plus audit_log IS the record of everything before that — consistent with
+// invariant #3 rather than an exception to it.
+//
+// `ends_at` is NOT NULL by design: an open-ended arrangement is precisely the
+// thing this feature refuses to create. The 180-day maximum is deliberately NOT
+// a CHECK here — a forward-only, immutable migration is the wrong place to
+// commit a product number that is still the PO's to change; the cap lives in
+// src/modules/caretakers/domain.
+
+export const petCaretakerGrants = pgTable(
+  "pet_caretaker_grants",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    // The `/cuidado/{token}` key handed to the invitee. Unguessable, unique.
+    publicToken: text("public_token").notNull().unique(),
+    petId: uuid("pet_id")
+      .notNull()
+      .references(() => pets.id, { onDelete: "cascade" }),
+    grantedByUserId: uuid("granted_by_user_id")
+      .notNull()
+      .references(() => profiles.id, { onDelete: "cascade" }),
+    // NULL until accept: the invitation may be addressed to someone who does
+    // not have an account yet (the email below is the only handle we have).
+    caretakerUserId: uuid("caretaker_user_id").references(() => profiles.id, {
+      onDelete: "set null",
+    }),
+    caretakerEmail: text("caretaker_email").notNull(),
+    status: text("status")
+      .notNull()
+      .default("pending")
+      .$type<"pending" | "accepted" | "rejected" | "cancelled" | "expired" | "ended">(),
+    startsAt: timestamp("starts_at", { withTimezone: true }).notNull().defaultNow(),
+    endsAt: timestamp("ends_at", { withTimezone: true }).notNull(),
+    note: text("note"),
+    respondedAt: timestamp("responded_at", { withTimezone: true }),
+    endedAt: timestamp("ended_at", { withTimezone: true }),
+    endedReason: text("ended_reason"),
+    // The projected ownership row, set at accept. The event is authoritative;
+    // this pointer is what lets the drift harness compare the two.
+    ownershipId: uuid("ownership_id").references(() => ownerships.id, { onDelete: "set null" }),
+    // Stored witness for the T-3 reminder. A "fires exactly once" guarantee
+    // needs a witness, not a date computation — a 04:05 re-run of the daily
+    // dispatcher would otherwise send it twice.
+    reminderSentAt: timestamp("reminder_sent_at", { withTimezone: true }),
+    // KEY 2 of the two-key consent model for showing an ALTERNATE PUBLIC
+    // CONTACT on the credential (PO decision 2026-08-19). NULL = never
+    // consented. Key 1 is the titular's own disclosure toggle on `pets`
+    // (disclose_*_when_lost, off by default); this is the CARETAKER's consent,
+    // captured at invitation-accept time. BOTH are required. Never collapse the
+    // two into one owner-side flag: publishing a third party's contact on an
+    // unauthenticated page is not the titular's consent to give.
+    publicContactConsentAt: timestamp("public_contact_consent_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+    // PII baseline (pii.apply_baseline in migration 0189). caretaker_email is
+    // an identifiable third party who may not even have an account.
+    createdBy: uuid("created_by").references(() => profiles.id, { onDelete: "set null" }),
+    updatedBy: uuid("updated_by").references(() => profiles.id, { onDelete: "set null" }),
+    purpose: dataPurposeEnum("purpose"),
+    deletedAt: timestamp("deleted_at", { withTimezone: true }),
+    retentionUntil: timestamp("retention_until", { withTimezone: true }),
+  },
+  (table) => ({
+    statusCheck: check(
+      "pet_caretaker_grants_status_check",
+      sql`${table.status} IN ('pending','accepted','rejected','cancelled','expired','ended')`,
+    ),
+    periodCheck: check(
+      "pet_caretaker_grants_period_check",
+      sql`${table.endsAt} > ${table.startsAt}`,
+    ),
+    // The accept invariant, in the database. Biconditional on purpose: an
+    // accepted grant MUST point at both the caretaker and the projected
+    // ownership row, and a grant that is not accepted MUST point at neither —
+    // otherwise a cancelled invitation could keep a phantom ownership pointer
+    // and the drift harness would compare against a lie.
+    acceptCheck: check(
+      "pet_caretaker_grants_accept_check",
+      sql`(${table.status} = 'accepted') = (${table.caretakerUserId} IS NOT NULL AND ${table.ownershipId} IS NOT NULL)`,
+    ),
+    // Backstop for the domain rule. The interesting case is not the UI (the
+    // form never offers it) but a script or a future feature.
+    noSelfDesignationCheck: check(
+      "pet_caretaker_grants_no_self_designation_check",
+      sql`${table.grantedByUserId} <> ${table.caretakerUserId}`,
+    ),
+    // Consent is captured at accept and nowhere else. Weak form on purpose so
+    // the record SURVIVES the grant ending — see the migration for the full
+    // reasoning.
+    publicContactConsentCheck: check(
+      "pet_caretaker_grants_public_contact_consent_check",
+      sql`${table.publicContactConsentAt} IS NULL OR ${table.status} <> 'pending'`,
+    ),
+    onePendingPerPet: uniqueIndex("pet_caretaker_grants_one_pending_per_pet")
+      .on(table.petId)
+      .where(sql`${table.status} = 'pending'`),
+    oneAcceptedPerPet: uniqueIndex("pet_caretaker_grants_one_accepted_per_pet")
+      .on(table.petId)
+      .where(sql`${table.status} = 'accepted'`),
+    // Cron scan: pending older than 7 days, accepted past ends_at, T-3 window.
+    statusEndsAtIdx: index("pet_caretaker_grants_status_ends_at_idx").on(
+      table.status,
+      table.endsAt,
+    ),
+    // The caretaker's own /mis-mascotas.
+    activeCaretakerIdx: index("pet_caretaker_grants_caretaker_active_idx")
+      .on(table.caretakerUserId)
+      .where(sql`${table.status} = 'accepted'`),
+    petIdIdx: index("pet_caretaker_grants_pet_id_idx").on(table.petId),
   }),
 );
 

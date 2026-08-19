@@ -105,6 +105,13 @@ export const NON_LIBRETA_EVENT_TYPES = [
   // QR chapa), not sanitary history. Powers /cuenta/chapas, not the libreta.
   "tag_activated",
   "tag_revoked",
+  // Temporary caretaker (custodia-temporal, 0189) — WHO was looking after the
+  // animal, not WHAT was done to it. The clinical events a caretaker records
+  // are already in the libreta on their own merits, signed with the caretaker
+  // as author; the arrangement itself is custody context, and putting it in a
+  // sanitary record a vet or an inspector reads would say nothing medical.
+  "caretaker_designated",
+  "caretaker_ended",
 ] as const satisfies readonly EventType[];
 
 const LIBRETA_SET: ReadonlySet<string> = new Set(LIBRETA_SANITARIA_EVENT_TYPES);

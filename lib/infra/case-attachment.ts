@@ -366,6 +366,18 @@ export const CASE_ATTACHMENT_RULES: Record<EventType, AttachmentRule> = {
   tag_revoked: { mode: "never", compatibleWith: [] },
   // Jurisdictional mobility — libreta/travel projection only, never a case.
   movement_recorded: { mode: "never", compatibleWith: [] },
+
+  // ---------------------------------------------------------------------
+  // Temporary caretaker (2) — custodia-temporal, 0189.
+  //
+  // NEVER case-relevant, and that is a decision rather than an oversight: a
+  // designation is not a handshake anyone adjudicates, and the caretaker is
+  // explicitly NOT a case participant in v1 (can_read_case grants the
+  // subject-pet branch to role='owner' only). Opening a case here would create
+  // a case its own subject cannot read.
+  // ---------------------------------------------------------------------
+  caretaker_designated: { mode: "never", compatibleWith: [] },
+  caretaker_ended: { mode: "never", compatibleWith: [] },
 };
 
 // ---------------------------------------------------------------------------

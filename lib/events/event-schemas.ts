@@ -28,6 +28,7 @@ import { z } from "zod";
 import type { EventType } from "@/db/schema";
 import { findDisease } from "@/lib/reference/diseases";
 
+import { caretakerDesignated, caretakerEnded } from "./caretaker-event-schemas";
 import { withVersion } from "./payload-version";
 import { tagActivated, tagRevoked } from "./tag-event-schemas";
 
@@ -1659,8 +1660,8 @@ const eventAmended = z
   )
   .strict();
 
-// Physical tag (chapa) lifecycle — migration 0169: tagActivated / tagRevoked
-// live in ./tag-event-schemas.ts (this file is at its size ratchet).
+// Physical tag (0169) and temporary caretaker (0189) payloads live in
+// ./tag-event-schemas.ts and ./caretaker-event-schemas.ts (size ratchet).
 
 // ---------------------------------------------------------------------------
 // Registry
@@ -1723,6 +1724,8 @@ export const PayloadSchemas: Partial<Record<EventType, z.ZodTypeAny>> = {
   event_amended: eventAmended,
   tag_activated: tagActivated,
   tag_revoked: tagRevoked,
+  caretaker_designated: caretakerDesignated,
+  caretaker_ended: caretakerEnded,
 };
 
 /**

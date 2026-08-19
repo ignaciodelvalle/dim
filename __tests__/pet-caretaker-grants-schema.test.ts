@@ -1,0 +1,276 @@
+// pet_caretaker_grants — schema/constraint tests (migration 0189, custodia-temporal).
+//
+// Live integration tests against the local Postgres stack. Every assertion here
+// is about a DB-LEVEL guarantee, not an application rule: the whole reason the
+// grant table carries CHECKs and partial uniques is that the application is not
+// the only writer (a seed, a script or a future feature can reach the table),
+// and invariant #3 says a cache that is dual-written by design gets its own
+// constraint at the place consumers read.
+//
+// Requires: local Supabase stack running + migration 0189 applied.
+
+import { eq, inArray, sql } from "drizzle-orm";
+import { afterAll, beforeAll, describe, expect, it } from "vitest";
+
+import { EVENT_TYPES, db, ownerships, petCaretakerGrants, pets, profiles } from "@/db";
+import { expectDbError } from "./_helpers/expect-db-error";
+
+const PET_TOKEN = "DIM-CGT-0001";
+const TITULAR_ID = "0cae7a11-0000-4000-8000-000000000001";
+const CARETAKER_ID = "0cae7a11-0000-4000-8000-000000000002";
+const OTHER_ID = "0cae7a11-0000-4000-8000-000000000003";
+
+let petId: string;
+
+const STARTS = new Date("2026-09-01T00:00:00Z");
+const ENDS = new Date("2026-09-30T00:00:00Z");
+
+function grantValues(overrides: Record<string, unknown> = {}) {
+  return {
+    publicToken: `CGT-${Math.random().toString(36).slice(2, 12)}`,
+    petId,
+    grantedByUserId: TITULAR_ID,
+    caretakerEmail: "ana@dim-test.local",
+    startsAt: STARTS,
+    endsAt: ENDS,
+    ...overrides,
+  } as typeof petCaretakerGrants.$inferInsert;
+}
+
+async function cleanup(): Promise<void> {
+  await db.execute(
+    sql`DELETE FROM pet_caretaker_grants WHERE pet_id IN (SELECT id FROM pets WHERE public_token = ${PET_TOKEN})`,
+  );
+  await db.execute(
+    sql`DELETE FROM ownerships WHERE pet_id IN (SELECT id FROM pets WHERE public_token = ${PET_TOKEN})`,
+  );
+  await db.execute(sql`DELETE FROM pets WHERE public_token = ${PET_TOKEN}`);
+  await db.delete(profiles).where(inArray(profiles.id, [TITULAR_ID, CARETAKER_ID, OTHER_ID]));
+}
+
+beforeAll(async () => {
+  await cleanup();
+  await db.insert(profiles).values([
+    { id: TITULAR_ID, displayName: "Titular CGT", role: "owner" },
+    { id: CARETAKER_ID, displayName: "Cuidadora CGT", role: "owner" },
+    { id: OTHER_ID, displayName: "Otro CGT", role: "owner" },
+  ]);
+  const [pet] = await db
+    .insert(pets)
+    .values({ publicToken: PET_TOKEN, name: "Pampa CGT", species: "dog" })
+    .returning({ id: pets.id });
+  petId = pet.id;
+});
+
+afterAll(async () => {
+  await cleanup();
+});
+
+async function clearGrants(): Promise<void> {
+  await db.delete(petCaretakerGrants).where(eq(petCaretakerGrants.petId, petId));
+}
+
+describe("pet_caretaker_grants — table shape", () => {
+  it("exists in the public schema", async () => {
+    const rows = (await db.execute(
+      sql`select to_regclass('public.pet_caretaker_grants') as reg`,
+    )) as unknown as Array<{ reg: string | null }>;
+    expect(rows[0]?.reg).toBe("pet_caretaker_grants");
+  });
+
+  it("defaults status to 'pending' and leaves the accept columns null", async () => {
+    await clearGrants();
+    const [row] = await db.insert(petCaretakerGrants).values(grantValues()).returning();
+    expect(row.status).toBe("pending");
+    expect(row.caretakerUserId).toBeNull();
+    expect(row.ownershipId).toBeNull();
+    expect(row.respondedAt).toBeNull();
+    expect(row.reminderSentAt).toBeNull();
+    await clearGrants();
+  });
+});
+
+describe("pet_caretaker_grants — one open invitation, one active caretaker", () => {
+  it("rejects a SECOND pending grant on the same pet", async () => {
+    await clearGrants();
+    await db.insert(petCaretakerGrants).values(grantValues());
+    await expectDbError(db.insert(petCaretakerGrants).values(grantValues()), {
+      code: "23505",
+      constraint: "pet_caretaker_grants_one_pending_per_pet",
+    });
+    await clearGrants();
+  });
+
+  it("rejects a SECOND accepted grant on the same pet", async () => {
+    await clearGrants();
+    const ownershipId = await openCaretakerOwnership(CARETAKER_ID);
+    await db
+      .insert(petCaretakerGrants)
+      .values(grantValues({ status: "accepted", caretakerUserId: CARETAKER_ID, ownershipId }));
+    await expectDbError(
+      db
+        .insert(petCaretakerGrants)
+        .values(grantValues({ status: "accepted", caretakerUserId: OTHER_ID, ownershipId })),
+      { code: "23505", constraint: "pet_caretaker_grants_one_accepted_per_pet" },
+    );
+    await clearGrants();
+    await db.delete(ownerships).where(eq(ownerships.petId, petId));
+  });
+
+  it("allows a new pending grant once the previous one reached a terminal status", async () => {
+    await clearGrants();
+    await db.insert(petCaretakerGrants).values(grantValues({ status: "expired" }));
+    await db.insert(petCaretakerGrants).values(grantValues({ status: "rejected" }));
+    const [fresh] = await db.insert(petCaretakerGrants).values(grantValues()).returning();
+    expect(fresh.status).toBe("pending");
+    await clearGrants();
+  });
+});
+
+describe("pet_caretaker_grants — CHECK constraints", () => {
+  it("rejects an end date at or before the start date", async () => {
+    await clearGrants();
+    await expectDbError(db.insert(petCaretakerGrants).values(grantValues({ endsAt: STARTS })), {
+      code: "23514",
+      constraint: /pet_caretaker_grants_period/,
+    });
+  });
+
+  it("rejects an unknown status", async () => {
+    await expectDbError(
+      db.insert(petCaretakerGrants).values(grantValues({ status: "bogus" as "pending" })),
+      { code: "23514", constraint: /pet_caretaker_grants_status/ },
+    );
+  });
+
+  it("rejects self-designation (granted_by = caretaker)", async () => {
+    await clearGrants();
+    await db.delete(ownerships).where(eq(ownerships.petId, petId));
+    // A VALID accepted row in every other respect — the caretaker and the
+    // ownership pointer are both set, so the accept invariant is satisfied and
+    // the ONLY constraint left to fire is the self-designation one. Without
+    // this the assertion would pass on the wrong CHECK.
+    const ownershipId = await openCaretakerOwnership(TITULAR_ID);
+    await expectDbError(
+      db.insert(petCaretakerGrants).values(
+        grantValues({
+          status: "accepted",
+          caretakerUserId: TITULAR_ID,
+          ownershipId,
+        }),
+      ),
+      { code: "23514", constraint: /pet_caretaker_grants_no_self_designation/ },
+    );
+    await db.delete(ownerships).where(eq(ownerships.petId, petId));
+  });
+
+  it("rejects an accepted grant with no caretaker and no ownership row (accept invariant)", async () => {
+    await expectDbError(db.insert(petCaretakerGrants).values(grantValues({ status: "accepted" })), {
+      code: "23514",
+      constraint: /pet_caretaker_grants_accept/,
+    });
+  });
+
+  it("rejects a PENDING grant that already carries the accept columns (accept invariant, other direction)", async () => {
+    const ownershipId = await openCaretakerOwnership(CARETAKER_ID);
+    await expectDbError(
+      db
+        .insert(petCaretakerGrants)
+        .values(grantValues({ caretakerUserId: CARETAKER_ID, ownershipId })),
+      { code: "23514", constraint: /pet_caretaker_grants_accept/ },
+    );
+    await db.delete(ownerships).where(eq(ownerships.petId, petId));
+  });
+});
+
+describe("pet_caretaker_grants — alternate public contact, two-key consent", () => {
+  it("defaults the caretaker's public-contact consent to NULL (never consented)", async () => {
+    await clearGrants();
+    const [row] = await db.insert(petCaretakerGrants).values(grantValues()).returning();
+    expect(row.publicContactConsentAt).toBeNull();
+    await clearGrants();
+  });
+
+  it("refuses to record consent on a PENDING grant", async () => {
+    // Key 2 is captured AT ACCEPT, where the invitee is already being shown
+    // what they are agreeing to. A pending row carrying consent would mean
+    // somebody recorded it somewhere else — most likely the titular, on the
+    // caretaker's behalf, which is the exact thing the second key exists to
+    // prevent.
+    await clearGrants();
+    await expectDbError(
+      db.insert(petCaretakerGrants).values(grantValues({ publicContactConsentAt: new Date() })),
+      { code: "23514", constraint: /pet_caretaker_grants_public_contact_consent/ },
+    );
+  });
+
+  it("records consent on an accepted grant and keeps it after the grant ends", async () => {
+    await clearGrants();
+    await db.delete(ownerships).where(eq(ownerships.petId, petId));
+    const ownershipId = await openCaretakerOwnership(CARETAKER_ID);
+    const consentedAt = new Date("2026-09-02T12:00:00Z");
+    const [accepted] = await db
+      .insert(petCaretakerGrants)
+      .values(
+        grantValues({
+          status: "accepted",
+          caretakerUserId: CARETAKER_ID,
+          ownershipId,
+          publicContactConsentAt: consentedAt,
+        }),
+      )
+      .returning();
+    expect(accepted.publicContactConsentAt).toEqual(consentedAt);
+
+    // Ending the grant must not erase the consent record: it is a historical
+    // fact about what the caretaker agreed to, not a live permission flag.
+    const [ended] = await db
+      .update(petCaretakerGrants)
+      .set({ status: "ended", caretakerUserId: null, ownershipId: null, endedAt: new Date() })
+      .where(eq(petCaretakerGrants.id, accepted.id))
+      .returning();
+    expect(ended.publicContactConsentAt).toEqual(consentedAt);
+
+    await clearGrants();
+    await db.delete(ownerships).where(eq(ownerships.petId, petId));
+  });
+});
+
+describe("ownerships — one active caretaker per pet", () => {
+  it("rejects a second active caretaker ownership row on the same pet", async () => {
+    await db.delete(ownerships).where(eq(ownerships.petId, petId));
+    await openCaretakerOwnership(CARETAKER_ID);
+    await expectDbError(
+      db
+        .insert(ownerships)
+        .values({ petId, ownerUserId: OTHER_ID, role: "caretaker" })
+        .returning({ id: ownerships.id }),
+      { code: "23505", constraint: "ownerships_one_active_caretaker_per_pet" },
+    );
+    await db.delete(ownerships).where(eq(ownerships.petId, petId));
+  });
+
+  it("allows a new caretaker once the previous row is closed", async () => {
+    await db.delete(ownerships).where(eq(ownerships.petId, petId));
+    const first = await openCaretakerOwnership(CARETAKER_ID);
+    await db.update(ownerships).set({ endedAt: new Date() }).where(eq(ownerships.id, first));
+    const second = await openCaretakerOwnership(OTHER_ID);
+    expect(second).toBeTruthy();
+    await db.delete(ownerships).where(eq(ownerships.petId, petId));
+  });
+});
+
+describe("event catalog", () => {
+  it("carries the two caretaker lifecycle event types", () => {
+    expect(EVENT_TYPES).toContain("caretaker_designated");
+    expect(EVENT_TYPES).toContain("caretaker_ended");
+  });
+});
+
+async function openCaretakerOwnership(userId: string): Promise<string> {
+  const [row] = await db
+    .insert(ownerships)
+    .values({ petId, ownerUserId: userId, role: "caretaker" })
+    .returning({ id: ownerships.id });
+  return row.id;
+}

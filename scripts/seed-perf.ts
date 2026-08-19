@@ -1022,6 +1022,21 @@ function buildShowcaseEvents(
       revoke_reason: "owner_request",
       replacement_serial: null,
     }),
+    // Temporary caretaker (migration 0189). `caretaker_ended` uses `outcome`,
+    // NOT `reason` — erase_subject_data sentinel-redacts the key `reason`
+    // across every event type and would destroy the enum fact.
+    caretaker_designated: () => ({
+      grant_id: "00000000-0000-0000-0000-000000000002",
+      grant_public_token: "CGT-SEED-PERF",
+      caretaker_user_id: "00000000-0000-0000-0000-000000000003",
+      ends_at: "2026-12-31T00:00:00.000Z",
+      note: null,
+    }),
+    caretaker_ended: () => ({
+      grant_id: "00000000-0000-0000-0000-000000000002",
+      outcome: "expired",
+      ends_at: "2026-12-31T00:00:00.000Z",
+    }),
   } satisfies Record<EventType, () => Record<string, unknown>>;
 
   const events: Array<Record<string, unknown>> = [];

@@ -116,6 +116,13 @@ const RLS_REQUIRED: ReadonlyArray<string> = [
   // issuance/activation/revocation go through server actions (BYPASSRLS).
   // Carries activation_code_hash (peppered HMAC) + two user FKs.
   "pet_tags",
+  // Temporary-caretaker grants (migration 0189): SELECT-own policy only, for
+  // the TWO PARTIES (granted_by_user_id or caretaker_user_id, TO
+  // authenticated); zero write policies — the whole lifecycle goes through
+  // server actions on the BYPASSRLS connection. A caretaker who could write
+  // here could extend their own grant, which is the one thing the table must
+  // never allow. Carries caretaker_email (a third party's PII) plus two user FKs.
+  "pet_caretaker_grants",
 ];
 
 // ---------------------------------------------------------------------------
