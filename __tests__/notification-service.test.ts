@@ -11,11 +11,20 @@
 
 import { createClient } from "@supabase/supabase-js";
 import { and, eq } from "drizzle-orm";
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
+
+// The Web Push leg is replaced with a spy so the suppressPush gate can be
+// asserted directly (the real sender is inert in test env, which would hide
+// whether it was even reached). createNotification imports ONLY
+// sendPushForNotifications from this module.
+vi.mock("@/lib/infra/web-push", () => ({
+  sendPushForNotifications: vi.fn(async () => {}),
+}));
 
 import { db, notificationDeadLetter, notifications } from "@/db";
 import { fetchUnreadNotificationCount } from "@/lib/analytics/owner-dashboard";
 import { createNotification } from "@/lib/infra/notification-service";
+import { sendPushForNotifications } from "@/lib/infra/web-push";
 
 const SUPABASE_URL = "http://127.0.0.1:54321";
 const SECRET = "sb_secret_N7UND0UgjKTVK-Uodkm0Hg_xSvEMPvz";
@@ -131,6 +140,48 @@ describe("createNotification — durability (dead-letter)", () => {
     expect(dead).toHaveLength(1);
     expect(dead[0].errorMessage).toContain("simulated insert failure");
     expect((dead[0].payload as { userId: string }).userId).toBe(userId);
+  });
+});
+
+describe("createNotification — suppressPush gate (RN-3 F5)", () => {
+  const pushSpy = vi.mocked(sendPushForNotifications);
+
+  it("pushes an urgent row by default (suppressPush absent)", async () => {
+    pushSpy.mockClear();
+    const result = await createNotification({
+      userId,
+      notificationType: "vaccine_due",
+      title: "Vencida",
+      severity: "urgent",
+      category: "health",
+      dedupeKey: "test:notif-service:push-on-1",
+    });
+    expect(result.status).toBe("inserted");
+    expect(pushSpy, "an urgent row did not reach the push leg").toHaveBeenCalledTimes(1);
+  });
+
+  it("does NOT push when suppressPush is true — the in-app row is still written", async () => {
+    pushSpy.mockClear();
+    const result = await createNotification({
+      userId,
+      notificationType: "vaccine_due",
+      title: "Vencida (re-emisión)",
+      severity: "urgent",
+      category: "health",
+      dedupeKey: "test:notif-service:push-suppressed-1",
+      suppressPush: true,
+    });
+    expect(result.status, "the in-app notification must still be written").toBe("inserted");
+    expect(result.id).not.toBeNull();
+    expect(pushSpy, "a suppressPush row still triggered a push").not.toHaveBeenCalled();
+
+    // The row exists in-app (badge/inbox still see it).
+    const [row] = await db
+      .select()
+      .from(notifications)
+      .where(eq(notifications.dedupeKey, "test:notif-service:push-suppressed-1"))
+      .limit(1);
+    expect(row).toBeDefined();
   });
 });
 

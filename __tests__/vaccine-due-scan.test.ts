@@ -12,10 +12,18 @@
 
 import { createClient } from "@supabase/supabase-js";
 import { and, eq } from "drizzle-orm";
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
+
+// The Web Push leg is spied so the suppressPush semantics can be asserted
+// (the real sender is inert in test env, hiding whether it was reached). The
+// scan reaches it via createNotification → sendPushForNotifications.
+vi.mock("@/lib/infra/web-push", () => ({
+  sendPushForNotifications: vi.fn(async () => {}),
+}));
 
 import { db, notifications, ownerships, petEvents, pets, reminders } from "@/db";
 import { runVaccineDueScan } from "@/lib/infra/notifications";
+import { sendPushForNotifications } from "@/lib/infra/web-push";
 import { withMutationOverride } from "./_helpers/db-overrides";
 
 const SUPABASE_URL = "http://127.0.0.1:54321";
@@ -133,6 +141,7 @@ async function seedNotification(opts: {
   petId: string;
   reminderId: string;
   createdAt: Date;
+  severity?: "info" | "warning" | "urgent";
 }) {
   await db.insert(notifications).values({
     userId: opts.userId,
@@ -140,7 +149,7 @@ async function seedNotification(opts: {
     category: "health",
     title: "Vacuna",
     body: "Test notification",
-    severity: "urgent",
+    severity: opts.severity ?? "urgent",
     relatedReminderId: opts.reminderId,
     relatedPetId: opts.petId,
     createdAt: opts.createdAt,
@@ -872,5 +881,89 @@ describe("snoozeReminderAction — business logic", () => {
       .where(and(eq(reminders.id, reminderId), eq(reminders.userId, fakeUserId)))
       .returning({ id: reminders.id });
     expect(rows.length).toBe(0);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Push suppression semantics (RN-3 F5) — the FIRST urgent notification for a
+// reminder pushes; later urgent re-emits stay in-app only. Keyed on prior
+// URGENT count, not total notif count, so a vaccine that reached overdue via
+// the normal due_soon path still gets its first overdue push.
+// ---------------------------------------------------------------------------
+
+describe("runVaccineDueScan — push suppression keys on prior URGENT, not total history", () => {
+  const pushSpy = vi.mocked(sendPushForNotifications);
+  const EMAIL = "scan-push-suppress@dim-test.local";
+  let userId = "";
+  // Two INDEPENDENT reminders — one per scenario — so no shared same-day
+  // dedupe key or freshly-created history bleeds between them.
+  let reminderWarn = ""; // prior non-urgent only
+  let reminderUrgent = ""; // prior urgent
+
+  // runVaccineDueScan processes EVERY candidate reminder in the DB, so the
+  // global spy sees pushes for other fixtures too. Assert on ONE reminder.
+  function pushed(reminderId: string): boolean {
+    return pushSpy.mock.calls.some((call) => {
+      const rows = call[0] as Array<{ relatedReminderId?: string | null }>;
+      return rows?.some((r) => r.relatedReminderId === reminderId);
+    });
+  }
+
+  beforeAll(async () => {
+    await ensureUserDeleted(EMAIL);
+    userId = await createUser(EMAIL, "VaxPushTest_2026!");
+
+    const warn = await createPetAndReminder({
+      userId,
+      tokenSuffix: `PW-${userId.slice(0, 4)}`,
+      petName: "PriorWarn",
+      species: "dog",
+      vaccineName: "Antirrábica",
+      dueAt: new Date(Date.now() - 5 * MS_PER_DAY), // overdue → urgent
+    });
+    reminderWarn = warn.reminder.id;
+    // Prior due_soon (warning) 2d ago — non-urgent, never pushed: notifCount>0
+    // but urgentCount=0.
+    await seedNotification({
+      userId,
+      petId: warn.pet.id,
+      reminderId: reminderWarn,
+      severity: "warning",
+      createdAt: new Date(Date.now() - 2 * MS_PER_DAY),
+    });
+
+    const urgent = await createPetAndReminder({
+      userId,
+      tokenSuffix: `PU-${userId.slice(0, 4)}`,
+      petName: "PriorUrgent",
+      species: "dog",
+      vaccineName: "Antirrábica",
+      dueAt: new Date(Date.now() - 5 * MS_PER_DAY), // overdue → urgent
+    });
+    reminderUrgent = urgent.reminder.id;
+    // Prior urgent 2d ago → urgentCount=1: a re-emit must be suppressed.
+    await seedNotification({
+      userId,
+      petId: urgent.pet.id,
+      reminderId: reminderUrgent,
+      severity: "urgent",
+      createdAt: new Date(Date.now() - 2 * MS_PER_DAY),
+    });
+  });
+
+  afterAll(() => cleanupUser(userId));
+
+  it("scan runs once; the warning-only reminder pushes, the prior-urgent one does not", async () => {
+    pushSpy.mockClear();
+    await runVaccineDueScan(db);
+
+    // First urgent (reached overdue via due_soon) → MUST push.
+    expect(
+      pushed(reminderWarn),
+      "the first overdue push was wrongly suppressed by the due_soon count",
+    ).toBe(true);
+
+    // A reminder that already had an urgent → re-emit stays in-app only.
+    expect(pushed(reminderUrgent), "a daily urgent re-emit still pushed").toBe(false);
   });
 });

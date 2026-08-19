@@ -164,6 +164,13 @@ export async function runVaccineDueScan(
         firstAt: sql<Date | null>`MIN(${notifications.createdAt})`,
         lastAt: sql<Date | null>`MAX(${notifications.createdAt})`,
         notifCount: sql<string>`COUNT(*)::text`,
+        // Prior PUSH-ELIGIBLE (urgent) notifications for this reminder. The
+        // push suppression keys on THIS, not notifCount: notifCount counts all
+        // variants (upcoming/due_soon included), so a vaccine that reached
+        // overdue via the normal due_soon path would have notifCount>0 and its
+        // FIRST overdue push — the meaningful escalation — would be wrongly
+        // suppressed. urgentCount=0 means no urgent has fired yet → push.
+        urgentCount: sql<string>`COUNT(*) FILTER (WHERE ${notifications.severity} = 'urgent')::text`,
       })
       .from(notifications)
       .where(
@@ -192,6 +199,7 @@ export async function runVaccineDueScan(
 
       const history = historyMap.get(row.reminderId);
       const notifCount = history ? Number.parseInt(history.notifCount ?? "0", 10) : 0;
+      const urgentCount = history ? Number.parseInt(history.urgentCount ?? "0", 10) : 0;
       const firstAt = history?.firstAt ? new Date(history.firstAt) : null;
       const lastAt = history?.lastAt ? new Date(history.lastAt) : null;
 
@@ -236,6 +244,16 @@ export async function runVaccineDueScan(
           ctaLabel: "Registrar vacuna",
           ctaUrl: buildReminderVaccineUrl(row.publicToken, row.reminderId),
           dedupeKey: `vaccine:${row.reminderId}:${dayBucket}`,
+          // Push the FIRST time this reminder reaches a push-eligible (urgent)
+          // state — that escalation is news. Suppress every later urgent
+          // re-emit, notably overdue_critical, which re-fires daily and would
+          // otherwise push at 01:00 ART (native-readiness RN-3 F5). Keyed on
+          // urgentCount (prior URGENT notifications), NOT notifCount: a vaccine
+          // that reached overdue via due_soon already has notifCount>0, so
+          // keying on that would wrongly suppress its first overdue push.
+          // Non-urgent variants never push regardless, so this value only
+          // matters when the current variant is urgent.
+          suppressPush: urgentCount > 0,
         },
         dbInstance,
       );

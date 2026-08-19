@@ -66,6 +66,18 @@ export type CreateNotificationInput = {
    *   - event-derived:       `event:${eventId}:${userId}:${type}`
    */
   dedupeKey: string;
+  /**
+   * Suppress the Web Push leg for this row while still writing the in-app
+   * notification (and its badge count). NOT persisted — it only gates delivery.
+   *
+   * The motivating case (native-readiness RN-3 F5): the vaccine scan runs in the
+   * 04:00 UTC daily dispatcher = 01:00 ART, and `overdue_critical` re-emits
+   * every day at `urgent`, so an owner got a push at 1 AM daily. The FIRST
+   * transition to overdue still pushes (the reminder is news); the daily
+   * re-emits set this flag so they stay in-app only. A precursor to the
+   * per-type push registry (RN-3 B16).
+   */
+  suppressPush?: boolean;
 };
 
 export type CreateNotificationResult =
@@ -128,7 +140,7 @@ export async function createNotification(
       // open, and a post-insert rollback would leave a push delivered for a
       // row that never committed. Tx callers get push when their outer flow
       // re-notifies via the pool-backed path.
-      if (client === defaultDb) {
+      if (client === defaultDb && !input.suppressPush) {
         await sendPushForNotifications([values]);
       }
       return { status: "inserted", id: inserted[0].id };
@@ -211,8 +223,13 @@ export async function createNotificationsBulk(
       // push for every urgent input in a chunk that inserted at least one row;
       // the browser-side tag (= dedupeKey) collapses any double-display.
       // Skipped for tx clients — see createNotification's rationale.
+      //
+      // suppressPush is honored here too (same contract as createNotification):
+      // an input that opted out of push must not be pushed just because it rode
+      // the bulk path. values[i] and chunk[i] are index-aligned.
       if (inserted.length > 0 && client === defaultDb) {
-        await sendPushForNotifications(values);
+        const pushable = values.filter((_, idx) => !chunk[idx].suppressPush);
+        if (pushable.length > 0) await sendPushForNotifications(pushable);
       }
     } catch (err) {
       for (const v of values) {
