@@ -320,8 +320,18 @@ const RABIES_RE = /antirr[aá]b|rabi/i;
 // tier-based): the confirmed_by_lab tier bumper can lift an OWNER-declared
 // dose to institutional_verified, and that record is still owner-declared for
 // attribution purposes.
-function applierAttribution(
-  row: HistorialEventRow,
+// Exported (2026-08-18): the shared-libreta vaccine ledger
+// (LibretaSanitariaView) had grown its OWN signer fallback with different
+// strings — the same event read "Profesional matriculado (firma verificada)"
+// on one surface and "Vet. M.N. <matrícula>" on another, and an org-signed
+// dose fell through to "—" there while the asiento named the organization.
+// One attributor, every surface. The narrowed parameter type is exactly the
+// fields the function reads, so callers without a full HistorialEventRow
+// (the shared-libreta loader carries no matrícula/org name) can still use it
+// and degrade to the generic branch strings.
+export function applierAttribution(
+  row: Pick<HistorialEventRow, "authorRole" | "authorVerified" | "authorOrganizationId"> &
+    Partial<Pick<HistorialEventRow, "vetMatricula" | "authorOrgName">>,
   administeredBy: string | null,
 ): { value: string; missing: boolean } {
   if (administeredBy) return { value: administeredBy, missing: false };

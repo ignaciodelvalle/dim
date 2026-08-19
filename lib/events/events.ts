@@ -300,15 +300,6 @@ export function eventPayloadSummary(eventType: string, payload: unknown): EventP
         secondary: tail,
       };
     }
-    case "post_adoption_checkin": {
-      // Same truncation treatment as note_added — the adopter's answer IS the
-      // record's content, so the timeline row shows a snippet of it.
-      const answer = str("notes");
-      return {
-        primary: null, // falls back to the event-type label
-        secondary: answer ? (answer.length > 60 ? `${answer.slice(0, 60)}…` : answer) : null,
-      };
-    }
     case "note_added": {
       const text = str("text");
       const cat = str("category");

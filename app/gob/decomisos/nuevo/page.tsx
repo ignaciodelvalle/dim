@@ -33,14 +33,20 @@ export default async function NuevoDecomisoPage({ searchParams }: PageProps) {
 
   // Executing a decomiso is anchored on a REAL sanitary_authority organization
   // (openedByOrganizationId) — executeDecomisoAction rejects any principal
-  // without that membership. Checking it here, before the wizard, is what
-  // keeps this page honest: without it, a govt operator filled all four steps
-  // (photos, acta, receiver) only to be told at submit that none of it could
-  // ever have been accepted (found live by the 9-role external run,
-  // 2026-08-18).
-  if (profile.role !== "admin") {
+  // without that membership, ADMIN INCLUDED (it has no admin bypass), plus a
+  // province on the org and (for govt) at least one jurisdiction assignment.
+  // Checking all of it here, before the wizard, is what keeps this page
+  // honest: without it, an operator filled all four steps (photos, acta,
+  // receiver) only to be told at submit that none of it could ever have been
+  // accepted (found live by the 9-role external run, 2026-08-18; the admin
+  // and zero-jurisdiction variants by the pre-push review of that fix).
+  {
     const govtOrg = await resolveGovtOrgForUser(user.id);
-    if (!govtOrg) {
+    const blocked =
+      !govtOrg ||
+      !govtOrg.jurisdictionProvince ||
+      (profile.role === "govt" && jurisdictions.length === 0);
+    if (blocked) {
       return (
         <div className="max-w-2xl space-y-6">
           <header className="space-y-1">
@@ -58,12 +64,16 @@ export default async function NuevoDecomisoPage({ searchParams }: PageProps) {
           </header>
           <div className="rounded-[var(--radius-md)] border border-dashed border-ln-op-line p-8 text-center space-y-2">
             <p className="text-md text-ln-op-ink font-medium">
-              Para ejecutar un decomiso, tu usuario tiene que pertenecer a una autoridad sanitaria.
+              {!govtOrg
+                ? "Para ejecutar un decomiso, tu usuario tiene que pertenecer a una autoridad sanitaria."
+                : !govtOrg.jurisdictionProvince
+                  ? "Tu autoridad sanitaria no tiene provincia asignada, así que no puede ejecutar decomisos."
+                  : "No tenés jurisdicciones activas asignadas, así que no podés ejecutar decomisos."}
             </p>
             <p className="text-md text-ln-op-mute">
               El acta se registra a nombre de la organización, no del funcionario. Pedile al
-              administrador que te asocie a la autoridad que corresponda; mientras tanto podés
-              consultar los episodios de custodia de tu jurisdicción desde el listado.
+              administrador que complete lo que falta; mientras tanto podés consultar los episodios
+              de custodia desde el listado.
             </p>
             <p className="text-md">
               <Link href="/gob/decomisos" className="text-ln-op-azul no-underline hover:underline">

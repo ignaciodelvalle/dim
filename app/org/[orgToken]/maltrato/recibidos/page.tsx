@@ -15,6 +15,7 @@ import { db, organizationMemberships, pets, welfareReports } from "@/db";
 import { requireOrgAccessByToken } from "@/lib/infra/auth-guards";
 import { ORG_WELFARE_PET_COLS, ORG_WELFARE_SELECT } from "@/lib/infra/welfare-org-projection";
 import { formatDate } from "@/lib/utils/format";
+import { isValidReferenceCodeFormat } from "@/src/modules/welfare/domain/reference-code";
 import {
   welfareReportKindLabel,
   welfareReportSeverityLabel,
@@ -93,9 +94,11 @@ export default async function OrgMaltratoRecibidosPage({
   const { tab: tabParam, creado } = await searchParams;
   const activeTab: TabKey = tabParam === "emitidos" ? "emitidos" : "recibidos";
   // Post-submit confirmation: the create use-case redirects here with the
-  // fresh report's reference code. Shape-validated before render — this is a
-  // URL param anyone can type.
-  const confirmedCode = creado && /^DEN-[A-Z0-9]{4}-[A-Z0-9]{4}$/.test(creado) ? creado : null;
+  // fresh report's reference code. Shape-validated with the CANONICAL
+  // validator (unambiguous alphabet, no 0/O/1/I) before render — this is a
+  // URL param anyone can type, and a second looser regex for the same format
+  // is exactly the drift this repo keeps paying for.
+  const confirmedCode = creado && isValidReferenceCodeFormat(creado) ? creado : null;
 
   const { user, organization } = await requireOrgAccessByToken(orgToken);
 

@@ -11,6 +11,7 @@ import { LnCombobox } from "@/components/ui/LnCombobox";
 import { MutationErrorCard } from "@/components/ui/MutationErrorCard";
 import { LnSheetBody, LnSheetFooter, LnSheetHeader } from "@/components/ui/Sheet";
 import { findVaccineByName, vaccinesForSpecies } from "@/lib/reference/lookups";
+import { formIsSilentlyValid } from "@/lib/ui/silent-form-validity";
 import { useActionRedirect } from "@/lib/ui/use-action-redirect";
 import { useFormErrorFocus } from "@/lib/ui/use-form-error-focus";
 import { useIdempotencyKey } from "@/lib/ui/use-idempotency-key";
@@ -102,16 +103,20 @@ export function VaccinationForm({
   // Notification quick-reply autoconfirm (capture-console surface #4). Runs
   // ONCE on mount — the ref guard matters because `autoConfirm` itself never
   // changes after mount, but StrictMode double-invokes effects in dev.
-  // checkValidity() reuses the form's OWN `required` constraints (Vacuna,
-  // Fecha de aplicación) — this is the ONLY validation gate; the island that
-  // sent us here never inspected form validity itself. Invalid → do nothing,
-  // the form just renders normally in edit mode (never a silent failure).
+  // The silent validity scan reuses the form's OWN `required` constraints
+  // (Vacuna, Fecha de aplicación) — this is the ONLY validation gate; the
+  // island that sent us here never inspected form validity itself. Invalid →
+  // do nothing, the form just renders normally in edit mode (never a silent
+  // failure).
   const autoConfirmSubmitted = useRef(false);
   useEffect(() => {
     if (!autoConfirm || autoConfirmSubmitted.current) return;
     autoConfirmSubmitted.current = true;
     const form = formRef.current;
-    if (form?.checkValidity()) {
+    // Silent check, NOT checkValidity(): that fires `invalid` on every
+    // failing control, and the LN controls now scroll to the first invalid
+    // one — a mount effect must never jump the viewport by itself.
+    if (form && formIsSilentlyValid(form)) {
       form.requestSubmit();
     }
   }, [autoConfirm]);
@@ -286,7 +291,18 @@ export function VaccinationForm({
             </LnField>
           </LnRow>
 
-          <LnField label="Aplicada por (vet / clínica)">
+          {/* In the signed (atender) context, a blank field defaults to the
+              SIGNER's name+matrícula server-side — the vet transcribing a
+              colleague's dose must know that blank means "me", or the record
+              asserts an applier nobody chose (pre-push review 2026-08-18). */}
+          <LnField
+            label="Aplicada por (vet / clínica)"
+            hint={
+              signedContext
+                ? "Si lo dejás vacío, queda registrada como aplicada por vos (firmante). Si la aplicó otro profesional, nombralo acá."
+                : undefined
+            }
+          >
             {({ id, describedBy }) => (
               <LnInput
                 id={id}

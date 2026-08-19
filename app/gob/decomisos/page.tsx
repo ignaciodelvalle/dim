@@ -1,21 +1,22 @@
-// Govt decomiso dashboard -- lista de custody_episodes abiertos por la
-// organizacion sanitaria del usuario.
+// Govt decomiso dashboard -- custody_episode list.
 //
 // Spec: docs/superpowers/specs/2026-05-19-decomiso-welfare-authority-design.md section 6.
 //
-// Query: cases WHERE caseKind='custody_episode'
-//          AND openedByOrganizationId = govtOrg.id
-//          AND <the case's jurisdiction is inside session.jurisdictions>
-//        ORDER BY openedAt DESC, createdAt DESC, id DESC
-//
+// Auth model (2026-08-18): READ is governed by jurisdiction; EXECUTION by
+// authority-org membership. Two query shapes:
+//   - admin: every custody_episode (universal read).
+//   - govt WITH an authority org: caseKind + openedByOrganizationId +
+//     jurisdictionPairClause — workflow ownership AND the jurisdictional
+//     FENCE (RA-8 R3; a stale membership in another province's authority org
+//     satisfies ownership alone, see decomiso-jurisdiction-fence.ts).
+//   - govt WITHOUT one: caseKind + jurisdictionPairClause only, READ-ONLY —
+//     any opener, same visibility /gob/casos already grants.
+// Mutations (Reasignar / Devolver / the /nuevo wizard) render only when every
+// server-side execution requirement holds (authority org with a province,
+// and for govt at least one jurisdiction assignment) — each server action
+// re-validates all of it regardless.
+// ORDER BY openedAt DESC, createdAt DESC, id DESC.
 // Columns: pet, status/phase, dias transcurridos, refugio receptor, accion Reasignar.
-// Auth: requireDecomisoPrincipal, then TWO independent narrowings for govt:
-//   1. openedByOrganizationId — workflow ownership ("my authority opened it").
-//   2. jurisdictionPairClause  — the jurisdictional FENCE (RA-8 R3). This list
-//      used to have only (1), which a stale membership in another province's
-//      authority org satisfies; the rows it surfaced fed the Reasignar and
-//      Devolver buttons. See decomiso-jurisdiction-fence.ts.
-// Admin is universal on both.
 
 import { type SQL, and, desc, eq, inArray, sql } from "drizzle-orm";
 import Link from "next/link";
@@ -88,6 +89,31 @@ function daysElapsed(openedAt: Date, closedAt: Date | null): number {
   return Math.max(0, Math.floor((end - openedAt.getTime()) / (1000 * 60 * 60 * 24)));
 }
 
+/** Header subtitle per role and mode — extracted to keep the page component
+ * under the complexity fence. */
+function decomisosSubtitle(role: string, readOnly: boolean): string {
+  if (readOnly) {
+    return role === "admin"
+      ? "Todos los episodios de custodia del sistema (solo consulta)."
+      : "Episodios de custodia en tu jurisdicción (solo consulta).";
+  }
+  return role === "admin"
+    ? "Todos los episodios de custodia del sistema."
+    : "Decomisos ejecutados por tu autoridad sanitaria.";
+}
+
+/** Why this principal cannot execute decomisos — mirrors, in the same order,
+ * the server-side rejections in executeDecomisoAction. */
+function readOnlyReason(govtOrg: { jurisdictionProvince: string | null } | null): string {
+  if (govtOrg === null) {
+    return "Podés consultar los episodios de custodia. Para ejecutar o gestionar decomisos, tu usuario tiene que pertenecer a una autoridad sanitaria — pedile al administrador que te asocie a la organización que corresponda.";
+  }
+  if (govtOrg.jurisdictionProvince === null) {
+    return "Podés consultar los episodios de custodia. Tu autoridad sanitaria no tiene provincia asignada, así que no puede ejecutar decomisos — pedile al administrador que la complete.";
+  }
+  return "Podés consultar los episodios de custodia. No tenés jurisdicciones activas asignadas, así que no podés ejecutar decomisos — pedile al administrador que te asigne una.";
+}
+
 export default async function DecomisosDashboardPage({
   searchParams,
 }: {
@@ -111,9 +137,19 @@ export default async function DecomisosDashboardPage({
   // unchanged: ownership + jurisdiction, mutations enabled.
   let govtOrgId: string | null = null;
   let jurisdictionFence: SQL | undefined;
-  const govtOrg =
-    session.profile.role !== "admin" ? await resolveGovtOrgForUser(session.user.id) : null;
-  const readOnly = session.profile.role !== "admin" && govtOrg === null;
+  // Resolved for EVERY role — executeDecomisoAction requires the authority
+  // org unconditionally (no admin bypass), so exempting admin here left the
+  // exact dead-end this page removes for govt: a platform admin without a
+  // sanitary_authority membership saw live mutation buttons that could only
+  // fail at submit (pre-push review of this very commit).
+  const govtOrg = await resolveGovtOrgForUser(session.user.id);
+  // Read-only whenever ANY server-side execution requirement is missing:
+  // no authority org, no province on it, or (govt only) zero jurisdiction
+  // assignments — all three are submit-time rejections in decomiso.ts.
+  const readOnly =
+    govtOrg === null ||
+    govtOrg.jurisdictionProvince === null ||
+    (session.profile.role === "govt" && session.jurisdictions.length === 0);
   if (session.profile.role !== "admin") {
     govtOrgId = govtOrg?.id ?? null;
 
@@ -239,11 +275,7 @@ export default async function DecomisosDashboardPage({
           title="Decomisos"
           subtitle={
             <p className="text-md text-ln-op-mute">
-              {session.profile.role === "admin"
-                ? "Todos los episodios de custodia del sistema."
-                : readOnly
-                  ? "Episodios de custodia en tu jurisdicción (solo consulta)."
-                  : "Decomisos ejecutados por tu autoridad sanitaria."}
+              {decomisosSubtitle(session.profile.role, readOnly)}
             </p>
           }
         />
@@ -265,14 +297,13 @@ export default async function DecomisosDashboardPage({
           it with missing buttons. */}
       {readOnly && (
         <p className="text-md text-ln-op-mute rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-stripe px-4 py-3">
-          Podés consultar los episodios de custodia de tu jurisdicción. Para ejecutar o gestionar
-          decomisos, tu usuario tiene que pertenecer a una autoridad sanitaria — pedile al
-          administrador que te asocie a la organización que corresponda.
+          {readOnlyReason(govtOrg)}
         </p>
       )}
 
       {/* Unified filter bar — period only (no jurisdiction/domain axes: rows
-          are org-scoped via govtOrgId above, and the seizures KPI below is
+          are already narrowed by the auth model above — ownership+fence, or
+          fence alone in read-only mode — and the seizures KPI below is
           the only period-aware element on this screen). Default preset "30d"
           matches the pre-existing hardcoded windows.trailing30d() behavior. */}
       <OpFilterBar period={{ defaultPreset: "30d" }} />

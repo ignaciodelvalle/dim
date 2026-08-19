@@ -8,6 +8,7 @@
 
 import { Icon } from "@/components/Icon";
 import { ConfidenceBadge } from "@/components/event/ConfidenceBadge";
+import { applierAttribution } from "@/components/pet-profile/asiento-fields";
 import { LnButton } from "@/components/ui/Button";
 import { LnSectionHead } from "@/components/ui/DocElements";
 import { LnEmptyState } from "@/components/ui/EmptyState";
@@ -138,24 +139,33 @@ function eventToVaccineRow(event: Event): LnVaccineRow {
     else status = "ok";
   }
 
-  // Free-text applier first; for a professionally SIGNED event with the field
-  // blank, fall back to the signature itself rather than "—". Events are
+  // Free-text applier first; for a SIGNED event with the field blank, fall
+  // back to the signature via the SAME attributor the asiento card uses
+  // (applierAttribution) — a second local fallback here briefly printed
+  // different strings for the same event on two surfaces. Events are
   // append-only, so doses signed before atender started defaulting this field
-  // (2026-08-18) can never be backfilled — without this fallback the shared
-  // libreta showed PROFESIONAL "—" on a vet-signed dose while an owner-declared
-  // one displayed its cited name: the row with MORE provenance looked like it
-  // had less.
+  // (2026-08-18) can never be backfilled — without the fallback the shared
+  // libreta showed PROFESIONAL "—" on a vet-signed dose while an
+  // owner-declared one displayed its cited name: the row with MORE provenance
+  // looked like it had less.
   const payloadApplier =
     typeof p.administered_by === "string" && p.administered_by.trim()
       ? p.administered_by
       : typeof p.vet_name === "string" && p.vet_name.trim()
         ? p.vet_name
         : null;
-  const vetName =
-    payloadApplier ??
-    (event.authorRole === "vet" && event.authorVerified
-      ? "Profesional matriculado (firma verificada)"
-      : "—");
+  const attribution = applierAttribution(
+    {
+      authorRole: event.authorRole,
+      authorVerified: event.authorVerified,
+      authorOrganizationId: event.authorOrganizationId,
+    },
+    payloadApplier,
+  );
+  // "Declarado por el titular" is the attributor's owner-declared branch; on
+  // this ledger the column is specifically the PROFESSIONAL, so that branch
+  // stays an em dash (the owner is already named as the record's author).
+  const vetName = attribution.missing ? "—" : attribution.value;
 
   const vetLicense = typeof p.vet_license === "string" ? p.vet_license : undefined;
 

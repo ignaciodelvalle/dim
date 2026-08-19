@@ -32,6 +32,18 @@ vi.mock("@/lib/infra/auth-guards", () => ({
   })),
 }));
 
+vi.mock("@/src/modules/decomiso/application/resolve-govt-org", () => ({
+  // The page now resolves the authority org for EVERY role (admin included)
+  // to decide read-only vs executable — these render tests mock the db with a
+  // minimal chain, so the real query cannot run here.
+  resolveGovtOrgForUser: vi.fn(async () => ({
+    id: "org-badge-test",
+    displayName: "Autoridad Test",
+    jurisdictionProvince: "CABA",
+    jurisdictionLocality: "Palermo",
+  })),
+}));
+
 vi.mock("@/lib/analytics/compliance-metrics", () => ({
   fetchSeizures: vi.fn(async () => ({ total: 4, byMotive: [] })),
 }));

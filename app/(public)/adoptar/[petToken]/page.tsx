@@ -123,6 +123,11 @@ export default async function AdoptarFichaPage({
         isNull(ownerships.endedAt),
       ),
     )
+    // Deterministic tiebreak: two open custody rows should not exist, but a
+    // bare `.limit(1)` deciding by heap order is exactly the shape that
+    // caused the original stale-custodian bug — if the invariant ever
+    // breaks, the MOST RECENT custody wins, consistently.
+    .orderBy(desc(ownerships.startedAt))
     .limit(1);
   const org = custodyRow?.org ?? null;
   const ownerStartedAt = custodyRow?.ownerStartedAt ?? null;

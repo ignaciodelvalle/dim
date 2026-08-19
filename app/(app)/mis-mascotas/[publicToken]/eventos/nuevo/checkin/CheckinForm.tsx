@@ -7,6 +7,7 @@ import { Icon } from "@/components/Icon";
 import { LocationFields } from "@/components/LocationFields";
 import { LnField, LnTextarea } from "@/components/ui/Field";
 import { LnSheetAccordion, LnSheetBody, LnSheetFooter, LnSheetHeader } from "@/components/ui/Sheet";
+import { formIsSilentlyValid } from "@/lib/ui/silent-form-validity";
 import { useActionRedirect } from "@/lib/ui/use-action-redirect";
 import { useFormErrorFocus } from "@/lib/ui/use-form-error-focus";
 import { useIdempotencyKey } from "@/lib/ui/use-idempotency-key";
@@ -56,7 +57,9 @@ export function CheckinForm({
     if (!autoConfirm || autoConfirmSubmitted.current) return;
     autoConfirmSubmitted.current = true;
     const form = formRef.current;
-    if (form?.checkValidity()) {
+    // Silent check, NOT checkValidity() — see VaccinationForm's autoconfirm
+    // effect: firing `invalid` from a mount effect now scrolls the viewport.
+    if (form && formIsSilentlyValid(form)) {
       form.requestSubmit();
     }
   }, [autoConfirm]);

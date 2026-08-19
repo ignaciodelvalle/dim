@@ -162,7 +162,9 @@ describe("<LibretaSanitariaView> — Profesional column falls back to the signat
   // PROFESIONAL "—" while an owner-declared dose showed its cited name — the
   // row with MORE provenance looked like it had less (9-role external run,
   // 2026-08-18). Events are append-only, so pre-existing signed doses can
-  // only be repaired at render.
+  // only be repaired at render. The fallback goes through the SAME
+  // applierAttribution the asiento card uses — a first draft grew a second
+  // local fallback with different strings for the same event.
   function vaccineEvent(overrides: Partial<Event>): Event {
     return {
       id: "evt-vac",
@@ -189,13 +191,25 @@ describe("<LibretaSanitariaView> — Profesional column falls back to the signat
     const html = renderWith(
       vaccineEvent({ id: "evt-signed", authorRole: "vet", authorVerified: true }),
     );
-    expect(html).toContain("Profesional matriculado (firma verificada)");
+    expect(html).toContain("Vet. matriculado/a (firma verificada)");
   });
 
   it("an owner-declared dose with no applier keeps the dash — the fallback is signature-only", () => {
     const html = renderWith(vaccineEvent({ id: "evt-declared" }));
-    expect(html).not.toContain("Profesional matriculado (firma verificada)");
+    expect(html).not.toContain("Vet. matriculado/a (firma verificada)");
     expect(html).toContain("—");
+  });
+
+  it("an ORG-signed dose (shelter, unverified vet) names the organization branch, not a dash", () => {
+    const html = renderWith(
+      vaccineEvent({
+        id: "evt-org",
+        authorRole: "shelter",
+        authorVerified: false,
+        authorOrganizationId: "org-1",
+      }),
+    );
+    expect(html).toContain("La organización");
   });
 
   it("typed free text always wins over the fallback", () => {
@@ -208,6 +222,6 @@ describe("<LibretaSanitariaView> — Profesional column falls back to the signat
       }),
     );
     expect(html).toContain("Dra. Prueba QA");
-    expect(html).not.toContain("Profesional matriculado (firma verificada)");
+    expect(html).not.toContain("Vet. matriculado/a (firma verificada)");
   });
 });
