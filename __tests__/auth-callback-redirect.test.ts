@@ -35,6 +35,7 @@ vi.mock("@/lib/infra/role-landing", async (importOriginal) => {
 });
 
 import { GET } from "@/app/auth/callback/route";
+import { createClient } from "@/lib/supabase/server";
 
 const ORIGIN = "http://localhost:3000";
 
@@ -81,5 +82,32 @@ describe("auth/callback open-redirect defense", () => {
   it("resolves org-aware landing when no next is provided", async () => {
     const location = await locationFor({ code: "abc" });
     expect(location).toBe(`${ORIGIN}/inicio`);
+  });
+});
+
+describe("auth/callback failed exchange lands on recovery, not a flag nobody reads (RN-2 F2)", () => {
+  it("no code → /recuperar with the enlace_invalido error the page renders", async () => {
+    const location = await locationFor({});
+    expect(location).toBe(`${ORIGIN}/recuperar?error=enlace_invalido`);
+    // The old dead-end (a flag nothing reads) is gone.
+    expect(location).not.toContain("auth_error");
+  });
+
+  it("code present but exchange FAILS (cross-device PKCE) → same recovery landing", async () => {
+    // The motivating case: a recovery link opened on a different device than
+    // the one that requested it. The code IS present but exchangeCodeForSession
+    // rejects it. Override the mock for this one call.
+    vi.mocked(createClient).mockResolvedValueOnce({
+      auth: {
+        exchangeCodeForSession: vi.fn(async () => ({
+          data: { user: null },
+          error: { message: "code verifier not found" },
+        })),
+      },
+      // biome-ignore lint/suspicious/noExplicitAny: partial mock of the client.
+    } as any);
+    const location = await locationFor({ code: "stale-cross-device-code" });
+    expect(location).toBe(`${ORIGIN}/recuperar?error=enlace_invalido`);
+    expect(location).not.toContain("auth_error");
   });
 });

@@ -9,6 +9,12 @@
 //       owner with exactly 1 org → /org/<token>
 //       owner with 0 or >1 orgs → /inicio
 //       vet/govt/admin          → their role home (via resolveUserLanding)
+//
+// FAILURE FALLBACK is currently flow-specific: today the ONLY producer of this
+// route is the password-recovery email (request-password-reset.ts), so a failed
+// exchange lands on /recuperar. If a signup-confirmation or OAuth flow is ever
+// wired here, branch the fallback on the flow (e.g. a `next`/`type` param) so a
+// failed OAuth login does not show a password-reset message + form.
 
 import { resolveUserLanding, safeReturnTo } from "@/lib/infra/role-landing";
 import { createClient } from "@/lib/supabase/server";
@@ -37,8 +43,13 @@ export async function GET(request: Request) {
     }
   }
 
-  // Anything that lands here without a valid code is an error — for now we
-  // just bounce to the home page with an error flag. A proper /login page
-  // arrives next round and will read this query param.
-  return NextResponse.redirect(`${origin}/?auth_error=1`);
+  // Anything that lands here without a valid code is a failed exchange — most
+  // commonly a password-recovery link opened on a DIFFERENT device than the one
+  // that requested it (the PKCE code verifier lives in the requesting device's
+  // cookie jar, so the exchange cannot complete cross-device). This used to
+  // bounce to `/?auth_error=1` — a flag NOTHING in the app reads, so the user
+  // landed on the marketing home with no explanation (native-readiness RN-2 F2).
+  // Land on the recovery page with an error the page renders, so the person
+  // knows to request a fresh link from THIS device.
+  return NextResponse.redirect(`${origin}/recuperar?error=enlace_invalido`);
 }
