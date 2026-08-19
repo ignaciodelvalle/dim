@@ -10,6 +10,7 @@ import { LnField, LnInput, LnRow, LnTextarea } from "@/components/ui/Field";
 import { LnCombobox } from "@/components/ui/LnCombobox";
 import { MutationErrorCard } from "@/components/ui/MutationErrorCard";
 import { LnSheetBody, LnSheetFooter, LnSheetHeader } from "@/components/ui/Sheet";
+import { suggestNextDueDate } from "@/lib/domain/libreta-health-status";
 import { findVaccineByName, vaccinesForSpecies } from "@/lib/reference/lookups";
 import { formIsSilentlyValid } from "@/lib/ui/silent-form-validity";
 import { useActionRedirect } from "@/lib/ui/use-action-redirect";
@@ -152,13 +153,14 @@ export function VaccinationForm({
   const [administeredBy, setAdministeredBy] = useState("");
   const [notes, setNotes] = useState(defaults?.notes ?? "");
 
+  // Counted from the APPLICATION date, through the same calendar helper the
+  // server uses to derive next_due_at — see suggestNextDueDate's doc comment
+  // for the blind-QA finding that made `occurredAt` a dependency here.
   const suggestedNextDue = useMemo(() => {
     const def = findVaccineByName(vaccineName);
-    if (!def || !def.intervalMonths) return "";
-    const d = new Date();
-    d.setUTCMonth(d.getUTCMonth() + def.intervalMonths);
-    return d.toISOString().slice(0, 10);
-  }, [vaccineName]);
+    if (!def) return "";
+    return suggestNextDueDate(occurredAt, def.intervalMonths ?? null);
+  }, [vaccineName, occurredAt]);
 
   const effectiveNextDue = nextDueOverridden ? nextDueAt : suggestedNextDue || nextDueAt;
 

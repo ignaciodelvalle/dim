@@ -111,6 +111,39 @@ function addMonths(date: Date, months: number): Date {
 }
 
 /**
+ * The next-dose date a capture form should SUGGEST for a dose applied on
+ * `occurredAt` (a `YYYY-MM-DD` value straight out of an `<input type="date">`).
+ * Returns `""` when there is nothing to suggest — no interval for this vaccine,
+ * or an incomplete/invalid date the user is still typing.
+ *
+ * Lives here, next to `addMonths`, because the SERVER derives the same value
+ * the same way when a dose arrives without an explicit `next_due_at`
+ * (`derivedNextDue` in computeVaccinationSummary). Two calendars would mean the
+ * form promises one booster date and the libreta shows another.
+ *
+ * Blind QA 2026-08-19 (O5) is why it takes `occurredAt` at all: the vaccine
+ * sheet counted the interval from `new Date()` and never recomputed when the
+ * application date changed, so backdating a rabies dose to yesterday left the
+ * suggestion at today+12mo. One day off for a backdated day; a year off for a
+ * dose loaded a year late.
+ *
+ * Parsed and formatted in LOCAL time, matching `addMonths`'s own `setMonth`
+ * semantics — a UTC round-trip on a bare date string is what slips a day
+ * under a negative offset (es-AR is UTC-3).
+ */
+export function suggestNextDueDate(occurredAt: string, intervalMonths: number | null): string {
+  if (intervalMonths === null) return "";
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(occurredAt);
+  if (!m) return "";
+  const [, y, mo, d] = m;
+  const parsed = new Date(Number(y), Number(mo) - 1, Number(d));
+  if (Number.isNaN(parsed.getTime())) return "";
+  const due = addMonths(parsed, intervalMonths);
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${due.getFullYear()}-${pad(due.getMonth() + 1)}-${pad(due.getDate())}`;
+}
+
+/**
  * Build the per-vaccine snapshot for a pet. For every core vaccine of the
  * pet's species (and every non-core vaccine that has at least one event),
  * we find the latest vaccination_administered event and classify it.
