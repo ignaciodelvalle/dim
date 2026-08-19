@@ -69,6 +69,19 @@ jobs:
         # (non-vacuity + no stale baseline).
         run: pnpm lint:audit-log
 
+      - name: "Fence: titular-only writes (lint:titular-gate)"
+        # The third authorization question, opened by custodia-temporal: the
+        # caller holds an ownership row on this pet, but is the ROLE in that row
+        # allowed to do THIS? lint:authz proves a guard exists; lint:authz-scoping
+        # proves the resource is bound to the caller; neither notices that a
+        # `caretaker` passing requirePetAccess may not transfer the animal, move
+        # its jurisdiction or edit its identity.
+        #
+        # Offline — static analysis over the action + application + infrastructure
+        # surface. Its own step so a failure names THIS fence.
+        # See scripts/check-titular-gate.ts.
+        run: pnpm lint:titular-gate
+
       - name: Lint (actions, UI, deps, guardrails)
         run: pnpm lint:ui && pnpm lint:actions && pnpm lint:deps && pnpm lint:lib-root && pnpm lint:mocks && pnpm lint:buttons
 
