@@ -39,7 +39,7 @@ CHEAP / READY.
 | R1 | API boundary | Owner+atender flows run on RSC pages + server actions. What is callable from OUTSIDE a Next.js render — today, honestly? Inventory every mutation/read the Phase 1-2 flows need and classify: route handler exists / server action only / logic locked inside a page body. | **EXPENSIVE** → [RN-1](RN-1-api-boundary.md) |
 | R2 | Native auth | Supabase tokens vs the cookie/middleware assumptions. Session refresh, deep-link password recovery, rate limits keyed on what, Mi Argentina OIDC on mobile. | **EXPENSIVE** → [RN-2](RN-2-native-auth.md) |
 | R3 | Push channel | Everything is web-push (VAPID) or in-app rows. Where is the channel coupled? Can notification fanout target FCM/APNs without rewriting the 67 insert sites? | **EXPENSIVE** → [RN-3](RN-3-push-channel.md) |
-| R4 | Media pipeline | Uploads are server-action-mediated (`uploadAttachmentIfPresent`). Can a native client upload to storage + register the attachment without a form post? Public vs signed URLs. | pending |
+| R4 | Media pipeline | Uploads are server-action-mediated (`uploadAttachmentIfPresent`). Can a native client upload to storage + register the attachment without a form post? Public vs signed URLs. | **EXPENSIVE** (⚠️ live sec) → [RN-4](RN-4-media-pipeline.md) |
 | R5 | Offline credential + deep links | What does the QR encode, what must render with zero connectivity, universal-link mapping for `/p/`, `/t/`, `/libreta/compartir/`. | pending |
 | R6 | Shared contracts | Event payload zod schemas, catalog data (vaccines, breeds, localities), es-AR copy. What could ship as a versioned contract package vs what is trapped in component files? | pending |
 | R7 | Design tokens | LN token system → native design tokens. What is CSS-var-only vs extractable. | pending |
@@ -65,6 +65,14 @@ CHEAP / READY.
   org members — the broadcast audience — run in a shell that never registers
   a SW; no preferences/quiet hours/timezone (daily urgent push at 01:00 ART);
   sends inline+unretried+unobserved.
+- [RN-4 — Media pipeline](RN-4-media-pipeline.md) · **EXPENSIVE** (⚠️ live
+  security) · reads have NO callable surface (33 handlers, zero mint a signed
+  URL — every attachment URL born in a page body); writes welded to
+  File/FormData/action; the one direct-to-storage path is the unprotected one
+  and blanket `bucket_id`-only INSERT grants make that bypass available TODAY
+  from a browser console; avatars broken since creation; intake/bite media
+  greenfield; unstripped iPhone HEIC GPS; no GC. **Good news:** offline
+  stage-then-claim contract already implemented + tested.
 
 ## Improvement backlog
 
@@ -95,3 +103,11 @@ CHEAP / READY.
 | B21 | RN-3 | Sends off the request path via outbox-drainer backoff shape | Actions stop blocking on N sequential HTTPS calls |
 | B22 | RN-3 | notificationTarget() deep-link map + fitness test | 50 hand-built URL templates stop drifting; AASA export mechanical |
 | B23 | RN-3 | PO decision: lost-pet targeting unit (locality fanout vs centroid+radius) | The /perdidas audience gets an alert channel at all |
+| B24 | RN-4 | ⚠️ **Close the blanket `bucket_id`-only storage INSERT grants** (pet-photos, event-attachments, revocations) — LIVE web hole | Any account can write arbitrary bytes bypassing validation TODAY |
+| B25 | RN-4 | `POST /api/v1/uploads` signed-ticket endpoint; validation moves to post-upload verify; nothing claims unverified (keystone, land with B24) | Kills the 125MB-through-50MB dead-end; progress bars |
+| B26 | RN-4 | Route the browser-direct revocations upload through the ticket; reject any storagePath the server didn't mint | Removes the unvalidated precedent + proves stage-then-claim |
+| B27 | RN-4 | Surface wasNoop → clean up orphaned uploads on duplicate submit (storage half of B6) | Stops silent orphan accumulation on flaky-connection retries |
+| B28 | RN-4 | Make EXIF stripping default; extend to HEIC in welfare-uploads | Live GPS-PII leak fix on web today |
+| B29 | RN-4 | Fix avatars end-to-end (validate, store path, sign at render) | A broken whole feature, ~30 lines |
+| B30 | RN-4 | Storage↔DB reconciliation cron (report-only first) + erasure covers avatars/welfare/zero-parent | Ley 25.326 completeness; sizes the orphan problem |
+| B31 | RN-4 | cacheControl immutable on uploads + enable Storage image transformation | Phone stops re-downloading 5MB originals hourly |
