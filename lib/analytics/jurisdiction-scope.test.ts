@@ -268,36 +268,70 @@ describe("B5 — cannot widen (locality not in assignments)", () => {
 });
 
 // ---------------------------------------------------------------------------
-// B6 — MAP-5 fallback: lone ?locality with no ?province → downgraded, ignored
+// B6 — lone ?locality with no ?province
+//
+// A govt operator with EXACTLY ONE assigned province never gets a `?province=`
+// param: the Provincia switcher has nothing to disambiguate, so no onChange
+// ever fires. Picking a barrio therefore produces a lone `?locality=`. Blind
+// QA 2026-08-19 (O11/O12) caught what that used to mean: the chip said
+// "Localidad: Palermo", the count said "85 denuncias en total", and the list
+// showed San Cristóbal, Villa Lugano and Retiro — the filter was decorative.
+// The lone locality is now APPLIED for the implied-sole-province case, and
+// still ignored where no single province can be implied.
 // ---------------------------------------------------------------------------
 
 describe("B6 — lone ?locality with no ?province", () => {
-  it("province null ⇒ selectedProvince/selectedLocality stay null, narrowing no-op (localities still resolves for the sole-province switcher, finding #10 fix)", async () => {
+  it("single implied province ⇒ the locality NARROWS the fence (blind QA 2026-08-19, O11)", async () => {
     const scope = await resolveJurisdictionScope({
       role: "govt",
       jurisdictions: A_MULTI_LOCALITY,
       params: { locality: "la-plata" },
     });
+    // selectedProvince keeps its explicit-param contract — unchanged.
     expect(scope.selectedProvince).toBeNull();
-    // A_MULTI_LOCALITY is single-province (Buenos Aires) — the implied-sole-
-    // province fix resolves its localities for the switcher dropdown, same as
-    // B2. This is orthogonal to the stray-?locality downgrade below: narrowing
-    // stays a no-op regardless of what the switcher offers to pick FROM.
     expect(scope.localities).toStrictEqual(LOCALITIES_BY_PROVINCE["AR-B"]);
-    expect(scope.selectedLocality).toBeNull();
-    // Stray locality is silently downgraded, never applied.
-    expect(scope.filteredJurisdictions).toStrictEqual(A_MULTI_LOCALITY);
-    // localityByName must never be consulted without a resolved province.
-    expect(localityByName).not.toHaveBeenCalled();
+    // ...but the locality now resolves against the implied sole province.
+    expect(localityByName).toHaveBeenCalledWith("AR-B", "la-plata");
+    expect(scope.selectedLocality?.localityName).toBe("La Plata");
+    // THE POINT: the fence actually narrows. Mar del Plata is out of view.
+    expect(scope.filteredJurisdictions).toStrictEqual([
+      { province: "Buenos Aires", locality: "La Plata" },
+    ]);
   });
 
-  it("A_MULTI_PROVINCE (no single implied province) ⇒ localities stays []", async () => {
+  it("still cannot widen: a lone locality outside the mandate fails closed to []", async () => {
+    const scope = await resolveJurisdictionScope({
+      role: "govt",
+      jurisdictions: A_MULTI_LOCALITY,
+      // "rosario" resolves canonically under AR-B but is not assigned.
+      params: { locality: "rosario" },
+    });
+    expect(scope.selectedLocality?.localityName).toBe("Rosario");
+    expect(scope.filteredJurisdictions).toStrictEqual([]);
+  });
+
+  it("A_MULTI_PROVINCE (no single implied province) ⇒ localities stays [] and narrowing is still a no-op", async () => {
     const scope = await resolveJurisdictionScope({
       role: "govt",
       jurisdictions: A_MULTI_PROVINCE,
       params: { locality: "la-plata" },
     });
     expect(scope.localities).toStrictEqual([]);
+    expect(scope.selectedLocality).toBeNull();
+    expect(scope.filteredJurisdictions).toStrictEqual(A_MULTI_PROVINCE);
+    // No province could be implied, so the catalog is never consulted.
+    expect(localityByName).not.toHaveBeenCalled();
+  });
+
+  it("admin is untouched: a lone ?locality never implies a province", async () => {
+    const scope = await resolveJurisdictionScope({
+      role: "admin",
+      jurisdictions: [],
+      params: { locality: "la-plata" },
+    });
+    expect(scope.selectedLocality).toBeNull();
+    expect(scope.adminSelectedLocality).toBeNull();
+    expect(localityByName).not.toHaveBeenCalled();
   });
 });
 

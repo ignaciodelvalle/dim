@@ -150,8 +150,9 @@ export async function resolveJurisdictionScope(
   // barrio WITHIN a whole-province assignment is already a supported, fenced
   // drill-down (isWholeProvinceAssignment subsumption, jurisdiction-canonical.ts)
   // — this only fills the switcher's OWN dropdown for that legitimate case; it
-  // does not touch `selectedProvince`/`filteredJurisdictions`/map-drill state
-  // below, all of which stay gated on the real (explicit) URL param.
+  // does not touch `selectedProvince`/map-drill state below, which stay gated
+  // on the real (explicit) URL param. (It DOES now reach the locality drill —
+  // see `localityScopeProvince` below, the second half of the same defect.)
   const uniqueProvinceNames =
     role === "govt" ? Array.from(new Set(jurisdictions.map((j) => j.province))) : [];
   const impliedSoleProvince =
@@ -179,16 +180,43 @@ export async function resolveJurisdictionScope(
       ? constrainLocalitiesToMandate(provinceLocalities, jurisdictions, dropdownProvince.name)
       : provinceLocalities;
 
+  // Second half of the single-jurisdiction Localidad defect (blind QA
+  // 2026-08-19, O11/O12). Unlocking the dropdown above was not enough: the
+  // operator picks "Palermo", the URL gets `?locality=Palermo` with NO
+  // `?province=` (nothing ever sets it — see above), so `selectedLocality`
+  // resolved to null and `narrowGovtScope`'s `if (!selectedProvince) return
+  // jurisdictions` returned the UNFILTERED assignment set. The list kept
+  // showing San Cristóbal / Villa Lugano / Retiro and the header kept
+  // claiming "85 denuncias en total" while the UI rendered an active
+  // "Localidad: Palermo" chip. A filter that says it is on and is not.
+  //
+  // NARROWING ONLY, and it cannot widen: the implied province is the
+  // operator's OWN sole assignment, and the fence still runs the selection
+  // through `jurisdictionScopeContains`, which fails closed to `[]` for
+  // anything outside the mandate. Admin never reaches this path
+  // (`uniqueProvinceNames` is empty for admin, so `impliedSoleProvince` is
+  // null) and keeps its explicit-param contract untouched.
+  const localityScopeProvince = selectedProvince ?? impliedSoleProvince;
+
   const selectedLocality =
-    selectedProvince && params.locality
-      ? await localityByName(selectedProvince.code as ProvinceCode, params.locality)
+    localityScopeProvince && params.locality
+      ? await localityByName(localityScopeProvince.code as ProvinceCode, params.locality)
       : null;
+
+  // The province name handed to THE FENCE. For the implied case this is the
+  // STORED assignment string, not `Province.name` from the catalog: the fence
+  // compares province names with exact equality (`jurisdictionScopeContains`),
+  // so a catalog round-trip that renamed "CABA" to its canonical long form
+  // would match nothing and empty the operator's scope instead of narrowing
+  // it. The explicit path keeps using the catalog name exactly as before.
+  const fenceProvinceName =
+    selectedProvince?.name ?? (selectedLocality ? (uniqueProvinceNames[0] ?? null) : null);
 
   // THE FENCE — delegated to the already-tested pure core.
   const filteredJurisdictions = resolveScopedJurisdictions({
     jurisdictions,
     role,
-    selectedProvinceName: selectedProvince?.name ?? null,
+    selectedProvinceName: fenceProvinceName,
     selectedLocalityName: selectedLocality?.localityName ?? null,
   });
 
