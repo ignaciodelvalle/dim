@@ -1496,7 +1496,7 @@ const ADOPTION_LISTINGS: Array<{ token: string; content: ListingContent }> = [
     token: "DIM-S016-PLRM", // Milanesa — gata joven, Palermo
     content: {
       story:
-        "Milanesa llegó al refugio en septiembre de 2025, rescatada de la calle en Palermo. Estó castrada, vacunada y con chip. Es sociable, tranquila y se adapta bien a departamento. Convive sin problemas con otros gatos y busca una casa donde le hagan lugar en la ventana.",
+        "Milanesa llegó al refugio en septiembre de 2025, rescatada de la calle en Palermo. Está castrada, vacunada y con chip. Es sociable, tranquila y se adapta bien a departamento. Convive sin problemas con otros gatos y busca una casa donde le hagan lugar en la ventana.",
       requirements:
         "Departamento o casa con red de protección en balcones y ventanas — es innegociable para un gato. Entrevista previa y seguimiento durante los primeros meses.",
       ageBucket: "young",
@@ -1513,9 +1513,9 @@ const ADOPTION_LISTINGS: Array<{ token: string; content: ListingContent }> = [
     token: "DIM-S017-PLRM", // Pochoclo — gatito, Palermo
     content: {
       story:
-        "Pochoclo es un gatito negro con pecho blanco, rescatado de una camada en julio de 2026. Tiene la triple felina y el chip puestos. Todavía no estó castrado por edad: el refugio coordina la castración cuando corresponda y hace el seguimiento.",
+        "Pochoclo es un gatito negro con pecho blanco, rescatado de una camada en julio de 2026. Tiene la triple felina y el chip puestos. Todavía no está castrado por edad: el refugio coordina la castración cuando corresponda y hace el seguimiento.",
       requirements:
-        "Red de protección en balcones y ventanas. Compromiso de castrarlo cuando el veterinario lo indique — el refugio acompaña el trómite. Preferentemente con presencia diaria en casa durante los primeros meses.",
+        "Red de protección en balcones y ventanas. Compromiso de castrarlo cuando el veterinario lo indique — el refugio acompaña el trámite. Preferentemente con presencia diaria en casa durante los primeros meses.",
       ageBucket: "puppy",
       sizeEstimate: "small",
       energyLevel: "high",
