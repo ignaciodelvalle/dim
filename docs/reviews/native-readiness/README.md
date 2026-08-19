@@ -37,7 +37,7 @@ CHEAP / READY.
 | # | Dimension | Question | Status |
 |---|---|---|---|
 | R1 | API boundary | Owner+atender flows run on RSC pages + server actions. What is callable from OUTSIDE a Next.js render — today, honestly? Inventory every mutation/read the Phase 1-2 flows need and classify: route handler exists / server action only / logic locked inside a page body. | **EXPENSIVE** → [RN-1](RN-1-api-boundary.md) |
-| R2 | Native auth | Supabase tokens vs the cookie/middleware assumptions. Session refresh, deep-link password recovery, rate limits keyed on what, Mi Argentina OIDC on mobile. | pending |
+| R2 | Native auth | Supabase tokens vs the cookie/middleware assumptions. Session refresh, deep-link password recovery, rate limits keyed on what, Mi Argentina OIDC on mobile. | **EXPENSIVE** → [RN-2](RN-2-native-auth.md) |
 | R3 | Push channel | Everything is web-push (VAPID) or in-app rows. Where is the channel coupled? Can notification fanout target FCM/APNs without rewriting the 67 insert sites? | pending |
 | R4 | Media pipeline | Uploads are server-action-mediated (`uploadAttachmentIfPresent`). Can a native client upload to storage + register the attachment without a form post? Public vs signed URLs. | pending |
 | R5 | Offline credential + deep links | What does the QR encode, what must render with zero connectivity, universal-link mapping for `/p/`, `/t/`, `/libreta/compartir/`. | pending |
@@ -51,6 +51,13 @@ CHEAP / READY.
   handler in the whole Phase-1/2 surface; writes ~60% wrappable, reads ~0%;
   import fence bypassed by a frozen 47-file exemption list; auth has a
   GoTrue-direct trap door (rate limits + TOS bypass).
+- [RN-2 — Native auth](RN-2-native-auth.md) · **EXPENSIVE** · 8h operator
+  timebox silently applied to citizens; password recovery PKCE-cookie-bound
+  (broken cross-device on web TODAY, error param nobody reads); zero
+  server-side session revocation; erasure-lockout holes at write boundaries;
+  CGNAT-hostile per-IP auth limits; Mi Argentina OIDC frozen as confidential
+  web client (and its signup path records no TOS). Saving property to protect:
+  authorization is 100% DB-resolved, never client-derived.
 
 ## Improvement backlog
 
@@ -66,3 +73,10 @@ CHEAP / READY.
 | B6 | RN-1 | `Idempotency-Key` header + surface `wasNoop` to the client | Web retry toast stops claiming creation on a noop |
 | B7 | RN-1 | Idempotency keys for bookSlot / transfer accept / adoption submit (+ partial unique index) | Live double-booking risk on flaky mobile web TODAY |
 | B8 | RN-1 | `docs/architecture/api-invariants.md`: the 5 anti-oracle invariants as a testable checklist gating any `/api/v1` merge | Encodes what today lives only in file-header comments |
+| B9 | RN-2 | Split session lifetime from operator-shift policy (8h timebox hits citizens; wallet premise contradiction) — PO decision needed | Owners are force-logged-out mid-day today |
+| B10 | RN-2 | Device-agnostic password recovery: render the auth_error state, then move to OTP (`verifyOtp`) | Fixes a LIVE silent cross-device dead-end |
+| B11 | RN-2 | `revokeAllSessions(userId)` wired into erasure + the 4 revocation writers | Closes audit-28 #7; erasure stops depending on a best-effort delete |
+| B12 | RN-2 | Shared result-shaped `requireLiveUser()` (NO_SESSION/ACCOUNT_ERASED) replacing bare getUser() at write boundaries | Closes real erasure holes; is RN-1 B2's bearer entry point |
+| B13 | RN-2 | Re-key auth rate limits off subject not IP (CGNAT); captcha for signup | Live 4G availability bug today |
+| B14 | RN-2 | Amend the Mi Argentina convenio ask NOW: 2 redirect URIs, public+PKCE variant, tosAcceptedAt in the OIDC write list | Doc edit; avoids re-negotiating a signed convenio |
+| B15 | RN-2 | Auth error vocabulary in the ADR envelope + "no custom JWT claims" as a protected invariant | Middleware stops hiding auth misconfig behind expired-token silence |
