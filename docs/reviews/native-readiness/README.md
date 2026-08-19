@@ -41,7 +41,7 @@ CHEAP / READY.
 | R3 | Push channel | Everything is web-push (VAPID) or in-app rows. Where is the channel coupled? Can notification fanout target FCM/APNs without rewriting the 67 insert sites? | **EXPENSIVE** → [RN-3](RN-3-push-channel.md) |
 | R4 | Media pipeline | Uploads are server-action-mediated (`uploadAttachmentIfPresent`). Can a native client upload to storage + register the attachment without a form post? Public vs signed URLs. | **EXPENSIVE** (⚠️ live sec) → [RN-4](RN-4-media-pipeline.md) |
 | R5 | Offline credential + deep links | What does the QR encode, what must render with zero connectivity, universal-link mapping for `/p/`, `/t/`, `/libreta/compartir/`. | **EXPENSIVE** (verify = BLOCKER) → [RN-5](RN-5-offline-credential-deeplinks.md) |
-| R6 | Shared contracts | Event payload zod schemas, catalog data (vaccines, breeds, localities), es-AR copy. What could ship as a versioned contract package vs what is trapped in component files? | pending |
+| R6 | Shared contracts | Event payload zod schemas, catalog data (vaccines, breeds, localities), es-AR copy. What could ship as a versioned contract package vs what is trapped in component files? | **EXPENSIVE** (closest to CHEAP) → [RN-6](RN-6-shared-contracts.md) |
 | R7 | Design tokens | LN token system → native design tokens. What is CSS-var-only vs extractable. | pending |
 | R8 | Parity traps | Flows where web relies on something a native client won't have (middleware headers, RSC streaming, `after()` hooks, hidden form fields like idempotency keys). | pending |
 
@@ -83,6 +83,14 @@ CHEAP / READY.
   (own card) tractable; offline VERIFICATION is undesigned, not unbuilt.
   **Good news:** derivation layer is pure/tested/portable; /p/ is the most
   carefully built page in the repo.
+- [RN-6 — Shared contracts](RN-6-shared-contracts.md) · **EXPENSIVE**
+  (cheapest, closest to CHEAP) · no package boundary exists; every pure module
+  threads through `@/*` and drags a 4655-line Drizzle schema for a single
+  enum; es-AR "centralized copy" is keyless Spanish literals leaking in 40+
+  places; form-validation zod validates the DB write shape not client input;
+  localities + jurisdiction rules need APIs. Mechanical, not conceptual —
+  event types have a SINGLE source of truth, and data/legal-baseline proves
+  the team can ship a signed versioned contract.
 
 ## Improvement backlog
 
@@ -129,3 +137,11 @@ CHEAP / READY.
 | B37 | RN-5 | One deepLinkMap + generated AASA/assetlinks + overlap fitness test (merge RN-3 B22); kill mimar://appointment | Catches p/perdidas, t/terminos, live /adoptar-no-slash collisions |
 | B38 | RN-5 | Honest owner-scoped offline cache: SW caches only the allowlisted own-credential route; flip the fitness test to enforce that | Keeps the no-store privacy invariant intact |
 | B39 | RN-5 | Accept TAG- serials in resolveAtenderPet + copy-to-clipboard footer token | Removes a live re-typing step in the walk-in clinical flow |
+| B40 | RN-6 | Create `packages/contract/` (first workspace boundary); move the event-type source of truth into it, db/schema imports from it | Kills the drizzle anchor on every pure module |
+| B41 | RN-6 | Write the missing client-input zod schemas (camelCase, per capture flow) in the package | Replaces String(formData.get()) hand-parsing; the offline-validation seam RN-1 wants |
+| B42 | RN-6 | Version-stamp static catalogs + extend check-catalog-drift to fail CI on unversioned change | The eventual native copy can detect staleness |
+| B43 | RN-6 | Consolidate scattered *_LABELS into packages/contract/copy/; route the 40+ i18n leaks through them | Closes the 19-i18n raw-enum bugs directly |
+| B44 | RN-6 | Locale-keyed structure for high-traffic labels (event/notification types, statuses) — keys not literals | Only path to a non-Spanish-only second consumer |
+| B45 | RN-6 | Publish /api/v1/localities + jurisdiction-rules read APIs (can't ship as files) | Both pickers share one contract instead of re-importing INDEC |
+
+**Cross-dimension merges**: RN-5 B33 = RN-1 B5 = RN-6 #5 (one credential JSON endpoint with payloadVersion + freshness). RN-5 B37 = RN-3 B22 (one deepLinkMap driving both notification CTAs and AASA). RN-4 B27 = RN-1 B6 (surface wasNoop). RN-2 B12 = RN-1 B2 (result-shaped requireLiveUser is the bearer entry point).
