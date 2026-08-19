@@ -2,19 +2,32 @@
 
 import type { ReminderFormState } from "@/app/actions/reminders";
 import { LnField, LnInput, LnTextarea } from "@/components/ui/Field";
+import { suggestNextDueDate } from "@/lib/domain/libreta-health-status";
 import { vaccinesForSpecies } from "@/lib/reference/lookups";
 import { useActionRedirect } from "@/lib/ui/use-action-redirect";
+import { todayIsoInAr } from "@/lib/utils/format";
 import { useActionState, useState } from "react";
 
 const initialState: ReminderFormState = { error: null };
 
 type FormAction = (prev: ReminderFormState, formData: FormData) => Promise<ReminderFormState>;
 
-/** ISO date string (YYYY-MM-DD) from today + N months. */
+/**
+ * ISO date string (YYYY-MM-DD) for today + N months, in the Argentine calendar.
+ *
+ * Was `new Date()` -> setMonth -> toISOString().slice(0,10), which reads the
+ * date back in UTC: in ART (UTC-3) any local time from 21:00 onwards had
+ * already rolled over, so scheduling an Antirrabica reminder at 22:00 on
+ * 2026-08-19 pre-filled 2027-08-20. Found in the pre-push review of 2026-08-19
+ * as the sibling of the vaccine-sheet defect fixed in 8709fc32 — a different
+ * job (this form genuinely means "today + N", it has no application date) but
+ * the same slip.
+ *
+ * Both forms now count months through the same helper the server uses to
+ * derive next_due_at, so no two surfaces can disagree about the calendar.
+ */
 function isoDateFromNowPlusMonths(months: number): string {
-  const d = new Date();
-  d.setMonth(d.getMonth() + months);
-  return d.toISOString().slice(0, 10);
+  return suggestNextDueDate(todayIsoInAr(), months);
 }
 
 export function ScheduleVaccineForm({

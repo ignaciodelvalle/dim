@@ -330,9 +330,11 @@ function loadBaseline(): BaselineFile["files"] {
 // knows nothing about CSS; sharing one file would let a routine JSX regenerate
 // silently delete the CSS baseline and un-ratchet all of rules C1–C8.
 //
-// Keys are `<path>#<bucket>` — `app/globals.css#lp` and `app/globals.css#core`
-// are counted independently. See the CssBucket docstring in css-token-scan.ts
-// for why the landing gets its own bucket.
+// Keys are `<path>#<bucket>` — the landing (`app/landing.css#lp`) and the core
+// sheet (`app/globals.css#core`) are counted independently. The bucket is
+// computed per selector, not per path, so the lp key followed the layer when it
+// moved out of globals.css (2026-08-19). See the CssBucket docstring in
+// css-token-scan.ts for why the landing gets its own bucket.
 // ---------------------------------------------------------------------------
 
 type CssBaselineFile = {

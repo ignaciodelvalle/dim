@@ -156,11 +156,22 @@ describe("crisis band — three doors, no account", () => {
   });
 });
 
-describe("public code lookup — PO-locked decision #2 (no 15-digit ISO chip)", () => {
-  // The invariant is "no public surface offers a chip-number lookup", not
-  // "the landing input's placeholder says the right thing". It outlived the
-  // control it was originally written against, so it is pinned to the surface
-  // that still does the lookup: /denuncias/buscar.
+describe("denuncia code lookup — PO-locked decision #2 (no 15-digit ISO chip)", () => {
+  // SCOPE, stated exactly, because the first version of this block overclaimed
+  // it (caught in the pre-push review, 2026-08-19): this covers the CODE
+  // LOOKUP controls — the landing band, which no longer has one, and
+  // /denuncias/buscar, which does. It does NOT cover every public input that
+  // accepts a chip number.
+  //
+  // The one that is deliberately out of scope: Step4Subject in the denuncia
+  // wizard offers "Código miMAR o microchip" to an anonymous reporter and
+  // feeds it to lookupPetForDenunciaAction. That is a different feature —
+  // identifying the animal you are denouncing, not looking up a code — and it
+  // is privacy-reviewed on its own terms: rate-limited, and it returns only
+  // petName + petStatus with NO join to the owner, so the property is
+  // structural rather than a field somebody remembered to drop. Whether
+  // decision #2 was ever meant to reach it is a PO question, not something
+  // this test should decide by widening quietly.
   const SEARCH_FORM = readFileSync(
     join(process.cwd(), "app", "(public)", "denuncias", "buscar", "SearchForm.tsx"),
     "utf8",

@@ -73,6 +73,14 @@ const A_MULTI_PROVINCE: DashboardJurisdiction[] = [
   { province: "Buenos Aires", locality: "La Plata" },
   { province: "Córdoba", locality: "Córdoba" },
 ];
+/**
+ * A WHOLE-PROVINCE mandate: the `""` sentinel, which
+ * `isWholeProvinceLocality` treats as covering every locality in the province.
+ * This is the shape a provincial (rather than municipal) operator carries, and
+ * it takes a different branch of `jurisdictionScopeContains` than every other
+ * fixture here — province equality alone, no exact pair.
+ */
+const A_WHOLE_PROVINCE: DashboardJurisdiction[] = [{ province: "Buenos Aires", locality: "" }];
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -321,6 +329,29 @@ describe("B6 — lone ?locality with no ?province", () => {
     expect(scope.filteredJurisdictions).toStrictEqual(A_MULTI_PROVINCE);
     // No province could be implied, so the catalog is never consulted.
     expect(localityByName).not.toHaveBeenCalled();
+  });
+
+  it("a WHOLE-PROVINCE mandate narrows to the picked locality inside it", async () => {
+    // The branch nothing else in this file reaches. The other B6 cases all use
+    // barrio-grain assignments, so jurisdictionScopeContains only ever takes
+    // the exact-pair path; a whole-province mandate takes the
+    // `isWholeProvinceLocality → province equality` path instead.
+    //
+    // What it pins is the SUBSUMPTION branch, not the stored-vs-catalog name
+    // choice — those two forms are identical under the DB's canonicality
+    // constraint, so no fixture can tell them apart (see the note beside
+    // `fenceProvinceName`). What WOULD break here: any change that stops
+    // passing a province to the fence in the implied case, which turns this
+    // operator's narrowed view back into their whole mandate.
+    const scope = await resolveJurisdictionScope({
+      role: "govt",
+      jurisdictions: A_WHOLE_PROVINCE,
+      params: { locality: "la-plata" },
+    });
+    expect(scope.selectedLocality?.localityName).toBe("La Plata");
+    expect(scope.filteredJurisdictions).toStrictEqual([
+      { province: "Buenos Aires", locality: "La Plata" },
+    ]);
   });
 
   it("admin is untouched: a lone ?locality never implies a province", async () => {

@@ -204,11 +204,24 @@ export async function resolveJurisdictionScope(
       : null;
 
   // The province name handed to THE FENCE. For the implied case this is the
-  // STORED assignment string, not `Province.name` from the catalog: the fence
-  // compares province names with exact equality (`jurisdictionScopeContains`),
-  // so a catalog round-trip that renamed "CABA" to its canonical long form
-  // would match nothing and empty the operator's scope instead of narrowing
-  // it. The explicit path keeps using the catalog name exactly as before.
+  // STORED assignment string rather than `Province.name` from the catalog,
+  // because the fence compares province names with exact equality
+  // (`jurisdictionScopeContains`) while `provinceByName` NORMALISES aliases —
+  // it maps "Ciudad Autónoma de Buenos Aires" onto the canonical "CABA".
+  //
+  // Today the two are always identical: the DB constraint
+  // `govt_assignments_jurisdiction_province_canonical` restricts
+  // jurisdiction_province to exactly the 24 canonical names, so no alias can
+  // be stored and the round-trip is the identity. This is therefore NOT
+  // load-bearing against a live hazard, and a test cannot distinguish the two
+  // forms without fabricating a row the database would reject — do not read
+  // the choice as evidence of one. It is written this way so that if that
+  // constraint is ever relaxed, the fence narrows instead of silently emptying
+  // the operator's scope. (Note the asymmetry, flagged in review 2026-08-19:
+  // `constrainLocalitiesToMandate` above filters on the CATALOG name, so under
+  // a relaxed constraint the switcher would go empty and no `?locality=` could
+  // be produced through the UI anyway. The two halves disagree about which
+  // name is authoritative; unify them if the constraint ever moves.)
   const fenceProvinceName =
     selectedProvince?.name ?? (selectedLocality ? (uniqueProvinceNames[0] ?? null) : null);
 

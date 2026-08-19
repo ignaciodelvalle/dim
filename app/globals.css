@@ -752,7 +752,7 @@ label:has(input.sr-only:focus-visible) {
  * exactly why they are the safe half of this. */
 /* ---- Operator hit-area extension ------------------------------------------ *
  * Pads a small inline control's TOUCH target to 24×24 without changing what is
- * drawn. Same technique as .lp .lp-hcard-flip::after further down; written as
+ * drawn. Same technique as .lp .lp-hcard-flip::after in app/landing.css; written as
  * plain CSS rather than Tailwind `after:` utilities because nothing else in
  * this codebase uses that variant, and a utility that silently fails to
  * generate would leave the target at its original size with no visual change
@@ -1059,7 +1059,7 @@ body {
  * org/mascotas and gob/cola (capped at 200) lay out and paint every row on
  * first render, even the ones below the fold. `content-visibility: auto`
  * skips layout/paint work for off-screen rows — the same pattern already
- * proven in production at `.lp-ch-device` above.
+ * proven in production at `.lp-ch-device` (app/landing.css).
  *
  * TABLE ROWS ARE EXCLUDED ON PURPOSE: CSS containment does not reliably apply
  * to `<tr>`/`<tbody>` internals, so this is scoped to block-level `<li>` rows
