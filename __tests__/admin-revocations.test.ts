@@ -266,7 +266,8 @@ async function seedVerifiedOrg(creatorUserId: string): Promise<string> {
 describe("uploadRevocationEvidence", () => {
   it("admin can upload evidence — returns attachmentId, row created with all FKs null", async () => {
     const result = await uploadRevocationEvidence(adminUserId, {
-      storagePath: "revocations/admin-1/evidence.jpg",
+      targetId: "target-a3",
+      storagePath: "target-a3/evidence.jpg",
       mimeType: "image/jpeg",
       fileSize: 8000,
     });
@@ -290,7 +291,8 @@ describe("uploadRevocationEvidence", () => {
 
   it("owner (non-authority) is rejected — no attachment row created", async () => {
     const result = await uploadRevocationEvidence(ownerUserId, {
-      storagePath: "revocations/owner/evidence.jpg",
+      targetId: "owner",
+      storagePath: "owner/evidence.jpg",
       mimeType: "image/jpeg",
     });
     expect("error" in result).toBe(true);
@@ -299,8 +301,34 @@ describe("uploadRevocationEvidence", () => {
     const rows = await db
       .select()
       .from(attachments)
-      .where(eq(attachments.storagePath, "revocations/owner/evidence.jpg"));
+      .where(eq(attachments.storagePath, "owner/evidence.jpg"));
     expect(rows).toHaveLength(0);
+  });
+
+  it("rejects a storagePath outside the target namespace — no row created (RN-4/B3)", async () => {
+    // Admin, so the role gate passes; the path binding is what must reject this.
+    const foreignPath = "some-other-target/evidence.jpg";
+    const result = await uploadRevocationEvidence(adminUserId, {
+      targetId: "target-a3",
+      storagePath: foreignPath,
+      mimeType: "image/jpeg",
+      fileSize: 8000,
+    });
+    expect("error" in result, "a path outside the target prefix was accepted").toBe(true);
+    const rows = await db
+      .select()
+      .from(attachments)
+      .where(eq(attachments.storagePath, foreignPath));
+    expect(rows).toHaveLength(0);
+  });
+
+  it("rejects a traversing basename even under the right target (RN-4/B3)", async () => {
+    const result = await uploadRevocationEvidence(adminUserId, {
+      targetId: "target-a3",
+      storagePath: "target-a3/../escape.jpg",
+      mimeType: "image/jpeg",
+    });
+    expect("error" in result).toBe(true);
   });
 });
 

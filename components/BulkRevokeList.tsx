@@ -247,6 +247,7 @@ function BulkRevokeModal({ selectedItems, targetKind, onClose, onDone }: ModalPr
           return;
         }
         const r = await uploadRevocationEvidence({
+          targetId: sessionUser.id,
           storagePath: path,
           mimeType: file.type,
           fileSize: file.size,

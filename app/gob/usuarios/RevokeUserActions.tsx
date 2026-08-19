@@ -140,6 +140,7 @@ function RevokeVetForm({
         }
 
         const result = await uploadRevocationEvidence({
+          targetId: actorUserId,
           storagePath: path,
           mimeType: file.type,
           fileSize: file.size,

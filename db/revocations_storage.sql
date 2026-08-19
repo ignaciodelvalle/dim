@@ -25,16 +25,38 @@ insert into storage.buckets (id, name, public)
 values ('revocations', 'revocations', false)
 on conflict (id) do nothing;
 
--- INSERT (upload) — authenticated may write to the revocations bucket. The
--- server action that registers the evidence (uploadRevocationEvidence) verifies
--- the caller is an institutional admin/govt before the row is trusted; the
--- bucket_id guard scopes the policy to this bucket only.
+-- NOTE: the EXISTS subselect below depends on the "Profiles readable by self"
+-- SELECT policy (db/rls.sql) staying in place — the invoker must be able to
+-- read its own profiles row for the check to see it. If that policy is ever
+-- narrowed, every revocation upload 403s with an opaque storage error.
+--
+-- INSERT (upload) — only an institutional admin/govt may write to the bucket.
+-- Migration 0188 (native-readiness RN-4/B24): the old policy checked bucket_id
+-- and NOTHING else, so it was TRUE for every authenticated account — and since
+-- uploads are browser-direct (lib/ui/use-evidence-upload.ts), any signed-up
+-- citizen could write arbitrary bytes here. Reads were already locked (0172);
+-- this closes the arbitrary-WRITE vector at the RLS layer, mirroring the
+-- requireAdminOrGovtOrRedirect invariant the action boundary enforces. Kept in
+-- sync with the migration verbatim so deploy-provision and the migration tree
+-- converge to the same tight policy regardless of application order.
 drop policy if exists "revocations_authenticated_upload" on storage.objects;
-create policy "revocations_authenticated_upload"
+drop policy if exists "revocations_admin_govt_upload" on storage.objects;
+create policy "revocations_admin_govt_upload"
   on storage.objects
   for insert
   to authenticated
-  with check (bucket_id = 'revocations');
+  with check (
+    bucket_id = 'revocations'
+    and exists (
+      select 1
+      from public.profiles p
+      where p.id = (select auth.uid())
+        and p.account_type = 'institutional'
+        and p.role in ('admin', 'govt')
+        and p.deactivated_at is null
+        and p.deleted_at is null
+    )
+  );
 
 -- NO SELECT POLICY — AND NONE MAY BE ADDED (migration 0172).
 -- This bucket used to carry `revocations_authenticated_read`:

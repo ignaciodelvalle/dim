@@ -97,7 +97,7 @@ beforeEach(() => {
 // ===========================================================================
 
 describe("uploadRevocationEvidence — action-boundary gate", () => {
-  const input = { storagePath: "p/x", mimeType: "image/png", fileSize: 1 };
+  const input = { targetId: "p", storagePath: "p/x", mimeType: "image/png", fileSize: 1 };
 
   it("rejects a DEACTIVATED admin before reaching the use-case", async () => {
     mockGetUser.mockResolvedValue(session(DEACTIVATED_ADMIN.id));

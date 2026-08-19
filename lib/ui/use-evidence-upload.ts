@@ -92,6 +92,7 @@ export function useEvidenceUpload(): UseEvidenceUpload {
           }
 
           const result = await uploadRevocationEvidence({
+            targetId,
             storagePath: path,
             mimeType: file.type,
             fileSize: file.size,
