@@ -113,34 +113,50 @@ beforeAll(async () => {
     .set({ role: "admin", accountType: "institutional" })
     .where(eq(profiles.id, adminUserId));
 
-  // Assign localities for govtUserId — use test-scoped locality names that
-  // cannot collide with seed data (scripts/seed-test-users.ts assigns the
-  // shared `govt-local@dim.test` user to real localities like "La Plata").
-  //   - TEST-SS-Shared   — also covered by govt2UserId (coverage check should PASS)
-  //   - TEST-SS-SoleCov  — only covered by govtUserId (coverage check should BLOCK)
+  // Assign localities for govtUserId. TWO constraints, both real:
+  //
+  //   1. They must not collide with seed data — scripts/seed-test-users.ts
+  //      assigns the shared `govt-local@dim.test` user to La Plata, Morón,
+  //      Quilmes and Tigre, and a collision would make the coverage maths
+  //      below depend on seed state.
+  //   2. They must RESOLVE against ar_localities. This is what the invented
+  //      test-scoped names used to violate: while this file was mid-flight
+  //      its fixture rows sat ACTIVE in the shared local database carrying a
+  //      locality no catalog could resolve, and
+  //      govt-assignments-locality-integrity — which scans the WHOLE table,
+  //      from a different vitest worker — failed on them. Intermittently,
+  //      depending on which worker won the race, and persistently whenever a
+  //      crashed worker skipped the afterAll cleanup and left the rows behind
+  //      (blind-QA gate run, 2026-08-19). A suite that flips red on worker
+  //      scheduling teaches the team to ignore it.
+  //
+  // Chivilcoy and Bragado are real Buenos Aires localities that no seed
+  // script assigns to anyone, so both constraints hold at full strength.
+  //   - Chivilcoy — also covered by govt2UserId (coverage check should PASS)
+  //   - Bragado   — only covered by govtUserId (coverage check should BLOCK)
   await db.insert(govtAssignments).values([
     {
       userId: govtUserId,
       jurisdictionCountry: "AR",
       jurisdictionProvince: "Buenos Aires",
-      jurisdictionLocality: "TEST-SS-Shared",
+      jurisdictionLocality: "Chivilcoy",
       grantedByUserId: adminUserId,
     },
     {
       userId: govtUserId,
       jurisdictionCountry: "AR",
       jurisdictionProvince: "Buenos Aires",
-      jurisdictionLocality: "TEST-SS-SoleCov",
+      jurisdictionLocality: "Bragado",
       grantedByUserId: adminUserId,
     },
   ]);
 
-  // govt2UserId covers TEST-SS-Shared — so govtUserId leaving it is safe
+  // govt2UserId covers Chivilcoy — so govtUserId leaving it is safe
   await db.insert(govtAssignments).values({
     userId: govt2UserId,
     jurisdictionCountry: "AR",
     jurisdictionProvince: "Buenos Aires",
-    jurisdictionLocality: "TEST-SS-Shared",
+    jurisdictionLocality: "Chivilcoy",
     grantedByUserId: adminUserId,
   });
 });
@@ -285,7 +301,7 @@ describe("govtSelfDeactivateForUser — capability rejection: wrong role", () =>
 
 describe("govtSelfDeactivateForUser — coverage block", () => {
   it("blocks deactivation when a locality would be left uncovered", async () => {
-    // govtUserId covers TEST-SS-SoleCov alone — deactivation should be blocked
+    // govtUserId covers Bragado alone — deactivation should be blocked
     const result = await govtSelfDeactivateForUser(govtUserId);
     expect(result).toHaveProperty("error");
     if (!("error" in result)) return;
@@ -310,12 +326,12 @@ describe("govtSelfDeactivateForUser — coverage block", () => {
 
 describe("govtSelfDeactivateForUser — happy path", () => {
   it("deactivates govt when all localities have coverage, revokes assignments, emits audit + notifications", async () => {
-    // Add coverage for TEST-SS-SoleCov by govt2UserId so govtUserId can now safely deactivate
+    // Add coverage for Bragado by govt2UserId so govtUserId can now safely deactivate
     await db.insert(govtAssignments).values({
       userId: govt2UserId,
       jurisdictionCountry: "AR",
       jurisdictionProvince: "Buenos Aires",
-      jurisdictionLocality: "TEST-SS-SoleCov",
+      jurisdictionLocality: "Bragado",
       grantedByUserId: adminUserId,
     });
 
