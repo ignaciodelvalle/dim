@@ -42,7 +42,7 @@ CHEAP / READY.
 | R4 | Media pipeline | Uploads are server-action-mediated (`uploadAttachmentIfPresent`). Can a native client upload to storage + register the attachment without a form post? Public vs signed URLs. | **EXPENSIVE** (⚠️ live sec) → [RN-4](RN-4-media-pipeline.md) |
 | R5 | Offline credential + deep links | What does the QR encode, what must render with zero connectivity, universal-link mapping for `/p/`, `/t/`, `/libreta/compartir/`. | **EXPENSIVE** (verify = BLOCKER) → [RN-5](RN-5-offline-credential-deeplinks.md) |
 | R6 | Shared contracts | Event payload zod schemas, catalog data (vaccines, breeds, localities), es-AR copy. What could ship as a versioned contract package vs what is trapped in component files? | **EXPENSIVE** (closest to CHEAP) → [RN-6](RN-6-shared-contracts.md) |
-| R7 | Design tokens | LN token system → native design tokens. What is CSS-var-only vs extractable. | pending |
+| R7 | Design tokens | LN token system → native design tokens. What is CSS-var-only vs extractable. | **EXPENSIVE** → [RN-7](RN-7-design-tokens.md) |
 | R8 | Parity traps | Flows where web relies on something a native client won't have (middleware headers, RSC streaming, `after()` hooks, hidden form fields like idempotency keys). | pending |
 
 ## Findings index
@@ -91,6 +91,14 @@ CHEAP / READY.
   localities + jurisdiction rules need APIs. Mechanical, not conceptual —
   event types have a SINGLE source of truth, and data/legal-baseline proves
   the team can ship a signed versioned contract.
+- [RN-7 — Design tokens](RN-7-design-tokens.md) · **EXPENSIVE** · no
+  tokens.ts/tailwind.config — the system is one @theme CSS-var block + ~4,400
+  lines of hand-authored `.ln-*` CSS with RAW px off the token scale; theming
+  is a CSS-var cascade with no React Native equivalent (must be re-architected
+  as JS theme objects, not copied). A value export captures ~35%; the semantic
+  credential/libreta identity is the other two-thirds. **Good news:**
+  viz-scales.ts / pet-situation.ts / icon map port as-is; a11y invariants
+  (44px = Apple HIG, 4.5:1, ΔE floors) already testable numbers.
 
 ## Improvement backlog
 
@@ -144,4 +152,10 @@ CHEAP / READY.
 | B44 | RN-6 | Locale-keyed structure for high-traffic labels (event/notification types, statuses) — keys not literals | Only path to a non-Spanish-only second consumer |
 | B45 | RN-6 | Publish /api/v1/localities + jurisdiction-rules read APIs (can't ship as files) | Both pickers share one contract instead of re-importing INDEC |
 
-**Cross-dimension merges**: RN-5 B33 = RN-1 B5 = RN-6 #5 (one credential JSON endpoint with payloadVersion + freshness). RN-5 B37 = RN-3 B22 (one deepLinkMap driving both notification CTAs and AASA). RN-4 B27 = RN-1 B6 (surface wasNoop). RN-2 B12 = RN-1 B2 (result-shaped requireLiveUser is the bearer entry point).
+| B46 | RN-7 | `packages/contract/tokens` (on B40): codemod the @theme colors+scales into a typed object, generate globals.css @theme FROM it | Ratchet points at a SoT without parsing CSS |
+| B47 | RN-7 | Move viz-scales.ts into the package unchanged as the template; fix its false header claim | Zero-risk proof-of-shape |
+| B48 | RN-7 | Tokenize the credential CSS off raw px, starting with .ln-asiento; lower the CSS ratchet baseline | Web finally uses the scale it declares |
+| B49 | RN-7 | Extract the skin remap (citizen/op-surface/situation-room) into a JS theme descriptor; generate the CSS var blocks from it | Native gets three palettes as plain objects |
+| B50 | RN-7 | Bundle fonts as OFL files + weight-contract JSON; publish a11y invariants as platform-neutral constants; share the Icon name map | Web stops depending on Google CDN at build |
+
+**Cross-dimension merges**: RN-5 B33 = RN-1 B5 = RN-6 #5 (one credential JSON endpoint with payloadVersion + freshness). RN-5 B37 = RN-3 B22 (one deepLinkMap driving both notification CTAs and AASA). RN-4 B27 = RN-1 B6 (surface wasNoop). RN-2 B12 = RN-1 B2 (result-shaped requireLiveUser is the bearer entry point). RN-7 B46 builds on RN-6 B40 (the `packages/contract/` boundary is shared).
