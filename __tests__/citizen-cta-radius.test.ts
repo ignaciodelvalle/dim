@@ -23,14 +23,28 @@ import { describe, expect, it } from "vitest";
 
 const read = (...p: string[]) => readFileSync(join(process.cwd(), ...p), "utf8");
 
-const GLOBALS = read("app", "globals.css");
+// The corpus is "the app's stylesheets", not one file. The lp-* layer moved to
+// app/landing.css on 2026-08-19 (while it lived in globals.css it shipped on
+// every route) and this test went red, correctly: `rule()` throws when a
+// selector it asserts on cannot be found, instead of passing vacuously.
+// Register any new stylesheet here rather than narrowing what the test reads.
+const STYLESHEET_PATHS: readonly string[][] = [
+  ["app", "globals.css"],
+  ["app", "landing.css"],
+];
+const STYLESHEETS = STYLESHEET_PATHS.map((p) => read(...p)).join("\n");
+/** Where the Tailwind v4 `@theme` layer itself is declared. */
+const THEME_LAYER = read("app", "globals.css");
 const BUTTON = read("components", "ui", "Button.tsx");
 
 /** The declaration block of an exact CSS selector. Throws if it moved. */
 function rule(selector: string): string {
   const escaped = selector.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-  const match = new RegExp(`(?:^|\\})\\s*${escaped}\\s*\\{([^{}]*)\\}`, "m").exec(GLOBALS);
-  if (!match) throw new Error(`selector not found in app/globals.css: ${selector}`);
+  const match = new RegExp(`(?:^|\\})\\s*${escaped}\\s*\\{([^{}]*)\\}`, "m").exec(STYLESHEETS);
+  if (!match) {
+    const where = STYLESHEET_PATHS.map((p) => p.join("/")).join(" or ");
+    throw new Error(`selector not found in ${where}: ${selector}`);
+  }
   return match[1];
 }
 
@@ -61,8 +75,10 @@ describe("Canon D.1 — the citizen path to an account is pills all the way", ()
     // If --radius-pill ever stopped being a pill, every assertion above would
     // keep passing while every button turned into a rectangle. Matched against
     // the whole sheet rather than a block: these live in the Tailwind v4
-    // `@theme` layer, not in a `:root` rule.
-    expect(GLOBALS).toMatch(/--radius-pill:\s*9999px/);
-    expect(GLOBALS).toMatch(/--radius-lg:\s*8px/);
+    // `@theme` layer, not in a `:root` rule. Read from globals.css by name
+    // rather than the joined corpus — the `@theme` layer is defined there
+    // specifically, and every other stylesheet only consumes it.
+    expect(THEME_LAYER).toMatch(/--radius-pill:\s*9999px/);
+    expect(THEME_LAYER).toMatch(/--radius-lg:\s*8px/);
   });
 });

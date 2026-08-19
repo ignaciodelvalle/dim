@@ -1,4 +1,9 @@
 import { and, eq, isNull } from "drizzle-orm";
+
+// The lp-* layer. Imported HERE and nowhere else: it used to sit in
+// globals.css, which the root layout imports, so every route in the product
+// paid for ~2.3k lines of landing CSS it never used. See app/landing.css.
+import "./landing.css";
 import { redirect } from "next/navigation";
 import QRCode from "qrcode";
 

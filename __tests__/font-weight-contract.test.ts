@@ -36,7 +36,16 @@ import { describe, expect, it } from "vitest";
 
 const REPO_ROOT = join(__dirname, "..");
 const LAYOUT = join(REPO_ROOT, "app", "layout.tsx");
-const GLOBALS = join(REPO_ROOT, "app", "globals.css");
+
+/**
+ * Every stylesheet that may request a weight. Register new ones here: a font
+ * the layout never loaded still renders, silently synthesised by the browser,
+ * so a sheet this list forgets is a sheet whose contract nobody checks.
+ */
+const STYLESHEETS: readonly string[][] = [
+  ["app", "globals.css"],
+  ["app", "landing.css"],
+];
 
 /** The four families exposed as `font-ln-*` utilities + `--font-ln-*` vars. */
 type FamilyKey = "mono" | "serif" | "plexsans" | "caveat";
@@ -157,36 +166,46 @@ function scanTsx(): Request[] {
 }
 
 /**
- * globals.css rules that name one of the families AND a weight.
+ * Stylesheet rules that name one of the families AND a weight.
  * Handles both the `font-family:` + `font-weight:` pair and the `font:`
  * shorthand — the shorthand is invisible to a `font-weight` grep, and that is
  * precisely where `.lp-hcard-badge` (`font: 700 10px/1 var(--font-ln-mono)`)
  * hid while every audit counted four dead CSS declarations instead of five.
+ *
+ * Scans EVERY stylesheet, not just globals.css. That badge lives in the lp-*
+ * layer, which moved to app/landing.css on 2026-08-19; a scanner pinned to one
+ * filename would have gone on reporting a clean contract while the very
+ * declaration it was written for sat unread in the other file. The
+ * "scans a non-empty corpus" assertion below is what caught the move — keep it.
  */
 function scanCss(): Request[] {
-  const css = readFileSync(GLOBALS, "utf8");
   const found: Request[] = [];
   const ruleRe = /([^{}]+)\{([^{}]*)\}/g;
 
-  for (const rule of css.matchAll(ruleRe)) {
-    const body = rule[2];
-    const line = css.slice(0, rule.index).split("\n").length;
+  for (const sheet of STYLESHEETS) {
+    const css = readFileSync(join(REPO_ROOT, ...sheet), "utf8");
+    const label = sheet.join("/");
 
-    const shorthand = /(?:^|[;\s])font:\s*(\d{3})\s+[^;]*?var\((--[a-z0-9-]+)\)/i.exec(body);
-    if (shorthand) {
-      const family = FAMILY_BY_CSS_VAR[shorthand[2]];
-      if (family) {
-        found.push({ family, weight: Number(shorthand[1]), where: `app/globals.css:${line}` });
+    for (const rule of css.matchAll(ruleRe)) {
+      const body = rule[2];
+      const line = css.slice(0, rule.index).split("\n").length;
+
+      const shorthand = /(?:^|[;\s])font:\s*(\d{3})\s+[^;]*?var\((--[a-z0-9-]+)\)/i.exec(body);
+      if (shorthand) {
+        const family = FAMILY_BY_CSS_VAR[shorthand[2]];
+        if (family) {
+          found.push({ family, weight: Number(shorthand[1]), where: `${label}:${line}` });
+        }
+        continue;
       }
-      continue;
-    }
 
-    const familyDecl = /font-family:\s*var\((--[a-z0-9-]+)\)/i.exec(body);
-    const weightDecl = /font-weight:\s*(\d{3})/i.exec(body);
-    if (!familyDecl || !weightDecl) continue;
-    const family = FAMILY_BY_CSS_VAR[familyDecl[1]];
-    if (family) {
-      found.push({ family, weight: Number(weightDecl[1]), where: `app/globals.css:${line}` });
+      const familyDecl = /font-family:\s*var\((--[a-z0-9-]+)\)/i.exec(body);
+      const weightDecl = /font-weight:\s*(\d{3})/i.exec(body);
+      if (!familyDecl || !weightDecl) continue;
+      const family = FAMILY_BY_CSS_VAR[familyDecl[1]];
+      if (family) {
+        found.push({ family, weight: Number(weightDecl[1]), where: `${label}:${line}` });
+      }
     }
   }
   return found;
@@ -234,29 +253,36 @@ describe("font-weight contract (app/layout.tsx ⊇ what the app requests)", () =
     // count-based assertion stays green with the shorthand branch dead (this
     // test survived that exact mutant once). So: locate every `font:` shorthand
     // in the CSS *by line*, and require scanCss() to have reported each one.
-    const css = readFileSync(GLOBALS, "utf8");
-    const shorthandLines = css
-      .split("\n")
-      .map((line, i) => ({ line, n: i + 1 }))
-      .filter(({ line }) =>
-        /(?:^|[;\s])font:\s*\d{3}\s+[^;]*var\(--(?:font-ln|lp)-[a-z]+\)/i.test(line),
-      )
-      .map(({ n }) => `app/globals.css:${n}`);
+    // Across EVERY stylesheet, and keyed by file: `.lp-hcard-badge`, the
+    // declaration this guard was written for, now lives in landing.css, and
+    // two files mean line numbers alone collide.
+    const shorthandLines = STYLESHEETS.flatMap((sheet) => {
+      const label = sheet.join("/");
+      return readFileSync(join(REPO_ROOT, ...sheet), "utf8")
+        .split("\n")
+        .map((line, i) => ({ line, n: i + 1 }))
+        .filter(({ line }) =>
+          /(?:^|[;\s])font:\s*\d{3}\s+[^;]*var\(--(?:font-ln|lp)-[a-z]+\)/i.test(line),
+        )
+        .map(({ n }) => ({ file: label, n, where: `${label}:${n}` }));
+    });
 
     expect(
       shorthandLines.length,
-      "no `font:` shorthand with a font-ln-*/lp-* family left in globals.css — " +
+      "no `font:` shorthand with a font-ln-*/lp-* family left in any stylesheet — " +
         "this guard has nothing to protect; delete it or re-point it",
     ).toBeGreaterThan(0);
 
     // Rule blocks are matched whole, so a shorthand's reported line is the line
     // of the SELECTOR, not of the declaration — accept the nearest reported
-    // line at or above each shorthand.
-    const reported = scanCss().map((r) => Number(r.where.split(":")[1]));
-    for (const where of shorthandLines) {
-      const declLine = Number(where.split(":")[1]);
+    // line at or above each shorthand, IN THE SAME FILE.
+    const reported = scanCss().map((r) => {
+      const idx = r.where.lastIndexOf(":");
+      return { file: r.where.slice(0, idx), n: Number(r.where.slice(idx + 1)) };
+    });
+    for (const { file, n: declLine, where } of shorthandLines) {
       expect(
-        reported.some((n) => n <= declLine && declLine - n < 30),
+        reported.some((r) => r.file === file && r.n <= declLine && declLine - r.n < 30),
         `the \`font:\` shorthand at ${where} was not reported by scanCss() — the shorthand branch is blind, and any dead weight declared that way ships silently`,
       ).toBe(true);
     }
