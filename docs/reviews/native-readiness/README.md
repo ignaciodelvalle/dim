@@ -43,7 +43,7 @@ CHEAP / READY.
 | R5 | Offline credential + deep links | What does the QR encode, what must render with zero connectivity, universal-link mapping for `/p/`, `/t/`, `/libreta/compartir/`. | **EXPENSIVE** (verify = BLOCKER) → [RN-5](RN-5-offline-credential-deeplinks.md) |
 | R6 | Shared contracts | Event payload zod schemas, catalog data (vaccines, breeds, localities), es-AR copy. What could ship as a versioned contract package vs what is trapped in component files? | **EXPENSIVE** (closest to CHEAP) → [RN-6](RN-6-shared-contracts.md) |
 | R7 | Design tokens | LN token system → native design tokens. What is CSS-var-only vs extractable. | **EXPENSIVE** → [RN-7](RN-7-design-tokens.md) |
-| R8 | Parity traps | Flows where web relies on something a native client won't have (middleware headers, RSC streaming, `after()` hooks, hidden form fields like idempotency keys). | pending |
+| R8 | Parity traps | Flows where web relies on something a native client won't have (middleware headers, RSC streaming, `after()` hooks, hidden form fields like idempotency keys). | **EXPENSIVE** → [RN-8](RN-8-parity-traps.md) |
 
 ## Findings index
 
@@ -99,6 +99,17 @@ CHEAP / READY.
   credential/libreta identity is the other two-thirds. **Good news:**
   viz-scales.ts / pet-situation.ts / icon map port as-is; a11y invariants
   (44px = Apple HIG, 4.5:1, ΔE floors) already testable numbers.
+- [RN-8 — Parity traps](RN-8-parity-traps.md) · **EXPENSIVE** · the web-only
+  mechanisms here are load-bearing AND silent: a missing middleware header
+  resolves to `/gob` not an error; maintenance/erasure gates live in layouts
+  native never renders; an omitted idempotency key just double-writes; the
+  privacy-preserving denuncia `after()` "cleans up" into a timing oracle; a
+  hung query web fails-soft around blanks the native credential. Every one
+  ships green and diverges only in production. **Good news:** the right shapes
+  (redirectTo-as-data, result guards, timing-neutral after) already exist —
+  a spread-the-pattern problem.
+
+See [SYNTHESIS.md](SYNTHESIS.md) for the final roll-up.
 
 ## Improvement backlog
 
@@ -158,4 +169,10 @@ CHEAP / READY.
 | B49 | RN-7 | Extract the skin remap (citizen/op-surface/situation-room) into a JS theme descriptor; generate the CSS var blocks from it | Native gets three palettes as plain objects |
 | B50 | RN-7 | Bundle fonts as OFL files + weight-contract JSON; publish a11y invariants as platform-neutral constants; share the Icon name map | Web stops depending on Google CDN at build |
 
-**Cross-dimension merges**: RN-5 B33 = RN-1 B5 = RN-6 #5 (one credential JSON endpoint with payloadVersion + freshness). RN-5 B37 = RN-3 B22 (one deepLinkMap driving both notification CTAs and AASA). RN-4 B27 = RN-1 B6 (surface wasNoop). RN-2 B12 = RN-1 B2 (result-shaped requireLiveUser is the bearer entry point). RN-7 B46 builds on RN-6 B40 (the `packages/contract/` boundary is shared).
+| B51 | RN-8 | Middleware-stamped values → explicit typed request context with NO silent defaults; fitness test that no guard reads them on /api/* | Kills the /gob-masks-admin + lost-returnTo classes |
+| B52 | RN-8 | Move maintenance/erasure/deactivation enforcement out of layouts into the shared mutation guard | A maintenance window actually stops in-flight writes (latent web bug too) |
+| B53 | RN-8 | Replace sameDay/duplicate hidden-field round-trips with explicit 409+confirmToken; fold confirmEventId into typed input | Soft-dedupe + atender-signature flows become unit-testable |
+| B54 | RN-8 | Codify denuncia timing-neutrality ("never await a side-channel; schedule it") in api-invariants.md | Protects a live security property from a well-meaning port |
+| B55 | RN-8 | Standardize on redirectTo-as-data everywhere; convert the thrown redirect()s | Removes the router-drop defect class the repo already fights piecemeal |
+
+**Cross-dimension merges**: RN-5 B33 = RN-1 B5 = RN-6 #5 = RN-8 #6 (one credential JSON endpoint with payloadVersion + freshness + per-section degraded contract). RN-5 B37 = RN-3 B22 (one deepLinkMap driving both notification CTAs and AASA). RN-4 B27 = RN-1 B6 = RN-8 #3 (surface wasNoop + Idempotency-Key header). RN-2 B12 = RN-1 B2 = RN-8 #2 (result-shaped requireLiveUser is the bearer entry point AND the shared mutation guard). RN-7 B46 builds on RN-6 B40 (the `packages/contract/` boundary is shared).
