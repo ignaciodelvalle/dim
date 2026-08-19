@@ -15,7 +15,9 @@ type FooterLink = { href: string; label: string; external?: boolean };
 
 type Column = { title: string; links: FooterLink[] };
 
-const DEFAULT_COLUMNS: Column[] = [
+// Exported for __tests__/footer-dead-end-fitness.test.ts, which holds this
+// list and the landing footer's FOOTER_NAV to the same dead-end exclusions.
+export const DEFAULT_COLUMNS: Column[] = [
   {
     title: "Producto",
     links: [

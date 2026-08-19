@@ -460,7 +460,13 @@ export const FOOTER_NAV: Array<[string, Array<[string, string]>]> = [
       ["Adoptar", "/adoptar"],
       ["Denunciar maltrato", "/denuncias/nueva"],
       ["Centro de ayuda", "/ayuda"],
-      ["Sugerencias", "/sugerencias"],
+      // "Sugerencias" removed (blind QA 2026-08-19): /sugerencias renders a
+      // "muy pronto" placeholder with no submission mechanism. AppFooter had
+      // already dropped it for exactly that reason ("link hidden to avoid dead
+      // end") — the fix landed on one of the two footers and this one, on the
+      // highest-traffic page in the product, kept offering the dead end.
+      // Restore in BOTH footers when a real channel exists; see
+      // __tests__/footer-dead-end-fitness.test.ts.
     ],
   ],
   [
