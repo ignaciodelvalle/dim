@@ -40,7 +40,7 @@ CHEAP / READY.
 | R2 | Native auth | Supabase tokens vs the cookie/middleware assumptions. Session refresh, deep-link password recovery, rate limits keyed on what, Mi Argentina OIDC on mobile. | **EXPENSIVE** → [RN-2](RN-2-native-auth.md) |
 | R3 | Push channel | Everything is web-push (VAPID) or in-app rows. Where is the channel coupled? Can notification fanout target FCM/APNs without rewriting the 67 insert sites? | **EXPENSIVE** → [RN-3](RN-3-push-channel.md) |
 | R4 | Media pipeline | Uploads are server-action-mediated (`uploadAttachmentIfPresent`). Can a native client upload to storage + register the attachment without a form post? Public vs signed URLs. | **EXPENSIVE** (⚠️ live sec) → [RN-4](RN-4-media-pipeline.md) |
-| R5 | Offline credential + deep links | What does the QR encode, what must render with zero connectivity, universal-link mapping for `/p/`, `/t/`, `/libreta/compartir/`. | pending |
+| R5 | Offline credential + deep links | What does the QR encode, what must render with zero connectivity, universal-link mapping for `/p/`, `/t/`, `/libreta/compartir/`. | **EXPENSIVE** (verify = BLOCKER) → [RN-5](RN-5-offline-credential-deeplinks.md) |
 | R6 | Shared contracts | Event payload zod schemas, catalog data (vaccines, breeds, localities), es-AR copy. What could ship as a versioned contract package vs what is trapped in component files? | pending |
 | R7 | Design tokens | LN token system → native design tokens. What is CSS-var-only vs extractable. | pending |
 | R8 | Parity traps | Flows where web relies on something a native client won't have (middleware headers, RSC streaming, `after()` hooks, hidden form fields like idempotency keys). | pending |
@@ -73,6 +73,16 @@ CHEAP / READY.
   from a browser console; avatars broken since creation; intake/bite media
   greenfield; unstripped iPhone HEIC GPS; no GC. **Good news:** offline
   stage-then-claim contract already implemented + tested.
+- [RN-5 — Offline credential + deep links](RN-5-offline-credential-deeplinks.md)
+  · **EXPENSIVE** (verify-offline half = **BLOCKER**) · the QR encodes a URL,
+  not a credential — no signature/expiry/issuance/crypto dep anywhere; the
+  platform actively FORBIDS caching /p/ (no-store + a SW fitness test that
+  fails the build on any cache); a cached card would assert stale rabies
+  vigencia against a subject-controlled clock, "profesional" for a revoked
+  vet, and SE BUSCA + owner phone for a pet that came home. Offline DISPLAY
+  (own card) tractable; offline VERIFICATION is undesigned, not unbuilt.
+  **Good news:** derivation layer is pure/tested/portable; /p/ is the most
+  carefully built page in the repo.
 
 ## Improvement backlog
 
@@ -111,3 +121,11 @@ CHEAP / READY.
 | B29 | RN-4 | Fix avatars end-to-end (validate, store path, sign at render) | A broken whole feature, ~30 lines |
 | B30 | RN-4 | Storage↔DB reconciliation cron (report-only first) + erasure covers avatars/welfare/zero-parent | Ley 25.326 completeness; sizes the orphan problem |
 | B31 | RN-4 | cacheControl immutable on uploads + enable Storage image transformation | Phone stops re-downloading 5MB originals hourly |
+| B32 | RN-5 | **PO decision (gates everything): the offline credential trust model** — split display vs verification; may a stranger's phone cache /p/, for how long? | Decides whether /p/ no-store can ever relax |
+| B33 | RN-5 | `GET /api/v1/pets/{token}/credential` — Tier-0 as JSON with issuedAt+staleAfter (RN-1 B5 credential-first) | Flagship page gets a testable loader; degraded card shows real data |
+| B34 | RN-5 | Move credential-badges.ts out of the route folder into lib/domain/credential/ | WAVE D1 supersede contract reusable by cartel/OG/export |
+| B35 | RN-5 | Render the owner's QR client-side (qrcode runs in browsers) | Removes server SVG from the 2 heaviest owner renders |
+| B36 | RN-5 | Sign the Tier-0 payload (detached JWS) + publish JWK — converts F1 from undesigned to phased | Printed libreta/cartel/screenshot become checkable with an expiry |
+| B37 | RN-5 | One deepLinkMap + generated AASA/assetlinks + overlap fitness test (merge RN-3 B22); kill mimar://appointment | Catches p/perdidas, t/terminos, live /adoptar-no-slash collisions |
+| B38 | RN-5 | Honest owner-scoped offline cache: SW caches only the allowlisted own-credential route; flip the fitness test to enforce that | Keeps the no-store privacy invariant intact |
+| B39 | RN-5 | Accept TAG- serials in resolveAtenderPet + copy-to-clipboard footer token | Removes a live re-typing step in the walk-in clinical flow |
