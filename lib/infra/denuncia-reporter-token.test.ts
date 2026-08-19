@@ -55,13 +55,21 @@ describe("generateReporterToken / validateReporterToken", () => {
 
     const token = generateReporterToken("session", REPORT_A);
     const dot = token.lastIndexOf(".");
-    // Flip to a character GUARANTEED different from the original: hardcoding
-    // "X" made the "tampered" token identical to the real one whenever the
-    // MAC already had an X at that position — a ~1-in-64 die roll that came
-    // up during a full run (2026-08-18) and passed on every standalone rerun.
-    const original = token[dot - 1];
-    const flipped = original === "X" ? "Y" : "X";
-    const tampered = `${token.slice(0, dot - 1)}${flipped}${token.slice(dot)}`;
+    // Tamper the FIRST character AFTER the dot — inside the MAC segment.
+    // Two prior versions of this line were dice, not tests:
+    //   1. Hardcoding "X" at dot-1 produced an identical token whenever the
+    //      original char WAS "X" (~1/64 per run).
+    //   2. Flipping X↔Y at dot-1 still validated when the pre-dot segment's
+    //      length ≡ 3 (mod 4): base64url's final char there contributes only
+    //      its top 2 bits, and X (010111) and Y (011000) share them — the
+    //      "tampered" string DECODED to the same bytes (caught by CI while
+    //      the local run rolled green, 2026-08-19).
+    // A segment's first character always contributes all 6 of its bits, and
+    // A↔B differ in the low bit, so the decoded MAC is guaranteed different.
+    const macFirst = token[dot + 1];
+    const flipped = macFirst === "A" ? "B" : "A";
+    const tampered = `${token.slice(0, dot + 1)}${flipped}${token.slice(dot + 2)}`;
+    expect(tampered).not.toBe(token); // non-vacuity: the corruption must be real
     expect(validateReporterToken("session", REPORT_A, tampered)).toBe(false);
   });
 
