@@ -21,7 +21,7 @@ import { revalidatePath } from "next/cache";
 import { headers } from "next/headers";
 
 import type { LibretaShareToken } from "@/db";
-import { requirePetAccess } from "@/lib/infra/pet-access";
+import { requirePetAccess, requireTitularAccess } from "@/lib/infra/pet-access";
 import { RateLimitError, callerIp, enforceRateLimit } from "@/lib/infra/rate-limit";
 import { createClient } from "@/lib/supabase/server";
 import { createLibretaShareForUser as _createLibretaShareForUser } from "@/src/modules/pets/application/libreta-share/create-libreta-share";
@@ -67,11 +67,17 @@ export async function logLibretaShareViewForToken(input: {
 export async function createLibretaShareAction(
   input: CreateShareInput,
 ): Promise<CreateShareResult> {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) return { error: "Sesión expirada." };
+  // Deny-list row libreta-share-minting (custodia-temporal): a libreta share is
+  // a bearer-readable public link to the animal's medical record — titular-only.
+  //
+  // This used to authorize on a bare `supabase.auth.getUser()` while the module
+  // writer joined `ownerships` with NO role filter, so an active caretaker would
+  // have minted one. requireTitularAccess closes that AND makes the action
+  // deletion-aware for free (it funnels through requirePetAccess), which the
+  // bare getUser never was.
+  const titular = await requireTitularAccess(input.petPublicToken);
+  if (!titular.ok) return { error: titular.error };
+  const user = titular.user;
 
   const result = await _createLibretaShareForUser(user.id, input);
   if ("shareToken" in result) {

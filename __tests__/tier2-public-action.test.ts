@@ -12,7 +12,9 @@
 //   5. Revoke clears both tier2PublicPermanent and tier2PublicEnabledUntil.
 //
 // Mocking strategy:
-//   - Mock @/lib/pet-access (requirePetAccess) per test.
+//   - Mock @/lib/pet-access (requireTitularAccess) per test. Since
+//     custodia-temporal the Tier-2 public toggle is a titular-only write — a
+//     caretaker holds a Path-1 ownership row and must not open the credential.
 //   - Mock @/db (db.update chain) and capture the .set() call.
 //   - Mock next/cache (revalidatePath) as a no-op.
 
@@ -39,9 +41,9 @@ vi.mock("next/cache", () => ({
 // Mock: @/lib/pet-access
 // ---------------------------------------------------------------------------
 
-const mockRequirePetAccess = vi.fn();
+const mockRequireTitularAccess = vi.fn();
 vi.mock("@/lib/infra/pet-access", () => ({
-  requirePetAccess: (token: string) => mockRequirePetAccess(token),
+  requireTitularAccess: (token: string) => mockRequireTitularAccess(token),
 }));
 
 // ---------------------------------------------------------------------------
@@ -114,7 +116,7 @@ describe("enableTier2PublicAction", () => {
 
   it("throws when requirePetAccess returns ok:false", async () => {
     vi.resetModules();
-    mockRequirePetAccess.mockResolvedValue({ ok: false, error: "Sin permisos." });
+    mockRequireTitularAccess.mockResolvedValue({ ok: false, error: "Sin permisos." });
 
     const { enableTier2PublicAction } = await import("@/app/actions/tier2-public");
     await expect(enableTier2PublicAction(PUBLIC_TOKEN)).rejects.toThrow("Sin permisos.");
@@ -125,7 +127,7 @@ describe("enableTier2PublicAction", () => {
 
   it("throws when pet status is 'deceased'", async () => {
     vi.resetModules();
-    mockRequirePetAccess.mockResolvedValue(makePetAccessSuccess("deceased"));
+    mockRequireTitularAccess.mockResolvedValue(makePetAccessSuccess("deceased"));
 
     const { enableTier2PublicAction } = await import("@/app/actions/tier2-public");
     await expect(enableTier2PublicAction(PUBLIC_TOKEN)).rejects.toThrow(/fallecida/i);
@@ -136,7 +138,7 @@ describe("enableTier2PublicAction", () => {
 
   it("24h duration sets tier2PublicEnabledUntil to ~24h from now and permanent=false", async () => {
     vi.resetModules();
-    mockRequirePetAccess.mockResolvedValue(makePetAccessSuccess());
+    mockRequireTitularAccess.mockResolvedValue(makePetAccessSuccess());
 
     const { enableTier2PublicAction } = await import("@/app/actions/tier2-public");
     const before = Date.now();
@@ -154,7 +156,7 @@ describe("enableTier2PublicAction", () => {
 
   it("7d duration sets tier2PublicEnabledUntil to ~7 days from now", async () => {
     vi.resetModules();
-    mockRequirePetAccess.mockResolvedValue(makePetAccessSuccess());
+    mockRequireTitularAccess.mockResolvedValue(makePetAccessSuccess());
 
     const { enableTier2PublicAction } = await import("@/app/actions/tier2-public");
     const before = Date.now();
@@ -169,7 +171,7 @@ describe("enableTier2PublicAction", () => {
 
   it("30d duration sets tier2PublicEnabledUntil to ~30 days from now", async () => {
     vi.resetModules();
-    mockRequirePetAccess.mockResolvedValue(makePetAccessSuccess());
+    mockRequireTitularAccess.mockResolvedValue(makePetAccessSuccess());
 
     const { enableTier2PublicAction } = await import("@/app/actions/tier2-public");
     const before = Date.now();
@@ -184,7 +186,7 @@ describe("enableTier2PublicAction", () => {
 
   it("'siempre' duration sets tier2PublicPermanent=true and tier2PublicEnabledUntil=null", async () => {
     vi.resetModules();
-    mockRequirePetAccess.mockResolvedValue(makePetAccessSuccess());
+    mockRequireTitularAccess.mockResolvedValue(makePetAccessSuccess());
 
     const { enableTier2PublicAction } = await import("@/app/actions/tier2-public");
     await enableTier2PublicAction(PUBLIC_TOKEN, makeFormData("siempre"));
@@ -195,7 +197,7 @@ describe("enableTier2PublicAction", () => {
 
   it("unknown duration falls back to 24h window", async () => {
     vi.resetModules();
-    mockRequirePetAccess.mockResolvedValue(makePetAccessSuccess());
+    mockRequireTitularAccess.mockResolvedValue(makePetAccessSuccess());
 
     const { enableTier2PublicAction } = await import("@/app/actions/tier2-public");
     const before = Date.now();
@@ -211,7 +213,7 @@ describe("enableTier2PublicAction", () => {
 
   it("no FormData falls back to 24h window (back-compat)", async () => {
     vi.resetModules();
-    mockRequirePetAccess.mockResolvedValue(makePetAccessSuccess());
+    mockRequireTitularAccess.mockResolvedValue(makePetAccessSuccess());
 
     const { enableTier2PublicAction } = await import("@/app/actions/tier2-public");
     const before = Date.now();
@@ -231,7 +233,7 @@ describe("enableTier2PublicAction", () => {
     const access = makePetAccessSuccess();
     (access.pet as Record<string, unknown>).tier2PublicPermanent = true;
     (access.pet as Record<string, unknown>).tier2PublicEnabledUntil = null;
-    mockRequirePetAccess.mockResolvedValue(access);
+    mockRequireTitularAccess.mockResolvedValue(access);
 
     const { enableTier2PublicAction } = await import("@/app/actions/tier2-public");
     await enableTier2PublicAction(PUBLIC_TOKEN, makeFormData("siempre"));
@@ -247,7 +249,7 @@ describe("enableTier2PublicAction", () => {
     (access.pet as Record<string, unknown>).tier2PublicEnabledUntil = new Date(
       Date.now() + DAY_MS - 5_000,
     );
-    mockRequirePetAccess.mockResolvedValue(access);
+    mockRequireTitularAccess.mockResolvedValue(access);
 
     const { enableTier2PublicAction } = await import("@/app/actions/tier2-public");
     await enableTier2PublicAction(PUBLIC_TOKEN, makeFormData("24h"));
@@ -263,7 +265,7 @@ describe("enableTier2PublicAction", () => {
     (access.pet as Record<string, unknown>).tier2PublicEnabledUntil = new Date(
       Date.now() + 60 * 60 * 1000,
     );
-    mockRequirePetAccess.mockResolvedValue(access);
+    mockRequireTitularAccess.mockResolvedValue(access);
 
     const { enableTier2PublicAction } = await import("@/app/actions/tier2-public");
     await enableTier2PublicAction(PUBLIC_TOKEN, makeFormData("24h"));
@@ -277,7 +279,7 @@ describe("enableTier2PublicAction", () => {
     const access = makePetAccessSuccess();
     (access.pet as Record<string, unknown>).tier2PublicPermanent = true;
     (access.pet as Record<string, unknown>).tier2PublicEnabledUntil = null;
-    mockRequirePetAccess.mockResolvedValue(access);
+    mockRequireTitularAccess.mockResolvedValue(access);
 
     const { enableTier2PublicAction } = await import("@/app/actions/tier2-public");
     await enableTier2PublicAction(PUBLIC_TOKEN, makeFormData("24h"));
@@ -299,7 +301,7 @@ describe("revokeTier2PublicAction", () => {
 
   it("throws when requirePetAccess returns ok:false", async () => {
     vi.resetModules();
-    mockRequirePetAccess.mockResolvedValue({ ok: false, error: "Sin permisos." });
+    mockRequireTitularAccess.mockResolvedValue({ ok: false, error: "Sin permisos." });
 
     const { revokeTier2PublicAction } = await import("@/app/actions/tier2-public");
     await expect(revokeTier2PublicAction(PUBLIC_TOKEN)).rejects.toThrow("Sin permisos.");
@@ -310,7 +312,7 @@ describe("revokeTier2PublicAction", () => {
 
   it("clears tier2PublicEnabledUntil and sets tier2PublicPermanent=false", async () => {
     vi.resetModules();
-    mockRequirePetAccess.mockResolvedValue(makePetAccessSuccess());
+    mockRequireTitularAccess.mockResolvedValue(makePetAccessSuccess());
 
     const { revokeTier2PublicAction } = await import("@/app/actions/tier2-public");
     await revokeTier2PublicAction(PUBLIC_TOKEN);
@@ -322,7 +324,7 @@ describe("revokeTier2PublicAction", () => {
 
   it("revoke works even on a deceased pet (no deceased guard on revoke path)", async () => {
     vi.resetModules();
-    mockRequirePetAccess.mockResolvedValue(makePetAccessSuccess("deceased"));
+    mockRequireTitularAccess.mockResolvedValue(makePetAccessSuccess("deceased"));
 
     const { revokeTier2PublicAction } = await import("@/app/actions/tier2-public");
     await expect(revokeTier2PublicAction(PUBLIC_TOKEN)).resolves.toBeUndefined();

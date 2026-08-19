@@ -284,4 +284,11 @@ describe("check-titular-gate — real tree", () => {
       expect(reason.length, `${key} has an empty reason`).toBeGreaterThan(20);
     }
   });
+
+  it("keeps the allowlist EMPTY", () => {
+    // The ratchet. The fence shipped with five entries and the guard swaps
+    // emptied it; from here on, adding one is a deliberate act that has to
+    // change this test too, instead of a quiet way to make a red build green.
+    expect(Object.keys(TITULAR_GATE_ALLOWLIST)).toEqual([]);
+  });
 });

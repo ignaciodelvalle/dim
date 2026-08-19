@@ -97,6 +97,8 @@ export const ownershipRoleEnum = pgEnum("ownership_role", [
   "caretaker",
 ]);
 
+export type OwnershipRole = (typeof ownershipRoleEnum.enumValues)[number];
+
 // Who authored an event.
 // `owner` in v1 self-serve flows.
 // `scanner` is for credential_scanned events when an anonymous or non-owner user

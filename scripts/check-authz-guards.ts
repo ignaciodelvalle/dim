@@ -54,6 +54,11 @@ export const AUTH_GUARDS = [
   "requireDenunciaModerationPrincipal",
   "requirePetAccess",
   "requireAlivePetAccess",
+  // Titular-only gate (custodia-temporal). Composes with requirePetAccess and
+  // denies exactly one thing: a person-path holder whose ownership role is
+  // `caretaker`. It IS a guard for coverage purposes — it resolves the session,
+  // the profile and the ownership row through requirePetAccess before deciding.
+  "requireTitularAccess",
   "requireOwnedPet",
   "requireOwnedPetByToken",
   "requireOwnedAndAlive",
@@ -94,6 +99,10 @@ export const PERSONAL_TIER_GUARDS = [
   "requireUserOrRedirect",
   "requirePetAccess",
   "requireAlivePetAccess",
+  // Titular-only: still a PERSONAL guard. It narrows WHICH holder may act, not
+  // whether the caller holds operator authority — an admin/gob route gated by
+  // this alone is exactly as weak as one gated by requirePetAccess alone.
+  "requireTitularAccess",
   "requireOwnedPet",
   "requireOwnedPetByToken",
   "requireOwnedAndAlive",
@@ -116,6 +125,9 @@ export const PERSONAL_TIER_GUARDS = [
 export const DELETION_AWARE_GUARDS = [
   "requireUserOrRedirect",
   "requirePetAccess",
+  // Deletion-aware for free: it calls requirePetAccess first and returns its
+  // failure verbatim, so the erased-profile check runs before the role check.
+  "requireTitularAccess",
   "requireAlivePetAccess",
   "requireOwnedPet",
   "requireOwnedPetByToken",

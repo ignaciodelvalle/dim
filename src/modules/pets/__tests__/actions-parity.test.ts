@@ -2,7 +2,7 @@
 //
 // These are module-level unit tests — they mock Next.js, Supabase, and the
 // use-cases so we can verify the action's orchestration logic without a DB:
-//   - Auth guard fires first (createPet: getUser; updatePet: requirePetAccess)
+//   - Auth guard fires first (createPet: getUser; updatePet: requireTitularAccess)
 //   - Pre-tx chip cross-check 3-way: lost→redirect / active→warn+forceToken / deceased→error
 //   - Jurisdiction error propagated from resolveCanonicalJurisdiction
 //   - Use-case error propagated to caller
@@ -36,7 +36,7 @@ vi.mock("@/lib/supabase/server", () => ({
 }));
 
 vi.mock("@/lib/infra/pet-access", () => ({
-  requirePetAccess: vi.fn().mockResolvedValue({
+  requireTitularAccess: vi.fn().mockResolvedValue({
     ok: true,
     user: { id: "user-1" },
     supabase: {
@@ -441,7 +441,7 @@ describe("updatePetAction", () => {
     updatePetAction = mod.updatePetAction;
     vi.clearAllMocks();
 
-    (await import("@/lib/infra/pet-access")).requirePetAccess = vi.fn().mockResolvedValue({
+    (await import("@/lib/infra/pet-access")).requireTitularAccess = vi.fn().mockResolvedValue({
       ok: true,
       user: { id: "user-1" },
       supabase: { storage: { from: vi.fn().mockReturnValue({ remove: vi.fn() }) } },
@@ -488,9 +488,9 @@ describe("updatePetAction", () => {
   });
 
   describe("auth guard", () => {
-    it("returns error when requirePetAccess fails", async () => {
-      const { requirePetAccess } = await import("@/lib/infra/pet-access");
-      (requirePetAccess as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
+    it("returns error when requireTitularAccess fails", async () => {
+      const { requireTitularAccess } = await import("@/lib/infra/pet-access");
+      (requireTitularAccess as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
         ok: false,
         error: "Acceso denegado.",
       });
@@ -581,7 +581,7 @@ describe("updatePetAction", () => {
 
     it("attack A: species=cat&breed=Persa on a dog is rejected against the DOG catalog", async () => {
       const petAccessMod = await import("@/lib/infra/pet-access");
-      petAccessMod.requirePetAccess = mockPetAccessOnce({ species: "dog", breed: "Labrador" });
+      petAccessMod.requireTitularAccess = mockPetAccessOnce({ species: "dog", breed: "Labrador" });
       const { updatePet } = await import("@/src/modules/pets/application/update-pet");
 
       const result = (await updatePetAction(
@@ -599,7 +599,7 @@ describe("updatePetAction", () => {
 
     it("attack B: species=cat with the unchanged PPP breed still classifies as a DOG (flag not cleared)", async () => {
       const petAccessMod = await import("@/lib/infra/pet-access");
-      petAccessMod.requirePetAccess = mockPetAccessOnce({
+      petAccessMod.requireTitularAccess = mockPetAccessOnce({
         species: "dog",
         breed: "Pit Bull Terrier",
         potentiallyDangerousBreed: true,
@@ -719,7 +719,7 @@ describe("correctPetSpeciesAction", () => {
 
   it("clears a breed that does not resolve in the NEW species' catalog", async () => {
     const petAccessMod = await import("@/lib/infra/pet-access");
-    petAccessMod.requirePetAccess = mockPetAccess({ species: "dog", breed: "Labrador" });
+    petAccessMod.requireTitularAccess = mockPetAccess({ species: "dog", breed: "Labrador" });
     const { PetsRepository } = await import("@/src/modules/pets/infrastructure/pets-repository");
 
     const state = await correctPetSpeciesAction(
@@ -742,7 +742,7 @@ describe("correctPetSpeciesAction", () => {
 
   it("keeps a special option — it resolves in every species' catalog", async () => {
     const petAccessMod = await import("@/lib/infra/pet-access");
-    petAccessMod.requirePetAccess = mockPetAccess({ species: "dog", breed: "Mixto / Cruza" });
+    petAccessMod.requireTitularAccess = mockPetAccess({ species: "dog", breed: "Mixto / Cruza" });
     const { PetsRepository } = await import("@/src/modules/pets/infrastructure/pets-repository");
 
     const state = await correctPetSpeciesAction(
@@ -760,7 +760,7 @@ describe("correctPetSpeciesAction", () => {
 
   it("recomputes PPP with the new species AND the possibly-cleared breed", async () => {
     const petAccessMod = await import("@/lib/infra/pet-access");
-    petAccessMod.requirePetAccess = mockPetAccess({ species: "cat", breed: "Persa" });
+    petAccessMod.requireTitularAccess = mockPetAccess({ species: "cat", breed: "Persa" });
     const { resolvePppClassificationForJurisdiction } = await import(
       "@/lib/infra/ppp-classification"
     );

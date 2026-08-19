@@ -60,6 +60,10 @@ const AUTH_GUARDS = [
   "requireDecomisoPrincipal",
   "requirePetAccess",
   "requireAlivePetAccess",
+  // Titular-only gate (custodia-temporal): composes with requirePetAccess and
+  // additionally refuses a person-path holder whose ownership role is
+  // `caretaker`. Strictly stronger than requirePetAccess, never weaker.
+  "requireTitularAccess",
   "requireOwnedPet",
   "requireOwnedPetByToken",
   "requireOwnedAndAlive",

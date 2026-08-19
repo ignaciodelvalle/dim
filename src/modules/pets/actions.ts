@@ -5,7 +5,10 @@
 // Each action does ONLY:
 //   1. Auth guard (security boundary stays here — NOT in use-cases):
 //      - createPetAction: supabase.auth.getUser() (no pet exists yet)
-//      - updatePetAction: requirePetAccess (pet must exist + ownership check)
+//      - updatePetAction / recordMoveAction / correctPetSpeciesAction:
+//        requireTitularAccess (pet must exist + ownership check + the holder is
+//        NOT a caretaker — all three write titular-only fields: identity,
+//        jurisdiction, species)
 //   2. Parse formData → ParsedPet (via parsePetForm from domain layer)
 //   3. Pre-tx I/O (request-edge concerns):
 //      - Jurisdiction canonicalization
@@ -30,7 +33,7 @@ import { validateMicrochipId } from "@/lib/domain/microchip-validation";
 import { lookupByChip } from "@/lib/infra/chip-lookup";
 import { generateForceToken, validateForceToken } from "@/lib/infra/microchip-force-token";
 import { findSameOwnerDuplicatePet } from "@/lib/infra/owner-pet-dedupe";
-import { requirePetAccess } from "@/lib/infra/pet-access";
+import { requireTitularAccess } from "@/lib/infra/pet-access";
 import { fetchActiveIdentifications } from "@/lib/infra/pet-identifiers";
 import { resolvePppClassificationForJurisdiction } from "@/lib/infra/ppp-classification";
 import { uploadAttachmentIfPresent } from "@/lib/infra/uploads";
@@ -396,7 +399,7 @@ export async function updatePetAction(
   _previous: NewPetFormState,
   formData: FormData,
 ): Promise<NewPetFormState> {
-  const access = await requirePetAccess(publicToken);
+  const access = await requireTitularAccess(publicToken);
   if (!access.ok) return { error: access.error };
   const { supabase, user, pet: existingPet, eventAuthorship, accessPath } = access;
 
@@ -552,7 +555,7 @@ export async function recordMoveAction(
   _previous: NewPetFormState,
   formData: FormData,
 ): Promise<NewPetFormState> {
-  const access = await requirePetAccess(publicToken);
+  const access = await requireTitularAccess(publicToken);
   if (!access.ok) return { error: access.error };
   const { user, pet, eventAuthorship } = access;
 
@@ -632,7 +635,7 @@ export async function correctPetSpeciesAction(
   _previous: NewPetFormState,
   formData: FormData,
 ): Promise<NewPetFormState> {
-  const access = await requirePetAccess(publicToken);
+  const access = await requireTitularAccess(publicToken);
   if (!access.ok) return { error: access.error };
   const { user, pet, eventAuthorship } = access;
 

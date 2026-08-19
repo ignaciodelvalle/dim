@@ -106,29 +106,15 @@ export const PERSON_PATH_GUARDS = [
  * `__tests__/check-titular-gate.test.ts` asserts the real tree produces no
  * offender outside it.
  *
- * SEEDED, NOT BORN CLEAN — and that is the honest outcome. The plan expected an
- * empty baseline on the unmodified tree ("no ungated titular-only writer exists
- * yet"). It does not hold: the five entries below are real, live, ungated
- * titular-only writers that an active caretaker would pass today. Finding them
- * on the first run is the strongest evidence available that this fence is not
- * vacuous — a fence green on fixtures alone proves only that the fixtures work.
- *
- * Every entry here is removed by the very next commit (the requireTitularAccess
- * swaps). If you are reading this and the map is not empty, the swap commit did
- * not land.
+ * IT WAS NOT BORN EMPTY. The commit that introduced this fence found five real,
+ * live, ungated titular-only writers on the unmodified tree — the tier-2 public
+ * toggles, the profile edit, the jurisdiction move and the species correction —
+ * and parked them here with a closing date. The commit that swapped them onto
+ * requireTitularAccess emptied it. That round trip is the evidence the fence
+ * detects something: a fence green on fixtures alone proves only that the
+ * fixtures work.
  */
-export const TITULAR_GATE_ALLOWLIST: Record<string, string> = {
-  "app/actions/tier2-public.ts#enableTier2PublicAction":
-    "Deny-list row tier2-public-toggle. Ungated today; swapped to requireTitularAccess in the next commit of custodia-temporal.",
-  "app/actions/tier2-public.ts#revokeTier2PublicAction":
-    "Deny-list row tier2-public-toggle. Ungated today; swapped to requireTitularAccess in the next commit of custodia-temporal.",
-  "src/modules/pets/actions.ts#updatePetAction":
-    "Deny-list row identity-field-edits. Ungated today; swapped to requireTitularAccess in the next commit of custodia-temporal.",
-  "src/modules/pets/actions.ts#recordMoveAction":
-    "Deny-list row jurisdiction-change. Ungated today; swapped to requireTitularAccess in the next commit of custodia-temporal.",
-  "src/modules/pets/actions.ts#correctPetSpeciesAction":
-    "Deny-list row identity-field-edits. Ungated today; swapped to requireTitularAccess in the next commit of custodia-temporal.",
-};
+export const TITULAR_GATE_ALLOWLIST: Record<string, string> = {};
 
 export type ScanSource = { relPath: string; src: string };
 

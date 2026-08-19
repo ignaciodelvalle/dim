@@ -24,6 +24,7 @@
 import {
   type Organization,
   type OrganizationMembership,
+  type OwnershipRole,
   type Pet,
   db,
   organizationMemberships,
@@ -36,7 +37,7 @@ import { findOpenCaseForPetAndKind } from "@/lib/infra/case-helpers";
 import { getProfileCached } from "@/lib/infra/request-cache";
 import { createClient } from "@/lib/supabase/server";
 import { getGrantedCapabilities } from "@/src/modules/organizations/infrastructure/authz-resolver";
-import { and, desc, eq, isNotNull, isNull } from "drizzle-orm";
+import { and, desc, eq, isNotNull, isNull, sql } from "drizzle-orm";
 
 export type PetAccessPath = "owner" | "org";
 
@@ -77,6 +78,13 @@ export type PetAccessSuccess = {
   // the access). Null on owner-path. Capability-gated wrappers like
   // requireAlivePetAccess consult it to check fine-grained permissions.
   membership: OrganizationMembership | null;
+  // The role of the ownership row that authorized a PERSON-path access, so a
+  // caller can tell "this pet is one of mine" apart from "I may write anything
+  // on it" (custodia-temporal). NULL on the org path — deliberately, and never
+  // as a placeholder: org access is capability-gated separately, and conflating
+  // an org member's authority with a person's ownership role is how you end up
+  // applying the wrong gate. See requireTitularAccess below.
+  holderRole: OwnershipRole | null;
   eventAuthorship: PetEventAuthorship;
   error: null;
 };
@@ -91,7 +99,12 @@ export type PetAccessSuccess = {
 //       write capability. Pages fail closed to notFound() (no information leak);
 //       an erased account (valid JWT, no rights) is deliberately in this bucket
 //       so it 404s like any other permission denial rather than looping /login.
-export type PetAccessFailureReason = "no-session" | "not-found-or-forbidden";
+//   - "not-titular"           → the caller DOES hold this pet, as a caretaker,
+//       and the action is titular-only. Distinct from the bucket above on
+//       purpose: pretending the pet does not exist to someone who is legitimately
+//       caring for it is a lie the UI cannot recover from. This one gets an
+//       explanatory refusal, not a 404.
+export type PetAccessFailureReason = "no-session" | "not-found-or-forbidden" | "not-titular";
 
 export type PetAccessFailure = {
   ok: false;
@@ -158,11 +171,22 @@ export async function requirePetAccess(publicToken: string): Promise<PetAccessRe
     };
   }
 
-  // Path 1: direct ownership by user_id. We don't filter by ownership.role —
-  // owner / co_owner / foster / caretaker all qualify. The shelter_custody
-  // role is impossible on this path (it requires owner_organization_id).
+  // Path 1: direct ownership by user_id. We still don't filter by
+  // ownership.role — owner / co_owner / foster / caretaker all qualify for
+  // ACCESS. What changed with custodia-temporal is that the role is now
+  // RETURNED, so a titular-only writer can refuse a caretaker without this
+  // helper narrowing anybody's access. The shelter_custody role is impossible
+  // on this path (it requires owner_organization_id).
+  //
+  // The ORDER BY is not cosmetic. This query was `.limit(1)` with no ordering:
+  // harmless while the result was role-agnostic, a coin flip the moment `role`
+  // became load-bearing. A user who is BOTH owner and caretaker of one pet
+  // (perfectly reachable — a titular can be designated caretaker of their own
+  // co-owned animal) would otherwise resolve to a non-deterministic role and
+  // get denied at random. Same bug class, same remedy, as the ROUTE-1 ranking
+  // in encontre/action.ts: rank explicitly, most-privileged row first.
   const [ownerRow] = await db
-    .select({ pet: pets })
+    .select({ pet: pets, role: ownerships.role })
     .from(pets)
     .innerJoin(ownerships, eq(ownerships.petId, pets.id))
     .where(
@@ -171,6 +195,9 @@ export async function requirePetAccess(publicToken: string): Promise<PetAccessRe
         eq(ownerships.ownerUserId, user.id),
         isNull(ownerships.endedAt),
       ),
+    )
+    .orderBy(
+      sql`case ${ownerships.role} when 'owner' then 0 when 'co_owner' then 1 when 'foster' then 2 when 'caretaker' then 3 else 4 end`,
     )
     .limit(1);
   if (ownerRow) {
@@ -182,6 +209,7 @@ export async function requirePetAccess(publicToken: string): Promise<PetAccessRe
       accessPath: "owner",
       organization: null,
       membership: null,
+      holderRole: ownerRow.role,
       eventAuthorship: OWNER_AUTHORSHIP,
       error: null,
     };
@@ -236,6 +264,7 @@ export async function requirePetAccess(publicToken: string): Promise<PetAccessRe
       accessPath: "org",
       organization: orgRow.organization,
       membership: orgRow.membership,
+      holderRole: null,
       eventAuthorship,
       error: null,
     };
@@ -293,6 +322,47 @@ export async function requireAlivePetAccess(publicToken: string): Promise<PetAcc
           "Necesitás el permiso 'Registrar eventos clínicos' (event.write). Pediselo a un administrador.",
       };
     }
+  }
+  return access;
+}
+
+// Titular-only gate (custodia-temporal). Composes with requirePetAccess — it
+// does NOT replace it — and denies exactly one thing: a person-path holder whose
+// ownership role is `caretaker`.
+//
+// It is a role DENY, not an allow-list, and that asymmetry is the point:
+//   - `co_owner` passes. A co-owner is owner-equivalent; making them ask
+//     permission would be a new product decision smuggled in as a security fix.
+//   - `foster` passes. Today's behaviour, byte for byte.
+//   - the ORG path passes. holderRole is null there and org access is
+//     capability-gated separately; a deny here would be the wrong gate applied
+//     at the wrong layer.
+// Consequence worth stating plainly: with no caretaker row in the database this
+// function is behaviourally identical to requirePetAccess. That is what makes
+// swapping the ~5 titular-only call sites safe to land BEFORE the caretakers
+// module exists.
+//
+// It lives HERE, next to requirePetAccess, and not in src/modules/caretakers.
+// Putting it in the module would force app/actions/** and every future writer to
+// import the caretakers module — inverting the dependency direction the whole
+// module fence exists to protect. The fence is scripts/check-titular-gate.ts;
+// this is the guard it looks for.
+export async function requireTitularAccess(publicToken: string): Promise<PetAccessResult> {
+  const access = await requirePetAccess(publicToken);
+  if (!access.ok) return access;
+  if (access.accessPath === "owner" && access.holderRole === "caretaker") {
+    return {
+      ok: false,
+      supabase: access.supabase,
+      user: access.user,
+      pet: null,
+      accessPath: null,
+      organization: null,
+      membership: null,
+      eventAuthorship: OWNER_AUTHORSHIP,
+      reason: "not-titular",
+      error: "Sos cuidador/a de esta mascota. Esta acción es solo del titular.",
+    };
   }
   return access;
 }

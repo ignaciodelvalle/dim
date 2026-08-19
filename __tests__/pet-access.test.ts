@@ -44,9 +44,10 @@ vi.mock("@/lib/infra/request-cache", () => ({
 // never issues a query.
 // ---------------------------------------------------------------------------
 
-const { chain, mockSelect, dbState } = vi.hoisted(() => {
+const { chain, mockSelect, mockOrderBy, dbState } = vi.hoisted(() => {
   const dbState = { results: [] as unknown[][] };
   const mockSelect = vi.fn();
+  const mockOrderBy = vi.fn();
   const chain: Record<string, unknown> = {
     select: (...args: unknown[]) => {
       mockSelect(...args);
@@ -55,15 +56,19 @@ const { chain, mockSelect, dbState } = vi.hoisted(() => {
     from: () => chain,
     innerJoin: () => chain,
     where: () => chain,
+    orderBy: (...args: unknown[]) => {
+      mockOrderBy(...args);
+      return chain;
+    },
     limit: () => Promise.resolve(dbState.results.shift() ?? []),
   };
-  return { chain, mockSelect, dbState };
+  return { chain, mockSelect, mockOrderBy, dbState };
 });
 
 vi.mock("@/db", () => ({
   db: chain,
   pets: {},
-  ownerships: {},
+  ownerships: { role: { name: "role" } },
   organizations: {},
   organizationMemberships: {},
   profiles: { id: {}, matriculaVerified: {} },
@@ -83,7 +88,11 @@ vi.mock("@/src/modules/organizations/infrastructure/authz-resolver", () => ({
 // Import the boundary AFTER mocks are hoisted
 // ---------------------------------------------------------------------------
 
-import { requireAlivePetAccess, requirePetAccess } from "@/lib/infra/pet-access";
+import {
+  requireAlivePetAccess,
+  requirePetAccess,
+  requireTitularAccess,
+} from "@/lib/infra/pet-access";
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -172,7 +181,9 @@ describe("requirePetAccess — right-to-erasure lockout (Wave E2)", () => {
     mockGetUser.mockResolvedValue(userSession("user-live"));
     mockGetProfileCached.mockResolvedValue(profile({ id: "user-live", deletedAt: null }));
     // First .limit() (ownership path) returns an owner row.
-    dbState.results = [[{ pet: { id: "pet-1", publicToken: "DIM-TEST-0001", status: "active" } }]];
+    dbState.results = [
+      [{ pet: { id: "pet-1", publicToken: "DIM-TEST-0001", status: "active" }, role: "owner" }],
+    ];
 
     const result = await requirePetAccess("DIM-TEST-0001");
 
@@ -210,12 +221,155 @@ describe("requireAlivePetAccess — inherits erasure lockout", () => {
     mockGetProfileCached.mockResolvedValue(profile({ id: "user-live", deletedAt: null }));
     // Ownership query returns a deceased pet the caller owns.
     dbState.results = [
-      [{ pet: { id: "pet-dead", publicToken: "DIM-TEST-0001", status: "deceased" } }],
+      [
+        {
+          pet: { id: "pet-dead", publicToken: "DIM-TEST-0001", status: "deceased" },
+          role: "owner",
+        },
+      ],
     ];
 
     const result = await requireAlivePetAccess("DIM-TEST-0001");
 
     expect(result.ok).toBe(false);
     if (!result.ok) expect(result.reason).toBe("not-found-or-forbidden");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// holderRole + requireTitularAccess (custodia-temporal)
+//
+// Since custodia-temporal a Path-1 holder may be a `caretaker`: a bounded,
+// scoped grant. requirePetAccess binds the pet to the caller and must now ALSO
+// say which role is acting, so titular-only writers can refuse the caretaker
+// without narrowing anybody else's access.
+// ---------------------------------------------------------------------------
+
+function ownerRow(role: string, petOverrides: Record<string, unknown> = {}) {
+  return [
+    {
+      pet: { id: "pet-1", publicToken: "DIM-TEST-0001", status: "active", ...petOverrides },
+      role,
+    },
+  ];
+}
+
+function orgRow() {
+  return [
+    {
+      pet: { id: "pet-1", publicToken: "DIM-TEST-0001", status: "active" },
+      organization: { id: "org-1", name: "Refugio" },
+      membership: { id: "mem-1", organizationId: "org-1" },
+      signerMatriculaVerified: false,
+    },
+  ];
+}
+
+function liveSession(id = "user-live") {
+  mockGetUser.mockResolvedValue(userSession(id));
+  mockGetProfileCached.mockResolvedValue(profile({ id, deletedAt: null }));
+}
+
+describe("requirePetAccess — holderRole", () => {
+  it("exposes holderRole='owner' and does not change owner access", async () => {
+    liveSession();
+    dbState.results = [ownerRow("owner")];
+
+    const result = await requirePetAccess("DIM-TEST-0001");
+
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.accessPath).toBe("owner");
+      expect(result.holderRole).toBe("owner");
+      // The whole point of landing this before the module: nothing else moves.
+      expect(result.eventAuthorship).toEqual({
+        authorRole: "owner",
+        authorOrganizationId: null,
+        authorVerified: false,
+      });
+    }
+  });
+
+  it("ranks the Path-1 row deterministically instead of taking any of them", async () => {
+    // `.limit(1)` with no ORDER BY is harmless while the result is role-agnostic
+    // and a coin flip the moment `role` becomes load-bearing — the same
+    // non-determinism as the ROUTE-1 ranking bug. A user who is both owner and
+    // caretaker of one pet must resolve as owner, every time.
+    liveSession();
+    dbState.results = [ownerRow("owner")];
+
+    await requirePetAccess("DIM-TEST-0001");
+
+    expect(mockOrderBy).toHaveBeenCalled();
+  });
+
+  it("returns holderRole=null on the org path — never conflated with a person role", async () => {
+    liveSession();
+    dbState.results = [[], orgRow()];
+
+    const result = await requirePetAccess("DIM-TEST-0001");
+
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.accessPath).toBe("org");
+      expect(result.holderRole).toBeNull();
+    }
+  });
+});
+
+describe("requireTitularAccess", () => {
+  it("denies a caretaker with an es-AR refusal and reason 'not-titular'", async () => {
+    liveSession("user-caretaker");
+    dbState.results = [ownerRow("caretaker")];
+
+    const result = await requireTitularAccess("DIM-TEST-0001");
+
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.reason).toBe("not-titular");
+      expect(result.error).toBe("Sos cuidador/a de esta mascota. Esta acción es solo del titular.");
+    }
+    expect(result.pet).toBeNull();
+  });
+
+  it("lets the titular through unchanged", async () => {
+    liveSession();
+    dbState.results = [ownerRow("owner")];
+
+    const result = await requireTitularAccess("DIM-TEST-0001");
+
+    expect(result.ok).toBe(true);
+    if (result.ok) expect(result.holderRole).toBe("owner");
+  });
+
+  it.each(["co_owner", "foster"])(
+    "lets %s through — this is a caretaker DENY, not an allow-list",
+    async (role) => {
+      liveSession();
+      dbState.results = [ownerRow(role)];
+
+      const result = await requireTitularAccess("DIM-TEST-0001");
+
+      expect(result.ok).toBe(true);
+    },
+  );
+
+  it("lets the org path through — holderRole is null there by construction", async () => {
+    liveSession();
+    dbState.results = [[], orgRow()];
+
+    const result = await requireTitularAccess("DIM-TEST-0001");
+
+    expect(result.ok).toBe(true);
+    if (result.ok) expect(result.accessPath).toBe("org");
+  });
+
+  it("propagates an underlying denial verbatim (no session)", async () => {
+    mockGetUser.mockResolvedValue(noSession());
+
+    const result = await requireTitularAccess("DIM-TEST-0001");
+
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.reason).toBe("no-session");
   });
 });
