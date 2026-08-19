@@ -38,7 +38,7 @@ CHEAP / READY.
 |---|---|---|---|
 | R1 | API boundary | Owner+atender flows run on RSC pages + server actions. What is callable from OUTSIDE a Next.js render — today, honestly? Inventory every mutation/read the Phase 1-2 flows need and classify: route handler exists / server action only / logic locked inside a page body. | **EXPENSIVE** → [RN-1](RN-1-api-boundary.md) |
 | R2 | Native auth | Supabase tokens vs the cookie/middleware assumptions. Session refresh, deep-link password recovery, rate limits keyed on what, Mi Argentina OIDC on mobile. | **EXPENSIVE** → [RN-2](RN-2-native-auth.md) |
-| R3 | Push channel | Everything is web-push (VAPID) or in-app rows. Where is the channel coupled? Can notification fanout target FCM/APNs without rewriting the 67 insert sites? | pending |
+| R3 | Push channel | Everything is web-push (VAPID) or in-app rows. Where is the channel coupled? Can notification fanout target FCM/APNs without rewriting the 67 insert sites? | **EXPENSIVE** → [RN-3](RN-3-push-channel.md) |
 | R4 | Media pipeline | Uploads are server-action-mediated (`uploadAttachmentIfPresent`). Can a native client upload to storage + register the attachment without a form post? Public vs signed URLs. | pending |
 | R5 | Offline credential + deep links | What does the QR encode, what must render with zero connectivity, universal-link mapping for `/p/`, `/t/`, `/libreta/compartir/`. | pending |
 | R6 | Shared contracts | Event payload zod schemas, catalog data (vaccines, breeds, localities), es-AR copy. What could ship as a versioned contract package vs what is trapped in component files? | pending |
@@ -58,6 +58,13 @@ CHEAP / READY.
   CGNAT-hostile per-IP auth limits; Mi Argentina OIDC frozen as confidential
   web client (and its signup path records no TOS). Saving property to protect:
   authorization is 100% DB-resolved, never client-derived.
+- [RN-3 — Push channel](RN-3-push-channel.md) · **EXPENSIVE** · one clean
+  provider-neutral seam (FCM sibling = an afternoon) but: target table can't
+  hold a device token; the eligibility boolean excludes lost-pet broadcasts
+  and custody updates (2 of the 3 use-cases the native pitch is built on);
+  org members — the broadcast audience — run in a shell that never registers
+  a SW; no preferences/quiet hours/timezone (daily urgent push at 01:00 ART);
+  sends inline+unretried+unobserved.
 
 ## Improvement backlog
 
@@ -80,3 +87,11 @@ CHEAP / READY.
 | B13 | RN-2 | Re-key auth rate limits off subject not IP (CGNAT); captcha for signup | Live 4G availability bug today |
 | B14 | RN-2 | Amend the Mi Argentina convenio ask NOW: 2 redirect URIs, public+PKCE variant, tosAcceptedAt in the OIDC write list | Doc edit; avoids re-negotiating a signed convenio |
 | B15 | RN-2 | Auth error vocabulary in the ADR envelope + "no custom JWT claims" as a protected invariant | Middleware stops hiding auth misconfig behind expired-token silence |
+| B16 | RN-3 | Notification type registry (134 rows: severity, pushable, collapse, opt-out group) driving isPushable() | Kills category drift; CTA fitness asserts a table |
+| B17 | RN-3 | Quiet hours + profiles.timezone + preferences; IMMEDIATE: stop the 01:00 ART daily urgent push | Live nuisance fix this week, no schema |
+| B18 | RN-3 | push_subscriptions → push_targets (platform, device_id key, nullable token) + promised stale-pruning cron | Real device list in /cuenta; dead rows stop accumulating |
+| B19 | RN-3 | Migrate the 12 legacy push-calling sites onto createNotification* with real dedupeKeys | Those sites today have zero idempotency AND zero dead-lettering |
+| B20 | RN-3 | Delivery record (push_deliveries or cron_runs counters) + operator tile beside outbound-channels | "Did it send?" becomes answerable |
+| B21 | RN-3 | Sends off the request path via outbox-drainer backoff shape | Actions stop blocking on N sequential HTTPS calls |
+| B22 | RN-3 | notificationTarget() deep-link map + fitness test | 50 hand-built URL templates stop drifting; AASA export mechanical |
+| B23 | RN-3 | PO decision: lost-pet targeting unit (locality fanout vs centroid+radius) | The /perdidas audience gets an alert channel at all |
