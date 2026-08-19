@@ -1,5 +1,5 @@
 /**
- * Supporting cast — 15 ordinary pets that populate the demo.
+ * Supporting cast — 17 ordinary pets that populate the demo.
  *
  * Distributed across CABA Comunas 1 (Retiro / Puerto Madero / San Nicolás),
  * 2 (Recoleta), 14 (Palermo) to give the sanitary-authority dashboards real
@@ -22,11 +22,11 @@
  *     - adoption_application_submitted (pending)                     (Negro)
  *     - adoption_application_rejected                                (Pelusa, prior applicant)
  *     - adoption_withdrawn                                           (Coco, prior applicant)
- *     - adoption_eligibility_set                                     (Lola, Bichita)
+ *     - adoption_eligibility_set                          (Lola, Bichita, Milanesa, Pochoclo)
  *     - microchip_revoked                                            (Coco — duplicate fraud)
  *     - sterilization_performed (multiple)
  *
- *   Species mix: 9 dogs, 4 cats, 1 rabbit, 1 guinea pig.
+ *   Species mix: 9 dogs, 6 cats, 1 rabbit, 1 guinea pig.
  *
  *   Recent activity: every active pet gets at least one event in the last
  *   60 days so the "hoy / esta semana / próximos recordatorios" widgets
@@ -1411,6 +1411,185 @@ const pepito: Storyline = {
 // Scooby (2025), Puss (2026) across the other files.
 // ===========================================================================
 
+// ---------------------------------------------------------------------------
+// DIM-S016 — Milanesa (Patitas del Norte) — gata joven, apta y publicada
+// DIM-S017 — Pochoclo (Patitas del Norte) — gatito, apto y publicado
+//
+// Blind QA 2026-08-19 (O8): a citizen came to adopt a young cat, filtered
+// ESPECIE = Gatos on /adoptar and got "No hay mascotas con esos filtros" — the
+// whole published catalog was two dogs and a guinea pig. Not a bug in the
+// filter: there was not one cat to find. Cats are the most common adoption
+// search in Argentina, so the demo answered the single most likely question
+// with an empty page.
+//
+// Two, not one, and in different age buckets: one cat makes the filter return
+// a list of length one, which reads as a placeholder rather than a catalog.
+// ---------------------------------------------------------------------------
+
+const milanesa: Storyline = {
+  pet: {
+    display_name: "Milanesa",
+    public_token: "DIM-S016-PLRM",
+    species: "cat",
+    breed: "Comón europeo",
+    sex: "female",
+    date_of_birth: "2025-04-12",
+    color: "Atigrada marrón",
+    microchip_id: "858016000000016",
+    microchip_country_code: "858",
+    microchip_implanted_at: "2025-09-30",
+    microchip_implanted_by: "Refugio Patitas del Norte",
+    microchip_location: "interscapular_left",
+    estimated_weight_kg: 3.4,
+    potentially_dangerous_breed: false,
+    jurisdiction_country: "AR",
+    jurisdiction_province: "CABA",
+    jurisdiction_locality: "Palermo",
+    acquisition_method: "rescued",
+    status: "active",
+    owner: "org:patitas-del-norte",
+    notes:
+      "Shelter custody. adoption_eligibility_set TRUE — listed on /adoptar as the young-cat option.",
+  },
+  events: [
+    {
+      date: "2025-09-28",
+      event_type: "shelter_intake_recorded",
+      author_role: "shelter",
+      payload: { intake_reason: "stray_found", intake_condition: "healthy" },
+    },
+    {
+      date: "2025-09-28",
+      event_type: "pet_registered",
+      author_role: "shelter",
+      payload: { acquisition_method: "rescued" },
+    },
+    {
+      date: "2025-09-30",
+      event_type: "microchip_implanted",
+      author_role: "vet",
+      payload: {
+        chip_number: "858016000000016",
+        country_code: "858",
+        implanted_by: "Refugio Patitas del Norte",
+        location_on_body: "interscapular_left",
+        implant_date_known: true,
+      },
+    },
+    {
+      date: "2025-10-05",
+      event_type: "vaccination_administered",
+      author_role: "vet",
+      payload: { vaccine_name: "Triple felina" },
+    },
+    {
+      date: "2025-10-05",
+      event_type: "vaccination_administered",
+      author_role: "vet",
+      payload: { vaccine_name: "Antirróbica" },
+    },
+    {
+      date: "2025-11-18",
+      event_type: "sterilization_performed",
+      author_role: "vet",
+      payload: { procedure: "spay" },
+    },
+    {
+      date: "2025-12-02",
+      event_type: "adoption_eligibility_set",
+      author_role: "shelter",
+      payload: {
+        eligible: true,
+        set_by_user_id: "alejo",
+        reason: "evaluación de temperamento completa — sociable, apta para departamento",
+      },
+      uncommon: true,
+    },
+    {
+      date: "2026-07-28",
+      event_type: "weight_recorded",
+      author_role: "shelter",
+      payload: { kg: 3.4 },
+    },
+  ],
+};
+
+const pochoclo: Storyline = {
+  pet: {
+    display_name: "Pochoclo",
+    public_token: "DIM-S017-PLRM",
+    species: "cat",
+    breed: "Comón europeo",
+    sex: "male",
+    date_of_birth: "2026-04-20",
+    color: "Negro con pecho blanco",
+    microchip_id: "858017000000017",
+    microchip_country_code: "858",
+    microchip_implanted_at: "2026-07-10",
+    microchip_implanted_by: "Refugio Patitas del Norte",
+    microchip_location: "interscapular_left",
+    estimated_weight_kg: 1.6,
+    potentially_dangerous_breed: false,
+    jurisdiction_country: "AR",
+    jurisdiction_province: "CABA",
+    jurisdiction_locality: "Palermo",
+    acquisition_method: "rescued",
+    status: "active",
+    owner: "org:patitas-del-norte",
+    notes:
+      "Shelter custody. Gatito rescatado de una camada. Sin castrar por edad — adoption_eligibility_set TRUE.",
+  },
+  events: [
+    {
+      date: "2026-07-08",
+      event_type: "shelter_intake_recorded",
+      author_role: "shelter",
+      payload: { intake_reason: "stray_found", intake_condition: "healthy" },
+    },
+    {
+      date: "2026-07-08",
+      event_type: "pet_registered",
+      author_role: "shelter",
+      payload: { acquisition_method: "rescued" },
+    },
+    {
+      date: "2026-07-10",
+      event_type: "microchip_implanted",
+      author_role: "vet",
+      payload: {
+        chip_number: "858017000000017",
+        country_code: "858",
+        implanted_by: "Refugio Patitas del Norte",
+        location_on_body: "interscapular_left",
+        implant_date_known: true,
+      },
+    },
+    {
+      date: "2026-07-12",
+      event_type: "vaccination_administered",
+      author_role: "vet",
+      payload: { vaccine_name: "Triple felina" },
+    },
+    {
+      date: "2026-07-25",
+      event_type: "adoption_eligibility_set",
+      author_role: "shelter",
+      payload: {
+        eligible: true,
+        set_by_user_id: "alejo",
+        reason: "camada sana — apto para adopción con seguimiento",
+      },
+      uncommon: true,
+    },
+    {
+      date: "2026-08-05",
+      event_type: "weight_recorded",
+      author_role: "shelter",
+      payload: { kg: 1.6 },
+    },
+  ],
+};
+
 export const SUPPORTING_STORYLINES: Storyline[] = [
   firulais,
   michi,
@@ -1426,4 +1605,6 @@ export const SUPPORTING_STORYLINES: Storyline[] = [
   negro,
   bichita,
   pepito,
+  milanesa,
+  pochoclo,
 ];
