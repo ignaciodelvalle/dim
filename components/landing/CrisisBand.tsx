@@ -1,51 +1,31 @@
-"use client";
-
 // Crisis fork (benchmark L1) — the anonymous visitor in crisis is the
-// highest-value visitor: Perdí / Encontré + a no-login code lookup.
+// highest-value visitor. Three doors, no account, no code to remember:
+// Perdí · Encontré · Vi maltrato.
 //
-// Lookup accepts ONLY (PO-locked decision #2):
-//   - a pet public token (DIM-XXXX-XXXX)   → /p/[publicToken]
-//   - a denuncia tracking code (DEN-XXXX-XXXX) → /denuncias/codigo/[code]
-// The 15-digit ISO chip is intentionally NOT accepted nor advertised.
+// THE CODE LOOKUP USED TO LIVE HERE and was removed on 2026-08-19 (PO
+// decision, after the blind QA run). It accepted a pet token or a DEN-
+// tracking code — PO-locked decision #2, the 15-digit ISO chip deliberately
+// excluded — and it occupied the widest column of the band (1.15fr against
+// two 1fr cards) on the highest-traffic page in the product. Both of its jobs
+// already had a better-labelled door: /denuncias/buscar explains the DEN case
+// in a sentence ("volvé a tu denuncia con el código que recibiste"), and the
+// "Encontré una mascota" card is the finder's path. The band was offering the
+// FOLLOW-UP to a denuncia while the entry to making one sat in the footer.
+// That is what the third card fixes.
+//
+// The card copy does NOT promise intervention. A denuncia is registered and
+// issued a tracking code; it is not dispatched to an organism yet (the Ley
+// 14.346 integration is still in development, disclosed in the wizard's final
+// step and on /denuncias/seguimiento). A landing card that said "avisá a la
+// autoridad" would be the one place in the flow that lied about it.
+//
+// No longer a client component: with the lookup gone there is no state and no
+// router here.
 
 import { Icon } from "@/components/Icon";
-import { LnInput } from "@/components/ui/Field";
-import {
-  isValidReferenceCodeFormat,
-  normalizeReferenceCode,
-} from "@/src/modules/welfare/domain/reference-code";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
-import { useState } from "react";
 
 export function CrisisBand() {
-  const router = useRouter();
-  const [value, setValue] = useState("");
-  const [error, setError] = useState<string | null>(null);
-
-  function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
-    e.preventDefault();
-    const raw = value.trim();
-    if (!raw) {
-      setError("Ingresá un código para buscar.");
-      return;
-    }
-    const normalized = normalizeReferenceCode(raw);
-    if (normalized.startsWith("DEN-")) {
-      if (!isValidReferenceCodeFormat(normalized)) {
-        setError("El código de denuncia tiene el formato DEN-XXXX-XXXX.");
-        return;
-      }
-      setError(null);
-      router.push(`/denuncias/codigo/${normalized}`);
-      return;
-    }
-    // Anything else is treated as a pet public token — /p/ resolves or 404s
-    // with its own friendly screen.
-    setError(null);
-    router.push(`/p/${encodeURIComponent(raw.toUpperCase())}`);
-  }
-
   return (
     <section
       className="lp-crisis"
@@ -81,36 +61,20 @@ export function CrisisBand() {
             →
           </span>
         </Link>
-        <form className="lp-crisis-lookup" onSubmit={handleSubmit}>
-          <label htmlFor="crisis-code">¿Tenés un código?</label>
-          <div className="lp-crisis-row">
-            <LnInput
-              id="crisis-code"
-              mono
-              placeholder="DIM-XXXX-XXXX · DEN-XXXX-XXXX"
-              value={value}
-              onChange={(e) => {
-                setValue(e.target.value);
-                if (error) setError(null);
-              }}
-              autoComplete="off"
-              spellCheck={false}
-              invalid={!!error}
-            />
-            <button type="submit" className="lp-btn lp-btn--primary lp-btn--compact">
-              Buscar
-            </button>
-          </div>
-          {error ? (
-            <p className="text-sm text-[var(--color-ln-seal)]" role="alert">
-              {error}
-            </p>
-          ) : (
-            <span className="lp-crisis-hint">
-              Credencial pública o seguimiento de denuncia — sin login.
+        <Link className="lp-crisis-card" data-t="maltrato" href="/denuncias/nueva">
+          <span className="lp-cic" aria-hidden="true">
+            <Icon name="denuncia" size="md" decorative />
+          </span>
+          <span>
+            <b>Vi un caso de maltrato</b>
+            <span className="lp-crisis-sub">
+              Denunciá sin cuenta. Te damos un código para seguirla.
             </span>
-          )}
-        </form>
+          </span>
+          <span className="lp-ar" aria-hidden="true">
+            →
+          </span>
+        </Link>
       </div>
     </section>
   );

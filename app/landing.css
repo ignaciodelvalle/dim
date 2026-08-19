@@ -954,16 +954,20 @@
   border-bottom: 1px solid var(--color-ln-line);
   padding-block: 20px;
 }
+/* Three peer cards, so the track count is derived, not counted. This grid used
+   to be `1fr 1fr 1.15fr` with a `1fr` override at 940px: two consequences we
+   measured on 2026-08-19. Adding a card meant editing the CSS (which is what
+   made the third door a layout question instead of a copy question), and the
+   collapse was binary — three columns straight to one, with no two-column
+   state for the tablet widths where it actually runs out of room.
+
+   `min(100%, 260px)` rather than a bare `260px`: below 260px a fixed minimum
+   track is wider than its container and the grid overflows the viewport. */
 .lp .lp-crisis-grid {
   display: grid;
-  grid-template-columns: 1fr 1fr 1.15fr;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 260px), 1fr));
   gap: 14px;
   align-items: stretch;
-}
-@media (max-width: 940px) {
-  .lp .lp-crisis-grid {
-    grid-template-columns: 1fr;
-  }
 }
 .lp .lp-crisis-card {
   display: flex;
@@ -996,6 +1000,10 @@
   background: var(--color-ln-celeste-050);
   color: var(--color-ln-azul);
 }
+.lp .lp-crisis-card[data-t="maltrato"] .lp-cic {
+  background: var(--color-ln-warn-025);
+  color: var(--color-ln-warn);
+}
 .lp .lp-crisis-card b {
   display: block;
   font-size: 15px;
@@ -1016,50 +1024,6 @@
   transform: translateX(3px);
   color: var(--color-ln-azul);
 }
-.lp .lp-crisis-lookup {
-  border: 1px dashed var(--color-ln-line-strong);
-  border-radius: 12px;
-  padding: 12px 15px;
-  display: flex;
-  flex-direction: column;
-  gap: 7px;
-  justify-content: center;
-  background: var(--color-ln-paper);
-}
-.lp .lp-crisis-lookup label {
-  font-size: 10.5px;
-  font-weight: 700;
-  letter-spacing: 0.09em;
-  text-transform: uppercase;
-  color: var(--color-ln-mute);
-}
-.lp .lp-crisis-row {
-  display: flex;
-  gap: 8px;
-  align-items: stretch;
-}
-.lp .lp-crisis-row > :first-child {
-  flex: 1;
-  min-width: 0;
-}
-.lp .lp-crisis-hint {
-  font-size: 11px;
-  color: var(--color-ln-faint);
-}
-/* U6 mitigation (critique 2026-07-27): the dual-format placeholder
-   ("DIM-XXXX-XXXX · DEN-XXXX-XXXX", PO-locked — it advertises exactly what
-   the lookup accepts) clips inside the 16px mono input on phones. Placeholder
-   type may shrink where input type may not: the 16px input floor exists for
-   iOS focus-zoom, which keys off the INPUT's font-size, not the placeholder's.
-   var(--text-sm) fits the full hint at 390px; at 320px it still elides — the
-   copy is test-guarded, so that residue is reported, not hacked around. */
-@media (max-width: 480px) {
-  .lp .lp-crisis-row input::placeholder {
-    font-size: var(--text-sm);
-    letter-spacing: 0;
-  }
-}
-
 /* ============ bond band — full-bleed emotional bridge ===================== */
 /* The one bold, full-bleed moment: the human–animal bond the product exists to
    protect. Photo bleeds edge-to-edge; the copy respects the page's content
@@ -2138,15 +2102,23 @@
   flex-wrap: wrap;
   margin-bottom: clamp(24px, 3vw, 36px);
 }
+/* Six peer cards, so the column count follows the room available instead of a
+   hand-counted 3. The old pair (repeat(3,1fr) + a 1fr override at 900px) went
+   from three columns straight to one, skipping the two-column state that is
+   the natural shape for six cards on a tablet.
+
+   The 300px minimum is DERIVED, not picked. The container is .lp-wrap's 1120px
+   less its padding = 1056px, with a 16px gap:
+     four tracks would need 4 × 300 + 48 = 1248 > 1056  → never fits
+     three tracks need     3 × 300 + 32 =  932 ≤ 1056  → fits
+   So the grid tops out at three across, which is the rhythm six cards were
+   designed for — measured 2026-08-19, when a 250px minimum silently produced
+   four columns and a ragged 4+2. If .lp-wrap's width ever changes, re-run that
+   arithmetic; with auto-fit the column count follows the container by design. */
 .lp .lp-feat-grid {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 300px), 1fr));
   gap: 16px;
-}
-@media (max-width: 900px) {
-  .lp .lp-feat-grid {
-    grid-template-columns: 1fr;
-  }
 }
 .lp .lp-feat {
   background: var(--color-ln-card);
@@ -2259,17 +2231,15 @@
 }
 
 /* ============ empezar — 2 doors =========================================== */
+/* Two peer doors. Same reason as .lp-feat-grid: the breakpoint was restating
+   what the content already implies. Capped at 880px, so a door never exceeds
+   ~430px and the minimum only bites on small screens. */
 .lp .lp-role-grid {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 340px), 1fr));
   gap: 16px;
   max-width: 880px;
   margin-inline: auto;
-}
-@media (max-width: 760px) {
-  .lp .lp-role-grid {
-    grid-template-columns: 1fr;
-  }
 }
 .lp .lp-role-card {
   background: var(--color-ln-card);

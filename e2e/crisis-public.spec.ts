@@ -15,7 +15,15 @@ import { expect, test } from "@playwright/test";
  * relevant listing.
  */
 
-test.describe("crisis entry — code lookup (landing CrisisBand, no login)", () => {
+test.describe("crisis entry — public credential + denuncia lookup (no login)", () => {
+  // These used to drive the landing's code-lookup input. That control left the
+  // band on 2026-08-19 (PO decision): both of its jobs had a better-labelled
+  // door elsewhere, and it held the widest column of the highest-traffic page.
+  //
+  // What the control was a VEHICLE for is still covered here, at the surfaces
+  // that own each job now. A direct hit on /p/[token] is also the truer
+  // simulation of the real entry point: a stranger scans a QR, which navigates,
+  // it does not type.
   test("a valid DIM code resolves to the pet's public credential", async ({ page }) => {
     // Discover a real, non-lost pet token from the public adoption listing.
     // queryAdoptionListing (src/modules/adoption/infrastructure/adoption-listing-read.ts,
@@ -26,43 +34,41 @@ test.describe("crisis entry — code lookup (landing CrisisBand, no login)", () 
     const petLink = page.locator('a[href^="/adoptar/DIM"]').first();
     test.skip(
       (await petLink.count()) === 0,
-      "No adoptable pets seeded — skipping code-lookup smoke.",
+      "No adoptable pets seeded — skipping public-credential smoke.",
     );
     const href = await petLink.getAttribute("href");
     const token = (href ?? "").split("/adoptar/")[1];
     expect(token, "token parsed from /adoptar listing").toBeTruthy();
 
-    // Drive the ACTUAL crisis entry point: the landing page's code lookup.
-    await page.goto("/");
-    await page.locator("#crisis-code").fill(token as string);
-    await page.getByRole("button", { name: /^buscar$/i }).click();
-
-    await page.waitForURL(new RegExp(`/p/${token}`), { timeout: 10_000 });
+    await page.goto(`/p/${token}`);
     await expect(page.getByText(/no encontramos esa credencial/i)).not.toBeVisible();
     await expect(page.getByRole("heading", { level: 1 }).first()).toBeVisible();
   });
 
   test("a pet-shaped bogus code resolves to the branded not-found (no crash)", async ({ page }) => {
-    await page.goto("/");
-    await page.locator("#crisis-code").fill("DIM-ZZZZ-ZZZZ");
-    await page.getByRole("button", { name: /^buscar$/i }).click();
-
-    await page.waitForURL(/\/p\/DIM-ZZZZ-ZZZZ/, { timeout: 10_000 });
+    await page.goto("/p/DIM-ZZZZ-ZZZZ");
     await expect(page.getByText(/no encontramos esa credencial/i)).toBeVisible();
     await expect(page.getByText(/application error/i)).not.toBeVisible();
     await expect(page.getByText(/this page could not be found/i)).not.toBeVisible();
   });
 
-  test("a malformed denuncia code (DEN-) is rejected inline, no navigation", async ({ page }) => {
-    await page.goto("/");
-    await page.locator("#crisis-code").fill("DEN-BAD");
+  test("a malformed denuncia code is rejected inline, no navigation", async ({ page }) => {
+    // Same guard, at the surface that owns the DEN lookup now.
+    await page.goto("/denuncias/buscar");
+    await page.locator("#code").fill("DEN-BAD");
     await page.getByRole("button", { name: /^buscar$/i }).click();
 
-    await expect(
-      page.getByText(/el código de denuncia tiene el formato/i, { exact: false }),
-    ).toBeVisible();
+    await expect(page.getByText(/c[oó]digo inv[aá]lido/i)).toBeVisible();
     expect(page.url()).not.toContain("/denuncias/codigo/");
-    expect(page.url()).not.toContain("/p/DEN-BAD");
+  });
+
+  test("the landing crisis band offers three doors and no typed lookup", async ({ page }) => {
+    await page.goto("/");
+    const band = page.locator('[data-section="crisis-band"]');
+    await expect(band.locator('[data-t="perdi"]')).toBeVisible();
+    await expect(band.locator('[data-t="encontre"]')).toBeVisible();
+    await expect(band.locator('[data-t="maltrato"]')).toBeVisible();
+    await expect(band.locator("input")).toHaveCount(0);
   });
 });
 

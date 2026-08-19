@@ -12,6 +12,8 @@
 // Rendering strategy mirrors the repo's other structure tests: components →
 // react-dom/server static HTML, no jsdom.
 
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import React from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
@@ -120,19 +122,58 @@ describe("landing hero — credential + lost demo", () => {
   });
 });
 
-describe("crisis band — L1 fork + code lookup", () => {
-  it("renders the two crisis doors and the no-login lookup", () => {
+describe("crisis band — three doors, no account", () => {
+  it("renders all three crisis doors", () => {
     const html = renderToStaticMarkup(<CrisisBand />);
     expect(html).toContain("Perdí una mascota");
     expect(html).toContain("Encontré una mascota");
-    expect(html).toContain("¿Tenés un código?");
-    expect(html).toContain("sin login");
+    // Third door, added 2026-08-19. The band already accepted DEN- tracking
+    // codes while the entry to MAKING a denuncia sat in the footer — it
+    // offered the follow-up to a thing it gave you no way to start.
+    expect(html).toContain("Vi un caso de maltrato");
+    expect(html).toContain("/denuncias/nueva");
   });
 
-  it("lookup advertises DIM + DEN codes ONLY — no 15-digit ISO chip", () => {
+  it("promises registration and a code — never intervention", () => {
+    // A denuncia is registered and issued a tracking code. It is NOT dispatched
+    // to an organism yet (the Ley 14.346 integration is still in development,
+    // disclosed in the wizard's last step and on /denuncias/seguimiento). The
+    // blind QA run found that the moment of "success" already oversells this;
+    // the landing must not be the place that oversells it first.
     const html = renderToStaticMarkup(<CrisisBand />);
-    expect(html).toContain("DIM-XXXX-XXXX · DEN-XXXX-XXXX");
-    expect(html).not.toMatch(/chip iso|15 dígitos/i);
+    expect(html).toContain("código para seguirla");
+    expect(html).not.toMatch(/avisá a la autoridad|intervención|denuncia enviada/i);
+  });
+
+  it("carries no typed code lookup — the band is doors only", () => {
+    // PO decision 2026-08-19: the code lookup left the landing. Both of its
+    // jobs have a better-labelled door (/denuncias/buscar explains the DEN case
+    // in a sentence; the "Encontré" card is the finder's path) and it occupied
+    // the widest column of the highest-traffic page in the product.
+    const html = renderToStaticMarkup(<CrisisBand />);
+    expect(html).not.toContain("<input");
+    expect(html).not.toContain("¿Tenés un código?");
+  });
+});
+
+describe("public code lookup — PO-locked decision #2 (no 15-digit ISO chip)", () => {
+  // The invariant is "no public surface offers a chip-number lookup", not
+  // "the landing input's placeholder says the right thing". It outlived the
+  // control it was originally written against, so it is pinned to the surface
+  // that still does the lookup: /denuncias/buscar.
+  const SEARCH_FORM = readFileSync(
+    join(process.cwd(), "app", "(public)", "denuncias", "buscar", "SearchForm.tsx"),
+    "utf8",
+  );
+
+  it("the denuncia lookup accepts the DEN reference format and nothing else", () => {
+    expect(SEARCH_FORM).toContain("isValidReferenceCodeFormat");
+    expect(SEARCH_FORM).toContain("DEN-XXXX-XXXX");
+  });
+
+  it("no public lookup advertises a chip number", () => {
+    expect(SEARCH_FORM).not.toMatch(/chip iso|15 dígitos|\d{15}/i);
+    expect(renderToStaticMarkup(<CrisisBand />)).not.toMatch(/chip iso|15 dígitos/i);
   });
 });
 

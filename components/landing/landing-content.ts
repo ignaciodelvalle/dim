@@ -459,6 +459,13 @@ export const FOOTER_NAV: Array<[string, Array<[string, string]>]> = [
       ["Mascotas perdidas", "/perdidas"],
       ["Adoptar", "/adoptar"],
       ["Denunciar maltrato", "/denuncias/nueva"],
+      // The return path for someone who already denounced. It used to be the
+      // DEN- half of the crisis band's code lookup; when that lookup came out
+      // of the band (2026-08-19) the follow-up had no door left on the home
+      // page at all. The footer is the right level of prominence for it —
+      // /denuncias/buscar explains the case in a sentence, which an input
+      // with a placeholder never did.
+      ["Seguir mi denuncia", "/denuncias/buscar"],
       ["Centro de ayuda", "/ayuda"],
       // "Sugerencias" removed (blind QA 2026-08-19): /sugerencias renders a
       // "muy pronto" placeholder with no submission mechanism. AppFooter had
