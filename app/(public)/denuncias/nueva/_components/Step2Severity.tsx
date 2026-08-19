@@ -12,10 +12,15 @@
 // The async report flow still proceeds — this is a safety net, not a blocker.
 
 import { Icon } from "@/components/Icon";
+import { WELFARE_SEVERITY_CITIZEN_LABEL } from "@/src/modules/welfare/domain/types";
 
 export type WizardSeverity = "grave_urgente" | "moderado" | "sospecha";
 
-// Maps wizard value → DB enum value
+// Maps wizard value → DB enum value. The CARD LABELS below are read back out
+// of WELFARE_SEVERITY_CITIZEN_LABEL through this same map, so the words the
+// reporter picks here are by construction the words every later citizen
+// surface quotes back at them (blind QA 2026-08-19, O2: the wizard said
+// "Grave / urgente" and the follow-up said "Crítica — peligro inmediato").
 export const WIZARD_SEVERITY_TO_DB: Record<WizardSeverity, "critical" | "medium" | "low"> = {
   grave_urgente: "critical",
   moderado: "medium",
@@ -36,7 +41,7 @@ type SeverityCard = {
 const SEVERITY_CARDS: SeverityCard[] = [
   {
     value: "grave_urgente",
-    label: "Grave / urgente",
+    label: WELFARE_SEVERITY_CITIZEN_LABEL.critical,
     description: "El animal está en peligro inmediato o hay heridas visibles",
     icon: "sirena",
     baseClass:
@@ -46,7 +51,7 @@ const SEVERITY_CARDS: SeverityCard[] = [
   },
   {
     value: "moderado",
-    label: "Moderado",
+    label: WELFARE_SEVERITY_CITIZEN_LABEL.medium,
     description: "Condiciones de vida malas, abandono, descuido sostenido",
     icon: "alerta",
     baseClass:
@@ -56,7 +61,7 @@ const SEVERITY_CARDS: SeverityCard[] = [
   },
   {
     value: "sospecha",
-    label: "Sospecha",
+    label: WELFARE_SEVERITY_CITIZEN_LABEL.low,
     description: "Creo que algo no está bien, pero no estoy seguro/a",
     icon: "lupa",
     baseClass:

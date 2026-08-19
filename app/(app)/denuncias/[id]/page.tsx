@@ -17,7 +17,7 @@ import { formatDate, formatDateTime } from "@/lib/utils/format";
 import { addReporterCommentAction } from "@/src/modules/welfare/actions";
 import {
   welfareReportKindLabel,
-  welfareReportSeverityLabel,
+  welfareReportSeverityCitizenLabel,
   welfareReportStatusLabel,
   welfareReportSubjectKindLabel,
 } from "@/src/modules/welfare/domain/types";
@@ -196,7 +196,7 @@ export default async function WelfareReportDetailPage({
             <span
               className={`inline-flex items-center rounded-[var(--radius-xs)] border px-2 py-0.5 font-ln-mono text-xs font-semibold uppercase tracking-[.1em] ${severityBadgeClass(report.severity)}`}
             >
-              {welfareReportSeverityLabel(report.severity)}
+              {welfareReportSeverityCitizenLabel(report.severity)}
             </span>
           </div>
         </div>

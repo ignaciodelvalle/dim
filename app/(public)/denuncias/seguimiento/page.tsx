@@ -37,7 +37,7 @@ import { RateLimitError, callerIp, enforceRateLimit } from "@/lib/infra/rate-lim
 import { formatDate, formatDateTime, pluralizeEs } from "@/lib/utils/format";
 import {
   welfareReportKindLabel,
-  welfareReportSeverityLabel,
+  welfareReportSeverityCitizenLabel,
 } from "@/src/modules/welfare/domain/types";
 import { eq } from "drizzle-orm";
 import type { Metadata } from "next";
@@ -224,7 +224,7 @@ export default async function SeguimientoDenunciaPage({
             style={{ fontFamily: "var(--font-ln-mono)" }}
           >
             <span>{welfareReportKindLabel(view.kind)}</span>
-            <span>Gravedad que indicaste: {welfareReportSeverityLabel(view.severity)}</span>
+            <span>Gravedad que indicaste: {welfareReportSeverityCitizenLabel(view.severity)}</span>
             <span>Enviada {formatDateTime(view.submittedAt)}</span>
             {view.occurredAt && <span>Ocurrió el {formatDate(view.occurredAt)}</span>}
           </div>

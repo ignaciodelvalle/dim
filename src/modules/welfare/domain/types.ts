@@ -82,6 +82,38 @@ export function welfareReportSeverityLabel(severity: WelfareReportSeverity | str
  * `Record<string, string>` (not keyed to WelfareReportSeverity) so untyped
  * callers can index it directly with `?? key` fallback, same as before.
  */
+/**
+ * The severity label a CITIZEN sees — the same words the reporting wizard
+ * offered them, not the operator triage vocabulary.
+ *
+ * Blind QA 2026-08-19 (O2): the reporter picked the card labelled
+ * "Grave / urgente" and the follow-up screen told them
+ * "Gravedad que indicaste: Crítica — peligro inmediato". Same severity, a word
+ * they never saw, under copy that claims to quote them back.
+ *
+ * The four DB severities do not map one-to-one onto the wizard's three cards
+ * (`Step2Severity.tsx`: grave_urgente → critical, moderado → medium,
+ * sospecha → low). `high` is unreachable from the citizen wizard — it exists
+ * for server-authoritative paths — so it gets the plain word a reporter would
+ * recognise rather than an invented fourth card.
+ *
+ * Operator surfaces keep `welfareReportSeverityLabel`: "Crítica — peligro
+ * inmediato" carries the SLA tier that a triage queue needs and a reporter
+ * does not.
+ */
+export const WELFARE_SEVERITY_CITIZEN_LABEL: Record<WelfareReportSeverity, string> = {
+  low: "Sospecha",
+  medium: "Moderado",
+  high: "Grave",
+  critical: "Grave / urgente",
+};
+
+export function welfareReportSeverityCitizenLabel(
+  severity: WelfareReportSeverity | string,
+): string {
+  return WELFARE_SEVERITY_CITIZEN_LABEL[severity as WelfareReportSeverity] ?? severity;
+}
+
 export const SEVERITY_BASE_LABEL: Record<string, string> = {
   low: "Baja",
   medium: "Media",

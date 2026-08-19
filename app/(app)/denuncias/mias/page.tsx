@@ -11,7 +11,7 @@ import { createClient } from "@/lib/supabase/server";
 import { formatDateTime, pluralizeEs } from "@/lib/utils/format";
 import {
   welfareReportKindLabel,
-  welfareReportSeverityLabel,
+  welfareReportSeverityCitizenLabel,
   welfareReportStatusLabel,
 } from "@/src/modules/welfare/domain/types";
 import { and, desc, eq } from "drizzle-orm";
@@ -111,7 +111,7 @@ export default async function MisDenunciasPage() {
                   {welfareReportKindLabel(report.kind)}
                 </p>
                 <p className="mt-0.5 font-ln-mono text-sm text-[var(--color-ln-mute)]">
-                  {welfareReportSeverityLabel(report.severity)}
+                  {welfareReportSeverityCitizenLabel(report.severity)}
                   {" · "}
                   {report.referenceCode}
                 </p>
