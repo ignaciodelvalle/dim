@@ -61,7 +61,7 @@ function isExcluded(relPath: string): boolean {
   return false;
 }
 
-const FILES = globSync("{app,components,lib,packages}/**/*.{ts,tsx}")
+const FILES = globSync("{app,components,lib,packages,src}/**/*.{ts,tsx}")
   .map((f) => f.replaceAll("\\", "/"))
   .filter((f) => !isExcluded(f));
 

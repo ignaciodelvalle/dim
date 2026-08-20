@@ -283,10 +283,15 @@ export async function reportPetSighting(
   const bodyParts = [
     `Alguien reportó haber visto a ${pet.name} cerca de un punto.`,
     safeDescription ? `Mensaje: "${safeDescription}".` : null,
+    // No emoji. This body is a push notification and an in-app alert, so it
+    // lands on a lock screen and in a screen reader, where a phone glyph is
+    // read aloud as "telephone receiver" ahead of the name and the number that
+    // actually matter. The words carry it: the line already says someone left
+    // contact details.
     finderName && finderContact
-      ? `📞 ${finderName} dejó ${finderContact}.`
+      ? `${finderName} dejó su contacto: ${finderContact}.`
       : finderContact
-        ? `📞 Contacto: ${finderContact}.`
+        ? `Contacto de quien la vio: ${finderContact}.`
         : finderName
           ? `Reportado por ${finderName}.`
           : null,
