@@ -24,6 +24,7 @@ const PUBLIC_TOKEN = "DIM-P0E-TEST-001";
 const PET_ID = "pet-p0e0-0000-0000-000000000001";
 const OWNER_USER_ID = "user-p0e0-0000-0000-000000000001";
 const FINDER_USER_ID = "user-p0e0-0000-0000-000000000002";
+const CARETAKER_USER_ID = "user-p0e0-0000-0000-000000000003";
 const CASE_ID = "case-p0e0-0000-0000-000000000001";
 const PREVIOUS_STATE = { ok: false as const, error: null };
 
@@ -122,12 +123,17 @@ vi.mock("@/lib/supabase/server", () => ({
 
 let capturedPetEventInsert: Record<string, unknown> | null = null;
 let capturedNotificationInsert: Record<string, unknown> | null = null;
+/** Every row of the possession insert — one per alert recipient. */
+let capturedNotificationRows: Record<string, unknown>[] = [];
 let capturedAttachmentInsert: Record<string, unknown> | null = null;
 
 const INSERTED_EVENT_ID = "evt-p0e-0000-0000-000000000001";
 
 // Controls whether the idempotency query returns an existing event.
 let idempotencyReturnEvent = false;
+
+/** custodia-temporal: does the fixture pet have an active caretaker row? */
+let activeCaretakerPresent = false;
 
 function buildMockDb(petStatus = "lost") {
   let selectCallCount = 0;
@@ -148,7 +154,12 @@ function buildMockDb(petStatus = "lost") {
     }
     if (selectCallCount === 2) {
       // active holders — ranked by role, titular wins
-      return [{ userId: OWNER_USER_ID, role: "owner" }];
+      return activeCaretakerPresent
+        ? [
+            { userId: OWNER_USER_ID, role: "owner" },
+            { userId: CARETAKER_USER_ID, role: "caretaker" },
+          ]
+        : [{ userId: OWNER_USER_ID, role: "owner" }];
     }
     if (selectCallCount === 3) {
       // idempotency query
@@ -181,13 +192,21 @@ function buildMockDb(petStatus = "lost") {
   // insertChain supports .values().returning() (petEvents) and .values() alone
   // (notifications, attachments).
   const insertChain = {
-    values: vi.fn((data: Record<string, unknown>) => {
+    values: vi.fn((raw: Record<string, unknown> | Record<string, unknown>[]) => {
+      // custodia-temporal: the possession alert became a SET (titular +
+      // active caretaker), so `.values()` now receives an array here. The
+      // per-field assertions below are about the notification's CONTENT, which
+      // is identical for every recipient, so the first row answers them —
+      // `capturedNotificationRows` is what the recipient-count assertions use.
+      const rows = Array.isArray(raw) ? raw : [raw];
+      const data = rows[0] ?? {};
       if ("payload" in data) {
         capturedPetEventInsert = data;
       } else if ("storagePath" in data) {
         capturedAttachmentInsert = data;
       } else {
         capturedNotificationInsert = data;
+        capturedNotificationRows = rows;
       }
       return insertChain;
     }),
@@ -237,8 +256,10 @@ describe("reportFinderInPossessionAction — P0e", () => {
   beforeEach(() => {
     capturedPetEventInsert = null;
     capturedNotificationInsert = null;
+    capturedNotificationRows = [];
     capturedAttachmentInsert = null;
     idempotencyReturnEvent = false;
+    activeCaretakerPresent = false;
     mockEnforceRateLimit.mockResolvedValue(undefined);
     mockGetUser.mockResolvedValue({ data: { user: null }, error: null });
     mockUpload.mockReset();
@@ -292,6 +313,11 @@ describe("reportFinderInPossessionAction — P0e", () => {
 
     // notification was inserted.
     expect(capturedNotificationInsert).not.toBeNull();
+    // ROUTE-1 parity at the CALL SITE, not just in the helper: this fixture's
+    // pet has one active holder and no caretaker, so exactly ONE notification
+    // must be written — the same single alert this action always sent.
+    expect(capturedNotificationRows).toHaveLength(1);
+    expect(capturedNotificationRows[0].userId).toBe(OWNER_USER_ID);
     expect(capturedNotificationInsert?.notificationType).toBe("pet_in_possession");
     expect(capturedNotificationInsert?.severity).toBe("urgent");
     expect(capturedNotificationInsert?.category).toBe("perdidas");
@@ -570,6 +596,38 @@ describe("reportFinderInPossessionAction — P0e", () => {
     await reportFinderInPossessionAction(PUBLIC_TOKEN, PREVIOUS_STATE, fd);
 
     expect(capturedNotificationInsert?.title as string).toContain("URGENTE");
+  });
+
+  // --- custodia-temporal: fan-out to the active caretaker ---
+
+  it("notifies the titular AND the active caretaker, with the SAME finder contact", async () => {
+    // The spec's scenario. The caretaker is the person who physically has this
+    // animal's routine; a redacted copy of the alert would make the second
+    // recipient useless at the only thing they are there for. The titular loses
+    // nothing — same alert, ranked first.
+    vi.resetModules();
+    activeCaretakerPresent = true;
+    buildMockDb("lost");
+    mockUpload.mockResolvedValue({ uploadedPath: null, mimeType: null, size: null, error: null });
+
+    const { reportFinderInPossessionAction } = await import(
+      "@/app/(public)/p/[publicToken]/encontre/action"
+    );
+    const fd = makeFormData({ ...BASE_FIELDS, canKeepIndefinite: "true" });
+
+    const result = await reportFinderInPossessionAction(PUBLIC_TOKEN, PREVIOUS_STATE, fd);
+
+    expect(result.ok).toBe(true);
+    expect(capturedNotificationRows).toHaveLength(2);
+    expect(capturedNotificationRows.map((r) => r.userId)).toEqual([
+      OWNER_USER_ID,
+      CARETAKER_USER_ID,
+    ]);
+    // Identical payload, not a summarised second copy.
+    expect(capturedNotificationRows[1].body).toBe(capturedNotificationRows[0].body);
+    expect(capturedNotificationRows[0].body as string).toContain("11-5555-0001");
+    expect(capturedNotificationRows[1].body as string).toContain("11-5555-0001");
+    expect(capturedNotificationRows[1].severity).toBe("urgent");
   });
 
   // --- caseId association ---

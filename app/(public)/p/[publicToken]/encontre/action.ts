@@ -28,7 +28,6 @@ import {
   db,
   notifications,
   organizationMemberships,
-  ownerships,
   petEvents,
   pets,
 } from "@/db";
@@ -36,6 +35,7 @@ import { CoordError, normalizeLocationForWrite } from "@/lib/domain/location-nor
 import { parseLocationFromFormData } from "@/lib/domain/location-value";
 import { validateEventPayload } from "@/lib/events/event-schemas";
 import { resolveOriginShelterOrgId } from "@/lib/infra/origin-shelter-alert";
+import { resolveLostPetAlertRecipients } from "@/lib/infra/pet-alert-recipients";
 import { publicPetByToken } from "@/lib/infra/public-pet-lookup";
 import { RateLimitError, callerIp, enforceRateLimit } from "@/lib/infra/rate-limit";
 import { reportError } from "@/lib/infra/report-error";
@@ -162,28 +162,16 @@ export async function reportFinderInPossessionAction(
     };
   }
 
-  // Resolve the person to notify (ROUTE-1, audit 2026-08-04).
+  // Who to notify. The ROUTE-1 ranking (audit 2026-08-04) moved verbatim into
+  // lib/infra/pet-alert-recipients.ts when custodia-temporal made this a SET
+  // rather than a single winner — see that file's header for why it lives on
+  // that shelf and which flows deliberately do NOT call it.
   //
-  // This used to be a bare `.limit(1)` over every ACTIVE ownership row with no
-  // role filter and no ordering — so on a pet with an active foster, Postgres
-  // was free to hand back the foster and the finder's alert went to them
-  // instead of the titular. On the recovery path, which is exactly where
-  // mis-routing hurts.
-  //
-  // A role filter alone would be worse, not better: a pet in shelter custody
-  // has no `owner` row at all, and filtering would turn a mis-routed alert into
-  // NO alert. So the rows are ranked instead — titular first, then the
-  // institution holding custody, then whoever is caring for it — and the winner
-  // is the first that exists. Same shape as the resolve-dispute fix.
-  const activeHolders = await db
-    .select({ userId: ownerships.ownerUserId, role: ownerships.role })
-    .from(ownerships)
-    .where(and(eq(ownerships.petId, pet.id), isNull(ownerships.endedAt)));
-  const owner =
-    activeHolders.find((r) => r.role === "owner" && r.userId) ??
-    activeHolders.find((r) => r.role === "shelter_custody" && r.userId) ??
-    activeHolders.find((r) => r.userId);
-  if (!owner?.userId) return { ok: false, error: "No se encontró un dueño activo." };
+  // With no active caretaker the answer is byte-identical to what these six
+  // lines used to compute, which is what makes the extraction safe;
+  // __tests__/pet-alert-recipients.test.ts pins that parity case by case.
+  const recipients = await resolveLostPetAlertRecipients(pet.id);
+  if (recipients.length === 0) return { ok: false, error: "No se encontró un dueño activo." };
 
   // Rate limit — consumed only AFTER validation passes (tester fix #6): a
   // rejected form (missing contact, no pin, bad date) must not burn the
@@ -369,8 +357,14 @@ export async function reportFinderInPossessionAction(
     .filter(Boolean)
     .join(" ");
 
-  const possessionNotification = {
-    userId: owner.userId,
+  // One notification per recipient, IDENTICAL BODY — including the finder's
+  // contact details (proposal D2, privacy checklist run for custodia-temporal).
+  // An active caretaker is the person who physically has the animal's routine;
+  // giving them a redacted version of the alert would make the second recipient
+  // useless at the only thing they are there for. The titular loses nothing:
+  // they still receive the full alert, ranked first.
+  const possessionNotifications = recipients.map((recipient) => ({
+    userId: recipient.userId,
     notificationType: "pet_in_possession",
     title: isUrgent
       ? `URGENTE: Alguien tiene a ${pet.name} y necesita vet`
@@ -383,8 +377,8 @@ export async function reportFinderInPossessionAction(
     // When the pet is lost the cockpit IS /mis-mascotas/{token} and now surfaces
     // possession/sighting reports — land the owner there so they can act (UI-4 fix 7).
     ctaUrl: `/mis-mascotas/${publicToken}`,
-  };
-  await db.insert(notifications).values(possessionNotification);
+  }));
+  await db.insert(notifications).values(possessionNotifications);
 
   // A5 — the origin shelter also hears about it (PO decision 2026-08-04).
   //
@@ -447,7 +441,7 @@ export async function reportFinderInPossessionAction(
   // Web Push leg (ADR 2026-07-18 §4): urgent hallazgo en posesión — best-effort,
   // never throws, so it cannot affect the finder's already-recorded submission.
   const { sendPushForNotifications } = await import("@/lib/infra/web-push");
-  await sendPushForNotifications([possessionNotification]);
+  await sendPushForNotifications(possessionNotifications);
 
   return { ok: true, error: null, warning: photoWarning };
 }

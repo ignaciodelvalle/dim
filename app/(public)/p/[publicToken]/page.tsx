@@ -46,6 +46,7 @@ import { deriveCredentialRegistryClaim } from "@/lib/domain/credential-claims";
 import { readPoint } from "@/lib/domain/location";
 import { computeConfidence, isAtLeast } from "@/lib/events/event-confidence";
 import { resolveBusinessRule } from "@/lib/infra/business-rules-resolver";
+import { resolveCaretakerPublicContact } from "@/lib/infra/caretaker-public-contact";
 import { fetchActiveIdentifications } from "@/lib/infra/pet-identifiers";
 import { publicPetByToken } from "@/lib/infra/public-pet-lookup";
 import { isPublicTokenReadThrottled } from "@/lib/infra/public-token-throttle";
@@ -749,6 +750,10 @@ export default async function PublicCredentialPage({
               ownerEmail={
                 pet.discloseEmailWhenLost && !pet.inCustodyDispute ? lostContext.email : null
               }
+              // Already null unless BOTH keys hold and no dispute is open —
+              // resolved once in the loader rather than re-derived here, so
+              // there is exactly one place the rule can be got wrong.
+              caretakerContact={lostContext.caretakerContact}
               lastSeenPlaceName={pet.discloseLastLocationWhenLost ? lostContext.locationText : null}
               lastSeenLocality={
                 pet.discloseLastLocationWhenLost ? (pet.jurisdictionLocality ?? null) : null
@@ -1150,6 +1155,15 @@ async function loadCredentialViewData(pet: Pet) {
       lastSeenContext: string | null;
     } | null;
     lostSince: Date | null;
+    /**
+     * Alternate public contact — the temporary caretaker (custodia-temporal,
+     * PO 2026-08-19). NULL unless BOTH keys hold: the titular's
+     * `disclose_caretaker_contact_when_lost` AND the caretaker's own consent,
+     * recorded at invitation-accept. The gate is one query in
+     * lib/infra/caretaker-public-contact.ts, deliberately not two booleans
+     * combined here — see that file for why the two must not be separable.
+     */
+    caretakerContact: { firstName: string | null; phoneE164: string | null } | null;
   } | null = null;
 
   if (isLost) {
@@ -1327,6 +1341,21 @@ async function loadCredentialViewData(pet: Pet) {
       lostLng: eventPoint?.lng ?? null,
       lostDescription,
       lostSince: latestLostEvent?.occurredAt ?? null,
+      // Both keys, resolved in one place. A custody dispute suppresses it for
+      // the same reason it suppresses the titular's own contact: the finder's
+      // reply would land on a party whose standing is under review.
+      //
+      // The key-1 test here is REDUNDANT with the resolver's own SQL predicate,
+      // and deliberately so — it is the S4 "only FETCH what the owner opted to
+      // disclose" rule stated at the top of this block, applied to the strongest
+      // case in the family. With the toggle off (the overwhelming default) a
+      // third party's phone number is never read out of the database at all,
+      // not read and then discarded. The resolver stays correct if called
+      // blindly; this just means it usually is not called.
+      caretakerContact:
+        pet.inCustodyDispute || !pet.discloseCaretakerContactWhenLost
+          ? null
+          : await resolveCaretakerPublicContact({ petId: pet.id }),
     };
   }
 

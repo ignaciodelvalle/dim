@@ -652,6 +652,15 @@ export const pets = pgTable(
       .notNull()
       .default(false),
     allowFinderFormWhenLost: boolean("allow_finder_form_when_lost").notNull().default(true),
+    // KEY 1 of the two-key alternate-public-contact model (custodia-temporal,
+    // migration 0193, PO 2026-08-19). NOT a reuse of disclosePhoneWhenLost:
+    // that one governs the TITULAR's own phone, and folding the two together
+    // would mean turning your own number on silently publishes a third party's.
+    // Key 2 is `pet_caretaker_grants.public_contact_consent_at`. Either key
+    // missing → the public credential shows no caretaker at all.
+    discloseCaretakerContactWhenLost: boolean("disclose_caretaker_contact_when_lost")
+      .notNull()
+      .default(false),
     // "Primeros pasos" onboarding checklist — per-pet dismissed step keys
     // (owner-onboarding train, migration 0153). A step key here ("photo",
     // "microchip", "vaccines", "emergency_contact", "disclosure_prefs") means

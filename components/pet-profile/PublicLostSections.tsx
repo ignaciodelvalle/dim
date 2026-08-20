@@ -53,6 +53,16 @@ interface Props {
   /** Owner email for mailto:, or null if hidden by prefs (R3.4.12 gap fix —
    * discloseEmailWhenLost previously fetched the email but never rendered it). */
   ownerEmail?: string | null;
+  /**
+   * Alternate contact: the pet's temporary caretaker (custodia-temporal).
+   *
+   * NULL is the default and by far the common case. It is non-null only when
+   * BOTH keys of the two-key model hold — the titular's disclosure toggle AND
+   * the caretaker's own consent, recorded when they accepted the invitation.
+   * This component does not evaluate that; it is resolved server-side in
+   * lib/infra/caretaker-public-contact.ts so the rule lives in one place.
+   */
+  caretakerContact?: { firstName: string | null; phoneE164: string | null } | null;
   /** Last seen place label or null if hidden. */
   lastSeenPlaceName: string | null;
   /** Last seen locality. */
@@ -118,6 +128,7 @@ export function PublicLostSections({
   ownerFirstName,
   ownerPhoneE164,
   ownerEmail = null,
+  caretakerContact = null,
   lastSeenPlaceName,
   lastSeenLocality,
   lastSeenCoords = null,
@@ -173,6 +184,20 @@ export function PublicLostSections({
             Lo busca {ownerFirstName}.
           </p>
         )}
+        {/* Alternate contact — the temporary caretaker. Both keys of the
+            two-key model were checked server-side; by the time this renders,
+            the caretaker has personally agreed to appear here. Named as an
+            ALTERNATE rather than presented as the owner: the finder must not be
+            left thinking they are talking to the titular, and the caretaker is
+            not one. */}
+        {caretakerContact?.firstName && (
+          <p
+            data-section="lost-caretaker-contact"
+            className="mt-0.5 text-sm font-medium text-ln-ink-2"
+          >
+            Mientras tanto la cuida {caretakerContact.firstName}.
+          </p>
+        )}
         {distinguishingFeatures && (
           <p className="mt-1 text-sm italic text-ln-ink-2">"{distinguishingFeatures}"</p>
         )}
@@ -199,6 +224,20 @@ export function PublicLostSections({
                   primary action into the longest label in the row for no new
                   information. */}
               <Icon name="telefono" size="sm" decorative /> Llamar
+            </a>
+          )}
+          {caretakerContact?.phoneE164 && (
+            <a
+              href={`tel:${normalizePhoneForTel(caretakerContact.phoneE164) ?? caretakerContact.phoneE164}`}
+              data-section="lost-caretaker-call"
+              className="inline-flex min-h-11 items-center gap-2 rounded-full bg-ln-card border border-ln-line px-5 text-sm font-semibold text-ln-ink hover:bg-ln-stripe"
+            >
+              {/* Outline, never solid: the titular's "Llamar" is the row's one
+                  primary. The caretaker is an alternate, and a second solid
+                  button would make the finder rank two competing primaries
+                  while holding somebody's lost dog. */}
+              <Icon name="telefono" size="sm" decorative /> Llamar a{" "}
+              {caretakerContact.firstName ?? "quien la cuida"}
             </a>
           )}
           {ownerEmail && (

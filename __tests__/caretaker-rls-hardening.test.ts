@@ -162,6 +162,34 @@ describe("pets UPDATE — titular only", () => {
     expect(rows).toHaveLength(0);
   });
 
+  it("refuses a caretaker publishing THEIR OWN contact on the credential", async () => {
+    // KEY 1 of the two-key model (`disclose_caretaker_contact_when_lost`,
+    // migration 0193) is the TITULAR's. A caretaker flipping it via PostgREST
+    // would be granting themselves a disclosure the titular never chose — which
+    // is the inverse of the failure key 2 protects against, and just as bad.
+    // Covered for free by the pets UPDATE policy (0190) because it is a column
+    // on `pets`; asserted anyway, because "covered for free" is exactly the
+    // sentence that stops being true when somebody adds a column-scoped policy.
+    const rows = await asAuthenticated(
+      CARETAKER_ID,
+      sql`UPDATE public.pets SET disclose_caretaker_contact_when_lost = true WHERE id = ${petId}::uuid RETURNING id`,
+    );
+    expect(rows).toHaveLength(0);
+  });
+
+  it("still lets the TITULAR set the caretaker-contact disclosure", async () => {
+    const rows = await asAuthenticated(
+      TITULAR_ID,
+      sql`UPDATE public.pets SET disclose_caretaker_contact_when_lost = true WHERE id = ${petId}::uuid RETURNING id`,
+    );
+    expect(rows).toHaveLength(1);
+    // Leave the fixture as it was found — the flag is off by default and other
+    // assertions in this file must not inherit it.
+    await db.execute(
+      sql`UPDATE public.pets SET disclose_caretaker_contact_when_lost = false WHERE id = ${petId}::uuid`,
+    );
+  });
+
   it("refuses a caretaker's rename (identity field)", async () => {
     const rows = await asAuthenticated(
       CARETAKER_ID,

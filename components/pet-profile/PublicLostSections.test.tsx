@@ -199,3 +199,97 @@ describe("PublicLostSections — degenerate identity line", () => {
     expect(screen.getByText("Perro · marrón · collar rojo")).toBeInTheDocument();
   });
 });
+
+// ---------------------------------------------------------------------------
+// Alternate public contact — the two-key model (custodia-temporal)
+// ---------------------------------------------------------------------------
+//
+// The spec said the public credential must NEVER reference the caretaker. The
+// PO decision of 2026-08-19 amended that to "never UNLESS both keys are set",
+// and the right response to an amendment like that is to KEEP the original
+// assertion and add the narrow path beside it. "Never by default" is still the
+// invariant worth pinning: the prop's default is null, and every existing
+// caller that does not know about caretakers renders nothing.
+//
+// The two keys themselves are enforced server-side and proven in
+// __tests__/caretaker-public-contact.test.ts. What is proven HERE is that this
+// component discloses nothing on its own.
+
+describe("PublicLostSections — caretaker as alternate contact", () => {
+  it("says nothing about a caretaker by default", () => {
+    const { container } = render(<PublicLostSections {...BASE_PROPS} />);
+
+    expect(container.querySelector('[data-section="lost-caretaker-contact"]')).toBeNull();
+    expect(container.querySelector('[data-section="lost-caretaker-call"]')).toBeNull();
+  });
+
+  it("says nothing when the caller passes null (both keys, or either, unmet)", () => {
+    const { container } = render(
+      <PublicLostSections {...BASE_PROPS} ownerFirstName="Ignacio" caretakerContact={null} />,
+    );
+
+    expect(container.querySelector('[data-section="lost-caretaker-contact"]')).toBeNull();
+    expect(screen.getByText("Lo busca Ignacio.")).toBeInTheDocument();
+  });
+
+  it("names the caretaker as an ALTERNATE, never as the owner", () => {
+    render(
+      <PublicLostSections
+        {...BASE_PROPS}
+        ownerFirstName="Ignacio"
+        caretakerContact={{ firstName: "Ana", phoneE164: "+541155550001" }}
+      />,
+    );
+
+    // The titular is still the one searching. A finder must not come away
+    // thinking the caretaker is the owner.
+    expect(screen.getByText("Lo busca Ignacio.")).toBeInTheDocument();
+    expect(screen.getByText("Mientras tanto la cuida Ana.")).toBeInTheDocument();
+  });
+
+  it("offers the caretaker's phone as an OUTLINE CTA, never a second primary", () => {
+    const { container } = render(
+      <PublicLostSections
+        {...BASE_PROPS}
+        ownerPhoneE164="+541155550000"
+        caretakerContact={{ firstName: "Ana", phoneE164: "+541155550001" }}
+      />,
+    );
+
+    const caretakerCta = container.querySelector('[data-section="lost-caretaker-call"]');
+    expect(caretakerCta).not.toBeNull();
+    expect(caretakerCta?.getAttribute("href")).toBe("tel:+541155550001");
+    // One accent, two weights: the titular's "Llamar" is the row's only solid
+    // button. A second fill would make the finder rank two primaries.
+    expect(caretakerCta?.className).toContain("bg-ln-card");
+    expect(caretakerCta?.className).not.toContain("bg-ln-azul");
+  });
+
+  it("renders the name line with no CTA when the caretaker has no phone on file", () => {
+    const { container } = render(
+      <PublicLostSections
+        {...BASE_PROPS}
+        caretakerContact={{ firstName: "Ana", phoneE164: null }}
+      />,
+    );
+
+    expect(screen.getByText("Mientras tanto la cuida Ana.")).toBeInTheDocument();
+    expect(container.querySelector('[data-section="lost-caretaker-call"]')).toBeNull();
+  });
+
+  it("does not suppress the phone-privacy note — the titular's phone is still hidden", () => {
+    // The note explains why there is no "Llamar" for the OWNER. A caretaker CTA
+    // being present does not make the owner's phone disclosed, and swallowing
+    // the note here would quietly imply it was.
+    render(
+      <PublicLostSections
+        {...BASE_PROPS}
+        ownerPhoneE164={null}
+        finderFormHref="/p/DIM-TEST/encontre"
+        caretakerContact={{ firstName: "Ana", phoneE164: "+541155550001" }}
+      />,
+    );
+
+    expect(screen.getByText(/no mostramos el teléfono del dueño/i)).toBeInTheDocument();
+  });
+});
