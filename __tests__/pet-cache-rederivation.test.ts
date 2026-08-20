@@ -15,6 +15,20 @@
 //  3. NON-VACUITY — deliberately skew a cache column via raw SQL and assert the
 //     harness DETECTS the mismatch. Without this, a harness that always returns
 //     "matches: true" would pass layers 1 and 2 silently.
+//
+// THE OTHER HALF OF THE FITNESS SUITE lives in
+// __tests__/rederive-pet-ownerships.test.ts (custodia-temporal). It applies the
+// same three layers to `ownerships(role='caretaker')` rows, which
+// rederivePetCache does not and cannot cover: it compares COLUMNS on one `pets`
+// row, and an arrangement is a set of rows with a lifecycle. Kept as a separate
+// file rather than folded in here so the expensive corpus sweep is not run
+// twice — but it IS part of this suite, and a reader who finds only this file
+// will conclude ownership rows are covered when they were not covered at all
+// until that one existed.
+//
+// STILL UNCOVERED, on purpose: `owner`, `foster` and `shelter_custody` rows have
+// NO drift detection. See that file's header for why replaying them is a
+// separate change.
 
 import { createClient } from "@supabase/supabase-js";
 import { and, countDistinct, eq, like, ne } from "drizzle-orm";

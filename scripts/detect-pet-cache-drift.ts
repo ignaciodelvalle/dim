@@ -18,6 +18,22 @@
  * apply path (scripts/rebuild-projections.ts --apply); for the rest, repair is
  * manual until a dedicated remediation is built.
  *
+ * TWO SECTIONS since custodia-temporal:
+ *   `kind: "pet_cache_drift"`                  — `pets` columns vs the spine.
+ *   `kind: "pet_caretaker_ownership_drift"`    — `ownerships(role='caretaker')`
+ *        rows vs caretaker_designated / caretaker_ended. A separate shape (a set
+ *        of rows with a lifecycle, not a column) and a separate repair: a
+ *        drifted column can often be recomputed, while an ownership row that
+ *        disagrees with the log means somebody either holds write access
+ *        nothing explains, or lost access the log says they still have.
+ *
+ * KNOWN GAP, logged rather than fixed here: every OTHER ownership role
+ * (owner / foster / shelter_custody) still has no drift detection at all.
+ * Replaying them means modelling custody_transferred, adoption_finalized,
+ * decomiso, free-claim and chip-match — a much larger change. Until that
+ * exists, a harness reporting on those roles would mark the entire corpus as
+ * drifted, which is why the caretaker scope is explicit and not incidental.
+ *
  * Output: one JSON line per drifted pet (grep/jq-friendly), then a summary line
  * on stderr. Exit code:
  *   0 → no drift (or no pets)
@@ -38,6 +54,10 @@ import { asc, eq, gt, sql } from "drizzle-orm";
 
 import { db, pets } from "@/db";
 import { driftedColumns, rederivePetCache } from "@/lib/infra/rederive-pet-cache";
+import {
+  hasOwnershipDrift,
+  rederivePetCaretakerOwnerships,
+} from "@/lib/infra/rederive-pet-ownerships";
 
 type Args = {
   publicToken: string | null;
@@ -88,6 +108,32 @@ async function checkPet(
   });
 }
 
+/**
+ * SECOND SECTION — caretaker ownership rows (custodia-temporal).
+ *
+ * A separate check because it is a separate SHAPE, not a stubborn preference:
+ * `rederivePetCache` compares columns on one `pets` row, and a caretaker
+ * arrangement is a set of rows with a lifecycle. Both live in this one script
+ * so ops and CI keep a single definition of "drift" — the argument for the
+ * sibling harness was never that it should be run separately.
+ *
+ * SCOPED TO caretaker. Every other ownership role still has NO drift detection,
+ * which is the finding this change logs rather than fixes: replaying `owner`
+ * means modelling custody_transferred, adoption_finalized, decomiso, free-claim
+ * and chip-match, and until that exists a harness reporting on it would mark
+ * the whole corpus as drifted.
+ *
+ * Read-only, same as the column check, and under the same per-pet advisory lock
+ * so a concurrent accept cannot interleave between the two reads.
+ */
+async function checkPetOwnerships(pet: PetRef): Promise<string[]> {
+  return db.transaction(async (tx) => {
+    await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtext(${pet.id}))`);
+    const report = await rederivePetCaretakerOwnerships(pet.id, tx as unknown as typeof db);
+    return hasOwnershipDrift(report) ? report.mismatches : [];
+  });
+}
+
 async function* iterateAllPets(batchSize: number): AsyncGenerator<PetRef> {
   // Keyset pagination over the primary key — stable under concurrent inserts
   // and cheap (no OFFSET scan). Read-only.
@@ -115,6 +161,7 @@ async function main(): Promise<void> {
 
   let scanned = 0;
   let driftedPets = 0;
+  let driftedOwnerships = 0;
 
   const emit = (pet: PetRef, drift: Record<string, { stored: unknown; derived: unknown }>) => {
     driftedPets++;
@@ -129,6 +176,30 @@ async function main(): Promise<void> {
     );
   };
 
+  // A DISTINCT `kind`, not an extra key on the row above: the two findings need
+  // different repairs. A drifted column can often be recomputed; a caretaker
+  // ownership row that disagrees with the spine means somebody either holds
+  // write access nothing explains, or lost access the log says they have. An
+  // operator filtering by `kind` must be able to tell those apart.
+  const emitOwnership = (pet: PetRef, mismatches: string[]) => {
+    driftedOwnerships++;
+    console.log(
+      JSON.stringify({
+        kind: "pet_caretaker_ownership_drift",
+        petId: pet.id,
+        publicToken: pet.publicToken,
+        mismatches,
+      }),
+    );
+  };
+
+  const checkOne = async (pet: PetRef) => {
+    const drift = await checkPet(pet);
+    if (Object.keys(drift).length > 0) emit(pet, drift);
+    const ownershipMismatches = await checkPetOwnerships(pet);
+    if (ownershipMismatches.length > 0) emitOwnership(pet, ownershipMismatches);
+  };
+
   if (args.publicToken) {
     const [pet] = await db
       .select({ id: pets.id, publicToken: pets.publicToken })
@@ -140,24 +211,25 @@ async function main(): Promise<void> {
       process.exit(1);
     }
     scanned = 1;
-    const drift = await checkPet(pet);
-    if (Object.keys(drift).length > 0) emit(pet, drift);
+    await checkOne(pet);
   } else {
     for await (const pet of iterateAllPets(args.batchSize)) {
       scanned++;
-      const drift = await checkPet(pet);
-      if (Object.keys(drift).length > 0) emit(pet, drift);
+      await checkOne(pet);
       if (!args.jsonOnly && scanned % 500 === 0) {
         log(`[detect-pet-cache-drift]   …scanned ${scanned} pets so far`);
       }
     }
   }
 
+  const total = driftedPets + driftedOwnerships;
   const verdict =
-    driftedPets > 0 ? " — DRIFT DETECTED (read-only; repair is a human decision)" : " — clean";
-  log(`[detect-pet-cache-drift] done — scanned=${scanned} drifted=${driftedPets}${verdict}`);
+    total > 0 ? " — DRIFT DETECTED (read-only; repair is a human decision)" : " — clean";
+  log(
+    `[detect-pet-cache-drift] done — scanned=${scanned} columnDrift=${driftedPets} caretakerOwnershipDrift=${driftedOwnerships}${verdict}`,
+  );
 
-  process.exit(driftedPets > 0 ? 1 : 0);
+  process.exit(total > 0 ? 1 : 0);
 }
 
 main().catch((err) => {
