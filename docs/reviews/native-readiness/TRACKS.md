@@ -133,35 +133,84 @@ correctness is the reason.
 
 ### T1.3 — de-couple the application layer (B4 + B41 + B1)
 
-**Today (verified).** The fence exists and works: `biome.json` bans `next`,
-`next/cache`, `next/navigation`, `next/headers`, and `server-only` inside
-`src/modules/*/application/**`, citing ADR 2026-07-18. It is undermined by a
-**frozen exemption list of exactly 47 files** — auth, intake, lifecycle
-use-cases, panorama loaders. There is also a real omission: `@/lib/supabase/server`
-is **not** in the fence's restricted paths, so framework coupling can re-enter
-through it. Client input is hand-parsed with `String(formData.get(...))`; the
-existing zod schemas validate the **DB write shape**, not client input.
+**Status: landed 2026-08-20** (items 1–4 of the original Work list). What
+follows is the corrected picture — the plan's numbers were measured and three
+of them were wrong.
 
-**Target.** Application layer accepts typed camelCase DTOs validated by schemas
-that live in `packages/contract`; the actions layer owns FormData→DTO. Exemption
-list trends to zero and can only shrink.
+**What the plan said, and what was actually there.**
 
-**Work.**
-1. Add `@/lib/supabase/server` to the fence paths.
-2. Write the missing client-input zod schemas in the contract package, one per
-   capture flow.
-3. Start the burn-down with `create-intake.ts` — it blocks Phase 2 (org intake
-   at the kennel door) and is the messiest of the nine coupled use-cases.
-4. Ratchet the exemption list monotonically downward, using the
-   `check-db-budget.ts` baseline pattern (stale entries must be removed, so the
-   grip never loosens).
+| Plan said | Measured 2026-08-20 |
+|---|---|
+| exemption list of "exactly 47 files" | **46**, and two of those had already been fixed — the real coupling was **44** |
+| the exemptions are FormData/redirect coupling | the dominant axis is `next/cache` (22 files, `revalidatePath`); `server-only` 9, `next/headers` 9, `next/navigation` only 4 |
+| `create-intake.ts` is "the messiest of the nine coupled use-cases" | correct as a target, wrong as a description: its coupling was three `redirect()` calls, and fixing it paid down the `lint:action-redirect` baseline at the same time |
 
-**Honest gap.** 47 files is weeks of mechanical work, not days, and each one is
-a small behavioural risk at a write boundary. The upside is that it is
-*legible* debt — an explicit, reviewable list, not an unknown.
+**Done.**
 
-**Track 1 estimate: 2–3 weeks.** This is the precondition for a native team
-being productive rather than reverse-engineering.
+1. **Fence hole closed.** `@/lib/supabase/server` is now restricted in both the
+   application and the domain override. It is `next/headers` behind an alias —
+   the factory calls `cookies()`. Closing it surfaced three auth use-cases
+   (`complete-identity`, `update-password`, `export-subject-data`), now on the
+   exemption list until identity is injected from the actions layer. Tests
+   under `application/**` are carved out by glob: a test that mocks a boundary
+   has to be able to name it.
+2. **Ratchet.** `scripts/check-application-fence.ts` (`pnpm lint:app-fence`, in
+   `verify` and in CI), shaped after `check-db-budget.ts`'s baseline. It fails
+   on: a missing fence, an empty corpus, an exemption pointing at a file that
+   no longer exists, a STALE exemption, a coupled file outside the list, an
+   unsorted list, and any count that does not equal
+   `scripts/application-fence-baseline.json`. Fixing a file therefore forces
+   lowering the number in the same commit. It also closes one hole biome itself
+   has: a **runtime** `await import("next/headers")`. A `typeof import()` in
+   type position deliberately does not count — it erases at compile time, biome
+   does not flag it, and it is the shape a decoupled use-case uses to name the
+   type of a client its caller injects.
+3. **Burn-down: 46 → 37.** Two stale entries removed; nine use-cases dropped
+   `import "server-only"` (free — each still reaches an infrastructure module
+   that declares the marker, asserted by
+   `__tests__/application-server-only-reachability.test.ts`); `create-intake.ts`
+   now returns `redirectTo` instead of calling `redirect()`.
+4. **Client-input schemas in `@dim/contract`.** `packages/contract/src/input/`
+   holds the intake schema. The package takes its first deliberate dependency,
+   `zod`, and `check-contract-purity.ts` went from "zero dependencies" to an
+   explicit `ALLOWED_DEPENDENCIES` allowlist with the reasoning written into the
+   file — plus the warning that a second entry needs a note of the same length.
+   Failure codes are copy-free; the es-AR words are mapped in the app, so a
+   native client reuses the codes with its own screens.
+
+**Still open — 37 exemptions, and the shape of the remaining work.**
+
+Counts below are per AXIS and they overlap: several files are coupled two ways,
+so they sum to more than 37.
+
+- **21 × `next/cache`** (`revalidatePath`). Mechanical but not free: each needs
+  every caller found so the revalidation moves to the actions layer without
+  being dropped. This is the bulk of the remaining list and the obvious next
+  batch.
+- **11 × `@/lib/supabase/server`** — newly visible, because the fence only
+  started looking on 2026-08-20. Needs the authenticated identity (or the
+  client itself) injected from the actions layer. `requireLiveUser` (T1.2) is
+  the guard those call sites should be resolving through.
+- **10 × `next/headers`** — mostly `headers()` for the client IP, plus the
+  cookies the Supabase factory reads. Needs an injected request context.
+- **4 × `next/navigation`** — `logout`, `start-apply-intent`,
+  `claim-stub-profile`, `delete-vaccine-reminder`. Same treatment
+  `create-intake` just got, and the same double payoff against
+  `lint:action-redirect`, whose baseline still carries 6 calls across 4 files.
+- **Client-input schemas** exist for intake only. One per capture flow is still
+  the target.
+
+**Honest gap.** The remaining 37 are weeks of mechanical work, and each one is a
+small behavioural risk at a write boundary. What changed is that the list can no
+longer grow by accident, and an exemption can no longer outlive the violation it
+was written for.
+
+**Adjacent finding (not fixed, out of scope):** several of these use-cases
+import `@/db` and infrastructure repositories directly. The fence does not ban
+that, and it is a separate layering question from framework coupling — but it is
+the reason removing `server-only` was safe, so it is worth naming.
+
+**Track 1 estimate: 1–2 weeks remaining.**
 
 ---
 
