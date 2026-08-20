@@ -29,8 +29,8 @@ import { LnMaintenanceScreen } from "@/components/ui/MaintenanceScreen";
 import { LnOfflineBanner } from "@/components/ui/OfflineBanner";
 import { shouldShowDemoBanner } from "@/lib/domain/demo-mode";
 import { isIdentityPending } from "@/lib/domain/identity-completeness";
-import { isMaintenanceMode } from "@/lib/domain/maintenance-mode";
 import { requireUserOrRedirect } from "@/lib/infra/auth-guards";
+import { isPlatformInMaintenance } from "@/lib/infra/live-user";
 import {
   getOrgMembershipsCached,
   getOwnedPetsCountCached,
@@ -62,7 +62,7 @@ export default async function AuthenticatedLayout({
 }) {
   // Maintenance kill-switch short-circuits BEFORE any auth/data fetch — no
   // masthead/nav data exists yet, so the screen renders full-page, unwrapped.
-  if (isMaintenanceMode(process.env.NEXT_PUBLIC_MAINTENANCE_MODE)) {
+  if (isPlatformInMaintenance()) {
     return <LnMaintenanceScreen />;
   }
 

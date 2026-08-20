@@ -26,8 +26,8 @@ import { OrgBreadcrumbs } from "@/components/ui/dashboard/OrgBreadcrumbs";
 import type { OrganizationCapability } from "@/db";
 import { applicableOrgQueues } from "@/lib/analytics/org-dashboard";
 import { shouldShowDemoBanner } from "@/lib/domain/demo-mode";
-import { isMaintenanceMode } from "@/lib/domain/maintenance-mode";
 import { requireOrgAccessByToken } from "@/lib/infra/auth-guards";
+import { isPlatformInMaintenance } from "@/lib/infra/live-user";
 import {
   getOrgQueueCountsCached,
   getProfileCached,
@@ -60,7 +60,7 @@ export default async function OrgLayout({
 }) {
   // Maintenance kill-switch short-circuits BEFORE any auth/data fetch — no
   // rail/topbar data exists yet, so the screen renders full-page, unwrapped.
-  if (isMaintenanceMode(process.env.NEXT_PUBLIC_MAINTENANCE_MODE)) {
+  if (isPlatformInMaintenance()) {
     return <OpMaintenanceScreen />;
   }
 

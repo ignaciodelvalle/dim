@@ -10,7 +10,7 @@
 //
 // All tests are pure mock-based — no DB, no Supabase instance required.
 
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 // ---------------------------------------------------------------------------
 // Mock: next/navigation
@@ -82,8 +82,15 @@ function noSession() {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  // Maintenance is the first thing every guard now consults (B52); pin it OFF
+  // so a stray env value in the shell cannot silently green the whole file.
+  vi.stubEnv("NEXT_PUBLIC_MAINTENANCE_MODE", "0");
   // Default: no session (safest default — each test sets what it needs)
   mockGetUser.mockResolvedValue(noSession());
+});
+
+afterEach(() => {
+  vi.unstubAllEnvs();
 });
 
 // ---------------------------------------------------------------------------
@@ -159,6 +166,52 @@ describe("requireUserOrRedirect", () => {
       "NEXT_REDIRECT:/iniciar-sesion",
     );
     expect(mockRedirect).toHaveBeenCalledWith("/iniciar-sesion");
+  });
+
+  // B52 — the live-bug half of T1.2. Before this, maintenance was enforced in
+  // FOUR LAYOUTS only. A layout gates a render; a Server Action runs its body
+  // before any layout re-renders, so a maintenance window did not stop an
+  // in-flight write — the mutation committed and the user was then shown the
+  // maintenance screen. Routing every guard through requireLiveUser() moves the
+  // decision to the one place a write actually passes through.
+  it("redirects to /mantenimiento while the maintenance kill-switch is on", async () => {
+    vi.stubEnv("NEXT_PUBLIC_MAINTENANCE_MODE", "1");
+    mockGetUser.mockResolvedValue(userSession("user-live"));
+
+    await expect(requireUserOrRedirect()).rejects.toThrow("NEXT_REDIRECT:/mantenimiento");
+    expect(mockRedirect).toHaveBeenCalledWith("/mantenimiento");
+  });
+
+  it("does not resolve a session at all during maintenance", async () => {
+    vi.stubEnv("NEXT_PUBLIC_MAINTENANCE_MODE", "true");
+
+    await expect(requireUserOrRedirect()).rejects.toThrow("NEXT_REDIRECT:/mantenimiento");
+    expect(mockGetUser).not.toHaveBeenCalled();
+    expect(mockGetProfileCached).not.toHaveBeenCalled();
+  });
+
+  // Deliberate asymmetry, not an oversight. requireLiveUser() reports
+  // DEACTIVATED, and every WRITE boundary refuses on it — but this page-level
+  // wrapper tolerates it. A deactivated institutional account that is bounced
+  // off every surface has no /cuenta to read the explanation on and no logout
+  // affordance to reach; that shape is exactly the 2026-07-04 redirect loop
+  // (ERR_TOO_MANY_REDIRECTS, no app surface, no feedback). The operator portals
+  // still reject it in loadActiveInstitutionalProfile, unchanged.
+  it("tolerates a deactivated institutional account so it can still reach /cuenta", async () => {
+    mockGetUser.mockResolvedValue(userSession("user-deact"));
+    mockGetProfileCached.mockResolvedValue({
+      id: "user-deact",
+      role: "govt",
+      displayName: "Govt",
+      accountType: "institutional",
+      deactivatedAt: new Date("2026-08-01"),
+      deletedAt: null,
+    });
+
+    const result = await requireUserOrRedirect();
+
+    expect(result.user.id).toBe("user-deact");
+    expect(mockRedirect).not.toHaveBeenCalled();
   });
 
   it("does not redirect an active (non-erased) account with a session", async () => {

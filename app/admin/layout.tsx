@@ -14,8 +14,8 @@ import { OpScopeChip } from "@/components/ui/dashboard/OpScopeChip";
 import { OperatorBreadcrumbs } from "@/components/ui/dashboard/OperatorBreadcrumbs";
 import { loadWithTimeout } from "@/lib/analytics/analytics-load";
 import { shouldShowDemoBanner } from "@/lib/domain/demo-mode";
-import { isMaintenanceMode } from "@/lib/domain/maintenance-mode";
 import { requireAdminOrRedirect } from "@/lib/infra/auth-guards";
+import { isPlatformInMaintenance } from "@/lib/infra/live-user";
 import { countOutboxBreaches } from "@/lib/infra/outbox-queries";
 import { getProfileCached } from "@/lib/infra/request-cache";
 import { countOpenAlertFirings } from "@/lib/metrics/alert-firing-inbox";
@@ -47,7 +47,7 @@ export const metadata: Metadata = {
 export default async function AdminLayout({ children }: { children: React.ReactNode }) {
   // Maintenance kill-switch short-circuits BEFORE any auth/data fetch — no
   // rail/topbar data exists yet, so the screen renders full-page, unwrapped.
-  if (isMaintenanceMode(process.env.NEXT_PUBLIC_MAINTENANCE_MODE)) {
+  if (isPlatformInMaintenance()) {
     return <OpMaintenanceScreen />;
   }
 

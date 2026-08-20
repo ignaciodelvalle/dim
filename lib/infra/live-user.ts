@@ -48,7 +48,6 @@
 
 import { isMaintenanceMode } from "@/lib/domain/maintenance-mode";
 import { type CachedProfile, getProfileCached } from "@/lib/infra/request-cache";
-import { isDeactivatedInstitutional, isErasedAccount } from "@/lib/infra/role-landing";
 import { createClient } from "@/lib/supabase/server";
 
 export type SupabaseServerClient = Awaited<ReturnType<typeof createClient>>;
@@ -75,7 +74,10 @@ export type LiveUserFailure = {
   // Null on MAINTENANCE: the kill-switch answers before any client is built, so
   // there is deliberately nothing to hand back. Callers must not depend on it.
   supabase: SupabaseServerClient | null;
-  user: { id: string } | null;
+  // Populated on every refusal that got as far as resolving a session, so the
+  // page-level wrapper can hand a tolerated refusal (DEACTIVATED) back as a
+  // complete session instead of reconstructing one.
+  user: { id: string; email?: string } | null;
   reason: LiveUserFailureReason;
   // Ready-to-render es-AR copy, identical to liveUserMessage(reason).
   error: string;
@@ -110,6 +112,24 @@ export function liveUserMessage(reason: LiveUserFailureReason): string {
 }
 
 /**
+ * Is the platform-wide maintenance kill-switch on?
+ *
+ * ONE authority for "which env var, read how". The four portal layouts read
+ * `process.env.NEXT_PUBLIC_MAINTENANCE_MODE` directly and each decided for
+ * itself; four copies of a kill-switch is three chances for one of them to be
+ * missed when the variable is renamed, and it is exactly why nothing enforced
+ * maintenance on the WRITE path.
+ *
+ * Layouts still call this and RENDER their portal's screen — that is a layout's
+ * job, and rendering in place keeps the URL and costs no round-trip. What moved
+ * into requireLiveUser is the ENFORCEMENT: a layout gates a render, and a render
+ * is not what a server action performs.
+ */
+export function isPlatformInMaintenance(): boolean {
+  return isMaintenanceMode(process.env.NEXT_PUBLIC_MAINTENANCE_MODE);
+}
+
+/**
  * Resolve the caller as a LIVE user, or say why not.
  *
  * Precedence is deliberate:
@@ -123,7 +143,7 @@ export function liveUserMessage(reason: LiveUserFailureReason): string {
  *   4. DEACTIVATED
  */
 export async function requireLiveUser(options?: RequireLiveUserOptions): Promise<LiveUserResult> {
-  if (isMaintenanceMode(process.env.NEXT_PUBLIC_MAINTENANCE_MODE)) {
+  if (isPlatformInMaintenance()) {
     return {
       ok: false,
       supabase: null,
@@ -145,7 +165,15 @@ export async function requireLiveUser(options?: RequireLiveUserOptions): Promise
   // also hits a layout guard and a page pays exactly one round-trip.
   const profile = await getProfileCached(user.id);
 
-  if (isErasedAccount(profile)) {
+  // LOOSE `!= null`, deliberately — byte-for-byte the predicate the guards this
+  // module absorbs already used (`profile?.deletedAt != null` in
+  // requireUserOrRedirect and requirePetAccess). lib/infra/role-landing.ts's
+  // isErasedAccount/isDeactivatedInstitutional use STRICT `!== null`, which
+  // treats a profile shape that simply omits the column as erased. Production
+  // never sees that (getProfileCached always selects both columns) but the
+  // difference is real and this guard is not the place to change it — see the
+  // adjacent finding in the T1.2 report.
+  if (profile?.deletedAt != null) {
     return {
       ok: false,
       supabase,
@@ -160,11 +188,14 @@ export async function requireLiveUser(options?: RequireLiveUserOptions): Promise
   // — see the T1.2 report: self-deactivating a personal account currently costs
   // the user nothing, and closing that needs a landing screen to bounce to, not
   // a one-line predicate widening here.
-  if (isDeactivatedInstitutional(profile)) {
+  if (profile?.accountType === "institutional" && profile.deactivatedAt != null) {
     return {
       ok: false,
       supabase,
-      user: { id: user.id },
+      // email carried here (and NOT on the erased branch) because this is the
+      // one refusal a page-level caller is allowed to tolerate — see
+      // requireUserOrRedirect. An erased account has no identity left to hand back.
+      user: { id: user.id, email: user.email },
       reason: "DEACTIVATED",
       error: MESSAGES.DEACTIVATED,
     };

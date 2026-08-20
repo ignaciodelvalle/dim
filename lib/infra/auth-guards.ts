@@ -12,12 +12,13 @@ import { notFound, redirect } from "next/navigation";
 
 import type { Organization, OrganizationMembership } from "@/db";
 import type { ActorProfile } from "@/lib/domain/institutional-scope";
+import { requireLiveUser } from "@/lib/infra/live-user";
 import {
   getJurisdictionsCached,
   getOrgMembershipCached,
   getProfileCached,
 } from "@/lib/infra/request-cache";
-import { createClient } from "@/lib/supabase/server";
+import type { createClient } from "@/lib/supabase/server";
 
 export type AuthenticatedSession = {
   supabase: Awaited<ReturnType<typeof createClient>>;
@@ -45,20 +46,46 @@ export type AuthenticatedSession = {
 // erased-account branch intentionally drops returnTo: an erased account can never
 // reach the target again, so it lands on plain /login (the "cuenta eliminada"
 // notice) rather than a returnTo that would loop.
+//
+// SHAPE (T1.2): this is now a thin wrapper over requireLiveUser() — the one
+// result-shaped liveness guard (lib/infra/live-user.ts) — not a parallel
+// implementation. The result guard decides; this function only translates a
+// refusal into the redirect a page/layout needs.
+//
+// It handles three of the four refusals and DELIBERATELY tolerates the fourth:
+//   MAINTENANCE    → /mantenimiento. New (B52): the kill-switch used to live in
+//                    four layouts, which gate a RENDER, so a Server Action that
+//                    calls this guard committed its write during a maintenance
+//                    window and only then met the maintenance screen.
+//   NO_SESSION     → /iniciar-sesion (+ returnTo). Unchanged.
+//   ACCOUNT_ERASED → /iniciar-sesion, returnTo dropped. Unchanged.
+//   DEACTIVATED    → PASSES. A deactivated institutional account must keep a
+//                    surface it can read the explanation on (/cuenta) and log
+//                    out from; bouncing it off everything is how the
+//                    2026-07-04 ERR_TOO_MANY_REDIRECTS incident happened. The
+//                    operator portals still reject it in
+//                    loadActiveInstitutionalProfile, and every WRITE boundary
+//                    refuses it via requireLiveUser directly. Reads stay open
+//                    so the user can see why; writes stop.
 export async function requireUserOrRedirect(returnTo?: string): Promise<AuthenticatedSession> {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user)
-    redirect(
-      returnTo ? `/iniciar-sesion?returnTo=${encodeURIComponent(returnTo)}` : "/iniciar-sesion",
-    );
+  const live = await requireLiveUser();
 
-  const profile = await getProfileCached(user.id);
-  if (profile?.deletedAt != null) redirect("/iniciar-sesion");
+  if (!live.ok) {
+    if (live.reason === "MAINTENANCE") redirect("/mantenimiento");
+    if (live.reason === "NO_SESSION") {
+      redirect(
+        returnTo ? `/iniciar-sesion?returnTo=${encodeURIComponent(returnTo)}` : "/iniciar-sesion",
+      );
+    }
+    if (live.reason === "ACCOUNT_ERASED") redirect("/iniciar-sesion");
+    // Only DEACTIVATED reaches here, and it always carries both a client and a
+    // user. The guard fails CLOSED rather than asserting that with a cast: if
+    // the shape is ever not what this branch assumes, bounce to login.
+    if (!live.supabase || !live.user) redirect("/iniciar-sesion");
+    return { supabase: live.supabase, user: live.user };
+  }
 
-  return { supabase, user };
+  return { supabase: live.supabase, user: live.user };
 }
 
 export type OrgAccessSession = AuthenticatedSession & {

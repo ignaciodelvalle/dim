@@ -34,8 +34,12 @@ import {
   profiles,
 } from "@/db";
 import { findOpenCaseForPetAndKind } from "@/lib/infra/case-helpers";
-import { getProfileCached } from "@/lib/infra/request-cache";
-import { createClient } from "@/lib/supabase/server";
+import {
+  type LiveUserFailure,
+  type LiveUserFailureReason,
+  requireLiveUser,
+} from "@/lib/infra/live-user";
+import type { createClient } from "@/lib/supabase/server";
 import { getGrantedCapabilities } from "@/src/modules/organizations/infrastructure/authz-resolver";
 import { and, desc, eq, isNotNull, isNull, sql } from "drizzle-orm";
 
@@ -104,11 +108,26 @@ export type PetAccessSuccess = {
 //       purpose: pretending the pet does not exist to someone who is legitimately
 //       caring for it is a lie the UI cannot recover from. This one gets an
 //       explanatory refusal, not a 404.
-export type PetAccessFailureReason = "no-session" | "not-found-or-forbidden" | "not-titular";
+//   - "not-live"              → the caller's SESSION is fine and their rights on
+//       this pet were never consulted: the PLATFORM is not accepting writes
+//       (maintenance window) or the ACCOUNT is deactivated. Added with B52.
+//       `liveReason` carries which. Deliberately its own bucket: neither of
+//       these is "no such pet" (a 404 would be a lie) nor "log in again" (the
+//       session is valid), and both are TEMPORARY in a way the other reasons
+//       are not. The two pre-existing strings are untouched so the six pages
+//       that branch on `reason === "no-session"` / `"not-titular"` keep working.
+export type PetAccessFailureReason =
+  | "no-session"
+  | "not-found-or-forbidden"
+  | "not-titular"
+  | "not-live";
 
 export type PetAccessFailure = {
   ok: false;
-  supabase: SupabaseServerClient;
+  // Null only on a MAINTENANCE refusal: the kill-switch answers before any
+  // client is built, precisely so it still works when the DATABASE is what is
+  // being maintained.
+  supabase: SupabaseServerClient | null;
   user: { id: string } | null;
   pet: null;
   accessPath: null;
@@ -119,57 +138,61 @@ export type PetAccessFailure = {
   // it is functionally dead in the failure case but keeps types simple.
   eventAuthorship: PetEventAuthorship;
   reason: PetAccessFailureReason;
+  // Populated only when `reason === "not-live"`, so a caller can tell a
+  // maintenance window apart from a deactivated account without string-matching
+  // the human message.
+  liveReason?: LiveUserFailureReason;
   error: string;
 };
 
 export type PetAccessResult = PetAccessSuccess | PetAccessFailure;
 
-export async function requirePetAccess(publicToken: string): Promise<PetAccessResult> {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) {
-    return {
-      ok: false,
-      supabase,
-      user: null,
-      pet: null,
-      accessPath: null,
-      organization: null,
-      membership: null,
-      eventAuthorship: OWNER_AUTHORSHIP,
-      reason: "no-session",
-      error: "Sesión expirada.",
-    };
-  }
+// Maps a liveness refusal onto this module's failure shape. The structural
+// reason of the two PRE-EXISTING refusals is preserved byte-for-byte — six
+// pages branch on `access.reason === "no-session"` and would silently fall
+// through to notFound() if it moved — while the two NEW ones (maintenance,
+// deactivation) get their own `not-live` bucket.
+function failureFromLiveness(live: LiveUserFailure): PetAccessFailure {
+  const reason: PetAccessFailureReason =
+    live.reason === "NO_SESSION"
+      ? "no-session"
+      : live.reason === "ACCOUNT_ERASED"
+        ? // An erased account is deliberately in the 404 bucket: it has a valid
+          // JWT and no rights, so it must fail like any other permission denial
+          // rather than loop back to /login. Unchanged from Wave E2.
+          "not-found-or-forbidden"
+        : "not-live";
+  return {
+    ok: false,
+    supabase: live.supabase,
+    user: live.user,
+    pet: null,
+    accessPath: null,
+    organization: null,
+    membership: null,
+    eventAuthorship: OWNER_AUTHORSHIP,
+    reason,
+    ...(reason === "not-live" ? { liveReason: live.reason } : {}),
+    error: live.error,
+  };
+}
 
-  // Right-to-erasure lockout (Ley 25.326 art. 16, Wave D2/E2): a valid Supabase
-  // session is necessary but NOT sufficient to mutate a pet. erase_subject_data()
-  // soft-deletes the profile (deleted_at) and hashes PII, but does not invalidate
-  // an already-issued JWT — so a self-erased account keeps a live token until it
-  // naturally expires. requireUserOrRedirect() blocks erased accounts at the
-  // page/layer boundary, but Drizzle bypasses RLS and every pet-scoped SERVER
-  // ACTION resolves the user here, not through that page guard. Without this
-  // check an erased account could still write pets/events. getProfileCached is
-  // request-memoized (already selects deletedAt) so a page render pass reuses the
-  // same round-trip; a server-action call pays one indexed read — the price of
-  // the security boundary.
-  const actingProfile = await getProfileCached(user.id);
-  if (actingProfile?.deletedAt != null) {
-    return {
-      ok: false,
-      supabase,
-      user: { id: user.id },
-      pet: null,
-      accessPath: null,
-      organization: null,
-      membership: null,
-      eventAuthorship: OWNER_AUTHORSHIP,
-      reason: "not-found-or-forbidden",
-      error: "Tu cuenta fue eliminada.",
-    };
-  }
+export async function requirePetAccess(publicToken: string): Promise<PetAccessResult> {
+  // ONE liveness guard (T1.2). This used to be a hand-rolled `auth.getUser()`
+  // plus an inline `profile?.deletedAt != null` check — correct, but it was the
+  // second of two copies and it knew nothing about maintenance or deactivation.
+  //
+  // Right-to-erasure lockout (Ley 25.326 art. 16, Wave D2/E2) still applies here
+  // and still matters HERE specifically: a valid Supabase session is necessary
+  // but NOT sufficient to mutate a pet. erase_subject_data() soft-deletes the
+  // profile and hashes PII but does not invalidate an already-issued JWT, and
+  // Drizzle bypasses RLS — every pet-scoped SERVER ACTION resolves the user
+  // through this function, not through the page guard. getProfileCached is
+  // request-memoized, so a render pass reuses one round-trip and a server-action
+  // call pays one indexed read: the price of the security boundary.
+  const live = await requireLiveUser();
+  if (!live.ok) return failureFromLiveness(live);
+  const { supabase, user } = live;
 
   // Path 1: direct ownership by user_id. We still don't filter by
   // ownership.role — owner / co_owner / foster / caretaker all qualify for

@@ -15,7 +15,7 @@
 //     before touching it, which the test asserts.
 //   - Mock the org capability resolver (only reached on the alive/org path).
 
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 // ---------------------------------------------------------------------------
 // Mock: @/lib/supabase/server
@@ -119,7 +119,85 @@ function profile(overrides: Record<string, unknown> = {}) {
 beforeEach(() => {
   vi.clearAllMocks();
   dbState.results = [];
+  // requirePetAccess now funnels through requireLiveUser, whose FIRST check is
+  // the maintenance kill-switch. Pin it off so a stray shell value cannot turn
+  // this whole file into a maintenance assertion.
+  vi.stubEnv("NEXT_PUBLIC_MAINTENANCE_MODE", "0");
   mockGetUser.mockResolvedValue(noSession());
+});
+
+afterEach(() => {
+  vi.unstubAllEnvs();
+});
+
+// ---------------------------------------------------------------------------
+// requirePetAccess — liveness (B52)
+// ---------------------------------------------------------------------------
+
+describe("requirePetAccess — liveness gate (B52)", () => {
+  // THE LIVE BUG. Every pet-scoped server action authorizes here. With the
+  // maintenance gate living only in layouts, a write submitted from a tab that
+  // was open when the window started committed anyway; the user then saw the
+  // maintenance screen and had no way to know their event had landed.
+  it("refuses a write during a maintenance window, before touching auth or the DB", async () => {
+    vi.stubEnv("NEXT_PUBLIC_MAINTENANCE_MODE", "1");
+    mockGetUser.mockResolvedValue(userSession());
+
+    const result = await requirePetAccess("DIM-TEST-0001");
+
+    expect(result.ok).toBe(false);
+    if (result.ok) throw new Error("unreachable");
+    expect(result.reason).toBe("not-live");
+    expect(result.liveReason).toBe("MAINTENANCE");
+    expect(mockGetUser).not.toHaveBeenCalled();
+    expect(mockSelect).not.toHaveBeenCalled();
+  });
+
+  it("refuses a deactivated institutional account before any ownership lookup", async () => {
+    mockGetUser.mockResolvedValue(userSession("user-deact"));
+    mockGetProfileCached.mockResolvedValue(
+      profile({
+        id: "user-deact",
+        role: "govt",
+        accountType: "institutional",
+        deactivatedAt: new Date("2026-08-01"),
+      }),
+    );
+
+    const result = await requirePetAccess("DIM-TEST-0001");
+
+    expect(result.ok).toBe(false);
+    if (result.ok) throw new Error("unreachable");
+    expect(result.reason).toBe("not-live");
+    expect(result.liveReason).toBe("DEACTIVATED");
+    expect(mockSelect).not.toHaveBeenCalled();
+  });
+
+  // The two pre-existing refusals must keep their EXACT structural reason: six
+  // pages branch on `access.reason === "no-session"` / `"not-titular"` and would
+  // silently fall through to notFound() if either string moved.
+  it("keeps 'no-session' as the reason when there is no session", async () => {
+    const result = await requirePetAccess("DIM-TEST-0001");
+
+    expect(result.ok).toBe(false);
+    if (result.ok) throw new Error("unreachable");
+    expect(result.reason).toBe("no-session");
+    expect(result.error).toBe("Sesión expirada.");
+  });
+
+  it("keeps 'not-found-or-forbidden' as the reason for an erased account", async () => {
+    mockGetUser.mockResolvedValue(userSession("user-erased"));
+    mockGetProfileCached.mockResolvedValue(
+      profile({ id: "user-erased", deletedAt: new Date("2026-07-04") }),
+    );
+
+    const result = await requirePetAccess("DIM-TEST-0001");
+
+    expect(result.ok).toBe(false);
+    if (result.ok) throw new Error("unreachable");
+    expect(result.reason).toBe("not-found-or-forbidden");
+    expect(result.error).toBe("Tu cuenta fue eliminada.");
+  });
 });
 
 // ---------------------------------------------------------------------------
