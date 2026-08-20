@@ -5,40 +5,57 @@
  *
  * Why this file exists: the ceiling used to be a literal
  * `--max-old-space-size=8192`, added to stop the compiler dying on a 32 GB
- * workstation. On Vercel's build container that same number is fatal — it
- * tells V8 it may grow to 8 GB of heap alone inside a container that has
- * roughly that much in total, so V8 never self-limits and the container's OOM
- * killer takes the worker down with SIGKILL. A ceiling is only meaningful
- * relative to the box it runs on, so it has to be computed on the box.
+ * workstation. On Vercel's build container (2 cores, 8 GB) that same number is
+ * fatal — it tells V8 it may grow to 8 GB of heap alone inside a container that
+ * has roughly that much in total, so V8 never self-limits and the OOM killer
+ * takes the worker down with SIGKILL. A ceiling is only meaningful relative to
+ * the box it runs on, so it has to be computed on the box.
  *
- * The cap keeps 8192 as the maximum. On the workstation the computed value
- * lands far above it, so the ceiling stays exactly what it is today and the
- * original fix cannot regress; only memory-constrained environments change.
+ * Two quantities decide it, and missing either one produced a wrong answer on
+ * the way here: how much memory the cgroup actually allows, and how many
+ * processes will each claim a ceiling of that size. The second is the one that
+ * is easy to forget — NODE_OPTIONS is inherited, and `next build` forks a
+ * worker per core.
+ *
+ * The cap keeps 8192 as the maximum, and on the workstation the computed value
+ * lands far above it, so the local ceiling is exactly what it is today and the
+ * original fix cannot regress. Only memory-constrained boxes change.
  */
 import { spawn } from "node:child_process";
 import { readFileSync } from "node:fs";
 import { createRequire } from "node:module";
-import { totalmem } from "node:os";
+import { availableParallelism, totalmem } from "node:os";
 
 /**
- * The ONLY thing this flag is for is RAISING the ceiling on a machine that has
- * room to spare. It is never lowered: when the box cannot afford this much,
- * heapMb is null and no flag is passed at all.
+ * The most a single process may be told it can use.
  *
- * That asymmetry is the whole lesson of this file. Node reads the cgroup limit
- * and sizes its own heap accordingly, and on a container that default is both
- * correct and battle-tested — this repo deployed on it for months. Overriding
- * it with 8192 (commit ca9956a5, to stop a 32 GB workstation dying on heap)
- * told V8 it could grow to the container's entire memory, so V8 stopped
- * collecting early and the OOM killer took the build. Every value tried after
- * that was a guess at a number Node already knows better than we do.
+ * On a box with room, that means 8192 — what package.json used to hardcode, so
+ * the workstation's ceiling is exactly what it is today and the fix that
+ * introduced it (ca9956a5) cannot regress. Measured 2026-08-20: this repo's
+ * `next build` completes with a ceiling of 2867 MB, so on a large box anything
+ * above ~3 GB is pure headroom and costs nothing.
  *
- * 8192 is what package.json used to hardcode, so on the workstation the
- * ceiling is exactly what it is today and the fix that introduced it cannot
- * regress. Measured 2026-08-20: this repo's `next build` completes with a
- * ceiling of 2867 MB, so on a large box anything above ~3 GB is headroom.
+ * On a box without room the ceiling is not dropped to zero either, and that is
+ * the correction to an earlier version of this file. Leaving NODE_OPTIONS unset
+ * looks like deferring to Node, but NODE_OPTIONS is INHERITED BY EVERY CHILD,
+ * and `next build` forks one worker per available core. Node then sizes each
+ * worker's heap independently from the same cgroup limit, so two workers each
+ * grow toward a budget that only exists once and the container's OOM killer
+ * takes the build. Observed exactly that on Vercel 2026-08-20: with the type
+ * pass already skipped, compilation still died with SIGKILL after 8 minutes.
+ *
+ * So a constrained box gets the budget DIVIDED BY the number of workers that
+ * will share it. That is a bound, not a guess: whatever the parallelism, total
+ * heap across the fleet stays inside `limit - RESERVED_MB`.
  */
 const CEILING_MB = 8192;
+
+/**
+ * Below this a heap ceiling stops protecting anything and just guarantees a
+ * different death. If the division lands here, the box is too small to build
+ * this app and the log should say so rather than pretend a number will help.
+ */
+const MIN_WORKER_HEAP_MB = 1024;
 
 /**
  * V8's old space is not the whole process: native allocations, source maps,
@@ -47,13 +64,22 @@ const CEILING_MB = 8192;
  * rather than as a percentage — a percentage starves a small container while
  * wasting headroom on a large one.
  *
- * Sized by measurement on the deploy target (2 cores, 8192 MB):
- *   ceiling 8192 -> the container OOM-kills the build. No headroom at all.
- *   ceiling 5734 -> no OOM, but the build never finishes. With only 2 cores
- *                   V8 cannot hide major GCs behind concurrent marking, so a
- *                   tight heap trades a crash for a stall. The cost of a low
- *                   ceiling is invisible on a many-core workstation.
- *   ceiling 7168 -> what this reserve produces there.
+ * It also has to cover whatever the host agent runs inside the same cgroup. On
+ * Vercel that is not nothing: a build that fits an 8192 MB container in a local
+ * Docker container of the same declared size still died there.
+ *
+ * History of the values tried against the deploy target (2 cores, 8192 MB),
+ * kept because every one of them was a plausible answer that turned out wrong:
+ *   8192, single process   -> container OOM-kills the build.
+ *   7168 and 5734, single  -> no OOM; ground to a halt until the 45-minute
+ *                             build timeout. Read at the time as GC thrash on
+ *                             two cores. It was not — it was the tsc pass that
+ *                             `next build` runs after compiling, dying slowly
+ *                             instead of quickly. See next.config.ts.
+ *   no flag at all         -> type pass now skipped, and compilation ITSELF
+ *                             SIGKILLed after 8 minutes: every forked worker
+ *                             sized its own heap from the same cgroup limit.
+ *   headroom / workers     -> what this file computes now.
  */
 const RESERVED_MB = 1024;
 
@@ -116,8 +142,24 @@ if (rawOverride !== "" && !hasOverride) {
 const detected = detectLimitMb();
 const headroom = detected.mb - RESERVED_MB;
 
-// null means "set no flag at all" — see the comment on CEILING_MB.
-const heapMb = hasOverride ? override : headroom >= CEILING_MB ? CEILING_MB : null;
+// `next build` forks a worker per available core and every one of them inherits
+// NODE_OPTIONS, so a ceiling is a PER-PROCESS budget. availableParallelism()
+// respects cpuset and cgroup CPU limits (os.cpus() does not — it reports the
+// host's 16 from inside a 2-core container), which is what makes this division
+// match the fleet that will actually run.
+const workers = Math.max(1, availableParallelism());
+const perWorker = Math.max(MIN_WORKER_HEAP_MB, Math.floor(headroom / workers));
+
+// null means "set no flag at all": only when the box is so small that even the
+// per-worker share is below the floor, where a ceiling would swap one failure
+// for another instead of preventing it.
+const heapMb = hasOverride
+  ? override
+  : headroom >= CEILING_MB
+    ? CEILING_MB
+    : headroom >= MIN_WORKER_HEAP_MB
+      ? perWorker
+      : null;
 
 /**
  * True when this box cannot even afford the ceiling — the same measurement that
@@ -131,16 +173,17 @@ const heapMb = hasOverride ? override : headroom >= CEILING_MB ? CEILING_MB : nu
  * the build fails exactly as it did before. The cgroup limit is not optional
  * and cannot be switched off in a dashboard.
  */
-const constrained = heapMb === null;
+const constrained = headroom < CEILING_MB;
 
 // Printed unconditionally: when a build dies of memory, the log has to already
 // contain what the build believed about its own limits. Reproducing an OOM to
-// find that out costs a deploy cycle.
+// find that out costs a deploy cycle — and the worker count belongs here too,
+// because the ceiling only makes sense next to how many processes will hold one.
 console.log(
   hasOverride
     ? `[build] heap ceiling ${heapMb} MB (BUILD_HEAP_MB override)`
     : constrained
-      ? `[build] no heap ceiling set — ${detected.mb} MB available via ${detected.source}, too little to raise one; Node sizes its own heap and the build skips its type pass`
+      ? `[build] heap ceiling ${heapMb ?? "unset"} MB per worker × ${workers} worker(s) — ${detected.mb} MB available via ${detected.source}; constrained box, so the build also skips its type pass`
       : `[build] heap ceiling ${heapMb} MB — ${detected.mb} MB available via ${detected.source}`,
 );
 
