@@ -833,6 +833,10 @@ export default async function PetDetailPage({
           ownerFirstName={ownerFirstName}
           alertsOriginShelter={alertsOriginShelter}
           isOwner={isOwner}
+          // The LEGAL owner only. A caretaker keeps the rest of this block —
+          // including "Marcar como encontrada" — but the disclosure toggles
+          // govern the TITULAR's own name, phone and location.
+          canManageDisclosure={ownershipRole === "owner"}
           caretakerConsentName={caretakerConsentName}
         />
       ),

@@ -66,6 +66,7 @@ describe("<LostCaseBlock> — STALE variant (ADR-18, no open episode while statu
         ownerFirstName="Ana"
         alertsOriginShelter={false}
         isOwner={true}
+        canManageDisclosure={true}
       />,
     );
     expect(html).not.toBe("");
@@ -85,6 +86,7 @@ describe("<LostCaseBlock> — STALE variant (ADR-18, no open episode while statu
         ownerFirstName="Ana"
         alertsOriginShelter={false}
         isOwner={false}
+        canManageDisclosure={false}
       />,
     );
     expect(html).toContain("Búsqueda cerrada por inactividad");
@@ -103,6 +105,7 @@ describe("<LostCaseBlock> — owner variant (all capabilities)", () => {
       ownerFirstName="Ana"
       alertsOriginShelter={false}
       isOwner={true}
+      canManageDisclosure={true}
     />,
   );
 
@@ -157,6 +160,7 @@ describe("<LostCaseBlock> — org read-only variant (REQ-5.3)", () => {
       ownerFirstName="Ana"
       alertsOriginShelter={false}
       isOwner={false}
+      canManageDisclosure={false}
     />,
   );
 
@@ -182,5 +186,50 @@ describe("<LostCaseBlock> — org read-only variant (REQ-5.3)", () => {
 
   it("does NOT render the disclosure toggles", () => {
     expect(html).not.toContain("Qué se muestra al público");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// A CARETAKER on a lost pet — the exposure custodia-temporal opened.
+//
+// A caretaker is `accessPath === "owner"` (they hold a Path-1 ownership row),
+// so `isOwner` is TRUE for them and they correctly get the owner variant of
+// this block: marking the animal found is explicitly one of their allowed
+// actions, and taking it away would be worse than the problem.
+//
+// But the owner variant also carries "Qué se muestra al público" — the
+// TITULAR's own name, phone, email and last-known location. Before this change
+// the caretaker role was unreachable in the UI, so nobody could flip somebody
+// else's disclosure choices. Now they can be on this screen, and they must not.
+//
+// `canManageDisclosure` is REQUIRED, not defaulted: a prop that defaults to
+// `true` fails open the day someone adds a second call site.
+// ---------------------------------------------------------------------------
+describe("LostCaseBlock — disclosure is the TITULAR's, even on a pet in someone else's care", () => {
+  const base = {
+    pet,
+    photoUrl: null,
+    episode,
+    scans,
+    ownerFirstName: "Ana",
+    alertsOriginShelter: false,
+    isOwner: true,
+  };
+
+  it("hides the disclosure controls from a caretaker", () => {
+    const html = render(<LostCaseBlock {...base} canManageDisclosure={false} />);
+    expect(html).not.toContain("Qué se muestra al público");
+  });
+
+  it("keeps 'Marcar como encontrada' for that same caretaker", () => {
+    // NON-VACUITY, and the point of the narrow prop: hiding the disclosure card
+    // must not cost the caretaker the one crisis action they exist for.
+    const html = render(<LostCaseBlock {...base} canManageDisclosure={false} />);
+    expect(html).toContain("encontrad");
+  });
+
+  it("still shows them to the legal owner", () => {
+    const html = render(<LostCaseBlock {...base} canManageDisclosure={true} />);
+    expect(html).toContain("Qué se muestra al público");
   });
 });

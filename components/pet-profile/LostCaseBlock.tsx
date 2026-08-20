@@ -116,6 +116,20 @@ type Props = {
   /** Owner-gate — org/vet viewers get the read-only variant (REQ-5.3). */
   isOwner: boolean;
   /**
+   * Whether this viewer may change the TITULAR's lost-mode disclosure choices.
+   *
+   * SEPARATE FROM `isOwner`, and that separation is the point. A `caretaker`
+   * holds a Path-1 ownership row, so `isOwner` is true for them and they
+   * correctly get the owner variant of this block — marking the animal found is
+   * explicitly one of their allowed actions. But the owner variant also carries
+   * "Qué se muestra al público", which governs the TITULAR's own name, phone,
+   * email and last-known location. Those are not the caretaker's to publish.
+   *
+   * REQUIRED, never defaulted. A prop that defaults to `true` fails open the day
+   * somebody adds a second call site, and this one guards another person's PII.
+   */
+  canManageDisclosure: boolean;
+  /**
    * KEY 2 of the two-key public-contact model: the active caretaker's display
    * name IF they consented at invitation accept, null otherwise. Null hides the
    * sixth disclosure row entirely — see LostDisclosureCard.
@@ -131,6 +145,7 @@ export function LostCaseBlock({
   ownerFirstName,
   alertsOriginShelter,
   isOwner,
+  canManageDisclosure,
   caretakerConsentName = null,
 }: Props) {
   // No open episode while status is still 'lost' — the auto-close cron
@@ -330,16 +345,18 @@ export function LostCaseBlock({
                 />
               </div>
 
-              <div className="border-t border-[var(--color-ln-line-2)] pt-4">
-                <LostDisclosureCard
-                  prefs={prefs}
-                  toggleAction={toggleAction}
-                  publicHref={publicHref}
-                  ownerFirstName={ownerFirstName}
-                  alertsOriginShelter={alertsOriginShelter}
-                  caretakerConsentName={caretakerConsentName}
-                />
-              </div>
+              {canManageDisclosure && (
+                <div className="border-t border-[var(--color-ln-line-2)] pt-4">
+                  <LostDisclosureCard
+                    prefs={prefs}
+                    toggleAction={toggleAction}
+                    publicHref={publicHref}
+                    ownerFirstName={ownerFirstName}
+                    alertsOriginShelter={alertsOriginShelter}
+                    caretakerConsentName={caretakerConsentName}
+                  />
+                </div>
+              )}
             </div>
           </details>
         </div>
