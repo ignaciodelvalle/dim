@@ -18,8 +18,12 @@ import { eq } from "drizzle-orm";
 import { type ApprovalRequest, approvalRequests, auditLog, db } from "@/db";
 import { canDecideRequest } from "@/lib/infra/approval-scope";
 import { createNotification } from "@/lib/infra/notification-service";
+import {
+  approvalInfoBody,
+  approvalInfoDedupeKey,
+} from "@/src/modules/organizations/domain/approval-info-key";
 
-import { ctaForApplicant, loadActorAuthority } from "./helpers";
+import { loadActorAuthority } from "./helpers";
 import type { DecisionResult } from "./types";
 
 export async function requestInfoForAuthority(
@@ -71,12 +75,19 @@ export async function requestInfoForAuthority(
     userId: request.applicantUserId,
     notificationType: "approval_request_info_requested",
     title: titleForInfoRequest(request.type),
-    body: `Necesitamos más información para avanzar con tu solicitud: ${trimmedMessage}`,
+    body: approvalInfoBody(trimmedMessage),
     severity: "info",
     ctaLabel: "Ver detalle",
-    ctaUrl: ctaForApplicant(request),
+    // NOT ctaForApplicant: that helper points at each type's destination
+    // surface (/cuenta/upgrade, /org, the pet's asistencia page), which is right
+    // for approve and reject. None of those render an open information request —
+    // /cuenta/upgrade in particular replaces its form with "Solicitud enviada —
+    // pendiente de revisión." while a request is pending, which is the exact
+    // silence this notification is trying to break. /cuenta/solicitudes is the
+    // one page that shows the ask.
+    ctaUrl: "/cuenta/solicitudes",
     // Stable across retries of the SAME message; distinct messages co-exist.
-    dedupeKey: `approval-info:${request.id}:${simpleHash(trimmedMessage)}`,
+    dedupeKey: approvalInfoDedupeKey(request.id, simpleHash(trimmedMessage)),
   });
 
   return { ok: true };

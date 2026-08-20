@@ -7,10 +7,15 @@ import Link from "next/link";
 import { LnCard, LnCardBody } from "@/components/ui/Card";
 import { LnSectionHead } from "@/components/ui/DocElements";
 import { LnEmptyState } from "@/components/ui/EmptyState";
-import { approvalRequests, db, organizationInvitations, organizations } from "@/db";
+import { approvalRequests, db, notifications, organizationInvitations, organizations } from "@/db";
 import { requireUserOrRedirect } from "@/lib/infra/auth-guards";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { formatDate } from "@/lib/utils/format";
+import {
+  approvalRequestIdFromDedupeKey,
+  messageFromApprovalInfoBody,
+} from "@/src/modules/organizations/domain/approval-info-key";
+import { canResubmitAfterWithdrawal } from "@/src/modules/organizations/domain/approval-resubmission";
 import { WithdrawButton } from "./WithdrawButton";
 
 const REQUEST_TYPE_LABELS: Record<string, string> = {
@@ -94,6 +99,63 @@ export default async function SolicitudesPage({
     .from(approvalRequests)
     .where(eq(approvalRequests.applicantUserId, user.id))
     .orderBy(desc(approvalRequests.createdAt));
+
+  // "Pedir más información" is a notes-only event: requestInfoForAuthority writes
+  // an audit_log row and notifies the applicant, and deliberately leaves the
+  // request PENDING because approval_requests.status has no compatible
+  // intermediate value (CHECK: pending | approved | rejected | withdrawn).
+  // Nothing here used to read either side, so the applicant was told a detail was
+  // missing and then shown a screen that mentioned no such thing — with
+  // re-submission refused and an unlabelled Withdraw button as the only exit.
+  //
+  // The state is DERIVED, not stored, the way /mis-mascotas/postulaciones derives
+  // `info_requested` for adoption applicants. It is read from the applicant's OWN
+  // notifications row rather than from audit_log: that table's policy exposes
+  // rows to actor_user_id or admins, and the applicant is the TARGET, not the
+  // actor. Reading it here would only work by virtue of the server connection
+  // bypassing RLS, which is not a habit worth forming on a citizen route. The
+  // request id travels inside dedupeKey (`approval-info:{id}:{hash}`) and the
+  // reviewer's message inside `body`, both via approval-info-key.ts.
+  //
+  // ONE HONEST ASYMMETRY with that precedent. Postulaciones derives its state
+  // from a `note_added` event on the append-only spine, which is a FACT under
+  // invariant 3. A notifications row is infrastructure: purgeable, deduped,
+  // dead-letterable. Two consequences, both bounded and both accepted here:
+  // createNotification returns `dead_lettered` on failure and request-info.ts
+  // ignores the result, so a transient fault leaves the reviewer seeing success
+  // and the applicant seeing nothing until the 04:00 cron drains the queue; and
+  // because dedupe is global with ON CONFLICT DO NOTHING, re-sending an
+  // IDENTICAL message is a no-op, so a reviewer nudging with the same text keeps
+  // the original timestamp. The invariant-clean answer is a scoped reader over
+  // the audit fact; that is a bigger change than this fix, and worth doing if
+  // this surface grows.
+  const infoAskByRequestId = new Map<string, { message: string | null; askedAt: Date }>();
+  if (allRequests.some((r) => r.status === "pending")) {
+    const asks = await db
+      .select({
+        dedupeKey: notifications.dedupeKey,
+        body: notifications.body,
+        createdAt: notifications.createdAt,
+      })
+      .from(notifications)
+      .where(
+        and(
+          eq(notifications.userId, user.id),
+          eq(notifications.notificationType, "approval_request_info_requested"),
+        ),
+      )
+      // Newest first, so the first row seen for a request id is the latest ask.
+      .orderBy(desc(notifications.createdAt));
+
+    for (const ask of asks) {
+      const requestId = approvalRequestIdFromDedupeKey(ask.dedupeKey);
+      if (!requestId || infoAskByRequestId.has(requestId)) continue;
+      infoAskByRequestId.set(requestId, {
+        message: messageFromApprovalInfoBody(ask.body),
+        askedAt: ask.createdAt,
+      });
+    }
+  }
 
   // Pending org invitations — matched by email (case-insensitive, same as
   // findActiveInvite), not yet accepted, revoked, or expired.
@@ -271,6 +333,47 @@ export default async function SolicitudesPage({
                       </p>
                     </div>
                   )}
+
+                  {/* Information requested — pending requests only */}
+                  {req.status === "pending" &&
+                    (() => {
+                      const ask = infoAskByRequestId.get(req.id);
+                      if (!ask) return null;
+                      return (
+                        <div className="mb-2.5 rounded-[var(--radius-sm)] border border-[var(--color-ln-warn-100)] bg-[var(--color-ln-warn-050)] px-3 py-2">
+                          <p className="text-sm text-[var(--color-ln-warn)]">
+                            <span className="font-semibold">Información pedida</span> el{" "}
+                            {formatDate(ask.askedAt)}
+                          </p>
+                          {ask.message && (
+                            <p className="mt-1 text-sm text-[var(--color-ln-warn)]">
+                              {ask.message}
+                            </p>
+                          )}
+                          {/* Says the awkward part out loud, and says a DIFFERENT
+                              awkward part depending on the type. There is no field
+                              to answer in — amending a pending request is not
+                              modelled — so for most types withdrawing and sending
+                              a new one is genuinely the only move, and leaving
+                              that unsaid is what let requests sit until the
+                              60-day cron closed them for an "inactividad" the
+                              product itself imposed.
+                              But that advice is a TRAP for organization_
+                              verification: the org row and its admin membership
+                              are created in the same transaction as the request
+                              and survive a withdrawal, so the applicant is then
+                              refused by `alreadyAdmin` and the only route back
+                              needs an admin or govt actor. See
+                              approval-resubmission.ts — the allowlist is checked
+                              against each type's real creation guard. */}
+                          <p className="mt-1 text-sm text-[var(--color-ln-warn)]">
+                            {canResubmitAfterWithdrawal(req.type)
+                              ? "Para responder tenés que retirar esta solicitud y enviar una nueva con ese dato. Todavía no se puede contestar sin retirarla."
+                              : "Todavía no se puede responder desde acá, y retirar la solicitud no te va a dejar enviar otra. Respondé por el canal por el que te contactaron."}
+                          </p>
+                        </div>
+                      );
+                    })()}
 
                   {/* Withdraw */}
                   {req.status === "pending" && <WithdrawButton requestId={req.id} />}

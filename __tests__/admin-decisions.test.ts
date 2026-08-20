@@ -30,6 +30,10 @@ import { rejectRequestForAuthority } from "@/src/modules/organizations/applicati
 import { requestInfoForAuthority } from "@/src/modules/organizations/application/admin-decisions/request-info";
 import { createOrganizationForUser } from "@/src/modules/organizations/application/upgrade/create-organization";
 import { requestVetUpgradeForUser } from "@/src/modules/organizations/application/upgrade/request-vet-upgrade";
+import {
+  approvalRequestIdFromDedupeKey,
+  messageFromApprovalInfoBody,
+} from "@/src/modules/organizations/domain/approval-info-key";
 import { setAuditMutationGucs, withMutationOverride } from "./_helpers/db-overrides";
 import { expectDbError } from "./_helpers/expect-db-error";
 
@@ -327,6 +331,19 @@ describe("matrícula verification flow (UI/UX audit 2026-07)", () => {
       .limit(1);
     expect(notif).toBeDefined();
     expect(notif.body).toContain(message);
+
+    // …which /cuenta/solicitudes must be able to READ BACK. The bug this whole
+    // path exists to close was never a format bug: the event fired and nothing
+    // rendered it. Asserting only that the row exists would have passed happily
+    // through the entire outage, so this replays the page's own derivation
+    // against the row the use case just wrote.
+    expect(approvalRequestIdFromDedupeKey(notif.dedupeKey)).toBe(vet2RequestId);
+    expect(messageFromApprovalInfoBody(notif.body)).toBe(message);
+    // And the CTA has to land on the page that shows it. ctaForApplicant points
+    // at /cuenta/upgrade for this type, which replaces its form with "Solicitud
+    // enviada — pendiente de revisión." while a request is pending: the exact
+    // silence being fixed.
+    expect(notif.ctaUrl).toBe("/cuenta/solicitudes");
 
     // …and the request row is UNTOUCHED: still pending, no decision fields.
     const [row] = await db
