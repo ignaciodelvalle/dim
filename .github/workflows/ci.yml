@@ -139,7 +139,7 @@ jobs:
       - name: Lint (metric contracts + query budget)
         run: >-
           pnpm lint:metric-labels && pnpm lint:metric-contract &&
-          pnpm lint:opened-reason && pnpm lint:db-budget && pnpm lint:degraded-chrome && pnpm lint:route-weight && pnpm lint:timezone
+          pnpm lint:opened-reason && pnpm lint:db-budget && pnpm lint:degraded-chrome && pnpm lint:timezone
 
       - name: Lint (UI conventions)
         run: >-
@@ -205,6 +205,24 @@ jobs:
         # renders and arrives dead. Found twice (the 404, then /recuperar); this
         # is what stops the third.
         run: pnpm lint:csp-prerender
+
+      - name: Lint (route weight)
+        # Also AFTER the build, and this step exists because it was NOT. It used
+        # to sit in "Lint (metric contracts + query budget)" above, which runs on
+        # a fresh checkout with no `.next`, so check-route-weight took its
+        # no-manifest branch, printed `[skip] NO SE MIDIÓ NADA` and exited 0. The
+        # ratchet has therefore only ever run on the PO's machine, where `verify`
+        # orders it after the build. `lint:ci-parity` certified it as covered the
+        # whole time: it matches the literal token anywhere in the file and has no
+        # notion of step ordering — the same false-pass class it exists to catch,
+        # one level up.
+        #
+        # `--require-build` is what makes the ordering self-enforcing rather than
+        # a convention someone has to remember. The script's own header always
+        # said this flag was "para CI, donde el build siempre precede"; CI just
+        # never passed it. Move this step above the build again and it fails loud
+        # instead of passing empty.
+        run: pnpm lint:route-weight --require-build
 
   dep-audit:
     name: Dependency audit
