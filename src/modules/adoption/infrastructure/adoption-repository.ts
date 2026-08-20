@@ -28,6 +28,8 @@ import {
 } from "@/lib/infra/case-helpers";
 import { hashDni } from "@/lib/utils/dni-hash";
 
+import { endRehomeSponsorship } from "./rehome-sponsorship-writer";
+
 // ---------------------------------------------------------------------------
 // Type aliases
 // ---------------------------------------------------------------------------
@@ -977,13 +979,18 @@ export const AdoptionRepository = {
     // account (finalize-adoption refuses otherwise), so this writer only ever
     // moves custody onto a profile someone can actually log into.
 
-    // Close shelter_custody.
-    await tx.update(ownerships).set({ endedAt: now }).where(eq(ownerships.id, custodyOwnershipId));
+    // Close EVERY live ownership row, whatever its role. Closing the shelter's
+    // and the foster's one by one collided with the TITULAR's `owner` row on
+    // `ownerships_one_active_owner_per_pet` (23505) the moment rehome-by-titular
+    // let that row stay open through a sponsorship, and it would collide with a
+    // co-owner too. execute-decomiso.ts:400-403 shape, original direction.
+    await tx
+      .update(ownerships)
+      .set({ endedAt: now })
+      .where(and(eq(ownerships.petId, petId), isNull(ownerships.endedAt)));
 
-    // Close foster (if any).
+    // Close the foster_placement case alongside the row just ended above.
     if (fosterRow) {
-      await tx.update(ownerships).set({ endedAt: now }).where(eq(ownerships.id, fosterRow.id));
-      // Close foster_placement case alongside the foster ownership row.
       const [fosterCase] = await tx
         .select({ id: cases.id })
         .from(cases)
@@ -1051,6 +1058,21 @@ export const AdoptionRepository = {
         caseId: custodyCaseId ?? null,
       })
       .returning({ id: petEvents.id });
+
+    // End the rehome sponsorship if this pet reached the shelf through one. A
+    // no-op otherwise: the trigger is the spine, not the ownership shape.
+    await endRehomeSponsorship(
+      {
+        petId,
+        outcome: "adopted",
+        recordedByUserId: userId,
+        authorRole: "shelter",
+        authorOrganizationId: orgId,
+        authorVerified: orgVerified,
+        now,
+      },
+      tx,
+    );
 
     // Close custody_episode case.
     if (custodyCaseId) {
