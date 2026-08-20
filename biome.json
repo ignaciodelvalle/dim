@@ -76,7 +76,8 @@
                   "next/cache": "Domain layer must not import next/cache. Framework dependencies belong in the actions layer.",
                   "next/navigation": "Domain layer must not import next/navigation. Framework dependencies belong in the actions layer.",
                   "next/headers": "Domain layer must not import next/headers. Framework dependencies belong in the actions layer.",
-                  "server-only": "Domain layer must not import server-only. This marker belongs in infrastructure or actions."
+                  "server-only": "Domain layer must not import server-only. This marker belongs in infrastructure or actions.",
+                  "@/lib/supabase/server": "Domain layer must not import @/lib/supabase/server. That factory reads next/headers cookies(), so importing it is framework coupling wearing an alias."
                 }
               }
             }
@@ -97,7 +98,8 @@
                   "next/cache": "Application layer must not import next/cache. Revalidation belongs in the actions layer (ADR 2026-07-18 native-readiness, Decision 1).",
                   "next/navigation": "Application layer must not import next/navigation. Redirects belong in the actions layer (ADR 2026-07-18 native-readiness, Decision 1).",
                   "next/headers": "Application layer must not import next/headers. Request context belongs in the actions layer (ADR 2026-07-18 native-readiness, Decision 1).",
-                  "server-only": "Application layer must not import server-only. This marker belongs in infrastructure or actions (ADR 2026-07-18 native-readiness, Decision 1)."
+                  "server-only": "Application layer must not import server-only. This marker belongs in infrastructure or actions (ADR 2026-07-18 native-readiness, Decision 1).",
+                  "@/lib/supabase/server": "Application layer must not import @/lib/supabase/server. That factory calls next/headers cookies(), so it is next/headers behind an alias — the one path the fence left open. Take the authenticated identity (or a SupabaseClient) as a parameter from the actions layer instead (native-readiness T1.3)."
                 }
               }
             }
@@ -111,11 +113,14 @@
         "src/modules/adoption/application/apply-intent/start-apply-intent.ts",
         "src/modules/adoption/application/bulk-adoption-actions/bulk-approve-adoption-applications.ts",
         "src/modules/adoption/application/bulk-adoption-actions/bulk-reject-adoption-applications.ts",
+        "src/modules/auth/application/complete-identity.ts",
         "src/modules/auth/application/login.ts",
         "src/modules/auth/application/logout.ts",
         "src/modules/auth/application/password-reset/request-password-reset.ts",
+        "src/modules/auth/application/password-reset/update-password.ts",
         "src/modules/auth/application/signup.ts",
         "src/modules/auth/application/subject-rights/erase-subject-data.ts",
+        "src/modules/auth/application/subject-rights/export-subject-data.ts",
         "src/modules/cases/application/reactivate-lost-search.ts",
         "src/modules/events/application/amendment/amend-event.ts",
         "src/modules/events/application/clinical/record-disease-diagnosis-use-case.ts",
@@ -153,6 +158,20 @@
         "src/modules/pets/application/tier2-public/revoke-tier2-public.ts",
         "src/modules/service-offerings/application/slot-materialization/block-slot.ts",
         "src/modules/service-offerings/application/slot-materialization/materialize-offering-now.ts"
+      ],
+      "linter": {
+        "rules": {
+          "nursery": {
+            "noRestrictedImports": "off"
+          }
+        }
+      }
+    },
+    {
+      "include": [
+        "src/modules/*/application/**/__tests__/**",
+        "src/modules/*/application/**/*.test.ts",
+        "src/modules/*/application/**/*.test.tsx"
       ],
       "linter": {
         "rules": {
