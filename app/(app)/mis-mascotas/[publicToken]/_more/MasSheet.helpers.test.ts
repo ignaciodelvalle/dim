@@ -8,6 +8,8 @@
 // (transport_recorded is never emitted). See MasSheet.helpers.ts for the
 // full rationale.
 
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { type MasSheetInput, deriveMasSheetItems } from "./MasSheet.helpers";
 
@@ -180,5 +182,42 @@ describe("deriveMasSheetItems — the caretaker entry point", () => {
       baseInput({ pet: { species: "dog", status: "deceased", publicToken: "abc123" } }),
     ).map((i) => i.id);
     expect(ids).not.toContain("caretaker");
+  });
+});
+
+describe("deriveMasSheetItems — Buscar hogar cannot outrun the page behind it", () => {
+  // The bug this locks: the sheet offered "Buscar hogar" to `foster || owner`
+  // while buscar-hogar/page.tsx selects `eq(ownerships.role, "foster")` and
+  // calls notFound() when that row is missing. A titular tapped a live menu row
+  // and got a 404. Found by the PO on staging, 2026-08-20.
+  //
+  // The expectation is DERIVED from the page rather than restated here. Writing
+  // `expect(roles).toEqual(["foster"])` would pass just as happily the day
+  // someone widens one side again — which is exactly how this broke.
+  const PAGE = readFileSync(join(import.meta.dirname, "..", "buscar-hogar", "page.tsx"), "utf8");
+
+  const rolesThePageAccepts = [
+    ...PAGE.matchAll(/eq\(\s*ownerships\.role\s*,\s*"([a-z_]+)"\s*\)/g),
+  ].map((m) => m[1]);
+
+  it("reads the page's role gate (non-vacuity: the regex must actually match)", () => {
+    // Without this, a refactor that renames the filter turns the assertion
+    // below into `[] ⊇ []` — vacuously green while the dead end returns.
+    expect(rolesThePageAccepts.length).toBeGreaterThan(0);
+  });
+
+  it("offers the row to no role the page would reject", () => {
+    const offeredTo = (["owner", "foster", "caretaker"] as const).filter((role) =>
+      deriveMasSheetItems(baseInput({ ownershipRole: role })).some((i) => i.id === "find-home"),
+    );
+    expect(offeredTo.length).toBeGreaterThan(0); // the row still exists for someone
+    for (const role of offeredTo) {
+      expect(rolesThePageAccepts).toContain(role);
+    }
+  });
+
+  it("does not offer it to a titular", () => {
+    const ids = deriveMasSheetItems(baseInput({ ownershipRole: "owner" })).map((i) => i.id);
+    expect(ids).not.toContain("find-home");
   });
 });

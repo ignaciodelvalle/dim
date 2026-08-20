@@ -117,7 +117,18 @@ export function deriveMasSheetItems(input: MasSheetInput): MasSheetItem[] {
     });
   }
 
-  if (ownershipRole === "foster" || ownershipRole === "owner") {
+  // Foster only, and the page behind it agrees: buscar-hogar/page.tsx selects
+  // `eq(ownerships.role, "foster")` and calls notFound() when that row is
+  // missing, so an owner who saw this row landed on a 404. It read `foster ||
+  // owner` from the Face 1/Face 2 sheet rebuild (2911d714), which widened the
+  // entry point without widening the page — the page has been foster-only since
+  // the transit-banner CTAs shipped (9d53142c), and its copy says so throughout
+  // ("el refugio que hoy tiene a X", fosterName, "en tránsito").
+  //
+  // Rehoming for a TITULAR is not a feature this repo has; their paths are
+  // Transferir and nothing else. Widening the page instead would have meant
+  // inventing one behind a menu row, in foster vocabulary. Raised with the PO.
+  if (ownershipRole === "foster") {
     items.push({
       id: "find-home",
       label: "Buscar hogar",
