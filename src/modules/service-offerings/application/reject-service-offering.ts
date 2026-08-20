@@ -38,13 +38,16 @@ export async function rejectServiceOfferingForAuthority(
       offering: serviceOfferings,
       orgProvince: organizations.jurisdictionProvince,
       orgLocality: organizations.jurisdictionLocality,
+      // The notification CTA needs the org's PUBLIC token: /org/[orgToken] does
+      // not resolve a uuid. `organizations` is already joined, so it is free.
+      orgPublicToken: organizations.publicToken,
     })
     .from(serviceOfferings)
     .leftJoin(organizations, eq(serviceOfferings.organizationId, organizations.id))
     .where(eq(serviceOfferings.publicToken, publicToken))
     .limit(1);
   if (!row) return { error: "Servicio no encontrado." };
-  const { offering, orgProvince, orgLocality } = row;
+  const { offering, orgProvince, orgLocality, orgPublicToken } = row;
 
   // Jurisdiction enforcement (before the status check, so an out-of-scope govt
   // learns nothing about the offering's state). Admin is universal.
@@ -85,6 +88,12 @@ export async function rejectServiceOfferingForAuthority(
           ),
         );
 
+      // No CTA without the org's public token. The alternative was a link built
+      // from organizationId, which is a uuid and 404s at /org/[orgToken]; a
+      // notification whose only button is dead is worse than one with none,
+      // because it reads as the product losing the thing it just told you about.
+      // The join is a leftJoin, so this is a real possibility to handle rather
+      // than an assertion to wave through.
       if (orgAdmins.length > 0) {
         await tx.insert(notifications).values(
           orgAdmins.map((m) => ({
@@ -93,8 +102,12 @@ export async function rejectServiceOfferingForAuthority(
             title: `Servicio rechazado: ${offering.displayName}`,
             body: `Tu solicitud fue rechazada: ${trimmedReason}`,
             severity: "warning" as const,
-            ctaLabel: "Ver mis servicios",
-            ctaUrl: `/org/${offering.organizationId}/servicios`,
+            ...(orgPublicToken
+              ? {
+                  ctaLabel: "Ver mis servicios",
+                  ctaUrl: `/org/${orgPublicToken}/servicios`,
+                }
+              : {}),
           })),
         );
       }

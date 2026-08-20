@@ -72,8 +72,13 @@ export function PetSubView({ pet }: { pet: GobPetSubView }) {
             <ul className="space-y-2">
               {pet.openCases.map((c) => (
                 <li key={c.id}>
+                  {/* publicCode, not the uuid: /gob/casos/[publicCode] resolves
+                      via getCaseDetailByPublicCode and notFound()s on a miss.
+                      The row already prints the right code two lines down, so
+                      the operator was reading a valid case number next to a
+                      button that went nowhere. */}
                   <Link
-                    href={`/gob/casos/${c.id}`}
+                    href={`/gob/casos/${c.publicCode}`}
                     prefetch={false}
                     className="flex items-baseline justify-between gap-3 rounded-[var(--radius-md)] border border-ln-op-line px-3 py-2 hover:bg-ln-op-stripe"
                   >

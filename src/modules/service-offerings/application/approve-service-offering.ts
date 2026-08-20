@@ -29,13 +29,16 @@ export async function approveServiceOfferingForAuthority(
       offering: serviceOfferings,
       orgProvince: organizations.jurisdictionProvince,
       orgLocality: organizations.jurisdictionLocality,
+      // The notification CTA needs the org's PUBLIC token: /org/[orgToken] does
+      // not resolve a uuid. `organizations` is already joined, so it is free.
+      orgPublicToken: organizations.publicToken,
     })
     .from(serviceOfferings)
     .leftJoin(organizations, eq(serviceOfferings.organizationId, organizations.id))
     .where(eq(serviceOfferings.publicToken, publicToken))
     .limit(1);
   if (!row) return { error: "Servicio no encontrado." };
-  const { offering, orgProvince, orgLocality } = row;
+  const { offering, orgProvince, orgLocality, orgPublicToken } = row;
 
   // Jurisdiction enforcement (before the status check, so an out-of-scope govt
   // learns nothing about the offering's state). Admin is universal.
@@ -84,8 +87,15 @@ export async function approveServiceOfferingForAuthority(
             title: `Servicio aprobado: ${offering.displayName}`,
             body: "Ya podés crear la agenda y empezar a recibir reservas.",
             severity: "success" as const,
-            ctaLabel: "Gestionar agenda",
-            ctaUrl: `/org/${offering.organizationId}/servicios/${publicToken}`,
+            // See reject-service-offering.ts: no CTA rather than a uuid-built
+            // one that 404s. This is the worse of the two to get wrong, because
+            // the whole point of the message is "ahora podés configurar esto".
+            ...(orgPublicToken
+              ? {
+                  ctaLabel: "Gestionar agenda",
+                  ctaUrl: `/org/${orgPublicToken}/servicios/${publicToken}`,
+                }
+              : {}),
           })),
         );
       }

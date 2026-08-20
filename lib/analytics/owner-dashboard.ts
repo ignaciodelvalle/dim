@@ -699,8 +699,13 @@ async function fetchOpenCustodyDisputes(
   const rows = await db
     .select({
       id: custodyDisputes.id,
-      publicToken: custodyDisputes.publicToken,
       petId: custodyDisputes.petId,
+      // The CTA needs the PET's public token, not the dispute's own token and
+      // not the pet's uuid. `/mis-mascotas/[publicToken]` resolves through
+      // requirePetAccess, which matches on `pets.public_token` and nothing
+      // else, so a uuid lands in the dynamic segment and calls notFound().
+      // `pets` is already joined below, so this column is free.
+      petPublicToken: pets.publicToken,
       createdAt: custodyDisputes.createdAt,
       petName: pets.name,
     })
@@ -719,7 +724,7 @@ async function fetchOpenCustodyDisputes(
     kind: "custody_dispute_open" as const,
     title: `Disputa de custodia sobre ${r.petName}`,
     subtitle: "Procedimiento en curso ante la autoridad",
-    ctaUrl: `/mis-mascotas/${r.petId}`,
+    ctaUrl: `/mis-mascotas/${r.petPublicToken}`,
     since: r.createdAt,
     severity: "warning" as const,
   }));
