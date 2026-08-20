@@ -31,10 +31,20 @@ const CEILING_MB = 8192;
 
 /**
  * V8's old space is not the whole process: native allocations, source maps,
- * the pnpm parent and the OS all live outside it. Leaving headroom is what
- * makes the ceiling protective rather than decorative.
+ * the pnpm parent and the OS all live outside it. That overhead is roughly a
+ * constant, not a proportion of the box, so it is reserved as an absolute
+ * rather than as a percentage — a percentage starves a small container while
+ * wasting headroom on a large one.
+ *
+ * Sized by measurement on the deploy target (2 cores, 8192 MB):
+ *   ceiling 8192 -> the container OOM-kills the build. No headroom at all.
+ *   ceiling 5734 -> no OOM, but the build never finishes. With only 2 cores
+ *                   V8 cannot hide major GCs behind concurrent marking, so a
+ *                   tight heap trades a crash for a stall. The cost of a low
+ *                   ceiling is invisible on a many-core workstation.
+ *   ceiling 7168 -> what this reserve produces there.
  */
-const HEAP_FRACTION = 0.7;
+const RESERVED_MB = 1024;
 
 /**
  * `os.totalmem()` reports the HOST's memory from inside a container, which is
@@ -72,7 +82,7 @@ const detected = detectLimitMb();
 const heapMb =
   Number.isFinite(override) && override > 0
     ? override
-    : Math.min(CEILING_MB, Math.floor(detected.mb * HEAP_FRACTION));
+    : Math.min(CEILING_MB, detected.mb - RESERVED_MB);
 
 // Printed unconditionally: when a build dies of memory, the log has to already
 // contain what the build believed about its own limits. Reproducing an OOM to
