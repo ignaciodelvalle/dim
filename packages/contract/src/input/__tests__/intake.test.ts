@@ -161,3 +161,33 @@ describe("unknown fields", () => {
     expect(parsed).not.toHaveProperty("ownerUserId");
   });
 });
+
+describe("padded values", () => {
+  // A form encoding or a CSV mapper can pad. Two clients sending the same
+  // intent must not get different answers because one of them left a space.
+  it("accepts a padded intake reason", () => {
+    expect(
+      createIntakeInputSchema.parse({ ...MINIMAL, intakeReason: " rescue " }).intakeReason,
+    ).toBe("rescue");
+  });
+
+  it("accepts a padded sex and custody role", () => {
+    const parsed = createIntakeInputSchema.parse({
+      ...MINIMAL,
+      sex: " female ",
+      custodyRole: " owner ",
+    });
+    expect(parsed.sex).toBe("female");
+    expect(parsed.custodyRole).toBe("owner");
+  });
+
+  it("accepts a padded name and species", () => {
+    const parsed = createIntakeInputSchema.parse({
+      name: "  Pampa  ",
+      species: " dog ",
+      intakeReason: "rescue",
+    });
+    expect(parsed.name).toBe("Pampa");
+    expect(parsed.species).toBe("dog");
+  });
+});

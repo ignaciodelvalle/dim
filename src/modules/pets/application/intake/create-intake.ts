@@ -61,8 +61,8 @@ import type { IntakeFormState } from "./types";
 // @dim/contract (framework-free, copy-free); the words live here, where the
 // wizard's voice is. A native client maps the same codes to its own screens.
 //
-// The `null` key is the fallback for a malformed request that carries no code
-// this contract defines — an operator must never see a raw zod string.
+// GENERIC is the fallback for a malformed request that carries no code this
+// contract defines — an operator must never see a raw zod string.
 const INTAKE_INPUT_MESSAGES: Record<CreateIntakeInputCode | "GENERIC", string> = {
   NAME_REQUIRED: "Falta el nombre (o un alias temporal).",
   SPECIES_REQUIRED: "Falta la especie.",

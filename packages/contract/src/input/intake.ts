@@ -72,6 +72,14 @@ const optionalText = z
 const requiredText = (code: string) => z.string({ error: code }).trim().min(1, { error: code });
 
 /**
+ * A trimmed enum. The trim matters: form encodings and CSV mappers pad values,
+ * and rejecting " rescue " while accepting "rescue" would be an invisible
+ * difference between two clients sending the same intent.
+ */
+const trimmedEnum = <T extends readonly [string, ...string[]]>(values: T) =>
+  z.preprocess((v) => (typeof v === "string" ? v.trim() : v), z.enum(values));
+
+/**
  * A whole-number count of years or months. Absent or blank → null. Anything
  * unparseable → 0, and negatives clamp to 0: this mirrors the behaviour the
  * intake wizard has always had (`Math.max(0, parseInt(x) || 0)`), and it is
@@ -108,13 +116,16 @@ export const createIntakeInputSchema = z.object({
   // Required.
   name: requiredText("NAME_REQUIRED"),
   species: requiredText("SPECIES_REQUIRED"),
-  intakeReason: z.enum(INTAKE_REASONS, { error: "INTAKE_REASON_REQUIRED" }),
+  intakeReason: z.preprocess(
+    (v) => (typeof v === "string" ? v.trim() : v),
+    z.enum(INTAKE_REASONS, { error: "INTAKE_REASON_REQUIRED" }),
+  ),
 
   // Enums that fall back rather than fail. A client that sends nothing, or
   // something unrecognised, gets the safe default — neither field is a claim
   // about the animal that a wrong guess could corrupt.
-  sex: z.enum(PET_SEXES).catch("unknown"),
-  custodyRole: z.enum(CUSTODY_ROLES).catch("shelter_custody"),
+  sex: trimmedEnum(PET_SEXES).catch("unknown"),
+  custodyRole: trimmedEnum(CUSTODY_ROLES).catch("shelter_custody"),
 
   // Estimated age, from which the app derives an estimated date of birth.
   ageYears: ageCount,
