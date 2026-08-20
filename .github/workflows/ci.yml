@@ -204,7 +204,12 @@ jobs:
         # ships with unnonce'd scripts and 100% of its JS is refused in prod: it
         # renders and arrives dead. Found twice (the 404, then /recuperar); this
         # is what stops the third.
-        run: pnpm lint:csp-prerender
+        #
+        # `--require-build` for the same reason route-weight got it below: this
+        # step returning green from a missing `.next` is indistinguishable from
+        # it returning green from a clean one, and only the ordering tells them
+        # apart. The flag makes the ordering enforce itself.
+        run: pnpm lint:csp-prerender --require-build
 
       - name: Lint (route weight)
         # Also AFTER the build, and this step exists because it was NOT. It used

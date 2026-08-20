@@ -34,8 +34,16 @@
 // oversight.
 //
 // Run:  pnpm tsx scripts/check-csp-prerender.ts   (or: pnpm lint:csp-prerender)
-// Requires a build. Skips loudly without one — a DB-less/build-less box is not
-// a failure, but it has not checked anything either.
+//       pnpm lint:csp-prerender --require-build   (CI, where the build precedes)
+//
+// Requires a build. Skips loudly without one, because a build-less box is not a
+// failure and a developer should not be blocked by it. With --require-build the
+// same state is exit 1 instead: in CI the build ALWAYS precedes this step, so a
+// missing directory does not mean "no build here", it means the ordering broke.
+// That is not hypothetical. Its twin, check-route-weight, spent months in a
+// pre-build lint step printing its own skip and exiting 0 while lint:ci-parity
+// certified it as covered, because that fence matches a literal token and has no
+// notion of step ordering.
 
 import { existsSync, readFileSync } from "node:fs";
 import { globSync } from "node:fs";
@@ -68,10 +76,22 @@ export function routeFromHtmlPath(htmlPath: string): string {
 }
 
 function runCheck(): void {
+  // Same flag, same reason, as check-route-weight.ts. A developer running this
+  // on a build-less box is not a failure; CI running it on one is, because in CI
+  // the build always precedes and a missing directory means the ordering broke.
+  // Its twin sat in a pre-build lint step for months, printed exactly the skip
+  // below and exited 0, while `lint:ci-parity` certified it as covered because
+  // that fence matches a literal token with no notion of step ordering. This
+  // check lives one line away in the same workflow and had the same hole.
+  const requireBuild = process.argv.includes("--require-build");
+
   if (!existsSync(BUILD_APP_DIR)) {
-    console.warn(
-      `[skip] check-csp-prerender: no build found at ${BUILD_APP_DIR}.\n  NOT run: the prerendered-page check (the whole fence).\n  Run pnpm build first. A build-less box is not a failure — but this run\n  proved nothing about the CSP.`,
-    );
+    const msg = `check-csp-prerender: no build found at ${BUILD_APP_DIR}.\n  NOT run: the prerendered-page check (the whole fence).\n  Run pnpm build first. This run proved nothing about the CSP.`;
+    if (requireBuild) {
+      console.error(`✗ ${msg}`);
+      process.exit(1);
+    }
+    console.warn(`[skip] ${msg}`);
     return;
   }
 
