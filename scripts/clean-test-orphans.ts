@@ -55,6 +55,25 @@ export const TEST_PET_PREFIXES = {
   // dies mid-file never reaches its afterAll — which this test HAS and which is
   // correct. The leaked row then reds check-spine-integrity on the next verify,
   // for a reason unrelated to whatever is being gated.
+  // DIM-PANO-COB- and DIM-PANO-DEPT- added 2026-08-20, sixth and seventh
+  // instances. COB leaked the same way as the rest (six orphans from
+  // `src/modules/panorama/infrastructure/__tests__/cobertura-guard-verified.test.ts`
+  // after two vitest workers died mid-run with zero failing assertions). DEPT
+  // has never leaked yet — `department-drill.test.ts` mints DIM-PANO-DEPT-A/B/
+  // DECOY and was simply missing, which is the point below.
+  //
+  // THIS LIST IS STRUCTURALLY BEHIND. It is an enumeration of forms, and it only
+  // ever grows one entry at a time, always AFTER a leak has already reddened a
+  // verify for a reason unrelated to what was being gated. Widening it to the
+  // family (`DIM-PANO-`) is not available: a real token is `DIM-XXXX-XXXX` and
+  // PANO is a legal four-character segment, so `DIM-PANO-1234` could belong to
+  // somebody's animal. The trailing hyphen is what makes each entry below safe —
+  // it forces a third segment, which a real token never has.
+  //
+  // The root cause is upstream of this file and worth fixing there: every one of
+  // these tests HAS a correct afterAll, and every leak came from a vitest worker
+  // dying mid-file. Eight such crashes on 2026-08-20 alone, all with zero failing
+  // assertions.
   byToken: [
     "TRNS-TEST-",
     "DDXTEST-",
@@ -63,7 +82,12 @@ export const TEST_PET_PREFIXES = {
     "MC-DUP-",
     "MC-PRI-",
     "SURVTEST-",
-    "DIM-PANO-US1",
+    // Full token, not the `DIM-PANO-US1` prefix it used to be: that shorter
+    // form would also LIKE-match a real `DIM-PANO-US1Z`, and this script
+    // deletes what it matches.
+    "DIM-PANO-US1SUB",
+    "DIM-PANO-COB-",
+    "DIM-PANO-DEPT-",
     "MI-INV1-",
   ],
 } as const;
