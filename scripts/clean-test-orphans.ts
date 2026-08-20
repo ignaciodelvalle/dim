@@ -88,6 +88,13 @@ export const TEST_PET_PREFIXES = {
     "DIM-PANO-US1SUB",
     "DIM-PANO-COB-",
     "DIM-PANO-DEPT-",
+    // SC-TEST- added 2026-08-20, EIGHTH instance, and it arrived HOURS after the
+    // note above was written — from `__tests__/surveillance-compliance.test.ts`,
+    // which even declares its own `TEST_PET_TOKEN_PREFIX = "SC-TEST-"` constant
+    // that this file cannot see. That is the shape of the real fix whenever
+    // someone has the appetite: derive this list from the tests that mint the
+    // tokens, instead of transcribing it by hand one leak at a time.
+    "SC-TEST-",
     "MI-INV1-",
   ],
 } as const;
