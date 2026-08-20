@@ -28,8 +28,8 @@
 // that audit are called out explicitly).
 //
 // READ keys — scanned from app/**, src/**, lib/** (*.ts, *.tsx). Excludes
-// *.test.ts(x), files under __tests__/, and lib/events/event-schemas.ts
-// itself (the writer definitions, not a reader). Comments (// and /* */) are
+// *.test.ts(x), files under __tests__/, and every lib/events/*event-schemas.ts
+// file (writer definitions, not readers). Comments (// and /* */) are
 // stripped before matching (line breaks preserved, so line numbers stay
 // accurate) — illustrative key names in doc comments (e.g. "payload->>'key'"
 // as a literal placeholder, found in lib/infra/sql-fragments.ts) would
@@ -76,8 +76,8 @@
 //      approvalRequests row), this scanner cannot tell them apart — fix by
 //      renaming the non-event local or adding a baseline entry.
 //
-// WRITTEN keys — parsed from lib/events/event-schemas.ts. Every zod schema
-// in this file is either `z.object(SHAPE).strict()...` (SHAPE is an object
+// WRITTEN keys — parsed from every lib/events/*event-schemas.ts file. Every
+// zod schema in them is either `z.object(SHAPE).strict()...` (SHAPE is an object
 // literal, `withVersion({...})`, or a bare identifier referencing a
 // module-level `const NAME = {...}` shared shape like `welfareCore`) or a
 // `z.discriminatedUnion`/`z.union` of several such schemas — the extractor
@@ -99,8 +99,25 @@ import { globSync, readFileSync } from "node:fs";
 
 import { stripComments } from "./lib/strip-comments.mjs";
 
+// Every zod payload-schema file, not just the registry. event-schemas.ts holds
+// the registry and most shapes, but the file-size ratchet
+// (scripts/file-size-baseline.json) pushed the tag (0169), caretaker (0189) and
+// rehome-sponsorship payloads into siblings. A written-key index built from the
+// registry file alone silently forgets every key those siblings emit, so the
+// fence's subject shrinks each time the codebase does the split the ratchet
+// asked for — and a legitimate read of, say, `ownership_id` gets reported as a
+// ghost. Glob the family instead of enumerating it: the next split is free.
+const SCHEMAS_GLOB = "lib/events/*event-schemas.ts";
 const SCHEMAS_FILE = "lib/events/event-schemas.ts";
 const BASELINE_FILE = "scripts/event-parity-baseline.json";
+
+/** Absolute-free, forward-slash paths of every payload-schema source file. */
+export function listSchemaFiles(): string[] {
+  return globSync(SCHEMAS_GLOB)
+    .map((f) => f.replaceAll("\\", "/"))
+    .filter((f) => !f.includes(".test."))
+    .sort();
+}
 
 // ---------------------------------------------------------------------------
 // Shared: comment stripping (preserves newlines so line numbers stay valid).
@@ -372,10 +389,11 @@ export function extractReadHits(relPath: string, rawSrc: string): ReadHit[] {
 export function listReadFiles(): string[] {
   const patterns = ["app/**/*.ts", "app/**/*.tsx", "src/**/*.ts", "src/**/*.tsx", "lib/**/*.ts"];
   const files = patterns.flatMap((p) => globSync(p));
+  const schemaFiles = new Set(listSchemaFiles());
   return [...new Set(files)]
     .filter((f) => !f.includes(".test."))
     .filter((f) => !f.split(/[\\/]/).includes("__tests__"))
-    .filter((f) => f.replaceAll("\\", "/") !== SCHEMAS_FILE)
+    .filter((f) => !schemaFiles.has(f.replaceAll("\\", "/")))
     .sort();
 }
 
@@ -397,7 +415,11 @@ export function loadBaseline(): Record<string, string> {
 // ---------------------------------------------------------------------------
 
 function runScan(): void {
-  const writtenKeys = extractWrittenKeys(readFileSync(SCHEMAS_FILE, "utf8"));
+  const schemaFiles = listSchemaFiles();
+  const writtenKeys = new Set<string>();
+  for (const file of schemaFiles) {
+    for (const key of extractWrittenKeys(readFileSync(file, "utf8"))) writtenKeys.add(key);
+  }
   const baseline = loadBaseline();
 
   const readFiles = listReadFiles();
@@ -423,7 +445,7 @@ function runScan(): void {
         continue;
       }
       offenders.push(
-        `${hit.file}:${hit.line} reads payload key '${hit.key}' — no writer schema in ${SCHEMAS_FILE} emits this key. Ghost-payload read (see c01bec56/9e57a7b7 class): the query returns NULL forever instead of erroring. Either the reader has the wrong key name, or the key is a genuinely justified legacy exception (add "${baselineKey}": "<reason>" to ${BASELINE_FILE}).`,
+        `${hit.file}:${hit.line} reads payload key '${hit.key}' — no writer schema under ${SCHEMAS_GLOB} emits this key. Ghost-payload read (see c01bec56/9e57a7b7 class): the query returns NULL forever instead of erroring. Either the reader has the wrong key name, or the key is a genuinely justified legacy exception (add "${baselineKey}": "<reason>" to ${BASELINE_FILE}).`,
       );
     }
   }
@@ -464,5 +486,6 @@ if (isMain) {
 }
 
 // Re-exported so other tooling (or a future rebuild-script cross-check) can
-// resolve the schemas file path without hardcoding it twice.
-export { SCHEMAS_FILE, BASELINE_FILE };
+// resolve the schema paths without hardcoding them twice. Prefer
+// listSchemaFiles() over SCHEMAS_FILE: the latter names only the registry.
+export { SCHEMAS_FILE, SCHEMAS_GLOB, BASELINE_FILE };
