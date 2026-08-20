@@ -129,8 +129,18 @@ function collectFiles(root: string, keep: (name: string) => boolean): string[] {
 }
 
 const isTest = (name: string) => /\.test\.tsx?$/.test(name);
-/** Ships to users: `.ts(x)`, not a test, not an ambient declaration file. */
-const isRuntime = (name: string) => /\.tsx?$/.test(name) && !isTest(name) && !/\.d\.ts$/.test(name);
+/**
+ * Anything inside a `__tests__/` directory, whatever it is called. Test
+ * HELPERS do not end in `.test.ts` — `_fake-repo.ts`, fixtures, builders — and
+ * before 2026-08-19 they were classified as shipping code, so a fake
+ * repository holding a demo token failed this fence for a file that no
+ * deployment ever contains. The concept is "code that reaches users"; matching
+ * only on the `.test.ts` suffix was narrower than the concept.
+ */
+const isTestSupport = (name: string) => /[\/]__tests__[\/]/.test(name);
+/** Ships to users: `.ts(x)`, not a test or test helper, not an ambient declaration. */
+const isRuntime = (name: string) =>
+  /\.tsx?$/.test(name) && !isTest(name) && !isTestSupport(name) && !/\.d\.ts$/.test(name);
 
 const TEST_FILES = ["__tests__", "app", "components", "lib"].flatMap((r) =>
   collectFiles(r, isTest),

@@ -69,6 +69,10 @@ export async function cancelCaretakerGrant(
           // did not. Distinct across: other grants — cancelling a later
           // invitation to the same person must still notify them.
           dedupeKey: `caretaker:invitation_cancelled:${grant.id}:${grant.caretakerUserId}`,
+          // no-cta: the invitation is gone. /cuidado/<token> would 404 and the
+          // pet is not theirs to open — there is nowhere this person can go
+          // that is about this notice. A CTA to somewhere generic would be
+          // worse than none.
           severity: "info",
           title: `Se canceló la invitación para cuidar a ${pet?.name ?? "una mascota"}`,
           body: "El titular retiró la invitación antes de que la respondieras.",

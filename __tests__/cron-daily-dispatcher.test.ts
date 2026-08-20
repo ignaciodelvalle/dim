@@ -111,9 +111,10 @@ describe("dispatchJobs", () => {
   });
 
   it("DAILY_JOB_ORDER covers the whole fleet without duplicates", () => {
-    // Guards the SSOT list itself: 22 jobs, all unique.
-    expect(DAILY_JOB_ORDER.length).toBe(22);
-    expect(new Set(DAILY_JOB_ORDER).size).toBe(22);
+    // Guards the SSOT list itself: 23 jobs, all unique.
+    // 22 -> 23 on 2026-08-19 with expire-caretaker-grants (custodia-temporal C6).
+    expect(DAILY_JOB_ORDER.length).toBe(23);
+    expect(new Set(DAILY_JOB_ORDER).size).toBe(23);
   });
 
   it("C-b: cron_health runs FIRST — the deliberate reversal", () => {
