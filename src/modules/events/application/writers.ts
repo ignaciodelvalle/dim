@@ -10,8 +10,6 @@
 // module and must NOT be imported by Client Components.
 // ---------------------------------------------------------------------------
 
-import "server-only";
-
 import { db, notifications } from "@/db";
 import { enqueueEnoTrigger as _enqueueEnoTrigger } from "@/src/modules/surveillance/application/enqueue-eno-trigger";
 import { SurveillanceRepository } from "@/src/modules/surveillance/infrastructure/surveillance-repository";

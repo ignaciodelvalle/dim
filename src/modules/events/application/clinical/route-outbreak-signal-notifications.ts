@@ -11,8 +11,6 @@
 //   - NEVER inserts notifications inside the transaction (failure must not roll back).
 //   - Used by: recordDiseaseDiagnosisWriter, createSymptomObservedWriter (WU-5).
 
-import "server-only";
-
 import { inArray } from "drizzle-orm";
 
 import { type db, type petEvents, type pets, profiles } from "@/db";

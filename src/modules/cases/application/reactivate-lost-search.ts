@@ -17,8 +17,6 @@
 // Auth: enforced by the caller (app/actions/reactivate-lost-search.ts),
 // which gates to the owner via requirePetAccess.
 
-import "server-only";
-
 import { findOpenCaseForPetAndKind, openCase } from "@/lib/infra/case-helpers";
 
 export type ReactivateLostSearchParams = {

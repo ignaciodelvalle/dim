@@ -31,8 +31,6 @@
 // auto-closed (ADR-18 stale-episode cron) between render and submit, so the
 // use-case re-checks server-side rather than trusting the caller.
 
-import "server-only";
-
 import { validateEventPayload } from "@/lib/events/event-schemas";
 import { findOpenCaseForPetAndKind } from "@/lib/infra/case-helpers";
 

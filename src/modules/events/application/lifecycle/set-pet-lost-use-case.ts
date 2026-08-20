@@ -18,8 +18,6 @@
 //   - broadcastLostPet post-tx (best-effort) when petPublicToken is provided.
 //   - Result: { error: null | string }
 
-import "server-only";
-
 import { writePoint } from "@/lib/domain/location";
 import { validateMicrochipId } from "@/lib/domain/microchip-validation";
 import { validateEventPayload } from "@/lib/events/event-schemas";

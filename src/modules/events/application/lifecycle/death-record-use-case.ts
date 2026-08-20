@@ -19,8 +19,6 @@
 //   - Result: { ok: true, rabiesObservationClosed, diseaseCode, insertedEventId }
 //   - CRITICAL: all cascades SKIP on idempotency noop.
 
-import "server-only";
-
 import { type AuthoritySignalResult, signalAuthorityReport } from "@/lib/domain/authority";
 import { validateEventPayload } from "@/lib/events/event-schemas";
 import { findAuthoritiesForJurisdiction } from "@/lib/infra/approval-routing";

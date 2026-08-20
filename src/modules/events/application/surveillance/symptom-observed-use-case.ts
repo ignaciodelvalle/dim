@@ -21,8 +21,6 @@
 //   - pendingNotifications flushed by caller (flushNotifications dep).
 //   - Result: { ok: true, symptomEventId, signalEventIds }
 
-import "server-only";
-
 import { validateEventPayload } from "@/lib/events/event-schemas";
 import { maybeNotifyOwnersOfPublicAlert } from "@/lib/infra/owner-disease-alerts";
 import { parseDateInput } from "@/lib/utils/format";
