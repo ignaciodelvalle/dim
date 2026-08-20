@@ -25,7 +25,7 @@
 // dependency on the database client would drag the whole suite into the serial
 // `db` vitest project.
 
-import type { EventType } from "@/db/schema";
+import type { EventType } from "@dim/contract/events";
 
 export type TitularOnlyDenyListRow = {
   /** Stable id, referenced by tests and by the RLS migration's comments. */

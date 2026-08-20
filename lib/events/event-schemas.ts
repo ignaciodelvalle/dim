@@ -25,8 +25,8 @@
 
 import { z } from "zod";
 
-import type { EventType } from "@/db/schema";
 import { findDisease } from "@/lib/reference/diseases";
+import type { EventType } from "@dim/contract/events";
 
 import { caretakerDesignated, caretakerEnded } from "./caretaker-event-schemas";
 import { withVersion } from "./payload-version";
@@ -1783,4 +1783,4 @@ export const IMPLEMENTED_EVENT_TYPES: ReadonlyArray<EventType> = Object.keys(
 ) as EventType[];
 
 // Re-export for completeness checking in tests.
-export { EVENT_TYPES } from "@/db/schema";
+export { EVENT_TYPES } from "@dim/contract/events";

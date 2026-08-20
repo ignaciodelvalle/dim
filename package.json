@@ -118,6 +118,7 @@
     "lint:empty-states": "tsx scripts/check-empty-state-consistency.ts"
   },
   "dependencies": {
+    "@dim/contract": "workspace:*",
     "@supabase/ssr": "^0.5.0",
     "@supabase/supabase-js": "^2.45.0",
     "drizzle-orm": "^0.45.2",

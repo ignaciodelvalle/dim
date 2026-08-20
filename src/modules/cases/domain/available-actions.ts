@@ -19,7 +19,7 @@
 // La autorización va aparte y aguas arriba — esto dice qué es POSIBLE, no quién
 // puede.
 
-import type { EventType } from "@/db/schema";
+import type { EventType } from "@dim/contract/events";
 import type { CaseKind } from "./case-kinds";
 import { getLifecycle } from "./lifecycles";
 import type { CaseStatus } from "./lifecycles/types";

@@ -1,3 +1,18 @@
+# pnpm workspace root.
+#
+# The `packages:` key is what makes this repo an actual workspace. Before
+# 2026-08-20 this file declared only `allowBuilds`, so `packages/*` was not
+# linked into node_modules and a bare `@dim/contract` specifier resolved to
+# nothing. Adding the key is the precondition for every native-readiness item
+# that depends on a framework-free package boundary (native-readiness T1.1).
+#
+# The Next.js app itself stays at the repo root — this is a "root app +
+# packages/*" layout, not a full turborepo. Nothing here needs a build
+# orchestrator: `packages/contract` ships TypeScript source and is compiled by
+# whatever consumer imports it (Next's SWC loader, Vitest's esbuild, tsx).
+packages:
+  - packages/*
+
 allowBuilds:
   '@biomejs/biome': true
   core-js-pure: false

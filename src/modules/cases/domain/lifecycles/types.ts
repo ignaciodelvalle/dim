@@ -4,7 +4,7 @@
 // "Which events open / close this kind? Which states are admitted?
 // Is there an auto-close cron? Is reopen allowed?"
 
-import type { EventType } from "@/db/schema";
+import type { EventType } from "@dim/contract/events";
 import type { CaseKind } from "../case-kinds";
 
 export type CaseStatus = "open" | "escalated" | "closed" | "merged";

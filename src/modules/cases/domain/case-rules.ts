@@ -5,7 +5,7 @@
 // Callers that needed these from lib/case-helpers (cascade markers) get
 // them re-exported from the shim so signatures stay identical.
 
-import type { EventType } from "@/db/schema";
+import type { EventType } from "@dim/contract/events";
 import type { CaseKind } from "./case-kinds";
 import { getLifecycle } from "./lifecycles/index";
 import type { CaseStatus } from "./lifecycles/types";
