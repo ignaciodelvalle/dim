@@ -1,9 +1,10 @@
 import { Icon } from "@/components/Icon";
 import { PetForm } from "@/components/PetForm";
+import { NotTitularNotice } from "@/components/pet-profile/NotTitularNotice";
 import { LnSheetCard, LnSheetHeader, LnSheetWrap } from "@/components/ui/Sheet";
 import { attachments, db } from "@/db";
 import { resolveBusinessRule } from "@/lib/infra/business-rules-resolver";
-import { requirePetAccess } from "@/lib/infra/pet-access";
+import { requireTitularAccess } from "@/lib/infra/pet-access";
 import { fetchActiveIdentifications } from "@/lib/infra/pet-identifiers";
 import { petPhotoUrl } from "@/lib/infra/storage";
 import { updatePetAction } from "@/src/modules/pets/actions";
@@ -18,8 +19,25 @@ export default async function EditPetPage({
 }) {
   const { publicToken } = await params;
 
-  const access = await requirePetAccess(publicToken);
-  if (!access.ok) notFound();
+  // requireTitularAccess, not requirePetAccess: editing name/species/breed/
+  // date-of-birth is deny-list row `identity-field-edits`, and a caretaker
+  // holds a Path-1 ownership row that sails through the looser guard. The
+  // writer (updatePetAction) is already gated; this stops the FORM from
+  // rendering, so the boundary is never something a person finds by filling in
+  // a field and pressing save.
+  const access = await requireTitularAccess(publicToken);
+  if (!access.ok) {
+    if (access.reason === "not-titular") {
+      return (
+        <NotTitularNotice
+          petPublicToken={publicToken}
+          what="Editar los datos de la mascota"
+          reason={access.error}
+        />
+      );
+    }
+    notFound();
+  }
   const { pet } = access;
 
   // Photo: tiny side query indexed on primaryPhotoId.

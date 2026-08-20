@@ -1,6 +1,7 @@
 import { Icon } from "@/components/Icon";
+import { NotTitularNotice } from "@/components/pet-profile/NotTitularNotice";
 import { LnSheetCard, LnSheetHeader, LnSheetWrap } from "@/components/ui/Sheet";
-import { requirePetAccess } from "@/lib/infra/pet-access";
+import { requireTitularAccess } from "@/lib/infra/pet-access";
 import { recordMoveAction } from "@/src/modules/pets/actions";
 import Link from "next/link";
 import { notFound } from "next/navigation";
@@ -13,8 +14,22 @@ export default async function MovePetPage({
 }) {
   const { publicToken } = await params;
 
-  const access = await requirePetAccess(publicToken);
-  if (!access.ok) notFound();
+  // requireTitularAccess: a move rewrites the pet's jurisdiction, which is
+  // deny-list row `jurisdiction-change` — the one with a legal edge, since the
+  // province decides which authority the animal answers to.
+  const access = await requireTitularAccess(publicToken);
+  if (!access.ok) {
+    if (access.reason === "not-titular") {
+      return (
+        <NotTitularNotice
+          petPublicToken={publicToken}
+          what="Registrar una mudanza"
+          reason={access.error}
+        />
+      );
+    }
+    notFound();
+  }
   const { pet } = access;
 
   const boundAction = recordMoveAction.bind(null, publicToken);

@@ -4,6 +4,8 @@ import {
   isoToArDateDisplay,
   maskArDateInput,
   maskArTimeInput,
+  parseArDateEndOfDay,
+  parseArDateStartOfDay,
   parseArDateToIso,
   parseArTimeToHm,
 } from "./date-input-ar";
@@ -484,6 +486,47 @@ describe("parseDateInput", () => {
     expect(parseDateInput("")).toBeNull();
     expect(parseDateInput("not-a-date")).toBeNull();
     expect(parseDateInput("2026-13-45")).toBeNull();
+  });
+});
+
+// `<input type="date">` submits a bare "YYYY-MM-DD". `new Date(that)` is
+// midnight UTC = 21:00 ART of the PREVIOUS day, so every date the user picked
+// renders one day early in every AR-pinned formatter in this file. Found while
+// wiring the caretaker designation form (custodia-temporal C9): a grant ending
+// "15/09" displayed as "terminó el 14/09" to both parties.
+describe("parseArDateStartOfDay / parseArDateEndOfDay", () => {
+  it("start-of-day is 00:00 ARGENTINE, not 00:00 UTC", () => {
+    expect(parseArDateStartOfDay("2026-09-15")?.toISOString()).toBe("2026-09-15T03:00:00.000Z");
+  });
+
+  it("end-of-day is the last instant of the ARGENTINE calendar day", () => {
+    expect(parseArDateEndOfDay("2026-09-15")?.toISOString()).toBe("2026-09-16T02:59:59.999Z");
+  });
+
+  it("survives the AR-pinned formatter round trip — the whole point", () => {
+    // The bug, stated as a test: the naive parse reads back as the day before.
+    expect(formatDateArOmitCurrentYear(new Date("2026-09-15"), new Date("2026-09-20"))).toBe(
+      "14/09",
+    );
+    // Both helpers land inside the intended Argentine day.
+    const start = parseArDateStartOfDay("2026-09-15") as Date;
+    const end = parseArDateEndOfDay("2026-09-15") as Date;
+    expect(formatDateArOmitCurrentYear(start, new Date("2026-09-20"))).toBe("15/09");
+    expect(formatDateArOmitCurrentYear(end, new Date("2026-09-20"))).toBe("15/09");
+  });
+
+  it("end-of-day is strictly after start-of-day of the same date", () => {
+    const start = parseArDateStartOfDay("2026-09-15") as Date;
+    const end = parseArDateEndOfDay("2026-09-15") as Date;
+    expect(end.getTime()).toBeGreaterThan(start.getTime());
+  });
+
+  it("returns null for empty or malformed input", () => {
+    expect(parseArDateStartOfDay(null)).toBeNull();
+    expect(parseArDateEndOfDay(undefined)).toBeNull();
+    expect(parseArDateStartOfDay("")).toBeNull();
+    expect(parseArDateEndOfDay("15/09/2026")).toBeNull();
+    expect(parseArDateStartOfDay("2026-13-45")).toBeNull();
   });
 });
 

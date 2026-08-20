@@ -27,7 +27,7 @@
 
 import { and, asc, desc, eq, isNull, lte, sql } from "drizzle-orm";
 
-import { db, ownerships, petCaretakerGrants, petEvents, pets, profiles } from "@/db";
+import { attachments, db, ownerships, petCaretakerGrants, petEvents, pets, profiles } from "@/db";
 import { validateEventPayload } from "@/lib/events/event-schemas";
 
 import type {
@@ -123,11 +123,19 @@ export const CaretakersRepository = {
 
   async findPetSummaryById(petId: string): Promise<PetSummary | null> {
     const [row] = await db
-      .select({ id: pets.id, publicToken: pets.publicToken, name: pets.name })
+      .select({
+        id: pets.id,
+        publicToken: pets.publicToken,
+        name: pets.name,
+        // LEFT join: a pet with no photo is the common case, and an inner join
+        // would make the invitation page 404 for it.
+        primaryPhotoStoragePath: attachments.storagePath,
+      })
       .from(pets)
+      .leftJoin(attachments, eq(attachments.id, pets.primaryPhotoId))
       .where(eq(pets.id, petId))
       .limit(1);
-    return row ?? null;
+    return row ? { ...row, primaryPhotoStoragePath: row.primaryPhotoStoragePath ?? null } : null;
   },
 
   /**

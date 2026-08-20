@@ -1,6 +1,7 @@
 import { Icon } from "@/components/Icon";
+import { NotTitularNotice } from "@/components/pet-profile/NotTitularNotice";
 import { LnSheetCard, LnSheetHeader, LnSheetWrap } from "@/components/ui/Sheet";
-import { requirePetAccess } from "@/lib/infra/pet-access";
+import { requireTitularAccess } from "@/lib/infra/pet-access";
 import { correctPetSpeciesAction } from "@/src/modules/pets/actions";
 import Link from "next/link";
 import { notFound } from "next/navigation";
@@ -13,8 +14,21 @@ export default async function CorrectSpeciesPage({
 }) {
   const { publicToken } = await params;
 
-  const access = await requirePetAccess(publicToken);
-  if (!access.ok) notFound();
+  // requireTitularAccess: species is an identity field (deny-list row
+  // `identity-field-edits`), and correcting it rewrites what the animal IS.
+  const access = await requireTitularAccess(publicToken);
+  if (!access.ok) {
+    if (access.reason === "not-titular") {
+      return (
+        <NotTitularNotice
+          petPublicToken={publicToken}
+          what="Corregir la especie"
+          reason={access.error}
+        />
+      );
+    }
+    notFound();
+  }
   const { pet } = access;
 
   const boundAction = correctPetSpeciesAction.bind(null, publicToken);

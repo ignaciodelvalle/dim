@@ -112,3 +112,44 @@ export function maskArTimeInput(raw: string): string {
   if (digits.length <= 2) return digits;
   return `${digits.slice(0, 2)}:${digits.slice(2)}`;
 }
+
+// "YYYY-MM-DD" from <input type="date">, exactly — nothing looser.
+const AR_DATE_ONLY_RE = /^\d{4}-\d{2}-\d{2}$/;
+
+/**
+ * The FIRST instant of an Argentine calendar day, from a `<input type="date">`
+ * "YYYY-MM-DD" string. Null for empty/malformed input.
+ *
+ * WHY THIS EXISTS ALONGSIDE `parseDateInput`. `parseDateInput` anchors at NOON
+ * UTC, which is enough to make the day render correctly in any AR-pinned
+ * formatter — and that is all it was ever asked to do. It is the wrong answer
+ * when the instant is a BOUNDARY a job acts on: noon UTC is 09:00 ART, so a
+ * period "hasta el 15/09" would stop being honoured at nine in the morning on
+ * the 15th. Use `parseDateInput` for a date you only display; use these two for
+ * a date that opens or closes a window.
+ *
+ * Argentina is UTC-3 year-round (no DST since 2009), so the fixed offset is
+ * exact and needs no zone database — the same reasoning as
+ * `parseArDatetimeLocal`.
+ */
+export function parseArDateStartOfDay(value: string | null | undefined): Date | null {
+  if (!value) return null;
+  const trimmed = value.trim();
+  if (!AR_DATE_ONLY_RE.test(trimmed)) return null;
+  const d = new Date(`${trimmed}T00:00:00.000-03:00`);
+  return Number.isNaN(d.getTime()) ? null : d;
+}
+
+/**
+ * The LAST instant of an Argentine calendar day (23:59:59.999 ART).
+ *
+ * "El cuidado va hasta el 15/09" means the caretaker keeps access for all of
+ * the 15th. Anything earlier revokes access on a day the titular promised.
+ */
+export function parseArDateEndOfDay(value: string | null | undefined): Date | null {
+  if (!value) return null;
+  const trimmed = value.trim();
+  if (!AR_DATE_ONLY_RE.test(trimmed)) return null;
+  const d = new Date(`${trimmed}T23:59:59.999-03:00`);
+  return Number.isNaN(d.getTime()) ? null : d;
+}

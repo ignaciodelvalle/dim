@@ -96,4 +96,38 @@ export function validateDesignation(
   return { ok: true };
 }
 
+const ISO_DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
+
+/**
+ * The `min` / `max` a designation form's end-date picker must carry, derived
+ * from the SAME constant `validateDesignation` enforces.
+ *
+ * WHY THIS IS NOT INLINE DATE MATH IN THE FORM. The client bound and the server
+ * rule have to agree at the boundary or the titular picks a date the widget
+ * offered and the action then refuses it. Two copies of "start + 180 days"
+ * drift the first time either side changes; one function with a boundary test
+ * on both sides does not.
+ *
+ * `minIso` is the START DATE ITSELF, not the day after: a period runs from
+ * 00:00 to 23:59:59.999 Argentine time (see `parseArDateStartOfDay` /
+ * `parseArDateEndOfDay`), so "empieza y termina hoy" is a legal ~24h
+ * arrangement rather than a zero-length one.
+ *
+ * `maxIso` counts the start day as day 1, so a 180-day cap allows
+ * `start + 179 days` — the last date whose end-of-day still sits inside the
+ * cap. Computed in UTC on purpose: this is calendar arithmetic on a bare
+ * "YYYY-MM-DD", with no instant involved and therefore no zone to get wrong.
+ */
+export function caretakerEndDateBounds(
+  startIsoDate: string,
+  maxDurationDays: number = MAX_GRANT_DURATION_DAYS,
+): { minIso: string | null; maxIso: string | null } {
+  if (!ISO_DATE_RE.test(startIsoDate)) return { minIso: null, maxIso: null };
+  const start = new Date(`${startIsoDate}T00:00:00.000Z`);
+  if (Number.isNaN(start.getTime())) return { minIso: null, maxIso: null };
+
+  const max = new Date(start.getTime() + (maxDurationDays - 1) * MS_PER_DAY);
+  return { minIso: startIsoDate, maxIso: max.toISOString().slice(0, 10) };
+}
+
 export { MAX_GRANT_DURATION_DAYS };

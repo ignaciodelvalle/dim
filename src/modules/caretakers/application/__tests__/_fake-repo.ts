@@ -11,7 +11,12 @@ import type { CaretakersRepositoryPort, ExpirableGrant, GrantRow, PetSummary } f
 // A synthetic token, deliberately not a seeded one. Borrowing DIM-PAMP-0001
 // (the real flagship pet) invites the reader to think this fixture depends
 // on a seed. It does not — this repository is a fake.
-export const PET: PetSummary = { id: "pet-1", publicToken: "DIM-TEST-0001", name: "Pampa" };
+export const PET: PetSummary = {
+  id: "pet-1",
+  publicToken: "DIM-TEST-0001",
+  name: "Pampa",
+  primaryPhotoStoragePath: null,
+};
 
 export const TITULAR_ID = "titular-1";
 export const CARETAKER_ID = "caretaker-1";

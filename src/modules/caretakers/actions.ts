@@ -30,6 +30,7 @@ import { requireTitularAccess } from "@/lib/infra/pet-access";
 import { resolveSiteUrl } from "@/lib/infra/site-url";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
+import { parseArDateEndOfDay, parseArDateStartOfDay } from "@/lib/utils/date-input-ar";
 import { revalidatePath } from "next/cache";
 
 import { acceptCaretakerGrant } from "./application/accept-caretaker-grant";
@@ -124,8 +125,8 @@ export async function designateCaretakerAction(
   const access = await requireTitularAccess(input.petPublicToken);
   if (!access.ok) return { error: access.error };
 
-  const startsAt = parseDateInput(input.startsAt) ?? new Date();
-  const endsAt = parseDateInput(input.endsAt);
+  const startsAt = parseArDateStartOfDay(input.startsAt) ?? new Date();
+  const endsAt = parseArDateEndOfDay(input.endsAt);
   if (!endsAt) {
     // The spec's first scenario: `endsAt` is REQUIRED. Caught here rather than
     // in the domain because an unparseable string is not a period rule.
@@ -406,11 +407,18 @@ export async function expireCaretakerGrantsAction(): Promise<ExpireCaretakerGran
 
 // ---------------------------------------------------------------------------
 // Input parsing
+//
+// The dates arrive from two `<input type="date">` fields as bare "YYYY-MM-DD".
+// This file used to parse them with a local `new Date(raw)` helper, which is
+// MIDNIGHT UTC = 21:00 ART of the day BEFORE. Every AR-pinned formatter in the
+// product then rendered the period one day early — a grant ending on the 15th
+// told both parties "terminó el 14/09" — and the expiry cron closed access a
+// full day sooner than the titular had promised.
+//
+// The boundary helpers in lib/utils/format.ts are AR-pinned and asymmetric on
+// purpose: a period starts at the first instant of its first Argentine day and
+// ends at the LAST instant of its last one, so "hasta el 15/09" means the
+// caretaker still has access at 23:00 on the 15th. `parseDateInput` (noon UTC)
+// was NOT the right reuse here — it exists to make a date DISPLAY correctly,
+// and noon UTC is 09:00 ART, which would end the arrangement mid-morning.
 // ---------------------------------------------------------------------------
-
-/** `null` for anything unparseable — an invalid date is not a period rule. */
-function parseDateInput(raw: string | null | undefined): Date | null {
-  if (!raw) return null;
-  const parsed = new Date(raw);
-  return Number.isNaN(parsed.getTime()) ? null : parsed;
-}

@@ -6,7 +6,11 @@
 
 import { describe, expect, it } from "vitest";
 
-import { MAX_GRANT_DURATION_DAYS, validateDesignation } from "../grant-rules";
+import {
+  MAX_GRANT_DURATION_DAYS,
+  caretakerEndDateBounds,
+  validateDesignation,
+} from "../grant-rules";
 
 const NOW = new Date("2026-08-20T12:00:00Z");
 
@@ -136,5 +140,56 @@ describe("validateDesignation", () => {
     // Pinned so the PO number cannot drift silently: the SQL side deliberately
     // has NO duration CHECK (design E3), so this constant is the only fence.
     expect(MAX_GRANT_DURATION_DAYS).toBe(180);
+  });
+});
+
+// The `<input type="date">` bounds for the designation form.
+//
+// WHY A PURE HELPER AND NOT AN INLINE DATE-MATH EXPRESSION IN THE FORM: the
+// client-side `max` and the server-side `validateDesignation` must agree
+// EXACTLY, or the titular fills a date the picker allowed and the action then
+// refuses it — the worst kind of form. Both now read the same constant through
+// the same arithmetic, and this test pins the boundary on both sides.
+describe("caretakerEndDateBounds", () => {
+  it("allows a one-day arrangement — min is the start date itself", () => {
+    // A period starts at 00:00 and ends at 23:59:59.999 of its last Argentine
+    // day, so "empieza y termina hoy" is a legal ~24h arrangement.
+    expect(caretakerEndDateBounds("2026-09-01").minIso).toBe("2026-09-01");
+  });
+
+  it("the max end date is the 180th calendar day, counting the start day", () => {
+    expect(caretakerEndDateBounds("2026-09-01").maxIso).toBe("2027-02-27");
+  });
+
+  it("agrees with validateDesignation at the boundary — the max date is ACCEPTED", () => {
+    const { maxIso } = caretakerEndDateBounds("2026-09-01");
+    const result = validateDesignation(
+      input({
+        startsAt: new Date("2026-09-01T00:00:00.000-03:00"),
+        endsAt: new Date(`${maxIso}T23:59:59.999-03:00`),
+      }),
+    );
+    expect(result.ok).toBe(true);
+  });
+
+  it("agrees with validateDesignation one day past the boundary — REJECTED", () => {
+    // The pair above and below is the whole point: a picker that offered one
+    // more day than the rule accepts is a form that lies.
+    const result = validateDesignation(
+      input({
+        startsAt: new Date("2026-09-01T00:00:00.000-03:00"),
+        endsAt: new Date("2027-02-28T23:59:59.999-03:00"),
+      }),
+    );
+    expect(result.ok === false && result.reason).toBe("over-max-duration");
+  });
+
+  it("crosses a leap-year boundary without drifting", () => {
+    expect(caretakerEndDateBounds("2027-09-01").maxIso).toBe("2028-02-27");
+  });
+
+  it("returns null bounds for an unparseable start date", () => {
+    expect(caretakerEndDateBounds("")).toEqual({ minIso: null, maxIso: null });
+    expect(caretakerEndDateBounds("01/09/2026")).toEqual({ minIso: null, maxIso: null });
   });
 });

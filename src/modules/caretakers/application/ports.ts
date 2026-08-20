@@ -36,6 +36,17 @@ export type PetSummary = {
   id: string;
   publicToken: string;
   name: string;
+  /**
+   * Storage path of the primary photo, or null. Deliberately the PATH and not a
+   * URL: signing/prefixing is a storage concern (lib/infra/storage.ts), and a
+   * port that returned a URL would drag that decision — and its base-URL
+   * environment variable — into the application layer's tests.
+   *
+   * Read by the `/cuidado/{token}` invitation page, which the spec requires to
+   * show the pet's photo: an invitation to care for an animal you cannot see is
+   * a form, not a decision.
+   */
+  primaryPhotoStoragePath: string | null;
 };
 
 export type InsertGrantArgs = {

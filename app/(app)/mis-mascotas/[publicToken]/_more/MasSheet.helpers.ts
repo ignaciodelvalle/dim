@@ -33,27 +33,47 @@ export function deriveMasSheetItems(input: MasSheetInput): MasSheetItem[] {
   const { pet, accessPath, ownershipRole, hasPendingReturnProposal } = input;
   if (accessPath !== "owner") return [];
 
-  const items: MasSheetItem[] = [
-    {
+  // custodia-temporal: a `caretaker` row is a Path-1 ownership row, so it
+  // reaches this function with accessPath "owner" — and would otherwise be
+  // offered every control below. The server already refuses the titular-only
+  // ones (requireTitularAccess + migration 0190's RLS); hiding them here is the
+  // half that keeps a caretaker from finding the boundary by pressing a button.
+  //
+  // A DENY, not an allow-list, and deliberately so: `co_owner`, `foster` and
+  // `shelter_custody` keep today's list byte for byte. Turning this into "only
+  // owner sees X" would smuggle a product decision about the other roles into a
+  // security fix.
+  const isCaretaker = ownershipRole === "caretaker";
+
+  const items: MasSheetItem[] = [];
+
+  if (!isCaretaker) {
+    items.push({
       // "Editar datos y ficha" absorbs the old separate "Ficha" row — both
       // pointed at the identical ?sheet=editar-mascota (the ficha lives in
       // that form's "Otros" section), so two rows were a false choice
       // (flow audit 2026-07-03).
+      //
+      // Hidden from a caretaker: deny-list row `identity-field-edits`.
       id: "edit",
       label: "Editar datos y ficha",
       href: `/mis-mascotas/${pet.publicToken}?sheet=editar-mascota`,
-    },
-  ];
+    });
+  }
 
   // Deceased (ADR-15/REQ-9.3): no write-affordances beyond corrections + who
   // to call. Everything else below (transfer/find-home/service-dog/confirm-
   // return/tracking) is suppressed.
   if (pet.status === "deceased") {
-    items.push({
-      id: "contacts",
-      label: "Contactos de emergencia",
-      href: `/mis-mascotas/${pet.publicToken}?sheet=emergencia`,
-    });
+    // Same caretaker exclusion as the live-pet branch below — the contacts are
+    // the titular's, and the sheet renders empty for anyone else.
+    if (!isCaretaker) {
+      items.push({
+        id: "contacts",
+        label: "Contactos de emergencia",
+        href: `/mis-mascotas/${pet.publicToken}?sheet=emergencia`,
+      });
+    }
     return items;
   }
 
@@ -79,6 +99,21 @@ export function deriveMasSheetItems(input: MasSheetInput): MasSheetItem[] {
       id: "transfer-pet",
       label: "Transferir mascota",
       href: `/mis-mascotas/${pet.publicToken}?sheet=transferir-mascota`,
+    });
+  }
+
+  // Cuidador temporal (custodia-temporal). "Cuidador", never "custodia": the
+  // latter is the live label for an organisation's `shelter_custody` role, and
+  // two different arrangements sharing one word on the same screen is how a
+  // vocabulary rots (PO decision 1, 2026-08-19).
+  //
+  // Titular-only twice over — it is deny-list row `caretaker-sub-designation`,
+  // and the page behind it gates on requireTitularAccess as well.
+  if (ownershipRole === "owner" && pet.status === "active") {
+    items.push({
+      id: "caretaker",
+      label: "Cuidador temporal",
+      href: `/mis-mascotas/${pet.publicToken}/cuidado`,
     });
   }
 
@@ -133,11 +168,19 @@ export function deriveMasSheetItems(input: MasSheetInput): MasSheetItem[] {
   // Pet-scoped emergency sheet (?sheet=emergencia) — the same profile fields
   // the old /cuenta/editar path edited, without leaving the pet the user is
   // looking at (flow audit 2026-07-03: two surfaces for one dataset).
-  items.push({
-    id: "contacts",
-    label: "Contactos de emergencia",
-    href: `/mis-mascotas/${pet.publicToken}?sheet=emergencia`,
-  });
+  //
+  // Hidden from a caretaker. Not a deny-list row — these are the TITULAR's own
+  // vet and emergency numbers, and page.tsx already nulls the data for any
+  // holder who is not the legal owner. Leaving the row would have opened an
+  // empty sheet: a control that does nothing, which reads as a bug rather than
+  // as a boundary.
+  if (!isCaretaker) {
+    items.push({
+      id: "contacts",
+      label: "Contactos de emergencia",
+      href: `/mis-mascotas/${pet.publicToken}?sheet=emergencia`,
+    });
+  }
 
   // The "Rastreo GPS · Próximamente" placeholder row was removed (lean audit
   // 2026-07-03): a disabled row advertising a feature that doesn't exist is
