@@ -932,10 +932,9 @@ export async function createWelfareReportAction(
   _previous: WelfareReportFormState,
   formData: FormData,
 ): Promise<WelfareReportFormState> {
-  // The anonymous denuncia is the point of this surface, so a null user is
-  // legitimate. An ERASED or DEACTIVATED account is not — both keep a valid JWT
-  // and would otherwise be attributed as the reporter — and neither is any
-  // submission during a maintenance window.
+  // A null user is legitimate here (anonymous denuncia is the point). An ERASED
+  // or DEACTIVATED one is not: both keep a valid JWT and would be attributed as
+  // the reporter. Nor is any submission mid-maintenance.
   const live = await resolveOptionalLiveUser();
   if (!live.ok) return { error: live.error };
   const { user } = live;
