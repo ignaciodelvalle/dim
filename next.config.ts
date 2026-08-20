@@ -2,8 +2,27 @@ import type { NextConfig } from "next";
 
 // Derive the Supabase hostname from the env var so local dev (127.0.0.1)
 // and any custom self-hosted instance are covered automatically.
+//
+// Parsed once, and never with a bare `new URL()`. An unvalidated env var here
+// aborts the whole build with nothing but "TypeError: Invalid URL" — no
+// variable name, no value, and Vercel masks the input as [SENSITIVE] — which
+// is an hour of bisecting a config file to find a misconfigured secret. The
+// throw below names the variable and shows only the scheme prefix, which for a
+// NEXT_PUBLIC_ URL discloses nothing that is not already in the client bundle.
+function parseSupabaseUrl(raw: string): URL | null {
+  if (!raw) return null;
+  try {
+    return new URL(raw);
+  } catch {
+    throw new Error(
+      `NEXT_PUBLIC_SUPABASE_URL is set but is not a valid absolute URL. Length ${raw.length}, begins ${JSON.stringify(raw.slice(0, 8))}. Expected something like https://<ref>.supabase.co — check for wrapping quotes, a trailing newline, or a missing scheme.`,
+    );
+  }
+}
+
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL ?? "";
-const supabaseHostname = supabaseUrl ? new URL(supabaseUrl).hostname : "127.0.0.1";
+const supabaseParsed = parseSupabaseUrl(supabaseUrl);
+const supabaseHostname = supabaseParsed?.hostname ?? "127.0.0.1";
 
 // Shared by /denuncias/codigo/* and /denuncias/seguimiento/*. See the rationale
 // at the `headers()` entries that use it.
@@ -82,7 +101,7 @@ const nextConfig: NextConfig = {
       {
         protocol: "http",
         hostname: supabaseHostname,
-        port: supabaseUrl ? new URL(supabaseUrl).port : "54321",
+        port: supabaseParsed?.port ?? "54321",
         pathname: "/storage/v1/object/**",
       },
       // Production Supabase projects (*.supabase.co).
