@@ -83,6 +83,23 @@ equivalent. It must be **re-architected as JS theme objects, not exported**
 (B48, B49). That work is not in this track and should not be implied by
 "tokens are done".
 
+**Status 2026-08-20 — steps 1, 2, 3 and 5 SHIPPED; step 4 (B46) not started.**
+`packages/contract` exists as `@dim/contract` (source-published TypeScript, zero
+dependencies, `pnpm lint:contract` in `verify` and CI). `db/schema.ts` imports
+`EVENT_TYPES` / `EventType` from the package and re-exports them, so the ~90
+existing consumers are untouched; five pure modules were migrated off the
+re-export deliberately (`src/modules/cases/domain/{available-actions,case-rules,
+lifecycles/types}.ts`, `lib/domain/titular-only.ts`, `lib/events/event-schemas.ts`).
+`viz-scales.ts` and `color-distance.ts` moved in with their tests, and the false
+header claim was corrected (B47). The design-token codemod (B46) is untouched —
+it regenerates a stylesheet the whole product depends on and is its own change.
+
+**Two "Today (verified)" claims above were wrong about the code.** The event-type
+source of truth was **`db/schema.ts:278`**, not `lib/events/events.ts` — that
+file is timeline-rendering prose helpers that *import* `EventType` from the
+schema. And `db/schema.ts` measured **4,835** lines, not 4,655. Both were
+verified against `7363b419` before the move.
+
 ### T1.2 — `requireLiveUser()` + `createClientFromBearer` (B2 = B12 = RN-8 #2)
 
 **Today (verified).** Guards live in `lib/infra/auth-guards.ts` and
