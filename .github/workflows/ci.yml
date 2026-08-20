@@ -82,6 +82,22 @@ jobs:
         # See scripts/check-titular-gate.ts.
         run: pnpm lint:titular-gate
 
+      - name: "Fence: /api guards never read a middleware header (lint:api-headers)"
+        # B51 (native-readiness T1.2). middleware.ts stamps x-pathname /
+        # x-full-path / x-portal-base on the REQUEST, and a missing stamp
+        # resolves to whatever default the reading expression carries —
+        # lib/ui/portal-base.ts silently answers "/gob". Harmless on a link
+        # builder; on an /api guard it is an authorization decision made by the
+        # ABSENCE of a header, in a codebase whose whole invariant is that
+        # authority is DB-resolved.
+        #
+        # Zero offenders today: this fence is preventive, and its own tests
+        # (__tests__/check-api-guard-headers.test.ts) carry the synthetic
+        # offender that proves it can still fail.
+        # Offline — static analysis over app/api. See
+        # scripts/check-api-guard-headers.ts.
+        run: pnpm lint:api-headers
+
       - name: Lint (actions, UI, deps, guardrails)
         # lint:contract is the packages/contract purity fence (native-readiness
         # T1.1). It belongs in this job, not the test job: it reads source and
