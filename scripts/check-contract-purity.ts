@@ -5,7 +5,8 @@
 // `packages/contract` is the first thing a React Native app will install. Its
 // entire value is that it CAN be installed: no `next`, no `react`, no
 // `drizzle-orm`, no `@/*` reach-back into the web app, and no runtime
-// dependencies at all. None of that is self-enforcing. One `import type` from
+// dependency beyond the single approved one (see ALLOWED_DEPENDENCIES). None
+// of that is self-enforcing. One `import type` from
 // `@/db/schema` — which is exactly how the event-type source of truth ended up
 // anchored to a 4.8k-line ORM module in the first place — quietly re-couples
 // the package to the app, and nothing about the web build would notice: the
@@ -25,10 +26,11 @@
 //      only knows the frameworks that existed when it was written, while
 //      "you imported something you did not declare" catches all of them.
 //      `node:*` builtins and the test runner are the only exceptions.
-//   5. The manifest declares ZERO `dependencies` / `peerDependencies`. Without
+//   5. The manifest declares NOTHING outside ALLOWED_DEPENDENCIES. Without
 //      this, rule 4 is trivially defeated by adding the dep — which may well
 //      be the right call one day, but it is a decision that has to be made in
 //      this file, in the open, not smuggled in behind an import.
+//      That day came once, deliberately: see ALLOWED_DEPENDENCIES.
 //   6. Nothing outside the package imports it BY PATH. `@/*` maps to `./*`, so
 //      `@/packages/contract/src/viz/viz-scales` resolves perfectly and walks
 //      straight past the `exports` map. A boundary you can sidestep with a
@@ -90,7 +92,39 @@ export const FORBIDDEN_PACKAGES: Record<string, string> = {
   "drizzle-kit": "migration tooling is a server-side build concern.",
   postgres: "a database driver inside an installable client contract is a category error.",
   "server-only": "that marker is a Next.js bundler directive; it means nothing off the web.",
-  zod: "runtime validation would make the contract a dependency rather than a description. If the API DTOs need schemas here (native-readiness T1.3), that is a deliberate decision — record it in this file first.",
+};
+
+/**
+ * The ONLY runtime dependencies `packages/contract` may declare.
+ *
+ * This set was empty until 2026-08-20, and the header above said so: the
+ * contract's promise is that installing it costs nothing. `zod` is the one
+ * deliberate exception, taken in native-readiness T1.3, and the reasoning is
+ * recorded here rather than in a commit message because the next person to add
+ * a dependency will read this file, not the log.
+ *
+ * WHY IT HAD TO BE A DEPENDENCY
+ *   The client-input schemas (src/input/) describe what a client may SEND —
+ *   which fields exist, which are required, which are enums. A type alone
+ *   cannot enforce that: types erase, and the caller is across a network
+ *   boundary. A hand-rolled validator could, and that was considered and
+ *   rejected — the web app already validates with zod everywhere, so a second
+ *   home-grown validator would mean two definitions of "valid" drifting apart,
+ *   which is the exact failure this package exists to prevent.
+ *
+ * WHY ZOD SPECIFICALLY AND WHY IT IS SAFE
+ *   It is already the app's validator (one version across the workspace, no new
+ *   vocabulary for anyone), it has no transitive dependencies of its own, and
+ *   it is platform-neutral — no DOM, no Node builtins, no bundler directives —
+ *   so a React Native consumer installs it without ceremony.
+ *
+ * WHAT THIS IS NOT
+ *   It is not a precedent and not a general escape hatch. Adding a second entry
+ *   means writing a note of this length above it, and answering the question
+ *   this one answers: what breaks for a native consumer if we do?
+ */
+export const ALLOWED_DEPENDENCIES: Record<string, string> = {
+  zod: "client-input schemas (src/input/) — native-readiness T1.3. See the note above ALLOWED_DEPENDENCIES.",
 };
 
 /** Bare specifiers allowed despite not being declared as dependencies: the
@@ -176,7 +210,7 @@ export function violationFor(
   if (forbidden) return `forbidden dependency "${pkg}" — ${forbidden}`;
 
   if (!declared.has(pkg)) {
-    return `undeclared dependency "${pkg}". ${PACKAGE_NAME} declares no dependencies, so an import it does not declare is an install failure waiting for the first consumer that is not this repo.`;
+    return `undeclared dependency "${pkg}". ${PACKAGE_NAME} declares only what ALLOWED_DEPENDENCIES permits, so an import it does not declare is an install failure waiting for the first consumer that is not this repo.`;
   }
 
   return null;
@@ -220,12 +254,14 @@ function declaredDependencies(): { declared: Set<string>; manifestViolation: str
     ...Object.keys(manifest.dependencies ?? {}),
     ...Object.keys(manifest.peerDependencies ?? {}),
   ]);
+  const unapproved = [...declared].filter((name) => !(name in ALLOWED_DEPENDENCIES));
   const manifestViolation =
-    declared.size > 0
+    unapproved.length > 0
       ? [
-          `${PACKAGE_MANIFEST} declares ${declared.size} dependency/dependencies (${[...declared].join(", ")}).`,
-          "The contract's promise is that installing it costs nothing. Adding a dependency is a deliberate",
-          "architectural change: update rule 5 in scripts/check-contract-purity.ts in the same commit, with the reason.",
+          `${PACKAGE_MANIFEST} declares ${unapproved.length} unapproved dependency/dependencies (${unapproved.join(", ")}).`,
+          "The contract's promise is that installing it costs almost nothing. Adding a dependency is a deliberate",
+          "architectural change: add it to ALLOWED_DEPENDENCIES in scripts/check-contract-purity.ts in the same",
+          "commit, with the reason, and answer what it costs a React Native consumer.",
         ].join(" ")
       : null;
   return { declared, manifestViolation };
@@ -296,7 +332,7 @@ function runCheck(): void {
   }
 
   console.log(
-    `✓ ${PACKAGE_NAME} purity — ${packageFiles.length} file(s) under ${PACKAGE_DIR}/, zero framework/ORM/app-alias imports, zero declared dependencies.`,
+    `✓ ${PACKAGE_NAME} purity — ${packageFiles.length} file(s) under ${PACKAGE_DIR}/, zero framework/ORM/app-alias imports, ${declared.size} declared dependency/dependencies (all approved: ${Object.keys(ALLOWED_DEPENDENCIES).join(", ")}).`,
   );
 }
 

@@ -11,8 +11,12 @@
   "exports": {
     ".": "./src/index.ts",
     "./events": "./src/events/index.ts",
+    "./input": "./src/input/index.ts",
     "./viz": "./src/viz/index.ts",
     "./package.json": "./package.json"
   },
-  "files": ["src"]
+  "files": ["src"],
+  "dependencies": {
+    "zod": "^4.4.3"
+  }
 }

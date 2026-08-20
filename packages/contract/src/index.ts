@@ -8,5 +8,10 @@
 // vocabulary does not have to name the visualization module:
 //   import { EVENT_TYPES } from "@dim/contract/events";
 //   import { SCALE_BLUE_SEQ } from "@dim/contract/viz";
+//   import { createIntakeInputSchema } from "@dim/contract/input";
+//
+// `input` is the one entry point with a runtime dependency (zod). A consumer
+// that only reads the event vocabulary or the scales never loads it.
 export * from "./events/index";
+export * from "./input/index";
 export * from "./viz/index";

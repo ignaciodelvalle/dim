@@ -48,22 +48,42 @@ import { lookupByTattoo, normalizeTattooCode } from "@/lib/infra/tattoo-lookup";
 import { generateUniqueToken } from "@/lib/infra/unique-token";
 import { provinceByCode } from "@/lib/reference/ar-provincias";
 import { parseDateInput } from "@/lib/utils/format";
+import {
+  type CreateIntakeInputCode,
+  createIntakeInputSchema,
+  firstIntakeInputCode,
+} from "@dim/contract/input";
 import { and, eq, sql } from "drizzle-orm";
 
 import type { IntakeFormState } from "./types";
 
-// "seizure" is intentionally absent: a decomiso is a State act (DC1) and
-// must go through the government decomiso flow (welfare.decomiso.execute),
-// not the org-side intake form. The intake_reason ENUM value "seizure" stays
-// valid in the DB and schema — the govt flow will use it.
-type IntakeReason = "rescue" | "surrender" | "stray_found" | "other";
-const INTAKE_REASONS: readonly IntakeReason[] = ["rescue", "surrender", "stray_found", "other"];
+// es-AR copy for the client-input contract's failure codes. The codes live in
+// @dim/contract (framework-free, copy-free); the words live here, where the
+// wizard's voice is. A native client maps the same codes to its own screens.
+//
+// The `null` key is the fallback for a malformed request that carries no code
+// this contract defines — an operator must never see a raw zod string.
+const INTAKE_INPUT_MESSAGES: Record<CreateIntakeInputCode | "GENERIC", string> = {
+  NAME_REQUIRED: "Falta el nombre (o un alias temporal).",
+  SPECIES_REQUIRED: "Falta la especie.",
+  INTAKE_REASON_REQUIRED: "Indicá el motivo de ingreso.",
+  GENERIC: "Datos inválidos.",
+};
 
-// Custody role the org will take on this animal. Default "shelter_custody"
-// matches the rescue-and-rehome path; "owner" is for sanctuary / internal-
-// adoption / long-term-keep cases where there's no rehoming pathway planned.
-type CustodyRole = "shelter_custody" | "owner";
-const CUSTODY_ROLES: readonly CustodyRole[] = ["shelter_custody", "owner"];
+/**
+ * FormData → the plain record the client-input schema validates.
+ *
+ * Only string entries: the intake form posts no files, and a File landing in a
+ * text field is a malformed request the schema should reject as a type error
+ * rather than something this function should coerce into a filename.
+ */
+function intakeFormRecord(formData: FormData): Record<string, string> {
+  const record: Record<string, string> = {};
+  for (const [key, value] of formData.entries()) {
+    if (typeof value === "string") record[key] = value;
+  }
+  return record;
+}
 
 // A microchip is a globally-unique identity (pet_identifications_chip_unique:
 // one active microchip_iso row per code). When the chip already belongs to an
@@ -102,19 +122,26 @@ export function chipMatchActiveBlockMessage(ownerUserId: string | null): string 
 // change — behavior untouched.
 export function parseIntakeForm(formData: FormData) {
   const loc = parseLocationFromFormData(formData);
-  const name = String(formData.get("name") ?? "").trim();
-  const species = String(formData.get("species") ?? "").trim();
-  if (!name) return { parsed: null, error: "Falta el nombre (o un alias temporal)." };
-  if (!species) return { parsed: null, error: "Falta la especie." };
 
-  const sexRaw = String(formData.get("sex") ?? "unknown");
-  const sex: "male" | "female" | "unknown" =
-    sexRaw === "male" || sexRaw === "female" ? sexRaw : "unknown";
+  // STRUCTURE first, from the client-input contract (native-readiness T1.3):
+  // which fields exist, which are required, which are enums, what an empty
+  // string means. This used to be twenty `String(formData.get(…)).trim()`
+  // statements whose net effect nobody could read — least of all a native
+  // client, which is why the shape now lives in @dim/contract/input.
+  //
+  // DOMAIN resolution stays below, where it belongs: breed catalogue,
+  // jurisdiction canonicalization, date plausibility, tattoo normalization.
+  // Every one of those needs a catalogue, a clock or the database.
+  const input = createIntakeInputSchema.safeParse(intakeFormRecord(formData));
+  if (!input.success) {
+    return {
+      parsed: null,
+      error: INTAKE_INPUT_MESSAGES[firstIntakeInputCode(input.error) ?? "GENERIC"],
+    };
+  }
+  const client = input.data;
+  const { name, species, sex, custodyRole, intakeReason, ageYears, ageMonths } = client;
 
-  const ageYearsRaw = String(formData.get("ageYears") ?? "").trim();
-  const ageMonthsRaw = String(formData.get("ageMonths") ?? "").trim();
-  const ageYears = ageYearsRaw ? Math.max(0, Number.parseInt(ageYearsRaw, 10) || 0) : null;
-  const ageMonths = ageMonthsRaw ? Math.max(0, Number.parseInt(ageMonthsRaw, 10) || 0) : null;
   let dateOfBirth: string | null = null;
   let birthDateIsEstimated = false;
   if (ageYears !== null || ageMonths !== null) {
@@ -125,18 +152,7 @@ export function parseIntakeForm(formData: FormData) {
     birthDateIsEstimated = true;
   }
 
-  const intakeReasonRaw = String(formData.get("intakeReason") ?? "").trim();
-  if (!INTAKE_REASONS.includes(intakeReasonRaw as IntakeReason)) {
-    return { parsed: null, error: "Indicá el motivo de ingreso." };
-  }
-  const intakeReason = intakeReasonRaw as IntakeReason;
-
-  const custodyRoleRaw = String(formData.get("custodyRole") ?? "shelter_custody").trim();
-  const custodyRole: CustodyRole = CUSTODY_ROLES.includes(custodyRoleRaw as CustodyRole)
-    ? (custodyRoleRaw as CustodyRole)
-    : "shelter_custody";
-
-  const occurredAtRaw = String(formData.get("occurredAt") ?? "").trim();
+  const occurredAtRaw = client.occurredAt;
   const occurredAt = occurredAtRaw ? parseDateInput(occurredAtRaw) : new Date();
   if (occurredAtRaw && !occurredAt) {
     return { parsed: null, error: "Fecha de ingreso inválida." };
@@ -156,7 +172,7 @@ export function parseIntakeForm(formData: FormData) {
   // through this exact parser, rejects an invented breed at preview time
   // instead of at insert time. Intake creates a NEW pet, so there is no
   // stored value to grandfather.
-  const breedResolution = resolveBreedForWrite(species, String(formData.get("breed") ?? ""));
+  const breedResolution = resolveBreedForWrite(species, client.breed ?? "");
   if (!breedResolution.ok) return { parsed: null, error: breedResolution.error };
   const breed = breedResolution.breed;
   // Config-theater fix (handoff 2026-07-03 #3): the intake form previously had
@@ -165,19 +181,18 @@ export function parseIntakeForm(formData: FormData) {
   // a string here — same shape as pets.estimatedWeightKg (numeric column) and
   // the pet_registered event payload; parsed to a number only where the PPP
   // classifier needs it (see resolvePppClassificationForJurisdiction call below).
-  const estimatedWeightKg = String(formData.get("estimatedWeightKg") ?? "").trim() || null;
-  const microchipId = String(formData.get("microchipId") ?? "").trim() || null;
+  const estimatedWeightKg = client.estimatedWeightKg;
+  const microchipId = client.microchipId;
 
   // Tattoo code — stored normalized (trim + uppercase + collapse whitespace).
   // Pass raw input to lookupByTattoo (it normalizes internally). For the
   // pets row write we normalize here to keep the DB consistent with
   // every other writer (createTattooForUser pattern).
-  const tattooCodeRaw = String(formData.get("tattooCode") ?? "").trim();
-  const tattooCode = tattooCodeRaw ? normalizeTattooCode(tattooCodeRaw) : null;
+  const tattooCode = client.tattooCode ? normalizeTattooCode(client.tattooCode) : null;
 
   // Idempotency guard (projection-writes audit §6): the wizard posts a stable
   // UUID per form session so a double-submit doesn't create a second pet.
-  const clientIdempotencyKey = String(formData.get("clientIdempotencyKey") ?? "").trim() || null;
+  const clientIdempotencyKey = client.clientIdempotencyKey;
 
   return {
     parsed: {
@@ -187,20 +202,20 @@ export function parseIntakeForm(formData: FormData) {
       breed,
       dateOfBirth,
       birthDateIsEstimated,
-      color: String(formData.get("color") ?? "").trim() || null,
-      distinguishingFeatures: String(formData.get("distinguishingFeatures") ?? "").trim() || null,
+      color: client.color,
+      distinguishingFeatures: client.distinguishingFeatures,
       estimatedWeightKg,
       microchipId,
-      microchipCountryCode: microchipId
-        ? String(formData.get("microchipCountryCode") ?? "").trim() || null
-        : null,
+      // A country code without a chip is meaningless — a leftover from a
+      // cleared field, never a fact about the animal.
+      microchipCountryCode: microchipId ? client.microchipCountryCode : null,
       tattooCode,
       clientIdempotencyKey,
       jurisdictionProvince: provinceByCode(loc.provinceCode ?? "")?.name ?? null,
       jurisdictionLocality: loc.locality,
       intakeReason,
-      intakeCondition: String(formData.get("intakeCondition") ?? "").trim() || null,
-      rescueJurisdiction: String(formData.get("rescueJurisdiction") ?? "").trim() || null,
+      intakeCondition: client.intakeCondition,
+      rescueJurisdiction: client.rescueJurisdiction,
       occurredAt: occurredAt as Date,
       custodyRole,
       // Flag is jurisdiction-resolved at action time — parse stays sync.
