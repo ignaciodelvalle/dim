@@ -89,33 +89,22 @@ create policy "Pets insertable by any authenticated user"
   to authenticated
   with check (true);
 
--- UPDATE gated by the same ownership check as SELECT.
+-- UPDATE gated by TITULAR write access, not merely by holding the pet.
 -- USING and with_check are intentionally symmetric — pets.id is the PK and never
 -- mutates, so OLD-row and NEW-row evaluation key off the same stable identifier.
 -- No privilege-escalation surface from the symmetry.
+--
+-- Migration 0190 (custodia-temporal) replaced the bare ownership EXISTS with
+-- has_titular_write_access(): identical for every role EXCEPT `caretaker`, whose
+-- rows must not carry jurisdiction, Tier-2 or identity writes. Reads are
+-- untouched — a caretaker should read the pet.
 drop policy if exists "Pets updatable by active owner" on public.pets;
 create policy "Pets updatable by active owner"
   on public.pets
   for update
   to authenticated
-  using (
-    exists (
-      select 1
-      from public.ownerships o
-      where o.pet_id = pets.id
-        and o.owner_user_id = auth.uid()
-        and o.ended_at is null
-    )
-  )
-  with check (
-    exists (
-      select 1
-      from public.ownerships o
-      where o.pet_id = pets.id
-        and o.owner_user_id = auth.uid()
-        and o.ended_at is null
-    )
-  );
+  using (public.has_titular_write_access(id, (select auth.uid())))
+  with check (public.has_titular_write_access(id, (select auth.uid())));
 
 -- No DELETE policy: pets are never deleted; "lost" / "deceased" status changes
 -- cover the lifecycle. See AGENTS.md → Pet status.
@@ -210,6 +199,15 @@ create policy "Pet events insertable by active owner (owner-self only)"
       where o.pet_id = pet_events.pet_id
         and o.owner_user_id = auth.uid()
         and o.ended_at is null
+    )
+    -- Migration 0190 (custodia-temporal). NOT a blanket deny: a caretaker must
+    -- be able to insert medical events, so only the titular-only event types
+    -- additionally demand titular write access. A forged custody_transferred is
+    -- the worst case in this table — there is no UPDATE and no DELETE policy,
+    -- so it would be a PERMANENT lie in the append-only spine.
+    and (
+      not (event_type = any (public.titular_only_event_types()))
+      or public.has_titular_write_access(pet_events.pet_id, (select auth.uid()))
     )
   );
 
@@ -385,6 +383,9 @@ create policy "owner can read own libreta shares"
     )
   );
 
+-- Migration 0190 (custodia-temporal): minting a libreta share publishes a
+-- bearer-readable link to the animal's medical record. That is a disclosure
+-- decision, and a disclosure decision belongs to the titular.
 drop policy if exists "owner can insert libreta shares for their pets" on public.libreta_share_tokens;
 create policy "owner can insert libreta shares for their pets"
   on public.libreta_share_tokens
@@ -396,6 +397,7 @@ create policy "owner can insert libreta shares for their pets"
       select pet_id from public.ownerships
       where owner_user_id = auth.uid() and ended_at is null
     )
+    and public.has_titular_write_access(pet_id, (select auth.uid()))
   );
 
 drop policy if exists "owner can update (revoke) own libreta shares" on public.libreta_share_tokens;
