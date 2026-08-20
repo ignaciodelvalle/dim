@@ -49,7 +49,6 @@ import { generateUniqueToken } from "@/lib/infra/unique-token";
 import { provinceByCode } from "@/lib/reference/ar-provincias";
 import { parseDateInput } from "@/lib/utils/format";
 import { and, eq, sql } from "drizzle-orm";
-import { redirect } from "next/navigation";
 
 import type { IntakeFormState } from "./types";
 
@@ -272,14 +271,22 @@ export async function createIntake(
     const match = await lookupByChip(parsed.microchipId);
     if (match) {
       if (match.pet.status === "lost") {
-        // BLOCK: redirect to match-confirmation page so the org can confirm.
-        // Attach an HMAC claim binding THIS org + THIS matched pet so the match
-        // page / confirm writer can gate on it (review 24 HIGH #6/#7): loading
-        // the lost pet by token alone leaked owner PII cross-org.
+        // BLOCK: send the operator to the match-confirmation page so the org
+        // can confirm. Attach an HMAC claim binding THIS org + THIS matched pet
+        // so the match page / confirm writer can gate on it (review 24 HIGH
+        // #6/#7): loading the lost pet by token alone leaked owner PII
+        // cross-org.
+        //
+        // Reported, not performed (nav contract N3). This is the branch where a
+        // dropped redirect hurt most: the operator gets no error and no
+        // navigation, so the animal in front of them — already registered as
+        // lost by a family looking for it — silently goes nowhere. `ok` stays
+        // unset because nothing was created.
         const claim = generateIntakeMatchClaim(orgToken, match.pet.publicToken);
-        redirect(
-          `/org/${orgToken}/intake/match/${match.pet.publicToken}?claim=${encodeURIComponent(claim)}`,
-        );
+        return {
+          error: null,
+          redirectTo: `/org/${orgToken}/intake/match/${match.pet.publicToken}?claim=${encodeURIComponent(claim)}`,
+        };
       }
 
       if (match.pet.status === "active") {
@@ -638,7 +645,10 @@ export async function createIntake(
         createdPetName: original.name,
       };
     }
-    redirect(`/org/${orgToken}/mascotas?nueva=${original.publicToken}`);
+    return {
+      error: null,
+      redirectTo: `/org/${orgToken}/mascotas?nueva=${original.publicToken}`,
+    };
   }
 
   if (pendingNotifications.length > 0) {
@@ -658,5 +668,8 @@ export async function createIntake(
     };
   }
 
-  redirect(`/org/${orgToken}/mascotas?nueva=${publicToken}`);
+  return {
+    error: null,
+    redirectTo: `/org/${orgToken}/mascotas?nueva=${publicToken}`,
+  };
 }

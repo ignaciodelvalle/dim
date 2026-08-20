@@ -75,15 +75,6 @@ export type ImportIntakeRowsResult =
 // Helpers
 // ---------------------------------------------------------------------------
 
-function isNextRedirect(err: unknown): boolean {
-  return (
-    typeof err === "object" &&
-    err !== null &&
-    "digest" in err &&
-    String((err as { digest: unknown }).digest).startsWith("NEXT_REDIRECT")
-  );
-}
-
 function buildRowFormData(fields: Record<string, string>): FormData {
   const fd = new FormData();
   for (const [key, value] of Object.entries(fields)) {
@@ -276,6 +267,19 @@ export async function importIntakeRowsAction(
           reason:
             "Posible coincidencia por tatuaje — requiere verificación por foto, usá el formulario individual.",
         });
+      } else if (result.redirectTo) {
+        // Lost-chip match (D5). createIntake used to THROW next/navigation's
+        // NEXT_REDIRECT here and this loop caught it; since T1.3 the use-case
+        // REPORTS the destination instead, so the branch moved from the catch
+        // to a plain conditional. Same outcome, and now the only reason the row
+        // is skipped is one the code states rather than one inferred from an
+        // exception digest: in bulk, that confirmation MUST happen per animal.
+        results.push({
+          index: row.index,
+          outcome: "skipped",
+          reason:
+            "El microchip coincide con una mascota perdida — requiere el flujo individual de confirmación.",
+        });
       } else if (result.error) {
         results.push({ index: row.index, outcome: "failed", reason: result.error });
       } else if (result.ok && result.createdPetToken) {
@@ -304,22 +308,11 @@ export async function importIntakeRowsAction(
         });
       }
     } catch (err) {
-      if (isNextRedirect(err)) {
-        // Write-time backstop (D5): createIntake redirects on a lost-chip
-        // match. In bulk that confirmation MUST happen per animal.
-        results.push({
-          index: row.index,
-          outcome: "skipped",
-          reason:
-            "El microchip coincide con una mascota perdida — requiere el flujo individual de confirmación.",
-        });
-      } else {
-        results.push({
-          index: row.index,
-          outcome: "failed",
-          reason: err instanceof Error ? err.message : "Error desconocido",
-        });
-      }
+      results.push({
+        index: row.index,
+        outcome: "failed",
+        reason: err instanceof Error ? err.message : "Error desconocido",
+      });
     }
   }
 

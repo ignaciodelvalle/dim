@@ -3,7 +3,6 @@
   "files": {
     "src/modules/adoption/application/apply-intent/start-apply-intent.ts": 2,
     "src/modules/auth/application/logout.ts": 2,
-    "src/modules/pets/application/intake/create-intake.ts": 3,
     "src/modules/pets/application/reminders/delete-vaccine-reminder.ts": 1,
     "src/modules/pets/application/stub-claim/claim-stub-profile.ts": 1
   }

@@ -7,7 +7,7 @@
 //     pet_registered + shelter_intake_recorded events, real custody)
 //   - chunk idempotency (spec 1.7, HARD): resubmitting the same fileHash/rows
 //     creates NO duplicate events and reports the original pets
-//   - NEXT_REDIRECT backstop: a lost-chip match row is skipped, not imported
+//   - lost-chip backstop: a lost-chip match row is skipped, not imported
 //   - tattoo-match rows are skipped ("verificación por foto")
 //   - zero-valid-rows: nothing importable, import of empty set errors
 //
@@ -171,7 +171,7 @@ beforeAll(async () => {
     canWritePetEvents: true,
   });
 
-  // Seed a LOST pet with an active chip (NEXT_REDIRECT backstop) and an
+  // Seed a LOST pet with an active chip (lost-chip backstop) and an
   // active pet with a tattoo (photo-verification skip).
   const [lostPet] = await db
     .insert(pets)
@@ -348,7 +348,7 @@ describe("bulk intake CSV import (validate + import actions)", () => {
     }
   });
 
-  it("NEXT_REDIRECT backstop: a lost-chip row is skipped, never imported", async () => {
+  it("lost-chip backstop: a lost-chip row is skipped, never imported", async () => {
     mockSessionAs(coordUserId);
     const result = await importIntakeRowsAction(ORG_TOKEN, {
       fileHash: "b".repeat(64),

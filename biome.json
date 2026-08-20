@@ -129,7 +129,6 @@
         "src/modules/organizations/application/bulk-actions/bulk-revoke.ts",
         "src/modules/panorama/application/load-layer-features-cached.ts",
         "src/modules/panorama/application/load-panorama-kpis.ts",
-        "src/modules/pets/application/intake/create-intake.ts",
         "src/modules/pets/application/lost-mode/set-pet-disclosure-prefs.ts",
         "src/modules/pets/application/physical-tag-interest/toggle-physical-tag-interest.ts",
         "src/modules/pets/application/public-lookup/lookup-pet-for-denuncia.ts",

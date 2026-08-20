@@ -27,6 +27,7 @@ import { LnSuccessScreen } from "@/components/ui/SuccessScreen";
 import { LnWizardShell } from "@/components/ui/WizardShell";
 import { OpButton, OpSelect } from "@/components/ui/dashboard";
 import { breedsForSpecies } from "@/lib/reference/breeds";
+import { useActionRedirect } from "@/lib/ui/use-action-redirect";
 import { useIdempotencyKey } from "@/lib/ui/use-idempotency-key";
 import { formatDate, speciesLabel, todayIsoInAr } from "@/lib/utils/format";
 
@@ -150,11 +151,34 @@ function BreedSelectField({
   );
 }
 
+/**
+ * Submit CTA label. Extracted for the same reason buildIntakeFormData and
+ * BreedSelectField are: IntakeForm sits right at the cognitive-complexity
+ * fence, and the wizard's submit path should not spend its budget on a
+ * two-flag label. `navigating` shares the busy label with `pending` because
+ * from the operator's side they are one wait — the request, then the document
+ * load that follows it.
+ */
+function submitCtaLabel(pending: boolean, navigating: boolean): string {
+  return pending || navigating ? "Registrando…" : "Crear ingreso";
+}
+
 export function IntakeForm({ orgToken }: { orgToken: string }) {
   const action = createIntakeAction.bind(null, orgToken);
   const [step, setStep] = useState(1);
   const [pending, startTransition] = useTransition();
   const [state, setState] = useState<IntakeFormState>({ error: null });
+
+  // Nav contract N3. The chip cross-check can answer "this animal is somebody's
+  // lost pet" and send the operator to the match-confirmation page. The
+  // use-case used to call redirect() itself, which the App Router drops
+  // intermittently in production — on this branch that reads as pressing
+  // "Crear ingreso" and watching nothing happen. It now REPORTS the
+  // destination and the navigation is a full document load from here.
+  //
+  // `state` is the fire key: two consecutive submits can resolve to the same
+  // match URL, and without it the effect would not re-fire on the second.
+  const navigating = useActionRedirect(state.redirectTo, state);
 
   // Stable per-animal idempotency key: a double-tap on "Crear ingreso" (or a
   // retry after a network hiccup) re-sends the same key, so the server returns
@@ -287,7 +311,12 @@ export function IntakeForm({ orgToken }: { orgToken: string }) {
   // an `inert` section until step 4 anyway) while masking the handler guard
   // from tests: a disabled button never dispatches a click, so the assertion
   // "a premature click submits nothing" would pass with the guard deleted.
-  const canSubmit = !!name && !!species && !!intakeReason && !!occurredAt && !pending;
+  // `navigating` never comes back down: window.location.assign() returns
+  // immediately, so without it the CTA re-enables over the old page while the
+  // document is already leaving, and an impatient second tap fires a second
+  // intake (lib/ui/use-action-redirect.ts X1-F1).
+  const canSubmit =
+    !!name && !!species && !!intakeReason && !!occurredAt && !pending && !navigating;
 
   return (
     <LnWizardShell
@@ -644,7 +673,7 @@ export function IntakeForm({ orgToken }: { orgToken: string }) {
         )}
 
         <OpButton type="button" onClick={submit} disabled={!canSubmit} block>
-          {pending ? "Registrando…" : "Crear ingreso"}
+          {submitCtaLabel(pending, navigating)}
         </OpButton>
       </section>
     </LnWizardShell>
