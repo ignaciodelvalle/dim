@@ -22,7 +22,6 @@ import {
   FRAMING_SNAP_MAX_ZOOM,
   shouldSnapFraming,
 } from "@/components/panorama/situational-map-utils";
-import { COLOR_SUPPRESSED } from "@/lib/analytics/viz-scales";
 import { AR_BBOX } from "@/lib/ui/map-bounds";
 import type { MapCamera } from "@/lib/ui/map-layer-nav";
 import { escapeHtml } from "@/lib/utils/escape-html";
@@ -30,6 +29,7 @@ import { formatDate } from "@/lib/utils/format";
 import type { BivariateCell, BivariatePair } from "@/src/modules/panorama/domain/bivariate";
 import type { PresetFraming } from "@/src/modules/panorama/domain/presets";
 import type { AggregationLevel, FeatureCollection } from "@/src/modules/panorama/domain/types";
+import { COLOR_SUPPRESSED } from "@dim/contract/viz";
 
 // ---------------------------------------------------------------------------
 // SituationalMap — the Panorama console's geospatial canvas.

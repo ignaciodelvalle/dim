@@ -47,7 +47,7 @@ export const MAPLIBRE_LOCALE_ALLOWLIST = new Set<string>([
   "components/LocationPicker.tsx",
 ]);
 
-const FILES = globSync("{app,components,lib,src}/**/*.{ts,tsx}")
+const FILES = globSync("{app,components,lib,packages,src}/**/*.{ts,tsx}")
   .map((f) => f.replaceAll("\\", "/"))
   .filter((f) => !f.startsWith("node_modules/") && !f.includes("/node_modules/"));
 

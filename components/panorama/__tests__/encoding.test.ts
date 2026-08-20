@@ -16,8 +16,8 @@
 
 import { describe, expect, it } from "vitest";
 
-import { SCALE_BLUE_SEQ } from "@/lib/analytics/viz-scales";
 import type { FeatureCollection } from "@/src/modules/panorama/domain/types";
+import { SCALE_BLUE_SEQ } from "@dim/contract/viz";
 
 import { classSwatches, colorForValue } from "../class-scale";
 import { resolveChoroplethEncoding } from "../encoding";

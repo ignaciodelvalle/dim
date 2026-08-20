@@ -5,6 +5,8 @@
 // dependencies at all.
 //
 // Subpath entry points exist so a consumer that only needs the event
-// vocabulary does not have to name every other module:
+// vocabulary does not have to name the visualization module:
 //   import { EVENT_TYPES } from "@dim/contract/events";
+//   import { SCALE_BLUE_SEQ } from "@dim/contract/viz";
 export * from "./events/index";
+export * from "./viz/index";

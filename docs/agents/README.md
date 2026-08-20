@@ -66,7 +66,7 @@ the named tip does.
 - **Spec-conflict rule: validated code beats design-handoff tables.** When a
   tested constant disagrees with a design handoff's token table, the code wins.
   Case study: the v2C README's divergent teal `#0d9488` was already replaced in
-  `lib/analytics/viz-scales.ts` by `#0c866b` (`COLOR_DIVERGENT_ABOVE`) over a
+  `packages/contract/src/viz/viz-scales.ts` (`@dim/contract/viz`) by `#0c866b` (`COLOR_DIVERGENT_ABOVE`) over a
   ΔE deuteranopia-margin violation — building from the table would have silently
   reintroduced a fixed CVD accessibility bug. Treat `viz-scales.ts` (and other
   test-pinned constants) as the source of truth; flag the handoff, don't follow it.

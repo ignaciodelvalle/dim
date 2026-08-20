@@ -14,8 +14,8 @@ import {
   bivariateSuppressedCodes,
   bivariateSuppressedFilter,
 } from "@/components/panorama/bivariate-fill";
-import { COLOR_NO_DATA } from "@/lib/analytics/viz-scales";
 import type { BivariateCell } from "@/src/modules/panorama/domain/bivariate";
+import { COLOR_NO_DATA } from "@dim/contract/viz";
 
 function cell(over: Partial<BivariateCell>): BivariateCell {
   return {

@@ -9,14 +9,6 @@ import {
 import { stepColorExpr } from "@/components/panorama/class-scale";
 import { cellsPaintHatch } from "@/components/panorama/hatch-pattern";
 import {
-  COLOR_DIVERGENT_ABOVE,
-  COLOR_DIVERGENT_BELOW,
-  COLOR_DIVERGENT_NEUTRAL,
-  COLOR_NO_DATA,
-  COLOR_SUPPRESSED,
-  RAMP_BLUE,
-} from "@/lib/analytics/viz-scales";
-import {
   type GeoLevel,
   type RawDatum,
   departmentBelongsToProvince,
@@ -25,6 +17,14 @@ import {
 } from "@/lib/infra/geo-join";
 import { GOB_MAP_HEIGHT } from "@/lib/ui/map-bounds";
 import { escapeHtml } from "@/lib/utils/escape-html";
+import {
+  COLOR_DIVERGENT_ABOVE,
+  COLOR_DIVERGENT_BELOW,
+  COLOR_DIVERGENT_NEUTRAL,
+  COLOR_NO_DATA,
+  COLOR_SUPPRESSED,
+  RAMP_BLUE,
+} from "@dim/contract/viz";
 import type maplibregl from "maplibre-gl";
 import { useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -33,7 +33,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
  * Mapa coroplético v2 — MapLibre GL JS con:
  *  - Drill jerárquico: provincia → departamento → barrio (CABA).
  *  - Cross-filter: selección persiste en searchParams (mismo patrón que PeriodPicker).
- *  - Escala tokenizada: colorScale viene de lib/viz-scales.ts (no hex literal).
+ *  - Escala tokenizada: colorScale viene de @dim/contract/viz (no hex literal).
  *  - Escala secuencial CLASIFICADA (dataviz review #5): fill discreto por
  *    clases vía components/panorama/class-scale.ts (reutilizado) — la
  *    interpolación continua min→max comprimía los conteos y el mapa "leía
@@ -82,7 +82,7 @@ export type MapChoroplethProps = {
    */
   level?: GeoLevel;
   /**
-   * Ramp de colores [bajo, alto] — DEBE venir de lib/viz-scales.ts.
+   * Ramp de colores [bajo, alto] — DEBE venir de @dim/contract/viz.
    * Acepta tanto ColorRamp (readonly) como [string, string] mutable
    * para compatibilidad con callers v1. Migrar a ColorRamp de viz-scales.ts.
    * Default: RAMP_BLUE.

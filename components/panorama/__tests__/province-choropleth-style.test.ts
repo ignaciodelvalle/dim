@@ -5,9 +5,9 @@
 
 import { describe, expect, it } from "vitest";
 
-import { COLOR_NO_DATA, SCALE_BLUE_SEQ } from "@/lib/analytics/viz-scales";
 import { PROVINCES } from "@/lib/reference/ar-provincias";
 import type { FeatureCollection } from "@/src/modules/panorama/domain/types";
+import { COLOR_NO_DATA, SCALE_BLUE_SEQ } from "@dim/contract/viz";
 
 import { classSwatches } from "../class-scale";
 import {

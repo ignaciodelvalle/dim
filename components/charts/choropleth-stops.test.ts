@@ -22,7 +22,7 @@ import {
   COLOR_DIVERGENT_NEUTRAL,
   RAMP_BLUE,
   SCALE_BLUE_SEQ,
-} from "@/lib/analytics/viz-scales";
+} from "@dim/contract/viz";
 
 /** Assert the MapLibre invariant: stop inputs strictly ascend. */
 function expectStrictlyAscending(stops: Array<[number, string]>): void {

@@ -55,7 +55,7 @@ const EXCLUDE = [
   "/e2e/",
 ];
 
-const FILES = globSync("{app,components,lib,src}/**/*.{ts,tsx}").filter((f) => {
+const FILES = globSync("{app,components,lib,packages,src}/**/*.{ts,tsx}").filter((f) => {
   const p = f.replaceAll("\\", "/");
   return !EXCLUDE.some((frag) => p.includes(frag) || p.endsWith(frag));
 });

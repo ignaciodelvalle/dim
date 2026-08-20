@@ -118,7 +118,12 @@ export default defineConfig({
     coverage: {
       provider: "v8",
       reporter: ["text", "html", "json"],
-      include: ["lib/**", "app/**", "src/**"],
+      // `packages/**` joined on 2026-08-20 with the first workspace package.
+      // Without it, moving a file from lib/ into packages/contract would have
+      // silently dropped it from the instrumented corpus — the coverage number
+      // would have IMPROVED by deleting measured code, which is the wrong
+      // incentive to leave lying around.
+      include: ["lib/**", "app/**", "packages/**", "src/**"],
       exclude: [
         "components/**",
         "__tests__/**",

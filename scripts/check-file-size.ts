@@ -6,8 +6,10 @@
 // the same way check-design-tokens.ts and check-action-line-budget.ts do: with
 // a RATCHET baseline.
 //
-// Rules (source files under app/, components/, lib/, src/ — .ts/.tsx, tests
-// excluded):
+// Rules (source files under app/, components/, lib/, packages/, src/ — .ts/.tsx,
+// tests excluded. `packages/` joined the corpus on 2026-08-20 with the first
+// workspace package: a new top-level source root that no fence globs is a
+// silent hole, and this repo has been bitten by exactly that before):
 //   (A) A file OVER THRESHOLD lines that is NOT in the baseline FAILS. New
 //       large files are forbidden — split them from the start.
 //   (B) A baselined file that GROWS beyond its recorded size + SLACK FAILS.
@@ -40,7 +42,7 @@ const GROWTH_SLACK = 25;
 const BASELINE_PATH = "scripts/file-size-baseline.json";
 
 /** Source roots to scan. Tests, generated files, and non-source dirs excluded. */
-const SOURCE_GLOB = "{app,components,lib,src}/**/*.{ts,tsx}";
+const SOURCE_GLOB = "{app,components,lib,packages,src}/**/*.{ts,tsx}";
 
 const TEST_SUFFIXES = [".test.ts", ".test.tsx", ".spec.ts", ".spec.tsx", ".d.ts"];
 

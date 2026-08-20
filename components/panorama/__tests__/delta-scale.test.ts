@@ -15,12 +15,12 @@ import {
   deltaClassScale,
   deltaProvinceClassScale,
 } from "@/components/panorama/delta-scale";
+import type { FeatureCollection } from "@/src/modules/panorama/domain/types";
 import {
   COLOR_DIVERGENT_ABOVE,
   COLOR_DIVERGENT_BELOW,
   COLOR_DIVERGENT_NEUTRAL,
-} from "@/lib/analytics/viz-scales";
-import type { FeatureCollection } from "@/src/modules/panorama/domain/types";
+} from "@dim/contract/viz";
 
 const fc = (props: Array<Record<string, unknown>>): FeatureCollection => ({
   type: "FeatureCollection",

@@ -38,7 +38,7 @@ Regla madre: **compartir tokens (color, tipografía, badge, botón, radio), nunc
 
 | Token | Dónde vive | Regla |
 |---|---|---|
-| Color (azul institucional, semáforo ok/atención/riesgo/neutral) | `app/globals.css` (`--color-*`), `lib/analytics/viz-scales.ts` | 4 tonos de estado máximo; sin verde-rojo adyacente (CVD) |
+| Color (azul institucional, semáforo ok/atención/riesgo/neutral) | `app/globals.css` (`--color-*`), `packages/contract/src/viz/viz-scales.ts` (`@dim/contract/viz`) | 4 tonos de estado máximo; sin verde-rojo adyacente (CVD) |
 | Tipografía (`--text-*`, `--font-ln-*`) | `app/globals.css` | Escala tokenizada; sin `text-[Npx]` crudo (fence `lint:tokens`) |
 | Radio (`--radius-*`) | idem | Tokenizado; sin `rounded-[Npx]` crudo |
 | Botones | `components/ui/Button.tsx` (Ln*, ciudadano), `components/ui/dashboard/OpButton.tsx` (Op*, operador) | Sin `<button>` crudo (fences `lint:buttons`) |

@@ -17,9 +17,9 @@ import {
   computeClassScale,
   stepColorExpr,
 } from "@/components/panorama/class-scale";
-import { COLOR_NO_DATA } from "@/lib/analytics/viz-scales";
 import { PROVINCES } from "@/lib/reference/ar-provincias";
 import type { FeatureCollection } from "@/src/modules/panorama/domain/types";
+import { COLOR_NO_DATA } from "@dim/contract/viz";
 
 /** A province feature's properties (as emitted by buildProvinceChoroplethFeatures). */
 type ProvinceFeatureProps = { provinceCode?: string; value?: number | null; suppressed?: boolean };

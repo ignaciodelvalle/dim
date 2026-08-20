@@ -5,7 +5,7 @@
 
 import { describe, expect, it } from "vitest";
 
-import { SCALE_BLUE_SEQ } from "@/lib/analytics/viz-scales";
+import { SCALE_BLUE_SEQ } from "@dim/contract/viz";
 import {
   CLASS_COUNT,
   classColors,

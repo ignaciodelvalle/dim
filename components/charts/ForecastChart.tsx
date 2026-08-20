@@ -39,8 +39,8 @@ import {
   YAxis,
 } from "recharts";
 
-import { CHART_COLORS } from "@/lib/analytics/viz-scales";
 import type { ForecastMethod, ForecastResult } from "@/lib/metrics/forecast";
+import { CHART_COLORS } from "@dim/contract/viz";
 import { ChartSizingBox } from "./ChartSizingBox";
 
 export type ForecastChartProps = {

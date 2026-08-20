@@ -1,16 +1,36 @@
 /**
  * Tokenized color scales for choropleth and dashboard charts.
  *
- * All colors are design-token references resolved at build time from the
- * Tailwind/CSS variable layer. No arbitrary hex literals are exported from
- * this file — callers must use these named scales, not inline colors.
+ * These constants ARE the tokens: literal `#rrggbb` values, chosen and
+ * measured here. That is a correction of this header, not a change of design.
+ * It used to claim "all colors are design-token references resolved at build
+ * time from the Tailwind/CSS variable layer" and "no arbitrary hex literals
+ * are exported from this file" — and every export below has always been a hex
+ * literal. There is no CSS-variable indirection in this module and there
+ * cannot be one: a MapLibre paint expression and a React Native canvas both
+ * need a resolved color string, not a `var(--…)` reference. The rule that IS
+ * real: callers import a named constant from here and never inline a hex of
+ * their own.
  *
- * Colorblind safety:
- *  - Sequential scales use single-hue ramps (safe for deuteranopia / protanopia).
- *  - Diverging scales separate poles by hue distance (blue–red), not
- *    green–red, which is the most common confusion axis.
- *  - All contrast ratios meet WCAG 2.1 AA at the text-on-fill level for
- *    the tooltip overlay (Ley Nacional 26.653 / Disp. ONTI 6/2019).
+ * Colorblind safety — what viz-scales.test.ts actually pins, against measured
+ * ΔE00 and relative luminance rather than string inequality:
+ *  - Sequential scales are single-hue ramps (safe for deuteranopia /
+ *    protanopia), descending in luminance, with every adjacent class pair at
+ *    or above MAP_FILL_DISTINCT_FLOOR and no step more than 2× another.
+ *  - The divergent scale separates its poles as AMBER ↔ TEAL. The old wording
+ *    here said blue–red; the poles have never been blue and red. What matters
+ *    is the axis avoided — green–red — and the measured margin, which for the
+ *    teal pole is ΔE 18.3 under deuteranopia (see COLOR_DIVERGENT_ABOVE).
+ *  - COLOR_NO_DATA is achromatic and stays perceptually apart from the palest
+ *    data class, so "no value" never reads as "low value".
+ *
+ * NOT claimed: text-on-fill contrast. This header used to assert that all
+ * contrast ratios meet WCAG 2.1 AA at the text-on-fill level for the tooltip
+ * overlay (Ley Nacional 26.653 / Disp. ONTI 6/2019). Nothing in this module or
+ * its test measures text against these fills, and the one contrast figure that
+ * IS locked — COLOR_DIVERGENT_ABOVE against the retired navy basemap — is the
+ * 3:1 NON-text floor, not 4.5:1. Accessibility of chart text is a property of
+ * the components that draw it, not of this palette.
  *
  * Reference: https://colorbrewer2.org — sequential single-hue palettes.
  */
@@ -112,14 +132,15 @@ export const SCALE_GREEN_SEQ: ColorScale5 = [
 export const RAMP_GREEN: ColorRamp = ["#edf8e9", "#006d2c"] as const;
 
 // ---------------------------------------------------------------------------
-// Divergent (compliance) scale — blue↔orange, colorblind-safe
+// Divergent (compliance) scale — amber↔teal, colorblind-safe
 //
-// Intentional hue choice: blue (above target / "good") ↔ orange/amber (below
-// target / "warning"). Blue–orange is safe for deuteranopia and protanopia —
-// the two poles are separated by hue and luminance, NOT by the red–green axis
-// which is explicitly forbidden in the colorblind comment at the top of this
-// file. ColorBrewer source: diverging "PuOr" family adapted to match the
-// existing sequential palette luminance range.
+// Intentional hue choice: teal (above target / "good") ↔ amber (below target /
+// "warning"). This block used to say "blue↔orange"; the above-pole has been a
+// teal since the CVD margin fix below, and calling it blue is what makes a
+// reader reach for SCALE_BLUE_SEQ. Amber–teal is safe for deuteranopia and
+// protanopia — the two poles are separated by hue AND luminance, NOT by the
+// red–green axis. ColorBrewer source: diverging "PuOr" family adapted to match
+// the existing sequential palette luminance range.
 // ---------------------------------------------------------------------------
 
 /**
@@ -157,7 +178,10 @@ export const COLOR_DIVERGENT_NEUTRAL = "#64748b" as const; // slate-500
  * navy figure is kept as a regression anchor and locked by the viz-scales test.
  * Re-validate with dataviz's validate_palette.js before changing this value.
  */
-export const COLOR_DIVERGENT_ABOVE = "#0c866b" as const; // teal-600, darkened + CVD-margin corrected
+// NOT teal-600. Tailwind's teal-600 is #0d9488 — the exact value this constant
+// exists to replace. Naming it "teal-600" in a handoff table is how the fix
+// gets reverted by someone reading the label instead of the measurement.
+export const COLOR_DIVERGENT_ABOVE = "#0c866b" as const; // teal-600 darkened, CVD-margin corrected
 
 /**
  * A divergent color scale for compliance/rate layers:
@@ -169,9 +193,9 @@ export const COLOR_DIVERGENT_ABOVE = "#0c866b" as const; // teal-600, darkened +
 export const SCALE_DIVERGENT_COMPLIANCE: ColorScale5 = [
   "#d97706", // amber-600 — far below (worst)
   COLOR_DIVERGENT_BELOW, // amber-400 — below target
-  COLOR_DIVERGENT_NEUTRAL, // slate-50 — at target (neutral)
+  COLOR_DIVERGENT_NEUTRAL, // slate-500 — at target (neutral)
   "#2dd4bf", // teal-300 — above target
-  COLOR_DIVERGENT_ABOVE, // teal-600 — far above (best)
+  COLOR_DIVERGENT_ABOVE, // CVD-corrected teal — far above (best)
 ] as const;
 
 /**

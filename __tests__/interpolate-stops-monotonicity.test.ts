@@ -23,8 +23,8 @@ import {
   provinceMetaClassScale,
   provinceSeqClassScale,
 } from "@/components/panorama/province-choropleth-style";
-import { RAMP_BLUE, divergentStops } from "@/lib/analytics/viz-scales";
 import type { FeatureCollection } from "@/src/modules/panorama/domain/types";
+import { RAMP_BLUE, divergentStops } from "@dim/contract/viz";
 
 /** Strictly ascending — every element less than the next (vacuously true for
  *  0- or 1-length series, which MapLibre also accepts). */

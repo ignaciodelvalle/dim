@@ -115,13 +115,13 @@ import {
   provinceSeqScaleForLayer,
   provinceSuppressedCodes,
 } from "@/components/panorama/province-choropleth-style";
-import { COLOR_NO_DATA, COLOR_SUPPRESSED } from "@/lib/analytics/viz-scales";
 import { provinceByCode } from "@/lib/reference/ar-provincias";
 import { AR_BBOX, GOB_MAP_HEIGHT } from "@/lib/ui/map-bounds";
 import type { MapCamera } from "@/lib/ui/map-layer-nav";
 import { MAPLIBRE_LOCALE_ES } from "@/lib/ui/maplibre-locale";
 import { escapeHtml } from "@/lib/utils/escape-html";
 import { isMetaLayer } from "@/src/modules/panorama/domain/capabilities";
+import { COLOR_NO_DATA, COLOR_SUPPRESSED } from "@dim/contract/viz";
 
 import {
   AR_CENTER,

@@ -735,7 +735,7 @@ const STANDARD_FILES = globSync("{app,components}/**/*.{ts,tsx}").filter((f) => 
 // components/ui/: a missing accent is wrong wherever it renders, and unlike the
 // screaming-enum heuristic it has no reason to skip primitives. The word list
 // is conservative (see ACCENT_WORDS) precisely so widening the scope is safe.
-const ACCENT_FILES = globSync("{app,components,lib,src}/**/*.{ts,tsx}").filter((f) => {
+const ACCENT_FILES = globSync("{app,components,lib,packages,src}/**/*.{ts,tsx}").filter((f) => {
   const p = f.replaceAll("\\", "/");
   return !EXCLUDE_PATH_PREFIXES_DEFAULT.some(
     (prefix) => p.startsWith(prefix) || p.includes(`/${prefix}`),

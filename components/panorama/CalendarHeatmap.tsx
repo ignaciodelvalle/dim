@@ -32,8 +32,8 @@ import {
   cellAriaLabel,
   clampSinceToRecentMonths,
 } from "@/components/panorama/calendar-heatmap-grid";
-import { SCALE_BLUE_SEQ } from "@/lib/analytics/viz-scales";
 import { formatDate, parseDateInput, pluralizeEs } from "@/lib/utils/format";
+import { SCALE_BLUE_SEQ } from "@dim/contract/viz";
 
 /** Widest window the day-cell grid renders before clamping to the recent tail. */
 const CALENDAR_CAP_MONTHS = 12;

@@ -38,7 +38,7 @@ execution plan for both.
 > - **Divergent neutral (decided 2026-07-11, #21 apply):** stays the CVD-tuned `#64748b`
 >   (`COLOR_DIVERGENT_NEUTRAL`), NOT the prototype's `#f1f5f8` — perceptual accessibility
 >   (validated ΔE margins to both poles) beats spec-exactness.
-> - **Colors generally (docs cross-check 2026-07-11): `lib/analytics/viz-scales.ts` is the
+> - **Colors generally (docs cross-check 2026-07-11): `packages/contract/src/viz/viz-scales.ts` (`@dim/contract/viz`) is the
 >   source of truth wherever it disagrees with the v2C README's token table.** The README
 >   lists the PRE-FIX divergent teal `#0d9488`, which the night-1 dataviz audit replaced
 >   with `#0c866b` (`COLOR_DIVERGENT_ABOVE`) over a ΔE 10.7 deuteranopia margin violation —

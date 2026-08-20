@@ -149,20 +149,22 @@ export function scanFile(relPath: string, content: string): Violation[] {
 // Scan targets
 // ---------------------------------------------------------------------------
 
-const SCAN_FILES = globSync("{app,components,lib,src,scripts}/**/*.{ts,tsx}").filter((f) => {
-  const p = normalizeRelPath(f);
-  if (p.includes("node_modules/")) return false;
-  // This file. It necessarily contains the patterns it hunts — in its own
-  // regexes and in the docblock explaining them. A guard that flags itself is
-  // just noise, and worse, it trains people to ignore the output.
-  if (p === "scripts/check-opened-reason-coverage.ts") return false;
-  // Test fixtures legitimately construct rows by hand (and are typed by tsc
-  // through the same union). The guard is about production write paths.
-  if (p.includes("__tests__/") || p.endsWith(".test.ts") || p.endsWith(".test.tsx")) return false;
-  // db/seed scripts insert historical/demo rows directly and predate the union.
-  if (p.startsWith("scripts/seed")) return false;
-  return true;
-});
+const SCAN_FILES = globSync("{app,components,lib,packages,src,scripts}/**/*.{ts,tsx}").filter(
+  (f) => {
+    const p = normalizeRelPath(f);
+    if (p.includes("node_modules/")) return false;
+    // This file. It necessarily contains the patterns it hunts — in its own
+    // regexes and in the docblock explaining them. A guard that flags itself is
+    // just noise, and worse, it trains people to ignore the output.
+    if (p === "scripts/check-opened-reason-coverage.ts") return false;
+    // Test fixtures legitimately construct rows by hand (and are typed by tsc
+    // through the same union). The guard is about production write paths.
+    if (p.includes("__tests__/") || p.endsWith(".test.ts") || p.endsWith(".test.tsx")) return false;
+    // db/seed scripts insert historical/demo rows directly and predate the union.
+    if (p.startsWith("scripts/seed")) return false;
+    return true;
+  },
+);
 
 function runScan(): void {
   const violations: Violation[] = [];

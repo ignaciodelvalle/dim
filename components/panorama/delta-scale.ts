@@ -10,7 +10,7 @@
 // POLARITY (deliberately INVERTED relative to the compliance meta scale): for
 // event counts, MORE events than the prior period is the WARNING pole and FEWER
 // is the good pole. The classes reuse the CVD-validated divergent tokens
-// (lib/analytics/viz-scales — the tested constants beat any handoff doc):
+// (@dim/contract/viz — the tested constants beat any handoff doc):
 // COLOR_DIVERGENT_ABOVE (teal) paints the DECREASE classes, COLOR_DIVERGENT_BELOW
 // (amber) paints the INCREASE classes, COLOR_DIVERGENT_NEUTRAL the "sin cambio"
 // class. Mid-shades are derived by lerping a pole toward neutral — no new raw
@@ -21,13 +21,13 @@
 // ClassScale via the shared class-scale machinery, so paint and legend cannot
 // disagree.
 
+import type { FeatureCollection } from "@/src/modules/panorama/domain/types";
 import {
   COLOR_DIVERGENT_ABOVE,
   COLOR_DIVERGENT_BELOW,
   COLOR_DIVERGENT_NEUTRAL,
   lerpHex,
-} from "@/lib/analytics/viz-scales";
-import type { FeatureCollection } from "@/src/modules/panorama/domain/types";
+} from "@dim/contract/viz";
 
 import type { ClassScale } from "./class-scale";
 

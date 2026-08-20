@@ -24,7 +24,7 @@ import {
   classSwatches,
   computeClassScale,
 } from "@/components/panorama/class-scale";
-import { divergentStops } from "@/lib/analytics/viz-scales";
+import { divergentStops } from "@dim/contract/viz";
 
 export type ChoroplethDomain = { minVal: number; maxVal: number };
 

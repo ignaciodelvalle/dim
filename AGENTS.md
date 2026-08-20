@@ -1183,7 +1183,7 @@ The operator situational map — jurisdiction-fenced choropleth + graduated symb
 
 | Estado | Feature | Surface / mecanismo |
 |---|---|---|
-| ✅ | Light operator theme (`ln-op-*` tokens) en /gob y /admin — la piel oscura v1 quedó retirada | `fd757227` (v2C `#21`, incremento 1); `lib/analytics/viz-scales.ts` es la fuente de verdad de la paleta |
+| ✅ | Light operator theme (`ln-op-*` tokens) en /gob y /admin — la piel oscura v1 quedó retirada | `fd757227` (v2C `#21`, incremento 1); `packages/contract/src/viz/viz-scales.ts` (`@dim/contract/viz`) es la fuente de verdad de la paleta |
 | ✅ | Consola fija v2C — viewport-locked (`100dvh`, sin scroll de página), chrome flotante sobre el mapa (Vista/Capas + KPI chips + legend pill) + dock inferior con tabs `Registros \| Estadísticas \| Línea de tiempo` | `components/panorama/PanoramaConsole.tsx` + `PanoramaDock.tsx`; el canvas MapLibre nunca re-layoutea |
 | ✅ | Event-points mode — puntos por evento scope-gated (no jitter; ver plan de puntos) | `pointsMode` en `PanoramaConsole` + disclosure honesto por capa |
 | ✅ | Cube precompute (road-to-10 infra, migración 0139) — **ON por defecto** desde la decisión cube-ON (K4/S3 2026-07-24): `CUBE_READS='0'` es el kill switch; lectura solo si el cubo está FRESCO (ventana 26h = cadencia diaria del cron `refresh-cube`, `0 3 * * *` en vercel.json — 2.º y último slot Hobby); stale/ausente → live con disclosure de truncamiento; caption "Datos precalculados al …" / "Datos en vivo" en el footer del console; refresh sub-diario + ventana 6h requieren Vercel Pro (fase 3) | `src/modules/panorama/application/load-layer-features-cube.ts` (flag `!== "0"`, `CUBE_STALE_MAX_MS` 26h), `db/index.ts` (`analyticsReadOverride`), `src/modules/panorama/domain/cube-freshness.ts` |

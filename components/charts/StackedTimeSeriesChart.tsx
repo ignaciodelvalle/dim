@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { Area, AreaChart, CartesianGrid, Legend, Tooltip, XAxis, YAxis } from "recharts";
 
-import { CHART_COLORS, type ChartColorKey } from "@/lib/analytics/viz-scales";
+import { CHART_COLORS, type ChartColorKey } from "@dim/contract/viz";
 
 import { ChartSizingBox } from "./ChartSizingBox";
 
@@ -20,7 +20,7 @@ import { ChartSizingBox } from "./ChartSizingBox";
  *  - A `<details>` data-table fallback (períodos × series matrix) is always
  *    rendered so screen readers and no-JS contexts get the full data.
  *
- * Colors come from the tokenized CHART_COLORS palette (lib/viz-scales) — no
+ * Colors come from the tokenized CHART_COLORS palette (@dim/contract/viz) — no
  * inline hex literals. Series cycle through the palette in stack order.
  */
 

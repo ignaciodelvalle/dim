@@ -30,7 +30,7 @@
 // MapLegends) build the MapLibre `["step", …]` expression / legend swatches from
 // the SAME breaks + colors, so on-map fill and off-canvas legend never disagree.
 
-import { SCALE_BLUE_SEQ } from "@/lib/analytics/viz-scales";
+import { SCALE_BLUE_SEQ } from "@dim/contract/viz";
 
 /** How many classes a classed scale renders (→ CLASS_COUNT-1 interior breaks). */
 export const CLASS_COUNT = 5;

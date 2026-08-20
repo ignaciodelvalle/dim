@@ -33,7 +33,7 @@ const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 
 const BASELINE_PATH = resolve(ROOT, "scripts/uuid-literals-baseline.json");
 
-const SOURCE_GLOB = "{app,components,lib,src}/**/*.{ts,tsx}";
+const SOURCE_GLOB = "{app,components,lib,packages,src}/**/*.{ts,tsx}";
 
 /** UUID prefix — two hyphen-delimited hex groups is enough to identify the
  *  shape without false-negativing on truncated/partial literals. */

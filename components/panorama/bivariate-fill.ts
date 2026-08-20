@@ -11,7 +11,6 @@
 import type { ExpressionSpecification, FilterSpecification } from "maplibre-gl";
 
 import type { LayerReadout } from "@/components/panorama/map-popup";
-import { COLOR_NO_DATA } from "@/lib/analytics/viz-scales";
 import {
   type BivariateCell,
   type TercileClass,
@@ -20,6 +19,7 @@ import {
   riskLabel,
   signalClassLabel,
 } from "@/src/modules/panorama/domain/bivariate";
+import { COLOR_NO_DATA } from "@dim/contract/viz";
 
 /**
  * The 3×3 bivariate palette, flat-indexed `sig * 3 + cov` (see bivariateIndex).

@@ -53,7 +53,7 @@ import {
   provincePaintsNoData,
   provinceValueBounds,
 } from "@/components/panorama/province-choropleth-style";
-import { COLOR_NO_DATA, COLOR_SUPPRESSED } from "@/lib/analytics/viz-scales";
+import { COLOR_NO_DATA, COLOR_SUPPRESSED } from "@dim/contract/viz";
 
 type Props = {
   /** The currently-active layers — the render-derived legends read from these. */

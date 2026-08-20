@@ -1,11 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import {
-  MAP_FILL_DISTINCT_FLOOR,
-  contrastRatio,
-  deltaE00,
-  relLuminance,
-} from "@/lib/analytics/color-distance";
+import { MAP_FILL_DISTINCT_FLOOR, contrastRatio, deltaE00, relLuminance } from "../color-distance";
 import {
   COLOR_DIVERGENT_ABOVE,
   COLOR_DIVERGENT_BELOW,
@@ -17,7 +12,7 @@ import {
   divergentStops,
   lerpHex,
   sampleStops,
-} from "@/lib/analytics/viz-scales";
+} from "../viz-scales";
 
 describe("lerpHex", () => {
   it("returns the endpoints at t=0 and t=1", () => {

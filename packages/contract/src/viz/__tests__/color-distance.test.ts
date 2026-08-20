@@ -1,11 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import {
-  MAP_FILL_DISTINCT_FLOOR,
-  contrastRatio,
-  deltaE00,
-  relLuminance,
-} from "@/lib/analytics/color-distance";
+import { MAP_FILL_DISTINCT_FLOOR, contrastRatio, deltaE00, relLuminance } from "../color-distance";
 
 describe("deltaE00", () => {
   it("is zero for a color against itself", () => {

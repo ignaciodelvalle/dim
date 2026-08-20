@@ -34,7 +34,7 @@ const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 
 const BASELINE_PATH = resolve(ROOT, "scripts/pluralize-es-baseline.json");
 
-const SOURCE_GLOB = "{app,components,lib,src}/**/*.{ts,tsx}";
+const SOURCE_GLOB = "{app,components,lib,packages,src}/**/*.{ts,tsx}";
 
 /** Count-vs-1 ternary with an empty-string arm and a bare s/es-suffix arm,
  *  in either order, with ", ', or ` quotes. */
