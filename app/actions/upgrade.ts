@@ -21,7 +21,7 @@ import { revalidatePath } from "next/cache";
 
 import { db, organizations } from "@/db";
 import { canonicalProvinceNameForStorage } from "@/lib/domain/jurisdiction-canonical";
-import { createClient } from "@/lib/supabase/server";
+import { requireLiveUser } from "@/lib/infra/live-user";
 import { createOrganizationForUser as _createOrg } from "@/src/modules/organizations/application/upgrade/create-organization";
 import { requestVetUpgradeForUser as _requestVetUpgrade } from "@/src/modules/organizations/application/upgrade/request-vet-upgrade";
 import type {
@@ -47,11 +47,9 @@ export async function requestVetUpgradeAction(
   _prev: UpgradeFormState,
   formData: FormData,
 ): Promise<UpgradeFormState> {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) return { error: "Sesión expirada." };
+  const live = await requireLiveUser();
+  if (!live.ok) return { error: live.error };
+  const user = live.user;
 
   const anosRaw = String(formData.get("anosExperiencia") ?? "").trim();
   const anos = anosRaw ? Number.parseInt(anosRaw, 10) : null;
@@ -79,11 +77,9 @@ export async function createOrganizationAction(
   _prev: UpgradeFormState,
   formData: FormData,
 ): Promise<UpgradeFormState> {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) return { error: "Sesión expirada." };
+  const live = await requireLiveUser();
+  if (!live.ok) return { error: live.error };
+  const user = live.user;
 
   const orgType = String(formData.get("orgType") ?? "").trim();
   const input: CreateOrganizationInput = {
@@ -121,11 +117,9 @@ export async function createClinicAction(
   _prev: UpgradeFormState,
   formData: FormData,
 ): Promise<UpgradeFormState> {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) return { error: "Sesión expirada." };
+  const live = await requireLiveUser();
+  if (!live.ok) return { error: live.error };
+  const user = live.user;
 
   const input: CreateOrganizationInput = {
     name: String(formData.get("name") ?? "").trim(),

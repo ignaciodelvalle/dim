@@ -11,8 +11,8 @@
 // CRITICAL: Every runtime export in a "use server" file must be an async
 // function. Types are re-exported with `export type` (erased at runtime).
 
+import { requireLiveUser } from "@/lib/infra/live-user";
 import { requireOwnedPetByToken } from "@/lib/infra/pets";
-import { createClient } from "@/lib/supabase/server";
 import { createVaccineReminder as _create } from "@/src/modules/pets/application/reminders/create-vaccine-reminder";
 import { deleteVaccineReminder as _delete } from "@/src/modules/pets/application/reminders/delete-vaccine-reminder";
 import { snoozeReminder as _snooze } from "@/src/modules/pets/application/reminders/snooze-reminder";
@@ -50,10 +50,8 @@ export async function deleteVaccineReminderAction(publicToken: string, reminderI
 }
 
 export async function snoozeReminderAction(reminderId: string): Promise<SnoozeReminderResult> {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) return { ok: false, error: "Sesión expirada." };
+  const live = await requireLiveUser();
+  if (!live.ok) return { ok: false, error: live.error };
+  const user = live.user;
   return _snooze(reminderId, user.id);
 }

@@ -40,6 +40,7 @@ import {
   type LiveUserFailureReason,
   liveUserMessage,
   requireLiveUser,
+  resolveOptionalLiveUser,
 } from "@/lib/infra/live-user";
 
 // ---------------------------------------------------------------------------
@@ -239,6 +240,76 @@ describe("requireLiveUser() — injected client", () => {
     expect(result.ok).toBe(false);
     if (result.ok) throw new Error("unreachable");
     expect(result.reason).toBe("ACCOUNT_ERASED");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// resolveOptionalLiveUser — the anonymous-allowed write boundaries
+// ---------------------------------------------------------------------------
+//
+// Three writes accept an anonymous caller BY DESIGN: the anonymous denuncia
+// (createWelfareReportAction) and the two adoption-application actions, which
+// pass `applicant: user ? {…} : null` into the use-case. requireLiveUser is the
+// wrong shape for them — it refuses NO_SESSION — but "anonymous is allowed"
+// never meant "erased, deactivated and mid-maintenance are allowed too", which
+// is what a bare getUser() gave them.
+
+describe("resolveOptionalLiveUser()", () => {
+  it("admits an anonymous caller with user: null", async () => {
+    const result = await resolveOptionalLiveUser();
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) throw new Error("unreachable");
+    expect(result.user).toBeNull();
+  });
+
+  it("admits a healthy authenticated caller", async () => {
+    mockGetUser.mockResolvedValue(session());
+    mockGetProfileCached.mockResolvedValue(profile());
+
+    const result = await resolveOptionalLiveUser();
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) throw new Error("unreachable");
+    expect(result.user?.id).toBe("user-001");
+  });
+
+  it("refuses during maintenance — anonymous or not, the platform is not writing", async () => {
+    vi.stubEnv("NEXT_PUBLIC_MAINTENANCE_MODE", "1");
+
+    const result = await resolveOptionalLiveUser();
+
+    expect(result.ok).toBe(false);
+    if (result.ok) throw new Error("unreachable");
+    expect(result.reason).toBe("MAINTENANCE");
+  });
+
+  // The hole this closes: an erased account keeps a valid JWT, so a bare
+  // getUser() handed the use-case a live `applicant.userId` for a subject whose
+  // PII has already been hashed. Falling back to "anonymous" would be worse
+  // still — it would silently launder the submission.
+  it("refuses an erased account rather than downgrading it to anonymous", async () => {
+    mockGetUser.mockResolvedValue(session());
+    mockGetProfileCached.mockResolvedValue(profile({ deletedAt: new Date() }));
+
+    const result = await resolveOptionalLiveUser();
+
+    expect(result.ok).toBe(false);
+    if (result.ok) throw new Error("unreachable");
+    expect(result.reason).toBe("ACCOUNT_ERASED");
+  });
+
+  it("refuses a deactivated institutional account", async () => {
+    mockGetUser.mockResolvedValue(session());
+    mockGetProfileCached.mockResolvedValue(
+      profile({ accountType: "institutional", deactivatedAt: new Date() }),
+    );
+
+    const result = await resolveOptionalLiveUser();
+
+    expect(result.ok).toBe(false);
+    if (result.ok) throw new Error("unreachable");
+    expect(result.reason).toBe("DEACTIVATED");
   });
 });
 

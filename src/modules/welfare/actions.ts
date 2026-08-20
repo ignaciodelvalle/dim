@@ -55,11 +55,11 @@ import { resolveBusinessRule } from "@/lib/infra/business-rules-resolver";
 import { closeCase, openCase } from "@/lib/infra/case-helpers";
 import { mintFreshReporterSession } from "@/lib/infra/denuncia-reporter-token";
 import { resolveRoutableJurisdiction } from "@/lib/infra/jurisdiction-from-text";
+import { resolveOptionalLiveUser } from "@/lib/infra/live-user";
 import { RateLimitError, callerIp, enforceRateLimit } from "@/lib/infra/rate-limit";
 import { welfareAttachmentSignedUrl } from "@/lib/infra/storage";
 import { computeFlagReasons } from "@/lib/infra/welfare-moderation";
 import { removeWelfareEvidence, uploadWelfareEvidence } from "@/lib/infra/welfare-uploads";
-import { createClient } from "@/lib/supabase/server";
 import { parseDateInput } from "@/lib/utils/format";
 import { canReceiveDerivedWelfare } from "@/src/modules/welfare/domain/derivation-eligibility";
 import { generateReferenceCode } from "@/src/modules/welfare/domain/reference-code";
@@ -932,10 +932,13 @@ export async function createWelfareReportAction(
   _previous: WelfareReportFormState,
   formData: FormData,
 ): Promise<WelfareReportFormState> {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  // The anonymous denuncia is the point of this surface, so a null user is
+  // legitimate. An ERASED or DEACTIVATED account is not — both keep a valid JWT
+  // and would otherwise be attributed as the reporter — and neither is any
+  // submission during a maintenance window.
+  const live = await resolveOptionalLiveUser();
+  if (!live.ok) return { error: live.error };
+  const { user } = live;
 
   // Rate-limit all submissions. Anonymous users get a tight IP-keyed cap;
   // authenticated users get a generous per-user cap so flood attacks via

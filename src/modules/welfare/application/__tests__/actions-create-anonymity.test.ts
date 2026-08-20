@@ -97,6 +97,22 @@ vi.mock("@/lib/infra/rate-limit", async (importOriginal) => {
   };
 });
 
+// requireLiveUser (T1.2) resolves profiles.deleted_at / deactivated_at from the
+// DATABASE — the guard is deliberately not claim-based. These action tests mock
+// the Supabase client but not the profile read, so without this the guard would
+// issue a real query with a fixture user id. A healthy profile keeps every
+// assertion below testing what it was written to test.
+vi.mock("@/lib/infra/request-cache", () => ({
+  getProfileCached: vi.fn(async (id: string) => ({
+    id,
+    role: "owner" as const,
+    displayName: "Fixture",
+    accountType: "personal" as const,
+    deactivatedAt: null,
+    deletedAt: null,
+  })),
+}));
+
 vi.mock("@/lib/supabase/server", () => ({
   createClient: vi.fn(),
 }));

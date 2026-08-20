@@ -37,13 +37,12 @@ import { parseLocationFromFormData } from "@/lib/domain/location-value";
 import { checkOccurredAtPlausible } from "@/lib/events/plausibility";
 import { requireUserOrRedirect } from "@/lib/infra/auth-guards";
 import { announceCaretakerDeathRecord } from "@/lib/infra/caretaker-activity-alert";
+import { requireLiveUser } from "@/lib/infra/live-user";
 import { requireAlivePetAccess, requirePetAccess } from "@/lib/infra/pet-access";
 import type { SupabaseServerClient } from "@/lib/infra/pet-access";
-import { getProfileCached } from "@/lib/infra/request-cache";
 import { uploadAttachmentIfPresent } from "@/lib/infra/uploads";
 import { findDisease } from "@/lib/reference/diseases";
 import { findDrugByLabel } from "@/lib/reference/drugs";
-import { createClient } from "@/lib/supabase/server";
 import { checkboxOn } from "@/lib/ui/form-checkbox";
 import { parseDateInput } from "@/lib/utils/format";
 import { and, eq } from "drizzle-orm";
@@ -694,18 +693,14 @@ export async function markMedicationDoseTakenAction(
   const reminderId = String(formData.get("reminderId") ?? "").trim();
   if (!reminderId) return { error: "Falta el identificador del recordatorio." };
 
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) return { error: "Sesión expirada." };
-
-  // Right-to-erasure lockout (Ley 25.326 art. 16, Wave E2). This reminder-keyed
-  // path resolves the pet via the reminder + userId and bypasses requireAlive-
-  // PetAccess, so it must reject an erased account (still-valid JWT) itself —
-  // otherwise it could append a medication_dose_taken event.
-  const profile = await getProfileCached(user.id);
-  if (profile?.deletedAt != null) return { error: "Tu cuenta fue eliminada." };
+  // This reminder-keyed path resolves the pet via the reminder + userId and
+  // bypasses requireAlivePetAccess, so it has to refuse an erased account
+  // itself (Ley 25.326 art. 16, Wave E2) — otherwise it appends a
+  // medication_dose_taken event to the spine on a still-valid JWT. Now also
+  // refuses during maintenance and for a deactivated account.
+  const live = await requireLiveUser();
+  if (!live.ok) return { error: live.error };
+  const user = live.user;
 
   const repo = new EventsRepository();
 

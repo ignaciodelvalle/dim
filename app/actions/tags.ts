@@ -12,10 +12,9 @@
 
 import { headers } from "next/headers";
 
+import { requireLiveUser } from "@/lib/infra/live-user";
 import { RateLimitError, callerIp, enforceRateLimit } from "@/lib/infra/rate-limit";
-import { getProfileCached } from "@/lib/infra/request-cache";
 import { normalizeTagSerial } from "@/lib/infra/tag-lookup";
-import { createClient } from "@/lib/supabase/server";
 import { activateTagForUser as _activateTagForUser } from "@/src/modules/pets/application/tags/activate-tag";
 import { issueTagBatchForAdmin as _issueTagBatchForAdmin } from "@/src/modules/pets/application/tags/issue-tag-batch";
 import { revokeTagForUser as _revokeTagForUser } from "@/src/modules/pets/application/tags/revoke-tag";
@@ -40,16 +39,12 @@ export type {
 const RATE_LIMITED_MESSAGE = "Demasiados intentos. Esperá unos minutos y volvé a intentar.";
 
 export async function activateTagAction(rawInput: ActivateTagInput): Promise<ActivateTagResult> {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) return { error: "Sesión expirada." };
-
-  // Right-to-erasure lockout (Ley 25.326 art. 16): the writer gates on active
-  // ownership but never consults profiles.deleted_at.
-  const profile = await getProfileCached(user.id);
-  if (profile?.deletedAt != null) return { error: "Tu cuenta fue eliminada." };
+  // The three tag writers gate on active ownership but never consult
+  // profiles.deleted_at, so the erasure lockout belongs at this boundary. It
+  // used to be a hand-copied pair of lines in each of the three.
+  const live = await requireLiveUser();
+  if (!live.ok) return { error: live.error };
+  const user = live.user;
 
   // Brute-force budget on the evidence gate: per-IP AND per-serial, so a
   // botnet cannot spread serial-guessing across IPs nor hammer one serial.
@@ -70,14 +65,9 @@ export async function activateTagAction(rawInput: ActivateTagInput): Promise<Act
 }
 
 export async function revokeTagAction(rawInput: RevokeTagInput): Promise<RevokeTagResult> {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) return { error: "Sesión expirada." };
-
-  const profile = await getProfileCached(user.id);
-  if (profile?.deletedAt != null) return { error: "Tu cuenta fue eliminada." };
+  const live = await requireLiveUser();
+  if (!live.ok) return { error: live.error };
+  const user = live.user;
 
   // Revocation had NO budget at all (abuse-surface audit, S1). It is a
   // destructive, TERMINAL write — a revoked chapa can never be reactivated —
@@ -118,14 +108,9 @@ export async function revokeTagAction(rawInput: RevokeTagInput): Promise<RevokeT
 export async function issueTagBatchAction(
   rawInput: IssueTagBatchInput,
 ): Promise<IssueTagBatchResult> {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) return { error: "Sesión expirada." };
-
-  const profile = await getProfileCached(user.id);
-  if (profile?.deletedAt != null) return { error: "Tu cuenta fue eliminada." };
+  const live = await requireLiveUser();
+  if (!live.ok) return { error: live.error };
+  const user = live.user;
 
   return _issueTagBatchForAdmin(user.id, rawInput);
 }

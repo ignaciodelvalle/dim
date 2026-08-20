@@ -15,8 +15,7 @@
 // CRITICAL: Every runtime export in a "use server" file must be an async
 // function. Types are re-exported with `export type` (erased at runtime).
 
-import { getProfileCached } from "@/lib/infra/request-cache";
-import { createClient } from "@/lib/supabase/server";
+import { requireLiveUser } from "@/lib/infra/live-user";
 import { replaceMicrochipForUser as _replaceMicrochipForUser } from "@/src/modules/pets/application/microchip/replace-microchip";
 import type {
   ReplaceMicrochipInput,
@@ -39,18 +38,14 @@ export type {
 export async function replaceMicrochipAction(
   rawInput: ReplaceMicrochipInput,
 ): Promise<ReplaceMicrochipResult> {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) return { error: "Sesión expirada." };
-
-  // Right-to-erasure lockout (Ley 25.326 art. 16, Wave E2). The writer gates on
-  // an active ownership/custody row keyed by userId but never consults
-  // profiles.deleted_at, so an erased account holding a still-valid JWT could
-  // replace a microchip (a pet event). Reject at the session boundary.
-  const profile = await getProfileCached(user.id);
-  if (profile?.deletedAt != null) return { error: "Tu cuenta fue eliminada." };
+  // The writer gates on an active ownership/custody row keyed by userId and
+  // never consults profiles.deleted_at, so the erasure lockout (Ley 25.326
+  // art. 16, Wave E2) has to happen at THIS boundary — it used to be six
+  // hand-written lines here and is now one call, which also stops the write
+  // during a maintenance window and for a deactivated account.
+  const live = await requireLiveUser();
+  if (!live.ok) return { error: live.error };
+  const user = live.user;
 
   return _replaceMicrochipForUser(user.id, rawInput);
 }

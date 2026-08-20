@@ -4,7 +4,8 @@
 //
 // Each action does ONLY:
 //   1. Auth guard (security boundary stays here — NOT in use-cases):
-//      - createPetAction: supabase.auth.getUser() (no pet exists yet)
+//      - createPetAction: requireLiveUser() (no pet exists yet, so there is no
+//        pet-scoped guard to use — the liveness guard is the boundary)
 //      - updatePetAction / recordMoveAction / correctPetSpeciesAction:
 //        requireTitularAccess (pet must exist + ownership check + the holder is
 //        NOT a caretaker — all three write titular-only fields: identity,
@@ -31,13 +32,13 @@ import {
 import { parseLocationFromFormData } from "@/lib/domain/location-value";
 import { validateMicrochipId } from "@/lib/domain/microchip-validation";
 import { lookupByChip } from "@/lib/infra/chip-lookup";
+import { requireLiveUser } from "@/lib/infra/live-user";
 import { generateForceToken, validateForceToken } from "@/lib/infra/microchip-force-token";
 import { findSameOwnerDuplicatePet } from "@/lib/infra/owner-pet-dedupe";
 import { requireTitularAccess } from "@/lib/infra/pet-access";
 import { fetchActiveIdentifications } from "@/lib/infra/pet-identifiers";
 import { resolvePppClassificationForJurisdiction } from "@/lib/infra/ppp-classification";
 import { uploadAttachmentIfPresent } from "@/lib/infra/uploads";
-import { createClient } from "@/lib/supabase/server";
 
 /**
  * Parses the domain layer's `estimatedWeightKg: string | null` into the
@@ -101,11 +102,14 @@ export async function createPetAction(
   _previous: NewPetFormState,
   formData: FormData,
 ): Promise<NewPetFormState> {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) return { error: "Sesión expirada. Iniciá sesión de nuevo." };
+  const live = await requireLiveUser();
+  // live.error, not a bespoke string: telling someone to log in again during a
+  // maintenance window sends them round a loop that cannot succeed.
+  if (!live.ok) return { error: live.error };
+  // The guard hands back the SAME client it authenticated with — the photo
+  // upload and its cleanup below need it, and building a second one would open
+  // a second session for the same request.
+  const { user, supabase } = live;
 
   const parseResult = parsePetForm(formData);
   if (parseResult.error !== null) {

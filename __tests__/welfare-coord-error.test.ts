@@ -120,6 +120,29 @@ vi.mock("@/lib/infra/approval-routing", () => ({
   findAuthoritiesForJurisdiction: vi.fn().mockResolvedValue([]),
 }));
 
+// requireLiveUser (T1.2) resolves the acting profile from the DATABASE, so this
+// suite now transitively loads lib/infra/request-cache — whose module-level SQL
+// (notification-reconcile) cannot be built from this file's deliberately partial
+// @/db mock. Stubbing the cache keeps the mock surface honest: the profile read
+// is not what any assertion below is about.
+vi.mock("@/lib/infra/request-cache", () => ({
+  getProfileCached: vi.fn(async (id: string) => ({
+    id,
+    role: "owner",
+    displayName: "Fixture",
+    accountType: "personal",
+    deactivatedAt: null,
+    deletedAt: null,
+  })),
+  getJurisdictionsCached: vi.fn(async () => []),
+  getOrgMembershipCached: vi.fn(async () => null),
+  getOrgMembershipsCached: vi.fn(async () => []),
+  getUnreadCountCached: vi.fn(async () => 0),
+  getOwnedPetsCountCached: vi.fn(async () => 0),
+  getOrgQueueCountsCached: vi.fn(async () => ({})),
+  orgQueueCacheKey: (keys: readonly string[]) => [...keys].sort().join(","),
+}));
+
 vi.mock("@/lib/infra/auth-guards", () => ({
   requireAdminOrGovtOrRedirect: vi.fn(),
   requireAdminOrRedirect: vi.fn(),

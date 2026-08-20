@@ -38,42 +38,15 @@ import { describe, expect, it } from "vitest";
 
 const ACTIONS_DIR = join(process.cwd(), "app", "actions");
 
-// Recognized auth-gate calls. A function whose body contains a call to any
-// of these is considered guarded. The list mixes:
-//   - Named helpers from lib/auth-guards.ts and lib/pet-access.ts
-//   - The inline `supabase.auth.getUser()` pattern, which several legacy
-//     actions use instead of the helpers (createPetAction, claimStubProfileAction,
-//     loginAction-style flows). The presence of an `auth.getUser` call paired
-//     with the `if (!user)` short-circuit is the same contract.
-const AUTH_GUARDS = [
-  "requireUser",
-  "requireUserOrRedirect",
-  "requireCapability",
-  // Confused-deputy-safe capability guard (Wave F3): resolves the org from the
-  // URL orgToken, then requireCapability pinned to that org.id — so a /org/{token}
-  // action authorizes against the URL org, not the session-default membership.
-  "requireCapabilityForOrgToken",
-  "requireOrgAccessByToken",
-  "requireActiveOrgOrRedirect",
-  "requireAdminOrRedirect",
-  "requireAdminOrGovtOrRedirect",
-  "requireDecomisoPrincipal",
-  "requirePetAccess",
-  "requireAlivePetAccess",
-  // Titular-only gate (custodia-temporal): composes with requirePetAccess and
-  // additionally refuses a person-path holder whose ownership role is
-  // `caretaker`. Strictly stronger than requirePetAccess, never weaker.
-  "requireTitularAccess",
-  "requireOwnedPet",
-  "requireOwnedPetByToken",
-  "requireOwnedAndAlive",
-  // File-local admin guard used by the alert-subscriptions / alert-firings
-  // actions: wraps auth.getUser + a profiles.role === 'admin' re-check. Same
-  // contract as the named guards above; registered so those actions are
-  // recognized as auth-gated rather than false-positives.
-  "requireAdminUser",
-  "auth.getUser",
-] as const;
+// Recognized auth-gate calls — IMPORTED from the CI fence, never copied.
+//
+// This file used to keep its own hand-maintained copy of the list. Registering
+// a new guard (requireLiveUser, T1.2) in scripts/check-authz-guards.ts made the
+// fence pass and this test fail on the same tree, about the same three actions
+// — which is the precise failure mode check-degraded-chrome's header warns
+// about ("a duplicated list is how two fences start disagreeing in silence").
+// One authority; this test now checks the SAME contract CI checks.
+import { AUTH_GUARDS } from "@/scripts/check-authz-guards";
 
 // Names of exported async functions that are inner writers / scoped helpers,
 // taking caller identity as a parameter. They're called from public wrappers

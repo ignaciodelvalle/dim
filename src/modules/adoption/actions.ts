@@ -15,6 +15,7 @@
 
 import { randomUUID } from "node:crypto";
 import { db, notifications } from "@/db";
+import { resolveOptionalLiveUser } from "@/lib/infra/live-user";
 import { uploadAttachmentIfPresent } from "@/lib/infra/uploads";
 import { createClient } from "@/lib/supabase/server";
 import { requireCapabilityForOrgToken } from "@/src/modules/organizations/infrastructure/authz-resolver";
@@ -247,11 +248,13 @@ export type SubmitAdoptionApplicationResult =
 export async function submitAdoptionApplicationAction(
   input: SubmitAdoptionApplicationInput,
 ): Promise<SubmitAdoptionApplicationResult> {
-  // For this action, auth is checked inside the use-case (applicant=null means no session).
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  // Anonymous is allowed here — the use-case treats `applicant: null` as "no
+  // session" and handles it. What was NOT allowed and used to pass anyway: an
+  // erased or deactivated account (both keep a valid JWT), and any submission
+  // at all during a maintenance window.
+  const live = await resolveOptionalLiveUser();
+  if (!live.ok) return { error: live.error };
+  const { user } = live;
 
   const result = await submitAdoptionApplication(
     {
@@ -308,10 +311,12 @@ export type WithdrawAdoptionApplicationResult = { ok: true } | { error: string }
 export async function withdrawAdoptionApplicationAction(
   input: WithdrawAdoptionApplicationInput,
 ): Promise<WithdrawAdoptionApplicationResult> {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  // Same shape as submit: the use-case enforces applicant ownership, so a null
+  // applicant is a legitimate (failing) input rather than a crash — but an
+  // erased/deactivated account or a maintenance window must not get that far.
+  const live = await resolveOptionalLiveUser();
+  if (!live.ok) return { error: live.error };
+  const { user } = live;
 
   const result = await withdrawAdoptionApplication(
     { applicationEventId: input.applicationEventId },

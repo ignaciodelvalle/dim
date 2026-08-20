@@ -111,6 +111,43 @@ export function liveUserMessage(reason: LiveUserFailureReason): string {
   return MESSAGES[reason];
 }
 
+export type OptionalLiveUserSuccess = {
+  ok: true;
+  supabase: SupabaseServerClient;
+  // Null means "no session, and that is allowed here".
+  user: { id: string; email?: string } | null;
+  profile: CachedProfile | null;
+};
+
+export type OptionalLiveUserResult =
+  | OptionalLiveUserSuccess
+  | (LiveUserFailure & { reason: Exclude<LiveUserFailureReason, "NO_SESSION"> });
+
+/**
+ * Same guard, for the three write boundaries where an ANONYMOUS caller is
+ * legitimate: the anonymous denuncia (createWelfareReportAction) and the two
+ * adoption-application actions, all of which pass `applicant: user ? … : null`
+ * into their use-case.
+ *
+ * "Anonymous is allowed" is not the same claim as "erased, deactivated and
+ * mid-maintenance are allowed", which is what a bare `auth.getUser()` gave them.
+ * NO_SESSION becomes `user: null`; every other refusal is still a refusal.
+ *
+ * Deliberately NOT "fall back to anonymous" for an erased account: that would
+ * launder a submission from a subject whose PII has already been hashed into an
+ * apparently-anonymous one. Refusing says what happened.
+ */
+export async function resolveOptionalLiveUser(
+  options?: RequireLiveUserOptions,
+): Promise<OptionalLiveUserResult> {
+  const live = await requireLiveUser(options);
+  if (live.ok) return live;
+  if (live.reason === "NO_SESSION" && live.supabase) {
+    return { ok: true, supabase: live.supabase, user: null, profile: null };
+  }
+  return live as OptionalLiveUserResult;
+}
+
 /**
  * Is the platform-wide maintenance kill-switch on?
  *

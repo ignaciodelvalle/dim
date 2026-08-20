@@ -16,7 +16,7 @@
 // Reference: src/modules/adoption/actions.ts
 
 import { db, notifications } from "@/db";
-import { createClient } from "@/lib/supabase/server";
+import { requireLiveUser } from "@/lib/infra/live-user";
 import {
   requireCapability,
   requireCapabilityForOrgToken,
@@ -262,11 +262,9 @@ export type AcceptFosterProposalResult =
 export async function acceptFosterProposalAction(
   input: AcceptFosterProposalInput,
 ): Promise<AcceptFosterProposalResult> {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) return { error: "Sesión expirada." };
+  const live = await requireLiveUser();
+  if (!live.ok) return { error: live.error };
+  const user = live.user;
 
   const result = await acceptFosterProposal(
     {
@@ -308,11 +306,9 @@ export type RejectFosterProposalResult = { ok: true } | { error: string };
 export async function rejectFosterProposalAction(
   input: RejectFosterProposalInput,
 ): Promise<RejectFosterProposalResult> {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) return { error: "Sesión expirada." };
+  const live = await requireLiveUser();
+  if (!live.ok) return { error: live.error };
+  const user = live.user;
 
   const result = await rejectFosterProposal(
     {
@@ -363,11 +359,9 @@ export type UpsertFosterVolunteerResult =
 export async function upsertFosterVolunteerAction(
   input: UpsertFosterVolunteerInput,
 ): Promise<UpsertFosterVolunteerResult> {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) return { error: "Sesión expirada." };
+  const live = await requireLiveUser();
+  if (!live.ok) return { error: live.error };
+  const user = live.user;
 
   const result = await upsertFosterVolunteer(input, {
     repo: FosterRepository,
@@ -388,11 +382,9 @@ export async function upsertFosterVolunteerAction(
 export type WithdrawFosterVolunteerResult = { ok: true } | { error: string };
 
 export async function withdrawFosterVolunteerAction(): Promise<WithdrawFosterVolunteerResult> {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) return { error: "Sesión expirada." };
+  const live = await requireLiveUser();
+  if (!live.ok) return { error: live.error };
+  const user = live.user;
 
   const result = await withdrawFosterVolunteer({
     repo: FosterRepository,
@@ -420,11 +412,9 @@ export type SetCoFosterAllowedResult = { ok: true } | { error: string };
 export async function setCoFosterAllowedAction(
   input: SetCoFosterAllowedInput,
 ): Promise<SetCoFosterAllowedResult> {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) return { error: "Sesión expirada." };
+  const live = await requireLiveUser();
+  if (!live.ok) return { error: live.error };
+  const user = live.user;
 
   const result = await setCoFosterAllowed(
     {
@@ -521,11 +511,9 @@ export type ConvertFosterToOwnerResult = { redirectPath: string } | { error: str
 export async function convertFosterToOwnerAction(
   petPublicToken: string,
 ): Promise<ConvertFosterToOwnerResult> {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) return { error: "Sesión expirada." };
+  const live = await requireLiveUser();
+  if (!live.ok) return { error: live.error };
+  const user = live.user;
 
   const result = await convertFosterToOwner(
     { petPublicToken },
@@ -559,11 +547,9 @@ export async function sendRehomeRequestAction(
   petPublicToken: string,
   targetOrgId: string,
 ): Promise<SendRehomeRequestResult> {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) return { error: "Sesión expirada." };
+  const live = await requireLiveUser();
+  if (!live.ok) return { error: live.error };
+  const user = live.user;
 
   const result = await sendRehomeRequest(
     { petPublicToken, targetOrgId },

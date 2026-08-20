@@ -21,9 +21,9 @@ import { revalidatePath } from "next/cache";
 import { headers } from "next/headers";
 
 import type { LibretaShareToken } from "@/db";
+import { requireLiveUser } from "@/lib/infra/live-user";
 import { requirePetAccess, requireTitularAccess } from "@/lib/infra/pet-access";
 import { RateLimitError, callerIp, enforceRateLimit } from "@/lib/infra/rate-limit";
-import { createClient } from "@/lib/supabase/server";
 import { createLibretaShareForUser as _createLibretaShareForUser } from "@/src/modules/pets/application/libreta-share/create-libreta-share";
 import { getActiveLibretaShares as _getActiveLibretaShares } from "@/src/modules/pets/application/libreta-share/get-active-libreta-shares";
 import { logLibretaShareViewForToken as _logLibretaShareViewForToken } from "@/src/modules/pets/application/libreta-share/log-libreta-share-view";
@@ -89,11 +89,9 @@ export async function createLibretaShareAction(
 export async function revokeLibretaShareAction(
   shareTokenRowId: string,
 ): Promise<RevokeShareResult> {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) return { error: "Sesión expirada." };
+  const live = await requireLiveUser();
+  if (!live.ok) return { error: live.error };
+  const user = live.user;
 
   const result = await _revokeLibretaShareForUser(user.id, shareTokenRowId);
   if ("ok" in result) {

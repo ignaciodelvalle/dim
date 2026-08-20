@@ -34,6 +34,17 @@ import { stripComments } from "./lib/strip-comments.mjs";
 export const AUTH_GUARDS = [
   "requireUser",
   "requireUserOrRedirect",
+  // The ONE result-shaped liveness guard (T1.2, lib/infra/live-user.ts).
+  // Resolves the session, refuses an erased account, refuses a deactivated
+  // institutional account, and refuses ANY caller during a maintenance window —
+  // the last of which no guard in this list did before, because the kill-switch
+  // lived in four layouts and a layout does not run on a Server Action POST.
+  "requireLiveUser",
+  // Same guard for the three write boundaries where an ANONYMOUS caller is
+  // legitimate (the anonymous denuncia + the two adoption-application actions).
+  // NO_SESSION becomes `user: null`; erasure, deactivation and maintenance are
+  // still refusals, which is what a bare getUser() gave those three for free.
+  "resolveOptionalLiveUser",
   "requireCapability",
   // Confused-deputy-safe capability guard (Wave F3): resolves the org from the
   // URL orgToken, then delegates to requireCapability pinned to that org.id — so
@@ -123,6 +134,10 @@ export const PERSONAL_TIER_GUARDS = [
 // boundary, Wave E2). Bare `auth.getUser` and the file-local `requireAdminUser`
 // (auth.getUser + role re-check) are deliberately NOT here.
 export const DELETION_AWARE_GUARDS = [
+  // Both live-user entry points read profiles.deleted_at themselves and refuse
+  // before returning a user, so anything gated by either is deletion-aware.
+  "requireLiveUser",
+  "resolveOptionalLiveUser",
   "requireUserOrRedirect",
   "requirePetAccess",
   // Deletion-aware for free: it calls requirePetAccess first and returns its

@@ -27,11 +27,11 @@ import { db, notifications } from "@/db";
 import { organizationInvitations } from "@/db";
 import { listLocalitiesByProvince } from "@/lib/infra/ar-localidades";
 import { requireOrgAccessByToken } from "@/lib/infra/auth-guards";
+import { requireLiveUser } from "@/lib/infra/live-user";
 import { generateInvitationToken } from "@/lib/infra/publicToken";
 import { RateLimitError, callerIp, enforceRateLimit } from "@/lib/infra/rate-limit";
 import { generateUniqueToken, isUniqueViolation } from "@/lib/infra/unique-token";
 import { PROVINCES, type ProvinceCode, provinceByName } from "@/lib/reference/ar-provincias";
-import { createClient } from "@/lib/supabase/server";
 import { isManagerRole } from "@/src/modules/organizations/domain/role-rules";
 import {
   getActiveMemberships,
@@ -298,11 +298,9 @@ export type LeaveOrganizationResult = { ok: true } | { error: string };
 export async function leaveOrganizationAction(input: {
   organizationId: string;
 }): Promise<LeaveOrganizationResult> {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) return { error: "Sesión expirada." };
+  const live = await requireLiveUser();
+  if (!live.ok) return { error: live.error };
+  const user = live.user;
 
   // Fetch org publicToken for revalidation (needed after leave).
   const orgPublicToken = await repo.findOrgPublicToken(input.organizationId);
@@ -423,11 +421,12 @@ export type AcceptInvitationResult = { orgToken: string } | { error: string };
 export async function acceptInvitationAction(input: {
   invitationToken: string;
 }): Promise<AcceptInvitationResult> {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) return { error: "Sesión expirada. Iniciá sesión para aceptar la invitación." };
+  const live = await requireLiveUser();
+  // live.error, not a bespoke string: during a maintenance window or for a
+  // deactivated account, "Sesión expirada" would be a lie about why the
+  // invitation was refused.
+  if (!live.ok) return { error: live.error };
+  const user = live.user;
 
   const userEmail = user.email?.toLowerCase().trim();
   if (!userEmail) {
@@ -602,11 +601,9 @@ export async function requestCapabilityAction(
   _previous: CapabilityActionState,
   formData: FormData,
 ): Promise<CapabilityActionState> {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) return { error: "Sesión expirada." };
+  const live = await requireLiveUser();
+  if (!live.ok) return { error: live.error };
+  const user = live.user;
 
   const capabilityRaw = String(formData.get("capability") ?? "").trim();
   const reasonRaw = String(formData.get("reason") ?? "").trim();
@@ -683,11 +680,9 @@ export async function decideCapabilityAction(
   _previous: CapabilityActionState,
   formData: FormData,
 ): Promise<CapabilityActionState> {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) return { error: "Sesión expirada." };
+  const live = await requireLiveUser();
+  if (!live.ok) return { error: live.error };
+  const user = live.user;
 
   const grantId = String(formData.get("grantId") ?? "").trim();
   const decisionRaw = String(formData.get("decision") ?? "").trim();

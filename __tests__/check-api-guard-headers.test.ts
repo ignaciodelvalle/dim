@@ -73,8 +73,9 @@ describe("readsStampedHeader()", () => {
   });
 
   it("does not flag a header name that only appears in a comment", () => {
-    expect(readsStampedHeader('// we used to read x-portal-base here\nconst a = 1;', HEADERS))
-      .toEqual([]);
+    expect(
+      readsStampedHeader("// we used to read x-portal-base here\nconst a = 1;", HEADERS),
+    ).toEqual([]);
   });
 
   it("does not flag reading a header the middleware does not stamp", () => {
