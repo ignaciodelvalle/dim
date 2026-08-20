@@ -507,6 +507,13 @@ const GOB_HREF_SNAPSHOT = new Set([
   // observaciones + denuncias + casos in ONE list ranked by vencimiento;
   // leads the Bandeja operativa section.
   "/gob/acciones",
+  // ADDED 2026-08-20, and this snapshot is where the addition gets argued.
+  // /gob/observaciones shipped 2026-08-10 so a funcionario could reach the
+  // rabies-observation console (the /admin LAYOUT, not the page guard, was
+  // bouncing govt). The route landed; the nav entry did not, so the only way in
+  // was to already know the URL — for a queue running a 10-day legal clock.
+  // Mirrored in lib/ui/shell-nav-phase-b.test.ts's copy of this set.
+  "/gob/observaciones",
 ]);
 
 describe("GOB_NAV_SECTIONS — section invariants", () => {
@@ -757,6 +764,14 @@ const ADMIN_HREF_SNAPSHOT = new Set([
   "/admin/programa", // Paquete H — resumen ejecutivo del programa
   "/admin/libro", // WS-L — Libro de eventos (event-sourcing visible)
   "/admin/inteligencia", // Task #44 — inteligencia operativa territorial
+  // ADDED 2026-08-20. /admin/chapas is the ONLY screen that issues physical
+  // tags, and it had no entry anywhere in the product: reachable exclusively by
+  // typing the URL. It is the origin of the chapa circuit /t/[serial] and
+  // /cuenta/chapas/activar depend on, and it emits the single artifact that ever
+  // carries the plaintext activation codes. Section comes from
+  // screen-manifest.ts (layer "programa"), not from taste.
+  // Mirrored in lib/ui/shell-nav-phase-b.test.ts's copy of this set.
+  "/admin/chapas",
 ]);
 
 describe("ADMIN_NAV_SECTIONS — section invariants", () => {

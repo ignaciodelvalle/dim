@@ -584,20 +584,20 @@ export default async function GobVigilanciaPage({
           icon={<Icon name="alerta" decorative />}
           title={`${rabiesCompliance.openBreaches} ${pluralizeEs(rabiesCompliance.openBreaches, "observación rábica", "observaciones rábicas")} fuera del plazo legal de 10 días`}
           detail={
-            // Only admins have an observation queue console; govt operators get
-            // an in-page jump to the compliance card instead of a link that
-            // would bounce off the /admin auth guard. That card (not the
-            // disease-signals card) is where the real openBreaches count for
-            // this banner lives.
-            profile.role === "admin" ? (
-              <Link href="/admin/observaciones" className="underline">
-                Ver observaciones →
-              </Link>
-            ) : (
-              <a href={`#${panelComplianceId}`} className="underline">
-                Ver observaciones en curso ↓
-              </a>
-            )
+            // Both roles get the console. The branch used to send govt to an
+            // in-page anchor instead, under a comment saying only admins had an
+            // observation queue — true when it was written, false since
+            // 2026-08-10, when /gob/observaciones shipped precisely because the
+            // /admin LAYOUT (not the page guard) was bouncing funcionarios.
+            // Leaving the branch behind meant this banner announced a breach of
+            // a legal deadline and then withheld the screen for closing it, from
+            // the one role whose competence it actually is.
+            <Link
+              href={profile.role === "admin" ? "/admin/observaciones" : "/gob/observaciones"}
+              className="underline"
+            >
+              Ver observaciones →
+            </Link>
           }
         />
       )}

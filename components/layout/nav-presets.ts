@@ -469,6 +469,17 @@ export const GOB_NAV_SECTIONS: NavSection[] = [
       },
       { href: "/gob/vigilancia", label: "Vigilancia", matchPrefix: "/gob/vigilancia" },
       { href: "/gob/perdidas", label: "Pérdidas", matchPrefix: "/gob/perdidas" },
+      // /gob/observaciones shipped on 2026-08-10 and the nav entry did not.
+      // Every other absent /gob route in this file carries a comment saying it
+      // is an absorbed redirect; this one was simply missing, so the only way in
+      // was to already know the URL — for a queue that runs a 10-day legal
+      // clock.
+      //
+      // Section is NOT a judgment call: screen-manifest.ts declares this route
+      // layer "situacion", and check-screen-manifest fails when nav and the
+      // manifest disagree. It caught me putting this under Bandeja operativa
+      // because a queue felt like a queue. The admin twin sits in Situación too.
+      { href: "/gob/observaciones", label: "Observaciones", matchPrefix: "/gob/observaciones" },
     ],
   },
   {
@@ -657,6 +668,17 @@ export const ADMIN_NAV_SECTIONS: NavSection[] = [
       { href: "/admin/programa", label: "Programa", matchPrefix: "/admin/programa" },
       { href: "/admin/padron", label: "Padrón", matchPrefix: "/admin/padron" },
       { href: "/admin/adopciones", label: "Adopciones", matchPrefix: "/admin/adopciones" },
+      // Emisión de chapas físicas. Had no entry anywhere in the product: the
+      // only way in was to already know the URL, so the knowledge lived in a
+      // person instead of the screen. That matters more here than on a
+      // dashboard, because this page is the ORIGIN of the whole chapa circuit
+      // that /t/[serial] and /cuenta/chapas/activar depend on, and it emits the
+      // single artifact that ever carries the plaintext activation codes (the
+      // DB keeps only their peppered HMAC).
+      //
+      // Section chosen by the manifest, not by taste: screen-manifest.ts:364-368
+      // already files it under `layer: "programa"`.
+      { href: "/admin/chapas", label: "Chapas", matchPrefix: "/admin/chapas" },
     ],
   },
   {

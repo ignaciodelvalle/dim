@@ -63,6 +63,10 @@ const GOB_HREF_SNAPSHOT = new Set([
   // G5 (obligations-worklist, 2026-08): the cross-domain deadline worklist —
   // leads the Bandeja operativa section.
   "/gob/acciones",
+  // ADDED 2026-08-20 — rabies-observation console, which shipped for govt on
+  // 2026-08-10 with no nav entry. Argued in full in nav-presets.test.ts's copy
+  // of this set.
+  "/gob/observaciones",
 ]);
 
 const ADMIN_HREF_SNAPSHOT = new Set([
@@ -101,6 +105,9 @@ const ADMIN_HREF_SNAPSHOT = new Set([
   "/admin/programa", // Paquete H — resumen ejecutivo del programa
   "/admin/libro", // WS-L — Libro de eventos (event-sourcing visible)
   "/admin/inteligencia", // Task #44 — inteligencia operativa territorial
+  // ADDED 2026-08-20 — emisión de chapas físicas, previously reachable only by
+  // typing the URL. Argued in full in nav-presets.test.ts's copy of this set.
+  "/admin/chapas",
 ]);
 
 // Every capability the org nav gates on — must track nav-presets.test.ts's
