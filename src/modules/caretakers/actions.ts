@@ -1,0 +1,336 @@
+"use server";
+
+// Thin action controllers for the caretakers domain.
+//
+// Each action does ONLY:
+//   1. Auth guard at the edge — the security boundary.
+//   2. Parse the raw input.
+//   3. Build deps (repo, clock, transaction) and call the use-case.
+//   4. Map UseCaseResult<T> onto { error } / { ok }.
+//   5. Flush notifications post-tx, best-effort (catch + log, never throw).
+//   6. revalidatePath.
+//
+// NO business logic. Reference shape: src/modules/transfers/actions.ts.
+//
+// AUTH-SCOPE CONTRACT — the asymmetry that defines this module:
+//   - designate / cancel / revoke are TITULAR actions → `requireTitularAccess`.
+//     A caretaker holds a Path-1 ownership row and would pass
+//     `requirePetAccess`; naming a sub-caretaker is deny-list row
+//     `caretaker-sub-designation`.
+//   - accept / reject / withdraw are INVITEE actions → `requireUserOrRedirect`
+//     plus the id-or-email match inside the use-case. The accepting user holds
+//     NO ownership row on the pet yet, so a pet-scoped guard is not merely
+//     unnecessary here, it is impossible: there is nothing for it to resolve.
+//     Same shape as `acceptPetTransferAction`.
+
+import { auditLog, db, notifications } from "@/db";
+import { requireUserOrRedirect } from "@/lib/infra/auth-guards";
+import { requireTitularAccess } from "@/lib/infra/pet-access";
+import { resolveSiteUrl } from "@/lib/infra/site-url";
+import { createAdminClient } from "@/lib/supabase/admin";
+import { createClient } from "@/lib/supabase/server";
+import { revalidatePath } from "next/cache";
+
+import { acceptCaretakerGrant } from "./application/accept-caretaker-grant";
+import { cancelCaretakerGrant } from "./application/cancel-caretaker-grant";
+import { designateCaretaker } from "./application/designate-caretaker";
+import { endCaretakerGrant } from "./application/end-caretaker-grant";
+import { rejectCaretakerGrant } from "./application/reject-caretaker-grant";
+import { CaretakersRepository } from "./infrastructure/caretakers-repository";
+
+import type { NewNotification } from "./application/types";
+
+// ---------------------------------------------------------------------------
+// Shared helpers
+// ---------------------------------------------------------------------------
+
+/** Flush notifications post-tx, best-effort. Never throws. */
+async function flushNotifications(pending: NewNotification[]): Promise<void> {
+  if (pending.length === 0) return;
+  try {
+    await db
+      .insert(notifications)
+      .values(pending as unknown as (typeof notifications.$inferInsert)[]);
+  } catch (e) {
+    console.error("[caretakers/actions] notifications insert failed (action did succeed):", e);
+  }
+}
+
+/** Insert a single audit_log row post-tx, best-effort. Never throws. */
+async function flushAuditLog(entry: {
+  actorUserId: string;
+  action: string;
+  payload: Record<string, unknown>;
+}): Promise<void> {
+  try {
+    await db.insert(auditLog).values(entry as typeof auditLog.$inferInsert);
+  } catch (e) {
+    console.error("[caretakers/actions] auditLog insert failed (action did succeed):", e);
+  }
+}
+
+function deps() {
+  return {
+    repo: CaretakersRepository,
+    now: () => new Date(),
+    transaction: db.transaction.bind(db) as <T>(cb: (tx: unknown) => Promise<T>) => Promise<T>,
+  };
+}
+
+/** Caller's authenticated email — the invitation may be addressed to it. */
+async function callerEmail(): Promise<string> {
+  const supabase = await createClient();
+  const { data } = await supabase.auth.getUser();
+  return (data?.user?.email ?? "").toLowerCase();
+}
+
+// ---------------------------------------------------------------------------
+// designateCaretakerAction — the titular invites someone
+// AUTH: requireTitularAccess (deny-list row caretaker-sub-designation)
+// ---------------------------------------------------------------------------
+
+export type DesignateCaretakerActionInput = {
+  petPublicToken: string;
+  inviteeEmail: string;
+  startsAt: string;
+  endsAt: string;
+  note?: string | null;
+};
+
+export type DesignateCaretakerActionResult = { grantToken: string } | { error: string };
+
+export async function designateCaretakerAction(
+  input: DesignateCaretakerActionInput,
+): Promise<DesignateCaretakerActionResult> {
+  const access = await requireTitularAccess(input.petPublicToken);
+  if (!access.ok) return { error: access.error };
+
+  const startsAt = parseDateInput(input.startsAt) ?? new Date();
+  const endsAt = parseDateInput(input.endsAt);
+  if (!endsAt) {
+    // The spec's first scenario: `endsAt` is REQUIRED. Caught here rather than
+    // in the domain because an unparseable string is not a period rule.
+    return { error: "Indicá hasta qué fecha va el cuidado." };
+  }
+
+  const result = await designateCaretaker(
+    {
+      petId: access.pet.id,
+      petName: access.pet.name,
+      petPublicToken: input.petPublicToken,
+      titularUserId: access.user.id,
+      inviteeEmail: input.inviteeEmail,
+      startsAt,
+      endsAt,
+      note: input.note ?? null,
+    },
+    deps(),
+  );
+
+  if (!result.ok) return { error: result.error };
+
+  await flushNotifications(result.notifications);
+  await flushAuditLog({
+    actorUserId: access.user.id,
+    action: "caretaker_designated",
+    payload: {
+      grant_public_token: result.value.grantPublicToken,
+      pet_id: access.pet.id,
+      // The invitee's email is PII belonging to a third party. It is already
+      // stored on the grant row (under the pii baseline) and the audit entry
+      // needs to say WHO was invited, so it rides — but nothing beyond it does.
+      to_email: result.value.inviteeEmail,
+      to_user_known: !result.value.inviteeNeedsAccount,
+    },
+  });
+
+  // Best-effort invite for an invitee with no account. Non-fatal: the grant row
+  // exists either way and the titular can resend the link by hand.
+  if (result.value.inviteeNeedsAccount) {
+    try {
+      const admin = createAdminClient();
+      const origin = resolveSiteUrl();
+      await admin.auth.admin.inviteUserByEmail(result.value.inviteeEmail, {
+        redirectTo: `${origin}/cuidado/${result.value.grantPublicToken}`,
+        data: {
+          invited_for: "pet_caretaker",
+          grant_token: result.value.grantPublicToken,
+        },
+      });
+    } catch (err) {
+      console.error("[caretakers] inviteUserByEmail failed (non-fatal)", err);
+    }
+  }
+
+  revalidatePath(`/mis-mascotas/${input.petPublicToken}`);
+  return { grantToken: result.value.grantPublicToken };
+}
+
+// ---------------------------------------------------------------------------
+// acceptCaretakerGrantAction — the INVITEE accepts
+// AUTH: requireUserOrRedirect + id-or-email match in the use-case
+// ---------------------------------------------------------------------------
+
+export type AcceptCaretakerGrantActionResult = { ok: true } | { error: string };
+
+export async function acceptCaretakerGrantAction(input: {
+  grantToken: string;
+  /** KEY 2 of the two-key public-contact model. Absent = not consented. */
+  publicContactConsent?: boolean;
+}): Promise<AcceptCaretakerGrantActionResult> {
+  const { user } = await requireUserOrRedirect();
+
+  const result = await acceptCaretakerGrant(
+    {
+      grantPublicToken: input.grantToken,
+      callerUserId: user.id,
+      callerEmail: await callerEmail(),
+      publicContactConsent: input.publicContactConsent === true,
+    },
+    deps(),
+  );
+
+  if (!result.ok) return { error: result.error };
+
+  await flushNotifications(result.notifications);
+  await flushAuditLog({
+    actorUserId: user.id,
+    action: "caretaker_grant_accepted",
+    payload: {
+      grant_public_token: input.grantToken,
+      public_contact_consent: input.publicContactConsent === true,
+    },
+  });
+
+  if (result.value.petPublicToken) {
+    revalidatePath(`/mis-mascotas/${result.value.petPublicToken}`);
+  }
+  revalidatePath("/mis-mascotas");
+  revalidatePath(`/cuidado/${input.grantToken}`);
+  return { ok: true };
+}
+
+// ---------------------------------------------------------------------------
+// rejectCaretakerGrantAction — the INVITEE declines
+// AUTH: requireUserOrRedirect + id-or-email match in the use-case
+// ---------------------------------------------------------------------------
+
+export type RejectCaretakerGrantActionResult = { ok: true } | { error: string };
+
+export async function rejectCaretakerGrantAction(input: {
+  grantToken: string;
+}): Promise<RejectCaretakerGrantActionResult> {
+  const { user } = await requireUserOrRedirect();
+
+  const result = await rejectCaretakerGrant(
+    {
+      grantPublicToken: input.grantToken,
+      callerUserId: user.id,
+      callerEmail: await callerEmail(),
+    },
+    { repo: CaretakersRepository, now: () => new Date() },
+  );
+
+  if (!result.ok) return { error: result.error };
+
+  await flushNotifications(result.notifications);
+  revalidatePath(`/cuidado/${input.grantToken}`);
+  return { ok: true };
+}
+
+// ---------------------------------------------------------------------------
+// cancelCaretakerGrantAction — the titular withdraws a PENDING invitation
+// AUTH: requireTitularAccess
+// ---------------------------------------------------------------------------
+
+export type CancelCaretakerGrantActionResult = { ok: true } | { error: string };
+
+export async function cancelCaretakerGrantAction(input: {
+  petPublicToken: string;
+  grantToken: string;
+}): Promise<CancelCaretakerGrantActionResult> {
+  const access = await requireTitularAccess(input.petPublicToken);
+  if (!access.ok) return { error: access.error };
+
+  const result = await cancelCaretakerGrant(
+    { grantPublicToken: input.grantToken, titularUserId: access.user.id },
+    { repo: CaretakersRepository, now: () => new Date() },
+  );
+
+  if (!result.ok) return { error: result.error };
+
+  await flushNotifications(result.notifications);
+  revalidatePath(`/mis-mascotas/${input.petPublicToken}`);
+  return { ok: true };
+}
+
+// ---------------------------------------------------------------------------
+// revokeCaretakerGrantAction — "Finalizar ahora", the titular ends an ACTIVE
+// arrangement unilaterally and immediately.
+// AUTH: requireTitularAccess
+// ---------------------------------------------------------------------------
+
+export type RevokeCaretakerGrantActionResult = { ok: true } | { error: string };
+
+export async function revokeCaretakerGrantAction(input: {
+  petPublicToken: string;
+  grantToken: string;
+}): Promise<RevokeCaretakerGrantActionResult> {
+  const access = await requireTitularAccess(input.petPublicToken);
+  if (!access.ok) return { error: access.error };
+
+  const result = await endCaretakerGrant(
+    { grantPublicToken: input.grantToken, action: "revoke", actorUserId: access.user.id },
+    deps(),
+  );
+
+  if (!result.ok) return { error: result.error };
+
+  await flushNotifications(result.notifications);
+  await flushAuditLog({
+    actorUserId: access.user.id,
+    action: "caretaker_grant_revoked",
+    payload: { grant_public_token: input.grantToken, pet_id: access.pet.id },
+  });
+
+  revalidatePath(`/mis-mascotas/${input.petPublicToken}`);
+  return { ok: true };
+}
+
+// ---------------------------------------------------------------------------
+// withdrawCaretakerGrantAction — the CARETAKER steps down.
+// AUTH: requireUserOrRedirect. The caretaker DOES hold an ownership row here,
+// so requirePetAccess would resolve — but it would also let the titular pass,
+// and "the titular withdrew on the caretaker's behalf" is a different fact.
+// The use-case checks actorUserId === grant.caretakerUserId.
+// ---------------------------------------------------------------------------
+
+export type WithdrawCaretakerGrantActionResult = { ok: true } | { error: string };
+
+export async function withdrawCaretakerGrantAction(input: {
+  grantToken: string;
+}): Promise<WithdrawCaretakerGrantActionResult> {
+  const { user } = await requireUserOrRedirect();
+
+  const result = await endCaretakerGrant(
+    { grantPublicToken: input.grantToken, action: "withdraw", actorUserId: user.id },
+    deps(),
+  );
+
+  if (!result.ok) return { error: result.error };
+
+  await flushNotifications(result.notifications);
+  revalidatePath("/mis-mascotas");
+  return { ok: true };
+}
+
+// ---------------------------------------------------------------------------
+// Input parsing
+// ---------------------------------------------------------------------------
+
+/** `null` for anything unparseable — an invalid date is not a period rule. */
+function parseDateInput(raw: string | null | undefined): Date | null {
+  if (!raw) return null;
+  const parsed = new Date(raw);
+  return Number.isNaN(parsed.getTime()) ? null : parsed;
+}

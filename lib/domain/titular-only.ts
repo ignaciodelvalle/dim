@@ -79,9 +79,15 @@ export const TITULAR_ONLY_DENY_LIST: readonly TitularOnlyDenyListRow[] = [
   {
     id: "caretaker-sub-designation",
     summary: "A caretaker designating another caretaker.",
-    signals: [],
-    pending:
-      "The caretaker_designated event type does not exist yet; the coverage self-test refuses an event type that is not in EVENT_TYPES. Closed by migration N (commit C3), which adds the event type and the signal together.",
+    // CLOSED by C5 (the caretakers module). The one legitimate writer of this
+    // event type is NOT the titular — it is the invitee accepting their own
+    // invitation, who by definition holds no ownership row on the pet yet. That
+    // writer is exempted by an inner-writer suffix
+    // (CaretakersRepository.insertAcceptGrantForToken), which is the escape
+    // hatch the fence provides, with the justification written where the code
+    // is rather than in an allowlist entry nobody re-reads.
+    signals: ["caretaker_designated"],
+    pending: null,
   },
   {
     id: "tier2-public-toggle",
@@ -120,12 +126,25 @@ export const TITULAR_ONLY_DENY_LIST: readonly TitularOnlyDenyListRow[] = [
  *     which would make the regex noisy for no security gain.
  *   - `death_recorded` is EXPLICITLY allowed to a caretaker (spec: "Allowed
  *     caretaker actions"), with a mandatory titular notification instead.
+ *   - `caretaker_ended` is NOT here, and the asymmetry with its sibling is
+ *     deliberate: a caretaker withdrawing from their OWN arrangement is
+ *     legitimate, and the expiry cron writes it with no acting user at all.
+ *     Denying it would break both. Only the DESIGNATION is titular-only.
+ *
+ * ADDING ONE HERE HAS A SQL COUNTERPART. `public.titular_only_event_types()`
+ * (migration 0190, amended by 0191) is a second copy of this array, and
+ * __tests__/caretaker-rls-hardening.test.ts asserts the two are equal. Editing
+ * this list without a migration turns that test red — on purpose.
  */
 export const TITULAR_ONLY_EVENT_TYPES: readonly EventType[] = [
   "custody_transfer_proposed",
   "custody_transferred",
   "custody_transfer_cancelled",
   "adoption_eligibility_set",
+  // custodia-temporal C5: a caretaker must not name a sub-caretaker. The one
+  // legitimate non-titular writer (the invitee accepting) is exempted by an
+  // inner-writer suffix, not by leaving the type out of this list.
+  "caretaker_designated",
 ] as const;
 
 /**

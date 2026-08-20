@@ -224,13 +224,28 @@ describe("pet_caretaker_grants — alternate public contact, two-key consent", (
 
     // Ending the grant must not erase the consent record: it is a historical
     // fact about what the caretaker agreed to, not a live permission flag.
+    //
+    // AMENDED BY 0192. This assertion used to null out caretakerUserId and
+    // ownershipId on the way to `ended`, because 0189's biconditional accept
+    // CHECK left no other way to get there — and that was the tell nobody read:
+    // the ONLY legal ending was one that erased who the caretaker had been. The
+    // real ending path (revoke / withdraw / cron) cannot do that and was
+    // therefore impossible; C5 hit it on the first transaction. 0192 widened the
+    // constraint to `accepted OR ended`, so the pointers now SURVIVE, which is
+    // both the honest record and what the caretaker drift harness compares
+    // against.
     const [ended] = await db
       .update(petCaretakerGrants)
-      .set({ status: "ended", caretakerUserId: null, ownershipId: null, endedAt: new Date() })
+      .set({ status: "ended", endedAt: new Date(), endedReason: "expired" })
       .where(eq(petCaretakerGrants.id, accepted.id))
       .returning();
     expect(ended.publicContactConsentAt).toEqual(consentedAt);
+    expect(ended.caretakerUserId).toBe(CARETAKER_ID);
+    expect(ended.ownershipId).toBe(ownershipId);
 
+    // Teardown order matters now: the grant still points at the ownership row,
+    // and deleting the row would SET NULL that pointer on an `ended` grant —
+    // which the constraint refuses. Grants first, then ownerships.
     await clearGrants();
     await db.delete(ownerships).where(eq(ownerships.petId, petId));
   });

@@ -87,6 +87,12 @@ export const ALLOWED_EDGES = new Set<string>([
 // All module names (directory names under src/modules/).
 export const ALL_MODULES = [
   "adoption",
+  // custodia-temporal. ZERO new ALLOWED_EDGES by design: the module mirrors
+  // NewNotification/UseCaseResult locally instead of importing `pets`, and the
+  // owner cockpit reads caretaker state via a PAGE-level import (app/** is
+  // outside the module graph) rather than through a `pets` use-case — that
+  // import is the one edge that would invert this fence.
+  "caretakers",
   "cases",
   "events",
   "foster",

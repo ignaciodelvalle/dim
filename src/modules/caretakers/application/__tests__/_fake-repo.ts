@@ -1,0 +1,73 @@
+// Shared in-memory repository double for the caretaker use-case tests.
+//
+// A plain object literal typed against the PORT — not a mock of the concrete
+// repository. That is the whole reason the port exists: these tests run in the
+// fast parallel `unit` vitest project, with no Drizzle in the import graph.
+
+import { vi } from "vitest";
+
+import type { CaretakersRepositoryPort, ExpirableGrant, GrantRow, PetSummary } from "../ports";
+
+export const PET: PetSummary = { id: "pet-1", publicToken: "DIM-PAMP-0001", name: "Pampa" };
+
+export const TITULAR_ID = "titular-1";
+export const CARETAKER_ID = "caretaker-1";
+
+export function makeGrant(overrides: Partial<GrantRow> = {}): GrantRow {
+  return {
+    id: "grant-1",
+    publicToken: "CG-abc123",
+    petId: PET.id,
+    grantedByUserId: TITULAR_ID,
+    caretakerUserId: null,
+    caretakerEmail: "ana@example.com",
+    status: "pending",
+    startsAt: new Date("2026-08-20T00:00:00Z"),
+    endsAt: new Date("2026-09-15T00:00:00Z"),
+    note: null,
+    ownershipId: null,
+    reminderSentAt: null,
+    publicContactConsentAt: null,
+    ...overrides,
+  };
+}
+
+export function makeAcceptedGrant(overrides: Partial<GrantRow> = {}): ExpirableGrant {
+  return makeGrant({
+    status: "accepted",
+    caretakerUserId: CARETAKER_ID,
+    ownershipId: "own-1",
+    ...overrides,
+  }) as ExpirableGrant;
+}
+
+export type FakeRepo = CaretakersRepositoryPort & {
+  [K in keyof CaretakersRepositoryPort]: ReturnType<typeof vi.fn>;
+};
+
+export function makeFakeRepo(overrides: Partial<Record<string, unknown>> = {}): FakeRepo {
+  const base = {
+    findGrantByToken: vi.fn().mockResolvedValue(null),
+    findGrantByIdForUpdate: vi.fn().mockResolvedValue(null),
+    findOpenGrantsForPet: vi.fn().mockResolvedValue([]),
+    findPetSummaryById: vi.fn().mockResolvedValue(PET),
+    findUserIdByEmail: vi.fn().mockResolvedValue(null),
+    findDisplayName: vi.fn().mockResolvedValue("Ana Pérez"),
+    findEmailByUserId: vi.fn().mockResolvedValue("ana@example.com"),
+    findExpirableInvitations: vi.fn().mockResolvedValue([]),
+    findExpirableGrants: vi.fn().mockResolvedValue([]),
+    findGrantsNeedingReminder: vi.fn().mockResolvedValue([]),
+    markReminderSent: vi.fn().mockResolvedValue(1),
+    insertGrant: vi.fn().mockResolvedValue({ id: "grant-1", publicToken: "CG-abc123" }),
+    updateGrantStatus: vi.fn().mockResolvedValue(1),
+    insertAcceptGrant: vi.fn().mockResolvedValue({ ownershipId: "own-1" }),
+    insertEndGrant: vi.fn().mockResolvedValue({ ended: true }),
+    ...overrides,
+  };
+  return base as unknown as FakeRepo;
+}
+
+/** A `db.transaction`-shaped double that just runs the callback. */
+export function fakeTransaction<T>(cb: (tx: unknown) => Promise<T>): Promise<T> {
+  return cb({ __tx: true });
+}

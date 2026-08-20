@@ -1263,14 +1263,25 @@ export const petCaretakerGrants = pgTable(
       "pet_caretaker_grants_period_check",
       sql`${table.endsAt} > ${table.startsAt}`,
     ),
-    // The accept invariant, in the database. Biconditional on purpose: an
-    // accepted grant MUST point at both the caretaker and the projected
-    // ownership row, and a grant that is not accepted MUST point at neither —
-    // otherwise a cancelled invitation could keep a phantom ownership pointer
-    // and the drift harness would compare against a lie.
+    // The accept invariant, in the database. AMENDED BY 0192 — 0189 wrote this
+    // over `accepted` ALONE, which made the `accepted -> ended` transition
+    // impossible: the terminal UPDATE flips the status while both pointers stay
+    // set, so the biconditional was violated on every revoke, withdrawal and
+    // cron expiry. The whole ending path was unreachable and no schema test
+    // caught it, because a row is legal until you try to move it.
+    //
+    // The set is now "an arrangement that actually happened": accepted OR
+    // ended must name the caretaker and the ownership row it produced, and a
+    // grant that never became one (pending/rejected/cancelled/expired) must not
+    // carry both — which is 0189's real worry (a cancelled invitation keeping a
+    // phantom ownership pointer the drift harness would compare against).
+    //
+    // A `pending` row MAY carry `caretaker_user_id` while `ownership_id` is
+    // still NULL. Used: an invitation to somebody who already has an account
+    // records who they are, so a cancellation can notify the right person.
     acceptCheck: check(
       "pet_caretaker_grants_accept_check",
-      sql`(${table.status} = 'accepted') = (${table.caretakerUserId} IS NOT NULL AND ${table.ownershipId} IS NOT NULL)`,
+      sql`(${table.status} IN ('accepted','ended')) = (${table.caretakerUserId} IS NOT NULL AND ${table.ownershipId} IS NOT NULL)`,
     ),
     // Backstop for the domain rule. The interesting case is not the UI (the
     // form never offers it) but a script or a future feature.

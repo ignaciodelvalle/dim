@@ -250,9 +250,32 @@ describe("titular-only constants — coverage", () => {
         expect(row.pending, `${row.id} has signals AND a pending reason`).toBeNull();
       }
     }
-    // At most one row may be knowingly unenforced (caretaker-sub-designation,
-    // closed by migration N). A second one is a regression, not a plan.
-    expect(TITULAR_ONLY_DENY_LIST.filter((r) => r.pending !== null)).toHaveLength(1);
+    // RATCHET. This was `toHaveLength(1)` while `caretaker-sub-designation`
+    // waited for the event type to exist (C1 → C5). The caretakers module ships
+    // `caretaker_designated`, so the row now carries a real signal and NO row
+    // may be knowingly unenforced. Going back up to 1 is a regression that has
+    // to be argued for in a diff, not a state anyone can drift into.
+    expect(TITULAR_ONLY_DENY_LIST.filter((r) => r.pending !== null)).toHaveLength(0);
+  });
+
+  it("denies caretaker sub-designation through the event type, not through a promise", () => {
+    // The whole point of the deny-list row: a caretaker must not be able to
+    // name another caretaker. The ONLY legitimate writer of this event type is
+    // the invitee accepting their own invitation, which is exempted by an
+    // inner-writer suffix on the repository method — see
+    // src/modules/caretakers/infrastructure/caretakers-repository.ts.
+    expect(isTitularOnlyEventType("caretaker_designated")).toBe(true);
+
+    const row = TITULAR_ONLY_DENY_LIST.find((r) => r.id === "caretaker-sub-designation");
+    expect(row?.signals).toContain("caretaker_designated");
+    expect(row?.pending).toBeNull();
+  });
+
+  it("does NOT deny caretaker_ended — ending an arrangement is not designating one", () => {
+    // A caretaker withdrawing from their own arrangement is legitimate (spec:
+    // "Caretaker account deactivation ends the grant"), and the cron writes it
+    // with no user at all. Adding it to the constant would deny both.
+    expect(isTitularOnlyEventType("caretaker_ended")).toBe(false);
   });
 
   it("isTitularOnlyEventType agrees with the constant", () => {
@@ -277,6 +300,32 @@ describe("check-titular-gate — real tree", () => {
   it("has no offender outside the documented allowlist", () => {
     const offenders = findTitularGateOffenders(listScanSources());
     expect(offenders).toEqual([]);
+  });
+
+  it("sees THROUGH the caretakers repository port — the blind spot found in C5", () => {
+    // MEASURED FAILURE, pinned so it cannot recur silently.
+    //
+    // The index propagates "reaches a titular-only effect" along call edges
+    // matched BY NAME. The caretakers module is the first to put a declared
+    // PORT between the use-case and the repository: the use-case calls
+    // `repo.insertAcceptGrant(...)`, the port's name. While the concrete method
+    // was called `insertAcceptGrantForToken`, the effect was indexed on that
+    // name, nothing in the tree called it, and the taint stopped dead at the
+    // repository — the whole accept chain was invisible while the fence
+    // reported itself clean.
+    //
+    // Renaming the concrete method to equal the port method restored the edge.
+    // This assertion is what makes that a rule instead of a coincidence: rename
+    // one side and the propagation stops, and this goes red.
+    const effects = indexTitularEffects(listScanSources());
+    const keys = [...effects.keys()];
+
+    expect(keys, "the accept writer must be indexed").toContain("insertAcceptGrant");
+    expect(
+      keys,
+      "the taint must reach the use-case through the port name, not stop at the repository",
+    ).toContain("acceptCaretakerGrant");
+    expect(effects.get("acceptCaretakerGrant")).toContain("event:caretaker_designated");
   });
 
   it("every allowlist entry carries a reason", () => {
