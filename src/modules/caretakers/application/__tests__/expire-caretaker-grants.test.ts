@@ -83,6 +83,31 @@ describe("expireCaretakerGrants — pass 1: unanswered invitations", () => {
     expect(result.ok === true && result.notifications).toHaveLength(0);
   });
 
+  it("keys the expiry notice on the grant, with NO run date in it", async () => {
+    // The silent duplicate this prevents: a key bucketed by day would let
+    // tomorrow's sweep re-announce "nadie respondió" for the same invitation.
+    // Proven by running the identical sweep under two different clocks and
+    // demanding the same key, which a `toBeDefined()` assertion cannot do.
+    const repo = () =>
+      makeFakeRepo({
+        findExpirableInvitations: vi.fn().mockResolvedValue([makeGrant({ id: "g-stale" })]),
+      });
+
+    const today = await expireCaretakerGrants(deps(repo()));
+    const tomorrow = await expireCaretakerGrants({
+      repo: repo(),
+      now: () => new Date("2026-09-13T04:00:00Z"),
+      transaction: fakeTransaction,
+    });
+
+    expect(today.ok === true && today.notifications[0].dedupeKey).toBe(
+      "caretaker:invitation_expired:g-stale:titular-1",
+    );
+    expect(tomorrow.ok === true && tomorrow.notifications[0].dedupeKey).toBe(
+      "caretaker:invitation_expired:g-stale:titular-1",
+    );
+  });
+
   it("keeps going after a per-row failure and counts it", async () => {
     const repo = makeFakeRepo({
       findExpirableInvitations: vi
@@ -160,6 +185,14 @@ describe("expireCaretakerGrants — pass 2: arrangements past ends_at", () => {
     const titularNote = result.notifications.find((n) => n.userId === TITULAR_ID);
     expect(titularNote?.body).toContain("coordiná la devolución");
     expect(titularNote?.relatedPetId).toBe(PET.id);
+
+    // One key per RECIPIENT. Keyed on the grant alone, the caretaker's row
+    // would collapse into the titular's and only one of them would learn the
+    // arrangement is over. These are the same two keys end-caretaker-grant.ts
+    // emits for the manual path, on purpose — a grant ends exactly once.
+    const byUser = Object.fromEntries(result.notifications.map((n) => [n.userId, n.dedupeKey]));
+    expect(byUser[TITULAR_ID]).toBe("caretaker:grant_ended:grant-1:titular-1");
+    expect(byUser[CARETAKER_ID]).toBe("caretaker:grant_ended:grant-1:caretaker-1");
   });
 
   it("survives one grant failing and still processes the next", async () => {
@@ -205,6 +238,37 @@ describe("expireCaretakerGrants — pass 3: the T-3 reminder", () => {
     expect(repo.markReminderSent).toHaveBeenCalledWith("grant-1", NOW);
     expect(result.ok === true && result.notifications).toHaveLength(2);
     expect(result.ok === true && result.notifications[0].body).toContain("Renová");
+
+    const byUser = Object.fromEntries(
+      result.ok === true ? result.notifications.map((n) => [n.userId, n.dedupeKey]) : [],
+    );
+    expect(byUser[TITULAR_ID]).toBe("caretaker:grant_ending_soon:grant-1:titular-1");
+    expect(byUser[CARETAKER_ID]).toBe("caretaker:grant_ending_soon:grant-1:caretaker-1");
+  });
+
+  it("keys the T-3 nudge WITHOUT the run date, so the stored witness stays the gate", async () => {
+    // A date bucket in this key would silently defeat `reminder_sent_at`: a
+    // grant that sits in the 3-day window across two sweeps would be nudged
+    // twice, once per bucket. The nudge fires once per grant, full stop.
+    const repo = () =>
+      makeFakeRepo({
+        findGrantsNeedingReminder: vi.fn().mockResolvedValue([makeAcceptedGrant()]),
+      });
+
+    const first = await expireCaretakerGrants(deps(repo()));
+    const second = await expireCaretakerGrants({
+      repo: repo(),
+      now: () => new Date("2026-09-13T04:00:00Z"),
+      transaction: fakeTransaction,
+    });
+
+    const keys = (r: typeof first) =>
+      r.ok === true ? r.notifications.map((n) => n.dedupeKey).sort() : [];
+    expect(keys(first)).toEqual(keys(second));
+    expect(keys(first)).toEqual([
+      "caretaker:grant_ending_soon:grant-1:caretaker-1",
+      "caretaker:grant_ending_soon:grant-1:titular-1",
+    ]);
   });
 
   it("sends nothing when the witness was already stamped by a re-run", async () => {

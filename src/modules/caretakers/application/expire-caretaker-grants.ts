@@ -111,6 +111,12 @@ async function expireStaleInvitations(ctx: PassContext): Promise<void> {
       notifications.push({
         userId: grant.grantedByUserId,
         notificationType: "caretaker_invitation_expired",
+        // NO RUN DATE IN THE KEY. An invitation expires once, and the sweep
+        // runs daily: a date bucket would let a re-scan of the same row emit a
+        // second "nadie respondió" tomorrow. Stable across: every pass of this
+        // cron over this grant. Distinct across: other grants — a later
+        // invitation that also goes unanswered is a new grant id.
+        dedupeKey: `caretaker:invitation_expired:${grant.id}:${grant.grantedByUserId}`,
         severity: "info",
         title: `Nadie respondió la invitación para cuidar a ${pet?.name ?? "tu mascota"}`,
         body: "La invitación venció sin respuesta. Podés invitar de nuevo cuando quieras.",
@@ -206,6 +212,13 @@ function reminderNotifications(
     {
       userId: grant.grantedByUserId,
       notificationType: "caretaker_grant_ending_soon",
+      // NO RUN DATE IN THE KEY, on purpose. The T-3 nudge fires once per grant
+      // and is already gated by the stored `reminder_sent_at` witness; a date
+      // bucket would defeat that witness the moment a grant sat in the window
+      // across two sweeps. Stable across: every sweep, for the life of this
+      // grant. Distinct across: grants, and the two recipients below — the
+      // titular and the caretaker each need their own nudge.
+      dedupeKey: `caretaker:grant_ending_soon:${grant.id}:${grant.grantedByUserId}`,
       severity: "info",
       title,
       body,
@@ -220,6 +233,9 @@ function reminderNotifications(
     out.push({
       userId: grant.caretakerUserId,
       notificationType: "caretaker_grant_ending_soon",
+      // The caretaker's copy. Same family, different recipient — that suffix is
+      // the only thing stopping this insert from collapsing into the titular's.
+      dedupeKey: `caretaker:grant_ending_soon:${grant.id}:${grant.caretakerUserId}`,
       severity: "info",
       title,
       body,
@@ -260,6 +276,13 @@ function endNotifications(
     {
       userId: grant.grantedByUserId,
       notificationType: "caretaker_grant_ended",
+      // DELIBERATELY THE SAME KEY end-caretaker-grant.ts emits for the manual
+      // path. A grant ends exactly once — both writers gate on `accepted` under
+      // a row lock, so whichever loses emits nothing — and if a manual revoke
+      // and this sweep ever both got as far as a payload, the titular should
+      // read "el cuidado terminó" ONCE, not twice in two wordings. No run date:
+      // the sweep re-scanning tomorrow must not re-announce it.
+      dedupeKey: `caretaker:grant_ended:${grant.id}:${grant.grantedByUserId}`,
       severity: "warning",
       title: `El cuidado temporal de ${petName} terminó`,
       body: `El período terminó el ${endsAtLabel}. Si ${petName} sigue con esa persona, coordiná la devolución o iniciá un reclamo.`,
@@ -274,6 +297,9 @@ function endNotifications(
     out.push({
       userId: grant.caretakerUserId,
       notificationType: "caretaker_grant_ended",
+      // The caretaker's copy — recipient suffix keeps it distinct from the
+      // titular's, and matches the manual path's key for the same person.
+      dedupeKey: `caretaker:grant_ended:${grant.id}:${grant.caretakerUserId}`,
       severity: "info",
       title: `Tu período de cuidado de ${petName} terminó`,
       body: `Terminó el ${endsAtLabel}. Ya no tenés acceso para cargar eventos. Si ${petName} sigue con vos, coordiná la devolución con el titular.`,

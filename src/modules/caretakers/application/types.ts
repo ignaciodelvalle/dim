@@ -18,6 +18,20 @@ export type NewNotification = {
   // — a value the enum would reject at insert time. Copied shapes drift; this
   // one is typed against the schema rather than against its siblings.
   severity: "info" | "success" | "warning" | "urgent";
+  /**
+   * REQUIRED idempotency key — this module writes through
+   * `createNotificationsBulk` (lib/infra/notification-service.ts), whose insert
+   * is ON CONFLICT (dedupe_key) DO NOTHING. Unlike the sibling copies in
+   * adoption/foster/transfers, which still flush with a raw insert into the
+   * `notifications` table, this field is NOT optional here: a use-case that
+   * forgets it does not compile.
+   *
+   * Shape used across this module: `caretaker:<event>:<grantId>:<recipientId>`.
+   * The grant id is what the notification is ABOUT (a re-invitation is a new
+   * grant row, so it gets a new key); the recipient id is what keeps the two
+   * copies of a two-party notice from collapsing into one.
+   */
+  dedupeKey: string;
   ctaLabel?: string | null;
   ctaUrl?: string | null;
   relatedPetId?: string | null;

@@ -201,6 +201,7 @@ describe("acceptCaretakerGrant", () => {
       notificationType: "caretaker_invitation_accepted",
       relatedPetId: PET.id,
       category: "custody",
+      dedupeKey: "caretaker:invitation_accepted:grant-1:titular-1",
     });
     expect(result.notifications[0].title).toContain("Pampa");
   });

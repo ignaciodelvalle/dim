@@ -108,6 +108,20 @@ export async function endCaretakerGrant(
     {
       userId: grant.grantedByUserId,
       notificationType: "caretaker_grant_ended",
+      // THE RECIPIENT ID IS LOAD-BEARING HERE. This notice has TWO recipients
+      // (titular below, caretaker further down) and they get different copy;
+      // keying on the grant id alone would collapse the second insert into the
+      // first and one of the two parties would never be told the arrangement
+      // ended.
+      //
+      // Stable across: a retry of this action AND a subsequent cron pass — the
+      // key is deliberately IDENTICAL to the one expire-caretaker-grants.ts
+      // uses. A grant ends exactly once (both writers gate on `accepted` under
+      // a row lock, so the loser emits nothing), and in the pathological race
+      // where both produced payloads, one "el cuidado terminó" per person is
+      // the correct outcome. There is no outcome/actor in the key: the fact
+      // being announced is "it ended", not "how".
+      dedupeKey: `caretaker:grant_ended:${grant.id}:${grant.grantedByUserId}`,
       severity: outcome === "expired" ? "warning" : "info",
       title: `El cuidado temporal de ${petName} terminó`,
       body: titularBody({ outcome, caretakerName, petName, endsAtLabel }),
@@ -122,6 +136,9 @@ export async function endCaretakerGrant(
     notifications.push({
       userId: grant.caretakerUserId,
       notificationType: "caretaker_grant_ended",
+      // Same key family as the titular's copy above, differing ONLY in the
+      // recipient — that is what keeps both rows alive.
+      dedupeKey: `caretaker:grant_ended:${grant.id}:${grant.caretakerUserId}`,
       severity: "info",
       title: `Tu período de cuidado de ${petName} terminó`,
       body: `Ya no tenés acceso para cargar eventos de ${petName}. Si todavía está con vos, coordiná la devolución con el titular.`,

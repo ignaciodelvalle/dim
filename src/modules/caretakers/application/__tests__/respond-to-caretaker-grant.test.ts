@@ -95,6 +95,7 @@ describe("rejectCaretakerGrant", () => {
       notificationType: "caretaker_invitation_rejected",
       relatedPetId: PET.id,
       category: "custody",
+      dedupeKey: "caretaker:invitation_rejected:grant-1:titular-1",
     });
   });
 });
@@ -145,6 +146,9 @@ describe("cancelCaretakerGrant", () => {
 
     expect(a.ok === true && a.notifications).toHaveLength(1);
     expect(a.ok === true && a.notifications[0].userId).toBe(CARETAKER_ID);
+    expect(a.ok === true && a.notifications[0].dedupeKey).toBe(
+      "caretaker:invitation_cancelled:grant-1:caretaker-1",
+    );
     expect(b.ok === true && b.notifications).toHaveLength(0);
   });
 });

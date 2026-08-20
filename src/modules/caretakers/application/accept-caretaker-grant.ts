@@ -126,6 +126,12 @@ export async function acceptCaretakerGrant(
     {
       userId: grant.grantedByUserId,
       notificationType: "caretaker_invitation_accepted",
+      // Stable across: a retry of this action (the accept transaction is
+      // guarded by the pending→accepted status flip, so a genuine second accept
+      // cannot happen; what this key absorbs is a re-flush of the SAME accept).
+      // Distinct across: other grants. An invitation is accepted at most once,
+      // so there is no legitimate second copy to protect.
+      dedupeKey: `caretaker:invitation_accepted:${grant.id}:${grant.grantedByUserId}`,
       severity: "success",
       title: `${caretakerName} aceptó cuidar a ${petName}`,
       body: `El cuidado temporal va hasta el ${endsAtLabel}. Podés finalizarlo cuando quieras.`,

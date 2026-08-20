@@ -94,6 +94,13 @@ export async function designateCaretaker(
     notifications.push({
       userId: inviteeUserId,
       notificationType: "caretaker_invitation_received",
+      // Stable across: retries of this designate action for the grant row just
+      // inserted. Distinct across: every other invitation — a re-invitation
+      // after a cancel/reject/expiry is a NEW grant row with a new id, so the
+      // titular can always invite again and the invitee is always told.
+      // Single-recipient notice, so the recipient id adds no discrimination
+      // here; it is kept for one uniform key shape across the module.
+      dedupeKey: `caretaker:invitation_received:${grant.id}:${inviteeUserId}`,
       severity: "info",
       title: `${titularName} te propone cuidar a ${input.petName}`,
       body: "Mirá el período y lo que podés hacer antes de aceptar. La invitación vence en 7 días.",

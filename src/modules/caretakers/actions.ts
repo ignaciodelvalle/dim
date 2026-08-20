@@ -23,8 +23,9 @@
 //     unnecessary here, it is impossible: there is nothing for it to resolve.
 //     Same shape as `acceptPetTransferAction`.
 
-import { auditLog, db, notifications } from "@/db";
+import { auditLog, db } from "@/db";
 import { requireUserOrRedirect } from "@/lib/infra/auth-guards";
+import { createNotificationsBulk } from "@/lib/infra/notification-service";
 import { requireTitularAccess } from "@/lib/infra/pet-access";
 import { resolveSiteUrl } from "@/lib/infra/site-url";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -45,13 +46,30 @@ import type { NewNotification } from "./application/types";
 // Shared helpers
 // ---------------------------------------------------------------------------
 
-/** Flush notifications post-tx, best-effort. Never throws. */
+/**
+ * Flush notifications post-tx, best-effort. Never throws.
+ *
+ * Routed through the canonical write path (lib/infra/notification-service.ts)
+ * rather than a raw insert straight into the `notifications` table. The sibling
+ * modules (adoption, foster, transfers) still hold their own copy of that raw
+ * insert and are grandfathered into scripts/notifications-service-baseline.json;
+ * this module is NOT in that baseline and must never be added to it. The
+ * service buys two things the raw insert cannot:
+ *   - IDEMPOTENCY — ON CONFLICT (dedupe_key) DO NOTHING, which matters most for
+ *     the cron path, where a retried sweep would otherwise re-announce an
+ *     expiry that already happened.
+ *   - DURABILITY — a failed insert is dead-lettered instead of vanishing into a
+ *     console.error, so "a veces no aparecen" becomes recoverable.
+ *
+ * The ARCH-P posture is unchanged: this runs OUTSIDE the business transaction
+ * and swallows everything. `createNotificationsBulk` already never throws; the
+ * try/catch stays as the belt to that brace, because an action that already
+ * succeeded must not be reported as failed over a notification.
+ */
 async function flushNotifications(pending: NewNotification[]): Promise<void> {
   if (pending.length === 0) return;
   try {
-    await db
-      .insert(notifications)
-      .values(pending as unknown as (typeof notifications.$inferInsert)[]);
+    await createNotificationsBulk(pending);
   } catch (e) {
     console.error("[caretakers/actions] notifications insert failed (action did succeed):", e);
   }

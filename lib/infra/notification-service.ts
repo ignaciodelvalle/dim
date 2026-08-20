@@ -48,7 +48,15 @@ export type CreateNotificationInput = {
   notificationType: string;
   title: string;
   body?: string | null;
-  severity?: "info" | "warning" | "urgent";
+  /**
+   * The full `notification_severity` pg enum. `"success"` was missing from this
+   * union until 2026-08-19 — a type narrower than the column it writes to, so a
+   * caller with a legitimately celebratory notice (caretaker invitation
+   * accepted) could not migrate onto this service without downgrading its copy
+   * to `"info"`. Widening an input union accepts strictly more; the Web Push leg
+   * already typed `"success"`.
+   */
+  severity?: "info" | "success" | "warning" | "urgent";
   category?: string | null;
   ctaLabel?: string | null;
   ctaUrl?: string | null;

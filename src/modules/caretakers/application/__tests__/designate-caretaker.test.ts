@@ -157,7 +157,27 @@ describe("designateCaretaker", () => {
       ctaUrl: "/cuidado/CG-abc123",
       relatedPetId: PET.id,
       category: "custody",
+      // The VALUE, not merely its presence: a `toBeDefined()` here would pass
+      // against a hardcoded constant, which is the exact bug a dedupe key can
+      // have — it would swallow every invitation after the first.
+      dedupeKey: "caretaker:invitation_received:grant-1:caretaker-1",
     });
+  });
+
+  it("keys the invitation on the NEW grant id, so a re-invitation is not deduped away", async () => {
+    // The failure this guards: keying on pet+invitee would make the second
+    // invitation (after a cancel or an expiry) collapse into the first row and
+    // the invitee would never be told. The grant id is what makes them distinct.
+    const repo = makeFakeRepo({
+      findUserIdByEmail: vi.fn().mockResolvedValue(CARETAKER_ID),
+      insertGrant: vi.fn().mockResolvedValue({ id: "grant-2", publicToken: "CG-def456" }),
+    });
+
+    const result = await designateCaretaker(input(), deps(repo));
+
+    expect(result.ok === true && result.notifications[0].dedupeKey).toBe(
+      "caretaker:invitation_received:grant-2:caretaker-1",
+    );
   });
 
   it("emits no in-app notification when the invitee has no account", async () => {

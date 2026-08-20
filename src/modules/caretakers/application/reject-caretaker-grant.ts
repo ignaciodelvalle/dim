@@ -58,6 +58,11 @@ export async function rejectCaretakerGrant(
     {
       userId: grant.grantedByUserId,
       notificationType: "caretaker_invitation_rejected",
+      // Stable across: a retry of this reject (the `expectedStatus: "pending"`
+      // guard already makes a second pass a no-op). Distinct across: other
+      // grants — if the titular re-invites and is declined again, that is a
+      // different grant id and the titular hears about it.
+      dedupeKey: `caretaker:invitation_rejected:${grant.id}:${grant.grantedByUserId}`,
       severity: "info",
       title: `${caretakerName} no puede cuidar a ${pet?.name ?? "tu mascota"}`,
       body: "Podés invitar a otra persona cuando quieras.",

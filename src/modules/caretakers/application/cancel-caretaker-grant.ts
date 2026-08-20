@@ -63,6 +63,12 @@ export async function cancelCaretakerGrant(
         {
           userId: grant.caretakerUserId,
           notificationType: "caretaker_invitation_cancelled",
+          // Stable across: a retry of this cancel. The UPDATE is guarded by
+          // `expectedStatus: "pending"`, so a second pass emits nothing anyway;
+          // the key covers the window where the update landed and the flush
+          // did not. Distinct across: other grants — cancelling a later
+          // invitation to the same person must still notify them.
+          dedupeKey: `caretaker:invitation_cancelled:${grant.id}:${grant.caretakerUserId}`,
           severity: "info",
           title: `Se canceló la invitación para cuidar a ${pet?.name ?? "una mascota"}`,
           body: "El titular retiró la invitación antes de que la respondieras.",
