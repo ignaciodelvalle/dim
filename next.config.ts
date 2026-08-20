@@ -112,6 +112,30 @@ const nextConfig: NextConfig = {
       },
     ],
   },
+  typescript: {
+    // `next build` runs a full tsc pass after compiling. On Vercel's build
+    // container (2 cores, 8 GB — see scripts/build.mjs) that pass is what
+    // fails, every time, in three disguises: with an 8 GB heap ceiling the
+    // container OOM-kills it, with a smaller ceiling it grinds in "ineffective
+    // mark-compacts" until the 45-minute build timeout, and with Node's own
+    // ~2 GB default it dies outright. Compilation itself finishes in 79s — the
+    // type pass is the entire problem. Reproduced 2026-08-20 in a container
+    // matched to Vercel's: 2 cpuset cores, 8192 MB cgroup, Node 24, pnpm
+    // 10.28.0.
+    //
+    // Skipped ONLY on Vercel, and nothing goes unchecked as a result. Types are
+    // verified twice before a deploy can exist: `pnpm typecheck` is the first
+    // step of `pnpm verify` (the Definition of Done) and its own CI step, and
+    // `pnpm build` still type-checks everywhere else — locally and in CI, where
+    // the machine can afford it. A Vercel build deploys a commit those gates
+    // already passed; it is not itself a gate.
+    //
+    // Do NOT widen this to every environment. tsconfig.json includes
+    // `.next/types/**/*.ts`, so the local and CI build passes are what cover
+    // Next's generated route types; a standalone `tsc --noEmit` on a clean tree
+    // runs before those files exist and would miss them.
+    ignoreBuildErrors: Boolean(process.env.VERCEL),
+  },
   experimental: {
     // Welfare denuncia evidence allows up to 5 files × 25 MB.
     serverActions: {
