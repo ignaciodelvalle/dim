@@ -48,6 +48,13 @@ export const TEST_PET_PREFIXES = {
   // (fixed token `DIM-PANO-US1SUB`) — same killed-worker leak class.
   // MC-PRI- added 2026-08-02: microchip-replaced.test.ts's primary-chip fixture
   // (`MC-PRI-${Date.now()}`) — same killed-worker leak class as MC-DUP-.
+  // MI-INV1- added 2026-08-20: `__tests__/macro-invariants/macro-invariants.test.ts`
+  // (tokens `MI-INV1-${Date.now()}`, pets named `MacroPet_*`). Fifth instance of
+  // the same class and the cause was visible this time: vitest workers died in
+  // five separate runs that night with no failing assertion, and a worker that
+  // dies mid-file never reaches its afterAll — which this test HAS and which is
+  // correct. The leaked row then reds check-spine-integrity on the next verify,
+  // for a reason unrelated to whatever is being gated.
   byToken: [
     "TRNS-TEST-",
     "DDXTEST-",
@@ -57,6 +64,7 @@ export const TEST_PET_PREFIXES = {
     "MC-PRI-",
     "SURVTEST-",
     "DIM-PANO-US1",
+    "MI-INV1-",
   ],
 } as const;
 
