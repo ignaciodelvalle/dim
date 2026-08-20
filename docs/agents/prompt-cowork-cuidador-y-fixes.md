@@ -50,6 +50,7 @@ coincide, **PARÁ y avisá**. Releelo al cerrar cada objetivo.
 | Segunda persona (será cuidadora) | `adoptante@dim.test` | `Test1234!` |
 | Organización | `alejo@dim.test` | `Test1234!` |
 | Gobierno CABA | `lucas@dim.test` | `Test1234!` |
+| Veterinaria con matrícula en trámite (O10) | `carla@dim.test` | `Test1234!` |
 
 Si una sesión no arranca, decilo y seguí con lo que puedas. No inventes
 cuentas ni cambies contraseñas.
@@ -193,6 +194,45 @@ Visitá `https://dim-staging.vercel.app/mantenimiento` directamente.
 Es una ruta nueva. Tiene que renderizar algo coherente y en castellano, sin
 error, sin pantalla en blanco, y sin quedar atrapada en un bucle de
 redirección.
+
+## O9 — Lo que el titular NO debería ver
+
+Con `owner@dim.test`: abrí una mascota tuya y desplegá el menú **Más**.
+
+**No tiene que aparecer "Buscar hogar".** Esa opción es del tránsito, y la
+página detrás exige ese rol: un titular que la tocaba aterrizaba en un 404.
+
+Si la ves, copiá el texto exacto de la fila y decime desde qué pantalla la
+abriste.
+
+## O10 — Le piden un dato al veterinario y ahora la pantalla lo dice
+
+Dos sesiones. Es el objetivo más largo de la corrida y el que más me importa
+después de O1.
+
+**Primero, con `lucas@dim.test`** (Gobierno CABA): entrá a `/gob/cola` y buscá
+la solicitud de **upgrade a veterinario/a de Carla** (está pendiente en CABA).
+Abrila y usá **"Pedir más información"**. Escribí un mensaje que contenga
+`VF0820`, por ejemplo: `Falta el número de matrícula, VF0820`.
+
+**Después, con `carla@dim.test`** (misma contraseña que el resto):
+
+1. Abrí su campana de notificaciones. Tiene que haber un aviso del pedido.
+   **Tocá su botón de acción** y anotá **en qué página aterrizás**. Tiene que
+   ser `/cuenta/solicitudes`. Si te deja en `/cuenta/upgrade` con un cartel que
+   dice "Solicitud enviada — pendiente de revisión" y nada más, eso es el
+   fallo: el arreglo no llegó por el camino que el producto usa.
+2. En esa página, la solicitud pendiente tiene que mostrar **"Información
+   pedida"** con la fecha y **el mensaje que escribió Lucas**. Copialo textual.
+3. Debajo tiene que decirle **qué hacer**: que para responder hay que retirar la
+   solicitud y enviar una nueva. Copiá esa frase.
+
+**El hallazgo que busco acá:** que el mensaje aparezca **una sola vez**, sin
+preámbulos apilados. Si leés algo como *"Información pedida el 20/08: Necesitamos
+más información para avanzar con tu solicitud: falta el número"* —dos veces dos
+puntos, dos introducciones— eso es un fallo, aunque se entienda.
+
+**No retires la solicitud.** Quiero el estado intacto para poder mirarlo después.
 
 ---
 
