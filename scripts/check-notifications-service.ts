@@ -27,7 +27,9 @@
 // (check-lib-root-files.ts, check-dependency-direction.ts, etc.).
 
 import { existsSync, readFileSync } from "node:fs";
+
 import { globSync } from "node:fs";
+import { stripComments } from "./check-scope-discipline";
 
 // ---------------------------------------------------------------------------
 // Configuration
@@ -110,7 +112,15 @@ function discoverMatchingFiles(): string[] {
       } catch {
         continue;
       }
-      if (INSERT_RE.test(src)) seen.add(normalized);
+      // Comments are stripped BEFORE matching. Without this the fence reads its
+      // own explanations: a file that documents "migrated away from a raw
+      // .insert(notifications)" was reported as an offender, and so was a
+      // types.ts holding no executable code at all (found 2026-08-19 while
+      // migrating src/modules/caretakers). That is a perverse incentive —
+      // it penalises leaving the reason behind, which is exactly what a future
+      // reader needs. Same hole check-db-budget hit on 2026-08-09; the shared
+      // helper already exists.
+      if (INSERT_RE.test(stripComments(src))) seen.add(normalized);
     }
   }
   return [...seen].sort();
