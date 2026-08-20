@@ -861,6 +861,12 @@ const EVENT_TYPE_LABELS = {
   // (Q1), así que estas dos etiquetas son el único lugar donde hay que tocarla.
   caretaker_designated: "Cuidado temporal iniciado",
   caretaker_ended: "Cuidado temporal finalizado",
+  // Rehome sponsorship (rehome-by-titular). "Apadrinamiento" y no "custodia":
+  // el animal se queda en la casa del titular y la organización acompaña la
+  // adopción. Decirle custodia acá repetiría en la libreta la afirmación falsa
+  // que el resto del cambio existe para desactivar.
+  rehome_sponsorship_started: "Apadrinamiento de adopción iniciado",
+  rehome_sponsorship_ended: "Apadrinamiento de adopción finalizado",
 } satisfies Record<EventType, string>;
 
 export function eventTypeLabel(eventType: EventType): string {

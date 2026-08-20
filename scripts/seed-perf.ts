@@ -1037,6 +1037,22 @@ function buildShowcaseEvents(
       outcome: "expired",
       ends_at: "2026-12-31T00:00:00.000Z",
     }),
+    // Rehome sponsorship (rehome-by-titular). `rehome_sponsorship_ended` uses
+    // `outcome`, NOT `reason`, for the same erase_subject_data reason as the
+    // caretaker pair above.
+    rehome_sponsorship_started: () => ({
+      ownership_id: "00000000-0000-0000-0000-000000000004",
+      sponsoring_organization_id: "00000000-0000-0000-0000-000000000005",
+      consented_by_user_id: "00000000-0000-0000-0000-000000000006",
+      request_case_public_code: "CAS-SEED-PERF",
+      listing_case_id: null,
+      note: null,
+    }),
+    rehome_sponsorship_ended: () => ({
+      ownership_id: "00000000-0000-0000-0000-000000000004",
+      outcome: "withdrawn_by_titular",
+      ended_at: "2026-12-31T00:00:00.000Z",
+    }),
   } satisfies Record<EventType, () => Record<string, unknown>>;
 
   const events: Array<Record<string, unknown>> = [];

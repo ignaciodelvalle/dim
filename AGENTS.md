@@ -79,7 +79,7 @@ Before writing a new event type, walk through `docs/event-design-checklist.md`. 
 | Legal framework | [#legal-framework](#legal-framework) | Compliance, SENASA, Ley 25.326 |
 | Data model | [#data-model](#data-model) | Schema, new tables, migrations |
 | Libreta sanitaria | [#libreta-sanitaria](#libreta-sanitaria) | Medical events, UI surfaces |
-| Event catalog — 52 types | [#event-catalog--52-types](#event-catalog--52-types) | New event types, payload design |
+| Event catalog — 54 types | [#event-catalog--54-types](#event-catalog--54-types) | New event types, payload design |
 | Privacy tiers | [#privacy-tiers-the-public-surface](#privacy-tiers-the-public-surface) | Public credential, Tier 0/1/2 |
 | Dashboards & projections | [#dashboards--projections-the-consumers](#dashboards--projections-the-consumers) | Govt / analyst / welfare views |
 | Aggregation & privacy policy | [#aggregation--privacy-policy](#aggregation--privacy-policy) | k-anonymity, opt-in, PII rules |
@@ -670,7 +670,7 @@ A conditional whose justification NAMES a specific flow becomes wrong the day th
 
 The naming is not cosmetic. It is the conceptual surface that makes DIM legible to non-technical dueños, which is precisely what the North Star ("the data-collection layer must be valuable on its own to drive adoption") requires. Renaming this later would mean retraining users we already onboarded. Lock it now, before scale.
 
-## Event catalog — 52 types
+## Event catalog — 54 types
 
 `UI` column: `v1` = recordable by owner in the v1 PWA · `system` = system-emitted · `later` = schema-ready, UI deferred (either non-owner reporter flow needed, or the owner-facing form just hasn't been built yet).
 
@@ -734,6 +734,15 @@ Dos tipos, no tres: la invitación pendiente NO es evento, es estado de workflow
 | ----------------------- | ----- | ---------------------------------------------------------------------------------------------------- |
 | `caretaker_designated`  | later | `{ grant_id, grant_public_token, caretaker_user_id, ends_at, note? }` — `ends_at` va desnormalizado a propósito: el grant puede terminar antes, y la espina tiene que seguir diciendo qué se acordó cuando empezó |
 | `caretaker_ended`       | later | `{ grant_id, outcome: returned\|expired\|revoked_by_owner\|withdrawn_by_caretaker, ends_at }` — la clave es `outcome`, NUNCA `reason` (el RPC de borrado redacta `reason` en todos los tipos y destruiría el enum). `expired` NO significa que el animal volvió: terminó el acceso, la posesión es otra pregunta |
+
+**Apadrinamiento de adopción (rehome-by-titular, migración 0194)**
+
+El titular que ya no puede tener a su mascota le pide a una organización verificada que la publique en adopción y evalúe postulantes **mientras el animal se queda en su casa**. La org recibe una fila `shelter_custody` AL LADO de la fila `owner` del titular, nunca en lugar de ella: acá "custodia" es un rol de registro, no posesión física, y por eso toda pantalla de la org tiene que decir explícitamente que el animal no está en su poder. Dos tipos, no tres: la solicitud pendiente es estado de workflow en el caso `rehome_request`, no un hecho sobre el animal.
+
+| Type                          | UI    | Payload                                                                                              |
+| ----------------------------- | ----- | ---------------------------------------------------------------------------------------------------- |
+| `rehome_sponsorship_started`  | later | `{ ownership_id, sponsoring_organization_id, consented_by_user_id, request_case_public_code, listing_case_id?, note? }` — se emite EN EL ACCEPT, en la misma transacción que la fila `ownerships(role='shelter_custody')`. `ownership_id` dice QUÉ fila de custodia pertenece al apadrinamiento: sin él, el rollback tendría que adivinar por timestamps y barrería custodias de decomiso o intake |
+| `rehome_sponsorship_ended`    | later | `{ ownership_id, outcome: adopted\|withdrawn_by_titular\|ended_by_org\|pet_deceased\|withdrawn_by_platform, ended_at }` — la clave es `outcome`, NUNCA `reason` (el RPC de borrado redacta `reason` en todos los tipos y destruiría el enum). `withdrawn_by_platform` existe sólo para el script de rollback |
 
 **Free-form**
 

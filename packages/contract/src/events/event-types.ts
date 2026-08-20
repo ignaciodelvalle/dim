@@ -150,5 +150,20 @@ export const EVENT_TYPES = [
   // so ending a grant never needs a fourth event type.
   "caretaker_designated",
   "caretaker_ended",
+  // Rehome sponsorship (rehome-by-titular). A titular who can no longer keep
+  // their pet asks a verified org to publish it for adoption and vet the
+  // applicants WHILE THE ANIMAL STAYS IN THE TITULAR'S HOME. The org gets a
+  // `shelter_custody` row ALONGSIDE the titular's `owner` row, never instead of
+  // it, so "custodia" here is a registry role and not physical possession.
+  //
+  // TWO events, same shape as the caretaker pair: the pending request is
+  // workflow state on a `rehome_request` case, not a fact about the animal, so
+  // there is no `rehome_sponsorship_requested`. `rehome_sponsorship_started` is
+  // emitted AT ACCEPT, in the same transaction as the ownerships row.
+  // `rehome_sponsorship_ended` carries the `outcome` discriminator (adopted |
+  // withdrawn_by_titular | ended_by_org | pet_deceased | withdrawn_by_platform),
+  // so no third type is ever needed to say how an arrangement finished.
+  "rehome_sponsorship_started",
+  "rehome_sponsorship_ended",
 ] as const;
 export type EventType = (typeof EVENT_TYPES)[number];

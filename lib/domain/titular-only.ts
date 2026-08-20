@@ -65,9 +65,21 @@ export const TITULAR_ONLY_DENY_LIST: readonly TitularOnlyDenyListRow[] = [
   {
     id: "adoption-eligibility-publishing",
     summary: "Flagging a pet as available for adoption.",
-    // Org-only today (requireCapabilityForOrgToken), where holderRole is null by
-    // construction — so there is no person-path writer to gate, only a future one.
-    signals: ["adoption_eligibility_set", "adoptionEligible"],
+    // Org-only when this row was written (requireCapabilityForOrgToken, where
+    // holderRole is null by construction), so the comment used to say there was
+    // "no person-path writer to gate, only a future one". rehome-by-titular IS
+    // that writer: the titular's withdraw clears adoptionListedAt from a person
+    // session. The two listing columns are gated together because the catalog
+    // predicate is a CONJUNCTION (`adoption_listed_at IS NOT NULL AND
+    // adoption_listing_paused_at IS NULL`) — gating only the first would leave a
+    // person-path writer able to CLEAR the pause and re-publish a listing the
+    // org paused. Gating one half of a conjunction is not gating it.
+    signals: [
+      "adoption_eligibility_set",
+      "adoptionEligible",
+      "adoptionListedAt",
+      "adoptionListingPausedAt",
+    ],
     pending: null,
   },
   {
@@ -145,6 +157,16 @@ export const TITULAR_ONLY_EVENT_TYPES: readonly EventType[] = [
   // legitimate non-titular writer (the invitee accepting) is exempted by an
   // inner-writer suffix, not by leaving the type out of this list.
   "caretaker_designated",
+  // rehome-by-titular: BOTH halves, unlike the caretaker pair above. The
+  // asymmetry there rests on two facts that do not hold here — a caretaker
+  // legitimately ends their own arrangement, and a cron writes the end with no
+  // acting user. No caretaker is party to a sponsorship and there is no cron,
+  // so the only person-path writer of either type is the titular themselves.
+  // Gating both denies a caretaker forging sponsorship consent (a permanent lie
+  // in an append-only ledger) at zero cost to any legitimate writer.
+  // SQL counterpart: migration 0194.
+  "rehome_sponsorship_started",
+  "rehome_sponsorship_ended",
 ] as const;
 
 /**
@@ -161,8 +183,14 @@ export const TITULAR_ONLY_PET_COLUMNS: readonly string[] = [
   // Tier-2 public window (row 5)
   "tier2PublicEnabledUntil",
   "tier2PublicPermanent",
-  // Adoption eligibility (row 2)
+  // Adoption eligibility + listing shelf (row 2). Both listing columns, not
+  // just the first: the catalog predicate ANDs them, so gating one leaves the
+  // other as a way to put a pet back on the shelf. No SQL mirror is needed —
+  // only the event-type array is duplicated into RLS, and the `pets` UPDATE
+  // policy is row-level and already denies a caretaker every column on the row.
   "adoptionEligible",
+  "adoptionListedAt",
+  "adoptionListingPausedAt",
   // Identity (row 7)
   "name",
   "species",

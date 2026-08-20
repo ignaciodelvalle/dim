@@ -30,6 +30,7 @@ import type { EventType } from "@dim/contract/events";
 
 import { caretakerDesignated, caretakerEnded } from "./caretaker-event-schemas";
 import { withVersion } from "./payload-version";
+import { rehomeSponsorshipEnded, rehomeSponsorshipStarted } from "./rehome-event-schemas";
 import { tagActivated, tagRevoked } from "./tag-event-schemas";
 
 const petStatus = z.enum(["active", "lost", "deceased"]);
@@ -1660,18 +1661,14 @@ const eventAmended = z
   )
   .strict();
 
-// Physical tag (0169) and temporary caretaker (0189) payloads live in
-// ./tag-event-schemas.ts and ./caretaker-event-schemas.ts (size ratchet).
+// Tag (0169), caretaker (0189) and rehome payloads live in siblings (size ratchet).
 
 // ---------------------------------------------------------------------------
 // Registry
 // ---------------------------------------------------------------------------
-// `Partial<Record<EventType, ...>>` is intentional: a small allowlist of
-// `EVENT_TYPES` entries exists in the const ahead of their schema landing
-// (currently the adoption-pipeline family except `adoption_finalized` and
-// `post_adoption_checkin` — see `__tests__/event-schemas.test.ts` →
-// `UNIMPLEMENTED`). When a type gains a real writer, its schema MUST land in
-// the same PR; validateEventPayload throws on insert until that happens.
+// `Partial<Record<EventType, ...>>` is a type escape hatch, not a licence: the
+// `UNIMPLEMENTED` allowlist in `__tests__/event-schemas.test.ts` is EMPTY today,
+// so every EVENT_TYPES entry must appear below or that fence goes red.
 
 export const PayloadSchemas: Partial<Record<EventType, z.ZodTypeAny>> = {
   pet_registered: petRegistered,
@@ -1726,6 +1723,8 @@ export const PayloadSchemas: Partial<Record<EventType, z.ZodTypeAny>> = {
   tag_revoked: tagRevoked,
   caretaker_designated: caretakerDesignated,
   caretaker_ended: caretakerEnded,
+  rehome_sponsorship_started: rehomeSponsorshipStarted,
+  rehome_sponsorship_ended: rehomeSponsorshipEnded,
 };
 
 /**

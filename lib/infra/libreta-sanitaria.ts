@@ -112,6 +112,12 @@ export const NON_LIBRETA_EVENT_TYPES = [
   // sanitary record a vet or an inspector reads would say nothing medical.
   "caretaker_designated",
   "caretaker_ended",
+  // Rehome sponsorship (rehome-by-titular) — WHO is accompanying the adoption
+  // of the animal, not WHAT was done to it. Same reasoning as the caretaker
+  // pair above: a vet or an inspector reading the libreta learns nothing
+  // medical from an arrangement between a family and a shelter.
+  "rehome_sponsorship_started",
+  "rehome_sponsorship_ended",
 ] as const satisfies readonly EventType[];
 
 const LIBRETA_SET: ReadonlySet<string> = new Set(LIBRETA_SANITARIA_EVENT_TYPES);
