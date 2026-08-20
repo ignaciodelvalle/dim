@@ -95,6 +95,20 @@ export const TEST_PET_PREFIXES = {
     // someone has the appetite: derive this list from the tests that mint the
     // tokens, instead of transcribing it by hand one leak at a time.
     "SC-TEST-",
+    // DIM-RHOM-PET1 added 2026-08-20 for __tests__/rehome-finalize-ownership.test.ts.
+    // FULL TOKEN, not the `DIM-RHOM-` prefix it is tempting to write: that shape
+    // is a legal real token (DIM + four + four), so the prefix would LIKE-match
+    // somebody's `DIM-RHOM-9K2P` and this script deletes what it matches. Same
+    // trap as the old `DIM-PANO-US1` entry two lines up.
+    //
+    // Registered BEFORE it leaked, which is a first for this list. The test has
+    // a correct afterAll; a dying worker skips it, and the pre-push reviewer
+    // caught the omission rather than the next red gate.
+    //
+    // Not covered, and worth knowing: that test also creates the organisation
+    // DIM-REHOME-001, and this script sweeps pets only. An org row left behind
+    // trips no fence today, so it is noise rather than breakage.
+    "DIM-RHOM-PET1",
     "MI-INV1-",
   ],
 } as const;
