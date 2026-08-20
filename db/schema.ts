@@ -88,7 +88,12 @@ export const petStatusEnum = pgEnum("pet_status", ["active", "lost", "deceased"]
 // `foster`: temporary physical caregiver under an org's umbrella. Business rule
 //   (not enforced at DB level): requires owner_user_id + active
 //   organization_membership on the same org that holds the parallel shelter_custody row.
-// `caretaker`: lower-stakes helper (petsitter, daycare). Schema-ready, UI deferred.
+// `caretaker`: cuidador temporal — a trusted person looking after an owned pet
+//   for a bounded period (petsitter, vecina, family). IMPLEMENTED END TO END
+//   since custodia-temporal (migrations 0189-0193); the "UI deferred" note this
+//   replaces was true until then. Lifecycle in `pet_caretaker_grants`, one
+//   active row per pet, and NOT titularidad: see the ownerships table comment
+//   below and lib/domain/titular-only.ts for what the role may not do.
 export const ownershipRoleEnum = pgEnum("ownership_role", [
   "owner",
   "co_owner",

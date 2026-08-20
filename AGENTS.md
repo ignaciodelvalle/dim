@@ -428,7 +428,12 @@ None of these are blockers for v1. The data model accepts them without rework; t
   - `shelter_custody` — temporary custody pending permanent placement. Used by refugios *and* by individual citizens who pick up strays. Person *or* organization. Refugios are never `owner` in DIM — they hold `shelter_custody` until adoption finalizes. The vecino-helps-stray case uses the same role with `owner_user_id` set and no org link.
   - `foster` — temporary physical caregiver under an organization's umbrella. Requires `owner_user_id` plus an active `organization_membership` linking the foster to the org that holds the parallel `shelter_custody` row for the same pet.
   - `co_owner` — shared permanent ownership. Schema-ready; UI deferred.
-  - `caretaker` — lower-stakes helper (petsitter, daycare). Schema-ready; UI deferred.
+  - `caretaker` — **cuidador temporal**: alguien de confianza que cuida la mascota por un período acotado (petsitter, vecina, familia). **Implementado end to end** (custodia-temporal, migraciones 0189–0193) — ya no es "schema-ready; UI deferred".
+    - Su ciclo de vida vive en `pet_caretaker_grants`; la fila de `ownerships` es la proyección, escrita en la MISMA transacción que `caretaker_designated`.
+    - **Una sola fila activa por mascota**, índice único parcial `ownerships_one_active_caretaker_per_pet`. El tope está duplicado a propósito: la tabla de grants protege el WORKFLOW, pero `ownerships` es lo que joinean todas las políticas RLS y todos los caminos de lectura.
+    - **No es titularidad y no la toca.** El titular conserva todo, incluida la potestad de finalizar el cuidado en cualquier momento y sin consentimiento del cuidador. Un cuidador NO puede transferir, publicar en adopción, cambiar jurisdicción, editar identidad, emitir un link de libreta ni designar otro cuidador — la deny-list vive en `lib/domain/titular-only.ts` y la hacen cumplir `requireTitularAccess` (app) y `public.has_titular_write_access()` (RLS, migración 0190).
+    - **No es participante de casos** (v1, decisión F2). `can_read_case` da la rama subject-pet solo a `role='owner'`. La limitación se muestra explícita — "Caso no disponible para cuidadores" — nunca como un 404 que la persona descubre haciendo clic.
+    - Vocabulario cerrado (PO 2026-08-19): **"cuidador temporal"**, nunca "custodia temporal" — esa etiqueta ya es del rol `shelter_custody` de una organización.
 
 ### `cases.opened_reason*` — why a case was opened (structured, migration 0149)
 
@@ -1614,6 +1619,18 @@ Any jurisdiction-grouped aggregate returned to a public or analyst surface must 
 | `suppressSmallCells(rows, { k: 5 })` on every public aggregate | `lib/metrics/anonymity.ts` → `suppressSmallCells` |
 | Govt outreach pipelines log `pii_queried` per query | `lib/infra/outreach-pipelines.ts` → `logOutreachPiiQuery` |
 | **Name your denominator** — every aggregate names what it excludes AND against which denominator it is computed; coverage % carries the double denominator (registry + estimated census). See [§ Dashboards design law](#dashboards--projections-the-consumers). | `lib/metrics/census.ts` → `computeCensusCoverage`; `lib/analytics/govt-home-kpis.ts` → `fetchRabiesCoverage` |
+
+### 6b. Cuidador temporal — PII de un TERCERO en la ficha de una mascota ajena
+
+`pet_caretaker_grants` (migración 0189) es la primera tabla del producto donde el titular escribe datos personales **de otra persona**. Tres campos y una regla cada uno.
+
+| Campo | Qué es | Regla |
+|---|---|---|
+| `caretaker_email` | El correo del invitado, **tipeado por el titular**. Puede pertenecer a alguien que ni siquiera tiene cuenta en miMAR. | Bajo `pii.apply_baseline` (0189). Se muestra al titular en su propio panel de cuidado; nunca en una superficie pública ni a un tercero. La página de invitación se lo niega incluso a quien tiene el link: si no sos parte, no ves ni la mascota ni el titular. |
+| `note` | Texto libre que el titular le escribe al cuidador ("Pampa toma media pastilla a la mañana"). | Puede traer datos de salud y rutinas del hogar. **Se desnormaliza dentro del payload de `caretaker_designated`** — a propósito: la espina tiene que seguir diciendo qué se acordó al empezar. Consecuencia que hay que tener presente: es texto libre dentro de un evento append-only, así que cae bajo §3 (nunca devolver un `payload` crudo) y no es editable ni borrable después. |
+| `public_contact_consent_at` | **Llave 2** del modelo de dos llaves. Marca de tiempo, capturada en el ACCEPT. | Publicar el contacto de un cuidador en una credencial pública es el titular consintiendo por otra persona. Hacen falta DOS llaves: la del cuidador (esta) y la del titular (`pets.disclose_caretaker_contact_when_lost`, migración 0193). Sin la llave 2 **el toggle del titular ni siquiera se renderiza** — un switch que no puede cambiar nada es una mentira con forma de control. Predicado único: `lib/infra/caretaker-public-contact.ts`. |
+
+**HUECO ABIERTO, no cerrado por esta entrega.** `pet_caretaker_grants` no figura en `export_subject_data` (art. 14) ni en `erase_subject_data` (art. 16) — verificado contra la base viva. `pii.apply_baseline` es solo la mitad de almacenamiento. La pregunta "qué significa borrar un grant cuando el sujeto es el CUIDADOR y no quien lo otorgó" tiene dos respuestas defendibles y es una decisión legal/PO, no de ingeniería; el arreglo además modifica dos funciones SECURITY DEFINER que gobiernan derechos del titular de los datos. Ver también §7: **nada vincula hoy las tablas con `pii.apply_baseline` a los dos RPC**, la cobertura se escribe a mano tabla por tabla, así que esta clase de omisión es invisible para CI y va a repetirse.
 
 ### 7. Subject rights (Ley 25.326)
 

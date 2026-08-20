@@ -49,7 +49,12 @@
 //     3rd rule (uncovered) — identity-only guard + caller-chosen pet
 //       identifier + no binding predicate.
 //     4th rule (covered elsewhere) — pet bound to the caller but the caller's
-//       ROLE not allowed to perform the effect → scripts/check-titular-gate.ts.
+//       ROLE not allowed to perform the effect. Enforced in three uncorrelated
+//       places, none of them here: scripts/check-titular-gate.ts (the CI fence
+//       over app writers), public.has_titular_write_access() (migration 0190,
+//       the RLS counterpart a bearer token hitting PostgREST meets instead),
+//       and the UI, which must not RENDER a control the other two will refuse
+//       — see deriveMasSheetItems and components/pet-profile/NotTitularNotice.
 //
 // REPORT-ONLY / BASELINE MODE (like the app/actions line-budget ratchet):
 //   Most current offenders delegate their scoping to an application use-case
@@ -62,15 +67,19 @@
 //   Run `pnpm tsx scripts/check-authz-scoping.ts --write-baseline` after a
 //   deliberate change to re-record.
 //
-//   Current baseline: 41 offenders across 16 files (authz-scoping-baseline.json,
-//   verified 2026-07-31 by re-running the script — output: "baseline: 41
-//   known"). Earlier docs cited 43/48, then 49/21 — both wrong; the
-//   authoritative count is always the live SUM of the JSON, which the run
-//   prints ("baseline: N known"), never a number copied into a comment. This
-//   ratchet only blocks GROWTH — it does NOT prove the existing offenders are
-//   correctly scoped (most delegate scoping to an application use-case this
-//   file-local regex cannot see; burning the backlog down still needs a
-//   manual per-file scoping audit).
+//   DO NOT COPY THE COUNT INTO THIS COMMENT. The authoritative number is the
+//   live SUM of authz-scoping-baseline.json, which every run prints as
+//   "baseline: N known". This paragraph used to quote "41 offenders across 16
+//   files", verified 2026-07-31 — and by 2026-08-20 the JSON held 44 across 19,
+//   so the sentence warning against copied numbers was itself a stale copied
+//   number. Earlier revisions cited 43/48 and 49/21, both wrong the same way.
+//   Read the count off the run, never off a comment; that is why the script
+//   prints it.
+//
+//   This ratchet only blocks GROWTH — it does NOT prove the existing offenders
+//   are correctly scoped (most delegate scoping to an application use-case this
+//   file-local regex cannot see; burning the backlog down still needs a manual
+//   per-file scoping audit).
 //
 // Run: pnpm tsx scripts/check-authz-scoping.ts   (or: pnpm lint:authz-scoping)
 
