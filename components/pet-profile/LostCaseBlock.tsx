@@ -97,6 +97,8 @@ export type LostCaseBlockPet = {
   discloseEmailWhenLost: boolean;
   discloseLastLocationWhenLost: boolean;
   allowFinderFormWhenLost: boolean;
+  /** KEY 1 of the two-key public-contact model (migration 0193). */
+  discloseCaretakerContactWhenLost: boolean;
 };
 
 type Props = {
@@ -113,6 +115,12 @@ type Props = {
   alertsOriginShelter: boolean;
   /** Owner-gate — org/vet viewers get the read-only variant (REQ-5.3). */
   isOwner: boolean;
+  /**
+   * KEY 2 of the two-key public-contact model: the active caretaker's display
+   * name IF they consented at invitation accept, null otherwise. Null hides the
+   * sixth disclosure row entirely — see LostDisclosureCard.
+   */
+  caretakerConsentName?: string | null;
 };
 
 export function LostCaseBlock({
@@ -123,6 +131,7 @@ export function LostCaseBlock({
   ownerFirstName,
   alertsOriginShelter,
   isOwner,
+  caretakerConsentName = null,
 }: Props) {
   // No open episode while status is still 'lost' — the auto-close cron
   // (ADR-18) never resets pets.status, so this is the STALE state, not the
@@ -143,6 +152,7 @@ export function LostCaseBlock({
     discloseEmailWhenLost: pet.discloseEmailWhenLost,
     discloseLastLocationWhenLost: pet.discloseLastLocationWhenLost,
     allowFinderFormWhenLost: pet.allowFinderFormWhenLost,
+    discloseCaretakerContactWhenLost: pet.discloseCaretakerContactWhenLost,
   };
 
   // Single source of truth for the public origin (task #43 audit #735: this
@@ -327,6 +337,7 @@ export function LostCaseBlock({
                   publicHref={publicHref}
                   ownerFirstName={ownerFirstName}
                   alertsOriginShelter={alertsOriginShelter}
+                  caretakerConsentName={caretakerConsentName}
                 />
               </div>
             </div>

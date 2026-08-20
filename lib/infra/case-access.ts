@@ -192,3 +192,45 @@ export async function canReadCase(detail: CaseDetail, viewer: CaseViewer | null)
 
   return false;
 }
+
+/**
+ * Does this viewer hold an ACTIVE `caretaker` ownership row on this pet?
+ *
+ * NOT an access check — it is the opposite. `canReadCase` has already said no,
+ * and this answers the follow-up question the caller needs before deciding HOW
+ * to say no: "is this a stranger, or the person currently caring for the
+ * animal?"
+ *
+ * WHY THE DISTINCTION IS WORTH A QUERY. Case reads are titular-only by design
+ * (design F2, accepted by the PO for v1): `can_read_case` grants the
+ * subject-pet branch on `role='owner'`, and widening a SECURITY DEFINER
+ * function that also governs welfare denuncias is a separate decision. But the
+ * caretaker SEES the case links — LostCaseBlock and the open-case badges render
+ * on the pet they are looking after — and every one of them used to land on
+ * notFound(). Telling somebody caring for an animal that its case does not
+ * exist is a lie with nothing on the other side of it. With this, the page can
+ * render the real answer: not available to caretakers, and here is what you can
+ * still do.
+ *
+ * `ended_at IS NULL` is load-bearing: once the arrangement closes the person is
+ * a stranger again and gets the ordinary 404.
+ */
+export async function holdsActiveCaretakerRow(
+  petId: string | null | undefined,
+  userId: string | null | undefined,
+): Promise<boolean> {
+  if (!petId || !userId) return false;
+  const [row] = await db
+    .select({ id: ownerships.id })
+    .from(ownerships)
+    .where(
+      and(
+        eq(ownerships.petId, petId),
+        eq(ownerships.ownerUserId, userId),
+        eq(ownerships.role, "caretaker"),
+        isNull(ownerships.endedAt),
+      ),
+    )
+    .limit(1);
+  return Boolean(row);
+}

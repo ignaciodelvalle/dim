@@ -8,7 +8,8 @@
 // CRITICAL: Every runtime export in a "use server" file must be an async function.
 
 import type { DisclosurePrefs } from "@/components/pet-profile/LostDisclosureCard";
-import { requirePetAccess } from "@/lib/infra/pet-access";
+import { requirePetAccess, requireTitularAccess } from "@/lib/infra/pet-access";
+import { disclosureKeyRequiresTitular } from "@/src/modules/pets/application/lost-mode/disclosure-scope";
 import { setPetDisclosurePrefs } from "@/src/modules/pets/application/lost-mode/set-pet-disclosure-prefs";
 
 export async function setPetDisclosurePrefsAction(
@@ -16,7 +17,22 @@ export async function setPetDisclosurePrefsAction(
   key: keyof DisclosurePrefs,
   next: boolean,
 ): Promise<void> {
-  const access = await requirePetAccess(publicToken);
+  // PER-KEY GUARD, not a blanket tightening (custodia-temporal T9.17).
+  //
+  // The five original toggles keep `requirePetAccess`, which a caretaker
+  // passes. That is pre-existing behaviour over the TITULAR's own name, phone,
+  // email and last-seen location, and narrowing it would also change what a
+  // foster and a shelter_custody holder can do — a different decision.
+  //
+  // `discloseCaretakerContactWhenLost` is KEY 1 of the two-key public-contact
+  // model. Its whole point is that neither party can publish the other's
+  // contact alone: the caretaker consents at accept (key 2), the titular
+  // decides whether to publish (key 1). A caretaker who could flip key 1 would
+  // hold both, and key 2 would stop meaning anything. The UI already hides the
+  // row from them; this is the half that survives a hand-crafted call.
+  const access = disclosureKeyRequiresTitular(key)
+    ? await requireTitularAccess(publicToken)
+    : await requirePetAccess(publicToken);
   if (!access.ok) throw new Error(access.error);
   return setPetDisclosurePrefs(access.pet.id, publicToken, key, next);
 }

@@ -42,6 +42,13 @@ export type DisclosurePrefs = {
   discloseEmailWhenLost: boolean;
   discloseLastLocationWhenLost: boolean;
   allowFinderFormWhenLost: boolean;
+  /**
+   * KEY 1 of the two-key public-contact model (`pets.disclose_caretaker_contact_when_lost`,
+   * migration 0193). Explicitly NOT a reuse of `disclosePhoneWhenLost`: that
+   * one governs the TITULAR's own number, and folding the two together would
+   * mean turning your own phone on silently publishes a third party's.
+   */
+  discloseCaretakerContactWhenLost: boolean;
 };
 
 interface Props {
@@ -64,6 +71,19 @@ interface Props {
    * alert that will not fire.
    */
   alertsOriginShelter: boolean;
+  /**
+   * KEY 2 of the two-key public-contact model: the active caretaker's display
+   * name when they consented at invitation accept, `null` in every other case
+   * (no caretaker, or a caretaker who declined).
+   *
+   * NULL HIDES THE ROW ENTIRELY, and that is the whole point. A switch that
+   * cannot change what the public sees is a lie in the shape of a control — the
+   * titular flips it, gets "Preferencia actualizada", and the credential still
+   * shows nothing, with no way to learn why. The PO accepted the cost of the
+   * two-key model (a caretaker who declines cannot be published); not rendering
+   * the row is how that cost is communicated.
+   */
+  caretakerConsentName?: string | null;
 }
 
 // Row descriptions double as the concrete preview of what the public sees
@@ -108,7 +128,22 @@ export function LostDisclosureCard({
   publicHref,
   ownerFirstName,
   alertsOriginShelter,
+  caretakerConsentName = null,
 }: Props) {
+  // The caretaker row is appended, never woven in: the five original rows keep
+  // their order and their copy, so an owner with no caretaker sees exactly the
+  // surface they saw before.
+  const rows: typeof ROWS = caretakerConsentName
+    ? [
+        ...ROWS,
+        {
+          key: "discloseCaretakerContactWhenLost",
+          label: "Contacto de tu cuidador/a",
+          description: `${caretakerConsentName} aceptó que su contacto aparezca. Se muestra solo mientras dure el cuidado y la mascota esté perdida.`,
+        },
+      ]
+    : ROWS;
+
   return (
     <section aria-labelledby="lp-discl-h">
       <div className="mb-3 flex items-baseline justify-between">
@@ -134,7 +169,7 @@ export function LostDisclosureCard({
       </div>
 
       <LnToggleGroup
-        items={ROWS.map((row) => ({
+        items={rows.map((row) => ({
           key: row.key,
           label: row.label,
           description:

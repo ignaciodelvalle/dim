@@ -20,7 +20,7 @@ describe("getCaretakerStateForPet", () => {
   it("reports no arrangement when the pet has no open grant", async () => {
     const state = await getCaretakerStateForPet("pet-1", deps());
 
-    expect(state).toEqual({ active: null, pending: null });
+    expect(state).toEqual({ active: null, pending: null, recentlyEnded: null });
   });
 
   it("reports the active caretaker with their display name and end date", async () => {
@@ -103,5 +103,109 @@ describe("getCaretakerStateForPet", () => {
     const state = await getCaretakerStateForPet("pet-1", deps(repo));
 
     expect(state.active?.caretakerName).toBe("Tu cuidador/a");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// THE POST-AUTO-END SLOT — the reason the termination design exists.
+//
+// When `ends_at` passes, the cron ends the grant, closes the ownership row and
+// appends `caretaker_ended{outcome:'expired'}`. Access is gone. THE ANIMAL IS
+// NOT NECESSARILY BACK. Nothing in the system knows where the dog physically
+// is, and the titular's cockpit must not imply otherwise — it must tell them
+// the arrangement lapsed and hand them the next move if it did not.
+//
+// This slot is deliberately NARROW. It surfaces the auto-expiry and nothing
+// else, because the other three outcomes are not news to the titular:
+// `revoked_by_owner` is their own act, `withdrawn_by_caretaker` and the
+// account-deactivation path already send them a notification at the moment it
+// happens. A banner for those would repeat, days later, something they were
+// already told.
+// ---------------------------------------------------------------------------
+describe("getCaretakerStateForPet — after an arrangement auto-ended", () => {
+  const ENDED_AT = new Date("2026-08-24T03:00:00Z"); // one day before NOW
+
+  function endedGrant(overrides: Record<string, unknown> = {}) {
+    return {
+      id: "grant-1",
+      publicToken: "CG-abc123",
+      caretakerUserId: CARETAKER_ID,
+      endsAt: new Date("2026-08-23T23:59:59.999-03:00"),
+      endedAt: ENDED_AT,
+      endedReason: "expired",
+      ...overrides,
+    };
+  }
+
+  it("surfaces the lapsed arrangement so the cockpit can explain the absence", async () => {
+    const repo = makeFakeRepo({
+      findLastEndedGrantForPet: vi.fn().mockResolvedValue(endedGrant()),
+    });
+
+    const state = await getCaretakerStateForPet("pet-1", deps(repo));
+
+    expect(state.recentlyEnded).toMatchObject({
+      caretakerName: "Ana Pérez",
+      outcome: "expired",
+    });
+    expect(state.recentlyEnded?.endsAt).toEqual(new Date("2026-08-23T23:59:59.999-03:00"));
+  });
+
+  it("stays quiet when the titular ended it themselves", async () => {
+    const repo = makeFakeRepo({
+      findLastEndedGrantForPet: vi
+        .fn()
+        .mockResolvedValue(endedGrant({ endedReason: "revoked_by_owner" })),
+    });
+
+    expect((await getCaretakerStateForPet("pet-1", deps(repo))).recentlyEnded).toBeNull();
+  });
+
+  it("stays quiet when the caretaker withdrew — they were already notified", async () => {
+    const repo = makeFakeRepo({
+      findLastEndedGrantForPet: vi
+        .fn()
+        .mockResolvedValue(endedGrant({ endedReason: "withdrawn_by_caretaker" })),
+    });
+
+    expect((await getCaretakerStateForPet("pet-1", deps(repo))).recentlyEnded).toBeNull();
+  });
+
+  it("stops nagging after the window closes", async () => {
+    // A banner that never expires becomes furniture, and furniture is not read.
+    const repo = makeFakeRepo({
+      findLastEndedGrantForPet: vi
+        .fn()
+        .mockResolvedValue(endedGrant({ endedAt: new Date("2026-06-01T03:00:00Z") })),
+    });
+
+    expect((await getCaretakerStateForPet("pet-1", deps(repo))).recentlyEnded).toBeNull();
+  });
+
+  it("yields to a LIVE arrangement — one caretaker story on screen at a time", async () => {
+    // A pet whose old grant lapsed and who already has a new caretaker should
+    // read as "al cuidado de X", not as an unresolved return plus a new one.
+    const repo = makeFakeRepo({
+      findOpenGrantsForPet: vi.fn().mockResolvedValue([makeAcceptedGrant()]),
+      findLastEndedGrantForPet: vi.fn().mockResolvedValue(endedGrant()),
+    });
+
+    const state = await getCaretakerStateForPet("pet-1", deps(repo));
+
+    expect(state.active).not.toBeNull();
+    expect(state.recentlyEnded).toBeNull();
+  });
+
+  it("does not query the ended grant at all when one is already active", async () => {
+    // Cheap read, but it runs on every profile load of every pet.
+    const findLastEndedGrantForPet = vi.fn().mockResolvedValue(endedGrant());
+    const repo = makeFakeRepo({
+      findOpenGrantsForPet: vi.fn().mockResolvedValue([makeAcceptedGrant()]),
+      findLastEndedGrantForPet,
+    });
+
+    await getCaretakerStateForPet("pet-1", deps(repo));
+
+    expect(findLastEndedGrantForPet).not.toHaveBeenCalled();
   });
 });

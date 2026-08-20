@@ -36,6 +36,7 @@ import { CoordError, normalizeLocationForWrite } from "@/lib/domain/location-nor
 import { parseLocationFromFormData } from "@/lib/domain/location-value";
 import { checkOccurredAtPlausible } from "@/lib/events/plausibility";
 import { requireUserOrRedirect } from "@/lib/infra/auth-guards";
+import { announceCaretakerDeathRecord } from "@/lib/infra/caretaker-activity-alert";
 import { requireAlivePetAccess, requirePetAccess } from "@/lib/infra/pet-access";
 import type { SupabaseServerClient } from "@/lib/infra/pet-access";
 import { getProfileCached } from "@/lib/infra/request-cache";
@@ -1769,6 +1770,9 @@ export async function createDeathRecordAction(
       error: `No se pudo registrar el fallecimiento: ${result.error}`,
     };
   }
+
+  // T9.13/T9.14 — gate, copy and failure policy in lib/infra/caretaker-activity-alert.ts.
+  await announceCaretakerDeathRecord(access, result.insertedEventId);
 
   return { error: null, ok: true, redirectTo: `/mis-mascotas/${publicToken}` };
 }

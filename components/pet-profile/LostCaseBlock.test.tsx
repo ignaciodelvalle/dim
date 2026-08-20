@@ -25,6 +25,7 @@ const pet: LostCaseBlockPet = {
   discloseEmailWhenLost: false,
   discloseLastLocationWhenLost: true,
   allowFinderFormWhenLost: true,
+  discloseCaretakerContactWhenLost: false,
 };
 
 const episode = {

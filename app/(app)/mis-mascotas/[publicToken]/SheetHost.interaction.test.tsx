@@ -89,6 +89,7 @@ const baseSheetMounterProps = {
     discloseEmailWhenLost: false,
     discloseLastLocationWhenLost: true,
     allowFinderFormWhenLost: true,
+    discloseCaretakerContactWhenLost: false,
   },
   ownerFirstName: "Martín",
   alertsOriginShelter: false,

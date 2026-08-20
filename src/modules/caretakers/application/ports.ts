@@ -105,12 +105,39 @@ export type UpdateGrantStatusArgs = {
 /** One accepted grant that has passed its `ends_at`, as the cron sees it. */
 export type ExpirableGrant = GrantRow & { ownershipId: string };
 
+/**
+ * The last arrangement on a pet that actually ENDED, narrowed to what the
+ * titular's cockpit needs to explain the absence.
+ *
+ * Separate from `GrantRow` because `ended_at` / `ended_reason` are only ever
+ * set on a terminal row: widening `GrantRow` with two fields that are NULL for
+ * every live grant would make every use-case read them defensively.
+ */
+export type EndedGrant = {
+  id: string;
+  publicToken: string;
+  caretakerUserId: string | null;
+  /** When the arrangement was DUE to end — what the copy shows. */
+  endsAt: Date;
+  /** When it actually closed. Drives the "is this still news?" window. */
+  endedAt: Date;
+  endedReason: GrantEndOutcome | null;
+};
+
 export interface CaretakersRepositoryPort {
   // --- reads ---------------------------------------------------------------
   findGrantByToken(publicToken: string): Promise<GrantRow | null>;
   findGrantByIdForUpdate(grantId: string, tx: unknown): Promise<GrantRow | null>;
   /** The `pending` OR `accepted` grant for a pet, if any. At most one of each. */
   findOpenGrantsForPet(petId: string): Promise<GrantRow[]>;
+  /**
+   * The most recently ENDED arrangement on this pet, or null.
+   *
+   * `ended` only — not `rejected`/`cancelled`/`expired`. Those three never
+   * became an arrangement, so there is no access to have lapsed and nothing for
+   * the cockpit to explain.
+   */
+  findLastEndedGrantForPet(petId: string): Promise<EndedGrant | null>;
   findPetSummaryById(petId: string): Promise<PetSummary | null>;
   findUserIdByEmail(email: string): Promise<string | null>;
   findDisplayName(userId: string): Promise<string | null>;

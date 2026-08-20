@@ -34,10 +34,44 @@ export type PendingCaretakerInvitation = {
   endsAt: Date;
 };
 
+/**
+ * An arrangement that ENDED ON ITS OWN, recently enough to still be news.
+ *
+ * THE POINT OF THIS SLOT. `ends_at` passing removes ACCESS. It says nothing
+ * whatsoever about where the animal is — the cron reads a clock, not a
+ * doorstep. A cockpit that simply dropped the caretaker banner would leave the
+ * titular to infer "she brought Pampa back", which is a conclusion the system
+ * has no evidence for and the worst possible one to be wrong about.
+ *
+ * Only `expired` reaches here. The other outcomes are not news:
+ *   - `revoked_by_owner`      — the titular did it themselves, minutes ago.
+ *   - `withdrawn_by_caretaker` and the account-deactivation path — both send
+ *     the titular a notification at the moment they happen.
+ *   - `returned`              — the animal IS back; there is nothing to resolve.
+ */
+export type RecentlyEndedCaretaker = {
+  caretakerName: string;
+  /** When the arrangement was due to end — the date the copy shows. */
+  endsAt: Date;
+  /** When it actually closed. */
+  endedAt: Date;
+  outcome: "expired";
+};
+
 export type CaretakerState = {
   active: ActiveCaretaker | null;
   pending: PendingCaretakerInvitation | null;
+  recentlyEnded: RecentlyEndedCaretaker | null;
 };
+
+/**
+ * How long the lapsed-arrangement notice stays up.
+ *
+ * Bounded on purpose: a banner that never goes away stops being read, and a
+ * month is long enough for a return to be coordinated or a claim to be started.
+ * After that the arrangement is history, and history lives in the spine.
+ */
+export const RECENT_AUTO_END_WINDOW_DAYS = 30;
 
 export async function getCaretakerStateForPet(petId: string, deps: Deps): Promise<CaretakerState> {
   const { repo } = deps;
@@ -79,5 +113,33 @@ export async function getCaretakerStateForPet(petId: string, deps: Deps): Promis
       }
     : null;
 
-  return { active, pending };
+  // Only asked when nothing is running. A live arrangement is the answer to
+  // "who is looking after this animal?", and stacking last month's lapse
+  // underneath it would give the cockpit two caretaker stories at once — plus
+  // an extra query on every profile load of every pet, for a banner that would
+  // not render anyway.
+  const recentlyEnded = active ? null : await resolveRecentlyEnded(petId, deps, now);
+
+  return { active, pending, recentlyEnded };
+}
+
+async function resolveRecentlyEnded(
+  petId: string,
+  deps: Deps,
+  now: Date,
+): Promise<RecentlyEndedCaretaker | null> {
+  const ended = await deps.repo.findLastEndedGrantForPet(petId);
+  if (!ended || ended.endedReason !== "expired") return null;
+
+  const ageMs = now.getTime() - ended.endedAt.getTime();
+  if (ageMs > RECENT_AUTO_END_WINDOW_DAYS * 24 * 60 * 60 * 1000) return null;
+
+  return {
+    caretakerName: ended.caretakerUserId
+      ? ((await deps.repo.findDisplayName(ended.caretakerUserId)) ?? "Tu cuidador/a")
+      : "Tu cuidador/a",
+    endsAt: ended.endsAt,
+    endedAt: ended.endedAt,
+    outcome: "expired",
+  };
 }

@@ -155,6 +155,13 @@ type Props = {
   /** Owner first name for LostDisclosureCard's preview copy. */
   ownerFirstName: string;
   /**
+   * KEY 2 of the two-key public-contact model — the active caretaker's display
+   * name when they consented at invitation accept, null otherwise. Null hides
+   * the sixth disclosure row (see LostDisclosureCard); a switch that cannot
+   * change what the public sees is a lie in the shape of a control.
+   */
+  caretakerConsentName?: string | null;
+  /**
    * A5 — a found-pet report on this pet also alerts the shelter it came out of.
    * Disclosed inside LostDisclosureCard; resolved server-side with the
    * notifier's own predicate (lib/infra/origin-shelter-alert.ts).
@@ -188,6 +195,7 @@ export function SheetMounter({
   ownerFirstName,
   alertsOriginShelter,
   showCheckinOption,
+  caretakerConsentName = null,
 }: Props) {
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -419,6 +427,7 @@ export function SheetMounter({
           publicHref={`/p/${petToken}`}
           ownerFirstName={ownerFirstName}
           alertsOriginShelter={alertsOriginShelter}
+          caretakerConsentName={caretakerConsentName}
         />
       </Sheet>
     );

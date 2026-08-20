@@ -56,6 +56,7 @@
 import { isTransitRole } from "@/components/PetCard.helpers";
 import { PetOpenCasesSection } from "@/components/PetOpenCasesSection";
 import { PregnancyInProgressCard } from "@/components/PregnancyInProgressCard";
+import { CaretakerBanner } from "@/components/pet-profile/CaretakerBanner";
 import { CredentialFace } from "@/components/pet-profile/CredentialFace";
 import {
   LibretaFace,
@@ -70,6 +71,7 @@ import {
   TabErrorState,
   TabLoadingSkeleton,
 } from "@/components/pet-profile/PetDetailTabsPanel";
+import { RabiesObservationBanner, TransitBanner } from "@/components/pet-profile/PetProfileBanners";
 import {
   type AvatarSwitcherPet,
   PetSwitcherAvatars,
@@ -136,25 +138,24 @@ import {
 import { PET_SITUATIONS, derivePetSituation } from "@/lib/ui/pet-situation";
 import {
   ageFromDateOfBirth,
-  formatDateShort,
-  pluralizeEs,
   sexLabel,
   situationLabelForSex,
   speciesLabel,
 } from "@/lib/utils/format";
+import {
+  type CaretakerState,
+  getCaretakerStateForPet,
+} from "@/src/modules/caretakers/application/get-caretaker-state-for-pet";
+import { CaretakersRepository } from "@/src/modules/caretakers/infrastructure/caretakers-repository";
 import { getLibretaFaceData } from "@/src/modules/pets/application/tab-data/get-libreta-face-data";
 import { fetchPendingReturnProposalForOwner } from "@/src/modules/return-to-owner/application/proposal-queries";
-import {
-  isObservationOpen,
-  resolveObservationWindowDays,
-} from "@/src/modules/surveillance/domain/rabies-observation";
+import { isObservationOpen } from "@/src/modules/surveillance/domain/rabies-observation";
 import { and, asc, desc, eq, gt, inArray, isNull, notInArray } from "drizzle-orm";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import QRCode from "qrcode";
 import { Suspense } from "react";
 import { SheetMounter } from "./SheetMounter";
-import { ConvertFosterButton } from "./_components/ConvertFosterButton";
 import { resolveCaptureIntentUrl } from "./anotar/handoff";
 
 // ---------------------------------------------------------------------------
@@ -432,6 +433,16 @@ export default async function PetDetailPage({
   // (SheetMounter → CaptureOptionsList). Same predicate the check-in page
   // 404s on; false for org viewers (anotar is owner-only anyway).
   let showCheckinOption = false;
+  // custodia-temporal T9.5/T9.6 (which absorb T7.6): the titular's caretaker
+  // cockpit. Read DIRECTLY from `caretakers/application` — `app/**` is outside
+  // the module graph, so this creates no cross-module edge. Routing it through
+  // a `pets` use-case is the exact import that would invert the dependency
+  // fence (design H); do not "tidy" it there.
+  //
+  // TITULAR-ONLY, and not merely because the caretaker does not need it: it
+  // names the caretaker, and a foster or shelter_custody holder has no business
+  // learning who else the owner trusts with the animal.
+  let caretakerState: CaretakerState | null = null;
 
   if (accessPath === "owner") {
     // "Confirmar devolución": only the legal owner, only when a pending return
@@ -472,21 +483,47 @@ export default async function PetDetailPage({
     // Deceased pets never mount the anotar sheet (REQ-9.3), so skip the read.
     const adoptedQuery = isDeceased ? Promise.resolve(false) : isPetAdoptedByUser(pet.id, user.id);
 
-    const [returnProposalResult, [profileRow], chapitaState, channels, adoptedByViewer] =
-      await Promise.all([
-        returnProposalQuery,
-        contactsQuery,
-        chapitaQuery,
-        physicalCredentialChannelsQuery,
-        adoptedQuery,
-      ]);
+    // A deceased pet has no caretaker story left to tell, and the read costs
+    // one indexed query plus (only when something is open) a display-name
+    // lookup — so it joins this fan-out rather than adding a serial await.
+    const caretakerQuery =
+      ownershipRole === "owner" && !isDeceased
+        ? getCaretakerStateForPet(pet.id, { repo: CaretakersRepository, now: () => new Date() })
+        : Promise.resolve(null);
+
+    const [
+      returnProposalResult,
+      [profileRow],
+      chapitaState,
+      channels,
+      adoptedByViewer,
+      caretakerResult,
+    ] = await Promise.all([
+      returnProposalQuery,
+      contactsQuery,
+      chapitaQuery,
+      physicalCredentialChannelsQuery,
+      adoptedQuery,
+      caretakerQuery,
+    ]);
 
     hasPendingReturnProposal = returnProposalResult;
     viewerContacts = profileRow ?? null;
     chapitaData = chapitaState;
     physicalCredentialChannels = channels;
     showCheckinOption = adoptedByViewer;
+    caretakerState = caretakerResult;
   }
+
+  // KEY 2 of the two-key public-contact model, resolved once for every surface
+  // that offers KEY 1. Non-null ONLY when an arrangement is active AND the
+  // caretaker consented at invitation accept; null in every other case, which
+  // is what hides the sixth disclosure row entirely. See LostDisclosureCard for
+  // why an ungated switch would be a lie in the shape of a control.
+  const caretakerConsentName =
+    caretakerState?.active?.publicContactConsentAt != null
+      ? caretakerState.active.caretakerName
+      : null;
 
   // Parallel fan-out (perf audit 2026-07-19 qw#3): these reads are independent —
   // they only need `pet` / `user` / `accessPath`, all resolved above — but ran as
@@ -796,6 +833,7 @@ export default async function PetDetailPage({
           ownerFirstName={ownerFirstName}
           alertsOriginShelter={alertsOriginShelter}
           isOwner={isOwner}
+          caretakerConsentName={caretakerConsentName}
         />
       ),
     });
@@ -825,6 +863,28 @@ export default async function PetDetailPage({
           petName={pet.name}
           petPublicToken={pet.publicToken}
           canManageFosterActions={ownershipRole === "foster"}
+        />
+      ),
+    });
+  }
+  // Caretaker cockpit (T9.5/T9.6, absorbing T7.6). Placed after tránsito and
+  // before open-cases: a lapsed arrangement with an animal possibly still away
+  // outranks a case in the reading order, and an active one is context the
+  // owner needs before anything below it makes sense. The component returns
+  // null for an empty state, so the push is gated on it having something to
+  // say — an empty node here would add a divider to the strip.
+  if (
+    caretakerState &&
+    (caretakerState.active || caretakerState.pending || caretakerState.recentlyEnded)
+  ) {
+    petAlerts.push({
+      id: "caretaker",
+      tone: caretakerState.recentlyEnded ? "warning" : "info",
+      node: (
+        <CaretakerBanner
+          petName={pet.name}
+          petPublicToken={pet.publicToken}
+          state={caretakerState}
         />
       ),
     });
@@ -1268,10 +1328,12 @@ export default async function PetDetailPage({
                 discloseEmailWhenLost: pet.discloseEmailWhenLost,
                 discloseLastLocationWhenLost: pet.discloseLastLocationWhenLost,
                 allowFinderFormWhenLost: pet.allowFinderFormWhenLost,
+                discloseCaretakerContactWhenLost: pet.discloseCaretakerContactWhenLost,
               }
             : null
         }
         ownerFirstName={ownerFirstName}
+        caretakerConsentName={caretakerConsentName}
       />
 
       {/* PostCreateModal was deleted (flow audit 2026-07-03 + PO decision):
@@ -1345,106 +1407,5 @@ function FormerOwnerCustodyReadOnlyView({
         {breedLine && <p className="text-md text-[var(--color-ln-mute)]">{breedLine}</p>}
       </div>
     </div>
-  );
-}
-
-// ---------------------------------------------------------------------------
-// Banners — PRESERVED
-// ---------------------------------------------------------------------------
-
-type RabiesObservationBannerProps = {
-  pet: { name: string; publicToken: string };
-  events: Array<{ id: string; eventType: string; occurredAt: Date | string; payload: unknown }>;
-};
-
-/**
- * Owner-facing observation banner.
- *
- * 2026-08-17: the "Confirmar fin de observación" button is GONE. It called
- * ownerCloseRabiesObservationAction, which wrote outcome='negative' on the
- * State's own record — an owner declaring that the animal which bit somebody was
- * clinically clear, gated only on the window having elapsed and on that same
- * owner not having self-reported a symptom. What replaces it is not another
- * button: it is the truth that the owner cannot close this, and the instruction
- * for who can (PO decision, engram roadmap/decisiones-legales-flujos-2026-08-17).
- *
- * The window is read from the started event's `observation_days` (the value
- * actually resolved for this jurisdiction). Older observations have no such
- * field, and the copy then quotes only the deadline DATE rather than inventing
- * the national 10.
- */
-function RabiesObservationBanner({ pet, events }: RabiesObservationBannerProps) {
-  const startedEvent = events.find((e) => e.eventType === "rabies_observation_started");
-  const startedPayload = (startedEvent?.payload ?? {}) as Record<string, unknown>;
-  const observationUntilRaw = startedPayload.observation_until as string | undefined;
-  const observationUntil = observationUntilRaw ? new Date(observationUntilRaw) : null;
-  const windowDays = resolveObservationWindowDays(startedPayload.observation_days);
-
-  const biteEvent = events.find(
-    (e) =>
-      e.eventType === "incident_reported" &&
-      (e.payload as Record<string, unknown> | null)?.incident_type === "bite_inflicted",
-  );
-  const biteDate = biteEvent ? new Date(biteEvent.occurredAt) : null;
-
-  const periodClosed =
-    observationUntil !== null &&
-    Number.isFinite(observationUntil.getTime()) &&
-    observationUntil <= new Date();
-
-  return (
-    <section className="rounded-[var(--radius-sm)] border border-[var(--color-ln-warn-100)] bg-[var(--color-ln-warn-050)] px-4 py-3.5 space-y-[10px]">
-      <p className="font-semibold text-md text-[var(--color-ln-warn)]">Vigilancia por mordedura</p>
-      <p className="text-md text-[var(--color-ln-warn)]">
-        {biteDate
-          ? `Por la mordedura del ${formatDateShort(biteDate)}, `
-          : "Por una mordedura reportada recientemente, "}
-        {pet.name} está en observación obligatoria
-        {windowDays === null ? "" : ` de ${windowDays} ${pluralizeEs(windowDays, "día")}`}.
-        {observationUntil && ` Cierre estimado: ${formatDateShort(observationUntil)}.`}
-      </p>
-      <p className="text-sm text-[var(--color-ln-warn)]">
-        Si {pet.name} muestra salivación excesiva, agresividad inusual, parálisis o cambios bruscos
-        de comportamiento, consultá al veterinario de inmediato.
-      </p>
-      {periodClosed && (
-        <p className="text-sm text-[var(--color-ln-warn)]">
-          El período ya se cumplió. El cierre lo registra un veterinario matriculado o la autoridad
-          sanitaria de tu localidad — no podés cerrarlo vos, porque el resultado de la observación
-          es un dato clínico. Pedíselo a tu veterinario o a la autoridad sanitaria.
-        </p>
-      )}
-    </section>
-  );
-}
-
-function TransitBanner({
-  petName,
-  petPublicToken,
-  canManageFosterActions,
-}: {
-  petName: string;
-  petPublicToken: string;
-  /** True only for an org-linked `role='foster'` row — see call site. */
-  canManageFosterActions: boolean;
-}) {
-  return (
-    <section className="rounded-[var(--radius-sm)] border border-[var(--color-ln-warn-100)] bg-[var(--color-ln-warn-050)] px-4 py-3.5 space-y-[10px]">
-      <p className="text-md text-[var(--color-ln-warn)]">
-        Estás cuidando a <strong>{petName}</strong> en tránsito. La libreta sanitaria que armes acá
-        viaja con la mascota.
-      </p>
-      {canManageFosterActions && (
-        <div className="flex flex-wrap gap-2">
-          <ConvertFosterButton petPublicToken={petPublicToken} petName={petName} />
-          <Link
-            href={`/mis-mascotas/${petPublicToken}/buscar-hogar`}
-            className="rounded-[var(--radius-sm)] border border-[var(--color-ln-warn-100)] px-2.5 py-1.5 text-md text-[var(--color-ln-warn)] no-underline hover:bg-white transition-colors"
-          >
-            Buscar nuevo hogar
-          </Link>
-        </div>
-      )}
-    </section>
   );
 }

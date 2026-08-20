@@ -46,6 +46,7 @@ import {
   fetchOpenWorkflows,
   fetchPreviousWorkflows,
 } from "@/lib/analytics/owner-dashboard";
+import { ownerPetCountLabel, splitOwnerPetCounts } from "@/lib/domain/owner-pet-counts";
 import { petUrgencyRank } from "@/lib/domain/pet-urgency-rank";
 import { splitProximosReminders } from "@/lib/domain/vaccine-reminder-state";
 import { requireUserOrRedirect } from "@/lib/infra/auth-guards";
@@ -276,9 +277,18 @@ export default async function MisMascotasPage({
           <h1 className="m-0 font-ln-serif text-4xl font-semibold leading-tight tracking-[-0.02em] text-[var(--color-ln-ink)]">
             Mis mascotas
           </h1>
+          {/* custodia-temporal T9.9/T9.10 — the count SPLITS the moment a
+              caretaker arrangement exists. Both this list and the count behind
+              it join "any active ownership row, no role filter": right for the
+              list (the animal must appear for whoever is caring for it), a lie
+              for the total, which sits under a heading that says "Mis
+              mascotas". Owners with no arrangement read exactly what they read
+              before. */}
           <p className="mt-1.5 text-md text-[var(--color-ln-mute)]">
-            {activePets.length} {pluralizeEs(activePets.length, "activa")}
-            {deceasedPets.length > 0 && ` · ${deceasedPets.length} en memoria`}
+            {ownerPetCountLabel({
+              ...splitOwnerPetCounts(activePets),
+              deceasedCount: deceasedPets.length,
+            })}
           </p>
         </div>
         {/* "Registrar" — the ONE verb for this act (D.8, ratified as D.9 and
@@ -407,7 +417,13 @@ export default async function MisMascotasPage({
                 photoSize={72}
                 href={`/mis-mascotas/${pet.publicToken}`}
                 nextLine={
-                  isTransitRole(ownershipRole) ? (
+                  // Two DIFFERENT arrangements, two different badges. A
+                  // caretaker row used to render with none at all, which is how
+                  // somebody else's animal ended up sitting unmarked in the
+                  // middle of your own list.
+                  ownershipRole === "caretaker" ? (
+                    <LnBadge variant="info">Al cuidado</LnBadge>
+                  ) : isTransitRole(ownershipRole) ? (
                     <LnBadge variant="warning">En tránsito</LnBadge>
                   ) : undefined
                 }

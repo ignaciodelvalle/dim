@@ -64,6 +64,7 @@ export function makeFakeRepo(overrides: Partial<Record<string, unknown>> = {}): 
       .fn()
       .mockImplementation(async (grantId: string) => makeAcceptedGrant({ id: grantId })),
     findOpenGrantsForPet: vi.fn().mockResolvedValue([]),
+    findLastEndedGrantForPet: vi.fn().mockResolvedValue(null),
     findPetSummaryById: vi.fn().mockResolvedValue(PET),
     findUserIdByEmail: vi.fn().mockResolvedValue(null),
     findDisplayName: vi.fn().mockResolvedValue("Ana Pérez"),

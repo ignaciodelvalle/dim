@@ -25,7 +25,7 @@
 // __tests__/check-titular-gate.test.ts pins it so a future rename cannot
 // silently re-open the blind spot.
 
-import { and, asc, desc, eq, isNull, lte, sql } from "drizzle-orm";
+import { and, asc, desc, eq, isNotNull, isNull, lte, sql } from "drizzle-orm";
 
 import { attachments, db, ownerships, petCaretakerGrants, petEvents, pets, profiles } from "@/db";
 import { validateEventPayload } from "@/lib/events/event-schemas";
@@ -34,12 +34,14 @@ import type {
   AcceptGrantArgs,
   CaretakersRepositoryPort,
   EndGrantArgs,
+  EndedGrant,
   ExpirableGrant,
   GrantRow,
   InsertGrantArgs,
   PetSummary,
   UpdateGrantStatusArgs,
 } from "../application/ports";
+import type { GrantEndOutcome } from "../domain/types";
 
 type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0];
 type DbOrTx = typeof db | Tx;
@@ -119,6 +121,44 @@ export const CaretakersRepository = {
       )
       .orderBy(desc(petCaretakerGrants.createdAt));
     return rows.map(toGrantRow);
+  },
+
+  /**
+   * The last arrangement that actually ended on this pet.
+   *
+   * `status='ended'` only. `rejected`/`cancelled`/`expired` are invitation
+   * outcomes: nobody ever had access, so there is nothing for the titular's
+   * cockpit to explain the absence of.
+   */
+  async findLastEndedGrantForPet(petId: string): Promise<EndedGrant | null> {
+    const [row] = await db
+      .select({
+        id: petCaretakerGrants.id,
+        publicToken: petCaretakerGrants.publicToken,
+        caretakerUserId: petCaretakerGrants.caretakerUserId,
+        endsAt: petCaretakerGrants.endsAt,
+        endedAt: petCaretakerGrants.endedAt,
+        endedReason: petCaretakerGrants.endedReason,
+      })
+      .from(petCaretakerGrants)
+      .where(
+        and(
+          eq(petCaretakerGrants.petId, petId),
+          eq(petCaretakerGrants.status, "ended"),
+          isNotNull(petCaretakerGrants.endedAt),
+        ),
+      )
+      .orderBy(desc(petCaretakerGrants.endedAt))
+      .limit(1);
+    if (!row?.endedAt) return null;
+    return {
+      id: row.id,
+      publicToken: row.publicToken,
+      caretakerUserId: row.caretakerUserId,
+      endsAt: row.endsAt,
+      endedAt: row.endedAt,
+      endedReason: (row.endedReason as GrantEndOutcome | null) ?? null,
+    };
   },
 
   async findPetSummaryById(petId: string): Promise<PetSummary | null> {

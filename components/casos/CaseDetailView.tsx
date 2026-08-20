@@ -23,6 +23,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
+import { CaseNotForCaretaker } from "@/components/casos/CaseNotForCaretaker";
 import { CaseOperatorActions } from "@/components/casos/CaseOperatorActions";
 import { casePetLink } from "@/components/casos/case-pet-link";
 import { shouldRedactPetName } from "@/components/casos/pet-name-redaction";
@@ -36,7 +37,7 @@ import {
 import type { EventType } from "@/db/schema";
 import { getNormativesForCase } from "@/lib/domain/case-normatives";
 import { caseTimelineSummary } from "@/lib/events/events";
-import { canReadCase } from "@/lib/infra/case-access";
+import { canReadCase, holdsActiveCaretakerRow } from "@/lib/infra/case-access";
 import { getCaseDetailByPublicCode } from "@/lib/infra/case-queries";
 import { getJurisdictionsCached, getProfileCached } from "@/lib/infra/request-cache";
 import { petPhotoUrl } from "@/lib/infra/storage";
@@ -85,7 +86,28 @@ export async function CaseDetailView({ publicCode, casosHref }: CaseDetailViewPr
     detail,
     viewerUserId && viewerRole ? { userId: viewerUserId, role: viewerRole, jurisdictions } : null,
   );
-  if (!allowed) notFound();
+  if (!allowed) {
+    // custodia-temporal T9.11/T9.12 — the ONE denial that must not be a 404.
+    //
+    // Cases are titular-only in v1 (design F2): the subject-pet branch of
+    // canReadCase requires `role='owner'`. A CARETAKER is denied by that rule
+    // and yet sees the links — LostCaseBlock and the open-case badges render on
+    // the pet they are looking after — so every one of them landed here and
+    // 404'd. Telling the person currently caring for an animal that its case
+    // does not exist is false, unrecoverable, and reads as a broken product.
+    //
+    // Case existence still never leaks: this branch requires a LIVE caretaker
+    // ownership row on this exact pet. Everyone else keeps the 404.
+    if (await holdsActiveCaretakerRow(detail.pet?.id, viewerUserId)) {
+      return (
+        <CaseNotForCaretaker
+          petPublicToken={detail.pet?.publicToken ?? null}
+          petName={detail.pet?.name ?? null}
+        />
+      );
+    }
+    notFound();
+  }
 
   // Lote B3 — an AUTHORITY reading a case detail is a PII read and leaves a
   // pii_queried trail. Gated to admin/govt only: this same component renders

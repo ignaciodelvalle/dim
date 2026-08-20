@@ -28,6 +28,7 @@ const prefs = {
   discloseEmailWhenLost: false,
   discloseLastLocationWhenLost: false,
   allowFinderFormWhenLost: false,
+  discloseCaretakerContactWhenLost: false,
 };
 
 beforeEach(() => {
@@ -144,4 +145,113 @@ it("says nothing about shelters for a pet with no origin shelter", () => {
     />,
   );
   expect(screen.queryByText(/refugio/i)).toBeNull();
+});
+
+// ---------------------------------------------------------------------------
+// KEY 1 OF THE TWO-KEY PUBLIC-CONTACT MODEL (PO decision 2, 2026-08-19).
+//
+// Publishing a caretaker's phone number on an unauthenticated page is the
+// titular consenting on somebody ELSE's behalf. So it takes two keys:
+//
+//   key 2 — the caretaker's, captured at invitation accept
+//           (`pet_caretaker_grants.public_contact_consent_at`);
+//   key 1 — the titular's, this row (`pets.disclose_caretaker_contact_when_lost`,
+//           migration 0193), off by default like its five siblings.
+//
+// THE RENDER GATE IS THE PART THAT MATTERS. Without key 2 the row must not
+// appear AT ALL. A switch that cannot do anything is a lie in the shape of a
+// control: the titular flips it, the page says "Preferencia actualizada", and
+// the public credential shows nothing — with no way to find out why. The PO
+// approved the two-key shape knowing its cost (if the caretaker declines, the
+// titular simply cannot publish); hiding the row is how that cost is told.
+// ---------------------------------------------------------------------------
+
+it("does not render the caretaker row when there is no caretaker at all", () => {
+  render(
+    <LostDisclosureCard
+      prefs={prefs}
+      toggleAction={vi.fn()}
+      publicHref="/p/DIM-TEST-0001"
+      ownerFirstName="Nacho"
+      alertsOriginShelter={false}
+    />,
+  );
+  expect(screen.queryByRole("switch", { name: /cuidador/i })).toBeNull();
+});
+
+it("does not render the caretaker row when the caretaker has NOT consented", () => {
+  // Key 2 absent. This is the case the whole gate exists for.
+  render(
+    <LostDisclosureCard
+      prefs={prefs}
+      toggleAction={vi.fn()}
+      publicHref="/p/DIM-TEST-0001"
+      ownerFirstName="Nacho"
+      alertsOriginShelter={false}
+      caretakerConsentName={null}
+    />,
+  );
+  expect(screen.queryByRole("switch", { name: /cuidador/i })).toBeNull();
+});
+
+it("renders the caretaker row once BOTH keys are possible, off by default", () => {
+  render(
+    <LostDisclosureCard
+      prefs={prefs}
+      toggleAction={vi.fn()}
+      publicHref="/p/DIM-TEST-0001"
+      ownerFirstName="Nacho"
+      alertsOriginShelter={false}
+      caretakerConsentName="Ana"
+    />,
+  );
+  const row = screen.getByRole("switch", { name: /cuidador/i });
+  expect(row).toBeInTheDocument();
+  expect(row).toHaveAttribute("aria-checked", "false");
+});
+
+it("names the caretaker, so the titular knows WHOSE contact they are publishing", () => {
+  render(
+    <LostDisclosureCard
+      prefs={prefs}
+      toggleAction={vi.fn()}
+      publicHref="/p/DIM-TEST-0001"
+      ownerFirstName="Nacho"
+      alertsOriginShelter={false}
+      caretakerConsentName="Ana"
+    />,
+  );
+  expect(screen.getByText(/Ana/)).toBeInTheDocument();
+});
+
+it("writes the caretaker key through the same bound action as its siblings", async () => {
+  const toggleAction = vi.fn().mockResolvedValue(undefined);
+  render(
+    <LostDisclosureCard
+      prefs={prefs}
+      toggleAction={toggleAction}
+      publicHref="/p/DIM-TEST-0001"
+      ownerFirstName="Nacho"
+      alertsOriginShelter={false}
+      caretakerConsentName="Ana"
+    />,
+  );
+  fireEvent.click(screen.getByRole("switch", { name: /cuidador/i }));
+  await waitFor(() =>
+    expect(toggleAction).toHaveBeenCalledWith("discloseCaretakerContactWhenLost", true),
+  );
+});
+
+it("leaves the five original rows untouched — this is an addition, not a redesign", () => {
+  render(
+    <LostDisclosureCard
+      prefs={prefs}
+      toggleAction={vi.fn()}
+      publicHref="/p/DIM-TEST-0001"
+      ownerFirstName="Nacho"
+      alertsOriginShelter={false}
+      caretakerConsentName="Ana"
+    />,
+  );
+  expect(screen.getAllByRole("switch")).toHaveLength(6);
 });
