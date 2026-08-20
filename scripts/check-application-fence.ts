@@ -194,7 +194,11 @@ export function unsortedOrDuplicate(include: string[]): {
 } {
   const sorted = [...include].sort();
   const duplicates = include.filter((v, i) => include.indexOf(v) !== i);
-  return { unsorted: include.join(" ") !== sorted.join(" "), duplicates };
+  // Element-wise, not a joined string: an entry could contain any separator a
+  // join would pick, and comparing paths through a delimiter is how two
+  // different lists start looking identical.
+  const unsorted = include.some((entry, i) => entry !== sorted[i]);
+  return { unsorted, duplicates };
 }
 
 export function readBaseline(): Baseline {
