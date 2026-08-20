@@ -21,11 +21,22 @@ import { createRequire } from "node:module";
 import { totalmem } from "node:os";
 
 /**
- * Kept at the value package.json used to hardcode, so the ceiling on a 32 GB
- * workstation stays exactly what it is today and the fix that introduced it
- * cannot regress. It is deliberately far above need: measured 2026-08-20, this
- * repo's `next build` completes with a ceiling of 2867 MB, so anything above
- * ~3 GB is headroom. A ceiling costs nothing when unused.
+ * The ONLY thing this flag is for is RAISING the ceiling on a machine that has
+ * room to spare. It is never lowered: when the box cannot afford this much,
+ * heapMb is null and no flag is passed at all.
+ *
+ * That asymmetry is the whole lesson of this file. Node reads the cgroup limit
+ * and sizes its own heap accordingly, and on a container that default is both
+ * correct and battle-tested — this repo deployed on it for months. Overriding
+ * it with 8192 (commit ca9956a5, to stop a 32 GB workstation dying on heap)
+ * told V8 it could grow to the container's entire memory, so V8 stopped
+ * collecting early and the OOM killer took the build. Every value tried after
+ * that was a guess at a number Node already knows better than we do.
+ *
+ * 8192 is what package.json used to hardcode, so on the workstation the
+ * ceiling is exactly what it is today and the fix that introduced it cannot
+ * regress. Measured 2026-08-20: this repo's `next build` completes with a
+ * ceiling of 2867 MB, so on a large box anything above ~3 GB is headroom.
  */
 const CEILING_MB = 8192;
 
@@ -79,10 +90,11 @@ function detectLimitMb() {
 
 const override = Number(process.env.BUILD_HEAP_MB);
 const detected = detectLimitMb();
+const headroom = detected.mb - RESERVED_MB;
+
+// null means "set no flag at all" — see the comment on CEILING_MB.
 const heapMb =
-  Number.isFinite(override) && override > 0
-    ? override
-    : Math.min(CEILING_MB, detected.mb - RESERVED_MB);
+  Number.isFinite(override) && override > 0 ? override : headroom >= CEILING_MB ? CEILING_MB : null;
 
 // Printed unconditionally: when a build dies of memory, the log has to already
 // contain what the build believed about its own limits. Reproducing an OOM to
@@ -90,7 +102,9 @@ const heapMb =
 console.log(
   override > 0
     ? `[build] heap ceiling ${heapMb} MB (BUILD_HEAP_MB override)`
-    : `[build] heap ceiling ${heapMb} MB — ${detected.mb} MB available via ${detected.source}`,
+    : heapMb === null
+      ? `[build] no heap ceiling set — ${detected.mb} MB available via ${detected.source}, too little to raise one; Node sizes its own heap from the container limit`
+      : `[build] heap ceiling ${heapMb} MB — ${detected.mb} MB available via ${detected.source}`,
 );
 
 const require = createRequire(import.meta.url);
@@ -98,7 +112,10 @@ const nextBin = require.resolve("next/dist/bin/next");
 
 // Appended, not assigned: an inherited NODE_OPTIONS may already carry flags
 // this script has no business dropping.
-const nodeOptions = [process.env.NODE_OPTIONS, `--max-old-space-size=${heapMb}`]
+const nodeOptions = [
+  process.env.NODE_OPTIONS,
+  heapMb === null ? null : `--max-old-space-size=${heapMb}`,
+]
   .filter(Boolean)
   .join(" ");
 
