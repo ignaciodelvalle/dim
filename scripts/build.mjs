@@ -88,22 +88,59 @@ function detectLimitMb() {
   return { mb: Math.floor(totalmem() / 1024 / 1024), source: "os.totalmem()" };
 }
 
-const override = Number(process.env.BUILD_HEAP_MB);
+const rawOverride = process.env.BUILD_HEAP_MB ?? "";
+const override = Number(rawOverride);
+
+// One predicate, used by both the value and the message below. They used to be
+// two — `Number.isFinite(override) && override > 0` for the value and a bare
+// `override > 0` for the log — and they disagreed for anything positive but not
+// finite ("Infinity", "1e999"): the value was discarded while the log still
+// announced an override. A line whose entire job is to be believed when a build
+// dies must not describe a state the script is not in.
+//
+// Integers only. V8 parses --max-old-space-size as size_t and rejects "6.5"
+// outright, so a fractional value would turn this emergency lever into an
+// instant `bad option` exit. Truncating instead would be worse: BUILD_HEAP_MB=6.5
+// would silently become a 6 MB ceiling and die mid-build as a fake OOM.
+const hasOverride = Number.isInteger(override) && override > 0;
+
+// A value that was supplied and then dropped is the one case that must never be
+// silent: "8G", "8192mb" and "8_192" all parse to NaN, and the operator would
+// otherwise watch the build ignore their lever with no explanation.
+if (rawOverride !== "" && !hasOverride) {
+  console.warn(
+    `[build] ignoring BUILD_HEAP_MB=${JSON.stringify(rawOverride)} — expected a positive integer number of megabytes (e.g. 6144), not a size suffix`,
+  );
+}
+
 const detected = detectLimitMb();
 const headroom = detected.mb - RESERVED_MB;
 
 // null means "set no flag at all" — see the comment on CEILING_MB.
-const heapMb =
-  Number.isFinite(override) && override > 0 ? override : headroom >= CEILING_MB ? CEILING_MB : null;
+const heapMb = hasOverride ? override : headroom >= CEILING_MB ? CEILING_MB : null;
+
+/**
+ * True when this box cannot even afford the ceiling — the same measurement that
+ * decides the heap flag also decides whether the build can afford to type-check.
+ * Exported to the child as DIM_CONSTRAINED_BUILD and read by next.config.ts.
+ *
+ * Deliberately derived from the machine rather than from a vendor flag. The
+ * first version of this keyed off `process.env.VERCEL`, which only exists when
+ * a project has "Automatically expose System Environment Variables" enabled —
+ * a setting that can be off, in which case the guard silently never fires and
+ * the build fails exactly as it did before. The cgroup limit is not optional
+ * and cannot be switched off in a dashboard.
+ */
+const constrained = heapMb === null;
 
 // Printed unconditionally: when a build dies of memory, the log has to already
 // contain what the build believed about its own limits. Reproducing an OOM to
 // find that out costs a deploy cycle.
 console.log(
-  override > 0
+  hasOverride
     ? `[build] heap ceiling ${heapMb} MB (BUILD_HEAP_MB override)`
-    : heapMb === null
-      ? `[build] no heap ceiling set — ${detected.mb} MB available via ${detected.source}, too little to raise one; Node sizes its own heap from the container limit`
+    : constrained
+      ? `[build] no heap ceiling set — ${detected.mb} MB available via ${detected.source}, too little to raise one; Node sizes its own heap and the build skips its type pass`
       : `[build] heap ceiling ${heapMb} MB — ${detected.mb} MB available via ${detected.source}`,
 );
 
@@ -121,7 +158,11 @@ const nodeOptions = [
 
 const child = spawn(process.execPath, [nextBin, "build", ...process.argv.slice(2)], {
   stdio: "inherit",
-  env: { ...process.env, NODE_OPTIONS: nodeOptions },
+  env: {
+    ...process.env,
+    NODE_OPTIONS: nodeOptions,
+    DIM_CONSTRAINED_BUILD: constrained ? "1" : "",
+  },
 });
 
 child.on("exit", (code, signal) => {

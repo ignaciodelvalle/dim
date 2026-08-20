@@ -123,18 +123,26 @@ const nextConfig: NextConfig = {
     // matched to Vercel's: 2 cpuset cores, 8192 MB cgroup, Node 24, pnpm
     // 10.28.0.
     //
-    // Skipped ONLY on Vercel, and nothing goes unchecked as a result. Types are
-    // verified twice before a deploy can exist: `pnpm typecheck` is the first
-    // step of `pnpm verify` (the Definition of Done) and its own CI step, and
-    // `pnpm build` still type-checks everywhere else — locally and in CI, where
-    // the machine can afford it. A Vercel build deploys a commit those gates
-    // already passed; it is not itself a gate.
+    // Skipped ONLY where the machine cannot afford it, and nothing goes
+    // unchecked as a result. Types are verified twice before a deploy can
+    // exist: `pnpm typecheck` is the first step of `pnpm verify` (the
+    // Definition of Done) and its own CI step, and `pnpm build` still
+    // type-checks everywhere else — the workstation and CI runners both clear
+    // the threshold by a wide margin. A Vercel build deploys a commit those
+    // gates already passed; it is not itself a gate.
+    //
+    // The flag comes from scripts/build.mjs, which sets DIM_CONSTRAINED_BUILD
+    // from the real cgroup memory limit. It is deliberately NOT keyed off
+    // `process.env.VERCEL`: that variable only exists when a project has
+    // "Automatically expose System Environment Variables" turned on, so a
+    // dashboard toggle could silently disarm this and the build would fail the
+    // old way with no clue why. A cgroup limit cannot be switched off.
     //
     // Do NOT widen this to every environment. tsconfig.json includes
     // `.next/types/**/*.ts`, so the local and CI build passes are what cover
     // Next's generated route types; a standalone `tsc --noEmit` on a clean tree
     // runs before those files exist and would miss them.
-    ignoreBuildErrors: Boolean(process.env.VERCEL),
+    ignoreBuildErrors: process.env.DIM_CONSTRAINED_BUILD === "1",
   },
   experimental: {
     // Welfare denuncia evidence allows up to 5 files × 25 MB.
