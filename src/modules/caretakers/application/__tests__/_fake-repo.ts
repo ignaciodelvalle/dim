@@ -48,7 +48,13 @@ export type FakeRepo = CaretakersRepositoryPort & {
 export function makeFakeRepo(overrides: Partial<Record<string, unknown>> = {}): FakeRepo {
   const base = {
     findGrantByToken: vi.fn().mockResolvedValue(null),
-    findGrantByIdForUpdate: vi.fn().mockResolvedValue(null),
+    // The locked re-read defaults to "the row is still there and still
+    // accepted", because that is the boring case every write path assumes.
+    // Tests that care about losing the race override it with a moved status —
+    // and there are several, so the default is not hiding the guard.
+    findGrantByIdForUpdate: vi
+      .fn()
+      .mockImplementation(async (grantId: string) => makeAcceptedGrant({ id: grantId })),
     findOpenGrantsForPet: vi.fn().mockResolvedValue([]),
     findPetSummaryById: vi.fn().mockResolvedValue(PET),
     findUserIdByEmail: vi.fn().mockResolvedValue(null),

@@ -35,6 +35,7 @@ import { acceptCaretakerGrant } from "./application/accept-caretaker-grant";
 import { cancelCaretakerGrant } from "./application/cancel-caretaker-grant";
 import { designateCaretaker } from "./application/designate-caretaker";
 import { endCaretakerGrant } from "./application/end-caretaker-grant";
+import { expireCaretakerGrants } from "./application/expire-caretaker-grants";
 import { rejectCaretakerGrant } from "./application/reject-caretaker-grant";
 import { CaretakersRepository } from "./infrastructure/caretakers-repository";
 
@@ -322,6 +323,67 @@ export async function withdrawCaretakerGrantAction(input: {
   await flushNotifications(result.notifications);
   revalidatePath("/mis-mascotas");
   return { ok: true };
+}
+
+// ---------------------------------------------------------------------------
+// expireCaretakerGrantsAction — the daily sweep. System path.
+// ---------------------------------------------------------------------------
+
+export type ExpireCaretakerGrantsActionStats = {
+  invitationsExpired: number;
+  grantsEnded: number;
+  remindersSent: number;
+  errors: number;
+};
+
+// Keyset/drain bounds, the expirePetTransfersAction shape: bound each pass and
+// drain the backlog WITHIN the run instead of loading every expirable row at
+// once. The dispatcher's whole-fleet budget is 55s; this job's slice is 45.
+const EXPIRE_BATCH_SIZE = 500;
+const EXPIRE_MAX_DURATION_MS = 45_000;
+const EXPIRE_MAX_ITERATIONS = 50;
+
+/** System action called by the cron route. Throws on fatal error (cron logs it). */
+// @no-auth-required: cron/system path — auth enforced at the /api/cron/expire-caretaker-grants route via authorizeCronRequest (CRON_SECRET).
+export async function expireCaretakerGrantsAction(): Promise<ExpireCaretakerGrantsActionStats> {
+  const start = Date.now();
+  const total: ExpireCaretakerGrantsActionStats = {
+    invitationsExpired: 0,
+    grantsEnded: 0,
+    remindersSent: 0,
+    errors: 0,
+  };
+  let iterations = 0;
+
+  for (;;) {
+    if (iterations >= EXPIRE_MAX_ITERATIONS || Date.now() - start >= EXPIRE_MAX_DURATION_MS) {
+      break;
+    }
+
+    const result = await expireCaretakerGrants(deps(), { limit: EXPIRE_BATCH_SIZE });
+    if (!result.ok) throw new Error(result.error);
+
+    await flushNotifications(result.notifications);
+
+    total.invitationsExpired += result.value.invitationsExpired;
+    total.grantsEnded += result.value.grantsEnded;
+    total.remindersSent += result.value.remindersSent;
+    total.errors += result.value.errors;
+    iterations += 1;
+
+    // A partial batch in EVERY pass means the backlog is drained: each pass's
+    // scan predicate excludes the rows it just resolved, so a full batch is the
+    // only signal that more remain.
+    const drained =
+      result.value.invitationsExpired < EXPIRE_BATCH_SIZE &&
+      result.value.grantsEnded < EXPIRE_BATCH_SIZE &&
+      result.value.remindersSent < EXPIRE_BATCH_SIZE;
+    if (drained) break;
+  }
+
+  // Per-row failures must NOT report success: the route flips the run to failed
+  // so it alerts and Vercel retries.
+  return total;
 }
 
 // ---------------------------------------------------------------------------

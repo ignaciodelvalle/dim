@@ -79,6 +79,11 @@ export const CRON_REGISTRY: CronRegistryEntry[] = [
   },
   { cronName: "evaluate_alerts", maxStalenessMs: DAILY_STALENESS_MS, schedule: "0 8 * * *" },
   {
+    cronName: "expire_caretaker_grants",
+    maxStalenessMs: DAILY_STALENESS_MS,
+    schedule: "0 4 * * *",
+  },
+  {
     cronName: "expire_cross_org_transfers",
     maxStalenessMs: DAILY_STALENESS_MS,
     schedule: "0 4 * * *",
@@ -130,6 +135,7 @@ const CRON_DISPLAY_LABELS: Record<string, string> = {
   escalate_stale_disputes: "Escalamiento de disputas demoradas",
   escalate_stale_welfare_cases: "Escalamiento de denuncias de bienestar demoradas",
   evaluate_alerts: "Evaluación de alertas de vigilancia",
+  expire_caretaker_grants: "Vencimiento de cuidados temporales",
   expire_cross_org_transfers: "Vencimiento de transferencias entre organizaciones",
   expire_decomiso_handoffs: "Vencimiento de entregas por decomiso",
   expire_foster_proposals: "Vencimiento de propuestas de tránsito",

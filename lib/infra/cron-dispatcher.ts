@@ -200,6 +200,7 @@ export const DAILY_JOB_ORDER: readonly string[] = [
   "drain_notification_dead_letter",
   // --- expiries / escalations / case closers ---
   "auto_expire_approvals",
+  "expire_caretaker_grants",
   "expire_foster_proposals",
   "expire_pet_transfers",
   "expire_cross_org_transfers",

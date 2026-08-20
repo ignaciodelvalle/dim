@@ -48,6 +48,7 @@ import { GET as drainOutbox } from "../drain-outbox/route";
 import { GET as escalateStaleDisputes } from "../escalate-stale-disputes/route";
 import { GET as escalateStaleWelfareCases } from "../escalate-stale-welfare-cases/route";
 import { GET as evaluateAlerts } from "../evaluate-alerts/route";
+import { GET as expireCaretakerGrants } from "../expire-caretaker-grants/route";
 import { GET as expireCrossOrgTransfers } from "../expire-cross-org-transfers/route";
 import { GET as expireDecomisoHandoffs } from "../expire-decomiso-handoffs/route";
 import { GET as expireFosterProposals } from "../expire-foster-proposals/route";
@@ -77,6 +78,7 @@ const HANDLERS: Record<string, (req: NextRequest) => Promise<Response>> = {
   post_adoption_checkin: postAdoptionCheckin,
   evaluate_alerts: evaluateAlerts,
   auto_expire_approvals: autoExpireApprovals,
+  expire_caretaker_grants: expireCaretakerGrants,
   expire_foster_proposals: expireFosterProposals,
   expire_pet_transfers: expirePetTransfers,
   expire_cross_org_transfers: expireCrossOrgTransfers,
