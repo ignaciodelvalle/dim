@@ -109,6 +109,7 @@ import {
 import { useAsOfFrame } from "@/components/panorama/use-asof-frame";
 import { useKeyedAbort } from "@/components/panorama/use-keyed-abort";
 import { usePanoramaKpis } from "@/components/panorama/use-panorama-kpis";
+import { usePanoramaRanking } from "@/components/panorama/use-panorama-ranking";
 import { useVistaMetricProjection } from "@/components/panorama/use-vista-metric-projection";
 import { OpButton } from "@/components/ui/dashboard/OpButton";
 import { PANORAMA_DEFAULT_PRESET, resolveAnalyticsPeriod } from "@/lib/analytics/analytics-period";
@@ -147,7 +148,6 @@ import {
 } from "@/src/modules/panorama/domain/capabilities";
 import { captionFor } from "@/src/modules/panorama/domain/caption";
 import { checkCompatibility, roleOf } from "@/src/modules/panorama/domain/compatibility";
-import { rankingAvailability } from "@/src/modules/panorama/domain/data-availability";
 import { derivePreset } from "@/src/modules/panorama/domain/derive-preset";
 import {
   AGGREGATED_POINT_IDS,
@@ -161,7 +161,6 @@ import {
   isTemporalLayer,
 } from "@/src/modules/panorama/domain/layers";
 import {
-  PERCAPITA_UNIT_LABEL,
   censusMetaOf,
   isPercapitaEligible,
   percapitaEligibleFor,
@@ -182,12 +181,6 @@ import {
   resolveLegacyPreset,
   shouldEmitPresetFrame,
 } from "@/src/modules/panorama/domain/presets";
-import {
-  type RankedUnit,
-  type RankingKind,
-  rankUnitsInScope,
-  rankWorstUnits,
-} from "@/src/modules/panorama/domain/ranking";
 import { type TimeBasis, formatAsOfDayLong } from "@/src/modules/panorama/domain/time-scrub";
 import type {
   AggregationLevel,
@@ -3207,24 +3200,32 @@ export function PanoramaConsole({
     [since, until],
   );
 
-  // panorama-ia-v2 §3.3 — the Estadísticas "Peores N" ranking.
-  //
-  // P2.5: the ranking's LAYER is the active preset's PRIMARY QUESTION metric,
-  // not always the map's base. A preset declares `rankBy` when its base is a
-  // backdrop and the question is about the signal overlay (brotes-activos: base
-  // cobertura, but the question "¿dónde hay brotes?" ranks by the zoonosis
-  // SIGNAL). Absent (or the declared layer not active) → rank by the base
-  // (captionLayer), which is correct for the compliance/density presets.
-  const rankingLayer = useMemo(() => {
-    if (activePresetId !== null) {
-      const rankBy = getPreset(activePresetId)?.rankBy;
-      if (rankBy) {
-        const rl = getLayer(rankBy);
-        if (rl && states[rl.id]?.active) return rl;
-      }
-    }
-    return captionLayer;
-  }, [activePresetId, captionLayer, states]);
+  const rankingUnitNoun = rankingUnitNounFor(level, effectiveScopeProvince);
+
+  // panorama-ia-v2 §3.3 — the Estadísticas "Peores N" ranking: which layer it
+  // orders by, the rows themselves, the honesty flags around emptiness and
+  // k-anonymity, and the dock section's subtitle. The whole projection lives in
+  // use-panorama-ranking.ts; the console only feeds it the five values it reads.
+  const {
+    rankingLayer,
+    rankedActiveLayer,
+    rankLocalityRateCount,
+    effectiveRankingKind,
+    rankingMeasureLabel,
+    rankingAllInScope,
+    rankingSmallScope,
+    rankedRows,
+    rankingDataUnavailable,
+    dockSuppressedCount,
+    rankingStructureHidden,
+    dockRankingSubtitle,
+  } = usePanoramaRanking({
+    activePresetId,
+    captionLayer,
+    states,
+    mapLayers,
+    rankingUnitNoun,
+  });
 
   // H2 (cowork QA, round-2 corrected): rate coverage (cobertura/esterilización/
   // microchip) is computed ONLY at province grain (repository "V1 LIMITATION").
@@ -3242,94 +3243,11 @@ export function PanoramaConsole({
     (l) => states[l.id]?.active && states[l.id]?.degraded,
   ).map((l) => l.label);
 
-  // T4.3 (2026-08-01): the ranking must read the same values the map PAINTS,
-  // not merely what it FETCHED — under per-cápita the map projects counts into
-  // per-10k rates (mapLayers), while `activeLayers` still carries raw counts.
-  // Ranking off `activeLayers` therefore ordered "Peores 10" by conteo while
-  // the map colored by tasa: a province with a huge population could rank
-  // worst by count yet paint a mild rate. Reading `mapLayers` (already the
-  // legend/table/popup's shared source, see the block above) keeps the three
-  // surfaces honest about which universe they order.
-  const rankedActiveLayer = useMemo(
-    () => (rankingLayer ? mapLayers.find((l) => l.id === rankingLayer.id) : undefined),
-    [rankingLayer, mapLayers],
-  );
-
   // Visual review 2026-07-23 (#1) — full story in all-suppressed-notice.tsx.
   const allSuppressedNotice = useMemo(
     () => buildAllSuppressedNotice({ captionLayer, states, activeLayers, kpis: kpis.kpis }),
     [captionLayer, states, activeLayers, kpis],
   );
-
-  // Coherence with Registros (P1.1 / C2): a rate layer at LOCALITY grain returns
-  // per-unit COUNTS, not percentages (repository "V1 LIMITATION") — MapDataTable
-  // already coerces those to a count to avoid the "Palermo 204%" bug. The ranking
-  // MUST do the same, or Estadísticas would show a bogus "%" while Registros shows
-  // a count — a fresh contradiction. Coerce to density and mark the measure label.
-  const rankLocalityRateCount =
-    rankedActiveLayer?.dataType === "rate" && rankedActiveLayer?.level === "locality";
-  const rankingKind = useMemo<RankingKind | null>(() => {
-    if (!rankingLayer || rankingLayer.dataType === "reference") return null;
-    return rankingLayer.dataType === "rate" ? "rate" : "density";
-  }, [rankingLayer]);
-  const effectiveRankingKind: RankingKind | null =
-    rankingKind === null ? null : rankLocalityRateCount ? "density" : rankingKind;
-  const rankingMeasureLabel = rankingLayer
-    ? rankLocalityRateCount
-      ? `${rankingLayer.caption.measure} (conteo)`
-      : rankedActiveLayer?.perCapita
-        ? `${rankingLayer.caption.measure} (${PERCAPITA_UNIT_LABEL})`
-        : rankingLayer.caption.measure
-    : "";
-
-  // Worst-N and full small-scope ordering, from the SAME features. Worst-N is the
-  // default (national/large scope); the small-scope fallback (P2.5) shows every
-  // in-scope unit ordered by the metric when the whole scope holds fewer than a
-  // full Worst-N (e.g. CABA · 5 comunas), so a jurisdiction operator sees "tus N
-  // unidades, ordenadas por {métrica}" instead of the misleading "sin datos
-  // suficientes" that contradicts Registros listing the same units with values.
-  const RANKING_LIMIT = 10;
-  const rankingWorst = useMemo<RankedUnit[]>(() => {
-    if (!rankingLayer || effectiveRankingKind === null || !rankedActiveLayer) return [];
-    return rankWorstUnits(rankedActiveLayer.features, {
-      kind: effectiveRankingKind,
-      target: rankingLayer.complianceTarget,
-      // POLARITY (2026-07-26): without this the ranking sorted EVERY target-less
-      // layer descending under a "Peores N" title — listing the ten BEST-served
-      // jurisdictions as the worst for acceso-veterinario. rankWorstUnits has
-      // always honoured the flag; this call site simply never passed it.
-      higherIsBetter: rankingLayer.higherIsBetter,
-      limit: RANKING_LIMIT,
-    });
-  }, [rankingLayer, effectiveRankingKind, rankedActiveLayer]);
-
-  // RA-7 F5 (2026-07-31) — `limit` IS DELIBERATELY UNCAPPED. This list answers
-  // "how many units did we MEASURE", and PanoramaDataTable publishes its length
-  // verbatim: "Se midieron N {unidades} y ninguna quedó por debajo de la meta."
-  // RANKING_LIMIT clamped it at 10, so a national frame that measured all 24
-  // jurisdictions told a funcionario from any of the other 14 that we measured
-  // ten — a DISPLAY cap reported as a MEASUREMENT count. Passing it explicitly
-  // (not omitting it) matters: rankUnitsInScope's own default is 10.
-  const rankingAllInScope = useMemo<RankedUnit[]>(() => {
-    if (!rankingLayer || effectiveRankingKind === null || !rankedActiveLayer) return [];
-    return rankUnitsInScope(rankedActiveLayer.features, {
-      kind: effectiveRankingKind,
-      target: rankingLayer.complianceTarget,
-      // Same polarity declaration as the Worst-N path above — the small-scope
-      // fallback orders the SAME units and must not disagree about which end is bad.
-      higherIsBetter: rankingLayer.higherIsBetter,
-      limit: Number.POSITIVE_INFINITY,
-    });
-  }, [rankingLayer, effectiveRankingKind, rankedActiveLayer]);
-
-  // "Small scope" = every rankable (non-suppressed) unit fits under the Worst-N
-  // cap. A national/large scope (≥ 10 units) keeps Worst-N framing (incl. the
-  // honest "sin jurisdicciones bajo meta" all-clear for a fully-compliant view).
-  const rankingSmallScope =
-    rankingAllInScope.length > 0 && rankingAllInScope.length < RANKING_LIMIT;
-  const rankedRows = rankingSmallScope ? rankingAllInScope : rankingWorst;
-
-  const rankingUnitNoun = rankingUnitNounFor(level, effectiveScopeProvince);
 
   // Hover sync map↔row: the highlighted unit key mirrors between the panel and
   // the map (feature-state highlight). Row click opens the DetailDrawer.
@@ -3708,15 +3626,6 @@ export function PanoramaConsole({
   // surveillance tool (empty ≠ all-clear).
   const kpisDegraded = (kpis.degraded === true || kpis.kpis.length === 0) && !kpisPending;
 
-  // The ranking is layer-driven (the base layer's own fetch), NOT the KPI strip.
-  // Scoped to RATE layers (cobertura): an EMPTY rate feature collection means we
-  // have no jurisdictions to compare against meta, so the panel must NOT claim
-  // "sin jurisdicciones bajo meta" (a reassuring all-clear) — that all-clear may
-  // only show for a POPULATED layer where no unit is below meta. Density layers
-  // keep their already-honest "Sin datos suficientes en este alcance." copy.
-  const rankingDataUnavailable =
-    effectiveRankingKind === "rate" && (rankedActiveLayer?.features.features.length ?? 0) === 0;
-
   // panorama-vista-redesign Phase 4 (design Decision 4): temporal gating is
   // sourced EXCLUSIVELY from isTemporalLayer() over the ACTIVE layer set —
   // no scrubber-local temporal set (the regression the design flags). Adding
@@ -3870,32 +3779,6 @@ export function PanoramaConsole({
       viewScope={viewScope}
     />
   );
-  // Estadísticas: the Worst-N=10 ranking (PO-ratified depth — ia-v2 §3.3, NOT
-  // the prototype's top-7), hover-synced with the map and click-through to the
-  // detail drawer. Ranking FOLLOWS THE SCOPE (the base layer's features are
-  // already scope-resolved: drilled = the scope's localities/departments —
-  // plan note: never the prototype's provinces-while-drilled). The k-anon
-  // suppressed count renders as an explicit last row (privacy visible).
-  const dockSuppressedCount =
-    rankingLayer !== null ? (states[rankingLayer.id]?.suppressedCount ?? 0) : 0;
-  // P2-1 (PO 2026-08-04) — the tri-state that replaces the single
-  // `rankingDataUnavailable` boolean as the DECISION input for both surfaces
-  // fed by this projection (the dock card and the printed informe).
-  //
-  // A boolean cannot carry the distinction P2 requires: "no data" (hide the
-  // whole structure) and "data withheld by k-anonymity" (the notice is
-  // MANDATORY) are opposite obligations. `rankingDataUnavailable` stays as the
-  // FAILURE input the honest-empty copy still needs; the classification of the
-  // emptiness now lives in one shared domain helper.
-  const rankingAvailabilityState = rankingAvailability({
-    rowCount: rankedRows.length,
-    measuredUnits: rankingAllInScope.length,
-    suppressedUnits: dockSuppressedCount,
-    calculationFailed: rankingDataUnavailable,
-    noRankableLayer: effectiveRankingKind === null || rankingLayer === null,
-  });
-  /** P2: the "Peores 10" card does not render at all when nothing justifies it. */
-  const rankingStructureHidden = rankingAvailabilityState === "absent";
   // viz-suite Wave 1 — the CalendarHeatmap's per-day series. Source-of-truth
   // mirror of the TimeScrubber histogram: the points path (client timestamps)
   // shadows the aggregate path (server ?histogram=1), EXACTLY like
@@ -3975,24 +3858,6 @@ export function PanoramaConsole({
         Sin ranking para las capas activas en este alcance.
       </p>
     );
-  // Dock redesign (PO ask, consistency + explanation): name what the ranking
-  // IS — the metric + that it orders the units of the CURRENT scope — as the
-  // "Ranking de unidades" section's subtitle (PanoramaStatSection's existing
-  // caption slot). Absent when there is nothing active to rank (dockRanking
-  // already narrates that empty state in its own body).
-  const dockRankingSubtitle =
-    effectiveRankingKind !== null && rankingLayer !== null
-      ? // Finding 4: below province grain the measure is a COUNT, so this
-        // subtitle must not promise an ordering "por cobertura" either.
-        // T4.3: the old per-cápita caveat ("el mapa pinta tasas... este
-        // ranking ordena por conteos") is gone — the ranking now follows
-        // mapLayers, so `rankingMeasureLabel` already names the tasa when
-        // that mode is on, and the two surfaces agree.
-        rankLocalityRateCount
-        ? `Ordena ${rankingUnitNoun} por cantidad de registros de ${rankingLayer.caption.measure} en el alcance actual.`
-        : `Ordena ${rankingUnitNoun} por ${rankingMeasureLabel} en el alcance actual.`
-      : undefined;
-
   // The calendar heatmap sits ABOVE the ranking as its own <section>, so a later
   // regroup into a "Tendencias" dock family (organizing principle, PO 2026-07-12)
   // is a move, not a rewrite. It always renders — its own empty/non-temporal
