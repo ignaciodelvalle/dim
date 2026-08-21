@@ -40,6 +40,14 @@ export type RequestOpenSnapshot = {
   hasOpenSponsorship: boolean;
 };
 
+/**
+ * REQ-16's refusal. Named because it is shown twice: by the pre-read here and
+ * by the use-case when `cases_open_per_pet_kind_idx` catches the double-submit
+ * the pre-read could not see. One sentence, whichever layer says it.
+ */
+export const OPEN_REQUEST_PENDING_ERROR =
+  "Ya hay una solicitud de nuevo hogar pendiente para esta mascota. Esperá la respuesta o cancelala antes de enviar otra.";
+
 /** REQ-16: one open request OR one running sponsorship per pet, never both, never two. */
 export function validateRequestOpen(s: RequestOpenSnapshot): RuleResult {
   if (s.petStatus === "deceased") {
@@ -53,11 +61,7 @@ export function validateRequestOpen(s: RequestOpenSnapshot): RuleResult {
     };
   }
   if (s.hasOpenRequest) {
-    return {
-      ok: false,
-      error:
-        "Ya hay una solicitud de nuevo hogar pendiente para esta mascota. Esperá la respuesta o cancelala antes de enviar otra.",
-    };
+    return { ok: false, error: OPEN_REQUEST_PENDING_ERROR };
   }
   return { ok: true };
 }
@@ -90,11 +94,18 @@ export type AcceptPetSnapshot = {
 export type AcceptSnapshot = RequestAnswerSnapshot & {
   /** Step 2: the consenting titular still holds a live `owner` row. */
   titularOwnerRowLive: boolean;
-  /** Step 3: live `shelter_custody` rows on the pet, any org. Must be 0. */
+  /** Step 3: live `shelter_custody` rows on the pet, any holder. Must be 0. */
   liveShelterCustodyCount: number;
   /** Step 4: the catalog's own preconditions, failed here with a reason. */
   pet: AcceptPetSnapshot;
 };
+
+/**
+ * Step 3's refusal. Named because it is shown twice: by the rule on the
+ * pre-read, and by the use-case when the per-pet org custody index (0195)
+ * catches a custody row that committed between the pre-read and the insert.
+ */
+export const CUSTODY_PRESENT_ERROR = "Esta mascota ya está bajo custodia de una organización.";
 
 export function validateAcceptPreconditions(s: AcceptSnapshot): RuleResult {
   const step1 = validateDeclinePreconditions(s);
@@ -111,7 +122,7 @@ export function validateAcceptPreconditions(s: AcceptSnapshot): RuleResult {
 
   // One org at a time. Also excludes a pet already under decomiso or intake.
   if (s.liveShelterCustodyCount > 0) {
-    return { ok: false, error: "Esta mascota ya está bajo custodia de una organización." };
+    return { ok: false, error: CUSTODY_PRESENT_ERROR };
   }
 
   if (s.pet.status === "lost") {

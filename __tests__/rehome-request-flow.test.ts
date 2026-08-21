@@ -286,6 +286,20 @@ describe("request — who may ask, and whom (REQ-1, REQ-16)", () => {
     if (!r.ok) expect(r.error).toMatch(/pendiente/);
     expect(await requestCasesForPet()).toHaveLength(1);
   });
+
+  it("a double-submit that slips past the pre-read is refused by the index with the SAME message — never a 500", async () => {
+    // The port seam, used honestly: the pre-read is stale by construction under
+    // a race (two submits, both read "no open request"), so the test makes it
+    // stale on purpose while the index (`cases_open_per_pet_kind_idx`) is real.
+    const staleRepo = { ...RehomeRepository, findOpenRequestForPet: async () => null };
+    const r = await requestRehomeSponsorship(
+      { petPublicToken: PET_TOKEN, titularUserId: ids.titular, targetOrgId: orgBId },
+      { repo: staleRepo, now: () => new Date() },
+    );
+    expect(r.ok).toBe(false);
+    if (!r.ok) expect(r.error).toMatch(/pendiente/);
+    expect(await requestCasesForPet()).toHaveLength(1);
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -414,6 +428,80 @@ describe("accept — custody opens beside the owner row, consent goes on the spi
     expect(r.ok).toBe(false);
     if (!r.ok) expect(r.error).toMatch(/ya no es titular/);
     expect((await liveOwnerships()).map((o) => o.role).sort()).toEqual(["foster", "owner"]);
+  });
+
+  it("step 3: a pet already under another org's custody is refused by the pre-check — nothing is written", async () => {
+    const [bRow] = await db
+      .insert(ownerships)
+      .values({
+        petId,
+        ownerOrganizationId: orgBId,
+        role: "shelter_custody",
+        startedAt: new Date(),
+      })
+      .returning({ id: ownerships.id });
+    try {
+      const r = await acceptAsA();
+      expect(r.ok).toBe(false);
+      if (!r.ok) expect(r.error).toMatch(/bajo custodia de una organización/);
+      expect((await openRequest())?.publicCode).toBe(secondCode);
+    } finally {
+      await db.delete(ownerships).where(eq(ownerships.id, bRow.id));
+    }
+  });
+
+  it("step 3 under a race: a custody row committed after the pre-read hits the index, is mapped to the same refusal, and the transaction rolls back", async () => {
+    // Org B won a race for custody between the pre-read and the insert. The
+    // port seam makes the pre-read stale on purpose (countLiveShelterCustody
+    // says 0, as it would have a moment earlier) while the index
+    // `ownerships_one_active_org_shelter_custody_per_pet` is real. Under the
+    // old code this surfaced as a thrown DrizzleQueryError — a 500 for the org.
+    const petColumns = {
+      eligible: pets.adoptionEligible,
+      eligibleAt: pets.adoptionEligibilitySetAt,
+      listedAt: pets.adoptionListedAt,
+    };
+    const [petBefore] = await db.select(petColumns).from(pets).where(eq(pets.id, petId));
+    expect(petBefore.listedAt).toBeNull();
+
+    const [bRow] = await db
+      .insert(ownerships)
+      .values({
+        petId,
+        ownerOrganizationId: orgBId,
+        role: "shelter_custody",
+        startedAt: new Date(),
+      })
+      .returning({ id: ownerships.id });
+    try {
+      const staleRepo = { ...RehomeRepository, countLiveShelterCustody: async () => 0 };
+      const r = await respondToRehomeRequest(
+        { casePublicCode: secondCode, decision: "accept" },
+        {
+          ...answerDeps(ids.coordA, { id: orgAId, displayName: "Refugio Padrino" }),
+          repo: staleRepo,
+        },
+      );
+      expect(r.ok).toBe(false);
+      if (!r.ok) expect(r.error).toMatch(/bajo custodia de una organización/);
+
+      // Rolled back: the request is still open, nothing reached the spine, no
+      // custody row for A landed, the pet's eligibility and listing columns
+      // are byte-identical to before the call.
+      expect((await openRequest())?.publicCode).toBe(secondCode);
+      const live = await liveOwnerships();
+      expect(live.map((o) => o.role).sort()).toEqual(["foster", "owner", "shelter_custody"]);
+      expect(live.find((o) => o.role === "shelter_custody")?.org).toBe(orgBId);
+      const events = await db
+        .select({ id: petEvents.id })
+        .from(petEvents)
+        .where(eq(petEvents.petId, petId));
+      expect(events).toHaveLength(0);
+      const [petAfter] = await db.select(petColumns).from(pets).where(eq(pets.id, petId));
+      expect(petAfter).toEqual(petBefore);
+    } finally {
+      await db.delete(ownerships).where(eq(ownerships.id, bRow.id));
+    }
   });
 
   it("the sponsoring org accepts: two live rows, the consent event attached to the request, the listing open", async () => {

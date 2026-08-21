@@ -35,6 +35,9 @@
 // shelter_custody, preserving prior behavior exactly.
 
 import { randomUUID } from "node:crypto";
+
+import { ORG_CUSTODY_TAKEN_ERROR, isOrgCustodyCollision } from "@/lib/infra/org-custody";
+
 import {
   validateDuplicateProposalGuard,
   validateOrgTokenMatch,
@@ -203,6 +206,24 @@ export async function acceptCrossOrgTransfer(
         );
       }
 
+      // ONE LIVE ORG CUSTODY PER PET (0195). When the destination is
+      // shelter_custody, the receiver's insert below collides with any live
+      // org custody this flow does not close. The shelter_custody-source branch
+      // closes the sender's — and the index guarantees that was the only one.
+      // The owner-source branch closes the sender's `owner` row only, so a
+      // THIRD org's live custody (a found-pet intake) stays and the insert
+      // would hit the index. Refuse here, under the lock, with the sentence
+      // the member reads; the catch below maps the index if it fires anyway.
+      if (toRole === "shelter_custody") {
+        const held = await repo.findLiveOrgShelterCustody(
+          caseRow.primaryPetId as string,
+          tx as Parameters<typeof repo.findLiveOrgShelterCustody>[1],
+        );
+        if (held && held.ownerOrganizationId !== canonicalSenderOrgId) {
+          throw new Error(ORG_CUSTODY_TAKEN_ERROR);
+        }
+      }
+
       // Foster cascade — close the active foster + emit foster_ended FIRST
       // (upfront UUID) so custody_transferred can reference it. A fostered pet
       // handed off via the direct-custody front door used to have its foster
@@ -348,6 +369,12 @@ export async function acceptCrossOrgTransfer(
       }
     });
   } catch (err) {
+    if (
+      isOrgCustodyCollision(err) ||
+      (err instanceof Error && err.message === ORG_CUSTODY_TAKEN_ERROR)
+    ) {
+      return { ok: false, error: ORG_CUSTODY_TAKEN_ERROR };
+    }
     return {
       ok: false,
       error: `No se pudo aceptar la transferencia: ${err instanceof Error ? err.message : "error desconocido"}`,

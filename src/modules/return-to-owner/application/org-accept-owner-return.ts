@@ -17,6 +17,11 @@ import { and, eq, isNull, sql } from "drizzle-orm";
 import { db, notifications, ownerships, petEvents, pets } from "@/db";
 import { validateEventPayload } from "@/lib/events/event-schemas";
 import { findOpenCaseForPetAndKind } from "@/lib/infra/case-helpers";
+import {
+  ORG_CUSTODY_TAKEN_ERROR,
+  findLiveOrgShelterCustody,
+  isOrgCustodyCollision,
+} from "@/lib/infra/org-custody";
 
 import type { OrgAcceptOwnerReturnResult } from "../domain/types";
 import { fetchPendingOwnerReturnProposalForOrg } from "./proposal-queries";
@@ -82,6 +87,13 @@ export async function orgAcceptOwnerReturnUseCase({
         throw new Error(
           "El dueño ya no tiene la custodia activa. No se puede procesar la devolución.",
         );
+      }
+
+      // One live ORG custody per pet (0195): step 6 below opens this org's
+      // row and nothing in this flow closes another org's. Refuse under the
+      // lock with the sentence the member reads, instead of a 23505 at step 6.
+      if (await findLiveOrgShelterCustody(pet.id, tx)) {
+        throw new Error(ORG_CUSTODY_TAKEN_ERROR);
       }
 
       // Fix 4: find and end any active foster row before the custody_transferred.
@@ -177,6 +189,14 @@ export async function orgAcceptOwnerReturnUseCase({
       });
     });
   } catch (err) {
+    // The pre-check's own sentence, or the index firing behind it (a custody
+    // row committed after the read): one refusal, never the raw query text.
+    if (
+      isOrgCustodyCollision(err) ||
+      (err instanceof Error && err.message === ORG_CUSTODY_TAKEN_ERROR)
+    ) {
+      return { error: ORG_CUSTODY_TAKEN_ERROR };
+    }
     return {
       error: `No se pudo procesar la devolución: ${err instanceof Error ? err.message : String(err)}`,
     };

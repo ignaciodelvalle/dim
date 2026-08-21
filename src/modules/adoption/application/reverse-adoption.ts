@@ -38,6 +38,8 @@
 //   - revalidatePath
 //   - Flushing pendingNotifications (post-tx, best-effort)
 
+import { ORG_CUSTODY_TAKEN_ERROR, isOrgCustodyCollision } from "@/lib/infra/org-custody";
+
 import { validateReversalInput } from "../domain/reversal-rules";
 import type { ReversalInput } from "../domain/types";
 import type { AdoptionRepository } from "../infrastructure/adoption-repository";
@@ -115,6 +117,11 @@ export async function reverseAdoption(
       eventId = insertedEventId;
     });
   } catch (err) {
+    // One live ORG custody per pet (0195): the gate in findReversibleAdoption
+    // is a pre-transaction read, so another org's intake can still commit
+    // before the insert. The index is the last line; map it to the gate's
+    // own sentence instead of the raw query text.
+    if (isOrgCustodyCollision(err)) return { ok: false, error: ORG_CUSTODY_TAKEN_ERROR };
     return {
       ok: false,
       error: `No se pudo revertir la adopción: ${

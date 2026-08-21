@@ -20,6 +20,7 @@ import {
 } from "@/db";
 import { validateEventPayload } from "@/lib/events/event-schemas";
 import { closeCase, findOpenCaseForPetAndKind, openCase } from "@/lib/infra/case-helpers";
+import { findLiveOrgShelterCustody } from "@/lib/infra/org-custody";
 import type { OpenedReason } from "@/src/modules/cases/domain/opened-reason";
 
 // ---------------------------------------------------------------------------
@@ -443,6 +444,19 @@ export const TransfersRepository = {
    * the source still holds custody under the accept lock (TR-H1) when the
    * proposal's from_role is `owner` (santuario/decomiso handoff).
    */
+  /**
+   * The pet's live shelter_custody row held by ANY org (0195: at most one).
+   * The accept path's owner-source branch needs it: that branch closes the
+   * sender's `owner` row and opens the receiver's custody, and nothing in it
+   * closes a third org's live custody — the insert would hit the index.
+   */
+  async findLiveOrgShelterCustody(
+    petId: string,
+    tx?: Tx,
+  ): Promise<{ id: string; ownerOrganizationId: string } | null> {
+    return findLiveOrgShelterCustody(petId, tx ?? db);
+  },
+
   async findActiveOwnerOwnershipForOrg(
     petId: string,
     orgId: string,

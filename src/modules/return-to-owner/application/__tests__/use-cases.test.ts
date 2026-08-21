@@ -854,6 +854,102 @@ describe("orgAcceptOwnerReturnUseCase — attribution", () => {
     expect(transferEvent.recordedByUserId).not.toBe(ownerUserId);
     expect(transferEvent.authorRole).toBe("shelter");
   });
+
+  it("refuses while ANOTHER org holds live custody of the pet — the owner row stays live, nothing is written (0195)", async () => {
+    // One live organisation custody per pet: the insert at the end of the
+    // accept would hit `ownerships_one_active_org_shelter_custody_per_pet`.
+    // The writer must say so in es-AR before writing, not surface a 23505.
+    const suffix = `${Date.now().toString(36)}${Math.floor(Math.random() * 1e4)}`
+      .toUpperCase()
+      .slice(-6);
+    const token = `UCR4-${suffix}`;
+    const now = new Date();
+    const [pet] = await db
+      .insert(pets)
+      .values({
+        publicToken: token,
+        name: `UCHeldPet-${suffix}`,
+        species: "dog",
+        sex: "unknown",
+        status: "active",
+        potentiallyDangerousBreed: false,
+      })
+      .returning();
+    insertedPetIds.push(pet.id);
+    await db
+      .insert(ownerships)
+      .values({ petId: pet.id, ownerUserId, role: "owner", startedAt: now });
+    await db.insert(petEvents).values({
+      petId: pet.id,
+      eventType: "adoption_finalized",
+      occurredAt: now,
+      recordedAt: now,
+      recordedByUserId: refugioMemberUserId,
+      authorRole: "shelter",
+      authorOrganizationId: orgId,
+      payload: validateEventPayload("adoption_finalized", {
+        previous_owner_organization_id: orgId,
+        adopter_user_id: ownerUserId,
+        foster_user_id: null,
+        contract_attachment_id: null,
+        post_adoption_followup_months: null,
+        notes: null,
+      }),
+    });
+    const propose = await ownerProposeReturnToOrgUseCase({
+      userId: ownerUserId,
+      petPublicToken: token,
+      reason: "post_adoption_failed_return",
+      notes: null,
+      proposedAt: now.toISOString(),
+      callerRole: "owner",
+    });
+    expect("ok" in propose && propose.ok).toBe(true);
+
+    // A different org takes the animal in (found-pet intake) before the accept.
+    const [otherOrg] = await db
+      .insert(organizations)
+      .values({
+        publicToken: `UCR4O-${suffix}`,
+        legalName: "UC Other Refugio SRL",
+        displayName: "UC Otro Refugio",
+        orgType: "shelter",
+        email: `uc-rto-other-${suffix.toLowerCase()}@dim-test.local`,
+        verified: true,
+      })
+      .returning({ id: organizations.id });
+    await db.insert(ownerships).values({
+      petId: pet.id,
+      ownerOrganizationId: otherOrg.id,
+      role: "shelter_custody",
+      startedAt: now,
+    });
+
+    const accept = await orgAcceptOwnerReturnUseCase({
+      orgId,
+      orgDisplayName: "UC Return Refugio",
+      actingUserId: refugioMemberUserId,
+      petPublicToken: token,
+    });
+    expect("error" in accept).toBe(true);
+    if (!("error" in accept)) throw new Error("Expected a refusal");
+    expect(accept.error).toMatch(/custodia de una organización/);
+
+    const live = await db
+      .select({ role: ownerships.role, org: ownerships.ownerOrganizationId })
+      .from(ownerships)
+      .where(and(eq(ownerships.petId, pet.id), isNull(ownerships.endedAt)));
+    expect(live.map((r) => r.role).sort()).toEqual(["owner", "shelter_custody"]);
+    expect(live.find((r) => r.role === "shelter_custody")?.org).toBe(otherOrg.id);
+    const transfers = await db
+      .select({ id: petEvents.id })
+      .from(petEvents)
+      .where(and(eq(petEvents.petId, pet.id), eq(petEvents.eventType, "custody_transferred")));
+    expect(transfers).toHaveLength(0);
+
+    await db.delete(ownerships).where(eq(ownerships.ownerOrganizationId, otherOrg.id));
+    await db.delete(organizations).where(eq(organizations.id, otherOrg.id));
+  });
 });
 
 // ---------------------------------------------------------------------------

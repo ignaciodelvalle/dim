@@ -469,6 +469,72 @@ describe("confirmChipMatchAction", () => {
     expect(ownerNotifs[0].severity).toBe("urgent");
   });
 
+  it("refugio decision='same' while ANOTHER org holds live custody: refused in es-AR, no second row, no intake event (0195)", async () => {
+    // The guard used to look only at THIS org's custody. With one live
+    // organisation custody per pet (0195), a second refugio confirming the
+    // same found animal hit the index as an unhandled 23505.
+    const chip = `CHIP-CONF-HELD-${Date.now()}`;
+    const { petId, publicToken: matchedToken } = await insertPetWithChip({
+      microchipId: chip,
+      status: "lost",
+      ownerUserId: ownerUserId,
+      tokenSuffix: "CHELD",
+    });
+    const otherToken = generatePublicToken();
+    const [otherOrg] = await db
+      .insert(organizations)
+      .values({
+        publicToken: otherToken,
+        legalName: "Chip Match Other Refugio SRL",
+        displayName: "Otro Refugio",
+        orgType: "shelter",
+        email: `chip-match-other-${otherToken.toLowerCase()}@dim-test.local`,
+        verified: true,
+      })
+      .returning({ id: organizations.id });
+    await db.insert(ownerships).values({
+      petId,
+      ownerOrganizationId: otherOrg.id,
+      role: "shelter_custody",
+      startedAt: new Date(),
+    });
+
+    const result = await confirmChipMatchAsRefugioWriter({
+      auth: {
+        user: { id: refugioMemberUserId },
+        organization: { id: orgId, displayName: "Chip Match Refugio", verified: true },
+      },
+      orgToken,
+      claim: generateIntakeMatchClaim(orgToken, matchedToken),
+      matchedPetToken: matchedToken,
+      decision: "same",
+    });
+
+    expect("error" in result).toBe(true);
+    if (!("error" in result)) throw new Error("Expected a refusal");
+    expect(result.error).toMatch(/custodia de una organización/);
+
+    const custodyRows = await db
+      .select({ org: ownerships.ownerOrganizationId })
+      .from(ownerships)
+      .where(
+        and(
+          eq(ownerships.petId, petId),
+          eq(ownerships.role, "shelter_custody"),
+          isNull(ownerships.endedAt),
+        ),
+      );
+    expect(custodyRows.map((r) => r.org)).toEqual([otherOrg.id]);
+    const intakeEvents = await db
+      .select({ id: petEvents.id })
+      .from(petEvents)
+      .where(and(eq(petEvents.petId, petId), eq(petEvents.eventType, "shelter_intake_recorded")));
+    expect(intakeEvents).toHaveLength(0);
+
+    await db.delete(ownerships).where(eq(ownerships.ownerOrganizationId, otherOrg.id));
+    await db.delete(organizations).where(eq(organizations.id, otherOrg.id));
+  });
+
   it("vecino decision='same': creates shelter_custody + emits event + notifies owner", async () => {
     const chip = `CHIP-VEC-SAME-${Date.now()}`;
     const {

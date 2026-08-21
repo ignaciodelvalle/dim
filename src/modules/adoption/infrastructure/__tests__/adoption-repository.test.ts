@@ -22,6 +22,7 @@ import {
   reminders,
 } from "@/db";
 import { withMutationOverride } from "../../../../../__tests__/_helpers/db-overrides";
+import { expectDbError } from "../../../../../__tests__/_helpers/expect-db-error";
 
 // Module under test — will be created in GREEN phase (task 2.11).
 import { AdoptionRepository } from "../adoption-repository";
@@ -838,6 +839,75 @@ describe("AdoptionRepository — reversal (findReversibleAdoption / insertAdopti
       expect(result.finalizeEventId).toBe(finalizeEventIdRev);
       expect(result.adopterUserId).toBe(adopterUserIdRev);
       expect(result.petName).toBe(PET_NAME_REV);
+    }
+  });
+
+  it("refuses the reversal while ANOTHER org holds live custody, and the raw insert is caught by the 0195 index", async () => {
+    // After the adoption the animal went missing and a second refugio took it
+    // in. Restoring THIS org's shelter_custody would be a second live org
+    // custody row: the gate says so in es-AR, and the index is the last line.
+    const OTHER_ORG_TOKEN = "DIM-ADOPTREP-OTH";
+    // Leftovers from a crashed previous run — the token is hardcoded.
+    await db.delete(organizations).where(eq(organizations.publicToken, OTHER_ORG_TOKEN));
+    const [otherOrg] = await db
+      .insert(organizations)
+      .values({
+        publicToken: OTHER_ORG_TOKEN,
+        legalName: "Repo Test Otro Refugio SRL",
+        displayName: "Repo Test Otro Refugio",
+        orgType: "shelter",
+        email: "adoptrep-other@dim-test.local",
+        verified: true,
+      })
+      .returning({ id: organizations.id });
+    try {
+      await db
+        .insert(ownerships)
+        .values({ petId: petIdRev, ownerOrganizationId: otherOrg.id, role: "shelter_custody" });
+
+      const gate = await AdoptionRepository.findReversibleAdoption(petIdRev, orgId);
+      expect(gate.ok).toBe(false);
+      if (!gate.ok) expect(gate.error).toMatch(/custodia de una organización/);
+
+      // Armed-fence control: the write the gate protects really would collide.
+      const adopterRow = await db
+        .select({ id: ownerships.id })
+        .from(ownerships)
+        .where(
+          and(
+            eq(ownerships.petId, petIdRev),
+            eq(ownerships.role, "owner"),
+            isNull(ownerships.endedAt),
+          ),
+        );
+      await expectDbError(
+        db.transaction(async (tx) => {
+          await AdoptionRepository.insertAdoptionReversed(
+            {
+              petId: petIdRev,
+              userId: actorUserId,
+              orgId,
+              orgVerified: true,
+              adopterOwnershipId: adopterRow[0].id,
+              finalizeEventId: finalizeEventIdRev,
+              reason: "Test: collision",
+              now: new Date(),
+            },
+            tx,
+          );
+        }),
+        { code: "23505", constraint: "ownerships_one_active_org_shelter_custody_per_pet" },
+      );
+      // The transaction rolled back: the adopter's owner row is still live.
+      const [stillOwner] = await db
+        .select({ endedAt: ownerships.endedAt })
+        .from(ownerships)
+        .where(eq(ownerships.id, adopterRow[0].id));
+      expect(stillOwner.endedAt).toBeNull();
+    } finally {
+      // organizations → ownerships is ON DELETE CASCADE; the org delete takes
+      // the custody row with it.
+      await db.delete(organizations).where(eq(organizations.id, otherOrg.id));
     }
   });
 

@@ -12,7 +12,13 @@
 // respond-to-rehome-request.ts, in the same transaction that grants custody.
 // This file opens a case — the org's inbox item — and nothing else.
 
-import { validateRequestOpen, validateSponsorTarget } from "../domain/rehome-rules";
+import { matchesDbError } from "@/lib/infra/db-errors";
+
+import {
+  OPEN_REQUEST_PENDING_ERROR,
+  validateRequestOpen,
+  validateSponsorTarget,
+} from "../domain/rehome-rules";
 import type { RehomeRequestPort } from "./ports";
 import type { NewNotification, UseCaseResult } from "./types";
 
@@ -59,7 +65,7 @@ export async function requestRehomeSponsorship(
   // REQ-16: one open request OR one running sponsorship per pet. The readable
   // refusal lives here; the invariant itself is `cases_open_per_pet_kind_idx`
   // (a partial unique index over open cases per pet and kind), which is what
-  // holds under a race.
+  // holds under a race — and is mapped to the same sentence below.
   const [openRequest, openSponsorship] = [
     await repo.findOpenRequestForPet(pet.id),
     await repo.hasOpenSponsorship(pet.id),
@@ -71,15 +77,23 @@ export async function requestRehomeSponsorship(
   });
   if (!gate.ok) return { ok: false, error: gate.error };
 
-  const caseRow = await repo.openRequestCase({
-    petId: pet.id,
-    titularUserId: input.titularUserId,
-    orgId: org.id,
-    orgDisplayName: org.displayName,
-    jurisdictionProvince: pet.jurisdictionProvince,
-    jurisdictionLocality: pet.jurisdictionLocality,
-    localityId: pet.localityId,
-  });
+  let caseRow: { id: string; publicCode: string };
+  try {
+    caseRow = await repo.openRequestCase({
+      petId: pet.id,
+      titularUserId: input.titularUserId,
+      orgId: org.id,
+      orgDisplayName: org.displayName,
+      jurisdictionProvince: pet.jurisdictionProvince,
+      jurisdictionLocality: pet.jurisdictionLocality,
+      localityId: pet.localityId,
+    });
+  } catch (err) {
+    // A double-submit: both reads above saw no open request, both inserted,
+    // the second lost on the index. Same refusal as the pre-read, never a 500.
+    if (isDuplicateOpenRequest(err)) return { ok: false, error: OPEN_REQUEST_PENDING_ERROR };
+    throw err;
+  }
 
   const titularName = (await repo.findDisplayName(input.titularUserId)) ?? "El titular";
   const recipients = await repo.orgAdminAndCoordinatorUserIds(org.id);
@@ -106,4 +120,11 @@ export async function requestRehomeSponsorship(
     },
     notifications,
   };
+}
+
+// Postgres 23505 = unique_violation, from the partial unique index
+// `cases_open_per_pet_kind_idx` (db/migrations/0033) — one open case per
+// (pet, kind) for every kind not in its exclusion list; rehome_request is not.
+function isDuplicateOpenRequest(err: unknown): boolean {
+  return matchesDbError(err, { code: "23505", constraint: /cases_open_per_pet_kind_idx/ });
 }

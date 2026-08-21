@@ -15,6 +15,7 @@ import {
   findOpenCaseForPetAndKind,
   openCase,
 } from "@/lib/infra/case-helpers";
+import { ORG_CUSTODY_TAKEN_ERROR, findLiveOrgShelterCustody } from "@/lib/infra/org-custody";
 import { hashDni } from "@/lib/utils/dni-hash";
 
 import {
@@ -1201,6 +1202,13 @@ export const AdoptionRepository = {
         error:
           "La mascota ya no está bajo la custodia del adoptante de esta adopción — no se puede revertir.",
       };
+    }
+
+    // One live ORG custody per pet (0195). The reversal restores THIS org's
+    // shelter_custody row; if another org took the animal in since the
+    // adoption (a found-pet intake), that insert would hit the index.
+    if (await findLiveOrgShelterCustody(petId, client)) {
+      return { ok: false, error: ORG_CUSTODY_TAKEN_ERROR };
     }
 
     return {

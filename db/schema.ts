@@ -1004,11 +1004,14 @@ export const organizationCapabilityGrants = pgTable(
 //
 // Active-owner constraint: at most one active row per pet WHERE role='owner'.
 // Multiple foster or co_owner rows can coexist with an active owner, or with
-// each other when there is no permanent owner yet. shelter_custody is capped at
-// ONE live row per pet (0195, below): a live owner row and a live
-// shelter_custody row CAN coexist — that pair is the rehome-by-titular
-// sponsorship, where the animal keeps living with its titular while a verified
-// org sponsors the adoption listing — but two orgs can never hold it at once.
+// each other when there is no permanent owner yet. ORGANISATION-held
+// shelter_custody is capped at ONE live row per pet (0195, below): a live owner
+// row and a live shelter_custody row CAN coexist — that pair is the
+// rehome-by-titular sponsorship, where the animal keeps living with its titular
+// while a verified org sponsors the adoption listing — but two orgs can never
+// hold it at once. USER-held shelter_custody (a neighbour holding a found pet,
+// confirm-chip-match-vecino.ts) is outside that cap on purpose: it was never
+// constrained before 0195 and ADR-1 only needed the organisation rule.
 //
 // caretaker (custodia-temporal, migration 0189): the temporary caretaker of an
 // owned pet — petsitter, vecina, family. NO LONGER "UI deferred": the role is
@@ -1058,12 +1061,20 @@ export const ownerships = pgTable(
       .where(sql`${table.role} = 'caretaker' AND ${table.endedAt} IS NULL`),
     // rehome-by-titular (0195), design ADR-1. Replaces 0077's per-(pet, org)
     // index, which let TWO orgs hold live custody of one pet — exactly what two
-    // concurrent accepts of the same rehome_request would produce. The per-pet
-    // index strictly implies the old one, so the old one was dropped in 0195
-    // rather than kept as a second source of truth for one rule.
-    oneActiveShelterCustodyPerPet: uniqueIndex("ownerships_one_active_shelter_custody_per_pet")
+    // concurrent accepts of the same rehome_request would produce. Over the
+    // org-held population this index strictly implies the old one, so the old
+    // one was dropped in 0195 rather than kept as a second source of truth.
+    // Scoped to `owner_organization_id IS NOT NULL`: user-held custody rows
+    // (a neighbour holding a found pet) were never constrained by 0077 either —
+    // it treated NULL orgs as distinct — and a per-pet index would have turned
+    // the second neighbour's chip-match confirmation into an unhandled 23505.
+    oneActiveOrgShelterCustodyPerPet: uniqueIndex(
+      "ownerships_one_active_org_shelter_custody_per_pet",
+    )
       .on(table.petId)
-      .where(sql`${table.role} = 'shelter_custody' AND ${table.endedAt} IS NULL`),
+      .where(
+        sql`${table.role} = 'shelter_custody' AND ${table.endedAt} IS NULL AND ${table.ownerOrganizationId} IS NOT NULL`,
+      ),
     ownerUserIdx: index("ownerships_owner_user_id_idx").on(table.ownerUserId),
     ownerOrgIdx: index("ownerships_owner_organization_id_idx").on(table.ownerOrganizationId),
     // General (pet_id) index — covers the unfiltered orphan-detection EXISTS in

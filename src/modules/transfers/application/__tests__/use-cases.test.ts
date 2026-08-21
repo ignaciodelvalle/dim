@@ -127,6 +127,7 @@ function makeFakeRepo(
     // cross-org reads
     findActiveShelterCustody: vi.fn().mockResolvedValue({ id: "cust-1" }),
     findActiveOwnerOwnershipForOrg: vi.fn().mockResolvedValue({ id: "own-src" }),
+    findLiveOrgShelterCustody: vi.fn().mockResolvedValue(null),
     findReceiverOrg: vi.fn().mockResolvedValue(makeOrg()),
     findOpenHandshakeCase: vi.fn().mockResolvedValue(null),
     findOpenDispute: vi.fn().mockResolvedValue(null),
@@ -1463,6 +1464,76 @@ describe("acceptCrossOrgTransfer", () => {
     await acceptCrossOrgTransfer(baseInput, { repo, actor, transaction: fakeTransaction });
     expect(repo.endOwnerOwnershipForOrg).toHaveBeenCalledWith("pet-1", "org-sender", fakeTx);
     expect(repo.endShelterCustody).not.toHaveBeenCalled();
+  });
+
+  // -------------------------------------------------------------------------
+  // One live ORGANISATION shelter_custody per pet (0195). The owner-source
+  // branch closes the sender's `owner` row and opens the receiver's
+  // shelter_custody — nothing in it closes a THIRD org's live custody (a
+  // found-pet intake, say), so the receiver's insert would hit the index.
+  // -------------------------------------------------------------------------
+
+  it("owner-source: refuses when a third org holds live custody, writing nothing", async () => {
+    const repo = makeFakeRepo({
+      proposalEventsForCase: vi.fn().mockResolvedValue([
+        makeProposalEvent({
+          payload: {
+            from_organization_id: "org-sender",
+            to_organization_id: "org-receiver",
+            reason: "org_to_org_handoff",
+            from_role: "owner",
+            to_role: "shelter_custody",
+          },
+        }),
+      ]),
+      findLiveOrgShelterCustody: vi
+        .fn()
+        .mockResolvedValue({ id: "cust-third", ownerOrganizationId: "org-third" }),
+    });
+    const result = await acceptCrossOrgTransfer(baseInput, {
+      repo,
+      actor,
+      transaction: fakeTransaction,
+    });
+    expect(result).toMatchObject({ ok: false });
+    expect((result as { ok: false; error: string }).error).toMatch(/custodia de una organización/);
+    expect(repo.insertPetEvent).not.toHaveBeenCalled();
+    expect(repo.endOwnerOwnershipForOrg).not.toHaveBeenCalled();
+    expect(repo.insertShelterCustody).not.toHaveBeenCalled();
+    expect(repo.closeCase).not.toHaveBeenCalled();
+  });
+
+  it("maps a collision on the 0195 index to the same refusal, not a raw query error", async () => {
+    const collision = new Error('Failed query: insert into "ownerships" ...');
+    (collision as Error & { cause?: unknown }).cause = {
+      code: "23505",
+      constraint_name: "ownerships_one_active_org_shelter_custody_per_pet",
+      message:
+        'duplicate key value violates unique constraint "ownerships_one_active_org_shelter_custody_per_pet"',
+    };
+    const repo = makeFakeRepo({
+      proposalEventsForCase: vi.fn().mockResolvedValue([
+        makeProposalEvent({
+          payload: {
+            from_organization_id: "org-sender",
+            to_organization_id: "org-receiver",
+            reason: "org_to_org_handoff",
+            from_role: "owner",
+            to_role: "shelter_custody",
+          },
+        }),
+      ]),
+      insertShelterCustody: vi.fn().mockRejectedValue(collision),
+    });
+    const result = await acceptCrossOrgTransfer(baseInput, {
+      repo,
+      actor,
+      transaction: fakeTransaction,
+    });
+    expect(result).toMatchObject({ ok: false });
+    const error = (result as { ok: false; error: string }).error;
+    expect(error).toMatch(/custodia de una organización/);
+    expect(error).not.toMatch(/Failed query/);
   });
 
   it("defaults to shelter_custody when the proposal omits roles (legacy/return-to-owner)", async () => {

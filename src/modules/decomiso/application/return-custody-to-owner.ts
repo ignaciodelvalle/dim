@@ -36,8 +36,8 @@
 // Ordering note (task-requested): reactivating the former owner's row and
 // closing the govt's shelter_custody row do NOT collide on the partial
 // unique indexes in db/schema.ts (`ownerships_one_active_owner_per_pet` is
-// scoped to role='owner' rows; `ownerships_one_active_shelter_custody_per_pet`
-// is scoped to role='shelter_custody' rows — disjoint predicates). No
+// scoped to role='owner' rows; `ownerships_one_active_org_shelter_custody_per_pet`
+// is scoped to org-held role='shelter_custody' rows — disjoint predicates). No
 // govt-custody-first ordering is required to avoid a collision; the order
 // below (event → reactivate → close govt custody → close case) mirrors
 // acceptDecomisoHandoffInTx's step order for parity, not for correctness.

@@ -4,7 +4,10 @@
 // ACCEPT IS ONE TRANSACTION AND THE ORDER IS LOAD-BEARING (ADR-1):
 //   1. SELECT ... FOR UPDATE the case; assert open rehome_request addressed to
 //      the acting org. This lock is mitigation 1 against two concurrent
-//      accepts; migration 0195's per-pet custody index is mitigation 2.
+//      accepts; migration 0195's per-pet org custody index is mitigation 2,
+//      and when it fires (a custody row committed by ANOTHER path between the
+//      step-3 read and the step-5 insert) the 23505 is mapped to step 3's own
+//      refusal below — never surfaced raw.
 //   2. Assert the consenting titular still holds a live `owner` row — consent
 //      expires with title.
 //   3. Assert ZERO live shelter_custody rows on the pet — one org at a time.
@@ -30,7 +33,13 @@
 // Notifications and revalidation are OUTSIDE the transaction, per house
 // convention: a dead SMTP must never roll back a granted custody.
 
-import { validateAcceptPreconditions, validateDeclinePreconditions } from "../domain/rehome-rules";
+import { isOrgCustodyCollision } from "@/lib/infra/org-custody";
+
+import {
+  CUSTODY_PRESENT_ERROR,
+  validateAcceptPreconditions,
+  validateDeclinePreconditions,
+} from "../domain/rehome-rules";
 import type { PetSummary, RehomeAnswerPort, RequestCase } from "./ports";
 import type { NewNotification, UseCaseResult } from "./types";
 
@@ -88,7 +97,7 @@ export async function respondToRehomeRequest(
 
   const now = deps.now();
 
-  const outcome = await deps.transaction<TxOutcome>(async (tx) => {
+  const outcome = await runAnswerTransaction(deps, async (tx) => {
     // 1. Lock, re-read, re-assert.
     const locked = await repo.lockRequestCase(pre.id, tx);
     if (!locked || !locked.primaryPetId || !locked.openedByUserId) {
@@ -232,6 +241,25 @@ export async function respondToRehomeRequest(
     },
     notifications,
   };
+}
+
+/**
+ * The accept transaction, with mitigation 2 mapped. The step-3 read is under
+ * the CASE lock, not a pet lock: a custody row opened by another path (intake,
+ * a decomiso, a transfer) can commit between that read and the step-5 insert,
+ * and then `ownerships_one_active_org_shelter_custody_per_pet` fires. Postgres
+ * has rolled back every step by then; the org reads step 3's own sentence.
+ */
+async function runAnswerTransaction(
+  deps: Pick<Deps, "transaction">,
+  body: (tx: unknown) => Promise<TxOutcome>,
+): Promise<TxOutcome> {
+  try {
+    return await deps.transaction<TxOutcome>(body);
+  } catch (err) {
+    if (isOrgCustodyCollision(err)) return { ok: false, error: CUSTODY_PRESENT_ERROR };
+    throw err;
+  }
 }
 
 function answerSnapshot(row: RequestCase, actingOrganizationId: string) {

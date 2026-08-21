@@ -181,6 +181,28 @@ describe("reverseAdoption", () => {
     expect((result as { ok: false; error: string }).error).toMatch(/revertir/i);
   });
 
+  it("maps a collision on the one-live-org-custody index (0195) to the custody refusal, not a raw query error", async () => {
+    // drizzle 0.45 shape: the pg error rides on `.cause`, the top-level
+    // message is the SQL text. A reader of the old catch saw that SQL text.
+    const repo = makeFakeRepo();
+    const collision = new Error('Failed query: insert into "ownerships" ...');
+    (collision as Error & { cause?: unknown }).cause = {
+      code: "23505",
+      constraint_name: "ownerships_one_active_org_shelter_custody_per_pet",
+      message:
+        'duplicate key value violates unique constraint "ownerships_one_active_org_shelter_custody_per_pet"',
+    };
+    (
+      repo as unknown as { insertAdoptionReversed: ReturnType<typeof vi.fn> }
+    ).insertAdoptionReversed.mockRejectedValue(collision);
+
+    const result = await reverseAdoption(baseInput, { repo, actor, transaction: fakeTransaction });
+    expect(result).toMatchObject({ ok: false });
+    const error = (result as { ok: false; error: string }).error;
+    expect(error).toMatch(/custodia de una organización/);
+    expect(error).not.toMatch(/Failed query/);
+  });
+
   // ---- Notifications (best-effort, returned not flushed) -----------------
 
   it("returns an adoption_reversed notification for the former adopter", async () => {
