@@ -289,12 +289,58 @@ gap on this list.** Closing it is cheaper before `/api/v1` exists than after.
 
 ## 8. Open decisions
 
-| # | Decision | Why it cannot be deferred |
-|---|---|---|
-| **D1** | Does `/api/v1/p/{token}` get its own throttle bucket (+60/min per IP on the aggregate ceiling) or share the page's (an API client can starve a web visitor on the same IP)? | The first endpoint sets the precedent every later one copies |
-| **D2** | Error-code casing, and whether the enum lives in `packages/contract` | Retrofitting a native app's error branching is expensive; picking now is free |
-| **D3** | Does `/api/v1` match `gob/mascotas`'s aggregate-only limit, or atender's per-lookup limit? | Decides whether the API is a national existence oracle |
-| **D4** | Do we close the `check-authz-guards.ts` gap over `app/api/**` before or after the first endpoint? | Before is cheap; after means auditing by hand |
+Two of these are the PO's; two are engineering calls made here and recorded so
+they are visible rather than silent. Each carries a recommendation, so the
+answer is approve-or-redirect, not design-from-scratch.
+
+### D1 — throttle bucket for `/api/v1/p/{token}` · **PO**
+
+Own bucket (+60/min per IP on the aggregate ceiling) vs sharing the page's.
+
+**Recommended: its own bucket, `public_token_api_credential`.** It follows the
+rule already in force and its stated reason — a client hammering the API must
+not starve the person loading the credential in the street. The additive
+ceiling is the price of that isolation and it is already being paid four times.
+
+**The counter-argument, honestly:** at some number of surfaces "60 per surface"
+stops being a limit. If the aggregate matters more than the isolation, the fix
+is not a shared bucket — it is a second, aggregate limiter on top, keyed per IP
+across all token reads. That is a bigger change and should not be smuggled into
+the first endpoint.
+
+### D2 — error-code casing and home · **engineering, decided**
+
+**Decided: `lowercase_snake`, in `packages/contract`.** Reasons: it is what all
+34 existing handlers already emit, so `/api/v1` is consistent with the surface a
+native app also talks to; and `packages/contract` is the only place a native
+client can import from. The `SCREAMING_SNAKE` and `kebab-case` islands stay
+where they are — converting them is a separate, mechanical change that should
+not gate the first endpoint.
+
+**The real work this exposes is not the casing** — it is that `UseCaseResult`'s
+failure arm is Spanish prose (§3). That needs its own change, and the first
+`/api/v1` **write** endpoint is blocked on it. Reads are not.
+
+### D3 — which limit `/api/v1` matches · **PO**
+
+`gob/mascotas`'s aggregate-only `120/min` per profile, or atender's per-lookup
+`20/min` per `org:ip`.
+
+**Recommended: per-lookup, atender-style.** An aggregate-only limit bounds how
+fast one account works, not how much of the national token space it can
+enumerate — and enumeration is the threat the oracle list exists for. The cost
+is that a legitimate high-volume integrator hits it; that is a conversation
+about issuing them a scoped credential, which is a better conversation to have
+than an unbounded default.
+
+### D4 — `check-authz-guards.ts` over `app/api/**` · **engineering, decided**
+
+**Decided: before the first endpoint.** Widening a fence over an empty
+directory is free; widening it over a directory that already has routes means
+auditing each one by hand first. The same widening over
+`check-api-guard-headers.ts` on 2026-08-21 surfaced five call sites the moment
+it ran — all benign, but each needed reading. Doing that once, at zero, is the
+cheap moment.
 
 ---
 
