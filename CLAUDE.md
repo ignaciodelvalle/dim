@@ -19,7 +19,16 @@ Stack: Next.js 15 (App Router) + React 19 + TypeScript, Supabase (Postgres + RLS
 
 ## Definition of Done
 
-`pnpm verify` + `pnpm test` green (paste actual output as evidence) AND committed. Conventional commits, no AI attribution. Migrations are forward-only and immutable (`db/migrations/NNNN_*.sql`); recount the next free integer at write time — never hardcode one from a plan. Writing a migration file is agent work; applying it to a remote DB is Ignacio-gated.
+`pnpm verify` + **`pnpm test:verified`** green (paste actual output as evidence) AND committed. Conventional commits, no AI attribution.
+
+> **Not `pnpm test`.** Its exit code lies in both directions, and the repo says so in `scripts/check-suite-coverage.ts`: a worker dying mid-run takes its whole FILE with it, and the summary still reads like a pass — `1333 passed | 1 skipped (1336)` is a green-looking line with two files that never executed. `test:verified` runs the same suite, ignores vitest's exit code on purpose, and fails when any discovered file is missing from the report. Never give it a positional file filter; it detects that and skips the verdict loudly.
+>
+> **What counts as passing, exactly.** The evidence you paste is the verdict line, not the exit code:
+>
+> - `reported N file(s); N discovered; 0 failing test(s)` → **passes.** Every file ran and nothing failed.
+> - Any file short, or any failing test → **fails.** No judgement call, no re-roll to get a nicer number.
+>
+> `test:verified` can still exit 1 after printing a passing verdict, because a worker sometimes dies at TEARDOWN — after its file completed and reported. The script re-folds vitest's exit code on purpose so nobody normalises a crashing run, and that is correct: this is an **open defect**, not a tolerated condition. It is tracked with its measurements (victim file named, `db` project ruled out in isolation) and it must be fixed, not papered over. Until it is, a run whose verdict line is clean and whose only error is that teardown crash may be committed — say so in the commit, with the verdict line quoted. Migrations are forward-only and immutable (`db/migrations/NNNN_*.sql`); recount the next free integer at write time — never hardcode one from a plan. Writing a migration file is agent work; applying it to a remote DB is Ignacio-gated.
 
 **e2e is a separate gate** — Playwright is NOT in `pnpm verify`; it runs as CI's own job (and nightly vs staging). Touching a browser-facing flow means checking that job, not just the local suite. Conventions and the hard-won traps live in `e2e/README.md` — read it before writing or fixing a spec.
 

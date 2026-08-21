@@ -14,7 +14,9 @@ import {
   ALLOWLIST,
   MIDDLEWARE_PATH,
   MIN_API_FILES_SCANNED,
+  MIN_NON_API_HANDLERS,
   MIN_STAMPED_HEADERS,
+  READER_MODULE_HEADER_EXEMPT,
   findOffenders,
   importedModulePaths,
   listApiFiles,
@@ -152,8 +154,27 @@ describe("findOffenders()", () => {
 // ---------------------------------------------------------------------------
 
 describe("scan coverage", () => {
-  it("opens a real number of /api files", () => {
+  it("opens a real number of route handler files", () => {
     expect(listApiFiles().length).toBeGreaterThanOrEqual(MIN_API_FILES_SCANNED);
+  });
+
+  // THE SCOPE REGRESSION THIS PINS. The fence used to glob app/api/** alone —
+  // it fenced a URL PREFIX while its own header argues for fencing the subject.
+  // Thirteen route handlers sat outside, including both auth callbacks. A
+  // total-count floor cannot catch a narrowing back to that scope (49 -> 36 is
+  // still over the floor), so the out-of-/api handlers are counted on their own.
+  it("scans route handlers that live outside app/api", () => {
+    const outside = listApiFiles().filter((f) => !f.startsWith("app/api/"));
+    expect(outside.length).toBeGreaterThanOrEqual(MIN_NON_API_HANDLERS);
+  });
+
+  // Named explicitly, not just counted: these two are where a spoofable
+  // authorization input would matter most, and they are the reason the glob
+  // was widened at all.
+  it("covers both auth callbacks", () => {
+    const files = listApiFiles();
+    expect(files).toContain("app/auth/callback/route.ts");
+    expect(files).toContain("app/auth/miarg/callback/route.ts");
   });
 
   // Derived, so it cannot silently go empty and switch the indirect rule off.
@@ -172,5 +193,18 @@ describe("scan coverage", () => {
   // entry has to carry a written reason.
   it("keeps the exception allowlist empty", () => {
     expect(Object.keys(ALLOWLIST)).toEqual([]);
+  });
+
+  // The reader-module exemption is PER HEADER on purpose: exempting a whole
+  // module would let a future stamped-header read added to the same file
+  // inherit the pass. This pins the shape so nobody widens an entry to a
+  // blanket module exemption without the test saying so.
+  it("exempts reader modules per header, never wholesale", () => {
+    for (const [module, headers] of Object.entries(READER_MODULE_HEADER_EXEMPT)) {
+      expect(headers.length, `${module} must name the headers it exempts`).toBeGreaterThan(0);
+      for (const h of headers) {
+        expect(HEADERS, `${module} exempts ${h}, which middleware no longer stamps`).toContain(h);
+      }
+    }
   });
 });

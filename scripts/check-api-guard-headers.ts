@@ -25,7 +25,7 @@
 //
 // WHAT IS BANNED, AND WHY IT IS THE SUBJECT AND NOT A SPELLING
 // ---------------------------------------------------------------------------
-// Under app/api/**, READING a middleware-stamped header at all — directly, or
+// In any Route Handler, READING a middleware-stamped header at all — directly, or
 // through a module whose job is to read one. Not "reading it with `??`", not
 // "reading it with a ternary": banning the FORMS is how a fence ends up
 // enumerating three of the four ways to write a default. Banning the read is
@@ -37,7 +37,7 @@
 // fence covers it on the next run with no edit.
 //
 // The WRAPPER form is derived too: any module under lib/ or components/ that
-// reads a stamped header becomes a "reader module", and an app/api file that
+// reads a stamped header becomes a "reader module", and a handler file that
 // IMPORTS one is flagged. That is what catches `portalBase()` without this file
 // ever naming it.
 //
@@ -55,15 +55,54 @@ export const MIDDLEWARE_PATH = "middleware.ts";
 
 // Non-vacuity floors. A fence that scans nothing reports success; these make a
 // broken glob or a moved middleware fail LOUDLY instead of silently passing.
-// Measured 2026-08-20: 4 stamped headers, 47 route.ts + 2 _guard.ts under
-// app/api. Floors sit below the measurement with room for churn, and above zero.
+// Measured 2026-08-21: 5 stamped headers, 49 scannable files — 36 under
+// app/api plus 13 route.ts elsewhere. Floors sit below the measurement with
+// room for churn, and above zero.
 export const MIN_STAMPED_HEADERS = 3;
-export const MIN_API_FILES_SCANNED = 20;
+export const MIN_API_FILES_SCANNED = 30;
+
+// THE FLOOR THAT PROTECTS THE WIDENING, and the reason it is separate from the
+// one above. This fence used to glob app/api/** alone, which left 13 route
+// handlers — both auth callbacks among them — outside a guard whose whole
+// subject is route handlers. A single total-count floor does NOT catch a
+// regression to that scope: dropping the 13 takes the total from 49 to 36,
+// still comfortably over 30, and the fence goes back to reporting success
+// while covering less. Counting the out-of-/api handlers separately is the
+// only floor that fails when the glob narrows again.
+export const MIN_NON_API_HANDLERS = 8;
 
 // Documented exceptions: `"<relPath>"` → reason. Use ONLY when the value is
 // provably not an authorization input AND cannot be obtained from the request
 // itself. Empty is the goal, and it is empty.
 export const ALLOWLIST: Record<string, string> = {};
+
+/**
+ * Per-module, PER-HEADER exemptions for the wrapper form.
+ *
+ * Scoped to one header name in one module on purpose. Exempting the whole
+ * module would mean a future stamped-header read added to the same file
+ * inherits the pass — which is how an exemption quietly becomes a hole. Any
+ * OTHER stamped header read in an exempt module still flags.
+ *
+ * The bar is the one this file's header sets: the value must be provably not an
+ * authorization input, and unobtainable from the request itself. A Server
+ * Component guard has no request object, so `headers()` is the only door.
+ */
+export const READER_MODULE_HEADER_EXEMPT: Record<string, readonly string[]> = {
+  // `x-full-path` here feeds ONE thing: the `returnTo` hint on a login bounce,
+  // so an operator whose session expired mid-triage lands back on the deep link
+  // instead of bare /login. It is a DESTINATION, never a permission — every
+  // authorization fact in this module comes from getProfileCached (role,
+  // accountType, deactivatedAt), all DB-resolved. Absence degrades to bare
+  // /login, which is the cosmetic case this file's header explicitly separates
+  // from "an authorization decision made by the absence of a header".
+  //
+  // The open-redirect question is closed on the consuming side, not assumed:
+  // safeReturnTo (lib/infra/role-landing.ts:204) rejects anything that does not
+  // start with a single "/" and anything containing a backslash, so a caller
+  // who forges x-full-path cannot steer the post-login redirect off-origin.
+  "lib/infra/auth-guards.ts": ["x-full-path"],
+};
 
 /**
  * Every header middleware.ts stamps on the REQUEST.
@@ -100,9 +139,11 @@ export function listReaderModules(headerNames: readonly string[]): string[] {
     for (const file of globSync(pattern)) {
       const relPath = file.replaceAll("\\", "/");
       if (!isScannable(relPath)) continue;
-      if (readsStampedHeader(readFileSync(file, "utf8"), headerNames).length > 0) {
-        out.push(relPath);
-      }
+      const exempt = READER_MODULE_HEADER_EXEMPT[relPath] ?? [];
+      const hits = readsStampedHeader(readFileSync(file, "utf8"), headerNames).filter(
+        (h) => !exempt.includes(h),
+      );
+      if (hits.length > 0) out.push(relPath);
     }
   }
   return out.sort();
@@ -123,8 +164,22 @@ function isScannable(relPath: string): boolean {
   return !relPath.endsWith(".d.ts");
 }
 
+/**
+ * EVERY route handler, not every file under one URL prefix.
+ *
+ * This used to glob `app/api/**` alone, and that scope was the same mistake the
+ * header of this file argues against one paragraph up: it fenced a SPELLING of
+ * "endpoint" rather than the subject. A Route Handler is a `route.ts`, wherever
+ * the App Router finds it, and 13 of them live outside /api — including
+ * `app/auth/callback/route.ts` and `app/auth/miarg/callback/route.ts`, the two
+ * places where a spoofable authorization input would matter most.
+ *
+ * Still globs all of app/api/** on top, because the helpers there (_guard.ts and
+ * friends) are reachable from handlers and were already covered.
+ */
 export function listApiFiles(): string[] {
-  return globSync("app/api/**/*.ts")
+  const files = new Set<string>([...globSync("app/api/**/*.ts"), ...globSync("app/**/route.ts")]);
+  return [...files]
     .map((f) => f.replaceAll("\\", "/"))
     .filter(isScannable)
     .sort();
@@ -178,7 +233,15 @@ function runScan(): void {
   const apiFiles = listApiFiles();
   if (apiFiles.length < MIN_API_FILES_SCANNED) {
     console.error(
-      `✗ check-api-guard-headers: scanned only ${apiFiles.length} file(s) under app/api (floor ${MIN_API_FILES_SCANNED}). The glob is broken.`,
+      `✗ check-api-guard-headers: scanned only ${apiFiles.length} route handler file(s) (floor ${MIN_API_FILES_SCANNED}). The glob is broken.`,
+    );
+    process.exit(1);
+  }
+
+  const nonApiHandlers = apiFiles.filter((f) => !f.startsWith("app/api/"));
+  if (nonApiHandlers.length < MIN_NON_API_HANDLERS) {
+    console.error(
+      `✗ check-api-guard-headers: only ${nonApiHandlers.length} route handler(s) outside app/api were scanned (floor ${MIN_NON_API_HANDLERS}). The glob narrowed back to the /api prefix — see MIN_NON_API_HANDLERS.`,
     );
     process.exit(1);
   }
@@ -199,7 +262,7 @@ function runScan(): void {
   }
 
   console.log(
-    `✓ api-guard-headers clean — ${apiFiles.length} files under app/api, none reading any of the ${headerNames.length} middleware-stamped headers (${headerNames.join(", ")}) directly or through the ${readerModules.length} reader module(s).`,
+    `✓ api-guard-headers clean — ${apiFiles.length} route handler files (${nonApiHandlers.length} of them outside app/api, including both auth callbacks), none reading any of the ${headerNames.length} middleware-stamped headers (${headerNames.join(", ")}) directly or through the ${readerModules.length} reader module(s).`,
   );
 }
 
