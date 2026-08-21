@@ -23,13 +23,7 @@
 import { revalidatePath } from "next/cache";
 import { headers } from "next/headers";
 
-import {
-  db,
-  type notifications,
-  organizationMemberships,
-  organizations,
-  welfareReports,
-} from "@/db";
+import { db, type notifications, organizationMemberships, organizations } from "@/db";
 import {
   createSignedExportUrl,
   generateWelfareMpfPdf,
@@ -84,6 +78,7 @@ import { startWelfareReport } from "./application/start-welfare-report";
 import { takeDerivedReport } from "./application/take-derived-report";
 import { triageWelfareReport } from "./application/triage-welfare-report";
 import { unassignWelfare } from "./application/unassign-welfare";
+import { deriveWelfareToOrg } from "./infrastructure/derive-to-org-writer";
 import { WelfareRepository } from "./infrastructure/welfare-repository";
 
 // ---------------------------------------------------------------------------
@@ -462,13 +457,11 @@ export async function unassignWelfareAction(reportId: string): Promise<AssignRes
 // ---------------------------------------------------------------------------
 //
 // AUTH SCOPE: requireAdminOrGovtOrRedirect + jurisdiction scope (mirrors triage).
-// Forwards a non-terminal welfare report to a verified shelter / rescue_network
-// for follow-up. Sets derived_to_organization_id / derived_at / derived_by_user_id,
-// notifies active org members (cap 10), writes an audit_log entry.
+// Controller only. Target validation, persistence, the audit row and the
+// notification payloads live in ./infrastructure/derive-to-org-writer — read
+// its header before touching the audit call (lint:audit-log follows exactly one
+// hop out of this body).
 //
-// Idempotent: re-deriving overwrites the previous derivation target. Known
-// limitation: the previous org is NOT de-notified — its members keep a stale
-// notification whose report no longer appears in their inbox.
 // Rejected for terminal statuses (closed / invalid / duplicate).
 
 export type DeriveWelfareToOrgResult = { ok: true } | { ok: false; error: string };
@@ -489,131 +482,22 @@ export async function deriveWelfareToOrgAction(input: {
     return { ok: false, error: "No se puede derivar una denuncia cerrada o inválida." };
   }
 
-  // Verify the target org exists, is verified, and is an eligible derivation
-  // recipient (shelter / rescue_network / sanitary_authority — #48).
-  const [targetOrg] = await db
-    .select({
-      id: organizations.id,
-      displayName: organizations.displayName,
-      publicToken: organizations.publicToken,
-      verified: organizations.verified,
-      orgType: organizations.orgType,
-    })
-    .from(organizations)
-    .where(eq(organizations.id, input.targetOrgId))
-    .limit(1);
-
-  if (!targetOrg) return { ok: false, error: "Organización no encontrada." };
-  if (!targetOrg.verified) return { ok: false, error: "La organización no está verificada." };
-  if (!canReceiveDerivedWelfare(targetOrg.orgType)) {
-    return {
-      ok: false,
-      error:
-        "Solo se puede derivar a refugios, redes de rescate o autoridades sanitarias verificadas.",
-    };
-  }
-
-  // Capture the previous derivation target BEFORE overwriting, so we can send a
-  // corrective notice when re-deriving to a different org (UI-7 B8). True
-  // notification retraction isn't possible — the corrective notice is the fix.
-  const previousOrgId = report.derivedToOrganizationId;
-
-  // Persist derivation fields. Re-deriving resets any prior org intervention
-  // state so the new org starts from a clean slate ('tomado'/'devuelto' cleared).
-  await db
-    .update(welfareReports)
-    .set({
-      derivedToOrganizationId: targetOrg.id,
-      derivedAt: new Date(),
-      derivedByUserId: user.id,
-      orgInterventionStatus: null,
-      orgInterventionAt: null,
-    })
-    .where(eq(welfareReports.id, input.welfareReportId));
-
-  // Audit log — same pattern as create-org-welfare-report.
-  await repo.insertAudit({
+  const derived = await deriveWelfareToOrg({
+    welfareReportId: input.welfareReportId,
+    targetOrgId: input.targetOrgId,
     actorUserId: user.id,
-    action: "welfare_report_derived_to_org",
-    targetOrganizationId: targetOrg.id,
-    payload: {
-      welfareReportId: input.welfareReportId,
-      referenceCode: report.referenceCode,
-      targetOrgId: targetOrg.id,
-      targetOrgDisplayName: targetOrg.displayName,
-    },
+    referenceCode: report.referenceCode,
+    // Captured BEFORE the write so the writer can send the UI-7 B8 corrective
+    // notice when the report moves between orgs.
+    previousOrgId: report.derivedToOrganizationId,
   });
+  if (!derived.ok) return { ok: false, error: derived.error };
 
-  // Notify active org members (cap 10) — use publicToken in ctaUrl (NEVER UUID).
-  const memberRows = await db
-    .select({ userId: organizationMemberships.userId })
-    .from(organizationMemberships)
-    .where(
-      and(
-        eq(organizationMemberships.organizationId, targetOrg.id),
-        isNull(organizationMemberships.leftAt),
-      ),
-    )
-    .limit(10);
-
-  const ctaUrl = `/org/${targetOrg.publicToken}/maltrato/recibidos?tab=recibidos`;
-  const pendingNotifications: Parameters<typeof flushNotifications>[0] = memberRows.map((m) => ({
-    userId: m.userId,
-    notificationType: "welfare_report_derived_to_org",
-    title: "Nueva derivación de denuncia",
-    body: `El gobierno derivó la denuncia ${report.referenceCode} a tu organización para seguimiento.`,
-    severity: "warning" as const,
-    ctaLabel: "Ver denuncia",
-    ctaUrl,
-    category: "welfare",
-  }));
-
-  // Re-derivation de-notify (UI-7 B8): when the report was previously derived to
-  // a DIFFERENT org, notify that org's active members that they are no longer
-  // responsible. Corrective notice (info) with a CTA to their recibidos list.
-  if (previousOrgId && previousOrgId !== targetOrg.id) {
-    const [previousOrg] = await db
-      .select({ publicToken: organizations.publicToken })
-      .from(organizations)
-      .where(eq(organizations.id, previousOrgId))
-      .limit(1);
-
-    const previousMemberRows = await db
-      .select({ userId: organizationMemberships.userId })
-      .from(organizationMemberships)
-      .where(
-        and(
-          eq(organizationMemberships.organizationId, previousOrgId),
-          isNull(organizationMemberships.leftAt),
-        ),
-      )
-      .limit(10);
-
-    const previousCtaUrl = previousOrg
-      ? `/org/${previousOrg.publicToken}/maltrato/recibidos?tab=recibidos`
-      : null;
-
-    for (const m of previousMemberRows) {
-      pendingNotifications.push({
-        userId: m.userId,
-        notificationType: "welfare_report_rederived_away",
-        title: "Derivación reasignada",
-        body: `El gobierno reasignó la denuncia ${report.referenceCode} a otra organización. Tu organización ya no es responsable de su seguimiento.`,
-        severity: "info",
-        // CTA only when the previous org still resolves — a label without a
-        // destination violates the notification CTA contract.
-        ctaLabel: previousCtaUrl ? "Ver mis recibidos" : null,
-        ctaUrl: previousCtaUrl,
-        category: "welfare",
-      });
-    }
-  }
-
-  await flushNotifications(pendingNotifications);
+  await flushNotifications(derived.notifications);
 
   revalidatePath("/gob/denuncias");
   revalidatePath(`/gob/maltrato/${input.welfareReportId}`);
-  revalidatePath(`/org/${targetOrg.publicToken}/maltrato/recibidos`);
+  revalidatePath(`/org/${derived.targetOrgPublicToken}/maltrato/recibidos`);
   return { ok: true };
 }
 

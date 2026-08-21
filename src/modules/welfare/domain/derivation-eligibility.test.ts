@@ -35,16 +35,30 @@ describe("canReceiveDerivedWelfare — derivation-target eligibility (#48)", () 
   });
 });
 
-// Both coupled gates in the action layer must route through the shared rule —
-// the derivation-target check AND its intervention-access mirror — so widening
-// the recipient set (#48) can never leave the two out of sync.
-describe("welfare actions route both gates through canReceiveDerivedWelfare", () => {
-  const src = readFileSync(join(process.cwd(), "src", "modules", "welfare", "actions.ts"), "utf8");
+// Both coupled gates must route through the shared rule — the derivation-target
+// check AND its intervention-access mirror — so widening the recipient set (#48)
+// can never leave the two out of sync. They no longer live in the same file: the
+// target check moved to infrastructure/derive-to-org-writer.ts with the rest of
+// the derivation body, so each gate is pinned in ITS OWN file (stronger than the
+// old ">= 2 hits in actions.ts" count, which one file could satisfy alone).
+describe("welfare gates route through canReceiveDerivedWelfare", () => {
+  const welfareFile = (...segments: string[]) =>
+    readFileSync(join(process.cwd(), "src", "modules", "welfare", ...segments), "utf8");
 
-  it("uses the shared rule and no longer hardcodes the two-type check", () => {
-    const gateHits = src.match(/canReceiveDerivedWelfare\(/g) ?? [];
-    // One in deriveWelfareToOrgAction (target) + one in requireOrgInterventionAccess (mirror).
-    expect(gateHits.length).toBeGreaterThanOrEqual(2);
-    expect(src).not.toContain('orgType !== "shelter" && targetOrg.orgType !== "rescue_network"');
+  const actionsSrc = welfareFile("actions.ts");
+  const writerSrc = welfareFile("infrastructure", "derive-to-org-writer.ts");
+
+  it("the derivation-target gate uses the shared rule", () => {
+    expect(writerSrc).toMatch(/canReceiveDerivedWelfare\(/);
+  });
+
+  it("the intervention-access mirror uses the shared rule", () => {
+    expect(actionsSrc).toMatch(/canReceiveDerivedWelfare\(/);
+  });
+
+  it("neither hardcodes the old two-type check", () => {
+    const hardcoded = 'orgType !== "shelter" && targetOrg.orgType !== "rescue_network"';
+    expect(actionsSrc).not.toContain(hardcoded);
+    expect(writerSrc).not.toContain(hardcoded);
   });
 });
