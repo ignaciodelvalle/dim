@@ -32,9 +32,13 @@
 //      CANDIDATES, is a FAILURE, not a pass. A fence that scans nothing and
 //      reports success is the exact failure class this repo keeps paying for.
 //   2. NO STALE BASELINE. A baseline entry that no longer offends must be
-//      removed — copied from scripts/check-db-budget.ts:551-561, which 17 of
-//      the 18 other ratchets in this repo lack. A stale entry is how a ratchet
-//      quietly stops ratcheting.
+//      removed — copied from the `staleBaseline` block in `runScan()` of
+//      scripts/check-db-budget.ts, which 17 of the 18 other ratchets in this
+//      repo lack. A stale entry is how a ratchet quietly stops ratcheting.
+//      (Cited by SYMBOL, not by line range: this pointer read ":551-561" until
+//      2026-08-21, by which time the block had moved to ~779 and the lines it
+//      named were part of a string-literal scanner. A citation that has drifted
+//      is worse than none — it sends a reader somewhere plausible and wrong.)
 //
 // KNOWN BLIND SPOTS — stated, not hidden:
 //   · ONE HOP. A wrapper → use-case → repository chain hides the mutation (and
@@ -336,7 +340,8 @@ function runScan(): void {
     failed = true;
   }
 
-  // GUARD 2 — no stale baseline. Copied from check-db-budget.ts:551-561.
+  // GUARD 2 — no stale baseline. Copied from the `staleBaseline` block in
+  // check-db-budget.ts's `runScan()`.
   const stillUnaudited = new Set(unaudited.map((c) => c.key));
   const stale = [...baseline].filter((k) => !stillUnaudited.has(k)).sort();
   if (stale.length > 0) {

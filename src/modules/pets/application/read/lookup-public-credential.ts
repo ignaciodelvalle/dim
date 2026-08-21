@@ -159,6 +159,10 @@ export async function lookupPublicCredential(
   // built on it (a native client's, an API route's) would have had its enforced
   // limit converted into a served credential by the catch below. A throw is a
   // legitimate way for a port to say "throttled"; it is answered, not reported.
+  // The adapter that ships today (lib/infra/public-token-throttle.ts) catches
+  // RateLimitError itself and returns `true`, so this branch is unreachable
+  // through it — which is the point: it guards the PORT's contract, not that one
+  // implementation's, and the port is what a caller is free to replace.
   let throttled = false;
   try {
     throttled = await throttle.isThrottled();

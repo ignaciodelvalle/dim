@@ -100,6 +100,8 @@ const GUARD = "isPublicTokenReadThrottled";
 const LOOKUP = "publicPetByToken(";
 /** The application-layer door every public-credential renderer goes through. */
 const DOOR = "lookupPublicCredential(";
+/** The file that DEFINES the door — the one src/ resolver the RED controls read. */
+const DOOR_FILE = "src/modules/pets/application/read/lookup-public-credential.ts";
 /** The infrastructure adapter that binds the limiter to a request. */
 const ADAPTER = "publicTokenThrottle(";
 /** How a use-case applies the injected limiter. */
@@ -260,6 +262,25 @@ const FORM_CALLS = {
 type GuardForm = keyof typeof FORM_CALLS;
 const FORM_PROBE_ORDER: readonly GuardForm[] = ["direct", "port", "write", "adapter"];
 
+/**
+ * The forms that can ANCHOR an ordering — i.e. the ones that actually consult a
+ * limiter. `adapter` is deliberately absent.
+ *
+ * NARROWED 2026-08-21. `guardPrecedesLookup` compared the lookup against every
+ * value in FORM_CALLS, `publicTokenThrottle(` included — and that call BUILDS a
+ * limiter, it asks it nothing. Nothing is consulted until someone awaits
+ * `isThrottled()`, which happens inside the door, in another file. So a block
+ * that constructed the limiter and then resolved the token ITSELF, never passing
+ * it anywhere, certified as "guard before lookup" — the exact inversion the
+ * check exists to catch, wearing the syntax of compliance.
+ *
+ * The adapter stays a legitimate CLASSIFICATION (a page that only hands the port
+ * to the door runs no limiter of its own and is not an offender); it is just not
+ * evidence of an order. A file that supplies the port AND resolves a token by
+ * itself has to show one of the three real forms for its own lookup.
+ */
+const ORDERING_ANCHORS: readonly string[] = [FORM_CALLS.direct, FORM_CALLS.port, FORM_CALLS.write];
+
 /** Which of the four legitimate forms a file carries, or null. */
 function guardForm(src: string): GuardForm | null {
   const c = code(src);
@@ -331,12 +352,44 @@ function doorCallerViolations({ file, src }: Source): string[] {
   return problems;
 }
 
-/** The ways a resolver reaches the pet row — either the query helper or the port. */
-const LOOKUP_MARKERS = [LOOKUP, ".findPet("] as const;
+/**
+ * The ways a resolver reaches the pet row: the query helper, the injected port,
+ * or the door file's own unexported resolver.
+ *
+ * `findPetByPublicToken(` JOINED 2026-08-21, AND IT WAS A REAL HOLE IN THE ONE
+ * FILE THIS FENCE NAMES BY PATH. `lookup-public-credential.ts` reaches the pet
+ * row through that unexported helper; a SIBLING export calling it resolves the
+ * token just as completely, and matched NEITHER marker — `findPetByPublicToken(`
+ * does not contain `publicPetByToken(` (the capital P is the whole difference)
+ * and is not `.findPet(` either. Its block therefore held no lookup at all, and
+ * `guardPrecedesLookup` has nothing to say about a block that never resolves
+ * anything. A marker list is an enumeration of NAMES, so it carries the standing
+ * risk this repo keeps paying for: the next private resolver gets a new name and
+ * is invisible until someone adds it here. What bounds that risk is scope — the
+ * helper is unexported, so only this file can call it, and this file is fenced.
+ */
+const LOOKUP_MARKERS = [LOOKUP, ".findPet(", "findPetByPublicToken("] as const;
 
 /**
- * Where a top-level export begins: `export async function`, `export default
- * async function`, or `export const NAME = async …`.
+ * Where a top-level export begins — ANY top-level `export`, whatever follows it.
+ *
+ * WIDENED 2026-08-21, FROM A SHAPE LIST TO THE KEYWORD. It used to enumerate the
+ * export forms it knew (`export async function`, `export default async function`,
+ * `export const NAME = async …`), which made every OTHER spelling a non-boundary
+ * — and a non-boundary body is read as a continuation of the export above it and
+ * INHERITS that export's guard. `export default async (req) => …` is how route
+ * handlers are written, and `export function` is one keyword away from any of
+ * them. Banning the spellings you thought of is the failure this repo has a name
+ * for; the boundary is the `export` keyword, which is the subject.
+ *
+ * `export type` / `export interface` / `export {` are boundaries too. They are
+ * harmless: an extra boundary only ever SPLITS a block, and splitting is
+ * monotonically stricter — a lookup can lose an earlier block's guard, never
+ * gain one. The same argument covers the two ways this line-anchored match can
+ * fire on something that is not a top-level export: an indented `export` inside
+ * a `declare module`, and — since `stripComments` keeps string CONTENTS — a
+ * string literal holding the word `export` at the start of a line. Both split a
+ * block that should have stayed whole, so both fail CLOSED: noisy, never blind.
  *
  * Leading whitespace is tolerated on purpose — the RED-control fixtures below
  * are indented template literals, and a boundary rule that only fires at column
@@ -348,8 +401,7 @@ const LOOKUP_MARKERS = [LOOKUP, ".findPet("] as const;
  * matters, because the real tree's only unexported resolver is exactly such a
  * helper.)
  */
-const EXPORT_BOUNDARY_RE =
-  /^[ \t]*export\s+(?:default\s+async\s+function\b|async\s+function\b|(?:const|let|var)\s+[\w$]+[^=\n]*=\s*async\b)/gm;
+const EXPORT_BOUNDARY_RE = /^[ \t]*export\b/gm;
 
 /**
  * The stripped source cut into one block per top-level export.
@@ -408,11 +460,10 @@ function guardPrecedesLookup(src: string): boolean {
   // A file carrying no legitimate form at all is out of order by definition —
   // and this is what keeps a guard that lives only in a comment from counting.
   if (guardForm(src) === null) return false;
-  const forms = Object.values(FORM_CALLS);
   for (const block of exportBlocks(code(src))) {
     const lookupAt = firstIndexOf(block, LOOKUP_MARKERS);
     if (lookupAt === -1) continue;
-    const guardAt = firstIndexOf(block, forms);
+    const guardAt = firstIndexOf(block, ORDERING_ANCHORS);
     if (guardAt === -1 || guardAt > lookupAt) return false;
   }
   return true;
@@ -445,7 +496,7 @@ describe("public-token routes are rate limited", () => {
     expect(pages).toContain("app/(public)/p/[publicToken]/opengraph-image.tsx");
     // THE ONE THE app/-ONLY SCOPE COULD NOT SEE — the credential's decision
     // now lives in the application layer.
-    expect(pages).toContain("src/modules/pets/application/read/lookup-public-credential.ts");
+    expect(pages).toContain(DOOR_FILE);
 
     // The widening is only real if it actually reaches the new root.
     expect(all.filter((f) => f.startsWith("src/")).length).toBeGreaterThanOrEqual(3);
@@ -759,6 +810,83 @@ describe("the fence bites", () => {
         return findPet(input.publicToken);
       }`;
     expect(guardPrecedesLookup(helperAbove)).toBe(false);
+  });
+
+  it("flags a SIBLING export that reuses the file's own unexported resolver", () => {
+    // THE HOLE THE MARKER LIST HAD UNTIL 2026-08-21, and it was open in the one
+    // file the fence names by path. `lookup-public-credential.ts` resolves the
+    // token inside the unexported `findPetByPublicToken`, which the block model
+    // covers because it sits BELOW the guarded door. A sibling export that calls
+    // that helper reaches the same pet row — and reached it invisibly, because
+    // `findPetByPublicToken(` does not contain `publicPetByToken(` (the capital
+    // P is the whole difference) and contains no `.findPet(` either. Its block
+    // held no lookup marker at all, so there was nothing for the ordering check
+    // to be out of order WITH.
+    //
+    // Read from the REAL file rather than paraphrased: the shape only exists
+    // because the helper is unexported and declared below the door, and a
+    // hand-written fixture would be free to get that arrangement wrong.
+    const real = readFileSync(join(ROOT, DOOR_FILE), "utf8");
+    const withSibling = `${real}
+export async function peekPetStatus(publicToken: string) {
+  return findPetByPublicToken(publicToken);
+}
+`;
+    expect(guardPrecedesLookup(withSibling)).toBe(false);
+    // …and the file as it actually ships still passes, so the new marker did not
+    // simply turn the door red on its own plumbing.
+    expect(guardPrecedesLookup(real)).toBe(true);
+  });
+
+  it("treats an arrow DEFAULT export as a block boundary", () => {
+    // The boundary rule used to enumerate the export SHAPES it knew — `export
+    // async function`, `export default async function`, `export const x =
+    // async`. An unrecognised shape is not a boundary, so its body was read as a
+    // continuation of the export ABOVE it and INHERITED that export's guard.
+    // Route handlers are written this way (`export default async (req) => …`),
+    // which is exactly the layer this fence exists for.
+    const fixture = `
+      export async function lookupPublicCredential(input, deps) {
+        if (await throttle.isThrottled()) return { status: "throttled" };
+        return db.select().from(pets).where(publicPetByToken(input.publicToken));
+      }
+
+      export default async (req) => {
+        return db.select().from(pets).where(publicPetByToken(req.token));
+      };`;
+    expect(guardPrecedesLookup(fixture)).toBe(false);
+  });
+
+  it("treats a NON-ASYNC `export function` as a block boundary", () => {
+    // Same hole, cheapest possible spelling: drop the `async` and the shape list
+    // no longer recognises it. A synchronous export cannot await a limiter, so
+    // it is precisely the shape that must NOT be allowed to inherit one.
+    const fixture = `
+      export async function lookupPublicCredential(input, deps) {
+        if (await throttle.isThrottled()) return { status: "throttled" };
+        return db.select().from(pets).where(publicPetByToken(input.publicToken));
+      }
+
+      export function peekPetStatusSync(publicToken) {
+        return db.select().from(pets).where(publicPetByToken(publicToken));
+      }`;
+    expect(guardPrecedesLookup(fixture)).toBe(false);
+  });
+
+  it("does NOT let the ADAPTER form anchor the ordering — it supplies a limiter, it runs none", () => {
+    // `publicTokenThrottle("bucket")` BUILDS a limiter; nothing is consulted
+    // until someone awaits `isThrottled()`. As an ordering anchor it certified
+    // the opposite of the rule: a file that constructs the limiter and then
+    // resolves the token itself, never asking it anything, read as "guard before
+    // lookup". The four forms still CLASSIFY a file (a page that only hands the
+    // port to the door is legitimate); only three of them can prove an order.
+    const adapterOnly = `
+      export async function renderCredential(publicToken: string) {
+        const throttle = publicTokenThrottle("public_token_page");
+        return db.select().from(pets).where(publicPetByToken(publicToken));
+      }`;
+    expect(guardForm(adapterOnly)).toBe("adapter");
+    expect(guardPrecedesLookup(adapterOnly)).toBe(false);
   });
 
   it("flags a WRITE use-case that resolves the token before its limiter", () => {

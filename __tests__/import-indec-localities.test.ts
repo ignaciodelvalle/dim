@@ -10,7 +10,7 @@ import { afterAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { arLocalities, arLocalitiesImportRuns, db } from "@/db";
 import {
   FALLBACK_FIXTURE_SOURCE_VERSION,
-  REMOVAL_MIN_PARSED_ROWS,
+  REMOVAL_MIN_RECOGNISED_ROWS,
   runImport,
 } from "@/scripts/import-indec-localities";
 
@@ -154,10 +154,14 @@ async function countActiveIndecRows(): Promise<number> {
  * A syntactically perfect feed of `rowCount` rows that imports NOTHING.
  *
  * Every row is a "Paraje" — a category the importer drops as too granular — so
- * the feed exercises the ROW COUNT (which is what the completeness floor reads)
- * without inserting thousands of rows into the shared local catalog. Ids carry
- * the impossible `999` department, so even a future category change could not
- * collide with a live locality.
+ * the feed exercises the completeness floor without inserting thousands of rows
+ * into the shared local catalog. Ids carry the impossible `999` department, so
+ * even a future category change could not collide with a live locality.
+ *
+ * Each row still carries a READABLE `id`, which is what the floor counts since
+ * 2026-08-21 — so this builds a feed that is short, not one that is
+ * unintelligible. The renamed-column test strips the id column from the header
+ * afterwards to build the other kind.
  */
 function syntheticFeed(rowCount: number): string {
   const header = csvFixture.split("\n")[0];
@@ -356,7 +360,7 @@ describe("import-indec-localities", () => {
     });
 
     global.fetch = vi.fn(async () => buildResponse());
-    // The 8-row fixture is far below REMOVAL_MIN_PARSED_ROWS, so the removal
+    // The 8-row fixture is far below REMOVAL_MIN_RECOGNISED_ROWS, so the removal
     // pass refuses to run unless the harness says the partial feed is
     // deliberate. This test is ABOUT the removal pass, so it says so.
     await runImport({
@@ -436,7 +440,7 @@ describe("import-indec-localities", () => {
   // -------------------------------------------------------------------------
   // THE REMOVAL PASS IS ONLY SAFE OVER A FEED THAT IS ACTUALLY THE CATALOG
   // -------------------------------------------------------------------------
-  // Everything above proves the stale-row pass WORKS. These two prove it
+  // Everything above proves the stale-row pass WORKS. These three prove it
   // REFUSES, and that is the half with the teeth: "soft-delete every active row
   // absent from the parsed feed" is a correct rule about a complete feed and a
   // catalog-wipe about anything less. One unreachable datos.gob.ar and the
@@ -444,9 +448,12 @@ describe("import-indec-localities", () => {
   // `removed_at` on staging or prod, with the run row reporting `status: ok`.
   //
   // The guard is deliberately NOT "trust usedFallback": a truncated live
-  // download is the same hazard wearing a 200, so the row count carries its own
-  // floor. `allowPartialFeedRemovals` is the harness's explicit opt-out and has
-  // no production caller — the two tests below are the coverage of the DEFAULT.
+  // download is the same hazard wearing a 200, so the feed carries its own
+  // completeness floor. And the floor is NOT stated over parsed rows — the third
+  // test is a full-size feed whose id column was renamed, which is complete by
+  // every measure except the only one that matters. `allowPartialFeedRemovals`
+  // is the harness's explicit opt-out and has no production caller — the three
+  // tests below are the coverage of the DEFAULT.
 
   it("refuses to remove anything when the live fetch fell back to the fixture", async () => {
     await plantStaleRow(PLANTED_STALE_IDS[0]);
@@ -510,8 +517,8 @@ describe("import-indec-localities", () => {
     // The floor has to sit between the two: comfortably above any fixture, far
     // enough below the live feed (4 023 rows on 2026-08-21) that ordinary
     // upstream churn never trips it.
-    expect(REMOVAL_MIN_PARSED_ROWS).toBeGreaterThanOrEqual(1000);
-    expect(REMOVAL_MIN_PARSED_ROWS).toBeLessThan(4000);
+    expect(REMOVAL_MIN_RECOGNISED_ROWS).toBeGreaterThanOrEqual(1000);
+    expect(REMOVAL_MIN_RECOGNISED_ROWS).toBeLessThan(4000);
     // The synthetic rows are all parajes — parsed, counted, imported by nobody.
     expect(stats.inserted).toBe(0);
     expect(stats.skipped).toBe(3000);
@@ -527,6 +534,55 @@ describe("import-indec-localities", () => {
       .from(arLocalitiesImportRuns)
       .where(eq(arLocalitiesImportRuns.sourceUrl, "https://test.example/fixture.csv"));
     expect((run.details as { removalsSkipped?: string }).removalsSkipped).toBe("partial-feed");
+  }, 60_000);
+
+  it("refuses to remove anything when the feed's `id` column was renamed away", async () => {
+    // THE HOLE A ROW-COUNT FLOOR CANNOT SEE, and the one upstream has ALREADY
+    // demonstrated it can produce: on 2026-08-19 INDEC renamed `municipio_id` to
+    // `gobierno_local_id` and MOVED the `id` column. The move was harmless
+    // because csv-parse keys rows by header name — and that is exactly what
+    // makes the rename dangerous. A feed whose id column is called something
+    // else parses perfectly, arrives at full size, sails over any floor stated
+    // in ROWS, and yields an EMPTY seen-set. "Every active row is absent from
+    // the feed" is then true of the entire catalog, and the run reports
+    // `status: ok` while stamping ~4 000 real localities `removed_at`.
+    //
+    // So the floor is stated over rows the importer UNDERSTOOD — ids it could
+    // actually read — not over rows it received. Same reason the fallback check
+    // was not enough on its own: the hazard is "this feed is not the catalog",
+    // and a feed can fail that in more ways than being short.
+    //
+    // DRY RUN ON PURPOSE. Under the defect this run computes a removal set of
+    // the whole catalog; `dryRun` lets the assertion see that number without the
+    // test being the thing that destroys the local DB when it goes red.
+    const activeBefore = await countActiveIndecRows();
+    const renamed = syntheticFeed(4000).replace(',"id",', ',"codigo",');
+    // The feed really is full-size and really has lost the column — otherwise
+    // this would just be the row-count floor firing again under a new name.
+    expect(renamed.split("\n")[0]).not.toContain('"id"');
+    expect(renamed.split("\n").filter((l) => l.trim().length > 0)).toHaveLength(4001);
+
+    global.fetch = vi.fn(
+      async () =>
+        new Response(renamed, {
+          status: 200,
+          headers: { "Last-Modified": FIXTURE_SOURCE_VERSION },
+        }),
+    );
+    const stats = await runImport({
+      dryRun: true,
+      sourceUrl: "https://test.example/fixture.csv",
+    });
+
+    expect(stats.usedFallback).toBe(false);
+    // Not one row is understood: every record fails the required-field check.
+    expect(stats.errors).toHaveLength(4000);
+    expect(stats.removalsSkipped).toBe("partial-feed");
+    expect(stats.removed).toBe(0);
+    // NON-VACUITY: `removed=0` proves nothing on an empty catalog. The local DB
+    // carries the real ~4 k, and that is the number the defect was aimed at.
+    expect(activeBefore).toBeGreaterThan(1000);
+    expect(await countActiveIndecRows()).toBe(activeBefore);
   }, 60_000);
 
   // The upstream header rename (2026-08-19): municipio_id / municipio_nombre

@@ -273,6 +273,21 @@ export type DelegatingRoute = { reason: string; budgetedBy: string[] };
  * and turns the entry RED. That is the safe direction for an exemption lane —
  * the fence complains about a real delegation instead of certifying a fake one
  * — and the fix is to write the named import, not to relax the check.
+ *
+ * SECOND KNOWN LIMIT, and this one points the UNSAFE way. `importedIdentifiers`
+ * matches `import type { X } from "…"` — the `type` keyword is optional in its
+ * pattern — so a TYPE-ONLY import satisfies (6), and X then only has to appear
+ * followed by `.` or `(` in the stripped body to satisfy (7). A type import
+ * erases at compile time, so such a route delegates NOTHING at runtime while
+ * reading as a performed delegation. Measured against `delegationLinkProblems`
+ * rather than reasoned about, because the reach is much narrower than it sounds:
+ * of the type-position spellings tried, only the QUALIFIED one (`const r:
+ * X.Ok = …`) passes. A plain annotation, a generic argument, an `as` cast and a
+ * parameter annotation are all still flagged "imports … but never calls it",
+ * and the inline spelling `import { type X }` is skipped as a binding entirely
+ * and fails (6) instead. So the hole is one uncommon shape wide, not open — and
+ * closing it means dropping `(?:type\s+)?` from that pattern, in the file that
+ * owns it, with its own tests. Do not paper over it by widening the CALL regex.
  */
 export const DELEGATING_ROUTES: Record<string, DelegatingRoute> = {
   "app/api/v1/pets/[publicToken]/credential/route.ts": {

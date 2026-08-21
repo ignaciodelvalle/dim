@@ -56,8 +56,9 @@
  * Idempotent: re-running a second time produces no changes when the CSV is
  * unchanged. Soft-deletes rows that disappear from the source between runs —
  * but ONLY when the feed it just parsed can be trusted to BE the catalog. See
- * REMOVAL_MIN_PARSED_ROWS below: "remove everything absent from the feed" is a
- * correct rule about a complete feed and a catalog-wipe about anything else.
+ * REMOVAL_MIN_RECOGNISED_ROWS below: "remove everything absent from the feed"
+ * is a correct rule about a complete feed and a catalog-wipe about anything
+ * else, including a full-size feed this importer could not read.
  */
 
 import { readFileSync } from "node:fs";
@@ -103,7 +104,11 @@ const FALLBACK_FIXTURE_PATH = join(
 );
 
 /**
- * Below this many PARSED rows, the stale-row pass refuses to run.
+ * Below this many RECOGNISED rows, the stale-row pass refuses to run.
+ *
+ * "Recognised" = the feed row carried an `id` this importer could read. It is
+ * deliberately NOT the parsed row count — see the last paragraph, which is the
+ * whole reason this constant was renamed on 2026-08-21.
  *
  * WHY A FLOOR AND NOT JUST A `usedFallback` CHECK. The removal pass soft-deletes
  * every active `indec_cppdyl` row absent from the feed it just parsed. That is
@@ -115,7 +120,19 @@ const FALLBACK_FIXTURE_PATH = join(
  * is a TRUNCATED live download — a proxy that cut the body short, a partial
  * upstream publish — which arrives as an HTTP 200 with no flag on it at all. A
  * truncated live download is the same hazard as the fixture, so the guard is
- * stated over the thing both share: how much of the catalog we actually parsed.
+ * stated over the thing both share: how much of the catalog we actually got.
+ *
+ * AND "HOW MUCH WE GOT" IS NOT THE ROW COUNT (fixed 2026-08-21). A third way to
+ * hold less than the catalog leaves the row count untouched: a feed whose `id`
+ * COLUMN was renamed. csv-parse keys rows by header name, so such a feed parses
+ * perfectly, arrives at full size, and yields an empty seen-set — after which
+ * "absent from the feed" is true of every row in the catalog. This is not a
+ * hypothetical shape: upstream renamed `municipio_id` to `gobierno_local_id` and
+ * moved `id` on 2026-08-19, and it was harmless only because `id` kept its name.
+ * Measured on the defect before the fix: a 4 000-row feed with the column
+ * renamed printed `removed=4091 errors=4000` and would have reported ok. So the
+ * floor counts rows the importer UNDERSTOOD, which is the quantity the removal
+ * rule actually depends on; a row it could not read is not evidence of anything.
  *
  * Calibration: the live feed shipped 4 027 rows on 2026-05-18, 4 024 on
  * 2026-08-19 and 4 023 on 2026-08-21. 3 500 leaves ~13% of headroom for genuine
@@ -125,7 +142,7 @@ const FALLBACK_FIXTURE_PATH = join(
  * which is the correct outcome, because "the catalog halved" is not a thing a
  * seed script should conclude on its own.
  */
-export const REMOVAL_MIN_PARSED_ROWS = 3500;
+export const REMOVAL_MIN_RECOGNISED_ROWS = 3500;
 
 /** Why a run declined to soft-delete anything. `null` = the pass ran normally. */
 export type RemovalSkipReason = "fallback" | "partial-feed";
@@ -264,7 +281,7 @@ export async function runImport(options?: {
   localCsvPath?: string;
   /**
    * Run the stale-row pass even though the parsed feed is below
-   * REMOVAL_MIN_PARSED_ROWS. TEST HARNESS ONLY — the removal behaviour has to
+   * REMOVAL_MIN_RECOGNISED_ROWS. TEST HARNESS ONLY — the removal behaviour has to
    * be provable against an 8-row fixture, and there is no production caller
    * (the CLI below does not pass it). It does NOT override the fallback skip:
    * a run that could not reach the source has no business deciding what is
@@ -536,20 +553,30 @@ export async function runImport(options?: {
     //
     // AND IT ONLY RUNS OVER A FEED THAT IS PLAUSIBLY THE WHOLE CATALOG. The
     // pass reads "absent from the feed" as "gone from INDEC", which is only
-    // true when the feed IS INDEC's catalog. Two ways it is not: the fallback
-    // fixture (8 rows, loaded whenever datos.gob.ar is unreachable) and a
-    // truncated live download (an HTTP 200 with a short body, which carries no
-    // flag at all). Either one would have soft-deleted ~4 000 real localities
-    // on the next staging or prod run and reported `status: ok` doing it. See
-    // REMOVAL_MIN_PARSED_ROWS.
+    // true when the feed IS INDEC's catalog. THREE ways it is not: the fallback
+    // fixture (8 rows, loaded whenever datos.gob.ar is unreachable), a truncated
+    // live download (an HTTP 200 with a short body, which carries no flag at
+    // all), and a full-size feed whose `id` column upstream renamed (parses
+    // cleanly, counts 4 000 rows, identifies none of them). Any of the three
+    // would have soft-deleted ~4 000 real localities on the next staging or prod
+    // run and reported `status: ok` doing it. See REMOVAL_MIN_RECOGNISED_ROWS.
+    //
+    // The seen-set is built FIRST because it is what the floor reads. Its size
+    // is the count of feed rows this importer could actually identify, which is
+    // the quantity the removal rule depends on — a full-size feed under a
+    // renamed `id` column produces an empty one, and an empty seen-set turns
+    // "absent from the feed" into "the whole catalog". Counted BEFORE the
+    // deliberate exclusions are subtracted below: those are rows we understood
+    // and chose not to import, and they are evidence the feed IS the catalog.
+    const importedIndecIds = new Set(records.map((r) => r.id).filter(Boolean));
+    const recognisedRows = importedIndecIds.size;
     const removalsSkipped: RemovalSkipReason | null = usedFallback
       ? "fallback"
-      : records.length < REMOVAL_MIN_PARSED_ROWS && !allowPartialFeedRemovals
+      : recognisedRows < REMOVAL_MIN_RECOGNISED_ROWS && !allowPartialFeedRemovals
         ? "partial-feed"
         : null;
     stats.removalsSkipped = removalsSkipped;
 
-    const importedIndecIds = new Set(records.map((r) => r.id).filter(Boolean));
     // A row we deliberately did not import is present in the CSV but must not
     // count as "seen"; drop its id so a copy left over from an older import is
     // treated as gone and soft-deleted below. This is the self-healing leg: the
@@ -585,7 +612,7 @@ export async function runImport(options?: {
       console.warn(
         removalsSkipped === "fallback"
           ? "[import-indec-localities] Stale-row pass SKIPPED: this run used the bundled sample fixture, which is not the catalog. Nothing was soft-deleted. Re-run against the live source to prune."
-          : `[import-indec-localities] Stale-row pass SKIPPED: parsed ${records.length} rows, below the ${REMOVAL_MIN_PARSED_ROWS}-row completeness floor — a truncated download must not prune the catalog. Nothing was soft-deleted.`,
+          : `[import-indec-localities] Stale-row pass SKIPPED: recognised ${recognisedRows} of ${records.length} parsed rows, below the ${REMOVAL_MIN_RECOGNISED_ROWS}-row completeness floor — a truncated download, or a feed whose id column was renamed, must not prune the catalog. Nothing was soft-deleted.`,
       );
     }
 
@@ -609,6 +636,9 @@ export async function runImport(options?: {
             skippedNonRelevant: stats.skipped,
             skippedSuperseded: stats.supersededSkipped,
             parsedRows: records.length,
+            // The two are the same number on a healthy feed and diverge on
+            // exactly the failure the floor now watches for.
+            recognisedRows,
             ...(usedFallback ? { usedFallback: true } : {}),
             // The audit trail has to distinguish "nothing was stale" from "we
             // refused to decide what was stale" — both write removedCount 0.
@@ -626,7 +656,7 @@ export async function runImport(options?: {
     const removedField =
       removalsSkipped === null
         ? `removed=${stats.removed}`
-        : `removed=0 (SKIPPED: ${removalsSkipped}, parsed ${records.length} rows)`;
+        : `removed=0 (SKIPPED: ${removalsSkipped}, recognised ${recognisedRows} of ${records.length} parsed rows)`;
     console.log(
       `Done. inserted=${stats.inserted} updated=${stats.updated} noop=${stats.noop} ${removedField} skipped=${stats.skipped} (superseded=${stats.supersededSkipped}) errors=${stats.errors.length}${fallbackSuffix}`,
     );
