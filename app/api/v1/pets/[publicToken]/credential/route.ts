@@ -107,6 +107,7 @@ import { publicTokenThrottle } from "@/lib/infra/public-token-throttle";
 import { callerIp } from "@/lib/infra/rate-limit";
 import { lookupPublicCredential } from "@/src/modules/pets/application/read/lookup-public-credential";
 
+import { LOOKUP_BUCKET, PUBLIC_TOKEN_API_LOOKUP_LIMIT } from "./limits";
 import { buildDegradedPublicCredentialV1, buildPublicCredentialV1 } from "./payload";
 
 // The handler reads the request's own headers for the caller IP, so it can
@@ -124,12 +125,6 @@ export const dynamic = "force-dynamic";
 //
 // It reads the RAW source, comments included, so this note names the rule
 // instead of illustrating it with a call.
-
-/** D3 — the per-lookup bucket, keyed by token AND caller. */
-export const LOOKUP_BUCKET = "public_token_api_credential_lookup";
-
-/** D3 — atender's numbers, for the reasons in the header. */
-export const PUBLIC_TOKEN_API_LOOKUP_LIMIT = { maxPerMinute: 20, maxPerHour: 100 } as const;
 
 /** Advisory backoff on a degraded read. Not a limiter window. */
 const DEGRADED_RETRY_AFTER_SECONDS = 30;

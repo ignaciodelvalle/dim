@@ -93,15 +93,15 @@ import type { CredentialViewData } from "@/src/modules/pets/application/read/loa
 import { inArray } from "drizzle-orm";
 
 import {
+  LOOKUP_BUCKET,
+  PUBLIC_TOKEN_API_LOOKUP_LIMIT,
+} from "@/app/api/v1/pets/[publicToken]/credential/limits";
+import {
   PUBLIC_CREDENTIAL_STALE_AFTER_MS,
   buildDegradedPublicCredentialV1,
   buildPublicCredentialV1,
 } from "@/app/api/v1/pets/[publicToken]/credential/payload";
-import {
-  GET,
-  LOOKUP_BUCKET,
-  PUBLIC_TOKEN_API_LOOKUP_LIMIT,
-} from "@/app/api/v1/pets/[publicToken]/credential/route";
+import { GET } from "@/app/api/v1/pets/[publicToken]/credential/route";
 import { publicTokenThrottle } from "@/lib/infra/public-token-throttle";
 
 /**
