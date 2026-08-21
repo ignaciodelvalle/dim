@@ -416,6 +416,11 @@ export async function executeDecomiso(
       {
         petId: activePet.id,
         outcome: "ownership_transferred",
+        // A rehome sponsorship over the seized animal ends too, decided by the
+        // authority over both parties: neither the titular withdrew nor the
+        // org resigned, and nobody adopted. The platform-side outcome is the
+        // one the catalog has for that.
+        sponsorshipOutcome: "withdrawn_by_platform",
         actorUserId: user.id,
         now,
         // Every other event this function writes is signed govt/verified. The

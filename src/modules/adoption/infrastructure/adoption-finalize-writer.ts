@@ -24,8 +24,6 @@ import { validateEventPayload } from "@/lib/events/event-schemas";
 import { closeCase } from "@/lib/infra/case-helpers";
 import { type EndedCaretakerGrant, endAllLiveOwnerships } from "@/lib/infra/end-pet-ownerships";
 
-import { endRehomeSponsorship } from "./rehome-sponsorship-writer";
-
 type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0];
 
 export type InsertAdoptionFinalizedArgs = {
@@ -110,10 +108,14 @@ export async function insertAdoptionFinalized(
   // Every live ownership row, whatever its role — and caretakers through
   // their three-step end, which a blanket UPDATE here used to skip. See
   // lib/infra/end-pet-ownerships.ts for what the half-close left behind.
+  // The same call ends a rehome sponsorship on the spine if this pet reached
+  // the shelf through one (`adopted`) — a no-op otherwise: the trigger is the
+  // spine, not the ownership shape.
   const { endedCaretakerGrants } = await endAllLiveOwnerships(
     {
       petId,
       outcome: "ownership_transferred",
+      sponsorshipOutcome: "adopted",
       actorUserId: userId,
       now,
       // The author is the org coordinator running the finalize, not the
@@ -196,21 +198,6 @@ export async function insertAdoptionFinalized(
       caseId: custodyCaseId ?? null,
     })
     .returning({ id: petEvents.id });
-
-  // End the rehome sponsorship if this pet reached the shelf through one. A
-  // no-op otherwise: the trigger is the spine, not the ownership shape.
-  await endRehomeSponsorship(
-    {
-      petId,
-      outcome: "adopted",
-      recordedByUserId: userId,
-      authorRole: "shelter",
-      authorOrganizationId: orgId,
-      authorVerified: orgVerified,
-      now,
-    },
-    tx,
-  );
 
   // Close custody_episode case.
   if (custodyCaseId) {

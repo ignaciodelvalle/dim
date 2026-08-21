@@ -24,7 +24,17 @@ import { findOpenAdoptionListingCase } from "@/lib/infra/case-helpers";
 
 type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0];
 
-/** Mirrors the `outcome` enum in lib/events/rehome-event-schemas.ts. */
+/** Derived from the column, so a widened `author_role` enum cannot drift from this. */
+type AuthorRole = NonNullable<(typeof petEvents.$inferInsert)["authorRole"]>;
+
+/**
+ * Mirrors the `outcome` enum in lib/events/rehome-event-schemas.ts.
+ *
+ * `withdrawn_by_platform` is the outcome for an end no party to the
+ * arrangement chose: the rollback script (ADR-7) and, since the WU3 review
+ * (M-2), a custody hand-off decided above both parties — a decomiso, a custody
+ * dispute resolved by the authority. See lib/infra/end-pet-ownerships.ts.
+ */
 export type SponsorshipEndOutcome =
   | "adopted"
   | "withdrawn_by_titular"
@@ -72,9 +82,18 @@ export async function findOpenSponsorship(petId: string, tx: Tx): Promise<OpenSp
 export type EndSponsorshipArgs = {
   petId: string;
   outcome: SponsorshipEndOutcome;
-  /** The person the closing fact is attributed to (org member, or the titular). */
-  recordedByUserId: string;
-  authorRole: "owner" | "shelter";
+  /**
+   * The person the closing fact is attributed to (org member, the titular, or
+   * the authority's operator). Null only for a caller with no acting user.
+   */
+  recordedByUserId: string | null;
+  /**
+   * WHO IS SIGNING. `owner` for the titular's withdraw, `shelter` for the
+   * org's paths, `govt` when an authority's hand-off ends the arrangement —
+   * db/schema.ts: "the test is who the author IS, not which event type they
+   * reached for".
+   */
+  authorRole: AuthorRole;
   /** Null on the titular's own withdraw, where no org is acting. */
   authorOrganizationId: string | null;
   authorVerified: boolean;

@@ -129,8 +129,13 @@ export async function insertConvertFosterToOwner(
   //    authorRole is left at its default here, matching the `foster_ended`
   //    event this same function writes eight lines up. If that attribution is
   //    wrong it is wrong for both, and should move together.
+  //
+  //    A rehome sponsorship over this pet (the titular kept the title while
+  //    the org ran the listing, and the org placed the animal with this
+  //    foster) ends here as `adopted`: the foster becoming the owner IS the
+  //    adoption the sponsorship was for.
   const { endedCaretakerGrants } = await endAllLiveOwnerships(
-    { petId, outcome: "ownership_transferred", actorUserId, now },
+    { petId, outcome: "ownership_transferred", sponsorshipOutcome: "adopted", actorUserId, now },
     tx,
   );
 

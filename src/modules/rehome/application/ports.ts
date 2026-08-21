@@ -57,7 +57,7 @@ export interface RehomeRequestPort {
   findPetByToken(publicToken: string): Promise<PetSummary | null>;
   /** The user's live `role='owner'` row on the pet — never foster, never caretaker. */
   findLiveOwnerRow(petId: string, userId: string, tx?: unknown): Promise<{ id: string } | null>;
-  findOrgById(orgId: string): Promise<SponsorOrg | null>;
+  findOrgById(orgId: string, tx?: unknown): Promise<SponsorOrg | null>;
   findOpenRequestForPet(petId: string): Promise<RequestCase | null>;
   /** An accepted sponsorship with no matching end event, keyed on the spine. */
   hasOpenSponsorship(petId: string, tx?: unknown): Promise<boolean>;
@@ -108,7 +108,15 @@ export interface RehomeAnswerPort {
   /** Re-read under `SELECT ... FOR UPDATE`: the pre-transaction read is stale. */
   lockRequestCase(caseId: string, tx: unknown): Promise<RequestCase | null>;
   findPetById(petId: string, tx?: unknown): Promise<PetSummary | null>;
-  findLiveOwnerRow(petId: string, userId: string, tx?: unknown): Promise<{ id: string } | null>;
+  /** The ACCEPTING org, re-read inside the transaction (ADR-1 step 1b). */
+  findOrgById(orgId: string, tx?: unknown): Promise<SponsorOrg | null>;
+  /**
+   * The titular's live `owner` row, under `SELECT ... FOR UPDATE` (ADR-1 step
+   * 2). A transfer committing between this read and the custody insert would
+   * otherwise grant custody on an ex-owner's consent; the lock makes the
+   * transfer's own close of the row wait behind this transaction.
+   */
+  lockLiveOwnerRow(petId: string, userId: string, tx: unknown): Promise<{ id: string } | null>;
   countLiveShelterCustody(petId: string, tx: unknown): Promise<number>;
   findDisplayName(userId: string): Promise<string | null>;
   insertShelterCustody(args: InsertShelterCustodyArgs, tx: unknown): Promise<{ id: string }>;

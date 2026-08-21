@@ -72,6 +72,7 @@ describe("validateAcceptPreconditions — ADR-1 steps 1 to 4, in order", () => {
     caseStatus: "open",
     caseReceiverOrganizationId: ORG,
     actingOrganizationId: ORG,
+    actingOrg: { orgType: "shelter", verified: true },
     titularOwnerRowLive: true,
     liveShelterCustodyCount: 0,
     pet: { status: "active", inCustodyDispute: false, rabiesObservationStatus: null },
@@ -79,6 +80,53 @@ describe("validateAcceptPreconditions — ADR-1 steps 1 to 4, in order", () => {
 
   it("passes the clean case", () => {
     expect(validateAcceptPreconditions(good)).toEqual({ ok: true });
+  });
+
+  // The catalog (adoption-listing-read.ts) lists a pet only when the custodian
+  // org is verified AND a shelter/rescue network. Accepting without asserting
+  // both would grant custody, publish, notify "ya figura en la búsqueda" — and
+  // the pet would never appear, with no undo until the titular withdraws.
+  it("step 1b: rejects an acting org that is no longer verified — the catalog would never list the pet", () => {
+    const r = validateAcceptPreconditions({
+      ...good,
+      actingOrg: { orgType: "shelter", verified: false },
+    });
+    expect(r.ok).toBe(false);
+    if (!r.ok) expect(r.error).toBe("La organización no está verificada.");
+  });
+
+  it("step 1b: rejects an acting org of a type the catalog does not list", () => {
+    const r = validateAcceptPreconditions({
+      ...good,
+      actingOrg: { orgType: "clinic", verified: true },
+    });
+    expect(r.ok).toBe(false);
+    if (!r.ok) expect(r.error).toMatch(/refugio o una red de rescate/);
+  });
+
+  it("step 1b: rejects when the acting org row cannot be re-read at all", () => {
+    const r = validateAcceptPreconditions({ ...good, actingOrg: null });
+    expect(r.ok).toBe(false);
+    if (!r.ok) expect(r.error).toBe("Organización no encontrada.");
+  });
+
+  it("step 1b sits between the case checks and the titular check", () => {
+    // Closed case + de-verified org: step 1 wins.
+    const closed = validateAcceptPreconditions({
+      ...good,
+      caseStatus: "closed",
+      actingOrg: { orgType: "shelter", verified: false },
+    });
+    expect(closed.ok).toBe(false);
+    if (!closed.ok) expect(closed.error).toMatch(/ya fue respondida/);
+    // De-verified org + ex-owner: the org's own problem is reported first.
+    const deverified = validateAcceptPreconditions({
+      ...good,
+      actingOrg: { orgType: "shelter", verified: false },
+      titularOwnerRowLive: false,
+    });
+    expect(deverified.ok).toBe(false);
+    if (!deverified.ok) expect(deverified.error).toMatch(/no está verificada/);
   });
 
   it("step 1: rejects a case that is not an open rehome_request addressed to this org", () => {

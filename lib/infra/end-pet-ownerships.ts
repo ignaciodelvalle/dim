@@ -24,6 +24,17 @@
 // `insertAdoptionFinalized` closed every live row with one blanket UPDATE and
 // hit exactly that. `execute-decomiso` has the same shape. Both now call this.
 //
+// THE SAME SHAPE, ONE LEVEL UP: A REHOME SPONSORSHIP (WU3 review, M-2)
+// ---------------------------------------------------------------------------
+// An org's `shelter_custody` row can be the custody a rehome sponsorship
+// opened (rehome-by-titular). Closing that row ends the arrangement in fact,
+// and `findOpenSponsorship` — keyed on an UNMATCHED `rehome_sponsorship_started`
+// — does not notice rows. Without the closing event, REQ-16 refused every
+// future request on the pet ("ya tiene una organización acompañando") with
+// nothing left to withdraw: a decomiso locked the titular out of the feature
+// for good. So, when the open sponsorship's custody row is among the rows
+// closed here, `rehome_sponsorship_ended` is written in the same transaction.
+//
 // WHY IT LIVES IN lib/infra AND NOT IN THE CARETAKERS MODULE
 // ---------------------------------------------------------------------------
 // Two modules need the three-step end, and `caretakers` was built with ZERO
@@ -41,6 +52,12 @@ import { ownerships, petCaretakerGrants, petEvents } from "@/db";
 import type { db } from "@/db";
 import { validateEventPayload } from "@/lib/events/event-schemas";
 import { createNotification } from "@/lib/infra/notification-service";
+import {
+  type OpenSponsorship,
+  type SponsorshipEndOutcome,
+  endRehomeSponsorship,
+  findOpenSponsorship,
+} from "@/src/modules/adoption/infrastructure/rehome-sponsorship-writer";
 import type { GrantEndOutcome } from "@/src/modules/caretakers/domain/types";
 
 type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0];
@@ -160,11 +177,18 @@ export async function endCaretakerGrantAtomically(
  * arrangement ended. It is a required argument and not a default, because
  * "adoption finalized" and "seized by the authority" are not the same story to
  * tell the person who was looking after the animal.
+ *
+ * `sponsorshipOutcome` is the same question for a rehome sponsorship whose
+ * custody row is among the ones closed here — required for the same reason.
+ * `adopted` when the hand-off IS the adoption (finalize, a foster converting);
+ * `withdrawn_by_platform` when an authority decided it over both parties
+ * (decomiso, a resolved custody dispute).
  */
 export async function endAllLiveOwnerships(
   args: {
     petId: string;
     outcome: GrantEndOutcome;
+    sponsorshipOutcome: SponsorshipEndOutcome;
     actorUserId: string | null;
     now: Date;
     authorRole?: AuthorRole;
@@ -172,7 +196,11 @@ export async function endAllLiveOwnerships(
     authorOrganizationId?: string | null;
   },
   tx: Tx,
-): Promise<{ endedCaretakerGrants: EndedCaretakerGrant[] }> {
+): Promise<{
+  endedCaretakerGrants: EndedCaretakerGrant[];
+  /** The sponsorship this hand-off closed on the spine, or null if none was open. */
+  endedSponsorship: OpenSponsorship | null;
+}> {
   // Caretakers first, one at a time: each needs its grant and its event, and
   // the blanket close below would otherwise swallow the row and leave the grant
   // pointing at it.
@@ -226,6 +254,36 @@ export async function endAllLiveOwnerships(
     );
   }
 
+  // The rehome sponsorship, if the custody row it opened is about to close.
+  // Keyed on the spine (`payload.ownership_id`), never on the owner +
+  // shelter_custody shape, which also describes a decomiso or an intake. Only
+  // a LIVE row counts: a sponsorship whose row was already closed elsewhere
+  // without its event is drift for the harness to report, not for this
+  // function to paper over.
+  let endedSponsorship: OpenSponsorship | null = null;
+  const openSponsorship = await findOpenSponsorship(args.petId, tx);
+  if (openSponsorship) {
+    const [liveSponsorRow] = await tx
+      .select({ id: ownerships.id })
+      .from(ownerships)
+      .where(and(eq(ownerships.id, openSponsorship.ownershipId), isNull(ownerships.endedAt)))
+      .limit(1);
+    if (liveSponsorRow) {
+      endedSponsorship = await endRehomeSponsorship(
+        {
+          petId: args.petId,
+          outcome: args.sponsorshipOutcome,
+          recordedByUserId: args.actorUserId,
+          authorRole: args.authorRole ?? "owner",
+          authorVerified: args.authorVerified ?? false,
+          authorOrganizationId: args.authorOrganizationId ?? null,
+          now: args.now,
+        },
+        tx,
+      );
+    }
+  }
+
   // Everything still open: owner, co_owner, foster, shelter_custody, and any
   // caretaker row whose grant was already resolved (so it has no grant to flip).
   await tx
@@ -241,6 +299,7 @@ export async function endAllLiveOwnerships(
       grantedByUserId: g.grantedByUserId,
       endsAt: g.endsAt,
     })),
+    endedSponsorship,
   };
 }
 

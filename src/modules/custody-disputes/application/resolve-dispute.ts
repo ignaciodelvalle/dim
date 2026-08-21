@@ -212,6 +212,10 @@ export async function resolveDisputeUseCase(
           {
             petId: dispute.petId,
             outcome: "ownership_transferred",
+            // A rehome sponsorship over the disputed animal ends with the
+            // resolution, decided by the authority over both parties — same
+            // outcome as a decomiso (see lib/infra/end-pet-ownerships.ts).
+            sponsorshipOutcome: "withdrawn_by_platform",
             actorUserId: session.user.id,
             now,
             // The resolver is an admin or a govt official (checked at the top of

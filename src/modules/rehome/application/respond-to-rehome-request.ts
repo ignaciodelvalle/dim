@@ -8,8 +8,16 @@
 //      and when it fires (a custody row committed by ANOTHER path between the
 //      step-3 read and the step-5 insert) the 23505 is mapped to step 3's own
 //      refusal below — never surfaced raw.
+//   1b. Re-read the ACCEPTING org inside the transaction and assert it still
+//      qualifies to sponsor (verified, shelter / rescue network) — the bar the
+//      request applied, applied again at answer time. The session snapshot is
+//      not believed here: a verification withdrawn since login would otherwise
+//      produce custody + listing + "ya figura en la búsqueda" for a pet the
+//      catalog never shows.
 //   2. Assert the consenting titular still holds a live `owner` row — consent
-//      expires with title.
+//      expires with title. The row is read FOR UPDATE: a transfer committing
+//      between this read and step 5 would otherwise grant custody on the
+//      consent of an ex-owner.
 //   3. Assert ZERO live shelter_custody rows on the pet — one org at a time.
 //   4. Assert the catalog preconditions, so the org gets a reason instead of a
 //      silent non-listing.
@@ -128,11 +136,15 @@ export async function respondToRehomeRequest(
       return { ok: true, ownershipId: null, listingCaseId: null, pet };
     }
 
-    // 2-4. Reads under the lock, then the rules in the design's order.
-    const ownerRow = await repo.findLiveOwnerRow(petId, titularUserId, tx);
+    // 1b-4. Reads under the lock, then the rules in the design's order. The
+    // org row is the transaction's, not the session's; the owner row is taken
+    // FOR UPDATE.
+    const actingOrg = await repo.findOrgById(organization.id, tx);
+    const ownerRow = await repo.lockLiveOwnerRow(petId, titularUserId, tx);
     const liveShelterCustodyCount = await repo.countLiveShelterCustody(petId, tx);
     const gate = validateAcceptPreconditions({
       ...answerSnapshot(locked, organization.id),
+      actingOrg: actingOrg ? { orgType: actingOrg.orgType, verified: actingOrg.verified } : null,
       titularOwnerRowLive: ownerRow !== null,
       liveShelterCustodyCount,
       pet: {
@@ -142,6 +154,9 @@ export async function respondToRehomeRequest(
       },
     });
     if (!gate.ok) return { ok: false, error: gate.error };
+    // The gate refused a null org above; the events below sign with the value
+    // the transaction read, never the session's.
+    const orgVerified = actingOrg?.verified ?? false;
 
     // 5. The org's custody row, beside the titular's owner row. Nothing closes.
     const custody = await repo.insertShelterCustody({ petId, orgId: organization.id, now }, tx);
@@ -152,7 +167,7 @@ export async function respondToRehomeRequest(
         petId,
         userId: actor.user.id,
         orgId: organization.id,
-        orgVerified: organization.verified,
+        orgVerified,
         now,
       },
       tx,
@@ -172,7 +187,7 @@ export async function respondToRehomeRequest(
         consentedByUserId: titularUserId,
         recordedByUserId: actor.user.id,
         orgId: organization.id,
-        orgVerified: organization.verified,
+        orgVerified,
         now,
       },
       tx,

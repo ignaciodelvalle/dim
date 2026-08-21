@@ -2,10 +2,12 @@
 //
 // Two moments, two rule sets:
 //   - REQUEST (spec REQ-1, REQ-16): whom a titular may ask, and when.
-//   - ACCEPT (design ADR-1 steps 1-4): what must still be true, under the
-//     case lock, before the org is granted a custody row alongside the
-//     titular's owner row. The use-case runs these INSIDE the transaction on
-//     freshly re-read rows; a pre-transaction read is stale by construction.
+//   - ACCEPT (design ADR-1 steps 1-4, plus 1b from the WU3 review): what must
+//     still be true, under the case lock, before the org is granted a custody
+//     row alongside the titular's owner row — including that the ACCEPTING org
+//     still qualifies to sponsor. The use-case runs these INSIDE the
+//     transaction on freshly re-read rows; a pre-transaction read is stale by
+//     construction.
 //
 // Every rule returns the es-AR refusal the user reads. The ORDER inside
 // validateAcceptPreconditions is the design's order and is pinned by a test:
@@ -92,6 +94,15 @@ export type AcceptPetSnapshot = {
 };
 
 export type AcceptSnapshot = RequestAnswerSnapshot & {
+  /**
+   * Step 1b: the ACCEPTING org, re-read under the lock — not the session's
+   * snapshot. The catalog (adoption-listing-read.ts) lists a pet only when its
+   * custodian org is verified and a shelter / rescue network; an org that no
+   * longer qualifies would be granted custody, publish, and tell the titular
+   * "ya figura en la búsqueda" for a pet the catalog never shows. Null when the
+   * row could not be re-read.
+   */
+  actingOrg: SponsorTargetSnapshot | null;
   /** Step 2: the consenting titular still holds a live `owner` row. */
   titularOwnerRowLive: boolean;
   /** Step 3: live `shelter_custody` rows on the pet, any holder. Must be 0. */
@@ -110,6 +121,12 @@ export const CUSTODY_PRESENT_ERROR = "Esta mascota ya está bajo custodia de una
 export function validateAcceptPreconditions(s: AcceptSnapshot): RuleResult {
   const step1 = validateDeclinePreconditions(s);
   if (!step1.ok) return step1;
+
+  // Step 1b: the same bar the titular's request applied to the org, applied
+  // again to the org that is about to act — a verification can be withdrawn
+  // between the request and the answer.
+  const step1b = validateSponsorTarget(s.actingOrg);
+  if (!step1b.ok) return step1b;
 
   // Consent expires with title: a request accepted after a transfer would
   // grant custody on the word of an ex-owner.

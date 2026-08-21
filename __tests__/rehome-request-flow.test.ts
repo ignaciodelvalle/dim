@@ -44,6 +44,7 @@ const supabaseAdmin = createSupabaseClient(SUPABASE_URL, SECRET, {
 const USERS = {
   titular: "rehome-flow-titular@dim-test.local",
   fosterer: "rehome-flow-fosterer@dim-test.local",
+  coowner: "rehome-flow-coowner@dim-test.local",
   coordA: "rehome-flow-coord-a@dim-test.local",
   coordB: "rehome-flow-coord-b@dim-test.local",
 } as const;
@@ -225,6 +226,27 @@ describe("request — who may ask, and whom (REQ-1, REQ-16)", () => {
     expect(r.ok).toBe(false);
     if (!r.ok) expect(r.error).toMatch(/titular/);
     expect(await requestCasesForPet()).toHaveLength(0);
+  });
+
+  it("a co-owner on the pet cannot open a rehome_request either — REQ-1 names the titular only", async () => {
+    // `co_owner` is a live Path-1 row like foster's; the titular gate lets it
+    // through for the other titular actions. Consent to hand the listing to an
+    // org is the one thing it may not give (spec REQ-1, REQ-14).
+    const [row] = await db
+      .insert(ownerships)
+      .values({ petId, ownerUserId: ids.coowner, role: "co_owner", startedAt: new Date() })
+      .returning({ id: ownerships.id });
+    try {
+      const r = await requestRehomeSponsorship(
+        { petPublicToken: PET_TOKEN, titularUserId: ids.coowner, targetOrgId: orgAId },
+        deps(),
+      );
+      expect(r.ok).toBe(false);
+      if (!r.ok) expect(r.error).toMatch(/titular/);
+      expect(await requestCasesForPet()).toHaveLength(0);
+    } finally {
+      await db.delete(ownerships).where(eq(ownerships.id, row.id));
+    }
   });
 
   it("a verified org of the wrong type is refused before anything is written", async () => {
@@ -428,6 +450,50 @@ describe("accept — custody opens beside the owner row, consent goes on the spi
     expect(r.ok).toBe(false);
     if (!r.ok) expect(r.error).toMatch(/ya no es titular/);
     expect((await liveOwnerships()).map((o) => o.role).sort()).toEqual(["foster", "owner"]);
+  });
+
+  it("step 1b: an org de-verified since the request is refused under the lock — zero writes", async () => {
+    // The session snapshot still says verified (answerDeps passes `verified:
+    // true`); the use-case re-reads the org row inside the transaction and
+    // must believe the row, not the session. Otherwise: custody + eligible +
+    // listed + spine event + "ya figura en la búsqueda" — and the catalog never
+    // shows the pet, because adoption-listing-read.ts requires verified=true.
+    await db.update(organizations).set({ verified: false }).where(eq(organizations.id, orgAId));
+    try {
+      const r = await acceptAsA();
+      expect(r.ok).toBe(false);
+      if (!r.ok) expect(r.error).toMatch(/no está verificada/);
+      expect((await openRequest())?.publicCode).toBe(secondCode);
+      expect((await liveOwnerships()).map((o) => o.role).sort()).toEqual(["foster", "owner"]);
+      const events = await db
+        .select({ id: petEvents.id })
+        .from(petEvents)
+        .where(eq(petEvents.petId, petId));
+      expect(events).toHaveLength(0);
+      const [pet] = await db
+        .select({ listedAt: pets.adoptionListedAt })
+        .from(pets)
+        .where(eq(pets.id, petId));
+      expect(pet.listedAt).toBeNull();
+    } finally {
+      await db.update(organizations).set({ verified: true }).where(eq(organizations.id, orgAId));
+    }
+  });
+
+  it("step 1b: an org whose type the catalog does not list is refused the same way", async () => {
+    await db.update(organizations).set({ orgType: "clinic" }).where(eq(organizations.id, orgAId));
+    try {
+      const r = await acceptAsA();
+      expect(r.ok).toBe(false);
+      if (!r.ok) expect(r.error).toMatch(/refugio o una red de rescate/);
+      expect((await openRequest())?.publicCode).toBe(secondCode);
+      expect((await liveOwnerships()).map((o) => o.role).sort()).toEqual(["foster", "owner"]);
+    } finally {
+      await db
+        .update(organizations)
+        .set({ orgType: "shelter" })
+        .where(eq(organizations.id, orgAId));
+    }
   });
 
   it("step 3: a pet already under another org's custody is refused by the pre-check — nothing is written", async () => {

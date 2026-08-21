@@ -135,8 +135,36 @@ export const RehomeRepository = {
     return row ?? null;
   },
 
-  async findOrgById(orgId: string): Promise<SponsorOrg | null> {
-    const [row] = await db
+  /**
+   * Lock-then-read variant of findLiveOwnerRow for the accept transaction
+   * (ADR-1 step 2). Plain `SELECT ... FOR UPDATE`; no explicit lock of the
+   * pet, so the row lock is as narrow as the assertion it protects.
+   */
+  async lockLiveOwnerRow(
+    petId: string,
+    userId: string,
+    tx: unknown,
+  ): Promise<{ id: string } | null> {
+    const client = tx as Tx;
+    const [row] = await client
+      .select({ id: ownerships.id })
+      .from(ownerships)
+      .where(
+        and(
+          eq(ownerships.petId, petId),
+          eq(ownerships.ownerUserId, userId),
+          eq(ownerships.role, "owner"),
+          isNull(ownerships.endedAt),
+        ),
+      )
+      .limit(1)
+      .for("update");
+    return row ?? null;
+  },
+
+  async findOrgById(orgId: string, tx?: unknown): Promise<SponsorOrg | null> {
+    const client = (tx as Tx | undefined) ?? db;
+    const [row] = await client
       .select({
         id: organizations.id,
         displayName: organizations.displayName,
