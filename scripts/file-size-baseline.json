@@ -8,7 +8,6 @@
     "components/panorama/PanoramaConsole.tsx": 4993,
     "components/panorama/SituationalMap.tsx": 3373,
     "lib/analytics/owner-dashboard.ts": 2018,
-    "src/modules/events/actions.ts": 1754,
     "src/modules/foster/infrastructure/foster-repository.ts": 1664,
     "src/modules/welfare/actions.ts": 1514,
     "lib/metrics/kpi-catalog.ts": 2510
