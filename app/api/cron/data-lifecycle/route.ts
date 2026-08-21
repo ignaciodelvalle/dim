@@ -14,6 +14,12 @@
 //   2. rate_limit_buckets WHERE expires_at < now()  (via cleanupExpiredBuckets)
 //   3. cron_runs WHERE started_at < now() - 90d AND status IN ('ok','failed')
 //
+// Each drains in bounded batches under a shared wall-clock deadline, and each
+// reports whether it FINISHED. `backlogged.*` is the field that makes the run
+// readable: a count says how much came off the table, never whether anything is
+// left, and an unfinished purge that reports only a count is indistinguishable
+// from a completed one on a table that keeps growing.
+//
 // retention_until tables (profiles, pets, pet_identifications, custody_disputes):
 //   All four are Ley 25.326 PII tables with no declared retention policy in any
 //   design doc. Writers and purge logic for those columns are intentionally
@@ -28,7 +34,7 @@ import { eq } from "drizzle-orm";
 import { cronRuns, db } from "@/db";
 import { authorizeCronRequest } from "@/lib/domain/cron-auth";
 import { sendCronAlert } from "@/lib/infra/cron-alert";
-import { runDataLifecyclePurge } from "@/lib/infra/data-lifecycle";
+import { type DataLifecycleResult, runDataLifecyclePurge } from "@/lib/infra/data-lifecycle";
 
 export const dynamic = "force-dynamic";
 
@@ -48,7 +54,15 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
     .returning();
 
   let status: "ok" | "failed" = "ok";
-  let counts = { notificationsDeleted: 0, rateLimitBucketsDeleted: 0, cronRunsDeleted: 0 };
+  // The initial value is what a FAILED run reports, so it must be the honest
+  // "nothing ran" shape rather than a tidy zero: `backlogged` false everywhere
+  // would claim three drained tables on a run that never touched them.
+  let counts: DataLifecycleResult = {
+    notificationsDeleted: 0,
+    rateLimitBucketsDeleted: 0,
+    cronRunsDeleted: 0,
+    backlogged: { notifications: true, rateLimitBuckets: true, cronRuns: true },
+  };
   const errors: { section: string; reason: string }[] = [];
 
   try {

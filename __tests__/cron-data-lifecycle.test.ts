@@ -17,6 +17,8 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { cronRuns, db, notifications, profiles, rateLimitBuckets } from "@/db";
 import {
   CRON_RUNS_TTL_DAYS,
+  RATE_LIMIT_CLEANUP_MAX_BATCHES,
+  drainPurge,
   purgeExpiredNotifications,
   purgeExpiredRateLimitBuckets,
   purgeOldCronRuns,
@@ -282,6 +284,96 @@ describe("purgeOldCronRuns", () => {
   });
 });
 
+// ---------------------------------------------------------------------------
+// The drain loop itself — bounded, and honest about what it did not finish
+// ---------------------------------------------------------------------------
+//
+// `cleanupExpiredBuckets` deletes ONE 500-row batch and its own comment says
+// "the caller drains". This is that caller, and the properties that matter are
+// arithmetic rather than SQL: it must keep going while batches come back full,
+// stop the moment one comes back short, and — the part that was missing — SAY
+// SO when it stopped with work still on the table. A purge that quietly ran out
+// of budget and reported a tidy number is indistinguishable from one that
+// finished, which is how a table grows for months under a green cron.
+//
+// Driven by a FAKE step, deliberately: seeding 20,000 expired buckets to prove
+// the cap would take longer than the cap it is proving.
+
+describe("drainPurge", () => {
+  /** A step that returns the given batch sizes in order, then 0. */
+  function fakeStep(sizes: number[]) {
+    let i = 0;
+    const calls: number[] = [];
+    return {
+      calls,
+      step: async () => {
+        const n = sizes[i] ?? 0;
+        i += 1;
+        calls.push(n);
+        return n;
+      },
+    };
+  }
+
+  const NO_DEADLINE = Number.POSITIVE_INFINITY;
+
+  it("drains until a batch comes back SHORT, and sums every batch", async () => {
+    const fake = fakeStep([500, 500, 120]);
+
+    const result = await drainPurge(fake.step, 500, NO_DEADLINE);
+
+    expect(fake.calls).toEqual([500, 500, 120]);
+    expect(result.deleted).toBe(1120);
+    // 120 < 500 means the backlog is gone — nothing left to come back for.
+    expect(result.backlogged).toBe(false);
+  });
+
+  it("stops at the batch cap and FLAGS that a backlog remains", async () => {
+    // Every batch full: the table has more than the cap can take in one run.
+    const fake = fakeStep(Array(50).fill(500));
+
+    const result = await drainPurge(fake.step, 500, NO_DEADLINE, 3);
+
+    expect(fake.calls).toHaveLength(3);
+    expect(result.deleted).toBe(1500);
+    // THE POINT. Without this the cron row reads "1500 deleted" and looks like
+    // a completed purge on a table that is still growing.
+    expect(result.backlogged).toBe(true);
+  });
+
+  it("stops at the wall-clock deadline and FLAGS the backlog too", async () => {
+    const fake = fakeStep(Array(50).fill(500));
+
+    // A deadline already in the past: the first batch runs, then the loop sees
+    // it is out of time.
+    const result = await drainPurge(fake.step, 500, Date.now() - 1);
+
+    expect(fake.calls).toHaveLength(1);
+    expect(result.backlogged).toBe(true);
+  });
+
+  it("reports NO backlog when the very first batch is short", async () => {
+    const fake = fakeStep([0]);
+
+    const result = await drainPurge(fake.step, 500, NO_DEADLINE);
+
+    expect(fake.calls).toEqual([0]);
+    expect(result.deleted).toBe(0);
+    expect(result.backlogged).toBe(false);
+  });
+
+  it("caps the rate-limit drain at a number that fits the cron's real budget", () => {
+    // vercel.json gives every app/api/cron/*/route.ts 60 s — NOT Vercel's 300 s
+    // default — and app/api/cron/daily/route.ts fans out to ~10 jobs inside a
+    // 55 s budget, of which this is one. So the cap is the STATED worst case for
+    // one target of one job, and the shared wall-clock deadline is what actually
+    // stops a slow run. A cap large enough to eat the whole dispatcher budget
+    // would make every job after data_lifecycle "skipped_budget" every night.
+    expect(RATE_LIMIT_CLEANUP_MAX_BATCHES).toBeGreaterThanOrEqual(10);
+    expect(RATE_LIMIT_CLEANUP_MAX_BATCHES).toBeLessThanOrEqual(60);
+  });
+});
+
 describe("runDataLifecyclePurge", () => {
   it("returns counts for all three sections", async () => {
     // Seed one expired row in each category.
@@ -300,5 +392,21 @@ describe("runDataLifecyclePurge", () => {
     expect(result.notificationsDeleted).toBeGreaterThanOrEqual(1);
     expect(result.rateLimitBucketsDeleted).toBeGreaterThanOrEqual(1);
     expect(result.cronRunsDeleted).toBeGreaterThanOrEqual(1);
+  });
+
+  it("reports per-target backlog so a run that ran out of budget says so", async () => {
+    await insertBucket(`dlc_test_backlog_${Date.now()}`, new Date(Date.now() - 1000));
+
+    const result = await runDataLifecyclePurge();
+
+    // The shape, not the value: on a dev DB the three targets drain in one
+    // batch each, so all three read false. What must exist is the CHANNEL — a
+    // cron row that can only say "N deleted" cannot distinguish a finished
+    // purge from one that stopped at the cap on a table still filling up.
+    expect(result.backlogged).toEqual({
+      notifications: expect.any(Boolean),
+      rateLimitBuckets: expect.any(Boolean),
+      cronRuns: expect.any(Boolean),
+    });
   });
 });
