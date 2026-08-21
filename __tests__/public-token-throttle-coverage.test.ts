@@ -192,6 +192,11 @@ const EXEMPT: Record<string, string> = {
  * the original file. Memoised because the resolver filter strips every file
  * under both roots (~1400 files, ~60ms) and the predicates then re-ask for the
  * same handful.
+ *
+ * STATED BLIND SPOT: `stripComments` keeps string contents, so a guard name
+ * inside a string literal still classifies — zero occurrences in the tree today,
+ * and the same trade scripts/check-authz-guards.ts documents (removing string
+ * bodies would blind the fences that read emitted markup out of literals).
  */
 const strippedCache = new Map<string, string>();
 function code(src: string): string {
@@ -326,23 +331,89 @@ function doorCallerViolations({ file, src }: Source): string[] {
   return problems;
 }
 
+/** The ways a resolver reaches the pet row — either the query helper or the port. */
+const LOOKUP_MARKERS = [LOOKUP, ".findPet("] as const;
+
 /**
- * True when the file runs its guard — whichever of the four forms it carries —
- * before it resolves anything.
+ * Where a top-level export begins: `export async function`, `export default
+ * async function`, or `export const NAME = async …`.
+ *
+ * Leading whitespace is tolerated on purpose — the RED-control fixtures below
+ * are indented template literals, and a boundary rule that only fires at column
+ * zero would silently degrade every one of them to a single block, which is the
+ * exact whole-file behaviour these controls exist to catch. (That is also why
+ * `extractExportedAsyncFunctions` from scripts/check-authz-guards.ts is not
+ * reused here: it anchors at column zero, it does not know the `export const …
+ * = async` shape, and it drops unexported helpers entirely — the third one
+ * matters, because the real tree's only unexported resolver is exactly such a
+ * helper.)
+ */
+const EXPORT_BOUNDARY_RE =
+  /^[ \t]*export\s+(?:default\s+async\s+function\b|async\s+function\b|(?:const|let|var)\s+[\w$]+[^=\n]*=\s*async\b)/gm;
+
+/**
+ * The stripped source cut into one block per top-level export.
+ *
+ * A block runs from its export boundary to the next one (or EOF), so anything
+ * declared between two exports — an unexported helper, a module constant —
+ * belongs to the export ABOVE it. That attribution is deliberate and it is the
+ * conservative one: `lookup-public-credential.ts` resolves the token inside
+ * `findPetByPublicToken`, an unexported helper declared BELOW the guarded door,
+ * and the block model reads that as covered (it is: nothing else calls it, and
+ * the door ran its limiter first). A helper declared ABOVE every export belongs
+ * to no guarded function and is flagged — see the RED control for it.
+ */
+function exportBlocks(c: string): string[] {
+  const starts: number[] = [];
+  const re = new RegExp(EXPORT_BOUNDARY_RE.source, "gm");
+  for (let m = re.exec(c); m !== null; m = re.exec(c)) starts.push(m.index);
+  if (starts.length === 0) return [c];
+  const blocks = starts[0] > 0 ? [c.slice(0, starts[0])] : [];
+  for (let i = 0; i < starts.length; i++) {
+    blocks.push(c.slice(starts[i], i + 1 < starts.length ? starts[i + 1] : c.length));
+  }
+  return blocks;
+}
+
+/** First position at which any of `needles` appears, or -1. */
+function firstIndexOf(block: string, needles: readonly string[]): number {
+  let best = -1;
+  for (const needle of needles) {
+    const at = block.indexOf(needle);
+    if (at !== -1 && (best === -1 || at < best)) best = at;
+  }
+  return best;
+}
+
+/**
+ * True when EVERY function that resolves a token ran a guard first — in its OWN
+ * body, not somewhere else in the file.
  *
  * Generalised from a port-only check on 2026-08-21, when the two anonymous
  * WRITE use-cases came out of EXEMPT: their limiter is `enforceRateLimit`, and
  * a rule stated only for the `port` shape would have watched them enter scope
  * and said nothing about the very ordering that made them oracles.
+ *
+ * MADE PER-FUNCTION THE SAME DAY, AND THIS ONE WAS A REAL HOLE. It compared the
+ * FIRST guard call in the file against the FIRST lookup in the file — two
+ * offsets, whole-file — so a module whose opening function is guarded vouched
+ * for every function below it. A second entry point added next to the first,
+ * with no limiter, passed. That is not a hypothetical shape: it is what these
+ * files look like the day someone adds a sibling use-case, which is exactly
+ * when nobody re-reads the ordering. Each export block is now judged on its own
+ * body, and a block that reaches the pet row without a guard above it fails
+ * whatever its neighbours do.
  */
 function guardPrecedesLookup(src: string): boolean {
-  const form = guardForm(src);
-  if (form === null) return false;
-  const c = code(src);
-  const guardAt = c.indexOf(FORM_CALLS[form]);
-  for (const marker of [LOOKUP, ".findPet("]) {
-    const at = c.indexOf(marker);
-    if (at !== -1 && at < guardAt) return false;
+  // A file carrying no legitimate form at all is out of order by definition —
+  // and this is what keeps a guard that lives only in a comment from counting.
+  if (guardForm(src) === null) return false;
+  const forms = Object.values(FORM_CALLS);
+  for (const block of exportBlocks(code(src))) {
+    const lookupAt = firstIndexOf(block, LOOKUP_MARKERS);
+    if (lookupAt === -1) continue;
+    const guardAt = firstIndexOf(block, forms);
+    if (guardAt === -1 || guardAt > lookupAt) return false;
   }
   return true;
 }
@@ -630,6 +701,64 @@ describe("the fence bites", () => {
     };
     expect(adapterArgs(illustrative.src)).toEqual(['"public_token_page"']);
     expect(doorCallerViolations(illustrative)).toEqual([]);
+  });
+
+  it("flags a SECOND resolver in a file whose FIRST one is guarded", () => {
+    // THE HOLE THE POSITIONAL CHECK HAD UNTIL 2026-08-21. It compared the
+    // file's FIRST guard call against the file's FIRST lookup — two offsets,
+    // whole-file — so a module whose opening function is guarded vouched for
+    // every function below it. The shape is not exotic: it is what a use-case
+    // file looks like the day someone adds a second entry point next to the
+    // first, which is precisely when nobody re-reads the limiter.
+    const twoFunctions = `
+      import { publicPetByToken } from "@/lib/infra/public-pet-lookup";
+
+      export async function lookupPublicCredential(input, deps) {
+        if (await throttle.isThrottled()) return { status: "throttled" };
+        return db.select().from(pets).where(publicPetByToken(input.publicToken));
+      }
+
+      export async function peekPetStatus(publicToken: string) {
+        return db.select().from(pets).where(publicPetByToken(publicToken));
+      }`;
+    // The file DOES carry a legitimate form — that was never the question.
+    expect(guardForm(twoFunctions)).toBe("port");
+    // The question is whether the function doing the resolving ran it.
+    expect(guardPrecedesLookup(twoFunctions)).toBe(false);
+
+    // And the guarded twin still passes, so the check is not simply refusing
+    // every multi-export file.
+    const bothGuarded = `
+      export async function lookupPublicCredential(input, deps) {
+        if (await throttle.isThrottled()) return { status: "throttled" };
+        return db.select().from(pets).where(publicPetByToken(input.publicToken));
+      }
+
+      export async function peekPetStatus(publicToken: string, throttle) {
+        if (await throttle.isThrottled()) return { status: "throttled" };
+        return db.select().from(pets).where(publicPetByToken(publicToken));
+      }`;
+    expect(guardPrecedesLookup(bothGuarded)).toBe(true);
+  });
+
+  it("flags an UNEXPORTED helper that resolves the token above every export", () => {
+    // The other end of the same rule. A block runs from one export boundary to
+    // the next, so a helper declared BEFORE the first export belongs to no
+    // guarded function — and nothing in the file ran a limiter before it. The
+    // real tree's one unexported resolver (`findPetByPublicToken`) sits BELOW
+    // the guarded door and is covered by it; this is the inverse arrangement.
+    const helperAbove = `
+      import { publicPetByToken } from "@/lib/infra/public-pet-lookup";
+
+      async function findPet(publicToken: string) {
+        return db.select().from(pets).where(publicPetByToken(publicToken));
+      }
+
+      export async function lookupPublicCredential(input, deps) {
+        if (await throttle.isThrottled()) return { status: "throttled" };
+        return findPet(input.publicToken);
+      }`;
+    expect(guardPrecedesLookup(helperAbove)).toBe(false);
   });
 
   it("flags a WRITE use-case that resolves the token before its limiter", () => {

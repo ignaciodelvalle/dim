@@ -43,6 +43,7 @@
 import { type Pet, attachments, db, pets } from "@/db";
 import { withDbBudgetOrThrow } from "@/lib/infra/db-budget";
 import { publicPetByToken } from "@/lib/infra/public-pet-lookup";
+import { RateLimitError } from "@/lib/infra/rate-limit";
 import { reportError } from "@/lib/infra/report-error";
 import { petPhotoUrl } from "@/lib/infra/storage";
 import { eq } from "drizzle-orm";
@@ -150,10 +151,19 @@ export async function lookupPublicCredential(
   // them, and the finder standing over a lost animal is the one who finds out.
   // Every failure is reported: a limiter that stopped working is an incident,
   // even though the request continues.
+  //
+  // EXCEPT THE ONE REJECTION THAT MEANS "THROTTLED". Failing open is right for a
+  // BROKEN limiter and exactly wrong for a HIT one, and a bare catch cannot tell
+  // them apart. `enforceRateLimit` — the limiter every other anonymous surface
+  // here uses — signals a limit hit by THROWING RateLimitError, so any adapter
+  // built on it (a native client's, an API route's) would have had its enforced
+  // limit converted into a served credential by the catch below. A throw is a
+  // legitimate way for a port to say "throttled"; it is answered, not reported.
   let throttled = false;
   try {
     throttled = await throttle.isThrottled();
   } catch (err) {
+    if (err instanceof RateLimitError) return { status: "throttled" };
     reportError("public-credential/throttle", err, { bucket: throttle.bucket });
   }
   if (throttled) return { status: "throttled" };

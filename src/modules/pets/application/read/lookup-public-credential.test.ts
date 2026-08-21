@@ -17,6 +17,7 @@
 //     Collapsing them drops the finder's only reachable action.
 
 import type { Pet } from "@/db";
+import { RateLimitError } from "@/lib/infra/rate-limit";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { CredentialViewData } from "./load-public-credential";
@@ -161,6 +162,38 @@ describe("lookupPublicCredential — the four-way union", () => {
     expect(mockReportError).toHaveBeenCalledWith("public-credential/throttle", expect.any(Error), {
       bucket: "public_token_api_credential",
     });
+  });
+
+  it("answers THROTTLED when the port signals the limit by throwing RateLimitError", async () => {
+    // FAIL-OPEN IS RIGHT FOR A BROKEN LIMITER AND WRONG FOR A HIT ONE, and the
+    // catch above could not tell them apart: `catch (err) { continue }` turned
+    // the one rejection that MEANS "throttled" into "not throttled". It is not a
+    // hypothetical port either — `enforceRateLimit`, the limiter every other
+    // anonymous surface in this codebase uses, reports a limit hit by throwing
+    // exactly this class (report-pet-sighting.ts, report-dispute-tip.ts). Any
+    // adapter built on it — a native client's, an API route's — would have had
+    // its limit silently converted into a served credential.
+    const limitHit: PublicTokenThrottle = {
+      bucket: "public_token_api_credential",
+      isThrottled: vi.fn(async () => {
+        calls.push("throttle");
+        throw new RateLimitError(new Date(Date.now() + 60_000), "public_token_api_credential");
+      }),
+    };
+    const deps = depsStub();
+
+    const result = await lookupPublicCredential(
+      { publicToken: PUBLIC_TOKEN, throttle: limitHit },
+      deps,
+    );
+
+    expect(result).toEqual({ status: "throttled" });
+    // The whole point, again: nothing was read.
+    expect(deps.findPet).not.toHaveBeenCalled();
+    expect(deps.loadViewData).not.toHaveBeenCalled();
+    // And it is NOT an incident. A limiter that enforced its limit is working;
+    // reporting it would bury the reports that mean something.
+    expect(mockReportError).not.toHaveBeenCalled();
   });
 
   it("answers not_found when the token resolves to no row", async () => {
