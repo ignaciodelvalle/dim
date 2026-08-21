@@ -8,7 +8,7 @@
  * still caught).
  */
 
-import { readFileSync } from "node:fs";
+import { globSync, readFileSync } from "node:fs";
 
 import { describe, expect, it } from "vitest";
 
@@ -278,20 +278,50 @@ describe("extractReadHits — JS .payload accessor variants", () => {
 // End-to-end sanity check against the real schemas file
 // ---------------------------------------------------------------------------
 
-describe("extractWrittenKeys against the real lib/events/event-schemas.ts", () => {
+describe("extractWrittenKeys against the real schema family", () => {
+  // THE SUBJECT IS THE FAMILY, NOT ONE FILE — and that is the same choice the
+  // fence itself makes. check-event-payload-parity.ts globs
+  // `lib/events/*event-schemas.ts` rather than naming files, with the comment
+  // "glob the family instead of enumerating it: the next split is free".
+  //
+  // This test used to read `event-schemas.ts` alone. When the custody family
+  // was split out to `custody-event-schemas.ts` (2026-08-21) it went red on
+  // `transfer_token` and `seizure_motive` — correctly, because those keys had
+  // moved, but for the wrong reason: nothing was broken, the test was just
+  // looking at half the subject. Globbing the same set the fence globs means a
+  // future split cannot make it fail, and — more importantly — cannot make it
+  // silently stop covering a group either.
+  const familyKeys = (): Set<string> => {
+    const union = new Set<string>();
+    for (const file of globSync("lib/events/*event-schemas.ts").sort()) {
+      for (const k of extractWrittenKeys(readFileSync(file, "utf8"))) union.add(k);
+    }
+    return union;
+  };
+
+  it("finds more than one file in the family", () => {
+    // NON-VACUITY. A broken glob would leave every assertion below reading an
+    // empty set — the failure shape this repo keeps rediscovering in its fences.
+    const files = globSync("lib/events/*event-schemas.ts");
+    expect(files.length).toBeGreaterThanOrEqual(4);
+    expect(files.map((f) => f.replaceAll("\\", "/"))).toContain(
+      "lib/events/custody-event-schemas.ts",
+    );
+  });
+
   it("includes a representative key from nearly every schema group", () => {
-    const src = readFileSync("lib/events/event-schemas.ts", "utf8");
-    const keys = extractWrittenKeys(src);
+    const keys = familyKeys();
     for (const expected of [
       "payload_version",
       "custody_kind", // pet_registered
       "location_description", // status_changed
       "vaccine_name", // vaccination_administered
       "target_event_id", // event_amended
-      "transfer_token", // custody_transferred (P2P variant)
-      "seizure_motive", // shelter_intake_recorded
+      "transfer_token", // custody_transferred (P2P variant) — custody family
+      "seizure_motive", // shelter_intake_recorded — custody family
+      "grant_id", // caretaker_designated — caretaker family
     ]) {
-      expect(keys.has(expected)).toBe(true);
+      expect(keys.has(expected), `falta ${expected}`).toBe(true);
     }
   });
 });
