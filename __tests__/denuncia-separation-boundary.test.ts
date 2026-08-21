@@ -112,9 +112,20 @@ afterAll(async () => {
       .where(eq(welfareReportAttachments.welfareReportId, reportId));
     await db.delete(welfareReports).where(eq(welfareReports.id, reportId));
   }
-  if (reporterUserId) {
-    await db.delete(profiles).where(eq(profiles.id, reporterUserId));
-  }
+  // The reporter profile is NOT deleted, and that is the fix, not an omission.
+  //
+  // beforeAll BORROWS an arbitrary existing profile (`limit(1)`, unordered) and
+  // this block used to delete it. A test must not destroy a row it did not
+  // create, and here it did so silently: on this database the borrowed row is
+  // usually a seeded demo person. Which one depends on the unordered limit, so
+  // the damage was invisible until the day it picked somebody the database
+  // refused to delete — a party to a seeded open custody dispute — and the
+  // suite went red for a reason that had nothing to do with denuncia
+  // separation.
+  //
+  // The comment in beforeAll already argues, correctly, that minting a profile
+  // here is not worth it (profiles.id carries an auth.users FK). Borrowing is
+  // fine. Borrowing and then deleting is not.
 });
 
 /** Everything a row would reveal, flattened, so nothing hides in a nested value. */
