@@ -10,10 +10,14 @@
 //
 //   - requireLiveUser() (lib/infra/live-user.ts) answers "may this caller still
 //     act at all": maintenance kill-switch → 503, no session → 401, erased
-//     account (profiles.deleted_at, Ley 25.326 art. 16) → 401, deactivated
-//     institutional account → 403. It is the non-redirecting, result-shaped
-//     guard, which is what a route handler needs — a redirect() here would be a
-//     response the caller never asked for.
+//     account (profiles.deleted_at, Ley 25.326 art. 16) → 401. A DEACTIVATED
+//     institutional account PASSES, on purpose: this is a read, and the repo's
+//     written policy (lib/infra/auth-guards.ts, after the 2026-07-04
+//     ERR_TOO_MANY_REDIRECTS incident) is "reads stay open so the user can see
+//     why; writes stop" — a deactivated shelter still holds the animals in its
+//     custody and their sanitary record. requireLiveUser is the non-redirecting,
+//     result-shaped guard, which is what a route handler needs — a redirect()
+//     here would be a response the caller never asked for.
 //   - the `pets ⋈ ownerships` join below answers "is this caller the titular of
 //     THIS pet": pinned to `role = 'owner'` and `ended_at is null`, so a
 //     caretaker/foster is refused with 404. That is deliberately NARROWER than
@@ -119,14 +123,15 @@ export async function GET(
   // 401 — an unauthorized caller learns nothing new from a finer message, and
   // WHICH refusal happened is carried by the status code, not by the prose.
   const live = await requireLiveUser();
-  if (!live.ok) {
-    const status =
-      live.reason === "MAINTENANCE"
-        ? 503 // the platform is not serving anyone; this is not the caller's fault
-        : live.reason === "DEACTIVATED"
-          ? 403 // identity resolved, authority withdrawn
-          : 401; // NO_SESSION | ACCOUNT_ERASED — no usable identity
-    return new NextResponse("No autorizado", { status });
+  if (!live.ok && live.reason !== "DEACTIVATED") {
+    // MAINTENANCE: the platform is not serving anyone — not the caller's fault.
+    // NO_SESSION | ACCOUNT_ERASED: no usable identity.
+    return new NextResponse("No autorizado", { status: live.reason === "MAINTENANCE" ? 503 : 401 });
+  }
+  // Only ok or DEACTIVATED reach here; DEACTIVATED always carries a user. Fail
+  // CLOSED rather than assert that with a cast (same stance as auth-guards.ts).
+  if (!live.user) {
+    return new NextResponse("No autorizado", { status: 401 });
   }
   const user = live.user;
 
@@ -151,13 +156,21 @@ export async function GET(
 
   const petRow = pet.pets;
 
-  // Load owner name for the header.
-  const [profileRow] = await db
-    .select({ displayName: profiles.displayName })
-    .from(profiles)
-    .where(eq(profiles.id, user.id))
-    .limit(1);
-  const ownerName = profileRow?.displayName ?? "";
+  // Owner name for the header. requireLiveUser() already loaded the cached
+  // profile on the success arm (request-cache selects displayName), so the
+  // common path pays no second round-trip; a tolerated DEACTIVATED refusal does
+  // not carry it, so that arm falls back to one read.
+  const cachedName = live.ok ? live.profile?.displayName : undefined;
+  const ownerName =
+    cachedName ??
+    (
+      await db
+        .select({ displayName: profiles.displayName })
+        .from(profiles)
+        .where(eq(profiles.id, user.id))
+        .limit(1)
+    )[0]?.displayName ??
+    "";
 
   // Load libreta events. event_amended is NOT itself a libreta type (it's a
   // correction pointer — lib/infra/libreta-sanitaria.ts NON_LIBRETA_EVENT_TYPES)

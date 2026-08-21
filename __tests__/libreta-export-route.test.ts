@@ -56,6 +56,17 @@ beforeAll(async () => {
   }
   ownerUserId = ownerProfile.id;
 
+  // Self-heal. The erased-owner case below marks this SHARED seeded owner
+  // deleted_at and restores it in a finally — but the repo has an open
+  // vitest worker-crash defect (CLAUDE.md), and a worker dying mid-test skips
+  // the finally. Left as is, owner@dim.test stays erased for every later db
+  // test and e2e spec that logs in as it (94 files), with no error naming
+  // the cause. Clearing it here turns "poisoned until someone reseeds" into
+  // "poisoned until this file runs again".
+  await db.execute(
+    sql`update public.profiles set deleted_at = null where id = ${ownerUserId}::uuid`,
+  );
+
   await withMutationOverride(async (tx) => {
     await tx.execute(sql`DELETE FROM ownerships WHERE pet_id IN (
       SELECT id FROM pets WHERE public_token = ${PET_TOKEN}

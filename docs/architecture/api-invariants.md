@@ -338,8 +338,12 @@ template-literal contents (a token inside a string can be real emitted markup,
 so blanking them would blind the sibling fences to genuine violations). A
 handler whose body merely contains the text `requireUser(` inside a string
 literal therefore counts as guarded. That is a stated blind spot — the linter's
-own header says so — with zero occurrences today, and it is the one remaining
-way past the coverage rule.
+own header says so — with zero occurrences today. It is one of two remaining
+ways past the coverage rule, not the only one: the brace walker in
+`extractExportedAsyncFunctions` also counts braces inside string literals, so an
+unbalanced `{` in a string makes an unguarded handler swallow its guarded
+neighbour's body and read as guarded. Also zero occurrences today (every live
+handler body was swept on 2026-08-21), also a consequence of keeping strings.
 
 ---
 
