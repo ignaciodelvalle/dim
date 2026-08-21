@@ -1,0 +1,332 @@
+# `/api/v1` invariants
+
+**Status:** draft for PO review · written 2026-08-21 · gates Track 2 (B8)
+
+Every claim in the "Verified today" column was read out of the code on
+`integration/all-20260703 @ 9abbfb5f`, not copied from a review document. Where
+this file disagrees with `docs/reviews/native-readiness/RN-1-api-boundary.md`,
+this file is newer and says so explicitly — the review is a historical record of
+what was true on 2026-08-19 and is not edited.
+
+This is a **checklist that gates a merge**, not background reading. A `/api/v1`
+route handler that cannot point at each line below is not ready.
+
+---
+
+## 0. Why this document exists before the first endpoint
+
+The web app enforces these properties **per call site**, in page bodies. Nothing
+in `middleware.ts` rate-limits, and nothing about being a route handler makes
+any of them apply. A native client is a second consumer of the same data through
+a surface that inherits almost none of the web's accidental protections.
+
+Two of the three fences that would catch a mistake here **do not look at route
+handlers at all** (§7). That, more than any individual limit, is the reason a
+checklist has to exist before the first merge rather than after the first bug.
+
+---
+
+## 1. The five oracles
+
+### 1.1 Public token read throttle
+
+| | |
+|---|---|
+| **Enforced at** | `lib/infra/public-token-throttle.ts:63,89` — `isPublicTokenReadThrottled(bucket)` |
+| **Real limits** | `PUBLIC_TOKEN_READ_LIMIT = { maxPerMinute: 60, maxPerHour: 400 }`, per IP |
+| **Direction** | **Fail-open.** A `RateLimitError` throttles; any other error returns `false`. The limiter is itself a DB write, budgeted at `RATE_LIMIT_BUDGET_MS = 1500` |
+| **Inherited?** | **No.** First statement of each surface, by hand |
+| **Pinned by** | `__tests__/public-token-throttle-coverage.test.ts` — derives from `publicPetByToken(` call sites across `app/` (widened 2026-08-21; it used to walk `page.tsx` under one directory and could not see `opengraph-image.tsx`) |
+
+**The bucket is per-surface, and that is deliberate.** Call sites pass distinct
+names — `public_token_page`, `public_token_encontre`, `public_token_sighting`,
+`public_token_og_image` — and the fence *requires* they differ. The stated
+reason: a scraper hammering one surface must not spend the budget of the person
+who just found a dog in the street and is loading its credential.
+
+**The cost of that choice, stated plainly:** every new bucket raises the
+aggregate ceiling for a single IP by 60/min. Four surfaces today = 240/min per
+IP against the token space. **A `/api/v1/p/{token}` adds a fifth.**
+
+> **PO decision needed (§8, D1).** Accept the additive ceiling, or give the API
+> a shared bucket with the page and accept that an API client can starve a web
+> visitor from the same IP.
+
+**The REST mistake:** omit the call. Nothing fails; the route ships green.
+
+---
+
+### 1.2 Atender lookup throttle
+
+| | |
+|---|---|
+| **Enforced at** | `app/org/[orgToken]/atender/atender-access.ts:43,236` |
+| **Real limits** | `{ maxPerMinute: 20, maxPerHour: 100 }`, keyed `${organizationId}:${ip}` |
+| **Direction** | Fail-open |
+| **Inherited?** | **Yes, if you go through the front door.** It lives *inside* `resolveAtenderPet`, so a handler calling that function gets it |
+| **Pinned by** | **Nothing.** No test references `atender_lookup` or `ATENDER_LOOKUP_LIMIT` |
+
+An authenticated DIM lookup is a national existence oracle. The 20/min is the
+only thing bounding it.
+
+**The REST mistake:** reach past `resolveAtenderPet` to the underlying query
+"because the handler doesn't need the page's return shape".
+
+**Adjacent, and worth a deliberate answer:** `app/api/gob/mascotas/[token]/route.ts`
+is an existing handler that resolves a pet token bounded only by its guard's
+aggregate `120/min` per profile, with no per-lookup limit. It is
+jurisdiction-scoped and 404s uniformly, so it is a weaker oracle — but it is the
+closest existing analogue to what Track 2 builds. Decide whether `/api/v1`
+matches it or matches atender.
+
+---
+
+### 1.3 Denuncia MAC anti-oracle
+
+The best-defended property in this list. Two halves.
+
+**Request-access** (`app/(public)/denuncias/codigo/[code]/actions.ts`): one
+`NEUTRAL_MESSAGE` constant returned from a single place on every branch. Rate
+limit `5/min + 20/hr` per IP, **fail-closed**. The timing channel is closed by
+scheduling the mail through `after()` instead of awaiting it (`:124-130`), with
+the reasoning written out at `:18-35`.
+
+**Redemption** (`app/(public)/denuncias/seguimiento/entrar/route.ts:39-42`):
+`10/min + 60/hr`. Success and failure are the *same 303 to the same URL*; the
+only difference is whether a cookie is set. `validateReporterToken`
+(`lib/infra/denuncia-reporter-token.ts:108-136`) uses `timingSafeEqual` behind a
+length guard.
+
+**Pinned by** `__tests__/denuncia-access-timing-oracle.test.ts` — 4 tests,
+mocked, no DB. It asserts the *property* (the response resolves while the send
+hangs; all four branches return an identical message), not a restated constant.
+
+> **This is the model.** "A response-equality test per oracle" means a test
+> shaped like this one, not a test that re-states a limit.
+
+**The REST mistakes:** `404` for unknown vs `200` for found. A per-branch error
+code. Any `await` of a send. A distinct `429` body — harmless today because
+`THROTTLED_MESSAGE` is code-independent, and it must stay that way.
+
+---
+
+### 1.4 Chip and DNI
+
+**DNI: still unthrottled.** `verify-dni.ts:126` says so in its own comment, and
+the only caller adds nothing but `requireUserOrRedirect`. The mitigation is
+message-collapse only — the unique-violation branch and the generic branch
+return the *same* string (`:135-143`).
+
+> **The one-line REST mistake:** return a distinct `dni_taken` code. That is the
+> obvious REST instinct and it reopens the oracle immediately.
+
+**Chip: two things, not one.** `lib/infra/chip-lookup.ts:27-30` —
+`lookupByChip` is a pure DB lookup with **no auth and no limiter, by design**;
+callers gate it. Exactly one caller does: `lookup-pet-for-denuncia.ts:46` at
+`60/min + 200/hr` per IP, and when throttled it returns `{found:false}` — so
+throttled is indistinguishable from not-found.
+
+**The REST mistake:** call `lookupByChip` from a handler because it is the clean
+framework-free function. That is an unthrottled national chip oracle in one
+import.
+
+---
+
+### 1.5 Upload validation
+
+`lib/infra/uploads.ts`. **Two of the three properties are universal; one is
+not** — RN-1 lists all three as flat facts.
+
+- **Magic bytes: universal.** `detectRasterMime` (`:27`) sniffs JPEG/PNG/WEBP
+  signatures; `file.type` is explicitly never trusted (`:127-131`). `MAX_BYTES = 5MB`.
+- **No SVG: universal**, by whitelist construction (`:9-13`).
+- **sharp re-encode: BUCKET-CONDITIONAL.** `PUBLIC_REENCODE_BUCKETS = new Set(["pet-photos"])`
+  (`:19`). Only that bucket always re-encodes, and it fails **closed** on a sharp
+  error. Every other bucket re-encodes only if the caller passes
+  `stripMetadata: true`, and on a sharp error falls back to **the original
+  attacker-supplied bytes** (`:172-174`).
+
+The storage key is derived from the validated MIME plus `randomUUID()`, never
+the client filename (`:143-147`).
+
+**The REST mistake, and RN-1 is right about it:** native uploading
+direct-to-storage with a signed URL loses all three at once. No
+`createSignedUploadUrl` exists anywhere today — every signed URL in the repo is
+a *download*. Keep it that way, or replicate all three server-side first.
+
+---
+
+## 2. The response envelope — ratified, not invented
+
+**A convention already exists** across the 34 handlers under `app/api/**`. Track 2
+adopts it rather than inventing a shape the rest of the codebase does not speak.
+
+```ts
+// error
+NextResponse.json({ error: "snake_case_code" }, { status })
+// success — the bare payload, plus an explicit no-store
+NextResponse.json(payload, { headers: { "cache-control": "no-store" } })
+```
+
+Codes in use today: `forbidden`, `unauthorized`, `not_found`, `rate_limited`,
+`missing_province`, `unknown_layer`, and six `*_unavailable` degradation codes.
+
+**Two existing deviations — do not copy either by accident:**
+
+- `app/api/health/route.ts:71` returns `{ status: "rate_limited" }` — `status`,
+  not `error`.
+- `app/api/panorama/kpis/route.ts:114` merges the error key **into** the payload:
+  `{ error: "panorama_kpis_unavailable", ...degradedPanoramaKpis() }` at 503.
+  Read this one as a **prototype of the per-section degraded contract**, not as
+  a mistake. It is the closest thing in the repo to what Track 2 needs.
+
+**Guard shape to copy:** `app/api/gob/_guard.ts` and `app/api/panorama/_guard.ts`
+are deliberate near-duplicate siblings returning
+`{ok:true, actor} | {ok:false, response: NextResponse}`, both capping at
+`120/min` keyed on `profile.id`. `lib/supabase/bearer.ts:77-80` already contains
+the bearer variant's recipe.
+
+**Correction to RN-1:** its improvement #2 says no bearer client exists. One
+does — `lib/supabase/bearer.ts`, landed the same day as the review. It uses the
+ANON key deliberately (`:24-27`). Do not re-do that work.
+
+---
+
+## 3. The error vocabulary — the real cost of wrapping use-cases
+
+**No shared vocabulary exists to adopt, and three casings are already in play.**
+
+| Source | Casing | Example |
+|---|---|---|
+| `packages/contract/src/input/intake.ts:108` | `SCREAMING_SNAKE` | `NAME_REQUIRED` |
+| `lib/infra/live-user.ts:59` | `SCREAMING_SNAKE` | `NO_SESSION`, `ACCOUNT_ERASED` |
+| `lib/infra/pet-access.ts:120` | `kebab-case` | `not-found-or-forbidden` |
+| `app/api/**` | `lowercase_snake` | `not_found` |
+
+And the one that actually hurts: **`UseCaseResult`'s failure arm is a Spanish
+user-facing string, not a code** — in all seven module copies.
+
+```ts
+// src/modules/events/application/types.ts:23-25
+| { ok: false; error: string }   // "No pudimos finalizar la adopción: …"
+```
+
+Every write use-case returns prose a native app cannot branch on and cannot
+translate. This is the single largest hidden cost in "just wrap the existing
+use-cases in `/api/v1`", and it is invisible until the first write endpoint.
+
+> **PO decision needed (§8, D2).** Which casing, and where the enum lives.
+> `packages/contract` is the only home a native app can import.
+
+---
+
+## 4. `Cache-Control: no-store` is NOT inherited
+
+```ts
+// lib/infra/public-cache-policy.ts
+const NO_STORE_PREFIXES = ["/p/", "/libreta/compartir/", "/adoptar", "/casos/",
+                           "/denuncias/codigo/", "/denuncias/seguimiento"];
+```
+
+`middleware.ts:227-229` stamps no-store when the pathname matches. **`/api/v1/...`
+matches nothing in that list.**
+
+The privacy class this closed on 2026-07-07 was real: a revoked share and a
+found pet were being served stale from the CDN at the exact shared URL. A JSON
+endpoint reopens it unless it sets the header per-response, which is what the
+gob and panorama handlers already do by hand.
+
+**Checklist line:** every `/api/v1` response that carries pet, case, denuncia or
+share data sets `cache-control: no-store` explicitly. Do not rely on the prefix
+list, and do not add `/api/` to it without deciding what that means for the
+cacheable reads a native client would actually benefit from.
+
+---
+
+## 5. Per-section degraded contract
+
+The point of Track 2, not a refinement of it.
+
+Today a hung query fails soft into a blank section. A human reading a web page
+correctly reads that as "something is missing". **A native client rendering the
+same blank JSON presents it as a valid credential with no findings** — no
+vaccines, no incidents, nothing to worry about.
+
+Every section of a `/api/v1` read therefore reports its own state. A section
+that could not be loaded says so; it never renders as empty. The existing
+`degradedPanoramaKpis()` pattern (§2) is the working precedent.
+
+The credential loader already has the shape for this: `<DegradedCredentialCard>`
+exists at `app/(public)/p/[publicToken]/page.tsx:255,274-282`.
+
+---
+
+## 6. Envelope metadata
+
+`payloadVersion`, `issuedAt`, `staleAfter` on every read, per TRACKS.md. These
+are what let a native client cache honestly and what let the credential say
+"this is what the server knew at 14:32" instead of implying live truth — which
+matters directly for the offline decision (show without signature, say plainly
+that it cannot be verified offline).
+
+---
+
+## 7. What a new route handler inherits — the honest table
+
+| Mechanism | Inherited? |
+|---|---|
+| `middleware.ts` → `updateSession` + CSP | **Yes** — the matcher excludes only static assets |
+| `scripts/check-api-guard-headers.ts` | **Yes** — derives header names from `middleware.ts` and scans every route handler (widened 2026-08-21) |
+| `Cache-Control: no-store` | **No** — path-prefix allowlist |
+| `scripts/check-authz-guards.ts` | **No** — scans `"use server"` modules plus `app/admin/**` and `app/gob/**`; `app/api/**` is absent |
+| `public-token-throttle-coverage` | **Only via `publicPetByToken`** — a handler that resolves a token another way is invisible to it |
+| Any rate limit | **No** — every one is a per-call-site `enforceRateLimit()` |
+
+**`check-authz-guards.ts` not covering `app/api/**` is the biggest structural
+gap on this list.** Closing it is cheaper before `/api/v1` exists than after.
+
+---
+
+## 8. Open decisions
+
+| # | Decision | Why it cannot be deferred |
+|---|---|---|
+| **D1** | Does `/api/v1/p/{token}` get its own throttle bucket (+60/min per IP on the aggregate ceiling) or share the page's (an API client can starve a web visitor on the same IP)? | The first endpoint sets the precedent every later one copies |
+| **D2** | Error-code casing, and whether the enum lives in `packages/contract` | Retrofitting a native app's error branching is expensive; picking now is free |
+| **D3** | Does `/api/v1` match `gob/mascotas`'s aggregate-only limit, or atender's per-lookup limit? | Decides whether the API is a national existence oracle |
+| **D4** | Do we close the `check-authz-guards.ts` gap over `app/api/**` before or after the first endpoint? | Before is cheap; after means auditing by hand |
+
+---
+
+## 9. Merge checklist
+
+A `/api/v1` route handler is not ready until every line has an answer.
+
+- [ ] Rate-limited, with the bucket named and the direction (open/closed) stated.
+- [ ] `cache-control: no-store` set explicitly if it carries pet, case, denuncia or share data.
+- [ ] Errors use the `{ error: "snake_case" }` envelope and a code from the agreed vocabulary.
+- [ ] Every section reports its own availability; nothing degrades to a silent empty.
+- [ ] `payloadVersion` / `issuedAt` / `staleAfter` present on reads.
+- [ ] Success and failure are indistinguishable wherever an oracle exists (§1.3 is the reference test shape).
+- [ ] If it resolves a public token, `publicPetByToken` is the door — so the coverage fence can see it.
+- [ ] If it resolves a chip or a DNI, it carries its own limiter; `lookupByChip` and `verifyDni` bring none.
+- [ ] If it accepts an upload, it goes through `lib/infra/uploads.ts`. No signed upload URLs.
+- [ ] A response-equality test exists for each oracle the route touches.
+
+---
+
+## Provenance and known drift
+
+Verified against code on 2026-08-21. Two numbers in the planning docs have
+drifted and are not worth editing there, but should not be trusted:
+
+- `TRACKS.md:222` says `p/[publicToken]/page.tsx` is 1,423 lines. It is **1,452**.
+  `RN-1` says 1,450 in one place and 1,423 in another.
+- `RN-1:8` says 33 route handlers under `app/api/**`. There are **34** (25 of
+  them crons), and 47 across all of `app/`.
+
+One thing could not be verified from the repo and needs a staging probe: whether
+Next serves `/p/{token}/opengraph-image` as a fully dynamic per-request render in
+production. It is DB-backed with a dynamic param and middleware stamps no-store
+on it via the `/p/` prefix, so it should be — but "should be" is not a
+measurement.
