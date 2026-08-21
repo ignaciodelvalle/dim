@@ -5,12 +5,14 @@
 //
 // Why this exists. The QR used to be produced on the server with
 // `QRCode.toString({ type: "svg" })` and shipped to the client as a markup
-// string, injected into the DOM as raw HTML. That made a scannable
-// credential depend on a server round-trip: offline (or on a cold, unreachable
-// network) the one artifact that IS the credential could not be drawn at all,
-// even though every input needed to draw it — a single absolute URL — was
-// already cached on the device. RN-5 states the target shape directly: "the QR
-// becomes a pure function of a cached string". This component is that function.
+// string, injected into the DOM as raw HTML. That made the one artifact that
+// IS the credential depend on a server round-trip, even though its only input
+// — a single absolute URL — is a string the device could hold. RN-5 states the
+// target shape directly: "the QR becomes a pure function of a cached string".
+// This component is that function. It is a PREREQUISITE for an offline
+// credential, not the capability itself: `public/sw.js` keeps no fetch handler,
+// so the page does not load offline today — what changed is that drawing the
+// QR no longer needs anything the server computes.
 //
 // Rendering contract:
 //   · `QRCode.create()` is SYNCHRONOUS and pure, so the encode happens in the

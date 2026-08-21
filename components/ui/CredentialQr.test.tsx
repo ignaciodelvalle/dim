@@ -122,8 +122,12 @@ describe("<CredentialQr> — deterministic encoding", () => {
 // explains why the identifier is banned, which teaches the next author to
 // delete the explanation rather than obey the rule.
 const INJECTS_RAW_HTML = /dangerouslySetInnerHTML\s*=/;
-const IMPORTS_QRCODE = /(?:from|require\()\s*["']qrcode["']/;
-const DEEP_IMPORTS_QRCODE = /(?:from|require\()\s*["']qrcode\//;
+// Any way of reaching the package counts: static import, require, dynamic
+// `import(`, and any subpath (`qrcode/lib/server`). A reviewer measured that
+// the narrower `["']qrcode["']` let both `import("qrcode")` and a subpath
+// import into a page slip past the pin.
+const IMPORTS_QRCODE = /(?:from|require\(|import\()\s*["']qrcode(?:\/[^"']*)?["']/;
+const DEEP_IMPORTS_QRCODE = /(?:from|require\(|import\()\s*["']qrcode\//;
 
 describe("CredentialQr — source pins", () => {
   it("is a client component and injects no markup", () => {

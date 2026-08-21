@@ -134,7 +134,9 @@ portable asset — renders through /_next/image and has the default 1h TTL, so a
    server SVG from the two heaviest owner renders; the QR becomes a pure
    function of a cached string — cheapest step toward a wallet.
    (Hero + onboarding client-side since 2026-08-21 via
-   `components/ui/CredentialQr.tsx`; the other call sites are still
+   `components/ui/CredentialQr.tsx` — cost: ~78 KB raw / ~20 KB gzipped of
+   `qrcode` now in the client graph of both owner routes, which
+   `lint:route-weight` does not watch; the other call sites are still
    server-side: chapita, cartel, asistencia/presentar, adoption signup,
    landing, mis-turnos.)
 5. **Sign the Tier-0 payload (detached JWS), publish the JWK.** Adds jose + one
