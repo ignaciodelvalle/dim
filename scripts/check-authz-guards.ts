@@ -494,10 +494,17 @@ export function findUnreadableMethodExports(relPath: string, src: string): strin
 // authorizes nothing. Same three escapes as the action rule (inner-writer
 // suffix, a recognized guard call, an explicit `@no-auth-required: <reason>`),
 // with SYSTEM_GUARDS added to the recognized set — see that list for why they
-// are handler-only. Empty array = the handler is covered.
+// are handler-only.
+//
+// Plus two shape rules, because "no offenders" must mean "read and covered" and
+// never "unread": an HTTP method exported in a shape the walker cannot read is
+// an offender (findUnreadableMethodExports), and a route.ts that yields NO
+// readable method at all is an offender too (the block at the end of this
+// function). Empty array = the handler was read AND is covered.
 export function findRouteHandlerOffenders(relPath: string, src: string): string[] {
   const offenders: string[] = [];
-  for (const fn of extractExportedAsyncFunctions(src)) {
+  const readable = extractExportedAsyncFunctions(src);
+  for (const fn of readable) {
     if (isInnerWriter(fn.name)) continue;
     if (fn.hasNoAuthComment) {
       if ((fn.noAuthReason ?? "").length > 0) continue;
@@ -510,10 +517,37 @@ export function findRouteHandlerOffenders(relPath: string, src: string): string[
     // in a comment is documentation, not a call.
     if (callsRouteHandlerGuard(stripComments(fn.body))) continue;
     offenders.push(
-      `${relPath}:${fn.startLine} export async function ${fn.name} — route handler with no authorization call (none of ${ROUTE_HANDLER_GUARDS.join("/")}). A route.ts is a client-addressable entry point exactly like a server action. Call a guard, or — if the endpoint is intentionally public — add a \`// ${NO_AUTH_COMMENT}: <reason>\` comment immediately above the export saying why.`,
+      `${relPath}:${fn.startLine} export async function ${fn.name} — route handler with no authorization call (none of ${ROUTE_HANDLER_GUARDS.join("/")}). A route.ts is a client-addressable entry point exactly like a server action. This rule reads the HANDLER BODY ONLY and does not follow calls, so a guard factored out into a module-level helper reads as absent: call the guard directly in the handler body (the helper may still do the rest of the work). Call a guard, or — if the endpoint is intentionally public — add a \`// ${NO_AUTH_COMMENT}: <reason>\` comment immediately above the export saying why.`,
     );
   }
-  offenders.push(...findUnreadableMethodExports(relPath, src));
+
+  const unreadable = findUnreadableMethodExports(relPath, src);
+  offenders.push(...unreadable);
+
+  // ZERO READABLE EXPORTS — the shape where BOTH rules above answer "nothing".
+  //
+  // findUnreadableMethodExports notices a method exported under a name it can
+  // still SEE (`export const GET =`, `export { h as POST }`, a non-async
+  // `export function DELETE(`). Two shapes carry no visible method name at all:
+  //
+  //   export const { GET, POST } = handlers;   // destructured binding
+  //   export * from "./impl";                  // star re-export
+  //
+  // Neither yields a declaration for the walker, and neither names a method in
+  // a form the binding/re-export regexes match. So the loop above iterates zero
+  // functions, the unreadable rule fires zero offenders, and the file is
+  // reported as authorized — the exact "a fence that scans nothing reports
+  // success" failure this rule's sibling was written to prevent, reached by a
+  // different door. Measured 2026-08-21 on both shapes.
+  //
+  // A route.ts that yields no readable HTTP method is therefore an OFFENDER on
+  // its own: the fence says it cannot see the handler instead of passing it.
+  if (readable.length === 0 && unreadable.length === 0) {
+    offenders.push(
+      `${relPath} — route handler exports no readable HTTP method (destructured, star, or indirect export). This fence binds its guard analysis to a declared \`export async function METHOD(…)\` body; a file that yields none is not "covered", it is UNREAD, and passing it would be passing it by not seeing it. Declare \`export async function METHOD(…)\` and keep any wrapper inside it, or teach extractExportedAsyncFunctions the new shape.`,
+    );
+  }
+
   return offenders;
 }
 

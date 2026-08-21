@@ -56,8 +56,18 @@ const STUCK_BACKENDS_SQL = sql`
 // (.github/workflows/staging-health.yml) is the only intended caller, so there
 // is no session to resolve and no secret it could hold. The response carries no
 // PII and no per-subject data — status, DB ping latency, a stuck-backend count,
-// a degraded flag and a timestamp — and the endpoint is IP rate-limited
-// (60/min) so it cannot become a free liveness oracle for a scanner.
+// a degraded flag and a timestamp.
+//
+// The IP rate limit (60/min) is real but it is NOT a bound on abuse, and this
+// reason used to claim it was. `enforceRateLimit` writes to the same database
+// this endpoint exists to report on, and the call below is deliberately
+// FAIL-OPEN: a budget timeout or any non-RateLimitError failure is swallowed so
+// the probe still answers. So the limit holds exactly while the DB is healthy
+// and lifts exactly when it is not — which is the state a scanner is probing
+// for. Accepted knowingly: what an unlimited caller learns is the health signal
+// itself, and a failing request to any other route on the deployment already
+// says the same thing. Making the limit fail-CLOSED would silence the alarm
+// during the incident it was built for.
 export async function GET(request: Request): Promise<NextResponse> {
   // Light, FAIL-OPEN rate limit. A RateLimitError → 429; any OTHER failure (e.g.
   // the DB itself is down, so the rate-limit write throws) is swallowed so the

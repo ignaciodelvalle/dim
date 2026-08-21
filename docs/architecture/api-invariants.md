@@ -321,9 +321,25 @@ Two things about the authz coverage rule a new handler should know. Cron-secret
 checks (`authorizeCronRequest` / `checkCronSecret`) count as authorization for a
 **route handler only**, never for a server action — proving a trusted scheduler
 called you leaves "who is acting" unasked, and an action is reached from a
-logged-in browser. And the rule reads `export async function GET(…)`: an
-`export const GET = withX(handler)` is reported as an unreadable export shape
-rather than skipped, so the fence can never pass a handler by not seeing it.
+logged-in browser. And the rule reads `export async function GET(…)`: every
+other export shape is *reported*, not skipped — a shape that still names a
+method (`export const GET = withX(handler)`, `export { handler as POST }`, a
+non-async `export function DELETE(`) as an unreadable export shape, and a shape
+that names none (`export const { GET, POST } = handlers`, `export * from
+"./impl"`) as a file that yields no readable HTTP method at all. The second half
+was added 2026-08-21 after a review measured that both nameless shapes produced
+zero functions, zero offenders, and a file reported as authorized.
+
+**What that claim does and does not cover.** No *export shape* can make a
+handler invisible to the fence — that is the precise version of the statement.
+It is not a claim that a handler can never pass unauthorized: the analysis is
+regex-based and `scripts/lib/strip-comments.mjs` deliberately KEEPS string and
+template-literal contents (a token inside a string can be real emitted markup,
+so blanking them would blind the sibling fences to genuine violations). A
+handler whose body merely contains the text `requireUser(` inside a string
+literal therefore counts as guarded. That is a stated blind spot — the linter's
+own header says so — with zero occurrences today, and it is the one remaining
+way past the coverage rule.
 
 ---
 

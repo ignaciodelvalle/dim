@@ -27,8 +27,18 @@ export const dynamic = "force-dynamic";
 // reporter's own httpOnly cookie and redirecting; it reads nothing, writes
 // nothing server-side, and reveals nothing. Requiring a valid session to leave
 // would strand exactly the caller who most needs to — someone on a shared
-// device whose cookie is already expired or malformed. The unauthenticated
-// worst case is a redirect that deletes a cookie the caller already controls.
+// device whose cookie is already expired or malformed.
+//
+// The worst case is NOT "a cookie the caller already controls" — that reading
+// assumed the caller is the cookie's owner, and this endpoint has no CSRF
+// token, so it isn't necessarily. A cross-site page can auto-submit this POST
+// and delete the VICTIM's reporter cookie. What that costs the victim is one
+// forced logout of an accountless, freely re-obtainable session: they re-enter
+// the tracking code from the denuncia receipt and continue. Nothing is read,
+// nothing is written server-side, no state is destroyed — the session is
+// stateless, so the cookie IS the session and a new one costs a form submit.
+// Accepted at that price, because gating it trades a nuisance for stranding
+// the shared-device caller this button exists for.
 export async function POST(request: NextRequest) {
   const response = NextResponse.redirect(new URL("/denuncias/buscar", request.url), 303);
   // reporterSessionCookie(null) is the deletion form, built from the SAME

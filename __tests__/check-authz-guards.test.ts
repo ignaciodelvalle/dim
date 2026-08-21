@@ -406,6 +406,77 @@ describe("findRouteHandlerOffenders", () => {
     expect(findRouteHandlerOffenders("app/api/v1/pets/route.ts", src)).toHaveLength(1);
   });
 
+  // -------------------------------------------------------------------------
+  // ZERO READABLE EXPORTS — the two shapes that slipped BOTH rules.
+  //
+  // findUnreadableMethodExports catches a method exported under a name it can
+  // still see. A destructured binding and a star re-export name no method at
+  // all: the walker yields zero functions, the unreadable rule fires zero
+  // offenders, and before 2026-08-21 the file came back "authorized" — passing
+  // by being invisible, through a door the sibling rule did not cover.
+  // -------------------------------------------------------------------------
+
+  it("FLAGS a destructured method export (`export const { GET, POST } = handlers`)", () => {
+    const src = [
+      'import { handlers } from "./impl";',
+      "export const { GET, POST } = handlers;",
+    ].join("\n");
+    // The premise: neither existing rule sees anything here.
+    expect(extractExportedAsyncFunctions(src)).toHaveLength(0);
+    expect(findUnreadableMethodExports("app/api/x/route.ts", src)).toHaveLength(0);
+
+    const offenders = findRouteHandlerOffenders("app/api/x/route.ts", src);
+    expect(offenders).toHaveLength(1);
+    expect(offenders[0]).toContain("no readable HTTP method");
+  });
+
+  it("FLAGS a star re-export (`export * from './impl'`)", () => {
+    const src = 'export * from "./impl";';
+    expect(extractExportedAsyncFunctions(src)).toHaveLength(0);
+    expect(findUnreadableMethodExports("app/api/x/route.ts", src)).toHaveLength(0);
+
+    const offenders = findRouteHandlerOffenders("app/api/x/route.ts", src);
+    expect(offenders).toHaveLength(1);
+    expect(offenders[0]).toContain("no readable HTTP method");
+  });
+
+  it("stays quiet on a readable, guarded handler (the rule is not vacuous the other way)", () => {
+    const src = [
+      'export const dynamic = "force-dynamic";',
+      "export async function GET(request: Request) {",
+      "  const { user } = await requireUserOrRedirect();",
+      "  return Response.json({ id: user.id });",
+      "}",
+    ].join("\n");
+    expect(findRouteHandlerOffenders("app/api/x/route.ts", src)).toHaveLength(0);
+  });
+
+  it("does NOT double-report: an unreadable-but-visible export gets one offender, not two", () => {
+    // `export const GET = withX(handler)` yields zero readable functions too,
+    // but findUnreadableMethodExports already named it — the zero-readable rule
+    // must stay silent so the author reads one instruction, not two.
+    const src = 'import { withX } from "@/lib/x";\nexport const GET = withX(handler);';
+    const offenders = findRouteHandlerOffenders("app/api/x/route.ts", src);
+    expect(offenders).toHaveLength(1);
+    expect(offenders[0]).toContain("cannot read");
+  });
+
+  it("tells the author that a guard hoisted into a helper is not seen", () => {
+    // The rule scans the handler BODY and does not follow calls. That false
+    // positive is the intended direction (loud, not silent), so the message
+    // has to say what to do about it — otherwise the author's fix is to
+    // baseline the fence.
+    const src = [
+      "export async function GET(request: Request) {",
+      "  const ctx = await resolveContext(request);",
+      "  return Response.json(ctx);",
+      "}",
+    ].join("\n");
+    const offenders = findRouteHandlerOffenders("app/api/x/route.ts", src);
+    expect(offenders).toHaveLength(1);
+    expect(offenders[0]).toContain("call the guard directly in the handler body");
+  });
+
   it("ROUTE_HANDLER_GUARDS is the deduplicated union of the three tiers", () => {
     for (const g of [...AUTH_GUARDS, ...INSTITUTIONAL_GUARDS, ...SYSTEM_GUARDS]) {
       expect(ROUTE_HANDLER_GUARDS).toContain(g);
@@ -465,6 +536,16 @@ describe("findUnreadableMethodExports", () => {
     // a fence that guessed its way past it would be guessing in the direction of
     // silence. Zero occurrences in the tree today (pinned by the scan-set suite
     // below, which asserts no unreadable exports across all 47 handlers).
+    //
+    // THIS ASSERTION PINS A LIMITATION, NOT A REQUIREMENT. The limitation is
+    // scripts/lib/strip-comments.mjs keeping string and template-literal
+    // CONTENTS (deliberately — a tag inside a string can be real emitted
+    // markup, so blanking them would make the sibling fences blind to genuine
+    // violations). If someone later teaches the stripper to blank string
+    // contents for this caller, the correct move is to flip this expectation to
+    // `toHaveLength(0)` and rename the test — NOT to revert the stripper change
+    // to keep a green line. A test that pins a known defect has to say so, or
+    // the next person reads it as the contract.
     const src = ['const label = "export const POST = x";', "export async function GET() {}"].join(
       "\n",
     );

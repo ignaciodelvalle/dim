@@ -122,7 +122,7 @@ Ordenado por severidad. Nada de esto bloquea a Cowork.
 |---|---|
 | `cron-dispatcher` | Los jobs #2 y #3 declaran 45s cada uno contra un presupuesto de 55s y un lambda de 60s. Un kill por timeout no es excepción de JS: la fila queda en `running` para siempre. Los jobs 3-22 nunca corren ni se marcan como salteados — incluidos la purga de retención (#20) y el propio monitor de la flota (#22), que se starvea a sí mismo |
 | Notificaciones | **98,4%** son best-effort post-transacción con `catch` que sólo loguea. No hay ningún job que compare hechos contra notificaciones: "el hecho existe y el aviso no" no lo descubre nadie |
-| `check-authz-guards` | No puede ver los **33 `route.ts`** (descubre por `"use server"`). Instancia viva: `libreta-export/route.ts` no chequea `deletedAt`, así que un titular que ejerció supresión ARCO sigue pudiendo bajar el PDF completo |
+| `check-authz-guards` | No puede ver los **33 `route.ts`** (descubre por `"use server"`). Instancia viva: `libreta-export/route.ts` no chequea `deletedAt`, así que un titular que ejerció supresión ARCO sigue pudiendo bajar el PDF completo *(cerrado 2026-08-21, ver PENDIENTES L-3)* |
 | Decomiso | Reasignar a otro refugio **inutiliza permanentemente** la aceptación: inserta una segunda propuesta sobre el mismo caso, y el validador trata esa forma como corrupción. El cron modela la misma forma como estado normal |
 | Turnos | Atender **no notifica al dueño**. El gemelo walk-in sí lo hace desde el 16/7 |
 | Panorama | El sello de frescura del cubo llega a **un** componente, dentro de un panel que hay que abrir. El PNG y el informe imprimen "Datos al {hoy}" sobre un cubo de ayer |
