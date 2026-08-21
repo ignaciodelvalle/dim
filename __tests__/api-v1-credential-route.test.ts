@@ -522,6 +522,14 @@ describe("the limiters fail OPEN", () => {
 
     expect(await routeThrottle().isThrottled()).toBe(false);
     expect(reportedErrors()).toContain(`public-token-throttle/${SURFACE_BUCKET}`);
+    // Fail-open means the CALLER continues, and continuing means the per-lookup
+    // limiter still runs — a surface store that broke must not silently take
+    // D3's counter with it. It is also what bounds the write amplification the
+    // route header states: at most 120 rows/min per IP, a number that assumes
+    // the surface bucket and the per-lookup bucket are consulted on the same
+    // path. Asserting only `isThrottled() === false` would pass on an
+    // implementation that abandoned the per-lookup check entirely.
+    expect(limiterCalls()).toEqual([`limit:${SURFACE_BUCKET}`, `limit:${LOOKUP_BUCKET}`]);
   });
 
   it("does NOT fail open on a genuine RateLimitError — the arm above is not a hole", async () => {

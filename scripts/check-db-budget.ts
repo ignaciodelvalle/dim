@@ -60,6 +60,16 @@
 // Run: pnpm tsx scripts/check-db-budget.ts   (or: pnpm lint:db-budget)
 
 import { existsSync, globSync, readFileSync } from "node:fs";
+import { join, resolve } from "node:path";
+
+// Reused, not re-derived. `importedIdentifiers` already knows the import shapes
+// this repo writes (including module-level aliases of an imported value) and
+// `resolveSpecifier` already resolves `@/…` against the repo root — the two
+// pieces the delegation check needs to answer "does this route actually reach
+// the owner it names". A second copy would drift, and a drifted copy of a
+// resolver fails OPEN: a specifier it cannot resolve reads as "not imported".
+import { importedIdentifiers, normalizePath, resolveSpecifier } from "./check-audit-log-coverage";
+import { stripComments } from "./lib/strip-comments.mjs";
 
 // Budget-wrapper tokens. A heavy entry point is budgeted when its source CALLS
 // one of these. Matching is prefix-based on the identifier, so
@@ -216,25 +226,55 @@ export const DASHBOARD_PAGES = [
 // landed rather than after.
 export const ROUTE_GLOBS = ["app/api/panorama/**/route.ts", "app/api/v1/**/route.ts"] as const;
 
+export type DelegatingRoute = { reason: string; budgetedBy: string[] };
+
 /**
  * Routes inside a registered glob that do NO DB work of their own.
  *
- * WHY THIS EXISTS AND WHY IT IS NOT A HOLE. This file's own history has the
- * answer, at DASHBOARD_PAGES above: `_lib/load-audit-data.ts` and
- * `inteligencia-panels.tsx` were registered, passed on the word
- * "loadWithTimeout" appearing in a header comment, and were removed on
- * 2026-08-09 with the verdict that "listing a delegating file was the substring
- * illusion in its purest form: the fence reported enforcement on a file that
- * structurally cannot satisfy the rule". The budget belongs where the DB work
- * is, and the scan target MOVES with it.
+ * WHY THIS EXISTS. This file's own history has the answer, at DASHBOARD_PAGES
+ * above: `_lib/load-audit-data.ts` and `inteligencia-panels.tsx` were
+ * registered, passed on the word "loadWithTimeout" appearing in a header
+ * comment, and were removed on 2026-08-09 with the verdict that "listing a
+ * delegating file was the substring illusion in its purest form: the fence
+ * reported enforcement on a file that structurally cannot satisfy the rule".
+ * The budget belongs where the DB work is, and the scan target MOVES with it.
  *
  * A glob cannot move, though — `app/api/v1/**` is registered for the SCOPE, so
  * the next endpoint is covered before anyone writes it. So a route that has
- * delegated all its reads away names, here, the files that took them. Each is
- * verified to exist AND to call a real wrapper, so this entry can never be the
- * kind of exemption that merely asserts someone else handled it.
+ * delegated all its reads away names, here, the files that took them.
+ *
+ * WHAT `delegationViolations` ACTUALLY VERIFIES — the whole list, so nobody has
+ * to infer the bar from the prose:
+ *
+ *   1. the ROUTE exists on disk;
+ *   2. the reason is at least 80 characters — prose, not a shrug;
+ *   3. `budgetedBy` is non-empty;
+ *   4. every named OWNER exists on disk;
+ *   5. every named owner CALLS a budget wrapper, directly
+ *      (`referencesBudgetWrapper`) or through an injected binding
+ *      (`appliesInjectedBudget`);
+ *   6. the route IMPORTS every named owner — the specifier is resolved against
+ *      the repo root, so `@/src/…` and `./…` both count; and
+ *   7. an identifier bound by that import is CALLED in the route's own body,
+ *      with comments and string contents removed first.
+ *
+ * (6) and (7) were added on 2026-08-21 after a review proved their absence with
+ * a fixture: repointing the entry below at `app/api/panorama/[layer]/route.ts`
+ * — a route that has never heard of `lookupPublicCredential` — produced ZERO
+ * violations, and the runner printed "2 delegating route(s) name a budgeted
+ * owner that really is budgeted". Checks 1-5 verify the OWNER is bounded; only
+ * 6 and 7 verify that THIS route is the thing being bounded. Without them the
+ * entry was an exemption asserting that somebody, somewhere, bounded the work,
+ * which is precisely the shape this repo keeps finding to be false.
+ *
+ * KNOWN LIMIT, stated rather than hidden: only named `import { … } from "…"`
+ * bindings are followed (plus the module-level aliases `importedIdentifiers`
+ * resolves). A default or namespace import of an owner reads as NOT IMPORTED
+ * and turns the entry RED. That is the safe direction for an exemption lane —
+ * the fence complains about a real delegation instead of certifying a fake one
+ * — and the fix is to write the named import, not to relax the check.
  */
-export const DELEGATING_ROUTES: Record<string, { reason: string; budgetedBy: string[] }> = {
+export const DELEGATING_ROUTES: Record<string, DelegatingRoute> = {
   "app/api/v1/pets/[publicToken]/credential/route.ts": {
     reason:
       "Every read and every write this endpoint causes belongs to a collaborator: the four-way credential decision (pet row + view-data fan-out) to the door, and BOTH rate-limit counter writes to the throttle adapter, which is where their ordering now lives too (2026-08-21). The handler is HTTP mapping — four status codes and one envelope — and holds no query. It called withDbBudget until the per-lookup limiter moved into the adapter to stop an over-the-surface-limit caller from writing two rate_limit_buckets rows per attacker-chosen token; keeping a token wrapper here afterwards would have been ceremony over a promise that cannot hang.",
@@ -245,19 +285,95 @@ export const DELEGATING_ROUTES: Record<string, { reason: string; budgetedBy: str
   },
 };
 
+const REPO_ROOT = resolve(import.meta.dirname, "..");
+
 /**
- * Problems with the delegation claims above: a route that no longer exists, or
- * a named budget owner that does not exist or does not call a wrapper.
+ * `foo/bar.ts` → `foo/bar`, `foo/index.ts` → `foo`.
+ *
+ * Both sides of the owner comparison are folded through this, so an entry may
+ * be written with or without its extension and a directory entry still matches
+ * the `index.ts` that `resolveSpecifier` picks.
+ */
+function withoutExtension(path: string): string {
+  return path.replace(/\.tsx?$/, "").replace(/\/index$/, "");
+}
+
+/**
+ * Does `routeSrc` actually REACH each of the files it names as its budget
+ * owners? One violation string per owner it does not.
+ *
+ * Two source passes, because they need opposite things from string literals:
+ *
+ *   · IMPORTS are read from a comment-stripped source that KEEPS string
+ *     contents — the module specifier IS a string.
+ *   · The CALL is tested against `stripNonCode`, which drops string contents,
+ *     so `const label = "lookupPublicCredential(x)"` can never pass for a call.
+ *     That is hole #1 of the 2026-08-09 hardening, one level up.
+ *
+ * `route` is used only as the base path for resolving relative specifiers; the
+ * source is a parameter so this is testable without planting fixture files in
+ * the tree.
+ */
+export function delegationLinkProblems(
+  route: string,
+  routeSrc: string,
+  budgetedBy: readonly string[],
+): string[] {
+  const problems: string[] = [];
+  const imports = importedIdentifiers(stripComments(routeSrc));
+  const code = stripNonCode(routeSrc);
+
+  for (const owner of budgetedBy) {
+    const target = withoutExtension(normalizePath(join(REPO_ROOT, owner)));
+    const bindings = [...imports]
+      .filter(([, specifier]) => {
+        const resolved = resolveSpecifier(route, specifier);
+        return resolved !== null && withoutExtension(resolved) === target;
+      })
+      .map(([identifier]) => identifier);
+
+    if (bindings.length === 0) {
+      problems.push(
+        `${route}: names ${owner} as a budget owner but never imports it — the exemption points somewhere this route does not go`,
+      );
+      continue;
+    }
+    // `\s*[.(]` — a direct call `useCase(…)` or a method call on the imported
+    // value, the same one-hop shape check-audit-log-coverage.ts uses. A
+    // lookbehind rather than `\b` so an identifier legally starting with `$`
+    // is not silently mis-anchored.
+    const called = bindings.some((identifier) =>
+      new RegExp(`(?<![\\w$])${identifier.replaceAll("$", "\\$")}\\s*[.(]`).test(code),
+    );
+    if (!called) {
+      problems.push(
+        `${route}: imports ${owner} but never calls it — a declared delegation is not a performed one`,
+      );
+    }
+  }
+  return problems;
+}
+
+/**
+ * Problems with the delegation claims above — the full list is enumerated in
+ * the DELEGATING_ROUTES docblock, checks (1) through (7).
  *
  * This is the non-vacuity check. Without it the map is a list of file names
  * asserting that somebody, somewhere, bounded the work — which is precisely
  * the shape of exemption this repo keeps finding to be false.
+ *
+ * `map` is a parameter so a test can hand it a fixture entry; production always
+ * runs on the real map.
  */
-export function delegationViolations(): string[] {
+export function delegationViolations(
+  map: Record<string, DelegatingRoute> = DELEGATING_ROUTES,
+): string[] {
   const problems: string[] = [];
-  for (const [route, { reason, budgetedBy }] of Object.entries(DELEGATING_ROUTES)) {
+  for (const [route, { reason, budgetedBy }] of Object.entries(map)) {
     if (!existsSync(route)) {
       problems.push(`${route}: listed as delegating but no longer exists — move or drop the entry`);
+      // Nothing further is knowable: the link check needs the route's source.
+      continue;
     }
     if (reason.length < 80) {
       problems.push(`${route}: needs a written reason naming what it delegates`);
@@ -265,16 +381,21 @@ export function delegationViolations(): string[] {
     if (budgetedBy.length === 0) {
       problems.push(`${route}: delegates to nothing — then it is an offender, not an exemption`);
     }
+    // Owners that are missing are reported here and dropped from the link
+    // check, so a vanished file costs one violation rather than two.
+    const present: string[] = [];
     for (const owner of budgetedBy) {
       if (!existsSync(owner)) {
         problems.push(`${route}: delegates to ${owner}, which does not exist`);
         continue;
       }
+      present.push(owner);
       const src = readFileSync(owner, "utf8");
       if (!referencesBudgetWrapper(src) && !appliesInjectedBudget(src)) {
         problems.push(`${route}: delegates to ${owner}, which applies NO budget`);
       }
     }
+    problems.push(...delegationLinkProblems(route, readFileSync(route, "utf8"), present));
   }
   return problems;
 }
@@ -676,7 +797,7 @@ function runScan(): void {
 
   const delegating = Object.keys(DELEGATING_ROUTES).length;
   console.log(
-    `✓ db-budget clean — ${targets.length - delegating} registered heavy call site(s) CALL a budget wrapper (${BUDGET_WRAPPERS.join("/")}); ${delegating} delegating route(s) name a budgeted owner that really is budgeted; discovery scan found no new unbounded fan-out (${baseline.size} baselined).`,
+    `✓ db-budget clean — ${targets.length - delegating} registered heavy call site(s) CALL a budget wrapper (${BUDGET_WRAPPERS.join("/")}); ${delegating} delegating route(s) IMPORT AND CALL a budget owner that really is budgeted; discovery scan found no new unbounded fan-out (${baseline.size} baselined).`,
   );
 }
 

@@ -8,7 +8,11 @@ import { and, eq, inArray, isNull, like, or } from "drizzle-orm";
 import { afterAll, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { arLocalities, arLocalitiesImportRuns, db } from "@/db";
-import { REMOVAL_MIN_PARSED_ROWS, runImport } from "@/scripts/import-indec-localities";
+import {
+  FALLBACK_FIXTURE_SOURCE_VERSION,
+  REMOVAL_MIN_PARSED_ROWS,
+  runImport,
+} from "@/scripts/import-indec-localities";
 
 import { restoreIndecCatalog } from "./_helpers/restore-indec-catalog";
 
@@ -97,8 +101,11 @@ const FIXTURE_SOURCE_VERSION = "fixture-test";
 /** Every source_version a row written by this file can carry. */
 const FIXTURE_SOURCE_VERSIONS = [
   FIXTURE_SOURCE_VERSION,
-  // The fallback path stamps its own, and one test exercises it.
-  "fallback-fixture",
+  // The fallback path stamps its own, and one test exercises it. IMPORTED from
+  // the importer, not repeated as a literal: two copies of a marker are two
+  // things a rename can put out of step, and the half that rots here is the
+  // cleanup's SCOPE — the fallback rows would quietly stop being deleted.
+  FALLBACK_FIXTURE_SOURCE_VERSION,
   // The pre-fix AR-C row the self-healing test plants by hand.
   "pre-fix",
 ];

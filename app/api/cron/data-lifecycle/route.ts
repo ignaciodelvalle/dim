@@ -40,6 +40,18 @@ export const dynamic = "force-dynamic";
 
 const CRON_NAME = "data_lifecycle";
 
+/**
+ * Backlog flag → the table it drains.
+ *
+ * The warning names the SQL table, not the camelCase field, because the person
+ * reading a function log is about to go look at that table.
+ */
+const BACKLOG_TABLES: [keyof DataLifecycleResult["backlogged"], string][] = [
+  ["notifications", "notifications"],
+  ["rateLimitBuckets", "rate_limit_buckets"],
+  ["cronRuns", "cron_runs"],
+];
+
 export async function GET(req: NextRequest): Promise<NextResponse> {
   const authError = authorizeCronRequest(req);
   if (authError) {
@@ -74,6 +86,35 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
       reason: err instanceof Error ? err.message : String(err),
     });
     console.error("[cron/data-lifecycle] Error:", err);
+  }
+
+  // A drain that stopped short must SAY SO in the logs. `backlogged` was
+  // already in the response body and in cron_runs.details, but nothing READ
+  // either on a run that returns `ok: true` with a 200 — so the flag that
+  // exists precisely to distinguish "finished" from "ran out of budget on a
+  // table that keeps growing" was only visible to someone already suspicious.
+  //
+  // Only on an OK run: a failed run reports the initial all-true shape, which
+  // means "nothing ran", not "three tables are behind", and it already pages a
+  // human below.
+  //
+  // NO sendCronAlert here, deliberately. Siblings DO use it for non-failure
+  // conditions — app/api/cron/reconcile-pet-status/route.ts fires severity
+  // "warning" on drift and still returns 200 — so the precedent exists. But
+  // drift is an anomaly, while a backlog on a deliberately batch-capped drain
+  // is normal operation at volume (see RATE_LIMIT_CLEANUP_MAX_BATCHES and the
+  // shared wall-clock deadline in lib/infra/data-lifecycle.ts): paging every
+  // tick would train the recipient to ignore the channel. Escalating needs a
+  // threshold — N consecutive runs backlogged — and that is its own change.
+  if (status === "ok") {
+    const backlogged = BACKLOG_TABLES.filter(([flag]) => counts.backlogged[flag]).map(
+      ([, table]) => table,
+    );
+    if (backlogged.length > 0) {
+      console.warn(
+        `[cron/${CRON_NAME}] backlog remains: ${backlogged.join(", ")} — the purge hit its batch cap or the wall-clock deadline before draining; rows are still expired and waiting for the next run.`,
+      );
+    }
   }
 
   const durationMs = Date.now() - start;

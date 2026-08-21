@@ -400,10 +400,13 @@ export function buildPublicCredentialV1(
  * ON `allowFinderForm` IN THIS ENVELOPE. It carries the owner's PREFERENCE
  * (`pets.allow_finder_form_when_lost`) with no dispute check, where the `ok`
  * arm carries `preference && !disputed`. That is deliberate and safe, not an
- * oversight: the dispute gate is enforced at SUBMIT, server-side, by
- * `app/(public)/p/[publicToken]/encontre/action.ts:151-156`, which re-reads
- * `pets.in_custody_dispute` after resolving the token and refuses the report
- * outright. The degraded arm is reached because a read FAILED, so the dispute
+ * oversight: the dispute gate is enforced at SUBMIT, server-side, by the
+ * `if (pet.inCustodyDispute)` refusal inside `reportFinderInPossessionAction`
+ * (`app/(public)/p/[publicToken]/encontre/action.ts`, ~`:196` — named by
+ * function and condition rather than by line range, because the previous
+ * citation pointed at `:151-156` and the gate had already moved), which
+ * re-reads `pets.in_custody_dispute` after resolving the token and refuses the
+ * report outright. The degraded arm is reached because a read FAILED, so the dispute
  * state is exactly one of the things it does not know — and a client that hides
  * the CTA during an outage hides it from every pet, including the ones with no
  * dispute at all, on the one surface a finder in the street depends on. Showing

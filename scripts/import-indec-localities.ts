@@ -85,6 +85,17 @@ const DEFAULT_SOURCE_URL = "https://infra.datos.gob.ar/georef/localidades_censal
 // Bundled sample fixture used as a last-resort fallback when the live source is
 // unreachable and no vendored CSV has been configured. Keeps bootstrap/CI green
 // even when datos.gob.ar is down — at the cost of only loading a small subset.
+/**
+ * `source_version` stamped on every row the fallback path writes.
+ *
+ * Exported because __tests__/import-indec-localities.test.ts lists it among the
+ * markers its CABA cleanup deletes by: the cleanup is scoped to rows carrying a
+ * fixture marker, so a rename here that the test did not follow would silently
+ * take the fallback path out of that scope — and the residue it leaves behind
+ * would sit in the catalog looking like a real import.
+ */
+export const FALLBACK_FIXTURE_SOURCE_VERSION = "fallback-fixture";
+
 const FALLBACK_FIXTURE_PATH = join(
   import.meta.dirname ?? __dirname,
   "__fixtures__",
@@ -328,7 +339,7 @@ export async function runImport(options?: {
           "[import-indec-localities] or set INDEC_LOCALITIES_CSV to a vendored full CSV before bootstrapping.",
         );
         csvText = readFileSync(FALLBACK_FIXTURE_PATH, "utf-8");
-        sourceVersion = "fallback-fixture";
+        sourceVersion = FALLBACK_FIXTURE_SOURCE_VERSION;
         usedFallback = true;
       }
       if (!fetchOk && !usedFallback) {
