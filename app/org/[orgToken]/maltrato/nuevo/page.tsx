@@ -131,7 +131,15 @@ export default async function OrgNuevaDenunciaPage({
         }
       />
 
-      <WelfareReportForm action={boundAction} isAnonymous={false} evidenceRequired />
+      {/* descriptionMinLength mirrors createOrgWelfareReportAction's own check
+          (welfare/actions.ts:1365). The header above this form already states
+          100; without the prop the field below it said 20. */}
+      <WelfareReportForm
+        action={boundAction}
+        isAnonymous={false}
+        evidenceRequired
+        descriptionMinLength={100}
+      />
 
       <footer className="pt-4 border-t border-ln-op-line">
         <p className="text-sm text-ln-op-mute">

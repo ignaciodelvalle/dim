@@ -72,6 +72,7 @@ export function WelfareReportForm({
   action,
   isAnonymous,
   evidenceRequired = false,
+  descriptionMinLength = 20,
 }: {
   action: FormAction;
   isAnonymous: boolean;
@@ -85,6 +86,21 @@ export function WelfareReportForm({
    * public form is also non-anonymous and does NOT owe evidence.
    */
   evidenceRequired?: boolean;
+  /**
+   * Second instance of the same defect, found 2026-08-20 and fixed the same
+   * way. The professional channel rejects a description under 100 characters
+   * (welfare/actions.ts:1365) and its page header says exactly that; this
+   * shared field rendered `minLength={20}` and a counter reading "(mínimo 20)"
+   * directly below that header. The browser submitted happily at 60 characters
+   * and the counter told the operator they were well past the bar.
+   *
+   * A prop, not a derivation from `evidenceRequired`, for the same reason the
+   * comment above gives about `isAnonymous`: two rules that happen to coincide
+   * today are not one rule, and coupling them means the next channel with a
+   * different pair silently inherits the wrong one. The public channel really
+   * does allow 20 (welfare/actions.ts:1066), which is the default here.
+   */
+  descriptionMinLength?: number;
 }) {
   const [subjectKind, setSubjectKind] = useState<string>("unowned_animal");
   const [description, setDescription] = useState("");
@@ -220,14 +236,18 @@ export function WelfareReportForm({
       </LnField>
 
       {/* Description */}
-      <LnField label="¿Qué pasó?" required hint={`${description.length} caracteres (mínimo 20)`}>
+      <LnField
+        label="¿Qué pasó?"
+        required
+        hint={`${description.length} caracteres (mínimo ${descriptionMinLength})`}
+      >
         {({ id, describedBy, invalid }) => (
           <LnTextarea
             id={id}
             name="description"
             rows={5}
             required
-            minLength={20}
+            minLength={descriptionMinLength}
             placeholder="Contá lo que viste con detalle: cuándo, dónde, quiénes están involucrados, qué condición está el animal…"
             value={description}
             onChange={(e) => setDescription(e.target.value)}
