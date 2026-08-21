@@ -26,13 +26,13 @@ import {
   type AlertMetricKey,
 } from "@/db/schema";
 import { requireAdminOrRedirect } from "@/lib/infra/auth-guards";
+import { withDbBudget } from "@/lib/infra/db-budget";
 import {
   type AlertInboxFilters,
   fetchAlertFirings,
   logAlertInboxView,
 } from "@/lib/metrics/alert-firing-inbox";
 import { PROVINCES } from "@/lib/reference/ar-provincias";
-import { withDbBudget } from "@/src/modules/panorama/application/db-budget";
 
 import { AlertEstadoFilter } from "./_components/AlertEstadoFilter";
 

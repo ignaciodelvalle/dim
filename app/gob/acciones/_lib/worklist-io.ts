@@ -30,10 +30,10 @@ import { and, asc, desc, eq, inArray, not } from "drizzle-orm";
 import { db, petEvents, welfareReports } from "@/db";
 import { buildMaltratoListConditions } from "@/lib/analytics/govt-dashboards";
 import { listCasesForAdmin, listCasesForGovt } from "@/lib/infra/case-queries";
+import { withDbBudget } from "@/lib/infra/db-budget";
 import type { DashboardJurisdiction } from "@/lib/metrics";
 import { fetchObservaciones } from "@/lib/metrics/observaciones-query";
 import { CASE_KINDS_ROUTED_ELSEWHERE } from "@/src/modules/cases/domain/case-kinds";
-import { withDbBudget } from "@/src/modules/panorama/application/db-budget";
 import { resolveObservationDeadline } from "@/src/modules/surveillance/domain/rabies-observation";
 import { TERMINAL_STATUSES } from "@/src/modules/welfare/domain/welfare-status-rules";
 

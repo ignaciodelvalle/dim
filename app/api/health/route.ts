@@ -18,9 +18,9 @@ import { sql } from "drizzle-orm";
 import { NextResponse } from "next/server";
 
 import { db } from "@/db";
+import { withDbBudget } from "@/lib/infra/db-budget";
 import { evaluateHealth } from "@/lib/infra/health-status";
 import { RateLimitError, callerIp, enforceRateLimit } from "@/lib/infra/rate-limit";
-import { withDbBudget } from "@/src/modules/panorama/application/db-budget";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs"; // postgres-js needs the Node runtime, not edge.

@@ -12,7 +12,7 @@
 
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-vi.mock("@/src/modules/panorama/application/db-budget", () => ({
+vi.mock("@/lib/infra/db-budget", () => ({
   // Budget wrapper: pass-through (budget/timeout behavior is its own suite).
   withDbBudget: vi.fn(async <T>(promise: Promise<T>) => promise),
 }));

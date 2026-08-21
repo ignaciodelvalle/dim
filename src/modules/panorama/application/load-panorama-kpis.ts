@@ -24,8 +24,8 @@ import { unstable_cache } from "next/cache";
 import { reportError } from "@/lib/infra/report-error";
 import type { AnalyticsPeriod, DashboardActor, DashboardJurisdiction } from "@/lib/metrics";
 
+import { withDbBudget } from "@/lib/infra/db-budget";
 import { isIncrementalCacheMissing, warnIncrementalCacheMissingOnce } from "./data-cache";
-import { withDbBudget } from "./db-budget";
 import { type PanoramaKpis, degradedPanoramaKpis, getPanoramaKpis } from "./get-panorama-kpis";
 import { type CachedKpisResult, getCachedPanoramaKpis, kpiCacheKey } from "./kpis-cache";
 import { loadPanoramaKpisFromCube } from "./load-panorama-kpis-cube";

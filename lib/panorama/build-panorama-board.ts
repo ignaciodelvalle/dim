@@ -17,10 +17,10 @@
 
 import type { SeededLayer } from "@/components/panorama/panorama-console-helpers";
 import { PANORAMA_DEFAULT_PRESET, resolveAnalyticsPeriod } from "@/lib/analytics/analytics-period";
+import { withDbBudget } from "@/lib/infra/db-budget";
 import type { DashboardJurisdiction } from "@/lib/metrics";
 import { panoramaScopeLabel } from "@/lib/panorama/scope-label";
 import type { ViewScopeAuthority } from "@/lib/ui/view-scope-descriptor";
-import { withDbBudget } from "@/src/modules/panorama/application/db-budget";
 import { emptyLayerFeatures } from "@/src/modules/panorama/application/get-layer-features";
 import {
   type PanoramaKpis,

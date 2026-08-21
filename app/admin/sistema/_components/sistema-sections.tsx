@@ -32,11 +32,11 @@ import {
 } from "@/lib/analytics/admin-metrics";
 import type { EnoSlaMetric } from "@/lib/analytics/surveillance-metrics";
 import { cronDisplayLabel } from "@/lib/infra/cron-registry";
+import { withDbBudget } from "@/lib/infra/db-budget";
 import { type OutboundChannelStatus, deriveOutboundChannels } from "@/lib/infra/outbound-channels";
 import { decisionsDeltaPct } from "@/lib/metrics";
 import { decisionsAuditDrillHref } from "@/lib/ui/audit-filters";
 import { formatDateShort, formatDateTimeShortAr } from "@/lib/utils/format";
-import { withDbBudget } from "@/src/modules/panorama/application/db-budget";
 
 // ---------------------------------------------------------------------------
 // Budgets + degraded envelope

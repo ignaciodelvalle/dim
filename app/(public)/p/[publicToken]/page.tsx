@@ -52,6 +52,7 @@ import { readPoint } from "@/lib/domain/location";
 import { computeConfidence, isAtLeast } from "@/lib/events/event-confidence";
 import { resolveBusinessRule } from "@/lib/infra/business-rules-resolver";
 import { resolveCaretakerPublicContact } from "@/lib/infra/caretaker-public-contact";
+import { withDbBudgetOrThrow } from "@/lib/infra/db-budget";
 import { fetchActiveIdentifications } from "@/lib/infra/pet-identifiers";
 import { publicPetByToken } from "@/lib/infra/public-pet-lookup";
 import { isPublicTokenReadThrottled } from "@/lib/infra/public-token-throttle";
@@ -74,7 +75,6 @@ import {
   speciesLabel,
   statusLabel,
 } from "@/lib/utils/format";
-import { withDbBudgetOrThrow } from "@/src/modules/panorama/application/db-budget";
 import { isObservationOpen } from "@/src/modules/surveillance/domain/rabies-observation";
 import { and, desc, eq, gte, isNull, sql } from "drizzle-orm";
 import { notFound } from "next/navigation";

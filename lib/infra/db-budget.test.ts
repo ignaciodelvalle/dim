@@ -4,7 +4,7 @@
 
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { DbBudgetExceededError, withDbBudget, withDbBudgetOrThrow } from "../db-budget";
+import { DbBudgetExceededError, withDbBudget, withDbBudgetOrThrow } from "./db-budget";
 
 const later = <T>(value: T, ms: number): Promise<T> =>
   new Promise((resolve) => setTimeout(() => resolve(value), ms));

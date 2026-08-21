@@ -1,4 +1,17 @@
-// Bounded DB fan-out helper — "never hang, never crash" for the Panorama console.
+// Bounded DB fan-out helper — "never hang, never crash".
+//
+// LIVED IN src/modules/panorama/application/ UNTIL 2026-08-21, because that is
+// where the incident below happened. Its consumers said otherwise long before
+// it moved: 13 of the 23 files that use it are outside panorama — the public
+// credential page, /refugios, three admin surfaces, /api/health, the gob
+// worklist. It is infrastructure that a module happened to be holding.
+//
+// The move was forced by an architectural check rather than noticed by anyone:
+// Track 2 extracts the credential loader into src/modules/pets/, the loader
+// bounds its fan-out with this helper, and `pets:panorama` is not an allowed
+// edge in check-dependency-direction.ts. Adding the edge would have legitimised
+// a dependency that never made sense; lowering the helper to lib/ is the fix,
+// and module -> lib is always allowed.
 //
 // PRODUCTION INCIDENT (task #74): the universal-scope admin console fires ~11
 // aggregate queries via Promise.all + the layer fetchers. On the shared micro DB

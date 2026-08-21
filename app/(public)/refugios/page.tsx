@@ -12,9 +12,9 @@ import Link from "next/link";
 import { LnEmptyState } from "@/components/ui/EmptyState";
 
 import { db, organizations } from "@/db";
+import { withDbBudgetOrThrow } from "@/lib/infra/db-budget";
 import { reportError } from "@/lib/infra/report-error";
 import { PROVINCES } from "@/lib/reference/ar-provincias";
-import { withDbBudgetOrThrow } from "@/src/modules/panorama/application/db-budget";
 
 // CI builds run without a database, so ISR prerender is not available.
 // Use force-dynamic (matching every other public page in this repo) so

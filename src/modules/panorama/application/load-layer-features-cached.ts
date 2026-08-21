@@ -42,8 +42,8 @@ import type { DashboardActor, DashboardJurisdiction } from "@/lib/metrics";
 import type { TimeBasis } from "@/src/modules/panorama/domain/time-scrub";
 import type { AggregationLevel, LayerId } from "@/src/modules/panorama/domain/types";
 
+import { withDbBudgetOrThrow } from "@/lib/infra/db-budget";
 import { isIncrementalCacheMissing, warnIncrementalCacheMissingOnce } from "./data-cache";
-import { withDbBudgetOrThrow } from "./db-budget";
 import { type LayerFeaturesResult, type LayerPeriod, getLayerFeatures } from "./get-layer-features";
 
 /**

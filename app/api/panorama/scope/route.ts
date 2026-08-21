@@ -22,9 +22,9 @@ import { NextResponse } from "next/server";
 
 import { narrowGovtScope } from "@/lib/domain/jurisdiction-canonical";
 import { listLocalitiesByProvince, listLocalityCentroids } from "@/lib/infra/ar-localidades";
+import { withDbBudget } from "@/lib/infra/db-budget";
 import type { ProvinceCode } from "@/lib/reference/ar-provincias";
 import { provinceByCode } from "@/lib/reference/ar-provincias";
-import { withDbBudget } from "@/src/modules/panorama/application/db-budget";
 
 import { resolveInstitutionalPanoramaActor } from "../_guard";
 

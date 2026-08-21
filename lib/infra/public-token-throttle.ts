@@ -47,9 +47,9 @@
 
 import { headers } from "next/headers";
 
+import { withDbBudget } from "@/lib/infra/db-budget";
 import { RateLimitError, callerIp, enforceRateLimit } from "@/lib/infra/rate-limit";
 import { reportError } from "@/lib/infra/report-error";
-import { withDbBudget } from "@/src/modules/panorama/application/db-budget";
 
 /**
  * Per-IP limit for public credential reads.

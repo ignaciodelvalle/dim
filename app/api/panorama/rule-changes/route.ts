@@ -33,7 +33,7 @@ import { isWholeProvinceAssignment, narrowGovtScope } from "@/lib/domain/jurisdi
 import { localityByName } from "@/lib/infra/ar-localidades";
 import { type ProvinceCode, provinceByCode } from "@/lib/reference/ar-provincias";
 
-import { withDbBudget } from "@/src/modules/panorama/application/db-budget";
+import { withDbBudget } from "@/lib/infra/db-budget";
 
 import { resolveInstitutionalPanoramaActor } from "../_guard";
 

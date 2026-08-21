@@ -12,8 +12,8 @@
 import { NextResponse } from "next/server";
 
 import { resolveAnalyticsPeriod } from "@/lib/analytics/analytics-period";
+import { withDbBudget } from "@/lib/infra/db-budget";
 import type { DashboardJurisdiction } from "@/lib/metrics";
-import { withDbBudget } from "@/src/modules/panorama/application/db-budget";
 import {
   emptyLayerFeatures,
   resolvePointsMode,

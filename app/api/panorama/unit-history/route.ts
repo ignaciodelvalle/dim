@@ -25,8 +25,8 @@ import { NextResponse } from "next/server";
 
 import { resolveAnalyticsPeriod } from "@/lib/analytics/analytics-period";
 import { jurisdictionScopeContains } from "@/lib/domain/jurisdiction-canonical";
+import { withDbBudget } from "@/lib/infra/db-budget";
 import type { DashboardJurisdiction } from "@/lib/metrics";
-import { withDbBudget } from "@/src/modules/panorama/application/db-budget";
 import { isLayerId } from "@/src/modules/panorama/domain/layers";
 import { clampAsOf, parseAsOf } from "@/src/modules/panorama/domain/time-scrub";
 import {
