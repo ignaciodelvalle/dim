@@ -1,6 +1,6 @@
 # `/api/v1` invariants
 
-**Status:** draft for PO review · written 2026-08-21 · gates Track 2 (B8)
+**Status:** active · written 2026-08-21 · gates Track 2 (B8) · **all four open decisions closed 2026-08-21**
 
 Every claim in the "Verified today" column was read out of the code on
 `integration/all-20260703 @ 9abbfb5f`, not copied from a review document. Where
@@ -48,9 +48,9 @@ who just found a dog in the street and is loading its credential.
 aggregate ceiling for a single IP by 60/min. Four surfaces today = 240/min per
 IP against the token space. **A `/api/v1/p/{token}` adds a fifth.**
 
-> **PO decision needed (§8, D1).** Accept the additive ceiling, or give the API
-> a shared bucket with the page and accept that an API client can starve a web
-> visitor from the same IP.
+> **DECIDED (§8, D1).** The API gets its OWN bucket,
+> `public_token_api_credential` — a fifth, taking the aggregate per-IP ceiling
+> to 300/min. The isolation is the point; the ceiling is the accepted price.
 
 **The REST mistake:** omit the call. Nothing fails; the route ships green.
 
@@ -76,8 +76,9 @@ only thing bounding it.
 is an existing handler that resolves a pet token bounded only by its guard's
 aggregate `120/min` per profile, with no per-lookup limit. It is
 jurisdiction-scoped and 404s uniformly, so it is a weaker oracle — but it is the
-closest existing analogue to what Track 2 builds. Decide whether `/api/v1`
-matches it or matches atender.
+closest existing analogue to what Track 2 builds. **DECIDED (§8, D3): `/api/v1`
+matches ATENDER, not this.** Which makes this route the odd one out; bringing it
+in line is a follow-up, and it must not be cited as precedent for new routes.
 
 ---
 
@@ -203,20 +204,49 @@ ANON key deliberately (`:24-27`). Do not re-do that work.
 | `lib/infra/pet-access.ts:120` | `kebab-case` | `not-found-or-forbidden` |
 | `app/api/**` | `lowercase_snake` | `not_found` |
 
-And the one that actually hurts: **`UseCaseResult`'s failure arm is a Spanish
-user-facing string, not a code** — in all seven module copies.
+And the one that actually hurts: **`UseCaseResult`'s failure arm is an untyped
+`string`** — in all **ten** module copies (adoption, caretakers, decomiso,
+events, foster, organizations, pets, surveillance, transfers, welfare).
 
 ```ts
 // src/modules/events/application/types.ts:23-25
-| { ok: false; error: string }   // "No pudimos finalizar la adopción: …"
+| { ok: false; error: string }
 ```
+
+**Three different things travel in that one field**, with nothing in the type to
+tell them apart:
+
+| Shape | Example | Where |
+|---|---|---|
+| Spanish user-facing prose | `"No pudimos finalizar la adopción: …"` | most modules |
+| `snake_case` codes | `not_found`, `report_not_found`, `untriaged` | `welfare`, `pets` |
+| A raw `err.message` | whatever the driver threw | custody-disputes, auth |
+
+An earlier draft of this document said "a Spanish user-facing string, in all
+seven module copies". Both halves were wrong; the count was verified by
+`rg 'export type UseCaseResult'` and the shapes by reading the returns. The
+correction matters because it changes the remedy: this is not a translation
+problem, it is a **missing discriminant**.
+
+**The pattern to copy already exists in this repo.**
+`src/modules/welfare/application/add-reporter-comment.ts:50` narrows the arm to
+a typed union of codes:
+
+```ts
+| { ok: false; error: "forbidden" | "validation" | "no_case" | "report_not_found" | "db_error" }
+```
+
+That is the shape the other nine should converge on — it costs nothing at the
+call site and it is the only version a native client can branch on.
 
 Every write use-case returns prose a native app cannot branch on and cannot
 translate. This is the single largest hidden cost in "just wrap the existing
 use-cases in `/api/v1`", and it is invisible until the first write endpoint.
 
-> **PO decision needed (§8, D2).** Which casing, and where the enum lives.
-> `packages/contract` is the only home a native app can import.
+> **DECIDED (§8, D2).** `lowercase_snake`, in `packages/contract` — the casing
+> all 34 existing handlers already emit, in the only place a native client can
+> import from. The SCREAMING_SNAKE and kebab-case islands stay put; converting
+> them is mechanical and must not gate the first endpoint.
 
 ---
 
@@ -289,24 +319,33 @@ gap on this list.** Closing it is cheaper before `/api/v1` exists than after.
 
 ## 8. Open decisions
 
-Two of these are the PO's; two are engineering calls made here and recorded so
-they are visible rather than silent. Each carries a recommendation, so the
-answer is approve-or-redirect, not design-from-scratch.
+**All four are now decided.** Two were the PO's (D1, D3 — taken 2026-08-21,
+both the recommended option); two were engineering calls made here and recorded
+so they are visible rather than silent (D2, D4). Nothing in this document is
+waiting on anyone.
 
-### D1 — throttle bucket for `/api/v1/p/{token}` · **PO**
+Each entry keeps its counter-argument. A decision whose downside was never
+written down is one nobody can revisit on purpose.
 
-Own bucket (+60/min per IP on the aggregate ceiling) vs sharing the page's.
+### D1 — throttle bucket for `/api/v1/p/{token}` · **DECIDED 2026-08-21 (PO)**
 
-**Recommended: its own bucket, `public_token_api_credential`.** It follows the
-rule already in force and its stated reason — a client hammering the API must
-not starve the person loading the credential in the street. The additive
-ceiling is the price of that isolation and it is already being paid four times.
+**Its own bucket: `public_token_api_credential`.**
 
-**The counter-argument, honestly:** at some number of surfaces "60 per surface"
-stops being a limit. If the aggregate matters more than the isolation, the fix
-is not a shared bucket — it is a second, aggregate limiter on top, keyed per IP
-across all token reads. That is a bigger change and should not be smuggled into
-the first endpoint.
+It follows the rule already in force and its stated reason — a client hammering
+the API must not starve the person loading the credential in the street. The
+additive ceiling (240 → 300/min per IP across all token-resolving surfaces) is
+the price of that isolation, and it is already being paid four times over.
+
+**The counter-argument was put to the PO and knowingly declined:** at some
+number of surfaces "60 per surface" stops being a limit. If the aggregate ever
+matters more than the isolation, the fix is NOT a shared bucket — it is a
+second, aggregate limiter keyed per IP across all token reads, layered on top.
+That remains available as a separate change and must not be smuggled into an
+endpoint.
+
+**What this obliges:** the new bucket name goes in the coverage fence's expected
+set like the other four, and §9's checklist line "bucket named" is satisfied by
+`public_token_api_credential`, nothing else.
 
 ### D2 — error-code casing and home · **engineering, decided**
 
@@ -321,17 +360,26 @@ not gate the first endpoint.
 failure arm is Spanish prose (§3). That needs its own change, and the first
 `/api/v1` **write** endpoint is blocked on it. Reads are not.
 
-### D3 — which limit `/api/v1` matches · **PO**
+### D3 — which limit `/api/v1` matches · **DECIDED 2026-08-21 (PO)**
 
-`gob/mascotas`'s aggregate-only `120/min` per profile, or atender's per-lookup
-`20/min` per `org:ip`.
+**Per-lookup, atender-style.** Not `gob/mascotas`'s aggregate-only `120/min`
+per profile.
 
-**Recommended: per-lookup, atender-style.** An aggregate-only limit bounds how
-fast one account works, not how much of the national token space it can
-enumerate — and enumeration is the threat the oracle list exists for. The cost
-is that a legitimate high-volume integrator hits it; that is a conversation
-about issuing them a scoped credential, which is a better conversation to have
-than an unbounded default.
+An aggregate-only limit bounds how fast one account works, not how much of the
+national token space it can enumerate — and enumeration is the threat the whole
+oracle list (§1) exists for. An account can walk the padrón slowly and hit no
+ceiling at all.
+
+**The accepted cost:** a legitimate high-volume integrator will hit it. That is
+a conversation about issuing them a scoped credential, which is a better
+conversation to have than an unbounded default — and it is a conversation that
+only happens if the limit exists.
+
+**What this obliges:** `/api/v1` credential reads carry a per-resolution
+limiter, not only the guard's aggregate cap. It also makes
+`app/api/gob/mascotas/[token]/route.ts` the odd one out — it resolves a pet
+token under the aggregate cap alone (§1.2). Bringing it in line is a follow-up,
+not a blocker, but it should not be cited as precedent for new routes.
 
 ### D4 — `check-authz-guards.ts` over `app/api/**` · **engineering, decided**
 

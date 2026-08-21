@@ -31,7 +31,7 @@
 
 import { revalidatePath } from "next/cache";
 
-import { db, notifications } from "@/db";
+import { db, type notifications } from "@/db";
 import { notifyOutbreakInvestigationOpened } from "@/lib/domain/authority";
 import { CoordError, normalizeLocationForWrite } from "@/lib/domain/location-normalize";
 import { parseLocationFromFormData } from "@/lib/domain/location-value";
@@ -40,7 +40,12 @@ import { findAuthoritiesForJurisdiction } from "@/lib/infra/approval-routing";
 import { requireAdminOrGovtOrRedirect } from "@/lib/infra/auth-guards";
 import { resolveBusinessRule } from "@/lib/infra/business-rules-resolver";
 import { closeCase, escalateCase, openCase } from "@/lib/infra/case-helpers";
+import {
+  type CreateNotificationInput,
+  createNotificationsBulk,
+} from "@/lib/infra/notification-service";
 import { requireAlivePetAccess } from "@/lib/infra/pet-access";
+import { reportError } from "@/lib/infra/report-error";
 import { resolveSignerProvenance } from "@/lib/infra/signer-provenance";
 import { checkboxOn } from "@/lib/ui/form-checkbox";
 import { parseDateInput } from "@/lib/utils/format";
@@ -81,16 +86,67 @@ function parseLocationSource(fd: FormData): "gps" | "pin_manual" | "geocodificad
   return raw === "gps" || raw === "pin_manual" || raw === "geocodificada" ? raw : null;
 }
 
-/** Flush notifications post-tx, best-effort. Never throws. */
+/**
+ * Flush notifications post-tx, through the canonical write path.
+ *
+ * WHAT THIS USED TO BE, AND WHY IT MATTERED (fixed 2026-08-21)
+ * ---------------------------------------------------------------------------
+ * A raw `db.insert(notifications).values(pending)` inside a try/catch that
+ * SWALLOWED — it logged "(action did succeed)" and returned. So any failure
+ * silently discarded EVERY notification for that bite: the owner never learned
+ * a rabies observation had opened on their animal, the sanitary authority never
+ * learned a bite was reported, and the action still returned success. No trace,
+ * no retry, nothing to drain. On a Ley 14.346 / SENASA observation that is not
+ * a lost message, it is a lost legal notification.
+ *
+ * It compounded with the duplicate-submission path: `report-bite.ts` returns
+ * early inside its transaction on `biteNoop`, so a retry rebuilds only the
+ * post-tx authority fan-out. Attempt 1's owner notice was gone and the retry
+ * could not recreate it. Now it does not need to — a failed write lands in
+ * `notification_dead_letter` and the existing drain cron replays it.
+ *
+ * THE DEDUPE KEY IS DERIVED, NOT HAND-WRITTEN PER CALL SITE.
+ * Every notification these use-cases emit is anchored on the incident CASE, so
+ * `${type}:${caseId}:${userId}` is stable across a retry of the same report and
+ * distinct across reports that must coexist. Deriving it here rather than
+ * spelling it at four call sites means the next notification added to this
+ * module inherits idempotency instead of having to remember it.
+ *
+ * A row WITHOUT a case anchor is refused rather than keyed on the pet: two
+ * separate bites on the same animal would otherwise collapse into one alert to
+ * the authority, which is a worse failure than a duplicate.
+ */
 async function flushNotifications(
   pending: Array<typeof notifications.$inferInsert>,
 ): Promise<void> {
   if (pending.length === 0) return;
-  try {
-    await db.insert(notifications).values(pending);
-  } catch (e) {
-    console.error("[surveillance/actions] notifications insert failed (action did succeed):", e);
+
+  const anchored: CreateNotificationInput[] = [];
+  for (const n of pending) {
+    if (!n.relatedCaseId) {
+      // Loud, not silent: this is a programming error in a caller, and the
+      // whole point of the change is that notifications stop vanishing quietly.
+      //
+      // NOTE the import above is load-bearing. Written without it, `reportError`
+      // resolves to the DOM global of the same name (lib.dom.d.ts), which takes
+      // ONE argument — in a "use server" module. It only failed to compile here
+      // because the arity differed; a one-argument call would have shipped,
+      // bound to the wrong function.
+      reportError(
+        "surveillance/flush-notifications",
+        new Error(`notification ${n.notificationType} has no relatedCaseId to key on`),
+        { notificationType: String(n.notificationType), userId: String(n.userId) },
+      );
+      continue;
+    }
+    anchored.push({
+      ...(n as CreateNotificationInput),
+      dedupeKey: `${n.notificationType}:${n.relatedCaseId}:${n.userId}`,
+    });
   }
+
+  // Never throws: it dead-letters instead, which is the entire upgrade.
+  await createNotificationsBulk(anchored);
 }
 
 // ---------------------------------------------------------------------------

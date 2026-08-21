@@ -136,6 +136,12 @@ export async function reportBite(input: ReportBiteInput, deps: Deps): Promise<Re
   // Case public code (CAS-XXXX-XXXX) — surfaced on the bite receipt so the
   // reporter can quote the incident later. Captured inside the tx.
   let casePublicCode = "";
+  // The case UUID escapes the tx for the SAME reason: every notification this
+  // use-case emits is anchored on it, and the anchor is what makes the dedupe
+  // key stable across a retry. Without it the authority fan-out below (which
+  // runs POST-tx, where `caseRow` is out of scope) could only key on the pet —
+  // and two distinct bites on the same animal would collapse into one alert.
+  let caseId = "";
 
   try {
     await transaction(async (tx) => {
@@ -157,6 +163,7 @@ export async function reportBite(input: ReportBiteInput, deps: Deps): Promise<Re
         tx,
       );
       casePublicCode = caseRow.publicCode;
+      caseId = caseRow.id;
 
       // 3. Insert incident_reported with idempotency key (owner path only).
       const incidentPayload = validateEventPayload("incident_reported", {
@@ -293,6 +300,10 @@ export async function reportBite(input: ReportBiteInput, deps: Deps): Promise<Re
         title: `Mordedura reportada — ${pet.name} (${speciesLabel(pet.species)})`,
         body: `Reportada por el dueño. Víctima: ${input.victimKind}. Severidad: ${input.severity}. Antirrábica vigente al momento: ${rabiesVaccineValid ? "sí" : "NO"}. Observación de ${rabiesWindow.days} días iniciada.`,
         relatedPetId: pet.id,
+        // Anchored on the case, not only the pet: this is what the dedupe key
+        // is derived from, and two separate bites on the same animal must
+        // reach the authority as two alerts.
+        relatedCaseId: caseId,
         // Authority recipient: surveillance hub (cannot open /mis-mascotas).
         ctaLabel: "Ver vigilancia",
         ctaUrl: "/gob/vigilancia",

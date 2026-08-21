@@ -60,7 +60,6 @@
   "src/modules/service-offerings/application/approve-service-offering.ts": true,
   "src/modules/service-offerings/application/create-service-offering.ts": true,
   "src/modules/service-offerings/application/reject-service-offering.ts": true,
-  "src/modules/surveillance/actions.ts": true,
   "src/modules/surveillance/infrastructure/surveillance-repository.ts": true,
   "src/modules/transfers/actions.ts": true,
   "src/modules/transfers/infrastructure/transfers-repository.ts": true,

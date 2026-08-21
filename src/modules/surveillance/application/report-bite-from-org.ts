@@ -184,6 +184,10 @@ export async function reportBiteFromOrg(
   // Case public code (CAS-XXXX-XXXX) — surfaced on the bite receipt so the
   // clinic/refugio can quote the incident later. Captured inside the tx.
   let casePublicCode = "";
+  // Escapes the tx so the POST-tx authority fan-out can anchor its notification
+  // on the case. Same reason as report-bite.ts: keyed on the pet alone, two
+  // distinct bites on the same animal would dedupe into one alert.
+  let caseId = "";
 
   try {
     await transaction(async (tx) => {
@@ -208,6 +212,7 @@ export async function reportBiteFromOrg(
         tx,
       );
       casePublicCode = caseRow.publicCode;
+      caseId = caseRow.id;
 
       // 3. Idempotent insert (aligned with owner path — deduplicates on double-submit).
       const incidentPayload = validateEventPayload("incident_reported", {
@@ -341,6 +346,7 @@ export async function reportBiteFromOrg(
         title: `Mordedura reportada — ${pet.name} (${speciesLabel(pet.species)})`,
         body: `Reportada por ${organization.displayName} (${reporterRole}). Víctima: ${input.victimKind}. Severidad: ${input.severity}. Antirrábica vigente al momento: ${rabiesVaccineValid ? "sí" : "NO"}. Observación de ${rabiesWindow.days} días iniciada.`,
         relatedPetId: pet.id,
+        relatedCaseId: caseId,
         // Authority recipient: surveillance hub (cannot open /mis-mascotas).
         ctaLabel: "Ver vigilancia",
         ctaUrl: "/gob/vigilancia",

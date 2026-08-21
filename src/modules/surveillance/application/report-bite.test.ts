@@ -266,6 +266,50 @@ describe("reportBite — authority fan-out", () => {
     expect(authNotif?.severity).toBe("warning");
   });
 
+  // THE ANCHOR THE DEDUPE KEY IS DERIVED FROM (2026-08-21).
+  //
+  // flushNotifications in ../actions.ts builds `${type}:${relatedCaseId}:${userId}`
+  // and REFUSES any row without a case anchor rather than falling back to the
+  // pet — because two separate bites on the same animal must reach the
+  // authority as two alerts, not dedupe into one. This notification is built
+  // POST-transaction, where `caseRow` is out of scope, so the case id has to be
+  // hoisted out deliberately. Drop that hoist and the row silently stops being
+  // deliverable: the flush reports it and skips it.
+  it("anchors the authority notification on the incident case, not only the pet", async () => {
+    const deps = makeDeps();
+    deps.findAuthoritiesForJurisdiction = vi.fn().mockResolvedValue(["auth-user-1"]);
+    const result = await reportBite(BASE_INPUT, deps);
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    const authNotif = result.notifications.find(
+      (n) => n.notificationType === "bite_reported_authority",
+    );
+    expect(authNotif?.relatedCaseId, "sin ancla de caso el flush la descarta").toBeTruthy();
+    // Same case the owner's notification is anchored on — one incident, one key
+    // family, so a retry of the same report cannot produce a second alert.
+    const ownerNotif = result.notifications.find(
+      (n) => n.notificationType === "rabies_observation_started_owner",
+    );
+    expect(authNotif?.relatedCaseId).toBe(ownerNotif?.relatedCaseId);
+  });
+
+  it("every notification it emits can be keyed", async () => {
+    // The precondition flushNotifications enforces, asserted at the source.
+    // A new notification added to this use-case without a case anchor fails
+    // here instead of vanishing at runtime.
+    const deps = makeDeps();
+    deps.findAuthoritiesForJurisdiction = vi.fn().mockResolvedValue(["auth-user-1"]);
+    const result = await reportBite(BASE_INPUT, deps);
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.notifications.length).toBeGreaterThanOrEqual(2);
+    const unkeyable = result.notifications.filter((n) => !n.relatedCaseId);
+    expect(
+      unkeyable.map((n) => n.notificationType),
+      "estas no se pueden deduplicar y el flush las descarta",
+    ).toEqual([]);
+  });
+
   it("uses severity=urgent for severe bites", async () => {
     const deps = makeDeps();
     deps.findAuthoritiesForJurisdiction = vi.fn().mockResolvedValue(["auth-user-1"]);
