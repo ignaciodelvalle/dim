@@ -343,6 +343,7 @@
         "src/modules/custody-disputes/application/resolve-dispute.ts",
         "src/modules/decomiso/application/execute-decomiso.ts",
         "src/modules/events/actions.ts",
+        "src/modules/events/actions-medical.ts",
         "src/modules/events/application/attendance/mark-appointment-attended.ts",
         "src/modules/events/application/lifecycle/death-record-use-case.ts",
         "src/modules/events/application/lifecycle/set-pet-lost-use-case.ts",

@@ -132,6 +132,18 @@ export const MIN_COLOCATED_ACTION_FILES = 1;
 const DIRECTIVE_GLOBS = [
   "app/actions/**/*.ts",
   "src/modules/**/actions.ts",
+  // Split action files. Added 2026-08-21, BEFORE the first one existed, because
+  // this list is filename-literal and the comment above says exactly what that
+  // costs: a fence whose globs miss the naming convention reports success and
+  // is believed. `src/modules/events/actions.ts` is being split for the size
+  // ratchet, and without this line its seven medical server actions would have
+  // left this fence's subject silently.
+  //
+  // Note the repo discovers server actions TWO ways and nothing declares them
+  // as two: by CONTENT (check-authz-guards.ts listActionFiles(), the "use
+  // server" directive, shared by four fences) and by GLOB (here, standalone).
+  // A file named anything other than actions.ts separates those populations.
+  "src/modules/**/actions-*.ts",
   "app/**/actions.ts",
   "app/**/action.ts",
 ];

@@ -2,7 +2,7 @@ import { LnSheetCard, LnSheetWrap } from "@/components/ui/Sheet";
 import { db, reminders } from "@/db";
 import { requireOwnedPetByToken } from "@/lib/infra/pets";
 import { isUuid } from "@/lib/utils/uuid";
-import { createVaccinationAction } from "@/src/modules/events/actions";
+import { createVaccinationAction } from "@/src/modules/events/actions-medical";
 import { and, eq, isNull } from "drizzle-orm";
 import { VaccinationForm } from "./VaccinationForm";
 

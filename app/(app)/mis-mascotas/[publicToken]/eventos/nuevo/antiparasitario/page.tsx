@@ -1,6 +1,6 @@
 import { LnSheetCard, LnSheetWrap } from "@/components/ui/Sheet";
 import { requireOwnedPetByToken } from "@/lib/infra/pets";
-import { createDewormingAction } from "@/src/modules/events/actions";
+import { createDewormingAction } from "@/src/modules/events/actions-medical";
 import { DewormingForm } from "./DewormingForm";
 
 export default async function NewDewormingPage({

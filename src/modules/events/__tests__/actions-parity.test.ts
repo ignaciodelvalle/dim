@@ -1,4 +1,4 @@
-// Parity tests for src/modules/events/actions.ts thin controllers — P4
+// Parity tests for the events thin controllers — P4
 // plausibility layer (2026-07-08).
 //
 // Module-level unit tests — mock every static import events/actions.ts pulls
@@ -296,9 +296,9 @@ function symptomFormData(overrides?: Record<string, string>): FormData {
 }
 
 describe("events/actions.ts — P4 plausibility layer", () => {
-  let createWeightAction: typeof import("../actions").createWeightAction;
-  let createVaccinationAction: typeof import("../actions").createVaccinationAction;
-  let createDewormingAction: typeof import("../actions").createDewormingAction;
+  let createWeightAction: typeof import("../actions-medical").createWeightAction;
+  let createVaccinationAction: typeof import("../actions-medical").createVaccinationAction;
+  let createDewormingAction: typeof import("../actions-medical").createDewormingAction;
 
   beforeEach(async () => {
     vi.clearAllMocks();
@@ -312,7 +312,9 @@ describe("events/actions.ts — P4 plausibility layer", () => {
       error: null,
     });
 
-    const mod = await import("../actions");
+    // Moved to ../actions-medical on 2026-08-21 with the clinical family; the
+    // behaviour under test is unchanged, only the module that holds it.
+    const mod = await import("../actions-medical");
     createWeightAction = mod.createWeightAction;
     createVaccinationAction = mod.createVaccinationAction;
     createDewormingAction = mod.createDewormingAction;

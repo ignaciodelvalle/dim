@@ -225,7 +225,7 @@ function makeAliveAccess() {
   };
 }
 
-type ActionsModule = typeof import("../src/modules/events/actions");
+type ActionsModule = typeof import("../src/modules/events/actions-medical");
 
 describe("createVaccinationAction — notification quick-reply autoconfirm round trip", () => {
   let createVaccinationAction: ActionsModule["createVaccinationAction"];
@@ -242,7 +242,8 @@ describe("createVaccinationAction — notification quick-reply autoconfirm round
       error: null,
     });
 
-    const mod = await import("../src/modules/events/actions");
+    // Moved with the clinical family on 2026-08-21.
+    const mod = await import("../src/modules/events/actions-medical");
     createVaccinationAction = mod.createVaccinationAction;
   });
 

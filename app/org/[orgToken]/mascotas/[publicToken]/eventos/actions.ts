@@ -31,11 +31,8 @@
 import { requireCapabilityForOrgToken } from "@/src/modules/organizations/infrastructure/authz-resolver";
 
 import type { EventFormState } from "@/src/modules/events/actions";
-import {
-  createNoteAction,
-  createVaccinationAction,
-  createWeightAction,
-} from "@/src/modules/events/actions";
+import { createNoteAction } from "@/src/modules/events/actions";
+import { createVaccinationAction, createWeightAction } from "@/src/modules/events/actions-medical";
 
 function orgFichaRedirect(orgToken: string, publicToken: string): string {
   return `/org/${orgToken}/mascotas/${publicToken}?registrado=1`;

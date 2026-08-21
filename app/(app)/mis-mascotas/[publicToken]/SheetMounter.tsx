@@ -67,14 +67,16 @@ import type { Pet } from "@/db";
 import type { PhysicalCredentialChannels } from "@/lib/domain/business-rules-defaults";
 import {
   type EventFormState,
-  createMedicationStartAction,
   createNoteAction,
   createSymptomObservedAction,
-  createVaccinationAction,
-  createWeightAction,
   setPetFoundAction,
   setPetLostAction,
 } from "@/src/modules/events/actions";
+import {
+  createMedicationStartAction,
+  createVaccinationAction,
+  createWeightAction,
+} from "@/src/modules/events/actions-medical";
 import { updatePetAction } from "@/src/modules/pets/actions";
 
 import type { EmergencyContactValues } from "@/components/pet-profile/EmergencyContactFields";
