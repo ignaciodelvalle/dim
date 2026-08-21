@@ -20,6 +20,12 @@ import { resolveUserLanding, safeReturnTo } from "@/lib/infra/role-landing";
 import { createClient } from "@/lib/supabase/server";
 import { NextResponse } from "next/server";
 
+// @no-auth-required: this route IS the authentication boundary. It runs before
+// any session exists, and its job is to create one by exchanging the one-time
+// `code` for a Supabase session; a guard here would reject every legitimate
+// caller. The authorization check is `exchangeCodeForSession`, which fails
+// closed on a bad or replayed code, and the only caller-supplied value that
+// steers anything afterwards (`next`) is sanitized through safeReturnTo().
 export async function GET(request: Request) {
   const { searchParams, origin } = new URL(request.url);
   const code = searchParams.get("code");

@@ -10,6 +10,8 @@
  * it was a file list that never opened the file (see listActionFiles' header).
  */
 
+import { readFileSync } from "node:fs";
+
 import { describe, expect, it } from "vitest";
 
 import {
@@ -17,16 +19,22 @@ import {
   DELETION_AWARE_GUARDS,
   INNER_WRITER_SUFFIXES,
   INSTITUTIONAL_GUARDS,
+  MIN_ROUTE_HANDLER_FILES,
   NO_AUTH_COMMENT,
   PERSONAL_TIER_GUARDS,
+  ROUTE_HANDLER_GUARDS,
+  SYSTEM_GUARDS,
   callsAuthGuard,
   extractExportedAsyncFunctions,
   findDeletionUnawareMutations,
   findOffenders,
   findRouteGuardViolations,
+  findRouteHandlerOffenders,
+  findUnreadableMethodExports,
   isInnerWriter,
   isServerActionModule,
   listActionFiles,
+  listRouteHandlerFiles,
 } from "@/scripts/check-authz-guards";
 
 // ---------------------------------------------------------------------------
@@ -260,6 +268,221 @@ describe("findOffenders", () => {
 });
 
 // ---------------------------------------------------------------------------
+// findRouteHandlerOffenders — the same coverage rule over `app/**/route.ts`
+//
+// D4 (2026-08-21). A route.ts is a client-addressable entry point exactly like
+// a server action, and until D4 nothing in this linter opened one. The RED
+// control below (an unguarded handler MUST be flagged) is the test that would
+// have failed before the widening and is the reason the rest are not vacuous.
+// ---------------------------------------------------------------------------
+
+describe("findRouteHandlerOffenders", () => {
+  it("flags an unguarded handler — THE RED CONTROL", () => {
+    const src = [
+      "export async function GET(request: Request) {",
+      "  const rows = await db.select().from(pets);",
+      "  return Response.json(rows);",
+      "}",
+    ].join("\n");
+    const offenders = findRouteHandlerOffenders("app/api/v1/pets/route.ts", src);
+    expect(offenders).toHaveLength(1);
+    expect(offenders[0]).toContain("GET");
+    expect(offenders[0]).toContain("no authorization call");
+  });
+
+  it("passes a handler gated by a session guard (AUTH_GUARDS)", () => {
+    const src = [
+      "export async function GET(request: Request) {",
+      "  const { user } = await requireUserOrRedirect();",
+      "  return Response.json({ id: user.id });",
+      "}",
+    ].join("\n");
+    expect(findRouteHandlerOffenders("app/api/v1/me/route.ts", src)).toHaveLength(0);
+  });
+
+  it("passes a handler gated by an institutional guard (INSTITUTIONAL_GUARDS)", () => {
+    // resolveInstitutionalGobActor is NOT in AUTH_GUARDS — the route rule has to
+    // union the two lists, or every app/api/gob and app/api/panorama handler
+    // would false-flag.
+    expect(AUTH_GUARDS as readonly string[]).not.toContain("resolveInstitutionalGobActor");
+    const src = [
+      "export async function GET(request: Request) {",
+      "  const actor = await resolveInstitutionalGobActor();",
+      "  if (!actor.ok) return actor.response;",
+      "  return Response.json({ ok: true });",
+      "}",
+    ].join("\n");
+    expect(findRouteHandlerOffenders("app/api/gob/mascotas/[token]/route.ts", src)).toHaveLength(0);
+  });
+
+  it("passes a cron handler gated by a SYSTEM guard (secret, not identity)", () => {
+    for (const guard of SYSTEM_GUARDS) {
+      const src = [
+        "export async function GET(request: Request) {",
+        `  const authError = ${guard}(request);`,
+        "  if (authError) return Response.json(authError, { status: authError.status });",
+        "  return Response.json({ ok: true });",
+        "}",
+      ].join("\n");
+      expect(findRouteHandlerOffenders("app/api/cron/daily/route.ts", src)).toHaveLength(0);
+    }
+  });
+
+  it("a SYSTEM guard does NOT satisfy the SERVER-ACTION rule", () => {
+    // The whole reason SYSTEM_GUARDS is a separate list. A cron-secret check on
+    // an action proves a trusted scheduler called it and leaves "who is acting"
+    // unasked — while the action is reachable from any logged-in browser with
+    // the caller's cookies attached.
+    for (const guard of SYSTEM_GUARDS) {
+      expect(AUTH_GUARDS as readonly string[]).not.toContain(guard);
+      const src = [
+        "export async function runMaintenanceAction(request: Request) {",
+        `  const authError = ${guard}(request);`,
+        "  if (authError) return authError;",
+        "  return { ok: true };",
+        "}",
+      ].join("\n");
+      const offenders = findOffenders("app/actions/maintenance.ts", src);
+      expect(offenders).toHaveLength(1);
+      expect(offenders[0]).toContain("runMaintenanceAction");
+    }
+  });
+
+  it("passes an intentionally-public handler opted out WITH a reason", () => {
+    const src = [
+      `// ${NO_AUTH_COMMENT}: liveness probe, no PII, IP rate-limited`,
+      "export async function GET(request: Request) {",
+      "  return Response.json({ status: 'ok' });",
+      "}",
+    ].join("\n");
+    expect(findRouteHandlerOffenders("app/api/health/route.ts", src)).toHaveLength(0);
+  });
+
+  it("FLAGS a bare opt-out with no reason", () => {
+    // The marker's own semantics (extractExportedAsyncFunctions) only look for
+    // the token, so a bare `// @no-auth-required` satisfies the ACTION rule. The
+    // route rule additionally requires the reason text: an exemption nobody had
+    // to justify is a silent baseline.
+    const src = [
+      `// ${NO_AUTH_COMMENT}`,
+      "export async function GET(request: Request) {",
+      "  return Response.json({ status: 'ok' });",
+      "}",
+    ].join("\n");
+    const offenders = findRouteHandlerOffenders("app/api/health/route.ts", src);
+    expect(offenders).toHaveLength(1);
+    expect(offenders[0]).toContain("BARE");
+    // …and the marker itself IS detected — the failure is the missing reason,
+    // not a missing marker.
+    expect(extractExportedAsyncFunctions(src)[0].hasNoAuthComment).toBe(true);
+    expect(extractExportedAsyncFunctions(src)[0].noAuthReason).toBe("");
+  });
+
+  it("captures the reason text from both comment styles", () => {
+    const line = extractExportedAsyncFunctions(
+      [
+        `// ${NO_AUTH_COMMENT}: public open data, Ley 27.275`,
+        "export async function GET() {}",
+      ].join("\n"),
+    )[0];
+    expect(line.noAuthReason).toBe("public open data, Ley 27.275");
+
+    const block = extractExportedAsyncFunctions(
+      [`/** ${NO_AUTH_COMMENT}: cron path */`, "export async function GET() {}"].join("\n"),
+    )[0];
+    expect(block.noAuthReason).toBe("cron path");
+
+    const none = extractExportedAsyncFunctions("export async function GET() {}")[0];
+    expect(none.noAuthReason).toBeNull();
+  });
+
+  it("does NOT count a guard named only in a comment", () => {
+    const src = [
+      "export async function GET(request: Request) {",
+      "  // TODO: call requireUserOrRedirect() here",
+      "  return Response.json({});",
+      "}",
+    ].join("\n");
+    expect(findRouteHandlerOffenders("app/api/v1/pets/route.ts", src)).toHaveLength(1);
+  });
+
+  it("ROUTE_HANDLER_GUARDS is the deduplicated union of the three tiers", () => {
+    for (const g of [...AUTH_GUARDS, ...INSTITUTIONAL_GUARDS, ...SYSTEM_GUARDS]) {
+      expect(ROUTE_HANDLER_GUARDS).toContain(g);
+    }
+    expect(ROUTE_HANDLER_GUARDS).toEqual([...new Set(ROUTE_HANDLER_GUARDS)]);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// findUnreadableMethodExports — the export-shape assumption, made falsifiable
+//
+// The route rule reuses extractExportedAsyncFunctions verbatim because 47/47
+// handlers are `export async function GET(…)` today. That is a MEASUREMENT.
+// Without this rule, the first `export const GET = withRateLimit(handler)`
+// would yield zero functions, produce zero offenders, and pass by being
+// invisible — the exact "a fence that scans nothing reports success" failure.
+// ---------------------------------------------------------------------------
+
+describe("findUnreadableMethodExports", () => {
+  it("says nothing about the shape the extractor understands", () => {
+    const src = "export async function GET() {\n  return Response.json({});\n}";
+    expect(findUnreadableMethodExports("app/api/x/route.ts", src)).toHaveLength(0);
+  });
+
+  it("flags `export const GET = withX(handler)`", () => {
+    const src = 'import { withX } from "@/lib/x";\nexport const GET = withX(handler);';
+    const offenders = findUnreadableMethodExports("app/api/x/route.ts", src);
+    expect(offenders).toHaveLength(1);
+    expect(offenders[0]).toContain("cannot read");
+    // And the whole-file rule surfaces it too, not just the sub-helper.
+    expect(findRouteHandlerOffenders("app/api/x/route.ts", src)).toHaveLength(1);
+  });
+
+  it("flags a re-exported handler (`export { handler as POST }`)", () => {
+    const src = "async function handler() {}\nexport { handler as POST };";
+    expect(findUnreadableMethodExports("app/api/x/route.ts", src)).toHaveLength(1);
+  });
+
+  it("flags a NON-async `export function DELETE(`", () => {
+    const src = "export function DELETE() {\n  return new Response(null, { status: 204 });\n}";
+    expect(findUnreadableMethodExports("app/api/x/route.ts", src)).toHaveLength(1);
+  });
+
+  it("ignores a method name that only appears in a COMMENT", () => {
+    const src = [
+      "// export const GET = withX(handler) — the shape we do NOT use",
+      "export async function GET() {}",
+    ].join("\n");
+    expect(findUnreadableMethodExports("app/api/x/route.ts", src)).toHaveLength(0);
+  });
+
+  it("KNOWN false positive: an export declaration inside a string literal flags", () => {
+    // Documented, not fixed. stripComments removes comments, not strings — the
+    // same limitation this linter's header states for guard names. The error
+    // direction is the safe one: a route.ts carrying `"export const POST = …"`
+    // as data fails LOUD and a human deletes the string or the pattern, whereas
+    // a fence that guessed its way past it would be guessing in the direction of
+    // silence. Zero occurrences in the tree today (pinned by the scan-set suite
+    // below, which asserts no unreadable exports across all 47 handlers).
+    const src = ['const label = "export const POST = x";', "export async function GET() {}"].join(
+      "\n",
+    );
+    expect(findUnreadableMethodExports("app/api/x/route.ts", src)).toHaveLength(1);
+  });
+
+  it("ignores Next route-segment config exports (they are not handlers)", () => {
+    const src = [
+      'export const dynamic = "force-dynamic";',
+      'export const runtime = "nodejs";',
+      "export const maxDuration = 300;",
+      "export async function GET() {}",
+    ].join("\n");
+    expect(findUnreadableMethodExports("app/api/x/route.ts", src)).toHaveLength(0);
+  });
+});
+
+// ---------------------------------------------------------------------------
 // findDeletionUnawareMutations — WS-AUTHZ 1.4 deletion-aware guard rule (E2)
 // ---------------------------------------------------------------------------
 
@@ -488,5 +711,123 @@ describe("listActionFiles", () => {
     expect(files).toEqual([...new Set(files)]);
     expect(files.some((f) => f.includes("\\"))).toBe(false);
     expect(files).toEqual([...files].sort());
+  });
+
+  it("does NOT absorb route handlers — four other fences import this list", () => {
+    // check-audit-log-coverage.ts, check-authz-scoping.ts,
+    // check-confused-deputy.ts and check-titular-gate.ts all derive their scope
+    // from listActionFiles(). Widening it to cover route handlers would move
+    // four boundaries from an edit whose subject was this file, so handler
+    // discovery is listRouteHandlerFiles() instead. If a route.ts ever DOES
+    // declare "use server" it belongs in both lists and this pin should be
+    // revisited deliberately — not deleted to make a run green.
+    expect(files.filter((f) => f.endsWith("/route.ts"))).toEqual([]);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// listRouteHandlerFiles — the ROUTE-HANDLER scan set (D4)
+//
+// Same lesson as listActionFiles above, one surface over: the offender-finding
+// regexes can all be perfect while the file list quietly stops opening files.
+// Pin concrete paths across the tree's shapes — /api, an operator API route, a
+// cron, an auth callback, and a deeply-nested org route — so a glob that
+// narrows to one prefix fails here loudly.
+// ---------------------------------------------------------------------------
+
+describe("listRouteHandlerFiles", () => {
+  const handlers = listRouteHandlerFiles();
+
+  it("clears its own non-vacuity floor", () => {
+    expect(handlers.length).toBeGreaterThanOrEqual(MIN_ROUTE_HANDLER_FILES);
+  });
+
+  it("covers every shape of route handler in the tree", () => {
+    for (const expected of [
+      "app/api/health/route.ts",
+      "app/api/gob/mascotas/[token]/route.ts",
+      "app/api/cron/daily/route.ts",
+      "app/auth/callback/route.ts",
+      "app/org/[orgToken]/mascotas/exportar/route.ts",
+    ]) {
+      expect(handlers).toContain(expected);
+    }
+  });
+
+  it("reaches handlers OUTSIDE app/api (the prefix trap)", () => {
+    // check-api-guard-headers.ts globbed `app/api/**` alone and left 13
+    // handlers — both auth callbacks among them — outside a fence whose whole
+    // subject is route handlers. Do not repeat it here.
+    expect(handlers.filter((f) => !f.startsWith("app/api/")).length).toBeGreaterThanOrEqual(8);
+  });
+
+  it("excludes tests and type declarations", () => {
+    for (const file of handlers) {
+      expect(file).not.toMatch(/\.test\.[jt]sx?$/);
+      expect(file).not.toContain("__tests__");
+    }
+  });
+
+  it("returns deduplicated, forward-slash, sorted paths", () => {
+    expect(handlers).toEqual([...new Set(handlers)]);
+    expect(handlers.some((f) => f.includes("\\"))).toBe(false);
+    expect(handlers).toEqual([...handlers].sort());
+  });
+
+  // -------------------------------------------------------------------------
+  // THE EXPORT-SHAPE ASSUMPTION, pinned against the real tree.
+  //
+  // Reusing extractExportedAsyncFunctions unchanged is only sound while every
+  // handler declares its methods as `export async function`. These two run over
+  // the actual files so the assumption is re-measured on every CI run instead of
+  // being trusted from a comment.
+  // -------------------------------------------------------------------------
+
+  it("every handler declares at least one exported async function", () => {
+    const empty = handlers.filter(
+      (f) => extractExportedAsyncFunctions(readFileSync(f, "utf8")).length === 0,
+    );
+    expect(empty).toEqual([]);
+  });
+
+  it("no handler exports an HTTP method in a shape the extractor cannot read", () => {
+    const unreadable = handlers.flatMap((f) =>
+      findUnreadableMethodExports(f, readFileSync(f, "utf8")),
+    );
+    expect(unreadable).toEqual([]);
+  });
+
+  it("the whole live surface is covered — no unguarded, un-opted-out handler", () => {
+    // The end-to-end assertion `pnpm lint:authz` makes, kept here so a
+    // regression fails in the test suite too and not only in the lint job.
+    const offenders = handlers.flatMap((f) =>
+      findRouteHandlerOffenders(f, readFileSync(f, "utf8")),
+    );
+    expect(offenders).toEqual([]);
+  });
+
+  it("the intentionally-public handlers are exactly the six documented ones", () => {
+    // A seventh opt-out appearing here is a decision, not a detail: it means an
+    // endpoint was made public and this list is where that shows up in review.
+    const optedOut = handlers.filter((f) =>
+      extractExportedAsyncFunctions(readFileSync(f, "utf8")).some((fn) => fn.hasNoAuthComment),
+    );
+    expect(optedOut).toEqual([
+      "app/(public)/denuncias/seguimiento/entrar/route.ts",
+      "app/(public)/denuncias/seguimiento/salir/route.ts",
+      "app/(public)/transparencia/datos/[dataset]/route.ts",
+      "app/api/health/route.ts",
+      "app/auth/callback/route.ts",
+      "app/auth/miarg/callback/route.ts",
+    ]);
+  });
+
+  it("every opt-out carries a non-empty written reason", () => {
+    for (const file of handlers) {
+      for (const fn of extractExportedAsyncFunctions(readFileSync(file, "utf8"))) {
+        if (!fn.hasNoAuthComment) continue;
+        expect(`${file}: ${fn.noAuthReason ?? ""}`.length).toBeGreaterThan(file.length + 12);
+      }
+    }
   });
 });

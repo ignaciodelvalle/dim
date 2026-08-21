@@ -23,6 +23,12 @@ import { type NextRequest, NextResponse } from "next/server";
 
 export const dynamic = "force-dynamic";
 
+// @no-auth-required: stateless log-out. The whole operation is deleting the
+// reporter's own httpOnly cookie and redirecting; it reads nothing, writes
+// nothing server-side, and reveals nothing. Requiring a valid session to leave
+// would strand exactly the caller who most needs to — someone on a shared
+// device whose cookie is already expired or malformed. The unauthenticated
+// worst case is a redirect that deletes a cookie the caller already controls.
 export async function POST(request: NextRequest) {
   const response = NextResponse.redirect(new URL("/denuncias/buscar", request.url), 303);
   // reporterSessionCookie(null) is the deletion form, built from the SAME

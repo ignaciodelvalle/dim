@@ -25,6 +25,13 @@ import { type NextRequest, NextResponse } from "next/server";
 
 import { isMiArgOidcEnabled } from "@/lib/infra/miarg-oidc";
 
+// @no-auth-required: feature-flagged stub for the Mi Argentina OIDC callback,
+// which — like app/auth/callback — will BE the authentication boundary, running
+// before any session exists. Today it holds no logic to protect: it 404s when
+// the OIDC env vars are absent (the shipped state) and 501s when they are set.
+// When 25b lands, the `state` + `id_token` verification listed in the header is
+// this route's authorization check, and this marker's reason must be rewritten
+// to name it rather than describe a stub.
 export async function GET(request: NextRequest): Promise<NextResponse> {
   // Gate: return 404 when OIDC is not configured so the route is invisible
   // to scanners and the email/password flow is completely unaffected.

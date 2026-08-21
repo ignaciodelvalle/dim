@@ -15,6 +15,22 @@
 // directive. The old filename globs (app/actions/*.ts + src/modules/**/actions.ts)
 // are kept as a union floor so discovery can only ever widen.
 //
+// THE SAME COVERAGE RULE ALSO RUNS OVER ROUTE HANDLERS (D4, 2026-08-21).
+// A Server Action and a `route.ts` are the same thing from the outside: a
+// client-addressable server entry point that answers with data. Until D4 this
+// file looked at exactly one of the two, so the ENTIRE `app/**/route.ts`
+// surface — 47 handlers, 25 of them crons — inherited no coverage rule at all
+// (docs/architecture/api-invariants.md §7 called it the biggest structural gap
+// on that table). Widened BEFORE the first `/api/v1` route lands, because
+// widening a fence over what already exists costs one audit and widening it
+// later costs that audit plus everything added in between.
+//
+// Discovery for handlers is SEPARATE (listRouteHandlerFiles) rather than a
+// wider listActionFiles(): four other fences import listActionFiles() and
+// would have silently changed scope — check-audit-log-coverage.ts,
+// check-authz-scoping.ts, check-confused-deputy.ts, check-titular-gate.ts.
+// A fence must not move another fence's boundary as a side effect.
+//
 // Run: pnpm tsx scripts/check-authz-guards.ts   (or: pnpm lint:authz)
 // Exits 1 listing each offender; exits 0 when the whole surface is covered.
 //
@@ -113,6 +129,25 @@ export const INSTITUTIONAL_GUARDS = [
   "resolveInstitutionalGobActor",
   "resolveInstitutionalPanoramaActor",
 ] as const;
+
+// System guards — a SHARED SECRET, not an identity (D4, 2026-08-21).
+//
+// `authorizeCronRequest` (lib/domain/cron-auth.ts) compares the request's
+// `Authorization: Bearer <CRON_SECRET>` / legacy `x-cron-secret` header against
+// the environment secret in constant time and fails closed in production.
+// `checkCronSecret` (lib/infra/case-cron.ts) is its deprecated wrapper, kept
+// while the 25 cron handlers migrate; both are listed so a half-migrated tree
+// never reads as unguarded.
+//
+// THEY COUNT FOR ROUTE HANDLERS ONLY, and the separation is the point. A cron
+// endpoint has no user: proving the caller is Vercel Cron IS the whole
+// authorization decision, and there is no session to resolve. A SERVER ACTION
+// is reached from a logged-in browser with the caller's cookies attached, so a
+// secret check there answers "did a trusted scheduler call me" while leaving
+// "who is acting" unasked — which is precisely the hole Rule 1.2 exists to
+// close. Keeping this list out of AUTH_GUARDS is what makes a `"use server"`
+// export that calls authorizeCronRequest() still fail the action rule.
+export const SYSTEM_GUARDS = ["authorizeCronRequest", "checkCronSecret"] as const;
 
 // Personal-tier guards authenticate a user (or scope to their own pet/org) but
 // do NOT establish operator authority. They are correct for citizen/owner
@@ -246,7 +281,27 @@ export type ExportedFn = {
   endLine: number;
   body: string;
   hasNoAuthComment: boolean;
+  /**
+   * Whatever follows `@no-auth-required` on the marker line, minus a leading
+   * `:` and a trailing block-comment terminator. `""` when the marker is bare,
+   * `null` when there is no marker at all.
+   *
+   * The action rule (findOffenders) reads only `hasNoAuthComment` and is
+   * unchanged by this field. The ROUTE-handler rule requires the reason to be
+   * non-empty: an opt-out nobody had to justify is a baseline with better
+   * manners.
+   */
+  noAuthReason: string | null;
 };
+
+/** Text after the marker on its own comment line, normalized. */
+function noAuthReasonFrom(line: string): string {
+  const after = line.slice(line.indexOf(NO_AUTH_COMMENT) + NO_AUTH_COMMENT.length);
+  return after
+    .replace(/^\s*:/, "")
+    .replace(/\*\/\s*$/, "")
+    .trim();
+}
 
 // Walk the file, find every `export async function NAME(` declaration, then
 // brace-match to the closing `}` to capture the body. One entry per export.
@@ -329,6 +384,7 @@ export function extractExportedAsyncFunctions(src: string): ExportedFn[] {
     // Walk backwards through the contiguous comment block above the export.
     // The @no-auth-required marker may sit anywhere in that block.
     let hasNoAuthComment = false;
+    let noAuthReason: string | null = null;
     for (let back = i - 1; back >= 0; back--) {
       const line = lines[back].trim();
       const isCommentLine =
@@ -336,11 +392,19 @@ export function extractExportedAsyncFunctions(src: string): ExportedFn[] {
       if (!isCommentLine) break;
       if (line.includes(NO_AUTH_COMMENT)) {
         hasNoAuthComment = true;
+        noAuthReason = noAuthReasonFrom(line);
         break;
       }
     }
 
-    out.push({ name, startLine: i + 1, endLine: endLine + 1, body, hasNoAuthComment });
+    out.push({
+      name,
+      startLine: i + 1,
+      endLine: endLine + 1,
+      body,
+      hasNoAuthComment,
+      noAuthReason,
+    });
   }
 
   return out;
@@ -372,6 +436,84 @@ export function findOffenders(relPath: string, src: string): string[] {
       `${relPath}:${fn.startLine} export async function ${fn.name} — no auth guard call (name doesn't end in ${INNER_WRITER_SUFFIXES.join("/")} either). Add a guard call, rename to an inner-writer suffix, or add a \`// ${NO_AUTH_COMMENT}: <reason>\` comment immediately above the export.`,
     );
   }
+  return offenders;
+}
+
+// ---------------------------------------------------------------------------
+// Route-handler coverage — the same rule, one entry-point shape over (D4)
+// ---------------------------------------------------------------------------
+
+// Everything that authorizes a ROUTE HANDLER: the session guards an action may
+// use, the institutional resolvers the operator API uses, and the cron-secret
+// checks that only make sense on a handler. Deduplicated because
+// INSTITUTIONAL_GUARDS and AUTH_GUARDS deliberately overlap.
+export const ROUTE_HANDLER_GUARDS = [
+  ...new Set<string>([...AUTH_GUARDS, ...INSTITUTIONAL_GUARDS, ...SYSTEM_GUARDS]),
+] as readonly string[];
+
+export function callsRouteHandlerGuard(body: string): boolean {
+  return callsAnyGuard(body, ROUTE_HANDLER_GUARDS);
+}
+
+// The HTTP verbs Next's App Router turns into endpoints. Used ONLY to notice an
+// export shape this analyzer cannot read — never to decide what gets scanned
+// (the rule below covers EVERY exported async function in a route.ts, so a
+// helper accidentally exported from one is not a blind spot either).
+const HTTP_METHOD_EXPORTS = ["GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS"] as const;
+
+// Method exports written in a shape `extractExportedAsyncFunctions` cannot read.
+//
+// TODAY 47/47 handlers are `export async function GET(…)`, which is why the
+// extractor is reused verbatim. That is a MEASUREMENT, not a guarantee: the
+// moment someone writes `export const GET = withRateLimit(handler)` the walker
+// finds no declaration, the file yields zero functions, and a fence whose
+// answer is "nothing to check" reports success. So an unreadable method export
+// is an OFFENDER — the fence says it cannot see the handler instead of
+// silently passing it.
+export function findUnreadableMethodExports(relPath: string, src: string): string[] {
+  const code = stripComments(src);
+  const readable = new Set(extractExportedAsyncFunctions(src).map((fn) => fn.name));
+  const offenders: string[] = [];
+  for (const method of HTTP_METHOD_EXPORTS) {
+    if (readable.has(method)) continue;
+    // `export const|let|var GET =`, a non-async `export function GET(`, or a
+    // re-export list naming the method (`export { handler as GET }`).
+    const bindingRe = new RegExp(
+      String.raw`export\s+(?:const|let|var)\s+${method}\s*[:=]|export\s+function\s+${method}\s*[(<]`,
+    );
+    const reExportRe = new RegExp(String.raw`export\s*\{[^}]*\b${method}\b[^}]*\}`);
+    if (!bindingRe.test(code) && !reExportRe.test(code)) continue;
+    offenders.push(
+      `${relPath} exports ${method} in a shape this fence cannot read (it understands \`export async function ${method}(…)\`). The guard analysis binds to a declared async function body; any other shape yields NO function and the handler would pass by being invisible. Declare the handler as \`export async function ${method}(…)\` and keep the wrapper inside it, or teach extractExportedAsyncFunctions the new shape.`,
+    );
+  }
+  return offenders;
+}
+
+// Returns one offender line per exported async function in a ROUTE HANDLER that
+// authorizes nothing. Same three escapes as the action rule (inner-writer
+// suffix, a recognized guard call, an explicit `@no-auth-required: <reason>`),
+// with SYSTEM_GUARDS added to the recognized set — see that list for why they
+// are handler-only. Empty array = the handler is covered.
+export function findRouteHandlerOffenders(relPath: string, src: string): string[] {
+  const offenders: string[] = [];
+  for (const fn of extractExportedAsyncFunctions(src)) {
+    if (isInnerWriter(fn.name)) continue;
+    if (fn.hasNoAuthComment) {
+      if ((fn.noAuthReason ?? "").length > 0) continue;
+      offenders.push(
+        `${relPath}:${fn.startLine} export async function ${fn.name} — opted out with a BARE \`// ${NO_AUTH_COMMENT}\` and no reason. An exemption whose justification nobody had to write is a silent baseline; write \`// ${NO_AUTH_COMMENT}: <why this endpoint is intentionally public>\`.`,
+      );
+      continue;
+    }
+    // stripComments for the same reason the action rule does it: a guard named
+    // in a comment is documentation, not a call.
+    if (callsRouteHandlerGuard(stripComments(fn.body))) continue;
+    offenders.push(
+      `${relPath}:${fn.startLine} export async function ${fn.name} — route handler with no authorization call (none of ${ROUTE_HANDLER_GUARDS.join("/")}). A route.ts is a client-addressable entry point exactly like a server action. Call a guard, or — if the endpoint is intentionally public — add a \`// ${NO_AUTH_COMMENT}: <reason>\` comment immediately above the export saying why.`,
+    );
+  }
+  offenders.push(...findUnreadableMethodExports(relPath, src));
   return offenders;
 }
 
@@ -565,7 +707,7 @@ export function findRouteGuardViolations(relPath: string, src: string): string[]
 /**
  * Non-vacuity floor for the operator surface under app/api/. Measured
  * 2026-08-21: 9 files (3 under app/api/gob, 6 under app/api/panorama) against
- * 334 operator routes overall. Set below the measurement so files can move
+ * 340 operator routes overall. Set below the measurement so files can move
  * without a false alarm, and far above zero so the glob cannot silently stop
  * covering the API surface — which a TOTAL-count floor could never notice,
  * since dropping all nine takes 340 to 331.
@@ -632,6 +774,39 @@ function isScannableSource(relPath: string): boolean {
   return !relPath.endsWith(".d.ts");
 }
 
+// ---------------------------------------------------------------------------
+// Route-handler discovery — SEPARATE from listActionFiles on purpose (D4)
+// ---------------------------------------------------------------------------
+//
+// listActionFiles() is imported by four other fences (check-audit-log-coverage,
+// check-authz-scoping, check-confused-deputy, check-titular-gate). Widening it
+// to include route handlers would have moved all four boundaries at once,
+// silently, from an edit whose stated subject was this file. So handlers get
+// their own list, modeled on check-api-guard-headers.ts's listApiFiles(): a
+// Route Handler is a `route.ts`, wherever the App Router finds it — 13 of the
+// 47 live outside app/api, including both auth callbacks and the public
+// open-data endpoint.
+
+/**
+ * Non-vacuity floor for route-handler discovery. Measured 2026-08-21: 47
+ * handlers (34 under app/api — 25 of them crons — plus 13 elsewhere: the two
+ * auth callbacks, the two denuncia-seguimiento endpoints, the public open-data
+ * download, five gob exports and three org exports).
+ *
+ * Set below the measurement so handlers can be added or removed without a false
+ * alarm, and far above zero because THE FAILURE THIS FENCE GUARDS AGAINST IS A
+ * FENCE THAT SCANS NOTHING: a glob that stops matching produces an empty list,
+ * an empty list produces no offenders, and no offenders reads exactly like a
+ * clean run. A floor is the only thing that tells those two apart.
+ */
+export const MIN_ROUTE_HANDLER_FILES = 40;
+
+/** Every App Router route handler in the repo. */
+export function listRouteHandlerFiles(): string[] {
+  const files = new Set(globSync("app/**/route.ts").map((f) => f.replaceAll("\\", "/")));
+  return [...files].filter(isScannableSource).sort();
+}
+
 // The full server-action surface this linter covers.
 export function listActionFiles(): string[] {
   const files = new Set<string>();
@@ -676,10 +851,14 @@ function runScan(): void {
 
   // THE FLOOR THAT PROTECTS THE 2026-08-21 WIDENING, and it is separate from
   // any total on purpose. The operator surface under app/api/ was outside this
-  // rule entirely; it is 3 files today against 334 overall, so a total-count
-  // floor could never notice the glob narrowing back — dropping all three
-  // changes 334 to 331. Counting them on their own is the only check that
-  // fails when the API surface stops being scanned.
+  // rule entirely; it is 9 files today (3 under app/api/gob, 6 under
+  // app/api/panorama) against 340 overall, so a total-count floor could never
+  // notice the glob narrowing back — dropping all nine changes 340 to 331.
+  // Counting them on their own is the only check that fails when the API
+  // surface stops being scanned. (The prose here said "3 … against 334" until
+  // 2026-08-21: written against an earlier reading of the same widening and
+  // never re-measured. Numbers in a comment rot; this one is now the number the
+  // scan prints in its own summary line, so a drift is visible on every run.)
   const operatorApiFiles = operatorFiles.filter((f) =>
     f.replaceAll("\\", "/").includes("app/api/"),
   );
@@ -696,11 +875,27 @@ function runScan(): void {
     routeOffenders.push(...findRouteGuardViolations(relPath, readFileSync(file, "utf8")));
   }
 
+  // Rule 1.2, over route handlers (D4, 2026-08-21). Same coverage question, the
+  // other entry-point shape.
+  const handlerFiles = listRouteHandlerFiles();
+  if (handlerFiles.length < MIN_ROUTE_HANDLER_FILES) {
+    console.error(
+      `✗ check-authz-guards: only ${handlerFiles.length} route handler(s) were discovered (floor ${MIN_ROUTE_HANDLER_FILES}). The app/**/route.ts glob is broken — a fence that finds nothing to scan reports success. See MIN_ROUTE_HANDLER_FILES.`,
+    );
+    process.exit(1);
+  }
+
+  const handlerOffenders: string[] = [];
+  for (const file of handlerFiles) {
+    handlerOffenders.push(...findRouteHandlerOffenders(file, readFileSync(file, "utf8")));
+  }
+
   const offenders = [
     ...coverageOffenders,
     ...impersonationOffenders,
     ...deletionOffenders,
     ...routeOffenders,
+    ...handlerOffenders,
   ];
   if (offenders.length > 0) {
     console.error(offenders.join("\n"));
@@ -724,11 +919,20 @@ function runScan(): void {
         `✗ ${routeOffenders.length} operator route(s) gated by a personal-tier guard only.`,
       );
     }
+    if (handlerOffenders.length > 0) {
+      console.error(
+        `✗ ${handlerOffenders.length} route handler export(s) without an authorization call or a justified ${NO_AUTH_COMMENT} opt-out.`,
+      );
+    }
     process.exit(1);
   }
 
+  const optedOutHandlers = handlerFiles.filter((file) =>
+    extractExportedAsyncFunctions(readFileSync(file, "utf8")).some((fn) => fn.hasNoAuthComment),
+  ).length;
+
   console.log(
-    `✓ authz coverage clean — ${actionFiles.length} action files guarded, no impersonation-class exports, no bare-getUser pet writes; operator routes institutionally gated across ${operatorFiles.length} files (${operatorApiFiles.length} of them under app/api).`,
+    `✓ authz coverage clean — ${actionFiles.length} action files guarded, no impersonation-class exports, no bare-getUser pet writes; operator routes institutionally gated across ${operatorFiles.length} files (${operatorApiFiles.length} of them under app/api); ${handlerFiles.length} route handlers authorized (${optedOutHandlers} intentionally public, each with a written ${NO_AUTH_COMMENT} reason).`,
   );
 }
 

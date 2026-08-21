@@ -308,12 +308,22 @@ that it cannot be verified offline).
 | `middleware.ts` → `updateSession` + CSP | **Yes** — the matcher excludes only static assets |
 | `scripts/check-api-guard-headers.ts` | **Yes** — derives header names from `middleware.ts` and scans every route handler (widened 2026-08-21) |
 | `Cache-Control: no-store` | **No** — path-prefix allowlist |
-| `scripts/check-authz-guards.ts` | **No** — scans `"use server"` modules plus `app/admin/**` and `app/gob/**`; `app/api/**` is absent |
+| `scripts/check-authz-guards.ts` | **Yes** — its coverage rule scans every `app/**/route.ts` (widened 2026-08-21, D4): each exported handler calls a guard, or carries a `@no-auth-required: <reason>` |
 | `public-token-throttle-coverage` | **Only via `publicPetByToken`** — a handler that resolves a token another way is invisible to it |
 | Any rate limit | **No** — every one is a per-call-site `enforceRateLimit()` |
 
-**`check-authz-guards.ts` not covering `app/api/**` is the biggest structural
-gap on this list.** Closing it is cheaper before `/api/v1` exists than after.
+**Both structural gaps on this list are now closed** (`check-api-guard-headers`
+and `check-authz-guards`, same day). What a `/api/v1` handler still does NOT
+inherit is a rate limit and `no-store` — both remain per-call-site, and §9 is
+where they are checked.
+
+Two things about the authz coverage rule a new handler should know. Cron-secret
+checks (`authorizeCronRequest` / `checkCronSecret`) count as authorization for a
+**route handler only**, never for a server action — proving a trusted scheduler
+called you leaves "who is acting" unasked, and an action is reached from a
+logged-in browser. And the rule reads `export async function GET(…)`: an
+`export const GET = withX(handler)` is reported as an unreadable export shape
+rather than skipped, so the fence can never pass a handler by not seeing it.
 
 ---
 
@@ -381,7 +391,7 @@ limiter, not only the guard's aggregate cap. It also makes
 token under the aggregate cap alone (§1.2). Bringing it in line is a follow-up,
 not a blocker, but it should not be cited as precedent for new routes.
 
-### D4 — `check-authz-guards.ts` over `app/api/**` · **engineering, decided**
+### D4 — `check-authz-guards.ts` over `app/api/**` · **LANDED 2026-08-21**
 
 **Decided: before the first endpoint.** Widening a fence over an empty
 directory is free; widening it over a directory that already has routes means
@@ -389,6 +399,12 @@ auditing each one by hand first. The same widening over
 `check-api-guard-headers.ts` on 2026-08-21 surfaced five call sites the moment
 it ran — all benign, but each needed reading. Doing that once, at zero, is the
 cheap moment.
+
+**Landed 2026-08-21**: the coverage rule now scans all 47 `app/**/route.ts`
+handlers (`listRouteHandlerFiles`, floor `MIN_ROUTE_HANDLER_FILES = 40`); 41
+authorize, 6 carry a written `@no-auth-required` reason (`/api/health`, the two
+`denuncias/seguimiento` endpoints, the open-data download, and both auth
+callbacks).
 
 ---
 

@@ -52,6 +52,12 @@ const STUCK_BACKENDS_SQL = sql`
     )
 `;
 
+// @no-auth-required: liveness probe. An external, credential-less poller
+// (.github/workflows/staging-health.yml) is the only intended caller, so there
+// is no session to resolve and no secret it could hold. The response carries no
+// PII and no per-subject data — status, DB ping latency, a stuck-backend count,
+// a degraded flag and a timestamp — and the endpoint is IP rate-limited
+// (60/min) so it cannot become a free liveness oracle for a scanner.
 export async function GET(request: Request): Promise<NextResponse> {
   // Light, FAIL-OPEN rate limit. A RateLimitError → 429; any OTHER failure (e.g.
   // the DB itself is down, so the rate-limit write throws) is swallowed so the

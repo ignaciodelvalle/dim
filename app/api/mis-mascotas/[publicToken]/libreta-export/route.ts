@@ -5,7 +5,14 @@
 // (pet_attachments deferred). Structure mirrors the on-screen libreta:
 // identity header → health status summary → sections by type → chronology.
 //
-// Auth: owner only. Uses the same requirePetAccess guard as pet-tab-data.ts.
+// Auth: owner only, but NOT via requirePetAccess — this handler rolls its own
+// check (see GET below): `supabase.auth.getUser()` plus an ownerships join
+// pinned to `role = 'owner'` and `ended_at is null`. That is narrower than
+// requirePetAccess in one way (a caretaker is refused) and weaker in another
+// (it does not consult profiles.deleted_at, so an erased account with a live
+// JWT can still read). This comment claimed the shared guard until 2026-08-21;
+// it never called it. Routing it through requirePetAccess is a follow-up, not
+// something this comment should keep pretending is already done.
 // Empty libreta: returns the HTML with an empty-state section (no broken output).
 //
 // URL: GET /api/mis-mascotas/[publicToken]/libreta-export

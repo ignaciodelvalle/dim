@@ -65,6 +65,12 @@ function metadataHeaders(meta: DatasetMeta): Record<string, string> {
   };
 }
 
+// @no-auth-required: public open data under Ley 27.275 (active transparency) —
+// requiring an account would defeat the legal obligation the endpoint exists to
+// discharge. It serves only the five province-level AGGREGATE datasets, already
+// k=5 suppressed in lib/open-data/datasets.ts: no PII, no per-pet rows, nothing
+// subject-identifying. Abuse is bounded by the per-IP limit below (30/min,
+// 200/hour) applied BEFORE slug validation, so unknown-id probing is not free.
 export async function GET(
   request: Request,
   ctx: { params: Promise<{ dataset: string }> },

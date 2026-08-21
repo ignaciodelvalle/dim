@@ -26,6 +26,14 @@ import { type NextRequest, NextResponse } from "next/server";
 
 export const dynamic = "force-dynamic";
 
+// @no-auth-required: this endpoint IS the authentication step for the
+// accountless reporter flow. The caller has no session yet — that is the point:
+// it redeems the emailed capability token, and validateReporterToken() is the
+// authorization check (a constant-time MAC over reportId + purpose + TTL). A
+// session guard here would deny the exact request the route exists to serve.
+// Forged-token replay is bounded by the IP rate limit below (10/min, 60/hour),
+// and success and failure land on the same URL so the endpoint is not a MAC
+// oracle.
 export async function GET(request: NextRequest) {
   const url = new URL(request.url);
   const reportId = url.searchParams.get("r") ?? "";
