@@ -27,8 +27,10 @@
 // and that is expected — the failure is reported as an infra block.
 
 import { randomUUID } from "node:crypto";
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 
-import { eq, inArray, sql } from "drizzle-orm";
+import { desc, eq, inArray, sql } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import {
@@ -185,12 +187,30 @@ afterAll(async () => {
   await cleanupFixtures();
 });
 
+/**
+ * Every audit row this run has written, newest first. Assertions are DELTAS
+ * against this list, never absolute counts: three tests in the first describe
+ * call the writer with the same per-run reference code and each appends a
+ * row, so an absolute "exactly one" would hold only under declaration-order
+ * execution — and since audit_log rejects DELETE, a shuffled or retried run
+ * would stay red until the database is rebuilt.
+ */
+async function auditRowsForRun() {
+  return db
+    .select()
+    .from(auditLog)
+    .where(sql`${auditLog.payload}->>'referenceCode' = ${REFERENCE_CODE}`)
+    .orderBy(desc(auditLog.performedAt));
+}
+
 // ---------------------------------------------------------------------------
 // The audit row — the contract that survived the insertAudit → writeAuditLog swap
 // ---------------------------------------------------------------------------
 
 describe("deriveWelfareToOrg", () => {
   it("persists the derivation and appends the SAME audit_log row insertAudit produced", async () => {
+    const auditRowsBefore = (await auditRowsForRun()).length;
+
     const outcome = await deriveWelfareToOrg({
       welfareReportId: reportId,
       targetOrgId,
@@ -224,12 +244,9 @@ describe("deriveWelfareToOrg", () => {
     // { actorUserId, action, targetOrganizationId, payload } and let the DB
     // default the rest to NULL; `buildAuditLogValues` sends those NULLs
     // explicitly. The stored row must be indistinguishable.
-    const auditRows = await db
-      .select()
-      .from(auditLog)
-      .where(sql`${auditLog.payload}->>'referenceCode' = ${REFERENCE_CODE}`);
+    const auditRows = await auditRowsForRun();
 
-    expect(auditRows).toHaveLength(1);
+    expect(auditRows).toHaveLength(auditRowsBefore + 1);
     const audit = auditRows[0];
 
     expect(audit.action).toBe("welfare_report_derived_to_org");
@@ -345,5 +362,34 @@ describe("deriveWelfareToOrg target validation", () => {
       .where(eq(welfareReports.id, reportId))
       .limit(1);
     expect(row.derivedToOrganizationId).toBe(targetOrgId);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// The transaction — a source pin, because no input can make it fail
+// ---------------------------------------------------------------------------
+//
+// Before the split the derivation UPDATE and its audit row were two
+// autocommits; the writer joins them in one db.transaction. That is the one
+// behavioural change of the move, and it is not observable through inputs:
+// `action` is typed to the catalog and `actorUserId` is the same value the
+// UPDATE writes to derived_by_user_id, so any input that breaks the audit
+// INSERT breaks the UPDATE first. Nothing in lint:audit-log cares either — it
+// only looks for the writeAuditLog token one hop from the action. So a rewrite
+// back to `await db.update(...); await writeAuditLog(db, ...)` would pass every
+// gate green and reopen the gap lib/infra/audit-log.ts exists to close: a crash
+// between the two statements commits a derivation with no trace (Ley 25.326).
+// The pin below is the only thing that notices.
+
+describe("deriveWelfareToOrg audit write is transactional (source pin)", () => {
+  const writerSrc = readFileSync(join(__dirname, "derive-to-org-writer.ts"), "utf8");
+
+  it("opens a transaction around the derivation write", () => {
+    expect(writerSrc).toMatch(/db\.transaction\(/);
+  });
+
+  it("writes the audit row with the transaction executor, not the pool", () => {
+    expect(writerSrc).toMatch(/writeAuditLog\(\s*tx\b/);
+    expect(writerSrc).not.toMatch(/writeAuditLog\(\s*db\b/);
   });
 });
