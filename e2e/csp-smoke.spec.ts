@@ -59,9 +59,12 @@ const PUBLIC_PAGES: ReadonlyArray<{
 }> = [
   {
     // Landing: the crisis band is above the fold on every viewport and is the
-    // landing's own copy, not shared chrome.
+    // landing's own markup, not shared chrome. Anchored on the band's landmark
+    // label rather than its copy: a60e4f1a rewrote the copy ("three doors, no
+    // code lookup") and this marker kept chasing the old sentence for three
+    // pushes — a label names WHAT the region is, so it survives a rewording.
     path: "/",
-    marker: (page) => page.getByText(/credencial pública o seguimiento de denuncia/i).first(),
+    marker: (page) => page.getByLabel(/^emergencias — sin cuenta$/i).first(),
   },
   {
     path: "/adoptar",
