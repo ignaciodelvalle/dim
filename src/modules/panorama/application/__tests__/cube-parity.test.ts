@@ -50,6 +50,12 @@ const DRILL_PROVINCE = "La Pampa"; // Pampa flagship province (DIM-PAMP-0001).
 const DRILL_CABA = "CABA";
 const DRILL_BA = "Buenos Aires";
 
+/** The ChoroplethMetric the "microchip" layer resolves to — the `case "microchip"`
+ * arm of get-layer-features.ts. The cube rows are keyed by METRIC, not by layer
+ * id, so the national+department case below needs the mapped name to census its
+ * own groups. */
+const MICROCHIP_METRIC = "microchip-penetration";
+
 const CHOROPLETH_LAYERS: LayerId[] = [
   "cobertura",
   "esterilizacion",
@@ -115,6 +121,82 @@ function privacyFloorBreaks(side: string, byKey: Map<string, CellProps>): string
   return breaks;
 }
 
+// ---------------------------------------------------------------------------
+// THE SUPPRESSION PARTITION vs THE SERVED SURFACE — read this before touching
+// any per-group suppression count below.
+// ---------------------------------------------------------------------------
+//
+// `complementarySuppress` (lib/metrics/anonymity.ts) guarantees a property of the
+// PARTITION it returns: after the pass, a province group holds 0 or ≥2 suppressed
+// cells. The FeatureCollection the map is served is NOT that partition — it is a
+// LOSSY projection of it. `buildChoroplethFeatures` (../build-features.ts) drops
+// every cell whose centroid is null (`pointFeature` returns geometry: null →
+// `.filter(f => f.geometry !== null)`), because a cell with no coordinate can
+// neither fill a polygon nor plot a dot.
+//
+// The cells that get dropped are exactly the ones most likely to BE the primary
+// suppression: a locality name that matched no ar_localities row resolves no
+// department AND no centroid, so the department fold keeps it as its own `loc:`
+// bucket with a null coordinate, and such buckets are small. Measured on this
+// seed (microchip, department grain): San Luis's complete rollup has ONE primary
+// — `loc:Barrio 270 Viviendas`, count 3, unlocatable — which promotes the
+// smallest visible sibling, department 74049 Junín (count 9). Both are suppressed
+// in the cube ROWS; only 74049 survives into the FEATURES. Live, truncated to the
+// national PER_LAYER_CAP, San Luis holds TWO primaries (that same bucket at 3 and
+// 74007 Ayacucho at 4), so live promotes nothing and serves 74049 readable at 6.
+// A textbook, correct complementary promotion — which a census taken off the
+// served features reads as "one suppressed cell, no primary to complement".
+//
+// So: every per-group suppression census in this file is taken from the cube ROWS
+// (the builder's own partition), through the ONE helper below. Counting them off
+// a FeatureCollection is not a shortcut, it is a different — and wrong —
+// population.
+
+/** The cube-row fields the census reads. Structurally satisfied by a
+ * `db.select().from(panoramaCube)` row. */
+type CubeDeptRow = {
+  metric: string;
+  unitLevel: string;
+  province: string;
+  value: string | null;
+  suppressed: boolean;
+};
+
+/** One (metric, province) group of the department-grain suppression partition. */
+type GroupCensus = {
+  suppressed: number;
+  visible: number;
+  /** Smallest published value still visible in the group; null when none is. */
+  smallestVisible: number | null;
+};
+
+const censusKey = (metric: string, province: string) => `${metric}|${province}`;
+
+/**
+ * Census the department-grain suppression PARTITION per (metric, province),
+ * straight from the cube rows the builder wrote. See the block above for why
+ * this may never be computed from the served FeatureCollection.
+ */
+function censusCubeDepartmentRows(rows: readonly CubeDeptRow[]): Map<string, GroupCensus> {
+  const out = new Map<string, GroupCensus>();
+  for (const r of rows) {
+    if (r.unitLevel !== "department") continue;
+    const k = censusKey(r.metric, r.province);
+    const g = out.get(k) ?? { suppressed: 0, visible: 0, smallestVisible: null };
+    if (r.suppressed) {
+      g.suppressed += 1;
+    } else {
+      g.visible += 1;
+      if (r.value != null) {
+        const v = Number(r.value);
+        g.smallestVisible = g.smallestVisible === null ? v : Math.min(g.smallestVisible, v);
+      }
+    }
+    out.set(k, g);
+  }
+  return out;
+}
+
 /** A department the CUBE suppresses while the LIVE path serves it readable. */
 type OverSuppressed = { key: string; province: string; liveValue: number | null };
 
@@ -167,23 +249,28 @@ function overSuppressedByCube(
  * `value: r.count` for every metric), which is the same quantity
  * `complementarySuppress` orders by — so the magnitude comparison is apples to
  * apples.
+ *
+ * BOTH bounds are statements about the PARTITION, so both are measured on the
+ * cube ROWS (`census`), never on the served features — see the partition-vs-
+ * surface block above for the shape that taught us the difference.
  */
 function complementaryFootprintBreaks(
   over: readonly OverSuppressed[],
-  cubeByKey: Map<string, CellProps>,
+  metric: string,
+  census: ReadonlyMap<string, GroupCensus>,
 ): string[] {
   const breaks: string[] = [];
   const byProvince = new Map<string, OverSuppressed[]>();
   for (const o of over) byProvince.set(o.province, [...(byProvince.get(o.province) ?? []), o]);
 
   for (const [province, entries] of byProvince) {
-    let smallestVisible = Number.POSITIVE_INFINITY;
-    let suppressedInGroup = 0;
-    for (const p of cubeByKey.values()) {
-      if (p.province !== province) continue;
-      if (p.suppressed) suppressedInGroup += 1;
-      else if (typeof p.value === "number") smallestVisible = Math.min(smallestVisible, p.value);
-    }
+    const group = census.get(censusKey(metric, province)) ?? {
+      suppressed: 0,
+      visible: 0,
+      smallestVisible: null,
+    };
+    const smallestVisible = group.smallestVisible;
+    const suppressedInGroup = group.suppressed;
 
     if (entries.length > 1) {
       breaks.push(
@@ -202,11 +289,7 @@ function complementaryFootprintBreaks(
       );
     }
     for (const e of entries) {
-      if (
-        e.liveValue != null &&
-        Number.isFinite(smallestVisible) &&
-        e.liveValue > smallestVisible
-      ) {
+      if (e.liveValue != null && smallestVisible !== null && e.liveValue > smallestVisible) {
         breaks.push(
           `${province} ${e.key}: cube suppressed a department whose live value ${e.liveValue} already exceeds the smallest cell the cube still publishes there (${smallestVisible}) — it cannot be the smallest-visible sibling a complementary promotion picks`,
         );
@@ -379,8 +462,9 @@ describe("cube == live parity (5 metrics; national+province + whole-province dri
     //   · and, decisively, every affected province is re-checked below against
     //     its own COMPLETE live drill, field for field.
     const over = overSuppressedByCube(liveByKey, cubeByKey);
+    const census = censusCubeDepartmentRows(await db.select().from(panoramaCube));
     expect(
-      complementaryFootprintBreaks(over, cubeByKey),
+      complementaryFootprintBreaks(over, MICROCHIP_METRIC, census),
       "the cube suppressed a department the live path serves readable, in a shape complementary suppression cannot produce — the k-anonymity floor drifted between builder and loader",
     ).toEqual([]);
 
@@ -510,18 +594,12 @@ describe("sub-k invariant (privacy floor baked into the readable surface)", () =
   });
 
   it("no province group has exactly one suppressed department with a visible sibling", async () => {
-    const rows = await db.select().from(panoramaCube);
-    // group department rows by (metric, province)
-    const groups = new Map<string, { suppressed: number; visible: number }>();
-    for (const r of rows) {
-      if (r.unitLevel !== "department") continue;
-      const key = `${r.metric}|${r.province}`;
-      const g = groups.get(key) ?? { suppressed: 0, visible: 0 };
-      if (r.suppressed) g.suppressed += 1;
-      else g.visible += 1;
-      groups.set(key, g);
-    }
-    const differenceable = [...groups.entries()].filter(
+    // Same census helper the (2a) footprint guard uses — one definition of "how
+    // many cells did the builder suppress in this group", so the two checks
+    // cannot drift into measuring different populations (which is exactly how
+    // the (2a) guard once ended up counting off the rendered features).
+    const census = censusCubeDepartmentRows(await db.select().from(panoramaCube));
+    const differenceable = [...census.entries()].filter(
       ([, g]) => g.suppressed === 1 && g.visible >= 1,
     );
     expect(differenceable).toEqual([]);
