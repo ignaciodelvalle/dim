@@ -1,0 +1,224 @@
+// The four-way union, proved without a database.
+//
+// WHY THIS TEST EXISTS AT ALL. Until Track 2 the four outcomes of a public
+// token — throttled, not_found, degraded, ok — were four inline branches of a
+// React server component, so the only way to assert "a rejected view-data load
+// degrades WITH the pet name, not bare" was to render a page against a mocked
+// drizzle chain and inspect the element tree. The mapping is now a function
+// with injected collaborators, so each outcome is one assertion.
+//
+// The distinctions that matter, and each is a real bug someone could ship:
+//   • throttled must not read the pet row AT ALL (the limiter is the point).
+//   • not_found must never be returned for a DB failure — an outage is not
+//     "this token does not exist", and answering 404 to a finder standing over
+//     a lost animal is the worst possible lie this surface can tell.
+//   • degraded has TWO shapes: bare (the pet row itself failed — the token is
+//     all we know) and rich (the row resolved, so name + lost CTAs survive).
+//     Collapsing them drops the finder's only reachable action.
+
+import type { Pet } from "@/db";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+
+import type { CredentialViewData } from "./load-public-credential";
+import {
+  type LookupDeps,
+  PET_ROW_BUDGET_MS,
+  type PublicCredentialPetRow,
+  type PublicTokenThrottle,
+  VIEW_DATA_BUDGET_MS,
+  lookupPublicCredential,
+} from "./lookup-public-credential";
+
+// ---------------------------------------------------------------------------
+// Fixtures
+// ---------------------------------------------------------------------------
+
+const PUBLIC_TOKEN = "DIM-PAMP-0001";
+
+/** Only the fields the union reads. Cast because `Pet` is the full row type and
+ *  enumerating 60 columns here would test the schema, not the mapping. */
+const LOST_PET = {
+  id: "pet-1",
+  name: "Pampa",
+  sex: "female",
+  status: "lost",
+  allowFinderFormWhenLost: true,
+  publicToken: PUBLIC_TOKEN,
+} as unknown as Pet;
+
+const VIEW_DATA = {
+  canonicalIds: { microchip: null, tattoo: null },
+} as unknown as CredentialViewData;
+
+function petRow(photoPath: string | null = null): PublicCredentialPetRow {
+  return {
+    pet: LOST_PET,
+    photo: photoPath ? ({ storagePath: photoPath } as PublicCredentialPetRow["photo"]) : null,
+  };
+}
+
+/** Records the order collaborators ran in — the throttle-before-lookup proof. */
+let calls: string[] = [];
+
+function throttleStub(throttled: boolean): PublicTokenThrottle {
+  return {
+    bucket: "public_token_page",
+    isThrottled: vi.fn(async () => {
+      calls.push("throttle");
+      return throttled;
+    }),
+  };
+}
+
+function depsStub(overrides: Partial<LookupDeps> = {}): LookupDeps {
+  return {
+    findPet: vi.fn(async () => {
+      calls.push("findPet");
+      return petRow();
+    }),
+    loadViewData: vi.fn(async () => {
+      calls.push("loadViewData");
+      return VIEW_DATA;
+    }),
+    // Pass-through: the budget wrapper's own timeout semantics are covered by
+    // lib/infra/db-budget's tests. What this file asserts is that the RIGHT
+    // budget and label reach it — see the budgets test below.
+    withBudget: vi.fn((promise) => promise),
+    ...overrides,
+  };
+}
+
+beforeEach(() => {
+  calls = [];
+  // reportError writes one structured JSON line to stderr on every degraded
+  // path; silenced so a passing run stays readable.
+  vi.spyOn(console, "error").mockImplementation(() => {});
+});
+
+// ---------------------------------------------------------------------------
+// The four outcomes
+// ---------------------------------------------------------------------------
+
+describe("lookupPublicCredential — the four-way union", () => {
+  it("answers throttled WITHOUT reading any pet data", async () => {
+    const deps = depsStub();
+
+    const result = await lookupPublicCredential(
+      { publicToken: PUBLIC_TOKEN, throttle: throttleStub(true) },
+      deps,
+    );
+
+    expect(result).toEqual({ status: "throttled" });
+    // The whole point of a read limiter: nothing was read.
+    expect(deps.findPet).not.toHaveBeenCalled();
+    expect(deps.loadViewData).not.toHaveBeenCalled();
+  });
+
+  it("awaits the throttle BEFORE the pet lookup", async () => {
+    await lookupPublicCredential(
+      { publicToken: PUBLIC_TOKEN, throttle: throttleStub(false) },
+      depsStub(),
+    );
+
+    // A limiter that runs after the lookup has already hit the database bounds
+    // nothing. Order, not mere presence.
+    expect(calls).toEqual(["throttle", "findPet", "loadViewData"]);
+  });
+
+  it("answers not_found when the token resolves to no row", async () => {
+    const result = await lookupPublicCredential(
+      { publicToken: PUBLIC_TOKEN, throttle: throttleStub(false) },
+      depsStub({ findPet: vi.fn(async () => undefined) }),
+    );
+
+    expect(result).toEqual({ status: "not_found" });
+  });
+
+  it("answers degraded BARE when the pet row itself fails", async () => {
+    const deps = depsStub({
+      findPet: vi.fn(async () => {
+        throw new Error("pool exhausted");
+      }),
+    });
+
+    const result = await lookupPublicCredential(
+      { publicToken: PUBLIC_TOKEN, throttle: throttleStub(false) },
+      deps,
+    );
+
+    // Never not_found: a DB outage is not "this token does not exist".
+    expect(result).toEqual({ status: "degraded", publicToken: PUBLIC_TOKEN });
+    expect(result.status === "degraded" && result.pet).toBeUndefined();
+    // The fan-out is never attempted without a pet.
+    expect(deps.loadViewData).not.toHaveBeenCalled();
+  });
+
+  it("answers degraded WITH the pet fields when the view-data fan-out fails", async () => {
+    const result = await lookupPublicCredential(
+      { publicToken: PUBLIC_TOKEN, throttle: throttleStub(false) },
+      depsStub({
+        loadViewData: vi.fn(async () => {
+          throw new Error("budget exceeded");
+        }),
+      }),
+    );
+
+    // Exactly the props the degraded credential card renders: without these the
+    // finder loses the name and both aviso CTAs, which run their own reads and
+    // may still work.
+    expect(result).toEqual({
+      status: "degraded",
+      publicToken: PUBLIC_TOKEN,
+      pet: { name: "Pampa", sex: "female", isLost: true, allowFinderForm: true },
+    });
+  });
+
+  it("answers ok with the pet, the photo URL and the view data", async () => {
+    const result = await lookupPublicCredential(
+      { publicToken: PUBLIC_TOKEN, throttle: throttleStub(false) },
+      depsStub({ findPet: vi.fn(async () => petRow("pampa.jpg")) }),
+    );
+
+    expect(result.status).toBe("ok");
+    if (result.status !== "ok") return;
+    expect(result.pet).toBe(LOST_PET);
+    expect(result.data).toBe(VIEW_DATA);
+    // Resolved here so neither renderer needs to know the bucket layout.
+    expect(result.photoUrl).toContain("/pet-photos/pampa.jpg");
+  });
+
+  it("answers ok with a null photo URL when the pet has no primary photo", async () => {
+    const result = await lookupPublicCredential(
+      { publicToken: PUBLIC_TOKEN, throttle: throttleStub(false) },
+      depsStub(),
+    );
+
+    expect(result.status === "ok" && result.photoUrl).toBeNull();
+  });
+
+  it("bounds each read with its own budget and label", async () => {
+    const deps = depsStub();
+
+    await lookupPublicCredential(
+      { publicToken: PUBLIC_TOKEN, throttle: throttleStub(false) },
+      deps,
+    );
+
+    // The budgets travel WITH the reads (they moved out of the page), so the
+    // route handler inherits the page's numbers instead of copying them.
+    expect(deps.withBudget).toHaveBeenNthCalledWith(
+      1,
+      expect.anything(),
+      PET_ROW_BUDGET_MS,
+      "GET /p/[publicToken] pet-row",
+    );
+    expect(deps.withBudget).toHaveBeenNthCalledWith(
+      2,
+      expect.anything(),
+      VIEW_DATA_BUDGET_MS,
+      "GET /p/[publicToken] view-data",
+    );
+    expect(PET_ROW_BUDGET_MS).toBe(3000);
+    expect(VIEW_DATA_BUDGET_MS).toBe(5000);
+  });
+});

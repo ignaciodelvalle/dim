@@ -30,14 +30,13 @@ import { ConfidenceBadge } from "@/components/event/ConfidenceBadge";
 import { PublicLostSections, formatLostSince } from "@/components/pet-profile/PublicLostSections";
 import { DegradedFallback } from "@/components/ui/DegradedFallback";
 import { LnVstamp } from "@/components/ui/StatusFlag";
-import { type Pet, attachments, db, pets } from "@/db";
+import { type Pet, db, pets } from "@/db";
 import { deriveRabiesSemaphore, isRabiesAtRisk } from "@/lib/domain/credential-badges";
 import { computeConfidence, isAtLeast } from "@/lib/events/event-confidence";
 import { withDbBudgetOrThrow } from "@/lib/infra/db-budget";
 import { publicPetByToken } from "@/lib/infra/public-pet-lookup";
-import { isPublicTokenReadThrottled } from "@/lib/infra/public-token-throttle";
+import { publicTokenThrottle } from "@/lib/infra/public-token-throttle";
 import { reportError } from "@/lib/infra/report-error";
-import { petPhotoUrl } from "@/lib/infra/storage";
 import { resolveLostSpecialConditions } from "@/lib/reference/permanent-conditions";
 import { BRANDING } from "@/lib/ui/branding";
 import { DISPUTE_TIP_INTRO } from "@/lib/ui/dispute-copy";
@@ -54,12 +53,8 @@ import {
   speciesLabel,
   statusLabel,
 } from "@/lib/utils/format";
-import {
-  type CredentialViewData,
-  loadCredentialViewData,
-} from "@/src/modules/pets/application/read/load-public-credential";
+import { lookupPublicCredential } from "@/src/modules/pets/application/read/lookup-public-credential";
 import { isObservationOpen } from "@/src/modules/surveillance/domain/rabies-observation";
-import { eq } from "drizzle-orm";
 import { notFound } from "next/navigation";
 import { Suspense } from "react";
 import {
@@ -188,15 +183,14 @@ export async function generateMetadata({
 // resolve the same token through the same lookup and had no limiter at all.
 // Sharing the helper is what makes the claim true for the route family.
 
-// DB time budgets (public-surface resilience). The QR credential is the one
-// page an anonymous finder in the street depends on — it must NEVER hang with
-// a degraded DB or crash on a DB failure. Every read is bounded (withDbBudget
-// family) and every failure path renders <DegradedCredentialCard> instead of
-// the 500 error boundary. Budgets are generous for the shared micro DB under
-// load, short enough that the finder gets an honest degraded card, not a spin.
+// DB time budget for generateMetadata (public-surface resilience). The QR
+// credential is the one page an anonymous finder in the street depends on — it
+// must NEVER hang with a degraded DB or crash on a DB failure. This one bounds
+// the Next-specific metadata read only; the budgets for the pet row and the
+// view-data fan-out moved into lookupPublicCredential with the reads they
+// bound, so the coming /api/v1 route inherits the same numbers instead of
+// copying them.
 const METADATA_BUDGET_MS = 2500;
-const PET_ROW_BUDGET_MS = 3000;
-const VIEW_DATA_BUDGET_MS = 5000;
 
 export default async function PublicCredentialPage({
   params,
@@ -205,69 +199,57 @@ export default async function PublicCredentialPage({
 }) {
   const { publicToken } = await params;
 
-  // V1-1: rate-limit per IP before touching any pet data. Renders a soft
-  // throttle notice (not a hard 500) so the page gracefully degrades.
-  // FAIL-OPEN on limiter infrastructure failure (budgeted, like /api/health):
-  // the limiter is itself a DB write — when the DB is degraded it must not be
-  // the thing that crashes the page before the degraded render can happen.
-  if (await isPublicTokenReadThrottled("public_token_page")) {
-    return <ThrottleNotice />;
-  }
-
-  // Pet row — the ONE read the degraded card depends on for name/status. On
-  // failure or budget exhaustion, degrade honestly (never notFound(): a DB
-  // outage is not "this token does not exist").
-  let result: { pet: Pet; photo: typeof attachments.$inferSelect | null } | undefined;
-  try {
-    [result] = await withDbBudgetOrThrow(
-      (async () =>
-        db
-          .select({ pet: pets, photo: attachments })
-          .from(pets)
-          .leftJoin(attachments, eq(attachments.id, pets.primaryPhotoId))
-          // PO-4: soft-deleted pets do not resolve publicly. The filter lives
-          // in the QUERY, not in a post-fetch guard — an erased subject's pet
-          // row must not be read into server memory at all.
-          .where(publicPetByToken(publicToken))
-          .limit(1))(),
-      PET_ROW_BUDGET_MS,
-      "GET /p/[publicToken] pet-row",
-    );
-  } catch (err) {
-    reportError("public-credential/pet-row", err, { publicToken });
-    return <DegradedCredentialCard publicToken={publicToken} />;
-  }
-
-  if (!result) notFound();
-  const { pet, photo } = result;
-  const photoUrl = petPhotoUrl(photo?.storagePath);
-
   // ---------------------------------------------------------------------------
-  // Every remaining DB read (Stage 1 fan-out, amendments, service-dog row,
-  // lost-mode context, tattoo photo) now lives in loadCredentialViewData —
-  // same queries, only the await boundary moved — so ONE budget bounds the
-  // whole fan-out. On failure or budget exhaustion the page renders the honest
-  // degraded card (name + token + lost CTAs) instead of the 500 boundary.
+  // ONE door: throttle → pet row → view-data fan-out, answered as a four-way
+  // union (lookupPublicCredential). The branches below are the SAME four this
+  // component held inline until Track 2 — same order, same budgets, same
+  // degraded shapes — but the decision now lives in a function the coming
+  // `GET /api/v1/pets/{token}/credential` calls too. A route handler that
+  // re-derived these branches is how the JSON and the HTML start disagreeing
+  // about what "degraded" means.
+  //
+  // The limiter arrives as a PORT (`publicTokenThrottle`) because the use-case
+  // may not import next/headers. The page cannot call this door without
+  // supplying one — the rate limit is enforced by the type checker here, not by
+  // remembering to write a guard statement.
   // ---------------------------------------------------------------------------
-  let data: CredentialViewData;
-  try {
-    data = await withDbBudgetOrThrow(
-      loadCredentialViewData(pet),
-      VIEW_DATA_BUDGET_MS,
-      "GET /p/[publicToken] view-data",
-    );
-  } catch (err) {
-    reportError("public-credential/view-data", err, { publicToken });
-    return (
-      <DegradedCredentialCard
-        publicToken={publicToken}
-        petName={pet.name}
-        petSex={pet.sex}
-        isLost={pet.status === "lost"}
-        allowFinderForm={pet.allowFinderFormWhenLost}
-      />
-    );
+  const lookup = await lookupPublicCredential({
+    publicToken,
+    throttle: publicTokenThrottle("public_token_page"),
+  });
+
+  switch (lookup.status) {
+    // V1-1: over the per-IP read limit. Soft notice (not a hard 500) — no pet
+    // data was read.
+    case "throttled":
+      return <ThrottleNotice />;
+    // Never reached on a DB outage: that answers `degraded`, because an outage
+    // is not "this token does not exist".
+    case "not_found":
+      return notFound();
+    // Honest degraded card. `pet` is present only when the pet ROW resolved
+    // before the failure — bare card otherwise (the token is all we know).
+    case "degraded":
+      return (
+        <DegradedCredentialCard
+          publicToken={lookup.publicToken}
+          petName={lookup.pet?.name}
+          petSex={lookup.pet?.sex}
+          isLost={lookup.pet?.isLost}
+          allowFinderForm={lookup.pet?.allowFinderForm}
+        />
+      );
+    case "ok":
+      break;
+    default: {
+      // Exhaustiveness: a new status added to the union without a branch here
+      // is a compile error, not a blank page.
+      const unhandled: never = lookup;
+      throw new Error(`Unhandled credential lookup status: ${JSON.stringify(unhandled)}`);
+    }
   }
+
+  const { pet, photoUrl, data } = lookup;
   const {
     canonicalIds,
     hasVaccinations,

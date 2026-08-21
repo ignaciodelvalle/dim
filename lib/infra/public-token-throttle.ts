@@ -50,6 +50,7 @@ import { headers } from "next/headers";
 import { withDbBudget } from "@/lib/infra/db-budget";
 import { RateLimitError, callerIp, enforceRateLimit } from "@/lib/infra/rate-limit";
 import { reportError } from "@/lib/infra/report-error";
+import type { PublicTokenThrottle } from "@/src/modules/pets/application/read/lookup-public-credential";
 
 /**
  * Per-IP limit for public credential reads.
@@ -101,4 +102,30 @@ export async function isPublicTokenReadThrottled(bucket: string): Promise<boolea
     // Fall through — see the fail-open note in the header.
   }
   return false;
+}
+
+/**
+ * The same guard, bound to a bucket, as the `PublicTokenThrottle` PORT the
+ * application layer takes.
+ *
+ * WHY AN ADAPTER AND NOT A DIRECT IMPORT. `isPublicTokenReadThrottled` calls
+ * `next/headers` to read the caller IP, and the application fence bans that
+ * specifier inside every `src/modules/<m>/application` tree — a use-case must
+ * be runnable without a Next request, because a React Native app has no Next
+ * request to give it. So the use-case declares the shape it needs and this
+ * module, which already lives on the Next side of the boundary, supplies it.
+ *
+ * The type is imported TYPE-ONLY: the port is owned by the application layer
+ * (the adapter depends on the port, never the reverse), and a type import
+ * erases at compile time, so this adds no runtime edge from lib/ into
+ * src/modules/.
+ *
+ * Usage — one statement, the bucket visible at the call site:
+ *   lookupPublicCredential({ publicToken, throttle: publicTokenThrottle("public_token_page") })
+ */
+export function publicTokenThrottle(bucket: string): PublicTokenThrottle {
+  return {
+    bucket,
+    isThrottled: () => isPublicTokenReadThrottled(bucket),
+  };
 }
