@@ -29,6 +29,7 @@ import { and, asc, desc, eq, isNotNull, isNull, lte, sql } from "drizzle-orm";
 
 import { attachments, db, ownerships, petCaretakerGrants, petEvents, pets, profiles } from "@/db";
 import { validateEventPayload } from "@/lib/events/event-schemas";
+import { endCaretakerGrantAtomically } from "@/lib/infra/end-pet-ownerships";
 
 import type {
   AcceptGrantArgs,
@@ -428,58 +429,32 @@ export const CaretakersRepository = {
    * THE ATOMIC END. Close the ownership row → emit `caretaker_ended` → flip the
    * grant, inside the caller's transaction.
    *
+   * The three steps now live in lib/infra/end-pet-ownerships.ts and this
+   * delegates to them. They moved because adoption finalize and decomiso also
+   * have to end a live grant, and doing only step one there left a zombie:
+   * a grant reading 'accepted' against a closed row, drift the spine cannot
+   * explain, and a stranger's contact still published on the new owner's public
+   * credential. Importing this module from `adoption` was not an option — the
+   * caretakers module is built with ZERO cross-module edges by design — and a
+   * second copy of a three-step invariant is the drift this repo keeps paying
+   * for. So the primitive sits below both and there is exactly one of it.
+   *
    * `caretaker_ended` is deliberately NOT a titular-only event type: the cron
    * writes it with no acting user, and a caretaker withdrawing from their own
    * arrangement is legitimate. Only the DESIGNATION is titular-only.
    */
   async insertEndGrant(args: EndGrantArgs, tx: unknown): Promise<{ ended: boolean }> {
-    const client = tx as Tx;
-
-    await client
-      .update(ownerships)
-      .set({ endedAt: args.now })
-      .where(and(eq(ownerships.id, args.ownershipId), isNull(ownerships.endedAt)));
-
-    const payload = validateEventPayload("caretaker_ended", {
-      payload_version: 1,
-      grant_id: args.grantId,
-      outcome: args.outcome,
-      ends_at: args.endsAt.toISOString(),
-    });
-
-    await client.insert(petEvents).values({
-      petId: args.petId,
-      eventType: "caretaker_ended",
-      occurredAt: args.now,
-      recordedAt: args.now,
-      recordedByUserId: args.actorUserId,
-      authorRole: "owner",
-      authorVerified: false,
-      payload,
-    });
-
-    const flipped = await client
-      .update(petCaretakerGrants)
-      .set({
-        status: "ended",
-        endedAt: args.now,
-        endedReason: args.outcome,
-        // ownershipId is deliberately NOT cleared: the biconditional accept
-        // CHECK only constrains `status='accepted'`, and the pointer is what
-        // lets the drift harness compare the grant against the row it produced
-        // long after the arrangement is over.
-        updatedAt: args.now,
-        updatedBy: args.actorUserId,
-      })
-      .where(
-        and(eq(petCaretakerGrants.id, args.grantId), eq(petCaretakerGrants.status, "accepted")),
-      )
-      .returning({ id: petCaretakerGrants.id });
-
-    if (flipped.length === 0) {
-      throw new Error("El cuidado ya fue finalizado por otra acción.");
-    }
-
-    return { ended: true };
+    return endCaretakerGrantAtomically(
+      {
+        grantId: args.grantId,
+        ownershipId: args.ownershipId,
+        petId: args.petId,
+        outcome: args.outcome,
+        endsAt: args.endsAt,
+        now: args.now,
+        actorUserId: args.actorUserId,
+      },
+      tx as Tx,
+    );
   },
 } satisfies CaretakersRepositoryPort;

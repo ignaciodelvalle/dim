@@ -109,6 +109,11 @@ export const TEST_PET_PREFIXES = {
     // DIM-REHOME-001, and this script sweeps pets only. An org row left behind
     // trips no fence today, so it is noise rather than breakage.
     "DIM-RHOM-PET1",
+    // DIM-CTKZ-PET1 added 2026-08-21 for __tests__/finalize-ends-caretaker-grant.test.ts.
+    // FULL TOKEN again, for the reason above: `DIM-CTKZ-` is a legal real token
+    // shape. Also registered before it leaked. The org it creates
+    // (DIM-CTKZ-ORG1) is outside this script's reach, same as DIM-REHOME-001.
+    "DIM-CTKZ-PET1",
     "MI-INV1-",
   ],
 } as const;

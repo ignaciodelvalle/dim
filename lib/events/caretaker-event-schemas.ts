@@ -52,7 +52,16 @@ export const caretakerEnded = z
   .object(
     withVersion({
       grant_id: z.string().uuid(),
-      outcome: z.enum(["returned", "expired", "revoked_by_owner", "withdrawn_by_caretaker"]),
+      // Mirrors GRANT_END_OUTCOMES. `ownership_transferred` (2026-08-21) covers
+      // the arrangement being overtaken by a change of hands — adoption
+      // finalize, decomiso — which none of the other four describe truthfully.
+      outcome: z.enum([
+        "returned",
+        "expired",
+        "revoked_by_owner",
+        "withdrawn_by_caretaker",
+        "ownership_transferred",
+      ]),
       ends_at: z.string().min(1),
     }),
   )

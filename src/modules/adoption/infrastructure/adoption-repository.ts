@@ -26,6 +26,7 @@ import {
   findOpenCaseForPetAndKind,
   openCase,
 } from "@/lib/infra/case-helpers";
+import { endAllLiveOwnerships } from "@/lib/infra/end-pet-ownerships";
 import { hashDni } from "@/lib/utils/dni-hash";
 
 import { endRehomeSponsorship } from "./rehome-sponsorship-writer";
@@ -979,15 +980,13 @@ export const AdoptionRepository = {
     // account (finalize-adoption refuses otherwise), so this writer only ever
     // moves custody onto a profile someone can actually log into.
 
-    // Close EVERY live ownership row, whatever its role. Closing the shelter's
-    // and the foster's one by one collided with the TITULAR's `owner` row on
-    // `ownerships_one_active_owner_per_pet` (23505) the moment rehome-by-titular
-    // let that row stay open through a sponsorship, and it would collide with a
-    // co-owner too. execute-decomiso.ts:400-403 shape, original direction.
-    await tx
-      .update(ownerships)
-      .set({ endedAt: now })
-      .where(and(eq(ownerships.petId, petId), isNull(ownerships.endedAt)));
+    // Every live ownership row, whatever its role — and caretakers through
+    // their three-step end, which a blanket UPDATE here used to skip. See
+    // lib/infra/end-pet-ownerships.ts for what the half-close left behind.
+    await endAllLiveOwnerships(
+      { petId, outcome: "ownership_transferred", actorUserId: userId, now },
+      tx,
+    );
 
     // Close the foster_placement case alongside the row just ended above.
     if (fosterRow) {

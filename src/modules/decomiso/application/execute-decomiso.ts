@@ -35,6 +35,7 @@ import { jurisdictionScopeContains } from "@/lib/domain/jurisdiction-canonical";
 import { validateEventPayload } from "@/lib/events/event-schemas";
 import { writeAuditLog } from "@/lib/infra/audit-log";
 import { findOpenCaseForPetAndKind, openCase as libOpenCase } from "@/lib/infra/case-helpers";
+import { endAllLiveOwnerships } from "@/lib/infra/end-pet-ownerships";
 import { generatePublicToken } from "@/lib/infra/publicToken";
 import { generateUniqueToken, isUniqueViolation } from "@/lib/infra/unique-token";
 
@@ -397,10 +398,14 @@ export async function executeDecomiso(
     prevOwnerUserIds.push(...addressees.userIds);
     prevOwnerOrganizationIds.push(...addressees.organizationIds);
 
-    await tx
-      .update(ownerships)
-      .set({ endedAt: now })
-      .where(and(eq(ownerships.petId, activePet.id), isNull(ownerships.endedAt)));
+    // Caretakers need their three-step end, not a blanket close: the grant has
+    // to flip too, or it keeps publishing the caretaker's contact on the
+    // animal's public credential long after the authority took it. See
+    // lib/infra/end-pet-ownerships.ts.
+    await endAllLiveOwnerships(
+      { petId: activePet.id, outcome: "ownership_transferred", actorUserId: user.id, now },
+      tx,
+    );
   }
 
   // Open transitional shelter_custody for the govt org (both paths).

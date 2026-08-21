@@ -38,6 +38,15 @@ export const GRANT_END_OUTCOMES = [
   "expired",
   "revoked_by_owner",
   "withdrawn_by_caretaker",
+  // Added 2026-08-21. The other four describe a decision somebody made ABOUT the
+  // arrangement; this one is the arrangement being overtaken by a change of
+  // hands it was not party to — adoption finalize, decomiso. It exists because
+  // those paths had to end a live grant and none of the four was true: the
+  // caretaker did not return the animal, nothing expired, the titular did not
+  // revoke, and the caretaker did not withdraw. Reaching for the nearest one
+  // would have written a false sentence into an append-only spine and, per the
+  // note in caretaker-event-schemas.ts, into the copy the caretaker reads.
+  "ownership_transferred",
 ] as const;
 export type GrantEndOutcome = (typeof GRANT_END_OUTCOMES)[number];
 
