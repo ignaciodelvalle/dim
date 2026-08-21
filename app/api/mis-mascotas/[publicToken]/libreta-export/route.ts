@@ -5,14 +5,26 @@
 // (pet_attachments deferred). Structure mirrors the on-screen libreta:
 // identity header → health status summary → sections by type → chronology.
 //
-// Auth: owner only, but NOT via requirePetAccess — this handler rolls its own
-// check (see GET below): `supabase.auth.getUser()` plus an ownerships join
-// pinned to `role = 'owner'` and `ended_at is null`. That is narrower than
-// requirePetAccess in one way (a caretaker is refused) and weaker in another
-// (it does not consult profiles.deleted_at, so an erased account with a live
-// JWT can still read). This comment claimed the shared guard until 2026-08-21;
-// it never called it. Routing it through requirePetAccess is a follow-up, not
-// something this comment should keep pretending is already done.
+// Auth: LIVENESS via requireLiveUser(), then OWNER-ONLY via this handler's own
+// ownerships join. Two separate questions, answered by two separate things:
+//
+//   - requireLiveUser() (lib/infra/live-user.ts) answers "may this caller still
+//     act at all": maintenance kill-switch → 503, no session → 401, erased
+//     account (profiles.deleted_at, Ley 25.326 art. 16) → 401, deactivated
+//     institutional account → 403. It is the non-redirecting, result-shaped
+//     guard, which is what a route handler needs — a redirect() here would be a
+//     response the caller never asked for.
+//   - the `pets ⋈ ownerships` join below answers "is this caller the titular of
+//     THIS pet": pinned to `role = 'owner'` and `ended_at is null`, so a
+//     caretaker/foster is refused with 404. That is deliberately NARROWER than
+//     requirePetAccess; widening the libreta export to non-owner roles is a
+//     product decision, not a refactor, so the query is left untouched.
+//
+// Until 2026-08-21 the liveness half did not exist: the handler resolved
+// identity on a bare `supabase.auth.getUser()`, which answers WHO and never
+// WHETHER THEY MAY STILL ACT, so a titular who had exercised ARCO supresión
+// could still download the complete libreta with an unexpired JWT (PENDIENTES
+// L-3). The regression test is __tests__/libreta-export-route.test.ts.
 // Empty libreta: returns the HTML with an empty-state section (no broken output).
 //
 // URL: GET /api/mis-mascotas/[publicToken]/libreta-export
@@ -33,7 +45,7 @@ import {
   groupLibretaEvents,
   libretaSanitariaClause,
 } from "@/lib/infra/libreta-sanitaria";
-import { createClient } from "@/lib/supabase/server";
+import { requireLiveUser } from "@/lib/infra/live-user";
 import {
   eventTypeLabel,
   formatDate,
@@ -103,15 +115,20 @@ export async function GET(
 ) {
   const { publicToken } = await params;
 
-  // Auth: must be authenticated owner of this pet.
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  if (!user) {
-    return new NextResponse("No autorizado", { status: 401 });
+  // Liveness first. The body text is the one this route already returned for
+  // 401 — an unauthorized caller learns nothing new from a finer message, and
+  // WHICH refusal happened is carried by the status code, not by the prose.
+  const live = await requireLiveUser();
+  if (!live.ok) {
+    const status =
+      live.reason === "MAINTENANCE"
+        ? 503 // the platform is not serving anyone; this is not the caller's fault
+        : live.reason === "DEACTIVATED"
+          ? 403 // identity resolved, authority withdrawn
+          : 401; // NO_SESSION | ACCOUNT_ERASED — no usable identity
+    return new NextResponse("No autorizado", { status });
   }
+  const user = live.user;
 
   // Verify ownership.
   const [pet] = await db

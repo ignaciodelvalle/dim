@@ -13,12 +13,12 @@
 // test); this file focuses on the header-honesty regression plus a smoke
 // check that the handler still renders successfully for the owner.
 
-import { sql } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 
 vi.mock("@/lib/supabase/server", () => ({ createClient: vi.fn() }));
 
-import { type Pet, db, ownerships, petEvents, pets } from "@/db";
+import { type Pet, db, ownerships, petEvents, pets, profiles } from "@/db";
 import * as supabaseServer from "@/lib/supabase/server";
 import { withMutationOverride } from "./_helpers/db-overrides";
 
@@ -197,5 +197,38 @@ describe("GET /api/mis-mascotas/[publicToken]/libreta-export", () => {
     expect(html).not.toContain("22.75 kg");
     expect(html).not.toContain("9,00 kg");
     expect(html).not.toContain("9 kg");
+  });
+
+  // ARCO erasure (Ley 25.326 art. 16). PENDIENTES L-3, the live instance the
+  // route-handler coverage rule was widened to catch.
+  //
+  // A bare `supabase.auth.getUser()` answers WHO the caller is and never
+  // WHETHER THEY MAY STILL ACT: after `erase_subject_data` soft-deletes the
+  // profile, the already-issued JWT stays valid until it expires, the
+  // ownerships row is still `role='owner'` with `ended_at is null`, and the
+  // handler used to hand back the COMPLETE libreta sanitaria — every clinical
+  // event of a subject who had just exercised supresión. The fix routes the
+  // handler through requireLiveUser(), the non-redirecting liveness guard.
+  //
+  // `deletedAt` is set on the shared seeded owner and restored in `finally`:
+  // the "db" vitest project runs with fileParallelism:false, so no other file
+  // observes the window, and the restore keeps the seed usable for the rest of
+  // the suite even if the assertions fail.
+  it("refuses an ERASED owner holding a live session (401, and no libreta in the body)", async () => {
+    await db.update(profiles).set({ deletedAt: new Date() }).where(eq(profiles.id, ownerUserId));
+    try {
+      mockAuthAs(ownerUserId);
+      const { GET } = await import("@/app/api/mis-mascotas/[publicToken]/libreta-export/route");
+      const res = await GET(buildRequest() as never, {
+        params: Promise.resolve({ publicToken: PET_TOKEN }),
+      });
+
+      expect(res.status).toBe(401);
+      const body = await res.text();
+      expect(body).not.toContain("<html");
+      expect(body).not.toContain("Libreta Sanitaria Digital");
+    } finally {
+      await db.update(profiles).set({ deletedAt: null }).where(eq(profiles.id, ownerUserId));
+    }
   });
 });
