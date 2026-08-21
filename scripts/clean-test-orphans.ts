@@ -35,7 +35,22 @@ const DEFAULT_LOCAL_URL = "postgresql://postgres:postgres@localhost:54322/postgr
  * pet called "Testa" and delete somebody's animal.
  */
 export const TEST_PET_PREFIXES = {
-  byName: ["E2EPet-", "ProbeAlta-", "DdxPet", "Transit Compliance Test"],
+  // "UC CD " added 2026-08-21, NINTH instance of the killed-worker leak class and
+  // the first that this list could not see at all: every entry before it was a
+  // TOKEN prefix, and `src/modules/custody-disputes/application/__tests__/use-cases.test.ts`
+  // mints ordinary `DIM-XXXX-XXXX` tokens and names its pets "UC CD <case>". It
+  // HAS a correct afterAll (`:275`); a vitest worker died at teardown, so the 11
+  // rows it created reddened `lint:spine` for a reason unrelated to the gate, and
+  // the cleaner answered "No test-fixture pets found".
+  //
+  // WHY A NAME PREFIX IS SAFE HERE, when the token comments below are so careful
+  // about LIKE collisions: the danger there is that a real token is
+  // `DIM-XXXX-XXXX`, so a prefix like `DIM-PANO-` matches somebody's animal. A
+  // NAME has no such format — and `UC CD ` carries a TRAILING SPACE after two
+  // uppercase initialisms, so `name LIKE 'UC CD %'` requires a third word after
+  // them. No Spanish pet name begins "UC CD ". Widening to `UC ` would NOT be
+  // safe by the same reasoning (one initialism, and it prefixes real words).
+  byName: ["E2EPet-", "ProbeAlta-", "DdxPet", "Transit Compliance Test", "UC CD "],
   // MC-DUP- added 2026-07-30: `__tests__/microchip-replaced.test.ts` HAS a
   // correct afterAll, but a worker killed mid-file never runs it, and the row
   // then fails check-spine-integrity on the next verify. Leaked exactly that
