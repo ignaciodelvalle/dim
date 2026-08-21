@@ -17,6 +17,7 @@
 import { useCallback, useEffect, useState } from "react";
 
 import {
+  isPushSubscriptionActiveAction,
   revokePushSubscriptionAction,
   savePushSubscriptionAction,
 } from "@/app/actions/push-subscriptions";
@@ -65,7 +66,20 @@ export function PushNotificationsCard() {
         const registration = await navigator.serviceWorker.getRegistration();
         const subscription = await registration?.pushManager.getSubscription();
         if (cancelled) return;
-        setStatus(subscription && Notification.permission === "granted" ? "on" : "off");
+        if (!subscription || Notification.permission !== "granted") {
+          setStatus("off");
+          return;
+        }
+        // AND THE SERVER HAS TO AGREE. The browser's answer alone was the bug:
+        // `revoked_at` is also set by the delivery path when the push service
+        // returns 410/404 for a dead endpoint, and in that case the browser
+        // still holds its subscription and permission is still granted. The
+        // switch read ON forever while the server had stopped sending — a
+        // settings screen promising someone they will hear that their lost pet
+        // was seen, when they will not.
+        const { active } = await isPushSubscriptionActiveAction(subscription.endpoint);
+        if (cancelled) return;
+        setStatus(active ? "on" : "off");
       } catch {
         if (!cancelled) setStatus("off");
       }

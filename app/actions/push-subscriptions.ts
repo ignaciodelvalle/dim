@@ -2,21 +2,23 @@
 
 // Push subscription lifecycle — Web Push v1 (owner-side, feature-flagged).
 //
-// Called from the /cuenta "Notificaciones push" card:
-//   - savePushSubscriptionAction: upsert the browser's PushSubscription for
-//     the logged-in user (re-subscribing the same endpoint re-activates it and
-//     re-keys it, including after a browser key rotation).
-//   - revokePushSubscriptionAction: soft-revoke (revoked_at) — the row stays
-//     for auditability; the send path only ever reads revoked_at IS NULL rows.
+// Thin controllers for the /cuenta "Notificaciones push" card: resolve the
+// session user, validate the payload, delegate. Every DB statement lives in
+// lib/infra/push-subscription-store.ts — see its header for why the split
+// happened and what each one guarantees.
 //
-// Auth: requireUserOrRedirect on both — a subscription always belongs to the
-// session user; the endpoint is scoped to user_id on revoke so one user can
-// never revoke another user's registration.
+// Auth: requireUserOrRedirect on all three. A subscription always belongs to
+// the session user, and the store takes `userId` as an explicit argument
+// precisely so that scoping is one readable `where` clause rather than an
+// assumption spread across files.
 
-import { db, pushSubscriptions } from "@/db";
 import { requireUserOrRedirect } from "@/lib/infra/auth-guards";
+import {
+  isPushSubscriptionActive,
+  revokePushSubscription,
+  savePushSubscription,
+} from "@/lib/infra/push-subscription-store";
 import { reportError } from "@/lib/infra/report-error";
-import { and, eq } from "drizzle-orm";
 import { z } from "zod";
 
 export type PushSubscriptionActionResult = { ok: true } | { ok: false; error: string };
@@ -50,31 +52,38 @@ export async function savePushSubscriptionAction(input: {
   const userAgent = ((await headers()).get("user-agent") ?? "").slice(0, 300) || null;
 
   try {
-    await db
-      .insert(pushSubscriptions)
-      .values({
-        userId: user.id,
-        endpoint: parsed.data.endpoint,
-        p256dh: parsed.data.keys.p256dh,
-        auth: parsed.data.keys.auth,
-        userAgent,
-      })
-      .onConflictDoUpdate({
-        // Same browser re-subscribing (or a new user on the same browser):
-        // re-key, re-own, and re-activate the existing endpoint row.
-        target: pushSubscriptions.endpoint,
-        set: {
-          userId: user.id,
-          p256dh: parsed.data.keys.p256dh,
-          auth: parsed.data.keys.auth,
-          userAgent,
-          revokedAt: null,
-        },
-      });
+    await savePushSubscription({
+      userId: user.id,
+      endpoint: parsed.data.endpoint,
+      keys: parsed.data.keys,
+      userAgent,
+    });
     return { ok: true };
   } catch (err) {
     reportError("push/subscribe", err, { userId: user.id });
     return { ok: false, error: "No pudimos activar las notificaciones. Probá de nuevo." };
+  }
+}
+
+/**
+ * The card's detection pass asks the SERVER whether the endpoint the browser is
+ * holding is still live — it has to, because `revoked_at` has a second writer
+ * the browser cannot see. The store's header spells out the failure.
+ */
+export async function isPushSubscriptionActiveAction(
+  endpoint: string,
+): Promise<{ active: boolean }> {
+  const { user } = await requireUserOrRedirect();
+
+  if (typeof endpoint !== "string" || endpoint.length === 0) return { active: false };
+
+  try {
+    return { active: await isPushSubscriptionActive({ userId: user.id, endpoint }) };
+  } catch (err) {
+    reportError("push/is-active", err, { userId: user.id });
+    // Fail towards OFF. Claiming a subscription is live when we could not check
+    // is the exact lie this action exists to stop telling.
+    return { active: false };
   }
 }
 
@@ -88,10 +97,7 @@ export async function revokePushSubscriptionAction(
   }
 
   try {
-    await db
-      .update(pushSubscriptions)
-      .set({ revokedAt: new Date() })
-      .where(and(eq(pushSubscriptions.endpoint, endpoint), eq(pushSubscriptions.userId, user.id)));
+    await revokePushSubscription({ userId: user.id, endpoint, now: new Date() });
     return { ok: true };
   } catch (err) {
     reportError("push/revoke", err, { userId: user.id });
