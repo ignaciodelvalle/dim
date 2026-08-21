@@ -120,12 +120,41 @@ export function WelfareReportForm({
   const actionRef = useRef(action);
   actionRef.current = action;
 
+  // WHAT THE OPERATOR TYPED, kept across a server-side rejection.
+  //
+  // React 19 automatically resets an uncontrolled form once its action resolves
+  // — including when the action RETURNS AN ERROR, which is the case that
+  // matters. A welfare report is long: kind, severity, the subject, symptoms,
+  // the date. Bouncing on "the description is too short" used to wipe every one
+  // of those, so the operator fixed one field and lost five. The same trap is
+  // documented on the login form, which solved it by echoing the value back
+  // from the server and seeding `defaultValue` with it.
+  //
+  // Captured HERE instead of echoed from the action for two reasons: it covers
+  // every field generically rather than one at a time, and
+  // `src/modules/welfare/actions.ts` is at its file-size ratchet — widening its
+  // return type would have meant scraping comments out of it to fit.
+  //
+  // A ref, not state: this runs at submit time, before the action resolves and
+  // therefore before the reset, and `defaultValue` is only consulted when React
+  // restores the field. Using state here would buy an extra render pass and
+  // change nothing about the outcome.
+  const submittedRef = useRef<Record<string, string>>({});
+
   function boundAction(prev: WelfareReportFormState, formData: FormData) {
     for (const entry of evidenceFilesRef.current) {
       formData.append("attachment", entry.file);
     }
+    const captured: Record<string, string> = {};
+    for (const [key, value] of formData.entries()) {
+      if (typeof value === "string") captured[key] = value;
+    }
+    submittedRef.current = captured;
     return actionRef.current(prev, formData);
   }
+
+  /** The value this field was submitted with, or "" on a first render. */
+  const kept = (name: string) => submittedRef.current[name] ?? "";
 
   // useActionState receives boundAction which reads from refs (evidenceFilesRef,
   // actionRef) that are always current — so the first-render closure stays valid
@@ -204,7 +233,14 @@ export function WelfareReportForm({
       {/* Kind */}
       <LnField label="Tipo de situación" required>
         {({ id, describedBy, invalid }) => (
-          <LnSelect id={id} name="kind" required aria-describedby={describedBy} invalid={invalid}>
+          <LnSelect
+            id={id}
+            name="kind"
+            required
+            aria-describedby={describedBy}
+            invalid={invalid}
+            defaultValue={kept("kind")}
+          >
             <option value="">Seleccioná una opción</option>
             {WELFARE_REPORT_KINDS.map((k) => (
               <option key={k} value={k}>
@@ -224,6 +260,7 @@ export function WelfareReportForm({
             required
             aria-describedby={describedBy}
             invalid={invalid}
+            defaultValue={kept("severity")}
           >
             <option value="">Seleccioná una opción</option>
             {WELFARE_REPORT_SEVERITIES.map((s) => (
@@ -289,6 +326,7 @@ export function WelfareReportForm({
               type="text"
               placeholder="Ej: DIM-XXXX-XXXX"
               aria-describedby={describedBy}
+              defaultValue={kept("subjectPetToken")}
             />
           )}
         </LnField>
@@ -320,6 +358,7 @@ export function WelfareReportForm({
               }
               aria-describedby={describedBy}
               invalid={invalid}
+              defaultValue={kept("subjectDescription")}
             />
           )}
         </LnField>
@@ -334,6 +373,7 @@ export function WelfareReportForm({
             rows={3}
             placeholder="Ej: baboso, agresivo, débil, cojeando, con heridas, etc."
             aria-describedby={describedBy}
+            defaultValue={kept("observedSymptoms")}
           />
         )}
       </LnField>
@@ -344,7 +384,13 @@ export function WelfareReportForm({
       {/* Occurred at */}
       <LnField label="¿Cuándo pasó o desde cuándo viene pasando?">
         {({ id, describedBy }) => (
-          <LnInput id={id} name="occurredAt" type="date" aria-describedby={describedBy} />
+          <LnInput
+            id={id}
+            name="occurredAt"
+            type="date"
+            aria-describedby={describedBy}
+            defaultValue={kept("occurredAt")}
+          />
         )}
       </LnField>
 
@@ -440,6 +486,7 @@ export function WelfareReportForm({
                   type="email"
                   placeholder="tu@email.com"
                   aria-describedby={describedBy}
+                  defaultValue={kept("reporterContactEmail")}
                 />
               )}
             </LnField>
@@ -451,6 +498,7 @@ export function WelfareReportForm({
                   type="tel"
                   placeholder="+54 11 1234-5678"
                   aria-describedby={describedBy}
+                  defaultValue={kept("reporterContactPhone")}
                 />
               )}
             </LnField>
