@@ -10,6 +10,8 @@
 //   5. Name/contact/location optional → payload nulls, notes say "no informado".
 //   6. Integrity hole (disputed pet without an open dispute case) → honest
 //      error, nothing written.
+//   7. ORDER: pure input validation → limiter → token lookup. Anything that
+//      reads the pet row before the limiter is an unbounded oracle (below).
 
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -39,12 +41,17 @@ const { MockRateLimitError, mockEnforceRateLimit } = vi.hoisted(() => {
   };
 });
 
+/** Records which collaborator ran first — the limiter-before-lookup proof. */
+let callOrder: string[] = [];
+
 vi.mock("@/lib/infra/rate-limit", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/lib/infra/rate-limit")>();
   return {
     ...actual,
-    enforceRateLimit: (endpoint: string, id: string, cfg: unknown) =>
-      mockEnforceRateLimit(endpoint, id, cfg),
+    enforceRateLimit: (endpoint: string, id: string, cfg: unknown) => {
+      callOrder.push("limiter");
+      return mockEnforceRateLimit(endpoint, id, cfg);
+    },
     RateLimitError: MockRateLimitError,
   };
 });
@@ -72,7 +79,10 @@ function buildMockDb() {
     innerJoin: vi.fn(() => selectChain),
     limit: vi.fn(async () => {
       selectCallCount++;
-      if (selectCallCount === 1) return petRow ? [petRow] : [];
+      if (selectCallCount === 1) {
+        callOrder.push("publicPetByToken");
+        return petRow ? [petRow] : [];
+      }
       return caseRow ? [caseRow] : [];
     }),
   };
@@ -128,6 +138,7 @@ async function importUseCase() {
 describe("reportDisputeTip — dispute-safe finder tip", () => {
   beforeEach(() => {
     capturedInserts = [];
+    callOrder = [];
     mockReportError.mockClear();
     mockEnforceRateLimit.mockClear();
     mockEnforceRateLimit.mockResolvedValue(undefined);
@@ -178,6 +189,35 @@ describe("reportDisputeTip — dispute-safe finder tip", () => {
     expect(result.ok).toBe(false);
     expect(result.error).toContain("titularidad");
     expect(capturedInserts).toHaveLength(0);
+  });
+
+  it("consumes the limiter BEFORE resolving the token (no token-existence oracle)", async () => {
+    // This form is hand-postable: nothing requires a page load first, so every
+    // request used to reach `publicPetByToken` unbounded. The two refusals are
+    // DISTINCT strings — "Mascota no encontrada." vs "…no tiene una revisión de
+    // titularidad abierta." — so an attacker could enumerate which DIM tokens
+    // exist AND which of them are under custody review, at whatever rate the
+    // database would serve. The limiter is what makes that finite; it has to
+    // run first to do it.
+    const reportDisputeTip = await importUseCase();
+    const fd = makeFormData({ info: "La vi en la plaza." });
+
+    await reportDisputeTip(PUBLIC_TOKEN, CALLER_IP, fd);
+
+    expect(callOrder).toEqual(["limiter", "publicPetByToken"]);
+  });
+
+  it("still refuses a throttled caller WITHOUT resolving the token", async () => {
+    mockEnforceRateLimit.mockRejectedValue(
+      new MockRateLimitError(new Date(Date.now() + 60_000), "dispute_tip:minute"),
+    );
+
+    const reportDisputeTip = await importUseCase();
+    await reportDisputeTip(PUBLIC_TOKEN, CALLER_IP, makeFormData({ info: "La vi." }));
+
+    // Not merely "the limiter ran": a limiter that answers 429 after the read
+    // it was supposed to prevent bounds nothing.
+    expect(callOrder).toEqual(["limiter"]);
   });
 
   it("missing info → rejected without consuming the rate-limit budget", async () => {

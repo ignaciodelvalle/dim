@@ -244,8 +244,16 @@ export default async function PublicCredentialPage({
     default: {
       // Exhaustiveness: a new status added to the union without a branch here
       // is a compile error, not a blank page.
+      //
+      // The message names the STATUS ONLY. This branch is unreachable by types,
+      // but if a new status ever slips through, `lookup` at runtime is whatever
+      // the door returned — the `ok` shape is the entire pet row — and
+      // stringifying it would spill a subject's record into an error log and
+      // whatever collects it.
       const unhandled: never = lookup;
-      throw new Error(`Unhandled credential lookup status: ${JSON.stringify(unhandled)}`);
+      throw new Error(
+        `Unhandled credential lookup status: ${(unhandled as { status: string }).status}`,
+      );
     }
   }
 

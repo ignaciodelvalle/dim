@@ -61,6 +61,39 @@ export async function reportDisputeTip(
 
   if (!info) return { ok: false, error: "Contanos qué viste o qué sabés de esta mascota." };
 
+  // ORDER: pure input validation → limiter → token lookup.
+  //
+  // Rate limit — consumed only after PURE INPUT validation (tester fix #6): a
+  // rejected form (missing info) must not burn the (IP, token) budget, because
+  // the finder has to be able to fix the field and retry immediately. Nothing
+  // above this line touches the database, so nothing above it can be asked a
+  // question about a token.
+  //
+  // AND IT RUNS BEFORE THE LOOKUP (fixed 2026-08-21). It used to sit after the
+  // pet row and the dispute gate, which made this an unbounded ORACLE: the form
+  // is hand-postable — no page load required — and the refusals are DISTINCT
+  // strings ("Mascota no encontrada." vs "…no tiene una revisión de titularidad
+  // abierta."), so a caller could enumerate which DIM tokens exist AND which of
+  // those animals are under custody review, at whatever rate Postgres would
+  // serve. That second bit is the sensitive one: an open custody dispute is a
+  // fact about a household, not about a pet. The limiter is what makes the
+  // enumeration finite, and a limiter consulted after the read it was meant to
+  // prevent bounds nothing.
+  try {
+    await enforceRateLimit(`dispute_tip:${publicToken}`, ip, {
+      maxPerMinute: 1,
+      maxPerHour: 10,
+    });
+  } catch (err) {
+    if (err instanceof RateLimitError) {
+      return {
+        ok: false,
+        error: "Ya enviaste un aviso hace poco. Probá de nuevo en unos minutos.",
+      };
+    }
+    throw err;
+  }
+
   const [pet] = await db
     .select({
       id: pets.id,
@@ -85,23 +118,6 @@ export async function reportDisputeTip(
         "Esta mascota no tiene una revisión de titularidad abierta. " +
         "Usá el formulario de aviso de la credencial.",
     };
-  }
-
-  // Rate limit — consumed only AFTER validation passes (tester fix #6): a
-  // rejected form (missing info) must not burn the (IP, token) budget.
-  try {
-    await enforceRateLimit(`dispute_tip:${publicToken}`, ip, {
-      maxPerMinute: 1,
-      maxPerHour: 10,
-    });
-  } catch (err) {
-    if (err instanceof RateLimitError) {
-      return {
-        ok: false,
-        error: "Ya enviaste un aviso hace poco. Probá de nuevo en unos minutos.",
-      };
-    }
-    throw err;
   }
 
   // Resolve the open dispute's linked case (open-dispute.ts pre-creates the

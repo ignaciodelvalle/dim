@@ -49,9 +49,11 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { and, desc, eq, gte, isNull, sql } from "drizzle-orm";
 
 // loadCredentialViewData — ALL post-pet-row DB reads in one budgeted unit.
-// The page wraps this call in withDbBudgetOrThrow so a degraded DB yields the
-// honest degraded card instead of a hang or a 500. The queries are byte-for-
-// byte the former inline stages — only the await boundary moved.
+// The DOOR (lookup-public-credential.ts) wraps this call in withDbBudgetOrThrow
+// so a degraded DB yields the honest degraded card instead of a hang or a 500 —
+// it moved out of the page along with the decision, which is what lets the route
+// handler inherit the same budget instead of copying the number. The queries are
+// byte-for-byte the former inline stages — only the await boundary moved.
 // ---------------------------------------------------------------------------
 
 export type CredentialViewData = Awaited<ReturnType<typeof loadCredentialViewData>>;

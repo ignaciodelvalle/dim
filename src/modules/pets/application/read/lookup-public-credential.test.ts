@@ -29,6 +29,13 @@ import {
   lookupPublicCredential,
 } from "./lookup-public-credential";
 
+// The door reports every limiter failure it swallows; the fail-open test below
+// asserts the report, so the real implementation is replaced rather than spied.
+const mockReportError = vi.fn();
+vi.mock("@/lib/infra/report-error", () => ({
+  reportError: (...args: unknown[]) => mockReportError(...args),
+}));
+
 // ---------------------------------------------------------------------------
 // Fixtures
 // ---------------------------------------------------------------------------
@@ -90,6 +97,7 @@ function depsStub(overrides: Partial<LookupDeps> = {}): LookupDeps {
 
 beforeEach(() => {
   calls = [];
+  mockReportError.mockClear();
   // reportError writes one structured JSON line to stderr on every degraded
   // path; silenced so a passing run stays readable.
   vi.spyOn(console, "error").mockImplementation(() => {});
@@ -123,6 +131,36 @@ describe("lookupPublicCredential — the four-way union", () => {
     // A limiter that runs after the lookup has already hit the database bounds
     // nothing. Order, not mere presence.
     expect(calls).toEqual(["throttle", "findPet", "loadViewData"]);
+  });
+
+  it("FAILS OPEN when the limiter itself throws — the door owns that guarantee", async () => {
+    // The docblock claimed fail-open, but the claim described ONE adapter's
+    // internals. A port is anything a caller passes: the route handler's, a
+    // native client's, a test double. An unguarded `await` here means the
+    // limiter — itself a DB write — becomes the thing that breaks the
+    // credential before the degraded render can happen, which is the exact
+    // inversion this surface must never have.
+    const exploding: PublicTokenThrottle = {
+      bucket: "public_token_api_credential",
+      isThrottled: vi.fn(async () => {
+        calls.push("throttle");
+        throw new Error("limiter storage unavailable");
+      }),
+    };
+    const deps = depsStub();
+
+    const result = await lookupPublicCredential(
+      { publicToken: PUBLIC_TOKEN, throttle: exploding },
+      deps,
+    );
+
+    // Open, not closed: the finder in the street still gets the credential.
+    expect(result.status).toBe("ok");
+    expect(calls).toEqual(["throttle", "findPet", "loadViewData"]);
+    // And it is not silent — a limiter that stopped working is an incident.
+    expect(mockReportError).toHaveBeenCalledWith("public-credential/throttle", expect.any(Error), {
+      bucket: "public_token_api_credential",
+    });
   });
 
   it("answers not_found when the token resolves to no row", async () => {

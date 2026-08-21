@@ -73,12 +73,17 @@ const { MockRateLimitError, mockEnforceRateLimit } = vi.hoisted(() => {
   };
 });
 
+/** Records which collaborator ran first — the limiter-before-lookup proof. */
+let callOrder: string[] = [];
+
 vi.mock("@/lib/infra/rate-limit", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/lib/infra/rate-limit")>();
   return {
     ...actual,
-    enforceRateLimit: (endpoint: string, id: string, cfg: unknown) =>
-      mockEnforceRateLimit(endpoint, id, cfg),
+    enforceRateLimit: (endpoint: string, id: string, cfg: unknown) => {
+      callOrder.push("limiter");
+      return mockEnforceRateLimit(endpoint, id, cfg);
+    },
     RateLimitError: MockRateLimitError,
   };
 });
@@ -128,6 +133,7 @@ function buildMockDb() {
       selectCallCount++;
       if (selectCallCount === 1) {
         // pet query
+        callOrder.push("publicPetByToken");
         return [{ id: PET_ID, name: "Luna", status: "lost" }];
       }
       if (selectCallCount === 2) {
@@ -196,6 +202,7 @@ describe("reportPetSightingAction — P0d payload fields", () => {
     capturedPetEventInsert = null;
     capturedNotificationInsert = null;
     capturedAttachmentInsert = null;
+    callOrder = [];
     mockEnforceRateLimit.mockResolvedValue(undefined);
     mockUpload.mockReset();
     mockUpload.mockResolvedValue({
@@ -303,6 +310,46 @@ describe("reportPetSightingAction — P0d payload fields", () => {
 
     expect(result.ok).toBe(false);
     expect(mockEnforceRateLimit).not.toHaveBeenCalled();
+  });
+
+  it("consumes the limiter BEFORE resolving the token (no token-existence oracle)", async () => {
+    // The form's page 404s for an unknown token, but the action is hand-postable
+    // and nothing requires the page load — so every request used to reach
+    // `publicPetByToken` unbounded. The refusals are DISTINCT strings
+    // ("Mascota no encontrada." vs "Esta mascota no está marcada como
+    // perdida."), which turns the unbounded read into an enumeration of which
+    // DIM tokens exist AND which of those animals are currently lost. The
+    // limiter is what makes that finite; running it after the read bounds
+    // nothing.
+    vi.resetModules();
+    buildMockDb();
+    callOrder = [];
+
+    const { reportPetSightingAction } = await import("@/app/actions/pet-sighting");
+
+    await reportPetSightingAction(PUBLIC_TOKEN, PREVIOUS_STATE, makeFormData({ ...BASE_LOCATION }));
+
+    expect(callOrder).toEqual(["limiter", "publicPetByToken"]);
+  });
+
+  it("a throttled caller never reaches the token lookup at all", async () => {
+    vi.resetModules();
+    buildMockDb();
+    callOrder = [];
+    mockEnforceRateLimit.mockRejectedValue(
+      new MockRateLimitError(new Date(Date.now() + 60_000), "sighting:minute"),
+    );
+
+    const { reportPetSightingAction } = await import("@/app/actions/pet-sighting");
+
+    const result = await reportPetSightingAction(
+      PUBLIC_TOKEN,
+      PREVIOUS_STATE,
+      makeFormData({ ...BASE_LOCATION }),
+    );
+
+    expect(result.ok).toBe(false);
+    expect(callOrder).toEqual(["limiter"]);
   });
 
   it("a successful submission DOES consume the rate-limit budget", async () => {

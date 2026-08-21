@@ -236,6 +236,7 @@ becomes a thin renderer over the same loader (direct call, never a self-fetch).
 
 **Work.**
 1. Extract the loader to `src/modules/pets/application/read/load-public-credential.ts`.
+
 1b. Extract the DECISION too — `lookupPublicCredential` (same folder) answers a
    token with the four-way union `throttled | not_found | degraded | ok`, taking
    the per-IP limiter as a port so the use-case stays free of `next/headers`.

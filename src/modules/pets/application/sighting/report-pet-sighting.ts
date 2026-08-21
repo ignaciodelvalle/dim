@@ -107,6 +107,50 @@ export async function reportPetSighting(
   const lat = normalizedLoc.lat as number;
   const lng = normalizedLoc.lng as number;
 
+  // The sightedAt input is a datetime-local defaulted to AR wall clock — read
+  // it back as AR wall clock (offset-less `new Date(...)` would parse it in
+  // the server's zone, i.e. UTC → 3h early). Pure input validation, so it stays
+  // ABOVE the limiter: a mistyped date must not burn the finder's budget.
+  const occurredAt = sightedAtIso ? parseArDatetimeLocal(sightedAtIso) : new Date();
+  if (!occurredAt) {
+    return { ok: false, error: "Fecha y hora del avistaje inválida." };
+  }
+
+  // ORDER: pure input validation → limiter → token lookup.
+  //
+  // Rate limit — consumed only after PURE INPUT validation (tester fix #6): a
+  // validation-rejected submission (missing pin, invalid date) used to burn the
+  // (IP, token) budget and block the immediate retry. Nothing above this line
+  // touches the database, so nothing above it can be asked a question about a
+  // token.
+  //
+  // AND IT RUNS BEFORE THE LOOKUP (fixed 2026-08-21). It used to sit after the
+  // pet row, the lost-status gate and the owner read, which made this an
+  // unbounded ORACLE: the page hosting the form 404s for an unknown token, but
+  // the action is hand-postable and nothing requires the page load. The
+  // refusals are DISTINCT strings ("Mascota no encontrada." vs "Esta mascota no
+  // está marcada como perdida."), so a caller could enumerate which DIM tokens
+  // exist AND which of those animals are currently lost — a live map of
+  // unattended animals — at whatever rate Postgres would serve. The limiter is
+  // what makes that finite, and a limiter consulted after the read it was meant
+  // to prevent bounds nothing.
+  const reqHeaders = await headers();
+  const ip = callerIp(reqHeaders);
+  try {
+    await enforceRateLimit(`sighting:${publicToken}`, ip, {
+      maxPerMinute: 1,
+      maxPerHour: 10,
+    });
+  } catch (err) {
+    if (err instanceof RateLimitError) {
+      return {
+        ok: false,
+        error: "Ya enviaste un aviso hace poco. Probá de nuevo en unos minutos.",
+      };
+    }
+    throw err;
+  }
+
   const [pet] = await db
     .select({
       id: pets.id,
@@ -150,34 +194,6 @@ export async function reportPetSighting(
   if (!owner?.userId) return { ok: false, error: "No se encontró un dueño activo." };
 
   const safeDescription = description.slice(0, 500);
-  // The sightedAt input is a datetime-local defaulted to AR wall clock — read
-  // it back as AR wall clock (offset-less `new Date(...)` would parse it in
-  // the server's zone, i.e. UTC → 3h early).
-  const occurredAt = sightedAtIso ? parseArDatetimeLocal(sightedAtIso) : new Date();
-  if (!occurredAt) {
-    return { ok: false, error: "Fecha y hora del avistaje inválida." };
-  }
-
-  // Rate limit — consumed only AFTER validation passes (tester fix #6): a
-  // validation-rejected submission (missing pin, invalid date) used to burn
-  // the (IP, token) budget and block the immediate retry. The limiter still
-  // guards everything that writes or notifies below.
-  const reqHeaders = await headers();
-  const ip = callerIp(reqHeaders);
-  try {
-    await enforceRateLimit(`sighting:${publicToken}`, ip, {
-      maxPerMinute: 1,
-      maxPerHour: 10,
-    });
-  } catch (err) {
-    if (err instanceof RateLimitError) {
-      return {
-        ok: false,
-        error: "Ya enviaste un aviso hace poco. Probá de nuevo en unos minutos.",
-      };
-    }
-    throw err;
-  }
 
   const noteText = safeDescription
     ? safeDescription

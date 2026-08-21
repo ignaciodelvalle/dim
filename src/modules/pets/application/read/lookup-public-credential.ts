@@ -139,11 +139,24 @@ export async function lookupPublicCredential(
   const { publicToken, throttle } = input;
 
   // V1-1: rate-limit per IP before touching any pet data. The caller renders a
-  // soft notice (not a hard 429) so the surface degrades gracefully. The port
-  // FAILS OPEN on limiter infrastructure failure — the limiter is itself a DB
-  // write, and it must not be the thing that breaks the credential before the
-  // degraded render can happen. See lib/infra/public-token-throttle.ts.
-  if (await throttle.isThrottled()) return { status: "throttled" };
+  // soft notice (not a hard 429) so the surface degrades gracefully.
+  //
+  // FAILING OPEN IS THE DOOR'S GUARANTEE, NOT AN ADAPTER'S. The limiter is
+  // itself a DB write, so it must never be the thing that breaks the credential
+  // before the degraded render can happen. lib/infra/public-token-throttle.ts
+  // does swallow its own failures — but a PORT is whatever a caller passes: the
+  // route handler's adapter, a native client's, a test double. Leaving the
+  // guarantee to the implementation means the promise holds for exactly one of
+  // them, and the finder standing over a lost animal is the one who finds out.
+  // Every failure is reported: a limiter that stopped working is an incident,
+  // even though the request continues.
+  let throttled = false;
+  try {
+    throttled = await throttle.isThrottled();
+  } catch (err) {
+    reportError("public-credential/throttle", err, { bucket: throttle.bucket });
+  }
+  if (throttled) return { status: "throttled" };
 
   // Pet row — the ONE read the degraded card depends on for name/status. On
   // failure or budget exhaustion, degrade honestly.
