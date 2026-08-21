@@ -887,9 +887,18 @@ describe("listRouteHandlerFiles", () => {
     expect(offenders).toEqual([]);
   });
 
-  it("the intentionally-public handlers are exactly the six documented ones", () => {
-    // A seventh opt-out appearing here is a decision, not a detail: it means an
+  it("the intentionally-public handlers are exactly the seven documented ones", () => {
+    // An eighth opt-out appearing here is a decision, not a detail: it means an
     // endpoint was made public and this list is where that shows up in review.
+    //
+    // The seventh arrived on 2026-08-21 with the first `/api/v1` endpoint. It is
+    // the only one on this list whose PUBLICNESS IS THE PRODUCT rather than a
+    // protocol requirement: the other six are an OAuth callback, a cookie
+    // exchange, a health probe and an open-data download. `GET /api/v1/pets/
+    // {publicToken}/credential` is anonymous because the pet IS the credential
+    // (invariant #1) — it is bounded by two rate limiters instead of authorized,
+    // and it discloses exactly what /p/{publicToken} already shows to anyone
+    // holding the token.
     const optedOut = handlers.filter((f) =>
       extractExportedAsyncFunctions(readFileSync(f, "utf8")).some((fn) => fn.hasNoAuthComment),
     );
@@ -898,6 +907,7 @@ describe("listRouteHandlerFiles", () => {
       "app/(public)/denuncias/seguimiento/salir/route.ts",
       "app/(public)/transparencia/datos/[dataset]/route.ts",
       "app/api/health/route.ts",
+      "app/api/v1/pets/[publicToken]/credential/route.ts",
       "app/auth/callback/route.ts",
       "app/auth/miarg/callback/route.ts",
     ]);

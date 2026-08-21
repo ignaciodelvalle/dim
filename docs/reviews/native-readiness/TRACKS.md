@@ -245,7 +245,16 @@ becomes a thin renderer over the same loader (direct call, never a self-fetch).
    "degraded" means.
 2. Move `credential-badges.ts` → `lib/domain/credential/` (B34), which also
    makes the WAVE D1 supersede contract reusable by cartel / OG / export.
-3. Add the route handler over the loader.
+3. ~~Add the route handler over the loader.~~ **DONE 2026-08-21** —
+   `app/api/v1/pets/[publicToken]/credential/route.ts`, sitting on
+   `lookupPublicCredential` (never a self-fetch, never a second copy of the four
+   branches). Its wire types are `@dim/contract/api`
+   (`packages/contract/src/api/`), so a native client imports the same shape the
+   handler emits. Two limiters, per D1 and D3; every section reports its own
+   availability, including the degraded 503. Which §9 checklist line is answered
+   where — with file:line — is now `docs/architecture/api-invariants.md` §10,
+   along with the two deviations (no `Retry-After` on 429; the degraded arm is a
+   partial 503, not a bare error).
 4. Render the owner's QR client-side (B35) — `qrcode` runs in browsers, and
    this removes server-side SVG generation from the two heaviest owner renders.
 5. Write `docs/architecture/api-invariants.md` (B8): the five anti-oracle

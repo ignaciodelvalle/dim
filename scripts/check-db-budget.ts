@@ -203,7 +203,18 @@ export const DASHBOARD_PAGES = [
 ] as const;
 
 // The route-handler globs scanned.
-export const ROUTE_GLOBS = ["app/api/panorama/**/route.ts"] as const;
+//
+// `app/api/v1/**` joined on 2026-08-21 with the first `/api/v1` endpoint, and
+// it is registered for the SCOPE, not because the endpoint fans out today.
+// `GET /api/v1/pets/{token}/credential` delegates its reads to
+// `lookupPublicCredential`, which bounds both of them itself — but the handler
+// also does its OWN bounded DB write (the per-lookup rate limiter), and the
+// next `/api/v1` read will be tempted to add a query beside the use-case call
+// rather than inside it. Registering the glob at ONE route costs one line;
+// registering it after five routes costs an audit of all five, which is the
+// same argument D4 used to widen check-authz-guards before the first endpoint
+// landed rather than after.
+export const ROUTE_GLOBS = ["app/api/panorama/**/route.ts", "app/api/v1/**/route.ts"] as const;
 
 // ---------------------------------------------------------------------------
 // Source scanning

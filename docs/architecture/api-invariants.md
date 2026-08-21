@@ -1,6 +1,15 @@
 # `/api/v1` invariants
 
-**Status:** active · written 2026-08-21 · gates Track 2 (B8) · **all four open decisions closed 2026-08-21**
+**Status:** active · written 2026-08-21 · gates Track 2 (B8) · **all four open decisions closed 2026-08-21** · **first endpoint landed 2026-08-21 (§10)**
+
+> **Path rectification (2026-08-21).** Earlier drafts of this file wrote the
+> first endpoint as `/api/v1/p/{token}`, copying the web page's short URL. The
+> path that shipped is **`/api/v1/pets/{publicToken}/credential`** — the shape
+> `docs/reviews/native-readiness/TRACKS.md` (Track 2, RN-5) specified, and the
+> one that leaves room for sibling reads on the same resource. `/p/` is a
+> deliberately terse *human* URL printed on a chapa; an API path has no such
+> constraint and should name the resource. Every `/api/v1/p/{token}` below is
+> the old spelling of this one endpoint.
 
 Every claim in the "Verified today" column was read out of the code on
 `integration/all-20260703 @ 9abbfb5f`, not copied from a review document. Where
@@ -46,11 +55,14 @@ who just found a dog in the street and is loading its credential.
 
 **The cost of that choice, stated plainly:** every new bucket raises the
 aggregate ceiling for a single IP by 60/min. Four surfaces today = 240/min per
-IP against the token space. **A `/api/v1/p/{token}` adds a fifth.**
+IP against the token space. **`/api/v1/pets/{publicToken}/credential` adds a
+fifth.**
 
-> **DECIDED (§8, D1).** The API gets its OWN bucket,
+> **DECIDED (§8, D1) · LANDED.** The API gets its OWN bucket,
 > `public_token_api_credential` — a fifth, taking the aggregate per-IP ceiling
 > to 300/min. The isolation is the point; the ceiling is the accepted price.
+> Applied at `app/api/v1/pets/[publicToken]/credential/route.ts:188` through the
+> throttle port, which means the door enforces it before the pet row is read.
 
 **The REST mistake:** omit the call. Nothing fails; the route ships green.
 
@@ -79,6 +91,12 @@ jurisdiction-scoped and 404s uniformly, so it is a weaker oracle — but it is t
 closest existing analogue to what Track 2 builds. **DECIDED (§8, D3): `/api/v1`
 matches ATENDER, not this.** Which makes this route the odd one out; bringing it
 in line is a follow-up, and it must not be cited as precedent for new routes.
+
+**LANDED.** `public_token_api_credential_lookup`, keyed `${publicToken}:${ip}`
+at atender's `{20/min, 100/hr}`, fail-open, applied as the handler's FIRST
+statement (`route.ts:115,118,167-182`). What each of the two limiters bounds —
+and what neither bounds — is written out in that file's header rather than left
+for a reader to infer from two `enforceRateLimit` calls.
 
 ---
 
@@ -159,8 +177,9 @@ a *download*. Keep it that way, or replicate all three server-side first.
 
 ## 2. The response envelope — ratified, not invented
 
-**A convention already exists** across the 34 handlers under `app/api/**`. Track 2
-adopts it rather than inventing a shape the rest of the codebase does not speak.
+**A convention already exists** across the handlers under `app/api/**` (34 when
+this was written; 35 with the first `/api/v1` route). Track 2 adopts it rather
+than inventing a shape the rest of the codebase does not speak.
 
 ```ts
 // error
@@ -309,13 +328,14 @@ that it cannot be verified offline).
 | `scripts/check-api-guard-headers.ts` | **Yes** — derives header names from `middleware.ts` and scans every route handler (widened 2026-08-21) |
 | `Cache-Control: no-store` | **No** — path-prefix allowlist |
 | `scripts/check-authz-guards.ts` | **Yes** — its coverage rule scans every `app/**/route.ts` (widened 2026-08-21, D4): each exported handler calls a guard, or carries a `@no-auth-required: <reason>` |
-| `public-token-throttle-coverage` | **Only via `publicPetByToken`** — a handler that resolves a token another way is invisible to it |
+| `public-token-throttle-coverage` | **Only via `publicPetByToken`** — a handler that resolves a token another way is invisible to it. A handler that goes through `lookupPublicCredential` is covered by the fence's SECOND layer instead: every caller of the door must pass `throttle: publicTokenThrottle("<literal>")` naming a known bucket |
+| `scripts/check-db-budget.ts` | **Yes, since 2026-08-21** — `ROUTE_GLOBS` gained `app/api/v1/**/route.ts`, so every `/api/v1` handler is a registered heavy call site and must CALL a budget wrapper |
 | Any rate limit | **No** — every one is a per-call-site `enforceRateLimit()` |
 
 **Both structural gaps on this list are now closed** (`check-api-guard-headers`
-and `check-authz-guards`, same day). What a `/api/v1` handler still does NOT
-inherit is a rate limit and `no-store` — both remain per-call-site, and §9 is
-where they are checked.
+and `check-authz-guards`, same day; `check-db-budget`'s scope followed with the
+first endpoint). What a `/api/v1` handler still does NOT inherit is a rate limit
+and `no-store` — both remain per-call-site, and §9 is where they are checked.
 
 Two things about the authz coverage rule a new handler should know. Cron-secret
 checks (`authorizeCronRequest` / `checkCronSecret`) count as authorization for a
@@ -420,11 +440,16 @@ auditing each one by hand first. The same widening over
 it ran — all benign, but each needed reading. Doing that once, at zero, is the
 cheap moment.
 
-**Landed 2026-08-21**: the coverage rule now scans all 47 `app/**/route.ts`
-handlers (`listRouteHandlerFiles`, floor `MIN_ROUTE_HANDLER_FILES = 40`); 41
-authorize, 6 carry a written `@no-auth-required` reason (`/api/health`, the two
-`denuncias/seguimiento` endpoints, the open-data download, and both auth
-callbacks).
+**Landed 2026-08-21**: the coverage rule now scans every `app/**/route.ts`
+handler (`listRouteHandlerFiles`, floor `MIN_ROUTE_HANDLER_FILES = 40`). It was
+47 handlers when the fence widened — 41 authorizing, 6 carrying a written
+`@no-auth-required` reason (`/api/health`, the two `denuncias/seguimiento`
+endpoints, the open-data download, and both auth callbacks). The first `/api/v1`
+route made it **48 handlers, 7 opt-outs**, and it is the only one of the seven
+whose publicness is the PRODUCT rather than a protocol requirement — the other
+six are an OAuth callback, a cookie exchange, a health probe and an open-data
+download. The list is pinned in `__tests__/check-authz-guards.test.ts:890`, so
+an eighth is a decision that surfaces in review rather than a diff nobody reads.
 
 ---
 
@@ -445,6 +470,83 @@ A `/api/v1` route handler is not ready until every line has an answer.
 
 ---
 
+## 10. The first endpoint — where each checklist line is answered
+
+`GET /api/v1/pets/{publicToken}/credential`, landed 2026-08-21. This section
+exists so the next endpoint has a worked example instead of ten questions, and
+so §9 can be audited against code rather than against a claim.
+
+Files:
+
+| | |
+|---|---|
+| Handler | `app/api/v1/pets/[publicToken]/credential/route.ts` |
+| Projection | `app/api/v1/pets/[publicToken]/credential/payload.ts` |
+| Wire types | `packages/contract/src/api/public-credential.ts`, `packages/contract/src/api/errors.ts` |
+| Tests | `__tests__/api-v1-credential-route.test.ts` |
+
+| # | Checklist line | Satisfied at |
+|---|---|---|
+| 1 | Rate-limited, bucket named, direction stated | `route.ts:115,118,167-182` (per-lookup, `public_token_api_credential_lookup`, 20/min + 100/hr, keyed `${publicToken}:${ip}`) and `route.ts:188` (surface, `public_token_api_credential`, 60/min + 400/hr per IP, via the port). **Both fail OPEN**, stated at `route.ts:56-60`. Proved by `api-v1-credential-route.test.ts:186,200` |
+| 2 | `cache-control: no-store` set explicitly | `route.ts:137-142` — ONE `credentialJson()` helper is the only way the file answers, so no branch can forget it. Proved per-branch by `api-v1-credential-route.test.ts:318-343` (all five) |
+| 3 | `{ error: "snake_case" }` from the agreed vocabulary | `route.ts:178,196,203,211`; vocabulary at `packages/contract/src/api/errors.ts:40` |
+| 4 | Every section reports its own availability | `packages/contract/src/api/public-credential.ts:54` (`CredentialSection<T>`); degraded projection at `payload.ts:380-394`. Proved by `api-v1-credential-route.test.ts:241,267` |
+| 5 | `payloadVersion` / `issuedAt` / `staleAfter` | `payload.ts:111-118`, on the success AND the degraded body. Proved by `api-v1-credential-route.test.ts:345,358` |
+| 6 | Success and failure indistinguishable where an oracle exists | `api-v1-credential-route.test.ts:391,411,492` — see the stance below |
+| 7 | Resolves the token through `publicPetByToken` | via the door (`route.ts:186-189` → `lookup-public-credential.ts` → `publicPetByToken`). The coverage fence sees it through its door-caller layer, which requires the bucket to be a LITERAL at the call site — it rejected this file twice before it passed |
+| 8 | Chip / DNI carry their own limiter | N/A — this route resolves neither. It never reads `lookupByChip` or `verifyDni`, and the microchip NUMBER is not in the payload at all (`payload.ts:30-36`) |
+| 9 | Uploads go through `lib/infra/uploads.ts` | N/A — read-only endpoint, `GET` is the only export |
+| 10 | A response-equality test per oracle | `api-v1-credential-route.test.ts:391` (`not_found` vs `throttled`), `:411` (throttled is token-independent), `:492` (an ERASED pet answers exactly as a token that never existed) |
+
+**The oracle stance, written down because §1.1 asks for it.** This endpoint
+discloses existence *exactly* as much as `/p/{publicToken}` already does and no
+more: an unknown token gets 404, a live one gets 200, which is what `notFound()`
+versus a rendered page already told anybody who asked. What the route adds is
+that the three ways it could have leaked MORE are closed and tested:
+
+- a **429 never varies** with the token, so the rate limiter cannot itself
+  become the enumeration oracle it exists to prevent — and the two limiters
+  return the same 429, so a caller cannot even probe which budget it exhausted;
+- **`not_found` and `throttled` differ only in the status line and the error
+  code** — same headers, same single-key body. This is where a `Retry-After`,
+  an `x-ratelimit-remaining` or an echoed token would have shown up;
+- a **soft-deleted (erased) pet is byte-identical to a token that never
+  existed** (PO-4 / Ley 25.326 art. 16). The filter lives in the query, so an
+  erased subject's row is never read into memory, and the erasure is not
+  observable from outside.
+
+**Deviation from the draft plan, recorded rather than silent.** The plan asked
+for `Retry-After` on 429. It is NOT set, on either 429 branch. Only one of them
+could carry an honest value — the per-lookup limiter throws `RateLimitError`,
+which knows its `resetAt`, while the surface limiter arrives as a
+boolean-returning port because a use-case may not import `next/headers` at all.
+Setting it on one branch and not the other makes the two 429s distinguishable;
+inventing a constant for both fabricates a hint. The 503 does carry one
+(`route.ts:124,211-213`): it has no sibling branch to stay identical to, and
+"the read failed, come back shortly" says nothing about a limiter window. When
+the port can report a reset instant, both 429 branches get the header together.
+
+**On the degraded arm: 503 WITH a partial body, not a bare error.** §5 says a
+section that could not be loaded must say so and must never render as empty, and
+§2 names `app/api/panorama/kpis/route.ts:114` — `{ error, ...degraded }` at 503
+— as the prototype for exactly that. A bare `{ error: "temporarily_unavailable" }`
+would hand a native client strictly less than the web already gets: the page
+renders a `DegradedCredentialCard` with the animal's name and its aviso CTAs,
+because those routes run their OWN reads and may still work. Answering the JSON
+caller with nothing turns a partial outage into a total one for the client that
+most needs the fallback.
+
+**What the payload deliberately does NOT contain**, and this is the part worth
+copying: the shape was derived from what `p/[publicToken]/page.tsx` RENDERS, not
+from what the loader FETCHES. `CredentialViewData` carries the microchip number,
+50 rows of vaccination history, the service-dog credential record and three
+internal UUIDs — all of them fetched to derive one boolean or one badge. The
+full exclusion list, one line of reasoning each, is the header of
+`payload.ts:22-72`. Projecting the loader's return type would have published
+every one of them.
+
+---
+
 ## Provenance and known drift
 
 Verified against code on 2026-08-21. Two numbers in the planning docs have
@@ -452,8 +554,11 @@ drifted and are not worth editing there, but should not be trusted:
 
 - `TRACKS.md:222` says `p/[publicToken]/page.tsx` is 1,423 lines. It is **1,452**.
   `RN-1` says 1,450 in one place and 1,423 in another.
-- `RN-1:8` says 33 route handlers under `app/api/**`. There are **34** (25 of
-  them crons), and 47 across all of `app/`.
+- `RN-1:8` says 33 route handlers under `app/api/**`. There were **34** (25 of
+  them crons) and 47 across all of `app/` when this was written; the first
+  `/api/v1` endpoint made those 35 and **48**. `pnpm lint:authz` prints the live
+  count on every run, so the number in this paragraph is the one that rots, not
+  the fence.
 
 One thing could not be verified from the repo and needs a staging probe: whether
 Next serves `/p/{token}/opengraph-image` as a fully dynamic per-request render in
