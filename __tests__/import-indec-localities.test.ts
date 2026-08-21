@@ -20,43 +20,106 @@ const FIXTURE_PATH = join(
   "indec-localidades-sample.csv",
 );
 const csvFixture = readFileSync(FIXTURE_PATH, "utf-8");
-// Fixture INDEC ids — used to scope cleanup so we never touch real-catalog rows
-// that may already live in the dev DB.
+
+// ---------------------------------------------------------------------------
+// FIXTURE IDS THAT CANNOT EXIST UPSTREAM (rewritten 2026-08-21)
+// ---------------------------------------------------------------------------
 //
-// The two AR-C rows are transcribed VERBATIM from the live feed (fetched
-// 2026-08-19). They used to be inventions — "02014010" was labelled "Palermo",
-// and upstream that id is now "CABA - Comuna 2" — which is how the CI break got
-// its second half: caba-barrios.test.ts hard-deleted those ids as stale fixture
-// residue and took a live row with it, turning 15 rows into 14.
+// This cleanup HARD-DELETES by indec_id, and three of the ids it deleted were
+// real: `06028010` is "Almirante Brown" and `50028010` is "Colonia Segovia" in
+// the live feed, and both had already been erased from the dev catalog by
+// earlier runs of this very file. (`06441010`, the "La Plata" fixture, turned
+// out never to have existed upstream — which is luck, not design, and is
+// exactly the kind of luck this rewrite stops depending on.)
+//
+// The failure shape is the one caba-barrios.test.ts already survived once: a
+// test that deletes "its own" rows by a real identifier is a test that quietly
+// edits production-shaped data every time it runs, and the damage is invisible
+// because the row simply is not there any more.
+//
+// So every synthetic id now carries department code `999` — INDEC assigns no
+// such department in any province, so no id below can ever collide with a live
+// row, whatever upstream ships next. The check at the bottom of this block is
+// what keeps that true when someone adds a fixture row in a hurry.
 const FIXTURE_INDEC_IDS = [
-  "02014010", // CABA - Comuna 2   (superseded by caba_open_data — never imported)
-  "02098010", // CABA - Comuna 14  (superseded by caba_open_data — never imported)
-  "06028010", // Avellaneda
-  "06441010", // La Plata
-  "50028010", // Mendoza capital
-  "50007999", // Paraje (intentionally skipped by category filter)
-  "99001010", // Inventada (intentionally rejected by province filter)
-  "06028020", // Empty name (intentionally rejected by required-field filter)
+  "02014010", // CABA - Comuna 2   (REAL upstream; superseded, never imported)
+  "02098010", // CABA - Comuna 14  (REAL upstream; superseded, never imported)
+  "06999010", // Avellaneda        (dept 06999 — impossible)
+  "06999020", // La Plata          (dept 06999 — impossible)
+  "50999010", // Mendoza capital   (dept 50999 — impossible)
+  "50999020", // Paraje (intentionally skipped by category filter)
+  "99999010", // Inventada (intentionally rejected by province filter)
+  "06999030", // Empty name (intentionally rejected by required-field filter)
 ] as const;
 
-/** The two AR-C rows above, which the importer must never persist. */
+/**
+ * The two AR-C rows, which are transcribed VERBATIM from the live feed (fetched
+ * 2026-08-19) and MUST stay real.
+ *
+ * They used to be inventions — "02014010" was labelled "Palermo", and upstream
+ * that id is now "CABA - Comuna 2" — which is how the 2026-08-19 CI break got
+ * its second half: caba-barrios.test.ts hard-deleted those ids as stale fixture
+ * residue and took a live row with it, turning 15 rows into 14.
+ *
+ * They cannot be made synthetic like the rest: the test below proves the
+ * importer refuses to persist a REAL upstream AR-C id at any granularity, and
+ * an invented id would prove only that it refuses to persist an invented one.
+ * So they are cleaned up by MARKER instead of by id — see below.
+ */
 const FIXTURE_CABA_IDS = ["02014010", "02098010"] as const;
+
+/** Ids this file may delete outright, because upstream cannot mint them. */
+const SYNTHETIC_FIXTURE_IDS = FIXTURE_INDEC_IDS.filter(
+  (id) => !FIXTURE_CABA_IDS.includes(id as (typeof FIXTURE_CABA_IDS)[number]),
+);
+
+/**
+ * The `source_version` a fixture import stamps.
+ *
+ * `runImport` takes it from the response's `Last-Modified` header, so the
+ * harness sets a marker there rather than a plausible date. It is the second
+ * lock on the cleanup: a row is fixture residue only if it carries one of these
+ * versions, so the two REAL CABA ids can be cleaned without any possibility of
+ * deleting a row a live import wrote.
+ */
+const FIXTURE_SOURCE_VERSION = "fixture-test";
+
+/** Every source_version a row written by this file can carry. */
+const FIXTURE_SOURCE_VERSIONS = [
+  FIXTURE_SOURCE_VERSION,
+  // The fallback path stamps its own, and one test exercises it.
+  "fallback-fixture",
+  // The pre-fix AR-C row the self-healing test plants by hand.
+  "pre-fix",
+];
 
 function buildResponse(headers?: Record<string, string>): Response {
   return new Response(csvFixture, {
     status: 200,
     headers: {
       "Content-Type": "text/csv",
-      "Last-Modified": "Wed, 18 May 2026 12:00:00 GMT",
+      "Last-Modified": FIXTURE_SOURCE_VERSION,
       ...headers,
     },
   });
 }
 
 async function cleanupFixtureRows() {
-  for (const id of FIXTURE_INDEC_IDS) {
-    await db.delete(arLocalities).where(eq(arLocalities.indecId, id));
-  }
+  // Synthetic ids: safe to delete outright — upstream cannot mint a `999`
+  // department, so there is no live row wearing one of these ids to destroy.
+  await db.delete(arLocalities).where(inArray(arLocalities.indecId, [...SYNTHETIC_FIXTURE_IDS]));
+  // REAL ids: only rows this file wrote, identified by the marker version. A
+  // live AR-C row (if a future import ever wrote one) carries a real date here
+  // and survives — which is the whole point, since deleting one is precisely
+  // the accident that broke CI for three pushes.
+  await db
+    .delete(arLocalities)
+    .where(
+      and(
+        inArray(arLocalities.indecId, [...FIXTURE_CABA_IDS]),
+        inArray(arLocalities.sourceVersion, FIXTURE_SOURCE_VERSIONS),
+      ),
+    );
   // Un-soft-delete real catalog rows the soft-delete subtest may have stamped.
   // The script's soft-delete pass marks any indec_cppdyl row that isn't in the
   // current CSV as removed; running with a fixture CSV obliterates the live
@@ -86,6 +149,36 @@ afterAll(cleanupFixtureRows);
 // `it` carries an explicit budget — the dry-run test has no soft-delete scan
 // and stays fast.
 describe("import-indec-localities", () => {
+  // THE FENCE THAT KEEPS THE CLEANUP SAFE. Everything else in this file assumes
+  // `cleanupFixtureRows` cannot destroy a live row; that assumption is only as
+  // good as the ids, and the ids are a hand-maintained list in a CSV. It held
+  // for months and then did not: `06028010` (Almirante Brown) and `50028010`
+  // (Colonia Segovia) were real, and this suite had already deleted both from
+  // the dev catalog before anyone noticed.
+  it("uses only INDEC ids upstream cannot mint, and stamps every fixture row", () => {
+    // Positions 3-5 of an INDEC id are the department; `999` is assigned in no
+    // province, so a synthetic id can never name a real locality.
+    for (const id of SYNTHETIC_FIXTURE_IDS) {
+      expect(id.slice(2, 5), `${id} must use the impossible department 999`).toBe("999");
+    }
+    // NON-VACUITY: an empty list would pass the loop above in silence.
+    expect(SYNTHETIC_FIXTURE_IDS.length).toBeGreaterThanOrEqual(5);
+
+    // Every id in the CSV is accounted for here. A row added to the fixture and
+    // not listed would never be cleaned up, and would leak into the catalog.
+    const csvIds = csvFixture
+      .split("\n")
+      .slice(1)
+      .filter((line) => line.trim().length > 0)
+      .map((line) => line.split(",")[9].replaceAll('"', ""));
+    expect([...csvIds].sort()).toEqual([...FIXTURE_INDEC_IDS].sort());
+
+    // The two REAL ids are the ONLY ones exempt from the rule above, and they
+    // are exempt because the AR-C test needs them real. Anything else claiming
+    // that exemption is a mistake.
+    expect(FIXTURE_CABA_IDS.every((id) => id.startsWith("02"))).toBe(true);
+  });
+
   // 60 s: one full import — upsert + soft-delete scan over ~4 k catalog rows.
   it("imports the fixture CSV: 3 valid rows, 3 skipped (paraje + 2 CABA), 2 errored", async () => {
     global.fetch = vi.fn(async () => buildResponse());
@@ -110,11 +203,11 @@ describe("import-indec-localities", () => {
     );
     expect(fixtureRows).toHaveLength(3);
 
-    const mendoza = fixtureRows.find((r) => r.indecId === "50028010");
+    const mendoza = fixtureRows.find((r) => r.indecId === "50999010");
     expect(mendoza?.category).toBe("ciudad");
     expect(mendoza?.provinceCode).toBe("AR-M");
 
-    const laPlata = fixtureRows.find((r) => r.indecId === "06441010");
+    const laPlata = fixtureRows.find((r) => r.indecId === "06999020");
     expect(laPlata?.provinceCode).toBe("AR-B");
     expect(laPlata?.category).toBe("localidad");
     expect(laPlata?.localitySlug).toBe("la-plata");
@@ -218,14 +311,20 @@ describe("import-indec-localities", () => {
     global.fetch = vi.fn(async () => buildResponse());
     await runImport({ sourceUrl: "https://test.example/fixture.csv" });
 
-    // Now ship a CSV without La Plata (06441010). A CABA row would prove
+    // Now ship a CSV without La Plata (06999020). A CABA row would prove
     // nothing here: the importer never persisted it in the first place.
     const trimmedCsv = csvFixture
       .split("\n")
-      .filter((line) => !line.includes('"06441010"'))
+      .filter((line) => !line.includes('"06999020"'))
       .join("\n");
     global.fetch = vi.fn(
-      async () => new Response(trimmedCsv, { status: 200, headers: { "Last-Modified": "now" } }),
+      async () =>
+        new Response(trimmedCsv, {
+          status: 200,
+          // The marker again, not a plausible date — every row this file writes
+          // must be identifiable as fixture residue by its source_version.
+          headers: { "Last-Modified": FIXTURE_SOURCE_VERSION },
+        }),
     );
 
     const stats = await runImport({ sourceUrl: "https://test.example/fixture.csv" });
@@ -234,7 +333,7 @@ describe("import-indec-localities", () => {
     const [laPlata] = await db
       .select()
       .from(arLocalities)
-      .where(eq(arLocalities.indecId, "06441010"));
+      .where(eq(arLocalities.indecId, "06999020"));
     expect(laPlata.removedAt).not.toBeNull();
   }, 90_000);
 
@@ -258,7 +357,7 @@ describe("import-indec-localities", () => {
     const [laPlata] = await db
       .select({ name: arLocalities.localityName })
       .from(arLocalities)
-      .where(eq(arLocalities.indecId, "06441010"));
+      .where(eq(arLocalities.indecId, "06999020"));
     expect(laPlata.name).toBe("La Plata");
   }, 60_000);
 
@@ -275,7 +374,7 @@ describe("import-indec-localities", () => {
     const fixtureRowsCount = await db
       .select({ id: arLocalities.id })
       .from(arLocalities)
-      .where(eq(arLocalities.indecId, "06441010"));
+      .where(eq(arLocalities.indecId, "06999020"));
     expect(fixtureRowsCount).toHaveLength(0);
   });
 

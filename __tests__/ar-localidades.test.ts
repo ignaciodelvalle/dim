@@ -20,17 +20,33 @@ import { restoreIndecCatalog } from "./_helpers/restore-indec-catalog";
 // timed out before afterAll cleanup, these rows may still be present and will
 // corrupt the catalogPopulated count and the empty-catalog test. Remove them
 // before anything else runs.
+//
+// REWRITTEN 2026-08-21, AND THIS LIST IS WHY THE FIXTURE IDS CHANGED. The old
+// entries were REAL: `06028010` is "Almirante Brown" upstream, `50028010` is
+// "Colonia Segovia", and this beforeAll hard-deleted both from the dev catalog
+// on every run — the same accident caba-barrios.test.ts already suffered with
+// `02014010`, which upstream turned into "CABA - Comuna 2". A second deleter of
+// the same real ids would have made the fixture rewrite pointless: the ids move,
+// this list stays, and the live rows keep disappearing.
+//
+// The fixture now uses department code `999`, which INDEC assigns nowhere, so
+// every id below is unmintable by construction. `02014010`/`02002010` are gone
+// because they are (or became) REAL AR-C ids and this file has no business
+// deleting them — import-indec-localities.test.ts owns the two AR-C rows and
+// cleans them by `source_version` marker, which cannot touch a live row.
 const INDEC_FIXTURE_IDS = [
-  "02014010", // Palermo (AR-C)
-  "02002010", // Recoleta (AR-C)
-  "06028010", // Avellaneda (AR-B)
-  "06441010", // La Plata fixture (AR-B — different from real catalog ID 06441030)
-  "50028010", // Mendoza capital (AR-M)
+  "06999010", // Avellaneda fixture   (AR-B, dept 06999 — impossible upstream)
+  "06999020", // La Plata fixture     (AR-B, dept 06999 — impossible upstream)
+  "06999030", // Empty-name fixture   (AR-B, dept 06999 — impossible upstream)
+  "50999010", // Mendoza capital      (AR-M, dept 50999 — impossible upstream)
+  "50999020", // Paraje fixture       (AR-M, dept 50999 — impossible upstream)
+  "99999010", // Inventada            (province 99 — impossible upstream)
 ] as const;
 
 beforeAll(async () => {
   // Purge any stale fixture rows so catalogPopulated and province-scoped
-  // queries reflect only real catalog data.
+  // queries reflect only real catalog data. Safe to hard-delete: every id above
+  // names a department INDEC does not assign, so none can hit a live row.
   await db.delete(arLocalities).where(inArray(arLocalities.indecId, [...INDEC_FIXTURE_IDS]));
   // Restore any soft-deleted indec_cppdyl rows the import fixture may have
   // stamped so the live catalog count is accurate. The shared helper also
