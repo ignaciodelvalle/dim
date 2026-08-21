@@ -146,7 +146,8 @@ export const EVENT_TYPES = [
   // animal. `caretaker_designated` is emitted AT ACCEPT — the name means "the
   // grant became active" — in the same transaction as the
   // ownerships(role='caretaker') row. `caretaker_ended` carries the outcome
-  // discriminator (returned | expired | revoked_by_owner | withdrawn_by_caretaker)
+  // discriminator (returned | expired | revoked_by_owner | withdrawn_by_caretaker |
+  // ownership_transferred)
   // so ending a grant never needs a fourth event type.
   "caretaker_designated",
   "caretaker_ended",

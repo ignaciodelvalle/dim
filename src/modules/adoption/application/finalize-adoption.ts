@@ -27,6 +27,11 @@
 //   - revalidatePath / redirect
 //   - Flushing pendingNotifications (post-tx, best-effort)
 
+import {
+  type EndedCaretakerGrant,
+  notifyCaretakersOfHandoff,
+} from "@/lib/infra/end-pet-ownerships";
+
 import { validateFinalizationInput } from "../domain/finalize-rules";
 import type { FinalizationInput } from "../domain/types";
 import type { AdoptionRepository } from "../infrastructure/adoption-repository";
@@ -201,12 +206,17 @@ export async function finalizeAdoption(
     input.followupMonths !== null ? Math.min(36, Math.max(0, input.followupMonths)) : null;
 
   const pendingNotifications: NewNotification[] = [];
+  // Filled inside the transaction, flushed after it commits (ARCH-P). A
+  // caretaker whose arrangement this finalize ended lost write access and the
+  // pet dropped off their list; without this they are never told the title
+  // moved, and they may still physically have the animal.
+  let endedGrants: EndedCaretakerGrant[] = [];
   let eventId = "";
 
   // 7. Atomic transaction.
   try {
     await transaction(async (tx) => {
-      const { eventId: insertedEventId } = await repo.insertAdoptionFinalized(
+      const { eventId: insertedEventId, endedCaretakerGrants } = await repo.insertAdoptionFinalized(
         {
           petId: petRow.id,
           userId: user.id,
@@ -231,6 +241,7 @@ export async function finalizeAdoption(
         tx as Parameters<typeof repo.insertAdoptionFinalized>[1],
       );
       eventId = insertedEventId;
+      endedGrants = endedCaretakerGrants;
 
       // Auto-rejection cascade for pending applications.
       const pendingApps = await repo.findPendingApplicationsExcluding(
@@ -303,6 +314,18 @@ export async function finalizeAdoption(
       ctaLabel: "Ver detalles",
       ctaUrl: "/mis-mascotas",
       relatedPetId: petRow.id,
+    });
+  }
+
+  // Same courtesy the foster above already gets, for the same reason: someone
+  // who was looking after this animal just lost access to it. Sent directly
+  // rather than pushed onto pendingNotifications because the copy and the
+  // dedupe family belong with the hand-off primitive — the expiry cron uses the
+  // same keys and must not be able to double-notify.
+  if (endedGrants.length > 0) {
+    await notifyCaretakersOfHandoff(endedGrants, {
+      name: petRow.name,
+      publicToken: input.petPublicToken,
     });
   }
 

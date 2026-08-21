@@ -97,7 +97,13 @@ function makeFakeRepo(
     findApplicationForReview: vi.fn().mockResolvedValue({ error: "not used" }),
     findPendingApplicationsExcluding: vi.fn().mockResolvedValue([]),
     findOpenCustodyCase: vi.fn().mockResolvedValue(null),
-    insertAdoptionFinalized: vi.fn().mockResolvedValue({ eventId: "evt-adoption-1" }),
+    // `endedCaretakerGrants` is part of the return contract, not decoration: the
+    // use-case reads its length to decide whether to notify a caretaker whose
+    // arrangement the hand-off just ended. A double that omits it is a double
+    // the real repository could never produce.
+    insertAdoptionFinalized: vi
+      .fn()
+      .mockResolvedValue({ eventId: "evt-adoption-1", endedCaretakerGrants: [] }),
   } as unknown as typeof AdoptionRepository;
 }
 

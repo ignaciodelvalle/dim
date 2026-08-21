@@ -35,7 +35,7 @@ import { jurisdictionScopeContains } from "@/lib/domain/jurisdiction-canonical";
 import { validateEventPayload } from "@/lib/events/event-schemas";
 import { writeAuditLog } from "@/lib/infra/audit-log";
 import { findOpenCaseForPetAndKind, openCase as libOpenCase } from "@/lib/infra/case-helpers";
-import { endAllLiveOwnerships } from "@/lib/infra/end-pet-ownerships";
+import { type EndedCaretakerGrant, endAllLiveOwnerships } from "@/lib/infra/end-pet-ownerships";
 import { generatePublicToken } from "@/lib/infra/publicToken";
 import { generateUniqueToken, isUniqueViolation } from "@/lib/infra/unique-token";
 
@@ -217,13 +217,23 @@ export async function executeDecomiso(
   ctx: ExecuteDecomisoContext,
   tx: TxType,
 ): Promise<
-  | { ok: true; publicCode: string; pendingNotifications: NewNotification[] }
+  | {
+      ok: true;
+      publicCode: string;
+      pendingNotifications: NewNotification[];
+      endedCaretakerGrants: EndedCaretakerGrant[];
+      seizedPet: { id: string; name: string; publicToken: string };
+    }
   | { ok: false; error: string }
 > {
   const { user, govtOrg, receiverOrg, uploadedAttachments } = ctx;
 
   const now = new Date();
   const pendingNotifications: NewNotification[] = [];
+  // Filled inside the transaction, flushed by the caller AFTER it commits
+  // (ARCH-P). A caretaker whose arrangement this seizure ended lost write
+  // access and the animal left their hands; nothing else tells them.
+  const endedGrants: EndedCaretakerGrant[] = [];
 
   // ---------- Unowned path: CREATE the pet record in-flight ----------
   let activePet: { id: string; name: string; publicToken: string };
@@ -402,10 +412,23 @@ export async function executeDecomiso(
     // to flip too, or it keeps publishing the caretaker's contact on the
     // animal's public credential long after the authority took it. See
     // lib/infra/end-pet-ownerships.ts.
-    await endAllLiveOwnerships(
-      { petId: activePet.id, outcome: "ownership_transferred", actorUserId: user.id, now },
+    const { endedCaretakerGrants } = await endAllLiveOwnerships(
+      {
+        petId: activePet.id,
+        outcome: "ownership_transferred",
+        actorUserId: user.id,
+        now,
+        // Every other event this function writes is signed govt/verified. The
+        // caretaker_ended must be too: left at the default, the person who was
+        // looking after the animal reads a note about losing it that appears to
+        // have been written by the owner.
+        authorRole: "govt",
+        authorVerified: true,
+        authorOrganizationId: govtOrg.id,
+      },
       tx,
     );
+    endedGrants.push(...endedCaretakerGrants);
   }
 
   // Open transitional shelter_custody for the govt org (both paths).
@@ -650,5 +673,11 @@ export async function executeDecomiso(
     },
   });
 
-  return { ok: true, publicCode, pendingNotifications };
+  return {
+    ok: true,
+    publicCode,
+    pendingNotifications,
+    endedCaretakerGrants: endedGrants,
+    seizedPet: activePet,
+  };
 }

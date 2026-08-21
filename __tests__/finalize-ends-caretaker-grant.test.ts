@@ -44,6 +44,7 @@ import {
   profiles,
 } from "@/db";
 import { validateEventPayload } from "@/lib/events/event-schemas";
+import { resolveCaretakerPublicContact } from "@/lib/infra/caretaker-public-contact";
 import { dniLast4, hashDni } from "@/lib/utils/dni-hash";
 import { finalizeAdoption } from "@/src/modules/adoption/application/finalize-adoption";
 import { AdoptionRepository } from "@/src/modules/adoption/infrastructure/adoption-repository";
@@ -216,6 +217,14 @@ beforeAll(async () => {
       adoptionEligibilitySetAt: now,
       inCustodyDispute: false,
       rabiesObservationStatus: null,
+      // KEY 1 of the two-key public-disclosure model, the titular's. Set here
+      // ON PURPOSE and not as fixture noise: with key 1 off,
+      // `resolveCaretakerPublicContact` returns null for every input and the
+      // leak assertion below would pass against the broken code too. The whole
+      // motivation for this fence is the configuration in which the zombie
+      // grant actually publishes a stranger's phone, and this is that
+      // configuration.
+      discloseCaretakerContactWhenLost: true,
     })
     .returning();
   petId = pet.id;
@@ -252,8 +261,9 @@ beforeAll(async () => {
       endsAt: GRANT_ENDS_AT,
       respondedAt: now,
       ownershipId: caretakerOwnershipId,
-      // Both consent keys ON, because that is the configuration in which the
-      // zombie grant actually publishes a stranger's phone on the credential.
+      // KEY 2, the caretaker's own consent. Together with
+      // `discloseCaretakerContactWhenLost` on the pet above, this is the exact
+      // configuration under which the leak is observable.
       publicContactConsentAt: now,
     })
     .returning({ id: petCaretakerGrants.id });
@@ -332,6 +342,16 @@ describe("finalize over a caretaker — the control", () => {
       .where(eq(petCaretakerGrants.id, grantId));
     expect(g.status).toBe("accepted");
     expect(g.endedAt).toBeNull();
+  });
+
+  // THE LEAK, OBSERVED BEFORE THE FIX RUNS. Without this the "returns null
+  // after finalize" assertion below is untrustworthy: a fixture that failed to
+  // arm either consent key would make it pass no matter what finalize did.
+  it("publishes the caretaker's contact on the public credential while the arrangement is live", async () => {
+    const contact = await resolveCaretakerPublicContact({ petId });
+    expect(contact).not.toBeNull();
+    expect(contact?.firstName).toBe("Ctkzombie");
+    expect(contact?.phoneE164).toBe("+541133330441");
   });
 });
 
@@ -414,6 +434,50 @@ describe("finalize over a caretaker — the arrangement ends with the hand-off",
     expect(ended).toHaveLength(1);
     expect((ended[0].payload as { grant_id: string }).grant_id).toBe(grantId);
     expect((ended[0].payload as { outcome: string }).outcome).toBe("ownership_transferred");
+
+    // 4. AND THE LEAK IS CLOSED — the point of the whole exercise. The three
+    //    assertions above are about rows; this one is about what a stranger
+    //    scanning the adopter's QR can read. The control above proved this
+    //    returned a real name and phone moments ago.
+    const contactAfter = await resolveCaretakerPublicContact({ petId });
+    expect(contactAfter).toBeNull();
+  });
+
+  it("signs caretaker_ended as the organisation, not as the owner", async () => {
+    // The refugio coordinator ran this finalize. Signed "owner"/unverified, the
+    // ADOPTER's timeline would render "Cuidado temporal finalizado — Dueño/a,
+    // no verificado" for an event they had nothing to do with. db/schema.ts:
+    // "the test is who the author IS, not which event type they reached for".
+    const [ended] = await db
+      .select({
+        authorRole: petEvents.authorRole,
+        authorVerified: petEvents.authorVerified,
+        authorOrganizationId: petEvents.authorOrganizationId,
+      })
+      .from(petEvents)
+      .where(and(eq(petEvents.petId, petId), eq(petEvents.eventType, "caretaker_ended")));
+    expect(ended.authorRole).toBe("shelter");
+    expect(ended.authorVerified).toBe(true);
+    expect(ended.authorOrganizationId).toBe(orgId);
+  });
+
+  it("tells the caretaker their arrangement ended, exactly once", async () => {
+    // They lost write access and the pet vanished from their list. Nothing else
+    // tells them, and they may still physically have the animal. The dedupe key
+    // is the same family the expiry cron uses, so a later cron pass cannot
+    // produce a second copy.
+    const rows = await db
+      .select({ dedupeKey: notifications.dedupeKey, body: notifications.body })
+      .from(notifications)
+      .where(
+        and(
+          eq(notifications.userId, caretakerUserId),
+          eq(notifications.notificationType, "caretaker_grant_ended"),
+        ),
+      );
+    expect(rows).toHaveLength(1);
+    expect(rows[0].dedupeKey).toBe(`caretaker:grant_ended:${grantId}:${caretakerUserId}`);
+    expect(rows[0].body).toContain("cambió su titularidad");
   });
 
   it("leaves the adopter as the only live owner", async () => {

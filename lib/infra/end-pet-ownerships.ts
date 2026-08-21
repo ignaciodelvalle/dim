@@ -40,9 +40,13 @@ import { and, eq, isNull } from "drizzle-orm";
 import { ownerships, petCaretakerGrants, petEvents } from "@/db";
 import type { db } from "@/db";
 import { validateEventPayload } from "@/lib/events/event-schemas";
+import { createNotification } from "@/lib/infra/notification-service";
 import type { GrantEndOutcome } from "@/src/modules/caretakers/domain/types";
 
 type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0];
+
+/** Derived from the column, so a widened `author_role` enum cannot drift from this. */
+type AuthorRole = NonNullable<(typeof petEvents.$inferInsert)["authorRole"]>;
 
 export type EndCaretakerGrantArgs = {
   grantId: string;
@@ -52,6 +56,34 @@ export type EndCaretakerGrantArgs = {
   endsAt: Date;
   now: Date;
   actorUserId: string | null;
+  /**
+   * WHO IS SIGNING THE `caretaker_ended` EVENT. Defaults to the titular-authored
+   * shape the caretakers module has always written, so that module is unchanged.
+   *
+   * The defaults are WRONG for a hand-off. `db/schema.ts` states the rule: "the
+   * test is who the author IS, not which event type they reached for — signing
+   * those notes 'owner' showed the real owner a note apparently written by
+   * themselves." On an adoption finalize the author is the org coordinator; on a
+   * decomiso it is the sanitary authority. Left at the default, the ADOPTER's
+   * timeline renders "Cuidado temporal finalizado — Dueño/a, no verificado" for
+   * an event a refugio wrote.
+   */
+  authorRole?: AuthorRole;
+  authorVerified?: boolean;
+  authorOrganizationId?: string | null;
+};
+
+/**
+ * What a hand-off closed, handed back so the caller can tell the people
+ * involved. Returned instead of a bare count because a count is not actionable:
+ * the caretaker is a real person who may still physically have the animal.
+ */
+export type EndedCaretakerGrant = {
+  grantId: string;
+  petId: string;
+  caretakerUserId: string | null;
+  grantedByUserId: string;
+  endsAt: Date;
 };
 
 /**
@@ -85,8 +117,9 @@ export async function endCaretakerGrantAtomically(
     occurredAt: args.now,
     recordedAt: args.now,
     recordedByUserId: args.actorUserId,
-    authorRole: "owner",
-    authorVerified: false,
+    authorRole: args.authorRole ?? "owner",
+    authorVerified: args.authorVerified ?? false,
+    authorOrganizationId: args.authorOrganizationId ?? null,
     payload,
   });
 
@@ -129,17 +162,39 @@ export async function endCaretakerGrantAtomically(
  * tell the person who was looking after the animal.
  */
 export async function endAllLiveOwnerships(
-  args: { petId: string; outcome: GrantEndOutcome; actorUserId: string | null; now: Date },
+  args: {
+    petId: string;
+    outcome: GrantEndOutcome;
+    actorUserId: string | null;
+    now: Date;
+    authorRole?: AuthorRole;
+    authorVerified?: boolean;
+    authorOrganizationId?: string | null;
+  },
   tx: Tx,
-): Promise<{ caretakerGrantsEnded: number }> {
+): Promise<{ endedCaretakerGrants: EndedCaretakerGrant[] }> {
   // Caretakers first, one at a time: each needs its grant and its event, and
   // the blanket close below would otherwise swallow the row and leave the grant
   // pointing at it.
+  //
+  // `.for("update")` IS LOAD-BEARING, and its absence was a real defect in the
+  // first cut of this function. `endCaretakerGrantAtomically` THROWS when its
+  // `UPDATE … WHERE status='accepted'` matches zero rows — correct for the
+  // single-grant callers, which all lock first via `findGrantByIdForUpdate`.
+  // Unlocked, a concurrent revoke/withdraw/expiry committing between this read
+  // and that update makes the throw abort the CALLER'S WHOLE TRANSACTION: a
+  // coordinator who already approved an applicant and uploaded a signed
+  // contract would see "El cuidado ya fue finalizado por otra acción." and lose
+  // the adoption. With the lock, the concurrently-ended grant drops out of the
+  // result set under EvalPlanQual, the loop skips it, and the blanket close
+  // below handles the row — no throw, no abort.
   const liveCaretakerGrants = await tx
     .select({
       grantId: petCaretakerGrants.id,
       ownershipId: ownerships.id,
       endsAt: petCaretakerGrants.endsAt,
+      caretakerUserId: petCaretakerGrants.caretakerUserId,
+      grantedByUserId: petCaretakerGrants.grantedByUserId,
     })
     .from(ownerships)
     .innerJoin(petCaretakerGrants, eq(petCaretakerGrants.ownershipId, ownerships.id))
@@ -150,7 +205,8 @@ export async function endAllLiveOwnerships(
         isNull(ownerships.endedAt),
         eq(petCaretakerGrants.status, "accepted"),
       ),
-    );
+    )
+    .for("update");
 
   for (const grant of liveCaretakerGrants) {
     await endCaretakerGrantAtomically(
@@ -162,6 +218,9 @@ export async function endAllLiveOwnerships(
         endsAt: grant.endsAt,
         now: args.now,
         actorUserId: args.actorUserId,
+        authorRole: args.authorRole,
+        authorVerified: args.authorVerified,
+        authorOrganizationId: args.authorOrganizationId,
       },
       tx,
     );
@@ -174,5 +233,75 @@ export async function endAllLiveOwnerships(
     .set({ endedAt: args.now })
     .where(and(eq(ownerships.petId, args.petId), isNull(ownerships.endedAt)));
 
-  return { caretakerGrantsEnded: liveCaretakerGrants.length };
+  return {
+    endedCaretakerGrants: liveCaretakerGrants.map((g) => ({
+      grantId: g.grantId,
+      petId: args.petId,
+      caretakerUserId: g.caretakerUserId,
+      grantedByUserId: g.grantedByUserId,
+      endsAt: g.endsAt,
+    })),
+  };
+}
+
+/**
+ * Tell the people whose arrangement a hand-off just ended.
+ *
+ * WHY THIS IS NOT OPTIONAL POLISH. Every other way a grant ends notifies both
+ * parties — the end use-case builds two notifications, and the expiry cron does
+ * the same, because "the arrangement is over" is news the caretaker cannot get
+ * any other way: their ownership row is closed, so the pet simply disappears
+ * from their list. Without this, a caretaker who is PHYSICALLY HOLDING THE
+ * ANIMAL loses access silently and is never told the title moved or who to hand
+ * it back to. The titular's cockpit banner does not cover the gap either: it
+ * surfaces only `expired`, by an explicit decision documented in
+ * get-caretaker-state-for-pet.ts.
+ *
+ * MUST BE CALLED AFTER THE TRANSACTION COMMITS, never inside it (ARCH-P): a
+ * notification failure may not roll back a hand-off. `createNotification`
+ * upholds that — it dead-letters instead of throwing, so this function cannot
+ * fail the caller.
+ *
+ * The dedupe keys are DELIBERATELY the same family the caretakers module and
+ * the expiry cron already use (`caretaker:grant_ended:{grantId}:{userId}`). A
+ * grant ends exactly once, but if the cron ever reaches the same grant, one
+ * "el cuidado terminó" per person is the correct outcome, and a different key
+ * here would produce two.
+ */
+export async function notifyCaretakersOfHandoff(
+  ended: EndedCaretakerGrant[],
+  pet: { name: string; publicToken: string | null },
+): Promise<void> {
+  for (const grant of ended) {
+    if (grant.caretakerUserId) {
+      await createNotification({
+        userId: grant.caretakerUserId,
+        notificationType: "caretaker_grant_ended",
+        severity: "warning",
+        category: "custody",
+        title: `Tu período de cuidado de ${pet.name} terminó`,
+        // No "coordiná la devolución": the animal did not stay behind with them
+        // in the sense the other end reasons mean. The title moved, and whoever
+        // holds it now is who they have to arrange with.
+        body: `Ya no tenés acceso para cargar eventos de ${pet.name} porque cambió su titularidad. Si el animal sigue con vos, coordiná la entrega con quien lo tiene a cargo ahora.`,
+        ctaLabel: "Ver mis mascotas",
+        ctaUrl: "/mis-mascotas",
+        relatedPetId: grant.petId,
+        dedupeKey: `caretaker:grant_ended:${grant.grantId}:${grant.caretakerUserId}`,
+      });
+    }
+
+    await createNotification({
+      userId: grant.grantedByUserId,
+      notificationType: "caretaker_grant_ended",
+      severity: "info",
+      category: "custody",
+      title: `El cuidado temporal de ${pet.name} terminó`,
+      body: `Terminó porque cambió la titularidad de ${pet.name}. Si el animal sigue con la persona que lo cuidaba, la entrega la coordina quien lo tiene a cargo ahora.`,
+      ctaLabel: "Ver mis mascotas",
+      ctaUrl: pet.publicToken ? `/mis-mascotas/${pet.publicToken}` : "/mis-mascotas",
+      relatedPetId: grant.petId,
+      dedupeKey: `caretaker:grant_ended:${grant.grantId}:${grant.grantedByUserId}`,
+    });
+  }
 }

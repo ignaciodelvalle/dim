@@ -26,7 +26,7 @@ function makeFakeRepo(
       ownerUserId: "foster-user-1",
       petId: "pet-1",
     }),
-    insertConvertFosterToOwner: vi.fn().mockResolvedValue(undefined),
+    insertConvertFosterToOwner: vi.fn().mockResolvedValue({ endedCaretakerGrants: [] }),
     // unused but required for type compatibility
     findShelterPetByToken: vi.fn().mockResolvedValue(null),
     findActiveFosterRows: vi.fn().mockResolvedValue([]),

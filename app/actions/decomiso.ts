@@ -13,6 +13,10 @@ import { revalidatePath } from "next/cache";
 
 import { db, organizations } from "@/db";
 import { requireDecomisoPrincipal } from "@/lib/infra/auth-guards";
+import {
+  type EndedCaretakerGrant,
+  notifyCaretakersOfHandoff,
+} from "@/lib/infra/end-pet-ownerships";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { requireCapability } from "@/src/modules/organizations/infrastructure/authz-resolver";
 
@@ -174,6 +178,8 @@ export async function executeDecomisoAction(
   // ---- 8. Run the transaction via use-case -------------------------------
   let createdPublicCode = "";
   let pendingNotifications: NewNotification[] = [];
+  let endedGrants: EndedCaretakerGrant[] = [];
+  let seizedPet: { name: string; publicToken: string } | null = null;
 
   try {
     await db.transaction(async (tx) => {
@@ -194,6 +200,8 @@ export async function executeDecomisoAction(
       if (!result.ok) throw new Error(result.error);
       createdPublicCode = result.publicCode;
       pendingNotifications = result.pendingNotifications as NewNotification[];
+      endedGrants = result.endedCaretakerGrants;
+      seizedPet = result.seizedPet;
     });
   } catch (err) {
     // Compensating cleanup: best-effort delete uploaded blobs on tx failure.
@@ -218,6 +226,13 @@ export async function executeDecomisoAction(
     casePublicCode: createdPublicCode,
     stage: "executed",
   });
+
+  // A temporary caretaker whose arrangement this seizure ended. They just lost
+  // access and the animal is gone from their hands; the ownership notices above
+  // go to the titular and the orgs, never to them.
+  if (endedGrants.length > 0 && seizedPet) {
+    await notifyCaretakersOfHandoff(endedGrants, seizedPet);
+  }
 
   revalidatePath("/gob/decomisos");
   return { ok: true, publicCode: createdPublicCode, warning: delivery.warning };

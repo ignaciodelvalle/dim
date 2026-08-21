@@ -20,6 +20,7 @@ import {
 } from "@/db";
 import { validateEventPayload } from "@/lib/events/event-schemas";
 import { closeCase, findOpenCaseForPetAndKind, openCase } from "@/lib/infra/case-helpers";
+import { type EndedCaretakerGrant, endAllLiveOwnerships } from "@/lib/infra/end-pet-ownerships";
 
 // ---------------------------------------------------------------------------
 // Type aliases
@@ -1492,7 +1493,7 @@ export const FosterRepository = {
       now: Date;
     },
     tx: Tx,
-  ): Promise<void> {
+  ): Promise<{ endedCaretakerGrants: EndedCaretakerGrant[] }> {
     const {
       petId,
       petName: _petName,
@@ -1539,32 +1540,31 @@ export const FosterRepository = {
       await closeCase({ caseId, reason: "resolved", closedByUserId: actorUserId }, tx);
     }
 
-    // e. Close prior owner ownerships (parity: must be BEFORE inserting new
-    //    owner row — unique-active-owner partial index is checked at tx commit).
-    await tx
-      .update(ownerships)
-      .set({ endedAt: now })
-      .where(
-        and(eq(ownerships.petId, petId), eq(ownerships.role, "owner"), isNull(ownerships.endedAt)),
-      );
-
-    // e2. Close the org's active shelter_custody row (AF-C1). A foster ALWAYS
-    //     coexists with an active shelter_custody (the org holds custody while
-    //     the volunteer holds foster). Closing only the foster + owner rows
-    //     leaves shelter_custody ACTIVE = permanent double custody: the org
-    //     could still re-foster / list / finalize the pet to a different
-    //     adopter, and metrics double-count. insertAdoptionFinalized closes
-    //     BOTH; convert must too. Custody moves cleanly to the new owner.
-    await tx
-      .update(ownerships)
-      .set({ endedAt: now })
-      .where(
-        and(
-          eq(ownerships.petId, petId),
-          eq(ownerships.role, "shelter_custody"),
-          isNull(ownerships.endedAt),
-        ),
-      );
+    // e. Close EVERY remaining live row — prior owner, the org's
+    //    shelter_custody, and any caretaker. Must be BEFORE inserting the new
+    //    owner row: the unique-active-owner partial index is checked at commit.
+    //
+    //    THIS USED TO ENUMERATE TWO ROLES, and the comment that lived here
+    //    stated the parity contract it was already half-failing: "A foster
+    //    ALWAYS coexists with an active shelter_custody… insertAdoptionFinalized
+    //    closes BOTH; convert must too." Closing only foster + owner left
+    //    permanent double custody — the org could still re-foster, list, or
+    //    finalize the pet to a different adopter, and metrics double-count.
+    //
+    //    Enumerating is what let a THIRD role through. A `caretaker` row was
+    //    closed by neither branch, so a volunteer who adopted the animal they
+    //    fostered inherited a live caretaker with write access to their pet and
+    //    a grant still publishing that person's name and phone on the public
+    //    credential. `endAllLiveOwnerships` takes the set, not a list of roles,
+    //    which is the only shape that cannot miss the next one.
+    //
+    //    authorRole is left at its default here, matching the `foster_ended`
+    //    event this same function writes eight lines up. If that attribution is
+    //    wrong it is wrong for both, and should move together.
+    const { endedCaretakerGrants } = await endAllLiveOwnerships(
+      { petId, outcome: "ownership_transferred", actorUserId, now },
+      tx,
+    );
 
     // f. Insert new owner ownership row.
     await tx.insert(ownerships).values({
@@ -1595,6 +1595,10 @@ export const FosterRepository = {
       payload: transferredPayload,
       caseId,
     });
+
+    // Handed back so the caller can tell the caretaker post-tx: their row is
+    // closed, the pet is gone from their list, and they may still have it.
+    return { endedCaretakerGrants };
   },
 
   /**

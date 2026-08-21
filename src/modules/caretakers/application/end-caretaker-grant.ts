@@ -178,13 +178,12 @@ function titularBody(args: {
       return `Finalizaste el cuidado temporal de ${caretakerName}. Si ${petName} sigue con esa persona, coordiná la devolución o iniciá un reclamo.`;
     case "withdrawn_by_caretaker":
       return `${caretakerName} dio de baja el cuidado temporal. Si ${petName} sigue con esa persona, coordiná la devolución o iniciá un reclamo.`;
-    case "ownership_transferred":
-      // No "coordiná la devolución": the animal did not stay behind with the
-      // caretaker in the sense the other branches mean. Titularity moved, and
-      // whoever now holds it is the one to arrange with. Saying "te devolvió a
-      // X" here — which is what the default below says — would be the exact
-      // false-comfort the enum exists to prevent.
-      return `El cuidado temporal de ${caretakerName} terminó porque cambió la titularidad de ${petName}. Si el animal sigue con esa persona, coordinalo con quien lo tiene a cargo ahora.`;
+    // NO `ownership_transferred` CASE, deliberately. That outcome exists for
+    // hand-offs (adoption finalize, decomiso, dispute resolution), which never
+    // route through this use-case: `endedReasonFor` maps only the four
+    // GrantActions above, so a branch here would be unreachable. The hand-off
+    // copy for both parties lives with the hand-off, in
+    // lib/infra/end-pet-ownerships.ts `notifyCaretakersOfHandoff`.
     default:
       return `${caretakerName} te devolvió a ${petName}. El cuidado temporal terminó.`;
   }

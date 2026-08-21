@@ -36,6 +36,11 @@ import type { CustodyDispute } from "@/db";
 import { jurisdictionScopeContains } from "@/lib/domain/jurisdiction-canonical";
 import { validateEventPayload } from "@/lib/events/event-schemas";
 import { closeCase } from "@/lib/infra/case-helpers";
+import {
+  type EndedCaretakerGrant,
+  endAllLiveOwnerships,
+  notifyCaretakersOfHandoff,
+} from "@/lib/infra/end-pet-ownerships";
 
 import type { ResolveDisputeInput, ResolveDisputeResult } from "../domain/types";
 
@@ -72,6 +77,12 @@ export async function resolveDisputeUseCase(
   if (session.profile.role !== "admin" && session.profile.role !== "govt") {
     return { error: "No tenés permiso para resolver disputas." };
   }
+
+  // Filled inside the transaction, consumed AFTER it commits: telling a
+  // caretaker their arrangement ended is best-effort and must never be able to
+  // roll back a resolution (ARCH-P).
+  let endedGrants: EndedCaretakerGrant[] = [];
+  let handoffPet: { name: string; publicToken: string | null } | null = null;
 
   try {
     const resolvedAt = await db.transaction(async (tx): Promise<Date> => {
@@ -190,11 +201,31 @@ export async function resolveDisputeUseCase(
         let fosterEndedEventId: string | null = null;
         const now = new Date();
 
-        // Close every active ownership row (owner / shelter_custody / foster).
-        await tx
-          .update(ownerships)
-          .set({ endedAt: now })
-          .where(and(eq(ownerships.petId, dispute.petId), isNull(ownerships.endedAt)));
+        // Close every active ownership row — owner, shelter_custody, foster AND
+        // caretaker. The comment here used to enumerate the first three, which
+        // is exactly how the fourth got missed: a caretaker is three writes, not
+        // one, and a blanket UPDATE left the grant saying 'accepted' while its
+        // ownership row was closed. `caretaker-public-contact.ts` reads the
+        // grant ALONE, so the losing party's caretaker kept publishing their
+        // name and phone on the WINNER's public credential until ends_at.
+        const { endedCaretakerGrants } = await endAllLiveOwnerships(
+          {
+            petId: dispute.petId,
+            outcome: "ownership_transferred",
+            actorUserId: session.user.id,
+            now,
+            // The resolver is an admin or a govt official (checked at the top of
+            // this use-case), never the titular. Signing `caretaker_ended` as
+            // "owner" would show the losing party a note apparently written by
+            // themselves about losing their animal. Both roles map to 'govt' —
+            // same reason spelled out at the custody_dispute_resolved insert
+            // below: the enum has no 'admin'.
+            authorRole: "govt",
+            authorVerified: true,
+          },
+          tx,
+        );
+        endedGrants = endedCaretakerGrants;
 
         // Emit foster_ended first so the custody_transferred payload can
         // reference its id (mirrors the pattern in app/actions/transfer.ts).
@@ -299,10 +330,14 @@ export async function resolveDisputeUseCase(
         })
         .where(eq(custodyDisputes.id, dispute.id));
 
-      await tx
+      const [updatedPet] = await tx
         .update(pets)
         .set({ inCustodyDispute: false, updatedAt: now })
-        .where(eq(pets.id, dispute.petId));
+        .where(eq(pets.id, dispute.petId))
+        .returning({ name: pets.name, publicToken: pets.publicToken });
+      // Rides along on a write this function already makes, so the post-tx
+      // caretaker notice costs no extra query.
+      if (updatedPet) handoffPet = { name: updatedPet.name, publicToken: updatedPet.publicToken };
 
       // Cases system (Fase D4): close the linked case. All 4 outcomes
       // (ownership_confirmed / ownership_transferred / case_dismissed /
@@ -348,6 +383,13 @@ export async function resolveDisputeUseCase(
 
       return now;
     });
+
+    // Post-tx, best-effort. A caretaker whose row this resolution just closed
+    // has lost write access and the pet has vanished from their list; without
+    // this they are never told, and they may still be holding the animal.
+    if (endedGrants.length > 0 && handoffPet) {
+      await notifyCaretakersOfHandoff(endedGrants, handoffPet);
+    }
 
     return { resolvedAt };
   } catch (err) {

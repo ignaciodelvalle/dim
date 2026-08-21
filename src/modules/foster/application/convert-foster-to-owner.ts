@@ -27,6 +27,12 @@
 // that implicitly scopes to the caller — server-side auth boundary.
 
 import { randomUUID } from "node:crypto";
+
+import {
+  type EndedCaretakerGrant,
+  notifyCaretakersOfHandoff,
+} from "@/lib/infra/end-pet-ownerships";
+
 import type { FosterRepository } from "../infrastructure/foster-repository";
 import type { NewNotification, UseCaseResult } from "./types";
 
@@ -80,10 +86,14 @@ export async function convertFosterToOwner(
   const fosterEndedEventId = randomUUID();
   const now = new Date();
   const pendingNotifications: NewNotification[] = [];
+  // Filled inside the transaction, flushed after it commits (ARCH-P): telling a
+  // caretaker their arrangement ended must never be able to roll back the
+  // conversion.
+  let endedGrants: EndedCaretakerGrant[] = [];
 
   try {
     await transaction(async (tx) => {
-      await repo.insertConvertFosterToOwner(
+      const { endedCaretakerGrants } = await repo.insertConvertFosterToOwner(
         {
           petId: petRow.id,
           petName: (petRow as { name: string }).name,
@@ -95,6 +105,7 @@ export async function convertFosterToOwner(
         },
         tx as Parameters<typeof repo.insertConvertFosterToOwner>[1],
       );
+      endedGrants = endedCaretakerGrants;
     });
   } catch (err) {
     return {
@@ -103,6 +114,15 @@ export async function convertFosterToOwner(
         err instanceof Error ? err.message : "error desconocido"
       }`,
     };
+  }
+
+  // The person who was looking after the animal day to day just lost access,
+  // and the pet vanished from their list. Best-effort and post-tx.
+  if (endedGrants.length > 0) {
+    await notifyCaretakersOfHandoff(endedGrants, {
+      name: (petRow as { name: string }).name,
+      publicToken: input.petPublicToken,
+    });
   }
 
   pendingNotifications.push({

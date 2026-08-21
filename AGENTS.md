@@ -733,7 +733,7 @@ Dos tipos, no tres: la invitación pendiente NO es evento, es estado de workflow
 | Type                    | UI    | Payload                                                                                              |
 | ----------------------- | ----- | ---------------------------------------------------------------------------------------------------- |
 | `caretaker_designated`  | later | `{ grant_id, grant_public_token, caretaker_user_id, ends_at, note? }` — `ends_at` va desnormalizado a propósito: el grant puede terminar antes, y la espina tiene que seguir diciendo qué se acordó cuando empezó |
-| `caretaker_ended`       | later | `{ grant_id, outcome: returned\|expired\|revoked_by_owner\|withdrawn_by_caretaker, ends_at }` — la clave es `outcome`, NUNCA `reason` (el RPC de borrado redacta `reason` en todos los tipos y destruiría el enum). `expired` NO significa que el animal volvió: terminó el acceso, la posesión es otra pregunta |
+| `caretaker_ended`       | later | `{ grant_id, outcome: returned\|expired\|revoked_by_owner\|withdrawn_by_caretaker\|ownership_transferred, ends_at }` — la clave es `outcome`, NUNCA `reason` (el RPC de borrado redacta `reason` en todos los tipos y destruiría el enum). `expired` NO significa que el animal volvió: terminó el acceso, la posesión es otra pregunta. `ownership_transferred` (2026-08-21) es el hand-off — adopción finalizada, decomiso, resolución de disputa, conversión de tránsito a dueño — donde el arreglo lo termina un cambio de manos y no una decisión de las partes |
 
 **Apadrinamiento de adopción (rehome-by-titular, migración 0194)**
 
