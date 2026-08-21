@@ -24,31 +24,29 @@
 //
 // A11y:
 //   - Focus moves to the h1 heading on mount.
-//   - QR wrapper has role="img" + aria-label describing the linked URL.
+//   - The QR svg itself (CredentialQr) carries role="img" + an aria-label
+//     describing the linked URL.
 //   - All interactive elements have visible focus rings.
 
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 
+import { CredentialQr } from "@/components/ui/CredentialQr";
+
 interface Props {
   petName: string;
   publicToken: string;
+  /** ABSOLUTE credential URL (built with `credentialQrUrl()`). It is both the
+   *  shared link and the QR's only input — <CredentialQr> encodes it here in
+   *  the browser instead of receiving server-rendered SVG markup. */
   credentialUrl: string;
-  /** Inline SVG string — generated server-side with QRCode.toString. */
-  qrSvg: string;
   /** Whether the pet's jurisdiction has the `printable_qr` channel enabled.
    *  Resolved server-side by the parent page from the SAME resolver /chapita
    *  itself uses, so the link is never offered into a closed channel. */
   printableQrEnabled: boolean;
 }
 
-export function PetCreatedAha({
-  petName,
-  publicToken,
-  credentialUrl,
-  qrSvg,
-  printableQrEnabled,
-}: Props) {
+export function PetCreatedAha({ petName, publicToken, credentialUrl, printableQrEnabled }: Props) {
   const headingRef = useRef<HTMLHeadingElement>(null);
   const [shareState, setShareState] = useState<"idle" | "copied" | "error">("idle");
 
@@ -130,16 +128,16 @@ export function PetCreatedAha({
           </p>
         </div>
 
-        {/* QR block — ≥200px per spec (generated at 240px).
-            role=img + aria-label on the wrapper describes the QR purpose
-            and the URL it encodes for screen-reader users. */}
-        <div
-          className="rounded-[var(--radius-md)] border border-[var(--color-ln-line)] bg-white p-4 mx-auto inline-block"
-          aria-label={`Código QR que enlaza a la credencial pública de ${petName}: ${credentialUrl}`}
-          role="img"
-        >
-          {/* biome-ignore lint/security/noDangerouslySetInnerHtml: server-rendered SVG from qrcode lib */}
-          <div className="w-[240px] h-[240px]" dangerouslySetInnerHTML={{ __html: qrSvg }} />
+        {/* QR block — ≥200px per spec (drawn at 240px).
+            <CredentialQr> owns role=img + the aria-label describing the QR's
+            purpose and the URL it encodes; the wrapper is pure chrome, so the
+            two never nest competing img roles. */}
+        <div className="rounded-[var(--radius-md)] border border-[var(--color-ln-line)] bg-white p-4 mx-auto inline-block">
+          <CredentialQr
+            value={credentialUrl}
+            size={240}
+            label={`Código QR que enlaza a la credencial pública de ${petName}: ${credentialUrl}`}
+          />
         </div>
 
         {/* Credential URL — small, readable, below the QR */}

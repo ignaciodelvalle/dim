@@ -10,8 +10,6 @@ import { describe, expect, it } from "vitest";
 
 import { PetCreatedAha } from "./PetCreatedAha";
 
-const SAMPLE_SVG = '<svg viewBox="0 0 100 100"><rect width="100" height="100"/></svg>';
-
 function render(node: React.ReactElement): string {
   return renderToStaticMarkup(node);
 }
@@ -20,7 +18,6 @@ const defaultProps = {
   petName: "Luna",
   publicToken: "abc-123-def",
   credentialUrl: "https://mimar.ar/p/abc-123-def",
-  qrSvg: SAMPLE_SVG,
   printableQrEnabled: true,
 };
 
@@ -41,13 +38,15 @@ describe("<PetCreatedAha>", () => {
   it("renders the QR with an aria-label containing the credential URL", () => {
     const html = render(<PetCreatedAha {...defaultProps} />);
     expect(html).toContain("https://mimar.ar/p/abc-123-def");
-    // aria-label on the QR wrapper describes the link
+    // aria-label on the QR svg describes the link
     expect(html).toMatch(/aria-label="[^"]*https:\/\/mimar\.ar\/p\/abc-123-def/);
   });
 
   it("renders the QR SVG content", () => {
     const html = render(<PetCreatedAha {...defaultProps} />);
-    expect(html).toContain('<svg viewBox="0 0 100 100">');
+    // The symbol CredentialQr draws for THIS credential URL at level "M":
+    // a 29-module (version 3) code inside a 1-module quiet zone, at 240px.
+    expect(html).toContain('viewBox="0 0 31 31" width="240" height="240"');
   });
 
   it("renders a Compartir button as the primary CTA", () => {
@@ -134,6 +133,18 @@ describe("<PetCreatedAha>", () => {
   it("QR container has role=img for screen readers", () => {
     const html = render(<PetCreatedAha {...defaultProps} />);
     expect(html).toContain('role="img"');
+  });
+
+  // Native-readiness Track 2: the QR is DRAWN in the browser from the
+  // credential URL (CredentialQr), not injected as server-rendered markup.
+  it("draws the QR as a real svg named after the pet and the URL it encodes", () => {
+    const html = render(<PetCreatedAha {...defaultProps} />);
+    expect(html).toContain(
+      'aria-label="Código QR que enlaza a la credencial pública de Luna: https://mimar.ar/p/abc-123-def"',
+    );
+    expect(html).toMatch(/<svg[^>]*role="img"[^>]*>\s*<path fill="currentColor" d="M/);
+    // No injected markup path survives on this screen.
+    expect(html).not.toContain("dangerouslySetInnerHTML");
   });
 
   it("heading has tabIndex=-1 so programmatic focus works", () => {

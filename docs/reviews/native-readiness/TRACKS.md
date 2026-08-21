@@ -256,8 +256,10 @@ becomes a thin renderer over the same loader (direct call, never a self-fetch).
    where — with file:line — is now `docs/architecture/api-invariants.md` §10,
    along with the two deviations (no `Retry-After` on 429; the degraded arm is a
    partial 503, not a bare error).
-4. Render the owner's QR client-side (B35) — `qrcode` runs in browsers, and
-   this removes server-side SVG generation from the two heaviest owner renders.
+4. ~~Render the owner's QR client-side (B35).~~ **DONE 2026-08-21** —
+   `components/ui/CredentialQr.tsx` encodes it in the browser with
+   `QRCode.create()`; the pet-profile hero and the onboarding aha screen no
+   longer import `qrcode` nor inject SVG markup.
 5. Write `docs/architecture/api-invariants.md` (B8): the five anti-oracle
    invariants as a testable checklist gating every `/api/v1` merge.
 

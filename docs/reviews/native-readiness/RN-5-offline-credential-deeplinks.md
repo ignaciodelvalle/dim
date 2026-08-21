@@ -133,6 +133,10 @@ portable asset — renders through /_next/image and has the default 1h TTL, so a
 4. **Render the owner's QR client-side** (qrcode runs in browsers). Removes
    server SVG from the two heaviest owner renders; the QR becomes a pure
    function of a cached string — cheapest step toward a wallet.
+   (Hero + onboarding client-side since 2026-08-21 via
+   `components/ui/CredentialQr.tsx`; the other call sites are still
+   server-side: chapita, cartel, asistencia/presentar, adoption signup,
+   landing, mis-turnos.)
 5. **Sign the Tier-0 payload (detached JWS), publish the JWK.** Adds jose + one
    signCredential(); emit the JWS in #2's API and as a footer string on printed
    sheets. Converts F1 from "undesigned" to "designed, phased"; the printed

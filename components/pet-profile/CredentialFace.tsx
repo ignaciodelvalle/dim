@@ -28,6 +28,7 @@ import { ComplianceObligationsPanel } from "@/components/pet-profile/ComplianceO
 import { DiscList, DiscRow } from "@/components/pet-profile/DiscList";
 import { FirstStepsChecklist } from "@/components/pet-profile/FirstStepsChecklist";
 import { LnAlert } from "@/components/ui/Alert";
+import { CredentialQr } from "@/components/ui/CredentialQr";
 import type { LnHeroProps } from "@/components/ui/Hero";
 import { LnMemorialChip, LnVstamp } from "@/components/ui/StatusFlag";
 import type { FirstStepItem } from "@/lib/projections/first-steps-checklist";
@@ -59,8 +60,14 @@ export type CredentialFaceProps = {
   /** Identity data — same shape the hero used (name/breed/photo/tags/status). */
   heroProps: Omit<LnHeroProps, "actions">;
   complianceState: ComplianceState;
-  /** Pre-rendered QR SVG markup (from `qrcode`'s `toString({ type: "svg" })`). */
-  qrSvg: string;
+  /**
+   * ABSOLUTE public-credential URL the QR encodes — built by the caller with
+   * `credentialQrUrl()` (lib/infra/site-url.ts). The QR itself is drawn in the
+   * browser by <CredentialQr> from this string alone (native-readiness Track
+   * 2); this face used to receive pre-rendered SVG markup instead, which tied a
+   * scannable credential to a server round-trip.
+   */
+  credentialUrl: string;
   /** Public credential page URL. E.g. /p/{token} */
   publicHref: string;
   /**
@@ -115,7 +122,7 @@ export type CredentialFaceProps = {
 export function CredentialFace({
   heroProps,
   complianceState,
-  qrSvg,
+  credentialUrl,
   publicHref,
   serviceDog,
   petPublicToken,
@@ -336,11 +343,17 @@ export function CredentialFace({
               aria-label="Ver credencial pública"
               className="ln-qr-link no-underline"
             >
-              <span
-                className="ln-qr-frame"
-                // biome-ignore lint/security/noDangerouslySetInnerHtml: server-generated QR SVG from the qrcode package, no user input.
-                dangerouslySetInnerHTML={{ __html: qrSvg }}
-              />
+              <span className="ln-qr-frame">
+                {/* `size` writes the svg's intrinsic width/height attributes;
+                    `.ln-qr-frame svg` in globals.css still sizes the rendered
+                    box (76px, 104px at md) because CSS beats SVG presentation
+                    attributes. */}
+                <CredentialQr
+                  value={credentialUrl}
+                  size={76}
+                  label={`Código QR de la credencial pública de ${heroProps.name}`}
+                />
+              </span>
             </Link>
             <div className="ln-qr-cap">
               <b>Credencial pública</b>

@@ -48,13 +48,20 @@ function sterilization(prov: Partial<ComplianceEvent>): ComplianceEvent {
 
 const baseProps: Omit<CredentialFaceProps, "complianceState"> = {
   heroProps: { name: "Firulais", breed: "Mestizo" },
-  qrSvg: "<svg></svg>",
+  credentialUrl: "https://mimar.ar/p/abc",
   publicHref: "/p/abc",
   petPublicToken: "abc",
 };
 
 function render(complianceState: ReturnType<typeof deriveComplianceState>): string {
   return renderToStaticMarkup(<CredentialFace {...baseProps} complianceState={complianceState} />);
+}
+
+/** The QR symbol's `d` — the only part of the markup that encodes the URL. */
+function qrPath(html: string): string {
+  const match = html.match(/<path fill="currentColor" d="([^"]+)"/);
+  expect(match, "the credential QR must render a filled path").not.toBeNull();
+  return match?.[1] ?? "";
 }
 
 describe("CredentialFace — H1 provenance gate (negative case)", () => {
@@ -406,5 +413,35 @@ describe("CredentialFace — Registrado/a gender agreement", () => {
     expect(html).not.toContain("Perdido");
     expect(html).not.toContain("Perdida");
     expect(html).toContain('data-situation="perdida"');
+  });
+});
+
+describe("CredentialFace — credential QR (client-side, native-readiness Track 2)", () => {
+  it("renders a real <svg role=img> QR named after the pet — no injected markup", () => {
+    const html = render(deriveComplianceState(complianceInput()));
+
+    // The QR is now DRAWN, not injected: a real svg element with an accessible
+    // name, inside the existing .ln-qr-frame link.
+    expect(html).toContain('role="img"');
+    expect(html).toContain('aria-label="Código QR de la credencial pública de Firulais"');
+    expect(html).toMatch(/<svg[^>]*role="img"[^>]*>\s*<path fill="currentColor"/);
+  });
+
+  it("encodes the absolute credentialUrl it was handed (invariant #1: scannable QR)", () => {
+    // Same URL, same symbol: the path a second render produces for the same
+    // credentialUrl is byte-identical, and it differs from another pet's.
+    const state = deriveComplianceState(complianceInput());
+    const a = render(state);
+    const b = render(state);
+    expect(qrPath(a)).toBe(qrPath(b));
+
+    const other = renderToStaticMarkup(
+      <CredentialFace
+        {...baseProps}
+        credentialUrl="https://mimar.ar/p/zzz"
+        complianceState={state}
+      />,
+    );
+    expect(qrPath(other)).not.toBe(qrPath(a));
   });
 });

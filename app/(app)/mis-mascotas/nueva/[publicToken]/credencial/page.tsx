@@ -3,8 +3,10 @@
 // Shown immediately after a new pet is registered. Delivers the core aha:
 // "your pet now has a verifiable digital credential" via QR display + share.
 //
-// Server component: fetches pet data + generates QR SVG, then delegates all
-// interactivity to the PetCreatedAha client component.
+// Server component: fetches pet data and resolves the printable-QR channel,
+// then delegates the QR itself and all interactivity to the PetCreatedAha
+// client component. The QR is NOT encoded here — <CredentialQr> draws it in the
+// browser from the credential URL alone (native-readiness Track 2).
 //
 // Edge cases handled:
 //   - No photo: renders with placeholder, does not block.
@@ -13,11 +15,10 @@
 //   - Not owner: notFound() via requirePetAccess.
 
 import { notFound } from "next/navigation";
-import QRCode from "qrcode";
 
 import { requirePetAccess } from "@/lib/infra/pet-access";
 import { resolvePhysicalCredentialChannels } from "@/lib/infra/physical-credential-channels";
-import { resolveSiteUrl } from "@/lib/infra/site-url";
+import { credentialQrUrl } from "@/lib/infra/site-url";
 import { PetCreatedAha } from "./PetCreatedAha";
 
 export default async function PetCreatedCredentialPage({
@@ -34,12 +35,12 @@ export default async function PetCreatedCredentialPage({
   // Guard: only the pet owner should reach this onboarding page.
   if (accessPath !== "owner") notFound();
 
-  const baseUrl = resolveSiteUrl();
-  const credentialUrl = `${baseUrl}/p/${publicToken}`;
+  // The one canonical builder for a credential's absolute URL — the same helper
+  // the pet-profile hero uses, so a set-but-empty NEXT_PUBLIC_SITE_URL can never
+  // produce a host-less, unscannable QR here (this page used to hand-build the
+  // string from resolveSiteUrl()).
+  const credentialUrl = credentialQrUrl(publicToken);
 
-  // Generate QR as inline SVG — avoids needing a separate image route.
-  // size=240 satisfies the spec ≥200px requirement.
-  //
   // The channel resolve is the SAME gate /chapita applies to itself
   // (resolvePhysicalCredentialChannels, cascading locality > province >
   // country > default). Resolving it here is what lets this screen offer the
@@ -47,26 +48,17 @@ export default async function PetCreatedCredentialPage({
   // off the link is not rendered, instead of landing the owner on /chapita's
   // "no está habilitado en tu zona" notice. Cost is up to 3 indexed lookups on
   // govt_business_rules, on a page that renders once per pet registration.
-  const [qrSvg, channels] = await Promise.all([
-    QRCode.toString(credentialUrl, {
-      type: "svg",
-      margin: 1,
-      width: 240,
-      errorCorrectionLevel: "M",
-    }),
-    resolvePhysicalCredentialChannels({
-      country: "AR",
-      province: pet.jurisdictionProvince,
-      locality: pet.jurisdictionLocality,
-    }),
-  ]);
+  const channels = await resolvePhysicalCredentialChannels({
+    country: "AR",
+    province: pet.jurisdictionProvince,
+    locality: pet.jurisdictionLocality,
+  });
 
   return (
     <PetCreatedAha
       petName={pet.name}
       publicToken={publicToken}
       credentialUrl={credentialUrl}
-      qrSvg={qrSvg}
       printableQrEnabled={channels.printable_qr}
     />
   );

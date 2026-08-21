@@ -153,7 +153,6 @@ import { isObservationOpen } from "@/src/modules/surveillance/domain/rabies-obse
 import { and, asc, desc, eq, gt, inArray, isNull, notInArray } from "drizzle-orm";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
-import QRCode from "qrcode";
 import { Suspense } from "react";
 import { SheetMounter } from "./SheetMounter";
 import { resolveCaptureIntentUrl } from "./anotar/handoff";
@@ -804,16 +803,6 @@ export default async function PetDetailPage({
     complianceState,
   );
 
-  // QR for the credential's Face 1 — same absolute-URL + inline-SVG pattern
-  // as /mis-mascotas/nueva/[publicToken]/credencial and /cartel (no separate
-  // image route; the previous `/p/{token}.png` route never existed).
-  const credentialQrSvg = await QRCode.toString(credentialQrUrl(pet.publicToken), {
-    type: "svg",
-    margin: 1,
-    width: 64,
-    errorCorrectionLevel: "M",
-  });
-
   // Prioritized alert strip (urgency-ordered): lost → rabies → transit →
   // open-cases → pregnancy. Built once so CredentialFace only grows an "Avisos"
   // section when it is genuinely non-empty (no empty divider). Same ordering
@@ -1153,7 +1142,11 @@ export default async function PetDetailPage({
               tags: heroTags,
             }}
             complianceState={complianceState}
-            qrSvg={credentialQrSvg}
+            // The QR is no longer encoded here: CredentialFace hands this
+            // absolute URL to <CredentialQr>, which draws the code in the
+            // browser (native-readiness Track 2 — the QR is a pure function of
+            // a cached string, so it survives an offline load).
+            credentialUrl={credentialQrUrl(pet.publicToken)}
             publicHref={`/p/${pet.publicToken}`}
             serviceDog={
               serviceDogRow &&
