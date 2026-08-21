@@ -1,7 +1,7 @@
 // opened-reason — the closed union of case open reasons.
 //
 // What these tests pin:
-//   - each of the 18 codes parses its valid params
+//   - each of the 19 codes parses its valid params
 //   - malformed / missing params are REJECTED (this is the write-boundary fence)
 //   - `.strict()` rejects extra keys — notably the internal UUIDs that must
 //     never reach opened_reason_params
@@ -72,12 +72,13 @@ const VALID: Record<string, unknown> = {
     diseaseCode: "rabia",
     note: "tres casos confirmados en la zona sur",
   },
+  rehome_requested: { code: "rehome_requested", orgDisplayName: "Refugio Padrino" },
 };
 
 describe("OpenedReasonSchema — the closed set", () => {
-  it("declares exactly 18 codes", () => {
-    expect(OPENED_REASON_CODES).toHaveLength(18);
-    expect(new Set(OPENED_REASON_CODES).size).toBe(18);
+  it("declares exactly 19 codes", () => {
+    expect(OPENED_REASON_CODES).toHaveLength(19);
+    expect(new Set(OPENED_REASON_CODES).size).toBe(19);
   });
 
   it("has a valid fixture for every code (fixture table stays exhaustive)", () => {

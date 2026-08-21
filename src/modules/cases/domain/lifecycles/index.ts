@@ -17,6 +17,7 @@ import { fosterProposalLifecycle } from "./foster-proposal";
 import { lostPetEpisodeLifecycle } from "./lost-pet-episode";
 import { microchipRemediationLifecycle } from "./microchip-remediation";
 import { outbreakInvestigationLifecycle } from "./outbreak-investigation";
+import { rehomeRequestLifecycle } from "./rehome-request";
 import type { CaseLifecycle } from "./types";
 import { welfareDenunciaLifecycle } from "./welfare-denuncia";
 
@@ -36,6 +37,8 @@ const LIFECYCLES: Partial<Record<CaseKind, CaseLifecycle>> = {
   foster_proposal: fosterProposalLifecycle,
   custody_episode: custodyEpisodeLifecycle,
   outbreak_investigation: outbreakInvestigationLifecycle,
+  // rehome-by-titular: the titular's consent request to a sponsoring org.
+  rehome_request: rehomeRequestLifecycle,
 };
 
 /**

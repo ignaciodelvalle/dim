@@ -25,6 +25,8 @@ const KIND_ICON: Record<CaseKind, string> = {
   foster_proposal: "propuesta",
   outbreak_investigation: "brote",
   microchip_remediation: "reparacion",
+  // rehome-by-titular: a request for a new home reads as the adoption glyph.
+  rehome_request: "casa",
 };
 
 // Status label + tone are delegated to the canonical CASE_STATUS_CONFIG (the

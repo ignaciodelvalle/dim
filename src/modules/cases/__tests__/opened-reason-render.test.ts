@@ -2,7 +2,7 @@
 //
 // These assertions are spec R1's acceptance table, one scenario per writer
 // family. Two properties are non-negotiable and tested as invariants over ALL
-// 18 codes at the bottom of this file:
+// 19 codes at the bottom of this file:
 //
 //   - ZERO English. The bug this whole change exists to kill rendered as
 //     "Apertura automática — direct custody handoff to_role=owner" for months:
@@ -177,6 +177,12 @@ const R1: Array<[string, OpenedReason, string]> = [
       note: "tres casos confirmados en la zona sur",
     },
     "Apertura manual [rabia] — tres casos confirmados en la zona sur",
+  ],
+  [
+    // rehome-by-titular (2026-08): born after the cutover, es-AR from day one.
+    "rehome request to a sponsoring org",
+    { code: "rehome_requested", orgDisplayName: "Refugio Padrino" },
+    "Solicitud de nuevo hogar enviada por el titular a Refugio Padrino",
   ],
 ];
 

@@ -1,5 +1,5 @@
 // Case kinds catalog — single source of truth for which kinds the system
-// supports. All 12 V1 kinds have full lifecycle declarations in
+// supports. All 13 V1 kinds have full lifecycle declarations in
 // `src/modules/cases/domain/lifecycles/<kind>.ts`. The schema accepts
 // `case_kind` as text (not enum) so no migration is required when adding
 // new kinds.
@@ -27,6 +27,12 @@ export const CASE_KINDS = [
   "foster_proposal",
   "outbreak_investigation",
   "microchip_remediation",
+  // rehome-by-titular: the titular asks a verified org to sponsor their pet's
+  // adoption listing while the animal keeps living with them. The request is
+  // the consent record and the org's inbox item; the sponsorship itself is the
+  // `adoption_listing` case the accept transaction opens. See
+  // lifecycles/rehome-request.ts for why the two never coexist while open.
+  "rehome_request",
 ] as const;
 
 export type CaseKind = (typeof CASE_KINDS)[number];
@@ -88,6 +94,8 @@ export const V1_CASE_KINDS: readonly CaseKind[] = [
   "foster_proposal",
   "custody_episode",
   "outbreak_investigation",
+  // Activated in rehome-by-titular (2026-08).
+  "rehome_request",
 ];
 
 export function isCaseKind(value: string): value is CaseKind {
@@ -165,6 +173,7 @@ export const CASE_KIND_SEVERITY_WEIGHT: Record<CaseKind, 1 | 2 | 3> = {
   adoption_application: 1, // process case
   foster_placement: 1, // process case
   foster_proposal: 1, // process case
+  rehome_request: 1, // process case — a consent handoff, the animal stays home
 };
 
 /**
@@ -209,6 +218,8 @@ export function caseKindLabel(kind: CaseKind | (string & {})): string {
       return "Investigación de brote";
     case "microchip_remediation":
       return "Remediación de microchip";
+    case "rehome_request":
+      return "Solicitud de nuevo hogar";
     // RETIRED kind, outside the CaseKind union. scripts/seed-panorama.ts used
     // to write it and fetchVigilanciaMetrics used to count it; both now use
     // 'bite_incident', the kind that actually has a lifecycle and a closer.

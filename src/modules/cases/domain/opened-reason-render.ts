@@ -128,6 +128,9 @@ const RENDERERS: RendererMap = {
     p.note
       ? `Apertura manual [${p.diseaseCode}] — ${p.note}`
       : `Apertura manual [${p.diseaseCode}]`,
+
+  // rehome-by-titular. Names the org the titular asked, nothing else.
+  rehome_requested: (p) => `Solicitud de nuevo hogar enviada por el titular a ${p.orgDisplayName}`,
 };
 
 /** Render a structured open reason as the es-AR label a funcionario reads. */

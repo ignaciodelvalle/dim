@@ -6,7 +6,8 @@
 // └───────────────────────────────────────────────────────────────────────────┘
 //
 // The dual-write keeps populating `cases.opened_reason` with the SAME BYTES the
-// 18 writers emit today. Not approximately — exactly. Three things depend on it,
+// 18 pre-cutover writers emit today (the 19th, rehome_requested, was born after
+// the cutover and has no legacy prose). Not approximately — exactly. Three things depend on it,
 // and only the first one fails loudly:
 //
 //  1. `opened_reason` IS A LIVE SQL QUERY KEY. surveillance-repository.ts
@@ -203,6 +204,14 @@ const CASES: Array<[OpenedReason, Parameters<typeof openedReasonProse>[1], strin
     },
     undefined,
     "manual [rabia]: tres casos confirmados en la zona sur",
+  ],
+  // src/modules/rehome (2026-08) — a post-cutover writer: its prose IS the
+  // es-AR label, because the frozen legacy layer has no rule for it and a
+  // rollback would render this row through the passthrough.
+  [
+    { code: "rehome_requested", orgDisplayName: "Refugio Padrino" },
+    undefined,
+    "Solicitud de nuevo hogar enviada por el titular a Refugio Padrino",
   ],
 ];
 

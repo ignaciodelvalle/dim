@@ -67,20 +67,22 @@ export const CASE_ATTACHMENT_RULES: Record<EventType, AttachmentRule> = {
       return { mode: "never", compatibleWith: [] };
     },
   },
-  // Rehome sponsorship (rehome-by-titular). `rehome_sponsorship_ended` attaches
-  // to the `adoption_listing` case, which is the sponsorship itself: the accept
-  // transaction opens it through the existing `adoption_eligibility_set` rule
-  // below, and by construction the `rehome_request` consent case is already
-  // closed by the time any end event is written.
+  // Rehome sponsorship (rehome-by-titular, design ADR-2).
   //
-  // `rehome_sponsorship_started` is `never` ONLY until the `rehome_request` case
-  // kind exists (WU3). Its real rule is `requires-open` on `rehome_request`, and
-  // it cannot be declared before the kind is a CASE_KINDS member — the coverage
-  // test rejects a compatibleWith entry that is not a real kind, and a
-  // non-'never' mode with an empty compatibleWith. Nothing writes this type
-  // until the accept action lands in the same work unit that fixes the rule, so
-  // the placeholder is dead configuration, not a live wrong answer.
-  rehome_sponsorship_started: { mode: "never", compatibleWith: [] },
+  // `rehome_sponsorship_started` REQUIRES the titular's `rehome_request` consent
+  // case to be open: the accept transaction writes it one step before closing
+  // that case (ADR-1 step 8 then 9), so the consent fact is attached to the
+  // request it answers. It must never attach to the `adoption_listing` instead
+  // — that case is the sponsorship, not the consent.
+  //
+  // `rehome_sponsorship_ended` attaches to the `adoption_listing` case, which
+  // IS the sponsorship: the accept transaction opens it through the existing
+  // `adoption_eligibility_set` rule below, and by construction the request
+  // case is already closed by the time any end event is written.
+  rehome_sponsorship_started: {
+    mode: "requires-open",
+    compatibleWith: ["rehome_request"],
+  },
   rehome_sponsorship_ended: {
     mode: "attaches-when-open",
     compatibleWith: ["adoption_listing"],
@@ -96,6 +98,9 @@ export const CASE_ATTACHMENT_RULES: Record<EventType, AttachmentRule> = {
       "adoption_application",
       "custody_episode",
       "lost_pet_episode",
+      // rehome-by-titular: a deceased sponsored pet must not keep an open
+      // consent request (nor, via adoption_listing above, a live listing).
+      "rehome_request",
     ],
   },
 

@@ -825,6 +825,8 @@ function caseKindLabelFallback(caseKind: string): string {
       return "Investigación de brote sanitario";
     case "foster_proposal":
       return "Propuesta de tránsito";
+    case "rehome_request":
+      return "Solicitud de nuevo hogar";
     default:
       return caseKind.replaceAll("_", " ");
   }

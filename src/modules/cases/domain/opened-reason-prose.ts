@@ -14,7 +14,8 @@
 // as the display source. That relocation is the point: the English string is no
 // longer what anyone reads, but it is still exactly what gets stored.
 //
-// WHY BYTE-IDENTICAL (see opened-reason-prose.test.ts, which pins all 18)
+// WHY BYTE-IDENTICAL (see opened-reason-prose.test.ts, which pins all 18 — plus
+// the one post-cutover writer, rehome_requested, whose prose is its own label)
 // ----------------------------------------------------------------------
 //  1. `opened_reason` is a LIVE SQL QUERY KEY: surveillance-repository.ts
 //     dedupes open outbreak investigations with
@@ -123,6 +124,13 @@ const PROSE: ProseMap = {
   // surveillance-repository.ts. The prefix, the brackets, the colon and the
   // single space are load-bearing. Do not touch this line.
   outbreak_investigation_manual: (p) => `manual [${p.diseaseCode}]: ${p.note}`,
+
+  // rehome-by-titular (2026-08) — a writer born AFTER the cutover, so there is
+  // no legacy prose to preserve and no regex rule in the frozen layer. The
+  // prose is therefore the es-AR label itself: a rollback renders this row
+  // through the passthrough and a reader sees the same text either way. Same
+  // posture as lost_search_reactivated, the one pre-cutover writer in es-AR.
+  rehome_requested: (p) => `Solicitud de nuevo hogar enviada por el titular a ${p.orgDisplayName}`,
 };
 
 /**
@@ -131,7 +139,7 @@ const PROSE: ProseMap = {
  *
  * @param reason the structured reason (code + params)
  * @param audit internal ids that belong in prose but never in params
- *              (see OpenedReasonAudit). Omit for the 15 codes that need none.
+ *              (see OpenedReasonAudit). Omit for the 16 codes that need none.
  */
 export function openedReasonProse(reason: OpenedReason, audit: OpenedReasonAudit = {}): string {
   const { code, ...params } = reason;

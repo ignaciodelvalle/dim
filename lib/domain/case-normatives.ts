@@ -210,6 +210,13 @@ export const CASE_NORMATIVES: CaseNormativesEntry[] = [
   { kind: "foster_proposal", jurisdiction: { country: "AR" }, laws: [] },
 
   // -------------------------------------------------------------------------
+  // rehome_request — a private arrangement between the titular and a verified
+  // org (rehome-by-titular). Same footing as foster_proposal: no specific law.
+  // The adoption that may follow carries adoption_listing's framework.
+  // -------------------------------------------------------------------------
+  { kind: "rehome_request", jurisdiction: { country: "AR" }, laws: [] },
+
+  // -------------------------------------------------------------------------
   // custody_episode — decomiso spec DC10 + Ley 14.346 for seizure cases
   // -------------------------------------------------------------------------
   {

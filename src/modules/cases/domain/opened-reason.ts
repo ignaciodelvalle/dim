@@ -200,6 +200,12 @@ export const OpenedReasonSchema = z.discriminatedUnion("code", [
       note: z.string(),
     })
     .strict(),
+  // rehome-by-titular: the titular asks a verified org to sponsor the listing.
+  // Only the org's display name travels — the same param welfare_report_org
+  // carries. Neither the titular's id nor the pet's id belongs here.
+  z
+    .object({ code: z.literal("rehome_requested"), orgDisplayName: z.string() })
+    .strict(),
 ]);
 
 export type OpenedReason = z.infer<typeof OpenedReasonSchema>;
