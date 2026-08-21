@@ -926,46 +926,59 @@ export async function fetchOutbreakHistory(
     last_seen: string;
   };
 
+  // THE GROUP IS (disease_code, province, locality) — three columns, and
+  // `disease_label` is deliberately NOT one of them. It is free text chosen by
+  // whichever writer emitted the signal: the production use cases funnel it
+  // through `findDisease()`, `scripts/seed-panorama.ts` writes "Rabia
+  // (sospechada)", older/foreign writers store the raw code. Grouping by it
+  // split ONE locality's outbreak into one SQL row per spelling while the
+  // suppression key below still saw a single group — the visible row
+  // under-counted and `suppressedCount` reported a suppression that protected
+  // nobody, since the same signals were published under the other spelling
+  // (CI run 32525430323). The label is now an OUTPUT of the group, not part of
+  // its identity: `MAX(disease_label)` picks one stored spelling as a fallback
+  // for codes the catalog does not know, and the catalog lookup below overrides
+  // it for every code it does.
   const rows = (await db.execute(sql`
     WITH daily AS (
-      -- Per-(group, day) signal counts. Groups share the same 4-tuple key.
+      -- Per-(group, day) signal counts. Groups share the same 3-tuple key.
       SELECT
         (${petEvents.payload}->>'disease_code')                                AS disease_code,
-        COALESCE((${petEvents.payload}->>'disease_label'), '')                 AS disease_label,
         COALESCE((${petEvents.payload}->>'pet_jurisdiction_province'), '')      AS province,
         COALESCE((${petEvents.payload}->>'pet_jurisdiction_locality'), '')      AS locality,
         date_trunc('day', ${petEvents.occurredAt})::date                        AS day,
         COUNT(*)::int                                                           AS day_count
       FROM ${petEvents}
       WHERE ${petEvents.eventType} = 'outbreak_signal'${scopeFragment}
-      GROUP BY disease_code, disease_label, province, locality, day
+      GROUP BY disease_code, province, locality, day
     ),
     peak AS (
       -- Pick the single busiest day per group.
       -- Tie-break: most signals first, then most-recent day.
-      SELECT DISTINCT ON (disease_code, disease_label, province, locality)
+      SELECT DISTINCT ON (disease_code, province, locality)
         disease_code,
-        disease_label,
         province,
         locality,
         day AS peak_day
       FROM daily
-      ORDER BY disease_code, disease_label, province, locality,
+      ORDER BY disease_code, province, locality,
                day_count DESC, day DESC
     ),
     totals AS (
       -- Group-level aggregates: total signal count + last-seen timestamp
-      -- (used for ordering the final result).
+      -- (used for ordering the final result) + one stored label spelling.
+      -- MAX over the COALESCE'd text, so a real label always beats the '' a
+      -- missing disease_label collapses to.
       SELECT
         (${petEvents.payload}->>'disease_code')                                AS disease_code,
-        COALESCE((${petEvents.payload}->>'disease_label'), '')                 AS disease_label,
         COALESCE((${petEvents.payload}->>'pet_jurisdiction_province'), '')      AS province,
         COALESCE((${petEvents.payload}->>'pet_jurisdiction_locality'), '')      AS locality,
+        MAX(COALESCE((${petEvents.payload}->>'disease_label'), ''))             AS disease_label,
         COUNT(*)::int                                                           AS total_signals,
         MAX(${petEvents.occurredAt})                                            AS last_seen
       FROM ${petEvents}
       WHERE ${petEvents.eventType} = 'outbreak_signal'${scopeFragment}
-      GROUP BY disease_code, disease_label, province, locality
+      GROUP BY disease_code, province, locality
     )
     SELECT
       t.disease_code,
@@ -976,7 +989,7 @@ export async function fetchOutbreakHistory(
       t.total_signals,
       t.last_seen
     FROM totals t
-    JOIN peak p USING (disease_code, disease_label, province, locality)
+    JOIN peak p USING (disease_code, province, locality)
     ORDER BY t.last_seen DESC
     LIMIT 100
   `)) as RawRow[];
@@ -999,6 +1012,11 @@ export async function fetchOutbreakHistory(
   // be useful, and either one re-opens the leak this suppression closes.
   const { visible, suppressedCount } = suppressSmallCells(mapped, {
     count: (r) => r.totalSignals,
+    // This key is the SQL GROUP BY, column for column: (disease_code, province,
+    // locality). That is not a coincidence to be re-checked by hand — it is the
+    // invariant. A grouping wider than the suppression key hands this primitive
+    // several rows where it thinks it has one, and every count it then compares
+    // against ANONYMITY_K is a fragment of the real group.
     key: (r) => `${r.diseaseCode}::${r.province}::${r.locality}`,
   });
 

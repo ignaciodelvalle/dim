@@ -40,6 +40,7 @@ import { generatePublicToken } from "@/lib/infra/publicToken";
 import { buildProjectionContext } from "@/lib/metrics";
 import { ANONYMITY_K } from "@/lib/metrics/anonymity";
 import { windows } from "@/lib/metrics/period";
+import { findDisease } from "@/lib/reference/diseases";
 import { withMutationOverride } from "./_helpers/db-overrides";
 import { assertKpiListParity } from "./helpers/kpi-list-parity";
 
@@ -134,6 +135,15 @@ async function emitOutbreakSignal(input: {
   province: string;
   locality: string;
   hoursAgo: number;
+  /**
+   * `disease_label` is FREE TEXT chosen by whichever writer emitted the signal:
+   * production writers funnel it through `findDisease()`, `seed-panorama.ts`
+   * writes "Rabia (sospechada)", and this fixture's default writes the raw code.
+   * All three are legitimate spellings of the same disease, so callers may pin
+   * one explicitly. Default stays the raw code — that spelling IS one of the
+   * ones the aggregation has to merge.
+   */
+  diseaseLabel?: string;
 }) {
   await db.insert(petEvents).values({
     petId: input.petId,
@@ -143,7 +153,7 @@ async function emitOutbreakSignal(input: {
       payload_version: 1,
       source_symptom_event_id: "00000000-0000-0000-0000-000000000000",
       disease_code: input.diseaseCode,
-      disease_label: input.diseaseCode,
+      disease_label: input.diseaseLabel ?? input.diseaseCode,
       match_strength: {
         high_count: 1,
         medium_count: 0,
@@ -2862,9 +2872,19 @@ describe("fetchOutbreakHistory", () => {
   // locality, one date. Pinned both ways: the sub-k group must be ABSENT from
   // `rows` AND present in `suppressedCount`, because dropping it silently would
   // make the table say "nothing was ever reported here".
+  //
+  // The locality is fixture-only, and the two k-anon tests below say why: they
+  // assert an EXACT group size, so they are only meaningful where the fixture
+  // owns every signal in the group. That used to be true by accident — the
+  // ambient seed's "Rabia (sospechada)" spelling landed in a different SQL row
+  // than the fixture's, so a real Ushuaia seed signal could not perturb the
+  // count. Merging the spellings (as it must) removed that accident: the seed's
+  // one Ushuaia signal now joins this group and lifts it to exactly the k floor.
+  // A real INDEC locality is a shared namespace with the seed's fixed-RNG walk;
+  // CI run 32525430323 is what that costs when the walk moves.
   it("k-anon: a sub-k (disease, locality) group is withheld and COUNTED, never published", async () => {
     const prov = "Tierra del Fuego";
-    const loc = "Ushuaia";
+    const loc = "Ushuaia GD-TEST";
     const pet = await insertFixturePet({
       name: "KanonHistoryPet",
       species: "dog",
@@ -2886,7 +2906,7 @@ describe("fetchOutbreakHistory", () => {
 
   it("k-anon: the SAME group crossing the k floor becomes publishable", async () => {
     const prov = "Tierra del Fuego";
-    const loc = "Río Grande";
+    const loc = "Río Grande GD-TEST";
     const pet = await insertFixturePet({
       name: "KanonHistoryPetAtFloor",
       species: "dog",
@@ -2905,6 +2925,115 @@ describe("fetchOutbreakHistory", () => {
     const row = r.rows.find((x) => x.locality === loc);
     expect(row).toBeDefined();
     expect(row?.totalSignals).toBe(ANONYMITY_K);
+    expect(r.suppressedCount).toBe(0);
+  });
+
+  // THE GROUP IS (disease_code, province, locality) — `disease_label` is not
+  // part of it and must never be, because it is FREE TEXT chosen by the writer:
+  // production use cases funnel it through `findDisease()`, `seed-panorama.ts`
+  // writes "Rabia (sospechada)", this file's fixture writes the raw code. Three
+  // spellings, one disease.
+  //
+  // While the SQL grouped (and JOINed USING) `disease_label` too, one locality's
+  // signals split into as many SQL rows as there were spellings, while the
+  // suppression key `${code}::${province}::${locality}` still saw ONE group. The
+  // damage is two-sided and both sides are wrong in the direction that matters:
+  // the visible row UNDER-COUNTS the outbreak, and `suppressedCount` claims a
+  // suppression that never protected anybody — the same signals are published
+  // under the other spelling. CI run 32525430323 caught it as `suppressedCount`
+  // 1 instead of 0, when a re-fetched INDEC catalog walked the seed onto a
+  // locality a fixture already used.
+  it("groups by disease_code alone — two disease_label spellings are ONE row", async () => {
+    const prov = "Tierra del Fuego";
+    // Fixture-only locality: ambient seed signals for the SAME code now merge
+    // into the fixture's group (that is the fix), so an exact-count assertion
+    // can only live in a locality the seed cannot emit.
+    const loc = "Tolhuin GD-TEST";
+    const code = "rabies_suspected";
+    const catalogLabel = findDisease(code)?.label;
+    expect(catalogLabel).toBeTruthy();
+    const pet = await insertFixturePet({
+      name: "LabelSplitPet",
+      species: "dog",
+      province: prov,
+      locality: loc,
+    });
+    // K signals of ONE disease in ONE locality, written by two "writers":
+    // 3 with the catalog label, 2 with the raw code. Split into 3 + 2 both
+    // halves sit below ANONYMITY_K and the whole outbreak disappears.
+    for (let i = 0; i < 3; i++) {
+      await emitOutbreakSignal({
+        petId: pet,
+        diseaseCode: code,
+        province: prov,
+        locality: loc,
+        hoursAgo: 2 + i,
+        diseaseLabel: catalogLabel,
+      });
+    }
+    for (let i = 0; i < ANONYMITY_K - 3; i++) {
+      await emitOutbreakSignal({
+        petId: pet,
+        diseaseCode: code,
+        province: prov,
+        locality: loc,
+        hoursAgo: 10 + i,
+      });
+    }
+
+    const r = await fetchOutbreakHistory({ role: "govt" }, [{ province: prov, locality: loc }]);
+    const rows = r.rows.filter((x) => x.locality === loc);
+    expect(rows).toHaveLength(1);
+    expect(rows[0].diseaseCode).toBe(code);
+    expect(rows[0].totalSignals).toBe(ANONYMITY_K);
+    // The displayed name comes from the catalog, never from the stored text.
+    expect(rows[0].diseaseName).toBe(catalogLabel);
+    expect(r.suppressedCount).toBe(0);
+  });
+
+  // Same merge for a code the catalog does NOT know (real data has them:
+  // 'ZOO_TRAUMA_ORBITAL', 'rabies'). The grouping still collapses the spellings;
+  // only the DISPLAYED name falls back to the stored text, and which of the two
+  // spellings wins is deliberately unspecified — SQL picks one (MAX) so the row
+  // has a name at all.
+  it("merges disease_label spellings for a code the catalog does not know", async () => {
+    const prov = "Santa Cruz";
+    const loc = "Río Gallegos GD-TEST";
+    const code = "gd_test_unknown_disease";
+    const labelA = "Aaa spelling";
+    const labelB = "Zzz spelling";
+    const pet = await insertFixturePet({
+      name: "UnknownCodeLabelPet",
+      species: "dog",
+      province: prov,
+      locality: loc,
+    });
+    for (let i = 0; i < 3; i++) {
+      await emitOutbreakSignal({
+        petId: pet,
+        diseaseCode: code,
+        province: prov,
+        locality: loc,
+        hoursAgo: 2 + i,
+        diseaseLabel: labelA,
+      });
+    }
+    for (let i = 0; i < ANONYMITY_K - 3; i++) {
+      await emitOutbreakSignal({
+        petId: pet,
+        diseaseCode: code,
+        province: prov,
+        locality: loc,
+        hoursAgo: 10 + i,
+        diseaseLabel: labelB,
+      });
+    }
+
+    const r = await fetchOutbreakHistory({ role: "govt" }, [{ province: prov, locality: loc }]);
+    const rows = r.rows.filter((x) => x.locality === loc);
+    expect(rows).toHaveLength(1);
+    expect(rows[0].totalSignals).toBe(ANONYMITY_K);
+    expect([labelA, labelB]).toContain(rows[0].diseaseName);
     expect(r.suppressedCount).toBe(0);
   });
 
