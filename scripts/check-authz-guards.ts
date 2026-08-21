@@ -99,6 +99,19 @@ export const INSTITUTIONAL_GUARDS = [
   "requireAdminOrRedirect",
   "requireAdminOrGovtOrRedirect",
   "requireDecomisoPrincipal",
+  // The route-handler equivalents (added 2026-08-21 with the app/api widening).
+  // They are not redirect-shaped because a handler answers with a status, not a
+  // navigation — but they run the same three checks the page guard's
+  // loadActiveInstitutionalProfile centralizes: role in {admin, govt}, account
+  // type institutional, not deactivated; plus an erased-account refusal.
+  //
+  // Listing them is not cosmetic. Without it the API surface passed this rule
+  // only by NOT using a personal-tier guard — the fence never confirmed it was
+  // institutionally gated, it just had nothing to complain about. And the first
+  // handler to add a personal guard alongside its real one would have been
+  // false-flagged.
+  "resolveInstitutionalGobActor",
+  "resolveInstitutionalPanoramaActor",
 ] as const;
 
 // Personal-tier guards authenticate a user (or scope to their own pet/org) but
@@ -522,8 +535,19 @@ function bodyCallsAnyOf(src: string, guards: readonly string[]): boolean {
 // tree-wide is the weaker, safer "no operator route gated by auth alone".
 export function findRouteGuardViolations(relPath: string, src: string): string[] {
   const normalized = relPath.replaceAll("\\", "/");
+  // Includes the operator surface under app/api/. That was NOT covered until
+  // 2026-08-21, and the omission was structural rather than an oversight: the
+  // predicate matched `app/admin/` and `app/gob/` literally, so `app/api/gob/`
+  // — same operators, same data, a route handler instead of a page — fell
+  // outside it. Widened while app/api/gob holds three files and app/api/admin
+  // holds none, because widening a fence over an almost-empty directory costs
+  // one run and widening it later costs an audit of everything already there.
   const isOperatorRoute =
-    /(^|\/)app\/admin\//.test(normalized) || /(^|\/)app\/gob\//.test(normalized);
+    /(^|\/)app\/(api\/)?admin\//.test(normalized) ||
+    /(^|\/)app\/(api\/)?gob\//.test(normalized) ||
+    // Panorama is a gob analytics surface with its own institutional guard,
+    // and its API routes were outside every operator rule until now.
+    /(^|\/)app\/api\/panorama\//.test(normalized);
   if (!isOperatorRoute) return [];
 
   const usesPersonal = bodyCallsAnyOf(src, PERSONAL_TIER_GUARDS);
@@ -538,12 +562,27 @@ export function findRouteGuardViolations(relPath: string, src: string): string[]
 
 // Operator route trees scanned by the route↔guard rule (pages, layouts, actions,
 // route handlers).
+/**
+ * Non-vacuity floor for the operator surface under app/api/. Measured
+ * 2026-08-21: 9 files (3 under app/api/gob, 6 under app/api/panorama) against
+ * 334 operator routes overall. Set below the measurement so files can move
+ * without a false alarm, and far above zero so the glob cannot silently stop
+ * covering the API surface — which a TOTAL-count floor could never notice,
+ * since dropping all nine takes 340 to 331.
+ */
+export const MIN_OPERATOR_API_FILES = 6;
+
 export function listOperatorRouteFiles(): string[] {
   const patterns = [
     "app/admin/**/*.ts",
     "app/admin/**/*.tsx",
     "app/gob/**/*.ts",
     "app/gob/**/*.tsx",
+    // The same operators through a route handler instead of a page. A native
+    // client reaches these and nothing else in this file used to look at them.
+    "app/api/admin/**/*.ts",
+    "app/api/gob/**/*.ts",
+    "app/api/panorama/**/*.ts",
   ];
   const files = patterns.flatMap((p) => globSync(p));
   return [...new Set(files)].filter((f) => !f.includes(".test.")).sort();
@@ -633,8 +672,26 @@ function runScan(): void {
   }
 
   // Rule 1.3 — no operator route gated by a personal-tier guard alone.
+  const operatorFiles = listOperatorRouteFiles();
+
+  // THE FLOOR THAT PROTECTS THE 2026-08-21 WIDENING, and it is separate from
+  // any total on purpose. The operator surface under app/api/ was outside this
+  // rule entirely; it is 3 files today against 334 overall, so a total-count
+  // floor could never notice the glob narrowing back — dropping all three
+  // changes 334 to 331. Counting them on their own is the only check that
+  // fails when the API surface stops being scanned.
+  const operatorApiFiles = operatorFiles.filter((f) =>
+    f.replaceAll("\\", "/").includes("app/api/"),
+  );
+  if (operatorApiFiles.length < MIN_OPERATOR_API_FILES) {
+    console.error(
+      `✗ check-authz-guards: only ${operatorApiFiles.length} operator route(s) under app/api were scanned (floor ${MIN_OPERATOR_API_FILES}). The glob dropped the API surface — see MIN_OPERATOR_API_FILES.`,
+    );
+    process.exit(1);
+  }
+
   const routeOffenders: string[] = [];
-  for (const file of listOperatorRouteFiles()) {
+  for (const file of operatorFiles) {
     const relPath = file.replaceAll("\\", "/");
     routeOffenders.push(...findRouteGuardViolations(relPath, readFileSync(file, "utf8")));
   }
@@ -671,7 +728,7 @@ function runScan(): void {
   }
 
   console.log(
-    `✓ authz coverage clean — ${actionFiles.length} action files guarded, no impersonation-class exports, no bare-getUser pet writes; operator routes (app/admin, app/gob) institutionally gated.`,
+    `✓ authz coverage clean — ${actionFiles.length} action files guarded, no impersonation-class exports, no bare-getUser pet writes; operator routes institutionally gated across ${operatorFiles.length} files (${operatorApiFiles.length} of them under app/api).`,
   );
 }
 
