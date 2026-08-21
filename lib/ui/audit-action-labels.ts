@@ -4,9 +4,32 @@
 // OWN inline ACTION_LABELS map. The auditoria one had only 11 entries, so most
 // actions (e.g. pet_events_mutation_override) rendered as the raw code. This is
 // the union (historial's comprehensive map); both pages import it via
-// auditActionLabel(). Add new actions here when they appear in the audit log.
+// auditActionLabel().
+//
+// "Add new actions here when they appear" was the whole mechanism, and a request
+// is not a mechanism: 11 codes drifted out of this map unnoticed, among them
+// case_events_mutation_override — the sibling of the very action cited above as
+// the reason this file exists. The drift was invisible twice over.
+// auditActionLabel() falls back to the raw code, so an operator just read English
+// snake_case; and buildAuditActionOptions() builds the filter <select> by
+// iterating THIS object, so an unlabeled action had no option at all and its rows
+// were unreachable through the product's own filter on all three audit screens.
+// An auditor could not ask "who amended a sensitive event".
+//
+// The completeness check below is the mechanism. Note what it does NOT do: key
+// the object on AuditLogAction. Tried that first, and it is wrong — this map
+// deliberately holds RETIRED codes alongside current ones (revocation_org,
+// microchip_replaced, deactivation_govt …) so that buildAuditActionOptions can
+// group by label and emit one option whose value carries every alias, keeping
+// historical rows filterable. audit_log is permanent; a code leaving the SSOT
+// does not delete decades of rows written under it. So: extra keys allowed,
+// missing keys forbidden.
 
-export const AUDIT_ACTION_LABELS: Record<string, string> = {
+import type { AuditLogAction } from "@/db";
+
+// No `Record<string, string>` annotation: it erases the literal keys, and the
+// literal keys are exactly what the completeness check at the bottom needs.
+export const AUDIT_ACTION_LABELS = {
   // Approval queue
   request_approved: "Solicitud aprobada",
   request_rejected: "Solicitud rechazada",
@@ -65,11 +88,13 @@ export const AUDIT_ACTION_LABELS: Record<string, string> = {
   welfare_report_derived_to_org: "Denuncia derivada a organización",
   welfare_location_viewed: "Ubicación de caso consultada",
   welfare_mpf_export_generated: "Exportación MPF generada",
+  welfare_report_escalated_to_admin: "Denuncia escalada a administración",
   // Decomisos
   decomiso_executed: "Decomiso ejecutado",
   decomiso_handoff_accepted: "Entrega de decomiso aceptada",
   decomiso_handoff_rejected: "Entrega de decomiso rechazada",
   decomiso_handoff_cancelled: "Entrega de decomiso cancelada",
+  decomiso_returned_to_owner: "Decomiso: animal devuelto a su titular",
   // Cross-org transfers
   cross_org_transfer_proposed: "Transferencia entre orgs propuesta",
   cross_org_transfer_accepted: "Transferencia entre orgs aceptada",
@@ -114,9 +139,23 @@ export const AUDIT_ACTION_LABELS: Record<string, string> = {
   analytics_export_generated: "Exportación analytics generada",
   gob_dashboard_export_generated: "Exportación CSV de dashboard",
   ppp_export_generated: "Exportación PPP generada",
+  travel_export_generated: "Exportación de viaje generada",
   // Pet events override
   pet_events_mutation_override: "Mutación forzada de evento de mascota (override)",
+  // The sibling this file's header cites, and the one that drifted out of it.
+  case_events_mutation_override: "Mutación forzada de evento de caso (override)",
   audit_log_mutation_override: "Mutación forzada del registro de auditoría (override)",
+  // Chapas físicas (tag lifecycle). Dotted codes, like microchip.replace.
+  "tag.lote_issue": "Lote de chapas emitido",
+  "tag.activate": "Chapa activada",
+  "tag.revoke": "Chapa revocada",
+  // Sensitive-event amendment and purge
+  event_amended_sensitive: "Evento sensible corregido",
+  scan_event_purged: "Escaneo purgado por retención",
+  // Outreach
+  outreach_reminder_sent: "Recordatorios de alcance enviados",
+  // Account lifecycle
+  personal_self_deactivated: "Baja voluntaria de cuenta personal",
   // Subject rights
   subject_data_exported: "Datos del titular exportados",
   subject_erasure: "Datos del titular eliminados",
@@ -131,7 +170,26 @@ export const AUDIT_ACTION_LABELS: Record<string, string> = {
   notification_fanout_empty: "Aviso sin destinatarios",
 };
 
+/**
+ * COMPLETENESS CHECK. Every action in the SSOT must have a label here; retired
+ * codes may also appear and are deliberate (see the header).
+ *
+ * When this breaks, the compiler error names the offenders directly: it reads
+ * "Type 'true' is not assignable to type '<the codes you forgot>'". That is the
+ * whole point — `pnpm typecheck` runs first in `pnpm verify`, so a code added to
+ * AUDIT_LOG_ACTIONS without a label here cannot reach a build, let alone an
+ * operator's screen or a filter dropdown that silently omits it.
+ */
+type UnlabelledAuditActions = Exclude<AuditLogAction, keyof typeof AUDIT_ACTION_LABELS>;
+const _everyAuditActionHasALabel: [UnlabelledAuditActions] extends [never]
+  ? true
+  : UnlabelledAuditActions = true;
+void _everyAuditActionHasALabel;
+
 /** Human es-AR label for an audit action, falling back to the raw code. */
 export function auditActionLabel(action: string): string {
-  return AUDIT_ACTION_LABELS[action] ?? action;
+  // The cast is the price of literal keys above. It is safe and the fallback is
+  // load-bearing: audit_log rows are permanent, so this renders codes retired
+  // before an alias was ever added for them.
+  return (AUDIT_ACTION_LABELS as Record<string, string>)[action] ?? action;
 }
