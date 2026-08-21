@@ -481,7 +481,18 @@ describe("reportPetSightingAction — idempotency guard", () => {
     );
   });
 
-  it("skips notification insert when wasNoop=true", async () => {
+  it("re-attempts the owner alert when wasNoop=true, keyed so it cannot duplicate", async () => {
+    // THE INVERSE OF WHAT THIS TEST USED TO ASSERT, and the old expectation was
+    // a bug frozen as spec. The sighting event is written first and the owner's
+    // alert second, and that second write used to be wrapped in a catch that
+    // SWALLOWED — so a first attempt could return the success screen having
+    // notified nobody, and this "skip on noop" rule then guaranteed the retry
+    // would not fix it. The owner of a lost animal is never told it was seen.
+    //
+    // A duplicate submission is evidence that attempt 1 may have failed, not
+    // proof that it succeeded. Re-attempting is safe because the write carries
+    // a dedupe key derived from the event id: if the alert already landed,
+    // ON CONFLICT DO NOTHING makes this a no-op and no second push goes out.
     mockInsertEventIdempotent.mockResolvedValue({
       event: { id: INSERTED_EVENT_ID },
       wasNoop: true,
@@ -496,8 +507,13 @@ describe("reportPetSightingAction — idempotency guard", () => {
     const result = await reportPetSightingAction(PUBLIC_TOKEN, PREVIOUS_STATE, fd);
 
     expect(result.ok).toBe(true);
-    // Noop path must NOT insert a notification.
-    expect(capturedNotificationInsert).toBeNull();
+    expect(capturedNotificationInsert).not.toBeNull();
+    expect(capturedNotificationInsert?.notificationType).toBe("pet_sighting");
+    // Keyed off the EXISTING event, which is what lets the no-op recognise the
+    // alert attempt 1 already made.
+    expect(capturedNotificationInsert?.dedupeKey).toBe(
+      `event:${INSERTED_EVENT_ID}:${OWNER_USER_ID}:pet_sighting`,
+    );
   });
 
   it("proceeds with normal insert and notification when clientIdempotencyKey is absent", async () => {

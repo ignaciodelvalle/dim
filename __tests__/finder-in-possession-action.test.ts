@@ -68,6 +68,12 @@ vi.mock("@/lib/infra/uploads", () => ({
     mockUpload(supabase, file, bucket),
 }));
 
+// createNotification fires the Web Push leg for genuinely new rows. Unmocked it
+// reaches out to real subscriptions from a unit test.
+vi.mock("@/lib/infra/web-push", () => ({
+  sendPushForNotifications: vi.fn(async () => undefined),
+}));
+
 // ---------------------------------------------------------------------------
 // Mock: @/lib/rate-limit — allow by default; tests override per case.
 // The action now uses the persistent DB-backed enforceRateLimit (not
@@ -123,6 +129,7 @@ vi.mock("@/lib/supabase/server", () => ({
 
 let capturedPetEventInsert: Record<string, unknown> | null = null;
 let capturedNotificationInsert: Record<string, unknown> | null = null;
+let capturedDeadLetterRows: Record<string, unknown>[] = [];
 /** Every row of the possession insert — one per alert recipient. */
 let capturedNotificationRows: Record<string, unknown>[] = [];
 let capturedAttachmentInsert: Record<string, unknown> | null = null;
@@ -130,6 +137,7 @@ let capturedAttachmentInsert: Record<string, unknown> | null = null;
 const INSERTED_EVENT_ID = "evt-p0e-0000-0000-000000000001";
 
 // Controls whether the idempotency query returns an existing event.
+const IDEMPOTENT_EXISTING_EVENT_ID = "existing-event-id";
 let idempotencyReturnEvent = false;
 
 /** custodia-temporal: does the fixture pet have an active caretaker row? */
@@ -163,7 +171,7 @@ function buildMockDb(petStatus = "lost") {
     }
     if (selectCallCount === 3) {
       // idempotency query
-      return idempotencyReturnEvent ? [{ id: "existing-event-id" }] : [];
+      return idempotencyReturnEvent ? [{ id: IDEMPOTENT_EXISTING_EVENT_ID }] : [];
     }
     if (selectCallCount === 4) {
       // open case query
@@ -200,16 +208,30 @@ function buildMockDb(petStatus = "lost") {
       // `capturedNotificationRows` is what the recipient-count assertions use.
       const rows = Array.isArray(raw) ? raw : [raw];
       const data = rows[0] ?? {};
-      if ("payload" in data) {
+      if ("errorMessage" in data) {
+        // A notification_dead_letter row. It CARRIES a `payload` key, so without
+        // this branch first it was misfiled as a pet event and silently
+        // overwrote the real one — the double corrupting what the test reads.
+        capturedDeadLetterRows.push(...rows);
+      } else if ("payload" in data) {
         capturedPetEventInsert = data;
       } else if ("storagePath" in data) {
         capturedAttachmentInsert = data;
       } else {
-        capturedNotificationInsert = data;
-        capturedNotificationRows = rows;
+        // ACCUMULATE, do not overwrite. The possession alert is now written one
+        // recipient per call through createNotification (idempotent + durable),
+        // where it used to be a single `.values([a, b])`. Overwriting made the
+        // recipient-count assertions see only the last call.
+        capturedNotificationInsert ??= data;
+        capturedNotificationRows.push(...rows);
       }
       return insertChain;
     }),
+    // createNotification's path: .values().onConflictDoNothing().returning().
+    // Without this the whole canonical write threw, fell into its own
+    // dead-letter, and the assertions below were quietly grading the
+    // dead-letter row instead of the notification.
+    onConflictDoNothing: vi.fn(() => insertChain),
     returning: vi.fn(async () => [{ id: INSERTED_EVENT_ID }]),
   };
 
@@ -257,6 +279,7 @@ describe("reportFinderInPossessionAction — P0e", () => {
     capturedPetEventInsert = null;
     capturedNotificationInsert = null;
     capturedNotificationRows = [];
+    capturedDeadLetterRows = [];
     capturedAttachmentInsert = null;
     idempotencyReturnEvent = false;
     activeCaretakerPresent = false;
@@ -568,9 +591,31 @@ describe("reportFinderInPossessionAction — P0e", () => {
 
     expect(result.ok).toBe(true);
     expect(result.error).toBeNull();
-    // No new insert should have been captured.
+    // The EVENT is what the guard protects: no second copy in the spine.
     expect(capturedPetEventInsert).toBeNull();
-    expect(capturedNotificationInsert).toBeNull();
+
+    // THE NOTIFICATION IS RE-ATTEMPTED, and this assertion is the inverse of
+    // what stood here before. The old expectation — that a retry writes no
+    // notification — froze a real bug as the spec: the event is written first
+    // and the owner's alert second, so a first attempt that died in between
+    // left the finder with an error and the owner with nothing. Pressing the
+    // button again found the event, returned the success screen, and told
+    // nobody. Both people then believed the report went through.
+    //
+    // A retry is evidence that attempt 1 may have failed, not proof that it
+    // succeeded. Re-attempting is safe because the write now carries a dedupe
+    // key derived from the event id: if the alert did land the first time,
+    // ON CONFLICT DO NOTHING makes this a no-op and no second push goes out.
+    expect(capturedNotificationInsert).not.toBeNull();
+    expect(capturedNotificationInsert?.notificationType).toBe("pet_in_possession");
+    expect(capturedNotificationInsert?.dedupeKey).toBe(
+      `event:${IDEMPOTENT_EXISTING_EVENT_ID}:${OWNER_USER_ID}:pet_in_possession`,
+    );
+    // Keyed off the EXISTING event, not a fresh id — that is what lets the
+    // no-op recognise the alert attempt 1 already made.
+    expect(capturedNotificationInsert?.relatedEventId).toBe(IDEMPOTENT_EXISTING_EVENT_ID);
+    // And nothing fell into the dead-letter: the canonical path really ran.
+    expect(capturedDeadLetterRows).toHaveLength(0);
   });
 
   // --- Notification copy for vet-urgent condition ---

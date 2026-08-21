@@ -40,11 +40,12 @@
 import { and, eq, isNull } from "drizzle-orm";
 import { headers } from "next/headers";
 
-import { attachments, cases, db, notifications, ownerships, pets } from "@/db";
+import { attachments, cases, db, ownerships, pets } from "@/db";
 import { CoordError, normalizeLocationForWrite } from "@/lib/domain/location-normalize";
 import { parseLocationFromFormData } from "@/lib/domain/location-value";
 import { insertEventIdempotent } from "@/lib/events/event-idempotency";
 import { validateEventPayload } from "@/lib/events/event-schemas";
+import { createNotification } from "@/lib/infra/notification-service";
 import { publicPetByToken } from "@/lib/infra/public-pet-lookup";
 import { RateLimitError, callerIp, enforceRateLimit } from "@/lib/infra/rate-limit";
 import { uploadAttachmentIfPresent } from "@/lib/infra/uploads";
@@ -259,17 +260,21 @@ export async function reportPetSighting(
     ),
   );
 
-  // Idempotency: a duplicate submission with the same key means the event was
-  // already recorded. Return ok without re-sending the notification.
-  if (wasNoop) {
-    return { ok: true, error: null };
-  }
+  // Idempotency guards the EVENT. It used to guard the notification too, by
+  // returning here, and that made a retry unable to heal a half-finished first
+  // attempt — the worse shape of the two finder flows, because the insert below
+  // was wrapped in a catch that SWALLOWED. Attempt 1 could return the success
+  // screen having written no notification at all, and the retry then refused to
+  // try again. The owner of a lost animal is simply never told it was seen.
+  //
+  // The notification now runs on both paths, carrying its own idempotency
+  // (dedupeKey), which is what makes re-attempting safe rather than noisy.
 
   // P0g: also insert into the attachments table so the historial/eventos/EventTimeline
   // surfaces render the photo for free (they read attachments, not the payload JSONB).
   // uploadedByUserId is null: anonymous sighting — no authenticated user.
   // Mirror pattern from app/actions/events.ts (checkin, vaccination, etc.).
-  if (photoStoragePath && insertedEvent) {
+  if (!wasNoop && photoStoragePath && insertedEvent) {
     await db.insert(attachments).values({
       petId: pet.id,
       eventId: insertedEvent.id,
@@ -317,15 +322,18 @@ export async function reportPetSighting(
     // and possession reports while the pet is lost (UI-4 fix 7).
     ctaUrl: `/mis-mascotas/${publicToken}`,
   };
-  try {
-    await db.insert(notifications).values(sightingNotification);
-    // Web Push leg (ADR 2026-07-18 §4): avistaje, best-effort, never throws.
-    // pet_sighting rows push despite warning severity (see sendPushForNotifications).
-    const { sendPushForNotifications } = await import("@/lib/infra/web-push");
-    await sendPushForNotifications([sightingNotification]);
-  } catch (e) {
-    console.error("notifications insert failed (reportPetSightingAction did succeed)", e);
-  }
+  // Through the canonical write path. The try/catch that used to sit here
+  // SWALLOWED — a failed insert was logged to the console and the reporter got
+  // the success screen anyway, so the owner of a lost animal was never told it
+  // had been seen and nobody found out. createNotification cannot throw either,
+  // but it dead-letters instead of discarding, and its dedupe key lets a retry
+  // land the alert the first attempt lost. The Web Push leg moved inside it and
+  // fires only for genuinely new rows, so a retry cannot double-push.
+  await createNotification({
+    ...sightingNotification,
+    relatedEventId: insertedEvent?.id ?? null,
+    dedupeKey: `event:${insertedEvent?.id ?? pet.id}:${owner.userId}:pet_sighting`,
+  });
 
   return { ok: true, error: null, warning: photoWarning };
 }

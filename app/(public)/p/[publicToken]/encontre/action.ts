@@ -22,18 +22,11 @@
 import { and, eq, gt, isNull, sql } from "drizzle-orm";
 import { headers } from "next/headers";
 
-import {
-  attachments,
-  cases,
-  db,
-  notifications,
-  organizationMemberships,
-  petEvents,
-  pets,
-} from "@/db";
+import { attachments, cases, db, organizationMemberships, petEvents, pets } from "@/db";
 import { CoordError, normalizeLocationForWrite } from "@/lib/domain/location-normalize";
 import { parseLocationFromFormData } from "@/lib/domain/location-value";
 import { validateEventPayload } from "@/lib/events/event-schemas";
+import { createNotification } from "@/lib/infra/notification-service";
 import { resolveOriginShelterOrgId } from "@/lib/infra/origin-shelter-alert";
 import { resolveLostPetAlertRecipients } from "@/lib/infra/pet-alert-recipients";
 import { publicPetByToken } from "@/lib/infra/public-pet-lookup";
@@ -200,11 +193,29 @@ export async function reportFinderInPossessionAction(
   const finderContact =
     finderPhone && finderEmail ? `${finderPhone} / ${finderEmail}` : (finderPhone ?? finderEmail);
 
-  // Idempotency: skip insert when an identical finder_in_possession event for
-  // (petId, finderContact) already exists in the last 5 minutes. Only keyed
+  // Idempotency: skip the INSERT when an identical finder_in_possession event
+  // for (petId, finderContact) already exists in the last 5 minutes. Only keyed
   // when a contact WAS left — two distinct anonymous finders within 5 minutes
   // must not swallow each other's report (the per-IP 1/min limiter already
   // covers double-taps from the same person).
+  //
+  // IT GUARDS THE EVENT, AND ONLY THE EVENT. This block used to `return ok`
+  // outright, and that was a hole a retry could not climb out of. The event is
+  // written first and the owner's notification second; if the second half
+  // failed, the finder saw an error and pressed the button again — and the
+  // retry found the event from attempt 1, returned the success screen, and
+  // never notified anybody. The person who has the animal believes the owner
+  // was told. The owner was never told. Both halves of the only circuit that
+  // reunites a lost animal with its family fail silently, together.
+  //
+  // A retry is EVIDENCE that attempt 1 may have failed, not proof that it
+  // succeeded. So the notification below now runs on both paths and carries its
+  // own idempotency (dedupeKey), which is the only thing that makes a retry
+  // able to heal a half-finished first attempt. The general rule this is an
+  // instance of: skipping side effects on a duplicate is safe only when those
+  // side effects share the event's transaction — and notifications deliberately
+  // do not (ARCH-P).
+  let existingEventId: string | null = null;
   if (finderContact) {
     const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000);
     const [existingEvent] = await db
@@ -221,11 +232,7 @@ export async function reportFinderInPossessionAction(
       )
       .limit(1);
 
-    if (existingEvent) {
-      // Idempotent: return ok so the UI shows the success state without
-      // alarming the finder — from their perspective the report was sent.
-      return { ok: true, error: null };
-    }
+    existingEventId = existingEvent?.id ?? null;
   }
 
   // Optional photo upload. Non-fatal on failure.
@@ -236,7 +243,9 @@ export async function reportFinderInPossessionAction(
   let photoMimeType: string | null = null;
   let photoSize: number | null = null;
   let photoWarning: string | null = null;
-  if (photoFile && photoFile.size > 0) {
+  // Not on a retry: the first attempt already uploaded and linked it, and a
+  // second copy would be an orphan blob nothing renders.
+  if (existingEventId === null && photoFile && photoFile.size > 0) {
     const adminSupabase = createAdminClient();
     const uploadResult = await uploadAttachmentIfPresent(
       adminSupabase,
@@ -305,36 +314,53 @@ export async function reportFinderInPossessionAction(
     message: safeMessage || null,
   });
 
-  const [insertedEvent] = await db
-    .insert(petEvents)
-    .values({
-      petId: pet.id,
-      eventType: "note_added",
-      occurredAt: new Date(),
-      recordedAt: new Date(),
-      // Hard-anonymized: never link a public finder report to a user account.
-      recordedByUserId: null,
-      authorRole: "finder",
-      authorVerified: false,
-      payload,
-      locationLat: lat.toString(),
-      locationLng: lng.toString(),
-      caseId: openCase?.id ?? null,
-    })
-    .returning({ id: petEvents.id });
+  // The write the idempotency guard protects, and the only thing it skips.
+  let eventId: string;
+  if (existingEventId !== null) {
+    eventId = existingEventId;
+  } else {
+    const [insertedEvent] = await db
+      .insert(petEvents)
+      .values({
+        petId: pet.id,
+        eventType: "note_added",
+        occurredAt: new Date(),
+        recordedAt: new Date(),
+        // Hard-anonymized: never link a public finder report to a user account.
+        recordedByUserId: null,
+        authorRole: "finder",
+        authorVerified: false,
+        payload,
+        locationLat: lat.toString(),
+        locationLng: lng.toString(),
+        caseId: openCase?.id ?? null,
+      })
+      .returning({ id: petEvents.id });
+    if (!insertedEvent) {
+      // Unreachable while the insert either returns a row or throws. Refused
+      // rather than narrowed with a `!`: eventId is about to become part of a
+      // dedupe key, and a null in there would collapse every future report on
+      // this pet into one notification.
+      reportError("encontre:event-insert-no-row", new Error("insert returned no rows"), {
+        petId: pet.id,
+      });
+      return { ok: false, error: "No pudimos registrar el aviso. Volvé a intentarlo." };
+    }
+    eventId = insertedEvent.id;
 
-  // P0g: also insert into the attachments table so the historial/eventos/EventTimeline
-  // surfaces render the photo for free (they read attachments, not the payload JSONB).
-  // uploadedByUserId is always null — same finder-anonymity invariant as the event row.
-  if (photoStoragePath && insertedEvent) {
-    await db.insert(attachments).values({
-      petId: pet.id,
-      eventId: insertedEvent.id,
-      uploadedByUserId: null,
-      storagePath: photoStoragePath,
-      mimeType: photoMimeType ?? "image/jpeg",
-      fileSize: photoSize ?? 0,
-    });
+    // P0g: also insert into the attachments table so the historial/eventos/EventTimeline
+    // surfaces render the photo for free (they read attachments, not the payload JSONB).
+    // uploadedByUserId is always null — same finder-anonymity invariant as the event row.
+    if (photoStoragePath) {
+      await db.insert(attachments).values({
+        petId: pet.id,
+        eventId,
+        uploadedByUserId: null,
+        storagePath: photoStoragePath,
+        mimeType: photoMimeType ?? "image/jpeg",
+        fileSize: photoSize ?? 0,
+      });
+    }
   }
 
   // Notification to owner. Anonymous-safe: never render an empty name slot,
@@ -378,7 +404,19 @@ export async function reportFinderInPossessionAction(
     // possession/sighting reports — land the owner there so they can act (UI-4 fix 7).
     ctaUrl: `/mis-mascotas/${publicToken}`,
   }));
-  await db.insert(notifications).values(possessionNotifications);
+  // THE HEALING HALF OF THE RETRY. Through the canonical write path, which
+  // supplies the two things a raw insert here could not: idempotency, so a
+  // retry that finds the event already written does not produce a second alert;
+  // and durability, so a failure lands in notification_dead_letter instead of
+  // vanishing. A raw `db.insert` that threw is exactly how the finder ended up
+  // retrying into a success screen the owner never heard about.
+  for (const notification of possessionNotifications) {
+    await createNotification({
+      ...notification,
+      relatedEventId: eventId,
+      dedupeKey: `event:${eventId}:${notification.userId}:pet_in_possession`,
+    });
+  }
 
   // A5 — the origin shelter also hears about it (PO decision 2026-08-04).
   //
@@ -429,19 +467,23 @@ export async function reportFinderInPossessionAction(
         ctaUrl: `/p/${publicToken}`,
       }));
       // Best-effort: the finder's report is already recorded and the titular
-      // already notified. A failure here must never surface to the finder.
-      try {
-        await db.insert(notifications).values(shelterNotifications);
-      } catch (err) {
-        reportError("encontre:origin-shelter-notify", err, { petId: pet.id });
+      // already notified. A failure here must never surface to the finder —
+      // and createNotification cannot throw (it dead-letters), so the try/catch
+      // that used to wrap this is gone rather than kept as decoration.
+      for (const notification of shelterNotifications) {
+        await createNotification({
+          ...notification,
+          relatedEventId: eventId,
+          dedupeKey: `event:${eventId}:${notification.userId}:origin_shelter_pet_found`,
+        });
       }
     }
   }
 
-  // Web Push leg (ADR 2026-07-18 §4): urgent hallazgo en posesión — best-effort,
-  // never throws, so it cannot affect the finder's already-recorded submission.
-  const { sendPushForNotifications } = await import("@/lib/infra/web-push");
-  await sendPushForNotifications(possessionNotifications);
+  // The Web Push leg used to be a separate call here. It moved INTO
+  // createNotification, which fires it only for rows that were genuinely new —
+  // so a retry that dedupes no longer re-pushes "alguien tiene a tu mascota" to
+  // an owner who already got it.
 
   return { ok: true, error: null, warning: photoWarning };
 }
