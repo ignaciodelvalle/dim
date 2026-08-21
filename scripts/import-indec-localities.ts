@@ -12,13 +12,31 @@
  *   - Encoding: UTF-8
  *   - Delimiter: comma
  *   - All values wrapped in double quotes
- *   - Column order: categoria, centroide_lat, centroide_lon, departamento_id,
- *     departamento_nombre, fuente, funcion, id, municipio_id, municipio_nombre,
- *     nombre, provincia_id, provincia_nombre
  *   - Only two `categoria` values observed:
  *       * "Localidad simple" → mapped to category='localidad'
  *       * "Componente de localidad compuesta" → mapped to category='componente'
  *         (CABA barrios, since CABA is one composite locality in INDEC's model)
+ *
+ * Re-verified 2026-08-19 (Last-Modified: Wed, 19 Aug 2026), 4024 data rows.
+ * TWO upstream changes, and only one of them mattered:
+ *
+ *   - Header rename + reorder: `municipio_id` / `municipio_nombre` became
+ *     `gobierno_local_id` / `gobierno_local_nombre`, and `id` moved to sit after
+ *     them. Current columns: categoria, centroide_lat, centroide_lon,
+ *     departamento_id, departamento_nombre, fuente, funcion, gobierno_local_id,
+ *     gobierno_local_nombre, id, nombre, provincia_id, provincia_nombre.
+ *     NO CODE CHANGE NEEDED: csv-parse runs with `columns: true`, so rows are
+ *     keyed by header name and order is irrelevant — and this importer never
+ *     read either municipio column (it reads id, nombre, provincia_id,
+ *     departamento_id, departamento_nombre, categoria, centroide_lat/lon). The
+ *     old names survived only in this comment. The sample fixture carries the
+ *     new shape so the parse is proven, not assumed.
+ *   - THE ONE THAT MATTERED: CABA's single department-less city-wide row
+ *     (indec_id 02000010) was replaced by 15 per-Comuna rows, ids 02007010 …
+ *     02105010, named "CABA - Comuna N", each with a departamento_id. That made
+ *     isWholeProvinceAggregate — a check on the row's SHAPE — stop matching, and
+ *     all 15 imported as active AR-C rows on every bootstrap. See the supersede
+ *     skip in the loop below and lib/reference/locality-integrity.ts.
  *
  * Data source resolution (checked in order):
  *   1. `INDEC_LOCALITIES_CSV` env var — absolute or repo-relative path to a
@@ -54,7 +72,10 @@ import {
   db,
 } from "@/db";
 import type { ProvinceCode } from "@/lib/reference/ar-provincias";
-import { isWholeProvinceAggregate } from "@/lib/reference/locality-integrity";
+import {
+  isSupersededByAltSource,
+  isWholeProvinceAggregate,
+} from "@/lib/reference/locality-integrity";
 
 const DEFAULT_SOURCE_URL = "https://infra.datos.gob.ar/georef/localidades_censales.csv";
 
@@ -171,6 +192,14 @@ export type ImportStats = {
   noop: number;
   removed: number;
   skipped: number;
+  /**
+   * Of `skipped`, how many were dropped because another source owns that
+   * province's catalog outright (today: every AR-C row, owned by
+   * caba_open_data). Broken out because it is the one skip reason that must be
+   * visible in a bootstrap log: when it silently went to zero after INDEC
+   * reshaped CABA, nothing said so.
+   */
+  supersededSkipped: number;
   errors: { row: number; reason: string }[];
   /** True when the live fetch failed and the bundled sample fixture was used instead. */
   usedFallback?: boolean;
@@ -207,6 +236,7 @@ export async function runImport(options?: {
     noop: 0,
     removed: 0,
     skipped: 0,
+    supersededSkipped: 0,
     errors: [],
     usedFallback: false,
   };
@@ -291,11 +321,13 @@ export async function runImport(options?: {
     const toInsert: NewArgentineLocality[] = [];
     const queuedInsertIds = new Set<string>();
 
-    // Whole-province aggregate rows we deliberately drop (see the skip below).
-    // Their indec_ids are excluded from `importedIndecIds` further down so that
-    // an aggregate row left over from an older import gets soft-deleted on the
-    // next run — the importer self-heals the province-as-locality overlap.
-    const skippedAggregateIds = new Set<string>();
+    // Rows present in the CSV that we deliberately do NOT import — whole-province
+    // aggregates, and rows for a province another source owns outright. Their
+    // indec_ids are excluded from `importedIndecIds` further down so that a row
+    // left over from an older import gets soft-deleted on the next run: the
+    // importer self-heals rather than needing a data migration, which matters
+    // because staging and prod already ingested INDEC's 15 CABA comunas.
+    const notImportedIndecIds = new Set<string>();
 
     for (const [idx, row] of records.entries()) {
       const indecId = row.id;
@@ -330,17 +362,33 @@ export async function runImport(options?: {
         continue;
       }
 
-      // Drop the whole-province aggregate (INDEC ships CABA as a single
-      // city-wide 'componente', indec_id 02000010, that double-counts the 48
-      // barrios tiling it). isWholeProvinceAggregate isolates exactly that row:
-      // name resolves to its own province AND no departamento. Real capital
-      // cities that share their province name always carry a departamento, so
-      // they are imported normally. Excluding it here (and from
-      // importedIndecIds below) keeps a re-import from reintroducing the row.
+      // Drop rows for a province whose catalog another source owns outright.
+      // Today that is AR-C: CABA IS its 48 caba_open_data barrios (Ley 1.777),
+      // so anything INDEC ships for it tiles the same city a second time.
+      //
+      // THIS CHECK IS FIRST, AND ON PURPOSE (2026-08-21). The aggregate check
+      // below used to carry CABA on its own, by recognising the SHAPE INDEC
+      // happened to ship: one department-less city-wide row. On 2026-08-19 INDEC
+      // replaced it with 15 per-Comuna rows, each with a departamento_id — the
+      // shape check stopped matching, nothing else did, and all 15 imported as
+      // active AR-C rows on every bootstrap. A rule about a form only holds
+      // while the form does; this one is about the subject.
+      if (isSupersededByAltSource({ provinceCode, source })) {
+        notImportedIndecIds.add(indecId);
+        stats.skipped += 1;
+        stats.supersededSkipped += 1;
+        continue;
+      }
+
+      // Drop the whole-province aggregate — the general province-as-locality
+      // guard, still live for every OTHER province: a row whose name resolves to
+      // its own province AND has no departamento spans the whole province and
+      // double-counts its subdivisions. Real capital cities that share their
+      // province name always carry a departamento, so they import normally.
       if (
         isWholeProvinceAggregate({ provinceCode, localityName, departmentCode: departamentoCode })
       ) {
-        skippedAggregateIds.add(indecId);
+        notImportedIndecIds.add(indecId);
         stats.skipped += 1;
         continue;
       }
@@ -427,10 +475,12 @@ export async function runImport(options?: {
     // snapshot (rows inserted this run are all present in the CSV, so they are
     // never removal candidates) and flush the removals in one chunked UPDATE.
     const importedIndecIds = new Set(records.map((r) => r.id).filter(Boolean));
-    // A whole-province aggregate row present in the CSV is intentionally NOT
-    // imported; drop its id from the "seen" set so an aggregate left over from
-    // an older import is treated as gone and soft-deleted below (self-healing).
-    for (const id of skippedAggregateIds) importedIndecIds.delete(id);
+    // A row we deliberately did not import is present in the CSV but must not
+    // count as "seen"; drop its id so a copy left over from an older import is
+    // treated as gone and soft-deleted below. This is the self-healing leg: the
+    // DBs that ingested INDEC's 15 CABA comunas before 2026-08-21 clear them on
+    // their next import, with no data migration and no manual SQL.
+    for (const id of notImportedIndecIds) importedIndecIds.delete(id);
     const toRemoveIds: string[] = [];
     for (const e of existingCatalog) {
       if (
@@ -470,6 +520,7 @@ export async function runImport(options?: {
           details: {
             errors: stats.errors.slice(0, 50),
             skippedNonRelevant: stats.skipped,
+            skippedSuperseded: stats.supersededSkipped,
             ...(usedFallback ? { usedFallback: true } : {}),
           },
         })
@@ -480,8 +531,15 @@ export async function runImport(options?: {
       ? " [DEGRADED — used sample fixture, catalog incomplete]"
       : "";
     console.log(
-      `Done. inserted=${stats.inserted} updated=${stats.updated} noop=${stats.noop} removed=${stats.removed} skipped=${stats.skipped} errors=${stats.errors.length}${fallbackSuffix}`,
+      `Done. inserted=${stats.inserted} updated=${stats.updated} noop=${stats.noop} removed=${stats.removed} skipped=${stats.skipped} (superseded=${stats.supersededSkipped}) errors=${stats.errors.length}${fallbackSuffix}`,
     );
+    // A bootstrap log that reads `skipped=0` is the shape the 2026-08 CABA
+    // regression wore for two days. Name the number that went to zero.
+    if (stats.supersededSkipped === 0) {
+      console.warn(
+        "[import-indec-localities] NOTE: 0 superseded rows dropped. Expected >0 while any province is owned by an alternate source (AR-C ← caba_open_data). If the source CSV really did stop shipping them, say so; otherwise the supersede rule stopped matching.",
+      );
+    }
     if (stats.errors.length > 0) {
       console.warn("First few errors:", stats.errors.slice(0, 5));
     }

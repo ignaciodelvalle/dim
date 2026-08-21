@@ -4,33 +4,41 @@
 // assert the catalog is populated and queryable.
 
 import { and, eq, inArray, isNull, sql } from "drizzle-orm";
-import { beforeAll, describe, expect, it } from "vitest";
+import { describe, expect, it } from "vitest";
 
 import { arLocalities, db } from "@/db";
 import { searchLocalities } from "@/lib/infra/ar-localidades";
 
-// Guard against DB-state pollution from import-indec-localities.test.ts.
-// That test file inserts fixture indec_cppdyl rows for AR-C (INDEC IDs
-// "02014010"=Palermo, "02002010"=Recoleta) and soft-deletes the real CABA
-// catch-all. If its afterAll cleanup didn't complete (e.g. a prior test run
-// timed out), those stale rows skew the count assertions below.
-const INDEC_FIXTURE_AR_C_IDS = ["02014010", "02002010"] as const;
-
-beforeAll(async () => {
-  // Remove any fixture indec_cppdyl rows for AR-C left by import-indec tests
-  // (Palermo/Recoleta) so their stale rows don't skew the barrio counts below.
-  for (const id of INDEC_FIXTURE_AR_C_IDS) {
-    await db.delete(arLocalities).where(eq(arLocalities.indecId, id));
-  }
-  // NOTE: we deliberately do NOT restore the CABA whole-city catch-all
-  // ("Ciudad Autónoma de Buenos Aires", indec_id 02000010). It is a
-  // whole-province aggregate the INDEC importer drops on ingest (it double-
-  // counts the 48 barrios tiling the same city) and the locality-integrity gate
-  // (scripts/check-locality-integrity.ts) requires it to stay soft-deleted.
-  // A blanket restore here was the source of the recurring "CABA locality
-  // zombie" — it resurrected the exact aggregate the whole system is built to
-  // drop, re-failing lint:locality after every full-suite run (2026-07-11).
-});
+// THE beforeAll THAT USED TO LIVE HERE IS GONE, AND ITS REMOVAL IS THE FIX.
+//
+// It hard-deleted two INDEC ids — "02014010" and "02002010" — as "stale fixture
+// rows left by import-indec-localities.test.ts". That was true when written:
+// the sample fixture invented a row labelled "Palermo" under id 02014010. On
+// 2026-08-19 INDEC replaced CABA's single city-wide row with 15 per-Comuna rows
+// and 02014010 became a LIVE row, "CABA - Comuna 2". So on every CI bootstrap
+// this guard silently deleted one real row, and the assertion below counted 14
+// where the catalog held 15 — a wrong number reported for a defect that was
+// real, which is the worst kind of test failure to debug.
+//
+// Two things replace it, both structural:
+//   • The importer no longer creates ANY indec_cppdyl row for AR-C — the rule
+//     is stated by source-and-province, not by row shape
+//     (lib/reference/locality-integrity.ts, isSupersededByAltSource). The
+//     fixture cannot pollute this catalog because nothing can.
+//   • import-indec-localities.test.ts cleans up the rows it created, in its own
+//     beforeEach and afterAll. A test that deletes rows it did not create is
+//     reaching across an ownership boundary, and hard-coded ids are how that
+//     reach silently starts hitting production data.
+//
+// So the count below is now a real measurement. If it fails, the catalog is
+// genuinely wrong — remediate with `pnpm tsx scripts/import-indec-localities.ts`
+// (it self-heals) and read `pnpm lint:locality` for the diagnosis.
+//
+// Still deliberately NOT restored: the CABA whole-city catch-all
+// ("Ciudad Autónoma de Buenos Aires", indec_id 02000010). A blanket restore was
+// the source of the recurring "CABA locality zombie" — it resurrected the exact
+// aggregate the whole system is built to drop, re-failing lint:locality after
+// every full-suite run (2026-07-11).
 
 describe("CABA barrios — Ley 1.777 import", () => {
   it("has exactly 48 active barrios in ar_localities", async () => {
@@ -64,13 +72,21 @@ describe("CABA barrios — Ley 1.777 import", () => {
     expect(row.c).toBe(48);
   });
 
-  it("drops the INDEC whole-city CABA aggregate (CABA is its 48 barrios)", async () => {
-    // The city-wide "Ciudad Autónoma de Buenos Aires" catch-all (indec_id
-    // 02000010) is a whole-province aggregate: it duplicates its own province
-    // and double-counts the barrios tiling it. The importer drops it on ingest
-    // and the locality-integrity gate (lib/reference/locality-integrity.ts)
-    // requires it to stay soft-deleted, so NO active indec_cppdyl row may
-    // remain for AR-C — CABA is represented by its 48 caba_open_data barrios.
+  it("holds NO active INDEC row for AR-C, at any granularity", async () => {
+    // CABA is represented by its 48 caba_open_data barrios (Ley 1.777), so
+    // whatever INDEC ships for AR-C tiles the same city a second time and
+    // double-counts every rollup over it.
+    //
+    // THE COUNT IS ZERO REGARDLESS OF SHAPE, and that wording is the fix. This
+    // assertion is unchanged since the city-wide catch-all (indec_id 02000010)
+    // was the only offender; on 2026-08-19 INDEC swapped it for 15 per-Comuna
+    // rows and this was the ONLY check in the repo that noticed — the importer's
+    // drop rule and `lint:locality` were both written against the old row's
+    // SHAPE (department-less, name equals province) and saw nothing. Both now
+    // state the rule the way this test always did.
+    //
+    // If this fails: `pnpm tsx scripts/import-indec-localities.ts` self-heals
+    // (it soft-deletes leftovers), and `pnpm lint:locality` names the rows.
     const [row] = await db
       .select({ c: sql<number>`count(*)::int` })
       .from(arLocalities)
