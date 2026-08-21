@@ -42,6 +42,11 @@ import {
   pets,
   profiles,
 } from "@/db";
+import {
+  type CredentialEvent,
+  deriveRabiesSemaphore,
+  isRabiesAtRisk,
+} from "@/lib/domain/credential-badges";
 import { deriveCredentialRegistryClaim } from "@/lib/domain/credential-claims";
 import { readPoint } from "@/lib/domain/location";
 import { computeConfidence, isAtLeast } from "@/lib/events/event-confidence";
@@ -91,7 +96,6 @@ import { DegradedCredentialCard } from "./DegradedCredentialCard";
 import { DisputeTipForm } from "./DisputeTipForm";
 import { FoundPetForm } from "./FoundPetForm";
 import { ScanLogger } from "./ScanLogger";
-import { type CredentialEvent, deriveRabiesSemaphore, isRabiesAtRisk } from "./credential-badges";
 import {
   PermanentConditionsBanner,
   RabiesObservationBanner,

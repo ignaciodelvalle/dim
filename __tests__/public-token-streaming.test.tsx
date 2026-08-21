@@ -168,7 +168,7 @@ vi.mock("@/lib/domain/libreta-health-status", () => ({
   hasAnyVaccineRecord: vi.fn(() => true),
 }));
 vi.mock("@/lib/infra/amendment", () => ({ overlayAmendments: vi.fn((e: unknown) => e) }));
-vi.mock("@/app/(public)/p/[publicToken]/credential-badges", async (importOriginal) => {
+vi.mock("@/lib/domain/credential-badges", async (importOriginal) => {
   const actual = await importOriginal<object>();
   return { ...actual, deriveActiveMedications: vi.fn(() => ["Meloxicam"]) };
 });

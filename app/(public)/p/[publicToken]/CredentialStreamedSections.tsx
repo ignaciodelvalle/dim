@@ -28,13 +28,13 @@ import { Skeleton } from "@/components/ui/Skeleton";
 import { db, petEvents } from "@/db";
 import type { Pet } from "@/db";
 import { loadWithTimeout } from "@/lib/analytics/analytics-load";
+import { deriveActiveMedications } from "@/lib/domain/credential-badges";
 import { computeVaccinationSummary, hasAnyVaccineRecord } from "@/lib/domain/libreta-health-status";
 import { overlayAmendments } from "@/lib/infra/amendment";
 import { resolveBusinessRule } from "@/lib/infra/business-rules-resolver";
 import { resolveOriginOrg, shouldShowOriginOrgBadge } from "@/lib/infra/origin-org";
 import { reportError } from "@/lib/infra/report-error";
 import { Tier2MedicalView } from "./Tier2MedicalView";
-import { deriveActiveMedications } from "./credential-badges";
 
 // ---------------------------------------------------------------------------
 // CredentialTier2Medical — Tier 2 medical summary (streamed).
