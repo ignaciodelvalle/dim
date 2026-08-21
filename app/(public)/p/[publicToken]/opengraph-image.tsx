@@ -25,6 +25,7 @@ export const runtime = "nodejs";
 
 import { attachments, db, pets } from "@/db";
 import { publicPetByToken } from "@/lib/infra/public-pet-lookup";
+import { isPublicTokenReadThrottled } from "@/lib/infra/public-token-throttle";
 import { petPhotoUrl } from "@/lib/infra/storage";
 import { speciesLabel } from "@/lib/utils/format";
 import { eq } from "drizzle-orm";
@@ -55,20 +56,44 @@ export default async function Image({
 }) {
   const { publicToken } = await params;
 
-  const [row] = await db
-    .select({
-      name: pets.name,
-      species: pets.species,
-      status: pets.status,
-      photoPath: attachments.storagePath,
-    })
-    .from(pets)
-    .leftJoin(attachments, eq(attachments.id, pets.primaryPhotoId))
-    // PO-4: a soft-deleted pet resolves to no row, so the share preview
-    // degrades to the generic branded card — the page itself 404s, and a
-    // scraper must not keep the erased pet's name alive in a link preview.
-    .where(publicPetByToken(publicToken))
-    .limit(1);
+  // THROTTLED THE SAME WAY THE PAGE IS, and this was missing until 2026-08-21.
+  //
+  // This file is a SEPARATE HTTP request, not part of the page render: Next's
+  // file convention publishes it as its own route, and WhatsApp / Facebook /
+  // Google fetch it directly. So the guard on page.tsx never covered it, and
+  // the coverage fence could not see it either — that test walked `page.tsx`
+  // files under this directory, and this is not one.
+  //
+  // Left open it was the cheapest token oracle in the product: unauthenticated,
+  // unthrottled, and it answers "is this animal lost?" through the artwork
+  // (SE BUSCA vs Credencial pública). It is also the most expensive read to
+  // serve — a 1200×630 satori render on every hit.
+  //
+  // Its own bucket, deliberately, for the reason the coverage fence states: a
+  // scraper hammering link previews must not spend the budget of the person
+  // who just found a dog in the street and is loading its credential.
+  const throttled = await isPublicTokenReadThrottled("public_token_og_image");
+
+  const [row] = throttled
+    ? []
+    : await db
+        .select({
+          name: pets.name,
+          species: pets.species,
+          status: pets.status,
+          photoPath: attachments.storagePath,
+        })
+        .from(pets)
+        .leftJoin(attachments, eq(attachments.id, pets.primaryPhotoId))
+        // PO-4: a soft-deleted pet resolves to no row, so the share preview
+        // degrades to the generic branded card — the page itself 404s, and a
+        // scraper must not keep the erased pet's name alive in a link preview.
+        .where(publicPetByToken(publicToken))
+        .limit(1);
+  // A throttled read renders the SAME generic card an unknown token renders.
+  // That is the anti-oracle property and it comes free: every branch below
+  // already handles `row === undefined`, so being rate-limited is
+  // indistinguishable from asking about a pet that does not exist.
 
   const name = row?.name ?? "Mascota";
   const isLost = row?.status === "lost";
