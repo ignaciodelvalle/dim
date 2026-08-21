@@ -8,7 +8,7 @@ import { and, eq, inArray, isNull, like, or } from "drizzle-orm";
 import { afterAll, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { arLocalities, arLocalitiesImportRuns, db } from "@/db";
-import { runImport } from "@/scripts/import-indec-localities";
+import { REMOVAL_MIN_PARSED_ROWS, runImport } from "@/scripts/import-indec-localities";
 
 import { restoreIndecCatalog } from "./_helpers/restore-indec-catalog";
 
@@ -68,6 +68,16 @@ const FIXTURE_INDEC_IDS = [
  */
 const FIXTURE_CABA_IDS = ["02014010", "02098010"] as const;
 
+/**
+ * Rows this file PLANTS in the catalog by hand and that appear in NO CSV — the
+ * removal-pass tests need a stale-looking active row to watch. Same `999`
+ * department rule as the synthetic fixture ids, and for the same reason: a
+ * planted row is deleted outright in cleanup, so it must be an id upstream
+ * cannot mint. They are deliberately NOT in `FIXTURE_INDEC_IDS`, which is
+ * asserted equal to the CSV's own id list.
+ */
+const PLANTED_STALE_IDS = ["06999110", "06999120"] as const;
+
 /** Ids this file may delete outright, because upstream cannot mint them. */
 const SYNTHETIC_FIXTURE_IDS = FIXTURE_INDEC_IDS.filter(
   (id) => !FIXTURE_CABA_IDS.includes(id as (typeof FIXTURE_CABA_IDS)[number]),
@@ -104,10 +114,69 @@ function buildResponse(headers?: Record<string, string>): Response {
   });
 }
 
+/**
+ * An ACTIVE indec_cppdyl row that appears in no CSV this file ships — i.e. a
+ * removal candidate. The removal-guard tests watch exactly this row: if the
+ * stale-row pass runs, it is stamped `removed_at`; if the guard holds, it is
+ * untouched.
+ */
+async function plantStaleRow(indecId: string): Promise<void> {
+  await db.insert(arLocalities).values({
+    provinceCode: "AR-B",
+    departmentCode: indecId.slice(0, 5),
+    departmentName: "Departamento 999",
+    localityName: `Stale ${indecId}`,
+    localitySlug: `stale-${indecId}`,
+    indecId,
+    category: "localidad",
+    source: "indec_cppdyl",
+    sourceVersion: FIXTURE_SOURCE_VERSION,
+  });
+}
+
+/** How many indec_cppdyl rows are still active — the number a bad removal pass destroys. */
+async function countActiveIndecRows(): Promise<number> {
+  const rows = await db
+    .select({ id: arLocalities.id })
+    .from(arLocalities)
+    .where(and(eq(arLocalities.source, "indec_cppdyl"), isNull(arLocalities.removedAt)));
+  return rows.length;
+}
+
+/**
+ * A syntactically perfect feed of `rowCount` rows that imports NOTHING.
+ *
+ * Every row is a "Paraje" — a category the importer drops as too granular — so
+ * the feed exercises the ROW COUNT (which is what the completeness floor reads)
+ * without inserting thousands of rows into the shared local catalog. Ids carry
+ * the impossible `999` department, so even a future category change could not
+ * collide with a live locality.
+ */
+function syntheticFeed(rowCount: number): string {
+  const header = csvFixture.split("\n")[0];
+  const provinces: [string, string][] = [
+    ["06", "Buenos Aires"],
+    ["10", "Catamarca"],
+    ["14", "Cordoba"],
+  ];
+  const lines = [header];
+  for (let i = 0; i < rowCount; i++) {
+    const [provinceId, provinceName] = provinces[i % provinces.length];
+    const localityCode = String(Math.floor(i / provinces.length)).padStart(3, "0");
+    const id = `${provinceId}999${localityCode}`;
+    lines.push(
+      `"Paraje",-34.0000000,-58.0000000,"${provinceId}999","Departamento 999","INDEC","","","","${id}","Paraje ${i}","${provinceId}","${provinceName}"`,
+    );
+  }
+  return `${lines.join("\n")}\n`;
+}
+
 async function cleanupFixtureRows() {
   // Synthetic ids: safe to delete outright — upstream cannot mint a `999`
   // department, so there is no live row wearing one of these ids to destroy.
-  await db.delete(arLocalities).where(inArray(arLocalities.indecId, [...SYNTHETIC_FIXTURE_IDS]));
+  await db
+    .delete(arLocalities)
+    .where(inArray(arLocalities.indecId, [...SYNTHETIC_FIXTURE_IDS, ...PLANTED_STALE_IDS]));
   // REAL ids: only rows this file wrote, identified by the marker version. A
   // live AR-C row (if a future import ever wrote one) carries a real date here
   // and survives — which is the whole point, since deleting one is precisely
@@ -157,12 +226,15 @@ describe("import-indec-localities", () => {
   // the dev catalog before anyone noticed.
   it("uses only INDEC ids upstream cannot mint, and stamps every fixture row", () => {
     // Positions 3-5 of an INDEC id are the department; `999` is assigned in no
-    // province, so a synthetic id can never name a real locality.
-    for (const id of SYNTHETIC_FIXTURE_IDS) {
+    // province, so a synthetic id can never name a real locality. The PLANTED
+    // ids obey the same rule: cleanup deletes them by id, so an id upstream
+    // could mint would be the same landmine in a different room.
+    for (const id of [...SYNTHETIC_FIXTURE_IDS, ...PLANTED_STALE_IDS]) {
       expect(id.slice(2, 5), `${id} must use the impossible department 999`).toBe("999");
     }
     // NON-VACUITY: an empty list would pass the loop above in silence.
     expect(SYNTHETIC_FIXTURE_IDS.length).toBeGreaterThanOrEqual(5);
+    expect(PLANTED_STALE_IDS.length).toBeGreaterThanOrEqual(2);
 
     // Every id in the CSV is accounted for here. A row added to the fixture and
     // not listed would never be cleaned up, and would leak into the catalog.
@@ -277,7 +349,13 @@ describe("import-indec-localities", () => {
     });
 
     global.fetch = vi.fn(async () => buildResponse());
-    await runImport({ sourceUrl: "https://test.example/fixture.csv" });
+    // The 8-row fixture is far below REMOVAL_MIN_PARSED_ROWS, so the removal
+    // pass refuses to run unless the harness says the partial feed is
+    // deliberate. This test is ABOUT the removal pass, so it says so.
+    await runImport({
+      sourceUrl: "https://test.example/fixture.csv",
+      allowPartialFeedRemovals: true,
+    });
 
     const [row] = await db
       .select({ removedAt: arLocalities.removedAt })
@@ -309,7 +387,14 @@ describe("import-indec-localities", () => {
   // import runs face the complete soft-delete scan (~4 k rows each).
   it("soft-deletes rows that disappear from the new CSV", async () => {
     global.fetch = vi.fn(async () => buildResponse());
-    await runImport({ sourceUrl: "https://test.example/fixture.csv" });
+    // BOTH runs opt in, not just the second. The removal pass is what puts the
+    // real catalog into its "already removed" state; if only the second run had
+    // it, that run would remove ~4 k real rows on top of La Plata and the count
+    // below would stop meaning anything.
+    await runImport({
+      sourceUrl: "https://test.example/fixture.csv",
+      allowPartialFeedRemovals: true,
+    });
 
     // Now ship a CSV without La Plata (06999020). A CABA row would prove
     // nothing here: the importer never persisted it in the first place.
@@ -327,8 +412,12 @@ describe("import-indec-localities", () => {
         }),
     );
 
-    const stats = await runImport({ sourceUrl: "https://test.example/fixture.csv" });
+    const stats = await runImport({
+      sourceUrl: "https://test.example/fixture.csv",
+      allowPartialFeedRemovals: true,
+    });
     expect(stats.removed).toBe(1);
+    expect(stats.removalsSkipped).toBeNull();
 
     const [laPlata] = await db
       .select()
@@ -336,6 +425,102 @@ describe("import-indec-localities", () => {
       .where(eq(arLocalities.indecId, "06999020"));
     expect(laPlata.removedAt).not.toBeNull();
   }, 90_000);
+
+  // -------------------------------------------------------------------------
+  // THE REMOVAL PASS IS ONLY SAFE OVER A FEED THAT IS ACTUALLY THE CATALOG
+  // -------------------------------------------------------------------------
+  // Everything above proves the stale-row pass WORKS. These two prove it
+  // REFUSES, and that is the half with the teeth: "soft-delete every active row
+  // absent from the parsed feed" is a correct rule about a complete feed and a
+  // catalog-wipe about anything less. One unreachable datos.gob.ar and the
+  // fallback fixture — 8 rows — would have stamped ~4 000 real localities
+  // `removed_at` on staging or prod, with the run row reporting `status: ok`.
+  //
+  // The guard is deliberately NOT "trust usedFallback": a truncated live
+  // download is the same hazard wearing a 200, so the row count carries its own
+  // floor. `allowPartialFeedRemovals` is the harness's explicit opt-out and has
+  // no production caller — the two tests below are the coverage of the DEFAULT.
+
+  it("refuses to remove anything when the live fetch fell back to the fixture", async () => {
+    await plantStaleRow(PLANTED_STALE_IDS[0]);
+    const activeBefore = await countActiveIndecRows();
+
+    global.fetch = vi.fn(async () => {
+      throw new Error("datos.gob.ar unreachable (simulated)");
+    });
+    const stats = await runImport({ sourceUrl: "https://test.example/fixture.csv" });
+
+    expect(stats.usedFallback).toBe(true);
+    // Asserted BEFORE the reason: this number is the landmine. Without the
+    // guard it is the whole catalog.
+    expect(stats.removed).toBe(0);
+    expect(stats.removalsSkipped).toBe("fallback");
+
+    // The planted row is absent from the 8-row fallback fixture, so the old
+    // code would have stamped it — along with every other real locality.
+    const [planted] = await db
+      .select({ removedAt: arLocalities.removedAt })
+      .from(arLocalities)
+      .where(eq(arLocalities.indecId, PLANTED_STALE_IDS[0]));
+    expect(planted.removedAt).toBeNull();
+
+    // NOT MERELY ONE ROW: the whole catalog is still standing. A guard that
+    // spared only the row we happened to watch would pass the assertion above.
+    // The 3 fixture rows the fallback import inserts are the expected delta.
+    expect(await countActiveIndecRows()).toBe(activeBefore + 3);
+    // NON-VACUITY: on a catalog of 5 rows this proves nothing. The local DB
+    // carries the real ~4 k, and that is the number the landmine was aimed at.
+    expect(activeBefore).toBeGreaterThan(1000);
+
+    // And the run row says WHY, because a degraded run that looks identical to a
+    // healthy one in the audit trail is how this stays invisible.
+    const [run] = await db
+      .select()
+      .from(arLocalitiesImportRuns)
+      .where(eq(arLocalitiesImportRuns.sourceUrl, "https://test.example/fixture.csv"));
+    expect(run.removedCount).toBe(0);
+    expect((run.details as { removalsSkipped?: string }).removalsSkipped).toBe("fallback");
+  }, 60_000);
+
+  it("refuses to remove anything when the parsed feed is below the completeness floor", async () => {
+    await plantStaleRow(PLANTED_STALE_IDS[1]);
+
+    // A 200 OK with a truncated body: no fallback flag, nothing to warn about,
+    // and 1 000 fewer rows than the floor.
+    const truncated = syntheticFeed(3000);
+    global.fetch = vi.fn(
+      async () =>
+        new Response(truncated, {
+          status: 200,
+          headers: { "Last-Modified": FIXTURE_SOURCE_VERSION },
+        }),
+    );
+    const stats = await runImport({ sourceUrl: "https://test.example/fixture.csv" });
+
+    expect(stats.usedFallback).toBe(false);
+    expect(stats.removed).toBe(0);
+    expect(stats.removalsSkipped).toBe("partial-feed");
+    // The floor has to sit between the two: comfortably above any fixture, far
+    // enough below the live feed (4 023 rows on 2026-08-21) that ordinary
+    // upstream churn never trips it.
+    expect(REMOVAL_MIN_PARSED_ROWS).toBeGreaterThanOrEqual(1000);
+    expect(REMOVAL_MIN_PARSED_ROWS).toBeLessThan(4000);
+    // The synthetic rows are all parajes — parsed, counted, imported by nobody.
+    expect(stats.inserted).toBe(0);
+    expect(stats.skipped).toBe(3000);
+
+    const [planted] = await db
+      .select({ removedAt: arLocalities.removedAt })
+      .from(arLocalities)
+      .where(eq(arLocalities.indecId, PLANTED_STALE_IDS[1]));
+    expect(planted.removedAt).toBeNull();
+
+    const [run] = await db
+      .select()
+      .from(arLocalitiesImportRuns)
+      .where(eq(arLocalitiesImportRuns.sourceUrl, "https://test.example/fixture.csv"));
+    expect((run.details as { removalsSkipped?: string }).removalsSkipped).toBe("partial-feed");
+  }, 60_000);
 
   // The upstream header rename (2026-08-19): municipio_id / municipio_nombre
   // became gobierno_local_id / gobierno_local_nombre, and the column ORDER

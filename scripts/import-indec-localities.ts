@@ -54,7 +54,10 @@
  *   INDEC_LOCALITIES_CSV=/path/to/full.csv pnpm tsx scripts/import-indec-localities.ts
  *
  * Idempotent: re-running a second time produces no changes when the CSV is
- * unchanged. Soft-deletes rows that disappear from the source between runs.
+ * unchanged. Soft-deletes rows that disappear from the source between runs —
+ * but ONLY when the feed it just parsed can be trusted to BE the catalog. See
+ * REMOVAL_MIN_PARSED_ROWS below: "remove everything absent from the feed" is a
+ * correct rule about a complete feed and a catalog-wipe about anything else.
  */
 
 import { readFileSync } from "node:fs";
@@ -87,6 +90,34 @@ const FALLBACK_FIXTURE_PATH = join(
   "__fixtures__",
   "indec-localidades-sample.csv",
 );
+
+/**
+ * Below this many PARSED rows, the stale-row pass refuses to run.
+ *
+ * WHY A FLOOR AND NOT JUST A `usedFallback` CHECK. The removal pass soft-deletes
+ * every active `indec_cppdyl` row absent from the feed it just parsed. That is
+ * the right rule for a COMPLETE feed and a catalog-wipe for anything less — and
+ * the script has two ways to end up with less. The loud one is the fallback:
+ * when datos.gob.ar is unreachable it loads the bundled 8-row sample, and a
+ * single such run against staging or prod would have stamped ~4 000 real
+ * localities `removed_at` while the run row reported `status: ok`. The quiet one
+ * is a TRUNCATED live download — a proxy that cut the body short, a partial
+ * upstream publish — which arrives as an HTTP 200 with no flag on it at all. A
+ * truncated live download is the same hazard as the fixture, so the guard is
+ * stated over the thing both share: how much of the catalog we actually parsed.
+ *
+ * Calibration: the live feed shipped 4 027 rows on 2026-05-18, 4 024 on
+ * 2026-08-19 and 4 023 on 2026-08-21. 3 500 leaves ~13% of headroom for genuine
+ * upstream shrinkage while sitting hundreds of times above any fixture (8 rows).
+ * If INDEC ever legitimately publishes fewer than this, the run says so in its
+ * Done line and in `ar_localities_import_runs.details` and a human decides —
+ * which is the correct outcome, because "the catalog halved" is not a thing a
+ * seed script should conclude on its own.
+ */
+export const REMOVAL_MIN_PARSED_ROWS = 3500;
+
+/** Why a run declined to soft-delete anything. `null` = the pass ran normally. */
+export type RemovalSkipReason = "fallback" | "partial-feed";
 
 // INDEC 2-digit provincia codes → ISO 3166-2:AR codes used by lib/ar-provincias.
 // Verified against the live dataset (provincia_id + provincia_nombre pairs)
@@ -203,6 +234,12 @@ export type ImportStats = {
   errors: { row: number; reason: string }[];
   /** True when the live fetch failed and the bundled sample fixture was used instead. */
   usedFallback?: boolean;
+  /**
+   * Why the stale-row pass declined to run, or `null` when it ran. `removed` is
+   * always 0 when this is set — a caller must be able to tell "nothing was
+   * stale" from "we refused to decide what was stale".
+   */
+  removalsSkipped: RemovalSkipReason | null;
 };
 
 export async function runImport(options?: {
@@ -214,8 +251,18 @@ export async function runImport(options?: {
    * request is made. Defaults to the INDEC_LOCALITIES_CSV env var if present.
    */
   localCsvPath?: string;
+  /**
+   * Run the stale-row pass even though the parsed feed is below
+   * REMOVAL_MIN_PARSED_ROWS. TEST HARNESS ONLY — the removal behaviour has to
+   * be provable against an 8-row fixture, and there is no production caller
+   * (the CLI below does not pass it). It does NOT override the fallback skip:
+   * a run that could not reach the source has no business deciding what is
+   * stale, whoever asked.
+   */
+  allowPartialFeedRemovals?: boolean;
 }): Promise<ImportStats> {
   const dryRun = options?.dryRun ?? false;
+  const allowPartialFeedRemovals = options?.allowPartialFeedRemovals ?? false;
   const localCsvPath = options?.localCsvPath ?? process.env.INDEC_LOCALITIES_CSV;
   const sourceUrl = localCsvPath
     ? `file://${localCsvPath}`
@@ -239,6 +286,7 @@ export async function runImport(options?: {
     supersededSkipped: 0,
     errors: [],
     usedFallback: false,
+    removalsSkipped: null,
   };
 
   // Track whether we fell back to the bundled fixture so the caller (and logs)
@@ -474,6 +522,22 @@ export async function runImport(options?: {
     // (source='manual') are never touched. We reuse the pre-fetched catalog
     // snapshot (rows inserted this run are all present in the CSV, so they are
     // never removal candidates) and flush the removals in one chunked UPDATE.
+    //
+    // AND IT ONLY RUNS OVER A FEED THAT IS PLAUSIBLY THE WHOLE CATALOG. The
+    // pass reads "absent from the feed" as "gone from INDEC", which is only
+    // true when the feed IS INDEC's catalog. Two ways it is not: the fallback
+    // fixture (8 rows, loaded whenever datos.gob.ar is unreachable) and a
+    // truncated live download (an HTTP 200 with a short body, which carries no
+    // flag at all). Either one would have soft-deleted ~4 000 real localities
+    // on the next staging or prod run and reported `status: ok` doing it. See
+    // REMOVAL_MIN_PARSED_ROWS.
+    const removalsSkipped: RemovalSkipReason | null = usedFallback
+      ? "fallback"
+      : records.length < REMOVAL_MIN_PARSED_ROWS && !allowPartialFeedRemovals
+        ? "partial-feed"
+        : null;
+    stats.removalsSkipped = removalsSkipped;
+
     const importedIndecIds = new Set(records.map((r) => r.id).filter(Boolean));
     // A row we deliberately did not import is present in the CSV but must not
     // count as "seen"; drop its id so a copy left over from an older import is
@@ -481,25 +545,37 @@ export async function runImport(options?: {
     // DBs that ingested INDEC's 15 CABA comunas before 2026-08-21 clear them on
     // their next import, with no data migration and no manual SQL.
     for (const id of notImportedIndecIds) importedIndecIds.delete(id);
-    const toRemoveIds: string[] = [];
-    for (const e of existingCatalog) {
-      if (
-        e.source === source &&
-        e.indecId &&
-        !importedIndecIds.has(e.indecId) &&
-        e.removedAt === null
-      ) {
-        toRemoveIds.push(e.id);
+    if (removalsSkipped === null) {
+      const toRemoveIds: string[] = [];
+      for (const e of existingCatalog) {
+        if (
+          e.source === source &&
+          e.indecId &&
+          !importedIndecIds.has(e.indecId) &&
+          e.removedAt === null
+        ) {
+          toRemoveIds.push(e.id);
+        }
       }
-    }
-    stats.removed = toRemoveIds.length;
-    if (!dryRun && toRemoveIds.length > 0) {
-      const REMOVE_CHUNK = 500;
-      const removedAt = new Date();
-      for (let i = 0; i < toRemoveIds.length; i += REMOVE_CHUNK) {
-        const chunk = toRemoveIds.slice(i, i + REMOVE_CHUNK);
-        await db.update(arLocalities).set({ removedAt }).where(inArray(arLocalities.id, chunk));
+      stats.removed = toRemoveIds.length;
+      if (!dryRun && toRemoveIds.length > 0) {
+        const REMOVE_CHUNK = 500;
+        const removedAt = new Date();
+        for (let i = 0; i < toRemoveIds.length; i += REMOVE_CHUNK) {
+          const chunk = toRemoveIds.slice(i, i + REMOVE_CHUNK);
+          await db.update(arLocalities).set({ removedAt }).where(inArray(arLocalities.id, chunk));
+        }
       }
+    } else {
+      // Say it loudly. A skipped removal pass ALSO skips the self-healing leg
+      // (the AR-C comunas an older import ingested stay active until a full
+      // feed arrives), and a run that silently did half its job is how the last
+      // catalog regression survived two days.
+      console.warn(
+        removalsSkipped === "fallback"
+          ? "[import-indec-localities] Stale-row pass SKIPPED: this run used the bundled sample fixture, which is not the catalog. Nothing was soft-deleted. Re-run against the live source to prune."
+          : `[import-indec-localities] Stale-row pass SKIPPED: parsed ${records.length} rows, below the ${REMOVAL_MIN_PARSED_ROWS}-row completeness floor — a truncated download must not prune the catalog. Nothing was soft-deleted.`,
+      );
     }
 
     // Propagate fallback flag to stats before finalizing.
@@ -521,7 +597,11 @@ export async function runImport(options?: {
             errors: stats.errors.slice(0, 50),
             skippedNonRelevant: stats.skipped,
             skippedSuperseded: stats.supersededSkipped,
+            parsedRows: records.length,
             ...(usedFallback ? { usedFallback: true } : {}),
+            // The audit trail has to distinguish "nothing was stale" from "we
+            // refused to decide what was stale" — both write removedCount 0.
+            ...(removalsSkipped ? { removalsSkipped } : {}),
           },
         })
         .where(eq(arLocalitiesImportRuns.id, run.id));
@@ -530,8 +610,14 @@ export async function runImport(options?: {
     const fallbackSuffix = usedFallback
       ? " [DEGRADED — used sample fixture, catalog incomplete]"
       : "";
+    // `removed=0` reads as "nothing was stale" and must not be the shape a
+    // refusal wears. Name the reason on the same line.
+    const removedField =
+      removalsSkipped === null
+        ? `removed=${stats.removed}`
+        : `removed=0 (SKIPPED: ${removalsSkipped}, parsed ${records.length} rows)`;
     console.log(
-      `Done. inserted=${stats.inserted} updated=${stats.updated} noop=${stats.noop} removed=${stats.removed} skipped=${stats.skipped} (superseded=${stats.supersededSkipped}) errors=${stats.errors.length}${fallbackSuffix}`,
+      `Done. inserted=${stats.inserted} updated=${stats.updated} noop=${stats.noop} ${removedField} skipped=${stats.skipped} (superseded=${stats.supersededSkipped}) errors=${stats.errors.length}${fallbackSuffix}`,
     );
     // A bootstrap log that reads `skipped=0` is the shape the 2026-08 CABA
     // regression wore for two days. Name the number that went to zero.
