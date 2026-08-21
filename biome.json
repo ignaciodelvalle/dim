@@ -247,6 +247,7 @@
         "app/(public)/p/[publicToken]/encontre/action.ts",
         "app/(public)/p/[publicToken]/encontre/page.tsx",
         "app/(public)/p/[publicToken]/page.tsx",
+        "src/modules/pets/application/read/load-public-credential.ts",
         "app/actions/decomiso.ts",
         "app/admin/adopciones/page.tsx",
         "app/admin/auditoria/page.tsx",
