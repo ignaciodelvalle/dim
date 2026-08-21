@@ -1242,8 +1242,11 @@ const NOTIFICATION_TYPE_LABELS: Record<string, string> = {
   // "próxima a vencer": it sat on a dose expired 117 days earlier (9-role
   // external run, 2026-08-18).
   vaccine_due: "Vencimiento de vacuna",
-  // Rehome
+  // Rehome (rehome-by-titular: the titular asks a verified org to sponsor the
+  // adoption listing; accept/decline go back to the titular)
   rehome_request_received: "Solicitud de re-hogar recibida",
+  rehome_request_accepted: "Solicitud de nuevo hogar aceptada",
+  rehome_request_declined: "Solicitud de nuevo hogar rechazada",
   // Scans
   first_stranger_scan: "Primer escaneo de un desconocido",
   // Onboarding

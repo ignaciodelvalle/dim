@@ -218,6 +218,8 @@ const REAL_NOTIFICATION_TYPES = [
   "rabies_observation_escalation_owner",
   "rabies_observation_pending_review",
   "rabies_observation_started_owner",
+  "rehome_request_accepted",
+  "rehome_request_declined",
   "rehome_request_received",
   "revocation_executed_org",
   "revocation_executed_vet",

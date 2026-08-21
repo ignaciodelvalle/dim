@@ -82,6 +82,20 @@ export const ALLOWED_EDGES = new Set<string>([
   "welfare:cases", // create-welfare-report + create-org-welfare-report port types
   "transfers:cases", // openHandshakeCase port (transfer-custody, propose-cross-org-transfer)
   "surveillance:cases", // report-bite, report-bite-from-org, outbreak-investigation ports
+
+  // rehome-by-titular (2026-08). The sponsorship lifecycle spans cases,
+  // ownerships and adoption and belongs to none of them, so it is its own
+  // module — and it DEPENDS on adoption, never the reverse. The accept
+  // transaction reuses AdoptionRepository's eligibility + listing writers
+  // inside its own tx (design ADR-1 steps 6-7), and the REQ-16 gate keys on
+  // the unmatched `rehome_sponsorship_started` predicate that lives next to
+  // the `rehome_sponsorship_ended` writer in adoption/infrastructure. That
+  // writer stays in adoption precisely so this edge has no return edge: moving
+  // it here would close the cycle adoption -> rehome -> adoption.
+  "rehome:adoption",
+  // Shared kernel, same as adoption/foster/transfers/surveillance above: the
+  // org accept/decline action authorizes with requireCapabilityForOrgToken.
+  "rehome:organizations",
 ]);
 
 // All module names (directory names under src/modules/).
@@ -100,6 +114,8 @@ export const ALL_MODULES = [
   "organizations",
   "panorama",
   "pets",
+  // rehome-by-titular: the titular's consent request + the org's accept/decline.
+  "rehome",
   "surveillance",
   "transfers",
   "welfare",

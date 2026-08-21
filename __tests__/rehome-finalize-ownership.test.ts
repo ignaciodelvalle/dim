@@ -42,11 +42,13 @@ import {
   pets,
   profiles,
 } from "@/db";
-import { validateEventPayload } from "@/lib/events/event-schemas";
 import { dniLast4, hashDni } from "@/lib/utils/dni-hash";
 import { finalizeAdoption } from "@/src/modules/adoption/application/finalize-adoption";
 import { queryAdoptionListing } from "@/src/modules/adoption/infrastructure/adoption-listing-read";
 import { AdoptionRepository } from "@/src/modules/adoption/infrastructure/adoption-repository";
+import { requestRehomeSponsorship } from "@/src/modules/rehome/application/request-rehome-sponsorship";
+import { respondToRehomeRequest } from "@/src/modules/rehome/application/respond-to-rehome-request";
+import { RehomeRepository } from "@/src/modules/rehome/infrastructure/rehome-repository";
 
 import { withMutationOverride } from "./_helpers/db-overrides";
 import { expectDbError } from "./_helpers/expect-db-error";
@@ -194,52 +196,45 @@ beforeAll(async () => {
       species: "dog",
       sex: "female",
       potentiallyDangerousBreed: false,
-      adoptionListedAt: now,
-      adoptionEligible: true,
-      adoptionEligibilitySetAt: now,
       inCustodyDispute: false,
       rabiesObservationStatus: null,
     })
     .returning();
   petId = pet.id;
 
-  // The sponsored shape: the titular KEEPS their owner row and the org holds a
-  // shelter_custody row alongside it. WU1 manufactures the pair with a direct
-  // write because the accept action does not exist yet; WU3 switches this
-  // fixture to the real accept path and leaves every assertion below untouched.
   const [titularRow] = await db
     .insert(ownerships)
     .values({ petId, ownerUserId: titularUserId, role: "owner", startedAt: now })
     .returning({ id: ownerships.id });
   titularOwnershipId = titularRow.id;
 
-  const [sponsorRow] = await db
-    .insert(ownerships)
-    .values({ petId, ownerOrganizationId: orgId, role: "shelter_custody", startedAt: now })
-    .returning({ id: ownerships.id });
-  sponsorshipOwnershipId = sponsorRow.id;
-
-  // The consent fact the accept transaction writes alongside the custody row.
-  // Finalize keys on THIS event, not on the owner+shelter_custody shape, to
-  // decide whether a sponsorship is ending: the shape alone also describes a
-  // decomiso or an intake, which have nothing to do with this feature. Routing
-  // it through validateEventPayload keeps the fixture honest about the schema.
-  await db.insert(petEvents).values({
-    petId,
-    eventType: "rehome_sponsorship_started",
-    occurredAt: now,
-    recordedAt: now,
-    recordedByUserId: titularUserId,
-    authorRole: "owner",
-    payload: validateEventPayload("rehome_sponsorship_started", {
-      ownership_id: sponsorshipOwnershipId,
-      sponsoring_organization_id: orgId,
-      consented_by_user_id: titularUserId,
-      request_case_public_code: "CAS-RHOM-0001",
-      listing_case_id: null,
-      note: null,
-    }),
-  });
+  // The sponsored shape — the titular KEEPS their owner row and the org holds a
+  // shelter_custody row alongside it — produced by the REAL path since WU3: the
+  // titular asks, the org accepts. The accept transaction writes the custody
+  // row, marks the pet eligible, publishes the listing and records the consent
+  // fact (`rehome_sponsorship_started`, keyed by ownership_id) that finalize
+  // later matches. WU1 manufactured the same pair with a direct write; every
+  // assertion below is unchanged from then.
+  const requested = await requestRehomeSponsorship(
+    { petPublicToken: PET_TOKEN, titularUserId, targetOrgId: orgId },
+    { repo: RehomeRepository, now: () => new Date() },
+  );
+  if (!requested.ok) throw new Error(`rehome request failed: ${requested.error}`);
+  const accepted = await respondToRehomeRequest(
+    { casePublicCode: requested.value.casePublicCode, decision: "accept" },
+    {
+      repo: RehomeRepository,
+      actor: {
+        user: { id: coordUserId },
+        organization: { id: orgId, displayName: "Refugio Padrino", verified: true },
+      },
+      now: () => new Date(),
+      transaction: db.transaction.bind(db) as <T>(cb: (tx: unknown) => Promise<T>) => Promise<T>,
+    },
+  );
+  if (!accepted.ok) throw new Error(`rehome accept failed: ${accepted.error}`);
+  if (!accepted.value.ownershipId) throw new Error("rehome accept returned no custody row");
+  sponsorshipOwnershipId = accepted.value.ownershipId;
 });
 
 afterAll(async () => {
