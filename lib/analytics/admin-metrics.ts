@@ -25,7 +25,7 @@ import {
   profiles,
   welfareReports,
 } from "@/db";
-import { CRON_REGISTRY } from "@/lib/infra/cron-registry";
+import { CRON_REGISTRY, cronScheduleFor } from "@/lib/infra/cron-registry";
 import { countOutboxBreaches } from "@/lib/infra/outbox-queries";
 import { isTestAccount } from "@/lib/infra/test-accounts";
 import { countOpenAlertFirings } from "@/lib/metrics/alert-firing-inbox";
@@ -694,7 +694,7 @@ export const STUCK_RUNNING_MS = 10 * 60 * 1000;
 // El monitoreo real (/api/cron/cron-health) siempre uso CRON_REGISTRY. Ahora la
 // consola tambien, asi que hay un solo lugar donde cambiar un horario.
 const CRON_REGISTRY_NAMES = CRON_REGISTRY.map((e) => e.cronName);
-const CRON_SCHEDULE_BY_NAME = new Map(CRON_REGISTRY.map((e) => [e.cronName, e.schedule]));
+const CRON_SCHEDULE_BY_NAME = new Map(CRON_REGISTRY.map((e) => [e.cronName, cronScheduleFor(e)]));
 
 export async function fetchCronHealth(): Promise<CronHealthRow[]> {
   const now = Date.now();

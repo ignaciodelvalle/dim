@@ -32,82 +32,115 @@
 
 const DAILY_STALENESS_MS = 26 * 60 * 60 * 1000; // 26 hours
 
+/**
+ * The ONLY cron expressions that exist, keyed by the vercel.json entry that
+ * carries them. Hobby allows exactly two, and these are the two.
+ *
+ * WHY THE SCHEDULE IS NOT A PER-JOB FIELD ANY MORE. It used to be, described as
+ * "cron expression as configured in vercel.json" — and after the 2026-07-07
+ * fleet consolidation that description was false for ELEVEN of the twenty-four
+ * jobs. They kept their pre-consolidation times (`0 12 * * *` for vaccine_due,
+ * `0 0 * * *` for close_rabies_observations, and nine more) while every one of
+ * them actually ran at 04:00 inside the daily dispatcher. The admin cron
+ * console rendered those strings verbatim, so the screen an operator opens to
+ * check the health of the system was the least trustworthy screen in it.
+ *
+ * A restated constant drifts; a derived one cannot. Each entry now declares
+ * WHERE it runs — a durable fact about the job — and the expression is looked
+ * up from here. `__tests__/cron-registry-parity.test.ts` pins this map against
+ * vercel.json itself and `runsVia` against DAILY_JOB_ORDER, so the only way to
+ * be wrong is to edit vercel.json, which fails that test.
+ */
+export const VERCEL_CRON_SCHEDULES = {
+  /** /api/cron/daily — the dispatcher that runs the whole fleet in sequence. */
+  daily: "0 4 * * *",
+  /** /api/cron/refresh-cube — its own slot; ~105s build exceeds the dispatcher budget. */
+  refresh_cube: "0 3 * * *",
+} as const;
+
+export type CronTrigger = keyof typeof VERCEL_CRON_SCHEDULES;
+
 export type CronRegistryEntry = {
   /** cron_runs.cron_name — snake_case of the route directory (canonical rule). */
   cronName: string;
   /** Max acceptable age of the last successful (status='ok') run. */
   maxStalenessMs: number;
-  /** Cron expression as configured in vercel.json (display only). */
-  schedule: string;
+  /** Which vercel.json cron entry actually triggers this job. */
+  runsVia: CronTrigger;
 };
 
+/** The cron expression this job really runs on. Display and diagnostics. */
+export function cronScheduleFor(entry: CronRegistryEntry): string {
+  return VERCEL_CRON_SCHEDULES[entry.runsVia];
+}
+
 export const CRON_REGISTRY: CronRegistryEntry[] = [
-  { cronName: "auto_expire_approvals", maxStalenessMs: DAILY_STALENESS_MS, schedule: "0 4 * * *" },
-  { cronName: "business_rules_reeval", maxStalenessMs: DAILY_STALENESS_MS, schedule: "0 5 * * *" },
+  { cronName: "auto_expire_approvals", maxStalenessMs: DAILY_STALENESS_MS, runsVia: "daily" },
+  { cronName: "business_rules_reeval", maxStalenessMs: DAILY_STALENESS_MS, runsVia: "daily" },
   {
     cronName: "close_followup_expired_adoptions",
     maxStalenessMs: DAILY_STALENESS_MS,
-    schedule: "0 4 * * *",
+    runsVia: "daily",
   },
   {
     cronName: "close_rabies_observations",
     maxStalenessMs: DAILY_STALENESS_MS,
-    schedule: "0 0 * * *",
+    runsVia: "daily",
   },
   {
     cronName: "close_stale_lost_episodes",
     maxStalenessMs: DAILY_STALENESS_MS,
-    schedule: "0 4 * * *",
+    runsVia: "daily",
   },
-  { cronName: "cron_health", maxStalenessMs: DAILY_STALENESS_MS, schedule: "0 10 * * *" },
-  { cronName: "data_lifecycle", maxStalenessMs: DAILY_STALENESS_MS, schedule: "30 3 * * *" },
+  { cronName: "cron_health", maxStalenessMs: DAILY_STALENESS_MS, runsVia: "daily" },
+  { cronName: "data_lifecycle", maxStalenessMs: DAILY_STALENESS_MS, runsVia: "daily" },
   {
     cronName: "drain_notification_dead_letter",
     maxStalenessMs: DAILY_STALENESS_MS,
-    schedule: "0 4 * * *",
+    runsVia: "daily",
   },
-  { cronName: "drain_outbox", maxStalenessMs: DAILY_STALENESS_MS, schedule: "0 4 * * *" },
+  { cronName: "drain_outbox", maxStalenessMs: DAILY_STALENESS_MS, runsVia: "daily" },
   {
     cronName: "escalate_stale_disputes",
     maxStalenessMs: DAILY_STALENESS_MS,
-    schedule: "0 4 * * *",
+    runsVia: "daily",
   },
   {
     cronName: "escalate_stale_welfare_cases",
     maxStalenessMs: DAILY_STALENESS_MS,
-    schedule: "0 4 * * *",
+    runsVia: "daily",
   },
-  { cronName: "evaluate_alerts", maxStalenessMs: DAILY_STALENESS_MS, schedule: "0 8 * * *" },
+  { cronName: "evaluate_alerts", maxStalenessMs: DAILY_STALENESS_MS, runsVia: "daily" },
   {
     cronName: "expire_caretaker_grants",
     maxStalenessMs: DAILY_STALENESS_MS,
-    schedule: "0 4 * * *",
+    runsVia: "daily",
   },
   {
     cronName: "expire_cross_org_transfers",
     maxStalenessMs: DAILY_STALENESS_MS,
-    schedule: "0 4 * * *",
+    runsVia: "daily",
   },
   {
     cronName: "expire_decomiso_handoffs",
     maxStalenessMs: DAILY_STALENESS_MS,
-    schedule: "0 4 * * *",
+    runsVia: "daily",
   },
   {
     cronName: "expire_foster_proposals",
     maxStalenessMs: DAILY_STALENESS_MS,
-    schedule: "0 3 * * *",
+    runsVia: "daily",
   },
-  { cronName: "expire_pet_transfers", maxStalenessMs: DAILY_STALENESS_MS, schedule: "0 4 * * *" },
-  { cronName: "materialize_slots", maxStalenessMs: DAILY_STALENESS_MS, schedule: "0 2 * * *" },
-  { cronName: "post_adoption_checkin", maxStalenessMs: DAILY_STALENESS_MS, schedule: "0 13 * * *" },
-  { cronName: "process_eno_queue", maxStalenessMs: DAILY_STALENESS_MS, schedule: "0 4 * * *" },
-  { cronName: "purge_scan_events", maxStalenessMs: DAILY_STALENESS_MS, schedule: "0 1 * * *" },
-  { cronName: "reconcile_pet_status", maxStalenessMs: DAILY_STALENESS_MS, schedule: "0 9 * * *" },
+  { cronName: "expire_pet_transfers", maxStalenessMs: DAILY_STALENESS_MS, runsVia: "daily" },
+  { cronName: "materialize_slots", maxStalenessMs: DAILY_STALENESS_MS, runsVia: "daily" },
+  { cronName: "post_adoption_checkin", maxStalenessMs: DAILY_STALENESS_MS, runsVia: "daily" },
+  { cronName: "process_eno_queue", maxStalenessMs: DAILY_STALENESS_MS, runsVia: "daily" },
+  { cronName: "purge_scan_events", maxStalenessMs: DAILY_STALENESS_MS, runsVia: "daily" },
+  { cronName: "reconcile_pet_status", maxStalenessMs: DAILY_STALENESS_MS, runsVia: "daily" },
   // Standalone scheduled job — its own vercel.json cron (NOT in DAILY_JOB_ORDER;
   // see the STANDALONE SCHEDULED JOB note above).
-  { cronName: "refresh_cube", maxStalenessMs: DAILY_STALENESS_MS, schedule: "0 3 * * *" },
-  { cronName: "vaccine_due", maxStalenessMs: DAILY_STALENESS_MS, schedule: "0 12 * * *" },
+  { cronName: "refresh_cube", maxStalenessMs: DAILY_STALENESS_MS, runsVia: "refresh_cube" },
+  { cronName: "vaccine_due", maxStalenessMs: DAILY_STALENESS_MS, runsVia: "daily" },
 ];
 
 // es-AR display labels for the cron fleet. The snake_case `cronName` is the

@@ -18,7 +18,12 @@ import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 
 import { DAILY_JOB_ORDER } from "@/lib/infra/cron-dispatcher";
-import { CRON_REGISTRY, cronDisplayLabel } from "@/lib/infra/cron-registry";
+import {
+  CRON_REGISTRY,
+  VERCEL_CRON_SCHEDULES,
+  cronDisplayLabel,
+  cronScheduleFor,
+} from "@/lib/infra/cron-registry";
 
 const CRON_NAME = "expire_caretaker_grants";
 const ROOT = join(__dirname, "..", "..", "..", "..");
@@ -37,7 +42,11 @@ describe("expire_caretaker_grants — fleet wiring", () => {
   it("is monitored by cron-health", () => {
     const entry = CRON_REGISTRY.find((e) => e.cronName === CRON_NAME);
     expect(entry, `${CRON_NAME} must be in CRON_REGISTRY`).toBeDefined();
-    expect(entry?.schedule).toBe("0 4 * * *");
+    // Asserted through the derivation, not against a restated string: the job
+    // runs inside the daily dispatcher, and 04:00 is whatever vercel.json says
+    // that dispatcher runs at.
+    expect(entry?.runsVia).toBe("daily");
+    expect(entry && cronScheduleFor(entry)).toBe(VERCEL_CRON_SCHEDULES.daily);
   });
 
   it("has an es-AR label, not the raw snake_case key", () => {

@@ -29,7 +29,7 @@ import { analyticsDb, cronRuns, db } from "@/db";
 import { STUCK_RUNNING_MS } from "@/lib/analytics/admin-metrics";
 import { authorizeCronRequest } from "@/lib/domain/cron-auth";
 import { sendCronAlert } from "@/lib/infra/cron-alert";
-import { CRON_REGISTRY } from "@/lib/infra/cron-registry";
+import { CRON_REGISTRY, cronScheduleFor } from "@/lib/infra/cron-registry";
 
 export const dynamic = "force-dynamic";
 
@@ -106,7 +106,7 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
       if (!latest) {
         results.push({
           cronName: entry.cronName,
-          schedule: entry.schedule,
+          schedule: cronScheduleFor(entry),
           healthy: false,
           reason: "never_ran",
           lastRunAt: null,
@@ -122,7 +122,7 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
       if (latest.status === "failed") {
         results.push({
           cronName: entry.cronName,
-          schedule: entry.schedule,
+          schedule: cronScheduleFor(entry),
           healthy: false,
           reason: "last_failed",
           lastRunAt: latest.startedAt,
@@ -140,7 +140,7 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
       if (latest.status === "running" && ageMs > STUCK_RUNNING_MS) {
         results.push({
           cronName: entry.cronName,
-          schedule: entry.schedule,
+          schedule: cronScheduleFor(entry),
           healthy: false,
           reason: "stuck_running",
           lastRunAt: latest.startedAt,
@@ -154,7 +154,7 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
       if (ageMs > entry.maxStalenessMs) {
         results.push({
           cronName: entry.cronName,
-          schedule: entry.schedule,
+          schedule: cronScheduleFor(entry),
           healthy: false,
           reason: "stale",
           lastRunAt: latest.startedAt,
@@ -176,7 +176,7 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
         if (Number.isFinite(divergent) && divergent > 0) {
           results.push({
             cronName: entry.cronName,
-            schedule: entry.schedule,
+            schedule: cronScheduleFor(entry),
             healthy: false,
             reason: "drift",
             lastRunAt: latest.startedAt,
@@ -190,7 +190,7 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
 
       results.push({
         cronName: entry.cronName,
-        schedule: entry.schedule,
+        schedule: cronScheduleFor(entry),
         healthy: true,
         reason: "ok",
         lastRunAt: latest.startedAt,
