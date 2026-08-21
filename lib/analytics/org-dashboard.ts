@@ -752,16 +752,17 @@ async function countPendingFosterProposals(orgId: string): Promise<number> {
 /**
  * Active foster placements on pets this org currently holds in custody.
  *
- * Org-scoped-first: DRIVE from this org's active shelter_custody rows (the
- * partial unique index `ownerships_one_active_shelter_custody_per_pet_org` keys
- * on owner_organization_id) and JOIN foster rows by pet_id — the scan is bounded
+ * Org-scoped-first: DRIVE from this org's active shelter_custody rows (served
+ * by `ownerships_owner_organization_id_idx`; the partial unique index
+ * `ownerships_one_active_shelter_custody_per_pet` keys on pet_id since 0195)
+ * and JOIN foster rows by pet_id — the scan is bounded
  * by the org's custody, never the platform-wide foster population. The previous
  * shape put `ownerships f` (all fosters) in the outer position and leaned on the
  * planner decorrelating the EXISTS to reach the org index; the explicit JOIN
  * makes that org-scoping structural, not planner-dependent.
  *
- * No fan-out: `ownerships_one_active_shelter_custody_per_pet_org` guarantees ≤1
- * active shelter_custody per (pet, org), so each matched foster row contributes
+ * No fan-out: `ownerships_one_active_shelter_custody_per_pet` guarantees ≤1
+ * active shelter_custody per pet (a fortiori per (pet, org)), so each matched foster row contributes
  * exactly once — COUNT(*) equals the matched-foster count (same as the old
  * EXISTS), with no dedup needed.
  */
