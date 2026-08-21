@@ -292,14 +292,20 @@ describe("searchOmnibox — org scope", () => {
     expect(found).toBeUndefined();
   });
 
-  it("returns a multi-custody pet exactly once per org query", async () => {
-    // Two different orgs both hold the same pet (allowed by schema since they
-    // are different organizations). Each org query must see it exactly once.
+  it("returns a pet with custody HISTORY exactly once per org query", async () => {
+    // Until migration 0195 two organisations could both hold live custody of
+    // one pet and this test relied on that; 0195 forbids it by index
+    // (ownerships_one_active_org_shelter_custody_per_pet). The dedup property
+    // still matters for the multi-row shape that IS legal: the same org holds
+    // the pet now AND held it before (an ended row from a previous intake), and
+    // another org's ENDED custody sits alongside. One live row, two history
+    // rows, one result.
     const orgA = await makeOrg();
     const orgB = await makeOrg();
     const pet = await makePet("Luna");
+    await makeCustody(pet.id, orgB.id, { endedAt: new Date(Date.now() - 20_000) });
+    await makeCustody(pet.id, orgA.id, { endedAt: new Date(Date.now() - 10_000) });
     await makeCustody(pet.id, orgA.id);
-    await makeCustody(pet.id, orgB.id);
 
     const resultsA = await searchOmnibox(`OmbPet Luna ${RUN_ID}`, {
       role: "org",
