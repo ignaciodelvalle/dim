@@ -113,9 +113,16 @@ const WRITE_LIMITER = "await enforceRateLimit(";
  * different page, and so the counters stay readable when someone asks which
  * surface is being hammered.
  *
- * `public_token_api_credential` is RESERVED for the coming
- * `GET /api/v1/pets/{token}/credential` route handler (Track 2) — listed ahead
- * of its use so adding the route is not also a fence edit under time pressure.
+ * `public_token_api_credential` was listed here BEFORE its route existed, so
+ * that adding the endpoint would not also be a fence edit under time pressure.
+ * It landed on 2026-08-21 (`app/api/v1/pets/[publicToken]/credential/route.ts`)
+ * and the reservation is now a real user — which the door-caller assertions
+ * below exercise, so nothing has to remember to delete this note.
+ *
+ * The endpoint's SECOND bucket, `public_token_api_credential_lookup`, is not
+ * listed and must not be: this set gates the adapter's first argument, the
+ * per-IP surface bucket. The narrower per-(token, IP) limiter is configured
+ * inside the adapter's options object, where it is not a call-site literal.
  */
 const KNOWN_BUCKETS = new Set([
   "public_token_page",
@@ -132,7 +139,7 @@ type Source = { file: string; src: string };
  * reason and what bounds it instead — an exemption without a stated
  * alternative is just a hole with a comment.
  *
- * TWO CAME OUT ON 2026-08-21, AND THE REASON IS WHY THIS LIST IS DANGEROUS.
+ * THREE CAME OUT ON 2026-08-21, AND THE REASON IS WHY THIS LIST IS DANGEROUS.
  * `report-pet-sighting.ts` and `report-dispute-tip.ts` were exempt on the
  * written ground that their harder write limiter "runs before it resolves the
  * token". It did not — both resolved the token FIRST and consulted the limiter
@@ -141,10 +148,19 @@ type Source = { file: string; src: string };
  * checked, which is strictly worse than no exemption: it reads as a reviewed
  * decision. The fix inverted the real order and both files are now IN SCOPE,
  * carrying the WRITE form below where the fence can see the ordering itself.
+ *
+ * `encontre/action.ts` was the THIRD, and its exemption is the reason to
+ * distrust the honest-looking ones too. When the first two were fixed, this
+ * file's entry was REWRITTEN to admit the same inversion — "its limiter runs
+ * AFTER its token lookup … Tracked, not fixed here" — and left in place. A
+ * documented hole is still a hole, and the file it excused is the heaviest of
+ * the three: its refusals distinguish "no existe" from "no está perdida" from
+ * "titularidad en revisión", and its non-form branch calls the Supabase ADMIN
+ * API to resolve the owner's email. The order was inverted and the entry
+ * deleted in the same commit, so the WRITE form's positional check below now
+ * covers it like the other two.
  */
 const EXEMPT: Record<string, string> = {
-  "app/(public)/p/[publicToken]/encontre/action.ts":
-    "A WRITE action, bounded harder than any read: enforceRateLimit(`finder_possession:${token}`, ip, 1/min + 10/hr). Adding the 60/min read limiter on top would loosen nothing and confuse the counters. NOTE (2026-08-21): its limiter runs AFTER its token lookup — the same inversion just fixed in the two sighting/tip use-cases. Tracked, not fixed here, because the correction belongs with its own tests.",
   "app/(public)/adoptar/[petToken]/page.tsx":
     "Resolves only pets that are adoption-LISTED — a non-listed token reaches notFound() at the isListable gate. Listed pets are already enumerable from the public /adoptar catalog, so this surface reveals nothing the catalog does not.",
   "app/(public)/adoptar/[petToken]/postular/page.tsx":
@@ -245,19 +261,42 @@ function guardForm(src: string): GuardForm | null {
   return FORM_PROBE_ORDER.find((form) => c.includes(FORM_CALLS[form])) ?? null;
 }
 
-/** Every argument text handed to the adapter, e.g. `"public_token_page"`. */
+/**
+ * The BUCKET argument handed to each adapter call, e.g. `"public_token_page"`.
+ *
+ * WIDENED 2026-08-21, AND THE WIDENING IS THE HONEST KIND. It used to be
+ * `publicTokenThrottle\(([^)]*)\)` — everything up to the first `)` — which
+ * assumed a one-argument call. The adapter now takes an optional second
+ * argument (`{ perLookup: … }`, the narrower limiter the /api/v1 route layers
+ * on top), so that pattern captured `"public_token_api_credential", {` and
+ * failed the literal check on a call that is perfectly literal.
+ *
+ * The fix reads only the FIRST argument — up to a comma or the closing paren —
+ * because the first argument is what the rule is about: one surface, one named
+ * bucket, no computed value. It is NOT a relaxation: a variable first argument
+ * still fails (see the RED controls below, including one for the two-argument
+ * shape specifically). What the fence stops watching is the second argument,
+ * which names its own bucket inside an object and is not a call-site literal
+ * this predicate could read anyway.
+ */
 function adapterArgs(src: string): string[] {
   const out: string[] = [];
-  const re = /publicTokenThrottle\(([^)]*)\)/g;
+  const re = /publicTokenThrottle\(\s*([^,)]*)/g;
   const c = code(src);
   for (let m = re.exec(c); m !== null; m = re.exec(c)) out.push(m[1].trim());
   return out;
 }
 
-/** Every bucket literal a file names, in either the direct or adapter form. */
+/**
+ * Every bucket literal a file names, in either the direct or adapter form.
+ *
+ * Same widening as `adapterArgs`, for the same reason: the trailing `\)` in the
+ * old pattern silently stopped matching the moment the adapter grew a second
+ * argument, and a bucket-uniqueness check that matches NOTHING passes.
+ */
 function bucketLiterals(src: string): string[] {
   const out: string[] = [];
-  const re = new RegExp(`(?:${GUARD}|publicTokenThrottle)\\("([^"]+)"\\)`, "g");
+  const re = new RegExp(`(?:${GUARD}|publicTokenThrottle)\\(\\s*"([^"]+)"`, "g");
   const c = code(src);
   for (let m = re.exec(c); m !== null; m = re.exec(c)) out.push(m[1]);
   return out;
@@ -382,24 +421,43 @@ describe("public-token routes are rate limited", () => {
     // caller is one cheap read of data already on the credential's face. The
     // residual is documented in lib/infra/public-token-throttle.ts; closing it
     // needs a check-without-increment mode on the limiter.
+    // TWO SHAPES LIVE UNDER app/, AND THE CHECK HAD ONLY EVER SEEN ONE.
+    // Until 2026-08-21 every in-scope app/ resolver was a page component, so
+    // this demanded `export default async function` and read the body from
+    // there. Then `encontre/action.ts` came out of EXEMPT — a "use server"
+    // ACTION, which has no default export at all — and the demand fired as a
+    // failure on a file that had just been FIXED. The rule was never about
+    // default exports; it is about the guard preceding the lookup, and for a
+    // file with no component body the whole file IS the body. That is precisely
+    // what `guardPrecedesLookup` computes for the src/ layer below, so the two
+    // shapes now share one predicate instead of one of them owning the rule.
     const outOfOrder: string[] = [];
+    let components = 0;
+    let wholeFile = 0;
     for (const { file, src } of publicTokenPages()) {
       if (!file.startsWith("app/")) continue;
       // Comments blanked, offsets preserved — a `// await isPublicTokenRead…`
       // line above the lookup must not read as the guard having run.
       const componentAt = code(src).indexOf("export default async function");
-      expect(
-        componentAt,
-        `${file} resolves a public token under app/ but exports no default async component — this check reads the component body to compare guard and lookup positions. A route handler (GET/POST export) belongs on lookupPublicCredential instead, and an exemption must say what bounds it.`,
-      ).toBeGreaterThan(-1);
-      const body = code(src).slice(componentAt);
 
+      if (componentAt === -1) {
+        wholeFile += 1;
+        if (!guardPrecedesLookup(src)) outOfOrder.push(file);
+        continue;
+      }
+
+      components += 1;
+      const body = code(src).slice(componentAt);
       const lookupAt = body.indexOf(LOOKUP);
       if (lookupAt === -1) continue; // component resolves the token some other way
       const guardAt = body.indexOf(`await ${GUARD}(`);
       if (guardAt === -1 || guardAt > lookupAt) outOfOrder.push(file);
     }
     expect(outOfOrder).toEqual([]);
+    // NON-VACUITY for BOTH arms. If either drops to zero the branch above it is
+    // untested, and a check nobody exercises is a check nobody has proved.
+    expect(components).toBeGreaterThanOrEqual(3);
+    expect(wholeFile).toBeGreaterThanOrEqual(1);
   });
 
   it("applies the guard BEFORE the use-case resolves the token", () => {
@@ -487,6 +545,30 @@ describe("the fence bites", () => {
     expect(doorCallerViolations(dynamic)).toEqual([
       "app/(public)/p/[publicToken]/fake/page.tsx: limiter bucket must be a string literal, got `bucket`",
     ]);
+  });
+
+  it("still flags a non-literal bucket when the adapter is called with TWO arguments", () => {
+    // THE CONTROL FOR THE 2026-08-21 REGEX WIDENING. `adapterArgs` stopped
+    // requiring the closing paren so the two-argument form would parse; this is
+    // the proof that it did not stop reading the first argument. A fence
+    // relaxed to make a real call pass, without a control for the shape it used
+    // to reject, is a fence that has quietly been switched off.
+    const dynamic = {
+      file: "app/api/v1/pets/[publicToken]/credential/route.ts",
+      src: "await lookupPublicCredential({ publicToken, throttle: publicTokenThrottle(bucket, { perLookup: { bucket: LOOKUP_BUCKET, key, limit } }) });",
+    };
+    expect(doorCallerViolations(dynamic)).toEqual([
+      "app/api/v1/pets/[publicToken]/credential/route.ts: limiter bucket must be a string literal, got `bucket`",
+    ]);
+  });
+
+  it("reads the bucket literal out of a TWO-argument adapter call", () => {
+    // The other half of the same control: the widening must still SEE the
+    // literal. A `bucketLiterals` that matched nothing would make the
+    // one-bucket-per-route uniqueness assertion vacuously true.
+    const twoArg = `await lookupPublicCredential({ publicToken, throttle: publicTokenThrottle("public_token_api_credential", { perLookup: { bucket: "x", key, limit } }) });`;
+    expect(bucketLiterals(twoArg)).toEqual(["public_token_api_credential"]);
+    expect(adapterArgs(twoArg)).toEqual(['"public_token_api_credential"']);
   });
 
   it("flags a caller that names an unknown bucket", () => {

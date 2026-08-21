@@ -82,7 +82,7 @@ vi.mock("@/lib/infra/web-push", () => ({
 // factory (which is hoisted) and in test bodies that need to throw it.
 // ---------------------------------------------------------------------------
 
-const { MockRateLimitError, mockEnforceRateLimit } = vi.hoisted(() => {
+const { MockRateLimitError, mockEnforceRateLimit, callOrder } = vi.hoisted(() => {
   class MockRateLimitError extends Error {
     resetAt: Date;
     reason: string;
@@ -96,6 +96,15 @@ const { MockRateLimitError, mockEnforceRateLimit } = vi.hoisted(() => {
   return {
     MockRateLimitError,
     mockEnforceRateLimit: vi.fn().mockResolvedValue(undefined),
+    /**
+     * The two things whose ORDER is the contract, recorded as they happen.
+     *
+     * A hand-rolled POST reaches this action with no page load, so a token
+     * lookup that runs before the limiter is an unbounded existence oracle:
+     * "Mascota no encontrada." and "Esta mascota no está marcada como perdida."
+     * are different strings, and anyone can ask as often as they like.
+     */
+    callOrder: [] as string[],
   };
 });
 
@@ -103,8 +112,12 @@ vi.mock("@/lib/infra/rate-limit", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/lib/infra/rate-limit")>();
   return {
     ...actual,
-    enforceRateLimit: (endpoint: string, id: string, cfg: unknown) =>
-      mockEnforceRateLimit(endpoint, id, cfg),
+    // Recorded in the WRAPPER, not in the per-test mock, so the order is
+    // captured whatever a test makes the limiter do (resolve, or reject).
+    enforceRateLimit: (endpoint: string, id: string, cfg: unknown) => {
+      callOrder.push("rate-limit");
+      return mockEnforceRateLimit(endpoint, id, cfg);
+    },
     RateLimitError: MockRateLimitError,
   };
 });
@@ -157,7 +170,8 @@ function buildMockDb(petStatus = "lost") {
   function nextResult(): unknown[] {
     selectCallCount++;
     if (selectCallCount === 1) {
-      // pet query
+      // pet query — the token resolution, and the thing the limiter must precede
+      callOrder.push("pet-lookup");
       return [{ id: PET_ID, name: "Luna", status: petStatus }];
     }
     if (selectCallCount === 2) {
@@ -283,6 +297,7 @@ describe("reportFinderInPossessionAction — P0e", () => {
     capturedAttachmentInsert = null;
     idempotencyReturnEvent = false;
     activeCaretakerPresent = false;
+    callOrder.length = 0;
     mockEnforceRateLimit.mockResolvedValue(undefined);
     mockGetUser.mockResolvedValue({ data: { user: null }, error: null });
     mockUpload.mockReset();
@@ -478,6 +493,54 @@ describe("reportFinderInPossessionAction — P0e", () => {
 
     expect(result.ok).toBe(false);
     expect(mockEnforceRateLimit).not.toHaveBeenCalled();
+  });
+
+  // --- Ordering: the limiter runs before the token is resolved (E1) ---
+  //
+  // The last of three token-existence oracles in this family. `report-pet-
+  // sighting.ts` and `report-dispute-tip.ts` were fixed on 2026-08-21 — both had
+  // been EXEMPT from the throttle-coverage fence on the written claim that their
+  // limiter ran first, and in both it ran after. This action carried the same
+  // inversion, and the same exemption text, tracked in that commit and closed
+  // here. Its refusal strings are its own oracle: "Mascota no encontrada." vs
+  // "Esta mascota no está marcada como perdida." vs the dispute notice — three
+  // distinguishable answers about a token, free, to anyone who can POST.
+
+  it("consults the limiter BEFORE it resolves the token", async () => {
+    vi.resetModules();
+    buildMockDb("lost");
+
+    const { reportFinderInPossessionAction } = await import(
+      "@/app/(public)/p/[publicToken]/encontre/action"
+    );
+    const fd = makeFormData({ ...BASE_FIELDS, canKeepIndefinite: "true" });
+
+    const result = await reportFinderInPossessionAction(PUBLIC_TOKEN, PREVIOUS_STATE, fd);
+
+    expect(result.ok).toBe(true);
+    // ORDER, not presence. A limiter consulted after the lookup bounds nothing.
+    expect(callOrder.slice(0, 2)).toEqual(["rate-limit", "pet-lookup"]);
+  });
+
+  it("resolves NO token at all for a caller already over the limit", async () => {
+    vi.resetModules();
+    buildMockDb("lost");
+    mockEnforceRateLimit.mockRejectedValueOnce(
+      new MockRateLimitError(new Date(Date.now() + 60_000), "finder_possession"),
+    );
+
+    const { reportFinderInPossessionAction } = await import(
+      "@/app/(public)/p/[publicToken]/encontre/action"
+    );
+    const fd = makeFormData({ ...BASE_FIELDS, canKeepIndefinite: "true" });
+
+    const result = await reportFinderInPossessionAction(PUBLIC_TOKEN, PREVIOUS_STATE, fd);
+
+    expect(result.ok).toBe(false);
+    // THE ORACLE, CLOSED. A throttled caller learns nothing about the token —
+    // no query ran, so there is nothing for the answer to have been derived
+    // from, and the refusal is the same for every token in the space.
+    expect(callOrder).toEqual(["rate-limit"]);
   });
 
   it("accepts a handoff without any contact — owner is told no contact was left (PO 2026-07-24)", async () => {

@@ -38,13 +38,19 @@
 
 import { randomUUID } from "node:crypto";
 
-import { afterAll, beforeEach, describe, expect, it, vi } from "vitest";
+import { type MockInstance, afterAll, beforeEach, describe, expect, it, vi } from "vitest";
 
 const control = vi.hoisted(() => ({
   /** When set, replaces the door's answer. `null` = call the real one. */
   door: null as null | (() => unknown),
-  /** When set, replaces the limiter (may throw). `null` = call the real one. */
-  rateLimit: null as null | ((endpoint: string, identifier: string) => void),
+  /**
+   * When set, replaces the limiter. `null` = call the real one.
+   *
+   * It may throw (a `RateLimitError` for "over the limit", anything else for
+   * "the limiter itself is broken") or return a promise that never settles, so
+   * the DB-budget arm can be exercised too.
+   */
+  rateLimit: null as null | ((endpoint: string, identifier: string) => void | Promise<void>),
   /** Every collaborator the handler reached, in order. */
   calls: [] as string[],
 }));
@@ -73,7 +79,7 @@ vi.mock("@/lib/infra/rate-limit", async (importOriginal) => {
     enforceRateLimit: async (endpoint: string, identifier: string, config: never) => {
       control.calls.push(`limit:${endpoint}`);
       if (control.rateLimit) {
-        control.rateLimit(endpoint, identifier);
+        await control.rateLimit(endpoint, identifier);
         return;
       }
       return actual.enforceRateLimit(endpoint, identifier, config);
@@ -86,8 +92,26 @@ import { RateLimitError } from "@/lib/infra/rate-limit";
 import type { CredentialViewData } from "@/src/modules/pets/application/read/load-public-credential";
 import { inArray } from "drizzle-orm";
 
-import { PUBLIC_CREDENTIAL_STALE_AFTER_MS } from "@/app/api/v1/pets/[publicToken]/credential/payload";
-import { GET } from "@/app/api/v1/pets/[publicToken]/credential/route";
+import {
+  PUBLIC_CREDENTIAL_STALE_AFTER_MS,
+  buildDegradedPublicCredentialV1,
+  buildPublicCredentialV1,
+} from "@/app/api/v1/pets/[publicToken]/credential/payload";
+import {
+  GET,
+  LOOKUP_BUCKET,
+  PUBLIC_TOKEN_API_LOOKUP_LIMIT,
+} from "@/app/api/v1/pets/[publicToken]/credential/route";
+import { publicTokenThrottle } from "@/lib/infra/public-token-throttle";
+
+/**
+ * D1's surface bucket, spelled out rather than imported.
+ *
+ * `route.ts` writes it as a LITERAL at the call site because the throttle
+ * coverage fence rejects a computed bucket, so there is no constant to import —
+ * and exporting one to satisfy this test would defeat the fence it satisfies.
+ */
+const SURFACE_BUCKET = "public_token_api_credential";
 
 // ---------------------------------------------------------------------------
 // Harness
@@ -117,12 +141,25 @@ async function observe(response: Response) {
   };
 }
 
+/** Only the limiter calls, in order — the door marker filtered out. */
+function limiterCalls(): string[] {
+  return control.calls.filter((c) => c.startsWith("limit:"));
+}
+
+/** reportError's sink is stderr, so its lines land here (see report-error.ts). */
+let errorSpy: MockInstance<(...args: unknown[]) => void>;
+
+/** Everything reportError wrote this test, as one searchable string. */
+function reportedErrors(): string {
+  return errorSpy.mock.calls.map((args) => args.map((a) => String(a)).join(" ")).join("\n");
+}
+
 beforeEach(() => {
   control.door = null;
   control.rateLimit = null;
   control.calls = [];
   // The degraded branches log one structured line through reportError.
-  vi.spyOn(console, "error").mockImplementation(() => {});
+  errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
 });
 
 // ---------------------------------------------------------------------------
@@ -179,30 +216,103 @@ const OK_LOOKUP = { status: "ok", pet: ACTIVE_PET, photoUrl: null, data: VIEW_DA
 const ALLOW = () => {};
 
 // ---------------------------------------------------------------------------
+// Fixtures for the LOST projection — the Tier-1 reveal
+// ---------------------------------------------------------------------------
+//
+// Every disclosure toggle ON and no dispute: the maximal reveal, so each test
+// below turns exactly ONE thing off and names what disappeared. A fixture that
+// started minimal would have proved nothing — a gate that never fires and a
+// field that is never populated look identical from the outside.
+
+/** A pet whose owner opted into every lost-mode disclosure. */
+const LOST_PET = {
+  ...ACTIVE_PET,
+  status: "lost",
+  color: "negro",
+  distinguishingFeatures: "mancha blanca en el pecho",
+  allowFinderFormWhenLost: true,
+  discloseFirstNameWhenLost: true,
+  disclosePhoneWhenLost: true,
+  discloseEmailWhenLost: true,
+  discloseLastLocationWhenLost: true,
+} as unknown as Pet;
+
+/** Owner PII the loader resolved. NONE of it may reach a payload ungated. */
+const OWNER_PHONE = "+5492901555123";
+const OWNER_EMAIL = "ana.perdida@example.test";
+const CARETAKER_PHONE = "+5492901555999";
+const LOST_PLACE = "Plaza Piedrabuena";
+
+const LOST_CONTEXT = {
+  ownerFirstName: "Ana",
+  phone: OWNER_PHONE,
+  email: OWNER_EMAIL,
+  locationText: LOST_PLACE,
+  lastSeenCoords: "-54.801910, -68.302950",
+  lastSeenAt: new Date("2026-08-19T15:00:00.000Z"),
+  lostLat: -54.80191,
+  lostLng: -68.30295,
+  lostDescription: {
+    accessoriesWhenLost: "collar rojo",
+    behaviorNotes: "asustadiza con desconocidos",
+    lastSeenContext: "se escapó por el portón",
+  },
+  lostSince: new Date("2026-08-18T09:00:00.000Z"),
+  caretakerContact: { firstName: "Beto", phoneE164: CARETAKER_PHONE },
+};
+
+const NOW = new Date("2026-08-20T12:00:00.000Z");
+
+/**
+ * The `lost` section a given pet + lost context projects to.
+ *
+ * Goes through `buildPublicCredentialV1` rather than reaching for the private
+ * `lostSectionOf`, because the thing under test is what a CLIENT receives — a
+ * gate applied correctly in a helper and then bypassed by the assembler is a
+ * bug this would have to catch.
+ */
+function lostSectionFor(
+  petOverrides: Partial<Record<string, unknown>> = {},
+  contextOverrides: Partial<Record<string, unknown>> = {},
+) {
+  const pet = { ...LOST_PET, ...petOverrides } as unknown as Pet;
+  const data = {
+    ...VIEW_DATA,
+    lostContext: { ...LOST_CONTEXT, ...contextOverrides },
+  } as unknown as CredentialViewData;
+  const body = buildPublicCredentialV1({ status: "ok", pet, photoUrl: null, data }, NOW);
+  expect(body.lost.status).toBe("ok");
+  return body.lost.status === "ok" ? body.lost.data : null;
+}
+
+// ---------------------------------------------------------------------------
 // Status mapping
 // ---------------------------------------------------------------------------
 
 describe("GET /api/v1/pets/[publicToken]/credential — status mapping", () => {
-  it("429s on the PER-LOOKUP limiter, before the door is ever reached", async () => {
+  it("429s on the PER-LOOKUP limiter, through the door, before any pet row", async () => {
     control.rateLimit = (endpoint) => {
-      throw new RateLimitError(new Date(Date.now() + 60_000), endpoint);
+      if (endpoint === LOOKUP_BUCKET)
+        throw new RateLimitError(new Date(Date.now() + 60_000), endpoint);
     };
 
     const seen = await observe(await get(TOKEN));
 
     expect(seen.status).toBe(429);
     expect(seen.body).toEqual({ error: "rate_limited" });
-    // ORDER, not presence: a limiter that runs after the lookup has already hit
-    // the database bounds nothing. The door must not appear at all.
-    expect(control.calls).toEqual(["limit:public_token_api_credential_lookup"]);
+    // BOTH limiters now live inside the door's throttle port, and the door runs
+    // it before `findPet` (proved without a database in
+    // lookup-public-credential.test.ts). What this asserts is the ORDER WITHIN
+    // the port: the surface bucket is consulted first, and the per-lookup write
+    // only happens for a caller the surface limit still allows.
+    expect(control.calls).toEqual(["door", `limit:${SURFACE_BUCKET}`, `limit:${LOOKUP_BUCKET}`]);
   });
 
   it("keys the per-lookup limiter by token AND caller (D3)", async () => {
     const keys: string[] = [];
-    control.rateLimit = (_endpoint, identifier) => {
-      keys.push(identifier);
+    control.rateLimit = (endpoint, identifier) => {
+      if (endpoint === LOOKUP_BUCKET) keys.push(identifier);
     };
-    control.door = () => ({ status: "not_found" });
 
     await get("DIM-AAAA-0001", "203.0.113.7");
     await get("DIM-BBBB-0002", "203.0.113.7");
@@ -215,16 +325,18 @@ describe("GET /api/v1/pets/[publicToken]/credential — status mapping", () => {
 
   it("429s on the SURFACE limiter with a byte-identical response", async () => {
     control.rateLimit = (endpoint) => {
-      throw new RateLimitError(new Date(), endpoint);
+      if (endpoint === LOOKUP_BUCKET) throw new RateLimitError(new Date(), endpoint);
     };
     const perLookup = await observe(await get(TOKEN));
 
-    control.rateLimit = ALLOW;
-    control.door = () => ({ status: "throttled" });
+    control.rateLimit = (endpoint) => {
+      if (endpoint === SURFACE_BUCKET) throw new RateLimitError(new Date(), endpoint);
+    };
     const surface = await observe(await get(TOKEN));
 
     // Two limiters, ONE 429. A client that could tell them apart could probe
     // which budget it exhausted, and the difference has no legitimate use.
+    expect(perLookup.status).toBe(429);
     expect(surface).toEqual(perLookup);
   });
 
@@ -308,6 +420,118 @@ describe("GET /api/v1/pets/[publicToken]/credential — status mapping", () => {
     // The Tier-2 medical projection is a separate streamed read this door does
     // not make. It says so rather than rendering as an empty history.
     expect(seen.body.tier2.data.medical).toBe("not_included");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Limiter ORDER, and the write amplification it bounds
+// ---------------------------------------------------------------------------
+//
+// The two limiters used to run in the wrong order: the per-lookup bucket (keyed
+// `${token}:${ip}`, TWO upserts into rate_limit_buckets — a minute row and an
+// hour row) was consulted in the route, before the door applied the per-IP
+// surface bucket. So an IP already over 60/min still wrote two rows for every
+// distinct token it asked for, and the token is attacker-chosen: the cardinality
+// of the table was bounded by how many tokens someone cared to type, not by the
+// limit that exists to bound exactly that.
+//
+// Fixing it by moving the surface check earlier in the route would have DOUBLE
+// COUNTED — the door applies the surface bucket itself. So the two live in one
+// port instead, ordered inside the adapter.
+
+describe("limiter order (C3)", () => {
+  it("consults the SURFACE bucket before it writes a per-lookup counter", async () => {
+    control.rateLimit = ALLOW;
+
+    await get("DIM-ORDER-0001");
+
+    expect(limiterCalls()).toEqual([`limit:${SURFACE_BUCKET}`, `limit:${LOOKUP_BUCKET}`]);
+  });
+
+  it("writes NO per-lookup counter for a caller already over the surface limit", async () => {
+    control.rateLimit = (endpoint) => {
+      if (endpoint === SURFACE_BUCKET) throw new RateLimitError(new Date(), endpoint);
+    };
+
+    const seen = await observe(await get("DIM-ORDER-0002"));
+
+    expect(seen.status).toBe(429);
+    // THE POINT OF THE ORDER. A throttled IP walking the token space must cost
+    // the table zero rows per token, not two.
+    expect(limiterCalls()).toEqual([`limit:${SURFACE_BUCKET}`]);
+  });
+
+  it("still spends the per-lookup budget for a caller the surface limit allows", async () => {
+    // NON-VACUITY for the two above: the per-lookup limiter must not have been
+    // "fixed" by simply never running.
+    control.rateLimit = ALLOW;
+    await get("DIM-ORDER-0003");
+    expect(limiterCalls()).toContain(`limit:${LOOKUP_BUCKET}`);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Fail-open — the arm nothing exercised before
+// ---------------------------------------------------------------------------
+//
+// Rate limiting on this surface is an ABUSE CONTROL, not an authorization
+// boundary: nothing behind it is secret to someone already holding the token.
+// The limiter is itself a DB write, so a limiter that has stopped working must
+// not become the thing that breaks the credential before the degraded answer
+// can be produced. That arm existed and had never been executed by a test —
+// which is the same as not knowing whether it works.
+
+describe("the limiters fail OPEN", () => {
+  /** The port the route hands the door, with both buckets bound. */
+  function routeThrottle() {
+    return publicTokenThrottle(SURFACE_BUCKET, {
+      perLookup: {
+        bucket: LOOKUP_BUCKET,
+        key: `${TOKEN}:203.0.113.9`,
+        limit: PUBLIC_TOKEN_API_LOOKUP_LIMIT,
+      },
+    });
+  }
+
+  it("lets the read through when the per-lookup limiter throws a NON-RateLimitError", async () => {
+    control.rateLimit = (endpoint) => {
+      if (endpoint === LOOKUP_BUCKET) throw new Error("rate_limit_buckets: connection reset");
+    };
+
+    expect(await routeThrottle().isThrottled()).toBe(false);
+    // Reported, because a limiter that stopped working is an incident even
+    // though the request continues.
+    expect(reportedErrors()).toContain(`public-token-throttle/${LOOKUP_BUCKET}`);
+  });
+
+  it("lets the read through when the per-lookup limiter blows its DB budget", async () => {
+    // withDbBudget RESOLVES with its fallback on timeout rather than throwing,
+    // so this arm never reaches the catch clause at all — which is exactly why
+    // it needs its own test. A limiter that simply never answers must cost the
+    // caller the budget and nothing else.
+    control.rateLimit = (endpoint) =>
+      endpoint === LOOKUP_BUCKET ? new Promise<void>(() => {}) : undefined;
+
+    expect(await routeThrottle().isThrottled()).toBe(false);
+  }, 10_000);
+
+  it("lets the read through when the SURFACE limiter throws a NON-RateLimitError", async () => {
+    control.rateLimit = (endpoint) => {
+      if (endpoint === SURFACE_BUCKET) throw new Error("rate_limit_buckets: connection reset");
+    };
+
+    expect(await routeThrottle().isThrottled()).toBe(false);
+    expect(reportedErrors()).toContain(`public-token-throttle/${SURFACE_BUCKET}`);
+  });
+
+  it("does NOT fail open on a genuine RateLimitError — the arm above is not a hole", async () => {
+    // NON-VACUITY for the three above: if `isThrottled` had been mutated to
+    // `return false`, every fail-open assertion would still pass.
+    control.rateLimit = (endpoint) => {
+      throw new RateLimitError(new Date(), endpoint);
+    };
+
+    expect(await routeThrottle().isThrottled()).toBe(true);
   });
 });
 
@@ -422,6 +646,251 @@ describe("response equality — no existence oracle", () => {
 });
 
 // ---------------------------------------------------------------------------
+// The LOST section — the only place this endpoint discloses owner PII
+// ---------------------------------------------------------------------------
+//
+// Everything else on this credential is about the ANIMAL. This section is about
+// a person: their first name, their phone, their email, and where they last saw
+// their pet. It is the highest-risk projection in the file and it had no test
+// of its own — the route tests all ran an ACTIVE pet, for which the whole
+// section is `null` and every gate below is unreachable.
+
+describe("the lost section — every disclosure gate", () => {
+  it("is null for a pet nobody is looking for, whatever the toggles say", () => {
+    // The toggles are all ON here. `status !== "lost"` outranks every one.
+    const body = buildPublicCredentialV1(
+      {
+        status: "ok",
+        pet: { ...LOST_PET, status: "active" } as unknown as Pet,
+        photoUrl: null,
+        data: { ...VIEW_DATA, lostContext: LOST_CONTEXT } as unknown as CredentialViewData,
+      },
+      NOW,
+    );
+    expect(body.lost).toEqual({ status: "ok", data: null });
+    expect(JSON.stringify(body)).not.toContain(OWNER_PHONE);
+  });
+
+  it("discloses the phone ONLY under disclosePhoneWhenLost", () => {
+    expect(lostSectionFor()?.owner.phoneE164).toBe(OWNER_PHONE);
+    expect(lostSectionFor({ disclosePhoneWhenLost: false })?.owner.phoneE164).toBeNull();
+  });
+
+  it("discloses the first name ONLY under discloseFirstNameWhenLost", () => {
+    expect(lostSectionFor()?.owner.firstName).toBe("Ana");
+    expect(lostSectionFor({ discloseFirstNameWhenLost: false })?.owner.firstName).toBeNull();
+  });
+
+  it("discloses the email ONLY under discloseEmailWhenLost", () => {
+    expect(lostSectionFor()?.owner.email).toBe(OWNER_EMAIL);
+    expect(lostSectionFor({ discloseEmailWhenLost: false })?.owner.email).toBeNull();
+  });
+
+  it("gates each owner field SEPARATELY — one toggle off never suppresses another", () => {
+    // The failure this catches is a single `if (!disclose…) return { owner: {} }`
+    // shortcut: it would pass all three tests above and lose two real fields.
+    const only = lostSectionFor({ discloseEmailWhenLost: false });
+    expect(only?.owner).toEqual({ firstName: "Ana", phoneE164: OWNER_PHONE, email: null });
+  });
+
+  it("discloses last-seen ONLY under discloseLastLocationWhenLost", () => {
+    const shown = lostSectionFor()?.lastSeen;
+    expect(shown).toEqual({
+      placeName: LOST_PLACE,
+      locality: "Ushuaia",
+      coords: "-54.801910, -68.302950",
+      lat: -54.80191,
+      lng: -68.30295,
+      at: "2026-08-19T15:00:00.000Z",
+    });
+
+    const hidden = lostSectionFor({ discloseLastLocationWhenLost: false });
+    expect(hidden?.lastSeen).toBeNull();
+    // The locality rides INSIDE lastSeen, so hiding the location hides it too —
+    // the pet's jurisdiction column must not leak around the gate.
+    expect(JSON.stringify(hidden)).not.toContain("Ushuaia");
+  });
+
+  it("passes the caretaker contact through only when the loader resolved one", () => {
+    expect(lostSectionFor()?.caretakerContact).toEqual({
+      firstName: "Beto",
+      phoneE164: CARETAKER_PHONE,
+    });
+    expect(lostSectionFor({}, { caretakerContact: null })?.caretakerContact).toBeNull();
+  });
+
+  it("suppresses EVERY contact and both report actions during a custody dispute", () => {
+    const disputed = lostSectionFor({ inCustodyDispute: true });
+
+    // D2 hardening (red-team 2026-07): while titularidad is under review the
+    // system must neither publish the contested owner's contact nor relay a
+    // finder's, because both end in an owner-directed notification.
+    expect(disputed?.owner).toEqual({ firstName: null, phoneE164: null, email: null });
+    expect(disputed?.allowFinderForm).toBe(false);
+    expect(disputed?.allowSighting).toBe(false);
+    // A third party's number is contact too. The loader already nulls it under
+    // dispute; this file re-applies the gate rather than trusting it, which is
+    // the rule stated in payload.ts's own header.
+    expect(disputed?.caretakerContact).toBeNull();
+
+    const serialized = JSON.stringify(disputed);
+    for (const secret of [OWNER_PHONE, OWNER_EMAIL, CARETAKER_PHONE, "Ana"]) {
+      expect(serialized, `disputed payload leaked ${secret}`).not.toContain(secret);
+    }
+  });
+
+  it("keeps the ANIMAL's own details under dispute — suppression is about people", () => {
+    // The over-correction this catches: blanking the section wholesale during a
+    // dispute would delete the colour, the marks and the tattoo, which are the
+    // only things a stranger can match against the animal in front of them.
+    const disputed = lostSectionFor({ inCustodyDispute: true });
+    expect(disputed?.color).toBe("negro");
+    expect(disputed?.distinguishingFeatures).toBe("mancha blanca en el pecho");
+    expect(disputed?.description).toEqual(LOST_CONTEXT.lostDescription);
+    expect(disputed?.since).toBe("2026-08-18T09:00:00.000Z");
+  });
+
+  it("reveals nothing but the animal when every toggle is off", () => {
+    const minimal = lostSectionFor({
+      discloseFirstNameWhenLost: false,
+      disclosePhoneWhenLost: false,
+      discloseEmailWhenLost: false,
+      discloseLastLocationWhenLost: false,
+      allowFinderFormWhenLost: false,
+    });
+
+    expect(minimal?.owner).toEqual({ firstName: null, phoneE164: null, email: null });
+    expect(minimal?.lastSeen).toBeNull();
+    expect(minimal?.allowFinderForm).toBe(false);
+    // Still findable: a sighting needs no owner contact and stays available.
+    expect(minimal?.allowSighting).toBe(true);
+    expect(minimal?.color).toBe("negro");
+  });
+
+  it("carries the tattoo, and only the tattoo, as a lost-mode identifier", () => {
+    const withMarks = buildPublicCredentialV1(
+      {
+        status: "ok",
+        pet: LOST_PET,
+        photoUrl: null,
+        data: {
+          ...VIEW_DATA,
+          lostContext: LOST_CONTEXT,
+          canonicalIds: {
+            microchip: { code: "900123456789012" },
+            tattoo: { code: "TAT-99", tattooLocation: "oreja", tattooDescription: "azul" },
+          },
+          lostTattooPhotoUrl: "https://example.test/tattoo.jpg",
+        } as unknown as CredentialViewData,
+      },
+      NOW,
+    );
+
+    expect(withMarks.lost.status === "ok" && withMarks.lost.data?.tattoo).toEqual({
+      code: "TAT-99",
+      location: "oreja",
+      description: "azul",
+      photoUrl: "https://example.test/tattoo.jpg",
+    });
+    // A chip needs a reader. Publishing the number helps nobody standing over
+    // the animal and hands a scraper a national identifier — lost mode included.
+    expect(JSON.stringify(withMarks)).not.toContain("900123456789012");
+    expect(withMarks.identity.status === "ok" && withMarks.identity.data.hasMicrochip).toBe(true);
+  });
+
+  it("carries NO lost data at all in the degraded envelope", () => {
+    // The degraded arm knows the pet is lost (the card renders its CTAs) and
+    // must still publish none of the Tier-1 reveal: the section that would
+    // carry it did not load, and `unavailable` is the honest word for that.
+    const degraded = buildDegradedPublicCredentialV1(
+      {
+        status: "degraded",
+        publicToken: TOKEN,
+        pet: { name: "Pampa", sex: "female", isLost: true, allowFinderForm: true },
+      },
+      NOW,
+    );
+
+    expect(degraded.lost).toEqual({ status: "unavailable" });
+    const serialized = JSON.stringify(degraded);
+    for (const secret of [OWNER_PHONE, OWNER_EMAIL, CARETAKER_PHONE, LOST_PLACE, "-54.80191"]) {
+      expect(serialized, `degraded payload leaked ${secret}`).not.toContain(secret);
+    }
+  });
+});
+
+// ---------------------------------------------------------------------------
+// The three pass-throughs (C5)
+// ---------------------------------------------------------------------------
+//
+// `data: lookup.pet`, `caretakerContact: lostContext.caretakerContact` and
+// `description: lostContext.lostDescription` are assigned WHOLE. TypeScript's
+// excess-property check only fires on object LITERALS, so if an upstream type
+// grows a field, all three widen silently and the new field ships. These pin
+// the key sets so that widening is a failing test instead of a disclosure.
+
+describe("whole-object pass-throughs cannot widen silently", () => {
+  it("pins the degraded identity payload to the degraded card's four props", () => {
+    const degraded = buildDegradedPublicCredentialV1(
+      {
+        status: "degraded",
+        publicToken: TOKEN,
+        pet: { name: "Pampa", sex: "female", isLost: true, allowFinderForm: true },
+      },
+      NOW,
+    );
+    expect(degraded.identity.status).toBe("ok");
+    const data = degraded.identity.status === "ok" ? degraded.identity.data : {};
+    expect(Object.keys(data).sort()).toEqual(["allowFinderForm", "isLost", "name", "sex"]);
+  });
+
+  it("pins the caretaker contact to first name and phone", () => {
+    expect(Object.keys(lostSectionFor()?.caretakerContact ?? {}).sort()).toEqual([
+      "firstName",
+      "phoneE164",
+    ]);
+  });
+
+  it("pins the lost description to its three animal-detail fields", () => {
+    expect(Object.keys(lostSectionFor()?.description ?? {}).sort()).toEqual([
+      "accessoriesWhenLost",
+      "behaviorNotes",
+      "lastSeenContext",
+    ]);
+  });
+
+  it("drops a field an upstream type grew but the contract never declared", () => {
+    // The simulation of the exact accident: the loader starts resolving the
+    // caretaker's EMAIL, and nobody remembers that this file forwards the whole
+    // object. A pass-through ships it; a listed projection does not.
+    const widened = lostSectionFor(
+      {},
+      {
+        caretakerContact: {
+          firstName: "Beto",
+          phoneE164: CARETAKER_PHONE,
+          email: "beto@example.test",
+        },
+      },
+    );
+    expect(JSON.stringify(widened)).not.toContain("beto@example.test");
+  });
+
+  it("drops a lost-description field an upstream type grew", () => {
+    const widened = lostSectionFor(
+      {},
+      {
+        lostDescription: {
+          ...LOST_CONTEXT.lostDescription,
+          ownerNotes: "vive en Perito Moreno 1234",
+        },
+      },
+    );
+    expect(JSON.stringify(widened)).not.toContain("Perito Moreno 1234");
+  });
+});
+
+// ---------------------------------------------------------------------------
 // Against the real database
 // ---------------------------------------------------------------------------
 
@@ -485,6 +954,14 @@ describe("against a real pet row", () => {
     expect(leaves.length).toBeGreaterThan(5);
     expect(leaves).toContain("Pampa API");
     for (const leaf of leaves) {
+      // Both spellings. The bare-digit form is how the column would serialise;
+      // the DOTTED form is how a human types it into a free-text field, which
+      // is the realistic way one reaches a payload at all (a note, a
+      // distinguishing-features box). A canary that knew only one spelling
+      // would have watched the likelier one go past.
+      expect(leaf, `DNI-shaped leaf in the payload: ${leaf}`).not.toMatch(
+        /(^|\D)\d{2}\.\d{3}\.\d{3}(\D|$)/,
+      );
       expect(leaf, `DNI-shaped leaf in the payload: ${leaf}`).not.toMatch(/^\d{7,8}$/);
     }
   });

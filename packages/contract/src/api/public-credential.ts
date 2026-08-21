@@ -308,7 +308,24 @@ export type PublicCredentialV1Degraded = {
   issuedAt: string;
   staleAfter: string;
   publicToken: string;
-  /** The degraded card's own props — name, sex, and the two lost CTAs. */
+  /**
+   * The degraded card's own props — name, sex, and the two lost CTAs.
+   *
+   * `allowFinderForm` DOES NOT MEAN THE SAME THING HERE AS IT DOES IN
+   * `CredentialLostSection`, and the difference is deliberate. On a successful
+   * read it is `owner preference AND no custody dispute`. Here it is the owner
+   * PREFERENCE ONLY: this envelope exists because a read failed, so the dispute
+   * state is precisely one of the things the server could not establish.
+   *
+   * That is safe because the dispute gate is enforced at SUBMIT, server-side —
+   * the finder-possession action re-reads `pets.in_custody_dispute` after
+   * resolving the token and refuses the report outright — so a CTA shown here
+   * cannot relay anything to a contested owner. Failing the CTA closed instead
+   * would hide it for EVERY pet during an outage, including the overwhelming
+   * majority with no dispute, on the one surface an anonymous finder in the
+   * street depends on. A client may render the CTA on this value; it must not
+   * treat it as a statement about the dispute.
+   */
   identity: CredentialSection<{
     name: string;
     sex: PetSex;

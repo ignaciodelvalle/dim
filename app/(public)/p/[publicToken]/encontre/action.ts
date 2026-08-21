@@ -8,7 +8,9 @@
 //   - pet_events row: note_added, kind="finder_in_possession", full payload
 //   - notifications row: pet_in_possession, severity=urgent, category=perdidas
 //
-// Rate-limited by (IP, publicToken) per 5 minutes. Idempotency guard skips
+// Rate-limited by (IP, publicToken): 1/min, 10/hr, consumed AFTER pure form
+// validation and BEFORE the token is resolved — see the block comment at the
+// limiter for why both halves of that sentence matter. Idempotency guard skips
 // double-insert when (petId, finderContact) already has a finder_in_possession
 // event within the last 5 minutes.
 //
@@ -127,6 +129,49 @@ export async function reportFinderInPossessionAction(
 
   const safeMessage = message.slice(0, 500);
 
+  // ---------------------------------------------------------------------------
+  // LIMITER, THEN LOOKUP. Everything above this line is pure validation of what
+  // the caller typed; everything below reads the database.
+  // ---------------------------------------------------------------------------
+  //
+  // The order used to be the other way round, and the two halves of the reason
+  // pull against each other, so both are written down:
+  //
+  //   • AFTER VALIDATION (tester fix #6, kept): a rejected form — no pin, bad
+  //     date, missing condition — must not burn the (IP, token) budget and block
+  //     the immediate retry. Those refusals are about the FORM and say nothing
+  //     about the pet, so serving them for free costs nothing.
+  //   • BEFORE THE LOOKUP (2026-08-21, this change): a hand-rolled POST reaches
+  //     this action with no page load, so a token resolution that runs first is
+  //     an unbounded existence-and-status oracle. Its three refusals are
+  //     DISTINGUISHABLE — "Mascota no encontrada." vs "Esta mascota no está
+  //     marcada como perdida." vs the dispute notice — which is a free read of
+  //     whether a token exists, whether that animal is lost, and whether its
+  //     titularidad is under review, at whatever rate anyone cares to ask.
+  //
+  // This is the same inversion `report-pet-sighting.ts` and
+  // `report-dispute-tip.ts` carried, and the same fix; those two were EXEMPT
+  // from __tests__/public-token-throttle-coverage.test.ts on the written claim
+  // that their limiter already ran first, and nothing checked. This file was the
+  // third, tracked in that commit as "not fixed here". It is fixed here, and its
+  // exemption is gone, so the fence now watches the order positionally.
+  const reqHeaders = await headers();
+  const ip = callerIp(reqHeaders);
+  try {
+    await enforceRateLimit(`finder_possession:${publicToken}`, ip, {
+      maxPerMinute: 1,
+      maxPerHour: 10,
+    });
+  } catch (err) {
+    if (err instanceof RateLimitError) {
+      return {
+        ok: false,
+        error: "Ya enviaste un aviso hace poco. Probá de nuevo en unos minutos.",
+      };
+    }
+    throw err;
+  }
+
   // Resolve pet.
   const [pet] = await db
     .select({
@@ -165,27 +210,6 @@ export async function reportFinderInPossessionAction(
   // __tests__/pet-alert-recipients.test.ts pins that parity case by case.
   const recipients = await resolveLostPetAlertRecipients(pet.id);
   if (recipients.length === 0) return { ok: false, error: "No se encontró un dueño activo." };
-
-  // Rate limit — consumed only AFTER validation passes (tester fix #6): a
-  // rejected form (missing contact, no pin, bad date) must not burn the
-  // (IP, token) budget and block the immediate retry. Still guards every
-  // write/notification below.
-  const reqHeaders = await headers();
-  const ip = callerIp(reqHeaders);
-  try {
-    await enforceRateLimit(`finder_possession:${publicToken}`, ip, {
-      maxPerMinute: 1,
-      maxPerHour: 10,
-    });
-  } catch (err) {
-    if (err instanceof RateLimitError) {
-      return {
-        ok: false,
-        error: "Ya enviaste un aviso hace poco. Probá de nuevo en unos minutos.",
-      };
-    }
-    throw err;
-  }
 
   // Build the canonical contact string: phone takes precedence; append email
   // when both are provided. The schema's finderContact is a single text field;

@@ -216,6 +216,69 @@ export const DASHBOARD_PAGES = [
 // landed rather than after.
 export const ROUTE_GLOBS = ["app/api/panorama/**/route.ts", "app/api/v1/**/route.ts"] as const;
 
+/**
+ * Routes inside a registered glob that do NO DB work of their own.
+ *
+ * WHY THIS EXISTS AND WHY IT IS NOT A HOLE. This file's own history has the
+ * answer, at DASHBOARD_PAGES above: `_lib/load-audit-data.ts` and
+ * `inteligencia-panels.tsx` were registered, passed on the word
+ * "loadWithTimeout" appearing in a header comment, and were removed on
+ * 2026-08-09 with the verdict that "listing a delegating file was the substring
+ * illusion in its purest form: the fence reported enforcement on a file that
+ * structurally cannot satisfy the rule". The budget belongs where the DB work
+ * is, and the scan target MOVES with it.
+ *
+ * A glob cannot move, though — `app/api/v1/**` is registered for the SCOPE, so
+ * the next endpoint is covered before anyone writes it. So a route that has
+ * delegated all its reads away names, here, the files that took them. Each is
+ * verified to exist AND to call a real wrapper, so this entry can never be the
+ * kind of exemption that merely asserts someone else handled it.
+ */
+export const DELEGATING_ROUTES: Record<string, { reason: string; budgetedBy: string[] }> = {
+  "app/api/v1/pets/[publicToken]/credential/route.ts": {
+    reason:
+      "Every read and every write this endpoint causes belongs to a collaborator: the four-way credential decision (pet row + view-data fan-out) to the door, and BOTH rate-limit counter writes to the throttle adapter, which is where their ordering now lives too (2026-08-21). The handler is HTTP mapping — four status codes and one envelope — and holds no query. It called withDbBudget until the per-lookup limiter moved into the adapter to stop an over-the-surface-limit caller from writing two rate_limit_buckets rows per attacker-chosen token; keeping a token wrapper here afterwards would have been ceremony over a promise that cannot hang.",
+    budgetedBy: [
+      "src/modules/pets/application/read/lookup-public-credential.ts",
+      "lib/infra/public-token-throttle.ts",
+    ],
+  },
+};
+
+/**
+ * Problems with the delegation claims above: a route that no longer exists, or
+ * a named budget owner that does not exist or does not call a wrapper.
+ *
+ * This is the non-vacuity check. Without it the map is a list of file names
+ * asserting that somebody, somewhere, bounded the work — which is precisely
+ * the shape of exemption this repo keeps finding to be false.
+ */
+export function delegationViolations(): string[] {
+  const problems: string[] = [];
+  for (const [route, { reason, budgetedBy }] of Object.entries(DELEGATING_ROUTES)) {
+    if (!existsSync(route)) {
+      problems.push(`${route}: listed as delegating but no longer exists — move or drop the entry`);
+    }
+    if (reason.length < 80) {
+      problems.push(`${route}: needs a written reason naming what it delegates`);
+    }
+    if (budgetedBy.length === 0) {
+      problems.push(`${route}: delegates to nothing — then it is an offender, not an exemption`);
+    }
+    for (const owner of budgetedBy) {
+      if (!existsSync(owner)) {
+        problems.push(`${route}: delegates to ${owner}, which does not exist`);
+        continue;
+      }
+      const src = readFileSync(owner, "utf8");
+      if (!referencesBudgetWrapper(src) && !appliesInjectedBudget(src)) {
+        problems.push(`${route}: delegates to ${owner}, which applies NO budget`);
+      }
+    }
+  }
+  return problems;
+}
+
 // ---------------------------------------------------------------------------
 // Source scanning
 // ---------------------------------------------------------------------------
@@ -400,6 +463,28 @@ export function referencesBudgetWrapper(src: string): boolean {
   return BUDGET_WRAPPERS.some((w) => new RegExp(`\\b${w}\\w*\\s*(?:<[^()]*?>)?\\s*\\(`).test(code));
 }
 
+/**
+ * The dependency-injected spelling of a budget: bound as a default, called
+ * through the binding.
+ *
+ * `lookupPublicCredential` writes `withBudget: withDbBudgetOrThrow` in its
+ * default `deps` and then `await deps.withBudget(…)`, so the budget is real and
+ * `referencesBudgetWrapper` cannot see it — the wrapper identifier never
+ * appears with a paren after it. Both halves are required: the binding proves
+ * WHICH wrapper, the call proves it RUNS. A file with only the import (hole #1,
+ * the reason `referencesBudgetWrapper` matches a call and not an identifier)
+ * still fails.
+ *
+ * Deliberately used only for `DELEGATING_ROUTES` owners — a named, short list —
+ * and not widened into `referencesBudgetWrapper`, where a second accepted
+ * spelling would be a second way for a registered site to look budgeted.
+ */
+export function appliesInjectedBudget(src: string): boolean {
+  const code = stripNonCode(src);
+  const binds = BUDGET_WRAPPERS.some((w) => new RegExp(`[:=]\\s*${w}\\w*\\b`).test(code));
+  return binds && /\bwithBudget\s*\(/.test(code);
+}
+
 /** Registered dashboard paths that no longer exist on disk. */
 export function missingRegisteredPages(): string[] {
   return DASHBOARD_PAGES.filter((p) => !existsSync(p));
@@ -416,6 +501,7 @@ export function listBudgetTargets(): string[] {
 export function scanAll(): string[] {
   const offenders: string[] = [];
   for (const file of listBudgetTargets()) {
+    if (DELEGATING_ROUTES[file] !== undefined) continue;
     if (!referencesBudgetWrapper(readFileSync(file, "utf8"))) offenders.push(file);
   }
   return offenders;
@@ -545,6 +631,16 @@ function runScan(): void {
     failed = true;
   }
 
+  // (1b) …and a route excused from (1) must name a budget owner that is real.
+  const delegationProblems = delegationViolations();
+  if (delegationProblems.length > 0) {
+    console.error(
+      `✗ ${delegationProblems.length} broken delegation claim(s) in DELEGATING_ROUTES. An exemption that points at nothing is worse than no exemption — it reads as a reviewed decision:`,
+    );
+    for (const p of delegationProblems) console.error(`    ${p}`);
+    failed = true;
+  }
+
   // (3) Anything heavy that nobody registered.
   const baseline = new Set(readBaseline());
   const discovered = discoverFanOuts();
@@ -578,8 +674,9 @@ function runScan(): void {
     process.exit(1);
   }
 
+  const delegating = Object.keys(DELEGATING_ROUTES).length;
   console.log(
-    `✓ db-budget clean — ${targets.length} registered heavy call site(s) CALL a budget wrapper (${BUDGET_WRAPPERS.join("/")}); discovery scan found no new unbounded fan-out (${baseline.size} baselined).`,
+    `✓ db-budget clean — ${targets.length - delegating} registered heavy call site(s) CALL a budget wrapper (${BUDGET_WRAPPERS.join("/")}); ${delegating} delegating route(s) name a budgeted owner that really is budgeted; discovery scan found no new unbounded fan-out (${baseline.size} baselined).`,
   );
 }
 

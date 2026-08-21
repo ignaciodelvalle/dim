@@ -215,9 +215,20 @@ function lostSectionOf(
       phoneE164: pet.disclosePhoneWhenLost && !disputed ? lostContext.phone : null,
       email: pet.discloseEmailWhenLost && !disputed ? lostContext.email : null,
     },
-    // Already null unless BOTH keys hold and no dispute is open — resolved once
-    // in the loader so there is exactly one place the rule can be got wrong.
-    caretakerContact: lostContext.caretakerContact,
+    // The loader already resolves this to null unless BOTH keys hold AND no
+    // dispute is open. It is re-gated and re-PROJECTED here anyway, for the two
+    // reasons this whole file exists: the dispute suppression is stated as a
+    // property of the payload, not inherited from one query; and the fields are
+    // LISTED, so a caretaker row that grows an email upstream cannot ride a
+    // whole-object assignment onto a public credential. TypeScript's
+    // excess-property check does not fire on a pass-through.
+    caretakerContact:
+      lostContext.caretakerContact && !disputed
+        ? {
+            firstName: lostContext.caretakerContact.firstName,
+            phoneE164: lostContext.caretakerContact.phoneE164,
+          }
+        : null,
     lastSeen: showLocation
       ? {
           placeName: lostContext.locationText,
@@ -228,7 +239,16 @@ function lostSectionOf(
           at: lostContext.lastSeenAt?.toISOString() ?? null,
         }
       : null,
-    description: lostContext.lostDescription,
+    // Listed for the same reason as the caretaker contact above: these are the
+    // three ANIMAL-detail fields spec §8.4 declares, and a fourth one added
+    // upstream must be a decision, not a diff nobody read.
+    description: lostContext.lostDescription
+      ? {
+          accessoriesWhenLost: lostContext.lostDescription.accessoriesWhenLost,
+          behaviorNotes: lostContext.lostDescription.behaviorNotes,
+          lastSeenContext: lostContext.lostDescription.lastSeenContext,
+        }
+      : null,
     tattoo: canonicalIds.tattoo
       ? {
           code: canonicalIds.tattoo.code ?? null,
@@ -376,6 +396,19 @@ export function buildPublicCredentialV1(
  * `pet` is present only when the pet ROW resolved before the failure. When it
  * did not, the token is genuinely all that is known and identity is
  * `unavailable` too — which is the honest answer, and is NOT "no findings".
+ *
+ * ON `allowFinderForm` IN THIS ENVELOPE. It carries the owner's PREFERENCE
+ * (`pets.allow_finder_form_when_lost`) with no dispute check, where the `ok`
+ * arm carries `preference && !disputed`. That is deliberate and safe, not an
+ * oversight: the dispute gate is enforced at SUBMIT, server-side, by
+ * `app/(public)/p/[publicToken]/encontre/action.ts:151-156`, which re-reads
+ * `pets.in_custody_dispute` after resolving the token and refuses the report
+ * outright. The degraded arm is reached because a read FAILED, so the dispute
+ * state is exactly one of the things it does not know — and a client that hides
+ * the CTA during an outage hides it from every pet, including the ones with no
+ * dispute at all, on the one surface a finder in the street depends on. Showing
+ * a CTA whose server-side gate still holds costs a disputed pet's finder one
+ * refusal message; hiding it costs every other finder the flow entirely.
  */
 export function buildDegradedPublicCredentialV1(
   lookup: Extract<PublicCredentialLookup, { status: "degraded" }>,
@@ -384,7 +417,21 @@ export function buildDegradedPublicCredentialV1(
   return {
     error: "temporarily_unavailable",
     ...envelope(lookup.publicToken, now),
-    identity: lookup.pet ? { status: "ok", data: lookup.pet } : UNAVAILABLE,
+    // LISTED, not forwarded. `lookup.pet` is the door's own type and this is a
+    // public wire payload; a field added there must not reach a client because
+    // an assignment happened to be wide enough. (Excess-property checking does
+    // not fire on a variable, only on an object literal.)
+    identity: lookup.pet
+      ? {
+          status: "ok",
+          data: {
+            name: lookup.pet.name,
+            sex: lookup.pet.sex,
+            isLost: lookup.pet.isLost,
+            allowFinderForm: lookup.pet.allowFinderForm,
+          },
+        }
+      : UNAVAILABLE,
     status: UNAVAILABLE,
     vaccination: UNAVAILABLE,
     notices: UNAVAILABLE,

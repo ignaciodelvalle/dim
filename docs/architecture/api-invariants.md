@@ -487,16 +487,29 @@ Files:
 
 | # | Checklist line | Satisfied at |
 |---|---|---|
-| 1 | Rate-limited, bucket named, direction stated | `route.ts:115,118,167-182` (per-lookup, `public_token_api_credential_lookup`, 20/min + 100/hr, keyed `${publicToken}:${ip}`) and `route.ts:188` (surface, `public_token_api_credential`, 60/min + 400/hr per IP, via the port). **Both fail OPEN**, stated at `route.ts:56-60`. Proved by `api-v1-credential-route.test.ts:186,200` |
-| 2 | `cache-control: no-store` set explicitly | `route.ts:137-142` — ONE `credentialJson()` helper is the only way the file answers, so no branch can forget it. Proved per-branch by `api-v1-credential-route.test.ts:318-343` (all five) |
-| 3 | `{ error: "snake_case" }` from the agreed vocabulary | `route.ts:178,196,203,211`; vocabulary at `packages/contract/src/api/errors.ts:40` |
-| 4 | Every section reports its own availability | `packages/contract/src/api/public-credential.ts:54` (`CredentialSection<T>`); degraded projection at `payload.ts:380-394`. Proved by `api-v1-credential-route.test.ts:241,267` |
-| 5 | `payloadVersion` / `issuedAt` / `staleAfter` | `payload.ts:111-118`, on the success AND the degraded body. Proved by `api-v1-credential-route.test.ts:345,358` |
-| 6 | Success and failure indistinguishable where an oracle exists | `api-v1-credential-route.test.ts:391,411,492` — see the stance below |
-| 7 | Resolves the token through `publicPetByToken` | via the door (`route.ts:186-189` → `lookup-public-credential.ts` → `publicPetByToken`). The coverage fence sees it through its door-caller layer, which requires the bucket to be a LITERAL at the call site — it rejected this file twice before it passed |
+| 1 | Rate-limited, bucket named, direction stated | Both limiters arrive through ONE port at `route.ts:180-189`: the surface bucket (`public_token_api_credential`, 60/min + 400/hr per IP) as the adapter's literal first argument, and the per-lookup bucket (`public_token_api_credential_lookup`, 20/min + 100/hr, keyed `${publicToken}:${ip}` — constants at `route.ts:129,132`) as its `perLookup` option. Ordered SURFACE FIRST inside the adapter (`lib/infra/public-token-throttle.ts`), so a caller the surface limit already refused costs the table zero rows. **Both fail OPEN**, stated at `route.ts:70-75`. Proved by `api-v1-credential-route.test.ts:293` (the 429 path), `:446,:454` (the order, and that a throttled IP writes no per-lookup counter) |
+| 2 | `cache-control: no-store` set explicitly | `route.ts:148-153` — ONE `credentialJson()` helper is the only way the file answers, so no branch can forget it. Proved per-branch by `api-v1-credential-route.test.ts:555` (all five) |
+| 3 | `{ error: "snake_case" }` from the agreed vocabulary | `route.ts:196,203,211,216`; vocabulary at `packages/contract/src/api/errors.ts:40` |
+| 4 | Every section reports its own availability | `packages/contract/src/api/public-credential.ts:54` (`CredentialSection<T>`); degraded projection at `payload.ts:413-440`. Proved by `api-v1-credential-route.test.ts:356,:382` |
+| 5 | `payloadVersion` / `issuedAt` / `staleAfter` | `payload.ts:111-118`, on the success AND the degraded body. Proved by `api-v1-credential-route.test.ts:572,:585` |
+| 6 | Success and failure indistinguishable where an oracle exists | `api-v1-credential-route.test.ts:618,:638,:964` — see the stance below |
+| 7 | Resolves the token through `publicPetByToken` | via the door (`route.ts:180-189` → `lookup-public-credential.ts` → `publicPetByToken`). The coverage fence sees it through its door-caller layer, which requires the bucket to be a LITERAL at the call site — it rejected this file twice before it passed, and a third time when the adapter grew a second argument its regex could not parse |
 | 8 | Chip / DNI carry their own limiter | N/A — this route resolves neither. It never reads `lookupByChip` or `verifyDni`, and the microchip NUMBER is not in the payload at all (`payload.ts:30-36`) |
 | 9 | Uploads go through `lib/infra/uploads.ts` | N/A — read-only endpoint, `GET` is the only export |
-| 10 | A response-equality test per oracle | `api-v1-credential-route.test.ts:391` (`not_found` vs `throttled`), `:411` (throttled is token-independent), `:492` (an ERASED pet answers exactly as a token that never existed) |
+| 10 | A response-equality test per oracle | `api-v1-credential-route.test.ts:618` (`not_found` vs `throttled`), `:638` (throttled is token-independent), `:964` (an ERASED pet answers exactly as a token that never existed) |
+
+**The payload's own gates are tested, not just the HTTP mapping** (added
+2026-08-21). `lostSectionOf` is the only place this endpoint discloses a
+PERSON — a first name, a phone, an email, and where they last saw their animal
+— and it had no test of its own, because every route test ran an ACTIVE pet for
+which the whole section is `null` and every gate is unreachable.
+`api-v1-credential-route.test.ts:661` now drives it from a maximal fixture
+(every toggle on, no dispute) and turns exactly one thing off per case; `:835`
+pins the key sets of the three whole-object pass-throughs, because TypeScript's
+excess-property check does not fire on a variable and an upstream type that
+grows a field would otherwise publish it silently. Both suites were proved to
+BITE: deleting `&& !disputed` from the phone gate fails
+`:725` with the owner's number in the diff.
 
 **The oracle stance, written down because §1.1 asks for it.** This endpoint
 discloses existence *exactly* as much as `/p/{publicToken}` already does and no
@@ -506,7 +519,15 @@ that the three ways it could have leaked MORE are closed and tested:
 
 - a **429 never varies** with the token, so the rate limiter cannot itself
   become the enumeration oracle it exists to prevent — and the two limiters
-  return the same 429, so a caller cannot even probe which budget it exhausted;
+  return the same 429, so the RESPONSE (status, headers, body) says nothing
+  about which budget ran out. That claim is bounded on purpose and the bound is
+  stated because the earlier wording ("a caller cannot even probe which budget
+  it exhausted") overclaimed: a caller who counts its own requests knows which
+  limit it crossed without asking, and response TIMING is not equalised — the
+  surface-only refusal skips a DB write the two-limiter path performs. Neither
+  channel is closed here, and neither needs to be: the budgets are published in
+  this document and in the handler's header. What must not leak is anything
+  about the TOKEN, and that is what the equality tests assert;
 - **`not_found` and `throttled` differ only in the status line and the error
   code** — same headers, same single-key body. This is where a `Retry-After`,
   an `x-ratelimit-remaining` or an echoed token would have shown up;
@@ -552,8 +573,11 @@ every one of them.
 Verified against code on 2026-08-21. Two numbers in the planning docs have
 drifted and are not worth editing there, but should not be trusted:
 
-- `TRACKS.md:222` says `p/[publicToken]/page.tsx` is 1,423 lines. It is **1,452**.
-  `RN-1` says 1,450 in one place and 1,423 in another.
+- `TRACKS.md:222` says `p/[publicToken]/page.tsx` is 1,423 lines, and this
+  paragraph said 1,452 when it was written. Both are stale: the loader moved out
+  of the page on 2026-08-21 and `wc -l` reports **1,035** as of that date.
+  `RN-1` says 1,450 in one place and 1,423 in another. This is the number in
+  this document that rots fastest — measure it, never quote it.
 - `RN-1:8` says 33 route handlers under `app/api/**`. There were **34** (25 of
   them crons) and 47 across all of `app/` when this was written; the first
   `/api/v1` endpoint made those 35 and **48**. `pnpm lint:authz` prints the live

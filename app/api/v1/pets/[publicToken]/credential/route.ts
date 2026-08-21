@@ -53,6 +53,20 @@
 //    aggregate limiter layered on top, which D1 says must be its own change and
 //    must not be smuggled into an endpoint.
 //
+// ORDER: SURFACE FIRST, THEN THE WRITE (fixed 2026-08-21)
+// ---------------------------------------------------------------------------
+// Both limiters arrive through ONE port, and the adapter consults them in that
+// order. It used to be the other way round — the per-lookup limiter ran here,
+// in the handler, and the surface bucket ran inside the door — so an IP already
+// over 60/min still wrote TWO `rate_limit_buckets` rows (minute + hour) for
+// every distinct token it named. The token is attacker-chosen out of a 36^8
+// space, so the table's cardinality was bounded by someone's patience rather
+// than by the limit that exists to bound exactly that.
+//
+// The fix could not be "check the surface bucket earlier in this file": the
+// door applies it again, and one visit would have billed it twice. So the
+// ordering moved into the adapter, where there is exactly one of each check.
+//
 // BOTH FAIL OPEN on limiter infrastructure failure, matching every sibling: the
 // limiter is itself a DB write, and it must not become the thing that breaks
 // the credential before the degraded answer can be produced. Rate limiting here
@@ -60,10 +74,12 @@
 // secret to someone already holding the token.
 //
 // KNOWN RESIDUALS, stated rather than hidden:
-//   • A caller already over the SURFACE limit still causes one per-lookup
-//     counter write, because the per-lookup limiter runs first. That write
-//     reads no pet data and is bounded by its own budget. Same shape as the
-//     `generateMetadata` residual the page documents.
+//   • UNDER the surface limit, a caller walking distinct tokens still writes two
+//     rows per (token, ip) per window. That is the per-lookup limiter doing its
+//     job — it cannot count without a counter — and the growth is now bounded by
+//     the surface limit itself: at most 120 rows/min per IP, not one pair per
+//     token for as long as anyone keeps typing. Draining them is the cleanup
+//     job's problem (lib/infra/data-lifecycle.ts).
 //   • The token is used verbatim, not upper-cased, because the page resolves it
 //     verbatim and the two must agree about which tokens exist. So a caller can
 //     vary the case to get a fresh PER-LOOKUP counter. They cannot escape the
@@ -87,10 +103,8 @@
 
 import { NextResponse } from "next/server";
 
-import { withDbBudget } from "@/lib/infra/db-budget";
 import { publicTokenThrottle } from "@/lib/infra/public-token-throttle";
-import { RateLimitError, callerIp, enforceRateLimit } from "@/lib/infra/rate-limit";
-import { reportError } from "@/lib/infra/report-error";
+import { callerIp } from "@/lib/infra/rate-limit";
 import { lookupPublicCredential } from "@/src/modules/pets/application/read/lookup-public-credential";
 
 import { buildDegradedPublicCredentialV1, buildPublicCredentialV1 } from "./payload";
@@ -116,9 +130,6 @@ export const LOOKUP_BUCKET = "public_token_api_credential_lookup";
 
 /** D3 — atender's numbers, for the reasons in the header. */
 export const PUBLIC_TOKEN_API_LOOKUP_LIMIT = { maxPerMinute: 20, maxPerHour: 100 } as const;
-
-/** Budget for the per-lookup limiter's own DB write. Short: it gates the read. */
-const LOOKUP_LIMIT_BUDGET_MS = 1500;
 
 /** Advisory backoff on a degraded read. Not a limiter window. */
 const DEGRADED_RETRY_AFTER_SECONDS = 30;
@@ -162,36 +173,25 @@ export async function GET(
   // influences must not decide what a caller may do (check-api-guard-headers).
   const ip = callerIp(request.headers);
 
-  // (D3) Per-lookup limiter FIRST — before the door, therefore before any pet
-  // row is read. Fails open on limiter-infra failure; see the header.
-  try {
-    await withDbBudget(
-      enforceRateLimit(LOOKUP_BUCKET, `${publicToken}:${ip}`, PUBLIC_TOKEN_API_LOOKUP_LIMIT).then(
-        () => null,
-      ),
-      LOOKUP_LIMIT_BUDGET_MS,
-      `${LOOKUP_BUCKET} rate-limit`,
-      null,
-    );
-  } catch (err) {
-    if (err instanceof RateLimitError) {
-      return credentialJson({ error: "rate_limited" }, 429);
-    }
-    reportError(`public-token-throttle/${LOOKUP_BUCKET}`, err);
-    // Fall through — fail open.
-  }
-
-  // (D1) The door. It applies the per-IP surface bucket as its first statement
-  // and answers the four-way union; the page renders the same four branches.
+  // The door. Its FIRST statement is the throttle port, so both limiters run
+  // before any pet row is read — D1's surface bucket, then D3's per-lookup
+  // bucket for a caller the surface limit still allows. Both fail open; see the
+  // header and lib/infra/public-token-throttle.ts.
   const lookup = await lookupPublicCredential({
     publicToken,
-    throttle: publicTokenThrottle("public_token_api_credential"),
+    throttle: publicTokenThrottle("public_token_api_credential", {
+      perLookup: {
+        bucket: LOOKUP_BUCKET,
+        key: `${publicToken}:${ip}`,
+        limit: PUBLIC_TOKEN_API_LOOKUP_LIMIT,
+      },
+    }),
   });
 
   switch (lookup.status) {
-    // Over the surface limit. Byte-identical to the per-lookup 429 above, and
-    // identical for a token that exists and one that does not — a rate-limit
-    // response must never be an existence oracle.
+    // Over one of the two limits. ONE response for both, and identical for a
+    // token that exists and one that does not — a rate-limit response must
+    // never be an existence oracle, nor a probe for which budget ran out.
     case "throttled":
       return credentialJson({ error: "rate_limited" }, 429);
 
