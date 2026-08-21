@@ -54,7 +54,32 @@ export const OUTREACH_REMINDER_THROTTLE_DAYS = 14;
 
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
 
-export type OutreachReminderOutcome = "sent" | "already_notified" | "no_owner" | "out_of_scope";
+/**
+ * `delivery_failed` exists because folding it into `already_notified` told the
+ * operator the calmest possible thing about the worst possible outcome.
+ *
+ * createNotification has three results: inserted, duplicate, dead_lettered. This
+ * pipeline used to treat only `inserted` as delivery and bucket the other two
+ * together as "Ya avisado esta quincena". But the 14-day throttle above has
+ * already excluded every pet that genuinely was notified recently, and the
+ * dedupe key is day-bucketed per owner, so by the time the insert runs
+ * `duplicate` is all but unreachable: in practice the only way to miss
+ * `inserted` is that the write threw and the payload went to the dead-letter
+ * queue. The operator saw muted grey, moved on, and the audit row recorded the
+ * citizen as already reminded when no notification ever existed. For an overdue
+ * rabies campaign that is a compliance record asserting something that did not
+ * happen.
+ *
+ * The house already has the honest pattern: deliver-decomiso-notifications.ts
+ * tells the operator "no se pudieron entregar ... Avisá por otra vía". Outreach
+ * was the outlier.
+ */
+export type OutreachReminderOutcome =
+  | "sent"
+  | "already_notified"
+  | "delivery_failed"
+  | "no_owner"
+  | "out_of_scope";
 
 export type OutreachReminderPetResult = {
   petId: string;
@@ -65,6 +90,7 @@ export type OutreachReminderBulkResult = {
   results: OutreachReminderPetResult[];
   sentCount: number;
   alreadyNotifiedCount: number;
+  deliveryFailedCount: number;
   noOwnerCount: number;
   outOfScopeCount: number;
 };
@@ -101,6 +127,7 @@ export async function sendOverdueRabiesReminders(
       results: [],
       sentCount: 0,
       alreadyNotifiedCount: 0,
+      deliveryFailedCount: 0,
       noOwnerCount: 0,
       outOfScopeCount: 0,
     };
@@ -184,13 +211,18 @@ export async function sendOverdueRabiesReminders(
       });
       if (res.status === "inserted") deliveredAny = true;
     }
-    results.push({ petId, outcome: deliveredAny ? "sent" : "already_notified" });
+    // Reaching here without an insert means the write failed, not that somebody
+    // was already told: the throttle above (`already_notified`, its own branch)
+    // owns that case. Naming it `already_notified` here is what let a
+    // dead-lettered reminder be reported as done.
+    results.push({ petId, outcome: deliveredAny ? "sent" : "delivery_failed" });
   }
 
   const bulkResult: OutreachReminderBulkResult = {
     results,
     sentCount: results.filter((r) => r.outcome === "sent").length,
     alreadyNotifiedCount: results.filter((r) => r.outcome === "already_notified").length,
+    deliveryFailedCount: results.filter((r) => r.outcome === "delivery_failed").length,
     noOwnerCount: results.filter((r) => r.outcome === "no_owner").length,
     outOfScopeCount: results.filter((r) => r.outcome === "out_of_scope").length,
   };
@@ -199,6 +231,7 @@ export async function sendOverdueRabiesReminders(
     requested: dedupedIds.length,
     sent: bulkResult.sentCount,
     alreadyNotified: bulkResult.alreadyNotifiedCount,
+    deliveryFailed: bulkResult.deliveryFailedCount,
     noOwner: bulkResult.noOwnerCount,
     outOfScope: bulkResult.outOfScopeCount,
   });

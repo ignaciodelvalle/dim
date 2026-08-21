@@ -19,6 +19,9 @@
 // Integration tests run against local Postgres + bootstrapped schema, same
 // posture as __tests__/outreach-pipelines.test.ts.
 
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
+
 import { and, eq } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
@@ -331,5 +334,39 @@ describe("sendOverdueRabiesReminders — bulk", () => {
 
     await db.delete(notifications).where(eq(notifications.relatedPetId, freshPetId));
     await db.delete(ownerships).where(eq(ownerships.petId, freshPetId));
+  });
+});
+
+describe("outreach reminders — a failed delivery is never reported as 'already avised'", () => {
+  // The defect this pins: createNotification has three outcomes (inserted,
+  // duplicate, dead_lettered) and this pipeline used to treat only `inserted`
+  // as delivery, folding the other two into `already_notified`. The 14-day
+  // throttle above already excludes everyone genuinely notified, and the dedupe
+  // key is day-bucketed per owner, so in practice the only way to miss
+  // `inserted` is that the write threw. The operator saw muted grey and the
+  // audit row recorded the citizen as already reminded.
+  //
+  // Forcing a real dead-letter against live Postgres is not worth the fixture
+  // it would take, and the bug was never in the database: it was in which NAME
+  // the post-insert branch reaches for. So this asserts the source, in both
+  // directions, so neither half can drift back.
+  const SOURCE = readFileSync(
+    join(import.meta.dirname, "..", "lib", "infra", "outreach-reminders.ts"),
+    "utf8",
+  );
+
+  it("the post-insert branch reports delivery_failed, not already_notified", () => {
+    const branch = SOURCE.match(/results\.push\(\{\s*petId,\s*outcome:\s*deliveredAny[^}]*\}\)/);
+    // Non-vacuity: if the branch is refactored out of this shape the regex
+    // stops matching, and an assertion over `null` would pass silently.
+    expect(branch, "post-insert results.push not found — update this test").not.toBeNull();
+    expect(branch?.[0]).toContain("delivery_failed");
+    expect(branch?.[0]).not.toContain("already_notified");
+  });
+
+  it("still reports already_notified for the throttle, which is the honest use of that name", () => {
+    // The other direction. Without this, deleting `already_notified` entirely
+    // would satisfy the assertion above while destroying a real outcome.
+    expect(SOURCE).toContain('outcome: "already_notified"');
   });
 });

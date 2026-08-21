@@ -43,6 +43,12 @@ type RowState = "idle" | "pending" | OutreachReminderOutcome;
 const OUTCOME_LABEL: Record<OutreachReminderOutcome, string> = {
   sent: "Recordatorio enviado",
   already_notified: "Ya avisado esta quincena",
+  // Names the failure AND the next step. The operator is the only one who can
+  // act on it, and the reminder is not coming back on its own: the daily drain
+  // usually replays it, but a failed replay still stamps the dead-letter row
+  // resolved. "Avisá por otra vía" is the same wording the decomiso pipeline
+  // uses for the same situation.
+  delivery_failed: "No se pudo enviar — avisá por otra vía",
   no_owner: "Sin propietario asignado",
   out_of_scope: "Fuera de tu jurisdicción",
 };
@@ -50,6 +56,10 @@ const OUTCOME_LABEL: Record<OutreachReminderOutcome, string> = {
 const OUTCOME_TONE: Record<OutreachReminderOutcome, string> = {
   sent: "text-ln-op-ok",
   already_notified: "text-ln-op-mute",
+  // Danger, not the muted grey it used to inherit from `already_notified`. A
+  // failed delivery on an overdue-rabies campaign is the one row on this screen
+  // that still needs a human.
+  delivery_failed: "text-ln-op-danger",
   no_owner: "text-ln-op-mute",
   out_of_scope: "text-ln-op-danger",
 };
@@ -57,12 +67,20 @@ const OUTCOME_TONE: Record<OutreachReminderOutcome, string> = {
 type BulkSummary = {
   sent: number;
   alreadyNotified: number;
+  deliveryFailed: number;
   noOwner: number;
   outOfScope: number;
 };
 
 function summaryLine(s: BulkSummary): string {
   const parts = [`${s.sent} ${pluralizeEs(s.sent, "enviado")}`];
+  // Second, right after the good news and ahead of the benign buckets: it is
+  // the only part of this line that asks the operator to do something.
+  if (s.deliveryFailed > 0) {
+    parts.push(
+      `${s.deliveryFailed} sin ${pluralizeEs(s.deliveryFailed, "enviar")} — ${pluralizeEs(s.deliveryFailed, "avisá", "avisá")} por otra vía`,
+    );
+  }
   if (s.alreadyNotified > 0) {
     parts.push(
       `${s.alreadyNotified} ya ${pluralizeEs(s.alreadyNotified, "avisado")} esta quincena`,
@@ -124,6 +142,7 @@ export function OutreachRabiesReminderList({ pets }: { pets: OutreachRabiesRemin
       setBulkSummary({
         sent: res.result.sentCount,
         alreadyNotified: res.result.alreadyNotifiedCount,
+        deliveryFailed: res.result.deliveryFailedCount,
         noOwner: res.result.noOwnerCount,
         outOfScope: res.result.outOfScopeCount,
       });

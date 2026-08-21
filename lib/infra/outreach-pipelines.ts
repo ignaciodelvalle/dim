@@ -82,6 +82,10 @@ export async function logOutreachReminderSent(
     requested: number;
     sent: number;
     alreadyNotified: number;
+    // Required, not optional. This is the compliance record of a rabies
+    // campaign, and a caller that forgets to pass the failures produces a row
+    // asserting everyone was reached. A missing field would read as zero.
+    deliveryFailed: number;
     noOwner: number;
     outOfScope: number;
   },
@@ -95,6 +99,7 @@ export async function logOutreachReminderSent(
       requested_count: counts.requested,
       sent_count: counts.sent,
       already_notified_count: counts.alreadyNotified,
+      delivery_failed_count: counts.deliveryFailed,
       no_owner_count: counts.noOwner,
       out_of_scope_count: counts.outOfScope,
     },
