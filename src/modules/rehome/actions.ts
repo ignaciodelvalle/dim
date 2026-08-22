@@ -84,7 +84,9 @@ export type RequestRehomeSponsorshipActionInput = {
   targetOrgId: string;
 };
 
-export type RequestRehomeSponsorshipActionResult = { casePublicCode: string } | { error: string };
+export type RequestRehomeSponsorshipActionResult =
+  | { casePublicCode: string; redirectTo: string }
+  | { error: string };
 
 export async function requestRehomeSponsorshipAction(
   input: RequestRehomeSponsorshipActionInput,
@@ -109,8 +111,14 @@ export async function requestRehomeSponsorshipAction(
 
   await flushNotifications(result.notifications);
   revalidatePath(`/mis-mascotas/${input.petPublicToken}`);
+  revalidatePath(`/mis-mascotas/${input.petPublicToken}/buscar-hogar`);
   revalidatePath("/mis-mascotas");
-  return { casePublicCode: result.value.casePublicCode };
+  // Back to the same surface: it re-renders in its pending state, which is
+  // where "Pedido enviado a {org}" lives — one name for the act, start to end.
+  return {
+    casePublicCode: result.value.casePublicCode,
+    redirectTo: `/mis-mascotas/${input.petPublicToken}/buscar-hogar`,
+  };
 }
 
 // ---------------------------------------------------------------------------
@@ -126,7 +134,7 @@ export type RespondToRehomeRequestActionInput = {
 };
 
 export type RespondToRehomeRequestActionResult =
-  | { ok: true; decision: RehomeDecision; petPublicToken: string }
+  | { ok: true; decision: RehomeDecision; petPublicToken: string; redirectTo: string }
   | { error: string };
 
 export async function respondToRehomeRequestAction(
@@ -161,7 +169,14 @@ export async function respondToRehomeRequestAction(
   revalidatePath(`/casos/${input.casePublicCode}`);
   revalidatePath(`/mis-mascotas/${result.value.petPublicToken}`);
   if (decision === "accept") revalidatePath("/adoptar");
-  return { ok: true, decision, petPublicToken: result.value.petPublicToken };
+  // The detail the member is standing on, re-read: the timeline now carries
+  // the answer and the controls are gone.
+  return {
+    ok: true,
+    decision,
+    petPublicToken: result.value.petPublicToken,
+    redirectTo: `/casos/${input.casePublicCode}`,
+  };
 }
 
 // ---------------------------------------------------------------------------
@@ -195,6 +210,7 @@ export async function withdrawRehomeSponsorshipAction(
 
   await flushNotifications(result.notifications);
   revalidatePath(`/mis-mascotas/${input.petPublicToken}`);
+  revalidatePath(`/mis-mascotas/${input.petPublicToken}/buscar-hogar`);
   revalidatePath("/mis-mascotas");
   revalidatePath("/adoptar");
   revalidatePath(`/adoptar/${input.petPublicToken}`);
@@ -204,7 +220,7 @@ export async function withdrawRehomeSponsorshipAction(
   if (result.value.sponsoringOrganizationPublicToken) {
     revalidatePath(`/org/${result.value.sponsoringOrganizationPublicToken}/casos`);
   }
-  return { ok: true, redirectTo: `/mis-mascotas/${input.petPublicToken}` };
+  return { ok: true, redirectTo: `/mis-mascotas/${input.petPublicToken}/buscar-hogar` };
 }
 
 // ---------------------------------------------------------------------------
@@ -229,7 +245,8 @@ export async function withdrawRehomeRequestAction(
 
   await flushNotifications(result.notifications);
   revalidatePath(`/mis-mascotas/${input.petPublicToken}`);
+  revalidatePath(`/mis-mascotas/${input.petPublicToken}/buscar-hogar`);
   revalidatePath("/mis-mascotas");
   revalidatePath(`/casos/${result.value.casePublicCode}`);
-  return { ok: true, redirectTo: `/mis-mascotas/${input.petPublicToken}` };
+  return { ok: true, redirectTo: `/mis-mascotas/${input.petPublicToken}/buscar-hogar` };
 }

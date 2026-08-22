@@ -183,7 +183,7 @@ export interface RehomeWithdrawPort {
   orgAdminAndCoordinatorUserIds(orgId: string): Promise<string[]>;
   findDisplayName(userId: string): Promise<string | null>;
   // --- withdraw an active sponsorship ---
-  findOpenSponsorshipForPet(petId: string, tx: unknown): Promise<OpenSponsorshipRef | null>;
+  findOpenSponsorshipForPet(petId: string, tx?: unknown): Promise<OpenSponsorshipRef | null>;
   /** Closes the custody row the sponsorship opened. `ended: false` when it was already closed. */
   endCustodyRow(ownershipId: string, now: Date, tx: unknown): Promise<{ ended: boolean }>;
   /** Clears `adoptionListedAt` and `adoptionListingPausedAt` — the adoption writer, reused. */
@@ -193,7 +193,7 @@ export interface RehomeWithdrawPort {
   findOpenListingCase(
     petId: string,
     orgId: string,
-    tx: unknown,
+    tx?: unknown,
   ): Promise<{ id: string; publicCode: string } | null>;
   /** `won: false` when another closer got there first — the note is then NOT written. */
   closeListingCase(args: CloseListingCaseArgs, tx: unknown): Promise<{ won: boolean }>;
@@ -212,4 +212,23 @@ export interface RehomeWithdrawPort {
   closeRequestCase(args: CloseRequestCaseArgs, tx: unknown): Promise<void>;
 }
 
-export type RehomeRepositoryPort = RehomeRequestPort & RehomeAnswerPort & RehomeWithdrawPort;
+/**
+ * The READ side the titular's surface needs — one state out of three (none /
+ * pending / active), derived from the open request case and the spine. No
+ * transaction: the page reads, the actions write.
+ */
+export interface RehomeStatePort {
+  findOpenRequestForPet(petId: string): Promise<RequestCase | null>;
+  findOpenSponsorshipForPet(petId: string, tx?: unknown): Promise<OpenSponsorshipRef | null>;
+  findOpenListingCase(
+    petId: string,
+    orgId: string,
+    tx?: unknown,
+  ): Promise<{ id: string; publicCode: string } | null>;
+  findOrgById(orgId: string, tx?: unknown): Promise<SponsorOrg | null>;
+}
+
+export type RehomeRepositoryPort = RehomeRequestPort &
+  RehomeAnswerPort &
+  RehomeWithdrawPort &
+  RehomeStatePort;

@@ -91,6 +91,47 @@ export function RabiesObservationBanner({ pet, events }: RabiesObservationBanner
   );
 }
 
+/**
+ * The titular's adoption sponsorship, on the credential (rehome-by-titular
+ * WU5, task 5.8). Rendered only for a PENDING request or an ACTIVE
+ * sponsorship — the page gates the push on the state, so an empty node never
+ * adds a divider to the alert strip. Both lead to the one surface where the
+ * titular acts (/buscar-hogar); nothing here is a control.
+ */
+export function RehomeSponsorshipBanner({
+  petName,
+  petPublicToken,
+  state,
+}: {
+  petName: string;
+  petPublicToken: string;
+  state: { kind: "pending"; orgDisplayName: string } | { kind: "active"; orgDisplayName: string };
+}) {
+  return (
+    <section className="rounded-[var(--radius-sm)] border border-[var(--color-ln-celeste-100)] bg-[var(--color-ln-celeste-050)] px-4 py-3.5 space-y-[10px]">
+      <p className="text-md text-[var(--color-ln-ink-2)]">
+        {state.kind === "pending" ? (
+          <>
+            Le pediste a <strong>{state.orgDisplayName}</strong> que acompañe la adopción de{" "}
+            {petName}. Todavía no respondió; mientras tanto nada cambia.
+          </>
+        ) : (
+          <>
+            <strong>{state.orgDisplayName}</strong> acompaña la adopción de {petName}. Sigue
+            viviendo con vos; podés dar de baja el acompañamiento cuando quieras.
+          </>
+        )}
+      </p>
+      <Link
+        href={`/mis-mascotas/${petPublicToken}/buscar-hogar`}
+        className="inline-block rounded-[var(--radius-sm)] border border-[var(--color-ln-celeste-100)] px-2.5 py-1.5 text-md text-[var(--color-ln-azul)] no-underline hover:bg-white transition-colors"
+      >
+        {state.kind === "pending" ? "Ver el pedido" : "Ver el acompañamiento"}
+      </Link>
+    </section>
+  );
+}
+
 export function TransitBanner({
   petName,
   petPublicToken,

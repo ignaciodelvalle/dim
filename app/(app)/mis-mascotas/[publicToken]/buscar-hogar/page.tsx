@@ -1,13 +1,178 @@
-// Buscar nuevo hogar — Libreta Nacional redesign.
-// Presentation only; RehomeRequestForm and data fetching unchanged.
+// Buscar nuevo hogar — ONE route, TWO people, two different asks.
+//
+//   foster (role='foster')  → the transit caregiver asks a verified org to find
+//                             the animal a permanent home (pre-existing; the
+//                             foster's branch below is unchanged).
+//   titular (role='owner')  → rehome-by-titular: the titular asks a verified
+//                             org to ACCOMPANY the adoption — publish, vet —
+//                             while the animal keeps living with them. Three
+//                             states (none / pending / active) on this same
+//                             screen; see TitularRehomePanel.
+//
+// The two never share an authorization check (spec §3, REQ-14): the foster
+// branch calls the foster action (authorised on the live `foster` row), the
+// titular branch calls the rehome actions (requireTitularAccess + the live
+// `owner` row). Here the page only decides WHICH person it is looking at —
+// and prefers `owner` EXPLICITLY when both rows exist, never by a bare ORDER
+// BY (design "Route reuse with a determinism trap").
+//
+// A caretaker, a co-owner and a stranger hold no matching row and 404, as
+// the foster-only page always did. The "⋯ Más" sheet derives this row's
+// audience from the role gate below (MasSheet.helpers.test.ts), so the entry
+// point and the page cannot drift apart again.
 
 import { LnEmptyState } from "@/components/ui/EmptyState";
 import { db, organizationCoverage, organizations, ownerships, pets, profiles } from "@/db";
 import { requireUserOrRedirect } from "@/lib/infra/auth-guards";
+import {
+  type RehomeState,
+  getRehomeStateForPet,
+} from "@/src/modules/rehome/application/get-rehome-state-for-pet";
+import { RehomeRepository } from "@/src/modules/rehome/infrastructure/rehome-repository";
 import { and, eq, inArray, isNull, or } from "drizzle-orm";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { RehomeRequestForm } from "./RehomeRequestForm";
+import {
+  type RehomeOrgOption,
+  TitularRehomePanel,
+  type TitularRehomeState,
+} from "./TitularRehomePanel";
+
+const backLinkCls =
+  "mb-5 inline-block font-ln-mono text-sm uppercase tracking-[.06em] text-[var(--color-ln-azul)] no-underline hover:underline";
+const titleCls =
+  "m-0 font-ln-serif text-3xl font-semibold leading-tight tracking-[-0.01em] text-[var(--color-ln-ink)]";
+
+/**
+ * Verified shelters and rescue networks covering the pet's zone — the same
+ * picker both branches offer, because the org's qualification is the same
+ * (the rehome use-case re-checks it: validateSponsorTarget).
+ */
+async function findCoveringOrgs(province: string | null, locality: string | null) {
+  if (!province) return [];
+
+  const localityPredicate =
+    locality !== null
+      ? or(
+          eq(organizationCoverage.jurisdictionLocality, locality),
+          isNull(organizationCoverage.jurisdictionLocality),
+        )
+      : undefined;
+
+  const rows = await db
+    .select({
+      id: organizations.id,
+      displayName: organizations.displayName,
+      orgType: organizations.orgType,
+      verified: organizations.verified,
+      publicToken: organizations.publicToken,
+      email: organizations.email,
+      phone: organizations.phone,
+      jurisdictionProvince: organizationCoverage.jurisdictionProvince,
+      jurisdictionLocality: organizationCoverage.jurisdictionLocality,
+    })
+    .from(organizations)
+    .innerJoin(organizationCoverage, eq(organizationCoverage.organizationId, organizations.id))
+    .where(
+      and(
+        eq(organizations.verified, true),
+        inArray(organizations.orgType, ["shelter", "rescue_network"]),
+        eq(organizationCoverage.jurisdictionProvince, province),
+        localityPredicate,
+      ),
+    );
+
+  const seen = new Set<string>();
+  const deduped: typeof rows = [];
+  for (const row of rows) {
+    if (!seen.has(row.id)) {
+      seen.add(row.id);
+      deduped.push(row);
+    }
+  }
+  return deduped;
+}
+
+/** The loader's state, narrowed to what the panel renders (the org picker travels with "none"). */
+function toPanelState(state: RehomeState, orgs: RehomeOrgOption[]): TitularRehomeState {
+  if (state.kind === "none") return { kind: "none", orgs };
+  if (state.kind === "pending") {
+    return {
+      kind: "pending",
+      orgDisplayName: state.orgDisplayName,
+      casePublicCode: state.casePublicCode,
+    };
+  }
+  return {
+    kind: "active",
+    orgDisplayName: state.orgDisplayName,
+    listingCasePublicCode: state.listingCasePublicCode,
+  };
+}
+
+/** The titular's surface: header, then the panel — or the honest empty state when nobody covers the zone. */
+function TitularSurface({
+  publicToken,
+  petName,
+  province,
+  locality,
+  state,
+}: {
+  publicToken: string;
+  petName: string;
+  province: string | null;
+  locality: string | null;
+  state: TitularRehomeState;
+}) {
+  const nobodyCovers = state.kind === "none" && state.orgs.length === 0;
+  return (
+    <div className="mx-auto max-w-2xl px-8 py-7 pb-12">
+      <Link href={`/mis-mascotas/${publicToken}`} className={backLinkCls}>
+        ← {petName}
+      </Link>
+
+      <div className="mb-6">
+        <h1 className={titleCls}>Acompañamiento de adopción para {petName}</h1>
+        <p className="mt-1.5 text-md text-[var(--color-ln-mute)]">
+          Una organización verificada publica a {petName} en la búsqueda de hogar y evalúa a quienes
+          se postulan. {petName} sigue viviendo con vos hasta que se concrete la adopción, y podés
+          dar de baja el acompañamiento cuando quieras.
+        </p>
+      </div>
+
+      {nobodyCovers ? (
+        <LnEmptyState
+          variant="dashed"
+          title={
+            province
+              ? `No encontramos refugios ni redes de rescate verificados en ${locality ?? province}. Podés volver a intentarlo más adelante o contactar una organización directamente.`
+              : `${petName} no tiene provincia registrada. Editá el perfil para poder elegir una organización cercana.`
+          }
+          action={
+            province ? undefined : (
+              <Link
+                href={`/mis-mascotas/${publicToken}/editar`}
+                className="font-ln-mono text-sm text-[var(--color-ln-azul)] no-underline hover:underline"
+              >
+                Editar mascota →
+              </Link>
+            )
+          }
+        />
+      ) : (
+        <TitularRehomePanel petPublicToken={publicToken} petName={petName} state={state} />
+      )}
+
+      {state.kind === "none" && !nobodyCovers && (
+        <p className="mt-5 text-sm text-[var(--color-ln-mute)]">
+          La organización recibe el pedido en su bandeja de casos y lo acepta o lo rechaza. Hasta
+          que responda, nada cambia y podés cancelarlo acá mismo.
+        </p>
+      )}
+    </div>
+  );
+}
 
 export default async function BuscarHogarPage({
   params,
@@ -17,10 +182,10 @@ export default async function BuscarHogarPage({
   const { publicToken } = await params;
   const { user } = await requireUserOrRedirect();
 
-  const [accessRow] = await db
+  const accessRows = await db
     .select({
       pet: pets,
-      ownershipId: ownerships.id,
+      role: ownerships.role,
     })
     .from(pets)
     .innerJoin(ownerships, eq(ownerships.petId, pets.id))
@@ -28,17 +193,43 @@ export default async function BuscarHogarPage({
       and(
         eq(pets.publicToken, publicToken),
         eq(ownerships.ownerUserId, user.id),
-        eq(ownerships.role, "foster"),
+        or(eq(ownerships.role, "owner"), eq(ownerships.role, "foster")),
         isNull(ownerships.endedAt),
       ),
-    )
-    .limit(1);
+    );
 
-  if (!accessRow) notFound();
+  if (accessRows.length === 0) notFound();
 
-  const pet = accessRow.pet;
+  // Prefer the titular EXPLICITLY when both rows exist — no ORDER BY roulette.
+  const resolvedRole = accessRows.some((r) => r.role === "owner") ? "owner" : "foster";
+  const pet = accessRows[0].pet;
   const province = pet.jurisdictionProvince ?? null;
   const locality = pet.jurisdictionLocality ?? null;
+
+  const coveringOrgs = await findCoveringOrgs(province, locality);
+
+  if (resolvedRole === "owner") {
+    const state = await getRehomeStateForPet(pet.id, { repo: RehomeRepository });
+    return (
+      <TitularSurface
+        publicToken={publicToken}
+        petName={pet.name}
+        province={province}
+        locality={locality}
+        state={toPanelState(
+          state,
+          coveringOrgs.map((o) => ({
+            id: o.id,
+            displayName: o.displayName,
+            orgType: o.orgType,
+            locality: o.jurisdictionLocality ?? o.jurisdictionProvince ?? null,
+          })),
+        )}
+      />
+    );
+  }
+
+  // --- foster branch: unchanged ------------------------------------------
 
   const [profileRow] = await db
     .select({ displayName: profiles.displayName, phone: profiles.phone })
@@ -48,66 +239,16 @@ export default async function BuscarHogarPage({
 
   const fosterName = profileRow?.displayName ?? user.id;
 
-  const coveringOrgs = await (async () => {
-    if (!province) return [];
-
-    const localityPredicate =
-      locality !== null
-        ? or(
-            eq(organizationCoverage.jurisdictionLocality, locality),
-            isNull(organizationCoverage.jurisdictionLocality),
-          )
-        : undefined;
-
-    const rows = await db
-      .select({
-        id: organizations.id,
-        displayName: organizations.displayName,
-        orgType: organizations.orgType,
-        verified: organizations.verified,
-        publicToken: organizations.publicToken,
-        email: organizations.email,
-        phone: organizations.phone,
-        jurisdictionProvince: organizationCoverage.jurisdictionProvince,
-        jurisdictionLocality: organizationCoverage.jurisdictionLocality,
-      })
-      .from(organizations)
-      .innerJoin(organizationCoverage, eq(organizationCoverage.organizationId, organizations.id))
-      .where(
-        and(
-          eq(organizations.verified, true),
-          inArray(organizations.orgType, ["shelter", "rescue_network"]),
-          eq(organizationCoverage.jurisdictionProvince, province),
-          localityPredicate,
-        ),
-      );
-
-    const seen = new Set<string>();
-    const deduped: typeof rows = [];
-    for (const row of rows) {
-      if (!seen.has(row.id)) {
-        seen.add(row.id);
-        deduped.push(row);
-      }
-    }
-    return deduped;
-  })();
-
   return (
     <div className="mx-auto max-w-2xl px-8 py-7 pb-12">
       {/* Back */}
-      <Link
-        href={`/mis-mascotas/${publicToken}`}
-        className="mb-5 inline-block font-ln-mono text-sm uppercase tracking-[.06em] text-[var(--color-ln-azul)] no-underline hover:underline"
-      >
+      <Link href={`/mis-mascotas/${publicToken}`} className={backLinkCls}>
         ← {pet.name}
       </Link>
 
       {/* Header */}
       <div className="mb-6">
-        <h1 className="m-0 font-ln-serif text-3xl font-semibold leading-tight tracking-[-0.01em] text-[var(--color-ln-ink)]">
-          Buscar nuevo hogar para {pet.name}
-        </h1>
+        <h1 className={titleCls}>Buscar nuevo hogar para {pet.name}</h1>
         <p className="mt-[5px] text-md text-[var(--color-ln-mute)]">
           Estas organizaciones están verificadas y operan en tu zona. Enviando una solicitud, les
           avisás que {pet.name} necesita un hogar definitivo.

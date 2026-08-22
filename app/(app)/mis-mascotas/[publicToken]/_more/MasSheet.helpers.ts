@@ -117,21 +117,30 @@ export function deriveMasSheetItems(input: MasSheetInput): MasSheetItem[] {
     });
   }
 
-  // Foster only, and the page behind it agrees: buscar-hogar/page.tsx selects
-  // `eq(ownerships.role, "foster")` and calls notFound() when that row is
-  // missing, so an owner who saw this row landed on a 404. It read `foster ||
-  // owner` from the Face 1/Face 2 sheet rebuild (2911d714), which widened the
-  // entry point without widening the page — the page has been foster-only since
-  // the transit-banner CTAs shipped (9d53142c), and its copy says so throughout
-  // ("el refugio que hoy tiene a X", fosterName, "en tránsito").
+  // Two roles, two different asks, ONE page behind them — and the page agrees
+  // (buscar-hogar/page.tsx serves `owner` and `foster`; the test beside this
+  // file derives the row's audience from the page's own role gate, so the two
+  // cannot drift apart again the way they did on 2026-08-20, when a titular
+  // tapped a live row and got a 404).
   //
-  // Rehoming for a TITULAR is not a feature this repo has; their paths are
-  // Transferir and nothing else. Widening the page instead would have meant
-  // inventing one behind a menu row, in foster vocabulary. Raised with the PO.
+  //   foster → "Buscar hogar": the transit caregiver asks an org to find the
+  //            animal a permanent home (the pre-existing feature).
+  //   owner  → "Acompañamiento de adopción" (rehome-by-titular): the titular
+  //            asks a verified org to sponsor the listing while the animal
+  //            keeps living with them. Named by what the titular controls, in
+  //            the titular's vocabulary, not the foster's.
+  //
+  // Not for a deceased pet, and not for a caretaker (titular-only, REQ-14).
   if (ownershipRole === "foster") {
     items.push({
       id: "find-home",
       label: "Buscar hogar",
+      href: `/mis-mascotas/${pet.publicToken}/buscar-hogar`,
+    });
+  } else if (ownershipRole === "owner" && pet.status !== "deceased") {
+    items.push({
+      id: "find-home",
+      label: "Acompañamiento de adopción",
       href: `/mis-mascotas/${pet.publicToken}/buscar-hogar`,
     });
   }

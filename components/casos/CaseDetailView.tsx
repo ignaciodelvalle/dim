@@ -25,6 +25,7 @@ import { notFound } from "next/navigation";
 
 import { CaseNotForCaretaker } from "@/components/casos/CaseNotForCaretaker";
 import { CaseOperatorActions } from "@/components/casos/CaseOperatorActions";
+import { RehomeRequestAnswerActions } from "@/components/casos/RehomeRequestAnswerActions";
 import { caseEntryLabel } from "@/components/casos/case-entry-label";
 import { casePetLink } from "@/components/casos/case-pet-link";
 import { shouldRedactPetName } from "@/components/casos/pet-name-redaction";
@@ -45,6 +46,10 @@ import { createClient } from "@/lib/supabase/server";
 import { formatDateTime, sexLabel, speciesLabel } from "@/lib/utils/format";
 import { availableCaseActions } from "@/src/modules/cases/domain/available-actions";
 import { logPiiReadSafely } from "@/src/modules/organizations/application/admin-proposals/log-pii-query";
+import {
+  getActiveMemberships,
+  getGrantedCapabilities,
+} from "@/src/modules/organizations/infrastructure/authz-resolver";
 
 interface CaseDetailViewProps {
   publicCode: string;
@@ -149,6 +154,24 @@ export async function CaseDetailView({ publicCode, casosHref }: CaseDetailViewPr
       orgPublicToken: detail.openedByOrganization.publicToken,
     });
   }
+  // A rehome_request is ADDRESSED to its org (the titular opens it), so the
+  // sponsoring org is a party the header must name — it is who the titular
+  // is waiting on, and who the reader would otherwise have to infer from
+  // the opened-reason prose.
+  if (detail.caseKind === "rehome_request" && detail.receiverOrganization) {
+    parties.push({
+      role: "organization",
+      name: detail.receiverOrganization.displayName,
+      orgPublicToken: detail.receiverOrganization.publicToken,
+    });
+  }
+
+  // rehome-by-titular, task 5.7: the receiver org's answer. Rendered only
+  // while the request is open, only to an active member of THAT org holding
+  // `adoption.listing.manage` (accepting IS publishing, so it is the same
+  // capability the action enforces). A member without it never sees a
+  // control the server would refuse — a boundary, not a wall.
+  const rehomeAnswer = await resolveRehomeAnswer(detail, viewerUserId);
   if (detail.closedByUser) {
     parties.push({ role: "closer", name: detail.closedByUser.displayName });
   }
@@ -270,6 +293,15 @@ export async function CaseDetailView({ publicCode, casosHref }: CaseDetailViewPr
           />
         )}
 
+        {rehomeAnswer && detail.pet && (
+          <RehomeRequestAnswerActions
+            orgToken={rehomeAnswer.orgToken}
+            casePublicCode={detail.publicCode}
+            petName={detail.pet.name}
+            orgDisplayName={rehomeAnswer.orgDisplayName}
+          />
+        )}
+
         {/* map-QOL P3: primary-location embed (institutional viewers only). */}
         {showCaseMap && (
           <section aria-label="Ubicación del caso">
@@ -338,6 +370,36 @@ export async function CaseDetailView({ publicCode, casosHref }: CaseDetailViewPr
       </CaseDetailShell>
     </main>
   );
+}
+
+// ---------------------------------------------------------------------------
+// resolveRehomeAnswer — may THIS viewer answer THIS rehome_request?
+// ---------------------------------------------------------------------------
+
+/**
+ * Null unless the case is an OPEN rehome_request and the viewer is an active
+ * member of its receiver org holding `adoption.listing.manage`. The action
+ * (`respondToRehomeRequestAction`) enforces the same two facts through
+ * `requireCapabilityForOrgToken` plus the in-transaction receiver check; this
+ * is the half that decides whether the control is SHOWN.
+ */
+async function resolveRehomeAnswer(
+  detail: {
+    caseKind: string;
+    status: string;
+    receiverOrganization: { id: string; displayName: string; publicToken: string } | null;
+  },
+  viewerUserId: string | null,
+): Promise<{ orgToken: string; orgDisplayName: string } | null> {
+  if (detail.caseKind !== "rehome_request" || detail.status !== "open") return null;
+  if (!detail.receiverOrganization || !viewerUserId) return null;
+  const receiver = detail.receiverOrganization;
+  const memberships = await getActiveMemberships(viewerUserId);
+  const mine = memberships.find((m) => m.membership.organizationId === receiver.id);
+  if (!mine) return null;
+  const granted = await getGrantedCapabilities(mine.membership);
+  if (!granted.has("adoption.listing.manage")) return null;
+  return { orgToken: receiver.publicToken, orgDisplayName: receiver.displayName };
 }
 
 // ---------------------------------------------------------------------------

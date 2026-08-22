@@ -478,8 +478,8 @@ export const RehomeRepository = {
   // Writes — withdraw (inside the caller's transaction)
   // -------------------------------------------------------------------------
 
-  async findOpenSponsorshipForPet(petId: string, tx: unknown): Promise<OpenSponsorshipRef | null> {
-    return findOpenSponsorship(petId, tx as Tx);
+  async findOpenSponsorshipForPet(petId: string, tx?: unknown): Promise<OpenSponsorshipRef | null> {
+    return findOpenSponsorship(petId, ((tx as Tx | undefined) ?? db) as Tx);
   },
 
   /**
@@ -531,9 +531,9 @@ export const RehomeRepository = {
   async findOpenListingCase(
     petId: string,
     orgId: string,
-    tx: unknown,
+    tx?: unknown,
   ): Promise<{ id: string; publicCode: string } | null> {
-    const row = await findOpenAdoptionListingCase(petId, orgId, tx as Tx);
+    const row = await findOpenAdoptionListingCase(petId, orgId, (tx as Tx | undefined) ?? db);
     return row ? { id: row.id, publicCode: row.publicCode } : null;
   },
 

@@ -216,8 +216,33 @@ describe("deriveMasSheetItems — Buscar hogar cannot outrun the page behind it"
     }
   });
 
-  it("does not offer it to a titular", () => {
-    const ids = deriveMasSheetItems(baseInput({ ownershipRole: "owner" })).map((i) => i.id);
-    expect(ids).not.toContain("find-home");
+  it("offers it to a titular under the sponsorship's own name (rehome-by-titular, 5.8)", () => {
+    // The page now serves the titular too — the derived pin above proves it —
+    // and the row is named by what the titular controls, not by the foster
+    // vocabulary ("Buscar hogar" is the transit caregiver's ask).
+    const item = deriveMasSheetItems(baseInput({ ownershipRole: "owner" })).find(
+      (i) => i.id === "find-home",
+    );
+    expect(item?.label).toBe("Acompañamiento de adopción");
+    expect(item?.href).toBe("/mis-mascotas/abc123/buscar-hogar");
+    expect(rolesThePageAccepts).toContain("owner");
+  });
+
+  it("keeps the foster's own name for the foster", () => {
+    const item = deriveMasSheetItems(baseInput({ ownershipRole: "foster" })).find(
+      (i) => i.id === "find-home",
+    );
+    expect(item?.label).toBe("Buscar hogar");
+  });
+
+  it("is not offered for a deceased pet, nor to a caretaker", () => {
+    const deceased = deriveMasSheetItems(
+      baseInput({ pet: { species: "dog", status: "deceased", publicToken: "abc123" } }),
+    ).map((i) => i.id);
+    expect(deceased).not.toContain("find-home");
+    const caretaker = deriveMasSheetItems(baseInput({ ownershipRole: "caretaker" })).map(
+      (i) => i.id,
+    );
+    expect(caretaker).not.toContain("find-home");
   });
 });

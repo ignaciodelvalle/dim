@@ -71,7 +71,11 @@ import {
   TabErrorState,
   TabLoadingSkeleton,
 } from "@/components/pet-profile/PetDetailTabsPanel";
-import { RabiesObservationBanner, TransitBanner } from "@/components/pet-profile/PetProfileBanners";
+import {
+  RabiesObservationBanner,
+  RehomeSponsorshipBanner,
+  TransitBanner,
+} from "@/components/pet-profile/PetProfileBanners";
 import {
   type AvatarSwitcherPet,
   PetSwitcherAvatars,
@@ -148,6 +152,11 @@ import {
 } from "@/src/modules/caretakers/application/get-caretaker-state-for-pet";
 import { CaretakersRepository } from "@/src/modules/caretakers/infrastructure/caretakers-repository";
 import { getLibretaFaceData } from "@/src/modules/pets/application/tab-data/get-libreta-face-data";
+import {
+  type RehomeState,
+  getRehomeStateForPet,
+} from "@/src/modules/rehome/application/get-rehome-state-for-pet";
+import { RehomeRepository } from "@/src/modules/rehome/infrastructure/rehome-repository";
 import { fetchPendingReturnProposalForOwner } from "@/src/modules/return-to-owner/application/proposal-queries";
 import { isObservationOpen } from "@/src/modules/surveillance/domain/rabies-observation";
 import { and, asc, desc, eq, gt, inArray, isNull, notInArray } from "drizzle-orm";
@@ -442,6 +451,9 @@ export default async function PetDetailPage({
   // names the caretaker, and a foster or shelter_custody holder has no business
   // learning who else the owner trusts with the animal.
   let caretakerState: CaretakerState | null = null;
+  // The adoption sponsorship (rehome-by-titular): pending or active, the
+  // titular sees it on the credential. Titular-only for the same reason.
+  let rehomeState: RehomeState | null = null;
 
   if (accessPath === "owner") {
     // "Confirmar devolución": only the legal owner, only when a pending return
@@ -490,6 +502,13 @@ export default async function PetDetailPage({
         ? getCaretakerStateForPet(pet.id, { repo: CaretakersRepository, now: () => new Date() })
         : Promise.resolve(null);
 
+    // Same gate and the same reason as the caretaker read above: the spine
+    // predicate plus, only when something is open, an org-name lookup.
+    const rehomeQuery =
+      ownershipRole === "owner" && !isDeceased
+        ? getRehomeStateForPet(pet.id, { repo: RehomeRepository })
+        : Promise.resolve(null);
+
     const [
       returnProposalResult,
       [profileRow],
@@ -497,6 +516,7 @@ export default async function PetDetailPage({
       channels,
       adoptedByViewer,
       caretakerResult,
+      rehomeResult,
     ] = await Promise.all([
       returnProposalQuery,
       contactsQuery,
@@ -504,6 +524,7 @@ export default async function PetDetailPage({
       physicalCredentialChannelsQuery,
       adoptedQuery,
       caretakerQuery,
+      rehomeQuery,
     ]);
 
     hasPendingReturnProposal = returnProposalResult;
@@ -512,6 +533,7 @@ export default async function PetDetailPage({
     physicalCredentialChannels = channels;
     showCheckinOption = adoptedByViewer;
     caretakerState = caretakerResult;
+    rehomeState = rehomeResult;
   }
 
   // KEY 2 of the two-key public-contact model, resolved once for every surface
@@ -878,6 +900,23 @@ export default async function PetDetailPage({
           petName={pet.name}
           petPublicToken={pet.publicToken}
           state={caretakerState}
+        />
+      ),
+    });
+  }
+  // The adoption sponsorship (rehome-by-titular), same placement logic: an
+  // arrangement the titular made is context before the open-cases list,
+  // which will carry the same case. Gated on a live state so an empty node
+  // never adds a divider.
+  if (rehomeState && rehomeState.kind !== "none") {
+    petAlerts.push({
+      id: "rehome",
+      tone: "info",
+      node: (
+        <RehomeSponsorshipBanner
+          petName={pet.name}
+          petPublicToken={pet.publicToken}
+          state={{ kind: rehomeState.kind, orgDisplayName: rehomeState.orgDisplayName }}
         />
       ),
     });
