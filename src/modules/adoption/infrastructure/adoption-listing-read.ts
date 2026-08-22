@@ -13,6 +13,8 @@ import { and, desc, eq, inArray, isNotNull, isNull, lt, ne, or, sql } from "driz
 import { attachments, db, organizations, ownerships, pets } from "@/db";
 import { likeContains } from "@/lib/utils/like-helpers";
 
+import { listOpenSponsorshipPetIds } from "./rehome-sponsorship-writer";
+
 import type {
   AdoptionListingCursor,
   AdoptionListingFilters,
@@ -49,6 +51,13 @@ export async function queryAdoptionListing(
     or(isNull(pets.rabiesObservationStatus), ne(pets.rabiesObservationStatus, "in_progress")),
 
     // Custody by a verified shelter / rescue_network. Active ownership row.
+    //
+    // "CUSTODIA" MEANS TWO THINGS HERE (rehome-by-titular, design R4): this
+    // row is also what a rehome SPONSORSHIP gives the org while the animal
+    // keeps living with its family. That is the PO-accepted overload that
+    // keeps this predicate untouched (design R5: it is duplicated in four
+    // places and must not drift). Where the animal lives is said by
+    // `livesWithFamily` below, decided on the spine, never by this row.
     isNull(ownerships.endedAt),
     eq(ownerships.role, "shelter_custody"),
     eq(organizations.verified, true),
@@ -175,7 +184,19 @@ export async function queryAdoptionListing(
     .limit(pageSize + 1);
 
   const hasMore = rows.length > pageSize;
-  const items = (hasMore ? rows.slice(0, pageSize) : rows) as AdoptionListingItem[];
+  const page = hasMore ? rows.slice(0, pageSize) : rows;
+  // Where the animal lives (spec REQ-12). A second, page-sized query on the
+  // spine rather than a fifth copy of the catalog predicate (design R5): the
+  // listing predicate is untouched, and "sponsored" is decided the way every
+  // other surface decides it — an unmatched `rehome_sponsorship_started`.
+  const sponsored = await listOpenSponsorshipPetIds(
+    page.map((r) => r.petId),
+    db,
+  );
+  const items: AdoptionListingItem[] = page.map((r) => ({
+    ...(r as Omit<AdoptionListingItem, "livesWithFamily">),
+    livesWithFamily: sponsored.has(r.petId),
+  }));
   const last = items.at(-1);
   const nextCursor: AdoptionListingCursor | null =
     hasMore && last?.adoptionListedAt

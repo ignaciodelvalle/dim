@@ -130,6 +130,13 @@ export type AdoptionListingItem = {
   // recompute-from-events is cheap and there is no surface that needs
   // them outside the listing.
   isSterilized: boolean;
+  /**
+   * The listing is a rehome sponsorship (rehome-by-titular, spec REQ-12): the
+   * animal lives with its current family and the org runs the evaluation.
+   * Decided on the spine (an unmatched `rehome_sponsorship_started`), never on
+   * the ownership shape. False for every surrender-path listing.
+   */
+  livesWithFamily: boolean;
 };
 
 // ---------------------------------------------------------------------------

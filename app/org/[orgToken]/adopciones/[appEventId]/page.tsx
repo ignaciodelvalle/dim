@@ -11,6 +11,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import type { ReactNode } from "react";
 
+import { SponsorshipPossessionNotice } from "@/components/adoption/SponsorshipPossessionNotice";
 import { OpBreach, OpCard, OpCardBody, OpCardHead } from "@/components/ui/dashboard";
 import { auditLog, db, organizations, ownerships, petEvents, pets, profiles } from "@/db";
 import { upcastPayload } from "@/lib/events/event-upcasters";
@@ -19,6 +20,7 @@ import { requireUuidParam } from "@/lib/infra/route-params";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { formatDateTime } from "@/lib/utils/format";
 import { isUuid } from "@/lib/utils/uuid";
+import { findOpenSponsorship } from "@/src/modules/adoption/infrastructure/rehome-sponsorship-writer";
 import { requireCapability } from "@/src/modules/organizations/infrastructure/authz-resolver";
 
 import { ReviewButtons } from "./ReviewButtons";
@@ -183,6 +185,11 @@ export default async function AdoptionReviewDetailPage({
   const alreadyResolved = decision.length > 0;
   const petAlreadyFinalized = finalized.length > 0;
 
+  // rehome-by-titular, REQ-11: a reviewer who skipped the case and came
+  // straight here must still read that the animal is with its family.
+  const openSponsorship = await findOpenSponsorship(pet.id, db);
+  const livesWithFamily = openSponsorship?.sponsoringOrganizationId === organization.id;
+
   return (
     <div className="max-w-3xl mx-auto space-y-6">
       <Link
@@ -204,6 +211,14 @@ export default async function AdoptionReviewDetailPage({
           Recibida el {formatDateTime(application.recordedAt)}
         </p>
       </header>
+
+      {livesWithFamily && (
+        <SponsorshipPossessionNotice
+          petName={pet.name}
+          orgDisplayName={organization.displayName}
+          surface="op"
+        />
+      )}
 
       <OpCard>
         <OpCardHead title="Postulante" />
@@ -259,42 +274,11 @@ export default async function AdoptionReviewDetailPage({
       )}
 
       {alreadyResolved ? (
-        <OpCard>
-          <OpCardBody>
-            <p className="text-md font-medium text-ln-op-ink">
-              Esta postulación ya fue resuelta:{" "}
-              {decision[0].outcome === "approved"
-                ? "aprobada"
-                : decision[0].auto_generated === "true"
-                  ? "cerrada automáticamente (otra adopción se finalizó)"
-                  : "rechazada"}
-              .
-            </p>
-            <p className="text-sm text-ln-op-mute mt-1">
-              {formatDateTime(decision[0].decided_at)}
-              {decision[0].notes && ` · ${decision[0].notes}`}
-            </p>
-
-            {/* S6-F03. Aprobada la postulación, esta pantalla ofrecía como
-                único camino "Ver ficha de X" — y finalizar la adopción vive
-                DENTRO de esa ficha. Un operador que acaba de aprobar tenía que
-                adivinar que la acción está en la mascota y no en la
-                postulación que está mirando.
-                Sólo cuando queda algo por hacer: si la mascota ya fue
-                adoptada, el circuito está cerrado y el botón sería una promesa
-                falsa. */}
-            {decision[0].outcome === "approved" && !petAlreadyFinalized && (
-              <p className="mt-3">
-                <Link
-                  href={`/org/${orgToken}/mascotas/${pet.publicToken}/adoption`}
-                  className="inline-flex items-center rounded-[var(--radius-md)] bg-ln-op-azul px-3 py-1.5 text-md font-medium text-white no-underline transition-colors hover:bg-ln-op-azul-700"
-                >
-                  Finalizar adopción →
-                </Link>
-              </p>
-            )}
-          </OpCardBody>
-        </OpCard>
+        <DecisionSummary
+          decision={decision[0]}
+          petAlreadyFinalized={petAlreadyFinalized}
+          finalizeHref={`/org/${orgToken}/mascotas/${pet.publicToken}/adoption`}
+        />
       ) : petAlreadyFinalized ? (
         <OpBreach
           title={`${pet.name} ya fue adoptado/a`}
@@ -349,6 +333,63 @@ async function recordAdopterPiiView(args: {
   } catch (e) {
     console.error("adopter_pii_viewed audit insert failed (page render continues)", e);
   }
+}
+
+// The resolved-application summary, extracted verbatim from the page body
+// (the page sat at biome's cognitive-complexity ceiling; the REQ-11 notice
+// above tipped it). Same markup, same S6-F03 finalize shortcut.
+function DecisionSummary({
+  decision,
+  petAlreadyFinalized,
+  finalizeHref,
+}: {
+  decision: {
+    outcome: string;
+    notes: string | null;
+    auto_generated: string | null;
+    decided_at: string;
+  };
+  petAlreadyFinalized: boolean;
+  finalizeHref: string;
+}) {
+  return (
+    <OpCard>
+      <OpCardBody>
+        <p className="text-md font-medium text-ln-op-ink">
+          Esta postulación ya fue resuelta:{" "}
+          {decision.outcome === "approved"
+            ? "aprobada"
+            : decision.auto_generated === "true"
+              ? "cerrada automáticamente (otra adopción se finalizó)"
+              : "rechazada"}
+          .
+        </p>
+        <p className="text-sm text-ln-op-mute mt-1">
+          {formatDateTime(decision.decided_at)}
+          {decision.notes && ` · ${decision.notes}`}
+        </p>
+
+        {/* S6-F03. Aprobada la postulación, esta pantalla ofrecía como
+            único camino "Ver ficha de X" — y finalizar la adopción vive
+            DENTRO de esa ficha. Un operador que acaba de aprobar tenía que
+            adivinar que la acción está en la mascota y no en la
+            postulación que está mirando.
+            Sólo cuando queda algo por hacer: si la mascota ya fue
+            adoptada, el circuito está cerrado y el botón sería una promesa
+            falsa. */}
+        {decision.outcome === "approved" && !petAlreadyFinalized && (
+          <p className="mt-3">
+            <Link
+              href={finalizeHref}
+              className="inline-flex items-center rounded-[var(--radius-md)] bg-ln-op-azul px-3 py-1.5 text-md font-medium text-white no-underline transition-colors hover:bg-ln-op-azul-700"
+            >
+              Finalizar adopción →
+            </Link>
+          </p>
+        )}
+      </OpCardBody>
+    </OpCard>
+  );
 }
 
 function Row({ label, value }: { label: string; value: ReactNode }) {

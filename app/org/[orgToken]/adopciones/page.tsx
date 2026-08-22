@@ -18,9 +18,11 @@ import Link from "next/link";
 
 import { AdoptionQueueList } from "@/components/AdoptionQueueList";
 import type { AdoptionQueueRow, AdoptionQueueStatus } from "@/components/AdoptionQueueList";
+import { SponsorshipPossessionNotice } from "@/components/adoption/SponsorshipPossessionNotice";
 import { db } from "@/db";
 import { requireOrgAccessByToken } from "@/lib/infra/auth-guards";
 import { safePayloadUuid } from "@/lib/infra/sql-fragments";
+import { listOpenSponsorshipPetIds } from "@/src/modules/adoption/infrastructure/rehome-sponsorship-writer";
 import { requireCapability } from "@/src/modules/organizations/infrastructure/authz-resolver";
 
 export const dynamic = "force-dynamic";
@@ -93,6 +95,8 @@ export default async function AdoptionReviewIndexPage({
   // ---------------------------------------------------------------------------
 
   let rows: AdoptionQueueRow[] = [];
+  // The pet behind each row, for the possession disclosure below (REQ-11).
+  let petsByRow: Array<{ petId: string; petName: string }> = [];
   // UX 3.6 (d): fetch one extra row past the cap to detect truncation, so the
   // list can tell the operator there are more results instead of silently
   // cutting off at 200.
@@ -140,7 +144,9 @@ export default async function AdoptionReviewIndexPage({
     `);
 
     truncated = dbRows.length > 200;
-    rows = dbRows.slice(0, 200).map((r) => ({
+    const pageRows = dbRows.slice(0, 200);
+    petsByRow = pageRows.map((r) => ({ petId: r.pet_id, petName: r.pet_name }));
+    rows = pageRows.map((r) => ({
       applicationEventId: r.application_id,
       petName: r.pet_name,
       petPublicToken: r.pet_public_token,
@@ -148,6 +154,7 @@ export default async function AdoptionReviewIndexPage({
       housingType: r.housing_type,
       submittedAt: r.submitted_at,
       infoRequested: r.info_requested,
+      livesWithFamily: false,
     }));
   } else {
     // Approved / rejected: find resolved applications belonging to this org.
@@ -183,7 +190,9 @@ export default async function AdoptionReviewIndexPage({
     // For resolved views we show read-only rows (no bulk actions).
     // submittedAt is used for the age badge (days to decision).
     truncated = dbRows.length > 200;
-    rows = dbRows.slice(0, 200).map((r) => ({
+    const pageRows = dbRows.slice(0, 200);
+    petsByRow = pageRows.map((r) => ({ petId: r.pet_id, petName: r.pet_name }));
+    rows = pageRows.map((r) => ({
       applicationEventId: r.application_id,
       petName: r.pet_name,
       petPublicToken: r.pet_public_token,
@@ -191,8 +200,26 @@ export default async function AdoptionReviewIndexPage({
       housingType: r.housing_type,
       submittedAt: r.submitted_at,
       infoRequested: false,
+      livesWithFamily: false,
     }));
   }
+
+  // rehome-by-titular, REQ-11: which of these pets live with their family
+  // while this org runs the evaluation — on the spine, one query per page.
+  // Each such row says so, and the page leads with one notice per pet.
+  const sponsoredPetIds = await listOpenSponsorshipPetIds(
+    petsByRow.map((p) => p.petId),
+    db,
+  );
+  rows = rows.map((row, i) => ({
+    ...row,
+    livesWithFamily: sponsoredPetIds.has(petsByRow[i].petId),
+  }));
+  const sponsoredPets = [
+    ...new Map(
+      petsByRow.filter((p) => sponsoredPetIds.has(p.petId)).map((p) => [p.petId, p]),
+    ).values(),
+  ];
 
   return (
     <div className="space-y-6">
@@ -207,6 +234,15 @@ export default async function AdoptionReviewIndexPage({
           procesarlas en lote.
         </p>
       </header>
+
+      {sponsoredPets.map((p) => (
+        <SponsorshipPossessionNotice
+          key={p.petId}
+          petName={p.petName}
+          orgDisplayName={organization.displayName}
+          surface="op"
+        />
+      ))}
 
       {/* Queue — filter chips + row list (incl. its own empty state) + bulk bar
           live here. AdoptionQueueList renders the chips and a single dashed

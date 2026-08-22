@@ -23,6 +23,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
+import { SponsorshipPossessionNotice } from "@/components/adoption/SponsorshipPossessionNotice";
 import { CaseNotForCaretaker } from "@/components/casos/CaseNotForCaretaker";
 import { CaseOperatorActions } from "@/components/casos/CaseOperatorActions";
 import { RehomeRequestAnswerActions } from "@/components/casos/RehomeRequestAnswerActions";
@@ -36,6 +37,7 @@ import {
   type CaseParty,
   type CaseSubjectDescriptor,
 } from "@/components/ui/dashboard/CaseDetailShell";
+import { db } from "@/db";
 import { getNormativesForCase } from "@/lib/domain/case-normatives";
 import { caseTimelineSummary } from "@/lib/events/events";
 import { canReadCase, holdsActiveCaretakerRow } from "@/lib/infra/case-access";
@@ -44,6 +46,7 @@ import { getJurisdictionsCached, getProfileCached } from "@/lib/infra/request-ca
 import { petPhotoUrl } from "@/lib/infra/storage";
 import { createClient } from "@/lib/supabase/server";
 import { formatDateTime, sexLabel, speciesLabel } from "@/lib/utils/format";
+import { findOpenSponsorship } from "@/src/modules/adoption/infrastructure/rehome-sponsorship-writer";
 import { availableCaseActions } from "@/src/modules/cases/domain/available-actions";
 import { logPiiReadSafely } from "@/src/modules/organizations/application/admin-proposals/log-pii-query";
 import {
@@ -172,6 +175,10 @@ export async function CaseDetailView({ publicCode, casosHref }: CaseDetailViewPr
   // capability the action enforces). A member without it never sees a
   // control the server would refuse — a boundary, not a wall.
   const rehomeAnswer = await resolveRehomeAnswer(detail, viewerUserId);
+  // rehome-by-titular, REQ-11: an ACCEPTED request and the adoption_listing
+  // it opened both read "custody" on the org's side; the animal is with its
+  // family. Said on the case itself, for every viewer who can read it.
+  const possession = await resolvePossessionDisclosure(detail);
   if (detail.closedByUser) {
     parties.push({ role: "closer", name: detail.closedByUser.displayName });
   }
@@ -293,6 +300,14 @@ export async function CaseDetailView({ publicCode, casosHref }: CaseDetailViewPr
           />
         )}
 
+        {possession && (
+          <SponsorshipPossessionNotice
+            petName={possession.petName}
+            orgDisplayName={possession.orgDisplayName}
+            surface="ln"
+          />
+        )}
+
         {rehomeAnswer && detail.pet && (
           <RehomeRequestAnswerActions
             orgToken={rehomeAnswer.orgToken}
@@ -400,6 +415,36 @@ async function resolveRehomeAnswer(
   const granted = await getGrantedCapabilities(mine.membership);
   if (!granted.has("adoption.listing.manage")) return null;
   return { orgToken: receiver.publicToken, orgDisplayName: receiver.displayName };
+}
+
+// ---------------------------------------------------------------------------
+// resolvePossessionDisclosure — is THIS case about a sponsored pet?
+// ---------------------------------------------------------------------------
+
+/**
+ * Non-null when the case is a `rehome_request` (addressed to its receiver org)
+ * or an `adoption_listing` (opened by its org) and that org currently
+ * sponsors the pet — decided on the spine, never on the ownership shape, and
+ * checked against the case's own org so a listing by a DIFFERENT org on the
+ * same pet never borrows the sentence.
+ */
+async function resolvePossessionDisclosure(detail: {
+  caseKind: string;
+  pet: { id: string; name: string } | null;
+  receiverOrganization: { id: string; displayName: string } | null;
+  openedByOrganization: { id: string; displayName: string } | null;
+}): Promise<{ petName: string; orgDisplayName: string } | null> {
+  if (!detail.pet) return null;
+  const org =
+    detail.caseKind === "rehome_request"
+      ? detail.receiverOrganization
+      : detail.caseKind === "adoption_listing"
+        ? detail.openedByOrganization
+        : null;
+  if (!org) return null;
+  const open = await findOpenSponsorship(detail.pet.id, db);
+  if (!open || open.sponsoringOrganizationId !== org.id) return null;
+  return { petName: detail.pet.name, orgDisplayName: org.displayName };
 }
 
 // ---------------------------------------------------------------------------

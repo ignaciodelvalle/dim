@@ -10,12 +10,14 @@ import { notFound } from "next/navigation";
 import { Suspense } from "react";
 
 import { Icon } from "@/components/Icon";
+import { SponsorshipPossessionNotice } from "@/components/adoption/SponsorshipPossessionNotice";
 import { cases, db, organizations, ownerships, petEvents, pets, profiles } from "@/db";
 import { requireOrgAccessByToken } from "@/lib/infra/auth-guards";
 import { fetchActiveIdentifications } from "@/lib/infra/pet-identifiers";
 import { type PetSituationTone, derivePetSituation } from "@/lib/ui/pet-situation";
 import { situationLabelForSex, speciesLabel } from "@/lib/utils/format";
 import { AdoptionRepository } from "@/src/modules/adoption/infrastructure/adoption-repository";
+import { findOpenSponsorship } from "@/src/modules/adoption/infrastructure/rehome-sponsorship-writer";
 import { getGrantedCapabilities } from "@/src/modules/organizations/infrastructure/authz-resolver";
 import { fetchPendingOwnerReturnProposalForOrg } from "@/src/modules/return-to-owner/application/proposal-queries";
 import { and, desc, eq, gt, inArray, isNull } from "drizzle-orm";
@@ -233,6 +235,14 @@ export default async function OrgPetDetailPage({
 
   const canonicalIds = await fetchActiveIdentifications(pet.id);
 
+  // rehome-by-titular, REQ-11: is this org's custody row a SPONSORSHIP — the
+  // animal living with its family while the org runs the evaluation? On the
+  // spine, checked against THIS org, so the ficha of a pet another org
+  // sponsors never borrows the sentence.
+  const openSponsorship =
+    ownershipRole === "shelter_custody" ? await findOpenSponsorship(pet.id, db) : null;
+  const livesWithFamily = openSponsorship?.sponsoringOrganizationId === organization.id;
+
   const canManageEligibility = granted.has("intake.create") && ownershipRole === "shelter_custody";
   // The publish CTA existed only in the list's row menu — from the ficha
   // there was no way to publish, which misled QA into "Apta no publica"
@@ -342,6 +352,14 @@ export default async function OrgPetDetailPage({
           </div>
         </header>
 
+        {livesWithFamily && (
+          <SponsorshipPossessionNotice
+            petName={pet.name}
+            orgDisplayName={organization.displayName}
+            surface="op"
+          />
+        )}
+
         {/* Pet info */}
         <OpCard>
           <OpCardHead title="Datos del animal" />
@@ -370,7 +388,9 @@ export default async function OrgPetDetailPage({
               <dt className="text-ln-op-mute">Rol de custodia</dt>
               <dd className="text-ln-op-ink">
                 {ownershipRole === "shelter_custody"
-                  ? "Custodia del refugio"
+                  ? livesWithFamily
+                    ? "Custodia registral · acompañamiento de adopción"
+                    : "Custodia del refugio"
                   : ownershipRole === "foster"
                     ? "Tránsito"
                     : ownershipRole}

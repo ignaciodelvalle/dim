@@ -58,6 +58,8 @@ export type AdoptionQueueRow = {
   housingType: string;
   submittedAt: string; // ISO string from DB
   infoRequested: boolean;
+  /** The pet lives with its family while this org runs the evaluation (rehome-by-titular, REQ-11). */
+  livesWithFamily: boolean;
 };
 
 export type AdoptionQueueStatus = "pending" | "approved" | "rejected";
@@ -356,6 +358,11 @@ export function AdoptionQueueList({ rows, orgToken, activeStatus }: AdoptionQueu
                         {row.infoRequested && (
                           <span className="inline-flex items-center rounded-[var(--radius-xs)] border border-ln-op-azul bg-ln-op-celeste-050 px-1.5 py-px text-xs font-semibold uppercase tracking-[.08em] text-ln-op-azul">
                             Info pedida
+                          </span>
+                        )}
+                        {row.livesWithFamily && (
+                          <span className="inline-flex items-center rounded-[var(--radius-xs)] border border-ln-op-line bg-ln-op-stripe px-1.5 py-px text-xs font-semibold uppercase tracking-[.08em] text-ln-op-ink-2">
+                            Vive con su familia
                           </span>
                         )}
                       </p>

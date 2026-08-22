@@ -19,6 +19,7 @@ import {
 import { createClient } from "@/lib/supabase/server";
 import { formatDate, sexLabel, speciesLabel, sterilizedLabel } from "@/lib/utils/format";
 import { serializeJsonLd } from "@/lib/utils/json-ld";
+import { findOpenSponsorship } from "@/src/modules/adoption/infrastructure/rehome-sponsorship-writer";
 import { and, desc, eq, isNull } from "drizzle-orm";
 
 import { AdoptionShareRow } from "./AdoptionShareRow";
@@ -131,6 +132,18 @@ export default async function AdoptarFichaPage({
     .limit(1);
   const org = custodyRow?.org ?? null;
   const ownerStartedAt = custodyRow?.ownerStartedAt ?? null;
+
+  // Where the animal LIVES (rehome-by-titular, spec REQ-12). The custody row
+  // above says who answers for the listing; it does not say who holds the
+  // animal. A rehome sponsorship gives the org that row while the animal stays
+  // with its family, so the "refugio responsable / org locality / en custodia
+  // desde" card would state three things that are only true of an intake.
+  // Decided on the SPINE — an unmatched `rehome_sponsorship_started` naming
+  // this very custody row — never on the owner+shelter_custody shape, which
+  // also describes a decomiso.
+  const openSponsorship = org ? await findOpenSponsorship(pet.id, db) : null;
+  const livesWithFamily =
+    openSponsorship !== null && openSponsorship.sponsoringOrganizationId === org?.id;
 
   // D7.2 — if a recent adoption_finalized exists, render a soft "ya
   // encontró hogar" instead of 404. Captures the case of someone clicking
@@ -622,7 +635,10 @@ export default async function AdoptarFichaPage({
           </div>
         )}
 
-        {/* Shelter */}
+        {/* Who answers for the listing — and, when that is not who holds the
+            animal, where it lives (REQ-12). Sponsored: the org accompanies,
+            the locality is the PET's (what the search filters on), the date
+            is when the accompaniment started. Surrendered: unchanged. */}
         <div
           className="rounded-[var(--radius-lg)] border px-5 py-[18px]"
           style={{ background: "var(--color-ln-card)", borderColor: "var(--color-ln-line)" }}
@@ -631,7 +647,7 @@ export default async function AdoptarFichaPage({
             className="mb-1.5 font-ln-mono text-xs font-semibold uppercase tracking-[.12em]"
             style={{ color: "var(--color-ln-mute)" }}
           >
-            Refugio responsable
+            {livesWithFamily ? "Organización que acompaña" : "Refugio responsable"}
           </p>
           <div className="flex items-flex-start gap-3.5">
             <div
@@ -647,21 +663,57 @@ export default async function AdoptarFichaPage({
               >
                 {org.displayName}
               </p>
-              {(org.jurisdictionLocality || org.jurisdictionProvince) && (
-                <p className="mt-1 text-sm" style={{ color: "var(--color-ln-mute)" }}>
-                  {[org.jurisdictionLocality, org.jurisdictionProvince].filter(Boolean).join(", ")}
-                </p>
+              {livesWithFamily ? (
+                <>
+                  {(pet.jurisdictionLocality || pet.jurisdictionProvince) && (
+                    <p className="mt-1 text-sm" style={{ color: "var(--color-ln-mute)" }}>
+                      {[pet.jurisdictionLocality, pet.jurisdictionProvince]
+                        .filter(Boolean)
+                        .join(", ")}
+                    </p>
+                  )}
+                  <p className="mt-1.5 text-sm" style={{ color: "var(--color-ln-ink-2)" }}>
+                    {pet.name} vive con su familia actual. {org.displayName} publica la búsqueda de
+                    hogar y evalúa a quienes se postulan.
+                  </p>
+                  <p
+                    className="mt-1.5 font-ln-mono text-sm"
+                    style={{ color: "var(--color-ln-mute)" }}
+                  >
+                    Acompaña la adopción desde {ownerStartedAt ? formatDate(ownerStartedAt) : "—"}
+                  </p>
+                  <Link
+                    href={`/refugios/${org.publicToken}`}
+                    className="mt-2 inline-block text-sm font-semibold no-underline hover:underline"
+                    style={{ color: "var(--color-ln-azul)" }}
+                  >
+                    Ver perfil de la organización →
+                  </Link>
+                </>
+              ) : (
+                <>
+                  {(org.jurisdictionLocality || org.jurisdictionProvince) && (
+                    <p className="mt-1 text-sm" style={{ color: "var(--color-ln-mute)" }}>
+                      {[org.jurisdictionLocality, org.jurisdictionProvince]
+                        .filter(Boolean)
+                        .join(", ")}
+                    </p>
+                  )}
+                  <p
+                    className="mt-1.5 font-ln-mono text-sm"
+                    style={{ color: "var(--color-ln-mute)" }}
+                  >
+                    En custodia desde {ownerStartedAt ? formatDate(ownerStartedAt) : "—"}
+                  </p>
+                  <Link
+                    href={`/refugios/${org.publicToken}`}
+                    className="mt-2 inline-block text-sm font-semibold no-underline hover:underline"
+                    style={{ color: "var(--color-ln-azul)" }}
+                  >
+                    Ver perfil del refugio →
+                  </Link>
+                </>
               )}
-              <p className="mt-1.5 font-ln-mono text-sm" style={{ color: "var(--color-ln-mute)" }}>
-                En custodia desde {ownerStartedAt ? formatDate(ownerStartedAt) : "—"}
-              </p>
-              <Link
-                href={`/refugios/${org.publicToken}`}
-                className="mt-2 inline-block text-sm font-semibold no-underline hover:underline"
-                style={{ color: "var(--color-ln-azul)" }}
-              >
-                Ver perfil del refugio →
-              </Link>
             </div>
           </div>
         </div>

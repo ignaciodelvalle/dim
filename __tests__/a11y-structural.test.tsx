@@ -120,6 +120,7 @@ const MOCK_ITEM: AdoptionListingItem = {
   jurisdictionProvince: "Buenos Aires",
   jurisdictionLocality: "La Plata",
   orgDisplayName: "Refugio ABC",
+  livesWithFamily: false,
 };
 
 describe("AdoptionListingCard — no nested anchors (UX 2.4 item 2)", () => {

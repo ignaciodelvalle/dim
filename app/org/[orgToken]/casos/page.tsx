@@ -134,6 +134,14 @@ export default async function OrgCasosPage({ params, searchParams }: PageProps) 
           Expedientes donde {organization.displayName} abrió el caso, tiene custodia activa o
           recibió una solicitud de nuevo hogar de un titular.
         </p>
+        {presentKinds.includes("rehome_request") && (
+          // rehome-by-titular, REQ-11: the row's kind label alone reads like an
+          // intake request. It is an accompaniment — said once, above the rows.
+          <p className="text-sm text-ln-op-mute">
+            Una solicitud de nuevo hogar es un acompañamiento: el animal vive con su familia y la
+            organización publica la búsqueda y evalúa postulantes; no lo tiene en su poder.
+          </p>
+        )}
         {routedElsewhere.length > 0 && (
           <p className="text-sm text-ln-op-mute">
             {routedElsewhere.map((d, i) => (

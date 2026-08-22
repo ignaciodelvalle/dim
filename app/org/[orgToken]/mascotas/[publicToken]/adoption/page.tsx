@@ -7,11 +7,13 @@ import { db, fosterProposals, ownerships, pets, profiles } from "@/db";
 import { requireOrgAccessByToken } from "@/lib/infra/auth-guards";
 import { resolveSiteUrl } from "@/lib/infra/site-url";
 import { safePayloadUuid } from "@/lib/infra/sql-fragments";
+import { findOpenSponsorship } from "@/src/modules/adoption/infrastructure/rehome-sponsorship-writer";
 import { getGrantedCapabilities } from "@/src/modules/organizations/infrastructure/authz-resolver";
 import { and, eq, isNull, sql } from "drizzle-orm";
 import Link from "next/link";
 import QRCode from "qrcode";
 
+import { SponsorshipPossessionNotice } from "@/components/adoption/SponsorshipPossessionNotice";
 import { OpBreach, OpCard, OpCardBody, OpCardHead, OpCrumbs } from "@/components/ui/dashboard";
 
 import { FinalizeAdoptionForm } from "./FinalizeAdoptionForm";
@@ -112,6 +114,12 @@ export default async function AdoptionPage({
   }
   const pet = petRow.pet;
 
+  // rehome-by-titular, REQ-11: finalizing a SPONSORED pet moves the title from
+  // the family it lives with to the adopter in one act; the org never held the
+  // animal. The screen says so before the form does anything.
+  const openSponsorship = await findOpenSponsorship(pet.id, db);
+  const livesWithFamily = openSponsorship?.sponsoringOrganizationId === organization.id;
+
   // Detect "foster came from the pool" shortcut (spec §15.1). When an active
   // foster row was created via an accepted foster_proposal, surface the
   // shortcut button so the org can finalize directly to that foster.
@@ -202,6 +210,21 @@ export default async function AdoptionPage({
             cierra. Queda registrado como evento inmutable en la historia de {pet.name}.
           </p>
         </header>
+
+        {livesWithFamily && (
+          <>
+            <SponsorshipPossessionNotice
+              petName={pet.name}
+              orgDisplayName={organization.displayName}
+              surface="op"
+            />
+            <p className="text-md text-ln-op-ink-2">
+              Al finalizar, la titularidad de {pet.name} pasa de su familia actual a la persona
+              adoptante en el mismo acto y {organization.displayName} deja de tener custodia
+              registral.
+            </p>
+          </>
+        )}
 
         {!pet.adoptionEligible && (
           <OpBreach

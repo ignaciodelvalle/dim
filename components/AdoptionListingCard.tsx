@@ -124,6 +124,15 @@ export function AdoptionListingCard({
             )}
           </div>
           {facts.length > 0 && <p className="text-xs text-ln-ink-2">{facts.join(" · ")}</p>}
+          {/* rehome-by-titular (REQ-12): a sponsored listing is an animal that
+              lives with its current family while the org runs the evaluation.
+              Said on the card, because "Publica: {org}" alone reads as "it is
+              at that refugio". Surrender-path listings carry no line. */}
+          {item.livesWithFamily && (
+            <p className="text-xs text-ln-ink-2">
+              Vive con su familia; {item.orgDisplayName} acompaña la adopción.
+            </p>
+          )}
           {variant === "default" && item.adoptionStory && (
             <p className="text-xs text-ln-ink-2 line-clamp-3">{item.adoptionStory}</p>
           )}
