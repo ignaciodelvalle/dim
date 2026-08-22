@@ -99,6 +99,19 @@ let capturedAttachmentInsert: Record<string, unknown> | null = null;
 
 const INSERTED_EVENT_ID = "evt-0000-0000-0000-000000000001";
 
+/** The table the in-flight `db.insert(...)` targets, by its drizzle name. */
+let insertTarget = "";
+
+/**
+ * A drizzle table's SQL name, read off the symbol drizzle stamps on it. Read
+ * this way rather than by importing the table objects: drizzle-orm itself is
+ * mocked in this file, so a `getTableName` import would be the mock's.
+ */
+function drizzleTableName(table: unknown): string {
+  if (table === null || typeof table !== "object") return "";
+  return (table as Record<symbol, unknown>)[Symbol.for("drizzle:Name")] as string;
+}
+
 // We need the DB to return:
 //   - pet (status=lost, id, name)
 //   - owner (userId)
@@ -145,16 +158,31 @@ function buildMockDb() {
     }),
   };
 
-  // insertChain supports both .values().returning() (petEvents) and
-  // .values() alone (notifications, attachments).
+  // Each insert is routed by the TABLE it targets, never by the shape of its
+  // data. Shape-sniffing ("payload" in data → it must be the pet event) was
+  // only ever unambiguous because the old hand-listed mock was INCOMPLETE:
+  // without `notificationDeadLetter`, the notification flush's dead-letter
+  // path could not run. Complete the mock and it does — and
+  // notification_dead_letter.payload is a column too (db/schema.ts:1713), so
+  // the dead-lettered row overwrote the captured pet event and two assertions
+  // read the wrong insert. The real schema is spread into this mock, so the
+  // table's own drizzle name is available and exact.
   const insertChain = {
     values: vi.fn((data: Record<string, unknown>) => {
-      if ("payload" in data) {
-        capturedPetEventInsert = data;
-      } else if ("storagePath" in data) {
-        capturedAttachmentInsert = data;
-      } else {
-        capturedNotificationInsert = data;
+      switch (insertTarget) {
+        case "pet_events":
+          capturedPetEventInsert = data;
+          break;
+        case "attachments":
+          capturedAttachmentInsert = data;
+          break;
+        case "notifications":
+          capturedNotificationInsert = data;
+          break;
+        default:
+          // notification_dead_letter, rate_limit_buckets, anything else: not
+          // what these tests assert on, and deliberately not captured.
+          break;
       }
       return insertChain;
     }),
@@ -162,7 +190,10 @@ function buildMockDb() {
   };
 
   mockDb.select = vi.fn(() => selectChain);
-  mockDb.insert = vi.fn(() => insertChain);
+  mockDb.insert = vi.fn((table: unknown) => {
+    insertTarget = drizzleTableName(table);
+    return insertChain;
+  });
 }
 
 // @/db — the REAL schema (tables, enums) under a MOCKED client.
