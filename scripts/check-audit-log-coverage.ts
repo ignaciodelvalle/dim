@@ -76,6 +76,27 @@ export const OPERATOR_GUARDS = [
   "requireAdminOrGovtOrRedirect",
   "requireDecomisoPrincipal",
   "requireDenunciaModerationPrincipal",
+  // ADDED 2026-08-22 (top-10 review H1). Until then this fence could not see
+  // capability-gated org writes AT ALL: `requireCapability` was absent from the
+  // list, so every action authorized by an organization capability was
+  // structurally invisible — not baselined, not exempted, simply never derived
+  // as a candidate. That is the worst shape a fence can have, because its
+  // summary line kept saying "coverage clean" about a set that excluded the
+  // whole class. The bite report from an org — which puts a legally consequential
+  // status on a third party's animal — sat in that blind spot with no audit row.
+  //
+  // BOTH names are listed. `callsAnyOf` builds `\brequireCapability\s*\(`, which
+  // does NOT match `requireCapabilityForOrgToken(` — so listing only the bare
+  // one would have re-created the same blind spot for exactly the actions that
+  // took the trouble to pin their org scope.
+  //
+  // On the operator-only blind spot below: an org capability IS institutional
+  // authority. `bite.report`, `custody.transfer` and `adoption.finalize` move
+  // animals and impose statutory states on other people's property; the fact
+  // that the authority is delegated by an org admin rather than by a govt role
+  // does not make the act personal self-service.
+  "requireCapability",
+  "requireCapabilityForOrgToken",
 ] as const;
 
 // A drizzle write. `.insert(auditLog)` is excluded by construction: it is the

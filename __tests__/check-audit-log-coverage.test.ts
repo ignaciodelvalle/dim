@@ -135,6 +135,75 @@ export async function banEverythingAction(orgId: string) {
     expect(findCandidates("app/actions/fake.ts", src)[0].audited).toBe(false);
   });
 
+  // 2026-08-22 — the class the fence could not see at all.
+  //
+  // OPERATOR_GUARDS held only the four admin/govt guards, so a capability-gated
+  // org write was never derived as a candidate: not flagged, not baselined, not
+  // exempted. The summary line kept reading "coverage clean" about a set that
+  // excluded the whole class, which is how the org bite report went a year with
+  // no audit row and nothing noticed.
+  describe("capability-gated org writes are visible (H1)", () => {
+    const CAP_HEADER =
+      '"use server";\n\nimport { requireCapability, requireCapabilityForOrgToken } from "@/src/modules/organizations/infrastructure/authz-resolver";\n';
+
+    it("flags a hand-written capability-gated mutation with NO audit write", () => {
+      const src = `${CAP_HEADER}
+export async function seizeThatAnimalAction(petId: string) {
+  const cap = await requireCapability("custody.transfer");
+  await db.update(pets).set({ status: "deceased" }).where(eq(pets.id, petId));
+}
+`;
+      const found = findCandidates("app/actions/fake.ts", src);
+      expect(found).toHaveLength(1);
+      expect(found[0].name).toBe("seizeThatAnimalAction");
+      expect(found[0].audited).toBe(false);
+    });
+
+    it("flags the URL-pinned variant too — the name that does NOT match the bare regex", () => {
+      // `callsAnyOf` builds `\\brequireCapability\\s*\\(`, which does not match
+      // `requireCapabilityForOrgToken(`. Listing only the bare name would have
+      // re-created the blind spot for exactly the actions careful enough to pin
+      // their org scope — the ones LEAST deserving of an exemption.
+      const src = `${CAP_HEADER}
+export async function seizeThatAnimalAction(orgToken: string, petId: string) {
+  const cap = await requireCapabilityForOrgToken("custody.transfer", orgToken);
+  await db.update(pets).set({ status: "deceased" }).where(eq(pets.id, petId));
+}
+`;
+      const found = findCandidates("app/actions/fake.ts", src);
+      expect(found.map((c) => ({ name: c.name, audited: c.audited }))).toEqual([
+        { name: "seizeThatAnimalAction", audited: false },
+      ]);
+    });
+
+    it("clears the same action once it writes the row inside its transaction", () => {
+      const src = `${CAP_HEADER}
+export async function seizeThatAnimalAction(orgToken: string, petId: string) {
+  const cap = await requireCapabilityForOrgToken("custody.transfer", orgToken);
+  await db.transaction(async (tx) => {
+    await tx.update(pets).set({ status: "deceased" }).where(eq(pets.id, petId));
+    await writeAuditLog(tx, { action: "decomiso_executed", actorUserId: cap.user.id });
+  });
+}
+`;
+      const found = findCandidates("app/actions/fake.ts", src);
+      expect(found).toHaveLength(1);
+      expect(found[0].audited).toBe(true);
+    });
+
+    it("derives capability-gated candidates from the REAL repo, not only fixtures", () => {
+      // The fixtures above prove the rule; this proves the rule reaches
+      // production code. Before 2026-08-22 this count was ZERO by construction.
+      const { candidates } = scanAll();
+      const capabilityGated = candidates.filter((c) =>
+        /^(app\/actions\/(attendance|chip-match|intake|schedule-rules|service-offerings)|app\/org\/|src\/modules\/(adoption|foster|surveillance)\/)/.test(
+          c.relPath,
+        ),
+      );
+      expect(capabilityGated.length).toBeGreaterThan(0);
+    });
+  });
+
   it("recognises every operator guard, not just the one the fixtures use", () => {
     for (const guard of OPERATOR_GUARDS) {
       const src = `"use server";

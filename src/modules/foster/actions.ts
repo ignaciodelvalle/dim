@@ -454,6 +454,11 @@ export type { FosterVolunteerSearchRow };
 
 export type SearchFosterVolunteersResult = { rows: FosterVolunteerSearchRow[] } | { error: string };
 
+// @no-audit-required: READ ONLY — a ranked volunteer search. It reaches
+// FosterRepository, which contains writes belonging to other methods, and
+// lint:audit-log resolves reachability one hop out, so widening the fence to
+// capability guards (2026-08-22) surfaced it as a candidate. This action calls
+// only finder methods and returns rows; there is no mutation to account for.
 export async function searchFosterVolunteers(
   input: SearchFosterVolunteersInput,
 ): Promise<SearchFosterVolunteersResult> {

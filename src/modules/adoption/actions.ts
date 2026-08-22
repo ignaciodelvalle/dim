@@ -514,6 +514,18 @@ export type CheckAdopterAccountResult =
   | { found: false }
   | { error: string };
 
+// @no-audit-required: READ ONLY. lint:audit-log started seeing capability-gated
+// actions on 2026-08-22 and derives reachability one hop out, so this lands as a
+// candidate because AdoptionRepository — the module it calls — contains writes
+// belonging to OTHER methods. This action performs none: it hashes the typed DNI,
+// asks the repository whether a registered account matches, and returns
+// found/displayName. Nothing mutates, so there is no occurrence to account for.
+//
+// NOTED, NOT FIXED: it is a confirmation oracle over `profiles.dniHash` for any
+// holder of `adoption.finalize` — type a DNI, learn whether that person has a
+// miMAR account and their display name. That is a PII READ trail question
+// (`pii_queried`), not the mutation question this fence asks. Reported to the PO
+// rather than silently widened here.
 export async function checkAdopterAccountAction(
   orgToken: string,
   dni: string,

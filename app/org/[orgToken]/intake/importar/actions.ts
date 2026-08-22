@@ -134,6 +134,11 @@ async function identifierPrecheckErrors(fields: Record<string, string>): Promise
 // validateIntakeCsvAction
 // ---------------------------------------------------------------------------
 
+// @no-audit-required: READ ONLY — parses and validates the uploaded CSV and
+// hands the rows back to the browser for review. NOTHING is written here; the
+// write happens in importIntakeRowsAction below, when the operator confirms.
+// It lands as a candidate only because lint:audit-log follows reachability one
+// hop and this file's siblings do write.
 export async function validateIntakeCsvAction(
   orgToken: string,
   formData: FormData,
