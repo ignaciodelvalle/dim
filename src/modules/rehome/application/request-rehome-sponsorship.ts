@@ -18,6 +18,7 @@ import {
   NOT_TITULAR_ERROR,
   OPEN_REQUEST_PENDING_ERROR,
   validateRequestOpen,
+  validateSponsorCoverage,
   validateSponsorTarget,
 } from "../domain/rehome-rules";
 import type { RehomeRequestPort } from "./ports";
@@ -64,6 +65,17 @@ export async function requestRehomeSponsorship(
   const target = validateSponsorTarget(org);
   if (!target.ok) return { ok: false, error: target.error };
   if (!org) return { ok: false, error: "Organización no encontrada." };
+
+  // W-4: the picker only offers orgs covering the pet's zone, but this is a
+  // server action — the orgId arrives from the client. Same predicate the
+  // page derives its list from; the filter belongs here too, or it is decor.
+  const coverage = validateSponsorCoverage({
+    orgDisplayName: org.displayName,
+    petName: pet.name,
+    zone: { province: pet.jurisdictionProvince, locality: pet.jurisdictionLocality },
+    coverage: await repo.findOrgCoverage(org.id),
+  });
+  if (!coverage.ok) return { ok: false, error: coverage.error };
 
   // REQ-16: one open request OR one running sponsorship per pet. The readable
   // refusal lives here; the invariant itself is `cases_open_per_pet_kind_idx`

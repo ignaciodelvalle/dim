@@ -22,6 +22,7 @@ import {
   cases,
   db,
   notifications,
+  organizationCoverage,
   organizationMemberships,
   organizations,
   ownerships,
@@ -209,6 +210,13 @@ beforeAll(async () => {
     })
     .returning({ id: organizations.id });
   orgAId = org.id;
+  // The zone the org works in — the request rule refuses an org that does not
+  // reach the pet's locality (W-4), same predicate the picker filters on.
+  await db.insert(organizationCoverage).values({
+    organizationId: orgAId,
+    jurisdictionProvince: "Buenos Aires",
+    jurisdictionLocality: "La Plata",
+  });
   await db.insert(organizationMemberships).values({
     organizationId: orgAId,
     userId: ids.coordA,

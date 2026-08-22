@@ -14,6 +14,13 @@
 // request or ends a running sponsorship). Each use-case depends on its own
 // part only.
 
+import type { CoverageArea } from "../domain/rehome-rules";
+
+// Re-exported so infrastructure imports the coverage row shape from the port
+// it implements, like every other shape here — the definition stays in the
+// domain, next to the predicate that reads it.
+export type { CoverageArea };
+
 export type PetSummary = {
   id: string;
   publicToken: string;
@@ -62,6 +69,12 @@ export interface RehomeRequestPort {
   /** The user's live `role='owner'` row on the pet — never foster, never caretaker. */
   findLiveOwnerRow(petId: string, userId: string, tx?: unknown): Promise<{ id: string } | null>;
   findOrgById(orgId: string, tx?: unknown): Promise<SponsorOrg | null>;
+  /**
+   * The org's `organization_coverage` rows — the zones it works in. The rule
+   * (`validateSponsorCoverage`) decides; this only fetches. Same rows the
+   * picker joins on, so the two cannot disagree about who covers what.
+   */
+  findOrgCoverage(orgId: string): Promise<CoverageArea[]>;
   findOpenRequestForPet(petId: string): Promise<RequestCase | null>;
   /** An accepted sponsorship with no matching end event, keyed on the spine. */
   hasOpenSponsorship(petId: string, tx?: unknown): Promise<boolean>;

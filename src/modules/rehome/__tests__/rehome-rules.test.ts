@@ -5,9 +5,12 @@ import { describe, expect, it } from "vitest";
 
 import {
   REHOME_ELIGIBLE_ORG_TYPES,
+  coverageAreaCoversZone,
+  orgCoversZone,
   validateAcceptPreconditions,
   validateDeclinePreconditions,
   validateRequestOpen,
+  validateSponsorCoverage,
   validateSponsorTarget,
   validateWithdrawRequest,
   validateWithdrawSponsorship,
@@ -38,6 +41,105 @@ describe("validateSponsorTarget — who may be asked to sponsor", () => {
     const r = validateSponsorTarget({ orgType: "shelter", verified: false });
     expect(r.ok).toBe(false);
     if (!r.ok) expect(r.error).toBe("La organización no está verificada.");
+  });
+});
+
+describe("coverage — the picker's filter, as a rule (W-4)", () => {
+  const laPlata = { province: "Buenos Aires", locality: "La Plata" };
+
+  it("matches a coverage row for the exact province + locality", () => {
+    expect(
+      coverageAreaCoversZone(
+        { jurisdictionProvince: "Buenos Aires", jurisdictionLocality: "La Plata" },
+        laPlata,
+      ),
+    ).toBe(true);
+  });
+
+  it("matches a province-wide row (locality IS NULL) — the picker's `or(isNull(...))` branch", () => {
+    expect(
+      coverageAreaCoversZone(
+        { jurisdictionProvince: "Buenos Aires", jurisdictionLocality: null },
+        laPlata,
+      ),
+    ).toBe(true);
+  });
+
+  it("does not match another locality of the same province, nor another province", () => {
+    expect(
+      coverageAreaCoversZone(
+        { jurisdictionProvince: "Buenos Aires", jurisdictionLocality: "Berisso" },
+        laPlata,
+      ),
+    ).toBe(false);
+    expect(
+      coverageAreaCoversZone(
+        { jurisdictionProvince: "Córdoba", jurisdictionLocality: "La Plata" },
+        laPlata,
+      ),
+    ).toBe(false);
+  });
+
+  it("with no locality on the pet, any row in the province counts — the picker drops the locality predicate", () => {
+    const zone = { province: "Buenos Aires", locality: null };
+    expect(
+      coverageAreaCoversZone(
+        { jurisdictionProvince: "Buenos Aires", jurisdictionLocality: "Berisso" },
+        zone,
+      ),
+    ).toBe(true);
+    expect(
+      coverageAreaCoversZone({ jurisdictionProvince: "Córdoba", jurisdictionLocality: null }, zone),
+    ).toBe(false);
+  });
+
+  it("orgCoversZone is any-of, and an org with no coverage rows covers nothing", () => {
+    expect(
+      orgCoversZone(
+        [
+          { jurisdictionProvince: "Córdoba", jurisdictionLocality: null },
+          { jurisdictionProvince: "Buenos Aires", jurisdictionLocality: "La Plata" },
+        ],
+        laPlata,
+      ),
+    ).toBe(true);
+    expect(orgCoversZone([], laPlata)).toBe(false);
+  });
+});
+
+describe("validateSponsorCoverage — the refusal the titular reads (W-4)", () => {
+  const base = {
+    orgDisplayName: "Refugio Lejano",
+    petName: "Malena",
+    zone: { province: "Buenos Aires", locality: "La Plata" },
+  };
+
+  it("passes when a coverage row reaches the pet's zone", () => {
+    expect(
+      validateSponsorCoverage({
+        ...base,
+        coverage: [{ jurisdictionProvince: "Buenos Aires", jurisdictionLocality: "La Plata" }],
+      }),
+    ).toEqual({ ok: true });
+  });
+
+  it("names the org and the pet when nothing covers the zone", () => {
+    const r = validateSponsorCoverage({
+      ...base,
+      coverage: [{ jurisdictionProvince: "Córdoba", jurisdictionLocality: "Córdoba" }],
+    });
+    expect(r.ok).toBe(false);
+    if (!r.ok) expect(r.error).toMatch(/^Refugio Lejano no cubre la zona de Malena\./);
+  });
+
+  it("says the honest thing when the PET has no province — the picker's other empty state", () => {
+    const r = validateSponsorCoverage({
+      ...base,
+      zone: { province: null, locality: null },
+      coverage: [{ jurisdictionProvince: "Buenos Aires", jurisdictionLocality: null }],
+    });
+    expect(r.ok).toBe(false);
+    if (!r.ok) expect(r.error).toMatch(/no tiene provincia registrada/);
   });
 });
 

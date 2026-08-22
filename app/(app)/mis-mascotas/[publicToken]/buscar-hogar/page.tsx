@@ -28,6 +28,7 @@ import {
   type RehomeState,
   getRehomeStateForPet,
 } from "@/src/modules/rehome/application/get-rehome-state-for-pet";
+import { coverageAreaCoversZone } from "@/src/modules/rehome/domain/rehome-rules";
 import { RehomeRepository } from "@/src/modules/rehome/infrastructure/rehome-repository";
 import { and, eq, inArray, isNull, or } from "drizzle-orm";
 import Link from "next/link";
@@ -48,17 +49,17 @@ const titleCls =
  * Verified shelters and rescue networks covering the pet's zone — the same
  * picker both branches offer, because the org's qualification is the same
  * (the rehome use-case re-checks it: validateSponsorTarget).
+ *
+ * The zone half is NOT decided here (W-4): the province narrows the query,
+ * and `coverageAreaCoversZone` — the domain predicate the request use-case
+ * refuses on — decides which of those rows actually reach the pet. One
+ * predicate, so a POST straight at the action cannot address an org this
+ * page would never have listed.
  */
 async function findCoveringOrgs(province: string | null, locality: string | null) {
   if (!province) return [];
 
-  const localityPredicate =
-    locality !== null
-      ? or(
-          eq(organizationCoverage.jurisdictionLocality, locality),
-          isNull(organizationCoverage.jurisdictionLocality),
-        )
-      : undefined;
+  const zone = { province, locality };
 
   const rows = await db
     .select({
@@ -79,13 +80,13 @@ async function findCoveringOrgs(province: string | null, locality: string | null
         eq(organizations.verified, true),
         inArray(organizations.orgType, ["shelter", "rescue_network"]),
         eq(organizationCoverage.jurisdictionProvince, province),
-        localityPredicate,
       ),
     );
 
   const seen = new Set<string>();
   const deduped: typeof rows = [];
   for (const row of rows) {
+    if (!coverageAreaCoversZone(row, zone)) continue;
     if (!seen.has(row.id)) {
       seen.add(row.id);
       deduped.push(row);

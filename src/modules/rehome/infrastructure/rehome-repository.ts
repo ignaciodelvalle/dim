@@ -21,6 +21,7 @@ import {
   caseEvents,
   cases,
   db,
+  organizationCoverage,
   organizationMemberships,
   organizations,
   ownerships,
@@ -46,6 +47,7 @@ import type {
   CloseApplicationByTitularArgs,
   CloseListingCaseArgs,
   CloseRequestCaseArgs,
+  CoverageArea,
   EndSponsorshipByTitularArgs,
   InsertShelterCustodyArgs,
   InsertSponsorshipStartedArgs,
@@ -257,6 +259,21 @@ export const RehomeRepository = {
       .where(eq(organizations.id, orgId))
       .limit(1);
     return row ?? null;
+  },
+
+  /**
+   * The org's coverage zones (W-4). Rows only — `validateSponsorCoverage`
+   * decides. The picker reads the same table through the same shape, so the
+   * page's list and the use-case's refusal cannot drift apart.
+   */
+  async findOrgCoverage(orgId: string): Promise<CoverageArea[]> {
+    return db
+      .select({
+        jurisdictionProvince: organizationCoverage.jurisdictionProvince,
+        jurisdictionLocality: organizationCoverage.jurisdictionLocality,
+      })
+      .from(organizationCoverage)
+      .where(eq(organizationCoverage.organizationId, orgId));
   },
 
   /**

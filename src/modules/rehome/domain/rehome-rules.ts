@@ -50,6 +50,76 @@ export function validateSponsorTarget(org: SponsorTargetSnapshot | null): RuleRe
   return { ok: true };
 }
 
+// ---------------------------------------------------------------------------
+// COVERAGE — the org has to work where the animal lives (W-4)
+// ---------------------------------------------------------------------------
+//
+// This is the picker's filter, and this file is its ONE home. The picker
+// (app/(app)/mis-mascotas/[publicToken]/buscar-hogar/page.tsx) only ever
+// offered orgs whose `organization_coverage` reaches the pet's zone, but the
+// request is a server action: any titular session can POST any orgId. A
+// filter that lives only in the page is a view, not a rule — a crafted
+// request landed a `rehome_request` in the inbox of an org three provinces
+// away. The page now derives its list from `coverageAreaCoversZone`, and the
+// use-case refuses on the same predicate.
+
+/** One `organization_coverage` row, narrowed to what the predicate reads. */
+export type CoverageArea = {
+  jurisdictionProvince: string;
+  jurisdictionLocality: string | null;
+};
+
+/** Where the animal lives — `pets.jurisdiction_province` / `_locality`. */
+export type PetZone = { province: string | null; locality: string | null };
+
+/**
+ * One coverage row against one zone. The locality half is deliberately
+ * asymmetric, because the picker's SQL is:
+ *
+ *   - pet HAS a locality → the row matches on that locality, or is
+ *     province-wide (`jurisdiction_locality IS NULL`);
+ *   - pet has NO locality → the query drops the locality predicate entirely,
+ *     so every row in the province matches.
+ *
+ * A pet with no province matches nothing: the picker returns an empty list
+ * and shows "no tiene provincia registrada".
+ */
+export function coverageAreaCoversZone(area: CoverageArea, zone: PetZone): boolean {
+  if (!zone.province) return false;
+  if (area.jurisdictionProvince !== zone.province) return false;
+  if (zone.locality === null) return true;
+  return area.jurisdictionLocality === null || area.jurisdictionLocality === zone.locality;
+}
+
+/** Any-of over the org's coverage rows. No rows at all covers nothing. */
+export function orgCoversZone(areas: readonly CoverageArea[], zone: PetZone): boolean {
+  return areas.some((area) => coverageAreaCoversZone(area, zone));
+}
+
+export type SponsorCoverageSnapshot = {
+  orgDisplayName: string;
+  petName: string;
+  zone: PetZone;
+  coverage: readonly CoverageArea[];
+};
+
+/** REQ-1's zone half: the org the titular names has to work where the pet is. */
+export function validateSponsorCoverage(s: SponsorCoverageSnapshot): RuleResult {
+  if (!s.zone.province) {
+    return {
+      ok: false,
+      error: `${s.petName} no tiene provincia registrada. Editá el perfil de ${s.petName} para poder elegir una organización.`,
+    };
+  }
+  if (!orgCoversZone(s.coverage, s.zone)) {
+    return {
+      ok: false,
+      error: `${s.orgDisplayName} no cubre la zona de ${s.petName}. Elegí una organización que trabaje en ${s.zone.locality ?? s.zone.province}.`,
+    };
+  }
+  return { ok: true };
+}
+
 export type RequestOpenSnapshot = {
   petStatus: string;
   /** An open `rehome_request` case already exists for the pet. */

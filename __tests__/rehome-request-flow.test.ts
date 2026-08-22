@@ -21,6 +21,7 @@ import {
   cases,
   db,
   notifications,
+  organizationCoverage,
   organizationMemberships,
   organizations,
   ownerships,
@@ -53,12 +54,14 @@ const PASS = "RehomeFlow_2026!";
 const ORG_A_TOKEN = "DIM-RHRQ-0001";
 const ORG_B_TOKEN = "DIM-RHRQ-0002";
 const ORG_VET_TOKEN = "DIM-RHRQ-0003";
+const ORG_FAR_TOKEN = "DIM-RHRQ-0004";
 const PET_TOKEN = "DIM-RHRQ-PET1";
 
 const ids = {} as Record<keyof typeof USERS, string>;
 let orgAId: string;
 let orgBId: string;
 let orgVetId: string;
+let orgFarId: string;
 let petId: string;
 let titularOwnershipId: string;
 
@@ -115,7 +118,7 @@ async function purgePetAndOrgs(): Promise<void> {
       await tx.delete(pets).where(eq(pets.id, id));
     }
   });
-  for (const token of [ORG_A_TOKEN, ORG_B_TOKEN, ORG_VET_TOKEN]) {
+  for (const token of [ORG_A_TOKEN, ORG_B_TOKEN, ORG_VET_TOKEN, ORG_FAR_TOKEN]) {
     const staleOrgs = await db
       .select({ id: organizations.id })
       .from(organizations)
@@ -164,6 +167,21 @@ beforeAll(async () => {
   orgAId = await insertOrg(ORG_A_TOKEN, "Refugio Padrino", "shelter");
   orgBId = await insertOrg(ORG_B_TOKEN, "Refugio Vecino", "shelter");
   orgVetId = await insertOrg(ORG_VET_TOKEN, "Clínica Sur", "clinic");
+  orgFarId = await insertOrg(ORG_FAR_TOKEN, "Refugio Lejano", "shelter");
+
+  // Coverage is what the picker offers on: A covers the pet's exact locality,
+  // B covers the whole province (locality IS NULL), and "Refugio Lejano"
+  // covers another province entirely — a verified shelter the picker would
+  // never show for this pet.
+  await db.insert(organizationCoverage).values([
+    {
+      organizationId: orgAId,
+      jurisdictionProvince: "Buenos Aires",
+      jurisdictionLocality: "La Plata",
+    },
+    { organizationId: orgBId, jurisdictionProvince: "Buenos Aires", jurisdictionLocality: null },
+    { organizationId: orgFarId, jurisdictionProvince: "Córdoba", jurisdictionLocality: "Córdoba" },
+  ]);
 
   await db.insert(organizationMemberships).values([
     { organizationId: orgAId, userId: ids.coordA, role: "admin", canWritePetEvents: true },
@@ -255,6 +273,21 @@ describe("request — who may ask, and whom (REQ-1, REQ-16)", () => {
       deps(),
     );
     expect(r.ok).toBe(false);
+    expect(await requestCasesForPet()).toHaveLength(0);
+  });
+
+  it("a verified shelter that does not cover the pet's zone is refused — the picker's filter is a rule, not a view", async () => {
+    // The picker (buscar-hogar/page.tsx) only lists orgs whose coverage
+    // includes the pet's province+locality, but the request is a server
+    // action: any titular session can POST any orgId. Without the rule in the
+    // domain, "Refugio Lejano" (Córdoba) gets a rehome_request for a pet in
+    // La Plata and it lands in its inbox.
+    const r = await requestRehomeSponsorship(
+      { petPublicToken: PET_TOKEN, titularUserId: ids.titular, targetOrgId: orgFarId },
+      deps(),
+    );
+    expect(r.ok).toBe(false);
+    if (!r.ok) expect(r.error).toMatch(/Refugio Lejano no cubre la zona de Malena/);
     expect(await requestCasesForPet()).toHaveLength(0);
   });
 

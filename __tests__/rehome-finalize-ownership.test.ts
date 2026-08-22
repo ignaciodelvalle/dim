@@ -35,6 +35,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import {
   db,
   notifications,
+  organizationCoverage,
   organizationMemberships,
   organizations,
   ownerships,
@@ -180,6 +181,14 @@ beforeAll(async () => {
     .returning();
   orgId = org.id;
 
+  // The zone the org works in — the request rule refuses an org that does not
+  // reach the pet's locality (W-4), same predicate the picker filters on.
+  await db.insert(organizationCoverage).values({
+    organizationId: orgId,
+    jurisdictionProvince: "Buenos Aires",
+    jurisdictionLocality: "La Plata",
+  });
+
   await db.insert(organizationMemberships).values({
     organizationId: orgId,
     userId: coordUserId,
@@ -196,6 +205,10 @@ beforeAll(async () => {
       species: "dog",
       sex: "female",
       potentiallyDangerousBreed: false,
+      // A zone the sponsoring org covers: the request path is the real one
+      // since WU3, and it now checks coverage (W-4).
+      jurisdictionProvince: "Buenos Aires",
+      jurisdictionLocality: "La Plata",
       inCustodyDispute: false,
       rabiesObservationStatus: null,
     })
