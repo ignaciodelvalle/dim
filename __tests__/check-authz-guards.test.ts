@@ -942,23 +942,26 @@ describe("listRouteHandlerFiles", () => {
 
 describe("findShadowedGuardDefinitions", () => {
   it("flags a file that DEFINES a function named like a guard — THE RED CONTROL", () => {
+    // The hole used `requireUser`, a dead name pruned from the list on
+    // 2026-08-22 (see "the recognised list carries NO dead name" below). The
+    // same shape against a LIVE name is what the rule exists for.
     const src = [
       '"use server";',
-      "async function requireUser() {",
+      "async function requireLiveUser() {",
       "  const supabase = await createClient();",
       "  const { data: { user } } = await supabase.auth.getUser();",
       '  if (!user) throw new Error("Sesión expirada");',
       "  return user;",
       "}",
       "export async function markReadAction(id: string) {",
-      "  const user = await requireUser();",
+      "  const user = await requireLiveUser();",
       "  return mark(user.id, id);",
       "}",
     ].join("\n");
     const offenders = findShadowedGuardDefinitions("app/actions/notifications.ts", src);
     expect(offenders).toHaveLength(1);
     expect(offenders[0]).toContain("app/actions/notifications.ts:2");
-    expect(offenders[0]).toContain("requireUser");
+    expect(offenders[0]).toContain("requireLiveUser");
     // And the shadow is exactly what the coverage rule could not see: with the
     // local in place, findOffenders reads the export as guarded.
     expect(findOffenders("app/actions/notifications.ts", src)).toEqual([]);
@@ -980,16 +983,60 @@ describe("findShadowedGuardDefinitions", () => {
     expect(findShadowedGuardDefinitions("lib/x.ts", exported)).toHaveLength(1);
   });
 
-  it("flags a DEAD name — a guard on the list that has no home at all", () => {
-    // `requireUser`, `requireActiveOrgOrRedirect`, `requireOwnedPet` and
-    // `requireOwnedAndAlive` are recognised by callsAuthGuard and defined
-    // nowhere in the tree. A dead name is a free pass: whoever defines it first
-    // is "the guard". The rule treats it as a name NOTHING may define.
-    for (const dead of ["requireUser", "requireActiveOrgOrRedirect", "requireOwnedPet"]) {
-      expect(GUARD_HOMES[dead]).toEqual([]);
-      const src = `export async function ${dead}() { return null; }`;
-      expect(findShadowedGuardDefinitions("lib/anywhere.ts", src)).toHaveLength(1);
+  it("the recognised list carries NO dead name — every home is non-empty", () => {
+    // Until 2026-08-22 four entries — `requireUser`, `requireActiveOrgOrRedirect`,
+    // `requireOwnedPet`, `requireOwnedAndAlive` — were recognised by
+    // callsAuthGuard and defined NOWHERE in the tree. A dead name is a free
+    // pass: whoever defines it first is "the guard" (app/actions/notifications.ts
+    // did exactly that with requireUser). They were kept with an EMPTY home so
+    // the shadow rule would refuse any definition; pruning them is the stronger
+    // control — a name that is not recognised makes its callers read as
+    // UNGUARDED (next test) instead of guarded-by-nothing. So: no entry may be
+    // empty, and the fence itself refuses one (guardHomeViolations below).
+    for (const [name, homes] of Object.entries(GUARD_HOMES)) {
+      expect(homes, `${name} is a dead name on the recognised list`).not.toEqual([]);
     }
+    for (const dead of [
+      "requireUser",
+      "requireActiveOrgOrRedirect",
+      "requireOwnedPet",
+      "requireOwnedAndAlive",
+    ]) {
+      expect(AUTH_GUARDS as readonly string[]).not.toContain(dead);
+      expect(ROUTE_HANDLER_GUARDS).not.toContain(dead);
+      expect(PERSONAL_TIER_GUARDS as readonly string[]).not.toContain(dead);
+      expect(DELETION_AWARE_GUARDS as readonly string[]).not.toContain(dead);
+    }
+  });
+
+  it("guardHomeViolations refuses a recognised name with NO home — a dead name cannot re-enter the list", () => {
+    const problems = guardHomeViolations({ requireUser: [] });
+    expect(problems).toHaveLength(1);
+    expect(problems[0]).toContain("requireUser");
+    expect(problems[0]).toMatch(/no home|dead/i);
+  });
+
+  it("a name OFF the list is not a free pass: a local `requireUser()` leaves its callers UNGUARDED", () => {
+    // The 2026-08-22 hole, replayed against the pruned list. With `requireUser`
+    // no longer recognised, the local is not a shadow of anything — and the
+    // export that calls it has no guard call the coverage rule knows, so it is
+    // an offender. That is the control the pruning must not weaken.
+    const src = [
+      '"use server";',
+      "async function requireUser() {",
+      "  const supabase = await createClient();",
+      "  const { data: { user } } = await supabase.auth.getUser();",
+      "  return user;",
+      "}",
+      "export async function markReadAction(id: string) {",
+      "  const user = await requireUser();",
+      "  return mark(user.id, id);",
+      "}",
+    ].join("\n");
+    expect(findShadowedGuardDefinitions("app/actions/notifications.ts", src)).toEqual([]);
+    const offenders = findOffenders("app/actions/notifications.ts", src);
+    expect(offenders).toHaveLength(1);
+    expect(offenders[0]).toContain("markReadAction");
   });
 
   it("does NOT flag a guard defined in its canonical home", () => {

@@ -48,7 +48,6 @@ import { stripComments } from "./lib/strip-comments.mjs";
 // lib/pet-access.ts), org/capability guards, file-local admin guards, and the
 // inline `supabase.auth.getUser()` + `if (!user)` pattern used by legacy flows.
 export const AUTH_GUARDS = [
-  "requireUser",
   "requireUserOrRedirect",
   // The ONE result-shaped liveness guard (T1.2, lib/infra/live-user.ts).
   // Resolves the session, refuses an erased account, refuses a deactivated
@@ -70,7 +69,6 @@ export const AUTH_GUARDS = [
   // suffix breaks). Already blessed by __tests__/server-actions-auth-coverage.test.ts.
   "requireCapabilityForOrgToken",
   "requireOrgAccessByToken",
-  "requireActiveOrgOrRedirect",
   "requireAdminOrRedirect",
   "requireAdminOrGovtOrRedirect",
   "requireDecomisoPrincipal",
@@ -86,9 +84,7 @@ export const AUTH_GUARDS = [
   // `caretaker`. It IS a guard for coverage purposes — it resolves the session,
   // the profile and the ownership row through requirePetAccess before deciding.
   "requireTitularAccess",
-  "requireOwnedPet",
   "requireOwnedPetByToken",
-  "requireOwnedAndAlive",
   // File-local admin guard used by the alert-subscriptions / alert-firings
   // actions: wraps auth.getUser + a profiles.role === 'admin' re-check.
   "requireAdminUser",
@@ -154,7 +150,6 @@ export const SYSTEM_GUARDS = ["authorizeCronRequest", "checkCronSecret"] as cons
 // surfaces, but insufficient as the SOLE gate on an operator route — that is the
 // AC1 "weaker guard than the route needs" class this rule catches.
 export const PERSONAL_TIER_GUARDS = [
-  "requireUser",
   "requireUserOrRedirect",
   "requirePetAccess",
   "requireAlivePetAccess",
@@ -162,9 +157,7 @@ export const PERSONAL_TIER_GUARDS = [
   // whether the caller holds operator authority — an admin/gob route gated by
   // this alone is exactly as weak as one gated by requirePetAccess alone.
   "requireTitularAccess",
-  "requireOwnedPet",
   "requireOwnedPetByToken",
-  "requireOwnedAndAlive",
 ] as const;
 
 // WS-AUTHZ 1.4 — deletion-aware guard rule (Wave E2, Ley 25.326 art. 16).
@@ -192,11 +185,8 @@ export const DELETION_AWARE_GUARDS = [
   // failure verbatim, so the erased-profile check runs before the role check.
   "requireTitularAccess",
   "requireAlivePetAccess",
-  "requireOwnedPet",
   "requireOwnedPetByToken",
-  "requireOwnedAndAlive",
   "requireOrgAccessByToken",
-  "requireActiveOrgOrRedirect",
   "requireAdminOrRedirect",
   "requireAdminOrGovtOrRedirect",
   "requireDecomisoPrincipal",
@@ -465,31 +455,38 @@ export function findOffenders(relPath: string, src: string): string[] {
 // guard's name (`requireUserProfile`) do not match — the regexes anchor on the
 // token that follows.
 //
-// DEAD NAMES. Four entries on AUTH_GUARDS — requireUser, requireActiveOrgOrRedirect,
-// requireOwnedPet, requireOwnedAndAlive — are defined NOWHERE in the tree. A
-// dead name is a free pass: whoever defines it first is "the guard", which is
-// exactly what happened. They are kept on the list (the recognised names are
-// a published contract other fences read) with an EMPTY home, so any
-// definition at all is an offender. Pruning them is a separate decision.
+// DEAD NAMES — PRUNED (2026-08-22, same day). Four entries on AUTH_GUARDS —
+// requireUser, requireActiveOrgOrRedirect, requireOwnedPet, requireOwnedAndAlive
+// — were defined NOWHERE in the tree (proved per name with
+// `rg "function <name>\s*[(<]|(const|let|var)\s+<name>\s*[=:]"` over app/,
+// src/, lib/, scripts/, components/, db/: zero hits outside comments and test
+// fixtures). A dead name is a free pass: whoever defines it first is "the
+// guard", which is exactly what happened. They were first kept with an EMPTY
+// home so any definition was an offender; pruning them is the STRONGER
+// control, because a name that is not recognised makes its callers read as
+// UNGUARDED by Rule 1.2 instead of guarded-by-nothing — the coverage rule,
+// not the shadow rule, is the one that fires. So the list carries no homeless
+// name, and guardHomeViolations() refuses one: a dead entry cannot re-enter.
+// (check-authz-scoping.ts's TENANT_GUARDS carried requireActiveOrgOrRedirect
+// too, pruned in the same commit.)
 //
-// STATED BLIND SPOTS: a parameter named like a guard (`fn(requireUser: () =>
-// …)`), a destructuring bind (`const { requireUser } = …`), an object-literal
+// STATED BLIND SPOTS: a parameter named like a guard (`fn(requireLiveUser: () =>
+// …)`), a destructuring bind (`const { requireLiveUser } = …`), an object-literal
 // method or class method with the name, and — as everywhere in this file — a
 // definition inside a string literal, which stripComments keeps.
 
 /**
- * Where each recognised guard name is DEFINED. Empty = a dead name that
- * nothing may define. Relative, forward-slash paths.
+ * Where each recognised guard name is DEFINED. Every entry is NON-EMPTY — a
+ * name with no home is a dead name, and guardHomeViolations() refuses it.
+ * Relative, forward-slash paths.
  */
 export const GUARD_HOMES: Readonly<Record<string, readonly string[]>> = {
-  requireUser: [],
   requireUserOrRedirect: ["lib/infra/auth-guards.ts"],
   requireLiveUser: ["lib/infra/live-user.ts"],
   resolveOptionalLiveUser: ["lib/infra/live-user.ts"],
   requireCapability: ["src/modules/organizations/infrastructure/authz-resolver.ts"],
   requireCapabilityForOrgToken: ["src/modules/organizations/infrastructure/authz-resolver.ts"],
   requireOrgAccessByToken: ["lib/infra/auth-guards.ts"],
-  requireActiveOrgOrRedirect: [],
   requireAdminOrRedirect: ["lib/infra/auth-guards.ts"],
   requireAdminOrGovtOrRedirect: ["lib/infra/auth-guards.ts"],
   requireDecomisoPrincipal: ["lib/infra/auth-guards.ts"],
@@ -497,9 +494,7 @@ export const GUARD_HOMES: Readonly<Record<string, readonly string[]>> = {
   requirePetAccess: ["lib/infra/pet-access.ts"],
   requireAlivePetAccess: ["lib/infra/pet-access.ts"],
   requireTitularAccess: ["lib/infra/pet-access.ts"],
-  requireOwnedPet: [],
   requireOwnedPetByToken: ["lib/infra/pets.ts"],
-  requireOwnedAndAlive: [],
   requireAdminUser: ["app/actions/alert-firings.ts"],
   requireOrgInterventionAccess: ["src/modules/welfare/actions.ts"],
   resolveAtenderPet: ["app/org/[orgToken]/atender/atender-access.ts"],
@@ -568,15 +563,26 @@ export function findShadowedGuardDefinitions(relPath: string, src: string): stri
 }
 
 /**
- * Non-vacuity for GUARD_HOMES: every home must still DEFINE its guard. A home
- * that moved without this map following it would otherwise make the real
- * definition an "offender" somewhere else — or, worse, let the map rot into a
- * list of files that define nothing while the rule keeps passing.
+ * Non-vacuity for GUARD_HOMES, two ways. (1) Every home must still DEFINE its
+ * guard: a home that moved without this map following it would otherwise make
+ * the real definition an "offender" somewhere else — or, worse, let the map
+ * rot into a list of files that define nothing while the rule keeps passing.
+ * (2) Every recognised name must HAVE a home: a name with none is a dead
+ * entry, and a dead entry is a free pass for whoever defines it first (the
+ * 2026-08-22 hole). `homes` is injectable so the second check is provable.
  */
-export function guardHomeViolations(): string[] {
+export function guardHomeViolations(
+  homes: Readonly<Record<string, readonly string[]>> = GUARD_HOMES,
+): string[] {
   const problems: string[] = [];
-  for (const [name, homes] of Object.entries(GUARD_HOMES)) {
-    for (const home of homes) {
+  for (const [name, homeList] of Object.entries(homes)) {
+    if (homeList.length === 0) {
+      problems.push(
+        `GUARD_HOMES: \`${name}\` is a recognised guard name with NO home — a dead entry nothing defines. A dead name is a free pass (whoever defines it first is "the guard"); remove it from the recognised lists or point it at the file that defines it.`,
+      );
+      continue;
+    }
+    for (const home of homeList) {
       let src: string;
       try {
         src = stripComments(readFileSync(home, "utf8"));

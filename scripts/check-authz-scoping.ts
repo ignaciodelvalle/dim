@@ -112,7 +112,11 @@ export const TENANT_GUARDS = [
   "requireAdminOrGovtOrRedirect",
   "requireDecomisoPrincipal",
   "requireOrgAccessByToken",
-  "requireActiveOrgOrRedirect",
+  // `requireActiveOrgOrRedirect` was listed here until 2026-08-22 and is
+  // defined nowhere in the tree (lib/infra/auth-guards.ts:102 names it as the
+  // guard requireOrgAccessByToken REPLACED). A dead name on a recognised list
+  // is a free pass for whoever defines it first; pruned together with the four
+  // dead entries of check-authz-guards.ts (see GUARD_HOMES there).
   "requireCapability",
   "requireOrgInterventionAccess",
   // File-local admin guard (alert-firings / alert-subscriptions actions):
