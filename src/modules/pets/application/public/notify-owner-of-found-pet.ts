@@ -76,6 +76,41 @@ export async function notifyOwnerOfFoundPet(
   const finderContact = String(formData.get("finderContact") ?? "").trim();
   const message = String(formData.get("message") ?? "").trim();
 
+  // Rate limit FIRST — before the token resolves to anything.
+  //
+  // It used to sit after the lookup, justified as "a rejected submission (bad
+  // token, unknown pet, disputed pet) must not burn the (IP, token) budget".
+  // That reading was superseded for every other public POST in 967a1f3c: a door
+  // that resolves a token before it charges for the attempt IS an existence
+  // oracle — the refusal you get for an unknown token differs from the one you
+  // get for a known one, and it is free. Paying for a typo is the accepted cost
+  // of not answering that question for free; the two siblings under the same
+  // fence (report-pet-sighting.ts, report-dispute-tip.ts) already charge first.
+  //
+  // The order was invisible to lint until now: this file resolved the token with
+  // a hand-rolled `eq(pets.publicToken, …)` that matched no lookup marker, so the
+  // fence had nothing to say about the block. Moving to the canonical
+  // `publicPetByToken` predicate (the erasure fix) is what made it visible.
+  //
+  // callerIp() reads the trusted edge IP — prefers x-real-ip, falls back to the
+  // LAST x-forwarded-for segment; never the first (client-spoofable).
+  const reqHeaders = await headers();
+  const ip = callerIp(reqHeaders);
+  try {
+    await enforceRateLimit(`found_notify:${publicToken}`, ip, {
+      maxPerMinute: 1,
+      maxPerHour: 10,
+    });
+  } catch (err) {
+    if (err instanceof RateLimitError) {
+      return {
+        ok: false,
+        error: "Ya enviaste un aviso hace poco. Probá de nuevo en unos minutos.",
+      };
+    }
+    throw err;
+  }
+
   const [pet] = await db
     .select({
       id: pets.id,
@@ -122,28 +157,6 @@ export async function notifyOwnerOfFoundPet(
   // still an honest refusal.
   const recipients = await resolveLostPetAlertRecipients(pet.id);
   if (recipients.length === 0) return { ok: false, error: "No se encontró un dueño activo." };
-
-  // Rate limit — consumed only AFTER validation passes (tester fix #6): a
-  // rejected submission (bad token, unknown pet, disputed pet) must not burn
-  // the (IP, token) budget. Reads the trusted caller IP via callerIp()
-  // — prefers x-real-ip (edge-set), falls back to the LAST segment of
-  // x-forwarded-for; never the first XFF segment (client-spoofable).
-  const reqHeaders = await headers();
-  const ip = callerIp(reqHeaders);
-  try {
-    await enforceRateLimit(`found_notify:${publicToken}`, ip, {
-      maxPerMinute: 1,
-      maxPerHour: 10,
-    });
-  } catch (err) {
-    if (err instanceof RateLimitError) {
-      return {
-        ok: false,
-        error: "Ya enviaste un aviso hace poco. Probá de nuevo en unos minutos.",
-      };
-    }
-    throw err;
-  }
 
   // Truncate finder-supplied strings so a notification cannot be used as a
   // payload-size vector. Plenty of room for a useful message.

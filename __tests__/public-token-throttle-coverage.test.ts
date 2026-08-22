@@ -637,7 +637,18 @@ describe("public-token routes are rate limited", () => {
     expect(outOfOrder).toEqual([]);
     // NON-VACUITY: an empty src/ slice would make the assertion above trivially
     // true, which is exactly how this fence went blind before.
-    expect(publicTokenPages().filter((s) => s.file.startsWith("src/")).length).toBe(3);
+    //
+    // 3 → 4 on 2026-08-22, and the reason is the whole lesson of this fence.
+    // `notify-owner-of-found-pet.ts` had always resolved the token BEFORE its
+    // limiter — but it did so with a hand-rolled `eq(pets.publicToken, …)`,
+    // which matches no LOOKUP marker, so the block "held no lookup" and the
+    // ordering check had nothing to say about it. It was never exempt; it was
+    // INVISIBLE. Moving it to the canonical `publicPetByToken` predicate (the
+    // soft-delete fix) is what surfaced the inversion, and the limiter now runs
+    // first like its two siblings. A marker list only sees the spellings it
+    // knows: this count is what tells you when the set of files it can see
+    // changed, so grow it deliberately and say why, never to make a red go away.
+    expect(publicTokenPages().filter((s) => s.file.startsWith("src/")).length).toBe(4);
   });
 
   it("makes every caller of the door hand over a literal, known bucket", () => {
