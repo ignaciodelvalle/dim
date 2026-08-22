@@ -42,12 +42,24 @@ const TITULAR = ACCOUNTS.owner;
 const ORG_ADMIN = ACCOUNTS.orgAdmin;
 const SEED_ORG = /Refugio Test/i;
 
-/** The first ACTIVE pet in the titular's registry (same locator as the sibling specs). */
+/**
+ * The first ACTIVE pet in the titular's registry.
+ *
+ * NOT the sibling specs' locator, on purpose. They require `:has(img)` and a
+ * "REGISTRADA/O" flag because the lost-pet walk reads the name from the
+ * photo's alt. This walk only needs the token, and the seed guarantees
+ * neither a photo nor a vaccine record: a seeded pet renders the initials
+ * placeholder (no <img>) and, once compliance is derived, may read "AL DÍA"
+ * instead of "REGISTRADA". With the sibling locator this spec failed on CI's
+ * fresh DB (run 32555456201) for exactly that reason — and the siblings had
+ * been skipping silently on the same condition. So: the row's href carries
+ * the token, and either non-urgent flag marks a pet the rehome page accepts.
+ */
 async function pickActivePetToken(page: Page): Promise<string> {
   await page.goto("/mis-mascotas", { waitUntil: "domcontentloaded" });
   await page.waitForLoadState("networkidle").catch(() => {});
   const petLink = page
-    .locator('a[href^="/mis-mascotas/"]:has(img)', { hasText: /registrad[ao]/i })
+    .locator('a[href^="/mis-mascotas/DIM-"]', { hasText: /AL DÍA|REGISTRAD[AO]/i })
     .first();
   // An ASSERTION, not a skip: scripts/seed-test-users.ts seeds owner@dim.test
   // with active pets, so an empty registry is a broken seed. Auto-retrying, so

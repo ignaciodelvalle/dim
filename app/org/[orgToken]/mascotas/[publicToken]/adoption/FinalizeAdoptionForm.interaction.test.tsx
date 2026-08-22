@@ -154,7 +154,11 @@ describe("<FinalizeAdoptionForm> — registered-adopter DNI check (org-pilot-pac
 
     // The adopter registered mid-flow on their own device; the org re-checks.
     checkAccountMock.mockResolvedValueOnce({ found: true, displayName: "Juana Pérez" });
-    fireEvent.click(screen.getByRole("button", { name: "Volver a verificar" }));
+    // findBy, not getBy: the refusal alert can commit while the check
+    // transition is still pending, and for that tick the button reads
+    // "Verificando…" (CI run 32555456201 caught it; locally the two commits
+    // coincide). The name we want is the settled one.
+    fireEvent.click(await screen.findByRole("button", { name: "Volver a verificar" }));
 
     await waitFor(() => {
       expect(screen.getByText("Cuenta encontrada: Juana Pérez")).toBeInTheDocument();
