@@ -342,8 +342,20 @@ export type ExpireFosterProposalsStats = {
 
 /** System action called by the cron route. Throws on fatal error (cron logs it). */
 // @no-auth-required: cron/system path — auth enforced at the /api/cron/expire-foster-proposals route via authorizeCronRequest (CRON_SECRET).
-export async function expireFosterProposalsAction(): Promise<ExpireFosterProposalsStats> {
-  const result = await expireFosterProposalsUseCase({ repo: FosterRepository });
+export async function expireFosterProposalsAction(opts?: {
+  /**
+   * The daily dispatcher's fair share, when this runs inside the fleet
+   * (RN #9 half b): the sweep's deadline becomes min(own ceiling, share handed
+   * down) so a late start cannot push the shared function past its 60 s hard
+   * kill. Absent (a manual curl, Vercel hitting the route directly) the
+   * constant is all there is, unchanged.
+   */
+  budgetHeaders?: { get(name: string): string | null };
+}): Promise<ExpireFosterProposalsStats> {
+  const result = await expireFosterProposalsUseCase(
+    { repo: FosterRepository },
+    { budgetHeaders: opts?.budgetHeaders },
+  );
   if (!result.ok) throw new Error(result.error);
   return result.value;
 }

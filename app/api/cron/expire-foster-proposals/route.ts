@@ -27,7 +27,7 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
   try {
     const stats = await withCronRun(
       CRON_NAME,
-      () => expireFosterProposals(),
+      () => expireFosterProposals({ budgetHeaders: req.headers }),
       (s) => ({
         itemsProcessed: s.expired,
         // Per-row expiry failures must NOT report success (review 23 fleet

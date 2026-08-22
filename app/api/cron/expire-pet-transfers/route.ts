@@ -25,7 +25,7 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
   try {
     const stats = await withCronRun(
       CRON_NAME,
-      () => expirePetTransfersOnce(),
+      () => expirePetTransfersOnce({ budgetHeaders: req.headers }),
       (s) => ({
         itemsProcessed: s.expired,
         // Per-row failures must NOT report success (review 23 fleet extension):

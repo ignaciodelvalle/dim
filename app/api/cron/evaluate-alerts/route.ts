@@ -34,7 +34,11 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
     const resumeCursor = await readLastRunDetail<string | null>(CRON_NAME, "nextOwnerCursor");
     const result = await withCronRun(
       CRON_NAME,
-      () => evaluateAndRecordFiringsForAllAdmins({ afterUserId: resumeCursor }),
+      () =>
+        evaluateAndRecordFiringsForAllAdmins({
+          afterUserId: resumeCursor,
+          budgetHeaders: req.headers,
+        }),
       (r) => ({
         itemsProcessed: r.evaluated,
         details: {

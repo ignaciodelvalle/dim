@@ -33,7 +33,7 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
   try {
     const stats = await withCronRun(
       CRON_NAME,
-      () => expireCaretakerGrantsAction(),
+      () => expireCaretakerGrantsAction({ budgetHeaders: req.headers }),
       (s) => ({
         // "Items processed" is the union of what the three passes actually
         // changed. Counting only one pass would let a run that ended twenty

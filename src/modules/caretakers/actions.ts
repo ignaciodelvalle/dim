@@ -25,6 +25,7 @@
 
 import { auditLog, db } from "@/db";
 import { requireUserOrRedirect } from "@/lib/infra/auth-guards";
+import { effectiveDeadlineMs } from "@/lib/infra/cron-dispatcher";
 import { createNotificationsBulk } from "@/lib/infra/notification-service";
 import { requireTitularAccess } from "@/lib/infra/pet-access";
 import { resolveSiteUrl } from "@/lib/infra/site-url";
@@ -364,8 +365,20 @@ const EXPIRE_MAX_ITERATIONS = 50;
 
 /** System action called by the cron route. Throws on fatal error (cron logs it). */
 // @no-auth-required: cron/system path — auth enforced at the /api/cron/expire-caretaker-grants route via authorizeCronRequest (CRON_SECRET).
-export async function expireCaretakerGrantsAction(): Promise<ExpireCaretakerGrantsActionStats> {
+export async function expireCaretakerGrantsAction(opts?: {
+  /**
+   * The daily dispatcher's fair share, when this runs inside the fleet
+   * (RN #9 half b): the deadline becomes min(own ceiling, share handed down)
+   * so a late start cannot push the shared function past its 60 s hard kill.
+   * Absent (a manual curl, Vercel hitting the route directly) the constant is
+   * all there is, unchanged.
+   */
+  budgetHeaders?: { get(name: string): string | null };
+}): Promise<ExpireCaretakerGrantsActionStats> {
   const start = Date.now();
+  const maxDurationMs = opts?.budgetHeaders
+    ? effectiveDeadlineMs(EXPIRE_MAX_DURATION_MS, opts.budgetHeaders)
+    : EXPIRE_MAX_DURATION_MS;
   const total: ExpireCaretakerGrantsActionStats = {
     invitationsExpired: 0,
     grantsEnded: 0,
@@ -375,7 +388,7 @@ export async function expireCaretakerGrantsAction(): Promise<ExpireCaretakerGran
   let iterations = 0;
 
   for (;;) {
-    if (iterations >= EXPIRE_MAX_ITERATIONS || Date.now() - start >= EXPIRE_MAX_DURATION_MS) {
+    if (iterations >= EXPIRE_MAX_ITERATIONS || Date.now() - start >= maxDurationMs) {
       break;
     }
 

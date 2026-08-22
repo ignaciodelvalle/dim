@@ -30,11 +30,22 @@ export type ExpireStats = {
 // Use-case
 // ---------------------------------------------------------------------------
 
-export async function expireFosterProposals(deps: Deps): Promise<UseCaseResult<ExpireStats>> {
+export async function expireFosterProposals(
+  deps: Deps,
+  opts?: {
+    /**
+     * The daily dispatcher's fair share, forwarded to the repo sweep so its
+     * 45 s ceiling becomes min(own, handed down) — RN #9 half b.
+     */
+    budgetHeaders?: { get(name: string): string | null };
+  },
+): Promise<UseCaseResult<ExpireStats>> {
   const { repo } = deps;
 
   try {
-    const stats = await repo.expirePendingProposals(new Date());
+    const stats = await repo.expirePendingProposals(new Date(), {
+      budgetHeaders: opts?.budgetHeaders,
+    });
     return { ok: true, value: stats, notifications: [] };
   } catch (err) {
     return {

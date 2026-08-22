@@ -22,6 +22,7 @@ import {
 import type { CoverageArea } from "@/lib/domain/org-coverage";
 import { validateEventPayload } from "@/lib/events/event-schemas";
 import { closeCase, findOpenCaseForPetAndKind, openCase } from "@/lib/infra/case-helpers";
+import { effectiveDeadlineMs } from "@/lib/infra/cron-dispatcher";
 
 import { insertConvertFosterToOwner } from "./foster-convert-to-owner-writer";
 
@@ -550,10 +551,22 @@ export const FosterRepository = {
    */
   async expirePendingProposals(
     now: Date,
-    opts?: { batchSize?: number; maxDurationMs?: number },
+    opts?: {
+      batchSize?: number;
+      maxDurationMs?: number;
+      /**
+       * The daily dispatcher's fair share (RN #9 half b): the deadline becomes
+       * min(own ceiling, share handed down), so a late start cannot push the
+       * shared function past its 60 s hard kill. Absent, the constant stands.
+       */
+      budgetHeaders?: { get(name: string): string | null };
+    },
   ): Promise<ExpireStats> {
     const batchSize = opts?.batchSize ?? EXPIRE_PROPOSALS_BATCH_SIZE;
-    const maxDurationMs = opts?.maxDurationMs ?? EXPIRE_PROPOSALS_MAX_DURATION_MS;
+    const ownCeilingMs = opts?.maxDurationMs ?? EXPIRE_PROPOSALS_MAX_DURATION_MS;
+    const maxDurationMs = opts?.budgetHeaders
+      ? effectiveDeadlineMs(ownCeilingMs, opts.budgetHeaders)
+      : ownCeilingMs;
     const startedAt = Date.now();
 
     let candidateCount = 0;

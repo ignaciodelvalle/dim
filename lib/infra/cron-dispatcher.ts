@@ -157,6 +157,20 @@ export interface CronJobCeiling {
  * The census that produced it (RN #9): 22 of 23 jobs kept their own 20-45 s
  * ceiling while only data_lifecycle read the dispatcher's header. Ten of them
  * carried a full 45 s — inside a 55 s shared budget, in a 60 s function.
+ *
+ * CORRECTED 2026-08-22 (fresh-context review): the first version of this table
+ * said "14 jobs" and listed 14. It was produced by a sweep that read only
+ * app/api/cron/<dir>/route.ts, so it saw none of the six jobs whose ceiling
+ * lives in a module the route imports — five of them TWO hops away. Those six
+ * were therefore unknown to reservedCeilingMs (which returns 0 for an unknown
+ * job by design), so the dispatcher happily started, say,
+ * expire_caretaker_grants at elapsed 54 s; the job then ran its own 45 s clock
+ * for a 99 s total and the function was SIGKILLed at 60 s, stranding the
+ * cron_daily row at 'running' forever. That is verbatim the scenario the
+ * ceiling work claimed to have eliminated. The real count is 20; the parity
+ * fence now follows the route's imports two hops so the majority pattern is
+ * visible to it, and every daily job must be either in this table or in the
+ * fence's explicit CEILING_EXEMPT list.
  */
 export const CRON_JOB_CEILINGS: Readonly<Record<string, CronJobCeiling>> = {
   // --- ceiling declared in the route file itself ---
@@ -231,6 +245,39 @@ export const CRON_JOB_CEILINGS: Readonly<Record<string, CronJobCeiling>> = {
     ceilingMs: 45_000,
     honoursBudget: true,
     declaredIn: "lib/infra/case-cron.ts",
+  },
+  expire_decomiso_handoffs: {
+    ceilingMs: 45_000,
+    honoursBudget: true,
+    declaredIn: "lib/infra/case-cron.ts",
+  },
+  // --- ceiling declared in the module action the route calls (the six the
+  //     route-only census could not see; five of them two imports away) ---
+  materialize_slots: {
+    ceilingMs: 45_000,
+    honoursBudget: true,
+    declaredIn:
+      "src/modules/service-offerings/application/slot-materialization/materialize-slots.ts",
+  },
+  evaluate_alerts: {
+    ceilingMs: 45_000,
+    honoursBudget: true,
+    declaredIn: "src/modules/alerts/application/firings/record-firings.ts",
+  },
+  expire_caretaker_grants: {
+    ceilingMs: 45_000,
+    honoursBudget: true,
+    declaredIn: "src/modules/caretakers/actions.ts",
+  },
+  expire_pet_transfers: {
+    ceilingMs: 45_000,
+    honoursBudget: true,
+    declaredIn: "src/modules/transfers/actions.ts",
+  },
+  expire_foster_proposals: {
+    ceilingMs: 45_000,
+    honoursBudget: true,
+    declaredIn: "src/modules/foster/infrastructure/foster-repository.ts",
   },
 };
 

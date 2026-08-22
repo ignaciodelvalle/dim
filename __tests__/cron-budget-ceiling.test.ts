@@ -25,7 +25,7 @@
 //       for any route that declares a ceiling without reading the header.
 
 import { existsSync, readFileSync, readdirSync } from "node:fs";
-import { join } from "node:path";
+import { dirname, join, resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 
 import {
@@ -69,6 +69,138 @@ const CEILING_CONSTANT = /(?:^|\n)\s*(?:export\s+)?const\s+[A-Z0-9_]*MAX_DURATIO
 
 // Proof that a module derives its deadline from the run instead of a constant.
 const READS_THE_BUDGET = /effectiveDeadlineMs|cronBudgetFromHeaders|budgetHeaders/;
+
+// A first-party import: `import { x } from "@/lib/…"` or a relative path.
+// Package imports are not followed — a ceiling we must reserve for is ours.
+const IMPORT_SPEC = /(?:^|\n)\s*import\s[^;]*?from\s*["']([^"']+)["']/g;
+
+/**
+ * Why the sweep follows imports (fresh-context review, 2026-08-22): the first
+ * version of this fence scanned ONLY app/api/cron/<dir>/route.ts for the
+ * ceiling constant. That is the MINORITY pattern — 15 of the 20 ceiling-bearing
+ * jobs declare theirs in a helper the route calls, five of them two hops away
+ * (expire-foster-proposals/route.ts -> foster/actions.ts ->
+ * foster-repository.ts). So the sweep certified a table that was missing six
+ * jobs, and both non-vacuity floors passed anyway. Depth 2 is what it takes to
+ * reach every declaring module in the fleet today; it is also the depth at
+ * which the walk still visits <= ~25 files per route.
+ */
+const IMPORT_DEPTH = 2;
+
+/**
+ * Modules whose ceiling constant binds only a caller that opts into it.
+ *
+ * lib/infra/case-cron.ts declares DEFAULT_MAX_DURATION_MS, but only
+ * runCaseCron() enforces it. A route that imports the module for withCronRun()
+ * / readLastRunDetail() (which record a run, they do not bound it) is NOT
+ * bounded by that constant — counting it there would flag jobs that have no
+ * wall-clock ceiling at all and push them into the exempt list for the wrong
+ * reason.
+ */
+const CONDITIONAL_CEILING_SOURCES: Readonly<Record<string, RegExp>> = {
+  "lib/infra/case-cron.ts": /\brunCaseCron\s*[(<]/,
+};
+
+/**
+ * Daily jobs with NO wall-clock ceiling for the dispatcher to reserve, and why.
+ *
+ * Shrink-only by intent: the test below asserts each of these reaches ZERO
+ * ceiling-declaring modules, so adding a wall-clock deadline to one of them
+ * turns this list RED instead of letting the job quietly inherit an exemption
+ * it no longer deserves.
+ */
+const CEILING_EXEMPT: Readonly<Record<string, string>> = {
+  cron_health:
+    "reads yesterday's cron_runs with per-query .limit(1); no loop, no wall-clock deadline",
+  close_rabies_observations:
+    "keyset page + resume cursor (afterId) bounds the work by ROWS; withCronRun only records the run",
+  drain_notification_dead_letter: "bounded by BATCH_SIZE = 200 rows per invocation, not by clock",
+};
+
+const srcCache = new Map<string, string>();
+function cachedSource(absPath: string): string {
+  let src = srcCache.get(absPath);
+  if (src === undefined) {
+    src = readFileSync(absPath, "utf8");
+    srcCache.set(absPath, src);
+  }
+  return src;
+}
+
+/** Resolves a first-party import specifier to a file on disk, or null. */
+function resolveImport(spec: string, fromFile: string): string | null {
+  let base: string;
+  if (spec.startsWith("@/")) base = join(ROOT, spec.slice(2));
+  else if (spec.startsWith(".")) base = resolve(dirname(fromFile), spec);
+  else return null;
+  for (const candidate of [
+    `${base}.ts`,
+    `${base}.tsx`,
+    join(base, "index.ts"),
+    join(base, "index.tsx"),
+  ]) {
+    if (existsSync(candidate)) return candidate;
+  }
+  return null;
+}
+
+/** Repo-relative, forward-slashed — matches how CRON_JOB_CEILINGS.declaredIn is written. */
+function relPath(absPath: string): string {
+  return absPath.slice(ROOT.length + 1).replace(/\\/g, "/");
+}
+
+/**
+ * Every ceiling-declaring module reachable from a cron route within
+ * IMPORT_DEPTH hops of first-party imports, conditional sources filtered by
+ * whether the route actually calls the enforcing helper.
+ */
+function reachableCeilingModules(routeFile: string): string[] {
+  const routeSrc = cachedSource(routeFile);
+  const seen = new Set<string>([routeFile]);
+  let frontier = [routeFile];
+  const hits = new Set<string>();
+
+  for (let depth = 0; depth <= IMPORT_DEPTH; depth++) {
+    const next: string[] = [];
+    for (const file of frontier) {
+      const src = cachedSource(file);
+      if (CEILING_CONSTANT.test(src)) {
+        const rel = relPath(file);
+        const conditional = CONDITIONAL_CEILING_SOURCES[rel];
+        if (!conditional || conditional.test(routeSrc)) hits.add(rel);
+      }
+      if (depth === IMPORT_DEPTH) continue;
+      IMPORT_SPEC.lastIndex = 0;
+      let match = IMPORT_SPEC.exec(src);
+      while (match !== null) {
+        const resolved = resolveImport(match[1], file);
+        if (resolved !== null && !seen.has(resolved)) {
+          seen.add(resolved);
+          next.push(resolved);
+        }
+        match = IMPORT_SPEC.exec(src);
+      }
+    }
+    frontier = next;
+  }
+  return [...hits].sort();
+}
+
+/** Every budgeted cron job on disk, with the ceiling modules it can reach. */
+function sweepFleet(): { job: string; routeFile: string; ceilings: string[] }[] {
+  const fleet: { job: string; routeFile: string; ceilings: string[] }[] = [];
+  for (const entry of readdirSync(CRON_DIR, { withFileTypes: true })) {
+    if (!entry.isDirectory() || NOT_A_BUDGETED_JOB.has(entry.name)) continue;
+    const routeFile = join(CRON_DIR, entry.name, "route.ts");
+    if (!existsSync(routeFile)) continue;
+    fleet.push({
+      job: entry.name.replace(/-/g, "_"),
+      routeFile,
+      ceilings: reachableCeilingModules(routeFile),
+    });
+  }
+  return fleet;
+}
 
 describe("cron budget — (a) the ceiling is declared, so a starve is a skip and not a kill", () => {
   it("ONE uncooperative ceiling-hitter at position 5 no longer pushes the fleet past the 60s hard kill", async () => {
@@ -211,43 +343,185 @@ describe("cron budget — (b) min(own ceiling, budget handed down)", () => {
       if (!CEILING_CONSTANT.test(declaringSrc)) {
         offenders.push(`${name}: no ceiling constant found in ${declared.declaredIn}`);
       }
+
+      // …and that module must be one the ROUTE can actually reach. A ceiling
+      // constant sitting in an unrelated file satisfies the check above while
+      // telling the reader nothing true about this job.
+      const reachable = reachableCeilingModules(routeFile);
+      if (!reachable.includes(declared.declaredIn)) {
+        offenders.push(
+          `${name}: declaredIn ${declared.declaredIn} is not reachable from ${routeDirOf(name)}/route.ts (reaches: ${reachable.join(", ") || "nothing"})`,
+        );
+      }
     }
 
     expect(offenders).toEqual([]);
   });
 
-  it("PARITY: a cron route that declares its own ceiling constant must appear in CRON_JOB_CEILINGS", () => {
+  it("PARITY: a cron job that can REACH a ceiling constant must appear in CRON_JOB_CEILINGS", () => {
+    const fleet = sweepFleet();
     const undeclared: string[] = [];
-    let scanned = 0;
 
-    for (const entry of readdirSync(CRON_DIR, { withFileTypes: true })) {
-      if (!entry.isDirectory() || NOT_A_BUDGETED_JOB.has(entry.name)) continue;
-      const routeFile = join(CRON_DIR, entry.name, "route.ts");
-      if (!existsSync(routeFile)) continue;
-      scanned += 1;
-
-      const src = readFileSync(routeFile, "utf8");
-      if (!CEILING_CONSTANT.test(src)) continue;
-
-      const jobName = entry.name.replace(/-/g, "_");
-      if (!CRON_JOB_CEILINGS[jobName]) {
+    for (const { job, ceilings } of fleet) {
+      if (ceilings.length === 0) continue;
+      if (CRON_JOB_CEILINGS[job]) continue;
+      if (CEILING_EXEMPT[job]) {
         undeclared.push(
-          `${entry.name}/route.ts declares a ceiling but is missing from CRON_JOB_CEILINGS`,
+          `${job}: exempt from CRON_JOB_CEILINGS but reaches a ceiling in ${ceilings.join(", ")} — the exemption is stale`,
         );
+        continue;
       }
+      undeclared.push(
+        `${job}: reaches a ceiling in ${ceilings.join(", ")} but is not in the table`,
+      );
     }
 
     expect(undeclared).toEqual([]);
-    // Non-vacuity floor: the sweep must actually have seen the fleet.
-    expect(scanned).toBeGreaterThanOrEqual(20);
+    // Non-vacuity floors: the sweep saw the fleet, AND it actually followed
+    // imports — a route-only sweep finds 5 declaring modules, not 15.
+    expect(fleet.length).toBeGreaterThanOrEqual(20);
+    const viaHelper = fleet.filter(
+      ({ routeFile, ceilings }) =>
+        ceilings.length > 0 && !CEILING_CONSTANT.test(cachedSource(routeFile)),
+    );
+    expect(viaHelper.length).toBeGreaterThanOrEqual(15);
+  });
+
+  it("an exempt job reaches NO ceiling at all — the exemption is pinned, not a name on a list", () => {
+    const fleet = sweepFleet();
+    const byJob = new Map(fleet.map((f) => [f.job, f]));
+
+    for (const [job, reason] of Object.entries(CEILING_EXEMPT)) {
+      const found = byJob.get(job);
+      expect(found, `${job}: exempt but has no route on disk`).toBeDefined();
+      expect(found?.ceilings, `${job} is exempt because ${reason}`).toEqual([]);
+      // An exemption is only meaningful for a job the dispatcher actually runs.
+      expect(DAILY_JOB_ORDER).toContain(job);
+      // And it must not ALSO claim a ceiling.
+      expect(CRON_JOB_CEILINGS[job]).toBeUndefined();
+    }
+  });
+
+  it("every job the dispatcher runs is either ceilinged or explicitly exempt", () => {
+    const unclassified = DAILY_JOB_ORDER.filter(
+      (name) => !CRON_JOB_CEILINGS[name] && !CEILING_EXEMPT[name],
+    );
+    expect(unclassified).toEqual([]);
   });
 
   it("the ceiling table covers the whole ceiling-bearing fleet and only real jobs", () => {
-    // Non-vacuity floor: 14 jobs carry a self-imposed ceiling today. If this
-    // drops, someone deleted a row instead of fixing a job.
-    expect(Object.keys(CRON_JOB_CEILINGS).length).toBeGreaterThanOrEqual(14);
+    // Non-vacuity floor: 20 jobs carry a self-imposed ceiling today (the first
+    // census said 14 — it scanned only route files and missed every job whose
+    // ceiling lives two imports away). If this drops, someone deleted a row
+    // instead of fixing a job.
+    expect(Object.keys(CRON_JOB_CEILINGS).length).toBeGreaterThanOrEqual(20);
     for (const name of Object.keys(CRON_JOB_CEILINGS)) {
       expect(DAILY_JOB_ORDER).toContain(name);
     }
+  });
+});
+
+describe("cron budget — the scenario the census missed", () => {
+  // THE INVARIANT, stated once over the whole fleet. A job that burns a
+  // self-imposed constant regardless of what it is handed is safe only if the
+  // dispatcher RESERVES that constant before starting it. A job that derives
+  // its deadline from the header is safe because what it is handed is by
+  // construction never more than what is left. Everything else is a SIGKILL
+  // waiting for a backlogged night.
+  //
+  // Before the 2026-08-22 correction, six jobs were in NEITHER state:
+  // materialize_slots, evaluate_alerts, expire_caretaker_grants,
+  // expire_pet_transfers, expire_foster_proposals and expire_decomiso_handoffs
+  // each burned 45 s while absent from CRON_JOB_CEILINGS, so reservedCeilingMs
+  // returned 0 and the dispatcher started them on any positive remainder — at
+  // elapsed 54 s that is a 99 s run inside a 60 s function.
+  it("every daily job is either reserved by the dispatcher or honours the header", () => {
+    const unsafe: string[] = [];
+
+    for (const job of DAILY_JOB_ORDER) {
+      if (CEILING_EXEMPT[job]) continue;
+      if (reservedCeilingMs(job) > 0) continue; // the dispatcher reserves for it
+      const routeFile = join(CRON_DIR, routeDirOf(job), "route.ts");
+      if (existsSync(routeFile) && READS_THE_BUDGET.test(cachedSource(routeFile))) continue;
+      unsafe.push(
+        `${job}: burns a self-imposed ceiling, the dispatcher reserves nothing for it, and its route never reads ${CRON_BUDGET_HEADER}`,
+      );
+    }
+
+    expect(unsafe).toEqual([]);
+  });
+
+  // Half (a) of the fix — the reservation — is DORMANT today: every row in
+  // CRON_JOB_CEILINGS now honours the header, so reservedCeilingMs returns 0
+  // for all of them and the only live delta is `remaining <= 0`. It is kept as
+  // the safety net for the next job that declares a ceiling without reading
+  // the header, so it is exercised here against a synthetic one rather than
+  // against a real row that would make the test vacuous.
+  it("SAFETY NET: a non-honouring job is skipped cleanly instead of crossing the hard kill", async () => {
+    const OWN_CEILING_MS = 45_000;
+    let clock = 0;
+    const now = () => clock;
+    const started: string[] = [];
+
+    const jobs: DispatchJob[] = [
+      {
+        name: "everything_before",
+        ceilingMs: 0,
+        run: async () => {
+          clock += 54_000;
+          return { status: 200 };
+        },
+      },
+      {
+        name: "declares_a_ceiling_and_ignores_the_header",
+        // What reservedCeilingMs would return for a honoursBudget:false row.
+        ceilingMs: OWN_CEILING_MS,
+        run: async () => {
+          started.push("late");
+          clock += OWN_CEILING_MS; // ignores ctx entirely
+          return { status: 200 };
+        },
+      },
+    ];
+
+    const result = await dispatchJobs(jobs, { budgetMs: BUDGET_MS, now });
+
+    expect(started).toEqual([]);
+    expect(result.outcomes[1]?.status).toBe("skipped_budget");
+    expect(clock).toBeLessThanOrEqual(HARD_KILL_MS);
+  });
+
+  it("without the reservation the same job runs 99s inside a 60s function", async () => {
+    // The counterfactual, pinned so the reservation cannot be quietly removed:
+    // ceilingMs 0 is what an UNKNOWN job gets, and it is what the six missing
+    // jobs got before the table was completed.
+    const OWN_CEILING_MS = 45_000;
+    let clock = 0;
+    const now = () => clock;
+
+    const jobs: DispatchJob[] = [
+      {
+        name: "everything_before",
+        ceilingMs: 0,
+        run: async () => {
+          clock += 54_000;
+          return { status: 200 };
+        },
+      },
+      {
+        name: "unknown_to_the_table",
+        ceilingMs: reservedCeilingMs("a_job_nobody_declared"),
+        run: async () => {
+          clock += OWN_CEILING_MS;
+          return { status: 200 };
+        },
+      },
+    ];
+
+    await dispatchJobs(jobs, { budgetMs: BUDGET_MS, now });
+
+    expect(reservedCeilingMs("a_job_nobody_declared")).toBe(0);
+    expect(clock).toBe(99_000);
+    expect(clock).toBeGreaterThan(HARD_KILL_MS);
   });
 });
