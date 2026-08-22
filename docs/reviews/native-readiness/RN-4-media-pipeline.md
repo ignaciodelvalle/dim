@@ -4,6 +4,20 @@
 > Builds on RN-1/2/3 (not repeated). ⚠️ Contains LIVE security findings that
 > exist today independent of native — see A2/B2.
 
+> **Status re-run 2026-08-22 (HEAD d0fe0fad + the 2026-08-22 follow-ups)**
+>
+> | Finding / improvement | Status | Evidence |
+> |---|---|---|
+> | A1 (new nuance) — is EVERY attachment private? | CORRECTED | the lost-mode identification "tattoo photo" (`lostTattooPhotoUrl`) is NOT behind a signed URL like the other attachments this finding lists — it resolves through `petPhotoUrl()` against the PUBLIC `pet-photos` bucket, and `GET /api/v1/pets/{token}/credential` already emits it (`payload.ts:254`, sourced from `load-public-credential.ts:427`). The rest of A1 (vaccine cards, vet receipts, adoption contracts, found-pet photos all behind an RSC-minted signed URL) is unchanged. |
+> | A10 — no rate limit on any upload path | PARTIAL | `/encontre`'s anonymous photo upload is now rate-limited 1/min + 10/hr (`8d965760`, keyed by IP+token, `app/(public)/p/[publicToken]/encontre/action.ts:162-163`); authenticated upload paths (events, atender, tattoo, adoption, checkin) remain unlimited |
+> | Improvement 4 reference impl | CORRECTED | the `wasNoop` cleanup pattern this improvement points to lives in `app/actions/tattoo.ts:~122` (the `if (result.wasNoop) { await cleanupAttachment(...) }` block), not `pets/actions.ts` as originally cited |
+> | `org-logos` bucket | still true | `org-logos` is read by `lib/infra/storage.ts` but created by no migration — only prose in a runbook. Confirmed still the case; no DB migration creates it. |
+>
+> Everything else in this review (A2-A9, A11, the ⚠️ PO flag) is unchanged as
+> of this re-run — no commit in the 2026-08-19→2026-08-22 window touched the
+> blanket `bucket_id`-only INSERT grants, the `avatars` bucket, intake/bite
+> media, EXIF stripping, or storage GC.
+
 ## Findings (ranked)
 
 ### A1 — BLOCKER: no non-browser client can READ a private attachment
@@ -11,9 +25,17 @@ Every private-bucket signed URL is minted INSIDE an RSC page body
 (eventAttachmentSignedUrl / welfareAttachmentSignedUrl in lib/infra/storage.ts,
 consumed only by pages/use-cases). All 33 route handlers: zero return a signed
 URL or storage path. So a native app can show a pet's PUBLIC primary photo but
-NOT a single vaccine card, vet receipt, tattoo photo, adoption contract, or
-found-pet photo. The libreta — the flagship artifact — is half-blind on
-native. The media twin of RN-1's "reads ~0% wrappable", and worse.
+NOT a single vaccine card, vet receipt, ~~tattoo photo~~, adoption contract, or
+found-pet photo. **Correction (2026-08-22): the tattoo photo is the one
+exception, and it is now emitted.** The lost-mode identification photo of a
+tattoo (`lostTattooPhotoUrl`) is NOT a private-bucket signed URL like the
+others in this list — it resolves through `petPhotoUrl()` against the PUBLIC
+`pet-photos` bucket (same pattern as the primary photo), and
+`GET /api/v1/pets/{token}/credential` already emits it
+(`payload.ts:254`). The rest of the finding stands: vaccine cards, vet
+receipts, adoption contracts and found-pet photos are still unreadable off
+native. The libreta — the flagship artifact — is still half-blind on native.
+The media twin of RN-1's "reads ~0% wrappable", and worse.
 
 ### A2 — ⚠️ LIVE HOLE: a browser-direct, fully-unprotected upload path already exists
 `lib/ui/use-evidence-upload.ts:86` uploads straight from the browser to the
@@ -87,7 +109,10 @@ petPhotoUrl/orgLogoUrl are pure string builders — usable from native unchanged
 But no upload sets cacheControl (default 1h; keys are immutable UUIDs, so
 `31536000, immutable` is free); image transformation is commented out in
 config.toml (phone uploads 5MB, list re-downloads 5MB); MPF export signed URLs
-live 7 days; no rate limit on any upload path.
+live 7 days; ~~no rate limit on any upload path~~ **PARTIALLY FIXED**:
+`/encontre`'s anonymous photo upload is rate-limited 1/min + 10/hr since
+`8d965760` (2026-08-21); authenticated upload paths (events, atender, tattoo,
+adoption, checkin) remain unlimited.
 
 ### A11 — GOOD NEWS: the offline capture model is already viable
 `attachments` XOR check explicitly permits zero parents (documented as a valid
@@ -112,8 +137,8 @@ validation and endpoint not.**
    three call sites. First step (5 lines, immediate): make
    uploadRevocationEvidence reject any storagePath it didn't itself mint.
 4. **Surface wasNoop and clean up on it** (RN-1 B6's storage half). Reference
-   impl already in pets/actions.ts. Stops silently accumulating orphans on
-   every double-tap.
+   impl already in `app/actions/tattoo.ts:~122` [corrected — was cited as
+   pets/actions.ts]. Stops silently accumulating orphans on every double-tap.
 5. **Make EXIF stripping the DEFAULT, extend to HEIC.** Invert the opt-in at
    uploads.ts; add HEIC/HEIF to welfare-uploads (the format that currently
    keeps its GPS). Live PII leak fix for web today.

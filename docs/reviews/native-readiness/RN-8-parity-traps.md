@@ -5,6 +5,20 @@
 > native — those get noticed. They are the flows that DIVERGE QUIETLY because
 > the web mechanism has a plausible-looking default.
 
+> **Status re-run 2026-08-22 (HEAD d0fe0fad + the 2026-08-22 follow-ups)**
+>
+> | Finding / improvement | Status | Evidence |
+> |---|---|---|
+> | F1 — middleware-stamped headers resolve to plausible wrong defaults | PARTIAL (half fenced) | `scripts/check-api-guard-headers.ts` (`pnpm lint:api-headers`) now covers `x-portal-base`, `x-full-path`, `x-pathname` — the Vercel geo headers (`ipAreaFromHeaders`) are NOT covered by that fence and remain a silent-default trap |
+> | F2 — denuncia after() timing oracle / improvement 5 | DONE | codified in `docs/architecture/api-invariants.md` §1.3 as "the model" for a response-equality test, with `__tests__/denuncia-access-timing-oracle.test.ts` cited as the reference shape |
+> | F5 — maintenance/erasure/demo gates enforced only in layouts | PARTIAL | moved into `requireLiveUser()` for the flows RN-2 F4 named; the ORG capability-guard hole (`requireCapability`/`requireCapabilityForOrgToken` not checking liveness before an org write) was closed 2026-08-22 (`4a2f72ad`) — but that fix is scoped to org-capability writes, not every layout-gated surface this finding lists (demo banner, identityPending banner, offline banner remain layout-only) |
+> | F6 — RSC streaming degraded-reveal is invisible resilience / improvement 6 | DONE | `GET /api/v1/pets/{token}/credential` ships the per-section `CredentialSection<T>` degraded contract (api-invariants.md §5, §10) |
+> | F7 — /_next/image hides the real storage URL | corrected, still a live gap | the WEB page still renders through `/_next/image`; the NEW `/api/v1` credential JSON returns the direct `pet-photos` storage URL (`petPhotoUrl()`, no `/_next/image` indirection) — so this specific finding is now split: fixed for the JSON consumer, unchanged for the web page |
+> | Improvement 7 — standardize on redirectTo-as-data | PARTIAL | `scripts/check-action-redirect.ts` (`pnpm lint:action-redirect`) fences it; baseline (`scripts/action-redirect-baseline.json`) is down to **4 files / 6 calls** (`start-apply-intent.ts` ×2, `logout.ts` ×2, `delete-vaccine-reminder.ts` ×1, `claim-stub-profile.ts` ×1) |
+> | F8 — no CORS anywhere / improvement 8 | decided, unimplemented | PO decision #2 (CORS + bearer API) is taken; `docs/architecture/api-invariants.md` §9 states explicitly that no `/api/v1` route sets `Access-Control-*` headers or accepts a bearer token yet |
+>
+> F3, F4, F9 and improvements 1-4 are unchanged as of this re-run.
+
 ## Organizing principle
 
 A native client is not "a browser without a screen." It structurally lacks:

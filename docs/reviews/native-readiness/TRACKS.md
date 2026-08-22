@@ -10,6 +10,21 @@
 > concrete change). Where the gap between Today and Target is larger than the
 > ticket implies, it says so.
 
+> **Status re-run 2026-08-22 (HEAD d0fe0fad + the 2026-08-22 follow-ups)**
+>
+> | Item | Status | Evidence |
+> |---|---|---|
+> | Track 0 — B17 | shipped, scope note | the daily overdue-vaccine re-issue no longer pushes at 01:00 ART — that is the ONE re-emit path it fixes, not quiet-hours/preferences generally (RN-3 F5) |
+> | Track 1, T1.1 — `packages/contract/` | mostly DONE | workspace + `@dim/contract` package exist and are wired (see T1.1 note below); the design-token codemod (step 4 / B46) is still not started — tokens remain ~35% covered |
+> | Track 1, T1.2 — `requireLiveUser()` + bearer | shipped in parts | `requireLiveUser()` is live at six+ write boundaries; `lib/supabase/bearer.ts` `createClientFromBearer` exists (zero non-test callers); maintenance/erasure moved into the guard for org-capability writes only (`4a2f72ad`, 2026-08-22) |
+> | Track 2 — the two flagship reads | **COMPLETE (2026-08-21)** | all five Work items (1, 1b, 2, 3, 4, 5) landed — see the Track 2 section below |
+> | :307 `db/schema.ts:1580` (push_subscriptions) | corrected | now `db/schema.ts:1655` |
+> | :311 "134-row" notification type registry | corrected | ~149 distinct `notificationType` literals as of 2026-08-22 (range ~146-153 depending on corpus); the registry itself is still NOT built |
+> | :318 "12 legacy call sites" bypass createNotification* | corrected | **67 files / 78 call sites** as of 2026-08-22 (baseline: `scripts/notifications-service-baseline.json`, 64 entries excluding the service file); **11** of those also hand-call `sendPushForNotifications` directly |
+> | :354 "`/api/v1/uploads` first" framing | now stale | `/api/v1/uploads` was NOT the first `/api/v1` endpoint — `GET /api/v1/pets/{token}/credential` landed first (`713e4416`, 2026-08-21), from Track 2 |
+> | :449 "the extraction has not been attempted" | now false | it was attempted and landed: the public credential page went from 1,452 → **1,035** lines (`app/(public)/p/[publicToken]/page.tsx`), with the loader and the four-way decision extracted into `src/modules/pets/application/read/` |
+> | Not in any track (new) | — | the cron dispatcher had no fair-share budget across jobs — fixed 2026-08-22 (`11f47611`, `x-cron-budget-ms`, `lib/infra/cron-dispatcher.ts`). Was never ticketed; landed as a side effect of the data-lifecycle work. |
+
 ## Contents
 
 - [Track 0 — shipped](#track-0--shipped-2026-08-19)
@@ -28,7 +43,7 @@
 | Ticket | Commit | What |
 |---|---|---|
 | RN-4 B24 | `f6efb1dd` | `revocations` bucket INSERT restricted to admin/govt — closed a live arbitrary-write vector |
-| RN-3 B17 | `1310813e` | daily overdue-vaccine re-issue no longer pushes — killed the 01:00 ART push |
+| RN-3 B17 | `1310813e` | daily overdue-vaccine re-issue no longer pushes — killed the 01:00 ART push (this ONE re-emit path only, not quiet-hours/preferences generally — RN-3 F5) |
 | RN-2 B10 | `35c1a3d4` | failed code exchange lands on `/recuperar` with a visible error, not an unread flag |
 
 Note on scope honesty: B24 closed the **`revocations`** bucket. The same
@@ -102,13 +117,14 @@ verified against `7363b419` before the move.
 
 ### T1.2 — `requireLiveUser()` + `createClientFromBearer` (B2 = B12 = RN-8 #2)
 
-**Today (verified).** Guards live in `lib/infra/auth-guards.ts` and
-`lib/infra/pet-access.ts`. `requirePetAccess` **already returns a result
-shape** — the template exists and is proven. But write boundaries call bare
-`getUser()`, and maintenance / erasure / deactivation enforcement lives in
-**layouts**. Authorization itself is 100% DB-resolved (zero `auth.jwt()` across
-276 RLS policies) — that property is the reason a bearer entry point is cheap,
-and it must be protected as an invariant, not quietly eroded.
+**Today (verified as of 2026-08-19).** Guards lived in `lib/infra/auth-guards.ts` and
+`lib/infra/pet-access.ts`. `requirePetAccess` **already returned a result
+shape** — the template existed and was proven. But write boundaries called bare
+`getUser()`, and maintenance / erasure / deactivation enforcement lived in
+**layouts**. Authorization itself was 100% DB-resolved (zero `auth.jwt()`
+across "276" RLS policies — that count is unverified, see RN-2's status block)
+— that property is the reason a bearer entry point is cheap, and it must be
+protected as an invariant, not quietly eroded.
 
 **Target.** One result-shaped guard —
 `{ ok: true, user } | { ok: false, reason: NO_SESSION | ACCOUNT_ERASED | MAINTENANCE | DEACTIVATED }`
@@ -117,19 +133,36 @@ arrived as a cookie or a bearer token. The redirecting variant becomes a thin
 wrapper over it.
 
 **Work.**
-1. Implement the guard; convert `requireUser()`'s redirect behaviour into a
-   wrapper.
-2. `createClientFromBearer(authorizationHeader)` — the Supabase client factory
-   for non-cookie callers.
-3. Migrate write boundaries off bare `getUser()`.
-4. Move maintenance/erasure/deactivation out of layouts into the guard (B52).
-5. Fitness test (B51): no guard on `/api/*` may read a middleware-stamped value
-   with a silent default.
+1. ~~Implement the guard; convert `requireUser()`'s redirect behaviour into a
+   wrapper.~~ **DONE** — `requireLiveUser()` (`lib/infra/live-user.ts`) is live
+   at `libreta-share.ts`, `microchip.ts`, `notifications.ts`, `reminders.ts`,
+   `tags.ts`, `upgrade.ts`, and more.
+2. ~~`createClientFromBearer(authorizationHeader)` — the Supabase client
+   factory for non-cookie callers.~~ **DONE, unwired** — `lib/supabase/bearer.ts`
+   exists but has zero non-test callers; nothing routes a bearer request
+   through it yet.
+3. **Migrate write boundaries off bare `getUser()`.** PARTIAL — the six
+   boundaries RN-2 F4 named are migrated; a shadowed local `requireUser()` in
+   `app/actions/notifications.ts` that let a bare-`getUser()` write count as
+   "guarded" was closed 2026-08-22 (`4a2f72ad`), and `check-authz-guards.ts`
+   now flags a guard name defined outside its home. Other bare-`getUser()`
+   call sites outside RN-2's named list have not been audited by this pass.
+4. **Move maintenance/erasure/deactivation out of layouts into the guard
+   (B52).** PARTIAL — `requireCapability`/`requireCapabilityForOrgToken` now
+   resolve `requireLiveUser` first, so a maintenance kill-switch or a
+   deactivated institutional account stops ORG-CAPABILITY writes (`4a2f72ad`,
+   2026-08-22). The demo banner, identityPending banner and offline banner are
+   still layout-only.
+5. ~~Fitness test (B51): no guard on `/api/*` may read a middleware-stamped
+   value with a silent default.~~ **DONE** — `scripts/check-api-guard-headers.ts`
+   (`pnpm lint:api-headers`), covering `x-portal-base`/`x-full-path`/
+   `x-pathname`; the Vercel geo headers are NOT covered (RN-8 F1).
 
-**Honest gap — this is a live web bug, not native prep.** Because the gates are
-layouts, a maintenance window today **does not stop in-flight writes**, and the
-erasure lockout has holes at write boundaries. Native readiness is the occasion;
-correctness is the reason.
+**Honest gap — this is a live web bug, not native prep.** Maintenance/erasure
+gates outside org-capability writes are still layout-only, so a maintenance
+window today still **does not stop those in-flight writes**, and the erasure
+lockout still has holes at write boundaries this pass didn't touch. Native
+readiness is the occasion; correctness is the reason.
 
 ### T1.3 — de-couple the application layer (B4 + B41 + B1)
 
@@ -219,15 +252,24 @@ the reason removing `server-only` was safe, so it is worth naming.
 **Goal:** the first `/api/v1` route, and the pattern every later read copies.
 Merge point for RN-1 B5 = RN-5 B33 = RN-6 #5 = RN-8 #6.
 
-**Today (verified).** `app/(public)/p/[publicToken]/page.tsx` is **1,423 lines**,
-`export const dynamic = "force-dynamic"` with `Cache-Control: no-store` — a
-deliberate, documented choice (the lost→found transition must never serve a
-stale "SE BUSCA" + owner phone). `credential-badges.ts` sits **inside the route
-folder**, so nothing else can reuse it. Across the Phase-1/2 surface, ~0% of the
-reads a native app needs are callable: the 45 existing route handlers are crons,
-CSV exports, panorama layers and auth callbacks — none serve the owner flow.
-The good news is real: the derivation layer is pure, tested and portable, and
-`/p/` is the most carefully built page in the repo.
+**Today (verified as of 2026-08-19; see the status block at the top of this
+document for what shipped since).** `app/(public)/p/[publicToken]/page.tsx` was
+**1,423 lines**, `export const dynamic = "force-dynamic"` with `Cache-Control:
+no-store` — a deliberate, documented choice (the lost→found transition must
+never serve a stale "SE BUSCA" + owner phone). `credential-badges.ts` sat
+**inside the route folder**, so nothing else could reuse it. Across the
+Phase-1/2 surface, ~0% of the reads a native app needed were callable: the 45
+existing route handlers were crons, CSV exports, panorama layers and auth
+callbacks — none served the owner flow. The good news was real: the derivation
+layer was pure, tested and portable, and `/p/` was the most carefully built
+page in the repo.
+
+**STATUS: COMPLETE (2026-08-21).** All five Work items below landed. The page
+is now **1,035 lines**; the loader and the four-way decision are extracted
+(items 1, 1b); `credential-badges.ts` moved to `lib/domain/credential-badges.ts`
+(item 2, RN-5 F11 — out of the route folder, not yet in `packages/contract`);
+the route handler and the client-side QR both shipped (items 3, 4, marked DONE
+below); `docs/architecture/api-invariants.md` was written (item 5).
 
 **Target.** `GET /api/v1/pets/{token}/credential` returning Tier-0 as JSON with
 `payloadVersion`, `issuedAt`, `staleAfter`, and a **per-section degraded
@@ -235,17 +277,21 @@ contract** — each section can report `unavailable` independently. The page
 becomes a thin renderer over the same loader (direct call, never a self-fetch).
 
 **Work.**
-1. Extract the loader to `src/modules/pets/application/read/load-public-credential.ts`.
+1. ~~Extract the loader to
+   `src/modules/pets/application/read/load-public-credential.ts`.~~ **DONE**
+   — `loadCredentialViewData` is exported there.
 
-1b. Extract the DECISION too — `lookupPublicCredential` (same folder) answers a
-   token with the four-way union `throttled | not_found | degraded | ok`, taking
-   the per-IP limiter as a port so the use-case stays free of `next/headers`.
-   This is the shared door: the page is a renderer over it, and the route
-   handler in step 3 sits on the SAME function rather than re-deriving the four
-   branches — which is how the JSON and the HTML start disagreeing about what
-   "degraded" means.
-2. Move `credential-badges.ts` → `lib/domain/credential/` (B34), which also
-   makes the WAVE D1 supersede contract reusable by cartel / OG / export.
+1b. ~~Extract the DECISION too — `lookupPublicCredential` (same folder)
+   answers a token with the four-way union `throttled | not_found | degraded
+   | ok`, taking the per-IP limiter as a port so the use-case stays free of
+   `next/headers`.~~ **DONE** — `lookup-public-credential.ts` is the shared
+   door; both the page and the `/api/v1` route sit on the SAME function
+   rather than re-deriving the four branches.
+2. ~~Move `credential-badges.ts` → `lib/domain/credential/` (B34), which also
+   makes the WAVE D1 supersede contract reusable by cartel / OG / export.~~
+   **PARTIAL** — moved to `lib/domain/credential-badges.ts` (`4c63dbb3`,
+   2026-08-21), a flat file rather than a `credential/` subfolder, and still
+   outside `packages/contract`.
 3. ~~Add the route handler over the loader.~~ **DONE 2026-08-21** —
    `app/api/v1/pets/[publicToken]/credential/route.ts`, sitting on
    `lookupPublicCredential` (never a self-fetch, never a second copy of the four
@@ -260,8 +306,10 @@ becomes a thin renderer over the same loader (direct call, never a self-fetch).
    `components/ui/CredentialQr.tsx` encodes it in the browser with
    `QRCode.create()`; the pet-profile hero and the onboarding aha screen no
    longer import `qrcode` nor inject SVG markup.
-5. Write `docs/architecture/api-invariants.md` (B8): the five anti-oracle
-   invariants as a testable checklist gating every `/api/v1` merge.
+5. ~~Write `docs/architecture/api-invariants.md` (B8): the five anti-oracle
+   invariants as a testable checklist gating every `/api/v1` merge.~~ **DONE**
+   — `docs/architecture/api-invariants.md`, actively maintained through
+   2026-08-22.
 
 **Honest gap.** This is the first `/api/v1` route, so it also has to establish
 the response envelope, the error vocabulary and the invariants doc. Budget that
@@ -274,8 +322,10 @@ JSON would present it as a **valid credential with no findings**. The
 per-section degraded contract is the mechanism that prevents that; it is the
 point of the ticket, not a refinement of it.
 
-**Track 2 estimate: 1–2 weeks.** Side effect: the two most-regressed screens in
-the repo become testable.
+**Track 2 estimate: 1–2 weeks.** ~~Side effect: the two most-regressed screens
+in the repo become testable.~~ **STATUS: COMPLETE (2026-08-21).** The public
+credential screen got its testable loader; the owner-profile screen (RN-1 B5's
+other half) did not — it is not in this track's scope.
 
 ---
 
@@ -304,7 +354,8 @@ happen.
 
 ### T3.2 — push (B16, B18, B19, B20, B21) — the biggest single lump
 
-**Today (verified).** `push_subscriptions` (`db/schema.ts:1580`) is keyed to a
+**Today (verified).** `push_subscriptions` (`db/schema.ts:1655` [was `:1580`])
+is keyed to a
 browser push endpoint and **cannot hold an FCM/APNs device token**. The provider
 seam itself is clean — adding an FCM sibling is an afternoon. Everything around
 it is not:
@@ -315,15 +366,18 @@ it is not:
   registers a service worker;
 - there are no preferences, no quiet hours, no `profiles.timezone`;
 - sends are inline on the request path, unretried and unobserved;
-- 12 legacy call sites bypass `createNotification*` entirely — zero idempotency
-  and zero dead-lettering on those.
+- **67 files / 78 call sites** [was "12 legacy call sites" — corrected
+  2026-08-22 against `scripts/notifications-service-baseline.json`, which has
+  64 entries once the service file itself is excluded] bypass
+  `createNotification*` entirely — zero idempotency and zero dead-lettering on
+  those; **11** of them also hand-call `sendPushForNotifications` directly.
 
 **Target.** `push_targets` (platform, device_id key, nullable token) with the
-promised stale-pruning cron; a 134-row notification type registry (severity,
-pushable, collapse key, opt-out group) driving `isPushable()`; the 12 legacy
-sites migrated onto `createNotification*` with real dedupe keys; sends moved off
-the request path onto the outbox-drainer backoff shape; a delivery record and an
-operator tile so "did it send?" is answerable.
+promised stale-pruning cron; a **~149-row** [was "134-row"] notification type
+registry (severity, pushable, collapse key, opt-out group) driving
+`isPushable()`; the legacy sites migrated onto `createNotification*` with real
+dedupe keys; sends moved off the request path onto the outbox-drainer backoff
+shape; a delivery record and an operator tile so "did it send?" is answerable.
 
 **Honest note.** This is where "just add FCM" becomes 3–4 weeks. It is 4–5
 discrete workstreams that happen to share a table. It is also **partly
@@ -354,7 +408,9 @@ the offline stage-then-claim contract is already implemented and tested.
 **Target.** `POST /api/v1/uploads` mints a signed ticket; validation moves to a
 post-upload verify step; nothing is claimed before it is verified; the server
 rejects any `storagePath` it did not mint. Land B24's remaining two buckets
-**with** this, not before.
+**with** this, not before. **Note (2026-08-22): this will NOT be the first
+`/api/v1` endpoint** — `GET /api/v1/pets/{token}/credential` (Track 2) landed
+first, 2026-08-21.
 
 **Honest note.** This also kills the 125MB-through-a-50MB-limit dead end and
 makes progress bars possible. Not scheduled here: EXIF/HEIC GPS stripping
@@ -416,6 +472,7 @@ complete coverage:
 | B42–B45 | Catalog version stamping, `*_LABELS` consolidation, locale keys, localities + jurisdiction-rules read APIs | The i18n leaks (40+ sites) are behind 19 known raw-enum bugs |
 | B48–B50 | The `.ln-*` CSS tokenization, the skin remap as JS descriptors, fonts/a11y constants | The two-thirds of the design system T1.1 does **not** cover |
 | B53–B55 | 409+confirmToken instead of hidden-field round-trips, codify denuncia timing-neutrality, redirectTo-as-data everywhere | B54 protects a live security property from a well-meaning native port |
+| — (new, FIXED) | Cron dispatcher had no fair-share budget across jobs — a job earlier in `/api/cron/daily`'s run order could exhaust the shared window and starve everything after it | **Fixed 2026-08-22** (`11f47611`) — never had a ticket number; landed as a side effect of the data-lifecycle purge work (`x-cron-budget-ms`, `lib/infra/cron-dispatcher.ts`). Listed here for the record, not because it's still open. |
 
 ## Sequencing and critical path
 
@@ -446,9 +503,13 @@ Stated plainly, for the reviewer to attack:
 
 1. **The 47-file burn-down is estimated, not measured.** No one has done three
    of them and multiplied. It could be half the estimate or double it.
-2. **T2 assumes the 1,423-line loader decomposes cleanly.** It has not been
-   attempted. If the page body holds interleaved authorization decisions rather
-   than pure reads, the extraction is a redesign, not a move.
+2. ~~**T2 assumes the 1,423-line loader decomposes cleanly.** It has not been
+   attempted.~~ **DONE, and it decomposed cleanly (2026-08-21):** the
+   extraction WAS attempted and landed — the page went from 1,452 → **1,035**
+   lines, with the loader (`loadCredentialViewData`) and the four-way decision
+   (`lookupPublicCredential`) both extracted into
+   `src/modules/pets/application/read/`, shared by the page and the new
+   `/api/v1` route. This item is no longer a weakness of the plan.
 3. **Track 3's push work is sized as one track but is five.** It is the item
    most likely to be under-estimated, and the only honest way to size it is to
    land `push_targets` first and re-forecast.

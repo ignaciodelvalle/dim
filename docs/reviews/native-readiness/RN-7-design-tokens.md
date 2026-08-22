@@ -3,35 +3,59 @@
 > Adversarial read-only review, 2026-08-19. Builds on RN-1..RN-6 (not repeated).
 > Verdict: **EXPENSIVE**.
 
+> **Status re-run 2026-08-22 (HEAD d0fe0fad + the 2026-08-22 follow-ups)**
+>
+> | Finding / improvement | Status | Evidence |
+> |---|---|---|
+> | Headline — "one file" (globals.css + ~4,400 lines of component CSS) | line refs corrected, no longer literally one file | `app/globals.css` (2,531 lines) was split from `app/landing.css` (`831e8cbf`, perf — the landing CSS no longer ships on every route). The asiento-card raw-px CSS F1 points at moved to `app/globals.css:~1948-2079` (was `globals.css:4270-4436` before the split). |
+> | :23 — 96% of font-size declarations ignore the scale | corrected to 65% | `scripts/design-tokens-css-baseline.json` records **34** font-size violations in `app/globals.css#core` against a denominator of 52 total font-size declarations = **65%** (34/52), not 96% — 96% was the 2026-07-31 figure before some cleanup landed |
+> | F2 — three skins (citizen / op-surface / situation-room) | two live | `[data-theme="situation-room"]` is retired (PO decision, 2026-07-11) — nothing in the app sets that attribute anymore (`PanoramaShell.tsx:158` says so explicitly); the CSS block still exists textually in `globals.css` but is unreachable dead code, not a live third skin |
+> | F4 — viz-scales.ts is exemplary, but its header lies about build-time resolution | DONE | moved into `packages/contract/src/viz/viz-scales.ts` unchanged, with tests (`76fa0d7e`) — the false header claim was corrected in the move (improvement 2) |
+> | F7 — Icon ICON_MAP has ~200 entries | corrected to ~150 | `components/Icon.tsx`'s `ICON_MAP` has exactly **150** entries as of 2026-08-22 |
+>
+> Also new since this review: a `--color-qr-ink` token was added to
+> `app/globals.css` (2026-08-22, alongside the QR-ink-token fix in the credential
+> flow) — one more literal in the extractable ~35% (F3).
+
 ## Headline
 
 There is **no tokens.ts, no tailwind.config** (Tailwind v4, CSS-first). The
 whole system is CSS custom properties in one @theme block (globals.css:25-468)
 plus **~4,400 lines of hand-authored `.ln-*`/`.lp-*`/`.op-*` component CSS**
-below it. The only importable-TS parts today: viz-scales.ts, pet-situation.ts,
-the Icon ICON_MAP, branding.ts. The naive "export the hex values" captures the
+below it — as of 2026-08-22 split across `app/globals.css` (2,531 lines) and
+`app/landing.css` (`831e8cbf`, landing-only rules no longer ship on every
+route). The only importable-TS parts today: viz-scales.ts (now
+`packages/contract/src/viz/viz-scales.ts`), pet-situation.ts, the Icon
+ICON_MAP, branding.ts. The naive "export the hex values" captures the
 palette and misses that **the identity is a CSS cascade, not a value table.**
 
 ## Findings (extractable / trapped-in-CSS / trapped-in-components)
 
 ### F1 — The credential/libreta LOOK is hand-written CSS with RAW px (trapped in CSS, highest cost)
 AsientoCard.tsx is a clean semantic component but renders only class hooks; the
-actual look is globals.css:4270-4436 in **raw px off the token scale**
-(border-radius 11px, padding 13px 15px, font-size 8.5px, width 36px). The
-asiento card, the .ln-doc paper document, the .ln-band masthead, the
+actual look is `app/globals.css:~1948-2079` [was `globals.css:4270-4436`
+before the `app/landing.css` split, `831e8cbf`] in **raw px off the token
+scale** (border-radius 11px, padding 13px 15px, font-size 8.5px, width 36px).
+The asiento card, the .ln-doc paper document, the .ln-band masthead, the
 per-situation credential skins — all this idiom. A native team gets the
-component SHAPE but ZERO pixel values, and the ratchet's own CSS baseline admits
-globals.css ignored the scale in 96% of its font-size declarations. The visual
-identity is welded to a stylesheet React Native cannot load.
+component SHAPE but ZERO pixel values, and the ratchet's own CSS baseline
+admits globals.css ignores the scale in **65%** [was 96% — the ratchet
+baseline (`scripts/design-tokens-css-baseline.json`) now records 34/52
+font-size violations] of its font-size declarations. The visual identity is
+welded to a stylesheet React Native cannot load.
 
 ### F2 — Theming is a CSS-var cascade with no JS equivalent (trapped in CSS)
-Three skins (.op-surface remap, [data-theme=situation-room] full dark operator
-palette, the st-*/sk-* semantic indirection layer — the good part) all work by
-redeclaring CSS vars on an ancestor and letting var() re-resolve. React Native
-has no CSS vars and no cascade — each must be re-expressed as a JS theme object
-+ Context provider, and the "redeclare because substitution already happened on
-the ancestor" subtlety becomes explicit prop-drilling. Dark mode proper is
-disabled, so citizen native is light-only (at least simple).
+~~Three skins~~ **Two live skins as of 2026-08-22** (.op-surface remap, the
+st-*/sk-* semantic indirection layer — the good part) work by redeclaring CSS
+vars on an ancestor and letting var() re-resolve. `[data-theme="situation-room"]`
+(the full dark operator palette) is **retired** (PO decision, 2026-07-11) —
+nothing in the app sets that attribute anymore; its CSS block is still
+textually present in `globals.css` but unreachable, dead code rather than a
+live third skin. React Native has no CSS vars and no cascade — each remaining
+skin must be re-expressed as a JS theme object + Context provider, and the
+"redeclare because substitution already happened on the ancestor" subtlety
+becomes explicit prop-drilling. Dark mode proper is disabled, so citizen
+native is light-only (at least simple).
 
 ### F3 — The token VALUES are extractable, but they're the cheap ~35% (partial)
 Everything in @theme is a literal (~90 colors, radii, type/leading/tracking
@@ -43,10 +67,11 @@ system; the semantic system stays behind.
 ### F4 — viz-scales.ts is the one genuinely portable, validated token module (exemplary)
 COLOR_DIVERGENT_ABOVE with the CVD ΔE rationale inline, as const, framework-free,
 pinned against real ΔE00. Ports to native with ZERO changes — the template for
-what the rest should become. (Note: its header falsely claims values are
-"resolved at build time from the CSS variable layer" — they're inline literals;
-map/chart palette and UI palette are two disconnected worlds. Doc lie worth
-fixing.)
+what the rest should become. **DONE (2026-08-22):** moved into
+`packages/contract/src/viz/viz-scales.ts` unchanged, with its tests, and the
+false header claim ("resolved at build time from the CSS variable layer" —
+they were always inline literals) was corrected in the same move (`76fa0d7e`,
+improvement 2).
 
 ### F5 — Semantic operator atoms good; citizen atoms thinner (mixed)
 OpStatusPill resolves tone → var(--color-st-*): genuinely semantic, delegated to
@@ -64,7 +89,8 @@ bundled (all OFL, sourceable) plus the exact weight contract
 (font-weight-contract.test.ts) or font-bold silently falls back.
 
 ### F7 — Iconography ports cleanly (extractable)
-Icon.tsx is a curated ICON_MAP (~200 Spanish names → lucide-react); lucide ships
+Icon.tsx is a curated ICON_MAP (**~150** Spanish names → lucide-react [was
+~200; the map has exactly 150 entries as of 2026-08-22]); lucide ships
 lucide-react-native. The map is the portable asset; the wrapper re-implements in
 ~20 lines. Cheap.
 

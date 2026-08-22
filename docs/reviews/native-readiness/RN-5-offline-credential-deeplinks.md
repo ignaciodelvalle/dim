@@ -3,6 +3,21 @@
 > Adversarial read-only review, 2026-08-19. Builds on RN-1..RN-4 (not repeated).
 > Verdict: **EXPENSIVE**, with the "verify offline" half a **BLOCKER**.
 
+> **Status re-run 2026-08-22 (HEAD d0fe0fad + the 2026-08-22 follow-ups)**
+>
+> | Finding / improvement | Status | Evidence |
+> |---|---|---|
+> | F1 — "there is no credential, there is a URL"; page is 1,423 lines | line count corrected, finding otherwise still true | `wc -l` gives **1,035** lines today (loader extracted, see improvement 2); the QR still encodes only `${origin}/p/${token}` with no claims/expiry/signature |
+> | F3 — every QR is server-rendered in an RSC body (7 sites) | corrected | **6 server-side `QRCode.toString()` sites** (`app/page.tsx`, `mis-turnos/[appointmentToken]/page.tsx`, `.../adoption/page.tsx`, `chapita/page.tsx`, `cartel/page.tsx`, `asistencia/presentar/page.tsx`) **+ 1 client-side** (`components/ui/CredentialQr.tsx`, added `d40381be`, 2026-08-21) = still 7 sites, one of which moved off the server |
+> | F6 — no TTL/version/freshness stamp on a cached credential | PARTIAL, scope note | HTML/printed surfaces still carry none; the new `GET /api/v1/pets/{token}/credential` JSON DOES carry `payloadVersion`/`issuedAt`/`staleAfterMs` — but the response is still `no-store`, so a client that caches it locally anyway relies on `staleAfter` as an advisory freshness stamp against a clock IT controls, in tension with the fact that no-store means the server never promises to let it revalidate. Stated as a known gap, not resolved. |
+> | F11 — credential-badges.ts trapped inside the route folder | moved, still not packaged | now at `lib/domain/credential-badges.ts` (`4c63dbb3`, 2026-08-21) — out of the route folder as improvement 3 asked, but not yet inside `packages/contract`; its only non-package import is `parseDateInput` from `lib/utils/format.ts`, so packaging it is "one `parseDateInput` import away" |
+> | Improvement 2 — `GET /api/v1/pets/{token}/credential` with issuedAt+staleAfter | DONE | `713e4416`, 2026-08-21; see `docs/architecture/api-invariants.md` §10 |
+> | Improvement 3 — move credential-badges.ts into `lib/domain/credential/` | PARTIAL | moved to `lib/domain/credential-badges.ts` (flat, not a `credential/` subfolder) — see F11 |
+> | Improvement 4 — render the owner's QR client-side | DONE | already noted in-line below (`components/ui/CredentialQr.tsx`, `d40381be`) — the route-weight caveat it records is still true |
+>
+> **Verdict unchanged**: BLOCKER (offline-verification half) stands — this is a
+> PO trust-model decision, not something any commit in this window could close.
+
 ## The core split this review surfaces
 
 The premise "the pet IS the credential, available offline" is TWO promises in
@@ -20,7 +35,8 @@ payload everywhere (chapita, cartel, credential face, service-dog present mode,
 tag CSV). No claims, no issuance date, no expiry, no signature. package.json
 has ZERO crypto/credential dependency (no jose/jsonwebtoken/VC lib; only
 qrcode). Everything a verifier reads is computed at render time inside the
-1423-line /p/ page. **Trust today = "this HTML arrived from mimar.ar over TLS
+/p/ page (1,035 lines as of 2026-08-21, was 1,423 — the loader extracted, see
+improvement 2). **Trust today = "this HTML arrived from mimar.ar over TLS
 seconds ago."** Remove the network and a cached render, a screenshot and a
 forgery are indistinguishable. Not "not built" — **not designed.**
 
@@ -37,9 +53,12 @@ question ("should the PUBLIC credential cache on a finder's phone? default NO
 until reviewed") was never answered — that unanswered question IS R5.
 
 ### F3 — HIGH: the owner can't show their own QR offline, or with a stale session
-Every QR is `await QRCode.toString(...)` in an RSC page body (7 sites) behind
-auth cookies. No signal → browser offline error page. qrcode runs fine in a
-browser; nothing forced server-side. Compounded by RN-2 F1 (8h timebox): an
+Every QR was `await QRCode.toString(...)` in an RSC page body (7 sites) behind
+auth cookies. **One of the 7 moved client-side 2026-08-21** (see improvement
+4) — the other 6 (chapita, cartel, asistencia/presentar, adoption signup,
+landing, mis-turnos) are still server-rendered. No signal → browser offline
+error page on those six. qrcode runs fine in a browser; nothing forced
+server-side. Compounded by RN-2 F1 (8h timebox): an
 owner force-logged-out at a vet counter can't render the QR even WITH signal.
 Minimum cache for a Tier-0 card enumerated (token, name, species, sex, breed,
 DOB, photo path, status, derived rabies semaphore, identity heading,
@@ -102,9 +121,12 @@ cheap half already done.
 ### F11 — MEDIUM: good news, and where it stops
 The derivation layer is genuinely portable (credential-badges,
 libreta-health-status, pet-compliance, amendment, event-confidence,
-credential-claims, dim-token — all pure, DB-free, React-free, tested). BUT
-credential-badges.ts lives INSIDE the route folder — the canonical public
-projection is trapped in the Next tree (R6's problem, R5's cost). And per RN-4
+credential-claims, dim-token — all pure, DB-free, React-free, tested).
+~~credential-badges.ts lives INSIDE the route folder~~ **MOVED 2026-08-21
+(`4c63dbb3`)** to `lib/domain/credential-badges.ts` — out of the Next route
+tree, but not yet inside `packages/contract` (R6's problem, R5's cost); its
+only remaining non-package import is `parseDateInput` from
+`lib/utils/format.ts`. And per RN-4
 A1 every attachment except the public photo is behind an RSC-minted signed URL,
 so an offline libreta is impossible regardless. Offline ceiling today: Tier-0 +
 primary photo.

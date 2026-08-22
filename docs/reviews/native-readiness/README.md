@@ -6,6 +6,22 @@
 > the native transition cheaper — prioritizing changes that also pay off for
 > the web app today.
 
+> **Status re-run 2026-08-22 (HEAD d0fe0fad + the 2026-08-22 follow-ups)**
+>
+> Backlog items with a status change since 2026-08-19 (full detail in each
+> RN-*.md's own status block and in `TRACKS.md`):
+>
+> | # | Status | Evidence |
+> |---|---|---|
+> | B33 | **DONE** | `GET /api/v1/pets/{token}/credential`, `713e4416`, 2026-08-21 |
+> | B34 | **PARTIAL** | `credential-badges.ts` moved to `lib/domain/credential-badges.ts` (`4c63dbb3`) — out of the route folder, not yet in `packages/contract` |
+> | B35 | **DONE** | `components/ui/CredentialQr.tsx`, `d40381be`, 2026-08-21 |
+> | B40 | **DONE** | `packages/contract` (`@dim/contract`) exists; `pnpm-workspace.yaml` declares `packages/*` |
+> | B41 | **PARTIAL** | `packages/contract/src/input/` holds an intake schema only; one per capture flow is still the target |
+> | B5 | line counts corrected | public credential page: 1,423 → **1,035** lines (loader extracted, DONE); owner profile page: 1,450 → **1,447** lines (untouched) |
+>
+> Everything else in this backlog is unchanged as of this re-run.
+
 ## Who gets a native app, and in what order
 
 **Phase 1 — Owner / citizen (dueño).** The strongest native case by far:
@@ -121,7 +137,7 @@ See [SYNTHESIS.md](SYNTHESIS.md) for the final roll-up.
 | B2 | RN-1 | `createClientFromBearer` + result-shaped `requireUser()` (redirect variant becomes a wrapper) | Cleaner guards; `requirePetAccess` already proves the shape |
 | B3 | RN-1 | `/api/v1/auth/{signup,login}` JSON adapters — close the GoTrue-direct trap (rate limits, enumeration defense, tosAcceptedAt) | Testable auth surface |
 | B4 | RN-1 | Remove FormData/redirect from the 9 coupled use-cases (start: create-intake) | Testability; intake unblocked for Phase 2 |
-| B5 | RN-1 | Extract the two flagship page loaders (public credential 1423-line page, owner profile 1450-line page) into read use-cases | The two most regressed screens become testable |
+| B5 | RN-1 | Extract the two flagship page loaders (public credential — was 1,423 lines, now **1,035**, DONE 2026-08-21; owner profile — was 1,450, now **1,447**, untouched) into read use-cases | The two most regressed screens become testable |
 | B6 | RN-1 | `Idempotency-Key` header + surface `wasNoop` to the client | Web retry toast stops claiming creation on a noop |
 | B7 | RN-1 | Idempotency keys for bookSlot / transfer accept / adoption submit (+ partial unique index) | Live double-booking risk on flaky mobile web TODAY |
 | B8 | RN-1 | `docs/architecture/api-invariants.md`: the 5 anti-oracle invariants as a testable checklist gating any `/api/v1` merge | Encodes what today lives only in file-header comments |
@@ -132,7 +148,7 @@ See [SYNTHESIS.md](SYNTHESIS.md) for the final roll-up.
 | B13 | RN-2 | Re-key auth rate limits off subject not IP (CGNAT); captcha for signup | Live 4G availability bug today |
 | B14 | RN-2 | Amend the Mi Argentina convenio ask NOW: 2 redirect URIs, public+PKCE variant, tosAcceptedAt in the OIDC write list | Doc edit; avoids re-negotiating a signed convenio |
 | B15 | RN-2 | Auth error vocabulary in the ADR envelope + "no custom JWT claims" as a protected invariant | Middleware stops hiding auth misconfig behind expired-token silence |
-| B16 | RN-3 | Notification type registry (134 rows: severity, pushable, collapse, opt-out group) driving isPushable() | Kills category drift; CTA fitness asserts a table |
+| B16 | RN-3 | Notification type registry (**~149 rows** as of 2026-08-22, was 134: severity, pushable, collapse, opt-out group) driving isPushable() — NOT STARTED | Kills category drift; CTA fitness asserts a table |
 | B17 | RN-3 | Quiet hours + profiles.timezone + preferences; IMMEDIATE: stop the 01:00 ART daily urgent push | Live nuisance fix this week, no schema |
 | B18 | RN-3 | push_subscriptions → push_targets (platform, device_id key, nullable token) + promised stale-pruning cron | Real device list in /cuenta; dead rows stop accumulating |
 | B19 | RN-3 | Migrate the 12 legacy push-calling sites onto createNotification* with real dedupeKeys | Those sites today have zero idempotency AND zero dead-lettering |
@@ -149,15 +165,15 @@ See [SYNTHESIS.md](SYNTHESIS.md) for the final roll-up.
 | B30 | RN-4 | Storage↔DB reconciliation cron (report-only first) + erasure covers avatars/welfare/zero-parent | Ley 25.326 completeness; sizes the orphan problem |
 | B31 | RN-4 | cacheControl immutable on uploads + enable Storage image transformation | Phone stops re-downloading 5MB originals hourly |
 | B32 | RN-5 | **PO decision (gates everything): the offline credential trust model** — split display vs verification; may a stranger's phone cache /p/, for how long? | Decides whether /p/ no-store can ever relax |
-| B33 | RN-5 | `GET /api/v1/pets/{token}/credential` — Tier-0 as JSON with issuedAt+staleAfter (RN-1 B5 credential-first) | Flagship page gets a testable loader; degraded card shows real data |
-| B34 | RN-5 | Move credential-badges.ts out of the route folder into lib/domain/credential/ | WAVE D1 supersede contract reusable by cartel/OG/export |
-| B35 | RN-5 | Render the owner's QR client-side (qrcode runs in browsers) | Removes server SVG from the 2 heaviest owner renders |
+| B33 | RN-5 | **DONE** (`713e4416`, 2026-08-21) — `GET /api/v1/pets/{token}/credential` — Tier-0 as JSON with issuedAt+staleAfter (RN-1 B5 credential-first) | Flagship page gets a testable loader; degraded card shows real data |
+| B34 | RN-5 | **PARTIAL** (`4c63dbb3`) — moved to `lib/domain/credential-badges.ts`, not yet in `packages/contract` | WAVE D1 supersede contract reusable by cartel/OG/export |
+| B35 | RN-5 | **DONE** (`d40381be`, 2026-08-21) — `components/ui/CredentialQr.tsx` | Removes server SVG from the 2 heaviest owner renders |
 | B36 | RN-5 | Sign the Tier-0 payload (detached JWS) + publish JWK — converts F1 from undesigned to phased | Printed libreta/cartel/screenshot become checkable with an expiry |
 | B37 | RN-5 | One deepLinkMap + generated AASA/assetlinks + overlap fitness test (merge RN-3 B22); kill mimar://appointment | Catches p/perdidas, t/terminos, live /adoptar-no-slash collisions |
 | B38 | RN-5 | Honest owner-scoped offline cache: SW caches only the allowlisted own-credential route; flip the fitness test to enforce that | Keeps the no-store privacy invariant intact |
 | B39 | RN-5 | Accept TAG- serials in resolveAtenderPet + copy-to-clipboard footer token | Removes a live re-typing step in the walk-in clinical flow |
-| B40 | RN-6 | Create `packages/contract/` (first workspace boundary); move the event-type source of truth into it, db/schema imports from it | Kills the drizzle anchor on every pure module |
-| B41 | RN-6 | Write the missing client-input zod schemas (camelCase, per capture flow) in the package | Replaces String(formData.get()) hand-parsing; the offline-validation seam RN-1 wants |
+| B40 | RN-6 | **DONE** — `packages/contract/` (first workspace boundary) exists; the event-type source of truth moved into it, db/schema imports from it | Kills the drizzle anchor on every pure module |
+| B41 | RN-6 | **PARTIAL** — `packages/contract/src/input/` holds an intake schema only | Replaces String(formData.get()) hand-parsing; the offline-validation seam RN-1 wants |
 | B42 | RN-6 | Version-stamp static catalogs + extend check-catalog-drift to fail CI on unversioned change | The eventual native copy can detect staleness |
 | B43 | RN-6 | Consolidate scattered *_LABELS into packages/contract/copy/; route the 40+ i18n leaks through them | Closes the 19-i18n raw-enum bugs directly |
 | B44 | RN-6 | Locale-keyed structure for high-traffic labels (event/notification types, statuses) — keys not literals | Only path to a non-Spanish-only second consumer |

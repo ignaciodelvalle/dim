@@ -3,17 +3,54 @@
 > Adversarial read-only review, 2026-08-19. Builds on RN-1..RN-5 (not repeated).
 > Verdict: **EXPENSIVE** — the cheapest of the EXPENSIVE dimensions, closest to CHEAP.
 
+> **Status re-run 2026-08-22 (HEAD d0fe0fad + the 2026-08-22 follow-ups)**
+>
+> **The framing fact this review opens on is now inverted.** A package
+> boundary exists: `pnpm-workspace.yaml` declares `packages: - packages/*`
+> (added 2026-08-20 — before that date it really did have only an
+> `allowBuilds` block, so the review was accurate when it was written), and
+> `@dim/contract` (`packages/contract/`) is a real, zero-runtime-dependency
+> package. `pnpm lint:contract` (`scripts/check-contract-purity.ts`) fences its
+> purity in `verify` and CI. The event-type union is now PACKAGED, not
+> trapped: `db/schema.ts:289` reads `export { EVENT_TYPES, type EventType }
+> from "@dim/contract/events"` — the anchor direction Trap 1 warned about is
+> inverted; `db/schema.ts` imports FROM the package now, not the other way
+> round. Trap 1 (below) is rewritten to match.
+>
+> | Finding / improvement | Status | Evidence |
+> |---|---|---|
+> | Improvement 1 — create `packages/contract/`, move the event-type SoT into it | DONE | see framing note above |
+> | Improvement 2 — move credential-badges.ts → packages/contract/credential/ | PARTIAL | moved to `lib/domain/credential-badges.ts` (RN-5 F11) — out of the route folder, not yet in the package |
+> | Improvement 3 — write the input schemas the actions lack, in the package | PARTIAL | `packages/contract/src/input/` holds an intake schema; one per capture flow is still the target (TRACKS.md T1.3) |
+> | Improvement 5 — ship `GET /api/v1/pets/{token}/credential` with payloadVersion + issuedAt/staleAfter | DONE | `713e4416`, 2026-08-21 |
+> | Improvements 4, 6, 7, 8 (catalog version-stamping, `*_LABELS` consolidation, locale keys, localities/jurisdiction APIs) | NOT STARTED | unchanged |
+>
+> **New gap surfaced by having a package now: no CORS anywhere.** PO decision
+> #2 ("CORS + a bearer API, never native-direct-Supabase") is **taken but
+> unimplemented** — stated explicitly in
+> `docs/architecture/api-invariants.md` §9 as of 2026-08-22: "no `/api/v1`
+> route sets `Access-Control-*` headers or accepts a bearer token today."
+>
+> **Verdict update: EXPENSIVE → MODERATE.** The single biggest cost this
+> review priced in — "no package boundary exists" — is paid off. What remains
+> (input schemas, catalog versioning, copy consolidation, localities/
+> jurisdiction APIs, CORS) is exactly the kind of mechanical, well-scoped work
+> the original verdict called "the good kind of expensive," now with the
+> keystone already placed.
+
 ## The framing fact
 
-There is **no package boundary**. pnpm-workspace.yaml has only an allowBuilds
+~~There is **no package boundary**. pnpm-workspace.yaml has only an allowBuilds
 block — no `packages:` globs, no packages/ dir. tsconfig maps `@/* → ./*`, one
-wildcard. So every candidate contract module reaches its deps through `@/...`,
+wildcard.~~ **No longer true — see the status block above.** At the time of
+this review, every candidate contract module reached its deps through `@/...`,
 and **every `@/` import is a re-export a native package cannot resolve** unless
-it also ships the aliased file. The contracts aren't trapped in *Next* so much
+it also ships the aliased file. The contracts weren't trapped in *Next* so much
 as in *one giant path-alias graph anchored to `@/db/schema`* — a 4655-line
-Drizzle file importing drizzle-orm/pg-core. "It's just types, easy to share" is
-the reading to attack: the types are pure, but they transitively import from
-that ORM file.
+Drizzle file importing drizzle-orm/pg-core. "It's just types, easy to share" was
+the reading to attack: the types are pure, but they transitively imported from
+that ORM file. That anchor is now inverted (`@dim/contract` exists and
+`db/schema.ts` imports the event-type union FROM it).
 
 Good news (RN-5 confirmed): the derivation/schema logic is unusually pure.
 lib/domain and lib/projections are almost entirely free of next/*, server-only,
@@ -25,11 +62,11 @@ This codebase COULD ship a contract package — it just hasn't drawn the line.
 | Module | Verdict | Evidence |
 |---|---|---|
 | Event payload zod schemas | PACKAGEABLE after de-anchoring | event-schemas.ts value-imports EVENT_TYPES + findDisease |
-| Event type union (SoT) | TRAPPED in ORM file | db/schema.ts:271 EVENT_TYPES — single source (no quadruplication, good) but inside the 4655-line Drizzle file |
+| Event type union (SoT) | PACKAGED (2026-08-22, was TRAPPED) | `packages/contract/src/events/event-types.ts` is now the source; `db/schema.ts:289` re-exports `EVENT_TYPES`/`EventType` FROM `@dim/contract/events` — single source, no longer inside the Drizzle file |
 | Upcaster registry | PACKAGEABLE but native-hazardous | runs server-side on read; schemas STRICT → a version-behind native client REJECTS a newer payload. Version skew is a real break |
 | event-capture-registry (50 events) | PACKAGEABLE as-is | zero framework imports |
 | events.ts (summaries/queries) | TRAPPED (DB) | imports sql from drizzle-orm |
-| credential-badges.ts | TRAPPED by location (RN-5 B34) | pure, but inside the /p/ route folder |
+| credential-badges.ts | PARTIALLY FIXED (2026-08-22, was TRAPPED) | moved to `lib/domain/credential-badges.ts` (`4c63dbb3`) — out of the /p/ route folder, still pure, but not yet inside `packages/contract` |
 | pet-compliance / rabies-observation / libreta-health-status / credential-claims / dim-token / provenance | PACKAGEABLE | all pure lib/type-only |
 | event-confidence | PACKAGEABLE as-is | zero imports |
 | amendment (WAVE D1 supersede) | PACKAGEABLE | pure (misleadingly in lib/infra) |
@@ -42,10 +79,20 @@ This codebase COULD ship a contract package — it just hasn't drawn the line.
 
 ## Three skeptic traps
 
-1. **The `@/db/schema` anchor**: the purest module still re-exports EVENT_TYPES
+1. ~~**The `@/db/schema` anchor**: the purest module still re-exports EVENT_TYPES
    from the 4655-line Drizzle file — ship as-is and you drag pg-core into a
-   phone bundle to read a string array. Type-only imports erase; value imports
-   (EVENT_TYPES, findDisease, REQUIREMENT_LEVELS) don't.
+   phone bundle to read a string array.**~~ **REWRITTEN (2026-08-22): the
+   anchor is inverted, not gone.** `EVENT_TYPES` / `EventType` now live in
+   `packages/contract/src/events/event-types.ts`, and `db/schema.ts:289`
+   re-exports them FROM the package (`export { EVENT_TYPES, type EventType }
+   from "@dim/contract/events"`) so the ~90 existing `@/db/schema` consumers
+   are untouched while a native client can `import { EVENT_TYPES } from
+   "@dim/contract/events"` directly, with zero drizzle-orm in its bundle. The
+   remaining risk moved, not disappeared: `db/schema.ts` still imports OTHER
+   value-level exports from itself (findDisease, REQUIREMENT_LEVELS) that have
+   NOT been moved into the package, so a module reaching for those still drags
+   the ORM file in. Type-only imports erase; value imports don't — that part
+   of the original warning still holds for everything not yet migrated.
 2. **Copy is not i18n**: no next-intl/i18next/react-intl anywhere. "Centralized
    copy" = Spanish string literals, no message keys, no locale param; already
    leaks in 40+ sites. A native app can call eventTypeLabel() only by importing

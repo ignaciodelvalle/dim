@@ -4,6 +4,46 @@
 > Builds on RN-1 (cookies-only client, redirecting guards, GoTrue trap door —
 > taken as given, not repeated).
 
+> **Status re-run 2026-08-22 (HEAD d0fe0fad + the 2026-08-22 follow-ups)**
+>
+> | Finding / improvement | Status | Evidence |
+> |---|---|---|
+> | F1 — 8h timebox hits citizens | NOT STARTED | `supabase/config.toml:276-279` unchanged |
+> | F2 — cross-device password reset dead-end | PARTIAL | see corrected fact below — the silent flag is fixed, `verifyOtp` cross-device path is not |
+> | F3 — no server-side session revocation | NOT STARTED | `auth.admin.signOut` still appears zero times |
+> | F4 — erasure lockout holes at bare `getUser()` write boundaries | DONE | all six write boundaries this finding named now resolve through `requireLiveUser()` |
+> | F5 — per-IP auth rate limits vs CGNAT | NOT STARTED | unchanged |
+> | F6 — Mi Argentina OIDC frozen as confidential single-redirect client | NOT STARTED | unchanged |
+> | F7 — one collapsed auth-error class / header trap | PARTIAL | the header-trap half is fenced (below); the collapsed-error-class half is untouched |
+> | F8 — parallel cookie-only capability sessions | NOT STARTED | unchanged |
+> | F9 — authorization is 100% DB-resolved | holds, undocumented | still true; still not written into `api-invariants.md` as a protected invariant (improvement 8) |
+> | Improvement 8 — write "no custom JWT claims" into `api-invariants.md` | NOT STARTED | no such line in the document today |
+>
+> **Corrected facts.** F2's `/?auth_error=1` — "which nothing in the repo
+> reads" — is fixed: a failed code exchange now lands on
+> `/recuperar?error=enlace_invalido`, rendered by `app/(auth)/recuperar/page.tsx`
+> (`35c1a3d4`, 2026-08-20; the redirect itself is built in
+> `app/auth/callback/route.ts`). The cross-device dead-end itself is
+> **unfixed** — the fix is a better error message, not `verifyOtp`. F4's bare
+> `getUser()` list (createPetAction, libreta-share create/revoke, upgrade
+> requests, adoption apply, leaveOrganization, notifications/reminders/welfare/
+> scans) now goes through `requireLiveUser()` at all six boundaries; the one
+> residual — a local `requireUser()` defined INSIDE `app/actions/notifications.ts`
+> that shadowed the recognized guard name and let `check-authz-guards.ts` count
+> it as protected while it was a bare `getUser()` — was closed 2026-08-22
+> (`4a2f72ad`), and the fence now flags a guard NAME defined outside its home
+> (`findShadowedGuardDefinitions`). F7's header trap
+> (middleware-stamped headers meaningless on `/api/*`) is fenced by
+> `scripts/check-api-guard-headers.ts` (`pnpm lint:api-headers`). Also: org
+> capability guards (`requireCapability`, `requireCapabilityForOrgToken`) now
+> resolve `requireLiveUser` first, so a maintenance kill-switch or a deactivated
+> institutional account stops org writes, not just the six boundaries this
+> review named (`4a2f72ad`). The "**zero `auth.jwt()` uses across 276 RLS
+> policy sites**" figure is **unverified** — a direct grep for `CREATE POLICY`
+> across `db/migrations/*.sql` gives 38, not 276; the `auth.jwt()` count itself
+> (1 hit) is not in dispute, only the denominator. Treat "276" as unverified
+> until someone reconciles it against whatever corpus produced it.
+
 ## Findings (ranked by severity for the native transition)
 
 ### F1 — `timebox = "8h"` is an operator-shift rule silently applied to citizens
@@ -19,11 +59,15 @@ reuse detection kills the whole token family.
 ### F2 — Password recovery is PKCE-cookie-bound; cross-device reset is broken TODAY
 The emailed reset link only completes in the cookie jar that requested it
 (@supabase/ssr persists the PKCE verifier as a cookie). Request on desktop,
-open on phone → exchangeCodeForSession fails → redirect to `/?auth_error=1` —
-**which nothing in the repo reads** (one grep hit: the emitter). Live, silent
-dead-end on web right now; unimplementable from native as designed. Scope
-saving grace: it is the ONLY GoTrue-emailed link (no confirmations, no magic
-links) — one path to fix.
+open on phone → exchangeCodeForSession fails → ~~redirect to `/?auth_error=1` —
+**which nothing in the repo reads**~~ **FIXED 2026-08-20 (`35c1a3d4`):** now
+redirects to `/recuperar?error=enlace_invalido`, which
+`app/(auth)/recuperar/page.tsx` renders as a visible "request a fresh link from
+this device" message. The underlying cross-device dead-end is **still live** —
+the fix makes the failure legible, it does not make the reset work
+cross-device (that needs the `verifyOtp` variant, improvement 2's second half).
+Scope saving grace: it is the ONLY GoTrue-emailed link (no confirmations, no
+magic links) — one path to fix.
 
 ### F3 — No server-side session revocation exists (audit-28 #7 still open)
 `auth.admin.signOut` appears zero times. Vet-role revocation, org verification
@@ -72,7 +116,10 @@ clean exception: plain URL token, renders logged-out — a ready universal-link
 target.
 
 ### F9 — The saving property: authorization is 100% DB-resolved, never client-derived
-No custom JWT claims; zero `auth.jwt()` uses across 276 RLS policy sites;
+No custom JWT claims; zero `auth.jwt()` uses across "276 RLS policy sites"
+[**unverified** — a direct `CREATE POLICY` grep across `db/migrations/*.sql`
+gives 38, not 276; re-run the exact query this figure came from before citing
+it again];
 role/membership/capabilities/matrícula/deletedAt all re-read per request with
 request-scoped memoization only. A native client can cache anything and none
 of it is authoritative. **Protect this — it is undocumented and therefore

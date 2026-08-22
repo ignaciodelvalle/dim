@@ -72,7 +72,7 @@ fifth.**
 
 | | |
 |---|---|
-| **Enforced at** | `app/org/[orgToken]/atender/atender-access.ts:43,236` |
+| **Enforced at** | `app/org/[orgToken]/atender/atender-access.ts:43,237` |
 | **Real limits** | `{ maxPerMinute: 20, maxPerHour: 100 }`, keyed `${organizationId}:${ip}` |
 | **Direction** | Fail-open |
 | **Inherited?** | **Yes, if you go through the front door.** It lives *inside* `resolveAtenderPet`, so a handler calling that function gets it |
@@ -329,7 +329,7 @@ that it cannot be verified offline).
 | `Cache-Control: no-store` | **No** — path-prefix allowlist |
 | `scripts/check-authz-guards.ts` | **Yes** — its coverage rule scans every `app/**/route.ts` (widened 2026-08-21, D4): each exported handler calls a guard, or carries a `@no-auth-required: <reason>` |
 | `public-token-throttle-coverage` | **Only via `publicPetByToken`** — a handler that resolves a token another way is invisible to it. A handler that goes through `lookupPublicCredential` is covered by the fence's SECOND layer instead: every caller of the door must pass `throttle: publicTokenThrottle("<literal>")` naming a known bucket |
-| `scripts/check-db-budget.ts` | **Yes, since 2026-08-21** — `ROUTE_GLOBS` gained `app/api/v1/**/route.ts`, so every `/api/v1` handler is a registered heavy call site and must CALL a budget wrapper |
+| `scripts/check-db-budget.ts` | **Yes, since 2026-08-21** — `ROUTE_GLOBS` gained `app/api/v1/**/route.ts`, so every `/api/v1` handler is a registered heavy call site and must CALL a budget wrapper **or be a named `DELEGATING_ROUTES` entry** (`scripts/check-db-budget.ts:292`) whose `budgetedBy` collaborators really are budgeted (checks 1-7 of that docblock). The first endpoint uses the escape hatch, not the wrapper: `app/api/v1/pets/[publicToken]/credential/route.ts` is registered there because its only DB work belongs to `lookupPublicCredential` and the throttle adapter, both of which budget themselves |
 | Any rate limit | **No** — every one is a per-call-site `enforceRateLimit()` |
 
 **Both structural gaps on this list are now closed** (`check-api-guard-headers`
@@ -506,13 +506,13 @@ Files:
 
 | # | Checklist line | Satisfied at |
 |---|---|---|
-| 1 | Rate-limited, bucket named, direction stated | Both limiters arrive through ONE port at `route.ts:180-189`: the surface bucket (`public_token_api_credential`, 60/min + 400/hr per IP) as the adapter's literal first argument, and the per-lookup bucket (`public_token_api_credential_lookup`, 20/min + 100/hr, keyed `${publicToken}:${ip}` — constants at `route.ts:129,132`) as its `perLookup` option. Ordered SURFACE FIRST inside the adapter (`lib/infra/public-token-throttle.ts`), so a caller the surface limit already refused costs the table zero rows. **Both fail OPEN**, stated at `route.ts:70-75`. Proved by `api-v1-credential-route.test.ts:293` (the 429 path), `:446,:454` (the order, and that a throttled IP writes no per-lookup counter) |
-| 2 | `cache-control: no-store` set explicitly | `route.ts:148-153` — ONE `credentialJson()` helper is the only way the file answers, so no branch can forget it. Proved per-branch by `api-v1-credential-route.test.ts:555` (all five) |
-| 3 | `{ error: "snake_case" }` from the agreed vocabulary | `route.ts:196,203,211,216`; vocabulary at `packages/contract/src/api/errors.ts:40` |
-| 4 | Every section reports its own availability | `packages/contract/src/api/public-credential.ts:54` (`CredentialSection<T>`); degraded projection at `payload.ts:413-440`. Proved by `api-v1-credential-route.test.ts:356,:382` |
-| 5 | `payloadVersion` / `issuedAt` / `staleAfter` | `payload.ts:111-118`, on the success AND the degraded body. Proved by `api-v1-credential-route.test.ts:572,:585` |
+| 1 | Rate-limited, bucket named, direction stated | Both limiters arrive through ONE port at `route.ts:171-180`: the surface bucket (`public_token_api_credential`, 60/min + 400/hr per IP) as the adapter's literal first argument, and the per-lookup bucket (`public_token_api_credential_lookup`, 20/min + 100/hr, keyed `${publicToken}:${ip}` — constants now in `limits.ts:16,19`, imported by the route) as its `perLookup` option. Ordered SURFACE FIRST inside the adapter (`lib/infra/public-token-throttle.ts`), so a caller the surface limit already refused costs the table zero rows. **Both fail OPEN**, stated at `route.ts:70-74`. Proved by `api-v1-credential-route.test.ts:293` (the 429 path), `:446,:454` (the order, and that a throttled IP writes no per-lookup counter) |
+| 2 | `cache-control: no-store` set explicitly | The route no longer owns a private `credentialJson()` helper — `route.ts:104` imports the shared `apiV1Json`/`apiV1Error` (`lib/infra/api-v1.ts`), whose `MANDATORY_HEADERS` (`:40-43`) set `cache-control: no-store` on every response, applied last so no caller override can undo it (`:58-62`). `pnpm lint:api-v1` (`scripts/check-api-v1-envelope.ts`) refuses any `/api/v1` route that builds a response by hand, so "no branch can forget it" is a property of the fence now, not of one file's private helper (route.ts:135-144 records the move, dated 2026-08-22). Proved per-branch by `api-v1-credential-route.test.ts:555` (all five) |
+| 3 | `{ error: "snake_case" }` from the agreed vocabulary | `route.ts:187` (`rate_limited`), `:194` (`not_found`), `:202-205` (the degraded 503 — the code is embedded in the JSON body via `apiV1Json`, set at `payload.ts:418`, not a separate `apiV1Error` call); vocabulary at `packages/contract/src/api/errors.ts:40` |
+| 4 | Every section reports its own availability | `packages/contract/src/api/public-credential.ts:74` (`CredentialSection<T>`); degraded projection at `payload.ts:413-441`. Proved by `api-v1-credential-route.test.ts:356,:382` |
+| 5 | `payloadVersion` / `issuedAt` / `staleAfter` | `payload.ts:106-115` (`credentialEnvelope()`, the three fields set at `:109-111`), shared by the success body (`:313`) AND the degraded body (`:419`). Proved by `api-v1-credential-route.test.ts:572,:585` |
 | 6 | Success and failure indistinguishable where an oracle exists | `api-v1-credential-route.test.ts:618,:638,:964` — see the stance below |
-| 7 | Resolves the token through `publicPetByToken` | via the door (`route.ts:180-189` → `lookup-public-credential.ts` → `publicPetByToken`). The coverage fence sees it through its door-caller layer, which requires the bucket to be a LITERAL at the call site — it rejected this file twice before it passed, and a third time when the adapter grew a second argument its regex could not parse |
+| 7 | Resolves the token through `publicPetByToken` | via the door (`route.ts:171-180` → `lookup-public-credential.ts` → `publicPetByToken`). The coverage fence sees it through its door-caller layer, which requires the bucket to be a LITERAL at the call site — it rejected this file twice before it passed, and a third time when the adapter grew a second argument its regex could not parse |
 | 8 | Chip / DNI carry their own limiter | N/A — this route resolves neither. It never reads `lookupByChip` or `verifyDni`, and the microchip NUMBER is not in the payload at all (`payload.ts:30-36`) |
 | 9 | Uploads go through `lib/infra/uploads.ts` | N/A — read-only endpoint, `GET` is the only export |
 | 10 | A response-equality test per oracle | `api-v1-credential-route.test.ts:618` (`not_found` vs `throttled`), `:638` (throttled is token-independent), `:964` (an ERASED pet answers exactly as a token that never existed) |
@@ -562,7 +562,7 @@ which knows its `resetAt`, while the surface limiter arrives as a
 boolean-returning port because a use-case may not import `next/headers` at all.
 Setting it on one branch and not the other makes the two 429s distinguishable;
 inventing a constant for both fabricates a hint. The 503 does carry one
-(`route.ts:124,211-213`): it has no sibling branch to stay identical to, and
+(`route.ts:133,201-205`): it has no sibling branch to stay identical to, and
 "the read failed, come back shortly" says nothing about a limiter window. When
 the port can report a reset instant, both 429 branches get the header together.
 
@@ -602,6 +602,17 @@ drifted and are not worth editing there, but should not be trusted:
   `/api/v1` endpoint made those 35 and **48**. `pnpm lint:authz` prints the live
   count on every run, so the number in this paragraph is the one that rots, not
   the fence.
+
+- §10's file:line citations were re-verified 2026-08-22 against the *current*
+  tree and several had rotted from refactors that landed after this section was
+  written: `5fedf2b4` moved the per-lookup limit constants out of `route.ts`
+  into `app/api/v1/pets/[publicToken]/credential/limits.ts`, and `892621be`
+  replaced the route's private `credentialJson()` helper with the shared
+  `apiV1Json`/`apiV1Error` in `lib/infra/api-v1.ts`. Both citations, plus the
+  throttle-port line range, the error-code lines, the envelope-field lines, and
+  `public-credential.ts`'s `CredentialSection<T>` line (54 → 74), are corrected
+  above. §1.2's `atender-access.ts:43,236` also drifted to `:43,237` (one line
+  inserted upstream) and is fixed at its own citation.
 
 One thing could not be verified from the repo and needs a staging probe: whether
 Next serves `/p/{token}/opengraph-image` as a fully dynamic per-request render in
