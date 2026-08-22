@@ -561,6 +561,42 @@ export type SuppressionContribution = { label: string; value: number };
  * screen is a stale claim about privacy — the one class of number that must not
  * be approximated. It resolves as soon as the fetch lands.
  */
+/**
+ * What the "Actividad por día" calendar says when its track is empty.
+ *
+ * THREE DIFFERENT STATEMENTS, and they must not be collapsed into one. The
+ * histogram endpoint suppresses per-day counts when the resolved scope is a
+ * SINGLE administrative unit and the window total is under ANONYMITY_K, and it
+ * declares that with `suppressed: true` rather than a silent empty array —
+ * exactly so this surface can tell "protected" apart from "nothing happened"
+ * (migration of that guard: 4c8fe3b1). Rendering the absence copy over a
+ * suppressed window republishes, as a sentence, the claim the hatching exists
+ * to withhold: it tells an operator a jurisdiction had no bites, no losses, no
+ * symptoms, which is a statement about that jurisdiction and is false.
+ *
+ * "No temporal layer" outranks suppression: with nothing plotted there is no
+ * protected window yet, so the actionable instruction wins.
+ *
+ * The suppressed wording reuses the map's own vocabulary — the choropleth's
+ * all-suppressed notice says "protegido por privacidad (k<5)" for the same
+ * treatment (components/panorama/all-suppressed-notice.tsx). One treatment,
+ * one phrase.
+ */
+export function calendarEmptyMessage(input: {
+  /** At least one layer with a temporal dimension is active. */
+  hasTemporalLayer: boolean;
+  /** The histogram endpoint declared this window k-anon suppressed. */
+  suppressed: boolean;
+}): string {
+  if (!input.hasTemporalLayer) {
+    return "Activá una capa con dimensión temporal (denuncias, mordeduras, pérdidas, síntomas o zoonosis) para ver la actividad por día.";
+  }
+  if (input.suppressed) {
+    return "Actividad por día protegida por privacidad (k<5): el alcance es una sola unidad y el total del período no llega al umbral. No significa que no haya eventos.";
+  }
+  return "Sin eventos registrados en este período y alcance.";
+}
+
 export function activeSuppressedCells(states: Record<LayerId, LayerPanelState>): {
   total: number;
   breakdown: SuppressionContribution[];

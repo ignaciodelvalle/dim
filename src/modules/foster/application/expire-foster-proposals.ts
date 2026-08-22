@@ -9,6 +9,8 @@
 // Auth: no user actor — this is called by the cron route (system action).
 // Parity: recordedByUserId=null, authorRole='system', auto_expired close reason.
 
+import type { CronBudgetHeaders } from "@/lib/infra/cron-dispatcher";
+
 import type { FosterRepository } from "../infrastructure/foster-repository";
 import type { UseCaseResult } from "./types";
 
@@ -30,11 +32,22 @@ export type ExpireStats = {
 // Use-case
 // ---------------------------------------------------------------------------
 
-export async function expireFosterProposals(deps: Deps): Promise<UseCaseResult<ExpireStats>> {
+export async function expireFosterProposals(
+  deps: Deps,
+  opts?: {
+    /**
+     * The daily dispatcher's fair share, forwarded to the repo sweep so its
+     * 45 s ceiling becomes min(own, handed down) — RN #9 half b.
+     */
+    budgetHeaders?: CronBudgetHeaders;
+  },
+): Promise<UseCaseResult<ExpireStats>> {
   const { repo } = deps;
 
   try {
-    const stats = await repo.expirePendingProposals(new Date());
+    const stats = await repo.expirePendingProposals(new Date(), {
+      budgetHeaders: opts?.budgetHeaders,
+    });
     return { ok: true, value: stats, notifications: [] };
   } catch (err) {
     return {

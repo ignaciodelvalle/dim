@@ -10,6 +10,7 @@
 import { and, asc, eq, gt } from "drizzle-orm";
 
 import { db, serviceOfferings, serviceScheduleRules, timeSlots } from "@/db";
+import { type CronBudgetHeaders, effectiveDeadlineMs } from "@/lib/infra/cron-dispatcher";
 import { materializeSlotsForRule } from "@/lib/infra/slot-materialization";
 
 // Keyset page size + per-run bounds (review 23 item 9): the sweep used to load
@@ -67,6 +68,14 @@ export async function materializeAllActiveSlots(opts?: {
   afterRuleId?: string | null;
   /** Wall-clock budget (ms). Default 45s. */
   maxDurationMs?: number;
+  /**
+   * The daily dispatcher's fair share, when this runs inside the fleet
+   * (RN #9 half b): the deadline becomes min(own ceiling, share handed down)
+   * so a late start cannot push the shared function past its 60 s hard kill.
+   * Absent (a manual curl, Vercel hitting the route directly) the constant is
+   * all there is, unchanged.
+   */
+  budgetHeaders?: CronBudgetHeaders;
 }): Promise<{
   rulesProcessed: number;
   slotsInserted: number;
@@ -75,7 +84,10 @@ export async function materializeAllActiveSlots(opts?: {
   earlyStop: boolean;
 }> {
   const { windowStart, windowEnd } = rollingWindow();
-  const maxDurationMs = opts?.maxDurationMs ?? MAX_DURATION_MS;
+  const ownCeilingMs = opts?.maxDurationMs ?? MAX_DURATION_MS;
+  const maxDurationMs = opts?.budgetHeaders
+    ? effectiveDeadlineMs(ownCeilingMs, opts.budgetHeaders)
+    : ownCeilingMs;
   const start = Date.now();
 
   let rulesProcessed = 0;

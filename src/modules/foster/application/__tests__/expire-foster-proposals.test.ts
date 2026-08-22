@@ -63,7 +63,18 @@ describe("expireFosterProposals", () => {
     const repo = makeFakeRepo();
     const result = await expireFosterProposals({ repo });
     expect(result).toMatchObject({ ok: true });
-    expect(repo.expirePendingProposals).toHaveBeenCalledWith(expect.any(Date));
+    // Standalone (no dispatcher): no budget to forward, so the repo falls back
+    // to its own 45 s ceiling exactly as before (RN #9 half b).
+    expect(repo.expirePendingProposals).toHaveBeenCalledWith(expect.any(Date), {
+      budgetHeaders: undefined,
+    });
+  });
+
+  it("forwards the dispatcher's budget headers to the repo sweep", async () => {
+    const repo = makeFakeRepo();
+    const budgetHeaders = { get: () => "2391" };
+    await expireFosterProposals({ repo }, { budgetHeaders });
+    expect(repo.expirePendingProposals).toHaveBeenCalledWith(expect.any(Date), { budgetHeaders });
   });
 
   it("returns candidates, expired, errors stats", async () => {

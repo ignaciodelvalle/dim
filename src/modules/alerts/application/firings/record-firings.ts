@@ -6,6 +6,7 @@
 import { and, asc, eq, gt, inArray } from "drizzle-orm";
 
 import { ALERT_FIRING_OPEN_STATUSES, alertFirings, alertSubscriptions, db } from "@/db";
+import { type CronBudgetHeaders, effectiveDeadlineMs } from "@/lib/infra/cron-dispatcher";
 import { evaluateAlertSubscriptions } from "@/lib/metrics/alert-evaluation";
 import { shouldOpenFiring } from "@/lib/metrics/alert-firing";
 
@@ -76,8 +77,18 @@ const ALL_ADMINS_MAX_DURATION_MS = 45_000;
 export async function evaluateAndRecordFiringsForAllAdmins(opts?: {
   afterUserId?: string | null;
   maxDurationMs?: number;
+  /**
+   * The daily dispatcher's fair share (RN #9 half b): the deadline becomes
+   * min(own ceiling, share handed down), so a late start cannot push the
+   * shared function past its 60 s hard kill. Absent (a manual curl, Vercel
+   * hitting the route directly) the constant is all there is, unchanged.
+   */
+  budgetHeaders?: CronBudgetHeaders;
 }): Promise<RecordFiringsResult> {
-  const maxDurationMs = opts?.maxDurationMs ?? ALL_ADMINS_MAX_DURATION_MS;
+  const ownCeilingMs = opts?.maxDurationMs ?? ALL_ADMINS_MAX_DURATION_MS;
+  const maxDurationMs = opts?.budgetHeaders
+    ? effectiveDeadlineMs(ownCeilingMs, opts.budgetHeaders)
+    : ownCeilingMs;
   const afterUserId = opts?.afterUserId ?? null;
   const start = Date.now();
 

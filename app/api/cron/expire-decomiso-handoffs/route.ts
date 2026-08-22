@@ -33,6 +33,9 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
   // bound memory; decomiso volume is low and the cron runs every 12h.
   const result = await runCaseCron<StaleDecomisoCandidateFull>({
     name: CRON_NAME,
+    // RN #9 half b: bound by min(own 45 s default, the dispatcher's share) so
+    // a late start cannot push the shared function past its 60 s hard kill.
+    budgetHeaders: req.headers,
     scan: () => findStaleDecomisoCandidates(),
     processOne: (candidate) => escalateStaleDecomiso(candidate),
   });

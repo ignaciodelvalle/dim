@@ -58,8 +58,23 @@ const NO_ANON_EXECUTE: ReadonlyArray<string> = [
   "has_titular_write_access",
 ];
 
+// Deliberately anon-EXECUTE-able SECURITY DEFINER functions in `public`.
+//
+// SHRINK-ONLY. The rule below enumerates pg_proc instead of trusting a
+// hand-kept list, so anything new that anon can execute lands here as a RED
+// test and has to be argued for in review. Empty is the goal state.
+//
+// NOT listed, because they are excluded by a PREDICATE rather than by name:
+// trigger functions (prorettype = 'trigger'). PostgREST refuses to expose a
+// function returning `trigger` at /rest/v1/rpc/…, and a trigger function can
+// only be reached by firing the trigger, which is itself RLS-gated. That is
+// what excludes handle_new_user — it is not RPC-reachable by construction, so
+// naming it in an allowlist would claim a decision nobody has to make.
+const ANON_EXECUTE_ALLOWED: ReadonlyArray<string> = [];
+
 type ProcConfigRow = { proname: string; args: string; has_search_path: boolean };
 type ProcAclRow = { proname: string; args: string; anon_can_execute: boolean };
+type SecDefRow = { proname: string; args: string; volatility: string };
 
 describe("function hardening (Supabase advisor fitness)", () => {
   it("every flagged function pins search_path (function_search_path_mutable)", async () => {
@@ -131,5 +146,65 @@ describe("function hardening (Supabase advisor fitness)", () => {
       anonExecutable,
       `SECURITY DEFINER functions EXECUTE-able by anon (oracle / data-rights exposure). REVOKE EXECUTE ... FROM PUBLIC, anon in a migration (see 0123 / 0199): ${anonExecutable.join(", ")}`,
     ).toEqual([]);
+  });
+
+  // THE RULE, replacing the list above as the real guarantee.
+  //
+  // NO_ANON_EXECUTE is five names somebody remembered to add. It already missed
+  // a live one: public.reap_stuck_app_backends() (0136) is SECURITY DEFINER, so
+  // it runs as `postgres`, takes no arguments and is VOLATILE — which makes it
+  // reachable at POST /rest/v1/rpc/reap_stuck_app_backends with nothing but the
+  // publishable key — and its body calls pg_terminate_backend over
+  // pg_stat_activity. 0136 revoked it FROM PUBLIC only, and Supabase's init
+  // grants EXECUTE to `anon` DIRECTLY, so the grant survived (the same trap
+  // migration 0114's comment describes, and the same one 0190 fell into).
+  //
+  // The blast radius is bounded — the WHERE clause only matches stuck Supavisor
+  // backends — so this is not arbitrary process kill. It is still an
+  // unauthenticated remote call with a side effect, and it is hammerable.
+  //
+  // Enumerating the catalog is ~5 lines of SQL and covers 7 functions today, so
+  // there is no reason for the guarantee to be a list.
+  it("RULE: no SECURITY DEFINER function in public is anon-executable", async () => {
+    const rows = (await db.execute(sql`
+      select p.proname as proname,
+             pg_get_function_identity_arguments(p.oid) as args,
+             p.provolatile as volatility
+      from pg_proc p
+      join pg_namespace n on n.oid = p.pronamespace
+      where n.nspname = 'public'
+        and p.prosecdef
+        -- Trigger functions are not RPC-reachable: PostgREST refuses to expose
+        -- a function returning trigger, and firing the trigger is RLS-gated.
+        and p.prorettype <> 'pg_catalog.trigger'::regtype
+        and has_function_privilege('anon', p.oid, 'EXECUTE')
+      order by p.proname
+    `)) as unknown as SecDefRow[];
+
+    const offenders = rows
+      .map((r) => `${r.proname}(${r.args})`)
+      .filter((sig) => !ANON_EXECUTE_ALLOWED.includes(sig.replace(/\(.*\)$/, "")));
+
+    expect(
+      offenders,
+      `SECURITY DEFINER functions anon can EXECUTE. Each runs as its owner, so the EXECUTE grant is the whole boundary. REVOKE EXECUTE ... FROM PUBLIC, anon in a forward-only migration (see 0199 / 0200): ${offenders.join(", ")}`,
+    ).toEqual([]);
+  });
+
+  it("the rule is not vacuous: public really does hold SECURITY DEFINER functions", async () => {
+    const rows = (await db.execute(sql`
+      select p.proname as proname,
+             pg_get_function_identity_arguments(p.oid) as args,
+             p.provolatile as volatility
+      from pg_proc p
+      join pg_namespace n on n.oid = p.pronamespace
+      where n.nspname = 'public'
+        and p.prosecdef
+        and p.prorettype <> 'pg_catalog.trigger'::regtype
+    `)) as unknown as SecDefRow[];
+
+    // If this floor ever fails, the enumeration stopped seeing the schema and
+    // the rule above is passing for the wrong reason.
+    expect(rows.length).toBeGreaterThanOrEqual(6);
   });
 });

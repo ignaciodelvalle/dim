@@ -38,7 +38,7 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
 
     const { rulesProcessed, slotsInserted } = await withCronRun(
       CRON_NAME,
-      () => materializeAllActiveSlots({ afterRuleId: resumeCursor }),
+      () => materializeAllActiveSlots({ afterRuleId: resumeCursor, budgetHeaders: req.headers }),
       (r) => ({
         itemsProcessed: r.slotsInserted,
         details: {

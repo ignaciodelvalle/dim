@@ -23,6 +23,7 @@
 
 import { auditLog, db, notifications } from "@/db";
 import { requireUserOrRedirect } from "@/lib/infra/auth-guards";
+import { type CronBudgetHeaders, effectiveDeadlineMs } from "@/lib/infra/cron-dispatcher";
 import { resolveSiteUrl } from "@/lib/infra/site-url";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
@@ -373,17 +374,26 @@ const EXPIRE_TRANSFERS_MAX_ITERATIONS = 50;
 
 /** System action called by the cron route. Throws on fatal error (cron logs it). */
 // @no-auth-required: cron/system path — auth enforced at the /api/cron/expire-pet-transfers route via authorizeCronRequest (CRON_SECRET).
-export async function expirePetTransfersAction(): Promise<ExpirePetTransfersStats> {
+export async function expirePetTransfersAction(opts?: {
+  /**
+   * The daily dispatcher's fair share, when this runs inside the fleet
+   * (RN #9 half b): the deadline becomes min(own ceiling, share handed down)
+   * so a late start cannot push the shared function past its 60 s hard kill.
+   * Absent (a manual curl, Vercel hitting the route directly) the constant is
+   * all there is, unchanged.
+   */
+  budgetHeaders?: CronBudgetHeaders;
+}): Promise<ExpirePetTransfersStats> {
   const start = Date.now();
+  const maxDurationMs = opts?.budgetHeaders
+    ? effectiveDeadlineMs(EXPIRE_TRANSFERS_MAX_DURATION_MS, opts.budgetHeaders)
+    : EXPIRE_TRANSFERS_MAX_DURATION_MS;
   let totalExpired = 0;
   let totalErrors = 0;
   let iterations = 0;
 
   for (;;) {
-    if (
-      iterations >= EXPIRE_TRANSFERS_MAX_ITERATIONS ||
-      Date.now() - start >= EXPIRE_TRANSFERS_MAX_DURATION_MS
-    ) {
+    if (iterations >= EXPIRE_TRANSFERS_MAX_ITERATIONS || Date.now() - start >= maxDurationMs) {
       break;
     }
 
