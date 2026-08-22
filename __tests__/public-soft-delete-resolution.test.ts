@@ -380,23 +380,108 @@ function stripComments(source: string): string {
   return source.replace(/\/\*[\s\S]*?\*\//g, " ").replace(/(^|[^:'"`\\])\/\/[^\n]*/g, "$1");
 }
 
+/**
+ * Imports are declarations, not filters: naming `publicPetByToken` at the top
+ * of a file guards nothing. Matches the whole statement (single- or multi-line,
+ * `import type` included) so a helper listed on its own line inside a braced
+ * import cannot survive the strip. Dynamic `import(` has no space after the
+ * keyword, so it is deliberately left alone — that IS a call.
+ */
+const IMPORT_STATEMENT = /(?:^|\n)\s*import\s[\s\S]*?\sfrom\s*["'][^"']*["']\s*;?/g;
+function stripImports(source: string): string {
+  return source.replace(IMPORT_STATEMENT, "\n");
+}
+
 type PetsReader = { rel: string; reads: number; guards: number };
+
+/** Counts reads of `pets` and soft-delete guards in one module's source. */
+function countPetsAccess(rawSource: string): { reads: number; guards: number } {
+  const source = stripImports(stripComments(rawSource));
+  return {
+    reads: source.match(PETS_READ)?.length ?? 0,
+    guards: source.match(SOFT_DELETE_GUARD)?.length ?? 0,
+  };
+}
 
 function scanPublicOnlyPetsReaders(): PetsReader[] {
   const out: PetsReader[] = [];
   for (const rel of publicOnlyModules()) {
-    let source: string;
+    let raw: string;
     try {
-      source = stripComments(readFileSync(resolve(ROOT, rel), "utf8"));
+      raw = readFileSync(resolve(ROOT, rel), "utf8");
     } catch {
       continue;
     }
-    const reads = source.match(PETS_READ)?.length ?? 0;
+    const { reads, guards } = countPetsAccess(raw);
     if (reads === 0) continue;
-    out.push({ rel, reads, guards: source.match(SOFT_DELETE_GUARD)?.length ?? 0 });
+    out.push({ rel, reads, guards });
   }
   return out;
 }
+
+// ---------------------------------------------------------------------------
+// The counter itself, before it is trusted over the whole app tree.
+//
+// WHY (fresh-context review, 2026-08-22): SOFT_DELETE_GUARD matches the bare
+// identifier `publicPetByToken`, so the IMPORT STATEMENT counted as a guard.
+// Measured on app/(public)/p/[publicToken]/page.tsx: reads=1 guards=2 — line 37
+// is `import { publicPetByToken } …`, line 137 the only actual use. The file had
+// exactly one guarded read and a spare guard in hand, so a SECOND, unguarded
+// `.from(pets)` added to it still satisfied `guards >= reads` and the rule
+// stayed green. An import is a declaration, not a filter; it must not count.
+// ---------------------------------------------------------------------------
+describe("the guard counter does not mistake declarations for filters", () => {
+  it("an import of the guard helper does not pay for an unguarded read", () => {
+    const source = [
+      'import { publicPetByToken } from "@/lib/infra/public-pet-lookup";',
+      "",
+      "const live = await db.select().from(pets).where(publicPetByToken(token));",
+      "const leaky = await db.select().from(pets).where(eq(pets.publicToken, token));",
+    ].join("\n");
+
+    // Two reads, but only ONE of them is actually guarded.
+    expect(countPetsAccess(source).reads).toBe(2);
+    expect(countPetsAccess(source).guards).toBe(1);
+  });
+
+  it("a multi-line import of the guard helper does not count either", () => {
+    const source = [
+      "import {",
+      "  publicPetByToken,",
+      "  somethingElse,",
+      '} from "@/lib/infra/public-pet-lookup";',
+      "",
+      "const leaky = await db.select().from(pets).where(eq(pets.publicToken, token));",
+    ].join("\n");
+
+    expect(countPetsAccess(source).reads).toBe(1);
+    expect(countPetsAccess(source).guards).toBe(0);
+  });
+
+  it("a real guard next to a real read still counts", () => {
+    const source = [
+      'import { publicPetByToken } from "@/lib/infra/public-pet-lookup";',
+      "",
+      "const live = await db.select().from(pets).where(publicPetByToken(token));",
+    ].join("\n");
+
+    const { reads, guards } = countPetsAccess(source);
+    expect(reads).toBe(1);
+    expect(guards).toBe(1);
+    expect(guards).toBeGreaterThanOrEqual(reads);
+  });
+
+  it("a type-only import is a declaration too", () => {
+    const source = [
+      'import type { PublicPetByToken } from "@/lib/infra/public-pet-lookup";',
+      'import { publicPetByToken } from "@/lib/infra/public-pet-lookup";',
+      "",
+      "const leaky = await db.select().from(pets).where(eq(pets.publicToken, token));",
+    ].join("\n");
+
+    expect(countPetsAccess(source).guards).toBe(0);
+  });
+});
 
 describe("every unauthenticated read of `pets` carries the soft-delete filter (PO-4 rule)", () => {
   const readers = scanPublicOnlyPetsReaders();
