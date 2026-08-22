@@ -151,6 +151,10 @@ export type DrainOutcome = {
  * many times it calls, what it sums, when it reports a backlog), and proving
  * them by seeding 20,000 rows would cost more than the cap it is proving.
  * `now` is injectable for the same reason.
+ *
+ * The first batch always runs, deadline or not: a share of 0 ms still makes
+ * one `batchSize` step of progress per target, so a night with no budget left
+ * is not a night where nothing moves.
  */
 export async function drainPurge(
   step: () => Promise<number>,

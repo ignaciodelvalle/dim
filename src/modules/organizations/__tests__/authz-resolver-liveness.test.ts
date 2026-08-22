@@ -81,8 +81,6 @@ import {
 type Capability = Parameters<typeof requireCapability>[0];
 const CAP = "member.invite" as Capability;
 
-const ORIGINAL_MAINTENANCE = process.env.NEXT_PUBLIC_MAINTENANCE_MODE;
-
 function userSession(id = "user-001") {
   return { data: { user: { id, email: `${id}@dim-test.local` } }, error: null };
 }
@@ -101,13 +99,13 @@ function profile(overrides: Record<string, unknown> = {}) {
 
 beforeEach(() => {
   vi.clearAllMocks();
-  process.env.NEXT_PUBLIC_MAINTENANCE_MODE = undefined;
+  vi.stubEnv("NEXT_PUBLIC_MAINTENANCE_MODE", undefined);
   mockGetUser.mockResolvedValue(userSession());
   mockGetProfileCached.mockResolvedValue(profile());
 });
 
 afterEach(() => {
-  process.env.NEXT_PUBLIC_MAINTENANCE_MODE = ORIGINAL_MAINTENANCE;
+  vi.unstubAllEnvs();
 });
 
 // ---------------------------------------------------------------------------
@@ -117,7 +115,7 @@ afterEach(() => {
 
 describe("requireCapability — maintenance kill-switch", () => {
   it("refuses during maintenance BEFORE resolving a session or a profile", async () => {
-    process.env.NEXT_PUBLIC_MAINTENANCE_MODE = "1";
+    vi.stubEnv("NEXT_PUBLIC_MAINTENANCE_MODE", "1");
 
     const result = await requireCapability(CAP);
 
@@ -131,7 +129,7 @@ describe("requireCapability — maintenance kill-switch", () => {
   });
 
   it("requireCapabilityForOrgToken refuses during maintenance WITHOUT looking the org up", async () => {
-    process.env.NEXT_PUBLIC_MAINTENANCE_MODE = "true";
+    vi.stubEnv("NEXT_PUBLIC_MAINTENANCE_MODE", "true");
 
     const result = await requireCapabilityForOrgToken(CAP, "ORG-TOKEN");
 
@@ -143,7 +141,7 @@ describe("requireCapability — maintenance kill-switch", () => {
   });
 
   it("still lets a live caller through when the switch is off (non-vacuity)", async () => {
-    process.env.NEXT_PUBLIC_MAINTENANCE_MODE = "false";
+    vi.stubEnv("NEXT_PUBLIC_MAINTENANCE_MODE", "false");
 
     const result = await requireCapability(CAP);
 

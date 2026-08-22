@@ -41,8 +41,6 @@ import {
   markNotificationReadAction,
 } from "@/app/actions/notifications";
 
-const ORIGINAL_MAINTENANCE = process.env.NEXT_PUBLIC_MAINTENANCE_MODE;
-
 function session(id = "user-notif") {
   return { data: { user: { id, email: `${id}@dim-test.local` } }, error: null };
 }
@@ -61,13 +59,13 @@ function profile(overrides: Record<string, unknown> = {}) {
 
 beforeEach(() => {
   vi.clearAllMocks();
-  process.env.NEXT_PUBLIC_MAINTENANCE_MODE = undefined;
+  vi.stubEnv("NEXT_PUBLIC_MAINTENANCE_MODE", undefined);
   mockGetUser.mockResolvedValue(session());
   mockGetProfileCached.mockResolvedValue(profile());
 });
 
 afterEach(() => {
-  process.env.NEXT_PUBLIC_MAINTENANCE_MODE = ORIGINAL_MAINTENANCE;
+  vi.unstubAllEnvs();
 });
 
 function expectNoUseCaseReached() {
@@ -99,7 +97,7 @@ describe("notification marks refuse a non-live caller", () => {
   });
 
   it("refuses during maintenance before resolving a session", async () => {
-    process.env.NEXT_PUBLIC_MAINTENANCE_MODE = "1";
+    vi.stubEnv("NEXT_PUBLIC_MAINTENANCE_MODE", "1");
 
     await expect(markNotificationReadAction("n-1")).rejects.toThrow(liveUserMessage("MAINTENANCE"));
     expect(mockGetUser).not.toHaveBeenCalled();

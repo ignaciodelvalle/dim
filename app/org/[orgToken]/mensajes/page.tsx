@@ -25,6 +25,7 @@ import { AR_TIME_ZONE } from "@/lib/utils/format";
 import { capRows } from "@/lib/utils/list-pagination";
 import { requireCapability } from "@/src/modules/organizations/infrastructure/authz-resolver";
 import { desc, eq } from "drizzle-orm";
+import Link from "next/link";
 
 const PAGE_SIZE = 50;
 
@@ -47,7 +48,21 @@ export default async function MensajesPage({
   const { organization } = await requireOrgAccessByToken(orgToken);
   // A page READ: a deactivated institutional account keeps it, per
   // lib/infra/auth-guards.ts:60-70 — reads stay open, writes stop.
-  await requireCapability("member.invite", organization.id, { access: "read" });
+  const auth = await requireCapability("member.invite", organization.id, { access: "read" });
+  if (auth.error !== null) {
+    return (
+      <div className="max-w-2xl space-y-4 py-8">
+        <h1 className="text-title font-semibold text-ln-op-ink">Sin acceso</h1>
+        <p className="text-md text-ln-op-mute">{auth.error}</p>
+        <Link
+          href={`/org/${orgToken}`}
+          className="text-md text-ln-op-azul hover:underline no-underline"
+        >
+          ← Volver al panel
+        </Link>
+      </div>
+    );
+  }
 
   // Fetch one extra row to detect truncation honestly (misma convención que
   // /voluntarios: nunca mostrar una página parcial como si fuera todo).

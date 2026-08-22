@@ -346,7 +346,11 @@ describe("RA-2 F9 — the propose-transfer page gates on the capability, not on 
     // membership. This page resolves the org from orgToken first and passes
     // organization.id — the confused-deputy-safe shape.
     expect(page).toContain("requireOrgAccessByToken(orgToken)");
-    expect(page).toMatch(/requireCapability\(\s*"org\.transfer\.propose",\s*organization\.id\s*\)/);
+    // …and declares itself a READ: the form renders for a deactivated org,
+    // the write lives in the action (default access, refused there).
+    expect(page).toMatch(
+      /requireCapability\(\s*"org\.transfer\.propose",\s*organization\.id,\s*\{\s*access:\s*"read",?\s*\}\s*\)/,
+    );
   });
 
   it("no longer reads a membership role anywhere", () => {

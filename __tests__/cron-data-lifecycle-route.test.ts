@@ -164,10 +164,10 @@ describe("GET /api/cron/data-lifecycle — backlog reporting", () => {
   });
 
   it("does NOT report a backlog on a failed run — nothing ran, which is a different fact", async () => {
-    // The route seeds `counts` with all three flags TRUE so a failed run cannot
-    // claim three drained tables. That initial shape must not be re-reported as
+    // The route seeds `counts` with all four flags TRUE so a failed run cannot
+    // claim four drained tables. That initial shape must not be re-reported as
     // a backlog: the failure already logs an error and pages a human, and
-    // "three tables are behind" would be a fabricated measurement.
+    // "four tables are behind" would be a fabricated measurement.
     mockDeps(async () => {
       throw new Error("pooler down");
     });
