@@ -101,6 +101,9 @@ function makeFakeRepo(
     // transaction (rehome-by-titular WU5 carry-forward 3). Live by default —
     // the race tests below override it with null.
     lockLiveCustodyRow: vi.fn().mockResolvedValue({ id: "own-custody-1" }),
+    // The pet-scoped advisory lock every custody writer of rehome-by-titular
+    // takes FIRST (WU5 review: lock-order deadlock with the titular's withdraw).
+    acquirePetAdvisoryLock: vi.fn().mockResolvedValue(undefined),
     // `endedCaretakerGrants` is part of the return contract, not decoration: the
     // use-case reads its length to decide whether to notify a caretaker whose
     // arrangement the hand-off just ended. A double that omits it is a double
@@ -509,6 +512,37 @@ describe("finalizeAdoption", () => {
     expect(result.ok).toBe(true);
     expect(repo.lockLiveCustodyRow).toHaveBeenCalledWith("own-custody-1", "fake-tx");
     expect(order).toEqual(["lock", "write"]);
+  });
+
+  // ---- The pet advisory lock comes before the custody-row lock -----------
+  //
+  // WU5 review (LOW). Finalize locked the custody row and then closed the
+  // owner row; the withdraw locked the owner row and then closed the custody
+  // row — two transactions taking the same two row locks in opposite orders,
+  // which Postgres resolves by killing one with 40P01. Both now take
+  // `pg_advisory_xact_lock(hashtext(petId))` first; the row locks after it
+  // cannot form a cycle.
+
+  it("takes the pet advisory lock inside the transaction, before the custody-row lock", async () => {
+    const repo = makeFakeRepo();
+    const order: string[] = [];
+    (
+      repo as unknown as { acquirePetAdvisoryLock: ReturnType<typeof vi.fn> }
+    ).acquirePetAdvisoryLock = vi.fn().mockImplementation(async () => {
+      order.push("advisory");
+    });
+    (repo as unknown as { lockLiveCustodyRow: ReturnType<typeof vi.fn> }).lockLiveCustodyRow = vi
+      .fn()
+      .mockImplementation(async () => {
+        order.push("row");
+        return { id: "own-custody-1" };
+      });
+
+    const result = await finalizeAdoption(baseInput, { repo, actor, transaction: fakeTransaction });
+
+    expect(result.ok).toBe(true);
+    expect(repo.acquirePetAdvisoryLock).toHaveBeenCalledWith("pet-1", "fake-tx");
+    expect(order).toEqual(["advisory", "row"]);
   });
 
   // ---- Follow-up reminders pass through for registered adopters ---------

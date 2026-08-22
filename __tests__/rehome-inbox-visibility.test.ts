@@ -391,3 +391,104 @@ describe("listCasesForOrg — kinds routed to their own org screen are excluded 
     expect(kinds).toContain("rehome_request");
   });
 });
+
+// ---------------------------------------------------------------------------
+// OBSERVATION for the PO (WU5 review, item 4) — documented, NOT changed.
+//
+// Arm 2 of orgCaseMembership lists every case on a pet the org holds a LIVE
+// ownership row on. With rehome-by-titular an org gets `shelter_custody` on a
+// pet that never leaves its family, so a `welfare_denuncia` or a
+// `custody_dispute` ABOUT THAT HOUSEHOLD appears as a row in the sponsoring
+// org's queue (/org/{token}/casos) — while the detail is denied by canReadCase
+// (no per-kind branch grants an org member a welfare case). The org learns
+// that a complaint exists against the family it is sponsoring, with no way to
+// read it. Whether a sponsoring org should see that row at all is a product
+// question; this pins TODAY's behaviour so a future change is deliberate.
+// ---------------------------------------------------------------------------
+
+const SPONSORED_PET_TOKEN = "DIM-RHIB-PET2";
+
+describe("OBSERVATION — arm 2 lists a welfare_denuncia about a sponsored household as a queue row", () => {
+  let sponsoredPetId: string;
+  let denunciaCode: string;
+
+  async function purgeSponsoredPet(): Promise<void> {
+    await withMutationOverride(async (tx) => {
+      const stale = await tx
+        .select({ id: pets.id })
+        .from(pets)
+        .where(eq(pets.publicToken, SPONSORED_PET_TOKEN));
+      for (const { id } of stale) {
+        const staleCases = await tx
+          .select({ id: cases.id })
+          .from(cases)
+          .where(eq(cases.primaryPetId, id));
+        for (const c of staleCases) {
+          await tx.delete(caseEvents).where(eq(caseEvents.caseId, c.id));
+        }
+        await tx.delete(cases).where(eq(cases.primaryPetId, id));
+        await tx.delete(ownerships).where(eq(ownerships.petId, id));
+        await tx.delete(pets).where(eq(pets.id, id));
+      }
+    });
+  }
+
+  beforeAll(async () => {
+    await purgeSponsoredPet();
+    const [pet] = await db
+      .insert(pets)
+      .values({
+        publicToken: SPONSORED_PET_TOKEN,
+        name: "Bruma",
+        species: "dog",
+        sex: "male",
+        jurisdictionProvince: "Buenos Aires",
+        jurisdictionLocality: "La Plata",
+      })
+      .returning({ id: pets.id });
+    sponsoredPetId = pet.id;
+    // The sponsored shape: the titular's owner row AND org A's shelter_custody
+    // row, both live, side by side.
+    await db.insert(ownerships).values([
+      { petId: sponsoredPetId, ownerUserId: ids.titular, role: "owner", startedAt: new Date() },
+      {
+        petId: sponsoredPetId,
+        ownerOrganizationId: orgAId,
+        role: "shelter_custody",
+        startedAt: new Date(),
+      },
+    ]);
+    const denuncia = await openCase({
+      kind: "welfare_denuncia",
+      primarySubjectKind: "registered_pet",
+      primaryPetId: sponsoredPetId,
+      openedByUserId: ids.stranger,
+      openedByOrganizationId: null,
+      openedReason: {
+        code: "welfare_report_citizen",
+        referenceCode: "DEN-RHIB-0001",
+        kind: "neglect",
+        severity: "high",
+      },
+    });
+    denunciaCode = denuncia.publicCode;
+  });
+
+  afterAll(purgeSponsoredPet);
+
+  it("the complaint about the family is a ROW in the sponsoring org's queue (today)", async () => {
+    const { items } = await listCasesForOrg(orgAId);
+    const row = items.find((c) => c.publicCode === denunciaCode);
+    expect(row?.caseKind).toBe("welfare_denuncia");
+    expect(await listCaseKindDistributionForOrg(orgAId)).toContain("welfare_denuncia");
+  });
+
+  it("and its DETAIL is denied to the same org's member — a row with no page behind it", async () => {
+    const detail = await getCaseDetailByPublicCode(denunciaCode);
+    expect(detail).not.toBeNull();
+    if (!detail) return;
+    expect(await canReadCase(detail, viewer("memberA"))).toBe(false);
+    // The titular is the SUBJECT of the complaint and is denied too — by design.
+    expect(await canReadCase(detail, viewer("titular"))).toBe(false);
+  });
+});

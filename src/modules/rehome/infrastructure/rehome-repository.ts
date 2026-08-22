@@ -201,9 +201,25 @@ export const RehomeRepository = {
   },
 
   /**
+   * The transaction-scoped advisory lock on the pet, taken FIRST by every
+   * custody writer of this feature (accept, withdraw) and by adoption's
+   * finalize — before any row lock. WU5 review: finalize locked the custody
+   * row then closed the owner row; the withdraw locked the owner row then
+   * closed the custody row — the same two row locks in opposite orders, a
+   * deadlock Postgres breaks with 40P01. One lock taken first, in the same
+   * place, by both sides, and the row locks under it cannot form a cycle.
+   * Same primitive the chip-match, return-to-owner and cross-org transfer
+   * writers already serialise on; auto-released at commit/rollback.
+   */
+  async acquirePetAdvisoryLock(petId: string, tx: unknown): Promise<void> {
+    const client = tx as Tx;
+    await client.execute(sql`SELECT pg_advisory_xact_lock(hashtext(${petId}))`);
+  },
+
+  /**
    * Lock-then-read variant of findLiveOwnerRow for the accept transaction
    * (ADR-1 step 2). Plain `SELECT ... FOR UPDATE`; no explicit lock of the
-   * pet, so the row lock is as narrow as the assertion it protects.
+   * pet itself — that is `acquirePetAdvisoryLock`, taken before this.
    */
   async lockLiveOwnerRow(
     petId: string,

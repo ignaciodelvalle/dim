@@ -14,7 +14,7 @@
 // consume and rebuild that state in sequence. Do not reorder.
 
 import { createClient as createSupabaseClient } from "@supabase/supabase-js";
-import { and, eq, isNull } from "drizzle-orm";
+import { and, eq, isNull, sql } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import {
@@ -558,15 +558,24 @@ describe("withdraw — who may, and what one transaction does (REQ-8, REQ-10, RE
     }
 
     // Both applicants are told, in words that say what happened and that
-    // nothing is asked of them.
+    // nothing is asked of them — and NOT the same words (WU5 review, LOW):
+    // the approved adopter was days from an adoption and is told the
+    // approval existed and the adoption will not happen; the pending one
+    // had been promised nothing and gets the plain close.
     for (const applicant of [ids.applicantApproved, ids.applicantPending]) {
       const notice = r.notifications.find((n) => n.userId === applicant);
       expect(notice?.notificationType).toBe("adoption_application_closed");
       expect(notice?.title).toContain("Tango");
       expect(notice?.body).toMatch(/titular retiró la búsqueda de hogar/);
-      expect(notice?.body).toMatch(/postulación quedó cerrada/);
+      expect(notice?.body).toMatch(/No hace falta que hagas nada/);
       expect(notice?.relatedPetId).toBe(petId);
     }
+    const approvedNotice = r.notifications.find((n) => n.userId === ids.applicantApproved);
+    expect(approvedNotice?.title).toMatch(/había sido aprobada/);
+    expect(approvedNotice?.body).toMatch(/antes de concretar la adopción/);
+    const pendingNotice = r.notifications.find((n) => n.userId === ids.applicantPending);
+    expect(pendingNotice?.title).toBe("Tu postulación por Tango quedó cerrada");
+    expect(pendingNotice?.body).not.toMatch(/aprobada/);
     expect(r.notifications).toHaveLength(3);
 
     // And the org gets the same refusal it gets today for a pet it no longer
@@ -759,14 +768,23 @@ describe("finalize vs withdraw — the custody row is locked under the finalize 
     expect(custodyBefore, "sponsored going in").toBeDefined();
 
     // The race, made deterministic: finalize's pre-transaction read sees the
-    // live custody; the moment its transaction reaches for the lock, the
-    // titular's withdraw has ALREADY committed (its own transaction, its own
-    // connection). The real lock then reads an ended row and returns nothing.
+    // live custody; the moment its transaction reaches for its FIRST lock —
+    // the pet advisory lock, which every custody writer of this feature now
+    // takes before any row lock (WU5 review, lock order) — the titular's
+    // withdraw has ALREADY committed (its own transaction, its own
+    // connection, its own advisory lock, released at its commit). The real
+    // locks then run in order and the custody read finds an ended row.
+    //
+    // The interception MUST sit before the advisory lock, not on the row
+    // lock: a withdraw started while finalize already holds the pet lock
+    // would block on that lock while finalize awaits the withdraw — a hang
+    // in the test harness, not a Postgres deadlock, since the finalize
+    // transaction is merely idle.
     let raced = false;
     const racingRepo = new Proxy(AdoptionRepository, {
       get(target, prop, receiver) {
-        if (prop === "lockLiveCustodyRow") {
-          return async (ownershipId: string, tx: unknown) => {
+        if (prop === "acquirePetAdvisoryLock") {
+          return async (lockedPetId: string, tx: unknown) => {
             if (!raced) {
               raced = true;
               const w = await withdrawRehomeSponsorship(
@@ -775,7 +793,7 @@ describe("finalize vs withdraw — the custody row is locked under the finalize 
               );
               if (!w.ok) throw new Error(`the racing withdraw failed: ${w.error}`);
             }
-            return target.lockLiveCustodyRow(ownershipId, tx as Tx);
+            return target.acquirePetAdvisoryLock(lockedPetId, tx as Tx);
           };
         }
         return Reflect.get(target, prop, receiver);
@@ -828,5 +846,41 @@ describe("finalize vs withdraw — the custody row is locked under the finalize 
     expect(live.map((o) => o.role)).toEqual(["owner"]);
     expect(live[0].id).toBe(titularOwnershipId);
     expect(await openSponsorship()).toBeNull();
+  });
+});
+
+// WU5 review (LOW), lock order — NON-VACUITY. The source pins say both
+// transactions CALL `acquirePetAdvisoryLock` first; this proves the method is
+// a real transaction-scoped lock on the pet and not a no-op: while one
+// transaction holds it through the repository, a second connection's
+// `pg_try_advisory_xact_lock` on the same key returns false, and true again
+// once the first transaction ends.
+describe("the pet advisory lock both transactions take first is a real lock", () => {
+  async function otherConnectionCanTakeIt(): Promise<boolean> {
+    return db.transaction(async (other) => {
+      const rows = await other.execute<{ got: boolean }>(
+        sql`SELECT pg_try_advisory_xact_lock(hashtext(${petId})) AS got`,
+      );
+      return rows[0].got;
+    });
+  }
+
+  it("pg_try_advisory_xact_lock(hashtext(petId)) is refused while RehomeRepository holds it", async () => {
+    let heldByOther: boolean | null = null;
+    await transaction(async (tx) => {
+      await RehomeRepository.acquirePetAdvisoryLock(petId, tx);
+      heldByOther = await otherConnectionCanTakeIt();
+    });
+    expect(heldByOther).toBe(false);
+    expect(await otherConnectionCanTakeIt()).toBe(true);
+  });
+
+  it("AdoptionRepository takes the SAME key — finalize and withdraw serialise on one lock", async () => {
+    let heldByOther: boolean | null = null;
+    await transaction(async (tx) => {
+      await AdoptionRepository.acquirePetAdvisoryLock(petId, tx as Tx);
+      heldByOther = await otherConnectionCanTakeIt();
+    });
+    expect(heldByOther).toBe(false);
   });
 });

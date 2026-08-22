@@ -14,6 +14,12 @@
 // org's row.
 //
 // ONE TRANSACTION, AND THE ORDER IS LOAD-BEARING (the inverse of ADR-1):
+//   0. Take the pet advisory lock — BEFORE any row lock. Finalize locks the
+//      custody row and then closes the owner row; this path locked the owner
+//      row and then closed the custody row: the same two row locks in opposite
+//      orders, a deadlock Postgres resolves with 40P01 (WU5 review). Both
+//      sides now take `pg_advisory_xact_lock(hashtext(petId))` first, so the
+//      row locks under it can no longer form a cycle.
 //   1. Lock the titular's owner row; find the open sponsorship on the spine.
 //   2. Close the custody row the sponsorship opened — BY ID, never by the
 //      (pet, org) shape, which also describes a decomiso or an intake. If it
@@ -45,9 +51,24 @@
 // Notifications and revalidation are OUTSIDE the transaction, per house
 // convention: a dead SMTP must never roll back the titular's exit.
 
+import { pgErrorCode } from "@/lib/infra/db-errors";
+
 import { NO_ACTIVE_SPONSORSHIP_ERROR, validateWithdrawSponsorship } from "../domain/rehome-rules";
-import type { PetSummary, RehomeWithdrawPort, SponsorOrg } from "./ports";
+import type { PetSummary, RehomeWithdrawPort, SponsorOrg, StrandedApplication } from "./ports";
 import type { NewNotification, UseCaseResult } from "./types";
+
+/**
+ * SQLSTATEs Postgres raises when it had to pick a loser between two
+ * transactions on the same rows: 40P01 deadlock_detected, 40001
+ * serialization_failure. Nothing was written; the titular's act is still
+ * theirs to retry. Every other failure propagates — a refusal must not hide
+ * a real bug.
+ */
+const SERIALIZATION_CODES = new Set(["40P01", "40001"]);
+
+function serializationRefusal(petName: string): string {
+  return `Otra acción sobre ${petName} se estaba registrando al mismo tiempo y la baja no se aplicó. No cambió nada. Volvé a intentar en unos segundos.`;
+}
 
 type Deps = {
   repo: RehomeWithdrawPort;
@@ -81,8 +102,8 @@ type TxOutcome =
       orgId: string;
       listing: { id: string; publicCode: string } | null;
       custodyRowWasLive: boolean;
-      /** Applicants whose application step 6 closed — told after commit. */
-      strandedApplicantUserIds: string[];
+      /** The applications step 6 closed — each applicant told after commit, in words that fit their case. */
+      strandedApplications: StrandedApplication[];
     }
   | { ok: false; error: string };
 
@@ -97,7 +118,10 @@ export async function withdrawRehomeSponsorship(
 
   const now = deps.now();
 
-  const outcome = await deps.transaction<TxOutcome>(async (tx) => {
+  const outcome = await runWithdrawTransaction(pet.name, deps, async (tx) => {
+    // 0. The pet lock, before any row lock (see the header: lock order).
+    await repo.acquirePetAdvisoryLock(pet.id, tx);
+
     // 1. The titular's row, locked; the arrangement, on the spine.
     const ownerRow = await repo.lockLiveOwnerRow(pet.id, input.titularUserId, tx);
     const open = await repo.findOpenSponsorshipForPet(pet.id, tx);
@@ -166,7 +190,7 @@ export async function withdrawRehomeSponsorship(
       orgId: open.sponsoringOrganizationId,
       listing,
       custodyRowWasLive: ended,
-      strandedApplicantUserIds: stranded.map((a) => a.applicantUserId),
+      strandedApplications: stranded,
     };
   });
 
@@ -196,13 +220,25 @@ export async function withdrawRehomeSponsorship(
   // The applicants whose application step 6 closed. What happened and what
   // it means for them, with nothing asked of them — the same courtesy the
   // finalize cascade's "encontró hogar" extends, for the opposite outcome.
-  for (const userId of new Set(outcome.strandedApplicantUserIds)) {
+  // NOT the same words for both (WU5 review): the adopter the org had
+  // already APPROVED was days from an adoption and is told the approval
+  // existed and the adoption will not happen; the pending applicant had been
+  // promised nothing and gets the plain close.
+  const told = new Set<string>();
+  for (const application of outcome.strandedApplications) {
+    const userId = application.applicantUserId;
+    if (told.has(userId)) continue;
+    told.add(userId);
     notifications.push({
       userId,
       notificationType: "adoption_application_closed",
       severity: "info",
-      title: `Tu postulación por ${pet.name} quedó cerrada`,
-      body: `El titular retiró la búsqueda de hogar de ${pet.name}; tu postulación quedó cerrada. No hace falta que hagas nada. Hay otras mascotas buscando hogar.`,
+      title: application.approved
+        ? `Tu postulación por ${pet.name} había sido aprobada y quedó cerrada`
+        : `Tu postulación por ${pet.name} quedó cerrada`,
+      body: application.approved
+        ? `El titular retiró la búsqueda de hogar de ${pet.name} antes de concretar la adopción, así que la adopción no va a realizarse y tu postulación quedó cerrada. No hace falta que hagas nada. Hay otras mascotas buscando hogar.`
+        : `El titular retiró la búsqueda de hogar de ${pet.name}; tu postulación quedó cerrada. No hace falta que hagas nada. Hay otras mascotas buscando hogar.`,
       dedupeKey: `rehome:withdrawn:${outcome.ownershipId}:applicant:${userId}`,
       ctaLabel: "Ver otras en adopción",
       ctaUrl: "/adoptar",
@@ -225,4 +261,28 @@ export async function withdrawRehomeSponsorship(
     },
     notifications,
   };
+}
+
+/**
+ * The withdraw transaction, with the one failure Postgres can legitimately
+ * hand back mapped to a sentence. Under the pet advisory lock the row-lock
+ * deadlock of the WU5 review cannot form, but a serialization failure against
+ * some OTHER writer that does not take the pet lock is still Postgres's call
+ * to make — and when it makes it, nothing was written and the titular may
+ * simply try again. It used to reach the action as an unhandled error.
+ */
+async function runWithdrawTransaction(
+  petName: string,
+  deps: Pick<Deps, "transaction">,
+  body: (tx: unknown) => Promise<TxOutcome>,
+): Promise<TxOutcome> {
+  try {
+    return await deps.transaction<TxOutcome>(body);
+  } catch (err) {
+    const code = pgErrorCode(err);
+    if (code !== null && SERIALIZATION_CODES.has(code)) {
+      return { ok: false, error: serializationRefusal(petName) };
+    }
+    throw err;
+  }
 }

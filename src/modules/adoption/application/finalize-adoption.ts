@@ -224,6 +224,15 @@ export async function finalizeAdoption(
   // 7. Atomic transaction.
   try {
     await transaction(async (tx) => {
+      // The pet advisory lock FIRST (WU5 review, lock order): the titular's
+      // withdraw takes the same lock before ITS row locks, so the custody-row
+      // lock below and the owner-row close inside insertAdoptionFinalized can
+      // no longer deadlock against the withdraw's owner-row lock + custody close.
+      await repo.acquirePetAdvisoryLock(
+        petRow.id,
+        tx as Parameters<typeof repo.acquirePetAdvisoryLock>[1],
+      );
+
       // The custody row, LOCKED, before anything is written (rehome-by-titular,
       // WU5 carry-forward 3). Step 1's read is pre-transaction and stale by
       // construction; the titular's withdraw ends this exact row in its own

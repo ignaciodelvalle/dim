@@ -240,6 +240,21 @@ export const AdoptionRepository = {
    * withdraw either waits behind this transaction or has already ended the
    * row, in which case this returns null and finalize refuses.
    */
+  /**
+   * The transaction-scoped advisory lock on the pet — the FIRST lock finalize
+   * takes, before `lockLiveCustodyRow` (WU5 review, lock order). Finalize
+   * locked the custody row and then closed every live row (the titular's
+   * owner row among them); the titular's withdraw locked the owner row and
+   * then closed the custody row. Two transactions, the same two row locks,
+   * opposite orders: a deadlock Postgres breaks with 40P01. Both now take
+   * this lock first — same key as RehomeRepository.acquirePetAdvisoryLock
+   * and the chip-match / return-to-owner / cross-org writers — and the row
+   * locks under it cannot form a cycle.
+   */
+  async acquirePetAdvisoryLock(petId: string, tx: Tx): Promise<void> {
+    await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtext(${petId}))`);
+  },
+
   async lockLiveCustodyRow(ownershipId: string, tx: Tx): Promise<{ id: string } | null> {
     const [row] = await tx
       .select({ id: ownerships.id })

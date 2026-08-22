@@ -110,6 +110,8 @@ export type CloseRequestCaseArgs = {
 
 export interface RehomeAnswerPort {
   findRequestCaseByPublicCode(publicCode: string): Promise<RequestCase | null>;
+  /** `pg_advisory_xact_lock(hashtext(petId))` — the FIRST lock of every custody writer (lock order). */
+  acquirePetAdvisoryLock(petId: string, tx: unknown): Promise<void>;
   /** Re-read under `SELECT ... FOR UPDATE`: the pre-transaction read is stale. */
   lockRequestCase(caseId: string, tx: unknown): Promise<RequestCase | null>;
   findPetById(petId: string, tx?: unknown): Promise<PetSummary | null>;
@@ -177,6 +179,8 @@ export type CloseApplicationByTitularArgs = {
 export interface RehomeWithdrawPort {
   findPetByToken(publicToken: string): Promise<PetSummary | null>;
   findLiveOwnerRow(petId: string, userId: string, tx?: unknown): Promise<{ id: string } | null>;
+  /** `pg_advisory_xact_lock(hashtext(petId))` — the FIRST lock of every custody writer (lock order). */
+  acquirePetAdvisoryLock(petId: string, tx: unknown): Promise<void>;
   /** The titular's live `owner` row, FOR UPDATE: the withdraw is the titular's act and no one else's. */
   lockLiveOwnerRow(petId: string, userId: string, tx: unknown): Promise<{ id: string } | null>;
   findOrgById(orgId: string, tx?: unknown): Promise<SponsorOrg | null>;

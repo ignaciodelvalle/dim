@@ -82,3 +82,43 @@ describe("respond-to-rehome-request — the accepting org row is locked FOR SHAR
     expect(respondSrc).not.toContain("repo.findOrgById(");
   });
 });
+
+// WU5 review (LOW): LOCK ORDER. Finalize locked the custody row first and then
+// closed every live row (the titular's owner row among them); the withdraw
+// locked the titular's owner row first and then closed the custody row. Two
+// row locks taken in opposite orders by two transactions on the same pet is a
+// deadlock window, and Postgres resolves it by killing one side with 40P01 —
+// which the withdraw's action surfaced as an unhandled error. Every pet-scoped
+// custody writer of this feature now takes ONE lock first, in the same place:
+// `pg_advisory_xact_lock(hashtext(petId))`, the repo's own precedent for
+// serialising custody writers (chip-match, return-to-owner, cross-org
+// transfer). Row locks after it can no longer form a cycle.
+describe("rehome — every transaction takes the pet advisory lock BEFORE any row lock", () => {
+  const withdrawSrc = readFileSync(
+    join(MODULE_ROOT, "application", "withdraw-rehome-sponsorship.ts"),
+    "utf8",
+  );
+
+  it("RehomeRepository.acquirePetAdvisoryLock is the transaction-scoped pet lock", () => {
+    const body = methodBody(repositorySrc, "acquirePetAdvisoryLock");
+    expect(body).toContain("pg_advisory_xact_lock(hashtext(");
+  });
+
+  it("the withdraw takes it inside its transaction, before the owner-row lock", () => {
+    const txStart = withdrawSrc.indexOf("runWithdrawTransaction(pet.name, deps, async (tx) =>");
+    expect(txStart, "the withdraw transaction").toBeGreaterThanOrEqual(0);
+    const lockAt = withdrawSrc.indexOf("repo.acquirePetAdvisoryLock(", txStart);
+    const ownerRowAt = withdrawSrc.indexOf("repo.lockLiveOwnerRow(", txStart);
+    expect(lockAt, "acquirePetAdvisoryLock inside the transaction").toBeGreaterThan(txStart);
+    expect(ownerRowAt).toBeGreaterThan(lockAt);
+  });
+
+  it("the accept takes it inside its transaction, before the case lock", () => {
+    const txStart = respondSrc.indexOf("runAnswerTransaction(deps, async (tx) =>");
+    expect(txStart, "the accept transaction").toBeGreaterThanOrEqual(0);
+    const lockAt = respondSrc.indexOf("repo.acquirePetAdvisoryLock(", txStart);
+    const caseLockAt = respondSrc.indexOf("repo.lockRequestCase(", txStart);
+    expect(lockAt, "acquirePetAdvisoryLock inside the transaction").toBeGreaterThan(txStart);
+    expect(caseLockAt).toBeGreaterThan(lockAt);
+  });
+});

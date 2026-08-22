@@ -14,10 +14,14 @@
 // cascade); this is its reader. Pure: no DB, no framework, tested without
 // either.
 
+import type { CaseEventEntryType } from "@/db/schema";
 import { eventTypeLabel } from "@/lib/utils/format";
 import type { EventType } from "@dim/contract/events";
 
-const CASE_ENTRY_LABELS: Record<string, string> = {
+// Exhaustive BY TYPE against CASE_EVENT_ENTRY_TYPES (WU5 review): a fourteenth
+// entry type without a title here is a `tsc` error at this line, not a row
+// that silently renders the fallback.
+const CASE_ENTRY_LABELS = {
   case_opened: "Expediente abierto",
   case_escalated: "Expediente escalado",
   case_closed: "Expediente cerrado",
@@ -31,7 +35,7 @@ const CASE_ENTRY_LABELS: Record<string, string> = {
   final_report: "Informe final",
   signal_link: "Señal vinculada",
   system: "Registro del sistema",
-};
+} satisfies Record<CaseEventEntryType, string>;
 
 // The three outcomes a rehome close carries (design ADR-1's table), said as
 // WHO decided. `withdrawn` covers the titular's cancel of a pending request,
@@ -52,7 +56,7 @@ export function caseEntryLabel(eventType: string, payload: unknown): string {
       return REHOME_DECISION_LABELS[decision];
     }
   }
-  const caseLabel = CASE_ENTRY_LABELS[eventType];
+  const caseLabel = (CASE_ENTRY_LABELS as Record<string, string | undefined>)[eventType];
   if (caseLabel) return caseLabel;
   // A pet event: the libreta's own label. The map is keyed by EventType, so
   // anything outside both catalogs lands on the fallback rather than on

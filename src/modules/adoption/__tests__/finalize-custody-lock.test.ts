@@ -52,3 +52,25 @@ describe("finalize-adoption — the custody row is locked under the finalize tra
     expect(writeAt).toBeGreaterThan(lockAt);
   });
 });
+
+// WU5 review (LOW): LOCK ORDER with the titular's withdraw. Finalize locked the
+// custody row and then closed the owner row; the withdraw locked the owner row
+// and then closed the custody row — a deadlock cycle Postgres breaks with
+// 40P01. Both now take the pet advisory lock FIRST (the chip-match /
+// return-to-owner / cross-org precedent), so the row locks below it can no
+// longer be taken in opposite orders. Pinned on both sides: this file for
+// finalize, src/modules/rehome/__tests__/owner-row-lock.test.ts for the withdraw.
+describe("finalize-adoption — the pet advisory lock comes before the custody-row lock", () => {
+  it("AdoptionRepository.acquirePetAdvisoryLock is the transaction-scoped pet lock", () => {
+    const body = methodBody(repositorySrc, "acquirePetAdvisoryLock");
+    expect(body).toContain("pg_advisory_xact_lock(hashtext(");
+  });
+
+  it("the use-case takes it inside the transaction, before lockLiveCustodyRow", () => {
+    const txStart = finalizeSrc.indexOf("await transaction(async (tx) =>");
+    const advisoryAt = finalizeSrc.indexOf("repo.acquirePetAdvisoryLock(", txStart);
+    const lockAt = finalizeSrc.indexOf("repo.lockLiveCustodyRow(", txStart);
+    expect(advisoryAt, "acquirePetAdvisoryLock inside the transaction").toBeGreaterThan(txStart);
+    expect(lockAt).toBeGreaterThan(advisoryAt);
+  });
+});

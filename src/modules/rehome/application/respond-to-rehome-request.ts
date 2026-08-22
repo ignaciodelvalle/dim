@@ -106,8 +106,14 @@ export async function respondToRehomeRequest(
   }
 
   const now = deps.now();
+  const petIdForLock = pre.primaryPetId;
 
   const outcome = await runAnswerTransaction(deps, async (tx) => {
+    // 0. The pet advisory lock, before any row lock — the same first lock the
+    //    titular's withdraw and adoption's finalize take (WU5 review: lock
+    //    order). The pet id is the case's and cannot change under us.
+    await repo.acquirePetAdvisoryLock(petIdForLock, tx);
+
     // 1. Lock, re-read, re-assert.
     const locked = await repo.lockRequestCase(pre.id, tx);
     if (!locked || !locked.primaryPetId || !locked.openedByUserId) {
