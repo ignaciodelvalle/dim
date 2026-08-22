@@ -14,6 +14,8 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 
+import { describeTarget, isLocalWriterTarget } from "@/scripts/_db-target";
+
 const REPO_ROOT = join(__dirname, "..");
 const read = (rel: string) => readFileSync(join(REPO_ROOT, rel), "utf8");
 
@@ -53,6 +55,44 @@ describe("scripts/rollback-rehome-sponsorships.ts — CLI contract", () => {
   it("exports runRollback for the db test and only runs as a CLI when invoked directly", () => {
     expect(src).toMatch(/export async function runRollback\(/);
     expect(src).toMatch(/isMain/);
+  });
+
+  // WU6/7 review (L-2): the read-only fences trust `db`, `0.0.0.0` and
+  // `host.docker.internal` as "a developer's own stack" — fine for a SKIP
+  // decision on a read. A WRITER borrowing that list would write through a
+  // DATABASE_URL whose host is literally `db` with no flag typed. A writer's
+  // "local" is the Supabase CLI stack and nothing else.
+  describe("a writer's 'local' is stricter than the read-only fences'", () => {
+    const cases: Array<[string, boolean]> = [
+      ["postgresql://postgres:postgres@localhost:54322/postgres", true],
+      ["postgresql://postgres:postgres@127.0.0.1:54322/postgres", true],
+      ["postgresql://postgres:postgres@[::1]:54322/postgres", true],
+      // The compose hostname and the Docker gateway: the fences' list, not ours.
+      ["postgresql://postgres:postgres@db:5432/postgres", false],
+      ["postgresql://postgres:postgres@host.docker.internal:54322/postgres", false],
+      ["postgresql://postgres:postgres@0.0.0.0:54322/postgres", false],
+      ["postgresql://postgres:postgres@supabase_db_dim:5432/postgres", false],
+      // A local host on a port that is not the CLI stack's is somebody's
+      // other Postgres — name it with the flag.
+      ["postgresql://postgres:postgres@localhost:5432/postgres", false],
+      ["postgresql://postgres:postgres@localhost/postgres", false],
+      ["postgresql://postgres.ref:pw@aws-1-sa-east-1.pooler.supabase.com:5432/postgres", false],
+      ["not a url", false],
+    ];
+    for (const [url, expected] of cases) {
+      it(`${url.replace(/:[^:@/]+@/, ":***@")} -> ${expected}`, () => {
+        expect(isLocalWriterTarget(describeTarget(url))).toBe(expected);
+      });
+    }
+
+    it("the fences' broader list still trusts `db` — the writer must not borrow it", () => {
+      expect(describeTarget("postgresql://postgres:postgres@db:5432/postgres").isLocal).toBe(true);
+    });
+
+    it("the script gates on isLocalWriterTarget, never on the fences' isLocal", () => {
+      expect(src).toMatch(/isLocalWriterTarget\(/);
+      expect(src).not.toMatch(/target\.isLocal\b/);
+    });
   });
 });
 

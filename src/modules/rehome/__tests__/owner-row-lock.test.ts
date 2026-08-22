@@ -16,11 +16,12 @@
 // the locking one really says `.for("update")`. The unlocked read still exists
 // for the request path, which runs outside any transaction.
 
-import { readFileSync } from "node:fs";
-import { join } from "node:path";
+import { readFileSync, readdirSync, statSync } from "node:fs";
+import { join, relative, sep } from "node:path";
 import { describe, expect, it } from "vitest";
 
 const MODULE_ROOT = join(__dirname, "..");
+const REPO_ROOT = join(MODULE_ROOT, "..", "..", "..");
 const repositorySrc = readFileSync(
   join(MODULE_ROOT, "infrastructure", "rehome-repository.ts"),
   "utf8",
@@ -120,5 +121,98 @@ describe("rehome — every transaction takes the pet advisory lock BEFORE any ro
     const caseLockAt = respondSrc.indexOf("repo.lockRequestCase(", txStart);
     expect(lockAt, "acquirePetAdvisoryLock inside the transaction").toBeGreaterThan(txStart);
     expect(caseLockAt).toBeGreaterThan(lockAt);
+  });
+});
+
+// WU6/7 review (M-1): the death of a sponsored pet ends the sponsorship inside
+// the death transaction — which had already closed the foster rows and updated
+// the pets row before it reached for the custody row, and took no pet lock at
+// all. Finalize holds the pet lock while it touches those same rows: the cycle
+// the WU5 fix closed was open again, one writer over. The arms above pin the
+// writers they NAME, and a writer nobody named is exactly the one that slips.
+// This arm DISCOVERS them: every file that calls `endRehomeSponsorship(` must
+// take the pet advisory lock before that call, in the same file — or be the
+// one primitive whose lock is its callers' duty, listed with the reason.
+describe("rehome — every caller of endRehomeSponsorship( takes the pet advisory lock first", () => {
+  const SCAN_DIRS = ["lib", "src", "scripts"];
+  const WRITER = "src/modules/adoption/infrastructure/rehome-sponsorship-writer.ts";
+  const CALL = "endRehomeSponsorship(";
+  const LOCK = /acquirePetAdvisoryLock\(|pg_advisory_xact_lock\(hashtext\(/;
+  // lib/infra/end-pet-ownerships.ts closes every live row for a hand-off and is
+  // called from INSIDE the caller's transaction: finalize takes the pet lock
+  // before it; the decomiso writers (x3) and the dispute resolution do not —
+  // the known gap src/modules/rehome/README.md names. The lock cannot live in
+  // the primitive: taken AFTER a caller's own row locks it would not be first.
+  const LOCK_IS_THE_CALLERS_DUTY = new Set(["lib/infra/end-pet-ownerships.ts"]);
+
+  function walk(dir: string, acc: string[]): void {
+    let names: string[];
+    try {
+      names = readdirSync(dir);
+    } catch {
+      return;
+    }
+    for (const name of names) {
+      const full = join(dir, name);
+      if (statSync(full).isDirectory()) {
+        if (name === "node_modules" || name === "__tests__") continue;
+        walk(full, acc);
+      } else if (name.endsWith(".ts") && !name.endsWith(".test.ts")) {
+        acc.push(full);
+      }
+    }
+  }
+
+  function callers(): Array<{ rel: string; src: string }> {
+    const out: Array<{ rel: string; src: string }> = [];
+    for (const base of SCAN_DIRS) {
+      const files: string[] = [];
+      walk(join(REPO_ROOT, base), files);
+      for (const abs of files) {
+        const rel = relative(REPO_ROOT, abs).split(sep).join("/");
+        if (rel === WRITER) continue;
+        const src = readFileSync(abs, "utf8");
+        if (src.includes(CALL)) out.push({ rel, src });
+      }
+    }
+    return out.sort((a, b) => a.rel.localeCompare(b.rel));
+  }
+
+  const found = callers();
+
+  it("discovers the callers — the fence is not vacuous", () => {
+    const rels = found.map((f) => f.rel);
+    expect(rels).toContain("lib/infra/rehome-death-cascade.ts");
+    expect(rels).toContain("scripts/rollback-rehome-sponsorships.ts");
+    expect(rels).toContain("src/modules/rehome/infrastructure/rehome-repository.ts");
+  });
+
+  for (const { rel, src } of found) {
+    if (LOCK_IS_THE_CALLERS_DUTY.has(rel)) continue;
+    it(`${rel}: the pet advisory lock comes before endRehomeSponsorship(`, () => {
+      const lockAt = src.search(LOCK);
+      const callAt = src.indexOf(CALL);
+      expect(lockAt, "a pet advisory lock in the file").toBeGreaterThanOrEqual(0);
+      expect(lockAt).toBeLessThan(callAt);
+    });
+  }
+
+  it("the death transaction takes it FIRST — before the death event, the pets projection, the foster closes and CASCADE D", () => {
+    const deathSrc = readFileSync(
+      join(REPO_ROOT, "src/modules/events/application/lifecycle/death-record-use-case.ts"),
+      "utf8",
+    );
+    const txStart = deathSrc.indexOf("deps.transaction(async (tx) =>");
+    expect(txStart, "the death transaction").toBeGreaterThanOrEqual(0);
+    const lockAt = deathSrc.indexOf("lockPetForDeathRecord(", txStart);
+    expect(lockAt, "lockPetForDeathRecord inside the transaction").toBeGreaterThan(txStart);
+    for (const later of [
+      "insertEventIdempotent(",
+      "updateDeceased(",
+      "findActiveFosters(",
+      "endSponsorshipForDeceasedPet(",
+    ]) {
+      expect(deathSrc.indexOf(later, txStart), `${later} after the lock`).toBeGreaterThan(lockAt);
+    }
   });
 });

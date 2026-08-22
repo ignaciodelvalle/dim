@@ -28,10 +28,28 @@
 //
 // The owner row is NOT touched: a death does not change who the animal
 // belonged to.
+//
+// LOCK FIRST (WU6/7 review, M-1). The death transaction closes the foster rows
+// and updates the pets row before it gets here, and finalize / the titular's
+// withdraw hold `pg_advisory_xact_lock(hashtext(petId))` while they touch the
+// same rows — the very cycle the WU5 review closed, open again one writer
+// over. So the death transaction takes that lock as its FIRST statement
+// (`lockPetForDeathRecord`, called by the use-case before anything is
+// written), and the step-B read below runs under it: a withdraw that
+// committed meanwhile is seen, and this returns null instead of telling the
+// org about an end the death did not perform.
+//
+// WHOSE ORG (WU6/7 review, M-2). The closing fact and the auto-rejections are
+// facts about the SPONSORING org's arrangement: `author_organization_id` on
+// them names that org, whoever recorded the death (a clinic's vet, another
+// org's member). The role, the verification and the person stay the
+// recorder's — and the death event itself keeps the recorder's full
+// authorship, because that IS who recorded it.
 
 import { and, eq, inArray, isNull } from "drizzle-orm";
 
 import {
+  authorRoleEnum,
   caseEvents,
   organizationMemberships,
   organizations,
@@ -56,17 +74,41 @@ type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0];
 /** Derived from the column, so a widened `author_role` enum cannot drift from this. */
 type AuthorRole = NonNullable<(typeof petEvents.$inferInsert)["authorRole"]>;
 
+const AUTHOR_ROLES: ReadonlySet<string> = new Set(authorRoleEnum.enumValues);
+
+/** The recorder's role, CHECKED against the column's enum — not cast into it. */
+function asAuthorRole(value: string): AuthorRole {
+  if (!AUTHOR_ROLES.has(value)) {
+    throw new Error(`authorRole "${value}" is not a pet_events.author_role member`);
+  }
+  return value as AuthorRole;
+}
+
 /** The `reason` the auto-resolution of a still-pending application carries. */
 export const PET_DECEASED_REASON = "pet_deceased";
+
+/**
+ * The death transaction's FIRST statement — before the death event, the pets
+ * projection, the foster closes and CASCADE D. Same key as every custody
+ * writer of the feature (accept, withdraw, finalize, rollback), so the row
+ * locks taken after it cannot form a cycle with theirs. Pinned by
+ * src/modules/rehome/__tests__/owner-row-lock.test.ts.
+ */
+export async function lockPetForDeathRecord(petId: string, tx: Tx): Promise<void> {
+  await AdoptionRepository.acquirePetAdvisoryLock(petId, tx);
+}
 
 export type DeathSponsorshipCascadeArgs = {
   petId: string;
   petName: string;
   /** Whoever recorded the death — the closing fact and the case closes are theirs. */
   recordedByUserId: string;
-  /** The death event's own authorship: who the recorder IS (owner / shelter / vet). */
+  /**
+   * The death event's own authorship: who the recorder IS (owner / shelter /
+   * vet) and whether that signature is verified. No org: the org on the
+   * closing fact is the SPONSORING org (header, "whose org").
+   */
   authorRole: string;
-  authorOrganizationId: string | null;
   authorVerified: boolean;
   now: Date;
 };
@@ -145,13 +187,14 @@ async function orgAdminAndCoordinatorUserIds(orgId: string, tx: Tx): Promise<str
 /**
  * CASCADE D. Returns null when the pet had neither an open sponsorship nor a
  * pending request — the overwhelmingly common case, at no cost beyond one
- * spine read and one case read.
+ * spine read and one case read. MUST run under the pet advisory lock
+ * (`lockPetForDeathRecord`, taken first by the death transaction).
  */
 export async function endSponsorshipForDeceasedPet(
   args: DeathSponsorshipCascadeArgs,
   tx: Tx,
 ): Promise<DeathSponsorshipCascadeResult | null> {
-  const authorRole = args.authorRole as AuthorRole;
+  const authorRole = asAuthorRole(args.authorRole);
 
   // A. A request the org never answered. Nothing on the spine (the request
   //    was workflow state, not a fact about the animal); the case closes so
@@ -172,7 +215,8 @@ export async function endSponsorshipForDeceasedPet(
     requestCaseId = request.id;
   }
 
-  // B. The sponsorship itself, keyed on the spine.
+  // B. The sponsorship itself, keyed on the spine — read UNDER the pet lock,
+  //    so an end that committed before this transaction took it is seen.
   const open = await findOpenSponsorship(args.petId, tx);
   if (!open) {
     if (!request?.receiverOrganizationId) return null;
@@ -202,14 +246,15 @@ export async function endSponsorshipForDeceasedPet(
   );
 
   // 3. The closing fact — BEFORE the listing case closes, because it attaches
-  //    to that case only while the case is open (attaches-when-open).
+  //    to that case only while the case is open (attaches-when-open). Named
+  //    after the SPONSORING org, signed by the recorder (header, "whose org").
   await endRehomeSponsorship(
     {
       petId: args.petId,
       outcome: "pet_deceased",
       recordedByUserId: args.recordedByUserId,
       authorRole,
-      authorOrganizationId: args.authorOrganizationId,
+      authorOrganizationId: open.sponsoringOrganizationId,
       authorVerified: args.authorVerified,
       now: args.now,
     },
@@ -232,10 +277,12 @@ export async function endSponsorshipForDeceasedPet(
   }
 
   // 5. The applications the listing had. A PENDING one is resolved on the
-  //    spine — auto-generated, the reason named, signed with the death's own
-  //    authorship; an APPROVED one keeps its approval as the single
-  //    resolution (a second, contradictory event would be a lie on an
-  //    append-only ledger). Both lose their open case, with a note.
+  //    spine — auto-generated, the reason named, signed by the recorder on
+  //    behalf of the SPONSORING org (it is a resolution on that org's
+  //    listing; `author` is the complete signature the repository stamps);
+  //    an APPROVED one keeps its approval as the single resolution (a second,
+  //    contradictory event would be a lie on an append-only ledger). Both
+  //    lose their open case, with a note.
   const pending = await AdoptionRepository.findPendingApplicationsExcluding(args.petId, null, tx);
   const approved = await AdoptionRepository.findApprovedUnfinalizedApplications(args.petId, tx);
   for (const application of pending) {
@@ -253,7 +300,7 @@ export async function endSponsorshipForDeceasedPet(
         now: args.now,
         author: {
           role: authorRole,
-          organizationId: args.authorOrganizationId,
+          organizationId: open.sponsoringOrganizationId,
           verified: args.authorVerified,
         },
       },

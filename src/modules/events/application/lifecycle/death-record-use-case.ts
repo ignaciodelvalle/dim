@@ -23,15 +23,38 @@
 //              urgent authority fan-out (if rabiesObservationClosed AND jurisdiction set).
 //   - Result: { ok: true, rabiesObservationClosed, diseaseCode, insertedEventId }
 //   - CRITICAL: all cascades SKIP on idempotency noop.
+//   - LOCK FIRST (WU6/7 review, M-1): the transaction's first statement is the
+//     pet advisory lock (`lockPetForDeathRecord`) — CASCADE A closes foster
+//     rows and the projection touches the pets row, the same rows an adoption
+//     finalize or a titular's withdraw hold under that lock. A serialization
+//     failure Postgres still raises (40P01 / 40001) is mapped to a refusal
+//     the recorder can retry, like the withdraw does; nothing was written.
 
 import { type AuthoritySignalResult, signalAuthorityReport } from "@/lib/domain/authority";
 import { validateEventPayload } from "@/lib/events/event-schemas";
 import { findAuthoritiesForJurisdiction } from "@/lib/infra/approval-routing";
 import { closeCase } from "@/lib/infra/case-helpers";
-import { endSponsorshipForDeceasedPet } from "@/lib/infra/rehome-death-cascade";
+import { pgErrorCode } from "@/lib/infra/db-errors";
+import {
+  endSponsorshipForDeceasedPet,
+  lockPetForDeathRecord,
+} from "@/lib/infra/rehome-death-cascade";
 import { dispositionMethodLabel } from "@/lib/utils/format";
 
 type CaseExecutor = Parameters<typeof closeCase>[1];
+
+/**
+ * SQLSTATEs Postgres raises when it had to pick a loser between two
+ * transactions on the same rows: 40P01 deadlock_detected, 40001
+ * serialization_failure. Nothing was written; the recorder simply tries
+ * again. Every other failure keeps its message — a refusal must not hide a
+ * real bug. (Same mapping as src/modules/rehome/application/withdraw-rehome-sponsorship.ts.)
+ */
+const SERIALIZATION_CODES = new Set(["40P01", "40001"]);
+
+function serializationRefusal(petName: string): string {
+  return `Otra acción sobre ${petName} se estaba registrando al mismo tiempo y el fallecimiento no se registró. No cambió nada. Volvé a intentar en unos segundos.`;
+}
 
 import type { EventsRepository } from "../../infrastructure/events-repository";
 import type { NewNotification } from "../types";
@@ -166,6 +189,12 @@ export async function createDeathRecord(
 
   try {
     await deps.transaction(async (tx) => {
+      // FIRST: the pet advisory lock, before any row of this pet is touched
+      // (header, "lock first"). The idempotent insert below takes its own
+      // key lock after it; the pets row, the foster rows and the custody row
+      // all come later.
+      await lockPetForDeathRecord(pet.id, tx as Parameters<typeof lockPetForDeathRecord>[1]);
+
       const wasInObservation = pet.rabiesObservationStatus === "in_progress";
 
       const eventPayload = validateEventPayload("death_recorded", {
@@ -293,16 +322,16 @@ export async function createDeathRecord(
       }
 
       // CASCADE D: a sponsored pet's death ends the sponsorship, in THIS
-      // transaction, signed with the death's own authorship (the titular, the
-      // org or a vet — whoever recorded it). Null for the overwhelmingly
-      // common case of a pet that was never sponsored nor requested.
+      // transaction, under the lock taken above, signed by whoever recorded
+      // the death (the titular, an org member, a vet) on behalf of the
+      // SPONSORING org — the cascade stamps that org itself. Null for the
+      // overwhelmingly common case of a pet never sponsored nor requested.
       const sponsorshipEnd = await endSponsorshipForDeceasedPet(
         {
           petId: pet.id,
           petName: pet.name,
           recordedByUserId,
           authorRole: eventAuthorship.authorRole,
-          authorOrganizationId: eventAuthorship.authorOrganizationId,
           authorVerified: eventAuthorship.authorVerified,
           now,
         },
@@ -408,6 +437,10 @@ export async function createDeathRecord(
       }
     });
   } catch (err) {
+    const code = pgErrorCode(err);
+    if (code !== null && SERIALIZATION_CODES.has(code)) {
+      return { ok: false, error: serializationRefusal(pet.name) };
+    }
     return { ok: false, error: err instanceof Error ? err.message : "unknown error" };
   }
 

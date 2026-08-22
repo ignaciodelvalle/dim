@@ -80,6 +80,8 @@ export async function findOpenSponsorship(
  * `listOpenSponsorshipPetIds` are views of it. The org's screens and the
  * public catalog use it to say where a listed animal actually lives (spec
  * REQ-11 / REQ-12), which is why it accepts `db` as well as a transaction.
+ * "Lives with its family" is then ONE pure predicate over the result —
+ * `livesWithFamilyUnder` in ../domain/listing-rules.ts (design R5).
  */
 export async function listOpenSponsorships(
   petIds: readonly string[],

@@ -50,7 +50,12 @@
  *   pnpm rollback:rehome                                  # dry-run (default): one line per action it WOULD take
  *   pnpm rollback:rehome -- --apply                       # do it, one transaction per pet, one line per action
  *   pnpm rollback:rehome -- --pet DIM-XXXX-XXXX [--pet …] [--apply]   # only these pets
- *   --allow-remote    required when DATABASE_URL is not a local host (scripts/_db-target.ts)
+ *   --allow-remote    required unless DATABASE_URL is the local Supabase CLI stack: host
+ *                     localhost / 127.0.0.1 / ::1 AND port 54322 (scripts/_db-target.ts,
+ *                     `isLocalWriterTarget`). The read-only fences' broader LOCAL_HOSTS
+ *                     (`db`, `0.0.0.0`, `host.docker.internal`) is NOT trusted here: this
+ *                     script WRITES, and a host that is literally `db` is not a guess a
+ *                     writer gets to make (WU6/7 review, L-2).
  *   (bare form: node --import ./scripts/register-server-only-stub.mjs --import tsx scripts/rollback-rehome-sponsorships.ts)
  *
  * ENV: DATABASE_URL is REQUIRED and never defaulted — a writer names its
@@ -74,7 +79,7 @@ import {
 } from "@/src/modules/adoption/infrastructure/rehome-sponsorship-writer";
 import { RehomeRepository } from "@/src/modules/rehome/infrastructure/rehome-repository";
 
-import { DEFAULT_LOCAL_URL, describeTarget } from "./_db-target";
+import { DEFAULT_LOCAL_URL, describeTarget, isLocalWriterTarget } from "./_db-target";
 import { type OrphanSponsorshipRow, queryOrphanedSponsorships } from "./check-spine-integrity";
 
 type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0];
@@ -449,9 +454,9 @@ function parseArgs(argv: string[]): Args {
 async function main(): Promise<void> {
   const args = parseArgs(process.argv.slice(2));
   const target = describeTarget(requireDatabaseUrl());
-  if (!target.isLocal && !args.allowRemote) {
+  if (!isLocalWriterTarget(target) && !args.allowRemote) {
     console.error(
-      `✗ DATABASE_URL points at a REMOTE database (${target.label}). This script WRITES. Re-run with --allow-remote if that is the database you mean.`,
+      `✗ DATABASE_URL does not point at the local Supabase CLI stack (${target.label}). This script WRITES: only localhost / 127.0.0.1 / ::1 on port 54322 runs without a flag. Re-run with --allow-remote if that is the database you mean.`,
     );
     process.exit(1);
   }

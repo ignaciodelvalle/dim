@@ -6,11 +6,35 @@ import { describe, expect, it } from "vitest";
 // Will be created in GREEN phase (task 2.6).
 import {
   isListable,
+  livesWithFamilyUnder,
   validatePause,
   validatePublish,
   validateUnpause,
   validateUnpublish,
 } from "../listing-rules";
+
+// rehome-by-titular, spec REQ-12 / design R5 (WU6/7 review, L-1): the public
+// ficha and the catalog card used two different predicates for "the animal
+// lives with its family". One helper, the STRICTER semantics: the open
+// sponsorship must belong to the org that answers for the listing.
+describe("livesWithFamilyUnder", () => {
+  const open = { ownershipId: "own-1", sponsoringOrganizationId: "org-a" };
+
+  it("true only when the custodian IS the sponsor", () => {
+    expect(livesWithFamilyUnder(open, "org-a")).toBe(true);
+  });
+
+  it("false for another custodian — a stale started event over a row another org now holds", () => {
+    expect(livesWithFamilyUnder(open, "org-b")).toBe(false);
+  });
+
+  it("false with no open sponsorship, and false with no custodian at all", () => {
+    expect(livesWithFamilyUnder(null, "org-a")).toBe(false);
+    expect(livesWithFamilyUnder(undefined, "org-a")).toBe(false);
+    expect(livesWithFamilyUnder(open, null)).toBe(false);
+    expect(livesWithFamilyUnder(open, undefined)).toBe(false);
+  });
+});
 
 // Helpers to build pet snapshots.
 function makeListablePet(

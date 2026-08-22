@@ -127,9 +127,14 @@ type ResolveApplicationArgs = {
   now: Date;
   /**
    * WHO IS SIGNING. Defaults to the shelter shape every org-side caller has
-   * always written. The titular's withdraw cascade (rehome-by-titular) passes
-   * `owner` with no org: the person whose act closed the listing is the author
-   * of its consequences — db/schema.ts, "the test is who the author IS".
+   * always written (`shelter`, `orgId`, `orgVerified`). When given it is the
+   * COMPLETE signature and its `organizationId` is what gets stamped — `orgId`
+   * above names the listing's org for the callers that omit `author`, it is
+   * not a fallback for `author.organizationId`. The titular's withdraw cascade
+   * (rehome-by-titular) passes `owner` with NO org on purpose: the person whose
+   * act closed the listing is the author of its consequences — db/schema.ts,
+   * "the test is who the author IS". The death cascade passes the SPONSORING
+   * org explicitly (lib/infra/rehome-death-cascade.ts, "whose org").
    */
   author?: { role: AuthorRole; organizationId: string | null; verified: boolean };
 };

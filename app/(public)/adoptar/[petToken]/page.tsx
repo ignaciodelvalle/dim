@@ -19,6 +19,7 @@ import {
 import { createClient } from "@/lib/supabase/server";
 import { formatDate, sexLabel, speciesLabel, sterilizedLabel } from "@/lib/utils/format";
 import { serializeJsonLd } from "@/lib/utils/json-ld";
+import { livesWithFamilyUnder } from "@/src/modules/adoption/domain/listing-rules";
 import { findOpenSponsorship } from "@/src/modules/adoption/infrastructure/rehome-sponsorship-writer";
 import { and, desc, eq, isNull } from "drizzle-orm";
 
@@ -140,10 +141,11 @@ export default async function AdoptarFichaPage({
   // desde" card would state three things that are only true of an intake.
   // Decided on the SPINE — an unmatched `rehome_sponsorship_started` naming
   // this very custody row — never on the owner+shelter_custody shape, which
-  // also describes a decomiso.
+  // also describes a decomiso. ONE predicate with the catalog card (design
+  // R5): `livesWithFamilyUnder`, which also requires the sponsor to be THIS
+  // custodian.
   const openSponsorship = org ? await findOpenSponsorship(pet.id, db) : null;
-  const livesWithFamily =
-    openSponsorship !== null && openSponsorship.sponsoringOrganizationId === org?.id;
+  const livesWithFamily = livesWithFamilyUnder(openSponsorship, org?.id);
 
   // D7.2 — if a recent adoption_finalized exists, render a soft "ya
   // encontró hogar" instead of 404. Captures the case of someone clicking

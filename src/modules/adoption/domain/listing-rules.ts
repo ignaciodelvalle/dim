@@ -121,3 +121,20 @@ export function isListable(
     (org.orgType === "shelter" || org.orgType === "rescue_network")
   );
 }
+
+/**
+ * Where the animal LIVES, for a listing whose custodian org is `custodianOrgId`
+ * (rehome-by-titular, spec REQ-12; design R5 — ONE predicate, never one per
+ * surface). True only when the pet's open sponsorship belongs to THAT org: a
+ * started event left unmatched over a custody row another org now holds (an
+ * intake after drift) must not put "vive con su familia" on an animal sitting
+ * in a shelter. `open` is adoption's own spine predicate —
+ * `findOpenSponsorship` / `listOpenSponsorships` in
+ * infrastructure/rehome-sponsorship-writer.ts.
+ */
+export function livesWithFamilyUnder(
+  open: { sponsoringOrganizationId: string } | null | undefined,
+  custodianOrgId: string | null | undefined,
+): boolean {
+  return open != null && custodianOrgId != null && open.sponsoringOrganizationId === custodianOrgId;
+}

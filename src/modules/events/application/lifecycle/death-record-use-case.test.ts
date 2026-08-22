@@ -35,8 +35,10 @@ vi.mock("@/lib/infra/case-helpers", () => ({
 // placement as closeCase above); the use-case turns what it hands back into
 // the notifications the org's admins and the applicants receive.
 const mockEndSponsorshipForDeceasedPet = vi.hoisted(() => vi.fn());
+const mockLockPetForDeathRecord = vi.hoisted(() => vi.fn());
 vi.mock("@/lib/infra/rehome-death-cascade", () => ({
   endSponsorshipForDeceasedPet: mockEndSponsorshipForDeceasedPet,
+  lockPetForDeathRecord: mockLockPetForDeathRecord,
 }));
 
 const mockSignalAuthorityReport = vi.hoisted(() => vi.fn());
@@ -153,6 +155,7 @@ describe("createDeathRecord", () => {
     mockValidateEventPayload.mockImplementation((_type: string, payload: unknown) => payload);
     mockCloseCase.mockResolvedValue(undefined);
     mockEndSponsorshipForDeceasedPet.mockResolvedValue(null);
+    mockLockPetForDeathRecord.mockResolvedValue(undefined);
     mockSignalAuthorityReport.mockResolvedValue(undefined);
     mockFindAuthoritiesForJurisdiction.mockResolvedValue([]);
   });
@@ -529,7 +532,78 @@ describe("createDeathRecord", () => {
     });
 
     expect(result.ok).toBe(false);
+    // Not a serialization failure: the real message survives, a refusal must
+    // not hide a bug.
+    if (!result.ok) expect(result.error).toBe("db error");
   });
+});
+
+// ---------------------------------------------------------------------------
+// Lock order + serialization refusal (WU6/7 review, M-1)
+// ---------------------------------------------------------------------------
+
+describe("createDeathRecord — the pet advisory lock is the transaction's FIRST statement", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockValidateEventPayload.mockImplementation((_type: string, payload: unknown) => payload);
+    mockCloseCase.mockResolvedValue(undefined);
+    mockEndSponsorshipForDeceasedPet.mockResolvedValue(null);
+    mockLockPetForDeathRecord.mockResolvedValue(undefined);
+    mockSignalAuthorityReport.mockResolvedValue(undefined);
+    mockFindAuthoritiesForJurisdiction.mockResolvedValue([]);
+  });
+
+  it("takes the lock on the pet, inside the transaction, before the death event is written", async () => {
+    const repo = makeRepo();
+    const tx = makeTransaction();
+    await createDeathRecord(baseInput, {
+      repo,
+      transaction: tx,
+      flushNotifications: vi.fn().mockResolvedValue(undefined),
+    });
+
+    expect(mockLockPetForDeathRecord).toHaveBeenCalledTimes(1);
+    expect(mockLockPetForDeathRecord).toHaveBeenCalledWith(petId, {});
+    const lockOrder = mockLockPetForDeathRecord.mock.invocationCallOrder[0];
+    const insertOrder = (repo.insertEventIdempotent as ReturnType<typeof vi.fn>).mock
+      .invocationCallOrder[0];
+    const projectionOrder = (repo.updateDeceased as ReturnType<typeof vi.fn>).mock
+      .invocationCallOrder[0];
+    const fostersOrder = (repo.findActiveFosters as ReturnType<typeof vi.fn>).mock
+      .invocationCallOrder[0];
+    expect(lockOrder).toBeLessThan(insertOrder);
+    expect(lockOrder).toBeLessThan(projectionOrder);
+    expect(lockOrder).toBeLessThan(fostersOrder);
+  });
+
+  // Under the pet lock the row-lock cycle cannot form, but Postgres may still
+  // pick a loser against a writer that does not take the lock. Nothing was
+  // written; the recorder simply tries again — so the action gets a sentence,
+  // not a stack trace (the same mapping the titular's withdraw does).
+  for (const code of ["40P01", "40001"]) {
+    it(`maps SQLSTATE ${code} to an es-AR refusal that names the pet, with nothing flushed`, async () => {
+      const failing = vi
+        .fn()
+        .mockRejectedValue(Object.assign(new Error("deadlock detected"), { code }));
+      const flush = vi.fn().mockResolvedValue(undefined);
+
+      const result = await createDeathRecord(baseInput, {
+        repo: makeRepo(),
+        transaction: failing,
+        flushNotifications: flush,
+      });
+
+      expect(result.ok).toBe(false);
+      if (!result.ok) {
+        expect(result.error).toContain("Buddy");
+        expect(result.error).toMatch(/al mismo tiempo/);
+        expect(result.error).toMatch(/No cambió nada/);
+        expect(result.error).toMatch(/Volvé a intentar/);
+        expect(result.error).not.toContain("deadlock");
+      }
+      expect(flush).not.toHaveBeenCalled();
+    });
+  }
 });
 
 // ---------------------------------------------------------------------------
@@ -541,6 +615,7 @@ describe("createDeathRecord — CASCADE D: rehome sponsorship", () => {
     vi.clearAllMocks();
     mockValidateEventPayload.mockImplementation((_type: string, payload: unknown) => payload);
     mockCloseCase.mockResolvedValue(undefined);
+    mockLockPetForDeathRecord.mockResolvedValue(undefined);
     mockSignalAuthorityReport.mockResolvedValue(undefined);
     mockFindAuthoritiesForJurisdiction.mockResolvedValue([]);
   });
@@ -576,9 +651,11 @@ describe("createDeathRecord — CASCADE D: rehome sponsorship", () => {
       petName: "Buddy",
       recordedByUserId: userId,
       authorRole: "owner",
-      authorOrganizationId: null,
       authorVerified: false,
     });
+    // WU6/7 review (M-2): the recorder's org is NOT handed down — the cascade
+    // stamps the SPONSORING org on the closing fact and the auto-rejections.
+    expect(args).not.toHaveProperty("authorOrganizationId");
 
     const flushed = flush.mock.calls[0][0] as Array<{
       userId: string;

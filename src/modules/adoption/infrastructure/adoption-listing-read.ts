@@ -13,7 +13,8 @@ import { and, desc, eq, inArray, isNotNull, isNull, lt, ne, or, sql } from "driz
 import { attachments, db, organizations, ownerships, pets } from "@/db";
 import { likeContains } from "@/lib/utils/like-helpers";
 
-import { listOpenSponsorshipPetIds } from "./rehome-sponsorship-writer";
+import { livesWithFamilyUnder } from "../domain/listing-rules";
+import { listOpenSponsorships } from "./rehome-sponsorship-writer";
 
 import type {
   AdoptionListingCursor,
@@ -188,14 +189,16 @@ export async function queryAdoptionListing(
   // Where the animal lives (spec REQ-12). A second, page-sized query on the
   // spine rather than a fifth copy of the catalog predicate (design R5): the
   // listing predicate is untouched, and "sponsored" is decided the way every
-  // other surface decides it — an unmatched `rehome_sponsorship_started`.
-  const sponsored = await listOpenSponsorshipPetIds(
+  // other surface decides it — an unmatched `rehome_sponsorship_started`,
+  // belonging to THIS row's custodian (`livesWithFamilyUnder`, the one
+  // predicate the public ficha uses too).
+  const sponsored = await listOpenSponsorships(
     page.map((r) => r.petId),
     db,
   );
   const items: AdoptionListingItem[] = page.map((r) => ({
     ...(r as Omit<AdoptionListingItem, "livesWithFamily">),
-    livesWithFamily: sponsored.has(r.petId),
+    livesWithFamily: livesWithFamilyUnder(sponsored.get(r.petId), r.orgId),
   }));
   const last = items.at(-1);
   const nextCursor: AdoptionListingCursor | null =

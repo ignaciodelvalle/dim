@@ -90,3 +90,23 @@ describe("every org screen that acts on a sponsored pet renders the disclosure (
     expect(page).toContain("no lo tiene en su poder");
   });
 });
+
+// WU6/7 review (L-1): the public ficha required the open sponsorship to belong
+// to the custodian org; the catalog card only asked whether ANY open
+// sponsorship existed. Two predicates for one fact is the drift design R5
+// forbids — and the looser one would put "vive con su familia" on an animal a
+// different org took in after a stale started event. One helper, the stricter
+// semantics (src/modules/adoption/domain/listing-rules.ts), both surfaces.
+describe("REQ-12 — where the animal lives is ONE predicate (design R5)", () => {
+  for (const rel of [
+    "app/(public)/adoptar/[petToken]/page.tsx",
+    "src/modules/adoption/infrastructure/adoption-listing-read.ts",
+  ]) {
+    it(`${rel} decides livesWithFamily through livesWithFamilyUnder, never inline`, () => {
+      const src = read(rel);
+      expect(src).toMatch(/livesWithFamilyUnder\(/);
+      expect(src).not.toMatch(/sponsoringOrganizationId\s*===/);
+      expect(src).not.toMatch(/livesWithFamily:\s*sponsored\.has\(/);
+    });
+  }
+});

@@ -105,17 +105,38 @@ a private home — the privacy face of the overload, design R4), and
 — never on the owner+shelter_custody shape, which also describes a decomiso or
 an intake.
 
-### 3. Every custody writer takes the pet advisory lock first
+### 3. The custody writers of this feature take the pet advisory lock first
 
 Finalize locks the custody row then closes the owner row; the withdraw locked
 the owner row then closed the custody row — the same two row locks in opposite
-orders, a deadlock Postgres breaks with `40P01`. Accept, withdraw and finalize
-now all take `pg_advisory_xact_lock(hashtext(petId))` **before any row lock**
+orders, a deadlock Postgres breaks with `40P01`. Every writer of THIS feature
+takes `pg_advisory_xact_lock(hashtext(petId))` **before any row lock**
 (`acquirePetAdvisoryLock` on both repositories), the repo's precedent for
-serialising custody writers (chip-match, return-to-owner, cross-org transfer).
-Pinned by `src/modules/rehome/__tests__/owner-row-lock.test.ts` and
-`src/modules/adoption/__tests__/finalize-custody-lock.test.ts`; proven real by
-`__tests__/rehome-withdraw-flow.test.ts`.
+serialising custody writers (chip-match, return-to-owner, cross-org transfer):
+
+| Writer | Where the lock is the first statement |
+|---|---|
+| Accept | `respondToRehomeRequest` — ADR-1 step 0 |
+| Withdraw | `withdrawRehomeSponsorship` — step 0 |
+| Finalize | `finalizeAdoption` — before `lockLiveCustodyRow` |
+| Death (CASCADE D) | `createDeathRecord` — `lockPetForDeathRecord`, before the death event, the pets row and the foster closes; the cascade re-reads the sponsorship under it and ends nothing a withdraw already ended (WU6/7 review, M-1) |
+| Rollback | `scripts/rollback-rehome-sponsorships.ts` — per pet, then re-read |
+
+Pinned by `src/modules/rehome/__tests__/owner-row-lock.test.ts` — including
+an arm that **discovers** every caller of `endRehomeSponsorship(` instead of
+naming writers — and `src/modules/adoption/__tests__/finalize-custody-lock.test.ts`;
+proven real by `__tests__/rehome-withdraw-flow.test.ts` and
+`__tests__/rehome-death-cascade.test.ts` (a withdraw racing the death).
+
+**Known gap — writers outside the feature.** `lib/infra/end-pet-ownerships.ts`
+ends an open sponsorship whenever it closes the custody row, and it runs inside
+its CALLER's transaction. Finalize takes the pet lock before reaching it; the
+three decomiso writers and the custody-dispute resolution do not (they predate
+this feature). A decomiso committing concurrently with a withdraw or a finalize
+can still hit `40P01` on those paths. The lock cannot move into the primitive —
+taken after a caller's own row locks it would not be first — so that file is
+the one allowlisted caller in the fence, with this reason, until those writers
+are fixed at their own transaction boundary.
 
 ---
 
@@ -143,7 +164,7 @@ unconstrained). 0196 drops a never-shipped draft index name.
 |---|---|---|
 | The titular | `withdrawRehomeSponsorship` (REQ-8/10) — closes the custody row by id, clears the listing, closes the listing case and every open application case, tells the org and the applicants | `withdrawn_by_titular` |
 | An adoption | `finalizeAdoption` → `endAllLiveOwnerships` | `adopted` |
-| The animal's death | `createDeathRecord` CASCADE D → `lib/infra/rehome-death-cascade.ts` — same closes as the withdraw, signed by whoever recorded the death; a still-pending request is closed too | `pet_deceased` |
+| The animal's death | `createDeathRecord` CASCADE D → `lib/infra/rehome-death-cascade.ts` — same closes as the withdraw, under the pet lock; signed by whoever recorded the death, `author_organization_id` = the **sponsoring** org (WU6/7 review, M-2); a still-pending request is closed too; the org's notice points at the closed case | `pet_deceased` |
 | An authority's hand-off (decomiso, a resolved dispute) | `endAllLiveOwnerships` | `withdrawn_by_platform` |
 | The platform, rolling the feature back | `scripts/rollback-rehome-sponsorships.ts` | `withdrawn_by_platform` |
 

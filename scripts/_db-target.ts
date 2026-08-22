@@ -17,9 +17,27 @@
 //
 // The rule underneath both: silence is never the answer. Every exit path names
 // the database it looked at and states which checks did not run.
+//
+//   3. A WRITER (WU6/7 review, L-2). `LOCAL_HOSTS` below is the READ-ONLY
+//      fences' notion of local and it is deliberately generous (`db`,
+//      `0.0.0.0`, `host.docker.internal`, the compose hostname): the worst a
+//      fence can do with a wrong guess is audit the wrong database. A writer
+//      borrowing it would WRITE through a DATABASE_URL whose host is literally
+//      `db` with no flag typed. Writers ask `isLocalWriterTarget` instead: the
+//      Supabase CLI stack — loopback on port 54322 — and nothing else; anything
+//      beyond that is named with --allow-remote, on purpose.
 
 /** The local Supabase stack, used when DATABASE_URL is unset. */
 export const DEFAULT_LOCAL_URL = "postgresql://postgres:postgres@localhost:54322/postgres";
+
+/**
+ * Hosts a WRITER treats as its own machine without a flag: loopback only —
+ * nothing Docker names, nothing that could be a tunnel. Hazard 3 above.
+ */
+export const WRITER_LOCAL_HOSTS = new Set(["localhost", "127.0.0.1", "::1", "[::1]"]);
+
+/** The Supabase CLI's Postgres port (`pnpm db:start`); a writer's "local" is this stack. */
+export const SUPABASE_CLI_DB_PORT = "54322";
 
 /** Hostnames that are unambiguously a developer's own machine / Docker stack. */
 export const LOCAL_HOSTS = new Set([
@@ -38,6 +56,9 @@ export type DbTarget = {
   /** Human-readable `host:port/database`, never containing credentials. */
   label: string;
   host: string;
+  /** As a string, the way `URL.port` hands it back; "5432" when the URL omits it. */
+  port: string;
+  /** The READ-ONLY fences' verdict (LOCAL_HOSTS). Writers use `isLocalWriterTarget`. */
   isLocal: boolean;
   /**
    * Ref del proyecto Supabase, cuando la URL lo trae.
@@ -88,6 +109,7 @@ export function describeTarget(rawUrl: string): DbTarget {
       // exactamente la misma línea.
       label: `${host}:${port}/${database}${projectRef ? `  ref=${projectRef}` : ""}`,
       host,
+      port,
       isLocal: LOCAL_HOSTS.has(host),
       projectRef,
       parseError: null,
@@ -96,11 +118,25 @@ export function describeTarget(rawUrl: string): DbTarget {
     return {
       label: "(unparseable DATABASE_URL)",
       host: "(unparseable)",
+      port: "(unparseable)",
       isLocal: false,
       projectRef: null,
       parseError: err instanceof Error ? err.message : String(err),
     };
   }
+}
+
+/**
+ * A WRITER's "local": the Supabase CLI stack on this machine and nothing else
+ * (hazard 3 in the header). Stricter than `isLocal` on purpose — a writer
+ * that guesses wrong does not audit the wrong database, it changes it.
+ */
+export function isLocalWriterTarget(target: DbTarget): boolean {
+  return (
+    target.parseError === null &&
+    WRITER_LOCAL_HOSTS.has(target.host) &&
+    target.port === SUPABASE_CLI_DB_PORT
+  );
 }
 
 /** Join message lines. Keeps every operator-facing message readable in source. */
