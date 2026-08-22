@@ -54,9 +54,25 @@ async function pickActivePetToken(page: Page): Promise<string> {
   return token;
 }
 
+/**
+ * The one thing every state of the page renders. Gate every `count()` read
+ * behind it: `Locator.count()` is a one-shot read that does not auto-retry,
+ * and this route streams under the segment's Suspense boundary, so a count
+ * taken straight after `goto` can see an empty DOM and turn a real assertion
+ * into a silent `test.skip` with a false reason (the repo's own helpers —
+ * e2e/demo/_helpers.ts discoverPetToken / resolveOrgToken — wait first).
+ */
+async function waitForRehomePage(page: Page): Promise<void> {
+  await expect(page.getByRole("heading", { name: /Acompañamiento de adopción para/ })).toBeVisible({
+    timeout: 20_000,
+  });
+  await page.waitForLoadState("networkidle").catch(() => {});
+}
+
 /** Resolve whatever the page is showing, so a re-run starts from "none". */
 async function resetToNone(page: Page, token: string): Promise<void> {
   await page.goto(`/mis-mascotas/${token}/buscar-hogar`, { waitUntil: "domcontentloaded" });
+  await waitForRehomePage(page);
   for (const [trigger, confirm] of [
     ["Dar de baja el acompañamiento", "Confirmar la baja"],
     ["Cancelar el pedido", "Confirmar la cancelación"],
@@ -87,6 +103,14 @@ test.describe
       await resetToNone(page, token);
 
       // ---- the ask, from the titular's own surface ---------------------------
+      // The "none" state renders either the picker or its empty state; wait
+      // for one of them before the count() that decides whether to skip.
+      await expect(
+        page
+          .getByRole("button", { name: /Pedir acompañamiento a/ })
+          .first()
+          .or(page.getByText(/No encontramos refugios ni redes de rescate/)),
+      ).toBeVisible({ timeout: 20_000 });
       const ask = page.getByRole("button", { name: /Pedir acompañamiento a .*Refugio Test/i });
       test.skip(
         (await ask.count()) === 0,
