@@ -293,6 +293,36 @@ describe("countFiltroModifiers", () => {
     ).toBe(1);
   });
 
+  // Review 2026-08-22 (M7). The toggle is sticky — it survives a base-layer
+  // change and rides in the URL — but it narrows ONLY the cobertura numerator.
+  // Counting it while no layer on screen applies it makes the badge claim a
+  // modifier that changed none of the numbers.
+  it("does NOT count verifiedOnly when no active layer honours it", () => {
+    expect(
+      countFiltroModifiers({
+        activeLayerIds: ["indice-territorial"],
+        presetId: null,
+        baseLayerId: "indice-territorial",
+        activePeriod: PANORAMA_DEFAULT_PRESET,
+        verifiedOnly: true,
+      }),
+    ).toBe(0);
+  });
+
+  it("still counts verifiedOnly when cobertura is active under another base", () => {
+    // cobertura as a non-base active layer still applies the narrowing, so the
+    // badge is honest about it.
+    expect(
+      countFiltroModifiers({
+        activeLayerIds: ["cobertura", "indice-territorial"],
+        presetId: null,
+        baseLayerId: "indice-territorial",
+        activePeriod: PANORAMA_DEFAULT_PRESET,
+        verifiedOnly: true,
+      }),
+    ).toBe(1);
+  });
+
   it("sums overlays + all deviations", () => {
     expect(
       countFiltroModifiers({

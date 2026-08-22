@@ -94,8 +94,45 @@ describe("explainViewState", () => {
     expect(explainViewState(v)).toContain("(tiempo de validez)");
   });
 
-  it("surfaces the verified-only filter", () => {
-    const v = makeViewState({ verifiedOnly: true });
+  // FLIPPED (review 2026-08-22, M7). This used to pass `verifiedOnly: true` with
+  // NO layers at all and assert the phrase appears — pinning the defect: the
+  // declaration was unconditional. It now carries the one layer that actually
+  // honours the toggle.
+  it("surfaces the verified-only filter when a layer honours it", () => {
+    const v = makeViewState({ verifiedOnly: true, layers: ["cobertura"] });
+    expect(explainViewState(v)).toContain("solo con firma veterinaria");
+  });
+
+  // -------------------------------------------------------------------------
+  // The toggle is sticky; the declaration must not be (M7)
+  // -------------------------------------------------------------------------
+  //
+  // "Solo firmado por matrícula" narrows ONLY the cobertura numerator — a scope
+  // documented on purpose in four places, and the console does not even send the
+  // parameter for other layers. What was NOT deliberate: the toggle survives a
+  // base-layer change (it stays in the URL and nothing clears it) while this
+  // caption declares it unconditionally. That caption is the shared link's
+  // summary, the embed label and the printed "Informe de situación" — so a
+  // ministerial artefact declared a filter that no number in it respected, and
+  // the reader downstream had no way to know.
+  //
+  // The fix is NOT to wire the toggle into the territorial index: a composite
+  // whose rabies arm counts vet-signed doses while its other arms count all of
+  // them is a number with no definition. The fix is to stop declaring a filter
+  // nothing on screen applied.
+
+  it("does NOT declare the verified filter when no active layer honours it", () => {
+    const v = makeViewState({ verifiedOnly: true, layers: ["indice-territorial"] });
+    expect(explainViewState(v)).not.toContain("solo con firma veterinaria");
+  });
+
+  it("does NOT declare the verified filter when there are no active layers", () => {
+    const v = makeViewState({ verifiedOnly: true, layers: [] });
+    expect(explainViewState(v)).not.toContain("solo con firma veterinaria");
+  });
+
+  it("declares it when cobertura is active alongside layers that ignore it", () => {
+    const v = makeViewState({ verifiedOnly: true, layers: ["cobertura", "zoonosis"] });
     expect(explainViewState(v)).toContain("solo con firma veterinaria");
   });
 

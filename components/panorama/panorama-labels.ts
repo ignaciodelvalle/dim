@@ -24,6 +24,7 @@ import { roleOf } from "@/src/modules/panorama/domain/compatibility";
 import { getLayer } from "@/src/modules/panorama/domain/layers";
 import { type PresetId, getPreset } from "@/src/modules/panorama/domain/presets";
 import type { LayerId, PanoramaKpiId } from "@/src/modules/panorama/domain/types";
+import { verifiedOnlyIsHonored } from "@/src/modules/panorama/domain/view-state-caption";
 
 // ---------------------------------------------------------------------------
 // Vista name — shown ONCE by the chrome container.
@@ -269,7 +270,8 @@ export function legendRampEndpointLabels(input: {
  *          + (# non-default FILTERS deviating from the active vista's defaults):
  *              · base layer re-based away from the vista's default base   → +1
  *              · period differs from the vista's default periodPreset      → +1
- *              · "solo firmado por matrícula" (verifiedOnly) is ON         → +1
+ *              · "solo firmado por matrícula" (verifiedOnly) is ON **and an
+ *                active layer honours it** (verifiedOnlyIsHonored)         → +1
  *
  * DELIBERATELY EXCLUDED: the aggregation `level` — it is camera/zoom-derived
  * (hysteresis), not a deliberate operator filter, so counting it would make the
@@ -310,7 +312,12 @@ export function countFiltroModifiers(input: {
   } else if (input.activePeriod !== PANORAMA_DEFAULT_PRESET) {
     deviations += 1;
   }
-  if (input.verifiedOnly) deviations += 1;
+  // Only counted when an active layer actually honours it (review 2026-08-22,
+  // M7). The toggle is sticky — it survives a base-layer change and rides in the
+  // URL — so a badge that counts it regardless claims a modifier that changed
+  // none of the numbers on screen. Same predicate the view caption uses, so the
+  // badge and the shared-link summary can never disagree.
+  if (input.verifiedOnly && verifiedOnlyIsHonored(input.activeLayerIds)) deviations += 1;
 
   return overlays + deviations;
 }

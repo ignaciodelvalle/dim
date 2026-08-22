@@ -18,6 +18,36 @@ import { getPreset } from "./presets";
 import type { AggregationLevel, LayerId } from "./types";
 import type { PanoramaViewState } from "./view-state";
 
+/**
+ * The layers that actually narrow their numbers under "solo firmado por
+ * matrícula". Today: cobertura, and only cobertura — the toggle is a
+ * rabies-numerator narrowing, the console sends `?verified=1` for no other
+ * layer, and the other layers could not honour it even if asked (a composite
+ * whose rabies arm counted vet-signed doses while its other arms counted all of
+ * them would be a number with no definition).
+ *
+ * This lives here because the two surfaces that DECLARE the toggle — this
+ * caption and the Filtro badge counter (components/panorama/panorama-labels.ts)
+ * — must agree on when the declaration is true. One list, two readers.
+ *
+ * WHY IT EXISTS (review 2026-08-22, M7): the toggle is sticky. It survives a
+ * base-layer change and rides in the URL, while the checkbox itself leaves the
+ * screen. Both declarations were unconditional, so the shared link's summary,
+ * the embed label and the printed "Informe de situación" announced
+ * "solo con firma veterinaria" next to "Capas: Índice territorial" — a
+ * ministerial artefact declaring a filter that no number in it respected, with
+ * no way for the reader downstream to tell.
+ */
+export const VERIFIED_ONLY_HONORING_LAYERS: readonly LayerId[] = ["cobertura"];
+
+/**
+ * Is the "solo firmado por matrícula" filter actually doing something to what is
+ * on screen? True only when at least one active layer honours it.
+ */
+export function verifiedOnlyIsHonored(layers: readonly LayerId[]): boolean {
+  return layers.some((id) => VERIFIED_ONLY_HONORING_LAYERS.includes(id));
+}
+
 /** Optional display-name resolvers — the console has the human province/locality
  *  names (the ViewState stores ISO codes). Absent → the code is shown as-is. */
 export type ExplainNames = {
@@ -173,7 +203,10 @@ export function explainViewState(view: PanoramaViewState, names?: ExplainNames):
     parts.push(`al ${formatSpanishDate(view.asOf)} (tiempo de ${basisPhrase})`);
   }
 
-  if (view.verifiedOnly) {
+  // Declared only when an active layer honours it — see
+  // VERIFIED_ONLY_HONORING_LAYERS. A sticky toggle that narrows nothing on
+  // screen must not be announced as if it did.
+  if (view.verifiedOnly && verifiedOnlyIsHonored(view.layers)) {
     parts.push("solo con firma veterinaria");
   }
 

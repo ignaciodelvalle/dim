@@ -200,6 +200,7 @@ import {
 import {
   explainViewState,
   layerIdsAreAllCurrentState,
+  verifiedOnlyIsHonored,
 } from "@/src/modules/panorama/domain/view-state-caption";
 import { toast } from "sonner";
 
@@ -1967,6 +1968,20 @@ export function PanoramaConsole({
         }
         return next;
       };
+      // M7 (review 2026-08-22): "solo firmado por matrícula" narrows ONLY the
+      // cobertura numerator, and its checkbox leaves the screen with the layer —
+      // but the flag itself was sticky and stayed in the URL, so a shared link
+      // and a printed "Informe de situación" declared a filter no number in them
+      // respected. Swapping the base away from a layer that honours it to one
+      // that does not clears the flag with the checkbox.
+      if (
+        verifiedRef.current &&
+        verifiedOnlyIsHonored(swapOutIds) &&
+        !verifiedOnlyIsHonored([id])
+      ) {
+        verifiedRef.current = false;
+        setVerifiedOnly(false);
+      }
       const compat = checkCompatibility(remainingActiveIds, id, PANORAMA_LAYERS);
       if (!compat.allowed) {
         // Block the toggle — set the hint on this layer so the panel can explain why.

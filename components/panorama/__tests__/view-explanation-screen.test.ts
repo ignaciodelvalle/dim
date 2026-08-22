@@ -107,10 +107,17 @@ describe("screenViewExplanation — the caption drops what its container already
   });
 
   // Everything the container does NOT state survives verbatim.
+  //
+  // ADJUSTED (review 2026-08-22, M7): this used to pair `verifiedOnly: true`
+  // with layers: ["zoonosis"] — a layer that ignores the toggle — and assert the
+  // phrase survives, pinning the very defect. The verified filter is now
+  // declared only when an active layer honours it, so cobertura rides along to
+  // keep the assertion about "what survives the container", not about a filter
+  // nothing applied.
   it("keeps the as-of cut, the basis, the verified filter and the encoding", () => {
     const v = makeViewState({
       preset: "brotes-activos",
-      layers: ["zoonosis"],
+      layers: ["cobertura", "zoonosis"],
       period: { kind: "preset", preset: "30d" },
       asOf: "2026-05-01T00:00:00.000Z",
       basis: "transaction",
@@ -119,8 +126,22 @@ describe("screenViewExplanation — the caption drops what its container already
     });
 
     expect(screenViewExplanation(v)).toBe(
-      "Últimos 30 días, al 1 de mayo de 2026 (tiempo de transacción), solo con firma veterinaria, riesgo combinado (bivariado). Capas: Zoonosis / señales.",
+      "Últimos 30 días, al 1 de mayo de 2026 (tiempo de transacción), solo con firma veterinaria, riesgo combinado (bivariado). Capas: Cobertura antirrábica (perros, 12m), Zoonosis / señales.",
     );
+  });
+
+  // The other half of the same rule: with only a layer that ignores the toggle,
+  // the phrase must be gone — a shared/printed artefact may not declare a filter
+  // that changed none of its numbers.
+  it("drops the verified filter when no active layer honours it", () => {
+    const v = makeViewState({
+      preset: "brotes-activos",
+      layers: ["zoonosis"],
+      period: { kind: "preset", preset: "30d" },
+      verifiedOnly: true,
+    });
+
+    expect(screenViewExplanation(v)).not.toContain("solo con firma veterinaria");
   });
 
   it("keeps a current-state view's 'estado actual' rather than inventing a window", () => {
