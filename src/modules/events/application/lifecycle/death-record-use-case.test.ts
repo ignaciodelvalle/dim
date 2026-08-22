@@ -30,6 +30,15 @@ vi.mock("@/lib/infra/case-helpers", () => ({
   findOpenCaseForPetAndKind: vi.fn(),
 }));
 
+// CASCADE D (rehome-by-titular, tasks 7.4): the death of a SPONSORED pet ends
+// the sponsorship in the same transaction. The helper lives in lib/infra (same
+// placement as closeCase above); the use-case turns what it hands back into
+// the notifications the org's admins and the applicants receive.
+const mockEndSponsorshipForDeceasedPet = vi.hoisted(() => vi.fn());
+vi.mock("@/lib/infra/rehome-death-cascade", () => ({
+  endSponsorshipForDeceasedPet: mockEndSponsorshipForDeceasedPet,
+}));
+
 const mockSignalAuthorityReport = vi.hoisted(() => vi.fn());
 vi.mock("@/lib/domain/authority", () => ({
   signalAuthorityReport: mockSignalAuthorityReport,
@@ -143,6 +152,7 @@ describe("createDeathRecord", () => {
     vi.clearAllMocks();
     mockValidateEventPayload.mockImplementation((_type: string, payload: unknown) => payload);
     mockCloseCase.mockResolvedValue(undefined);
+    mockEndSponsorshipForDeceasedPet.mockResolvedValue(null);
     mockSignalAuthorityReport.mockResolvedValue(undefined);
     mockFindAuthoritiesForJurisdiction.mockResolvedValue([]);
   });
@@ -519,5 +529,93 @@ describe("createDeathRecord", () => {
     });
 
     expect(result.ok).toBe(false);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// CASCADE D — a sponsored pet's death ends the sponsorship (rehome-by-titular)
+// ---------------------------------------------------------------------------
+
+describe("createDeathRecord — CASCADE D: rehome sponsorship", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockValidateEventPayload.mockImplementation((_type: string, payload: unknown) => payload);
+    mockCloseCase.mockResolvedValue(undefined);
+    mockSignalAuthorityReport.mockResolvedValue(undefined);
+    mockFindAuthoritiesForJurisdiction.mockResolvedValue([]);
+  });
+
+  it("runs the cascade inside the transaction with the death's own authorship, and tells the org and the applicants", async () => {
+    mockEndSponsorshipForDeceasedPet.mockResolvedValue({
+      sponsoringOrganizationId: "org-1",
+      ownershipId: "own-custody-1",
+      listingCaseId: "case-listing",
+      orgRecipientUserIds: ["coord-1", "coord-2"],
+      strandedApplicantUserIds: ["applicant-1"],
+    });
+    const repo = makeRepo();
+    const tx = makeTransaction();
+    const flush = vi.fn().mockResolvedValue(undefined);
+
+    const result = await createDeathRecord(baseInput, {
+      repo,
+      transaction: tx,
+      flushNotifications: flush,
+    });
+    expect(result.ok).toBe(true);
+
+    expect(mockEndSponsorshipForDeceasedPet).toHaveBeenCalledTimes(1);
+    const [args, passedTx] = mockEndSponsorshipForDeceasedPet.mock.calls[0];
+    expect(passedTx).toEqual({});
+    expect(args).toMatchObject({
+      petId,
+      petName: "Buddy",
+      recordedByUserId: userId,
+      authorRole: "owner",
+      authorOrganizationId: null,
+      authorVerified: false,
+    });
+
+    const flushed = flush.mock.calls[0][0] as Array<{
+      userId: string;
+      notificationType: string;
+      title: string;
+      body: string;
+      relatedCaseId?: string | null;
+    }>;
+    const org = flushed.filter((n) => n.notificationType === "rehome_sponsorship_ended_by_death");
+    expect(org.map((n) => n.userId).sort()).toEqual(["coord-1", "coord-2"]);
+    expect(org[0].title).toContain("Buddy");
+    expect(org[0].body).toMatch(/acompañamiento/);
+    expect(org[0].relatedCaseId).toBe("case-listing");
+    const applicant = flushed.find((n) => n.userId === "applicant-1");
+    expect(applicant?.notificationType).toBe("adoption_application_closed");
+    expect(applicant?.body).toMatch(/falleció/);
+    expect(applicant?.body).toMatch(/No hace falta que hagas nada/);
+  });
+
+  it("a pet with no sponsorship: the helper says null and nobody extra is told", async () => {
+    mockEndSponsorshipForDeceasedPet.mockResolvedValue(null);
+    const repo = makeRepo();
+    const flush = vi.fn().mockResolvedValue(undefined);
+    await createDeathRecord(baseInput, {
+      repo,
+      transaction: makeTransaction(),
+      flushNotifications: flush,
+    });
+    expect(mockEndSponsorshipForDeceasedPet).toHaveBeenCalledTimes(1);
+    expect(flush.mock.calls[0][0]).toEqual([]);
+  });
+
+  it("an idempotency noop skips CASCADE D like every other cascade", async () => {
+    const repo = makeRepo({
+      insertEventIdempotent: vi.fn().mockResolvedValue({ event: { id: eventId }, wasNoop: true }),
+    });
+    await createDeathRecord(baseInput, {
+      repo,
+      transaction: makeTransaction(),
+      flushNotifications: vi.fn().mockResolvedValue(undefined),
+    });
+    expect(mockEndSponsorshipForDeceasedPet).not.toHaveBeenCalled();
   });
 });

@@ -1250,6 +1250,8 @@ const NOTIFICATION_TYPE_LABELS: Record<string, string> = {
   // The titular's two exits (WU4): both go to the org's admins.
   rehome_request_withdrawn: "Solicitud de nuevo hogar cancelada por el titular",
   rehome_sponsorship_withdrawn: "Acompañamiento de adopción dado de baja",
+  // The death cascade (WU7): the org's admins, when a sponsored pet dies.
+  rehome_sponsorship_ended_by_death: "Acompañamiento de adopción terminado por fallecimiento",
   // Scans
   first_stranger_scan: "Primer escaneo de un desconocido",
   // Onboarding

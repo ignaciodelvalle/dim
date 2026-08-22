@@ -51,7 +51,7 @@ export const rehomeSponsorshipStarted = z
  *
  * `withdrawn_by_platform` is the outcome for an end that no party to the
  * arrangement chose. It was decided up front for the rollback script (design
- * ADR-7 — planned for WU7, not yet in the tree) — deciding it then cost one
+ * ADR-7 — scripts/rollback-rehome-sponsorships.ts) — deciding it then cost one
  * enum member; discovering it during an incident would have cost a strict-Zod
  * migration under pressure, on a path that has to run BEFORE the app commit is
  * reverted. Since the WU3 review (M-2) it is also what a custody hand-off
@@ -59,6 +59,10 @@ export const rehomeSponsorshipStarted = z
  * against the titular — through lib/infra/end-pet-ownerships.ts: the titular
  * did not withdraw, the org did not resign, nobody adopted, and the other
  * four members would each state a falsehood on an append-only spine.
+ *
+ * `pet_deceased` is written by the death cascade
+ * (lib/infra/rehome-death-cascade.ts, CASCADE D of createDeathRecord), signed
+ * by whoever recorded the death.
  */
 export const rehomeSponsorshipEnded = z
   .object(

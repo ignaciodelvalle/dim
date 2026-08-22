@@ -11,6 +11,11 @@
 //   - CASCADE A: auto-end active fosters → foster_ended events + pendingNotifications
 //                + close foster_placement case (if fosterCaseId provided).
 //   - CASCADE B: close custody_episode if custodyEpisodeCaseId provided.
+//   - CASCADE D (rehome-by-titular): a SPONSORED pet's death ends the rehome
+//                sponsorship — custody row closed by id, listing cleared,
+//                `rehome_sponsorship_ended{pet_deceased}` on the spine, the
+//                listing / request / application cases closed, the org's admins
+//                and the applicants told (lib/infra/rehome-death-cascade.ts).
 //   - CASCADE C: wasInObservation → findLatestRabiesObservationStarted →
 //                insert rabies_observation_ended (system) + close bite_incident case +
 //                updateRabiesObservationStatus(completed_dead).
@@ -23,6 +28,7 @@ import { type AuthoritySignalResult, signalAuthorityReport } from "@/lib/domain/
 import { validateEventPayload } from "@/lib/events/event-schemas";
 import { findAuthoritiesForJurisdiction } from "@/lib/infra/approval-routing";
 import { closeCase } from "@/lib/infra/case-helpers";
+import { endSponsorshipForDeceasedPet } from "@/lib/infra/rehome-death-cascade";
 import { dispositionMethodLabel } from "@/lib/utils/format";
 
 type CaseExecutor = Parameters<typeof closeCase>[1];
@@ -284,6 +290,58 @@ export async function createDeathRecord(
           { caseId: custodyEpisodeCaseId, reason: "resolved", closedByUserId: recordedByUserId },
           tx as CaseExecutor,
         );
+      }
+
+      // CASCADE D: a sponsored pet's death ends the sponsorship, in THIS
+      // transaction, signed with the death's own authorship (the titular, the
+      // org or a vet — whoever recorded it). Null for the overwhelmingly
+      // common case of a pet that was never sponsored nor requested.
+      const sponsorshipEnd = await endSponsorshipForDeceasedPet(
+        {
+          petId: pet.id,
+          petName: pet.name,
+          recordedByUserId,
+          authorRole: eventAuthorship.authorRole,
+          authorOrganizationId: eventAuthorship.authorOrganizationId,
+          authorVerified: eventAuthorship.authorVerified,
+          now,
+        },
+        tx as Parameters<typeof endSponsorshipForDeceasedPet>[1],
+      );
+      if (sponsorshipEnd) {
+        const orgTitle = sponsorshipEnd.ownershipId
+          ? `${pet.name} falleció; el acompañamiento de adopción terminó`
+          : `${pet.name} falleció; la solicitud de nuevo hogar quedó sin efecto`;
+        const orgBody = sponsorshipEnd.ownershipId
+          ? `Se registró el fallecimiento de ${pet.name}. El acompañamiento de adopción terminó: la publicación se retiró de la búsqueda de hogar y la custodia registral de tu organización quedó cerrada. No hay nada que hacer.`
+          : `Se registró el fallecimiento de ${pet.name}; la solicitud de acompañamiento quedó cerrada. No hay nada que hacer.`;
+        for (const userId of sponsorshipEnd.orgRecipientUserIds) {
+          pendingNotifications.push({
+            userId,
+            notificationType: "rehome_sponsorship_ended_by_death",
+            severity: "info",
+            title: orgTitle,
+            body: orgBody,
+            relatedPetId: pet.id,
+            relatedEventId: event.id,
+            relatedCaseId: sponsorshipEnd.listingCaseId ?? sponsorshipEnd.requestCaseId,
+            category: "custody",
+          });
+        }
+        for (const userId of sponsorshipEnd.strandedApplicantUserIds) {
+          pendingNotifications.push({
+            userId,
+            notificationType: "adoption_application_closed",
+            severity: "info",
+            title: `Tu postulación por ${pet.name} quedó cerrada`,
+            body: `Lamentamos avisarte que ${pet.name} falleció. Tu postulación quedó cerrada. No hace falta que hagas nada. Hay otras mascotas buscando hogar.`,
+            ctaLabel: "Ver otras en adopción",
+            ctaUrl: "/adoptar",
+            relatedPetId: pet.id,
+            relatedEventId: event.id,
+            category: "adoption",
+          });
+        }
       }
 
       // CASCADE C: death-during-observation hook.

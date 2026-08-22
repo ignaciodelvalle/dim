@@ -242,6 +242,14 @@ export async function requirePetAccess(publicToken: string): Promise<PetAccessRe
   // has an active ownership row on this pet. Any ownership role qualifies —
   // shelter_custody (rehome track), foster (foster_in_transit case, rare),
   // or owner (sanctuary / org-as-permanent-owner).
+  //
+  // "CUSTODIA" MEANS TWO THINGS HERE (rehome-by-titular, design R4). A
+  // `shelter_custody` row can be a rehome SPONSORSHIP: the animal keeps living
+  // with its family and the org only publishes and vets. This path still
+  // grants the org's members full pet access to an animal in a private home —
+  // the privacy face of the overload the PO accepted. Every org screen says
+  // the animal is not in the org's possession (REQ-11); this comment is the
+  // rest of the mitigation. See src/modules/rehome/README.md.
   const [orgRow] = await db
     .select({
       pet: pets,
