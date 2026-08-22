@@ -306,7 +306,23 @@ describe("notifyOwnerOfFoundPetAction — persistent rate-limit migration", () =
     expect(insertedNotifications[0].body as string).toContain("1111");
   });
 
-  it("a rejected submission (pet not found) does NOT consume the rate-limit budget (tester fix #6)", async () => {
+  // TURNED AROUND 2026-08-22. This test used to assert the opposite — that a
+  // rejected submission does NOT consume the budget, filed as "tester fix #6".
+  // That reading is superseded, and it was superseded for every OTHER public
+  // POST back in 967a1f3c: charging only for submissions that resolve makes the
+  // door an existence oracle. The refusal for an unknown token would be free and
+  // distinguishable from the refusal for a known one, so anyone could enumerate
+  // the national token space at no cost — which is the entire threat the
+  // (IP, token) limiter exists to price.
+  //
+  // The tester's complaint was real and is not dismissed: a person who fat-fingers
+  // a token does burn one of their ten hourly attempts. That is the accepted cost,
+  // and it is the same cost the sighting and dispute-tip forms already charge.
+  //
+  // Keeping this test green was not free either: it pinned the inversion in place,
+  // so whoever moved the limiter to its correct position would have met a red test
+  // and concluded they were wrong. See __tests__/public-token-throttle-coverage.
+  it("a rejected submission (pet not found) DOES consume the budget — the door charges before it resolves", async () => {
     reset({ petFound: false });
 
     const result = await (await loadAction())(
@@ -316,7 +332,13 @@ describe("notifyOwnerOfFoundPetAction — persistent rate-limit migration", () =
     );
 
     expect(result.ok).toBe(false);
-    expect(mockEnforceRateLimit).not.toHaveBeenCalled();
+    // Charged, and charged BEFORE the lookup could tell the caller anything.
+    expect(mockEnforceRateLimit).toHaveBeenCalledTimes(1);
+    expect(mockEnforceRateLimit).toHaveBeenCalledWith(
+      `found_notify:${PUBLIC_TOKEN}`,
+      expect.anything(),
+      expect.objectContaining({ maxPerMinute: 1, maxPerHour: 10 }),
+    );
   });
 
   it("accepts a report without finderContact — owner is told no contact was left", async () => {
