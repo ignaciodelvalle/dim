@@ -2,7 +2,7 @@
 // (cleaned up after each test) and runs against the dev DB.
 
 import { createClient } from "@supabase/supabase-js";
-import { and, eq, inArray, sql } from "drizzle-orm";
+import { and, countDistinct, eq, inArray, sql } from "drizzle-orm";
 import { afterEach, beforeAll, describe, expect, it } from "vitest";
 
 import {
@@ -15,6 +15,7 @@ import {
   profiles,
   welfareReports,
 } from "@/db";
+import { fetchRegionRanking } from "@/lib/analytics/analytics-ranking";
 import {
   custodyDisputesScopeClause,
   fetchAcquisitionTrend,
@@ -36,6 +37,7 @@ import {
   fetchZoonosisTrend,
 } from "@/lib/analytics/govt-dashboards";
 import { fetchOpenWelfareReportsCount } from "@/lib/analytics/govt-home-kpis";
+import { amendedPayloadText } from "@/lib/infra/amendment-sql";
 import { generatePublicToken } from "@/lib/infra/publicToken";
 import { buildProjectionContext } from "@/lib/metrics";
 import { ANONYMITY_K } from "@/lib/metrics/anonymity";
@@ -2589,6 +2591,144 @@ describe("fetchAnalyticsMetrics", () => {
     expect(m.custodyDisputes).toBe(2);
     expect(queueRows).toHaveLength(2);
     expect(m.custodyDisputes).toBe(queueRows.length);
+  });
+});
+
+// ============================================================================
+// rabiesVaccinationRate — numerator ⊆ denominator (review 2026-08-22, H8)
+// ============================================================================
+//
+// The tile's denominator has always been `pets.status IN ('active','lost')`.
+// Its numerator had NO status filter, and for the admin-national case no join
+// to `pets` at all — so it counted DEAD animals against a padrón that excludes
+// them. Measured on the local DB before the fix: 20.719/29.014 = 71,4 % on the
+// tile vs 18.192/29.014 = 62,7 % on the ranking table rendered right below it,
+// same label; the 2.527 difference is exactly the vaccinated deceased pets. In
+// small scopes the seed already renders 500 % (Catamarca/El Desmonte) because
+// this tile, unlike the adoption tile beside it, does not clamp.
+//
+// The existing tests could not catch it: they are loose range checks (≥1, ≤100)
+// that survive the bug unchanged.
+
+describe("fetchAnalyticsMetrics — rabiesVaccinationRate excludes deceased pets", () => {
+  it("a deceased vaccinated pet cannot push the rate over 100 % in a small scope", async () => {
+    const prov = "Tierra del Fuego";
+    const loc = `rabies-dead-${Date.now()}`;
+    const scope = [{ province: prov, locality: loc }];
+
+    // One live, unvaccinated pet — the whole padrón of this scope.
+    await insertFixturePet({ name: "LiveUnvaxxed", species: "dog", province: prov, locality: loc });
+    // Two deceased pets that WERE vaccinated. They are not in the padrón, so
+    // they must not be in the numerator either.
+    for (let i = 0; i < 2; i++) {
+      const dead = await insertFixturePet({
+        name: `DeadVaxxed${i}`,
+        species: "dog",
+        province: prov,
+        locality: loc,
+        status: "deceased",
+      });
+      await emitVaccinationWithName({
+        petId: dead,
+        vaccineName: "Antirrábica",
+        province: prov,
+        locality: loc,
+      });
+    }
+
+    const m = await fetchAnalyticsMetrics({ role: "govt" }, scope);
+
+    expect(m.totalPets).toBe(1);
+    // Before the fix: 2/1 → 200 %.
+    expect(m.rabiesVaccinationRate).toBeLessThanOrEqual(100);
+    expect(m.rabiesVaccinationRate).toBe(0);
+  });
+
+  it("admin-national: the numerator is a subset of the padrón it is divided by", async () => {
+    // The admin-national path is the ONLY one where the numerator does not even
+    // JOIN `pets` (needsJoin is false there), so appending a status filter can
+    // not reach it — the join has to become unconditional. A fixture cannot
+    // prove that: a handful of deceased pets does not move a national rate that
+    // carries one decimal. So this recomputes the honest numerator over the
+    // whole padrón, with the SAME shared amendment overlay production uses,
+    // and pins the tile to it. Measured before the fix on the local DB:
+    // tile 71,4 % (20.719/29.014) vs honest 62,7 % (18.192/29.014).
+    const m = await fetchAnalyticsMetrics({ role: "admin" }, []);
+
+    const [vaccinatedInPadron] = await db
+      .select({ n: countDistinct(petEvents.petId) })
+      .from(petEvents)
+      .innerJoin(pets, eq(pets.id, petEvents.petId))
+      .where(
+        and(
+          eq(petEvents.eventType, "vaccination_administered"),
+          sql`unaccent(${amendedPayloadText("vaccine_name")}) ILIKE unaccent(${"%rabi%"})`,
+          sql`${pets.status} IN ('active', 'lost')`,
+        ),
+      );
+
+    const expected =
+      m.totalPets === 0 ? 0 : Math.round((vaccinatedInPadron.n / m.totalPets) * 1000) / 10;
+    expect(m.rabiesVaccinationRate).toBe(expected);
+  });
+
+  it("parity: the tile and the ranking table below it agree over the same scope", async () => {
+    // The two surfaces carry the SAME label on the SAME screen. Four documents
+    // specify one numerator, and one of them asserts these are consistent — it
+    // was false at HEAD. This assertion is what makes it true and keeps it true.
+    const prov = "Tierra del Fuego";
+    const loc = `rabies-parity-${Date.now()}`;
+    const scope = [{ province: prov, locality: loc }];
+
+    // ANONYMITY_K + 1 live pets so the province clears the k-anonymity gate in
+    // the ranking (a withheld province leaves the ranking entirely).
+    const live: string[] = [];
+    for (let i = 0; i < ANONYMITY_K + 1; i++) {
+      live.push(
+        await insertFixturePet({
+          name: `ParityLive${i}`,
+          species: "dog",
+          province: prov,
+          locality: loc,
+        }),
+      );
+    }
+    // Three of the six live pets are vaccinated → the honest rate is 50 %.
+    for (const petId of live.slice(0, 3)) {
+      await emitVaccinationWithName({
+        petId,
+        vaccineName: "Antirrábica",
+        province: prov,
+        locality: loc,
+      });
+    }
+    // Two vaccinated pets that died. Before the fix they lifted the tile to
+    // 5/6 = 83,3 % while the ranking row below still read 50 %.
+    for (let i = 0; i < 2; i++) {
+      const dead = await insertFixturePet({
+        name: `ParityDead${i}`,
+        species: "dog",
+        province: prov,
+        locality: loc,
+        status: "deceased",
+      });
+      await emitVaccinationWithName({
+        petId: dead,
+        vaccineName: "Antirrábica",
+        province: prov,
+        locality: loc,
+      });
+    }
+
+    const tile = await fetchAnalyticsMetrics({ role: "govt" }, scope);
+    const ranking = await fetchRegionRanking({ role: "govt" }, scope);
+    const row = [...ranking.top, ...ranking.bottom].find((r) => r.province === prov);
+
+    expect(row).toBeDefined();
+    expect(tile.totalPets).toBe(ANONYMITY_K + 1);
+    expect(tile.rabiesVaccinationRate).toBe(50);
+    // The ranking rounds to whole points; the tile keeps one decimal.
+    expect(Math.round(tile.rabiesVaccinationRate)).toBe(row?.coveragePct);
   });
 });
 

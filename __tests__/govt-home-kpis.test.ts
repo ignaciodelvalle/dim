@@ -703,6 +703,168 @@ describe("fetchRabiesCoverage — currently-valid via next_due_at (issue #52)", 
 });
 
 // ---------------------------------------------------------------------------
+// A CORRECTED next_due_at REACHES THE MINISTRY (review 2026-08-22, M6)
+// ---------------------------------------------------------------------------
+//
+// The vaccine NAME was read through the amendment overlay; the DUE DATE, one
+// line away, was read raw. So a vet who mistyped the booster date left the dog
+// reading "vencida" to its owner, on its public QR credential and to the
+// reminder scheduler — while the government kept counting it as covered until
+// the wrong date. Measured on the local DB against a real dose with
+// next_due_at = 2027-07-20: the govt predicate says covered (t), the same
+// predicate over the corrected date says not covered (f).
+//
+// It runs BOTH ways, and the finding only claimed one. A date typed too EARLY
+// and later corrected leaves the government treating a current dog as expired —
+// the politically louder failure, because it makes the jurisdiction look worse
+// than it is. Both directions are pinned below.
+
+describe("fetchRabiesCoverage — a corrected next_due_at reaches the ministry", () => {
+  const PROVINCE = "Santa Fe";
+  const OVERCOUNT_LOCALITY = "RabiesAmendOverVille"; // due date corrected INTO the past
+  const UNDERCOUNT_LOCALITY = "RabiesAmendUnderVille"; // due date corrected INTO the future
+  const TOKEN_OVER = "HK-RABAMEND-OVER";
+  const TOKEN_UNDER = "HK-RABAMEND-UNDER";
+  const ALL_TOKENS = [TOKEN_OVER, TOKEN_UNDER];
+  const DAY_MS = 24 * 60 * 60 * 1000;
+
+  const ctxFor = (locality: string) =>
+    buildProjectionContext(
+      { role: "govt" },
+      [{ province: PROVINCE, locality }],
+      windows.trailing12m(),
+    );
+
+  async function cleanup() {
+    await withMutationOverride(async (tx) => {
+      await tx.execute(sql`
+        DELETE FROM pet_events
+        WHERE pet_id IN (SELECT id FROM pets WHERE public_token IN (${sql.join(
+          ALL_TOKENS.map((t) => sql`${t}`),
+          sql`, `,
+        )}))
+      `);
+      await tx.execute(sql`
+        DELETE FROM pets WHERE public_token IN (${sql.join(
+          ALL_TOKENS.map((t) => sql`${t}`),
+          sql`, `,
+        )})
+      `);
+    });
+  }
+
+  async function insertDog(token: string, locality: string): Promise<string> {
+    const [pet] = await db
+      .insert(pets)
+      .values({
+        publicToken: token,
+        name: `RabAmendDog-${token.slice(-5)}`,
+        species: "dog",
+        status: "active",
+        jurisdictionProvince: PROVINCE,
+        jurisdictionLocality: locality,
+      })
+      .returning({ id: pets.id });
+    return pet.id;
+  }
+
+  async function insertRabiesDose(
+    petId: string,
+    locality: string,
+    occurredAt: Date,
+    nextDueAt: Date,
+  ): Promise<string> {
+    const [row] = await db
+      .insert(petEvents)
+      .values({
+        petId,
+        eventType: "vaccination_administered",
+        occurredAt,
+        payload: {
+          payload_version: 1,
+          vaccine_name: "Antirrábica",
+          brand: null,
+          batch: null,
+          administered_by: null,
+          next_due_at: nextDueAt.toISOString(),
+          pet_jurisdiction_province: PROVINCE,
+          pet_jurisdiction_locality: locality,
+        },
+        authorRole: "owner",
+        recordedByUserId: null,
+      })
+      .returning({ id: petEvents.id });
+    return row.id;
+  }
+
+  async function amendNextDueAt(
+    petId: string,
+    targetEventId: string,
+    from: Date,
+    to: Date,
+    occurredAt: Date,
+  ) {
+    await db.insert(petEvents).values({
+      petId,
+      eventType: "event_amended",
+      occurredAt,
+      payload: {
+        payload_version: 1,
+        target_event_id: targetEventId,
+        reason: "Fecha de refuerzo mal cargada",
+        changes: [{ field: "next_due_at", old: from.toISOString(), new: to.toISOString() }],
+      },
+      authorRole: "owner",
+      recordedByUserId: null,
+    });
+  }
+
+  beforeAll(async () => {
+    await cleanup();
+    const now = Date.now();
+    const dosedAt = new Date(now - 60 * DAY_MS);
+    const future = new Date(now + 200 * DAY_MS);
+    const past = new Date(now - 10 * DAY_MS);
+
+    // OVERCOUNT: the vet typed a due date 200 days out; the owner corrected it
+    // back to 10 days ago. The dog is NOT covered — and the ministry must agree.
+    const overId = await insertDog(TOKEN_OVER, OVERCOUNT_LOCALITY);
+    const overDose = await insertRabiesDose(overId, OVERCOUNT_LOCALITY, dosedAt, future);
+    await amendNextDueAt(overId, overDose, future, past, new Date(now - DAY_MS));
+
+    // UNDERCOUNT: the due date was typed 10 days ago by mistake and corrected
+    // to 200 days out. The dog IS covered — and the ministry must agree.
+    const underId = await insertDog(TOKEN_UNDER, UNDERCOUNT_LOCALITY);
+    const underDose = await insertRabiesDose(underId, UNDERCOUNT_LOCALITY, dosedAt, past);
+    await amendNextDueAt(underId, underDose, past, future, new Date(now - DAY_MS));
+  });
+
+  afterAll(cleanup);
+
+  it("a due date corrected INTO THE PAST stops counting as covered (1 dog → 0%)", async () => {
+    const kpi = await fetchRabiesCoverage(ctxFor(OVERCOUNT_LOCALITY));
+    expect(kpi.hasData).toBe(true);
+    expect(kpi.current).toBe(0);
+
+    const byProvince = await fetchRabiesCoverageByProvince(ctxFor(OVERCOUNT_LOCALITY));
+    const row = byProvince.find((r) => r.province === PROVINCE);
+    expect(row?.total).toBe(1);
+    expect(row?.vaccinated).toBe(0);
+  });
+
+  it("a due date corrected INTO THE FUTURE starts counting as covered (1 dog → 100%)", async () => {
+    const kpi = await fetchRabiesCoverage(ctxFor(UNDERCOUNT_LOCALITY));
+    expect(kpi.hasData).toBe(true);
+    expect(kpi.current).toBe(100);
+
+    const byProvince = await fetchRabiesCoverageByProvince(ctxFor(UNDERCOUNT_LOCALITY));
+    const row = byProvince.find((r) => r.province === PROVINCE);
+    expect(row?.total).toBe(1);
+    expect(row?.vaccinated).toBe(1);
+  });
+});
+
+// ---------------------------------------------------------------------------
 // INVARIANT (issue #58): period-driven flow KPIs whose LABEL states a fixed
 // window must compute over that INTRINSIC window, not the caller's display
 // period — otherwise the Panorama console (which commits ?period=90d via its

@@ -37,6 +37,9 @@ function makeExisting(overrides: Partial<ExistingPetFixture> = {}): ExistingPetF
     jurisdictionLocality: "La Plata",
     acquisitionMethod: "adopted",
     emergencyInfoVisible: false,
+    permanentConditions: [],
+    permanentConditionsOther: null,
+    discloseConditionsPublicly: false,
     ...overrides,
   };
 }
@@ -226,6 +229,77 @@ describe("diffPet — emergencyInfoVisible excluded from diff", () => {
   it("returns empty diff when ONLY emergencyInfoVisible changes", () => {
     const existing = makeExisting();
     const parsed = makeParsed({ emergencyInfoVisible: true });
+    const result = diffPet(existing, parsed, false);
+    expect(result).toEqual([]);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Permanent conditions ARE pet facts — they reach the public credential
+// ---------------------------------------------------------------------------
+//
+// Review 2026-08-22 (H7): the three condition columns were dual-written by the
+// repository but never diffed, so an edit that ONLY ticked a condition produced
+// an empty change list, hit the no-op short-circuit, and persisted nothing while
+// the action still returned ok + redirect. When the edit ALSO changed another
+// field the column was written but the pet_profile_updated event named only that
+// other field — a medical fact on the public credential with no spine entry.
+
+describe("diffPet — permanent conditions are diffed (public-credential facts)", () => {
+  it("detects a changed permanentConditions list", () => {
+    const existing = makeExisting({ permanentConditions: [] });
+    const parsed = makeParsed({ permanentConditions: ["diabetes"] });
+    const result = diffPet(existing, parsed, false);
+    expect(result.find((e) => e.field === "permanent_conditions")).toEqual({
+      field: "permanent_conditions",
+      old: [],
+      new: ["diabetes"],
+    });
+  });
+
+  it("detects a changed permanentConditionsOther free text", () => {
+    const existing = makeExisting({
+      permanentConditions: ["otra"],
+      permanentConditionsOther: null,
+    });
+    const parsed = makeParsed({
+      permanentConditions: ["otra"],
+      permanentConditionsOther: "displasia",
+    });
+    const result = diffPet(existing, parsed, false);
+    expect(result.find((e) => e.field === "permanent_conditions_other")).toEqual({
+      field: "permanent_conditions_other",
+      old: null,
+      new: "displasia",
+    });
+  });
+
+  it("detects a changed discloseConditionsPublicly toggle", () => {
+    const existing = makeExisting({ discloseConditionsPublicly: false });
+    const parsed = makeParsed({ discloseConditionsPublicly: true });
+    const result = diffPet(existing, parsed, false);
+    expect(result.find((e) => e.field === "disclose_conditions_publicly")).toEqual({
+      field: "disclose_conditions_publicly",
+      old: false,
+      new: true,
+    });
+  });
+
+  // The bug in its purest form: an edit that touches ONLY a condition must not
+  // produce an empty diff, because an empty diff means the transaction never opens.
+  it("returns a NON-empty diff when ONLY a permanent condition changes", () => {
+    const existing = makeExisting({ permanentConditions: [] });
+    const parsed = makeParsed({ permanentConditions: ["diabetes"] });
+    const result = diffPet(existing, parsed, false);
+    expect(result).toEqual([{ field: "permanent_conditions", old: [], new: ["diabetes"] }]);
+  });
+
+  // Refuted sub-claim (skeptics, 2026-08-22): birthDateIsEstimated is NOT one of
+  // the silenced fields. It has no UI toggle of its own and is derived alongside
+  // dateOfBirth, which IS diffed. Adding it would emit a spurious change.
+  it("does NOT diff birthDateIsEstimated", () => {
+    const existing = makeExisting();
+    const parsed = makeParsed({ birthDateIsEstimated: true });
     const result = diffPet(existing, parsed, false);
     expect(result).toEqual([]);
   });

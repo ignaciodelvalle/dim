@@ -170,10 +170,23 @@ export async function fetchAnalyticsMetrics(
   //      - "antirrábica"     → unaccent → "antirrabica" → contains "rabi" ✓
   //      - "Antirrábica"     → unaccent → "Antirrabica" → ILIKE catches case ✓
   //    Requires the unaccent extension (migration 0070; first referenced in 0055).
+  //
+  //    NUMERATOR ⊆ DENOMINATOR (review 2026-08-22, H8). The denominator above is
+  //    `status IN ('active','lost')`; this numerator used to carry NO status
+  //    filter — and for the admin-national case no join to `pets` at all — so it
+  //    counted DECEASED animals against a padrón that excludes them. Measured on
+  //    the local DB: 20.719/29.014 = 71,4 % on this tile against 18.192/29.014 =
+  //    62,7 % on the ranking table rendered directly below it under the same
+  //    label, and 500 % in seeded localities where every vaccinated pet had died.
+  //    The status filter and the join go together: without an unconditional join
+  //    there is no `pets` row to filter on in the national case.
   const rabiesConditions = [
     eq(petEvents.eventType, "vaccination_administered"),
     // Amendment overlay (audit A2): match the CURRENT (corrected) vaccine name.
     sql`unaccent(${amendedPayloadText("vaccine_name")}) ILIKE unaccent(${"%rabi%"})`,
+    // Same padrón definition as totalPets — see analytics-ranking.ts, which
+    // applies the identical filter and is asserted to agree with this tile.
+    sql`${pets.status} IN ('active', 'lost')`,
   ];
   // Same pets-scope predicate again — applied to the joined `pets` row.
   if (petsScope) rabiesConditions.push(sql`(${petsScope})`);
@@ -240,16 +253,14 @@ export async function fetchAnalyticsMetrics(
           ),
 
     // Distinct pet IDs with ≥1 rabia vaccination.
-    needsJoin
-      ? db
-          .select({ n: countDistinct(petEvents.petId) })
-          .from(petEvents)
-          .innerJoin(pets, eq(pets.id, petEvents.petId))
-          .where(and(...rabiesConditions))
-      : db
-          .select({ n: countDistinct(petEvents.petId) })
-          .from(petEvents)
-          .where(and(...rabiesConditions)),
+    // The join is UNCONDITIONAL — unlike the acquisition counts above, this one
+    // filters on the pet's status, not only on its jurisdiction, so it needs the
+    // `pets` row even when the actor is a national admin with no drill-down.
+    db
+      .select({ n: countDistinct(petEvents.petId) })
+      .from(petEvents)
+      .innerJoin(pets, eq(pets.id, petEvents.petId))
+      .where(and(...rabiesConditions)),
 
     db
       .select({ n: count() })

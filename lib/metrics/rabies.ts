@@ -14,13 +14,14 @@
 // This module extracts ONE predicate + ONE regex so panel / locality / province /
 // national all agree.
 //
-// vaccine_name is read through the amendment overlay (amendedPayloadText) so a
-// corrected vaccine counts under its CURRENT name (projection-cron audit A2).
+// vaccine_name AND next_due_at are both read through the amendment overlay
+// (rabiesDoseQualifies) so a corrected vaccine counts under its CURRENT name
+// (projection-cron audit A2) and a corrected booster date counts from its
+// CURRENT value (review 2026-08-22, M6).
 
 import { type SQL, sql } from "drizzle-orm";
 
 import { petEvents } from "@/db";
-import { amendedPayloadText } from "@/lib/infra/amendment-sql";
 
 /**
  * Anchored, accent-aware regex identifying a rabies vaccine by its (amended)
@@ -45,11 +46,9 @@ export const RABIES_VACCINE_NAME_REGEX = "(antirr[áa]bica|rabies)";
  * Both branches also require `occurred_at <= until` so an as-of scrub never
  * counts a dose recorded after the as-of instant.
  *
- * next_due_at is read from the RAW payload (not the amendment overlay): the
- * overlay is reserved for vaccine_name, which decides whether a dose is a rabies
- * dose at all; next_due_at corrections are not a known workflow and applying the
- * overlay here would multiply the correlated-subquery cost on the hottest govt
- * aggregate. If that changes, swap `nextDueRef` for `amendedPayloadText`.
+ * This function is agnostic about WHERE `nextDueRef` comes from. Callers pass
+ * the AMENDED date — see rabiesDoseQualifies, which resolves it together with
+ * the amended vaccine name in a single lateral.
  *
  * @param occurredAtRef SQL ref to the event's occurred_at column.
  * @param nextDueRef    SQL ref to the event's next_due_at text (e.g.
@@ -76,6 +75,83 @@ export function rabiesCurrentlyValidCondition(
         AND ${occurredAtRef} >= ${sinceIso}
       )
     )
+  )`;
+}
+
+/**
+ * "Is this event a CURRENTLY-VALID rabies dose?" — name and expiry, both read
+ * through the amendment overlay, in ONE lateral probe of the spine.
+ *
+ * WHY THIS EXISTS (review 2026-08-22, M6). The vaccine NAME was projected
+ * through the overlay (amendedPayloadText) while `next_due_at`, one line away,
+ * was read raw. The written justification said "next_due_at corrections are not
+ * a known workflow" — FALSE in this same repo: there is a dedicated path that
+ * reschedules the open reminder when that date changes, and correcting it flips
+ * the public notice. The owner's card, the QR credential and the reminder
+ * scheduler all honour the correction BY DESIGN; only the government aggregates
+ * did not. So the dog read "vencida" to its owner and "covered" to the ministry,
+ * and legal thresholds were quoted over the wrong number.
+ *
+ * It runs both ways: a date typed too EARLY and corrected later left the
+ * government treating a current dog as expired — the louder failure, because it
+ * makes a jurisdiction look worse than it is.
+ *
+ * THE PERFORMANCE OBJECTION IS ANSWERED, NOT IGNORED. The reason the raw read
+ * survived was cost: a second correlated `amendedPayloadText` probe on the
+ * hottest govt aggregate. So instead of adding one, this LIFTS the probe that
+ * already existed into a lateral that resolves the latest amendment ONCE and
+ * reads both fields off it. Two fields, one probe — cheaper than what it
+ * replaces was for one field, plus a raw read.
+ *
+ * Parity with lib/infra/amendment-sql.ts (the SQL twin of overlayAmendments) is
+ * deliberate and must be kept: only the LATEST amendment applies, ordered by
+ * (occurred_at, recorded_at); a field the latest amendment does not touch keeps
+ * its raw payload value; and a `new` of JSON null falls back to raw (the same
+ * accepted divergence documented there).
+ *
+ * @param refs   Column refs for the candidate event, under whatever alias the
+ *               calling query uses (`pe_rabies.…` inside the EXISTS, the plain
+ *               `pet_events` columns in the JOIN-shaped fetchers).
+ * @param window Fixed window { since, until } (see rabiesCurrentlyValidCondition).
+ */
+export function rabiesDoseQualifies(
+  refs: { id: SQL; payload: SQL; occurredAt: SQL },
+  window: { since: Date; until: Date },
+): SQL {
+  const amendedName = sql`amended.vaccine_name`;
+  const amendedNextDue = sql`amended.next_due_at`;
+  return sql`(
+    SELECT (${amendedName}) ~* ${RABIES_VACCINE_NAME_REGEX}
+       AND ${rabiesCurrentlyValidCondition(refs.occurredAt, amendedNextDue, window)}
+    FROM (
+      SELECT
+        COALESCE(amended_name.value, (${refs.payload})->>'vaccine_name') AS vaccine_name,
+        COALESCE(amended_due.value, (${refs.payload})->>'next_due_at')   AS next_due_at
+      -- Single-row anchor so the lateral chain still yields exactly one row when
+      -- the event carries no amendment at all (LEFT JOIN → NULLs → COALESCE to
+      -- the raw payload). A CROSS JOIN here would drop the row instead.
+      FROM (SELECT 1) anchor
+      LEFT JOIN LATERAL (
+        SELECT am.payload AS changes_source
+        FROM pet_events am
+        WHERE am.event_type = 'event_amended'
+          AND am.payload->>'target_event_id' = (${refs.id})::text
+        ORDER BY am.occurred_at DESC, am.recorded_at DESC
+        LIMIT 1
+      ) latest_amendment ON true
+      LEFT JOIN LATERAL (
+        SELECT c.value->>'new' AS value
+        FROM jsonb_array_elements(latest_amendment.changes_source->'changes') c
+        WHERE c.value->>'field' = 'vaccine_name'
+        LIMIT 1
+      ) amended_name ON true
+      LEFT JOIN LATERAL (
+        SELECT c.value->>'new' AS value
+        FROM jsonb_array_elements(latest_amendment.changes_source->'changes') c
+        WHERE c.value->>'field' = 'next_due_at'
+        LIMIT 1
+      ) amended_due ON true
+    ) amended
   )`;
 }
 
@@ -140,7 +216,13 @@ export function rabiesVaccinatedExists(
     SELECT 1 FROM ${petEvents} pe_rabies
     WHERE pe_rabies.pet_id = ${petIdRef}
       AND pe_rabies.event_type = 'vaccination_administered'
-      AND (${amendedPayloadText("vaccine_name", { id: sql`pe_rabies.id`, payload: sql`pe_rabies.payload` })}) ~* ${RABIES_VACCINE_NAME_REGEX}
-      AND ${rabiesCurrentlyValidCondition(sql`pe_rabies.occurred_at`, sql`pe_rabies.payload->>'next_due_at'`, window)}${signedClause}
+      AND ${rabiesDoseQualifies(
+        {
+          id: sql`pe_rabies.id`,
+          payload: sql`pe_rabies.payload`,
+          occurredAt: sql`pe_rabies.occurred_at`,
+        },
+        window,
+      )}${signedClause}
   )`;
 }

@@ -12,7 +12,11 @@ import { PgDialect } from "drizzle-orm/pg-core";
 import { describe, expect, it } from "vitest";
 
 import { pets } from "@/db";
-import { rabiesSignedByMatriculaCondition, rabiesVaccinatedExists } from "@/lib/metrics/rabies";
+import {
+  rabiesDoseQualifies,
+  rabiesSignedByMatriculaCondition,
+  rabiesVaccinatedExists,
+} from "@/lib/metrics/rabies";
 
 function render(clause: ReturnType<typeof sql>) {
   return new PgDialect().sqlToQuery(clause);
@@ -54,5 +58,46 @@ describe("rabiesVaccinatedExists — optional vet-signed narrowing", () => {
     // ...AND now the vet-signed clause, aliased to the EXISTS subquery table.
     expect(text).toContain("pe_rabies.author_role = 'vet'");
     expect(text).toContain("pe_rabies.author_verified = true");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Both amended fields, one probe (review 2026-08-22, M6)
+// ---------------------------------------------------------------------------
+
+describe("rabiesDoseQualifies — name AND expiry read through the overlay", () => {
+  const REFS = {
+    id: sql`pe.id`,
+    payload: sql`pe.payload`,
+    occurredAt: sql`pe.occurred_at`,
+  };
+
+  it("never reads next_due_at straight off the raw payload", () => {
+    // The bug in one line: the vaccine name went through the overlay and the
+    // booster date, right beside it, did not.
+    const { sql: text } = render(rabiesDoseQualifies(REFS, WINDOW));
+    expect(text).not.toContain("pe.payload->>'next_due_at'");
+    expect(text).toContain("amended.next_due_at");
+    expect(text).toContain("amended.vaccine_name");
+  });
+
+  it("resolves the latest amendment ONCE — one probe, both fields", () => {
+    // This is the whole point of the lateral: it answers the performance
+    // objection that kept the raw read alive, instead of paying a second
+    // correlated sub-query on the hottest govt aggregate.
+    const { sql: text } = render(rabiesDoseQualifies(REFS, WINDOW));
+    const probes = text.match(/event_type = 'event_amended'/g) ?? [];
+    expect(probes).toHaveLength(1);
+    expect(text).toContain("LEFT JOIN LATERAL");
+    // Ordering parity with the SQL twin in lib/infra/amendment-sql.ts: latest by
+    // (occurred_at, recorded_at). Losing this makes the two disagree silently.
+    expect(text).toContain("ORDER BY am.occurred_at DESC, am.recorded_at DESC");
+  });
+
+  it("falls back to the raw payload when nothing was amended", () => {
+    const { sql: text } = render(rabiesDoseQualifies(REFS, WINDOW));
+    expect(text).toContain("COALESCE");
+    expect(text).toContain("(pe.payload)->>'vaccine_name'");
+    expect(text).toContain("(pe.payload)->>'next_due_at'");
   });
 });
