@@ -87,8 +87,14 @@ vi.mock("@/app/org/[orgToken]/mascotas/[publicToken]/OwnerReturnProposalCard", (
 }));
 
 const mockDbSelect = vi.fn();
+// `execute` is the raw-SQL door `findOpenSponsorship` (rehome-by-titular,
+// REQ-11) knocks on from the ficha. Resolving [] = "not sponsored", so the
+// possession notice stays out of the way of what this suite is about (the
+// situation strip); the notice itself is pinned by
+// __tests__/rehome-possession-disclosure.test.tsx.
+const mockDbExecute = vi.fn(async () => []);
 vi.mock("@/db", () => ({
-  db: { select: mockDbSelect },
+  db: { select: mockDbSelect, execute: mockDbExecute },
   pets: {},
   ownerships: {},
   petEvents: {},

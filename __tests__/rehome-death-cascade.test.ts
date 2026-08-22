@@ -274,6 +274,7 @@ async function caseById(id: string) {
       status: cases.status,
       closedReason: cases.closedReason,
       closedBy: cases.closedByUserId,
+      publicCode: cases.publicCode,
     })
     .from(cases)
     .where(eq(cases.id, id));
@@ -409,10 +410,15 @@ describe("death_recorded on a sponsored pet — CASCADE D", () => {
     expect(orgNotice?.notificationType).toBe("rehome_sponsorship_ended_by_death");
     expect(orgNotice?.title).toContain("Lila");
     expect(orgNotice?.body).toMatch(/acompañamiento/);
+    // UI-2: actionable — the closed sponsorship case, which the org's members
+    // can still read once the custody row is gone.
+    expect(orgNotice?.relatedCaseId).toBe(listingCaseId);
+    expect(orgNotice?.ctaUrl).toBe(`/casos/${listing.publicCode}`);
     const applicantNotice = flushed.find((n) => n.userId === ids.applicant);
     expect(applicantNotice?.notificationType).toBe("adoption_application_closed");
     expect(applicantNotice?.body).toMatch(/falleció/);
     expect(applicantNotice?.body).toMatch(/No hace falta que hagas nada/);
+    expect(applicantNotice?.ctaUrl).toBe("/adoptar");
   });
 
   it("a second death record is an idempotent noop: nothing ends twice, nobody is told twice", async () => {

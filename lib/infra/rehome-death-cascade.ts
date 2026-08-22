@@ -31,7 +31,13 @@
 
 import { and, eq, inArray, isNull } from "drizzle-orm";
 
-import { caseEvents, organizationMemberships, ownerships, type petEvents } from "@/db";
+import {
+  caseEvents,
+  organizationMemberships,
+  organizations,
+  ownerships,
+  type petEvents,
+} from "@/db";
 import type { db } from "@/db";
 import {
   closeCaseOwned,
@@ -73,9 +79,14 @@ export type DeathSponsorshipCascadeArgs = {
  */
 export type DeathSponsorshipCascadeResult = {
   sponsoringOrganizationId: string;
+  /** For the org's notification CTA when no case is left to point at. */
+  sponsoringOrganizationPublicToken: string | null;
   ownershipId: string | null;
   listingCaseId: string | null;
+  /** `/casos/{code}` — readable by the org's members after the custody row closed. */
+  listingCasePublicCode: string | null;
   requestCaseId: string | null;
+  requestCasePublicCode: string | null;
   /** The org's admins and coordinators. */
   orgRecipientUserIds: string[];
   /** Applicants whose application case this closed. */
@@ -106,6 +117,15 @@ async function closeWithNote(
     payload: { cause: "pet_deceased" },
   });
   return true;
+}
+
+async function orgPublicToken(orgId: string, tx: Tx): Promise<string | null> {
+  const [row] = await tx
+    .select({ publicToken: organizations.publicToken })
+    .from(organizations)
+    .where(eq(organizations.id, orgId))
+    .limit(1);
+  return row?.publicToken ?? null;
 }
 
 async function orgAdminAndCoordinatorUserIds(orgId: string, tx: Tx): Promise<string[]> {
@@ -158,9 +178,12 @@ export async function endSponsorshipForDeceasedPet(
     if (!request?.receiverOrganizationId) return null;
     return {
       sponsoringOrganizationId: request.receiverOrganizationId,
+      sponsoringOrganizationPublicToken: await orgPublicToken(request.receiverOrganizationId, tx),
       ownershipId: null,
       listingCaseId: null,
+      listingCasePublicCode: null,
       requestCaseId,
+      requestCasePublicCode: request.publicCode,
       orgRecipientUserIds: await orgAdminAndCoordinatorUserIds(request.receiverOrganizationId, tx),
       strandedApplicantUserIds: [],
     };
@@ -261,9 +284,12 @@ export async function endSponsorshipForDeceasedPet(
 
   return {
     sponsoringOrganizationId: open.sponsoringOrganizationId,
+    sponsoringOrganizationPublicToken: await orgPublicToken(open.sponsoringOrganizationId, tx),
     ownershipId: open.ownershipId,
     listingCaseId: listing?.id ?? null,
+    listingCasePublicCode: listing?.publicCode ?? null,
     requestCaseId,
+    requestCasePublicCode: request?.publicCode ?? null,
     orgRecipientUserIds: await orgAdminAndCoordinatorUserIds(open.sponsoringOrganizationId, tx),
     strandedApplicantUserIds: [...stranded],
   };

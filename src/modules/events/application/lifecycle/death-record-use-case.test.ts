@@ -548,8 +548,12 @@ describe("createDeathRecord — CASCADE D: rehome sponsorship", () => {
   it("runs the cascade inside the transaction with the death's own authorship, and tells the org and the applicants", async () => {
     mockEndSponsorshipForDeceasedPet.mockResolvedValue({
       sponsoringOrganizationId: "org-1",
+      sponsoringOrganizationPublicToken: "DIM-ORG1-0001",
       ownershipId: "own-custody-1",
       listingCaseId: "case-listing",
+      listingCasePublicCode: "CAS-LIST-0001",
+      requestCaseId: null,
+      requestCasePublicCode: null,
       orgRecipientUserIds: ["coord-1", "coord-2"],
       strandedApplicantUserIds: ["applicant-1"],
     });
@@ -582,16 +586,74 @@ describe("createDeathRecord — CASCADE D: rehome sponsorship", () => {
       title: string;
       body: string;
       relatedCaseId?: string | null;
+      ctaLabel?: string | null;
+      ctaUrl?: string | null;
     }>;
     const org = flushed.filter((n) => n.notificationType === "rehome_sponsorship_ended_by_death");
     expect(org.map((n) => n.userId).sort()).toEqual(["coord-1", "coord-2"]);
     expect(org[0].title).toContain("Buddy");
     expect(org[0].body).toMatch(/acompañamiento/);
     expect(org[0].relatedCaseId).toBe("case-listing");
+    // UI-2: the org's notice lands on the closed sponsorship case — readable
+    // by its members after the custody row closed (adoption_listing branch of
+    // canReadCase keys on opened_by_organization, not on a live row).
+    expect(org[0].ctaUrl).toBe("/casos/CAS-LIST-0001");
+    expect(org[0].ctaLabel).toBe("Ver caso");
     const applicant = flushed.find((n) => n.userId === "applicant-1");
     expect(applicant?.notificationType).toBe("adoption_application_closed");
     expect(applicant?.body).toMatch(/falleció/);
     expect(applicant?.body).toMatch(/No hace falta que hagas nada/);
+    expect(applicant?.ctaUrl).toBe("/adoptar");
+  });
+
+  it("a death between ask and answer: the org's notice lands on the closed rehome_request case", async () => {
+    mockEndSponsorshipForDeceasedPet.mockResolvedValue({
+      sponsoringOrganizationId: "org-1",
+      sponsoringOrganizationPublicToken: "DIM-ORG1-0001",
+      ownershipId: null,
+      listingCaseId: null,
+      listingCasePublicCode: null,
+      requestCaseId: "case-request",
+      requestCasePublicCode: "CAS-REQ-0001",
+      orgRecipientUserIds: ["coord-1"],
+      strandedApplicantUserIds: [],
+    });
+    const flush = vi.fn().mockResolvedValue(undefined);
+    await createDeathRecord(baseInput, {
+      repo: makeRepo(),
+      transaction: makeTransaction(),
+      flushNotifications: flush,
+    });
+    const [notice] = flush.mock.calls[0][0] as Array<{
+      body: string;
+      ctaUrl?: string | null;
+      relatedCaseId?: string | null;
+    }>;
+    expect(notice.body).toMatch(/solicitud/);
+    expect(notice.relatedCaseId).toBe("case-request");
+    expect(notice.ctaUrl).toBe("/casos/CAS-REQ-0001");
+  });
+
+  it("with no case left to open (a lost close), the org is sent to its own case queue", async () => {
+    mockEndSponsorshipForDeceasedPet.mockResolvedValue({
+      sponsoringOrganizationId: "org-1",
+      sponsoringOrganizationPublicToken: "DIM-ORG1-0001",
+      ownershipId: "own-custody-1",
+      listingCaseId: null,
+      listingCasePublicCode: null,
+      requestCaseId: null,
+      requestCasePublicCode: null,
+      orgRecipientUserIds: ["coord-1"],
+      strandedApplicantUserIds: [],
+    });
+    const flush = vi.fn().mockResolvedValue(undefined);
+    await createDeathRecord(baseInput, {
+      repo: makeRepo(),
+      transaction: makeTransaction(),
+      flushNotifications: flush,
+    });
+    const [notice] = flush.mock.calls[0][0] as Array<{ ctaUrl?: string | null }>;
+    expect(notice.ctaUrl).toBe("/org/DIM-ORG1-0001/casos");
   });
 
   it("a pet with no sponsorship: the helper says null and nobody extra is told", async () => {

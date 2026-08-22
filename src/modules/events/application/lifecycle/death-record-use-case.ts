@@ -315,6 +315,18 @@ export async function createDeathRecord(
         const orgBody = sponsorshipEnd.ownershipId
           ? `Se registró el fallecimiento de ${pet.name}. El acompañamiento de adopción terminó: la publicación se retiró de la búsqueda de hogar y la custodia registral de tu organización quedó cerrada. No hay nada que hacer.`
           : `Se registró el fallecimiento de ${pet.name}; la solicitud de acompañamiento quedó cerrada. No hay nada que hacer.`;
+        // UI-2: "nothing to do" still needs somewhere to look. The case the
+        // cascade just closed stays readable by the org's members (the
+        // adoption_listing / rehome_request branches of canReadCase key on
+        // the org columns, not on the custody row this cascade ended); the
+        // org's case queue is the fallback when a lost close left no case.
+        const orgCaseCode =
+          sponsorshipEnd.listingCasePublicCode ?? sponsorshipEnd.requestCasePublicCode;
+        const orgCtaUrl = orgCaseCode
+          ? `/casos/${orgCaseCode}`
+          : sponsorshipEnd.sponsoringOrganizationPublicToken
+            ? `/org/${sponsorshipEnd.sponsoringOrganizationPublicToken}/casos`
+            : null;
         for (const userId of sponsorshipEnd.orgRecipientUserIds) {
           pendingNotifications.push({
             userId,
@@ -322,6 +334,8 @@ export async function createDeathRecord(
             severity: "info",
             title: orgTitle,
             body: orgBody,
+            ctaLabel: orgCtaUrl ? (orgCaseCode ? "Ver caso" : "Ver casos") : null,
+            ctaUrl: orgCtaUrl,
             relatedPetId: pet.id,
             relatedEventId: event.id,
             relatedCaseId: sponsorshipEnd.listingCaseId ?? sponsorshipEnd.requestCaseId,
