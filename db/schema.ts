@@ -1678,6 +1678,14 @@ export const pushSubscriptions = pgTable(
     userActiveIdx: index("push_subscriptions_user_active_idx")
       .on(table.userId)
       .where(sql`${table.revokedAt} IS NULL`),
+    // Purge-path index (migration 0197): the revoked rows older than the TTL
+    // that lib/infra/data-lifecycle.ts prunes nightly. Partial on the REVOKED
+    // population — the send path's index above covers the live one — so a live
+    // row costs nothing to maintain here and the purge's `revoked_at < cutoff`
+    // is an index-range scan instead of a table scan.
+    revokedAtIdx: index("push_subscriptions_revoked_at_idx")
+      .on(table.revokedAt)
+      .where(sql`${table.revokedAt} IS NOT NULL`),
   }),
 );
 
