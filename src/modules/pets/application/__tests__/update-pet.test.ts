@@ -49,6 +49,9 @@ function makeExistingPet(overrides?: Partial<ExistingPetSnapshot>): ExistingPetS
     jurisdictionProvince: "Buenos Aires",
     jurisdictionLocality: "La Plata",
     acquisitionMethod: "adopted",
+    permanentConditions: [],
+    permanentConditionsOther: null,
+    discloseConditionsPublicly: false,
     emergencyInfoVisible: false,
     ...overrides,
   };

@@ -35,20 +35,28 @@
 //     tier2PublicEnabledUntil) → flipping them emits no event by design.
 //   - PII/metadata (createdBy, updatedBy, purpose, deletedAt, retentionUntil,
 //     createdAt, updatedAt).
-//   - permanentConditions / permanentConditionsOther / acquisitionMethod →
-//     dual-written in updatePetProfile (pets-repository.ts:350) and at
-//     registration. These were in NEITHER list until 2026-08-12 — the same
-//     silent gap jurisdiction had, found by the second audit pass. They stay
-//     EXCLUDED rather than checked, and here is the reason: acquisition_method
-//     does ride in the pet_registered payload, but all three are only ever
-//     UPDATED through pet_profile_updated's generic `changes` diff — a
-//     field-by-field array, not a typed payload. A faithful projection would
-//     have to interpret that diff (replayPetWeight already does exactly this
-//     for weight, so it is doable) — one new projection per column, for three
-//     values that gate nothing: not PPP, not compliance, not authority routing.
-//     They are profile metadata.
+//   - permanentConditions / permanentConditionsOther / discloseConditionsPublicly /
+//     acquisitionMethod → dual-written in updatePetProfile (pets-repository.ts)
+//     and at registration. These were in NEITHER list until 2026-08-12 — the same
+//     silent gap jurisdiction had, found by the second audit pass.
+//     CORRECTION (review 2026-08-22, H7): the justification that used to stand
+//     here — "all of them are only ever UPDATED through pet_profile_updated's
+//     generic `changes` diff" — WAS FALSE for the three condition columns. They
+//     never entered that diff at all (pet-diff.ts omitted them), so an owner
+//     edit that only touched a condition wrote the cache column with NO event,
+//     and this exclusion meant nothing checked the gap either: the cache column
+//     was the only record of a medical fact published on the credential. That
+//     bug is fixed — pet-diff.ts now diffs all three, so the sentence is true
+//     today, but it was written as a reason to skip the check, not as an
+//     observation, and it authorised the wrong conclusion for six months.
+//     They stay EXCLUDED for the remaining, narrower reason: a faithful
+//     projection has to interpret the `changes` array field-by-field
+//     (replayPetWeight already does exactly this for weight, so it is doable) —
+//     one new projection per column.
 //     REVISIT IF: any of them starts feeding a business rule or a dashboard.
-//     At that point the work is writing the projections, not extending this note.
+//     discloseConditionsPublicly is the closest to that line already: it gates
+//     what the public credential shows. At that point the work is writing the
+//     projections, not extending this note.
 //   - localityId → the denormalized FK twin of jurisdictionLocality. Left out
 //     because the three text columns above already fail when the locality
 //     drifts, and resolving the id would double the per-pet catalog lookups for

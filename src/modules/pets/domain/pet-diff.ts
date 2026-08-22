@@ -35,6 +35,14 @@ export type ExistingPetSnapshot = {
   jurisdictionProvince: string | null;
   jurisdictionLocality: string | null;
   acquisitionMethod: string | null;
+  // Permanent medical conditions and their public-disclosure gate. These are
+  // FACTS ABOUT THE PET that reach the public credential, the adoption listing
+  // and /api/v1 — not UI preferences — so they belong in the diff (see diffPet).
+  // Typed as string[] rather than PermanentCondition[] to keep this domain type
+  // structural: the Drizzle `pets` row (text[]) satisfies it as-is.
+  permanentConditions: string[];
+  permanentConditionsOther: string | null;
+  discloseConditionsPublicly: boolean;
   // Required for flag-change detection in the update use-case.
   // emergencyInfoVisible is NOT diffed (UI preference, not pet fact) but
   // we do need to know if it changed to decide whether to skip the transaction.
@@ -71,6 +79,21 @@ export type DiffEntry = {
  *
  * potentiallyDangerousBreed is included because it is a resolved external
  * fact (jurisdiction-aware PPP evaluation), not a UI preference.
+ *
+ * permanentConditions / permanentConditionsOther / discloseConditionsPublicly are
+ * included for the same reason (review 2026-08-22, H7): the repository already
+ * dual-writes all three, but until they entered this diff an edit that ONLY
+ * ticked a condition produced an empty change list, tripped the no-op
+ * short-circuit in updatePet, and persisted NOTHING while the action still
+ * returned ok + redirect. When the edit also changed another field the column
+ * was written but the pet_profile_updated payload named only that other field —
+ * a medical fact on the public credential with no entry in the spine.
+ * discloseConditionsPublicly rides with them because it gates whether that
+ * medical fact is published, which is a disclosure decision about the pet, not
+ * a rendering preference like emergencyInfoVisible.
+ *
+ * birthDateIsEstimated is deliberately NOT diffed: it has no toggle of its own
+ * and is derived alongside dateOfBirth, which IS diffed.
  */
 export function diffPet(
   existing: ExistingPetSnapshot,
@@ -131,6 +154,21 @@ export function diffPet(
       field: "acquisition_method",
       oldVal: existing.acquisitionMethod,
       newVal: parsed.acquisitionMethod,
+    },
+    {
+      field: "permanent_conditions",
+      oldVal: existing.permanentConditions,
+      newVal: parsed.permanentConditions,
+    },
+    {
+      field: "permanent_conditions_other",
+      oldVal: existing.permanentConditionsOther,
+      newVal: parsed.permanentConditionsOther,
+    },
+    {
+      field: "disclose_conditions_publicly",
+      oldVal: existing.discloseConditionsPublicly,
+      newVal: parsed.discloseConditionsPublicly,
     },
   ];
 
