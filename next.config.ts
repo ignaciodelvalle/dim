@@ -77,6 +77,34 @@ const nextConfig: NextConfig = {
         headers: DENUNCIA_PRIVATE_HEADERS,
       },
       {
+        // Public credential — INDEXABLE, NOT ARCHIVABLE.
+        //
+        // A lost pet's credential renders the owner's first name, phone (with a
+        // live `tel:` link) and last known location, and it is meant to be
+        // found: /perdidas sits in the site-wide footer linking to every one of
+        // them, and app/sitemap.ts feeds them daily at priority 0.85. That is a
+        // deliberate, reviewed decision (PII audit 2026-07-04 — "expected for
+        // reunification SEO"), so `noindex` here would be the wrong fix.
+        //
+        // The problem is what happens AFTER the dog comes home. The owner flips
+        // the disclosure toggles off, the live page changes instantly — and the
+        // search snippet and the archived copy keep the phone number, until the
+        // next crawl or forever. `no-store` does not help: it is a CACHE
+        // directive, and Google honours `noarchive` / `nosnippet` for this.
+        //
+        //  • noarchive  — no "cached" copy served from the index.
+        //  • nosnippet  — no text excerpt in the results page, which is exactly
+        //    where "Lo busca Juan · Av. Rivadavia 1234 · +54 9 11 …" would sit.
+        //
+        // Cost, stated honestly: a result with no snippet converts worse. The
+        // trade is that turning a toggle off actually turns it off, and the live
+        // page stays the only copy. The owner is told this next to the toggles
+        // (LostDisclosureCard) and in the privacy policy — the header alone is
+        // an unkept secret.
+        source: "/p/:path*",
+        headers: [{ key: "X-Robots-Tag", value: "noarchive, nosnippet" }],
+      },
+      {
         // Panorama basemap GeoJSON (public/geo/*) is immutable PER DEPLOY (see
         // components/panorama/geojson-cache.ts) but the filenames are NOT
         // content-hashed/versioned — so `immutable` would be wrong (a new
