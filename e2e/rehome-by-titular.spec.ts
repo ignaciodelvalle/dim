@@ -31,6 +31,11 @@ import { ACCOUNTS, loginAs, resolveOrgToken } from "./demo/_helpers";
  *     environmental conditions the run genuinely cannot control; a fixture the
  *     repo owns is not one, and a green suite that quietly skipped its only
  *     browser-level proof of REQ-1/2/4/8 is worse than a red one.
+ *   · The registry may hold MORE than the seed's pets (a local demo seed adds
+ *     Pampa in Belgrano; create-pet.spec adds photo-less strays), and the
+ *     list is sorted by urgency, not by seed. So the walk does not take "the
+ *     first active pet": it takes the first non-urgent pet the seed refugio
+ *     can actually sponsor, and fails loudly only when none of them is.
  *
  * IDEMPOTENCE. The walk starts by resolving whatever the page shows (a
  * pending request or an active accompaniment from an earlier run) and ends
@@ -42,8 +47,13 @@ const TITULAR = ACCOUNTS.owner;
 const ORG_ADMIN = ACCOUNTS.orgAdmin;
 const SEED_ORG = /Refugio Test/i;
 
+/** The seed refugio's row in the titular's org picker, on the rehome page. */
+function askSeedOrg(page: Page) {
+  return page.getByRole("button", { name: /Pedir acompañamiento a .*Refugio Test/i }).first();
+}
+
 /**
- * The first ACTIVE pet in the titular's registry.
+ * The non-urgent pets in the titular's registry, in page order.
  *
  * NOT the sibling specs' locator, on purpose. They require `:has(img)` and a
  * "REGISTRADA/O" flag because the lost-pet walk reads the name from the
@@ -55,23 +65,44 @@ const SEED_ORG = /Refugio Test/i;
  * been skipping silently on the same condition. So: the row's href carries
  * the token, and either non-urgent flag marks a pet the rehome page accepts.
  */
-async function pickActivePetToken(page: Page): Promise<string> {
+async function listCandidatePetTokens(page: Page): Promise<string[]> {
   await page.goto("/mis-mascotas", { waitUntil: "domcontentloaded" });
   await page.waitForLoadState("networkidle").catch(() => {});
-  const petLink = page
-    .locator('a[href^="/mis-mascotas/DIM-"]', { hasText: /AL DÍA|REGISTRAD[AO]/i })
-    .first();
+  const rows = page.locator('a[href^="/mis-mascotas/DIM-"]', {
+    hasText: /AL DÍA|REGISTRAD[AO]/i,
+  });
   // An ASSERTION, not a skip: scripts/seed-test-users.ts seeds owner@dim.test
   // with active pets, so an empty registry is a broken seed. Auto-retrying, so
   // it also absorbs the registry's streaming render.
   await expect(
-    petLink,
+    rows.first(),
     "owner@dim.test has no active pet — the rehome walk needs one (seeded by scripts/seed-test-users.ts).",
   ).toBeVisible({ timeout: 20_000 });
-  const href = (await petLink.getAttribute("href")) ?? "";
-  const token = href.split("/mis-mascotas/")[1] ?? "";
-  expect(token, "publicToken parsed from the registry link").toBeTruthy();
-  return token;
+  const hrefs = await rows.evaluateAll((anchors) =>
+    anchors.map((a) => a.getAttribute("href") ?? ""),
+  );
+  const tokens = hrefs.map((h) => h.split("/mis-mascotas/")[1] ?? "").filter(Boolean);
+  expect(tokens.length, "publicTokens parsed from the registry links").toBeGreaterThan(0);
+  return tokens.slice(0, 6);
+}
+
+/**
+ * The first candidate the seed refugio can sponsor, left on its rehome page
+ * in the "none" state. A pet outside the refugio's coverage (locally: Pampa
+ * in Belgrano) renders an empty picker and is skipped; the seed's own pets
+ * live in Palermo, which the refugio covers, so at least one must qualify.
+ */
+async function pickSponsorablePetToken(page: Page): Promise<string> {
+  const candidates = await listCandidatePetTokens(page);
+  for (const token of candidates) {
+    await resetToNone(page, token);
+    // count() is one-shot, but resetToNone already waited for the page's
+    // heading (the gate this file documents above), so the picker is settled.
+    if ((await askSeedOrg(page).count()) > 0) return token;
+  }
+  throw new Error(
+    `none of ${candidates.length} non-urgent pet(s) of owner@dim.test is in a zone "Refugio Test (Seed)" covers — scripts/seed-test-users.ts seeds Palermo pets and Palermo coverage, so the seed or the coverage rule broke.`,
+  );
 }
 
 /**
@@ -119,8 +150,7 @@ test.describe
       test.setTimeout(150_000);
 
       await loginAs(page, TITULAR);
-      const token = await pickActivePetToken(page);
-      await resetToNone(page, token);
+      const token = await pickSponsorablePetToken(page);
 
       // ---- the ask, from the titular's own surface ---------------------------
       // An ASSERTION, not a skip: "Refugio Test (Seed)" is verified, a shelter
@@ -128,9 +158,7 @@ test.describe
       // — so an empty picker for a seeded pet means the seed or the coverage
       // rule broke. One auto-retrying expect: it waits out the segment's
       // Suspense stream instead of a one-shot count() that cannot.
-      const ask = page
-        .getByRole("button", { name: /Pedir acompañamiento a .*Refugio Test/i })
-        .first();
+      const ask = askSeedOrg(page);
       await expect(
         ask,
         "the seed refugio does not cover this pet's zone — the org picker is empty for it (seeded by scripts/seed-test-users.ts).",
@@ -165,7 +193,16 @@ test.describe
         // The consequence, BEFORE the click: the animal is not in the org's possession.
         await expect(orgPage.getByText(/no lo tiene en su poder/)).toBeVisible();
         await orgPage.getByRole("button", { name: "Confirmar el acompañamiento" }).click();
-
+        // The OUTCOME first, on the page the action itself navigates to
+        // (navigateAfterActionSuccess → a full document load of this case).
+        // A hand-made goto before the action settles races it: the mutation
+        // still commits server-side, but the hand-loaded document can be the
+        // pre-commit one, and expect() polls that DOM without ever reloading
+        // it (seen locally 2026-08-22: spine written at :50, page read at :49).
+        await expect(orgPage.getByText("Solicitud aceptada por la organización")).toBeVisible({
+          timeout: 20_000,
+        });
+        // Then an independent re-read of the same case.
         await orgPage.goto(caseHref as string, { waitUntil: "domcontentloaded" });
         await expect(orgPage.getByText("Solicitud aceptada por la organización")).toBeVisible();
         await expect(
@@ -181,6 +218,12 @@ test.describe
       await page.getByRole("button", { name: "Dar de baja el acompañamiento" }).click();
       await expect(page.getByText(/se retira de la búsqueda de hogar/)).toBeVisible();
       await page.getByRole("button", { name: "Confirmar la baja" }).click();
+      // Same discipline as the org's accept above: the outcome first, on the
+      // page the action navigates to by itself (the "none" state's picker),
+      // then an independent re-read.
+      await expect(
+        page.getByRole("button", { name: /Pedir acompañamiento a/ }).first(),
+      ).toBeVisible({ timeout: 20_000 });
 
       await page.goto(`/mis-mascotas/${token}/buscar-hogar`, { waitUntil: "domcontentloaded" });
       await expect(
