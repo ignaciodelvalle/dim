@@ -121,6 +121,49 @@ describe("acceptCaretakerGrant", () => {
     expect(repo.insertAcceptGrant).not.toHaveBeenCalled();
   });
 
+  // -------------------------------------------------------------------------
+  // The invitation does NOT survive a change of owner (H4/a)
+  // -------------------------------------------------------------------------
+
+  it("refuses when the person who invited is no longer the titular", async () => {
+    // Day 0 the titular invites; day 1 the pet changes hands (a P2P transfer,
+    // an adoption finalize, a decomiso, a resolved dispute); day 2 the invitee
+    // accepts. Without this guard they become an active caretaker on a STRANGER'S
+    // pet — write access on the new owner's animal, a row in a panel nobody
+    // filled in, and, with the lost-mode disclosure toggle on, their name and
+    // phone published on that pet's public credential. The new owner cannot
+    // cancel it either: cancel and revoke are the granter's, and the granter is
+    // gone. The only exit is expiry — up to 180 days.
+    //
+    // The check belongs INSIDE the transaction, after the FOR UPDATE re-read:
+    // the pre-transaction reads are stale by construction, and the hand-off
+    // writers close ownership rows in their own transaction.
+    const repo = repoWithPendingGrant({
+      hasLiveTitularOwnership: vi.fn().mockResolvedValue(false),
+    });
+
+    const result = await acceptCaretakerGrant(input(), deps(repo));
+
+    expect(result.ok).toBe(false);
+    expect(repo.insertAcceptGrant).not.toHaveBeenCalled();
+    // A readable sentence, not the generic retry copy: retrying cannot help,
+    // and the invitee has to know to ask the NEW titular.
+    expect(result.ok === false && result.error).toContain("ya no es titular");
+  });
+
+  it("asks about the GRANTER's ownership, on the grant's pet, under the tx", async () => {
+    // Non-vacuity for the guard above: a call with the caller's id, or outside
+    // the transaction, would pass the previous test while protecting nothing.
+    const repo = repoWithPendingGrant();
+    await acceptCaretakerGrant(input(), deps(repo));
+
+    expect(repo.hasLiveTitularOwnership).toHaveBeenCalledWith(
+      PET.id,
+      TITULAR_ID,
+      expect.objectContaining({ __tx: true }),
+    );
+  });
+
   it("refuses an invitation addressed to somebody else", async () => {
     const repo = repoWithPendingGrant();
     const result = await acceptCaretakerGrant(

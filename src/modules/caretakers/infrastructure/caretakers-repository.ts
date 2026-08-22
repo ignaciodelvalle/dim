@@ -180,6 +180,31 @@ export const CaretakersRepository = {
   },
 
   /**
+   * Is `userId` still a titular of this pet? Read under the caller's
+   * transaction, so it is answered under the same lock as the grant re-read.
+   *
+   * `role <> 'caretaker'` mirrors `requireTitularAccess`: owner, co_owner,
+   * foster and shelter_custody all count as holding the pet; a caretaker does
+   * not, because a caretaker may not name a sub-caretaker.
+   */
+  async hasLiveTitularOwnership(petId: string, userId: string, tx: unknown): Promise<boolean> {
+    const client = tx as Tx;
+    const [row] = await client
+      .select({ id: ownerships.id })
+      .from(ownerships)
+      .where(
+        and(
+          eq(ownerships.petId, petId),
+          eq(ownerships.ownerUserId, userId),
+          isNull(ownerships.endedAt),
+          sql`${ownerships.role} <> 'caretaker'`,
+        ),
+      )
+      .limit(1);
+    return row !== undefined;
+  },
+
+  /**
    * Resolve an invitee's account id from their email.
    *
    * `profiles` HAS NO EMAIL COLUMN — emails live in `auth.users`, which Drizzle
