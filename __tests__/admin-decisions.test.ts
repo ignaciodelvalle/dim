@@ -28,6 +28,7 @@ import { approveRequestForAuthority } from "@/src/modules/organizations/applicat
 import { logRequestViewedForAuthority } from "@/src/modules/organizations/application/admin-decisions/log-request-viewed";
 import { rejectRequestForAuthority } from "@/src/modules/organizations/application/admin-decisions/reject-request";
 import { requestInfoForAuthority } from "@/src/modules/organizations/application/admin-decisions/request-info";
+import { proposeVetUpgradeForUser } from "@/src/modules/organizations/application/admin-proposals/propose-vet-upgrade";
 import { createOrganizationForUser } from "@/src/modules/organizations/application/upgrade/create-organization";
 import { requestVetUpgradeForUser } from "@/src/modules/organizations/application/upgrade/request-vet-upgrade";
 import {
@@ -53,6 +54,11 @@ const ADMIN_EMAIL = "admin-dec-admin@dim-test.local";
 // and a user who is already a vet cannot submit a new vet-upgrade petition — so
 // a shared applicant silently leaves the scope test with nothing to decide.
 const SCOPE_EMAIL = "admin-dec-scope@dim-test.local";
+// H3 two-person rule: an officer who is ALSO the applicant / the initiator.
+// Dedicated users so the promotion to govt and the org they found cannot leak
+// into any other block's fixtures.
+const TWOP_GOVT_EMAIL = "admin-dec-twop-govt@dim-test.local";
+const TWOP_TARGET_EMAIL = "admin-dec-twop-target@dim-test.local";
 const PASS = "AdminDec_2026!";
 
 let vetApplicantId: string;
@@ -61,6 +67,8 @@ let orgApplicantId: string;
 let govtUserId: string;
 let adminUserId: string;
 let scopeApplicantId: string;
+let twoPersonGovtId: string;
+let twoPersonTargetId: string;
 
 async function deleteTestUser(email: string) {
   const { data: list } = await admin.auth.admin.listUsers();
@@ -116,7 +124,16 @@ async function deleteTestUser(email: string) {
 }
 
 beforeAll(async () => {
-  for (const email of [VET_EMAIL, VET2_EMAIL, ORG_EMAIL, GOVT_EMAIL, ADMIN_EMAIL, SCOPE_EMAIL]) {
+  for (const email of [
+    VET_EMAIL,
+    VET2_EMAIL,
+    ORG_EMAIL,
+    GOVT_EMAIL,
+    ADMIN_EMAIL,
+    SCOPE_EMAIL,
+    TWOP_GOVT_EMAIL,
+    TWOP_TARGET_EMAIL,
+  ]) {
     await deleteTestUser(email);
   }
 
@@ -126,6 +143,8 @@ beforeAll(async () => {
   govtUserId = await createTestUser(GOVT_EMAIL);
   adminUserId = await createTestUser(ADMIN_EMAIL);
   scopeApplicantId = await createTestUser(SCOPE_EMAIL);
+  twoPersonGovtId = await createTestUser(TWOP_GOVT_EMAIL);
+  twoPersonTargetId = await createTestUser(TWOP_TARGET_EMAIL);
 
   await db
     .update(profiles)
@@ -157,7 +176,16 @@ async function createTestUser(email: string): Promise<string> {
 }
 
 afterAll(async () => {
-  for (const email of [VET_EMAIL, VET2_EMAIL, ORG_EMAIL, GOVT_EMAIL, ADMIN_EMAIL, SCOPE_EMAIL]) {
+  for (const email of [
+    VET_EMAIL,
+    VET2_EMAIL,
+    ORG_EMAIL,
+    GOVT_EMAIL,
+    ADMIN_EMAIL,
+    SCOPE_EMAIL,
+    TWOP_GOVT_EMAIL,
+    TWOP_TARGET_EMAIL,
+  ]) {
     await deleteTestUser(email);
   }
 });
@@ -676,3 +704,166 @@ describe("logRequestViewedForAuthority", () => {
 });
 
 void isNull; // referenced by helpers above; satisfy ts-unused-vars in some configs
+
+// ---------------------------------------------------------------------------
+// H3 (top-10 review 2026-08-22) — the two-person rule.
+//
+// Creating an organization needs no role at all: any live user with a declared
+// DNI can do it. So a government officer could stand up a foundation in their
+// own barrio, walk into their own approvals queue, and verify it themselves.
+// `organizations.verified` is not a badge — it gates receiving decomisos, being
+// a rehome destination, and appearing in the public directory. One human, end
+// to end, no second pair of eyes.
+//
+// That this is an OVERSIGHT and not a decision is provable from the repo: the
+// identical control already exists in revoke-govt-locality.ts, whose comment
+// literally calls it "Self-revocation footgun".
+//
+// The refusal is ordered AFTER the scope check, deliberately: an out-of-scope
+// authority must keep getting the jurisdiction error, which is the accurate one,
+// instead of learning that the request happens to be their own.
+//
+// The two arms below are the two identities the queue named — the APPLICANT
+// (the org's own verification request) and the INITIATOR (a vet upgrade this
+// same officer proposed). The third, TARGET, is covered by the pure unit tests
+// in src/modules/organizations/domain/two-person-rule.test.ts.
+// ---------------------------------------------------------------------------
+
+describe("H3 — two-person rule on approval decisions", () => {
+  let selfOrgToken: string;
+  let selfOrgId: string;
+  let proposedVetToken: string;
+
+  beforeAll(async () => {
+    // The org is created BEFORE the promotion, which is also the real-world
+    // order: a citizen founds the org, and is later an authority.
+    await db.update(profiles).set({ dniVerified: true }).where(eq(profiles.id, twoPersonGovtId));
+
+    const created = await createOrganizationForUser(twoPersonGovtId, {
+      name: "Refugio del Funcionario",
+      legalName: "Asoc. Civil del Funcionario",
+      orgType: "shelter",
+      cuit: "30712345671",
+      email: "funcionario@refugio.test",
+      jurisdictionProvince: "CABA",
+      jurisdictionLocality: "Almagro",
+    });
+    expect("ok" in created && created.ok, "the H3 fixture needs a real org").toBe(true);
+    selfOrgId = (created as { organizationId: string }).organizationId;
+
+    await db
+      .update(profiles)
+      .set({ role: "govt", accountType: "institutional" })
+      .where(eq(profiles.id, twoPersonGovtId));
+    await db.insert(govtAssignments).values({
+      userId: twoPersonGovtId,
+      jurisdictionProvince: "CABA",
+      jurisdictionLocality: "Almagro",
+      grantedByUserId: adminUserId,
+    });
+
+    const [orgReq] = await db
+      .select({ publicToken: approvalRequests.publicToken })
+      .from(approvalRequests)
+      .where(
+        and(
+          eq(approvalRequests.targetOrganizationId, selfOrgId),
+          eq(approvalRequests.type, "organization_verification"),
+        ),
+      )
+      .limit(1);
+    expect(orgReq, "the org must have filed its verification request").toBeDefined();
+    selfOrgToken = orgReq.publicToken;
+
+    // The same officer proposes a vet upgrade for somebody else — they are the
+    // INITIATOR, and the applicant is the target.
+    await db.update(profiles).set({ dniVerified: true }).where(eq(profiles.id, twoPersonTargetId));
+    const proposed = await proposeVetUpgradeForUser(twoPersonGovtId, {
+      targetUserId: twoPersonTargetId,
+      matriculaNumber: "MN-TWOP-01",
+      matriculaJurisdiccion: "CABA",
+      operationalProvince: "CABA",
+      operationalLocality: "Almagro",
+    });
+    expect("ok" in proposed && proposed.ok, "the H3 fixture needs a proposed upgrade").toBe(true);
+
+    const [vetReq] = await db
+      .select({ publicToken: approvalRequests.publicToken })
+      .from(approvalRequests)
+      .where(
+        and(
+          eq(approvalRequests.applicantUserId, twoPersonTargetId),
+          eq(approvalRequests.type, "role_upgrade_vet"),
+          eq(approvalRequests.status, "pending"),
+        ),
+      )
+      .limit(1);
+    expect(vetReq, "the proposed vet upgrade must be pending").toBeDefined();
+    proposedVetToken = vetReq.publicToken;
+  });
+
+  it("refuses a govt approving the verification of the organization THEY founded", async () => {
+    const result = await approveRequestForAuthority(twoPersonGovtId, selfOrgToken, null);
+    expect("error" in result && result.error).toMatch(/otra persona|vos mismo|misma persona/i);
+
+    // The refusal is not just a message: the org must still be unverified and
+    // the request untouched.
+    const [org] = await db
+      .select({ verified: organizations.verified })
+      .from(organizations)
+      .where(eq(organizations.id, selfOrgId))
+      .limit(1);
+    expect(org.verified).toBe(false);
+
+    const [row] = await db
+      .select({ status: approvalRequests.status })
+      .from(approvalRequests)
+      .where(eq(approvalRequests.publicToken, selfOrgToken))
+      .limit(1);
+    expect(row.status).toBe("pending");
+  });
+
+  it("refuses a govt approving the vet upgrade THEY proposed", async () => {
+    const result = await approveRequestForAuthority(
+      twoPersonGovtId,
+      proposedVetToken,
+      composeMatriculaApprovalNotes("verificada"),
+    );
+    expect("error" in result && result.error).toMatch(/otra persona|vos mismo|misma persona/i);
+
+    const [row] = await db
+      .select({ status: approvalRequests.status })
+      .from(approvalRequests)
+      .where(eq(approvalRequests.publicToken, proposedVetToken))
+      .limit(1);
+    expect(row.status).toBe("pending");
+  });
+
+  it("refuses the same officer merely ASKING FOR INFO on their own request", async () => {
+    const result = await requestInfoForAuthority(
+      twoPersonGovtId,
+      selfOrgToken,
+      "Necesito el estatuto firmado.",
+    );
+    expect("error" in result && result.error).toMatch(/otra persona|vos mismo|misma persona/i);
+  });
+
+  it("CONTROL: a DIFFERENT authority approves the very same request", async () => {
+    // Without this the refusals above would be satisfied by a build that
+    // refuses everything. Runs last so the earlier assertions still see the
+    // request pending.
+    const result = await approveRequestForAuthority(adminUserId, selfOrgToken, null);
+    expect(result).toEqual({ ok: true });
+
+    const [org] = await db
+      .select({
+        verified: organizations.verified,
+        verifiedByUserId: organizations.verifiedByUserId,
+      })
+      .from(organizations)
+      .where(eq(organizations.id, selfOrgId))
+      .limit(1);
+    expect(org.verified).toBe(true);
+    expect(org.verifiedByUserId).toBe(adminUserId);
+  });
+});

@@ -22,6 +22,7 @@ import {
   approvalInfoBody,
   approvalInfoDedupeKey,
 } from "@/src/modules/organizations/domain/approval-info-key";
+import { assertTwoPersonRule } from "@/src/modules/organizations/domain/two-person-rule";
 
 import { loadActorAuthority } from "./helpers";
 import type { DecisionResult } from "./types";
@@ -51,6 +52,14 @@ export async function requestInfoForAuthority(
   if (!canDecideRequest(auth.profile, request, auth.jurisdictions)) {
     return { error: "No tenés permiso para decidir esta solicitud (fuera de tu jurisdicción)." };
   }
+
+  // H3 — four eyes, ordered after the scope check like its two siblings. This
+  // one writes no decision, but it is a step IN the decision: asking yourself
+  // for information leaves an audit row that reads like an external reviewer
+  // probed the request, and it is the manoeuvre that makes a self-approval look
+  // diligent afterwards.
+  const fourEyes = assertTwoPersonRule(actorUserId, request);
+  if (!fourEyes.ok) return { error: fourEyes.error };
 
   try {
     // Notes-only event — the approval_requests row is NOT touched (status stays

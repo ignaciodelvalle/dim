@@ -7,6 +7,8 @@ import { and, eq } from "drizzle-orm";
 
 import { auditLog, db, notifications, organizations, profiles } from "@/db";
 
+import { assertNotOwnOrganization } from "@/src/modules/organizations/domain/two-person-rule";
+
 import { isActiveInstitutionalAdmin, loadOrgAdminUserIds } from "./helpers";
 import type { VerifyOrgResult } from "./types";
 
@@ -32,16 +34,33 @@ export async function verifyOrgForAuthority(
   }
 
   // Load target org (display name only — idempotency check moves inside tx).
+  // `createdByUserId` joins the projection for the two-person rule below.
   const [org] = await db
     .select({
       id: organizations.id,
       displayName: organizations.displayName,
+      createdByUserId: organizations.createdByUserId,
     })
     .from(organizations)
     .where(eq(organizations.id, input.organizationId))
     .limit(1);
 
   if (!org) return { error: "Organización no encontrada." };
+
+  // H3 — THE MIRROR THE FINDING MISSED. This route sets `verified = true`
+  // directly, with no approval_request in sight, so a fix confined to the three
+  // decision writers would have left the same outcome reachable by a different
+  // door: found an organization, then verify it from the admin console.
+  //
+  // Ordered after the actor-authority check above, same rule as the siblings:
+  // a non-admin keeps getting CAPABILITY_DENIED, not a hint about who created
+  // this org.
+  //
+  // NOT the solo-vet clinic auto-verification (create-organization.ts, D1) —
+  // that path is sanctioned, writes `verifiedByUserId: null` on purpose, and
+  // never comes through here.
+  const fourEyes = assertNotOwnOrganization(actorUserId, org.createdByUserId);
+  if (!fourEyes.ok) return { error: fourEyes.error };
 
   type PendingNotification = typeof notifications.$inferInsert;
   let pendingNotifications: PendingNotification[] = [];

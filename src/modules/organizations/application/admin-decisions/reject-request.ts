@@ -12,6 +12,7 @@ import { and, eq } from "drizzle-orm";
 
 import { type ApprovalRequest, approvalRequests, auditLog, db, notifications } from "@/db";
 import { canDecideRequest } from "@/lib/infra/approval-scope";
+import { assertTwoPersonRule } from "@/src/modules/organizations/domain/two-person-rule";
 
 import { ctaForApplicant, loadActorAuthority } from "./helpers";
 import type { DecisionResult } from "./types";
@@ -42,6 +43,13 @@ export async function rejectRequestForAuthority(
   if (!canDecideRequest(auth.profile, request, auth.jurisdictions)) {
     return { error: "No tenés permiso para decidir esta solicitud (fuera de tu jurisdicción)." };
   }
+
+  // H3 — four eyes, ordered after the scope check for the same reason as the
+  // approve sibling. Reject is covered too: a self-reject is how you make an
+  // inconvenient request (somebody else's proposal naming you) disappear from
+  // the queue with your own signature on it.
+  const fourEyes = assertTwoPersonRule(actorUserId, request);
+  if (!fourEyes.ok) return { error: fourEyes.error };
 
   type PendingNotification = typeof notifications.$inferInsert;
   const pendingNotifications: PendingNotification[] = [];

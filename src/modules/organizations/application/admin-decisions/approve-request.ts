@@ -23,6 +23,7 @@ import {
   profiles,
 } from "@/db";
 import { canDecideRequest } from "@/lib/infra/approval-scope";
+import { assertTwoPersonRule } from "@/src/modules/organizations/domain/two-person-rule";
 
 import { ctaForApplicant, loadActorAuthority } from "./helpers";
 import type { DecisionResult } from "./types";
@@ -60,6 +61,14 @@ export async function approveRequestForAuthority(
   if (!canDecideRequest(auth.profile, request, auth.jurisdictions)) {
     return { error: "No tenés permiso para decidir esta solicitud (fuera de tu jurisdicción)." };
   }
+
+  // H3 — four eyes. AFTER the scope check, so an out-of-scope authority keeps
+  // getting the jurisdiction refusal (the accurate one) rather than learning
+  // that this request happens to be their own; and BEFORE the matrícula-note
+  // validation below, because this is an authorization guard and that one is
+  // validation detail nobody unauthorized should see. See domain/two-person-rule.ts.
+  const fourEyes = assertTwoPersonRule(actorUserId, request);
+  if (!fourEyes.ok) return { error: fourEyes.error };
 
   // Lote A3 — the individual path must carry PROOF of the verification too.
   // The client checklist only disabled a button; a direct call could approve a

@@ -191,6 +191,34 @@ describe("verifyOrgForAuthority", () => {
     expect(row.verifiedByUserId).toBe(adminUserId);
   });
 
+  // H3 (top-10 review 2026-08-22) — THE MIRROR THE FINDING MISSED.
+  //
+  // The finding named the three approval-decision writers. This route never
+  // touches an approval_request: it flips `verified` straight from the admin
+  // console. An admin who founds an organization (creating one needs no role —
+  // any live user with a declared DNI can) could therefore verify it here even
+  // with the decision writers fixed, reaching the same outcome by a different
+  // door. `organizations.verified` gates receiving decomisos, being a rehome
+  // destination, and the public directory.
+  it("refuses to verify an organization the actor themselves created", async () => {
+    const orgId = await seedOrg(adminUserId, { verified: false });
+
+    const result = await verifyOrgForAuthority(adminUserId, { organizationId: orgId });
+    expect("error" in result && result.error).toMatch(/creaste vos|otra persona/i);
+
+    // Not just a message — the flag must be untouched.
+    const [row] = await db
+      .select({
+        verified: organizations.verified,
+        verifiedByUserId: organizations.verifiedByUserId,
+      })
+      .from(organizations)
+      .where(eq(organizations.id, orgId))
+      .limit(1);
+    expect(row.verified).toBe(false);
+    expect(row.verifiedByUserId).toBeNull();
+  });
+
   it("admin verify writes an audit_log row with action=org_verified + actor + payload", async () => {
     const orgId = await seedOrg(ownerUserId, { verified: false });
 
