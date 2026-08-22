@@ -19,6 +19,7 @@
 
 import { authorizeCronRequest } from "@/lib/domain/cron-auth";
 import { withCronRun } from "@/lib/infra/case-cron";
+import { effectiveDeadlineMs } from "@/lib/infra/cron-dispatcher";
 import { processEnoQueueBatch } from "@/lib/infra/eno-queue-processor";
 import { type NextRequest, NextResponse } from "next/server";
 
@@ -40,6 +41,10 @@ export async function GET(request: NextRequest) {
   }
 
   const start = Date.now();
+  // RN #9 (2026-08-22): min(our own ceiling, the share the dispatcher handed
+  // down). The constant alone is blind to how much of the fleet's 55 s is
+  // already spent; the header is not. Standalone it is the constant, unchanged.
+  const budgetMs = effectiveDeadlineMs(MAX_DURATION_MS, request.headers);
 
   try {
     // Resume loop (review 23 item 8): the queue is a legal-notification backlog
@@ -57,7 +62,7 @@ export async function GET(request: NextRequest) {
         let iterations = 0;
 
         for (;;) {
-          if (iterations >= MAX_ITERATIONS || Date.now() - start >= MAX_DURATION_MS) break;
+          if (iterations >= MAX_ITERATIONS || Date.now() - start >= budgetMs) break;
           const batch = await processEnoQueueBatch();
           scannedAt = batch.scannedAt;
           processed += batch.processed;

@@ -38,8 +38,25 @@ const SEARCH_PATH_PINNED: ReadonlyArray<string> = [
   "enforce_pet_events_append_only",
 ];
 
-// Subject-rights RPCs that must not be anon-executable.
-const NO_ANON_EXECUTE: ReadonlyArray<string> = ["export_subject_data", "erase_subject_data"];
+// SECURITY DEFINER functions that must not be anon-executable.
+//
+// Two families, one rule. The subject-rights RPCs (0114) self-guard on
+// auth.uid() and are here as defense in depth. The ORACLES do not self-guard at
+// all: they run as their BYPASSRLS owner and return a boolean about a row the
+// caller demonstrably cannot read, so the EXECUTE grant is the ONLY thing
+// between anon and a free probing oracle. 0123 closed the two case oracles;
+// has_titular_write_access (0190) reopened the same class — a POST to
+// /rest/v1/rpc/has_titular_write_access with only the publishable key answered
+// "does this user own this pet?" with HTTP 200 while the same anonymous session
+// counted 0 rows in `ownerships`. Closed by 0199; all three are pinned here so
+// that work stays done.
+const NO_ANON_EXECUTE: ReadonlyArray<string> = [
+  "export_subject_data",
+  "erase_subject_data",
+  "can_read_case",
+  "is_hidden_from_subject_case",
+  "has_titular_write_access",
+];
 
 type ProcConfigRow = { proname: string; args: string; has_search_path: boolean };
 type ProcAclRow = { proname: string; args: string; anon_can_execute: boolean };
@@ -79,17 +96,18 @@ describe("function hardening (Supabase advisor fitness)", () => {
     ).toEqual([]);
   });
 
-  it("subject-rights RPCs are not executable by anon", async () => {
+  it("SECURITY DEFINER oracles and subject-rights RPCs are not executable by anon", async () => {
     const rows = (await db.execute(sql`
       select p.proname as proname,
              pg_get_function_identity_arguments(p.oid) as args,
-             case
-               when p.proacl is null then true  -- null acl = default EXECUTE to PUBLIC (incl anon)
-               else coalesce((
-                 select bool_or(a.grantee = 'anon'::regrole and a.privilege_type = 'EXECUTE')
-                 from aclexplode(p.proacl) a
-               ), false)
-             end as anon_can_execute
+             -- has_function_privilege resolves the WHOLE chain: a null acl
+             -- (default EXECUTE to PUBLIC), an explicit anon grant, and a grant
+             -- anon merely INHERITS through PUBLIC. The old aclexplode form saw
+             -- only the middle one — an aclexplode row for PUBLIC carries
+             -- grantee 0, never 'anon'::regrole — so a PUBLIC-only grant read
+             -- as closed. 0190 shipped both, which is why revoking one alone
+             -- would have been another "applied but not closed".
+             has_function_privilege('anon', p.oid, 'EXECUTE') as anon_can_execute
       from pg_proc p
       join pg_namespace n on n.oid = p.pronamespace
       where n.nspname = 'public'
@@ -101,16 +119,17 @@ describe("function hardening (Supabase advisor fitness)", () => {
 
     const present = new Set(rows.map((r) => r.proname));
     const missing = NO_ANON_EXECUTE.filter((p) => !present.has(p));
-    expect(missing, `Subject-rights RPCs absent from public schema: ${missing.join(", ")}`).toEqual(
-      [],
-    );
+    expect(
+      missing,
+      `SECURITY DEFINER functions absent from public schema: ${missing.join(", ")}`,
+    ).toEqual([]);
 
     const anonExecutable = rows
       .filter((r) => r.anon_can_execute)
       .map((r) => `${r.proname}(${r.args})`);
     expect(
       anonExecutable,
-      `Subject-rights RPCs EXECUTE-able by anon (data-rights exposure). REVOKE EXECUTE ... FROM anon in a migration (see 0114): ${anonExecutable.join(", ")}`,
+      `SECURITY DEFINER functions EXECUTE-able by anon (oracle / data-rights exposure). REVOKE EXECUTE ... FROM PUBLIC, anon in a migration (see 0123 / 0199): ${anonExecutable.join(", ")}`,
     ).toEqual([]);
   });
 });

@@ -22,6 +22,7 @@ import { eq } from "drizzle-orm";
 import { cronRuns, db } from "@/db";
 import { authorizeCronRequest } from "@/lib/domain/cron-auth";
 import { sendCronAlert } from "@/lib/infra/cron-alert";
+import { CRON_JOB_CEILINGS, effectiveDeadlineMs } from "@/lib/infra/cron-dispatcher";
 import { purgeExpiredScanEvents } from "@/lib/infra/scan-retention";
 
 export const dynamic = "force-dynamic";
@@ -46,7 +47,16 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
   const errors: { section: string; reason: string }[] = [];
 
   try {
-    scanEventsDeleted = await purgeExpiredScanEvents();
+    // RN #9 (2026-08-22): this is job 22 of 23, immediately before the Ley
+    // 25.326 retention purge. Its own 45 s ceiling inside a 55 s shared
+    // budget is exactly the shape that used to take the function past its
+    // 60 s hard kill and strand every job behind it.
+    scanEventsDeleted = await purgeExpiredScanEvents({
+      maxDurationMs: effectiveDeadlineMs(
+        CRON_JOB_CEILINGS.purge_scan_events.ceilingMs,
+        req.headers,
+      ),
+    });
   } catch (err) {
     status = "failed";
     errors.push({

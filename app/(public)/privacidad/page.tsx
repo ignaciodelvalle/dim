@@ -101,6 +101,15 @@ export default function PrivacidadPage() {
               perfil de la mascota, y podés desactivarla en cualquier momento.
             </li>
             <li>
+              <strong>Buscadores y copias de terceros:</strong> la credencial pública es una página
+              web abierta, así que los buscadores pueden encontrarla e indexarla. Eso es
+              intencional: es lo que ayuda a que aparezca una mascota perdida. Le pedimos a los
+              buscadores que no guarden copias ni muestren fragmentos del contenido, pero es un
+              pedido, no un control nuestro. Mientras algo está publicado, cualquiera puede verlo,
+              copiarlo o archivarlo. Si después lo desactivás, la página deja de mostrarlo al
+              instante, y las copias que ya existan fuera de miMAR no las podemos borrar.
+            </li>
+            <li>
               <strong>Enlaces de libreta compartida:</strong> los enlaces de libreta sanitaria que
               generás los compartís vos con quien decidas (por ejemplo, un veterinario). Quien
               recibe el enlace puede ver el contenido de la libreta mientras el enlace esté vigente.

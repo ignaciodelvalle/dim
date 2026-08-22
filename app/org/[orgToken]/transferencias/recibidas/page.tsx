@@ -90,6 +90,15 @@ export default async function OrgTransferenciasEntrantesPage({
       petName: pets.name,
       reason: sql<string | null>`(${petEvents.payload}->>'reason')`.as("reason"),
       notes: sql<string | null>`(${petEvents.payload}->>'notes')`.as("notes"),
+      // The DESTINATION ROLE the proposal carries (closing report L1,
+      // 2026-08-22). A cross-org transfer can be `owner`, which makes the
+      // receiving organisation the pet's permanent legal owner — a first-class
+      // product state (sanctuary, institutional adoption, seizure without
+      // rehoming), not an anomaly. This inbox never read the field, so it showed
+      // the same copy for a temporary hand-off and a permanent one.
+      // Null defaults to shelter_custody, matching the accept path
+      // (accept-cross-org-transfer.ts: `to_role ?? "shelter_custody"`).
+      toRole: sql<string | null>`(${petEvents.payload}->>'to_role')`.as("to_role"),
       senderOrgName: organizations.displayName,
       senderOrgType: organizations.orgType,
       // seizure_motive not applicable for handshakes; NULL here.
@@ -137,6 +146,10 @@ export default async function OrgTransferenciasEntrantesPage({
       petName: pets.name,
       reason: sql<string | null>`NULL`.as("reason"),
       notes: sql<string | null>`NULL`.as("notes"),
+      // A decomiso handoff is state custody by definition — it never carries a
+      // destination role, and its rows render DecomisoHandoffActions, not the
+      // handshake actions. NULL keeps the two selects union-compatible.
+      toRole: sql<string | null>`NULL`.as("to_role"),
       senderOrgName: organizations.displayName,
       senderOrgType: organizations.orgType,
       seizureMotive: sql<string | null>`(${petEvents.payload}->>'seizure_motive')`.as(
@@ -250,6 +263,15 @@ export default async function OrgTransferenciasEntrantesPage({
                               <>
                                 De <strong>{r.senderOrgName ?? "—"}</strong>
                                 {r.reason ? ` · ${REASON_LABEL[r.reason] ?? r.reason}` : ""}
+                                {" · "}
+                                {/* WHAT is being handed over, on the row itself — a
+                                    reader should not have to open the confirmation
+                                    dialog to learn that this one is permanent. Same
+                                    two words the sender's form and the incoming
+                                    notification use. */}
+                                <strong>
+                                  {r.toRole === "owner" ? "Dueño permanente" : "Custodia temporal"}
+                                </strong>
                               </>
                             )}
                           </p>
@@ -280,6 +302,7 @@ export default async function OrgTransferenciasEntrantesPage({
                           receiverOrgToken={orgToken}
                           casePublicCode={r.publicCode}
                           petName={r.petName ?? "(sin pet)"}
+                          permanentOwnership={r.toRole === "owner"}
                         />
                       )}
 

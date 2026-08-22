@@ -46,6 +46,24 @@ export interface DispatchContext {
 export interface DispatchJob {
   /** snake_case job name — matches the route's CRON_NAME + its cron_runs rows. */
   name: string;
+  /**
+   * THE DECLARED CEILING (RN #9, 2026-08-22). Wall-clock this job can burn
+   * REGARDLESS of what the dispatcher hands it, in ms — i.e. the self-imposed
+   * constant of a job that does NOT derive its deadline from
+   * CRON_BUDGET_HEADER. The dispatcher refuses to START such a job when less
+   * than this is left, so an uncooperative child can never begin late enough
+   * to cross the function's 60 s hard kill. A starve becomes a reported
+   * `skipped_budget` (it runs tomorrow) instead of a SIGKILL that strands the
+   * cron_daily row at 'running' forever.
+   *
+   * Omit (or 0) for a job that honours the header: what it is handed is by
+   * construction never more than what is left, so it cannot overrun and
+   * reserving for it would starve the tail for nothing. `reservedCeilingMs`
+   * resolves this from CRON_JOB_CEILINGS; the parity fence
+   * (__tests__/cron-budget-ceiling.test.ts) refuses a claim the code does not
+   * back.
+   */
+  ceilingMs?: number;
   /** Invokes the job (the route handler, pre-bound to an authorized request). */
   run: (ctx: DispatchContext) => Promise<{ status: number }>;
 }
@@ -91,6 +109,141 @@ export function cronBudgetFromHeaders(headers: { get(name: string): string | nul
   if (raw === null || !/^\d+$/.test(raw.trim())) return null;
   const value = Number.parseInt(raw, 10);
   return Number.isSafeInteger(value) && value > 0 ? value : null;
+}
+
+/**
+ * min(own ceiling, budget handed down) — the ONE line every job with a
+ * self-imposed ceiling owes the fleet (RN #9 half b, 2026-08-22).
+ *
+ * Before this, a job drained under its own constant (20-45 s) with no idea how
+ * much of the shared 55 s run was already spent, and the dispatcher's budget
+ * check only fires BETWEEN jobs — never interrupts one in flight. One
+ * backlogged 45 s job starting at ~15 s took the function past its 60 s hard
+ * kill and every job behind it with it. Honouring the header bounds the job by
+ * what is actually left; standalone (a manual curl, Vercel hitting the route
+ * directly) there is no header and the constant is all there is, unchanged.
+ *
+ * A malformed header is "no budget given" (see cronBudgetFromHeaders), so it
+ * can never produce a zero-second deadline.
+ */
+export function effectiveDeadlineMs(
+  ownCeilingMs: number,
+  headers: { get(name: string): string | null },
+): number {
+  const handed = cronBudgetFromHeaders(headers);
+  return handed === null ? ownCeilingMs : Math.min(ownCeilingMs, handed);
+}
+
+/** One job's self-imposed wall-clock ceiling, and whether its code honours the run's budget. */
+export interface CronJobCeiling {
+  /** The constant the job's own code enforces on itself, in ms. */
+  ceilingMs: number;
+  /**
+   * True when the job derives its deadline from CRON_BUDGET_HEADER
+   * (`effectiveDeadlineMs(own, req.headers)`, or a helper handed those
+   * headers). The parity fence reads the route source and refuses a claim the
+   * code does not back — that is what keeps this table from drifting into
+   * fiction, and what turns "a new cron route with a 45 s ceiling" into a red
+   * test instead of a fleet-wide outage.
+   */
+  honoursBudget: boolean;
+  /** Repo-relative file the ceiling constant lives in (the fence reads it). */
+  declaredIn: string;
+}
+
+/**
+ * Every job in the daily fleet that bounds itself with a wall-clock constant.
+ *
+ * The census that produced it (RN #9): 22 of 23 jobs kept their own 20-45 s
+ * ceiling while only data_lifecycle read the dispatcher's header. Ten of them
+ * carried a full 45 s — inside a 55 s shared budget, in a 60 s function.
+ */
+export const CRON_JOB_CEILINGS: Readonly<Record<string, CronJobCeiling>> = {
+  // --- ceiling declared in the route file itself ---
+  business_rules_reeval: {
+    ceilingMs: 20_000,
+    honoursBudget: true,
+    declaredIn: "app/api/cron/business-rules-reeval/route.ts",
+  },
+  reconcile_pet_status: {
+    ceilingMs: 20_000,
+    honoursBudget: true,
+    declaredIn: "app/api/cron/reconcile-pet-status/route.ts",
+  },
+  auto_expire_approvals: {
+    ceilingMs: 45_000,
+    honoursBudget: true,
+    declaredIn: "app/api/cron/auto-expire-approvals/route.ts",
+  },
+  process_eno_queue: {
+    ceilingMs: 45_000,
+    honoursBudget: true,
+    declaredIn: "app/api/cron/process-eno-queue/route.ts",
+  },
+  drain_outbox: {
+    ceilingMs: 45_000,
+    honoursBudget: true,
+    declaredIn: "app/api/cron/drain-outbox/route.ts",
+  },
+  // --- ceiling declared in a helper the route calls ---
+  vaccine_due: {
+    ceilingMs: 45_000,
+    honoursBudget: true,
+    declaredIn: "lib/infra/notifications.ts",
+  },
+  post_adoption_checkin: {
+    ceilingMs: 45_000,
+    honoursBudget: true,
+    declaredIn: "lib/infra/notifications.ts",
+  },
+  purge_scan_events: {
+    ceilingMs: 45_000,
+    honoursBudget: true,
+    declaredIn: "lib/infra/scan-retention.ts",
+  },
+  data_lifecycle: {
+    ceilingMs: 45_000,
+    honoursBudget: true,
+    declaredIn: "lib/infra/data-lifecycle.ts",
+  },
+  // --- ceiling inherited from runCaseCron's keyset-loop default ---
+  expire_cross_org_transfers: {
+    ceilingMs: 45_000,
+    honoursBudget: true,
+    declaredIn: "lib/infra/case-cron.ts",
+  },
+  close_stale_lost_episodes: {
+    ceilingMs: 45_000,
+    honoursBudget: true,
+    declaredIn: "lib/infra/case-cron.ts",
+  },
+  close_followup_expired_adoptions: {
+    ceilingMs: 45_000,
+    honoursBudget: true,
+    declaredIn: "lib/infra/case-cron.ts",
+  },
+  escalate_stale_welfare_cases: {
+    ceilingMs: 45_000,
+    honoursBudget: true,
+    declaredIn: "lib/infra/case-cron.ts",
+  },
+  escalate_stale_disputes: {
+    ceilingMs: 45_000,
+    honoursBudget: true,
+    declaredIn: "lib/infra/case-cron.ts",
+  },
+};
+
+/**
+ * What the dispatcher must reserve before starting `jobName`: nothing when the
+ * job honours the budget it is handed (it cannot outlast it), its own ceiling
+ * when it does not, and nothing for a job we know no ceiling for — never
+ * starve the tail on a guess.
+ */
+export function reservedCeilingMs(jobName: string): number {
+  const declared = CRON_JOB_CEILINGS[jobName];
+  if (!declared || declared.honoursBudget) return 0;
+  return declared.ceilingMs;
 }
 
 export type DispatchJobStatus = "ok" | "failed" | "threw" | "skipped_budget";
@@ -172,7 +325,14 @@ export async function dispatchJobs(
     // ONE clock reading decides both "may this job run" and "how much is left
     // for it": a second reading between the two could disagree with the first.
     const elapsed = now() - start;
-    if (elapsed >= budgetMs) {
+    const remaining = budgetMs - elapsed;
+    // Two ways to be out of time, one outcome. The second is the DECLARED
+    // ceiling (RN #9): a job that burns its own constant no matter what we
+    // hand it must not START unless that constant fits in what is left —
+    // otherwise it runs past the function's hard kill and takes the whole
+    // tail, plus this run's telemetry, down with it. A job that honours the
+    // header reserves nothing (see DispatchJob.ceilingMs).
+    if (remaining <= 0 || remaining < (job.ceilingMs ?? 0)) {
       const outcome: DispatchOutcome = {
         name: job.name,
         status: "skipped_budget",
@@ -186,7 +346,7 @@ export async function dispatchJobs(
       continue;
     }
     const ctx: DispatchContext = {
-      budgetLeftMs: budgetMs - elapsed,
+      budgetLeftMs: remaining,
       jobsLeft: jobs.length - index,
     };
 

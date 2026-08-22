@@ -123,12 +123,20 @@ export async function GET(request: Request, ctx: { params: Promise<{ layer: stri
 
   // TimeScrubber histogram (aggregate views): return per-day scope-total event
   // counts instead of features, over the SAME scope/period/drill resolved above.
-  // Scope-total counts carry no per-unit disclosure, so no k-anon (see
-  // loadScopeDailyCounts). Bounded + never throws to the runtime like the feature
-  // path: budget expiry → empty histogram (200); rejection → 503 JSON envelope.
+  //
+  // k-anon IS applied inside loadScopeDailyCounts (closing report M3, 2026-08-22).
+  // The old note here — "scope-total counts carry no per-unit disclosure, so no
+  // k-anon" — was the same wrong premise as the loader's header: at a
+  // single-unit drill the scope total IS the unit count, and this endpoint also
+  // carried each event's date. `suppressed` is passed through VERBATIM rather
+  // than collapsed into an empty `histogram`: a caller must be able to tell
+  // "protegido por privacidad" from "no pasó nada acá".
+  //
+  // Bounded + never throws to the runtime like the feature path: budget expiry →
+  // empty histogram (200); rejection → 503 JSON envelope.
   if (url.searchParams.get("histogram") === "1") {
     try {
-      const histogram = await withDbBudget(
+      const result = await withDbBudget(
         loadScopeDailyCounts({
           layer,
           actor,
@@ -141,9 +149,14 @@ export async function GET(request: Request, ctx: { params: Promise<{ layer: stri
         }),
         LAYER_BUDGET_MS,
         `GET /api/panorama/${layer}?histogram`,
-        [],
+        // Budget expiry is "we could not measure", not "we are hiding
+        // something" — the degraded fallback must not claim suppression.
+        { suppressed: false, counts: [] },
       );
-      return NextResponse.json({ histogram }, { headers: { "cache-control": "no-store" } });
+      return NextResponse.json(
+        { histogram: result.counts, suppressed: result.suppressed },
+        { headers: { "cache-control": "no-store" } },
+      );
     } catch (err) {
       console.error(`[GET /api/panorama/${layer}?histogram] failed:`, err);
       return NextResponse.json(

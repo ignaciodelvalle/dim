@@ -190,6 +190,26 @@ export function LostDisclosureCard({
         }}
       />
 
+      {/* Permanence (closing report M8, 2026-08-22). The gap this closes is
+          SILENCE, not an over-promise: nothing here ever claimed the data was
+          unreachable, and nothing told the owner what publishing costs either.
+          Turning a toggle off changes the live page instantly — and reaches
+          nothing anyone already copied, screenshotted or archived.
+
+          Always rendered, including with every toggle off: it is what the owner
+          needs to read BEFORE turning one on. Plain and short on purpose — an
+          alarming warning on the surface built for finding a lost dog would push
+          people away from the thing that brings the dog back. */}
+      <p
+        data-testid="lost-disclosure-permanence"
+        className="mt-3 text-xs leading-snug"
+        style={{ color: "var(--color-ln-mute)" }}
+      >
+        Lo que publicás en la credencial es público mientras esté activo: cualquiera puede verlo,
+        copiarlo o guardarlo. Si después lo apagás, la página deja de mostrarlo al instante, pero no
+        podemos borrar las copias que ya se hayan hecho.
+      </p>
+
       {/* A5 disclosure. Sober and specific: WHAT the shelter learns, and the
           limit — the finder's contact stays with the titular. Only rendered for
           pets that actually have an origin shelter, so it is never an abstract

@@ -56,6 +56,7 @@ import { and, asc, desc, eq, gt, isNotNull } from "drizzle-orm";
 import { cronRuns, db, pets } from "@/db";
 import { authorizeCronRequest } from "@/lib/domain/cron-auth";
 import { sendCronAlert } from "@/lib/infra/cron-alert";
+import { effectiveDeadlineMs } from "@/lib/infra/cron-dispatcher";
 import { type RederivePetCacheReport, rederivePetCache } from "@/lib/infra/rederive-pet-cache";
 
 // The status projection's column family — the ONLY columns this cron's
@@ -117,6 +118,10 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
   }
 
   const start = Date.now();
+  // RN #9 (2026-08-22): min(our own ceiling, the share the dispatcher handed
+  // down). The constant alone is blind to how much of the fleet's 55 s is
+  // already spent; the header is not. Standalone it is the constant, unchanged.
+  const budgetMs = effectiveDeadlineMs(MAX_DURATION_MS, req.headers);
 
   // ---------------------------------------------------------------------------
   // Start cronRuns telemetry row
@@ -164,7 +169,7 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
         earlyStop = true;
         break;
       }
-      if (Date.now() - start >= MAX_DURATION_MS) {
+      if (Date.now() - start >= budgetMs) {
         earlyStop = true;
         break;
       }
@@ -220,7 +225,7 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
         // re-scan it or fall back to the previous batch's cursor.
         cursor = pet.id;
 
-        if (scanned >= MAX_PETS_PER_RUN || Date.now() - start >= MAX_DURATION_MS) {
+        if (scanned >= MAX_PETS_PER_RUN || Date.now() - start >= budgetMs) {
           earlyStop = true;
           break outer;
         }

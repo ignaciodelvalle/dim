@@ -94,7 +94,7 @@ const POST_ADOPTION_SCAN_MAX_DURATION_MS = 45_000;
  */
 export async function runVaccineDueScan(
   dbInstance: DB = defaultDb,
-  options?: { now?: Date },
+  options?: { now?: Date; maxDurationMs?: number },
 ): Promise<VaccineDueScanResult> {
   const now = options?.now ?? new Date();
   // Country-level only — see the WINDOW_AHEAD_DAYS comment above (ADR-4 item 3).
@@ -108,6 +108,16 @@ export async function runVaccineDueScan(
   const windowAheadDays = reminderWindowRule.payload.aheadDays;
   const windowEnd = new Date(now.getTime() + windowAheadDays * MS_PER_DAY);
 
+  // RN #9 (2026-08-22): min(own ceiling, the share the daily dispatcher
+  // handed the route). 45 s is safe for a route running ALONE; inside the
+  // dispatcher the whole fleet shares one 60 s function under a 55 s budget
+  // whose check only fires BETWEEN jobs, so a backlogged sweep here used to
+  // take the function past its hard kill and every job behind it with it.
+  const vaccineScanBudgetMs = Math.min(
+    VACCINE_SCAN_MAX_DURATION_MS,
+    options?.maxDurationMs ?? VACCINE_SCAN_MAX_DURATION_MS,
+  );
+
   const insertedNotificationIds: string[] = [];
 
   // Keyset-batched sweep (review 23 item 11): the reminder scan used to load
@@ -118,7 +128,7 @@ export async function runVaccineDueScan(
   let cursor: string | null = null;
 
   for (;;) {
-    if (Date.now() - start >= VACCINE_SCAN_MAX_DURATION_MS) break;
+    if (Date.now() - start >= vaccineScanBudgetMs) break;
 
     // Fetch a page of active, non-snoozed vaccine reminders within the window.
     // No backward limit — overdue reminders are included indefinitely.
@@ -385,7 +395,7 @@ export type PostAdoptionCheckinScanResult = {
  */
 export async function runPostAdoptionCheckinScan(
   dbInstance: DB = defaultDb,
-  options?: { now?: Date },
+  options?: { now?: Date; maxDurationMs?: number },
 ): Promise<PostAdoptionCheckinScanResult> {
   const now = options?.now ?? new Date();
   const proactiveWindowEnd = new Date(now.getTime() + 7 * MS_PER_DAY);
@@ -465,10 +475,19 @@ export async function runPostAdoptionCheckinScan(
   // the obligation.
   const missedInsertedIds: string[] = [];
   const missedStart = Date.now();
+  // RN #9 (2026-08-22): min(own ceiling, the share the daily dispatcher
+  // handed the route). 45 s is safe for a route running ALONE; inside the
+  // dispatcher the whole fleet shares one 60 s function under a 55 s budget
+  // whose check only fires BETWEEN jobs, so a backlogged sweep here used to
+  // take the function past its hard kill and every job behind it with it.
+  const postAdoptionScanBudgetMs = Math.min(
+    POST_ADOPTION_SCAN_MAX_DURATION_MS,
+    options?.maxDurationMs ?? POST_ADOPTION_SCAN_MAX_DURATION_MS,
+  );
   let missedCursor: string | null = null;
 
   for (;;) {
-    if (Date.now() - missedStart >= POST_ADOPTION_SCAN_MAX_DURATION_MS) break;
+    if (Date.now() - missedStart >= postAdoptionScanBudgetMs) break;
 
     // El JOIN a petEvents reemplaza la primera de las tres queries por
     // candidato Y además saca del barrido, en el propio WHERE, a los que no

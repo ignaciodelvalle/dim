@@ -26,9 +26,13 @@ import {
   pets,
   welfareReports,
 } from "@/db";
-import { jurisdictionScopeContains } from "@/lib/domain/jurisdiction-canonical";
+import {
+  isWholeProvinceAssignment,
+  jurisdictionScopeContains,
+} from "@/lib/domain/jurisdiction-canonical";
 import { amendedPayloadText } from "@/lib/infra/amendment-sql";
 import type { DashboardActor, DashboardJurisdiction } from "@/lib/metrics";
+import { ANONYMITY_K } from "@/lib/metrics/anonymity";
 import { findDisease } from "@/lib/reference/diseases";
 import type { TimeBasis } from "@/src/modules/panorama/domain/time-scrub";
 import type { LayerId } from "@/src/modules/panorama/domain/types";
@@ -56,12 +60,27 @@ import {
 // temporal layer, bounded to the SAME scope the aggregate map uses (govt
 // jurisdictions + optional admin drill).
 //
-// PRIVACY: the counts are SCOPE-TOTAL, one number per day across the whole
-// visible scope — NOT per-unit. A scope total is strictly coarser than the
-// per-unit aggregation that k-anon already governs, so it reveals no suppressed
-// cell (a national/province event-per-day total is not a unit-level disclosure —
-// same posture the signal-histogram.ts header documents for the points path).
-// k-anon is therefore intentionally NOT applied here.
+// PRIVACY — CORRECTED 2026-08-22 (closing report M3 / fix queue row 13). This
+// header used to argue: "the counts are SCOPE-TOTAL, not per-unit; a scope total
+// is strictly coarser than the per-unit aggregation k-anon already governs, so
+// it reveals no suppressed cell — k-anon is therefore intentionally NOT applied
+// here." That reasoning is what authorised the hole, so it is replaced rather
+// than annotated: leaving it invites the next reader to remove the guard again.
+//
+// It is true only while the resolved scope holds MORE THAN ONE unit. Drill to a
+// single locality and the scope total IS that unit's count — and this endpoint
+// returns not just the number the map refused to show, but the exact DATE of
+// every event behind it. Reproduced against real data: CABA / Retiro, layer
+// `sintomas`, 4 observations (under k, so the map hatches the cell) came back as
+// four dated buckets — 1895-09-08, 2017-03-15, 2022-01-20, 2024-12-08. That is
+// MORE than the hatching was hiding, from a directly callable API.
+//
+// So: when the resolved scope is a single administrative unit AND the window
+// total is below ANONYMITY_K, the result is suppressed — as a DECLARED envelope
+// (`suppressed: true`), never a silent empty array. An empty array reads as "no
+// data here", a different and false statement about a jurisdiction. The sibling
+// loadUnitHistory below already works exactly this way (#40b); this is that same
+// guard, at the same grain, on the loader that was missed.
 //
 // Mirrors each layer's By-Unit predicate + time column + scope helper EXACTLY
 // (same source of truth), minus the per-unit GROUP BY and centroid join.
@@ -98,6 +117,88 @@ function isDecomisoCase(): SQL {
 
 export type ScopeDailyCount = { date: string; count: number };
 
+/**
+ * The histogram envelope. `suppressed` is DECLARED so the route — and the
+ * console behind it — can say "protegido por privacidad" instead of drawing an
+ * empty track that reads as "nothing happened here".
+ */
+export type ScopeDailyHistogram = {
+  /** True when a single-unit scope's window total fell below ANONYMITY_K. */
+  suppressed: boolean;
+  /** Per-day counts. ALWAYS empty when `suppressed`. */
+  counts: ScopeDailyCount[];
+};
+
+/**
+ * Does the scope this histogram covers resolve to ONE administrative unit?
+ *
+ * That is the condition under which "scope total" and "per-unit count" are the
+ * same number — the premise the old privacy comment got wrong.
+ *
+ * Both drill parameters are server-resolved before they reach here: an admin
+ * drills freely, a govt's drill is intersected DOWN with its assignments and
+ * never widens them (see buildProjectionContext / metricsPetsScopeClause), so
+ * reading them here cannot be tricked into claiming a narrower scope than the
+ * query will actually run.
+ *
+ * A province counts as a unit. #40b retired the "province cells are large"
+ * premise for the sibling unit-history guard and it is no truer here: a
+ * province whose bubble the map HATCHES must not hand this endpoint its event
+ * dates through a plain drill with no locality.
+ */
+export function scopeResolvesToSingleUnit(params: {
+  actor: DashboardActor;
+  jurisdictions: DashboardJurisdiction[];
+  adminProvince?: string;
+  adminLocality?: string;
+}): boolean {
+  const { actor, jurisdictions, adminProvince, adminLocality } = params;
+
+  // A locality drill is one unit for either role. For a govt it is additionally
+  // intersected with its assignments, which can only make the query narrower.
+  if (adminLocality) return true;
+
+  const unitKey = (j: DashboardJurisdiction): string =>
+    isWholeProvinceAssignment(j) ? `${j.province}|` : `${j.province}|${j.locality}`;
+
+  if (adminProvince) {
+    if (actor.role === "admin") return true;
+    // A govt drilled to a province: the scope is that province INTERSECTED with
+    // its assignments, so it is one unit only when the assignments inside that
+    // province collapse to one.
+    const inside = jurisdictions.filter((j) => j.province === adminProvince);
+    return new Set(inside.map(unitKey)).size === 1;
+  }
+
+  // Admin with no drill is national — many units, and the total is genuinely
+  // coarser than any of them.
+  if (actor.role === "admin") return false;
+
+  // A govt with no assignments matches nothing; that is not "one unit".
+  return new Set(jurisdictions.map(unitKey)).size === 1;
+}
+
+/**
+ * Apply the histogram's k-anon rule to a finished per-day series.
+ *
+ * Pure and separated from the query on purpose: the loader below is DB-backed
+ * and cannot be unit-tested in this Windows/Docker environment, and a privacy
+ * rule that no test can execute is a privacy rule nobody can prove.
+ *
+ * An EMPTY window is reported as not suppressed. 0 is below k, but publishing
+ * "nothing happened" discloses nobody — and flagging it as suppressed would
+ * tell the operator there IS something hidden here, which is its own small leak.
+ */
+export function applyHistogramKAnon(
+  counts: ScopeDailyCount[],
+  singleUnitScope: boolean,
+): ScopeDailyHistogram {
+  if (!singleUnitScope || counts.length === 0) return { suppressed: false, counts };
+  const windowTotal = counts.reduce((sum, r) => sum + r.count, 0);
+  if (windowTotal >= ANONYMITY_K) return { suppressed: false, counts };
+  return { suppressed: true, counts: [] };
+}
+
 export async function loadScopeDailyCounts(params: {
   layer: LayerId;
   actor: DashboardActor;
@@ -107,7 +208,7 @@ export async function loadScopeDailyCounts(params: {
   basis?: TimeBasis;
   adminProvince?: string;
   adminLocality?: string;
-}): Promise<ScopeDailyCount[]> {
+}): Promise<ScopeDailyHistogram> {
   const {
     layer,
     actor,
@@ -212,10 +313,13 @@ export async function loadScopeDailyCounts(params: {
     // reunificacion is a RATE (no meaningful per-day event volume); every other
     // layer is non-temporal or reference — no histogram.
     default:
-      return [];
+      return { suppressed: false, counts: [] };
   }
 
-  return rows.map((r) => ({ date: r.day, count: r.n }));
+  return applyHistogramKAnon(
+    rows.map((r) => ({ date: r.day, count: r.n })),
+    scopeResolvesToSingleUnit({ actor, jurisdictions, adminProvince, adminLocality }),
+  );
 }
 
 // ---------------------------------------------------------------------------
@@ -349,7 +453,9 @@ export async function loadUnitHistory(params: LoadUnitHistoryParams): Promise<Un
 
   const EVENT_LIMIT = 20;
   // k-anon threshold (mirrors suppressSmallCells k=5 used by the per-unit loaders).
-  const K_ANON = 5;
+  // Was a local `= 5` literal. Two different fives in one file, one of them
+  // the imported policy floor, is how a floor quietly becomes a suggestion.
+  const K_ANON = ANONYMITY_K;
 
   // ---------------------------------------------------------------------------
   // Department-aware unit resolution (PO "Option A").
