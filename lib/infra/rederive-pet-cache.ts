@@ -78,6 +78,7 @@ import { and, asc, desc, eq, inArray } from "drizzle-orm";
 
 import { custodyDisputes, db, petEvents, petIdentifications, pets } from "@/db";
 import { normalizeLocationForWrite } from "@/lib/domain/location-normalize";
+import { overlayAmendments } from "@/lib/infra/amendment";
 import { normalizeMicrochipLocation } from "@/lib/infra/pet-identifier-mapping";
 import { replayPetAdoptionEligibility } from "@/lib/projections/pet-adoption-eligibility";
 import {
@@ -256,7 +257,7 @@ export async function rederivePetCache(
 
   // Fetch all three sources in parallel: events, canonical identifiers, and
   // the custody-dispute table.
-  const [events, canonicalIds, openDisputeRows] = await Promise.all([
+  const [rawEvents, canonicalIds, openDisputeRows] = await Promise.all([
     executor
       .select({
         id: petEvents.id,
@@ -301,6 +302,28 @@ export async function rederivePetCache(
       .where(and(eq(custodyDisputes.petId, petId), eq(custodyDisputes.status, "open")))
       .limit(1),
   ]);
+
+  // AMENDMENT OVERLAY — APPLIED ONCE, AT THE SOURCE (review 2026-08-22, M1).
+  //
+  // Corrections are new events (Invariant 2), and every product read boundary
+  // projects them through overlayAmendments. This harness replayed the RAW
+  // stream, so a corrected weight/pregnancy/jurisdiction read as PERMANENT
+  // drift: the amendment refresher writes the amended value into the cache
+  // inside the amendment's own transaction, and the detector then re-derived
+  // the pre-correction one and called the difference a bug. Worse, the repair
+  // path the runbook points at (`pnpm rebuild:projections --apply`) wrote the
+  // stale number back — silently reverting a correction, with no audit row and
+  // no new event.
+  //
+  // Overlaying HERE rather than in each replay function means the eight
+  // projections below inherit it without knowing amendments exist, and there is
+  // exactly one place where the semantics can drift from the SQL twin
+  // (lib/infra/amendment-sql.ts). overlayAmendments also upcasts each payload,
+  // which is the same treatment every other read boundary gives the spine.
+  //
+  // `event_amended` rows stay in the stream untouched: they were always there
+  // (the query is unfiltered) and no projection reads them.
+  const events = overlayAmendments(rawEvents);
 
   // Build canonical stored values for chip/tattoo in the same field shape as
   // the projections so the comparison is apples-to-apples.

@@ -33,6 +33,7 @@
 import { asc, eq, gt, sql } from "drizzle-orm";
 
 import { db, petEvents, pets } from "../db";
+import { overlayAmendments } from "../lib/infra/amendment";
 import { replayPetStatus } from "../lib/projections/pet-status";
 import { replayPetWeight } from "../lib/projections/pet-weight";
 
@@ -192,7 +193,7 @@ async function main() {
     const outcome = await db.transaction(async (tx) => {
       await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtext(${pet.id}))`);
 
-      const events = await tx
+      const rawEvents = await tx
         .select({
           id: petEvents.id,
           eventType: petEvents.eventType,
@@ -203,6 +204,15 @@ async function main() {
         .from(petEvents)
         .where(eq(petEvents.petId, pet.id))
         .orderBy(asc(petEvents.occurredAt), asc(petEvents.recordedAt), asc(petEvents.id));
+
+      // AMENDMENT OVERLAY — the same one rederivePetCache applies at its own
+      // source (review 2026-08-22, M1). This mirror is not optional: this script
+      // is the documented repair path, and `--apply` WRITES. Replaying the raw
+      // stream here would take a weight the owner corrected from 10 kg to 12 kg
+      // and put 10 back into the cache — reverting a correction with no audit
+      // row and no new event, which is exactly what the append-only spine exists
+      // to make impossible. Fixing the detector alone would have left that.
+      const events = overlayAmendments(rawEvents);
 
       const statusProj = replayPetStatus(events);
       const weightProj = replayPetWeight(events);

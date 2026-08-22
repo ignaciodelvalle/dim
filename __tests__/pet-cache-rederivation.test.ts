@@ -380,6 +380,60 @@ describe("pet-cache writer round-trips", () => {
     expect(report.estimatedWeightKg.matches).toBe(true);
   });
 
+  // Review 2026-08-22 (M1). A corrected weight is NOT drift. The amendment
+  // refresher writes the AMENDED value into the cache inside the amendment's own
+  // transaction, while this harness replayed the RAW event stream — so every
+  // corrected pet read as permanently inconsistent, and `pnpm rebuild:projections
+  // --apply` (the repair path the repo's own runbook points operators at) wrote
+  // the pre-correction number back with no audit trail and no new event.
+  // The defect got WORSE over time: before the refresher existed both sides read
+  // the stale value and AGREED. Fixing one side alone made the detector lie.
+  it("an AMENDED weight is not drift: the cache holds the corrected value", async () => {
+    const pet = await insertTestPet("AMEND-WEIGHT");
+    const now = new Date();
+    await db.transaction(async (tx) => {
+      const [original] = await tx
+        .insert(petEvents)
+        .values({
+          petId: pet.id,
+          eventType: "weight_recorded",
+          occurredAt: now,
+          recordedAt: now,
+          recordedByUserId: ownerUserId,
+          ...ownerAuthorship,
+          payload: validateEventPayload("weight_recorded", { kg: "10.00" }),
+        })
+        .returning({ id: petEvents.id });
+      await tx.update(pets).set({ estimatedWeightKg: "10.00" }).where(eq(pets.id, pet.id));
+
+      // The vet corrects 10 kg to 12 kg. amend-event.ts appends the correction
+      // and refresh-pet-cache-after-amendment.ts updates the cache column in the
+      // same transaction — both halves reproduced here.
+      await tx.insert(petEvents).values({
+        petId: pet.id,
+        eventType: "event_amended",
+        occurredAt: new Date(now.getTime() + 1000),
+        recordedAt: new Date(now.getTime() + 1000),
+        recordedByUserId: ownerUserId,
+        ...ownerAuthorship,
+        payload: validateEventPayload("event_amended", {
+          target_event_id: original.id,
+          reason: "peso mal tipeado",
+          changes: [{ field: "kg", old: "10.00", new: "12.00" }],
+          actor_role: "owner",
+          actor_user_id: ownerUserId,
+        }),
+      });
+      await tx.update(pets).set({ estimatedWeightKg: "12.00" }).where(eq(pets.id, pet.id));
+    });
+
+    const report = await rederivePetCache(pet.id);
+    expect(report.estimatedWeightKg.stored).toBe("12.00");
+    expect(report.estimatedWeightKg.derived).toBe("12.00");
+    expect(report.estimatedWeightKg.matches).toBe(true);
+    expect(hasDrift(report)).toBe(false);
+  });
+
   it("pregnancy writer flips the cache and re-derives with no drift", async () => {
     const pet = await insertTestPet("PREG", { sex: "female", species: "dog" });
     const result = await recordPregnancyStartedWriter({
@@ -585,6 +639,52 @@ describe("pet-cache non-vacuity (harness detects skew)", () => {
     // Skew to a different number — numeric compare must flag it.
     await db.update(pets).set({ estimatedWeightKg: "9.90" }).where(eq(pets.id, pet.id));
     const report = await rederivePetCache(pet.id);
+    expect(report.estimatedWeightKg.matches).toBe(false);
+  });
+
+  // The non-vacuity twin of the amended-weight round-trip above (M1). A harness
+  // that simply ignored amendments on BOTH sides would pass that test; this one
+  // pins that the overlay reads the CORRECTED value, so a cache left on the
+  // pre-correction number is still reported as drift.
+  it("detects a cache stuck on the PRE-amendment weight", async () => {
+    const pet = await insertTestPet("SKEW-AMEND-WEIGHT");
+    const now = new Date();
+    await db.transaction(async (tx) => {
+      const [original] = await tx
+        .insert(petEvents)
+        .values({
+          petId: pet.id,
+          eventType: "weight_recorded",
+          occurredAt: now,
+          recordedAt: now,
+          recordedByUserId: ownerUserId,
+          ...ownerAuthorship,
+          payload: validateEventPayload("weight_recorded", { kg: "10.00" }),
+        })
+        .returning({ id: petEvents.id });
+      await tx.insert(petEvents).values({
+        petId: pet.id,
+        eventType: "event_amended",
+        occurredAt: new Date(now.getTime() + 1000),
+        recordedAt: new Date(now.getTime() + 1000),
+        recordedByUserId: ownerUserId,
+        ...ownerAuthorship,
+        payload: validateEventPayload("event_amended", {
+          target_event_id: original.id,
+          reason: "peso mal tipeado",
+          changes: [{ field: "kg", old: "10.00", new: "12.00" }],
+          actor_role: "owner",
+          actor_user_id: ownerUserId,
+        }),
+      });
+      // The cache half of the amendment never landed — it still holds the raw
+      // value. That IS drift, and the harness has to keep saying so.
+      await tx.update(pets).set({ estimatedWeightKg: "10.00" }).where(eq(pets.id, pet.id));
+    });
+
+    const report = await rederivePetCache(pet.id);
+    expect(report.estimatedWeightKg.stored).toBe("10.00");
+    expect(report.estimatedWeightKg.derived).toBe("12.00");
     expect(report.estimatedWeightKg.matches).toBe(false);
   });
 
