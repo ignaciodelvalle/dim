@@ -17,9 +17,21 @@
 // "1217 passed | 1 skipped (1219)" and "1223 passed | 1 skipped (1225)". Both
 // read like a pass unless you add them up.
 //
-// Green therefore means: exit code IGNORED, `numFailedTests === 0`, AND every
-// test file present in `testResults`. This checks the third — the one nothing
-// else checks.
+// SECOND FALSE GREEN — the one this verdict itself produced (2026-08-22): a file
+// that REPORTS, but with an error OUTSIDE any test. A vi.mock("@/db") factory
+// was missing an export a new module-eval read needed (6131ec03); the file died
+// at collection with ZERO tests. It was present in `testResults` (so not
+// missing) and `numFailedTests` stayed 0 (no test ever ran), so this script
+// printed "every test file ran, nothing failed." The only red was vitest's own
+// exit code, which run-verified-suite.ts re-folds — and for four consecutive
+// runs, three of them on CI, that red was read as the known worker-teardown
+// crash, because the verdict had nothing to say about the file. A file whose
+// `status` is failed while none of its assertions failed is BROKEN, and the
+// verdict names it and quotes its message.
+//
+// Green therefore means: exit code IGNORED, `numFailedTests === 0`, every test
+// file present in `testResults`, AND no file failed outside its tests. This
+// checks the last two — the ones nothing else checks.
 
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
@@ -33,13 +45,34 @@ import { resolve } from "node:path";
 // `.claude`/`coverage`/`worktrees` stays in one place instead of two.
 import { discoverTestFiles } from "../__tests__/db-reachability";
 
-type VitestJson = {
-  numFailedTests?: number;
-  testResults?: {
-    name: string;
-    assertionResults?: { status: string; fullName: string; failureMessages?: string[] }[];
-  }[];
+export type VitestFileResult = {
+  name: string;
+  /** "passed" | "failed" | "skipped" … — "failed" with no failing assertion is a FILE-level error. */
+  status?: string;
+  /** The first file-level error's message (collection error, hook error, worker exit). */
+  message?: string;
+  assertionResults?: { status: string; fullName: string; failureMessages?: string[] }[];
 };
+
+export type VitestJson = {
+  numFailedTests?: number;
+  testResults?: VitestFileResult[];
+};
+
+export interface SuiteVerdict {
+  reported: number;
+  discovered: number;
+  failedTests: number;
+  /** Discovered files absent from the report — a worker died and took them. */
+  missing: string[];
+  /** Reported files whose status is failed while no assertion in them failed. */
+  broken: { file: string; message: string }[];
+  /** Failing tests that asserted. */
+  assertions: string[];
+  /** Failing tests that timed out instead of asserting. */
+  timeouts: string[];
+  ok: boolean;
+}
 
 /**
  * A failure that TIMED OUT rather than asserting.
@@ -62,62 +95,122 @@ type VitestJson = {
  * certainly I/O contention hitting the same timeout path. Correctly reported,
  * wrongly excused.)
  */
-function timedOut(messages: string[]): boolean {
+export function timedOut(messages: string[]): boolean {
   return messages.some((m) => m.includes("timed out in") || m.includes("STACK_TRACE_ERROR"));
 }
 
-const jsonPath = process.argv[2];
-if (!jsonPath) {
-  console.error("usage: tsx scripts/check-suite-coverage.ts <vitest-json-report>");
-  process.exit(2);
-}
-
-const repoRoot = resolve(import.meta.dirname, "..");
-const report = JSON.parse(readFileSync(resolve(jsonPath), "utf8")) as VitestJson;
-
 /** vitest emits absolute POSIX-separator paths, Windows drive letter included. */
-const toRepoRelative = (p: string): string =>
-  p.replace(/\\/g, "/").replace(`${repoRoot.replace(/\\/g, "/")}/`, "");
-
-const reported = new Set((report.testResults ?? []).map((f) => toRepoRelative(f.name)));
-const expected = discoverTestFiles().map(toRepoRelative);
-const failed = report.numFailedTests ?? 0;
-
-console.log(
-  `reported ${reported.size} file(s); ${expected.length} discovered; ${failed} failing test(s)`,
-);
-
-const missing = expected.filter((f) => !reported.has(f));
-if (missing.length > 0) {
-  console.error(
-    `\n${missing.length} test file(s) never reported — a worker died and took them with it.\nThe run is NOT green, whatever the summary said:\n`,
-  );
-  for (const m of missing) console.error(`   ${m}`);
-  process.exit(1);
+function toRepoRelative(p: string, repoRoot: string): string {
+  return p.replace(/\\/g, "/").replace(`${repoRoot.replace(/\\/g, "/")}/`, "");
 }
 
-if (failed > 0) {
+/** Grade a vitest JSON report against the files vitest was expected to run.
+ * Pure — the CLI below feeds it the report file and discoverTestFiles(). */
+export function gradeSuiteReport(
+  report: VitestJson,
+  expected: string[],
+  repoRoot: string,
+): SuiteVerdict {
+  const results = report.testResults ?? [];
+  const reported = new Set(results.map((f) => toRepoRelative(f.name, repoRoot)));
+  const discovered = expected.map((f) => toRepoRelative(f, repoRoot));
+  const failedTests = report.numFailedTests ?? 0;
+
+  const missing = discovered.filter((f) => !reported.has(f));
+
+  const broken: SuiteVerdict["broken"] = [];
   const timeouts: string[] = [];
   const assertions: string[] = [];
-  for (const file of report.testResults ?? []) {
+  for (const file of results) {
+    const rel = toRepoRelative(file.name, repoRoot);
+    let anyAssertionFailed = false;
     for (const a of file.assertionResults ?? []) {
       if (a.status !== "failed") continue;
-      const where = `${toRepoRelative(file.name)} › ${a.fullName}`;
+      anyAssertionFailed = true;
+      const where = `${rel} › ${a.fullName}`;
       (timedOut(a.failureMessages ?? []) ? timeouts : assertions).push(where);
+    }
+    // Failed as a FILE while no test in it failed: it never ran its tests
+    // (collection / mock / import error) or died after them (hook, worker).
+    if (file.status === "failed" && !anyAssertionFailed) {
+      broken.push({ file: rel, message: file.message ?? "" });
     }
   }
 
-  if (assertions.length > 0) {
-    console.error(`\n${assertions.length} failing assertion(s):\n`);
-    for (const t of assertions) console.error(`   ${t}`);
-  }
-  if (timeouts.length > 0) {
-    console.error(
-      `\n${timeouts.length} test(s) TIMED OUT rather than asserting.\nTreat these as MORE serious than an assertion failure, not less: a test hanging on\na degraded connection pool is the exact failure the db-budget work defends against.\nRe-run them in isolation to separate machine contention from a real hang — and if they\npass, say WHY you believe that rather than calling the gate green:\n`,
-    );
-    for (const t of timeouts) console.error(`   ${t}`);
-  }
-  process.exit(1);
+  return {
+    reported: reported.size,
+    discovered: discovered.length,
+    failedTests,
+    missing,
+    broken,
+    assertions,
+    timeouts,
+    ok: missing.length === 0 && broken.length === 0 && failedTests === 0,
+  };
 }
 
-console.log("every test file ran, nothing failed.");
+/** The one line an operator pastes as evidence. Every count that can turn a
+ * run red is on it, so "0 failing test(s)" can never again stand next to a file
+ * that never ran. */
+export function formatVerdictLine(v: SuiteVerdict): string {
+  return `reported ${v.reported} file(s); ${v.discovered} discovered; ${v.failedTests} failing test(s); ${v.broken.length} broken file(s)`;
+}
+
+function main(): void {
+  const jsonPath = process.argv[2];
+  if (!jsonPath) {
+    console.error("usage: tsx scripts/check-suite-coverage.ts <vitest-json-report>");
+    process.exit(2);
+  }
+
+  const repoRoot = resolve(import.meta.dirname, "..");
+  const report = JSON.parse(readFileSync(resolve(jsonPath), "utf8")) as VitestJson;
+  const verdict = gradeSuiteReport(report, discoverTestFiles(), repoRoot);
+
+  console.log(formatVerdictLine(verdict));
+
+  if (verdict.missing.length > 0) {
+    console.error(
+      `\n${verdict.missing.length} test file(s) never reported — a worker died and took them with it.\nThe run is NOT green, whatever the summary said:\n`,
+    );
+    for (const m of verdict.missing) console.error(`   ${m}`);
+  }
+
+  if (verdict.broken.length > 0) {
+    console.error(
+      `\n${verdict.broken.length} test file(s) failed OUTSIDE any test — zero failing tests, and still not green.\nA mock/collection/import error means the file never ran its tests: fix it. A worker that\nexited after the file's tests reported is the open teardown defect: say so, with this line quoted.\n`,
+    );
+    for (const b of verdict.broken) {
+      console.error(`   ${b.file}`);
+      const firstLine = b.message.split("\n")[0]?.trim();
+      if (firstLine) console.error(`      ${firstLine}`);
+    }
+  }
+
+  if (verdict.assertions.length > 0) {
+    console.error(`\n${verdict.assertions.length} failing assertion(s):\n`);
+    for (const t of verdict.assertions) console.error(`   ${t}`);
+  }
+  if (verdict.timeouts.length > 0) {
+    console.error(
+      `\n${verdict.timeouts.length} test(s) TIMED OUT rather than asserting.\nTreat these as MORE serious than an assertion failure, not less: a test hanging on\na degraded connection pool is the exact failure the db-budget work defends against.\nRe-run them in isolation to separate machine contention from a real hang — and if they\npass, say WHY you believe that rather than calling the gate green:\n`,
+    );
+    for (const t of verdict.timeouts) console.error(`   ${t}`);
+  }
+
+  if (!verdict.ok) process.exit(1);
+  console.log("every test file ran, nothing failed.");
+}
+
+// Guarded so the grading above is importable by its test without the CLI
+// running on import (same convention as the sibling fences).
+const isMain =
+  typeof process !== "undefined" &&
+  process.argv[1] !== undefined &&
+  (process.argv[1].endsWith("check-suite-coverage.ts") ||
+    process.argv[1].endsWith("check-suite-coverage.js") ||
+    import.meta.url === `file:///${process.argv[1].replaceAll("\\", "/")}`);
+
+if (isMain) {
+  main();
+}

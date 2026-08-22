@@ -94,25 +94,30 @@ vi.mock("@/src/modules/events/infrastructure/events-repository", () => ({
   },
 }));
 
-// @/db — db.transaction calls the callback immediately (synchronous mock).
-vi.mock("@/db", () => ({
-  db: {
-    transaction: mockTransaction,
-    select: vi.fn(() => ({
-      from: vi.fn(() => ({ where: vi.fn(() => ({ limit: vi.fn(async () => []) })) })),
-    })),
-  },
-  pets: {},
-  petEvents: {},
-  petIdentifications: {},
-  // The notifications reconcile SQL (excludeResolvedLostEpisodeSql, pulled in
-  // via getUnreadCountCached's badge/page-parity fix) references these columns
-  // at module-eval time — the mock only needs the column refs to exist.
-  notifications: {
-    notificationType: "notifications.notificationType",
-    relatedPetId: "notifications.relatedPetId",
-  },
-}));
+// @/db — the REAL schema (tables, enums) under a MOCKED client.
+//
+// The schema is spread from db/schema.ts, which never constructs a pool, so a
+// module-eval read of any column or enum keeps working as the action's import
+// graph grows (excludeResolvedLostEpisodeSql reads `notifications.*`;
+// rehome-death-cascade reads `authorRoleEnum.enumValues`). A hand-listed subset
+// is what broke this file for four consecutive full runs on 2026-08-22, three
+// of them on CI: vitest's mock proxy throws on the first export the list forgot,
+// the file dies at collection with zero tests, and the suite verdict counted
+// that as "0 failing test(s)" — misread as the worker-teardown crash for days.
+//
+// db.transaction calls the callback immediately (synchronous mock).
+vi.mock("@/db", async () => {
+  const schema = await vi.importActual<typeof import("@/db/schema")>("@/db/schema");
+  return {
+    ...schema,
+    db: {
+      transaction: mockTransaction,
+      select: vi.fn(() => ({
+        from: vi.fn(() => ({ where: vi.fn(() => ({ limit: vi.fn(async () => []) })) })),
+      })),
+    },
+  };
+});
 
 // next/navigation — avoid redirect errors.
 vi.mock("next/navigation", () => ({
