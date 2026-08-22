@@ -13,6 +13,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { appointments, db, organizations, pets, profiles, serviceOfferings, timeSlots } from "@/db";
 import { buildProjectionContext } from "@/lib/metrics";
+import { ANONYMITY_K } from "@/lib/metrics/anonymity";
 import {
   type CampaignGeoReach,
   type CampaignOutcomeRow,
@@ -158,10 +159,17 @@ describe("suppressGeoReach — k-anonymity (k=5)", () => {
     // The sub-threshold localities are gone by name.
     expect(result.rows.find((r) => r.locality === "Villa Chica")).toBeUndefined();
     expect(result.rows.find((r) => r.locality === "Villa Menor")).toBeUndefined();
-    // No visible/rollup row may carry a raw sub-threshold locality count.
-    expect(result.rows.some((r) => r.locality === "Villa Chica" && r.attendedCount === 2)).toBe(
-      false,
-    );
+    // NO ROW AT ALL may carry a sub-threshold count, whatever it is called.
+    //
+    // This assertion used to read `r.locality === "Villa Chica" &&
+    // r.attendedCount === 2` — vacuous by construction: the suppressed locality
+    // is never emitted under its own name, so the conjunction could not be true
+    // even while the rollup published that exact 2 under a privacy label. It
+    // LOOKED like it was guarding the leak and guarded nothing.
+    const subThreshold = result.rows.filter((r) => r.attendedCount < ANONYMITY_K);
+    expect(subThreshold).toEqual([]);
+    // Non-vacuity: the input really did contain sub-threshold cells to hide.
+    expect(cells.filter((c) => c.attendedCount < ANONYMITY_K)).toHaveLength(2);
   });
 
   it("folds suppressed localities into ONE per-province rollup that preserves the total", () => {
@@ -179,16 +187,69 @@ describe("suppressGeoReach — k-anonymity (k=5)", () => {
   });
 
   it("keeps rollups separated per province (no cross-province lumping)", () => {
+    // Each province needs enough hidden localities to clear k on its own,
+    // otherwise its rollup is dropped (see the test below) and this would be
+    // asserting the drop rather than the separation.
     const cells: CampaignGeoReach[] = [
+      { locality: "Villa Chica", province: "Buenos Aires", attendedCount: 2 },
+      { locality: "Villa Menor", province: "Buenos Aires", attendedCount: 4 },
+      { locality: "Pueblo Chico", province: "Córdoba", attendedCount: 3 },
+      { locality: "Pueblo Menor", province: "Córdoba", attendedCount: 3 },
+    ];
+    const result = suppressGeoReach(cells);
+    expect(result.suppressedCount).toBe(4);
+    const rollups = result.rows.filter((r) => r.locality === "Otras localidades (privacidad)");
+    expect(rollups).toHaveLength(2);
+    expect(rollups.find((r) => r.province === "Buenos Aires")?.attendedCount).toBe(6);
+    expect(rollups.find((r) => r.province === "Córdoba")?.attendedCount).toBe(6);
+  });
+
+  it("THE LEAK: a province with ONE hidden locality gets NO rollup — the rollup is a cell too", () => {
+    // Reversed on purpose (closing report M5 / fix queue row 14). The previous
+    // version of this file asserted rollups of 2 and 3, built from single hidden
+    // localities of 2 and 3 — i.e. it pinned the exact numbers the suppression
+    // was protecting, republished under the label "Otras localidades
+    // (privacidad)". Whoever fixed the bug would have found a red test and
+    // assumed they were wrong. The project already learned this on
+    // /gob/mortalidad ("Tierra del Fuego (otras localidades) — 2", found live
+    // 2026-07-28) and wrote the rule down in rollupSuppressedLocalities; the
+    // campaigns module claimed to use "the same proven pattern" and rolled its
+    // own without the check.
+    const cells: CampaignGeoReach[] = [
+      { locality: "La Plata", province: "Buenos Aires", attendedCount: 12 },
       { locality: "Villa Chica", province: "Buenos Aires", attendedCount: 2 },
       { locality: "Pueblo Chico", province: "Córdoba", attendedCount: 3 },
     ];
     const result = suppressGeoReach(cells);
+
+    // Both hidden localities are still COUNTED — the page can say how many were
+    // hidden without saying how many attendances they hold.
     expect(result.suppressedCount).toBe(2);
-    const rollups = result.rows.filter((r) => r.locality === "Otras localidades (privacidad)");
-    expect(rollups).toHaveLength(2);
-    expect(rollups.find((r) => r.province === "Buenos Aires")?.attendedCount).toBe(2);
-    expect(rollups.find((r) => r.province === "Córdoba")?.attendedCount).toBe(3);
+
+    // Neither province publishes a rollup: 2 < k and 3 < k.
+    expect(result.rows.filter((r) => r.locality === "Otras localidades (privacidad)")).toEqual([]);
+    // And nothing else picked up the residue.
+    expect(result.rows.map((r) => r.attendedCount)).toEqual([12]);
+  });
+
+  it("boundary: a fold of exactly k publishes, k-1 does not", () => {
+    const foldTo = (counts: number[]): CampaignGeoReach[] =>
+      counts.map((n, i) => ({
+        locality: `Chica ${i}`,
+        province: "Buenos Aires",
+        attendedCount: n,
+      }));
+
+    // 2 + 2 = 4 = k-1 → dropped.
+    const under = suppressGeoReach(foldTo([2, 2]));
+    expect(under.rows).toEqual([]);
+    expect(under.suppressedCount).toBe(2);
+
+    // 2 + 3 = 5 = k → published, total preserved.
+    const at = suppressGeoReach(foldTo([2, 3]));
+    expect(at.rows).toHaveLength(1);
+    expect(at.rows[0].locality).toBe("Otras localidades (privacidad)");
+    expect(at.rows[0].attendedCount).toBe(ANONYMITY_K);
   });
 
   it("returns rows sorted by attendance descending", () => {

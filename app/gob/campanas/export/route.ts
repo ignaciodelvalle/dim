@@ -89,10 +89,18 @@ export async function GET(request: NextRequest): Promise<Response> {
     ausencias: o.noShow,
   }));
 
-  // k-anonymity: dashboard.geoReach.rows is already suppressed + rolled up in
-  // lib/analytics/campaign-metrics.ts (fetchGeoReach → suppressGeoReach), so the
-  // CSV cannot leak a sub-threshold locality count — same suppressed data the
-  // on-screen table renders (no separate unsuppressed query).
+  // k-anonymity: dashboard.geoReach.rows comes out of
+  // lib/analytics/campaign-metrics.ts (fetchGeoReach → suppressGeoReach), the
+  // same suppressed data the on-screen table renders — there is no separate
+  // unsuppressed query here.
+  //
+  // This used to end "so the CSV cannot leak a sub-threshold locality count".
+  // That was false until 2026-08-22 (closing report M5): the per-province fold
+  // was built unconditionally, so a province with exactly ONE hidden locality
+  // printed that locality's protected count under the label "Otras localidades
+  // (privacidad)" — and, because both surfaces read the same rows, on screen
+  // too. The claim is true now because suppressGeoReach drops a fold that stays
+  // under k, not because reading suppressed rows makes a leak impossible.
   const geoReachRows = dashboard.geoReach.rows.map((r) => ({
     localidad: r.locality,
     provincia: r.province ?? "",

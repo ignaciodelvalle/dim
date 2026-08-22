@@ -23,6 +23,7 @@ import { and, count, eq, gte, inArray, lt, sql } from "drizzle-orm";
 // serves it normally. Locally analyticsDb falls back to DATABASE_URL (identical dev/test).
 import { appointments, analyticsDb as db, petEvents, serviceOfferings } from "@/db";
 import { type ProjectionContext, jurisdictionPairClause, suppressSmallCells } from "@/lib/metrics";
+import { ANONYMITY_K } from "@/lib/metrics/anonymity";
 
 // ---------------------------------------------------------------------------
 // Sanitary outcome event spine
@@ -383,12 +384,25 @@ async function fetchOfferingOutcomes(
  * A locality with a handful of vaccinated animals is individually identifiable,
  * so localities whose attendance count is below the shared ANONYMITY_K are
  * withheld and folded into ONE per-province "Otras localidades (privacidad)"
- * rollup row — the
- * same proven-safe pattern the mortality-by-locality projection uses
+ * rollup row — the same pattern the mortality-by-locality projection uses
  * (lib/analytics/mortality-metrics.ts, `suppressSmallCells` + province rollup).
- * The rollup preserves the province-level attendance total without exposing the
- * sub-threshold locality. Because both the /gob/campanas table and its CSV export
- * consume the SAME suppressed rows, the leak is closed on every surface.
+ * Because both the /gob/campanas table and its CSV export consume the SAME
+ * suppressed rows, a fix here closes every surface at once.
+ *
+ * THE ROLLUP IS A CELL TOO, and k applies to it exactly as it applies to the
+ * rows it replaces (closing report M5 / fix queue row 14, 2026-08-22). Until
+ * then this claimed "the same proven-safe pattern" and did not use it: the fold
+ * was built unconditionally, so a province contributing exactly ONE
+ * sub-threshold locality printed that locality's exact count under the label
+ * "(privacidad)" — republishing the protected number beside the word that
+ * promises it is protected. The project had already been bitten by this on
+ * /gob/mortalidad ("Tierra del Fuego (otras localidades) — 2", found live
+ * 2026-07-28) and written the rule into `rollupSuppressedLocalities`; the fold
+ * here was hand-rolled and never inherited the check.
+ *
+ * Below k the honest output is NO ROW. Nothing is lost to the reader:
+ * `suppressedCount` still says how many localities were hidden, without saying
+ * how many attendances they hold.
  */
 export function suppressGeoReach(cells: CampaignGeoReach[]): CampaignGeoReachResult {
   const { visible, suppressed, suppressedCount } = suppressSmallCells<CampaignGeoReach>(cells, {
@@ -412,10 +426,16 @@ export function suppressGeoReach(cells: CampaignGeoReach[]): CampaignGeoReachRes
     }
   }
 
+  // A fold that stays under k is itself a sub-threshold cell — drop it rather
+  // than print it under a privacy label. See the header.
+  const publishableRollups = [...rollupByProvince.values()].filter(
+    (r) => r.attendedCount >= ANONYMITY_K,
+  );
+
   // `visible` is branded SuppressedCells at compile time; its runtime elements
   // are the CampaignGeoReach rows we passed in.
   const visibleRows = visible as unknown as CampaignGeoReach[];
-  const rows = [...visibleRows, ...rollupByProvince.values()].sort(
+  const rows = [...visibleRows, ...publishableRollups].sort(
     (a, b) => b.attendedCount - a.attendedCount,
   );
 
