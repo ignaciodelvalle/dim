@@ -14,11 +14,20 @@ import { ACCOUNTS, loginAs } from "./demo/_helpers";
  * only runs its `seedOwnerPets` step when the owner has NO pets yet, so a
  * local dev DB layered with other seed/demo scripts can give owner@dim.test
  * a completely different pet set. We pick the first pet whose registry row
- * shows the REGISTRADO/REGISTRADA status flag (i.e. not already lost or
- * deceased). The flag agrees with the animal's sex, so the locator must be
- * sex-agnostic — matching only /registrada/i would silently skip every male
- * and every unknown-sex pet, and "skipped" reads as "passed" in CI.
- * the LnRegRow badge rendered by app/(app)/mis-mascotas/page.tsx.
+ * shows a non-urgent status flag ("AL DÍA" once compliance is derived,
+ * "REGISTRADO/A" before — i.e. not already lost or deceased). The flag
+ * agrees with the animal's sex, so the locator must be sex-agnostic —
+ * matching only /registrada/i would silently skip every male and every
+ * unknown-sex pet, and "skipped" reads as "passed" in CI. The flag is the
+ * LnRegRow badge rendered by app/(app)/mis-mascotas/page.tsx.
+ *
+ * The NAME comes from the row's own heading (LnRegRow's serif span), not
+ * from a photo's alt: the seed gives these pets no photo, so the old
+ * `:has(img)` locator found nothing on CI's fresh DB and the spec
+ * `test.skip`ped every run, green (e2e/README.md, "a skip built on one
+ * lies"). Rows badged "Al cuidado" are somebody else's animal this account
+ * only caretakes; the mark-lost wizard is the titular's, so they are not
+ * candidates.
  *
  * The wizard is driven ADAPTIVELY: the "enriched details" step only exists
  * when the picked pet has neither a microchip nor a tattoo (MarkLostWizard's
@@ -43,29 +52,34 @@ test("owner marks a pet lost — public credential flips to lost state for a str
 
   await loginAs(page, ACCOUNTS.owner);
 
-  // Discover an active (non-lost, non-deceased) pet from the owner's own
-  // registry — any will do, we just need one currently NOT lost.
+  // Discover an active (non-lost, non-deceased) pet the owner OWNS from their
+  // registry — any will do, we just need one currently NOT lost. An
+  // ASSERTION, not a skip: scripts/seed-test-users.ts seeds owner@dim.test
+  // with active pets, so an empty registry is a broken seed. Auto-retrying,
+  // so it also absorbs the registry's streaming render (`Locator.count()` is
+  // one-shot and does not wait — the README's worst shape for a gate).
   await page.goto("/mis-mascotas", { waitUntil: "domcontentloaded" });
   await page.waitForLoadState("networkidle").catch(() => {});
-  // `:has(img)` because the name is read from the photo's alt below, and a pet
-  // without a photo renders a placeholder instead of an <img> — the locator
-  // then waits out the whole test budget on an element that will never exist.
-  // Hit while running this suite repeatedly: e2e/create-pet.spec.ts adds a
-  // photo-less pet to THIS SAME owner on every run and never cleans it up, so
-  // the newest card is progressively more likely to be one of those. A fresh CI
-  // database happens not to show it; a developer's does, quickly.
   const petLink = page
-    .locator('a[href^="/mis-mascotas/"]:has(img)', { hasText: /registrad[ao]/i })
+    .locator('a[href^="/mis-mascotas/DIM-"]', {
+      hasText: /AL DÍA|REGISTRAD[AO]/i,
+      hasNotText: /Al cuidado/i,
+    })
     .first();
-  test.skip(
-    (await petLink.count()) === 0,
-    "owner@dim.test has no active (non-lost) pet — skipping mark-lost flow.",
-  );
+  await expect(
+    petLink,
+    "owner@dim.test has no active owned pet — the mark-lost walk needs one (seeded by scripts/seed-test-users.ts).",
+  ).toBeVisible({ timeout: 20_000 });
   const href = await petLink.getAttribute("href");
   const token = (href ?? "").split("/mis-mascotas/")[1];
   expect(token, "publicToken parsed from registry link").toBeTruthy();
-  const petName = (await petLink.locator("img").getAttribute("alt")) ?? "";
-  expect(petName, "pet name parsed from registry photo alt").toBeTruthy();
+  // The row's heading is the pet's name (components/ui/RegRow.tsx LnRegRow:
+  // the serif span beside the status flag). Trimmed: the success copy below
+  // interpolates it into a regex.
+  const petName = (
+    (await petLink.locator("span.font-ln-serif").first().textContent()) ?? ""
+  ).trim();
+  expect(petName, "pet name read from the registry row's heading").toBeTruthy();
 
   try {
     await page.goto(`/mis-mascotas/${token}/perdida`, { waitUntil: "domcontentloaded" });

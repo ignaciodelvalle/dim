@@ -67,25 +67,34 @@ function arDatePlus(days: number): string {
 }
 
 /**
- * The first ACTIVE pet in the titular's registry.
+ * The first ACTIVE pet the titular OWNS, from their registry.
  *
- * Same locator shape as crisis-owner-lost-flow.spec.ts, and for the same
- * reasons: `:has(img)` because a photo-less pet renders a placeholder (and
- * create-pet.spec.ts keeps adding those to this very account), and the status
- * flag matched sex-agnostically because /registrada/i alone silently skips
- * every male pet — and a skip reads as a pass in CI.
+ * Same locator as rehome-by-titular.spec.ts, for the same reason: the row's
+ * href carries the token, and either non-urgent flag ("AL DÍA" once
+ * compliance is derived, "REGISTRADA/O" before) marks a pet this walk can
+ * designate a caretaker for. The old `:has(img)` + /registrad[ao]/ locator
+ * required a PHOTO, and scripts/seed-test-users.ts seeds owner@dim.test's
+ * pets without one — so on CI's fresh DB this spec found nothing and
+ * `test.skip`ped every run, green (e2e/README.md, "a skip built on one
+ * lies"). Rows badged "Al cuidado" are somebody else's animal the account
+ * only caretakes; the designation form refuses those, so they are skipped
+ * as candidates, not picked.
+ *
+ * An ASSERTION, not a skip: the seed guarantees the pet, so an empty registry
+ * is the seed breaking — the one thing this walk exists to catch.
  */
 async function pickActivePetToken(page: Page): Promise<string> {
   await page.goto("/mis-mascotas", { waitUntil: "domcontentloaded" });
   await page.waitForLoadState("networkidle").catch(() => {});
-  const petLink = page
-    .locator('a[href^="/mis-mascotas/"]:has(img)', { hasText: /registrad[ao]/i })
-    .first();
-  test.skip(
-    (await petLink.count()) === 0,
-    "owner@dim.test has no active pet — the caretaker walk needs one.",
-  );
-  const href = (await petLink.getAttribute("href")) ?? "";
+  const rows = page.locator('a[href^="/mis-mascotas/DIM-"]', {
+    hasText: /AL DÍA|REGISTRAD[AO]/i,
+    hasNotText: /Al cuidado/i,
+  });
+  await expect(
+    rows.first(),
+    "owner@dim.test has no active owned pet — the caretaker walk needs one (seeded by scripts/seed-test-users.ts).",
+  ).toBeVisible({ timeout: 20_000 });
+  const href = (await rows.first().getAttribute("href")) ?? "";
   const token = href.split("/mis-mascotas/")[1] ?? "";
   expect(token, "publicToken parsed from the registry link").toBeTruthy();
   return token;
