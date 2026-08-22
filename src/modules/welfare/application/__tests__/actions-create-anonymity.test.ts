@@ -117,8 +117,23 @@ vi.mock("@/lib/supabase/server", () => ({
   createClient: vi.fn(),
 }));
 
+// next/headers — BOTH exports the app reads. `headers` is what the action
+// under test uses (the caller IP); `cookies` is read by modules elsewhere in
+// the import graph (lib/supabase/server.ts, src/modules/adoption/actions.ts).
+// A mock that lists only `headers` logged `No "cookies" export on the
+// "next/headers" mock` twice per run — a warning today, and a broken file the
+// day a module in this graph reads it at evaluation time (the 2026-08-22
+// set-pet-lost-coord-range lesson, one mock over). The store is empty: no
+// test here depends on a cookie.
 vi.mock("next/headers", () => ({
   headers: vi.fn().mockResolvedValue(new Map([["x-forwarded-for", "1.2.3.4"]])),
+  cookies: vi.fn().mockResolvedValue({
+    get: () => undefined,
+    getAll: () => [],
+    has: () => false,
+    set: () => undefined,
+    delete: () => undefined,
+  }),
 }));
 
 vi.mock("next/navigation", () => ({

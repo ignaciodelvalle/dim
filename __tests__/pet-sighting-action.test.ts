@@ -165,15 +165,21 @@ function buildMockDb() {
   mockDb.insert = vi.fn(() => insertChain);
 }
 
-vi.mock("@/db", () => ({
-  db: mockDb,
-  pets: {},
-  ownerships: {},
-  petEvents: {},
-  notifications: {},
-  cases: {},
-  attachments: {},
-}));
+// @/db — the REAL schema (tables, enums) under a MOCKED client.
+//
+// Spread from db/schema.ts, which never constructs a pool. The hand-listed
+// stubs this replaced (`pets: {}`, `notifications: {}`, …) were the shape that
+// broke set-pet-lost-coord-range.test.ts for four consecutive full runs on
+// 2026-08-22: vitest's mock proxy throws on the first export the list forgot,
+// the file dies at collection with zero tests, and the verdict read it as a
+// worker crash. This file already logged `No "notificationDeadLetter" export
+// is defined on the "@/db" mock` twelve times per run (lib/infra/
+// notification-service.ts reads it) — a warning today, the next export read
+// a broken file. Same shape as lib/metrics/alert-evaluation.test.ts.
+vi.mock("@/db", async () => {
+  const schema = await vi.importActual<typeof import("@/db/schema")>("@/db/schema");
+  return { ...schema, db: mockDb };
+});
 
 // Silence drizzle-orm helpers — the action uses `and`, `eq`, `isNull`.
 vi.mock("drizzle-orm", async (importOriginal) => {
