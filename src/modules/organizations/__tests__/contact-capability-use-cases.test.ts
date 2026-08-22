@@ -730,3 +730,203 @@ describe("grantCapability", () => {
     expect(result.notifications).toHaveLength(0);
   });
 });
+
+// ---------------------------------------------------------------------------
+// H2 (top-10 review 2026-08-22) — nobody may hand themselves a permission.
+//
+// `capability.grant` exists to DELEGATE: a shelter coordinator clears the
+// team's permission requests without being an admin. Neither use case compared
+// the beneficiary against the actor, so that coordinator could request
+// `custody.transfer` or `adoption.finalize` for themselves, open the permissions
+// screen, see their OWN request with a working Approve button, and take it — or
+// skip the request and grant it directly.
+//
+// The evidence that this is a boundary bug and not a missing hardening idea:
+// the control ALREADY EXISTS in the product, on the wrong side of the trust
+// boundary. CapabilityMatrix.tsx renders a dash titled "No podés concederte
+// permisos a vos mismo" for the caller's own row. The browser enforced it; the
+// server never asked. Three sibling use cases in this same module DO ask
+// ("No podés cambiar tu propio rol", "No podés quitarte a vos mismo").
+//
+// The comparison is on USER, not on membership id — the skeptics' refinement.
+// Leaving an org and rejoining mints a new membership row, so one person can
+// hold two in the same org; a membership-id comparison lets them approve their
+// own request from their other seat and calls it four eyes.
+// ---------------------------------------------------------------------------
+
+describe("H2 — self-grant is refused on the server, not only in the browser", () => {
+  const activeOrg = {
+    organization: { id: "org-1", displayName: "Refugio Test", publicToken: "tok-org" },
+    membership: { id: "mem-actor", role: "coordinator", organizationId: "org-1" },
+  };
+
+  const txFn = vi.fn().mockImplementation(async (cb: (tx: unknown) => Promise<unknown>) => cb({}));
+  const isUniqueViolation = vi.fn().mockReturnValue(false);
+
+  function decideRepo(memberUserId: string) {
+    return {
+      findGrant: vi.fn().mockResolvedValue({
+        id: "grant-1",
+        organizationId: "org-1",
+        capability: "custody.transfer",
+        status: "pending",
+        membershipId: "mem-requester",
+        requestedReason: "hace falta",
+        decidedAt: null,
+        decidedByUserId: null,
+        decisionReason: null,
+      }),
+      updateGrant: vi.fn().mockResolvedValue(undefined),
+      setGrantStatus: vi.fn().mockResolvedValue(undefined),
+      findGrantMemberUserId: vi.fn().mockResolvedValue(memberUserId),
+      insertAuditLog: vi.fn().mockResolvedValue(undefined),
+    };
+  }
+
+  function grantRepo(targetUserId: string) {
+    return {
+      findActiveMembership: vi.fn().mockResolvedValue({
+        id: "mem-target",
+        userId: targetUserId,
+        organizationId: "org-1",
+        role: "member" as const,
+        title: null,
+        canWritePetEvents: false,
+        joinedAt: new Date(),
+        leftAt: null,
+        invitedByUserId: null,
+        receivesBroadcasts: true,
+      }),
+      insertGrant: vi.fn().mockResolvedValue({
+        id: "grant-new",
+        membershipId: "mem-target",
+        organizationId: "org-1",
+        capability: "custody.transfer",
+        status: "approved" as const,
+        requestedAt: new Date(),
+        requestedReason: null,
+        decidedAt: null,
+        decidedByUserId: null,
+        decisionReason: null,
+      }),
+      updateGrant: vi.fn().mockResolvedValue(undefined),
+      findGrantMemberUserId: vi.fn().mockResolvedValue(targetUserId),
+      insertAuditLog: vi.fn().mockResolvedValue(undefined),
+    };
+  }
+
+  it("refuses approving your OWN pending request", async () => {
+    const repo = decideRepo("user-coordinator");
+    const result = await decideCapability(
+      {
+        deciderId: "user-coordinator",
+        grantId: "grant-1",
+        decision: "approved",
+        reason: null,
+        active: activeOrg,
+        granted: new Set(["capability.grant"]),
+      },
+      { repo, transaction: txFn, isUniqueViolation },
+    );
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.error).toMatch(/vos mismo/i);
+    // Refused BEFORE the write — no status change, no audit row claiming it.
+    expect(repo.updateGrant).not.toHaveBeenCalled();
+    expect(repo.setGrantStatus).not.toHaveBeenCalled();
+    expect(repo.insertAuditLog).not.toHaveBeenCalled();
+  });
+
+  it("refuses granting a capability directly to YOURSELF", async () => {
+    const repo = grantRepo("user-coordinator");
+    const result = await grantCapability(
+      {
+        granterId: "user-coordinator",
+        membershipId: "mem-target",
+        capability: "custody.transfer",
+        active: activeOrg,
+        granted: new Set(["capability.grant"]),
+      },
+      { repo, transaction: txFn, isUniqueViolation },
+    );
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.error).toMatch(/vos mismo/i);
+    expect(repo.insertGrant).not.toHaveBeenCalled();
+  });
+
+  it("refuses even when the beneficiary is a SECOND membership of the same person", async () => {
+    // The membership ids differ (`mem-actor` vs `mem-target`) — a comparison on
+    // membership id waves this through and calls it four eyes. The person is the
+    // same, so it is not. `capability.grant` itself is the capability asked for,
+    // which is how a one-time delegation becomes a permanent one.
+    const repo = grantRepo("user-coordinator");
+    const result = await grantCapability(
+      {
+        granterId: "user-coordinator",
+        membershipId: "mem-target",
+        capability: "capability.grant",
+        active: activeOrg,
+        granted: new Set(["capability.grant"]),
+      },
+      { repo, transaction: txFn, isUniqueViolation },
+    );
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(repo.insertGrant).not.toHaveBeenCalled();
+  });
+
+  it("CONTROL: granting to somebody else still works", async () => {
+    const repo = grantRepo("user-somebody-else");
+    const result = await grantCapability(
+      {
+        granterId: "user-coordinator",
+        membershipId: "mem-target",
+        capability: "custody.transfer",
+        active: activeOrg,
+        granted: new Set(["capability.grant"]),
+      },
+      { repo, transaction: txFn, isUniqueViolation },
+    );
+    expect(result.ok).toBe(true);
+    expect(repo.insertGrant).toHaveBeenCalled();
+  });
+
+  it("CONTROL: deciding a request that belongs to somebody else still works", async () => {
+    const repo = decideRepo("user-somebody-else");
+    const result = await decideCapability(
+      {
+        deciderId: "user-coordinator",
+        grantId: "grant-1",
+        decision: "approved",
+        reason: null,
+        active: activeOrg,
+        granted: new Set(["capability.grant"]),
+      },
+      { repo, transaction: txFn, isUniqueViolation },
+    );
+    expect(result.ok).toBe(true);
+    expect(repo.updateGrant).toHaveBeenCalled();
+  });
+
+  it("the grant notification does not claim an administrator decided", async () => {
+    // It read "Un administrador de {org} te concedió el permiso". The granter
+    // may be a coordinator holding `capability.grant`, not an admin — and while
+    // self-grant was possible the sentence was also a cover story for the
+    // recipient having granted it to themselves.
+    const repo = grantRepo("user-somebody-else");
+    const result = await grantCapability(
+      {
+        granterId: "user-coordinator",
+        membershipId: "mem-target",
+        capability: "custody.transfer",
+        active: activeOrg,
+        granted: new Set(["capability.grant"]),
+      },
+      { repo, transaction: txFn, isUniqueViolation },
+    );
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.notifications[0].body).not.toMatch(/administrador/i);
+  });
+});

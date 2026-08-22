@@ -14,6 +14,7 @@ import {
   VET_INDIVIDUAL_IMPLICIT_CAPS,
   isValidCapability,
 } from "@/src/modules/organizations/domain/capabilities";
+import { assertNotSelfGrant } from "@/src/modules/organizations/domain/self-grant";
 import type {
   Exec,
   OrgRepository,
@@ -123,6 +124,17 @@ export async function grantCapability(
     return { ok: false, error: "El miembro no pertenece a esta organización o no está activo." };
   }
 
+  // H2 — four eyes. AFTER the membership lookup (so "not a member of this org"
+  // still wins, and the refusal names the real problem) and BEFORE the
+  // transaction, so a refused self-grant leaves no row and no audit entry.
+  //
+  // The comparison reads `targetMembership.userId`, not `input.membershipId`:
+  // one person can hold two membership rows in the same org (leave, rejoin, or
+  // an admin opening a second seat), and comparing seats would let them grant
+  // themselves a capability through the other one and call it four eyes.
+  const fourEyes = assertNotSelfGrant(input.granterId, targetMembership.userId);
+  if (!fourEyes.ok) return { ok: false, error: fourEyes.error };
+
   // Block granting to admin role — they already have every capability implicitly.
   if (targetMembership.role === "admin") {
     return {
@@ -201,7 +213,13 @@ export async function grantCapability(
           userId: recipientUserId,
           notificationType: "capability_granted",
           title: `Nuevo permiso: ${labelFor(capability)}`,
-          body: `Un administrador de ${input.active.organization.displayName} te concedió el permiso "${labelFor(capability)}".`,
+          // NOT "Un administrador de …" (H2, 2026-08-22). Two things were wrong
+          // with that sentence: the granter may be a coordinator holding
+          // `capability.grant` rather than an admin, and while self-grant was
+          // possible it doubled as a cover story — the recipient reading "un
+          // administrador te concedió" could be the person who granted it to
+          // themselves. The org is the actor the recipient can act on.
+          body: `${input.active.organization.displayName} te concedió el permiso "${labelFor(capability)}".`,
           severity: "success",
           ctaLabel: "Ver panel",
           ctaUrl: `/org/${input.active.organization.publicToken}`,

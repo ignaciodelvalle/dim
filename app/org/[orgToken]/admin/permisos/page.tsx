@@ -83,7 +83,21 @@ export default async function PermisosPage({
     )
     .orderBy(desc(organizationCapabilityGrants.requestedAt));
 
-  const pending = rows.filter((r) => r.status === "pending");
+  // H2 (2026-08-22) — the caller's OWN pending requests leave the actionable
+  // queue. The server refuses a self-decision now (domain/self-grant.ts), so
+  // leaving them here would only offer a button that always fails.
+  //
+  // The comparison is on USER, not on membership id: one person can hold two
+  // membership rows in the same org (leave and rejoin, or a second seat), and a
+  // seat comparison would keep showing them a working-looking Approve button
+  // over their own request from the other seat.
+  //
+  // They are shown, not hidden — a request that silently disappears from the
+  // one screen that lists requests reads as "it was never filed". They render
+  // read-only, below, saying who has to decide it.
+  const allPending = rows.filter((r) => r.status === "pending");
+  const pending = allPending.filter((r) => r.requesterUserId !== callerMembership.userId);
+  const ownPending = allPending.filter((r) => r.requesterUserId === callerMembership.userId);
   const approved = rows.filter((r) => r.status === "approved");
 
   // --- Query 2 (matrix): active members + all approved grants for the org ---
@@ -207,6 +221,36 @@ export default async function PermisosPage({
           )}
         </OpCardBody>
       </OpCard>
+
+      {/* Your own pending requests — visible, never actionable (H2). */}
+      {ownPending.length > 0 && (
+        <OpCard>
+          <OpCardHead
+            title={
+              <>
+                Tus solicitudes{" "}
+                <span className="text-sm text-ln-op-mute font-normal">({ownPending.length})</span>
+              </>
+            }
+          />
+          <OpCardBody className="p-0">
+            <ul className="divide-y divide-ln-op-line">
+              {ownPending.map((row) => (
+                <li key={row.id} className="px-4 py-3 space-y-1">
+                  <p className="text-md font-medium text-ln-op-ink">
+                    {LABEL_BY_CAPABILITY.get(row.capability) ?? row.capability}{" "}
+                    <OpCodeBadge tone="neutral">{row.capability}</OpCodeBadge>
+                  </p>
+                  <p className="text-sm text-ln-op-mute">
+                    Pedida el {formatDate(row.requestedAt)}. La tiene que decidir otra persona de la
+                    organización: no podés aprobarte permisos a vos mismo.
+                  </p>
+                </li>
+              ))}
+            </ul>
+          </OpCardBody>
+        </OpCard>
+      )}
 
       {/* Approved / active grants */}
       <OpCard>

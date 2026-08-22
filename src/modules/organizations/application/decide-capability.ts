@@ -5,6 +5,7 @@
 
 import { isValidCapability } from "@/src/modules/organizations/domain/capabilities";
 import { canDecide } from "@/src/modules/organizations/domain/membership-state";
+import { assertNotSelfGrant } from "@/src/modules/organizations/domain/self-grant";
 import type {
   Exec,
   OrgRepository,
@@ -128,6 +129,22 @@ export async function decideCapability(
   }
 
   const capability = grant.capability;
+
+  // H2 — four eyes. AFTER the scope and state guards so a cross-org or
+  // already-decided grant still gets its own (more accurate) refusal, and
+  // BEFORE the transaction so a refused self-decision leaves no status change
+  // and no audit row describing a decision that never happened.
+  //
+  // Deliberately covers revoke too: self-revocation is harmless today, but the
+  // rule "the beneficiary is never the decider" is easier to keep true than a
+  // per-decision carve-out, and a revoke you granted yourself is a way to erase
+  // the row that would have shown you granting it.
+  //
+  // Compares USERS, not membership ids — see domain/self-grant.ts.
+  const beneficiaryUserId = await repo.findGrantMemberUserId(grant.membershipId);
+  const fourEyes = assertNotSelfGrant(input.deciderId, beneficiaryUserId);
+  if (!fourEyes.ok) return { ok: false, error: fourEyes.error };
+
   const pendingNotifications: NewNotification[] = [];
 
   try {
