@@ -66,6 +66,10 @@ export function makeFakeRepo(overrides: Partial<Record<string, unknown>> = {}): 
     findOpenGrantsForPet: vi.fn().mockResolvedValue([]),
     findLastEndedGrantForPet: vi.fn().mockResolvedValue(null),
     findPetSummaryById: vi.fn().mockResolvedValue(PET),
+    // Defaults to "the person who invited is still the titular", because that
+    // is the boring case. The tests that care about a change of hands override
+    // it with `false`.
+    hasLiveTitularOwnership: vi.fn().mockResolvedValue(true),
     findUserIdByEmail: vi.fn().mockResolvedValue(null),
     findDisplayName: vi.fn().mockResolvedValue("Ana Pérez"),
     findEmailByUserId: vi.fn().mockResolvedValue("ana@example.com"),

@@ -139,6 +139,24 @@ export interface CaretakersRepositoryPort {
    */
   findLastEndedGrantForPet(petId: string): Promise<EndedGrant | null>;
   findPetSummaryById(petId: string): Promise<PetSummary | null>;
+  /**
+   * Does `userId` still hold a LIVE, non-caretaker ownership row on this pet?
+   *
+   * The one ownership question this module asks. It exists because the port had
+   * no ownership read at all, which made `acceptCaretakerGrant` STRUCTURALLY
+   * incapable of noticing that the pet had changed hands since the invitation
+   * was minted (H4): the invitee could accept onto a stranger's pet days after
+   * a transfer, an adoption finalize, a decomiso or a resolved dispute.
+   *
+   * Non-caretaker on purpose — the same shape `requireTitularAccess` uses. A
+   * caretaker must not be able to name a sub-caretaker, so a granter who has
+   * since become a mere caretaker on the pet is no longer an authority for this.
+   *
+   * Takes the transaction: the answer is only worth having under the same lock
+   * as the grant re-read. Outside it, a hand-off committing in between makes the
+   * check a stale read of exactly the state it is meant to reject.
+   */
+  hasLiveTitularOwnership(petId: string, userId: string, tx: unknown): Promise<boolean>;
   findUserIdByEmail(email: string): Promise<string | null>;
   findDisplayName(userId: string): Promise<string | null>;
   findEmailByUserId(userId: string): Promise<string | null>;

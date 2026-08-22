@@ -30,6 +30,13 @@ export async function queryAdoptionListing(
   pageSize: number = DEFAULT_PAGE_SIZE,
 ): Promise<{ items: AdoptionListingItem[]; nextCursor: AdoptionListingCursor | null }> {
   const conditions = [
+    // PO-4 — erasure (Ley 25.326 art. 16) sets `pets.deleted_at` and leaves the
+    // row so the spine survives, and /adoptar/{token} then 404s. Without this
+    // the listing kept rendering the card and `app/sitemap.ts` — which builds
+    // its `/adoptar/{token}` entries from THIS function's results — kept
+    // advertising the dead URL, making "erased" distinguishable from "never
+    // existed". Same filter, same reason, as queryLostListing.
+    isNull(pets.deletedAt),
     isNotNull(pets.adoptionListedAt),
     isNull(pets.adoptionListingPausedAt),
 

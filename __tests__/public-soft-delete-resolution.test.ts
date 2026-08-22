@@ -27,9 +27,12 @@
 // The static sweep at the bottom is the fence that matters most: the failure
 // mode here is a NEW public route that simply forgets the filter, and a
 // forgotten filter looks exactly like a present one until someone scans a
-// token that should be gone.
+// token that should be gone. It is a RULE over derived reachability and no
+// longer a hand-kept list of routes — see the long note above it for what that
+// list missed, and for what the rule still cannot see.
 
-import { readFileSync } from "node:fs";
+import { readFileSync, readdirSync } from "node:fs";
+import { join, resolve } from "node:path";
 import { createClient } from "@supabase/supabase-js";
 import { eq, sql } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
@@ -40,6 +43,7 @@ import { generateTagActivationCode, generateTagSerial } from "@/lib/infra/public
 import { lookupTagBySerial } from "@/lib/infra/tag-lookup";
 import { hashTagActivationCode } from "@/lib/utils/tag-code-hash";
 import { withMutationOverride } from "./_helpers/db-overrides";
+import { ROOT, directDeps } from "./db-reachability";
 
 const SUPABASE_URL = "http://127.0.0.1:54321";
 const SECRET = "sb_secret_N7UND0UgjKTVK-Uodkm0Hg_xSvEMPvz";
@@ -228,31 +232,214 @@ describe("/t/[serial] lookup — an active chapa never points at an erased pet (
 });
 
 // ---------------------------------------------------------------------------
-// Static sweep — every ungated public surface resolves through the predicate.
+// Static sweep — A RULE, NOT A LIST.
+//
+// WHY THIS WAS REWRITTEN. The first version of this sweep walked a FIXED array
+// of nine route files and asserted each resolved through `publicPetByToken`.
+// It was green the whole time `/perdidas` and `app/sitemap.ts` were publishing
+// an erased subject's pet — name, breed, colour, "Localidad, Provincia" and
+// "hace N días" — and the sitemap was handing `/p/{token}` to Google every day
+// at priority 0,85, where it 404s. That is the difference the erasure policy
+// (PO-4) says must not be observable: "deleted" became distinguishable from
+// "never existed".
+//
+// A hand-kept list cannot catch that, because the failure mode IS forgetting.
+// The list did not fail — it was never told. So the sweep now DERIVES the set
+// it checks:
+//
+//   1. Take every Next entry file (page/route/layout/…) under the route groups
+//      that serve requests WITHOUT a session.
+//   2. Walk the import graph forward from them.
+//   3. Subtract the closure of every OTHER entry file. What is left is
+//      PUBLIC-ONLY code: modules that exist to answer unauthenticated callers
+//      and nobody else. A module shared with `/gob` or `/mis-mascotas` is not
+//      in scope — it answers an authorized caller too, and its filtering is
+//      that caller's question, not this one's.
+//   4. In each of those files, every read of `pets` must carry the soft-delete
+//      guard.
+//
+// WHAT THIS RULE STILL CANNOT SEE — stated, not left to be rediscovered:
+//
+//   • THE SEED IS DECLARED. `UNAUTHENTICATED_ENTRIES` below names route groups,
+//     not files. Nothing in the tree marks a route "unauthenticated", so a NEW
+//     unauthenticated route GROUP must be added here by hand. That is a rare and
+//     visible event (four exist today, and adding one is a routing decision);
+//     adding a page or a query under an existing one is constant, and THAT is
+//     what the old list kept missing. Coarser seed, mechanical body.
+//   • IT COUNTS, IT DOES NOT PARSE. The check compares "reads of `pets`" against
+//     "soft-delete guards" per file. A file with two reads and two guards on the
+//     same read passes. Statement-level segmentation was tried and rejected
+//     against this corpus: `lost-listing-read.ts` and `adoption-listing-read.ts`
+//     both build a predicate ARRAY dozens of lines above the `.where()` that
+//     consumes it, so no window around the query contains its own guard.
+//   • DYNAMIC REACHABILITY. `directDeps` reads static import specifiers. A
+//     module reached only through a computed `import()` is invisible.
+//   • RLS IS THE OTHER HALF. This is a static check over application queries;
+//     it says nothing about what a direct PostgREST client can read.
+//
+// The allowlist below is DEBT, not exemption. It may only shrink: an entry that
+// stops violating fails this suite, so a fix cannot leave a stale line behind.
 // ---------------------------------------------------------------------------
 
-const PUBLIC_PET_ROUTES = [
-  "app/(public)/p/[publicToken]/page.tsx",
-  "app/(public)/p/[publicToken]/opengraph-image.tsx",
-  "app/(public)/p/[publicToken]/encontre/page.tsx",
-  "app/(public)/p/[publicToken]/encontre/action.ts",
-  "app/(public)/p/[publicToken]/sighting/page.tsx",
-  "app/(public)/adoptar/[petToken]/page.tsx",
-  "app/(public)/adoptar/[petToken]/postular/page.tsx",
-  // Public-form write paths: the page that hosts each one already 404s, so
-  // these close the hand-rolled-POST half.
-  "src/modules/pets/application/sighting/report-pet-sighting.ts",
-  "src/modules/custody-disputes/application/report-dispute-tip.ts",
+/** Route groups and files that answer a request with no session. */
+const UNAUTHENTICATED_ENTRY_PREFIXES = [
+  "app/(public)/", // the Next route group whose whole purpose is ungated pages
+  "app/api/v1/", // the credential API — "the same door as the page" (review #7)
+  "app/libreta/", // /libreta/compartir/{shareToken} — a share link, no session
+  "app/r/", // /r/invite/{token} — an invitation opened before signing in
+] as const;
+const UNAUTHENTICATED_ENTRY_FILES = [
+  "app/page.tsx", // the landing page
+  "app/sitemap.ts", // hands URLs to search engines; the one that advertised 404s
+  "app/robots.ts", // present or not, it is an unauthenticated surface
 ] as const;
 
-describe("public surfaces resolve pets through publicPetByToken (PO-4 sweep)", () => {
-  for (const relPath of PUBLIC_PET_ROUTES) {
-    it(`${relPath} never filters on publicToken by hand`, () => {
-      const source = readFileSync(new URL(`../${relPath}`, import.meta.url), "utf8");
-      // A bare token equality is the regression: it reads as a complete
-      // lookup while silently including erased pets.
-      expect(source).not.toMatch(/eq\(\s*pets\.publicToken\s*,/);
-      expect(source).toContain("publicPetByToken");
-    });
+/** Next's own entry-file names. Everything else is an imported module. */
+const NEXT_ENTRY_FILE =
+  /^(page|route|layout|default|opengraph-image|twitter-image|icon|apple-icon|sitemap|robots|error|not-found|loading)\.tsx?$/;
+
+/** A read of the `pets` table: the FROM side or any join onto it. */
+const PETS_READ = /\.(?:from|leftJoin|innerJoin|rightJoin|fullJoin)\(\s*pets\b/g;
+/** The soft-delete guard, in every spelling this repo actually uses. */
+const SOFT_DELETE_GUARD =
+  /(pets\.deletedAt|pets\.deleted_at|publicPetByToken|deleted_at\s+IS\s+NULL)/gi;
+
+/**
+ * KNOWN DEBT — public-only files that read `pets` without the guard.
+ *
+ * Each line is a real instance of the same class the erasure policy forbids,
+ * left out of this change because it is not its subject. The rule is what makes
+ * them visible at all: the old fixed list never mentioned a single one.
+ */
+const SOFT_DELETE_DEBT = new Map<string, string>([
+  [
+    "app/page.tsx",
+    "Landing demo-pet existence probe. Leaks only whether the DECLARED demo token resolves, and the token is a deployment constant.",
+  ],
+  [
+    "app/libreta/compartir/[shareToken]/page.tsx",
+    "Tier-2 medical share. Reached by share token, so an erased pet keeps serving its libreta to whoever already holds the link.",
+  ],
+  [
+    "lib/infra/caretaker-public-contact.ts",
+    "Joins pets to decide the lost-mode caretaker disclosure. Its caller resolves the pet through the guard first, so it is reachable only for a live pet today — an assumption nothing enforces.",
+  ],
+  [
+    "src/modules/pets/application/public-lookup/lookup-pet-for-denuncia.ts",
+    "Hand-rolled eq(pets.publicToken). An erased pet still answers with its name in the denuncia form.",
+  ],
+  [
+    "src/modules/pets/application/scans/log-scan.ts",
+    "Hand-rolled eq(pets.publicToken). Records a scan against an erased pet and can fire the owner alert.",
+  ],
+]);
+
+function publicOnlyModules(): string[] {
+  const appDir = resolve(ROOT, "app");
+  const entries: string[] = [];
+  const walk = (dir: string): void => {
+    for (const e of readdirSync(dir, { withFileTypes: true })) {
+      const full = join(dir, e.name).replace(/\\/g, "/");
+      if (e.isDirectory()) walk(full);
+      else if (NEXT_ENTRY_FILE.test(e.name)) entries.push(full);
+    }
+  };
+  walk(appDir);
+
+  const relOf = (f: string): string => f.slice(`${ROOT}/`.length);
+  const isUnauthenticated = (f: string): boolean => {
+    const rel = relOf(f);
+    return (
+      UNAUTHENTICATED_ENTRY_PREFIXES.some((p) => rel.startsWith(p)) ||
+      (UNAUTHENTICATED_ENTRY_FILES as readonly string[]).includes(rel)
+    );
+  };
+
+  const closure = (roots: string[]): Set<string> => {
+    const seen = new Set<string>();
+    const queue = [...roots];
+    while (queue.length > 0) {
+      const file = queue.pop() as string;
+      if (seen.has(file)) continue;
+      seen.add(file);
+      for (const dep of directDeps(file)) if (!seen.has(dep)) queue.push(dep);
+    }
+    return seen;
+  };
+
+  const openDoor = closure(entries.filter(isUnauthenticated));
+  const behindAuth = closure(entries.filter((f) => !isUnauthenticated(f)));
+  return [...openDoor]
+    .filter((f) => !behindAuth.has(f) && /\.tsx?$/.test(f))
+    .map(relOf)
+    .sort();
+}
+
+/** Comments are not code: a guard quoted in prose must not count as one. */
+function stripComments(source: string): string {
+  return source.replace(/\/\*[\s\S]*?\*\//g, " ").replace(/(^|[^:'"`\\])\/\/[^\n]*/g, "$1");
+}
+
+type PetsReader = { rel: string; reads: number; guards: number };
+
+function scanPublicOnlyPetsReaders(): PetsReader[] {
+  const out: PetsReader[] = [];
+  for (const rel of publicOnlyModules()) {
+    let source: string;
+    try {
+      source = stripComments(readFileSync(resolve(ROOT, rel), "utf8"));
+    } catch {
+      continue;
+    }
+    const reads = source.match(PETS_READ)?.length ?? 0;
+    if (reads === 0) continue;
+    out.push({ rel, reads, guards: source.match(SOFT_DELETE_GUARD)?.length ?? 0 });
   }
+  return out;
+}
+
+describe("every unauthenticated read of `pets` carries the soft-delete filter (PO-4 rule)", () => {
+  const readers = scanPublicOnlyPetsReaders();
+  const violations = readers.filter((r) => r.guards < r.reads).map((r) => r.rel);
+
+  // NON-VACUITY FLOOR, three ways. A rule whose graph walk quietly returns
+  // nothing is greener than a correct one, and that is the exact shape of the
+  // defect this replaces.
+  it("actually reaches the public surfaces it claims to check", () => {
+    const rels = readers.map((r) => r.rel);
+    expect(readers.length).toBeGreaterThanOrEqual(12);
+    // Named anchors: the two listings this rule was written for, the credential
+    // page, and the API — the second door onto the same data.
+    expect(rels).toContain("src/modules/lost/infrastructure/lost-listing-read.ts");
+    expect(rels).toContain("src/modules/adoption/infrastructure/adoption-listing-read.ts");
+    expect(rels).toContain("app/(public)/p/[publicToken]/page.tsx");
+    // And it must NOT have swallowed the authenticated half: the govt/admin
+    // aggregates read `pets` unguarded by design and are not this rule's
+    // business. Seeing one here means the subtraction stopped working.
+    expect(rels).not.toContain("lib/metrics/census.ts");
+    expect(rels).not.toContain("src/modules/panorama/infrastructure/repository-history.ts");
+  });
+
+  it("flags an unguarded read and clears a guarded one", () => {
+    // The detector against hand-written samples, so a regex that stopped
+    // matching anything cannot pass by finding zero violations everywhere.
+    const bad = "const rows = await db.select().from(pets).where(eq(pets.status, 'lost'));";
+    const good =
+      "const rows = await db.select().from(pets).where(and(eq(pets.status, 'lost'), isNull(pets.deletedAt)));";
+    const commented = "// isNull(pets.deletedAt) used to be here\nawait db.select().from(pets);";
+    const count = (s: string, re: RegExp) => stripComments(s).match(re)?.length ?? 0;
+    expect(count(bad, PETS_READ)).toBe(1);
+    expect(count(bad, SOFT_DELETE_GUARD)).toBe(0);
+    expect(count(good, SOFT_DELETE_GUARD)).toBe(1);
+    // A guard that lives in a comment is prose, not a filter.
+    expect(count(commented, SOFT_DELETE_GUARD)).toBe(0);
+  });
+
+  it("has no unguarded read outside the declared debt", () => {
+    expect(violations.filter((rel) => !SOFT_DELETE_DEBT.has(rel))).toEqual([]);
+  });
+
+  it("carries no stale debt — the allowlist may only shrink", () => {
+    expect([...SOFT_DELETE_DEBT.keys()].filter((rel) => !violations.includes(rel))).toEqual([]);
+  });
 });

@@ -183,11 +183,38 @@ export async function endCaretakerGrantAtomically(
  * `withdrawn_by_platform` when an authority decided it over both parties
  * (decomiso, a resolved custody dispute).
  */
-export async function endAllLiveOwnerships(
+/**
+ * END EVERY CARETAKER ARRANGEMENT ON A PET — both halves of it.
+ *
+ * Split out of `endAllLiveOwnerships` so the PERSON-TO-PERSON transfer can
+ * reach it too. That path closes only `role='owner'` rows
+ * (`TransfersRepository.closeOwnerOwnerships`) and, before this existed, did not
+ * mention caretakers at all: an accepted grant survived a sale outright, and
+ * `caretaker-public-contact.ts` — which decides the public lost-mode disclosure
+ * from the GRANT alone, never joining `ownerships` — kept publishing a
+ * stranger's first name and phone on the new owner's credential until `ends_at`.
+ * Two copies of this rule was not an option; one definition below both is.
+ *
+ * THE TWO HALVES ARE DIFFERENT WRITES, and neither substitutes for the other:
+ *
+ *   ACCEPTED → `ended`, through the atomic three-step above (close the row,
+ *   emit `caretaker_ended`, flip the grant). The arrangement happened, so the
+ *   spine owes an ending fact.
+ *
+ *   PENDING → `cancelled`, a plain status flip with no event. `pending` is
+ *   workflow state, not a fact about the animal — there is no
+ *   `caretaker_proposed` — so there is nothing to close and nothing to record.
+ *   Leaving it is what let an invitee accept days after the hand-off onto a
+ *   STRANGER'S pet: write access on the new owner's animal, their contact
+ *   published on its credential, and a new owner who could neither cancel the
+ *   invitation (cancel is the granter's, and the granter is gone) nor designate
+ *   their own caretaker (`pet_caretaker_grants_one_pending_per_pet`). The only
+ *   exit was expiry — up to 180 days.
+ */
+export async function endCaretakerArrangementsForPet(
   args: {
     petId: string;
     outcome: GrantEndOutcome;
-    sponsorshipOutcome: SponsorshipEndOutcome;
     actorUserId: string | null;
     now: Date;
     authorRole?: AuthorRole;
@@ -196,8 +223,8 @@ export async function endAllLiveOwnerships(
   },
   tx: Tx,
 ): Promise<{ endedCaretakerGrants: EndedCaretakerGrant[] }> {
-  // Caretakers first, one at a time: each needs its grant and its event, and
-  // the blanket close below would otherwise swallow the row and leave the grant
+  // Caretakers one at a time: each needs its grant and its event, and a blanket
+  // ownership close would otherwise swallow the row and leave the grant
   // pointing at it.
   //
   // `.for("update")` IS LOAD-BEARING, and its absence was a real defect in the
@@ -209,8 +236,8 @@ export async function endAllLiveOwnerships(
   // coordinator who already approved an applicant and uploaded a signed
   // contract would see "El cuidado ya fue finalizado por otra acción." and lose
   // the adoption. With the lock, the concurrently-ended grant drops out of the
-  // result set under EvalPlanQual, the loop skips it, and the blanket close
-  // below handles the row — no throw, no abort.
+  // result set under EvalPlanQual, the loop skips it, and the caller's own close
+  // handles the row — no throw, no abort.
   const liveCaretakerGrants = await tx
     .select({
       grantId: petCaretakerGrants.id,
@@ -248,6 +275,60 @@ export async function endAllLiveOwnerships(
       tx,
     );
   }
+
+  // The pending half. `responded_at` is stamped rather than left NULL: the
+  // titular's cockpit and the drift harness both read "when was this resolved",
+  // and a NULL there is indistinguishable from a row nobody ever answered.
+  // No `ended_at`/`ended_reason` — those belong to an arrangement that existed.
+  await tx
+    .update(petCaretakerGrants)
+    .set({
+      status: "cancelled",
+      respondedAt: args.now,
+      updatedAt: args.now,
+      updatedBy: args.actorUserId,
+    })
+    .where(and(eq(petCaretakerGrants.petId, args.petId), eq(petCaretakerGrants.status, "pending")));
+
+  return {
+    endedCaretakerGrants: liveCaretakerGrants.map((g) => ({
+      grantId: g.grantId,
+      petId: args.petId,
+      caretakerUserId: g.caretakerUserId,
+      grantedByUserId: g.grantedByUserId,
+      endsAt: g.endsAt,
+    })),
+  };
+}
+
+export async function endAllLiveOwnerships(
+  args: {
+    petId: string;
+    outcome: GrantEndOutcome;
+    sponsorshipOutcome: SponsorshipEndOutcome;
+    actorUserId: string | null;
+    now: Date;
+    authorRole?: AuthorRole;
+    authorVerified?: boolean;
+    authorOrganizationId?: string | null;
+  },
+  tx: Tx,
+): Promise<{ endedCaretakerGrants: EndedCaretakerGrant[] }> {
+  // Caretakers first — accepted grants ended through the atomic three-step,
+  // pending invitations cancelled — before the blanket close below can swallow
+  // the rows they point at.
+  const { endedCaretakerGrants } = await endCaretakerArrangementsForPet(
+    {
+      petId: args.petId,
+      outcome: args.outcome,
+      actorUserId: args.actorUserId,
+      now: args.now,
+      authorRole: args.authorRole,
+      authorVerified: args.authorVerified,
+      authorOrganizationId: args.authorOrganizationId,
+    },
+    tx,
+  );
 
   // The rehome sponsorship, if the custody row it opened is about to close.
   // Keyed on the spine (`payload.ownership_id`), never on the owner +
@@ -288,15 +369,7 @@ export async function endAllLiveOwnerships(
     .set({ endedAt: args.now })
     .where(and(eq(ownerships.petId, args.petId), isNull(ownerships.endedAt)));
 
-  return {
-    endedCaretakerGrants: liveCaretakerGrants.map((g) => ({
-      grantId: g.grantId,
-      petId: args.petId,
-      caretakerUserId: g.caretakerUserId,
-      grantedByUserId: g.grantedByUserId,
-      endsAt: g.endsAt,
-    })),
-  };
+  return { endedCaretakerGrants };
 }
 
 /**

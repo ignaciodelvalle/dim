@@ -50,6 +50,15 @@ export type AcceptCaretakerGrantValue = {
   petName: string;
 };
 
+/**
+ * A refusal whose message is written FOR the invitee. The catch below surfaces
+ * it verbatim instead of the generic "volvé a intentarlo": these are decisions,
+ * not hiccups, and retrying cannot change any of them.
+ */
+class AcceptRefusal extends Error {
+  readonly name = "AcceptRefusal";
+}
+
 export async function acceptCaretakerGrant(
   input: AcceptCaretakerGrantInput,
   deps: Deps,
@@ -93,7 +102,36 @@ export async function acceptCaretakerGrant(
       // have cancelled, or the 7-day cron may have expired it.
       const locked = await repo.findGrantByIdForUpdate(grant.id, tx);
       if (!locked || locked.status !== "pending") {
-        throw new Error("Esta invitación ya no está disponible.");
+        throw new AcceptRefusal("Esta invitación ya no está disponible.");
+      }
+
+      // THE INVITATION DOES NOT SURVIVE A CHANGE OF OWNER (H4).
+      //
+      // A grant is an agreement between the TITULAR and one person. Day 0 the
+      // titular invites; day 1 the pet changes hands (a P2P transfer, an
+      // adoption finalize, a decomiso, a resolved dispute); day 2 this runs.
+      // Without the check the invitee becomes an active caretaker on a
+      // STRANGER'S pet: write access on the new owner's animal, a row in a panel
+      // nobody filled in, and — with the new owner's lost-mode disclosure toggle
+      // on — their name and phone published on that pet's public credential.
+      // The new owner has no remedy either: cancel and revoke both belong to the
+      // granter, who no longer has access, so the only exit is expiry (180 days).
+      // It is also DIRIGIBLE, not just an accident: designate an accomplice,
+      // sell the pet, have them accept inside the 7-day invitation window.
+      //
+      // INSIDE the transaction, after the locked re-read, for the same reason
+      // that re-read exists: every pre-transaction read is stale by
+      // construction, and the hand-off writers close ownership rows in a
+      // transaction of their own.
+      const granterIsStillTitular = await repo.hasLiveTitularOwnership(
+        locked.petId,
+        locked.grantedByUserId,
+        tx,
+      );
+      if (!granterIsStillTitular) {
+        throw new AcceptRefusal(
+          "Quien te invitó ya no es titular de esta mascota. Pedile al titular actual que te invite de nuevo.",
+        );
       }
 
       await repo.insertAcceptGrant(
@@ -111,6 +149,11 @@ export async function acceptCaretakerGrant(
       );
     });
   } catch (err) {
+    // A refusal is an answer, not a failure: surface the sentence written for
+    // the invitee. Anything else is an internal fault and gets the retry copy.
+    if (err instanceof AcceptRefusal) {
+      return { ok: false, error: err.message };
+    }
     console.error("[caretakers/accept] accept transaction failed:", err);
     return {
       ok: false,

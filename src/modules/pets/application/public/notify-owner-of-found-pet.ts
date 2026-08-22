@@ -16,14 +16,48 @@
 // page. Rate-limited by (IP + publicToken) via the persistent DB-backed limiter
 // to mitigate abuse across all Vercel workers. Limit: 1/min, 10/hour per key.
 //
-// ARCH-P: the single db.insert(notifications) is wrapped in try/catch so a
-// notification failure never surfaces an error to the anonymous finder (they
-// already submitted successfully at that point).
+// ARCH-P: a notification failure never surfaces an error to the anonymous
+// finder (they already submitted successfully at that point). What that
+// contract does NOT license is losing the report — see below.
+//
+// THIS ACTION IS THE WHOLE CIRCUIT (H6, review 2026-08-22)
+// ---------------------------------------------------------------------------
+// It writes no event, no case, no sighting. The notification IS the only place
+// the finder's phone number goes. So the write used to be a bare
+// `db.insert(notifications)` inside a swallowing try/catch — no dedupe key, no
+// dead-letter — and a 200 ms hiccup in the pool (a deploy, a pooler restart)
+// meant the insert failed, the error was logged, and the action returned
+// "listo". The person who has the animal walked away certain the owner had been
+// told. Nothing had been written anywhere.
+//
+// It now goes through `createNotificationsBulk`, the canonical write path,
+// which supplies the two things a raw insert here could not: a dead-letter, so
+// a failure becomes "delayed but recoverable" and the retry cron can replay it;
+// and idempotency, so that replay cannot produce a second alert. The finder
+// STILL reads "listo" on a failure, and that is deliberate (PO/skeptic call):
+// a stranger doing a favour must not be handed a scary error, and an error
+// invites a resend that the dedupe key would then swallow. The honesty lives in
+// the dead-letter, not in the copy.
+//
+// AND THE RECIPIENT WAS UNRANKED. The owner used to be picked with a `.limit(1)`
+// over every active ownership row, with no role filter and no ORDER BY. On a pet
+// with an active foster Postgres was free to return the foster, and the finder's
+// phone went to them instead of the titular — on the recovery path, which is
+// exactly where mis-routing hurts. That bug was found and fixed in the SIBLING
+// flow (ROUTE-1, audit 2026-08-04) and the fix never reached here. A row held by
+// an ORGANISATION made it worse: those carry a null user id, and when one came
+// back first this action answered "No se encontró un dueño activo" over a
+// perfectly notifiable titular. `resolveLostPetAlertRecipients` is that fix,
+// shared rather than copied.
 
-import { db, notifications, ownerships, pets } from "@/db";
+import { randomUUID } from "node:crypto";
+
+import { db, pets } from "@/db";
+import { createNotificationsBulk } from "@/lib/infra/notification-service";
+import { resolveLostPetAlertRecipients } from "@/lib/infra/pet-alert-recipients";
+import { publicPetByToken } from "@/lib/infra/public-pet-lookup";
 import { RateLimitError, callerIp, enforceRateLimit } from "@/lib/infra/rate-limit";
 import { DISPUTE_TIP_NOTICE } from "@/lib/ui/dispute-copy";
-import { and, eq, isNull } from "drizzle-orm";
 import { headers } from "next/headers";
 
 import type { PublicActionState } from "./types";
@@ -51,7 +85,10 @@ export async function notifyOwnerOfFoundPet(
       inCustodyDispute: pets.inCustodyDispute,
     })
     .from(pets)
-    .where(eq(pets.publicToken, publicToken))
+    // PO-4: the ONE public predicate, never a hand-rolled token equality. An
+    // erased subject's pet 404s at /p/{token}, so a form post that still
+    // resolved here would answer a page that no longer exists.
+    .where(publicPetByToken(publicToken))
     .limit(1);
   if (!pet) return { ok: false, error: "Mascota no encontrada." };
 
@@ -77,12 +114,14 @@ export async function notifyOwnerOfFoundPet(
   // owner-side projection; there is no public broadcast and no PII exposure
   // back to the finder.
 
-  const [owner] = await db
-    .select({ userId: ownerships.ownerUserId })
-    .from(ownerships)
-    .where(and(eq(ownerships.petId, pet.id), isNull(ownerships.endedAt)))
-    .limit(1);
-  if (!owner?.userId) return { ok: false, error: "No se encontró un dueño activo." };
+  // Who hears it. The ROUTE-1 ranking lives in lib/infra/pet-alert-recipients.ts
+  // — titular first, else the institution holding custody, else whoever is
+  // caring for the animal, with active caretakers joining as CONCURRENT
+  // recipients. Empty means nobody is notifiable at all (every holder is an
+  // organisation, or there is no live holder), which is the only case that is
+  // still an honest refusal.
+  const recipients = await resolveLostPetAlertRecipients(pet.id);
+  if (recipients.length === 0) return { ok: false, error: "No se encontró un dueño activo." };
 
   // Rate limit — consumed only AFTER validation passes (tester fix #6): a
   // rejected submission (bad token, unknown pet, disputed pet) must not burn
@@ -123,27 +162,43 @@ export async function notifyOwnerOfFoundPet(
     ? `${who} dejó un mensaje: "${safeMessage}".${contactLine}`
     : `${who} encontró a ${pet.name}.${contactLine}`;
 
-  // Insert notification — best-effort; a failure must not surface an error to the
-  // anonymous finder (they already submitted successfully).
-  const foundNotification = {
-    userId: owner.userId,
-    notificationType: "pet_found_report",
-    title: `Alguien encontró a ${pet.name}`,
-    body,
-    severity: "urgent" as const,
-    category: "perdidas",
-    relatedPetId: pet.id,
-    ctaLabel: "Ver mascota",
-    ctaUrl: `/mis-mascotas/${pet.publicToken}`,
-  };
-  try {
-    await db.insert(notifications).values(foundNotification);
-    // Web Push leg (ADR 2026-07-18 §4): urgent hallazgo, best-effort, never throws.
-    const { sendPushForNotifications } = await import("@/lib/infra/web-push");
-    await sendPushForNotifications([foundNotification]);
-  } catch (e) {
-    console.error("notifications insert failed (notifyOwnerOfFoundPetAction did succeed)", e);
-  }
+  // ONE REPORT, ONE ID — and this is what makes the dedupe key correct rather
+  // than merely present. There is no event to key on (this action writes none),
+  // and a content hash would collapse two different finders who typed the same
+  // words. A per-submission id is STABLE across the only retry that exists here
+  // — the dead-letter replay, which carries the key inside the stored payload —
+  // and DISTINCT across every genuine second report. It deliberately does NOT
+  // dedupe a human pressing send twice: the (IP, token) limiter above already
+  // refuses that, and swallowing a real second sighting would be worse than a
+  // duplicate row.
+  const reportId = randomUUID();
 
+  // One notification per recipient, IDENTICAL BODY — including the finder's
+  // contact. An active caretaker is the person physically minding the animal;
+  // a redacted copy would make the second recipient useless at the only thing
+  // they are there for. The titular loses nothing: they are ranked first.
+  //
+  // `createNotificationsBulk` never throws — it dead-letters — so there is no
+  // try/catch here. The one that used to wrap this was the bug: it turned a
+  // failed write into a logged line and a success screen.
+  await createNotificationsBulk(
+    recipients.map((recipient) => ({
+      userId: recipient.userId,
+      notificationType: "pet_found_report",
+      title: `Alguien encontró a ${pet.name}`,
+      body,
+      severity: "urgent" as const,
+      category: "perdidas",
+      relatedPetId: pet.id,
+      ctaLabel: "Ver mascota",
+      ctaUrl: `/mis-mascotas/${pet.publicToken}`,
+      dedupeKey: `found_report:${reportId}:${recipient.userId}`,
+    })),
+  );
+
+  // The Web Push leg used to be a separate dynamic import here. It lives inside
+  // the service now, which fires it only for rows that were genuinely new — so
+  // a replayed dead-letter cannot re-push "alguien encontró a tu mascota" to an
+  // owner who already got it.
   return { ok: true, error: null };
 }

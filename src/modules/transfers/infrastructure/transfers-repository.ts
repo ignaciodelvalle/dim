@@ -20,6 +20,10 @@ import {
 } from "@/db";
 import { validateEventPayload } from "@/lib/events/event-schemas";
 import { closeCase, findOpenCaseForPetAndKind, openCase } from "@/lib/infra/case-helpers";
+import {
+  type EndedCaretakerGrant,
+  endCaretakerArrangementsForPet,
+} from "@/lib/infra/end-pet-ownerships";
 import { findLiveOrgShelterCustody } from "@/lib/infra/org-custody";
 import {
   type OpenSponsorship,
@@ -351,18 +355,75 @@ export const TransfersRepository = {
   // -------------------------------------------------------------------------
 
   /**
-   * Closes all active owner ownerships for a pet (endedAt = now).
+   * Closes all active owner ownerships for a pet (endedAt = now), and ends the
+   * caretaker arrangement the outgoing owner made.
    * PARITY QUIRK: must be called BEFORE insertOwnerOwnership to satisfy the
    * unique-active-owner partial index (validates at tx commit).
+   *
+   * WHY CARETAKERS ARE ENDED HERE (H4/c). A caretaker grant is an agreement
+   * between the TITULAR and one person; when the title moves, the party who
+   * made it is gone. Adoption finalize, decomiso and dispute resolution all
+   * routed their close through `endAllLiveOwnerships`, which has always ended
+   * caretaker grants properly. The person-to-person path did not mention
+   * caretakers AT ALL, and left behind:
+   *
+   *   - an accepted grant still pointing at a `role='caretaker'` ownership row
+   *     this UPDATE never touched (it filters `role='owner'`), so a stranger
+   *     kept write access on the new owner's animal;
+   *   - that same grant feeding `caretaker-public-contact.ts`, which decides the
+   *     public lost-mode disclosure from the GRANT alone and never joins
+   *     `ownerships` — publishing a stranger's first name and phone on the new
+   *     owner's public credential until `ends_at`, up to 180 days;
+   *   - a pending invitation the new owner could neither cancel (cancel is the
+   *     granter's) nor replace (`one_pending_per_pet`).
+   *
+   * `endCaretakerArrangementsForPet` is the SAME primitive the other hand-offs
+   * use, not a second copy of the rule — that is the whole reason it was split
+   * out of `endAllLiveOwnerships`. This method deliberately does NOT call
+   * `endAllLiveOwnerships` itself: that one closes EVERY role (foster,
+   * shelter_custody) and ends rehome sponsorships, which is not what a P2P
+   * transfer between two people means.
+   *
+   * `actorUserId`/`now` are optional so the existing call sites are unchanged.
+   * Passing the accepting user is better — it signs `caretaker_ended` with the
+   * person whose acceptance caused it instead of leaving it unattributed, the
+   * way the cron does. The returned grants are what a caller needs to run
+   * `notifyCaretakersOfHandoff` AFTER the transaction commits (ARCH-P): a
+   * caretaker who may be physically holding the animal otherwise loses access
+   * with no notice at all.
    */
-  async closeOwnerOwnerships(petId: string, tx: Tx): Promise<void> {
-    const now = new Date();
+  async closeOwnerOwnerships(
+    petId: string,
+    tx: Tx,
+    args?: { actorUserId?: string | null; now?: Date },
+  ): Promise<{ endedCaretakerGrants: EndedCaretakerGrant[] }> {
+    const now = args?.now ?? new Date();
+
+    // Caretakers BEFORE the owner close: the atomic end reads the grant's own
+    // ownership row, and ordering the two the other way round would leave the
+    // event describing a row that a later blanket close had already touched.
+    const { endedCaretakerGrants } = await endCaretakerArrangementsForPet(
+      {
+        petId,
+        // Not `returned`/`revoked_by_owner`/`withdrawn_by_caretaker`/`expired`:
+        // none of those happened. The arrangement was overtaken by a change of
+        // hands it was not party to, which is exactly what this outcome exists
+        // to say — and it is the sentence the caretaker reads on their timeline.
+        outcome: "ownership_transferred",
+        actorUserId: args?.actorUserId ?? null,
+        now,
+      },
+      tx,
+    );
+
     await tx
       .update(ownerships)
       .set({ endedAt: now })
       .where(
         and(eq(ownerships.petId, petId), eq(ownerships.role, "owner"), isNull(ownerships.endedAt)),
       );
+
+    return { endedCaretakerGrants };
   },
 
   /**

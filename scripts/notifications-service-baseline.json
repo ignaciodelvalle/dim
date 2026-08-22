@@ -46,7 +46,6 @@
   "src/modules/pets/application/pregnancy/record-pregnancy-started.ts": true,
   "src/modules/pets/application/profile/govt-self-deactivate.ts": true,
   "src/modules/pets/application/profile/vet-self-resign.ts": true,
-  "src/modules/pets/application/public/notify-owner-of-found-pet.ts": true,
   "src/modules/pets/application/service-dog/revoke-service-dog-credential.ts": true,
   "src/modules/pets/application/stub-claim/claim-stub-profile.ts": true,
   "src/modules/return-to-owner/application/actor-cancel-proposal.ts": true,
