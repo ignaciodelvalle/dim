@@ -221,6 +221,8 @@ const REAL_NOTIFICATION_TYPES = [
   "rehome_request_accepted",
   "rehome_request_declined",
   "rehome_request_received",
+  "rehome_request_withdrawn",
+  "rehome_sponsorship_withdrawn",
   "revocation_executed_org",
   "revocation_executed_vet",
   "self_resignation_confirmed",

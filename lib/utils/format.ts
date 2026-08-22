@@ -1247,6 +1247,9 @@ const NOTIFICATION_TYPE_LABELS: Record<string, string> = {
   rehome_request_received: "Solicitud de re-hogar recibida",
   rehome_request_accepted: "Solicitud de nuevo hogar aceptada",
   rehome_request_declined: "Solicitud de nuevo hogar rechazada",
+  // The titular's two exits (WU4): both go to the org's admins.
+  rehome_request_withdrawn: "Solicitud de nuevo hogar cancelada por el titular",
+  rehome_sponsorship_withdrawn: "Acompañamiento de adopción dado de baja",
   // Scans
   first_stranger_scan: "Primer escaneo de un desconocido",
   // Onboarding

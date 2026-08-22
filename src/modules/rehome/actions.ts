@@ -13,11 +13,14 @@
 // NO business logic. Reference shape: src/modules/caretakers/actions.ts.
 //
 // AUTH-SCOPE CONTRACT — the asymmetry that defines this module:
-//   - request is a TITULAR action: `requireTitularAccess` PLUS an explicit
-//     `holderRole === "owner"` check. The titular gate denies a caretaker; it
-//     lets a foster and a co-owner through (by design, for the other titular
-//     actions), and NEITHER may consent to hand the animal's listing to an org
-//     (spec REQ-1, REQ-14). The use-case re-asserts the live owner row.
+//   - request / cancel / withdraw are TITULAR actions: `requireTitularAccess`
+//     PLUS an explicit `holderRole === "owner"` check. The titular gate denies
+//     a caretaker; it lets a foster and a co-owner through (by design, for the
+//     other titular actions), and NEITHER may consent to hand the animal's
+//     listing to an org, nor take it back (spec REQ-1, REQ-14). The use-cases
+//     re-assert the live owner row. The withdraw is the first PERSON-PATH
+//     writer of `adoptionListedAt` and of `rehome_sponsorship_ended`, both
+//     titular-only effects — scripts/check-titular-gate.ts is live for it.
 //   - accept / decline are ORG actions reached from /org/{orgToken}/…:
 //     `requireCapabilityForOrgToken` pins the capability to the URL org, and
 //     the use-case re-checks `receiverOrganizationId === organization.id`
@@ -37,6 +40,8 @@ import {
   type RehomeDecision,
   respondToRehomeRequest,
 } from "./application/respond-to-rehome-request";
+import { withdrawRehomeRequest } from "./application/withdraw-rehome-request";
+import { withdrawRehomeSponsorship } from "./application/withdraw-rehome-sponsorship";
 import { RehomeRepository } from "./infrastructure/rehome-repository";
 
 import type { NewNotification } from "./application/types";
@@ -157,4 +162,74 @@ export async function respondToRehomeRequestAction(
   revalidatePath(`/mis-mascotas/${result.value.petPublicToken}`);
   if (decision === "accept") revalidatePath("/adoptar");
   return { ok: true, decision, petPublicToken: result.value.petPublicToken };
+}
+
+// ---------------------------------------------------------------------------
+// The titular's two exits. Both return the destination (contract N3): the
+// calling form navigates; the action never calls redirect().
+// ---------------------------------------------------------------------------
+
+export type WithdrawRehomeActionInput = { petPublicToken: string };
+
+export type WithdrawRehomeActionResult = { ok: true; redirectTo: string } | { error: string };
+
+// ---------------------------------------------------------------------------
+// withdrawRehomeSponsorshipAction — the titular ends an ACTIVE sponsorship
+// AUTH: requireTitularAccess + live owner role (REQ-8, REQ-10)
+// ---------------------------------------------------------------------------
+
+export async function withdrawRehomeSponsorshipAction(
+  input: WithdrawRehomeActionInput,
+): Promise<WithdrawRehomeActionResult> {
+  const access = await requireTitularAccess(input.petPublicToken);
+  if (!access.ok) return { error: access.error };
+  if (access.accessPath !== "owner" || access.holderRole !== "owner") {
+    return { error: NOT_TITULAR_ERROR };
+  }
+
+  const result = await withdrawRehomeSponsorship(
+    { petPublicToken: input.petPublicToken, titularUserId: access.user.id },
+    deps(),
+  );
+  if (!result.ok) return { error: result.error };
+
+  await flushNotifications(result.notifications);
+  revalidatePath(`/mis-mascotas/${input.petPublicToken}`);
+  revalidatePath("/mis-mascotas");
+  revalidatePath("/adoptar");
+  revalidatePath(`/adoptar/${input.petPublicToken}`);
+  if (result.value.listingCasePublicCode) {
+    revalidatePath(`/casos/${result.value.listingCasePublicCode}`);
+  }
+  if (result.value.sponsoringOrganizationPublicToken) {
+    revalidatePath(`/org/${result.value.sponsoringOrganizationPublicToken}/casos`);
+  }
+  return { ok: true, redirectTo: `/mis-mascotas/${input.petPublicToken}` };
+}
+
+// ---------------------------------------------------------------------------
+// withdrawRehomeRequestAction — the titular cancels a PENDING request
+// AUTH: requireTitularAccess + live owner role (REQ-3)
+// ---------------------------------------------------------------------------
+
+export async function withdrawRehomeRequestAction(
+  input: WithdrawRehomeActionInput,
+): Promise<WithdrawRehomeActionResult> {
+  const access = await requireTitularAccess(input.petPublicToken);
+  if (!access.ok) return { error: access.error };
+  if (access.accessPath !== "owner" || access.holderRole !== "owner") {
+    return { error: NOT_TITULAR_ERROR };
+  }
+
+  const result = await withdrawRehomeRequest(
+    { petPublicToken: input.petPublicToken, titularUserId: access.user.id },
+    deps(),
+  );
+  if (!result.ok) return { error: result.error };
+
+  await flushNotifications(result.notifications);
+  revalidatePath(`/mis-mascotas/${input.petPublicToken}`);
+  revalidatePath("/mis-mascotas");
+  revalidatePath(`/casos/${result.value.casePublicCode}`);
+  return { ok: true, redirectTo: `/mis-mascotas/${input.petPublicToken}` };
 }

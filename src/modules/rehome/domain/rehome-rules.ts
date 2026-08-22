@@ -1,6 +1,6 @@
 // Pure rules of the rehome-by-titular flow — no DB, no framework.
 //
-// Two moments, two rule sets:
+// Four moments, four rule sets:
 //   - REQUEST (spec REQ-1, REQ-16): whom a titular may ask, and when.
 //   - ACCEPT (design ADR-1 steps 1-4, plus 1b from the WU3 review): what must
 //     still be true, under the case lock, before the org is granted a custody
@@ -8,6 +8,11 @@
 //     still qualifies to sponsor. The use-case runs these INSIDE the
 //     transaction on freshly re-read rows; a pre-transaction read is stale by
 //     construction.
+//   - WITHDRAW (spec REQ-8, REQ-10, REQ-15): the titular ends a running
+//     sponsorship. Unconditional on the org's side — the only questions are
+//     "is this the titular" and "is there something to withdraw".
+//   - CANCEL (spec REQ-3): the titular closes a request the org has not
+//     answered yet. Nothing about the animal is involved.
 //
 // Every rule returns the es-AR refusal the user reads. The ORDER inside
 // validateAcceptPreconditions is the design's order and is pinned by a test:
@@ -17,6 +22,15 @@
 import { formatDate } from "@/lib/utils/format";
 
 export type RuleResult = { ok: true } | { ok: false; error: string };
+
+/**
+ * The refusal every titular-only rehome action shows a non-titular. One
+ * sentence for request, cancel and withdraw: the action edge says it after
+ * `requireTitularAccess`, and the use-cases say it again when the live
+ * `owner` row is not the caller's (REQ-1, REQ-14).
+ */
+export const NOT_TITULAR_ERROR =
+  "Solo el titular de la mascota puede pedir, cancelar o dar de baja un acompañamiento de adopción.";
 
 /** Org types allowed to sponsor a listing. Mirrors the adoption catalog's filter. */
 export const REHOME_ELIGIBLE_ORG_TYPES: readonly string[] = ["shelter", "rescue_network"];
@@ -173,6 +187,63 @@ export function validateAcceptPreconditions(s: AcceptSnapshot): RuleResult {
         s.pet.adoptionIneligibleUntil,
       )}. Ese plazo tiene que vencer antes de aceptar el acompañamiento.`,
     };
+  }
+  return { ok: true };
+}
+
+// ---------------------------------------------------------------------------
+// WITHDRAW — the titular ends an active sponsorship (REQ-8, REQ-10, REQ-15)
+// ---------------------------------------------------------------------------
+
+export const NO_ACTIVE_SPONSORSHIP_ERROR =
+  "Esta mascota no tiene un acompañamiento de adopción activo.";
+
+export type WithdrawSponsorshipSnapshot = {
+  /** The caller holds the live `owner` row, read FOR UPDATE inside the transaction. */
+  titularOwnerRowLive: boolean;
+  /** The unmatched `rehome_sponsorship_started`, keyed on the spine. */
+  openSponsorship: { ownershipId: string } | null;
+};
+
+/**
+ * Deliberately NOTHING about the org here — not its verification, not its
+ * reachability, not whether it paused the listing or is mid-review of an
+ * applicant. REQ-10: the titular's route back never depends on the org.
+ */
+export function validateWithdrawSponsorship(s: WithdrawSponsorshipSnapshot): RuleResult {
+  if (!s.titularOwnerRowLive) return { ok: false, error: NOT_TITULAR_ERROR };
+  if (!s.openSponsorship) return { ok: false, error: NO_ACTIVE_SPONSORSHIP_ERROR };
+  return { ok: true };
+}
+
+// ---------------------------------------------------------------------------
+// CANCEL — the titular withdraws a request before it is answered (REQ-3)
+// ---------------------------------------------------------------------------
+
+export const NO_PENDING_REQUEST_ERROR =
+  "No hay una solicitud de nuevo hogar pendiente para esta mascota.";
+
+export type WithdrawRequestSnapshot = {
+  caseKind: string;
+  caseStatus: string;
+  /** `cases.opened_by_user_id` — the titular who sent it. */
+  caseOpenedByUserId: string | null;
+  actingUserId: string;
+};
+
+/**
+ * The request is the opener's to cancel. A later titular (after a transfer)
+ * holds the owner row but did not send this request; they open their own.
+ */
+export function validateWithdrawRequest(s: WithdrawRequestSnapshot): RuleResult {
+  if (s.caseKind !== "rehome_request") {
+    return { ok: false, error: "Este caso no es una solicitud de nuevo hogar." };
+  }
+  if (s.caseStatus !== "open") {
+    return { ok: false, error: "Esta solicitud ya fue respondida o cancelada." };
+  }
+  if (s.caseOpenedByUserId !== s.actingUserId) {
+    return { ok: false, error: "Solo quien envió la solicitud puede cancelarla." };
   }
   return { ok: true };
 }

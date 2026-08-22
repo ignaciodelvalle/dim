@@ -9,8 +9,10 @@
 // use-case owns the ORDER of the accept transaction (design ADR-1), the
 // repository owns the SQL of each step.
 //
-// Two halves: the REQUEST half (the titular asks) and the ANSWER half (the org
-// accepts or declines). Each use-case depends on its own half only.
+// Three parts: the REQUEST part (the titular asks), the ANSWER part (the org
+// accepts or declines) and the WITHDRAW part (the titular cancels a pending
+// request or ends a running sponsorship). Each use-case depends on its own
+// part only.
 
 export type PetSummary = {
   id: string;
@@ -98,7 +100,8 @@ export type CloseRequestCaseArgs = {
   caseId: string;
   reason: "resolved" | "cancelled";
   closedByUserId: string;
-  decision: "accepted" | "declined";
+  /** `withdrawn` is the titular's own cancel before an answer (REQ-3). */
+  decision: "accepted" | "declined" | "withdrawn";
   organizationId: string;
   /** The `case_closed` timeline note the titular reads (spec REQ-5). */
   timelineNote: string;
@@ -136,4 +139,46 @@ export interface RehomeAnswerPort {
   closeRequestCase(args: CloseRequestCaseArgs, tx: unknown): Promise<void>;
 }
 
-export type RehomeRepositoryPort = RehomeRequestPort & RehomeAnswerPort;
+/** The unmatched `rehome_sponsorship_started`, keyed on the spine. */
+export type OpenSponsorshipRef = { ownershipId: string; sponsoringOrganizationId: string };
+
+export type EndSponsorshipByTitularArgs = { petId: string; titularUserId: string; now: Date };
+
+export type CloseListingCaseArgs = {
+  caseId: string;
+  closedByUserId: string;
+  organizationId: string;
+  /** The `case_closed` timeline note both the titular and the org read. */
+  timelineNote: string;
+  now: Date;
+};
+
+export interface RehomeWithdrawPort {
+  findPetByToken(publicToken: string): Promise<PetSummary | null>;
+  findLiveOwnerRow(petId: string, userId: string, tx?: unknown): Promise<{ id: string } | null>;
+  /** The titular's live `owner` row, FOR UPDATE: the withdraw is the titular's act and no one else's. */
+  lockLiveOwnerRow(petId: string, userId: string, tx: unknown): Promise<{ id: string } | null>;
+  findOrgById(orgId: string, tx?: unknown): Promise<SponsorOrg | null>;
+  orgAdminAndCoordinatorUserIds(orgId: string): Promise<string[]>;
+  findDisplayName(userId: string): Promise<string | null>;
+  // --- withdraw an active sponsorship ---
+  findOpenSponsorshipForPet(petId: string, tx: unknown): Promise<OpenSponsorshipRef | null>;
+  /** Closes the custody row the sponsorship opened. `ended: false` when it was already closed. */
+  endCustodyRow(ownershipId: string, now: Date, tx: unknown): Promise<{ ended: boolean }>;
+  /** Clears `adoptionListedAt` and `adoptionListingPausedAt` — the adoption writer, reused. */
+  unpublishListing(args: { petId: string; now: Date }, tx: unknown): Promise<void>;
+  /** `rehome_sponsorship_ended{withdrawn_by_titular}`, signed by the titular. */
+  endSponsorshipByTitular(args: EndSponsorshipByTitularArgs, tx: unknown): Promise<void>;
+  findOpenListingCase(
+    petId: string,
+    orgId: string,
+    tx: unknown,
+  ): Promise<{ id: string; publicCode: string } | null>;
+  closeListingCase(args: CloseListingCaseArgs, tx: unknown): Promise<void>;
+  // --- cancel a pending request ---
+  findOpenRequestForPet(petId: string): Promise<RequestCase | null>;
+  lockRequestCase(caseId: string, tx: unknown): Promise<RequestCase | null>;
+  closeRequestCase(args: CloseRequestCaseArgs, tx: unknown): Promise<void>;
+}
+
+export type RehomeRepositoryPort = RehomeRequestPort & RehomeAnswerPort & RehomeWithdrawPort;

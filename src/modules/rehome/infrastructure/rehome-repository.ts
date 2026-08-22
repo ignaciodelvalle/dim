@@ -36,14 +36,20 @@ import {
   openCase,
 } from "@/lib/infra/case-helpers";
 import { AdoptionRepository } from "@/src/modules/adoption/infrastructure/adoption-repository";
-import { findOpenSponsorship } from "@/src/modules/adoption/infrastructure/rehome-sponsorship-writer";
+import {
+  endRehomeSponsorship,
+  findOpenSponsorship,
+} from "@/src/modules/adoption/infrastructure/rehome-sponsorship-writer";
 
 import type {
+  CloseListingCaseArgs,
   CloseRequestCaseArgs,
+  EndSponsorshipByTitularArgs,
   InsertShelterCustodyArgs,
   InsertSponsorshipStartedArgs,
   MarkEligibleArgs,
   OpenRequestCaseArgs,
+  OpenSponsorshipRef,
   PetSummary,
   RehomeRepositoryPort,
   RequestCase,
@@ -64,6 +70,39 @@ const PET_SUMMARY_COLUMNS = {
   rabiesObservationStatus: pets.rabiesObservationStatus,
   adoptionIneligibleUntil: pets.adoptionIneligibleUntil,
 } as const;
+
+/**
+ * Close a case and leave the prose the people involved read. The case row
+ * carries the category (`resolved` / `cancelled`) and the actor; the timeline
+ * entry carries who did what, naming the org — spec REQ-5's "distinguishable
+ * from every other `cancelled`". Shared by the org's answer, the titular's
+ * cancel and the titular's withdraw.
+ */
+async function closeCaseWithNote(
+  args: {
+    caseId: string;
+    reason: "resolved" | "cancelled";
+    closedByUserId: string;
+    decision: "accepted" | "declined" | "withdrawn";
+    organizationId: string;
+    timelineNote: string;
+    now: Date;
+  },
+  client: Tx,
+): Promise<void> {
+  await closeCase(
+    { caseId: args.caseId, reason: args.reason, closedByUserId: args.closedByUserId },
+    client,
+  );
+  await client.insert(caseEvents).values({
+    caseId: args.caseId,
+    entryType: "case_closed",
+    notes: args.timelineNote,
+    recordedByUserId: args.closedByUserId,
+    occurredAt: args.now,
+    payload: { rehome_decision: args.decision, organization_id: args.organizationId },
+  });
+}
 
 function toRequestCase(row: {
   id: string;
@@ -407,18 +446,74 @@ export const RehomeRepository = {
    * "distinguishable from every other `cancelled`".
    */
   async closeRequestCase(args: CloseRequestCaseArgs, tx: unknown): Promise<void> {
+    await closeCaseWithNote(args, tx as Tx);
+  },
+
+  // -------------------------------------------------------------------------
+  // Writes — withdraw (inside the caller's transaction)
+  // -------------------------------------------------------------------------
+
+  async findOpenSponsorshipForPet(petId: string, tx: unknown): Promise<OpenSponsorshipRef | null> {
+    return findOpenSponsorship(petId, tx as Tx);
+  },
+
+  /**
+   * Closes the custody row the sponsorship opened — by id, never by the
+   * (pet, org) shape. `ended: false` means someone already closed it without
+   * writing the closing event; the withdraw goes on regardless (REQ-10 — the
+   * titular's route back is unconditional) and lint:spine would have named
+   * the orphan.
+   */
+  async endCustodyRow(ownershipId: string, now: Date, tx: unknown): Promise<{ ended: boolean }> {
     const client = tx as Tx;
-    await closeCase(
-      { caseId: args.caseId, reason: args.reason, closedByUserId: args.closedByUserId },
-      client,
+    const rows = await client
+      .update(ownerships)
+      .set({ endedAt: now })
+      .where(and(eq(ownerships.id, ownershipId), isNull(ownerships.endedAt)))
+      .returning({ id: ownerships.id });
+    return { ended: rows.length > 0 };
+  },
+
+  /** The adoption writer, reused: clears `adoptionListedAt` and the pause. */
+  async unpublishListing(args: { petId: string; now: Date }, tx: unknown): Promise<void> {
+    await AdoptionRepository.setListingStatus(
+      { petId: args.petId, action: "unpublish", currentListedAt: null, now: args.now },
+      tx as Tx,
     );
-    await client.insert(caseEvents).values({
-      caseId: args.caseId,
-      entryType: "case_closed",
-      notes: args.timelineNote,
-      recordedByUserId: args.closedByUserId,
-      occurredAt: args.now,
-      payload: { rehome_decision: args.decision, organization_id: args.organizationId },
-    });
+  },
+
+  /**
+   * The closing fact, signed by the TITULAR: `owner`, no org, not verified —
+   * the person-path authorship every owner-written event carries. Attaches
+   * to the open `adoption_listing` case (attaches-when-open), so the caller
+   * writes it BEFORE closing that case.
+   */
+  async endSponsorshipByTitular(args: EndSponsorshipByTitularArgs, tx: unknown): Promise<void> {
+    await endRehomeSponsorship(
+      {
+        petId: args.petId,
+        outcome: "withdrawn_by_titular",
+        recordedByUserId: args.titularUserId,
+        authorRole: "owner",
+        authorOrganizationId: null,
+        authorVerified: false,
+        now: args.now,
+      },
+      tx as Tx,
+    );
+  },
+
+  async findOpenListingCase(
+    petId: string,
+    orgId: string,
+    tx: unknown,
+  ): Promise<{ id: string; publicCode: string } | null> {
+    const row = await findOpenAdoptionListingCase(petId, orgId, tx as Tx);
+    return row ? { id: row.id, publicCode: row.publicCode } : null;
+  },
+
+  /** The sponsorship itself, closed `cancelled` by the titular, with the prose both sides read. */
+  async closeListingCase(args: CloseListingCaseArgs, tx: unknown): Promise<void> {
+    await closeCaseWithNote({ ...args, reason: "cancelled", decision: "withdrawn" }, tx as Tx);
   },
 } satisfies RehomeRepositoryPort;

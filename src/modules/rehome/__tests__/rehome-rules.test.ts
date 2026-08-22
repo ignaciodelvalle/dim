@@ -9,6 +9,8 @@ import {
   validateDeclinePreconditions,
   validateRequestOpen,
   validateSponsorTarget,
+  validateWithdrawRequest,
+  validateWithdrawSponsorship,
 } from "../domain/rehome-rules";
 
 describe("validateSponsorTarget — who may be asked to sponsor", () => {
@@ -235,5 +237,62 @@ describe("validateDeclinePreconditions — only step 1 applies", () => {
     expect(validateDeclinePreconditions(base)).toEqual({ ok: true });
     expect(validateDeclinePreconditions({ ...base, caseStatus: "closed" }).ok).toBe(false);
     expect(validateDeclinePreconditions({ ...base, actingOrganizationId: "org-b" }).ok).toBe(false);
+  });
+});
+
+// WU4. The titular's withdraw is unconditional on the ORG's side (REQ-8,
+// REQ-10: no waiting period, no org sign-off, no org reachability) — the only
+// two things it checks are about the titular and about there being something
+// to withdraw.
+describe("validateWithdrawSponsorship — the titular ends an active sponsorship (REQ-8, REQ-10)", () => {
+  const open = { ownershipId: "cust-1" };
+
+  it("passes for the live titular while a sponsorship is running", () => {
+    expect(
+      validateWithdrawSponsorship({ titularOwnerRowLive: true, openSponsorship: open }),
+    ).toEqual({ ok: true });
+  });
+
+  it("rejects anyone who does not hold the live owner row (a foster, a caretaker, an ex-owner)", () => {
+    const r = validateWithdrawSponsorship({ titularOwnerRowLive: false, openSponsorship: open });
+    expect(r.ok).toBe(false);
+    if (!r.ok) expect(r.error).toMatch(/titular/);
+  });
+
+  it("rejects when nothing is running — there is nothing to withdraw", () => {
+    const r = validateWithdrawSponsorship({ titularOwnerRowLive: true, openSponsorship: null });
+    expect(r.ok).toBe(false);
+    if (!r.ok) expect(r.error).toMatch(/no tiene un acompañamiento .*activo/);
+  });
+});
+
+describe("validateWithdrawRequest — the titular cancels a request before it is answered (REQ-3)", () => {
+  const base = {
+    caseKind: "rehome_request",
+    caseStatus: "open",
+    caseOpenedByUserId: "user-titular",
+    actingUserId: "user-titular",
+  };
+
+  it("passes for the user who opened the still-open request", () => {
+    expect(validateWithdrawRequest(base)).toEqual({ ok: true });
+  });
+
+  it("rejects a case of another kind", () => {
+    const r = validateWithdrawRequest({ ...base, caseKind: "adoption_listing" });
+    expect(r.ok).toBe(false);
+    if (!r.ok) expect(r.error).toMatch(/no es una solicitud de nuevo hogar/);
+  });
+
+  it("rejects once the request is no longer open — answered or already cancelled", () => {
+    const r = validateWithdrawRequest({ ...base, caseStatus: "closed" });
+    expect(r.ok).toBe(false);
+    if (!r.ok) expect(r.error).toMatch(/ya fue respondida o cancelada/);
+  });
+
+  it("rejects a different user than the one who opened it", () => {
+    const r = validateWithdrawRequest({ ...base, actingUserId: "user-other" });
+    expect(r.ok).toBe(false);
+    if (!r.ok) expect(r.error).toMatch(/quien envió la solicitud/);
   });
 });

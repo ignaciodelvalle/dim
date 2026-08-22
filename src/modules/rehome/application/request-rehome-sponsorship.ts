@@ -15,12 +15,18 @@
 import { matchesDbError } from "@/lib/infra/db-errors";
 
 import {
+  NOT_TITULAR_ERROR,
   OPEN_REQUEST_PENDING_ERROR,
   validateRequestOpen,
   validateSponsorTarget,
 } from "../domain/rehome-rules";
 import type { RehomeRequestPort } from "./ports";
 import type { NewNotification, UseCaseResult } from "./types";
+
+// The action edge imports the sentence from here, next to the use-case it
+// guards; the definition lives in the domain since WU4 because the cancel and
+// withdraw use-cases say the same thing.
+export { NOT_TITULAR_ERROR };
 
 type Deps = {
   repo: RehomeRequestPort;
@@ -38,9 +44,6 @@ export type RequestRehomeSponsorshipValue = {
   casePublicCode: string;
   orgDisplayName: string;
 };
-
-export const NOT_TITULAR_ERROR =
-  "Solo el titular de la mascota puede pedir un acompañamiento de adopción.";
 
 export async function requestRehomeSponsorship(
   input: RequestRehomeSponsorshipInput,

@@ -14,10 +14,17 @@
 // Opens: atomically with the titular's request action — the welfare_denuncia
 //   shape. NO pet_events opener: a pending request is workflow state, not a
 //   fact about the animal (same rule as the absent `caretaker_proposed`).
-// Terminal: the org's answer, or the titular's own withdrawal before an
-//   answer. The action flips `cases.status`; nothing on the spine does.
-//   `rehome_sponsorship_started` attaches to THIS case (requires-open) and is
-//   written one step before the close, while the case is still open.
+// Terminal: TWO action-closes, no event terminal —
+//   - the org's answer (src/modules/rehome/application/respond-to-rehome-request.ts):
+//     accept → resolved, decline → cancelled;
+//   - the titular's own cancel before an answer
+//     (src/modules/rehome/application/withdraw-rehome-request.ts) → cancelled.
+//   Both flip `cases.status` from the action; nothing on the spine does.
+//   `manualCloseAllowed` stays false: that flag is the admin/govt GENERIC close
+//   button on the case detail, and this request is the parties' to close, not
+//   an operator's. `rehome_sponsorship_started` attaches to THIS case
+//   (requires-open) and is written one step before the accept's close, while
+//   the case is still open.
 // Cron: NONE in v1. No expiry, on purpose — the titular is never blocked from
 //   withdrawing, so nothing needs a deadline (design risk R3 is accepted).
 //
