@@ -45,6 +45,7 @@ const supabaseAdmin = createSupabaseClient(SUPABASE_URL, SECRET, {
 const USERS = {
   titular: "rehome-flow-titular@dim-test.local",
   fosterer: "rehome-flow-fosterer@dim-test.local",
+  caretaker: "rehome-flow-caretaker@dim-test.local",
   coowner: "rehome-flow-coowner@dim-test.local",
   coordA: "rehome-flow-coord-a@dim-test.local",
   coordB: "rehome-flow-coord-b@dim-test.local",
@@ -214,6 +215,12 @@ beforeAll(async () => {
   await db
     .insert(ownerships)
     .values({ petId, ownerUserId: ids.fosterer, role: "foster", startedAt: now });
+  // A caretaker (custodia temporal) on the same pet, for REQ-14's third
+  // clause: the deny-list names the role explicitly, and the rule needs a
+  // runtime fixture, not only the foster/co_owner siblings (verify report S-2).
+  await db
+    .insert(ownerships)
+    .values({ petId, ownerUserId: ids.caretaker, role: "caretaker", startedAt: now });
 });
 
 afterAll(async () => {
@@ -239,6 +246,19 @@ describe("request — who may ask, and whom (REQ-1, REQ-16)", () => {
   it("a foster on the pet cannot open a rehome_request — no case is created", async () => {
     const r = await requestRehomeSponsorship(
       { petPublicToken: PET_TOKEN, titularUserId: ids.fosterer, targetOrgId: orgAId },
+      deps(),
+    );
+    expect(r.ok).toBe(false);
+    if (!r.ok) expect(r.error).toMatch(/titular/);
+    expect(await requestCasesForPet()).toHaveLength(0);
+  });
+
+  it("a caretaker on the pet cannot open a rehome_request — REQ-14 names the role, the fixture holds the row", async () => {
+    // `caretaker` is a live ownership row like foster's, granted by the titular
+    // for a bounded period (custodia temporal). It may record medical events;
+    // consent to hand the listing to an org is the titular's alone.
+    const r = await requestRehomeSponsorship(
+      { petPublicToken: PET_TOKEN, titularUserId: ids.caretaker, targetOrgId: orgAId },
       deps(),
     );
     expect(r.ok).toBe(false);
@@ -328,7 +348,7 @@ describe("request — who may ask, and whom (REQ-1, REQ-16)", () => {
       .where(eq(petEvents.petId, petId));
     expect(events).toHaveLength(0);
     const live = await liveOwnerships();
-    expect(live.map((o) => o.role).sort()).toEqual(["foster", "owner"]);
+    expect(live.map((o) => o.role).sort()).toEqual(["caretaker", "foster", "owner"]);
     expect(live.find((o) => o.role === "owner")?.id).toBe(titularOwnershipId);
   });
 
@@ -415,7 +435,7 @@ describe("decline — the case closes with a reason the titular can read (REQ-5)
     expect((entry?.payload as { rehome_decision?: string }).rehome_decision).toBe("declined");
 
     const live = await liveOwnerships();
-    expect(live.map((o) => o.role).sort()).toEqual(["foster", "owner"]);
+    expect(live.map((o) => o.role).sort()).toEqual(["caretaker", "foster", "owner"]);
     const events = await db
       .select({ id: petEvents.id })
       .from(petEvents)
@@ -470,7 +490,11 @@ describe("accept — custody opens beside the owner row, consent goes on the spi
     expect(r.ok).toBe(false);
     if (!r.ok) expect(r.error).toMatch(/disputa de custodia/);
     expect((await openRequest())?.publicCode).toBe(secondCode);
-    expect((await liveOwnerships()).map((o) => o.role).sort()).toEqual(["foster", "owner"]);
+    expect((await liveOwnerships()).map((o) => o.role).sort()).toEqual([
+      "caretaker",
+      "foster",
+      "owner",
+    ]);
   });
 
   it("step 4: a time-boxed ineligibility set by an earlier custodian is refused, not erased (L-3)", async () => {
@@ -492,7 +516,11 @@ describe("accept — custody opens beside the owner row, consent goes on the spi
       expect(r.ok).toBe(false);
       if (!r.ok) expect(r.error).toMatch(/no apta para adopción hasta/);
       expect((await openRequest())?.publicCode).toBe(secondCode);
-      expect((await liveOwnerships()).map((o) => o.role).sort()).toEqual(["foster", "owner"]);
+      expect((await liveOwnerships()).map((o) => o.role).sort()).toEqual([
+        "caretaker",
+        "foster",
+        "owner",
+      ]);
       const [pet] = await db
         .select({ until: pets.adoptionIneligibleUntil, reason: pets.adoptionIneligibleReason })
         .from(pets)
@@ -521,7 +549,11 @@ describe("accept — custody opens beside the owner row, consent goes on the spi
     await db.update(ownerships).set({ endedAt: null }).where(eq(ownerships.id, titularOwnershipId));
     expect(r.ok).toBe(false);
     if (!r.ok) expect(r.error).toMatch(/ya no es titular/);
-    expect((await liveOwnerships()).map((o) => o.role).sort()).toEqual(["foster", "owner"]);
+    expect((await liveOwnerships()).map((o) => o.role).sort()).toEqual([
+      "caretaker",
+      "foster",
+      "owner",
+    ]);
   });
 
   it("step 1b: an org de-verified since the request is refused under the lock — zero writes", async () => {
@@ -536,7 +568,11 @@ describe("accept — custody opens beside the owner row, consent goes on the spi
       expect(r.ok).toBe(false);
       if (!r.ok) expect(r.error).toMatch(/no está verificada/);
       expect((await openRequest())?.publicCode).toBe(secondCode);
-      expect((await liveOwnerships()).map((o) => o.role).sort()).toEqual(["foster", "owner"]);
+      expect((await liveOwnerships()).map((o) => o.role).sort()).toEqual([
+        "caretaker",
+        "foster",
+        "owner",
+      ]);
       const events = await db
         .select({ id: petEvents.id })
         .from(petEvents)
@@ -559,7 +595,11 @@ describe("accept — custody opens beside the owner row, consent goes on the spi
       expect(r.ok).toBe(false);
       if (!r.ok) expect(r.error).toMatch(/refugio o una red de rescate/);
       expect((await openRequest())?.publicCode).toBe(secondCode);
-      expect((await liveOwnerships()).map((o) => o.role).sort()).toEqual(["foster", "owner"]);
+      expect((await liveOwnerships()).map((o) => o.role).sort()).toEqual([
+        "caretaker",
+        "foster",
+        "owner",
+      ]);
     } finally {
       await db
         .update(organizations)
@@ -628,7 +668,12 @@ describe("accept — custody opens beside the owner row, consent goes on the spi
       // are byte-identical to before the call.
       expect((await openRequest())?.publicCode).toBe(secondCode);
       const live = await liveOwnerships();
-      expect(live.map((o) => o.role).sort()).toEqual(["foster", "owner", "shelter_custody"]);
+      expect(live.map((o) => o.role).sort()).toEqual([
+        "caretaker",
+        "foster",
+        "owner",
+        "shelter_custody",
+      ]);
       expect(live.find((o) => o.role === "shelter_custody")?.org).toBe(orgBId);
       const events = await db
         .select({ id: petEvents.id })
@@ -652,7 +697,12 @@ describe("accept — custody opens beside the owner row, consent goes on the spi
     // Ownership: the titular's row is UNTOUCHED, the org's row is NEW, no foster
     // row was created for the titular (the fixture's foster row is the other user's).
     const live = await liveOwnerships();
-    expect(live.map((o) => o.role).sort()).toEqual(["foster", "owner", "shelter_custody"]);
+    expect(live.map((o) => o.role).sort()).toEqual([
+      "caretaker",
+      "foster",
+      "owner",
+      "shelter_custody",
+    ]);
     expect(live.find((o) => o.role === "owner")?.id).toBe(titularOwnershipId);
     const custody = live.find((o) => o.role === "shelter_custody");
     expect(custody?.id).toBe(r.value.ownershipId);

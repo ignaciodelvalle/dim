@@ -147,6 +147,7 @@ Two titular-only event types (migration 0194), payloads in
 
 - `rehome_sponsorship_started { ownership_id, sponsoring_organization_id, consented_by_user_id, request_case_public_code, listing_case_id, note }` — written in the accept, attached to the request case (`requires-open`).
 - `rehome_sponsorship_ended { ownership_id, outcome, ended_at }` — `outcome ∈ adopted | withdrawn_by_titular | ended_by_org | pet_deceased | withdrawn_by_platform`; attaches to the listing case while open. The key is `outcome`, **never** `reason` (the erasure RPC redacts `reason` on every type).
+  - **`ended_by_org` is RESERVED vocabulary with no writer.** Design R7's "the org resigns the accompaniment" path was not built (REQ-15: the org cannot end the arrangement against the titular; it can only pause/unpublish the listing, REQ-6). The value stays in the schema so a future org-side resign writes a recognised outcome instead of widening a CHECK under load, and so `lint:spine`'s orphan arm and the rollback script keep one closed list to reason over. Nothing in the tree emits it; a reader that switches on `outcome` must still handle it. (Verify report S-3, 2026-08-22.)
 
 `ownership_id` is what lets rollback, drift detection (`lint:spine`'s
 orphaned-sponsorship arm) and audit say WHICH custody row belongs to a
@@ -185,8 +186,10 @@ The data step runs BEFORE the app commit is reverted.
    transaction: pet lock → re-read on the spine → close the custody row by id
    → clear the listing → `rehome_sponsorship_ended{withdrawn_by_platform}`
    through the single writer → close the listing case and its application
-   cases as cancelled with a note. Every still-open `rehome_request` is closed
-   as cancelled. **Orphans** (a started event whose row already closed without
+   cases as cancelled with a note. The applications are **not resolved on the
+   spine**: a resolution needs a reviewer to sign it and the platform has none
+   (script header, "WHAT IT DOES" step 5). Every still-open `rehome_request`
+   is closed as cancelled. **Orphans** (a started event whose row already closed without
    its event) are listed through `lint:spine`'s query and **skipped** — they
    are drift to heal by hand, and ending them here would stamp a platform
    withdrawal onto an arrangement that ended months ago.
@@ -206,9 +209,15 @@ Tests: `__tests__/rollback-rehome-sponsorships.test.ts` (rows),
 
 ## Known follow-ups (not bugs of this module)
 
-- `resolveApplication` never closes the `adoption_application` case on
-  approve/reject/finalize (pre-existing); the withdraw and death cascades close
-  theirs explicitly.
+- ~~`resolveApplication` never closes the `adoption_application` case on
+  approve/reject/finalize~~ — retired 2026-08-22
+  (`src/modules/adoption/infrastructure/application-case-close.ts`): reject and
+  the applicant's withdraw close it `cancelled`, finalize closes the adopter's
+  own case `resolved` and the auto-rejected ones `cancelled`; every resolution
+  now hangs off the case. An APPROVAL leaves the case open on purpose — the
+  withdraw and death cascades here are what close it, with a note the
+  approved adopter reads (`closeCase: false` is their opt-out from the
+  resolver's default close).
 - No `audit_log` action for a rehome answer (closed catalog + DB CHECK).
 - An org's queue lists every case on a pet it holds a live custody row on — a
   `welfare_denuncia` about a sponsored household appears as a row whose detail

@@ -303,6 +303,9 @@ export async function endSponsorshipForDeceasedPet(
           organizationId: open.sponsoringOrganizationId,
           verified: args.authorVerified,
         },
+        // Closed below, with the death's own note (`falleció`); the resolver's
+        // default close would take the append-only `case_closed` entry first.
+        closeCase: false,
       },
       tx,
     );

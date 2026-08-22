@@ -374,11 +374,26 @@ describe("rehome sponsorship — finalize closes EVERY live ownership row", () =
       .where(eq(ownerships.petId, petId));
     const byId = new Map(rows.map((r) => [r.id, r.endedAt]));
 
-    expect(byId.get(titularOwnershipId), "titular owner row must be closed").not.toBeNull();
+    // REQ-9 scenario 3: every row closes AT the finalize's own instant — the
+    // one `now` the use-case reads once and hands to endAllLiveOwnerships and
+    // to the adoption_finalized event alike. Not merely "not null": a row
+    // closed by some other path at some other time would pass that and still
+    // be the wrong close (verify report S-1).
+    const [finalized] = await db
+      .select({ occurredAt: petEvents.occurredAt })
+      .from(petEvents)
+      .where(and(eq(petEvents.petId, petId), eq(petEvents.eventType, "adoption_finalized")));
+    expect(finalized, "the adoption_finalized event carries the finalize's now()").toBeDefined();
+    const finalizeNowMs = finalized.occurredAt.getTime();
+
     expect(
-      byId.get(sponsorshipOwnershipId),
-      "sponsoring custody row must be closed",
-    ).not.toBeNull();
+      byId.get(titularOwnershipId)?.getTime(),
+      "titular owner row must be closed at the finalize instant",
+    ).toBe(finalizeNowMs);
+    expect(
+      byId.get(sponsorshipOwnershipId)?.getTime(),
+      "sponsoring custody row must be closed at the finalize instant",
+    ).toBe(finalizeNowMs);
   });
 
   it("records both the adoption and the end of the sponsorship on the spine", async () => {

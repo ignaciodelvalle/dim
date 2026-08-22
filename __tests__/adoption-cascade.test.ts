@@ -25,6 +25,8 @@ vi.mock("next/cache", () => ({
 }));
 
 import {
+  caseEvents,
+  cases,
   db,
   notifications,
   organizationMemberships,
@@ -333,6 +335,58 @@ describe("F5.5 auto-rejection cascade in finalizeAdoptionAction", () => {
       );
     const closedRecipients = closedNotifs.map((n) => n.userId).sort();
     expect(closedRecipients).toEqual([applicant2Id, applicant3Id].sort());
+
+    // S-6 (rehome verify report): the ADOPTER's own application case closes
+    // as resolved — the adoption happened — with a note that says so. Until
+    // 2026-08-22 finalize closed the custody and foster cases and left the
+    // application case open for good.
+    const [adopterCase] = await db
+      .select({ id: cases.id, status: cases.status, closedReason: cases.closedReason })
+      .from(cases)
+      .where(
+        and(
+          eq(cases.primaryPetId, petId),
+          eq(cases.caseKind, "adoption_application"),
+          eq(cases.applicantUserId, applicant1Id),
+        ),
+      );
+    expect(adopterCase, "applicant 1 has an adoption_application case").toBeDefined();
+    expect(adopterCase?.status).toBe("closed");
+    expect(adopterCase?.closedReason).toBe("resolved");
+    const [adopterNote] = await db
+      .select({ notes: caseEvents.notes })
+      .from(caseEvents)
+      .where(
+        and(eq(caseEvents.caseId, adopterCase?.id ?? ""), eq(caseEvents.entryType, "case_closed")),
+      );
+    expect(adopterNote?.notes).toMatch(/se concretó/);
+
+    // And the auto-rejected applications' cases are CLOSED by the same
+    // transaction, as cancelled, with a note that says why. Until 2026-08-22
+    // resolveApplication left every adoption_application case open after its
+    // terminal event.
+    for (const applicantId of [applicant2Id, applicant3Id]) {
+      const [appCase] = await db
+        .select({ id: cases.id, status: cases.status, closedReason: cases.closedReason })
+        .from(cases)
+        .where(
+          and(
+            eq(cases.primaryPetId, petId),
+            eq(cases.caseKind, "adoption_application"),
+            eq(cases.applicantUserId, applicantId),
+          ),
+        );
+      expect(appCase, `applicant ${applicantId} has an adoption_application case`).toBeDefined();
+      expect(appCase?.status).toBe("closed");
+      expect(appCase?.closedReason).toBe("cancelled");
+      const [note] = await db
+        .select({ notes: caseEvents.notes })
+        .from(caseEvents)
+        .where(
+          and(eq(caseEvents.caseId, appCase?.id ?? ""), eq(caseEvents.entryType, "case_closed")),
+        );
+      expect(note?.notes).toMatch(/otra postulación/);
+    }
 
     // The pet comes OFF the adoption shelf. This fixture seeds
     // adoptionListedAt, and finalize used to leave it set: the adopter then

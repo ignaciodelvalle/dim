@@ -21,8 +21,10 @@ import { and, eq } from "drizzle-orm";
 
 import { attachments, cases, type db, ownerships, petEvents, pets, reminders } from "@/db";
 import { validateEventPayload } from "@/lib/events/event-schemas";
-import { closeCase } from "@/lib/infra/case-helpers";
+import { closeCase, findOpenAdoptionApplicationCase } from "@/lib/infra/case-helpers";
 import { type EndedCaretakerGrant, endAllLiveOwnerships } from "@/lib/infra/end-pet-ownerships";
+
+import { applicationCloseNote, closeApplicationCase } from "./application-case-close";
 
 type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0];
 
@@ -202,6 +204,28 @@ export async function insertAdoptionFinalized(
   // Close custody_episode case.
   if (custodyCaseId) {
     await closeCase({ caseId: custodyCaseId, reason: "resolved", closedByUserId: userId }, tx);
+  }
+
+  // Close the ADOPTER's own `adoption_application` case — the process it
+  // tracked has just ended in the adoption. By (pet, adopter), not by
+  // `adoptedFromApplicationId`: the DNI path finalizes without naming the
+  // application, and the adopter's open case is the same row either way.
+  // Approval deliberately left it open (application-case-close.ts); this is
+  // the resolving close. The caller's auto-rejection cascade closes the
+  // OTHER applicants' cases through resolveApplication, right after.
+  const adopterCase = await findOpenAdoptionApplicationCase(petId, adopterUserId, tx);
+  if (adopterCase) {
+    await closeApplicationCase(
+      {
+        caseId: adopterCase.id,
+        reason: "resolved",
+        closedByUserId: userId,
+        outcome: "finalized",
+        note: applicationCloseNote({ outcome: "finalized" }),
+        now,
+      },
+      tx,
+    );
   }
 
   // Contract attachment row.

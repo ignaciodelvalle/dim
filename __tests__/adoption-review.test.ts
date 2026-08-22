@@ -22,6 +22,8 @@ vi.mock("next/cache", () => ({
 }));
 
 import {
+  caseEvents,
+  cases,
   db,
   notifications,
   organizationMemberships,
@@ -215,6 +217,35 @@ afterAll(async () => {
   }
 });
 
+/**
+ * The `adoption_application` case the submit opened for (pet, applicant) —
+ * status, category and the `case_closed` note the applicant reads.
+ */
+async function applicationCase(forApplicantUserId: string) {
+  const [row] = await db
+    .select({
+      id: cases.id,
+      status: cases.status,
+      closedReason: cases.closedReason,
+      closedByUserId: cases.closedByUserId,
+    })
+    .from(cases)
+    .where(
+      and(
+        eq(cases.primaryPetId, petId),
+        eq(cases.caseKind, "adoption_application"),
+        eq(cases.applicantUserId, forApplicantUserId),
+      ),
+    );
+  const notes = row
+    ? await db
+        .select({ notes: caseEvents.notes, payload: caseEvents.payload })
+        .from(caseEvents)
+        .where(and(eq(caseEvents.caseId, row.id), eq(caseEvents.entryType, "case_closed")))
+    : [];
+  return { row, notes };
+}
+
 describe("approve/reject adoption application actions", () => {
   let applicationEventId = "";
 
@@ -269,6 +300,27 @@ describe("approve/reject adoption application actions", () => {
         ),
       );
     expect(applicantNotif).toHaveLength(1);
+  });
+
+  it("approve ATTACHES the resolution to the application's case and leaves the case OPEN (S-6)", async () => {
+    // Approval is not the end of the process: the adopter waits for a
+    // finalize (which closes the case `resolved`) or for the cascade that
+    // tells them it will not happen (rehome-withdraw-flow.test.ts pins the
+    // case as open after approval, on purpose). What approval must do is hang
+    // the decision off the case — attachment rule `requires-open` — so the
+    // case timeline shows it. Until 2026-08-22 the resolved event carried no
+    // case_id at all.
+    const { row, notes } = await applicationCase(applicantUserId);
+    expect(row, "the submit opened an adoption_application case").toBeDefined();
+    expect(row?.status).toBe("open");
+    expect(notes).toHaveLength(0);
+    const [resolved] = await db
+      .select({ caseId: petEvents.caseId })
+      .from(petEvents)
+      .where(
+        and(eq(petEvents.petId, petId), eq(petEvents.eventType, "adoption_application_resolved")),
+      );
+    expect(resolved?.caseId).toBe(row?.id);
   });
 
   it("can't approve an already-resolved application", async () => {
@@ -333,6 +385,20 @@ describe("approve/reject adoption application actions", () => {
         ),
       );
     expect(volunteerNotif).toHaveLength(1);
+  });
+
+  it("reject CLOSES the application's case as cancelled, with a note (S-6)", async () => {
+    // The pre-existing bug (rehome verify report, S-6): resolveApplication
+    // wrote the terminal event and left the `adoption_application` case open
+    // forever — an "open" row in every queue for a decision already taken.
+    const { row, notes } = await applicationCase(volunteerUserId);
+    expect(row, "the second submit opened its own adoption_application case").toBeDefined();
+    expect(row?.status).toBe("closed");
+    expect(row?.closedReason).toBe("cancelled");
+    expect(row?.closedByUserId).toBe(coordUserId);
+    expect(notes).toHaveLength(1);
+    expect(notes[0].notes).toMatch(/no avanz/);
+    expect(notes[0].payload).toMatchObject({ adoption_decision: "rejected" });
   });
 
   it("non-member cannot review (capability denied)", async () => {

@@ -620,6 +620,10 @@ export const RehomeRepository = {
           notes: null,
           now: args.now,
           author: { role: "owner", organizationId: null, verified: false },
+          // The case is closed BELOW with the titular's own note; the
+          // resolver's default close would write the generic one first and
+          // win the append-only `case_closed` entry.
+          closeCase: false,
         },
         client,
       );
