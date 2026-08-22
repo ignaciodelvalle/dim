@@ -100,11 +100,80 @@ describe("gradeSuiteReport()", () => {
     );
   });
 
-  // A worker that dies at TEARDOWN is attributed to the file it was running,
-  // AFTER every test in it passed. That file is broken too — the verdict names
-  // it and quotes the message, so the operator can tell the open teardown
-  // defect from a collection error without reading the whole log.
-  it("fails on a file whose tests all passed but which reported a file-level error", () => {
+  // THE LAST FALSE-GREEN CHANNEL (review of 2f962281). vitest's JSON reporter
+  // maps a test whose state is still `run` / `queued` to `"pending"`
+  // (node_modules/vitest/dist/chunks/index.UpGiHP7g.js StatusMap: `run:
+  // "pending"`, `queued: "pending"`), and the file-status ternary only looks
+  // at `fail`. A report written while a file's tests were still running —
+  // a worker killed mid-file, a hung test at the global timeout — therefore
+  // carries a `passed` file whose assertions never finished, and the grading
+  // read it as green. A pending assertion is a test that did not run: the
+  // file is BROKEN. Skipped/todo-only files stay green (the real report has
+  // seed-demo-scenario.test.ts all-skipped → passed).
+  it("fails on a file with a PENDING assertion — a test still running when the report was written", () => {
+    const expected = ["__tests__/a.test.ts"];
+    const v = gradeSuiteReport(
+      {
+        numFailedTests: 0,
+        testResults: [
+          {
+            name: abs(expected[0]),
+            status: "passed",
+            message: "",
+            assertionResults: [
+              { status: "passed", fullName: "done case", failureMessages: [] },
+              { status: "pending", fullName: "still running", failureMessages: [] },
+            ],
+          },
+        ],
+      },
+      expected,
+      ROOT,
+    );
+    expect(v.ok).toBe(false);
+    expect(v.failedTests).toBe(0);
+    expect(v.broken).toHaveLength(1);
+    expect(v.broken[0].file).toBe("__tests__/a.test.ts");
+    expect(v.broken[0].message).toMatch(/pending/i);
+    expect(v.broken[0].message).toContain("still running");
+    expect(formatVerdictLine(v)).toBe(
+      "reported 1 file(s); 1 discovered; 0 failing test(s); 1 broken file(s)",
+    );
+  });
+
+  it("keeps a skipped/todo-only file green — a deliberate skip is not a test that failed to run", () => {
+    const expected = ["__tests__/seed-demo-scenario.test.ts"];
+    const v = gradeSuiteReport(
+      {
+        numFailedTests: 0,
+        testResults: [
+          {
+            name: abs(expected[0]),
+            status: "passed",
+            message: "",
+            assertionResults: [
+              { status: "skipped", fullName: "needs the demo seed", failureMessages: [] },
+              { status: "todo", fullName: "later", failureMessages: [] },
+            ],
+          },
+        ],
+      },
+      expected,
+      ROOT,
+    );
+    expect(v.ok).toBe(true);
+    expect(v.broken).toEqual([]);
+  });
+
+  // A DEFENSIVE shape, not an observed one. In vitest 4.1.6 a worker that
+  // exits AFTER a file's tests reported cannot show up here: the error is
+  // run-level (`state.catchError`) and JsonReporter.onTestRunEnd drops
+  // unhandledErrors (node_modules/vitest/dist/chunks/index.UpGiHP7g.js
+  // :3538-3609) — the file reads `passed`, the run exits 1, and the log carries
+  // "Worker exited unexpectedly" (CLAUDE.md, Definition of Done). Pinned anyway:
+  // if a future vitest attributes that error to the file, the verdict must
+  // name it rather than read the file as green.
+  it("fails on a file whose tests all passed but which reported a file-level error (defensive shape)", () => {
     const expected = ["__tests__/a.test.ts"];
     const v = gradeSuiteReport(
       {

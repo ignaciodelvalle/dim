@@ -29,12 +29,24 @@
 // `status` is failed while none of its assertions failed is BROKEN, and the
 // verdict names it and quotes its message.
 //
+// THIRD FALSE GREEN — a file whose tests never FINISHED (review of 2f962281).
+// vitest's JSON reporter maps a test still in state `run` / `queued` / `only`
+// to `"pending"` (node_modules/vitest/dist/chunks/index.UpGiHP7g.js,
+// StatusMap), and the file-status ternary there only looks at `fail`. So a
+// report written while a file's tests were still running — a worker killed
+// mid-file, a hang cut off at the global timeout — carries a `passed` file
+// with pending assertions, and a grading that reads only `status` calls it
+// green. A pending assertion is a test that did not run; the file is BROKEN.
+// Skipped / todo assertions are deliberate and stay green.
+//
 // Green therefore means: exit code IGNORED, `numFailedTests === 0`, every test
-// file present in `testResults`, AND no file failed outside its tests. This
-// checks the last two — the ones nothing else checks.
+// file present in `testResults`, no file failed outside its tests, AND no
+// file left a test pending. This checks the last three — the ones nothing
+// else checks.
 
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
+import { pathToFileURL } from "node:url";
 
 // The AUTHORITY for "which files does vitest run" — the same function
 // vitest.config.ts feeds into `include` via computeTestPartition(). Using it
@@ -124,16 +136,27 @@ export function gradeSuiteReport(
   for (const file of results) {
     const rel = toRepoRelative(file.name, repoRoot);
     let anyAssertionFailed = false;
+    const pending: string[] = [];
     for (const a of file.assertionResults ?? []) {
+      // `pending` is vitest's JSON word for run / queued / only — a test that
+      // had not finished when the report was written. Not skipped, not todo.
+      if (a.status === "pending") pending.push(a.fullName);
       if (a.status !== "failed") continue;
       anyAssertionFailed = true;
       const where = `${rel} › ${a.fullName}`;
       (timedOut(a.failureMessages ?? []) ? timeouts : assertions).push(where);
     }
     // Failed as a FILE while no test in it failed: it never ran its tests
-    // (collection / mock / import error) or died after them (hook, worker).
+    // (collection / mock / import error) — or, defensively, a file-level error
+    // a future vitest attributes to the file after its tests reported.
     if (file.status === "failed" && !anyAssertionFailed) {
       broken.push({ file: rel, message: file.message ?? "" });
+    } else if (pending.length > 0) {
+      // The file reads `passed` and some of its tests never ran to an end.
+      broken.push({
+        file: rel,
+        message: `${pending.length} test(s) still pending when the report was written (never finished): ${pending.join("; ")}`,
+      });
     }
   }
 
@@ -177,8 +200,13 @@ function main(): void {
   }
 
   if (verdict.broken.length > 0) {
+    // Wording, deliberately: in vitest 4.1.6 the teardown crash ("Worker
+    // exited unexpectedly" AFTER a file reported) never lands here — it is a
+    // run-level unhandled error the JSON reporter drops, so it shows up as a
+    // clean verdict line plus vitest's own exit 1 (see CLAUDE.md, Definition
+    // of Done). A broken file is therefore a real failure, every time.
     console.error(
-      `\n${verdict.broken.length} test file(s) failed OUTSIDE any test — zero failing tests, and still not green.\nA mock/collection/import error means the file never ran its tests: fix it. A worker that\nexited after the file's tests reported is the open teardown defect: say so, with this line quoted.\n`,
+      `\n${verdict.broken.length} test file(s) broken — zero failing tests, and still not green.\nA mock/collection/import error means the file never ran its tests; a pending test means the\nreport was written before it finished. Fix it. (If a future vitest ever attributes a post-report\nworker exit to the file, it lands here too: name it, do not normalise it.)\n`,
     );
     for (const b of verdict.broken) {
       console.error(`   ${b.file}`);
@@ -203,13 +231,15 @@ function main(): void {
 }
 
 // Guarded so the grading above is importable by its test without the CLI
-// running on import (same convention as the sibling fences).
+// running on import (same convention as the sibling fences). The third clause
+// used to build `file:///${argv[1]}` by hand, which on POSIX yields four
+// slashes and never matched; pathToFileURL is the platform-correct spelling.
 const isMain =
   typeof process !== "undefined" &&
   process.argv[1] !== undefined &&
   (process.argv[1].endsWith("check-suite-coverage.ts") ||
     process.argv[1].endsWith("check-suite-coverage.js") ||
-    import.meta.url === `file:///${process.argv[1].replaceAll("\\", "/")}`);
+    import.meta.url === pathToFileURL(process.argv[1]).href);
 
 if (isMain) {
   main();

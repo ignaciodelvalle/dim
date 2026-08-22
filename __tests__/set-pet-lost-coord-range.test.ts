@@ -105,6 +105,12 @@ vi.mock("@/src/modules/events/infrastructure/events-repository", () => ({
 // the file dies at collection with zero tests, and the suite verdict counted
 // that as "0 failing test(s)" — misread as the worker-teardown crash for days.
 //
+// Precedent for the FULL spread: lib/metrics/alert-evaluation.test.ts
+// (`...actual` from "@/db" under a mocked client). The commit that fixed this
+// file (2f962281) cited push-subscription-action.test.ts instead; that one
+// cherry-picks ONE export (`pushSubscriptions`) and is the narrow shape, not
+// this one.
+//
 // db.transaction calls the callback immediately (synchronous mock).
 vi.mock("@/db", async () => {
   const schema = await vi.importActual<typeof import("@/db/schema")>("@/db/schema");
