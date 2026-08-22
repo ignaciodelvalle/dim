@@ -28,7 +28,9 @@
 //                                signals, refugios, clinicas, decomisos).
 //   - ./repository-choropleth — coverage choropleths + territorial index.
 //   - ./repository-by-unit    — F1 per-unit aggregation loaders + sighting dots.
-//   - ./repository-history    — TimeScrubber daily counts + F4 unit history.
+//   - ./repository-histogram  — TimeScrubber scope-total daily counts (+ the
+//                                k-anon envelope that guards them).
+//   - ./repository-history    — F4 per-unit catalogued event history.
 // Cube reads (migration 0139/0151) and the census lookup stay here (small,
 // no cross-group dependency).
 
@@ -109,7 +111,10 @@ export {
 
 export {
   type ScopeDailyCount,
+  type ScopeDailyHistogram,
   loadScopeDailyCounts,
+} from "./repository-histogram";
+export {
   type UnitHistoryEvent,
   type TrendBucket,
   type UnitHistoryResult,

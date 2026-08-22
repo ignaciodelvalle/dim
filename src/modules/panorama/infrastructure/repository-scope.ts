@@ -8,7 +8,7 @@
 
 import { type SQL, and, sql } from "drizzle-orm";
 
-import { petEvents } from "@/db";
+import { cases, petEvents } from "@/db";
 import {
   type DashboardActor,
   type DashboardJurisdiction,
@@ -23,6 +23,34 @@ import type { TimeBasis } from "@/src/modules/panorama/domain/time-scrub";
 
 // Per-layer hard cap. Each loader limits at this; when the row count equals the
 // cap the result is (potentially) truncated and the envelope says so.
+/**
+ * Is this custody_episode an actual DECOMISO (Ley 14.346 seizure)?
+ *
+ * There is no `decomiso` case_kind — the seizure is materialised as a
+ * `custody_episode` (see execute-decomiso.ts). But the reverse does not hold:
+ * org intakes, foster placements and lost-pet custody share the kind, so
+ * filtering on the kind alone plots non-seizures as seizures.
+ *
+ * The marker is the OPENED REASON, and it exists in two forms. The writer in
+ * production and in the seed emits the legacy TEXT grammar
+ * (`auto: decomiso motivo=… judicial_ref=…`, mapped for display in
+ * opened-reason-legacy.ts); the newer structured `opened_reason_code` column
+ * carries the same fact for callers that set it. Both are accepted so this
+ * neither misses today's rows nor breaks when the structured column takes over.
+ *
+ * MEASURED 2026-07-25 — read this before "simplifying" the predicate: of 2.051
+ * seeded custody episodes, 2.049 ARE decomisos by the text marker and 0 carry
+ * the structured code. A code-only filter empties the layer on the DEFAULT
+ * vista while looking like a tightening.
+ */
+export function isDecomisoCase(): SQL {
+  return sql`(
+    ${cases.openedReason} LIKE 'auto: decomiso motivo=%'
+    OR ${cases.openedReason} LIKE 'auto: decomiso handoff aceptado%'
+    OR ${cases.openedReasonCode} IN ('decomiso_executed', 'decomiso_handoff_accepted')
+  )`;
+}
+
 export const PER_LAYER_CAP = 2000;
 
 /**

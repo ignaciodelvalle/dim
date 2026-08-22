@@ -29,7 +29,7 @@ import { ANONYMITY_K } from "@/lib/metrics/anonymity";
 import {
   applyHistogramKAnon,
   scopeResolvesToSingleUnit,
-} from "@/src/modules/panorama/infrastructure/repository-history";
+} from "@/src/modules/panorama/infrastructure/repository-histogram";
 
 const CABA = "Ciudad Autónoma de Buenos Aires";
 
