@@ -24,10 +24,22 @@ export function IncomingTransferActions({
   receiverOrgToken,
   casePublicCode,
   petName,
+  permanentOwnership,
 }: {
   receiverOrgToken: string;
   casePublicCode: string;
   petName: string;
+  /**
+   * The proposal's destination role is `owner`, not `shelter_custody` — i.e.
+   * accepting makes THIS organisation the pet's permanent legal owner (closing
+   * report L1, 2026-08-22).
+   *
+   * REQUIRED on purpose, not optional-with-a-default. A default would let the
+   * next caller forget the field and silently show temporary-custody copy for a
+   * permanent handover, which is the exact defect being fixed; required means
+   * tsc refuses a caller that never read it.
+   */
+  permanentOwnership: boolean;
 }) {
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
@@ -118,9 +130,23 @@ export function IncomingTransferActions({
         open={confirming === "accept"}
         onClose={() => !pending && setConfirming(null)}
         onConfirm={handleAccept}
-        title="Aceptar transferencia entre organizaciones"
-        description={`Esto transfiere la custodia de ${petName} a tu organización. Esta acción no se puede deshacer.`}
-        confirmLabel="Aceptar transferencia"
+        title={
+          permanentOwnership
+            ? "Aceptar la titularidad permanente"
+            : "Aceptar transferencia entre organizaciones"
+        }
+        // The two cases are NOT the same act, and the receiver had no way to
+        // tell them apart: this dialog said "transfiere la custodia" for both.
+        // The sender's own form distinguishes them, and so does the
+        // notification this org already received ("custodia temporal" / "dueño
+        // permanente", transfer-custody.ts) — the inbox was the odd one out.
+        // Vocabulary matched to those two surfaces on purpose.
+        description={
+          permanentOwnership
+            ? `Tu organización queda como dueño permanente de ${petName}: pasa a ser la responsable legal del animal, sin fecha de fin. No es una custodia temporal. Esta acción no se puede deshacer.`
+            : `Esto transfiere la custodia de ${petName} a tu organización. Esta acción no se puede deshacer.`
+        }
+        confirmLabel={permanentOwnership ? "Aceptar la titularidad" : "Aceptar transferencia"}
         tone="warn"
         pending={pending}
         triggerRef={acceptTriggerRef}
