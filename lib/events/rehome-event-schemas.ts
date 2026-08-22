@@ -50,9 +50,9 @@ export const rehomeSponsorshipStarted = z
  * `caretaker_ended` hit.
  *
  * `withdrawn_by_platform` is the outcome for an end that no party to the
- * arrangement chose. It was decided for the rollback script
- * (scripts/rollback-rehome-sponsorships.ts) — deciding it then cost one enum
- * member; discovering it during an incident would have cost a strict-Zod
+ * arrangement chose. It was decided up front for the rollback script (design
+ * ADR-7 — planned for WU7, not yet in the tree) — deciding it then cost one
+ * enum member; discovering it during an incident would have cost a strict-Zod
  * migration under pressure, on a path that has to run BEFORE the app commit is
  * reverted. Since the WU3 review (M-2) it is also what a custody hand-off
  * decided by an authority writes — a decomiso, a custody dispute resolved

@@ -27,6 +27,42 @@ export function validateCrossOrgReason(input: {
 }
 
 // ---------------------------------------------------------------------------
+// Source custody must not be a rehome sponsorship (rehome-by-titular, REQ-15)
+// ---------------------------------------------------------------------------
+
+/**
+ * The refusal every sponsored-custody writer shows. One sentence, whichever
+ * layer says it (propose pre-read, accept under the lock).
+ */
+export const SPONSORED_CUSTODY_TRANSFER_ERROR =
+  "Esta custodia es un acompañamiento de adopción: el animal vive con su titular y solo el titular puede darlo de baja. No se puede transferir a otra organización.";
+
+/**
+ * A `shelter_custody` row opened by a titular's consent (rehome-by-titular)
+ * is not the org's to hand off. Spec REQ-15: only the titular's withdraw, a
+ * decline before acceptance or a completed adoption end a sponsorship — an
+ * org-to-org transfer is none of those. Letting it through would also leave
+ * the receiver holding custody beside the titular's owner row with no
+ * `rehome_sponsorship_started` naming that row, so the titular's withdraw
+ * (which keys on the spine) could never find it: REQ-10's unconditional
+ * route back would be gone.
+ *
+ * Keyed on the spine's `ownership_id`, never on the owner+shelter_custody
+ * shape: a sponsorship pointing at a DIFFERENT row than the sender's live one
+ * is drift for lint:spine to report, not a reason to block an unrelated
+ * hand-off.
+ */
+export function validateSourceNotSponsored(input: {
+  sourceCustodyId: string;
+  openSponsorship: { ownershipId: string } | null;
+}): DomainResult {
+  if (input.openSponsorship && input.openSponsorship.ownershipId === input.sourceCustodyId) {
+    return { ok: false, error: SPONSORED_CUSTODY_TRANSFER_ERROR };
+  }
+  return { ok: true, value: undefined };
+}
+
+// ---------------------------------------------------------------------------
 // Receiver-not-sender guard
 // ---------------------------------------------------------------------------
 

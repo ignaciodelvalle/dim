@@ -62,6 +62,7 @@ const PET_SUMMARY_COLUMNS = {
   localityId: pets.localityId,
   inCustodyDispute: pets.inCustodyDispute,
   rabiesObservationStatus: pets.rabiesObservationStatus,
+  adoptionIneligibleUntil: pets.adoptionIneligibleUntil,
 } as const;
 
 function toRequestCase(row: {
@@ -175,6 +176,31 @@ export const RehomeRepository = {
       .from(organizations)
       .where(eq(organizations.id, orgId))
       .limit(1);
+    return row ?? null;
+  },
+
+  /**
+   * Lock-then-read variant of findOrgById for the accept transaction (ADR-1
+   * step 1b; WU3 review M-1 residual). `FOR SHARE`, not `FOR UPDATE`: the
+   * accept only needs the verification it read to still hold when it commits
+   * — a de-verifying UPDATE must wait behind this transaction — while two
+   * accepts of two different requests addressed to the same org must not
+   * serialise on the org row.
+   */
+  async lockOrgForShare(orgId: string, tx: unknown): Promise<SponsorOrg | null> {
+    const client = tx as Tx;
+    const [row] = await client
+      .select({
+        id: organizations.id,
+        displayName: organizations.displayName,
+        publicToken: organizations.publicToken,
+        orgType: organizations.orgType,
+        verified: organizations.verified,
+      })
+      .from(organizations)
+      .where(eq(organizations.id, orgId))
+      .limit(1)
+      .for("share");
     return row ?? null;
   },
 

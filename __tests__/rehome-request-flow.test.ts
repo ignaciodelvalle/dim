@@ -440,6 +440,45 @@ describe("accept — custody opens beside the owner row, consent goes on the spi
     expect((await liveOwnerships()).map((o) => o.role).sort()).toEqual(["foster", "owner"]);
   });
 
+  it("step 4: a time-boxed ineligibility set by an earlier custodian is refused, not erased (L-3)", async () => {
+    // A previous org (a decomiso receiver, say) marked the pet "not eligible
+    // until" a date and then released custody. The accept's setEligibility(true)
+    // would null that column; while the date is in force it must refuse instead.
+    const until = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
+    await db
+      .update(pets)
+      .set({
+        adoptionEligible: false,
+        adoptionEligibilitySetAt: new Date(),
+        adoptionIneligibleReason: "quarantine",
+        adoptionIneligibleUntil: until,
+      })
+      .where(eq(pets.id, petId));
+    try {
+      const r = await acceptAsA();
+      expect(r.ok).toBe(false);
+      if (!r.ok) expect(r.error).toMatch(/no apta para adopción hasta/);
+      expect((await openRequest())?.publicCode).toBe(secondCode);
+      expect((await liveOwnerships()).map((o) => o.role).sort()).toEqual(["foster", "owner"]);
+      const [pet] = await db
+        .select({ until: pets.adoptionIneligibleUntil, reason: pets.adoptionIneligibleReason })
+        .from(pets)
+        .where(eq(pets.id, petId));
+      expect(pet.until?.getTime()).toBe(until.getTime());
+      expect(pet.reason).toBe("quarantine");
+    } finally {
+      await db
+        .update(pets)
+        .set({
+          adoptionEligible: null,
+          adoptionEligibilitySetAt: null,
+          adoptionIneligibleReason: null,
+          adoptionIneligibleUntil: null,
+        })
+        .where(eq(pets.id, petId));
+    }
+  });
+
   it("step 2: consent expires with title — a request from an ex-owner is refused", async () => {
     await db
       .update(ownerships)

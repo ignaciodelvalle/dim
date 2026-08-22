@@ -14,6 +14,8 @@
 // the earliest failing step is the one reported, because "this request was
 // already answered" is more actionable than "the pet is in observation".
 
+import { formatDate } from "@/lib/utils/format";
+
 export type RuleResult = { ok: true } | { ok: false; error: string };
 
 /** Org types allowed to sponsor a listing. Mirrors the adoption catalog's filter. */
@@ -91,6 +93,14 @@ export type AcceptPetSnapshot = {
   status: string;
   inCustodyDispute: boolean | null;
   rabiesObservationStatus: string | null;
+  /**
+   * A time-boxed "not eligible until" left by whichever org last held the
+   * animal (WU3 review, L-3). The accept's setEligibility(true) would null it;
+   * while the date is in force the accept refuses instead. An OPEN-ENDED
+   * ineligibility (no date) does not block: its author no longer holds custody
+   * (step 3) and nobody could lift it.
+   */
+  adoptionIneligibleUntil: Date | null;
 };
 
 export type AcceptSnapshot = RequestAnswerSnapshot & {
@@ -109,6 +119,8 @@ export type AcceptSnapshot = RequestAnswerSnapshot & {
   liveShelterCustodyCount: number;
   /** Step 4: the catalog's own preconditions, failed here with a reason. */
   pet: AcceptPetSnapshot;
+  /** The transaction's clock, against which the time-box is judged. */
+  now: Date;
 };
 
 /**
@@ -153,6 +165,14 @@ export function validateAcceptPreconditions(s: AcceptSnapshot): RuleResult {
   }
   if (s.pet.rabiesObservationStatus === "in_progress") {
     return { ok: false, error: "Esta mascota está en período de observación sanitaria." };
+  }
+  if (s.pet.adoptionIneligibleUntil && s.pet.adoptionIneligibleUntil.getTime() > s.now.getTime()) {
+    return {
+      ok: false,
+      error: `Esta mascota fue marcada como no apta para adopción hasta el ${formatDate(
+        s.pet.adoptionIneligibleUntil,
+      )}. Ese plazo tiene que vencer antes de aceptar el acompañamiento.`,
+    };
   }
   return { ok: true };
 }

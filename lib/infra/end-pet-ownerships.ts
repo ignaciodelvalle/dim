@@ -53,7 +53,6 @@ import type { db } from "@/db";
 import { validateEventPayload } from "@/lib/events/event-schemas";
 import { createNotification } from "@/lib/infra/notification-service";
 import {
-  type OpenSponsorship,
   type SponsorshipEndOutcome,
   endRehomeSponsorship,
   findOpenSponsorship,
@@ -196,11 +195,7 @@ export async function endAllLiveOwnerships(
     authorOrganizationId?: string | null;
   },
   tx: Tx,
-): Promise<{
-  endedCaretakerGrants: EndedCaretakerGrant[];
-  /** The sponsorship this hand-off closed on the spine, or null if none was open. */
-  endedSponsorship: OpenSponsorship | null;
-}> {
+): Promise<{ endedCaretakerGrants: EndedCaretakerGrant[] }> {
   // Caretakers first, one at a time: each needs its grant and its event, and
   // the blanket close below would otherwise swallow the row and leave the grant
   // pointing at it.
@@ -258,9 +253,11 @@ export async function endAllLiveOwnerships(
   // Keyed on the spine (`payload.ownership_id`), never on the owner +
   // shelter_custody shape, which also describes a decomiso or an intake. Only
   // a LIVE row counts: a sponsorship whose row was already closed elsewhere
-  // without its event is drift for the harness to report, not for this
-  // function to paper over.
-  let endedSponsorship: OpenSponsorship | null = null;
+  // without its event is drift for lint:spine to report (its orphaned-
+  // sponsorship arm, scripts/check-spine-integrity.ts), not for this function
+  // to paper over. Nothing is handed back about it: the callers are hand-offs
+  // that do not tell the sponsoring org (a follow-up, if the PO wants it),
+  // and a return value nobody reads is a seam that only looks like one.
   const openSponsorship = await findOpenSponsorship(args.petId, tx);
   if (openSponsorship) {
     const [liveSponsorRow] = await tx
@@ -269,7 +266,7 @@ export async function endAllLiveOwnerships(
       .where(and(eq(ownerships.id, openSponsorship.ownershipId), isNull(ownerships.endedAt)))
       .limit(1);
     if (liveSponsorRow) {
-      endedSponsorship = await endRehomeSponsorship(
+      await endRehomeSponsorship(
         {
           petId: args.petId,
           outcome: args.sponsorshipOutcome,
@@ -299,7 +296,6 @@ export async function endAllLiveOwnerships(
       grantedByUserId: g.grantedByUserId,
       endsAt: g.endsAt,
     })),
-    endedSponsorship,
   };
 }
 

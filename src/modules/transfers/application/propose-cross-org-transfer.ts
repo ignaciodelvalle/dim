@@ -20,6 +20,7 @@ import {
   validateCrossOrgReason,
   validateOrgTokenMatch,
   validateReceiverNotSender,
+  validateSourceNotSponsored,
 } from "../domain/cross-org-rules";
 import type { TransfersRepository } from "../infrastructure/transfers-repository";
 import type { NewNotification, UseCaseResult } from "./types";
@@ -93,6 +94,16 @@ export async function proposeCrossOrgTransfer(
   if (!senderCustody) {
     return { ok: false, error: "Tu organización no tiene custodia activa sobre esta mascota." };
   }
+
+  // 4b. That custody must not be a rehome sponsorship (rehome-by-titular,
+  // REQ-15): a row a titular's consent opened is not the org's to hand off.
+  // Readable refusal here, before a receiver is bothered; the accept re-checks
+  // under its lock, because a sponsorship can start after this proposal.
+  const notSponsored = validateSourceNotSponsored({
+    sourceCustodyId: senderCustody.id,
+    openSponsorship: await repo.findOpenSponsorship(pet.id),
+  });
+  if (!notSponsored.ok) return notSponsored;
 
   // 5. Receiver-not-sender guard.
   const notSelfGuard = validateReceiverNotSender(organization.id, input.receiverOrgId);

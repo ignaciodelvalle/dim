@@ -21,6 +21,10 @@ import {
 import { validateEventPayload } from "@/lib/events/event-schemas";
 import { closeCase, findOpenCaseForPetAndKind, openCase } from "@/lib/infra/case-helpers";
 import { findLiveOrgShelterCustody } from "@/lib/infra/org-custody";
+import {
+  type OpenSponsorship,
+  findOpenSponsorship,
+} from "@/src/modules/adoption/infrastructure/rehome-sponsorship-writer";
 import type { OpenedReason } from "@/src/modules/cases/domain/opened-reason";
 
 // ---------------------------------------------------------------------------
@@ -455,6 +459,17 @@ export const TransfersRepository = {
     tx?: Tx,
   ): Promise<{ id: string; ownerOrganizationId: string } | null> {
     return findLiveOrgShelterCustody(petId, tx ?? db);
+  },
+
+  /**
+   * The pet's open rehome sponsorship (rehome-by-titular), keyed on the spine:
+   * an unmatched `rehome_sponsorship_started` naming the custody row it
+   * opened. The predicate is adoption's, read from there rather than copied
+   * (`transfers:adoption` in check-dependency-direction.ts). A cross-org
+   * transfer must refuse to hand off that row — spec REQ-15.
+   */
+  async findOpenSponsorship(petId: string, tx?: Tx): Promise<OpenSponsorship | null> {
+    return findOpenSponsorship(petId, (tx ?? db) as Tx);
   },
 
   async findActiveOwnerOwnershipForOrg(

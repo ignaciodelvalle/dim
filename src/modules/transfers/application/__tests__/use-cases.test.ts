@@ -128,6 +128,7 @@ function makeFakeRepo(
     findActiveShelterCustody: vi.fn().mockResolvedValue({ id: "cust-1" }),
     findActiveOwnerOwnershipForOrg: vi.fn().mockResolvedValue({ id: "own-src" }),
     findLiveOrgShelterCustody: vi.fn().mockResolvedValue(null),
+    findOpenSponsorship: vi.fn().mockResolvedValue(null),
     findReceiverOrg: vi.fn().mockResolvedValue(makeOrg()),
     findOpenHandshakeCase: vi.fn().mockResolvedValue(null),
     findOpenDispute: vi.fn().mockResolvedValue(null),
@@ -1137,6 +1138,45 @@ describe("proposeCrossOrgTransfer", () => {
     expect((result as { ok: false; error: string }).error).toMatch(/custodia activa/i);
   });
 
+  it("refuses when the sender's custody row is a rehome sponsorship — only the titular may end it (REQ-15)", async () => {
+    // The sender holds live shelter_custody, so the plain custody check passes.
+    // But that row was opened by a titular's consent (rehome-by-titular): the
+    // animal lives with its family, and handing the row to another org would
+    // end the arrangement by an org's act and leave the titular with nothing
+    // to withdraw. Refused before a receiver is even bothered.
+    const repo = makeFakeRepo({
+      findOpenSponsorship: vi
+        .fn()
+        .mockResolvedValue({ ownershipId: "cust-1", sponsoringOrganizationId: "org-sender" }),
+    });
+    const result = await proposeCrossOrgTransfer(baseInput, {
+      repo,
+      actor,
+      transaction: fakeTransaction,
+    });
+    expect(result).toMatchObject({ ok: false });
+    expect((result as { ok: false; error: string }).error).toMatch(/acompañamiento de adopción/);
+    expect(repo.openHandshakeCase).not.toHaveBeenCalled();
+    expect(repo.insertPetEvent).not.toHaveBeenCalled();
+  });
+
+  it("proceeds when the pet's open sponsorship points at a DIFFERENT custody row than the sender's", async () => {
+    // A sponsorship whose custody row is not the sender's live one is drift for
+    // lint:spine to report, not a reason to block an unrelated transfer.
+    const repo = makeFakeRepo({
+      findOpenSponsorship: vi
+        .fn()
+        .mockResolvedValue({ ownershipId: "cust-old", sponsoringOrganizationId: "org-x" }),
+    });
+    const result = await proposeCrossOrgTransfer(baseInput, {
+      repo,
+      actor,
+      transaction: fakeTransaction,
+    });
+    expect(result).toMatchObject({ ok: true });
+    expect(repo.openHandshakeCase).toHaveBeenCalled();
+  });
+
   it("returns error when receiver equals sender", async () => {
     const repo = makeFakeRepo();
     const result = await proposeCrossOrgTransfer(
@@ -1390,6 +1430,44 @@ describe("acceptCrossOrgTransfer", () => {
       expect.objectContaining({ caseId: "case-1", reason: "resolved" }),
       fakeTx,
     );
+  });
+
+  it("refuses under the lock when the source custody row is a rehome sponsorship — nothing is written (REQ-15)", async () => {
+    // The proposal may predate the sponsorship, or slip past the propose-time
+    // check; the accept is where custody actually moves, so the refusal has to
+    // hold HERE, inside the transaction, on the row re-read under the lock.
+    const repo = makeFakeRepo({
+      findOpenSponsorship: vi
+        .fn()
+        .mockResolvedValue({ ownershipId: "cust-1", sponsoringOrganizationId: "org-sender" }),
+    });
+    const result = await acceptCrossOrgTransfer(baseInput, {
+      repo,
+      actor,
+      transaction: fakeTransaction,
+    });
+    expect(result).toMatchObject({ ok: false });
+    expect((result as { ok: false; error: string }).error).toMatch(/acompañamiento de adopción/);
+    expect(repo.findOpenSponsorship).toHaveBeenCalledWith("pet-1", fakeTx);
+    expect(repo.endShelterCustody).not.toHaveBeenCalled();
+    expect(repo.insertShelterCustody).not.toHaveBeenCalled();
+    expect(repo.insertPetEvent).not.toHaveBeenCalled();
+    expect(repo.closeCase).not.toHaveBeenCalled();
+  });
+
+  it("proceeds when the open sponsorship is NOT the source row — an unrelated arrangement does not block the hand-off", async () => {
+    const repo = makeFakeRepo({
+      findOpenSponsorship: vi
+        .fn()
+        .mockResolvedValue({ ownershipId: "cust-old", sponsoringOrganizationId: "org-x" }),
+    });
+    const result = await acceptCrossOrgTransfer(baseInput, {
+      repo,
+      actor,
+      transaction: fakeTransaction,
+    });
+    expect(result).toMatchObject({ ok: true });
+    expect(repo.endShelterCustody).toHaveBeenCalledWith("pet-1", "org-sender", fakeTx);
   });
 
   // -------------------------------------------------------------------------

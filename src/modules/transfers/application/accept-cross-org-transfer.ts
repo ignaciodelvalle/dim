@@ -39,10 +39,12 @@ import { randomUUID } from "node:crypto";
 import { ORG_CUSTODY_TAKEN_ERROR, isOrgCustodyCollision } from "@/lib/infra/org-custody";
 
 import {
+  SPONSORED_CUSTODY_TRANSFER_ERROR,
   validateDuplicateProposalGuard,
   validateOrgTokenMatch,
   validateReceiverOrgScope,
   validateSenderOrgScope,
+  validateSourceNotSponsored,
 } from "../domain/cross-org-rules";
 import type { TransfersRepository } from "../infrastructure/transfers-repository";
 import type { NewNotification, UseCaseResult } from "./types";
@@ -71,6 +73,42 @@ export type AcceptCrossOrgTransferInput = {
   receiverOrgToken: string;
   casePublicCode: string;
 };
+
+// ---------------------------------------------------------------------------
+// Sponsored custody guard (rehome-by-titular, REQ-15)
+// ---------------------------------------------------------------------------
+
+/**
+ * The sender's live shelter_custody row may have been opened by a titular's
+ * consent: the animal lives with its family, and only the titular ends that
+ * arrangement. The propose path refuses this too, but a sponsorship can be
+ * accepted AFTER the proposal was made, so the check that holds is this one,
+ * on the row re-read under the lock.
+ *
+ * Refusing — rather than ending the sponsorship inside the hand-off, as a
+ * decomiso does — is deliberate: ending it here would leave the receiver
+ * holding custody beside the titular's owner row with no started event
+ * naming that row, and the titular's withdraw (keyed on the spine) could
+ * never find it. REQ-10's unconditional route back would be gone.
+ *
+ * An `owner`-role source (santuario / decomiso org) is never a sponsorship.
+ */
+async function refuseIfSponsoredCustody(
+  repo: Deps["repo"],
+  args: { petId: string; fromRole: "shelter_custody" | "owner"; sourceCustodyId: string },
+  tx: unknown,
+): Promise<void> {
+  if (args.fromRole !== "shelter_custody") return;
+  const sponsorship = await repo.findOpenSponsorship(
+    args.petId,
+    tx as Parameters<typeof repo.findOpenSponsorship>[1],
+  );
+  const rule = validateSourceNotSponsored({
+    sourceCustodyId: args.sourceCustodyId,
+    openSponsorship: sponsorship,
+  });
+  if (!rule.ok) throw new Error(rule.error);
+}
 
 // ---------------------------------------------------------------------------
 // Use-case
@@ -205,6 +243,15 @@ export async function acceptCrossOrgTransfer(
           "La organización de origen ya no tiene la custodia de esta mascota. La transferencia no es válida.",
         );
       }
+
+      // SPONSORED CUSTODY IS NOT THE ORG'S TO HAND OFF (rehome-by-titular,
+      // REQ-15) — see refuseIfSponsoredCustody below. Under the lock, on the
+      // row just re-read.
+      await refuseIfSponsoredCustody(
+        repo,
+        { petId: caseRow.primaryPetId as string, fromRole, sourceCustodyId: sourceCustody.id },
+        tx,
+      );
 
       // ONE LIVE ORG CUSTODY PER PET (0195). When the destination is
       // shelter_custody, the receiver's insert below collides with any live
@@ -374,6 +421,9 @@ export async function acceptCrossOrgTransfer(
       (err instanceof Error && err.message === ORG_CUSTODY_TAKEN_ERROR)
     ) {
       return { ok: false, error: ORG_CUSTODY_TAKEN_ERROR };
+    }
+    if (err instanceof Error && err.message === SPONSORED_CUSTODY_TRANSFER_ERROR) {
+      return { ok: false, error: SPONSORED_CUSTODY_TRANSFER_ERROR };
     }
     return {
       ok: false,

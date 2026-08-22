@@ -22,6 +22,8 @@ export type PetSummary = {
   localityId: string | null;
   inCustodyDispute: boolean | null;
   rabiesObservationStatus: string | null;
+  /** A time-boxed ineligibility left by an earlier custodian (accept step 4, L-3). */
+  adoptionIneligibleUntil: Date | null;
 };
 
 export type SponsorOrg = {
@@ -108,8 +110,12 @@ export interface RehomeAnswerPort {
   /** Re-read under `SELECT ... FOR UPDATE`: the pre-transaction read is stale. */
   lockRequestCase(caseId: string, tx: unknown): Promise<RequestCase | null>;
   findPetById(petId: string, tx?: unknown): Promise<PetSummary | null>;
-  /** The ACCEPTING org, re-read inside the transaction (ADR-1 step 1b). */
-  findOrgById(orgId: string, tx?: unknown): Promise<SponsorOrg | null>;
+  /**
+   * The ACCEPTING org, re-read inside the transaction under `SELECT ... FOR
+   * SHARE` (ADR-1 step 1b). A de-verification committing between a plain read
+   * and the custody insert would otherwise be signed `verified: true`.
+   */
+  lockOrgForShare(orgId: string, tx: unknown): Promise<SponsorOrg | null>;
   /**
    * The titular's live `owner` row, under `SELECT ... FOR UPDATE` (ADR-1 step
    * 2). A transfer committing between this read and the custody insert would

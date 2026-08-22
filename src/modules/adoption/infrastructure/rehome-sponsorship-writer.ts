@@ -7,8 +7,10 @@
 // rehome already has to depend on adoption — its accept transaction calls
 // `AdoptionRepository.setListingStatus` inside the same tx — so housing this
 // writer in rehome would add the return edge adoption -> rehome and close a
-// cycle. Three callers need it (finalize here, the titular's withdraw, the
-// rollback script) and they can all reach it from this direction.
+// cycle. Its callers all reach it from this direction: every custody hand-off
+// through `lib/infra/end-pet-ownerships.ts` (adoption finalize, decomiso,
+// dispute resolution, foster conversion), the titular's withdraw in
+// src/modules/rehome, and the rollback script (design ADR-7, planned for WU7).
 //
 // It also has to sit under `src/modules/**/infrastructure/**` so that
 // scripts/check-titular-gate.ts sees it: `rehome_sponsorship_ended` is a
@@ -31,9 +33,10 @@ type AuthorRole = NonNullable<(typeof petEvents.$inferInsert)["authorRole"]>;
  * Mirrors the `outcome` enum in lib/events/rehome-event-schemas.ts.
  *
  * `withdrawn_by_platform` is the outcome for an end no party to the
- * arrangement chose: the rollback script (ADR-7) and, since the WU3 review
- * (M-2), a custody hand-off decided above both parties — a decomiso, a custody
- * dispute resolved by the authority. See lib/infra/end-pet-ownerships.ts.
+ * arrangement chose: the rollback script (ADR-7, planned for WU7) and, since
+ * the WU3 review (M-2), a custody hand-off decided above both parties — a
+ * decomiso, a custody dispute resolved by the authority. See
+ * lib/infra/end-pet-ownerships.ts.
  */
 export type SponsorshipEndOutcome =
   | "adopted"

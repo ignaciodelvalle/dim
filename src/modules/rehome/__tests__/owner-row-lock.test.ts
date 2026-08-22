@@ -56,3 +56,29 @@ describe("respond-to-rehome-request — the titular's owner row is locked under 
     expect(respondSrc).not.toContain("repo.findLiveOwnerRow(");
   });
 });
+
+// WU3 review, M-1 residual: step 1b re-reads the accepting org inside the
+// transaction, but a plain SELECT still lets a de-verification COMMIT between
+// that read and the custody insert — the accept then signs `verified: true`
+// on an org that is not. `FOR SHARE` makes the de-verifying UPDATE wait behind
+// this transaction (and vice versa), so the row the accept believes is the row
+// that holds when it commits. SHARE, not UPDATE: two accepts of two different
+// requests addressed to the same org must not serialise on the org row.
+describe("respond-to-rehome-request — the accepting org row is locked FOR SHARE under the accept transaction", () => {
+  it("RehomeRepository.lockOrgForShare reads the org row FOR SHARE", () => {
+    const body = methodBody(repositorySrc, "lockOrgForShare");
+    expect(body).toContain("eq(organizations.id, orgId)");
+    expect(body).toContain('.for("share")');
+  });
+
+  it("the unlocked read stays unlocked — the request path runs outside a transaction", () => {
+    const body = methodBody(repositorySrc, "findOrgById");
+    expect(body).not.toContain('.for("share")');
+    expect(body).not.toContain('.for("update")');
+  });
+
+  it("the accept transaction calls the locking read, never the unlocked one", () => {
+    expect(respondSrc).toContain("repo.lockOrgForShare(");
+    expect(respondSrc).not.toContain("repo.findOrgById(");
+  });
+});

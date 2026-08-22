@@ -96,6 +96,13 @@ export const ALLOWED_EDGES = new Set<string>([
   // Shared kernel, same as adoption/foster/transfers/surveillance above: the
   // org accept/decline action authorizes with requireCapabilityForOrgToken.
   "rehome:organizations",
+  // A cross-org transfer must refuse to hand off a custody row that a titular's
+  // consent opened (spec REQ-15) — the predicate for "is this row an open
+  // sponsorship" is `findOpenSponsorship`, which lives beside the
+  // `rehome_sponsorship_ended` writer in adoption/infrastructure, and it is
+  // read from there rather than copied (one definition of the spine match).
+  // adoption imports nothing from transfers, so the graph stays acyclic.
+  "transfers:adoption",
 ]);
 
 // All module names (directory names under src/modules/).

@@ -26,6 +26,21 @@
 // Nothing else is exempt. Test fixtures are NOT exempt — a fixture that needs a
 // pet either registers it through the real circuit or cleans it up.
 //
+// THE SECOND ARM — orphaned rehome sponsorships (rehome-by-titular, WU4)
+// ---------------------------------------------------------------------------
+// A rehome sponsorship is a spine fact: `rehome_sponsorship_started` names the
+// `ownerships(role='shelter_custody')` row it opened, and the arrangement runs
+// until a `rehome_sponsorship_ended` with the same ownership_id lands. Every
+// hand-off that closes that row writes the closing event in the same
+// transaction (lib/infra/end-pet-ownerships.ts) — and explicitly refuses to
+// paper over a row someone else already closed without its event, deferring
+// it here. An orphan of that shape keeps REQ-16 refusing every future request
+// on the pet with nothing left for the titular to withdraw, and would make the
+// rollback script (design ADR-7) "end" an arrangement that ended months ago
+// onto whoever holds the animal by then. Same rule as the first arm: blocking,
+// no baseline, no exemption. __tests__/rehome-sponsorship-drift.test.ts plants
+// both orphan shapes and proves this query sees them.
+//
 // WHICH DATABASE — a remote one is a skip, not an audit
 // ---------------------------------------------------------------------------
 // This gate counts rows, so the database it counts them in decides the answer.
@@ -90,12 +105,54 @@ export function partitionOrphans(rows: OrphanPetRow[]): SpinePartition {
   return { blocking, exempt };
 }
 
+export type OrphanSponsorshipRow = {
+  public_token: string;
+  /** `payload.ownership_id` of the unmatched `rehome_sponsorship_started`. */
+  ownership_id: string;
+  organization_id: string;
+  started_at: Date | string;
+  /** `ended`: the row exists and carries ended_at. `missing`: no row has that id. */
+  row_state: "ended" | "missing";
+};
+
+/**
+ * Every unmatched `rehome_sponsorship_started` whose custody row is no longer
+ * live. Matched on `payload.ownership_id` both ways — the started event names
+ * the row, the ended event must name the same row — never on the pet's
+ * owner+shelter_custody shape, which also describes a decomiso or an intake.
+ * Exported so the db test can run it against planted orphans.
+ */
+export async function queryOrphanedSponsorships(
+  sql: postgres.Sql,
+): Promise<OrphanSponsorshipRow[]> {
+  return sql<OrphanSponsorshipRow[]>`
+    SELECT p.public_token,
+           started.payload->>'ownership_id' AS ownership_id,
+           started.payload->>'sponsoring_organization_id' AS organization_id,
+           started.occurred_at AS started_at,
+           CASE WHEN o.id IS NULL THEN 'missing' ELSE 'ended' END AS row_state
+    FROM pet_events started
+    JOIN pets p ON p.id = started.pet_id
+    LEFT JOIN ownerships o ON o.id::text = started.payload->>'ownership_id'
+    WHERE started.event_type = 'rehome_sponsorship_started'
+      AND NOT EXISTS (
+        SELECT 1 FROM pet_events ended
+        WHERE ended.pet_id = started.pet_id
+          AND ended.event_type = 'rehome_sponsorship_ended'
+          AND ended.payload->>'ownership_id' = started.payload->>'ownership_id'
+      )
+      AND (o.id IS NULL OR o.ended_at IS NOT NULL)
+    ORDER BY started.occurred_at DESC
+  `;
+}
+
 /** How many offenders to print in full before summarising the rest. */
 const MAX_LISTED = 20;
 
 const SKIPPED_CHECKS =
-  "  NOT run: the orphan-pet count over the spine (the whole gate). The exemption\n" +
-  "  LOGIC is still pinned offline by __tests__/check-spine-integrity.test.ts.";
+  "  NOT run: the orphan-pet count over the spine and the orphaned-sponsorship\n" +
+  "  count (the whole gate). The exemption LOGIC is still pinned offline by\n" +
+  "  __tests__/check-spine-integrity.test.ts.";
 
 export async function runCheck(argv: string[] = []): Promise<void> {
   const allowRemote = argv.includes("--allow-remote");
@@ -120,6 +177,7 @@ export async function runCheck(argv: string[] = []): Promise<void> {
 
   let rows: OrphanPetRow[];
   let totalPets: number;
+  let orphanedSponsorships: OrphanSponsorshipRow[];
   try {
     // Every pet with no pet_registered event, exemptions included — the
     // partition happens in JS so the exempted count can be REPORTED rather
@@ -135,6 +193,7 @@ export async function runCheck(argv: string[] = []): Promise<void> {
     `;
     const [countRow] = await sql<{ n: string }[]>`SELECT count(*)::text AS n FROM pets`;
     totalPets = Number(countRow?.n ?? 0);
+    orphanedSponsorships = await queryOrphanedSponsorships(sql);
   } catch (err) {
     reportDbSkip({
       fence: "check-spine-integrity",
@@ -201,8 +260,31 @@ export async function runCheck(argv: string[] = []): Promise<void> {
     process.exit(1);
   }
 
+  if (orphanedSponsorships.length > 0) {
+    for (const s of orphanedSponsorships.slice(0, MAX_LISTED)) {
+      const started = new Date(s.started_at).toISOString().slice(0, 19).replace("T", " ");
+      console.error(
+        `✗ ${s.public_token}: rehome_sponsorship_started (${started}, org ${s.organization_id}) names custody row ${s.ownership_id}, which is ${s.row_state}, and no rehome_sponsorship_ended matches it.`,
+      );
+    }
+    if (orphanedSponsorships.length > MAX_LISTED) {
+      console.error(`  … and ${orphanedSponsorships.length - MAX_LISTED} more.`);
+    }
+    console.error(
+      `\n✗ ${orphanedSponsorships.length} rehome sponsorship(s) still "running" on the spine over a custody row that is already closed (invariant #3).`,
+    );
+    console.error(
+      "  Something ended the org's shelter_custody row without writing rehome_sponsorship_ended\n" +
+        "  in the same transaction. Route the close through endAllLiveOwnerships\n" +
+        "  (lib/infra/end-pet-ownerships.ts) or endRehomeSponsorship, and heal the row\n" +
+        "  by writing the closing event for it — never by deleting the started event.",
+    );
+    console.error(`\n${dbLine}`);
+    process.exit(1);
+  }
+
   console.log(
-    `✓ Spine integrity clean — every one of ${totalPets} pet(s) has its pet_registered event.`,
+    `✓ Spine integrity clean — every one of ${totalPets} pet(s) has its pet_registered event; 0 orphaned rehome sponsorship(s).`,
   );
   console.log(exemptLine);
   console.log(dbLine);

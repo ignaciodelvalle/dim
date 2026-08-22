@@ -8,12 +8,14 @@
 //      and when it fires (a custody row committed by ANOTHER path between the
 //      step-3 read and the step-5 insert) the 23505 is mapped to step 3's own
 //      refusal below — never surfaced raw.
-//   1b. Re-read the ACCEPTING org inside the transaction and assert it still
-//      qualifies to sponsor (verified, shelter / rescue network) — the bar the
-//      request applied, applied again at answer time. The session snapshot is
-//      not believed here: a verification withdrawn since login would otherwise
-//      produce custody + listing + "ya figura en la búsqueda" for a pet the
-//      catalog never shows.
+//   1b. Re-read the ACCEPTING org inside the transaction, FOR SHARE, and
+//      assert it still qualifies to sponsor (verified, shelter / rescue
+//      network) — the bar the request applied, applied again at answer time.
+//      The session snapshot is not believed here: a verification withdrawn
+//      since login would otherwise produce custody + listing + "ya figura en
+//      la búsqueda" for a pet the catalog never shows. The share lock makes a
+//      de-verification that is racing this accept wait behind it, so the row
+//      the accept believes is the row that holds when it commits.
 //   2. Assert the consenting titular still holds a live `owner` row — consent
 //      expires with title. The row is read FOR UPDATE: a transfer committing
 //      between this read and step 5 would otherwise grant custody on the
@@ -137,9 +139,9 @@ export async function respondToRehomeRequest(
     }
 
     // 1b-4. Reads under the lock, then the rules in the design's order. The
-    // org row is the transaction's, not the session's; the owner row is taken
-    // FOR UPDATE.
-    const actingOrg = await repo.findOrgById(organization.id, tx);
+    // org row is the transaction's, not the session's, and taken FOR SHARE;
+    // the owner row is taken FOR UPDATE.
+    const actingOrg = await repo.lockOrgForShare(organization.id, tx);
     const ownerRow = await repo.lockLiveOwnerRow(petId, titularUserId, tx);
     const liveShelterCustodyCount = await repo.countLiveShelterCustody(petId, tx);
     const gate = validateAcceptPreconditions({
@@ -151,7 +153,9 @@ export async function respondToRehomeRequest(
         status: pet.status,
         inCustodyDispute: pet.inCustodyDispute,
         rabiesObservationStatus: pet.rabiesObservationStatus,
+        adoptionIneligibleUntil: pet.adoptionIneligibleUntil,
       },
+      now,
     });
     if (!gate.ok) return { ok: false, error: gate.error };
     // The gate refused a null org above; the events below sign with the value

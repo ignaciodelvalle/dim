@@ -67,6 +67,7 @@ describe("validateRequestOpen — one request per pet at a time (REQ-16)", () =>
 
 describe("validateAcceptPreconditions — ADR-1 steps 1 to 4, in order", () => {
   const ORG = "org-a";
+  const NOW = new Date("2026-08-21T12:00:00Z");
   const good = {
     caseKind: "rehome_request",
     caseStatus: "open",
@@ -75,11 +76,52 @@ describe("validateAcceptPreconditions — ADR-1 steps 1 to 4, in order", () => {
     actingOrg: { orgType: "shelter", verified: true },
     titularOwnerRowLive: true,
     liveShelterCustodyCount: 0,
-    pet: { status: "active", inCustodyDispute: false, rabiesObservationStatus: null },
+    pet: {
+      status: "active",
+      inCustodyDispute: false,
+      rabiesObservationStatus: null,
+      adoptionIneligibleUntil: null,
+    },
+    now: NOW,
   };
 
   it("passes the clean case", () => {
     expect(validateAcceptPreconditions(good)).toEqual({ ok: true });
+  });
+
+  // WU3 review, L-3. Step 6 of the accept calls setEligibility(true), which
+  // nulls adoption_ineligible_until / _reason. A time-boxed ineligibility — a
+  // quarantine, a treatment, a legal hold WITH a date — set by whichever org
+  // last held the animal is a fact about the animal that outlives that org's
+  // custody; the accept must not erase it while it is in force. An open-ended
+  // ineligibility (no date) is NOT a blocker: the org that set it no longer
+  // holds custody (step 3 asserts zero live custody), so nobody could lift
+  // it, and a pet blocked forever with no lifter is the worse failure.
+  it("step 4: rejects while a time-boxed ineligibility is still in force — the accept would erase it", () => {
+    const r = validateAcceptPreconditions({
+      ...good,
+      pet: { ...good.pet, adoptionIneligibleUntil: new Date("2026-09-30T00:00:00Z") },
+    });
+    expect(r.ok).toBe(false);
+    if (!r.ok) expect(r.error).toMatch(/no apta para adopción hasta/);
+  });
+
+  it("step 4: an ineligibility whose date already passed no longer blocks", () => {
+    const r = validateAcceptPreconditions({
+      ...good,
+      pet: { ...good.pet, adoptionIneligibleUntil: new Date("2026-08-21T11:59:59Z") },
+    });
+    expect(r).toEqual({ ok: true });
+  });
+
+  it("step 4: the time-box is checked after custody (step 3), not before", () => {
+    const r = validateAcceptPreconditions({
+      ...good,
+      liveShelterCustodyCount: 1,
+      pet: { ...good.pet, adoptionIneligibleUntil: new Date("2026-09-30T00:00:00Z") },
+    });
+    expect(r.ok).toBe(false);
+    if (!r.ok) expect(r.error).toMatch(/bajo custodia de una organización/);
   });
 
   // The catalog (adoption-listing-read.ts) lists a pet only when the custodian
