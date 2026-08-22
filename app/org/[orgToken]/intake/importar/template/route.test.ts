@@ -27,7 +27,11 @@ describe("GET /org/[orgToken]/intake/importar/template", () => {
     requireCapabilityMock.mockResolvedValue({ error: "No autorizado" });
     const res = await GET(templateRequest(), routeParams);
     expect(res.status).toBe(403);
-    expect(requireCapabilityMock).toHaveBeenCalledWith("intake.create", "ORG-1");
+    // `access: "read"` — a template download is a READ, which a deactivated
+    // institutional account keeps (lib/infra/auth-guards.ts:60-70).
+    expect(requireCapabilityMock).toHaveBeenCalledWith("intake.create", "ORG-1", {
+      access: "read",
+    });
   });
 
   it("downloads the CSV template: attachment, BOM, semicolons, CRLF, example row", async () => {

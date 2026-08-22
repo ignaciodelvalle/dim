@@ -2,43 +2,42 @@
 
 // notifications.ts — thin shim (strangler migration 59/61, 2026-06-30).
 //
-// Business logic moved to:
-//   src/modules/notifications/application/notification-actions.ts
+// Business logic lives in src/modules/notifications/application/notification-actions.ts.
+// Each wrapper calls requireLiveUser() in its OWN body (the authz fence reads
+// the export body, not its callees) and hands the use-case the userId.
 //
-// The requireUser() auth guard is lifted into each shim wrapper so the shim
-// satisfies the authz-coverage convention. The use-cases receive the userId
-// directly and no longer perform their own auth lookup.
+// Until 2026-08-22 this file defined a local `requireUser()` — a bare
+// auth.getUser() whose NAME was on the recognised-guard list, so the fence
+// counted three unguarded writes as guarded. The marks are UPDATEs on the
+// caller's own rows, so the write policy applies (lib/infra/auth-guards.ts:60-70):
+// MAINTENANCE, NO_SESSION, ACCOUNT_ERASED and DEACTIVATED all refuse; a
+// deactivated account keeps READING /notificaciones. Proof:
+// __tests__/notifications-actions-liveness.test.ts; the fence now refuses any
+// file that defines a guard's name (findShadowedGuardDefinitions).
 //
-// CRITICAL: Every runtime export in a "use server" file must be an async
-// function.
+// CRITICAL: Every runtime export in a "use server" file must be an async function.
 
-import { createClient } from "@/lib/supabase/server";
+import { requireLiveUser } from "@/lib/infra/live-user";
 import {
   archiveNotification as _archiveNotification,
   markAllNotificationsRead as _markAllNotificationsRead,
   markNotificationRead as _markNotificationRead,
 } from "@/src/modules/notifications/application/notification-actions";
 
-async function requireUser() {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) throw new Error("Sesión expirada");
-  return user;
-}
-
 export async function markNotificationReadAction(notificationId: string): Promise<void> {
-  const user = await requireUser();
-  return _markNotificationRead(user.id, notificationId);
+  const live = await requireLiveUser();
+  if (!live.ok) throw new Error(live.error);
+  return _markNotificationRead(live.user.id, notificationId);
 }
 
 export async function archiveNotificationAction(notificationId: string): Promise<void> {
-  const user = await requireUser();
-  return _archiveNotification(user.id, notificationId);
+  const live = await requireLiveUser();
+  if (!live.ok) throw new Error(live.error);
+  return _archiveNotification(live.user.id, notificationId);
 }
 
 export async function markAllNotificationsReadAction(): Promise<void> {
-  const user = await requireUser();
-  return _markAllNotificationsRead(user.id);
+  const live = await requireLiveUser();
+  if (!live.ok) throw new Error(live.error);
+  return _markAllNotificationsRead(live.user.id);
 }

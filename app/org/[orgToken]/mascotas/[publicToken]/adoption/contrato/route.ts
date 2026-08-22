@@ -56,7 +56,11 @@ export async function POST(
 ) {
   const { orgToken, publicToken } = await params;
 
-  const auth = await requireCapabilityForOrgToken("adoption.finalize", orgToken);
+  // A READ (contract PDF): a deactivated institutional account keeps it, per
+  // lib/infra/auth-guards.ts:60-70 — reads stay open, writes stop.
+  const auth = await requireCapabilityForOrgToken("adoption.finalize", orgToken, {
+    access: "read",
+  });
   if (auth.error !== null) {
     return new NextResponse("No autorizado", { status: 403 });
   }

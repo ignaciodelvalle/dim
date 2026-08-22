@@ -440,6 +440,164 @@ export function findOffenders(relPath: string, src: string): string[] {
 }
 
 // ---------------------------------------------------------------------------
+// Guard shadowing — a recognised NAME has exactly one home (2026-08-22)
+// ---------------------------------------------------------------------------
+//
+// THE HOLE. app/actions/notifications.ts defined its own
+// `async function requireUser()` — a bare `auth.getUser()` with no erasure,
+// deactivation or maintenance check — and fed it to three writes. `requireUser`
+// is on AUTH_GUARDS, so callsAuthGuard() matched the local and every export in
+// the file read as guarded by a guard that guarded nothing. Rule 1.2 reads a
+// function BODY for a guard's NAME; it cannot tell the real guard from a local
+// that borrowed the name, and it never could. This rule closes that from the
+// other side: every recognised name is DEFINED in its canonical home and
+// nowhere else, tree-wide.
+//
+// WHY TREE-WIDE AND NOT THE ACTION LIST. A shadow that lives in a helper
+// module and is imported into an action is the same hole one hop away, and
+// the coverage rule does not follow imports. So the scan is app/, src/ and
+// lib/, every non-test .ts/.tsx — the same roots the other fences read.
+//
+// WHAT COUNTS AS A DEFINITION (on comment-stripped source): a function
+// declaration, a const/let/var binding, and an import/export ALIAS
+// (`import { getUser as requireLiveUser }` puts the guard's name in every body
+// that calls it while running something else). Names that merely START with a
+// guard's name (`requireUserProfile`) do not match — the regexes anchor on the
+// token that follows.
+//
+// DEAD NAMES. Four entries on AUTH_GUARDS — requireUser, requireActiveOrgOrRedirect,
+// requireOwnedPet, requireOwnedAndAlive — are defined NOWHERE in the tree. A
+// dead name is a free pass: whoever defines it first is "the guard", which is
+// exactly what happened. They are kept on the list (the recognised names are
+// a published contract other fences read) with an EMPTY home, so any
+// definition at all is an offender. Pruning them is a separate decision.
+//
+// STATED BLIND SPOTS: a parameter named like a guard (`fn(requireUser: () =>
+// …)`), a destructuring bind (`const { requireUser } = …`), an object-literal
+// method or class method with the name, and — as everywhere in this file — a
+// definition inside a string literal, which stripComments keeps.
+
+/**
+ * Where each recognised guard name is DEFINED. Empty = a dead name that
+ * nothing may define. Relative, forward-slash paths.
+ */
+export const GUARD_HOMES: Readonly<Record<string, readonly string[]>> = {
+  requireUser: [],
+  requireUserOrRedirect: ["lib/infra/auth-guards.ts"],
+  requireLiveUser: ["lib/infra/live-user.ts"],
+  resolveOptionalLiveUser: ["lib/infra/live-user.ts"],
+  requireCapability: ["src/modules/organizations/infrastructure/authz-resolver.ts"],
+  requireCapabilityForOrgToken: ["src/modules/organizations/infrastructure/authz-resolver.ts"],
+  requireOrgAccessByToken: ["lib/infra/auth-guards.ts"],
+  requireActiveOrgOrRedirect: [],
+  requireAdminOrRedirect: ["lib/infra/auth-guards.ts"],
+  requireAdminOrGovtOrRedirect: ["lib/infra/auth-guards.ts"],
+  requireDecomisoPrincipal: ["lib/infra/auth-guards.ts"],
+  requireDenunciaModerationPrincipal: ["lib/infra/auth-guards.ts"],
+  requirePetAccess: ["lib/infra/pet-access.ts"],
+  requireAlivePetAccess: ["lib/infra/pet-access.ts"],
+  requireTitularAccess: ["lib/infra/pet-access.ts"],
+  requireOwnedPet: [],
+  requireOwnedPetByToken: ["lib/infra/pets.ts"],
+  requireOwnedAndAlive: [],
+  requireAdminUser: ["app/actions/alert-firings.ts"],
+  requireOrgInterventionAccess: ["src/modules/welfare/actions.ts"],
+  resolveAtenderPet: ["app/org/[orgToken]/atender/atender-access.ts"],
+  resolveAtenderContext: ["app/org/[orgToken]/atender/atender-access.ts"],
+  resolveInstitutionalGobActor: ["app/api/gob/_guard.ts"],
+  resolveInstitutionalPanoramaActor: ["app/api/panorama/_guard.ts"],
+  authorizeCronRequest: ["lib/domain/cron-auth.ts"],
+  checkCronSecret: ["lib/infra/case-cron.ts"],
+};
+
+const GUARD_SHADOW_SCAN_GLOBS = [
+  "app/**/*.ts",
+  "app/**/*.tsx",
+  "src/**/*.ts",
+  "src/**/*.tsx",
+  "lib/**/*.ts",
+  "lib/**/*.tsx",
+];
+
+/** Every non-test source file under app/, src/ and lib/ — the shadowing scope. */
+export function listGuardShadowScanFiles(): string[] {
+  const files = new Set<string>();
+  for (const pattern of GUARD_SHADOW_SCAN_GLOBS) {
+    for (const f of globSync(pattern)) {
+      const relPath = f.replaceAll("\\", "/");
+      if (isScannableSource(relPath)) files.add(relPath);
+    }
+  }
+  return [...files].sort();
+}
+
+/** The three definition shapes, each anchored on the token AFTER the name. */
+function guardDefinitionPatterns(name: string): RegExp[] {
+  return [
+    // function declaration (optionally exported / async / generic)
+    new RegExp(`(?:^|[^\\w.$])(?:async\\s+)?function\\s+${name}\\s*[(<]`),
+    // binding
+    new RegExp(`(?:^|[^\\w.$])(?:const|let|var)\\s+${name}\\s*[=:]`),
+    // import / export alias
+    new RegExp(`\\bas\\s+${name}\\s*[,}]`),
+  ];
+}
+
+/**
+ * One offender line per definition of a recognised guard name outside that
+ * name's canonical home. `relPath` must be forward-slash relative.
+ */
+export function findShadowedGuardDefinitions(relPath: string, src: string): string[] {
+  const offenders: string[] = [];
+  const lines = stripComments(src).split("\n");
+  for (const [name, homes] of Object.entries(GUARD_HOMES)) {
+    if (homes.includes(relPath)) continue;
+    const patterns = guardDefinitionPatterns(name);
+    for (let i = 0; i < lines.length; i++) {
+      if (!patterns.some((re) => re.test(lines[i]))) continue;
+      const home =
+        homes.length > 0
+          ? `Call the real one from ${homes.join(" / ")}.`
+          : "This name has NO canonical home — it is a dead entry on the recognised list and nothing may define it.";
+      offenders.push(
+        `${relPath}:${i + 1} defines \`${name}\`, a name on the recognised-guard list (AUTH_GUARDS / ROUTE_HANDLER_GUARDS). A local with a guard's name makes every caller read as guarded by a guard that guards nothing (app/actions/notifications.ts's requireUser(), 2026-08-22). ${home}`,
+      );
+    }
+  }
+  return offenders;
+}
+
+/**
+ * Non-vacuity for GUARD_HOMES: every home must still DEFINE its guard. A home
+ * that moved without this map following it would otherwise make the real
+ * definition an "offender" somewhere else — or, worse, let the map rot into a
+ * list of files that define nothing while the rule keeps passing.
+ */
+export function guardHomeViolations(): string[] {
+  const problems: string[] = [];
+  for (const [name, homes] of Object.entries(GUARD_HOMES)) {
+    for (const home of homes) {
+      let src: string;
+      try {
+        src = stripComments(readFileSync(home, "utf8"));
+      } catch {
+        problems.push(`${home}: listed as the home of \`${name}\` but does not exist`);
+        continue;
+      }
+      const defines = guardDefinitionPatterns(name)
+        .slice(0, 2)
+        .some((re) => src.split("\n").some((line) => re.test(line)));
+      if (!defines) {
+        problems.push(
+          `${home}: listed as the home of \`${name}\` but no longer defines it — update GUARD_HOMES`,
+        );
+      }
+    }
+  }
+  return problems;
+}
+
+// ---------------------------------------------------------------------------
 // Route-handler coverage — the same rule, one entry-point shape over (D4)
 // ---------------------------------------------------------------------------
 
@@ -924,12 +1082,21 @@ function runScan(): void {
     handlerOffenders.push(...findRouteHandlerOffenders(file, readFileSync(file, "utf8")));
   }
 
+  // Guard shadowing (2026-08-22) — tree-wide, see GUARD_HOMES. The home map's
+  // own non-vacuity check runs first: a rotten map is a fence that passes.
+  const shadowOffenders: string[] = [...guardHomeViolations()];
+  const shadowScanFiles = listGuardShadowScanFiles();
+  for (const file of shadowScanFiles) {
+    shadowOffenders.push(...findShadowedGuardDefinitions(file, readFileSync(file, "utf8")));
+  }
+
   const offenders = [
     ...coverageOffenders,
     ...impersonationOffenders,
     ...deletionOffenders,
     ...routeOffenders,
     ...handlerOffenders,
+    ...shadowOffenders,
   ];
   if (offenders.length > 0) {
     console.error(offenders.join("\n"));
@@ -958,6 +1125,11 @@ function runScan(): void {
         `✗ ${handlerOffenders.length} route handler export(s) without an authorization call or a justified ${NO_AUTH_COMMENT} opt-out.`,
       );
     }
+    if (shadowOffenders.length > 0) {
+      console.error(
+        `✗ ${shadowOffenders.length} definition(s) of a recognised guard name outside its canonical home (see GUARD_HOMES).`,
+      );
+    }
     process.exit(1);
   }
 
@@ -966,7 +1138,7 @@ function runScan(): void {
   ).length;
 
   console.log(
-    `✓ authz coverage clean — ${actionFiles.length} action files guarded, no impersonation-class exports, no bare-getUser pet writes; operator routes institutionally gated across ${operatorFiles.length} files (${operatorApiFiles.length} of them under app/api); ${handlerFiles.length} route handlers authorized (${optedOutHandlers} intentionally public, each with a written ${NO_AUTH_COMMENT} reason).`,
+    `✓ authz coverage clean — ${actionFiles.length} action files guarded, no impersonation-class exports, no bare-getUser pet writes; operator routes institutionally gated across ${operatorFiles.length} files (${operatorApiFiles.length} of them under app/api); ${handlerFiles.length} route handlers authorized (${optedOutHandlers} intentionally public, each with a written ${NO_AUTH_COMMENT} reason); no guard name defined outside its home across ${shadowScanFiles.length} files.`,
   );
 }
 

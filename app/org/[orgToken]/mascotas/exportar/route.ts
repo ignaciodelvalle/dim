@@ -150,7 +150,9 @@ async function fetchIntakeFacts(petIds: string[]): Promise<Map<string, IntakeFac
 export async function GET(_req: Request, { params }: { params: Promise<{ orgToken: string }> }) {
   const { orgToken } = await params;
 
-  const auth = await requireCapabilityForOrgToken("pet.read_held", orgToken);
+  // A READ (CSV export): a deactivated institutional account keeps it, per
+  // lib/infra/auth-guards.ts:60-70 — reads stay open, writes stop.
+  const auth = await requireCapabilityForOrgToken("pet.read_held", orgToken, { access: "read" });
   if (auth.error !== null) {
     return new NextResponse("No autorizado", { status: 403 });
   }

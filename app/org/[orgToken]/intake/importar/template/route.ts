@@ -17,7 +17,9 @@ export const dynamic = "force-dynamic";
 export async function GET(_req: Request, { params }: { params: Promise<{ orgToken: string }> }) {
   const { orgToken } = await params;
 
-  const auth = await requireCapabilityForOrgToken("intake.create", orgToken);
+  // A READ (template download): a deactivated institutional account keeps it,
+  // per lib/infra/auth-guards.ts:60-70 — reads stay open, writes stop.
+  const auth = await requireCapabilityForOrgToken("intake.create", orgToken, { access: "read" });
   if (auth.error !== null) {
     return new NextResponse("No autorizado", { status: 403 });
   }

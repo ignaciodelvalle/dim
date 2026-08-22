@@ -45,7 +45,9 @@ export default async function MensajesPage({
 }) {
   const { orgToken } = await params;
   const { organization } = await requireOrgAccessByToken(orgToken);
-  await requireCapability("member.invite", organization.id);
+  // A page READ: a deactivated institutional account keeps it, per
+  // lib/infra/auth-guards.ts:60-70 — reads stay open, writes stop.
+  await requireCapability("member.invite", organization.id, { access: "read" });
 
   // Fetch one extra row to detect truncation honestly (misma convención que
   // /voluntarios: nunca mostrar una página parcial como si fuera todo).

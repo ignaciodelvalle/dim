@@ -27,7 +27,10 @@ export default async function NewOrgBitePage({
   const { orgToken } = await params;
 
   const { organization: orgFromToken } = await requireOrgAccessByToken(orgToken);
-  const auth = await requireCapability("bite.report", orgFromToken.id);
+  // A page READ (the form; the action re-checks on POST with the write
+  // default): a deactivated institutional account keeps it, per
+  // lib/infra/auth-guards.ts:60-70 — reads stay open, writes stop.
+  const auth = await requireCapability("bite.report", orgFromToken.id, { access: "read" });
 
   if (auth.error !== null) {
     return (

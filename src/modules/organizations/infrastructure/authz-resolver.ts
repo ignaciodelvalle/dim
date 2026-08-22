@@ -4,13 +4,33 @@
 // isValidCapability, CAPABILITY_CATALOG, baselines) lives in domain/capabilities.ts.
 //
 // Resolution order for requireCapability (preserve EXACTLY per spec):
-//   1. Supabase session → no user → "Sesión expirada."
+//   1. Liveness (requireLiveUser, lib/infra/live-user.ts), in ITS precedence:
+//        MAINTENANCE    → the platform-wide kill-switch; an env read, before
+//                         any client or query, because the database may be
+//                         the thing under repair.
+//        NO_SESSION     → "Sesión expirada."
+//        ACCOUNT_ERASED → "Tu cuenta fue eliminada." (Ley 25.326 art. 16)
+//        DEACTIVATED    → refused for a WRITE (the default), tolerated for a
+//                         READ (`access: "read"`). See RequireCapabilityOptions.
 //   2. getActiveMemberships(userId) → ordered by joinedAt ASC
 //   3. orgId provided: find matching membership; omitted: take memberships[length-1]
 //   4. No matching/active membership → "No pertenecés a ninguna organización activa."
 //   5. getGrantedCapabilities(membership) → delegates domain resolveGrantedCaps + DB
 //   6. granted lacks capability → "No tenés permiso para esta acción. Pedile el alta a un administrador."
 //   7. Success → { user, membership, organization, granted, error: null }
+//
+// WHY STEP 1 IS requireLiveUser AND NOT A BARE getUser (RN re-run HIGH, 2026-08-22)
+// ---------------------------------------------------------------------------
+// Until this change both capability guards resolved the caller with
+// `auth.getUser()` plus the erasure check, and NOTHING else — while ~18 org
+// entry points (cross-org transfers ×5, foster ×2, member management ×5,
+// surveillance, rehome, atender) are gated by these two functions alone. So a
+// maintenance window never stopped an org from transferring custody or
+// accepting a rehome, and a DEACTIVATED institutional account kept mutating
+// through every one of them. lib/infra/live-user.ts already answers all four
+// liveness questions in one place and in one order; a guard that re-derives
+// three of them is a guard that drifts. The refusal shape stays this module's
+// own (RequireCapabilityFailure) — no redirects here, the use-cases return.
 
 import { and, eq, isNull } from "drizzle-orm";
 
@@ -23,8 +43,7 @@ import {
   organizationMemberships,
   organizations,
 } from "@/db";
-import { getProfileCached } from "@/lib/infra/request-cache";
-import { createClient } from "@/lib/supabase/server";
+import { requireLiveUser } from "@/lib/infra/live-user";
 import { resolveGrantedCaps } from "@/src/modules/organizations/domain/capabilities";
 
 // ---------------------------------------------------------------------------
@@ -53,6 +72,52 @@ export type RequireCapabilityFailure = {
 };
 
 export type RequireCapabilityResult = RequireCapabilitySuccess | RequireCapabilityFailure;
+
+export type RequireCapabilityOptions = {
+  /**
+   * What the caller is about to do with the capability. Defaults to "write".
+   *
+   * The policy is lib/infra/auth-guards.ts:60-70: a DEACTIVATED institutional
+   * account keeps its READS (so it can see why, and log out) and loses its
+   * WRITES. These guards gate writes by construction — every org server action
+   * and every org mutation authorizes through them — so the default refuses.
+   * The seven org pages and three export/template handlers that gate a READ
+   * on a capability pass `access: "read"` and tolerate the refusal exactly as
+   * requireUserOrRedirect does. MAINTENANCE, NO_SESSION and ACCOUNT_ERASED
+   * refuse either way.
+   */
+  access?: "read" | "write";
+};
+
+/**
+ * Step 1 of both guards: the caller must be LIVE, in requireLiveUser's own
+ * precedence, and the refusal comes back in this module's result shape.
+ *
+ * Returns the user id on success so the membership resolution never re-reads
+ * the session. DEACTIVATED is the one refusal a READ may tolerate; the guard
+ * fails CLOSED if that branch ever arrives without a user rather than
+ * asserting the shape with a cast (same stance as auth-guards.ts).
+ */
+async function resolveLiveActor(
+  options: RequireCapabilityOptions | undefined,
+): Promise<{ ok: true; userId: string } | { ok: false; failure: RequireCapabilityFailure }> {
+  const live = await requireLiveUser();
+  if (live.ok) return { ok: true, userId: live.user.id };
+
+  const tolerated = live.reason === "DEACTIVATED" && options?.access === "read";
+  if (tolerated && live.user) return { ok: true, userId: live.user.id };
+
+  return {
+    ok: false,
+    failure: {
+      user: live.user ? { id: live.user.id } : null,
+      membership: null,
+      organization: null,
+      granted: null,
+      error: live.error,
+    },
+  };
+}
 
 // ---------------------------------------------------------------------------
 // getActiveMemberships
@@ -124,49 +189,33 @@ export async function getGrantedCapabilities(
 export async function requireCapability(
   capability: OrganizationCapability,
   organizationId?: string,
+  options?: RequireCapabilityOptions,
 ): Promise<RequireCapabilityResult> {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  // Right-to-erasure lockout (Ley 25.326 art. 16, Wave E2) lives inside
+  // requireLiveUser now, together with the kill-switch and deactivation: the
+  // JWT stays valid after erase_subject_data() soft-deletes the profile, so a
+  // session alone never authorizes an org mutation. One request-memoized
+  // profile read is the price of the boundary, unchanged.
+  const live = await resolveLiveActor(options);
+  if (!live.ok) return live.failure;
 
-  if (!user) {
-    return {
-      user: null,
-      membership: null,
-      organization: null,
-      granted: null,
-      error: "Sesión expirada.",
-    };
-  }
+  return resolveCapabilityForUser(live.userId, capability, organizationId);
+}
 
-  // Right-to-erasure lockout (Ley 25.326 art. 16, Wave E2). requireCapability is
-  // the org-side mutation guard (member management, capability grants, cross-org
-  // custody transfers, foster/adoption state changes). Like requirePetAccess it
-  // resolves the user from the JWT, which stays valid after erase_subject_data()
-  // soft-deletes the profile — so without this check a self-erased org member
-  // could keep mutating through every requireCapability-gated action. getProfile-
-  // Cached is request-memoized (already selects deletedAt); a server-action call
-  // pays one indexed read — the price of the boundary.
-  const actingProfile = await getProfileCached(user.id);
-  if (actingProfile?.deletedAt != null) {
-    return {
-      user: { id: user.id },
-      membership: null,
-      organization: null,
-      granted: null,
-      error: "Tu cuenta fue eliminada.",
-    };
-  }
-
-  const memberships = await getActiveMemberships(user.id);
+/** Steps 2-7: membership + grant resolution for an already-LIVE user. */
+async function resolveCapabilityForUser(
+  userId: string,
+  capability: OrganizationCapability,
+  organizationId?: string,
+): Promise<RequireCapabilityResult> {
+  const memberships = await getActiveMemberships(userId);
   const active = organizationId
     ? memberships.find((m) => m.organization.id === organizationId)
     : memberships[memberships.length - 1];
 
   if (!active) {
     return {
-      user: { id: user.id },
+      user: { id: userId },
       membership: null,
       organization: null,
       granted: null,
@@ -177,7 +226,7 @@ export async function requireCapability(
   const granted = await getGrantedCapabilities(active.membership);
   if (!granted.has(capability)) {
     return {
-      user: { id: user.id },
+      user: { id: userId },
       membership: null,
       organization: null,
       granted: null,
@@ -186,7 +235,7 @@ export async function requireCapability(
   }
 
   return {
-    user: { id: user.id },
+    user: { id: userId },
     membership: active.membership,
     organization: active.organization,
     granted,
@@ -207,12 +256,24 @@ export async function requireCapability(
 // Returns the same RequireCapabilityResult shape as requireCapability. When the
 // token matches no organization the standard "no access" failure is returned —
 // indistinguishable from "not a member", so org existence is never leaked.
+//
+// LIVENESS RUNS FIRST, before the org lookup (2026-08-22). The lookup is a DB
+// read, and the maintenance kill-switch has to work when the database is what
+// is being maintained. It also closes a small oracle the old order had: an
+// ANONYMOUS caller used to get "No tenés acceso" for an unknown token and
+// "Sesión expirada." for a real one — two different answers to "does this org
+// exist?" for someone with no session at all. Now every non-live caller gets
+// the same liveness refusal whatever the token says.
 // ---------------------------------------------------------------------------
 
 export async function requireCapabilityForOrgToken(
   capability: OrganizationCapability,
   orgToken: string,
+  options?: RequireCapabilityOptions,
 ): Promise<RequireCapabilityResult> {
+  const live = await resolveLiveActor(options);
+  if (!live.ok) return live.failure;
+
   const [org] = await db
     .select({ id: organizations.id })
     .from(organizations)
@@ -221,7 +282,7 @@ export async function requireCapabilityForOrgToken(
 
   if (!org) {
     return {
-      user: null,
+      user: { id: live.userId },
       membership: null,
       organization: null,
       granted: null,
@@ -229,5 +290,5 @@ export async function requireCapabilityForOrgToken(
     };
   }
 
-  return requireCapability(capability, org.id);
+  return resolveCapabilityForUser(live.userId, capability, org.id);
 }

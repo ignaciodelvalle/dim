@@ -17,6 +17,7 @@ import { describe, expect, it } from "vitest";
 import {
   AUTH_GUARDS,
   DELETION_AWARE_GUARDS,
+  GUARD_HOMES,
   INNER_WRITER_SUFFIXES,
   INSTITUTIONAL_GUARDS,
   MIN_ROUTE_HANDLER_FILES,
@@ -30,10 +31,13 @@ import {
   findOffenders,
   findRouteGuardViolations,
   findRouteHandlerOffenders,
+  findShadowedGuardDefinitions,
   findUnreadableMethodExports,
+  guardHomeViolations,
   isInnerWriter,
   isServerActionModule,
   listActionFiles,
+  listGuardShadowScanFiles,
   listRouteHandlerFiles,
 } from "@/scripts/check-authz-guards";
 
@@ -920,5 +924,122 @@ describe("listRouteHandlerFiles", () => {
         expect(`${file}: ${fn.noAuthReason ?? ""}`.length).toBeGreaterThan(file.length + 12);
       }
     }
+  });
+});
+
+// ---------------------------------------------------------------------------
+// findShadowedGuardDefinitions — a guard's NAME has exactly one home
+//
+// THE HOLE (RN re-run HIGH, 2026-08-22). app/actions/notifications.ts defined
+// its own `async function requireUser()` — a bare `auth.getUser()` with no
+// erasure, deactivation or maintenance check — and fed it to three writes.
+// `requireUser` is on AUTH_GUARDS, so callsAuthGuard() matched the local and
+// the fence counted every export in the file as guarded. The coverage rule
+// reads a function BODY for a guard's NAME; it cannot tell the real guard from
+// a local that borrowed the name. This rule closes that: every recognised name
+// is defined in its canonical home and nowhere else.
+// ---------------------------------------------------------------------------
+
+describe("findShadowedGuardDefinitions", () => {
+  it("flags a file that DEFINES a function named like a guard — THE RED CONTROL", () => {
+    const src = [
+      '"use server";',
+      "async function requireUser() {",
+      "  const supabase = await createClient();",
+      "  const { data: { user } } = await supabase.auth.getUser();",
+      '  if (!user) throw new Error("Sesión expirada");',
+      "  return user;",
+      "}",
+      "export async function markReadAction(id: string) {",
+      "  const user = await requireUser();",
+      "  return mark(user.id, id);",
+      "}",
+    ].join("\n");
+    const offenders = findShadowedGuardDefinitions("app/actions/notifications.ts", src);
+    expect(offenders).toHaveLength(1);
+    expect(offenders[0]).toContain("app/actions/notifications.ts:2");
+    expect(offenders[0]).toContain("requireUser");
+    // And the shadow is exactly what the coverage rule could not see: with the
+    // local in place, findOffenders reads the export as guarded.
+    expect(findOffenders("app/actions/notifications.ts", src)).toEqual([]);
+  });
+
+  it("flags a const / arrow definition with a guard's name", () => {
+    const src = "const requireLiveUser = async () => ({ ok: true, user: { id: 'x' } });";
+    const offenders = findShadowedGuardDefinitions("lib/helpers.ts", src);
+    expect(offenders).toHaveLength(1);
+    expect(offenders[0]).toContain("requireLiveUser");
+  });
+
+  it("flags an import or export ALIAS onto a guard's name", () => {
+    // `import { getUser as requireLiveUser }` puts `requireLiveUser(` in every
+    // body that calls it while running something else entirely.
+    const imported = 'import { getSessionUser as requireLiveUser } from "@/lib/session";';
+    expect(findShadowedGuardDefinitions("app/actions/x.ts", imported)).toHaveLength(1);
+    const exported = 'export { getSessionUser as requirePetAccess } from "./session";';
+    expect(findShadowedGuardDefinitions("lib/x.ts", exported)).toHaveLength(1);
+  });
+
+  it("flags a DEAD name — a guard on the list that has no home at all", () => {
+    // `requireUser`, `requireActiveOrgOrRedirect`, `requireOwnedPet` and
+    // `requireOwnedAndAlive` are recognised by callsAuthGuard and defined
+    // nowhere in the tree. A dead name is a free pass: whoever defines it first
+    // is "the guard". The rule treats it as a name NOTHING may define.
+    for (const dead of ["requireUser", "requireActiveOrgOrRedirect", "requireOwnedPet"]) {
+      expect(GUARD_HOMES[dead]).toEqual([]);
+      const src = `export async function ${dead}() { return null; }`;
+      expect(findShadowedGuardDefinitions("lib/anywhere.ts", src)).toHaveLength(1);
+    }
+  });
+
+  it("does NOT flag a guard defined in its canonical home", () => {
+    const src = "export async function requireLiveUser(options?: RequireLiveUserOptions) { }";
+    expect(findShadowedGuardDefinitions("lib/infra/live-user.ts", src)).toEqual([]);
+    const local = "async function requireAdminUser(): Promise<{ userId: string }> { }";
+    expect(findShadowedGuardDefinitions("app/actions/alert-firings.ts", local)).toEqual([]);
+  });
+
+  it("does NOT flag a name that merely STARTS with a guard's name (precision)", () => {
+    const src = [
+      "async function requireUserProfile() { }",
+      "const requireLiveUserResult = await requireLiveUser();",
+      "function requireCapabilityOrThrow() { }",
+    ].join("\n");
+    expect(findShadowedGuardDefinitions("app/actions/x.ts", src)).toEqual([]);
+  });
+
+  it("does NOT flag a definition that lives only in a comment", () => {
+    const src = [
+      "// A bare `async function requireUser()` used to live here. It does not now:",
+      "/* const requireLiveUser = () => {} */",
+      "export async function markReadAction() { await requireLiveUser(); }",
+    ].join("\n");
+    expect(findShadowedGuardDefinitions("app/actions/x.ts", src)).toEqual([]);
+  });
+
+  it("GUARD_HOMES names every identifier-shaped guard the coverage rules recognise", () => {
+    // Parity: a guard added to AUTH_GUARDS / ROUTE_HANDLER_GUARDS without a
+    // home entry would be invisible to the shadowing rule — the exact gap that
+    // let the dead `requireUser` entry be borrowed.
+    const recognised = new Set<string>([...AUTH_GUARDS, ...ROUTE_HANDLER_GUARDS]);
+    recognised.delete("auth.getUser"); // a member expression, not a name anyone defines
+    expect([...recognised].sort()).toEqual(Object.keys(GUARD_HOMES).sort());
+  });
+
+  it("every canonical home still defines its guard (the map cannot rot)", () => {
+    expect(guardHomeViolations()).toEqual([]);
+  });
+
+  it("the real tree defines no guard outside its home", () => {
+    const files = listGuardShadowScanFiles();
+    // NON-VACUITY: the scan is tree-wide (app/, src/, lib/), not the action
+    // list — a shadow imported from a helper is the same hole one hop away.
+    expect(files.length).toBeGreaterThan(500);
+    expect(files).toContain("app/actions/notifications.ts");
+    expect(files).toContain("lib/infra/live-user.ts");
+    const offenders = files.flatMap((f) =>
+      findShadowedGuardDefinitions(f, readFileSync(f, "utf8")),
+    );
+    expect(offenders).toEqual([]);
   });
 });

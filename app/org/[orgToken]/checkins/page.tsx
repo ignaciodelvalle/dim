@@ -39,7 +39,9 @@ export default async function CheckinsPage({
   // Pre-validate membership. requireCapability below also checks, but we need
   // the organization.id to scope requireCapability to the right org.
   const { organization: orgFromToken } = await requireOrgAccessByToken(orgToken);
-  const auth = await requireCapability("adoption.review", orgFromToken.id);
+  // A page READ: a deactivated institutional account keeps it, per
+  // lib/infra/auth-guards.ts:60-70 — reads stay open, writes stop.
+  const auth = await requireCapability("adoption.review", orgFromToken.id, { access: "read" });
   if (auth.error !== null) {
     return (
       <div className="max-w-2xl space-y-4 py-8">

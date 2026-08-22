@@ -44,7 +44,12 @@ export default async function OrgTransferenciaNuevaPage({
   // that the action would in fact have accepted them. admin/coordinator still
   // pass — the capability is implicit for both (COORDINATOR_IMPLICIT_CAPS /
   // the admin universal grant), so this gate is a superset of the old one.
-  const auth = await requireCapability("org.transfer.propose", organization.id);
+  // A page READ (the form; the action re-checks on POST with the write
+  // default): a deactivated institutional account keeps it, per
+  // lib/infra/auth-guards.ts:60-70 — reads stay open, writes stop.
+  const auth = await requireCapability("org.transfer.propose", organization.id, {
+    access: "read",
+  });
 
   if (auth.error !== null) {
     return (
