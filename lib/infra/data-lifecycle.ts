@@ -130,11 +130,18 @@ export const CRON_RUNS_CLEANUP_MAX_BATCHES = 40;
 export type DrainOutcome = {
   deleted: number;
   /**
+   * How many DELETE batches were issued. 0 means the target was not touched
+   * at all — the distinction `deleted: 0` alone cannot make between "nothing
+   * was eligible" and "there was no time to look".
+   */
+  batches: number;
+  /**
    * True when the loop stopped with a FULL batch behind it — the cap or the
-   * deadline cut it short and rows remain. The count alone cannot say this:
-   * "20,000 deleted" reads like a completed purge whether the table is now
-   * empty or still holds a million rows, and a cron that cannot tell the
-   * difference is how a table grows for months under a green dashboard.
+   * deadline cut it short and rows remain — or never started because the
+   * deadline had already passed. The count alone cannot say this: "20,000
+   * deleted" reads like a completed purge whether the table is now empty or
+   * still holds a million rows, and a cron that cannot tell the difference is
+   * how a table grows for months under a green dashboard.
    */
   backlogged: boolean;
 };
@@ -152,9 +159,18 @@ export type DrainOutcome = {
  * them by seeding 20,000 rows would cost more than the cap it is proving.
  * `now` is injectable for the same reason.
  *
- * The first batch always runs, deadline or not: a share of 0 ms still makes
- * one `batchSize` step of progress per target, so a night with no budget left
- * is not a night where nothing moves.
+ * NO TIME MEANS NO DELETE (2026-08-22). A deadline that has already passed
+ * when the drain is entered — the composite's share of 0 ms, or a run that is
+ * simply late — returns `{ deleted: 0, batches: 0, backlogged: true }` without
+ * issuing a single batch. This file used to run the first batch regardless
+ * ("a night with no budget left is not a night where nothing moves"), which
+ * is a DELETE issued under a budget the dispatcher had already spent: the one
+ * thing the handed-down budget exists to prevent, and a lock the next job in
+ * the fan-out then waits behind. A POSITIVE share, however small, still runs
+ * one batch — the check is `>=` at entry, not a threshold — so forward
+ * progress is decided by the share the caller computed, not by how fast the
+ * clock ticks between the caller's reading and this one (on a real clock a
+ * 1 ms share can elapse in between; that is "no time", honestly reported).
  */
 export async function drainPurge(
   step: () => Promise<number>,
@@ -163,6 +179,7 @@ export async function drainPurge(
   maxBatches = Number.POSITIVE_INFINITY,
   now: () => number = Date.now,
 ): Promise<DrainOutcome> {
+  if (now() >= deadlineMs) return { deleted: 0, batches: 0, backlogged: true };
   let deleted = 0;
   let batches = 0;
   for (;;) {
@@ -172,9 +189,9 @@ export async function drainPurge(
     // A SHORT batch is the only proof the backlog is gone: the DELETE takes up
     // to `batchSize` and returns what it got, so anything less means it ran out
     // of eligible rows rather than out of room.
-    if (batch < batchSize) return { deleted, backlogged: false };
+    if (batch < batchSize) return { deleted, batches, backlogged: false };
     if (batches >= maxBatches || now() >= deadlineMs) {
-      return { deleted, backlogged: true };
+      return { deleted, batches, backlogged: true };
     }
   }
 }
@@ -355,6 +372,13 @@ export type DataLifecycleOptions = {
  *
  * Every target is capped as well (the STATED worst case per target); the
  * deadline is the safety net for a slow night.
+ *
+ * A share of 0 ms — the budget already spent when a target's turn comes — is
+ * handed to drainPurge as a deadline equal to the target's own start, and
+ * drainPurge issues nothing (see its header). The zero leftover then flows to
+ * the next target unchanged (0 / targets left is still 0), so a spent budget
+ * reads as four `backlogged: true` flags and zero DELETEs, never as one free
+ * batch per table under a budget the dispatcher no longer has.
  */
 export async function runDataLifecyclePurge(
   options: DataLifecycleOptions = {},

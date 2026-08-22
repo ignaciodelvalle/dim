@@ -333,6 +333,7 @@ describe("drainPurge", () => {
 
     expect(fake.calls).toEqual([500, 500, 120]);
     expect(result.deleted).toBe(1120);
+    expect(result.batches).toBe(3);
     // 120 < 500 means the backlog is gone — nothing left to come back for.
     expect(result.backlogged).toBe(false);
   });
@@ -350,14 +351,66 @@ describe("drainPurge", () => {
     expect(result.backlogged).toBe(true);
   });
 
+  /** A clock that returns the given readings in order, then the last one forever. */
+  function readings(values: number[]) {
+    let i = 0;
+    return () => {
+      const v = values[Math.min(i, values.length - 1)];
+      i += 1;
+      return v;
+    };
+  }
+
   it("stops at the wall-clock deadline and FLAGS the backlog too", async () => {
     const fake = fakeStep(Array(50).fill(500));
 
-    // A deadline already in the past: the first batch runs, then the loop sees
-    // it is out of time.
-    const result = await drainPurge(fake.step, 500, Date.now() - 1);
+    // Entry reading 0 (before the deadline of 1), then 2 after the first batch:
+    // one batch runs, and the loop sees it is out of time.
+    const result = await drainPurge(fake.step, 500, 1, Number.POSITIVE_INFINITY, readings([0, 2]));
 
     expect(fake.calls).toHaveLength(1);
+    expect(result.batches).toBe(1);
+    expect(result.backlogged).toBe(true);
+  });
+
+  it("issues NO batch when the deadline has already passed at entry — a zero share is no time, not one free batch", async () => {
+    // The composite hands each target `now + share`; a share of 0 ms makes the
+    // deadline equal to the entry reading. Until 2026-08-22 the first batch ran
+    // anyway ("a night with no budget left is not a night where nothing
+    // moves"), which meant a DELETE issued under a budget the dispatcher had
+    // already spent — the one thing the handed-down budget exists to prevent.
+    // Now: no time means no DELETE, and the flags say the table was not
+    // touched. Both the equal case (share 0) and the already-past case.
+    for (const deadline of [1000, 999]) {
+      const fake = fakeStep(Array(50).fill(500));
+      const result = await drainPurge(
+        fake.step,
+        500,
+        deadline,
+        Number.POSITIVE_INFINITY,
+        () => 1000,
+      );
+      expect(fake.calls, `deadline ${deadline} at now=1000`).toEqual([]);
+      expect(result).toEqual({ deleted: 0, batches: 0, backlogged: true });
+    }
+  });
+
+  it("a POSITIVE share, however small, still runs one batch — forward progress is the share's, not the clock's", async () => {
+    const fake = fakeStep(Array(50).fill(500));
+
+    // Deadline 1 ms after the entry reading: the batch runs, then the loop
+    // reads the clock past the deadline and is out of time. The distinction
+    // is `>=` at entry, not a threshold.
+    const result = await drainPurge(
+      fake.step,
+      500,
+      1001,
+      Number.POSITIVE_INFINITY,
+      readings([1000, 1001]),
+    );
+
+    expect(fake.calls).toHaveLength(1);
+    expect(result.batches).toBe(1);
     expect(result.backlogged).toBe(true);
   });
 
@@ -561,9 +614,15 @@ describe("runDataLifecyclePurge — order, caps and fair share (fake purgers)", 
     expect(result.backlogged.cronRuns).toBe(true);
   });
 
-  it("runs exactly one batch per target when the budget is already spent", async () => {
+  it("issues NOTHING when the budget is already spent — every target reports a backlog, no DELETE runs", async () => {
+    // A 0 ms budget: every target's fair share is 0, every deadline is its own
+    // entry instant, and drainPurge refuses at entry. Until 2026-08-22 this ran
+    // one batch per target ("b", "n", "p", "c") — four DELETEs under a budget
+    // the dispatcher had already spent. The zero leftover is handed forward
+    // unchanged (0 / targets left is still 0), so the later targets do not
+    // inherit a phantom share either.
     const calls: string[] = [];
-    await runDataLifecyclePurge({
+    const result = await runDataLifecyclePurge({
       maxDurationMs: 0,
       now: ticking(1),
       purgers: {
@@ -573,7 +632,14 @@ describe("runDataLifecyclePurge — order, caps and fair share (fake purgers)", 
         cronRuns: endless(500, calls, "c"),
       },
     });
-    expect(calls).toEqual(["b", "n", "p", "c"]);
+    expect(calls).toEqual([]);
+    expect(result.backlogged).toEqual({
+      rateLimitBuckets: true,
+      notifications: true,
+      pushSubscriptions: true,
+      cronRuns: true,
+    });
+    expect(result.rateLimitBucketsDeleted + result.notificationsDeleted).toBe(0);
   });
 });
 
