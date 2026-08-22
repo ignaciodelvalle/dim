@@ -40,7 +40,42 @@
 // pet's home instead would authorize a stranger org for every animal registered
 // in the one locality it covers, wherever in the country they were bitten.
 //
-// Pure — no DB, no framework. The two facts arrive as data.
+// WHAT EACH ARM ACTUALLY PROVES (fresh-context review 2026-08-22, U3)
+// ---------------------------------------------------------------------------
+// The Ushuaia/Salta sentence above was FALSE as originally written, and it is
+// worth saying why rather than quietly deleting it. `organization_coverage` is
+// written by `addCoverageZoneAction`, which lets any admin or coordinator add
+// ANY province (locality null = province-wide); `add-coverage-zone.ts` checks
+// only that the province exists and that the locality belongs to it. Ushuaia
+// only had to add Salta to its own coverage list first. The coverage arm was
+// therefore a SELF-ASSERTED claim, not a relationship, and the conjunction read
+// `verified AND (self-asserted claim)`.
+//
+// The coverage arm is now ANCHORED: the incident province must also equal the
+// org's `organizations.jurisdiction_province`. That column is set once at
+// creation and is excluded from every update path BY TYPE — `updateOrgProfile`
+// takes a `Pick<>` that does not contain it, `UpdateOrganizationFields` cannot
+// express it, and no admin write path touches it. It is the jurisdiction a
+// government saw when it verified the org, and the org cannot move it
+// afterwards. Coverage rows still narrow authority WITHIN that province (a
+// locality row keeps meaning one locality); they can no longer manufacture it
+// in another one. An org with a NULL jurisdiction has no anchor, so the
+// coverage arm denies rather than falling back to trusting the list.
+//
+// The RELATION arm is deliberately NOT tightened, and it is weaker than it
+// looks: `hasPetRelation` is satisfied by any pet_event this org authored, and
+// a member can author one through /org/{token}/atender/{petToken}, which
+// `resolveAtenderContext` gates on active membership alone. So the honest
+// statement is "attended this animal, on this org's own say-so — but only for
+// an animal whose DIM token it physically had". Closing that means gating
+// `atender` itself, which is a different subject with its own real flows (the
+// clinic that treated the dog last year is exactly the reporter this gate must
+// keep). It is not fixed here; it is no longer overclaimed here either. The
+// compensating controls that DO exist: the pet's active owner is notified
+// in-transaction (`bite_reported_by_org_owner`, report-bite-from-org.ts) and
+// the report is written to the audit log.
+//
+// Pure — no DB, no framework. The facts arrive as data.
 
 import { type CoverageArea, type PetZone, orgCoversZone } from "@/lib/domain/org-coverage";
 
@@ -54,6 +89,12 @@ export type OrgBiteAuthorityInput = {
    * the reporter this gate must keep.
    */
   hasPetRelation: boolean;
+  /**
+   * `organizations.jurisdiction_province` for the REPORTING org — the province
+   * a government saw when it verified it, immutable afterwards (see header).
+   * Null when the org never declared one: no anchor, so no coverage authority.
+   */
+  orgJurisdictionProvince: string | null;
   /** The org's `organization_coverage` rows. Empty = covers nothing. */
   coverageAreas: readonly CoverageArea[];
   /** Where the bite happened (province/locality), NOT where the pet lives. */
@@ -75,7 +116,14 @@ export function assertOrgMayReportBite(input: OrgBiteAuthorityInput): OrgBiteAut
   }
 
   if (input.hasPetRelation) return { ok: true };
-  if (orgCoversZone(input.coverageAreas, input.incidentZone)) return { ok: true };
+
+  // The coverage arm, anchored. Both must hold: the incident is in the province
+  // the org was VERIFIED in (which it cannot edit), and it falls inside a
+  // coverage row it declared (which only ever narrows, never widens).
+  const anchored =
+    input.orgJurisdictionProvince !== null &&
+    input.incidentZone.province === input.orgJurisdictionProvince;
+  if (anchored && orgCoversZone(input.coverageAreas, input.incidentZone)) return { ok: true };
 
   return {
     ok: false,

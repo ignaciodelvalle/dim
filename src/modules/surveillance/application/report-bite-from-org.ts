@@ -45,6 +45,8 @@ export type ReportBiteFromOrgInput = {
     displayName: string;
     orgType: string;
     verified: boolean;
+    /** The province the org was verified in — the coverage arm's anchor (U3). */
+    jurisdictionProvince: string | null;
   };
   occurredAt: Date;
   victimKind: "human" | "animal" | "unknown";
@@ -172,6 +174,10 @@ export async function reportBiteFromOrg(
   const orgAuthority = await deps.loadOrgPetAuthority(organization.id, pet.id);
   const mayReport = assertOrgMayReportBite({
     orgVerified: organization.verified,
+    // The province the org was VERIFIED in — it cannot edit this, so it is the
+    // anchor that stops a self-added coverage row minting authority in another
+    // province (U3, 2026-08-22).
+    orgJurisdictionProvince: organization.jurisdictionProvince ?? null,
     hasPetRelation: orgAuthority.hasPetRelation,
     coverageAreas: orgAuthority.coverageAreas,
     incidentZone: { province: caseProvince, locality: caseLocality },

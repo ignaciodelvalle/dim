@@ -79,6 +79,8 @@ const BASE_INPUT: ReportBiteFromOrgInput = {
     displayName: "Clinica Vet SA",
     orgType: "clinic",
     verified: true,
+    // The province this org was VERIFIED in — the coverage arm's anchor (U3).
+    jurisdictionProvince: "CABA",
   },
   occurredAt: new Date("2024-07-01T09:00:00Z"),
   victimKind: "animal",
@@ -455,6 +457,28 @@ describe("reportBiteFromOrg — the reporting org must be verified AND connected
       deps,
     );
     expect(result.ok).toBe(false);
+  });
+
+  it("REFUSES coverage the org minted outside the province it was verified in", async () => {
+    // U3 (2026-08-22): addCoverageZoneAction lets any admin/coordinator add ANY
+    // province, so this row is self-asserted. Anchoring the arm to
+    // organizations.jurisdiction_province — which the org cannot edit — is what
+    // stops a CABA-verified org acquiring standing in Córdoba by typing it in.
+    const deps = makeDeps();
+    deps.loadOrgPetAuthority.mockResolvedValue({
+      hasPetRelation: false,
+      coverageAreas: [{ jurisdictionProvince: "Córdoba", jurisdictionLocality: null }],
+    });
+    const result = await reportBiteFromOrg(
+      {
+        ...BASE_INPUT,
+        eventJurisdictionProvince: "Córdoba",
+        eventJurisdictionLocality: "Río Cuarto",
+      },
+      deps,
+    );
+    expect(result.ok).toBe(false);
+    expect(deps.transaction).not.toHaveBeenCalled();
   });
 
   it("LETS a verified clinic that attended the animal report a bite outside its coverage", async () => {

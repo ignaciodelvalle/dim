@@ -443,6 +443,7 @@ export async function reportBiteFromOrgAction(
         displayName: organization.displayName,
         orgType: organization.orgType,
         verified: organization.verified,
+        jurisdictionProvince: organization.jurisdictionProvince ?? null,
       },
       occurredAt,
       victimKind,
