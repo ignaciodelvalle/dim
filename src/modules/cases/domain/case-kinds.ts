@@ -75,6 +75,38 @@ export const ROUTED_ELSEWHERE_DESTINATION: Record<string, { href: string; label:
   custody_dispute: { href: "/gob/casos?expediente=disputas", label: "Disputas de custodia" },
 };
 
+/**
+ * The ORG queue's own routing registry (/org/{token}/casos) — kinds that have
+ * their own org screen and must not be listed twice.
+ *
+ * Separate from CASE_KINDS_ROUTED_ELSEWHERE on purpose (rehome-by-titular,
+ * PO inbox-scoping decision, refinement 2). That registry belongs to /gob: its
+ * destinations are static hrefs, and routing `custody_transfer_handshake` out
+ * of /gob/casos would leave a govt operator with no screen for it at all. The
+ * org queue is a different reader with a different map: a handshake the org
+ * proposed lives at /org/{token}/transferencias, one addressed to it at
+ * /org/{token}/transferencias/recibidas (beside decomiso hand-offs, which never
+ * reached the generic queue — the inbox's receiver arm is scoped to
+ * `rehome_request` so they never will).
+ *
+ * Same rule as above: a ROUTING statement, not a data change.
+ */
+export const ORG_CASE_KINDS_ROUTED_ELSEWHERE: readonly CaseKind[] = ["custody_transfer_handshake"];
+
+/** Where an org member goes for a kind the org queue does not show; null when it does. */
+export function orgRoutedElsewhereDestination(
+  orgToken: string,
+  kind: CaseKind | (string & {}),
+): { href: string; label: string } | null {
+  if (kind === "custody_transfer_handshake") {
+    return {
+      href: `/org/${orgToken}/transferencias/recibidas`,
+      label: "Transferencias de custodia",
+    };
+  }
+  return null;
+}
+
 export const V1_CASE_KINDS: readonly CaseKind[] = [
   "bite_incident",
   "lost_pet_episode",

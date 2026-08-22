@@ -10,8 +10,10 @@
 //   - No bulk actions: org cases have no simple approve/reject operation
 //     analogous to adoptions. Bulk is omitted intentionally.
 //
-// Data: listCasesForOrg (org as opener OR active ownership holder). Filters
-// are pushed into SQL — no in-memory filtering.
+// Data: listCasesForOrg (org as opener, active ownership holder, or the
+// receiver of a titular's rehome_request). Filters are pushed into SQL — no
+// in-memory filtering. Kinds with their own org screen
+// (ORG_CASE_KINDS_ROUTED_ELSEWHERE) are excluded here and pointed to below.
 
 import Link from "next/link";
 import { Suspense } from "react";
@@ -20,7 +22,13 @@ import { OpCrumbs } from "@/components/ui/dashboard";
 import { CaseQueue, type CaseQueueRow } from "@/components/ui/dashboard/CaseQueue";
 import { requireOrgAccessByToken } from "@/lib/infra/auth-guards";
 import { listCaseKindDistributionForOrg, listCasesForOrg } from "@/lib/infra/case-queries";
-import { type CaseKind, caseKindLabel, isCaseKind } from "@/src/modules/cases/domain/case-kinds";
+import {
+  type CaseKind,
+  ORG_CASE_KINDS_ROUTED_ELSEWHERE,
+  caseKindLabel,
+  isCaseKind,
+  orgRoutedElsewhereDestination,
+} from "@/src/modules/cases/domain/case-kinds";
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -60,9 +68,21 @@ export default async function OrgCasosPage({ params, searchParams }: PageProps) 
   const activeStatus = parseStatus(statusParam);
 
   const [{ items, truncated }, presentKinds] = await Promise.all([
-    listCasesForOrg(organization.id, { kind: activeKind, status: activeStatus }),
-    listCaseKindDistributionForOrg(organization.id),
+    listCasesForOrg(organization.id, {
+      kind: activeKind,
+      status: activeStatus,
+      excludeKinds: ORG_CASE_KINDS_ROUTED_ELSEWHERE,
+    }),
+    listCaseKindDistributionForOrg(organization.id, {
+      excludeKinds: ORG_CASE_KINDS_ROUTED_ELSEWHERE,
+    }),
   ]);
+
+  // Where the routed-out kinds live, said once under the header so a member
+  // looking for a transfer here is sent to the screen that has it.
+  const routedElsewhere = ORG_CASE_KINDS_ROUTED_ELSEWHERE.map((k) =>
+    orgRoutedElsewhereDestination(orgToken, k),
+  ).filter((d): d is { href: string; label: string } => d !== null);
 
   // Base URL for CaseQueue's status filter chips (preserves ?kind= when set).
   function statusBase(): string {
@@ -111,9 +131,22 @@ export default async function OrgCasosPage({ params, searchParams }: PageProps) 
       <header className="space-y-1">
         <h1 className="text-title font-semibold text-ln-op-ink">Casos</h1>
         <p className="text-md text-ln-op-mute">
-          Expedientes donde {organization.displayName} es la organización que abrió el caso o
-          actualmente tiene custodia activa.
+          Expedientes donde {organization.displayName} abrió el caso, tiene custodia activa o
+          recibió una solicitud de nuevo hogar de un titular.
         </p>
+        {routedElsewhere.length > 0 && (
+          <p className="text-sm text-ln-op-mute">
+            {routedElsewhere.map((d, i) => (
+              <span key={d.href}>
+                {i > 0 ? " · " : ""}
+                <Link href={d.href} className="underline hover:text-ln-op-ink">
+                  {d.label}
+                </Link>
+              </span>
+            ))}
+            {" tienen su propia bandeja."}
+          </p>
+        )}
       </header>
 
       {/* Kind filter chips — only rendered when the org has more than one kind */}

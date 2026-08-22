@@ -71,6 +71,27 @@ export function isHiddenFromSubjectKind(kind: string): boolean {
   return HIDDEN_FROM_SUBJECT_CASE_KINDS.has(kind as CaseKind);
 }
 
+/**
+ * Does this user hold an ACTIVE membership in this org? The one membership
+ * read every org-party branch of canReadCase makes — written once so the
+ * rehome_request branch (keyed on the RECEIVER org) and the two opened_by
+ * branches cannot drift apart on what "member" means (`left_at IS NULL`).
+ */
+export async function isActiveOrgMember(orgId: string, userId: string): Promise<boolean> {
+  const [memberRow] = await db
+    .select({ id: organizationMemberships.id })
+    .from(organizationMemberships)
+    .where(
+      and(
+        eq(organizationMemberships.organizationId, orgId),
+        eq(organizationMemberships.userId, userId),
+        isNull(organizationMemberships.leftAt),
+      ),
+    )
+    .limit(1);
+  return Boolean(memberRow);
+}
+
 export async function canReadCase(detail: CaseDetail, viewer: CaseViewer | null): Promise<boolean> {
   // Anonymous: allow only if the case kind is in the public allow-list.
   // The page renders a PII-redacted view; see `app/casos/[publicCode]`.
@@ -129,18 +150,18 @@ export async function canReadCase(detail: CaseDetail, viewer: CaseViewer | null)
 
   // adoption_listing — members of the opened_by org.
   if (detail.caseKind === "adoption_listing" && detail.openedByOrganization) {
-    const [memberRow] = await db
-      .select({ id: organizationMemberships.id })
-      .from(organizationMemberships)
-      .where(
-        and(
-          eq(organizationMemberships.organizationId, detail.openedByOrganization.id),
-          eq(organizationMemberships.userId, viewer.userId),
-          isNull(organizationMemberships.leftAt),
-        ),
-      )
-      .limit(1);
-    if (memberRow) return true;
+    if (await isActiveOrgMember(detail.openedByOrganization.id, viewer.userId)) return true;
+  }
+
+  // rehome_request — members of the SPONSORING org (rehome-by-titular, design
+  // ADR-4). openedByOrganization is null by construction: the TITULAR opens
+  // this case. The sponsoring org lives in receiver_organization_id, the same
+  // column the cross-org transfer accept path authorizes against. NOT the
+  // live shelter_custody row: it does not exist before accept (exactly the
+  // inbox window this branch is for) and it is closed after a withdraw (when
+  // the org must still read the case it worked on).
+  if (detail.caseKind === "rehome_request" && detail.receiverOrganization) {
+    if (await isActiveOrgMember(detail.receiverOrganization.id, viewer.userId)) return true;
   }
 
   // foster_placement — the active foster on the pet OR org-side members
@@ -160,18 +181,7 @@ export async function canReadCase(detail: CaseDetail, viewer: CaseViewer | null)
       .limit(1);
     if (fosterRow) return true;
     if (detail.openedByOrganization) {
-      const [memberRow] = await db
-        .select({ id: organizationMemberships.id })
-        .from(organizationMemberships)
-        .where(
-          and(
-            eq(organizationMemberships.organizationId, detail.openedByOrganization.id),
-            eq(organizationMemberships.userId, viewer.userId),
-            isNull(organizationMemberships.leftAt),
-          ),
-        )
-        .limit(1);
-      if (memberRow) return true;
+      if (await isActiveOrgMember(detail.openedByOrganization.id, viewer.userId)) return true;
     }
   }
 

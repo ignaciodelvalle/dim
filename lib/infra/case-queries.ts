@@ -107,6 +107,11 @@ const CASE_DETAIL_SELECT = {
   welfareReportId: cases.welfareReportId,
   custodyDisputeId: cases.custodyDisputeId,
   openedByOrganizationId: cases.openedByOrganizationId,
+  // The org a case is ADDRESSED to: a decomiso hand-off's receiver, a
+  // cross-org transfer's receiver, a rehome_request's sponsoring org (the
+  // titular opens that one, so openedByOrganizationId is null by
+  // construction — rehome-by-titular, design ADR-4).
+  receiverOrganizationId: cases.receiverOrganizationId,
   closedByUserId: cases.closedByUserId,
   openedByUserId: cases.openedByUserId,
 } as const;
@@ -197,6 +202,9 @@ export interface CaseDetail {
   } | null;
   openedByUser: { id: string; displayName: string } | null;
   openedByOrganization: { id: string; displayName: string; publicToken: string } | null;
+  /** The org the case is addressed to (see CASE_DETAIL_SELECT). Null for kinds with no receiver. */
+  receiverOrganization: { id: string; displayName: string; publicToken: string } | null;
+  receiverOrganizationId: string | null;
   closedByUser: { id: string; displayName: string } | null;
   events: CaseEventRow[];
 }
@@ -261,6 +269,7 @@ export async function getCaseDetailByPublicCode(publicCode: string): Promise<Cas
     welfareReportRow,
     custodyDisputeRow,
     openedByOrgRow,
+    receiverOrgRow,
     closedByUserRow,
     petEventRows,
     caseEventRows,
@@ -298,6 +307,18 @@ export async function getCaseDetailByPublicCode(publicCode: string): Promise<Cas
           })
           .from(organizations)
           .where(eq(organizations.id, row.c.openedByOrganizationId))
+          .limit(1)
+          .then((rows) => rows[0] ?? null)
+      : Promise.resolve(null),
+    row.c.receiverOrganizationId
+      ? db
+          .select({
+            id: organizations.id,
+            displayName: organizations.displayName,
+            publicToken: organizations.publicToken,
+          })
+          .from(organizations)
+          .where(eq(organizations.id, row.c.receiverOrganizationId))
           .limit(1)
           .then((rows) => rows[0] ?? null)
       : Promise.resolve(null),
@@ -387,6 +408,8 @@ export async function getCaseDetailByPublicCode(publicCode: string): Promise<Cas
     custodyDispute: custodyDisputeRow,
     openedByUser: row.openedByUser?.id ? row.openedByUser : null,
     openedByOrganization: openedByOrgRow,
+    receiverOrganization: receiverOrgRow,
+    receiverOrganizationId: row.c.receiverOrganizationId ?? null,
     closedByUser: closedByUserRow,
     events: mergedEvents,
   };
@@ -543,6 +566,11 @@ export interface ListCasesForOrgFilters {
   kind?: CaseKind | null;
   /** Filter by open/closed status. Null = all statuses. */
   status?: "open" | "closed" | null;
+  /**
+   * Kinds that have their own org screen — pass ORG_CASE_KINDS_ROUTED_ELSEWHERE.
+   * Omit to show everything (tests, and any reader that is not the queue).
+   */
+  excludeKinds?: readonly CaseKind[];
 }
 
 /**
@@ -552,25 +580,29 @@ export interface ListCasesForOrgFilters {
 export const LIST_CASES_FOR_ORG_LIMIT = 200;
 
 /**
- * Returns up to LIST_CASES_FOR_ORG_LIMIT cases visible to the org (opener or
- * active owner), filtered entirely in SQL. When the cap is reached the caller
- * should surface a hint — check `truncated` in the returned object.
+ * The three ways a case is the org's (rehome-by-titular, design B7 + PO
+ * inbox-scoping decision):
+ *   1. the org OPENED it;
+ *   2. the org holds a LIVE ownership row on its pet;
+ *   3. it is a `rehome_request` ADDRESSED to the org — the titular opens that
+ *      case and the org has no ownership row until it accepts, so neither of
+ *      the first two arms sees a pending request and the org's inbox stayed
+ *      empty for the one case only it can answer.
  *
- * `_limitOverride` is for tests only: pass a small number to verify that
- * results beyond the cap are found when filters are set.
+ * Arm 3 is scoped to the kind ON PURPOSE. `receiver_organization_id` also
+ * carries decomiso hand-offs (custody_episode) and cross-org transfers, which
+ * already have their own org screen (/transferencias/recibidas); an unscoped
+ * arm would list them twice. "Sin dedup" — the PO, 2026-08-20.
+ *
+ * Shared by the list and the kind distribution so the chips can never
+ * disagree with the rows.
  */
-export async function listCasesForOrg(
-  orgId: string,
-  filters?: ListCasesForOrgFilters,
-  _limitOverride?: number,
-): Promise<{ items: CaseListItem[]; truncated: boolean }> {
-  const limit = _limitOverride ?? LIST_CASES_FOR_ORG_LIMIT;
-
-  // Ownership match via EXISTS instead of a join: a pet can carry multiple
-  // active ownership rows (co-owners), and join duplicates would eat slots of
-  // the limit+1 fetch — under-filling the page and skewing `truncated`.
-  const orgCondition = or(
+function orgCaseMembership(orgId: string): SQL {
+  return or(
     eq(cases.openedByOrganizationId, orgId),
+    // Ownership match via EXISTS instead of a join: a pet can carry multiple
+    // active ownership rows (co-owners), and join duplicates would eat slots
+    // of the limit+1 fetch — under-filling the page and skewing `truncated`.
     exists(
       db
         .select({ one: sql`1` })
@@ -583,7 +615,30 @@ export async function listCasesForOrg(
           ),
         ),
     ),
-  );
+    and(eq(cases.caseKind, "rehome_request"), eq(cases.receiverOrganizationId, orgId)),
+  ) as SQL;
+}
+
+function excludeKindsClause(excludeKinds: readonly CaseKind[] | undefined): SQL | undefined {
+  return excludeKinds && excludeKinds.length > 0
+    ? notInArray(cases.caseKind, [...excludeKinds])
+    : undefined;
+}
+
+/**
+ * Returns up to LIST_CASES_FOR_ORG_LIMIT cases visible to the org (see
+ * orgCaseMembership), filtered entirely in SQL. When the cap is reached the
+ * caller should surface a hint — check `truncated` in the returned object.
+ *
+ * `_limitOverride` is for tests only: pass a small number to verify that
+ * results beyond the cap are found when filters are set.
+ */
+export async function listCasesForOrg(
+  orgId: string,
+  filters?: ListCasesForOrgFilters,
+  _limitOverride?: number,
+): Promise<{ items: CaseListItem[]; truncated: boolean }> {
+  const limit = _limitOverride ?? LIST_CASES_FOR_ORG_LIMIT;
 
   // Build filter conditions pushed entirely into SQL.
   const kindCondition = filters?.kind ? eq(cases.caseKind, filters.kind) : undefined;
@@ -602,7 +657,14 @@ export async function listCasesForOrg(
     })
     .from(cases)
     .leftJoin(pets, eq(pets.id, cases.primaryPetId))
-    .where(and(orgCondition, kindCondition, statusCondition))
+    .where(
+      and(
+        orgCaseMembership(orgId),
+        kindCondition,
+        statusCondition,
+        excludeKindsClause(filters?.excludeKinds),
+      ),
+    )
     .orderBy(desc(cases.openedAt))
     // Fetch one extra row so we know whether results were truncated.
     .limit(limit + 1);
@@ -613,17 +675,20 @@ export async function listCasesForOrg(
 }
 
 /**
- * Returns the distinct case kinds present for the org (opener OR active owner)
- * regardless of status or kind filters. Used to build the kind filter chips.
+ * Returns the distinct case kinds present for the org (same membership as
+ * listCasesForOrg) regardless of status or kind filters. Used to build the
+ * kind filter chips.
  *
- * No LIMIT — kind cardinality is bounded by CASE_KINDS (~12 values).
+ * No LIMIT — kind cardinality is bounded by CASE_KINDS (~13 values).
  */
-export async function listCaseKindDistributionForOrg(orgId: string): Promise<CaseKind[]> {
+export async function listCaseKindDistributionForOrg(
+  orgId: string,
+  opts?: { excludeKinds?: readonly CaseKind[] },
+): Promise<CaseKind[]> {
   const rows = await db
     .selectDistinct({ caseKind: cases.caseKind })
     .from(cases)
-    .leftJoin(ownerships, and(eq(ownerships.petId, cases.primaryPetId), isNull(ownerships.endedAt)))
-    .where(or(eq(cases.openedByOrganizationId, orgId), eq(ownerships.ownerOrganizationId, orgId)));
+    .where(and(orgCaseMembership(orgId), excludeKindsClause(opts?.excludeKinds)));
   return rows.map((r) => r.caseKind).filter(isCaseKind) as CaseKind[];
 }
 
