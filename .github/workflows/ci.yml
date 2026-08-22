@@ -817,6 +817,17 @@ jobs:
         # webServer command (build already ran in the previous step).
         # NEXT_PUBLIC_SUPABASE_ANON_KEY is set via ${{ env.* }} from the
         # extract step above; the webServer (`next start`) reads it at runtime.
+        #
+        # --reporter is SPELLED OUT here, not left to playwright.config.ts:
+        # the config's CI pair (html + github) prints per-test lines nowhere in
+        # the job log, so a spec that SKIPPED itself — and every reason it gave
+        # — was invisible until somebody downloaded the HTML artifact. `list`
+        # prints one line per test with its outcome and the skip reason inline;
+        # `github` keeps the annotations on the diff; `html` keeps the artifact
+        # the upload step below publishes (a CLI --reporter REPLACES the
+        # config's list, so dropping `html` here would upload an empty folder).
+        # PLAYWRIGHT_HTML_OPEN preserves the config's `open: "never"`, which the
+        # CLI form cannot carry.
         env:
           DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:54322/postgres
           NEXT_PUBLIC_SUPABASE_URL: http://127.0.0.1:54321
@@ -824,7 +835,8 @@ jobs:
           SUPABASE_SERVICE_ROLE_KEY: sb_secret_N7UND0UgjKTVK-Uodkm0Hg_xSvEMPvz
           PORT: "3333"
           NEXT_BUILT: "1"
-        run: pnpm e2e
+          PLAYWRIGHT_HTML_OPEN: never
+        run: pnpm e2e --reporter=list,github,html
 
       - name: Stop Supabase local stack
         if: always()

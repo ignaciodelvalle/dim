@@ -127,6 +127,23 @@ NEXT_BUILT=1 pnpm playwright test e2e/crisis-*.spec.ts
   real `cases`) silently stopped `admin-case-detail-shell` from filing the first
   copy, which flipped the govt-side denuncia from Moderación to Triage and made
   synthetic-monitor (c) red — with nothing wrong in the product.
+- **`Locator.count()` does not auto-retry — and a skip built on one lies.**
+  `count()` is a single read of the DOM as it is right now; unlike `expect`, it
+  never waits. After a `goto` into a route that streams under a Suspense
+  boundary it routinely returns 0 for an element that arrives 200ms later. Gate
+  every read behind an auto-retrying `expect` first — the pattern the repo's own
+  helpers already use (`e2e/demo/_helpers.ts:246-250`: `await
+  expect(links.nth(index), "…").toBeVisible({ timeout: 20_000 })` before the
+  `getAttribute`). And `test.skip(await x.count() === 0, "…")` is the worst
+  shape of all: a race that reports itself as a deliberate, green skip with a
+  confident false reason. **Skips are for genuine ENVIRONMENTAL conditions** —
+  a capability the browser lacks, a service the run has no credentials for —
+  never for a fixture this repo seeds. If the seed guarantees it, ASSERT it, so
+  a missing fixture is red instead of quietly absent (`rehome-by-titular.spec.ts`
+  did exactly this swap). Whatever remains a skip must PRINT its reason: the CI
+  e2e job runs `--reporter=list,github,html`, and `list` is the reporter that
+  puts the skip and its reason in the job log instead of only in the HTML
+  artifact nobody downloads.
 - **Walk multi-step wizards.** Mark-lost and denuncia submits live on the LAST
   step; clicking that button's name from step 1 waits for an element that step
   never renders. `playwright.config.ts` now sets `actionTimeout: 15s` so this

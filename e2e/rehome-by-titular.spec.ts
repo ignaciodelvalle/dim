@@ -25,7 +25,12 @@ import { ACCOUNTS, loginAs, resolveOrgToken } from "./demo/_helpers";
  *   · Bootstrap tier only: owner@dim.test (pets in CABA / Palermo) and
  *     orgadmin@dim.test's "Refugio Test (Seed)" (coverage: Palermo) are both
  *     seeded by scripts/seed-test-users.ts, so the picker is non-empty on CI's
- *     fresh DB. Should a seed change empty it, the walk SKIPS naming the hole.
+ *     fresh DB. Both preconditions are ASSERTED, never skipped: the seed
+ *     GUARANTEES them, so a missing pet or an empty picker is the seed
+ *     breaking — the one thing this walk exists to catch. `test.skip` is for
+ *     environmental conditions the run genuinely cannot control; a fixture the
+ *     repo owns is not one, and a green suite that quietly skipped its only
+ *     browser-level proof of REQ-1/2/4/8 is worse than a red one.
  *
  * IDEMPOTENCE. The walk starts by resolving whatever the page shows (a
  * pending request or an active accompaniment from an earlier run) and ends
@@ -44,10 +49,13 @@ async function pickActivePetToken(page: Page): Promise<string> {
   const petLink = page
     .locator('a[href^="/mis-mascotas/"]:has(img)', { hasText: /registrad[ao]/i })
     .first();
-  test.skip(
-    (await petLink.count()) === 0,
-    "owner@dim.test has no active pet — the rehome walk needs one.",
-  );
+  // An ASSERTION, not a skip: scripts/seed-test-users.ts seeds owner@dim.test
+  // with active pets, so an empty registry is a broken seed. Auto-retrying, so
+  // it also absorbs the registry's streaming render.
+  await expect(
+    petLink,
+    "owner@dim.test has no active pet — the rehome walk needs one (seeded by scripts/seed-test-users.ts).",
+  ).toBeVisible({ timeout: 20_000 });
   const href = (await petLink.getAttribute("href")) ?? "";
   const token = href.split("/mis-mascotas/")[1] ?? "";
   expect(token, "publicToken parsed from the registry link").toBeTruthy();
@@ -103,20 +111,19 @@ test.describe
       await resetToNone(page, token);
 
       // ---- the ask, from the titular's own surface ---------------------------
-      // The "none" state renders either the picker or its empty state; wait
-      // for one of them before the count() that decides whether to skip.
+      // An ASSERTION, not a skip: "Refugio Test (Seed)" is verified, a shelter
+      // and covers CABA/Palermo — the same three things the picker filters on
+      // — so an empty picker for a seeded pet means the seed or the coverage
+      // rule broke. One auto-retrying expect: it waits out the segment's
+      // Suspense stream instead of a one-shot count() that cannot.
+      const ask = page
+        .getByRole("button", { name: /Pedir acompañamiento a .*Refugio Test/i })
+        .first();
       await expect(
-        page
-          .getByRole("button", { name: /Pedir acompañamiento a/ })
-          .first()
-          .or(page.getByText(/No encontramos refugios ni redes de rescate/)),
+        ask,
+        "the seed refugio does not cover this pet's zone — the org picker is empty for it (seeded by scripts/seed-test-users.ts).",
       ).toBeVisible({ timeout: 20_000 });
-      const ask = page.getByRole("button", { name: /Pedir acompañamiento a .*Refugio Test/i });
-      test.skip(
-        (await ask.count()) === 0,
-        "the seed refugio does not cover this pet's zone — the org picker is empty for it.",
-      );
-      await ask.first().click();
+      await ask.click();
       // The OUTCOME: the same surface, in its pending state, under the same name.
       await expect(page.getByText(/Pedido enviado a .*Refugio Test/i)).toBeVisible();
       const caseHref = await page
