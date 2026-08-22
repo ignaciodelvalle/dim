@@ -15,10 +15,8 @@ import { eq } from "drizzle-orm";
 // Heavy read-only analytics — routed through the ANALYTICS pool (session
 // pooler in production; see db/index.ts, task #74 dual-pool split).
 import { cases, analyticsDb as db, petEvents, pets, welfareReports } from "@/db";
-import { amendedPayloadText } from "@/lib/infra/amendment-sql";
 import {
   type ProjectionContext,
-  RABIES_VACCINE_NAME_REGEX,
   TARGETS,
   censusEligibleProvince,
   computeCensusCoverage,
@@ -26,7 +24,7 @@ import {
   getCensusPopulationsCached,
   jurisdictionPairClause,
   petsScopeClause,
-  rabiesCurrentlyValidCondition,
+  rabiesDoseQualifies,
   rabiesSignedByMatriculaCondition,
 } from "@/lib/metrics";
 import { openObservationStatusSql } from "@/lib/metrics/observation-status";
@@ -274,19 +272,23 @@ export async function fetchRabiesCoverage(
   // "Antirrábica" (the accented á breaks the 'rabi' substring) and
   // undercounted coverage to ~zero. Keeping the same regex as
   // surveillance-repository.ts keeps "is a rabies vaccine" consistent.
-  // vaccine_name reads through the amendment overlay (amendedPayloadText) so a
-  // corrected vaccine counts with its CURRENT name, not the as-typed one
-  // (projection-cron audit 2026-07-03 A2).
+  // Name AND expiry both read through the amendment overlay, in one lateral
+  // probe (rabiesDoseQualifies): a corrected vaccine counts with its CURRENT
+  // name (projection-cron audit 2026-07-03 A2) and a corrected booster date
+  // counts from its CURRENT value (review 2026-08-22, M6 — the date used to be
+  // read raw, so a dog could read "vencida" to its owner and covered here).
+  // "Currently valid" (issue #52): a dose with an explicit next_due_at counts
+  // only while `until <= next_due_at`; a dose without next_due_at falls back to
+  // the trailing-12m proxy. Replaces the plain occurred_at BETWEEN since12m/until
+  // so an expired-but-recent dose no longer counts and a still-valid old dose does.
   const rabiesVaccConditions = [
     eq(petEvents.eventType, "vaccination_administered"),
-    sql`(${amendedPayloadText("vaccine_name")}) ~* ${RABIES_VACCINE_NAME_REGEX}`,
-    // "Currently valid" (issue #52): a dose with an explicit next_due_at counts
-    // only while `until <= next_due_at`; a dose without next_due_at falls back to
-    // the trailing-12m proxy. Replaces the plain occurred_at BETWEEN since12m/until
-    // so an expired-but-recent dose no longer counts and a still-valid old dose does.
-    rabiesCurrentlyValidCondition(
-      sql`${petEvents.occurredAt}`,
-      sql`${petEvents.payload}->>'next_due_at'`,
+    rabiesDoseQualifies(
+      {
+        id: sql`${petEvents.id}`,
+        payload: sql`${petEvents.payload}`,
+        occurredAt: sql`${petEvents.occurredAt}`,
+      },
       { since: since12m, until: coverageUntil },
     ),
   ];
@@ -490,17 +492,18 @@ export async function fetchRabiesCoverageByProvince(
   const petsScope = petsScopeClause(ctx);
   const dogsCondition = dogsInScopeCondition(ctx);
 
-  // Rabies vaccination event conditions — SAME as fetchRabiesCoverage (regex,
-  // not ILIKE, to match the accented canonical form "Antirrábica"; amendment
-  // overlay via amendedPayloadText, audit A2).
+  // Rabies vaccination event conditions — SAME shared predicate as
+  // fetchRabiesCoverage (regex, not ILIKE, to match the accented canonical form
+  // "Antirrábica"; amendment overlay over BOTH vaccine_name and next_due_at)
+  // so the choropleth per-province rates never diverge from the national KPI.
   const rabiesVaccConditions = [
     eq(petEvents.eventType, "vaccination_administered"),
-    sql`(${amendedPayloadText("vaccine_name")}) ~* ${RABIES_VACCINE_NAME_REGEX}`,
-    // "Currently valid" (issue #52) — SAME condition as fetchRabiesCoverage so the
-    // choropleth per-province rates never diverge from the national KPI.
-    rabiesCurrentlyValidCondition(
-      sql`${petEvents.occurredAt}`,
-      sql`${petEvents.payload}->>'next_due_at'`,
+    rabiesDoseQualifies(
+      {
+        id: sql`${petEvents.id}`,
+        payload: sql`${petEvents.payload}`,
+        occurredAt: sql`${petEvents.occurredAt}`,
+      },
       { since: since12m, until: coverageUntil },
     ),
   ];
