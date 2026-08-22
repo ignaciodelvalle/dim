@@ -21,6 +21,7 @@
 // already submitted successfully at that point).
 
 import { db, notifications, ownerships, pets } from "@/db";
+import { publicPetByToken } from "@/lib/infra/public-pet-lookup";
 import { RateLimitError, callerIp, enforceRateLimit } from "@/lib/infra/rate-limit";
 import { DISPUTE_TIP_NOTICE } from "@/lib/ui/dispute-copy";
 import { and, eq, isNull } from "drizzle-orm";
@@ -51,7 +52,10 @@ export async function notifyOwnerOfFoundPet(
       inCustodyDispute: pets.inCustodyDispute,
     })
     .from(pets)
-    .where(eq(pets.publicToken, publicToken))
+    // PO-4: the ONE public predicate, never a hand-rolled token equality. An
+    // erased subject's pet 404s at /p/{token}, so a form post that still
+    // resolved here would answer a page that no longer exists.
+    .where(publicPetByToken(publicToken))
     .limit(1);
   if (!pet) return { ok: false, error: "Mascota no encontrada." };
 

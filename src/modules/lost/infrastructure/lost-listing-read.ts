@@ -6,7 +6,7 @@
 // Server callers (page.tsx, sitemap.ts) import from here; everything else
 // imports from `@/lib/lost-listing`.
 
-import { and, desc, eq, ilike, inArray, sql } from "drizzle-orm";
+import { and, desc, eq, ilike, inArray, isNull, sql } from "drizzle-orm";
 
 import { attachments, db, petEvents, pets } from "@/db";
 
@@ -41,7 +41,17 @@ export async function queryLostListing(
   // Filters that depend on the latest status_changed event (visto bucket,
   // criticality, cursor) are applied AFTER we resolve the event lookup,
   // in JS, because the latest event has to be picked per pet first.
-  const baseConditions = [eq(pets.status, "lost")];
+  // THE SOFT-DELETE FILTER IS NOT OPTIONAL HERE (PO-4). Erasure (Ley 25.326
+  // art. 16) sets `pets.deleted_at` and leaves the row so the append-only spine
+  // survives; the credential at /p/{token} then 404s. Without this predicate
+  // /perdidas kept rendering the card — name, breed, colour, sex, photo,
+  // "Localidad, Provincia", "hace N días" — and `app/sitemap.ts`, which builds
+  // its `/p/{token}` entries from THIS function's results, kept handing that
+  // dead URL to search engines daily at priority 0,85. A card that links to a
+  // 404 makes "erased" distinguishable from "never existed", which is precisely
+  // what the erasure decision says must not be observable. Pets are never
+  // anonymised, so everything on the card survives the erasure intact.
+  const baseConditions = [eq(pets.status, "lost"), isNull(pets.deletedAt)];
 
   if (filters.species) baseConditions.push(eq(pets.species, filters.species));
   if (filters.province) baseConditions.push(eq(pets.jurisdictionProvince, filters.province));
@@ -394,6 +404,10 @@ export async function countLostInWindow(sinceMs: number): Promise<number> {
     .where(
       and(
         eq(pets.status, "lost"),
+        // Same PO-4 filter as the listing above: the KPI strip sits on the same
+        // page, and a count that includes erased pets contradicts the list
+        // underneath it — "12 perdidas esta semana" over eleven cards.
+        isNull(pets.deletedAt),
         eq(petEvents.eventType, "status_changed"),
         sql`(${petEvents.payload}->>'to_status') = 'lost'`,
         sql`${petEvents.occurredAt} >= ${since.toISOString()}::timestamptz`,
@@ -406,6 +420,7 @@ export async function countAllLost(): Promise<number> {
   const rows = await db
     .select({ count: sql<number>`COUNT(*)::int` })
     .from(pets)
-    .where(eq(pets.status, "lost"));
+    // PO-4, third of the three predicates on this page. See queryLostListing.
+    .where(and(eq(pets.status, "lost"), isNull(pets.deletedAt)));
   return rows[0]?.count ?? 0;
 }
