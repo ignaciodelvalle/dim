@@ -12,7 +12,9 @@
 //
 // AUTH SCOPE CONTRACT:
 //   reportBiteAction:                    requireAlivePetAccess (owner+alive)
-//   reportBiteFromOrgAction:             requireCapability("bite.report")
+//   reportBiteFromOrgAction:             requireCapabilityForOrgToken("bite.report", orgToken)
+//                                        + verified org + relation to the pet
+//                                          (surveillance/domain/bite-authority.ts)
 //   professionalCloseRabiesObservation:  requireAdminOrGovtOrRedirect + jurisdiction scope
 //
 // ownerCloseRabiesObservationAction was DELETED on 2026-08-17 (PO decision,
@@ -27,7 +29,11 @@
 //   closeInvestigationAction:            requireAdminOrGovtOrRedirect + isInScope (via use-case)
 //
 // NO business logic. NO direct Drizzle queries (beyond db.transaction).
-// AUDIT_LOG: NONE on bite/rabies. Outbreak: all 4 write audit_log inside tx (use-case handles it).
+// AUDIT_LOG: the ORG bite report writes `bite_reported_by_org` inside its tx
+// (H1, 2026-08-22 — it wrote nothing until then); the professional close writes
+// `rabies_observation_closed_professional`; outbreak: all 4 write inside tx.
+// The OWNER-side bite report writes none — a self-report is not an operator act.
+// Every one of these writes is owned by its use-case, never by this file.
 
 import { revalidatePath } from "next/cache";
 
@@ -49,7 +55,7 @@ import { reportError } from "@/lib/infra/report-error";
 import { resolveSignerProvenance } from "@/lib/infra/signer-provenance";
 import { checkboxOn } from "@/lib/ui/form-checkbox";
 import { parseDateInput } from "@/lib/utils/format";
-import { requireCapability } from "@/src/modules/organizations/infrastructure/authz-resolver";
+import { requireCapabilityForOrgToken } from "@/src/modules/organizations/infrastructure/authz-resolver";
 
 import type { OpenedReason } from "@/src/modules/cases/domain/opened-reason";
 import {
@@ -339,8 +345,16 @@ export async function reportBiteFromOrgAction(
   _prev: ReportBiteFromOrgFormState,
   formData: FormData,
 ): Promise<ReportBiteFromOrgFormState> {
-  // 1. Capability gate.
-  const cap = await requireCapability("bite.report");
+  // 1. Capability gate, pinned to the org in the URL.
+  //
+  // This was bare `requireCapability("bite.report")` until 2026-08-22 (H1). Two
+  // things were wrong with it and the second is the one the finding missed:
+  // bare requireCapability resolves the caller's MOST-RECENTLY-JOINED
+  // membership and ignores `orgToken` entirely, so a member of several orgs
+  // acting under /org/{A} was authorized — and attributed — against whichever
+  // org they happened to join last. That is the confused-deputy shape this
+  // action used to sit in the allowlist for; the entry is gone with this fix.
+  const cap = await requireCapabilityForOrgToken("bite.report", orgToken);
   if (cap.error !== null) return { error: cap.error };
   const { user, organization } = cap;
 
@@ -464,6 +478,11 @@ export async function reportBiteFromOrgAction(
       // all three stamp a clinical signature from one place. Passed at the
       // composition root because the use case owns no DB handle.
       resolveSignerProvenance,
+      // H1 — the two facts the authority gate reads (attendance/custody with
+      // THIS animal, and where this org works). One repository call, resolved
+      // here so the use case stays free of `@/db`.
+      loadOrgPetAuthority: (organizationId, petId) =>
+        repo.loadOrgPetAuthority(organizationId, petId),
       resolveObservationWindow: async (jurisdiction) => {
         // Review F3/F6: a rules-table read hiccup must not turn bite reporting
         // into an outage — fall back to the statutory national baseline. And a

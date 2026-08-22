@@ -126,6 +126,7 @@ export const AUDIT_ACTION_LABELS = {
   outbreak_investigation_note_added: "Nota de investigación de brote añadida",
   // Rabies observation
   rabies_observation_closed_professional: "Observación antirrábica cerrada por profesional",
+  bite_reported_by_org: "Mordedura reportada por organización",
   // ENO
   eno_notification_emitted: "Notificación ENO emitida",
   eno_backfill_run_completed: "Backfill ENO ejecutado",

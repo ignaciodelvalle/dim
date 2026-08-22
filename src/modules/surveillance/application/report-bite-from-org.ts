@@ -8,13 +8,18 @@
 //   - reporter_role derived from orgTypeToReporterRole (domain/bite.ts).
 //   - Active owner notified inside tx; authority fan-out post-tx.
 //   - noRedirect=1 returns { ok, petToken } instead of triggering redirect.
-//   - AUDIT_LOG: NONE.
+//   - AUDIT_LOG: `bite_reported_by_org`, written INSIDE the tx (H1, 2026-08-22).
+//     It used to be NONE — `SELECT DISTINCT action FROM audit_log` returned 43
+//     actions and not one of them was a bite, so the most consequential org
+//     write in the system left nothing in the accountability spine.
 
+import type { CoverageArea } from "@/lib/domain/org-coverage";
 import { validateEventPayload } from "@/lib/events/event-schemas";
 import { AR_TIME_ZONE, speciesLabel } from "@/lib/utils/format";
 
 import type { OpenedReason } from "@/src/modules/cases/domain/opened-reason";
 import { orgTypeToReporterRole } from "../domain/bite";
+import { assertOrgMayReportBite } from "../domain/bite-authority";
 import { computeObservationUntil, isRabiesVaccineValid } from "../domain/rabies-observation";
 import type { SurveillanceRepository } from "../infrastructure/surveillance-repository";
 import type { NewNotification, UseCaseResult } from "./types";
@@ -73,6 +78,7 @@ type Deps = {
     | "setObservationStatus"
     | "findActiveOwnership"
     | "insertNotifications"
+    | "insertAuditLog"
   >;
   openCase: (
     input: {
@@ -112,6 +118,16 @@ type Deps = {
     userId: string,
     organizationId: string,
   ) => Promise<{ authorRole: "vet" | "shelter"; authorVerified: boolean }>;
+  /**
+   * H1 — the two facts the bite gate needs about the reporting org: whether it
+   * has ever attended or held THIS animal, and where it works. Injected so the
+   * use case keeps its no-DB shape; the rule itself is
+   * `domain/bite-authority.ts`, which is where the reasoning lives.
+   */
+  loadOrgPetAuthority: (
+    organizationId: string,
+    petId: string,
+  ) => Promise<{ hasPetRelation: boolean; coverageAreas: CoverageArea[] }>;
 };
 
 export type ReportBiteFromOrgResult = UseCaseResult<{
@@ -141,6 +157,26 @@ export async function reportBiteFromOrg(
   // captured.
   const caseProvince = input.eventJurisdictionProvince ?? pet.jurisdictionProvince;
   const caseLocality = input.eventJurisdictionLocality ?? pet.jurisdictionLocality;
+
+  // 0. AUTHORITY GATE (H1, 2026-08-22) — verified AND connected to the animal.
+  //
+  // FIRST, before the signer read and before the transaction: a refused report
+  // must leave no case, no event, no status flip and no notification. Read
+  // `domain/bite-authority.ts` for why one fact was never enough and why the
+  // second one has to be a disjunction (the verified shelter reporting a bite
+  // by an animal it does not hold is a REAL case that a relationship-only rule
+  // would have killed).
+  //
+  // The zone compared is the INCIDENT's — the same caseProvince/caseLocality
+  // the case and the authority fan-out route to, not the pet's home.
+  const orgAuthority = await deps.loadOrgPetAuthority(organization.id, pet.id);
+  const mayReport = assertOrgMayReportBite({
+    orgVerified: organization.verified,
+    hasPetRelation: orgAuthority.hasPetRelation,
+    coverageAreas: orgAuthority.coverageAreas,
+    incidentZone: { province: caseProvince, locality: caseLocality },
+  });
+  if (!mayReport.ok) return { ok: false, error: mayReport.error };
 
   // AUTHORSHIP — #43/#45 provenance, applied here late (2026-08-17).
   //
@@ -316,6 +352,41 @@ export async function reportBiteFromOrg(
           ctaUrl: `/mis-mascotas/${pet.publicToken}`,
         });
       }
+
+      // 7. Accountability row, in the SAME tx as the observation it describes
+      // (H1, 2026-08-22). Until now this act left NOTHING in audit_log: an
+      // organization imposing a legally consequential status on a third party's
+      // animal was the one operator-grade write with no queryable trace. The
+      // event rows carry `recordedByUserId`, so the act was attributable — but
+      // only to someone who already knew to go looking in the pet's timeline.
+      //
+      // Placed after the idempotency return above on purpose: a deduplicated
+      // retry describes no new mutation, so it must not mint a second row.
+      await repo.insertAuditLog(
+        {
+          action: "bite_reported_by_org",
+          actorUserId: user.id,
+          targetOrganizationId: organization.id,
+          payload: {
+            pet_id: pet.id,
+            pet_public_token: pet.publicToken,
+            case_id: caseRow.id,
+            case_public_code: caseRow.publicCode,
+            bite_event_id: biteEvent.id,
+            reporter_role: reporterRole,
+            victim_kind: input.victimKind,
+            severity: input.severity,
+            jurisdiction_province: caseProvince,
+            jurisdiction_locality: caseLocality,
+            // WHICH arm of the authority gate let this through — the whole
+            // point of a trail is that a later reader can ask "on what basis?".
+            authority_basis: orgAuthority.hasPetRelation ? "pet_relation" : "org_coverage",
+          },
+          before: { rabies_observation_status: pet.rabiesObservationStatus },
+          after: { rabies_observation_status: "in_progress" },
+        },
+        tx as Parameters<typeof repo.insertAuditLog>[1],
+      );
     });
   } catch (err) {
     console.error("reportBiteFromOrg tx failed:", err);

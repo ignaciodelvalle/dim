@@ -118,14 +118,16 @@ export { stripComments };
 // action is a genuine org-token confused-deputy shape but is intentionally out
 // of the current remediation lane (or provably safe). Keep the set small and
 // justified — the goal is zero.
-export const CONFUSED_DEPUTY_ALLOWLIST: Record<string, string> = {
-  "src/modules/surveillance/actions.ts#reportBiteFromOrgAction":
-    "Out of the current confused-deputy lane (surveillance is excluded). The bite " +
-    "is recorded against a pet looked up GLOBALLY by petPublicToken; orgToken is " +
-    "reporter-attribution context, not a data-access scope, so the worst case is a " +
-    "multi-org reporter's report attributed to their last-joined org (no cross-org " +
-    "data access). Tracked for a dedicated surveillance-scoped pass.",
-};
+// EMPTY SINCE 2026-08-22 — and the way its last entry died is the reason to
+// keep it empty. `reportBiteFromOrgAction` sat here on the argument that
+// orgToken was "reporter-attribution context, not a data-access scope, so the
+// worst case is a report attributed to the wrong org". The top-10 review's H1
+// showed the worst case was not that: bare requireCapability was the ONLY gate
+// on a write that puts a stranger's animal under a public rabies observation
+// the owner cannot lift. The exemption reasoned about data READS and the
+// dangerous thing was a WRITE. An allowlist entry is a hypothesis about impact,
+// and this one was wrong — so treat every future entry as one too.
+export const CONFUSED_DEPUTY_ALLOWLIST: Record<string, string> = {};
 
 // ---------------------------------------------------------------------------
 // Signature param-list extraction. `fn.body` begins at the
@@ -177,12 +179,25 @@ export function isConfusedDeputyOffender(fn: ExportedFn): boolean {
   return callsBareRequireCapability(code);
 }
 
-/** Offenders in one file as `path:line NAME` lines (allowlisted ones excluded). */
-export function findConfusedDeputyOffenders(relPath: string, src: string): string[] {
+/**
+ * Offenders in one file as `path:line NAME` lines (allowlisted ones excluded).
+ *
+ * `allowlist` is a parameter, defaulting to the real one, so the exclusion
+ * MECHANISM stays testable now that the real list is empty. It used to read the
+ * module constant directly and its test picked `Object.keys(...)[0]` — which
+ * means emptying the list (the goal) would have left the mechanism untested
+ * while the suite stayed green. A test that can only run while the bug exists
+ * is not a test of the fix.
+ */
+export function findConfusedDeputyOffenders(
+  relPath: string,
+  src: string,
+  allowlist: Record<string, string> = CONFUSED_DEPUTY_ALLOWLIST,
+): string[] {
   const out: string[] = [];
   for (const fn of extractExportedAsyncFunctions(src)) {
     if (!isConfusedDeputyOffender(fn)) continue;
-    if (CONFUSED_DEPUTY_ALLOWLIST[`${relPath}#${fn.name}`] !== undefined) continue;
+    if (allowlist[`${relPath}#${fn.name}`] !== undefined) continue;
     out.push(`${relPath}:${fn.startLine} ${fn.name}`);
   }
   return out;

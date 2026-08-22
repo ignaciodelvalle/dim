@@ -23,6 +23,7 @@ import {
   enoProcessingQueue,
   govtAssignments,
   notifications,
+  organizationCoverage,
   ownerships,
   petEvents,
   pets,
@@ -677,6 +678,61 @@ export class SurveillanceRepository {
    * use-case so the application layer stays free of `@/db` (lint:deps).
    */
   async insertObservationCloseAuditLog(entry: AuditLogEntry, executor: DbOrTx = db): Promise<void> {
+    await this.insertAuditLog(entry, executor);
+  }
+
+  /**
+   * The general form of the method above — one audit row through the shared
+   * writer, inside the caller's transaction. Same reason it is a repository
+   * method: the application layer must stay free of `@/db` (lint:deps).
+   */
+  async insertAuditLog(entry: AuditLogEntry, executor: DbOrTx = db): Promise<void> {
     await writeAuditLog(executor as Parameters<typeof writeAuditLog>[0], entry);
+  }
+
+  /**
+   * H1 — the two facts the org bite gate needs. ONE round trip each, both
+   * EXISTS-shaped so a clinic with 20.000 events pays for one index probe.
+   *
+   * `hasPetRelation` is deliberately HISTORICAL (no `ended_at IS NULL`, no date
+   * window): the clinic that treated this dog last year is exactly the reporter
+   * the gate must keep, and a shelter that returned the animal to its owner
+   * last month is still the institution that knows it bit somebody.
+   *
+   * The two arms of the OR are the two ways an organization touches an animal
+   * in this system — it held it (`ownerships.owner_organization_id`) or it
+   * wrote on its record (`pet_events.author_organization_id`).
+   */
+  async loadOrgPetAuthority(
+    organizationId: string,
+    petId: string,
+  ): Promise<{
+    hasPetRelation: boolean;
+    coverageAreas: { jurisdictionProvince: string; jurisdictionLocality: string | null }[];
+  }> {
+    const [heldRows, authoredRows, coverageAreas] = await Promise.all([
+      db
+        .select({ id: ownerships.id })
+        .from(ownerships)
+        .where(and(eq(ownerships.petId, petId), eq(ownerships.ownerOrganizationId, organizationId)))
+        .limit(1),
+      db
+        .select({ id: petEvents.id })
+        .from(petEvents)
+        .where(and(eq(petEvents.petId, petId), eq(petEvents.authorOrganizationId, organizationId)))
+        .limit(1),
+      db
+        .select({
+          jurisdictionProvince: organizationCoverage.jurisdictionProvince,
+          jurisdictionLocality: organizationCoverage.jurisdictionLocality,
+        })
+        .from(organizationCoverage)
+        .where(eq(organizationCoverage.organizationId, organizationId)),
+    ]);
+
+    return {
+      hasPetRelation: heldRows.length > 0 || authoredRows.length > 0,
+      coverageAreas,
+    };
   }
 }

@@ -2389,6 +2389,21 @@ export const AUDIT_LOG_ACTIONS = [
   // Payload: { pet_id, pet_public_token, case_id, observation_started_event_id,
   //            outcome, closed_by_role, closure_notes, before_values, after_values }.
   "rabies_observation_closed_professional",
+  // The OPENING half of the same window, added 2026-08-22 (top-10 review H1).
+  // An organization declaring that a third party's animal bit somebody is the
+  // most consequential org write in the system — public red banner, authority
+  // fan-out, rehome blocked, and only a professional or the State may close it.
+  // It left NO audit row at all: `SELECT DISTINCT action FROM audit_log`
+  // returned 43 actions and not one was a bite. Written inside the report
+  // transaction by reportBiteFromOrg (a deduplicated retry writes none).
+  // Payload: { pet_id, pet_public_token, case_id, case_public_code,
+  //            bite_event_id, reporter_role, victim_kind, severity,
+  //            jurisdiction_province, jurisdiction_locality, authority_basis,
+  //            before_values, after_values }.
+  // `authority_basis` records WHICH arm of the new gate admitted the report —
+  // "pet_relation" (this org attended or held the animal) or "org_coverage"
+  // (the incident happened where this org works).
+  "bite_reported_by_org",
   // One-time backfill script for missed ENO notifications (bug fix PR #137).
   // Written once per script invocation (not per event).
   // Payload: { since, until, limit, processed, notified, skipped, errors, dry_run }.

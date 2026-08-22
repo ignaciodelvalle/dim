@@ -31,7 +31,7 @@ vi.mock("@/lib/infra/pet-access", () => ({
 }));
 
 vi.mock("@/src/modules/organizations/infrastructure/authz-resolver", () => ({
-  requireCapability: vi.fn(),
+  requireCapabilityForOrgToken: vi.fn(),
 }));
 
 vi.mock("./application/report-bite", () => ({
@@ -63,7 +63,7 @@ vi.mock("next/navigation", () => ({
 }));
 
 import { requireAlivePetAccess } from "@/lib/infra/pet-access";
-import { requireCapability } from "@/src/modules/organizations/infrastructure/authz-resolver";
+import { requireCapabilityForOrgToken } from "@/src/modules/organizations/infrastructure/authz-resolver";
 // Imported AFTER the mocks are registered.
 import { reportBiteAction, reportBiteFromOrgAction } from "./actions";
 
@@ -131,7 +131,7 @@ describe("reportBiteFromOrgAction — bite date anchored on the reporter's AR ca
       value: { casePublicCode: "CAS-AAAA-BBBB" },
       notifications: [],
     });
-    (requireCapability as ReturnType<typeof vi.fn>).mockResolvedValue({
+    (requireCapabilityForOrgToken as ReturnType<typeof vi.fn>).mockResolvedValue({
       error: null,
       user: { id: "user-1" },
       organization: {
@@ -154,5 +154,20 @@ describe("reportBiteFromOrgAction — bite date anchored on the reporter's AR ca
     expect(reportBiteFromOrgMock).toHaveBeenCalledTimes(1);
     const input = reportBiteFromOrgMock.mock.calls[0][0] as { occurredAt: Date };
     expect(arCalendarDay(input.occurredAt)).toBe("2026-07-01");
+  });
+
+  // H1 (2026-08-22) — this file's mock is where the action's guard is visible,
+  // so the pin lives here. Until then the guard was bare `requireCapability`,
+  // which resolves the caller's most-recently-joined membership and never looks
+  // at `orgToken`: a member of several orgs acting under /org/{A} was authorized
+  // and attributed against whichever org they joined last.
+  it("authorizes against the org in the URL, not the caller's last-joined membership", async () => {
+    const fd = biteFormData("2026-07-01");
+    fd.set("petPublicToken", "tok-1");
+    findPetByTokenMock.mockResolvedValue(FAKE_PET);
+
+    await reportBiteFromOrgAction("org-tok", { error: null }, fd).catch(() => {});
+
+    expect(requireCapabilityForOrgToken).toHaveBeenCalledWith("bite.report", "org-tok");
   });
 });

@@ -25,6 +25,7 @@ function makeRepo(overrides: Partial<Record<keyof SurveillanceRepository, unknow
     findActiveOwnership: vi.fn().mockResolvedValue(null),
     findGovtTargetsForJurisdiction: vi.fn().mockResolvedValue([]),
     insertNotifications: vi.fn().mockResolvedValue(undefined),
+    insertAuditLog: vi.fn().mockResolvedValue(undefined),
     ...overrides,
   } as unknown as SurveillanceRepository;
 }
@@ -44,6 +45,12 @@ function makeDeps(repoOverrides: Partial<Record<keyof SurveillanceRepository, un
   const resolveSignerProvenance = vi
     .fn()
     .mockResolvedValue({ authorRole: "shelter" as const, authorVerified: false });
+  // H1 gate default: an org that DID attend/hold this animal. Every pre-existing
+  // test in this file describes a legitimate reporter, so the permissive default
+  // keeps them describing exactly that; the refusal tests override it.
+  const loadOrgPetAuthority = vi
+    .fn()
+    .mockResolvedValue({ hasPetRelation: true, coverageAreas: [] });
   return {
     repo,
     openCase,
@@ -51,6 +58,7 @@ function makeDeps(repoOverrides: Partial<Record<keyof SurveillanceRepository, un
     findAuthoritiesForJurisdiction,
     resolveObservationWindow,
     resolveSignerProvenance,
+    loadOrgPetAuthority,
   };
 }
 
@@ -361,5 +369,144 @@ describe("reportBiteFromOrg — incident jurisdiction overrides pet home jurisdi
       }),
       "fake-tx",
     );
+  });
+});
+
+// ---------------------------------------------------------------------------
+// H1 (top-10 review 2026-08-22) — WHO may open a rabies observation on an
+// animal. The finding, reproduced by two independent skeptics: the org path was
+// gated ONLY by `bite.report` on an organization the caller had just created
+// (creating one asks for a DNI nobody verifies, and the creator becomes its
+// admin). No `organization.verified`, no relationship to the target animal.
+// The consequence is not a bad row: it is a red banner on the public
+// credential, an alert to the pet's authorities, a blocked rehome — and the
+// owner cannot lift it (only a professional or the State can close it since
+// 2026-08-17).
+//
+// The gate is TWO facts, not one. `verified` alone would still let a verified
+// shelter in Ushuaia open an observation on a pet in Salta it has never seen;
+// a relationship alone would still let an unverified "organization" report the
+// animal it is holding. Both are required.
+//
+// The relationship half is deliberately a DISJUNCTION, because the legitimate
+// case that would otherwise break is real: a verified shelter reporting a bite
+// by an animal it does NOT hold (someone else's dog bit a volunteer on its
+// doorstep) has no attendance/custody row for that pet — its claim comes from
+// the INCIDENT being inside the zone it works in. Coverage is read through
+// lib/domain/org-coverage.ts, the one predicate rehome and foster already use.
+// ---------------------------------------------------------------------------
+
+describe("reportBiteFromOrg — the reporting org must be verified AND connected to the animal", () => {
+  /** No attendance, no custody, no coverage anywhere: a total stranger. */
+  const STRANGER = { hasPetRelation: false, coverageAreas: [] };
+
+  it("refuses an organization that is not verified, even one holding the animal", async () => {
+    const deps = makeDeps();
+    const result = await reportBiteFromOrg(
+      { ...BASE_INPUT, organization: { ...BASE_INPUT.organization, verified: false } },
+      deps,
+    );
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.error).toContain("verificada");
+    // Refused BEFORE anything is written — no case, no event, no status flip.
+    expect(deps.transaction).not.toHaveBeenCalled();
+  });
+
+  it("refuses a verified org with no relation to the pet and no coverage of the incident zone", async () => {
+    const deps = makeDeps();
+    deps.loadOrgPetAuthority.mockResolvedValue(STRANGER);
+    const result = await reportBiteFromOrg(BASE_INPUT, deps);
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(deps.transaction).not.toHaveBeenCalled();
+    expect(deps.repo.insertIncidentEventIdempotent).not.toHaveBeenCalled();
+    expect(deps.repo.setObservationStatus).not.toHaveBeenCalled();
+  });
+
+  it("LETS a verified shelter report a bite by an animal it does not hold, inside its coverage", async () => {
+    // The legitimate flow the gate must not break. No attendance row, no
+    // custody row — the shelter's standing comes from where the bite happened.
+    const deps = makeDeps();
+    deps.loadOrgPetAuthority.mockResolvedValue({
+      hasPetRelation: false,
+      coverageAreas: [{ jurisdictionProvince: "CABA", jurisdictionLocality: "Palermo" }],
+    });
+    const result = await reportBiteFromOrg(BASE_INPUT, deps);
+    expect(result.ok).toBe(true);
+  });
+
+  it("reads coverage against the INCIDENT zone, not the pet's home zone", async () => {
+    // Same shelter, same coverage (CABA/Palermo — the pet's home): the bite
+    // happened in Córdoba, where this org does not work. Without this the
+    // predicate would authorize a national stranger for any pet registered in
+    // the one locality it covers.
+    const deps = makeDeps();
+    deps.loadOrgPetAuthority.mockResolvedValue({
+      hasPetRelation: false,
+      coverageAreas: [{ jurisdictionProvince: "CABA", jurisdictionLocality: "Palermo" }],
+    });
+    const result = await reportBiteFromOrg(
+      {
+        ...BASE_INPUT,
+        eventJurisdictionProvince: "Córdoba",
+        eventJurisdictionLocality: "Río Cuarto",
+      },
+      deps,
+    );
+    expect(result.ok).toBe(false);
+  });
+
+  it("LETS a verified clinic that attended the animal report a bite outside its coverage", async () => {
+    // The other arm of the disjunction: the vet who treats this dog reports a
+    // bite that happened while the family was travelling.
+    const deps = makeDeps();
+    deps.loadOrgPetAuthority.mockResolvedValue({ hasPetRelation: true, coverageAreas: [] });
+    const result = await reportBiteFromOrg(
+      {
+        ...BASE_INPUT,
+        eventJurisdictionProvince: "Córdoba",
+        eventJurisdictionLocality: "Río Cuarto",
+      },
+      deps,
+    );
+    expect(result.ok).toBe(true);
+  });
+
+  it("asks about THIS org and THIS pet", async () => {
+    const deps = makeDeps();
+    await reportBiteFromOrg(BASE_INPUT, deps);
+    expect(deps.loadOrgPetAuthority).toHaveBeenCalledWith(
+      BASE_INPUT.organization.id,
+      BASE_INPUT.pet.id,
+    );
+  });
+
+  it("writes the audit row inside the report transaction", async () => {
+    // `SELECT DISTINCT action FROM audit_log` returned 43 actions and not one
+    // of them was a bite: the single most consequential org write in the system
+    // left nothing in the accountability spine. Inside the tx, so a rollback
+    // takes the row with it.
+    const deps = makeDeps();
+    await reportBiteFromOrg(BASE_INPUT, deps);
+    const audit = deps.repo.insertAuditLog as ReturnType<typeof vi.fn>;
+    expect(audit).toHaveBeenCalledTimes(1);
+    const [entry, executor] = audit.mock.calls[0];
+    expect(executor).toBe("fake-tx");
+    expect(entry).toMatchObject({
+      action: "bite_reported_by_org",
+      actorUserId: BASE_INPUT.user.id,
+      targetOrganizationId: BASE_INPUT.organization.id,
+    });
+  });
+
+  it("does NOT write an audit row when the bite event deduplicates (no-op retry)", async () => {
+    const deps = makeDeps({
+      insertIncidentEventIdempotent: vi
+        .fn()
+        .mockResolvedValue({ event: { id: FAKE_BITE_ORG_ID }, wasNoop: true }),
+    });
+    await reportBiteFromOrg(BASE_INPUT, deps);
+    expect(deps.repo.insertAuditLog).not.toHaveBeenCalled();
   });
 });

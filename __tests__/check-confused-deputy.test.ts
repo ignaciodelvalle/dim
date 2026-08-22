@@ -246,9 +246,14 @@ describe("findConfusedDeputyOffenders", () => {
   });
 
   it("excludes an allowlisted offender", () => {
-    const key = Object.keys(CONFUSED_DEPUTY_ALLOWLIST)[0];
-    expect(key).toBeDefined();
-    const [relPath, name] = key.split("#");
+    // The allowlist is EMPTY at HEAD (2026-08-22 — its last entry, the org bite
+    // report, turned out to be a real CRITICAL). This used to read
+    // `Object.keys(CONFUSED_DEPUTY_ALLOWLIST)[0]`, so emptying the list would
+    // have silently stopped testing the exclusion mechanism while staying
+    // green. A synthetic allowlist keeps the mechanism pinned whether or not
+    // anything is actually exempt.
+    const relPath = "app/actions/allowlisted.ts";
+    const name = "allowlistedAction";
     const src = [
       `export async function ${name}(orgToken: string) {`,
       '  const auth = await requireCapability("bite.report");',
@@ -257,8 +262,21 @@ describe("findConfusedDeputyOffenders", () => {
     ].join("\n");
     // Sanity: it IS an offender shape…
     expect(isConfusedDeputyOffender(only(src))).toBe(true);
+    // …and WITHOUT an entry it is reported (the control — without this the
+    // assertion below would pass against a function that reports nothing).
+    expect(findConfusedDeputyOffenders(relPath, src, {})).toHaveLength(1);
     // …but the allowlist entry keeps it out of the reported set.
-    expect(findConfusedDeputyOffenders(relPath, src)).toHaveLength(0);
+    expect(
+      findConfusedDeputyOffenders(relPath, src, { [`${relPath}#${name}`]: "documented reason" }),
+    ).toHaveLength(0);
+  });
+
+  it("ships with an EMPTY allowlist — every exemption is a hypothesis about impact", () => {
+    // Not decoration: the entry that lived here argued the worst case was "a
+    // report attributed to the wrong org", and the worst case was actually a
+    // forced rabies observation on a stranger's animal. If a future entry is
+    // added, this line is where somebody has to look the exemption in the eye.
+    expect(Object.keys(CONFUSED_DEPUTY_ALLOWLIST)).toEqual([]);
   });
 });
 
