@@ -467,6 +467,25 @@ A `/api/v1` route handler is not ready until every line has an answer.
 - [ ] If it resolves a chip or a DNI, it carries its own limiter; `lookupByChip` and `verifyDni` bring none.
 - [ ] If it accepts an upload, it goes through `lib/infra/uploads.ts`. No signed upload URLs.
 - [ ] A response-equality test exists for each oracle the route touches.
+- [ ] It answers ONLY through `apiV1Json` / `apiV1Error` (`lib/infra/api-v1.ts`) — never `NextResponse.json(`, `new NextResponse(`, `new Response(` or `Response.json(` — so lines 2, 3 and 5 are properties of the helper, not of the author. Reads build their envelope with `apiV1Envelope`. (2026-08-22)
+- [ ] If it MUTATES, it accepts an `Idempotency-Key` header and replays the first outcome for a repeated key. **No precedent yet** — the first write endpoint sets the shape; a native client on a flaky link retries, and a retry that creates a second custody transfer is not a retry.
+- [ ] Cross-origin / bearer: **PO decision #2 is taken — CORS + a bearer API, never native-direct-Supabase** (`docs/reviews/native-readiness/SYNTHESIS.md`), and it is **not implemented**: no `/api/v1` route sets `Access-Control-*` headers or accepts a bearer token today (`lib/supabase/bearer.ts` exists; nothing calls it from `/api/v1`). A route that needs either lands the shared CORS preflight + `createClientFromBearer` wiring as its own change, not inline.
+
+**Fences that check this list** (each runs in `pnpm verify` and in CI —
+`lint:ci-parity` keeps the two equal):
+
+| Fence | Lines it checks |
+|---|---|
+| `pnpm lint:api-v1` — `scripts/check-api-v1-envelope.ts` | the helper line above (no hand-built responses, helper imported); a LITERAL bucket for `publicTokenThrottle(` and for `perLookup.bucket` (line 1, G4); authorized or `@no-auth-required: <reason>` (reuses `lint:authz`'s handler rule). Non-vacuity floor: ≥1 `app/api/v1/**/route.ts`. RED controls in `__tests__/check-api-v1-envelope.test.ts` |
+| `pnpm lint:authz` — `scripts/check-authz-guards.ts` | every exported handler calls a recognised guard or carries a justified opt-out; since 2026-08-22 also that no file DEFINES a function named like a guard (`findShadowedGuardDefinitions`) |
+| `pnpm lint:api-headers` — `scripts/check-api-guard-headers.ts` | no handler reads a middleware-stamped header |
+| `pnpm lint:db-budget` — `scripts/check-db-budget.ts` | the handler calls a budget wrapper or is a registered delegating route |
+| `__tests__/public-token-throttle-coverage.test.ts` | every caller of `lookupPublicCredential` hands over `publicTokenThrottle("<literal>")` from `KNOWN_BUCKETS`, and (G4) a `perLookup.bucket` literal from `KNOWN_LOOKUP_BUCKETS` |
+
+Lines with no fence: per-section availability (§5), the envelope fields on
+reads (§6 — `apiV1Envelope` makes it easy, nothing makes it mandatory), the
+response-equality tests, Idempotency-Key, CORS/bearer. They are checked by the
+reviewer reading §10's table for the new route.
 
 ---
 

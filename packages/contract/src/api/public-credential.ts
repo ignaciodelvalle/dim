@@ -45,6 +45,26 @@ import type { PetSex } from "../input/intake";
 export const PUBLIC_CREDENTIAL_PAYLOAD_VERSION = 1;
 
 /**
+ * How long a credential snapshot may be presented as current (ms).
+ *
+ * The web surface answers this question with `Cache-Control: no-store` on
+ * every response, because the credential FLIPS: a pet goes lost, an owner marks
+ * it found, a disclosure preference changes, and a stale copy showed "SE BUSCA"
+ * + the owner's phone for a pet that was already home (the privacy class closed
+ * 2026-07-07). A native client holding a copy has no CDN to invalidate, so it
+ * gets an explicit expiry instead — `staleAfter` in the envelope.
+ *
+ * Five minutes is the trade: short enough that a lost->found flip reaches a
+ * finder while it still matters, long enough that a client is not re-fetching
+ * on every glance. It is NOT a cache-control directive — the response is
+ * `no-store` regardless — it is what a client shows the user next to "esto es
+ * lo que el servidor sabía a las 14:32". It lives HERE, next to the version,
+ * because the client needs the number to render that sentence and a number it
+ * cannot import is a number it will hard-code.
+ */
+export const PUBLIC_CREDENTIAL_STALE_AFTER_MS = 5 * 60_000;
+
+/**
  * One section of a credential read.
  *
  * `unavailable` means the server could not load it, NOT that it is empty. A

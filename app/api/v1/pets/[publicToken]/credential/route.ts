@@ -101,13 +101,12 @@
 // from, and "the read failed, come back shortly" is a genuine hint rather than
 // a disclosure about a limiter window.
 
-import { NextResponse } from "next/server";
-
+import { apiV1Error, apiV1Json } from "@/lib/infra/api-v1";
 import { publicTokenThrottle } from "@/lib/infra/public-token-throttle";
 import { callerIp } from "@/lib/infra/rate-limit";
 import { lookupPublicCredential } from "@/src/modules/pets/application/read/lookup-public-credential";
 
-import { LOOKUP_BUCKET, PUBLIC_TOKEN_API_LOOKUP_LIMIT } from "./limits";
+import { PUBLIC_TOKEN_API_LOOKUP_LIMIT } from "./limits";
 import { buildDegradedPublicCredentialV1, buildPublicCredentialV1 } from "./payload";
 
 // The handler reads the request's own headers for the caller IP, so it can
@@ -115,37 +114,34 @@ import { buildDegradedPublicCredentialV1, buildPublicCredentialV1 } from "./payl
 // handlers, rather than relying on Next inferring it from a header read.
 export const dynamic = "force-dynamic";
 
-// D1's bucket, `public_token_api_credential`, is written as a LITERAL at the
-// call site below rather than lifted to a constant here. That is a requirement,
-// not a style choice: __tests__/public-token-throttle-coverage.test.ts rejects
-// any non-literal argument to the throttle adapter, because a computed bucket
-// is exactly how one surface starts spending another's counter, and it makes
-// "which surface is being hammered" unanswerable from the limiter's own
-// storage. The fence caught this file with a constant on the first run.
+// BOTH buckets — D1's `public_token_api_credential` and D3's
+// `public_token_api_credential_lookup` — are written as LITERALS at the call
+// site below rather than lifted to constants. That is a requirement, not a
+// style choice: __tests__/public-token-throttle-coverage.test.ts and
+// scripts/check-api-v1-envelope.ts reject any non-literal bucket, surface or
+// per-lookup, because a computed bucket is exactly how one surface starts
+// spending another's counter, and it makes "which surface is being hammered"
+// unanswerable from the limiter's own storage. The fence caught this file with
+// a constant on the first run, and the per-lookup half joined the rule on
+// 2026-08-22 (G4) — `limits.ts` keeps `LOOKUP_BUCKET` for the TESTS, which pin
+// the literal here to it.
 //
-// It reads the RAW source, comments included, so this note names the rule
-// instead of illustrating it with a call.
+// The fences read the source with comments stripped, so this note names the
+// rule instead of illustrating it with a call.
 
 /** Advisory backoff on a degraded read. Not a limiter window. */
 const DEGRADED_RETRY_AFTER_SECONDS = 30;
 
-/**
- * The ONE way this route answers, so no branch can forget the header.
- *
- * `Cache-Control: no-store` is NOT inherited (§4): `middleware.ts` stamps it
- * from a path-prefix allowlist that `/api/...` does not match. The privacy
- * class that closed on 2026-07-07 was real — a revoked share and a found pet
- * served stale from the CDN at the exact shared URL — and a JSON endpoint
- * reopens it unless every response sets the header itself. Funnelling all four
- * status codes through one function is what makes "every response" a property
- * of the file rather than of the author's memory.
- */
-function credentialJson(body: unknown, status: number, extraHeaders: HeadersInit = {}) {
-  return NextResponse.json(body, {
-    status,
-    headers: { "cache-control": "no-store", ...extraHeaders },
-  });
-}
+// HOW THIS ROUTE ANSWERS: only through apiV1Json / apiV1Error
+// (lib/infra/api-v1.ts). `Cache-Control: no-store` is NOT inherited (§4):
+// `middleware.ts` stamps it from a path-prefix allowlist that `/api/...` does
+// not match. The privacy class that closed on 2026-07-07 was real — a revoked
+// share and a found pet served stale from the CDN at the exact shared URL —
+// and a JSON endpoint reopens it unless every response sets the header itself.
+// This file used to own a private `credentialJson()` for that; the helper is
+// now shared and `pnpm lint:api-v1` refuses any `/api/v1` route that builds a
+// response by hand, so "every response" is a property of the SURFACE rather
+// than of one author's memory.
 
 // @no-auth-required: the public credential is public BY DESIGN — the pet is the
 // credential (invariant #1), and this endpoint discloses exactly what
@@ -176,7 +172,7 @@ export async function GET(
     publicToken,
     throttle: publicTokenThrottle("public_token_api_credential", {
       perLookup: {
-        bucket: LOOKUP_BUCKET,
+        bucket: "public_token_api_credential_lookup",
         key: `${publicToken}:${ip}`,
         limit: PUBLIC_TOKEN_API_LOOKUP_LIMIT,
       },
@@ -188,14 +184,14 @@ export async function GET(
     // token that exists and one that does not — a rate-limit response must
     // never be an existence oracle, nor a probe for which budget ran out.
     case "throttled":
-      return credentialJson({ error: "rate_limited" }, 429);
+      return apiV1Error("rate_limited", 429);
 
     // The token resolves to nothing the caller may see. A SOFT-DELETED pet
     // reaches this same branch, because the filter lives in the query
     // (`publicPetByToken`, PO-4) — an erased subject's credential must be
     // indistinguishable from one that never existed, byte for byte.
     case "not_found":
-      return credentialJson({ error: "not_found" }, 404);
+      return apiV1Error("not_found", 404);
 
     // A read failed or blew its budget. NOT 404: a database outage is not "this
     // token does not exist", and answering 404 to a finder standing over a lost
@@ -203,12 +199,13 @@ export async function GET(
     // code ALONGSIDE whatever survived, per-section — the shape
     // app/api/panorama/kpis/route.ts prototyped and §5 prescribes.
     case "degraded":
-      return credentialJson(buildDegradedPublicCredentialV1(lookup, new Date()), 503, {
-        "retry-after": String(DEGRADED_RETRY_AFTER_SECONDS),
+      return apiV1Json(buildDegradedPublicCredentialV1(lookup, new Date()), {
+        status: 503,
+        headers: { "retry-after": String(DEGRADED_RETRY_AFTER_SECONDS) },
       });
 
     case "ok":
-      return credentialJson(buildPublicCredentialV1(lookup, new Date()), 200);
+      return apiV1Json(buildPublicCredentialV1(lookup, new Date()), { status: 200 });
 
     default: {
       // Exhaustiveness: a new status added to the union without a branch here

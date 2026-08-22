@@ -13,6 +13,7 @@ export { API_V1_ERROR_CODES, type ApiV1Error, type ApiV1ErrorCode } from "./erro
 export {
   PUBLIC_CREDENTIAL_PAYLOAD_VERSION,
   PUBLIC_CREDENTIAL_SITUATIONS,
+  PUBLIC_CREDENTIAL_STALE_AFTER_MS,
   PUBLIC_PET_STATUSES,
   type CredentialIdentitySection,
   type CredentialLostLastSeen,

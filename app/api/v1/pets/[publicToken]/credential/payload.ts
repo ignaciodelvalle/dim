@@ -79,40 +79,37 @@ import type {
   PublicCredentialV1,
   PublicCredentialV1Degraded,
 } from "@dim/contract/api";
-import { PUBLIC_CREDENTIAL_PAYLOAD_VERSION } from "@dim/contract/api";
+import {
+  PUBLIC_CREDENTIAL_PAYLOAD_VERSION,
+  PUBLIC_CREDENTIAL_STALE_AFTER_MS,
+} from "@dim/contract/api";
 
 import type { Pet } from "@/db";
 import { deriveRabiesSemaphore, isRabiesAtRisk } from "@/lib/domain/credential-badges";
 import { computeConfidence, isAtLeast } from "@/lib/events/event-confidence";
+import { apiV1Envelope } from "@/lib/infra/api-v1";
 import { isPermanentCondition } from "@/lib/reference/permanent-conditions";
 import { derivePetSituation } from "@/lib/ui/pet-situation";
 import type { PublicCredentialLookup } from "@/src/modules/pets/application/read/lookup-public-credential";
 import { isObservationOpen } from "@/src/modules/surveillance/domain/rabies-observation";
 
-/**
- * How long a snapshot may be presented as current.
- *
- * The web surface answers this question with `Cache-Control: no-store` on every
- * response, because the credential FLIPS: a pet goes lost, an owner marks it
- * found, a disclosure preference changes, and a stale copy showed "SE BUSCA" +
- * the owner's phone for a pet that was already home (the privacy class closed
- * 2026-07-07). A native client holding a copy has no CDN to invalidate, so it
- * gets an explicit expiry instead.
- *
- * Five minutes is the trade: short enough that a lost->found flip reaches a
- * finder while it still matters, long enough that a client is not re-fetching
- * on every glance. It is NOT a cache-control directive — the response is
- * `no-store` regardless — it is what a client shows the user next to "esto es
- * lo que el servidor sabía a las 14:32".
- */
-export const PUBLIC_CREDENTIAL_STALE_AFTER_MS = 5 * 60_000;
+// The stale-after policy moved NEXT TO THE VERSION in the contract package
+// (2026-08-22): a native client needs the number to render "esto es lo que el
+// servidor sabía a las 14:32", and a number it cannot import is one it will
+// hard-code. Re-exported so app-side callers keep one import path.
+export { PUBLIC_CREDENTIAL_STALE_AFTER_MS } from "@dim/contract/api";
 
-/** The three envelope fields §6 requires on every read, success or degraded. */
-function envelope(publicToken: string, now: Date) {
+/**
+ * The three envelope fields §6 requires on every read (apiV1Envelope — the
+ * shared `/api/v1` helper), plus the credential's own identity.
+ */
+function credentialEnvelope(publicToken: string, now: Date) {
   return {
-    payloadVersion: PUBLIC_CREDENTIAL_PAYLOAD_VERSION,
-    issuedAt: now.toISOString(),
-    staleAfter: new Date(now.getTime() + PUBLIC_CREDENTIAL_STALE_AFTER_MS).toISOString(),
+    ...apiV1Envelope({
+      payloadVersion: PUBLIC_CREDENTIAL_PAYLOAD_VERSION,
+      issuedAt: now,
+      staleAfterMs: PUBLIC_CREDENTIAL_STALE_AFTER_MS,
+    }),
     publicToken,
   } as const;
 }
@@ -313,7 +310,7 @@ export function buildPublicCredentialV1(
     : null;
 
   return {
-    ...envelope(pet.publicToken, now),
+    ...credentialEnvelope(pet.publicToken, now),
     identity: {
       status: "ok",
       data: {
@@ -419,7 +416,7 @@ export function buildDegradedPublicCredentialV1(
 ): PublicCredentialV1Degraded {
   return {
     error: "temporarily_unavailable",
-    ...envelope(lookup.publicToken, now),
+    ...credentialEnvelope(lookup.publicToken, now),
     // LISTED, not forwarded. `lookup.pet` is the door's own type and this is a
     // public wire payload; a field added there must not reach a client because
     // an assignment happened to be wide enough. (Excess-property checking does

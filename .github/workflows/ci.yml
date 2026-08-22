@@ -98,6 +98,18 @@ jobs:
         # scripts/check-api-guard-headers.ts.
         run: pnpm lint:api-headers
 
+      - name: "Fence: /api/v1 envelope discipline (lint:api-v1)"
+        # RN-1 G1-G4 (2026-08-22). Every /api/v1 route answers only through
+        # apiV1Json/apiV1Error (lib/infra/api-v1.ts) — cache-control: no-store
+        # is NOT inherited by /api/, and the { error } envelope is a contract a
+        # native client parses — names both limiter buckets (surface and
+        # per-lookup) as literals, and is authorized or justified-public. The
+        # first endpoint satisfied all of it through a PRIVATE helper; this is
+        # what makes the second one inherit the rule instead of copying it.
+        # Offline — static analysis over app/api/v1. See
+        # scripts/check-api-v1-envelope.ts.
+        run: pnpm lint:api-v1
+
       - name: Lint (actions, UI, deps, guardrails)
         # lint:contract is the packages/contract purity fence (native-readiness
         # T1.1). It belongs in this job, not the test job: it reads source and

@@ -121,10 +121,9 @@ const WRITE_LIMITER = "await enforceRateLimit(";
  * and the reservation is now a real user — which the door-caller assertions
  * below exercise, so nothing has to remember to delete this note.
  *
- * The endpoint's SECOND bucket, `public_token_api_credential_lookup`, is not
- * listed and must not be: this set gates the adapter's first argument, the
- * per-IP surface bucket. The narrower per-(token, IP) limiter is configured
- * inside the adapter's options object, where it is not a call-site literal.
+ * The endpoint's SECOND bucket, `public_token_api_credential_lookup`, is NOT
+ * in this set: this set gates the adapter's first argument, the per-IP surface
+ * bucket. The narrower per-(token, IP) limiter has its own set below.
  */
 const KNOWN_BUCKETS = new Set([
   "public_token_page",
@@ -133,6 +132,21 @@ const KNOWN_BUCKETS = new Set([
   "public_token_encontre",
   "public_token_api_credential",
 ]);
+
+/**
+ * Every legitimate PER-LOOKUP bucket — the narrower limiter a route may layer
+ * inside the adapter's options (`{ perLookup: { bucket, key, limit } }`).
+ *
+ * ADDED 2026-08-22 (G4). Until then this file read only the adapter's first
+ * argument, and the header above said the per-lookup bucket "is not a
+ * call-site literal this predicate could read anyway" — so the first endpoint
+ * shipped `bucket: LOOKUP_BUCKET`, a module constant, in the one position the
+ * fence was not looking at. The rule is the same for both positions and for
+ * the same reason: a computed bucket is how one surface starts spending
+ * another's counter. The route writes the literal; `limits.ts` keeps the
+ * constant for the tests, which pin the two to each other.
+ */
+const KNOWN_LOOKUP_BUCKETS = new Set(["public_token_api_credential_lookup"]);
 
 type Source = { file: string; src: string };
 
@@ -314,6 +328,23 @@ function adapterArgs(src: string): string[] {
 }
 
 /**
+ * The `bucket:` value inside every `perLookup: { … }` object a file passes to
+ * the adapter (G4). Read separately from `adapterArgs` because it is not the
+ * first argument — it is a property of the second — and the 2026-08-21
+ * widening deliberately stopped reading past the first comma.
+ */
+function perLookupBucketArgs(src: string): string[] {
+  const out: string[] = [];
+  const re = /perLookup\s*:\s*\{([^}]*)\}/g;
+  const c = code(src);
+  for (let m = re.exec(c); m !== null; m = re.exec(c)) {
+    const bucket = m[1].match(/\bbucket\s*:\s*([^,}]*)/);
+    if (bucket) out.push(bucket[1].trim());
+  }
+  return out;
+}
+
+/**
  * Every bucket literal a file names, in either the direct or adapter form.
  *
  * Same widening as `adapterArgs`, for the same reason: the trailing `\)` in the
@@ -347,6 +378,14 @@ function doorCallerViolations({ file, src }: Source): string[] {
       problems.push(`${file}: limiter bucket must be a string literal, got \`${arg}\``);
     } else if (!KNOWN_BUCKETS.has(arg.slice(1, -1))) {
       problems.push(`${file}: unknown limiter bucket ${arg}`);
+    }
+  }
+  // G4: the narrower limiter's bucket is held to the same rule.
+  for (const arg of perLookupBucketArgs(src)) {
+    if (!/^"[a-z_]+"$/.test(arg)) {
+      problems.push(`${file}: per-lookup bucket must be a string literal, got \`${arg}\``);
+    } else if (!KNOWN_LOOKUP_BUCKETS.has(arg.slice(1, -1))) {
+      problems.push(`${file}: unknown per-lookup bucket ${arg}`);
     }
   }
   return problems;
@@ -675,13 +714,49 @@ describe("the fence bites", () => {
     // the proof that it did not stop reading the first argument. A fence
     // relaxed to make a real call pass, without a control for the shape it used
     // to reject, is a fence that has quietly been switched off.
+    //
+    // Since 2026-08-22 (G4) the per-lookup bucket is held to the same rule, so
+    // this fixture — a constant in BOTH positions — yields BOTH problems.
     const dynamic = {
       file: "app/api/v1/pets/[publicToken]/credential/route.ts",
       src: "await lookupPublicCredential({ publicToken, throttle: publicTokenThrottle(bucket, { perLookup: { bucket: LOOKUP_BUCKET, key, limit } }) });",
     };
     expect(doorCallerViolations(dynamic)).toEqual([
       "app/api/v1/pets/[publicToken]/credential/route.ts: limiter bucket must be a string literal, got `bucket`",
+      "app/api/v1/pets/[publicToken]/credential/route.ts: per-lookup bucket must be a string literal, got `LOOKUP_BUCKET`",
     ]);
+  });
+
+  it("flags a computed PER-LOOKUP bucket on its own (G4) — THE RED CONTROL", () => {
+    // The surface bucket is a literal; only the narrower limiter's bucket is
+    // computed. Before G4 the fence read only the adapter's first argument and
+    // this passed, which is how the route shipped `bucket: LOOKUP_BUCKET`.
+    const dynamic = {
+      file: "app/api/v1/pets/[publicToken]/credential/route.ts",
+      src: 'await lookupPublicCredential({ publicToken, throttle: publicTokenThrottle("public_token_api_credential", { perLookup: { bucket: LOOKUP_BUCKET, key, limit } }) });',
+    };
+    expect(doorCallerViolations(dynamic)).toEqual([
+      "app/api/v1/pets/[publicToken]/credential/route.ts: per-lookup bucket must be a string literal, got `LOOKUP_BUCKET`",
+    ]);
+  });
+
+  it("flags an UNKNOWN per-lookup bucket (G4)", () => {
+    const unknown = {
+      file: "app/api/v1/pets/[publicToken]/credential/route.ts",
+      src: 'await lookupPublicCredential({ publicToken, throttle: publicTokenThrottle("public_token_api_credential", { perLookup: { bucket: "whatever", key, limit } }) });',
+    };
+    expect(doorCallerViolations(unknown)).toEqual([
+      'app/api/v1/pets/[publicToken]/credential/route.ts: unknown per-lookup bucket "whatever"',
+    ]);
+  });
+
+  it("reads a known per-lookup literal and passes it (non-vacuity for the two above)", () => {
+    const literal = {
+      file: "app/api/v1/pets/[publicToken]/credential/route.ts",
+      src: 'await lookupPublicCredential({ publicToken, throttle: publicTokenThrottle("public_token_api_credential", { perLookup: { bucket: "public_token_api_credential_lookup", key, limit } }) });',
+    };
+    expect(perLookupBucketArgs(literal.src)).toEqual(['"public_token_api_credential_lookup"']);
+    expect(doorCallerViolations(literal)).toEqual([]);
   });
 
   it("reads the bucket literal out of a TWO-argument adapter call", () => {
