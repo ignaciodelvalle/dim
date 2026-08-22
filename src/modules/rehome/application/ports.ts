@@ -153,6 +153,27 @@ export type CloseListingCaseArgs = {
   now: Date;
 };
 
+/**
+ * An application the titular's withdraw leaves with nothing to wait for:
+ * PENDING (never reviewed) or APPROVED but not finalized. The two are closed
+ * differently — see `closeApplicationByTitular`.
+ */
+export type StrandedApplication = {
+  applicationId: string;
+  applicantUserId: string;
+  approved: boolean;
+};
+
+export type CloseApplicationByTitularArgs = {
+  petId: string;
+  petName: string;
+  application: StrandedApplication;
+  titularUserId: string;
+  organizationId: string;
+  organizationDisplayName: string;
+  now: Date;
+};
+
 export interface RehomeWithdrawPort {
   findPetByToken(publicToken: string): Promise<PetSummary | null>;
   findLiveOwnerRow(petId: string, userId: string, tx?: unknown): Promise<{ id: string } | null>;
@@ -174,7 +195,17 @@ export interface RehomeWithdrawPort {
     orgId: string,
     tx: unknown,
   ): Promise<{ id: string; publicCode: string } | null>;
-  closeListingCase(args: CloseListingCaseArgs, tx: unknown): Promise<void>;
+  /** `won: false` when another closer got there first — the note is then NOT written. */
+  closeListingCase(args: CloseListingCaseArgs, tx: unknown): Promise<{ won: boolean }>;
+  /** Every application on the listing the withdraw is about to close. */
+  findApplicationsOnListing(petId: string, tx: unknown): Promise<StrandedApplication[]>;
+  /**
+   * Closes one stranded application: a PENDING one gets an auto-generated
+   * `adoption_application_resolved{rejected, reason: listing_withdrawn_by_titular}`
+   * signed by the titular; an APPROVED one keeps its approval as the single
+   * resolution on the spine. Both get their `adoption_application` case closed.
+   */
+  closeApplicationByTitular(args: CloseApplicationByTitularArgs, tx: unknown): Promise<void>;
   // --- cancel a pending request ---
   findOpenRequestForPet(petId: string): Promise<RequestCase | null>;
   lockRequestCase(caseId: string, tx: unknown): Promise<RequestCase | null>;

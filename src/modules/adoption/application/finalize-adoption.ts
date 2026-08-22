@@ -84,6 +84,13 @@ function normalizeDni(raw: string): string {
 const ADOPTER_ACCOUNT_REQUIRED_MSG =
   "No encontramos una cuenta miMAR registrada con ese DNI. La persona adoptante tiene que registrarse en miMAR con su DNI antes de finalizar la adopción.";
 
+// The custody row finalize read before its transaction is gone by the time the
+// transaction locks it — a titular's withdraw (rehome-by-titular) or another
+// hand-off committed in between. Said as what happened and what to do, not as
+// a wrapped Postgres message.
+const CUSTODY_GONE_MSG =
+  "La custodia de esta mascota terminó antes de completar la adopción: el titular dio de baja el acompañamiento o la custodia cambió de manos. Recargá la página para ver el estado actual.";
+
 // ---------------------------------------------------------------------------
 // Use-case
 // ---------------------------------------------------------------------------
@@ -212,10 +219,28 @@ export async function finalizeAdoption(
   // moved, and they may still physically have the animal.
   let endedGrants: EndedCaretakerGrant[] = [];
   let eventId = "";
+  let custodyGone = false;
 
   // 7. Atomic transaction.
   try {
     await transaction(async (tx) => {
+      // The custody row, LOCKED, before anything is written (rehome-by-titular,
+      // WU5 carry-forward 3). Step 1's read is pre-transaction and stale by
+      // construction; the titular's withdraw ends this exact row in its own
+      // transaction and the spec gives that withdraw the right of way (REQ-8).
+      // Locked here, the withdraw either waits behind this finalize or has
+      // already committed — in which case the row is ended, nothing below may
+      // run, and the org reads a sentence instead of an adoption over a closed
+      // custody (or two contradictory `rehome_sponsorship_ended` events).
+      const lockedCustody = await repo.lockLiveCustodyRow(
+        petRow.custodyOwnershipId,
+        tx as Parameters<typeof repo.lockLiveCustodyRow>[1],
+      );
+      if (!lockedCustody) {
+        custodyGone = true;
+        return;
+      }
+
       const { eventId: insertedEventId, endedCaretakerGrants } = await repo.insertAdoptionFinalized(
         {
           petId: petRow.id,
@@ -287,6 +312,7 @@ export async function finalizeAdoption(
       }`,
     };
   }
+  if (custodyGone) return { ok: false, error: CUSTODY_GONE_MSG };
 
   // 8. Post-tx: collect additional notifications (not flushed here — action does it).
   // The adopter always has a real account, so this notification always has a

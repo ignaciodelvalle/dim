@@ -29,6 +29,8 @@ import {
   pets,
   profiles,
 } from "@/db";
+import { dniLast4, hashDni } from "@/lib/utils/dni-hash";
+import { finalizeAdoption } from "@/src/modules/adoption/application/finalize-adoption";
 import { setAdoptionListingStatus } from "@/src/modules/adoption/application/set-adoption-listing-status";
 import { queryAdoptionListing } from "@/src/modules/adoption/infrastructure/adoption-listing-read";
 import { AdoptionRepository } from "@/src/modules/adoption/infrastructure/adoption-repository";
@@ -51,11 +53,19 @@ const USERS = {
   titular: "rehome-withdraw-titular@dim-test.local",
   fosterer: "rehome-withdraw-fosterer@dim-test.local",
   coordA: "rehome-withdraw-coord-a@dim-test.local",
+  // The cascade's two applicants (WU5 carry-forward 1): one the org already
+  // APPROVED and was about to finalize, one still PENDING review.
+  applicantApproved: "rehome-withdraw-applicant-a@dim-test.local",
+  applicantPending: "rehome-withdraw-applicant-b@dim-test.local",
+  // The finalize-vs-withdraw race (WU5 carry-forward 3): a registered adopter
+  // resolved by the manual-DNI branch of finalize-adoption.
+  adopter: "rehome-withdraw-adopter@dim-test.local",
 } as const;
 const PASS = "RehomeWithdraw_2026!";
 
 const ORG_A_TOKEN = "DIM-RHWD-0001";
 const PET_TOKEN = "DIM-RHWD-PET1";
+const ADOPTER_DNI = "30777002";
 
 const ids = {} as Record<keyof typeof USERS, string>;
 let orgAId: string;
@@ -175,6 +185,17 @@ beforeAll(async () => {
       .set({ displayName: email.split("@")[0], role: "owner", accountType: "personal" })
       .where(eq(profiles.id, ids[key]));
   }
+  // The manual-DNI branch of finalize-adoption matches on dniHash and requires
+  // a real auth account (no stub creation since org-pilot-pack).
+  await db
+    .update(profiles)
+    .set({
+      phone: "+541133330002",
+      dniHash: hashDni(ADOPTER_DNI),
+      dniLast4: dniLast4(ADOPTER_DNI),
+      dniVerified: true,
+    })
+    .where(eq(profiles.id, ids.adopter));
 
   const [org] = await db
     .insert(organizations)
@@ -279,6 +300,69 @@ async function inCatalog(): Promise<boolean> {
 const openSponsorship = () =>
   findOpenSponsorship(petId, db as unknown as Parameters<typeof findOpenSponsorship>[1]);
 
+type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0];
+
+async function resolvedEventsFor(applicationId: string) {
+  const rows = await db
+    .select({
+      payload: petEvents.payload,
+      authorRole: petEvents.authorRole,
+      authorOrganizationId: petEvents.authorOrganizationId,
+      recordedByUserId: petEvents.recordedByUserId,
+    })
+    .from(petEvents)
+    .where(
+      and(eq(petEvents.petId, petId), eq(petEvents.eventType, "adoption_application_resolved")),
+    );
+  return rows.filter(
+    (r) => (r.payload as { application_event_id?: string }).application_event_id === applicationId,
+  );
+}
+
+async function applicationCaseFor(applicantUserId: string) {
+  const [row] = await db
+    .select({
+      id: cases.id,
+      status: cases.status,
+      closedReason: cases.closedReason,
+      closedByUserId: cases.closedByUserId,
+    })
+    .from(cases)
+    .where(
+      and(
+        eq(cases.primaryPetId, petId),
+        eq(cases.caseKind, "adoption_application"),
+        eq(cases.applicantUserId, applicantUserId),
+      ),
+    );
+  return row ?? null;
+}
+
+/** Submit an application through the repository writer (opens its case). */
+async function apply(applicantUserId: string): Promise<string> {
+  return db.transaction(async (tx) => {
+    const { eventId } = await AdoptionRepository.insertApplication(
+      {
+        petId,
+        userId: applicantUserId,
+        orgId: orgAId,
+        housingType: "casa_con_patio",
+        otherPets: null,
+        dailyRoutine: null,
+        notes: null,
+        motivation: "Quiero darle un hogar a Tango.",
+        priorPets: "no",
+        now: new Date(),
+      },
+      tx as Tx,
+    );
+    return eventId;
+  });
+}
+
+let approvedApplicationId: string;
+let pendingApplicationId: string;
+
 // ---------------------------------------------------------------------------
 // Withdraw an ACTIVE sponsorship
 // ---------------------------------------------------------------------------
@@ -292,6 +376,44 @@ describe("withdraw — the control: the pet is sponsored going in", () => {
     expect(cols.eligible).toBe(true);
     expect(cols.listedAt).not.toBeNull();
     expect(await inCatalog()).toBe(true);
+  });
+
+  it("two applicants are waiting: one approved by the org, one still pending (the cascade's fixture)", async () => {
+    approvedApplicationId = await apply(ids.applicantApproved);
+    pendingApplicationId = await apply(ids.applicantPending);
+    await db.transaction(async (tx) => {
+      await AdoptionRepository.resolveApplication(
+        {
+          petId,
+          applicationEventId: approvedApplicationId,
+          outcome: "approved",
+          reviewerUserId: ids.coordA,
+          orgId: orgAId,
+          orgVerified: true,
+          notes: null,
+          now: new Date(),
+        },
+        tx as Tx,
+      );
+    });
+
+    expect((await resolvedEventsFor(approvedApplicationId)).length).toBe(1);
+    expect((await resolvedEventsFor(pendingApplicationId)).length).toBe(0);
+    expect((await applicationCaseFor(ids.applicantApproved))?.status).toBe("open");
+    expect((await applicationCaseFor(ids.applicantPending))?.status).toBe("open");
+    // Both org-side readers see their application today — this is what the
+    // withdraw below must close honestly rather than leave stranded.
+    const forFinalize = await AdoptionRepository.findApprovedApplicationForFinalize(
+      approvedApplicationId,
+      orgAId,
+      petId,
+    );
+    expect("error" in forFinalize).toBe(false);
+    const forReview = await AdoptionRepository.findApplicationForReview(
+      pendingApplicationId,
+      orgAId,
+    );
+    expect("error" in forReview).toBe(false);
   });
 });
 
@@ -341,8 +463,15 @@ describe("withdraw — who may, and what one transaction does (REQ-8, REQ-10, RE
 
     // The spine: the closing fact names the custody row, is signed by the
     // TITULAR (not the org, not the platform), and is attached to the
-    // listing case — written while that case was still open.
+    // listing case — written while that case was still open. The two
+    // submitted applications and the org's approval are there from the
+    // fixture; the cascade's own resolution of the PENDING one is the extra
+    // `adoption_application_resolved` (asserted below).
     expect(await spineTypes()).toEqual([
+      "adoption_application_resolved",
+      "adoption_application_resolved",
+      "adoption_application_submitted",
+      "adoption_application_submitted",
       "adoption_eligibility_set",
       "rehome_sponsorship_ended",
       "rehome_sponsorship_started",
@@ -384,12 +513,78 @@ describe("withdraw — who may, and what one transaction does (REQ-8, REQ-10, RE
     expect(await inCatalog()).toBe(false);
 
     // The org's admins are told, and the CTA is the case they worked on.
-    expect(r.notifications.map((n) => n.userId)).toEqual([ids.coordA]);
-    expect(r.notifications[0].notificationType).toBe("rehome_sponsorship_withdrawn");
-    expect(r.notifications[0].title).toContain("Tango");
-    expect(r.notifications[0].body).toMatch(/sigue (con|viviendo con) su familia/);
-    expect(r.notifications[0].ctaUrl).toBe(`/casos/${listing.publicCode}`);
-    expect(r.notifications[0].relatedCaseId).toBe(firstListingCaseId);
+    const orgNotice = r.notifications.find((n) => n.userId === ids.coordA);
+    expect(orgNotice?.notificationType).toBe("rehome_sponsorship_withdrawn");
+    expect(orgNotice?.title).toContain("Tango");
+    expect(orgNotice?.body).toMatch(/sigue (con|viviendo con) su familia/);
+    expect(orgNotice?.ctaUrl).toBe(`/casos/${listing.publicCode}`);
+    expect(orgNotice?.relatedCaseId).toBe(firstListingCaseId);
+
+    // THE CASCADE (WU5 carry-forward 1). With the custody row ended, every
+    // org-side reader of an application inner-joins a LIVE custody and finds
+    // nothing; the applicant's own readers do the same. Left alone, both
+    // applications would be stranded: un-reviewable, un-retractable, hidden
+    // from both inboxes, with nobody told. The withdraw closes them in its
+    // own transaction.
+    //
+    // PENDING: resolved on the spine as an auto-generated rejection whose
+    // reason names the cause, signed by the TITULAR (the person whose act
+    // closed the listing — "the test is who the author IS"), never the org.
+    const pendingResolved = await resolvedEventsFor(pendingApplicationId);
+    expect(pendingResolved).toHaveLength(1);
+    expect(pendingResolved[0].payload).toMatchObject({
+      outcome: "rejected",
+      reason: "listing_withdrawn_by_titular",
+      auto_generated: true,
+    });
+    expect(pendingResolved[0].authorRole).toBe("owner");
+    expect(pendingResolved[0].authorOrganizationId).toBeNull();
+    expect(pendingResolved[0].recordedByUserId).toBe(ids.titular);
+    // APPROVED: the org's approval stays the single resolution on the spine —
+    // a second, contradictory `rejected` for the same application would be a
+    // lie on an append-only ledger. Its fate is the case close below plus the
+    // `rehome_sponsorship_ended{withdrawn_by_titular}` on the same pet.
+    expect(await resolvedEventsFor(approvedApplicationId)).toHaveLength(1);
+
+    // Both application cases close, cancelled BY the titular, with a note.
+    for (const applicant of [ids.applicantApproved, ids.applicantPending]) {
+      const appCase = await applicationCaseFor(applicant);
+      expect(appCase?.status).toBe("closed");
+      expect(appCase?.closedReason).toBe("cancelled");
+      expect(appCase?.closedByUserId).toBe(ids.titular);
+      const entry = appCase ? await closedEntryFor(appCase.id) : null;
+      expect(entry?.notes).toMatch(/titular/);
+      expect(entry?.notes).toMatch(/retir/);
+    }
+
+    // Both applicants are told, in words that say what happened and that
+    // nothing is asked of them.
+    for (const applicant of [ids.applicantApproved, ids.applicantPending]) {
+      const notice = r.notifications.find((n) => n.userId === applicant);
+      expect(notice?.notificationType).toBe("adoption_application_closed");
+      expect(notice?.title).toContain("Tango");
+      expect(notice?.body).toMatch(/titular retiró la búsqueda de hogar/);
+      expect(notice?.body).toMatch(/postulación quedó cerrada/);
+      expect(notice?.relatedPetId).toBe(petId);
+    }
+    expect(r.notifications).toHaveLength(3);
+
+    // And the org gets the same refusal it gets today for a pet it no longer
+    // holds — on the finalize path for the approved one, on the review path
+    // for the pending one.
+    const forFinalize = await AdoptionRepository.findApprovedApplicationForFinalize(
+      approvedApplicationId,
+      orgAId,
+      petId,
+    );
+    expect("error" in forFinalize ? forFinalize.error : "").toMatch(
+      /no pertenece a tu organización/,
+    );
+    const forReview = await AdoptionRepository.findApplicationForReview(
+      pendingApplicationId,
+      orgAId,
+    );
+    expect("error" in forReview ? forReview.error : "").toMatch(/no pertenece a tu organización/);
   });
 
   it("REQ-8: after the withdraw the org cannot publish — its own listing use-case finds no custody", async () => {
@@ -417,7 +612,7 @@ describe("withdraw — who may, and what one transaction does (REQ-8, REQ-10, RE
     );
     expect(r.ok).toBe(false);
     if (!r.ok) expect(r.error).toMatch(/no tiene un acompañamiento .*activo/);
-    expect(await spineTypes()).toHaveLength(3);
+    expect(await spineTypes()).toHaveLength(7);
   });
 });
 
@@ -531,6 +726,10 @@ describe("re-list — only through a new accepted request (REQ-7)", () => {
 
     expect((await openSponsorship())?.ownershipId).toBe(sponsored.custodyId);
     expect(await spineTypes()).toEqual([
+      "adoption_application_resolved",
+      "adoption_application_resolved",
+      "adoption_application_submitted",
+      "adoption_application_submitted",
       "adoption_eligibility_set",
       "adoption_eligibility_set",
       "rehome_sponsorship_ended",
@@ -538,5 +737,96 @@ describe("re-list — only through a new accepted request (REQ-7)", () => {
       "rehome_sponsorship_started",
     ]);
     expect(await inCatalog()).toBe(true);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Finalize vs withdraw — the custody row is locked under finalize (carry-forward 3)
+// ---------------------------------------------------------------------------
+
+describe("finalize vs withdraw — the custody row is locked under the finalize transaction", () => {
+  it("a withdraw that commits between finalize's pre-read and its transaction makes finalize refuse, with nothing written", async () => {
+    // The foster-shortcut rules would otherwise route this finalize through
+    // the foster; the race is about the DNI path and the custody row only.
+    await db
+      .update(ownerships)
+      .set({ endedAt: new Date() })
+      .where(
+        and(eq(ownerships.petId, petId), eq(ownerships.role, "foster"), isNull(ownerships.endedAt)),
+      );
+    const spineBefore = await spineTypes();
+    const custodyBefore = (await liveOwnerships()).find((o) => o.role === "shelter_custody");
+    expect(custodyBefore, "sponsored going in").toBeDefined();
+
+    // The race, made deterministic: finalize's pre-transaction read sees the
+    // live custody; the moment its transaction reaches for the lock, the
+    // titular's withdraw has ALREADY committed (its own transaction, its own
+    // connection). The real lock then reads an ended row and returns nothing.
+    let raced = false;
+    const racingRepo = new Proxy(AdoptionRepository, {
+      get(target, prop, receiver) {
+        if (prop === "lockLiveCustodyRow") {
+          return async (ownershipId: string, tx: unknown) => {
+            if (!raced) {
+              raced = true;
+              const w = await withdrawRehomeSponsorship(
+                { petPublicToken: PET_TOKEN, titularUserId: ids.titular },
+                withdrawDeps(),
+              );
+              if (!w.ok) throw new Error(`the racing withdraw failed: ${w.error}`);
+            }
+            return target.lockLiveCustodyRow(ownershipId, tx as Tx);
+          };
+        }
+        return Reflect.get(target, prop, receiver);
+      },
+    });
+
+    const result = await finalizeAdoption(
+      {
+        petPublicToken: PET_TOKEN,
+        applicationEventId: null,
+        adopterUserId: null,
+        adopterDni: ADOPTER_DNI,
+        adopterDisplayName: "Rehome Withdraw Adopter",
+        adopterPhone: "+541133330002",
+        followupMonths: 0,
+        notes: "Finalize que pierde la carrera contra la baja del titular",
+        contractAttachmentId: null,
+        contractStoragePath: null,
+        contractMimeType: null,
+        contractFileSize: null,
+      },
+      {
+        repo: racingRepo,
+        actor: {
+          user: { id: ids.coordA },
+          organization: {
+            id: orgAId,
+            publicToken: ORG_A_TOKEN,
+            verified: true,
+            displayName: "Refugio Padrino",
+          },
+        },
+        transaction,
+      },
+    );
+
+    expect(raced, "the withdraw ran inside the window").toBe(true);
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.error).toMatch(/custodia/i);
+
+    // Nothing of the adoption landed: no adoption_finalized, no second
+    // rehome_sponsorship_ended, the titular's owner row still the only live
+    // row, and the custody row closed exactly once — by the withdraw.
+    const spineAfter = await spineTypes();
+    expect(spineAfter).not.toContain("adoption_finalized");
+    expect(spineAfter.filter((t) => t === "rehome_sponsorship_ended")).toHaveLength(
+      spineBefore.filter((t) => t === "rehome_sponsorship_ended").length + 1,
+    );
+    const live = await liveOwnerships();
+    expect(live.map((o) => o.role)).toEqual(["owner"]);
+    expect(live[0].id).toBe(titularOwnershipId);
+    expect(await openSponsorship()).toBeNull();
   });
 });

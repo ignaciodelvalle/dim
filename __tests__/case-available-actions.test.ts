@@ -122,6 +122,41 @@ describe("availableCaseActions — el cierre manual se DERIVA del ciclo de vida"
   });
 });
 
+describe("availableCaseActions — un expediente que se cierra por ACCIÓN lo dice, no manda a escalar", () => {
+  // rehome-by-titular (WU5 carry-forward 2). `rehome_request` no tiene evento
+  // terminal ni cierre manual: lo cierran dos ACCIONES — la respuesta de la
+  // organización y la cancelación del titular. Con `terminalEvents: []` el
+  // detalle le decía a la org "todavía no tiene una vía de cierre definida…
+  // pedí que se defina la política", que es falso: la política existe y la
+  // org es quien la ejecuta.
+  it("rehome_request: el motivo nombra a la organización y al titular, nunca 'sin vía de cierre'", () => {
+    const [, close] = availableCaseActions("rehome_request", "open");
+    expect(close.available).toBe(false);
+    expect(close.unavailableReason).not.toMatch(/todavía no tiene una vía de cierre/i);
+    expect(close.unavailableReason).toMatch(/no se cierra a mano/i);
+    expect(close.unavailableReason).toMatch(/organización/i);
+    expect(close.unavailableReason).toMatch(/titular/i);
+  });
+
+  it("el ciclo de vida lo declara en un campo legible por máquina, no en un comentario", () => {
+    // Derivado, no restatado: si mañana la prosa vive sólo en el header del
+    // archivo, este test vuelve a ponerse rojo.
+    expect(getLifecycle("rehome_request")?.actionCloseProse).toMatch(/organización/);
+    expect(getLifecycle("rehome_request")?.actionCloseProse).toMatch(/titular/);
+  });
+
+  it("un kind sin política escrita sigue pidiendo la decisión (microchip_remediation)", () => {
+    // Triangulación: el campo nuevo sólo cambia la frase donde alguien lo
+    // escribió. Donde nadie escribió la política, la frase sigue siendo la
+    // honesta — no hay vía de cierre, pedí que se defina.
+    const lifecycle = getLifecycle("microchip_remediation");
+    expect(lifecycle?.terminalEvents).toHaveLength(0);
+    expect(lifecycle?.actionCloseProse).toBeUndefined();
+    const [, close] = availableCaseActions("microchip_remediation", "open");
+    expect(close.unavailableReason).toMatch(/todavía no tiene una vía de cierre/i);
+  });
+});
+
 describe("no vacuidad", () => {
   it("hay doce kinds y todos tienen ciclo de vida declarado", () => {
     // Sin esto, los barridos de arriba podrían recorrer una lista vacía y pasar

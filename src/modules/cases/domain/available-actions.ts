@@ -142,7 +142,14 @@ export function availableCaseActions(kind: CaseKind, status: CaseStatus): CaseAc
     // El motivo nombra QUÉ lo cierra, no sólo que el botón no está. Un
     // funcionario que sabe que el expediente se cierra solo cuando el animal
     // sale de custodia no vuelve tres veces a buscar el botón.
-    const terminals = describeTerminalEvents(lifecycle.terminalEvents);
+    //
+    // Un kind cerrado por ACCIÓN de las partes (rehome_request: la org
+    // responde, el titular cancela) lo declara en `actionCloseProse`, y esa
+    // cláusula va en la misma frase que un hecho terminal: para quien mira el
+    // expediente, "se cierra solo cuando la organización responde" es tan
+    // informativo como "cuando se resuelve la postulación".
+    const terminals =
+      describeTerminalEvents(lifecycle.terminalEvents) ?? lifecycle.actionCloseProse ?? null;
     close = {
       action: "close",
       available: false,

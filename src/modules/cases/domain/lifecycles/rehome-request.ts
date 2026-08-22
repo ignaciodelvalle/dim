@@ -51,8 +51,12 @@ export const rehomeRequestLifecycle: CaseLifecycle = {
   // the welfare_denuncia shape. Stays empty so the attachment helper never
   // tries to auto-open it from an event.
   opensEvents: [],
-  // Closed by the answering action, never by an event insert.
+  // Closed by the answering action, never by an event insert. The clause
+  // below is what the case detail shows in place of a close button — the
+  // machine-readable half of the "TWO action-closes" paragraph above.
   terminalEvents: [],
+  actionCloseProse:
+    "la organización responde la solicitud (la acepta o la rechaza) o el titular la cancela antes de que respondan",
   cronCloseRoute: null,
   cronCloseScheduleHours: 24,
   // Same sense as welfare_denuncia: the kind has no event opener, so the

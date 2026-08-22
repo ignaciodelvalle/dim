@@ -73,4 +73,19 @@ export interface CaseLifecycle {
 
   /** Re-open from closed back to open. Only adoption_listing allows it. */
   reopenAllowed: boolean;
+
+  /**
+   * For a kind that is closed by an ACTION rather than by a terminal event or
+   * an operator's manual close: the es-AR clause naming what closes it, in the
+   * shape "se cierra solo cuando {actionCloseProse}". Read by
+   * `availableCaseActions` so the case detail can say "this is closed by the
+   * parties" instead of "nobody wrote the policy yet".
+   *
+   * Added for `rehome_request` (rehome-by-titular): with `terminalEvents: []`
+   * and `manualCloseAllowed: false` the detail told org members to escalate a
+   * request only they could answer. Leave it unset where the policy really is
+   * unwritten (microchip_remediation, outbreak_investigation) — the generic
+   * sentence there is the honest one.
+   */
+  actionCloseProse?: string;
 }

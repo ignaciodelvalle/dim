@@ -97,6 +97,10 @@ function makeFakeRepo(
     findApplicationForReview: vi.fn().mockResolvedValue({ error: "not used" }),
     findPendingApplicationsExcluding: vi.fn().mockResolvedValue([]),
     findOpenCustodyCase: vi.fn().mockResolvedValue(null),
+    // The custody row, re-read FOR UPDATE at the top of the finalize
+    // transaction (rehome-by-titular WU5 carry-forward 3). Live by default —
+    // the race tests below override it with null.
+    lockLiveCustodyRow: vi.fn().mockResolvedValue({ id: "own-custody-1" }),
     // `endedCaretakerGrants` is part of the return contract, not decoration: the
     // use-case reads its length to decide whether to notify a caretaker whose
     // arrangement the hand-off just ended. A double that omits it is a double
@@ -457,6 +461,54 @@ describe("finalizeAdoption", () => {
     const result = await finalizeAdoption(baseInput, { repo, actor, transaction: throwingTx });
     expect(result).toMatchObject({ ok: false });
     expect((result as { ok: false; error: string }).error).toMatch(/finalizar/i);
+  });
+
+  // ---- The custody row is locked INSIDE the transaction ------------------
+  //
+  // rehome-by-titular, WU5 carry-forward 3. `findShelterPet` runs before the
+  // transaction; nothing re-asserted custody inside it. A titular's withdraw
+  // committing in between completed an adoption against a custody row that was
+  // already closed — or wrote two contradictory `rehome_sponsorship_ended`
+  // events (adopted + withdrawn_by_titular). The lock is what the spec's
+  // "the titular's unpublish outranks the org's" (REQ-8) means at the row.
+
+  it("refuses cleanly when the custody row is gone by the time the transaction locks it", async () => {
+    const repo = makeFakeRepo();
+    (repo as unknown as { lockLiveCustodyRow: ReturnType<typeof vi.fn> }).lockLiveCustodyRow = vi
+      .fn()
+      .mockResolvedValue(null);
+
+    const result = await finalizeAdoption(baseInput, { repo, actor, transaction: fakeTransaction });
+
+    expect(result.ok).toBe(false);
+    expect((result as { ok: false; error: string }).error).toMatch(/custodia/i);
+    // The refusal is a sentence, not a wrapped Postgres message.
+    expect((result as { ok: false; error: string }).error).not.toMatch(/No se pudo finalizar/);
+    expect(repo.insertAdoptionFinalized).not.toHaveBeenCalled();
+    expect(repo.resolveApplication).not.toHaveBeenCalled();
+  });
+
+  it("locks the custody row by id, inside the transaction, before any write", async () => {
+    const repo = makeFakeRepo();
+    const order: string[] = [];
+    (repo as unknown as { lockLiveCustodyRow: ReturnType<typeof vi.fn> }).lockLiveCustodyRow = vi
+      .fn()
+      .mockImplementation(async () => {
+        order.push("lock");
+        return { id: "own-custody-1" };
+      });
+    (
+      repo as unknown as { insertAdoptionFinalized: ReturnType<typeof vi.fn> }
+    ).insertAdoptionFinalized = vi.fn().mockImplementation(async () => {
+      order.push("write");
+      return { eventId: "evt-adoption-1", endedCaretakerGrants: [] };
+    });
+
+    const result = await finalizeAdoption(baseInput, { repo, actor, transaction: fakeTransaction });
+
+    expect(result.ok).toBe(true);
+    expect(repo.lockLiveCustodyRow).toHaveBeenCalledWith("own-custody-1", "fake-tx");
+    expect(order).toEqual(["lock", "write"]);
   });
 
   // ---- Follow-up reminders pass through for registered adopters ---------

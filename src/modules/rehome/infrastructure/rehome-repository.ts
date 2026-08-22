@@ -30,7 +30,8 @@ import {
 } from "@/db";
 import { validateEventPayload } from "@/lib/events/event-schemas";
 import {
-  closeCase,
+  closeCaseOwned,
+  findOpenAdoptionApplicationCase,
   findOpenAdoptionListingCase,
   findOpenCaseForPetAndKind,
   openCase,
@@ -42,6 +43,7 @@ import {
 } from "@/src/modules/adoption/infrastructure/rehome-sponsorship-writer";
 
 import type {
+  CloseApplicationByTitularArgs,
   CloseListingCaseArgs,
   CloseRequestCaseArgs,
   EndSponsorshipByTitularArgs,
@@ -54,6 +56,7 @@ import type {
   RehomeRepositoryPort,
   RequestCase,
   SponsorOrg,
+  StrandedApplication,
 } from "../application/ports";
 
 type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0];
@@ -72,11 +75,31 @@ const PET_SUMMARY_COLUMNS = {
 } as const;
 
 /**
+ * The `reason` a pending application's auto-resolution carries when the
+ * titular closes the listing under it. Read back by nothing yet — it is the
+ * spine's own record of WHY, beside `auto_generated: true`; the org's
+ * finalize cascade writes `another_application_finalized` in the same slot.
+ */
+export const LISTING_WITHDRAWN_REASON = "listing_withdrawn_by_titular";
+
+/**
  * Close a case and leave the prose the people involved read. The case row
  * carries the category (`resolved` / `cancelled`) and the actor; the timeline
  * entry carries who did what, naming the org — spec REQ-5's "distinguishable
  * from every other `cancelled`". Shared by the org's answer, the titular's
  * cancel and the titular's withdraw.
+ *
+ * OWNED, not merely idempotent (WU4 review, L-6). `case_events` is append-only
+ * by trigger: a closer that lost the race and still wrote its `case_closed`
+ * entry would leave the expediente counting two closes with two actors for a
+ * case that closed once. `closeCaseOwned` says whether THIS caller won; the
+ * note is written only then. The answer and cancel paths hold the case FOR
+ * UPDATE and cannot lose; the withdraw's listing-case close is unlocked, and
+ * it is the one this protects.
+ *
+ * `payload.rehome_decision` is READ by components/casos/case-entry-label.ts,
+ * which turns the entry into "aceptada por la organización" / "rechazada por
+ * la organización" / "cancelado por el titular" on the timeline (REQ-5).
  */
 async function closeCaseWithNote(
   args: {
@@ -89,11 +112,12 @@ async function closeCaseWithNote(
     now: Date;
   },
   client: Tx,
-): Promise<void> {
-  await closeCase(
+): Promise<{ won: boolean }> {
+  const { won } = await closeCaseOwned(
     { caseId: args.caseId, reason: args.reason, closedByUserId: args.closedByUserId },
     client,
   );
+  if (!won) return { won: false };
   await client.insert(caseEvents).values({
     caseId: args.caseId,
     entryType: "case_closed",
@@ -102,6 +126,7 @@ async function closeCaseWithNote(
     occurredAt: args.now,
     payload: { rehome_decision: args.decision, organization_id: args.organizationId },
   });
+  return { won: true };
 }
 
 function toRequestCase(row: {
@@ -513,7 +538,76 @@ export const RehomeRepository = {
   },
 
   /** The sponsorship itself, closed `cancelled` by the titular, with the prose both sides read. */
-  async closeListingCase(args: CloseListingCaseArgs, tx: unknown): Promise<void> {
-    await closeCaseWithNote({ ...args, reason: "cancelled", decision: "withdrawn" }, tx as Tx);
+  async closeListingCase(args: CloseListingCaseArgs, tx: unknown): Promise<{ won: boolean }> {
+    return closeCaseWithNote({ ...args, reason: "cancelled", decision: "withdrawn" }, tx as Tx);
+  },
+
+  // -------------------------------------------------------------------------
+  // Writes — the applications a withdraw strands (inside the caller's tx)
+  // -------------------------------------------------------------------------
+
+  /**
+   * Both predicates are adoption's, reused: the PENDING set is the same read
+   * the finalize cascade uses (excluding nobody), the APPROVED-unfinalized
+   * set is the adopter still waiting for a finalize that can no longer run.
+   */
+  async findApplicationsOnListing(petId: string, tx: unknown): Promise<StrandedApplication[]> {
+    const client = tx as Tx;
+    const pending = await AdoptionRepository.findPendingApplicationsExcluding(petId, null, client);
+    const approved = await AdoptionRepository.findApprovedUnfinalizedApplications(petId, client);
+    return [
+      ...pending.map((a) => ({ ...a, approved: false })),
+      ...approved.map((a) => ({ ...a, approved: true })),
+    ];
+  },
+
+  /**
+   * A PENDING application is resolved on the spine as an auto-generated
+   * rejection whose reason names the cause, signed by the TITULAR — the
+   * person whose act closed the listing, not the org. An APPROVED one keeps
+   * its approval: a second, contradictory resolution for the same application
+   * would be a lie on an append-only ledger, and its fate is already on the
+   * spine as `rehome_sponsorship_ended{withdrawn_by_titular}`. Both get their
+   * `adoption_application` case closed with a note the applicant reads.
+   */
+  async closeApplicationByTitular(args: CloseApplicationByTitularArgs, tx: unknown): Promise<void> {
+    const client = tx as Tx;
+    const { application } = args;
+    if (!application.approved) {
+      await AdoptionRepository.resolveApplication(
+        {
+          petId: args.petId,
+          applicationEventId: application.applicationId,
+          outcome: "rejected",
+          reviewerUserId: args.titularUserId,
+          orgId: args.organizationId,
+          orgVerified: false,
+          reason: LISTING_WITHDRAWN_REASON,
+          autoGenerated: true,
+          notes: null,
+          now: args.now,
+          author: { role: "owner", organizationId: null, verified: false },
+        },
+        client,
+      );
+    }
+    const appCase = await findOpenAdoptionApplicationCase(
+      args.petId,
+      application.applicantUserId,
+      client,
+    );
+    if (!appCase) return;
+    await closeCaseWithNote(
+      {
+        caseId: appCase.id,
+        reason: "cancelled",
+        closedByUserId: args.titularUserId,
+        decision: "withdrawn",
+        organizationId: args.organizationId,
+        timelineNote: `El titular retiró la búsqueda de hogar de ${args.petName}. ${args.organizationDisplayName} ya no acompaña la adopción y esta postulación quedó cerrada; no hace falta hacer nada.`,
+        now: args.now,
+      },
+      client,
+    );
   },
 } satisfies RehomeRepositoryPort;

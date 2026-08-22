@@ -28,6 +28,13 @@
 //      while that case is open (attaches-when-open).
 //   5. Close the `adoption_listing` case (the sponsorship itself): cancelled,
 //      by the titular, with a timeline note both sides read.
+//   6. Close every application the listing had (WU4 review, carry-forward 1).
+//      With the custody row ended, the org's review and finalize readers and
+//      the applicant's own withdraw reader all inner-join a LIVE custody and
+//      find nothing; both inboxes hide the rows; nobody is told. A pending
+//      application is resolved on the spine (auto-generated, reason named,
+//      signed by the titular); an approved one keeps its approval and loses
+//      only its open case. Every applicant gets a notification after commit.
 //
 // ELIGIBILITY IS NOT TOUCHED. `adoptionEligible` is the org's assessment and
 // the spine recorded it; without a live custody row and a listed_at it lists
@@ -74,6 +81,8 @@ type TxOutcome =
       orgId: string;
       listing: { id: string; publicCode: string } | null;
       custodyRowWasLive: boolean;
+      /** Applicants whose application step 6 closed — told after commit. */
+      strandedApplicantUserIds: string[];
     }
   | { ok: false; error: string };
 
@@ -114,7 +123,9 @@ export async function withdrawRehomeSponsorship(
       tx,
     );
 
-    // 5. The sponsorship case, last.
+    // 5. The sponsorship case. A lost close (another closer got there first)
+    //    writes no note — the case is closed either way, which is what the
+    //    titular asked for.
     const listing = await repo.findOpenListingCase(pet.id, open.sponsoringOrganizationId, tx);
     if (listing) {
       await repo.closeListingCase(
@@ -129,6 +140,25 @@ export async function withdrawRehomeSponsorship(
       );
     }
 
+    // 6. The applications the listing had, each closed the way its state
+    //    deserves — in THIS transaction, so a stranded applicant cannot exist
+    //    for even one committed instant.
+    const stranded = await repo.findApplicationsOnListing(pet.id, tx);
+    for (const application of stranded) {
+      await repo.closeApplicationByTitular(
+        {
+          petId: pet.id,
+          petName: pet.name,
+          application,
+          titularUserId: input.titularUserId,
+          organizationId: open.sponsoringOrganizationId,
+          organizationDisplayName: orgName,
+          now,
+        },
+        tx,
+      );
+    }
+
     return {
       ok: true,
       ownershipId: open.ownershipId,
@@ -136,6 +166,7 @@ export async function withdrawRehomeSponsorship(
       orgId: open.sponsoringOrganizationId,
       listing,
       custodyRowWasLive: ended,
+      strandedApplicantUserIds: stranded.map((a) => a.applicantUserId),
     };
   });
 
@@ -161,6 +192,25 @@ export async function withdrawRehomeSponsorship(
     relatedCaseId: outcome.listing?.id ?? null,
     category: "custody",
   }));
+
+  // The applicants whose application step 6 closed. What happened and what
+  // it means for them, with nothing asked of them — the same courtesy the
+  // finalize cascade's "encontró hogar" extends, for the opposite outcome.
+  for (const userId of new Set(outcome.strandedApplicantUserIds)) {
+    notifications.push({
+      userId,
+      notificationType: "adoption_application_closed",
+      severity: "info",
+      title: `Tu postulación por ${pet.name} quedó cerrada`,
+      body: `El titular retiró la búsqueda de hogar de ${pet.name}; tu postulación quedó cerrada. No hace falta que hagas nada. Hay otras mascotas buscando hogar.`,
+      dedupeKey: `rehome:withdrawn:${outcome.ownershipId}:applicant:${userId}`,
+      ctaLabel: "Ver otras en adopción",
+      ctaUrl: "/adoptar",
+      relatedPetId: pet.id,
+      relatedCaseId: null,
+      category: "adoption",
+    });
+  }
 
   return {
     ok: true,

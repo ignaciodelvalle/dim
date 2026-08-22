@@ -39,6 +39,12 @@ export const openCase: typeof _repo.openCase = (...args) => _repo.openCase(...ar
 
 export const closeCase: typeof _repo.closeCase = (...args) => _repo.closeCase(...args);
 
+// `closeCase` that says whether THIS caller won the close. Use it wherever the
+// close has a non-idempotent side effect — a `case_closed` timeline entry is
+// append-only, and the loser of a race must not write a second one.
+export const closeCaseOwned: typeof _repo.closeCaseOwned = (...args) =>
+  _repo.closeCaseOwned(...args);
+
 export const escalateCase: typeof _repo.escalateCase = (...args) => _repo.escalateCase(...args);
 
 export const reopenCase: typeof _repo.reopenCase = (...args) => _repo.reopenCase(...args);

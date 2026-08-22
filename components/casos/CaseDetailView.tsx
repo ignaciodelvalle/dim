@@ -25,6 +25,7 @@ import { notFound } from "next/navigation";
 
 import { CaseNotForCaretaker } from "@/components/casos/CaseNotForCaretaker";
 import { CaseOperatorActions } from "@/components/casos/CaseOperatorActions";
+import { caseEntryLabel } from "@/components/casos/case-entry-label";
 import { casePetLink } from "@/components/casos/case-pet-link";
 import { shouldRedactPetName } from "@/components/casos/pet-name-redaction";
 import { StaticFirstMap } from "@/components/maps/StaticFirstMap";
@@ -34,7 +35,6 @@ import {
   type CaseParty,
   type CaseSubjectDescriptor,
 } from "@/components/ui/dashboard/CaseDetailShell";
-import type { EventType } from "@/db/schema";
 import { getNormativesForCase } from "@/lib/domain/case-normatives";
 import { caseTimelineSummary } from "@/lib/events/events";
 import { canReadCase, holdsActiveCaretakerRow } from "@/lib/infra/case-access";
@@ -42,7 +42,7 @@ import { getCaseDetailByPublicCode } from "@/lib/infra/case-queries";
 import { getJurisdictionsCached, getProfileCached } from "@/lib/infra/request-cache";
 import { petPhotoUrl } from "@/lib/infra/storage";
 import { createClient } from "@/lib/supabase/server";
-import { eventTypeLabel, formatDateTime, sexLabel, speciesLabel } from "@/lib/utils/format";
+import { formatDateTime, sexLabel, speciesLabel } from "@/lib/utils/format";
 import { availableCaseActions } from "@/src/modules/cases/domain/available-actions";
 import { logPiiReadSafely } from "@/src/modules/organizations/application/admin-proposals/log-pii-query";
 
@@ -302,11 +302,10 @@ export async function CaseDetailView({ publicCode, casosHref }: CaseDetailViewPr
                 >
                   <div className="flex items-baseline justify-between">
                     <span className="text-md font-medium text-ln-ink">
-                      {/* finder_tip is a case_events entry type, not a pet
-                          EventType — label it directly (authority-only render). */}
-                      {e.eventType === "finder_tip"
-                        ? "Información de un tercero"
-                        : eventTypeLabel(e.eventType as EventType)}
+                      {/* One reader for both sources: pet events keep the
+                          libreta's label, case_events entries get theirs, and
+                          a rehome close says WHO decided (REQ-5). */}
+                      {caseEntryLabel(e.eventType, e.payload)}
                     </span>
                     <time className="font-ln-mono text-sm text-ln-mute">
                       {formatDateTime(e.occurredAt)}
