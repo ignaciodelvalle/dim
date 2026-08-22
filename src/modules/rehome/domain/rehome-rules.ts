@@ -19,6 +19,12 @@
 // the earliest failing step is the one reported, because "this request was
 // already answered" is more actionable than "the pet is in observation".
 
+import {
+  type CoverageArea,
+  type PetZone,
+  coverageAreaCoversZone,
+  orgCoversZone,
+} from "@/lib/domain/org-coverage";
 import { formatDate } from "@/lib/utils/format";
 
 export type RuleResult = { ok: true } | { ok: false; error: string };
@@ -54,7 +60,7 @@ export function validateSponsorTarget(org: SponsorTargetSnapshot | null): RuleRe
 // COVERAGE — the org has to work where the animal lives (W-4)
 // ---------------------------------------------------------------------------
 //
-// This is the picker's filter, and this file is its ONE home. The picker
+// This is the picker's filter. The picker
 // (app/(app)/mis-mascotas/[publicToken]/buscar-hogar/page.tsx) only ever
 // offered orgs whose `organization_coverage` reaches the pet's zone, but the
 // request is a server action: any titular session can POST any orgId. A
@@ -62,39 +68,14 @@ export function validateSponsorTarget(org: SponsorTargetSnapshot | null): RuleRe
 // request landed a `rehome_request` in the inbox of an org three provinces
 // away. The page now derives its list from `coverageAreaCoversZone`, and the
 // use-case refuses on the same predicate.
+//
+// THE PREDICATE'S ONE HOME IS lib/domain/org-coverage.ts (2026-08-22): the
+// foster flow's `sendRehomeRequest` had the identical hole and `foster ->
+// rehome` is not an allowed module edge, so the pure rule moved outside the
+// module graph. Re-exported here so this module's callers and tests are
+// unchanged.
 
-/** One `organization_coverage` row, narrowed to what the predicate reads. */
-export type CoverageArea = {
-  jurisdictionProvince: string;
-  jurisdictionLocality: string | null;
-};
-
-/** Where the animal lives — `pets.jurisdiction_province` / `_locality`. */
-export type PetZone = { province: string | null; locality: string | null };
-
-/**
- * One coverage row against one zone. The locality half is deliberately
- * asymmetric, because the picker's SQL is:
- *
- *   - pet HAS a locality → the row matches on that locality, or is
- *     province-wide (`jurisdiction_locality IS NULL`);
- *   - pet has NO locality → the query drops the locality predicate entirely,
- *     so every row in the province matches.
- *
- * A pet with no province matches nothing: the picker returns an empty list
- * and shows "no tiene provincia registrada".
- */
-export function coverageAreaCoversZone(area: CoverageArea, zone: PetZone): boolean {
-  if (!zone.province) return false;
-  if (area.jurisdictionProvince !== zone.province) return false;
-  if (zone.locality === null) return true;
-  return area.jurisdictionLocality === null || area.jurisdictionLocality === zone.locality;
-}
-
-/** Any-of over the org's coverage rows. No rows at all covers nothing. */
-export function orgCoversZone(areas: readonly CoverageArea[], zone: PetZone): boolean {
-  return areas.some((area) => coverageAreaCoversZone(area, zone));
-}
+export { type CoverageArea, type PetZone, coverageAreaCoversZone, orgCoversZone };
 
 export type SponsorCoverageSnapshot = {
   orgDisplayName: string;

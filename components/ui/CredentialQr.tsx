@@ -64,8 +64,10 @@ export type CredentialQrProps = {
   errorCorrectionLevel?: CredentialQrErrorCorrectionLevel;
   /** es-AR accessible name for the code (the svg carries `role="img"`). */
   label: string;
-  /** Extra classes. `text-black` is always applied first so the ink stays at
-   *  maximum contrast for scanners unless a caller deliberately overrides it. */
+  /** Extra classes. `text-qr-ink` (`--color-qr-ink`, true black — app/globals.css
+   *  says why it is not the document ink) is always applied first so the ink
+   *  stays at maximum contrast for scanners unless a caller deliberately
+   *  overrides it. */
   className?: string;
 };
 
@@ -122,7 +124,7 @@ export function CredentialQr({
       width={size}
       height={size}
       shapeRendering="crispEdges"
-      className={className ? `text-black ${className}` : "text-black"}
+      className={className ? `text-qr-ink ${className}` : "text-qr-ink"}
     >
       <path fill="currentColor" d={path} />
     </svg>

@@ -68,10 +68,25 @@ describe("<CredentialQr> — accessible svg", () => {
   });
 
   it("keeps the ink at maximum contrast and merges an extra className", () => {
+    // `text-qr-ink` is a design token (`--color-qr-ink` in app/globals.css
+    // @theme) pinned to true black — NOT `text-black`, which is a raw Tailwind
+    // colour that `lint:tokens` cannot see because it carries no numeric shade,
+    // and NOT `--color-ln-ink` (#1b2a33), which is the document's reading ink.
+    // A QR is read by a camera: the dark modules must stay #000.
     const { container } = render(qr({ className: "block" }));
     const svg = container.querySelector("svg");
-    expect(svg?.getAttribute("class")).toBe("text-black block");
+    expect(svg?.getAttribute("class")).toBe("text-qr-ink block");
     expect(container.querySelector("path")?.getAttribute("fill")).toBe("currentColor");
+  });
+
+  it("the token is defined, is true black, and is the only place the QR gets its ink", () => {
+    const css = read("app/globals.css");
+    expect(css).toMatch(/--color-qr-ink:\s*#000(?:000)?;/);
+    const source = read(COMPONENT);
+    expect(source).toContain("text-qr-ink");
+    // The raw-colour utility must not come back under any spelling.
+    expect(source).not.toMatch(/\btext-black\b/);
+    expect(source).not.toMatch(/text-\[#0{3,6}\]/);
   });
 });
 

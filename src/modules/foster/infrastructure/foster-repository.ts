@@ -11,6 +11,7 @@ import {
   fosterVolunteers,
   notifications,
   organizationCapabilityGrants,
+  organizationCoverage,
   organizationMemberships,
   organizations,
   ownerships,
@@ -18,6 +19,7 @@ import {
   pets,
   profiles,
 } from "@/db";
+import type { CoverageArea } from "@/lib/domain/org-coverage";
 import { validateEventPayload } from "@/lib/events/event-schemas";
 import { closeCase, findOpenCaseForPetAndKind, openCase } from "@/lib/infra/case-helpers";
 
@@ -1447,6 +1449,23 @@ export const FosterRepository = {
       .where(eq(organizations.id, orgId))
       .limit(1);
     return row ?? null;
+  },
+
+  /**
+   * The org's coverage zones (W-4, foster half). Rows only — `orgCoversZone`
+   * (lib/domain/org-coverage.ts) decides. Same shape as the rehome
+   * repository's `findOrgCoverage` and the picker's query, so the page's list
+   * and the use-case's refusal cannot drift apart.
+   */
+  async findOrgCoverage(orgId: string, tx?: Tx): Promise<CoverageArea[]> {
+    const client = tx ?? db;
+    return client
+      .select({
+        jurisdictionProvince: organizationCoverage.jurisdictionProvince,
+        jurisdictionLocality: organizationCoverage.jurisdictionLocality,
+      })
+      .from(organizationCoverage)
+      .where(eq(organizationCoverage.organizationId, orgId));
   },
 
   /**

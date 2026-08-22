@@ -9,6 +9,13 @@
 // sendRehomeRequest — use-case: notify org admins/coordinators about the foster
 //   user's rehome request. Lean MVP — no new schema, best-effort notification.
 //   Auth: caller must be the active foster of this pet.
+//   Coverage (2026-08-22): the org must WORK WHERE THE PET LIVES — the same
+//   `orgCoversZone` predicate the rehome-by-titular flow refuses on (W-4),
+//   shared through lib/domain/org-coverage.ts. The picker only lists covering
+//   orgs, but this is a server action: any active foster could POST any orgId
+//   and land a request in the inbox of an org three provinces away.
+
+import { orgCoversZone } from "@/lib/domain/org-coverage";
 
 import type { FosterRepository } from "../infrastructure/foster-repository";
 import type { NewNotification, UseCaseResult } from "./types";
@@ -98,12 +105,33 @@ export async function sendRehomeRequest(
     return { ok: false, error: "La organización no está verificada." };
   }
 
+  // 3b. Coverage — the org has to work where the animal lives (W-4, foster
+  // half). Same predicate and same sentence as the titular flow, so whichever
+  // door a request comes through, the refusal reads the same.
+  const petName = (petRow as { name: string }).name;
+  const zone = {
+    province: petRow.jurisdictionProvince ?? null,
+    locality: petRow.jurisdictionLocality ?? null,
+  };
+  if (!zone.province) {
+    return {
+      ok: false,
+      error: `${petName} no tiene provincia registrada, así que no se puede elegir una organización por zona.`,
+    };
+  }
+  const coverage = await repo.findOrgCoverage(input.targetOrgId);
+  if (!orgCoversZone(coverage, zone)) {
+    return {
+      ok: false,
+      error: `${orgRow.displayName} no cubre la zona de ${petName}. Elegí una organización que trabaje en ${zone.locality ?? zone.province}.`,
+    };
+  }
+
   // 4. Resolve foster user contact info.
   const fosterProfile = await repo.findProfileById(user.id);
   const fosterName = fosterProfile?.displayName ?? "Tránsito";
   const fosterPhone = fosterProfile?.phone ?? null;
 
-  const petName = (petRow as { name: string }).name;
   const petToken = (petRow as { publicToken: string }).publicToken;
 
   // 5. Resolve org admins + coordinators for notification fan-out.

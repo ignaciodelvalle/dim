@@ -47,6 +47,14 @@
 
   --color-ln-ink: #1b2a33;
   --color-ln-ink-2: #3c4b55;
+  /* QR ink — deliberately NOT --color-ln-ink (#1b2a33, the document's reading
+     ink) and deliberately true black. A QR is read by a CAMERA, not a person:
+     scanners threshold the dark modules against the quiet zone, and anything
+     lighter than #000 costs contrast on a dim screen or a faded print. Only
+     components/ui/CredentialQr.tsx may use it; it is not a text colour. Exists
+     as a token so the component stops reaching for `text-black`, which
+     lint:tokens cannot see (no numeric shade) and nobody could audit. */
+  --color-qr-ink: #000000;
   --color-ln-mute: #616e77; /* darkened from #6e7b84 — 5.02:1 on ln-paper (was 4.16:1, WCAG AA-normal fail) */
   /* Darkened twice. #9aa4ab -> #67747d fixed it against ln-paper (2.54 -> 4.60)
      but left it at 4.37 on ln-stripe, the cream the credential card uses, where

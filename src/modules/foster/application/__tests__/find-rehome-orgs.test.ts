@@ -87,7 +87,13 @@ function makeFakeRepo(
       id: "pet-1",
       name: "Luna",
       publicToken: "PT-tok",
+      jurisdictionProvince: "Buenos Aires",
+      jurisdictionLocality: "La Plata",
     }),
+    // W-4 coverage: the default org works where Luna lives.
+    findOrgCoverage: vi
+      .fn()
+      .mockResolvedValue([{ jurisdictionProvince: "Buenos Aires", jurisdictionLocality: null }]),
     findActiveFosterByUser: vi.fn().mockResolvedValue({
       id: "own-foster-1",
       ownerUserId: "foster-user-1",
@@ -201,6 +207,73 @@ describe("sendRehomeRequest", () => {
     );
     expect(result).toMatchObject({ ok: false });
     expect((result as { ok: false; error: string }).error).toMatch(/tipo/i);
+  });
+
+  // -------------------------------------------------------------------------
+  // COVERAGE — the foster half of the hole the rehome-by-titular flow closed
+  // (W-4). The picker only lists orgs whose `organization_coverage` reaches
+  // the pet's zone, but this is a server action: any active foster can POST
+  // any orgId. A filter that lives only in the page is a view, not a rule.
+  // -------------------------------------------------------------------------
+
+  it("refuses an org that does not cover the pet's zone — THE RED CONTROL", async () => {
+    const repo = makeFakeRepo({
+      findOrgCoverage: vi
+        .fn()
+        .mockResolvedValue([{ jurisdictionProvince: "Córdoba", jurisdictionLocality: null }]),
+    });
+    const result = await sendRehomeRequest(
+      { petPublicToken: "PT-tok", targetOrgId: "org-1" },
+      { repo, actor },
+    );
+    expect(result).toMatchObject({ ok: false });
+    expect((result as { ok: false; error: string }).error).toMatch(/no cubre la zona/i);
+    // And nothing was fanned out: a refusal that still notified the org is
+    // exactly the inbox spam the rule exists to prevent.
+    expect(repo.orgAdminAndCoordinatorUserIds).not.toHaveBeenCalled();
+  });
+
+  it("refuses when the org has NO coverage rows at all", async () => {
+    const repo = makeFakeRepo({ findOrgCoverage: vi.fn().mockResolvedValue([]) });
+    const result = await sendRehomeRequest(
+      { petPublicToken: "PT-tok", targetOrgId: "org-1" },
+      { repo, actor },
+    );
+    expect(result).toMatchObject({ ok: false });
+    expect((result as { ok: false; error: string }).error).toMatch(/no cubre la zona/i);
+  });
+
+  it("refuses a pet with no province — there is no zone to cover", async () => {
+    const repo = makeFakeRepo({
+      findPetByToken: vi.fn().mockResolvedValue({
+        id: "pet-1",
+        name: "Luna",
+        publicToken: "PT-tok",
+        jurisdictionProvince: null,
+        jurisdictionLocality: null,
+      }),
+    });
+    const result = await sendRehomeRequest(
+      { petPublicToken: "PT-tok", targetOrgId: "org-1" },
+      { repo, actor },
+    );
+    expect(result).toMatchObject({ ok: false });
+    expect((result as { ok: false; error: string }).error).toMatch(/provincia/i);
+  });
+
+  it("accepts a province-wide coverage row for a pet with a locality (same asymmetry as the picker)", async () => {
+    // The picker's SQL treats `jurisdiction_locality IS NULL` as province-wide;
+    // the predicate is shared, so the use-case must agree.
+    const repo = makeFakeRepo({
+      findOrgCoverage: vi
+        .fn()
+        .mockResolvedValue([{ jurisdictionProvince: "Buenos Aires", jurisdictionLocality: null }]),
+    });
+    const result = await sendRehomeRequest(
+      { petPublicToken: "PT-tok", targetOrgId: "org-1" },
+      { repo, actor },
+    );
+    expect(result).toMatchObject({ ok: true });
   });
 
   it("emits notifications to org admins and coordinators on success", async () => {
