@@ -10,7 +10,7 @@
 import { and, asc, eq, gt } from "drizzle-orm";
 
 import { db, serviceOfferings, serviceScheduleRules, timeSlots } from "@/db";
-import { effectiveDeadlineMs } from "@/lib/infra/cron-dispatcher";
+import { type CronBudgetHeaders, effectiveDeadlineMs } from "@/lib/infra/cron-dispatcher";
 import { materializeSlotsForRule } from "@/lib/infra/slot-materialization";
 
 // Keyset page size + per-run bounds (review 23 item 9): the sweep used to load
@@ -75,7 +75,7 @@ export async function materializeAllActiveSlots(opts?: {
    * Absent (a manual curl, Vercel hitting the route directly) the constant is
    * all there is, unchanged.
    */
-  budgetHeaders?: { get(name: string): string | null };
+  budgetHeaders?: CronBudgetHeaders;
 }): Promise<{
   rulesProcessed: number;
   slotsInserted: number;

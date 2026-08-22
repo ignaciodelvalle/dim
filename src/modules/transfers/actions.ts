@@ -23,7 +23,7 @@
 
 import { auditLog, db, notifications } from "@/db";
 import { requireUserOrRedirect } from "@/lib/infra/auth-guards";
-import { effectiveDeadlineMs } from "@/lib/infra/cron-dispatcher";
+import { type CronBudgetHeaders, effectiveDeadlineMs } from "@/lib/infra/cron-dispatcher";
 import { resolveSiteUrl } from "@/lib/infra/site-url";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
@@ -382,7 +382,7 @@ export async function expirePetTransfersAction(opts?: {
    * Absent (a manual curl, Vercel hitting the route directly) the constant is
    * all there is, unchanged.
    */
-  budgetHeaders?: { get(name: string): string | null };
+  budgetHeaders?: CronBudgetHeaders;
 }): Promise<ExpirePetTransfersStats> {
   const start = Date.now();
   const maxDurationMs = opts?.budgetHeaders

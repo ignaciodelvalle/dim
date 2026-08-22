@@ -112,6 +112,14 @@ export function cronBudgetFromHeaders(headers: { get(name: string): string | nul
 }
 
 /**
+ * Just enough of a Headers/NextRequest.headers to read the budget off it —
+ * the shape every job that honours the run's budget accepts (RN #9 half b).
+ * Structural, so `req.headers` satisfies it without importing next/server into
+ * a module layer that must stay framework-free.
+ */
+export type CronBudgetHeaders = { get(name: string): string | null };
+
+/**
  * min(own ceiling, budget handed down) — the ONE line every job with a
  * self-imposed ceiling owes the fleet (RN #9 half b, 2026-08-22).
  *

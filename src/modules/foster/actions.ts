@@ -16,6 +16,7 @@
 // Reference: src/modules/adoption/actions.ts
 
 import { db, notifications } from "@/db";
+import type { CronBudgetHeaders } from "@/lib/infra/cron-dispatcher";
 import { requireLiveUser } from "@/lib/infra/live-user";
 import {
   requireCapability,
@@ -350,7 +351,7 @@ export async function expireFosterProposalsAction(opts?: {
    * kill. Absent (a manual curl, Vercel hitting the route directly) the
    * constant is all there is, unchanged.
    */
-  budgetHeaders?: { get(name: string): string | null };
+  budgetHeaders?: CronBudgetHeaders;
 }): Promise<ExpireFosterProposalsStats> {
   const result = await expireFosterProposalsUseCase(
     { repo: FosterRepository },

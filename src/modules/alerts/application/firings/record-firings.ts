@@ -6,7 +6,7 @@
 import { and, asc, eq, gt, inArray } from "drizzle-orm";
 
 import { ALERT_FIRING_OPEN_STATUSES, alertFirings, alertSubscriptions, db } from "@/db";
-import { effectiveDeadlineMs } from "@/lib/infra/cron-dispatcher";
+import { type CronBudgetHeaders, effectiveDeadlineMs } from "@/lib/infra/cron-dispatcher";
 import { evaluateAlertSubscriptions } from "@/lib/metrics/alert-evaluation";
 import { shouldOpenFiring } from "@/lib/metrics/alert-firing";
 
@@ -83,7 +83,7 @@ export async function evaluateAndRecordFiringsForAllAdmins(opts?: {
    * shared function past its 60 s hard kill. Absent (a manual curl, Vercel
    * hitting the route directly) the constant is all there is, unchanged.
    */
-  budgetHeaders?: { get(name: string): string | null };
+  budgetHeaders?: CronBudgetHeaders;
 }): Promise<RecordFiringsResult> {
   const ownCeilingMs = opts?.maxDurationMs ?? ALL_ADMINS_MAX_DURATION_MS;
   const maxDurationMs = opts?.budgetHeaders

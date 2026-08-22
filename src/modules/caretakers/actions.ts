@@ -25,7 +25,7 @@
 
 import { auditLog, db } from "@/db";
 import { requireUserOrRedirect } from "@/lib/infra/auth-guards";
-import { effectiveDeadlineMs } from "@/lib/infra/cron-dispatcher";
+import { type CronBudgetHeaders, effectiveDeadlineMs } from "@/lib/infra/cron-dispatcher";
 import { createNotificationsBulk } from "@/lib/infra/notification-service";
 import { requireTitularAccess } from "@/lib/infra/pet-access";
 import { resolveSiteUrl } from "@/lib/infra/site-url";
@@ -373,7 +373,7 @@ export async function expireCaretakerGrantsAction(opts?: {
    * Absent (a manual curl, Vercel hitting the route directly) the constant is
    * all there is, unchanged.
    */
-  budgetHeaders?: { get(name: string): string | null };
+  budgetHeaders?: CronBudgetHeaders;
 }): Promise<ExpireCaretakerGrantsActionStats> {
   const start = Date.now();
   const maxDurationMs = opts?.budgetHeaders

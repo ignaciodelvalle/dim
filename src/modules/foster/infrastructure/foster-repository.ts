@@ -22,7 +22,7 @@ import {
 import type { CoverageArea } from "@/lib/domain/org-coverage";
 import { validateEventPayload } from "@/lib/events/event-schemas";
 import { closeCase, findOpenCaseForPetAndKind, openCase } from "@/lib/infra/case-helpers";
-import { effectiveDeadlineMs } from "@/lib/infra/cron-dispatcher";
+import { type CronBudgetHeaders, effectiveDeadlineMs } from "@/lib/infra/cron-dispatcher";
 
 import { insertConvertFosterToOwner } from "./foster-convert-to-owner-writer";
 
@@ -551,22 +551,13 @@ export const FosterRepository = {
    */
   async expirePendingProposals(
     now: Date,
-    opts?: {
-      batchSize?: number;
-      maxDurationMs?: number;
-      /**
-       * The daily dispatcher's fair share (RN #9 half b): the deadline becomes
-       * min(own ceiling, share handed down), so a late start cannot push the
-       * shared function past its 60 s hard kill. Absent, the constant stands.
-       */
-      budgetHeaders?: { get(name: string): string | null };
-    },
+    // budgetHeaders (RN #9 half b): the deadline becomes min(own ceiling, the
+    // dispatcher's share) so a late start cannot cross the 60 s hard kill.
+    opts?: { batchSize?: number; maxDurationMs?: number; budgetHeaders?: CronBudgetHeaders },
   ): Promise<ExpireStats> {
     const batchSize = opts?.batchSize ?? EXPIRE_PROPOSALS_BATCH_SIZE;
-    const ownCeilingMs = opts?.maxDurationMs ?? EXPIRE_PROPOSALS_MAX_DURATION_MS;
-    const maxDurationMs = opts?.budgetHeaders
-      ? effectiveDeadlineMs(ownCeilingMs, opts.budgetHeaders)
-      : ownCeilingMs;
+    const own = opts?.maxDurationMs ?? EXPIRE_PROPOSALS_MAX_DURATION_MS;
+    const maxDurationMs = opts?.budgetHeaders ? effectiveDeadlineMs(own, opts.budgetHeaders) : own;
     const startedAt = Date.now();
 
     let candidateCount = 0;
