@@ -20,13 +20,77 @@
 // needs to import the route GETs, which pull in the DB layer); this module
 // stays import-light so tests can use it without mocking the whole app.
 
+/**
+ * What the dispatcher knows about the run when it starts a job, handed to the
+ * job so it can size its own work (RN-3 F17 / RN re-run HIGH, 2026-08-22).
+ *
+ * Before this, a job drained under ITS OWN constant deadline — data_lifecycle's
+ * was 45 s inside a 55 s dispatcher — with no idea how much of the run was
+ * already spent. On a backlogged night that ran the purge past the dispatcher's
+ * budget and into the function's 60 s hard kill, taking the cron_daily row's
+ * finalisation with it.
+ */
+export interface DispatchContext {
+  /**
+   * Budget still unspent when the job starts, from the SAME clock reading the
+   * dispatcher used to decide the job may run. `Infinity` when no budget was
+   * set (tests; manual fan-outs).
+   */
+  budgetLeftMs: number;
+  /** Jobs still to run, INCLUDING this one. Never below 1. */
+  jobsLeft: number;
+}
+
 /** A single job the dispatcher runs. `run` returns anything with an HTTP-ish
  *  `status` (a Response / NextResponse) so a job is "ok" when status < 400. */
 export interface DispatchJob {
   /** snake_case job name — matches the route's CRON_NAME + its cron_runs rows. */
   name: string;
   /** Invokes the job (the route handler, pre-bound to an authorized request). */
-  run: () => Promise<{ status: number }>;
+  run: (ctx: DispatchContext) => Promise<{ status: number }>;
+}
+
+/**
+ * THE FAIR-SHARE ARITHMETIC, in one place, used at BOTH levels:
+ *
+ *     share = min(capMs, floor(budgetLeftMs / jobsLeft))
+ *
+ * The dispatcher applies it per JOB (what is left of the 55 s, split across the
+ * jobs still to run), and data_lifecycle applies it again per TARGET inside its
+ * own share. A job that finishes early hands its leftover to the rest by
+ * construction — the next share is computed from what is actually left, not
+ * from a fixed slice. The last job (data_lifecycle, today) gets everything that
+ * remains, capped by its own ceiling. Edges: nothing left is 0, never negative;
+ * `jobsLeft` below 1 is treated as 1 rather than divided by.
+ */
+export function fairShareMs(budgetLeftMs: number, jobsLeft: number, capMs: number): number {
+  const divisor = Math.max(1, jobsLeft);
+  const share = Math.floor(Math.max(0, budgetLeftMs) / divisor);
+  return Math.min(capMs, share);
+}
+
+/**
+ * The request header the daily dispatcher uses to hand a child handler its
+ * fair share. A child that reads it derives its deadline from the run; one
+ * that does not (every other job today) keeps its own ceiling. Not a security
+ * input — every cron route is secret-gated before it reads anything — and
+ * not a middleware-stamped header, so check-api-guard-headers is unaffected.
+ */
+export const CRON_BUDGET_HEADER = "x-cron-budget-ms";
+
+/**
+ * The budget a parent handed down, or null when called standalone (Vercel
+ * invoking the route directly, a manual curl) or when the value is not a
+ * positive integer. Anything else is treated as "no budget given" so a
+ * malformed header can never produce a zero-second deadline.
+ */
+export function cronBudgetFromHeaders(headers: { get(name: string): string | null }):
+  | number
+  | null {
+  const raw = headers.get(CRON_BUDGET_HEADER);
+  if (raw === null || !/^\d+$/.test(raw.trim())) return null;
+  const value = Number.parseInt(raw, 10);
+  return Number.isSafeInteger(value) && value > 0 ? value : null;
 }
 
 export type DispatchJobStatus = "ok" | "failed" | "threw" | "skipped_budget";
@@ -104,8 +168,11 @@ export async function dispatchJobs(
     }
   };
 
-  for (const job of jobs) {
-    if (now() - start >= budgetMs) {
+  for (const [index, job] of jobs.entries()) {
+    // ONE clock reading decides both "may this job run" and "how much is left
+    // for it": a second reading between the two could disagree with the first.
+    const elapsed = now() - start;
+    if (elapsed >= budgetMs) {
       const outcome: DispatchOutcome = {
         name: job.name,
         status: "skipped_budget",
@@ -118,10 +185,14 @@ export async function dispatchJobs(
       await report(outcome);
       continue;
     }
+    const ctx: DispatchContext = {
+      budgetLeftMs: budgetMs - elapsed,
+      jobsLeft: jobs.length - index,
+    };
 
     const jobStart = now();
     try {
-      const res = await job.run();
+      const res = await job.run(ctx);
       const durationMs = now() - jobStart;
       const ok = res.status < 400;
       const outcome: DispatchOutcome = {

@@ -31,7 +31,14 @@ import { cronRuns, db } from "@/db";
 import { authorizeCronRequest } from "@/lib/domain/cron-auth";
 import { withCronRun } from "@/lib/infra/case-cron";
 import { sendCronAlert } from "@/lib/infra/cron-alert";
-import { DAILY_JOB_ORDER, type DispatchJob, dispatchJobs } from "@/lib/infra/cron-dispatcher";
+import {
+  CRON_BUDGET_HEADER,
+  DAILY_JOB_ORDER,
+  type DispatchContext,
+  type DispatchJob,
+  dispatchJobs,
+  fairShareMs,
+} from "@/lib/infra/cron-dispatcher";
 
 // Individual job route handlers. Importing a route's GET is a plain ESM import —
 // each file remains its own route; we just reuse its exported handler so the
@@ -70,6 +77,11 @@ const BUDGET_MS = 55_000;
 
 // name → route handler. Every DAILY_JOB_ORDER name MUST resolve here; the guard
 // below throws at module load if the map drifts from the order list.
+//
+// THIS MAP IS NOT THE EXECUTION ORDER. Jobs run in DAILY_JOB_ORDER
+// (lib/infra/cron-dispatcher.ts), where the delivery drains sit BEFORE the
+// retention purges — a test pins it. Reading the order off this object is how
+// the 2026-08 review concluded the drains ran after data_lifecycle.
 const HANDLERS: Record<string, (req: NextRequest) => Promise<Response>> = {
   materialize_slots: materializeSlots,
   business_rules_reeval: businessRulesReeval,
@@ -109,13 +121,21 @@ for (const name of DAILY_JOB_ORDER) {
  * child re-validates via authorizeCronRequest). In non-production with no
  * CRON_SECRET, no headers are forwarded and the children's dev-fallback allows
  * the request — same as a direct Vercel invocation.
+ *
+ * `budgetMs` is the job's FAIR SHARE of what is left of BUDGET_MS —
+ * `fairShareMs(budget left, jobs left, BUDGET_MS)`, i.e. the remainder split
+ * evenly across the jobs still to run, so the LAST job (data_lifecycle) gets
+ * everything that remains and nothing more. A child that reads the header
+ * derives its deadline from the run instead of from its own constant; one
+ * that does not keeps its ceiling (RN-3 F17).
  */
-function makeChildRequest(req: NextRequest): NextRequest {
+function makeChildRequest(req: NextRequest, budgetMs: number): NextRequest {
   const headers = new Headers();
   const auth = req.headers.get("authorization");
   if (auth) headers.set("authorization", auth);
   const legacy = req.headers.get("x-cron-secret");
   if (legacy) headers.set("x-cron-secret", legacy);
+  if (Number.isFinite(budgetMs)) headers.set(CRON_BUDGET_HEADER, String(budgetMs));
   return new NextRequest(req.url, { headers });
 }
 
@@ -125,10 +145,12 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     return NextResponse.json({ ok: false, error: authError.error }, { status: authError.status });
   }
 
-  const childReq = makeChildRequest(request);
   const jobs: DispatchJob[] = DAILY_JOB_ORDER.map((name) => ({
     name,
-    run: () => HANDLERS[name](childReq),
+    run: (ctx: DispatchContext) =>
+      HANDLERS[name](
+        makeChildRequest(request, fairShareMs(ctx.budgetLeftMs, ctx.jobsLeft, BUDGET_MS)),
+      ),
   }));
 
   const start = Date.now();

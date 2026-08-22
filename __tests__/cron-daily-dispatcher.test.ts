@@ -12,7 +12,15 @@
 
 import { describe, expect, it } from "vitest";
 
-import { DAILY_JOB_ORDER, type DispatchJob, dispatchJobs } from "@/lib/infra/cron-dispatcher";
+import {
+  CRON_BUDGET_HEADER,
+  DAILY_JOB_ORDER,
+  type DispatchContext,
+  type DispatchJob,
+  cronBudgetFromHeaders,
+  dispatchJobs,
+  fairShareMs,
+} from "@/lib/infra/cron-dispatcher";
 
 function okJob(name: string, calls: string[]): DispatchJob {
   return {
@@ -108,6 +116,97 @@ describe("dispatchJobs", () => {
     expect(result.outcomes.filter((o) => o.status === "skipped_budget").map((o) => o.name)).toEqual(
       ["two", "three"],
     );
+  });
+
+  // -------------------------------------------------------------------------
+  // Fair share (RN-3 F17 / RN re-run HIGH, 2026-08-22)
+  //
+  // data_lifecycle drained under its OWN 45 s deadline inside a dispatcher
+  // whose whole budget is 55 s. Nothing told a job how much of the run was
+  // left, so a backlogged night could run the purge past the dispatcher's
+  // budget and into the function's 60 s hard kill. The dispatcher now hands
+  // every job the budget that remains and how many jobs still share it; the
+  // job derives its deadline from that instead of from a constant.
+  // -------------------------------------------------------------------------
+
+  it("hands each job the budget left and the number of jobs still to run", async () => {
+    const seen: DispatchContext[] = [];
+    let t = 0;
+    // Each now() reading advances 10ms; the budget check before each job is
+    // the reading that also feeds budgetLeftMs, so the two never disagree.
+    const now = () => {
+      const v = t;
+      t += 10;
+      return v;
+    };
+    const jobs: DispatchJob[] = ["a", "b", "c"].map((name) => ({
+      name,
+      run: async (ctx) => {
+        seen.push(ctx);
+        return { status: 200 };
+      },
+    }));
+
+    await dispatchJobs(jobs, { budgetMs: 1000, now });
+
+    expect(seen.map((c) => c.jobsLeft)).toEqual([3, 2, 1]);
+    // Strictly decreasing: every later job sees less budget than the one before.
+    expect(seen[0].budgetLeftMs).toBeGreaterThan(seen[1].budgetLeftMs);
+    expect(seen[1].budgetLeftMs).toBeGreaterThan(seen[2].budgetLeftMs);
+    expect(seen[0].budgetLeftMs).toBeLessThanOrEqual(1000);
+  });
+
+  it("reports an unbounded budget as Infinity when no budget was set", async () => {
+    const seen: DispatchContext[] = [];
+    await dispatchJobs([
+      {
+        name: "only",
+        run: async (ctx) => {
+          seen.push(ctx);
+          return { status: 200 };
+        },
+      },
+    ]);
+    expect(seen).toEqual([{ budgetLeftMs: Number.POSITIVE_INFINITY, jobsLeft: 1 }]);
+  });
+
+  it("fairShareMs: the remaining budget split evenly across the jobs still to run, capped", () => {
+    // THE ARITHMETIC, written out: share = min(cap, floor(left / jobsLeft)).
+    expect(fairShareMs(30_000, 3, 45_000)).toBe(10_000);
+    // The LAST job gets everything that is left — data_lifecycle's case.
+    expect(fairShareMs(12_345, 1, 45_000)).toBe(12_345);
+    // …but never more than its own ceiling.
+    expect(fairShareMs(50_000, 1, 45_000)).toBe(45_000);
+    // No budget at all → the ceiling is the only bound.
+    expect(fairShareMs(Number.POSITIVE_INFINITY, 5, 45_000)).toBe(45_000);
+    // Defensive edges: nothing left is zero (never negative), and a zero or
+    // negative job count is treated as one rather than dividing by it.
+    expect(fairShareMs(-5, 2, 45_000)).toBe(0);
+    expect(fairShareMs(9_000, 0, 45_000)).toBe(9_000);
+  });
+
+  it("cronBudgetFromHeaders reads a positive integer budget and rejects everything else", () => {
+    const withBudget = new Headers({ [CRON_BUDGET_HEADER]: "12345" });
+    expect(cronBudgetFromHeaders(withBudget)).toBe(12_345);
+    expect(cronBudgetFromHeaders(new Headers())).toBeNull();
+    for (const bad of ["", "abc", "-1", "0", "1.5", "Infinity", "NaN"]) {
+      expect(cronBudgetFromHeaders(new Headers({ [CRON_BUDGET_HEADER]: bad }))).toBeNull();
+    }
+  });
+
+  it("the delivery drains run BEFORE every retention purge (S8, pinned)", () => {
+    // On a backlogged night the budget skips the TAIL of the list. If the
+    // purges ran before the drains, `drain_notification_dead_letter` would be
+    // `skipped_budget` — a warning, fleet green — while notifications sat
+    // undelivered. The SSOT already orders them this way; this pins it so a
+    // reorder cannot quietly starve delivery again.
+    const position = (name: string) => DAILY_JOB_ORDER.indexOf(name);
+    for (const drain of ["process_eno_queue", "drain_outbox", "drain_notification_dead_letter"]) {
+      expect(position(drain)).toBeGreaterThan(-1);
+      for (const purge of ["purge_scan_events", "data_lifecycle"]) {
+        expect(position(drain)).toBeLessThan(position(purge));
+      }
+    }
   });
 
   it("DAILY_JOB_ORDER covers the whole fleet without duplicates", () => {

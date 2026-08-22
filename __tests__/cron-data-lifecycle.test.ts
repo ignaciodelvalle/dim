@@ -14,14 +14,19 @@ import { createClient } from "@supabase/supabase-js";
 import { eq, like } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
-import { cronRuns, db, notifications, profiles, rateLimitBuckets } from "@/db";
+import { cronRuns, db, notifications, profiles, pushSubscriptions, rateLimitBuckets } from "@/db";
 import {
+  CRON_RUNS_CLEANUP_MAX_BATCHES,
   CRON_RUNS_TTL_DAYS,
+  NOTIFICATIONS_CLEANUP_MAX_BATCHES,
+  PUSH_SUBSCRIPTIONS_CLEANUP_MAX_BATCHES,
+  PUSH_SUBSCRIPTION_REVOKED_TTL_DAYS,
   RATE_LIMIT_CLEANUP_MAX_BATCHES,
   drainPurge,
   purgeExpiredNotifications,
   purgeExpiredRateLimitBuckets,
   purgeOldCronRuns,
+  purgeRevokedPushSubscriptions,
   runDataLifecyclePurge,
 } from "@/lib/infra/data-lifecycle";
 
@@ -78,6 +83,10 @@ afterAll(async () => {
   await db
     .delete(cronRuns)
     .where(like(cronRuns.cronName, "dlc_test_%"))
+    .catch(() => {});
+  await db
+    .delete(pushSubscriptions)
+    .where(like(pushSubscriptions.endpoint, "https://push.dlc-test.local/%"))
     .catch(() => {});
   await purgeTestUser();
 });
@@ -374,8 +383,202 @@ describe("drainPurge", () => {
   });
 });
 
+// ---------------------------------------------------------------------------
+// push_subscriptions — the fourth target (RN re-run HIGH, 2026-08-22)
+// ---------------------------------------------------------------------------
+//
+// Revocation is SOFT (revoked_at): the user toggled push off, or the push
+// service answered 404/410. The row stays as an auditable trail, and nothing
+// ever deleted it — hard deletion existed only through the profiles cascade
+// and erase_subject_data(). A revoked row older than the TTL has served its
+// purpose. A LIVE row is never pruned on `last_used_at` alone: that column
+// means "we last delivered an urgent push here", and a quiet pet's owner can
+// go months without one while the browser registration is perfectly valid.
+// The push service's 404/410 is the honest staleness signal, and it already
+// flips revoked_at — so the revoked path catches abandoned browsers too.
+
+describe("purgeRevokedPushSubscriptions", () => {
+  async function insertPush(suffix: string, revokedAt: Date | null): Promise<string> {
+    const [row] = await db
+      .insert(pushSubscriptions)
+      .values({
+        userId: testUserId,
+        endpoint: `https://push.dlc-test.local/${suffix}-${Date.now()}`,
+        p256dh: "p256dh-test",
+        auth: "auth-test",
+        revokedAt: revokedAt ?? undefined,
+      })
+      .returning({ id: pushSubscriptions.id });
+    return row.id;
+  }
+
+  const DAY_MS = 24 * 60 * 60 * 1000;
+
+  it("deletes revoked rows older than the TTL and keeps live and recently-revoked rows", async () => {
+    const staleId = await insertPush(
+      "stale",
+      new Date(Date.now() - (PUSH_SUBSCRIPTION_REVOKED_TTL_DAYS + 1) * DAY_MS),
+    );
+    const recentId = await insertPush("recent", new Date(Date.now() - 1 * DAY_MS));
+    const liveId = await insertPush("live", null);
+
+    const deleted = await purgeRevokedPushSubscriptions();
+    expect(deleted).toBeGreaterThanOrEqual(1);
+
+    const remaining = await db
+      .select({ id: pushSubscriptions.id })
+      .from(pushSubscriptions)
+      .where(eq(pushSubscriptions.userId, testUserId));
+    const ids = remaining.map((r) => r.id);
+    expect(ids).not.toContain(staleId);
+    expect(ids).toContain(recentId);
+    // THE POINT: a live registration with no delivery on record is not stale.
+    expect(ids).toContain(liveId);
+  });
+
+  it("keeps the TTL long enough for the device list to still explain a revocation", () => {
+    expect(PUSH_SUBSCRIPTION_REVOKED_TTL_DAYS).toBeGreaterThanOrEqual(14);
+    expect(PUSH_SUBSCRIPTION_REVOKED_TTL_DAYS).toBeLessThanOrEqual(90);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// The composite: order, caps and the fair share — driven by FAKE purgers
+// ---------------------------------------------------------------------------
+//
+// Same reasoning as the drainPurge suite: the properties here are arithmetic
+// (which target ran first, how many batches each was allowed, how the deadline
+// was split), and seeding tens of thousands of rows to prove them would cost
+// more than the caps they prove. The real SQL is exercised by the integration
+// cases below.
+
+describe("runDataLifecyclePurge — order, caps and fair share (fake purgers)", () => {
+  /** A purger that always returns a FULL batch (an endless backlog), counting calls. */
+  function endless(batchSize: number, calls: string[], name: string) {
+    return async () => {
+      calls.push(name);
+      return batchSize;
+    };
+  }
+
+  /** A clock that advances `stepMs` per reading, so each batch "costs" time. */
+  function ticking(stepMs: number) {
+    let t = 1_000_000;
+    return () => {
+      const v = t;
+      t += stepMs;
+      return v;
+    };
+  }
+
+  it("drains rate_limit_buckets FIRST — the fastest-filling, attacker-influenced table", async () => {
+    const calls: string[] = [];
+    await runDataLifecyclePurge({
+      maxDurationMs: Number.POSITIVE_INFINITY,
+      now: ticking(0),
+      purgers: {
+        rateLimitBuckets: async () => {
+          calls.push("rate_limit_buckets");
+          return 0;
+        },
+        notifications: async () => {
+          calls.push("notifications");
+          return 0;
+        },
+        pushSubscriptions: async () => {
+          calls.push("push_subscriptions");
+          return 0;
+        },
+        cronRuns: async () => {
+          calls.push("cron_runs");
+          return 0;
+        },
+      },
+    });
+    expect(calls).toEqual([
+      "rate_limit_buckets",
+      "notifications",
+      "push_subscriptions",
+      "cron_runs",
+    ]);
+  });
+
+  it("caps EVERY target, notifications included, and flags each one that hit its cap", async () => {
+    const calls: string[] = [];
+    const result = await runDataLifecyclePurge({
+      maxDurationMs: Number.POSITIVE_INFINITY,
+      now: ticking(0),
+      purgers: {
+        rateLimitBuckets: endless(500, calls, "b"),
+        notifications: endless(500, calls, "n"),
+        pushSubscriptions: endless(500, calls, "p"),
+        cronRuns: endless(500, calls, "c"),
+      },
+    });
+
+    const count = (name: string) => calls.filter((c) => c === name).length;
+    expect(count("b")).toBe(RATE_LIMIT_CLEANUP_MAX_BATCHES);
+    // THE FIX: notifications used to drain UNCAPPED under the shared deadline,
+    // so an expired-notification backlog could eat the whole run before the
+    // bucket table — the one that actually fills — got a turn.
+    expect(count("n")).toBe(NOTIFICATIONS_CLEANUP_MAX_BATCHES);
+    expect(count("p")).toBe(PUSH_SUBSCRIPTIONS_CLEANUP_MAX_BATCHES);
+    expect(count("c")).toBe(CRON_RUNS_CLEANUP_MAX_BATCHES);
+    expect(result.backlogged).toEqual({
+      rateLimitBuckets: true,
+      notifications: true,
+      pushSubscriptions: true,
+      cronRuns: true,
+    });
+    expect(result.notificationsDeleted).toBe(NOTIFICATIONS_CLEANUP_MAX_BATCHES * 500);
+  });
+
+  it("splits the deadline FAIRLY: a backlogged first target cannot starve the ones after it", async () => {
+    // 40 s budget, every batch costs 1 s, every target has an endless backlog,
+    // caps far above what the budget allows. Under the OLD shared deadline the
+    // first target would have run ~40 batches and the other three would have
+    // got one batch each (the loop always runs one before checking the
+    // clock). Under the fair share each target gets (what is left) / (targets
+    // still to run): 10 s, then 10 s, then 10 s, then the rest.
+    const calls: string[] = [];
+    const result = await runDataLifecyclePurge({
+      maxDurationMs: 40_000,
+      now: ticking(1_000),
+      purgers: {
+        rateLimitBuckets: endless(500, calls, "b"),
+        notifications: endless(500, calls, "n"),
+        pushSubscriptions: endless(500, calls, "p"),
+        cronRuns: endless(500, calls, "c"),
+      },
+    });
+
+    const count = (name: string) => calls.filter((c) => c === name).length;
+    // Each target drained for roughly its quarter — not one, not forty.
+    for (const name of ["b", "n", "p", "c"]) {
+      expect(count(name)).toBeGreaterThanOrEqual(5);
+      expect(count(name)).toBeLessThanOrEqual(15);
+    }
+    expect(result.backlogged.cronRuns).toBe(true);
+  });
+
+  it("runs exactly one batch per target when the budget is already spent", async () => {
+    const calls: string[] = [];
+    await runDataLifecyclePurge({
+      maxDurationMs: 0,
+      now: ticking(1),
+      purgers: {
+        rateLimitBuckets: endless(500, calls, "b"),
+        notifications: endless(500, calls, "n"),
+        pushSubscriptions: endless(500, calls, "p"),
+        cronRuns: endless(500, calls, "c"),
+      },
+    });
+    expect(calls).toEqual(["b", "n", "p", "c"]);
+  });
+});
+
 describe("runDataLifecyclePurge", () => {
-  it("returns counts for all three sections", async () => {
+  it("returns counts for all four sections", async () => {
     // Seed one expired row in each category.
     await insertNotification(new Date(Date.now() - 1000));
     await insertBucket(`dlc_test_composite_${Date.now()}`, new Date(Date.now() - 1000));
@@ -383,15 +586,26 @@ describe("runDataLifecyclePurge", () => {
       new Date(Date.now() - (CRON_RUNS_TTL_DAYS + 1) * 24 * 60 * 60 * 1000),
       "ok",
     );
+    await db.insert(pushSubscriptions).values({
+      userId: testUserId,
+      endpoint: `https://push.dlc-test.local/composite-${Date.now()}`,
+      p256dh: "p256dh-test",
+      auth: "auth-test",
+      revokedAt: new Date(
+        Date.now() - (PUSH_SUBSCRIPTION_REVOKED_TTL_DAYS + 1) * 24 * 60 * 60 * 1000,
+      ),
+    });
 
     const result = await runDataLifecyclePurge();
 
     expect(result).toHaveProperty("notificationsDeleted");
     expect(result).toHaveProperty("rateLimitBucketsDeleted");
     expect(result).toHaveProperty("cronRunsDeleted");
+    expect(result).toHaveProperty("pushSubscriptionsDeleted");
     expect(result.notificationsDeleted).toBeGreaterThanOrEqual(1);
     expect(result.rateLimitBucketsDeleted).toBeGreaterThanOrEqual(1);
     expect(result.cronRunsDeleted).toBeGreaterThanOrEqual(1);
+    expect(result.pushSubscriptionsDeleted).toBeGreaterThanOrEqual(1);
   });
 
   it("reports per-target backlog so a run that ran out of budget says so", async () => {
@@ -399,14 +613,15 @@ describe("runDataLifecyclePurge", () => {
 
     const result = await runDataLifecyclePurge();
 
-    // The shape, not the value: on a dev DB the three targets drain in one
-    // batch each, so all three read false. What must exist is the CHANNEL — a
+    // The shape, not the value: on a dev DB the four targets drain in one
+    // batch each, so all four read false. What must exist is the CHANNEL — a
     // cron row that can only say "N deleted" cannot distinguish a finished
     // purge from one that stopped at the cap on a table still filling up.
     expect(result.backlogged).toEqual({
       notifications: expect.any(Boolean),
       rateLimitBuckets: expect.any(Boolean),
       cronRuns: expect.any(Boolean),
+      pushSubscriptions: expect.any(Boolean),
     });
   });
 });

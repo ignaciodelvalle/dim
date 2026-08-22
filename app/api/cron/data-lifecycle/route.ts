@@ -9,16 +9,23 @@
 //   - If CRON_SECRET is NOT set AND NODE_ENV !== 'production': warn and proceed.
 //   - If CRON_SECRET is NOT set AND NODE_ENV === 'production': 401.
 //
-// Three conservative purges per run (all batched — see lib/data-lifecycle.ts):
-//   1. notifications WHERE expires_at < now()
-//   2. rate_limit_buckets WHERE expires_at < now()  (via cleanupExpiredBuckets)
-//   3. cron_runs WHERE started_at < now() - 90d AND status IN ('ok','failed')
+// Four conservative purges per run (all batched — see lib/infra/data-lifecycle.ts),
+// in this order:
+//   1. rate_limit_buckets WHERE expires_at < now()  (via cleanupExpiredBuckets)
+//   2. notifications WHERE expires_at < now()
+//   3. push_subscriptions WHERE revoked_at < now() - PUSH_SUBSCRIPTION_REVOKED_TTL_DAYS
+//   4. cron_runs WHERE started_at < now() - 90d AND status IN ('ok','failed')
 //
-// Each drains in bounded batches under a shared wall-clock deadline, and each
-// reports whether it FINISHED. `backlogged.*` is the field that makes the run
-// readable: a count says how much came off the table, never whether anything is
-// left, and an unfinished purge that reports only a count is indistinguishable
-// from a completed one on a table that keeps growing.
+// Each drains in bounded batches under its fair share of the run's deadline,
+// and each reports whether it FINISHED. `backlogged.*` is the field that makes
+// the run readable: a count says how much came off the table, never whether
+// anything is left, and an unfinished purge that reports only a count is
+// indistinguishable from a completed one on a table that keeps growing.
+//
+// THE DEADLINE COMES FROM THE DISPATCHER (RN-3 F17). /api/cron/daily forwards
+// this job's fair share of what is left of its 55 s as `x-cron-budget-ms`
+// (lib/infra/cron-dispatcher.ts); this route passes it through. Called
+// standalone (no header) the purge runs on its own 45 s ceiling, as before.
 //
 // retention_until tables (profiles, pets, pet_identifications, custody_disputes):
 //   All four are Ley 25.326 PII tables with no declared retention policy in any
@@ -34,6 +41,7 @@ import { eq } from "drizzle-orm";
 import { cronRuns, db } from "@/db";
 import { authorizeCronRequest } from "@/lib/domain/cron-auth";
 import { sendCronAlert } from "@/lib/infra/cron-alert";
+import { cronBudgetFromHeaders } from "@/lib/infra/cron-dispatcher";
 import { type DataLifecycleResult, runDataLifecyclePurge } from "@/lib/infra/data-lifecycle";
 
 export const dynamic = "force-dynamic";
@@ -47,8 +55,9 @@ const CRON_NAME = "data_lifecycle";
  * reading a function log is about to go look at that table.
  */
 const BACKLOG_TABLES: [keyof DataLifecycleResult["backlogged"], string][] = [
-  ["notifications", "notifications"],
   ["rateLimitBuckets", "rate_limit_buckets"],
+  ["notifications", "notifications"],
+  ["pushSubscriptions", "push_subscriptions"],
   ["cronRuns", "cron_runs"],
 ];
 
@@ -68,17 +77,26 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
   let status: "ok" | "failed" = "ok";
   // The initial value is what a FAILED run reports, so it must be the honest
   // "nothing ran" shape rather than a tidy zero: `backlogged` false everywhere
-  // would claim three drained tables on a run that never touched them.
+  // would claim four drained tables on a run that never touched them.
   let counts: DataLifecycleResult = {
     notificationsDeleted: 0,
     rateLimitBucketsDeleted: 0,
     cronRunsDeleted: 0,
-    backlogged: { notifications: true, rateLimitBuckets: true, cronRuns: true },
+    pushSubscriptionsDeleted: 0,
+    backlogged: {
+      notifications: true,
+      rateLimitBuckets: true,
+      cronRuns: true,
+      pushSubscriptions: true,
+    },
   };
   const errors: { section: string; reason: string }[] = [];
 
+  // The dispatcher's fair share, or nothing (standalone → the lib's own ceiling).
+  const budgetMs = cronBudgetFromHeaders(req.headers);
+
   try {
-    counts = await runDataLifecyclePurge();
+    counts = await runDataLifecyclePurge(budgetMs === null ? {} : { maxDurationMs: budgetMs });
   } catch (err) {
     status = "failed";
     errors.push({
@@ -125,7 +143,10 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
       status,
       finishedAt: new Date(),
       itemsProcessed:
-        counts.notificationsDeleted + counts.rateLimitBucketsDeleted + counts.cronRunsDeleted,
+        counts.notificationsDeleted +
+        counts.rateLimitBucketsDeleted +
+        counts.cronRunsDeleted +
+        counts.pushSubscriptionsDeleted,
       details: errors.length > 0 ? { ...counts, errors } : counts,
     })
     .where(eq(cronRuns.id, run.id));

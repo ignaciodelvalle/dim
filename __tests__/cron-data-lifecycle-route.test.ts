@@ -22,7 +22,13 @@ const DRAINED: DataLifecycleResult = {
   notificationsDeleted: 3,
   rateLimitBucketsDeleted: 7,
   cronRunsDeleted: 1,
-  backlogged: { notifications: false, rateLimitBuckets: false, cronRuns: false },
+  pushSubscriptionsDeleted: 2,
+  backlogged: {
+    notifications: false,
+    rateLimitBuckets: false,
+    cronRuns: false,
+    pushSubscriptions: false,
+  },
 };
 
 describe("GET /api/cron/data-lifecycle — backlog reporting", () => {
@@ -54,15 +60,15 @@ describe("GET /api/cron/data-lifecycle — backlog reporting", () => {
       cronRuns: { id: "id" },
     }));
 
-    vi.doMock("@/lib/infra/data-lifecycle", () => ({
-      runDataLifecyclePurge: vi.fn().mockImplementation(purge),
-    }));
+    const runDataLifecyclePurge = vi.fn().mockImplementation(purge);
+    vi.doMock("@/lib/infra/data-lifecycle", () => ({ runDataLifecyclePurge }));
+    return { runDataLifecyclePurge };
   }
 
-  async function callRoute() {
+  async function callRoute(extraHeaders: Record<string, string> = {}) {
     const { GET } = await import("@/app/api/cron/data-lifecycle/route");
     const req = new Request("http://test.local/api/cron/data-lifecycle", {
-      headers: { "x-cron-secret": "test-secret" },
+      headers: { "x-cron-secret": "test-secret", ...extraHeaders },
     });
     return GET(req as unknown as Parameters<typeof GET>[0]);
   }
@@ -75,7 +81,12 @@ describe("GET /api/cron/data-lifecycle — backlog reporting", () => {
   it("warns and NAMES the tables when a purge stopped short", async () => {
     mockDeps(async () => ({
       ...DRAINED,
-      backlogged: { notifications: true, rateLimitBuckets: true, cronRuns: false },
+      backlogged: {
+        notifications: true,
+        rateLimitBuckets: true,
+        cronRuns: false,
+        pushSubscriptions: false,
+      },
     }));
 
     const res = await callRoute();
@@ -96,13 +107,60 @@ describe("GET /api/cron/data-lifecycle — backlog reporting", () => {
     expect(logged).not.toContain("cron_runs");
   });
 
-  it("says nothing when all three targets drained", async () => {
+  it("says nothing when all four targets drained", async () => {
     mockDeps(async () => DRAINED);
 
     const res = await callRoute();
 
     expect(res.status).toBe(200);
     expect(warnings()).not.toContain("backlog remains");
+  });
+
+  it("names push_subscriptions when THAT target is the one behind", async () => {
+    mockDeps(async () => ({
+      ...DRAINED,
+      backlogged: {
+        notifications: false,
+        rateLimitBuckets: false,
+        cronRuns: false,
+        pushSubscriptions: true,
+      },
+    }));
+
+    await callRoute();
+
+    const logged = warnings();
+    expect(logged).toContain("backlog remains");
+    expect(logged).toContain("push_subscriptions");
+    expect(logged).not.toContain("rate_limit_buckets");
+  });
+
+  // -------------------------------------------------------------------------
+  // The budget the dispatcher hands down (RN-3 F17 / RN re-run HIGH)
+  //
+  // The purge used to drain under its own 45 s constant inside a 55 s
+  // dispatcher. The daily route now forwards the job's FAIR SHARE of what is
+  // left as a request header; this route must pass it through, and must fall
+  // back to its own ceiling when called standalone (no header).
+  // -------------------------------------------------------------------------
+
+  it("passes the dispatcher's budget header through to the purge", async () => {
+    const { runDataLifecyclePurge } = mockDeps(async () => DRAINED);
+
+    await callRoute({ "x-cron-budget-ms": "12345" });
+
+    expect(runDataLifecyclePurge).toHaveBeenCalledWith(
+      expect.objectContaining({ maxDurationMs: 12_345 }),
+    );
+  });
+
+  it("runs on its own ceiling when no budget header arrives (standalone invocation)", async () => {
+    const { runDataLifecyclePurge } = mockDeps(async () => DRAINED);
+
+    await callRoute();
+
+    const [options] = runDataLifecyclePurge.mock.calls[0] as [{ maxDurationMs?: number }];
+    expect(options?.maxDurationMs).toBeUndefined();
   });
 
   it("does NOT report a backlog on a failed run — nothing ran, which is a different fact", async () => {
