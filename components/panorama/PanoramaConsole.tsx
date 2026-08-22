@@ -215,6 +215,7 @@ import {
   type SavedBoard,
   type SeededLayer,
   buildViewMeta,
+  calendarEmptyMessage,
   canonicalLayersKey,
   findRankedFeature,
   initBoardOnMount,
@@ -235,6 +236,8 @@ import {
 
 // Stable empty fallback for the memo()-wrapped CalendarHeatmap (P4).
 const EMPTY_DAILY_COUNTS: Array<{ date: string; count: number }> = [];
+// Produced nothing AND withheld nothing: an error is not a suppression.
+const EMPTY_HISTOGRAM = { days: EMPTY_DAILY_COUNTS, suppressed: false };
 
 export function PanoramaConsole({
   defaultLayerId,
@@ -2455,6 +2458,9 @@ export function PanoramaConsole({
   const [aggregateDailyCounts, setAggregateDailyCounts] = useState<
     Array<{ date: string; count: number }> | undefined
   >(undefined);
+  // The endpoint's DECLARED suppression flag (4c8fe3b1): empty track + flag is
+  // "protegido", empty track alone is "no hubo eventos". See calendarEmptyMessage.
+  const [aggregateHistogramSuppressed, setAggregateHistogramSuppressed] = useState(false);
   useEffect(() => {
     // M2: effectiveScopeProvince/Locality are recompute TRIGGERS — the effect reads
     // the drilled scope off window.location.search (fresher than useSearchParams),
@@ -2467,6 +2473,7 @@ export function PanoramaConsole({
     if (signalHistogramBins !== undefined || activeTemporalKey === "") {
       setAggregateHistogramBins(undefined);
       setAggregateDailyCounts(undefined);
+      setAggregateHistogramSuppressed(false);
       return;
     }
     const ids = activeTemporalKey.split(",") as LayerId[];
@@ -2497,23 +2504,27 @@ export function PanoramaConsole({
             headers: { accept: "application/json" },
             signal: signalFor(`${id}:histogram`),
           });
-          if (!res.ok) return [] as Array<{ date: string; count: number }>;
+          if (!res.ok) return EMPTY_HISTOGRAM;
           const body = (await res.json()) as {
             histogram?: Array<{ date: string; count: number }>;
+            suppressed?: boolean;
           };
-          return body.histogram ?? [];
+          return { days: body.histogram ?? [], suppressed: body.suppressed === true };
         } catch (err) {
           if (isAbortError(err)) return null; // superseded — bail on merge
-          return [] as Array<{ date: string; count: number }>;
+          return EMPTY_HISTOGRAM;
         }
       }),
     ).then((results) => {
       if (cancelled || results.some((r) => r === null)) return;
       // Sum per-day counts across all active temporal layers, then bin.
       const byDay = new Map<string, number>();
-      for (const days of results) {
-        for (const d of days ?? []) byDay.set(d.date, (byDay.get(d.date) ?? 0) + d.count);
+      for (const r of results) {
+        for (const d of r?.days ?? []) byDay.set(d.date, (byDay.get(d.date) ?? 0) + d.count);
       }
+      // ANY layer withholding its window protects the merged track; the other
+      // layers' zeros do not disprove it.
+      setAggregateHistogramSuppressed(results.some((r) => r?.suppressed === true));
       const merged = Array.from(byDay, ([date, count]) => ({ date, count }));
       const bins = binDailyCounts(merged, since.getTime(), until.getTime(), 48);
       setAggregateHistogramBins(bins.some((b) => b > 0) ? bins : undefined);
@@ -3892,11 +3903,10 @@ export function PanoramaConsole({
           until={captionPeriod.to}
           methodNote={calendarMethodNote}
           hideHeading
-          emptyMessage={
-            activeTemporalKey === ""
-              ? "Activá una capa con dimensión temporal (denuncias, mordeduras, pérdidas, síntomas o zoonosis) para ver la actividad por día."
-              : "Sin eventos registrados en este período y alcance."
-          }
+          emptyMessage={calendarEmptyMessage({
+            hasTemporalLayer: activeTemporalKey !== "",
+            suppressed: aggregateHistogramSuppressed,
+          })}
           onDayClick={onCalendarDayClick}
         />
       </PanoramaStatSection>

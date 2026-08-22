@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   activeSuppressedCells,
   buildViewMeta,
+  calendarEmptyMessage,
   initialState,
   parseLayersParam,
   unknownLayerIds,
@@ -231,5 +232,45 @@ describe("activeSuppressedCells — the single view-wide k-anon figure", () => {
         asOf: null,
       }).suppressedCount,
     ).toBe(3);
+  });
+});
+
+/**
+ * The calendar's empty state must not claim a jurisdiction had no events.
+ *
+ * WHY (fresh-context review, 2026-08-22): 4c8fe3b1 stopped the histogram
+ * endpoint from publishing per-day counts and dates for a single-unit scope
+ * under ANONYMITY_K, and shipped a DECLARED envelope (`suppressed: true`)
+ * precisely so a caller could tell suppression apart from absence. The console
+ * then read `body.histogram ?? []`, dropped the flag on the floor, and rendered
+ * "Sin eventos registrados en este período y alcance." over the protected
+ * window — reinstating, in the UI, the exact false statement the commit set out
+ * to remove.
+ *
+ * The copy reuses the map's existing suppression vocabulary
+ * ("protegido por privacidad (k<5)", all-suppressed-notice.tsx) rather than
+ * inventing a second phrase for the same treatment.
+ */
+describe("calendarEmptyMessage — suppression is not absence", () => {
+  it("says the window is PROTECTED, never that nothing happened", () => {
+    const msg = calendarEmptyMessage({ hasTemporalLayer: true, suppressed: true });
+    expect(msg).toContain("protegida por privacidad (k<5)");
+    // The false statement must be gone, not merely softened.
+    expect(msg).not.toContain("Sin eventos");
+  });
+
+  it("still reports a genuine absence when nothing is suppressed", () => {
+    const msg = calendarEmptyMessage({ hasTemporalLayer: true, suppressed: false });
+    expect(msg).toBe("Sin eventos registrados en este período y alcance.");
+  });
+
+  it("asks for a temporal layer before it talks about events at all", () => {
+    const msg = calendarEmptyMessage({ hasTemporalLayer: false, suppressed: false });
+    expect(msg).toContain("Activá una capa con dimensión temporal");
+  });
+
+  it("no temporal layer outranks suppression — there is nothing to protect yet", () => {
+    const msg = calendarEmptyMessage({ hasTemporalLayer: false, suppressed: true });
+    expect(msg).toContain("Activá una capa con dimensión temporal");
   });
 });
