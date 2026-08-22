@@ -13,6 +13,7 @@ import { and, desc, eq, isNotNull } from "drizzle-orm";
 import { cronRuns, db } from "@/db";
 import { authorizeCronRequest } from "@/lib/domain/cron-auth";
 import { sendCronAlert } from "@/lib/infra/cron-alert";
+import { effectiveDeadlineMs } from "@/lib/infra/cron-dispatcher";
 
 /** Keyset cursor passed to a batched scan. */
 export interface CaseCronCursor {
@@ -52,6 +53,20 @@ export interface RunCaseCronInput<TCandidate> {
   batchSize?: number;
   /** Wall-clock budget for the keyset loop (ms). Default 45s. */
   maxDurationMs?: number;
+  /**
+   * The calling route's request headers, so the loop bounds itself by
+   * min(own ceiling, the fair share the daily dispatcher handed down)
+   * — RN #9, 2026-08-22.
+   *
+   * WHY it must be passed: 45 s is a safe ceiling for a route running ALONE.
+   * Inside the dispatcher the whole fleet shares one 60 s function under a
+   * 55 s budget, and the dispatcher's budget check only fires BETWEEN jobs —
+   * it never interrupts one in flight. A backlogged case cron starting at
+   * ~15 s therefore took the function past its hard kill and every job behind
+   * it with it. Omit for a standalone/manual call: the ceiling stays the
+   * constant.
+   */
+  budgetHeaders?: { get(name: string): string | null };
 }
 
 // Vercel Hobby cron functions time out at 60s; 45s leaves margin to finalize
@@ -84,7 +99,10 @@ export async function runCaseCron<TCandidate>(
       // cursor advances past every candidate we fetch (processed or errored),
       // so an errored row is not re-fetched within the same run — no spin.
       const limit = input.batchSize;
-      const maxDurationMs = input.maxDurationMs ?? DEFAULT_MAX_DURATION_MS;
+      const ownCeilingMs = input.maxDurationMs ?? DEFAULT_MAX_DURATION_MS;
+      const maxDurationMs = input.budgetHeaders
+        ? effectiveDeadlineMs(ownCeilingMs, input.budgetHeaders)
+        : ownCeilingMs;
       const start = Date.now();
       let cursor: string | null = null;
 

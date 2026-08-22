@@ -47,6 +47,7 @@ import {
   reEvaluatePppClassificationChange,
 } from "@/lib/infra/business-rules-reeval";
 import { withCronRun } from "@/lib/infra/case-cron";
+import { effectiveDeadlineMs } from "@/lib/infra/cron-dispatcher";
 
 export const dynamic = "force-dynamic";
 
@@ -77,6 +78,11 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
   }
 
   const start = Date.now();
+  // RN #9 (2026-08-22): the ceiling is min(our own, the share the dispatcher
+  // handed down). MAX_DURATION_MS alone is blind to how much of the fleet's
+  // 55 s is already spent; the header is not. Standalone (no header) it is the
+  // constant, unchanged.
+  const budgetMs = effectiveDeadlineMs(MAX_DURATION_MS, req.headers);
   try {
     // -----------------------------------------------------------------------
     // Resume cursor: index into the deterministically-ordered scope list,
@@ -154,7 +160,7 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
         let nextPetId: string | null = null;
 
         while (processedCount < scopes.length) {
-          if (processedCount >= MAX_SCOPES_PER_RUN || Date.now() - start >= MAX_DURATION_MS) {
+          if (processedCount >= MAX_SCOPES_PER_RUN || Date.now() - start >= budgetMs) {
             earlyStop = true;
             break;
           }
@@ -164,7 +170,7 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
           // sweep is keyset-batched AND time-bounded (review 23 item 10) — it
           // can't blow the 60s function budget.
           const result = await reEvaluatePppClassificationChange(scope, {
-            deadlineMs: start + MAX_DURATION_MS,
+            deadlineMs: start + budgetMs,
             afterPetId: scopeAfterPetId,
           });
           totalScanned += result.scanned;

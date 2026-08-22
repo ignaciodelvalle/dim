@@ -26,6 +26,9 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
     scan: (cursor) => findStaleWelfareCases({ afterId: cursor?.afterId, limit: cursor?.limit }),
     processOne: (candidate) => escalateStaleWelfareCase(candidate),
     batchSize: 200,
+    // RN #9 (2026-08-22): bound the keyset loop by min(own 45 s ceiling, the
+    // share the daily dispatcher handed down) instead of the constant alone.
+    budgetHeaders: req.headers,
   });
 
   // HTTP 500 on failure so Vercel treats the run as failed (does not swallow a

@@ -12,6 +12,7 @@
 
 import { authorizeCronRequest } from "@/lib/domain/cron-auth";
 import { withCronRun } from "@/lib/infra/case-cron";
+import { CRON_JOB_CEILINGS, effectiveDeadlineMs } from "@/lib/infra/cron-dispatcher";
 import { runVaccineDueScan } from "@/lib/infra/notifications";
 import { type NextRequest, NextResponse } from "next/server";
 
@@ -29,7 +30,15 @@ export async function GET(request: NextRequest) {
     // cronRuns telemetry — projection-cron audit 2026-07-03 B1
     const result = await withCronRun(
       CRON_NAME,
-      () => runVaccineDueScan(),
+      // RN #9 (2026-08-22): the sweep bounds itself by min(own 45 s ceiling,
+      // the share the daily dispatcher handed down) instead of the constant.
+      () =>
+        runVaccineDueScan(undefined, {
+          maxDurationMs: effectiveDeadlineMs(
+            CRON_JOB_CEILINGS.vaccine_due.ceilingMs,
+            request.headers,
+          ),
+        }),
       (r) => ({
         itemsProcessed: r.insertedCount,
         details: { insertedCount: r.insertedCount },

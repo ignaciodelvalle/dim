@@ -20,6 +20,7 @@ import { and, eq, lte } from "drizzle-orm";
 
 import { cronRuns, db, eventNotificationOutbox } from "@/db";
 import { authorizeCronRequest } from "@/lib/domain/cron-auth";
+import { effectiveDeadlineMs } from "@/lib/infra/cron-dispatcher";
 import { MAX_ATTEMPTS, computeNextRetryAt, deliverOutboxRow } from "@/lib/infra/outbox-drainer";
 
 export const dynamic = "force-dynamic";
@@ -52,6 +53,10 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
     .returning();
 
   const start = Date.now();
+  // RN #9 (2026-08-22): min(our own ceiling, the share the dispatcher handed
+  // down). The constant alone is blind to how much of the fleet's 55 s is
+  // already spent; the header is not. Standalone it is the constant, unchanged.
+  const budgetMs = effectiveDeadlineMs(MAX_DURATION_MS, req.headers);
   let processed = 0;
   let delivered = 0;
   let failed = 0;
@@ -64,7 +69,7 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
     // budget is exhausted. Retried rows get a future nextRetryAt so they are
     // not re-fetched within the run — no spin.
     drain: for (;;) {
-      if (Date.now() - start >= MAX_DURATION_MS) break;
+      if (Date.now() - start >= budgetMs) break;
       const now = new Date();
 
       // -----------------------------------------------------------------------
@@ -136,7 +141,7 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
           }
         }
 
-        if (Date.now() - start >= MAX_DURATION_MS) break drain;
+        if (Date.now() - start >= budgetMs) break drain;
       }
 
       if (pending.length < BATCH_SIZE) break; // queue drained this pass

@@ -11,6 +11,7 @@
 
 import { authorizeCronRequest } from "@/lib/domain/cron-auth";
 import { withCronRun } from "@/lib/infra/case-cron";
+import { CRON_JOB_CEILINGS, effectiveDeadlineMs } from "@/lib/infra/cron-dispatcher";
 import { runPostAdoptionCheckinScan } from "@/lib/infra/notifications";
 import { type NextRequest, NextResponse } from "next/server";
 
@@ -27,7 +28,15 @@ export async function GET(request: NextRequest) {
   try {
     const result = await withCronRun(
       CRON_NAME,
-      () => runPostAdoptionCheckinScan(),
+      // RN #9 (2026-08-22): the sweep bounds itself by min(own 45 s ceiling,
+      // the share the daily dispatcher handed down) instead of the constant.
+      () =>
+        runPostAdoptionCheckinScan(undefined, {
+          maxDurationMs: effectiveDeadlineMs(
+            CRON_JOB_CEILINGS.post_adoption_checkin.ceilingMs,
+            request.headers,
+          ),
+        }),
       (r) => ({
         itemsProcessed: r.proactiveInsertedIds.length + r.missedInsertedIds.length,
         details: {

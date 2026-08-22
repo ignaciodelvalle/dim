@@ -38,6 +38,7 @@ import {
   type DispatchJob,
   dispatchJobs,
   fairShareMs,
+  reservedCeilingMs,
 } from "@/lib/infra/cron-dispatcher";
 
 // Individual job route handlers. Importing a route's GET is a plain ESM import —
@@ -147,6 +148,11 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
 
   const jobs: DispatchJob[] = DAILY_JOB_ORDER.map((name) => ({
     name,
+    // RN #9: what this job burns even if it ignores the header we are about to
+    // hand it. 0 for every job whose route derives its deadline from the
+    // budget — the parity fence proves the claim, so this is not a promise the
+    // dispatcher makes on the routes' behalf.
+    ceilingMs: reservedCeilingMs(name),
     run: (ctx: DispatchContext) =>
       HANDLERS[name](
         makeChildRequest(request, fairShareMs(ctx.budgetLeftMs, ctx.jobsLeft, BUDGET_MS)),

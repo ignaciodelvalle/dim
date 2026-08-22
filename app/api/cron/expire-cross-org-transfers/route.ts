@@ -25,6 +25,9 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
       }),
     processOne: (candidate) => TransfersRepository.expireOneCrossOrgCase(candidate),
     batchSize: 200,
+    // RN #9 (2026-08-22): bound the keyset loop by min(own 45 s ceiling, the
+    // share the daily dispatcher handed down) instead of the constant alone.
+    budgetHeaders: req.headers,
   });
 
   return NextResponse.json(

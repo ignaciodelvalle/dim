@@ -14,6 +14,7 @@ import { and, asc, eq, gt, isNull, lt } from "drizzle-orm";
 import { approvalRequests, auditLog, cronRuns, db, profiles } from "@/db";
 import { authorizeCronRequest } from "@/lib/domain/cron-auth";
 import { sendCronAlert } from "@/lib/infra/cron-alert";
+import { effectiveDeadlineMs } from "@/lib/infra/cron-dispatcher";
 import { createNotification } from "@/lib/infra/notification-service";
 
 export const dynamic = "force-dynamic";
@@ -76,6 +77,10 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
 
   const cutoff = new Date(Date.now() - EXPIRY_DAYS * DAY_MS);
   const start = Date.now();
+  // RN #9 (2026-08-22): min(our own ceiling, the share the dispatcher handed
+  // down). The constant alone is blind to how much of the fleet's 55 s is
+  // already spent; the header is not. Standalone it is the constant, unchanged.
+  const budgetMs = effectiveDeadlineMs(MAX_DURATION_MS, req.headers);
   let itemsProcessed = 0;
   let status: "ok" | "failed" = "ok";
   const errors: { id: string; reason: string }[] = [];
@@ -84,7 +89,7 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
     let cursor: string | null = null;
 
     for (;;) {
-      if (Date.now() - start >= MAX_DURATION_MS) break;
+      if (Date.now() - start >= budgetMs) break;
 
       const stale = await db
         .select({
