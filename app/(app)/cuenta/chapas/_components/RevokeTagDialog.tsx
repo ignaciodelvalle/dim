@@ -8,8 +8,16 @@
 //
 // Controlled `open`: the parent TagList owns which row's panel is open so
 // only one can be open at a time (Cowork QA v3, B3).
+//
+// The reason select's id comes from useId(), NEVER a literal: TagList renders
+// one of these per ACTIVE chapa, so a hardcoded id made N labels and N selects
+// share it, and `label.control` (hence `select.labels`) resolved to the FIRST
+// select in the document for every row — the visible label belonged to another
+// row's control, so the select had no accessible name and clicking the label
+// focused a control inside a CLOSED <dialog>. Same duplicate-id-in-a-repeated-
+// row class components/MotivoField.tsx already fixed the same way.
 
-import { useState, useTransition } from "react";
+import { useId, useState, useTransition } from "react";
 
 import { revokeTagAction } from "@/app/actions/tags";
 import { LnButton } from "@/components/ui/Button";
@@ -35,6 +43,7 @@ export function RevokeTagDialog({
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }) {
+  const reasonId = useId();
   const [reason, setReason] = useState<PetTagRevokeReason | "">("");
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
@@ -79,13 +88,13 @@ export function RevokeTagDialog({
       >
         <div className="px-5 pb-3 space-y-2">
           <label
-            htmlFor="revoke-tag-reason"
+            htmlFor={reasonId}
             className="block text-sm font-medium text-[var(--color-ln-ink-2)]"
           >
             Motivo <span className="text-[var(--color-ln-mute)]">(obligatorio)</span>
           </label>
           <LnSelect
-            id="revoke-tag-reason"
+            id={reasonId}
             value={reason}
             onChange={(e) => {
               setReason(e.target.value as PetTagRevokeReason | "");
