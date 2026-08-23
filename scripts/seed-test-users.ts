@@ -27,7 +27,28 @@
  *                          scripts/seed-reserved-accounts.ts. Read that file
  *                          before giving this account anything.
  *
- * Idempotent — safe to re-run.
+ * RE-RUN SAFETY — what is actually guaranteed, and what is not.
+ *
+ * This script is re-runnable, NOT idempotent. It does not converge on a fixed
+ * state: each step owns its own guard, and a step only skips when ITS guard
+ * recognises its own prior output. The header used to say "Idempotent — safe
+ * to re-run" flatly, and that sentence cost real rows on staging (2026-08-21):
+ * the shelter-pets step guarded on "does this org hold a LIVE shelter custody?"
+ * while its actual collision surface was the FIXED microchip codes it writes.
+ * An ended custody — an adoption, a transfer, both ordinary — cleared the guard
+ * without clearing the chips, so the step re-ran, duplicated the pets, and then
+ * died on pet_identifications_chip_unique partway through, leaving the halves
+ * it had already committed behind.
+ *
+ * The rule that fell out of it, and the one to apply to any step added here:
+ * GUARD ON THE CONSTRAINT THE STEP WILL ACTUALLY HIT, not on a fact the seed's
+ * own data is allowed to invalidate later — and wrap a multi-row step in a
+ * transaction so a guard that misses still cannot leave a half-written step.
+ * See scripts/seed-shelter-pets-guard.ts for the worked example.
+ *
+ * Steps whose guard is only a proxy for their own output are still re-run
+ * hazards. When in doubt on a database that has been live for a while, verify
+ * before re-running rather than trusting this header.
  *
  * Usage:
  *   pnpm seed:test
@@ -128,6 +149,9 @@ const { generatePublicToken, generatePrefixedToken } = await import("@/lib/infra
 const { JurisdictionValidationError, resolveCanonicalJurisdiction } = await import(
   "@/lib/infra/jurisdiction-validation"
 );
+// Dynamic like the rest: it imports ../db, which throws at module load when
+// DATABASE_URL is not yet in process.env.
+const { shelterPetsAlreadySeeded } = await import("./seed-shelter-pets-guard");
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -979,21 +1003,6 @@ async function seedOwnerPets(ownerUserId: string): Promise<void> {
 
 async function seedShelterPets(orgId: string, intakeActorId: string): Promise<void> {
   log("STEP", "9/9 — shelter custody mascotas (direct INSERT — intake.ts is `use server`)");
-  const [hasCustody] = await db
-    .select({ id: ownerships.id })
-    .from(ownerships)
-    .where(
-      and(
-        eq(ownerships.ownerOrganizationId, orgId),
-        eq(ownerships.role, "shelter_custody"),
-        isNull(ownerships.endedAt),
-      ),
-    )
-    .limit(1);
-  if (hasCustody) {
-    log("SKIP", "org already holds shelter custody");
-    return;
-  }
 
   const shelterPetSeed = [
     {
@@ -1025,109 +1034,132 @@ async function seedShelterPets(orgId: string, intakeActorId: string): Promise<vo
     },
   ];
 
-  for (const seed of shelterPetSeed) {
-    const publicToken = generatePublicToken();
-    const [pet] = await db
-      .insert(pets)
-      .values({
-        publicToken,
-        species: seed.species,
-        breed: seed.breed,
-        name: seed.name,
-        sex: seed.sex,
-        color: seed.color,
-        distinguishingFeatures: seed.distinguishingFeatures,
-        // Legacy chip columns omitted — ARCH-R; canonical row written to
-        // pet_identifications below.
-        status: "active",
-        jurisdictionProvince: "Buenos Aires",
-        jurisdictionLocality: "La Plata",
-        acquisitionMethod: "found_stray",
-      })
-      .returning({ id: pets.id, publicToken: pets.publicToken });
+  // The re-run guard reads the CODES this step is about to write, derived from
+  // the array above so a fourth seed pet with a chip is covered the day it is
+  // added. See scripts/seed-shelter-pets-guard.ts for why the old live-custody
+  // check was not a re-run guard at all.
+  const chipCodes = shelterPetSeed
+    .map((s) => s.microchipId)
+    .filter((code): code is string => code !== null);
+  const state = await shelterPetsAlreadySeeded({ orgId, chipCodes });
+  if (state.alreadySeeded) {
+    log("SKIP", `shelter pets already seeded — ${state.detail}`);
+    return;
+  }
 
-    await db.insert(ownerships).values({
-      petId: pet.id,
-      ownerOrganizationId: orgId,
-      role: "shelter_custody",
-    });
+  // ALL OR NOTHING. What actually happened on staging was a PARTIAL run: the
+  // pets and their spine events committed one by one, the chip row that would
+  // have collided was never written, and nothing rolled back — so the database
+  // ended up holding pets whose `microchip_implanted` event claims a chip that
+  // has no canonical pet_identifications row. The guard above decides WHETHER
+  // to run; this transaction is what guarantees that when a DIFFERENT
+  // constraint fires next time, the step leaves the database exactly as it
+  // found it instead of half a shelter.
+  await db.transaction(async (tx) => {
+    for (const seed of shelterPetSeed) {
+      const publicToken = generatePublicToken();
+      const [pet] = await tx
+        .insert(pets)
+        .values({
+          publicToken,
+          species: seed.species,
+          breed: seed.breed,
+          name: seed.name,
+          sex: seed.sex,
+          color: seed.color,
+          distinguishingFeatures: seed.distinguishingFeatures,
+          // Legacy chip columns omitted — ARCH-R; canonical row written to
+          // pet_identifications below.
+          status: "active",
+          jurisdictionProvince: "Buenos Aires",
+          jurisdictionLocality: "La Plata",
+          acquisitionMethod: "found_stray",
+        })
+        .returning({ id: pets.id, publicToken: pets.publicToken });
 
-    // The pet's birth certificate in the spine. Without it these three rows are
-    // pets that, as far as the append-only log is concerned, were never
-    // registered — a cache row outranking the spine, which is what invariant #3
-    // forbids. lint:spine caught exactly this the first time CI ran the fence
-    // against a database built by db:bootstrap (2026-07-28): three orphans,
-    // Lola / Toby / Rocco, straight out of this loop.
-    //
-    // It is dated one second before the intake so the spine reads in the order
-    // the events actually happened: registered, then taken in.
-    const registeredAt = new Date(Date.now() - 1000);
-    await db.insert(petEvents).values({
-      petId: pet.id,
-      eventType: "pet_registered",
-      occurredAt: registeredAt,
-      recordedByUserId: intakeActorId,
-      authorRole: "shelter",
-      authorOrganizationId: orgId,
-      authorVerified: true,
-      payload: { source: "seed-script" },
-    });
-
-    await db.insert(petEvents).values({
-      petId: pet.id,
-      eventType: "shelter_intake_recorded",
-      occurredAt: new Date(),
-      recordedByUserId: intakeActorId,
-      authorRole: "shelter",
-      authorOrganizationId: orgId,
-      authorVerified: true,
-      payload: {
-        source: "seed-script",
-        intake_kind: "stray",
-        location_description: "Vía pública — La Plata",
-      },
-    });
-
-    // Microchip: emit event + canonical pet_identifications row.
-    // Legacy pets.* chip columns not written — ARCH-R.
-    // implant_date_known: true so the projection's microchipImplantedAt
-    // (formatDate(occurredAt)) matches the canonical row's recordedAt —
-    // both resolve to the same date and the pet-cache drift harness sees
-    // zero drift (ARCH-I).
-    if (seed.microchipId) {
-      const chip = seed.microchipId;
-      const chipNow = new Date();
-      await db.insert(petEvents).values({
+      await tx.insert(ownerships).values({
         petId: pet.id,
-        eventType: "microchip_implanted",
-        occurredAt: chipNow,
-        recordedAt: chipNow,
+        ownerOrganizationId: orgId,
+        role: "shelter_custody",
+      });
+
+      // The pet's birth certificate in the spine. Without it these three rows
+      // are pets that, as far as the append-only log is concerned, were never
+      // registered — a cache row outranking the spine, which is what invariant
+      // #3 forbids. lint:spine caught exactly this the first time CI ran the
+      // fence against a database built by db:bootstrap (2026-07-28): three
+      // orphans, Lola / Toby / Rocco, straight out of this loop.
+      //
+      // It is dated one second before the intake so the spine reads in the
+      // order the events actually happened: registered, then taken in.
+      const registeredAt = new Date(Date.now() - 1000);
+      await tx.insert(petEvents).values({
+        petId: pet.id,
+        eventType: "pet_registered",
+        occurredAt: registeredAt,
+        recordedByUserId: intakeActorId,
+        authorRole: "shelter",
+        authorOrganizationId: orgId,
+        authorVerified: true,
+        payload: { source: "seed-script" },
+      });
+
+      await tx.insert(petEvents).values({
+        petId: pet.id,
+        eventType: "shelter_intake_recorded",
+        occurredAt: new Date(),
         recordedByUserId: intakeActorId,
         authorRole: "shelter",
         authorOrganizationId: orgId,
         authorVerified: true,
         payload: {
-          chip_number: chip,
-          country_code: "858",
-          implanted_by: null,
-          location_on_body: null,
-          implant_date_known: true,
+          source: "seed-script",
+          intake_kind: "stray",
+          location_description: "Vía pública — La Plata",
         },
       });
-      await db.insert(petIdentifications).values({
-        petId: pet.id,
-        kind: "microchip_iso",
-        code: chip,
-        recordedAt: chipNow.toISOString().slice(0, 10),
-        isoCountryCode: chip.slice(0, 3),
-        isoManufacturerCode: chip.slice(3, 7),
-        isoNationalId: chip.slice(7, 15),
-        isoCompliant: true,
-      });
-    }
 
-    log("OK", `shelter pet ${seed.name} (${pet.publicToken})`);
-  }
+      // Microchip: emit event + canonical pet_identifications row.
+      // Legacy pets.* chip columns not written — ARCH-R.
+      // implant_date_known: true so the projection's microchipImplantedAt
+      // (formatDate(occurredAt)) matches the canonical row's recordedAt —
+      // both resolve to the same date and the pet-cache drift harness sees
+      // zero drift (ARCH-I).
+      if (seed.microchipId) {
+        const chip = seed.microchipId;
+        const chipNow = new Date();
+        await tx.insert(petEvents).values({
+          petId: pet.id,
+          eventType: "microchip_implanted",
+          occurredAt: chipNow,
+          recordedAt: chipNow,
+          recordedByUserId: intakeActorId,
+          authorRole: "shelter",
+          authorOrganizationId: orgId,
+          authorVerified: true,
+          payload: {
+            chip_number: chip,
+            country_code: "858",
+            implanted_by: null,
+            location_on_body: null,
+            implant_date_known: true,
+          },
+        });
+        await tx.insert(petIdentifications).values({
+          petId: pet.id,
+          kind: "microchip_iso",
+          code: chip,
+          recordedAt: chipNow.toISOString().slice(0, 10),
+          isoCountryCode: chip.slice(0, 3),
+          isoManufacturerCode: chip.slice(3, 7),
+          isoNationalId: chip.slice(7, 15),
+          isoCompliant: true,
+        });
+      }
+
+      log("OK", `shelter pet ${seed.name} (${pet.publicToken})`);
+    }
+  });
 }
 
 // ---------------------------------------------------------------------------
