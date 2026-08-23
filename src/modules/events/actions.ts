@@ -936,15 +936,42 @@ export async function setPetFoundAction(
 
   const repo = new EventsRepository();
 
-  // Resolve the active owner USER id so the recovery confirmation reaches the
-  // human owner even when an org member triggers the action. Falls back to the
-  // acting user when no owner-user row exists (e.g. org-owned pet).
+  // Resolve the active TITULAR's user id so the recovery confirmation reaches
+  // the human owner even when an org member triggers the action. Falls back to
+  // the acting user when no owner-user row exists (e.g. org-owned pet).
+  //
+  // `role = 'owner'` is load-bearing and was missing until 2026-08-23: this is
+  // the seventh instance of the `(pet_id, ended_at IS NULL)` + `limit(1)`
+  // pattern, and the previous sweep (afd01fb3c) claimed the corpus was bounded
+  // without having seen it. An accepted caretaker grant opens a SECOND active
+  // ownerships row, so heap order decided who got the confirmation: the titular
+  // marks their own pet found and "Marcaste a Luna como encontrada" lands on
+  // the caretaker's phone, while the titular — who pressed the button — is
+  // never told, and is then re-notified through the broadcast branch as if they
+  // were a stranger who had been looking.
+  //
+  // A FILTER IS RIGHT HERE AND WAS WRONG IN THE SIGHTING FLOW, and the
+  // difference is worth naming so the next reader does not copy the wrong half.
+  // lib/infra/pet-alert-recipients.ts refuses a role filter because THERE the
+  // read is a hard gate and an empty result cancels the whole action for a pet
+  // in shelter custody. Here the `?? user.id` fallback below already absorbs an
+  // empty result — a pet with no owner-user row confirms to whoever pressed the
+  // button, which is the behaviour that fallback was written for. And the
+  // ranking helper would be actively wrong: it returns a RECIPIENT SET with
+  // concurrent caretakers, whereas this value is a single IDENTITY used twice —
+  // as the addressee of a second-person confirmation ("Marcaste…", which only
+  // the actor's titular can be told) and as the `userId === ownerUserId` key
+  // that suppresses the duplicate broadcast notice. A set has no answer to
+  // either question.
   const { ownerships } = await import("@/db");
-  const { isNull } = await import("drizzle-orm");
+  const { asc, isNull } = await import("drizzle-orm");
   const [ownerRow] = await db
     .select({ ownerUserId: ownerships.ownerUserId })
     .from(ownerships)
-    .where(and(eq(ownerships.petId, pet.id), isNull(ownerships.endedAt)))
+    .where(
+      and(eq(ownerships.petId, pet.id), eq(ownerships.role, "owner"), isNull(ownerships.endedAt)),
+    )
+    .orderBy(asc(ownerships.startedAt))
     .limit(1);
   const ownerUserId = ownerRow?.ownerUserId ?? user.id;
 
