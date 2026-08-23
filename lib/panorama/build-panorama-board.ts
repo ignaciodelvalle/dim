@@ -210,23 +210,6 @@ export async function buildPanoramaBoard(args: {
     // The deep-link path seeds the RESOLVED layer set (legacy alias base
     // included); the first-visit path seeds the role default's own set.
     const seedIds = urlResolved?.layerIds ?? presetLayerIds(preset);
-    // Streamed KPIs — NOT awaited here. `.catch` degrades an early rejection so
-    // the promise always resolves to an honest strip (the loader carries its own
-    // 20s budget; the console shows "Cargando indicadores…" until it lands).
-    // RESILIENCE (2026-07-10): created BEFORE the seed await so the KPI fan-out
-    // runs CONCURRENTLY with the seed instead of serializing after it — the two
-    // slow paths overlap rather than summing.
-    const kpisPromise = loadCachedPanoramaKpis({
-      actor,
-      jurisdictions: scoped,
-      period: seedPeriod,
-      adminProvince,
-      adminLocality,
-      asOf: asOfSeed,
-      label: `${routeLabel} kpis`,
-    })
-      .then((r) => r.value)
-      .catch(() => degradedPanoramaKpis());
     // perf plan 1.3: only the LAYER seed is awaited (fast at the preset's 90d
     // window) — it must paint on first render. The KPI fan-out is streamed
     // UN-awaited (kpisPromise above) so a cold ~12-query load never blocks the
@@ -260,6 +243,44 @@ export async function buildPanoramaBoard(args: {
         ).catch((): LayerFeaturesSourced => ({ result: emptyLayerFeatures(), source: "live" })),
       ),
     );
+    // Streamed KPIs — NOT awaited here. `.catch` degrades an early rejection so
+    // the promise always resolves to an honest strip (the loader carries its own
+    // 20s budget; the console shows "Cargando indicadores…" until it lands).
+    //
+    // ORDERING, AMENDED 2026-08-23 AGAINST A MEASUREMENT.
+    // This used to be created BEFORE the seed await, on a RESILIENCE argument
+    // (2026-07-10): overlap the two slow paths so they do not sum. The argument
+    // assumes the two paths compete for nothing. They compete for the pool.
+    // `analyticsDb` is capped at 2 connections (db/index.ts), and the KPI fan-out
+    // is ~46 statements, so starting it first put 46 statements in the queue
+    // AHEAD of the two tiny seeds. Measured on staging, page-shaped concurrency,
+    // warm pool, idle DB:
+    //
+    //   2742 ms  seed zoonosis resolved   (its own server exec: 25 ms)
+    //   2751 ms  seed sintomas resolved   (its own server exec: 50 ms)
+    //   2951 ms  KPI fan-out resolved
+    //
+    // 75 ms of work, 2,75 s of wall clock — all of it queue wait. Under real
+    // load both seeds blow their 9 s budgets and then their inner 30 s
+    // layer-cache budgets, which is the tail in the Vercel logs
+    // ("[db-budget] layer-cache revalidate 'zoonosis' exceeded 30000ms budget").
+    //
+    // On a 2-connection pool the overlap is NEGATIVE-SUM: it delays the blocking
+    // work behind the non-blocking work. The seeds are awaited — they must paint
+    // on first render. This promise is streamed and SSR never awaits it. So
+    // deferring the fan-out's start costs the KPI strip ~75 ms and saves the map
+    // ~2,5 s. Concurrency is only free when there is a connection to be had.
+    const kpisPromise = loadCachedPanoramaKpis({
+      actor,
+      jurisdictions: scoped,
+      period: seedPeriod,
+      adminProvince,
+      adminLocality,
+      asOf: asOfSeed,
+      label: `${routeLabel} kpis`,
+    })
+      .then((r) => r.value)
+      .catch(() => degradedPanoramaKpis());
     const seededLayers: SeededLayer[] = seedIds.map((lid, i) => ({
       id: lid,
       features: seedResults[i].result.features,
@@ -311,19 +332,6 @@ export async function buildPanoramaBoard(args: {
   // COLD fan-out (cache miss) never blocks the SSR shell — the console resolves
   // it client-side behind a "Cargando indicadores…" pending strip. The loader
   // carries its own 20s budget; the trailing `.catch` degrades an early rejection.
-  // RESILIENCE (2026-07-10): created BEFORE the seed await so the KPI fan-out
-  // runs CONCURRENTLY with the layer seed instead of serializing after it.
-  const kpisPromise = loadCachedPanoramaKpis({
-    actor,
-    jurisdictions: scoped,
-    period,
-    adminProvince,
-    adminLocality,
-    asOf: asOfSeed,
-    label: `${routeLabel} kpis`,
-  })
-    .then((r) => r.value)
-    .catch(() => degradedPanoramaKpis());
   // perf plan 1.3: only the LAYER is awaited (fast at the active window) so the
   // map paints on first render. withDbBudget degrades on timeout and the
   // trailing `.catch` degrades on an early fetcher rejection — a degraded DB
@@ -345,6 +353,26 @@ export async function buildPanoramaBoard(args: {
     `${routeLabel} layer`,
     emptyLayerFeatures(),
   ).catch(() => emptyLayerFeatures());
+
+  // ORDERING, AMENDED 2026-08-23 — same change as the seeded path above, same
+  // reason: created AFTER the awaited layer so the ~46-statement KPI fan-out
+  // does not queue ahead of it on a 2-connection pool. The 2,75 s measurement
+  // that motivated it was taken on the seeded path; this path was not measured
+  // separately, but it is the identical shape (awaited blocking layer, streamed
+  // non-blocking KPIs) against the identical pool, and leaving the two halves of
+  // one file disagreeing about the ordering would just invite the next reader to
+  // "fix" the one that was corrected.
+  const kpisPromise = loadCachedPanoramaKpis({
+    actor,
+    jurisdictions: scoped,
+    period,
+    adminProvince,
+    adminLocality,
+    asOf: asOfSeed,
+    label: `${routeLabel} kpis`,
+  })
+    .then((r) => r.value)
+    .catch(() => degradedPanoramaKpis());
 
   return {
     scopeLabel,
