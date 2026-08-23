@@ -858,6 +858,29 @@ export const FosterRepository = {
     },
     tx: Tx,
   ): Promise<{ caseId: string | null; volunteerAvailableSlots: number | null }> {
+    // THE PET ADVISORY LOCK, FIRST (M-8) — the same lock `insertAssignFoster`
+    // takes to OPEN a foster, now taken by BOTH writers that close one. An
+    // advisory lock excludes only other TAKERS, so locking the convert writer
+    // alone would leave it unserialised against this one.
+    await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtext(${args.petId}))`);
+
+    // RE-READ AND CHECKED under the lock, never a blind UPDATE by id. The
+    // use-case's `findActiveFosterRows` runs OUTSIDE the transaction; the old
+    // statement had no `ended_at IS NULL` and DISCARDED its row count, so an
+    // adoption finalize or a cross-org accept that closed this row first left
+    // this writer emitting `foster_ended` over an arrangement that had already
+    // ended for another reason — two endings for one foster, in an append-only
+    // spine. Shape copied from `finalize-adoption.ts` (`lockLiveCustodyRow` +
+    // `if (!locked)`).
+    const [lockedFoster] = await tx
+      .select({ id: ownerships.id })
+      .from(ownerships)
+      .where(and(eq(ownerships.id, args.fosterOwnershipId), isNull(ownerships.endedAt)))
+      .limit(1)
+      .for("update");
+    if (!lockedFoster) {
+      throw new Error("Este tránsito ya no está activo. Actualizá la página y volvé a intentar.");
+    }
     await tx
       .update(ownerships)
       .set({ endedAt: args.now })
