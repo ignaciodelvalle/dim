@@ -123,8 +123,12 @@ serialising custody writers (chip-match, return-to-owner, cross-org transfer):
 | Rollback | `scripts/rollback-rehome-sponsorships.ts` — per pet, then re-read |
 
 Pinned by `src/modules/rehome/__tests__/owner-row-lock.test.ts` — including
-an arm that **discovers** every caller of `endRehomeSponsorship(` instead of
-naming writers — and `src/modules/adoption/__tests__/finalize-custody-lock.test.ts`;
+an arm that **discovers** every writer that ends custody instead of naming
+them, deriving the call vocabulary from the exports of the two files that
+define an ending rather than searching one literal (widened 2026-08-23: the old
+`endRehomeSponsorship(` search was blind to the foster convert writer, which
+ends a sponsorship transitively — *a fence enumerates forms, not the thing*) —
+and `src/modules/adoption/__tests__/finalize-custody-lock.test.ts`;
 proven real by `__tests__/rehome-withdraw-flow.test.ts` and
 `__tests__/rehome-death-cascade.test.ts` (a withdraw racing the death).
 

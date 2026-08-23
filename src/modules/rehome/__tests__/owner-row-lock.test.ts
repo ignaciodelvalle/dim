@@ -228,20 +228,86 @@ describe("end-pet-ownerships — the live-sponsorship-row re-read is locked (M-9
 // all. Finalize holds the pet lock while it touches those same rows: the cycle
 // the WU5 fix closed was open again, one writer over. The arms above pin the
 // writers they NAME, and a writer nobody named is exactly the one that slips.
-// This arm DISCOVERS them: every file that calls `endRehomeSponsorship(` must
-// take the pet advisory lock before that call, in the same file — or be the
-// one primitive whose lock is its callers' duty, listed with the reason.
-describe("rehome — every caller of endRehomeSponsorship( takes the pet advisory lock first", () => {
+// This arm DISCOVERS them: every file that ends custody must take the pet
+// advisory lock before it does, in the same file — or be listed below with the
+// reason its lock lives somewhere else.
+//
+// WIDENED 2026-08-23 (loop fase 1, §6 item 1). It used to search ONE literal,
+// `endRehomeSponsorship(`, and that is exactly why it never saw the foster
+// convert writer (M-8) — which DOES end a sponsorship, only transitively,
+// through `endAllLiveOwnerships`. *A fence enumerates forms, not the thing*, and
+// this repo has paid for that lesson more than once: ban the SUBJECT, not one
+// of its spellings.
+//
+// So the call list is DERIVED from the exported functions of the two files that
+// DEFINE a custody ending. A new exported ender is covered the day it is
+// written, and an export that is NOT an ender has to say so, by name, in
+// `NOT_A_CUSTODY_ENDER` — which is where the next person is forced to think
+// instead of quietly adding a third literal to a list.
+describe("rehome — every writer that ENDS custody takes the pet advisory lock first", () => {
   const SCAN_DIRS = ["lib", "src", "scripts"];
   const WRITER = "src/modules/adoption/infrastructure/rehome-sponsorship-writer.ts";
-  const CALL = "endRehomeSponsorship(";
   const LOCK = /acquirePetAdvisoryLock\(|pg_advisory_xact_lock\(hashtext\(/;
-  // lib/infra/end-pet-ownerships.ts closes every live row for a hand-off and is
-  // called from INSIDE the caller's transaction: finalize takes the pet lock
-  // before it; the decomiso writers (x3) and the dispute resolution do not —
-  // the known gap src/modules/rehome/README.md names. The lock cannot live in
-  // the primitive: taken AFTER a caller's own row locks it would not be first.
-  const LOCK_IS_THE_CALLERS_DUTY = new Set(["lib/infra/end-pet-ownerships.ts"]);
+
+  /** The files whose exports ARE the custody-ending vocabulary. */
+  const PRIMITIVE_FILES = [WRITER, "lib/infra/end-pet-ownerships.ts"];
+
+  /** Exports of those files that do not end anything, each with its reason. */
+  const NOT_A_CUSTODY_ENDER: Record<string, string> = {
+    findOpenSponsorship: "read — the spine predicate for 'is this row sponsored'",
+    listOpenSponsorships: "read — same predicate, many pets",
+    listOpenSponsorshipPetIds: "read — same predicate, ids only",
+    notifyCaretakersOfHandoff: "post-tx notification fan-out; touches no ownership row",
+  };
+
+  /** `name(` for every exported ending, derived — never a hand-kept literal list. */
+  function endingCalls(): string[] {
+    const out: string[] = [];
+    for (const rel of PRIMITIVE_FILES) {
+      const src = readFileSync(join(REPO_ROOT, rel), "utf8");
+      for (const m of src.matchAll(/^export async function (\w+)\(/gm)) {
+        if (NOT_A_CUSTODY_ENDER[m[1]]) continue;
+        out.push(`${m[1]}(`);
+      }
+    }
+    return out.sort();
+  }
+
+  const CALLS = endingCalls();
+
+  /** Index of the first custody-ending call in a source, or -1. */
+  function firstEndingCallAt(src: string): number {
+    let best = -1;
+    for (const call of CALLS) {
+      const at = src.indexOf(call);
+      if (at >= 0 && (best === -1 || at < best)) best = at;
+    }
+    return best;
+  }
+
+  /**
+   * THE RULE, as a function of one file's text — so the planted-writer arm can
+   * run the very same predicate the fence runs, instead of a paraphrase of it.
+   */
+  function breaksTheRule(src: string): boolean {
+    const callAt = firstEndingCallAt(src);
+    if (callAt < 0) return false;
+    const lockAt = src.search(LOCK);
+    return lockAt < 0 || lockAt > callAt;
+  }
+
+  // Files that end custody but take the lock ELSEWHERE, each with the reason
+  // and — where one exists — the pin that proves the lock is really taken.
+  const LOCK_IS_THE_CALLERS_DUTY: Record<string, string> = {
+    "lib/infra/end-pet-ownerships.ts":
+      "The primitive itself. It runs INSIDE its caller's transaction, so a lock taken here would come after the caller's own row locks and would not be first. Every caller now takes it: finalize (before lockLiveCustodyRow), the three decomiso writers, the dispute resolution and both foster closers — pinned by the L-9 arm above and by finalize-custody-lock.test.ts.",
+    "src/modules/adoption/infrastructure/adoption-finalize-writer.ts":
+      "Writer half of finalizeAdoption, always called from that use-case's transaction, which takes acquirePetAdvisoryLock before lockLiveCustodyRow. Pinned by src/modules/adoption/__tests__/finalize-custody-lock.test.ts.",
+    "src/modules/transfers/infrastructure/transfers-repository.ts":
+      "closeOwnerOwnerships is a pass-through delegate to endCaretakerArrangementsForPet, called from acceptPetTransfer's transaction. That transaction serialises on the transfer row (findTransferByIdForUpdate) and re-asserts the sender is still the single active owner, so a hand-off it lost cannot pass. OPEN RESIDUAL: it does not take the PET lock, so it can still cross lock order with a withdraw or a finalize. Reported, not fixed here — loop fase 1 L-9 scoped the lock to the decomiso writers and the dispute resolution.",
+    "src/modules/caretakers/infrastructure/caretakers-repository.ts":
+      "insertEndGrant is a pass-through delegate to endCaretakerGrantAtomically, called from end-caretaker-grant and the expiry cron. OPEN RESIDUAL: neither takes the pet lock — the caretaker race loop fase 1 records as L-9's other half. Reported, not fixed here.",
+  };
 
   function walk(dir: string, acc: string[]): void {
     let names: string[];
@@ -270,7 +336,7 @@ describe("rehome — every caller of endRehomeSponsorship( takes the pet advisor
         const rel = relative(REPO_ROOT, abs).split(sep).join("/");
         if (rel === WRITER) continue;
         const src = readFileSync(abs, "utf8");
-        if (src.includes(CALL)) out.push({ rel, src });
+        if (firstEndingCallAt(src) >= 0) out.push({ rel, src });
       }
     }
     return out.sort((a, b) => a.rel.localeCompare(b.rel));
@@ -278,20 +344,75 @@ describe("rehome — every caller of endRehomeSponsorship( takes the pet advisor
 
   const found = callers();
 
+  it("derives the ending vocabulary from the primitives, not from a literal", () => {
+    // The two that existed before the widening, plus the ones that made M-8
+    // invisible. If a primitive grows a new exported ender it lands here for
+    // free; if it grows a non-ender, NOT_A_CUSTODY_ENDER makes someone say so.
+    expect(CALLS).toEqual([
+      "endAllLiveOwnerships(",
+      "endCaretakerArrangementsForPet(",
+      "endCaretakerGrantAtomically(",
+      "endRehomeSponsorship(",
+    ]);
+  });
+
   it("discovers the callers — the fence is not vacuous", () => {
     const rels = found.map((f) => f.rel);
     expect(rels).toContain("lib/infra/rehome-death-cascade.ts");
     expect(rels).toContain("scripts/rollback-rehome-sponsorships.ts");
     expect(rels).toContain("src/modules/rehome/infrastructure/rehome-repository.ts");
+    // The three the OLD literal could not see. The foster convert writer is the
+    // one that made M-8 possible: it ends a sponsorship transitively, so the
+    // string `endRehomeSponsorship(` appears in it zero times.
+    expect(rels).toContain("src/modules/foster/infrastructure/foster-convert-to-owner-writer.ts");
+    expect(rels).toContain("src/modules/decomiso/application/execute-decomiso.ts");
+    expect(rels).toContain("src/modules/custody-disputes/application/resolve-dispute.ts");
+  });
+
+  it("every allowlisted file still ends custody — no stale exemptions", () => {
+    const rels = new Set(found.map((f) => f.rel));
+    for (const rel of Object.keys(LOCK_IS_THE_CALLERS_DUTY)) {
+      expect(rels.has(rel), `${rel} is exempted but no longer ends custody`).toBe(true);
+    }
+  });
+
+  // NON-VACUITY, the part that matters: the rule really rejects a writer that
+  // closes custody without the lock. It runs the SAME predicate the arms below
+  // run — not a paraphrase of it — over a writer that does not exist in the
+  // tree, so a rule that had quietly stopped matching anything would fail here.
+  it("flags a planted writer that ends custody without the lock", () => {
+    const planted = [
+      "export async function seizeEverything(petId: string, tx: Tx) {",
+      '  await endAllLiveOwnerships({ petId, outcome: "ownership_transferred" }, tx);',
+      "}",
+    ].join("\n");
+    expect(breaksTheRule(planted)).toBe(true);
+
+    const withLock = [
+      "export async function seizeEverything(petId: string, tx: Tx) {",
+      "  await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtext(${petId}))`);",
+      '  await endAllLiveOwnerships({ petId, outcome: "ownership_transferred" }, tx);',
+      "}",
+    ].join("\n");
+    expect(breaksTheRule(withLock)).toBe(false);
+
+    // And the lock BELOW the call is still a violation — order is the rule.
+    const lockTooLate = [
+      "export async function seizeEverything(petId: string, tx: Tx) {",
+      '  await endAllLiveOwnerships({ petId, outcome: "ownership_transferred" }, tx);',
+      "  await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtext(${petId}))`);",
+      "}",
+    ].join("\n");
+    expect(breaksTheRule(lockTooLate)).toBe(true);
+
+    // A file that ends nothing is not the fence's business.
+    expect(breaksTheRule("export function render() { return null; }")).toBe(false);
   });
 
   for (const { rel, src } of found) {
-    if (LOCK_IS_THE_CALLERS_DUTY.has(rel)) continue;
-    it(`${rel}: the pet advisory lock comes before endRehomeSponsorship(`, () => {
-      const lockAt = src.search(LOCK);
-      const callAt = src.indexOf(CALL);
-      expect(lockAt, "a pet advisory lock in the file").toBeGreaterThanOrEqual(0);
-      expect(lockAt).toBeLessThan(callAt);
+    if (LOCK_IS_THE_CALLERS_DUTY[rel]) continue;
+    it(`${rel}: the pet advisory lock comes before it ends custody`, () => {
+      expect(breaksTheRule(src), `${rel} ends custody with no lock before it`).toBe(false);
     });
   }
 
