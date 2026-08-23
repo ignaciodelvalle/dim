@@ -39,6 +39,7 @@ import { withdrawAdoptionApplication } from "./application/withdraw-adoption-app
 import { AdoptionRepository } from "./infrastructure/adoption-repository";
 
 import type { NewNotification } from "./application/set-adoption-eligibility";
+import { ADOPTER_DNI_CHECK_LIMITS } from "./domain/dni-check-policy";
 import type { AgeBucket, EnergyLevel, IneligibleReason, SizeEstimate } from "./domain/types";
 
 // ---------------------------------------------------------------------------
@@ -517,23 +518,13 @@ export type CheckAdopterAccountResult =
   | { found: false }
   | { error: string };
 
-// Per-ORGANIZATION ceiling on the DNI confirmation oracle (D4, PO 2026-08-23).
-//
-// Calibrated against the legitimate use, which is a person at a counter
-// confirming ONE adopter — typing a DNI, maybe re-typing it after a typo, then
-// moving on to paperwork that takes minutes. Even a large shelter finalizing
-// twenty adoptions in a day stays an order of magnitude under these numbers. A
-// script walking the DNI space needs thousands per minute to be worth running
-// and hits the per-minute cap in seconds.
-//
-// Exported so the test asserts against the SAME constant the action enforces:
-// a test that hardcodes its own 8 passes forever after somebody edits the
-// ceiling to 8000.
-export const ADOPTER_DNI_CHECK_LIMITS = {
-  maxPerMinute: 8,
-  maxPerHour: 60,
-  maxPerDay: 200,
-} as const;
+// The per-organization ceiling this action enforces lives in
+// ./domain/dni-check-policy.ts and is imported at the top of this file. It used
+// to be `export const` right here, and that was a HARD 500: Next validates every
+// export of a "use server" module and rejects anything that is not an async
+// function, so this file threw at load and took /org/[orgToken]/mascotas/
+// [publicToken] down with it. scripts/check-server-action-exports.ts is the
+// fence that now catches the class.
 
 // @no-audit-required: READ ONLY. lint:audit-log started seeing capability-gated
 // actions on 2026-08-22 and derives reachability one hop out, so this lands as a

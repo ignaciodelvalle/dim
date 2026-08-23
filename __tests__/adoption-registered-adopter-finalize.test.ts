@@ -46,11 +46,8 @@ import {
   rateLimitBuckets,
 } from "@/db";
 import { createClient } from "@/lib/supabase/server";
-import {
-  ADOPTER_DNI_CHECK_LIMITS,
-  checkAdopterAccountAction,
-  finalizeAdoptionAction,
-} from "@/src/modules/adoption/actions";
+import { checkAdopterAccountAction, finalizeAdoptionAction } from "@/src/modules/adoption/actions";
+import { ADOPTER_DNI_CHECK_LIMITS } from "@/src/modules/adoption/domain/dni-check-policy";
 import { withMutationOverride } from "./_helpers/db-overrides";
 
 const SUPABASE_URL = "http://127.0.0.1:54321";

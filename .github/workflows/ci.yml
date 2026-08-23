@@ -203,6 +203,18 @@ jobs:
         # a new one fails. See scripts/check-action-redirect.ts.
         run: pnpm lint:action-redirect
 
+      - name: Lint ("use server" export shapes)
+        # Next validates EVERY export of a "use server" module and throws AT
+        # MODULE LOAD on anything that is not an async function. It is not a
+        # build error: tsc, biome and the unit suite all pass, and then whatever
+        # page imports the module returns a hard 500. That is not hypothetical —
+        # one `export const ADOPTER_DNI_CHECK_LIMITS = { … }` in
+        # src/modules/adoption/actions.ts took /org/[orgToken]/mascotas/
+        # [publicToken] down in staging telemetry (dpl_HhM1q7Vx2bogqPPhpxntYgyfCnuL).
+        # Offline, so it belongs in this job. See
+        # scripts/check-server-action-exports.ts.
+        run: pnpm lint:server-exports
+
       - name: Lint (router.refresh ban)
         # Nav burn-down N2 (2026-07-04): router.refresh() rides the App
         # Router transition machinery with the production silent-drop defect
