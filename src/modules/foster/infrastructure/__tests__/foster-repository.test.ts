@@ -798,12 +798,17 @@ describe("M-8 — the foster-closing writers refuse a row that is already closed
     expect(convertLockAt, "the pet advisory lock in the convert writer").toBeGreaterThanOrEqual(0);
     expect(convertLockAt).toBeLessThan(convertSrc.indexOf("endAllLiveOwnerships("));
 
-    const repoSrc = readFileSync(join(INFRA, "foster-repository.ts"), "utf8");
-    const endStart = repoSrc.indexOf("async insertEndFoster(");
-    expect(endStart, "insertEndFoster").toBeGreaterThanOrEqual(0);
-    const endBody = repoSrc.slice(endStart, repoSrc.indexOf("\n  async ", endStart + 1));
-    expect(endBody).toContain(LOCK);
-    expect(endBody.indexOf(LOCK)).toBeLessThan(endBody.indexOf("petEvents"));
+    // `insertEndFoster` left foster-repository.ts for its own writer when this
+    // fix grew it past the file's size ratchet — the repository still exports
+    // it as a delegating member, so no caller and no test double moved.
+    const endSrc = readFileSync(join(INFRA, "foster-end-writer.ts"), "utf8");
+    const endLockAt = endSrc.indexOf(LOCK);
+    expect(endLockAt, "the pet advisory lock in the end-foster writer").toBeGreaterThanOrEqual(0);
+    expect(endLockAt).toBeLessThan(endSrc.indexOf("tx.insert(petEvents)"));
+    expect(
+      readFileSync(join(INFRA, "foster-repository.ts"), "utf8"),
+      "the repository still exposes insertEndFoster",
+    ).toContain("insertEndFoster,");
   });
 });
 
