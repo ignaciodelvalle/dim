@@ -341,11 +341,25 @@ export async function endAllLiveOwnerships(
   // and a return value nobody reads is a seam that only looks like one.
   const openSponsorship = await findOpenSponsorship(args.petId, tx);
   if (openSponsorship) {
+    // FOR UPDATE, not a plain read (M-9). A plain SELECT answers from the last
+    // COMMITTED version, so a titular's withdraw and an authority's decomiso
+    // racing on the same custody both see it live, and both write
+    // `rehome_sponsorship_ended` over it — different outcomes, different
+    // authors, and the spine is append-only, so those two contradictory
+    // sentences are printed forever in the animal's official record. Nothing
+    // below catches it: no unique index on the custody key inside the payload,
+    // no idempotency key on this writer, and lint:spine only reports the MIRROR
+    // drift (a closed custody with no event). Under the lock the loser blocks
+    // behind the winner's close of that very row, re-checks `ended_at IS NULL`
+    // via EvalPlanQual, finds it closed, and writes nothing. Same table and
+    // same pattern as the caretaker read above; the blanket UPDATE three
+    // statements down locks these rows anyway, so this costs no new contention.
     const [liveSponsorRow] = await tx
       .select({ id: ownerships.id })
       .from(ownerships)
       .where(and(eq(ownerships.id, openSponsorship.ownershipId), isNull(ownerships.endedAt)))
-      .limit(1);
+      .limit(1)
+      .for("update");
     if (liveSponsorRow) {
       await endRehomeSponsorship(
         {

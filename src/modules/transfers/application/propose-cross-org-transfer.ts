@@ -17,6 +17,7 @@
 
 import type { OpenedReasonParams } from "@/src/modules/cases/domain/opened-reason";
 import {
+  OPEN_CUSTODY_DISPUTE_TRANSFER_ERROR,
   validateCrossOrgReason,
   validateOrgTokenMatch,
   validateReceiverNotSender,
@@ -125,10 +126,12 @@ export async function proposeCrossOrgTransfer(
     };
   }
 
-  // 8. No open custody dispute.
+  // 8. No open custody dispute. Readable refusal here, before a receiver is
+  // bothered; the accept re-checks under its lock (M-10), because a dispute can
+  // be opened during the 30-day handshake window.
   const openDispute = await repo.findOpenDispute(pet.id);
   if (openDispute) {
-    return { ok: false, error: "No podés transferir una mascota con disputa de custodia abierta." };
+    return { ok: false, error: OPEN_CUSTODY_DISPUTE_TRANSFER_ERROR };
   }
 
   const pendingNotifications: NewNotification[] = [];

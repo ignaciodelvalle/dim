@@ -63,6 +63,29 @@ export function validateSourceNotSponsored(input: {
 }
 
 // ---------------------------------------------------------------------------
+// Open custody dispute (M-10)
+// ---------------------------------------------------------------------------
+
+/**
+ * The refusal both cross-org layers show when the pet is under an open custody
+ * dispute. One sentence, whichever layer says it — the propose pre-read or the
+ * accept under the lock — the same shape REQ-15's refusal already uses.
+ *
+ * Why the accept needs it at all: propose checks, accept did not, and a
+ * handshake stays open for 30 days. A dispute opened inside that window let the
+ * animal change institution anyway, and the dispute's resolution then named as
+ * "previous holder" an institution that was never party to the case. The spine
+ * is append-only, so that misattribution cannot be corrected. The P2P twin got
+ * this guard as TR-C1 (CRITICAL, fixed); the cross-org twin never did.
+ *
+ * NOT `validatePetStatusForTransfer`: that validator's `lost` arm would refuse
+ * legitimate org-to-org hand-offs — a shelter passing a still-unclaimed found
+ * animal to another shelter is the normal case here, not an error.
+ */
+export const OPEN_CUSTODY_DISPUTE_TRANSFER_ERROR =
+  "No podés transferir una mascota con disputa de custodia abierta.";
+
+// ---------------------------------------------------------------------------
 // Receiver-not-sender guard
 // ---------------------------------------------------------------------------
 

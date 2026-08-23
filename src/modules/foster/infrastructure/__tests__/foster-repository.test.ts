@@ -649,6 +649,170 @@ describe("AF-C1 — insertConvertFosterToOwner: closes the org's shelter_custody
 });
 
 // ---------------------------------------------------------------------------
+// M-8 (custody-ledger races, 2026-08-23) — the two writers that CLOSE a foster
+// ---------------------------------------------------------------------------
+//
+// Both closed the foster row BY ID, with no `WHERE ended_at IS NULL`, no lock,
+// and the UPDATE's row count discarded — so neither could tell it had done
+// nothing. A shelter finalising an adoption (or accepting a cross-org transfer)
+// at the same instant closes that same row; the ex-foster's conversion then
+// lands its `owner` row on top of a fact already written and confirmed, and the
+// spine is append-only.
+//
+// The same file, 74 lines above `insertEndFoster`, ALREADY has the pattern:
+// `insertAssignFoster` — which OPENS a foster — takes the pet advisory lock and
+// re-verifies inside the tx, naming the double-submit as its threat. The module
+// set the pattern for opening and never applied it to the two that close.
+//
+// The skeptic's two corrections over the original finding:
+//   - The lock has to be taken by BOTH sides. An advisory lock only excludes
+//     other TAKERS, so locking the convert alone leaves it unserialised against
+//     endFoster.
+//   - The in-tx re-read has to be CHECKED, not left as a WHERE clause whose row
+//     count nobody reads — `finalize-adoption.ts` is the shape to copy
+//     (`if (!lockedRow) return` / refuse), not a silent no-op UPDATE.
+describe("M-8 — the foster-closing writers refuse a row that is already closed", () => {
+  it("insertConvertFosterToOwner throws and writes nothing when the foster row was closed by a racing writer", async () => {
+    const [fosterOwnership] = await db
+      .insert(ownerships)
+      .values({ petId, ownerUserId: volunteerUserId, role: "foster" })
+      .returning();
+
+    // The race, made deterministic: the winner (an adoption finalize, a
+    // cross-org accept) already closed this row and committed.
+    await withMutationOverride(async (tx) => {
+      await tx
+        .update(ownerships)
+        .set({ endedAt: new Date() })
+        .where(eq(ownerships.id, fosterOwnership.id));
+    });
+
+    try {
+      await expect(
+        db.transaction(async (tx) => {
+          await FosterRepository.insertConvertFosterToOwner(
+            {
+              petId,
+              petName: "FosterRepoTestPet",
+              fosterOwnershipId: fosterOwnership.id,
+              fosterUserId: volunteerUserId,
+              fosterEndedEventId: crypto.randomUUID(),
+              actorUserId: volunteerUserId,
+              now: new Date(),
+            },
+            tx,
+          );
+        }),
+      ).rejects.toThrow(/tránsito/i);
+
+      // Nothing written: no new owner row, no foster_ended, no
+      // custody_transferred. The shelter_custody row from beforeAll survives.
+      const active = await db
+        .select({ role: ownerships.role })
+        .from(ownerships)
+        .where(and(eq(ownerships.petId, petId), isNull(ownerships.endedAt)));
+      expect(active.map((r) => r.role).sort()).toEqual(["shelter_custody"]);
+      const events = await db
+        .select({ eventType: petEvents.eventType })
+        .from(petEvents)
+        .where(eq(petEvents.petId, petId));
+      expect(events.map((e) => e.eventType)).not.toContain("foster_ended");
+      expect(events.map((e) => e.eventType)).not.toContain("custody_transferred");
+    } finally {
+      await withMutationOverride(async (tx) => {
+        await tx.delete(petEvents).where(eq(petEvents.petId, petId));
+        await tx.delete(ownerships).where(eq(ownerships.petId, petId));
+        const [custody] = await tx
+          .insert(ownerships)
+          .values({ petId, ownerOrganizationId: orgId, role: "shelter_custody" })
+          .returning();
+        custodyOwnershipId = custody.id;
+      });
+    }
+  });
+
+  it("insertEndFoster throws and writes nothing when the foster row was closed by a racing writer", async () => {
+    const [fosterOwnership] = await db
+      .insert(ownerships)
+      .values({ petId, ownerUserId: volunteerUserId, role: "foster" })
+      .returning();
+
+    await withMutationOverride(async (tx) => {
+      await tx
+        .update(ownerships)
+        .set({ endedAt: new Date() })
+        .where(eq(ownerships.id, fosterOwnership.id));
+    });
+
+    try {
+      await expect(
+        db.transaction(async (tx) => {
+          await FosterRepository.insertEndFoster(
+            {
+              petId,
+              petName: "FosterRepoTestPet",
+              fosterOwnershipId: fosterOwnership.id,
+              fosterUserId: volunteerUserId,
+              reason: "returned",
+              closedReason: "resolved",
+              notes: null,
+              actorUserId: proposerUserId,
+              actorOrgId: orgId,
+              actorOrgVerified: true,
+              now: new Date(),
+            },
+            tx,
+          );
+        }),
+      ).rejects.toThrow(/tránsito/i);
+
+      const events = await db
+        .select({ eventType: petEvents.eventType })
+        .from(petEvents)
+        .where(eq(petEvents.petId, petId));
+      expect(events.map((e) => e.eventType)).not.toContain("foster_ended");
+    } finally {
+      await withMutationOverride(async (tx) => {
+        await tx.delete(petEvents).where(eq(petEvents.petId, petId));
+        await tx.delete(ownerships).where(eq(ownerships.petId, petId));
+        const [custody] = await tx
+          .insert(ownerships)
+          .values({ petId, ownerOrganizationId: orgId, role: "shelter_custody" })
+          .returning();
+        custodyOwnershipId = custody.id;
+      });
+    }
+  });
+
+  // The lock itself is not observable from a single transaction, so it is
+  // pinned at the source — and on BOTH sides, which is the whole correction:
+  // an advisory lock excludes only other takers.
+  it("both closing writers take the pet advisory lock, and take it FIRST", async () => {
+    const { readFileSync } = await import("node:fs");
+    const { join } = await import("node:path");
+    const INFRA = join(__dirname, "..");
+    const LOCK = "pg_advisory_xact_lock(hashtext(";
+
+    const convertSrc = readFileSync(join(INFRA, "foster-convert-to-owner-writer.ts"), "utf8");
+    const convertLockAt = convertSrc.indexOf(LOCK);
+    expect(convertLockAt, "the pet advisory lock in the convert writer").toBeGreaterThanOrEqual(0);
+    expect(convertLockAt).toBeLessThan(convertSrc.indexOf("endAllLiveOwnerships("));
+
+    // `insertEndFoster` left foster-repository.ts for its own writer when this
+    // fix grew it past the file's size ratchet — the repository still exports
+    // it as a delegating member, so no caller and no test double moved.
+    const endSrc = readFileSync(join(INFRA, "foster-end-writer.ts"), "utf8");
+    const endLockAt = endSrc.indexOf(LOCK);
+    expect(endLockAt, "the pet advisory lock in the end-foster writer").toBeGreaterThanOrEqual(0);
+    expect(endLockAt).toBeLessThan(endSrc.indexOf("tx.insert(petEvents)"));
+    expect(
+      readFileSync(join(INFRA, "foster-repository.ts"), "utf8"),
+      "the repository still exposes insertEndFoster",
+    ).toContain("insertEndFoster,");
+  });
+});
+
+// ---------------------------------------------------------------------------
 // Authorship honesty on accept (cowork audit finding #7 / AF-L3, 2026-08-12)
 // ---------------------------------------------------------------------------
 //

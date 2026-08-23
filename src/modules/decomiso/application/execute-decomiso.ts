@@ -17,7 +17,7 @@
 //   8. Build notifications (returned post-tx).
 //   9. Audit log: decomiso_executed.
 
-import { and, eq, inArray, isNull } from "drizzle-orm";
+import { and, eq, inArray, isNull, sql } from "drizzle-orm";
 
 import {
   attachments,
@@ -333,6 +333,19 @@ export async function executeDecomiso(
     // Registered pet path — existingPet is non-null (validated by caller).
     activePet = ctx.existingPet as { id: string; name: string; publicToken: string };
   }
+
+  // THE PET ADVISORY LOCK (L-9) — the known gap `src/modules/rehome/README.md`
+  // named. A seizure ends every live ownership on the animal through
+  // `endAllLiveOwnerships` below, taking row locks a titular's withdraw and an
+  // org's finalize take in the OPPOSITE order while holding this same key: the
+  // cycle Postgres breaks with 40P01. This use-case is the first call inside
+  // its `db.transaction`, and on the registered-pet path nothing above ran, so
+  // this is the transaction's first statement — before any row lock.
+  //
+  // On the unowned path the pet was created three statements up and no other
+  // transaction can name a pet that did not exist when it started, so locking
+  // here rather than at the top costs nothing and lets both paths share a line.
+  await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtext(${activePet.id}))`);
 
   // ---------- openCase(custody_episode) ----------
   const caseRow = await libOpenCase(

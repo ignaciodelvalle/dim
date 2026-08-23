@@ -352,6 +352,27 @@ describe("initiatePetTransfer", () => {
     const n = r.notifications.find((n) => n.notificationType === "pet_transfer_received");
     expect(n).toBeUndefined();
   });
+
+  // H-1: a P2P transfer closes the titular's owner row and leaves an org's
+  // rehome sponsorship untouched — the catalogue keeps saying "vive con su
+  // familia" about someone else's animal and the shelter keeps the power to
+  // finalise an adoption over the new owner's head. Same REQ-15 refusal the
+  // cross-org twin already gives, aimed at the titular instead of the org.
+  it("refuses to open a transfer while a rehome sponsorship is running (REQ-15)", async () => {
+    const repo = makeFakeRepo({
+      findOpenSponsorship: vi.fn().mockResolvedValue({ ownershipId: "cust-1" }),
+    });
+    const result = await initiatePetTransfer(baseInput, {
+      repo,
+      actor,
+      transaction: fakeTransaction,
+    });
+    expect(result).toMatchObject({ ok: false });
+    expect((result as { ok: false; error: string }).error).toMatch(/acompañamiento/i);
+    expect((result as { ok: false; error: string }).error).toMatch(/dar de baja/i);
+    expect(repo.findOpenSponsorship).toHaveBeenCalledWith("pet-1");
+    expect(repo.insertPetTransfer).not.toHaveBeenCalled();
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -732,6 +753,28 @@ describe("acceptPetTransfer", () => {
     expect(result).toMatchObject({ ok: false });
     expect((result as { ok: false; error: string }).error).toMatch(/perdida/i);
     expect(repo.closeOwnerOwnerships).not.toHaveBeenCalled();
+  });
+
+  // H-1: the initiate-time refusal is a stale read — a sponsorship can start
+  // during the 7-day window. The check that HOLDS is this one, under the
+  // transfer lock, before any destructive custody write. Mirrors the cross-org
+  // twin's `refuseIfSponsoredCustody` (REQ-15).
+  it("refuses under the lock when a rehome sponsorship is running — nothing is written (REQ-15)", async () => {
+    const repo = makeFakeRepo({
+      findOpenSponsorship: vi.fn().mockResolvedValue({ ownershipId: "cust-1" }),
+    });
+    const result = await acceptPetTransfer(baseInput, {
+      repo,
+      actor,
+      transaction: fakeTransaction,
+    });
+    expect(result).toMatchObject({ ok: false });
+    expect((result as { ok: false; error: string }).error).toMatch(/acompañamiento/i);
+    expect(repo.findOpenSponsorship).toHaveBeenCalledWith("pet-1", fakeTx);
+    expect(repo.closeOwnerOwnerships).not.toHaveBeenCalled();
+    expect(repo.insertOwnerOwnership).not.toHaveBeenCalled();
+    expect(repo.insertPetEvent).not.toHaveBeenCalled();
+    expect(repo.updateTransferStatus).not.toHaveBeenCalled();
   });
 });
 
@@ -1453,6 +1496,47 @@ describe("acceptCrossOrgTransfer", () => {
     expect(repo.insertShelterCustody).not.toHaveBeenCalled();
     expect(repo.insertPetEvent).not.toHaveBeenCalled();
     expect(repo.closeCase).not.toHaveBeenCalled();
+  });
+
+  // M-10: propose checks for an open custody dispute; accept never did, and
+  // between them sits a 30-day window. A dispute opened in the middle let the
+  // animal move anyway, and the dispute's resolution then names as "previous
+  // holder" an institution that was never party to the case — misattribution in
+  // a spine that cannot be corrected. The read is the pet snapshot the P2P twin
+  // already re-runs under ITS lock; the sentence is propose's, word for word.
+  it("refuses under the lock when a custody dispute is open — nothing is written (M-10)", async () => {
+    const repo = makeFakeRepo({
+      findPetStatusById: vi.fn().mockResolvedValue({ status: "found", inCustodyDispute: true }),
+    });
+    const result = await acceptCrossOrgTransfer(baseInput, {
+      repo,
+      actor,
+      transaction: fakeTransaction,
+    });
+    expect(result).toMatchObject({ ok: false });
+    expect((result as { ok: false; error: string }).error).toMatch(/disputa de custodia abierta/);
+    expect(repo.findPetStatusById).toHaveBeenCalledWith("pet-1", fakeTx);
+    expect(repo.endShelterCustody).not.toHaveBeenCalled();
+    expect(repo.insertShelterCustody).not.toHaveBeenCalled();
+    expect(repo.insertPetEvent).not.toHaveBeenCalled();
+    expect(repo.closeCase).not.toHaveBeenCalled();
+  });
+
+  // The report is explicit that `validatePetStatusForTransfer` must NOT be
+  // reused here: its `lost` arm would refuse legitimate org-to-org hand-offs
+  // (a shelter handing a still-unclaimed found animal to another shelter is
+  // the normal case, not an error).
+  it("still accepts a pet reported lost — the P2P status validator is deliberately NOT reused (M-10)", async () => {
+    const repo = makeFakeRepo({
+      findPetStatusById: vi.fn().mockResolvedValue({ status: "lost", inCustodyDispute: false }),
+    });
+    const result = await acceptCrossOrgTransfer(baseInput, {
+      repo,
+      actor,
+      transaction: fakeTransaction,
+    });
+    expect(result).toMatchObject({ ok: true });
+    expect(repo.endShelterCustody).toHaveBeenCalledWith("pet-1", "org-sender", fakeTx);
   });
 
   it("proceeds when the open sponsorship is NOT the source row — an unrelated arrangement does not block the hand-off", async () => {

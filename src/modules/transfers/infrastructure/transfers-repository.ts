@@ -19,7 +19,12 @@ import {
   profiles,
 } from "@/db";
 import { validateEventPayload } from "@/lib/events/event-schemas";
-import { closeCase, findOpenCaseForPetAndKind, openCase } from "@/lib/infra/case-helpers";
+import {
+  closeCase,
+  closeCaseOwned,
+  findOpenCaseForPetAndKind,
+  openCase,
+} from "@/lib/infra/case-helpers";
 import {
   type EndedCaretakerGrant,
   endCaretakerArrangementsForPet,
@@ -963,13 +968,22 @@ export const TransfersRepository = {
     const now = options?.now ?? new Date();
 
     await db.transaction(async (tx) => {
-      // Re-check status inside tx so a concurrent accept/reject wins.
-      const [current] = await tx
-        .select({ status: cases.status })
-        .from(cases)
-        .where(eq(cases.id, candidate.id))
-        .limit(1);
-      if (!current || current.status !== "open") return;
+      // THE CLAIM COMES FIRST (L-8). This used to re-check the status with an
+      // unlocked SELECT, then write the "Auto-expirada" note, then call
+      // `closeCase` — whose result was DISCARDED. An accept committing between
+      // the read and the close left the guarded UPDATE touching zero rows while
+      // the note was already in the pet's append-only timeline, saying the
+      // receiver never answered a handshake that was accepted, and both orgs
+      // notified of it. There is no way back: `pet_events` is append-only.
+      //
+      // `closeCaseOwned` is the method the repo already built for exactly this
+      // — its docblock says the plain `closeCase` "no alcanza cuando el efecto
+      // es un evento ... append-only por trigger". Mutate first, then write only
+      // if we won, the order `src/modules/cases/application/operator-actions.ts`
+      // spells out. It also subsumes the old re-check: an already-closed case
+      // returns `won: false` without touching a row.
+      const { won } = await closeCaseOwned({ caseId: candidate.id, reason: "auto_expired" }, tx);
+      if (!won) return;
 
       // Resolve receiver: canonical column first, payload fallback for legacy rows.
       let receiverOrgId: string | null = candidate.receiverOrganizationId;
@@ -1006,8 +1020,6 @@ export const TransfersRepository = {
           caseId: candidate.id,
         });
       }
-
-      await closeCase({ caseId: candidate.id, reason: "auto_expired" }, tx);
 
       // Notify coordinators on both sides (inside tx — cron has no post-tx flush).
       const orgIds = [candidate.openedByOrganizationId, receiverOrgId].filter(

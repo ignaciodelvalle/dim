@@ -19,7 +19,7 @@
 //      f. Build notifications (returned for post-tx flush).
 //      g. Audit log: decomiso_handoff_accepted.
 
-import { and, desc, eq, inArray, isNull } from "drizzle-orm";
+import { and, desc, eq, inArray, isNull, sql } from "drizzle-orm";
 
 import {
   auditLog,
@@ -188,6 +188,14 @@ export async function acceptDecomisoHandoffInTx(
 ): Promise<{ ok: true; receiverPublicCode: string; pendingNotifications: NewNotification[] }> {
   const now = new Date();
   const pendingNotifications: NewNotification[] = [];
+
+  // THE PET ADVISORY LOCK (L-9) — the known gap `src/modules/rehome/README.md`
+  // named as "the three decomiso writers". This hand-off closes the govt org's
+  // custody row and opens the receiver's; a finalize or a titular's withdraw
+  // takes the same `ownerships` row locks while holding this key, in the
+  // opposite order — the 40P01 cycle. This function is the first call inside
+  // its `db.transaction`, so this is the transaction's first statement.
+  await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtext(${caseRow.primaryPetId as string}))`);
 
   // 6. custody_transferred (shelter_custody → shelter_custody, govt→receiver).
   const transferPayload = validateEventPayload("custody_transferred", {

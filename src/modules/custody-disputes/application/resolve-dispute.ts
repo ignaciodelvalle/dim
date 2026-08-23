@@ -17,7 +17,7 @@
 //   - Inserts audit_log entry.
 //   - Fans out notifications to all parties + raiser.
 
-import { and, eq, isNull } from "drizzle-orm";
+import { and, eq, isNull, sql } from "drizzle-orm";
 
 import {
   auditLog,
@@ -102,6 +102,20 @@ export async function resolveDisputeUseCase(
         .for("update");
       if (!dispute) throw new Error("Disputa no encontrada.");
       if (dispute.status !== "open") throw new Error("La disputa no está abierta.");
+
+      // THE PET ADVISORY LOCK (L-9) — the known gap `src/modules/rehome/README.md`
+      // named: this resolution ends every live ownership on the pet, and it took
+      // no pet lock at all. A titular's withdraw or an org's finalize holds that
+      // lock while it touches the same rows in the opposite order, so the cycle
+      // Postgres breaks with 40P01 was open on this path. Same key every other
+      // pet-scoped custody writer uses.
+      //
+      // It comes AFTER the dispute row lock on purpose, and that is not a lock
+      // ordering hazard: `custody_disputes` rows are locked FOR UPDATE by this
+      // use-case ALONE, so no other transaction can hold that row while waiting
+      // on the pet — there is no second edge to close a cycle. Moving it above
+      // would mean reading `dispute.petId` before the row is pinned.
+      await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtext(${dispute.petId}))`);
 
       if (session.profile.role === "govt" && !isGovtInScope(session.jurisdictions, dispute)) {
         throw new Error("Esta disputa está fuera de tu jurisdicción.");

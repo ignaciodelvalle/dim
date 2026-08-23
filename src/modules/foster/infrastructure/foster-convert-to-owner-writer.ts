@@ -25,7 +25,7 @@
 // VERBATIM MOVE. Same statements, same order, same comments — including the
 // explanation of why enumerating roles let a caretaker through.
 
-import { eq } from "drizzle-orm";
+import { and, eq, isNull, sql } from "drizzle-orm";
 
 import { type db, ownerships, petEvents } from "@/db";
 import { validateEventPayload } from "@/lib/events/event-schemas";
@@ -72,7 +72,38 @@ export async function insertConvertFosterToOwner(
     now,
   } = args;
 
-  // a. End foster ownership.
+  // THE PET ADVISORY LOCK, FIRST (M-8). Two writers CLOSE a foster row — this
+  // one and `insertEndFoster` — while a shelter's adoption finalize or
+  // cross-org accept closes it from the other side. An advisory lock excludes
+  // only other TAKERS, so it has to be taken by BOTH sides: locking the convert
+  // alone would leave it unserialised against endFoster. `insertAssignFoster`,
+  // which OPENS a foster, already takes this exact lock in this same module,
+  // naming the double-submit as its threat — the module set the pattern for
+  // opening and never applied it to the two writers that close.
+  //
+  // Taken BEFORE any row lock, it also keeps the row locks `endAllLiveOwnerships`
+  // takes below from forming a cycle with the titular's withdraw (WU5 lock
+  // order, same key as adoption's `acquirePetAdvisoryLock`).
+  await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtext(${petId}))`);
+
+  // a. End foster ownership — RE-READ AND CHECKED under the lock, never a blind
+  //    UPDATE by id. The use-case's `findActiveFosterByUser` runs OUTSIDE the
+  //    transaction and is stale by construction; the old statement had no
+  //    `ended_at IS NULL` and DISCARDED its row count, so when a racing writer
+  //    had already closed this row, this one could not tell it had done nothing
+  //    and went on to mint an `owner` row on top of a fact already written and
+  //    confirmed — in an append-only spine. Refusing is the shape
+  //    `finalize-adoption.ts` uses (`lockLiveCustodyRow` + `if (!locked)`), not
+  //    a WHERE clause whose row count nobody reads.
+  const [lockedFoster] = await tx
+    .select({ id: ownerships.id })
+    .from(ownerships)
+    .where(and(eq(ownerships.id, fosterOwnershipId), isNull(ownerships.endedAt)))
+    .limit(1)
+    .for("update");
+  if (!lockedFoster) {
+    throw new Error("Este tránsito ya no está activo. Actualizá la página y volvé a intentar.");
+  }
   await tx.update(ownerships).set({ endedAt: now }).where(eq(ownerships.id, fosterOwnershipId));
 
   // b. Find open foster_placement case.

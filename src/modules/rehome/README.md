@@ -123,20 +123,42 @@ serialising custody writers (chip-match, return-to-owner, cross-org transfer):
 | Rollback | `scripts/rollback-rehome-sponsorships.ts` — per pet, then re-read |
 
 Pinned by `src/modules/rehome/__tests__/owner-row-lock.test.ts` — including
-an arm that **discovers** every caller of `endRehomeSponsorship(` instead of
-naming writers — and `src/modules/adoption/__tests__/finalize-custody-lock.test.ts`;
+an arm that **discovers** every writer that ends custody instead of naming
+them, deriving the call vocabulary from the exports of the two files that
+define an ending rather than searching one literal (widened 2026-08-23: the old
+`endRehomeSponsorship(` search was blind to the foster convert writer, which
+ends a sponsorship transitively — *a fence enumerates forms, not the thing*) —
+and `src/modules/adoption/__tests__/finalize-custody-lock.test.ts`;
 proven real by `__tests__/rehome-withdraw-flow.test.ts` and
 `__tests__/rehome-death-cascade.test.ts` (a withdraw racing the death).
 
-**Known gap — writers outside the feature.** `lib/infra/end-pet-ownerships.ts`
-ends an open sponsorship whenever it closes the custody row, and it runs inside
-its CALLER's transaction. Finalize takes the pet lock before reaching it; the
-three decomiso writers and the custody-dispute resolution do not (they predate
-this feature). A decomiso committing concurrently with a withdraw or a finalize
-can still hit `40P01` on those paths. The lock cannot move into the primitive —
-taken after a caller's own row locks it would not be first — so that file is
-the one allowlisted caller in the fence, with this reason, until those writers
-are fixed at their own transaction boundary.
+**Writers outside the feature — closed 2026-08-23 (loop fase 1, M-9 + L-9).**
+`lib/infra/end-pet-ownerships.ts` ends an open sponsorship whenever it closes
+the custody row, and it runs inside its CALLER's transaction. The lock cannot
+move into the primitive — taken after a caller's own row locks it would not be
+first — so that file stays the one allowlisted caller in the fence, with this
+reason. What changed is that its callers now all take the lock:
+
+| Writer | Where the lock goes |
+|---|---|
+| `finalizeAdoption` | before `lockLiveCustodyRow` (WU5) |
+| `executeDecomiso` | first statement of its transaction (after the in-flight pet insert on the unowned path) |
+| `acceptDecomisoHandoffInTx` | first statement of its transaction |
+| `returnCustodyToOwnerInTx` | first statement of its transaction |
+| `resolveDisputeUseCase` | right after the dispute row lock — `custody_disputes` rows are locked by that use-case alone, so that edge cannot close a cycle |
+| `insertConvertFosterToOwner` / `insertEndFoster` | first statement (M-8 — an advisory lock excludes only other takers, so BOTH foster closers take it) |
+
+This description used to say those five writers did not take it and that a
+concurrent decomiso "can still hit `40P01`". That was true and is no longer;
+the arm in `owner-row-lock.test.ts` now pins each one against the first custody
+write it must precede.
+
+**The duplicate-event half was a different defect.** The 40P01 cycle needed
+crossed lock orders; the DUPLICATE needed nothing — `endAllLiveOwnerships`
+guarded its sponsorship close with a plain `SELECT`, which reads the last
+committed version and says "still live" even when another transaction has
+already closed the row. That guard now reads `FOR UPDATE` (M-9), so the losing
+transaction blocks, re-checks, and writes no second `rehome_sponsorship_ended`.
 
 ---
 
@@ -168,10 +190,29 @@ unconstrained). 0196 drops a never-shipped draft index name.
 | The animal's death | `createDeathRecord` CASCADE D → `lib/infra/rehome-death-cascade.ts` — same closes as the withdraw, under the pet lock; signed by whoever recorded the death, `author_organization_id` = the **sponsoring** org (WU6/7 review, M-2); a still-pending request is closed too; the org's notice points at the closed case | `pet_deceased` |
 | An authority's hand-off (decomiso, a resolved dispute) | `endAllLiveOwnerships` | `withdrawn_by_platform` |
 | The platform, rolling the feature back | `scripts/rollback-rehome-sponsorships.ts` | `withdrawn_by_platform` |
+| **The titular changing the title** (owner→owner transfer) | `initiatePetTransfer` / `acceptPetTransfer` — **REFUSED** (REQ-15), nothing written | *(none — the titular withdraws first)* |
 
 Nothing auto-expires (design R3, accepted): the titular was never blocked from
-leaving, so nothing needs a deadline. A cross-org transfer of a sponsored
-custody row is **refused** (REQ-15), not ended.
+leaving, so nothing needs a deadline.
+
+**A hand-off never ends a sponsorship — it is refused (REQ-15).** That holds
+for both shapes, and for the same reason: ending the arrangement inside someone
+else's hand-off would leave custody standing with no `rehome_sponsorship_started`
+naming a live row, so REQ-10's unconditional route back would be gone.
+
+- **Cross-org** (`proposeCrossOrgTransfer` / `acceptCrossOrgTransfer`): the org
+  cannot hand off a row a titular's consent opened.
+- **Owner→owner** (`initiatePetTransfer` / `acceptPetTransfer`): the titular
+  cannot hand the title to another person while the accompaniment runs.
+  `closeOwnerOwnerships` filters on `role='owner'` **by design**, so the org's
+  custody row would survive a title change and stand over a stranger — the
+  catalogue still reading "vive con su familia", and the shelter still able to
+  finalise an adoption that closes the new owner's row. The refusal points the
+  titular at withdraw, the one door that is theirs.
+
+Both layers check twice: a readable refusal on the pre-read (before anyone else
+is bothered) and the one that HOLDS under the lock, because a sponsorship can
+start after the proposal was made.
 
 ---
 
