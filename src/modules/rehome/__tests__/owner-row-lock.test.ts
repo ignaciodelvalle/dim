@@ -124,6 +124,53 @@ describe("rehome — every transaction takes the pet advisory lock BEFORE any ro
   });
 });
 
+// Loop fase 1, L-9 (2026-08-23): the writers the allowlist below names as the
+// KNOWN GAP — "the three decomiso writers and the custody-dispute resolution do
+// not [take the pet lock]". That gap is the deadlock (40P01) half of M-9: the
+// duplicate event is closed by the helper's own `FOR UPDATE`, but a decomiso
+// committing concurrently with a withdraw or a finalize still takes the same
+// row locks in the opposite order, and Postgres breaks that cycle by killing
+// one side. Each of these four opens (or is the first call inside) its own
+// transaction, so the lock goes at that boundary — first, before any row lock.
+//
+// `pg_advisory_xact_lock(hashtext(petId))` is the repo's one key for
+// serialising pet-scoped custody writers: adoption's `acquirePetAdvisoryLock`,
+// rehome's, the chip-match / return-to-owner / cross-org writers, and (since
+// M-8) both foster closers all take that exact key.
+describe("custody hand-offs outside the rehome feature take the pet advisory lock first (L-9)", () => {
+  const LOCK = "pg_advisory_xact_lock(hashtext(";
+
+  // Each entry: the file, and the first custody write that must come AFTER the
+  // lock. Naming the write (not just "somewhere in the file") is what stops a
+  // lock drifting below the thing it is supposed to serialise.
+  const WRITERS: Array<{ rel: string; firstWrite: string }> = [
+    { rel: "src/modules/decomiso/application/execute-decomiso.ts", firstWrite: "libOpenCase(" },
+    {
+      rel: "src/modules/decomiso/application/accept-decomiso-handoff.ts",
+      firstWrite: "tx.insert(petEvents)",
+    },
+    {
+      rel: "src/modules/decomiso/application/return-custody-to-owner.ts",
+      firstWrite: "tx.insert(petEvents)",
+    },
+    {
+      rel: "src/modules/custody-disputes/application/resolve-dispute.ts",
+      firstWrite: "endAllLiveOwnerships(",
+    },
+  ];
+
+  for (const { rel, firstWrite } of WRITERS) {
+    it(`${rel}: the pet advisory lock comes before ${firstWrite}`, () => {
+      const src = readFileSync(join(REPO_ROOT, rel), "utf8");
+      const lockAt = src.indexOf(LOCK);
+      const writeAt = src.indexOf(firstWrite);
+      expect(lockAt, `${LOCK} in ${rel}`).toBeGreaterThanOrEqual(0);
+      expect(writeAt, `${firstWrite} in ${rel}`).toBeGreaterThanOrEqual(0);
+      expect(lockAt).toBeLessThan(writeAt);
+    });
+  }
+});
+
 // Loop fase 1, M-9 (2026-08-23): `endAllLiveOwnerships` guards its sponsorship
 // close on "is that custody row still LIVE" — and that guard is a PLAIN select.
 // A plain select reads the last committed version, so it answers "yes, live"

@@ -42,7 +42,7 @@
 // below (event → reactivate → close govt custody → close case) mirrors
 // acceptDecomisoHandoffInTx's step order for parity, not for correctness.
 
-import { and, eq, isNotNull, isNull } from "drizzle-orm";
+import { and, eq, isNotNull, isNull, sql } from "drizzle-orm";
 
 import { auditLog, cases, type db, ownerships, petEvents, pets } from "@/db";
 import type { Case } from "@/db/schema";
@@ -205,6 +205,14 @@ export async function returnCustodyToOwnerInTx(
   const now = new Date();
   const pendingNotifications: NewNotification[] = [];
   const petId = caseRow.primaryPetId as string;
+
+  // THE PET ADVISORY LOCK (L-9) — the known gap `src/modules/rehome/README.md`
+  // named as "the three decomiso writers". This return closes the govt org's
+  // custody row and reopens the former owner's; a finalize or a titular's
+  // withdraw takes the same `ownerships` row locks while holding this key, in
+  // the opposite order — the 40P01 cycle. This function is the first call
+  // inside its `db.transaction`, so this is the transaction's first statement.
+  await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtext(${petId}))`);
 
   // 1. custody_transferred (shelter_custody → owner, govt org → former owner
   // user). Same shape as ownerAcceptReturnUseCase's org→owner transfer.

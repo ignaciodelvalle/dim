@@ -128,15 +128,33 @@ naming writers — and `src/modules/adoption/__tests__/finalize-custody-lock.tes
 proven real by `__tests__/rehome-withdraw-flow.test.ts` and
 `__tests__/rehome-death-cascade.test.ts` (a withdraw racing the death).
 
-**Known gap — writers outside the feature.** `lib/infra/end-pet-ownerships.ts`
-ends an open sponsorship whenever it closes the custody row, and it runs inside
-its CALLER's transaction. Finalize takes the pet lock before reaching it; the
-three decomiso writers and the custody-dispute resolution do not (they predate
-this feature). A decomiso committing concurrently with a withdraw or a finalize
-can still hit `40P01` on those paths. The lock cannot move into the primitive —
-taken after a caller's own row locks it would not be first — so that file is
-the one allowlisted caller in the fence, with this reason, until those writers
-are fixed at their own transaction boundary.
+**Writers outside the feature — closed 2026-08-23 (loop fase 1, M-9 + L-9).**
+`lib/infra/end-pet-ownerships.ts` ends an open sponsorship whenever it closes
+the custody row, and it runs inside its CALLER's transaction. The lock cannot
+move into the primitive — taken after a caller's own row locks it would not be
+first — so that file stays the one allowlisted caller in the fence, with this
+reason. What changed is that its callers now all take the lock:
+
+| Writer | Where the lock goes |
+|---|---|
+| `finalizeAdoption` | before `lockLiveCustodyRow` (WU5) |
+| `executeDecomiso` | first statement of its transaction (after the in-flight pet insert on the unowned path) |
+| `acceptDecomisoHandoffInTx` | first statement of its transaction |
+| `returnCustodyToOwnerInTx` | first statement of its transaction |
+| `resolveDisputeUseCase` | right after the dispute row lock — `custody_disputes` rows are locked by that use-case alone, so that edge cannot close a cycle |
+| `insertConvertFosterToOwner` / `insertEndFoster` | first statement (M-8 — an advisory lock excludes only other takers, so BOTH foster closers take it) |
+
+This description used to say those five writers did not take it and that a
+concurrent decomiso "can still hit `40P01`". That was true and is no longer;
+the arm in `owner-row-lock.test.ts` now pins each one against the first custody
+write it must precede.
+
+**The duplicate-event half was a different defect.** The 40P01 cycle needed
+crossed lock orders; the DUPLICATE needed nothing — `endAllLiveOwnerships`
+guarded its sponsorship close with a plain `SELECT`, which reads the last
+committed version and says "still live" even when another transaction has
+already closed the row. That guard now reads `FOR UPDATE` (M-9), so the losing
+transaction blocks, re-checks, and writes no second `rehome_sponsorship_ended`.
 
 ---
 
