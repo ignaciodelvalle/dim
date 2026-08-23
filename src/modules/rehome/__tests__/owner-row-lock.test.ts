@@ -124,6 +124,57 @@ describe("rehome — every transaction takes the pet advisory lock BEFORE any ro
   });
 });
 
+// Loop fase 1, M-9 (2026-08-23): `endAllLiveOwnerships` guards its sponsorship
+// close on "is that custody row still LIVE" — and that guard is a PLAIN select.
+// A plain select reads the last committed version, so it answers "yes, live"
+// even when a concurrent transaction has already closed the row and not yet
+// committed. Both transactions then write `rehome_sponsorship_ended` over the
+// same custody with DIFFERENT outcomes and DIFFERENT authors (a titular's
+// withdraw racing an authority's decomiso), and the spine is append-only: two
+// contradictory sentences printed forever in the animal's official record.
+// Nothing below catches it — no unique index on the custody key inside the
+// payload, no idempotency key on this writer, and `lint:spine` only reports the
+// MIRROR drift (a closed custody with no event).
+//
+// `FOR UPDATE` closes it: the losing transaction blocks behind the winner's
+// close of that very row, re-checks `ended_at IS NULL` under EvalPlanQual, drops
+// out, and writes no second event. Same table and same pattern as the caretaker
+// read twenty lines above, and the blanket UPDATE three statements later locks
+// those rows anyway — so this buys serialisation, not a new lock.
+//
+// This closes the DUPLICATE-EVENT half only. The deadlock half (40P01) needs
+// the pet advisory lock to reach the three decomiso writers and
+// resolve-dispute.ts — the gap LOCK_IS_THE_CALLERS_DUTY names above.
+describe("end-pet-ownerships — the live-sponsorship-row re-read is locked (M-9)", () => {
+  const endSrc = readFileSync(join(REPO_ROOT, "lib/infra/end-pet-ownerships.ts"), "utf8");
+
+  /** The body of `endAllLiveOwnerships`, up to the next top-level export. */
+  function endAllLiveOwnershipsBody(): string {
+    const start = endSrc.indexOf("export async function endAllLiveOwnerships(");
+    expect(start, "endAllLiveOwnerships").toBeGreaterThanOrEqual(0);
+    const next = endSrc.indexOf("\nexport ", start + 1);
+    return endSrc.slice(start, next === -1 ? undefined : next);
+  }
+
+  it("re-reads the sponsorship's live ownership row FOR UPDATE", () => {
+    const body = endAllLiveOwnershipsBody();
+    const readAt = body.indexOf("const [liveSponsorRow]");
+    expect(readAt, "the live-sponsorship-row read").toBeGreaterThanOrEqual(0);
+    const readEnd = body.indexOf("if (liveSponsorRow)", readAt);
+    expect(readEnd, "the guard that consumes it").toBeGreaterThan(readAt);
+    const readBlock = body.slice(readAt, readEnd);
+    expect(readBlock).toContain("isNull(ownerships.endedAt)");
+    expect(readBlock).toContain('.for("update")');
+  });
+
+  it("the caretaker read it mirrors is still locked — the precedent, same file, same table", () => {
+    const readAt = endSrc.indexOf("const liveCaretakerGrants");
+    expect(readAt, "the live-caretaker-grants read").toBeGreaterThanOrEqual(0);
+    const readEnd = endSrc.indexOf("for (const grant of liveCaretakerGrants)", readAt);
+    expect(endSrc.slice(readAt, readEnd)).toContain('.for("update")');
+  });
+});
+
 // WU6/7 review (M-1): the death of a sponsored pet ends the sponsorship inside
 // the death transaction — which had already closed the foster rows and updated
 // the pets row before it reached for the custody row, and took no pet lock at
