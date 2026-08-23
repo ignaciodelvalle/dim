@@ -96,6 +96,21 @@ jobs:
         # See scripts/check-titular-gate.ts.
         run: pnpm lint:titular-gate
 
+      - name: "Fence: one active ownership row is not one ROW (lint:titular-row)"
+        # The other half of what custodia-temporal broke. lint:titular-gate asks
+        # whether a caretaker may WRITE; this asks whether a query that READS
+        # "the titular" is actually reading the titular. `(pet_id, ended_at IS
+        # NULL)` + `limit(1)` stopped meaning "exactly one row" the day an
+        # accepted grant started opening a second active row, and seven call
+        # sites shipped picking by heap order — a caretaker's phone on a public
+        # credential, on a printable lost poster, and a stranger's contact
+        # delivered to the wrong person.
+        #
+        # Offline — static analysis over every ownerships query in the tree. Its
+        # own step so a failure names THIS fence.
+        # See scripts/check-titular-row-resolution.ts.
+        run: pnpm lint:titular-row
+
       - name: "Fence: /api guards never read a middleware header (lint:api-headers)"
         # B51 (native-readiness T1.2). middleware.ts stamps x-pathname /
         # x-full-path / x-portal-base on the REQUEST, and a missing stamp
