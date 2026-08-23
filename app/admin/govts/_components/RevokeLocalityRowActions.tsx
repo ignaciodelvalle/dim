@@ -11,7 +11,7 @@
 // Evidence (C23): files are held in state and uploaded on SUBMIT, namespaced by
 // the TARGET assignment id. Cancelling never uploads — no orphaned objects.
 
-import { useRef, useState, useTransition } from "react";
+import { useId, useRef, useState, useTransition } from "react";
 
 import { revokeGovtLocalityAction } from "@/app/actions/admin-revocations";
 import { MOTIVO_MIN, MotivoField } from "@/components/MotivoField";
@@ -70,6 +70,21 @@ function RevokeLocalityForm({
   onDone: () => void;
   onCancel: () => void;
 }) {
+  // The evidence input's id comes from useId(), NEVER a literal.
+  //
+  // This form renders once PER LOCALITY ASSIGNMENT (app/admin/govts/[userId]/
+  // page.tsx, inside a .map()). A hardcoded id gave every row the same one, so
+  // `label.control` resolved to the FIRST input in the document for all of
+  // them — and each row owns its own `mode`, with no single-open guard, so two
+  // panels can be expanded at once. Expanded together, clicking row 2's
+  // "Evidencia" label opened the picker bound to row 1's input, and the file
+  // landed in the wrong form: the mandatory evidence of an AUDITED, destructive
+  // revocation, attached to a different official's locality.
+  //
+  // Same defect and same remedy as the chapa revocation dialog (1861c614c) and
+  // as components/MotivoField.tsx before it. Third time, so state the rule: a
+  // control inside a repeated row never carries a literal id.
+  const evidenceId = useId();
   const [pending, startTransition] = useTransition();
   const [motivo, setMotivo] = useState("");
   const [confirm, setConfirm] = useState(false);
@@ -126,13 +141,13 @@ function RevokeLocalityForm({
 
       <div className="space-y-1">
         <label
-          htmlFor="revoke-locality-evidence"
+          htmlFor={evidenceId}
           className="block text-xs uppercase tracking-wider text-ln-op-mute"
         >
           Evidencia (al menos 1 archivo)
         </label>
         <input
-          id="revoke-locality-evidence"
+          id={evidenceId}
           ref={fileInputRef}
           type="file"
           accept="image/*,application/pdf"
