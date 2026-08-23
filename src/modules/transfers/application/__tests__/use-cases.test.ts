@@ -352,6 +352,27 @@ describe("initiatePetTransfer", () => {
     const n = r.notifications.find((n) => n.notificationType === "pet_transfer_received");
     expect(n).toBeUndefined();
   });
+
+  // H-1: a P2P transfer closes the titular's owner row and leaves an org's
+  // rehome sponsorship untouched — the catalogue keeps saying "vive con su
+  // familia" about someone else's animal and the shelter keeps the power to
+  // finalise an adoption over the new owner's head. Same REQ-15 refusal the
+  // cross-org twin already gives, aimed at the titular instead of the org.
+  it("refuses to open a transfer while a rehome sponsorship is running (REQ-15)", async () => {
+    const repo = makeFakeRepo({
+      findOpenSponsorship: vi.fn().mockResolvedValue({ ownershipId: "cust-1" }),
+    });
+    const result = await initiatePetTransfer(baseInput, {
+      repo,
+      actor,
+      transaction: fakeTransaction,
+    });
+    expect(result).toMatchObject({ ok: false });
+    expect((result as { ok: false; error: string }).error).toMatch(/acompañamiento/i);
+    expect((result as { ok: false; error: string }).error).toMatch(/dar de baja/i);
+    expect(repo.findOpenSponsorship).toHaveBeenCalledWith("pet-1");
+    expect(repo.insertPetTransfer).not.toHaveBeenCalled();
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -732,6 +753,28 @@ describe("acceptPetTransfer", () => {
     expect(result).toMatchObject({ ok: false });
     expect((result as { ok: false; error: string }).error).toMatch(/perdida/i);
     expect(repo.closeOwnerOwnerships).not.toHaveBeenCalled();
+  });
+
+  // H-1: the initiate-time refusal is a stale read — a sponsorship can start
+  // during the 7-day window. The check that HOLDS is this one, under the
+  // transfer lock, before any destructive custody write. Mirrors the cross-org
+  // twin's `refuseIfSponsoredCustody` (REQ-15).
+  it("refuses under the lock when a rehome sponsorship is running — nothing is written (REQ-15)", async () => {
+    const repo = makeFakeRepo({
+      findOpenSponsorship: vi.fn().mockResolvedValue({ ownershipId: "cust-1" }),
+    });
+    const result = await acceptPetTransfer(baseInput, {
+      repo,
+      actor,
+      transaction: fakeTransaction,
+    });
+    expect(result).toMatchObject({ ok: false });
+    expect((result as { ok: false; error: string }).error).toMatch(/acompañamiento/i);
+    expect(repo.findOpenSponsorship).toHaveBeenCalledWith("pet-1", fakeTx);
+    expect(repo.closeOwnerOwnerships).not.toHaveBeenCalled();
+    expect(repo.insertOwnerOwnership).not.toHaveBeenCalled();
+    expect(repo.insertPetEvent).not.toHaveBeenCalled();
+    expect(repo.updateTransferStatus).not.toHaveBeenCalled();
   });
 });
 

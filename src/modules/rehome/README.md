@@ -168,10 +168,29 @@ unconstrained). 0196 drops a never-shipped draft index name.
 | The animal's death | `createDeathRecord` CASCADE D → `lib/infra/rehome-death-cascade.ts` — same closes as the withdraw, under the pet lock; signed by whoever recorded the death, `author_organization_id` = the **sponsoring** org (WU6/7 review, M-2); a still-pending request is closed too; the org's notice points at the closed case | `pet_deceased` |
 | An authority's hand-off (decomiso, a resolved dispute) | `endAllLiveOwnerships` | `withdrawn_by_platform` |
 | The platform, rolling the feature back | `scripts/rollback-rehome-sponsorships.ts` | `withdrawn_by_platform` |
+| **The titular changing the title** (owner→owner transfer) | `initiatePetTransfer` / `acceptPetTransfer` — **REFUSED** (REQ-15), nothing written | *(none — the titular withdraws first)* |
 
 Nothing auto-expires (design R3, accepted): the titular was never blocked from
-leaving, so nothing needs a deadline. A cross-org transfer of a sponsored
-custody row is **refused** (REQ-15), not ended.
+leaving, so nothing needs a deadline.
+
+**A hand-off never ends a sponsorship — it is refused (REQ-15).** That holds
+for both shapes, and for the same reason: ending the arrangement inside someone
+else's hand-off would leave custody standing with no `rehome_sponsorship_started`
+naming a live row, so REQ-10's unconditional route back would be gone.
+
+- **Cross-org** (`proposeCrossOrgTransfer` / `acceptCrossOrgTransfer`): the org
+  cannot hand off a row a titular's consent opened.
+- **Owner→owner** (`initiatePetTransfer` / `acceptPetTransfer`): the titular
+  cannot hand the title to another person while the accompaniment runs.
+  `closeOwnerOwnerships` filters on `role='owner'` **by design**, so the org's
+  custody row would survive a title change and stand over a stranger — the
+  catalogue still reading "vive con su familia", and the shelter still able to
+  finalise an adoption that closes the new owner's row. The refusal points the
+  titular at withdraw, the one door that is theirs.
+
+Both layers check twice: a readable refusal on the pre-read (before anyone else
+is bothered) and the one that HOLDS under the lock, because a sponsorship can
+start after the proposal was made.
 
 ---
 

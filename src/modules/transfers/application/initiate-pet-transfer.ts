@@ -27,6 +27,7 @@ import {
   computeTransferExpiresAt,
   isValidTransferEmail,
   validateOwnerTransferReason,
+  validatePetNotSponsored,
   validatePetStatusForTransfer,
   validateSelfTransfer,
 } from "../domain/owner-transfer-rules";
@@ -102,6 +103,16 @@ export async function initiatePetTransfer(
   if (!ownership || ownership.ownerUserId !== user.id) {
     return { ok: false, error: "Solo el dueño actual puede iniciar una transferencia." };
   }
+
+  // 5b. Sponsored-pet guard (rehome-by-titular, REQ-15). Readable refusal
+  // here, before a recipient is bothered and before an invitation email goes
+  // out; the accept re-checks under the transfer lock, because a sponsorship
+  // can start during the 7-day window. Same two-layer shape the cross-org twin
+  // uses (propose pre-read + accept under the lock).
+  const notSponsored = validatePetNotSponsored({
+    openSponsorship: await repo.findOpenSponsorship(pet.id),
+  });
+  if (!notSponsored.ok) return notSponsored;
 
   // 6. Recipient lookup + self-transfer guard.
   const toOwnerId = await repo.findUserIdByEmail(toEmail);

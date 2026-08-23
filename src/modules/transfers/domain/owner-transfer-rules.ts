@@ -52,6 +52,52 @@ export function validatePetStatusForTransfer(pet: PetStatusSnapshot): DomainResu
 }
 
 // ---------------------------------------------------------------------------
+// Sponsored pet guard (rehome-by-titular, REQ-15)
+// ---------------------------------------------------------------------------
+
+/**
+ * The refusal a titular sees when the pet is still on a shelter's adoption
+ * listing.
+ *
+ * The cross-org twin's `SPONSORED_CUSTODY_TRANSFER_ERROR` says the same thing
+ * to the ORG holding the row ("only the titular may end it — no se puede
+ * transferir a otra organización"). Read BY the titular that sentence names
+ * the wrong actor and the wrong destination (this hand-off goes to a person),
+ * so the P2P side gets its own wording, whose job is to name the one action
+ * that unblocks it: withdraw the sponsorship first.
+ */
+export const SPONSORED_PET_TRANSFER_ERROR =
+  "Un refugio está acompañando la adopción de esta mascota. Antes de transferir la titularidad tenés que dar de baja el acompañamiento.";
+
+/**
+ * An owner→owner transfer closes the titular's `owner` row and touches nothing
+ * else (`closeOwnerOwnerships` filters on `role='owner'` by design). If a
+ * shelter's `shelter_custody` row is still open under a rehome sponsorship,
+ * the hand-off leaves it standing over a stranger: the public catalogue keeps
+ * saying "vive con su familia" about someone else's animal, and the shelter
+ * keeps the power to finalise an adoption to a third party — which closes the
+ * NEW owner's ownership row. Neither side is told the title changed.
+ *
+ * Spec REQ-15 already decided this shape for the cross-org twin: a sponsored
+ * custody is **refused**, never ended inside another hand-off, because ending
+ * it here would leave no `rehome_sponsorship_started` naming a live row and
+ * REQ-10's unconditional route back would be gone. The titular's own withdraw
+ * is the door.
+ *
+ * Unlike `validateSourceNotSponsored`, this predicate does NOT compare ids:
+ * the cross-org rule blocks an org from handing off THAT row, while here ANY
+ * open sponsorship on the pet is the thing left dangling by the title change.
+ */
+export function validatePetNotSponsored(input: {
+  openSponsorship: { ownershipId: string } | null;
+}): DomainResult {
+  if (input.openSponsorship) {
+    return { ok: false, error: SPONSORED_PET_TRANSFER_ERROR };
+  }
+  return { ok: true, value: undefined };
+}
+
+// ---------------------------------------------------------------------------
 // Self-transfer guard
 // ---------------------------------------------------------------------------
 

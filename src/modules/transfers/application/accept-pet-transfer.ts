@@ -8,6 +8,7 @@
 //   1. Load transfer + status check + expiry check + recipient auth (id-or-email)
 //   2. Sender-accepting-own guard
 //   3. ATOMIC tx:
+//      0. sponsored-pet guard under the lock (REQ-15) — refuse, never end
 //      a. closeOwnerOwnerships (BEFORE insert — unique-active-owner partial index parity)
 //      b. insertOwnerOwnership
 //      c. insertPetEvent (custody_transferred, authorRole=owner)
@@ -19,6 +20,7 @@
 // PARITY QUIRK: close BEFORE insert (unique-active-owner partial index validates at commit).
 
 import {
+  validatePetNotSponsored,
   validatePetStatusForTransfer,
   validateRecipientMatch,
 } from "../domain/owner-transfer-rules";
@@ -131,6 +133,27 @@ export async function acceptPetTransfer(
       );
       if (!currentOwner || currentOwner.ownerUserId !== transfer.fromOwnerId) {
         throw new Error("La transferencia ya no es válida: la titularidad cambió.");
+      }
+
+      // SPONSORED-PET GUARD (REQ-15): `closeOwnerOwnerships` below ends the
+      // titular's `owner` row and NOTHING else — by design, per its own
+      // docblock. A shelter's `shelter_custody` row opened by a rehome
+      // sponsorship therefore survives the hand-off and now stands over a
+      // stranger: the public catalogue keeps saying "vive con su familia", and
+      // the shelter keeps the power to finalise an adoption that would close
+      // the NEW owner's row. Refuse — never end the sponsorship inside another
+      // hand-off — exactly as the cross-org twin does (refuseIfSponsoredCustody).
+      // Initiate refuses too, but that read is stale: a sponsorship can start
+      // during the 7-day window, so the check that HOLDS is this one, under the
+      // transfer lock, before any destructive custody write.
+      const notSponsored = validatePetNotSponsored({
+        openSponsorship: await repo.findOpenSponsorship(
+          transfer.petId,
+          tx as Parameters<typeof repo.findOpenSponsorship>[1],
+        ),
+      });
+      if (!notSponsored.ok) {
+        throw new Error(notSponsored.error);
       }
 
       // PARITY QUIRK: close BEFORE insert.
