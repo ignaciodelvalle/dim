@@ -1,5 +1,7 @@
 # Prompt — revisión integral del sistema (Cowork), 2026-08-22
 
+> **SUPERSEDIDO por `docs/agents/prompt-cowork-revision-integral-2026-08-23.md`.** Este archivo queda como el registro de que la corrida del 2026-08-22 no se ejecutó, y por qué (ver "Pendientes del PO" al final).
+
 > **Cómo usar este archivo.** Copiá el bloque de abajo y reemplazá
 > `{{DEPLOY_URL}}` y `{{SHA}}` por los datos del lanzamiento. Como en el resto
 > de la familia (`prompt-cowork-demo-recorridos.md`,
