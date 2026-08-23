@@ -28,6 +28,12 @@ import { ConvertFosterButton } from "@/app/(app)/mis-mascotas/[publicToken]/_com
 type RabiesObservationBannerProps = {
   pet: { name: string; publicToken: string };
   events: Array<{ id: string; eventType: string; occurredAt: Date | string; payload: unknown }>;
+  /**
+   * Display name of the organization that opened the observation, when a THIRD
+   * PARTY opened it (D1). Null/undefined for an owner-reported bite — the
+   * banner then names nobody rather than inventing an opener.
+   */
+  openedByOrgName?: string | null;
 };
 
 /**
@@ -45,8 +51,21 @@ type RabiesObservationBannerProps = {
  * actually resolved for this jurisdiction). Older observations have no such
  * field, and the copy then quotes only the deadline DATE rather than inventing
  * the national 10.
+ *
+ * 2026-08-23 (D1): "you cannot close this, here is who can" used to render ONLY
+ * once the window had elapsed. That put the sentence on day 11 of a 10-day
+ * observation — while the day someone disputes an observation opened in error
+ * is day 1. The PO ruled out an in-product dispute channel on the explicit
+ * condition that the owner can SEE where they stand; so the sentence now shows
+ * for the whole observation, and the reporting organization is named when a
+ * third party opened it. This banner deliberately carries no control: naming
+ * the opener is the route out, and the route runs outside the product.
  */
-export function RabiesObservationBanner({ pet, events }: RabiesObservationBannerProps) {
+export function RabiesObservationBanner({
+  pet,
+  events,
+  openedByOrgName,
+}: RabiesObservationBannerProps) {
   const startedEvent = events.find((e) => e.eventType === "rabies_observation_started");
   const startedPayload = (startedEvent?.payload ?? {}) as Record<string, unknown>;
   const observationUntilRaw = startedPayload.observation_until as string | undefined;
@@ -80,13 +99,18 @@ export function RabiesObservationBanner({ pet, events }: RabiesObservationBanner
         Si {pet.name} muestra salivación excesiva, agresividad inusual, parálisis o cambios bruscos
         de comportamiento, consultá al veterinario de inmediato.
       </p>
-      {periodClosed && (
+      {openedByOrgName && (
         <p className="text-sm text-[var(--color-ln-warn)]">
-          El período ya se cumplió. El cierre lo registra un veterinario matriculado o la autoridad
-          sanitaria de tu localidad — no podés cerrarlo vos, porque el resultado de la observación
-          es un dato clínico. Pedíselo a tu veterinario o a la autoridad sanitaria.
+          La mordedura la reportó <strong>{openedByOrgName}</strong>. Si discrepás con el reporte,
+          planteáselo a esa organización o a la autoridad sanitaria de tu municipio.
         </p>
       )}
+      <p className="text-sm text-[var(--color-ln-warn)]">
+        {periodClosed ? "El período ya se cumplió. El cierre" : "El cierre de la observación"} lo
+        registra un veterinario matriculado o la autoridad sanitaria de tu localidad: no podés
+        cerrarla vos, porque el resultado de la observación es un dato clínico.
+        {periodClosed ? " Pedíselo a tu veterinario o a la autoridad sanitaria." : ""}
+      </p>
     </section>
   );
 }

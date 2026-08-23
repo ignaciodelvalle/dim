@@ -15,24 +15,39 @@ import { auditLog, db } from "@/db";
 // case_detail, observacion_detail — the highest-exposure reads, previously
 // untraced) log the viewed subject's public token/code as the query. Free-form
 // JSONB payload value, not a schema column — no migration needed.
+// `adopter_dni_check` (D4, 2026-08-23) is the odd one out and deliberately so:
+// its `query` is NOT the typed string but the HMAC of the typed DNI
+// (lib/utils/dni-hash.ts). Invariant 5 admits no exception for an audit table —
+// a trail that stores the identity document it was meant to protect is worse
+// than no trail. The hash is still a usable key: the same DNI hashes the same
+// way, so a sweep over many people is as visible as a repeat check on one.
 export type PiiSurface =
   | "users"
   | "organizations"
   | "omnibox"
   | "pet_profile"
   | "case_detail"
-  | "observacion_detail";
+  | "observacion_detail"
+  | "adopter_dni_check";
 
 export async function logPiiQueryForAuthority(
   actorUserId: string,
   query: string,
   resultCount: number,
   surface: PiiSurface,
+  /**
+   * Extra payload keys for surfaces that need a grain finer than the actor.
+   * `adopter_dni_check` records `organization_id` because its ceiling is
+   * per-organization, and "which org burned the budget" is unanswerable from
+   * the actor alone once a coordinator belongs to two of them. JSONB payload
+   * values, never columns — a new surface never needs a migration.
+   */
+  extra?: Record<string, unknown>,
 ): Promise<void> {
   await db.insert(auditLog).values({
     actorUserId,
     action: "pii_queried",
-    payload: { query, result_count: resultCount, surface },
+    payload: { query, result_count: resultCount, surface, ...extra },
   });
 }
 

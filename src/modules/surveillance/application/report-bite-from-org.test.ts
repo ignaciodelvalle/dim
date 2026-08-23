@@ -81,6 +81,9 @@ const BASE_INPUT: ReportBiteFromOrgInput = {
     verified: true,
     // The province this org was VERIFIED in — the coverage arm's anchor (U3).
     jurisdictionProvince: "CABA",
+    // D1: the owner's only route back to whoever opened the observation.
+    email: "contacto@clinicavet.test",
+    phone: "11-5555-0000",
   },
   occurredAt: new Date("2024-07-01T09:00:00Z"),
   victimKind: "animal",
@@ -280,6 +283,50 @@ describe("reportBiteFromOrg (org path)", () => {
     );
     expect(ownerNotif).toBeDefined();
     expect(ownerNotif?.userId).toBe("owner-user-99");
+  });
+
+  // D1 (PO 2026-08-23): the owner gets NO in-product dispute channel for an
+  // observation opened in error — the complaint goes outside the system, to the
+  // organization or the municipality. That decision only holds if this notice is
+  // USABLE: a notice that names neither who opened it nor how to reach them does
+  // not implement the decision, it simulates it.
+  it("names the reporting organization AND a concrete contact route (D1)", async () => {
+    const deps = makeDeps({
+      findActiveOwnership: vi.fn().mockResolvedValue({ ownerUserId: "owner-user-99" }),
+    });
+    const result = await reportBiteFromOrg(BASE_INPUT, deps);
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    const ownerNotif = result.notifications.find(
+      (n) => n.notificationType === "bite_reported_by_org_owner",
+    );
+    expect(ownerNotif).toBeDefined();
+    // (a) who opened it
+    expect(ownerNotif?.body).toContain("Clinica Vet SA");
+    // (b) how to reach them — the org's own contact data, not a category noun
+    expect(ownerNotif?.body).toContain("contacto@clinicavet.test");
+    expect(ownerNotif?.body).toContain("11-5555-0000");
+    // (c) where the owner stands: they cannot close it themselves
+    expect(ownerNotif?.body).toMatch(/no pod[eé]s cerrarla vos/i);
+  });
+
+  it("falls back to the email alone when the org declares no phone (D1)", async () => {
+    const deps = makeDeps({
+      findActiveOwnership: vi.fn().mockResolvedValue({ ownerUserId: "owner-user-99" }),
+    });
+    const result = await reportBiteFromOrg(
+      { ...BASE_INPUT, organization: { ...BASE_INPUT.organization, phone: null } },
+      deps,
+    );
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    const ownerNotif = result.notifications.find(
+      (n) => n.notificationType === "bite_reported_by_org_owner",
+    );
+    expect(ownerNotif?.body).toContain("contacto@clinicavet.test");
+    expect(ownerNotif?.body).not.toContain("11-5555-0000");
+    // No dangling separator when the phone is absent.
+    expect(ownerNotif?.body).not.toMatch(/contacto@clinicavet\.test\s*\/\s*\./);
   });
 
   it("does NOT notify owner when no active ownership", async () => {

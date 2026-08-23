@@ -857,10 +857,29 @@ export default async function PetDetailPage({
   // "urgent" — nothing is known to be wrong with the animal; what is pending is
   // a professional signature, which the banner now asks for.
   if (isObservationOpen(pet.rabiesObservationStatus)) {
+    // D1 (PO 2026-08-23): the owner has no in-product way to lift an observation
+    // opened in error, so the banner must at least name who opened it. The
+    // opener's display name is already in memory — `allCases` is a full-row
+    // select and the org bite writer stamps `openedReasonParams.orgDisplayName`
+    // (opened-reason.ts, code `bite_reported_org`). No extra query: this page's
+    // fan-out is already the widest outside the dashboards.
+    const orgBiteCase = allCases.find(
+      (c) =>
+        c.caseKind === "bite_incident" &&
+        (c.status === "open" || c.status === "escalated") &&
+        c.openedReasonCode === "bite_reported_org",
+    );
+    const openedByOrgName =
+      typeof (orgBiteCase?.openedReasonParams as { orgDisplayName?: unknown } | null)
+        ?.orgDisplayName === "string"
+        ? ((orgBiteCase?.openedReasonParams as { orgDisplayName: string }).orgDisplayName ?? null)
+        : null;
     petAlerts.push({
       id: "rabies",
       tone: pet.rabiesObservationStatus === "in_progress" ? "urgent" : "warning",
-      node: <RabiesObservationBanner pet={pet} events={typedEvents} />,
+      node: (
+        <RabiesObservationBanner pet={pet} events={typedEvents} openedByOrgName={openedByOrgName} />
+      ),
     });
   }
   if (isTransit) {

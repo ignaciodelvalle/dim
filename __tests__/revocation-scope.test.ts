@@ -91,17 +91,98 @@ describe("canRevoke — govt, org_verification", () => {
 });
 
 // ---------------------------------------------------------------------------
-// Govt — govt_locality: province + locality must match
+// Govt — govt_locality: STRICTLY WIDER coverage, not mere containment
+//
+// D3 (PO decision, 2026-08-23). Until now this branch used plain containment,
+// so two officials assigned to the SAME locality could strip each other: an
+// official in Buenos Aires / La Plata contained the scope of another official
+// in Buenos Aires / La Plata, and `canRevoke` said yes. The assertion below
+// USED TO PIN THAT AS EXPECTED — it asserted `true` for exactly the peer pair.
+// It is turned around ON PURPOSE. A green test that fixes a defect is how the
+// next reader concludes THEY are the ones who are wrong, so the reversal is
+// stated here rather than left for them to reconstruct.
+//
+// The rule the PO chose is RANK, not admin-only: an actor may revoke a govt
+// assignment only when their own coverage is STRICTLY WIDER than the target's
+// — province over locality, nation over province. Admin-only was rejected
+// precisely so a province does NOT have to escalate every legitimate
+// revocation inside its own territory. "Nation" has no assignment row in this
+// model: universal scope is the admin branch above, which still returns true.
 // ---------------------------------------------------------------------------
 
 describe("canRevoke — govt, govt_locality", () => {
-  it("returns true when jurisdiction matches", () => {
+  it("REFUSES a peer: same locality is equal rank, not wider (D3)", () => {
     const target: RevocationTarget = {
       type: "govt_locality",
       province: "Buenos Aires",
       locality: "La Plata",
     };
-    expect(canRevoke(govtProfile, target, bsasJurisdictions)).toBe(true);
+    expect(canRevoke(govtProfile, target, bsasJurisdictions)).toBe(false);
+  });
+
+  it("REFUSES a provincial peer: whole-province over whole-province is equal rank (D3)", () => {
+    const target: RevocationTarget = {
+      type: "govt_locality",
+      province: "Buenos Aires",
+      locality: "",
+    };
+    expect(canRevoke(govtProfile, target, [{ province: "Buenos Aires", locality: "" }])).toBe(
+      false,
+    );
+  });
+
+  it("ALLOWS strictly wider: a provincial operator over a locality inside it (D3)", () => {
+    const target: RevocationTarget = {
+      type: "govt_locality",
+      province: "Buenos Aires",
+      locality: "La Plata",
+    };
+    expect(canRevoke(govtProfile, target, [{ province: "Buenos Aires", locality: "" }])).toBe(true);
+  });
+
+  it("ALLOWS a whole-CABA operator over a barrio assignment (D3)", () => {
+    const target: RevocationTarget = {
+      type: "govt_locality",
+      province: "CABA",
+      locality: "Palermo",
+    };
+    expect(
+      canRevoke(govtProfile, target, [
+        { province: "CABA", locality: "Ciudad Autónoma de Buenos Aires" },
+      ]),
+    ).toBe(true);
+  });
+
+  it("REFUSES a locality operator reaching UP at the province that contains them (D3)", () => {
+    const target: RevocationTarget = {
+      type: "govt_locality",
+      province: "Buenos Aires",
+      locality: "",
+    };
+    expect(canRevoke(govtProfile, target, bsasJurisdictions)).toBe(false);
+  });
+
+  it("still refuses SELF at the scope layer: an actor never outranks their own row (D3)", () => {
+    // The writer's own SELF_REVOCATION_DENIED guard (revoke-govt-locality.ts,
+    // before canRevoke) is unchanged and remains the primary check. This
+    // asserts the rank rule does not quietly open a second door behind it:
+    // the actor's coverage can never be strictly wider than the very row they
+    // hold, so the pure predicate refuses it too.
+    const target: RevocationTarget = {
+      type: "govt_locality",
+      province: "Buenos Aires",
+      locality: "La Plata",
+    };
+    expect(canRevoke(govtProfile, target, bsasJurisdictions)).toBe(false);
+  });
+
+  it("ADMIN keeps universal reach over a whole-province assignment (D3)", () => {
+    const target: RevocationTarget = {
+      type: "govt_locality",
+      province: "Buenos Aires",
+      locality: "",
+    };
+    expect(canRevoke(adminProfile, target, [])).toBe(true);
   });
 
   it("returns false when jurisdiction does not match", () => {

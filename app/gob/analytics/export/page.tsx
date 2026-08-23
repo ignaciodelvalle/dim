@@ -16,6 +16,7 @@ import { resolveJurisdictionScope } from "@/lib/analytics/jurisdiction-scope";
 import { requireAdminOrGovtOrRedirect } from "@/lib/infra/auth-guards";
 import { ExportFormClient } from "./ExportFormClient";
 import { EXPORT_DEFAULT_PRESET } from "./export-period";
+import { EXPORT_PRIVACY_NOTICE } from "./privacy-notice";
 
 export const dynamic = "force-dynamic";
 
@@ -87,22 +88,20 @@ export default async function GobAnalyticsExportPage({
         <p className="text-md text-ln-op-mute">
           {profile.role === "admin"
             ? "Vista universal — todas las jurisdicciones."
-            : "Genera una exportación anonimizada de los datos de tu cobertura."}
+            : "Genera el padrón fila por fila de los datos de tu cobertura."}
         </p>
       </header>
 
-      {/* Privacy notice -- Ley 25.326 */}
+      {/* Privacy notice -- Ley 25.326.
+          Copy lives in ./privacy-notice.ts so it can be asserted by a test: it
+          is a factual claim about what leaves the database, and the previous
+          version of it ("Los datos exportados están anonimizados") was not
+          true of a row-level padrón. See that module's header for the D2
+          decision and the two properties the claim rests on. */}
       <OpCallout
         icon="i"
         title="Aviso sobre proteccion de datos personales (Ley 25.326)."
-        body={
-          <>
-            Los datos exportados están anonimizados según los principios de minimización y
-            proporcionalidad. No se incluye ningún dato personal identificable (nombre, DNI, email,
-            microchip) en el archivo generado. El link de descarga vence a las 24 horas. El uso de
-            esta exportación queda registrada en el log de auditoría.
-          </>
-        }
+        body={EXPORT_PRIVACY_NOTICE}
       />
 
       <OpCard>

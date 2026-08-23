@@ -12,6 +12,7 @@
 
 import { describe, expect, it } from "vitest";
 
+import { EXPORT_PRIVACY_NOTICE } from "@/app/gob/analytics/export/privacy-notice";
 import {
   EXPORT_SCHEMA_VERSION,
   anonymizeRows,
@@ -328,5 +329,37 @@ describe("EXPORT_SCHEMA_VERSION", () => {
   it("is a non-empty string (used in audit log payload)", () => {
     expect(typeof EXPORT_SCHEMA_VERSION).toBe("string");
     expect(EXPORT_SCHEMA_VERSION.length).toBeGreaterThan(0);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// D2 (PO 2026-08-23) — the export declares itself a row-level padrón
+//
+// /gob/analytics/export is a ROW-LEVEL CSV and the k-anonymity policy is simply
+// not applied to it: `anonymizeRows` only STRIPS fields (the schema tests above
+// are the proof), it never suppresses a cell, so `SELECT locality, count(*) …
+// GROUP BY 1` over the rows reconstructs every cell the map suppresses. The PO
+// decided NOT to aggregate it — a funcionario needs the padrón of their own
+// territory and suppressing cells breaks the purpose. What was dishonest was
+// the operator notice calling the file "anonimizado" while handing over one row
+// per animal.
+// ---------------------------------------------------------------------------
+
+describe("EXPORT_PRIVACY_NOTICE — says what the operator is actually downloading (D2)", () => {
+  it("calls the file row-level, and drops the anonymity it does not deliver", () => {
+    expect(EXPORT_PRIVACY_NOTICE).toMatch(/fila por fila|nivel de fila/i);
+    // The old copy promised anonymity it does not deliver. A padrón of one row
+    // per animal is pseudonymous at best.
+    expect(EXPORT_PRIVACY_NOTICE).not.toMatch(/est[aá]n anonimizados/i);
+  });
+
+  it("states it is OUTSIDE the k-anonymity policy that governs the dashboards", () => {
+    expect(EXPORT_PRIVACY_NOTICE).toMatch(/anonimato/i);
+    expect(EXPORT_PRIVACY_NOTICE).toMatch(/no se aplica|queda fuera|fuera de/i);
+  });
+
+  it("states the two properties the declaration rests on: own jurisdiction + audited", () => {
+    expect(EXPORT_PRIVACY_NOTICE).toMatch(/jurisdicci[oó]n/i);
+    expect(EXPORT_PRIVACY_NOTICE).toMatch(/auditor[ií]a/i);
   });
 });

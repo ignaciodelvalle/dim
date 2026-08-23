@@ -63,3 +63,66 @@
 
 **Where the fix is specified if reopened:** apply the same `suppressSmallCells` + rollup used by
 `suppressGeoReach` to the per-offering list and its CSV (task #68; the geo-reach fix is the template).
+
+## PD1 — `/gob/analytics/export` is a row-level padrón, declared OUTSIDE the k-anon policy
+
+**Accepted by PO decision, 2026-08-23 (D2). This entry is the declaration, not a note about one.**
+
+- **What:** `/gob/analytics/export` emits ROW-LEVEL CSV/JSON — one row per pet, case, organization
+  and event — and the k-anonymity policy is simply not applied to it. `anonymizeRows`
+  (`lib/analytics/govt-exports.ts:87-106`) parses each row through a Zod schema, which STRIPS
+  undeclared fields; it suppresses no cell, ever. An `rg` over the four files of the export path
+  returns zero mentions of suppression. The four fetchers live in
+  `lib/analytics/dashboards/exports.ts:37-232`; the action is
+  `app/gob/analytics/export/actions.ts`.
+- **Attack:** `SELECT locality, count(*) … GROUP BY 1` in Excel over the CSV reconstructs every
+  cell the dashboards suppress. **Measured 2026-08-22: 2.144 of 2.186 mortality-by-locality cells
+  (98 %) are under the threshold** — i.e. nearly every cell the board hides is recoverable from the
+  file with one spreadsheet formula. Worse, and not mentioned by the original finding: the event
+  rows carry the same key as the pet rows, so a **per-animal timeline** (registration, vaccination,
+  sterilization, death) can be assembled in localities that frequently hold exactly one pet. That
+  one does not fall out of any aggregate.
+- **Why accepted:** an official needs the **padrón of their own territory**; suppressing cells
+  breaks the purpose of the export rather than hardening it. The trust envelope is the same one
+  under which KA1/KA2 were already accepted: an admin or a govt operator **bounded to their own
+  jurisdiction**, no direct identifiers in the file, 24 h signed URL, audit-logged. What was
+  dishonest was never that the export existed — it was that `AGENTS.md#aggregation--privacy-policy`
+  claimed one thing while this CSV did another, and that the operator-facing notice said the file
+  was "anonimizado". Both are corrected in the same change as this entry.
+- **The two properties this acceptance RESTS on — verified against the code on 2026-08-23, not
+  assumed. If either stops holding, this entry is void and reopens immediately:**
+  1. **Jurisdiction scoping — HOLDS.** All four fetchers apply a scope clause
+     (`petsScopeClause` / `petsCurrentJurisdictionClause` / `casesScopeClause` /
+     `organizationsScopeClause`) and every one of them **fails closed**:
+     `actor.role === "govt" && jurisdictions.length === 0` returns `[]` before any query is built.
+     The form's JurisdictionSwitcher narrows further (`resolveJurisdictionScope`). Admin is
+     universal by role — that is the definition of admin, not a leak in this surface.
+  2. **Audit logging — HOLDS.** `app/gob/analytics/export/actions.ts` writes one
+     `analytics_export_generated` row carrying actor, schema version, slices, format, the resolved
+     period, the jurisdiction, the storage path and per-slice row + rejected counts.
+     **Residual, small and named:** the row is inserted at step 8, AFTER the file is uploaded and
+     the signed URL minted, so a crash in between leaves a downloadable file with no trail. Not a
+     blocker for this acceptance; the file path is still user-scoped and the bucket is locked down
+     (migration `0172_export_buckets_lockdown.sql`).
+- **Reopen if any of these happen:**
+  1. Either verified property above stops holding — a fetcher loses its scope clause or stops
+     failing closed, or the audit insert is removed, made best-effort, or moved behind a branch.
+  2. The export becomes reachable by a role that is **not** bounded to its own jurisdiction, or by
+     a non-operator role.
+  3. The row schemas gain an attribute that identifies a **person** (owner name, DNI, contact,
+     precise coordinates). Today they carry none; the Zod schemas in `lib/analytics/govt-exports.ts`
+     are the enforcement point and the test file `__tests__/govt-exports.test.ts` pins them.
+  4. A **federal audit / Mi Argentina federation review** asks for the re-identification analysis —
+     this entry is the disclosure; at that point aggregate it or gate it, do not argue it.
+  5. The export is offered to anyone outside a state organism (an NGO portal, an open-data feed).
+     Datos abiertos is a DIFFERENT surface and the k-anon policy governs it without exception.
+- **What was explicitly NOT done, and why:** the repro recommended suppressing the locality on
+  sub-threshold rows at province level. The PO chose declaration over suppression: a padrón with
+  holes in it is not a padrón, and the operator would work around it by asking for the data another
+  way — which is the same disclosure with no trail.
+
+**Where the fix is specified if reopened:** the suppression variant is `lib/metrics/anonymity.ts`
+→ `suppressSmallCells` applied to the fetchers' output before `anonymizeRows`, with the locality
+column blanked (never the row dropped) for sub-k localities — the sibling censo / población exports
+are the template. The operator notice lives in `app/gob/analytics/export/privacy-notice.ts` and is
+asserted by `__tests__/govt-exports.test.ts`; change both together.
