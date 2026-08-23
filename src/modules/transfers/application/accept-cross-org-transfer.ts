@@ -11,7 +11,9 @@
 //   4. Canonical sender + drift detection (validateSenderOrgScope)
 //   5. Canonical receiver + drift detection (validateReceiverOrgScope) — SECURITY BOUNDARY
 //   6. Pre-tx: findOpenCustodyEpisode + findActiveFosterRow (foster cascade)
-//   7. ATOMIC tx:
+//   7. ATOMIC tx (guards first, under the pet advisory lock: case still open,
+//      no open custody dispute (M-10), source still holds, not a sponsorship
+//      (REQ-15), one live org custody):
 //      a. foster cascade (if active foster): closeFosterOwnership +
 //         insertPetEvent(foster_ended, UPFRONT UUID) — emitted BEFORE
 //         custody_transferred so its payload can reference the foster_ended id
@@ -39,6 +41,7 @@ import { randomUUID } from "node:crypto";
 import { ORG_CUSTODY_TAKEN_ERROR, isOrgCustodyCollision } from "@/lib/infra/org-custody";
 
 import {
+  OPEN_CUSTODY_DISPUTE_TRANSFER_ERROR,
   SPONSORED_CUSTODY_TRANSFER_ERROR,
   validateDuplicateProposalGuard,
   validateOrgTokenMatch,
@@ -108,6 +111,38 @@ async function refuseIfSponsoredCustody(
     openSponsorship: sponsorship,
   });
   if (!rule.ok) throw new Error(rule.error);
+}
+
+// ---------------------------------------------------------------------------
+// Open custody dispute guard (M-10)
+// ---------------------------------------------------------------------------
+
+/**
+ * Propose refuses a pet under an open custody dispute; accept never did — and a
+ * handshake stays open for 30 days. A dispute opened inside that window let the
+ * animal change institution mid-case, and the dispute's resolution then named
+ * as "previous holder" an institution that was never party to it.
+ * Misattribution in an append-only spine cannot be corrected, so the guard has
+ * to hold HERE, under the lock, before any custody write. Opening a dispute
+ * does not cancel pending handshakes either, so nothing upstream closes this.
+ *
+ * The P2P twin got this as TR-C1 (CRITICAL, fixed); the cross-org twin never
+ * did. It reads the same pet snapshot the twin re-runs under ITS lock, but uses
+ * ONLY the dispute arm: `validatePetStatusForTransfer` is deliberately NOT
+ * reused, because its `lost` arm would refuse a shelter handing a
+ * still-unclaimed found animal to another shelter — the normal case here.
+ */
+async function refuseIfDisputed(repo: Deps["repo"], petId: string, tx: unknown): Promise<void> {
+  const petSnapshot = await repo.findPetStatusById(
+    petId,
+    tx as Parameters<typeof repo.findPetStatusById>[1],
+  );
+  if (!petSnapshot) {
+    throw new Error("La mascota ya no existe. La transferencia no es válida.");
+  }
+  if (petSnapshot.inCustodyDispute) {
+    throw new Error(OPEN_CUSTODY_DISPUTE_TRANSFER_ERROR);
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -217,6 +252,9 @@ export async function acceptCrossOrgTransfer(
       if (currentStatus !== "open") {
         throw new Error("Este caso ya no está abierto.");
       }
+
+      // CUSTODY-DISPUTE GUARD (M-10) — under the lock, see refuseIfDisputed.
+      await refuseIfDisputed(repo, caseRow.primaryPetId as string, tx);
 
       // SOURCE-CUSTODY GUARD (TR-H1): re-verify the source org STILL HOLDS the
       // custody row we are about to end, under the lock. The case being open is
@@ -424,6 +462,11 @@ export async function acceptCrossOrgTransfer(
     }
     if (err instanceof Error && err.message === SPONSORED_CUSTODY_TRANSFER_ERROR) {
       return { ok: false, error: SPONSORED_CUSTODY_TRANSFER_ERROR };
+    }
+    // M-10: the member reads propose's sentence verbatim, not wrapped in
+    // "No se pudo aceptar la transferencia:" — same passthrough as REQ-15's.
+    if (err instanceof Error && err.message === OPEN_CUSTODY_DISPUTE_TRANSFER_ERROR) {
+      return { ok: false, error: OPEN_CUSTODY_DISPUTE_TRANSFER_ERROR };
     }
     return {
       ok: false,

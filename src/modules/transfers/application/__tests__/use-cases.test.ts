@@ -1498,6 +1498,47 @@ describe("acceptCrossOrgTransfer", () => {
     expect(repo.closeCase).not.toHaveBeenCalled();
   });
 
+  // M-10: propose checks for an open custody dispute; accept never did, and
+  // between them sits a 30-day window. A dispute opened in the middle let the
+  // animal move anyway, and the dispute's resolution then names as "previous
+  // holder" an institution that was never party to the case — misattribution in
+  // a spine that cannot be corrected. The read is the pet snapshot the P2P twin
+  // already re-runs under ITS lock; the sentence is propose's, word for word.
+  it("refuses under the lock when a custody dispute is open — nothing is written (M-10)", async () => {
+    const repo = makeFakeRepo({
+      findPetStatusById: vi.fn().mockResolvedValue({ status: "found", inCustodyDispute: true }),
+    });
+    const result = await acceptCrossOrgTransfer(baseInput, {
+      repo,
+      actor,
+      transaction: fakeTransaction,
+    });
+    expect(result).toMatchObject({ ok: false });
+    expect((result as { ok: false; error: string }).error).toMatch(/disputa de custodia abierta/);
+    expect(repo.findPetStatusById).toHaveBeenCalledWith("pet-1", fakeTx);
+    expect(repo.endShelterCustody).not.toHaveBeenCalled();
+    expect(repo.insertShelterCustody).not.toHaveBeenCalled();
+    expect(repo.insertPetEvent).not.toHaveBeenCalled();
+    expect(repo.closeCase).not.toHaveBeenCalled();
+  });
+
+  // The report is explicit that `validatePetStatusForTransfer` must NOT be
+  // reused here: its `lost` arm would refuse legitimate org-to-org hand-offs
+  // (a shelter handing a still-unclaimed found animal to another shelter is
+  // the normal case, not an error).
+  it("still accepts a pet reported lost — the P2P status validator is deliberately NOT reused (M-10)", async () => {
+    const repo = makeFakeRepo({
+      findPetStatusById: vi.fn().mockResolvedValue({ status: "lost", inCustodyDispute: false }),
+    });
+    const result = await acceptCrossOrgTransfer(baseInput, {
+      repo,
+      actor,
+      transaction: fakeTransaction,
+    });
+    expect(result).toMatchObject({ ok: true });
+    expect(repo.endShelterCustody).toHaveBeenCalledWith("pet-1", "org-sender", fakeTx);
+  });
+
   it("proceeds when the open sponsorship is NOT the source row — an unrelated arrangement does not block the hand-off", async () => {
     const repo = makeFakeRepo({
       findOpenSponsorship: vi
