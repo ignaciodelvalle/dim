@@ -625,10 +625,12 @@ describe("reportPetSightingAction — who hears the sighting", () => {
     expect(new Set(keys).size).toBe(keys.length);
   });
 
-  // The refusal still exists — it just means "nobody can be notified" now
-  // (every holder is an organisation, or there is no active holder at all)
-  // instead of "no row happened to carry role='owner'".
-  it("refuses when there is no notifiable holder at all", async () => {
+  // AND THE REFUSAL IS GONE. "Nobody can be notified" was a hard `ok: false`
+  // placed ABOVE the event insert, so an org-held pet — 381 of them on staging,
+  // one lost at the time of writing — had its sighting thrown away under a
+  // message that was not even true. Who hears about a fact cannot gate the
+  // fact: the event is append-only, the notification is best-effort.
+  it("records the sighting even when nobody is notifiable (org-held pet)", async () => {
     vi.resetModules();
     buildMockDb();
     activeHolderRows = [];
@@ -640,9 +642,9 @@ describe("reportPetSightingAction — who hears the sighting", () => {
       makeFormData({ ...BASE_LOCATION }),
     );
 
-    expect(result.ok).toBe(false);
-    expect(result.error).toBe("No se encontró un dueño activo.");
-    expect(capturedPetEventInsert).toBeNull();
+    expect(result.ok).toBe(true);
+    expect(capturedPetEventInsert).not.toBeNull();
+    expect(capturedNotificationInserts).toEqual([]);
   });
 });
 

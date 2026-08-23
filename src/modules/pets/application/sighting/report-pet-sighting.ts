@@ -191,37 +191,22 @@ export async function reportPetSighting(
     };
   }
 
-  // These ids are the NOTIFICATION RECIPIENTS, and the notification carries the
-  // finder's name and contact. This used to be a bare `(pet_id, ended_at IS
-  // NULL)` + `limit(1)` — heap order — so a pet with an accepted temporary
-  // caretaker could deliver the sighting, and a stranger's contact with it, to
-  // the caretaker while the titular was never told their pet had been seen.
+  // NOBODY IS RESOLVED HERE ANY MORE, AND THAT IS THE POINT. This is where the
+  // titular used to be looked up, and the lookup was a PRECONDITION FOR
+  // RECORDING THE FACT: `if (!owner?.userId) return { ok: false, … }`, twenty
+  // lines above the event insert and the photo upload. Who can be told about a
+  // sighting is a routing question; whether the sighting happened is not, and
+  // this repo's own invariant says facts are event-sourced and append-only.
+  // Gating the fact on the audience inverted that.
   //
-  // THE FIRST REMEDY WAS WORSE THAN THE BUG, AND THIS FILE IS WHY THE SHELF
-  // SAYS SO. Adding `role = 'owner'` (afd01fb3c) turned the read into a hard
-  // gate no pet in shelter custody can pass: that pet has a shelter_custody org
-  // row and a foster user row and NO owner row at all, so the filter returned
-  // zero rows and the `!owner?.userId` refusal below discarded the sighting
-  // before the event write and the photo upload — deterministically, where heap
-  // order had at least been intermittently right. pet-alert-recipients.ts had
-  // written that argument down on 2026-08-04, in the present file's own words:
-  // "a role FILTER would have been worse than the bug… Ranking is the fix".
-  //
-  // So the sighting flow migrates onto the shared ranking. That module named it
-  // a deliberate non-caller — "migrating it is a decision, not a tidy-up" — and
-  // this IS that decision, taken rather than drifted into: the recipient set of
-  // a sighting is the same question as the recipient set of a found report, one
-  // notch lower in stakes, and a second copy of the rule would drift from the
-  // promise the caretaker UI makes.
-  //
-  // It preserves what afd01fb3c genuinely repaired: under the rehome-by-titular
-  // sponsorship a pet holds a live owner row AND a live org shelter_custody
-  // row, and the org row winning used to return a null userId and a false "no
-  // active owner". Ranking puts the titular first and drops the org row (it has
-  // no user id to notify), which is the same repair without the new hole.
-  const recipients = await resolveLostPetAlertRecipients(pet.id);
-  if (recipients.length === 0) return { ok: false, error: "No se encontró un dueño activo." };
-
+  // It threw real reports away. 381 pets on staging are held ONLY by an
+  // organisation, with no person on any live ownerships row (one of them lost
+  // right now), and every one of those resolves to zero notifiable recipients.
+  // Somebody scans that animal's QR, types what they saw, and the report is
+  // discarded under a message that is not even true — there IS an active
+  // holder, it just is not a person. Pre-existing, not new: the bare `limit(1)`
+  // could return the org row with a null `userId` and hit the same early
+  // return. The recipient read now sits below the event write, where it belongs.
   const safeDescription = description.slice(0, 500);
 
   const noteText = safeDescription
@@ -347,6 +332,43 @@ export async function reportPetSighting(
           : null,
     "Mirá el detalle en su perfil.",
   ].filter(Boolean);
+
+  // WHO HEARS IT — resolved here, AFTER the fact is on the spine, so an empty
+  // answer costs the reporter nothing.
+  //
+  // This used to be a bare `(pet_id, ended_at IS NULL)` + `limit(1)` — heap
+  // order — so a pet with an accepted temporary caretaker could deliver the
+  // sighting, and a stranger's contact with it, to the caretaker while the
+  // titular was never told their pet had been seen.
+  //
+  // THE FIRST REMEDY WAS WORSE THAN THE BUG, AND THIS FILE IS WHY THE SHELF
+  // SAYS SO. Adding `role = 'owner'` (afd01fb3c) turned the read into a gate no
+  // pet in shelter custody can pass: that pet has a shelter_custody org row and
+  // a foster user row and NO owner row at all. pet-alert-recipients.ts had
+  // written that argument down on 2026-08-04, in this file's own words: "a role
+  // FILTER would have been worse than the bug… Ranking is the fix".
+  //
+  // So the sighting flow migrates onto the shared ranking. That module named it
+  // a deliberate non-caller — "migrating it is a decision, not a tidy-up" — and
+  // this IS that decision, taken rather than drifted into: the recipient set of
+  // a sighting is the same question as the recipient set of a found report, one
+  // notch lower in stakes, and a second copy of the rule would drift from the
+  // promise the caretaker UI makes.
+  //
+  // It preserves what afd01fb3c genuinely repaired, and that half must not be
+  // "restored" away: under the rehome-by-titular sponsorship a pet holds a live
+  // owner row AND a live org shelter_custody row, and the org row winning used
+  // to return a null userId and a false "no active owner". Ranking prefers the
+  // owner row and never lets an org row block — org rows carry no user id, so
+  // the helper's `isNotNull(ownerUserId)` keeps them from occupying a rank at
+  // all. Same repair, without the new hole.
+  //
+  // An EMPTY set is now a normal outcome, not a failure: an org-held pet has
+  // nobody notifiable, and the sighting is still recorded and still visible on
+  // the pet's timeline. Whether a shelter's MEMBERS should receive sighting
+  // alerts for animals in their custody is a product question, deliberately
+  // left open.
+  const recipients = await resolveLostPetAlertRecipients(pet.id);
 
   // Insert notification — best-effort; a failure must not surface an error to the
   // reporter (the sighting was already recorded successfully).
