@@ -323,4 +323,96 @@ describe("cross-org transfer — expire cron", () => {
     const candidates = await findExpiredCrossOrgTransfers();
     expect(candidates.some((c) => c.id === staleCaseId)).toBe(false);
   });
+
+  // L-8 (loop fase 1, 2026-08-23): the expiry wrote the "Auto-expirada" note
+  // and notified BOTH orgs before it knew whether it had actually closed
+  // anything. Its in-tx re-check was an unlocked SELECT, so an accept
+  // committing between that read and `closeCase` left the guarded UPDATE
+  // touching zero rows — and its result was DISCARDED, so the loser could not
+  // tell. The pet's timeline then carries a permanent system note saying the
+  // receiver never answered, on a handshake that was accepted, and both orgs
+  // get told so.
+  //
+  // The repo already had the method built for exactly this: `closeCaseOwned`,
+  // whose own docblock says the plain `closeCase` "no alcanza cuando el efecto
+  // es un evento ... append-only por trigger". Claim first, then write only if
+  // we won — the order `operator-actions.ts` spells out.
+  describe("L-8 — a lost expiry race writes no note and notifies nobody", () => {
+    it("claims the close with closeCaseOwned, and the note + notifications hang off the claim", async () => {
+      const { readFileSync } = await import("node:fs");
+      const { join } = await import("node:path");
+      const src = readFileSync(
+        join(__dirname, "..", "src/modules/transfers/infrastructure/transfers-repository.ts"),
+        "utf8",
+      );
+      const start = src.indexOf("async expireOneCrossOrgCase(");
+      expect(start, "expireOneCrossOrgCase").toBeGreaterThanOrEqual(0);
+      const body = src.slice(start, src.indexOf("\n  async ", start + 1));
+
+      // The atomic claim replaces the unlocked re-check as the decision.
+      expect(body).toContain("closeCaseOwned(");
+      const claimAt = body.indexOf("closeCaseOwned(");
+      const noteAt = body.indexOf('eventType: "note_added"');
+      const notifyAt = body.indexOf("organizationMemberships");
+      expect(noteAt, "the Auto-expirada note").toBeGreaterThan(claimAt);
+      expect(notifyAt, "the coordinator notifications").toBeGreaterThan(claimAt);
+      // And the loser leaves before either of them.
+      expect(body).toMatch(/if \(!won\)[\s\S]{0,80}return/);
+    });
+
+    it("writes nothing when the case was already closed by the accept", async () => {
+      // `cases_open_per_pet_kind_idx` allows one open handshake per pet, so
+      // clear whatever earlier arms left open before opening this one.
+      await db
+        .update(cases)
+        .set({ status: "closed", closedReason: "cancelled", closedAt: new Date() })
+        .where(
+          and(
+            eq(cases.primaryPetId, petId),
+            eq(cases.caseKind, "custody_transfer_handshake"),
+            eq(cases.status, "open"),
+          ),
+        );
+
+      // Deterministic half of the race: the accept won and committed. (The
+      // millisecond window itself needs two connections, which this repo has no
+      // harness for — see src/modules/rehome/__tests__/owner-row-lock.test.ts.)
+      const c = await db.transaction(async (tx) =>
+        openCase(
+          {
+            kind: "custody_transfer_handshake",
+            primarySubjectKind: "registered_pet",
+            primaryPetId: petId,
+            openedByOrganizationId: senderId,
+            receiverOrganizationId: receiverId,
+            openedReason: { code: "cross_org_transfer_proposed", reason: "other" },
+          },
+          tx,
+        ),
+      );
+      await db.transaction(async (tx) => {
+        await closeCase({ caseId: c.id, reason: "resolved" }, tx);
+      });
+
+      await expireCrossOrgTransfer({
+        id: c.id,
+        publicCode: c.publicCode,
+        primaryPetId: petId,
+        openedByOrganizationId: senderId,
+        receiverOrganizationId: receiverId,
+      });
+
+      const notes = await db
+        .select({ id: petEvents.id })
+        .from(petEvents)
+        .where(and(eq(petEvents.caseId, c.id), eq(petEvents.eventType, "note_added")));
+      expect(notes).toHaveLength(0);
+
+      const [row] = await db
+        .select({ closedReason: cases.closedReason })
+        .from(cases)
+        .where(eq(cases.id, c.id));
+      expect(row.closedReason).toBe("resolved");
+    });
+  });
 });
