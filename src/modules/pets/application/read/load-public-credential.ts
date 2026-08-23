@@ -46,7 +46,7 @@ import { fetchActiveIdentifications } from "@/lib/infra/pet-identifiers";
 import { reportError } from "@/lib/infra/report-error";
 import { petPhotoUrl } from "@/lib/infra/storage";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { and, desc, eq, gte, isNull, sql } from "drizzle-orm";
+import { and, asc, desc, eq, gte, isNull, sql } from "drizzle-orm";
 
 // loadCredentialViewData — ALL post-pet-row DB reads in one budgeted unit.
 // The DOOR (lookup-public-credential.ts) wraps this call in withDbBudgetOrThrow
@@ -238,7 +238,31 @@ export async function loadCredentialViewData(pet: Pet) {
         })
         .from(ownerships)
         .innerJoin(profiles, eq(profiles.id, ownerships.ownerUserId))
-        .where(and(eq(ownerships.petId, pet.id), isNull(ownerships.endedAt)))
+        // role='owner' is load-bearing, not decoration. A pet can hold more than
+        // one ACTIVE ownerships row: an accepted temporary-caretaker grant
+        // (custodia-temporal) inserts a second row with role='caretaker' and no
+        // endedAt. Without this predicate the limit(1) below resolved to
+        // whichever row the heap returned first, so the titular's
+        // `disclose_phone_when_lost` / `disclose_first_name_when_lost` consent
+        // could publish the CARETAKER's phone and first name on the public lost
+        // credential — a third party who never consented. That is precisely what
+        // the two-key model in lib/infra/caretaker-public-contact.ts exists to
+        // prevent (the titular may not consent on someone else's behalf), and
+        // this query was routing around it. Measured on staging: the one pet
+        // with both rows active resolved to the caretaker.
+        //
+        // orderBy is the second half of the fix. The partial unique index
+        // ownerships_one_active_owner_per_pet already caps active owner rows at
+        // one, so the ordering is redundant TODAY — it is here so the row choice
+        // can never again depend on heap order if that cap ever changes shape.
+        .where(
+          and(
+            eq(ownerships.petId, pet.id),
+            eq(ownerships.role, "owner"),
+            isNull(ownerships.endedAt),
+          ),
+        )
+        .orderBy(asc(ownerships.startedAt))
         .limit(1),
       // Last-known location from the most recent status_changed → lost event.
       // Filtering on payload->>'to_status' = 'lost' so a later "found" event
