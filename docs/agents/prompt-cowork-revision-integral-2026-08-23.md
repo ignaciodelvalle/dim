@@ -208,6 +208,32 @@ tapar uno real: si reproduce tres veces, ES un hallazgo, y va con el conteo.
 
 **Estado: CONOCIDO, condición del entorno.**
 
+---
+
+**7. ARREGLADO — la ficha de una mascota dentro del portal de una organización
+tiraba error 500.**
+
+`src/modules/adoption/actions.ts` lleva la directiva `"use server"` y exportaba
+una CONSTANTE (un objeto con los techos de consulta de DNI). Next valida **cada**
+export de un módulo así y rechaza todo lo que no sea una función asíncrona, con
+lo cual el módulo reventaba AL CARGARSE y se llevaba puesta toda página cuyo
+grafo de imports lo alcanzara.
+
+No lo veía nada: `tsc` contento, el linter contento, el bundle se genera. Sólo
+aparece en runtime, en producción, como un 500. Lo encontró la telemetría de
+Vercel del deploy anterior, sobre `/org/{orgToken}/mascotas/{petToken}`.
+
+**Cómo lo confirmás, en diez segundos:** entrá como `alejo@dim.test` a una ficha
+de mascota desde el portal de su organización. Tiene que **cargar**, con el
+nombre del animal a la vista. Si ves una pantalla de error de aplicación, es un
+hallazgo **BLOQUEANTE** y avisá: significa que la corrección no llegó a este
+build.
+
+Verificado contra este deployment antes de entregártelo: HTTP 200 y el nombre
+del animal renderizado.
+
+**Estado: ARREGLADO EN ESTE BUILD.**
+
 #### (b) Los 12 hallazgos del recorrido del 2026-08-18 (`docs/reviews/2026-08-18-cowork-recorrido-9-roles-eb72f78.md`)
 
 Ese recorrido caminó ~120 checkpoints sobre el build `eb72f78`. Desde entonces
@@ -659,10 +685,29 @@ creías, un acompañamiento que ya no estaba. **Creá las tres de una, con
 | **`RI0823-B`** | Cancelación | D.9: pedido y **cancelación** por el titular. También la negativa de "ya hay una solicitud pendiente" |
 | **`RI0823-C`** | Estado | Se marca como **perdida** para la negativa de mascota perdida, y es la mascota de `/encontre` en §L.9 |
 
-**Localidad — leé esto antes de crearlas.** El panel de organizaciones sólo
-ofrece **refugios o redes de rescate verificados que cubran la zona de la
-mascota**. `Refugio Test` cubre **CABA / Palermo** y **Buenos Aires / La Plata**.
-Creá las tres en **Palermo, CABA** y el panel te va a ofrecer algo.
+**Localidad Y organización — leé esto antes de crearlas, es el error que mata
+esta sección entera.** El panel de organizaciones sólo ofrece **refugios o redes
+de rescate verificados que cubran la zona de la mascota**. Creá las tres en
+**Palermo, CABA** y el panel te va a ofrecer varias.
+
+**Elegí `Refugio Patitas del Norte`.** Es refugio verificado, cubre CABA /
+Palermo y CABA / Recoleta, y `alejo@dim.test` es su **admin** — o sea que después
+vas a poder aceptar el pedido desde el lado de la organización, que es el paso
+D.2 y la mitad de lo que §D existe para probar.
+
+**NO elijas `Refugio Test`.** También cubre Palermo, así que **te lo va a ofrecer
+el panel** y parece una opción legítima. Pero sus miembros son `orgadmin@dim.test`
+y `vet@dim.test`, no `alejo@`. Si lo elegís, el pedido se crea bien, y después
+`alejo@` abre el caso y ve **"No encontramos ese caso"** — que es la respuesta
+CORRECTA, porque el caso no es de ninguna de sus organizaciones. A partir de ahí
+D.2 a D.9 quedan inalcanzables y no hay forma de darse cuenta de por qué.
+
+Medido contra esta base el 2026-08-23. Las cuatro organizaciones de `alejo@` son
+Patitas del Norte (refugio · Palermo, Recoleta), Clínica Veterinaria Recoleta
+(clínica · Recoleta), Red de Rescate Puerto Madero (red · Puerto Madero, Retiro,
+San Nicolás) y Mascotas BA Centro (autoridad sanitaria · Retiro, Puerto Madero,
+San Nicolás). De esas, **sólo Patitas del Norte** es refugio o red que cubra
+Palermo — así que es la única que sirve para §D.
 
 Si creás una mascota fuera de esas localidades, **no tiene destino válido**: el
 panel sale vacío. Eso **no es un bug** — es la cobertura, y el brief anterior no
