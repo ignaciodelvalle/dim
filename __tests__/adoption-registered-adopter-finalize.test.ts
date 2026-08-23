@@ -20,7 +20,7 @@
 
 import { randomUUID } from "node:crypto";
 import { createClient as createSupabaseClient } from "@supabase/supabase-js";
-import { and, count, eq, isNull } from "drizzle-orm";
+import { and, count, eq, isNull, like } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 
 import { dniLast4, hashDni } from "@/lib/utils/dni-hash";
@@ -34,6 +34,7 @@ vi.mock("next/cache", () => ({
 }));
 
 import {
+  auditLog,
   db,
   notifications,
   organizationMemberships,
@@ -42,9 +43,14 @@ import {
   petEvents,
   pets,
   profiles,
+  rateLimitBuckets,
 } from "@/db";
 import { createClient } from "@/lib/supabase/server";
-import { checkAdopterAccountAction, finalizeAdoptionAction } from "@/src/modules/adoption/actions";
+import {
+  ADOPTER_DNI_CHECK_LIMITS,
+  checkAdopterAccountAction,
+  finalizeAdoptionAction,
+} from "@/src/modules/adoption/actions";
 import { withMutationOverride } from "./_helpers/db-overrides";
 
 const SUPABASE_URL = "http://127.0.0.1:54321";
@@ -284,6 +290,78 @@ describe("registered-adopter finalization contract (auth.users EXISTS gate)", ()
 
     const absent = await checkAdopterAccountAction(ORG_TOKEN, ABSENT_DNI);
     expect(absent).toEqual({ found: false });
+  });
+
+  // -------------------------------------------------------------------------
+  // D4 (PO 2026-08-23): trail + ceiling on the DNI confirmation oracle.
+  //
+  // checkAdopterAccountAction lets any holder of `adoption.finalize` type a DNI
+  // and learn whether that person has a miMAR account and their display name.
+  // It is a READ, so lint:audit-log (which derives MUTATING actions) is
+  // structurally blind to it — batch A exempted it for exactly that reason and
+  // said so in the exemption comment. The PO's answer is not to remove the
+  // feature: confirming an adopter at the counter is the legitimate use and
+  // must stay unhindered. It is to make the consultation leave a trace and to
+  // put a ceiling on it that a front desk never touches and a sweep does.
+  // -------------------------------------------------------------------------
+
+  it("D4: every consultation leaves a pii_queried trail keyed on the HASHED dni", async () => {
+    mockSessionAs(coordUserId);
+    // audit_log is append-only (enforce_audit_log_append_only) — a DELETE is
+    // blocked by the database, which is exactly the property that makes it a
+    // trail. So the test measures a DELTA instead of clearing.
+    const rowsFor = async () =>
+      db
+        .select({ payload: auditLog.payload })
+        .from(auditLog)
+        .where(and(eq(auditLog.actorUserId, coordUserId), eq(auditLog.action, "pii_queried")));
+
+    const before = await rowsFor();
+
+    const found = await checkAdopterAccountAction(ORG_TOKEN, REGISTERED_DNI);
+    expect(found).toEqual({ found: true, displayName: "Registrada Reciente" });
+    // A NOT-found answer is the oracle's most interesting output — it must be
+    // traced too, not only the hits.
+    await checkAdopterAccountAction(ORG_TOKEN, ABSENT_DNI);
+
+    const after = await rowsFor();
+    expect(after.length - before.length).toBe(2);
+
+    const payloads = after.map((r) => r.payload as Record<string, unknown>);
+    for (const p of payloads) {
+      expect(p.surface).toBe("adopter_dni_check");
+      // Who asked, at organization grain — the ceiling is per-org, so the trail
+      // has to name the org too, not only the person.
+      expect(p.organization_id).toBe(orgId);
+    }
+    // Which DNI — hashed. Invariant 5: never plaintext, anywhere.
+    const queries = payloads.map((p) => p.query);
+    expect(queries).toContain(hashDni(REGISTERED_DNI));
+    expect(queries).toContain(hashDni(ABSENT_DNI));
+    expect(JSON.stringify(payloads)).not.toContain(REGISTERED_DNI);
+    expect(JSON.stringify(payloads)).not.toContain(ABSENT_DNI);
+  });
+
+  it("D4: the N+1-th consultation from one organization is refused", async () => {
+    mockSessionAs(coordUserId);
+    // Start from a clean minute bucket — earlier tests in this file consulted
+    // under the same org.
+    await db
+      .delete(rateLimitBuckets)
+      .where(like(rateLimitBuckets.bucketKey, "adopter_dni_check:%"));
+
+    for (let i = 0; i < ADOPTER_DNI_CHECK_LIMITS.maxPerMinute; i++) {
+      const r = await checkAdopterAccountAction(ORG_TOKEN, ABSENT_DNI);
+      expect("error" in r).toBe(false);
+    }
+
+    const overTheLine = await checkAdopterAccountAction(ORG_TOKEN, ABSENT_DNI);
+    expect("error" in overTheLine).toBe(true);
+    expect((overTheLine as { error: string }).error).toMatch(/consultas/i);
+
+    await db
+      .delete(rateLimitBuckets)
+      .where(like(rateLimitBuckets.bucketKey, "adopter_dni_check:%"));
   });
 
   it("legacy stub (profiles row, NO auth.users row) → finalize REFUSES with no writes", async () => {

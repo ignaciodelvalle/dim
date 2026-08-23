@@ -1630,6 +1630,7 @@ Any jurisdiction-grouped aggregate returned to a public or analyst surface must 
 |---|---|
 | `suppressSmallCells(rows, { k: 5 })` on every public aggregate | `lib/metrics/anonymity.ts` → `suppressSmallCells` |
 | Govt outreach pipelines log `pii_queried` per query | `lib/infra/outreach-pipelines.ts` → `logOutreachPiiQuery` |
+| The adopter-DNI desk check logs `pii_queried` (surface `adopter_dni_check`) with the **hashed** DNI + `organization_id`, and is capped per organization | `src/modules/adoption/actions.ts` → `checkAdopterAccountAction`, `ADOPTER_DNI_CHECK_LIMITS`. It is a READ, so `lint:audit-log` (which derives mutating actions) cannot see it — the trail is the only thing that makes the confirmation oracle over `profiles.dniHash` accountable (D4, 2026-08-23) |
 | **Name your denominator** — every aggregate names what it excludes AND against which denominator it is computed; coverage % carries the double denominator (registry + estimated census). See [§ Dashboards design law](#dashboards--projections-the-consumers). | `lib/metrics/census.ts` → `computeCensusCoverage`; `lib/analytics/govt-home-kpis.ts` → `fetchRabiesCoverage` |
 
 ### 6b. Cuidador temporal — PII de un TERCERO en la ficha de una mascota ajena

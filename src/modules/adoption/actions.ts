@@ -16,8 +16,11 @@
 import { randomUUID } from "node:crypto";
 import { db, notifications } from "@/db";
 import { resolveOptionalLiveUser } from "@/lib/infra/live-user";
+import { RateLimitError, enforceRateLimit } from "@/lib/infra/rate-limit";
 import { uploadAttachmentIfPresent } from "@/lib/infra/uploads";
 import { createClient } from "@/lib/supabase/server";
+import { hashDni } from "@/lib/utils/dni-hash";
+import { logPiiQueryForAuthority } from "@/src/modules/organizations/application/admin-proposals/log-pii-query";
 import { requireCapabilityForOrgToken } from "@/src/modules/organizations/infrastructure/authz-resolver";
 import { revalidatePath } from "next/cache";
 import { cookies } from "next/headers";
@@ -514,18 +517,40 @@ export type CheckAdopterAccountResult =
   | { found: false }
   | { error: string };
 
+// Per-ORGANIZATION ceiling on the DNI confirmation oracle (D4, PO 2026-08-23).
+//
+// Calibrated against the legitimate use, which is a person at a counter
+// confirming ONE adopter — typing a DNI, maybe re-typing it after a typo, then
+// moving on to paperwork that takes minutes. Even a large shelter finalizing
+// twenty adoptions in a day stays an order of magnitude under these numbers. A
+// script walking the DNI space needs thousands per minute to be worth running
+// and hits the per-minute cap in seconds.
+//
+// Exported so the test asserts against the SAME constant the action enforces:
+// a test that hardcodes its own 8 passes forever after somebody edits the
+// ceiling to 8000.
+export const ADOPTER_DNI_CHECK_LIMITS = {
+  maxPerMinute: 8,
+  maxPerHour: 60,
+  maxPerDay: 200,
+} as const;
+
 // @no-audit-required: READ ONLY. lint:audit-log started seeing capability-gated
 // actions on 2026-08-22 and derives reachability one hop out, so this lands as a
 // candidate because AdoptionRepository — the module it calls — contains writes
 // belonging to OTHER methods. This action performs none: it hashes the typed DNI,
 // asks the repository whether a registered account matches, and returns
 // found/displayName. Nothing mutates, so there is no occurrence to account for.
+// The `pii_queried` row below is a READ TRAIL, not the mutation record this
+// fence accounts for — the exemption is unchanged and still accurate.
 //
-// NOTED, NOT FIXED: it is a confirmation oracle over `profiles.dniHash` for any
-// holder of `adoption.finalize` — type a DNI, learn whether that person has a
-// miMAR account and their display name. That is a PII READ trail question
-// (`pii_queried`), not the mutation question this fence asks. Reported to the PO
-// rather than silently widened here.
+// FIXED 2026-08-23 (D4). This used to read "NOTED, NOT FIXED": it is a
+// confirmation oracle over `profiles.dniHash` for any holder of
+// `adoption.finalize` — type a DNI, learn whether that person has a miMAR
+// account and their display name. The fence cannot see it (it derives MUTATING
+// actions and this one mutates nothing), so the answer had to be built here.
+// The PO chose TRAIL + CEILING over removing the check: confirming an adopter at
+// the desk is the legitimate use and stays unhindered.
 export async function checkAdopterAccountAction(
   orgToken: string,
   dni: string,
@@ -534,13 +559,46 @@ export async function checkAdopterAccountAction(
   // exists solely in service of that flow.
   const auth = await requireCapabilityForOrgToken("adoption.finalize", orgToken);
   if (auth.error !== null) return { error: auth.error };
+  const { user, organization } = auth;
 
   const digits = dni.replace(/\D/g, "");
   if (!/^\d{7,9}$/.test(digits)) {
     return { error: "DNI inválido (deben ser 7 a 9 dígitos)." };
   }
 
+  // Ceiling BEFORE the read, so a refused consultation never touches
+  // profiles.dniHash at all. Keyed on the ORGANIZATION, not the user: the
+  // capability belongs to the org, and a sweep run from three staff accounts of
+  // the same shelter is one sweep.
+  //
+  // A refusal is deliberately NOT audit-logged. rate_limit_buckets keeps
+  // counting past the limit (consumeOrThrow increments and THEN throws), so the
+  // size of a sweep is already durable evidence — while logging every refusal
+  // would hand an attacker unbounded writes into audit_log.
+  try {
+    await enforceRateLimit("adopter_dni_check", organization.id, ADOPTER_DNI_CHECK_LIMITS);
+  } catch (err) {
+    if (err instanceof RateLimitError) {
+      return {
+        error:
+          "Demasiadas consultas de DNI desde esta organización. Esperá unos minutos y volvé a intentar.",
+      };
+    }
+    throw err;
+  }
+
   const account = await AdoptionRepository.findAdopterAccountByDni(digits);
+  const found = Boolean(account?.hasAuthAccount);
+
+  // Trail. Awaited, so the row is durable before the answer leaves the server —
+  // an oracle whose log is fire-and-forget answers first and remembers maybe.
+  // The DNI travels HASHED (invariant 5), and a NOT-found answer is logged just
+  // like a hit: "does this person exist" is the question being asked, and both
+  // answers to it are the disclosure.
+  await logPiiQueryForAuthority(user.id, hashDni(digits), found ? 1 : 0, "adopter_dni_check", {
+    organization_id: organization.id,
+  });
+
   if (!account || !account.hasAuthAccount) return { found: false };
   return { found: true, displayName: account.displayName };
 }
