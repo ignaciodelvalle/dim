@@ -173,6 +173,17 @@ const nextConfig: NextConfig = {
     ignoreBuildErrors: process.env.DIM_CONSTRAINED_BUILD === "1",
   },
   experimental: {
+    // Build fleet size, decided by scripts/build.mjs from the cgroup memory
+    // limit and handed over as DIM_BUILD_WORKERS.
+    //
+    // Without this Next calls getNumberOfWorkers(), which defaults to
+    // `os.cpus().length - 1` — the HOST's core count from inside a container.
+    // The build script sizes each worker's heap as headroom/workers, so if Next
+    // forks a different number of workers than the script divided by, the
+    // ceiling stops bounding anything: on Vercel the script divided by 2 while
+    // Next stood ready to fork ~15, each inheriting the same NODE_OPTIONS.
+    // Empty (an unconstrained box) leaves Next's own default alone.
+    ...(process.env.DIM_BUILD_WORKERS ? { cpus: Number(process.env.DIM_BUILD_WORKERS) } : {}),
     // Welfare denuncia evidence allows up to 5 files × 25 MB.
     serverActions: {
       bodySizeLimit: "50mb",

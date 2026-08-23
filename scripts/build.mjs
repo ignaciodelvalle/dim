@@ -58,6 +58,24 @@ const CEILING_MB = 8192;
 const MIN_WORKER_HEAP_MB = 1024;
 
 /**
+ * What the heaviest worker in THIS repo's build actually needs, measured.
+ *
+ * The floor above answers "is a ceiling still meaningful?". This one answers a
+ * different question the earlier version never asked: "is the share big enough
+ * for the work?" On 2026-08-22 the deploy died with the share set to 3584 MB
+ * and V8's own error, not the container's —
+ *   Mark-Compact 3558.4 (3587.4) -> 3558.4 (3587.4) MB … allocation failure
+ *   FATAL ERROR: Ineffective mark-compacts near heap limit … SIGABRT
+ * — a worker that reached its ceiling and aborted. So the divisor cannot be
+ * pushed arbitrarily high to make the arithmetic fit: past a point, more
+ * workers means every one of them is too small to finish.
+ *
+ * 4096 is the measured 3584 rounded up to the next power of two. It is a
+ * FLOOR, not a target: a box with room gives its single worker far more.
+ */
+const MIN_VIABLE_WORKER_HEAP_MB = 4096;
+
+/**
  * V8's old space is not the whole process: native allocations, source maps,
  * the pnpm parent and the OS all live outside it. That overhead is roughly a
  * constant, not a proportion of the box, so it is reserved as an absolute
@@ -142,12 +160,31 @@ if (rawOverride !== "" && !hasOverride) {
 const detected = detectLimitMb();
 const headroom = detected.mb - RESERVED_MB;
 
-// `next build` forks a worker per available core and every one of them inherits
-// NODE_OPTIONS, so a ceiling is a PER-PROCESS budget. availableParallelism()
-// respects cpuset and cgroup CPU limits (os.cpus() does not — it reports the
-// host's 16 from inside a 2-core container), which is what makes this division
-// match the fleet that will actually run.
-const workers = Math.max(1, availableParallelism());
+// THE DIVISOR WAS NEVER THE FLEET (corrected 2026-08-23).
+//
+// This block used to read `workers = availableParallelism()` and call the
+// result "a bound, not a guess". It was a guess, and it was wrong by an order
+// of magnitude. `next build` does not fork a worker per available core: it
+// calls its own getNumberOfWorkers(), which returns `experimental.cpus`, whose
+// DEFAULT is `Math.max(1, os.cpus().length - 1)`
+// (node_modules/next/dist/server/config-shared.js). That is the same
+// `os.cpus()` the comment below already knew not to trust — it reports the
+// HOST's cores from inside the container. So on a 2-core Vercel box the script
+// computed a share for 2 workers while Next stood ready to fork ~15, each
+// inheriting the same NODE_OPTIONS ceiling. Total heap the fleet could claim
+// was several times the container.
+//
+// A budget divided among a fleet you do not control is not a bound. So the
+// script now DECIDES the fleet and tells Next what it decided
+// (DIM_BUILD_WORKERS -> experimental.cpus in next.config.ts), and it sizes that
+// fleet by memory rather than by cores: as many workers as can each hold a
+// share big enough to finish, never more than the box has cores to run.
+//
+// availableParallelism() stays the cores ceiling — it does respect cpuset and
+// cgroup CPU limits, which is exactly what os.cpus() gets wrong.
+const cores = Math.max(1, availableParallelism());
+const affordableWorkers = Math.max(1, Math.floor(headroom / MIN_VIABLE_WORKER_HEAP_MB));
+const workers = Math.min(cores, affordableWorkers);
 const perWorker = Math.max(MIN_WORKER_HEAP_MB, Math.floor(headroom / workers));
 
 // null means "set no flag at all": only when the box is so small that even the
@@ -183,7 +220,7 @@ console.log(
   hasOverride
     ? `[build] heap ceiling ${heapMb} MB (BUILD_HEAP_MB override)`
     : constrained
-      ? `[build] heap ceiling ${heapMb ?? "unset"} MB per worker × ${workers} worker(s) — ${detected.mb} MB available via ${detected.source}; constrained box, so the build also skips its type pass`
+      ? `[build] heap ceiling ${heapMb ?? "unset"} MB per worker × ${workers} worker(s) pinned (${cores} core(s) available) — ${detected.mb} MB available via ${detected.source}; constrained box, so the build also skips its type pass`
       : `[build] heap ceiling ${heapMb} MB — ${detected.mb} MB available via ${detected.source}`,
 );
 
@@ -205,6 +242,14 @@ const child = spawn(process.execPath, [nextBin, "build", ...process.argv.slice(2
     ...process.env,
     NODE_OPTIONS: nodeOptions,
     DIM_CONSTRAINED_BUILD: constrained ? "1" : "",
+    // The fleet size this script sized the heap for. next.config.ts feeds it to
+    // experimental.cpus so the two agree; without it Next picks its own number
+    // from the host's core count and the division above means nothing.
+    //
+    // Only on a constrained box: where headroom is plentiful the ceiling is the
+    // flat CEILING_MB and the fleet does not need bounding, so an unconstrained
+    // machine keeps exactly the build it has today.
+    DIM_BUILD_WORKERS: constrained ? String(workers) : "",
   },
 });
 
