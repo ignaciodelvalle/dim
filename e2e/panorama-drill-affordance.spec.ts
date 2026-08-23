@@ -28,11 +28,36 @@
 
 import { expect, test } from "@playwright/test";
 
-import { loginAs } from "./demo/_helpers";
+import { ACCOUNTS, loginAs } from "./demo/_helpers";
 
 test.describe("panorama drill affordance (C.4)", () => {
   test("a govt operator can narrow scope from province to locality", async ({ page }) => {
-    await loginAs(page, "govt@dim.test");
+    // govt-local@, NOT govt@ — and the account is part of the test, not a detail.
+    //
+    // This test narrows scope FROM province TO locality, which needs an operator
+    // with more than one province to narrow from. `allowedProvinces` is derived
+    // in app/gob/panorama/page.tsx from the distinct provinces of the operator's
+    // assignments, and JurisdictionSwitcher emits <option value="">Todas</option>
+    // only when `allowedProvinces.length > 1`. A single-province operator gets
+    // exactly one option — the province's own name — which is CORRECT: there is
+    // nothing to widen to. The component was never wrong here.
+    //
+    // govt@dim.test has one province, so the assertion below received 1, and the
+    // "todas" assertion after it would have failed next. That is the defect from
+    // commit 02330788b all over again — a spec asserting a surface with an
+    // account structurally unable to reach it, measuring the FIXTURE instead of
+    // the product. govt-local@ covers Buenos Aires (La Plata) and CABA
+    // (Palermo), so the select renders "Todas" + two provinces and the drill is
+    // actually exercised.
+    //
+    // SEED DRIFT, deliberately not repaired here: scripts/seed-test-users.ts
+    // promises govt@ gets Ushuaia (Tierra del Fuego) + El Calafate (Santa Cruz)
+    // via GOVT_REMOTE_LOCALITIES, and staging has neither — govt@ resolves to
+    // CABA. Re-seeding does NOT fix it: provisionGovt wraps its whole assignment
+    // loop in `if (currentRole !== "govt")`, so an already-provisioned profile
+    // logs a skip and the assignment set is never reconciled. That needs its own
+    // follow-up. Do not "helpfully" point this spec back at govt@ when it lands.
+    await loginAs(page, ACCOUNTS.govtLocal);
     await page.goto("/gob/panorama");
 
     const province = page.getByLabel("Provincia", { exact: true });
