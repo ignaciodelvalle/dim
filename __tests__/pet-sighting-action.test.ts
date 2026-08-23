@@ -142,6 +142,12 @@ function buildMockDb() {
     from: vi.fn(() => selectChain),
     where: vi.fn(() => selectChain),
     innerJoin: vi.fn(() => selectChain),
+    // The owner query orders by started_at so its row choice cannot depend on
+    // heap order (a pet with an accepted temporary caretaker has TWO active
+    // ownerships rows). A chain stub that omits a builder method the code calls
+    // fails with "orderBy is not a function" — the mock has to keep up with the
+    // query, and this one did not until 2026-08-23.
+    orderBy: vi.fn(() => selectChain),
     limit: vi.fn(async () => {
       selectCallCount++;
       if (selectCallCount === 1) {

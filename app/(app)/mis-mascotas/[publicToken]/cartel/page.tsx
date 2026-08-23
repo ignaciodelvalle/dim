@@ -3,7 +3,7 @@
 // Gate: requirePetAccess. If pet.status !== 'lost', renders a "mark as lost first"
 // message instead of the poster.
 
-import { and, eq, isNull } from "drizzle-orm";
+import { and, asc, eq, isNull } from "drizzle-orm";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import QRCode from "qrcode";
@@ -62,13 +62,23 @@ export default async function CartelPage({
   // Mirrors the pattern in /p/[publicToken]/page.tsx (Tier 1 reveal).
   // NOTE: isNull(endedAt) is required — without it a transferred pet would return
   // the PREVIOUS owner's row, leaking their PII onto the poster.
+  // role='owner' is required for the SAME REASON IN THE PRESENT TENSE, and the
+  // note above used to stop one clause short of it. An accepted
+  // temporary-caretaker grant opens a second row on this pet with no endedAt, so
+  // isNull(endedAt) alone no longer narrows to one row and the limit(1) resolved
+  // by heap order — printing a caretaker's name and phone on a flyer the titular
+  // is about to staple to a lamppost. The disclosure prefs applied below are the
+  // TITULAR's; they cannot consent for anyone else.
   // EMAIL is intentionally omitted: discloseEmailWhenLost is not surfaced here
   // by design — phone/firstName/location only (Tier 1 contact subset for print).
   const [ownerRow] = await db
     .select({ profile: profiles })
     .from(ownerships)
     .innerJoin(profiles, eq(profiles.id, ownerships.ownerUserId))
-    .where(and(eq(ownerships.petId, pet.id), isNull(ownerships.endedAt)))
+    .where(
+      and(eq(ownerships.petId, pet.id), eq(ownerships.role, "owner"), isNull(ownerships.endedAt)),
+    )
+    .orderBy(asc(ownerships.startedAt))
     .limit(1);
 
   const rawFirstName = ownerRow?.profile.displayName

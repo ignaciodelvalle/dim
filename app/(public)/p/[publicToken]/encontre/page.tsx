@@ -15,7 +15,7 @@
 // hand); the session is only used to render the "¿No sos vos? Salí de la
 // sesión" advisory banner (with the session's display name).
 
-import { and, eq, isNull } from "drizzle-orm";
+import { and, asc, eq, isNull } from "drizzle-orm";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
@@ -144,7 +144,18 @@ export default async function FinderInPossessionPage({
         .select({ phone: profiles.phone })
         .from(ownerships)
         .leftJoin(profiles, eq(profiles.id, ownerships.ownerUserId))
-        .where(and(eq(ownerships.petId, pet.id), isNull(ownerships.endedAt)))
+        // role='owner' — an accepted temporary-caretaker grant opens a SECOND
+        // active row on the same pet, so (pet_id, ended_at IS NULL) alone stopped
+        // meaning "one row" and the limit(1) resolved by heap order. The titular's
+        // disclosePhoneWhenLost is not consent to publish a CARETAKER's phone.
+        .where(
+          and(
+            eq(ownerships.petId, pet.id),
+            eq(ownerships.role, "owner"),
+            isNull(ownerships.endedAt),
+          ),
+        )
+        .orderBy(asc(ownerships.startedAt))
         .limit(1);
       ownerPhone = ownerRow?.phone ?? null;
     }
@@ -153,7 +164,16 @@ export default async function FinderInPossessionPage({
       const [ownerRow] = await db
         .select({ ownerUserId: ownerships.ownerUserId })
         .from(ownerships)
-        .where(and(eq(ownerships.petId, pet.id), isNull(ownerships.endedAt)))
+        // Same reason as the phone query above — this id is handed to
+        // auth.admin.getUserById, so the wrong row publishes a caretaker's EMAIL.
+        .where(
+          and(
+            eq(ownerships.petId, pet.id),
+            eq(ownerships.role, "owner"),
+            isNull(ownerships.endedAt),
+          ),
+        )
+        .orderBy(asc(ownerships.startedAt))
         .limit(1);
       if (ownerRow?.ownerUserId) {
         try {
@@ -268,7 +288,11 @@ export default async function FinderInPossessionPage({
       .select({ displayName: profiles.displayName })
       .from(ownerships)
       .innerJoin(profiles, eq(profiles.id, ownerships.ownerUserId))
-      .where(and(eq(ownerships.petId, pet.id), isNull(ownerships.endedAt)))
+      // Same reason as the two queries above — the header names the TITULAR.
+      .where(
+        and(eq(ownerships.petId, pet.id), eq(ownerships.role, "owner"), isNull(ownerships.endedAt)),
+      )
+      .orderBy(asc(ownerships.startedAt))
       .limit(1);
 
     ownerFirstName = ownerRow?.displayName ? ownerRow.displayName.trim().split(/\s+/)[0] : null;

@@ -37,7 +37,7 @@
 // notification failure never surfaces an error to the reporter (the sighting
 // was already recorded successfully at that point).
 
-import { and, eq, isNull } from "drizzle-orm";
+import { and, asc, eq, isNull } from "drizzle-orm";
 import { headers } from "next/headers";
 
 import { attachments, cases, db, ownerships, pets } from "@/db";
@@ -186,10 +186,24 @@ export async function reportPetSighting(
     };
   }
 
+  // role='owner' — this id is the NOTIFICATION RECIPIENT, and the notification
+  // carries the finder's name and contact. A pet with an accepted temporary
+  // caretaker has two active ownerships rows, so (pet_id, ended_at IS NULL)
+  // alone let the limit(1) resolve by heap order: the sighting of a lost animal,
+  // and a stranger's contact details with it, could be delivered to the
+  // caretaker while the titular was never told their pet had been seen.
+  //
+  // It also repairs a false failure. A pet under the rehome-by-titular
+  // sponsorship holds a live owner row AND a live org shelter_custody row; if
+  // the org row won, `userId` came back null and this returned "no active
+  // owner" for a pet that plainly has one.
   const [owner] = await db
     .select({ userId: ownerships.ownerUserId })
     .from(ownerships)
-    .where(and(eq(ownerships.petId, pet.id), isNull(ownerships.endedAt)))
+    .where(
+      and(eq(ownerships.petId, pet.id), eq(ownerships.role, "owner"), isNull(ownerships.endedAt)),
+    )
+    .orderBy(asc(ownerships.startedAt))
     .limit(1);
   if (!owner?.userId) return { ok: false, error: "No se encontró un dueño activo." };
 
