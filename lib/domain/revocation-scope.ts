@@ -7,7 +7,10 @@
 //
 // Spec §REQ-5, design §2e.
 
-import { jurisdictionScopeContains } from "@/lib/domain/jurisdiction-canonical";
+import {
+  isWholeProvinceAssignment,
+  jurisdictionScopeContains,
+} from "@/lib/domain/jurisdiction-canonical";
 
 import type { AdminOrGovtJurisdiction } from "@/lib/infra/auth-guards";
 
@@ -44,9 +47,11 @@ export type RevocationTarget =
 // - admin: always returns true (universal scope).
 // - govt: must hold at least one active jurisdiction assignment that covers
 //   the target's scope. The rule varies by revocation type:
-//   * org_verification / govt_locality: the target's (province, locality) must
-//     be COVERED by an assignment — exact for a barrio-scoped mandate, and
-//     province-wide for a whole-province one (see the subsumption note below).
+//   * org_verification: the target's (province, locality) must be COVERED by an
+//     assignment — exact for a barrio-scoped mandate, and province-wide for a
+//     whole-province one (see the subsumption note below).
+//   * govt_locality: containment is NOT enough — the actor's coverage must be
+//     STRICTLY WIDER than the target's (see the rank note below, D3).
 //   * vet_role: OR between matricula_jurisdiccion (province-only) and
 //     operational (province, locality). This is intentionally liberal —
 //     a govt can revoke a vet if EITHER the vet's license province OR
@@ -87,9 +92,62 @@ export function canRevoke(
     );
   }
 
-  if (target.type === "org_verification" || target.type === "govt_locality") {
+  if (target.type === "org_verification") {
     return jurisdictionScopeContains(jurisdictions, target.province, target.locality);
   }
 
+  if (target.type === "govt_locality") {
+    return govtCoverageStrictlyContains(jurisdictions, target);
+  }
+
   return false;
+}
+
+// RANK RULE for revoking another official's assignment (D3, PO 2026-08-23).
+//
+// This branch used plain containment, and containment is REFLEXIVE: an official
+// assigned to Buenos Aires / La Plata contains the scope of another official
+// assigned to Buenos Aires / La Plata, so the two could strip each other's
+// mandate. The catalog documented peer discipline as intentional back in
+// 2026-05-17 ("Admin u otro govt en scope revoca una localidad de un govt"); a
+// national deployment raises the cost of an internal dispute enough that the PO
+// re-decided it.
+//
+// The chosen rule is RANK, deliberately NOT admin-only: a province must still be
+// able to revoke inside its own territory without escalating to us. So the actor
+// needs coverage STRICTLY WIDER than the target's:
+//
+//   province over locality   → allowed  (whole-BA operator revokes BA / La Plata)
+//   nation   over province   → allowed  — and "nation" has no assignment row in
+//                              this model; universal scope IS the admin branch
+//                              above, which returns true before we get here.
+//   locality over same locality → refused (peers)
+//   province over same province → refused (provincial peers)
+//   locality reaching UP at its own province → refused
+//
+// Self-revocation is refused twice over: the writer checks
+// `assignment.userId === actorUserId` BEFORE calling canRevoke
+// (revoke-govt-locality.ts, spec §REQ-3) and remains the primary guard; the rank
+// rule cannot open a second door behind it because an actor's own row is never
+// strictly wider than itself.
+//
+// Both tiers are decided by `isWholeProvinceAssignment` — the SAME canonical
+// predicate the subsumption fix uses — so there is no second, drifting notion of
+// "the whole province" in this file. Containment itself still goes through
+// `jurisdictionScopeContains`; the only thing added is the strictness.
+function govtCoverageStrictlyContains(
+  jurisdictions: readonly AdminOrGovtJurisdiction[],
+  target: { province: string; locality: string },
+): boolean {
+  // A whole-province mandate is the widest tier a govt assignment can express.
+  // Nothing a govt holds outranks it — only admin does, upstream.
+  if (isWholeProvinceAssignment(target)) return false;
+
+  // The target is locality-scoped, so the only strictly-wider govt coverage is
+  // a whole-province assignment that contains it.
+  return jurisdictions.some(
+    (j) =>
+      isWholeProvinceAssignment(j) &&
+      jurisdictionScopeContains([j], target.province, target.locality),
+  );
 }
