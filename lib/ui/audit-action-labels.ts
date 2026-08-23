@@ -140,7 +140,14 @@ export const AUDIT_ACTION_LABELS = {
   // vocabulary MasSheet.helpers.test.ts locks for this feature.
   caretaker_designated: "Cuidador temporal designado",
   caretaker_grant_accepted: "Cuidado temporal aceptado",
+  // The four ENDINGS read differently on purpose: the actor is what the reader
+  // is looking for, and "terminado" four times would erase exactly that.
+  // Rechazada/cancelada are the invitation (nobody was caring yet); revocado y
+  // dado de baja son el cuidado en curso.
+  caretaker_grant_rejected: "Invitación de cuidado rechazada",
+  caretaker_grant_cancelled: "Invitación de cuidado cancelada",
   caretaker_grant_revoked: "Cuidado temporal revocado",
+  caretaker_grant_withdrawn: "Cuidado temporal dado de baja por el cuidador",
   // Exports
   analytics_export_generated: "Exportación analytics generada",
   gob_dashboard_export_generated: "Exportación CSV de dashboard",

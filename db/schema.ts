@@ -2371,12 +2371,29 @@ export const AUDIT_LOG_ACTIONS = [
   // see it — it compares this list against the constraint, and the two agreed
   // perfectly about a set that omitted all three.
   //
+  // AND THE GAP WAS THREE ACTIONS WIDER THAN THAT FIX (2026-08-23). Only
+  // `withdraw` was flagged when the first three landed; `reject` and `cancel`
+  // wrote no audit row either. All three missing ones are grant ENDINGS, which
+  // is the half that matters for a custody arrangement: who ended it, when, and
+  // on whose initiative is exactly what someone asks afterwards. A grant could
+  // be created, accepted and terminated leaving a trail of the first two only.
+  //
+  // The three endings are kept DISTINCT rather than folded into one
+  // `caretaker_grant_ended` with a reason in the payload, because the actor
+  // differs by outcome and the actor is the point: the invitee rejects, the
+  // titular cancels a pending invitation, the caretaker withdraws from an
+  // active one. Matches `caretaker_grant_revoked`, already its own action for
+  // the titular ending an active arrangement.
+  //
   // Payloads: designated { grant_public_token, pet_id, to_email, to_user_known };
-  // accepted { grant_public_token, public_contact_consent }; revoked
-  // { grant_public_token, pet_id }.
+  // accepted { grant_public_token, public_contact_consent }; revoked /
+  // rejected / cancelled / withdrawn { grant_public_token, pet_id }.
   "caretaker_designated",
   "caretaker_grant_accepted",
+  "caretaker_grant_cancelled",
+  "caretaker_grant_rejected",
   "caretaker_grant_revoked",
+  "caretaker_grant_withdrawn",
   // Subject rights — Ley 25.326 (compliance PR 1). Emitted by the RPCs
   // export_subject_data + erase_subject_data declared in migration 0059.
   "subject_data_exported",

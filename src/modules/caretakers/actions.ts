@@ -255,6 +255,15 @@ export async function rejectCaretakerGrantAction(input: {
   if (!result.ok) return { error: result.error };
 
   await flushNotifications(result.notifications);
+  // A grant ENDING is the half of the lifecycle someone asks about afterwards —
+  // who ended it, when, on whose initiative. Missing until 2026-08-23: the sweep
+  // that added audit rows to this module flagged only `withdraw`, so reject and
+  // cancel stayed silent alongside it.
+  await flushAuditLog({
+    actorUserId: user.id,
+    action: "caretaker_grant_rejected",
+    payload: { grant_public_token: input.grantToken, pet_id: result.value.petId },
+  });
   revalidatePath(`/cuidado/${input.grantToken}`);
   return { ok: true };
 }
@@ -281,6 +290,16 @@ export async function cancelCaretakerGrantAction(input: {
   if (!result.ok) return { error: result.error };
 
   await flushNotifications(result.notifications);
+  // Distinct from `caretaker_grant_revoked`: that one ends an ACTIVE
+  // arrangement, this one withdraws an invitation nobody accepted yet. Same
+  // actor, different fact, and the audit trail has to be able to tell them
+  // apart — "the titular cancelled before it started" is not "the titular cut a
+  // live custody short".
+  await flushAuditLog({
+    actorUserId: access.user.id,
+    action: "caretaker_grant_cancelled",
+    payload: { grant_public_token: input.grantToken, pet_id: result.value.petId },
+  });
   revalidatePath(`/mis-mascotas/${input.petPublicToken}`);
   return { ok: true };
 }
@@ -341,6 +360,15 @@ export async function withdrawCaretakerGrantAction(input: {
   if (!result.ok) return { error: result.error };
 
   await flushNotifications(result.notifications);
+  // The caretaker ending it themselves. The counterpart of
+  // `caretaker_grant_revoked` and deliberately not the same action: the actor
+  // is the other party, and "who walked away" is the whole question if the
+  // animal's whereabouts are later disputed.
+  await flushAuditLog({
+    actorUserId: user.id,
+    action: "caretaker_grant_withdrawn",
+    payload: { grant_public_token: input.grantToken, pet_id: result.value.petId },
+  });
   revalidatePath("/mis-mascotas");
   return { ok: true };
 }
