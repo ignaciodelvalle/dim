@@ -47,6 +47,16 @@ export type ReportBiteFromOrgInput = {
     verified: boolean;
     /** The province the org was verified in — the coverage arm's anchor (U3). */
     jurisdictionProvince: string | null;
+    /**
+     * Contact route for the owner (D1, PO 2026-08-23). The PO ruled OUT an
+     * in-product dispute channel: an observation opened in error is contested
+     * OUTSIDE the system, with the organization or the municipality. That only
+     * works if the notice hands the owner somewhere to go, so the org's own
+     * contact data travels with the report. `email` is NOT NULL in the schema;
+     * `phone` is optional.
+     */
+    email: string;
+    phone: string | null;
   };
   occurredAt: Date;
   victimKind: "human" | "animal" | "unknown";
@@ -346,12 +356,23 @@ export async function reportBiteFromOrg(
         tx as Parameters<typeof repo.findActiveOwnership>[1],
       );
       if (activeOwnership?.ownerUserId) {
+        // D1 (PO 2026-08-23). The owner has NO in-product way to lift an
+        // observation opened in error — the PO chose the minimal option on
+        // purpose, and the complaint travels outside the system. The price of
+        // that choice is that this notice must be genuinely actionable: it
+        // already named the organization, but it pointed at "el refugio/clínica"
+        // — a CATEGORY, not a route. An owner who reads that still does not know
+        // where to write. So the org's own contact data goes in the body, and
+        // the notice says plainly that the owner cannot close the observation.
+        const orgContact = [organization.email, organization.phone]
+          .filter((part): part is string => typeof part === "string" && part.trim().length > 0)
+          .join(" / ");
         pendingNotifications.push({
           userId: activeOwnership.ownerUserId,
           notificationType: "bite_reported_by_org_owner",
           severity: "warning",
           title: `Mordedura reportada por ${organization.displayName} — ${pet.name}`,
-          body: `${organization.displayName} reportó una mordedura del ${occurredAt.toLocaleDateString("es-AR", { timeZone: AR_TIME_ZONE })} en ${pet.name}. Inicia un período de observación antirrábica de ${rabiesWindow.days} días. Cierre estimado: ${observationUntil.toLocaleDateString("es-AR", { timeZone: AR_TIME_ZONE })}. Si discrepás con el reporte, contactá al refugio/clínica o a tu autoridad sanitaria.`,
+          body: `${organization.displayName} reportó una mordedura del ${occurredAt.toLocaleDateString("es-AR", { timeZone: AR_TIME_ZONE })} en ${pet.name}. Inicia un período de observación antirrábica de ${rabiesWindow.days} días. Cierre estimado: ${observationUntil.toLocaleDateString("es-AR", { timeZone: AR_TIME_ZONE })}. La observación la cierra un veterinario matriculado o la autoridad sanitaria de tu localidad: no podés cerrarla vos. Si discrepás con el reporte, escribile a ${organization.displayName} (${orgContact}) o presentate ante la autoridad sanitaria de tu municipio.`,
           relatedPetId: pet.id,
           relatedCaseId: caseRow.id,
           ctaLabel: "Ver mascota",

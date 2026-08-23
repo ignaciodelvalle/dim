@@ -444,6 +444,11 @@ export async function reportBiteFromOrgAction(
         orgType: organization.orgType,
         verified: organization.verified,
         jurisdictionProvince: organization.jurisdictionProvince ?? null,
+        // D1: the owner's route back to whoever opened the observation. The
+        // capability resolver hands us the full organizations row, so this is
+        // already loaded — no extra query.
+        email: organization.email,
+        phone: organization.phone ?? null,
       },
       occurredAt,
       victimKind,
