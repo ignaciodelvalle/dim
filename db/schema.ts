@@ -2358,6 +2358,25 @@ export const AUDIT_LOG_ACTIONS = [
   "pet_transfer_rejected",
   "pet_transfer_cancelled",
   "pet_transfer_expired",
+  // Temporary caretaker (custodia-temporal, migration 0189). The grant lifecycle
+  // the titular drives: designate → the invitee accepts → the titular revokes.
+  //
+  // DECLARED LATE, AND THAT IS THE POINT. src/modules/caretakers/actions.ts has
+  // written these three since the feature shipped, through a local
+  // `flushAuditLog` that casts with `as typeof auditLog.$inferInsert` — the same
+  // escape hatch the header of this list warns about. Because they were never
+  // named here they were never in the CHECK either, so every insert violated
+  // audit_log_action_valid and was swallowed by that helper's catch. Result:
+  // ZERO audit rows for the entire feature, silently. The parity test could not
+  // see it — it compares this list against the constraint, and the two agreed
+  // perfectly about a set that omitted all three.
+  //
+  // Payloads: designated { grant_public_token, pet_id, to_email, to_user_known };
+  // accepted { grant_public_token, public_contact_consent }; revoked
+  // { grant_public_token, pet_id }.
+  "caretaker_designated",
+  "caretaker_grant_accepted",
+  "caretaker_grant_revoked",
   // Subject rights — Ley 25.326 (compliance PR 1). Emitted by the RPCs
   // export_subject_data + erase_subject_data declared in migration 0059.
   "subject_data_exported",

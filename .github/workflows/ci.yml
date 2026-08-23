@@ -69,6 +69,20 @@ jobs:
         # (non-vacuity + no stale baseline).
         run: pnpm lint:audit-log
 
+      - name: "Fence: audit actions are declared (lint:audit-actions)"
+        # The other half of the audit question, and the one that was open until
+        # 2026-08-23. lint:audit-log asks "did this action write a row at all?".
+        # This asks "is the action it writes one the system has DECLARED?" —
+        # because an action missing from AUDIT_LOG_ACTIONS is also missing from
+        # the DB CHECK, so every insert 23514s and any writer that swallows the
+        # error loses the row silently. The whole temporary-caretaker feature
+        # wrote zero audit rows that way, undetected, while the parity test
+        # stayed green comparing the two declarations to each other.
+        #
+        # Offline — reads db/schema.ts and the writers as TEXT, no database — so
+        # it belongs in this job. Its own step so a failure names THIS fence.
+        run: pnpm lint:audit-actions
+
       - name: "Fence: titular-only writes (lint:titular-gate)"
         # The third authorization question, opened by custodia-temporal: the
         # caller holds an ownership row on this pet, but is the ROLE in that row

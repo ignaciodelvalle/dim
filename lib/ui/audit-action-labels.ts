@@ -136,6 +136,11 @@ export const AUDIT_ACTION_LABELS = {
   pet_transfer_rejected: "Transferencia de mascota rechazada",
   pet_transfer_cancelled: "Transferencia de mascota cancelada",
   pet_transfer_expired: "Transferencia de mascota vencida",
+  // Cuidador temporal (custodia-temporal). "Cuidador", never "custodia" — the
+  // vocabulary MasSheet.helpers.test.ts locks for this feature.
+  caretaker_designated: "Cuidador temporal designado",
+  caretaker_grant_accepted: "Cuidado temporal aceptado",
+  caretaker_grant_revoked: "Cuidado temporal revocado",
   // Exports
   analytics_export_generated: "Exportación analytics generada",
   gob_dashboard_export_generated: "Exportación CSV de dashboard",
