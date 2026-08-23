@@ -95,6 +95,12 @@ vi.mock("@/lib/infra/rate-limit", async (importOriginal) => {
 // Captured insert calls so tests can inspect the payload.
 let capturedPetEventInsert: Record<string, unknown> | null = null;
 let capturedNotificationInsert: Record<string, unknown> | null = null;
+/**
+ * Every notification row of the sighting's ONE bulk insert, in recipient order.
+ * `capturedNotificationInsert` stays the first of them so the assertions that
+ * only care about type/body/dedupe read the same thing they always did.
+ */
+let capturedNotificationInserts: Record<string, unknown>[] = [];
 let capturedAttachmentInsert: Record<string, unknown> | null = null;
 
 const INSERTED_EVENT_ID = "evt-0000-0000-0000-000000000001";
@@ -134,30 +140,46 @@ const mockDb = {
   execute: vi.fn(async () => undefined),
 };
 
+/**
+ * The active `ownerships` rows the recipient ranking sees, per test.
+ *
+ * The action no longer resolves ONE titular row of its own: it calls
+ * `resolveLostPetAlertRecipients`, which reads every active holder and ranks
+ * them in JS (owner → shelter_custody → longest-standing), adding caretakers as
+ * concurrent recipients. So the interesting fixtures are ROW SETS, not a single
+ * winner — a shelter-held pet with no `owner` row at all is the one that a role
+ * filter turned into a hard refusal.
+ */
+let activeHolderRows: Array<{ userId: string | null; role: string }> = [];
+
 // Rebuild mock DB state before each test.
 function buildMockDb() {
   let selectCallCount = 0;
+  // Default fixture: the ordinary pet, one titular, nobody else. Tests that care
+  // about custody reassign `activeHolderRows` AFTER calling buildMockDb().
+  activeHolderRows = [{ userId: OWNER_USER_ID, role: "owner" }];
+  capturedNotificationInserts = [];
 
   const selectChain = {
     from: vi.fn(() => selectChain),
     where: vi.fn(() => selectChain),
     innerJoin: vi.fn(() => selectChain),
-    // The owner query orders by started_at so its row choice cannot depend on
+    // The ranking query orders by started_at so its row choice cannot depend on
     // heap order (a pet with an accepted temporary caretaker has TWO active
-    // ownerships rows). A chain stub that omits a builder method the code calls
-    // fails with "orderBy is not a function" — the mock has to keep up with the
-    // query, and this one did not until 2026-08-23.
-    orderBy: vi.fn(() => selectChain),
+    // ownerships rows) — and it TERMINATES here, with no `.limit()`, because
+    // picking the winner is a JS decision over ALL active holders rather than a
+    // SQL one over the first row Postgres feels like returning. So orderBy
+    // resolves to the row set instead of returning the chain: a stub that
+    // returned the chain made `await` resolve to the chain object itself and
+    // `activeHolders.find` come back undefined. The mock has to keep up with the
+    // query — it did not until 2026-08-23, and then it had to again the same day.
+    orderBy: vi.fn(async () => activeHolderRows),
     limit: vi.fn(async () => {
       selectCallCount++;
       if (selectCallCount === 1) {
         // pet query
         callOrder.push("publicPetByToken");
         return [{ id: PET_ID, name: "Luna", status: "lost" }];
-      }
-      if (selectCallCount === 2) {
-        // owner query
-        return [{ userId: OWNER_USER_ID }];
       }
       // open case query
       return [{ id: CASE_ID }];
@@ -174,16 +196,21 @@ function buildMockDb() {
   // read the wrong insert. The real schema is spread into this mock, so the
   // table's own drizzle name is available and exact.
   const insertChain = {
-    values: vi.fn((data: Record<string, unknown>) => {
+    values: vi.fn((data: Record<string, unknown> | Record<string, unknown>[]) => {
       switch (insertTarget) {
         case "pet_events":
-          capturedPetEventInsert = data;
+          capturedPetEventInsert = data as Record<string, unknown>;
           break;
         case "attachments":
-          capturedAttachmentInsert = data;
+          capturedAttachmentInsert = data as Record<string, unknown>;
           break;
+        // The notification write is a BULK insert now (one row per ranked
+        // recipient), so `.values()` receives an array. Both shapes are
+        // normalised to the array, and the singular capture keeps pointing at
+        // the first row.
         case "notifications":
-          capturedNotificationInsert = data;
+          capturedNotificationInserts = Array.isArray(data) ? data : [data];
+          capturedNotificationInsert = capturedNotificationInserts[0] ?? null;
           break;
         default:
           // notification_dead_letter, rate_limit_buckets, anything else: not
@@ -525,6 +552,99 @@ describe("reportPetSightingAction — P0d payload fields", () => {
 //
 // These tests mock @/lib/event-idempotency directly so they are independent of
 // the DB layer. Pattern mirrors checkin and finder idempotency unit tests.
+
+// ---------------------------------------------------------------------------
+// Recipient resolution — the regression that a role filter INTRODUCED
+// ---------------------------------------------------------------------------
+
+describe("reportPetSightingAction — who hears the sighting", () => {
+  beforeEach(() => {
+    capturedPetEventInsert = null;
+    capturedNotificationInsert = null;
+    capturedAttachmentInsert = null;
+    callOrder = [];
+    mockEnforceRateLimit.mockResolvedValue(undefined);
+    mockUpload.mockReset();
+    mockUpload.mockResolvedValue({
+      uploadedPath: null,
+      mimeType: null,
+      size: null,
+      error: null,
+    });
+  });
+
+  // THE ONE THAT WOULD HAVE CAUGHT afd01fb3c. A pet in shelter custody has a
+  // shelter_custody org row and a foster USER row and no `owner` row at all, so
+  // `eq(role, 'owner')` returned zero rows and the guard below it discarded the
+  // whole sighting — before the event write and before the photo upload — for
+  // exactly the animals least likely to have a titular watching. Heap order was
+  // intermittently right; the filter was deterministically wrong.
+  it("records the sighting for a shelter-held pet that has NO owner row", async () => {
+    vi.resetModules();
+    buildMockDb();
+    activeHolderRows = [{ userId: "user-foster-0001", role: "foster" }];
+
+    const { reportPetSightingAction } = await import("@/app/actions/pet-sighting");
+    const result = await reportPetSightingAction(
+      PUBLIC_TOKEN,
+      PREVIOUS_STATE,
+      makeFormData({ ...BASE_LOCATION }),
+    );
+
+    expect(result.ok).toBe(true);
+    expect(capturedPetEventInsert).not.toBeNull();
+    expect(capturedNotificationInserts.map((row) => row.userId)).toEqual(["user-foster-0001"]);
+  });
+
+  // The other half of the same read, and the reason a bare limit(1) was wrong in
+  // the first place: the titular must be in the set, not merely possible.
+  it("notifies the titular AND the caretaker, never the caretaker alone", async () => {
+    vi.resetModules();
+    buildMockDb();
+    activeHolderRows = [
+      { userId: "user-caretaker-0001", role: "caretaker" },
+      { userId: OWNER_USER_ID, role: "owner" },
+    ];
+
+    const { reportPetSightingAction } = await import("@/app/actions/pet-sighting");
+    const result = await reportPetSightingAction(
+      PUBLIC_TOKEN,
+      PREVIOUS_STATE,
+      makeFormData({ ...BASE_LOCATION }),
+    );
+
+    expect(result.ok).toBe(true);
+    // Titular first — ranked, not heap-ordered, even though the caretaker row
+    // came back first from the query.
+    expect(capturedNotificationInserts.map((row) => row.userId)).toEqual([
+      OWNER_USER_ID,
+      "user-caretaker-0001",
+    ]);
+    // One dedupe key per recipient, or the second row is swallowed as a conflict.
+    const keys = capturedNotificationInserts.map((row) => row.dedupeKey);
+    expect(new Set(keys).size).toBe(keys.length);
+  });
+
+  // The refusal still exists — it just means "nobody can be notified" now
+  // (every holder is an organisation, or there is no active holder at all)
+  // instead of "no row happened to carry role='owner'".
+  it("refuses when there is no notifiable holder at all", async () => {
+    vi.resetModules();
+    buildMockDb();
+    activeHolderRows = [];
+
+    const { reportPetSightingAction } = await import("@/app/actions/pet-sighting");
+    const result = await reportPetSightingAction(
+      PUBLIC_TOKEN,
+      PREVIOUS_STATE,
+      makeFormData({ ...BASE_LOCATION }),
+    );
+
+    expect(result.ok).toBe(false);
+    expect(result.error).toBe("No se encontró un dueño activo.");
+    expect(capturedPetEventInsert).toBeNull();
+  });
+});
 
 describe("reportPetSightingAction — idempotency guard", () => {
   // Track how many times insertEventIdempotent is called so we can assert

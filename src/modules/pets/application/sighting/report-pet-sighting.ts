@@ -9,7 +9,10 @@
 //   - pet_event note_added (category=otro, kind="sighting", raw description
 //     text) so the owner sees the sighting in the timeline and sightingsCount
 //     can be derived from payload->>'kind' = 'sighting'.
-//   - notification (pet_sighting, severity=warning) to the owner. A sighting
+//   - notification (pet_sighting, severity=warning) to everyone
+//     `resolveLostPetAlertRecipients` ranks for this pet — titular first, then
+//     the institution holding custody, then whoever is caring for it, with
+//     active caretakers as concurrent recipients. A sighting
 //     is NOT a hallazgo: it gets its own notification type and a high-but-
 //     distinct severity so the Bandeja never styles "someone saw the pet" like
 //     "someone HAS the pet" (external tester fix list #1, ciclo perdido).
@@ -33,19 +36,21 @@
 // The thin shim (app/actions/pet-sighting.ts) delegates here directly with
 // the full set of raw arguments.
 //
-// ARCH-P: the single db.insert(notifications) is wrapped in try/catch so a
-// notification failure never surfaces an error to the reporter (the sighting
-// was already recorded successfully at that point).
+// ARCH-P: the notification write goes through createNotificationsBulk, which
+// dead-letters instead of throwing, so a notification failure never surfaces an
+// error to the reporter (the sighting was already recorded successfully at that
+// point) and never silently disappears either.
 
-import { and, asc, eq, isNull } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { headers } from "next/headers";
 
-import { attachments, cases, db, ownerships, pets } from "@/db";
+import { attachments, cases, db, pets } from "@/db";
 import { CoordError, normalizeLocationForWrite } from "@/lib/domain/location-normalize";
 import { parseLocationFromFormData } from "@/lib/domain/location-value";
 import { insertEventIdempotent } from "@/lib/events/event-idempotency";
 import { validateEventPayload } from "@/lib/events/event-schemas";
-import { createNotification } from "@/lib/infra/notification-service";
+import { createNotificationsBulk } from "@/lib/infra/notification-service";
+import { resolveLostPetAlertRecipients } from "@/lib/infra/pet-alert-recipients";
 import { publicPetByToken } from "@/lib/infra/public-pet-lookup";
 import { RateLimitError, callerIp, enforceRateLimit } from "@/lib/infra/rate-limit";
 import { uploadAttachmentIfPresent } from "@/lib/infra/uploads";
@@ -186,26 +191,36 @@ export async function reportPetSighting(
     };
   }
 
-  // role='owner' — this id is the NOTIFICATION RECIPIENT, and the notification
-  // carries the finder's name and contact. A pet with an accepted temporary
-  // caretaker has two active ownerships rows, so (pet_id, ended_at IS NULL)
-  // alone let the limit(1) resolve by heap order: the sighting of a lost animal,
-  // and a stranger's contact details with it, could be delivered to the
-  // caretaker while the titular was never told their pet had been seen.
+  // These ids are the NOTIFICATION RECIPIENTS, and the notification carries the
+  // finder's name and contact. This used to be a bare `(pet_id, ended_at IS
+  // NULL)` + `limit(1)` — heap order — so a pet with an accepted temporary
+  // caretaker could deliver the sighting, and a stranger's contact with it, to
+  // the caretaker while the titular was never told their pet had been seen.
   //
-  // It also repairs a false failure. A pet under the rehome-by-titular
-  // sponsorship holds a live owner row AND a live org shelter_custody row; if
-  // the org row won, `userId` came back null and this returned "no active
-  // owner" for a pet that plainly has one.
-  const [owner] = await db
-    .select({ userId: ownerships.ownerUserId })
-    .from(ownerships)
-    .where(
-      and(eq(ownerships.petId, pet.id), eq(ownerships.role, "owner"), isNull(ownerships.endedAt)),
-    )
-    .orderBy(asc(ownerships.startedAt))
-    .limit(1);
-  if (!owner?.userId) return { ok: false, error: "No se encontró un dueño activo." };
+  // THE FIRST REMEDY WAS WORSE THAN THE BUG, AND THIS FILE IS WHY THE SHELF
+  // SAYS SO. Adding `role = 'owner'` (afd01fb3c) turned the read into a hard
+  // gate no pet in shelter custody can pass: that pet has a shelter_custody org
+  // row and a foster user row and NO owner row at all, so the filter returned
+  // zero rows and the `!owner?.userId` refusal below discarded the sighting
+  // before the event write and the photo upload — deterministically, where heap
+  // order had at least been intermittently right. pet-alert-recipients.ts had
+  // written that argument down on 2026-08-04, in the present file's own words:
+  // "a role FILTER would have been worse than the bug… Ranking is the fix".
+  //
+  // So the sighting flow migrates onto the shared ranking. That module named it
+  // a deliberate non-caller — "migrating it is a decision, not a tidy-up" — and
+  // this IS that decision, taken rather than drifted into: the recipient set of
+  // a sighting is the same question as the recipient set of a found report, one
+  // notch lower in stakes, and a second copy of the rule would drift from the
+  // promise the caretaker UI makes.
+  //
+  // It preserves what afd01fb3c genuinely repaired: under the rehome-by-titular
+  // sponsorship a pet holds a live owner row AND a live org shelter_custody
+  // row, and the org row winning used to return a null userId and a false "no
+  // active owner". Ranking puts the titular first and drops the org row (it has
+  // no user id to notify), which is the same repair without the new hole.
+  const recipients = await resolveLostPetAlertRecipients(pet.id);
+  if (recipients.length === 0) return { ok: false, error: "No se encontró un dueño activo." };
 
   const safeDescription = description.slice(0, 500);
 
@@ -339,31 +354,42 @@ export async function reportPetSighting(
   // "pet_found_report" — the finder does NOT have the pet. Severity "warning"
   // keeps it elevated in the Bandeja while visually distinct from the urgent
   // possession/found alerts (red bar vs amber bar).
-  const sightingNotification = {
-    userId: owner.userId,
-    notificationType: "pet_sighting",
-    title: `Avistaje de ${pet.name}`,
-    body: bodyParts.join(" "),
-    severity: "warning" as const,
-    category: "perdidas",
-    relatedPetId: pet.id,
-    ctaLabel: "Ver mascota",
-    // Land on the cockpit (/mis-mascotas/{token}) which now surfaces sighting
-    // and possession reports while the pet is lost (UI-4 fix 7).
-    ctaUrl: `/mis-mascotas/${publicToken}`,
-  };
+  // One notification per recipient, IDENTICAL BODY — the same call the found
+  // report makes, and for the same reason: an active caretaker is the person
+  // physically minding the animal, and a redacted copy would make the second
+  // recipient useless at the only thing they are there for. The titular loses
+  // nothing; ranking puts them first in any surface that orders by
+  // responsibility.
+  //
   // Through the canonical write path. The try/catch that used to sit here
   // SWALLOWED — a failed insert was logged to the console and the reporter got
   // the success screen anyway, so the owner of a lost animal was never told it
-  // had been seen and nobody found out. createNotification cannot throw either,
-  // but it dead-letters instead of discarding, and its dedupe key lets a retry
-  // land the alert the first attempt lost. The Web Push leg moved inside it and
-  // fires only for genuinely new rows, so a retry cannot double-push.
-  await createNotification({
-    ...sightingNotification,
-    relatedEventId: insertedEvent?.id ?? null,
-    dedupeKey: `event:${insertedEvent?.id ?? pet.id}:${owner.userId}:pet_sighting`,
-  });
+  // had been seen and nobody found out. createNotificationsBulk cannot throw
+  // either, but it dead-letters instead of discarding, and its dedupe key lets
+  // a retry land the alert the first attempt lost. The Web Push leg lives
+  // inside it and fires only for genuinely new rows, so a retry cannot
+  // double-push.
+  //
+  // The dedupe key keeps the event id AND gains the recipient, so two
+  // recipients of one sighting are two rows rather than one row and a swallowed
+  // conflict.
+  await createNotificationsBulk(
+    recipients.map((recipient) => ({
+      userId: recipient.userId,
+      notificationType: "pet_sighting",
+      title: `Avistaje de ${pet.name}`,
+      body: bodyParts.join(" "),
+      severity: "warning" as const,
+      category: "perdidas",
+      relatedPetId: pet.id,
+      ctaLabel: "Ver mascota",
+      // Land on the cockpit (/mis-mascotas/{token}) which now surfaces sighting
+      // and possession reports while the pet is lost (UI-4 fix 7).
+      ctaUrl: `/mis-mascotas/${publicToken}`,
+      relatedEventId: insertedEvent?.id ?? null,
+      dedupeKey: `event:${insertedEvent?.id ?? pet.id}:${recipient.userId}:pet_sighting`,
+    })),
+  );
 
   return { ok: true, error: null, warning: photoWarning };
 }

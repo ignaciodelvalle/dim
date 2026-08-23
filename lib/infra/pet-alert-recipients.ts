@@ -17,9 +17,18 @@
 //   - `resolve-dispute` picks one holder with the same shape and a DIFFERENT
 //     decision: a custody dispute must NOT notify a contested party, so its
 //     ranking is about who is uncontested, not who is most responsible.
-//   - the SIGHTING flow (a "I think I saw it" report, no physical possession)
-//     is a lower-stakes channel whose recipient set is a product question, not
-//     this one. It was not migrated; migrating it is a decision, not a tidy-up.
+//
+// THE SIGHTING FLOW WAS ON THAT LIST AND IS NOT ANY MORE (2026-08-23). It was
+// listed as "a lower-stakes channel whose recipient set is a product question…
+// migrating it is a decision, not a tidy-up", and the decision has now been
+// taken deliberately rather than drifted into. What forced it was the header
+// below coming true in the sighting flow: a role FILTER was added there, and
+// because that read is a hard gate placed BEFORE the event write, a pet in
+// shelter custody stopped being able to receive a sighting at all. The
+// recipient set of a sighting turned out to be the same question as the
+// recipient set of a found report, one notch lower in stakes — and a second
+// copy of the rule would have drifted from the promise the caretaker UI makes.
+// Caller: src/modules/pets/application/sighting/report-pet-sighting.ts.
 //
 // HISTORY WORTH KEEPING. The ranking below used to be a bare `.limit(1)` over
 // every active ownership row, with no role filter and no ORDER BY (ROUTE-1,
