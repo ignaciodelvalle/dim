@@ -40,8 +40,24 @@ const SURFACES: Surface[] = [
     expect: /disputas?/i,
   },
   {
+    // NOT govtLocal, and the reason is the whole point of this file.
+    //
+    // Executing a decomiso requires membership in a SANITARY AUTHORITY
+    // organisation — the acta is registered in the organisation's name, not the
+    // official's, so the page refuses a govt account that belongs to none:
+    //   "Para ejecutar un decomiso, tu usuario tiene que pertenecer a una
+    //    autoridad sanitaria."
+    // That refusal is correct and well written. This spec was asserting the
+    // FORM against an account structurally unable to reach it, so it measured
+    // the seed, not the surface.
+    //
+    // Measured on staging 2026-08-23: of five govt accounts, exactly one
+    // (`govt@dim.test` → "Mascotas BA Centro") holds that membership. The 2026-08-18
+    // Cowork run reported this same wall as a product finding; it was a
+    // role/seed mismatch — the class e2e/README.md warns about, "test each
+    // guard with the role the page expects".
     name: "decomiso — formulario de ejecución",
-    account: ACCOUNTS.govtLocal,
+    account: ACCOUNTS.govt,
     path: "/gob/decomisos/nuevo",
     expect: /sujeto del decomiso/i,
   },
