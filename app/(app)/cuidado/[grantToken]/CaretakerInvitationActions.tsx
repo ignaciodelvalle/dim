@@ -20,15 +20,36 @@
 // contact on an unauthenticated page, and a pre-ticked box is a default nobody
 // chose (PO decision 2, 2026-08-19).
 //
-// No redirect() and no router.refresh() — contract N3. Accept ends on
-// LnSuccessScreen (local UI whose links do full navigations); reject reloads
-// this page so its SSR state shows the invitation as declined.
+// No redirect() and no router.refresh() — contract N3. Reject reloads this page
+// so its SSR state shows the invitation as declined.
+//
+// ACCEPT RENDERS NOTHING HERE, AND CANNOT. This component used to end on an
+// LnSuccessScreen titled "Cuidás a {petName}", behind a local `accepted` flag.
+// That screen never appeared in production once, and the reason is structural,
+// not a race:
+//
+//   acceptCaretakerGrantAction calls revalidatePath(`/cuidado/${grantToken}`) —
+//   THE ROUTE THE USER IS STANDING ON. Next ships the re-rendered RSC tree back
+//   with the action's response. By then the grant's status is 'accepted', so
+//   `canRespond` (= invitee AND status 'pending') is false, and the page's
+//   `{view.canRespond && …}` gate unmounts this island. `setAccepted(true)`
+//   runs against a component that is already gone.
+//
+// It looked fine in jsdom because this file's test mocks the server action and
+// there is no RSC refresh to unmount anything — the same family as the repo's
+// "jsdom can't catch activation behaviour" trap: the harness cannot reproduce
+// the mechanism, so the harness cannot see the bug.
+//
+// The honest success surface is the one the SERVER already renders on that same
+// re-render: "Detalle del cuidado / Estado: Activo" plus the callout "Estás
+// cuidando a {petName}" with a link to the libreta. It says more than the
+// deleted screen did and it is the state, not a claim about the state. Do not
+// re-add a client success screen here; it is unreachable by construction.
 
 import { useState, useTransition } from "react";
 
 import { LnButton } from "@/components/ui/Button";
 import { LnCheckbox } from "@/components/ui/Field";
-import { LnSuccessScreen } from "@/components/ui/SuccessScreen";
 import { navigateAfterActionSuccess } from "@/lib/ui/full-page-action-nav";
 import {
   acceptCaretakerGrantAction,
@@ -38,7 +59,6 @@ import {
 type Props = {
   grantToken: string;
   petName: string;
-  petPublicToken: string;
   titularName: string;
   /** Both halves of the scope, from the caretakers domain. */
   scopeSentence: string;
@@ -47,14 +67,12 @@ type Props = {
 export function CaretakerInvitationActions({
   grantToken,
   petName,
-  petPublicToken,
   titularName,
   scopeSentence,
 }: Props) {
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
   const [mode, setMode] = useState<"none" | "accept" | "reject">("none");
-  const [accepted, setAccepted] = useState(false);
   const [publicContactConsent, setPublicContactConsent] = useState(false);
 
   // The scope sentence arrives pre-joined so the page and this component can
@@ -70,7 +88,11 @@ export function CaretakerInvitationActions({
         setError(result.error);
         return;
       }
-      setAccepted(true);
+      // Nothing on success. The action's revalidatePath of THIS route re-renders
+      // the page around us with the grant now 'accepted', which drops
+      // `canRespond` and unmounts this island — the server's own "Estás cuidando
+      // a …" state replaces it. See the header for why a success screen here
+      // could never paint.
     });
   }
 
@@ -86,19 +108,6 @@ export function CaretakerInvitationActions({
       // invitation (router.refresh() is banned — lib/ui/full-page-action-nav.ts).
       navigateAfterActionSuccess(window.location.href);
     });
-  }
-
-  if (accepted) {
-    return (
-      <LnSuccessScreen
-        title={`Cuidás a ${petName}`}
-        description={`${petName} ya aparece en tus mascotas mientras dure el cuidado. Podés cargar lo que le pase; ${titularName} sigue siendo el titular y ve todo lo que anotes.`}
-        next={[
-          { label: `Ver la libreta de ${petName}`, href: `/mis-mascotas/${petPublicToken}` },
-          { label: "Ver mis mascotas", href: "/mis-mascotas", variant: "secondary" },
-        ]}
-      />
-    );
   }
 
   return (

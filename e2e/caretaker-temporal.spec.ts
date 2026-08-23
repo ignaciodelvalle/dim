@@ -187,7 +187,18 @@ test.describe
         // the caretaker's behalf.
         await expect(caretakerPage.getByRole("checkbox", { name: /contacto/i })).not.toBeChecked();
         await caretakerPage.getByRole("button", { name: "Confirmar el cuidado" }).click();
-        await expect(caretakerPage.getByText(/Cuidás a/)).toBeVisible();
+        // The SERVER's accepted state, which is the only one that exists.
+        //
+        // This used to assert /Cuidás a/ — the title of a client-side
+        // LnSuccessScreen that could never paint. acceptCaretakerGrantAction
+        // calls revalidatePath on THIS route, so the RSC tree comes back with
+        // the grant 'accepted', `canRespond` (= invitee AND 'pending') false,
+        // and the island unmounted before its success flag could render.
+        // Deterministic, not flaky — the screen has been deleted rather than
+        // waited for. This is the callout the page renders in its place.
+        await expect(caretakerPage.getByText(/Estás cuidando a/)).toBeVisible({
+          timeout: 20_000,
+        });
 
         // ---- the pet is now in the caretaker's list, and SAYS it is not theirs
         await caretakerPage.goto("/mis-mascotas", { waitUntil: "domcontentloaded" });
@@ -251,7 +262,11 @@ test.describe
         await openInvitation(caretakerPage);
         await caretakerPage.getByRole("button", { name: "Aceptar el cuidado" }).click();
         await caretakerPage.getByRole("button", { name: "Confirmar el cuidado" }).click();
-        await expect(caretakerPage.getByText(/Cuidás a/)).toBeVisible();
+        // Same correction as the walk above — the server's accepted state, not
+        // the deleted client success screen.
+        await expect(caretakerPage.getByText(/Estás cuidando a/)).toBeVisible({
+          timeout: 20_000,
+        });
 
         // ---- NOT SEEN: the overflow sheet offers none of the deny-list rows ---
         await caretakerPage.goto(`/mis-mascotas/${token}?sheet=mas`, {

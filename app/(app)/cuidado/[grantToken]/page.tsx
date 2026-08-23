@@ -146,7 +146,6 @@ export default async function CaretakerGrantPage({
         <CaretakerInvitationActions
           grantToken={view.grantPublicToken}
           petName={view.pet.name}
-          petPublicToken={view.pet.publicToken}
           titularName={titularName}
           scopeSentence={view.scopeSentence}
         />
