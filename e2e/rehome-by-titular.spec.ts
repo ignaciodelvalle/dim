@@ -165,7 +165,24 @@ test.describe
       ).toBeVisible({ timeout: 20_000 });
       await ask.click();
       // The OUTCOME: the same surface, in its pending state, under the same name.
-      await expect(page.getByText(/Pedido enviado a .*Refugio Test/i)).toBeVisible();
+      //
+      // 30 s, not the file's usual 20 s, and not the config's 15 s default.
+      // Measured on staging: this server action takes ~17,5 s end to end on a
+      // cold serverless instance — the DB write tail is 392 ms, so the time is
+      // spent waking the function, not writing. playwright.staging.config.ts
+      // sets expect.timeout = 15_000, so the assertion expired while the action
+      // SUCCEEDED: the case row was there afterwards. A red test over a green
+      // mutation is the worst kind, because the obvious reading is "the feature
+      // is broken".
+      //
+      // 20 s would be marginal against a measured 17,5 s — it leaves 2,5 s for
+      // the navigation and re-render that follow, which is not a budget, it is
+      // a coin flip. 30 s is the same class of race the comment at the org's
+      // accept step below already documents; that comment named the hazard and
+      // never applied the lesson here.
+      await expect(page.getByText(/Pedido enviado a .*Refugio Test/i)).toBeVisible({
+        timeout: 30_000,
+      });
       const caseHref = await page
         .getByRole("link", { name: /Ver la solicitud/ })
         .getAttribute("href");
