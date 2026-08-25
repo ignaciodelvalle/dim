@@ -114,6 +114,17 @@ function apiErrorMessage(code: ApiV1ErrorCode): string {
       return "Esta cuenta está desactivada. Contactate con tu organización.";
     case "account_erased":
       return "Esta cuenta ya no existe.";
+    // B9. Deliberately NOT the `auth_expired` sentence, even though both are
+    // 401s: that one says "tu sesión venció", which invites a refresh, and a
+    // refresh here SUCCEEDS (the session is valid at GoTrue — the 8-hour
+    // operator shift is our policy) and the retry is refused again, forever.
+    // This copy has to send the person through a full sign-in.
+    //
+    // A citizen wallet has no operator surface, so nobody using this app should
+    // ever see it. Answered because the function's contract is the whole
+    // vocabulary, exactly like the seven auth codes above.
+    case "session_shift_expired":
+      return "Tu turno de trabajo terminó. Volvé a iniciar sesión para seguir.";
     case "invalid_request":
       return "La app envió un pedido que el servidor no pudo leer. Actualizá la app.";
     case "signup_failed":
@@ -123,8 +134,14 @@ function apiErrorMessage(code: ApiV1ErrorCode): string {
     // answered anyway because this function's contract is the WHOLE vocabulary.
     // The switch caught the WU-A widening across a branch merge git had nothing
     // to say about; it caught this one the same way.
+    // Covers BOTH halves of the code: the header was absent, OR it was present
+    // and not a UUID. They were joined into one code deliberately (see
+    // `idempotency_key_required` in @dim/contract/api — the fix is the same
+    // sentence either way), and this copy said only "sin su clave" until
+    // 2026-08-25, which left a developer hunting for a missing header they had
+    // in fact sent.
     case "idempotency_key_required":
-      return "La app envió un registro sin su clave de reintento. Actualizá la app.";
+      return "La app envió un registro con una clave de reintento ausente o mal formada. Actualizá la app.";
     case "duplicate_pet_suspected":
       return "Ya tenés una mascota registrada con ese nombre. Revisá tu lista antes de crear otra.";
     case "pet_registration_failed":
