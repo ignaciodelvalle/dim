@@ -175,8 +175,15 @@ export const PERSONAL_TIER_GUARDS = [
 // Only these guards resolve the acting user AND reject an erased profile — they
 // all funnel through requireUserOrRedirect (which checks deleted_at, Wave D2) or
 // requirePetAccess/requireAlivePetAccess (which check it at the mutation
-// boundary, Wave E2). Bare `auth.getUser` and the file-local `requireAdminUser`
-// (auth.getUser + role re-check) are deliberately NOT here.
+// boundary, Wave E2). Bare `auth.getUser` is deliberately NOT here.
+//
+// `requireAdminUser` JOINED THE LIST ON 2026-08-25, and the sentence above used
+// to exclude it by name ("auth.getUser + role re-check"). That description was
+// accurate and is no longer: the guard now calls requireLiveUser and keeps only
+// the two questions liveness does not answer (role, account type). Listing it is
+// not cosmetic — a guard that IS deletion-aware and is not listed makes its
+// callers read as unaware, which is a fence lying in the safe direction, and a
+// fence that lies in either direction stops being read.
 export const DELETION_AWARE_GUARDS = [
   // Both live-user entry points read profiles.deleted_at themselves and refuse
   // before returning a user, so anything gated by either is deletion-aware.
@@ -197,6 +204,11 @@ export const DELETION_AWARE_GUARDS = [
   "requireOrgInterventionAccess",
   "requireCapability",
   "requireCapabilityForOrgToken",
+  // File-local admin guard for the six alert-firing triage actions. Deletion-
+  // aware since 2026-08-25, when its bare getUser() + hand-rolled profile query
+  // was replaced by requireLiveUser (which also gave those six the maintenance
+  // kill-switch and the 8-hour shift they had never had).
+  "requireAdminUser",
   // Both atender resolvers funnel through resolveAtenderContext, which since
   // 2026-08-25 authorizes through resolveLiveOrgActor → requireLiveUser and so
   // refuses an erased account with the one canonical check rather than a

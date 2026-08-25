@@ -12,11 +12,9 @@
 // CRITICAL: Every runtime export in a "use server" file must be an async
 // function. Types are re-exported with `export type` (erased at runtime).
 
-import { eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 
-import { db, profiles } from "@/db";
-import { createClient } from "@/lib/supabase/server";
+import { requireLiveUser } from "@/lib/infra/live-user";
 import { evaluateAndRecordFiringsForAllAdmins as _evaluateAndRecordFiringsForAllAdmins } from "@/src/modules/alerts/application/firings/record-firings";
 import {
   acknowledgeFiring,
@@ -56,41 +54,42 @@ export async function evaluateAndRecordFiringsForAllAdmins(
 // Auth helper (admin-only) — stays in the shim, never in use-cases
 // ---------------------------------------------------------------------------
 
+/**
+ * The admin gate for the six triage actions below.
+ *
+ * IT USED TO BE A BARE getUser() PLUS A HAND-ROLLED PROFILE QUERY, and that is
+ * why it changed (2026-08-25). The query was thorough about the ACCOUNT — role,
+ * accountType, deactivatedAt, deletedAt — and blind to everything else the
+ * platform decides about a caller:
+ *
+ *   - no maintenance kill-switch: a triage transition committed mid-window,
+ *     because a layout gates a render and a Server Action POST runs its body
+ *     before any layout re-renders;
+ *   - NO 8-HOUR SHIFT (B9): every caller here is `role: "admin"`, which is an
+ *     INSTITUTIONAL principal by definition, so these six were exactly the
+ *     population the shift is for — and the one guard that could not apply it
+ *     was the one they went through.
+ *
+ * `requireLiveUser` answers all five liveness questions in one place and in one
+ * order, and hands back the already-resolved profile, so this guard costs one
+ * request-memoized read instead of a second round-trip of its own.
+ *
+ * WHAT IS LEFT HERE IS WHAT LIVENESS DOES NOT ANSWER: role and account type.
+ * The old `deactivatedAt`/`deletedAt` legs are gone rather than kept as belt and
+ * braces — requireLiveUser refuses both before returning, and a second copy of a
+ * check is a second thing to drift. The refusal STRING for a non-admin is
+ * unchanged; the no-session one is now requireLiveUser's canonical
+ * "Sesión expirada." (the local copy was missing its full stop).
+ */
 async function requireAdminUser(): Promise<{ userId: string } | { error: string }> {
-  const supabase = await createClient();
-  const {
-    data: { user },
-    error,
-  } = await supabase.auth.getUser();
-  if (error || !user) return { error: "Sesión expirada" };
+  const live = await requireLiveUser();
+  if (!live.ok) return { error: live.error };
 
-  // Full-invariant admin check (aligned with requireAdminOrRedirect): role +
-  // accountType==='institutional' + deactivatedAt IS NULL + deletedAt IS NULL.
-  // Adding accountType + deletedAt closes the gap where a personal-type or
-  // ERASED (soft-deleted, session still valid — Ley 25.326 art. 16) account
-  // whose role column still read 'admin' passed the earlier role+deactivated
-  // check.
-  const [profile] = await db
-    .select({
-      role: profiles.role,
-      accountType: profiles.accountType,
-      deactivatedAt: profiles.deactivatedAt,
-      deletedAt: profiles.deletedAt,
-    })
-    .from(profiles)
-    .where(eq(profiles.id, user.id))
-    .limit(1);
-
-  if (
-    !profile ||
-    profile.role !== "admin" ||
-    profile.accountType !== "institutional" ||
-    profile.deactivatedAt !== null ||
-    profile.deletedAt !== null
-  ) {
+  const profile = live.profile;
+  if (!profile || profile.role !== "admin" || profile.accountType !== "institutional") {
     return { error: "Acceso restringido a administradores" };
   }
-  return { userId: user.id };
+  return { userId: live.user.id };
 }
 
 // ---------------------------------------------------------------------------

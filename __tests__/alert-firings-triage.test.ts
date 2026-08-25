@@ -314,11 +314,14 @@ describe("triage — acknowledge", () => {
     expect(res).toHaveProperty("error");
   });
 
-  it("rejects a non-admin caller", async () => {
+  it("rejects a caller with no session", async () => {
     const id = await seedFiring("open_welfare_reports", "disparada");
     getUserMock.mockResolvedValueOnce({ data: { user: null }, error: { message: "no session" } });
     const res = await acknowledgeFiringAction(id);
-    expect(res).toEqual({ error: "Sesión expirada" });
+    // requireLiveUser's canonical wording since 2026-08-25. The local guard's
+    // copy was the same sentence missing its full stop; the guard is gone and
+    // so is the near-duplicate string.
+    expect(res).toEqual({ error: "Sesión expirada." });
   });
 });
 
