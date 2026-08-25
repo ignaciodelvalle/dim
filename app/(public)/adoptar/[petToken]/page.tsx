@@ -5,11 +5,13 @@ import { notFound } from "next/navigation";
 import Script from "next/script";
 
 import { Icon } from "@/components/Icon";
-import { attachments, db, organizations, ownerships, petEvents, pets } from "@/db";
+import { type Pet, attachments, db, organizations, ownerships, petEvents, pets } from "@/db";
 import { ageBucketLabel, energyLabel, sizeLabel } from "@/lib/infra/adoption-listing";
+import { withDbBudgetOrThrow } from "@/lib/infra/db-budget";
 import { hasActiveMicrochip } from "@/lib/infra/pet-identifiers";
 import { publicPetByToken } from "@/lib/infra/public-pet-lookup";
 import { isPublicTokenReadThrottled } from "@/lib/infra/public-token-throttle";
+import { reportError } from "@/lib/infra/report-error";
 import { resolveSiteUrl } from "@/lib/infra/site-url";
 import { petPhotoUrl } from "@/lib/infra/storage";
 import {
@@ -40,25 +42,73 @@ const SITE_URL = resolveSiteUrl();
 // so an unlisted/paused/adopted pet stops resolving to the public ficha promptly.
 export const dynamic = "force-dynamic";
 
+// DB time budget for generateMetadata, at parity with /p/[publicToken], which
+// bounds its own metadata read at the same number for the same reason: one HTTP
+// request runs this function AND the component, so an unbounded read here hangs
+// or 500s a page whose body already knows how to degrade. The generic title is
+// the honest fallback — the share card loses the pet's name, nothing else.
+const METADATA_BUDGET_MS = 2500;
+
+/** The fallback title, used for "no such listing" and for a degraded read alike. */
+const GENERIC_METADATA_TITLE = "Adopción — miMAR";
+
+/**
+ * Open Graph metadata for the adoption ficha.
+ *
+ * NOT BEHIND THE THROTTLE, AND THAT IS THE SAME JUDGEMENT /p MADE (2026-08-25).
+ * One HTTP request runs both this and the component below; `enforceRateLimit` is
+ * a counter INCREMENT, so consulting it twice would bill a single visit twice
+ * and halve the effective ceiling for every legitimate visitor. The residual —
+ * metadata as a thin existence side-channel past a throttled caller — is the one
+ * /p accepts and documents, and closing it needs a check-without-increment mode
+ * on the limiter rather than a second call here. See the note in
+ * `__tests__/public-token-throttle-coverage.test.ts` ("SCOPED TO THE PAGE
+ * COMPONENT, DELIBERATELY") and the residual in lib/infra/public-token-throttle.ts.
+ *
+ * What it does NOT accept, and did until now, is being UNBUDGETED. /p wraps its
+ * metadata read in METADATA_BUDGET_MS and degrades to a generic title; this one
+ * ran naked, so a slow or failing DB turned a share-preview read into a hung or
+ * 500'd public page — on the surface whose body is written to degrade gracefully.
+ * Same budget, same fail-soft, same reasoning.
+ */
 export async function generateMetadata({
   params,
 }: {
   params: Promise<{ petToken: string }>;
 }) {
   const { petToken } = await params;
-  const [row] = await db
-    .select({
-      name: pets.name,
-      species: pets.species,
-      story: pets.adoptionStory,
-      jurisdictionLocality: pets.jurisdictionLocality,
-      primaryPhotoStoragePath: attachments.storagePath,
-    })
-    .from(pets)
-    .leftJoin(attachments, eq(attachments.id, pets.primaryPhotoId))
-    .where(publicPetByToken(petToken))
-    .limit(1);
-  if (!row) return { title: "Adopción — miMAR" };
+  let row:
+    | {
+        name: string;
+        species: Pet["species"];
+        story: string | null;
+        jurisdictionLocality: string | null;
+        primaryPhotoStoragePath: string | null;
+      }
+    | undefined;
+  try {
+    [row] = await withDbBudgetOrThrow(
+      (async () =>
+        db
+          .select({
+            name: pets.name,
+            species: pets.species,
+            story: pets.adoptionStory,
+            jurisdictionLocality: pets.jurisdictionLocality,
+            primaryPhotoStoragePath: attachments.storagePath,
+          })
+          .from(pets)
+          .leftJoin(attachments, eq(attachments.id, pets.primaryPhotoId))
+          .where(publicPetByToken(petToken))
+          .limit(1))(),
+      METADATA_BUDGET_MS,
+      "GET /adoptar/[petToken] metadata",
+    );
+  } catch (err) {
+    reportError("adoption-ficha/metadata", err, { petToken });
+    return { title: GENERIC_METADATA_TITLE };
+  }
+  if (!row) return { title: GENERIC_METADATA_TITLE };
   const title = `Adoptá a ${row.name} — miMAR`;
   const desc =
     row.story?.slice(0, 150) ??
