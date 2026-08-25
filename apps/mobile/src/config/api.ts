@@ -1,4 +1,5 @@
-// Where the app talks to, and the one token the M1 spike reads.
+// Where the app talks to — the DATA plane and the AUTH plane, which are not the
+// same host and must not be confused for one.
 //
 // THE EMPTY-STRING TRAP, WHICH THIS REPO HAS ALREADY PAID FOR ONCE
 // ---------------------------------------------------------------------------
@@ -14,6 +15,17 @@
 // as a literal, not read from a runtime environment — which means a build made
 // with the variable empty carries the empty string into the binary and there is
 // no later opportunity to notice.
+//
+// TWO PLANES, ONE RULE
+// ---------------------------------------------------------------------------
+// DATA (pets, events, custody, the credential) goes through `/api/v1` with a
+// bearer token, never through PostgREST — PO decision #2, taken because 14 of 15
+// `ownerships`-derived RLS policies carry no role predicate and `pet_events`
+// INSERT checks neither role nor event type (RLS audit 2026-08-18). AUTH (token
+// refresh) goes to GoTrue directly, because that is what the Supabase SDK does
+// on a timer and is unambiguously better at than a hand-rolled endpoint (clock
+// skew, concurrent-refresh collapsing, retry). The two constants below are
+// separate so nothing can quietly start reading tables with the auth client.
 
 import { deepLinkUrl } from "@dim/contract/links";
 
@@ -23,12 +35,15 @@ function envUrl(raw: string | undefined, fallback: string): string {
   return trimmed ? trimmed.replace(/\/+$/, "") : fallback;
 }
 
+/** Same rule, for a value with no sensible default. */
+function envValue(raw: string | undefined): string {
+  return raw?.trim() ?? "";
+}
+
 /**
  * The API/web origin.
  *
- * Defaults to staging because that is where the flagship demo pet lives and
- * because M1 has no auth: every read this app makes today is public, so
- * pointing a developer's build at staging leaks nothing and costs no setup.
+ * Defaults to staging because that is where the flagship demo pet lives.
  * Override with `EXPO_PUBLIC_API_BASE_URL` (e.g. an ngrok tunnel to a local
  * `next dev` — a phone cannot reach `localhost`).
  */
@@ -38,17 +53,26 @@ export const API_BASE_URL = envUrl(
 );
 
 /**
- * The flagship demo pet. Hard-coded for the spike ONLY.
+ * The GoTrue origin and its publishable key, for TOKEN REFRESH ONLY.
  *
- * M2 replaces this with the signed-in owner's pets; there is no token entry
- * field here because a screen that asks a user to type `DIM-PAMP-0001` is a
- * screen we would then have to delete.
+ * NO DEFAULT, deliberately, and this is the one place in this file that refuses
+ * to guess. A wrong API origin produces a visible failure on the first screen; a
+ * wrong auth origin produces an app that signs in fine and then silently stops
+ * refreshing an hour later, which surfaces as "it logs me out sometimes" — the
+ * exact symptom class this whole auth stack was written to avoid. Empty means
+ * `authPlaneConfigured()` is false and the app says so, out loud, instead of
+ * pretending.
+ *
+ * The anon key is publishable by design: it identifies the project and grants
+ * nothing on its own. It is still read from the environment rather than pinned
+ * here so a build can point at a different project without a code change.
  */
-export const SPIKE_PUBLIC_TOKEN = "DIM-PAMP-0001";
+export const SUPABASE_URL = envValue(process.env.EXPO_PUBLIC_SUPABASE_URL).replace(/\/+$/, "");
+export const SUPABASE_ANON_KEY = envValue(process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY);
 
-/** `GET {base}/api/v1/pets/{token}/credential` — the one endpoint that exists. */
-export function credentialEndpoint(publicToken: string): string {
-  return `${API_BASE_URL}/api/v1/pets/${encodeURIComponent(publicToken)}/credential`;
+/** Whether this build can refresh a session at all. See SUPABASE_URL. */
+export function authPlaneConfigured(): boolean {
+  return SUPABASE_URL.length > 0 && SUPABASE_ANON_KEY.length > 0;
 }
 
 /**
@@ -71,3 +95,26 @@ export function credentialEndpoint(publicToken: string): string {
 export function publicCredentialPageUrl(publicToken: string): string {
   return deepLinkUrl(API_BASE_URL, "credential", { publicToken });
 }
+
+/**
+ * The web URL where identity completion happens, for the pending-profile gate.
+ *
+ * `/registro` and not a native form: there is no native identity flow and this
+ * app must not fake one. The DNI hashing, the Ley 25.326 consent copy and the
+ * Mi Argentina federation path all live on the web today, and a native form
+ * posting "some fields" would be a second, weaker definition of what a verified
+ * identity is.
+ *
+ * It is the RESUME surface by design — `app/(auth)/registro/page.tsx` keeps an
+ * authenticated visitor whose identity is still provisional on the page and
+ * shows step 2 directly, instead of bouncing them to `/mis-mascotas`. (That
+ * guard exists because it used to bounce them, which is how 60% of owner
+ * profiles ended up stuck on the trigger's provisional display name.)
+ *
+ * WHAT THE SCREEN MUST SAY, because this URL does not carry the native session:
+ * the web resolves the visitor from a COOKIE and this app holds a bearer token,
+ * so opening the link lands on a signed-out browser. The person has to sign in
+ * again there with the same email. Saying so is the difference between a link
+ * that works and a link that looks broken.
+ */
+export const IDENTITY_COMPLETION_URL = `${API_BASE_URL}/registro`;

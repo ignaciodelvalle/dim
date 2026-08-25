@@ -4,7 +4,7 @@
   "description": "MiMAR — the Expo client. Native M1: workspace member + credential spike.",
   "private": true,
   "license": "UNLICENSED",
-  "main": "index.ts",
+  "main": "expo-router/entry",
   "scripts": {
     "start": "expo start --dev-client",
     "android": "expo run:android",

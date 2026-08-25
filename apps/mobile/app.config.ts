@@ -78,6 +78,24 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
   // opening in Chrome forever. Two hand-maintained copies of a string in two
   // programs that never import each other is the drift `packages/contract`
   // exists to prevent, so the string has one home and both sides read it.
+  // The EAS project this app builds under, created by the PO on 2026-08-25.
+  //
+  // Written by hand rather than by `eas init`, which needs interactive auth and
+  // would rewrite this file — the one file here whose value is its commentary.
+  // The result is identical: `eas build` reads `extra.eas.projectId` and nothing
+  // else from the config to identify the project.
+  //
+  // `owner` is deliberately ABSENT. It names the account the project belongs to,
+  // and `eas build` run by a logged-in member resolves the owner from the
+  // session, so the PO's first builds work without it. A CI or robot build has
+  // no session to resolve from and WILL need `owner: "<account slug>"` added
+  // here — at the first such build, when the slug is actually known, rather than
+  // guessed now.
+  //
+  // The spread of `config.extra` is not decoration: the expo-router plugin puts
+  // its own `extra.router` there during config resolution, and replacing the
+  // object instead of merging it would drop that silently.
+  extra: { ...config.extra, eas: { projectId: "db4bebed-67f3-49a7-acf7-63c9f19ad511" } },
   ios: { ...config.ios, bundleIdentifier: IOS_BUNDLE_IDENTIFIER },
   android: {
     ...config.android,

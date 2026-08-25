@@ -15,7 +15,13 @@ import { PUBLIC_CREDENTIAL_PAYLOAD_VERSION } from "@dim/contract/api";
 
 import { type CredentialFetchResult, fetchCredential, fetchFailureMessage } from "./credential-api";
 
-type FetchStub = { status: number; body?: unknown; bodyThrows?: boolean; fetchThrows?: unknown };
+type FetchStub = {
+  status: number;
+  body?: unknown;
+  bodyThrows?: boolean;
+  fetchThrows?: unknown;
+  retryAfter?: string;
+};
 
 /** Installs a one-shot `fetch` stub and restores the real one afterwards. */
 async function withFetch(stub: FetchStub, token = "DIM-PAMP-0001") {
@@ -25,6 +31,12 @@ async function withFetch(stub: FetchStub, token = "DIM-PAMP-0001") {
     return {
       status: stub.status,
       ok: stub.status >= 200 && stub.status < 300,
+      // The real `Response` always has these. The stub grew them when the
+      // transport moved into `api/client.ts`, which reads `retry-after` so a 429
+      // can say HOW LONG rather than "esperá un momento".
+      headers: {
+        get: (name: string) => (name === "retry-after" ? (stub.retryAfter ?? null) : null),
+      },
       json: async () => {
         if (stub.bodyThrows) throw new SyntaxError("Unexpected token < in JSON at position 0");
         return stub.body;
@@ -62,10 +74,30 @@ describe("fetchCredential — status branching", () => {
     expect(await withFetch({ status: 404, body: { error: "not_found" } })).toEqual({
       outcome: "api-error",
       code: "not_found",
+      retryAfterSeconds: null,
     });
     expect(await withFetch({ status: 429, body: { error: "rate_limited" } })).toEqual({
       outcome: "api-error",
       code: "rate_limited",
+      retryAfterSeconds: null,
+    });
+  });
+
+  it("carries the server's retry-after so a 429 can say how long", () => {
+    // The generic "esperá un momento" is honest and useless; a number is what
+    // stops somebody tapping the button eight more times and spending the
+    // budget of the finder standing over a lost animal in the street.
+    return withFetch({
+      status: 429,
+      body: { error: "rate_limited" },
+      retryAfter: "45",
+    }).then((result) => {
+      expect(result).toEqual({
+        outcome: "api-error",
+        code: "rate_limited",
+        retryAfterSeconds: 45,
+      });
+      expect(fetchFailureMessage(result)).toContain("45 segundos");
     });
   });
 
@@ -93,7 +125,11 @@ describe("fetchCredential — status branching", () => {
   it("never answers not_found to a read failure", async () => {
     // The contract calls that "the worst lie a public surface can tell".
     const result = await withFetch({ status: 500, body: { error: "temporarily_unavailable" } });
-    expect(result).toEqual({ outcome: "api-error", code: "temporarily_unavailable" });
+    expect(result).toEqual({
+      outcome: "api-error",
+      code: "temporarily_unavailable",
+      retryAfterSeconds: null,
+    });
   });
 });
 
@@ -103,17 +139,23 @@ describe("fetchCredential — codes outside the contract's vocabulary", () => {
     // ApiV1ErrorCode, which then matched no case in the message switch and
     // rendered as a blank line on the screen.
     const result = await withFetch({ status: 400, body: { error: "teapot" } });
-    expect(result).toEqual({ outcome: "api-error", code: "temporarily_unavailable" });
+    expect(result).toEqual({
+      outcome: "api-error",
+      code: "temporarily_unavailable",
+      retryAfterSeconds: null,
+    });
   });
 
   it("survives an error body that is not an object at all", async () => {
     expect(await withFetch({ status: 500, body: "boom" })).toEqual({
       outcome: "api-error",
       code: "temporarily_unavailable",
+      retryAfterSeconds: null,
     });
     expect(await withFetch({ status: 500, body: null })).toEqual({
       outcome: "api-error",
       code: "temporarily_unavailable",
+      retryAfterSeconds: null,
     });
   });
 });
@@ -158,9 +200,9 @@ describe("fetchFailureMessage", () => {
     // The blank-line bug in one assertion: if any failure outcome ever maps to
     // null, the screen renders an empty <Text> under "No se pudo leer".
     const failures: CredentialFetchResult[] = [
-      { outcome: "api-error", code: "rate_limited" },
-      { outcome: "api-error", code: "not_found" },
-      { outcome: "api-error", code: "temporarily_unavailable" },
+      { outcome: "api-error", code: "rate_limited", retryAfterSeconds: null },
+      { outcome: "api-error", code: "not_found", retryAfterSeconds: null },
+      { outcome: "api-error", code: "temporarily_unavailable", retryAfterSeconds: null },
       { outcome: "unsupported-version", received: 99 },
       { outcome: "unsupported-version", received: null },
       { outcome: "malformed", detail: "bad json" },

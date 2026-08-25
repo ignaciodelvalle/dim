@@ -24,7 +24,9 @@ import {
 
 import {
   SECTION_UNAVAILABLE_MESSAGE,
+  STALE_NOTICE,
   buildCredentialView,
+  cachedCredentialNotice,
   describeFreshness,
   lostView,
   noticeLines,
@@ -278,5 +280,69 @@ describe("es-AR labels", () => {
     // "Vigente" alone would claim a verification this registry never performed.
     expect(rabiesProvenanceLabel("declarada")).toBe("declarada por el titular");
     expect(rabiesProvenanceLabel("profesional")).toBe("carga profesional");
+  });
+});
+
+describe("cachedCredentialNotice — the offline banner", () => {
+  const issuedAt = "2026-08-25T12:00:00.000Z";
+  const staleAfter = "2026-08-25T12:05:00.000Z";
+  const at = (iso: string) => new Date(iso);
+
+  it("names the age and the fact that this came from disk", () => {
+    const freshness = describeFreshness({ issuedAt, staleAfter }, at("2026-08-25T12:03:00.000Z"));
+    const notice = cachedCredentialNotice(freshness);
+    expect(notice.headline).toBe("actualizado hace 3 minutos · sin conexión");
+    expect(notice.warning).toBeNull();
+  });
+
+  it("warns when the SERVER's staleAfter has passed", () => {
+    // The judgement is the server's, not ours: `staleAfter` is what the payload
+    // declares, and this app must not invent a different expiry.
+    const freshness = describeFreshness({ issuedAt, staleAfter }, at("2026-08-25T15:00:00.000Z"));
+    const notice = cachedCredentialNotice(freshness);
+    expect(notice.headline).toBe("actualizado hace 3 horas · sin conexión");
+    expect(notice.warning).toBe(STALE_NOTICE);
+  });
+
+  it("ALWAYS produces a headline, so a cached credential can never render bare", () => {
+    // The one failure this banner exists to prevent: presenting a rabies status
+    // that reads "Vigente" and expired last month, on a screen that gives no
+    // hint it is not live.
+    const cases = [
+      describeFreshness({ issuedAt, staleAfter }, at("2026-08-25T12:00:00.000Z")),
+      describeFreshness({ issuedAt, staleAfter }, at("2026-09-25T12:00:00.000Z")),
+      describeFreshness({ issuedAt: "not-a-date", staleAfter }, at(issuedAt)),
+      describeFreshness({ issuedAt, staleAfter: "not-a-date" }, at(issuedAt)),
+    ];
+    for (const freshness of cases) {
+      const notice = cachedCredentialNotice(freshness);
+      expect(notice.headline.trim().length).toBeGreaterThan(0);
+      expect(notice.headline).toContain("sin conexión");
+    }
+  });
+
+  it("does not compose the unknown-age sentence into a fragment", () => {
+    // `describeFreshness` answers "No se pudo determinar la antigüedad." there,
+    // and "No se pudo determinar la antigüedad. · sin conexión" is not a
+    // sentence anybody wrote.
+    const freshness = describeFreshness({ issuedAt: "nope", staleAfter }, at(issuedAt));
+    expect(freshness.state).toBe("unknown");
+    const notice = cachedCredentialNotice(freshness);
+    expect(notice.headline).toBe("Copia guardada en este dispositivo · sin conexión");
+    expect(notice.warning).not.toBeNull();
+  });
+
+  it("falls back to the contract's own stale window when staleAfter is unreadable", () => {
+    // PUBLIC_CREDENTIAL_STALE_AFTER_MS is the contract's answer to "how long is
+    // a snapshot good for". A client that invented its own number would draw a
+    // different line than the server on the same payload.
+    const justInside = new Date(Date.parse(issuedAt) + PUBLIC_CREDENTIAL_STALE_AFTER_MS - 1_000);
+    const justOutside = new Date(Date.parse(issuedAt) + PUBLIC_CREDENTIAL_STALE_AFTER_MS + 1_000);
+    expect(
+      cachedCredentialNotice(describeFreshness({ issuedAt, staleAfter: "x" }, justInside)).warning,
+    ).toBeNull();
+    expect(
+      cachedCredentialNotice(describeFreshness({ issuedAt, staleAfter: "x" }, justOutside)).warning,
+    ).toBe(STALE_NOTICE);
   });
 });

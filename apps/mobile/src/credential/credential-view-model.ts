@@ -164,6 +164,46 @@ export function describeFreshness(
   };
 }
 
+/** What the banner over a CACHED credential says. */
+export type CachedNotice = {
+  /** Always shown. Names both the age and the fact that this came from disk. */
+  headline: string;
+  /** Shown as an alert when the server's own `staleAfter` has passed. */
+  warning: string | null;
+};
+
+/**
+ * The banner for a credential rendered from the offline cache.
+ *
+ * NEVER OPTIONAL. A cached credential without this banner is a claim about the
+ * present made out of the past — someone could present a rabies status that
+ * reads "vigente" and expired last month, on a screen that gives no hint it is
+ * not live. That is the single failure the per-section design of this whole
+ * credential exists to prevent, and the offline path is where it would sneak
+ * back in.
+ *
+ * The age comes from `describeFreshness`, i.e. from the SERVER'S `issuedAt` and
+ * `staleAfter` — not from the device clock at write time. A phone with a wrong
+ * clock still reports the payload's real age, and `staleAfter` still decides
+ * what "vencido" means, because that is the server's judgement and not ours.
+ *
+ * The `unknown` arm does not compose the label into the sentence: it reads "No
+ * se pudo determinar la antigüedad." and "No se pudo determinar la antigüedad. ·
+ * sin conexión" is not a sentence anyone wrote.
+ */
+export function cachedCredentialNotice(freshness: Freshness): CachedNotice {
+  if (freshness.state === "unknown") {
+    return {
+      headline: "Copia guardada en este dispositivo · sin conexión",
+      warning: "No sabemos de cuándo es esta copia. Conectate para ver el estado actual.",
+    };
+  }
+  return {
+    headline: `${freshness.label} · sin conexión`,
+    warning: freshness.state === "stale" ? STALE_NOTICE : null,
+  };
+}
+
 // ---------------------------------------------------------------------------
 // es-AR labels
 // ---------------------------------------------------------------------------
