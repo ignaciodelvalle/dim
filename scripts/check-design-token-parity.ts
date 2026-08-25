@@ -65,12 +65,14 @@ export const GLOBALS_CSS = "app/globals.css";
 /**
  * Floors. See "THE NON-VACUITY FLOOR" above.
  *
- * MIN_TOKENS_CHECKED is 59 — the 56 exact-match tokens plus the 3 font
+ * MIN_TOKENS_CHECKED is 60 — the 57 exact-match tokens plus the 3 font
  * families exported on 2026-08-25. Raising an export raises nothing here;
  * DROPPING one below this number is what has to be deliberate.
+ * (59 -> 60 when --color-ln-paper-2 was declared: it was referenced by four
+ * call sites while declared nowhere, so the fence had never covered it.)
  */
 export const MIN_THEME_DECLARATIONS = 120;
-export const MIN_TOKENS_CHECKED = 59;
+export const MIN_TOKENS_CHECKED = 60;
 
 /**
  * The declarations inside the `@theme` block, as `name → value`.

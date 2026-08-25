@@ -191,6 +191,52 @@ export const OP_TOKEN_UTILITY =
   /\b(?:bg|text|border|ring|divide|from|to|via|outline|fill|stroke|placeholder|caret|decoration|accent)-ln-op-([a-z0-9]+(?:-[a-z0-9]+)*)/g;
 
 // ---------------------------------------------------------------------------
+// Undefined ln-token REFERENCE guard (same silent-invisible class, other form)
+//
+// The guard above only sees the UTILITY spelling (`bg-ln-op-verde`). The other
+// way to reach a token is `bg-[var(--color-ln-x)]` / `style={{ background:
+// "var(--color-ln-x)" }}` — the form this repo blesses everywhere, and the one
+// rule 3 (arbitrary hex) actively pushes people toward. Nothing checked that the
+// name inside `var()` resolves to anything. Three did not:
+//
+//   --color-ln-paper-2  4 refs / 3 files — both neutral login notices, the
+//                       "sin confirmar" vaccine badge, a session-row hover
+//   --color-ln-rule     1 ref — the same badge's border
+//   --color-ln-canvas   1 ref — the whole <main> ground of asistencia/presentar
+//
+// All six rendered with no background/border at all. An undefined custom
+// property makes the declaration invalid at computed-value time, which is
+// silent: no console warning, no build error, just a missing surface.
+//
+// ONLY the no-fallback form is flagged. `var(--color-ln-x, #fff)` is not this
+// bug — the fallback renders — so it is deliberately out of scope rather than
+// unnoticed.
+// ---------------------------------------------------------------------------
+
+/**
+ * Parse the set of DEFINED `--color-ln-*` token names from theme CSS, e.g.
+ * `--color-ln-paper: …` → "ln-paper". Covers the `ln-op-*` operator tokens too,
+ * since they share the prefix. Exported for unit tests.
+ */
+export function parseDefinedLnTokens(css: string): Set<string> {
+  const out = new Set<string>();
+  for (const m of css.matchAll(/--color-(ln-[a-z0-9]+(?:-[a-z0-9]+)*)\s*:/g)) {
+    out.add(m[1]);
+  }
+  return out;
+}
+
+// Capture group 1 is the token name referenced through `var()`, with no
+// fallback argument. Matches in .tsx className strings and in .css alike.
+export const LN_TOKEN_VAR_REFERENCE = /var\(\s*--color-(ln-[a-z0-9]+(?:-[a-z0-9]+)*)\s*\)/g;
+
+/** A `//` line comment or a `*` JSDoc continuation — prose, not styling. */
+function isCommentLine(line: string): boolean {
+  const t = line.trimStart();
+  return t.startsWith("//") || t.startsWith("*");
+}
+
+// ---------------------------------------------------------------------------
 // Rules 4–10 (new ratchet rules — fail only on NEW violations above baseline)
 // ---------------------------------------------------------------------------
 
@@ -485,6 +531,42 @@ function runChecks(): void {
   }
   const opGuardActive = definedOpTokens.size > 0;
 
+  // Same theme file, same fail-soft posture: if it cannot be read, disable the
+  // reference guard rather than flag every `var(--color-ln-*)` in the repo.
+  let definedLnTokens = new Set<string>();
+  try {
+    definedLnTokens = parseDefinedLnTokens(readFileSync(OP_TOKENS_CSS_PATH, "utf8"));
+  } catch {
+    console.warn(
+      `[warn] ${OP_TOKENS_CSS_PATH} not readable — undefined ln-* var() reference guard skipped.`,
+    );
+  }
+  const lnRefGuardActive = definedLnTokens.size > 0;
+
+  // Non-vacuity: a regex regression would check nothing and report clean. The
+  // summary prints this, and the floor below turns "checked nothing" into a
+  // failure rather than a green light.
+  let lnRefsScanned = 0;
+  const MIN_LN_REFS_SCANNED = 200;
+
+  /** Reports every `var(--color-ln-*)` in `src` that resolves to nothing. */
+  const checkLnReferences = (file: string, src: string): number => {
+    if (!lnRefGuardActive) return 0;
+    let found = 0;
+    src.split(/\r?\n/).forEach((line, i) => {
+      if (isCommentLine(line)) return;
+      for (const match of line.matchAll(LN_TOKEN_VAR_REFERENCE)) {
+        lnRefsScanned += 1;
+        if (definedLnTokens.has(match[1])) continue;
+        console.error(
+          `${file}:${i + 1}:${(match.index ?? 0) + 1}: undefined token reference "${match[0]}" — --color-${match[1]} is declared nowhere in ${OP_TOKENS_CSS_PATH}. An undefined custom property makes the declaration invalid at computed-value time, so the surface renders with nothing at all — silently. Declare the token or use one that exists.`,
+        );
+        found += 1;
+      }
+    });
+    return found;
+  };
+
   let hits = 0;
 
   // Ratchet per-file totals for rules 4–10
@@ -507,6 +589,9 @@ function runChecks(): void {
       ...ZERO_COUNTS,
       ...(baseline[relPath] ?? {}),
     };
+
+    // --- Rule 11 (line-level, no ratchet): var() references that resolve ---
+    hits += checkLnReferences(file, src);
 
     // --- Rules 1–3 (line-level, no ratchet) ---
     lines.forEach((line, i) => {
@@ -613,8 +698,25 @@ function runChecks(): void {
     }
   }
 
+  // --- Rule 11 over stylesheets too ---
+  // The bug class is a property of the REFERENCE, not of the file type, and a
+  // print sheet naming a token that no longer exists fails exactly as quietly.
+  // globals.css is scanned alongside the rest: it declares the tokens, so its
+  // own references resolve, and a token deleted out from under a reference in
+  // the same file is precisely what this should catch.
+  for (const cssFile of CSS_FILES) {
+    hits += checkLnReferences(cssFile, readFileSync(cssFile, "utf8"));
+  }
+
   // --- Rules C1–C8 (CSS ratchet) ---
   hits += checkCssRatchet();
+
+  if (lnRefGuardActive && lnRefsScanned < MIN_LN_REFS_SCANNED) {
+    console.error(
+      `\n✗ the ln-* var() reference guard scanned only ${lnRefsScanned} reference(s), below the floor of ${MIN_LN_REFS_SCANNED}. Either the regex broke or the file globs did; a guard that measures nothing must not report clean.`,
+    );
+    hits += 1;
+  }
 
   if (hits > 0) {
     console.error(
@@ -629,6 +731,9 @@ function runChecks(): void {
   );
   console.log(
     `✓ Design tokens clean — 0 raw palette, 0 dark: prefix, 0 arbitrary hex across ${FILES.length} files.`,
+  );
+  console.log(
+    `  References: ${lnRefsScanned} var(--color-ln-*) reference(s) checked against ${definedLnTokens.size} declared token(s); all resolve.`,
   );
   console.log(
     `  Ratchet: ${totalBaselined} grandfathered arbitrary values across ${Object.keys(baseline).length} files (rules 4–10). New violations will fail.`,

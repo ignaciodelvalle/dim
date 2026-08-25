@@ -66,6 +66,22 @@
   --color-ln-faint: #646f78;
 
   --color-ln-paper: #fbfaf5;
+  /* Paper's slightly-darker sibling — the QUIET NEUTRAL GROUND. Four call sites
+     across three files referenced it while it was declared NOWHERE, so in
+     Tailwind v4 they emitted no CSS and drew with no background at all: both
+     neutral notices on the login (motivo=turno, motivo=sesiones-cerradas), the
+     "sin confirmar" vaccine badge, and the session-row hover in
+     RevokeSessionsDialog. `bg-[var(--token)]` is a blessed form, so lint:tokens
+     could not see the dangle; the reference-resolves rule added alongside this
+     declaration can (it found two more, ln-rule and ln-canvas).
+     THE VALUE is the arithmetic midpoint of paper (#fbfaf5) and stripe
+     (#f6f4ed) — (248,247,241). Deliberately its own step rather than an alias of
+     stripe: stripe is the credential card's cream BAND and is one step warmer
+     still, while all four sites above want a ground that barely lifts off the
+     page. It keeps the paper family's warm axis (R-B = 7, between paper's 6 and
+     stripe's 9), so it reads as neutral next to the chromatic status tints
+     (warn-025, err-050, ok-050) rather than as a fifth colour. */
+  --color-ln-paper-2: #f8f7f1;
   --color-ln-card: #ffffff;
   --color-ln-stripe: #f6f4ed;
   --color-ln-line: #e4dfd3;

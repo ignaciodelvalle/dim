@@ -70,6 +70,7 @@ export const LN_CSS_TOKENS = {
   "--color-ln-faint": "#646f78",
 
   "--color-ln-paper": "#fbfaf5",
+  "--color-ln-paper-2": "#f8f7f1",
   "--color-ln-card": "#ffffff",
   "--color-ln-stripe": "#f6f4ed",
   "--color-ln-line": "#e4dfd3",
@@ -174,6 +175,10 @@ export const LN_COLORS = {
 
   /** The warm cream page ground. */
   paper: LN_CSS_TOKENS["--color-ln-paper"],
+  /** Paper's slightly-darker sibling — quiet neutral ground for a notice
+   *  block, a neutral chip or a row hover. Lifts off the page without the
+   *  warmth of `stripe`, which stays the credential card's cream band. */
+  paper2: LN_CSS_TOKENS["--color-ln-paper-2"],
   /** Card / control fill. */
   card: LN_CSS_TOKENS["--color-ln-card"],
   /** A cream one step warmer than paper — inset strips, chip fills. */

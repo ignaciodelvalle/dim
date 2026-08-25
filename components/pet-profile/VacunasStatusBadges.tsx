@@ -131,7 +131,9 @@ export function VacunasStatusBadges({ summary }: { summary: VaccinationSummary }
       count: counts.sinConfirmar,
       items: summary.perVaccine.filter((v) => v.status === "unconfirmed"),
       bg: "var(--color-ln-paper-2)",
-      border: "var(--color-ln-rule)",
+      // Was --color-ln-rule, which is declared nowhere and therefore drew no
+      // border at all. ln-line IS the warm hairline this wanted.
+      border: "var(--color-ln-line)",
       text: "var(--color-ln-ink-2)",
     },
   ];

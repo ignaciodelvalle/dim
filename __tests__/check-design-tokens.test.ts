@@ -8,14 +8,18 @@
  * or the correct st-* form).
  */
 
+import { readFileSync } from "node:fs";
+
 import { describe, expect, it } from "vitest";
 
 import {
   DEAD_FONT_VAR,
   DEAD_TEXT_VAR,
+  LN_TOKEN_VAR_REFERENCE,
   OP_TOKEN_UTILITY,
   RAW_CITIZEN_STATUS,
   STATUS_COMPONENTS,
+  parseDefinedLnTokens,
   parseDefinedOpTokens,
 } from "@/scripts/check-design-tokens";
 import {
@@ -620,5 +624,114 @@ describe("walker robustness", () => {
     const [hit] = scanCss(css, { floorPx: 10 });
     expect(hit.line).toBe(3);
     expect(hit.col).toBe(3);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Rule 11 — var(--color-ln-*) references must resolve to a declared token.
+//
+// The bug this closes: `--color-ln-paper-2`, `--color-ln-rule` and
+// `--color-ln-canvas` were referenced by six call sites while declared nowhere.
+// `bg-[var(--token)]` is a BLESSED form, so no existing rule looked at the name
+// inside it, and an undefined custom property fails silently — the surface just
+// renders with no background.
+// ---------------------------------------------------------------------------
+
+/** The token names a reference scan would flag against `declared`. */
+function unresolvedLnRefs(src: string, declared: Set<string>): string[] {
+  LN_TOKEN_VAR_REFERENCE.lastIndex = 0;
+  return [...src.matchAll(LN_TOKEN_VAR_REFERENCE)].map((m) => m[1]).filter((n) => !declared.has(n));
+}
+
+const LN_THEME_CSS = `
+  @theme {
+    --color-ln-paper: #fbfaf5;
+    --color-ln-paper-2: #f8f7f1;
+    --color-ln-line: #e4dfd3;
+    --color-ln-ok-050: #eef6f0;
+    --color-ln-op-ok: #1e7a3e;
+  }
+`;
+
+describe("parseDefinedLnTokens — builds the allowlist from theme CSS", () => {
+  const declared = parseDefinedLnTokens(LN_THEME_CSS);
+
+  it("extracts simple, numeric-suffixed and compound token names", () => {
+    expect(declared.has("ln-paper")).toBe(true);
+    expect(declared.has("ln-paper-2")).toBe(true);
+    expect(declared.has("ln-ok-050")).toBe(true);
+    // The ln-op-* operator palette shares the prefix and is covered too.
+    expect(declared.has("ln-op-ok")).toBe(true);
+  });
+
+  it("does not invent tokens that were never declared", () => {
+    expect(declared.has("ln-rule")).toBe(false);
+    expect(declared.has("ln-canvas")).toBe(false);
+  });
+});
+
+describe("LN_TOKEN_VAR_REFERENCE — recall over the forms the repo actually uses", () => {
+  const declared = parseDefinedLnTokens(LN_THEME_CSS);
+
+  it("flags the three real dangling tokens, in their real spellings", () => {
+    // className arbitrary value — both login notices and the row hover.
+    expect(unresolvedLnRefs('className="bg-[var(--color-ln-paper-2)]"', new Set())).toEqual([
+      "ln-paper-2",
+    ]);
+    expect(unresolvedLnRefs("hover:bg-[var(--color-ln-paper-2)]", new Set())).toEqual([
+      "ln-paper-2",
+    ]);
+    // style-prop object value — the "sin confirmar" vaccine badge.
+    expect(unresolvedLnRefs('border: "var(--color-ln-rule)",', declared)).toEqual(["ln-rule"]);
+    // The whole <main> ground of asistencia/presentar.
+    expect(unresolvedLnRefs("bg-[var(--color-ln-canvas)]", declared)).toEqual(["ln-canvas"]);
+    // Plain CSS, same bug class.
+    expect(unresolvedLnRefs("background: var(--color-ln-canvas);", declared)).toEqual([
+      "ln-canvas",
+    ]);
+  });
+
+  it("does NOT flag declared tokens", () => {
+    expect(unresolvedLnRefs("bg-[var(--color-ln-paper-2)]", declared)).toEqual([]);
+    expect(
+      unresolvedLnRefs("border-[var(--color-ln-line)] bg-[var(--color-ln-ok-050)]", declared),
+    ).toEqual([]);
+    expect(unresolvedLnRefs("text-[var(--color-ln-op-ok)]", declared)).toEqual([]);
+  });
+
+  it("flags only the undefined token in a mixed className", () => {
+    expect(
+      unresolvedLnRefs(
+        'className="border-[var(--color-ln-line)] bg-[var(--color-ln-rule)]"',
+        declared,
+      ),
+    ).toEqual(["ln-rule"]);
+  });
+
+  it("ignores the fallback form, which is not this bug", () => {
+    // `var(--x, #fff)` renders the fallback, so an undeclared name there is not
+    // the silent-invisible defect. Out of scope ON PURPOSE, not by oversight.
+    expect(unresolvedLnRefs("var(--color-ln-canvas, #fbfaf5)", declared)).toEqual([]);
+  });
+});
+
+describe("regression — the real globals.css resolves every ln-* reference", () => {
+  const declared = parseDefinedLnTokens(readFileSync("app/globals.css", "utf8"));
+
+  it("declares the token four call sites across three files were already using", () => {
+    expect(declared.has("ln-paper-2")).toBe(true);
+  });
+
+  it("leaves no dangling reference anywhere in app/ or components/", () => {
+    // Belt and braces over the CLI scan: a dangle reintroduced in a file the
+    // globs miss would still be caught by the scan, but this pins the two
+    // repointed call sites specifically.
+    const badge = readFileSync("components/pet-profile/VacunasStatusBadges.tsx", "utf8");
+    expect(unresolvedLnRefs(badge, declared)).toEqual([]);
+    const presentar = readFileSync(
+      "app/(app)/mis-mascotas/[publicToken]/asistencia/presentar/page.tsx",
+      "utf8",
+    );
+    expect(unresolvedLnRefs(presentar, declared)).toEqual([]);
   });
 });

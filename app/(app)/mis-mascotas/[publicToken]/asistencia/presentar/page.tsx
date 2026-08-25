@@ -63,8 +63,12 @@ export default async function AsistenciaPresentarPage({
     errorCorrectionLevel: "M",
   });
 
+  // The ground below is ln-paper, not the undeclared ln-canvas it used to name:
+  // nothing declares --color-ln-canvas, so this screen drew with no background
+  // at all. "canvas" is the NATIVE side's name for the same value (theme.ts maps
+  // canvas -> LN_COLORS.paper); on the web the token is ln-paper.
   return (
-    <main className="flex min-h-screen flex-col bg-[var(--color-ln-canvas)] text-[var(--color-ln-ink)]">
+    <main className="flex min-h-screen flex-col bg-[var(--color-ln-paper)] text-[var(--color-ln-ink)]">
       {/* Minimal top bar */}
       <div className="px-4 pt-4">
         <Link
@@ -74,8 +78,6 @@ export default async function AsistenciaPresentarPage({
           ← Volver
         </Link>
       </div>
-
-      {/* Presentation content */}
       <div className="mx-auto flex w-full max-w-lg flex-1 flex-col items-center justify-center gap-6 px-6 py-8">
         {/* Credential title */}
         <div className="text-center">
