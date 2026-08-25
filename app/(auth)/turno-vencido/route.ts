@@ -32,18 +32,55 @@
 // A GET that ends sessions is normally a CSRF gift — any cross-site page, or a
 // prefetch, can force a victim's logout. This one is safe for a structural
 // reason rather than a hopeful one: IT RE-DERIVES THE POLICY ITSELF and signs
-// out ONLY a session `requireLiveUser` independently reports as SHIFT_EXPIRED.
-// A session inside its shift is redirected home with its cookies untouched. So
-// the worst an attacker can force is the logout of a session that our own policy
-// has already refused — which is the state this endpoint exists to produce.
+// out ONLY a session THE SAME POLICY THAT REFUSED THE OPERATOR independently
+// reports as over. A session inside its shift is redirected home with its
+// cookies untouched. So the worst an attacker can force is the logout of a
+// session that our own policy has already refused — which is the state this
+// endpoint exists to produce.
 //
 // That check is not defence-in-depth decoration. It is what makes the URL
 // harmless to hand out.
+//
+// AND `requireLiveUser` ALONE IS NOT THAT POLICY — IT IS HALF OF IT (2026-08-25)
+// ---------------------------------------------------------------------------
+// The re-derivation used to be one call to `requireLiveUser`, and that call can
+// only ever refuse an INSTITUTIONAL principal for the shift: its check sits
+// behind `isInstitutionalPrincipal`, i.e. an `institutional` accountType or a
+// `govt`/`admin` role (lib/infra/live-user.ts). The single largest group of
+// operators under B9 does not match it. A clinic vet holds `role: "vet"` /
+// `accountType: "personal"` and their operator-ness lives in
+// `organization_memberships`, a table `requireLiveUser` never reads — which is
+// exactly why the org capability path re-applies the shift for them
+// (`resolveLiveActor` in src/modules/organizations/infrastructure/authz-resolver.ts).
+//
+// So the org vet was refused at /org/{token}/atender, redirected here by the
+// page — and THIS ROUTE saw `ok: true`, redirected to `/`, and touched nothing.
+// No sign-out, no card, no explanation: the operator went round the loop and
+// landed on the home page still authenticated on the clinic's shared desk. The
+// commit that shipped the redirect said "UN TURNO VENCIDO ES UN CIERRE DE
+// SESION, NO UN CARTEL" and then, for that principal, produced neither.
+//
+// The fix is to re-derive the WHOLE policy rather than the institutional half:
+// on an `ok` result, ask the second predicate — does this caller hold an ACTIVE
+// ORG MEMBERSHIP, and is their session past `isOperatorShiftExpired`? Both legs
+// reuse the plumbing that already exists (`getActiveMemberships`, and the
+// `sessionStartedAt` requireLiveUser resolves for every caller precisely so this
+// principal can be judged); nothing here re-implements the `amr` decode.
+//
+// THE MEMBERSHIP LEG IS WHAT KEEPS THE CSRF ARGUMENT TRUE, and it is not
+// incidental. B9 gives CITIZENS long-lived sessions on purpose, so "session
+// older than 8 hours" describes an ordinary, healthy citizen session — a
+// shift-only test would have made this URL a working cross-site logout link for
+// most of the userbase. Membership is the predicate that says "this session
+// belongs to an operator", which is the only population whose sessions policy
+// wants ended.
 
 import { redirect } from "next/navigation";
 
-import { requireLiveUser } from "@/lib/infra/live-user";
+import { type LiveUserResult, requireLiveUser } from "@/lib/infra/live-user";
+import { isOperatorShiftExpired } from "@/lib/infra/operator-shift";
 import { createClient } from "@/lib/supabase/server";
+import { getActiveMemberships } from "@/src/modules/organizations/infrastructure/authz-resolver";
 
 export const dynamic = "force-dynamic";
 
@@ -57,10 +94,10 @@ export async function GET() {
   const live = await requireLiveUser();
 
   // Not a shift problem — do not touch the session. Covers the prefetch, the
-  // cross-site auto-navigation, and the operator who simply typed the URL.
+  // cross-site auto-navigation, and the citizen who simply typed the URL.
   // MAINTENANCE and the account-state refusals have their own destinations and
   // must not be laundered into "your shift ended".
-  if (live.ok || live.reason !== "SHIFT_EXPIRED") {
+  if (!(await isShiftOver(live))) {
     redirect("/");
   }
 
@@ -101,6 +138,51 @@ export async function GET() {
 }
 
 /**
+ * Is this caller's operator shift over — by EITHER of the two predicates the
+ * product applies?
+ *
+ * This is the re-derivation the header's CSRF argument rests on, and it has to
+ * cover both halves or the argument protects a route that cannot serve the
+ * caller it was written for.
+ *
+ *   · REFUSED CALLER — `requireLiveUser` already said SHIFT_EXPIRED. That is the
+ *     institutional principal (accountType `institutional`, or role `govt` /
+ *     `admin`), and its refusal is taken verbatim. MAINTENANCE, NO_SESSION,
+ *     ACCOUNT_ERASED and DEACTIVATED are NOT shifts and answer `false`: each has
+ *     its own destination and its own copy, and none of them is fixed by signing
+ *     in again.
+ *
+ *   · LIVE CALLER, ORG STAFF — the principal `requireLiveUser` structurally
+ *     cannot refuse. An org staffer may hold a PERSONAL profile, so the
+ *     institutional predicate never fires for them; the org capability path
+ *     applies the shift to them instead. Membership is checked FIRST: it is what
+ *     narrows "an old session" to "an OPERATOR's old session" (see the header),
+ *     and asking `isOperatorShiftExpired` first would fire its fail-open report
+ *     for every citizen who ever loads this URL, filling an operator log with
+ *     anomalies about people who are not operators.
+ *
+ * NARROWER THAN `resolveLiveActor` ON PURPOSE, and the gap is not a hole. That
+ * function applies the shift to any live caller of an org surface, membership or
+ * not, so a NON-MEMBER with an old session can be told SHIFT_EXPIRED there and
+ * arrive here to be bounced to `/` with cookies intact. That is the right
+ * outcome twice over: the org path refuses them for NO_MEMBERSHIP regardless, so
+ * there is no operator session to end — and widening this predicate to match
+ * would hand every long-lived citizen session back to the cross-site logout the
+ * membership leg exists to prevent.
+ */
+async function isShiftOver(live: LiveUserResult): Promise<boolean> {
+  if (!live.ok) return live.reason === "SHIFT_EXPIRED";
+
+  const memberships = await getActiveMemberships(live.user.id);
+  if (memberships.length === 0) return false;
+
+  return isOperatorShiftExpired({
+    sessionStartedAt: live.sessionStartedAt,
+    context: "turno-vencido",
+  });
+}
+
+/**
  * The terminal answer when GoTrue would not end the session.
  *
  * Hand-written HTML rather than a page, because a page is a destination and a
@@ -110,8 +192,9 @@ export async function GET() {
  * `no-store` so a shared browser cannot show this to the next person at the desk.
  *
  * The retry link points back HERE. That is safe for the same structural reason
- * the GET itself is: the handler re-derives the policy and signs out only a
- * session `requireLiveUser` independently reports as SHIFT_EXPIRED.
+ * the GET itself is: the handler re-derives the policy — both predicates, see
+ * `isShiftOver` — and signs out only a session that policy independently reports
+ * as past its shift.
  */
 function shiftSignOutFailedResponse(): Response {
   const html = `<!doctype html>
