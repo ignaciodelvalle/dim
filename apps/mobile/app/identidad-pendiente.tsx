@@ -18,14 +18,15 @@
 // A screen that omitted that would look broken to the one person it is for.
 
 import * as Linking from "expo-linking";
-import { ScrollView, StyleSheet, Text, View } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
+import { StyleSheet, Text, View } from "react-native";
 
 import { signOut } from "../src/auth/session-store";
 import { useGate } from "../src/auth/useGate";
 import { IDENTITY_COMPLETION_URL } from "../src/config/api";
-import { Body, Card, PrimaryButton } from "../src/ui/components";
-import { COLORS, RADIUS, SPACE } from "../src/ui/theme";
+import { Body, Card } from "../src/ui/components";
+import { FONTS } from "../src/ui/fonts";
+import { PrimaryButton, Screen, SecondaryButton, Title } from "../src/ui/kit";
+import { COLORS, RADIUS, SPACE, TRACKING, TYPE } from "../src/ui/theme";
 
 export default function IdentidadPendienteScreen() {
   const gate = useGate({ allowPendingIdentity: true });
@@ -33,62 +34,62 @@ export default function IdentidadPendienteScreen() {
   if (!gate.allowed) return gate.element;
 
   return (
-    <SafeAreaView style={styles.safe} edges={["bottom"]}>
-      <ScrollView contentContainerStyle={styles.scroll}>
-        <Text style={styles.headline}>Falta completar tu registro</Text>
+    <Screen>
+      <Title>Falta completar tu registro</Title>
 
-        <Card>
-          <Body>
-            Tu cuenta existe, pero todavía no completaste tus datos. Hasta que lo hagas no podemos
-            asociarte mascotas ni emitir credenciales a tu nombre.
-          </Body>
-        </Card>
+      <Card>
+        <Body>
+          Tu cuenta existe, pero todavía no completaste tus datos. Hasta que lo hagas no podemos
+          asociarte mascotas ni emitir credenciales a tu nombre.
+        </Body>
+      </Card>
 
-        <Card title="Dónde se completa">
-          <Body>
-            Por ahora este paso se hace en la web. Abrí este link en el navegador y seguí desde
-            donde quedaste:
-          </Body>
-          {/* `selectable` and not a "copiar" button: a clipboard button means
-              another native module in the dev-client build, and the URL is
-              already selectable by long-press. The URL is shown IN FULL rather
-              than hidden behind the button so somebody whose browser will not
-              open from here can still type it. */}
-          <Text selectable style={styles.url}>
-            {IDENTITY_COMPLETION_URL}
-          </Text>
-          <Body>
-            Vas a tener que ingresar de nuevo con el mismo email: el navegador no comparte la sesión
-            de esta app.
-          </Body>
-          <View style={styles.actions}>
-            <PrimaryButton
-              label="Abrir en el navegador"
-              onPress={() => void Linking.openURL(IDENTITY_COMPLETION_URL)}
-            />
-          </View>
-        </Card>
+      <Card title="Dónde se completa">
+        <Body>
+          Por ahora este paso se hace en la web. Abrí este link en el navegador y seguí desde donde
+          quedaste:
+        </Body>
+        {/* `selectable` and not a "copiar" button: a clipboard button means
+            another native module in the dev-client build, and the URL is
+            already selectable by long-press. The URL is shown IN FULL rather
+            than hidden behind the button so somebody whose browser will not
+            open from here can still type it. Mono, like every other machine
+            string in this design — see the eyebrow and the public token. */}
+        <Text selectable style={styles.url}>
+          {IDENTITY_COMPLETION_URL}
+        </Text>
+        <Body>
+          Vas a tener que ingresar de nuevo con el mismo email: el navegador no comparte la sesión
+          de esta app.
+        </Body>
+        <View style={styles.actions}>
+          <PrimaryButton
+            label="Abrir en el navegador"
+            onPress={() => void Linking.openURL(IDENTITY_COMPLETION_URL)}
+          />
+        </View>
+      </Card>
 
-        <Card title="Cuando termines">
-          <Body>Volvé a esta app y cerrá y abrí la sesión para que tome tus datos nuevos.</Body>
-        </Card>
+      <Card title="Cuando termines">
+        <Body>Volvé a esta app y cerrá y abrí la sesión para que tome tus datos nuevos.</Body>
+      </Card>
 
-        <PrimaryButton label="Cerrar sesión" tone="quiet" onPress={() => void signOut()} />
-      </ScrollView>
-    </SafeAreaView>
+      <SecondaryButton label="Cerrar sesión" onPress={() => void signOut()} />
+    </Screen>
   );
 }
 
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: COLORS.canvas },
-  scroll: { padding: SPACE.xl, gap: SPACE.md },
-  headline: { fontSize: 24, fontWeight: "700", color: COLORS.ink },
   url: {
-    backgroundColor: COLORS.canvas,
-    borderRadius: RADIUS.sm,
+    backgroundColor: COLORS.stripe,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    borderRadius: RADIUS.control,
     padding: SPACE.md,
+    fontFamily: FONTS.mono,
+    fontSize: TYPE.sm,
+    letterSpacing: TYPE.sm * TRACKING.wide,
     color: COLORS.accent,
-    fontSize: 13,
   },
   actions: { gap: SPACE.sm, marginTop: SPACE.xs },
 });

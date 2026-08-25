@@ -27,17 +27,7 @@
 import { breedsForSpecies } from "@dim/contract/reference";
 import { useRouter } from "expo-router";
 import { useCallback, useMemo, useRef, useState } from "react";
-import {
-  KeyboardAvoidingView,
-  Platform,
-  Pressable,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TextInput,
-  View,
-} from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
+import { Pressable, StyleSheet, Text, View } from "react-native";
 
 import { apiFailureMessage } from "../src/api/client";
 import { registerPet } from "../src/api/endpoints";
@@ -55,9 +45,19 @@ import {
   toRegisterPetInput,
 } from "../src/pets/register-input";
 import { SPECIES_OPTIONS, speciesLabel } from "../src/pets/species";
-import { Body, Card, ErrorNotice, PrimaryButton, Row } from "../src/ui/components";
+import { Body, Card, ErrorNotice, Row } from "../src/ui/components";
+import { FONTS } from "../src/ui/fonts";
+import {
+  Eyebrow,
+  FieldLabel,
+  PrimaryButton,
+  Screen,
+  SecondaryButton,
+  TextField,
+  Title,
+} from "../src/ui/kit";
 import { credentialRoute } from "../src/ui/routes";
-import { COLORS, RADIUS, SPACE } from "../src/ui/theme";
+import { COLORS, RADIUS, SPACE, TYPE } from "../src/ui/theme";
 
 const SEX_OPTIONS = [
   { value: "female", label: "Hembra" },
@@ -139,56 +139,50 @@ export default function AltaMascotaScreen() {
   const busy = submission.phase === "sending";
 
   return (
-    <SafeAreaView style={styles.safe} edges={["bottom"]}>
-      <KeyboardAvoidingView
-        style={styles.flex}
-        behavior={Platform.OS === "ios" ? "padding" : undefined}
-      >
-        <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
-          <Text style={styles.progress}>{`Paso ${stepIndex + 1} de ${WIZARD_STEPS.length}`}</Text>
-          <Text style={styles.headline}>{stepTitle(step)}</Text>
+    <Screen keyboardAvoiding>
+      <View style={styles.masthead}>
+        <Eyebrow>{`Paso ${stepIndex + 1} de ${WIZARD_STEPS.length}`}</Eyebrow>
+        <Title>{stepTitle(step)}</Title>
+      </View>
 
-          <StepBody step={step} draft={draft} patch={patch} />
+      <StepBody step={step} draft={draft} patch={patch} />
 
-          {submission.phase === "failed" ? <ErrorNotice message={submission.message} /> : null}
-          {submission.phase === "duplicate" ? (
-            <DuplicateDialog
-              name={draft.name.trim()}
-              busy={busy}
-              onConfirm={() => void send(true)}
-              onCancel={() => {
-                setSubmission({ phase: "idle" });
-                router.back();
-              }}
-            />
-          ) : null}
+      {submission.phase === "failed" ? <ErrorNotice message={submission.message} /> : null}
+      {submission.phase === "duplicate" ? (
+        <DuplicateDialog
+          name={draft.name.trim()}
+          busy={busy}
+          onConfirm={() => void send(true)}
+          onCancel={() => {
+            setSubmission({ phase: "idle" });
+            router.back();
+          }}
+        />
+      ) : null}
 
-          <View style={styles.nav}>
-            {isLast ? (
-              <PrimaryButton
-                label={busy ? "Registrando…" : "Registrar"}
-                disabled={busy || !canAdvance(step, draft)}
-                onPress={() => void send(false)}
-              />
-            ) : (
-              <PrimaryButton
-                label="Siguiente"
-                disabled={!canAdvance(step, draft)}
-                onPress={() => setStepIndex((i) => Math.min(i + 1, WIZARD_STEPS.length - 1))}
-              />
-            )}
-            {stepIndex === 0 ? null : (
-              <PrimaryButton
-                label="Volver"
-                tone="quiet"
-                disabled={busy}
-                onPress={() => setStepIndex((i) => Math.max(i - 1, 0))}
-              />
-            )}
-          </View>
-        </ScrollView>
-      </KeyboardAvoidingView>
-    </SafeAreaView>
+      <View style={styles.nav}>
+        {isLast ? (
+          <PrimaryButton
+            label={busy ? "Registrando…" : "Registrar"}
+            disabled={busy || !canAdvance(step, draft)}
+            onPress={() => void send(false)}
+          />
+        ) : (
+          <PrimaryButton
+            label="Siguiente"
+            disabled={!canAdvance(step, draft)}
+            onPress={() => setStepIndex((i) => Math.min(i + 1, WIZARD_STEPS.length - 1))}
+          />
+        )}
+        {stepIndex === 0 ? null : (
+          <SecondaryButton
+            label="Volver"
+            disabled={busy}
+            onPress={() => setStepIndex((i) => Math.max(i - 1, 0))}
+          />
+        )}
+      </View>
+    </Screen>
   );
 }
 
@@ -204,23 +198,21 @@ function StepBody({
   switch (step) {
     case "nombre":
       return (
-        <Field label="Nombre">
-          <TextInput
-            accessibilityLabel="Nombre"
-            autoFocus
-            onChangeText={(name) => patch({ name })}
-            placeholder="Pampa"
-            placeholderTextColor={COLORS.inkMuted}
-            style={styles.input}
-            value={draft.name}
-          />
-        </Field>
+        <TextField
+          accessibilityLabel="Nombre"
+          autoFocus
+          label="Nombre"
+          onChangeText={(name) => patch({ name })}
+          placeholder="Pampa"
+          required
+          value={draft.name}
+        />
       );
 
     case "especie":
       return (
         <>
-          <Field label="Especie">
+          <Field label="Especie" required>
             <ChoiceGroup
               options={SPECIES_OPTIONS.map((o) => ({ value: o.value, label: o.label }))}
               value={draft.species}
@@ -231,7 +223,7 @@ function StepBody({
               onChange={(species) => patch({ species, breed: "" })}
             />
           </Field>
-          <Field label="Sexo">
+          <Field label="Sexo" required>
             <ChoiceGroup
               options={SEX_OPTIONS.map((o) => ({ value: o.value, label: o.label }))}
               value={draft.sex}
@@ -260,44 +252,42 @@ function StepBody({
         <>
           <Body>Nada de esto es obligatorio. Se puede completar después.</Body>
           <View style={styles.pair}>
-            <Field label="Años">
-              <TextInput
+            <View style={styles.pairCell}>
+              <TextField
                 accessibilityLabel="Años"
                 inputMode="numeric"
+                label="Años"
+                mono
                 onChangeText={(ageYears) => patch({ ageYears })}
-                style={styles.input}
                 value={draft.ageYears}
               />
-            </Field>
-            <Field label="Meses">
-              <TextInput
+            </View>
+            <View style={styles.pairCell}>
+              <TextField
                 accessibilityLabel="Meses"
                 inputMode="numeric"
+                label="Meses"
+                mono
                 onChangeText={(ageMonths) => patch({ ageMonths })}
-                style={styles.input}
                 value={draft.ageMonths}
               />
-            </Field>
+            </View>
           </View>
-          <Field label="Color">
-            <TextInput
-              accessibilityLabel="Color"
-              onChangeText={(color) => patch({ color })}
-              placeholder="Atigrado, negro, blanco y marrón…"
-              placeholderTextColor={COLORS.inkMuted}
-              style={styles.input}
-              value={draft.color}
-            />
-          </Field>
-          <Field label="Peso aproximado (kg)">
-            <TextInput
-              accessibilityLabel="Peso aproximado en kilos"
-              inputMode="decimal"
-              onChangeText={(estimatedWeightKg) => patch({ estimatedWeightKg })}
-              style={styles.input}
-              value={draft.estimatedWeightKg}
-            />
-          </Field>
+          <TextField
+            accessibilityLabel="Color"
+            label="Color"
+            onChangeText={(color) => patch({ color })}
+            placeholder="Atigrado, negro, blanco y marrón…"
+            value={draft.color}
+          />
+          <TextField
+            accessibilityLabel="Peso aproximado en kilos"
+            inputMode="decimal"
+            label="Peso aproximado (kg)"
+            mono
+            onChangeText={(estimatedWeightKg) => patch({ estimatedWeightKg })}
+            value={draft.estimatedWeightKg}
+          />
           <Field label="¿Cómo llegó a tu casa?">
             <ChoiceGroup
               options={ACQUISITION_OPTIONS.map((o) => ({ value: o.value, label: o.label }))}
@@ -363,7 +353,7 @@ function DuplicateDialog({
           disabled={busy}
           onPress={onConfirm}
         />
-        <PrimaryButton label="Cancelar" tone="quiet" disabled={busy} onPress={onCancel} />
+        <SecondaryButton label="Cancelar" disabled={busy} onPress={onCancel} />
       </View>
     </Card>
   );
@@ -391,17 +381,14 @@ function BreedPicker({
   return (
     <>
       <Body>La raza es opcional. Si no la sabés, seguí sin elegir.</Body>
-      <Field label="Buscar raza">
-        <TextInput
-          accessibilityLabel="Buscar raza"
-          autoCapitalize="none"
-          onChangeText={setQuery}
-          placeholder="Escribí para filtrar"
-          placeholderTextColor={COLORS.inkMuted}
-          style={styles.input}
-          value={query}
-        />
-      </Field>
+      <TextField
+        accessibilityLabel="Buscar raza"
+        autoCapitalize="none"
+        label="Buscar raza"
+        onChangeText={setQuery}
+        placeholder="Escribí para filtrar"
+        value={query}
+      />
       {draft.breed ? (
         <Pressable
           accessibilityRole="button"
@@ -430,10 +417,22 @@ function BreedPicker({
   );
 }
 
-function Field({ label, children }: { label: string; children: React.ReactNode }) {
+/**
+ * A label over something that is NOT a text input — a choice group, mostly.
+ *
+ * `TextField` owns its own label, so this is only for the controls the kit does
+ * not wrap. It uses the kit's `FieldLabel` so the two kinds of field wear the
+ * identical mono uppercase anatomy; a hand-rolled label here is how the two
+ * would drift apart by one weight and half a pixel of tracking.
+ */
+function Field({
+  label,
+  required = false,
+  children,
+}: { label: string; required?: boolean; children: React.ReactNode }) {
   return (
     <View style={styles.field}>
-      <Text style={styles.label}>{label}</Text>
+      <FieldLabel required={required}>{label}</FieldLabel>
       {children}
     </View>
   );
@@ -471,57 +470,45 @@ function ChoiceGroup({
 }
 
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: COLORS.canvas },
-  flex: { flex: 1 },
-  scroll: { padding: SPACE.xl, gap: SPACE.md },
-  progress: { fontSize: 12, letterSpacing: 1, textTransform: "uppercase", color: COLORS.inkMuted },
-  headline: { fontSize: 24, fontWeight: "700", color: COLORS.ink },
-  field: { gap: SPACE.xs + 2 },
+  masthead: { gap: SPACE.xs },
+  field: { alignSelf: "stretch" },
   pair: { flexDirection: "row", gap: SPACE.md },
-  label: { fontSize: 13, fontWeight: "600", color: COLORS.inkSoft },
-  input: {
-    backgroundColor: COLORS.surface,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    borderRadius: RADIUS.md,
-    paddingHorizontal: SPACE.md,
-    paddingVertical: SPACE.md,
-    fontSize: 16,
-    color: COLORS.ink,
-    flexGrow: 1,
-  },
+  pairCell: { flex: 1 },
   choices: { flexDirection: "row", flexWrap: "wrap", gap: SPACE.sm },
+  // Pills, like every other button in this design (see RADIUS in theme.ts) —
+  // a choice IS a button, and giving it its own geometry is how a fourth radius
+  // gets into a codebase.
   choice: {
     borderWidth: 1,
-    borderColor: COLORS.border,
+    borderColor: COLORS.borderStrong,
     backgroundColor: COLORS.surface,
-    borderRadius: RADIUS.md,
-    paddingHorizontal: SPACE.md,
+    borderRadius: RADIUS.button,
+    paddingHorizontal: SPACE.lg,
     paddingVertical: SPACE.sm + 2,
   },
-  choiceSelected: { backgroundColor: COLORS.ink, borderColor: COLORS.ink },
-  choiceLabel: { color: COLORS.ink, fontSize: 14, fontWeight: "600" },
-  choiceSelectedLabel: { color: COLORS.surface, fontSize: 14, fontWeight: "600" },
+  choiceSelected: { backgroundColor: COLORS.accent, borderColor: COLORS.accent },
+  choiceLabel: { fontFamily: FONTS.sansSemibold, color: COLORS.ink, fontSize: TYPE.md },
+  choiceSelectedLabel: { fontFamily: FONTS.sansSemibold, color: COLORS.surface, fontSize: TYPE.md },
   option: {
     backgroundColor: COLORS.surface,
-    borderRadius: RADIUS.md,
+    borderRadius: RADIUS.control,
     borderWidth: 1,
     borderColor: COLORS.border,
     paddingHorizontal: SPACE.md,
     paddingVertical: SPACE.md,
   },
-  optionLabel: { color: COLORS.ink, fontSize: 15 },
+  optionLabel: { fontFamily: FONTS.sans, color: COLORS.ink, fontSize: TYPE.base },
   selected: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    backgroundColor: COLORS.ink,
-    borderRadius: RADIUS.md,
+    backgroundColor: COLORS.accent,
+    borderRadius: RADIUS.control,
     paddingHorizontal: SPACE.md,
     paddingVertical: SPACE.md,
   },
-  selectedLabel: { color: COLORS.surface, fontSize: 15, fontWeight: "600" },
-  selectedClear: { color: COLORS.surface, fontSize: 13 },
+  selectedLabel: { fontFamily: FONTS.sansSemibold, color: COLORS.surface, fontSize: TYPE.base },
+  selectedClear: { fontFamily: FONTS.sansMedium, color: COLORS.surface, fontSize: TYPE.md },
   dialogActions: { gap: SPACE.sm, marginTop: SPACE.sm },
   nav: { gap: SPACE.sm, marginTop: SPACE.lg },
 });

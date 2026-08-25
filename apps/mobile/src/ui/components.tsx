@@ -1,8 +1,9 @@
-// The handful of pieces every screen in this app is built out of.
+// The domain-shaped pieces every screen is built out of.
 //
-// Small on purpose. This is not a design system — it is the set of shapes that
-// would otherwise be re-declared in six `StyleSheet.create` calls, plus the two
-// that carry a RULE rather than a look:
+// Small on purpose. This is not a design system — `kit.tsx` is, and holds the
+// Libreta Nacional primitives (Screen, Title, FieldLabel, TextField, the two
+// buttons, Callout). What lives HERE is the handful of shapes that carry a
+// RULE rather than a look:
 //
 //   `Unavailable` — the visible statement that something could not be read. The
 //   alternative (rendering nothing) is what turns a failed read into "this
@@ -12,14 +13,27 @@
 //   absence. "No tenés mascotas" is a dead end; "Registrá tu primera mascota"
 //   with a button is the same fact with a way forward.
 //
-// Both exist because a blank area of screen is the single easiest way for this
-// product to lie, and neither should be re-invented per screen.
+//   `ErrorNotice` — a failed read with the retry attached, so "no se pudo" is
+//   never the end of the road.
+//
+// Both blank-screen rules exist because a blank area is the single easiest way
+// for this product to lie, and neither should be re-invented per screen.
+//
+// The LOOK is no longer this file's business: every value below comes from
+// `theme.ts`, which reads `@dim/contract/tokens`, which `pnpm lint:token-parity`
+// holds against app/globals.css.
 
 import type { ReactNode } from "react";
-import { ActivityIndicator, Pressable, StyleSheet, Text, View } from "react-native";
+import { ActivityIndicator, StyleSheet, Text, View } from "react-native";
 
-import { COLORS, RADIUS, SPACE } from "./theme";
+import { FONTS } from "./fonts";
+import { PrimaryButton, SecondaryButton } from "./kit";
+import { COLORS, LABEL_TRACKING_EM, LEADING, RADIUS, SPACE, TYPE } from "./theme";
 
+/**
+ * A titled panel. `LnCard` on the web: white fill, warm hairline, 4px corners,
+ * and a mono uppercase title.
+ */
 export function Card({ children, title }: { children: ReactNode; title?: string }) {
   return (
     <View style={styles.card}>
@@ -29,6 +43,7 @@ export function Card({ children, title }: { children: ReactNode; title?: string 
   );
 }
 
+/** A label/value line inside a Card. */
 export function Row({ label, value }: { label: string; value: string }) {
   return (
     <View style={styles.row}>
@@ -42,6 +57,7 @@ export function Body({ children }: { children: ReactNode }) {
   return <Text style={styles.body}>{children}</Text>;
 }
 
+/** Something the reader has to act on. Never used for anything merely emphatic. */
 export function Alert({ children }: { children: ReactNode }) {
   return <Text style={styles.alert}>{children}</Text>;
 }
@@ -66,7 +82,7 @@ export function ErrorNotice({ message, onRetry }: { message: string; onRetry?: (
       <Text style={styles.errorTitle}>No se pudo</Text>
       <Text style={styles.errorBody}>{message}</Text>
       {onRetry === undefined ? null : (
-        <PrimaryButton label="Volver a intentar" onPress={onRetry} tone="quiet" />
+        <SecondaryButton label="Volver a intentar" onPress={onRetry} />
       )}
     </View>
   );
@@ -98,103 +114,95 @@ export function EmptyState({
 export function Loading({ label }: { label: string }) {
   return (
     <View style={styles.loading}>
-      <ActivityIndicator />
+      <ActivityIndicator color={COLORS.accent} />
       <Text style={styles.loadingText}>{label}</Text>
     </View>
-  );
-}
-
-export function PrimaryButton({
-  label,
-  onPress,
-  disabled = false,
-  tone = "solid",
-}: {
-  label: string;
-  onPress: () => void;
-  disabled?: boolean;
-  tone?: "solid" | "quiet" | "danger";
-}) {
-  const toneStyle =
-    tone === "danger"
-      ? styles.buttonDanger
-      : tone === "quiet"
-        ? styles.buttonQuiet
-        : styles.buttonSolid;
-  const labelStyle = tone === "quiet" ? styles.buttonQuietLabel : styles.buttonSolidLabel;
-  return (
-    <Pressable
-      accessibilityRole="button"
-      accessibilityState={{ disabled }}
-      disabled={disabled}
-      onPress={onPress}
-      style={[styles.button, toneStyle, disabled ? styles.buttonDisabled : null]}
-    >
-      <Text style={labelStyle}>{label}</Text>
-    </Pressable>
   );
 }
 
 const styles = StyleSheet.create({
   card: {
     backgroundColor: COLORS.surface,
-    borderRadius: RADIUS.lg,
+    borderRadius: RADIUS.control,
     padding: SPACE.lg,
-    gap: SPACE.xs + 2,
+    gap: SPACE.sm,
     borderWidth: 1,
     borderColor: COLORS.border,
   },
   cardTitle: {
-    fontSize: 12,
-    fontWeight: "700",
-    color: COLORS.inkMuted,
+    fontFamily: FONTS.monoSemibold,
+    fontSize: TYPE.xs,
+    letterSpacing: TYPE.xs * LABEL_TRACKING_EM,
     textTransform: "uppercase",
+    color: COLORS.inkMuted,
   },
   row: { flexDirection: "row", justifyContent: "space-between", gap: SPACE.md },
-  rowLabel: { color: COLORS.inkMuted, fontSize: 14 },
-  rowValue: { color: COLORS.ink, fontSize: 14, flexShrink: 1, textAlign: "right" },
-  body: { color: COLORS.inkSoft, fontSize: 14 },
-  alert: { color: COLORS.danger, fontSize: 14, fontWeight: "600" },
+  rowLabel: { fontFamily: FONTS.sans, color: COLORS.inkMuted, fontSize: TYPE.md },
+  rowValue: {
+    fontFamily: FONTS.sansSemibold,
+    color: COLORS.ink,
+    fontSize: TYPE.md,
+    flexShrink: 1,
+    textAlign: "right",
+  },
+  body: {
+    fontFamily: FONTS.sans,
+    color: COLORS.inkSoft,
+    fontSize: TYPE.md,
+    lineHeight: TYPE.md * LEADING.md,
+  },
+  alert: { fontFamily: FONTS.sansSemibold, color: COLORS.danger, fontSize: TYPE.md },
   unavailable: {
     backgroundColor: COLORS.warnSurface,
-    borderRadius: RADIUS.sm,
+    borderWidth: 1,
+    borderColor: COLORS.warnBorder,
+    borderRadius: RADIUS.control,
     padding: SPACE.md,
     gap: SPACE.xs,
   },
-  unavailableTitle: { fontWeight: "700", color: COLORS.warnInk, fontSize: 14 },
-  unavailableBody: { color: COLORS.warnInk, fontSize: 13 },
+  unavailableTitle: { fontFamily: FONTS.sansSemibold, color: COLORS.warnInk, fontSize: TYPE.md },
+  unavailableBody: {
+    fontFamily: FONTS.sans,
+    color: COLORS.warnInk,
+    fontSize: TYPE.md,
+    lineHeight: TYPE.md * LEADING.md,
+  },
   errorNotice: {
     backgroundColor: COLORS.dangerSurface,
-    borderRadius: RADIUS.lg,
+    borderWidth: 1,
+    borderColor: COLORS.dangerBorder,
+    borderRadius: RADIUS.control,
     padding: SPACE.lg,
     gap: SPACE.sm,
   },
-  errorTitle: { fontWeight: "700", color: COLORS.danger, fontSize: 14 },
-  errorBody: { color: COLORS.danger, fontSize: 14 },
+  errorTitle: { fontFamily: FONTS.sansSemibold, color: COLORS.danger, fontSize: TYPE.md },
+  errorBody: {
+    fontFamily: FONTS.sans,
+    color: COLORS.danger,
+    fontSize: TYPE.md,
+    lineHeight: TYPE.md * LEADING.md,
+  },
   empty: {
     backgroundColor: COLORS.surface,
-    borderRadius: RADIUS.lg,
+    borderRadius: RADIUS.control,
     padding: SPACE.xl,
     gap: SPACE.md,
     borderWidth: 1,
     borderColor: COLORS.border,
     alignItems: "flex-start",
   },
-  emptyHeadline: { fontSize: 18, fontWeight: "700", color: COLORS.ink },
-  emptyBody: { fontSize: 14, color: COLORS.inkSoft },
-  loading: { paddingVertical: SPACE.xxl + 8, alignItems: "center", gap: SPACE.sm + 2 },
-  loadingText: { color: COLORS.inkMuted },
-  button: {
-    borderRadius: RADIUS.md,
-    paddingVertical: 14,
-    paddingHorizontal: SPACE.lg,
-    alignItems: "center",
-    alignSelf: "stretch",
+  emptyHeadline: {
+    fontFamily: FONTS.serif,
+    fontSize: TYPE.xl,
+    lineHeight: TYPE.xl * LEADING.xl,
+    color: COLORS.ink,
   },
-  buttonSolid: { backgroundColor: COLORS.ink },
-  buttonQuiet: { backgroundColor: "transparent", borderWidth: 1, borderColor: COLORS.border },
-  buttonDanger: { backgroundColor: COLORS.danger },
-  buttonDisabled: { backgroundColor: COLORS.disabled, borderColor: COLORS.disabled },
-  buttonSolidLabel: { color: COLORS.surface, fontWeight: "600", fontSize: 15 },
-  buttonQuietLabel: { color: COLORS.ink, fontWeight: "600", fontSize: 15 },
+  emptyBody: {
+    fontFamily: FONTS.sans,
+    fontSize: TYPE.md,
+    lineHeight: TYPE.md * LEADING.md,
+    color: COLORS.inkSoft,
+  },
+  loading: { paddingVertical: SPACE.xl3 + SPACE.sm, alignItems: "center", gap: SPACE.sm + 2 },
+  loadingText: { fontFamily: FONTS.sans, fontSize: TYPE.md, color: COLORS.inkMuted },
 });

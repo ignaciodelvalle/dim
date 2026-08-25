@@ -23,14 +23,15 @@
 
 import { useRouter } from "expo-router";
 import { useState } from "react";
-import { ScrollView, StyleSheet, Text, View } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
+import { StyleSheet, Text, View } from "react-native";
 
 import { signOut, signOutEverywhere } from "../src/auth/session-store";
 import { useGate } from "../src/auth/useGate";
 import { API_BASE_URL } from "../src/config/api";
-import { Body, Card, ErrorNotice, PrimaryButton, Row } from "../src/ui/components";
-import { COLORS, SPACE } from "../src/ui/theme";
+import { Body, Card, ErrorNotice, Row } from "../src/ui/components";
+import { FONTS } from "../src/ui/fonts";
+import { PrimaryButton, Screen, SecondaryButton } from "../src/ui/kit";
+import { COLORS, LEADING, SPACE, TYPE } from "../src/ui/theme";
 
 type RevokeState =
   | { phase: "idle" }
@@ -72,102 +73,106 @@ export default function AjustesScreen() {
   }
 
   return (
-    <SafeAreaView style={styles.safe} edges={["bottom"]}>
-      <ScrollView contentContainerStyle={styles.scroll}>
-        <Card title="Tu cuenta">
-          {user.profilePending ? (
+    <Screen>
+      <Card title="Tu cuenta">
+        {user.profilePending ? (
+          <Body>
+            Todavía no completaste tus datos, así que no tenemos un nombre para mostrar acá.
+          </Body>
+        ) : (
+          <>
+            <Row label="Nombre" value={user.displayName} />
+            <Row label="Rol" value={ROLE_LABELS[user.role]} />
+            <Row label="Tipo de cuenta" value={ACCOUNT_TYPE_LABELS[user.accountType]} />
+          </>
+        )}
+      </Card>
+
+      <Card title="Servidor">
+        {/* Shown because a tester with three builds on one phone has no other
+            way to tell which backend they are looking at, and "los datos no
+            aparecen" is otherwise unanswerable. Mono, like every other machine
+            string in this design. */}
+        <Text style={styles.machine}>{API_BASE_URL}</Text>
+      </Card>
+
+      <View style={styles.actions}>
+        <SecondaryButton
+          label="Cerrar sesión"
+          onPress={() => {
+            // AWAITED, and the await is the fix. `signOut()` flips the store
+            // to `signed-out` as its LAST act, after the keychain delete.
+            // Firing it and navigating in the same tick meant `/` evaluated
+            // while the store still said `signed-in`, forwarded to
+            // `/mascotas`, and drew a flash of the pet list — plus one wasted
+            // authenticated request — before the state landed and the gate
+            // bounced it back. The cost of doing it in the right order is one
+            // keychain delete, and `signOut` cannot reject (see clearSession).
+            void (async () => {
+              await signOut();
+              router.replace("/");
+            })();
+          }}
+        />
+
+        {revoke.phase === "confirming" ? (
+          <Card title="Cerrar sesión en todos los dispositivos">
             <Body>
-              Todavía no completaste tus datos, así que no tenemos un nombre para mostrar acá.
+              Vas a cerrar la sesión en todos los teléfonos y navegadores donde entraste, incluido
+              este. Después tenés que volver a ingresar acá.
             </Body>
-          ) : (
-            <>
-              <Row label="Nombre" value={user.displayName} />
-              <Row label="Rol" value={ROLE_LABELS[user.role]} />
-              <Row label="Tipo de cuenta" value={ACCOUNT_TYPE_LABELS[user.accountType]} />
-            </>
-          )}
-        </Card>
-
-        <Card title="Servidor">
-          {/* Shown because a tester with three builds on one phone has no other
-              way to tell which backend they are looking at, and "los datos no
-              aparecen" is otherwise unanswerable. */}
-          <Body>{API_BASE_URL}</Body>
-        </Card>
-
-        <View style={styles.actions}>
+            <View style={styles.confirmActions}>
+              <PrimaryButton
+                label="Sí, cerrar todo"
+                tone="seal"
+                onPress={() => void confirmRevoke()}
+              />
+              <SecondaryButton label="Cancelar" onPress={() => setRevoke({ phase: "idle" })} />
+            </View>
+          </Card>
+        ) : (
           <PrimaryButton
-            label="Cerrar sesión"
-            tone="quiet"
-            onPress={() => {
-              // AWAITED, and the await is the fix. `signOut()` flips the store
-              // to `signed-out` as its LAST act, after the keychain delete.
-              // Firing it and navigating in the same tick meant `/` evaluated
-              // while the store still said `signed-in`, forwarded to
-              // `/mascotas`, and drew a flash of the pet list — plus one wasted
-              // authenticated request — before the state landed and the gate
-              // bounced it back. The cost of doing it in the right order is one
-              // keychain delete, and `signOut` cannot reject (see clearSession).
-              void (async () => {
-                await signOut();
-                router.replace("/");
-              })();
-            }}
+            label={
+              revoke.phase === "sending"
+                ? "Cerrando sesiones…"
+                : "Cerrar sesión en todos los dispositivos"
+            }
+            tone="seal"
+            disabled={revoke.phase === "sending"}
+            onPress={() => setRevoke({ phase: "confirming" })}
           />
+        )}
 
-          {revoke.phase === "confirming" ? (
-            <Card title="Cerrar sesión en todos los dispositivos">
-              <Body>
-                Vas a cerrar la sesión en todos los teléfonos y navegadores donde entraste, incluido
-                este. Después tenés que volver a ingresar acá.
-              </Body>
-              <View style={styles.confirmActions}>
-                <PrimaryButton
-                  label="Sí, cerrar todo"
-                  tone="danger"
-                  onPress={() => void confirmRevoke()}
-                />
-                <PrimaryButton
-                  label="Cancelar"
-                  tone="quiet"
-                  onPress={() => setRevoke({ phase: "idle" })}
-                />
-              </View>
-            </Card>
-          ) : (
-            <PrimaryButton
-              label={
-                revoke.phase === "sending"
-                  ? "Cerrando sesiones…"
-                  : "Cerrar sesión en todos los dispositivos"
-              }
-              tone="danger"
-              disabled={revoke.phase === "sending"}
-              onPress={() => setRevoke({ phase: "confirming" })}
-            />
-          )}
+        {revoke.phase === "failed" ? (
+          <ErrorNotice
+            message={`${revoke.message} Tu sesión en este teléfono sigue abierta.`}
+            onRetry={() => setRevoke({ phase: "confirming" })}
+          />
+        ) : null}
+      </View>
 
-          {revoke.phase === "failed" ? (
-            <ErrorNotice
-              message={`${revoke.message} Tu sesión en este teléfono sigue abierta.`}
-              onRetry={() => setRevoke({ phase: "confirming" })}
-            />
-          ) : null}
-        </View>
-
-        <Text style={styles.footnote}>
-          El alta de mascotas con foto, las notificaciones y el ingreso con Mi Argentina todavía no
-          están en la app.
-        </Text>
-      </ScrollView>
-    </SafeAreaView>
+      <Text style={styles.footnote}>
+        El alta de mascotas con foto, las notificaciones y el ingreso con Mi Argentina todavía no
+        están en la app.
+      </Text>
+    </Screen>
   );
 }
 
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: COLORS.canvas },
-  scroll: { padding: SPACE.xl, gap: SPACE.md },
   actions: { gap: SPACE.md, marginTop: SPACE.sm },
   confirmActions: { gap: SPACE.sm, marginTop: SPACE.sm },
-  footnote: { fontSize: 12, color: COLORS.inkMuted, marginTop: SPACE.lg },
+  machine: {
+    fontFamily: FONTS.mono,
+    fontSize: TYPE.md,
+    lineHeight: TYPE.md * LEADING.md,
+    color: COLORS.inkSoft,
+  },
+  footnote: {
+    fontFamily: FONTS.sans,
+    fontSize: TYPE.sm,
+    lineHeight: TYPE.sm * LEADING.sm,
+    color: COLORS.inkMuted,
+    marginTop: SPACE.lg,
+  },
 });

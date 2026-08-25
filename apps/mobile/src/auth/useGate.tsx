@@ -26,12 +26,12 @@
 import type { MeV1User } from "@dim/contract/api";
 import { Redirect } from "expo-router";
 import type { ReactElement } from "react";
-import { ScrollView, StyleSheet, Text, View } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
+import { StyleSheet, View } from "react-native";
 
-import { Body, Card, ErrorNotice, Loading, PrimaryButton } from "../ui/components";
+import { Body, Card, ErrorNotice, Loading } from "../ui/components";
+import { Screen, SecondaryButton, Title } from "../ui/kit";
 import { ROUTES } from "../ui/routes";
-import { COLORS, SPACE } from "../ui/theme";
+import { SPACE } from "../ui/theme";
 import { bootstrapSession, signOut } from "./session-store";
 import { useSession } from "./useSession";
 
@@ -63,9 +63,9 @@ export function useGate(options: { allowPendingIdentity?: boolean } = {}): Gate 
 
 function Splash() {
   return (
-    <SafeAreaView style={styles.safe} edges={["top", "bottom"]}>
+    <Screen edges={["top", "bottom"]}>
       <Loading label="Abriendo MiMAR…" />
-    </SafeAreaView>
+    </Screen>
   );
 }
 
@@ -78,45 +78,38 @@ function Splash() {
  */
 function UnconfiguredScreen() {
   return (
-    <SafeAreaView style={styles.safe} edges={["top", "bottom"]}>
-      <ScrollView contentContainerStyle={styles.scroll}>
-        <Text style={styles.headline}>Esta app no está configurada</Text>
-        <Card>
-          <Body>
-            Esta compilación no tiene un servidor de sesiones configurado, así que no se puede
-            iniciar sesión. No es un problema de tu conexión ni de tu cuenta.
-          </Body>
-          <Body>Avisale a quien te pasó la app: le falta EXPO_PUBLIC_SUPABASE_URL.</Body>
-        </Card>
-      </ScrollView>
-    </SafeAreaView>
+    <Screen edges={["top", "bottom"]}>
+      <Title>Esta app no está configurada</Title>
+      <Card>
+        <Body>
+          Esta compilación no tiene un servidor de sesiones configurado, así que no se puede iniciar
+          sesión. No es un problema de tu conexión ni de tu cuenta.
+        </Body>
+        <Body>Avisale a quien te pasó la app: le falta EXPO_PUBLIC_SUPABASE_URL.</Body>
+      </Card>
+    </Screen>
   );
 }
 
 /** Tokens on the device, identity unconfirmed. The subway case. */
 function UnverifiedScreen({ message }: { message: string }) {
   return (
-    <SafeAreaView style={styles.safe} edges={["top", "bottom"]}>
-      <ScrollView contentContainerStyle={styles.scroll}>
-        <Text style={styles.headline}>No pudimos verificar tu sesión</Text>
-        <ErrorNotice message={message} onRetry={() => void bootstrapSession()} />
-        <Card>
-          <Body>
-            Tu sesión sigue guardada en este teléfono. Cuando vuelvas a tener conexión, probá de
-            nuevo.
-          </Body>
-        </Card>
-        <View style={styles.footer}>
-          <PrimaryButton label="Cerrar sesión" tone="quiet" onPress={() => void signOut()} />
-        </View>
-      </ScrollView>
-    </SafeAreaView>
+    <Screen edges={["top", "bottom"]}>
+      <Title>No pudimos verificar tu sesión</Title>
+      <ErrorNotice message={message} onRetry={() => void bootstrapSession()} />
+      <Card>
+        <Body>
+          Tu sesión sigue guardada en este teléfono. Cuando vuelvas a tener conexión, probá de
+          nuevo.
+        </Body>
+      </Card>
+      <View style={styles.footer}>
+        <SecondaryButton label="Cerrar sesión" onPress={() => void signOut()} />
+      </View>
+    </Screen>
   );
 }
 
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: COLORS.canvas },
-  scroll: { padding: SPACE.xl, gap: SPACE.md },
-  headline: { fontSize: 24, fontWeight: "700", color: COLORS.ink },
   footer: { marginTop: SPACE.sm },
 });

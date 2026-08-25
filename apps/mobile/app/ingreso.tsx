@@ -17,25 +17,66 @@
 // which applies our rate limits, our account-state refusals and that single
 // sentence, and hands back tokens; only then does the SDK get a session to keep
 // alive. See `signIn` in session-store.ts.
+//
+// ---------------------------------------------------------------------------
+// WHAT THIS SCREEN OWES THE WEB LOGIN, AND WHAT IT DELIBERATELY DOES NOT
+// ---------------------------------------------------------------------------
+// The PO compared the two side by side. Where the SURFACE is the same, the
+// web's literal copy wins — the title is "Iniciar sesión" and not "Ingresá a
+// MiMAR", the fields are "Correo electrónico" and "Contraseña", the subtitle is
+// "Hola de nuevo", and the button says what the web's button says. Two
+// different sentences for one act is how a product starts feeling like two
+// products, which is the whole complaint this work unit answers.
+//
+// Three gaps are closed rather than restyled:
+//
+//   · "¿Olvidaste tu contraseña?" now exists and opens the browser at
+//     `/recuperar`. There is no native recovery flow and there should not be
+//     one — see PASSWORD_RECOVERY_URL for why the native half would end at the
+//     same web page anyway. A person locked out of this screen previously had
+//     NO way forward from it.
+//
+//   · The "Conectar con Mi Argentina (próximamente)" placeholder, disabled,
+//     because invariant #6 makes federation the premise and the web has been
+//     promising it on this exact screen. An app that omits the promise makes
+//     the roadmap look like it has two different futures.
+//
+//   · The "o" divider between them, which is what makes the placeholder read as
+//     an alternative rather than as a second submit button.
+//
+// NOT closed, and on purpose:
+//
+//   · "← Volver al inicio". The web's back link goes to a landing page. This
+//     app has no landing page: `/` is the GATE, and it forwards a signed-out
+//     visitor straight back to this screen. The link would be a button that
+//     appears to do nothing, which is worse than its absence.
+//
+//   · "¿No tenés cuenta? Crear cuenta". The callout at the bottom already says
+//     where accounts are made and why, in more words than a link can carry.
+//     Replacing it with the web's two-word link would drop the explanation.
 
+import * as Linking from "expo-linking";
 import { Redirect } from "expo-router";
 import { useState } from "react";
-import {
-  KeyboardAvoidingView,
-  Platform,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TextInput,
-  View,
-} from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
+import { StyleSheet, View } from "react-native";
 
 import { sessionEndMessage, signIn } from "../src/auth/session-store";
 import { useSession } from "../src/auth/useSession";
-import { Body, Card, ErrorNotice, PrimaryButton } from "../src/ui/components";
+import { PASSWORD_RECOVERY_URL } from "../src/config/api";
+import { Body, Card, ErrorNotice } from "../src/ui/components";
+import {
+  Callout,
+  LabelledDivider,
+  LinkText,
+  PrimaryButton,
+  Screen,
+  SecondaryButton,
+  Subtitle,
+  TextField,
+  Title,
+} from "../src/ui/kit";
 import { ROUTES } from "../src/ui/routes";
-import { COLORS, RADIUS, SPACE } from "../src/ui/theme";
+import { SPACE } from "../src/ui/theme";
 
 export default function IngresoScreen() {
   const session = useSession();
@@ -71,92 +112,103 @@ export default function IngresoScreen() {
   }
 
   return (
-    <SafeAreaView style={styles.safe} edges={["bottom"]}>
-      <KeyboardAvoidingView
-        style={styles.flex}
-        behavior={Platform.OS === "ios" ? "padding" : undefined}
-      >
-        <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
-          <Text style={styles.headline}>Ingresá a MiMAR</Text>
+    <Screen edges={["top", "bottom"]} keyboardAvoiding gap={SPACE.xl}>
+      {/* Centred heading block — `text-center space-y-2` on the web. */}
+      <View style={styles.heading}>
+        <Title>Iniciar sesión</Title>
+        <Subtitle>Hola de nuevo</Subtitle>
+      </View>
 
-          {reason === null ? null : (
-            <Card>
-              <Body>{reason}</Body>
-            </Card>
-          )}
+      {/* A Callout and not a Card, because that is what the web renders here:
+          the account-state notices on the login page are bordered tinted blocks
+          (`rounded border px-4 py-3`), not titled panels. Neutral tone — an
+          operator whose eight hours ran out did nothing wrong, and dressing a
+          routine boundary in the error palette teaches people to ignore the
+          error palette. The web's comment on the same block says exactly that. */}
+      {reason === null ? null : (
+        <Callout>
+          <Body>{reason}</Body>
+        </Callout>
+      )}
 
-          <View style={styles.field}>
-            <Text style={styles.label}>Email</Text>
-            <TextInput
-              accessibilityLabel="Email"
-              autoCapitalize="none"
-              autoComplete="email"
-              autoCorrect={false}
-              editable={!busy}
-              inputMode="email"
-              onChangeText={setEmail}
-              placeholder="tu@email.com"
-              placeholderTextColor={COLORS.inkMuted}
-              style={styles.input}
-              value={email}
-            />
-          </View>
+      <View style={styles.form}>
+        <TextField
+          accessibilityLabel="Correo electrónico"
+          autoCapitalize="none"
+          autoComplete="email"
+          autoCorrect={false}
+          editable={!busy}
+          inputMode="email"
+          invalid={failure !== null}
+          label="Correo electrónico"
+          onChangeText={(next) => {
+            setEmail(next);
+            // A password is scoped to the email it was typed for; editing the
+            // account must drop the stale one. Same rule as the web form, and
+            // for the same reason (PO QA #44).
+            setPassword("");
+          }}
+          placeholder="tu@email.com"
+          required
+          value={email}
+        />
 
-          <View style={styles.field}>
-            <Text style={styles.label}>Contraseña</Text>
-            <TextInput
-              accessibilityLabel="Contraseña"
-              autoCapitalize="none"
-              autoComplete="current-password"
-              editable={!busy}
-              onChangeText={setPassword}
-              onSubmitEditing={() => void submit()}
-              returnKeyType="go"
-              secureTextEntry
-              style={styles.input}
-              value={password}
-            />
-          </View>
+        <TextField
+          accessibilityLabel="Contraseña"
+          autoCapitalize="none"
+          autoComplete="current-password"
+          editable={!busy}
+          label="Contraseña"
+          onChangeText={setPassword}
+          onSubmitEditing={() => void submit()}
+          required
+          returnKeyType="go"
+          secureTextEntry
+          value={password}
+        />
 
-          {failure === null ? null : <ErrorNotice message={failure} />}
+        {/* Right-aligned, as on the web (`flex justify-end`). */}
+        <View style={styles.forgot}>
+          <LinkText
+            accessibilityHint="Se abre en el navegador"
+            onPress={() => void Linking.openURL(PASSWORD_RECOVERY_URL)}
+          >
+            ¿Olvidaste tu contraseña?
+          </LinkText>
+        </View>
 
-          <PrimaryButton
-            label={busy ? "Ingresando…" : "Ingresar"}
-            onPress={() => void submit()}
-            disabled={!canSubmit}
-          />
+        {failure === null ? null : <ErrorNotice message={failure} />}
 
-          <Card title="¿No tenés cuenta?">
-            {/* No native sign-up. The account creation flow needs the Ley 25.326
-                consent copy and the identity step, both of which live on the web
-                — see identidad-pendiente.tsx for the same reasoning in the case
-                where the account already exists. */}
-            <Body>
-              Por ahora las cuentas se crean desde la web, en mimar.ar. Después entrás acá con el
-              mismo email.
-            </Body>
-          </Card>
-        </ScrollView>
-      </KeyboardAvoidingView>
-    </SafeAreaView>
+        <PrimaryButton
+          label={busy ? "Ingresando…" : "Iniciar sesión"}
+          onPress={() => void submit()}
+          disabled={!canSubmit}
+        />
+      </View>
+
+      <LabelledDivider label="o" />
+
+      {/* The Mi Argentina stub, after the form both visually and in the tree —
+          so focus order is email → contraseña → ingresar → stub, which is the
+          order the web comments spell out for the same three controls. */}
+      <SecondaryButton disabled label="Conectar con Mi Argentina (próximamente)" />
+
+      <Card title="¿No tenés cuenta?">
+        {/* No native sign-up. The account creation flow needs the Ley 25.326
+            consent copy and the identity step, both of which live on the web
+            — see identidad-pendiente.tsx for the same reasoning in the case
+            where the account already exists. */}
+        <Body>
+          Por ahora las cuentas se crean desde la web, en mimar.ar. Después entrás acá con el mismo
+          email.
+        </Body>
+      </Card>
+    </Screen>
   );
 }
 
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: COLORS.canvas },
-  flex: { flex: 1 },
-  scroll: { padding: SPACE.xl, gap: SPACE.md },
-  headline: { fontSize: 26, fontWeight: "700", color: COLORS.ink, marginBottom: SPACE.xs },
-  field: { gap: SPACE.xs + 2 },
-  label: { fontSize: 13, fontWeight: "600", color: COLORS.inkSoft },
-  input: {
-    backgroundColor: COLORS.surface,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    borderRadius: RADIUS.md,
-    paddingHorizontal: SPACE.md,
-    paddingVertical: SPACE.md,
-    fontSize: 16,
-    color: COLORS.ink,
-  },
+  heading: { alignItems: "center", gap: SPACE.xs + 2, marginTop: SPACE.xl3 },
+  form: { gap: SPACE.lg },
+  forgot: { alignItems: "flex-end" },
 });

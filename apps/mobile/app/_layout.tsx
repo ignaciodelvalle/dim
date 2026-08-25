@@ -26,13 +26,41 @@
 
 import { Stack } from "expo-router";
 import { StatusBar } from "expo-status-bar";
+import { ActivityIndicator, View } from "react-native";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 
 import { useSessionBootstrap } from "../src/auth/useSession";
-import { COLORS } from "../src/ui/theme";
+import { FONTS, useLnFonts } from "../src/ui/fonts";
+import { COLORS, TYPE } from "../src/ui/theme";
 
 export default function RootLayout() {
+  const fontsReady = useLnFonts();
   useSessionBootstrap();
+
+  // THE FIRST PAINT WAITS FOR THE TYPEFACE, and the alternative is worse than a
+  // pause. React Native draws immediately with the system face and re-lays-out
+  // when the font arrives; at these sizes IBM Plex Serif and Roboto have very
+  // different metrics, so what the user sees is the whole screen jumping. This
+  // is a few hundred milliseconds ONCE per cold start, on a bundled asset with
+  // no network in the path. `useLnFonts` releases the gate on failure too, so a
+  // font that cannot load costs an ugly app rather than an app that never opens.
+  if (!fontsReady) {
+    return (
+      <SafeAreaProvider>
+        <StatusBar style="dark" />
+        <View
+          style={{
+            flex: 1,
+            alignItems: "center",
+            justifyContent: "center",
+            backgroundColor: COLORS.canvas,
+          }}
+        >
+          <ActivityIndicator color={COLORS.accent} />
+        </View>
+      </SafeAreaProvider>
+    );
+  }
 
   return (
     <SafeAreaProvider>
@@ -41,13 +69,24 @@ export default function RootLayout() {
         screenOptions={{
           headerStyle: { backgroundColor: COLORS.canvas },
           headerTintColor: COLORS.ink,
+          // The header title is the same display face as a `Title` inside the
+          // page. A stack header in the system font over a serif screen is the
+          // seam that made the app look assembled rather than designed.
+          headerTitleStyle: {
+            fontFamily: FONTS.serif,
+            fontSize: TYPE.lg,
+            color: COLORS.ink,
+          },
           headerShadowVisible: false,
           contentStyle: { backgroundColor: COLORS.canvas },
         }}
       >
         {/* The gate renders no chrome of its own — it is a decision, not a page. */}
         <Stack.Screen name="index" options={{ headerShown: false }} />
-        <Stack.Screen name="ingreso" options={{ title: "Ingresar", headerBackVisible: false }} />
+        {/* Ingreso draws its own title, exactly as the web login does — that page
+            has no chrome either. A stack header saying "Ingresar" above an
+            `<h1>` saying "Iniciar sesión" is the same word twice in two voices. */}
+        <Stack.Screen name="ingreso" options={{ headerShown: false }} />
         <Stack.Screen
           name="identidad-pendiente"
           options={{ title: "Falta un paso", headerBackVisible: false }}

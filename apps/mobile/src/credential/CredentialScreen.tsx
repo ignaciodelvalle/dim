@@ -31,12 +31,13 @@ import type {
   PublicCredentialV1,
 } from "@dim/contract/api";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { ScrollView, StyleSheet, Text, View } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
+import { StyleSheet, Text, View } from "react-native";
 
 import { publicCredentialPageUrl } from "../config/api";
-import { Alert, Body, Card, Loading, PrimaryButton, Row, Unavailable } from "../ui/components";
-import { COLORS, RADIUS, SPACE } from "../ui/theme";
+import { Alert, Body, Card, Loading, Row, Unavailable } from "../ui/components";
+import { FONTS } from "../ui/fonts";
+import { Eyebrow, PrimaryButton, Screen, Title } from "../ui/kit";
+import { COLORS, LEADING, RADIUS, SPACE, TRACKING, TYPE } from "../ui/theme";
 import { CredentialQr } from "./CredentialQr";
 import { type CredentialFetchResult, fetchCredential, fetchFailureMessage } from "./credential-api";
 import { readCachedCredential, writeCachedCredential } from "./credential-cache";
@@ -105,24 +106,24 @@ export function CredentialScreen({ publicToken }: { publicToken: string }) {
   }, [load]);
 
   return (
-    <SafeAreaView style={styles.safe} edges={["bottom"]}>
-      <ScrollView contentContainerStyle={styles.scroll}>
-        <Text style={styles.eyebrow}>Credencial pública</Text>
+    <Screen>
+      <View style={styles.masthead}>
+        <Eyebrow>Credencial pública</Eyebrow>
         <Text style={styles.token}>{publicToken}</Text>
+      </View>
 
-        {state.phase === "loading" ? (
-          <Loading label="Leyendo la credencial…" />
-        ) : (
-          <ScreenBody state={state} publicToken={publicToken} />
-        )}
+      {state.phase === "loading" ? (
+        <Loading label="Leyendo la credencial…" />
+      ) : (
+        <ScreenBody state={state} publicToken={publicToken} />
+      )}
 
-        <PrimaryButton
-          label="Actualizar"
-          onPress={() => void load()}
-          disabled={state.phase === "loading"}
-        />
-      </ScrollView>
-    </SafeAreaView>
+      <PrimaryButton
+        label="Actualizar"
+        onPress={() => void load()}
+        disabled={state.phase === "loading"}
+      />
+    </Screen>
   );
 }
 
@@ -158,9 +159,7 @@ function ScreenBody({ state, publicToken }: { state: ScreenState; publicToken: s
     const identity = result.payload.identity;
     return (
       <>
-        <Text style={styles.name}>
-          {identity.status === "ok" ? identity.data.name : "Credencial"}
-        </Text>
+        <Title>{identity.status === "ok" ? identity.data.name : "Credencial"}</Title>
         <Card title="Lectura degradada">
           <Body>
             El servidor respondió con una lectura parcial. Lo que ves puede estar incompleto.
@@ -198,7 +197,7 @@ function CredentialBody({
 
   return (
     <>
-      <Text style={styles.name}>{view.petName ?? "Credencial"}</Text>
+      <Title>{view.petName ?? "Credencial"}</Title>
 
       <Text style={styles.freshness}>{view.freshness.label}</Text>
       {view.freshness.state === "stale" ? <Alert>{STALE_NOTICE}</Alert> : null}
@@ -364,29 +363,46 @@ function QrBlock({ publicToken }: { publicToken: string }) {
 }
 
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: COLORS.canvas },
-  scroll: { padding: SPACE.xl, gap: SPACE.md },
-  eyebrow: { fontSize: 12, letterSpacing: 1, textTransform: "uppercase", color: COLORS.inkMuted },
-  token: { fontSize: 14, color: COLORS.inkSoft, fontVariant: ["tabular-nums"] },
-  name: { fontSize: 30, fontWeight: "700", color: COLORS.ink },
-  freshness: { fontSize: 13, color: COLORS.inkMuted },
+  masthead: { gap: SPACE.xs },
+  // The token is a machine string and reads as one: mono, letterspaced, with
+  // tabular figures so `DIM-PAMP-0001` does not shimmer between two pets.
+  token: {
+    fontFamily: FONTS.mono,
+    fontSize: TYPE.md,
+    letterSpacing: TYPE.md * TRACKING.wide,
+    color: COLORS.inkSoft,
+    fontVariant: ["tabular-nums"],
+  },
+  freshness: { fontFamily: FONTS.sans, fontSize: TYPE.sm, color: COLORS.inkMuted },
   offline: {
     backgroundColor: COLORS.warnSurface,
-    borderRadius: RADIUS.lg,
+    borderWidth: 1,
+    borderColor: COLORS.warnBorder,
+    borderRadius: RADIUS.control,
     padding: SPACE.lg,
     gap: SPACE.xs,
   },
-  offlineTitle: { fontWeight: "700", color: COLORS.warnInk, fontSize: 15 },
-  offlineBody: { color: COLORS.warnInk, fontSize: 13 },
-  offlineWarning: { color: COLORS.danger, fontSize: 13, fontWeight: "700" },
+  offlineTitle: { fontFamily: FONTS.sansSemibold, color: COLORS.warnInk, fontSize: TYPE.md },
+  offlineBody: {
+    fontFamily: FONTS.sans,
+    color: COLORS.warnInk,
+    fontSize: TYPE.md,
+    lineHeight: TYPE.md * LEADING.md,
+  },
+  offlineWarning: { fontFamily: FONTS.sansSemibold, color: COLORS.danger, fontSize: TYPE.md },
   qrCard: {
     backgroundColor: COLORS.surface,
-    borderRadius: RADIUS.lg,
+    borderRadius: RADIUS.control,
     padding: SPACE.lg,
     alignItems: "center",
     gap: SPACE.sm + 2,
     borderWidth: 1,
     borderColor: COLORS.border,
   },
-  qrCaption: { fontSize: 11, color: COLORS.inkMuted },
+  qrCaption: {
+    fontFamily: FONTS.mono,
+    fontSize: TYPE.xs,
+    color: COLORS.inkMuted,
+    textAlign: "center",
+  },
 });

@@ -27,12 +27,14 @@
 
 import type { LocalityV1 } from "@dim/contract/api";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Pressable, StyleSheet, Text, TextInput, View } from "react-native";
+import { Pressable, StyleSheet, Text, View } from "react-native";
 
 import { apiFailureMessage } from "../api/client";
 import { searchLocalities } from "../api/endpoints";
 import { Body, ErrorNotice, Loading } from "../ui/components";
-import { COLORS, RADIUS, SPACE } from "../ui/theme";
+import { FONTS } from "../ui/fonts";
+import { TextField } from "../ui/kit";
+import { COLORS, LEADING, RADIUS, SPACE, TRACKING, TYPE } from "../ui/theme";
 
 const MIN_QUERY_LENGTH = 2;
 const DEBOUNCE_MS = 300;
@@ -107,19 +109,16 @@ export function LocalityPicker({
         </Pressable>
       ) : null}
 
-      <View style={styles.field}>
-        <Text style={styles.label}>Localidad</Text>
-        <TextInput
-          accessibilityLabel="Buscar localidad"
-          autoCapitalize="words"
-          autoCorrect={false}
-          onChangeText={setQuery}
-          placeholder="Escribí el nombre de tu localidad"
-          placeholderTextColor={COLORS.inkMuted}
-          style={styles.input}
-          value={query}
-        />
-      </View>
+      <TextField
+        accessibilityLabel="Buscar localidad"
+        autoCapitalize="words"
+        autoCorrect={false}
+        label="Localidad"
+        onChangeText={setQuery}
+        placeholder="Escribí el nombre de tu localidad"
+        required
+        value={query}
+      />
 
       <SearchBody
         state={state}
@@ -194,40 +193,41 @@ function SearchBody({
 }
 
 const styles = StyleSheet.create({
-  field: { gap: SPACE.xs + 2 },
-  label: { fontSize: 13, fontWeight: "600", color: COLORS.inkSoft },
-  input: {
-    backgroundColor: COLORS.surface,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    borderRadius: RADIUS.md,
-    paddingHorizontal: SPACE.md,
-    paddingVertical: SPACE.md,
-    fontSize: 16,
-    color: COLORS.ink,
-  },
   option: {
     backgroundColor: COLORS.surface,
-    borderRadius: RADIUS.md,
+    borderRadius: RADIUS.control,
     borderWidth: 1,
     borderColor: COLORS.border,
     paddingHorizontal: SPACE.md,
     paddingVertical: SPACE.md,
     gap: 2,
   },
-  optionName: { color: COLORS.ink, fontSize: 15, fontWeight: "600" },
-  optionWhere: { color: COLORS.inkMuted, fontSize: 13 },
+  optionName: { fontFamily: FONTS.sansSemibold, color: COLORS.ink, fontSize: TYPE.base },
+  optionWhere: {
+    fontFamily: FONTS.sans,
+    color: COLORS.inkMuted,
+    fontSize: TYPE.md,
+    lineHeight: TYPE.md * LEADING.md,
+  },
+  // The chosen row is the institutional blue, not ink: a filled selection is an
+  // ACTION's result, and blue is what this design gives to actions.
   selected: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    backgroundColor: COLORS.ink,
-    borderRadius: RADIUS.md,
+    backgroundColor: COLORS.accent,
+    borderRadius: RADIUS.control,
     paddingHorizontal: SPACE.md,
     paddingVertical: SPACE.md,
   },
   selectedText: { gap: 2 },
-  selectedName: { color: COLORS.surface, fontSize: 15, fontWeight: "700" },
-  selectedProvince: { color: COLORS.surface, fontSize: 12, opacity: 0.8 },
-  selectedClear: { color: COLORS.surface, fontSize: 13 },
+  selectedName: { fontFamily: FONTS.sansSemibold, color: COLORS.surface, fontSize: TYPE.base },
+  selectedProvince: {
+    fontFamily: FONTS.mono,
+    color: COLORS.surface,
+    fontSize: TYPE.xs,
+    letterSpacing: TYPE.xs * TRACKING.wider,
+    opacity: 0.85,
+  },
+  selectedClear: { fontFamily: FONTS.sansMedium, color: COLORS.surface, fontSize: TYPE.md },
 });

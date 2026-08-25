@@ -11,13 +11,11 @@
 // about the pet rather than about the link. Better to say the link is broken.
 
 import { useLocalSearchParams } from "expo-router";
-import { ScrollView, StyleSheet } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
 
 import { useGate } from "../../src/auth/useGate";
 import { CredentialScreen } from "../../src/credential/CredentialScreen";
 import { ErrorNotice } from "../../src/ui/components";
-import { COLORS, SPACE } from "../../src/ui/theme";
+import { Screen } from "../../src/ui/kit";
 
 export default function CredentialRoute() {
   const gate = useGate();
@@ -30,18 +28,11 @@ export default function CredentialRoute() {
 
   if (publicToken.length === 0) {
     return (
-      <SafeAreaView style={styles.safe} edges={["bottom"]}>
-        <ScrollView contentContainerStyle={styles.scroll}>
-          <ErrorNotice message="Este link no tiene un código de credencial. Volvé a tu lista de mascotas y entrá desde ahí." />
-        </ScrollView>
-      </SafeAreaView>
+      <Screen>
+        <ErrorNotice message="Este link no tiene un código de credencial. Volvé a tu lista de mascotas y entrá desde ahí." />
+      </Screen>
     );
   }
 
   return <CredentialScreen publicToken={publicToken} />;
 }
-
-const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: COLORS.canvas },
-  scroll: { padding: SPACE.xl, gap: SPACE.md },
-});

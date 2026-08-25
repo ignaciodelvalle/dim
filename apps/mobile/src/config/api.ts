@@ -118,3 +118,22 @@ export function publicCredentialPageUrl(publicToken: string): string {
  * that works and a link that looks broken.
  */
 export const IDENTITY_COMPLETION_URL = `${API_BASE_URL}/registro`;
+
+/**
+ * The web URL where a forgotten password is reset.
+ *
+ * THE HONEST BRIDGE, not a missing feature. The web login offers "¿Olvidaste tu
+ * contraseña?" and this app offered nothing, so the one person who needs it —
+ * somebody locked out of the only screen the app can show them — had no way
+ * forward at all. There is no NATIVE recovery flow to link to and building one
+ * here would be the same mistake as a native identity form (see
+ * IDENTITY_COMPLETION_URL): the reset round-trip is an emailed link that opens
+ * in a BROWSER, so the native half would end at the same web page anyway, minus
+ * the rate limiting and the account-state refusals that live there.
+ *
+ * So the app opens the browser at `/recuperar` — the same href the web login's
+ * link carries (app/(auth)/iniciar-sesion/LoginForm.tsx). Unlike the identity
+ * link this one needs no warning about a lost session: password recovery starts
+ * signed out by definition.
+ */
+export const PASSWORD_RECOVERY_URL = `${API_BASE_URL}/recuperar`;

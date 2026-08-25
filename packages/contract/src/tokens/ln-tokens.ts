@@ -311,18 +311,34 @@ export const LN_FONT_FAMILY = {
 } as const;
 
 /**
- * The weights the web actually requests, per family.
+ * The weights a NATIVE client ships, per family. A strict subset of the web's.
  *
- * `app/layout.tsx` loads more than this — sans and mono at 400/500/600/700,
- * serif at 500/600/700 — because the web pays for a weight once and serves it
- * to everyone. A phone pays per install, so the app loads the subset it
- * renders and this constant is what the two sides agree on. It is NOT fenced
- * against `layout.tsx`: the web's set is a superset by design, and a fence
- * asserting equality would fail the moment either side legitimately grew.
- * `__tests__/font-weight-contract.test.ts` is what holds the web end.
+ * `app/layout.tsx` loads more — sans and mono at 400/500/600/700, serif at
+ * 500/600/700 — and that asymmetry is the point rather than an oversight. The
+ * web pays for a face once and serves it to everyone; a phone pays per install,
+ * per face, in bytes the user downloads before the app opens. So this names the
+ * six faces the mobile kit actually renders:
+ *
+ *   serif 600  — the display step. Every title on every screen.
+ *   sans  400  — body copy.
+ *   sans  500  — the primary CTA's label (`font-medium` on the web).
+ *   sans  600  — emphasis inside body: row values, pet names, chip labels.
+ *   mono  400  — hints, codes, the public token.
+ *   mono  600  — the uppercase letterspaced field label.
+ *
+ * Serif 700 is deliberately ABSENT: the web login's `<h1>` is `font-semibold`,
+ * so 600 is the display weight this design actually uses, and a second serif
+ * face would be ~40KB bought for nothing.
+ *
+ * NOT fenced against `layout.tsx`, and cannot usefully be: the web's set is a
+ * superset by design, so an equality check would fail the moment either side
+ * legitimately grew. `__tests__/font-weight-contract.test.ts` holds the web end.
+ * `apps/mobile/src/ui/fonts.test.ts` holds this one — it asserts the app
+ * registers exactly these faces, so adding one here without loading it (or
+ * loading one without declaring it) is red.
  */
 export const LN_FONT_WEIGHTS = {
-  serif: [600, 700],
+  serif: [600],
   sans: [400, 500, 600],
   mono: [400, 600],
 } as const;
