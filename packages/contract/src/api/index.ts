@@ -64,6 +64,18 @@ export {
   type OwnerPetTransitBannerV1,
 } from "./owner-pet-detail.ts";
 export {
+  EVENT_ATTACHMENT_LINK_TTL_SECONDS,
+  PET_EVENT_DETAIL_PAYLOAD_VERSION,
+  PET_EVENT_DETAIL_STALE_AFTER_MS,
+  type EventAmendAffordanceV1,
+  type EventAmendmentV1,
+  type EventAttachmentV1,
+  type EventAuthorV1,
+  type EventFactV1,
+  type EventLocationV1,
+  type PetEventDetailV1,
+} from "./pet-event-detail.ts";
+export {
   PET_LIBRETA_PAYLOAD_VERSION,
   PET_LIBRETA_STALE_AFTER_MS,
   PET_LIBRETA_TIMELINE_WINDOW,

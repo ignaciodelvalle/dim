@@ -8,19 +8,16 @@
 // its own operator-facing styling/tokens).
 
 import { Icon } from "@/components/Icon";
+import { AUTHOR_ROLE_LABELS, authorRoleLabel } from "@/lib/events/author-role-labels";
 
-export const AUTHOR_ROLE_LABELS: Record<string, string> = {
-  owner: "Dueño/a",
-  vet: "Veterinario/a",
-  shelter: "Refugio",
-  govt: "Autoridad pública",
-  system: "Sistema",
-  scanner: "Lector de chip",
-  finder: "Hallador",
-};
+// The TABLE moved to lib/events/author-role-labels.ts (2026-08-25) so the native
+// event-detail endpoint can compose the same label without importing a React
+// component. Re-exported here because every existing importer names it from this
+// file, and the chip is still where a reader looks for it.
+export { AUTHOR_ROLE_LABELS };
 
 export function AuthorChip({ role, verified }: { role: string; verified: boolean }) {
-  const label = AUTHOR_ROLE_LABELS[role] ?? role;
+  const label = authorRoleLabel(role);
   return (
     <span className="inline-flex items-center gap-1 rounded-full border border-[var(--color-ln-line-strong)] bg-[var(--color-ln-card)] px-2 py-0.5 font-ln-mono text-xs text-[var(--color-ln-ink-2)]">
       {label}

@@ -81,8 +81,12 @@ export const V1_ROUTE_GLOB = "app/api/v1/**/route.ts";
  * routes could have fallen out and this would still have read as clean. Caught
  * while adding `libreta`, which makes 10. RAISE THIS WITH EVERY ROUTE THAT
  * LANDS; a floor nobody raises is a floor that stops being one.
+ *
+ * ELEVEN with the event detail (`pets/{token}/events/{eventId}`), which adds a
+ * THIRD level of dynamic segment under `pets/` — the arrangement a `**` glob is
+ * most likely to stop matching after a rename.
  */
-export const MIN_V1_ROUTE_FILES = 10;
+export const MIN_V1_ROUTE_FILES = 11;
 
 export const HELPER_MODULE = "@/lib/infra/api-v1";
 
