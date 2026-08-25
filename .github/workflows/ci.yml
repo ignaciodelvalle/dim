@@ -168,6 +168,23 @@ jobs:
         # without completeAtenderSignature(). See scripts/check-atender-owner-alerts.ts.
         run: pnpm lint:atender-alerts
 
+      - name: "Fence: storage write policies (lint:storage-policies)"
+        # B24 tripwire. `lint:rls` inspects storage.objects against a live
+        # database and considers SELECT and ALL only — a deliberate decision
+        # ("INSERT is a write grant and cannot list") that left a blind spot:
+        # db/storage.sql grants INSERT on pet-photos and event-attachments to
+        # every authenticated account with `bucket_id = '<name>'` as the entire
+        # predicate, and nothing would have gone red if a third such grant
+        # appeared.
+        #
+        # This one is STATIC — it reads the SQL source, so it belongs in this
+        # offline job and, more to the point, it fails a pull request before any
+        # environment has the policy. The two known grants are frozen with their
+        # predicates pinned exactly; a new bucket-name-only write grant, or any
+        # change to those two, fails. It does NOT claim the grants are fine:
+        # closing them needs signed uploads, a later work unit.
+        run: pnpm lint:storage-policies
+
       - name: Lint (jurisdiction scope + authorization derivation)
         # The scope layer's offline fences. Every one of these ran in `pnpm
         # verify` and none had ever run in CI — see the parity note on the

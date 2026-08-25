@@ -25,6 +25,20 @@ on conflict (id) do nothing;
 drop policy if exists "pet_photos_public_read" on storage.objects;
 
 -- Any authenticated user can upload to pet-photos.
+--
+-- B24, AND IT IS NOT FINE. The predicate is the bucket name and nothing else,
+-- so it is TRUE for every authenticated caller and every path: uploads are
+-- supposed to be gated by the server action that verifies pet ownership, but
+-- the GRANT does not know that and a client can call the storage API directly
+-- with its own token. It stays until signed uploads land (server mints a scoped
+-- URL, the bucket goes deny-all to callers) — the two must land together,
+-- because ~30 upload sites legitimately run as the signed-in user today.
+--
+-- FROZEN in the meantime: `pnpm lint:storage-policies` pins this policy's
+-- predicate exactly and fails on any NEW bucket-name-only write grant or any
+-- change to this one. check-rls-coverage.ts does not see it — that fence reads
+-- SELECT and ALL only, by a deliberate decision, and this is the blind spot the
+-- decision left.
 drop policy if exists "pet_photos_authenticated_upload" on storage.objects;
 create policy "pet_photos_authenticated_upload"
   on storage.objects for insert
@@ -76,6 +90,12 @@ on conflict (id) do nothing;
 -- before calling storage). INSERT is kept as the caller's own grant: an
 -- insert-only policy cannot enumerate, and ~30 upload sites legitimately run as
 -- the signed-in user.
+--
+-- B24: "cannot enumerate" is true and is not the whole question. It can still
+-- WRITE — any authenticated account, any path, into a bucket holding vaccine
+-- cards and vet receipts (Tier 3). The read side of this bucket was closed by
+-- migration 0172; the write side is open and waits on signed uploads, same
+-- change as pet-photos above. FROZEN by `pnpm lint:storage-policies` until then.
 drop policy if exists "event_attachments_authenticated_upload" on storage.objects;
 create policy "event_attachments_authenticated_upload"
   on storage.objects for insert

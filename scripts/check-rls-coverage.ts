@@ -310,6 +310,19 @@ export function evaluateStorageReadPolicies(rows: StoragePolicyRow[]): {
     const cmd = row.cmd.toUpperCase();
     // Only read paths enumerate. INSERT is a write grant and cannot list;
     // UPDATE/DELETE carry their own USING clause but do not expose content.
+    //
+    // THAT DECISION LEFT A BLIND SPOT, and it now has a fence of its own rather
+    // than an unstated assumption. Not enumerating is not the same as being
+    // scoped: `db/storage.sql` grants INSERT on pet-photos and on
+    // event-attachments to every authenticated account with `bucket_id = '<name>'`
+    // as the entire predicate, so anyone signed up may WRITE any object into
+    // either bucket. Nothing here would have gone red if a third such grant
+    // appeared. `scripts/check-storage-write-policies.ts` (pnpm
+    // lint:storage-policies) covers the write commands statically, over the SQL
+    // source, and freezes the two known grants exactly. The two are complements:
+    // this fence guards what a database HAS, that one guards what the repo
+    // DECLARES — and only one of them can fail a pull request before any
+    // environment has the policy.
     if (cmd !== "SELECT" && cmd !== "ALL") continue;
     if (!row.roles.some((r) => CALLER_ROLES.has(r))) continue;
 
