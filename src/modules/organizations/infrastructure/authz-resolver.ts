@@ -22,15 +22,33 @@
 // WHY STEP 1 IS requireLiveUser AND NOT A BARE getUser (RN re-run HIGH, 2026-08-22)
 // ---------------------------------------------------------------------------
 // Until this change both capability guards resolved the caller with
-// `auth.getUser()` plus the erasure check, and NOTHING else — while ~18 org
+// `auth.getUser()` plus the erasure check, and NOTHING else — while ~17 org
 // entry points (cross-org transfers ×5, foster ×2, member management ×5,
-// surveillance, rehome, atender) are gated by these two functions alone. So a
+// surveillance, rehome) are gated by these two functions alone. So a
 // maintenance window never stopped an org from transferring custody or
 // accepting a rehome, and a DEACTIVATED institutional account kept mutating
 // through every one of them. lib/infra/live-user.ts already answers all four
 // liveness questions in one place and in one order; a guard that re-derives
 // three of them is a guard that drifts. The refusal shape stays this module's
 // own (RequireCapabilityFailure) — no redirects here, the use-cases return.
+//
+// ATENDER IS NOT IN THAT LIST, AND THIS COMMENT USED TO SAY IT WAS.
+// ---------------------------------------------------------------------------
+// Corrected 2026-08-25 by a pre-push review. `app/org/[orgToken]/atender/
+// atender-access.ts` does NOT call `requireCapability`: `resolveAtenderContext`
+// resolves the caller with a bare `supabase.auth.getUser()` and then imports
+// `getGrantedCapabilities` from this file DIRECTLY — which is step 5 of the
+// order above with steps 1-4 skipped. So the seven clinical actions behind it
+// get the capability check and none of the liveness checks: no maintenance
+// kill-switch, no deactivation refusal, and no 8-hour shift enforcement, on the
+// one surface that is literally a shared municipal desk.
+//
+// The bypass is real and is queued as its own change (the shift-bypass
+// follow-up). It is NOT fixed here, because routing atender through
+// `requireCapability` changes seven refusal shapes and deserves its own tests
+// and its own review. What is fixed here is the sentence: a comment that names
+// a surface as covered by a security control it does not reach is worse than
+// the gap, because it is what a reader checks INSTEAD of the code.
 
 import { and, eq, isNull } from "drizzle-orm";
 
