@@ -101,9 +101,13 @@ export async function registerPet(
       // the tx makes a second same-key submit see the first one's committed pet
       // instead of creating a duplicate. Mirrors create-intake.ts.
       if (clientIdempotencyKey) {
+        // The OWNER is part of the lookup (FB-3): a key is a client's private
+        // retry token, not a global name. Two users presenting the same string
+        // must not resolve to each other's pet.
         const existing = await repo.findDuplicateRegistration(
           clientIdempotencyKey,
-          tx as Parameters<typeof repo.findDuplicateRegistration>[1],
+          user.id,
+          tx as Parameters<typeof repo.findDuplicateRegistration>[2],
         );
         if (existing) {
           wasDuplicate = true;

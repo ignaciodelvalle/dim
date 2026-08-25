@@ -113,12 +113,31 @@ export const PetsRepository = {
    * pet_id differs on every attempt, so the index cannot serialize alta
    * double-submits on its own. The advisory lock + this SELECT is the actual
    * guard (the index remains a same-pet backstop, as in the replace flow).
+   *
+   * SCOPED TO THE OWNER, and it was not (fixed 2026-08-25, WU-B review FB-3).
+   * The predicate used to be (event_type, client_idempotency_key) and nothing
+   * else — a key is GLOBAL in that lookup, so two users presenting the same key
+   * means the second one silently receives the FIRST one's publicToken with a
+   * 201 and no pet of their own. Under random UUIDv4 the collision probability
+   * is negligible; it is not negligible under any DETERMINISTIC key derivation,
+   * and this repo already does that elsewhere (`deriveBulkIdempotencyKey`). A
+   * client that derives its key from the form contents — an obvious thing for a
+   * native app to do so a retry after a crash reuses the key — hands two
+   * neighbours registering a cat named Michi the same string.
+   *
+   * The advisory lock is narrowed the same way, so two users are no longer
+   * serialized against each other for holding the same key. Narrowing it is
+   * safe precisely because the lookup narrowed too: what has to be atomic is
+   * the (owner, key) pair, which is now exactly what is locked.
    */
   async findDuplicateRegistration(
     clientIdempotencyKey: string,
+    ownerUserId: string,
     tx: Tx,
   ): Promise<{ publicToken: string; name: string } | null> {
-    await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtext(${clientIdempotencyKey}))`);
+    await tx.execute(
+      sql`SELECT pg_advisory_xact_lock(hashtext(${ownerUserId} || ':' || ${clientIdempotencyKey}))`,
+    );
     const [existing] = await tx
       .select({ publicToken: pets.publicToken, name: pets.name })
       .from(petEvents)
@@ -127,6 +146,10 @@ export const PetsRepository = {
         and(
           eq(petEvents.eventType, "pet_registered"),
           eq(petEvents.clientIdempotencyKey, clientIdempotencyKey),
+          // `recorded_by_user_id` is set to the registering user by
+          // insertPetRegistered below, so it is the same identity the caller
+          // presents — not a projection that could lag.
+          eq(petEvents.recordedByUserId, ownerUserId),
         ),
       )
       .limit(1);

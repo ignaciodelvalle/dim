@@ -193,6 +193,119 @@ describe("registerPet", () => {
     });
   });
 
+  // -------------------------------------------------------------------------
+  // Idempotent replay (WU-B review FB-4)
+  // -------------------------------------------------------------------------
+  //
+  // THE PROPERTY THE WHOLE MECHANISM EXISTS FOR — "a retry creates no second
+  // animal" — WAS PROVEN NOWHERE. The route test mocks `registerPet` entirely,
+  // so it cannot see a write; this file had no replay case at all. Between them
+  // the two layers asserted that a replay RENDERS correctly and never that it
+  // WRITES nothing, which is the half a user would notice.
+  //
+  // This is the layer that can prove it: the fake repository reports a prior
+  // registration, and `insertPetRegistered` must not be reached.
+  describe("idempotent replay", () => {
+    const KEY = "1c2f9a6e-5b3d-4f80-91a2-b3c4d5e6f708";
+
+    function replayRepo() {
+      return makeFakeRepo({
+        findDuplicateRegistration: vi
+          .fn()
+          .mockResolvedValue({ publicToken: "DIM-FIRST-0001", name: "Luna" }),
+      });
+    }
+
+    it("creates NO second animal when the key matches a prior registration", async () => {
+      const repo = replayRepo();
+
+      const result = await registerPet(makeInput({ clientIdempotencyKey: KEY }), {
+        repo,
+        actor: { user: { id: "user-1" } },
+        transaction: async (cb) => await cb({} as never),
+      });
+
+      // THE ASSERTION. Everything else in this describe is context for it.
+      expect(repo.insertPetRegistered).not.toHaveBeenCalled();
+      expect(result.ok).toBe(true);
+      if (!result.ok) throw new Error("unreachable");
+      expect(result.value?.wasDuplicate).toBe(true);
+      // The FIRST attempt's token, not the one generated for this attempt.
+      expect(result.value?.publicToken).toBe("DIM-FIRST-0001");
+    });
+
+    it("queues no notifications on a replay", async () => {
+      // A PPP reminder fired again on every retry would be a push notification
+      // per flaky connection, about a pet the owner already registered.
+      const repo = replayRepo();
+
+      const result = await registerPet(
+        makeInput({ clientIdempotencyKey: KEY, potentiallyDangerousBreed: true }),
+        {
+          repo,
+          actor: { user: { id: "user-1" } },
+          transaction: async (cb) => await cb({} as never),
+        },
+      );
+
+      expect(result.ok).toBe(true);
+      if (!result.ok) throw new Error("unreachable");
+      expect(result.notifications).toHaveLength(0);
+    });
+
+    // FB-3. The key is a client's private retry token, not a global name. The
+    // lookup used to be keyed on (event_type, key) alone, so two users
+    // presenting the same string meant the second one silently received the
+    // FIRST one's publicToken with a 201 and no pet of their own — negligible
+    // under random UUIDv4, real under any deterministic key derivation, which
+    // this repo already does elsewhere (`deriveBulkIdempotencyKey`).
+    it("scopes the lookup to the OWNER, not to the key alone", async () => {
+      const repo = replayRepo();
+
+      await registerPet(makeInput({ clientIdempotencyKey: KEY }), {
+        repo,
+        actor: { user: { id: "user-1" } },
+        transaction: async (cb) => await cb({} as never),
+      });
+
+      expect(repo.findDuplicateRegistration).toHaveBeenCalledTimes(1);
+      const [key, ownerId] = (repo.findDuplicateRegistration as ReturnType<typeof vi.fn>).mock
+        .calls[0];
+      expect(key).toBe(KEY);
+      expect(ownerId).toBe("user-1");
+    });
+
+    // NON-VACUITY for the three above: without a hit, the write must happen.
+    it("writes normally when the key matches nothing", async () => {
+      const repo = makeFakeRepo({ findDuplicateRegistration: vi.fn().mockResolvedValue(null) });
+
+      const result = await registerPet(makeInput({ clientIdempotencyKey: KEY }), {
+        repo,
+        actor: { user: { id: "user-1" } },
+        transaction: async (cb) => await cb({} as never),
+      });
+
+      expect(repo.insertPetRegistered).toHaveBeenCalledTimes(1);
+      expect(result.ok).toBe(true);
+      if (!result.ok) throw new Error("unreachable");
+      expect(result.value?.wasDuplicate).toBe(false);
+      expect(result.value?.publicToken).toBe("DIM-TEST-0001");
+    });
+
+    it("does not consult the lookup at all when no key was supplied", async () => {
+      const repo = makeFakeRepo({ findDuplicateRegistration: vi.fn() });
+
+      await registerPet(makeInput({ clientIdempotencyKey: null }), {
+        repo,
+        actor: { user: { id: "user-1" } },
+        transaction: async (cb) => await cb({} as never),
+      });
+
+      expect(repo.findDuplicateRegistration).not.toHaveBeenCalled();
+      expect(repo.insertPetRegistered).toHaveBeenCalledTimes(1);
+    });
+  });
+
   describe("error path", () => {
     it("returns ok:false when transaction throws", async () => {
       const repo = makeFakeRepo({
