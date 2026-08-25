@@ -2,11 +2,12 @@
 //
 // WHAT "LIVE" MEANS
 // ---------------------------------------------------------------------------
-// A caller is live when all four of these hold:
+// A caller is live when all five of these hold:
 //   1. the platform is accepting traffic  (maintenance kill-switch off)
 //   2. a Supabase session resolves        (NO_SESSION otherwise)
 //   3. the account was not erased         (profiles.deleted_at, Ley 25.326 art. 16)
 //   4. the account was not deactivated    (institutional deactivation)
+//   5. an INSTITUTIONAL principal is still inside its 8-hour shift (B9)
 //
 // WHY IT EXISTS — this is a live web bug, not native prep
 // ---------------------------------------------------------------------------
@@ -28,11 +29,22 @@
 // THE INVARIANT THIS PROTECTS
 // ---------------------------------------------------------------------------
 // Authorization is 100% DB-resolved (zero `auth.jwt()` across 276 RLS policies).
-// This guard never reads a claim out of the token to decide anything: the token
-// (cookie or bearer) answers WHO, and `getProfileCached` — a database read —
-// answers WHETHER THEY MAY STILL ACT. That is what makes the bearer entry point
-// (lib/supabase/bearer.ts, Track 2's first caller) cheap and safe: swapping the
-// credential transport changes nothing about how authority is resolved.
+// This guard never reads a claim out of the token to decide WHAT A CALLER MAY
+// DO: the token (cookie or bearer) answers WHO, and `getProfileCached` — a
+// database read — answers WHETHER THEY MAY STILL ACT. That is what makes the
+// bearer entry point (lib/supabase/bearer.ts, Track 2's first caller) cheap and
+// safe: swapping the credential transport changes nothing about how authority is
+// resolved.
+//
+// B9 ADDED EXACTLY ONE READ FROM THE TOKEN, and narrowed the sentence above from
+// "never reads a claim to decide anything" to what it always meant. The shift
+// check needs to know WHEN THIS SESSION WAS AUTHENTICATED, and that is a fact
+// about the credential, not about the account — our database has no row for it
+// (GoTrue owns `auth.sessions`, which PostgREST does not expose). The role that
+// selects the policy is still read from `profiles`; only the credential's own age
+// comes from the credential, only after `auth.getUser()` has had GoTrue validate
+// that exact token, and never from a client clock. lib/infra/operator-shift.ts
+// carries the full argument and the measurements behind it.
 //
 // AND WHAT IT DOES NOT COVER
 // ---------------------------------------------------------------------------
@@ -47,6 +59,11 @@
 // not something this module can enforce.
 
 import { isMaintenanceMode } from "@/lib/domain/maintenance-mode";
+import {
+  OPERATOR_SHIFT_EXPIRED_MESSAGE,
+  isOperatorShiftExpired,
+  verifiedSessionStart,
+} from "@/lib/infra/operator-shift";
 import { type CachedProfile, getProfileCached } from "@/lib/infra/request-cache";
 import { createClient } from "@/lib/supabase/server";
 
@@ -54,9 +71,14 @@ export type SupabaseServerClient = Awaited<ReturnType<typeof createClient>>;
 
 /**
  * Why a caller is not live. Ordered by the precedence requireLiveUser applies:
- * MAINTENANCE → NO_SESSION → ACCOUNT_ERASED → DEACTIVATED.
+ * MAINTENANCE → NO_SESSION → ACCOUNT_ERASED → DEACTIVATED → SHIFT_EXPIRED.
  */
-export type LiveUserFailureReason = "NO_SESSION" | "ACCOUNT_ERASED" | "MAINTENANCE" | "DEACTIVATED";
+export type LiveUserFailureReason =
+  | "NO_SESSION"
+  | "ACCOUNT_ERASED"
+  | "MAINTENANCE"
+  | "DEACTIVATED"
+  | "SHIFT_EXPIRED";
 
 export type LiveUserSuccess = {
   ok: true;
@@ -67,6 +89,24 @@ export type LiveUserSuccess = {
   // second round-trip. Null only in the mid-signup window where auth.users
   // exists and the profile row does not yet.
   profile: CachedProfile | null;
+  /**
+   * When THIS session was authenticated, from the GoTrue-signed `amr` claim of
+   * the token this call just had validated. Null when the token carried no
+   * usable timestamp — which is NOT a licence to conclude the session is fresh;
+   * operator-shift.ts explains why that case fails open and reports.
+   *
+   * Resolved for EVERY caller, not only institutional ones, and the cost is why
+   * that is affordable: on the bearer path the token is already in hand, and on
+   * the cookie path `getSession()` is a cookie read plus a JSON parse — the
+   * network round-trip belongs to `getUser()`, which has already happened.
+   *
+   * It is resolved unconditionally because the org capability path
+   * (authz-resolver.ts) needs it for a caller this file cannot recognise: an org
+   * staffer may hold a PERSONAL profile, so the institutional check below does
+   * not fire for them, yet an org console is an operator surface under B9.
+   * Making the field conditional would make `null` mean two different things.
+   */
+  sessionStartedAt: Date | null;
 };
 
 export type LiveUserFailure = {
@@ -117,6 +157,10 @@ const MESSAGES: Record<LiveUserFailureReason, string> = {
     "miMAR está en mantenimiento. Tu cambio no se registró — probá de nuevo en unos minutos.",
   // Same wording the login form already shows for this case (login.ts).
   DEACTIVATED: "Tu cuenta institucional está desactivada. Contactá al equipo de miMAR.",
+  // Says what happened AND what to do. "Sesión expirada." would be a lie by
+  // omission here: the token has not expired, the workday has, and an operator
+  // told the former will refresh and be refused again.
+  SHIFT_EXPIRED: OPERATOR_SHIFT_EXPIRED_MESSAGE,
 };
 
 /** es-AR refusal copy for a liveness failure. */
@@ -191,6 +235,10 @@ export function isPlatformInMaintenance(): boolean {
  *   3. ACCOUNT_ERASED — outranks deactivation: an erased account has no identity
  *      left to be "merely deactivated".
  *   4. DEACTIVATED
+ *   5. SHIFT_EXPIRED — LAST, and the order is the point. It is the mildest
+ *      refusal and the only recoverable one: the remedy is to sign in again. An
+ *      erased or deactivated account must not be told "your shift ended", which
+ *      would invite it to retry forever against an account that will never work.
  */
 export async function requireLiveUser(options?: RequireLiveUserOptions): Promise<LiveUserResult> {
   if (isPlatformInMaintenance()) {
@@ -267,5 +315,86 @@ export async function requireLiveUser(options?: RequireLiveUserOptions): Promise
     };
   }
 
-  return { ok: true, supabase, user, profile };
+  // B9. The token was validated by `getUser()` immediately above, which is the
+  // precondition `verifiedSessionStart` documents — this is the one place in the
+  // codebase allowed to make that call, and it is a few lines from the proof.
+  const sessionStartedAt = await resolveSessionStart(supabase, options?.accessToken);
+
+  if (isInstitutionalPrincipal(profile)) {
+    if (isOperatorShiftExpired({ sessionStartedAt, context: "live-user" })) {
+      return {
+        ok: false,
+        supabase,
+        // Carried, like DEACTIVATED: the caller that translates this refusal has
+        // to sign the operator out, and signing out is something you do to a
+        // known identity.
+        user: { id: user.id, email: user.email },
+        reason: "SHIFT_EXPIRED",
+        error: MESSAGES.SHIFT_EXPIRED,
+      };
+    }
+  }
+
+  return { ok: true, supabase, user, profile, sessionStartedAt };
+}
+
+/**
+ * When the session behind this request was authenticated, or null. (B9)
+ *
+ * TWO SOURCES, PICKED BY PATH RATHER THAN BY FALLBACK. The bearer path was
+ * handed the raw token, so it is used directly and `getSession()` is never
+ * called — a bearer client stores no session and asking it would be a round trip
+ * to learn nothing. The cookie path reads the token back from the SSR client.
+ *
+ * `getSession()` does NOT re-validate, which is exactly why it must never answer
+ * "who". It does not need to here: `getUser()` has just accepted the same
+ * cookie, so the token this returns is the one GoTrue vouched for moments ago.
+ * Only `access_token` is read; `session.user` is deliberately ignored.
+ *
+ * SWALLOWS ITS OWN FAILURE, and the direction matches the rest of the shift
+ * machinery. This is a supplementary read supporting a REFINEMENT of a bound
+ * GoTrue still enforces globally. If it throws — an SDK shape change, a client
+ * that does not implement it — the honest outcome is "session start unknown",
+ * which `isOperatorShiftExpired` already handles by failing open AND reporting.
+ * Letting it propagate would convert a degraded hardening into a total outage of
+ * every authenticated surface, which is a far worse failure than the one it
+ * guards against.
+ */
+async function resolveSessionStart(
+  supabase: SupabaseServerClient,
+  accessToken: string | undefined,
+): Promise<Date | null> {
+  if (accessToken) return verifiedSessionStart(accessToken);
+  try {
+    const { data } = await supabase.auth.getSession();
+    return verifiedSessionStart(data.session?.access_token);
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Does the 8-hour shift apply to this profile? (B9)
+ *
+ * An OR over role and accountType, not an AND, and not a check of either one
+ * alone. The DB-level `profiles_account_type_role_match` CHECK was added in
+ * migration 0015 and DROPPED in 0016 in favour of app-layer enforcement, so
+ * nothing in Postgres guarantees the two columns agree. A `govt` row that says
+ * `personal`, or an `institutional` row still carrying `owner`, is a shape the
+ * database permits — and either one is an operator account. The union is the
+ * predicate that survives that looseness; requiring both would let a single
+ * mismatched column silently opt an operator out of the boundary.
+ *
+ * Exported for the org capability path, which applies the same policy to a
+ * principal this predicate cannot see (org staff on a personal profile).
+ *
+ * A null profile — the mid-signup window, where auth.users exists and the
+ * profile row does not — is NOT institutional. There is no operator yet, and
+ * refusing there would break signup for everybody.
+ */
+export function isInstitutionalPrincipal(profile: CachedProfile | null): boolean {
+  if (!profile) return false;
+  return (
+    profile.accountType === "institutional" || profile.role === "govt" || profile.role === "admin"
+  );
 }

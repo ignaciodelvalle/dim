@@ -150,6 +150,10 @@ export async function GET(request: Request) {
         return apiV1Error("account_erased", 403);
       case "DEACTIVATED":
         return apiV1Error("account_deactivated", 403);
+      // See `/api/v1/me` — 401 with its own code so the client re-authenticates
+      // instead of refreshing a session that will keep refreshing successfully.
+      case "SHIFT_EXPIRED":
+        return apiV1Error("session_shift_expired", 401);
       case "MAINTENANCE":
         return apiV1Error("temporarily_unavailable", 503, {
           "retry-after": String(UNAVAILABLE_RETRY_AFTER_SECONDS),

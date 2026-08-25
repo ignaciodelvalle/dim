@@ -19,8 +19,15 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 // ---------------------------------------------------------------------------
 
 const mockGetUser = vi.fn();
+const mockGetSession = vi.fn();
 const mockCreateClient = vi.fn();
-const mockSupabaseClient = { auth: { getUser: () => mockGetUser() } };
+// getSession is part of the shape because requireLiveUser reads the access token
+// back from it on the cookie path to date the session (B9, lib/infra/operator-shift.ts).
+// A mock without it would pass only because the guard swallows the failure — which
+// is a real safety net, but not something these tests should be silently exercising.
+const mockSupabaseClient = {
+  auth: { getUser: () => mockGetUser(), getSession: () => mockGetSession() },
+};
 
 vi.mock("@/lib/supabase/server", () => ({
   createClient: () => mockCreateClient(),
@@ -72,6 +79,7 @@ beforeEach(() => {
   vi.stubEnv("NEXT_PUBLIC_MAINTENANCE_MODE", "0");
   mockCreateClient.mockResolvedValue(mockSupabaseClient);
   mockGetUser.mockResolvedValue(noSession());
+  mockGetSession.mockResolvedValue({ data: { session: null }, error: null });
   mockGetProfileCached.mockResolvedValue(null);
 });
 

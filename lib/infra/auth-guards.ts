@@ -52,13 +52,22 @@ export type AuthenticatedSession = {
 // implementation. The result guard decides; this function only translates a
 // refusal into the redirect a page/layout needs.
 //
-// It handles three of the four refusals and DELIBERATELY tolerates the fourth:
+// It handles four of the five refusals and DELIBERATELY tolerates the fifth:
 //   MAINTENANCE    → /mantenimiento. New (B52): the kill-switch used to live in
 //                    four layouts, which gate a RENDER, so a Server Action that
 //                    calls this guard committed its write during a maintenance
 //                    window and only then met the maintenance screen.
 //   NO_SESSION     → /iniciar-sesion (+ returnTo). Unchanged.
 //   ACCOUNT_ERASED → /iniciar-sesion, returnTo dropped. Unchanged.
+//   SHIFT_EXPIRED  → /turno-vencido (B9). NOT straight to /iniciar-sesion, and
+//                    the difference is the whole reason that route exists: the
+//                    session is still valid at GoTrue, so the login page would
+//                    redirect the operator back into the portal by role and the
+//                    portal would refuse them again — the 2026-07-04 redirect
+//                    loop, rebuilt. /turno-vencido signs them out first. No
+//                    returnTo: after an 8-hour shift the half-finished URL is
+//                    not where anyone wants to be returned, and carrying it
+//                    through a global sign-out invites the same loop back.
 //   DEACTIVATED    → PASSES. A deactivated institutional account must keep a
 //                    surface it can read the explanation on (/cuenta) and log
 //                    out from; bouncing it off everything is how the
@@ -78,6 +87,7 @@ export async function requireUserOrRedirect(returnTo?: string): Promise<Authenti
       );
     }
     if (live.reason === "ACCOUNT_ERASED") redirect("/iniciar-sesion");
+    if (live.reason === "SHIFT_EXPIRED") redirect("/turno-vencido");
     // Only DEACTIVATED reaches here, and it always carries both a client and a
     // user. The guard fails CLOSED rather than asserting that with a cast: if
     // the shape is ever not what this branch assumes, bounce to login.

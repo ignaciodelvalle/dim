@@ -27,12 +27,18 @@ import { LoginForm } from "./LoginForm";
 export default async function LoginPage({
   searchParams,
 }: {
-  searchParams: Promise<{ intent?: string; returnTo?: string }>;
+  searchParams: Promise<{ intent?: string; returnTo?: string; motivo?: string }>;
 }) {
   const sp = await searchParams;
   // Preserve the raw intent value so the copy map can match it (not just "apply").
   const intent = sp.intent ?? null;
   const returnTo = safeReturnTo(sp.returnTo);
+  // B9: /turno-vencido sends an operator here AFTER signing them out, so this
+  // notice explains a page they did not ask for. It is informational, not an
+  // error — the shift ending is the system working — and it needs no logout
+  // surface of its own, unlike the two account-state notices below: by the time
+  // it renders there is no session left to close.
+  const shiftEnded = sp.motivo === "turno";
 
   const supabase = await createClient();
   const {
@@ -162,6 +168,21 @@ export default async function LoginPage({
               </button>
             </form>
           </div>
+        )}
+        {/* Shift ended (B9). Neutral chrome on purpose: an operator whose 8
+            hours ran out did nothing wrong, and dressing a routine boundary in
+            the error palette teaches people to ignore the error palette. */}
+        {shiftEnded && (
+          // <output> rather than a div with an explicit status role — the repo's
+          // convention (see SolicitarAccesoForm), and what biome's
+          // useSemanticElements requires. `block` because <output> is inline.
+          <output className="block space-y-2 rounded-[var(--radius-sm)] border border-[var(--color-ln-line)] bg-[var(--color-ln-paper-2)] px-4 py-3 text-sm text-[var(--color-ln-ink)]">
+            <p className="font-medium">Tu turno de trabajo terminó.</p>
+            <p>
+              Por seguridad cerramos la sesión en todos tus dispositivos después de 8 horas. Volvé a
+              iniciar sesión para seguir trabajando.
+            </p>
+          </output>
         )}
         <LoginForm returnTo={returnTo} />
         <p className="text-center text-sm text-[var(--color-ln-ink-2)]">

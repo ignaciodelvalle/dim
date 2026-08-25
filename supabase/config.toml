@@ -264,19 +264,55 @@ max_frequency = "5s"
 # 4152127777 = "123456"
 
 # Configure logged in session timeouts.
-# PO interview 2026-07-23, item 8 ("TTL de jornada laboral para operadores"):
-# force a re-login after one 8-hour shift, regardless of activity — an
-# operator (gob/admin/org) who leaves a session open overnight on a shared
-# terminal should not still be authenticated the next day. `jwt_expiry` above
-# (3600s) is unrelated to this: it only bounds the short-lived access token,
-# which the client auto-refreshes silently as long as the session itself is
-# still valid — timebox is the actual session-lifetime lever. See
-# docs/ops/env-handling.md for what to set on the REMOTE (staging/prod)
-# Supabase project — this file only configures the LOCAL Docker stack.
+#
+# HISTORY. PO interview 2026-07-23, item 8 ("TTL de jornada laboral para
+# operadores") set this to 8h: force a re-login after one shift, regardless of
+# activity — an operator (gob/admin/org) who leaves a session open overnight on a
+# shared terminal should not still be authenticated the next day.
+#
+# B9 (2026-08-25) SPLIT THAT BY ACCOUNT TYPE, AND THE SPLIT CANNOT LIVE HERE.
+# The PO decision is: CITIZEN sessions become long — weeks, rotating refresh,
+# revocable — because a wallet that logs you out mid-field-visit is not a wallet.
+# INSTITUTIONAL operators keep the 8-hour shift.
+#
+# `timebox` is GLOBAL. There is no per-role, per-user or per-audience variant of
+# it in any version of the setting, so it can express exactly one of those two
+# durations. It is therefore set to the CITIZEN horizon, and the operator shift
+# is enforced at the application layer, where the account has already been
+# resolved from the database: lib/infra/operator-shift.ts, applied by
+# lib/infra/live-user.ts (govt/admin/institutional profiles) and by
+# src/modules/organizations/infrastructure/authz-resolver.ts (org staff, who
+# frequently hold a PERSONAL profile and so are invisible to the first check).
+#
+# WHY 720h. 30 days, spelled in hours because Go's duration parser — which is
+# what reads this value — supports h/m/s and has no day unit; "30d" does not
+# parse. Long enough that a phone used a few times a month stays signed in
+# between visits, short enough that an abandoned device does not stay
+# authenticated for a year. The counterpart that makes it defensible is B11,
+# remote revocation ("cerrar sesión en todos los dispositivos") — a launch
+# prerequisite, not a follow-up: a long session is only acceptable if the person
+# holding it can end it from somewhere else.
+#
+# `jwt_expiry` above (3600s) is unrelated: it bounds only the short-lived access
+# token, which the client auto-refreshes silently as long as the session itself
+# is still valid. `timebox` is the session-lifetime lever.
+#
+# THIS FILE CONFIGURES THE LOCAL DOCKER STACK ONLY. The hosted (staging/prod)
+# projects are changed from the Supabase dashboard — Authentication → Sessions →
+# "Time-box user sessions" — and that is a PO errand, not something a migration
+# or a deploy carries. The application-layer enforcement is deliberately correct
+# on BOTH sides of that change: while the hosted value is still 8h, GoTrue ends
+# every session at 8h and the app adds no friction beyond it; once it is relaxed,
+# citizens get the long session and operators still meet 8h in the app. Nothing
+# breaks if the errand is late; citizens simply do not get the benefit yet.
 [auth.sessions]
-# Force log out after the specified duration — one workday.
-timebox = "8h"
+# Force log out after the specified duration — 30 days (citizens). Operators are
+# held to 8h by the app; see the note above.
+timebox = "720h"
 # Force log out if the user has been inactive longer than the specified duration.
+# Deliberately still unset: an inactivity timeout would re-introduce exactly the
+# "logged out between visits" behaviour B9 removed for citizens, and it cannot
+# discriminate by role either.
 # inactivity_timeout = "8h"
 
 # This hook runs before a new user is created and allows developers to reject the request based on the incoming user object.

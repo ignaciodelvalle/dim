@@ -357,6 +357,12 @@ function liveUserRefusal(reason: LiveUserFailureReason) {
       return apiV1Error("account_erased", 403);
     case "DEACTIVATED":
       return apiV1Error("account_deactivated", 403);
+    // B9. Reachable but rare on this endpoint: registering an animal is a
+    // citizen act, and citizens have no shift. An org staffer registering from
+    // a console after eight hours is the case, and the answer is the same one
+    // every other endpoint gives — re-authenticate, do not refresh.
+    case "SHIFT_EXPIRED":
+      return apiV1Error("session_shift_expired", 401);
     case "MAINTENANCE":
       return unavailable();
     default: {

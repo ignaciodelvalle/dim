@@ -152,6 +152,14 @@ export type PetAccessResult = PetAccessSuccess | PetAccessFailure;
 // pages branch on `access.reason === "no-session"` and would silently fall
 // through to notFound() if it moved — while the two NEW ones (maintenance,
 // deactivation) get their own `not-live` bucket.
+//
+// SHIFT_EXPIRED (B9) joins `not-live` and needs no branch of its own here. Every
+// page that reaches this helper sits under a layout whose guard is
+// requireUserOrRedirect, which redirects a shift-expired operator to
+// /turno-vencido before the page renders — so in practice this module never sees
+// it. Landing in `not-live` rather than in the 404 bucket is nonetheless the
+// right default if that order ever changes: it renders the honest message
+// instead of pretending the animal does not exist.
 function failureFromLiveness(live: LiveUserFailure): PetAccessFailure {
   const reason: PetAccessFailureReason =
     live.reason === "NO_SESSION"

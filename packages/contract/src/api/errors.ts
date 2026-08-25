@@ -70,6 +70,26 @@
  * - `account_erased`      — the subject exercised erasure (Ley 25.326 art. 16)
  *                           and the token outlived the account. Same: only ever
  *                           told to the holder of that account's own token.
+ * - `session_shift_expired`
+ *                         — the caller is an INSTITUTIONAL principal (govt,
+ *                           admin, or org staff) whose 8-hour operator shift ran
+ *                           out (B9). 401.
+ *
+ *                           IT EARNS ITS OWN CODE BY THE ONLY BAR THIS FILE
+ *                           APPLIES: the client's move is different, and getting
+ *                           it wrong loops forever. `auth_expired` means "refresh
+ *                           and retry once", and a refresh here SUCCEEDS — the
+ *                           session is perfectly valid at GoTrue, the shift is
+ *                           OUR policy — so the retry is refused again, refreshed
+ *                           again, forever. This code means: discard the session
+ *                           and send the user through a full credential sign-in.
+ *                           It is the same trap `auth_required` was split from
+ *                           `auth_expired` to avoid, in the other direction.
+ *
+ *                           Citizens never see it. A native wallet app has no
+ *                           operator surface, so a client that cannot yet handle
+ *                           it degrades to "unknown error" for a population it
+ *                           does not serve.
  * - `invalid_request`     — the body did not parse against the request schema
  *                           in `@dim/contract/input`. A BACKSTOP, not the
  *                           client's error channel: the client validates with
@@ -143,6 +163,7 @@ export const API_V1_ERROR_CODES = [
   "invalid_credentials",
   "account_deactivated",
   "account_erased",
+  "session_shift_expired",
   "invalid_request",
   "signup_failed",
   "idempotency_key_required",

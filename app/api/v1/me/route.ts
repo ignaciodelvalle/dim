@@ -137,6 +137,12 @@ export async function GET(request: Request) {
         return apiV1Error("account_erased", 403);
       case "DEACTIVATED":
         return apiV1Error("account_deactivated", 403);
+      // 401, not 403: unlike the two account-state refusals this one IS fixed by
+      // authenticating again, so it belongs with the credential failures. The
+      // distinct code is what stops the client refreshing instead — see
+      // `session_shift_expired` in @dim/contract/api.
+      case "SHIFT_EXPIRED":
+        return apiV1Error("session_shift_expired", 401);
       case "MAINTENANCE":
         return apiV1Error("temporarily_unavailable", 503, {
           "retry-after": String(UNAVAILABLE_RETRY_AFTER_SECONDS),

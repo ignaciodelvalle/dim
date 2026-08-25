@@ -44,6 +44,7 @@ import {
   organizations,
 } from "@/db";
 import { requireLiveUser } from "@/lib/infra/live-user";
+import { OPERATOR_SHIFT_EXPIRED_MESSAGE, isOperatorShiftExpired } from "@/lib/infra/operator-shift";
 import { resolveGrantedCaps } from "@/src/modules/organizations/domain/capabilities";
 
 // ---------------------------------------------------------------------------
@@ -89,6 +90,17 @@ export type RequireCapabilityOptions = {
   access?: "read" | "write";
 };
 
+/** The refusal shape this module speaks, from a message and an optional actor. */
+function capabilityFailure(userId: string | null, error: string): RequireCapabilityFailure {
+  return {
+    user: userId ? { id: userId } : null,
+    membership: null,
+    organization: null,
+    granted: null,
+    error,
+  };
+}
+
 /**
  * Step 1 of both guards: the caller must be LIVE, in requireLiveUser's own
  * precedence, and the refusal comes back in this module's result shape.
@@ -97,26 +109,46 @@ export type RequireCapabilityOptions = {
  * the session. DEACTIVATED is the one refusal a READ may tolerate; the guard
  * fails CLOSED if that branch ever arrives without a user rather than
  * asserting the shape with a cast (same stance as auth-guards.ts).
+ *
+ * THE 8-HOUR SHIFT IS RE-APPLIED HERE, AND IT IS NOT A DUPLICATE (B9)
+ * ---------------------------------------------------------------------------
+ * `requireLiveUser` already refuses a shift-expired INSTITUTIONAL profile. It
+ * cannot refuse the principal this module is for. An org staffer — a vet in a
+ * clinic, a coordinator in a refugio — commonly holds `role: "vet"` /
+ * `accountType: "personal"`; their operator-ness lives in
+ * `organization_memberships`, a table `requireLiveUser` never reads. So the
+ * institutional predicate does not fire for them, and without this check the
+ * single largest group of org-console operators would have kept a citizen-length
+ * session on exactly the shared front-desk machine B9 is about.
+ *
+ * Applied to READS as well as writes, unlike DEACTIVATED. The two refusals are
+ * not the same kind of thing: a deactivated account keeps its reads so it can
+ * see WHY it was switched off and log out, and no amount of re-authenticating
+ * would change its state. A shift is over for everyone and is fixed by signing
+ * in again — leaving org reads open would leave the console populated on the
+ * shared desk, which is the whole exposure.
+ *
+ * It runs AFTER the liveness refusals and only for callers those allowed
+ * through, so a maintenance window or an erased account still answers first.
  */
 async function resolveLiveActor(
   options: RequireCapabilityOptions | undefined,
 ): Promise<{ ok: true; userId: string } | { ok: false; failure: RequireCapabilityFailure }> {
   const live = await requireLiveUser();
-  if (live.ok) return { ok: true, userId: live.user.id };
 
-  const tolerated = live.reason === "DEACTIVATED" && options?.access === "read";
-  if (tolerated && live.user) return { ok: true, userId: live.user.id };
+  if (!live.ok) {
+    const tolerated = live.reason === "DEACTIVATED" && options?.access === "read";
+    if (tolerated && live.user) return { ok: true, userId: live.user.id };
+    return { ok: false, failure: capabilityFailure(live.user?.id ?? null, live.error) };
+  }
 
-  return {
-    ok: false,
-    failure: {
-      user: live.user ? { id: live.user.id } : null,
-      membership: null,
-      organization: null,
-      granted: null,
-      error: live.error,
-    },
-  };
+  if (
+    isOperatorShiftExpired({ sessionStartedAt: live.sessionStartedAt, context: "org-capability" })
+  ) {
+    return { ok: false, failure: capabilityFailure(live.user.id, OPERATOR_SHIFT_EXPIRED_MESSAGE) };
+  }
+
+  return { ok: true, userId: live.user.id };
 }
 
 // ---------------------------------------------------------------------------
