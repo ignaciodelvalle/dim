@@ -1,25 +1,54 @@
-// Credencial — one pet, reached from the list.
+// One pet, reached from the list — TWO faces, and the difference matters.
 //
 // The route is a thin shell: it resolves the path parameter, refuses to render
-// without a session, and hands the token to the screen. All the honesty rules
-// live in `CredentialScreen`.
+// without a session, and picks which face to show. All the honesty rules live in
+// the two screens.
+//
+// WHY TWO FACES AND NOT ONE. `CredentialScreen` renders the pet's PUBLIC
+// credential — the anonymous document behind the QR, which looks identical to
+// its owner and to a stranger who found the animal in the street. That is
+// exactly what it is for, and exactly why an owner who opens it learns nothing
+// they did not already know: it is the same page a finder sees.
+//
+// `OwnerFaceScreen` is what the person RESPONSIBLE for the animal sees — the
+// alert strip, the compliance stamp, the reminders coming due, the arrangements
+// they made. It is the web's `/mis-mascotas/{token}`, over a bearer token.
+//
+// So the owner face is a NEW surface BESIDE the credential, never a replacement
+// for it. Deleting the credential tab because "the owner face shows more" would
+// take away the one screen an owner can hand to a stranger, or check to see what
+// the public actually reads about their animal. The default tab is the owner
+// face, because that is the question someone opening their own pet is asking.
 //
 // THE PARAMETER IS VALIDATED, not trusted. `useLocalSearchParams` is typed
-// `string | string[]` because a path segment can legally repeat, and a bad
-// value here would become a request for `/api/v1/pets/undefined/credential` —
-// which the server answers 404, i.e. "no existe esa credencial", which is a lie
-// about the pet rather than about the link. Better to say the link is broken.
+// `string | string[]` because a path segment can legally repeat, and a bad value
+// here would become a request for `/api/v1/pets/undefined/credential` — which the
+// server answers 404, i.e. "no existe esa credencial", which is a lie about the
+// pet rather than about the link. Better to say the link is broken.
 
 import { useLocalSearchParams } from "expo-router";
+import { useState } from "react";
+import { Pressable, StyleSheet, Text, View } from "react-native";
 
 import { useGate } from "../../src/auth/useGate";
 import { CredentialScreen } from "../../src/credential/CredentialScreen";
+import { OwnerFaceScreen } from "../../src/pets/OwnerFaceScreen";
 import { ErrorNotice } from "../../src/ui/components";
+import { FONTS } from "../../src/ui/fonts";
 import { Screen } from "../../src/ui/kit";
+import { COLORS, LEADING, RADIUS, SPACE, TOUCH_TARGET, TYPE } from "../../src/ui/theme";
 
-export default function CredentialRoute() {
+type Face = "owner" | "credential";
+
+const FACES: ReadonlyArray<{ key: Face; label: string }> = [
+  { key: "owner", label: "Mi mascota" },
+  { key: "credential", label: "Credencial pública" },
+];
+
+export default function PetDetailRoute() {
   const gate = useGate();
   const params = useLocalSearchParams<{ publicToken?: string | string[] }>();
+  const [face, setFace] = useState<Face>("owner");
 
   if (!gate.allowed) return gate.element;
 
@@ -34,5 +63,79 @@ export default function CredentialRoute() {
     );
   }
 
-  return <CredentialScreen publicToken={publicToken} />;
+  return (
+    <>
+      <FaceSwitcher face={face} onChange={setFace} />
+      {face === "owner" ? (
+        <OwnerFaceScreen publicToken={publicToken} />
+      ) : (
+        <CredentialScreen publicToken={publicToken} />
+      )}
+    </>
+  );
 }
+
+/**
+ * The two-face switcher.
+ *
+ * `accessibilityRole="tab"` with `selected` state, so a screen reader announces
+ * which face is showing rather than reading two buttons with no relationship.
+ * The labels say what each face IS ("Credencial pública") rather than what it
+ * does, because the public-ness is the whole distinction between them.
+ */
+function FaceSwitcher({ face, onChange }: { face: Face; onChange: (next: Face) => void }) {
+  return (
+    <View style={styles.tabs} accessibilityRole="tablist">
+      {FACES.map((item) => {
+        const selected = item.key === face;
+        return (
+          <Pressable
+            key={item.key}
+            accessibilityRole="tab"
+            accessibilityState={{ selected }}
+            onPress={() => onChange(item.key)}
+            style={[styles.tab, selected ? styles.tabOn : null]}
+          >
+            <Text style={selected ? styles.tabLabelOn : styles.tabLabel}>{item.label}</Text>
+          </Pressable>
+        );
+      })}
+    </View>
+  );
+}
+
+const styles = StyleSheet.create({
+  tabs: {
+    flexDirection: "row",
+    gap: SPACE.xs,
+    paddingHorizontal: SPACE.xl2,
+    paddingTop: SPACE.md,
+    backgroundColor: COLORS.canvas,
+  },
+  tab: {
+    flex: 1,
+    minHeight: TOUCH_TARGET,
+    alignItems: "center",
+    justifyContent: "center",
+    borderRadius: RADIUS.control,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: COLORS.border,
+    backgroundColor: COLORS.canvas2,
+    paddingHorizontal: SPACE.sm,
+  },
+  tabOn: { backgroundColor: COLORS.surface, borderColor: COLORS.borderStrong },
+  tabLabel: {
+    fontFamily: FONTS.sans,
+    fontSize: TYPE.md,
+    lineHeight: TYPE.md * LEADING.md,
+    color: COLORS.inkMuted,
+    textAlign: "center",
+  },
+  tabLabelOn: {
+    fontFamily: FONTS.sansSemibold,
+    fontSize: TYPE.md,
+    lineHeight: TYPE.md * LEADING.md,
+    color: COLORS.ink,
+    textAlign: "center",
+  },
+});

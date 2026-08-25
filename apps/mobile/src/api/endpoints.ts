@@ -1,10 +1,10 @@
 // Every `/api/v1` call this app makes, in one file.
 //
 // Not because a file per endpoint would be wrong, but because the set is small
-// enough that seeing it whole is worth more than seeing it sorted: six calls is
-// the entire surface a citizen wallet needs, and a reader asking "what can this
-// app do to my account" should get the answer in one screen rather than by
-// walking a directory.
+// enough that seeing it whole is worth more than seeing it sorted: seven calls
+// is the entire surface a citizen wallet needs, and a reader asking "what can
+// this app do to my account" should get the answer in one screen rather than by
+// walking a directory. Exactly one of them is a write.
 //
 // Everything here is a thin wrapper over `apiRequest` / `performRequest`. No
 // endpoint may add its own retry, its own error copy, or its own session
@@ -19,6 +19,8 @@ import {
   MY_PETS_PAYLOAD_VERSION,
   type MeV1,
   type MyPetsV1,
+  OWNER_PET_DETAIL_PAYLOAD_VERSION,
+  type OwnerPetDetailV1,
   type PetRegisteredV1,
 } from "@dim/contract/api";
 import type { RegisterPetInput } from "@dim/contract/input";
@@ -67,6 +69,27 @@ export function fetchMe(session: SessionPort): Promise<ApiResult<MeV1>> {
 export function fetchMyPets(session: SessionPort): Promise<ApiResult<MyPetsV1>> {
   return apiRequest<MyPetsV1>(
     { path: "/api/v1/me/pets", expectedPayloadVersion: MY_PETS_PAYLOAD_VERSION },
+    session,
+  );
+}
+
+/**
+ * `GET /pets/{publicToken}` — the OWNER face of one animal.
+ *
+ * NOT the credential. `/pets/{token}/credential` is anonymous and renders the
+ * same for the owner and for a stranger who scanned the QR; this is what the
+ * person responsible for the animal sees, and it needs a bearer. The two live
+ * side by side on the screen for exactly that reason.
+ */
+export function fetchOwnerPetDetail(
+  session: SessionPort,
+  publicToken: string,
+): Promise<ApiResult<OwnerPetDetailV1>> {
+  return apiRequest<OwnerPetDetailV1>(
+    {
+      path: `/api/v1/pets/${encodeURIComponent(publicToken)}`,
+      expectedPayloadVersion: OWNER_PET_DETAIL_PAYLOAD_VERSION,
+    },
     session,
   );
 }

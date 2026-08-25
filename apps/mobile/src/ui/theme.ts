@@ -38,6 +38,12 @@ export const COLORS = {
   surface: LN_COLORS.card,
   /** A cream one step warmer than the canvas — inset strips, quiet chips. */
   stripe: LN_COLORS.stripe,
+  /**
+   * The canvas's slightly-darker sibling — the quiet neutral ground a notice
+   * block or a neutral chip sits on. Lifts off the page without `stripe`'s
+   * warmth, which stays the credential card's cream band.
+   */
+  canvas2: LN_COLORS.paper2,
 
   /** The warm hairline every card and row wears. */
   border: LN_COLORS.line,

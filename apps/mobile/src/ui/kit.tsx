@@ -224,6 +224,22 @@ export type TextFieldProps = Omit<TextInputProps, "style"> & {
  * a border on focus would move the field 3px and shove the rest of the form
  * down every time the keyboard opens. So the wrapper always reserves the 3px
  * and only fills it when focused.
+ *
+ * THE ACCESSIBLE NAME IS DERIVED, NOT HOPED FOR. The visible label is a sibling
+ * <Text>, which React Native does not associate with the input the way a
+ * <label for> does on the web — so an unlabelled TextInput announces itself as
+ * a bare "text field". It worked until now only because all eight call sites
+ * happened to pass `accessibilityLabel` by hand: a convention, and a convention
+ * is one forgetful call site away from a screen reader reading nothing.
+ *
+ * Deriving it also makes the required-asterisk suppression moot. The asterisk
+ * is a nested <Text> marked `accessibilityElementsHidden`, and RN flattens
+ * nested text into its parent on Android — the flag may not survive, in which
+ * case the name would end in a spoken "asterisco". The derived name never reads
+ * the visual node at all; it says ", obligatorio", which is the fact the
+ * asterisk was standing for.
+ *
+ * An explicit `accessibilityLabel` still wins: `...rest` is spread AFTER this.
  */
 export function TextField({
   label,
@@ -240,6 +256,7 @@ export function TextField({
       <FieldLabel required={required}>{label}</FieldLabel>
       <View style={[styles.ring, focused ? styles.ringOn : null]}>
         <TextInput
+          accessibilityLabel={required ? `${label}, obligatorio` : label}
           placeholderTextColor={COLORS.inkFaint}
           {...rest}
           onBlur={(e) => {
@@ -319,6 +336,15 @@ export function PrimaryButton({
  * nearly invisible on cream, so disabled here drops the fill and mutes the
  * label, which is exactly how the web draws its one permanently-disabled
  * button (the Mi Argentina stub: border, muted text, no fill).
+ *
+ * THE ANNOUNCED STATE IS THE COMPUTED ONE. This button is inert when `disabled`
+ * is true OR when no `onPress` was given — the second case is how the Mi
+ * Argentina placeholder is built — but `accessibilityState` used to report the
+ * PROP alone. A button with no handler therefore looked disabled, behaved
+ * disabled, and announced itself as available: a screen-reader user was invited
+ * to press the one control on the screen that does nothing. One expression now
+ * feeds the behaviour, the styling and the announcement, so the three cannot
+ * disagree.
  */
 export function SecondaryButton({
   label,
@@ -331,20 +357,21 @@ export function SecondaryButton({
   disabled?: boolean;
   accessibilityHint?: string;
 }) {
+  const isInert = disabled || onPress === undefined;
   return (
     <Pressable
       accessibilityRole="button"
       accessibilityHint={accessibilityHint}
-      accessibilityState={{ disabled }}
-      disabled={disabled || onPress === undefined}
+      accessibilityState={{ disabled: isInert }}
+      disabled={isInert}
       onPress={onPress}
       style={(state) => [
         styles.button,
         styles.buttonGhost,
-        disabled ? styles.buttonGhostDisabled : pressedOpacity(state),
+        isInert ? styles.buttonGhostDisabled : pressedOpacity(state),
       ]}
     >
-      <Text style={disabled ? styles.buttonLabelMuted : styles.buttonLabelInk}>{label}</Text>
+      <Text style={isInert ? styles.buttonLabelMuted : styles.buttonLabelInk}>{label}</Text>
     </Pressable>
   );
 }
@@ -357,11 +384,12 @@ export type CalloutTone = "neutral" | "ok" | "warn" | "err";
  * The bordered notice block the web login uses for every account-state message.
  *
  * A NOTE ON `neutral`. The web's two neutral notices (shift ended, sessions
- * revoked) render `bg-[var(--color-ln-paper-2)]` — a custom property that is
- * declared NOWHERE in globals.css, so those blocks currently draw with no
- * background at all. Four call sites across three files reference it. This uses
- * `stripe`, the warm cream that neutral surfaces elsewhere in the design system
- * actually use; the dangling web token is reported rather than guessed at here.
+ * revoked) render `bg-[var(--color-ln-paper-2)]`. When this was written that
+ * custom property was declared NOWHERE, so those blocks drew with no background
+ * at all and this used `stripe` rather than guess at a value. The token is now
+ * declared (#f8f7f1, paper's slightly-darker sibling) and fenced by
+ * lint:token-parity, so `neutral` binds to the real thing: the same notice reads
+ * the same on both platforms, which is the point of the token package.
  */
 export function Callout({
   children,
@@ -506,7 +534,7 @@ const CALLOUT_TONE: Record<
   { box: { backgroundColor: string; borderColor: string }; title: { color: string } }
 > = {
   neutral: {
-    box: { backgroundColor: COLORS.stripe, borderColor: COLORS.border },
+    box: { backgroundColor: COLORS.canvas2, borderColor: COLORS.border },
     title: { color: COLORS.ink },
   },
   ok: {
