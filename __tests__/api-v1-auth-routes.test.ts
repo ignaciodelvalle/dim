@@ -262,7 +262,7 @@ describe("POST /api/v1/auth/login — the budget is the web form's", () => {
 // ---------------------------------------------------------------------------
 
 describe("POST /api/v1/auth/login — what a native client receives", () => {
-  it("returns the user id, the role and the session in camelCase", async () => {
+  it("reports profilePending — it does NOT fabricate a role — for an account with no profile row", async () => {
     const userId = randomUUID();
     control.answer = { data: { user: { id: userId }, session: GOTRUE_SESSION }, error: null };
 
@@ -270,10 +270,19 @@ describe("POST /api/v1/auth/login — what a native client receives", () => {
 
     expect(res.status).toBe(200);
     expect(await res.json()).toEqual({
-      // A UUID with no profile row resolves to the default role, which is the
-      // brand-new-account path. The real role lookup is the use-case's and is
-      // exercised against seeded rows in __tests__/auth-actions.test.ts.
-      user: { id: userId, role: "owner" },
+      // THE REGRESSION THIS PINS (pre-push review of the WU-A range). A UUID with
+      // no profile row is the brand-new-account path, and it is the NORMAL state
+      // of a native user: signup parks them there because identity completion has
+      // no /api/v1 door yet. This endpoint used to answer `role: "owner"` for it —
+      // the use-case's LANDING default, which exists to pick a web destination —
+      // while `GET /api/v1/me`, for the same account in the same second, answered
+      // `profilePending: true` and deliberately declined to name a role. Two
+      // endpoints, one account, two answers, and the guess came first.
+      //
+      // `user` is now `MeV1User` on both, so a client writes ONE exhaustive
+      // switch. The real profile lookup is the use-case's and is exercised
+      // against seeded rows in __tests__/auth-actions.test.ts.
+      user: { profilePending: true, id: userId },
       session: {
         accessToken: "access-token-value",
         refreshToken: "refresh-token-value",

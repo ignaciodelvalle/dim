@@ -84,7 +84,34 @@ export type LoginErrorCode =
 
 export type LoginValue = {
   userId: string;
+  /**
+   * The role used to resolve `landingPath`, DEFAULTED to "owner" when the
+   * account has no profile row yet.
+   *
+   * That default is correct for its one job — a person mid-signup still has to
+   * land somewhere, and the owner shell is where they finish registering — and
+   * it is exactly wrong as an answer to "what role is this account". Read
+   * `profile` for that. Nothing may put this field on a wire: `GET /api/v1/me`
+   * deliberately declines to name a role for a profile-less account ("'owner' is
+   * a bad guess to make about a person who has not finished registering"), and
+   * `LoginV1` reporting one anyway is the inconsistency the pre-push review of
+   * the WU-A range found.
+   */
   role: string;
+  /**
+   * The account's REAL profile, or null in the mid-signup window where
+   * `auth.users` exists and `profiles` does not yet.
+   *
+   * Null is a normal, reachable state and not an error: `POST /api/v1/auth/signup`
+   * parks a native account in exactly that window, because identity completion
+   * (first name, last name, DNI) has no `/api/v1` door yet. Already read for the
+   * deactivation check above, so carrying it costs no extra round-trip.
+   */
+  profile: {
+    role: "owner" | "vet" | "govt" | "admin";
+    accountType: "personal" | "institutional";
+    displayName: string;
+  } | null;
   /**
    * Where the WEB should land. Resolved here because resolving it needs the
    * role this function already read, and a second reader would be a second
@@ -169,6 +196,11 @@ export async function login(input: LoginInput, deps: LoginDeps): Promise<LoginRe
     .select({
       role: profiles.role,
       accountType: profiles.accountType,
+      // Added for `LoginValue.profile` (pre-push review, WU-A range): the same
+      // field `GET /api/v1/me` returns, on the same query that was already
+      // running. A native client that logs in should not have to call `/me`
+      // immediately to learn the name to greet the user with.
+      displayName: profiles.displayName,
       deactivatedAt: profiles.deactivatedAt,
     })
     .from(profiles)
@@ -194,17 +226,36 @@ export async function login(input: LoginInput, deps: LoginDeps): Promise<LoginRe
     );
   }
 
+  // The LANDING role. Defaulting to "owner" is right for choosing a destination
+  // and wrong as a claim about the account — see `LoginValue.role`. The honest
+  // answer travels beside it, and is null when there is no profile row.
   const role = profile?.role ?? "owner";
+  const resolvedProfile: LoginValue["profile"] = profile
+    ? {
+        role: profile.role,
+        accountType: profile.accountType,
+        displayName: profile.displayName,
+      }
+    : null;
   const session = toAuthSessionV1(signInData.session);
 
   if (returnTo && role !== "admin" && role !== "govt") {
-    return { ok: true, value: { userId, role, landingPath: returnTo, session } };
+    return {
+      ok: true,
+      value: { userId, role, profile: resolvedProfile, landingPath: returnTo, session },
+    };
   }
 
   if (role === "vet") {
     return {
       ok: true,
-      value: { userId, role, landingPath: await resolveVetLanding(userId), session },
+      value: {
+        userId,
+        role,
+        profile: resolvedProfile,
+        landingPath: await resolveVetLanding(userId),
+        session,
+      },
     };
   }
 
@@ -231,6 +282,7 @@ export async function login(input: LoginInput, deps: LoginDeps): Promise<LoginRe
     value: {
       userId,
       role,
+      profile: resolvedProfile,
       landingPath: pathForRole(role, { hasOrgAdminMembership }),
       session,
     },

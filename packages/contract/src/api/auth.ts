@@ -64,11 +64,32 @@ export type AuthSessionV1 = {
 /**
  * A successful login (HTTP 200).
  *
- * `role` rides along because the use-case already read it to resolve the web's
- * landing page — a native client would otherwise call `/me` purely to learn
- * which shell to render. It is a CONVENIENCE, not an authorization claim:
- * nothing a client sends back about its own role is ever believed, and every
- * subsequent request is re-resolved from the database against the bearer token.
+ * `user` IS `MeV1User` — the same type `GET /api/v1/me` returns, not a
+ * look-alike. That is the fix for a real inconsistency the pre-push review of
+ * the WU-A range found, and it is worth stating because the original shape
+ * looked perfectly reasonable:
+ *
+ *   · This payload used to be `{ id, role: string }`, and `role` was the
+ *     use-case's LANDING role — which defaults to `"owner"` when the account has
+ *     no profile row yet. So a login by an account mid-signup answered
+ *     `role: "owner"` while `/me`, for the same account in the same second,
+ *     answered `profilePending: true` and deliberately declined to name one
+ *     ("'owner' is a bad guess to make about a person who has not finished
+ *     registering"). Two endpoints, one account, two different answers, and the
+ *     one that guessed was the one a client sees FIRST.
+ *   · It is not theoretical. `POST /api/v1/auth/signup` parks native accounts in
+ *     exactly that window, because identity completion has no `/api/v1` door
+ *     yet — so "logged in, no profile" is the NORMAL state of a brand-new native
+ *     user, not an edge case.
+ *   · The types disagreed too: `role: string` here against a four-member union
+ *     there. A client could not write one exhaustive switch over both, which is
+ *     the whole promise of shipping the vocabulary in this package.
+ *
+ * The profile still rides along rather than forcing a `/me` round-trip — the
+ * use-case already read it for the deactivation check. It remains a CONVENIENCE,
+ * never an authorization claim: nothing a client sends back about its own role
+ * is ever believed, and every subsequent request is re-resolved from the
+ * database against the bearer token.
  *
  * NO web landing path is returned. `redirectTo` is the web form's N3 contract
  * (see `AuthFormState`) and means nothing to a client that owns its own
@@ -76,7 +97,7 @@ export type AuthSessionV1 = {
  * `/inicio`.
  */
 export type LoginV1 = {
-  user: { id: string; role: string };
+  user: MeV1User;
   session: AuthSessionV1;
 };
 

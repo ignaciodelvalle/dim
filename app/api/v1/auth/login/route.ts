@@ -153,8 +153,27 @@ export async function POST(request: Request) {
     });
   }
 
+  // `result.value.profile`, NOT `result.value.role`. The latter is the use-case's
+  // LANDING role and defaults to "owner" for an account with no profile row —
+  // fine for choosing a web destination, a fabrication on a wire. This endpoint
+  // now answers the same discriminated union `GET /api/v1/me` does, so a native
+  // client writes ONE handler for "who am I" and it works against both. See
+  // `LoginV1` for the full account of what the old shape got wrong.
+  //
+  // `profilePending: true` is reachable and NORMAL here: signup parks a native
+  // account in exactly that window, because identity completion has no `/api/v1`
+  // door yet. A client seeing it sends the user to finish registering.
+  const { userId, profile } = result.value;
   const payload: LoginV1 = {
-    user: { id: result.value.userId, role: result.value.role },
+    user: profile
+      ? {
+          profilePending: false,
+          id: userId,
+          displayName: profile.displayName,
+          role: profile.role,
+          accountType: profile.accountType,
+        }
+      : { profilePending: true, id: userId },
     session: result.value.session,
   };
   return apiV1Json(payload, { status: 200 });
