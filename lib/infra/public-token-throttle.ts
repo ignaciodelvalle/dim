@@ -58,15 +58,30 @@ import { reportError } from "@/lib/infra/report-error";
 import type { PublicTokenThrottle } from "@/src/modules/pets/application/read/lookup-public-credential";
 
 /**
- * Per-IP limit for public credential reads.
+ * DEFAULT per-IP limit for public credential reads — the four HTML surfaces.
  *
- * 60/min is generous enough for a legitimate user refreshing behind
- * carrier-grade NAT (many people, one IP) or a viral lost-pet post drawing
- * rapid repeat scans from one household. 400/hr keeps sustained enumeration
- * from a single IP off the table. A genuinely viral QR is scanned from MANY
- * IPs, so per-IP limits never block that case at these numbers.
+ * THE COMMENT THAT USED TO BE HERE WAS WRONG, and it is worth saying so rather
+ * than quietly editing it. It read: "60/min is generous enough for a legitimate
+ * user refreshing behind carrier-grade NAT (many people, one IP)". The
+ * arithmetic disagrees. Argentine mobile carriers put 500-1,000 subscribers
+ * behind one public IPv4 (port-block allocation: 65,536 ports in blocks of
+ * 64-128), so 400/hr is 0.4 credential reads per subscriber per hour before the
+ * whole gateway is refused. A barrio WhatsApp group passing around a lost-pet
+ * poster exceeds it during ordinary use, and the person it turns away is a
+ * finder standing over the animal.
+ *
+ * B13 re-derived the numbers for the `/api/v1` credential endpoint, which is
+ * the surface a phone app hammers, and raised them there — see
+ * app/api/v1/pets/[publicToken]/credential/limits.ts for the full arithmetic
+ * and for why the same argument applies to these four and has NOT been applied
+ * yet (moving them moves four public surfaces and the documented aggregate
+ * ceiling at once; that is its own decision, and the mechanism is now here
+ * waiting for it — the limit is an argument, not a baked-in constant).
+ *
+ * What remains true: a genuinely viral QR is scanned from MANY IPs, so a per-IP
+ * limit never sees that case as one caller.
  */
-export const PUBLIC_TOKEN_READ_LIMIT = { maxPerMinute: 60, maxPerHour: 400 } as const;
+export const PUBLIC_TOKEN_READ_LIMIT: RateLimitConfig = { maxPerMinute: 60, maxPerHour: 400 };
 
 /** Budget for the limiter's own DB write. Short: it gates the whole render. */
 const RATE_LIMIT_BUDGET_MS = 1500;
@@ -91,12 +106,21 @@ async function callerIpFromHeaders(): Promise<string> {
  * `bucket` names the route in the limiter's own storage so one abusive scraper
  * cannot spend a legitimate finder's budget on a different page, and so the
  * counters stay readable when someone asks which surface is being hammered.
+ *
+ * `limit` defaults to `PUBLIC_TOKEN_READ_LIMIT`. It is an argument because the
+ * surfaces do not have the same caller: an HTML page is opened by a person with
+ * a browser, and `/api/v1/.../credential` is called by an app whose thousand
+ * neighbours share its IP (B13). A per-surface bucket that could not carry a
+ * per-surface CEILING was only half of the separation it claimed to provide.
  */
-export async function isPublicTokenReadThrottled(bucket: string): Promise<boolean> {
+export async function isPublicTokenReadThrottled(
+  bucket: string,
+  limit: RateLimitConfig = PUBLIC_TOKEN_READ_LIMIT,
+): Promise<boolean> {
   const ip = await callerIpFromHeaders();
   try {
     await withDbBudget(
-      enforceRateLimit(bucket, ip, PUBLIC_TOKEN_READ_LIMIT).then(() => null),
+      enforceRateLimit(bucket, ip, limit).then(() => null),
       RATE_LIMIT_BUDGET_MS,
       `${bucket} rate-limit`,
       null,
@@ -186,22 +210,30 @@ async function isPerLookupThrottled({ bucket, key, limit }: PerLookupLimit): Pro
  * KNOWN RESIDUAL, stated rather than hidden: UNDER the surface limit, a caller
  * walking distinct tokens still writes two rows per (token, ip) per window.
  * That is the per-lookup limiter working — it cannot count without a counter —
- * and the growth is bounded by the surface limit itself, at 60/min per IP and
- * therefore at most 120 rows/min per IP. Draining those rows is the cleanup
- * job's problem (lib/infra/data-lifecycle.ts), not this file's.
+ * and the growth is bounded by the surface limit itself: 2 rows per allowed
+ * request, so at most 2 × the surface's per-minute ceiling per IP per minute
+ * (120 rows/min on the default limit; 1,200 on the `/api/v1` endpoint's raised
+ * one, B13). Draining those rows is the cleanup job's problem
+ * (lib/infra/data-lifecycle.ts), not this file's.
+ *
+ * `surfaceLimit` overrides the default per-IP ceiling for THIS bucket. See the
+ * note on PUBLIC_TOKEN_READ_LIMIT: a per-surface bucket that cannot carry a
+ * per-surface ceiling is half a separation, and the half it was missing is the
+ * one CGNAT needs.
  */
 export function publicTokenThrottle(
   bucket: string,
-  options?: { perLookup?: PerLookupLimit },
+  options?: { surfaceLimit?: RateLimitConfig; perLookup?: PerLookupLimit },
 ): PublicTokenThrottle {
   const perLookup = options?.perLookup;
+  const surfaceLimit = options?.surfaceLimit ?? PUBLIC_TOKEN_READ_LIMIT;
   return {
     bucket,
     isThrottled: async () => {
       // ORDER IS THE POINT. The surface bucket is the cheap check that bounds
       // enumeration; the per-lookup bucket is the WRITE. A caller the surface
       // limit already refused must not cost the table a row.
-      if (await isPublicTokenReadThrottled(bucket)) return true;
+      if (await isPublicTokenReadThrottled(bucket, surfaceLimit)) return true;
       if (!perLookup) return false;
       return isPerLookupThrottled(perLookup);
     },

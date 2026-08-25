@@ -41,8 +41,8 @@ checklist has to exist before the first merge rather than after the first bug.
 
 | | |
 |---|---|
-| **Enforced at** | `lib/infra/public-token-throttle.ts:63,89` — `isPublicTokenReadThrottled(bucket)` |
-| **Real limits** | `PUBLIC_TOKEN_READ_LIMIT = { maxPerMinute: 60, maxPerHour: 400 }`, per IP |
+| **Enforced at** | `lib/infra/public-token-throttle.ts` — `isPublicTokenReadThrottled(bucket, limit?)` |
+| **Real limits** | `PUBLIC_TOKEN_READ_LIMIT = { maxPerMinute: 60, maxPerHour: 400 }`, per IP — the DEFAULT, used by the four HTML surfaces. `/api/v1/.../credential` overrides it (B13, below) |
 | **Direction** | **Fail-open.** A `RateLimitError` throttles; any other error returns `false`. The limiter is itself a DB write, budgeted at `RATE_LIMIT_BUDGET_MS = 1500` |
 | **Inherited?** | **No.** First statement of each surface, by hand |
 | **Pinned by** | `__tests__/public-token-throttle-coverage.test.ts` — derives from `publicPetByToken(` call sites across `app/` (widened 2026-08-21; it used to walk `page.tsx` under one directory and could not see `opengraph-image.tsx`) |
@@ -54,15 +54,45 @@ reason: a scraper hammering one surface must not spend the budget of the person
 who just found a dog in the street and is loading its credential.
 
 **The cost of that choice, stated plainly:** every new bucket raises the
-aggregate ceiling for a single IP by 60/min. Four surfaces today = 240/min per
+aggregate ceiling for a single IP. Four HTML surfaces today = 240/min per
 IP against the token space. **`/api/v1/pets/{publicToken}/credential` adds a
-fifth.**
+fifth, and since B13 the fifth is not 60/min.**
 
 > **DECIDED (§8, D1) · LANDED.** The API gets its OWN bucket,
-> `public_token_api_credential` — a fifth, taking the aggregate per-IP ceiling
-> to 300/min. The isolation is the point; the ceiling is the accepted price.
-> Applied at `app/api/v1/pets/[publicToken]/credential/route.ts:188` through the
-> throttle port, which means the door enforces it before the pet row is read.
+> `public_token_api_credential`. The isolation is the point; the additive
+> ceiling is the accepted price. Applied at
+> `app/api/v1/pets/[publicToken]/credential/route.ts` through the throttle port,
+> which means the door enforces it before the pet row is read.
+
+> **RE-DERIVED 2026-08-25 (B13) · LANDED.** The bucket now carries its own
+> CEILING as well as its own counter: `PUBLIC_TOKEN_API_SURFACE_LIMIT =
+> { maxPerMinute: 600, maxPerHour: 6_000 }` and
+> `PUBLIC_TOKEN_API_LOOKUP_LIMIT = { maxPerMinute: 120, maxPerHour: 1_200 }`,
+> both in `app/api/v1/pets/[publicToken]/credential/limits.ts` with the full
+> arithmetic. **Why:** this endpoint's caller is a phone, and Argentine mobile
+> carriers put 500–1,000 subscribers behind one public IPv4 (port-block
+> allocation, 65,536 ports in blocks of 64–128). At 400/hr that is 0.4
+> credential reads per subscriber per hour before the whole gateway is refused,
+> and the per-lookup key `${token}:${ip}` is even worse — 100/hr refused the
+> 51st neighbour behind one gateway to scan the same lost-pet poster, which is
+> the success case, not the abuse case. **What is given up:** essentially
+> nothing. Walking 36^8 tokens from one IP takes ~805,000 years at 400/hr and
+> ~54,000 years at 6,000/hr; the per-IP ceiling was never an enumeration
+> control, it is a cost backstop. A DISTRIBUTED walk is untouched by either
+> number, exactly as D1 says. **The real cost:** `rate_limit_buckets` write
+> amplification, bounded by the surface per-minute ceiling, so 120 → 1,200
+> rows/min per IP in the worst case — an enumerator-only cost, drained by
+> `lib/infra/data-lifecycle.ts`. **A per-token-only cap was reconsidered and
+> rejected again:** it cannot distinguish a scrape from a viral lost-pet poster
+> (same signature), and it hands anyone a way to burn a victim credential's
+> global budget. Scrape detection belongs in observability — alert on a token's
+> distinct-IP count — not in a limiter that can refuse a finder.
+>
+> **The four HTML surfaces still use the 60/min + 400/hr default, and that is
+> not because it is fine.** The same arithmetic applies to `/p/{token}` word for
+> word. They are unchanged here because moving them moves four public surfaces
+> and the aggregate ceiling at once; the mechanism now exists (the surface limit
+> is an argument, not a constant) and the decision is open.
 
 **The REST mistake:** omit the call. Nothing fails; the route ships green.
 
@@ -92,11 +122,14 @@ closest existing analogue to what Track 2 builds. **DECIDED (§8, D3): `/api/v1`
 matches ATENDER, not this.** Which makes this route the odd one out; bringing it
 in line is a follow-up, and it must not be cited as precedent for new routes.
 
-**LANDED.** `public_token_api_credential_lookup`, keyed `${publicToken}:${ip}`
-at atender's `{20/min, 100/hr}`, fail-open, applied as the handler's FIRST
-statement (`route.ts:115,118,167-182`). What each of the two limiters bounds —
-and what neither bounds — is written out in that file's header rather than left
-for a reader to infer from two `enforceRateLimit` calls.
+**LANDED.** `public_token_api_credential_lookup`, keyed `${publicToken}:${ip}`,
+fail-open, applied through the throttle port so the door enforces it before the
+pet row is read. It landed at atender's `{20/min, 100/hr}` and was re-derived to
+`{120/min, 1_200/hr}` on 2026-08-25 (B13, §1.1): atender's numbers bound an
+organization's staff on office IPs, and this endpoint's caller is a phone behind
+carrier NAT. What each of the two limiters bounds — and what neither bounds — is
+written out in `limits.ts` and the route header rather than left for a reader to
+infer from two `enforceRateLimit` calls.
 
 ---
 
@@ -425,6 +458,15 @@ a conversation about issuing them a scoped credential, which is a better
 conversation to have than an unbounded default — and it is a conversation that
 only happens if the limit exists.
 
+> **AMENDED 2026-08-25 (B13).** The SHAPE of the decision stands — per-lookup,
+> keyed `${token}:${ip}`, not aggregate-only. The NUMBERS do not: copying
+> atender's `{20/min, 100/hr}` copied a limiter calibrated for an
+> organization's staff on office IPs onto a surface whose caller is a phone
+> sharing one public IPv4 with ~1,000 neighbours. The accepted cost above turned
+> out to include the finder standing over a lost animal, which was never the
+> intent. Now `{120/min, 1_200/hr}` — still a fifth of the surface ceiling in
+> both windows, so it remains the tight one. Arithmetic in `limits.ts`.
+
 **What this obliges:** `/api/v1` credential reads carry a per-resolution
 limiter, not only the guard's aggregate cap. It also makes
 `app/api/gob/mascotas/[token]/route.ts` the odd one out — it resolves a pet
@@ -506,7 +548,7 @@ Files:
 
 | # | Checklist line | Satisfied at |
 |---|---|---|
-| 1 | Rate-limited, bucket named, direction stated | Both limiters arrive through ONE port at `route.ts:171-180`: the surface bucket (`public_token_api_credential`, 60/min + 400/hr per IP) as the adapter's literal first argument, and the per-lookup bucket (`public_token_api_credential_lookup`, 20/min + 100/hr, keyed `${publicToken}:${ip}` — constants now in `limits.ts:16,19`, imported by the route) as its `perLookup` option. Ordered SURFACE FIRST inside the adapter (`lib/infra/public-token-throttle.ts`), so a caller the surface limit already refused costs the table zero rows. **Both fail OPEN**, stated at `route.ts:70-74`. Proved by `api-v1-credential-route.test.ts:293` (the 429 path), `:446,:454` (the order, and that a throttled IP writes no per-lookup counter) |
+| 1 | Rate-limited, bucket named, direction stated | Both limiters arrive through ONE port at `route.ts:171-180`: the surface bucket (`public_token_api_credential`, 600/min + 6.000/hr per IP since B13) as the adapter's literal first argument, and the per-lookup bucket (`public_token_api_credential_lookup`, 120/min + 1.200/hr, keyed `${publicToken}:${ip}` — constants in `limits.ts`, imported by the route) as its `perLookup` option. Ordered SURFACE FIRST inside the adapter (`lib/infra/public-token-throttle.ts`), so a caller the surface limit already refused costs the table zero rows. **Both fail OPEN**, stated at `route.ts:70-74`. Proved by `api-v1-credential-route.test.ts:293` (the 429 path), `:446,:454` (the order, and that a throttled IP writes no per-lookup counter) |
 | 2 | `cache-control: no-store` set explicitly | The route no longer owns a private `credentialJson()` helper — `route.ts:104` imports the shared `apiV1Json`/`apiV1Error` (`lib/infra/api-v1.ts`), whose `MANDATORY_HEADERS` (`:40-43`) set `cache-control: no-store` on every response, applied last so no caller override can undo it (`:58-62`). `pnpm lint:api-v1` (`scripts/check-api-v1-envelope.ts`) refuses any `/api/v1` route that builds a response by hand, so "no branch can forget it" is a property of the fence now, not of one file's private helper (route.ts:135-144 records the move, dated 2026-08-22). Proved per-branch by `api-v1-credential-route.test.ts:555` (all five) |
 | 3 | `{ error: "snake_case" }` from the agreed vocabulary | `route.ts:187` (`rate_limited`), `:194` (`not_found`), `:202-205` (the degraded 503 — the code is embedded in the JSON body via `apiV1Json`, set at `payload.ts:418`, not a separate `apiV1Error` call); vocabulary at `packages/contract/src/api/errors.ts:40` |
 | 4 | Every section reports its own availability | `packages/contract/src/api/public-credential.ts:74` (`CredentialSection<T>`); degraded projection at `payload.ts:413-441`. Proved by `api-v1-credential-route.test.ts:356,:382` |

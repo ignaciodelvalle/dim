@@ -53,6 +53,16 @@ const control = vi.hoisted(() => ({
   rateLimit: null as null | ((endpoint: string, identifier: string) => void | Promise<void>),
   /** Every collaborator the handler reached, in order. */
   calls: [] as string[],
+  /**
+   * The CONFIG each limiter call carried, per bucket (B13).
+   *
+   * `calls` records that a bucket was consulted; it cannot record with WHICH
+   * ceiling, and after B13 that is the interesting half. Delete `surfaceLimit:`
+   * from the route and every ordering assertion above still passes while the
+   * endpoint silently drops back to the four HTML surfaces' 60/min — the limit
+   * that refuses a whole carrier gateway.
+   */
+  limits: [] as Array<{ endpoint: string; config: unknown }>,
 }));
 
 vi.mock("@/src/modules/pets/application/read/lookup-public-credential", async (importOriginal) => {
@@ -78,6 +88,7 @@ vi.mock("@/lib/infra/rate-limit", async (importOriginal) => {
     ...actual,
     enforceRateLimit: async (endpoint: string, identifier: string, config: never) => {
       control.calls.push(`limit:${endpoint}`);
+      control.limits.push({ endpoint, config });
       if (control.rateLimit) {
         await control.rateLimit(endpoint, identifier);
         return;
@@ -95,6 +106,7 @@ import { inArray } from "drizzle-orm";
 import {
   LOOKUP_BUCKET,
   PUBLIC_TOKEN_API_LOOKUP_LIMIT,
+  PUBLIC_TOKEN_API_SURFACE_LIMIT,
 } from "@/app/api/v1/pets/[publicToken]/credential/limits";
 import {
   PUBLIC_CREDENTIAL_STALE_AFTER_MS,
@@ -102,7 +114,7 @@ import {
   buildPublicCredentialV1,
 } from "@/app/api/v1/pets/[publicToken]/credential/payload";
 import { GET } from "@/app/api/v1/pets/[publicToken]/credential/route";
-import { publicTokenThrottle } from "@/lib/infra/public-token-throttle";
+import { PUBLIC_TOKEN_READ_LIMIT, publicTokenThrottle } from "@/lib/infra/public-token-throttle";
 
 /**
  * D1's surface bucket, spelled out rather than imported.
@@ -158,6 +170,7 @@ beforeEach(() => {
   control.door = null;
   control.rateLimit = null;
   control.calls = [];
+  control.limits = [];
   // The degraded branches log one structured line through reportError.
   errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
 });
@@ -467,6 +480,86 @@ describe("limiter order (C3)", () => {
     control.rateLimit = ALLOW;
     await get("DIM-ORDER-0003");
     expect(limiterCalls()).toContain(`limit:${LOOKUP_BUCKET}`);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// The ceilings the route actually applies (B13)
+// ---------------------------------------------------------------------------
+//
+// The ordering tests above prove WHICH buckets are consulted and in what order.
+// They say nothing about the numbers, and the numbers are the whole of B13: this
+// endpoint's caller is a phone behind Argentine carrier NAT, where one public
+// IPv4 is shared by 500-1,000 subscribers, so it needs a per-IP ceiling of its
+// own instead of the four HTML surfaces' shared 60/min + 400/hr.
+//
+// The failure this catches is a deletion, not a typo: drop `surfaceLimit:` from
+// the route's `publicTokenThrottle(...)` options and the endpoint silently falls
+// back to the default — every assertion in this file still green, and one
+// carrier gateway's worth of finders refused.
+
+describe("per-IP and per-lookup ceilings (B13)", () => {
+  function configFor(bucket: string): unknown {
+    return control.limits.find((entry) => entry.endpoint === bucket)?.config;
+  }
+
+  it("applies the endpoint's OWN per-IP ceiling to the surface bucket", async () => {
+    control.rateLimit = ALLOW;
+    await get("DIM-B13-0001");
+    expect(configFor(SURFACE_BUCKET)).toEqual(PUBLIC_TOKEN_API_SURFACE_LIMIT);
+  });
+
+  it("applies the per-lookup ceiling to the per-lookup bucket", async () => {
+    control.rateLimit = ALLOW;
+    await get("DIM-B13-0002");
+    expect(configFor(LOOKUP_BUCKET)).toEqual(PUBLIC_TOKEN_API_LOOKUP_LIMIT);
+  });
+
+  // NOT the shared default. Stated as its own assertion because "equals the
+  // constant" would still pass if somebody changed the constant back.
+  it("does not fall back to the HTML surfaces' 60/min + 400/hr", async () => {
+    control.rateLimit = ALLOW;
+    await get("DIM-B13-0003");
+    expect(configFor(SURFACE_BUCKET)).not.toEqual(PUBLIC_TOKEN_READ_LIMIT);
+    expect(PUBLIC_TOKEN_READ_LIMIT).toEqual({ maxPerMinute: 60, maxPerHour: 400 });
+  });
+
+  // The property the arithmetic in limits.ts rests on: the per-lookup bucket
+  // stays the TIGHT one, so a caller that reaches the surface ceiling is
+  // provably spreading across several tokens rather than hammering one card.
+  it("keeps the per-lookup ceiling strictly below the surface ceiling", () => {
+    expect(PUBLIC_TOKEN_API_LOOKUP_LIMIT.maxPerMinute).toBeLessThan(
+      PUBLIC_TOKEN_API_SURFACE_LIMIT.maxPerMinute ?? 0,
+    );
+    expect(PUBLIC_TOKEN_API_LOOKUP_LIMIT.maxPerHour).toBeLessThan(
+      PUBLIC_TOKEN_API_SURFACE_LIMIT.maxPerHour ?? 0,
+    );
+  });
+
+  // THE CGNAT FLOOR. One public IPv4 carries ~1,000 subscribers here; the
+  // modelled ordinary hour is 10% of them opening a credential ~6 times, and
+  // the poster case is 10% of them opening the SAME credential twice. Both must
+  // fit with room to spare, or the limit refuses a gateway during normal use —
+  // which is what 400/hr and 100/hr did.
+  it("leaves room for a carrier gateway's ordinary hour", () => {
+    const SUBSCRIBERS_PER_PUBLIC_IP = 1_000;
+    const ACTIVE_FRACTION = 0.1;
+    const READS_PER_ACTIVE_USER = 6;
+    const modelledHour = SUBSCRIBERS_PER_PUBLIC_IP * ACTIVE_FRACTION * READS_PER_ACTIVE_USER;
+
+    expect(modelledHour).toBe(600);
+    // The old 400/hr did not clear this at all.
+    expect(PUBLIC_TOKEN_API_SURFACE_LIMIT.maxPerHour ?? 0).toBeGreaterThanOrEqual(modelledHour * 5);
+  });
+
+  it("leaves room for a viral poster on one gateway", () => {
+    const NEIGHBOURS_SCANNING_THE_SAME_POSTER = 1_000 * 0.1;
+    const READS_EACH = 2;
+    const posterHour = NEIGHBOURS_SCANNING_THE_SAME_POSTER * READS_EACH;
+
+    expect(posterHour).toBe(200);
+    // The old 100/hr refused the 51st neighbour.
+    expect(PUBLIC_TOKEN_API_LOOKUP_LIMIT.maxPerHour ?? 0).toBeGreaterThanOrEqual(posterHour * 5);
   });
 });
 

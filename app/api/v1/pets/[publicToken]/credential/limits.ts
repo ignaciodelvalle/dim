@@ -4,6 +4,130 @@
 // `next build` type-checks that contract and rejects any other export (the
 // typecheck/lint/test gates all passed over the old shape; only the build
 // caught it). Constants the tests and the handler share therefore live here.
+//
+// ===========================================================================
+// B13 — THE PER-IP CEILING vs ARGENTINE CARRIER NAT (re-derived 2026-08-25)
+// ===========================================================================
+// The numbers below used to be 60/min + 400/hr on the surface bucket and
+// 20/min + 100/hr per lookup, inherited from `atender_lookup` — a limiter that
+// bounds an ORGANIZATION'S staff, who each have their own office IP. This
+// endpoint's caller is a phone, and a phone in Argentina is behind CGNAT.
+//
+// WHAT CGNAT DOES TO A PER-IP COUNTER
+// ---------------------------------------------------------------------------
+// Every mobile carrier here (Personal, Claro, Movistar) shares one public IPv4
+// across many subscribers. The planning figure comes from port-block
+// arithmetic: 65,536 TCP ports per address, allocated in blocks of 64-128 per
+// subscriber, which is 512-1,024 subscribers per address before oversubscription
+// is even counted. This file uses **1,000 subscribers per public IPv4** as the
+// planning number — the realistic upper end, because a limit that only works at
+// the optimistic end is not a limit, it is a coin flip on which gateway a
+// finder happens to be behind.
+//
+// So a per-IP counter here is not "per user". It is per THOUSAND users, and it
+// has to be read that way in every line below.
+//
+// ---------------------------------------------------------------------------
+// SURFACE, per IP: 60/min → 600/min, 400/hr → 6,000/hr
+// ---------------------------------------------------------------------------
+// LEGITIMATE LOAD. Take a gateway where 10% of subscribers open a credential in
+// a given hour — 100 people, ~6 reads each (open the card, refresh, re-open
+// after a message) = 600/hr. The OLD 400/hr refused that gateway outright,
+// during ordinary use, with nobody doing anything wrong. Per minute, the burst
+// is a broadcast: if a quarter of the hour's readers land inside the same 60
+// seconds, 25 people × 2 reads = 50/min, already at the old 60/min ceiling with
+// zero headroom for anything else the same thousand people are doing.
+//
+// At 6,000/hr that same hour spends 10% of the budget, and 600/min gives ×12 on
+// the burst. To exhaust the new ceiling a single carrier gateway would have to
+// produce 1,000 credential reads an hour MORE than the modelled peak.
+//
+// WHAT THE CEILING GIVES UP. Almost nothing, and this is the part worth
+// checking rather than asserting. The token space is 36^8 ≈ 2.82 × 10^12:
+//
+//     at   400/hr — 7.06 × 10^9 hours to walk it ≈ 805,000 years
+//     at 6,000/hr — 4.70 × 10^8 hours to walk it ≈  53,700 years
+//
+// Both are beyond any attacker's patience by five orders of magnitude, so the
+// 15× relaxation moves enumeration-from-one-IP from impossible to impossible.
+// The per-IP hourly ceiling never was an enumeration control; a DISTRIBUTED
+// walk is what enumeration actually looks like and neither number touches it
+// (D1 says so, and says closing it needs an aggregate limiter of its own).
+// What the ceiling really buys is a COST backstop against a single abusive
+// source: 6,000/hr is 1.7 req/s sustained, a load one IP can produce against
+// any endpoint we have, and stopping it is the platform's DDoS layer's job, not
+// a Postgres counter's.
+//
+// THE COST THAT IS REAL, stated rather than hidden: write amplification. The
+// per-lookup counter is written for every caller the surface limit still
+// allows, so the worst case grows with the surface's per-MINUTE ceiling — from
+// 120 `rate_limit_buckets` rows/min per IP to 1,200. It is bounded, the cleanup
+// job drains it (lib/infra/data-lifecycle.ts), and it is an ENUMERATOR-ONLY
+// cost: legitimate CGNAT traffic reads few distinct tokens, and a repeat read
+// of a token already counted this window writes no new row.
+//
+// ---------------------------------------------------------------------------
+// PER LOOKUP, per token+IP: 20/min → 120/min, 100/hr → 1,200/hr
+// ---------------------------------------------------------------------------
+// THIS is the bucket the old numbers broke worst, and the case they broke is
+// the one the product exists for. `${token}:${ip}` is exactly the hot key when
+// a thousand people behind one carrier gateway scan the SAME lost-pet poster.
+//
+// Same gateway, same 10% in an hour: 100 neighbours × 2 reads = 200/hr on ONE
+// (token, ip) pair. The old 100/hr refused the 51st neighbour — a finder
+// standing over a lost animal, handed a 429, by a limit installed to protect
+// that animal's owner. Per minute it was worse: 20/min refused the 11th person
+// to scan a poster in the same sixty seconds.
+//
+// 1,200/hr puts that hour at 17% of budget. Reaching the ceiling takes ~600
+// distinct neighbours reading the same poster twice within one hour behind ONE
+// gateway; a story that size is on television, and television is many gateways,
+// not one. 120/min is 60 simultaneous scanners behind one gateway.
+//
+// It stays the TIGHT one: exactly 1/5 of the surface ceiling in both windows.
+// One credential may not spend more than a fifth of an IP's whole budget
+// through this endpoint, so a caller that reaches the surface limit is provably
+// spreading across at least five tokens — which is the shape the surface bucket
+// exists to notice.
+//
+// ---------------------------------------------------------------------------
+// A PER-TOKEN-ONLY CAP: CONSIDERED AGAIN, REJECTED AGAIN
+// ---------------------------------------------------------------------------
+// A counter keyed by the token alone is the only one that would see a scrape of
+// ONE credential from many IPs. It is not available here, for three reasons
+// that do not go away with tuning:
+//
+//   1. It cannot tell the scrape from the success case. "One token, many IPs,
+//      fast" is also the exact signature of a viral lost-pet poster — the thing
+//      this product is FOR. Any ceiling low enough to notice the scrape is low
+//      enough to refuse the poster.
+//   2. It is a griefing primitive. Anyone, from anywhere, could burn a specific
+//      victim credential's global budget and make every real finder get a 429.
+//      A limiter whose failure mode is "the lost animal's card stops answering"
+//      is worse than the abuse it prevents.
+//   3. Nothing behind this endpoint is secret to someone holding the token. The
+//      limiter is an abuse control, not an authorization boundary.
+//
+// The honest home for scrape detection is OBSERVABILITY, not a limiter: alert
+// on a token's distinct-IP count and let a person look. That is a different
+// change with a different failure mode — a false alarm wakes somebody up
+// instead of turning a finder away.
+//
+// ---------------------------------------------------------------------------
+// WHAT IS NOT CHANGED HERE, AND IT IS NOT BECAUSE IT IS FINE
+// ---------------------------------------------------------------------------
+// `public_token_page`, `public_token_encontre`, `public_token_sighting` and
+// `public_token_og_image` still use the shared `PUBLIC_TOKEN_READ_LIMIT` (60/min
+// + 400/hr) in lib/infra/public-token-throttle.ts. The CGNAT arithmetic above
+// applies to them WORD FOR WORD — arguably harder, since `/p/{token}` is what a
+// stranger's camera actually opens. They are left alone in this change because
+// moving them moves four public surfaces and the documented aggregate per-IP
+// ceiling at once, which deserves its own measurement and its own decision. The
+// mechanism they would need already exists after this change: the surface limit
+// is now an argument, not a constant baked into the adapter.
+// ===========================================================================
+
+import type { RateLimitConfig } from "@/lib/infra/rate-limit";
 
 /**
  * D3 — the per-lookup bucket, keyed by token AND caller.
@@ -15,5 +139,20 @@
  */
 export const LOOKUP_BUCKET = "public_token_api_credential_lookup";
 
-/** D3 — atender's numbers, for the reasons in the header. */
-export const PUBLIC_TOKEN_API_LOOKUP_LIMIT = { maxPerMinute: 20, maxPerHour: 100 } as const;
+/**
+ * D1 — the per-IP abuse backstop for this endpoint, raised off the shared
+ * page limit for CGNAT. Full arithmetic in the header.
+ */
+export const PUBLIC_TOKEN_API_SURFACE_LIMIT: RateLimitConfig = {
+  maxPerMinute: 600,
+  maxPerHour: 6_000,
+};
+
+/**
+ * D3 — the tight one: how hard one caller may hammer ONE credential. Exactly
+ * a fifth of the surface ceiling in both windows. Full arithmetic in the header.
+ */
+export const PUBLIC_TOKEN_API_LOOKUP_LIMIT: RateLimitConfig = {
+  maxPerMinute: 120,
+  maxPerHour: 1_200,
+};

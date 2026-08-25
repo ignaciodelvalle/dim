@@ -16,13 +16,19 @@
 // D1 and D3 are two decisions, not one, and they bound different things. Both
 // are applied, in this order, and neither substitutes for the other.
 //
+// Both were re-derived on 2026-08-25 (B13) against Argentine carrier NAT, which
+// puts 500-1,000 subscribers behind one public IPv4. The arithmetic — legitimate
+// load, what the ceiling gives up, and why a per-token-only cap is still not
+// available — is in `limits.ts`, next to the constants, not restated here.
+//
 // 1. PER-LOOKUP (D3) — `public_token_api_credential_lookup`, keyed
-//    `${publicToken}:${ip}`, 20/min + 100/hr.
+//    `${publicToken}:${ip}`, 120/min + 1,200/hr.
 //
 //    BOUNDS: how hard ONE caller may hammer ONE credential. Below the surface
-//    ceiling on purpose, so a single IP cannot spend its whole read budget
-//    re-reading one animal's card — which on a lost pet means re-reading a
-//    disclosed phone number and last-seen location.
+//    ceiling on purpose — a fifth of it, in both windows — so a single IP
+//    cannot spend its whole read budget re-reading one animal's card, which on
+//    a lost pet means re-reading a disclosed phone number and last-seen
+//    location.
 //
 //    DOES NOT BOUND: enumeration. A caller walking the token space touches a
 //    fresh counter with every token and never trips this one; that is the
@@ -32,34 +38,36 @@
 //    credential's global budget so real finders get a 429. On the one surface
 //    an anonymous finder in the street depends on, that trade is not available.
 //
-//    WHY ATENDER'S NUMBERS: D3 names `atender_lookup` as the model over
-//    `gob/mascotas`'s aggregate-only cap, and 20/min + 100/hr is what that
-//    limiter uses. The accepted cost is written into D3: a legitimate
-//    high-volume integrator will hit it, and that is a conversation about
-//    issuing them a scoped credential — a conversation that only happens if the
-//    limit exists.
+//    IT USED TO BE ATENDER'S NUMBERS (20/min + 100/hr), because D3 named
+//    `atender_lookup` as the model. That model bounds an ORGANIZATION'S staff,
+//    who sit on office IPs; this endpoint's caller is a phone. Keyed
+//    `${token}:${ip}`, 100/hr refused the 51st neighbour behind one carrier
+//    gateway to scan the same lost-pet poster — the success case, not the abuse
+//    case.
 //
 // 2. PER-IP SURFACE (D1) — `public_token_api_credential`, keyed by IP,
-//    60/min + 400/hr, applied INSIDE the door through the throttle port.
+//    600/min + 6,000/hr, applied INSIDE the door through the throttle port.
 //
 //    BOUNDS: how much of the token space one IP can walk, at all, through this
 //    endpoint. Its own bucket, so a client hammering the API cannot starve the
-//    person loading the credential in the street on `public_token_page`. The
-//    price of that isolation is stated in D1 and knowingly accepted: a fifth
-//    bucket takes the aggregate per-IP ceiling across all token-resolving
-//    surfaces from 240/min to 300/min.
+//    person loading the credential in the street on `public_token_page` — and
+//    since B13, its own CEILING too, which is what makes the separation real
+//    rather than nominal: the four HTML surfaces keep 60/min + 400/hr.
 //
 //    DOES NOT BOUND: a distributed walk from many IPs. Closing that needs an
 //    aggregate limiter layered on top, which D1 says must be its own change and
-//    must not be smuggled into an endpoint.
+//    must not be smuggled into an endpoint. Nor, at any of these numbers, does
+//    it meaningfully bound enumeration from ONE IP: walking 36^8 tokens takes
+//    ~54,000 years at 6,000/hr and ~805,000 years at the old 400/hr. It is a
+//    cost backstop, and it always was.
 //
 // ORDER: SURFACE FIRST, THEN THE WRITE (fixed 2026-08-21)
 // ---------------------------------------------------------------------------
 // Both limiters arrive through ONE port, and the adapter consults them in that
 // order. It used to be the other way round — the per-lookup limiter ran here,
 // in the handler, and the surface bucket ran inside the door — so an IP already
-// over 60/min still wrote TWO `rate_limit_buckets` rows (minute + hour) for
-// every distinct token it named. The token is attacker-chosen out of a 36^8
+// over the surface limit still wrote TWO `rate_limit_buckets` rows (minute +
+// hour) for every distinct token it named. The token is attacker-chosen out of a 36^8
 // space, so the table's cardinality was bounded by someone's patience rather
 // than by the limit that exists to bound exactly that.
 //
@@ -77,9 +85,12 @@
 //   • UNDER the surface limit, a caller walking distinct tokens still writes two
 //     rows per (token, ip) per window. That is the per-lookup limiter doing its
 //     job — it cannot count without a counter — and the growth is now bounded by
-//     the surface limit itself: at most 120 rows/min per IP, not one pair per
-//     token for as long as anyone keeps typing. Draining them is the cleanup
-//     job's problem (lib/infra/data-lifecycle.ts).
+//     the surface limit itself: 2 rows per allowed request, so at most 1,200
+//     rows/min per IP at the B13 ceiling (it was 120 at the old 60/min), not one
+//     pair per token for as long as anyone keeps typing. The 10× is an
+//     ENUMERATOR-only cost: legitimate traffic reads few distinct tokens, and a
+//     repeat read of a token already counted this window writes no new row.
+//     Draining them is the cleanup job's problem (lib/infra/data-lifecycle.ts).
 //   • The token is used verbatim, not upper-cased, because the page resolves it
 //     verbatim and the two must agree about which tokens exist. So a caller can
 //     vary the case to get a fresh PER-LOOKUP counter. They cannot escape the
@@ -106,7 +117,7 @@ import { publicTokenThrottle } from "@/lib/infra/public-token-throttle";
 import { callerIp } from "@/lib/infra/rate-limit";
 import { lookupPublicCredential } from "@/src/modules/pets/application/read/lookup-public-credential";
 
-import { PUBLIC_TOKEN_API_LOOKUP_LIMIT } from "./limits";
+import { PUBLIC_TOKEN_API_LOOKUP_LIMIT, PUBLIC_TOKEN_API_SURFACE_LIMIT } from "./limits";
 import { buildDegradedPublicCredentialV1, buildPublicCredentialV1 } from "./payload";
 
 // The handler reads the request's own headers for the caller IP, so it can
@@ -171,6 +182,7 @@ export async function GET(
   const lookup = await lookupPublicCredential({
     publicToken,
     throttle: publicTokenThrottle("public_token_api_credential", {
+      surfaceLimit: PUBLIC_TOKEN_API_SURFACE_LIMIT,
       perLookup: {
         bucket: "public_token_api_credential_lookup",
         key: `${publicToken}:${ip}`,
