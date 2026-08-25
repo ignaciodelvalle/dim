@@ -35,8 +35,12 @@ import { dirname, resolve } from "node:path";
 /** Test-file globs — mirrors vitest's default include for this repo. */
 const TEST_GLOBS = ["**/*.test.ts", "**/*.test.tsx", "**/*.spec.ts", "**/*.spec.tsx"];
 
-/** Path fragments excluded from the scan — mirrors vitest.config exclude. */
-const EXCLUDED_SEGMENTS = ["node_modules/", ".claude/", ".next/", "e2e/"];
+/** Path fragments excluded from the scan — mirrors vitest.config exclude.
+ *
+ * `apps/` is here because this fence checks `vi.mock` paths and `apps/mobile`
+ * does not run on Vitest at all (it is Jest + `jest-expo`). Reading its test
+ * files can only produce a verdict about a mocking API they never call. */
+const EXCLUDED_SEGMENTS = ["node_modules/", ".claude/", ".next/", "apps/", "e2e/"];
 
 /** Module file extensions + index variants tried when resolving a specifier. */
 const RESOLUTION_SUFFIXES = [

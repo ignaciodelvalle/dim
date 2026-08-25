@@ -22,5 +22,18 @@
     }
   },
   "include": ["next-env.d.ts", "**/*.ts", "**/*.tsx", ".next/types/**/*.ts"],
-  "exclude": ["node_modules"]
+  // `apps` is excluded; `packages` deliberately is NOT.
+  //
+  // The difference is what each one is checked AGAINST. `packages/contract` is
+  // framework-free by fence (`pnpm lint:contract` bans react, next and
+  // react-native inside it), so it compiles correctly under these options and
+  // belongs in this program — that is what makes a wire type and the route
+  // handler that emits it fail to compile TOGETHER when they drift.
+  //
+  // `apps/mobile` is the opposite: React Native sources against `lib: ["dom",
+  // …]` and `jsx: "preserve"` with no Expo ambient types would report hundreds
+  // of failures that mean nothing about the code. It is checked by its own
+  // program instead — `pnpm --filter mimar typecheck`. `packages/contract` sits
+  // inside BOTH programs, which is exactly where the drift detector should be.
+  "exclude": ["node_modules", "apps"]
 }

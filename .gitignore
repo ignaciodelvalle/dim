@@ -7,6 +7,13 @@ node_modules/
 out/
 dist/
 
+# Expo (apps/mobile). `.expo/` is the local dev-server cache and generated
+# types; `expo export` writes the bundle into `dist/`, which the unanchored
+# entry above already matches at any depth. `android/` and `ios/` are absent on
+# purpose — this app has no prebuilt native projects yet, and when it does the
+# decision of whether they are generated or committed is its own change.
+.expo/
+
 # environment
 .env
 .env.local

@@ -56,11 +56,23 @@ export const DB_SINK = resolve(ROOT, "db/index.ts").replace(/\\/g, "/");
 const RESOLVE_EXTS = [".ts", ".tsx", ".mts", ".cts", ".js", ".jsx", ".mjs", ".cjs"];
 
 // Directories never walked when discovering test files or resolving imports.
+//
+// `apps` joined on 2026-08-25 with `apps/mobile`, and it is not the same kind
+// of entry as the rest. The others are noise — build output, other checkouts.
+// This one is a DIFFERENT TEST RUNNER: the Expo app is tested by Jest
+// (`jest-expo`, `apps/mobile/jest.config.js`) because that is the runner its
+// toolchain ships, and its files are `*.test.ts` like everything else here.
+// Without this line the walk hands them to Vitest, which collects them in jsdom
+// under the web app's aliases, fails on the first Jest global, and reports them
+// as broken files — a mobile test taking the WEB gate down. `packages/*` is
+// deliberately absent from this list for the opposite reason: those tests are
+// Vitest's and must run.
 const SKIP_DIRS = new Set([
   "node_modules",
   ".next",
   ".git",
   ".claude",
+  "apps",
   "e2e",
   "worktrees",
   "playwright-report",
