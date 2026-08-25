@@ -356,7 +356,21 @@ type Unit = {
   aliases: Map<string, string>;
 };
 
+/**
+ * Parsed units, memoised on the SOURCE ARRAY's identity.
+ *
+ * The three exported entry points below each need the units, and a run that
+ * calls all three — `runScan` does, and so does the test — used to strip
+ * comments and walk 1,861 files once per call. Keyed on the array itself, so a
+ * caller that builds a fresh list gets a fresh parse and cannot be handed a
+ * stale one.
+ */
+const unitCache = new WeakMap<readonly ScanSource[], Unit[]>();
+
 function parseUnits(sources: readonly ScanSource[]): Unit[] {
+  const cached = unitCache.get(sources);
+  if (cached !== undefined) return cached;
+
   const units: Unit[] = [];
   for (const { relPath, src } of sources) {
     const code = stripComments(src);
@@ -365,14 +379,43 @@ function parseUnits(sources: readonly ScanSource[]): Unit[] {
       units.push({ relPath, name: fn.name, body: fn.body, aliases });
     }
   }
+  unitCache.set(sources, units);
   return units;
 }
 
+/**
+ * Compiled `\bname\s*\(` matchers, cached by name.
+ *
+ * THIS IS THE HOT PATH, and it is worth a cache rather than being tidy: the
+ * fixpoint asks "does this unit call any reaching name?" for every unit against
+ * every name in the index — roughly 4,000 × 340 questions per pass. Building a
+ * RegExp for each of those is over a million compilations for one run, which is
+ * what made the whole-repo test time out under suite contention (measured
+ * 2026-08-25). The set of names is small and closed; the cache is bounded by it.
+ */
+const callRegexCache = new Map<string, RegExp>();
+
+function callRegex(name: string): RegExp {
+  let re = callRegexCache.get(name);
+  if (re === undefined) {
+    re = new RegExp(`\\b${name.replace(/\./g, "\\.")}\\s*\\(`);
+    callRegexCache.set(name, re);
+  }
+  return re;
+}
+
 function callsIdentifier(unit: Unit, name: string): boolean {
-  const escaped = name.replace(/\./g, "\\.");
-  if (new RegExp(`\\b${escaped}\\s*\\(`).test(unit.body)) return true;
+  if (callRegex(name).test(unit.body)) return true;
   for (const [local, original] of unit.aliases) {
-    if (original === name && new RegExp(`\\b${local}\\s*\\(`).test(unit.body)) return true;
+    if (original === name && callRegex(local).test(unit.body)) return true;
+  }
+  return false;
+}
+
+/** Does `unit` call ANY of `names`? Iterates the Set without materialising it. */
+function callsAnyOf(unit: Unit, names: ReadonlySet<string>): boolean {
+  for (const name of names) {
+    if (callsIdentifier(unit, name)) return true;
   }
   return false;
 }
@@ -390,7 +433,14 @@ function callsIdentifier(unit: Unit, name: string): boolean {
  * requireLiveUser's own body first — it does find it, but the seed makes the
  * fixpoint independent of whether lib/infra/live-user.ts is in scope.
  */
+const reachCache = new WeakMap<readonly ScanSource[], Set<string>>();
+
 export function indexShiftReachers(sources: readonly ScanSource[]): Set<string> {
+  const cached = reachCache.get(sources);
+  // A COPY, so a caller that mutates what it got back cannot quietly change what
+  // the next caller sees. 340 strings; the copy is not the cost here.
+  if (cached !== undefined) return new Set(cached);
+
   const units = parseUnits(sources);
   const reaching = new Set<string>(SHIFT_REACHING_CALLS);
 
@@ -400,13 +450,15 @@ export function indexShiftReachers(sources: readonly ScanSource[]): Set<string> 
     let grew = false;
     for (const unit of units) {
       if (reaching.has(unit.name)) continue;
-      if (![...reaching].some((name) => callsIdentifier(unit, name))) continue;
+      if (!callsAnyOf(unit, reaching)) continue;
       reaching.add(unit.name);
       grew = true;
     }
     if (!grew) break;
   }
-  return reaching;
+
+  reachCache.set(sources, reaching);
+  return new Set(reaching);
 }
 
 // ---------------------------------------------------------------------------
@@ -433,7 +485,7 @@ export function findOperatorResolvers(sources: readonly ScanSource[]): OperatorR
   for (const unit of units) {
     // A function that IS one of the reaching set is a guard, not a caller of
     // one; it is the thing the rule is about, not a subject of it.
-    const reaches = reaching.has(unit.name) || [...reaching].some((n) => callsIdentifier(unit, n));
+    const reaches = reaching.has(unit.name) || callsAnyOf(unit, reaching);
 
     // Property 1 — does it resolve a session at all? A pure helper handed a
     // userId is not making an authorization decision about a caller.

@@ -214,11 +214,25 @@ describe("OPERATOR_SIGNALS — every entry still fires", () => {
 // The real tree
 // ---------------------------------------------------------------------------
 
+// The whole-repo derivations are computed ONCE, in the describe body, and the
+// tests only assert over them.
+//
+// That is not tidiness. Collection runs outside the per-test timeout, and these
+// three scan 1,861 files: leaving the work inside an `it` charged one arbitrary
+// test for all of it, which is exactly how "clears its three non-vacuity floors"
+// timed out at 5s under full-suite contention on 2026-08-25 while passing in
+// isolation. A test that fails because of what ANOTHER test left running is a
+// test whose red says nothing about its subject. (The scan itself also got
+// cheaper in the same commit — see the caches in check-operator-shift-reach.ts —
+// but the ordering fix is the one that makes the timing honest.)
 describe("the repository itself", () => {
   const sources = listScanSources();
+  const offenders = findShiftReachOffenders(sources);
+  const resolvers = findOperatorResolvers(sources);
+  const reaching = indexShiftReachers(sources);
 
   it("has no operator-actor resolver that skips the shift", () => {
-    expect(findShiftReachOffenders(sources)).toEqual([]);
+    expect(offenders).toEqual([]);
   });
 
   it("keeps the allowlist empty", () => {
@@ -230,15 +244,15 @@ describe("the repository itself", () => {
 
   it("clears its three non-vacuity floors", () => {
     expect(sources.length).toBeGreaterThanOrEqual(MIN_SCANNED_FILES);
-    expect(indexShiftReachers(sources).size).toBeGreaterThanOrEqual(MIN_SHIFT_REACHERS);
-    expect(findOperatorResolvers(sources).length).toBeGreaterThanOrEqual(MIN_OPERATOR_RESOLVERS);
+    expect(reaching.size).toBeGreaterThanOrEqual(MIN_SHIFT_REACHERS);
+    expect(resolvers.length).toBeGreaterThanOrEqual(MIN_OPERATOR_RESOLVERS);
   });
 
   // THE ANTECEDENT ITSELF, pinned by name. If the scan stops recognising these
   // as operator-actor resolvers it stops guarding them, and it would report
   // that as a clean run.
   it("still recognises the guards this fence exists for", () => {
-    const found = new Set(findOperatorResolvers(sources).map((r) => `${r.relPath}#${r.name}`));
+    const found = new Set(resolvers.map((r) => `${r.relPath}#${r.name}`));
 
     expect(found).toContain("app/actions/alert-firings.ts#requireAdminUser");
     expect(found).toContain("app/api/gob/_guard.ts#resolveInstitutionalGobActor");
