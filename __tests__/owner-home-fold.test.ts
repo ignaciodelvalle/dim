@@ -20,6 +20,14 @@ const inicioSrc = read("app", "(app)", "inicio", "page.tsx");
 const indexSrc = read("app", "(app)", "mis-mascotas", "page.tsx");
 const casosSrc = read("app", "(app)", "cuenta", "casos", "page.tsx");
 
+// The pet-list QUERY left the page in native-readiness WU-B: `GET
+// /api/v1/me/pets` answers the same question, and a route handler with a second
+// copy of "which pets are yours" is how the native list eventually shows a pet
+// the web list does not. The assertions below follow the code — they check the
+// DOOR for the query properties and the PAGE for the call, which together are
+// the same guarantee the single source-scan used to make.
+const listDoorSrc = read("src", "modules", "pets", "application", "read", "list-owner-pets.ts");
+
 describe("/inicio folds into the profile (decision 7)", () => {
   it("is a server redirect, not a dashboard", () => {
     expect(inicioSrc).toContain("redirect(");
@@ -88,13 +96,24 @@ describe("/mis-mascotas is the index + inbox (decisions 3, 4, 6)", () => {
 
   it("has a REAL server-side name search (the 200-cap buscador that never existed)", () => {
     expect(indexSrc).toContain("<PetSearchInput");
+    // The page still passes the query down; the predicate itself lives in the
+    // door now, so both halves are asserted rather than one.
+    expect(indexSrc).toContain("listOwnerPets({ ownerUserId: user.id, query");
     // Raw sql ILIKE predicate with an explicit ESCAPE clause (omnibox parity).
-    expect(indexSrc).toContain("pets.name} ILIKE");
-    expect(indexSrc).toContain("ESCAPE");
+    expect(listDoorSrc).toContain("pets.name} ILIKE");
+    expect(listDoorSrc).toContain("ESCAPE");
   });
 
   it("orders the pet-list query deterministically so the cap isn't DB-order luck", () => {
-    expect(indexSrc).toContain("orderBy(desc(pets.createdAt))");
+    expect(listDoorSrc).toContain("orderBy(desc(pets.createdAt))");
+  });
+
+  it("counts the cap notice under the SAME predicate the rows were fetched with", () => {
+    // The property that used to be visible as two adjacent queries in the page.
+    // Now it is the door's, and it is the thing that makes "mostrando N de M"
+    // honest precisely when someone is searching.
+    expect(listDoorSrc).toContain("deps.countRows(where)");
+    expect(listDoorSrc).toContain("deps.fetchRows(where, limit)");
   });
 
   it("keeps deceased pets in In memoriam ONLY (decision 6)", () => {

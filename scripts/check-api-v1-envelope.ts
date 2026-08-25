@@ -69,9 +69,12 @@ export const V1_ROUTE_GLOB = "app/api/v1/**/route.ts";
  * still report success over the one that remained. Raise it with every route
  * that lands; that is the whole job of the number.
  *
- * FIVE since WU-B's first route: `GET /api/v1/localities`.
+ * SIX since WU-B's second route: `GET /api/v1/me/pets`. Note that `/me` now
+ * has a CHILD route alongside its own — `app/api/v1/me/pets/route.ts` next to
+ * `app/api/v1/me/route.ts` — which is precisely the arrangement a `**` glob can
+ * silently stop matching after a directory rename.
  */
-export const MIN_V1_ROUTE_FILES = 5;
+export const MIN_V1_ROUTE_FILES = 6;
 
 export const HELPER_MODULE = "@/lib/infra/api-v1";
 

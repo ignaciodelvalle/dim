@@ -19,7 +19,6 @@
 // (inventory §8): a vet who also owns pets reaches their own pets only via
 // ?as=owner; dropping it would send every vet to the owner index.
 
-import { and, count, desc, eq, isNull, sql } from "drizzle-orm";
 import Image from "next/image";
 import Link from "next/link";
 import { redirect } from "next/navigation";
@@ -35,7 +34,6 @@ import { LnSectionHead } from "@/components/ui/DocElements";
 import { LnEmptyState } from "@/components/ui/EmptyState";
 import { LnRegRow, LnRegistry } from "@/components/ui/RegRow";
 import { AnalyticsLoadFallback } from "@/components/ui/dashboard/AnalyticsLoadFallback";
-import { attachments, db, ownerships, pets } from "@/db";
 import { loadWithTimeout } from "@/lib/analytics/analytics-load";
 import {
   countOutgoingPendingTransfers,
@@ -50,14 +48,16 @@ import { ownerPetCountLabel, splitOwnerPetCounts } from "@/lib/domain/owner-pet-
 import { petUrgencyRank } from "@/lib/domain/pet-urgency-rank";
 import { splitProximosReminders } from "@/lib/domain/vaccine-reminder-state";
 import { requireUserOrRedirect } from "@/lib/infra/auth-guards";
-import { PET_CARD_PHOTO_SELECT, PET_CARD_SELECT } from "@/lib/infra/pet-projections";
 import { getProfileCached } from "@/lib/infra/request-cache";
 import { resolveVetLanding } from "@/lib/infra/role-landing";
 import { petPhotoUrl } from "@/lib/infra/storage";
 import { lnPetStatusFromCompliance } from "@/lib/projections/pet-compliance";
 import { pluralizeEs, speciesLabel } from "@/lib/utils/format";
-import { likeContains } from "@/lib/utils/like-helpers";
 import { trimmedSearchParam } from "@/lib/utils/search-params";
+import {
+  OWNER_PET_LIST_LIMIT,
+  listOwnerPets,
+} from "@/src/modules/pets/application/read/list-owner-pets";
 
 import { IntentApplyBanner } from "./_components/IntentApplyBanner";
 import { OwnerRollupStrip } from "./_components/OwnerRollupStrip";
@@ -66,12 +66,12 @@ import { PetSearchInput } from "./_components/PetSearchInput";
 /**
  * Maximum pet rows rendered on this page.
  *
- * Owners with thousands of pets (high-volume rescue networks / shelters) would
- * produce an enormous DOM and exhaust server memory otherwise. The cap bounds
- * the listing; the name search (server-side ILIKE, same cap) is how an owner
- * narrows past it. Full pagination is tracked as a follow-up improvement.
+ * Re-exported from the read door rather than re-declared: `GET /api/v1/me/pets`
+ * caps at the same number and reports `truncated` against it, and two constants
+ * that agree today are two constants. The reasoning for the cap itself lives
+ * with the query it bounds (`OWNER_PET_LIST_LIMIT`).
  */
-const MIS_MASCOTAS_LIMIT = 200;
+const MIS_MASCOTAS_LIMIT = OWNER_PET_LIST_LIMIT;
 
 export default async function MisMascotasPage({
   searchParams,
@@ -97,54 +97,19 @@ export default async function MisMascotasPage({
   const { data: authData } = await supabase.auth.getUser();
   const userEmail = (authData?.user?.email ?? "").toLowerCase();
 
-  // Ownership scope + optional server-side name filter (drizzle `and` drops the
-  // undefined when no query, so the unfiltered path is unchanged). The search is
-  // server-side + bounded so it finds pets BEYOND the visible cap — the whole
-  // point of the 200-cap notice's promised buscador.
-  // Server-side name filter with an explicit ESCAPE clause — parity with
-  // lib/infra/omnibox-search.ts. likeContains() backslash-escapes %/_ in the
-  // user input; ESCAPE '\' tells Postgres to treat that backslash as the escape
-  // char. drizzle's ilike() helper can't carry an ESCAPE clause, so this is a
-  // raw sql predicate. and() drops it when the query is empty, so the unfiltered
-  // path is unchanged.
-  const nameFilter = query ? sql`${pets.name} ILIKE ${likeContains(query)} ESCAPE '\\'` : undefined;
-  const ownedWhere = and(
-    eq(ownerships.ownerUserId, user.id),
-    isNull(ownerships.endedAt),
-    nameFilter,
-  );
-
-  // BOUNDED (2026-08-09 resilience pass). Eight aggregates on the page an owner
+  // BOUNDED (2026-08-09 resilience pass). Seven aggregates on the page an owner
   // opens first, awaited bare: on a degraded pooler this hung with no error and
   // nothing in the logs — the same shape as the /gob outage, on the citizen
   // side, where nobody is watching a dashboard to notice.
   const load = await loadWithTimeout(
     Promise.all([
-      db
-        .select({
-          pet: PET_CARD_SELECT,
-          photo: PET_CARD_PHOTO_SELECT,
-          ownershipRole: ownerships.role,
-        })
-        .from(pets)
-        .innerJoin(ownerships, eq(ownerships.petId, pets.id))
-        .leftJoin(attachments, eq(attachments.id, pets.primaryPhotoId))
-        .where(ownedWhere)
-        // Deterministic order so WHICH rows survive the cap isn't DB-order luck —
-        // newest first, the same tiebreak fetchPetsForOwner uses. Final display
-        // order is re-derived by urgency (sortedActivePets) below.
-        .orderBy(desc(pets.createdAt))
-        // Hard cap: prevents loading thousands of pet rows into JS for high-volume
-        // owners. Full pagination is tracked as a follow-up improvement.
-        .limit(MIS_MASCOTAS_LIMIT),
-      // Count matching the SAME filter — so the cap notice reads honestly whether
-      // or not a search is active ("showing N of M matching").
-      db
-        .select({ n: count() })
-        .from(ownerships)
-        .innerJoin(pets, eq(pets.id, ownerships.petId))
-        .where(ownedWhere)
-        .then((r) => Number(r[0]?.n ?? 0)),
+      // The scope predicate, the ESCAPE-clause name filter, the cap and the
+      // matching COUNT all moved into listOwnerPets (WU-B): `GET /api/v1/me/pets`
+      // answers the same question and must not carry a second copy of "which
+      // pets are yours" — a second copy is how a native list eventually shows a
+      // pet the web list does not. Display order is still re-derived by urgency
+      // (sortedActivePets) below.
+      listOwnerPets({ ownerUserId: user.id, query, limit: MIS_MASCOTAS_LIMIT }),
       countPendingApplications(user.id),
       countPendingTransfers(user.id, userEmail),
       countOutgoingPendingTransfers(user.id),
@@ -183,8 +148,7 @@ export default async function MisMascotasPage({
     );
   }
   const [
-    ownedPets,
-    matchingTotal,
+    { rows: ownedPets, total: matchingTotal },
     pendingApplicationsCount,
     pendingTransfersCount,
     outgoingTransfersCount,
