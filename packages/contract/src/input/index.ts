@@ -30,3 +30,14 @@ export {
   createIntakeInputSchema,
   firstIntakeInputCode,
 } from "./intake";
+export {
+  ACQUISITION_METHODS,
+  PET_SPECIES,
+  REGISTER_PET_INPUT_CODES,
+  type AcquisitionMethod,
+  type PetSpecies,
+  type RegisterPetInput,
+  type RegisterPetInputCode,
+  firstRegisterPetInputCode,
+  registerPetInputSchema,
+} from "./register-pet";

@@ -118,6 +118,17 @@ function apiErrorMessage(code: ApiV1ErrorCode): string {
       return "La app envió un pedido que el servidor no pudo leer. Actualizá la app.";
     case "signup_failed":
       return "No pudimos crear la cuenta. Volvé a intentar en unos minutos.";
+    // The three WRITE codes (WU-B). Same reasoning as the auth block above: the
+    // public credential endpoint cannot return any of them, and they are
+    // answered anyway because this function's contract is the WHOLE vocabulary.
+    // The switch caught the WU-A widening across a branch merge git had nothing
+    // to say about; it caught this one the same way.
+    case "idempotency_key_required":
+      return "La app envió un registro sin su clave de reintento. Actualizá la app.";
+    case "duplicate_pet_suspected":
+      return "Ya tenés una mascota registrada con ese nombre. Revisá tu lista antes de crear otra.";
+    case "pet_registration_failed":
+      return "No pudimos completar el registro. Volvé a intentar en unos minutos.";
   }
 }
 

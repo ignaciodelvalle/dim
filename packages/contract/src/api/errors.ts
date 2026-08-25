@@ -81,6 +81,45 @@
  *                           as success, above). Single generic code on purpose:
  *                           the raw provider text can itself hint at account
  *                           state.
+ *
+ * THE WRITE CODES (WU-B). `POST /api/v1/pets` is the first `/api/v1` endpoint
+ * that CHANGES something, and the note above about `UseCaseResult`'s untyped
+ * failure arm is exactly what these three are shaped around. Every one of them
+ * is a decision a client has to be able to act on differently, which is the only
+ * bar for adding a code here.
+ *
+ * - `idempotency_key_required`
+ *                         — the `Idempotency-Key` request header was absent or
+ *                           blank on a write that requires it. Distinct from
+ *                           `invalid_request` for the same reason `auth_required`
+ *                           is distinct from `auth_expired`: it is a client BUG
+ *                           in the ENVELOPE, not in the body, and collapsing the
+ *                           two sends a developer hunting through a body schema
+ *                           that was never the problem. Never retryable as-is —
+ *                           the fix is to send the header.
+ * - `duplicate_pet_suspected`
+ *                         — the caller already owns an ACTIVE pet with the same
+ *                           normalized name + species + sex (data-quality gate
+ *                           P2). A SOFT gate: the client shows "¿es la misma?",
+ *                           and a caller who means it re-sends with
+ *                           `duplicateOverride: true`. Carries no detail about
+ *                           WHICH pet — the client already has the list from
+ *                           `GET /api/v1/me/pets` and can match on it locally,
+ *                           and the envelope is one key (§2).
+ * - `pet_registration_failed`
+ *                         — the registration transaction itself failed. ONE
+ *                           generic code because there is nothing better
+ *                           available yet: the use-case's failure arm is an
+ *                           untyped string carrying Spanish prose (§3), so this
+ *                           endpoint genuinely cannot tell a constraint
+ *                           violation from a dead connection. Putting that prose
+ *                           on the wire would be worse — it is written for a web
+ *                           form and can name internal constraints. A client may
+ *                           retry ONCE with the SAME `Idempotency-Key`; if the
+ *                           first attempt had in fact committed, the retry
+ *                           resolves to it instead of creating a second animal.
+ *                           When the failure arm becomes typed, this code splits
+ *                           and the split happens HERE, in the open.
  */
 export const API_V1_ERROR_CODES = [
   "rate_limited",
@@ -93,6 +132,9 @@ export const API_V1_ERROR_CODES = [
   "account_erased",
   "invalid_request",
   "signup_failed",
+  "idempotency_key_required",
+  "duplicate_pet_suspected",
+  "pet_registration_failed",
 ] as const;
 
 export type ApiV1ErrorCode = (typeof API_V1_ERROR_CODES)[number];
