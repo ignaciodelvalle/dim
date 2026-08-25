@@ -215,6 +215,16 @@ jobs:
         # scripts/check-server-action-exports.ts.
         run: pnpm lint:server-exports
 
+      - name: "Fence: sponsored custody hand-offs (lint:custody-sponsorship)"
+        # REQ-15: a shelter_custody row a titular's consent opened is not the
+        # org's to hand off. The guard existed and was written onto ONE of the
+        # two org-to-org hand-off paths; the other one — transferCustody — is
+        # the one that ran on staging (case CAS-NBGE-CS3C). This fence keys on
+        # the spine event rather than on the path, so a third door cannot be
+        # added without it. Offline static analysis, so it belongs in this job.
+        # See scripts/check-custody-handoff-sponsorship.ts.
+        run: pnpm lint:custody-sponsorship
+
       - name: Lint (router.refresh ban)
         # Nav burn-down N2 (2026-07-04): router.refresh() rides the App
         # Router transition machinery with the production silent-drop defect
