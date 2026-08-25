@@ -73,7 +73,23 @@ export function RevokeSessionsDialog() {
         ref={triggerRef}
         type="button"
         onClick={handleOpen}
-        className="flex w-full items-center justify-between gap-4 border-b border-[var(--color-ln-line-2)] px-[18px] py-3.5 no-underline last:border-b-0 hover:bg-[var(--color-ln-paper-2)] transition-colors text-left"
+        // The gutter MUST equal ActionRow's (cuenta/page.tsx), because this
+        // button renders as one more row inside the same bordered group — 2px of
+        // drift shows up as a misaligned item in a stacked list. ActionRow uses
+        // the raw 18px arbitrary value, which is grandfathered in the
+        // design-token baseline; a NEW file may not add one, so this reaches for
+        // the sanctioned token of the same size instead.
+        //
+        // And the size is NOT written out as an arbitrary-value class anywhere in
+        // this comment, deliberately: check-design-tokens.ts matches the pattern
+        // as text, so prose that quotes the thing it is explaining trips the
+        // fence — measured here, on the first attempt at this note. Same shape as
+        // the authz-scanner warning in app/api/v1/me/route.ts.
+        //
+        // If a third caller ever needs this row chrome, the fix is to lift
+        // ActionRow out of page.tsx and let it render a button, not to copy the
+        // class string a third time.
+        className="flex w-full items-center justify-between gap-4 border-b border-[var(--color-ln-line-2)] px-[var(--space-sheet)] py-3.5 no-underline last:border-b-0 hover:bg-[var(--color-ln-paper-2)] transition-colors text-left"
       >
         <div className="min-w-0">
           <p className="text-md font-medium leading-tight text-[var(--color-ln-ink)]">
