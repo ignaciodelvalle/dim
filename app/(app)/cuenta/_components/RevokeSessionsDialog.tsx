@@ -33,7 +33,10 @@
 
 import { useRef, useState, useTransition } from "react";
 
-import { revokeAllSessionsAction } from "@/app/actions/auth";
+// From app/actions/sessions.ts and NOT the auth barrel — see that file's header:
+// putting it in the barrel drags requireLiveUser's whole import subtree into
+// signup and login.
+import { revokeAllSessionsAction } from "@/app/actions/sessions";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 
 export function RevokeSessionsDialog() {

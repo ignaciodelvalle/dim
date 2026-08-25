@@ -891,9 +891,9 @@ describe("listRouteHandlerFiles", () => {
     expect(offenders).toEqual([]);
   });
 
-  it("the intentionally-public handlers are exactly the eleven documented ones", () => {
-    // A TWELFTH opt-out appearing here is a decision, not a detail: it means an
-    // endpoint was made public and this list is where that shows up in review.
+  it("the intentionally-public handlers are exactly the twelve documented ones", () => {
+    // A THIRTEENTH opt-out appearing here is a decision, not a detail: it means
+    // an endpoint was made public and this list is where that shows up in review.
     //
     // The seventh arrived on 2026-08-21 with the first `/api/v1` endpoint. It is
     // the only one on this list whose PUBLICNESS IS THE PRODUCT rather than a
@@ -943,9 +943,38 @@ describe("listRouteHandlerFiles", () => {
     // entirely — and neither this list nor the fence's own count would have
     // moved to say so. See ROUTE_HANDLER_GLOBS in scripts/check-authz-guards.ts.
     //
+    // The TWELFTH arrived on 2026-08-25 with WU-E: `GET /turno-vencido`. A sixth
+    // kind — A LOGOUT DESTINATION. B9 gives institutional operators an 8-hour
+    // shift enforced in the app, and the refusal cannot simply bounce to
+    // `/iniciar-sesion`: the session is still VALID at GoTrue (the shift is our
+    // policy, not the token's expiry), and the login page forwards an
+    // authenticated visitor onward by role — which rebuilds the 2026-07-04
+    // ERR_TOO_MANY_REDIRECTS loop. So the guard sends the operator to a handler
+    // that actually signs them out first.
+    //
+    // Requiring a live session to REACH it would strand the only caller it is
+    // for: someone the liveness guard has just refused. It authorizes nothing and
+    // discloses nothing — every branch ends in a redirect.
+    //
+    // It answers GET, which normally makes a session-ending endpoint a CSRF gift.
+    // It is safe here for a structural reason and not a hopeful one: the handler
+    // RE-DERIVES THE POLICY ITSELF and signs out only a session `requireLiveUser`
+    // independently reports as SHIFT_EXPIRED. A session inside its shift is
+    // redirected home with its cookies untouched, so the worst an attacker can
+    // force is the logout of a session our own policy has already refused — which
+    // is the state the endpoint exists to produce. That check is what makes the
+    // URL harmless to hand out, not defence-in-depth decoration.
+    //
+    // Like assetlinks.json it carries no rate limiter, and for a comparable
+    // reason: the expensive branch is gated behind a liveness refusal the caller
+    // cannot manufacture.
+    //
     // `POST /api/v1/pets` and `GET /api/v1/me/pets`, the other two WU-B routes,
     // are deliberately NOT here for the same reason `/me` is not: both call
-    // requireLiveUser.
+    // requireLiveUser. `POST /api/v1/me/revoke-sessions` (WU-E) is not here
+    // either, and for the same reason: revoking your own sessions requires
+    // knowing whose they are, so it authorizes through requireLiveUser like every
+    // other bearer endpoint.
     //
     // `GET /api/v1/me` is deliberately NOT here, and its absence is load-bearing:
     // it is the first bearer-authenticated endpoint and it calls requireLiveUser.
@@ -958,6 +987,8 @@ describe("listRouteHandlerFiles", () => {
       extractExportedAsyncFunctions(readFileSync(f, "utf8")).some((fn) => fn.hasNoAuthComment),
     );
     expect(optedOut).toEqual([
+      // `(auth)` sorts before `(public)`: 'a' < 'p'.
+      "app/(auth)/turno-vencido/route.ts",
       "app/(public)/denuncias/seguimiento/entrar/route.ts",
       "app/(public)/denuncias/seguimiento/salir/route.ts",
       "app/(public)/transparencia/datos/[dataset]/route.ts",

@@ -24,7 +24,11 @@ import {
   logoutAction as _logoutAction,
   logoutAndReturnAction as _logoutAndReturnAction,
 } from "@/src/modules/auth/application/logout";
-import { revokeAllSessionsAction as _revokeAllSessionsAction } from "@/src/modules/auth/application/revoke-sessions-action";
+
+// B11's revokeAllSessionsAction is DELIBERATELY NOT re-exported here; it lives
+// in app/actions/sessions.ts. See that file's header — adding it to this barrel
+// broke two unrelated test files, and the reason it broke them is a real
+// production cost, not a test artefact.
 
 export type { AuthFormState, IdentityFormState } from "@/src/modules/auth/application/types";
 
@@ -51,13 +55,4 @@ export async function logoutAction(...args: Parameters<typeof _logoutAction>) {
 // @no-auth-required: logout invalidates whatever session exists (or none) — no identity required to sign out
 export async function logoutAndReturnAction(...args: Parameters<typeof _logoutAndReturnAction>) {
   return _logoutAndReturnAction(...args);
-}
-
-// @no-auth-required: authorization happens INSIDE the delegated use-case, whose
-// first statement is requireLiveUser() and which refuses without a live session.
-// B11 — revokes every session of the caller, this browser's included.
-export async function revokeAllSessionsAction(
-  ...args: Parameters<typeof _revokeAllSessionsAction>
-) {
-  return _revokeAllSessionsAction(...args);
 }
