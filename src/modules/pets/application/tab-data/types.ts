@@ -52,6 +52,19 @@ export type HistorialEventRow = {
    */
   vetMatricula?: string | null;
   attachmentUrl: string | null;
+  /**
+   * Whether this event carries a file AT ALL, independent of whether a URL was
+   * minted for it.
+   *
+   * Separate from `attachmentUrl` because the two answer different questions
+   * and a null URL conflates three of them: "no file", "signing failed", and
+   * "this caller asked us not to sign". The last one is real — a caller that
+   * will not SEND a URL must not mint one, because minting a signed URL is
+   * equivalent to handing out the file (lib/infra/storage.ts) — and without
+   * this field such a caller could not report the presence of the attachment
+   * either.
+   */
+  hasAttachment: boolean;
   // Set when a later `event_amended` event corrects this one — drives the
   // "Corregido · ver original" affordance (WS-3). Enriched in the tab-data shim.
   amendedAt?: Date | null;

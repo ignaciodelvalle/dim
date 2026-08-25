@@ -100,13 +100,39 @@ const PAST_EVENTS_WINDOW = 250;
 // the PAST_EVENTS_WINDOW above.
 const VACCINATION_SUMMARY_EVENT_TYPES = ["vaccination_administered", "event_amended"] as const;
 
-export async function getLibretaFaceData(context: {
-  user: { id: string };
-  pet: Pet;
-  accessPath: "owner" | "org";
-  organization: Organization | null;
-}): Promise<{ ok: true; data: LibretaFaceData } | { ok: false; error: string }> {
+/**
+ * Per-caller knobs. Everything here defaults to what the web page does, so an
+ * existing call site keeps its behaviour byte for byte.
+ */
+export type LibretaFaceOptions = {
+  /**
+   * Whether to mint signed URLs for the rendered window's attachments.
+   *
+   * `true` (default) is the web page: it renders thumbnails inline, so it needs
+   * a URL per event. `false` is for a caller that reports only the PRESENCE of a
+   * file (`HistorialEventRow.hasAttachment`) and serves the file itself
+   * elsewhere — the native libreta endpoint does exactly that, because a signed
+   * URL is equivalent to handing out the file and a timeline would hand out up
+   * to `PAST_EVENTS_WINDOW` of them into a payload a device holds.
+   *
+   * It is not only a privacy knob. Signing is one Storage round-trip PER
+   * attachment (perf/scale review 2026-07-04, P1 "Signed URL fan-out"), so a
+   * caller that discards the URLs is paying that fan-out for nothing.
+   */
+  signAttachments?: boolean;
+};
+
+export async function getLibretaFaceData(
+  context: {
+    user: { id: string };
+    pet: Pet;
+    accessPath: "owner" | "org";
+    organization: Organization | null;
+  },
+  options: LibretaFaceOptions = {},
+): Promise<{ ok: true; data: LibretaFaceData } | { ok: false; error: string }> {
   const { user, pet, accessPath } = context;
+  const signAttachments = options.signAttachments ?? true;
 
   const [
     rawWindowEvents,
@@ -244,14 +270,22 @@ export async function getLibretaFaceData(context: {
       : Promise.resolve([]),
   ]);
   const orgNameById = new Map(authorOrgRows.map((o) => [o.id, o.displayName]));
-  const urlByEventId = new Map<string, string>();
-  await Promise.all(
-    attachmentRows.map(async (a) => {
-      if (!a.eventId) return;
-      const url = await eventAttachmentSignedUrl(a.storagePath);
-      if (url) urlByEventId.set(a.eventId, url);
-    }),
+  // WHICH events carry a file — derived from the rows, never from the URLs, so
+  // a caller that opts out of signing still reports the attachment honestly
+  // instead of reporting "no file" for every asiento.
+  const eventsWithAttachment = new Set(
+    attachmentRows.map((a) => a.eventId).filter((id): id is string => typeof id === "string"),
   );
+  const urlByEventId = new Map<string, string>();
+  if (signAttachments) {
+    await Promise.all(
+      attachmentRows.map(async (a) => {
+        if (!a.eventId) return;
+        const url = await eventAttachmentSignedUrl(a.storagePath);
+        if (url) urlByEventId.set(a.eventId, url);
+      }),
+    );
+  }
 
   // Project amendments over the rendered window (module docblock) — timeline
   // payloads and the Corregido badge (amendedAt) read corrected values.
@@ -271,6 +305,7 @@ export async function getLibretaFaceData(context: {
       ? (orgNameById.get(e.authorOrganizationId) ?? null)
       : null,
     attachmentUrl: urlByEventId.get(e.id) ?? null,
+    hasAttachment: eventsWithAttachment.has(e.id),
     amendedAt:
       e.amendedAt instanceof Date ? e.amendedAt : e.amendedAt ? new Date(e.amendedAt) : null,
   }));

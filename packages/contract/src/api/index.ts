@@ -64,6 +64,22 @@ export {
   type OwnerPetTransitBannerV1,
 } from "./owner-pet-detail.ts";
 export {
+  PET_LIBRETA_PAYLOAD_VERSION,
+  PET_LIBRETA_STALE_AFTER_MS,
+  PET_LIBRETA_TIMELINE_WINDOW,
+  type LibretaEntryV1,
+  type LibretaFactV1,
+  type LibretaIdentitySection,
+  type LibretaProvenanceV1,
+  type LibretaTimelineSection,
+  type LibretaUpcomingItemV1,
+  type LibretaUpcomingSection,
+  type LibretaVaccinationSection,
+  type LibretaVaccineV1,
+  type LibretaViewer,
+  type PetLibretaV1,
+} from "./pet-libreta.ts";
+export {
   LOCALITIES_PAYLOAD_VERSION,
   LOCALITIES_STALE_AFTER_MS,
   type LocalitiesV1,

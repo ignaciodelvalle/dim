@@ -54,6 +54,7 @@ function row(id: string, eventType: string, payload: unknown = {}): HistorialEve
     authorVerified: false,
     authorOrganizationId: null,
     attachmentUrl: null,
+    hasAttachment: false,
     amendedAt: null,
   };
 }

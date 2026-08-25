@@ -86,6 +86,7 @@ describe("toAsientoView — whenRelative is deterministic under a fixed now", ()
     authorVerified: false,
     authorOrganizationId: null,
     attachmentUrl: null,
+    hasAttachment: false,
     amendedAt: null,
   };
 
@@ -116,6 +117,7 @@ describe("toAsientoView — vaccine 'Aplicó' attribution is consistent with the
     authorVerified: false,
     authorOrganizationId: null,
     attachmentUrl: null,
+    hasAttachment: false,
     amendedAt: null,
   };
 
@@ -228,6 +230,7 @@ describe("toAsientoView — sighting note is attributed to a third party, not th
     authorVerified: false,
     authorOrganizationId: null,
     attachmentUrl: null,
+    hasAttachment: false,
     amendedAt: null,
   };
 
@@ -295,6 +298,7 @@ describe("deriveProvenance — org_registered names the organization (C5)", () =
     authorVerified: false,
     authorOrganizationId: "org-1",
     attachmentUrl: null,
+    hasAttachment: false,
     amendedAt: null,
   };
 
@@ -336,6 +340,7 @@ describe("toAsientoView — authorship survives a transfer", () => {
     authorVerified: false,
     authorOrganizationId: null,
     attachmentUrl: null,
+    hasAttachment: false,
     amendedAt: null,
   };
 
@@ -418,6 +423,7 @@ describe("toAsientoView — non-owner roles never borrow the titular's voice", (
     authorVerified: false,
     authorOrganizationId: null,
     attachmentUrl: null,
+    hasAttachment: false,
     amendedAt: null,
   };
 

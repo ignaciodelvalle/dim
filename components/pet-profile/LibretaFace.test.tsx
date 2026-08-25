@@ -46,6 +46,7 @@ function pastEvent(overrides: Partial<HistorialEventRow> = {}): HistorialEventRo
     authorVerified: true,
     authorOrganizationId: null,
     attachmentUrl: null,
+    hasAttachment: false,
     amendedAt: null,
     ...overrides,
   };

@@ -74,8 +74,15 @@ export const V1_ROUTE_GLOB = "app/api/v1/**/route.ts";
  * alongside a CHILD route — `app/api/v1/pets/route.ts` next to
  * `app/api/v1/pets/[publicToken]/credential/route.ts` — which is precisely the
  * arrangement a `**` glob can silently stop matching after a directory rename.
+ *
+ * TEN since WU-J. The floor had drifted: `GET /api/v1/me/revoke-sessions` and
+ * `GET /api/v1/pets/{publicToken}` both landed without raising it, so a fence
+ * whose whole job is "the glob still matches" was checking 7 against 9 — two
+ * routes could have fallen out and this would still have read as clean. Caught
+ * while adding `libreta`, which makes 10. RAISE THIS WITH EVERY ROUTE THAT
+ * LANDS; a floor nobody raises is a floor that stops being one.
  */
-export const MIN_V1_ROUTE_FILES = 7;
+export const MIN_V1_ROUTE_FILES = 10;
 
 export const HELPER_MODULE = "@/lib/infra/api-v1";
 
