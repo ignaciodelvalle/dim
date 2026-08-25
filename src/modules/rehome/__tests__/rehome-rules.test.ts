@@ -167,6 +167,51 @@ describe("validateRequestOpen — one request per pet at a time (REQ-16)", () =>
     expect(r.ok).toBe(false);
     if (!r.ok) expect(r.error).toMatch(/fallecida/);
   });
+
+  // The gap this suite mirrored until 2026-08-25: it tested `deceased` only,
+  // so the missing `lost` arm was green. The accept refuses lost, so custody
+  // was never granted — what the request cost was an org inbox item, a
+  // notification saying the animal "sigue viviendo con su familia", and an
+  // open `rehome_request` case beside an open `lost_pet` one.
+  it("rejects a pet reported lost", () => {
+    const r = validateRequestOpen({ ...clean, petStatus: "lost" });
+    expect(r.ok).toBe(false);
+    if (!r.ok) expect(r.error).toMatch(/reportada como perdida/);
+  });
+
+  // ONE sentence per refusal, not one per door: the request and the accept
+  // say the same thing about a lost animal. A second wording would read as a
+  // different rule to the person hitting it twice.
+  it("says exactly what the accept says about a lost pet", () => {
+    const request = validateRequestOpen({ ...clean, petStatus: "lost" });
+    const accept = validateAcceptPreconditions({
+      caseKind: "rehome_request",
+      caseStatus: "open",
+      caseReceiverOrganizationId: "org-a",
+      actingOrganizationId: "org-a",
+      actingOrg: { orgType: "shelter", verified: true },
+      titularOwnerRowLive: true,
+      liveShelterCustodyCount: 0,
+      pet: {
+        status: "lost",
+        inCustodyDispute: false,
+        rabiesObservationStatus: null,
+        adoptionIneligibleUntil: null,
+      },
+      now: new Date("2026-08-25T12:00:00Z"),
+    });
+    expect(request.ok).toBe(false);
+    expect(accept.ok).toBe(false);
+    if (!request.ok && !accept.ok) expect(request.error).toBe(accept.error);
+  });
+
+  // Order pinned: a pet that is lost AND already has a pending request hears
+  // "perdida" first, the same way the accept and `validatePublish` order it.
+  it("reports lost before the open-request lock", () => {
+    const r = validateRequestOpen({ ...clean, petStatus: "lost", hasOpenRequest: true });
+    expect(r.ok).toBe(false);
+    if (!r.ok) expect(r.error).toMatch(/reportada como perdida/);
+  });
 });
 
 describe("validateAcceptPreconditions — ADR-1 steps 1 to 4, in order", () => {

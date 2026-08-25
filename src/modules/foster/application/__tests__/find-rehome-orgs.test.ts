@@ -180,6 +180,51 @@ describe("sendRehomeRequest", () => {
     expect((result as { ok: false; error: string }).error).toMatch(/tránsito activo/i);
   });
 
+  // 2026-08-25. This door had no animal-state check at all, while its titular
+  // twin (`validateRequestOpen`) refuses both. The literals are asserted by
+  // EXACT TEXT, not by regex: they are copied across a module edge the
+  // dependency fence does not allow us to close with an import, so the only
+  // thing holding them together is this assertion.
+  it("refuses a pet reported lost, in the titular flow's exact words", async () => {
+    const repo = makeFakeRepo({
+      findPetByToken: vi.fn().mockResolvedValue({
+        id: "pet-1",
+        name: "Luna",
+        publicToken: "PT-tok",
+        status: "lost",
+        jurisdictionProvince: "Buenos Aires",
+        jurisdictionLocality: "La Plata",
+      }),
+    });
+    const result = await sendRehomeRequest(
+      { petPublicToken: "PT-tok", targetOrgId: "org-1" },
+      { repo, actor },
+    );
+    expect(result).toEqual({ ok: false, error: "Esta mascota está reportada como perdida." });
+    // Refused BEFORE the org is looked up or its inbox is resolved.
+    expect(repo.findOrgById).not.toHaveBeenCalled();
+    expect(repo.orgAdminAndCoordinatorUserIds).not.toHaveBeenCalled();
+  });
+
+  it("refuses a deceased pet, in the titular flow's exact words", async () => {
+    const repo = makeFakeRepo({
+      findPetByToken: vi.fn().mockResolvedValue({
+        id: "pet-1",
+        name: "Luna",
+        publicToken: "PT-tok",
+        status: "deceased",
+        jurisdictionProvince: "Buenos Aires",
+        jurisdictionLocality: "La Plata",
+      }),
+    });
+    const result = await sendRehomeRequest(
+      { petPublicToken: "PT-tok", targetOrgId: "org-1" },
+      { repo, actor },
+    );
+    expect(result).toEqual({ ok: false, error: "Esta mascota está registrada como fallecida." });
+    expect(repo.orgAdminAndCoordinatorUserIds).not.toHaveBeenCalled();
+  });
+
   it("returns error when target org is not found or not verified shelter/rescue_network", async () => {
     const repo = makeFakeRepo({
       findOrgById: vi.fn().mockResolvedValue(null),

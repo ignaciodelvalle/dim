@@ -90,6 +90,28 @@ export async function sendRehomeRequest(
     };
   }
 
+  // 2b. The animal's state has to make the request MEAN something (2026-08-25).
+  // The titular twin (`validateRequestOpen`) refuses lost and deceased; this
+  // door did not, and its notification body asserts that the foster "está
+  // cuidando a X en tránsito y busca darle un hogar definitivo" — false for an
+  // animal nobody can find, and worse for one that died. No case and no spine
+  // event ride on this path, so the cost is only the org's inbox and a search
+  // effort pointed at the wrong problem; that is still a cost, and the refusal
+  // is one branch.
+  //
+  // The sentences are the twin's, verbatim. They are COPIED rather than
+  // imported because `foster -> rehome` is not an allowed module edge (see
+  // rehome-rules.ts's coverage note, which moved the shared PREDICATE to
+  // lib/domain for the same reason); two string literals did not earn a third
+  // module, but they must not drift, and the test asserts them by exact text.
+  const petStatus = (petRow as { status: string }).status;
+  if (petStatus === "lost") {
+    return { ok: false, error: "Esta mascota está reportada como perdida." };
+  }
+  if (petStatus === "deceased") {
+    return { ok: false, error: "Esta mascota está registrada como fallecida." };
+  }
+
   // 3. Validate target org — must exist and be verified shelter/rescue_network.
   const orgRow = await repo.findOrgById(input.targetOrgId);
   if (!orgRow) {

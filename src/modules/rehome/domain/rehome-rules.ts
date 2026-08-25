@@ -117,8 +117,28 @@ export type RequestOpenSnapshot = {
 export const OPEN_REQUEST_PENDING_ERROR =
   "Ya hay una solicitud de nuevo hogar pendiente para esta mascota. Esperá la respuesta o cancelala antes de enviar otra.";
 
-/** REQ-16: one open request OR one running sponsorship per pet, never both, never two. */
+/**
+ * REQ-16: one open request OR one running sponsorship per pet, never both,
+ * never two — plus the animal-state bar the ACCEPT already applied.
+ *
+ * The `lost` arm was missing until 2026-08-25. `validateAcceptPreconditions`
+ * a hundred lines below refuses a lost pet with this exact sentence, and both
+ * sibling entry points do too (adoption's `validatePublish`, transfers'
+ * `validatePetStatusForTransfer`), so no custody was ever granted on a lost
+ * animal — but the REQUEST wrote anyway: a spurious org inbox item, a
+ * notification whose body reads "El animal sigue viviendo con su familia
+ * mientras dure el acompañamiento" (false for an animal nobody can find), a
+ * misleading owner-facing pending state, REQ-16's open-request lock, and a pet
+ * carrying an open `lost_pet` case and an open `rehome_request` case at once.
+ *
+ * The order is the accept's order and the publish's order — lost before
+ * deceased — so a pet in both states hears the same first sentence at every
+ * door.
+ */
 export function validateRequestOpen(s: RequestOpenSnapshot): RuleResult {
+  if (s.petStatus === "lost") {
+    return { ok: false, error: "Esta mascota está reportada como perdida." };
+  }
   if (s.petStatus === "deceased") {
     return { ok: false, error: "Esta mascota está registrada como fallecida." };
   }
