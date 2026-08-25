@@ -75,6 +75,27 @@ function signupForm(email: string): FormData {
   return fd;
 }
 
+// GoTrue's success answer, as `AuthResponse` actually shapes it: `data` is
+// always present, and with email confirmations OFF a genuine new signup carries
+// a session. The fixture spells that out because the use-case now READS the
+// session (a native client needs the tokens) — a mock that answers `{ error:
+// null }` and nothing else describes a provider response that cannot occur.
+function signUpOk() {
+  return {
+    data: {
+      user: { id: "user-nuevo" },
+      session: {
+        access_token: "at",
+        refresh_token: "rt",
+        expires_in: 3600,
+        expires_at: 1_800_000_000,
+        token_type: "bearer",
+      },
+    },
+    error: null,
+  };
+}
+
 // A postgres-js-shaped unique-violation on the DNI index (drizzle wraps it under
 // `.cause`, which pgError would normally unwrap).
 function dniUniqueViolation(): Error {
@@ -97,7 +118,7 @@ beforeEach(() => {
 
 describe("signupAction — email enumeration defense", () => {
   it("returns the success shape for a brand-new email", async () => {
-    mockSignUp.mockResolvedValue({ error: null });
+    mockSignUp.mockResolvedValue(signUpOk());
     const result = await signupAction({ error: null }, signupForm("nuevo@example.com"));
     expect(result).toEqual({ error: null, ok: true });
   });
@@ -109,7 +130,7 @@ describe("signupAction — email enumeration defense", () => {
   });
 
   it("existing vs new email are byte-for-byte indistinguishable", async () => {
-    mockSignUp.mockResolvedValueOnce({ error: null });
+    mockSignUp.mockResolvedValueOnce(signUpOk());
     const fresh = await signupAction({ error: null }, signupForm("a@example.com"));
     mockSignUp.mockResolvedValueOnce({ error: { message: "User already registered" } });
     const existing = await signupAction({ error: null }, signupForm("b@example.com"));

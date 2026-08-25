@@ -12,13 +12,18 @@
 // function — bare `export { x } from "..."` re-exports are rejected by the
 // Next.js compiler. Types are re-exported with `export type` (erased at runtime).
 
+// login and signup now come from the module's ACTION layer, not from
+// application/: WU-A moved their FormData parsing, header read and Supabase
+// client out of the use-cases so those could be called from /api/v1 too.
+import {
+  loginAction as _loginAction,
+  signupAction as _signupAction,
+} from "@/src/modules/auth/actions";
 import { completeIdentityAction as _completeIdentityAction } from "@/src/modules/auth/application/complete-identity";
-import { loginAction as _loginAction } from "@/src/modules/auth/application/login";
 import {
   logoutAction as _logoutAction,
   logoutAndReturnAction as _logoutAndReturnAction,
 } from "@/src/modules/auth/application/logout";
-import { signupAction as _signupAction } from "@/src/modules/auth/application/signup";
 
 export type { AuthFormState, IdentityFormState } from "@/src/modules/auth/application/types";
 

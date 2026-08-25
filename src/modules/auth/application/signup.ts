@@ -1,67 +1,121 @@
-// Use-case: signupAction — step 1 of the two-step signup flow (strangler migration 26/61).
+// Use-case: signup — step 1 of the two-step signup flow (strangler migration
+// 26/61; decoupled from the web request in WU-A).
+//
+// WHAT MOVED, AND WHAT DID NOT
+// ---------------------------------------------------------------------------
+// `FormData`, `headers()` and the cookie-backed Supabase client left for the
+// action edge (`src/modules/auth/actions.ts`) and the `/api/v1` adapter; this
+// file takes plain data and one injected port. The validation order, the
+// rate-limit bucket and its ceiling, the enumeration masquerade and every
+// es-AR string are unchanged — the diff is the boundary, not the behaviour.
+//
+// Step 1 collects email + password + TOS only. display_name is intentionally
+// omitted here — the handle_new_user trigger (db/triggers.sql) falls back to
+// split_part(email, '@', 1) when no display_name metadata is supplied, so
+// profiles.display_name is never NULL. The real first+last name is collected in
+// step 2 (completeIdentityAction), which overwrites the provisional value.
+//
+// WHY EVERY REFUSAL CARRIES THE EMAIL BACK (a web concern, honoured here)
+// ---------------------------------------------------------------------------
+// React 19 auto-resets an uncontrolled `<form action={fn}>` once the action
+// resolves; a validation error here returns (no redirect), and that reset would
+// otherwise wipe the DOM-owned email the user just typed. SignupForm seeds the
+// input's `defaultValue` from the echo, mirroring the login fix (bug #46). The
+// echo is now the ACTION's to add, from the input it already holds — a use-case
+// has no business round-tripping a form field. The enumeration-defense success
+// masquerade below intentionally does NOT echo email, and that property is
+// preserved by construction: it returns the success arm, which has no field for
+// one, and the action reads the echo only off a refusal.
 //
 // @no-auth-required: signup is by definition pre-authentication.
-//
-// Step 1 of the two-step signup flow. Collects email + password + TOS only.
-// display_name is intentionally omitted here — the handle_new_user trigger
-// (db/triggers.sql) falls back to split_part(email, '@', 1) when no
-// display_name metadata is supplied, so profiles.display_name is never NULL.
-// The real first+last name is collected in step 2 (completeIdentityAction),
-// which overwrites the provisional value.
-//
-// Every non-redirecting error branch echoes `email` back in AuthFormState.
-// React 19 auto-resets an uncontrolled `<form action={fn}>` once the action
-// resolves; a validation error here returns (no redirect), and that reset
-// would otherwise wipe the DOM-owned email the user just typed. SignupForm
-// seeds the input's `defaultValue` from the echo, mirroring the login fix
-// (bug #46). The enumeration-defense success masquerade below intentionally
-// does NOT echo email — it must stay byte-identical to a genuine success.
 
-import { headers } from "next/headers";
+import type { AuthSessionV1 } from "@dim/contract/api";
+import { MIN_PASSWORD_LENGTH } from "@dim/contract/input";
 
-import { RateLimitError, callerIp, enforceRateLimit } from "@/lib/infra/rate-limit";
-import { createClient } from "@/lib/supabase/server";
+import { RateLimitError, enforceRateLimit } from "@/lib/infra/rate-limit";
 
-import type { AuthFormState } from "./types";
+import { type SignupAuthPort, toAuthSessionV1 } from "./gotrue-port";
 
-export async function signupAction(
-  _previous: AuthFormState,
-  formData: FormData,
-): Promise<AuthFormState> {
-  const email = String(formData.get("email") ?? "").trim();
-  const password = String(formData.get("password") ?? "");
-  const confirmPassword = String(formData.get("confirmPassword") ?? "");
-  const tosAccepted = formData.get("tosAccepted") === "on";
+/**
+ * Plain-data input. `callerIp` is resolved by the caller from the request
+ * (`callerIp(headers)`) and is NOT client-supplied.
+ */
+export type SignupInput = {
+  email: string;
+  password: string;
+  confirmPassword: string;
+  tosAccepted: boolean;
+  callerIp: string;
+};
+
+export type SignupDeps = {
+  /** Built only after validation and the rate-limit budget pass. See LoginDeps. */
+  auth: () => Promise<SignupAuthPort>;
+};
+
+export type SignupErrorCode =
+  | "missing_fields"
+  | "password_too_short"
+  | "password_mismatch"
+  | "tos_not_accepted"
+  | "rate_limited"
+  | "signup_failed";
+
+export type SignupValue = {
+  /**
+   * NULL is a normal outcome and has TWO causes a caller cannot tell apart —
+   * that indistinguishability is the point. See the masquerade below and
+   * `SignupV1` in the contract package.
+   */
+  session: AuthSessionV1 | null;
+};
+
+export type SignupResult =
+  | { ok: true; value: SignupValue }
+  | { ok: false; error: { code: SignupErrorCode; message: string } };
+
+function refuse(code: SignupErrorCode, message: string): SignupResult {
+  return { ok: false, error: { code, message } };
+}
+
+export async function signup(input: SignupInput, deps: SignupDeps): Promise<SignupResult> {
+  const email = input.email.trim();
+  const password = input.password;
 
   if (!email || !password) {
-    return { error: "Faltan datos. Completá todos los campos.", email };
+    return refuse("missing_fields", "Faltan datos. Completá todos los campos.");
   }
-  if (password.length < 8) {
-    return { error: "La contraseña debe tener al menos 8 caracteres.", email };
+  if (password.length < MIN_PASSWORD_LENGTH) {
+    return refuse(
+      "password_too_short",
+      `La contraseña debe tener al menos ${MIN_PASSWORD_LENGTH} caracteres.`,
+    );
   }
-  if (password !== confirmPassword) {
-    return { error: "Las contraseñas no coinciden.", email };
+  if (password !== input.confirmPassword) {
+    return refuse("password_mismatch", "Las contraseñas no coinciden.");
   }
-  if (!tosAccepted) {
-    return { error: "Tenés que aceptar los Términos y la Política de privacidad.", email };
+  if (!input.tosAccepted) {
+    return refuse(
+      "tos_not_accepted",
+      "Tenés que aceptar los Términos y la Política de privacidad.",
+    );
   }
 
   // Rate limit per trusted edge IP before creating a GoTrue user. Tighter than
   // login: signup is never a high-frequency legitimate action, so a low ceiling
   // caps both account-spam and the enumeration oracle (audit 28-#3) cost.
-  // Keyed off callerIp (x-real-ip / last XFF hop, not the spoofable first
-  // segment). A non-RateLimitError propagates → fail closed.
-  const ip = callerIp(await headers());
+  // Keyed off the caller-resolved edge IP (x-real-ip / last XFF hop, not the
+  // spoofable first segment). A non-RateLimitError propagates → fail closed.
   try {
-    await enforceRateLimit("auth_signup_ip", ip, { maxPerMinute: 3, maxPerHour: 15 });
+    await enforceRateLimit("auth_signup_ip", input.callerIp, { maxPerMinute: 3, maxPerHour: 15 });
   } catch (err) {
     if (err instanceof RateLimitError) {
-      return { error: "Demasiados intentos. Esperá un momento y volvé a probar.", email };
+      return refuse("rate_limited", "Demasiados intentos. Esperá un momento y volvé a probar.");
     }
     throw err;
   }
 
-  const supabase = await createClient();
+  const auth = await deps.auth();
   // POSTURE (PO decision 2026-07-10): email confirmation is intentionally OFF —
   // single-step signup, no verification for now. With confirmations OFF, signUp
   // returns a session immediately, so step 2 (completeIdentityAction) runs with
@@ -83,10 +137,7 @@ export async function signupAction(
   // display_name metadata is supplied here; the trigger derives a provisional
   // display_name from the email local-part and completeIdentityAction overwrites
   // it with the real "First Last" in the happy path.
-  const { error } = await supabase.auth.signUp({
-    email,
-    password,
-  });
+  const { data, error } = await auth.signUp({ email, password });
 
   if (error) {
     // Account enumeration defense (audit 28-#3, pilot MED).
@@ -97,24 +148,28 @@ export async function signupAction(
     // still prevented server-side — Supabase created no new user, so a duplicate
     // account cannot be minted; a duplicate simply lands with no session and is
     // bounced back to /signup at step 2 (completeIdentityAction's getUser check).
-    // Residual: with email confirmations OFF a genuine signup receives a session
-    // cookie while a duplicate does not, a subtler oracle closed by enabling
-    // confirmations in the Supabase dashboard (PO-gated, tracked separately).
+    //
+    // Residual, unchanged by WU-A and now stated on both transports: with email
+    // confirmations OFF a genuine signup receives a credential and a duplicate
+    // does not. The web leaks that through the presence of a session cookie;
+    // `/api/v1` leaks it through `session: null`. Identical information,
+    // identical cost to probe — adding a fake session to the API response would
+    // hand a native client a token that authenticates nobody, which is worse
+    // than the leak. Closing it needs confirmations ON in the Supabase
+    // dashboard (PO-gated, tracked separately).
     const lower = error.message.toLowerCase();
     if (lower.includes("already") || lower.includes("registered")) {
-      return { error: null, ok: true };
+      return { ok: true, value: { session: null } };
     }
     // Every other failure returns a single generic message — never the raw
-    // Supabase text, which could itself hint at account state. Echo the email
-    // so React 19's post-action form reset (bug #46, mirrored from login)
-    // doesn't wipe what the user typed.
-    return {
-      error: "No pudimos completar el registro. Revisá tus datos e intentá de nuevo.",
-      email,
-    };
+    // Supabase text, which could itself hint at account state.
+    return refuse(
+      "signup_failed",
+      "No pudimos completar el registro. Revisá tus datos e intentá de nuevo.",
+    );
   }
 
   // Do NOT redirect. The inline signup flow uses this success signal to
   // transition the same page to the identity-collection step (step 2).
-  return { error: null, ok: true };
+  return { ok: true, value: { session: toAuthSessionV1(data.session) } };
 }
