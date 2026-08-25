@@ -68,8 +68,10 @@ export const V1_ROUTE_GLOB = "app/api/v1/**/route.ts";
  * fall out of the glob (a directory rename, a `route.tsx`) and this check would
  * still report success over the one that remained. Raise it with every route
  * that lands; that is the whole job of the number.
+ *
+ * FIVE since WU-B's first route: `GET /api/v1/localities`.
  */
-export const MIN_V1_ROUTE_FILES = 4;
+export const MIN_V1_ROUTE_FILES = 5;
 
 export const HELPER_MODULE = "@/lib/infra/api-v1";
 

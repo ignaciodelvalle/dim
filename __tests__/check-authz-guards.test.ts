@@ -891,8 +891,8 @@ describe("listRouteHandlerFiles", () => {
     expect(offenders).toEqual([]);
   });
 
-  it("the intentionally-public handlers are exactly the nine documented ones", () => {
-    // A TENTH opt-out appearing here is a decision, not a detail: it means an
+  it("the intentionally-public handlers are exactly the ten documented ones", () => {
+    // An ELEVENTH opt-out appearing here is a decision, not a detail: it means an
     // endpoint was made public and this list is where that shows up in review.
     //
     // The seventh arrived on 2026-08-21 with the first `/api/v1` endpoint. It is
@@ -913,6 +913,23 @@ describe("listRouteHandlerFiles", () => {
     // spends (`auth_login_ip`, `auth_login_email`, `auth_signup_ip`), enforced
     // inside the shared use-case before GoTrue is touched.
     //
+    // The TENTH arrived on 2026-08-25 with WU-B: `GET /api/v1/localities`. It is
+    // a fourth kind — PUBLIC REFERENCE DATA. `ar_localities` is the INDEC
+    // catalogue: locality names, slugs, province codes and department names, with
+    // no PII in the table at all, and the web already serves the same rows
+    // anonymously to the /perdidas and /adoptar filter bars
+    // (`searchLocalitiesPublicAction`, which carries this same opt-out). It is
+    // public here rather than session-gated because a native signup asks "¿dónde
+    // vivís?" before there is a session to gate on, and an endpoint that 401s
+    // there teaches clients to bundle a stale copy of the national catalogue.
+    // Bounded rather than authorized, by its own per-IP `api_v1_localities`
+    // budget — its OWN bucket, not the module's shared `__public__` sentinel, so
+    // one scraper cannot starve the web's anonymous filter bars.
+    //
+    // `POST /api/v1/pets` and `GET /api/v1/me/pets`, the other two WU-B routes,
+    // are deliberately NOT here for the same reason `/me` is not: both call
+    // requireLiveUser.
+    //
     // `GET /api/v1/me` is deliberately NOT here, and its absence is load-bearing:
     // it is the first bearer-authenticated endpoint and it calls requireLiveUser.
     // Its first version explained that by writing the opt-out marker in a comment
@@ -930,6 +947,7 @@ describe("listRouteHandlerFiles", () => {
       "app/api/health/route.ts",
       "app/api/v1/auth/login/route.ts",
       "app/api/v1/auth/signup/route.ts",
+      "app/api/v1/localities/route.ts",
       "app/api/v1/pets/[publicToken]/credential/route.ts",
       "app/auth/callback/route.ts",
       "app/auth/miarg/callback/route.ts",

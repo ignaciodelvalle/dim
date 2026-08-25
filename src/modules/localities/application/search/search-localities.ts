@@ -49,17 +49,34 @@ export async function __resetRateLimitForTests(): Promise<void> {
   );
 }
 
-export async function searchLocalitiesAction(
-  userId: string,
-  input: {
-    provinceCode?: string;
-    query: string;
-  },
-): Promise<SearchLocalitiesResult> {
-  if (!(await checkRateLimit(userId))) {
-    return { error: "rate_limited" };
-  }
+/** Results per search. One number, one place — every caller gets the same page. */
+const SEARCH_LIMIT = 20;
 
+/**
+ * The search itself, with NO rate limiting: validate the province, refuse a
+ * query too short to be a search, hand the rest to the catalogue.
+ *
+ * WHY IT IS SEPARATE FROM THE LIMITER (WU-B)
+ * -------------------------------------------------------------------------
+ * The two action variants below spend the SAME `localities_search` bucket under
+ * different identifiers, and they were byte-identical apart from that
+ * identifier — so a fix to one (the min-length, the province validation, the
+ * page size) reached the other only if someone remembered. That is now
+ * structural: they share this body.
+ *
+ * It is exported because `GET /api/v1/localities` needs the search WITHOUT this
+ * module's bucket. That endpoint runs its own per-IP limiter, named as a literal
+ * at its own call site (the `/api/v1` envelope fence requires it), because a
+ * native typeahead and the web's `perdidas` filter bar are different surfaces
+ * and "which surface is being hammered" has to stay answerable from the
+ * limiter's own storage. A caller that reaches for THIS function is therefore
+ * declaring it bounds itself — the two wrappers below are the proof of what that
+ * looks like.
+ */
+export async function runLocalitySearch(input: {
+  provinceCode?: string;
+  query: string;
+}): Promise<SearchLocalitiesResult> {
   if (input.query.length < 2) return { results: [] };
 
   let provinceCode: ProvinceCode | undefined;
@@ -72,10 +89,23 @@ export async function searchLocalitiesAction(
   const results = await searchLocalities({
     provinceCode,
     query: input.query,
-    limit: 20,
+    limit: SEARCH_LIMIT,
   });
 
   return { results };
+}
+
+export async function searchLocalitiesAction(
+  userId: string,
+  input: {
+    provinceCode?: string;
+    query: string;
+  },
+): Promise<SearchLocalitiesResult> {
+  if (!(await checkRateLimit(userId))) {
+    return { error: "rate_limited" };
+  }
+  return runLocalitySearch(input);
 }
 
 // Public variant — identical logic but no auth guard. Safe because ar_localities
@@ -94,21 +124,5 @@ export async function searchLocalitiesPublicAction(input: {
   if (!(await checkRateLimit(PUBLIC_RATE_LIMIT_SENTINEL))) {
     return { error: "rate_limited" };
   }
-
-  if (input.query.length < 2) return { results: [] };
-
-  let provinceCode: ProvinceCode | undefined;
-  if (input.provinceCode) {
-    const province = provinceByCode(input.provinceCode);
-    if (!province) return { error: "invalid_province" };
-    provinceCode = province.code as ProvinceCode;
-  }
-
-  const results = await searchLocalities({
-    provinceCode,
-    query: input.query,
-    limit: 20,
-  });
-
-  return { results };
+  return runLocalitySearch(input);
 }
