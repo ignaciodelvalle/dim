@@ -248,6 +248,28 @@ jobs:
       - name: Typecheck (tsc)
         run: pnpm typecheck
 
+      - name: Mobile (apps/mobile typecheck + Jest)
+        # THE STEP THAT WAS MISSING ON 2026-08-25. A clean `git merge` broke the
+        # Expo client and nothing went red anywhere: `pnpm typecheck` above runs
+        # the ROOT tsconfig, which excludes `apps/` on purpose (React Native
+        # sources against the web app's `lib: ["dom"]` report hundreds of
+        # meaningless failures), and the mobile Jest suite ran on no machine at
+        # all. Two programs share `packages/contract`; only one of them was
+        # checked, so the drift detector the package boundary exists to provide
+        # was pointed at one side.
+        #
+        # Cheap enough that the honest objection ("a second runner slows every
+        # web change") does not survive measurement: typecheck + 33 Jest tests
+        # is ~15s on a warm install, and the install is the SAME `pnpm install
+        # --frozen-lockfile` this job already ran — one lockfile, one store, the
+        # mobile package's deps are already on disk.
+        #
+        # `pnpm verify:mobile` and not two inline commands so this step and the
+        # PO's `pnpm verify` invoke one definition; `lint:ci-parity` checks that
+        # the name appears in both (it learned about `verify:*` in the same
+        # change, for exactly this reason).
+        run: pnpm verify:mobile
+
       - name: Build (next build)
         run: pnpm build
         env:
