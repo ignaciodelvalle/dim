@@ -136,9 +136,18 @@
 // That decision was taken. `PUBLIC_TOKEN_READ_LIMIT` in
 // lib/infra/public-token-throttle.ts is now 600/min + 6,000/hr, the same numbers
 // for the same reasons, and that file carries the aggregate arithmetic the
-// deferral was waiting on. The four surfaces get NO per-lookup bucket: adding
+// deferral was waiting on. The HTML surfaces get NO per-lookup bucket: adding
 // one would double `rate_limit_buckets` writes on the highest-traffic anonymous
 // surface in the product to bound a case the surface bucket already bounds.
+//
+// AND THERE ARE FIVE OF THEM, NOT FOUR (later the same day). The public adoption
+// ficha `/adoptar/{petToken}` carried no limiter at all and was exempt on a
+// disclosure argument that was true and incomplete — see
+// docs/architecture/api-invariants.md §1.1b. It now takes `public_token_adoptar`
+// at the same default ceiling, which puts the per-IP aggregate across all
+// token-resolving buckets at 6 × 600 = 3,600/min. The heading above is left as
+// it was written on purpose: a count in a comment is what made a fifth surface
+// of the same shape read as an exception rather than as a gap.
 // ===========================================================================
 
 import type { RateLimitConfig } from "@/lib/infra/rate-limit";

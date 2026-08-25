@@ -42,7 +42,7 @@ checklist has to exist before the first merge rather than after the first bug.
 | | |
 |---|---|
 | **Enforced at** | `lib/infra/public-token-throttle.ts` — `isPublicTokenReadThrottled(bucket, limit?)` |
-| **Real limits** | `PUBLIC_TOKEN_READ_LIMIT = { maxPerMinute: 600, maxPerHour: 6_000 }`, per IP — the DEFAULT, used by the four HTML surfaces (raised from 60/400 on 2026-08-25, B13 part 2). `/api/v1/.../credential` sets the same surface ceiling explicitly and adds a per-lookup bucket the HTML surfaces do not have (B13, below) |
+| **Real limits** | `PUBLIC_TOKEN_READ_LIMIT = { maxPerMinute: 600, maxPerHour: 6_000 }`, per IP — the DEFAULT, used by the five HTML surfaces (raised from 60/400 on 2026-08-25, B13 part 2; the fifth, `/adoptar/{petToken}`, joined later the same day — see §1.1b) |
 | **Direction** | **Fail-open.** A `RateLimitError` throttles; any other error returns `false`. The limiter is itself a DB write, budgeted at `RATE_LIMIT_BUDGET_MS = 1500` |
 | **Inherited?** | **No.** First statement of each surface, by hand |
 | **Pinned by** | `__tests__/public-token-throttle-coverage.test.ts` — derives from `publicPetByToken(` call sites across `app/` (widened 2026-08-21; it used to walk `page.tsx` under one directory and could not see `opengraph-image.tsx`) |
@@ -54,10 +54,36 @@ reason: a scraper hammering one surface must not spend the budget of the person
 who just found a dog in the street and is loading its credential.
 
 **The cost of that choice, stated plainly:** every new bucket raises the
-aggregate ceiling for a single IP. Since 2026-08-25 all five token-resolving
-buckets carry the CGNAT ceiling, so the aggregate is **5 × 600 = 3.000/min and
-30.000/hr per IP** against the token space (it was 240/min before B13, and
-840/min between B13's two halves, when only the API bucket had been raised).
+aggregate ceiling for a single IP. Since 2026-08-25 all six token-resolving
+buckets carry the CGNAT ceiling, so the aggregate is **6 × 600 = 3.600/min and
+36.000/hr per IP** against the token space (it was 240/min before B13, 840/min
+between B13's two halves when only the API bucket had been raised, and 3.000/min
+for the few hours between B13 part 2 and the adoption ficha joining).
+
+#### 1.1b The fifth HTML surface, and why the count in the prose was the bug
+
+`app/(public)/adoptar/[petToken]/page.tsx` — the public adoption ficha — carried
+**no limiter at all** until 2026-08-25. It was exempt in
+`__tests__/public-token-throttle-coverage.test.ts` with a written reason: it
+resolves only pets that are adoption-LISTED, and listed pets are already
+enumerable from the public `/adoptar` catalog, so it discloses nothing the
+catalog does not.
+
+Every word of that is true, and all of it is about DISCLOSURE. Two other things a
+limiter is for on this surface went unmentioned: it is still a per-token
+existence-and-listed ORACLE over a 31^8 space (the catalog answers "which pets
+are listed", never "is `DIM-XXXX-XXXX` one of them"), and it is still unbounded
+WORK on a `force-dynamic` route — two joined queries, an ownership lookup and a
+sponsorship read, at any rate anyone cares to ask.
+
+**The framing is what let it stand.** Calling the throttled set "the four HTML
+surfaces" — here, in `lib/infra/public-token-throttle.ts`, and in the `/api/v1`
+limit files — turned "the surfaces that carry the limiter" into "the surfaces
+that are supposed to", so a fifth of the same shape read as an exception rather
+than as a gap. It now carries `public_token_adoptar` at the same default
+ceiling. `postular/page.tsx` stays exempt on its own terms: it is the apply step
+reached FROM the ficha, so its caller has already spent a request against that
+bucket, and it renders no pet identity the card did not already show.
 
 > **DECIDED (§8, D1) · LANDED.** The API gets its OWN bucket,
 > `public_token_api_credential`. The isolation is the point; the additive
@@ -100,7 +126,7 @@ buckets carry the CGNAT ceiling, so the aggregate is **5 × 600 = 3.000/min and
 > |---|---|
 > | 400/hr (old per-surface ceiling) | ≈ 243.000 años |
 > | 6.000/hr (new per-surface ceiling) | ≈ 16.200 años |
-> | 30.000/hr (all five buckets, aggregate) | ≈ 3.200 años |
+> | 36.000/hr (all six buckets, aggregate) | ≈ 2.700 años |
 >
 > The conclusion survives the correction with room to spare, which is why the
 > decision stands and only the numbers moved. Stated rather than edited away
@@ -117,6 +143,9 @@ buckets carry the CGNAT ceiling, so the aggregate is **5 × 600 = 3.000/min and
 > ceiling cost the most. **No per-lookup bucket was added to them:** that would
 > double `rate_limit_buckets` writes on the highest-traffic anonymous surface in
 > the product to bound a case the surface bucket already bounds — the mechanism
+> **AND THERE WERE FIVE, NOT FOUR** — the adoption ficha joined them later the
+> same day; see §1.1b, and note that this very block's heading is part of what
+> made a fifth surface read as an exception.
 > (`publicTokenThrottle`'s `perLookup`) is there if a measurement ever justifies
 > it.
 
@@ -452,7 +481,8 @@ four times over.
 |---|---|
 | before B13 | 5 × 60 = 300/min |
 | B13 part 1 — API bucket raised | 4 × 60 + 600 = 840/min |
-| B13 part 2 (2026-08-25) — HTML surfaces raised | 5 × 600 = **3.000/min**, 30.000/hr |
+| B13 part 2 (2026-08-25) — HTML surfaces raised | 5 × 600 = 3.000/min, 30.000/hr |
+| the adoption ficha joins (2026-08-25) — §1.1b | 6 × 600 = **3.600/min**, 36.000/hr |
 
 **The counter-argument was put to the PO and knowingly declined:** at some
 number of surfaces "N per surface" stops being a limit, and raising N made that
@@ -460,8 +490,8 @@ truer rather than less true. If the aggregate ever matters more than the
 isolation, the fix is NOT a shared bucket — it is a second, aggregate limiter
 keyed per IP across all token reads, layered on top. That remains available as a
 separate change and must not be smuggled into an endpoint. What keeps it
-acceptable meanwhile is the corrected §1.1 arithmetic: 3.000/min still leaves a
-single-IP walk of the 31^8 space at ~3.200 years, and a distributed walk was
+acceptable meanwhile is the corrected §1.1 arithmetic: 3.600/min still leaves a
+single-IP walk of the 31^8 space at ~2.700 years, and a distributed walk was
 never bounded by any of these numbers.
 
 **What this obliges:** the new bucket name goes in the coverage fence's expected

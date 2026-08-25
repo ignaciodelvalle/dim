@@ -82,12 +82,74 @@
 // created, accepted and ended leaving a trail of the first two. Two surfaces is
 // two chances to forget; one writer is none.
 
+// ===========================================================================
+// AND WHY THE PER-USER LIMITER LIVES HERE TOO (2026-08-25)
+// ===========================================================================
+// It did not. `/api/v1/me/revoke-sessions` spent `api_v1_me_revoke_sessions_user`
+// (5/min · 20/hr · 40/day) and its header argued at length why the bound is
+// needed; the WEB action called the same use-case with no limiter at all. So the
+// ceiling was a property of the TRANSPORT, and a caller holding a stolen cookie
+// simply used the button instead of the endpoint.
+//
+// The fix is the shape `login` already uses (src/modules/auth/application/
+// login.ts): the limiter lives in the SHARED use-case, so both surfaces spend
+// the same budget and neither can be a way around the other. That is also why
+// the bucket is named `revoke_sessions_user` and no longer `api_v1_…`: a name
+// that says `api_v1` on a call from a web form reads like a different budget,
+// and the whole point is that it is not one. (Renaming resets the counter once,
+// which for an abuse control with a 1-minute window is nothing.)
+//
+// The IP bucket stays in the route and is NOT moved. It exists to make an
+// UNAUTHENTICATED hammer cheap — it is applied before the token is validated, on
+// a surface anyone can POST to. The web action is only reachable with a live
+// cookie session that `requireLiveUser` has already resolved, so there is no
+// pre-auth window to bound there.
+//
+// FAIL DIRECTION IS UNCHANGED AND IS THE OPPOSITE OF THE REVOCATION'S. A limiter
+// that cannot answer lets the request through: refusing would deny someone the
+// ability to sign out of a device they believe is compromised, over an abuse
+// control. The revocation itself fails CLOSED, for the reason below.
+
 import { db } from "@/db";
 import { writeAuditLog } from "@/lib/infra/audit-log";
+import { type RateLimitConfig, RateLimitError, enforceRateLimit } from "@/lib/infra/rate-limit";
 import { reportError } from "@/lib/infra/report-error";
 import { createAnonClient } from "@/lib/supabase/anon";
 
-export type RevokeSessionsResult = { ok: true } | { ok: false; error: string };
+/**
+ * ONE bucket for both transports. Keyed on the user id, so it bounds an identity
+ * rather than a device or a connection.
+ */
+export const REVOKE_SESSIONS_USER_BUCKET = "revoke_sessions_user";
+
+/**
+ * Deliberately not tight. The caller is someone who thinks they have been
+ * compromised and may well press the button twice — and the control is bounded
+ * by construction anyway, since a successful call destroys the credential needed
+ * to make the next one. What this really bounds is a caller holding a STOLEN
+ * token trying to be a nuisance, and the damage there is capped at "the victim
+ * is signed out", which is also what the victim would have chosen.
+ */
+export const REVOKE_SESSIONS_USER_LIMIT: RateLimitConfig = {
+  maxPerMinute: 5,
+  maxPerHour: 20,
+  maxPerDay: 40,
+};
+
+/**
+ * Why the revocation did not happen.
+ *
+ * `rate_limited` is separated from `failed` because the two deserve different
+ * HTTP statuses and different words: 429 and "esperá un momento" against 503 and
+ * "cambiá tu contraseña". Collapsing them would have the API answer 503 to a
+ * throttle — telling a client the platform is broken when it is working exactly
+ * as designed.
+ */
+export type RevokeSessionsFailureReason = "rate_limited" | "failed";
+
+export type RevokeSessionsResult =
+  | { ok: true }
+  | { ok: false; reason: RevokeSessionsFailureReason; error: string };
 
 export type RevokeSessionsInput = {
   /** The caller's own validated access token. Authorizes the whole operation. */
@@ -101,6 +163,21 @@ export type RevokeSessionsInput = {
 /** es-AR copy for a revocation that did not go through. */
 const REVOKE_FAILED_MESSAGE =
   "No pudimos cerrar las sesiones. Probá de nuevo en unos minutos y, si sigue fallando, cambiá tu contraseña.";
+
+/**
+ * es-AR copy for a throttled revocation. It must NOT reuse the failure message:
+ * "cambiá tu contraseña" would send someone who simply pressed the button three
+ * times to change a credential for no reason, and would hide that the earlier
+ * press probably worked.
+ */
+const REVOKE_THROTTLED_MESSAGE =
+  "Ya pediste cerrar las sesiones varias veces seguidas. Esperá un momento antes de volver a intentarlo.";
+
+const failure = (reason: RevokeSessionsFailureReason, error: string): RevokeSessionsResult => ({
+  ok: false,
+  reason,
+  error,
+});
 
 /**
  * Revoke EVERY session of the user who owns `accessToken`, including the one
@@ -125,18 +202,27 @@ export async function revokeAllSessions({
   userId,
   surface,
 }: RevokeSessionsInput): Promise<RevokeSessionsResult> {
-  if (!accessToken) return { ok: false, error: REVOKE_FAILED_MESSAGE };
+  if (!accessToken) return failure("failed", REVOKE_FAILED_MESSAGE);
+
+  // ONE budget for both transports — see the header. Applied before GoTrue is
+  // touched, and failing OPEN if the limiter itself cannot answer.
+  try {
+    await enforceRateLimit(REVOKE_SESSIONS_USER_BUCKET, userId, REVOKE_SESSIONS_USER_LIMIT);
+  } catch (err) {
+    if (err instanceof RateLimitError) return failure("rate_limited", REVOKE_THROTTLED_MESSAGE);
+    reportError("revoke-sessions/rate-limit", err);
+  }
 
   const supabase = createAnonClient();
 
   try {
     const { error } = await supabase.auth.admin.signOut(accessToken, "global");
-    if (error) return { ok: false, error: REVOKE_FAILED_MESSAGE };
+    if (error) return failure("failed", REVOKE_FAILED_MESSAGE);
   } catch {
     // `admin.signOut` returns AuthErrors rather than throwing them, so reaching
     // here means the transport itself failed (DNS, TLS, a dead GoTrue). Same
     // answer: say it did not work.
-    return { ok: false, error: REVOKE_FAILED_MESSAGE };
+    return failure("failed", REVOKE_FAILED_MESSAGE);
   }
 
   // AFTER the revocation, and its failure does NOT fail the call.

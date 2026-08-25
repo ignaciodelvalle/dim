@@ -9,6 +9,7 @@ import { attachments, db, organizations, ownerships, petEvents, pets } from "@/d
 import { ageBucketLabel, energyLabel, sizeLabel } from "@/lib/infra/adoption-listing";
 import { hasActiveMicrochip } from "@/lib/infra/pet-identifiers";
 import { publicPetByToken } from "@/lib/infra/public-pet-lookup";
+import { isPublicTokenReadThrottled } from "@/lib/infra/public-token-throttle";
 import { resolveSiteUrl } from "@/lib/infra/site-url";
 import { petPhotoUrl } from "@/lib/infra/storage";
 import {
@@ -80,6 +81,43 @@ export default async function AdoptarFichaPage({
   params: Promise<{ petToken: string }>;
 }) {
   const { petToken } = await params;
+
+  // THE FIFTH ANONYMOUS PUBLIC-TOKEN SURFACE (added 2026-08-25).
+  //
+  // It was exempt, with a reason that read well and was half an argument:
+  // "resolves only pets that are adoption-LISTED, and listed pets are already
+  // enumerable from the public /adoptar catalog, so this surface reveals nothing
+  // the catalog does not." True about DISCLOSURE. It says nothing about the
+  // other two things a limiter is for on this surface:
+  //
+  //   · it is still a TOKEN ORACLE. A caller walking the 31^8 space learns, per
+  //     request, whether a token exists AND is listed — the catalog answers
+  //     "which pets are listed", never "is DIM-XXXX-XXXX one of them";
+  //   · it is still unbounded WORK. Two joined queries plus an ownership lookup
+  //     plus a sponsorship read, on `force-dynamic`, for anyone who cares to
+  //     ask, at any rate. Rate limiting here is a cost control as much as a
+  //     privacy one, which is exactly what the four siblings' limiter is.
+  //
+  // Same bucket shape and the same default ceiling as those four: its own bucket
+  // so a scraper of THIS page cannot spend a lost-pet finder's budget on /p, and
+  // PUBLIC_TOKEN_READ_LIMIT because the caller is the same person on the same
+  // carrier NAT. Fails open on limiter infrastructure failure, like its
+  // siblings — see lib/infra/public-token-throttle.ts.
+  //
+  // BEFORE the lookup, not after: the three surfaces that got this wrong
+  // (report-pet-sighting, report-dispute-tip, encontre/action) each resolved the
+  // token first and consulted the limiter afterwards, which is an unbounded
+  // oracle with a limiter bolted to the far side of it.
+  if (await isPublicTokenReadThrottled("public_token_adoptar")) {
+    return (
+      <main className="mx-auto max-w-lg px-4 py-10">
+        <h1 className="text-title font-semibold text-ln-ink">Demasiadas consultas</h1>
+        <p className="mt-2 text-md text-ln-mute">
+          Recibimos muchas consultas desde tu conexión. Esperá un momento y volvé a intentarlo.
+        </p>
+      </main>
+    );
+  }
 
   // Pet first, custody second — two lookups on purpose. The old single query
   // inner-joined ownerships on petId alone, so for a pet transferred between

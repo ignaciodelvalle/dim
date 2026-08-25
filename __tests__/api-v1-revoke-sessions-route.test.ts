@@ -20,7 +20,9 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const control = vi.hoisted(() => ({
   live: null as unknown,
-  revokeResult: { ok: true } as { ok: true } | { ok: false; error: string },
+  revokeResult: { ok: true } as
+    | { ok: true }
+    | { ok: false; reason: "rate_limited" | "failed"; error: string },
   limits: [] as Array<{ endpoint: string; identifier: string }>,
   limiterThrowsOn: null as string | null,
   revokeCalls: [] as Array<{ accessToken: string; userId: string; surface: string }>,
@@ -129,17 +131,18 @@ describe("POST /api/v1/me/revoke-sessions — success", () => {
     ]);
   });
 
-  it("runs the IP limiter BEFORE auth and the user limiter AFTER", async () => {
+  // THE ROUTE OWNS EXACTLY ONE LIMITER NOW (2026-08-25). The per-user budget
+  // moved into the shared use-case so the WEB button spends it too — it had no
+  // limiter at all, which made the ceiling a property of the transport and the
+  // button the way around the endpoint. `revokeAllSessions` is mocked here, so
+  // the use-case's bucket is not visible in `control.limits` by construction;
+  // __tests__/revoke-sessions.test.ts is where it is pinned.
+  it("runs the IP limiter, and ONLY the IP limiter, before auth", async () => {
     await POST(request());
 
-    expect(control.limits.map((l) => l.endpoint)).toEqual([
-      "api_v1_me_revoke_sessions_ip",
-      "api_v1_me_revoke_sessions_user",
-    ]);
-    // The IP bucket is keyed on the request, never on a middleware-stamped
-    // header; the user bucket on the identity the guard resolved.
+    expect(control.limits.map((l) => l.endpoint)).toEqual(["api_v1_me_revoke_sessions_ip"]);
+    // Keyed on the request, never on a middleware-stamped header.
     expect(control.limits[0].identifier).toBe("203.0.113.9");
-    expect(control.limits[1].identifier).toBe("user-001");
   });
 });
 
@@ -154,13 +157,18 @@ describe("POST /api/v1/me/revoke-sessions — refusals", () => {
     expect(control.revokeCalls).toHaveLength(0);
   });
 
-  it("answers 429 when the per-user budget is spent, without revoking", async () => {
-    control.limiterThrowsOn = "api_v1_me_revoke_sessions_user";
+  // The per-user budget is spent INSIDE the use-case now, so the route learns
+  // about the breach from the result rather than from its own limiter. What is
+  // this handler's own contract is the MAPPING: a throttle is 429, never the 503
+  // that a failed revocation gets. Answering 503 to a throttle would tell a
+  // client the platform is broken while it works exactly as designed.
+  it("answers 429 when the per-user budget is spent inside the use-case", async () => {
+    control.revokeResult = { ok: false, reason: "rate_limited", error: "esperá un momento" };
 
     const res = await POST(request());
 
     expect(res.status).toBe(429);
-    expect(control.revokeCalls).toHaveLength(0);
+    await expect(res.json()).resolves.toEqual({ error: "rate_limited" });
   });
 
   const refusals = [
@@ -184,7 +192,7 @@ describe("POST /api/v1/me/revoke-sessions — refusals", () => {
   }
 
   it("FAILS CLOSED — a revocation that did not happen never answers 200", async () => {
-    control.revokeResult = { ok: false, error: "no anduvo" };
+    control.revokeResult = { ok: false, reason: "failed", error: "no anduvo" };
 
     const res = await POST(request());
 

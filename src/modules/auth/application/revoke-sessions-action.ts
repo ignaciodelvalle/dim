@@ -23,6 +23,24 @@
 // It is `local` rather than `global` deliberately: global would ask GoTrue to
 // revoke everything a second time, which is a wasted round-trip whose failure
 // would be indistinguishable from the real revocation failing.
+//
+// RATE LIMITING: THIS FILE HAS NONE, AND THAT IS NOW CORRECT (2026-08-25)
+// ---------------------------------------------------------------------------
+// It had none before either, and that was NOT correct. The `/api/v1` sibling
+// spent a per-user budget and its header argued at length why the bound is
+// needed; this surface, calling the same use-case, was the way around it — so
+// the ceiling was a property of the transport rather than of the identity, and a
+// caller holding a stolen cookie simply used the button.
+//
+// The budget now lives in the use-case (`REVOKE_SESSIONS_USER_BUCKET`,
+// 5/min · 20/hr · 40/day, keyed on the user id), which both surfaces call. Adding
+// a second limiter here would double-count the same act and halve the real
+// ceiling for anyone using the browser.
+//
+// The refusal comes back as `reason: "rate_limited"` with its own es-AR copy —
+// "esperá un momento", never the revocation-failed message, which tells people
+// to change their password and would send someone who merely pressed twice to do
+// it for nothing.
 
 import { requireLiveUser } from "@/lib/infra/live-user";
 import { reportError } from "@/lib/infra/report-error";
@@ -46,7 +64,7 @@ import {
  */
 export async function revokeAllSessionsAction(): Promise<RevokeSessionsResult> {
   const live = await requireLiveUser();
-  if (!live.ok) return { ok: false, error: live.error };
+  if (!live.ok) return { ok: false, reason: "failed", error: live.error };
 
   // The token this browser is holding — the one the revocation authorizes with.
   // `getSession()` does not re-validate, and does not need to: requireLiveUser
@@ -61,7 +79,11 @@ export async function revokeAllSessionsAction(): Promise<RevokeSessionsResult> {
       "revoke-sessions/web",
       new Error("requireLiveUser resolved a user but no access token was readable"),
     );
-    return { ok: false, error: "No pudimos leer tu sesión. Cerrá sesión y volvé a entrar." };
+    return {
+      ok: false,
+      reason: "failed",
+      error: "No pudimos leer tu sesión. Cerrá sesión y volvé a entrar.",
+    };
   }
 
   const result = await revokeAllSessions({ accessToken, userId: live.user.id, surface: "web" });

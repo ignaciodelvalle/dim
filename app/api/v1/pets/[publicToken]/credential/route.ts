@@ -54,10 +54,12 @@
 //    since B13, its own CEILING too, which is what makes the separation real
 //    rather than nominal. (This line said "the four HTML surfaces keep 60/min +
 //    400/hr" until 2026-08-25; B13's second half raised them to the same
-//    600/min + 6,000/hr, so the four and the API now differ by BUCKET, not by
-//    ceiling. The separation is still real — a client hammering the API cannot
-//    spend the street reader's budget — but it is no longer a difference in
-//    numbers, and pretending otherwise misleads whoever tunes this next.)
+//    600/min + 6,000/hr, so the HTML surfaces and the API now differ by BUCKET,
+//    not by ceiling. The separation is still real — a client hammering the API
+//    cannot spend the street reader's budget — but it is no longer a difference
+//    in numbers, and pretending otherwise misleads whoever tunes this next. The
+//    count moved too: there are FIVE HTML surfaces since the adoption ficha
+//    joined, api-invariants.md §1.1b.)
 //
 //    DOES NOT BOUND: a distributed walk from many IPs. Closing that needs an
 //    aggregate limiter layered on top, which D1 says must be its own change and

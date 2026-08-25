@@ -17,8 +17,9 @@
 //
 // Middleware would not have covered it either: `middleware.ts` only refreshes
 // the Supabase session. So the limit lives here, and each route calls it as its
-// first statement. A fourth sibling gets the guard by importing it rather than
-// by someone remembering the rule.
+// first statement. A new sibling gets the guard by importing it rather than by
+// someone remembering the rule — which is how the fifth one
+// (`/adoptar/{petToken}`, 2026-08-25) finally got it.
 //
 // WHAT IT DELIBERATELY DOES NOT DO
 // ---------------------------------------------------------------------------
@@ -58,7 +59,7 @@ import { reportError } from "@/lib/infra/report-error";
 import type { PublicTokenThrottle } from "@/src/modules/pets/application/read/lookup-public-credential";
 
 /**
- * DEFAULT per-IP limit for public credential reads — the four HTML surfaces.
+ * DEFAULT per-IP limit for public credential reads — the five HTML surfaces.
  *
  * THE COMMENT THAT USED TO BE HERE WAS WRONG, and it is worth saying so rather
  * than quietly editing it. It read: "60/min is generous enough for a legitimate
@@ -76,22 +77,36 @@ import type { PublicTokenThrottle } from "@/src/modules/pets/application/read/lo
  * 60/min + 400/hr → 600/min + 6,000/hr, the same numbers and the same reasoning
  * as `PUBLIC_TOKEN_API_SURFACE_LIMIT`. That file's header carries the full
  * derivation and it is not repeated here; what IS worth stating is why these
- * four went second and why they should not have stayed behind.
+ * went second and why they should not have stayed behind.
+ *
+ * ===========================================================================
+ * THERE WERE ALWAYS FIVE, AND THE COUNT IN THE PROSE IS WHY ONE WAS MISSING
+ * ===========================================================================
+ * This paragraph said "the four HTML surfaces" from the day it was written, and
+ * the fifth — `/adoptar/{petToken}`, the public adoption ficha — was exempt with
+ * a written reason about disclosure that was true and was not the whole
+ * question. A count in a comment is a claim about a SET, and it quietly turned
+ * "the surfaces that carry the limiter" into "the surfaces that are supposed to
+ * carry it": a fifth of the same shape then reads as an exception rather than as
+ * a gap. It joined on 2026-08-25 (`public_token_adoptar`) and the arithmetic
+ * below moved with it. The lesson is not the number; it is that the number
+ * should not have been load-bearing.
  *
  * B13 raised the `/api/v1` credential endpoint first because its caller is
  * obviously a phone. But `/p/{token}` is WHAT A STRANGER'S CAMERA OPENS — it is
  * the surface a QR code actually resolves to, reached by someone standing over a
  * lost animal on a street, on mobile data, behind the same carrier NAT. The
- * argument applies to these four harder than to the endpoint it was written for,
- * and leaving them at 0.4 reads per subscriber per hour meant the product's
- * central promise was the most throttled thing in it.
+ * argument applies to these harder than to the endpoint it was written for, and
+ * leaving them at 0.4 reads per subscriber per hour meant the product's central
+ * promise was the most throttled thing in it.
  *
  * THE AGGREGATE, which is the reason this was deferred rather than an oversight.
  * Each surface keeps its own bucket, so a per-IP ceiling is additive across
- * them. The four HTML surfaces move from 240/min to 2,400/min combined (4 × 600),
- * and with the API bucket's 600/min the whole token-resolving surface goes to
- * 3,000/min per IP — 5 × 600 (was 840/min after B13's first half, which is
- * 4 × 60 + 600, and 300/min before it, 5 × 60).
+ * them. The HTML surfaces moved from 240/min to 2,400/min combined (4 × 600) on
+ * 2026-08-25, and to 3,000/min later the same day when the adoption ficha joined
+ * them (5 × 600). With the API bucket's 600/min the whole token-resolving
+ * surface is 3,600/min per IP — 6 × 600 (was 840/min after B13's first half,
+ * which is 4 × 60 + 600, and 300/min before it, 5 × 60).
  *
  * ARITHMETIC CORRECTED 2026-08-25 (pre-push review). This paragraph read
  * "6,000/min combined … 6,600/min per IP" — the HOURLY figure (6,000/hr)
@@ -99,6 +114,8 @@ import type { PublicTokenThrottle } from "@/src/modules/pets/application/read/lo
  * overstated the ceiling this very paragraph exists to state honestly by 2.2×.
  * docs/architecture/api-invariants.md §1.1 had 3.000/min right the whole time,
  * so the doc and the code disagreed about the one number the section is for.
+ * (It is 3,600/min now, and for a real reason rather than an arithmetic one: a
+ * sixth bucket.)
  *
  * That number is large and it is the honest one to write down. What makes it
  * acceptable is that the per-IP hourly ceiling never was the enumeration
@@ -113,7 +130,7 @@ import type { PublicTokenThrottle } from "@/src/modules/pets/application/read/lo
  *
  *     at    400/hr — ≈ 243,000 years   (the old per-surface ceiling)
  *     at  6,000/hr — ≈  16,200 years   (the new one)
- *     at 30,000/hr — ≈   3,200 years   (all five buckets, combined, per IP)
+ *     at 36,000/hr — ≈   2,700 years   (all six buckets, combined, per IP)
  *
  * The conclusion survives the correction with room to spare, which is why the
  * decision stands and only the numbers moved. A DISTRIBUTED walk — which is what
@@ -123,15 +140,15 @@ import type { PublicTokenThrottle } from "@/src/modules/pets/application/read/lo
  *
  * What this ceiling really buys is a cost backstop against one abusive source,
  * and 6,000/hr per surface is still a bound. The write amplification is the real
- * price: these four have no per-lookup bucket, so each allowed request writes at
+ * price: these five have no per-lookup bucket, so each allowed request writes at
  * most the surface's own two rows per window, not two more.
  *
  * NO PER-LOOKUP BUCKET IS ADDED HERE, deliberately. The `/api/v1` endpoint has
  * one because it bounds how hard a caller may hammer ONE credential. Giving
- * these four the same would DOUBLE the `rate_limit_buckets` writes on the
+ * these five the same would DOUBLE the `rate_limit_buckets` writes on the
  * highest-traffic anonymous surface in the product — a new cost paid by every
- * legitimate scan — to bound a case the surface bucket already bounds at a fifth
- * the resolution. If per-credential hammering on the HTML pages ever needs
+ * legitimate scan — to bound a case the surface bucket already bounds at a
+ * coarser resolution. If per-credential hammering on the HTML pages ever needs
  * bounding, the mechanism is already here (`publicTokenThrottle`'s `perLookup`
  * option) and it should be a decision with its own measurement.
  *
@@ -275,7 +292,7 @@ async function isPerLookupThrottled({ bucket, key, limit }: PerLookupLimit): Pro
  * cleanup job's problem (lib/infra/data-lifecycle.ts), not this file's.
  *
  * This residual belongs to `perLookup` and therefore to the `/api/v1` endpoint
- * ALONE. The four HTML surfaces pass no `perLookup`, so they write one bucket's
+ * ALONE. The five HTML surfaces pass no `perLookup`, so they write one bucket's
  * rows and not two — which is also why raising their surface ceiling to 600/min
  * (2026-08-25) does not multiply their write cost the way the same raise did on
  * the endpoint that has both counters.

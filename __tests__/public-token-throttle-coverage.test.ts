@@ -130,6 +130,9 @@ const KNOWN_BUCKETS = new Set([
   "public_token_sighting",
   "public_token_og_image",
   "public_token_encontre",
+  // The FIFTH HTML surface, added 2026-08-25. It was exempt on a disclosure
+  // argument that was true and incomplete — see the note above EXEMPT.
+  "public_token_adoptar",
   "public_token_api_credential",
 ]);
 
@@ -177,11 +180,32 @@ type Source = { file: string; src: string };
  * covers it like the other two.
  */
 const EXEMPT: Record<string, string> = {
-  "app/(public)/adoptar/[petToken]/page.tsx":
-    "Resolves only pets that are adoption-LISTED — a non-listed token reaches notFound() at the isListable gate. Listed pets are already enumerable from the public /adoptar catalog, so this surface reveals nothing the catalog does not.",
   "app/(public)/adoptar/[petToken]/postular/page.tsx":
-    "Same listed-only gate as the detail page above; it is the apply step of the same public catalog entry.",
+    "The APPLY step, reached from the detail page — which is no longer exempt (2026-08-25) and carries `public_token_adoptar` before its own lookup. A caller who reaches this page has already spent a request against that bucket to find it, and the two share nothing else: this one renders a form and no pet identity beyond the name already on the card. Its own bucket would bill the same visit twice for a surface that adds no oracle the detail page has not already answered. CLOSED BY: nothing pending — this is the exemption, not a debt.",
 };
+
+/**
+ * THE DETAIL PAGE CAME OUT ON 2026-08-25, and its old entry is worth quoting
+ * because it is the shape of a plausible exemption that was half an argument.
+ *
+ * It read: "Resolves only pets that are adoption-LISTED — a non-listed token
+ * reaches notFound() at the isListable gate. Listed pets are already enumerable
+ * from the public /adoptar catalog, so this surface reveals nothing the catalog
+ * does not."
+ *
+ * Every sentence of that is TRUE, and all of it is about DISCLOSURE. A limiter
+ * on this surface is for two other things as well, and the exemption did not
+ * mention either: the page is still a per-token existence-and-listed oracle over
+ * a 31^8 space (the catalog answers "which pets are listed", never "is
+ * DIM-XXXX-XXXX one of them"), and it is still unbounded WORK on a
+ * `force-dynamic` route — two joined queries, an ownership lookup and a
+ * sponsorship read, for anyone who cares to ask, at any rate.
+ *
+ * The framing that called the throttled set "the four HTML surfaces" is what let
+ * that stand: a fifth surface of the same shape reads as an exception when the
+ * count is in the prose. It is five now, here and in
+ * lib/infra/public-token-throttle.ts.
+ */
 
 // ---------------------------------------------------------------------------
 // Scanning

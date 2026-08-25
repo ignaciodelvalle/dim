@@ -40,16 +40,20 @@
 // a security control, in exchange for protection against a duplicate that has no
 // cost.
 //
-// RATE LIMITED MODESTLY. It is a hammer: one successful call ends every session
-// this user has. But the limit is deliberately not tight, because the caller is
-// someone who thinks they have been compromised and may well press the button
-// twice — and because it is bounded by construction, since a successful call
-// destroys the credential needed to make the next one. What the ceiling actually
-// bounds is a caller holding a STOLEN token trying to be a nuisance, and the
-// damage there is capped at "the victim is signed out", which is also what the
-// victim would have chosen. Both an IP bucket (before auth, so an unauthenticated
-// hammer costs nothing downstream) and a user bucket (after, so one abusive token
-// cannot spend a whole CGNAT gateway's budget).
+// RATE LIMITED MODESTLY, IN TWO PLACES THAT ARE NOT THE SAME PLACE.
+//
+// The IP bucket is HERE, before authentication, so an unauthenticated hammer
+// costs nothing downstream. It belongs to this transport: anyone can POST to an
+// endpoint, and bounding that is a property of the endpoint.
+//
+// The USER bucket moved into the shared use-case on 2026-08-25
+// (`REVOKE_SESSIONS_USER_BUCKET`, 5/min · 20/hr · 40/day) and this file used to
+// own it. The paragraph that lived here argued at length why the bound is needed
+// — and the WEB action, calling the same use-case, had no limiter at all. So the
+// ceiling was a property of the TRANSPORT, and a caller holding a stolen cookie
+// used the button instead of the endpoint. `login` had already solved this by
+// putting its two budgets inside the shared use-case; this now matches. The
+// reasoning for the numbers lives with the numbers, in revoke-sessions.ts.
 
 import { apiV1Error, apiV1Json } from "@/lib/infra/api-v1";
 import { DbBudgetExceededError, withDbBudgetOrThrow } from "@/lib/infra/db-budget";
@@ -73,13 +77,6 @@ const UNAVAILABLE_RETRY_AFTER_SECONDS = 5;
  * room for a whole office to use it in the same minute.
  */
 const REVOKE_IP_LIMIT = { maxPerMinute: 30, maxPerHour: 120 };
-
-/**
- * Per-user, applied AFTER the caller is known. Tighter, because one identity
- * legitimately needs this a handful of times ever. Generous enough for the
- * double-press and the "did it work?" retry.
- */
-const REVOKE_USER_LIMIT = { maxPerMinute: 5, maxPerHour: 20, maxPerDay: 40 };
 
 /** The bare write payload. `revoked` is the client's signal to drop its token. */
 type RevokeSessionsV1 = { revoked: true };
@@ -151,16 +148,10 @@ export async function POST(request: Request) {
     }
   }
 
-  try {
-    await enforceRateLimit("api_v1_me_revoke_sessions_user", live.user.id, REVOKE_USER_LIMIT);
-  } catch (err) {
-    if (err instanceof RateLimitError) return apiV1Error("rate_limited", 429);
-    console.error("[api-v1-me-revoke-sessions] user rate limiter unavailable, failing open:", err);
-  }
-
   // `client.token` and not a token re-read from anywhere else: it is the exact
   // credential requireLiveUser just had GoTrue validate, so the revocation
-  // authorizes with a token we know is live and belongs to `live.user`.
+  // authorizes with a token we know is live and belongs to `live.user`. The
+  // per-user budget is spent INSIDE this call, shared with the web button.
   const result = await revokeAllSessions({
     accessToken: client.token,
     userId: live.user.id,
@@ -168,9 +159,12 @@ export async function POST(request: Request) {
   });
 
   if (!result.ok) {
-    // FAILS CLOSED, unlike the limiters above. A revocation that did not happen
-    // must never answer 200: the user's next move — stop worrying about the
-    // phone they lost — depends on believing this response.
+    // A throttle is not an outage, and answering 503 to one would tell a client
+    // the platform is broken while it works exactly as designed.
+    if (result.reason === "rate_limited") return apiV1Error("rate_limited", 429);
+    // FAILS CLOSED, unlike the limiters. A revocation that did not happen must
+    // never answer 200: the user's next move — stop worrying about the phone
+    // they lost — depends on believing this response.
     return apiV1Error("temporarily_unavailable", 503, {
       "retry-after": String(UNAVAILABLE_RETRY_AFTER_SECONDS),
     });

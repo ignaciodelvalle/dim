@@ -39,13 +39,40 @@ vi.mock("@/lib/infra/audit-log", () => ({
 
 vi.mock("@/db", () => ({ db: { __brand: "db" } }));
 
+// The per-user budget moved INTO this use-case on 2026-08-25 so the web button
+// and /api/v1 spend the same one — see the module header. A faithful
+// RateLimitError is provided so the `instanceof` branch matches when a breach is
+// simulated.
+const mockEnforceRateLimit = vi.fn();
+vi.mock("@/lib/infra/rate-limit", () => {
+  class RateLimitError extends Error {
+    resetAt: Date;
+    reason: string;
+    constructor(resetAt: Date, reason: string) {
+      super(`Rate limit exceeded: ${reason}`);
+      this.name = "RateLimitError";
+      this.resetAt = resetAt;
+      this.reason = reason;
+    }
+  }
+  return {
+    RateLimitError,
+    enforceRateLimit: (...args: unknown[]) => mockEnforceRateLimit(...args),
+  };
+});
+
 const mockReportError = vi.fn();
 
 vi.mock("@/lib/infra/report-error", () => ({
   reportError: (...args: unknown[]) => mockReportError(...args),
 }));
 
-import { revokeAllSessions } from "@/src/modules/auth/application/revoke-sessions";
+import { RateLimitError } from "@/lib/infra/rate-limit";
+import {
+  REVOKE_SESSIONS_USER_BUCKET,
+  REVOKE_SESSIONS_USER_LIMIT,
+  revokeAllSessions,
+} from "@/src/modules/auth/application/revoke-sessions";
 
 const TOKEN = "header.payload.signature";
 
@@ -54,6 +81,7 @@ beforeEach(() => {
   mockAdminSignOut.mockResolvedValue({ data: null, error: null });
   mockCreateAnonClient.mockReturnValue({ auth: { admin: { signOut: mockAdminSignOut } } });
   mockWriteAuditLog.mockResolvedValue({ id: "audit-row-1" });
+  mockEnforceRateLimit.mockResolvedValue(undefined);
 });
 
 afterEach(() => {
@@ -162,6 +190,79 @@ describe("revokeAllSessions — failure is never reported as success", () => {
 });
 
 // ---------------------------------------------------------------------------
+// ONE budget for both transports
+// ---------------------------------------------------------------------------
+//
+// The limiter used to live in the /api/v1 route ALONE, and the route's header
+// argued at length why the bound was needed. The web action called this same
+// use-case with no limiter at all — so the ceiling was a property of the
+// TRANSPORT, and a caller holding a stolen cookie used the button instead of the
+// endpoint. `login` had already solved this by putting its two budgets in the
+// shared use-case; these tests pin that this one now does the same.
+
+describe("revokeAllSessions — the per-user budget", () => {
+  it("spends ONE bucket, keyed on the user id, before touching GoTrue", async () => {
+    await revokeAllSessions({ accessToken: TOKEN, userId: "user-001", surface: "web" });
+
+    expect(mockEnforceRateLimit).toHaveBeenCalledWith(
+      REVOKE_SESSIONS_USER_BUCKET,
+      "user-001",
+      REVOKE_SESSIONS_USER_LIMIT,
+    );
+  });
+
+  it("spends the SAME bucket from the web button and from /api/v1", async () => {
+    await revokeAllSessions({ accessToken: TOKEN, userId: "user-001", surface: "web" });
+    await revokeAllSessions({ accessToken: TOKEN, userId: "user-001", surface: "api_v1" });
+
+    const buckets = mockEnforceRateLimit.mock.calls.map((c) => c[0]);
+    expect(new Set(buckets).size).toBe(1);
+    // And the name says nothing about a transport, because it belongs to neither.
+    expect(REVOKE_SESSIONS_USER_BUCKET).not.toContain("api_v1");
+  });
+
+  it("refuses a breach with its OWN copy, and revokes nothing", async () => {
+    mockEnforceRateLimit.mockRejectedValue(
+      new RateLimitError(new Date(Date.now() + 60_000), "revoke breach"),
+    );
+
+    const result = await revokeAllSessions({
+      accessToken: TOKEN,
+      userId: "user-001",
+      surface: "web",
+    });
+
+    expect(result.ok).toBe(false);
+    if (result.ok) throw new Error("unreachable");
+    expect(result.reason).toBe("rate_limited");
+    // NOT the revocation-failed copy: "cambiá tu contraseña" would send someone
+    // who merely pressed twice to change a credential for nothing, and would
+    // hide that the earlier press probably worked.
+    expect(result.error).not.toMatch(/contraseña/i);
+    expect(result.error).toMatch(/esperá/i);
+    expect(mockAdminSignOut).not.toHaveBeenCalled();
+    expect(mockWriteAuditLog).not.toHaveBeenCalled();
+  });
+
+  it("fails OPEN when the limiter itself cannot answer, and reports", async () => {
+    mockEnforceRateLimit.mockRejectedValue(new Error("bucket store unavailable"));
+
+    const result = await revokeAllSessions({
+      accessToken: TOKEN,
+      userId: "user-001",
+      surface: "web",
+    });
+
+    // Opposite direction from the revocation below, on purpose: refusing here
+    // would deny someone the ability to sign out of a device they believe is
+    // compromised, over an abuse control.
+    expect(result).toEqual({ ok: true });
+    expect(mockAdminSignOut).toHaveBeenCalledTimes(1);
+    expect(mockReportError).toHaveBeenCalledWith("revoke-sessions/rate-limit", expect.anything());
+  });
+});
+
+// ---------------------------------------------------------------------------
 // The audit trail
 // ---------------------------------------------------------------------------
 
@@ -199,6 +300,7 @@ describe("revokeAllSessions — the audit row", () => {
     // control that already worked. The missing row is an observability problem.
     expect(result).toEqual({ ok: true });
     expect(mockReportError).toHaveBeenCalledTimes(1);
+    expect(mockReportError.mock.calls[0][0]).toBe("revoke-sessions/audit");
   });
 
   it("writes the row AFTER the revocation, not before", async () => {
