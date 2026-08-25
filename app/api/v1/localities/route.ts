@@ -50,7 +50,18 @@ import { runLocalitySearch } from "@/src/modules/localities/application/search/s
 
 export const dynamic = "force-dynamic";
 
-/** One indexed ILIKE over `ar_localities`, capped at 20 rows. */
+/**
+ * One `LIKE` over `ar_localities.locality_slug`, capped at 20 rows.
+ *
+ * This comment used to say "one INDEXED ILIKE" and both halves were wrong
+ * (WU-B review). The predicate is a `LIKE` on `locality_slug` — the
+ * accent- and case-folded column, which is why it is not an ILIKE — and the
+ * `pg_trgm` GIN index built by migration 0019 is on `locality_name`, a
+ * different column, so it does not apply to this query at all. On a table of a
+ * few thousand rows the sequential scan is fine and the budget below is sized
+ * for it; what is NOT fine is a comment asserting an index that would have to
+ * be built before anyone could rely on it.
+ */
 const LOCALITIES_BUDGET_MS = 3_000;
 
 const UNAVAILABLE_RETRY_AFTER_SECONDS = 5;
@@ -66,11 +77,13 @@ const UNAVAILABLE_RETRY_AFTER_SECONDS = 5;
  * address, changing their mind and doing it again spends well under 20.
  *
  * The hour ceiling is what actually bounds a scraper: 600/hour × 20 rows is
- * 12.000 rows an hour against a catalogue of ~15.000 rows that is already
- * published by INDEC — so the limit is not protecting a secret, it is protecting
- * the pooler. Kept generous on purpose: this endpoint stands between a citizen
- * and a completed registration, and a false throttle here costs a pet its
- * credential.
+ * 12.000 rows an hour against a catalogue of 4.141 rows (measured on the local
+ * database, 2026-08-25 — the figure here said ~15.000 and was never checked)
+ * that is already published by INDEC. So the limiter never made the catalogue
+ * hard to obtain and was never trying to: a scraper clears the whole thing in
+ * under half an hour either way. What it protects is the pooler. Kept generous
+ * on purpose: this endpoint stands between a citizen and a completed
+ * registration, and a false throttle here costs a pet its credential.
  */
 const LOCALITIES_LIMIT = { maxPerMinute: 60, maxPerHour: 600 };
 
