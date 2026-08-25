@@ -13,6 +13,7 @@
 // route into this same sheet (SheetMounter wiring) for demo-safety /
 // backward-compat with existing links.
 
+import { deepLinkUrl } from "@dim/contract/links";
 import { useCallback, useEffect, useState } from "react";
 
 import { SharesManager } from "@/app/(app)/mis-mascotas/[publicToken]/libreta/SharesManager";
@@ -95,7 +96,7 @@ export function MergedShareSheet({
   }, [refreshShares]);
 
   function handleCopyPublicLink() {
-    const url = `${window.location.origin}/p/${petPublicToken}`;
+    const url = deepLinkUrl(window.location.origin, "credential", { publicToken: petPublicToken });
     navigator.clipboard?.writeText(url).then(() => {
       setCopied(true);
       setTimeout(() => setCopied(false), 1500);
@@ -103,7 +104,7 @@ export function MergedShareSheet({
   }
 
   function handleShareWhatsApp() {
-    const url = `${window.location.origin}/p/${petPublicToken}`;
+    const url = deepLinkUrl(window.location.origin, "credential", { publicToken: petPublicToken });
     // Generic copy on purpose — see the `isLost` prop doc comment: this
     // sheet has no disclosure prefs to gate on, unlike LostShareCard. The
     // wording flexes by the pet's recorded sex (ciclo-perdido sweep fix #2).

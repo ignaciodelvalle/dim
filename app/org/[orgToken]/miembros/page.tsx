@@ -3,6 +3,7 @@
 // Management controls (role change, event-write toggle, remove) are shown
 // when the viewer holds member.invite AND the rank rule permits managing that target.
 
+import { deepLinkUrl } from "@dim/contract/links";
 import { and, count, desc, eq, gt, isNull } from "drizzle-orm";
 import Link from "next/link";
 
@@ -289,7 +290,12 @@ export default async function MiembrosPage({
             <OpCard>
               <ul className="divide-y divide-ln-op-line">
                 {pendingInvitations.map((inv) => {
-                  const inviteUrl = `${appBase}/r/invite/${inv.invitationToken}`;
+                  // From the deep-link table: this url is copied out of the app
+                  // and pasted into an e-mail or a chat, so it outlives every
+                  // deploy between now and whenever the invitee opens it.
+                  const inviteUrl = deepLinkUrl(appBase, "orgInvitation", {
+                    invitationToken: inv.invitationToken,
+                  });
                   return (
                     <li key={inv.id} className="flex flex-wrap items-center gap-3 px-4 py-3">
                       <div className="min-w-0 flex-1">

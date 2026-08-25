@@ -1,6 +1,7 @@
 // /mis-turnos/[appointmentToken] — Libreta Nacional redesign.
 // CancelButton, MisTurnosSheetMounter (client components) unchanged.
 
+import { deepLinkAppUrl } from "@dim/contract/links";
 import { eq } from "drizzle-orm";
 import Link from "next/link";
 import { notFound } from "next/navigation";
@@ -80,8 +81,16 @@ export default async function AppointmentDetailPage({
   // QR only while the slot is current — a past confirmed appointment (never
   // marked attended/no-show) must not keep offering check-in.
   const showCheckInQr = appointment.status === "confirmed" && slot.endsAt > new Date();
+  // The payload comes from the deep-link table, not from a template literal
+  // here. It is BYTE-FOR-BYTE what this file used to build — keeping the custom
+  // scheme working is deliberate scope, because the https form of this
+  // destination would claim a verified App Link and there is no Play-signed
+  // fingerprint behind it yet (apps/mobile/app.config.ts). What changes is that
+  // the drift is now visible: `DEEP_LINK_MAP.appointment` records that the
+  // scheme form (`appointment/…`) and the web form (`/mis-turnos/…`) disagree,
+  // which until now was a fact living in two files that never met.
   const qrSvg = showCheckInQr
-    ? await QRCode.toString(`mimar://appointment/${appointmentToken}`, {
+    ? await QRCode.toString(deepLinkAppUrl("appointment", { appointmentToken }), {
         type: "svg",
         margin: 1,
         width: 180,

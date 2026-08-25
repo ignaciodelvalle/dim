@@ -11,12 +11,14 @@
 //   import { createIntakeInputSchema } from "@dim/contract/input";
 //   import type { PublicCredentialV1 } from "@dim/contract/api";
 //   import { breedsForSpecies } from "@dim/contract/reference";
+//   import { deepLinkPath } from "@dim/contract/links";
 //
 // `input` is the one entry point with a runtime dependency (zod). A consumer
-// that only reads the event vocabulary, the scales, the static catalogs or the
-// `/api/v1` wire shapes never loads it.
+// that only reads the event vocabulary, the scales, the static catalogs, the
+// `/api/v1` wire shapes or the deep-link table never loads it.
 export * from "./api/index";
 export * from "./events/index";
 export * from "./input/index";
+export * from "./links/index";
 export * from "./reference/index";
 export * from "./viz/index";

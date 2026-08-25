@@ -24,6 +24,7 @@
 // engraved_plate business rule. A shipped tag must keep resolving even if the
 // jurisdiction later disables the distribution channel.
 
+import { deepLinkPath } from "@dim/contract/links";
 import { headers } from "next/headers";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
@@ -101,7 +102,10 @@ export default async function TagResolverPage({ params }: PageProps) {
   // credential page. Next's redirect() emits 307 (GET-preserving) — design D7.
   if (tag.status === "active") {
     if (tag.publicToken) {
-      redirect(`/p/${tag.publicToken}`);
+      // From the deep-link table. A physical chapa is stamped once and stays in
+      // the street for the animal's life; the hop it makes is the least
+      // renameable path in the product, so it stops being a template literal.
+      redirect(deepLinkPath("credential", { publicToken: tag.publicToken }));
     }
     // Active chapa, no public destination (PO-4: the pet is soft-deleted, or
     // the impossible active-without-pet row). Never redirect into a 404 and

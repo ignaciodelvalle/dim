@@ -15,6 +15,8 @@
 // with the variable empty carries the empty string into the binary and there is
 // no later opportunity to notice.
 
+import { deepLinkUrl } from "@dim/contract/links";
+
 /** Trim, then reject empty — see the header. */
 function envUrl(raw: string | undefined, fallback: string): string {
   const trimmed = raw?.trim();
@@ -58,7 +60,14 @@ export function credentialEndpoint(publicToken: string): string {
  * JSON. Once verified App Links land (see `app.config.ts`) this exact `https`
  * URL starts opening the app for people who DO have it installed, and keeps
  * working unchanged for everyone else. That is why the QR must encode it now.
+ *
+ * The PATH comes from `@dim/contract/links` — the same table the web app builds
+ * its own `/p/{token}` links from. It used to be a template literal here, which
+ * meant the app and the server each carried a private opinion about where the
+ * credential lives; a rename on one side produced a QR that resolved to a 404
+ * and no compile error anywhere. The origin stays local, because only this
+ * build knows which backend it points at.
  */
 export function publicCredentialPageUrl(publicToken: string): string {
-  return `${API_BASE_URL}/p/${encodeURIComponent(publicToken)}`;
+  return deepLinkUrl(API_BASE_URL, "credential", { publicToken });
 }

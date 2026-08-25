@@ -13,6 +13,7 @@
 // instead of falling back to petDefaults. LostDisclosureCard (rendered in
 // the lost block post-mark) remains the place to tune prefs afterwards.
 
+import { deepLinkUrl } from "@dim/contract/links";
 import { useRef, useState, useTransition } from "react";
 
 import { Icon } from "@/components/Icon";
@@ -186,9 +187,16 @@ export function MarkLostWizard({
     const profileHref = `/mis-mascotas/${petPublicToken}`;
     const printHref = `/mis-mascotas/${petPublicToken}/cartel`;
     const shareText = `${petName} está perdida — ayudanos a encontrarla. Su perfil público:`;
-    const shareUrl = `https://wa.me/?text=${encodeURIComponent(
-      `${shareText} ${typeof window !== "undefined" ? window.location.origin : ""}/p/${petPublicToken}`,
-    )}`;
+    // The credential url comes from the deep-link table: this is the link a
+    // lost-pet post carries into WhatsApp, so it is the single string in this
+    // wizard that has to survive a route rename. `origin` is still empty during
+    // SSR, which yields the same relative path this line always produced.
+    const credentialUrl = deepLinkUrl(
+      typeof window !== "undefined" ? window.location.origin : "",
+      "credential",
+      { publicToken: petPublicToken },
+    );
+    const shareUrl = `https://wa.me/?text=${encodeURIComponent(`${shareText} ${credentialUrl}`)}`;
     return (
       <LnSuccessScreen
         title={`Activamos la búsqueda de ${petName}`}

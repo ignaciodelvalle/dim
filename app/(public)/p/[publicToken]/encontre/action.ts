@@ -21,6 +21,7 @@
 // P0g: photo also inserted into the attachments table (linked to the event) so
 // the historial / eventos / EventTimeline surfaces can render it for free.
 
+import { deepLinkPath } from "@dim/contract/links";
 import { and, eq, gt, isNull, sql } from "drizzle-orm";
 import { headers } from "next/headers";
 
@@ -488,7 +489,10 @@ export async function reportFinderInPossessionAction(
         category: "perdidas",
         relatedPetId: pet.id,
         ctaLabel: "Ver mascota",
-        ctaUrl: `/p/${publicToken}`,
+        // A notification CTA is the shape the native router will have to
+        // resolve first (a push tap has no browser to fall back on), so the
+        // path comes from the deep-link table rather than from a literal here.
+        ctaUrl: deepLinkPath("credential", { publicToken }),
       }));
       // Best-effort: the finder's report is already recorded and the titular
       // already notified. A failure here must never surface to the finder —

@@ -1,3 +1,4 @@
+import { deepLinkUrl } from "@dim/contract/links";
 import { and, eq, inArray } from "drizzle-orm";
 import type { MetadataRoute } from "next";
 
@@ -63,8 +64,12 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       ),
   ]);
 
+  // The three token-bearing shapes come from `@dim/contract/links` rather than
+  // from template literals here. A sitemap is the one surface where a stale path
+  // is invisible for months: nothing renders it, nobody clicks it, and the only
+  // reader is a crawler that answers with a 404 it never reports back.
   const petRoutes: MetadataRoute.Sitemap = adoptItems.map((pet) => ({
-    url: `${SITE_URL}/adoptar/${pet.petPublicToken}`,
+    url: deepLinkUrl(SITE_URL, "adoptionListing", { petToken: pet.petPublicToken }),
     lastModified: pet.adoptionListedAt,
     changeFrequency: "weekly",
     priority: 0.8,
@@ -74,14 +79,14 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   // the QR code points to. The credential auto-promotes to Tier 1 LOST when
   // the pet's status is 'lost', so there is no /perdidas/{token} sub-route.
   const lostRoutes: MetadataRoute.Sitemap = lostItems.map((pet) => ({
-    url: `${SITE_URL}/p/${pet.petPublicToken}`,
+    url: deepLinkUrl(SITE_URL, "credential", { publicToken: pet.petPublicToken }),
     lastModified: pet.markedLostAt,
     changeFrequency: "daily",
     priority: 0.85,
   }));
 
   const refugioRoutes: MetadataRoute.Sitemap = orgs.map((o) => ({
-    url: `${SITE_URL}/refugios/${o.token}`,
+    url: deepLinkUrl(SITE_URL, "shelter", { orgToken: o.token }),
     lastModified: o.updatedAt,
     changeFrequency: "weekly",
     priority: 0.8,

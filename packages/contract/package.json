@@ -13,6 +13,7 @@
     "./api": "./src/api/index.ts",
     "./events": "./src/events/index.ts",
     "./input": "./src/input/index.ts",
+    "./links": "./src/links/index.ts",
     "./reference": "./src/reference/index.ts",
     "./viz": "./src/viz/index.ts",
     "./package.json": "./package.json"
