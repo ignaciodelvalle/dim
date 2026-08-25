@@ -21,7 +21,7 @@
 // it. Reads are not, which is why this list is short.
 
 /**
- * Every error code a `/api/v1` READ endpoint may return.
+ * Every error code a `/api/v1` endpoint may return.
  *
  * Deliberately small and shared rather than per-route: a native client should
  * be able to write one exhaustive `switch` over the failure space, and each new
@@ -36,8 +36,64 @@
  *                               `not_found`: a database outage is not "this
  *                               thing does not exist", and answering 404 to it
  *                               is the worst lie a public surface can tell.
+ *
+ * THE AUTH CODES (WU-A). Added with the first bearer-authenticated endpoint;
+ * the list is no longer read-only, so the "READ endpoint" framing above is now
+ * "endpoint". Each one is a 401/403/400 a native client must be able to
+ * `switch` on WITHOUT a redirect to look at — there is no browser to redirect
+ * (ADR 2026-07-18, Decision 3).
+ *
+ * - `auth_required`       — no `Authorization` header at all. Distinct from
+ *                           `auth_expired` because it means "you were never
+ *                           authenticated", which is a client BUG (it forgot
+ *                           the header) rather than the ordinary end of a
+ *                           session. Answering both the same way is how a
+ *                           refresh loop gets written for a request that never
+ *                           carried a token.
+ * - `auth_expired`        — a token was presented and did not resolve to a
+ *                           user: expired, revoked, malformed, or for another
+ *                           project. The client's move is to refresh (against
+ *                           GoTrue — see `AuthSessionV1`) and retry once.
+ *                           Deliberately does NOT distinguish "expired" from
+ *                           "malformed" on the wire: the difference is a
+ *                           debugging convenience for us and a probe for
+ *                           everyone else.
+ * - `invalid_credentials` — the email/password pair was refused. ONE code for
+ *                           "no such account" and "wrong password", and the two
+ *                           responses must stay byte-identical, or this
+ *                           endpoint becomes the account-enumeration oracle
+ *                           that audit 28-#3 closed on the signup form.
+ * - `account_deactivated` — an institutional account an operator switched off.
+ *                           Reached only AFTER correct credentials, so it
+ *                           discloses nothing to someone who does not already
+ *                           hold them.
+ * - `account_erased`      — the subject exercised erasure (Ley 25.326 art. 16)
+ *                           and the token outlived the account. Same: only ever
+ *                           told to the holder of that account's own token.
+ * - `invalid_request`     — the body did not parse against the request schema
+ *                           in `@dim/contract/input`. A BACKSTOP, not the
+ *                           client's error channel: the client validates with
+ *                           the same schema before sending and gets per-field
+ *                           codes locally, which is why this one carries no
+ *                           field detail (§2 — the envelope is one key).
+ * - `signup_failed`       — GoTrue refused to create the account for a reason
+ *                           that is not "it already exists" (which masquerades
+ *                           as success, above). Single generic code on purpose:
+ *                           the raw provider text can itself hint at account
+ *                           state.
  */
-export const API_V1_ERROR_CODES = ["rate_limited", "not_found", "temporarily_unavailable"] as const;
+export const API_V1_ERROR_CODES = [
+  "rate_limited",
+  "not_found",
+  "temporarily_unavailable",
+  "auth_required",
+  "auth_expired",
+  "invalid_credentials",
+  "account_deactivated",
+  "account_erased",
+  "invalid_request",
+  "signup_failed",
+] as const;
 
 export type ApiV1ErrorCode = (typeof API_V1_ERROR_CODES)[number];
 

@@ -9,6 +9,15 @@
 // only reads credentials never loads the validator that `@dim/contract/input`
 // needs. `PetSex` is imported type-only from `../input/intake` so the sex
 // vocabulary has exactly one definition in the package.
+export {
+  ME_PAYLOAD_VERSION,
+  ME_STALE_AFTER_MS,
+  type AuthSessionV1,
+  type LoginV1,
+  type MeV1,
+  type MeV1User,
+  type SignupV1,
+} from "./auth";
 export { API_V1_ERROR_CODES, type ApiV1Error, type ApiV1ErrorCode } from "./errors";
 export {
   PUBLIC_CREDENTIAL_PAYLOAD_VERSION,

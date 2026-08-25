@@ -6,6 +6,18 @@
 // It is the reason the package takes its one dependency, zod — see the note in
 // scripts/check-contract-purity.ts.
 export {
+  LOGIN_INPUT_CODES,
+  MIN_PASSWORD_LENGTH,
+  SIGNUP_INPUT_CODES,
+  type LoginInput,
+  type LoginInputCode,
+  type SignupInput,
+  type SignupInputCode,
+  firstInputCode,
+  loginInputSchema,
+  signupInputSchema,
+} from "./auth";
+export {
   CREATE_INTAKE_INPUT_CODES,
   CUSTODY_ROLES,
   type CreateIntakeInput,
