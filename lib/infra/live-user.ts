@@ -93,6 +93,19 @@ export type RequireLiveUserOptions = {
    * exact guard rather than by a parallel one.
    */
   supabase?: SupabaseServerClient;
+  /**
+   * The raw access token, when the caller has one — i.e. the bearer path, where
+   * `createClientFromBearer` returns it alongside the client.
+   *
+   * Handed straight to `auth.getUser(jwt)` so validating THIS token is what the
+   * code says rather than what an supabase-js internal happens to do. See the
+   * note at the call site. Omit on the cookie path.
+   *
+   * It is never logged, never decoded here, and never used to decide anything:
+   * the answer to "who is this" comes from GoTrue validating it, and the answer
+   * to "what may they do" comes from the database.
+   */
+  accessToken?: string;
 };
 
 const MESSAGES: Record<LiveUserFailureReason, string> = {
@@ -191,9 +204,25 @@ export async function requireLiveUser(options?: RequireLiveUserOptions): Promise
   }
 
   const supabase = options?.supabase ?? (await createClient());
+  // The token is passed EXPLICITLY on the bearer path, and that is a hardening,
+  // not a style preference (pre-push review, WU-A range).
+  //
+  // A bare `getUser()` on a client built by `createClientFromBearer` works today
+  // only because supabase-js sets an internal `hasCustomAuthorizationHeader`
+  // flag when a custom `Authorization` header is present, and auth-js
+  // special-cases that flag to validate the header's token instead of looking
+  // for a stored session. Nothing in the public API says so. An SDK downgrade —
+  // or a refactor inside auth-js — turns every bearer request into a permanent
+  // 401 with no other symptom, on the one code path a native client cannot work
+  // around. `getUser(jwt)` is the DECLARED way to ask the same question, so the
+  // behaviour stops being incidental.
+  //
+  // The cookie path passes nothing and is byte-identical to before: there is no
+  // token in hand there, and `getUser()` reading the SSR client's stored session
+  // is exactly what it is documented to do.
   const {
     data: { user },
-  } = await supabase.auth.getUser();
+  } = await supabase.auth.getUser(options?.accessToken);
   if (!user) {
     return { ok: false, supabase, user: null, reason: "NO_SESSION", error: MESSAGES.NO_SESSION };
   }

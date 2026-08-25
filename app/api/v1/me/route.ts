@@ -116,7 +116,7 @@ export async function GET(request: Request) {
   let live: Awaited<ReturnType<typeof requireLiveUser>>;
   try {
     live = await withDbBudgetOrThrow(
-      requireLiveUser({ supabase: client.supabase }),
+      requireLiveUser({ supabase: client.supabase, accessToken: client.token }),
       ME_BUDGET_MS,
       "api-v1-me",
     );
