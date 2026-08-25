@@ -891,8 +891,8 @@ describe("listRouteHandlerFiles", () => {
     expect(offenders).toEqual([]);
   });
 
-  it("the intentionally-public handlers are exactly the seven documented ones", () => {
-    // An eighth opt-out appearing here is a decision, not a detail: it means an
+  it("the intentionally-public handlers are exactly the nine documented ones", () => {
+    // A TENTH opt-out appearing here is a decision, not a detail: it means an
     // endpoint was made public and this list is where that shows up in review.
     //
     // The seventh arrived on 2026-08-21 with the first `/api/v1` endpoint. It is
@@ -903,6 +903,23 @@ describe("listRouteHandlerFiles", () => {
     // (invariant #1) — it is bounded by two rate limiters instead of authorized,
     // and it discloses exactly what /p/{publicToken} already shows to anyone
     // holding the token.
+    //
+    // The EIGHTH AND NINTH arrived on 2026-08-25 with WU-A, and they are a third
+    // kind again: `POST /api/v1/auth/login` and `POST /api/v1/auth/signup` are
+    // public because they are PRE-AUTHENTICATION — establishing a session is
+    // what they are for, so there is no identity to resolve first. Exactly the
+    // reason `app/actions/auth.ts`'s two action wrappers carry the same opt-out.
+    // Both are bounded rather than authorized, by the SAME budgets the web form
+    // spends (`auth_login_ip`, `auth_login_email`, `auth_signup_ip`), enforced
+    // inside the shared use-case before GoTrue is touched.
+    //
+    // `GET /api/v1/me` is deliberately NOT here, and its absence is load-bearing:
+    // it is the first bearer-authenticated endpoint and it calls requireLiveUser.
+    // Its first version explained that by writing the opt-out marker in a comment
+    // saying it did NOT claim the opt-out — and landed on this list anyway,
+    // because the scanner matches the token and not the sentence around it. This
+    // assertion is what caught it. The route now says "AUTHORIZED, not opted out"
+    // without spelling the marker.
     const optedOut = handlers.filter((f) =>
       extractExportedAsyncFunctions(readFileSync(f, "utf8")).some((fn) => fn.hasNoAuthComment),
     );
@@ -911,6 +928,8 @@ describe("listRouteHandlerFiles", () => {
       "app/(public)/denuncias/seguimiento/salir/route.ts",
       "app/(public)/transparencia/datos/[dataset]/route.ts",
       "app/api/health/route.ts",
+      "app/api/v1/auth/login/route.ts",
+      "app/api/v1/auth/signup/route.ts",
       "app/api/v1/pets/[publicToken]/credential/route.ts",
       "app/auth/callback/route.ts",
       "app/auth/miarg/callback/route.ts",

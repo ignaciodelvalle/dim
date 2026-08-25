@@ -58,11 +58,18 @@ import { stripComments } from "./lib/strip-comments.mjs";
 export const V1_ROUTE_GLOB = "app/api/v1/**/route.ts";
 
 /**
- * Non-vacuity floor. One endpoint today (the public credential). A glob that
- * stops matching produces an empty list, an empty list produces no offenders,
- * and no offenders reads exactly like a clean run.
+ * Non-vacuity floor. A glob that stops matching produces an empty list, an
+ * empty list produces no offenders, and no offenders reads exactly like a
+ * clean run.
+ *
+ * FOUR since WU-A (2026-08-25): the public credential, plus `/auth/login`,
+ * `/auth/signup` and `/me`. Raised in the same commit that added them, because
+ * a floor of 1 over a surface of 4 stops being a floor — three routes could
+ * fall out of the glob (a directory rename, a `route.tsx`) and this check would
+ * still report success over the one that remained. Raise it with every route
+ * that lands; that is the whole job of the number.
  */
-export const MIN_V1_ROUTE_FILES = 1;
+export const MIN_V1_ROUTE_FILES = 4;
 
 export const HELPER_MODULE = "@/lib/infra/api-v1";
 
