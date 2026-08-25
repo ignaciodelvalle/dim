@@ -7,11 +7,21 @@
 # that depends on a framework-free package boundary (native-readiness T1.1).
 #
 # The Next.js app itself stays at the repo root — this is a "root app +
-# packages/*" layout, not a full turborepo. Nothing here needs a build
+# packages/* + apps/*" layout, not a full turborepo. Nothing here needs a build
 # orchestrator: `packages/contract` ships TypeScript source and is compiled by
-# whatever consumer imports it (Next's SWC loader, Vitest's esbuild, tsx).
+# whatever consumer imports it (Next's SWC loader, Vitest's esbuild, tsx, and
+# now Metro's babel transformer).
+#
+# `apps/*` joined on 2026-08-25 with `apps/mobile` — the Expo client (native
+# M1). It is a SECOND consumer of `packages/contract`, which is the entire point
+# of the package boundary: the wire types the route handler emits and the types
+# the phone parses are the same declarations, so the two cannot drift without a
+# compile error. The web app deliberately does NOT move under `apps/` — that
+# would be a repo-wide path rewrite with no payoff for a client that only needs
+# to be able to `import` the contract.
 packages:
   - packages/*
+  - apps/*
 
 allowBuilds:
   '@biomejs/biome': true
