@@ -15,10 +15,12 @@ import { describe, expect, it } from "vitest";
 import {
   MIN_OPERATOR_RESOLVERS,
   MIN_SCANNED_FILES,
+  MIN_SESSION_RESOLUTIONS,
   MIN_SHIFT_REACHERS,
   OPERATOR_SIGNALS,
   SHIFT_REACH_ALLOWLIST,
   type ScanSource,
+  countSessionResolvingUnits,
   extractAsyncFunctions,
   findOperatorResolvers,
   findShiftReachOffenders,
@@ -211,6 +213,52 @@ describe("OPERATOR_SIGNALS — every entry still fires", () => {
 });
 
 // ---------------------------------------------------------------------------
+// The session-resolution leg's own non-vacuity
+// ---------------------------------------------------------------------------
+//
+// `resolvesSession` is an OR:
+//
+//     SESSION_RESOLUTION_RE.test(unit.body) || reaches
+//
+// and on a clean tree the right-hand side is already true for everything that
+// survives the operator-signal filter. So the regex is load-bearing for exactly
+// one population — a NEW bare-getUser operator guard, which is the shape of all
+// four bypasses this fence exists for — and completely invisible to every other
+// number the scan prints. That is what MIN_SESSION_RESOLUTIONS counts.
+
+describe("SESSION_RESOLUTION_RE — the leg no other count can see", () => {
+  it("counts a bare getUser, and nothing else", () => {
+    const resolving = `
+async function resolveActor() {
+  const { data: { user } } = await supabase.auth.getUser();
+  return user;
+}
+`;
+    const notResolving = `
+async function loadPets(ownerId: string) {
+  return db.select().from(pets).where(eq(pets.ownerId, ownerId));
+}
+`;
+    expect(countSessionResolvingUnits([src("lib/infra/x.ts", resolving)])).toBe(1);
+    expect(countSessionResolvingUnits([src("lib/infra/x.ts", notResolving)])).toBe(0);
+  });
+
+  it("stays blind to a session resolved through a guard — that is the reach credit's job", () => {
+    // The regex is DELIBERATELY narrow: every other way of resolving a session
+    // here goes through a function the transitive index already credits. This
+    // pins that the two legs are separate, which is why one can die silently.
+    const viaGuard = `
+async function resolveActor() {
+  const live = await requireLiveUser();
+  return live.ok ? live.user : null;
+}
+`;
+    expect(countSessionResolvingUnits([src("lib/infra/x.ts", viaGuard)])).toBe(0);
+    expect(findShiftReachOffenders([src("lib/infra/x.ts", viaGuard)])).toEqual([]);
+  });
+});
+
+// ---------------------------------------------------------------------------
 // The real tree
 // ---------------------------------------------------------------------------
 
@@ -230,6 +278,7 @@ describe("the repository itself", () => {
   const offenders = findShiftReachOffenders(sources);
   const resolvers = findOperatorResolvers(sources);
   const reaching = indexShiftReachers(sources);
+  const sessionResolutions = countSessionResolvingUnits(sources);
 
   it("has no operator-actor resolver that skips the shift", () => {
     expect(offenders).toEqual([]);
@@ -242,10 +291,22 @@ describe("the repository itself", () => {
     expect(Object.keys(SHIFT_REACH_ALLOWLIST)).toEqual([]);
   });
 
-  it("clears its three non-vacuity floors", () => {
+  it("clears its four non-vacuity floors", () => {
     expect(sources.length).toBeGreaterThanOrEqual(MIN_SCANNED_FILES);
     expect(reaching.size).toBeGreaterThanOrEqual(MIN_SHIFT_REACHERS);
     expect(resolvers.length).toBeGreaterThanOrEqual(MIN_OPERATOR_RESOLVERS);
+    expect(sessionResolutions).toBeGreaterThanOrEqual(MIN_SESSION_RESOLUTIONS);
+  });
+
+  // WHY THE FOURTH FLOOR HAD TO EXIST, stated as a measurement rather than as
+  // an argument. Every operator-actor resolver in the tree reaches the shift —
+  // that is what a green fence means — so `reaches` alone satisfies
+  // `resolvesSession` for all of them and the regex leg decides NOTHING here.
+  // Kill SESSION_RESOLUTION_RE and this list does not move, the offender list
+  // does not move, and the green line does not move. Only MIN_SESSION_RESOLUTIONS
+  // notices.
+  it("proves the regex leg contributes zero to the resolver list today", () => {
+    expect(resolvers.filter((r) => !r.reaches)).toEqual([]);
   });
 
   // THE ANTECEDENT ITSELF, pinned by name. If the scan stops recognising these

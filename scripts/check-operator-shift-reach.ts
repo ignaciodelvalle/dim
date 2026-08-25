@@ -114,8 +114,11 @@ export const SHIFT_REACHING_CALLS = [
  * in this codebase goes through a function that reaches the shift, and the
  * transitive index below picks those up on its own — listing them here as well
  * would be a second, hand-maintained copy of an answer the scan derives.
+ *
+ * IT CONTRIBUTES NOTHING TO ANY OTHER NUMBER IN THIS FILE, which is why it has a
+ * floor of its own — see MIN_SESSION_RESOLUTIONS.
  */
-const SESSION_RESOLUTION_RE = /\.auth\.getUser\s*\(/;
+export const SESSION_RESOLUTION_RE = /\.auth\.getUser\s*\(/;
 
 /**
  * How a body says "I am deciding something about an OPERATOR".
@@ -212,22 +215,70 @@ export const MIN_SCANNED_FILES = 1200;
  * protects against is the OPPOSITE break: a `SHIFT_REACHING_CALLS` regex that
  * stops matching would empty the index too, and a tree where nothing reaches the
  * shift AND nothing resolves an operator is a scan that has stopped reading its
- * own inputs. Measured 2026-08-25: 340 names.
+ * own inputs. Measured 2026-08-25: 341 names.
  */
 export const MIN_SHIFT_REACHERS = 200;
 
 /**
  * Non-vacuity floor for the ANTECEDENT, and this is the one that matters.
  *
- * If OPERATOR_SIGNALS or SESSION_RESOLUTION_RE stops matching, the fence finds
- * no operator-actor resolvers, therefore no offenders, and prints green — the
- * exact failure every sibling fence's floor exists to catch, reached here by the
- * only door that stays quiet. Measured 2026-08-25: 55 resolvers across the six
- * families — the operator page screens (admin/gob), the institutional API
- * guards, the export route handlers, the decomiso / return-to-owner / welfare
- * org actions, the shared guards in lib/infra, and the org capability path.
+ * If OPERATOR_SIGNALS stops matching, the fence finds no operator-actor
+ * resolvers, therefore no offenders, and prints green — the exact failure every
+ * sibling fence's floor exists to catch, reached here by the only door that
+ * stays quiet. Measured 2026-08-25: 57 resolvers across the six families — the
+ * operator page screens (admin/gob), the institutional API guards, the export
+ * route handlers, the decomiso / return-to-owner / welfare org actions, the
+ * shared guards in lib/infra, and the org capability path.
+ *
+ * (This comment claimed 55 when it was written and the tree held 56, which is
+ * the kind of number a reader trusts and nobody re-derives. It is 57 since
+ * `/turno-vencido` grew the org-staff leg of the shift predicate.)
+ *
+ * IT DOES NOT COVER SESSION_RESOLUTION_RE, although the sentence above used to
+ * say it did. That is the whole subject of MIN_SESSION_RESOLUTIONS below.
  */
 export const MIN_OPERATOR_RESOLVERS = 35;
+
+/**
+ * Non-vacuity floor for the SESSION-RESOLUTION leg specifically, and it needs
+ * its own number for a reason MIN_OPERATOR_RESOLVERS structurally cannot cover.
+ *
+ * Read the antecedent as the code computes it:
+ *
+ *     const resolvesSession = SESSION_RESOLUTION_RE.test(unit.body) || reaches;
+ *
+ * On a CLEAN tree every operator-actor resolver reaches the shift — that is what
+ * the fence being green means — so `reaches` is already true for every unit that
+ * survives the operator-signal filter, and the regex leg decides nothing.
+ * Measured 2026-08-25: exactly 2 units in the tree match both the regex and an
+ * operator signal, and BOTH of them reach anyway. So `SESSION_RESOLUTION_RE`
+ * contributes ZERO to `MIN_OPERATOR_RESOLVERS`, zero to the offender list, and
+ * zero to the green line — a dead regex would move nothing and the fence would
+ * keep printing today's number while going blind to its actual subject: A NEW
+ * BARE-getUser OPERATOR GUARD, which is the exact shape of all four bypasses
+ * this fence was written for.
+ *
+ * The same trap, in the same week, in check-storage-write-policies.ts: no `alter
+ * policy` targets storage.objects today, so its ALTER branch contributed zero to
+ * every other count and needed MIN_ALTER_STATEMENTS to have anything to fail on.
+ * This is that floor, in that idiom.
+ *
+ * COUNTED OVER THE RAW REGEX, before the operator-signal filter and before the
+ * reach credit — the honest denominator, and it is a SMALL one. Measured
+ * 2026-08-25: 13 functions across the three roots call `.auth.getUser(`
+ * directly, and that is the point rather than a weakness. The number is small
+ * BECAUSE the codebase has been moving identity resolution behind
+ * `requireLiveUser`; the survivors are `requireLiveUser` itself, the SSR cookie
+ * refresh in lib/supabase/middleware.ts, and eleven application-layer actions
+ * (transfers ×4, the gob analytics export, the two auth completion flows, the
+ * caretaker email read, the PPP export, the scan log, the stub claim).
+ *
+ * The floor is 8 rather than 12: that direction of travel is HEALTHY and must
+ * not turn a good change red, and the storage fence took the same ratio for the
+ * same reason (80 measured, floor 50). Above zero is what matters — a regex
+ * that matches nothing is a leg that guards nothing.
+ */
+export const MIN_SESSION_RESOLUTIONS = 8;
 
 function isScannable(relPath: string): boolean {
   if (relPath.includes("__tests__")) return false;
@@ -477,6 +528,18 @@ export type OperatorResolver = {
   reaches: boolean;
 };
 
+/**
+ * How many units resolve a session with a bare `.auth.getUser(`.
+ *
+ * The RAW count: no operator-signal filter, no reach credit, no dedup by file.
+ * It exists so MIN_SESSION_RESOLUTIONS has something to count that the rest of
+ * this file does not already count for it — see that constant for why the leg is
+ * otherwise unobservable.
+ */
+export function countSessionResolvingUnits(sources: readonly ScanSource[]): number {
+  return parseUnits(sources).filter((unit) => SESSION_RESOLUTION_RE.test(unit.body)).length;
+}
+
 export function findOperatorResolvers(sources: readonly ScanSource[]): OperatorResolver[] {
   const units = parseUnits(sources);
   const reaching = indexShiftReachers(sources);
@@ -539,6 +602,27 @@ function runScan(): void {
     process.exit(1);
   }
 
+  // The session-resolution leg is alive. Checked BEFORE the resolver floor
+  // because it is the only failure here that leaves every other number in this
+  // file exactly where it is — on a clean tree the reach credit already answers
+  // for every resolver, so a dead regex changes nothing that anyone would see.
+  const sessionResolutions = countSessionResolvingUnits(sources);
+  if (sessionResolutions < MIN_SESSION_RESOLUTIONS) {
+    console.error(
+      [
+        `✗ check-operator-shift-reach: only ${sessionResolutions} function(s) match SESSION_RESOLUTION_RE (floor ${MIN_SESSION_RESOLUTIONS}).`,
+        "  That leg decides nothing on a clean tree — every operator-actor resolver",
+        "  already reaches the shift, so `resolvesSession` is satisfied by the reach",
+        "  credit and the regex adds zero to every other count here. Which means a",
+        "  regex that stopped matching would leave this fence printing the same green",
+        "  line while a NEW bare-getUser operator guard — the shape of all four",
+        "  bypasses this fence was written for — walked straight through. See",
+        "  MIN_SESSION_RESOLUTIONS.",
+      ].join("\n"),
+    );
+    process.exit(1);
+  }
+
   const resolvers = findOperatorResolvers(sources);
   if (resolvers.length < MIN_OPERATOR_RESOLVERS) {
     console.error(
@@ -558,7 +642,7 @@ function runScan(): void {
 
   const allowlisted = Object.keys(SHIFT_REACH_ALLOWLIST).length;
   console.log(
-    `✓ operator-shift reach clean — ${sources.length} files scanned, ${reaching.size} shift-reaching name(s) indexed, ${resolvers.length} operator-actor resolver(s) all reaching the control${
+    `✓ operator-shift reach clean — ${sources.length} files scanned, ${reaching.size} shift-reaching name(s) indexed, ${sessionResolutions} bare-getUser session resolution(s) seen, ${resolvers.length} operator-actor resolver(s) all reaching the control${
       allowlisted > 0 ? ` (${allowlisted} allowlisted)` : ""
     }.`,
   );
