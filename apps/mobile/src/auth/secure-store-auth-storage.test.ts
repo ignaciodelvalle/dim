@@ -20,7 +20,9 @@ import {
   CHUNK_SIZE,
   type SecureStorePort,
   createSecureStoreAuthStorage,
+  isLegacyHeader,
   parseHeader,
+  readChunkPayload,
   sliceEnd,
   splitIntoChunks,
 } from "./secure-store-auth-storage";
@@ -75,6 +77,11 @@ function sessionOfSize(bytes: number): string {
 }
 
 const KEY = "mimar.auth.session";
+
+/** The stored key of chunk `index` — the layout the adapter uses internally. */
+function chunkKeyFor(index: number): string {
+  return `${KEY}.c${index}`;
+}
 
 describe("splitIntoChunks", () => {
   it("keeps every chunk inside the Android byte limit for ASCII", () => {
@@ -185,18 +192,98 @@ describe("corruption is a signed-out user, never a crash", () => {
     expect([...store.map.keys()].filter((k) => k.startsWith(KEY))).toEqual([]);
   });
 
-  it("treats a length mismatch — the interrupted-write signature — as no session", async () => {
+  // ==========================================================================
+  // THE INTERRUPTED WRITE, ACTUALLY INTERLEAVED (2026-08-25)
+  // ==========================================================================
+  // This test used to FABRICATE the signature: it took a real header and edited
+  // the declared length to 999999. That proves the length comparison runs, and
+  // it proves nothing about the case the adapter is for — because the write this
+  // adapter performs most often is a token ROTATION, where the new session has
+  // the same claims and the same fixed-length signature and therefore the same
+  // LENGTH. A splice of two same-length values passes a length check.
+  //
+  // So this one interleaves two real writes: value A is stored, then a write of
+  // value B (identical length, different content) is interrupted after its first
+  // chunk. The store is then left exactly as the OS would have left it — chunk 0
+  // from B, chunks 1..n from A, header still A's — and the adapter must answer
+  // "no session".
+  it("treats a REAL interrupted write between two same-length values as no session", async () => {
     const store = fakeSecureStore();
     const storage = createSecureStoreAuthStorage(store);
+
+    const valueA = sessionOfSize(6_000);
+    const valueB = valueA.replaceAll("a", "b");
+    // The premise: if these differed in length the old check would have caught
+    // it, and this test would not be about anything.
+    expect(valueB.length).toBe(valueA.length);
+    expect(valueB).not.toBe(valueA);
+
+    await storage.setItem(KEY, valueA);
+    const headerA = store.map.get(KEY) ?? "";
+
+    // The interruption: B's chunk 0 lands, then the process dies. B's header is
+    // never written, so A's is still there.
+    const writer = createSecureStoreAuthStorage({
+      getItemAsync: store.getItemAsync,
+      deleteItemAsync: store.deleteItemAsync,
+      setItemAsync: async (key, value) => {
+        if (key !== chunkKeyFor(0)) throw new Error("process died mid-write");
+        await store.setItemAsync(key, value);
+      },
+    });
+    await expect(writer.setItem(KEY, valueB)).rejects.toThrow(/died mid-write/);
+
+    // Precondition of the whole test: the store really is spliced, and the
+    // header really is still A's.
+    expect(store.map.get(KEY)).toBe(headerA);
+    expect(store.map.get(chunkKeyFor(0))).not.toBe(undefined);
+
+    // The chunks all EXIST and the total length is unchanged — the only thing
+    // that separates this from a healthy read is the per-write nonce.
+    expect(await storage.getItem(KEY)).toBeNull();
+  });
+
+  it("does not accept a chunk left behind by a previous write", async () => {
+    const store = fakeSecureStore();
+    let nonce = "aaaaaaaa";
+    const storage = createSecureStoreAuthStorage(store, () => nonce);
+
+    await storage.setItem(KEY, sessionOfSize(6_000));
+    const staleChunk = store.map.get(chunkKeyFor(1));
+
+    nonce = "bbbbbbbb";
     await storage.setItem(KEY, sessionOfSize(6_000));
 
-    // A header from the OLD value in front of chunks from the NEW one. The
-    // chunks are all present, so only the declared length catches this.
-    const header = parseHeader(store.map.get(KEY) ?? "");
-    expect(header).not.toBeNull();
-    store.map.set(KEY, `dim.chunked.v1:${header?.chunkCount}:999999`);
+    // One chunk reverts to the earlier write. Same length, same position.
+    store.map.set(chunkKeyFor(1), staleChunk ?? "");
 
     expect(await storage.getItem(KEY)).toBeNull();
+  });
+
+  it("still catches a truncation that somehow kept the nonce", async () => {
+    // The length check is kept as a second, cheap guard. Proving it still runs
+    // matters because the nonce made it look redundant.
+    const store = fakeSecureStore();
+    const storage = createSecureStoreAuthStorage(store, () => "nnnnnnnn");
+    await storage.setItem(KEY, sessionOfSize(6_000));
+
+    const chunk0 = store.map.get(chunkKeyFor(0)) ?? "";
+    store.map.set(chunkKeyFor(0), chunk0.slice(0, chunk0.length - 10));
+
+    expect(await storage.getItem(KEY)).toBeNull();
+  });
+
+  // A v1 value cannot be read safely — its chunks carry no nonce, so reading it
+  // would mean keeping the detector this change replaced.
+  it("wipes a v1 value rather than reading it, and answers no session", async () => {
+    const store = fakeSecureStore();
+    store.map.set(KEY, "dim.chunked.v1:2:1200");
+    store.map.set(chunkKeyFor(0), "half-a-session");
+    store.map.set(chunkKeyFor(1), "the-other-half");
+    const storage = createSecureStoreAuthStorage(store);
+
+    expect(await storage.getItem(KEY)).toBeNull();
+    expect([...store.map.keys()].filter((k) => k.startsWith(KEY))).toEqual([]);
   });
 
   it("returns null instead of throwing when the keystore itself fails", async () => {
@@ -257,13 +344,46 @@ describe("removal leaves nothing behind", () => {
 });
 
 describe("parseHeader", () => {
-  it("accepts our header and reads both numbers", () => {
-    expect(parseHeader("dim.chunked.v1:3:1200")).toEqual({ chunkCount: 3, charLength: 1200 });
+  it("accepts our header and reads the count, the length and the nonce", () => {
+    expect(parseHeader("dim.chunked.v2:3:1200:abcd1234")).toEqual({
+      chunkCount: 3,
+      charLength: 1200,
+      nonce: "abcd1234",
+    });
   });
 
   it("rejects anything that is not one, so a plain value is returned verbatim", () => {
-    for (const raw of ["", "{}", "dim.chunked.v1:", "dim.chunked.v1:x:1", "dim.chunked.v1:1:2:3"]) {
+    for (const raw of [
+      "",
+      "{}",
+      "dim.chunked.v2:",
+      "dim.chunked.v2:x:1:n",
+      "dim.chunked.v2:1:2",
+      // No nonce, and no empty one either: a header without a write identifier
+      // is a header this layout cannot verify.
+      "dim.chunked.v2:1:2:",
+      "dim.chunked.v2:1:2:n:extra",
+      // v1 is NOT parsed. It is recognised separately and wiped.
+      "dim.chunked.v1:3:1200",
+    ]) {
       expect(parseHeader(raw)).toBeNull();
     }
+  });
+
+  it("recognises the v1 header separately, so it is wiped and not handed back", () => {
+    expect(isLegacyHeader("dim.chunked.v1:3:1200")).toBe(true);
+    expect(isLegacyHeader("dim.chunked.v2:3:1200:n")).toBe(false);
+    expect(isLegacyHeader("a-value-with-no-header")).toBe(false);
+  });
+});
+
+describe("readChunkPayload", () => {
+  it("returns the payload only when the nonce matches", () => {
+    expect(readChunkPayload("abcd1234:hello", "abcd1234")).toBe("hello");
+    expect(readChunkPayload("abcd1234:hello", "zzzz9999")).toBeNull();
+  });
+
+  it("does not mistake a payload that happens to contain a colon", () => {
+    expect(readChunkPayload('abcd1234:{"a":"b"}', "abcd1234")).toBe('{"a":"b"}');
   });
 });
