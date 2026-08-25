@@ -491,7 +491,10 @@ describe("limiter order (C3)", () => {
 // They say nothing about the numbers, and the numbers are the whole of B13: this
 // endpoint's caller is a phone behind Argentine carrier NAT, where one public
 // IPv4 is shared by 500-1,000 subscribers, so it needs a per-IP ceiling of its
-// own instead of the four HTML surfaces' shared 60/min + 400/hr.
+// own instead of sharing the four HTML surfaces' bucket. (Those four were at
+// 60/min + 400/hr when B13's first half landed; its second half raised them to
+// the same 600/min + 6,000/hr, so what this endpoint has of its own today is
+// the BUCKET, not a larger ceiling.)
 //
 // The failure this catches is a deletion, not a typo: drop `surfaceLimit:` from
 // the route's `publicTokenThrottle(...)` options and the endpoint silently falls

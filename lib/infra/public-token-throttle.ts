@@ -88,9 +88,17 @@ import type { PublicTokenThrottle } from "@/src/modules/pets/application/read/lo
  *
  * THE AGGREGATE, which is the reason this was deferred rather than an oversight.
  * Each surface keeps its own bucket, so a per-IP ceiling is additive across
- * them. The four HTML surfaces move from 240/min to 6,000/min combined, and with
- * the API bucket's 600/min the whole token-resolving surface goes to 6,600/min
- * per IP (was 840/min after B13's first half, and 300/min before it).
+ * them. The four HTML surfaces move from 240/min to 2,400/min combined (4 × 600),
+ * and with the API bucket's 600/min the whole token-resolving surface goes to
+ * 3,000/min per IP — 5 × 600 (was 840/min after B13's first half, which is
+ * 4 × 60 + 600, and 300/min before it, 5 × 60).
+ *
+ * ARITHMETIC CORRECTED 2026-08-25 (pre-push review). This paragraph read
+ * "6,000/min combined … 6,600/min per IP" — the HOURLY figure (6,000/hr)
+ * transplanted into the per-minute slot and then carried into the sum, which
+ * overstated the ceiling this very paragraph exists to state honestly by 2.2×.
+ * docs/architecture/api-invariants.md §1.1 had 3.000/min right the whole time,
+ * so the doc and the code disagreed about the one number the section is for.
  *
  * That number is large and it is the honest one to write down. What makes it
  * acceptable is that the per-IP hourly ceiling never was the enumeration
@@ -248,7 +256,9 @@ async function isPerLookupThrottled({ bucket, key, limit }: PerLookupLimit): Pro
  * surface bucket is applied inside the door through this port. The consequence
  * was write amplification with attacker-chosen cardinality: an IP already over
  * 60/min still wrote TWO `rate_limit_buckets` rows (a minute row and an hour
- * row) for every distinct token it named, and the token space is 36^8.
+ * row) for every distinct token it named, and the token space is 31^8 (see THE
+ * KEYSPACE above — this line said 36^8 until the same review, in the very file
+ * that corrects the figure ninety lines earlier).
  *
  * Moving the surface check earlier in the ROUTE would have double-counted it,
  * because the door applies it again. So both limiters became one port, ordered

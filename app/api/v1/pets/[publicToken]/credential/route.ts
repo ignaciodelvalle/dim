@@ -52,14 +52,26 @@
 //    endpoint. Its own bucket, so a client hammering the API cannot starve the
 //    person loading the credential in the street on `public_token_page` — and
 //    since B13, its own CEILING too, which is what makes the separation real
-//    rather than nominal: the four HTML surfaces keep 60/min + 400/hr.
+//    rather than nominal. (This line said "the four HTML surfaces keep 60/min +
+//    400/hr" until 2026-08-25; B13's second half raised them to the same
+//    600/min + 6,000/hr, so the four and the API now differ by BUCKET, not by
+//    ceiling. The separation is still real — a client hammering the API cannot
+//    spend the street reader's budget — but it is no longer a difference in
+//    numbers, and pretending otherwise misleads whoever tunes this next.)
 //
 //    DOES NOT BOUND: a distributed walk from many IPs. Closing that needs an
 //    aggregate limiter layered on top, which D1 says must be its own change and
 //    must not be smuggled into an endpoint. Nor, at any of these numbers, does
-//    it meaningfully bound enumeration from ONE IP: walking 36^8 tokens takes
-//    ~54,000 years at 6,000/hr and ~805,000 years at the old 400/hr. It is a
+//    it meaningfully bound enumeration from ONE IP: walking 31^8 tokens takes
+//    ~16,200 years at 6,000/hr and ~243,000 years at the old 400/hr. It is a
 //    cost backstop, and it always was.
+//
+//    The keyspace is 31^8 ≈ 8.53 × 10^11, not the 36^8 ≈ 2.82 × 10^12 this
+//    comment asserted until 2026-08-25: `lib/infra/publicToken.ts` draws from
+//    `ABCDEFGHJKMNPQRSTUVWXYZ23456789`, with 0/O and 1/I/l removed so a human
+//    can read a token off a tag. 3.3× smaller than claimed, and the conclusion
+//    survives anyway — which is why the correction is written down instead of
+//    quietly edited.
 //
 // ORDER: SURFACE FIRST, THEN THE WRITE (fixed 2026-08-21)
 // ---------------------------------------------------------------------------
@@ -67,7 +79,7 @@
 // order. It used to be the other way round — the per-lookup limiter ran here,
 // in the handler, and the surface bucket ran inside the door — so an IP already
 // over the surface limit still wrote TWO `rate_limit_buckets` rows (minute +
-// hour) for every distinct token it named. The token is attacker-chosen out of a 36^8
+// hour) for every distinct token it named. The token is attacker-chosen out of a 31^8
 // space, so the table's cardinality was bounded by someone's patience rather
 // than by the limit that exists to bound exactly that.
 //
