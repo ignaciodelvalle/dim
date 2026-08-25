@@ -50,8 +50,9 @@ export const dynamic = "force-dynamic";
 // @no-auth-required: this is a LOGOUT destination. Requiring a live session to
 // reach it would strand the only caller it is for — an operator whose session
 // the liveness guard has just refused. It authorizes nothing and discloses
-// nothing: every branch ends in a redirect, and the only side effect is ending
-// the caller's OWN session, and only when policy already says it is over.
+// nothing: every branch either redirects or renders its own terminal answer,
+// and the only side effect is ending the caller's OWN session, and only when
+// policy already says it is over.
 export async function GET() {
   const live = await requireLiveUser();
 
@@ -68,7 +69,72 @@ export async function GET() {
   // the desktop while the same login stays live on a tablet in the same office
   // is the shared-terminal hole with an extra step.
   const supabase = await createClient();
-  await supabase.auth.signOut({ scope: "global" });
+  const { error } = await supabase.auth.signOut({ scope: "global" });
+
+  // THE RESULT IS CHECKED, AND THAT IS THE WHOLE POINT OF THIS ROUTE.
+  // ---------------------------------------------------------------------------
+  // This handler used to discard it and redirect unconditionally, which rebuilt
+  // the exact loop the header above claims it was designed to prevent. Read
+  // auth-js 2.105.4, GoTrueClient `_signOut`: it calls the admin sign-out and
+  // then, on error, returns `{ error }` WITHOUT reaching `_removeSession()`
+  // unless the GoTrue failure is 401, 403, 404 or session-missing. A 5xx or a
+  // network blip therefore leaves the cookies intact — and an intact cookie is
+  // a session that still authenticates:
+  //
+  //   /turno-vencido → /iniciar-sesion?motivo=turno → that page's getUser
+  //   succeeds → redirect(pathForRole(role)) → the portal layout guard →
+  //   SHIFT_EXPIRED → /turno-vencido → …  ERR_TOO_MANY_REDIRECTS
+  //
+  // which is the 2026-07-04 incident, reconstructed out of the failure mode of
+  // the fix for it. A guard that refuses without ending the session does not end
+  // the session — including when it TRIED to end the session and could not.
+  //
+  // So the failure arm is TERMINAL: this response, no redirect, nothing further
+  // to route. And the copy says what is true — the session is still open — since
+  // an operator who walks away from a shared desk believing they are signed out
+  // is a worse outcome than a page that admits it failed.
+  if (error) {
+    return shiftSignOutFailedResponse();
+  }
 
   redirect("/iniciar-sesion?motivo=turno");
+}
+
+/**
+ * The terminal answer when GoTrue would not end the session.
+ *
+ * Hand-written HTML rather than a page, because a page is a destination and a
+ * destination is a redirect: every additional hop is another layout guard that
+ * can bounce this caller, and bouncing this caller is the defect. 503 because
+ * that is what happened — an upstream we depend on did not answer — and
+ * `no-store` so a shared browser cannot show this to the next person at the desk.
+ *
+ * The retry link points back HERE. That is safe for the same structural reason
+ * the GET itself is: the handler re-derives the policy and signs out only a
+ * session `requireLiveUser` independently reports as SHIFT_EXPIRED.
+ */
+function shiftSignOutFailedResponse(): Response {
+  const html = `<!doctype html>
+<html lang="es-AR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>No pudimos cerrar tu sesión</title>
+</head>
+<body style="font-family:system-ui,sans-serif;margin:0;padding:2rem;line-height:1.5;color:#111827;background:#f7f7f5">
+<main style="max-width:34rem;margin:0 auto">
+<h1 style="font-size:1.25rem;margin:0 0 .75rem">No pudimos cerrar tu sesión</h1>
+<p style="margin:0 0 .75rem">Tu turno de trabajo terminó, pero el servidor de autenticación no respondió, así que <strong>tu sesión sigue abierta</strong>.</p>
+<p style="margin:0 0 1.25rem">No dejes la computadora así. Volvé a intentar en unos segundos; si sigue fallando, avisá a la persona a cargo del equipo.</p>
+<p style="margin:0"><a href="/turno-vencido" style="color:#1d4ed8">Volver a intentar</a></p>
+</main>
+</body>
+</html>`;
+  return new Response(html, {
+    status: 503,
+    headers: {
+      "content-type": "text/html; charset=utf-8",
+      "cache-control": "no-store",
+    },
+  });
 }
