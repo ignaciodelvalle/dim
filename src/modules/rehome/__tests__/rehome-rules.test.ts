@@ -4,6 +4,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  PET_LOST_ERROR,
   REHOME_ELIGIBLE_ORG_TYPES,
   coverageAreaCoversZone,
   orgCoversZone,
@@ -182,6 +183,16 @@ describe("validateRequestOpen — one request per pet at a time (REQ-16)", () =>
   // ONE sentence per refusal, not one per door: the request and the accept
   // say the same thing about a lost animal. A second wording would read as a
   // different rule to the person hitting it twice.
+  //
+  // The sentence now has ONE home — `PET_LOST_ERROR` — and this asserts the
+  // door uses it. Until 2026-08-25 it was an inline literal in three places
+  // pinned only by tests that hardcoded it separately, which is not a pin.
+  it("refuses a lost pet with the module's one named sentence", () => {
+    const r = validateRequestOpen({ ...clean, petStatus: "lost" });
+    expect(r).toEqual({ ok: false, error: PET_LOST_ERROR });
+    expect(PET_LOST_ERROR).toBe("Esta mascota está reportada como perdida.");
+  });
+
   it("says exactly what the accept says about a lost pet", () => {
     const request = validateRequestOpen({ ...clean, petStatus: "lost" });
     const accept = validateAcceptPreconditions({

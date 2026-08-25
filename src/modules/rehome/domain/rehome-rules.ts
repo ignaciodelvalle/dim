@@ -118,6 +118,33 @@ export const OPEN_REQUEST_PENDING_ERROR =
   "Ya hay una solicitud de nuevo hogar pendiente para esta mascota. Esperá la respuesta o cancelala antes de enviar otra.";
 
 /**
+ * The two animal-state refusals, NAMED — because they are said at more than one
+ * door and the copies must not drift.
+ *
+ * They were inline literals in three and six places respectively until
+ * 2026-08-25, and the commit that added the `lost` arm claimed the copies were
+ * held together by tests asserting "exact text". They were not: each test
+ * asserted its own hardcoded literal, which is two independent assertions, not
+ * a coupling. Changing the sentence and its own test would have let the other
+ * copies drift with a green suite. Now the sentence has one home and the tests
+ * import it.
+ *
+ * The foster flow's `sendRehomeRequest` still holds a COPY rather than an
+ * import: `foster -> rehome` is not an allowed module edge (the same
+ * constraint that moved the coverage predicate to lib/domain). Its unit test
+ * imports these constants directly — a test file is not part of the runtime
+ * module graph — so the copy is pinned to the original by an assertion that
+ * actually references it.
+ *
+ * Deliberately WITHOUT the trailing instruction the siblings carry
+ * (`validatePublish`: "Marcala recuperada antes de publicar";
+ * `validatePetStatusForTransfer`: "Resolvé el episodio primero"). Each door
+ * tells you what to do about ITS action; only the fact is shared.
+ */
+export const PET_LOST_ERROR = "Esta mascota está reportada como perdida.";
+export const PET_DECEASED_ERROR = "Esta mascota está registrada como fallecida.";
+
+/**
  * REQ-16: one open request OR one running sponsorship per pet, never both,
  * never two — plus the animal-state bar the ACCEPT already applied.
  *
@@ -131,16 +158,31 @@ export const OPEN_REQUEST_PENDING_ERROR =
  * misleading owner-facing pending state, REQ-16's open-request lock, and a pet
  * carrying an open `lost_pet` case and an open `rehome_request` case at once.
  *
- * The order is the accept's order and the publish's order — lost before
- * deceased — so a pet in both states hears the same first sentence at every
- * door.
+ * ON ORDER — corrected 2026-08-25, after a reviewer took the first version of
+ * this paragraph apart. It claimed the lost/deceased order mattered so that
+ * "a pet in both states hears the same first sentence at every door". NO SUCH
+ * PET CAN EXIST: `pets.status` is a single `pet_status` enum column, so `lost`
+ * and `deceased` are mutually exclusive and their relative order here is
+ * behaviourally unobservable. The claim was wrong about the siblings too —
+ * `validatePetStatusForTransfer` checks deceased FIRST, and its sentence
+ * carries a different instruction ("Resolvé el episodio primero") from
+ * `validatePublish`'s ("Marcala recuperada antes de publicar"). Three doors,
+ * three orderings, three wordings; only the FACT is shared.
+ *
+ * The ordering that IS observable is the one that first version did not argue
+ * for: animal state now precedes both REQ-16 arms, so a lost pet with a
+ * running sponsorship hears "reportada como perdida" rather than "ya tiene una
+ * organización acompañando". That is the right way round — a state of the
+ * ANIMAL outranks a state of the paperwork — and it deliberately does NOT
+ * match the accept, which puts CUSTODY_PRESENT_ERROR ahead of `lost` because
+ * under its lock a live custody row is the more actionable fact.
  */
 export function validateRequestOpen(s: RequestOpenSnapshot): RuleResult {
   if (s.petStatus === "lost") {
-    return { ok: false, error: "Esta mascota está reportada como perdida." };
+    return { ok: false, error: PET_LOST_ERROR };
   }
   if (s.petStatus === "deceased") {
-    return { ok: false, error: "Esta mascota está registrada como fallecida." };
+    return { ok: false, error: PET_DECEASED_ERROR };
   }
   if (s.hasOpenSponsorship) {
     return {
@@ -240,10 +282,10 @@ export function validateAcceptPreconditions(s: AcceptSnapshot): RuleResult {
   }
 
   if (s.pet.status === "lost") {
-    return { ok: false, error: "Esta mascota está reportada como perdida." };
+    return { ok: false, error: PET_LOST_ERROR };
   }
   if (s.pet.status === "deceased") {
-    return { ok: false, error: "Esta mascota está registrada como fallecida." };
+    return { ok: false, error: PET_DECEASED_ERROR };
   }
   if (s.pet.inCustodyDispute === true) {
     return { ok: false, error: "Esta mascota está en disputa de custodia." };

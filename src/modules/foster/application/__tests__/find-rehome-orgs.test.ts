@@ -76,6 +76,7 @@ describe("filterRehomeOrgCandidates", () => {
 // sendRehomeRequest — use-case test
 // ---------------------------------------------------------------------------
 
+import { PET_DECEASED_ERROR, PET_LOST_ERROR } from "../../../rehome/domain/rehome-rules";
 import type { FosterRepository } from "../../infrastructure/foster-repository";
 import { sendRehomeRequest } from "../find-rehome-orgs";
 
@@ -200,7 +201,7 @@ describe("sendRehomeRequest", () => {
       { petPublicToken: "PT-tok", targetOrgId: "org-1" },
       { repo, actor },
     );
-    expect(result).toEqual({ ok: false, error: "Esta mascota está reportada como perdida." });
+    expect(result).toEqual({ ok: false, error: PET_LOST_ERROR });
     // Refused BEFORE the org is looked up or its inbox is resolved.
     expect(repo.findOrgById).not.toHaveBeenCalled();
     expect(repo.orgAdminAndCoordinatorUserIds).not.toHaveBeenCalled();
@@ -221,7 +222,7 @@ describe("sendRehomeRequest", () => {
       { petPublicToken: "PT-tok", targetOrgId: "org-1" },
       { repo, actor },
     );
-    expect(result).toEqual({ ok: false, error: "Esta mascota está registrada como fallecida." });
+    expect(result).toEqual({ ok: false, error: PET_DECEASED_ERROR });
     expect(repo.orgAdminAndCoordinatorUserIds).not.toHaveBeenCalled();
   });
 

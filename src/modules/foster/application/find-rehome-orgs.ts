@@ -103,7 +103,16 @@ export async function sendRehomeRequest(
   // imported because `foster -> rehome` is not an allowed module edge (see
   // rehome-rules.ts's coverage note, which moved the shared PREDICATE to
   // lib/domain for the same reason); two string literals did not earn a third
-  // module, but they must not drift, and the test asserts them by exact text.
+  // module.
+  //
+  // WHAT PINS THEM (corrected 2026-08-25). The first version of this comment
+  // said "the test asserts them by exact text", and that was not a coupling at
+  // all: the test asserted its OWN hardcoded literal, so changing the rehome
+  // sentence and its own test would have let this copy drift with a green
+  // suite. Two independent assertions are not a pin. The test now imports
+  // PET_LOST_ERROR / PET_DECEASED_ERROR from rehome's domain and compares
+  // against those — a test file is not part of the runtime module graph, so it
+  // can reach across the edge the production code may not.
   const petStatus = (petRow as { status: string }).status;
   if (petStatus === "lost") {
     return { ok: false, error: "Esta mascota está reportada como perdida." };
