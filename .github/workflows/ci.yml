@@ -43,6 +43,13 @@ jobs:
         # and the autofix codemods.
         run: pnpm lint:tokens
 
+      - name: Lint (design-token parity — CSS ↔ contract)
+        # The web reads app/globals.css; apps/mobile reads @dim/contract/tokens.
+        # This asserts the two still say the same thing. They did not, before
+        # the contract existed: the mobile palette "mirrored" a set of greys the
+        # web has never used. See scripts/check-design-token-parity.ts.
+        run: pnpm lint:token-parity
+
       - name: Lint (authorization guards)
         # CRITICAL: enforces the impersonation-export guard and server-action
         # guard discipline. Runs in `pnpm verify` (the Definition of Done) but

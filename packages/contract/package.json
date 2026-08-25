@@ -15,6 +15,7 @@
     "./input": "./src/input/index.ts",
     "./links": "./src/links/index.ts",
     "./reference": "./src/reference/index.ts",
+    "./tokens": "./src/tokens/index.ts",
     "./viz": "./src/viz/index.ts",
     "./package.json": "./package.json"
   },

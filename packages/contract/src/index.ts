@@ -12,6 +12,7 @@
 //   import type { PublicCredentialV1 } from "@dim/contract/api";
 //   import { breedsForSpecies } from "@dim/contract/reference";
 //   import { deepLinkPath } from "@dim/contract/links";
+//   import { LN_COLORS } from "@dim/contract/tokens";
 //
 // `input` is the one entry point with a runtime dependency (zod). A consumer
 // that only reads the event vocabulary, the scales, the static catalogs, the
@@ -21,4 +22,5 @@ export * from "./events/index.ts";
 export * from "./input/index.ts";
 export * from "./links/index.ts";
 export * from "./reference/index.ts";
+export * from "./tokens/index.ts";
 export * from "./viz/index.ts";
