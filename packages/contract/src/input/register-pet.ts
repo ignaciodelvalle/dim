@@ -113,25 +113,65 @@ const trimmedEnum = <T extends readonly [string, ...string[]]>(values: T) =>
   z.preprocess((v) => (typeof v === "string" ? v.trim() : v), z.enum(values));
 
 /**
- * A whole-number count of years or months, as the owner typed it. Absent or
- * blank → null; unparseable → 0; negatives clamp to 0.
+ * The upper bound on a stated age, in YEARS.
  *
- * Byte-identical to the wizard's behaviour (`Math.max(0, parseInt(x) || 0)`) and
- * intentional: an age field is an ESTIMATE, so rejecting "aprox 2" outright
- * would block a registration over a guess. Accepts a NUMBER too, which the
- * FormData path could not — a JSON client has no reason to quote an integer.
+ * 250 is not a guess at how long a pet lives — it is the point past which a
+ * number is certainly not an age. The bound has to exist at all because the
+ * consumer DERIVES a date of birth from it with unguarded `Date` arithmetic:
+ * `ageYears: 3000` produced the malformed string `"-000974-08"` on its way into
+ * a Postgres `date` column (a 500), and `ageYears: 300000` threw a `RangeError`
+ * out of `toISOString()` — outside any try/catch, so the response was not even
+ * the error envelope. Both were demonstrated, not theorised (WU-B review FB-2).
+ *
+ * WHY SO HIGH, when no dog reaches 30. Because `species` includes `other`, and
+ * in Argentina that is routinely a tortuga terrestre: 50-100 years is ordinary
+ * for one and they are handed down within a family. A ceiling of 40 would
+ * silently mangle a legitimate entry. 250 clears the longest-lived companion
+ * animal on record several times over while keeping the derived date a
+ * well-formed four-digit ISO year (worst case: 500 years back, ~1526).
+ *
+ * WHY IT CLAMPS INSTEAD OF REFUSING. Same reason the rest of this transform
+ * does: an age field is an ESTIMATE, and this file's stated position is that
+ * rejecting "aprox 2" would block a registration over a guess. The ceiling
+ * exists to keep the DERIVATION well-formed, not to police data quality — and
+ * 250 was chosen partly so a clamped value cannot masquerade as a real one. A
+ * pet recorded as 250 years old is visibly a typo somebody can fix; one clamped
+ * to 40 looks like a fact.
  */
-const ageCount = z
-  .union([z.string(), z.number()])
-  .optional()
-  .transform((v) => {
-    if (v === undefined) return null;
-    if (typeof v === "number") return Number.isFinite(v) ? Math.max(0, Math.trunc(v)) : 0;
-    const trimmed = v.trim();
-    if (!trimmed) return null;
-    const parsed = Number.parseInt(trimmed, 10);
-    return Number.isNaN(parsed) ? 0 : Math.max(0, parsed);
-  });
+export const MAX_PET_AGE_YEARS = 250;
+
+/** The same bound expressed in months, so an owner may state the whole age either way. */
+export const MAX_PET_AGE_MONTHS = MAX_PET_AGE_YEARS * 12;
+
+/**
+ * A whole-number count of years or months, as the owner typed it. Absent or
+ * blank → null; unparseable → 0; negatives clamp to 0; anything past `max`
+ * clamps to `max` (see MAX_PET_AGE_YEARS).
+ *
+ * Otherwise byte-identical to the wizard's behaviour
+ * (`Math.max(0, parseInt(x) || 0)`) and intentional. Accepts a NUMBER too,
+ * which the FormData path could not — a JSON client has no reason to quote an
+ * integer.
+ */
+const ageCount = (max: number) =>
+  z
+    .union([z.string(), z.number()])
+    .optional()
+    .transform((v) => {
+      if (v === undefined) return null;
+      if (typeof v === "number") {
+        // The `isFinite` arm is a belt, not the guard that matters: `z.number()`
+        // refuses NaN and ±Infinity BEFORE any transform runs (measured against
+        // zod 4), so a wire body carrying one is rejected outright — and neither
+        // can come out of `JSON.parse` anyway. This covers a caller that builds
+        // the object in-process.
+        return Number.isFinite(v) ? Math.min(max, Math.max(0, Math.trunc(v))) : 0;
+      }
+      const trimmed = v.trim();
+      if (!trimmed) return null;
+      const parsed = Number.parseInt(trimmed, 10);
+      return Number.isNaN(parsed) ? 0 : Math.min(max, Math.max(0, parsed));
+    });
 
 // ---------------------------------------------------------------------------
 // Schema
@@ -182,8 +222,11 @@ export const registerPetInputSchema = z.object({
   estimatedWeightKg: optionalText,
 
   // Estimated age, from which the server derives an estimated date of birth.
-  ageYears: ageCount,
-  ageMonths: ageCount,
+  ageYears: ageCount(MAX_PET_AGE_YEARS),
+  // Bounded in MONTHS at the same ceiling, not at 11: a client is free to state
+  // the whole age in months, and the wizard never forced the two fields to
+  // partition an age between them.
+  ageMonths: ageCount(MAX_PET_AGE_MONTHS),
 
   /**
    * Absent or unrecognised → null. Never a reason to refuse a registration.

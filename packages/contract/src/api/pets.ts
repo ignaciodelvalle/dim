@@ -12,6 +12,42 @@ import type { PublicPetStatus } from "./public-credential";
 // ---------------------------------------------------------------------------
 
 /**
+ * `Idempotency-Key` MUST be a UUID in canonical hyphenated form.
+ *
+ * THE FORMAT WAS DOCUMENTED NOWHERE A CLIENT COULD READ IT, and the endpoint
+ * accepted any non-blank string — while `pet_events.client_idempotency_key` is
+ * a Postgres `uuid` column. A client sending a ULID or a nanoid (both perfectly
+ * reasonable idempotency keys, both what a native app might already have on
+ * hand) got the header accepted, the transaction started, and a `22P02`
+ * invalid-input-syntax error raised INSIDE it. That surfaces as
+ * `pet_registration_failed`, whose contract explicitly tells the caller to
+ * retry with the SAME key — which reproduces the identical 500 forever, one
+ * failed registration at a time, until the per-user budget runs out and turns
+ * into a 429. A permanent client bug wearing a retryable server error's clothes.
+ *
+ * So the requirement is stated here, in the package the client imports, and
+ * enforced at the parse site before any database work.
+ *
+ * ANY version, not just v4. The column stores what Postgres accepts and a v7
+ * key (increasingly the default for exactly this job — time-ordered, still
+ * unique) is as good a retry token as a v4. What is refused is anything that
+ * would not survive the cast.
+ */
+export const IDEMPOTENCY_KEY_PATTERN =
+  /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/;
+
+/**
+ * Whether a string may be sent as `Idempotency-Key`.
+ *
+ * Exported so a client can check BEFORE the round trip. The server checks too,
+ * and the server's check is the one that matters — this is a courtesy that
+ * turns a 400 into a caught bug at the call site.
+ */
+export function isValidIdempotencyKey(value: string): boolean {
+  return IDEMPOTENCY_KEY_PATTERN.test(value.trim());
+}
+
+/**
  * A successful registration (HTTP 201).
  *
  * NO INTERNAL IDs. `registerPet` hands its caller a `petId` and an `eventId` and

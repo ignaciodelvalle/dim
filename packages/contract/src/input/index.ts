@@ -32,6 +32,8 @@ export {
 } from "./intake";
 export {
   ACQUISITION_METHODS,
+  MAX_PET_AGE_MONTHS,
+  MAX_PET_AGE_YEARS,
   PET_SPECIES,
   REGISTER_PET_INPUT_CODES,
   type AcquisitionMethod,

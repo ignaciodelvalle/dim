@@ -4,8 +4,11 @@
 // HERE, and the route handlers that produce them import the same names, so the
 // two cannot drift into disagreement without a compile error in this repo.
 //
-// This entry point is TYPE-ONLY plus a handful of frozen literal arrays. It
-// carries no zod schemas and therefore no runtime dependency: a consumer that
+// This entry point is TYPE-ONLY plus a handful of frozen literals and one
+// three-line predicate over a regex (`isValidIdempotencyKey` — the format the
+// write endpoint's header must have, which a client should be able to check
+// before the round trip). It carries no zod schemas and therefore no runtime
+// dependency: a consumer that
 // only reads credentials never loads the validator that `@dim/contract/input`
 // needs. `PetSex` is imported type-only from `../input/intake` so the sex
 // vocabulary has exactly one definition in the package.
@@ -35,8 +38,10 @@ export {
   type LocalityV1,
 } from "./localities";
 export {
+  IDEMPOTENCY_KEY_PATTERN,
   MY_PETS_PAYLOAD_VERSION,
   MY_PETS_STALE_AFTER_MS,
+  isValidIdempotencyKey,
   type MyPetsV1,
   type MyPetsV1Item,
   type PetRegisteredV1,

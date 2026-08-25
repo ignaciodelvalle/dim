@@ -89,14 +89,27 @@
  * bar for adding a code here.
  *
  * - `idempotency_key_required`
- *                         — the `Idempotency-Key` request header was absent or
- *                           blank on a write that requires it. Distinct from
- *                           `invalid_request` for the same reason `auth_required`
- *                           is distinct from `auth_expired`: it is a client BUG
- *                           in the ENVELOPE, not in the body, and collapsing the
- *                           two sends a developer hunting through a body schema
- *                           that was never the problem. Never retryable as-is —
- *                           the fix is to send the header.
+ *                         — the `Idempotency-Key` request header was absent,
+ *                           blank, or NOT A UUID on a write that requires it.
+ *                           Distinct from `invalid_request` for the same reason
+ *                           `auth_required` is distinct from `auth_expired`: it
+ *                           is a client BUG in the ENVELOPE, not in the body, and
+ *                           collapsing the two sends a developer hunting through
+ *                           a body schema that was never the problem. Never
+ *                           retryable as-is — the fix is to send a well-formed
+ *                           header (`isValidIdempotencyKey` in `./pets` is the
+ *                           same check the server runs).
+ *
+ *                           MALFORMED JOINED ABSENT rather than getting a code of
+ *                           its own (2026-08-25, WU-B review FB-1). The bar for a
+ *                           new code here is "a decision a client has to be able
+ *                           to act on differently", and there is none: both mean
+ *                           send a proper header. A second code would widen every
+ *                           consumer's exhaustive switch to say the same sentence
+ *                           twice. Before the check existed, a non-UUID key was
+ *                           accepted and blew up inside the transaction as
+ *                           `pet_registration_failed` — a code that tells the
+ *                           caller to RETRY, which reproduced the failure forever.
  * - `duplicate_pet_suspected`
  *                         — the caller already owns an ACTIVE pet with the same
  *                           normalized name + species + sex (data-quality gate

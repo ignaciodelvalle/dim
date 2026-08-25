@@ -16,6 +16,8 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  MAX_PET_AGE_MONTHS,
+  MAX_PET_AGE_YEARS,
   REGISTER_PET_INPUT_CODES,
   firstRegisterPetInputCode,
   registerPetInputSchema,
@@ -165,6 +167,84 @@ describe("registerPetInputSchema — the estimated age", () => {
   it("treats a blank string as absent, not as zero", () => {
     // Zero years is a claim ("this animal was born this year"); blank is not.
     expect(registerPetInputSchema.parse({ ...MINIMAL, ageYears: "  " }).ageYears).toBeNull();
+  });
+
+  // -------------------------------------------------------------------------
+  // The ceiling (WU-B review FB-2)
+  // -------------------------------------------------------------------------
+  //
+  // The consumer DERIVES a date of birth from these two with unguarded `Date`
+  // arithmetic. Both of the following were demonstrated against the endpoint
+  // before the bound existed, not theorised:
+  //
+  //   ageYears: 3000    → the malformed date string "-000974-08" on its way into
+  //                       a Postgres `date` column, i.e. a 500;
+  //   ageYears: 300000  → a RangeError thrown out of toISOString(), OUTSIDE any
+  //                       try/catch, so the response was not even the error
+  //                       envelope this surface promises.
+  //
+  // The bound clamps rather than refuses, matching everything else this field
+  // does: an age is an ESTIMATE, and refusing one blocks a registration over a
+  // guess.
+  it("clamps a year count past the ceiling instead of deriving a malformed date", () => {
+    expect(registerPetInputSchema.parse({ ...MINIMAL, ageYears: 3000 }).ageYears).toBe(
+      MAX_PET_AGE_YEARS,
+    );
+    expect(registerPetInputSchema.parse({ ...MINIMAL, ageYears: 300_000 }).ageYears).toBe(
+      MAX_PET_AGE_YEARS,
+    );
+    expect(registerPetInputSchema.parse({ ...MINIMAL, ageYears: "999999999" }).ageYears).toBe(
+      MAX_PET_AGE_YEARS,
+    );
+  });
+
+  it("clamps months at the same ceiling, expressed in months", () => {
+    // A client may state the whole age in months; the two fields were never
+    // required to partition it.
+    expect(registerPetInputSchema.parse({ ...MINIMAL, ageMonths: 999_999 }).ageMonths).toBe(
+      MAX_PET_AGE_MONTHS,
+    );
+    expect(MAX_PET_AGE_MONTHS).toBe(MAX_PET_AGE_YEARS * 12);
+  });
+
+  // Measured while writing this block, and worth recording because the answer
+  // is not the one the transform suggests: `z.number()` REFUSES a non-finite
+  // value before any transform runs, so Infinity and NaN never reach the clamp
+  // at all — the whole body is rejected and the route answers `invalid_request`.
+  // Which is right: neither is an age, and neither can come out of `JSON.parse`
+  // in the first place. The `Number.isFinite` guard in the transform stays as a
+  // belt for a caller that builds the object in-process rather than from a wire.
+  it("rejects the whole body for a non-finite number rather than clamping it", () => {
+    expect(
+      registerPetInputSchema.safeParse({ ...MINIMAL, ageYears: Number.POSITIVE_INFINITY }).success,
+    ).toBe(false);
+    expect(registerPetInputSchema.safeParse({ ...MINIMAL, ageYears: Number.NaN }).success).toBe(
+      false,
+    );
+  });
+
+  // NON-VACUITY: the ceiling must not be clamping ordinary ages. A dog is 12.
+  it("leaves every plausible age untouched", () => {
+    for (const years of [0, 1, 12, 29, 100]) {
+      expect(registerPetInputSchema.parse({ ...MINIMAL, ageYears: years }).ageYears).toBe(years);
+    }
+  });
+
+  // WHY THE CEILING IS 250 AND NOT 40. `species` includes `other`, and in
+  // Argentina that is routinely a tortuga terrestre — 50-100 years is ordinary
+  // for one, and they are handed down within a family. A ceiling tight enough
+  // to look sensible for dogs would silently mangle a legitimate entry.
+  it("clears the longest-lived companion animal by a wide margin", () => {
+    expect(MAX_PET_AGE_YEARS).toBeGreaterThan(150);
+  });
+
+  // The derived date must stay a well-formed four-digit ISO year — the actual
+  // job of the bound. Worst case is both fields at their ceiling: 500 years.
+  it("keeps the worst-case derived date representable", () => {
+    const totalMonths = MAX_PET_AGE_YEARS * 12 + MAX_PET_AGE_MONTHS;
+    const dob = new Date();
+    dob.setMonth(dob.getMonth() - totalMonths);
+    expect(dob.toISOString().slice(0, 10)).toMatch(/^\d{4}-\d{2}-\d{2}$/);
   });
 });
 

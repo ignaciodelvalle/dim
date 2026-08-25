@@ -83,7 +83,7 @@
 // The honest bound on a hung write is the platform's function timeout, and the
 // honest recovery is the retry this endpoint already guarantees is safe.
 
-import type { PetRegisteredV1 } from "@dim/contract/api";
+import { type PetRegisteredV1, isValidIdempotencyKey } from "@dim/contract/api";
 import { registerPetInputSchema } from "@dim/contract/input";
 
 import { db } from "@/db";
@@ -175,8 +175,25 @@ export async function POST(request: Request) {
     return apiV1Error(client.reason === "MISSING" ? "auth_required" : "auth_expired", 401);
   }
 
+  // MUST BE A UUID, and until 2026-08-25 this accepted any non-blank string
+  // (WU-B review FB-1). `pet_events.client_idempotency_key` is a Postgres
+  // `uuid`, so a ULID or a nanoid was accepted here, carried into the
+  // transaction, and raised `22P02` inside it — surfacing as
+  // `pet_registration_failed`, whose documented remedy is "retry ONCE with the
+  // SAME key". That reproduces the identical 500 forever and spends the
+  // caller's 10/min budget doing it, until the answer becomes a 429. A
+  // permanent client bug wearing a retryable server error's clothes.
+  //
+  // ONE code for absent and for malformed, deliberately. `idempotency_key_required`
+  // means "a client BUG in the ENVELOPE, not in the body" and the remedy is
+  // identical in both cases: send a well-formed header. The bar for a new code
+  // in this vocabulary is "a decision a client has to be able to act on
+  // differently", and there is no different action here — a second code would
+  // widen an exhaustive switch in every consumer to say the same sentence twice.
   const idempotencyKey = (request.headers.get("idempotency-key") ?? "").trim();
-  if (idempotencyKey === "") return apiV1Error("idempotency_key_required", 400);
+  if (!isValidIdempotencyKey(idempotencyKey)) {
+    return apiV1Error("idempotency_key_required", 400);
+  }
 
   // Derived from the REQUEST, never from a middleware-stamped header: those
   // default silently when the matcher does not run, and a value the request
@@ -233,7 +250,23 @@ export async function POST(request: Request) {
   const breedResolution = resolveBreedForWrite(input.species, input.breed);
   if (!breedResolution.ok) return apiV1Error("invalid_request", 400);
 
-  const parsed = buildParsedPet(input, { province, breed: breedResolution.breed });
+  // WRAPPED, and it was not (WU-B review FB-2). This is pure in-memory work with
+  // one sharp edge: it derives a date of birth with `Date` arithmetic and
+  // `toISOString()`, which THROWS a RangeError once the date leaves the
+  // representable range. The schema now bounds the inputs that could get it
+  // there (MAX_PET_AGE_YEARS), so this catch should be unreachable — which is
+  // exactly why it is here rather than trusted away. A throw escaping at this
+  // point does not produce the error envelope at all: it produces whatever
+  // Next.js renders for an unhandled exception, on a surface whose entire
+  // contract is "every failure is `{ error: code }`" (§2). One `try` is a
+  // cheaper guarantee than an argument about reachability.
+  let parsed: ParsedPet;
+  try {
+    parsed = buildParsedPet(input, { province, breed: breedResolution.breed });
+  } catch (err) {
+    reportError("api-v1-pets-build", err);
+    return apiV1Error("invalid_request", 400);
+  }
 
   // The three pre-transaction reads, under one budget.
   let resolution: PreWriteResolution;

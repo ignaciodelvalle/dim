@@ -210,6 +210,51 @@ describe("POST /api/v1/pets — Idempotency-Key", () => {
     expect(await res.json()).toEqual({ error: "idempotency_key_required" });
   });
 
+  // FB-1. `pet_events.client_idempotency_key` is a Postgres `uuid`, and this
+  // endpoint used to accept any non-blank string. A ULID or a nanoid — both
+  // perfectly ordinary idempotency keys, both what a native app may already
+  // have on hand — was accepted here, carried into the transaction and raised
+  // `22P02` inside it. That surfaced as `pet_registration_failed`, whose
+  // contract tells the caller to retry with the SAME key: an identical 500,
+  // forever, one failed registration at a time until the 10/min user budget
+  // turned it into a 429.
+  it.each([
+    ["a ULID", "01JCK9Q7ZK8P6R3B4YV2M5X7QD"],
+    ["a nanoid", "V1StGXR8_Z5jdHi6B-myT"],
+    ["a UUID with the hyphens stripped", "1c2f9a6e5b3d4f8091a2b3c4d5e6f708"],
+    ["a UUID with one character too many", "1c2f9a6e-5b3d-4f80-91a2-b3c4d5e6f7089"],
+    ["a UUID with a non-hex character", "1c2f9a6e-5b3d-4f80-91a2-b3c4d5e6f70g"],
+    ["a braced UUID", "{1c2f9a6e-5b3d-4f80-91a2-b3c4d5e6f708}"],
+    ["prose", "retry-of-the-form-i-just-filled"],
+  ])(
+    "refuses %s — the column is a uuid, and a 500 is not a validation message",
+    async (_label, key) => {
+      const res = await POST(post(VALID_BODY, { idempotencyKey: key }));
+
+      expect(res.status).toBe(400);
+      expect(await res.json()).toEqual({ error: "idempotency_key_required" });
+      // The point of catching it HERE: nothing was written and nothing was spent.
+      expect(control.registerCalls).toEqual([]);
+      expect(control.limits).toEqual([]);
+    },
+  );
+
+  // NON-VACUITY for the block above: the check must not be refusing everything.
+  it.each([
+    ["a v4 UUID", "1c2f9a6e-5b3d-4f80-91a2-b3c4d5e6f708"],
+    ["the same key in upper case", "1C2F9A6E-5B3D-4F80-91A2-B3C4D5E6F708"],
+    // A v7 key is time-ordered and increasingly the default for exactly this
+    // job. The column stores what Postgres accepts; pinning to v4 would refuse
+    // a better key for no reason.
+    ["a v7 UUID", "0192f0a1-6d2c-7c3e-8a4b-5f6071829304"],
+    ["a key with surrounding whitespace", "  1c2f9a6e-5b3d-4f80-91a2-b3c4d5e6f708  "],
+  ])("accepts %s", async (_label, key) => {
+    const res = await POST(post(VALID_BODY, { idempotencyKey: key }));
+
+    expect(res.status).toBe(201);
+    expect(control.registerCalls[0]?.clientIdempotencyKey).toBe(key.trim());
+  });
+
   it("refuses BEFORE spending a rate-limit counter", async () => {
     // The assertion is on ORDER, not presence. A client looping on a request it
     // has got structurally wrong must not be able to exhaust a shared per-IP
@@ -244,6 +289,58 @@ describe("POST /api/v1/pets — Idempotency-Key", () => {
     // retry forced by a subway tunnel is not an error state to render.
     expect(res.status).toBe(201);
     expect(await res.json()).toEqual({ publicToken: "DIM-FIRST-0001", wasDuplicate: true });
+  });
+
+  // FB-4 — WHAT THIS LAYER CAN AND CANNOT PROVE, said out loud.
+  //
+  // The route mocks `registerPet` entirely, so "no second animal was created"
+  // is not observable here: the use-case is where the decision lives, and
+  // src/modules/pets/application/__tests__/register-pet.test.ts proves it
+  // against a repository fake (insertPetRegistered never called on a hit).
+  //
+  // What IS the route's own and had never been asserted: that two attempts with
+  // the SAME key are two identical pass-throughs. The route must not mutate,
+  // regenerate or "helpfully" refresh the key between tries — a route that
+  // handed attempt #2 a different key would defeat the whole mechanism, and
+  // every existing assertion in this file would still have passed.
+  it("passes the SAME key through on a retry, unchanged", async () => {
+    const key = randomUUID();
+
+    await POST(post(VALID_BODY, { idempotencyKey: key }));
+    control.register = () => ({
+      ok: true,
+      value: {
+        petId: PET_ID,
+        eventId: EVENT_ID,
+        publicToken: "DIM-FIRST-0001",
+        wasDuplicate: true,
+      },
+      notifications: [],
+    });
+    const second = await POST(post(VALID_BODY, { idempotencyKey: key }));
+
+    expect(control.registerCalls).toHaveLength(2);
+    expect(control.registerCalls[0]?.clientIdempotencyKey).toBe(key);
+    expect(control.registerCalls[1]?.clientIdempotencyKey).toBe(key);
+    expect(await second.json()).toEqual({ publicToken: "DIM-FIRST-0001", wasDuplicate: true });
+  });
+
+  it("calls the use-case exactly ONCE per request, replay included", async () => {
+    control.register = () => ({
+      ok: true,
+      value: {
+        petId: PET_ID,
+        eventId: EVENT_ID,
+        publicToken: "DIM-FIRST-0001",
+        wasDuplicate: true,
+      },
+      notifications: [],
+    });
+
+    await POST(post(VALID_BODY));
+
+    // No internal retry loop, no double dispatch: one HTTP request, one attempt.
+    expect(control.registerCalls).toHaveLength(1);
   });
 });
 
@@ -341,6 +438,38 @@ describe("POST /api/v1/pets — server-side gates", () => {
     expect(res.status).toBe(409);
     expect(await res.json()).toEqual({ error: "duplicate_pet_suspected" });
     expect(control.registerCalls).toEqual([]);
+  });
+
+  // FB-4 — `duplicateOverride` IS NOT A SKELETON KEY, and nothing pinned that.
+  //
+  // The property holds today because the breed gate runs before the pre-write
+  // resolution that reads the flag; it holds by ORDERING, which is the kind of
+  // guarantee a refactor deletes without noticing. `duplicateOverride` waives
+  // exactly one SOFT data-quality gate ("¿es la misma?"), and a legal regime is
+  // not a data-quality gate: a misspelled PPP breed must not reach the registry
+  // because the caller happened to tick a box about a different question.
+  it("does not let duplicateOverride carry a bad breed past the catalog gate", async () => {
+    control.duplicate = { publicToken: "DIM-EXIS-0001" };
+
+    const res = await POST(
+      post({ ...VALID_BODY, breed: "Raza-Falsa-CW0813", duplicateOverride: true }),
+    );
+
+    expect(res.status).toBe(400);
+    expect(await res.json()).toEqual({ error: "invalid_request" });
+    expect(control.registerCalls).toEqual([]);
+  });
+
+  // NON-VACUITY for the test above: the flag must actually DO its one job, or
+  // "it did not bypass the breed gate" would be true of a flag that does
+  // nothing at all.
+  it("still lets duplicateOverride past the same-owner dedupe it is for", async () => {
+    control.duplicate = { publicToken: "DIM-EXIS-0001" };
+
+    const res = await POST(post({ ...VALID_BODY, duplicateOverride: true }));
+
+    expect(res.status).toBe(201);
+    expect(control.registerCalls).toHaveLength(1);
   });
 
   it("says NOTHING about which pet it matched", async () => {
