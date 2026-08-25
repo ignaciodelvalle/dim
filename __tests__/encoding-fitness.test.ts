@@ -178,6 +178,27 @@ describe("encoding fitness", () => {
 describe("encoding fitness — anti-vacuity", () => {
   // Without this block every assertion above is `toEqual([])` over a list that
   // is empty when the scan works AND empty when the scan is broken.
+  //
+  // AN EXPLICIT TIMEOUT, AND WHY IT IS NOT A WEAKENED ASSERTION
+  // -------------------------------------------------------------------------
+  // This one case performs THREE full recursive walks of the repo, reading
+  // every matching file synchronously — roughly 2.200 files × 3. Measured on an
+  // idle machine (2026-08-25): 1.800 ms against vitest's DEFAULT 5.000 ms, i.e.
+  // 36% of its budget already spent before any contention. It runs in the
+  // "unit" project, which is PARALLEL by design, so ~1.300 other files are
+  // doing their own disk I/O at the same time; a 2,8× slowdown is all it takes,
+  // and on Windows with a real-time AV scanner that is an ordinary Tuesday. It
+  // timed out in four consecutive full-suite runs and passed in isolation every
+  // time — the signature of a wall-clock landmine, not of a hang.
+  //
+  // The ASSERTION is untouched: still `filesScanned >= MIN_FILES_SCANNED`, the
+  // floor that tells "clean" apart from "blind". Only the clock moves, because
+  // the clock was measuring the disk and not the code.
+  //
+  // NOT the corpus growing: this budget is deliberately generous enough that a
+  // normal week of new files cannot approach it (WU-A added 9 files to ~2.200 —
+  // about 7 ms of the 1.800). If this ever times out again at 20.000 ms, the
+  // walk really is broken and that is worth stopping for.
   it("actually opens a corpus, in every scan set it judges", () => {
     for (const [name, dirs] of [
       ["SCAN_DIRS", SCAN_DIRS],
@@ -190,7 +211,7 @@ describe("encoding fitness — anti-vacuity", () => {
         `${name} scanned ${filesScanned} files — the walk is broken or a directory was renamed. This suite cannot pass having judged nothing.`,
       ).toBeGreaterThanOrEqual(MIN_FILES_SCANNED);
     }
-  });
+  }, 20_000);
 
   it("every scan directory it names still exists on disk", () => {
     // A stale-baseline failure: rename `src/` and the floor above might still
