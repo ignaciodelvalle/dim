@@ -31,9 +31,9 @@
 // a ticket on it, not a policy that is fine.
 //
 // WHAT IT CHECKS
-//   1. Every `create policy … on storage.objects` in `db/**/*.sql` is parsed:
-//      name, command, roles, and the full text of its `using` / `with check`
-//      predicates.
+//   1. Every `create policy` AND every `alter policy` … `on storage.objects` in
+//      `db/**/*.sql` is parsed: name, command, roles, and the full text of its
+//      `using` / `with check` predicates.
 //   2. WRITE commands only (insert / update / delete / all). SELECT is
 //      check-rls-coverage's job and stays there.
 //   3. Policies granted to a CALLER role (`authenticated`, `anon`, `public`, or
@@ -62,6 +62,45 @@
 // `db/storage.sql` in a pull request is caught here, before any environment has
 // it. The two are complements: this one guards what the repo DECLARES, that one
 // guards what a database actually HAS.
+//
+// THE THIRD EVASION: `ALTER POLICY` (fixed 2026-08-25)
+// ---------------------------------------------------------------------------
+// Two legal SQL forms already had to be taught to this parser (an unquoted name,
+// an omitted `FOR` clause — see parsePolicy). This is the third, and it is the
+// worst of the three, because it is not a spelling: it is a whole STATEMENT the
+// scan never entered. The scan's only entry point was `/create\s+policy/`, so
+//
+//     ALTER POLICY "pet_photos_authenticated_upload" ON storage.objects
+//       WITH CHECK (bucket_id = 'pet-photos' OR bucket_id = 'anything-else');
+//
+// widened a FROZEN grant and the tripwire printed green over it. And the idiom
+// is not hypothetical here: 80 `ALTER POLICY` statements live in `db/`, almost
+// all of them in migrations 0137 and 0168 — it is the repo's normal way of
+// changing a predicate, precisely
+// because `ALTER POLICY` only replaces the USING / WITH CHECK expression (and
+// optionally the `TO` roles) and so is the smallest safe edit.
+//
+// It is now a FIRST-CLASS statement, not a special case. Two consequences worth
+// stating because they are deliberately conservative:
+//
+//   · `ALTER POLICY` cannot change a policy's COMMAND (Postgres does not allow
+//     it), so an ALTER never carries a `FOR` clause. This scan reads an absent
+//     command as `all` — the widest — which for an ALTER means every one of them
+//     is treated as a WRITE policy. That over-reports rather than under-reports,
+//     which is the only acceptable direction here.
+//   · An `ALTER` with no `TO` clause leaves the roles unchanged, which this scan
+//     cannot know because it does not model replay. It reads absent roles as
+//     PUBLIC, again the widest reading. A narrowing ALTER (one that ADDS
+//     auth.uid()) is not permissive and passes; a widening one fails, which is
+//     the whole point.
+//
+// KNOWN LIMIT, NAMED RATHER THAN PARSED: dynamic SQL. A policy created or
+// altered inside `EXECUTE format(…)` — or any `DO $$ … $$` block that builds the
+// statement out of variables — is not read by this scan and cannot be, because
+// the statement does not exist until runtime. There is none in `db/` today
+// (measured 2026-08-25: zero `EXECUTE format` touching storage.objects). If one
+// is ever needed, the honest fix is to write the policy literally and keep the
+// dynamic part out of the grant, not to teach a regex to interpolate.
 //
 // A NOTE ON MIGRATIONS, WHICH ARE IMMUTABLE
 // ---------------------------------------------------------------------------
@@ -100,6 +139,24 @@ const CALLER_ROLES = new Set(["anon", "authenticated", "public"]);
  */
 export const MIN_WRITE_POLICIES = 8;
 
+/**
+ * Non-vacuity floor for the ALTER path specifically, and it needs its own number
+ * for a reason MIN_WRITE_POLICIES cannot cover.
+ *
+ * Today there is NO `alter policy … on storage.objects` in the repo — the 80
+ * ALTER POLICY statements in `db/` (almost all in migrations 0137 and 0168) all
+ * target `public.*` tables and are correctly skipped. So the ALTER branch
+ * contributes ZERO to every other count in this file, and a regression that
+ * silently stopped matching `alter policy` would move nothing: the fence would
+ * keep printing the same green line it prints today, with the third evasion
+ * reopened.
+ *
+ * This floor is measured BEFORE the storage.objects filter, over every policy
+ * statement of either kind the scan can see. Measured 2026-08-25: 80 alter, 158
+ * create. It is the only check that fails when the ALTER regex dies.
+ */
+export const MIN_ALTER_STATEMENTS = 50;
+
 export type FrozenGrant = {
   /** The predicate, normalized: lower-cased, whitespace collapsed. */
   readonly predicate: string;
@@ -131,9 +188,13 @@ export const FROZEN_WRITE_GRANTS: Record<string, FrozenGrant> = {
 // Parsing
 // ---------------------------------------------------------------------------
 
+/** `create policy …` or `alter policy …`. Both are in subject. */
+export type PolicyStatementKind = "create" | "alter";
+
 export type StoragePolicy = {
   file: string;
   name: string;
+  kind: PolicyStatementKind;
   command: string;
   roles: string[];
   /** Every `using` / `with check` predicate, normalized and joined. */
@@ -167,19 +228,28 @@ export function normalize(text: string): string {
   return text.trim().toLowerCase().replace(/\s+/g, " ");
 }
 
+export type PolicyStatement = { kind: PolicyStatementKind; text: string };
+
 /**
- * The full text of every `create policy` statement, terminated by the `;` that
- * closes it at paren-depth zero and outside any string literal.
+ * The full text of every `create policy` AND `alter policy` statement,
+ * terminated by the `;` that closes it at paren-depth zero and outside any
+ * string literal.
  *
  * Statement-aware rather than line-aware because these policies are written
  * across many lines and one of them (`revocations_admin_govt_upload`) carries a
  * nested `EXISTS (SELECT …)` with its own parentheses and its own semicolon-free
  * body. A line regex would have taken the first `)` it found.
+ *
+ * IT WAS `createPolicyStatements` UNTIL 2026-08-25, and the rename is the fix
+ * rather than a tidy-up: the old name was an accurate description of a scan that
+ * could not see a widening written as an ALTER — the repo's own normal idiom for
+ * changing a predicate. See the header.
  */
-export function createPolicyStatements(sql: string): string[] {
-  const statements: string[] = [];
-  const re = /create\s+policy\b/gi;
+export function policyStatements(sql: string): PolicyStatement[] {
+  const statements: PolicyStatement[] = [];
+  const re = /\b(create|alter)\s+policy\b/gi;
   for (let m = re.exec(sql); m !== null; m = re.exec(sql)) {
+    const kind = m[1].toLowerCase() as PolicyStatementKind;
     let depth = 0;
     let inString = false;
     let end = sql.length;
@@ -197,7 +267,7 @@ export function createPolicyStatements(sql: string): string[] {
         break;
       }
     }
-    statements.push(sql.slice(m.index, end));
+    statements.push({ kind, text: sql.slice(m.index, end) });
   }
   return statements;
 }
@@ -280,20 +350,34 @@ export type ParseResult =
  * two regexes above are the specific ones, and only the general fix survives the
  * next SQL form nobody anticipated.
  */
-export function parsePolicy(file: string, statement: string): ParseResult {
-  if (!/\bon\s+storage\.objects\b/i.test(statement)) return { kind: "skip" };
+export function parsePolicy(file: string, statement: PolicyStatement): ParseResult {
+  const text = statement.text;
 
-  // Quoted ("my policy", which may contain spaces) or bare (my_policy).
+  // WHITESPACE AROUND THE DOT. `storage . objects` and `storage.objects` are the
+  // same identifier to Postgres and were two different answers to this fence
+  // until 2026-08-25 — one statement in subject, the other silently skipped as
+  // "not a storage policy". Nobody writes it with spaces on purpose, which is
+  // exactly why it would work: an evasion nobody would suspect costs one
+  // keystroke. Same reasoning as the unquoted-name and omitted-FOR fixes above —
+  // a parser that fails open on a legal spelling is not a parser, it is a
+  // suggestion.
+  if (!/\bon\s+storage\s*\.\s*objects\b/i.test(text)) return { kind: "skip" };
+
+  // Quoted ("my policy", which may contain spaces) or bare (my_policy), after
+  // either verb. `IF NOT EXISTS` is CREATE-only; ALTER has no such clause.
   const name =
-    statement.match(/create\s+policy\s+"([^"]+)"/i)?.[1] ??
-    statement.match(/create\s+policy\s+(?:if\s+not\s+exists\s+)?([a-z_][a-z0-9_$]*)/i)?.[1];
+    text.match(/(?:create|alter)\s+policy\s+"([^"]+)"/i)?.[1] ??
+    text.match(/(?:create|alter)\s+policy\s+(?:if\s+not\s+exists\s+)?([a-z_][a-z0-9_$]*)/i)?.[1];
   if (!name) return { kind: "unparseable" };
 
-  // ABSENT MEANS `all`, per the SQL default — not "skip this statement".
+  // ABSENT MEANS `all`, per the SQL default — not "skip this statement". On an
+  // ALTER the clause is absent ALWAYS (Postgres does not let ALTER POLICY change
+  // the command), so every ALTER is read as the widest. Over-reporting, on
+  // purpose: see the header.
   const command =
-    statement.match(/\bfor\s+(insert|update|delete|select|all)\b/i)?.[1]?.toLowerCase() ?? "all";
+    text.match(/\bfor\s+(insert|update|delete|select|all)\b/i)?.[1]?.toLowerCase() ?? "all";
 
-  const rolesRaw = statement.match(/\bto\s+([a-z_,\s]+?)\s*(?:\busing\b|\bwith\s+check\b|$)/i)?.[1];
+  const rolesRaw = text.match(/\bto\s+([a-z_,\s]+?)\s*(?:\busing\b|\bwith\s+check\b|$)/i)?.[1];
   const roles = rolesRaw
     ? rolesRaw
         .split(",")
@@ -306,9 +390,10 @@ export function parsePolicy(file: string, statement: string): ParseResult {
     policy: {
       file,
       name,
+      kind: statement.kind,
       command,
       roles,
-      predicate: normalize(predicateGroups(statement).join(" and ")),
+      predicate: normalize(predicateGroups(text).join(" and ")),
     },
   };
 }
@@ -325,21 +410,30 @@ export function parsePolicy(file: string, statement: string): ParseResult {
 export function inventory(files: readonly string[]): {
   policies: StoragePolicy[];
   unparseable: UnparseablePolicy[];
+  /**
+   * Every policy statement SEEN, of either kind, before the storage.objects
+   * filter. It exists so MIN_ALTER_STATEMENTS has something to count: the ALTER
+   * branch contributes zero to every other number in this file today, so a dead
+   * ALTER regex would be invisible to all of them.
+   */
+  statementCounts: Record<PolicyStatementKind, number>;
 } {
   const policies: StoragePolicy[] = [];
   const unparseable: UnparseablePolicy[] = [];
+  const statementCounts: Record<PolicyStatementKind, number> = { create: 0, alter: 0 };
   for (const file of files) {
     const sql = stripSqlComments(readFileSync(file, "utf8"));
     const normalizedFile = file.replaceAll("\\", "/");
-    for (const statement of createPolicyStatements(sql)) {
+    for (const statement of policyStatements(sql)) {
+      statementCounts[statement.kind]++;
       const result = parsePolicy(normalizedFile, statement);
       if (result.kind === "policy") policies.push(result.policy);
       else if (result.kind === "unparseable") {
-        unparseable.push({ file: normalizedFile, statement: normalize(statement) });
+        unparseable.push({ file: normalizedFile, statement: normalize(statement.text) });
       }
     }
   }
-  return { policies, unparseable };
+  return { policies, unparseable, statementCounts };
 }
 
 /** Write policies granted to a role a client can actually hold. */
@@ -422,8 +516,27 @@ function listSqlFiles(): string[] {
 
 function runCheck(): void {
   const files = listSqlFiles();
-  const { policies, unparseable } = inventory(files);
+  const { policies, unparseable, statementCounts } = inventory(files);
   const verdict = evaluate(policies, unparseable);
+
+  // Rule 7b — the ALTER path is alive. Checked first because it is the only
+  // failure that leaves every other number in this file unchanged.
+  if (statementCounts.alter < MIN_ALTER_STATEMENTS) {
+    console.error(
+      [
+        "",
+        `✗ check-storage-write-policies: saw only ${statementCounts.alter} \`alter policy\` statement(s) (floor ${MIN_ALTER_STATEMENTS}).`,
+        `  Scanned ${files.length} file(s) matching ${SQL_GLOBS.join(", ")}.`,
+        "  No `alter policy` targets storage.objects today, so this branch adds",
+        "  nothing to any other count here — which means a regex that stopped",
+        "  matching it would leave this fence printing the same green line while",
+        "  a widening written as an ALTER walked straight through. See",
+        "  MIN_ALTER_STATEMENTS.",
+        "",
+      ].join("\n"),
+    );
+    process.exit(1);
+  }
 
   // Rule 7 — non-vacuity, checked BEFORE any verdict is reported.
   if (verdict.writes.length < MIN_WRITE_POLICIES) {
@@ -464,7 +577,7 @@ function runCheck(): void {
   for (const policy of verdict.unfrozen) {
     problems.push(
       [
-        `  NEW bucket-name-only write grant: "${policy.name}"  (${policy.file})`,
+        `  NEW bucket-name-only write grant (${policy.kind} policy): "${policy.name}"  (${policy.file})`,
         `      for ${policy.command} to ${policy.roles.join(", ")}`,
         `      predicate: ${policy.predicate || "(none)"}`,
         "      It grants a write to every caller holding that role, for every object in the",
@@ -479,12 +592,15 @@ function runCheck(): void {
   for (const { policy, expected } of verdict.changed) {
     problems.push(
       [
-        `  FROZEN grant changed: "${policy.name}"  (${policy.file})`,
+        `  FROZEN grant changed by an ${policy.kind.toUpperCase()} POLICY: "${policy.name}"  (${policy.file})`,
         `      pinned:  ${expected}`,
         `      found:   ${policy.predicate || "(none)"}`,
         "      These two grants are frozen exactly, not approximately. If this is the B24",
         "      fix, remove the entry from FROZEN_WRITE_GRANTS in the same commit; if it is",
         "      a widening, it is the thing this fence exists to stop.",
+        "      An ALTER POLICY replaces the USING / WITH CHECK expression in place, which is",
+        "      this repo's normal idiom (80 of them live in db/) and was invisible to this",
+        "      scan until 2026-08-25.",
       ].join("\n"),
     );
   }
@@ -510,7 +626,7 @@ function runCheck(): void {
   }
 
   console.log(
-    `✓ storage write-policy tripwire — ${verdict.writes.length} caller-facing write policy/policies across ${files.length} SQL file(s); ${verdict.permissive.length} bucket-name-only, all frozen and unchanged (${Object.keys(FROZEN_WRITE_GRANTS).join(", ")}).`,
+    `✓ storage write-policy tripwire — ${verdict.writes.length} caller-facing write policy/policies across ${files.length} SQL file(s) (${statementCounts.create} create + ${statementCounts.alter} alter policy statements read); ${verdict.permissive.length} bucket-name-only, all frozen and unchanged (${Object.keys(FROZEN_WRITE_GRANTS).join(", ")}).`,
   );
 }
 

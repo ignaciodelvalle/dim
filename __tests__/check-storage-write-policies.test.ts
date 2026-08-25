@@ -21,15 +21,16 @@ import { describe, expect, it } from "vitest";
 
 import {
   FROZEN_WRITE_GRANTS,
+  MIN_ALTER_STATEMENTS,
   MIN_WRITE_POLICIES,
   SQL_GLOBS,
   callerFacingWrites,
-  createPolicyStatements,
   evaluate,
   inventory,
   isPermissive,
   normalize,
   parsePolicy,
+  policyStatements,
   stripSqlComments,
 } from "@/scripts/check-storage-write-policies";
 
@@ -40,7 +41,11 @@ import {
 const REAL_FILES = [...new Set(SQL_GLOBS.flatMap((g) => globSync(g)))]
   .map((f) => f.replaceAll("\\", "/"))
   .sort();
-const { policies: REAL, unparseable: REAL_UNPARSEABLE } = inventory(REAL_FILES);
+const {
+  policies: REAL,
+  unparseable: REAL_UNPARSEABLE,
+  statementCounts: REAL_COUNTS,
+} = inventory(REAL_FILES);
 
 describe("the real repo", () => {
   it("scans SQL files at all", () => {
@@ -87,6 +92,21 @@ describe("the real repo", () => {
     expect(scoped.map((p) => p.name)).toContain("revocations_admin_govt_upload");
   });
 
+  // THE ALTER PATH'S ONLY LIFE SIGN. No `alter policy` targets storage.objects
+  // today, so the ALTER branch contributes zero to every other number here — an
+  // `alter policy` regex that stopped matching would move nothing and the fence
+  // would keep printing the same green line with the third evasion reopened.
+  it("still reads `alter policy` statements at all", () => {
+    expect(REAL_COUNTS.alter).toBeGreaterThanOrEqual(MIN_ALTER_STATEMENTS);
+    expect(REAL_COUNTS.create).toBeGreaterThan(0);
+  });
+
+  it("finds no storage.objects policy declared by an ALTER — today", () => {
+    // Stated as a MEASUREMENT, not a rule. The day one exists it belongs in the
+    // scan, which is now what happens; this test would simply move.
+    expect(REAL.filter((p) => p.kind === "alter")).toEqual([]);
+  });
+
   it("keeps every frozen grant carrying a reason and a way out", () => {
     for (const [name, grant] of Object.entries(FROZEN_WRITE_GRANTS)) {
       expect(grant.predicate, name).not.toBe("");
@@ -112,7 +132,14 @@ describe("stripSqlComments", () => {
   });
 });
 
-describe("createPolicyStatements", () => {
+/** The first statement of `sql`, or a throw naming what the scan actually saw. */
+function firstStatement(sql: string) {
+  const statements = policyStatements(sql);
+  if (statements.length === 0) throw new Error("the scan found no policy statement at all");
+  return statements[0];
+}
+
+describe("policyStatements", () => {
   it("captures a statement written across many lines", () => {
     const sql = [
       'create policy "p"',
@@ -121,10 +148,32 @@ describe("createPolicyStatements", () => {
       "  with check (bucket_id = 'x');",
       "select 1;",
     ].join("\n");
-    const statements = createPolicyStatements(sql);
+    const statements = policyStatements(sql);
     expect(statements).toHaveLength(1);
-    expect(statements[0]).toContain("bucket_id = 'x'");
-    expect(statements[0]).not.toContain("select 1");
+    expect(statements[0].kind).toBe("create");
+    expect(statements[0].text).toContain("bucket_id = 'x'");
+    expect(statements[0].text).not.toContain("select 1");
+  });
+
+  // THE THIRD EVASION. The scan's only entry point was /create\s+policy/, so an
+  // ALTER — the repo's own normal idiom for changing a predicate, 80 of them in
+  // db/ — was a statement the fence never entered.
+  it("captures an `alter policy` statement, and labels it", () => {
+    const sql = [
+      'ALTER POLICY "pet_photos_authenticated_upload" ON storage.objects',
+      "  WITH CHECK (bucket_id = 'pet-photos' OR bucket_id = 'anything-else');",
+    ].join("\n");
+    const statements = policyStatements(sql);
+    expect(statements).toHaveLength(1);
+    expect(statements[0].kind).toBe("alter");
+  });
+
+  it("reads both kinds out of one file, in order", () => {
+    const sql = [
+      `create policy a on storage.objects for insert to authenticated with check (bucket_id = 'x');`,
+      `alter policy a on storage.objects with check (bucket_id = 'y');`,
+    ].join("\n");
+    expect(policyStatements(sql).map((s) => s.kind)).toEqual(["create", "alter"]);
   });
 
   // The shape that breaks a naive parser: migration 0188's revocations upload.
@@ -137,7 +186,7 @@ describe("createPolicyStatements", () => {
       "    AND EXISTS (SELECT 1 FROM public.profiles p WHERE p.id = (SELECT auth.uid()))",
       "  );",
     ].join("\n");
-    const result = parsePolicy("x.sql", createPolicyStatements(sql)[0] ?? "");
+    const result = parsePolicy("x.sql", firstStatement(sql));
     expect(result.kind).toBe("policy");
     if (result.kind !== "policy") throw new Error("unreachable");
     expect(result.policy.predicate).toContain("auth.uid()");
@@ -148,7 +197,7 @@ describe("createPolicyStatements", () => {
 describe("parsePolicy", () => {
   /** The parsed policy, or a failure naming what came back instead. */
   function parse(sql: string) {
-    const result = parsePolicy("test.sql", createPolicyStatements(sql)[0] ?? "");
+    const result = parsePolicy("test.sql", firstStatement(sql));
     if (result.kind !== "policy") throw new Error(`expected a policy, got "${result.kind}"`);
     return result.policy;
   }
@@ -156,11 +205,28 @@ describe("parsePolicy", () => {
   it("ignores a policy on a table that is not storage.objects", () => {
     const result = parsePolicy(
       "test.sql",
-      createPolicyStatements(`create policy "p" on public.pets for insert to authenticated;`)[0] ??
-        "",
+      firstStatement(`create policy "p" on public.pets for insert to authenticated;`),
     );
     // "skip", NOT "unparseable": this really is none of the fence's business.
     expect(result.kind).toBe("skip");
+  });
+
+  // `storage . objects` and `storage.objects` are the same identifier to
+  // Postgres and were two different answers to this fence until 2026-08-25.
+  // Nobody writes it with spaces on purpose, which is exactly why it would work.
+  it("reads `storage . objects` with whitespace around the dot", () => {
+    const policy = parse(
+      `create policy spaced on storage . objects for insert to authenticated with check (bucket_id = 'x');`,
+    );
+    expect(policy.name).toBe("spaced");
+    expect(isPermissive(policy)).toBe(true);
+  });
+
+  it("reads a newline between the schema and the table", () => {
+    const policy = parse(
+      `create policy wrapped on storage\n  .objects for insert to authenticated with check (bucket_id = 'x');`,
+    );
+    expect(policy.name).toBe("wrapped");
   });
 
   it("reads name, command and roles", () => {
@@ -207,8 +273,47 @@ describe("parsePolicy", () => {
 
   it("reports an unreadable storage.objects statement as an OFFENDER, not a skip", () => {
     // A `create policy` on storage.objects whose name this parser cannot read.
-    const result = parsePolicy("test.sql", "create policy 42invalid on storage.objects for insert");
+    const result = parsePolicy("test.sql", {
+      kind: "create",
+      text: "create policy 42invalid on storage.objects for insert",
+    });
     expect(result.kind).toBe("unparseable");
+  });
+
+  // ==========================================================================
+  // THE THIRD EVASION — `ALTER POLICY` (fixed 2026-08-25)
+  // ==========================================================================
+
+  it("reads an ALTER POLICY as a policy, quoted name and all", () => {
+    const policy = parse(
+      `alter policy "pet_photos_authenticated_upload" on storage.objects with check (bucket_id = 'pet-photos');`,
+    );
+    expect(policy.name).toBe("pet_photos_authenticated_upload");
+    expect(policy.kind).toBe("alter");
+  });
+
+  it("reads an ALTER POLICY with an unquoted name", () => {
+    expect(parse(`alter policy some_grant on storage.objects using (bucket_id = 'x');`).name).toBe(
+      "some_grant",
+    );
+  });
+
+  // An ALTER never carries a FOR clause (Postgres does not allow changing the
+  // command) and often carries no TO clause either. Both absences are read as
+  // the WIDEST option, which over-reports rather than under-reports — the only
+  // acceptable direction for a tripwire.
+  it("reads an ALTER as `for all` to `public`, the widest reading", () => {
+    const policy = parse(`alter policy p on storage.objects using (bucket_id = 'x');`);
+    expect(policy.command).toBe("all");
+    expect(policy.roles).toEqual(["public"]);
+    expect(callerFacingWrites([policy])).toHaveLength(1);
+  });
+
+  it("does not treat a NARROWING alter as permissive", () => {
+    const policy = parse(
+      `alter policy p on storage.objects with check (bucket_id = 'x' and auth.uid() = owner);`,
+    );
+    expect(isPermissive(policy)).toBe(false);
   });
 
   // SQL's default when `to` is omitted is PUBLIC. Failing closed is the only
@@ -246,6 +351,7 @@ describe("isPermissive", () => {
     return {
       file: "t.sql",
       name: "p",
+      kind: "create" as const,
       command: "insert",
       roles: ["authenticated"],
       predicate: normalize(predicate),
@@ -275,7 +381,7 @@ describe("isPermissive", () => {
 
 describe("red controls", () => {
   function verdictFor(sql: string) {
-    const statements = createPolicyStatements(stripSqlComments(sql));
+    const statements = policyStatements(stripSqlComments(sql));
     const policies = [];
     const unparseable = [];
     for (const statement of statements) {
@@ -284,7 +390,7 @@ describe("red controls", () => {
       // Carried, not dropped — otherwise a red control could "pass" by being
       // unreadable, which is the exact failure this file now guards.
       else if (result.kind === "unparseable") {
-        unparseable.push({ file: "planted.sql", statement: normalize(statement) });
+        unparseable.push({ file: "planted.sql", statement: normalize(statement.text) });
       }
     }
     return evaluate(policies, unparseable);
@@ -363,6 +469,69 @@ describe("red controls", () => {
       .filter((chunk) => !chunk.includes("pet_photos_authenticated_upload"))
       .join("create policy");
     expect(verdictFor(onlyOne).missing).toEqual(["pet_photos_authenticated_upload"]);
+  });
+
+  // ==========================================================================
+  // THE PLANTED WIDENING, WRITTEN AS AN ALTER — the third evasion's red proof
+  // ==========================================================================
+  //
+  // This is the statement that walked through the tripwire until 2026-08-25. It
+  // is not exotic: `ALTER POLICY` is how this repo changes a predicate (80 of
+  // them in db/), because it is the smallest safe edit — it replaces the USING /
+  // WITH CHECK expression and touches nothing else. The scan's only entry point
+  // was /create\s+policy/, so a widening spelled this way was not "missed", it
+  // was never looked at.
+
+  it("RED: a frozen grant widened by an ALTER POLICY", () => {
+    const verdict = verdictFor(
+      `${FROZEN_SQL}\nalter policy "pet_photos_authenticated_upload" on storage.objects with check (bucket_id in ('pet-photos', 'anything-else'));`,
+    );
+    expect(verdict.changed).toHaveLength(1);
+    expect(verdict.changed[0]?.policy.name).toBe("pet_photos_authenticated_upload");
+    expect(verdict.changed[0]?.policy.kind).toBe("alter");
+    expect(verdict.changed[0]?.expected).toBe("bucket_id = 'pet-photos'");
+  });
+
+  it("RED: a frozen grant widened to `true` by an ALTER POLICY", () => {
+    const verdict = verdictFor(
+      `${FROZEN_SQL}\nalter policy "event_attachments_authenticated_upload" on storage.objects with check (true);`,
+    );
+    expect(verdict.changed).toHaveLength(1);
+    expect(verdict.changed[0]?.policy.predicate).toBe("true");
+  });
+
+  it("RED: an ALTER POLICY introducing a bucket-name-only grant under a NEW name", () => {
+    const verdict = verdictFor(
+      `${FROZEN_SQL}\nalter policy some_other_grant on storage.objects with check (bucket_id = 'welfare-evidence');`,
+    );
+    expect(verdict.unfrozen.map((p) => p.name)).toEqual(["some_other_grant"]);
+  });
+
+  it("RED: a NEW blanket grant written with `storage . objects`", () => {
+    const verdict = verdictFor(
+      `${FROZEN_SQL}\ncreate policy spaced_blanket on storage . objects for insert to authenticated with check (bucket_id = 'x');`,
+    );
+    expect(verdict.unfrozen.map((p) => p.name)).toEqual(["spaced_blanket"]);
+  });
+
+  it("GREEN: an ALTER POLICY that NARROWS a frozen grant is not a widening", () => {
+    // It is still a `changed` finding — the grants are frozen exactly, not
+    // approximately, and narrowing them is the B24 fix, which belongs in a
+    // commit that also empties the allowlist entry. What it must NOT be is
+    // `unfrozen`, i.e. mistaken for a new blanket grant.
+    const verdict = verdictFor(
+      `${FROZEN_SQL}\nalter policy "pet_photos_authenticated_upload" on storage.objects with check (bucket_id = 'pet-photos' and auth.uid() = owner);`,
+    );
+    expect(verdict.unfrozen).toEqual([]);
+  });
+
+  it("GREEN: an ALTER POLICY on a public table is none of this fence's business", () => {
+    const verdict = verdictFor(
+      `${FROZEN_SQL}\nalter policy "pet events readable by active owner" on public."pet_events" using (true);`,
+    );
+    expect(verdict.unfrozen).toEqual([]);
+    expect(verdict.changed).toEqual([]);
+    expect(verdict.unparseable).toEqual([]);
   });
 
   it("GREEN: a new write grant that DOES name the caller", () => {
