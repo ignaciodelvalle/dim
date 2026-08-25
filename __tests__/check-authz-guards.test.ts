@@ -891,8 +891,8 @@ describe("listRouteHandlerFiles", () => {
     expect(offenders).toEqual([]);
   });
 
-  it("the intentionally-public handlers are exactly the ten documented ones", () => {
-    // An ELEVENTH opt-out appearing here is a decision, not a detail: it means an
+  it("the intentionally-public handlers are exactly the eleven documented ones", () => {
+    // A TWELFTH opt-out appearing here is a decision, not a detail: it means an
     // endpoint was made public and this list is where that shows up in review.
     //
     // The seventh arrived on 2026-08-21 with the first `/api/v1` endpoint. It is
@@ -926,6 +926,23 @@ describe("listRouteHandlerFiles", () => {
     // budget — its OWN bucket, not the module's shared `__public__` sentinel, so
     // one scraper cannot starve the web's anonymous filter bars.
     //
+    // The ELEVENTH arrived on 2026-08-25 with WU-D: `GET /.well-known/assetlinks.json`.
+    // A fifth kind — A PROTOCOL DOCUMENT ADDRESSED TO A MACHINE THAT HAS NO
+    // ACCOUNT. Android's App Links verifier fetches it at install time, from a
+    // device with no session and no prior relationship to us; requiring anything
+    // of the caller would break the only mechanism it exists for. It discloses a
+    // public certificate fingerprint and a package name, both printed in the
+    // Play listing — publishing them IS the association handshake, not a leak in
+    // it. It carries no rate limiter either, and that is the one difference from
+    // the other ten: it is a static document generated from an env var, with no
+    // database read behind it to bound.
+    //
+    // IT ONLY REACHES THIS LIST BECAUSE THE GLOB WAS WIDENED IN THE SAME CHANGE.
+    // `app/**/route.ts` under `node:fs` globSync does not match a dot segment
+    // (measured), so a handler under `app/.well-known/` was outside the corpus
+    // entirely — and neither this list nor the fence's own count would have
+    // moved to say so. See ROUTE_HANDLER_GLOBS in scripts/check-authz-guards.ts.
+    //
     // `POST /api/v1/pets` and `GET /api/v1/me/pets`, the other two WU-B routes,
     // are deliberately NOT here for the same reason `/me` is not: both call
     // requireLiveUser.
@@ -944,6 +961,8 @@ describe("listRouteHandlerFiles", () => {
       "app/(public)/denuncias/seguimiento/entrar/route.ts",
       "app/(public)/denuncias/seguimiento/salir/route.ts",
       "app/(public)/transparencia/datos/[dataset]/route.ts",
+      // Sorts here and not first: `(` is 0x28, `.` is 0x2E.
+      "app/.well-known/assetlinks.json/route.ts",
       "app/api/health/route.ts",
       "app/api/v1/auth/login/route.ts",
       "app/api/v1/auth/signup/route.ts",
