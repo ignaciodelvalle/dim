@@ -143,6 +143,28 @@ export type EventAmendAffordanceV1 = {
 };
 
 /**
+ * `POST /api/v1/pets/{publicToken}/events/{eventId}/amend` — HTTP 201.
+ *
+ * 201 BECAUSE A CORRECTION CREATES SOMETHING. It does not edit the record it
+ * names — nothing in this product edits a `pet_events` row, a database trigger
+ * refuses it — it appends a NEW event that references the original. The status
+ * says which of the two happened.
+ *
+ * A REPLAY ANSWERS 201 WITH THE SAME BODY, exactly as `POST /api/v1/pets` does:
+ * the caller asked for a correction to exist and a correction exists.
+ * `wasDuplicate` is there so a client can skip a success animation it already
+ * played; a client that ignores it still behaves correctly.
+ *
+ * `amendmentEventId` addresses the correction itself, which IS a row in the
+ * ledger — a client can open it like any other asiento. It is the same class of
+ * identifier as `eventId` and it earns its place the same way.
+ */
+export type EventAmendedV1 = {
+  amendmentEventId: string;
+  wasDuplicate: boolean;
+};
+
+/**
  * `GET /api/v1/pets/{publicToken}/events/{eventId}` — HTTP 200.
  *
  * The sections that can fail on their own are wrapped in `CredentialSection`:

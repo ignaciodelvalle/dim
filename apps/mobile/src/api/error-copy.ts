@@ -88,5 +88,19 @@ export function apiErrorMessage(code: ApiV1ErrorCode): string {
       return "Ya tenés una mascota registrada con ese nombre. Revisá tu lista antes de crear otra.";
     case "pet_registration_failed":
       return "No pudimos completar el registro. Volvé a intentar en unos minutos.";
+    // WU-J, the correction codes. A screen that got here has already been told
+    // the specific reason — `PetEventDetailV1.amend.refusal` carries it — so
+    // these are the sentences for a client that reached the door anyway.
+    case "amend_forbidden":
+      // The web's own words, verbatim: the person needs a capability granted,
+      // and naming it is what lets them ask for the right thing.
+      return "Necesitás el permiso 'Registrar eventos clínicos' (event.write). Pediselo a un administrador.";
+    case "amend_not_allowed":
+      // Covers both halves of the code — a type outside the allowlist, and a
+      // deceased animal — because the client's move is the same either way and
+      // the screen already holds the precise reason.
+      return "Este registro no admite correcciones.";
+    case "amend_failed":
+      return "No pudimos guardar la corrección. Volvé a intentar en unos minutos.";
   }
 }

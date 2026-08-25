@@ -153,6 +153,42 @@
  *                           resolves to it instead of creating a second animal.
  *                           When the failure arm becomes typed, this code splits
  *                           and the split happens HERE, in the open.
+ *
+ * THE CORRECTION CODES (WU-J). `POST /api/v1/pets/{token}/events/{id}/amend`
+ * appends a correction to the append-only spine. Three codes, split by WHOSE
+ * fact the refusal is about and by what the client does next — the only bar this
+ * file applies.
+ *
+ * - `amend_forbidden`   — the CALLER may read this pet but may not write events
+ *                         on it: an organization member without the
+ *                         `event.write` capability. 403. Nothing the client can
+ *                         retry or reword; the person needs the capability
+ *                         granted, and the web says so in those words.
+ * - `amend_not_allowed` — the RECORD refuses correction, whoever is asking: its
+ *                         type is outside the amendable allowlist
+ *                         (`death_recorded`, `incident_reported`, the rabies
+ *                         observation pair and the custody flows all have their
+ *                         own reversal paths or forensic weight), or the animal
+ *                         is registered deceased and accepts no new events. 409.
+ *
+ *                         ONE code for both, deliberately: the client's move is
+ *                         identical — stop offering the affordance and show the
+ *                         reason — and it already HOLDS the reason, because
+ *                         `PetEventDetailV1.amend.refusal` carries the es-AR
+ *                         sentence for exactly these cases. Reaching this code
+ *                         means the client ignored `canAmend`, and a second code
+ *                         would widen every consumer's exhaustive switch to say
+ *                         the same sentence twice.
+ * - `amend_failed`      — the correction transaction itself failed. ONE generic
+ *                         code for the same reason `pet_registration_failed` is
+ *                         one: the use-case's failure arm is an untyped string
+ *                         carrying es-AR prose written for a web form (§3), so
+ *                         this endpoint genuinely cannot tell a constraint
+ *                         violation from a dead connection, and putting that
+ *                         prose on a wire would be worse. A client may retry
+ *                         ONCE with the SAME `Idempotency-Key`; if the first
+ *                         attempt had in fact committed, the retry resolves to
+ *                         it instead of appending a second correction.
  */
 export const API_V1_ERROR_CODES = [
   "rate_limited",
@@ -169,6 +205,9 @@ export const API_V1_ERROR_CODES = [
   "idempotency_key_required",
   "duplicate_pet_suspected",
   "pet_registration_failed",
+  "amend_forbidden",
+  "amend_not_allowed",
+  "amend_failed",
 ] as const;
 
 export type ApiV1ErrorCode = (typeof API_V1_ERROR_CODES)[number];

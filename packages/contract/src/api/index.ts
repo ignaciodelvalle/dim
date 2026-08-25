@@ -68,6 +68,7 @@ export {
   PET_EVENT_DETAIL_PAYLOAD_VERSION,
   PET_EVENT_DETAIL_STALE_AFTER_MS,
   type EventAmendAffordanceV1,
+  type EventAmendedV1,
   type EventAmendmentV1,
   type EventAttachmentV1,
   type EventAuthorV1,

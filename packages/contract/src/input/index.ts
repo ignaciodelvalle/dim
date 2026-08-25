@@ -6,6 +6,15 @@
 // It is the reason the package takes its one dependency, zod — see the note in
 // scripts/check-contract-purity.ts.
 export {
+  AMEND_EVENT_INPUT_CODES,
+  AMEND_REASON_MIN_LENGTH,
+  NON_AMENDABLE_PAYLOAD_KEYS,
+  type AmendEventInput,
+  type AmendEventInputCode,
+  amendEventInputSchema,
+  firstAmendEventInputCode,
+} from "./amend-event.ts";
+export {
   LOGIN_INPUT_CODES,
   MIN_PASSWORD_LENGTH,
   SIGNUP_INPUT_CODES,

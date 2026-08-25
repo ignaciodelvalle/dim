@@ -63,7 +63,17 @@ export type PetEventAuthorship = {
   authorVerified: boolean;
 };
 
-const OWNER_AUTHORSHIP: PetEventAuthorship = {
+/**
+ * How an OWNER-path write signs its event.
+ *
+ * Exported (WU-J) because the bearer door needs the same three fields the
+ * cookie door stamps: `resolvePetHolderAccess` returns an `eventAuthorship` for
+ * the ORG path only — an organization's signature depends on whether the acting
+ * member holds a validated matrícula — while the person path has exactly one
+ * answer, which is this. Re-declaring it at a call site is how a native write
+ * ends up signed `authorVerified: true` by accident.
+ */
+export const OWNER_AUTHORSHIP: PetEventAuthorship = {
   authorRole: "owner",
   authorOrganizationId: null,
   authorVerified: false,

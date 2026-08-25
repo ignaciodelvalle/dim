@@ -138,11 +138,18 @@ export async function amendEvent(
   // caches too, not only in the projection read boundaries). The D5 audit +
   // notify writes join the same tx so a partial correction can never surface.
   const now = new Date();
-  // EL-F1: server-derived key so an identical rapid resubmit dedupes.
-  const idempotencyKey = deriveAmendmentIdempotencyKey(resolvedTargetEventId, user.id, changes);
-  let amendmentEventId: string;
+  // EL-F1: server-derived key so an identical rapid resubmit dedupes — unless
+  // the CALLER brought one. A form post has no header to carry a key, so the
+  // web keeps the derived one byte for byte; `/api/v1` requires
+  // `Idempotency-Key` and passes it here, because the retry that matters to a
+  // phone is a resend of the same REQUEST and the derived key only knows about
+  // identical CORRECTIONS. See `AmendEventInput.clientIdempotencyKey`.
+  const idempotencyKey =
+    input.clientIdempotencyKey ??
+    deriveAmendmentIdempotencyKey(resolvedTargetEventId, user.id, changes);
+  let committed: { id: string; wasDuplicate: boolean };
   try {
-    amendmentEventId = await db.transaction(async (tx) => {
+    committed = await db.transaction(async (tx) => {
       // Route the append through the idempotency path (advisory lock + partial
       // unique index) instead of a raw insert (EL-F1): a double-submit with the
       // same key is a no-op that returns the original row rather than appending
@@ -167,7 +174,7 @@ export async function amendEvent(
       // Identical resubmit → the amendment already exists. Skip the cache
       // refresh, audit_log and notification so the append-only log isn't
       // polluted with duplicate correction side effects.
-      if (wasNoop) return amendmentEvent.id;
+      if (wasNoop) return { id: amendmentEvent.id, wasDuplicate: true };
 
       // Re-derive any pets cache column the corrected (root) event feeds. Reads
       // the full stream INCLUDING the row just inserted, so the correction is
@@ -220,7 +227,7 @@ export async function amendEvent(
         }
       }
 
-      return amendmentEvent.id;
+      return { id: amendmentEvent.id, wasDuplicate: false };
     });
   } catch {
     return { ok: false, error: "Error al guardar la enmienda. Intentá de nuevo." };
@@ -230,5 +237,5 @@ export async function amendEvent(
   revalidatePath(`/mis-mascotas/${publicToken}`);
   revalidatePath(`/mis-mascotas/${publicToken}/eventos/${targetEventId}`);
 
-  return { ok: true, amendmentEventId };
+  return { ok: true, amendmentEventId: committed.id, wasDuplicate: committed.wasDuplicate };
 }

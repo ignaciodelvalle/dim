@@ -84,9 +84,10 @@ export const V1_ROUTE_GLOB = "app/api/v1/**/route.ts";
  *
  * ELEVEN with the event detail (`pets/{token}/events/{eventId}`), which adds a
  * THIRD level of dynamic segment under `pets/` — the arrangement a `**` glob is
- * most likely to stop matching after a rename.
+ * most likely to stop matching after a rename. TWELVE with the correction
+ * write (`.../events/{eventId}/amend`).
  */
-export const MIN_V1_ROUTE_FILES = 11;
+export const MIN_V1_ROUTE_FILES = 12;
 
 export const HELPER_MODULE = "@/lib/infra/api-v1";
 
