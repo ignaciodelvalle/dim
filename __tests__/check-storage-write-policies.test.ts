@@ -40,7 +40,7 @@ import {
 const REAL_FILES = [...new Set(SQL_GLOBS.flatMap((g) => globSync(g)))]
   .map((f) => f.replaceAll("\\", "/"))
   .sort();
-const REAL = inventory(REAL_FILES);
+const { policies: REAL, unparseable: REAL_UNPARSEABLE } = inventory(REAL_FILES);
 
 describe("the real repo", () => {
   it("scans SQL files at all", () => {
@@ -63,11 +63,20 @@ describe("the real repo", () => {
     );
   });
 
+  it("reads every storage.objects policy it finds — none is unparseable", () => {
+    // Not decoration. Until 2026-08-25 an unreadable statement was DROPPED, so
+    // this count could only ever have been zero and would have told you nothing.
+    // Now it is the fence's own coverage: anything here is a policy nobody is
+    // checking.
+    expect(REAL_UNPARSEABLE).toEqual([]);
+  });
+
   it("passes today", () => {
-    const verdict = evaluate(REAL);
+    const verdict = evaluate(REAL, REAL_UNPARSEABLE);
     expect(verdict.unfrozen).toEqual([]);
     expect(verdict.changed).toEqual([]);
     expect(verdict.missing).toEqual([]);
+    expect(verdict.unparseable).toEqual([]);
   });
 
   it("does not confuse a scoped write for a blanket one", () => {
@@ -128,28 +137,78 @@ describe("createPolicyStatements", () => {
       "    AND EXISTS (SELECT 1 FROM public.profiles p WHERE p.id = (SELECT auth.uid()))",
       "  );",
     ].join("\n");
-    const policy = parsePolicy("x.sql", createPolicyStatements(sql)[0] ?? "");
-    expect(policy?.predicate).toContain("auth.uid()");
-    expect(isPermissive(policy as never)).toBe(false);
+    const result = parsePolicy("x.sql", createPolicyStatements(sql)[0] ?? "");
+    expect(result.kind).toBe("policy");
+    if (result.kind !== "policy") throw new Error("unreachable");
+    expect(result.policy.predicate).toContain("auth.uid()");
+    expect(isPermissive(result.policy)).toBe(false);
   });
 });
 
 describe("parsePolicy", () => {
+  /** The parsed policy, or a failure naming what came back instead. */
   function parse(sql: string) {
-    return parsePolicy("test.sql", createPolicyStatements(sql)[0] ?? "");
+    const result = parsePolicy("test.sql", createPolicyStatements(sql)[0] ?? "");
+    if (result.kind !== "policy") throw new Error(`expected a policy, got "${result.kind}"`);
+    return result.policy;
   }
 
   it("ignores a policy on a table that is not storage.objects", () => {
-    expect(parse(`create policy "p" on public.pets for insert to authenticated;`)).toBeNull();
+    const result = parsePolicy(
+      "test.sql",
+      createPolicyStatements(`create policy "p" on public.pets for insert to authenticated;`)[0] ??
+        "",
+    );
+    // "skip", NOT "unparseable": this really is none of the fence's business.
+    expect(result.kind).toBe("skip");
   });
 
   it("reads name, command and roles", () => {
     const policy = parse(
       `create policy "p" on storage.objects for update to anon, authenticated using (bucket_id = 'x');`,
     );
-    expect(policy?.name).toBe("p");
-    expect(policy?.command).toBe("update");
-    expect(policy?.roles).toEqual(["anon", "authenticated"]);
+    expect(policy.name).toBe("p");
+    expect(policy.command).toBe("update");
+    expect(policy.roles).toEqual(["anon", "authenticated"]);
+  });
+
+  // ==========================================================================
+  // THE TWO FORMS THAT USED TO FAIL OPEN (fixed 2026-08-25)
+  // ==========================================================================
+  // Both are valid Postgres and both appear in this repo's own SQL. Each made
+  // parsePolicy return null, after which `inventory` dropped the statement and
+  // the fence printed green over a policy it had never read.
+
+  it("reads an UNQUOTED policy name — the style db/cases_rls.sql uses", () => {
+    const policy = parse(
+      `create policy pet_photos_blanket on storage.objects for insert to authenticated with check (bucket_id = 'pet-photos');`,
+    );
+    expect(policy.name).toBe("pet_photos_blanket");
+    expect(policy.command).toBe("insert");
+  });
+
+  it("reads an unquoted name behind `if not exists`", () => {
+    const policy = parse(
+      `create policy if not exists p_bare on storage.objects for insert to authenticated with check (bucket_id = 'x');`,
+    );
+    expect(policy.name).toBe("p_bare");
+  });
+
+  // The single most dangerous form was the one form guaranteed to pass.
+  it("treats an OMITTED `for` clause as `all`, per the SQL default", () => {
+    const policy = parse(
+      `create policy "p" on storage.objects to authenticated using (bucket_id = 'x');`,
+    );
+    expect(policy.command).toBe("all");
+    // `all` is a WRITE command, so this must reach the offender path.
+    expect(callerFacingWrites([policy])).toHaveLength(1);
+    expect(isPermissive(policy)).toBe(true);
+  });
+
+  it("reports an unreadable storage.objects statement as an OFFENDER, not a skip", () => {
+    // A `create policy` on storage.objects whose name this parser cannot read.
+    const result = parsePolicy("test.sql", "create policy 42invalid on storage.objects for insert");
+    expect(result.kind).toBe("unparseable");
   });
 
   // SQL's default when `to` is omitted is PUBLIC. Failing closed is the only
@@ -157,16 +216,28 @@ describe("parsePolicy", () => {
   // least, and skipping it would be the fence's worst possible mistake.
   it("treats a missing `to` clause as PUBLIC", () => {
     const policy = parse(`create policy "p" on storage.objects for insert with check (true);`);
-    expect(policy?.roles).toEqual(["public"]);
-    expect(callerFacingWrites([policy as never])).toHaveLength(1);
+    expect(policy.roles).toEqual(["public"]);
+    expect(callerFacingWrites([policy])).toHaveLength(1);
+  });
+
+  // The worst legal statement available: bare name, no FOR (so ALL), no TO (so
+  // PUBLIC), predicate that names nobody. Before the fix, all three of those
+  // gaps pointed the same way and the statement was invisible.
+  it("catches the maximally-exposed form: bare name, no FOR, no TO", () => {
+    const policy = parse(`create policy wide_open on storage.objects using (bucket_id = 'x');`);
+    expect(policy.name).toBe("wide_open");
+    expect(policy.command).toBe("all");
+    expect(policy.roles).toEqual(["public"]);
+    expect(isPermissive(policy)).toBe(true);
+    expect(evaluate([policy]).unfrozen.map((p) => p.name)).toEqual(["wide_open"]);
   });
 
   it("joins a using and a with-check predicate", () => {
     const policy = parse(
       `create policy "p" on storage.objects for update to authenticated using (bucket_id = 'x') with check (auth.uid() = owner);`,
     );
-    expect(policy?.predicate).toBe("bucket_id = 'x' and auth.uid() = owner");
-    expect(isPermissive(policy as never)).toBe(false);
+    expect(policy.predicate).toBe("bucket_id = 'x' and auth.uid() = owner");
+    expect(isPermissive(policy)).toBe(false);
   });
 });
 
@@ -205,10 +276,18 @@ describe("isPermissive", () => {
 describe("red controls", () => {
   function verdictFor(sql: string) {
     const statements = createPolicyStatements(stripSqlComments(sql));
-    const policies = statements
-      .map((s) => parsePolicy("planted.sql", s))
-      .filter((p): p is NonNullable<typeof p> => p !== null);
-    return evaluate(policies);
+    const policies = [];
+    const unparseable = [];
+    for (const statement of statements) {
+      const result = parsePolicy("planted.sql", statement);
+      if (result.kind === "policy") policies.push(result.policy);
+      // Carried, not dropped — otherwise a red control could "pass" by being
+      // unreadable, which is the exact failure this file now guards.
+      else if (result.kind === "unparseable") {
+        unparseable.push({ file: "planted.sql", statement: normalize(statement) });
+      }
+    }
+    return evaluate(policies, unparseable);
   }
 
   /** The two frozen grants, spelled exactly as db/storage.sql spells them. */

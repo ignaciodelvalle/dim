@@ -230,18 +230,68 @@ function predicateGroups(statement: string): string[] {
 }
 
 /**
- * One `create policy` statement → a StoragePolicy, or null when it is not on
- * `storage.objects`.
+ * A `create policy … on storage.objects` this parser could not read.
+ *
+ * It exists because "could not parse" and "not a storage policy" used to be the
+ * same answer — `null` — and `inventory` skipped both. See parsePolicy.
+ */
+export type UnparseablePolicy = { file: string; statement: string };
+
+/** Distinguishes the three outcomes a `create policy` statement can have. */
+export type ParseResult =
+  | { kind: "policy"; policy: StoragePolicy }
+  /** Not on storage.objects — genuinely none of this fence's business. */
+  | { kind: "skip" }
+  /** On storage.objects and unreadable. An OFFENDER, never a skip. */
+  | { kind: "unparseable" };
+
+/**
+ * One `create policy` statement → a StoragePolicy, a skip, or an offender.
  *
  * A statement with no `to` clause is PUBLIC by SQL default, and is reported as
  * such rather than skipped: failing closed is the only safe direction here.
+ *
+ * ===========================================================================
+ * THIS PARSER FAILED OPEN ON TWO LEGAL SQL FORMS (fixed 2026-08-25)
+ * ===========================================================================
+ * The header above promises "failing closed is the only safe direction". It was
+ * not true of the parser itself. Both of these are valid Postgres, both appear
+ * in this repo's own SQL, and both made `parsePolicy` return null — after which
+ * `inventory` silently dropped the statement and the fence printed green:
+ *
+ *   1. AN UNQUOTED POLICY NAME. `create policy cases_select_visible on …` is the
+ *      style used by db/cases_rls.sql:142 and by two migrations. The old regex
+ *      was `create\s+policy\s+"([^"]+)"` — double quotes REQUIRED. A permissive
+ *      write grant written in the repo's own prevailing style was invisible to
+ *      the tripwire meant to catch it.
+ *
+ *   2. AN OMITTED `FOR` CLAUSE. Postgres defaults to `FOR ALL`, which is the
+ *      WIDEST grant there is — SELECT, INSERT, UPDATE and DELETE at once. The
+ *      old code required a `for` match and skipped the statement without one,
+ *      so the single most dangerous form was the one form guaranteed to pass.
+ *
+ * Both are now read: names may be quoted or bare, and an absent command means
+ * `all`, exactly as the SQL does.
+ *
+ * And the residue is handled the way the header always claimed: a statement that
+ * says `on storage.objects` and that this parser still cannot read is returned
+ * as `unparseable` and reported as an OFFENDER. A parser that cannot see a
+ * policy is not evidence that the policy is safe. That is the general fix; the
+ * two regexes above are the specific ones, and only the general fix survives the
+ * next SQL form nobody anticipated.
  */
-export function parsePolicy(file: string, statement: string): StoragePolicy | null {
-  if (!/\bon\s+storage\.objects\b/i.test(statement)) return null;
+export function parsePolicy(file: string, statement: string): ParseResult {
+  if (!/\bon\s+storage\.objects\b/i.test(statement)) return { kind: "skip" };
 
-  const name = statement.match(/create\s+policy\s+"([^"]+)"/i)?.[1];
-  const command = statement.match(/\bfor\s+(insert|update|delete|select|all)\b/i)?.[1];
-  if (!name || !command) return null;
+  // Quoted ("my policy", which may contain spaces) or bare (my_policy).
+  const name =
+    statement.match(/create\s+policy\s+"([^"]+)"/i)?.[1] ??
+    statement.match(/create\s+policy\s+(?:if\s+not\s+exists\s+)?([a-z_][a-z0-9_$]*)/i)?.[1];
+  if (!name) return { kind: "unparseable" };
+
+  // ABSENT MEANS `all`, per the SQL default — not "skip this statement".
+  const command =
+    statement.match(/\bfor\s+(insert|update|delete|select|all)\b/i)?.[1]?.toLowerCase() ?? "all";
 
   const rolesRaw = statement.match(/\bto\s+([a-z_,\s]+?)\s*(?:\busing\b|\bwith\s+check\b|$)/i)?.[1];
   const roles = rolesRaw
@@ -252,25 +302,44 @@ export function parsePolicy(file: string, statement: string): StoragePolicy | nu
     : ["public"];
 
   return {
-    file,
-    name,
-    command: command.toLowerCase(),
-    roles,
-    predicate: normalize(predicateGroups(statement).join(" and ")),
+    kind: "policy",
+    policy: {
+      file,
+      name,
+      command,
+      roles,
+      predicate: normalize(predicateGroups(statement).join(" and ")),
+    },
   };
 }
 
-/** Every storage.objects policy the repo declares. */
-export function inventory(files: readonly string[]): StoragePolicy[] {
-  const found: StoragePolicy[] = [];
+/**
+ * Every storage.objects policy the repo declares, plus the ones it could not
+ * read.
+ *
+ * The second half is the point: an unreadable `create policy … on
+ * storage.objects` is carried out of here instead of being dropped on the floor,
+ * so `runCheck` can fail on it. See parsePolicy for the two legal forms that
+ * used to be dropped silently.
+ */
+export function inventory(files: readonly string[]): {
+  policies: StoragePolicy[];
+  unparseable: UnparseablePolicy[];
+} {
+  const policies: StoragePolicy[] = [];
+  const unparseable: UnparseablePolicy[] = [];
   for (const file of files) {
     const sql = stripSqlComments(readFileSync(file, "utf8"));
+    const normalizedFile = file.replaceAll("\\", "/");
     for (const statement of createPolicyStatements(sql)) {
-      const policy = parsePolicy(file.replaceAll("\\", "/"), statement);
-      if (policy) found.push(policy);
+      const result = parsePolicy(normalizedFile, statement);
+      if (result.kind === "policy") policies.push(result.policy);
+      else if (result.kind === "unparseable") {
+        unparseable.push({ file: normalizedFile, statement: normalize(statement) });
+      }
     }
   }
-  return found;
+  return { policies, unparseable };
 }
 
 /** Write policies granted to a role a client can actually hold. */
@@ -301,9 +370,17 @@ export type Verdict = {
   changed: Array<{ policy: StoragePolicy; expected: string }>;
   /** Allowlist entries the scan never saw. */
   missing: string[];
+  /**
+   * `create policy … on storage.objects` statements the parser could not read.
+   * Offenders, not skips — a policy this fence cannot see is not a safe one.
+   */
+  unparseable: UnparseablePolicy[];
 };
 
-export function evaluate(policies: readonly StoragePolicy[]): Verdict {
+export function evaluate(
+  policies: readonly StoragePolicy[],
+  unparseable: readonly UnparseablePolicy[] = [],
+): Verdict {
   const writes = callerFacingWrites(policies);
   const permissive = writes.filter(isPermissive);
 
@@ -324,7 +401,7 @@ export function evaluate(policies: readonly StoragePolicy[]): Verdict {
   }
 
   const missing = Object.keys(FROZEN_WRITE_GRANTS).filter((name) => !seen.has(name));
-  return { writes, permissive, unfrozen, changed, missing };
+  return { writes, permissive, unfrozen, changed, missing, unparseable: [...unparseable] };
 }
 
 // ---------------------------------------------------------------------------
@@ -345,8 +422,8 @@ function listSqlFiles(): string[] {
 
 function runCheck(): void {
   const files = listSqlFiles();
-  const policies = inventory(files);
-  const verdict = evaluate(policies);
+  const { policies, unparseable } = inventory(files);
+  const verdict = evaluate(policies, unparseable);
 
   // Rule 7 — non-vacuity, checked BEFORE any verdict is reported.
   if (verdict.writes.length < MIN_WRITE_POLICIES) {
@@ -364,6 +441,25 @@ function runCheck(): void {
   }
 
   const problems: string[] = [];
+
+  // FIRST, because it is the failure that invalidates every other answer below:
+  // if a statement could not be read, the inventory is incomplete and "no
+  // offenders" means nothing.
+  for (const { file, statement } of verdict.unparseable) {
+    problems.push(
+      [
+        `  UNREADABLE storage.objects policy  (${file})`,
+        `      ${statement.slice(0, 200)}${statement.length > 200 ? " …" : ""}`,
+        "      This statement creates a policy on storage.objects and this fence could not",
+        "      parse its name. It is reported as an offender rather than skipped: a policy",
+        "      the tripwire cannot see is not a policy the tripwire has cleared. Until",
+        "      2026-08-25 two LEGAL forms — an unquoted policy name, and an omitted FOR",
+        "      clause (which Postgres reads as FOR ALL, the widest grant) — landed here and",
+        "      were dropped silently, so the fence printed green over them.",
+        "      Fix the statement, or teach parsePolicy the form it uses.",
+      ].join("\n"),
+    );
+  }
 
   for (const policy of verdict.unfrozen) {
     problems.push(
