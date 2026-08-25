@@ -172,6 +172,13 @@ function Body({ state }: { state: Extract<ScreenState, { phase: "loaded" }> }) {
 
       <QrBlock />
 
+      {/* `view.tier2` is mapped but deliberately NOT rendered in the spike.
+          Its only v1 content is `medical: "not_included"` — the contract's
+          honest answer to "why is there no medical data here" — so a Tier-2
+          card today could say nothing a user could act on. It stays in the view
+          model because the section's `unavailable` state must keep travelling
+          with the others; the day the medical read exists, the card is the only
+          thing missing. This is a deliberate omission, not a dropped section. */}
       <IdentitySection section={view.identity} />
       <StatusSection section={view.status} />
       <VaccinationSection section={view.vaccination} />
@@ -260,16 +267,36 @@ function NoticesSection({ section }: { section: SectionView<CredentialNoticesSec
   );
 }
 
+/**
+ * The three-state section, rendered with an EXHAUSTIVE switch.
+ *
+ * Every other section here is a binary ternary, which TypeScript makes
+ * exhaustive for free. This one is not, and three independent ternaries would
+ * not be either: a fourth variant added to `LostView` would compile unchanged
+ * and render an empty "Búsqueda" card — no text, no error, nothing. That is
+ * precisely the blank-instead-of-an-honest-failure bug this whole file exists
+ * to prevent, arriving through the one section with enough states to hide it.
+ *
+ * The `never` assignment in the default arm is the guard: it turns that future
+ * edit into a compile error instead of a silent blank on a public credential.
+ */
 function LostSection({ lost }: { lost: LostView }) {
-  return (
-    <Section title="Búsqueda">
-      {lost.state === "unavailable" ? <Unavailable message={lost.message} /> : null}
-      {lost.state === "not-lost" ? (
-        <Text style={styles.body}>No está reportada como perdida.</Text>
-      ) : null}
-      {lost.state === "lost" ? <LostDetail data={lost.data} /> : null}
-    </Section>
-  );
+  return <Section title="Búsqueda">{lostBody(lost)}</Section>;
+}
+
+function lostBody(lost: LostView) {
+  switch (lost.state) {
+    case "unavailable":
+      return <Unavailable message={lost.message} />;
+    case "not-lost":
+      return <Text style={styles.body}>No está reportada como perdida.</Text>;
+    case "lost":
+      return <LostDetail data={lost.data} />;
+    default: {
+      const unhandled: never = lost;
+      throw new Error(`Unhandled lost state: ${JSON.stringify(unhandled)}`);
+    }
+  }
 }
 
 function LostDetail({ data }: { data: CredentialLostSection }) {

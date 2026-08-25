@@ -2,18 +2,28 @@
 //
 // WHY A UNION AND NOT `throw`
 // ---------------------------------------------------------------------------
-// Four of the five outcomes below are NORMAL operation of a public endpoint,
-// not exceptions: a 429 from the per-IP limiter, a 404 for a token that
-// resolves to nothing, a 503 carrying a partially-readable credential, and a
-// phone with no signal. Modelling them as thrown errors would push the screen
-// into a single `catch` that can only say "algo salió mal", which is the copy
-// this endpoint's whole per-section design exists to avoid.
+// Most of the outcomes below are NORMAL operation of a public endpoint, not
+// exceptions: a 429 from the per-IP limiter, a 404 for a token that resolves to
+// nothing, a 503 carrying a partially-readable credential, and a phone with no
+// signal. Modelling them as thrown errors would push the screen into a single
+// `catch` that can only say "algo salió mal", which is the copy this endpoint's
+// whole per-section design exists to avoid.
 //
 // `temporarily_unavailable` deserves its own note. The contract calls answering
 // 404 to a read failure "the worst lie a public surface can tell", and the
 // client half of that promise is this: a 503 is NOT folded into the not-found
 // arm here, and its body is kept, because the degraded envelope still carries
 // the animal's name and the lost-report CTAs.
+//
+// EVERY FAILURE ARM MUST PRODUCE A SENTENCE
+// ---------------------------------------------------------------------------
+// A failure outcome that maps to no message renders as an empty `<Text>` under
+// a "No se pudo leer" heading — a blank where an explanation should be, which
+// is the same class of dishonesty as a blank `unavailable` section. Two things
+// enforce it: the error code is validated against the contract's CLOSED
+// vocabulary at the parse boundary (`apiV1ErrorCode` below) rather than merely
+// asserted by a type, and `fetchFailureMessage` switches exhaustively with no
+// fallthrough, so a new outcome added to the union is a compile error here.
 //
 // RATE LIMITS ARE A DESIGN INPUT, NOT AN ERROR TO RETRY
 // ---------------------------------------------------------------------------
@@ -25,7 +35,7 @@
 // budget that, on a lost pet, real finders in the street are also spending.
 
 import {
-  type ApiV1Error,
+  API_V1_ERROR_CODES,
   type ApiV1ErrorCode,
   PUBLIC_CREDENTIAL_PAYLOAD_VERSION,
   type PublicCredentialV1,
@@ -38,41 +48,73 @@ export type CredentialFetchResult =
   | { outcome: "ok"; payload: PublicCredentialV1 }
   | { outcome: "degraded"; payload: PublicCredentialV1Degraded }
   | { outcome: "api-error"; code: ApiV1ErrorCode }
-  | { outcome: "unsupported-version"; received: number }
+  /** `received` is `null` when the field was absent or not a number at all. */
+  | { outcome: "unsupported-version"; received: number | null }
+  /** Connected, answered, and the body was not JSON we could read. */
+  | { outcome: "malformed"; detail: string }
+  /** Never got an answer: no signal, DNS, TLS, or the timeout below. */
   | { outcome: "unreachable"; detail: string };
 
 /** Nothing on this screen is worth a spinner that never ends. */
 const REQUEST_TIMEOUT_MS = 10_000;
 
-/** es-AR copy for each failure. Kept beside the union it describes. */
+/**
+ * The endpoint's error vocabulary, as a runtime set.
+ *
+ * `API_V1_ERROR_CODES` is exported by the contract as a frozen array precisely
+ * so a client can do this instead of hard-coding the strings. Checking
+ * MEMBERSHIP — not just `typeof === "string"` — is what keeps an unrecognised
+ * code from flowing into the union as a valid `ApiV1ErrorCode` it is not, and
+ * then falling out of the message switch as a blank line on the screen.
+ */
+const KNOWN_ERROR_CODES: ReadonlySet<string> = new Set(API_V1_ERROR_CODES);
+
+/** The declared error code, or `null` if the body does not carry a known one. */
+function apiV1ErrorCode(body: unknown): ApiV1ErrorCode | null {
+  if (typeof body !== "object" || body === null) return null;
+  const code = (body as { error?: unknown }).error;
+  return typeof code === "string" && KNOWN_ERROR_CODES.has(code) ? (code as ApiV1ErrorCode) : null;
+}
+
+/** es-AR copy for each API error code. Exhaustive: every code has a sentence. */
+function apiErrorMessage(code: ApiV1ErrorCode): string {
+  switch (code) {
+    case "rate_limited":
+      return "Demasiadas consultas. Esperá un momento y volvé a intentar.";
+    case "not_found":
+      return "No encontramos una credencial para este código.";
+    case "temporarily_unavailable":
+      return "El servidor no pudo responder. Volvé a intentar en unos segundos.";
+  }
+}
+
+/**
+ * es-AR copy for each failure. Kept beside the union it describes.
+ *
+ * Returns `null` ONLY for the two success arms. Every failure arm returns a
+ * sentence, and the switch has no `default` and no trailing return — so adding
+ * an outcome without adding its copy does not compile.
+ */
 export function fetchFailureMessage(result: CredentialFetchResult): string | null {
   switch (result.outcome) {
     case "ok":
     case "degraded":
       return null;
     case "api-error":
-      switch (result.code) {
-        case "rate_limited":
-          return "Demasiadas consultas. Esperá un momento y volvé a intentar.";
-        case "not_found":
-          return "No encontramos una credencial para este código.";
-        case "temporarily_unavailable":
-          return "El servidor no pudo responder. Volvé a intentar en unos segundos.";
-      }
-      break;
+      return apiErrorMessage(result.code);
     case "unsupported-version":
-      return `Esta versión de la app no entiende el formato de la credencial (v${result.received}). Actualizá la app.`;
+      return `Esta versión de la app no entiende el formato de la credencial (v${
+        result.received ?? "desconocida"
+      }). Actualizá la app.`;
+    case "malformed":
+      return "El servidor respondió algo que no pudimos leer. Volvé a intentar.";
     case "unreachable":
       return "No pudimos conectarnos. Revisá tu conexión.";
   }
-  return null;
 }
 
-function isApiV1Error(body: unknown): body is ApiV1Error {
-  return (
-    typeof body === "object" && body !== null && typeof (body as ApiV1Error).error === "string"
-  );
-}
+const describeError = (error: unknown): string =>
+  error instanceof Error ? error.message : String(error);
 
 /**
  * Reads one credential. One request, no retry — see the header.
@@ -88,49 +130,55 @@ export async function fetchCredential(publicToken: string): Promise<CredentialFe
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
 
-  let response: Response;
-  let body: unknown;
   try {
-    response = await fetch(credentialEndpoint(publicToken), {
-      method: "GET",
-      headers: { accept: "application/json" },
-      signal: controller.signal,
-    });
-    body = await response.json();
-  } catch (error) {
-    return {
-      outcome: "unreachable",
-      detail: error instanceof Error ? error.message : String(error),
-    };
+    // The transport and the body are read in SEPARATE try blocks because they
+    // fail for different reasons and a user can act on only one of them. Folded
+    // together, a truncated or non-JSON body reports "revisá tu conexión" to
+    // someone whose connection is fine — a false diagnosis, and the kind that
+    // sends people to restart their router while the server is the problem.
+    let response: Response;
+    try {
+      response = await fetch(credentialEndpoint(publicToken), {
+        method: "GET",
+        headers: { accept: "application/json" },
+        signal: controller.signal,
+      });
+    } catch (error) {
+      return { outcome: "unreachable", detail: describeError(error) };
+    }
+
+    let body: unknown;
+    try {
+      body = await response.json();
+    } catch (error) {
+      return { outcome: "malformed", detail: describeError(error) };
+    }
+
+    // 503 carries the degraded envelope — the error code ALONGSIDE whatever
+    // survived, per section. Checked before the generic error arm precisely
+    // because its body is not a bare `{ error }`.
+    if (response.status === 503) {
+      const degraded = body as PublicCredentialV1Degraded;
+      if (degraded?.payloadVersion === PUBLIC_CREDENTIAL_PAYLOAD_VERSION) {
+        return { outcome: "degraded", payload: degraded };
+      }
+      return { outcome: "api-error", code: "temporarily_unavailable" };
+    }
+
+    if (!response.ok) {
+      // An unrecognised code is a contract violation, not something to display
+      // raw. Anything unexpected reads as a failed read, never as 404.
+      return { outcome: "api-error", code: apiV1ErrorCode(body) ?? "temporarily_unavailable" };
+    }
+
+    const payload = body as PublicCredentialV1;
+    if (payload?.payloadVersion !== PUBLIC_CREDENTIAL_PAYLOAD_VERSION) {
+      const received = typeof payload?.payloadVersion === "number" ? payload.payloadVersion : null;
+      return { outcome: "unsupported-version", received };
+    }
+
+    return { outcome: "ok", payload };
   } finally {
     clearTimeout(timeout);
   }
-
-  // 503 carries the degraded envelope — the error code ALONGSIDE whatever
-  // survived, per section. Checked before the generic error arm precisely
-  // because its body is not a bare `{ error }`.
-  if (response.status === 503) {
-    const degraded = body as PublicCredentialV1Degraded;
-    if (degraded?.payloadVersion === PUBLIC_CREDENTIAL_PAYLOAD_VERSION) {
-      return { outcome: "degraded", payload: degraded };
-    }
-    return { outcome: "api-error", code: "temporarily_unavailable" };
-  }
-
-  if (!response.ok) {
-    // The endpoint's error vocabulary is closed and importable, so an
-    // unrecognised code is a contract violation rather than something to
-    // display raw. Anything unexpected reads as a failed read, never as 404.
-    return {
-      outcome: "api-error",
-      code: isApiV1Error(body) ? body.error : "temporarily_unavailable",
-    };
-  }
-
-  const payload = body as PublicCredentialV1;
-  if (payload?.payloadVersion !== PUBLIC_CREDENTIAL_PAYLOAD_VERSION) {
-    return { outcome: "unsupported-version", received: Number(payload?.payloadVersion) };
-  }
-
-  return { outcome: "ok", payload };
 }

@@ -140,10 +140,14 @@ describe("describeFreshness", () => {
   it("obeys the SERVER's staleAfter, not the client's constant", () => {
     // A server that shortened its window to one minute must win: a client that
     // recomputes the deadline from its own constant silently ignores it.
+    // NON-VACUITY GUARD, not an assertion about the code: if the contract ever
+    // shortens its own window below 61s, the check underneath would pass for
+    // the wrong reason — the client constant and the server value would agree,
+    // and the test would stop distinguishing them. This fails first and says so.
+    expect(61_000).toBeLessThan(PUBLIC_CREDENTIAL_STALE_AFTER_MS);
+
     const shortWindow = payload({ staleAfter: new Date(ISSUED_AT_MS + 60_000).toISOString() });
     expect(describeFreshness(shortWindow, at(61_000)).state).toBe("stale");
-    // The imported constant would still call this fresh.
-    expect(61_000).toBeLessThan(PUBLIC_CREDENTIAL_STALE_AFTER_MS);
   });
 
   it("falls back to the contract constant when staleAfter is unusable", () => {
