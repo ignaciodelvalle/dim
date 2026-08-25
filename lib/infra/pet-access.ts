@@ -202,6 +202,82 @@ export async function requirePetAccess(publicToken: string): Promise<PetAccessRe
   if (!live.ok) return failureFromLiveness(live);
   const { supabase, user } = live;
 
+  const held = await resolvePetHolderAccess(publicToken, user.id);
+  if (held.kind === "owner") {
+    return {
+      ok: true,
+      supabase,
+      user: { id: user.id },
+      pet: held.pet,
+      accessPath: "owner",
+      organization: null,
+      membership: null,
+      holderRole: held.holderRole,
+      eventAuthorship: OWNER_AUTHORSHIP,
+      error: null,
+    };
+  }
+  if (held.kind === "org") {
+    return {
+      ok: true,
+      supabase,
+      user: { id: user.id },
+      pet: held.pet,
+      accessPath: "org",
+      organization: held.organization,
+      membership: held.membership,
+      holderRole: null,
+      eventAuthorship: held.eventAuthorship,
+      error: null,
+    };
+  }
+
+  return {
+    ok: false,
+    supabase,
+    user: { id: user.id },
+    pet: null,
+    accessPath: null,
+    organization: null,
+    membership: null,
+    eventAuthorship: OWNER_AUTHORSHIP,
+    reason: "not-found-or-forbidden",
+    error: "Mascota no encontrada o sin permisos.",
+  };
+}
+
+/**
+ * WHO MAY READ OR ACT ON A PET, given a user id that is already known to be
+ * live. The authorization RULE, with no session handling of its own.
+ *
+ * Extracted from `requirePetAccess` so a second door can enforce the SAME rule
+ * BY CONSTRUCTION rather than by resemblance. `requirePetAccess` is the
+ * cookie-session door every page and server action uses; `GET /api/v1/pets/
+ * {publicToken}` is the bearer-token door the native app uses. They resolve
+ * liveness differently — cookies versus an `Authorization` header — and they
+ * must not resolve ACCESS differently. Two copies of this query is exactly how
+ * a native client would quietly end up with a wider or narrower reach than the
+ * web, and nobody would notice until it mattered.
+ *
+ * The caller is responsible for having established that `userId` belongs to a
+ * live, non-erased account. This function does not check that and must not be
+ * called with an unvalidated id.
+ */
+export type PetHolderAccess =
+  | { kind: "owner"; pet: Pet; holderRole: OwnershipRole }
+  | {
+      kind: "org";
+      pet: Pet;
+      organization: Organization;
+      membership: OrganizationMembership;
+      eventAuthorship: PetEventAuthorship;
+    }
+  | { kind: "none" };
+
+export async function resolvePetHolderAccess(
+  publicToken: string,
+  userId: string,
+): Promise<PetHolderAccess> {
   // Path 1: direct ownership by user_id. We still don't filter by
   // ownership.role — owner / co_owner / foster / caretaker all qualify for
   // ACCESS. What changed with custodia-temporal is that the role is now
@@ -223,7 +299,7 @@ export async function requirePetAccess(publicToken: string): Promise<PetAccessRe
     .where(
       and(
         eq(pets.publicToken, publicToken),
-        eq(ownerships.ownerUserId, user.id),
+        eq(ownerships.ownerUserId, userId),
         isNull(ownerships.endedAt),
       ),
     )
@@ -232,18 +308,7 @@ export async function requirePetAccess(publicToken: string): Promise<PetAccessRe
     )
     .limit(1);
   if (ownerRow) {
-    return {
-      ok: true,
-      supabase,
-      user: { id: user.id },
-      pet: ownerRow.pet,
-      accessPath: "owner",
-      organization: null,
-      membership: null,
-      holderRole: ownerRow.role,
-      eventAuthorship: OWNER_AUTHORSHIP,
-      error: null,
-    };
+    return { kind: "owner", pet: ownerRow.pet, holderRole: ownerRow.role };
   }
 
   // Path 2: org-mediated. User is an active member of an organization that
@@ -274,7 +339,7 @@ export async function requirePetAccess(publicToken: string): Promise<PetAccessRe
       organizationMemberships,
       and(
         eq(organizationMemberships.organizationId, organizations.id),
-        eq(organizationMemberships.userId, user.id),
+        eq(organizationMemberships.userId, userId),
         isNull(organizationMemberships.leftAt),
       ),
     )
@@ -296,31 +361,15 @@ export async function requirePetAccess(publicToken: string): Promise<PetAccessRe
           authorVerified: false,
         };
     return {
-      ok: true,
-      supabase,
-      user: { id: user.id },
+      kind: "org",
       pet: orgRow.pet,
-      accessPath: "org",
       organization: orgRow.organization,
       membership: orgRow.membership,
-      holderRole: null,
       eventAuthorship,
-      error: null,
     };
   }
 
-  return {
-    ok: false,
-    supabase,
-    user: { id: user.id },
-    pet: null,
-    accessPath: null,
-    organization: null,
-    membership: null,
-    eventAuthorship: OWNER_AUTHORSHIP,
-    reason: "not-found-or-forbidden",
-    error: "Mascota no encontrada o sin permisos.",
-  };
+  return { kind: "none" };
 }
 
 // Same as requirePetAccess but additionally blocks writes when the pet is

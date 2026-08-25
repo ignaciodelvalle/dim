@@ -1,59 +1,3 @@
-// ---------------------------------------------------------------------------
-// PET PROFILE — "two-face" redesign (Credencial | Libreta), 2026-07-01
-// Spec: docs/design/handoffs/2026-07-01-pet-profile-two-face-lean-handoff.md
-// AGENTS.md "Design rules" #5 documents the shipped block order.
-//
-// This RSC is now a thin data-fetch + assembly shell. The two faces
-// themselves (and everything they render) live in dedicated components:
-//   - CredentialFace (Face 1, server, eager)      — components/pet-profile/CredentialFace.tsx
-//   - LibretaFace     (Face 2, server-rendered, streamed via its own
-//     <Suspense> — see LibretaFaceSection/PF3 below) — components/pet-profile/LibretaFace.tsx
-//   - PetDetailTabsPanel — owns the tab switcher only; both faces arrive as
-//     already-rendered nodes (credencialContent/libretaContent props).
-//
-// Screen order (normal/active state, AGENTS.md rule 5):
-//   back-link → org notice (org-path only) → PetDetailTabsPanel, whose
-//   `credencialContent` (Face 1, eager) is: CredentialFace (symmetric identity:
-//   photo · centered name · public QR both flanking the band — 3b/A; compliance
-//   as an inline grid on desktop / a tap-to-expand disclosure on mobile — 3b/B;
-//   compact ppp/service-dog rows) → <PetAlertStrip> (avisos, urgency-ordered,
-//   LostCaseBlock leads it when the pet is lost) → the labeled action row
-//   [Anotar][Compartir][Editar][Perdida][Más]. Capture (3b/C) no longer sits
-//   inline as a mid-face textarea: it moved to the fixed "Asentar" bar
-//   (CitizenTabBar, mobile — task #9) plus the pet-specific "Anotar" action-row
-//   link (?sheet=anotar for THIS pet, every breakpoint).
-//   The Libreta face (deferred) is ONE consolidated timeline, no lens chips
-//   (ADR-10) — see LibretaFace.
-//
-// resolvePetFace (lib/domain/pet-face-nav.ts) is the single pure mapper for
-// every legacy `?tab=` deep link (resumen/vacunas/historial/libreta) onto
-// {face, lens}; the H1 compliance wiring at deriveComplianceState below is
-// unchanged by the redesign.
-//
-// pet-document-redesign (2026-07-02, S2): the pet.status === 'lost' early
-// return (LostCockpit, full-screen) was DELETED. The normal profile now
-// ALWAYS renders — lost surfaces as <LostCaseBlock> at the top of
-// PetAlertStrip, so Credencial/Libreta/action row/Anotar sheet stay usable
-// while the pet is lost (spec REQ-5.1/REQ-5.2). The D9 `?fromLost=1` bypass
-// is gone too (REQ-6.3 no-op redirect, see the top of this function).
-//
-// pet-document-redesign (2026-07-02, ADR-15): the pet.status === 'deceased'
-// early return (<DeceasedView>, <LnMemorialTimeline>) was DELETED too. A
-// deceased pet now renders the SAME document with an In-Memoriam skin —
-// see `memorial` / CredentialFace's `memorial` prop and the pruned
-// [Compartir][Más] action bar below.
-//
-// Preserved verbatim:
-//   - <PetOpenCasesSection>, <PregnancyInProgressCard> — inside PetAlertStrip.
-//   - <RabiesObservationBanner>, <TransitBanner> — page-local, inside PetAlertStrip.
-//
-// PPP/service-dog attestation state is read from `typedEvents`
-// (PROFILE_V2_TYPED_EVENT_TYPES), which now includes `dangerous_breed_attested`
-// (pet-document-redesign REQ-10.1) — both the compliance stamp (derivePpp)
-// and the `ppp.attested` prop below read the same fixed whitelist.
-// ---------------------------------------------------------------------------
-
-import { isTransitRole } from "@/components/PetCard.helpers";
 import { PetOpenCasesSection } from "@/components/PetOpenCasesSection";
 import { PregnancyInProgressCard } from "@/components/PregnancyInProgressCard";
 import { CaretakerBanner } from "@/components/pet-profile/CaretakerBanner";
@@ -82,84 +26,32 @@ import {
 } from "@/components/pet-profile/PetSwitcherAvatars";
 import { DegradedFallback } from "@/components/ui/DegradedFallback";
 import { AnalyticsLoadFallback } from "@/components/ui/dashboard/AnalyticsLoadFallback";
-import {
-  appointments,
-  attachments,
-  cases,
-  db,
-  organizations,
-  ownerships,
-  petServiceDog,
-  pets,
-  profiles,
-  serviceOfferings,
-  timeSlots,
-} from "@/db";
+import { db } from "@/db";
 import { loadWithTimeout } from "@/lib/analytics/analytics-load";
-import {
-  fetchActiveRemindersForPet,
-  fetchComplianceStatesForPets,
-  fetchLivePetsForCarouselRanking,
-  fetchPetEventsForProfileV2,
-} from "@/lib/analytics/owner-dashboard";
-import {
-  microchipObligationRuleInfo,
-  obligationRuleInfo,
-} from "@/lib/domain/business-rules-defaults";
 import { resolveEmergencyContacts } from "@/lib/domain/emergency-contacts";
-import { computeMedicationsActive } from "@/lib/domain/libreta-health-status";
-import {
-  type CarouselPet,
-  rankOwnerCarousel,
-  shouldShowCarousel,
-} from "@/lib/domain/owner-carousel";
+import { type CarouselPet, shouldShowCarousel } from "@/lib/domain/owner-carousel";
 import { buildFromLostRedirectTarget, resolvePetFace } from "@/lib/domain/pet-face-nav";
 import { isPetAdoptedByUser } from "@/lib/infra/adoption-checkin";
-import { resolveBusinessRule } from "@/lib/infra/business-rules-resolver";
-import { GENERIC_CASE_LIST_EXCLUDED_KINDS } from "@/lib/infra/case-queries";
-import { fetchLostEpisodeForPet, fetchLostScanEvents } from "@/lib/infra/lost-mode";
-import { petAlertsOriginShelter } from "@/lib/infra/origin-shelter-alert";
 import {
   type PetAccessSuccess,
   getFormerOwnerReadAccess,
   requirePetAccess,
 } from "@/lib/infra/pet-access";
-import { fetchActiveIdentifications } from "@/lib/infra/pet-identifiers";
 import { resolvePhysicalCredentialChannels } from "@/lib/infra/physical-credential-channels";
 import { getPhysicalTagInterest } from "@/lib/infra/physical-tag-interest";
 import { SERVICE_TYPE_LABELS, buildPresentarHref } from "@/lib/infra/service-dog-labels";
 import { credentialQrUrl } from "@/lib/infra/site-url";
-import { eventAttachmentSignedUrl, petPhotoUrl } from "@/lib/infra/storage";
 import {
   deriveFirstStepsChecklist,
   hasReviewedDisclosurePrefs,
 } from "@/lib/projections/first-steps-checklist";
+import { ageFromDateOfBirth, sexLabel, speciesLabel } from "@/lib/utils/format";
 import {
-  deriveComplianceState,
-  lnPetStatusFromCompliance,
-  microchipHeroTag,
-} from "@/lib/projections/pet-compliance";
-import { PET_SITUATIONS, derivePetSituation } from "@/lib/ui/pet-situation";
-import {
-  ageFromDateOfBirth,
-  sexLabel,
-  situationLabelForSex,
-  speciesLabel,
-} from "@/lib/utils/format";
-import {
-  type CaretakerState,
-  getCaretakerStateForPet,
-} from "@/src/modules/caretakers/application/get-caretaker-state-for-pet";
-import { CaretakersRepository } from "@/src/modules/caretakers/infrastructure/caretakers-repository";
+  type OwnerPetAlertId,
+  loadOwnerPetDetail,
+} from "@/src/modules/pets/application/read/load-owner-pet-detail";
 import { getLibretaFaceData } from "@/src/modules/pets/application/tab-data/get-libreta-face-data";
-import {
-  type RehomeState,
-  getRehomeStateForPet,
-} from "@/src/modules/rehome/application/get-rehome-state-for-pet";
-import { RehomeRepository } from "@/src/modules/rehome/infrastructure/rehome-repository";
 import { fetchPendingReturnProposalForOwner } from "@/src/modules/return-to-owner/application/proposal-queries";
-import { isObservationOpen } from "@/src/modules/surveillance/domain/rabies-observation";
-import { and, asc, desc, eq, gt, inArray, isNull, notInArray } from "drizzle-orm";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { Suspense } from "react";
@@ -327,86 +219,6 @@ export default async function PetDetailPage({
     isOwner,
   });
 
-  // Stage 1: photo + ownership role + service-dog + cases (all independent).
-  // Photo query runs once; both photoUrl and editPhotoUrl are derived from it.
-  // allCases: full row select (Case[] required by AchievementInput), capped at 50.
-  const [[photoRow], [ownerRow], [serviceDogRow], allCases, openCustodyEpisodeRows] =
-    await Promise.all([
-      pet.primaryPhotoId
-        ? db.select().from(attachments).where(eq(attachments.id, pet.primaryPhotoId)).limit(1)
-        : (Promise.resolve([]) as Promise<(typeof attachments.$inferSelect)[]>),
-      accessPath === "owner"
-        ? db
-            .select({ role: ownerships.role })
-            .from(ownerships)
-            .where(
-              and(
-                eq(ownerships.petId, pet.id),
-                eq(ownerships.ownerUserId, user.id),
-                isNull(ownerships.endedAt),
-              ),
-            )
-            .limit(1)
-        : (Promise.resolve([]) as Promise<{ role: string }[]>),
-      db.select().from(petServiceDog).where(eq(petServiceDog.petId, pet.id)).limit(1),
-      // Capped at 50, most recent first — the cap needs a deterministic order or
-      // a pet with >50 cases would silently lose an arbitrary subset.
-      // Excludes HIDDEN_FROM_SUBJECT_CASE_KINDS (welfare_denuncia) and
-      // lost_pet_episode — same predicate as findOpenCasesForPetWithCodes, so
-      // the alert-strip trigger below (`allCases.some(open)`) never fires on a
-      // case the owner isn't supposed to see, and lost stays single-rendering-
-      // path (LostCaseBlock owns it) — pet-document-redesign REQ-1.1/1.4.
-      db
-        .select()
-        .from(cases)
-        .where(
-          and(
-            eq(cases.primaryPetId, pet.id),
-            notInArray(cases.caseKind, [...GENERIC_CASE_LIST_EXCLUDED_KINDS]),
-          ),
-        )
-        .orderBy(desc(cases.openedAt))
-        .limit(50),
-      // Open custody_episode opened by a sanitary_authority org — the SAME
-      // canonical discriminator /p uses (DC13): caseKind + opener orgType, never
-      // parsed from notes. Feeds the custodia-oficial situation (pet-state-header
-      // R2.6); allCases above lacks the opener-org join, so this stays its own
-      // bounded query.
-      db
-        .select({ caseId: cases.id })
-        .from(cases)
-        .innerJoin(
-          organizations,
-          and(
-            eq(organizations.id, cases.openedByOrganizationId),
-            eq(organizations.orgType, "sanitary_authority"),
-          ),
-        )
-        .where(
-          and(
-            eq(cases.primaryPetId, pet.id),
-            eq(cases.caseKind, "custody_episode"),
-            eq(cases.status, "open"),
-          ),
-        )
-        .limit(1),
-    ]);
-
-  // Both photoUrl and editPhotoUrl come from the same single row.
-  const photoUrl = petPhotoUrl(photoRow?.storagePath);
-  const editPhotoUrl = photoUrl;
-
-  // isTransit = true for users with an active foster row (org-linked
-  // placement) OR an active shelter_custody row (vecino-helps-stray, no org
-  // involved — AGENTS.md; also what the alta's CustodyKindToggle writes for
-  // "la estoy cuidando"). Single source of truth: isTransitRole.
-  let isTransit = false;
-  let ownershipRole: string | null = null;
-  if (accessPath === "owner") {
-    isTransit = isTransitRole(ownerRow?.role ?? "");
-    ownershipRole = ownerRow?.role ?? null;
-  }
-
   // Deceased (pet-document-redesign ADR-15): NO early return anymore — the
   // pet always renders the SAME document with an In-Memoriam skin (see
   // `memorial` below, threaded into CredentialFace). The old heavy O(N)
@@ -416,236 +228,22 @@ export default async function PetDetailPage({
   // LnMemorialTimeline.
   const isDeceased = pet.status === "deceased";
 
-  // Stage 2: queries that depend on ownershipRole or are owner-only.
-  // hasPendingReturnProposal depends on ownershipRole (must be "owner").
-  let hasPendingReturnProposal = false;
-  let viewerContacts: {
-    preferredVetName: string | null;
-    preferredVetPhone: string | null;
-    emergencyContactName: string | null;
-    emergencyContactPhone: string | null;
-    displayName: string;
-  } | null = null;
-  // Chapita (physical-tag-interest) state for the owner — powers the 5th
-  // action-bar icon + ?sheet=chapita (pet-document-redesign ADR-17b). Never
-  // fetched for a deceased pet (REQ-9.3 suppresses the entry point).
-  let chapitaData: { interested: boolean; requestedAt: Date | null } | null = null;
-  // Physical credential channel availability for the pet's jurisdiction
-  // (admin-rules-console ADR-5/R3.5) — which channels (printable QR, engraved
-  // plate, NFC) are configured for this jurisdiction, resolved via the same
-  // cascade tiers as other rule types. Rendered inside the chapita sheet.
-  let physicalCredentialChannels: Awaited<
-    ReturnType<typeof resolvePhysicalCredentialChannels>
-  > | null = null;
-  // QA A9 — gates the "Check-in post-adopción" entry in the anotar catalog
-  // (SheetMounter → CaptureOptionsList). Same predicate the check-in page
-  // 404s on; false for org viewers (anotar is owner-only anyway).
-  let showCheckinOption = false;
-  // custodia-temporal T9.5/T9.6 (which absorb T7.6): the titular's caretaker
-  // cockpit. Read DIRECTLY from `caretakers/application` — `app/**` is outside
-  // the module graph, so this creates no cross-module edge. Routing it through
-  // a `pets` use-case is the exact import that would invert the dependency
-  // fence (design H); do not "tidy" it there.
+  // THE OWNER FACE, read in one place (owner-parity WU-I).
   //
-  // TITULAR-ONLY, and not merely because the caretaker does not need it: it
-  // names the caretaker, and a foster or shelter_custody holder has no business
-  // learning who else the owner trusts with the animal.
-  let caretakerState: CaretakerState | null = null;
-  // The adoption sponsorship (rehome-by-titular): pending or active, the
-  // titular sees it on the credential. Titular-only for the same reason.
-  let rehomeState: RehomeState | null = null;
-
-  if (accessPath === "owner") {
-    // "Confirmar devolución": only the legal owner, only when a pending return
-    // proposal exists. Reuses the same ARCH-B tri-check as /devolucion.
-    const returnProposalQuery =
-      ownershipRole === "owner"
-        ? fetchPendingReturnProposalForOwner(pet.id, user.id, db)
-        : Promise.resolve(false);
-
-    // Account-level emergency / vet contacts from the viewer's profile —
-    // J-followup columns (migration 0042). displayName feeds Face 1 (titular);
-    // the 4 contact fields are the ACCOUNT DEFAULT that the pet-level override
-    // falls back to (owner-ia-redesign P2 — see resolveEmergencyContacts below).
-    const contactsQuery = db
-      .select({
-        preferredVetName: profiles.preferredVetName,
-        preferredVetPhone: profiles.preferredVetPhone,
-        emergencyContactName: profiles.emergencyContactName,
-        emergencyContactPhone: profiles.emergencyContactPhone,
-        displayName: profiles.displayName,
-      })
-      .from(profiles)
-      .where(eq(profiles.id, user.id))
-      .limit(1);
-
-    const chapitaQuery = isDeceased
-      ? Promise.resolve(null)
-      : getPhysicalTagInterest(pet.id, user.id);
-
-    const physicalCredentialChannelsQuery = isDeceased
-      ? Promise.resolve(null)
-      : resolvePhysicalCredentialChannels({
-          country: "AR",
-          province: pet.jurisdictionProvince ?? null,
-          locality: pet.jurisdictionLocality ?? null,
-        });
-
-    // Deceased pets never mount the anotar sheet (REQ-9.3), so skip the read.
-    const adoptedQuery = isDeceased ? Promise.resolve(false) : isPetAdoptedByUser(pet.id, user.id);
-
-    // A deceased pet has no caretaker story left to tell, and the read costs
-    // one indexed query plus (only when something is open) a display-name
-    // lookup — so it joins this fan-out rather than adding a serial await.
-    const caretakerQuery =
-      ownershipRole === "owner" && !isDeceased
-        ? getCaretakerStateForPet(pet.id, { repo: CaretakersRepository, now: () => new Date() })
-        : Promise.resolve(null);
-
-    // Same gate and the same reason as the caretaker read above: the spine
-    // predicate plus, only when something is open, an org-name lookup.
-    const rehomeQuery =
-      ownershipRole === "owner" && !isDeceased
-        ? getRehomeStateForPet(pet.id, { repo: RehomeRepository })
-        : Promise.resolve(null);
-
-    const [
-      returnProposalResult,
-      [profileRow],
-      chapitaState,
-      channels,
-      adoptedByViewer,
-      caretakerResult,
-      rehomeResult,
-    ] = await Promise.all([
-      returnProposalQuery,
-      contactsQuery,
-      chapitaQuery,
-      physicalCredentialChannelsQuery,
-      adoptedQuery,
-      caretakerQuery,
-      rehomeQuery,
-    ]);
-
-    hasPendingReturnProposal = returnProposalResult;
-    viewerContacts = profileRow ?? null;
-    chapitaData = chapitaState;
-    physicalCredentialChannels = channels;
-    showCheckinOption = adoptedByViewer;
-    caretakerState = caretakerResult;
-    rehomeState = rehomeResult;
-  }
-
-  // KEY 2 of the two-key public-contact model, resolved once for every surface
-  // that offers KEY 1. Non-null ONLY when an arrangement is active AND the
-  // caretaker consented at invitation accept; null in every other case, which
-  // is what hides the sixth disclosure row entirely. See LostDisclosureCard for
-  // why an ungated switch would be a lie in the shape of a control.
-  const caretakerConsentName =
-    caretakerState?.active?.publicContactConsentAt != null
-      ? caretakerState.active.caretakerName
-      : null;
-
-  // Parallel fan-out (perf audit 2026-07-19 qw#3): these reads are independent —
-  // they only need `pet` / `user` / `accessPath`, all resolved above — but ran as
-  // ~5 SEQUENTIAL awaits, adding ~150-250 ms of serial round-trips to every
-  // profile TTFB in prod. One Promise.all collapses them. Only the pregnancy card
-  // (derives from typedEvents) and ownerFirstName (pure) stay AFTER the fan-out.
-  //   - pppBreedRule / microchipRule / rabiesObligationRule /
-  //     sterilizationObligationRule: jurisdiction business rules for the edit
-  //     sheet + the tiered compliance obligations (display-only; submit-time
-  //     stays authoritative).
-  //   - typedEvents: v2 targeted events (replaces the old O(N) events + signing).
-  //   - lostData: lost-episode + scans, a self-contained async unit — its internal
-  //     episode→scans dependency (scoped so a lost→found→lost pet never pollutes
-  //     across episodes) stays sequential INSIDE the unit. Runs for both owner and
-  //     org viewers (LostCaseBlock needs it for both roles).
-  //   - reminders / canonicalIds / rabies turno: the compliance-projection reads.
+  // What used to live here — a five-query Stage 1, a nine-read Promise.all, an
+  // owner-only Stage 2 and the carousel, interleaved with the JSX that renders
+  // them — is now `loadOwnerPetDetail`, which the native endpoint
+  // `GET /api/v1/pets/{publicToken}` calls too. That is the point: the web face
+  // and the native face are the same face because they are the same read. What
+  // stays on this page is the RENDER, plus the handful of reads only a WRITE
+  // affordance needs (the sheets below).
   //
-  // BOUNDED (2026-08-09, discovery scan). Nine concurrent reads — the widest
-  // fan-out outside the dashboards — on the screen an owner opens to check
-  // their own animal, and on the screen a vet will open during the pilot. It
-  // had no deadline: a degraded pooler left it hanging with nothing logged.
+  // THE DEADLINE STAYS AT THIS CALL SITE, not inside the reader. This page
+  // degrades to AnalyticsLoadFallback; the route answers 503 with a retry-after.
+  // A timeout baked into the reader would have made one of those two callers
+  // wrong, silently.
   const profileLoad = await loadWithTimeout(
-    Promise.all([
-      resolveBusinessRule("ppp_breed_list", {
-        province: pet.jurisdictionProvince,
-        locality: pet.jurisdictionLocality,
-      }),
-      resolveBusinessRule("microchip_required", {
-        province: pet.jurisdictionProvince,
-        locality: pet.jurisdictionLocality,
-      }),
-      // Tiered obligation rules (spec CS1) — resolved once here, threaded into
-      // the pure compliance projection below.
-      resolveBusinessRule("rabies_vaccination", {
-        province: pet.jurisdictionProvince,
-        locality: pet.jurisdictionLocality,
-      }),
-      resolveBusinessRule("sterilization", {
-        province: pet.jurisdictionProvince,
-        locality: pet.jurisdictionLocality,
-      }),
-      fetchPetEventsForProfileV2(pet.id),
-      (async (): Promise<{
-        lostEpisode: Awaited<ReturnType<typeof fetchLostEpisodeForPet>>;
-        lostScans: Awaited<ReturnType<typeof fetchLostScanEvents>>;
-        /** A5 — a found-pet report on this pet also alerts its origin shelter. */
-        alertsOriginShelter: boolean;
-      }> => {
-        // A5 disclosure input — the SAME predicate the notifier runs, so the
-        // profile never promises an alert that will not fire (and never stays
-        // silent about one that will). Resolved for EVERY pet, not just lost
-        // ones: the "Qué se muestra si se pierde" sheet is reachable at any time,
-        // and that is precisely when a titular reads it to decide.
-        const alertsOriginShelter = await petAlertsOriginShelter(pet.id);
-        if (pet.status !== "lost") return { lostEpisode: null, lostScans: [], alertsOriginShelter };
-        // Fetch episode first so we can scope the scan feed to the current episode.
-        const lostEpisode = await fetchLostEpisodeForPet(pet.id);
-        const rawScans = await fetchLostScanEvents(pet.id, undefined, lostEpisode?.id ?? undefined);
-        // P0g: sighting/finder items in a private bucket need short-lived signed URLs.
-        const lostScans = await Promise.all(
-          rawScans.map(async (item) => {
-            if ((item.kind === "sighting" || item.kind === "finder") && item.photoStoragePath) {
-              const url = await eventAttachmentSignedUrl(item.photoStoragePath);
-              return { ...item, photoUrl: url };
-            }
-            return item;
-          }),
-        );
-        return { lostEpisode, lostScans, alertsOriginShelter };
-      })(),
-      // Vaccine reminders for owner path only.
-      accessPath === "owner"
-        ? fetchActiveRemindersForPet(user.id, pet.id)
-        : Promise.resolve([] as Awaited<ReturnType<typeof fetchActiveRemindersForPet>>),
-      // Canonical chip/tattoo identifiers (ARCH-Q).
-      fetchActiveIdentifications(pet.id),
-      // WS-2: the pet's next confirmed rabies appointment (service_kind =
-      // vaccination_rabies), if any — drives the "Turno reservado" compliance
-      // state. Left-joins the provider (org or individual vet) for the label.
-      db
-        .select({
-          slotStartsAt: timeSlots.startsAt,
-          orgName: organizations.displayName,
-          vetName: profiles.displayName,
-        })
-        .from(appointments)
-        .innerJoin(timeSlots, eq(timeSlots.id, appointments.slotId))
-        .innerJoin(serviceOfferings, eq(serviceOfferings.id, appointments.serviceOfferingId))
-        .leftJoin(organizations, eq(organizations.id, serviceOfferings.organizationId))
-        .leftJoin(profiles, eq(profiles.id, serviceOfferings.providerUserId))
-        .where(
-          and(
-            eq(appointments.petId, pet.id),
-            eq(appointments.status, "confirmed"),
-            eq(serviceOfferings.serviceKind, "vaccination_rabies"),
-            gt(timeSlots.startsAt, new Date()),
-          ),
-        )
-        .orderBy(asc(timeSlots.startsAt))
-        .limit(1),
-    ]),
+    loadOwnerPetDetail({ user: { id: user.id }, pet, accessPath }),
   );
   if (!profileLoad.ok) {
     // Degraded profile. `pet` came from requirePetAccess, before any of this
@@ -665,62 +263,86 @@ export default async function PetDetailPage({
       </div>
     );
   }
-  const [
-    pppBreedRule,
-    microchipRule,
-    rabiesObligationRule,
-    sterilizationObligationRule,
-    { typedEvents },
-    lostData,
-    petActiveReminders,
+  const detail = profileLoad.value;
+  const {
+    ownershipRole,
+    isTransit,
+    typedEvents,
     canonicalIds,
-    reservedRabiesTurnoRows,
-  ] = profileLoad.value;
-  const { lostEpisode, lostScans, alertsOriginShelter } = lostData;
+    viewerContacts,
+    caretakerState,
+    caretakerConsentName,
+    rehomeState,
+    ownerFirstName,
+    serviceDog: serviceDogRow,
+    pppBreedRule,
+  } = detail;
+  const complianceState = detail.compliance;
+  const petActiveReminders = detail.reminders;
+  const { lostEpisode, lostScans, alertsOriginShelter } = detail.lost;
+  // Both photoUrl and editPhotoUrl come from the same single read.
+  const photoUrl = detail.identity.photoUrl;
+  const editPhotoUrl = photoUrl;
 
-  // Derive owner first name from displayName (first word only) — feeds
-  // LostCaseBlock's disclosure preview copy for owner viewers only.
-  const ownerFirstName = viewerContacts?.displayName
-    ? (viewerContacts.displayName.split(" ")[0] ?? viewerContacts.displayName)
-    : "el dueño";
+  // Stage 2: the reads that exist ONLY to prime a write affordance — the sheets
+  // this page mounts. They are deliberately NOT in the reader: the native face
+  // is read-only, and an endpoint that loaded the chapita-interest row to serve
+  // a GET would be paying for a button it does not render.
+  // hasPendingReturnProposal depends on ownershipRole (must be "owner").
+  let hasPendingReturnProposal = false;
+  // Chapita (physical-tag-interest) state for the owner — powers the 5th
+  // action-bar icon + ?sheet=chapita (pet-document-redesign ADR-17b). Never
+  // fetched for a deceased pet (REQ-9.3 suppresses the entry point).
+  let chapitaData: { interested: boolean; requestedAt: Date | null } | null = null;
+  // Physical credential channel availability for the pet's jurisdiction
+  // (admin-rules-console ADR-5/R3.5) — which channels (printable QR, engraved
+  // plate, NFC) are configured for this jurisdiction, resolved via the same
+  // cascade tiers as other rule types. Rendered inside the chapita sheet.
+  let physicalCredentialChannels: Awaited<
+    ReturnType<typeof resolvePhysicalCredentialChannels>
+  > | null = null;
+  // QA A9 — gates the "Check-in post-adopción" entry in the anotar catalog
+  // (SheetMounter → CaptureOptionsList). Same predicate the check-in page
+  // 404s on; false for org viewers (anotar is owner-only anyway).
+  let showCheckinOption = false;
 
-  // Pregnancy card data — derived from typedEvents (clinical_info_logged events
-  // are in the whitelist so they're available here). MUST stay after the fan-out.
-  const PREGNANCY_DURATION_WEEKS_BY_SPECIES: Record<string, number> = {
-    dog: 9,
-    cat: 9,
-    other: 9,
-  };
-  let pregnancyCardData: {
-    startedAt: Date;
-    weeksAtDiagnosis: number | null;
-    expectedBirthAt: Date;
-    lastClinicalAt: Date | null;
-  } | null = null;
-  if (pet.pregnancyStatus === "in_progress") {
-    const startedEvent = typedEvents.find((e) => {
-      if (e.eventType !== "clinical_info_logged") return false;
-      const p = e.payload as { sub_kind?: string; pregnancy_phase?: string };
-      return p.sub_kind === "pregnancy" && p.pregnancy_phase === "started";
-    });
-    if (startedEvent) {
-      const payload = startedEvent.payload as { weeks_at_diagnosis?: number | null };
-      const speciesWeeks = PREGNANCY_DURATION_WEEKS_BY_SPECIES[pet.species] ?? 9;
-      const remaining = Math.max(speciesWeeks - (payload.weeks_at_diagnosis ?? 0), 0);
-      const expectedBirthAt = new Date(
-        startedEvent.occurredAt.getTime() + remaining * 7 * 86400000,
-      );
-      const lastClinical = typedEvents.find(
-        (e) => e.eventType === "clinical_info_logged" && e.occurredAt > startedEvent.occurredAt,
-      );
-      pregnancyCardData = {
-        startedAt: startedEvent.occurredAt,
-        weeksAtDiagnosis: payload.weeks_at_diagnosis ?? null,
-        expectedBirthAt,
-        lastClinicalAt: lastClinical?.occurredAt ?? null,
-      };
-    }
+  if (accessPath === "owner") {
+    // "Confirmar devolución": only the legal owner, only when a pending return
+    // proposal exists. Reuses the same ARCH-B tri-check as /devolucion.
+    const returnProposalQuery =
+      ownershipRole === "owner"
+        ? fetchPendingReturnProposalForOwner(pet.id, user.id, db)
+        : Promise.resolve(false);
+
+    const chapitaQuery = isDeceased
+      ? Promise.resolve(null)
+      : getPhysicalTagInterest(pet.id, user.id);
+
+    const physicalCredentialChannelsQuery = isDeceased
+      ? Promise.resolve(null)
+      : resolvePhysicalCredentialChannels({
+          country: "AR",
+          province: pet.jurisdictionProvince ?? null,
+          locality: pet.jurisdictionLocality ?? null,
+        });
+
+    // Deceased pets never mount the anotar sheet (REQ-9.3), so skip the read.
+    const adoptedQuery = isDeceased ? Promise.resolve(false) : isPetAdoptedByUser(pet.id, user.id);
+
+    const [returnProposalResult, chapitaState, channels, adoptedByViewer] = await Promise.all([
+      returnProposalQuery,
+      chapitaQuery,
+      physicalCredentialChannelsQuery,
+      adoptedQuery,
+    ]);
+
+    hasPendingReturnProposal = returnProposalResult;
+    chapitaData = chapitaState;
+    physicalCredentialChannels = channels;
+    showCheckinOption = adoptedByViewer;
   }
+
+  const pregnancyCardData = detail.pregnancy;
 
   // tarjeta-todo (PO 2026-07-18): the under-card PetOwnerActivity block
   // (nudges / RemindersSection / Próximos turnos / Ciclos abiertos) was
@@ -732,230 +354,88 @@ export default async function PetDetailPage({
   // duplicated the Cumplimiento card; the scan-activity signal's outside
   // surface dies per PO (the libreta remains the one place scans surface).
 
-  const age = ageFromDateOfBirth(pet.dateOfBirth, pet.deceasedAt);
-
-  // H1 display contradiction fix (clickthrough audit 2026-07-03/04, Segmento
-  // 1 #6): the "chip" hero tag used to be pushed here from mere microchip
-  // *presence* (canonicalIds.microchip), independently of the compliance
-  // card below it — a self-reported chip showed "Microchip verificado" in
-  // the hero while the compliance card correctly said "Declarada · sin
-  // verificar". The tag is now derived from `complianceState` further down
-  // (microchipHeroTag) — the SAME provenance gate — so both surfaces always
-  // agree. See that unshift() call below.
-  const heroTags: Array<{ key: string; label: string; variant?: "celeste" | "gray" }> = [];
-  if (pet.jurisdictionLocality)
-    heroTags.push({ key: "loc", label: pet.jurisdictionLocality, variant: "gray" });
-
-  const breedLine = [pet.breed, pet.sex ? sexLabel(pet.sex) : null, age, speciesLabel(pet.species)]
-    .filter(Boolean)
-    .join(" · ");
-
-  // In-Memoriam skin data (pet-document-redesign ADR-15) — presence of this
-  // object is CredentialFace's memorial-mode switch.
-  const memorial = isDeceased
-    ? {
-        birthYear: pet.dateOfBirth ? new Date(pet.dateOfBirth).getFullYear() : null,
-        deathYear: pet.deceasedAt ? new Date(pet.deceasedAt).getFullYear() : null,
-      }
-    : null;
-
-  // Compliance projection (comply-first slice §2) — leads Face 1's stamp row.
-  // Pure derivation over data already loaded above: no extra query. The rabies
-  // obligation reads the antirrábica reminder's precomputed variant when present.
-  const rabiesReminderRow = petActiveReminders.find((r) => /antirr[aá]b|rabi/i.test(r.title));
-  const reservedTurnoRow = reservedRabiesTurnoRows[0];
-  const complianceState = deriveComplianceState({
-    now: new Date(),
-    events: typedEvents,
-    // Who is reading — the rabies dual block says "cargada por vos" only when
-    // this reader actually wrote the dose (transfer-provenance fix).
-    viewerUserId: user.id,
-    rabiesReminder: rabiesReminderRow
-      ? { variant: rabiesReminderRow.variant, dueAt: rabiesReminderRow.dueAt }
-      : null,
-    reservedRabiesTurno: reservedTurnoRow
-      ? {
-          date: reservedTurnoRow.slotStartsAt,
-          provider: reservedTurnoRow.orgName ?? reservedTurnoRow.vetName ?? null,
-        }
-      : null,
-    microchipCode: canonicalIds.microchip?.code ?? null,
-    // Jurisdiction obligations (spec CS1) — effective tiers + legal
-    // provenance, resolved once in the fan-out above. A NULL tier preserves
-    // the pre-tier behavior: rabies/sterilization stay obligations, microchip
-    // keeps the OR5 boolean gate (requirement_level wins when set).
-    obligations: {
-      rabies: obligationRuleInfo(rabiesObligationRule),
-      sterilization: obligationRuleInfo(sterilizationObligationRule),
-      microchip: microchipObligationRuleInfo(microchipRule),
-    },
-    // PPP citation source (CS5): composed by the projection from the resolved
-    // ppp_breed_list row; generic stopgap when nothing resolves.
-    pppRule: {
-      legalBasis: pppBreedRule.legalBasis ?? null,
-      authority: pppBreedRule.authority ?? null,
-      sourceUrl: pppBreedRule.sourceUrl ?? null,
-    },
-    pppApplies: Boolean(pet.potentiallyDangerousBreed),
-    // PPP-indeterminado inputs: a DOG missing breed and/or weight surfaces the
-    // obligation instead of hiding it (2026-07-04).
-    species: pet.species,
-    breed: pet.breed,
-    estimatedWeightKg: pet.estimatedWeightKg,
-  });
-
-  // Hero "chip" tag — same provenance gate as the compliance card (see the
-  // heroTags declaration above for why this isn't pushed alongside "loc").
-  const microchipTagLabel = microchipHeroTag(complianceState);
-  if (microchipTagLabel) heroTags.unshift({ key: "chip", label: microchipTagLabel });
-
-  // Build the LnHero status from pet fields + compliance.
-  // pet.status is "active" here, EXCEPT when the owner opened the full profile
-  // of a lost pet via ?fromLost=1 (D9) — the lost early-return is bypassed but
-  // the pet is still lost, so reflect that honestly in the hero ring. A
-  // deceased pet still resolves to a non-lost state here (LnHero has no
-  // memorial ring state) — the memorial skin lives entirely in CredentialFace's
-  // `memorial` prop below (ribbon + sepia tone), which is a stronger signal.
-  //
-  // lnPetStatusFromCompliance is the SINGLE mapper shared with the /inicio
-  // registry and the /mis-mascotas list, so the header chip and every row
-  // chip always agree (QA round 2 2026-07-03 #4).
-  const lnPetStatus = lnPetStatusFromCompliance(
-    { status: pet.status, pregnancyStatus: pet.pregnancyStatus ?? null },
-    complianceState,
-  );
+  // The hero's composed subtitle, its chips, the memorial skin and the ring
+  // status all come from the reader now. Two of them carry a rule worth
+  // restating at the call site, because both were REGRESSIONS once:
+  //   · the "chip" tag is derived from the compliance projection, never from
+  //     mere microchip presence, so the hero cannot say "Microchip verificado"
+  //     over a card that correctly says "Declarada · sin verificar";
+  //   · lnPetStatusFromCompliance is the SINGLE mapper shared with /inicio and
+  //     /mis-mascotas, so this header chip and every row chip always agree.
+  const heroTags = detail.identity.tags;
+  const breedLine = detail.identity.breedLine;
+  const memorial = detail.memorial;
+  const lnPetStatus = detail.ringStatus;
 
   // Prioritized alert strip (urgency-ordered): lost → rabies → transit →
   // open-cases → pregnancy. Built once so CredentialFace only grows an "Avisos"
   // section when it is genuinely non-empty (no empty divider). Same ordering
   // and same nodes as before the "Una sola libreta" redesign — now hosted
   // INSIDE the credential sheet instead of stacked below it.
-  const petAlerts: PetAlert[] = [];
-  if (pet.status === "lost") {
-    petAlerts.push({
-      id: "lost",
-      tone: "urgent",
-      node: (
-        <LostCaseBlock
-          pet={pet}
-          photoUrl={photoUrl}
-          episode={lostEpisode}
-          scans={lostScans}
-          ownerFirstName={ownerFirstName}
-          alertsOriginShelter={alertsOriginShelter}
-          isOwner={isOwner}
-          // The LEGAL owner only. A caretaker keeps the rest of this block —
-          // including "Marcar como encontrada" — but the disclosure toggles
-          // govern the TITULAR's own name, phone and location.
-          canManageDisclosure={ownershipRole === "owner"}
-          caretakerConsentName={caretakerConsentName}
-        />
-      ),
-    });
-  }
-  // Both open states raise the banner. `window_expired_unclosed` is no longer
-  // "urgent" — nothing is known to be wrong with the animal; what is pending is
-  // a professional signature, which the banner now asks for.
-  if (isObservationOpen(pet.rabiesObservationStatus)) {
+  // WHICH alerts fire, in WHAT order, is the reader's decision — made once and
+  // shared with the native face, because an ordering that only this page could
+  // demonstrate is an ordering nobody can check. What stays here is the NODE
+  // each one renders: a strip of React is not something an API can serve.
+  const alertNodes: Record<OwnerPetAlertId, () => PetAlert["node"]> = {
+    lost: () => (
+      <LostCaseBlock
+        pet={pet}
+        photoUrl={photoUrl}
+        episode={lostEpisode}
+        scans={lostScans}
+        ownerFirstName={ownerFirstName}
+        alertsOriginShelter={alertsOriginShelter}
+        isOwner={isOwner}
+        // The LEGAL owner only. A caretaker keeps the rest of this block —
+        // including "Marcar como encontrada" — but the disclosure toggles
+        // govern the TITULAR's own name, phone and location.
+        canManageDisclosure={ownershipRole === "owner"}
+        caretakerConsentName={caretakerConsentName}
+      />
+    ),
     // D1 (PO 2026-08-23): the owner has no in-product way to lift an observation
-    // opened in error, so the banner must at least name who opened it. The
-    // opener's display name is already in memory — `allCases` is a full-row
-    // select and the org bite writer stamps `openedReasonParams.orgDisplayName`
-    // (opened-reason.ts, code `bite_reported_org`). No extra query: this page's
-    // fan-out is already the widest outside the dashboards.
-    const orgBiteCase = allCases.find(
-      (c) =>
-        c.caseKind === "bite_incident" &&
-        (c.status === "open" || c.status === "escalated") &&
-        c.openedReasonCode === "bite_reported_org",
-    );
-    const openedByOrgName =
-      typeof (orgBiteCase?.openedReasonParams as { orgDisplayName?: unknown } | null)
-        ?.orgDisplayName === "string"
-        ? ((orgBiteCase?.openedReasonParams as { orgDisplayName: string }).orgDisplayName ?? null)
-        : null;
-    petAlerts.push({
-      id: "rabies",
-      tone: pet.rabiesObservationStatus === "in_progress" ? "urgent" : "warning",
-      node: (
-        <RabiesObservationBanner pet={pet} events={typedEvents} openedByOrgName={openedByOrgName} />
-      ),
-    });
-  }
-  if (isTransit) {
-    petAlerts.push({
-      id: "transit",
-      tone: "warning",
-      // "Convertir en mi mascota" / "Buscar nuevo hogar" are org-mediated
-      // foster actions (FosterRepository.findActiveFosterByUser, /buscar-hogar
-      // require role='foster') — a vecino-helps-stray shelter_custody row has
-      // no org link, so those CTAs would dead-end for it. Only offer them to
-      // the actual org-linked foster role; the vecino still gets the banner
-      // text + badge, just not actions that assume an org relationship.
-      node: (
-        <TransitBanner
-          petName={pet.name}
-          petPublicToken={pet.publicToken}
-          canManageFosterActions={ownershipRole === "foster"}
-        />
-      ),
-    });
-  }
-  // Caretaker cockpit (T9.5/T9.6, absorbing T7.6). Placed after tránsito and
-  // before open-cases: a lapsed arrangement with an animal possibly still away
-  // outranks a case in the reading order, and an active one is context the
-  // owner needs before anything below it makes sense. The component returns
-  // null for an empty state, so the push is gated on it having something to
-  // say — an empty node here would add a divider to the strip.
-  if (
-    caretakerState &&
-    (caretakerState.active || caretakerState.pending || caretakerState.recentlyEnded)
-  ) {
-    petAlerts.push({
-      id: "caretaker",
-      tone: caretakerState.recentlyEnded ? "warning" : "info",
-      node: (
+    // opened in error, so the banner must at least name who opened it.
+    rabies: () => (
+      <RabiesObservationBanner
+        pet={pet}
+        events={typedEvents}
+        openedByOrgName={detail.observationOpenedByOrgName}
+      />
+    ),
+    // "Convertir en mi mascota" / "Buscar nuevo hogar" are org-mediated foster
+    // actions — a vecino-helps-stray shelter_custody row has no org link, so
+    // those CTAs would dead-end for it. The vecino still gets the banner text
+    // and badge, just not actions that assume an org relationship.
+    transit: () => (
+      <TransitBanner
+        petName={pet.name}
+        petPublicToken={pet.publicToken}
+        canManageFosterActions={ownershipRole === "foster"}
+      />
+    ),
+    caretaker: () =>
+      caretakerState ? (
         <CaretakerBanner
           petName={pet.name}
           petPublicToken={pet.publicToken}
           state={caretakerState}
         />
-      ),
-    });
-  }
-  // The adoption sponsorship (rehome-by-titular), same placement logic: an
-  // arrangement the titular made is context before the open-cases list,
-  // which will carry the same case. Gated on a live state so an empty node
-  // never adds a divider.
-  if (rehomeState && rehomeState.kind !== "none") {
-    petAlerts.push({
-      id: "rehome",
-      tone: "info",
-      node: (
+      ) : null,
+    rehome: () =>
+      rehomeState && rehomeState.kind !== "none" ? (
         <RehomeSponsorshipBanner
           petName={pet.name}
           petPublicToken={pet.publicToken}
           state={{ kind: rehomeState.kind, orgDisplayName: rehomeState.orgDisplayName }}
         />
-      ),
-    });
-  }
-  if (allCases.some((c) => c.status === "open" || c.status === "escalated")) {
-    petAlerts.push({
-      id: "open-cases",
-      tone: "warning",
-      node: (
-        <div data-section="cases">
-          <PetOpenCasesSection petId={pet.id} />
-        </div>
-      ),
-    });
-  }
-  if (pregnancyCardData) {
-    petAlerts.push({
-      id: "pregnancy",
-      tone: "info",
-      node: (
+      ) : null,
+    "open-cases": () => (
+      <div data-section="cases">
+        <PetOpenCasesSection petId={pet.id} />
+      </div>
+    ),
+    pregnancy: () =>
+      pregnancyCardData ? (
         <PregnancyInProgressCard
           petPublicToken={pet.publicToken}
           pregnancyStartedAt={pregnancyCardData.startedAt}
@@ -963,123 +443,41 @@ export default async function PetDetailPage({
           expectedBirthAt={pregnancyCardData.expectedBirthAt}
           lastClinicalAt={pregnancyCardData.lastClinicalAt}
         />
-      ),
-    });
-  }
+      ) : null,
+  };
+  const petAlerts: PetAlert[] = detail.alerts.map((a) => ({
+    id: a.id,
+    tone: a.tone,
+    node: alertNodes[a.id](),
+  }));
 
-  // Pet SITUATION (state-language, #42) — the single derivation of "what this
-  // pet is going through", a separate axis from compliance/registration. The
-  // credential adopts its skin only for a non-default, non-deceased situation
-  // (deceased keeps the memorial skin above — the two never stack).
-  const petSituation = derivePetSituation({
-    status: pet.status,
-    rabiesObservationStatus: pet.rabiesObservationStatus,
-    pregnancyStatus: pet.pregnancyStatus,
-    inTransit: isTransit,
-    // pet-state-header R2.6 — previously-unwired inputs, all derived from data
-    // this page already loads (plus the bounded custody query in Stage 1):
-    // an open medication course = en tratamiento (same projection the Libreta
-    // health dashboard uses — no auto-derivation from open cases).
-    inTreatment: computeMedicationsActive(typedEvents).length > 0,
-    inAdoption: Boolean(pet.adoptionListedAt) && !pet.adoptionListingPausedAt,
-    underOfficialCustody: openCustodyEpisodeRows.length > 0,
-  });
-  const credentialSituation = !isDeceased && !petSituation.isDefault ? petSituation : null;
-  // Chrome band situation (pet-state-header) — the masthead carries the state
-  // on BOTH faces. One documented asymmetry vs the face body: DECEASED tints
-  // the band (memorial sepia + "Fallecido/a" chip) while CredentialFace still
-  // receives situation=null (the memorial skin owns the face body; the two
-  // skins never stack there — the band is chrome-owned).
-  const chromeSituationSource = isDeceased ? PET_SITUATIONS.fallecida : credentialSituation;
-  const chromeSituation = chromeSituationSource
-    ? {
-        key: chromeSituationSource.key,
-        tone: chromeSituationSource.tone,
-        icon: chromeSituationSource.icon,
-        label: situationLabelForSex(chromeSituationSource.label, pet.sex),
-      }
-    : null;
-  // The situation pill carries the LABEL only ("Perdida"/"Preñada") — the date
-  // suffix was dropped (owner-ia-redesign P1): LostCaseBlock and
-  // PregnancyInProgressCard already show the date, so the pill repeating it
-  // was the one real duplicate the PO found.
+  // The credential adopts the situation's skin only for a non-default,
+  // non-deceased situation; a deceased animal keeps the memorial skin and the
+  // two never stack. The masthead band is the documented exception — see the
+  // reader, which owns both derivations.
+  const credentialSituation = detail.situation;
+  const chromeSituation = detail.chromeSituation;
 
   // owner-ia-redesign P4 — the credential carousel ("the heart"). The profile
-  // SWIPES between the owner's LIVE pets, urgent-first (shared pet-urgency-rank),
-  // deceased NEVER in the swipe (decision 6). Owner-only: org/admin/public/vet
-  // viewers of the same route get no chrome (shouldShowCarousel gates on
-  // isOwner). Bounded and reuses the SAME owner-dashboard fetchers + compliance→
-  // status mapper that /inicio and the header use, so the position dots agree
-  // with every other owner surface (the cross-pet glance). Cost note (perf
-  // watchpoint): this adds the pet-list + batch-compliance queries on the owner
-  // path only — the same price /inicio already pays for its rail.
-  let carouselPets: CarouselPet[] = [];
+  // SWIPES between the owner's LIVE pets, urgent-first, deceased NEVER in the
+  // swipe. Owner-only: org/admin/public/vet viewers of the same route get no
+  // chrome (shouldShowCarousel gates on isOwner).
+  const carouselPets: CarouselPet[] = detail.carousel.items.map((p) => ({
+    token: p.token,
+    status: p.status,
+  }));
   // Avatar switcher (PO "reemplazo total" of the dots): the ranked/capped set
-  // enriched with each pet's name + photo. Populated AFTER ranking so the photo
-  // join runs only over the ≤8 shown tokens — not every live pet (the ranking
-  // query stays deliberately narrow, see fetchLivePetsForCarouselRanking).
-  let avatarPets: AvatarSwitcherPet[] = [];
-  // D2: the TRUE number of live pets across the household. The swipe is capped at
-  // OWNER_CAROUSEL_CAP (glanceable dots), but /mis-mascotas lists every live pet,
-  // so the two silently disagreed (e.g. 8 dots vs 14 in the index). The carousel
-  // uses this to show an honest "Mostrando N de M" instead of differing silently.
-  let liveTotal = 0;
-  if (isOwner) {
-    // Rank over EVERY live ownership (uncapped), not the newest 50 — otherwise a
-    // most-urgent pet beyond the cap would be absent from the swipe (QA ronda 4
-    // CONFIRMED). fetchLivePetsForCarouselRanking already excludes deceased.
-    const livePets = await fetchLivePetsForCarouselRanking(user.id);
-    liveTotal = livePets.length;
-    const complianceStates = await fetchComplianceStatesForPets(
-      user.id,
-      livePets.map((p) => p.id),
-    );
-    carouselPets = rankOwnerCarousel(
-      livePets.map((p) => {
-        const compliance = complianceStates.get(p.id);
-        return {
-          token: p.publicToken,
-          status: p.status,
-          pregnancyStatus: p.pregnancyStatus,
-          complianceStatus: compliance
-            ? lnPetStatusFromCompliance(
-                { status: p.status, pregnancyStatus: p.pregnancyStatus ?? null },
-                compliance,
-              )
-            : null,
-        };
-      }),
-    );
-
-    // Enrich the capped set with name + photo for the avatar switcher (one
-    // bounded query over the ≤8 shown tokens; leftJoin so a photo-less pet
-    // falls back to LnPetPhoto's placeholder).
-    if (carouselPets.length > 0) {
-      const photoRows = await db
-        .select({
-          token: pets.publicToken,
-          name: pets.name,
-          storagePath: attachments.storagePath,
-        })
-        .from(pets)
-        .leftJoin(attachments, eq(attachments.id, pets.primaryPhotoId))
-        .where(
-          inArray(
-            pets.publicToken,
-            carouselPets.map((p) => p.token),
-          ),
-        );
-      const byToken = new Map(
-        photoRows.map((r) => [r.token, { name: r.name, photoUrl: petPhotoUrl(r.storagePath) }]),
-      );
-      avatarPets = carouselPets.map((p) => ({
-        token: p.token,
-        status: p.status,
-        name: byToken.get(p.token)?.name ?? "",
-        photoUrl: byToken.get(p.token)?.photoUrl ?? null,
-      }));
-    }
-  }
+  // enriched with each pet's name + photo.
+  const avatarPets: AvatarSwitcherPet[] = detail.carousel.items.map((p) => ({
+    token: p.token,
+    status: p.status,
+    name: p.name,
+    photoUrl: p.photoUrl,
+  }));
+  // D2: the TRUE number of live pets across the household. The swipe is capped,
+  // but /mis-mascotas lists every live pet, so the two silently disagreed (8
+  // dots vs 14 in the index). The carousel shows an honest "Mostrando N de M".
+  const liveTotal = detail.carousel.total;
   const showCarousel = shouldShowCarousel({
     isOwner,
     tokens: carouselPets.map((p) => p.token),
