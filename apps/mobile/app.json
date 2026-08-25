@@ -9,11 +9,9 @@
     "newArchEnabled": true,
     "platforms": ["android", "ios"],
     "ios": {
-      "bundleIdentifier": "ar.mimar.app",
       "supportsTablet": false
     },
     "android": {
-      "package": "ar.mimar.app",
       "edgeToEdgeEnabled": true
     }
   }

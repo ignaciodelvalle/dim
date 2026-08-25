@@ -21,7 +21,24 @@
       "@/*": ["./*"]
     }
   },
-  "include": ["next-env.d.ts", "**/*.ts", "**/*.tsx", ".next/types/**/*.ts"],
+  // `app/.well-known/**` is listed EXPLICITLY, and it has to be.
+  //
+  // TypeScript's glob expansion skips any directory whose name begins with a
+  // dot, so `**/*.ts` does not reach `app/.well-known/assetlinks.json/route.ts`
+  // — measured, not assumed: a deliberate `const X: number = "no"` planted
+  // there typechecked CLEAN. Next.js routes that directory perfectly well
+  // (it is how `/.well-known/*` is served), which is the worst combination
+  // available: shipped code, outside the program that checks it. Biome's
+  // project traversal skips dotted directories for the same reason, so the
+  // `lint` and `format` scripts in package.json name the path as a second
+  // argument rather than relying on `biome check .` finding it.
+  "include": [
+    "next-env.d.ts",
+    "**/*.ts",
+    "**/*.tsx",
+    ".next/types/**/*.ts",
+    "app/.well-known/**/*.ts"
+  ],
   // `apps` is excluded; `packages` deliberately is NOT.
   //
   // The difference is what each one is checked AGAINST. `packages/contract` is

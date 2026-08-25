@@ -51,6 +51,24 @@
  */
 export const APP_SCHEME = "mimar";
 
+/**
+ * The Android application id and the iOS bundle identifier.
+ *
+ * These live HERE, next to the scheme, because they are not private to the
+ * mobile app: they are how the app is NAMED in the link-claiming handshake, and
+ * the other half of that handshake is served by the web app.
+ * `/.well-known/assetlinks.json` publishes `package_name` — get it wrong by one
+ * character and Android's verifier rejects the association silently, leaving
+ * every link opening in Chrome with no error anywhere. Two copies of a string
+ * that must agree, in two programs that never import each other, is exactly the
+ * drift `packages/contract` exists to make impossible.
+ *
+ * `apps/mobile/app.config.ts` sets `android.package` / `ios.bundleIdentifier`
+ * from these, so the Expo build and the well-known file cannot disagree.
+ */
+export const ANDROID_PACKAGE_NAME = "ar.mimar.app";
+export const IOS_BUNDLE_IDENTIFIER = "ar.mimar.app";
+
 /** Who can reach the destination once they hold the link. */
 export type DeepLinkAccess =
   /** Anyone holding the link. The token IS the credential. */

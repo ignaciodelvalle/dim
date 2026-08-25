@@ -61,6 +61,7 @@
 // `dim-staging.vercel.app`, and a verified link must point at the production
 // domain, not at a preview host whose `.well-known` any Vercel deploy can move.
 
+import { ANDROID_PACKAGE_NAME, IOS_BUNDLE_IDENTIFIER } from "@dim/contract/links";
 import type { ConfigContext, ExpoConfig } from "expo/config";
 
 export default ({ config }: ConfigContext): ExpoConfig => ({
@@ -69,8 +70,18 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
   // the spread cannot prove that to TypeScript, so they are restated.
   name: config.name ?? "MiMAR",
   slug: config.slug ?? "mimar",
+  // THE IDENTIFIERS COME FROM THE CONTRACT, not from app.json.
+  //
+  // `/.well-known/assetlinks.json`, served by the web app, publishes this exact
+  // package name; Android's verifier compares it to the installed APK's and
+  // rejects the association on any mismatch — silently, with the links simply
+  // opening in Chrome forever. Two hand-maintained copies of a string in two
+  // programs that never import each other is the drift `packages/contract`
+  // exists to prevent, so the string has one home and both sides read it.
+  ios: { ...config.ios, bundleIdentifier: IOS_BUNDLE_IDENTIFIER },
   android: {
     ...config.android,
+    package: ANDROID_PACKAGE_NAME,
     intentFilters: [
       // The custom scheme, declared explicitly rather than left to the implicit
       // filter Expo generates from `scheme`. When the verified `https` filter

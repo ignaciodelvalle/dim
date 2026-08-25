@@ -999,9 +999,28 @@ function isScannableSource(relPath: string): boolean {
  */
 export const MIN_ROUTE_HANDLER_FILES = 40;
 
+/**
+ * Globs for route-handler discovery.
+ *
+ * The second one exists because `**` DOES NOT MATCH A DOT SEGMENT. Measured
+ * 2026-08-25 against Node 22's `fs.globSync`: with a real `route.ts` on disk
+ * under `.dot/x/`, `**​/route.ts` returned `[]` and `.dot/**​/route.ts` returned
+ * the file. So the first `.well-known` route handler — the Android App Links
+ * association at `app/.well-known/assetlinks.json/route.ts`, which Next routes
+ * perfectly well — would have been a shipped, anonymous HTTP endpoint that this
+ * fence never once looked at, and the fence's own count would not have moved.
+ *
+ * Named as a directory rather than as a general dot-glob on purpose: `.well-known`
+ * is the one dotted path the App Router is expected to serve from (RFC 8615), and
+ * a blanket dot-glob would start sweeping in build and tool directories.
+ */
+const ROUTE_HANDLER_GLOBS = ["app/**/route.ts", "app/.well-known/**/route.ts"];
+
 /** Every App Router route handler in the repo. */
 export function listRouteHandlerFiles(): string[] {
-  const files = new Set(globSync("app/**/route.ts").map((f) => f.replaceAll("\\", "/")));
+  const files = new Set(
+    ROUTE_HANDLER_GLOBS.flatMap((pattern) => globSync(pattern)).map((f) => f.replaceAll("\\", "/")),
+  );
   return [...files].filter(isScannableSource).sort();
 }
 
