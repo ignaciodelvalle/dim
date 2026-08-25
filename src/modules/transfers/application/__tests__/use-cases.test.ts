@@ -6,6 +6,7 @@
 
 import { validateEventPayload } from "@/lib/events/event-schemas";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { SPONSORED_CUSTODY_TRANSFER_ERROR } from "../../domain/cross-org-rules";
 import type { TransfersRepository } from "../../infrastructure/transfers-repository";
 
 import { acceptCrossOrgTransfer } from "../accept-cross-org-transfer";
@@ -2165,6 +2166,88 @@ describe("transferCustody", () => {
     const result = await transferCustody(baseInput, { repo, actor, transaction: fakeTransaction });
     expect(result).toMatchObject({ ok: false });
     expect((result as { ok: false; error: string }).error).toMatch(/rol/i);
+  });
+
+  // -------------------------------------------------------------------------
+  // Sponsored custody (REQ-15) — the guard this door was missing until
+  // 2026-08-25. proposeCrossOrgTransfer had it; this use-case is the OTHER
+  // org-to-org hand-off door, and it is the one that ran on staging (pet
+  // DIM-JRSF-9775, case CAS-NBGE-CS3C, opened_reason_code
+  // custody_handoff_direct).
+  // -------------------------------------------------------------------------
+
+  it("refuses when the source custody row is the one a titular's consent opened", async () => {
+    const repo = makeFakeRepo({
+      findOpenSponsorship: vi.fn().mockResolvedValue({ ownershipId: "own-src" }),
+    });
+    const result = await transferCustody(baseInput, { repo, actor, transaction: fakeTransaction });
+    expect(result).toEqual({ ok: false, error: SPONSORED_CUSTODY_TRANSFER_ERROR });
+    // Refused where the twin refuses: before a receiver is bothered and before
+    // anything is written.
+    expect(repo.findReceiverOrg).not.toHaveBeenCalled();
+    expect(repo.openHandshakeCase).not.toHaveBeenCalled();
+    expect(repo.insertPetEvent).not.toHaveBeenCalled();
+  });
+
+  it("says exactly what proposeCrossOrgTransfer says — one sentence, two doors", async () => {
+    const direct = await transferCustody(baseInput, {
+      repo: makeFakeRepo({
+        findOpenSponsorship: vi.fn().mockResolvedValue({ ownershipId: "own-src" }),
+      }),
+      actor,
+      transaction: fakeTransaction,
+    });
+    const proposed = await proposeCrossOrgTransfer(
+      {
+        petPublicToken: "PT-tok",
+        senderOrgToken: "src-tok",
+        receiverOrgId: "dest-org",
+        reason: "space_constraint",
+        notes: null,
+      },
+      {
+        repo: makeFakeRepo({
+          findActiveShelterCustody: vi.fn().mockResolvedValue({ id: "cust-1" }),
+          findOpenSponsorship: vi.fn().mockResolvedValue({ ownershipId: "cust-1" }),
+        }),
+        actor,
+        transaction: fakeTransaction,
+      },
+    );
+    expect(direct).toMatchObject({ ok: false });
+    expect(proposed).toMatchObject({ ok: false });
+    expect((direct as { ok: false; error: string }).error).toBe(
+      (proposed as { ok: false; error: string }).error,
+    );
+  });
+
+  // The rule is keyed on the spine's `ownership_id`, never on the
+  // owner+shelter_custody SHAPE: a sponsorship naming a different row than the
+  // sender's live one is drift for lint:spine to report, not a reason to block
+  // an unrelated hand-off.
+  it("allows the hand-off when the open sponsorship names a different ownership row", async () => {
+    const repo = makeFakeRepo({
+      findOpenSponsorship: vi.fn().mockResolvedValue({ ownershipId: "own-somewhere-else" }),
+    });
+    const result = await transferCustody(baseInput, { repo, actor, transaction: fakeTransaction });
+    expect(result).toMatchObject({ ok: true });
+  });
+
+  // An `owner`-role source is the santuario / decomiso org holding permanent
+  // title. That row is never a sponsorship, so the query is not even asked —
+  // the same early return accept-cross-org-transfer's refuseIfSponsoredCustody
+  // takes.
+  it("does not query the sponsorship spine for an owner-role source", async () => {
+    const repo = makeFakeRepo({
+      findPetUnderOrg: vi.fn().mockResolvedValue({
+        pet: makePet(),
+        ownershipId: "own-src",
+        ownershipRole: "owner",
+      }),
+    });
+    const result = await transferCustody(baseInput, { repo, actor, transaction: fakeTransaction });
+    expect(result).toMatchObject({ ok: true });
+    expect(repo.findOpenSponsorship).not.toHaveBeenCalled();
   });
 
   it("returns error when destination org not found", async () => {

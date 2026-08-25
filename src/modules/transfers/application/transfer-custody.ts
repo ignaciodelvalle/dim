@@ -28,6 +28,8 @@
 //   2. Pet lookup scoped to caller org (findPetUnderOrg) — auth boundary
 //   3. Source role validation (must be shelter_custody or owner)
 //   4. Silent role coercion for the requested destination role (parity quirk)
+//   4b. Source custody must not be a rehome sponsorship (REQ-15) — the twin
+//      door's guard, which this door was missing until 2026-08-25
 //   5. Destination org lookup + verified check
 //   6. No open handshake / no open dispute guards
 //   7. ATOMIC tx: openHandshakeCase + insertPetEvent(custody_transfer_proposed,
@@ -35,6 +37,7 @@
 //      notifications + sender confirmation
 //   8. Return UseCaseResult<{ publicCode, ... }> + notifications
 
+import { validateSourceNotSponsored } from "../domain/cross-org-rules";
 import {
   resolveNewRole,
   validateDestinationNotSource,
@@ -112,6 +115,34 @@ export async function transferCustody(
   // 4. Silent role coercion (parity quirk — no error on invalid newRole).
   const toRole = resolveNewRole(input.newRoleRaw);
   const fromRole = petRow.ownershipRole as "shelter_custody" | "owner";
+
+  // 4b. That source custody must not be a rehome sponsorship (REQ-15). Same
+  // rule and same sentence as proposeCrossOrgTransfer's step 4b, and placed
+  // where that one places it: after the source row is resolved, before a
+  // receiver is bothered.
+  //
+  // THIS PATH HAD NO SUCH CHECK UNTIL 2026-08-25, and it is the one that ran.
+  // The guard was written onto proposeCrossOrgTransfer — the door someone was
+  // thinking about — and a second org-to-org hand-off door existed all along,
+  // with its own front (findPetUnderOrg instead of findActiveShelterCustody,
+  // no free-text reason, destination role chosen by the sender). Measured on
+  // staging: pet DIM-JRSF-9775 carried a live sponsorship whose spine
+  // `payload.ownership_id` was exactly the id of its single live
+  // `shelter_custody` row, and this use-case still opened case CAS-NBGE-CS3C
+  // (`opened_reason_code: custody_handoff_direct` — the fingerprint of this
+  // file). The guard would have refused had it been here.
+  //
+  // The role branch mirrors accept-cross-org-transfer's `refuseIfSponsoredCustody`:
+  // an `owner`-role source (santuario / decomiso) is never a sponsorship, and
+  // the predicate is keyed on the spine's `ownership_id`, so the query would
+  // only ever return a row that cannot match.
+  if (fromRole === "shelter_custody") {
+    const notSponsored = validateSourceNotSponsored({
+      sourceCustodyId: petRow.ownershipId,
+      openSponsorship: await repo.findOpenSponsorship(petRow.pet.id),
+    });
+    if (!notSponsored.ok) return notSponsored;
+  }
 
   // 5. Destination org lookup + verified check.
   const destination = await repo.findReceiverOrg(input.destinationOrgId);
