@@ -112,6 +112,24 @@
 //     boundary. Read the reasons there; they are arguments, not exemptions.
 //   - SQL-level custody moves in migrations or scripts. Out of the scan set on
 //     purpose: a migration is reviewed as a migration.
+//   - A hand-off whose event write is EXTRACTED INTO A SHARED HELPER. If some
+//     future `writeCustodyHandoff(tx, {…})` spelled the literal once and every
+//     door called it, the doors themselves would go invisible and the fence
+//     would judge the helper alone. This is the sharpest limit of keying on the
+//     record's text, and it is not fully closed. What partly closes it is the
+//     org-to-org floor: collapsing seven doors into one takes the count from 7
+//     to 1 and the floor fires red, so the extraction cannot happen QUIETLY.
+//     What is not closed is the eighth door added afterwards, behind the helper
+//     the fence already accepted. If that helper ever gets written, this fence
+//     must move to the helper's callers on the same day.
+//
+// FIVE OF THIS FILE'S BUGS WERE FOUND BY A FRESH-CONTEXT REVIEWER, not by its
+// own 27 tests, and four of them failed SILENTLY — the mode a fence exists to
+// prevent. They are named at their fixes below (the missing `lib/**` glob, the
+// bare-name guard closure, the undeclared-before-guard ordering, the dropped
+// spread payload, the all-null payload read as person-bound, the region split
+// at a nested `const`). Recorded here because a fence's own green run is the
+// weakest evidence about it that exists.
 //
 // THE FENCE DOES NOT GUESS. A custody-transfer event write whose payload leaves
 // either end of the move undeclared is reported as a violation, not waved
@@ -191,7 +209,25 @@ export const CUSTODY_HANDOFF_ALLOWLIST: Record<string, string> = {
     "Touches no ownership row at all: it re-points a still-open govt-held proposal at a different receiver org and updates cases.receiver_organization_id. The file does not import ownerships. The custody being proposed is the same government transitional row covered by the accept-decomiso-handoff entry above, and no row transition happens here for a sponsorship to be silently carried through.",
 };
 
-const SOURCE_GLOBS = ["src/**/*.ts", "app/**/*.ts", "app/**/*.tsx"];
+/**
+ * The same set `check-event-payload-parity.ts` scans, and for the same reason:
+ * these are the directories that write into the spine.
+ *
+ * `lib/**` IS IN THE SET, and leaving it out was the first draft's worst bug —
+ * caught by a fresh-context reviewer, not by this fence's own tests. `lib/infra`
+ * holds `end-pet-ownerships.ts`, which inserts pet events directly, and the
+ * failure message below points authors at that very file. A fence whose stated
+ * purpose is "nobody can prove there is no THIRD door" cannot be blind to the
+ * directory a third door would most naturally live in.
+ */
+const SOURCE_GLOBS = [
+  "src/**/*.ts",
+  "src/**/*.tsx",
+  "app/**/*.ts",
+  "app/**/*.tsx",
+  "lib/**/*.ts",
+  "components/**/*.tsx",
+];
 
 // ---------------------------------------------------------------------------
 // Anti-vacuity floors — in the script, not only in the tests
@@ -204,9 +240,19 @@ const SOURCE_GLOBS = ["src/**/*.ts", "app/**/*.ts", "app/**/*.tsx"];
 
 /**
  * Files opened and comment-stripped. A glob that stops resolving dies here.
- * Measured 2026-08-25: 1424.
+ * Measured 2026-08-25: 2110.
  */
-export const MIN_SCANNED_FILES = 1000;
+export const MIN_SCANNED_FILES = 1500;
+/**
+ * A CEILING, not a floor, and the only one here. The guarded set is the fence's
+ * default-ALLOW surface: every unit in it passes without further question. The
+ * three floors below all measure how much was EXAMINED, and a closure that
+ * ballooned to five hundred units would keep every one of them healthy while
+ * waving everything through. Measured: 24. The ceiling is deliberately close to
+ * that, because the honest response to "the guarded set doubled" is to look at
+ * what got in, not to raise a number.
+ */
+export const MAX_GUARDED_UNITS = 60;
 /**
  * Custody-transfer event WRITES found, either direction. Separate from the
  * files floor: the globs can keep resolving while the write detector stops
@@ -327,16 +373,28 @@ export function enclosingBraceBlock(
 }
 
 /**
- * Control-flow keywords look exactly like a call at the start of a line
- * (`  if (`, `  for (`). Without this, every write inside an `if` was reported
- * as living in a function named "if".
+ * TOP-LEVEL declarations only — anchored at column 0.
+ *
+ * The first draft matched a declaration at ANY indentation, and units are text
+ * regions running to the next declaration, so an ordinary
+ * `const body = (n) => \`Propuesta para ${n}\`` between the guard and the write
+ * split one function into two: the guard was credited to the use-case and the
+ * write attributed to `body`. A false positive that would teach the next author
+ * to move a notification-body helper to appease a linter. It was live in the
+ * tree already — `owner-accept-return.ts` reported a "function" named
+ * `fromOrgId` — and harmless only because that site is person-bound.
+ *
+ * Anchoring costs the object-method form (`TransfersRepository = { async foo(){} }`).
+ * That is a deliberate trade: no custody-transfer write lives in a repository
+ * method today, and one that did would be attributed to the exported repository
+ * const, which is still a real unit with a real name.
  */
 const FUNCTION_PATTERNS = [
-  /(?:export\s+)?(?:async\s+)?function\s+([A-Za-z_$][\w$]*)\s*\(/g,
-  /(?:export\s+)?const\s+([A-Za-z_$][\w$]*)\s*(?::[^=\n]*)?=\s*(?:async\s*)?\(/g,
-  /^\s{2}(?:async\s+)?([A-Za-z_$][\w$]*)\s*\(/gm,
+  /^(?:export\s+)?(?:default\s+)?(?:async\s+)?function\s+([A-Za-z_$][\w$]*)\s*\(/gm,
+  /^(?:export\s+)?const\s+([A-Za-z_$][\w$]*)\s*(?::[^=\n]*)?=\s*(?:async\s*)?\(/gm,
 ];
 
+/** Control-flow keywords that look like a call. Kept: cheap, and harmless. */
 const NOT_A_FUNCTION_NAME = new Set([
   "if",
   "for",
@@ -460,19 +518,35 @@ export function findHandoffSites(source: ScanSource): HandoffSite[] {
       // from a static table. The `validateEventPayload(…)` form needs no such
       // evidence: constructing the payload is what it is for.
       const isPayloadCall = /validateEventPayload/.test(m[0]);
-      if (!isPayloadCall && !/\bpayload\b\s*[,:}]/.test(text)) {
+      // A SPREAD counts as payload evidence. `{ eventType: "X", ...eventFields }`
+      // is a write whose ends this fence cannot read — and the first draft
+      // dropped it SILENTLY through this very filter, contradicting the
+      // header's "does not guess" promise in the one place it was load-bearing.
+      // It is now detected and falls through to `undeclared`.
+      if (!isPayloadCall && !/\bpayload\b\s*[,:}]/.test(text) && !text.includes("...")) {
         m = re.exec(src);
         continue;
       }
-      const read = (key: string) => readKey(text, key) ?? readKey(forward, key);
+      // Backward as well as forward. A hoisted `const payload = { … }` sits
+      // BEHIND the insert, and reading only forward turned a legible record
+      // into an unreadable one.
+      const backward = src.slice(Math.max(0, m.index - 1200), m.index);
+      const read = (key: string) =>
+        readKey(text, key) ?? readKey(forward, key) ?? readKey(backward, key);
+      const nonNull = (v: string | null) => v !== null && v !== "null";
       const toOrg = read("to_organization_id");
       const fromOrg = read("from_organization_id");
-      const declared =
-        (read("to_user_id") ?? toOrg) !== null && (read("from_user_id") ?? fromOrg) !== null;
+      // An end is DECLARED when one of its two slots names something. All four
+      // slots written as `null` is the least declared record possible, and the
+      // first draft classified it as `not_org_to_org` — the one direction it
+      // skips — because `readKey` returns the string "null", which is not
+      // `null`. Comparing on nonNull is what makes the promise true.
+      const toDeclared = nonNull(toOrg) || nonNull(read("to_user_id"));
+      const fromDeclared = nonNull(fromOrg) || nonNull(read("from_user_id"));
       let direction: Direction = "undeclared";
-      if (toOrg !== null && toOrg !== "null" && fromOrg !== null && fromOrg !== "null") {
+      if (nonNull(toOrg) && nonNull(fromOrg)) {
         direction = "org_to_org";
-      } else if (declared) {
+      } else if (toDeclared && fromDeclared) {
         direction = "not_org_to_org";
       }
       sites.push({
@@ -485,6 +559,45 @@ export function findHandoffSites(source: ScanSource): HandoffSite[] {
       m = re.exec(src);
     }
   }
+
+  // INDIRECTION THROUGH A LOCAL CONSTANT IS NOT AN ESCAPE.
+  // `const HANDOFF = "custody_transferred"; … eventType: HANDOFF` spells the
+  // literal nowhere the matcher above can see it, and the first draft found
+  // ZERO sites in such a file while happily opening it.
+  //
+  // The rule is deliberately narrow: the alias must be a constant bound IN THIS
+  // FILE to one of the two literals. A broader version — "any `eventType:` whose
+  // value is an identifier" — was written first and reported eleven sites, every
+  // one of them a false positive: Drizzle column references in select
+  // projections (`eventType: petEvents.eventType`), type annotations
+  // (`eventType: EventType`, `eventType: string`) and generic pass-through
+  // helpers (`eventType: args.eventType`). A fence that cries wolf about a
+  // SELECT teaches people to stop reading it.
+  const aliases = new Set<string>();
+  const aliasRe = new RegExp(
+    `\\bconst\\s+([A-Za-z_$][\\w$]*)\\s*(?::[^=\\n]*)?=\\s*["'\`](?:${CUSTODY_HANDOFF_EVENT_TYPES.join("|")})["'\`]`,
+    "g",
+  );
+  let alias = aliasRe.exec(src);
+  while (alias) {
+    aliases.add(alias[1]);
+    alias = aliasRe.exec(src);
+  }
+  for (const name of aliases) {
+    const useRe = new RegExp(`\\beventType\\s*:\\s*${name}\\s*[,\\n}]`, "g");
+    let use = useRe.exec(blanked);
+    while (use) {
+      sites.push({
+        relPath,
+        eventType: `<alias ${name}>`,
+        direction: "undeclared",
+        line: lineOf(src, use.index),
+        fn: enclosingFunctionName(blanked, use.index),
+      });
+      use = useRe.exec(blanked);
+    }
+  }
+
   return dedupeConstructions(sites);
 }
 
@@ -567,23 +680,110 @@ function callsIdentifier(body: string, name: string): boolean {
 }
 
 /**
- * Every function name that reaches ONE OF the discharges: directly, or by
- * calling something that does. Bounded fixpoint — a cycle cannot grow the set
- * forever, and 20 passes is far past the deepest real chain (today's is 2).
+ * Every unit that reaches ONE OF the discharges: directly, or by calling
+ * something that does. Keyed `relPath#name`, NOT by bare name — and that
+ * distinction is the difference between a fence and a default-allow list.
+ *
+ * THE DEFECT THIS REPLACES. The first draft's guarded set was a `Set<string>`
+ * of bare names, and over the real tree it grew to 27 entries — among them
+ * `submit`, `handleSubmit`, `handleAccept`, `handleConfirm`, `ext`, `withdraw`
+ * and `cleanupOrphan`. They got in through React client handlers that call a
+ * server action that eventually reaches a discharge. `handleSubmit` is declared
+ * 27 times in this repo and `submit` 24 times; `cleanupOrphan` twice, in two
+ * unrelated modules, one guarded purely by the other. Any future hand-off
+ * writer whose enclosing function happened to be called `submit` would have
+ * passed IN SILENCE — a fence keyed on a naming coincidence, which is precisely
+ * the "naming convention wearing a security boundary's clothes" this file
+ * rejects in candidate (c) above. Found by a fresh-context reviewer; this
+ * fence's own tests were happy.
+ *
+ * PROPAGATION RESOLVES CALLS CONSERVATIVELY. A call to `X` is resolved against
+ * units named `X` in the SAME FILE first; only if there are none does it look
+ * repo-wide, and then EVERY unit named `X` must be guarded for the call to
+ * count. So a name shared by a guarded and an unguarded definition propagates
+ * nothing. That fails closed — toward reporting an offender, which is loud and
+ * fixable — rather than open.
  */
+const unitKey = (u: { relPath: string; name: string }) => `${u.relPath}#${u.name}`;
+
+function groupByName(units: FnUnit[]): Map<string, FnUnit[]> {
+  const byName = new Map<string, FnUnit[]>();
+  for (const unit of units) {
+    const list = byName.get(unit.name);
+    if (list) list.push(unit);
+    else byName.set(unit.name, [unit]);
+  }
+  return byName;
+}
+
+/**
+ * Identifiers each unit calls, extracted ONCE. The naive alternative re-tested
+ * every known name against every body on every pass — roughly twenty million
+ * regex executions over this repo, taking the fence from two seconds to minutes
+ * for no analytical gain, and `pnpm verify` runs it on every Definition of Done.
+ */
+function indexCalls(units: FnUnit[]): Map<string, Set<string>> {
+  const callRe = /\b([A-Za-z_$][\w$]*)\s*\(/g;
+  const callsOf = new Map<string, Set<string>>();
+  for (const unit of units) {
+    const called = new Set<string>();
+    callRe.lastIndex = 0;
+    let c = callRe.exec(unit.body);
+    while (c) {
+      if (!NOT_A_FUNCTION_NAME.has(c[1]) && c[1] !== unit.name) called.add(c[1]);
+      c = callRe.exec(unit.body);
+    }
+    callsOf.set(unitKey(unit), called);
+  }
+  return callsOf;
+}
+
+/**
+ * Does calling `name` from `unit` reach a discharge? Same-file declarations win;
+ * otherwise EVERY repo-wide declaration of that name must already be guarded, so
+ * a name shared by a guarded and an unguarded definition propagates nothing.
+ */
+function callReachesGuard(
+  unit: FnUnit,
+  name: string,
+  byName: Map<string, FnUnit[]>,
+  guarded: Set<string>,
+): boolean {
+  const decls = byName.get(name);
+  if (!decls) return false;
+  const sameFile = decls.filter((d) => d.relPath === unit.relPath);
+  const targets = sameFile.length > 0 ? sameFile : decls;
+  return targets.every((t) => guarded.has(unitKey(t)));
+}
+
 export function indexGuardedFunctions(sources: ScanSource[]): Set<string> {
   const units = sources.flatMap(extractFunctions);
-  const guarded = new Set<string>(SPONSORSHIP_DISCHARGES);
+  const byName = groupByName(units);
+  const callsOf = indexCalls(units);
+
+  const guarded = new Set<string>();
+  for (const unit of units) {
+    if (SPONSORSHIP_DISCHARGES.some((d) => callsIdentifier(unit.body, d))) {
+      guarded.add(unitKey(unit));
+    }
+  }
+  // The discharges themselves, wherever they are declared. Seeded from the
+  // declaration rather than assumed, so a rename that deletes them is visible.
+  for (const discharge of SPONSORSHIP_DISCHARGES) {
+    for (const unit of byName.get(discharge) ?? []) guarded.add(unitKey(unit));
+  }
+
   for (let pass = 0; pass < 20; pass += 1) {
     let grew = false;
     for (const unit of units) {
-      if (guarded.has(unit.name)) continue;
-      for (const name of guarded) {
-        if (callsIdentifier(unit.body, name)) {
-          guarded.add(unit.name);
-          grew = true;
-          break;
-        }
+      const k = unitKey(unit);
+      if (guarded.has(k)) continue;
+      const reaches = [...(callsOf.get(k) ?? [])].some((n) =>
+        callReachesGuard(unit, n, byName, guarded),
+      );
+      if (reaches) {
+        guarded.add(k);
+        grew = true;
       }
     }
     if (!grew) break;
@@ -604,20 +804,26 @@ export function findUnguardedHandoffs(sources: ScanSource[]): Offender[] {
     for (const site of findHandoffSites(source)) {
       if (site.direction === "not_org_to_org") continue;
       if (CUSTODY_HANDOFF_ALLOWLIST[`${site.relPath}#${site.fn}`]) continue;
+      // THE GUARD IS CHECKED FIRST, and the order matters. A writer that
+      // already asks the sponsorship question has satisfied this fence whether
+      // or not the fence can read its payload's ends — the demand is "ask",
+      // not "be legible". The first draft reported `undeclared` before looking
+      // at the guard, so hoisting the payload into a `const` two lines above
+      // the insert turned a correctly guarded writer into an offender, and the
+      // only way out was an allowlist entry. That is how allowlists get long.
+      if (guarded.has(`${site.relPath}#${site.fn}`)) continue;
       if (site.direction === "undeclared") {
         offenders.push({
           site,
           problem:
-            "its payload does not declare both ends of the move (from_user_id / from_organization_id and to_user_id / to_organization_id), so whether this is an org-to-org hand-off cannot be read. This fence does not guess",
+            "its payload does not declare both ends of the move (from_user_id / from_organization_id and to_user_id / to_organization_id), so whether this is an org-to-org hand-off cannot be read, and nothing on the way here asks the sponsorship question. This fence does not guess",
         });
         continue;
       }
-      if (!guarded.has(site.fn)) {
-        offenders.push({
-          site,
-          problem: `it hands an organization's custody to another organization, but neither ${site.fn} nor anything it calls reaches ${SPONSORSHIP_DISCHARGES.join(" or ")} — the sponsorship question is never asked`,
-        });
-      }
+      offenders.push({
+        site,
+        problem: `it hands an organization's custody to another organization, but neither ${site.fn} nor anything it calls reaches ${SPONSORSHIP_DISCHARGES.join(" or ")} — the sponsorship question is never asked`,
+      });
     }
   }
   return offenders;
@@ -656,10 +862,16 @@ function runCheck(): void {
     MIN_ORG_TO_ORG_SITES,
     "Org-to-org writes are the only ones this fence judges; a classifier reading them all as person-bound keeps both totals healthy and judges nothing.",
   );
+  const guardedUnits = indexGuardedFunctions(sources).size;
+  if (guardedUnits > MAX_GUARDED_UNITS) {
+    floors.push(
+      `✗ guarded set — ${guardedUnits} unit(s), ceiling ${MAX_GUARDED_UNITS}. This is the fence's default-ALLOW surface; something is propagating far more widely than the discharge call chains. Look at what got in before raising the number.`,
+    );
+  }
   if (floors.length > 0) {
     for (const f of floors) console.error(f);
     console.error(
-      "\n✗ check-custody-handoff-sponsorship judged an implausibly small corpus. This check cannot pass having examined almost nothing.",
+      "\n✗ check-custody-handoff-sponsorship judged an implausibly small corpus, or trusted an implausibly large one. This check cannot pass on either.",
     );
     process.exit(1);
   }

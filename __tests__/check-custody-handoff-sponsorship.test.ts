@@ -18,6 +18,7 @@ import { describe, expect, it } from "vitest";
 import {
   CUSTODY_HANDOFF_ALLOWLIST,
   CUSTODY_HANDOFF_EVENT_TYPES,
+  MAX_GUARDED_UNITS,
   MIN_HANDOFF_SITES,
   MIN_ORG_TO_ORG_SITES,
   MIN_SCANNED_FILES,
@@ -220,6 +221,127 @@ export async function mysteryMove(ctx) {
     expect(offenders[0].problem).toContain("does not guess");
   });
 
+  // -------------------------------------------------------------------------
+  // Regressions for the six defects a fresh-context reviewer found on
+  // 2026-08-25, four of which failed silently. Each one is a way this fence
+  // could have said "clean" about a real third door.
+  // -------------------------------------------------------------------------
+
+  it("sees a hand-off written through a spread payload instead of dropping it", () => {
+    const spread = `
+export async function spreadHandOff(ctx) {
+  await repo.insertPetEvent({ petId, eventType: "custody_transferred", ...eventFields });
+}
+`;
+    const sites = findHandoffSites(src("lib/infra/x.ts", spread));
+    expect(sites).toHaveLength(1);
+    expect(sites[0].direction).toBe("undeclared");
+    expect(findUnguardedHandoffs([src("lib/infra/x.ts", spread)])).toHaveLength(1);
+  });
+
+  it("does not read an all-null payload as person-bound", () => {
+    const allNull = `
+export async function nullHandOff(ctx) {
+  await repo.insertPetEvent({
+    eventType: "custody_transferred",
+    payload: {
+      from_user_id: null,
+      from_organization_id: null,
+      to_user_id: null,
+      to_organization_id: null,
+      from_role: "shelter_custody",
+    },
+  });
+}
+`;
+    const sites = findHandoffSites(src("src/modules/x/application/n.ts", allNull));
+    expect(sites[0].direction).toBe("undeclared");
+  });
+
+  it("sees a hand-off whose event type hides behind a local constant", () => {
+    const aliased = `
+const HANDOFF = "custody_transferred";
+export async function aliasedHandOff(ctx) {
+  await repo.insertPetEvent({
+    eventType: HANDOFF,
+    payload: { from_organization_id: a.id, to_organization_id: b.id },
+  });
+}
+`;
+    expect(findUnguardedHandoffs([src("src/modules/x/application/a.ts", aliased)])).toHaveLength(1);
+  });
+
+  it("does not cry wolf about a SELECT that projects the eventType column", () => {
+    const select = `
+export async function readEvents(petId: string) {
+  return db
+    .select({ eventType: petEvents.eventType, payload: petEvents.payload })
+    .from(petEvents)
+    .where(eq(petEvents.eventType, "custody_transferred"));
+}
+`;
+    expect(findHandoffSites(src("lib/analytics/x.ts", select))).toEqual([]);
+  });
+
+  it("credits the guard even when the payload is hoisted out of the insert", () => {
+    const hoisted = `
+export async function hoistedButGuarded(input, deps) {
+  const custody = await repo.findActiveShelterCustody(pet.id, org.id);
+  const rule = ${SPONSORSHIP_GUARD}({ sourceCustodyId: custody.id, openSponsorship: s });
+  if (!rule.ok) return rule;
+  const payload = { from_organization_id: org.id, to_organization_id: receiver.id };
+  await repo.insertPetEvent({ petId: pet.id, eventType: "custody_transfer_proposed", payload });
+}
+`;
+    expect(findUnguardedHandoffs([src("src/modules/x/application/h.ts", hoisted)])).toEqual([]);
+  });
+
+  it("does not split a function at a nested const arrow between the guard and the write", () => {
+    const split = `
+export async function guardedButSplit(input, deps) {
+  const rule = ${SPONSORSHIP_GUARD}({ sourceCustodyId: c.id, openSponsorship: s });
+  if (!rule.ok) return rule;
+  const body = (n) => "Propuesta para " + n;
+  await repo.insertPetEvent({
+    eventType: "custody_transfer_proposed",
+    payload: { from_organization_id: a.id, to_organization_id: b.id },
+  });
+}
+`;
+    const source = src("src/modules/x/application/s.ts", split);
+    expect(findHandoffSites(source)[0].fn).toBe("guardedButSplit");
+    expect(findUnguardedHandoffs([source])).toEqual([]);
+  });
+
+  it("does not credit a guard through a function name shared with an unguarded twin", () => {
+    // The defect that let `submit`, `handleSubmit`, `ext` and `cleanupOrphan`
+    // into the guarded set: bare-name matching. Two `cleanupOrphan`s exist in
+    // this repo, in unrelated modules; one must not vouch for the other.
+    const guardedTwin = `
+export async function cleanupOrphan(petId) {
+  await ${SPONSORSHIP_GUARD}({ sourceCustodyId: petId, openSponsorship: null });
+}
+`;
+    const unguardedTwin = `
+export async function cleanupOrphan(petId) {
+  return petId;
+}
+export async function newDoor(ctx) {
+  await cleanupOrphan(ctx.petId);
+  await repo.insertPetEvent({
+    eventType: "custody_transferred",
+    payload: { from_organization_id: a.id, to_organization_id: b.id },
+  });
+}
+`;
+    const offenders = findUnguardedHandoffs([
+      src("src/modules/alpha/application/a.ts", guardedTwin),
+      src("src/modules/beta/application/b.ts", unguardedTwin),
+    ]);
+    expect(offenders).toHaveLength(1);
+    expect(offenders[0].site.fn).toBe("newDoor");
+  });
+
   it("does not mistake a return type's braces for a function body", () => {
     // The defect that made the first draft report the repo's OWN guarded
     // use-cases as offenders: the first `{` after `transferCustody(` opens
@@ -239,7 +361,9 @@ export async function guardedHandOff(
 `;
     const source = src("src/modules/x/application/g.ts", typed);
     expect(extractFunctions(source).map((u) => u.name)).toContain("guardedHandOff");
-    expect(indexGuardedFunctions([source]).has("guardedHandOff")).toBe(true);
+    expect(
+      indexGuardedFunctions([source]).has("src/modules/x/application/g.ts#guardedHandOff"),
+    ).toBe(true);
     expect(findUnguardedHandoffs([source])).toEqual([]);
   });
 });
@@ -258,6 +382,26 @@ describe("the live repository", () => {
     expect(sites.filter((s) => s.direction === "org_to_org").length).toBeGreaterThanOrEqual(
       MIN_ORG_TO_ORG_SITES,
     );
+  });
+
+  // The glob that was missing, and the reason it mattered: lib/infra writes pet
+  // events directly, and the fence's own failure message points authors there.
+  it("opens lib/**, the directory a third door would most naturally live in", () => {
+    expect(sources.some((s) => s.relPath === "lib/infra/end-pet-ownerships.ts")).toBe(true);
+    expect(sources.filter((s) => s.relPath.startsWith("lib/")).length).toBeGreaterThan(300);
+  });
+
+  // The CEILING. The guarded set is the default-ALLOW surface; the three floors
+  // measure only how much was examined.
+  it("keeps the guarded set small and free of generic handler names", () => {
+    const guarded = indexGuardedFunctions(sources);
+    expect(guarded.size).toBeLessThanOrEqual(MAX_GUARDED_UNITS);
+    const names = [...guarded].map((k) => k.split("#")[1]);
+    for (const generic of ["submit", "handleSubmit", "handleAccept", "handleConfirm", "ext"]) {
+      expect(names, `${generic} must not be able to vouch for a hand-off`).not.toContain(generic);
+    }
+    // Every entry is fully qualified — a bare name would be the old defect back.
+    for (const k of guarded) expect(k).toMatch(/^[^#]+#[^#]+$/);
   });
 
   // Pinned BY NAME. A fence that stopped opening these files would still report
@@ -281,8 +425,9 @@ describe("the live repository", () => {
   // → validateSourceNotSponsored.
   it("reaches the guard through accept-cross-org-transfer's module-local helper", () => {
     const guarded = indexGuardedFunctions(sources);
-    expect(guarded.has("refuseIfSponsoredCustody")).toBe(true);
-    expect(guarded.has("acceptCrossOrgTransfer")).toBe(true);
+    const accept = "src/modules/transfers/application/accept-cross-org-transfer.ts";
+    expect(guarded.has(`${accept}#refuseIfSponsoredCustody`)).toBe(true);
+    expect(guarded.has(`${accept}#acceptCrossOrgTransfer`)).toBe(true);
   });
 
   // The OTHER answer, and the reason this fence accepts two. The authority
@@ -290,14 +435,20 @@ describe("the live repository", () => {
   // `sponsorshipOutcome`, which `endAllLiveOwnerships` makes unskippable by
   // requiring it in the argument type. Both are live today; a fence that
   // demanded only the refusal would have been wrong about both.
-  it.each(["executeDecomiso", "resolveDisputeUseCase"])(
-    "accepts %s, which ENDS the sponsorship instead of refusing",
-    (fn) => {
-      expect(indexGuardedFunctions(sources).has(fn)).toBe(true);
-      // Passing on its own merits, not by being excused.
-      expect(Object.keys(CUSTODY_HANDOFF_ALLOWLIST).some((k) => k.endsWith(`#${fn}`))).toBe(false);
-    },
-  );
+  // The keys are FULLY QUALIFIED, and that is the point of the test as much as
+  // the acceptance is: `executeDecomiso` is also the name of a React client
+  // handler in app/gob/decomisos/nuevo/_components/DecomisoForm.tsx, and the
+  // bare-name version of this assertion could not tell the two apart.
+  it.each([
+    ["src/modules/decomiso/application/execute-decomiso.ts", "executeDecomiso"],
+    ["src/modules/custody-disputes/application/resolve-dispute.ts", "resolveDisputeUseCase"],
+  ])("accepts %s#%s, which ENDS the sponsorship instead of refusing", (relPath, fn) => {
+    expect(indexGuardedFunctions(sources).has(`${relPath}#${fn}`)).toBe(true);
+    // Passing on its own merits, not by being excused.
+    expect(Object.keys(CUSTODY_HANDOFF_ALLOWLIST).some((k) => k === `${relPath}#${fn}`)).toBe(
+      false,
+    );
+  });
 
   it("has no offender outside the documented allowlist", () => {
     const offenders = findUnguardedHandoffs(sources);
