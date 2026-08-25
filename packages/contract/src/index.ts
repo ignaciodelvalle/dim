@@ -10,11 +10,13 @@
 //   import { SCALE_BLUE_SEQ } from "@dim/contract/viz";
 //   import { createIntakeInputSchema } from "@dim/contract/input";
 //   import type { PublicCredentialV1 } from "@dim/contract/api";
+//   import { breedsForSpecies } from "@dim/contract/reference";
 //
 // `input` is the one entry point with a runtime dependency (zod). A consumer
-// that only reads the event vocabulary, the scales or the `/api/v1` wire
-// shapes never loads it.
+// that only reads the event vocabulary, the scales, the static catalogs or the
+// `/api/v1` wire shapes never loads it.
 export * from "./api/index";
 export * from "./events/index";
 export * from "./input/index";
+export * from "./reference/index";
 export * from "./viz/index";

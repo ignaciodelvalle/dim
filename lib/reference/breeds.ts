@@ -1,137 +1,48 @@
-// Breed lookups for the new-pet form.
+// Breed matching for the pets domain — and the web app's door onto the breed
+// CATALOGS, which now live in `@dim/contract/reference`.
 //
-// `POTENTIALLY_DANGEROUS_DOG_BREEDS` is the canonical "PPP" list per Argentine
-// provincial laws (Ley CABA 4078, Ley Prov 14.107 and equivalents). When a
-// pet is registered with a breed in this set, we set
-// `pets.potentially_dangerous_breed = true` so projections and the eventual
-// dangerous_breed_attested flow can find them quickly.
+// WHERE THE LISTS WENT, AND WHY THIS FILE STILL EXISTS
+// ---------------------------------------------------------------------------
+// The catalogs themselves (DOG_BREEDS, CAT_BREEDS, RABBIT_BREEDS,
+// GUINEA_PIG_BREEDS, SPECIAL_BREED_OPTIONS, ALL_BREEDS,
+// POTENTIALLY_DANGEROUS_DOG_BREEDS, breedsForSpecies) moved to
+// `packages/contract/src/reference/breeds.ts` in native-readiness WU-B: a native
+// registration screen has to render a species-scoped picker with no signal, so
+// the list has to be in the one package a React Native app can install.
 //
-// `pets.breed` USED to be free text: the lists below only populated a
-// <datalist>, and the header said "users can also type a breed not in the list
-// — we just don't get the auto-flag if so". That sentence described a legal
-// regime you could opt out of by spelling. On 2026-08-13 it had already
-// happened: a dog recorded as "Pit Bull Terrier Americano" sat unflagged while
-// an identical dog in the next barrio, under the same law, was flagged.
+// They are RE-EXPORTED here rather than copied. Every existing importer — the
+// PetForm catalog select, the PPP classifier, `scripts/check-catalog-drift.ts`,
+// `scripts/repair-breeds.ts` — keeps working unchanged, and there is exactly one
+// copy of every list, so a breed added to the contract reaches all of them in
+// the same commit. A second list is how "Pit Bull Terrier Americano" sat
+// unflagged in staging on 2026-08-13 while an identical dog in the next barrio,
+// under the same law, was flagged.
 //
-// The field is now a CATALOG SELECT (components/PetForm.tsx) and the stored
-// values are normalised to these labels (scripts/repair-breeds.ts), so a breed
-// off this list is a defect, not a shrug. `scripts/check-catalog-drift.ts`
-// fails when one appears.
+// What did NOT move is everything below: the folding, the curated alias table
+// and the resolvers. That is the SERVER's authority (see
+// `lib/domain/breed-validation.ts`, QA A4). A client picks a label FROM the
+// catalog; the server re-resolves whatever actually arrives. Shipping the
+// matcher to clients would invite one to resolve locally and send its own answer
+// as canonical.
 //
-// Adding a breed here is cheap and expected — the alternative is flattening a
-// real animal into "Pura raza no listada", which destroys information. Seven
-// breeds were added on 2026-08-13 for exactly that reason (Shiba Inu, Cairn
-// Terrier, Gran Danés, San Bernardo, Pastor Australiano, Pastor Suizo Blanco,
-// Spinone Italiano). Adding to POTENTIALLY_DANGEROUS_DOG_BREEDS is NOT cheap:
-// that set is the law's, not ours.
+// `pets.breed` USED to be free text, and the old header here said "users can
+// also type a breed not in the list — we just don't get the auto-flag if so".
+// That sentence described a legal regime you could opt out of by spelling. The
+// field is now a CATALOG SELECT and the stored values are normalised to these
+// labels, so a breed off the list is a defect, not a shrug.
 
-export const SPECIAL_BREED_OPTIONS = ["Mixto / Cruza", "Pura raza no listada"] as const;
+export {
+  ALL_BREEDS,
+  CAT_BREEDS,
+  DOG_BREEDS,
+  GUINEA_PIG_BREEDS,
+  POTENTIALLY_DANGEROUS_DOG_BREEDS,
+  RABBIT_BREEDS,
+  SPECIAL_BREED_OPTIONS,
+  breedsForSpecies,
+} from "@dim/contract/reference";
 
-export const DOG_BREEDS = [
-  "Akita Inu",
-  "American Pit Bull Terrier",
-  "American Staffordshire Terrier",
-  "Beagle",
-  "Bichón Frisé",
-  "Border Collie",
-  "Boxer",
-  "Bull Terrier",
-  "Bulldog Francés",
-  "Bulldog Inglés",
-  "Bullmastiff",
-  "Cairn Terrier",
-  "Cane Corso",
-  "Caniche",
-  "Chihuahua",
-  "Cocker Spaniel",
-  "Collie",
-  "Doberman",
-  "Dogo Argentino",
-  "Dogo Canario (Presa Canario)",
-  "Dálmata",
-  "Fila Brasileiro",
-  "Galgo",
-  "Golden Retriever",
-  "Gran Danés",
-  "Husky Siberiano",
-  "Jack Russell Terrier",
-  "Labrador",
-  "Maltés",
-  "Mastín Napolitano",
-  "Pastor Alemán",
-  "Pastor Australiano",
-  "Pastor Belga",
-  "Pastor Suizo Blanco",
-  "Pequinés",
-  "Pit Bull Terrier",
-  "Pomerania",
-  "Pug",
-  "Rottweiler",
-  "Salchicha (Dachshund)",
-  "San Bernardo",
-  "Schnauzer",
-  "Setter",
-  "Shiba Inu",
-  "Shih Tzu",
-  "Spinone Italiano",
-  "Staffordshire Bull Terrier",
-  "Tosa Inu",
-  "Yorkshire Terrier",
-];
-
-export const CAT_BREEDS = [
-  "Abisinio",
-  "Bengala",
-  "Birmano",
-  "British Shorthair",
-  "Burmés",
-  "Común europeo",
-  "Maine Coon",
-  "Noruego del Bosque",
-  "Oriental",
-  "Persa",
-  "Ragdoll",
-  "Russian Blue",
-  "Scottish Fold",
-  "Siamés",
-  "Sphynx",
-];
-
-// Conejo y cobayo no tenían catálogo: `breedsForSpecies` devolvía sólo las dos
-// opciones especiales, así que "Conejo común" y "Cobayo americano" —dos filas
-// reales de staging, dos razas de verdad— no tenían dónde caer. Listas de
-// arranque, cortas a propósito y pensadas para crecer cuando aparezcan datos:
-// agregar una entrada acá es barato, aplastar un animal a "Pura raza no
-// listada" no se deshace.
-export const RABBIT_BREEDS = [
-  "Angora",
-  "Belier (Lop)",
-  "Cabeza de León",
-  "Común",
-  "Gigante de Flandes",
-  "Holandés enano",
-  "Mini Rex",
-];
-
-export const GUINEA_PIG_BREEDS = ["Abisinio", "Americano", "Coronet", "Peruano", "Rex", "Sheltie"];
-
-export const POTENTIALLY_DANGEROUS_DOG_BREEDS: ReadonlySet<string> = new Set([
-  "Akita Inu",
-  "American Pit Bull Terrier",
-  "American Staffordshire Terrier",
-  "Bull Terrier",
-  "Bullmastiff",
-  "Cane Corso",
-  "Doberman",
-  "Dogo Argentino",
-  "Dogo Canario (Presa Canario)",
-  "Fila Brasileiro",
-  "Mastín Napolitano",
-  "Pit Bull Terrier",
-  "Rottweiler",
-  "Staffordshire Bull Terrier",
-  "Tosa Inu",
-]);
+import { ALL_BREEDS, POTENTIALLY_DANGEROUS_DOG_BREEDS } from "@dim/contract/reference";
 
 // ---------------------------------------------------------------------------
 // Breed matching — why it is not string equality
@@ -260,19 +171,6 @@ export function resolveBreedLabel(breed: string): string | null {
   return null;
 }
 
-/**
- * Toda etiqueta de raza válida, de cualquier especie. Es la referencia del
- * auditor de catálogo y del reparador: un valor guardado fuera de este conjunto
- * es un defecto, no una variante.
- */
-export const ALL_BREEDS: readonly string[] = [
-  ...SPECIAL_BREED_OPTIONS,
-  ...DOG_BREEDS,
-  ...CAT_BREEDS,
-  ...RABBIT_BREEDS,
-  ...GUINEA_PIG_BREEDS,
-];
-
 /** True when `label` is in `list`, compared by normalised key. */
 export function breedListIncludes(list: Iterable<string>, label: string): boolean {
   const key = normalizeBreedKey(label);
@@ -314,17 +212,3 @@ export function isPotentiallyDangerousBreed(
 // Server-side jurisdiction-aware variant moved to `lib/breeds-server.ts`
 // so that client components can import the catalogs above without
 // pulling in `db` via the business-rules-resolver.
-
-export function breedsForSpecies(species: string): string[] {
-  const named =
-    species === "cat"
-      ? CAT_BREEDS
-      : species === "dog"
-        ? DOG_BREEDS
-        : species === "rabbit"
-          ? RABBIT_BREEDS
-          : species === "guinea_pig"
-            ? GUINEA_PIG_BREEDS
-            : [];
-  return [...SPECIAL_BREED_OPTIONS, ...named];
-}
