@@ -17,10 +17,20 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 // ---------------------------------------------------------------------------
 
 const mockGetUser = vi.fn();
-const mockSupabaseClient = { auth: { getUser: () => mockGetUser() } };
+// getSession answers the SHIFT question (B9) — see app/api/gob/__tests__/
+// gob-gate.test.ts for why a fake client without it can never see the shift.
+const mockGetSession = vi.fn();
+const mockSupabaseClient = {
+  auth: { getUser: () => mockGetUser(), getSession: () => mockGetSession() },
+};
 
 vi.mock("@/lib/supabase/server", () => ({
   createClient: vi.fn(async () => mockSupabaseClient),
+}));
+
+const mockReportError = vi.fn();
+vi.mock("@/lib/infra/report-error", () => ({
+  reportError: (...args: unknown[]) => mockReportError(...args),
 }));
 
 const mockGetProfileCached = vi.fn();
@@ -65,9 +75,18 @@ vi.mock("@/src/modules/panorama/application/get-panorama-kpis", () => ({
   }),
 }));
 
+import { amrToken } from "@/__tests__/helpers/amr-token";
 import { RateLimitError } from "@/lib/infra/rate-limit";
 import { resolveInstitutionalPanoramaActor } from "../_guard";
 import { GET as kpisGET } from "../kpis/route";
+
+/** Pin the SSR client's session to a token authenticated `hoursAgo` hours ago. */
+function sessionStartedHoursAgo(hoursAgo: number) {
+  mockGetSession.mockResolvedValue({
+    data: { session: { access_token: amrToken(hoursAgo) } },
+    error: null,
+  });
+}
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -104,6 +123,89 @@ function profile(o: ProfileOverrides = {}) {
 beforeEach(() => {
   vi.clearAllMocks();
   mockGetUser.mockResolvedValue(noSession());
+  // Fresh by default, so the shift never interferes with a test about something
+  // else — and so the shift tests below have to say so explicitly.
+  sessionStartedHoursAgo(1);
+});
+
+// ---------------------------------------------------------------------------
+// The liveness set this gate reached NONE of until 2026-08-25
+// ---------------------------------------------------------------------------
+//
+// All six panorama routes are GETs. That is not an exemption: this surface
+// answers with NATIONAL aggregate analytics, and the exposure a shared
+// municipal desk creates is a console left populated on it overnight, not a
+// write.
+
+describe("resolveInstitutionalPanoramaActor — the 8-hour shift (B9)", () => {
+  it("401 session_shift_expired past 8 hours", async () => {
+    mockGetUser.mockResolvedValue(session("admin-ok"));
+    mockGetProfileCached.mockResolvedValue(profile({ id: "admin-ok", role: "admin" }));
+    sessionStartedHoursAgo(9);
+
+    const r = await resolveInstitutionalPanoramaActor();
+
+    expect(r.ok).toBe(false);
+    if (!r.ok) {
+      expect(r.response.status).toBe(401);
+      await expect(r.response.json()).resolves.toEqual({ error: "session_shift_expired" });
+    }
+    expect(mockEnforceRateLimit).not.toHaveBeenCalled();
+  });
+
+  it("admits the same operator inside the 8 hours", async () => {
+    mockGetUser.mockResolvedValue(session("admin-ok"));
+    mockGetProfileCached.mockResolvedValue(profile({ id: "admin-ok", role: "admin" }));
+    sessionStartedHoursAgo(7);
+
+    const r = await resolveInstitutionalPanoramaActor();
+
+    expect(r.ok).toBe(true);
+  });
+
+  // END TO END THROUGH A REAL ROUTE, so this is not only a claim about the
+  // helper: the KPI endpoint must not answer national analytics to a session
+  // whose workday ended.
+  it("keeps national KPIs away from a shift-expired console", async () => {
+    mockGetUser.mockResolvedValue(session("admin-ok"));
+    mockGetProfileCached.mockResolvedValue(profile({ id: "admin-ok", role: "admin" }));
+    sessionStartedHoursAgo(9);
+
+    const res = await kpisGET(new Request("http://localhost/api/panorama/kpis"));
+
+    expect(res.status).toBe(401);
+    expect(mockGetPanoramaKpis).not.toHaveBeenCalled();
+  });
+
+  it("fails OPEN when the token carries no usable amr claim, and reports", async () => {
+    mockGetUser.mockResolvedValue(session("admin-ok"));
+    mockGetProfileCached.mockResolvedValue(profile({ id: "admin-ok", role: "admin" }));
+    mockGetSession.mockResolvedValue({ data: { session: null }, error: null });
+
+    const r = await resolveInstitutionalPanoramaActor();
+
+    expect(r.ok).toBe(true);
+    expect(mockReportError).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("resolveInstitutionalPanoramaActor — maintenance kill-switch", () => {
+  it("503 with Retry-After during a maintenance window, before any query", async () => {
+    vi.stubEnv("NEXT_PUBLIC_MAINTENANCE_MODE", "true");
+    mockGetUser.mockResolvedValue(session("admin-ok"));
+    mockGetProfileCached.mockResolvedValue(profile({ id: "admin-ok", role: "admin" }));
+
+    const r = await resolveInstitutionalPanoramaActor();
+
+    expect(r.ok).toBe(false);
+    if (!r.ok) {
+      expect(r.response.status).toBe(503);
+      expect(r.response.headers.get("Retry-After")).toBe("30");
+      await expect(r.response.json()).resolves.toEqual({ error: "maintenance" });
+    }
+    expect(mockGetUser).not.toHaveBeenCalled();
+    vi.unstubAllEnvs();
+  });
 });
 
 // ---------------------------------------------------------------------------

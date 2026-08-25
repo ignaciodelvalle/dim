@@ -10,24 +10,34 @@
 // (401/403) instead of redirecting — an API route can't redirect.
 //
 // Invariants enforced (identical to requireAdminOrGovtOrRedirect's page flow):
-//   1. authenticated session            (else 401)
-//   2. profile exists and NOT erased    (deletedAt === null, else 401 — mirrors
-//                                        requireUserOrRedirect bouncing erased
-//                                        accounts to /login, Ley 25.326 art. 16)
+//   1. LIVENESS, via requireLiveUser, in its own precedence —
+//        MAINTENANCE      (503)
+//        NO_SESSION       (401)
+//        ACCOUNT_ERASED   (401 — mirrors requireUserOrRedirect bouncing erased
+//                          accounts to /login, Ley 25.326 art. 16)
+//        DEACTIVATED      (403)
+//        SHIFT_EXPIRED    (401 session_shift_expired)
+//   2. profile exists                   (else 401)
 //   3. role ∈ {admin, govt}             (else 403)
 //   4. accountType === 'institutional'  (else 403)
-//   5. deactivatedAt === null           (else 403)
+//
+// THE SHIFT REACHES A GET (B9, 2026-08-25). All six panorama routes are
+// read-only, which is not an exemption: this surface answers with NATIONAL
+// aggregate analytics, and the exposure a shared municipal desk creates is a
+// console left populated on it overnight, not a write. The resolver's own
+// doctrine put the shift on org READS for exactly this reason. See
+// app/api/gob/_guard.ts, which carries the full argument.
 
 import { NextResponse } from "next/server";
 
+import { liveUserApiResponse } from "@/lib/infra/api-liveness";
+import { requireLiveUser } from "@/lib/infra/live-user";
 import { RateLimitError, enforceRateLimit } from "@/lib/infra/rate-limit";
 import {
   type CachedJurisdiction,
   type CachedProfile,
   getJurisdictionsCached,
-  getProfileCached,
 } from "@/lib/infra/request-cache";
-import { createClient } from "@/lib/supabase/server";
 
 // SECURITY (MED-2, pre-national security review): per-operator aggregate cap on
 // the analytics fan-out. Each panorama query is bounded individually by
@@ -59,28 +69,23 @@ export type PanoramaGuardResult =
  *   const { role, jurisdictions } = auth.actor;
  */
 export async function resolveInstitutionalPanoramaActor(): Promise<PanoramaGuardResult> {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) {
+  // Maintenance, session, erasure, deactivation and the 8-hour shift, in that
+  // order — and the profile comes back already resolved, so the liveness set is
+  // the same one request-memoized read this guard used to make by itself.
+  const live = await requireLiveUser();
+  if (!live.ok) return { ok: false, response: liveUserApiResponse(live.reason) };
+
+  // Mid-signup: auth.users exists, the profile row does not yet.
+  const profile = live.profile;
+  if (!profile) {
     return { ok: false, response: NextResponse.json({ error: "unauthorized" }, { status: 401 }) };
   }
 
-  const profile = await getProfileCached(user.id);
-
-  // Erased account (deleted_at set): PII hashed/nulled, must not authenticate.
-  // The page flow bounces these to /login; the API answers 401.
-  if (!profile || profile.deletedAt !== null) {
-    return { ok: false, response: NextResponse.json({ error: "unauthorized" }, { status: 401 }) };
-  }
-
-  // Role + account-type + deactivation — the three checks the page guard's
-  // loadActiveInstitutionalProfile centralizes. Any failure → 403 (never data).
+  // Role + account type — the two checks liveness does not make. Erasure and
+  // deactivation are no longer repeated here; requireLiveUser refused both.
   if (
     (profile.role !== "admin" && profile.role !== "govt") ||
-    profile.accountType !== "institutional" ||
-    profile.deactivatedAt !== null
+    profile.accountType !== "institutional"
   ) {
     return { ok: false, response: NextResponse.json({ error: "forbidden" }, { status: 403 }) };
   }

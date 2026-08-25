@@ -12,26 +12,46 @@
 // "panorama_api") and read as self-documenting call sites.
 //
 // Invariants enforced (identical to requireAdminOrGovtOrRedirect's page flow):
-//   1. authenticated session            (else 401)
-//   2. profile exists and NOT erased    (deletedAt === null, else 401)
+//   1. LIVENESS, via requireLiveUser, in its own precedence —
+//        MAINTENANCE      (503)
+//        NO_SESSION       (401)
+//        ACCOUNT_ERASED   (401)
+//        DEACTIVATED      (403)
+//        SHIFT_EXPIRED    (401 session_shift_expired)
+//   2. profile exists                   (else 401)
 //   3. role ∈ {admin, govt}             (else 403)
 //   4. accountType === 'institutional'  (else 403)
-//   5. deactivatedAt === null           (else 403)
 //
 // Jurisdiction-scope enforcement is the CALLER's responsibility (per-row 404,
 // never leak existence) — this gate only resolves WHO the actor is and their
 // active assignment tuples.
+//
+// THE SHIFT REACHES A GET, AND THAT IS THE POINT (B9, 2026-08-25)
+// ---------------------------------------------------------------------------
+// All seven routes behind these two guards are read-only, and until now that
+// looked like a reason to leave them alone. It is the opposite. The resolver's
+// own doctrine already says why, in the sentence that put the shift on org
+// READS: "leaving org reads open would leave the console populated on the
+// shared desk, which is the whole exposure." An inspector console showing
+// national case and pet detail — reached by a `fetch` from a municipal machine
+// nobody signed out of — IS the exposure. A read that renders PII on an
+// unattended screen at 3am is not made safe by writing nothing.
+//
+// The bare `auth.getUser()` this file used to open with could not apply it, and
+// could not apply the maintenance kill-switch either. Both arrive by routing the
+// identity step through the one liveness guard instead of re-deriving three of
+// its four questions from a profile read.
 
 import { NextResponse } from "next/server";
 
+import { liveUserApiResponse } from "@/lib/infra/api-liveness";
+import { requireLiveUser } from "@/lib/infra/live-user";
 import { RateLimitError, enforceRateLimit } from "@/lib/infra/rate-limit";
 import {
   type CachedJurisdiction,
   type CachedProfile,
   getJurisdictionsCached,
-  getProfileCached,
 } from "@/lib/infra/request-cache";
-import { createClient } from "@/lib/supabase/server";
 
 // Per-operator aggregate cap on the inspector fan-out (mirrors panorama MED-2).
 // Generous — clips a burst-abuse pattern, never a real operator browsing a
@@ -59,26 +79,26 @@ export type GobApiGuardResult =
  *   const { role, jurisdictions } = auth.actor;
  */
 export async function resolveInstitutionalGobActor(): Promise<GobApiGuardResult> {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) {
+  // Maintenance, session, erasure, deactivation and the 8-hour shift, in that
+  // order. The profile it hands back is the same request-memoized read this
+  // guard used to make on its own, so the liveness set costs nothing extra.
+  const live = await requireLiveUser();
+  if (!live.ok) return { ok: false, response: liveUserApiResponse(live.reason) };
+
+  // Mid-signup: auth.users exists, the profile row does not yet. Not an
+  // operator, and 401 rather than 403 because there is no resolved principal
+  // to forbid anything to.
+  const profile = live.profile;
+  if (!profile) {
     return { ok: false, response: NextResponse.json({ error: "unauthorized" }, { status: 401 }) };
   }
 
-  const profile = await getProfileCached(user.id);
-
-  // Erased account (deleted_at set): PII hashed/nulled, must not authenticate.
-  if (!profile || profile.deletedAt !== null) {
-    return { ok: false, response: NextResponse.json({ error: "unauthorized" }, { status: 401 }) };
-  }
-
-  // Role + account-type + deactivation — any failure → 403 (never data).
+  // Role + account type — the two questions liveness does not answer. Erasure
+  // and deactivation are NOT re-checked here: requireLiveUser refused both
+  // above, and a second copy of a check is a second thing to drift.
   if (
     (profile.role !== "admin" && profile.role !== "govt") ||
-    profile.accountType !== "institutional" ||
-    profile.deactivatedAt !== null
+    profile.accountType !== "institutional"
   ) {
     return { ok: false, response: NextResponse.json({ error: "forbidden" }, { status: 403 }) };
   }
