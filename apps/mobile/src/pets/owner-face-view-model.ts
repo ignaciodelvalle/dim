@@ -181,9 +181,12 @@ export function truncationNote(shown: number, total: number, noun: string): stri
   return `Mostrando ${shown} de ${total} ${noun}.`;
 }
 
-export function remindersEmptyLabel(reminders: OwnerPetRemindersSection): string | null {
-  return reminders.items.length === 0 ? "No hay recordatorios activos." : null;
-}
+/**
+ * An empty reminders list is a FACT, and a different one from a failed read.
+ * Owned here, next to every other copy decision, so the screen cannot drift a
+ * second wording into existence.
+ */
+export const REMINDERS_EMPTY_LABEL = "No hay recordatorios activos.";
 
 // ---------------------------------------------------------------------------
 // Banners

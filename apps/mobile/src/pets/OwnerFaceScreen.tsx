@@ -38,6 +38,7 @@ import { Callout, Eyebrow, PrimaryButton, Screen } from "../ui/kit";
 import { COLORS, LEADING, RADIUS, SPACE, TRACKING, TYPE } from "../ui/theme";
 import {
   type OwnerFaceView,
+  REMINDERS_EMPTY_LABEL,
   type SectionView,
   alertHeadline,
   alertTone,
@@ -208,7 +209,7 @@ function OwnerFaceBody({ view }: { view: OwnerFaceView }) {
       <Section view={view.reminders} title="Recordatorios">
         {(reminders) =>
           reminders.items.length === 0 ? (
-            <Body>No hay recordatorios activos.</Body>
+            <Body>{REMINDERS_EMPTY_LABEL}</Body>
           ) : (
             <>
               {reminders.items.map((reminder) => (
