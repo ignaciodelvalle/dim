@@ -12,6 +12,7 @@
 import type { CaretakerState } from "@/src/modules/caretakers/application/get-caretaker-state-for-pet";
 import {
   type OwnerPetDetailDeps,
+  type OwnerPetDetailPorts,
   type OwnerPetRow,
   deriveOwnerPetAlerts,
   derivePregnancyCard,
@@ -87,8 +88,8 @@ function depsStub(overrides: Partial<OwnerPetDetailDeps> = {}): OwnerPetDetailDe
     loadEvents: vi.fn(async () => ({ typedEvents: [], recentFive: [] })),
     loadReminders: vi.fn(async () => []),
     loadIdentifications: vi.fn(async () => ({ microchip: null, tattoo: null })),
-    loadCaretakerState: vi.fn(async () => null),
-    loadRehomeState: vi.fn(async () => null),
+    // No caretaker/rehome/observation here on purpose — those are PORTS, not
+    // deps, because `pets` may not import their modules. See portsStub below.
     now: () => NOW,
     ...overrides,
   } as unknown as OwnerPetDetailDeps;
@@ -101,6 +102,35 @@ const caretaker = (over: Partial<CaretakerState> = {}): CaretakerState => ({
   ...over,
 });
 
+/**
+ * The cross-module ports, stubbed.
+ *
+ * They are a SEPARATE argument from `deps` because `pets` may not import
+ * `caretakers`, `rehome` or `surveillance` — see the reader's header. In
+ * production they come from `app/_composition/owner-pet-detail-ports.ts`.
+ */
+function portsStub(
+  over: Partial<OwnerPetDetailPorts<CaretakerState | null, RehomeState | null>> = {},
+): OwnerPetDetailPorts<CaretakerState | null, RehomeState | null> {
+  return {
+    loadCaretakerState: vi.fn(async () => null),
+    loadRehomeState: vi.fn(async () => null),
+    // The real predicate has two open states; the stub mirrors that rather than
+    // testing against a simpler rule than production runs.
+    isObservationOpen: (status) => status === "in_progress" || status === "window_expired_unclosed",
+    ...over,
+  };
+}
+
+/** `loadOwnerPetDetail` with both stubs defaulted — the ports are never varied. */
+function loadFace(
+  input: Parameters<typeof loadOwnerPetDetail>[0],
+  deps: OwnerPetDetailDeps = depsStub(),
+  ports = portsStub(),
+) {
+  return loadOwnerPetDetail(input, ports, deps);
+}
+
 // ---------------------------------------------------------------------------
 // The alert strip
 // ---------------------------------------------------------------------------
@@ -108,6 +138,7 @@ const caretaker = (over: Partial<CaretakerState> = {}): CaretakerState => ({
 describe("deriveOwnerPetAlerts — the strip's ORDER is the product decision", () => {
   const base = {
     petStatus: "active",
+    observationOpen: false,
     rabiesObservationStatus: null,
     isTransit: false,
     caretakerState: null,
@@ -125,6 +156,7 @@ describe("deriveOwnerPetAlerts — the strip's ORDER is the product decision", (
     // which ones fired.
     const alerts = deriveOwnerPetAlerts({
       petStatus: "lost",
+      observationOpen: true,
       rabiesObservationStatus: "in_progress",
       isTransit: true,
       caretakerState: caretaker({ active: { caretakerName: "Ana" } as never }),
@@ -151,12 +183,19 @@ describe("deriveOwnerPetAlerts — the strip's ORDER is the product decision", (
   it("an in-progress observation is urgent; an expired window is not", () => {
     // window_expired_unclosed: nothing is known to be wrong with the animal —
     // what is pending is a professional signature.
-    expect(deriveOwnerPetAlerts({ ...base, rabiesObservationStatus: "in_progress" })[0]).toEqual({
-      id: "rabies",
-      tone: "urgent",
-    });
     expect(
-      deriveOwnerPetAlerts({ ...base, rabiesObservationStatus: "window_expired_unclosed" })[0],
+      deriveOwnerPetAlerts({
+        ...base,
+        observationOpen: true,
+        rabiesObservationStatus: "in_progress",
+      })[0],
+    ).toEqual({ id: "rabies", tone: "urgent" });
+    expect(
+      deriveOwnerPetAlerts({
+        ...base,
+        observationOpen: true,
+        rabiesObservationStatus: "window_expired_unclosed",
+      })[0],
     ).toEqual({ id: "rabies", tone: "warning" });
   });
 
@@ -248,7 +287,7 @@ describe("derivePregnancyCard — arithmetic over the spine, never a stored colu
 
 describe("loadOwnerPetDetail — what each access path reads", () => {
   it("composes the hero subtitle from breed, sex, age and species", async () => {
-    const detail = await loadOwnerPetDetail(
+    const detail = await loadFace(
       { user: { id: "u1" }, pet: petRow(), accessPath: "owner" },
       depsStub(),
     );
@@ -257,7 +296,7 @@ describe("loadOwnerPetDetail — what each access path reads", () => {
   });
 
   it("carries the locality chip, and no chip tag without a verified microchip", async () => {
-    const detail = await loadOwnerPetDetail(
+    const detail = await loadFace(
       { user: { id: "u1" }, pet: petRow(), accessPath: "owner" },
       depsStub(),
     );
@@ -268,10 +307,7 @@ describe("loadOwnerPetDetail — what each access path reads", () => {
     // An organization member reading a pet it holds gets the face, not the
     // household: the web gives them no carousel either.
     const deps = depsStub();
-    const detail = await loadOwnerPetDetail(
-      { user: { id: "u1" }, pet: petRow(), accessPath: "org" },
-      deps,
-    );
+    const detail = await loadFace({ user: { id: "u1" }, pet: petRow(), accessPath: "org" }, deps);
     expect(deps.loadReminders).not.toHaveBeenCalled();
     expect(deps.readViewerContacts).not.toHaveBeenCalled();
     expect(deps.readCarousel).not.toHaveBeenCalled();
@@ -284,43 +320,50 @@ describe("loadOwnerPetDetail — what each access path reads", () => {
     // A foster holds the animal; a caretaker is trusted with it. Neither gets to
     // learn who else the owner trusts with it.
     for (const role of ["foster", "caretaker", "co_owner"]) {
-      const deps = depsStub({ readOwnershipRole: vi.fn(async () => role) });
-      await loadOwnerPetDetail({ user: { id: "u1" }, pet: petRow(), accessPath: "owner" }, deps);
-      expect(deps.loadCaretakerState, `role=${role}`).not.toHaveBeenCalled();
-      expect(deps.loadRehomeState, `role=${role}`).not.toHaveBeenCalled();
+      const ports = portsStub();
+      await loadFace(
+        { user: { id: "u1" }, pet: petRow(), accessPath: "owner" },
+        depsStub({ readOwnershipRole: vi.fn(async () => role) }),
+        ports,
+      );
+      expect(ports.loadCaretakerState, `role=${role}`).not.toHaveBeenCalled();
+      expect(ports.loadRehomeState, `role=${role}`).not.toHaveBeenCalled();
     }
-    const titularDeps = depsStub();
-    await loadOwnerPetDetail(
+    const titularPorts = portsStub();
+    await loadFace(
       { user: { id: "u1" }, pet: petRow(), accessPath: "owner" },
-      titularDeps,
+      depsStub(),
+      titularPorts,
     );
-    expect(titularDeps.loadCaretakerState).toHaveBeenCalled();
+    expect(titularPorts.loadCaretakerState).toHaveBeenCalled();
+    expect(titularPorts.loadRehomeState).toHaveBeenCalled();
   });
 
   it("does NOT read the arrangements for a deceased animal", async () => {
     // A closed life record has no caretaker story left to tell.
-    const deps = depsStub();
-    await loadOwnerPetDetail(
+    const ports = portsStub();
+    await loadFace(
       {
         user: { id: "u1" },
         pet: petRow({ status: "deceased", deceasedAt: NOW }),
         accessPath: "owner",
       },
-      deps,
+      depsStub(),
+      ports,
     );
-    expect(deps.loadCaretakerState).not.toHaveBeenCalled();
-    expect(deps.loadRehomeState).not.toHaveBeenCalled();
+    expect(ports.loadCaretakerState).not.toHaveBeenCalled();
+    expect(ports.loadRehomeState).not.toHaveBeenCalled();
   });
 
   it("marks a foster holder as in transit, and a plain owner as not", async () => {
-    const foster = await loadOwnerPetDetail(
+    const foster = await loadFace(
       { user: { id: "u1" }, pet: petRow(), accessPath: "owner" },
       depsStub({ readOwnershipRole: vi.fn(async () => "foster") }),
     );
     expect(foster.isTransit).toBe(true);
     expect(foster.alerts.map((a) => a.id)).toContain("transit");
 
-    const owner = await loadOwnerPetDetail(
+    const owner = await loadFace(
       { user: { id: "u1" }, pet: petRow(), accessPath: "owner" },
       depsStub(),
     );
@@ -330,7 +373,7 @@ describe("loadOwnerPetDetail — what each access path reads", () => {
   it("gives a deceased animal a memorial skin and a tinted band, but no body skin", async () => {
     // The one documented asymmetry: the band tints, the face body does not,
     // because the memorial skin owns the body and the two never stack.
-    const detail = await loadOwnerPetDetail(
+    const detail = await loadFace(
       {
         user: { id: "u1" },
         pet: petRow({ status: "deceased", deceasedAt: new Date("2026-03-04T00:00:00Z") }),
@@ -350,7 +393,7 @@ describe("loadOwnerPetDetail — what each access path reads", () => {
     // `getFullYear` runs in the MACHINE's zone — every zone west of Greenwich
     // reads the previous day. A pet born on the 1st of January had the wrong
     // year on its memorial ribbon for every Argentine reader.
-    const detail = await loadOwnerPetDetail(
+    const detail = await loadFace(
       {
         user: { id: "u1" },
         pet: petRow({
@@ -369,7 +412,7 @@ describe("loadOwnerPetDetail — what each access path reads", () => {
   });
 
   it("falls back to a neutral third person when the viewer has no display name", async () => {
-    const detail = await loadOwnerPetDetail(
+    const detail = await loadFace(
       { user: { id: "u1" }, pet: petRow(), accessPath: "owner" },
       depsStub(),
     );
@@ -377,7 +420,7 @@ describe("loadOwnerPetDetail — what each access path reads", () => {
   });
 
   it("takes only the FIRST word of a display name", async () => {
-    const detail = await loadOwnerPetDetail(
+    const detail = await loadFace(
       { user: { id: "u1" }, pet: petRow(), accessPath: "owner" },
       depsStub({
         readViewerContacts: vi.fn(async () => ({
@@ -393,7 +436,7 @@ describe("loadOwnerPetDetail — what each access path reads", () => {
   });
 
   it("passes the case read's honesty flags straight through", async () => {
-    const detail = await loadOwnerPetDetail(
+    const detail = await loadFace(
       { user: { id: "u1" }, pet: petRow(), accessPath: "owner" },
       depsStub({
         readCases: vi.fn(async () => ({

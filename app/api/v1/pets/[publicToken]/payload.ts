@@ -183,8 +183,12 @@ export function buildOwnerPetDetailV1(input: {
             ? { state: "recently_ended", caretakerName: null, publicContactName: null }
             : null
       : null,
+    // The reader types `kind` structurally (it may not import `rehome` — see
+    // its header), so the narrowing to the two states this contract names
+    // happens HERE rather than being assumed. Anything else reports no banner,
+    // which is the safe direction: a banner is a claim about an arrangement.
     rehome:
-      detail.rehomeState && detail.rehomeState.kind !== "none"
+      detail.rehomeState?.kind === "pending" || detail.rehomeState?.kind === "active"
         ? {
             kind: detail.rehomeState.kind,
             orgDisplayName: detail.rehomeState.orgDisplayName ?? null,

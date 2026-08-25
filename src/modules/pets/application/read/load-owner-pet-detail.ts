@@ -34,6 +34,25 @@
 // stub and never touch a database. The deps are the COLLABORATORS worth faking
 // (the fan-out members), not every helper: a pure mapper does not become
 // testable by being injectable, it becomes harder to read.
+//
+// PORTS ARE A SEPARATE ARGUMENT, AND THAT IS THE DEPENDENCY FENCE SPEAKING.
+// Three of this face's inputs come from OTHER modules — caretaker state, rehome
+// state, and the surveillance predicate that says whether a rabies observation
+// is open. `pets` importing any of them is the one edge that inverts
+// `check-dependency-direction` (custodia-temporal design H, which spells this
+// out: the owner cockpit reads caretaker state through a PAGE-level import
+// because `app/**` is outside the module graph, and routing it through a `pets`
+// use-case is exactly what must not happen). The page had a comment saying
+// "do not tidy it there" — extracting the read moved it there anyway, and the
+// fence caught it.
+//
+// So they are PORTS: named, required, and supplied by the composition root at
+// `app/_composition/owner-pet-detail-ports.ts`, which lives in `app/**` where
+// those imports are legal. The reader names their SHAPES structurally
+// (`CaretakerStateLike`, `RehomeStateLike`) and is generic over them, so the
+// page still gets the real types back and nothing is cast away. The
+// `caretakers` module already mirrors `pets` types locally for the same reason;
+// this is that pattern pointed the other way.
 
 import { isTransitRole } from "@/components/PetCard.helpers";
 import {
@@ -62,18 +81,6 @@ import {
   situationLabelForSex,
   speciesLabel,
 } from "@/lib/utils/format";
-import {
-  type CaretakerState,
-  getCaretakerStateForPet,
-} from "@/src/modules/caretakers/application/get-caretaker-state-for-pet";
-import { CaretakersRepository } from "@/src/modules/caretakers/infrastructure/caretakers-repository";
-import {
-  type RehomeState,
-  getRehomeStateForPet,
-} from "@/src/modules/rehome/application/get-rehome-state-for-pet";
-import { RehomeRepository } from "@/src/modules/rehome/infrastructure/rehome-repository";
-import { isObservationOpen } from "@/src/modules/surveillance/domain/rabies-observation";
-
 import {
   type OwnerPetCarouselRead,
   type OwnerPetCasesRead,
@@ -178,8 +185,34 @@ export type OwnerPetChromeSituation = {
  * page needs `typedEvents` and `lostEpisode` to render components the API does
  * not serve, and duplicating those reads to keep this object narrow would defeat
  * the extraction. The wire projection takes the subset a client may hold.
+ *
+ * (The two structural mirrors below come first, because the type is generic
+ * over them.)
  */
-export type OwnerPetDetail = {
+
+/**
+ * The shape of `caretakers`' `CaretakerState`, named structurally.
+ *
+ * NOT an import: importing that module from here — even type-only — is the edge
+ * that inverts the dependency fence, and the fence reads the source text, so
+ * naming the path in prose trips it too. Only the fields this reader actually
+ * touches are named; the other two are opaque because their PRESENCE is all this
+ * needs to know. The generic parameter on `loadOwnerPetDetail` is what hands the
+ * caller its real type back, so nothing is widened for the page.
+ */
+export type CaretakerStateLike = {
+  active: { caretakerName: string; publicContactConsentAt: Date | null } | null;
+  pending: unknown;
+  recentlyEnded: unknown;
+};
+
+/** The shape of `rehome`'s `RehomeState`. Structural for the same reason. */
+export type RehomeStateLike = { kind: string; orgDisplayName?: string | null };
+
+export type OwnerPetDetail<
+  C extends CaretakerStateLike | null = CaretakerStateLike | null,
+  R extends RehomeStateLike | null = RehomeStateLike | null,
+> = {
   /** The viewer's ownership role, or null on the organization path. */
   ownershipRole: string | null;
   isTransit: boolean;
@@ -199,13 +232,13 @@ export type OwnerPetDetail = {
   pregnancy: OwnerPetPregnancy | null;
   cases: OwnerPetCasesRead;
   carousel: OwnerPetCarouselRead;
-  caretakerState: CaretakerState | null;
+  caretakerState: C;
   /**
    * KEY 2 of the two-key public-contact model. Non-null ONLY when an
    * arrangement is active AND the caretaker consented at invitation accept.
    */
   caretakerConsentName: string | null;
-  rehomeState: RehomeState | null;
+  rehomeState: R;
   /** The org that opened an in-progress rabies observation, when it was an org. */
   observationOpenedByOrgName: string | null;
   // --- Wider than the wire, for the page's own render ---
@@ -236,9 +269,30 @@ export type OwnerPetDetailDeps = {
   loadEvents: typeof fetchPetEventsForProfileV2;
   loadReminders: typeof fetchActiveRemindersForPet;
   loadIdentifications: typeof fetchActiveIdentifications;
-  loadCaretakerState: (petId: string) => Promise<CaretakerState | null>;
-  loadRehomeState: (petId: string) => Promise<RehomeState | null>;
   now: () => Date;
+};
+
+/**
+ * The collaborators that live in OTHER modules.
+ *
+ * Required, never defaulted, and supplied from `app/**` — see the header. A
+ * default here would mean an import here, which is the whole thing the fence
+ * forbids.
+ */
+export type OwnerPetDetailPorts<
+  C extends CaretakerStateLike | null,
+  R extends RehomeStateLike | null,
+> = {
+  /** `caretakers`. Titular-only; the reader decides when to call it. */
+  loadCaretakerState: (petId: string) => Promise<C>;
+  /** `rehome`. Same gate, same reason. */
+  loadRehomeState: (petId: string) => Promise<R>;
+  /**
+   * `surveillance`. Whether a rabies-observation status counts as OPEN — a
+   * domain rule with two open states, which is why it is a predicate and not a
+   * string compare at the call site.
+   */
+  isObservationOpen: (status: string | null) => boolean;
 };
 
 const PRODUCTION_DEPS: OwnerPetDetailDeps = {
@@ -254,9 +308,6 @@ const PRODUCTION_DEPS: OwnerPetDetailDeps = {
   loadEvents: fetchPetEventsForProfileV2,
   loadReminders: fetchActiveRemindersForPet,
   loadIdentifications: fetchActiveIdentifications,
-  loadCaretakerState: (petId) =>
-    getCaretakerStateForPet(petId, { repo: CaretakersRepository, now: () => new Date() }),
-  loadRehomeState: (petId) => getRehomeStateForPet(petId, { repo: RehomeRepository }),
   now: () => new Date(),
 };
 
@@ -450,16 +501,22 @@ export function deriveSituations(
  */
 export function deriveOwnerPetAlerts(input: {
   petStatus: string;
+  /**
+   * Already decided by `surveillance`'s predicate, not re-derived here. The
+   * rule has TWO open states and re-implementing it as a string compare is how
+   * one of them quietly stops raising the banner.
+   */
+  observationOpen: boolean;
   rabiesObservationStatus: string | null;
   isTransit: boolean;
-  caretakerState: CaretakerState | null;
-  rehomeState: RehomeState | null;
+  caretakerState: CaretakerStateLike | null;
+  rehomeState: RehomeStateLike | null;
   openCaseCount: number;
   pregnancy: OwnerPetPregnancy | null;
 }): OwnerPetAlert[] {
   const alerts: OwnerPetAlert[] = [];
   if (input.petStatus === "lost") alerts.push({ id: "lost", tone: "urgent" });
-  if (isObservationOpen(input.rabiesObservationStatus)) {
+  if (input.observationOpen) {
     // `window_expired_unclosed` is NOT urgent: nothing is known to be wrong with
     // the animal, what is pending is a professional signature.
     alerts.push({
@@ -500,10 +557,14 @@ export function deriveOwnerPetAlerts(input: {
  * Putting the budget in here would mean two callers with different, invisible
  * deadlines.
  */
-export async function loadOwnerPetDetail(
+export async function loadOwnerPetDetail<
+  C extends CaretakerStateLike | null,
+  R extends RehomeStateLike | null,
+>(
   input: OwnerPetDetailInput,
+  ports: OwnerPetDetailPorts<C, R>,
   deps: OwnerPetDetailDeps = PRODUCTION_DEPS,
-): Promise<OwnerPetDetail> {
+): Promise<OwnerPetDetail<C, R>> {
   const { pet, user, accessPath } = input;
   const isOwner = accessPath === "owner";
   const isDeceased = pet.status === "deceased";
@@ -546,8 +607,12 @@ export async function loadOwnerPetDetail(
     deps.loadIdentifications(pet.id),
     deps.readReservedRabiesTurno(pet.id),
     isOwner ? deps.readViewerContacts(user.id) : Promise.resolve(null),
-    isTitular && !isDeceased ? deps.loadCaretakerState(pet.id) : Promise.resolve(null),
-    isTitular && !isDeceased ? deps.loadRehomeState(pet.id) : Promise.resolve(null),
+    isTitular && !isDeceased
+      ? ports.loadCaretakerState(pet.id)
+      : Promise.resolve(null as unknown as C),
+    isTitular && !isDeceased
+      ? ports.loadRehomeState(pet.id)
+      : Promise.resolve(null as unknown as R),
   ]);
 
   const typedEvents = events.typedEvents;
@@ -614,6 +679,7 @@ export async function loadOwnerPetDetail(
 
   const alerts = deriveOwnerPetAlerts({
     petStatus: pet.status,
+    observationOpen: ports.isObservationOpen(pet.rabiesObservationStatus),
     rabiesObservationStatus: pet.rabiesObservationStatus,
     isTransit,
     caretakerState,

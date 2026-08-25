@@ -34,6 +34,7 @@
 // caretaker) is titular-gated and lives on its own endpoint; none of them are
 // here, and this file must not grow one.
 
+import { ownerPetDetailPorts } from "@/app/_composition/owner-pet-detail-ports";
 import { apiV1Error, apiV1Json } from "@/lib/infra/api-v1";
 import { DbBudgetExceededError, withDbBudgetOrThrow } from "@/lib/infra/db-budget";
 import { requireLiveUser } from "@/lib/infra/live-user";
@@ -192,7 +193,10 @@ export async function GET(
   let detail: Awaited<ReturnType<typeof loadOwnerPetDetail>>;
   try {
     detail = await withDbBudgetOrThrow(
-      loadOwnerPetDetail({ user: { id: live.user.id }, pet: access.pet, accessPath }),
+      loadOwnerPetDetail(
+        { user: { id: live.user.id }, pet: access.pet, accessPath },
+        ownerPetDetailPorts,
+      ),
       DETAIL_BUDGET_MS,
       "api-v1-pet-detail-load",
     );

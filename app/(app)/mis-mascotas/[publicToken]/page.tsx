@@ -1,3 +1,4 @@
+import { ownerPetDetailPorts } from "@/app/_composition/owner-pet-detail-ports";
 import { PetOpenCasesSection } from "@/components/PetOpenCasesSection";
 import { PregnancyInProgressCard } from "@/components/PregnancyInProgressCard";
 import { CaretakerBanner } from "@/components/pet-profile/CaretakerBanner";
@@ -243,7 +244,7 @@ export default async function PetDetailPage({
   // A timeout baked into the reader would have made one of those two callers
   // wrong, silently.
   const profileLoad = await loadWithTimeout(
-    loadOwnerPetDetail({ user: { id: user.id }, pet, accessPath }),
+    loadOwnerPetDetail({ user: { id: user.id }, pet, accessPath }, ownerPetDetailPorts),
   );
   if (!profileLoad.ok) {
     // Degraded profile. `pet` came from requirePetAccess, before any of this
