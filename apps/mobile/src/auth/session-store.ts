@@ -19,6 +19,37 @@
 // dishonest answers, both of which were considered: send the user to sign-in
 // (they are not signed out, and signing in again needs the network they do not
 // have), or wave them through with a fabricated profile.
+//
+// ===========================================================================
+// EVERY auth-js CALL IN THIS FILE IS WRAPPED, AND THAT IS NOT DEFENSIVE STYLE
+// ===========================================================================
+// auth-js 2.105.4 RETHROWS anything that is not an AuthError. `_setSession`
+// (GoTrueClient.js:2849-2854) and `_callRefreshToken` (:3935-3936) both end in
+// `throw error` for a non-AuthError, and a failure coming out of
+// `expo-secure-store` is a plain `Error`. So a Keystore write that fails does
+// not arrive as `{ error }` — it arrives as a REJECTED PROMISE.
+//
+// The consequences were measured, not guessed, and every one of them is a screen
+// that never comes back:
+//
+//   · `signIn` read `const { error } = await client.auth.setSession(...)` with no
+//     catch, so its own branch below — "Iniciaste sesión, pero no pudimos
+//     guardarla en este dispositivo" — was UNREACHABLE for the exact failure it
+//     names. The rejection propagated into `app/ingreso.tsx`, whose `submit()`
+//     has no catch either, so `setBusy(false)` never ran and the button stayed
+//     "Ingresando…" forever.
+//   · the two `sessionPort` reads are called from inside `client.ts`'s fetch
+//     wrapper. A throw there rejects whatever request a screen kicked off, and
+//     the screens call `void load()`, so the spinner never resolves.
+//   · `bootstrapSession` is called as `void bootstrapSession()` from the root
+//     layout's effect. A throw leaves the store at `starting` — a splash screen
+//     with no way out.
+//
+// The direction of the fix follows the storage adapter's own rule, which was
+// already right and only reached half the stack: a keychain that will not answer
+// is a SIGNED-OUT user, never an app that will not start. Writes are the
+// opposite — a failed write is reported to the person in front of the phone,
+// because swallowing it produces the "it logs me out sometimes" mystery.
 
 import type { MeV1User } from "@dim/contract/api";
 
@@ -69,19 +100,33 @@ export const sessionPort: SessionPort = {
   async accessToken() {
     const client = authClient();
     if (client === null) return null;
-    // `getSession()` refreshes on its own when the stored token is past expiry,
-    // which is why this is not `session.access_token` read out of our own state:
-    // the library's copy is the one that is kept current.
-    const { data } = await client.auth.getSession();
-    return data.session?.access_token ?? null;
+    try {
+      // `getSession()` refreshes on its own when the stored token is past expiry,
+      // which is why this is not `session.access_token` read out of our own state:
+      // the library's copy is the one that is kept current. That autorefresh is
+      // also why a READ can throw a WRITE's error — see the header.
+      const { data } = await client.auth.getSession();
+      return data.session?.access_token ?? null;
+    } catch {
+      // No usable token, which is what the caller does with a null anyway. It
+      // must not become a rejected request: the screens call `void load()`, so a
+      // throw here is a spinner that never stops.
+      return null;
+    }
   },
 
   async refreshAccessToken() {
     const client = authClient();
     if (client === null) return null;
-    const { data, error } = await client.auth.refreshSession();
-    if (error) return null;
-    return data.session?.access_token ?? null;
+    try {
+      const { data, error } = await client.auth.refreshSession();
+      if (error) return null;
+      return data.session?.access_token ?? null;
+    } catch {
+      // `_callRefreshToken` rethrows non-AuthErrors, so a Keystore write failure
+      // during rotation lands here rather than in `error`. Same answer: no token.
+      return null;
+    }
   },
 
   async endSession(reason) {
@@ -109,11 +154,25 @@ async function clearSession(): Promise<void> {
       // Ignored on purpose — see above.
     }
   }
-  await dropLocalSession();
+  // NEITHER OF THESE MAY THROW OUT OF HERE. `clearSession` is the recovery path:
+  // it runs when signing out, and again when a sign-in could not be stored. A
+  // Keystore so broken that even DELETING fails would otherwise turn one failure
+  // into a second, thrown one, in the exact code that exists to clean up after
+  // the first. The state transition its callers perform must still happen.
+  try {
+    await dropLocalSession();
+  } catch {
+    // Nothing more to do here: the caller is already telling the user something
+    // went wrong, and the local tokens are unusable either way.
+  }
   // The device may be shared — a family phone, a rescue's tablet. The next
   // person to sign in must not find the previous owner's animals sitting in the
   // offline display cache. See credential-cache.ts.
-  await forgetAllCachedCredentials();
+  try {
+    await forgetAllCachedCredentials();
+  } catch {
+    // A display cache that will not clear must not block a sign-out.
+  }
 }
 
 /**
@@ -129,8 +188,19 @@ export async function bootstrapSession(): Promise<void> {
     return;
   }
 
-  const { data } = await client.auth.getSession();
-  if (data.session === null) {
+  let hasStoredSession: boolean;
+  try {
+    const { data } = await client.auth.getSession();
+    hasStoredSession = data.session !== null;
+  } catch {
+    // A keychain that will not answer at cold start is a signed-out user, not a
+    // splash screen forever. The root layout calls this as `void
+    // bootstrapSession()`, so a throw would leave the store at `starting` with
+    // nothing to retry from.
+    hasStoredSession = false;
+  }
+
+  if (!hasStoredSession) {
     setState({ phase: "signed-out", reason: null });
     return;
   }
@@ -197,21 +267,44 @@ export async function signIn(email: string, password: string): Promise<SignInRes
     return { ok: false, message: apiFailureMessage(result) ?? "No pudimos iniciar sesión." };
   }
 
-  const { error } = await client.auth.setSession({
-    access_token: result.payload.session.accessToken,
-    refresh_token: result.payload.session.refreshToken,
-  });
-  if (error) {
+  // BOTH FAILURE SHAPES LAND IN ONE BRANCH, and until 2026-08-25 only one of
+  // them existed: `setSession` returns `{ error }` for an AuthError and THROWS
+  // for anything else (GoTrueClient.js:2849-2854). An expo-secure-store write
+  // failure is a plain Error, so the storage failure this branch is named for was
+  // the one shape that never reached it — it propagated into the screen instead,
+  // where `submit()` has no catch and `setBusy(false)` never ran.
+  let stored: { error: unknown } = { error: null };
+  try {
+    stored = await client.auth.setSession({
+      access_token: result.payload.session.accessToken,
+      refresh_token: result.payload.session.refreshToken,
+    });
+  } catch (err) {
+    stored = { error: err instanceof Error ? err : new Error(String(err)) };
+  }
+
+  if (stored.error) {
     // Signed in at the server, not stored on the device. Saying "listo" here
     // produces a session that evaporates on the next cold start, which is the
     // "it logs me out sometimes" report the whole storage adapter exists to
     // prevent. Refuse visibly instead.
+    //
+    // `clearSession` is itself unconditional and swallows its own signOut
+    // failure, so this cleanup cannot turn one failure into two.
     await clearSession();
     return {
       ok: false,
       message: "Iniciaste sesión, pero no pudimos guardarla en este dispositivo. Probá de nuevo.",
     };
   }
+
+  // The offline display cache is per-DEVICE, and this device may be shared — a
+  // family phone, a rescue's tablet. `clearSession` already drops it on every
+  // sign-out, so this is belt and braces; it became worth having when that call
+  // started swallowing its own failure (see clearSession), which means a stale
+  // cache CAN survive a sign-out now. Clearing on the way IN closes that without
+  // making a failed cleanup block a sign-out.
+  await forgetAllCachedCredentials().catch(() => undefined);
 
   setState({ phase: "signed-in", user: result.payload.user });
   return { ok: true };

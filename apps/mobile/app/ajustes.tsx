@@ -100,8 +100,18 @@ export default function AjustesScreen() {
             label="Cerrar sesión"
             tone="quiet"
             onPress={() => {
-              void signOut();
-              router.replace("/");
+              // AWAITED, and the await is the fix. `signOut()` flips the store
+              // to `signed-out` as its LAST act, after the keychain delete.
+              // Firing it and navigating in the same tick meant `/` evaluated
+              // while the store still said `signed-in`, forwarded to
+              // `/mascotas`, and drew a flash of the pet list — plus one wasted
+              // authenticated request — before the state landed and the gate
+              // bounced it back. The cost of doing it in the right order is one
+              // keychain delete, and `signOut` cannot reject (see clearSession).
+              void (async () => {
+                await signOut();
+                router.replace("/");
+              })();
             }}
           />
 

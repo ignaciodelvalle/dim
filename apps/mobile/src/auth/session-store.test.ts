@@ -1,0 +1,220 @@
+// The session store's failure paths — the ones auth-js reaches by THROWING.
+//
+// WHY THESE AND NOT THE HAPPY PATH
+// ---------------------------------------------------------------------------
+// auth-js 2.105.4 rethrows anything that is not an AuthError: `_setSession`
+// (GoTrueClient.js:2849-2854) and `_callRefreshToken` (:3935-3936) both end in
+// `throw error` for a non-AuthError. A failure coming out of `expo-secure-store`
+// is a plain `Error`. So the Keystore failure this module has an es-AR message
+// for did not arrive as `{ error }` — it arrived as a rejected promise, and the
+// branch that names it was unreachable for exactly the case it names.
+//
+// Every one of these failures is a screen that never comes back: a sign-in
+// button stuck on "Ingresando…", a splash that never resolves, a spinner behind
+// `void load()`. None of them is visible in a type and none of them shows up in
+// a happy-path test, which is why they get their own file.
+
+import { beforeEach, describe, expect, it, jest } from "@jest/globals";
+
+// ---------------------------------------------------------------------------
+// Test doubles
+// ---------------------------------------------------------------------------
+
+// The `mock` prefix is load-bearing, not a naming preference: babel-plugin-jest-
+// hoist lifts `jest.mock` factories above the imports and refuses any factory
+// that closes over an out-of-scope variable — except one whose name begins with
+// `mock`. Without the prefix this file fails to TRANSFORM, with an error about
+// the factory rather than about the test.
+type AsyncMock = jest.Mock<(...args: unknown[]) => Promise<unknown>>;
+
+const mockAuth: Record<"getSession" | "setSession" | "refreshSession" | "signOut", AsyncMock> = {
+  getSession: jest.fn<(...args: unknown[]) => Promise<unknown>>(),
+  setSession: jest.fn<(...args: unknown[]) => Promise<unknown>>(),
+  refreshSession: jest.fn<(...args: unknown[]) => Promise<unknown>>(),
+  signOut: jest.fn<(...args: unknown[]) => Promise<unknown>>(),
+};
+
+const mockDropLocalSession: AsyncMock = jest.fn<(...args: unknown[]) => Promise<unknown>>();
+const mockForgetAllCachedCredentials: AsyncMock =
+  jest.fn<(...args: unknown[]) => Promise<unknown>>();
+const mockLogin: AsyncMock = jest.fn<(...args: unknown[]) => Promise<unknown>>();
+const mockFetchMe: AsyncMock = jest.fn<(...args: unknown[]) => Promise<unknown>>();
+
+jest.mock("./supabase-auth", () => ({
+  AUTH_STORAGE_KEY: "mimar.auth.session",
+  authClient: () => ({ auth: mockAuth }),
+  dropLocalSession: () => mockDropLocalSession(),
+}));
+
+jest.mock("../credential/credential-cache", () => ({
+  forgetAllCachedCredentials: () => mockForgetAllCachedCredentials(),
+}));
+
+jest.mock("../api/endpoints", () => ({
+  login: (...args: unknown[]) => mockLogin(...args),
+  fetchMe: (...args: unknown[]) => mockFetchMe(...args),
+  revokeAllSessions: () => Promise.resolve({ outcome: "ok", payload: { revoked: true } }),
+}));
+
+import { bootstrapSession, getSessionState, sessionPort, signIn } from "./session-store";
+
+const LOGIN_OK = {
+  outcome: "ok" as const,
+  payload: {
+    session: { accessToken: "at", refreshToken: "rt" },
+    user: {
+      id: "user-001",
+      displayName: "Ana",
+      role: "owner" as const,
+      accountType: "personal" as const,
+      profilePending: false,
+    },
+  },
+};
+
+/** The shape expo-secure-store failures actually have: a plain Error. */
+const KEYSTORE_FAILURE = new Error("SecureStore: could not write value");
+
+beforeEach(() => {
+  jest.clearAllMocks();
+  mockAuth.getSession.mockResolvedValue({ data: { session: null }, error: null });
+  mockAuth.setSession.mockResolvedValue({ data: {}, error: null });
+  mockAuth.refreshSession.mockResolvedValue({ data: { session: null }, error: null });
+  mockAuth.signOut.mockResolvedValue({ error: null });
+  mockDropLocalSession.mockResolvedValue(undefined);
+  mockForgetAllCachedCredentials.mockResolvedValue(undefined);
+  mockLogin.mockResolvedValue(LOGIN_OK);
+  mockFetchMe.mockResolvedValue({ outcome: "ok", payload: { user: LOGIN_OK.payload.user } });
+});
+
+// ---------------------------------------------------------------------------
+// signIn — the write path
+// ---------------------------------------------------------------------------
+
+describe("signIn — a Keystore write that THROWS", () => {
+  it("returns the storage message instead of rejecting", async () => {
+    mockAuth.setSession.mockRejectedValue(KEYSTORE_FAILURE);
+
+    // The assertion is that this RESOLVES. Before the fix it rejected, the
+    // screen's `submit()` had no catch, and `setBusy(false)` never ran — the
+    // button stayed "Ingresando…" with no way forward.
+    const result = await signIn("ana@dim.test", "hunter2");
+
+    expect(result).toEqual({
+      ok: false,
+      message: "Iniciaste sesión, pero no pudimos guardarla en este dispositivo. Probá de nuevo.",
+    });
+  });
+
+  it("reaches the SAME branch as an AuthError-shaped failure", async () => {
+    mockAuth.setSession.mockResolvedValue({ data: {}, error: { message: "invalid session" } });
+
+    const viaError = await signIn("ana@dim.test", "hunter2");
+    mockAuth.setSession.mockRejectedValue(KEYSTORE_FAILURE);
+    const viaThrow = await signIn("ana@dim.test", "hunter2");
+
+    // One failure, one message. The library reports the same condition two
+    // different ways depending on the error's class, and the user must not be
+    // able to tell.
+    expect(viaThrow).toEqual(viaError);
+  });
+
+  it("cleans up so a half-stored session cannot survive to the next cold start", async () => {
+    mockAuth.setSession.mockRejectedValue(KEYSTORE_FAILURE);
+
+    await signIn("ana@dim.test", "hunter2");
+
+    expect(mockDropLocalSession).toHaveBeenCalledTimes(1);
+    expect(getSessionState().phase).not.toBe("signed-in");
+  });
+
+  it("still refuses when even the CLEANUP throws", async () => {
+    // A Keystore broken enough to fail a write can fail a delete. The recovery
+    // path must not turn one failure into a second, thrown one.
+    mockAuth.setSession.mockRejectedValue(KEYSTORE_FAILURE);
+    mockDropLocalSession.mockRejectedValue(new Error("SecureStore: delete failed"));
+    mockAuth.signOut.mockRejectedValue(new Error("network down"));
+
+    const result = await signIn("ana@dim.test", "hunter2");
+
+    expect(result.ok).toBe(false);
+  });
+
+  it("signs in normally when the write succeeds", async () => {
+    // The control. Without it the tests above would pass on a function that
+    // always failed.
+    const result = await signIn("ana@dim.test", "hunter2");
+
+    expect(result).toEqual({ ok: true });
+    expect(getSessionState()).toEqual({ phase: "signed-in", user: LOGIN_OK.payload.user });
+  });
+
+  it("clears the shared device's display cache on the way IN", async () => {
+    await signIn("ana@dim.test", "hunter2");
+
+    // A family phone. The next person must not find the previous owner's
+    // animals in the offline cache — and since `clearSession` now swallows a
+    // failed clear, the sign-in is the second place that guarantees it.
+    expect(mockForgetAllCachedCredentials).toHaveBeenCalled();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// sessionPort — the read paths, called from inside the fetch wrapper
+// ---------------------------------------------------------------------------
+
+describe("sessionPort — a keychain that will not answer", () => {
+  it("accessToken() returns null rather than rejecting a request", async () => {
+    mockAuth.getSession.mockRejectedValue(KEYSTORE_FAILURE);
+
+    // `client.ts` calls this from inside a request a screen kicked off with
+    // `void load()`. A throw here is a spinner that never stops.
+    await expect(sessionPort.accessToken()).resolves.toBeNull();
+  });
+
+  it("refreshAccessToken() returns null rather than rejecting", async () => {
+    // `_callRefreshToken` rethrows non-AuthErrors, so a Keystore write failure
+    // during token ROTATION lands here and not in `error`.
+    mockAuth.refreshSession.mockRejectedValue(KEYSTORE_FAILURE);
+
+    await expect(sessionPort.refreshAccessToken()).resolves.toBeNull();
+  });
+
+  it("still reads a token when the keychain is healthy", async () => {
+    mockAuth.getSession.mockResolvedValue({
+      data: { session: { access_token: "live-token" } },
+      error: null,
+    });
+
+    await expect(sessionPort.accessToken()).resolves.toBe("live-token");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// bootstrapSession — the splash screen
+// ---------------------------------------------------------------------------
+
+describe("bootstrapSession — a cold start on a broken keychain", () => {
+  it("lands on signed-out instead of leaving the store at `starting`", async () => {
+    mockAuth.getSession.mockRejectedValue(KEYSTORE_FAILURE);
+
+    // The root layout calls this as `void bootstrapSession()`. A rejection
+    // leaves the phase at `starting` forever — a splash with no way out and
+    // nothing to retry from.
+    await bootstrapSession();
+
+    expect(getSessionState()).toEqual({ phase: "signed-out", reason: null });
+  });
+
+  it("verifies the identity when there IS a stored session", async () => {
+    mockAuth.getSession.mockResolvedValue({
+      data: { session: { access_token: "live-token" } },
+      error: null,
+    });
+
+    await bootstrapSession();
+
+    expect(mockFetchMe).toHaveBeenCalledTimes(1);
+    expect(getSessionState().phase).toBe("signed-in");
+  });
+});
