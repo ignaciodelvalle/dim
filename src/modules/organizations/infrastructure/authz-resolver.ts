@@ -32,23 +32,31 @@
 // three of them is a guard that drifts. The refusal shape stays this module's
 // own (RequireCapabilityFailure) — no redirects here, the use-cases return.
 //
-// ATENDER IS NOT IN THAT LIST, AND THIS COMMENT USED TO SAY IT WAS.
+// ATENDER IS IN THAT LIST NOW — IT WAS NOT, AND SAYING SO IS THIS FILE'S HISTORY.
 // ---------------------------------------------------------------------------
-// Corrected 2026-08-25 by a pre-push review. `app/org/[orgToken]/atender/
-// atender-access.ts` does NOT call `requireCapability`: `resolveAtenderContext`
-// resolves the caller with a bare `supabase.auth.getUser()` and then imports
-// `getGrantedCapabilities` from this file DIRECTLY — which is step 5 of the
-// order above with steps 1-4 skipped. So the seven clinical actions behind it
-// get the capability check and none of the liveness checks: no maintenance
-// kill-switch, no deactivation refusal, and no 8-hour shift enforcement, on the
-// one surface that is literally a shared municipal desk.
+// Until 2026-08-25 `app/org/[orgToken]/atender/atender-access.ts` did NOT call
+// any guard in this file: `resolveAtenderContext` resolved the caller with a
+// bare `supabase.auth.getUser()` and then imported `getGrantedCapabilities`
+// from here DIRECTLY — step 5 of the order above with steps 1-4 skipped. The
+// seven clinical actions behind it got the capability check and none of the
+// liveness checks: no maintenance kill-switch, no deactivation refusal, and no
+// 8-hour shift, on the one surface that is literally a shared municipal desk.
 //
-// The bypass is real and is queued as its own change (the shift-bypass
-// follow-up). It is NOT fixed here, because routing atender through
-// `requireCapability` changes seven refusal shapes and deserves its own tests
-// and its own review. What is fixed here is the sentence: a comment that names
-// a surface as covered by a security control it does not reach is worse than
-// the gap, because it is what a reader checks INSTEAD of the code.
+// It now enters through `resolveLiveOrgActor` (below), which is the SAME
+// liveness + shift + membership + grants sequence `requireCapabilityForOrgToken`
+// runs, exposed as a result so a surface can word the two ORG refusals in its
+// own voice. Atender's copy is unchanged for every refusal it could already
+// produce; what it gained is the three it could not (maintenance, deactivation,
+// shift).
+//
+// AND THE STRUCTURAL HALF, which is the part a comment cannot hold: nothing
+// ASSERTED that an institutional/operator resolver reaches the shift, which is
+// why this hole was invisible for as long as it was. `scripts/check-operator-
+// shift-reach.ts` is that assertion. `getGrantedCapabilities` stays exported —
+// it is a capability READER consulted by ~25 org surfaces that all authorize
+// through `requireOrgAccessByToken` first, and guarding it would buy a GoTrue
+// round-trip on every org page to re-answer a question already answered. What
+// was missing was never a keyword on the export; it was a fence.
 
 import { and, eq, isNull } from "drizzle-orm";
 
@@ -61,7 +69,7 @@ import {
   organizationMemberships,
   organizations,
 } from "@/db";
-import { requireLiveUser } from "@/lib/infra/live-user";
+import { type LiveUserFailureReason, requireLiveUser } from "@/lib/infra/live-user";
 import { OPERATOR_SHIFT_EXPIRED_MESSAGE, isOperatorShiftExpired } from "@/lib/infra/operator-shift";
 import { resolveGrantedCaps } from "@/src/modules/organizations/domain/capabilities";
 
@@ -151,23 +159,54 @@ function capabilityFailure(userId: string | null, error: string): RequireCapabil
  */
 async function resolveLiveActor(
   options: RequireCapabilityOptions | undefined,
-): Promise<{ ok: true; userId: string } | { ok: false; failure: RequireCapabilityFailure }> {
+): Promise<LiveActorResult> {
   const live = await requireLiveUser();
 
   if (!live.ok) {
     const tolerated = live.reason === "DEACTIVATED" && options?.access === "read";
     if (tolerated && live.user) return { ok: true, userId: live.user.id };
-    return { ok: false, failure: capabilityFailure(live.user?.id ?? null, live.error) };
+    return {
+      ok: false,
+      reason: live.reason,
+      userId: live.user?.id ?? null,
+      error: live.error,
+    };
   }
 
   if (
     isOperatorShiftExpired({ sessionStartedAt: live.sessionStartedAt, context: "org-capability" })
   ) {
-    return { ok: false, failure: capabilityFailure(live.user.id, OPERATOR_SHIFT_EXPIRED_MESSAGE) };
+    return {
+      ok: false,
+      reason: "SHIFT_EXPIRED",
+      userId: live.user.id,
+      error: OPERATOR_SHIFT_EXPIRED_MESSAGE,
+    };
   }
 
   return { ok: true, userId: live.user.id };
 }
+
+/**
+ * The liveness+shift step's own result shape.
+ *
+ * It carries the REASON and not only the copy, because two surfaces word the
+ * same refusal differently and neither is wrong: this module answers a server
+ * action with a string, and a PAGE has to redirect a shift-expired operator to
+ * /turno-vencido — a decision `error` cannot carry. `reason` is
+ * requireLiveUser's own vocabulary verbatim (SHIFT_EXPIRED included), so the
+ * org-staff shift refusal above and the institutional one inside requireLiveUser
+ * are indistinguishable to a caller, which is the honest answer: they are the
+ * same policy reached by two predicates.
+ */
+type LiveActorResult =
+  | { ok: true; userId: string }
+  | {
+      ok: false;
+      reason: LiveUserFailureReason;
+      userId: string | null;
+      error: string;
+    };
 
 // ---------------------------------------------------------------------------
 // getActiveMemberships
@@ -198,6 +237,15 @@ export async function getActiveMemberships(userId: string): Promise<ActiveMember
 //
 // Delegates baseline resolution to domain/capabilities.resolveGrantedCaps (pure).
 // DB layer: reads approved organization_capability_grants rows.
+//
+// IT IS A READER, NOT A GUARD, and the distinction is the one atender got wrong
+// for months. It answers "what may this MEMBERSHIP do" from a membership row
+// already in hand. It never asks who is calling, whether they still may act, or
+// whether their shift is over — it cannot, because it is handed no session. Its
+// ~25 callers are org pages and layouts that authorized through
+// requireOrgAccessByToken first; the one caller that did not was the bypass.
+// `scripts/check-operator-shift-reach.ts` is what makes that structural rather
+// than remembered.
 // ---------------------------------------------------------------------------
 
 export async function getGrantedCapabilities(
@@ -247,7 +295,7 @@ export async function requireCapability(
   // session alone never authorizes an org mutation. One request-memoized
   // profile read is the price of the boundary, unchanged.
   const live = await resolveLiveActor(options);
-  if (!live.ok) return live.failure;
+  if (!live.ok) return capabilityFailure(live.userId, live.error);
 
   return resolveCapabilityForUser(live.userId, capability, organizationId);
 }
@@ -321,8 +369,102 @@ export async function requireCapabilityForOrgToken(
   orgToken: string,
   options?: RequireCapabilityOptions,
 ): Promise<RequireCapabilityResult> {
+  const actor = await resolveLiveOrgActor(orgToken, options);
+
+  if (!actor.ok) {
+    // The two ORG refusals keep the wording they have always had here, and they
+    // stay DIFFERENT on purpose: "no such org" and "not a member of this one"
+    // are the same information to an anonymous caller (liveness answered first,
+    // above), and to a signed-in member they are two different problems.
+    if (actor.reason === "NO_ORGANIZATION") {
+      return capabilityFailure(actor.userId, "No tenés acceso a esta organización.");
+    }
+    if (actor.reason === "NO_MEMBERSHIP") {
+      return capabilityFailure(actor.userId, "No pertenecés a ninguna organización activa.");
+    }
+    return capabilityFailure(actor.userId, actor.error ?? "Sesión expirada.");
+  }
+
+  if (!actor.granted.has(capability)) {
+    return capabilityFailure(
+      actor.userId,
+      "No tenés permiso para esta acción. Pedile el alta a un administrador.",
+    );
+  }
+
+  return {
+    user: { id: actor.userId },
+    membership: actor.membership,
+    organization: actor.organization,
+    granted: actor.granted,
+    error: null,
+  };
+}
+
+// ---------------------------------------------------------------------------
+// resolveLiveOrgActor — the guarded door for a surface that words its own
+// refusals
+// ---------------------------------------------------------------------------
+//
+// SAME SEQUENCE as requireCapabilityForOrgToken, stopping one step earlier: it
+// resolves the LIVE actor (maintenance → session → erasure → deactivation →
+// 8-hour shift), pins the organization to the URL token, finds THAT
+// membership, and reads its granted capabilities — but it does not decide which
+// capability was needed, and it does not choose the words for the two ORG
+// refusals.
+//
+// WHY IT EXISTS, rather than atender calling requireCapabilityForOrgToken.
+// Atender's screen says "No pertenecés a esta organización." for a caller who is
+// not a member, and names the exact permission it wants
+// ("Registrar eventos clínicos (event.write)") when the membership lacks it.
+// Those two strings are better than this module's generic ones on that surface,
+// and routing atender through requireCapabilityForOrgToken would have replaced
+// them — trading a real UX regression for the security fix instead of taking
+// both. The refusals that MATTER for the fix (the liveness five) come back
+// worded by requireLiveUser and identical everywhere.
+//
+// The alternative — leaving atender to call `getGrantedCapabilities` directly
+// and adding its own liveness — is what the codebase already had, and it is the
+// shape that produced the bypass: two guards, one of which forgot a check.
+
+/** Why resolveLiveOrgActor refused. The liveness five are requireLiveUser's. */
+export type LiveOrgActorFailureReason = LiveUserFailureReason | "NO_ORGANIZATION" | "NO_MEMBERSHIP";
+
+export type LiveOrgActorResult =
+  | {
+      ok: true;
+      userId: string;
+      membership: OrganizationMembership;
+      organization: Organization;
+      granted: Set<OrganizationCapability>;
+    }
+  | {
+      ok: false;
+      reason: LiveOrgActorFailureReason;
+      userId: string | null;
+      /**
+       * Ready-to-render es-AR copy for the LIVENESS refusals, straight from
+       * requireLiveUser. Null for NO_ORGANIZATION / NO_MEMBERSHIP, whose wording
+       * belongs to the surface — null rather than a default so a caller that
+       * forgets to word them fails to compile instead of shipping this module's
+       * voice onto a screen that reads nothing like it.
+       */
+      error: string | null;
+    };
+
+export async function resolveLiveOrgActor(
+  orgToken: string,
+  options?: RequireCapabilityOptions,
+): Promise<LiveOrgActorResult> {
+  // LIVENESS FIRST, before the org lookup — the same order and for the same
+  // reason requireCapabilityForOrgToken adopted in 2026-08-22: the lookup is a
+  // DB read and the maintenance kill-switch has to work when the database is
+  // what is being maintained, and an anonymous caller must not learn from the
+  // refusal whether the org in the URL exists.
   const live = await resolveLiveActor(options);
-  if (!live.ok) return live.failure;
+  if (!live.ok) {
+    return { ok: false, reason: live.reason, userId: live.userId, error: live.error };
+  }
 
   const [org] = await db
     .select({ id: organizations.id })
@@ -331,14 +473,20 @@ export async function requireCapabilityForOrgToken(
     .limit(1);
 
   if (!org) {
-    return {
-      user: { id: live.userId },
-      membership: null,
-      organization: null,
-      granted: null,
-      error: "No tenés acceso a esta organización.",
-    };
+    return { ok: false, reason: "NO_ORGANIZATION", userId: live.userId, error: null };
   }
 
-  return resolveCapabilityForUser(live.userId, capability, org.id);
+  const memberships = await getActiveMemberships(live.userId);
+  const active = memberships.find((m) => m.organization.id === org.id);
+  if (!active) {
+    return { ok: false, reason: "NO_MEMBERSHIP", userId: live.userId, error: null };
+  }
+
+  return {
+    ok: true,
+    userId: live.userId,
+    membership: active.membership,
+    organization: active.organization,
+    granted: await getGrantedCapabilities(active.membership),
+  };
 }

@@ -7,6 +7,7 @@
 // for a clinic) — a matriculated vet had no working entry to sign.
 
 import Link from "next/link";
+import { redirect } from "next/navigation";
 
 import { OpCallout, OpCard, OpCardBody, OpCardHead, OpCrumbs } from "@/components/ui/dashboard";
 
@@ -21,6 +22,19 @@ export default async function AtenderEntryPage({
 }) {
   const { orgToken } = await params;
   const context = await resolveAtenderContext(orgToken);
+
+  // A SHIFT THAT RAN OUT IS A SIGN-OUT, NOT A MESSAGE (B9).
+  //
+  // Rendering "tu turno terminó" in a card would leave the operator still
+  // authenticated on the clinic's shared desk, which is the exact state the
+  // control exists to prevent. Only /turno-vencido can end it — cookies are not
+  // writable during a Server Component render — and it re-derives the policy
+  // itself before signing anyone out, so this is the same branch every other
+  // page guard takes (lib/infra/auth-guards.ts).
+  //
+  // Only this refusal navigates. The rest stay in place: they are conditions
+  // the operator can read and act on without losing the surface.
+  if (!context.ok && context.reason === "SHIFT_EXPIRED") redirect("/turno-vencido");
 
   const boundLookup = lookupAtenderPetAction.bind(null, orgToken);
 

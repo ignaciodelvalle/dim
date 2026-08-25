@@ -52,6 +52,7 @@ vi.mock("@/lib/infra/report-error", () => ({
 import {
   requireCapability,
   requireCapabilityForOrgToken,
+  resolveLiveOrgActor,
 } from "@/src/modules/organizations/infrastructure/authz-resolver";
 
 // ---------------------------------------------------------------------------
@@ -166,6 +167,39 @@ describe("requireCapability — the 8-hour shift for org staff", () => {
 
     expect(result.error).toBe("No pertenecés a ninguna organización activa.");
     expect(mockReportError).toHaveBeenCalledTimes(1);
+  });
+
+  // resolveLiveOrgActor is the door the WALK-IN clinical surface entered
+  // through on 2026-08-25 (app/org/[orgToken]/atender). It shares
+  // resolveLiveActor with the two guards above, and this pins that it does —
+  // because if it ever grew its own liveness step, the surface it exists for is
+  // a clinic's shared front desk and the check it would forget is this one.
+  it("carries the same shift into resolveLiveOrgActor, the walk-in door", async () => {
+    mockRequireLiveUser.mockResolvedValue(liveOrgStaffer(hoursAgo(9)));
+
+    const actor = await resolveLiveOrgActor("ORG-TOKEN-0001");
+
+    expect(actor.ok).toBe(false);
+    if (!actor.ok) {
+      expect(actor.reason).toBe("SHIFT_EXPIRED");
+      expect(actor.error).toMatch(/turno de trabajo/i);
+      expect(actor.userId).toBe("user-001");
+    }
+    // Same ordering guarantee: refused before the org lookup, so the walk-in
+    // surface says nothing about whether that token names a real organization.
+    expect(mockDbSelect).not.toHaveBeenCalled();
+  });
+
+  it("lets the walk-in door through inside the 8 hours", async () => {
+    mockRequireLiveUser.mockResolvedValue(liveOrgStaffer(hoursAgo(7)));
+
+    const actor = await resolveLiveOrgActor("ORG-TOKEN-0001");
+
+    // Past the shift: it got as far as the org lookup, which this mock answers
+    // with nothing.
+    expect(mockDbSelect).toHaveBeenCalled();
+    expect(actor.ok).toBe(false);
+    if (!actor.ok) expect(actor.reason).toBe("NO_ORGANIZATION");
   });
 
   it("passes a liveness refusal through unchanged, ahead of any shift logic", async () => {

@@ -11,6 +11,7 @@
 // matrícula, else `org_registered`.
 
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import { Suspense } from "react";
 
 import { OpCard, OpCardBody, OpCardHead, OpCodeBadge, OpCrumbs } from "@/components/ui/dashboard";
@@ -33,6 +34,11 @@ export default async function AtenderSignPage({
   const { orgToken, publicToken } = await params;
   const sp = await searchParams;
   const access = await resolveAtenderPet(orgToken, publicToken);
+
+  // See the sibling entry page: a shift that ran out has to SIGN THE OPERATOR
+  // OUT, and only /turno-vencido can. Rendering the copy here would leave a live
+  // session on the clinic's shared desk (B9).
+  if (!access.ok && access.reason === "SHIFT_EXPIRED") redirect("/turno-vencido");
 
   if (!access.ok) {
     return (

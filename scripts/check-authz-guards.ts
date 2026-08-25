@@ -92,11 +92,14 @@ export const AUTH_GUARDS = [
   // wraps requireUserOrRedirect + an org-membership + intervention-role check.
   "requireOrgInterventionAccess",
   // Walk-in (atender) authorization boundary — app/org/[orgToken]/atender/
-  // atender-access.ts. Resolves the acting org FROM THE URL TOKEN, requires an
-  // active membership with `event.write`, re-checks profiles.deleted_at, and
-  // rate-limits the DIM-code lookup. Became visible to this linter when
-  // discovery moved from filename globs to the "use server" directive
-  // (2026-08-05); it was always a real guard, just outside the old glob.
+  // atender-access.ts. Enters through `resolveLiveOrgActor`, so it resolves the
+  // acting org FROM THE URL TOKEN and requires an active membership with
+  // `event.write` on top of the full liveness set (maintenance, session,
+  // erasure, deactivation, 8-hour shift); it also rate-limits the DIM-code
+  // lookup. Became visible to this linter when discovery moved from filename
+  // globs to the "use server" directive (2026-08-05); it was always a real
+  // guard, just outside the old glob — and until 2026-08-25 it was a real guard
+  // that reached NONE of the liveness checks (see atender-access.ts's header).
   "resolveAtenderPet",
   "resolveAtenderContext",
   "auth.getUser",
@@ -194,8 +197,10 @@ export const DELETION_AWARE_GUARDS = [
   "requireOrgInterventionAccess",
   "requireCapability",
   "requireCapabilityForOrgToken",
-  // Both atender resolvers funnel through resolveAtenderContext, which reads
-  // profiles.deletedAt and refuses an erased account (atender-access.ts).
+  // Both atender resolvers funnel through resolveAtenderContext, which since
+  // 2026-08-25 authorizes through resolveLiveOrgActor → requireLiveUser and so
+  // refuses an erased account with the one canonical check rather than a
+  // hand-copied deletedAt read of its own (atender-access.ts).
   "resolveAtenderPet",
   "resolveAtenderContext",
 ] as const;

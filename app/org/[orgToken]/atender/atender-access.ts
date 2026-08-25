@@ -23,7 +23,7 @@
 // canonical source) rather than shared, to keep this walk-in boundary
 // self-contained; keep the two in sync.
 
-import { db, organizationMemberships, organizations, pets, profiles } from "@/db";
+import { db, pets, profiles } from "@/db";
 import { DIM_TOKEN_PATTERN } from "@/lib/domain/dim-token";
 import type { PetEventAuthorship } from "@/lib/infra/pet-access";
 import {
@@ -32,9 +32,11 @@ import {
   callerIp,
   enforceRateLimit,
 } from "@/lib/infra/rate-limit";
-import { createClient } from "@/lib/supabase/server";
-import { getGrantedCapabilities } from "@/src/modules/organizations/infrastructure/authz-resolver";
-import { and, eq, isNull } from "drizzle-orm";
+import {
+  type LiveOrgActorFailureReason,
+  resolveLiveOrgActor,
+} from "@/src/modules/organizations/infrastructure/authz-resolver";
+import { eq } from "drizzle-orm";
 import { headers } from "next/headers";
 
 // Lookup throttle: stricter than the public /p page (60/400) since the legit
@@ -82,8 +84,31 @@ export type AtenderAccessSuccess = {
   error: null;
 };
 
+/**
+ * Why the walk-in surface refused, as a CODE and not only as copy.
+ *
+ * The code exists for exactly one caller that a string cannot serve: a PAGE
+ * meeting SHIFT_EXPIRED has to `redirect("/turno-vencido")`, because the shift
+ * ending must SIGN THE OPERATOR OUT and only that route handler can (cookies
+ * are not writable during a Server Component render — see its header). A Server
+ * ACTION meeting the same refusal renders `error` in place, exactly as it does
+ * for every other refusal on this surface.
+ *
+ * `NO_CAPABILITY` and the token/pet refusals are atender's own; everything else
+ * is `resolveLiveOrgActor`'s vocabulary passed straight through, so the two
+ * halves of a refusal never disagree about what happened.
+ */
+export type AtenderRefusalReason =
+  | LiveOrgActorFailureReason
+  | "NO_CAPABILITY"
+  | "BAD_TOKEN"
+  | "NOT_FOUND"
+  | "DECEASED"
+  | "THROTTLED";
+
 export type AtenderAccessFailure = {
   ok: false;
+  reason: AtenderRefusalReason;
   error: string;
 };
 
@@ -93,6 +118,40 @@ export type AtenderAccessResult = AtenderAccessSuccess | AtenderAccessFailure;
  * Resolve the acting member's authorization on `orgToken` WITHOUT resolving a
  * specific pet. Used by the code-entry page/action to gate the surface before
  * a DIM code is even known. Returns the org + signer authorship context.
+ *
+ * ===========================================================================
+ * IT AUTHORIZES THROUGH resolveLiveOrgActor NOW, AND IT DID NOT UNTIL 2026-08-25
+ * ===========================================================================
+ * This function used to resolve the caller with a bare `supabase.auth.getUser()`
+ * and then import `getGrantedCapabilities` from the authz resolver DIRECTLY —
+ * the capability step of that module's guard with the four steps before it
+ * skipped. Seven append-only CLINICAL server actions (vaccination, deworming,
+ * clinical info, medication start, note, microchip, sterilization) authorize
+ * through here and got, in consequence:
+ *
+ *   - no maintenance kill-switch — a walk-in signature committed mid-window;
+ *   - no deactivation refusal — a switched-off institutional account kept
+ *     signing;
+ *   - NO 8-HOUR SHIFT (B9) — on the one surface in the product that IS the
+ *     scenario B9 was written for: a clinic's shared front desk, still
+ *     authenticated the next morning, signing events onto a spine that never
+ *     forgets.
+ *
+ * The refusals it could already produce are byte-identical: `requireLiveUser`
+ * words NO_SESSION "Sesión expirada." and ACCOUNT_ERASED "Tu cuenta fue
+ * eliminada.", which is exactly what the two hand-rolled checks here said. The
+ * two ORG refusals keep atender's own wording — that is why the door is
+ * `resolveLiveOrgActor` and not `requireCapabilityForOrgToken`, whose generic
+ * copy would have replaced a better screen. What is new is the three refusals
+ * this surface simply had no way to express.
+ *
+ * THE SHIFT REACHES AN ORG VET, which is the point and is not free. A clinic vet
+ * commonly holds `role: "vet"` / `accountType: "personal"`, so requireLiveUser's
+ * institutional predicate does not fire for them; their operator-ness lives in
+ * `organization_memberships`. `resolveLiveOrgActor` re-applies the shift for
+ * exactly that principal (see authz-resolver.ts), which is why entering through
+ * it — rather than through requireLiveUser alone — is what actually closes B9
+ * here.
  */
 export async function resolveAtenderContext(orgToken: string): Promise<
   | {
@@ -105,65 +164,46 @@ export async function resolveAtenderContext(orgToken: string): Promise<
     }
   | AtenderAccessFailure
 > {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) return { ok: false, error: "Sesión expirada." };
+  const actor = await resolveLiveOrgActor(orgToken);
 
-  // Resolve org + active membership by token (no custody involved).
-  const [membershipRow] = await db
-    .select({
-      organizationId: organizations.id,
-      organizationName: organizations.displayName,
-      membershipId: organizationMemberships.id,
-      membershipRole: organizationMemberships.role,
-    })
-    .from(organizationMemberships)
-    .innerJoin(organizations, eq(organizations.id, organizationMemberships.organizationId))
-    .where(
-      and(
-        eq(organizationMemberships.userId, user.id),
-        eq(organizations.publicToken, orgToken),
-        isNull(organizationMemberships.leftAt),
-      ),
-    )
-    .limit(1);
-
-  if (!membershipRow) {
-    return { ok: false, error: "No pertenecés a esta organización." };
+  if (!actor.ok) {
+    // ONE MESSAGE FOR BOTH ORG REFUSALS, deliberately and unchanged: "no such
+    // org" and "you are not a member of it" must not be distinguishable here,
+    // or the walk-in surface becomes an org-existence oracle for any signed-in
+    // account. `error` is null on those two branches by construction, which is
+    // what makes forgetting to word them a compile error rather than a leak.
+    if (actor.reason === "NO_ORGANIZATION" || actor.reason === "NO_MEMBERSHIP") {
+      return { ok: false, reason: actor.reason, error: "No pertenecés a esta organización." };
+    }
+    return { ok: false, reason: actor.reason, error: actor.error ?? "Sesión expirada." };
   }
 
-  // Signer profile: matrícula (provenance tier) + right-to-erasure lockout.
-  // Drizzle bypasses RLS, so this mutation boundary re-checks deletedAt itself
-  // (a self-erased account keeps a live JWT until it expires — Ley 25.326
-  // art. 16, same guard as requirePetAccess / requireCapability).
+  if (!actor.granted.has("event.write")) {
+    return {
+      ok: false,
+      reason: "NO_CAPABILITY",
+      error:
+        "Necesitás el permiso 'Registrar eventos clínicos' (event.write). Pediselo a un administrador.",
+    };
+  }
+
+  const organizationId = actor.organization.id;
+  const organizationName = actor.organization.displayName;
+
+  // Signer profile: matrícula only — the PROVENANCE tier, not an authorization
+  // input. The right-to-erasure lockout that used to be read here is gone from
+  // this query on purpose: `resolveLiveOrgActor` → `requireLiveUser` refuses a
+  // `profiles.deleted_at` account before this line runs, with the same message,
+  // and two copies of a check are two chances for one of them to drift.
   const [signerProfile] = await db
     .select({
       displayName: profiles.displayName,
       matriculaNumber: profiles.matriculaNumber,
       matriculaVerified: profiles.matriculaVerified,
-      deletedAt: profiles.deletedAt,
     })
     .from(profiles)
-    .where(eq(profiles.id, user.id))
+    .where(eq(profiles.id, actor.userId))
     .limit(1);
-
-  if (signerProfile?.deletedAt != null) {
-    return { ok: false, error: "Tu cuenta fue eliminada." };
-  }
-
-  const granted = await getGrantedCapabilities({
-    id: membershipRow.membershipId,
-    role: membershipRow.membershipRole,
-  });
-  if (!granted.has("event.write")) {
-    return {
-      ok: false,
-      error:
-        "Necesitás el permiso 'Registrar eventos clínicos' (event.write). Pediselo a un administrador.",
-    };
-  }
 
   const matriculaVerified = signerProfile?.matriculaVerified === true;
 
@@ -171,19 +211,19 @@ export async function resolveAtenderContext(orgToken: string): Promise<
   const eventAuthorship: PetEventAuthorship = matriculaVerified
     ? {
         authorRole: "vet",
-        authorOrganizationId: membershipRow.organizationId,
+        authorOrganizationId: organizationId,
         authorVerified: true,
       }
     : {
         authorRole: "shelter",
-        authorOrganizationId: membershipRow.organizationId,
+        authorOrganizationId: organizationId,
         authorVerified: false,
       };
 
   const signerLabel =
     matriculaVerified && signerProfile?.matriculaNumber
       ? `matrícula ${signerProfile.matriculaNumber}`
-      : membershipRow.organizationName;
+      : organizationName;
 
   // How the signer reads on a printed record: name + matrícula for a verified
   // vet, plain name otherwise. Used by writers to fill "aplicada por"-style
@@ -199,9 +239,9 @@ export async function resolveAtenderContext(orgToken: string): Promise<
 
   return {
     ok: true,
-    user: { id: user.id },
-    organizationId: membershipRow.organizationId,
-    organizationName: membershipRow.organizationName,
+    user: { id: actor.userId },
+    organizationId,
+    organizationName,
     signer: { label: signerLabel, matriculaVerified, recordName: signerRecordName },
     eventAuthorship,
   };
@@ -222,7 +262,7 @@ export async function resolveAtenderPet(
 
   const normalized = normalizeAtenderToken(publicToken);
   if (!ATENDER_TOKEN_PATTERN.test(normalized)) {
-    return { ok: false, error: "El formato del código es DIM-XXXX-XXXX." };
+    return { ok: false, reason: "BAD_TOKEN", error: "El formato del código es DIM-XXXX-XXXX." };
   }
 
   // Throttle the code lookup. The DIM code is DIM's PUBLIC Tier-0 credential, so
@@ -242,6 +282,7 @@ export async function resolveAtenderPet(
     if (err instanceof RateLimitError) {
       return {
         ok: false,
+        reason: "THROTTLED",
         error: "Demasiados intentos de búsqueda. Esperá un momento e intentá de nuevo.",
       };
     }
@@ -265,11 +306,16 @@ export async function resolveAtenderPet(
     .limit(1);
 
   if (!petRow) {
-    return { ok: false, error: `No se encontró ninguna mascota con el código ${normalized}.` };
+    return {
+      ok: false,
+      reason: "NOT_FOUND",
+      error: `No se encontró ninguna mascota con el código ${normalized}.`,
+    };
   }
   if (petRow.status === "deceased") {
     return {
       ok: false,
+      reason: "DECEASED",
       error: "Esta mascota está registrada como fallecida y no acepta nuevos eventos.",
     };
   }
