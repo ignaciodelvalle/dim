@@ -53,9 +53,24 @@ export const PET_EVENT_DETAIL_STALE_AFTER_MS = 5 * 60_000;
  */
 export const EVENT_ATTACHMENT_LINK_TTL_SECONDS = 900;
 
-/** One key/value row of the curated (whitelisted) payload view. */
+/**
+ * One row of the curated (whitelisted) payload view.
+ *
+ * `field` is the PAYLOAD KEY behind the row, and it is here for exactly one
+ * reason: the correction form. A client that wants to offer "corregir este
+ * dato" has to name the field the server will change, and the alternative was a
+ * second copy of the whitelist on the client deciding which keys are safe to
+ * show — which is how the two drift.
+ *
+ * Emitting these keys is safe in a way emitting a raw payload is not: every one
+ * of them is a key the curated projection ALREADY decided to render. A hash, an
+ * internal id or `matched_chip_number` never produces a row, so it never
+ * produces a `field` either, and a form built from this list can only ever
+ * correct what the ledger already shows.
+ */
 export type EventFactV1 = {
-  key: string;
+  field: string;
+  label: string;
   value: string;
 };
 

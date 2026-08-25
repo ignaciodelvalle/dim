@@ -1,24 +1,31 @@
-// One pet, reached from the list — TWO faces, and the difference matters.
+// One pet, reached from the list — THREE faces, and the differences matter.
 //
 // The route is a thin shell: it resolves the path parameter, refuses to render
 // without a session, and picks which face to show. All the honesty rules live in
-// the two screens.
+// the three screens.
 //
-// WHY TWO FACES AND NOT ONE. `CredentialScreen` renders the pet's PUBLIC
-// credential — the anonymous document behind the QR, which looks identical to
-// its owner and to a stranger who found the animal in the street. That is
-// exactly what it is for, and exactly why an owner who opens it learns nothing
-// they did not already know: it is the same page a finder sees.
+// WHY THREE AND NOT ONE. `CredentialScreen` renders the pet's PUBLIC credential
+// — the anonymous document behind the QR, which looks identical to its owner and
+// to a stranger who found the animal in the street. That is exactly what it is
+// for, and exactly why an owner who opens it learns nothing they did not already
+// know: it is the same page a finder sees.
 //
 // `OwnerFaceScreen` is what the person RESPONSIBLE for the animal sees — the
 // alert strip, the compliance stamp, the reminders coming due, the arrangements
-// they made. It is the web's `/mis-mascotas/{token}`, over a bearer token.
+// they made. It is the web's `/mis-mascotas/{token}` chrome, over a bearer.
 //
-// So the owner face is a NEW surface BESIDE the credential, never a replacement
-// for it. Deleting the credential tab because "the owner face shows more" would
-// take away the one screen an owner can hand to a stranger, or check to see what
-// the public actually reads about their animal. The default tab is the owner
-// face, because that is the question someone opening their own pet is asking.
+// `LibretaScreen` is the health record itself: what is coming due, and every
+// asiento the animal has. THE WEB CALLS THESE TWO BY NAME — its profile is a
+// card with two faces and the band above it reads "Credencial · frente" and
+// "Libreta · dorso" — so the label here is the web's own word for that face, not
+// a new one invented for a phone.
+//
+// None of the three is a superset of the others, and the layering is why:
+// deleting the credential because the owner face "shows more" would take away
+// the one screen an owner can hand to a stranger; deleting the libreta because
+// the owner face shows a compliance stamp would take away the record the stamp
+// is a summary OF. The default is the owner face, because that is the question
+// someone opening their own pet is asking first.
 //
 // THE PARAMETER IS VALIDATED, not trusted. `useLocalSearchParams` is typed
 // `string | string[]` because a path segment can legally repeat, and a bad value
@@ -32,16 +39,21 @@ import { Pressable, StyleSheet, Text, View } from "react-native";
 
 import { useGate } from "../../src/auth/useGate";
 import { CredentialScreen } from "../../src/credential/CredentialScreen";
+import { LibretaScreen } from "../../src/pets/LibretaScreen";
 import { OwnerFaceScreen } from "../../src/pets/OwnerFaceScreen";
 import { ErrorNotice } from "../../src/ui/components";
 import { FONTS } from "../../src/ui/fonts";
 import { Screen } from "../../src/ui/kit";
 import { COLORS, LEADING, RADIUS, SPACE, TOUCH_TARGET, TYPE } from "../../src/ui/theme";
 
-type Face = "owner" | "credential";
+type Face = "owner" | "libreta" | "credential";
 
+// The labels say what each face IS, not what it does — "Credencial pública" and
+// "Libreta" are the words the web uses for the same two documents, and the
+// public-ness is the whole distinction between them.
 const FACES: ReadonlyArray<{ key: Face; label: string }> = [
   { key: "owner", label: "Mi mascota" },
+  { key: "libreta", label: "Libreta" },
   { key: "credential", label: "Credencial pública" },
 ];
 
@@ -66,11 +78,9 @@ export default function PetDetailRoute() {
   return (
     <>
       <FaceSwitcher face={face} onChange={setFace} />
-      {face === "owner" ? (
-        <OwnerFaceScreen publicToken={publicToken} />
-      ) : (
-        <CredentialScreen publicToken={publicToken} />
-      )}
+      {face === "owner" ? <OwnerFaceScreen publicToken={publicToken} /> : null}
+      {face === "libreta" ? <LibretaScreen publicToken={publicToken} /> : null}
+      {face === "credential" ? <CredentialScreen publicToken={publicToken} /> : null}
     </>
   );
 }

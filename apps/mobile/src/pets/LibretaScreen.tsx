@@ -1,0 +1,383 @@
+// The LIBRETA face of one pet — the ledger of asientos.
+//
+// THE THIRD FACE, AND THE ONE THE PRODUCT IS NAMED AFTER. `CredentialScreen`
+// renders the anonymous public document; `OwnerFaceScreen` renders the owner's
+// chrome around it — alerts, compliance, arrangements. This is what the web
+// bands as "Libreta · dorso": what is coming due, and every asiento the animal
+// has, newest first.
+//
+// EVERY SECTION FAILS ON ITS OWN, with the same contract the other two faces
+// use: `unavailable` means the server could not read it — NOT that it is empty.
+// "Todavía no hay asientos en esta libreta" is a fact about the animal; "No se
+// pudo leer esta sección" is a fact about the read; and a section rendered as an
+// empty View would be telling the owner the first while the server meant the
+// second.
+//
+// NOTHING IS RE-DERIVED HERE. The order of the ledger, the content of each
+// asiento, its provenance stamp and its date words all arrive composed — they
+// are Argentine-calendar and whitelist decisions the server owns, and a phone
+// travelling with its owner must not renumber an animal's dates. What this
+// screen owns is the copy AROUND them and the honest empty states.
+//
+// NOT CACHED, the same v1 decision `OwnerFaceScreen` records: this payload is a
+// different privacy class from the public credential, and `credential-cache.ts`'s
+// justification does not carry over. A failed read says so and offers a retry.
+
+import { useRouter } from "expo-router";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { Pressable, StyleSheet, Text, View } from "react-native";
+
+import type { LibretaEntryV1, PetLibretaV1 } from "@dim/contract/api";
+import type { ApiResult } from "../api/client";
+import { fetchPetLibreta } from "../api/endpoints";
+import { apiErrorMessage } from "../api/error-copy";
+import { sessionPort } from "../auth/session-store";
+import { Body, Card, Loading, Row, Unavailable } from "../ui/components";
+import { FONTS } from "../ui/fonts";
+import { PrimaryButton, Screen } from "../ui/kit";
+import { libretaEventRoute } from "../ui/routes";
+import { COLORS, LEADING, RADIUS, SPACE, TOUCH_TARGET, TRACKING, TYPE } from "../ui/theme";
+import {
+  LEDGER_EMPTY_LABEL,
+  LIBRETA_EMPTY_LABEL,
+  LIBRETA_IMMUTABILITY_NOTE,
+  LIBRETA_TRUNCATED_NOTE,
+  type LibretaView,
+  UPCOMING_EMPTY_LABEL,
+  amendedLabel,
+  buildLibretaView,
+  ledgerCountLabel,
+  otherVaccinesNote,
+  speciesLine,
+  upcomingDueLabel,
+  upcomingKindLabel,
+  vaccinationHeadline,
+  vaccineStatusLabel,
+} from "./libreta-view-model";
+import type { SectionView } from "./owner-face-view-model";
+
+type ScreenState =
+  | { phase: "loading" }
+  | { phase: "ready"; view: LibretaView }
+  | { phase: "failed"; message: string };
+
+/** One sentence per failure arm. No arm may fall through to a generic shrug. */
+function failureMessage(result: ApiResult<PetLibretaV1>): string {
+  switch (result.outcome) {
+    case "api-error":
+      return apiErrorMessage(result.code);
+    case "unsupported-version":
+      return "Esta versión de la app no puede leer la libreta de esta mascota. Actualizá la app.";
+    case "malformed":
+      return "La respuesta del servidor no se pudo leer.";
+    case "unreachable":
+      return "No pudimos conectarnos. Revisá tu conexión.";
+    default:
+      return "No pudimos leer esta libreta.";
+  }
+}
+
+export function LibretaScreen({ publicToken }: { publicToken: string }) {
+  const [state, setState] = useState<ScreenState>({ phase: "loading" });
+  // Guards against a stale response overwriting a newer one after a fast
+  // double-tap on "Actualizar" — the same generation counter its sibling
+  // screens use, for the same reason.
+  const generation = useRef(0);
+
+  const load = useCallback(async () => {
+    const mine = ++generation.current;
+    setState({ phase: "loading" });
+    const result = await fetchPetLibreta(sessionPort, publicToken);
+    if (mine !== generation.current) return;
+    if (result.outcome === "ok") {
+      setState({ phase: "ready", view: buildLibretaView(result.payload) });
+      return;
+    }
+    setState({ phase: "failed", message: failureMessage(result) });
+  }, [publicToken]);
+
+  useEffect(() => {
+    void load();
+  }, [load]);
+
+  return (
+    <Screen>
+      {state.phase === "loading" ? <Loading label="Leyendo la libreta…" /> : null}
+      {state.phase === "failed" ? (
+        <Card title="No disponible">
+          <Body>{state.message}</Body>
+        </Card>
+      ) : null}
+      {state.phase === "ready" ? <LibretaBody view={state.view} /> : null}
+      <PrimaryButton
+        label="Actualizar"
+        onPress={() => void load()}
+        disabled={state.phase === "loading"}
+      />
+    </Screen>
+  );
+}
+
+/** Renders a section, or its refusal. The two are never the same view. */
+function Section<T>({
+  view,
+  title,
+  children,
+}: {
+  view: SectionView<T>;
+  title: string;
+  children: (data: T) => React.ReactNode;
+}) {
+  if (view.state === "unavailable") {
+    return <Unavailable title={title} message={view.message} />;
+  }
+  return <Card title={title}>{children(view.data)}</Card>;
+}
+
+function LibretaBody({ view }: { view: LibretaView }) {
+  const router = useRouter();
+  // Frozen at mount and threaded into every relative label, so a screen sitting
+  // on a day boundary cannot flip "Mañana" to "Hoy" between re-renders. The web
+  // libreta face freezes its own `now` for exactly this.
+  const [now] = useState(() => new Date());
+
+  const upcomingItems = view.upcoming.state === "ok" ? view.upcoming.data.items : [];
+  const entries = view.timeline.state === "ok" ? view.timeline.data.entries : [];
+  const bothSectionsRead = view.upcoming.state === "ok" && view.timeline.state === "ok";
+  const isEmpty = bothSectionsRead && upcomingItems.length === 0 && entries.length === 0;
+
+  return (
+    <>
+      {/* THE MASTHEAD ---------------------------------------------------- */}
+      <Section view={view.identity} title="Libreta sanitaria">
+        {(identity) => (
+          <>
+            <Text style={styles.petName}>{identity.name}</Text>
+            <Text style={styles.token}>{identity.publicToken}</Text>
+            {speciesLine(identity) ? <Body>{speciesLine(identity)}</Body> : null}
+          </>
+        )}
+      </Section>
+
+      {/* VACUNAS ---------------------------------------------------------- */}
+      <Section view={view.vaccination} title="Vacunación">
+        {(vaccination) => (
+          <>
+            <Text style={styles.stamp}>{vaccinationHeadline(vaccination)}</Text>
+            {vaccination.perVaccine.length === 0 ? (
+              <Body>No hay vacunas del catálogo registradas.</Body>
+            ) : (
+              vaccination.perVaccine.map((vaccine) => (
+                <Row
+                  key={vaccine.vaccineName}
+                  label={vaccine.vaccineName}
+                  value={vaccineStatusLabel(vaccine.status)}
+                />
+              ))
+            )}
+            {/* A dose the catalog could not identify does not move the verdict
+                above and must not disappear either. */}
+            {otherVaccinesNote(vaccination) ? <Body>{otherVaccinesNote(vaccination)}</Body> : null}
+          </>
+        )}
+      </Section>
+
+      {isEmpty ? (
+        <Card>
+          <Body>{LIBRETA_EMPTY_LABEL}</Body>
+        </Card>
+      ) : null}
+
+      {/* PRÓXIMO ---------------------------------------------------------- */}
+      <Section view={view.upcoming} title="Próximo">
+        {(upcoming) =>
+          upcoming.items.length === 0 ? (
+            <Body>{UPCOMING_EMPTY_LABEL}</Body>
+          ) : (
+            <>
+              {upcoming.items.map((item) => (
+                <Row
+                  key={item.id}
+                  label={`${upcomingKindLabel(item.kind)} · ${item.label}`}
+                  value={upcomingDueLabel(item.dueAt, now)}
+                />
+              ))}
+            </>
+          )
+        }
+      </Section>
+
+      {/* The directional divider the web prints between the two halves. A bare
+          "hoy" read as a date tag for the row above it. */}
+      {upcomingItems.length > 0 && entries.length > 0 ? (
+        <Text style={styles.divider}>próximo ↑ · hoy · historia ↓</Text>
+      ) : null}
+
+      {/* ASIENTOS --------------------------------------------------------- */}
+      {/* The COUNT is inside the ok branch on purpose: a section that could not
+          be read must not be titled "Asientos · 0 registros", which is a claim
+          about the animal made by a failed read. */}
+      <Section view={view.timeline} title="Asientos">
+        {(timeline) =>
+          timeline.entries.length === 0 ? (
+            <Body>{LEDGER_EMPTY_LABEL}</Body>
+          ) : (
+            <View style={styles.entries}>
+              <Text style={styles.ledgerCount}>{ledgerCountLabel(timeline.entries.length)}</Text>
+              {timeline.entries.map((entry) => (
+                <EntryCard
+                  key={entry.eventId}
+                  entry={entry}
+                  onOpen={() => router.push(libretaEventRoute(view.publicToken, entry.eventId))}
+                />
+              ))}
+              {/* A ledger that shows some of what exists must SAY so. */}
+              {timeline.truncated ? <Body>{LIBRETA_TRUNCATED_NOTE}</Body> : null}
+            </View>
+          )
+        }
+      </Section>
+
+      <Text style={styles.immutability}>{LIBRETA_IMMUTABILITY_NOTE}</Text>
+    </>
+  );
+}
+
+/**
+ * One asiento.
+ *
+ * THE WHOLE CARD IS THE CONTROL, so the tap target is the record rather than a
+ * link at its foot — and it announces itself as a button with the record's own
+ * name, because "Ver detalle" repeated eleven times tells a screen reader
+ * nothing.
+ */
+function EntryCard({ entry, onOpen }: { entry: LibretaEntryV1; onOpen: () => void }) {
+  return (
+    <Pressable
+      onPress={onOpen}
+      accessibilityRole="button"
+      accessibilityLabel={`${entry.title}, ${entry.whenAbsolute}. Ver detalle`}
+      style={styles.entry}
+    >
+      <Text style={styles.entryKind}>{entry.kind}</Text>
+      <Text style={styles.entryTitle}>{entry.title}</Text>
+      <Text style={styles.entryWhen}>
+        {entry.whenRelative} · {entry.whenAbsolute}
+      </Text>
+
+      {entry.facts.map((fact) => (
+        <FactRow key={fact.key} fact={fact} />
+      ))}
+
+      {entry.note ? <Body>{entry.note}</Body> : null}
+
+      <Text style={styles.provenance}>{entry.provenance.label}</Text>
+      {entry.warning ? <Text style={styles.warning}>{entry.warning}</Text> : null}
+      {/* The values above are ALREADY corrected; this says a correction
+          happened, which is the half a corrected value cannot say alone. */}
+      {entry.amendedAt ? <Text style={styles.amended}>{amendedLabel(entry.amendedAt)}</Text> : null}
+      {entry.hasAttachment ? <Text style={styles.attachment}>Tiene un archivo adjunto</Text> : null}
+    </Pressable>
+  );
+}
+
+/**
+ * One key/value line of an asiento, HONOURING the two flags the payload sends.
+ *
+ * `missing` renders faint, because "Sin dato" set like every other value reads
+ * as a value somebody entered — the web draws exactly this distinction, and the
+ * flag exists on the wire so a client does not have to string-match the
+ * placeholder to find it. `mono` is for codes: a batch number in a proportional
+ * face is a batch number people misread.
+ */
+function FactRow({ fact }: { fact: LibretaEntryV1["facts"][number] }) {
+  return (
+    <View style={styles.factRow}>
+      <Text style={styles.factLabel}>{fact.key}</Text>
+      <Text
+        style={[
+          styles.factValue,
+          fact.missing ? styles.factMissing : null,
+          fact.mono ? styles.factMono : null,
+        ]}
+      >
+        {fact.value}
+      </Text>
+    </View>
+  );
+}
+
+const styles = StyleSheet.create({
+  petName: {
+    fontFamily: FONTS.serif,
+    fontSize: TYPE.xl2,
+    lineHeight: TYPE.xl2 * LEADING.xl2,
+    color: COLORS.ink,
+  },
+  token: {
+    fontFamily: FONTS.mono,
+    fontSize: TYPE.sm,
+    letterSpacing: TYPE.sm * TRACKING.wide,
+    color: COLORS.inkMuted,
+  },
+  stamp: {
+    fontFamily: FONTS.monoSemibold,
+    fontSize: TYPE.lg,
+    letterSpacing: TYPE.lg * TRACKING.wide,
+    color: COLORS.ink,
+  },
+  divider: {
+    fontFamily: FONTS.mono,
+    fontSize: TYPE.sm,
+    color: COLORS.inkFaint,
+    textAlign: "center",
+    paddingVertical: SPACE.xs,
+  },
+  entries: { gap: SPACE.sm },
+  ledgerCount: { fontFamily: FONTS.mono, fontSize: TYPE.sm, color: COLORS.inkMuted },
+  factRow: { flexDirection: "row", justifyContent: "space-between", gap: SPACE.md },
+  factLabel: { fontFamily: FONTS.sans, fontSize: TYPE.sm, color: COLORS.inkMuted },
+  factValue: {
+    fontFamily: FONTS.sansSemibold,
+    fontSize: TYPE.sm,
+    color: COLORS.ink,
+    flexShrink: 1,
+    textAlign: "right",
+  },
+  factMissing: { fontFamily: FONTS.sans, color: COLORS.inkFaint },
+  factMono: { fontFamily: FONTS.mono },
+  entry: {
+    minHeight: TOUCH_TARGET,
+    borderRadius: RADIUS.control,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: COLORS.border,
+    backgroundColor: COLORS.canvas2,
+    padding: SPACE.md,
+    gap: SPACE.xs,
+  },
+  entryKind: {
+    fontFamily: FONTS.mono,
+    fontSize: TYPE.xs,
+    letterSpacing: TYPE.xs * TRACKING.wider,
+    textTransform: "uppercase",
+    color: COLORS.inkMuted,
+  },
+  entryTitle: {
+    fontFamily: FONTS.serif,
+    fontSize: TYPE.lg,
+    lineHeight: TYPE.lg * LEADING.lg,
+    color: COLORS.ink,
+  },
+  entryWhen: { fontFamily: FONTS.sans, fontSize: TYPE.sm, color: COLORS.inkMuted },
+  provenance: { fontFamily: FONTS.sans, fontSize: TYPE.sm, color: COLORS.inkSoft },
+  warning: { fontFamily: FONTS.sansSemibold, fontSize: TYPE.sm, color: COLORS.warnInk },
+  amended: { fontFamily: FONTS.sansSemibold, fontSize: TYPE.sm, color: COLORS.accent },
+  attachment: { fontFamily: FONTS.sans, fontSize: TYPE.sm, color: COLORS.inkMuted },
+  immutability: {
+    fontFamily: FONTS.sans,
+    fontSize: TYPE.sm,
+    lineHeight: TYPE.sm * LEADING.sm,
+    color: COLORS.inkMuted,
+    paddingHorizontal: SPACE.xs,
+  },
+});

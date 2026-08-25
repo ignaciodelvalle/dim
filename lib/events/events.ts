@@ -68,16 +68,24 @@ function corridorDisplayLabel(corridorId: string): string {
 export function eventPayloadDetails(
   eventType: string,
   payload: unknown,
-): Array<{ label: string; value: string }> {
+): Array<{ label: string; value: string; field: string }> {
   const upcasted = upcastPayload(eventType as EventType, payload);
   const p = (upcasted ?? {}) as Record<string, unknown>;
-  const rows: Array<{ label: string; value: string }> = [];
+  // `field` — the PAYLOAD KEY this row came from — rides along since WU-J. The
+  // switch below has always known it and was throwing it away, which meant a
+  // caller that wanted to OFFER A CORRECTION on a curated row had to go back to
+  // the raw payload and re-derive the whitelist to know which keys were safe to
+  // show. The native correction form now edits exactly these rows, so its field
+  // list is the curated list BY CONSTRUCTION instead of by a second copy of this
+  // switch. Emitting the key is safe in a way emitting an arbitrary payload is
+  // not: every key named here is one this function already decided to render.
+  const rows: Array<{ label: string; value: string; field: string }> = [];
   const push = (label: string, key: string, transform?: (v: string) => string) => {
     const v = p[key];
     if (typeof v === "string" && v.length > 0) {
-      rows.push({ label, value: transform ? transform(v) : v });
+      rows.push({ label, value: transform ? transform(v) : v, field: key });
     } else if (typeof v === "number") {
-      rows.push({ label, value: String(v) });
+      rows.push({ label, value: String(v), field: key });
     }
   };
   const pushDate = (label: string, key: string) => {
@@ -88,7 +96,11 @@ export function eventPayloadDetails(
       // render, same guard as pet-compliance.ts::parseNextDue.
       const d = /^\d{4}-\d{2}-\d{2}$/.test(v) ? parseDateInput(v) : new Date(v);
       if (d && Number.isFinite(d.getTime())) {
-        rows.push({ label, value: d.toLocaleDateString("es-AR", { timeZone: AR_TIME_ZONE }) });
+        rows.push({
+          label,
+          value: d.toLocaleDateString("es-AR", { timeZone: AR_TIME_ZONE }),
+          field: key,
+        });
       }
     }
   };

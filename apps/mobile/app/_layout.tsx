@@ -95,7 +95,15 @@ export default function RootLayout() {
           name="mascotas/index"
           options={{ title: "Mis mascotas", headerBackVisible: false }}
         />
-        <Stack.Screen name="mascotas/[publicToken]" options={{ title: "Credencial" }} />
+        {/* The pet screen carries THREE faces now — the owner's chrome, the
+            libreta and the public credential — so the header can no longer name
+            one of them. "Mascota" is what the screen is; the switcher inside it
+            says which face is showing. */}
+        <Stack.Screen name="mascotas/[publicToken]" options={{ title: "Mascota" }} />
+        <Stack.Screen
+          name="mascotas/[publicToken]/eventos/[eventId]"
+          options={{ title: "Registro" }}
+        />
         <Stack.Screen name="alta" options={{ title: "Registrar una mascota" }} />
         <Stack.Screen name="ajustes" options={{ title: "Ajustes" }} />
       </Stack>

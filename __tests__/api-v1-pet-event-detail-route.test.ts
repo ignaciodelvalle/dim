@@ -199,7 +199,10 @@ describe("buildPetEventDetailV1 — the curated projection", () => {
     expect(payload.kind).toBe("Vacuna administrada");
     // The web's own heading for this type, verbatim — `eventPayloadSummary`.
     expect(payload.title).toBe("Vacuna: Antirrábica");
-    expect(payload.facts.map((f) => f.key)).toEqual(["Vacuna", "Marca", "Lote"]);
+    expect(payload.facts.map((f) => f.label)).toEqual(["Vacuna", "Marca", "Lote"]);
+    // The payload KEY rides along so a correction form can name the field the
+    // server will change — and only ever a field the whitelist already renders.
+    expect(payload.facts.map((f) => f.field)).toEqual(["vaccine_name", "brand", "batch"]);
 
     const wire = JSON.stringify(payload);
     expect(wire).not.toContain(SECRET_HASH);

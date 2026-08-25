@@ -1,10 +1,15 @@
 // Every `/api/v1` call this app makes, in one file.
 //
 // Not because a file per endpoint would be wrong, but because the set is small
-// enough that seeing it whole is worth more than seeing it sorted: seven calls
-// is the entire surface a citizen wallet needs, and a reader asking "what can
-// this app do to my account" should get the answer in one screen rather than by
-// walking a directory. Exactly one of them is a write.
+// enough that seeing it whole is worth more than seeing it sorted: ten calls is
+// the entire surface a citizen wallet needs, and a reader asking "what can this
+// app do to my account" should get the answer in one screen rather than by
+// walking a directory.
+//
+// TWO of them are writes, and the count is kept in this sentence on purpose:
+// `registerPet` creates an animal, `amendPetEvent` corrects a record by
+// APPENDING a correction to the append-only spine. Neither edits anything. If a
+// third write appears, this line is where a reviewer notices.
 //
 // Everything here is a thin wrapper over `apiRequest` / `performRequest`. No
 // endpoint may add its own retry, its own error copy, or its own session
@@ -12,6 +17,7 @@
 // two screens end up disagreeing about what a 401 means.
 
 import {
+  type EventAmendedV1,
   LOCALITIES_PAYLOAD_VERSION,
   type LocalitiesV1,
   type LoginV1,
@@ -21,9 +27,13 @@ import {
   type MyPetsV1,
   OWNER_PET_DETAIL_PAYLOAD_VERSION,
   type OwnerPetDetailV1,
+  PET_EVENT_DETAIL_PAYLOAD_VERSION,
+  PET_LIBRETA_PAYLOAD_VERSION,
+  type PetEventDetailV1,
+  type PetLibretaV1,
   type PetRegisteredV1,
 } from "@dim/contract/api";
-import type { RegisterPetInput } from "@dim/contract/input";
+import type { AmendEventInput, RegisterPetInput } from "@dim/contract/input";
 
 import { type ApiResult, type SessionPort, apiRequest, performRequest } from "./client";
 import { apiV1ErrorCode } from "./error-copy";
@@ -89,6 +99,84 @@ export function fetchOwnerPetDetail(
     {
       path: `/api/v1/pets/${encodeURIComponent(publicToken)}`,
       expectedPayloadVersion: OWNER_PET_DETAIL_PAYLOAD_VERSION,
+    },
+    session,
+  );
+}
+
+/**
+ * `GET /pets/{publicToken}/libreta` — the pet's health record.
+ *
+ * THE THIRD FACE. `/pets/{token}` is the owner's chrome, `/credential` is the
+ * public front, and this is the back: the ledger of asientos, what is coming
+ * due, and the vaccination summary. The web calls them "Credencial · frente"
+ * and "Libreta · dorso" in the band above the card.
+ *
+ * NO ATTACHMENT URLS COME BACK, by design — an entry says whether it carries a
+ * file. `fetchPetEventDetail` is what hands one over, with an expiry.
+ */
+export function fetchPetLibreta(
+  session: SessionPort,
+  publicToken: string,
+): Promise<ApiResult<PetLibretaV1>> {
+  return apiRequest<PetLibretaV1>(
+    {
+      path: `/api/v1/pets/${encodeURIComponent(publicToken)}/libreta`,
+      expectedPayloadVersion: PET_LIBRETA_PAYLOAD_VERSION,
+    },
+    session,
+  );
+}
+
+/**
+ * `GET /pets/{publicToken}/events/{eventId}` — one asiento, in full.
+ *
+ * THE ONE READ WHOSE ANSWER EXPIRES. Its attachments carry short-lived signed
+ * URLs, each stamped with the instant it stops working. A caller must not stash
+ * this payload past that instant, and this app does not: it lives in a screen's
+ * state and dies with the screen.
+ */
+export function fetchPetEventDetail(
+  session: SessionPort,
+  publicToken: string,
+  eventId: string,
+): Promise<ApiResult<PetEventDetailV1>> {
+  return apiRequest<PetEventDetailV1>(
+    {
+      path: `/api/v1/pets/${encodeURIComponent(publicToken)}/events/${encodeURIComponent(eventId)}`,
+      expectedPayloadVersion: PET_EVENT_DETAIL_PAYLOAD_VERSION,
+    },
+    session,
+  );
+}
+
+/**
+ * `POST /pets/{publicToken}/events/{eventId}/amend` — correct a record.
+ *
+ * IT CORRECTS BY APPENDING. The original stays in the ledger forever; this adds
+ * a new event that supersedes it, and every reader projects the corrected value.
+ * There is no edit and no delete, here or anywhere.
+ *
+ * `idempotencyKey` is REQUIRED by the type because the server requires it: a
+ * missing or malformed header is a 400 `idempotency_key_required`. It is scoped
+ * to one correction ATTEMPT and reused across every retry of that attempt — see
+ * `pets/idempotency.ts`, which explains why a fresh key per HTTP attempt would
+ * opt out of the exact failure the header exists for.
+ */
+export function amendPetEvent(
+  session: SessionPort,
+  target: { publicToken: string; eventId: string },
+  input: AmendEventInput,
+  idempotencyKey: string,
+): Promise<ApiResult<EventAmendedV1>> {
+  return apiRequest<EventAmendedV1>(
+    {
+      path: `/api/v1/pets/${encodeURIComponent(target.publicToken)}/events/${encodeURIComponent(
+        target.eventId,
+      )}/amend`,
+      method: "POST",
+      body: input,
+      headers: { "idempotency-key": idempotencyKey },
     },
     session,
   );

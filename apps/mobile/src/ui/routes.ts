@@ -30,4 +30,22 @@ export function credentialRoute(publicToken: string): `/mascotas/${string}` {
   return `/mascotas/${encodeURIComponent(publicToken)}`;
 }
 
-export type AppRoute = (typeof ROUTES)[keyof typeof ROUTES] | ReturnType<typeof credentialRoute>;
+/**
+ * One asiento of one pet's libreta.
+ *
+ * A REAL ROUTE and not a panel inside the libreta tab, because a detail screen
+ * is a page: it earns the back gesture, the stack header and — when the deep
+ * link work lands — an address. Nesting it under the pet is what makes the back
+ * gesture land on the libreta rather than on the pet list.
+ */
+export function libretaEventRoute(
+  publicToken: string,
+  eventId: string,
+): `/mascotas/${string}/eventos/${string}` {
+  return `/mascotas/${encodeURIComponent(publicToken)}/eventos/${encodeURIComponent(eventId)}`;
+}
+
+export type AppRoute =
+  | (typeof ROUTES)[keyof typeof ROUTES]
+  | ReturnType<typeof credentialRoute>
+  | ReturnType<typeof libretaEventRoute>;

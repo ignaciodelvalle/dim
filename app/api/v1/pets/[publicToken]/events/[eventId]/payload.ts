@@ -201,7 +201,8 @@ export function buildPetEventDetailV1(input: BuildPetEventDetailInput): PetEvent
   // detail page renders — it never emits `firma_hash`, `evidence_hash`, a `*_id`
   // or `matched_chip_number`, and an unknown type yields no rows at all.
   const facts: EventFactV1[] = eventPayloadDetails(read.eventType, read.payload).map((row) => ({
-    key: row.label,
+    field: row.field,
+    label: row.label,
     value: row.value,
   }));
 
