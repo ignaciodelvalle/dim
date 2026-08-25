@@ -8,11 +8,25 @@
 //
 // WHAT THIS DELIBERATELY DROPS. `OwnerPetDetail` is wider than `OwnerPetDetailV1`
 // on purpose: `typedEvents` (the pet's clinical spine), `lost.lostScans` (scan
-// geolocation and finder photos), `viewerContacts` (the viewer's own phone
-// numbers) and `canonicalIds` (the microchip code) are all read for the page's
-// own components and NONE of them cross here. A payload a device caches to disk
-// carries what the owner face SHOWS, not everything the server touched to build
-// it.
+// geolocation and finder photos) and `viewerContacts` (the viewer's own phone
+// numbers) are all read for the page's own components and none of them cross
+// here. A payload a device caches to disk carries what the owner face SHOWS, not
+// everything the server touched to build it.
+//
+// THE MICROCHIP CODE IS AN EXCEPTION, AND THIS PARAGRAPH USED TO DENY IT.
+// It said `canonicalIds` (the microchip code) does not cross. The FIELD does
+// not; the VALUE does — `compliance.cards` carries it as the microchip card's
+// `detail`, which is exactly what the web panel prints as that row's pill
+// (lib/projections/pet-compliance.ts, and the contract's own
+// `OwnerPetObligationCardV1.detail` says so). That is web parity and not a leak:
+// the same holder reading the same face sees the same number in a browser.
+//
+// The correction matters anyway, because this paragraph is what a future reader
+// trusts when deciding whether this payload is safe to cache to disk, to log, or
+// to hand to a crash reporter. A privacy note that is 90% true is worse than
+// none: it gets believed. What is TRUE is that the clinical spine, the scan
+// geolocation, the finder photos and the viewer's own phone numbers do not cross
+// — and the chip code does, inside `compliance.detail`.
 
 import { apiV1Envelope } from "@/lib/infra/api-v1";
 import type { OwnerPetDetail } from "@/src/modules/pets/application/read/load-owner-pet-detail";
@@ -57,8 +71,13 @@ function toPublicPetStatus(status: string): PublicPetStatus {
  * holds the animal and the caller is a member of it — so it reports
  * `org_member` rather than borrowing the org's ownership role, which would tell
  * a client that a volunteer is the titular.
+ *
+ * EXPORTED (WU-J) because the libreta face answers the same question about the
+ * same caller. Two mappings of `ownerships.role` onto the wire vocabulary is
+ * how one endpoint starts calling a co-owner a caretaker while its sibling does
+ * not, on the same request.
  */
-function toViewerRole(
+export function toViewerRole(
   accessPath: "owner" | "org",
   ownershipRole: string | null,
 ): OwnerPetDetailViewerRole {
@@ -210,14 +229,33 @@ export function buildOwnerPetDetailV1(input: {
       }
     : null;
 
+  // THE ANIMAL BEING READ IS NOT ONE OF ITS OWNER'S "OTHER" PETS, and it took a
+  // client rendering an empty card to notice that this section was shipping it.
+  //
+  // The domain read is right for the WEB, which uses the same list as a SWIPE
+  // SWITCHER and needs the current pet in it to know where it is standing
+  // (`PetCredentialCarousel` takes a `currentToken`). This wire section is not a
+  // switcher: the contract names it "the owner's OTHER live pets", so the
+  // exclusion belongs here, once, rather than in every client — the mobile face
+  // filtered for RENDERING and then branched and counted on the unfiltered
+  // array, so a one-pet owner got a "Tus otras mascotas" card with nothing in it
+  // and a nine-pet owner read "Mostrando 8 de 9" beside seven rows.
+  const carouselItems = detail.carousel.items.filter((p) => p.token !== input.publicToken);
+  // `total` counts every LIVE pet the viewer holds
+  // (`fetchLivePetsForCarouselRanking`: an active ownership row, status not
+  // `deceased`), so this animal is in that count under exactly that condition —
+  // NOT "was it among the capped items", which is false whenever the cap pushed
+  // it out and would leave the total one too high on precisely the households
+  // big enough to notice.
+  const selfCountedInCarousel = input.accessPath === "owner" && input.petStatus !== "deceased";
   const carousel: OwnerPetCarouselSection = {
-    items: detail.carousel.items.map((p) => ({
+    items: carouselItems.map((p) => ({
       publicToken: p.token,
       name: p.name,
       photoUrl: p.photoUrl,
       status: toPublicPetStatus(p.status),
     })),
-    total: detail.carousel.total,
+    total: Math.max(0, detail.carousel.total - (selfCountedInCarousel ? 1 : 0)),
     truncated: detail.carousel.truncated,
   };
 

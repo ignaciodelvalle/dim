@@ -70,6 +70,14 @@ export type OwnerPetDetailViewerRole = (typeof OWNER_PET_DETAIL_VIEWER_ROLES)[nu
  * not get to see who else the owner trusts with it, and an org member never
  * does. Carried as its own boolean rather than left for the client to derive
  * from `role`, so a client cannot get the derivation subtly wrong.
+ *
+ * A CO-OWNER IS FALSE HERE, and that is narrower than the repo's own
+ * titular-only gate, where `co_owner` passes as owner-equivalent. It matches the
+ * web face, which resolves its titular affordances from `ownershipRole ===
+ * "owner"` and nothing else, so this flag is parity rather than policy. Said out
+ * loud because the sentence above reads as an exhaustive list of who is excluded
+ * and is not one: widening it is a product decision about co-ownership, and it
+ * belongs in the same change on both surfaces or in neither.
  */
 export type OwnerPetDetailViewer = {
   role: OwnerPetDetailViewerRole;
@@ -356,7 +364,15 @@ export type OwnerPetCarouselItemV1 = {
 
 export type OwnerPetCarouselSection = {
   items: OwnerPetCarouselItemV1[];
-  /** Every live pet the viewer holds, including any beyond the cap. */
+  /**
+   * Every OTHER live pet the viewer holds, including any beyond the cap.
+   *
+   * "Other" is load-bearing in both fields and it is the server's job, not the
+   * client's: the animal being read is excluded from `items` AND from this
+   * count. A client that filtered `items` itself but compared against a total
+   * that still counted the current pet printed "Mostrando 8 de 9" next to seven
+   * rows — which is exactly what happened before this was stated here.
+   */
   total: number;
   truncated: boolean;
 };

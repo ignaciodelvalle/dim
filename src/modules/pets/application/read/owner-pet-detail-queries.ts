@@ -16,7 +16,6 @@ import {
   cases,
   db,
   organizations,
-  ownerships,
   petServiceDog,
   pets,
   profiles,
@@ -37,7 +36,7 @@ import { fetchLostEpisodeForPet, fetchLostScanEvents } from "@/lib/infra/lost-mo
 import { petAlertsOriginShelter } from "@/lib/infra/origin-shelter-alert";
 import { eventAttachmentSignedUrl, petPhotoUrl } from "@/lib/infra/storage";
 import { lnPetStatusFromCompliance } from "@/lib/projections/pet-compliance";
-import { and, asc, desc, eq, gt, inArray, isNull, notInArray } from "drizzle-orm";
+import { and, asc, desc, eq, gt, inArray, notInArray } from "drizzle-orm";
 
 /** The most-recent cases a pet's owner face reads. Deliberately capped. */
 const CASE_READ_CAP = 50;
@@ -97,30 +96,25 @@ export async function readServiceDog(petId: string): Promise<OwnerPetServiceDogR
 }
 
 // ---------------------------------------------------------------------------
-// Ownership role
+// Ownership role — DELETED, on purpose
 // ---------------------------------------------------------------------------
-
-/**
- * The viewer's ACTIVE ownership role on this pet, or null.
- *
- * `requirePetAccess` already proved an active row exists on the owner path; this
- * reads WHICH role it is, which is what every titular-only gate downstream
- * hangs off.
- */
-export async function readOwnershipRole(petId: string, userId: string): Promise<string | null> {
-  const rows = await db
-    .select({ role: ownerships.role })
-    .from(ownerships)
-    .where(
-      and(
-        eq(ownerships.petId, petId),
-        eq(ownerships.ownerUserId, userId),
-        isNull(ownerships.endedAt),
-      ),
-    )
-    .limit(1);
-  return rows[0]?.role ?? null;
-}
+//
+// `readOwnershipRole(petId, userId)` used to live here and answer "which active
+// ownership role does this viewer hold". It is gone, and this note is here so
+// nobody adds it back.
+//
+// It re-asked a question `resolvePetHolderAccess` had already answered — and
+// answered BETTER. The guard ranks its Path-1 rows explicitly (`owner` <
+// `co_owner` < `foster` < `caretaker`) because one user can hold two active
+// rows on one animal. This helper had `.limit(1)` and no `ORDER BY`, so on that
+// exact pet it resolved by whatever order the planner produced. The value gates
+// `viewer.isTitular`, the caretaker and rehome reads and `canManageDisclosure`,
+// so a titular who is also caretaker of their own co-owned animal watched their
+// cockpit come and go between refreshes.
+//
+// The role now travels as `OwnerPetDetailInput.holderRole`, decided once by the
+// guard, which also saves a round-trip on the hottest owner surface. If you need
+// the role somewhere new, take it from the access result — do not re-query it.
 
 // ---------------------------------------------------------------------------
 // Cases

@@ -90,7 +90,6 @@ import {
   readCarousel,
   readCases,
   readLostData,
-  readOwnershipRole,
   readPhoto,
   readReservedRabiesTurno,
   readServiceDog,
@@ -129,6 +128,27 @@ export type OwnerPetDetailInput = {
   pet: OwnerPetRow;
   /** Which door the viewer came through, per `requirePetAccess`. */
   accessPath: "owner" | "org";
+  /**
+   * The viewer's ACTIVE ownership role on this pet, as the ACCESS GUARD ranked
+   * it. `null` on the organization path, where there is no ownership row of the
+   * caller's own.
+   *
+   * IT ARRIVES AS INPUT BECAUSE IT WAS ALREADY DECIDED, and re-deciding it was a
+   * coin flip. `resolvePetHolderAccess` ranks its Path-1 rows explicitly
+   * (`owner` < `co_owner` < `foster` < `caretaker`) precisely because a user can
+   * hold two active rows on one animal — a titular designated caretaker of their
+   * own co-owned pet is reachable. Both callers were discarding that ranked
+   * answer and this reader re-queried the same table with `.limit(1)` and NO
+   * `ORDER BY`, so the second lookup resolved by whatever order Postgres felt
+   * like. That value gates `viewer.isTitular`, the caretaker and rehome reads,
+   * and `canManageDisclosure`: an owner+caretaker would watch their own cockpit
+   * appear and vanish between refreshes. Same bug class, same remedy, as the
+   * ranking inside the guard itself — decide once, deterministically, and pass
+   * the answer down.
+   *
+   * It also removes a round-trip from the hottest owner surface.
+   */
+  holderRole: string | null;
 };
 
 // ---------------------------------------------------------------------------
@@ -206,8 +226,21 @@ export type CaretakerStateLike = {
   recentlyEnded: unknown;
 };
 
-/** The shape of `rehome`'s `RehomeState`. Structural for the same reason. */
-export type RehomeStateLike = { kind: string; orgDisplayName?: string | null };
+/**
+ * The shape of `rehome`'s `RehomeState`. Structural for the same reason.
+ *
+ * `kind` NAMES ITS THREE STATES instead of being a bare `string`, and that is
+ * the whole value of the mirror. With `string`, renaming `"none"` in the rehome
+ * module compiled everywhere and the alert below started firing for every animal
+ * with no arrangement at all — a banner is a CLAIM about an arrangement, and the
+ * three sites that re-spell these literals (this reader's alert, the payload's
+ * narrowing, the page's banner) had no way to disagree loudly. Now they do: the
+ * mirror stops compiling the day the real union moves.
+ */
+export type RehomeStateLike = {
+  kind: "none" | "pending" | "active";
+  orgDisplayName?: string | null;
+};
 
 export type OwnerPetDetail<
   C extends CaretakerStateLike | null = CaretakerStateLike | null,
@@ -259,7 +292,6 @@ export type OwnerPetDetail<
 export type OwnerPetDetailDeps = {
   readPhoto: typeof readPhoto;
   readServiceDog: typeof readServiceDog;
-  readOwnershipRole: typeof readOwnershipRole;
   readCases: typeof readCases;
   readLostData: typeof readLostData;
   readReservedRabiesTurno: typeof readReservedRabiesTurno;
@@ -298,7 +330,6 @@ export type OwnerPetDetailPorts<
 const PRODUCTION_DEPS: OwnerPetDetailDeps = {
   readPhoto,
   readServiceDog,
-  readOwnershipRole,
   readCases,
   readLostData,
   readReservedRabiesTurno,
@@ -569,11 +600,14 @@ export async function loadOwnerPetDetail<
   const isOwner = accessPath === "owner";
   const isDeceased = pet.status === "deceased";
 
+  // The guard already ranked this. See `OwnerPetDetailInput.holderRole` for why
+  // re-reading it here was a coin flip rather than a redundancy.
+  const ownershipRole = isOwner ? input.holderRole : null;
+
   // --- Stage 1: independent reads that later stages branch on ---------------
-  const [photo, serviceDog, ownershipRole, casesRead] = await Promise.all([
+  const [photo, serviceDog, casesRead] = await Promise.all([
     deps.readPhoto(pet.primaryPhotoId),
     deps.readServiceDog(pet.id),
-    isOwner ? deps.readOwnershipRole(pet.id, user.id) : Promise.resolve(null),
     deps.readCases(pet.id),
   ]);
 

@@ -69,7 +69,6 @@ function depsStub(overrides: Partial<OwnerPetDetailDeps> = {}): OwnerPetDetailDe
   return {
     readPhoto: vi.fn(async () => ({ photoUrl: null })),
     readServiceDog: vi.fn(async () => null),
-    readOwnershipRole: vi.fn(async () => "owner"),
     readCases: vi.fn(async () => ({
       openCount: 0,
       truncated: false,
@@ -123,12 +122,23 @@ function portsStub(
 }
 
 /** `loadOwnerPetDetail` with both stubs defaulted — the ports are never varied. */
+/**
+ * `holderRole` defaults to `"owner"` so the tests that do not care about the
+ * role read as they did before it became an INPUT rather than a dep.
+ *
+ * It moved because the reader used to re-query it with no `ORDER BY` while the
+ * access guard had already ranked it — a titular who is also caretaker of the
+ * same animal resolved at random. The tests that DO care now say the role in
+ * the input, which is where production says it too.
+ */
 function loadFace(
-  input: Parameters<typeof loadOwnerPetDetail>[0],
+  input: Omit<Parameters<typeof loadOwnerPetDetail>[0], "holderRole"> & {
+    holderRole?: string | null;
+  },
   deps: OwnerPetDetailDeps = depsStub(),
   ports = portsStub(),
 ) {
-  return loadOwnerPetDetail(input, ports, deps);
+  return loadOwnerPetDetail({ holderRole: "owner", ...input }, ports, deps);
 }
 
 // ---------------------------------------------------------------------------
@@ -307,11 +317,16 @@ describe("loadOwnerPetDetail — what each access path reads", () => {
     // An organization member reading a pet it holds gets the face, not the
     // household: the web gives them no carousel either.
     const deps = depsStub();
-    const detail = await loadFace({ user: { id: "u1" }, pet: petRow(), accessPath: "org" }, deps);
+    const detail = await loadFace(
+      // A holder role is handed in even here, and the reader must DROP it: an
+      // org member has no ownership row of their own, and reporting one would
+      // tell a client a volunteer is the titular.
+      { user: { id: "u1" }, pet: petRow(), accessPath: "org", holderRole: "owner" },
+      deps,
+    );
     expect(deps.loadReminders).not.toHaveBeenCalled();
     expect(deps.readViewerContacts).not.toHaveBeenCalled();
     expect(deps.readCarousel).not.toHaveBeenCalled();
-    expect(deps.readOwnershipRole).not.toHaveBeenCalled();
     expect(detail.carousel).toEqual({ items: [], total: 0, truncated: false });
     expect(detail.ownershipRole).toBeNull();
   });
@@ -322,8 +337,8 @@ describe("loadOwnerPetDetail — what each access path reads", () => {
     for (const role of ["foster", "caretaker", "co_owner"]) {
       const ports = portsStub();
       await loadFace(
-        { user: { id: "u1" }, pet: petRow(), accessPath: "owner" },
-        depsStub({ readOwnershipRole: vi.fn(async () => role) }),
+        { user: { id: "u1" }, pet: petRow(), accessPath: "owner", holderRole: role },
+        depsStub(),
         ports,
       );
       expect(ports.loadCaretakerState, `role=${role}`).not.toHaveBeenCalled();
@@ -357,8 +372,8 @@ describe("loadOwnerPetDetail — what each access path reads", () => {
 
   it("marks a foster holder as in transit, and a plain owner as not", async () => {
     const foster = await loadFace(
-      { user: { id: "u1" }, pet: petRow(), accessPath: "owner" },
-      depsStub({ readOwnershipRole: vi.fn(async () => "foster") }),
+      { user: { id: "u1" }, pet: petRow(), accessPath: "owner", holderRole: "foster" },
+      depsStub(),
     );
     expect(foster.isTransit).toBe(true);
     expect(foster.alerts.map((a) => a.id)).toContain("transit");

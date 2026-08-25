@@ -177,7 +177,7 @@ export default async function PetDetailPage({
     }
     notFound();
   }
-  const { user, pet, accessPath, organization } = access;
+  const { user, pet, accessPath, organization, holderRole } = access;
 
   const isOwner = accessPath === "owner";
 
@@ -244,7 +244,11 @@ export default async function PetDetailPage({
   // A timeout baked into the reader would have made one of those two callers
   // wrong, silently.
   const profileLoad = await loadWithTimeout(
-    loadOwnerPetDetail({ user: { id: user.id }, pet, accessPath }, ownerPetDetailPorts),
+    // `holderRole` comes from the guard, which RANKS a viewer's ownership rows.
+    // The reader used to re-query it unordered, so a titular who is also
+    // caretaker of the same animal resolved at random — see
+    // `OwnerPetDetailInput.holderRole`.
+    loadOwnerPetDetail({ user: { id: user.id }, pet, accessPath, holderRole }, ownerPetDetailPorts),
   );
   if (!profileLoad.ok) {
     // Degraded profile. `pet` came from requirePetAccess, before any of this

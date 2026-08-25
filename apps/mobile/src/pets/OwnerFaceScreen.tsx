@@ -283,17 +283,23 @@ function OwnerFaceBody({ view }: { view: OwnerFaceView }) {
       </Section>
 
       {/* THE CAROUSEL ----------------------------------------------------- */}
+      {/* The server excludes THIS animal from both `items` and `total` — the
+          section is the owner's OTHER pets and the contract says so. This screen
+          used to filter it out for RENDERING and then branch and count on the
+          unfiltered array, which produced the two states this file's own header
+          forbids: a one-pet owner got a card containing literally nothing (the
+          empty view that says "you have others" while showing none), and a
+          nine-pet owner read "Mostrando 8 de 9" above seven rows. One list,
+          filtered once, on the side that knows which animal is being read. */}
       <Section view={view.carousel} title="Tus otras mascotas">
         {(carousel) =>
           carousel.items.length === 0 ? (
             <Body>No tenés otras mascotas registradas.</Body>
           ) : (
             <>
-              {carousel.items
-                .filter((item) => item.publicToken !== view.publicToken)
-                .map((item) => (
-                  <Row key={item.publicToken} label={item.name || item.publicToken} value="" />
-                ))}
+              {carousel.items.map((item) => (
+                <Row key={item.publicToken} label={item.name || item.publicToken} value="" />
+              ))}
               {truncationNote(carousel.items.length, carousel.total, "mascotas") ? (
                 <Body>{truncationNote(carousel.items.length, carousel.total, "mascotas")}</Body>
               ) : null}

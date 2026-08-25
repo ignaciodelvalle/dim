@@ -194,7 +194,16 @@ export async function GET(
   try {
     detail = await withDbBudgetOrThrow(
       loadOwnerPetDetail(
-        { user: { id: live.user.id }, pet: access.pet, accessPath },
+        {
+          user: { id: live.user.id },
+          pet: access.pet,
+          accessPath,
+          // The guard RANKED this row (owner < co_owner < foster < caretaker)
+          // because one user can hold two on one animal. The reader used to
+          // re-query it with no ORDER BY and resolve at random — see
+          // `OwnerPetDetailInput.holderRole`.
+          holderRole: access.kind === "owner" ? access.holderRole : null,
+        },
         ownerPetDetailPorts,
       ),
       DETAIL_BUDGET_MS,
