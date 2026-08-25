@@ -18,6 +18,20 @@
     "moduleResolution": "bundler",
     "strict": true,
     "noEmit": true,
+    // Relative imports inside this package carry an explicit `.ts` extension,
+    // so TypeScript has to be told they are legal. It is safe precisely because
+    // `noEmit` is on: nothing here is compiled to a `.js` whose import line
+    // would then point at a file that does not exist.
+    //
+    // WHY THE EXTENSION IS NOT OPTIONAL (measured 2026-08-25). The package ships
+    // TypeScript SOURCE, and one consumer resolves it with Node's own ESM
+    // resolver rather than a bundler: `apps/mobile/app.config.ts` imports
+    // `@dim/contract/links`, and `expo config` loads that file through Node
+    // (v24 type stripping). Node's ESM resolution does NO extension guessing —
+    // `./deep-link-map` was ERR_MODULE_NOT_FOUND, and so was `./deep-link-map.js`
+    // (Node does not rewrite `.js` to `.ts` either). Only the real extension
+    // resolves, which is why `pnpm verify:mobile` now runs `expo config`.
+    "allowImportingTsExtensions": true,
     "noUncheckedIndexedAccess": false,
     "isolatedModules": true,
     "esModuleInterop": true,

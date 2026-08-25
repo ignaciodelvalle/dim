@@ -17,7 +17,7 @@ import {
   CREATE_INTAKE_INPUT_CODES,
   createIntakeInputSchema,
   firstIntakeInputCode,
-} from "../intake";
+} from "../intake.ts";
 
 const MINIMAL = { name: "Sin nombre", species: "dog", intakeReason: "rescue" };
 

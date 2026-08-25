@@ -19,4 +19,4 @@ export {
   RABBIT_BREEDS,
   SPECIAL_BREED_OPTIONS,
   breedsForSpecies,
-} from "./breeds";
+} from "./breeds.ts";

@@ -20,7 +20,7 @@
 // form was made to install a validator to name a type it already had in its
 // hands. Re-exporting the TYPE costs nothing at runtime (types erase) and closes
 // the gap: `@dim/contract/api` is now self-sufficient for reading a credential.
-export type { PetSex } from "../input/intake";
+export type { PetSex } from "../input/intake.ts";
 export {
   ME_PAYLOAD_VERSION,
   ME_STALE_AFTER_MS,
@@ -29,14 +29,14 @@ export {
   type MeV1,
   type MeV1User,
   type SignupV1,
-} from "./auth";
-export { API_V1_ERROR_CODES, type ApiV1Error, type ApiV1ErrorCode } from "./errors";
+} from "./auth.ts";
+export { API_V1_ERROR_CODES, type ApiV1Error, type ApiV1ErrorCode } from "./errors.ts";
 export {
   LOCALITIES_PAYLOAD_VERSION,
   LOCALITIES_STALE_AFTER_MS,
   type LocalitiesV1,
   type LocalityV1,
-} from "./localities";
+} from "./localities.ts";
 export {
   IDEMPOTENCY_KEY_PATTERN,
   MY_PETS_PAYLOAD_VERSION,
@@ -45,7 +45,7 @@ export {
   type MyPetsV1,
   type MyPetsV1Item,
   type PetRegisteredV1,
-} from "./pets";
+} from "./pets.ts";
 export {
   PUBLIC_CREDENTIAL_PAYLOAD_VERSION,
   PUBLIC_CREDENTIAL_SITUATIONS,
@@ -66,4 +66,4 @@ export {
   type RabiesProvenance,
   type RabiesVigencia,
   type VaccinationConfidenceTier,
-} from "./public-credential";
+} from "./public-credential.ts";

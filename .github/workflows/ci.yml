@@ -265,7 +265,7 @@ jobs:
       - name: Typecheck (tsc)
         run: pnpm typecheck
 
-      - name: Mobile (apps/mobile typecheck + Jest)
+      - name: Mobile (apps/mobile typecheck + Jest + expo config)
         # THE STEP THAT WAS MISSING ON 2026-08-25. A clean `git merge` broke the
         # Expo client and nothing went red anywhere: `pnpm typecheck` above runs
         # the ROOT tsconfig, which excludes `apps/` on purpose (React Native
@@ -281,10 +281,20 @@ jobs:
         # --frozen-lockfile` this job already ran — one lockfile, one store, the
         # mobile package's deps are already on disk.
         #
-        # `pnpm verify:mobile` and not two inline commands so this step and the
-        # PO's `pnpm verify` invoke one definition; `lint:ci-parity` checks that
-        # the name appears in both (it learned about `verify:*` in the same
-        # change, for exactly this reason).
+        # `pnpm verify:mobile` and not three inline commands so this step and
+        # the PO's `pnpm verify` invoke one definition; `lint:ci-parity` checks
+        # that the name appears in both (it learned about `verify:*` in the same
+        # change, for exactly this reason). That indirection is what let the
+        # third command join on 2026-08-25 with no edit to this file.
+        #
+        # THE THIRD COMMAND is `expo config --type public`, and it guards a
+        # failure neither of the other two can see. `app.config.ts` is loaded by
+        # NODE's ESM resolver, not by Metro, and Node guesses no file
+        # extensions — so an extension-less relative import inside
+        # `packages/contract` typechecked clean, bundled clean, passed both test
+        # runners, and made `expo config` (hence every EAS build) impossible.
+        # Evaluating the config is the cheapest possible proof that the native
+        # entry point still loads at all.
         run: pnpm verify:mobile
 
       - name: Build (next build)

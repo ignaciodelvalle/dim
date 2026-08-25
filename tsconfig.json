@@ -9,6 +9,13 @@
     "esModuleInterop": true,
     "module": "esnext",
     "moduleResolution": "bundler",
+    // For `packages/contract` ONLY, which this program also compiles (see the
+    // `exclude` note below). Its relative imports carry an explicit `.ts`
+    // extension because Node's ESM resolver reads that package as source and
+    // guesses no extensions — see packages/contract/tsconfig.json for the
+    // measurement. App code must keep writing extension-less imports;
+    // `pnpm lint:contract` is what holds the line, in both directions.
+    "allowImportingTsExtensions": true,
     "resolveJsonModule": true,
     "isolatedModules": true,
     "jsx": "preserve",

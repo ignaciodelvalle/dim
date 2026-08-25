@@ -18,7 +18,7 @@ import {
   firstInputCode,
   loginInputSchema,
   signupInputSchema,
-} from "../auth";
+} from "../auth.ts";
 
 const VALID_SIGNUP = {
   email: "ana@example.com",

@@ -32,6 +32,19 @@ Next's SWC loader, Vitest's esbuild, `tsx`, and Metro via Babel. The cost is
 that a consumer which cannot compile TS cannot use the package — acceptable, and
 reversible later by adding a build without changing a single import site.
 
+**Relative imports carry their `.ts` extension**, and that is a consequence of
+the line above rather than a style choice. The list of consumers there is
+missing one: `expo config`, which every EAS build runs before anything else,
+loads `apps/mobile/app.config.ts` through **Node's own ESM resolver** (v24 type
+stripping) — no bundler, no extension guessing. Measured 2026-08-25: that file
+imports `@dim/contract/links`, and `export … from "./deep-link-map"` was
+`ERR_MODULE_NOT_FOUND`. So was `"./deep-link-map.js"` — Node does not rewrite
+`.js` to `.ts` the way tsc's emit rules do. Only the real extension resolves.
+Three tsconfigs therefore set `allowImportingTsExtensions` (root, this package,
+`apps/mobile`), all three with `noEmit`, and two gates hold the line:
+`pnpm lint:contract` rule 8 rejects an extension-less relative import inside the
+package, and `pnpm verify:mobile` runs `expo config --type public`.
+
 **Both `exports` and `main`/`types`.** The `exports` map is what modern
 resolvers read; `main`/`types` are the fallback for tooling that still ignores
 `exports` (older Metro resolver configurations among them). They point at the

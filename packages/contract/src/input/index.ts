@@ -16,7 +16,7 @@ export {
   firstInputCode,
   loginInputSchema,
   signupInputSchema,
-} from "./auth";
+} from "./auth.ts";
 export {
   CREATE_INTAKE_INPUT_CODES,
   CUSTODY_ROLES,
@@ -29,7 +29,7 @@ export {
   type PetSex,
   createIntakeInputSchema,
   firstIntakeInputCode,
-} from "./intake";
+} from "./intake.ts";
 export {
   ACQUISITION_METHODS,
   MAX_PET_AGE_MONTHS,
@@ -42,4 +42,4 @@ export {
   type RegisterPetInputCode,
   firstRegisterPetInputCode,
   registerPetInputSchema,
-} from "./register-pet";
+} from "./register-pet.ts";

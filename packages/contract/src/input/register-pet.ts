@@ -62,7 +62,7 @@ import { z } from "zod";
 // The sex vocabulary has exactly ONE definition in this package and it is
 // `intake.ts`'s. Re-declaring it here would compile, would look identical, and
 // would be the first day of two lists drifting.
-import { PET_SEXES } from "./intake";
+import { PET_SEXES } from "./intake.ts";
 
 // ---------------------------------------------------------------------------
 // Vocabularies

@@ -39,7 +39,7 @@
 // `{ status: "ok", … }` or `{ status: "unavailable" }`, and "empty" is a thing
 // only the first can say.
 
-import type { PetSex } from "../input/intake";
+import type { PetSex } from "../input/intake.ts";
 
 /** Bumped when a change would break an existing client's parse. */
 export const PUBLIC_CREDENTIAL_PAYLOAD_VERSION = 1;

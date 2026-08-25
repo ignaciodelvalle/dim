@@ -21,7 +21,7 @@ import {
   REGISTER_PET_INPUT_CODES,
   firstRegisterPetInputCode,
   registerPetInputSchema,
-} from "../register-pet";
+} from "../register-pet.ts";
 
 /** The smallest body the schema accepts: the four things a credential needs. */
 const MINIMAL = {

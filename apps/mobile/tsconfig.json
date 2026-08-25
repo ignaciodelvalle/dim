@@ -19,6 +19,12 @@
     // subpath entries entirely.
     "moduleResolution": "bundler",
     "noEmit": true,
+    // `@dim/contract` is compiled from source by this program too, and its
+    // relative imports carry an explicit `.ts` extension (see
+    // packages/contract/tsconfig.json for why Node's resolver forces it).
+    // Without this flag every contract barrel is an error HERE, in the one
+    // program whose job is to prove the contract compiles under React Native.
+    "allowImportingTsExtensions": true,
     "noUncheckedIndexedAccess": true,
     "paths": {
       "@/*": ["./src/*"]

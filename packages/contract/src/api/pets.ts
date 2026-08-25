@@ -5,7 +5,7 @@
 // point. The REQUEST side of the write lives in `@dim/contract/input`
 // (`register-pet.ts`), which carries zod.
 
-import type { PublicPetStatus } from "./public-credential";
+import type { PublicPetStatus } from "./public-credential.ts";
 
 // ---------------------------------------------------------------------------
 // POST /api/v1/pets

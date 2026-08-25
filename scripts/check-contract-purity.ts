@@ -38,6 +38,10 @@
 //   7. Non-vacuity: scanning zero files is a FAILURE, not a pass. (This repo
 //      has been bitten repeatedly by a fence whose corpus quietly missed the
 //      code it was supposed to guard.)
+//   8. Every relative import inside the package names its `.ts` extension. The
+//      package ships SOURCE, and one consumer resolves it with Node's own ESM
+//      resolver rather than a bundler — `expo config`, a prerequisite of every
+//      EAS build. Node guesses no extensions. See MISSING_EXTENSION_REASON.
 //
 // Run: pnpm tsx scripts/check-contract-purity.ts   (or: pnpm lint:contract)
 // Exits 0 when clean; exits 1 listing each file:line then the offending
@@ -131,6 +135,39 @@ export const ALLOWED_DEPENDENCIES: Record<string, string> = {
  *  test runner, which is dev-time only and never part of the installed surface. */
 const ALLOWED_BARE = new Set(["vitest"]);
 
+/**
+ * Rule 8: a relative import inside the package must name its file EXTENSION.
+ *
+ * Every bundler this repo uses (Next's SWC loader, Vitest's esbuild, Metro via
+ * Babel, `tsx`) guesses the extension, so an extension-less `./deep-link-map`
+ * looks correct in four toolchains out of five. The fifth is the one that
+ * matters for the native programme: `apps/mobile/app.config.ts` imports
+ * `@dim/contract/links`, and `expo config` loads that file through NODE's own
+ * ESM resolver, which does no guessing at all. Measured 2026-08-25 — the exact
+ * failure was
+ *
+ *   Cannot find module '…/packages/contract/src/links/deep-link-map'
+ *   imported from …/packages/contract/src/links/index.ts
+ *
+ * and `expo config` is a prerequisite of every EAS build, so the whole
+ * dev-client path was blocked by one missing suffix. `.js` does NOT work either
+ * (Node does not rewrite it to `.ts` the way tsc's emit-oriented rules do), so
+ * the extension has to be the real one: `.ts`.
+ *
+ * The check is worth having as a fence rather than as a fixed set of files
+ * because the failure is invisible to everything else in `pnpm verify`: the
+ * typecheck, the web build and both test runners all resolved the broken
+ * import happily.
+ */
+const MISSING_EXTENSION_REASON = [
+  'relative import without a ".ts" extension.',
+  `${PACKAGE_NAME} ships TypeScript SOURCE, and one consumer resolves it with Node's own ESM`,
+  "resolver instead of a bundler: `expo config` reads apps/mobile/app.config.ts, which imports",
+  "@dim/contract/links. Node guesses no extensions and does not rewrite .js to .ts, so an",
+  "extension-less specifier is ERR_MODULE_NOT_FOUND there and correct-looking everywhere else.",
+  'Write the real file name, e.g. "./deep-link-map.ts".',
+].join(" ");
+
 // import ... from "x" | export ... from "x" | import "x" | import("x") | require("x")
 const IMPORT_RE =
   /(?:import|export)\s+(?:[^'"]*?\sfrom\s*)?['"]([^'"]+)['"]|import\s*\(\s*['"]([^'"]+)['"]\s*\)|require\(\s*['"]([^'"]+)['"]\s*\)/g;
@@ -196,6 +233,9 @@ export function violationFor(
     const root = packageRootAbs.replace(/\\/g, "/");
     if (!target.startsWith(`${root}/`)) {
       return `relative import escaping ${PACKAGE_DIR}/. Anything the contract needs has to live inside it.`;
+    }
+    if (!specifier.endsWith(".ts")) {
+      return MISSING_EXTENSION_REASON;
     }
     return null;
   }

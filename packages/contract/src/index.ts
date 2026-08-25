@@ -16,9 +16,9 @@
 // `input` is the one entry point with a runtime dependency (zod). A consumer
 // that only reads the event vocabulary, the scales, the static catalogs, the
 // `/api/v1` wire shapes or the deep-link table never loads it.
-export * from "./api/index";
-export * from "./events/index";
-export * from "./input/index";
-export * from "./links/index";
-export * from "./reference/index";
-export * from "./viz/index";
+export * from "./api/index.ts";
+export * from "./events/index.ts";
+export * from "./input/index.ts";
+export * from "./links/index.ts";
+export * from "./reference/index.ts";
+export * from "./viz/index.ts";
