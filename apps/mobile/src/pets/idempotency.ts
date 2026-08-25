@@ -28,6 +28,22 @@
 // registration, answered differently. A new key there would mean that a user who
 // taps "Registrar igual" on a flaky connection can end up with two pets — the
 // precise outcome the duplicate dialog exists to let them avoid.
+//
+// THE COST OF THAT CHOICE, WHICH THIS HEADER USED TO LEAVE OUT
+// ---------------------------------------------------------------------------
+// Attempt-scoped means the key survives an EDIT. If a send fails, the user goes
+// back, changes the name from "Firu" to "Firulais" and submits again, that
+// second request carries the same key — and if the FIRST one actually committed
+// (the timeout case: the server created the pet, the phone never heard the
+// answer), the server replays it and hands back pet #1, named "Firu". The user
+// sees a pet they did not quite describe.
+//
+// That is inherent to attempt-scoped idempotency and it is ACCEPTED, because the
+// alternative is worse in a way that cannot be undone from the app: a new key on
+// edit-and-resubmit means the same flaky connection produces TWO animals in the
+// national registry, and the event spine is append-only. A wrong name is a field
+// the owner edits in ten seconds; a duplicate pet is a support case. The
+// asymmetry is the whole argument.
 
 import { isValidIdempotencyKey } from "@dim/contract/api";
 import * as Crypto from "expo-crypto";

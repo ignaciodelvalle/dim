@@ -13,8 +13,12 @@
     // `exclude` note below). Its relative imports carry an explicit `.ts`
     // extension because Node's ESM resolver reads that package as source and
     // guesses no extensions — see packages/contract/tsconfig.json for the
-    // measurement. App code must keep writing extension-less imports;
-    // `pnpm lint:contract` is what holds the line, in both directions.
+    // measurement. App code should keep writing extension-less imports.
+    // `pnpm lint:contract` holds ONE direction of that: rule 8 requires the
+    // extension on every relative import INSIDE the package, and rule 6 bans
+    // path-form references to the package from outside it. Nothing there polices
+    // the extension style of app-code imports, and this line used to claim it
+    // held "both directions".
     "allowImportingTsExtensions": true,
     "resolveJsonModule": true,
     "isolatedModules": true,
