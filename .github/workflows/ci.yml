@@ -111,6 +111,29 @@ jobs:
         # See scripts/check-titular-row-resolution.ts.
         run: pnpm lint:titular-row
 
+      - name: "Fence: an institutional guard consults the shift (lint:shift-reach)"
+        # The fourth authorization question, and the one that had NO fence at all
+        # until 2026-08-25: this code decides that somebody holds institutional
+        # or operator authority — does that decision ever reach the 8-hour shift
+        # (B9)?
+        #
+        # Four places answered no, and they had nothing in common except that
+        # nobody had a reason to look at them together: the walk-in clinical
+        # signing surface at a clinic's shared front desk (seven append-only
+        # writers), the six national-surveillance triage actions, and the gob +
+        # panorama console API guards. Every one of them passed lint:authz,
+        # because a guard existed. What was missing was not a guard — it was
+        # something that could say the guard reached the control.
+        #
+        # The antecedent is DERIVED on every run (a function that resolves a
+        # session AND makes an operator decision), never hand-listed, so the
+        # sixth guard is caught on its first commit.
+        #
+        # Offline — static analysis over app/, src/ and lib/. Its own step so a
+        # failure names THIS fence.
+        # See scripts/check-operator-shift-reach.ts.
+        run: pnpm lint:shift-reach
+
       - name: "Fence: /api guards never read a middleware header (lint:api-headers)"
         # B51 (native-readiness T1.2). middleware.ts stamps x-pathname /
         # x-full-path / x-portal-base on the REQUEST, and a missing stamp

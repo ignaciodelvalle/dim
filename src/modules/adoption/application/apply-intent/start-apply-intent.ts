@@ -14,19 +14,35 @@
 // message — letting them through to the form would just bounce them back
 // at submit time, and the (app) layout already redirects them away from
 // the owner portal anyway.
+//
+// THE SESSION COMES FROM resolveOptionalLiveUser, NOT A BARE getUser
+// ---------------------------------------------------------------------------
+// This is one of the boundaries where an ANONYMOUS caller is legitimate — that
+// is branch 3, and it is most of the traffic — which is exactly what
+// resolveOptionalLiveUser is for: NO_SESSION becomes `user: null`, and every
+// other refusal stays a refusal. The bare `auth.getUser()` that used to open
+// branch 2 gave an ERASED or DEACTIVATED account (Ley 25.326 art. 16: the JWT
+// outlives the profile) a clean redirect into the application form, and did the
+// same during a maintenance window.
+//
+// It also removes a hand-rolled `profiles` read: the guard hands back the
+// request-memoized profile, so `accountType` is answered without a second
+// round-trip. Found by scripts/check-operator-shift-reach.ts, which noticed a
+// function that resolves a session and consults the institutional account type
+// without ever reaching the liveness set.
 
 import { and, eq, isNull } from "drizzle-orm";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 
-import { db, organizations, ownerships, pets, profiles } from "@/db";
+import { db, organizations, ownerships, pets } from "@/db";
 import {
   APPLY_INTENT_COOKIE_NAME,
   APPLY_INTENT_PET_TOKEN_COOKIE_NAME,
   APPLY_INTENT_TTL_MS,
   generateApplyIntentToken,
 } from "@/lib/domain/apply-intent";
-import { createClient } from "@/lib/supabase/server";
+import { resolveOptionalLiveUser } from "@/lib/infra/live-user";
 
 import type { StartApplyIntentResult } from "./types";
 
@@ -64,18 +80,13 @@ export async function startApplyIntentAction(petToken: string): Promise<StartApp
     return { error: `${pet.name} ya no está disponible para adopción.` };
   }
 
-  // 2) Authenticated branch.
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (user) {
-    const [profile] = await db
-      .select({ role: profiles.role, accountType: profiles.accountType })
-      .from(profiles)
-      .where(eq(profiles.id, user.id))
-      .limit(1);
-    if (profile?.accountType === "institutional") {
+  // 2) Authenticated branch. An anonymous caller lands on branch 3 with
+  // `user: null`; anything else that is not LIVE is refused in its own words.
+  const live = await resolveOptionalLiveUser();
+  if (!live.ok) return { error: live.error };
+
+  if (live.user) {
+    if (live.profile?.accountType === "institutional") {
       return {
         error:
           "Las cuentas institucionales no pueden postularse para adoptar. Si querés adoptar como persona, creá una cuenta personal con otro email.",
