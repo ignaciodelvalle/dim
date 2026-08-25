@@ -175,10 +175,15 @@ describe("PublicCredentialPage — per-IP rate limiting (V1-1)", () => {
       () => {},
     );
 
+    // 600/6.000 since 2026-08-25 (B13 part 2 — the CGNAT arithmetic extended to
+    // the four HTML surfaces). Was 60/400, which behind an Argentine carrier
+    // gateway is 0.4 credential reads per subscriber per hour, and `/p/{token}`
+    // is what a stranger's camera opens. Full derivation in
+    // lib/infra/public-token-throttle.ts.
     expect(mockEnforceRateLimit).toHaveBeenCalledWith(
       "public_token_page",
       "198.51.100.7",
-      expect.objectContaining({ maxPerMinute: 60, maxPerHour: 400 }),
+      expect.objectContaining({ maxPerMinute: 600, maxPerHour: 6_000 }),
     );
   });
 

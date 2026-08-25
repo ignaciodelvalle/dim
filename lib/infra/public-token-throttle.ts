@@ -30,7 +30,7 @@
 // also resolves the token in `generateMetadata`, which stays outside the guard:
 // one HTTP request runs both functions and `enforceRateLimit` INCREMENTS a
 // counter, so guarding both would bill a single visit twice and halve the real
-// limit to 30/min for every legitimate finder. KNOWN RESIDUAL, stated rather
+// limit to 300/min for every legitimate finder. KNOWN RESIDUAL, stated rather
 // than hidden: a caller already over the limit still causes one metadata read
 // per request. It is bounded by its own budget, selects Tier-0 fields only
 // (name, species, status, sex) and degrades to a generic title — the same data
@@ -65,23 +65,72 @@ import type { PublicTokenThrottle } from "@/src/modules/pets/application/read/lo
  * user refreshing behind carrier-grade NAT (many people, one IP)". The
  * arithmetic disagrees. Argentine mobile carriers put 500-1,000 subscribers
  * behind one public IPv4 (port-block allocation: 65,536 ports in blocks of
- * 64-128), so 400/hr is 0.4 credential reads per subscriber per hour before the
+ * 64-128), so 400/hr was 0.4 credential reads per subscriber per hour before the
  * whole gateway is refused. A barrio WhatsApp group passing around a lost-pet
  * poster exceeds it during ordinary use, and the person it turns away is a
  * finder standing over the animal.
  *
- * B13 re-derived the numbers for the `/api/v1` credential endpoint, which is
- * the surface a phone app hammers, and raised them there — see
- * app/api/v1/pets/[publicToken]/credential/limits.ts for the full arithmetic
- * and for why the same argument applies to these four and has NOT been applied
- * yet (moving them moves four public surfaces and the documented aggregate
- * ceiling at once; that is its own decision, and the mechanism is now here
- * waiting for it — the limit is an argument, not a baked-in constant).
+ * ===========================================================================
+ * RAISED 2026-08-25 — B13's arithmetic finally applied where it bites hardest
+ * ===========================================================================
+ * 60/min + 400/hr → 600/min + 6,000/hr, the same numbers and the same reasoning
+ * as `PUBLIC_TOKEN_API_SURFACE_LIMIT`. That file's header carries the full
+ * derivation and it is not repeated here; what IS worth stating is why these
+ * four went second and why they should not have stayed behind.
+ *
+ * B13 raised the `/api/v1` credential endpoint first because its caller is
+ * obviously a phone. But `/p/{token}` is WHAT A STRANGER'S CAMERA OPENS — it is
+ * the surface a QR code actually resolves to, reached by someone standing over a
+ * lost animal on a street, on mobile data, behind the same carrier NAT. The
+ * argument applies to these four harder than to the endpoint it was written for,
+ * and leaving them at 0.4 reads per subscriber per hour meant the product's
+ * central promise was the most throttled thing in it.
+ *
+ * THE AGGREGATE, which is the reason this was deferred rather than an oversight.
+ * Each surface keeps its own bucket, so a per-IP ceiling is additive across
+ * them. The four HTML surfaces move from 240/min to 6,000/min combined, and with
+ * the API bucket's 600/min the whole token-resolving surface goes to 6,600/min
+ * per IP (was 840/min after B13's first half, and 300/min before it).
+ *
+ * That number is large and it is the honest one to write down. What makes it
+ * acceptable is that the per-IP hourly ceiling never was the enumeration
+ * control, and 15× more of not-being-one is still not one.
+ *
+ * THE KEYSPACE, CORRECTED 2026-08-25. B13's original arithmetic said 36^8 ≈ 2.82
+ * × 10^12. That is wrong: `lib/infra/publicToken.ts` draws from a 31-character
+ * alphabet (`ABCDEFGHJKMNPQRSTUVWXYZ23456789`, with 0/O and 1/I/l removed so a
+ * human can read a token off a tag), so the space is 31^8 ≈ 8.53 × 10^11 — 3.3×
+ * SMALLER than claimed. Corrected here and in limits.ts rather than left to be
+ * rediscovered. Walking it from one IP:
+ *
+ *     at    400/hr — ≈ 243,000 years   (the old per-surface ceiling)
+ *     at  6,000/hr — ≈  16,200 years   (the new one)
+ *     at 30,000/hr — ≈   3,200 years   (all five buckets, combined, per IP)
+ *
+ * The conclusion survives the correction with room to spare, which is why the
+ * decision stands and only the numbers moved. A DISTRIBUTED walk — which is what
+ * enumeration actually looks like — is untouched by any of these figures, before
+ * or after. Closing THAT needs an aggregate limiter keyed per IP across all
+ * token reads, a different mechanism that still does not exist (§8 D1 says so).
+ *
+ * What this ceiling really buys is a cost backstop against one abusive source,
+ * and 6,000/hr per surface is still a bound. The write amplification is the real
+ * price: these four have no per-lookup bucket, so each allowed request writes at
+ * most the surface's own two rows per window, not two more.
+ *
+ * NO PER-LOOKUP BUCKET IS ADDED HERE, deliberately. The `/api/v1` endpoint has
+ * one because it bounds how hard a caller may hammer ONE credential. Giving
+ * these four the same would DOUBLE the `rate_limit_buckets` writes on the
+ * highest-traffic anonymous surface in the product — a new cost paid by every
+ * legitimate scan — to bound a case the surface bucket already bounds at a fifth
+ * the resolution. If per-credential hammering on the HTML pages ever needs
+ * bounding, the mechanism is already here (`publicTokenThrottle`'s `perLookup`
+ * option) and it should be a decision with its own measurement.
  *
  * What remains true: a genuinely viral QR is scanned from MANY IPs, so a per-IP
  * limit never sees that case as one caller.
  */
-export const PUBLIC_TOKEN_READ_LIMIT: RateLimitConfig = { maxPerMinute: 60, maxPerHour: 400 };
+export const PUBLIC_TOKEN_READ_LIMIT: RateLimitConfig = { maxPerMinute: 600, maxPerHour: 6_000 };
 
 /** Budget for the limiter's own DB write. Short: it gates the whole render. */
 const RATE_LIMIT_BUDGET_MS = 1500;
@@ -212,9 +261,14 @@ async function isPerLookupThrottled({ bucket, key, limit }: PerLookupLimit): Pro
  * That is the per-lookup limiter working — it cannot count without a counter —
  * and the growth is bounded by the surface limit itself: 2 rows per allowed
  * request, so at most 2 × the surface's per-minute ceiling per IP per minute
- * (120 rows/min on the default limit; 1,200 on the `/api/v1` endpoint's raised
- * one, B13). Draining those rows is the cleanup job's problem
- * (lib/infra/data-lifecycle.ts), not this file's.
+ * (1,200 rows/min on the `/api/v1` endpoint, B13). Draining those rows is the
+ * cleanup job's problem (lib/infra/data-lifecycle.ts), not this file's.
+ *
+ * This residual belongs to `perLookup` and therefore to the `/api/v1` endpoint
+ * ALONE. The four HTML surfaces pass no `perLookup`, so they write one bucket's
+ * rows and not two — which is also why raising their surface ceiling to 600/min
+ * (2026-08-25) does not multiply their write cost the way the same raise did on
+ * the endpoint that has both counters.
  *
  * `surfaceLimit` overrides the default per-IP ceiling for THIS bucket. See the
  * note on PUBLIC_TOKEN_READ_LIMIT: a per-surface bucket that cannot carry a

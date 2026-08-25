@@ -43,13 +43,23 @@
 // produce 1,000 credential reads an hour MORE than the modelled peak.
 //
 // WHAT THE CEILING GIVES UP. Almost nothing, and this is the part worth
-// checking rather than asserting. The token space is 36^8 ≈ 2.82 × 10^12:
+// checking rather than asserting.
 //
-//     at   400/hr — 7.06 × 10^9 hours to walk it ≈ 805,000 years
-//     at 6,000/hr — 4.70 × 10^8 hours to walk it ≈  53,700 years
+// THE KEYSPACE FIGURE HERE WAS WRONG UNTIL 2026-08-25, and it is corrected
+// rather than quietly edited because the mistake was in the direction that
+// flatters the decision. It read "36^8 ≈ 2.82 × 10^12". The generator
+// (lib/infra/publicToken.ts) draws from a 31-CHARACTER alphabet —
+// `ABCDEFGHJKMNPQRSTUVWXYZ23456789`, with 0/O and 1/I/l removed so a human can
+// read a token off a physical tag — so the real space is
+// 31^8 = 852,891,037,441 ≈ 8.53 × 10^11. The original was 3.3× too generous.
 //
-// Both are beyond any attacker's patience by five orders of magnitude, so the
+//     at   400/hr — 2.13 × 10^9 hours to walk it ≈ 243,000 years
+//     at 6,000/hr — 1.42 × 10^8 hours to walk it ≈  16,200 years
+//
+// Both are still beyond any attacker's patience by orders of magnitude, so the
 // 15× relaxation moves enumeration-from-one-IP from impossible to impossible.
+// The conclusion survives the correction, which is exactly why the correction is
+// safe to state plainly instead of defended.
 // The per-IP hourly ceiling never was an enumeration control; a DISTRIBUTED
 // walk is what enumeration actually looks like and neither number touches it
 // (D1 says so, and says closing it needs an aggregate limiter of its own).
@@ -114,17 +124,21 @@
 // instead of turning a finder away.
 //
 // ---------------------------------------------------------------------------
-// WHAT IS NOT CHANGED HERE, AND IT IS NOT BECAUSE IT IS FINE
+// THE FOUR HTML SURFACES — DEFERRED HERE, LANDED 2026-08-25
 // ---------------------------------------------------------------------------
-// `public_token_page`, `public_token_encontre`, `public_token_sighting` and
-// `public_token_og_image` still use the shared `PUBLIC_TOKEN_READ_LIMIT` (60/min
-// + 400/hr) in lib/infra/public-token-throttle.ts. The CGNAT arithmetic above
-// applies to them WORD FOR WORD — arguably harder, since `/p/{token}` is what a
-// stranger's camera actually opens. They are left alone in this change because
-// moving them moves four public surfaces and the documented aggregate per-IP
-// ceiling at once, which deserves its own measurement and its own decision. The
-// mechanism they would need already exists after this change: the surface limit
-// is now an argument, not a constant baked into the adapter.
+// This section used to say that `public_token_page`, `public_token_encontre`,
+// `public_token_sighting` and `public_token_og_image` still ran at 60/min +
+// 400/hr, that the arithmetic above applied to them WORD FOR WORD — arguably
+// harder, since `/p/{token}` is what a stranger's camera actually opens — and
+// that they were left alone only because moving them moves four public surfaces
+// and the documented aggregate ceiling at once.
+//
+// That decision was taken. `PUBLIC_TOKEN_READ_LIMIT` in
+// lib/infra/public-token-throttle.ts is now 600/min + 6,000/hr, the same numbers
+// for the same reasons, and that file carries the aggregate arithmetic the
+// deferral was waiting on. The four surfaces get NO per-lookup bucket: adding
+// one would double `rate_limit_buckets` writes on the highest-traffic anonymous
+// surface in the product to bound a case the surface bucket already bounds.
 // ===========================================================================
 
 import type { RateLimitConfig } from "@/lib/infra/rate-limit";

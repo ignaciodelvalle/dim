@@ -605,11 +605,20 @@ El primer endpoint público del sistema. Todo **sin sesión**, con `curl`.
    Cualquiera de esos campos es **ALTA** (fuga).
 3. **Token inexistente.** `curl -si {{DEPLOY_URL}}/api/v1/pets/DIM-ZZZZ-9999/credential`
    → **404**, cuerpo exactamente `{"error":"not_found"}`, con `no-store`.
-4. **Throttle por token (barato, seguro).** Pedí **21 veces el MISMO token** en
-   menos de un minuto. Esperado: a partir del 21º, **429** con cuerpo exactamente
-   `{"error":"rate_limited"}`. El límite por lookup es **20/min · 100/hora** por
-   (token + IP). Veintiún pedidos de un solo token quedan muy por debajo del
-   techo de superficie, así que esto **no** te bloquea la IP.
+4. **Throttle por token.** El límite por lookup es **120/min · 1.200/hora** por
+   (token + IP) — B13 lo subió el 2026-08-25 desde 20/min · 100/hora, que era el
+   número heredado de `atender_lookup` y refusaba al vecino nº 51 que escanea el
+   mismo cartel detrás de una NAT de carrier.
+
+   Pedí **121 veces el MISMO token** en menos de un minuto. Esperado: a partir
+   del 121º, **429** con cuerpo exactamente `{"error":"rate_limited"}`. Ciento
+   veintiún pedidos de un solo token siguen quedando muy por debajo del techo de
+   superficie (es un quinto de él, por diseño), así que esto **no** te bloquea la
+   IP.
+
+   Si 121 pedidos secuenciales te resultan caros, es `NO VERIFICABLE` con ese
+   motivo escrito — es un resultado honesto. No lo aproximes con menos pedidos y
+   lo reportes como fallo: a 20 pedidos el 429 ya **no** tiene que aparecer.
 5. **La prueba del oráculo (la más importante de §B).** Compará byte a byte el
    429 de un token que **existe** contra el de uno que **no existe**: tienen que
    ser indistinguibles salvo status y código — mismo cuerpo, mismos headers, y
@@ -625,16 +634,28 @@ El primer endpoint público del sistema. Todo **sin sesión**, con `curl`.
 8. **ÚLTIMO de §B — el techo de superficie. Leé esto antes de tirar el primer
    pedido.**
 
-   > **Este checkpoint se movió al final a propósito.** Para verlo hay que pedir
-   > **más de 60 tokens distintos en un minuto**, y el techo de superficie es
-   > **60/min · 400/hora POR IP** contando todos los tokens. Al dispararlo te
-   > **auto-bloqueás la IP por una hora**, y ese mismo techo cubre las lecturas
-   > de `/p/{token}`, `/encontre` y `/sighting`: te quedás sin la credencial
-   > pública que necesitan §C, §L.9 y el TOUR 1. En el brief anterior estaba
-   > cuarto y se habría llevado puesto medio recorrido.
+   > **Este checkpoint se movió al final a propósito**, y desde el 2026-08-25 es
+   > además **mucho más caro de disparar**. El techo de superficie es
+   > **600/min · 6.000/hora POR IP** contando todos los tokens (B13 lo subió
+   > desde 60/min · 400/hora). Al dispararlo te **auto-bloqueás la IP por una
+   > hora**.
+   >
+   > OJO con un cambio importante: `/p/{token}`, `/encontre`, `/sighting` y el
+   > `opengraph-image` ya **no** comparten techo con este endpoint — cada uno
+   > tiene su propio bucket, y desde B13 parte 2 los cuatro también corren a
+   > 600/min · 6.000/hora. Quemar el bucket del API ya no te deja sin la
+   > credencial pública que necesitan §C, §L.9 y el TOUR 1. Igual va último:
+   > 601 pedidos son 601 pedidos.
 
-   Esperado: a partir del 61º token distinto, **429** con el mismo cuerpo
+   Esperado: a partir del 601º token distinto, **429** con el mismo cuerpo
    `{"error":"rate_limited"}` y sin `retry-after`.
+
+   **Lo más probable es que esto sea `NO VERIFICABLE`,** y está bien: 601 pedidos
+   secuenciales contra staging no son un checkpoint manual razonable. Anotalo con
+   ese motivo. Lo que **sí** conviene verificar barato es que el techo por lookup
+   (§B.4) y el de superficie son distintos — si 121 pedidos del MISMO token dan
+   429 y 121 pedidos de tokens DISTINTOS no, los dos buckets están separados,
+   que es la propiedad que importa.
 
    **Cuándo correrlo:** al final de §B **sólo si** §C, §L.9 y el TOUR 1 ya están
    hechos. Si no lo están, dejalo para el cierre de toda la corrida y anotá en la

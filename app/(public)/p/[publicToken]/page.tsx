@@ -16,10 +16,25 @@
 // disclosure, not a public property of the credential.
 //
 // Security (V1-1): per-IP rate limit enforced before ANY data is fetched.
-// Limit: 30 req/min, 200 req/hour per IP. Generous enough that a real QR scan
-// (one person refreshing a single page) is never affected; tight enough to stop
-// enumeration of the 31^8 token keyspace from a single IP. On rate-limit the
-// page renders a soft throttle notice (not a 429 hard error) to preserve UX.
+// Limit: 600 req/min, 6.000 req/hour per IP (bucket `public_token_page`, the
+// shared `PUBLIC_TOKEN_READ_LIMIT`). On rate-limit the page renders a soft
+// throttle notice (not a 429 hard error) to preserve UX.
+//
+// THE NUMBERS IN THIS COMMENT WERE WRONG FOR MONTHS — it claimed "30 req/min,
+// 200 req/hour", which this surface never enforced: the shared default was
+// 60/min + 400/hr from the day the limiter moved into the adapter. Restated
+// against the constant rather than re-guessed, since a comment nobody can check
+// is how the first pair of numbers survived.
+//
+// Raised 2026-08-25 (B13, extended to the four HTML surfaces). The old ceiling
+// was NOT "tight enough to stop enumeration" as this comment used to claim — a
+// per-IP hourly ceiling never was an enumeration control, and a DISTRIBUTED walk
+// is untouched by any value it takes. What it was refusing was a barrio behind
+// one carrier NAT passing a lost-pet poster around: at 400/hr that is 0.4 reads
+// per subscriber per hour, and the person turned away is a finder standing over
+// the animal. Full arithmetic and the corrected 31^8 keyspace figure in
+// lib/infra/public-token-throttle.ts.
+//
 // Token entropy widening is tracked as a follow-up (would invalidate existing tokens).
 
 import "./credential-print.css";

@@ -515,13 +515,38 @@ describe("per-IP and per-lookup ceilings (B13)", () => {
     expect(configFor(LOOKUP_BUCKET)).toEqual(PUBLIC_TOKEN_API_LOOKUP_LIMIT);
   });
 
-  // NOT the shared default. Stated as its own assertion because "equals the
-  // constant" would still pass if somebody changed the constant back.
-  it("does not fall back to the HTML surfaces' 60/min + 400/hr", async () => {
+  // THIS ASSERTION CHANGED SHAPE ON 2026-08-25, and the reason is worth stating.
+  //
+  // It used to read `expect(configFor(SURFACE_BUCKET)).not.toEqual(
+  // PUBLIC_TOKEN_READ_LIMIT)` plus `expect(PUBLIC_TOKEN_READ_LIMIT).toEqual({
+  // maxPerMinute: 60, maxPerHour: 400 })` — "this endpoint does not fall back to
+  // the HTML surfaces' default". That was the right thing to pin when B13 had
+  // raised only this endpoint and left the four HTML surfaces behind.
+  //
+  // B13 part 2 then applied the same arithmetic to those four, so the two
+  // constants now hold the SAME numbers. The old `not.toEqual` would fail — not
+  // because the endpoint regressed, but because the difference it was watching
+  // stopped existing. Bumping it to a fresh `not.toEqual` would be worse: it
+  // would demand the two stay different for no reason anyone could name.
+  //
+  // What is still true and still worth defending is the ORDERING invariant: this
+  // endpoint's ceiling may never end up BELOW the shared HTML default. Its
+  // caller is a phone behind CGNAT; silently inheriting a tighter page limit is
+  // the regression that would actually hurt. That they currently coincide is a
+  // fact, not a requirement, and the assertion says so.
+  it("never sits below the shared HTML default, and owns its ceiling explicitly", async () => {
     control.rateLimit = ALLOW;
     await get("DIM-B13-0003");
-    expect(configFor(SURFACE_BUCKET)).not.toEqual(PUBLIC_TOKEN_READ_LIMIT);
-    expect(PUBLIC_TOKEN_READ_LIMIT).toEqual({ maxPerMinute: 60, maxPerHour: 400 });
+
+    // Explicitly its own constant — not inherited by omitting the argument.
+    expect(configFor(SURFACE_BUCKET)).toEqual(PUBLIC_TOKEN_API_SURFACE_LIMIT);
+
+    expect(PUBLIC_TOKEN_API_SURFACE_LIMIT.maxPerMinute ?? 0).toBeGreaterThanOrEqual(
+      PUBLIC_TOKEN_READ_LIMIT.maxPerMinute ?? 0,
+    );
+    expect(PUBLIC_TOKEN_API_SURFACE_LIMIT.maxPerHour ?? 0).toBeGreaterThanOrEqual(
+      PUBLIC_TOKEN_READ_LIMIT.maxPerHour ?? 0,
+    );
   });
 
   // The property the arithmetic in limits.ts rests on: the per-lookup bucket

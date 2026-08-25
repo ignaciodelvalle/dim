@@ -42,7 +42,7 @@ checklist has to exist before the first merge rather than after the first bug.
 | | |
 |---|---|
 | **Enforced at** | `lib/infra/public-token-throttle.ts` — `isPublicTokenReadThrottled(bucket, limit?)` |
-| **Real limits** | `PUBLIC_TOKEN_READ_LIMIT = { maxPerMinute: 60, maxPerHour: 400 }`, per IP — the DEFAULT, used by the four HTML surfaces. `/api/v1/.../credential` overrides it (B13, below) |
+| **Real limits** | `PUBLIC_TOKEN_READ_LIMIT = { maxPerMinute: 600, maxPerHour: 6_000 }`, per IP — the DEFAULT, used by the four HTML surfaces (raised from 60/400 on 2026-08-25, B13 part 2). `/api/v1/.../credential` sets the same surface ceiling explicitly and adds a per-lookup bucket the HTML surfaces do not have (B13, below) |
 | **Direction** | **Fail-open.** A `RateLimitError` throttles; any other error returns `false`. The limiter is itself a DB write, budgeted at `RATE_LIMIT_BUDGET_MS = 1500` |
 | **Inherited?** | **No.** First statement of each surface, by hand |
 | **Pinned by** | `__tests__/public-token-throttle-coverage.test.ts` — derives from `publicPetByToken(` call sites across `app/` (widened 2026-08-21; it used to walk `page.tsx` under one directory and could not see `opengraph-image.tsx`) |
@@ -54,9 +54,10 @@ reason: a scraper hammering one surface must not spend the budget of the person
 who just found a dog in the street and is loading its credential.
 
 **The cost of that choice, stated plainly:** every new bucket raises the
-aggregate ceiling for a single IP. Four HTML surfaces today = 240/min per
-IP against the token space. **`/api/v1/pets/{publicToken}/credential` adds a
-fifth, and since B13 the fifth is not 60/min.**
+aggregate ceiling for a single IP. Since 2026-08-25 all five token-resolving
+buckets carry the CGNAT ceiling, so the aggregate is **5 × 600 = 3.000/min and
+30.000/hr per IP** against the token space (it was 240/min before B13, and
+840/min between B13's two halves, when only the API bucket had been raised).
 
 > **DECIDED (§8, D1) · LANDED.** The API gets its OWN bucket,
 > `public_token_api_credential`. The isolation is the point; the additive
@@ -76,8 +77,7 @@ fifth, and since B13 the fifth is not 60/min.**
 > and the per-lookup key `${token}:${ip}` is even worse — 100/hr refused the
 > 51st neighbour behind one gateway to scan the same lost-pet poster, which is
 > the success case, not the abuse case. **What is given up:** essentially
-> nothing. Walking 36^8 tokens from one IP takes ~805,000 years at 400/hr and
-> ~54,000 years at 6,000/hr; the per-IP ceiling was never an enumeration
+> nothing (figures corrected below). The per-IP ceiling was never an enumeration
 > control, it is a cost backstop. A DISTRIBUTED walk is untouched by either
 > number, exactly as D1 says. **The real cost:** `rate_limit_buckets` write
 > amplification, bounded by the surface per-minute ceiling, so 120 → 1,200
@@ -87,12 +87,38 @@ fifth, and since B13 the fifth is not 60/min.**
 > (same signature), and it hands anyone a way to burn a victim credential's
 > global budget. Scrape detection belongs in observability — alert on a token's
 > distinct-IP count — not in a limiter that can refuse a finder.
+
+> **KEYSPACE FIGURE CORRECTED 2026-08-25.** B13's original note said "walking
+> 36^8 ≈ 2.82 × 10^12 tokens takes ~805.000 years at 400/hr and ~54.000 years at
+> 6.000/hr". The keyspace was wrong, in the direction that flatters the
+> decision. `lib/infra/publicToken.ts` draws from a **31-character** alphabet
+> (`ABCDEFGHJKMNPQRSTUVWXYZ23456789` — 0/O and 1/I/l removed so a human can read
+> a token off a physical tag), so the space is **31^8 = 852.891.037.441 ≈ 8,53 ×
+> 10^11**, 3,3× smaller than claimed. Corrected figures for a single IP:
 >
-> **The four HTML surfaces still use the 60/min + 400/hr default, and that is
-> not because it is fine.** The same arithmetic applies to `/p/{token}` word for
-> word. They are unchanged here because moving them moves four public surfaces
-> and the aggregate ceiling at once; the mechanism now exists (the surface limit
-> is an argument, not a constant) and the decision is open.
+> | rate | time to walk 31^8 |
+> |---|---|
+> | 400/hr (old per-surface ceiling) | ≈ 243.000 años |
+> | 6.000/hr (new per-surface ceiling) | ≈ 16.200 años |
+> | 30.000/hr (all five buckets, aggregate) | ≈ 3.200 años |
+>
+> The conclusion survives the correction with room to spare, which is why the
+> decision stands and only the numbers moved. Stated rather than edited away
+> because a mistake that makes a decision look safer is the kind worth leaving a
+> record of.
+
+> **THE FOUR HTML SURFACES · LANDED 2026-08-25.** This block used to say they
+> still ran the 60/min + 400/hr default, that the same arithmetic applied to
+> `/p/{token}` word for word, and that the decision was open because moving them
+> moves four public surfaces and the aggregate ceiling at once. It was taken:
+> `PUBLIC_TOKEN_READ_LIMIT` (`lib/infra/public-token-throttle.ts`) is now
+> **600/min + 6.000/hr**, the same numbers for the same reasons. `/p/{token}` is
+> what a stranger's camera opens, which made it the surface where the old
+> ceiling cost the most. **No per-lookup bucket was added to them:** that would
+> double `rate_limit_buckets` writes on the highest-traffic anonymous surface in
+> the product to bound a case the surface bucket already bounds — the mechanism
+> (`publicTokenThrottle`'s `perLookup`) is there if a measurement ever justifies
+> it.
 
 **The REST mistake:** omit the call. Nothing fails; the route ships green.
 
@@ -416,15 +442,27 @@ written down is one nobody can revisit on purpose.
 
 It follows the rule already in force and its stated reason — a client hammering
 the API must not starve the person loading the credential in the street. The
-additive ceiling (240 → 300/min per IP across all token-resolving surfaces) is
-the price of that isolation, and it is already being paid four times over.
+additive ceiling is the price of that isolation, and it is already being paid
+four times over.
+
+**That ceiling, kept current** (this line was written pre-B13 and said
+"240 → 300/min"; both halves of B13 have since landed):
+
+| when | per-IP aggregate across all token-resolving surfaces |
+|---|---|
+| before B13 | 5 × 60 = 300/min |
+| B13 part 1 — API bucket raised | 4 × 60 + 600 = 840/min |
+| B13 part 2 (2026-08-25) — HTML surfaces raised | 5 × 600 = **3.000/min**, 30.000/hr |
 
 **The counter-argument was put to the PO and knowingly declined:** at some
-number of surfaces "60 per surface" stops being a limit. If the aggregate ever
-matters more than the isolation, the fix is NOT a shared bucket — it is a
-second, aggregate limiter keyed per IP across all token reads, layered on top.
-That remains available as a separate change and must not be smuggled into an
-endpoint.
+number of surfaces "N per surface" stops being a limit, and raising N made that
+truer rather than less true. If the aggregate ever matters more than the
+isolation, the fix is NOT a shared bucket — it is a second, aggregate limiter
+keyed per IP across all token reads, layered on top. That remains available as a
+separate change and must not be smuggled into an endpoint. What keeps it
+acceptable meanwhile is the corrected §1.1 arithmetic: 3.000/min still leaves a
+single-IP walk of the 31^8 space at ~3.200 years, and a distributed walk was
+never bounded by any of these numbers.
 
 **What this obliges:** the new bucket name goes in the coverage fence's expected
 set like the other four, and §9's checklist line "bucket named" is satisfied by

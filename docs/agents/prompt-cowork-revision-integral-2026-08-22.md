@@ -203,8 +203,15 @@ El primer endpoint público del sistema. Todo **sin sesión**, con `curl`.
    Cualquiera de esos campos es **ALTA** (fuga).
 3. **Token inexistente.** `curl -si {{DEPLOY_URL}}/api/v1/pets/DIM-ZZZZ-9999/credential`
    → **404**, cuerpo exactamente `{"error":"not_found"}`, con `no-store`.
-4. **Throttle.** Más de **20 pedidos del mismo token en un minuto** → **429**,
-   cuerpo exactamente `{"error":"rate_limited"}`. El límite por lookup es
+4. **Throttle.** ⚠️ **NÚMEROS DESACTUALIZADOS — este brief quedó superseded por
+   `prompt-cowork-revision-integral-2026-08-23.md`; usá ése.** Los valores de
+   abajo (20/min · 100/hora por lookup; 60/min · 400/hora de superficie) fueron
+   los vigentes hasta el 2026-08-25, cuando B13 los llevó a **120/min ·
+   1.200/hora** y **600/min · 6.000/hora** respectivamente. Se dejan escritos
+   para que un informe viejo siga siendo legible, no para correrlos.
+
+   Más de **20 pedidos del mismo token en un minuto** → **429**, cuerpo
+   exactamente `{"error":"rate_limited"}`. El límite por lookup es
    **20/min · 100/hora** por (token + IP); el de superficie, **60/min · 400/hora
    por IP** contando todos los tokens — para verlo, pedí >60 tokens distintos en
    un minuto.
