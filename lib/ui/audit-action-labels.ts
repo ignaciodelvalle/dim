@@ -70,6 +70,9 @@ export const AUDIT_ACTION_LABELS = {
   self_resignation_govt: "Baja voluntaria cuenta gobierno",
   self_resignation_admin: "Baja voluntaria cuenta admin",
   dni_verified_self: "DNI verificado por el titular",
+  // B11. Names the ACT, not the button: an operator reading a trail after an
+  // incident cares that every session was cut, not which surface asked.
+  sessions_revoked_self: "Cierre de sesión en todos los dispositivos",
   // Disputes
   dispute_raised: "Disputa de custodia abierta",
   dispute_party_added: "Parte añadida a disputa",

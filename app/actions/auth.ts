@@ -24,6 +24,7 @@ import {
   logoutAction as _logoutAction,
   logoutAndReturnAction as _logoutAndReturnAction,
 } from "@/src/modules/auth/application/logout";
+import { revokeAllSessionsAction as _revokeAllSessionsAction } from "@/src/modules/auth/application/revoke-sessions-action";
 
 export type { AuthFormState, IdentityFormState } from "@/src/modules/auth/application/types";
 
@@ -50,4 +51,13 @@ export async function logoutAction(...args: Parameters<typeof _logoutAction>) {
 // @no-auth-required: logout invalidates whatever session exists (or none) — no identity required to sign out
 export async function logoutAndReturnAction(...args: Parameters<typeof _logoutAndReturnAction>) {
   return _logoutAndReturnAction(...args);
+}
+
+// @no-auth-required: authorization happens INSIDE the delegated use-case, whose
+// first statement is requireLiveUser() and which refuses without a live session.
+// B11 — revokes every session of the caller, this browser's included.
+export async function revokeAllSessionsAction(
+  ...args: Parameters<typeof _revokeAllSessionsAction>
+) {
+  return _revokeAllSessionsAction(...args);
 }

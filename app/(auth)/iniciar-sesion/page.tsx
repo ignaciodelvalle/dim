@@ -39,6 +39,11 @@ export default async function LoginPage({
   // surface of its own, unlike the two account-state notices below: by the time
   // it renders there is no session left to close.
   const shiftEnded = sp.motivo === "turno";
+  // B11: the user pressed "cerrar sesión en todos los dispositivos" and this
+  // browser was one of them. Confirming it here is the whole point — the action
+  // logged them out of the page they were standing on, so without a word it
+  // looks like something broke rather than like the button working.
+  const sessionsRevoked = sp.motivo === "sesiones-cerradas";
 
   const supabase = await createClient();
   const {
@@ -181,6 +186,15 @@ export default async function LoginPage({
             <p>
               Por seguridad cerramos la sesión en todos tus dispositivos después de 8 horas. Volvé a
               iniciar sesión para seguir trabajando.
+            </p>
+          </output>
+        )}
+        {sessionsRevoked && (
+          <output className="block space-y-2 rounded-[var(--radius-sm)] border border-[var(--color-ln-line)] bg-[var(--color-ln-paper-2)] px-4 py-3 text-sm text-[var(--color-ln-ink)]">
+            <p className="font-medium">Cerramos todas tus sesiones.</p>
+            <p>
+              Ya no hay ninguna sesión abierta en tus otros dispositivos. Iniciá sesión de nuevo
+              para volver a entrar.
             </p>
           </output>
         )}

@@ -35,6 +35,7 @@ import { SheetTriggerLink } from "@/components/pet-profile/SheetTriggerLink";
 import { CuentaSheetMounter } from "./CuentaSheetMounter";
 import { DeactivateAccountDialog } from "./_components/DeactivateAccountDialog";
 import { PushNotificationsCard } from "./_components/PushNotificationsCard";
+import { RevokeSessionsDialog } from "./_components/RevokeSessionsDialog";
 
 // Role display labels
 const ROLE_LABELS: Record<string, string> = {
@@ -466,6 +467,15 @@ export default async function CuentaPage() {
           label="Privacidad y derechos"
           description="Descargar tus datos · Eliminar cuenta · Ley 25.326"
         />
+        {/* B11 — the counterpart that makes B9's long citizen session
+            defensible. It lives HERE, and not in "Zona de riesgo", because that
+            section is for acts that destroy something irreversibly; this one is
+            protective and its worst case is signing in again. Filing it under a
+            red heading would teach people to hesitate over exactly the control
+            they should reach for the moment a phone goes missing.
+            Rendered for every account type — institutional operators lose a
+            laptop as easily as anyone. */}
+        <RevokeSessionsDialog />
       </div>
 
       {/* Web Push v1 (feature-flagged): renders nothing unless

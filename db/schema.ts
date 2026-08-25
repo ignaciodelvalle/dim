@@ -2245,6 +2245,15 @@ export const AUDIT_LOG_ACTIONS = [
   // DNI number; the bit is set server-side. TODO(mi-argentina): replace with
   // real OAuth callback action when the Mi Argentina integration lands.
   "dni_verified_self",
+  // B11: the user cut every one of their own sessions ("cerrar sesión en todos
+  // los dispositivos"). Ordinary logout writes no row — ending your own session
+  // on your own device is navigation, not accountability. This one is a security
+  // RESPONSE, pressed because a phone was lost or a machine was shared, and
+  // "when did the legitimate owner last do this?" is exactly what an incident
+  // review asks afterwards. Actor, target and subject are the same person, so
+  // the row carries no PII the actor FK does not already carry.
+  // Payload: { surface: "web" | "api_v1" }.
+  "sessions_revoked_self",
   // Fase 14: auto-expiry cron writes one of these per request swept (status
   // pending older than 60 days → withdrawn). The `system_actor` for these
   // rows is the oldest active admin (first row in profiles WHERE
