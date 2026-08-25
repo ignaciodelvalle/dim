@@ -76,7 +76,23 @@ function apiV1ErrorCode(body: unknown): ApiV1ErrorCode | null {
   return typeof code === "string" && KNOWN_ERROR_CODES.has(code) ? (code as ApiV1ErrorCode) : null;
 }
 
-/** es-AR copy for each API error code. Exhaustive: every code has a sentence. */
+/**
+ * es-AR copy for each API error code. Exhaustive: every code has a sentence.
+ *
+ * No `default` and no trailing return, on purpose: that is what makes a code
+ * added to `API_V1_ERROR_CODES` without copy here a COMPILE error instead of a
+ * blank line on the screen. It has already earned its keep once — this function
+ * covered the three codes the vocabulary had when it was written, WU-A widened
+ * `API_V1_ERROR_CODES` from three to ten on a branch that did not contain this
+ * app, and the two merged without touching a single common file. git had
+ * nothing to report; the exhaustiveness check is the only thing that saw it.
+ *
+ * The seven auth codes cannot come back from the PUBLIC credential endpoint
+ * this module reads. They are answered anyway because the function's contract
+ * is the whole vocabulary, not one endpoint's subset: `apiV1ErrorCode()` maps
+ * any known code out of any body, and a client that renders nothing for a code
+ * the server really sent is the exact defect the switch exists to prevent.
+ */
 function apiErrorMessage(code: ApiV1ErrorCode): string {
   switch (code) {
     case "rate_limited":
@@ -85,6 +101,23 @@ function apiErrorMessage(code: ApiV1ErrorCode): string {
       return "No encontramos una credencial para este código.";
     case "temporarily_unavailable":
       return "El servidor no pudo responder. Volvé a intentar en unos segundos.";
+    case "auth_required":
+      return "Necesitás iniciar sesión para ver esto.";
+    case "auth_expired":
+      return "Tu sesión venció. Iniciá sesión de nuevo.";
+    // One sentence for "no such account" and for "wrong password" alike — the
+    // contract keeps the two byte-identical so this endpoint never becomes an
+    // account-enumeration oracle, and copy that split them would undo that.
+    case "invalid_credentials":
+      return "El email o la contraseña no coinciden.";
+    case "account_deactivated":
+      return "Esta cuenta está desactivada. Contactate con tu organización.";
+    case "account_erased":
+      return "Esta cuenta ya no existe.";
+    case "invalid_request":
+      return "La app envió un pedido que el servidor no pudo leer. Actualizá la app.";
+    case "signup_failed":
+      return "No pudimos crear la cuenta. Volvé a intentar en unos minutos.";
   }
 }
 
