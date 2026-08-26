@@ -36,7 +36,7 @@ import { sessionPort } from "../auth/session-store";
 import { Body, Card, Loading, Row, Unavailable } from "../ui/components";
 import { FONTS } from "../ui/fonts";
 import { Callout, Eyebrow, PrimaryButton, Screen, SecondaryButton } from "../ui/kit";
-import { lostModeRoute, sharesRoute, transferPetRoute } from "../ui/routes";
+import { caretakerPetRoute, lostModeRoute, sharesRoute, transferPetRoute } from "../ui/routes";
 import { COLORS, LEADING, RADIUS, SPACE, TRACKING, TYPE } from "../ui/theme";
 import {
   type OwnerFaceView,
@@ -186,6 +186,38 @@ function TransferLink({
   );
 }
 
+/**
+ * The way into the cuidador-temporal cockpit.
+ *
+ * OFFERED TO EVERY HOLDER, for the reason the three above it are. The rule is a
+ * DENY — `requireTitularAccess` refuses a person-path holder whose ownership role
+ * is `caretaker`, because a caretaker naming a sub-caretaker is deny-list row
+ * `caretaker-sub-designation` — and this payload carries no flag for it. A CTA
+ * hidden on a guess would be this screen inventing a rule it cannot see; the
+ * server answers `caretaker_forbidden` and the cockpit renders it.
+ *
+ * THE PAYLOAD DOES CARRY `banners.caretaker`, and this control deliberately does
+ * NOT read it. That banner says an arrangement exists; it carries no grant token,
+ * so it cannot say what to DO about one. Gating the entry point on it would also
+ * hide the only way to designate somebody, which is what a titular with no
+ * caretaker needs this screen for.
+ */
+function CaretakerLink({ publicToken, petName }: { publicToken: string; petName: string | null }) {
+  const router = useRouter();
+  return (
+    <SecondaryButton
+      label="Cuidador temporal"
+      accessibilityHint="Dejarle la mascota a alguien de confianza por un tiempo, o terminar un cuidado en curso."
+      onPress={() =>
+        router.push({
+          pathname: caretakerPetRoute(publicToken),
+          params: petName === null ? {} : { name: petName },
+        })
+      }
+    />
+  );
+}
+
 /** Renders a section, or its refusal. The two are never the same view. */
 function Section<T>({
   view,
@@ -273,6 +305,16 @@ function OwnerFaceBody({ view }: { view: OwnerFaceView }) {
         // The name travels as a query param, and `null` when the identity
         // section is unavailable — the form has an honest fallback for that,
         // and a degraded section must not stop somebody transferring an animal.
+        petName={view.identity.state === "ok" ? view.identity.data.name : null}
+      />
+      {/* CUIDADOR TEMPORAL, beside transferir and NOT folded into it. The two
+          look adjacent and are opposite: a transfer hands the animal over for
+          good, a caretaker grant hands over a bounded set of powers for a fixed
+          period and the titular keeps everything, including the right to end it
+          without asking. A person who confused them would give away a pet they
+          meant to lend. */}
+      <CaretakerLink
+        publicToken={view.publicToken}
         petName={view.identity.state === "ok" ? view.identity.data.name : null}
       />
 

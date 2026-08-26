@@ -126,6 +126,35 @@ export function sharesRoute(publicToken: string): `/mascotas/${string}/compartir
   return `/mascotas/${encodeURIComponent(publicToken)}/compartir`;
 }
 
+/**
+ * The cuidador-temporal cockpit for one pet — the TITULAR'S side.
+ *
+ * NESTED UNDER THE PET, unlike its sibling below, and the split is the feature's
+ * rather than a layout choice: designating, withdrawing an invitation and ending
+ * a live arrangement are all guarded against the ANIMAL (`requireTitularAccess`),
+ * so the pet is genuinely in the address. What the invitee answers is not.
+ */
+export function caretakerPetRoute(publicToken: string): `/mascotas/${string}/cuidado` {
+  return `/mascotas/${encodeURIComponent(publicToken)}/cuidado`;
+}
+
+/**
+ * One caretaker invitation — the INVITEE'S side.
+ *
+ * TOP-LEVEL, because the person answering holds no ownership row on the animal:
+ * that is what an invitation is. Nesting it under `/mascotas` would put an
+ * address on a screen for somebody who is not (yet) responsible for the pet.
+ *
+ * THE PATH DELIBERATELY MATCHES THE WEB'S (`/cuidado/:grantToken`), for the
+ * reason `/transferencias` does: this is a deep-link destination, the invitation
+ * e-mail and the notification CTA both name the web form, and keeping the two
+ * identical means the `mimar://` and `https` forms differ only in scheme — one
+ * less place for `DEEP_LINK_MAP.caretakerGrant` to drift.
+ */
+export function caretakerGrantRoute(grantToken: string): `/cuidado/${string}` {
+  return `/cuidado/${encodeURIComponent(grantToken)}`;
+}
+
 export type AppRoute =
   | (typeof ROUTES)[keyof typeof ROUTES]
   | ReturnType<typeof credentialRoute>
@@ -134,4 +163,6 @@ export type AppRoute =
   | ReturnType<typeof lostModeRoute>
   | ReturnType<typeof sharesRoute>
   | ReturnType<typeof transferRoute>
-  | ReturnType<typeof transferPetRoute>;
+  | ReturnType<typeof transferPetRoute>
+  | ReturnType<typeof caretakerPetRoute>
+  | ReturnType<typeof caretakerGrantRoute>;

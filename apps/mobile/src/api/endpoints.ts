@@ -40,6 +40,7 @@
 // two screens end up disagreeing about what a 401 means.
 
 import {
+  type CaretakerCommandAckV1,
   type EventAmendedV1,
   type EventRecordedV1,
   LOCALITIES_PAYLOAD_VERSION,
@@ -47,9 +48,11 @@ import {
   type LoginV1,
   type LostCommandAckV1,
   ME_PAYLOAD_VERSION,
+  MY_CARETAKER_GRANTS_PAYLOAD_VERSION,
   MY_PETS_PAYLOAD_VERSION,
   MY_TRANSFERS_PAYLOAD_VERSION,
   type MeV1,
+  type MyCaretakerGrantsV1,
   type MyPetsV1,
   type MyTransfersV1,
   OWNER_PET_DETAIL_PAYLOAD_VERSION,
@@ -68,6 +71,7 @@ import {
 } from "@dim/contract/api";
 import type {
   AmendEventInput,
+  CaretakerCommandInput,
   LostCommandInput,
   RecordEventInput,
   RegisterPetInput,
@@ -491,6 +495,63 @@ export function sendTransferCommand(
 ): Promise<ApiResult<TransferCommandAckV1>> {
   return apiRequest<TransferCommandAckV1>(
     { path: "/api/v1/me/transfers", method: "POST", body: input },
+    session,
+  );
+}
+
+/**
+ * `GET /me/caretaker-grants` — the SECOND read on this surface that is not about
+ * a pet this caller holds, and the reason is the same shape as the first's.
+ *
+ * Half of what it returns is invitations to look after somebody ELSE'S animal, so
+ * there is no token that would name the read. It feeds two screens: the titular's
+ * per-pet cockpit, which filters `outgoing` down to one animal, and the deep-link
+ * destination `mimar://cuidado/{CG-…}`, which selects its row out of the union.
+ *
+ * IT CARRIES OPEN GRANTS ONLY — `pending` and `accepted`. A token that is not in
+ * the payload is NOT proof the token is fake: an invitation that was answered,
+ * withdrawn or swept is absent for the same reason. The screen's copy says both
+ * possibilities out loud rather than picking one.
+ */
+export function fetchMyCaretakerGrants(
+  session: SessionPort,
+): Promise<ApiResult<MyCaretakerGrantsV1>> {
+  return apiRequest<MyCaretakerGrantsV1>(
+    {
+      path: "/api/v1/me/caretaker-grants",
+      expectedPayloadVersion: MY_CARETAKER_GRANTS_PAYLOAD_VERSION,
+    },
+    session,
+  );
+}
+
+/**
+ * `POST /me/caretaker-grants` — run one of the five cuidador-temporal commands.
+ *
+ * FIVE AND NOT SEVEN, and the two that are missing are worth knowing about here:
+ * `withdraw` (a caretaker stepping down) and `return` are not reachable from the
+ * web, so they are not on this surface either. A phone that could end an
+ * arrangement a browser cannot is not parity.
+ *
+ * NOT ALL FIVE ARE APPENDS. `accept` opens an `ownerships` row and appends
+ * `caretaker_designated`; `revoke` closes that row and appends `caretaker_ended`.
+ * The other three move workflow state and touch the spine not at all — a pending
+ * invitation is not a fact about the animal.
+ *
+ * NO `idempotencyKey` PARAMETER, AND THAT IS THE CONTRACT AND NOT A SHORTCUT.
+ * None of the five writers takes a `clientIdempotencyKey`. What they have — two
+ * partial unique indexes for `designate`, a locked re-read or an `expectedStatus`
+ * guard for the rest — REFUSES a replay instead of absorbing one, which is a
+ * different promise: after a timeout, `caretaker_already_resolved` may mean the
+ * first attempt landed OR that the other party moved first. A caller must
+ * re-read; `@dim/contract/input`'s `caretaker.ts` states it at length.
+ */
+export function sendCaretakerCommand(
+  session: SessionPort,
+  input: CaretakerCommandInput,
+): Promise<ApiResult<CaretakerCommandAckV1>> {
+  return apiRequest<CaretakerCommandAckV1>(
+    { path: "/api/v1/me/caretaker-grants", method: "POST", body: input },
     session,
   );
 }
