@@ -32,10 +32,30 @@
 
 module.exports = {
   preset: "jest-expo",
-  // The mapping module is pure TypeScript; the platform-specific projects the
-  // preset defines all run it identically. `node` is the cheapest and does not
-  // stand up a React Native environment nothing in this test needs.
-  testEnvironment: "node",
+
+  // THE ENVIRONMENT MOVED WHEN THE FIRST RENDER TEST ARRIVED, and it is worth
+  // being precise about how little that means. It was `"node"`, chosen because
+  // the pure mapping modules under test needed nothing else. `react-native-env`
+  // is `jest-environment-node` with ONE line added:
+  //
+  //     customExportConditions = ["require", "react-native"];
+  //
+  // That is the whole file. No jsdom, no DOM, no measurable cost to the pure
+  // tests — React Native Testing Library renders through `react-test-renderer`,
+  // which produces a JSON tree and never wanted a DOM. What the condition buys
+  // is correct resolution for packages with conditional `exports` maps
+  // (react-native-svg, react-native-screens, expo-router): under plain `node`
+  // they resolve their web/default entry point, which is not the code this app
+  // ships.
+  //
+  // The globals a component needs under test (`requestAnimationFrame`, the
+  // mocked native modules) come from the preset's `setupFiles` and arrive either
+  // way.
+  testEnvironment: require.resolve("@react-native/jest-preset/jest/react-native-env.js"),
+
+  // The safe-area mock every render test needs. See jest.setup.js for why it is
+  // a setup file and not a `moduleNameMapper` entry.
+  setupFilesAfterEnv: ["<rootDir>/jest.setup.js"],
 
   // `roots` is a PATH; `testMatch` is a GLOB. Keeping `<rootDir>` out of the
   // glob is load-bearing on Windows, and it cost a debugging round to find out.
