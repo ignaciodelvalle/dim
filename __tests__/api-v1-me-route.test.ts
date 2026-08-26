@@ -330,10 +330,23 @@ describe("GET /api/v1/me — the SAME guard the cookie path uses", () => {
 // The limiter
 // ---------------------------------------------------------------------------
 
-describe("GET /api/v1/me — bounded, on its own bucket", () => {
-  it("spends api_v1_me keyed on the trusted edge IP", async () => {
+describe("GET /api/v1/me — bounded, on its own buckets", () => {
+  // TWO buckets since WU-EAS-2, and the ORDER is the assertion. The per-IP one
+  // runs before the GoTrue round-trip so an unauthenticated hammer is refused
+  // cheaply; the per-USER one runs after the guard, because there is no user id
+  // until the guard answers — and because an unauthenticated hammer must never
+  // write into the per-user keyspace at all.
+  //
+  // This case pinned a ONE-element array until 2026-08-26, which is what made it
+  // worth writing: `/me` was the endpoint every native client calls first and it
+  // had no per-account bound whatsoever, so a script signed in as one user could
+  // spend the whole gateway's budget and this test called that correct.
+  it("spends the per-IP bucket, then the per-USER one once the caller is known", async () => {
     await meRoute(meRequest(`Bearer ${tokens.owner}`));
-    expect(control.limits).toEqual([{ endpoint: "api_v1_me", identifier: "203.0.113.11" }]);
+    expect(control.limits).toEqual([
+      { endpoint: "api_v1_me", identifier: "203.0.113.11" },
+      { endpoint: "api_v1_me_user", identifier: ids.owner },
+    ]);
   });
 
   it("answers 429 when the bucket is exhausted", async () => {

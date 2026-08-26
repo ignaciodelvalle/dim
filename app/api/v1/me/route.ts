@@ -65,6 +65,10 @@
 import { ME_PAYLOAD_VERSION, ME_STALE_AFTER_MS, type MeV1 } from "@dim/contract/api";
 
 import { apiV1Envelope, apiV1Error, apiV1Json } from "@/lib/infra/api-v1";
+import {
+  API_V1_AUTHENTICATED_READ_IP_LIMIT,
+  API_V1_AUTHENTICATED_READ_USER_LIMIT,
+} from "@/lib/infra/api-v1-limits";
 import { DbBudgetExceededError, withDbBudgetOrThrow } from "@/lib/infra/db-budget";
 import { requireLiveUser } from "@/lib/infra/live-user";
 import { RateLimitError, callerIp, enforceRateLimit } from "@/lib/infra/rate-limit";
@@ -77,12 +81,31 @@ const ME_BUDGET_MS = 5_000;
 
 const UNAVAILABLE_RETRY_AFTER_SECONDS = 5;
 
-/**
- * Per-IP surface bucket. A native app calls this on every cold launch and after
- * every refresh, so the ceiling is well above a real client's rhythm and exists
- * to bound a hammer, not to shape usage.
- */
-const ME_LIMIT = { maxPerMinute: 60, maxPerHour: 600 };
+// TWO BUCKETS SINCE 2026-08-26 (WU-EAS-2), WHERE THERE USED TO BE ONE
+// ---------------------------------------------------------------------------
+// This endpoint is the authenticated-read family; the numbers and the carrier-NAT
+// arithmetic behind them live in lib/infra/api-v1-limits.ts and are not repeated
+// here. What belongs here is why THIS route needed both, which is a different
+// question from what the ceilings should be.
+//
+// The per-IP bucket used to be the only one, and its comment said the ceiling
+// "exists to bound a hammer, not to shape usage". That was true of the intent
+// and false of the effect: at 60/min behind a carrier gateway shared by hundreds
+// of subscribers, it shaped usage for everybody and bounded a hammer for nobody
+// — the endpoint every native client calls FIRST, on every cold launch, was the
+// tightest thing in the client's whole startup path.
+//
+// So the IP ceiling moves up and a per-USER bucket arrives to do the job the IP
+// one was pretending to do. `/me/pets` has had exactly this pair since it landed
+// and its docblock named the follow-up by name: "re-keying the surface buckets
+// is tracked separately (B13) and must move `/me` and this endpoint together."
+// This is the together half.
+//
+// ORDER, and it is not arbitrary. IP first, before the GoTrue round-trip, so an
+// unauthenticated hammer is refused cheaply. USER second, after the guard —
+// it cannot run earlier, because there is no user id until the guard answers,
+// and running it there means an unauthenticated hammer never writes into the
+// per-user keyspace at all.
 
 // AUTHORIZED, not opted out: this handler calls requireLiveUser in its own body
 // and that call IS the authorization. Said here for a reader scanning for the
@@ -102,7 +125,11 @@ export async function GET(request: Request) {
   // default silently when the matcher does not run, and a value the request
   // influences must not decide what a caller may do (check-api-guard-headers).
   try {
-    await enforceRateLimit("api_v1_me", callerIp(request.headers), ME_LIMIT);
+    await enforceRateLimit(
+      "api_v1_me",
+      callerIp(request.headers),
+      API_V1_AUTHENTICATED_READ_IP_LIMIT,
+    );
   } catch (err) {
     if (err instanceof RateLimitError) return apiV1Error("rate_limited", 429);
     // FAIL OPEN, and the direction is deliberate. The limiter is itself a DB
@@ -152,6 +179,20 @@ export async function GET(request: Request) {
         throw new Error(`Unhandled liveness refusal: ${JSON.stringify(unhandled)}`);
       }
     }
+  }
+
+  // Per-user budget, spent only once the caller is KNOWN — the bucket that
+  // actually bounds a person, and the one carrier NAT cannot dilute because
+  // identities are not shared. Same placement and same numbers as `/me/pets`.
+  try {
+    await enforceRateLimit("api_v1_me_user", live.user.id, API_V1_AUTHENTICATED_READ_USER_LIMIT);
+  } catch (err) {
+    if (err instanceof RateLimitError) return apiV1Error("rate_limited", 429);
+    // FAIL OPEN, the same direction as the IP bucket above and for the same
+    // reason: the limiter is a DB write, and it must not be the thing that
+    // empties a user's app shell. The guard that already ran is the
+    // authorization boundary and IT fails closed.
+    console.error("[api-v1-me] user rate limiter unavailable, failing open:", err);
   }
 
   const envelope = apiV1Envelope({

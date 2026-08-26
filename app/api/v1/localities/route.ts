@@ -43,6 +43,7 @@ import {
 } from "@dim/contract/api";
 
 import { apiV1Envelope, apiV1Error, apiV1Json } from "@/lib/infra/api-v1";
+import { API_V1_PUBLIC_REFERENCE_IP_LIMIT } from "@/lib/infra/api-v1-limits";
 import { DbBudgetExceededError, withDbBudgetOrThrow } from "@/lib/infra/db-budget";
 import { RateLimitError, callerIp, enforceRateLimit } from "@/lib/infra/rate-limit";
 import { reportError } from "@/lib/infra/report-error";
@@ -66,26 +67,37 @@ const LOCALITIES_BUDGET_MS = 3_000;
 
 const UNAVAILABLE_RETRY_AFTER_SECONDS = 5;
 
-/**
- * Per-IP ceiling: 60/min, 600/hour.
- *
- * A typeahead is the highest-frequency legitimate request this API has, and the
- * budget is sized against the WORST honest client rather than the average one: a
- * 250 ms debounce firing continuously is 4 req/s in theory but ~1/s in practice
- * once a person is actually typing a locality name, and 60/min sits above that
- * with room for a user who backspaces and retypes. Someone filling in an
- * address, changing their mind and doing it again spends well under 20.
- *
- * The hour ceiling is what actually bounds a scraper: 600/hour × 20 rows is
- * 12.000 rows an hour against a catalogue of 4.141 rows (measured on the local
- * database, 2026-08-25 — the figure here said ~15.000 and was never checked)
- * that is already published by INDEC. So the limiter never made the catalogue
- * hard to obtain and was never trying to: a scraper clears the whole thing in
- * under half an hour either way. What it protects is the pooler. Kept generous
- * on purpose: this endpoint stands between a citizen and a completed
- * registration, and a false throttle here costs a pet its credential.
- */
-const LOCALITIES_LIMIT = { maxPerMinute: 60, maxPerHour: 600 };
+// THE PER-IP CEILING: `API_V1_PUBLIC_REFERENCE_IP_LIMIT`, AND WHY IT MOVED
+// ---------------------------------------------------------------------------
+// 600/min + 6.000/hr since 2026-08-26 (WU-EAS-2), up from 60/min + 600/hr. The
+// derivation is in lib/infra/api-v1-limits.ts; what belongs here is what makes
+// THIS route the one where carrier NAT bites hardest.
+//
+// It is the only `/api/v1` route with NO identity to key on. Everywhere else the
+// per-IP bucket is a cheap pre-auth check standing in front of a per-user bucket
+// that carrier NAT cannot dilute. Here per-IP is the ONLY bucket there is, so the
+// sharing is not a cost of the design — it IS the design, and every subscriber
+// behind a gateway spends the same counter.
+//
+// The burst case is one the product wants to cause: a municipality running a
+// registration drive in a plaza, twenty people registering a pet at once on the
+// same cell. A 250 ms debounce is ~1 req/s per person while somebody is actually
+// typing a locality name, so twenty simultaneous registrants are ~20 req/s —
+// twenty times the old per-minute ceiling, on the endpoint that stands between a
+// citizen and a completed registration.
+//
+// WHAT DID NOT CHANGE, because it was never what the limiter was for: scraping.
+// The catalogue is 4.141 rows (measured on the local database, 2026-08-25) of
+// INDEC reference data that INDEC already publishes, and at the OLD 600/hour ×
+// 20 rows a scraper cleared the whole thing in under half an hour. Raising the
+// ceiling makes an already-free thing free faster; it does not open anything.
+// What the limiter protects is the pooler, and the arithmetic for that — a
+// sequential scan over a few thousand rows, and the missing `locality_slug`
+// index that would be the real fix if the catalogue ever grew — is in
+// api-v1-limits.ts.
+//
+// A SECOND, NARROWER BUCKET was considered and rejected: `${query}:${ip}` never
+// binds, because a typeahead varies the query on every keystroke by design.
 
 // @no-auth-required: `ar_localities` is public INDEC reference data — locality
 // names, slugs, province codes and department names, no PII in the table at all.
@@ -106,7 +118,11 @@ export async function GET(request: Request) {
   // default silently when the matcher does not run, and a value the request
   // influences must not decide what a caller may do (check-api-guard-headers).
   try {
-    await enforceRateLimit("api_v1_localities", callerIp(request.headers), LOCALITIES_LIMIT);
+    await enforceRateLimit(
+      "api_v1_localities",
+      callerIp(request.headers),
+      API_V1_PUBLIC_REFERENCE_IP_LIMIT,
+    );
   } catch (err) {
     if (err instanceof RateLimitError) return apiV1Error("rate_limited", 429);
     // FAIL OPEN, matching every sibling limiter in this repo. The limiter is

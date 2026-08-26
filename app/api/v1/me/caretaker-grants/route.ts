@@ -52,6 +52,12 @@
 // `caretaker.ts` states the consequence a client has to handle.
 
 import { apiV1Error, apiV1Json } from "@/lib/infra/api-v1";
+import {
+  API_V1_AUTHENTICATED_READ_IP_LIMIT,
+  API_V1_AUTHENTICATED_READ_USER_LIMIT,
+  API_V1_AUTHENTICATED_WRITE_IP_LIMIT,
+  API_V1_AUTHENTICATED_WRITE_USER_LIMIT,
+} from "@/lib/infra/api-v1-limits";
 import { DbBudgetExceededError, withDbBudgetOrThrow } from "@/lib/infra/db-budget";
 import { type LiveUserFailureReason, requireLiveUser } from "@/lib/infra/live-user";
 import { RateLimitError, callerIp, enforceRateLimit } from "@/lib/infra/rate-limit";
@@ -67,35 +73,27 @@ export const dynamic = "force-dynamic";
 /** One GoTrue round-trip plus one indexed profile read. */
 const AUTH_BUDGET_MS = 5_000;
 
-/**
- * Per-IP read ceiling: 60/min, 600/hour — the numbers every sibling read takes.
- * Its OWN bucket name, though: a shared counter makes "which surface is being
- * hammered" unanswerable from the limiter's own storage.
- */
-const CARETAKER_READ_IP_LIMIT = { maxPerMinute: 60, maxPerHour: 600 };
-
-/** Per-user read ceiling: 120/min, 1.200/hour. Twice the IP budget, as siblings. */
-const CARETAKER_READ_USER_LIMIT = { maxPerMinute: 120, maxPerHour: 1_200 };
-
-/**
- * Per-IP write ceiling: 20/min, 120/hour. The same as compartir and
- * transferencias, and for the middle reason of the three: what this write
- * produces is not a row but another person's write access to an animal.
- */
-const CARETAKER_WRITE_IP_LIMIT = { maxPerMinute: 20, maxPerHour: 120 };
-
-/**
- * Per-user write ceiling: 10/min, 40/hour, 100/day — transferencias' numbers,
- * and sized against the same worst case rather than copied.
- *
- * Designating somebody to look after an animal is not a burst activity, the way
- * minting share links is while an owner decides what to expose. Ten a minute is
- * generous headroom for a person answering a backlog of invitations plus every
- * retry a flaky connection produces, and the daily figure is the abuse backstop:
- * an account designating a hundred caretakers in a day is doing something no
- * owner does, and each designation writes a third party's e-mail into a row.
- */
-const CARETAKER_WRITE_USER_LIMIT = { maxPerMinute: 10, maxPerHour: 40, maxPerDay: 100 };
+// FOUR BUDGETS, TWO FAMILIES, AND WHY THE NUMBERS ARE NOT IN THIS FILE
+// ---------------------------------------------------------------------------
+// GET is the authenticated-READ family; POST is the authenticated-WRITE family.
+// Both sets of ceilings, and the carrier-NAT arithmetic behind them, live in
+// lib/infra/api-v1-limits.ts — they left this file on 2026-08-26 (WU-EAS-2) for
+// the reason `me/transfers` states: four literals each claiming to match their
+// siblings is a claim only a reader with every sibling open can check.
+//
+// The BUCKET NAMES stay here as literals. A shared ceiling is a decision about
+// load; a shared counter would make "which surface is being hammered"
+// unanswerable from the limiter's own storage.
+//
+// WHAT THE WRITE CEILING IS SIZED AGAINST, kept because it is about this feature
+// and not about carrier NAT: designating somebody to look after an animal is not
+// a burst activity, the way minting share links is while an owner decides what to
+// expose. Ten a minute is generous headroom for a person answering a backlog of
+// invitations plus every retry a flaky connection produces, and the daily figure
+// is the abuse backstop: an account designating a hundred caretakers in a day is
+// doing something no owner does, and each designation writes a third party's
+// e-mail into a row. What this write produces is not a row — it is another
+// person's write access to an animal.
 
 // AUTHORIZED, not opted out: both handlers call requireLiveUser, and for the
 // write the per-command authorization then runs in commands.ts (the titular deny
@@ -115,7 +113,7 @@ export async function GET(request: Request) {
     !(await spendBudget(
       "api_v1_me_caretaker_grants_read_ip",
       callerIp(request.headers),
-      CARETAKER_READ_IP_LIMIT,
+      API_V1_AUTHENTICATED_READ_IP_LIMIT,
     ))
   ) {
     return apiV1Error("rate_limited", 429);
@@ -143,7 +141,7 @@ export async function GET(request: Request) {
     !(await spendBudget(
       "api_v1_me_caretaker_grants_read_user",
       live.user.id,
-      CARETAKER_READ_USER_LIMIT,
+      API_V1_AUTHENTICATED_READ_USER_LIMIT,
     ))
   ) {
     return apiV1Error("rate_limited", 429);
@@ -176,7 +174,7 @@ export async function POST(request: Request) {
     !(await spendBudget(
       "api_v1_me_caretaker_grants_write_ip",
       callerIp(request.headers),
-      CARETAKER_WRITE_IP_LIMIT,
+      API_V1_AUTHENTICATED_WRITE_IP_LIMIT,
     ))
   ) {
     return apiV1Error("rate_limited", 429);
@@ -202,7 +200,7 @@ export async function POST(request: Request) {
     !(await spendBudget(
       "api_v1_me_caretaker_grants_write_user",
       live.user.id,
-      CARETAKER_WRITE_USER_LIMIT,
+      API_V1_AUTHENTICATED_WRITE_USER_LIMIT,
     ))
   ) {
     return apiV1Error("rate_limited", 429);

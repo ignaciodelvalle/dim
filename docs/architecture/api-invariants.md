@@ -35,7 +35,14 @@ checklist has to exist before the first merge rather than after the first bug.
 
 ---
 
-## 1. The five oracles
+## 1. The oracles
+
+> This heading read **"The five oracles"** until 2026-08-26, when §1.6 made six.
+> The number is removed rather than incremented, and the reason is written in
+> this document twice already (§1.1b, §1.6b): a count in prose is a claim about
+> a SET that nothing checks, and the last one turned a missing limiter into
+> something that read like a deliberate exception for months. A heading does not
+> need to know how many children it has.
 
 ### 1.1 Public token read throttle
 
@@ -260,6 +267,89 @@ the client filename (`:143-147`).
 direct-to-storage with a signed URL loses all three at once. No
 `createSignedUploadUrl` exists anywhere today — every signed URL in the repo is
 a *download*. Keep it that way, or replicate all three server-side first.
+
+---
+
+### 1.6 The `/api/v1` client-surface families — carrier NAT, part 3
+
+`lib/infra/api-v1-limits.ts`. Landed **2026-08-26 (WU-EAS-2)** over
+`app/api/v1/me/**` and `app/api/v1/localities/**`.
+
+| | |
+|---|---|
+| **Enforced at** | each route, by hand, as its own bucket literal — the ceilings come from the shared module, the bucket names do not |
+| **Direction** | **Fail-open**, every one of them, unchanged |
+| **Pinned by** | `__tests__/api-v1-rate-limit-families.test.ts` (family map ⇄ source, both directions, with a non-vacuity floor of 18 buckets) plus each route's own limiter cases |
+
+**The finding.** §1.1 re-derived the ANONYMOUS credential surface against
+Argentine carrier NAT and left the authenticated one alone. `app/api/v1/me/pets`
+had said so in writing since it landed — "mobile carriers put hundreds of
+subscribers behind one CGNAT address … re-keying the surface buckets is tracked
+separately (B13) and **must move `/me` and this endpoint together**". This is
+the together half, and the ceilings left the route files precisely because a
+number that must move with a sibling cannot live in a literal next to one of the
+two siblings.
+
+**The derivation is NOT §1.1's.** That one plans for 1.000 subscribers per public
+IPv4, because anyone with a camera can open `/p/{token}`. On an authenticated
+surface only account holders are callers, so the figure is *subscribers per
+address × app adoption* — and the adoption number (10%, i.e. 100 clients per
+gateway) is a guess about an unlaunched product, stated in the module instead of
+buried in its result. It is the first thing to re-derive when there is telemetry.
+
+| family | routes | per-IP, before → after | per-user |
+|---|---|---|---|
+| `authenticated-read` | `/me`, `/me/pets`, `/me/transfers` GET, `/me/caretaker-grants` GET | 60/min · 600/hr → **600/min · 6.000/hr** | 120/min · 1.200/hr — **`/me` had none at all** |
+| `authenticated-write` | `/me/transfers` POST, `/me/caretaker-grants` POST | 20/min · 120/hr → **120/min · 1.200/hr** | 10/min · 40/hr · 100/day (unchanged) |
+| `account-security` | `/me/revoke-sessions` POST | 30/min · 120/hr → **60/min · 240/hr** | 5/min · 20/hr · 40/day, inside the use-case (unchanged) |
+| `public-reference` | `/localities` | 60/min · 600/hr → **600/min · 6.000/hr** | none available — no identity to key on |
+
+**Two different rules produced those numbers, and mixing them up is the mistake
+to avoid.** The read families are sized against a *push-broadcast burst* (half a
+gateway's app-holders opening within the same minute). The write and
+account-security families are sized as **12× their own per-user ceiling**, so the
+USER bucket stays the binding constraint: at the old 20/min, two people at their
+individual ceiling exhausted a whole gateway, which put the refusal in the bucket
+with no reasoning behind its number.
+
+**What it gives up, stated rather than hidden.** These per-IP buckets run BEFORE
+the GoTrue round-trip — that is their job — so 600/min is 600 `auth.getUser()`
+calls a minute one address can force with well-formed but invalid tokens. Three
+things bound that and none is the IP bucket: a request with no parseable
+`Authorization` header never reaches the limiter (the header regex runs first, by
+design), a valid token is bounded per-account by the user bucket, and 10 req/s
+sustained from one address is the platform's DDoS layer's problem — the same
+conclusion §1.1 reached, not a stronger one just because this endpoint costs more.
+
+**The aggregate.** `API_V1_CGNAT_FAMILY_IP_CEILING_PER_MINUTE` is **computed**,
+not written down: 5 × 600 + 2 × 120 + 60 = **3.300/min** per IP across these
+eight buckets. Computed on purpose — §1.1 records what happened when the
+equivalent figure lived only in prose (an hourly number transplanted into the
+per-minute slot, overstating the ceiling by 2,2× in the paragraph that existed to
+state it honestly).
+
+#### 1.6b What WU-EAS-2 knowingly did not move — a gap, not an exception
+
+Ten sibling per-IP buckets stayed on the older ceilings, because the work unit's
+scope was `me/**` and `localities/**`:
+
+- still 60/min · 600/hr: `api_v1_pet_detail_ip`, `api_v1_pet_libreta_ip`,
+  `api_v1_pet_event_detail_ip`, `api_v1_shares_read_ip`, `api_v1_lost_read_ip`
+- still 20/min · 120/hr: `api_v1_shares_write_ip`, `api_v1_lost_write_ip`,
+  `api_v1_amend_ip`
+- still 30/min: `api_v1_event_ip`, `api_v1_pets_register_ip`
+
+So a native client cold-launches at 600/min on `/me` and `/me/pets`, taps a pet,
+and lands on 60/min at `/pets/{token}` — same phone, same gateway, one screen
+later. **That is a real inconsistency and this section is not an apology for
+it.** §1.1b is the reason it is written this way: a count in prose is what let
+`/adoptar/{petToken}` read as a deliberate exception for months when it was a
+gap. The list above is therefore not the fence. The fence is
+`API_V1_IP_BUCKET_FAMILIES`, where those ten carry the family `pre-cgnat` — a
+real family meaning "somebody decided" — and the test asserts every per-IP bucket
+on the surface is in the map, both directions. A route cannot quietly join either
+side. Closing the gap is a follow-up; when it lands, the aggregate above stops
+needing the words "across these eight buckets".
 
 ---
 

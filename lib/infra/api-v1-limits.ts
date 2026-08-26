@@ -1,0 +1,399 @@
+// Per-IP and per-user ceilings for the `/api/v1` client surface, derived ONCE.
+//
+// ===========================================================================
+// WHY THIS FILE EXISTS AT ALL
+// ===========================================================================
+// Until now every `/api/v1` route declared its own `{ maxPerMinute, maxPerHour }`
+// literal with its own paragraph justifying it, and eleven of those paragraphs
+// said some version of "the same numbers as its siblings, and the same ON
+// PURPOSE rather than by copy-paste". That is a good instinct written eleven
+// times, and writing it eleven times is what made it wrong: `/me/pets` states
+// plainly that its per-IP bucket is broken by carrier NAT and that "re-keying
+// the surface buckets is tracked separately (B13) and must move `/me` and this
+// endpoint together" — and the only way to honour "together" when the numbers
+// live in eleven files is to remember eleven files.
+//
+// So the numbers move here and the routes name a FAMILY. A route still says
+// which family it is in and why, next to its own limiter call, because that is
+// the question a reader auditing one URL is asking. What it no longer does is
+// re-derive the arithmetic, because the arithmetic is about Argentine carrier
+// NAT and not about that route.
+//
+// This is the same relationship `app/api/v1/pets/[publicToken]/credential/
+// limits.ts` and `lib/infra/public-token-throttle.ts` already have: one file
+// carries the derivation, the other says which of it applies and moves on.
+//
+// ===========================================================================
+// THE DERIVATION — CARRIER NAT, FOR AN AUTHENTICATED SURFACE
+// ===========================================================================
+// `credential/limits.ts` did this arithmetic for the ANONYMOUS credential
+// surface and its planning figure is 1,000 subscribers per public IPv4 (port
+// blocks of 64-128 out of 65,536, before oversubscription). That figure is
+// right for that surface and WRONG for this one, and the difference is the
+// whole reason this is a separate derivation rather than an import.
+//
+// On `/p/{token}` any of the thousand subscribers behind a gateway is a
+// potential caller: the credential is what a stranger's camera opens, and a
+// stranger needs no account. On `/api/v1/me/**` only ACCOUNT HOLDERS are, so
+// the number that matters is not subscribers per address, it is
+//
+//     clients per address = subscribers per address × app adoption
+//
+// ADOPTION IS A PLANNING NUMBER AND IT IS THE SOFT SPOT IN EVERYTHING BELOW.
+// This file uses 10% — 100 app-holding clients behind one carrier gateway — as
+// the figure to size against. It is a guess about a product that has not
+// launched, it is stated here instead of buried in the result, and it is the
+// FIRST thing to re-derive when there is real telemetry: the load probe
+// (`scripts/load-probe-api-v1.ts`) exists partly so that day produces a
+// measurement rather than another guess. If adoption reaches 50%, every figure
+// below is 5× too small and this paragraph is where that gets noticed.
+//
+// ---------------------------------------------------------------------------
+// AUTHENTICATED READS, per IP: 60/min → 600/min, 600/hr → 6,000/hr
+// ---------------------------------------------------------------------------
+// LEGITIMATE LOAD, HOURLY. 100 app-holders behind one gateway, each opening the
+// app ~6 times in a busy hour (cold launch, two foregrounds, a pull-to-refresh,
+// a push they tapped) = 600 calls/hr on `/me` and another 600 on `/me/pets`,
+// because a cold launch fans out to both. The OLD hourly ceiling was 600. That
+// gateway was refused at exactly 100% of the modelled peak — not over it, AT
+// it, during ordinary use, with nobody doing anything wrong. 6,000/hr puts the
+// same hour at 10% of budget, which is the headroom `credential/limits.ts`
+// settled on for the same reason.
+//
+// LEGITIMATE LOAD, PER MINUTE — the one that actually broke. A push broadcast
+// is the burst case and it is a case this product will deliberately create: a
+// jurisdiction announcing a vaccination campaign, or a lost-pet alert fanned
+// out to a barrio. If half a gateway's app-holders open within the same sixty
+// seconds, that is 50 cold launches = 50 calls on each read endpoint, against
+// an OLD ceiling of 60 — 17% headroom before anything else those hundred people
+// are doing, and every 429 lands on a client that cannot render its shell at all
+// and will retry, which is how 50 becomes 60. 600/min gives ×12 on that peak.
+//
+// WHAT THE CEILING GIVES UP, stated rather than hidden. The per-IP bucket on
+// these routes runs BEFORE the GoTrue round-trip — that is its job, and
+// `/me/pets` says so. At 600/min one address can force 600 `auth.getUser()`
+// round-trips a minute, ten times what it could before. Three things bound
+// that, and none of them is the IP bucket:
+//
+//   1. A request with no parseable `Authorization` header never reaches the
+//      limiter at all. `createClientFromBearer` is a regex over one header and
+//      it runs first, deliberately, in every one of these handlers.
+//   2. A caller with a VALID token is bounded per-account by the user bucket
+//      below, which carrier NAT cannot dilute because a user id is not shared.
+//   3. A caller with an invalid token can spend the IP budget on GoTrue
+//      round-trips. 600/min is 10 req/s sustained from one address — a load one
+//      IP can produce against any endpoint we have, and the layer that stops it
+//      is the platform's DDoS layer, not a Postgres counter. That is the same
+//      conclusion `credential/limits.ts` reached, and it is not stronger here
+//      just because this endpoint costs more per request.
+//
+// (3) is a real cost and it is the reason this family does NOT simply take the
+// credential surface's numbers on the grounds that they are the same shape.
+// They land on the same numbers; they land there by different arithmetic.
+//
+// ---------------------------------------------------------------------------
+// AUTHENTICATED READS, per user: 120/min + 1,200/hr — UNCHANGED, and promoted
+// ---------------------------------------------------------------------------
+// Four of this family's five routes already had exactly these numbers. What
+// changes is that `/api/v1/me` — the one endpoint every native client calls
+// first, on every cold launch — did NOT, and had no per-user bucket at all.
+// After this file that gap is visible instead of implicit: a route in the
+// authenticated-read family spends both budgets or it is not in the family.
+//
+// This is the bucket that actually bounds a PERSON. It is immune to the
+// arithmetic above for a structural reason rather than a lucky one: carrier NAT
+// shares addresses, not identities, so 120/min means 120/min no matter how many
+// neighbours a caller has. A person cannot open a list screen 120 times in a
+// minute; a script signed in as them can, and this is what stops it costing 120
+// pooler round-trips a minute.
+//
+// ---------------------------------------------------------------------------
+// AUTHENTICATED WRITES, per IP: 20/min → 120/min, 120/hr → 1,200/hr
+// ---------------------------------------------------------------------------
+// NOT the read family's 10×, and not scaled by the adoption figure either. This
+// one is derived from a constant this repo already committed to, which makes it
+// the sturdiest number in the file.
+//
+// The per-USER write ceiling is 10/min (below, unchanged). At an IP ceiling of
+// 20/min, TWO people at their own individual ceiling exhaust the whole
+// gateway's budget — which means the bucket that refuses the third legitimate
+// writer is the IP one, and the IP one is the bucket with no reasoning behind
+// its number for this case. That is upside down. The per-user ceiling is where
+// the thinking is ("ten a minute is generous headroom for a person answering a
+// backlog of proposals plus every retry a flaky connection produces"), so the
+// IP ceiling's job is to stay far enough above it that the USER bucket is the
+// binding constraint for any plausible number of simultaneous legitimate
+// writers behind one address.
+//
+// 120/min is exactly 12 accounts at their full per-user rate. 1,200/hr is 30
+// accounts at their full 40/hr. Twelve people behind one carrier gateway all
+// answering transfer proposals inside the same minute is already an implausible
+// hour; being refused at the thirteenth is a bound, not a shape.
+//
+// WHAT IT GIVES UP. The same thing the read family gives up, at a fifth of the
+// magnitude: the IP bucket on both write routes runs BEFORE the liveness guard,
+// so 120/min is 120 GoTrue round-trips a minute an unauthenticated caller with a
+// well-formed but invalid token can force from one address.
+//
+// The tempting sentence here is "write budgets are only spent by authenticated
+// callers, so this is cheaper than it looks". It is false — the ordering in
+// `me/transfers/route.ts` and `me/caretaker-grants/route.ts` is IP bucket, then
+// guard, then user bucket — and it is written out because it is the kind of
+// false sentence that makes a number look safer than it is and never gets
+// checked afterwards.
+//
+// ---------------------------------------------------------------------------
+// ACCOUNT SECURITY, per IP: 30/min → 60/min, 120/hr → 240/hr
+// ---------------------------------------------------------------------------
+// `/me/revoke-sessions` gets its OWN family and a modest raise, against a
+// written argument in that file that this endpoint should NOT be CGNAT-scaled:
+// "it is a rare, deliberate act, and 30/min leaves room for a whole office to
+// use it in the same minute."
+//
+// The premise is right and the model is wrong in a specific, familiar way. A
+// WHOLE OFFICE is a shared corporate address; this endpoint's caller is a
+// phone, and B13's entire finding was that a limiter sized against an office is
+// sized against the wrong caller (that is what `atender_lookup`'s numbers did to
+// the credential endpoint). And the scenario that matters is not the average
+// day: it is a breach advisory — a jurisdiction, or this project, telling people
+// to sign out everywhere at once. Behind one carrier gateway, an OLD ceiling of
+// 120/hr refused the 121st person doing exactly what they were just told to do,
+// on the one endpoint whose failure mode is "you cannot sign out of the phone
+// you lost".
+//
+// So it moves, and it moves by the WRITE family's rule rather than the read
+// family's: the per-user ceiling inside the use-case is 5/min + 20/hr
+// (`REVOKE_SESSIONS_USER_BUCKET`), and 12× that is 60/min + 240/hr. Same
+// multiple, same reason — the user bucket stays the binding constraint. It
+// remains an order of magnitude below the read family because the act really is
+// rare, which is the half of the original argument that survives.
+//
+// ---------------------------------------------------------------------------
+// PUBLIC REFERENCE, per IP: 60/min → 600/min, 600/hr → 6,000/hr
+// ---------------------------------------------------------------------------
+// `/api/v1/localities` is the only route here with NO identity to key on, so
+// per-IP is not the cheap pre-auth check in front of a better bucket — it is
+// the only bucket there is. That makes carrier NAT bite harder, not softer.
+//
+// The burst case is concrete and it is one the product wants: a municipality
+// running a registration drive in a plaza, twenty people registering a pet at
+// once on the same cell. A typeahead debounced at 250 ms produces ~1 req/s per
+// person while they are actually typing a locality name, so twenty people
+// typing an address at the same moment is ~20 req/s = well past an OLD ceiling
+// of 60/min, and the route's own comment says what that costs: "a false throttle
+// here costs a pet its credential".
+//
+// WHAT IT GIVES UP, checked rather than asserted. Two candidate costs:
+//
+//   SCRAPING — not a cost, and it never was. The route already states the
+//   arithmetic: the catalogue is 4.141 rows of published INDEC reference data,
+//   and 600/hr × 20 rows already handed it over in half an hour. 6,000/hr makes
+//   an already-free thing free faster. The limiter never was an obtainability
+//   control and this file must not start pretending it is one.
+//
+//   THE POOLER — the real one. This query is a sequential scan: the route's own
+//   comment records that the `pg_trgm` GIN index from migration 0019 is on
+//   `locality_name` while the predicate is a `LIKE` on `locality_slug`, so the
+//   index does not apply. 600/min is 10 req/s of seq scans over ~4.141 rows,
+//   which is a few hundred KB resident in shared buffers and low single-digit
+//   milliseconds each — so concurrency stays near 1 and the pooler is not the
+//   thing that breaks. That conclusion depends on the TABLE SIZE, which is the
+//   one number here that will change: it is a national locality catalogue, and
+//   if it ever grows by an order of magnitude the honest fix is the missing
+//   index on `locality_slug`, not a smaller ceiling on the endpoint standing
+//   between a citizen and a registration.
+//
+// A SECOND, NARROWER BUCKET: CONSIDERED, REJECTED. The credential endpoint pairs
+// its surface bucket with a per-lookup one keyed `${token}:${ip}`. The analogue
+// here would be `${query}:${ip}` — and it would never bind, because a typeahead
+// varies the query on every keystroke BY DESIGN. A counter whose key the
+// legitimate caller changes faster than the abusive one is not a limiter, it is
+// write amplification with a rationale.
+//
+// ===========================================================================
+// WHAT THIS FILE DELIBERATELY DID NOT TOUCH — READ THIS BEFORE COPYING A NUMBER
+// ===========================================================================
+// WU-EAS-2's scope was `app/api/v1/me/**` and `app/api/v1/localities/**`. It is
+// not the whole `/api/v1` surface, and the routes it left alone are the same
+// SHAPE as the ones it moved:
+//
+//   api_v1_pet_detail_ip · api_v1_pet_libreta_ip · api_v1_pet_event_detail_ip ·
+//   api_v1_shares_read_ip · api_v1_lost_read_ip    — still 60/min + 600/hr
+//   api_v1_shares_write_ip · api_v1_lost_write_ip ·
+//   api_v1_amend_ip                                 — still 20/min + 120/hr
+//   api_v1_event_ip · api_v1_pets_register_ip       — still 30/min
+//
+// So a native client that cold-launches (600/min on `/me` and `/me/pets`) and
+// then taps a pet lands on 60/min at `/pets/{token}`, from the same phone,
+// behind the same gateway, one screen later. That is a REAL inconsistency and
+// this paragraph is not an apology for it — it is the thing that makes it
+// impossible to read the gap as a decision. The count in a comment is exactly
+// how `/adoptar/{petToken}` spent months looking like an exception instead of a
+// gap (see `public-token-throttle.ts`), so the list above is not the fence: the
+// FAMILY MAP below is, and `__tests__/api-v1-rate-limit-families.test.ts`
+// asserts every per-IP bucket on the surface is in it — including the ones
+// marked `pre-cgnat`, which is the point. A route cannot quietly join either
+// side.
+//
+// The aggregate per-IP per-minute ceiling across the CGNAT-derived families is
+// computed below and is 3,300/min. The `pre-cgnat` buckets add 420/min more
+// today (5 × 60 + 3 × 20 + 2 × 30), transcribed here in prose and NOT summed in
+// code, because a transcribed number that something computes from is a number
+// that drifts silently. When the follow-up moves those routes, that sentence
+// disappears and the computed figure becomes the whole surface.
+
+import type { RateLimitConfig } from "@/lib/infra/rate-limit";
+
+/**
+ * Authenticated reads, per IP. Full derivation in the header — 100 app-holding
+ * clients per carrier gateway, sized against a push-broadcast burst.
+ *
+ * `/api/v1/me`, `/me/pets`, `/me/transfers` (GET), `/me/caretaker-grants` (GET).
+ */
+export const API_V1_AUTHENTICATED_READ_IP_LIMIT: RateLimitConfig = {
+  maxPerMinute: 600,
+  maxPerHour: 6_000,
+};
+
+/**
+ * Authenticated reads, per user — the bucket that bounds a PERSON, and the one
+ * carrier NAT cannot dilute because identities are not shared.
+ *
+ * Unchanged from the four routes that already had it; `/api/v1/me` gains it.
+ */
+export const API_V1_AUTHENTICATED_READ_USER_LIMIT: RateLimitConfig = {
+  maxPerMinute: 120,
+  maxPerHour: 1_200,
+};
+
+/**
+ * Authenticated writes, per IP: 12× the per-user ceiling, so the USER bucket
+ * stays the binding constraint for any plausible number of simultaneous
+ * legitimate writers behind one address. Derived from `…WRITE_USER_LIMIT`
+ * below rather than from the adoption figure — see the header.
+ *
+ * `/me/transfers` (POST), `/me/caretaker-grants` (POST).
+ */
+export const API_V1_AUTHENTICATED_WRITE_IP_LIMIT: RateLimitConfig = {
+  maxPerMinute: 120,
+  maxPerHour: 1_200,
+};
+
+/**
+ * Authenticated writes, per user — UNCHANGED, and the anchor the IP ceiling is
+ * derived from. Both `/me` write routes already ran exactly these numbers with
+ * their reasoning written out; it is repeated in neither place and lives in the
+ * header.
+ */
+export const API_V1_AUTHENTICATED_WRITE_USER_LIMIT: RateLimitConfig = {
+  maxPerMinute: 10,
+  maxPerHour: 40,
+  maxPerDay: 100,
+};
+
+/**
+ * Account-security writes, per IP. `/me/revoke-sessions` only: 12× its
+ * use-case's per-user ceiling (5/min + 20/hr), by the write family's rule, and
+ * an order of magnitude below the read family because the act really is rare.
+ *
+ * The per-user half is NOT here — it lives inside `revokeAllSessions` so the web
+ * button and this endpoint spend the same budget. A ceiling that belongs to the
+ * transport is a ceiling a caller escapes by using the other door.
+ */
+export const API_V1_ACCOUNT_SECURITY_IP_LIMIT: RateLimitConfig = {
+  maxPerMinute: 60,
+  maxPerHour: 240,
+};
+
+/**
+ * Public reference reads, per IP. `/api/v1/localities` only, and the only route
+ * in this file with no identity to fall back on — which is why it takes the
+ * read family's ceiling rather than something tighter.
+ */
+export const API_V1_PUBLIC_REFERENCE_IP_LIMIT: RateLimitConfig = {
+  maxPerMinute: 600,
+  maxPerHour: 6_000,
+};
+
+/**
+ * Which family each per-IP bucket on `/api/v1` belongs to.
+ *
+ * THIS IS THE FENCE, and it is the reason the prose list in the header is safe
+ * to write. `__tests__/api-v1-rate-limit-families.test.ts` reads every
+ * `app/api/v1/**\/route.ts`, collects the `api_v1_*` bucket literals that are
+ * keyed on the caller IP, and asserts the two sets are equal in BOTH
+ * directions: a new route cannot land without declaring a family, and a bucket
+ * that disappears cannot linger here pretending the surface still has it.
+ *
+ * `pre-cgnat` is a real family, not a to-do marker. It means "this bucket was
+ * knowingly left on the pre-B13 ceiling by WU-EAS-2's scope", and a bucket in it
+ * is a bucket somebody decided about. The alternative — leaving them out of the
+ * map — is what turns a gap into an exception.
+ */
+export type ApiV1IpFamily =
+  | "authenticated-read"
+  | "authenticated-write"
+  | "account-security"
+  | "public-reference"
+  | "pre-cgnat";
+
+export const API_V1_IP_BUCKET_FAMILIES: Readonly<Record<string, ApiV1IpFamily>> = {
+  // Re-derived by WU-EAS-2.
+  api_v1_me: "authenticated-read",
+  api_v1_me_pets_ip: "authenticated-read",
+  api_v1_me_transfers_read_ip: "authenticated-read",
+  api_v1_me_caretaker_grants_read_ip: "authenticated-read",
+  api_v1_me_transfers_write_ip: "authenticated-write",
+  api_v1_me_caretaker_grants_write_ip: "authenticated-write",
+  api_v1_me_revoke_sessions_ip: "account-security",
+  api_v1_localities: "public-reference",
+
+  // Knowingly out of scope — see the header. Same shape, same caller, older
+  // ceiling, and each one owns its number in its own route file.
+  api_v1_pet_detail_ip: "pre-cgnat",
+  api_v1_pet_libreta_ip: "pre-cgnat",
+  api_v1_pet_event_detail_ip: "pre-cgnat",
+  api_v1_shares_read_ip: "pre-cgnat",
+  api_v1_lost_read_ip: "pre-cgnat",
+  api_v1_shares_write_ip: "pre-cgnat",
+  api_v1_lost_write_ip: "pre-cgnat",
+  api_v1_amend_ip: "pre-cgnat",
+  api_v1_event_ip: "pre-cgnat",
+  api_v1_pets_register_ip: "pre-cgnat",
+};
+
+/**
+ * The per-minute ceiling a single IP may spend across the CGNAT-derived
+ * families, added up.
+ *
+ * Every bucket is separate on purpose — one surface must not be able to spend
+ * another's counter — so a per-IP ceiling is ADDITIVE across them, and the
+ * honest figure is the sum rather than the largest term. Computed here rather
+ * than written down, because §1.1 of docs/architecture/api-invariants.md
+ * records what happened the last time this number lived only in prose: an
+ * hourly figure was transplanted into the per-minute slot and overstated the
+ * ceiling by 2.2× in the very paragraph that existed to state it honestly.
+ *
+ * `pre-cgnat` buckets are NOT in this sum; they are not this file's numbers to
+ * add up. Today they contribute 420/min more (the header transcribes the terms).
+ */
+export const API_V1_CGNAT_FAMILY_IP_CEILING_PER_MINUTE: number = Object.values(
+  API_V1_IP_BUCKET_FAMILIES,
+).reduce((total, family) => {
+  switch (family) {
+    case "authenticated-read":
+      return total + (API_V1_AUTHENTICATED_READ_IP_LIMIT.maxPerMinute ?? 0);
+    case "authenticated-write":
+      return total + (API_V1_AUTHENTICATED_WRITE_IP_LIMIT.maxPerMinute ?? 0);
+    case "account-security":
+      return total + (API_V1_ACCOUNT_SECURITY_IP_LIMIT.maxPerMinute ?? 0);
+    case "public-reference":
+      return total + (API_V1_PUBLIC_REFERENCE_IP_LIMIT.maxPerMinute ?? 0);
+    case "pre-cgnat":
+      return total;
+    default: {
+      const unhandled: never = family;
+      throw new Error(`Unhandled /api/v1 rate-limit family: ${JSON.stringify(unhandled)}`);
+    }
+  }
+}, 0);

@@ -56,6 +56,7 @@
 // reasoning for the numbers lives with the numbers, in revoke-sessions.ts.
 
 import { apiV1Error, apiV1Json } from "@/lib/infra/api-v1";
+import { API_V1_ACCOUNT_SECURITY_IP_LIMIT } from "@/lib/infra/api-v1-limits";
 import { DbBudgetExceededError, withDbBudgetOrThrow } from "@/lib/infra/db-budget";
 import { requireLiveUser } from "@/lib/infra/live-user";
 import { RateLimitError, callerIp, enforceRateLimit } from "@/lib/infra/rate-limit";
@@ -69,14 +70,36 @@ const AUTH_BUDGET_MS = 5_000;
 
 const UNAVAILABLE_RETRY_AFTER_SECONDS = 5;
 
-/**
- * Per-IP, applied BEFORE authentication so a caller with no usable token costs
- * nothing but a counter write. Not CGNAT-scaled like the public credential
- * surface: this endpoint is not something a thousand neighbours behind one
- * carrier gateway do at once — it is a rare, deliberate act, and 30/min leaves
- * room for a whole office to use it in the same minute.
- */
-const REVOKE_IP_LIMIT = { maxPerMinute: 30, maxPerHour: 120 };
+// THE PER-IP CEILING: ITS OWN FAMILY, AND A RAISE AGAINST WHAT THIS FILE SAID
+// ---------------------------------------------------------------------------
+// It is `API_V1_ACCOUNT_SECURITY_IP_LIMIT` (lib/infra/api-v1-limits.ts) — a
+// family of exactly one route, applied BEFORE authentication so a caller with no
+// usable token costs nothing but a counter write.
+//
+// The paragraph that stood here refused a CGNAT raise, and it is quoted rather
+// than deleted because half of it is still right: "this endpoint is not something
+// a thousand neighbours behind one carrier gateway do at once — it is a rare,
+// deliberate act, and 30/min leaves room for a whole office to use it in the same
+// minute."
+//
+// WHAT WAS WRONG WITH IT is the office. A whole office is a shared CORPORATE
+// address; this endpoint's caller is a phone. Sizing a limiter against an office
+// when the caller is a phone is precisely the error B13 found in the credential
+// endpoint, where `atender_lookup`'s numbers — written to bound an organization's
+// staff on office IPs — refused the 51st neighbour to scan a lost-pet poster.
+//
+// AND THE AVERAGE DAY IS NOT THE CASE THAT MATTERS. The case that matters is a
+// breach advisory: this project, or a jurisdiction, telling people to sign out
+// everywhere at once. Behind one carrier gateway, 120/hr refused the 121st person
+// doing exactly what they had just been told to do — on the one endpoint whose
+// failure mode is "you cannot sign out of the phone you lost".
+//
+// So it moves to 60/min + 240/hr, by the WRITE family's rule and not the read
+// family's: 12× the per-user ceiling inside the use-case (5/min + 20/hr), so the
+// USER bucket stays the binding constraint. It is still an order of magnitude
+// below the authenticated-read family, because the act really is rare — which is
+// the half of the original argument that survives, and the reason this route has
+// a family of its own instead of joining one.
 
 /** The bare write payload. `revoked` is the client's signal to drop its token. */
 type RevokeSessionsV1 = { revoked: true };
@@ -99,7 +122,7 @@ export async function POST(request: Request) {
     await enforceRateLimit(
       "api_v1_me_revoke_sessions_ip",
       callerIp(request.headers),
-      REVOKE_IP_LIMIT,
+      API_V1_ACCOUNT_SECURITY_IP_LIMIT,
     );
   } catch (err) {
     if (err instanceof RateLimitError) return apiV1Error("rate_limited", 429);

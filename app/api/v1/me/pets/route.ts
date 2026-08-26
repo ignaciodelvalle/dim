@@ -45,6 +45,10 @@
 import { MY_PETS_PAYLOAD_VERSION, MY_PETS_STALE_AFTER_MS, type MyPetsV1 } from "@dim/contract/api";
 
 import { apiV1Envelope, apiV1Error, apiV1Json } from "@/lib/infra/api-v1";
+import {
+  API_V1_AUTHENTICATED_READ_IP_LIMIT,
+  API_V1_AUTHENTICATED_READ_USER_LIMIT,
+} from "@/lib/infra/api-v1-limits";
 import { DbBudgetExceededError, withDbBudgetOrThrow } from "@/lib/infra/db-budget";
 import { requireLiveUser } from "@/lib/infra/live-user";
 import { RateLimitError, callerIp, enforceRateLimit } from "@/lib/infra/rate-limit";
@@ -67,36 +71,28 @@ const LIST_BUDGET_MS = 6_000;
 
 const UNAVAILABLE_RETRY_AFTER_SECONDS = 5;
 
-/**
- * Per-IP surface bucket: 60/min, 600/hour.
- *
- * Byte-identical to `/me`'s ceiling, and identical ON PURPOSE rather than by
- * copy-paste: the two are called by the same client at the same moments (cold
- * launch, foreground, pull-to-refresh), so a native app that stays inside one
- * budget stays inside the other, and a client author has one number to reason
- * about instead of two. A list screen refreshed by hand every few seconds for a
- * solid minute still lands well under 60.
- *
- * The cost of keying on IP is stated rather than hidden: mobile carriers put
- * hundreds of subscribers behind one CGNAT address, so this bucket is shared in
- * a way a per-user bucket would not be. It is deliberate for now — the IP check
- * is what bounds a hammer BEFORE the GoTrue round-trip, which is the expensive
- * part — and the per-user budget below is the one that actually bounds a person.
- * Re-keying the surface buckets is tracked separately (B13) and must move `/me`
- * and this endpoint together.
- */
-const MY_PETS_IP_LIMIT = { maxPerMinute: 60, maxPerHour: 600 };
-
-/**
- * Per-user ceiling: 120/min, 1.200/hour.
- *
- * Twice the IP budget, and above it on purpose: this one exists to bound a
- * single ACCOUNT hammering the endpoint from many addresses (which the IP bucket
- * structurally cannot see), not to shape a normal client's rhythm. A person
- * cannot open a list screen 120 times in a minute; a script signed in as them
- * can, and this is what stops it costing 120 pooler round-trips a minute.
- */
-const MY_PETS_USER_LIMIT = { maxPerMinute: 120, maxPerHour: 1_200 };
+// THE AUTHENTICATED-READ FAMILY — and the follow-up this file named, taken
+// ---------------------------------------------------------------------------
+// The numbers and the carrier-NAT arithmetic live in lib/infra/api-v1-limits.ts.
+// This paragraph is the part that was specific to this file, kept because it is
+// the record of a prediction that came true.
+//
+// The per-IP ceiling here was 60/min + 600/hr and its docblock stated the cost
+// of keying on IP plainly — "mobile carriers put hundreds of subscribers behind
+// one CGNAT address, so this bucket is shared in a way a per-user bucket would
+// not be" — and then named the fix as a tracked follow-up: "re-keying the
+// surface buckets is tracked separately (B13) and must move `/me` and this
+// endpoint together."
+//
+// WU-EAS-2 moved them together, and the "together" is the reason the constants
+// left this file. A ceiling that must move with a sibling cannot live in a
+// literal next to one of the two siblings; keeping it here is what made
+// "together" depend on somebody remembering.
+//
+// What did NOT change: the pairing. The IP bucket runs first, before the GoTrue
+// round-trip, because that is what bounds a hammer cheaply. The USER bucket runs
+// after the guard, because there is no user id before it — and because an
+// unauthenticated hammer must never write into the per-user keyspace.
 
 // AUTHORIZED, not opted out: this handler calls requireLiveUser in its own body
 // and that call IS the authorization. Said here for a reader scanning for the
@@ -115,7 +111,11 @@ export async function GET(request: Request) {
   // default silently when the matcher does not run, and a value the request
   // influences must not decide what a caller may do (check-api-guard-headers).
   try {
-    await enforceRateLimit("api_v1_me_pets_ip", callerIp(request.headers), MY_PETS_IP_LIMIT);
+    await enforceRateLimit(
+      "api_v1_me_pets_ip",
+      callerIp(request.headers),
+      API_V1_AUTHENTICATED_READ_IP_LIMIT,
+    );
   } catch (err) {
     if (err instanceof RateLimitError) return apiV1Error("rate_limited", 429);
     // FAIL OPEN, and the direction is deliberate — the same call `/me` makes.
@@ -169,7 +169,11 @@ export async function GET(request: Request) {
   // — there is no user id before the guard answers — and running it here means
   // an unauthenticated hammer never writes into the per-user keyspace at all.
   try {
-    await enforceRateLimit("api_v1_me_pets_user", live.user.id, MY_PETS_USER_LIMIT);
+    await enforceRateLimit(
+      "api_v1_me_pets_user",
+      live.user.id,
+      API_V1_AUTHENTICATED_READ_USER_LIMIT,
+    );
   } catch (err) {
     if (err instanceof RateLimitError) return apiV1Error("rate_limited", 429);
     console.error("[api-v1-me-pets] user rate limiter unavailable, failing open:", err);
