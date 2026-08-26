@@ -59,7 +59,22 @@ export type UpdateLostLastSeenParams = {
   now?: Date;
 };
 
-export type UpdateLostLastSeenResult = { error: string | null };
+export type UpdateLostLastSeenResult = {
+  error: string | null;
+  /**
+   * Did the idempotent insert resolve to an event that ALREADY EXISTED?
+   *
+   * The same surfacing eb46ac58d gave the six daily writers, a44be2d0e the four
+   * of WU-L, and WU-M the symptom: `insertEventIdempotent` answers `wasNoop` and
+   * this use-case threw it away at the boundary. Fine while the only caller was
+   * a web form that branches on `error`; not fine for a phone, where "the
+   * sighting is recorded" and "you just recorded it" are different sentences and
+   * only one of them should congratulate anybody.
+   *
+   * `false` on every refusal — nothing was inserted, so nothing was a replay.
+   */
+  wasDuplicate: boolean;
+};
 
 type Deps = {
   repo: Pick<EventsRepository, "insertEventIdempotent">;
@@ -100,7 +115,7 @@ export async function updateLostLastSeen(
   } = params;
 
   if (petStatus !== "lost") {
-    return { error: "Esta mascota no está marcada como perdida." };
+    return { error: "Esta mascota no está marcada como perdida.", wasDuplicate: false };
   }
 
   const findOpenCase = deps.findOpenCase ?? findOpenCaseForPetAndKind;
@@ -109,6 +124,7 @@ export async function updateLostLastSeen(
     return {
       error:
         "La búsqueda de esta mascota ya no está activa. Volvé al perfil para reactivarla o marcarla encontrada.",
+      wasDuplicate: false,
     };
   }
 
@@ -121,7 +137,7 @@ export async function updateLostLastSeen(
     location_description: locationDescription?.trim() || null,
   });
 
-  await deps.transaction((tx) =>
+  const { wasNoop } = await deps.transaction((tx) =>
     deps.repo.insertEventIdempotent(
       {
         petId,
@@ -140,5 +156,5 @@ export async function updateLostLastSeen(
     ),
   );
 
-  return { error: null };
+  return { error: null, wasDuplicate: wasNoop };
 }

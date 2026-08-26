@@ -94,6 +94,18 @@ export {
   type PetLibretaV1,
 } from "./pet-libreta.ts";
 export {
+  PET_LOST_PAYLOAD_VERSION,
+  PET_LOST_STALE_AFTER_MS,
+  type LostCapabilitiesV1,
+  type LostCommandAckV1,
+  type LostDisclosureV1,
+  type LostEpisodeV1,
+  type LostFeedItemV1,
+  type LostFeedSectionV1,
+  type LostPetStatus,
+  type PetLostV1,
+} from "./pet-lost.ts";
+export {
   LOCALITIES_PAYLOAD_VERSION,
   LOCALITIES_STALE_AFTER_MS,
   type LocalitiesV1,

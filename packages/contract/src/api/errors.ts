@@ -262,6 +262,58 @@
  *                         `Idempotency-Key`, and if the first attempt had in fact
  *                         committed the retry resolves to it instead of writing
  *                         a second asiento.
+ *
+ * THE LOST-MODE CODES (WU-M). `POST /api/v1/pets/{token}/lost` runs the five
+ * owner commands of the search: marcar perdida, actualizar el avistaje, marcar
+ * encontrada, cambiar una preferencia de divulgación, reactivar la búsqueda.
+ * FOUR of these five refusals are about the ANIMAL'S SITUATION rather than about
+ * the caller or the request — a distinction worth its own codes, because each one
+ * names a DIFFERENT next move and a client that collapsed them into
+ * `invalid_request` would send somebody to re-read a body that was fine.
+ *
+ * `event_not_allowed` is REUSED for a deceased animal rather than duplicated:
+ * it already means "the animal refuses this, whoever is asking, because its life
+ * record is closed", and that is exactly what `setPetLostWriter` and
+ * `setPetFound` say about one. A second code for the same fact would be two
+ * names for one branch.
+ *
+ * - `lost_already`      — the animal is ALREADY marked lost, so `mark_lost` has
+ *                         nothing to open. 409. The client's move is to show the
+ *                         search that is already running, not to retry.
+ *                         Deliberately not a silent success: an owner who
+ *                         pressed it believes they just started something.
+ * - `pet_not_lost`      — the command needs an animal that IS lost and this one
+ *                         is not: `report_last_seen` and `reactivate_search`.
+ *                         409. `mark_found` never answers it — that one writes
+ *                         nothing and succeeds, because "make it not lost" is
+ *                         already true.
+ * - `lost_episode_closed`
+ *                       — `pets.status` is `lost` and there is NO open
+ *                         `lost_pet_episode`: the stale-case cron closed it
+ *                         while deliberately leaving the status alone, since an
+ *                         automatic sweep must never declare an animal found.
+ *                         409, and its own code because the move is specific and
+ *                         available: reactivate the search, then update.
+ * - `lost_forbidden`    — the CALLER may hold this pet and still not do THIS.
+ *                         403. Two cases, both narrowings the web performs
+ *                         itself: flipping `discloseCaretakerContactWhenLost`,
+ *                         which is titular-only because it is key 1 of a two-key
+ *                         model; and `reactivate_search`, which
+ *                         `reactivateLostSearchAction` refuses on the ORG path
+ *                         alone.
+ * - `lost_microchip_invalid`
+ *                       — the retroactive chip number in a `mark_lost` enriched
+ *                         description is not a valid microchip id. 400, and NOT
+ *                         `invalid_request`: the format rule lives in
+ *                         `validateMicrochipId` against a country-code table, so
+ *                         a wire schema cannot express it and a client told
+ *                         "your body did not parse" would go looking at the
+ *                         wrong field.
+ * - `lost_failed`       — the command itself failed. Same contract as
+ *                         `event_failed`, minus the retry advice for the four
+ *                         commands that carry no `Idempotency-Key`: those are
+ *                         idempotent on the STATE, so a retry is safe by
+ *                         construction rather than by header.
  */
 export const API_V1_ERROR_CODES = [
   "rate_limited",
@@ -289,6 +341,12 @@ export const API_V1_ERROR_CODES = [
   "same_day_duplicate_suspected",
   "medication_source_invalid",
   "event_failed",
+  "lost_already",
+  "pet_not_lost",
+  "lost_episode_closed",
+  "lost_forbidden",
+  "lost_microchip_invalid",
+  "lost_failed",
 ] as const;
 
 export type ApiV1ErrorCode = (typeof API_V1_ERROR_CODES)[number];

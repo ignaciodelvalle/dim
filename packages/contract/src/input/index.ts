@@ -40,6 +40,20 @@ export {
   firstIntakeInputCode,
 } from "./intake.ts";
 export {
+  DISCLOSURE_KEYS,
+  LOST_COMMAND_INPUT_CODES,
+  LOST_DISCLOSURE_KEYS,
+  TITULAR_ONLY_DISCLOSURE_KEYS,
+  type DisclosureKey,
+  type LostCommand,
+  type LostCommandInput,
+  type LostCommandInputCode,
+  type LostDisclosureKey,
+  type TitularOnlyDisclosureKey,
+  firstLostCommandInputCode,
+  lostCommandInputSchema,
+} from "./lost-mode.ts";
+export {
   CLINICAL_SUB_KINDS,
   DEWORMING_TYPES,
   MAX_CUSTOM_HOURS,

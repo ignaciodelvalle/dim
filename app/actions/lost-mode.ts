@@ -25,14 +25,15 @@ export async function setPetDisclosurePrefsAction(
   // foster and a shelter_custody holder can do — a different decision.
   //
   // `discloseCaretakerContactWhenLost` is KEY 1 of the two-key public-contact
-  // model. Its whole point is that neither party can publish the other's
-  // contact alone: the caretaker consents at accept (key 2), the titular
-  // decides whether to publish (key 1). A caretaker who could flip key 1 would
-  // hold both, and key 2 would stop meaning anything. The UI already hides the
-  // row from them; this is the half that survives a hand-crafted call.
+  // model: neither party can publish the other's contact alone — the caretaker
+  // consents at accept (key 2), the titular decides whether to publish (key 1).
+  // A caretaker who could flip key 1 would hold both, and key 2 would stop
+  // meaning anything. The UI hides the row; this survives a hand-crafted call.
   const access = disclosureKeyRequiresTitular(key)
     ? await requireTitularAccess(publicToken)
     : await requirePetAccess(publicToken);
   if (!access.ok) throw new Error(access.error);
-  return setPetDisclosurePrefs(access.pet.id, publicToken, key, next);
+  // AWAITED, not returned: the writer answers whether it wrote (WU-M) and a
+  // `"use server"` export's shape is a wire contract nobody asked to widen.
+  await setPetDisclosurePrefs(access.pet.id, publicToken, key, next);
 }

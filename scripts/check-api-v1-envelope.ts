@@ -86,8 +86,17 @@ export const V1_ROUTE_GLOB = "app/api/v1/**/route.ts";
  * THIRD level of dynamic segment under `pets/` — the arrangement a `**` glob is
  * most likely to stop matching after a rename. TWELVE with the correction
  * write (`.../events/{eventId}/amend`).
+ *
+ * FOURTEEN with lost mode (`pets/{token}/lost`), AND IT HAD DRIFTED AGAIN: the
+ * count was 12 against a surface of 13, because `POST .../events` landed in WU-K
+ * without raising it. That is the second time — the paragraph above records the
+ * first — which says something about the instruction and not about the two
+ * authors who missed it: a number that has to be edited by hand in a file nobody
+ * opens while adding a route will keep drifting. Until the floor is derived (a
+ * committed manifest of route paths would do it, and would also catch a rename),
+ * RAISING IT IS PART OF ADDING A ROUTE. A floor nobody raises stops being one.
  */
-export const MIN_V1_ROUTE_FILES = 12;
+export const MIN_V1_ROUTE_FILES = 14;
 
 export const HELPER_MODULE = "@/lib/infra/api-v1";
 
