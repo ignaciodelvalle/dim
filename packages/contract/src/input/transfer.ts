@@ -107,7 +107,10 @@ export const TRANSFER_NOTE_MAX = 500;
  * that shape here would be a second copy of a generator this package cannot
  * import — one that goes silently wrong the day the token gains a segment. What
  * the contract owes is that a lookup key cannot be a megabyte; which strings
- * actually resolve is the server's question, answered with `transfer_not_found`.
+ * actually resolve is the server's question, answered with `not_found` / 404 —
+ * the shared code, not a transfer-specific one. There is no `transfer_not_found`
+ * in `ApiV1ErrorCode` and this docblock used to name one; a client written
+ * against that sentence would have switched on a string the server never sends.
  */
 const TRANSFER_TOKEN_MAX = 64;
 

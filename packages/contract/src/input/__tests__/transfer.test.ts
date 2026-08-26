@@ -124,7 +124,8 @@ describe("the token-addressed three", () => {
   it("does NOT enumerate the PTR shape — that is the server's lookup, not ours", () => {
     // A format check here would be a second copy of `generatePrefixedToken`,
     // in a package that cannot import it, drifting silently the day the token
-    // gains a segment. What a bad string gets is `transfer_not_found`.
+    // gains a segment. What a bad string gets is `not_found` / 404 — the shared
+    // code the refusal table maps "Transferencia no encontrada." onto.
     expect(codeFor({ command: "accept", transferToken: "not-a-real-token" })).toBe(null);
   });
 
