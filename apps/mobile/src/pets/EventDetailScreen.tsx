@@ -357,6 +357,30 @@ function AmendForm({
   // key per HTTP attempt would opt out of the exact failure the header exists
   // for (a timeout whose first request already committed). `restart()` is never
   // called here: this form IS one attempt.
+  //
+  // THE COST, STATED HERE AND NOT ONLY AT THE ALTA. `idempotency.ts` argues this
+  // tradeoff for pet registration; the correction form inherits it, and a reader
+  // of THIS file should not have to go find that argument to learn what it
+  // bought. The key survives an EDIT: if a submit times out after the server
+  // committed, and the owner then changes "L-99" to "L-98" and submits again,
+  // the second request carries the same key, the server replays the first
+  // correction, and the edited body is discarded in silence. 201, `wasDuplicate`
+  // — and a value the owner did not just type.
+  //
+  // ACCEPTED, for the alta's reason and with two things the alta does not have.
+  // The alternative — a new key on edit-and-resubmit — puts TWO corrections on
+  // an append-only spine for one mistake, and a ledger people read as history
+  // cannot be tidied afterwards. Against that, the discarded edit costs one more
+  // correction, and the two mitigations make it visible rather than silent:
+  //
+  //   · `onDone` REFETCHES the record. The screen redraws from what the server
+  //     actually holds, so an owner whose edit was replayed away sees the old
+  //     value on the page instead of assuming the new one landed.
+  //   · The key is scoped to this form's MOUNT. Closing the correction form and
+  //     opening it again is a new `AmendForm`, a new `createAttemptSession`, and
+  //     a new key — so the second, deliberate correction goes through. The
+  //     recovery is "open it again", which is what an owner does anyway after
+  //     seeing the value they meant to change still sitting there.
   const attempt = useRef(createAttemptSession());
 
   async function submit() {
