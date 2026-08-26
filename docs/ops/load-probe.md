@@ -218,18 +218,50 @@ A default run is well inside them — but CI has ONE egress address, shared with
 every other automated run.
 
 So the probe sends a random RFC 5737 documentation IP in `x-real-ip` for the
-whole run, landing in a fresh bucket. This is the device
-`playwright.staging.config.ts` already uses against staging, for the same reason.
+whole run — **and that header decides the bucket only against a LOCAL target.**
+The script encodes exactly that: `SPOOF_IP_IS_HONOURED = SPOOF_IP !== "" &&
+isLocalTarget` (`scripts/load-probe-api-v1.ts`). Nothing sits in front of a bare
+`next start`, so `callerIp()` reads whatever arrives and the run really does land
+in a private bucket. Against a Vercel origin the edge **overwrites** the header
+before `callerIp()` ever sees it — measured 2026-08-26 against
+`https://dim-staging.vercel.app`: 80 concurrent requests with a ROTATED
+`x-real-ip` gave 60×401 then 20×429, against a fixed-address control's 59×401
+then 21×429. The same ceiling, one request apart. A believed header would have
+produced no 429 at all. The full method, including the positive control that
+makes that null result mean anything, is in `lib/infra/rate-limit.ts` above
+`callerIp()`. `playwright.staging.config.ts` carries the same header under the
+same rule, and its own file header says so — honoured wherever no rewriting edge
+sits in front of the origin, inert on Vercel.
 
-- **It buys** a p95 that measures the application. Refusals are fast, so a
-  throttled run reports a *better* number while meaning less.
-- **It costs** any coverage of the limiters. This probe is **not** a rate-limit
-  test and must not be cited as one — the ceilings are pinned by
+What that buys and costs, per target, both stated:
+
+- **Local** — it **buys** a p95 that measures the application rather than the
+  limiter. Refusals are fast, so a throttled run reports a *better* number while
+  meaning less. It **costs** any coverage of the limiters: such a run is **not** a
+  rate-limit test and must not be cited as one — the ceilings are pinned by
   `__tests__/api-v1-rate-limit-families.test.ts` and each route's own cases.
+- **Staging, or any origin behind a rewriting edge** — it buys **nothing**. The
+  run spends the REAL per-IP buckets of the egress address it left from, exactly
+  as if the header were absent.
 
-`PROBE_V1_SPOOF_IP=0` shares the real bucket. Use it when you want to confirm a
-ceiling in a live environment, attended, once. Any 429 is reported and **fails**
-the row rather than being dropped from the sample.
+`PROBE_V1_SPOOF_IP=0` sends no header at all. Against a **local** target that is
+how you confirm a ceiling on purpose — attended, once, never unattended. Against
+staging it changes nothing about which bucket the run spends (there is only ever
+the real one); it changes only the honesty of the printed report.
+
+### Scheduling a staging run: you are in the shared bucket
+
+An operator who schedules a probe against staging is **not** isolated, with or
+without the flag, and contends for the same per-IP budgets as the nightly
+Playwright run and anything else leaving that egress address.
+
+The failure mode is a failed run, not a silent lie. A 429 is not a route's
+`expectStatus`, so the off-status check fires; the dedicated 429 check fires too;
+`failures.length > 0` marks the route FAIL, `printReport` returns false and
+`main()` exits 1. Two independent guards, one exit code, and no silent
+sample-dropping — a throttled run is a run whose latency figure means something
+else, so its 429s are reported and **fail** the row rather than being dropped
+from the sample.
 
 ## The bound
 
