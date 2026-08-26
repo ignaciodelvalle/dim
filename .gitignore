@@ -9,9 +9,14 @@ dist/
 
 # Expo (apps/mobile). `.expo/` is the local dev-server cache and generated
 # types; `expo export` writes the bundle into `dist/`, which the unanchored
-# entry above already matches at any depth. `android/` and `ios/` are absent on
-# purpose — this app has no prebuilt native projects yet, and when it does the
-# decision of whether they are generated or committed is its own change.
+# entry above already matches at any depth.
+#
+# `android/` and `ios/` are ignored too — but from `apps/mobile/.gitignore`,
+# not from here, and that placement is load-bearing rather than tidy. Read the
+# header of that file before moving the rules up: @expo/fingerprint looks for
+# them from the Expo project root when it has no git to ask, which is the case
+# on an EAS worker, and a rule at this level is invisible to it. The 2026-08-26
+# build failure that taught us so is in docs/mobile/eas-build-profiles.md.
 .expo/
 
 # environment

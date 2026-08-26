@@ -3,11 +3,14 @@
 // WHY THESE ARE TESTS AND NOT A PARAGRAPH IN A DOCUMENT
 // ---------------------------------------------------------------------------
 // `eas.json`, the `updates` block in `app.config.ts` and the three asset files
-// are configuration nobody in this repo can execute: `npx eas-cli whoami`
-// answers `Not logged in`, so no build, no update and no store upload has ever
-// read any of it. The first time these files are exercised for real, they will
-// be exercised by a machine that produces an artifact for twelve testers or for
-// Play — which is the worst possible place to discover that a value drifted.
+// are configuration nobody in this repo can execute. That was literally true
+// when this file was written; on 2026-08-26 the first production build ran, and
+// ERRORED after fifteen minutes on three separate configuration faults nothing
+// here could see (docs/mobile/eas-build-profiles.md, "Two ways to break a
+// fingerprint"). No update and no store upload has still ever read any of it.
+// The next time these files are exercised for real, they will be exercised by a
+// machine that produces an artifact for twelve testers or for Play — which is
+// the worst possible place to discover that a value drifted.
 //
 // So each assertion below stands in for a consequence that has no other alarm:
 //
@@ -528,6 +531,16 @@ describe(".easignore", () => {
     expect(rules.has("e2e/")).toBe(true);
   });
 
+  it("keeps a locally-run prebuild out of the archive", () => {
+    // `.easignore` replaces every .gitignore for upload purposes, including
+    // apps/mobile/.gitignore. Without these two the moment somebody debugs a
+    // native build with `expo prebuild`, their generated android/ or ios/ tree
+    // is uploaded and lands on top of the one EAS generates for itself.
+    const rules = new Set(ignoreRules(".easignore"));
+    expect(rules.has("apps/mobile/android/")).toBe(true);
+    expect(rules.has("apps/mobile/ios/")).toBe(true);
+  });
+
   it("keeps the workspace the mobile app actually depends on", () => {
     // packages/contract is `@dim/contract: workspace:*` in apps/mobile's
     // package.json. Excluding it (or the root manifests that make the workspace
@@ -544,5 +557,67 @@ describe(".easignore", () => {
     ]) {
       expect(rules).not.toContain(kept);
     }
+  });
+});
+
+// ---------------------------------------------------------------------------
+// The fingerprint's two known ways of not being reproducible
+// ---------------------------------------------------------------------------
+
+describe("runtime version reproducibility", () => {
+  // WHAT THESE GUARD. `runtimeVersion: { policy: "fingerprint" }` is only worth
+  // anything if the SAME tree hashes to the SAME value on the machine that runs
+  // eas-cli and on the Linux worker that recomputes it. Build
+  // 9900114a-c134-41cf-af38-6aaf789d2942 (2026-08-26) proved it did not, twice
+  // over, and both causes are one line of configuration that a tidying pass
+  // would happily delete because neither line explains itself where it sits.
+  //
+  // The failure mode if either regresses is not subtle and not local: every
+  // build is refused with a runtime-version mismatch, fifteen minutes after it
+  // starts, with a diff of several hundred paths to read.
+
+  it("pins pnpm's virtual store length so the hash does not depend on the OS", () => {
+    // pnpm's default for this is `isWindows() ? 60 : 120`, and @expo/fingerprint
+    // hashes the native dependency set BY PATH — through
+    // node_modules/.pnpm/<truncated-dir>/… So an unpinned repo fingerprints
+    // differently on the PO's Windows machine and on an EAS worker.
+    //
+    // Asserted as raw text rather than through a YAML parser: this package has
+    // no YAML dependency, and adding one to a React Native test graph to read a
+    // single integer is a worse trade than a regex. 60 rather than 120 on
+    // purpose — see the comment above the line itself.
+    const workspace = readFileSync(path.join(REPO_ROOT, "pnpm-workspace.yaml"), "utf8");
+    expect(workspace).toMatch(/^virtualStoreDirMaxLength: 60$/m);
+  });
+
+  it("ignores the generated native projects FROM apps/mobile, not from the root", () => {
+    // @expo/fingerprint calls a project `generic` (and hashes the whole
+    // prebuild output into the runtime version) when android/app/build.gradle
+    // exists and is not ignored. On an EAS worker there is no git to ask, so it
+    // falls back to a client that globs `**/.gitignore` FROM THE EXPO PROJECT
+    // ROOT — which is this directory. A rule in the repo root's .gitignore is
+    // invisible to it, which is why these two live here and why moving them
+    // "somewhere tidier" reintroduces the failure.
+    const rules = readFileSync(path.join(MOBILE_ROOT, ".gitignore"), "utf8")
+      .split("\n")
+      .map((line) => line.trim())
+      .filter((line) => line.length > 0 && !line.startsWith("#"));
+    expect(rules).toContain("/android/");
+    expect(rules).toContain("/ios/");
+  });
+
+  it("carries no key SDK 57 dropped from the config schema", () => {
+    // `newArchEnabled` and `android.edgeToEdgeEnabled` were both in app.json and
+    // both failed the build's own `expo config` schema check. Neither appears in
+    // @expo/config-types@57.0.2 and neither is read by @expo/prebuild-config, so
+    // removing them changed nothing except that the build stopped failing: the
+    // New Architecture and edge-to-edge are unconditional in SDK 57.
+    //
+    // Asserted against the RAW app.json rather than the resolved config, because
+    // that is the file the schema check reads and the place a copy-pasted
+    // snippet from an SDK-53 tutorial would land.
+    const raw = (readJson("app.json") as { expo: Record<string, unknown> }).expo;
+    expect(raw.newArchEnabled).toBeUndefined();
+    expect((raw.android as Record<string, unknown> | undefined)?.edgeToEdgeEnabled).toBeUndefined();
   });
 });

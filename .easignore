@@ -31,10 +31,9 @@
 #
 # The three additions below take the tracked tree from 126.3 MB to 34.7 MB.
 # THE 152 IS NOT RECONCILED WITH THE 126.3 and this comment will not pretend it
-# is: eas-cli is not installed here and `npx eas-cli whoami` answers "Not logged
-# in", so the archive cannot be produced locally to be weighed. The honest
-# number for the effect of this file is the next build's own
-# "Your project archive is N MB" line.
+# is: eas-cli is not a dependency here, so the archive was never produced
+# locally to be weighed. The honest number for the effect of this file is the
+# next build's own "Your project archive is N MB" line.
 #
 # WHAT IS EXCLUDED BEYOND .gitignore, and why each one is safe: the three
 # additions at the bottom are read by NO code that runs during a native build.
@@ -178,3 +177,13 @@ __tests__/
 # The Playwright suite. `e2e/.auth/` is already excluded above as a secret;
 # this excludes the specs themselves, which are equally irrelevant to a build.
 e2e/
+
+# The prebuild output, if a developer ever ran `expo prebuild` locally. It is
+# ignored by apps/mobile/.gitignore rather than by the root .gitignore (that
+# file's header explains why), and .easignore does not read nested .gitignores
+# — so without these two lines a local prebuild would be uploaded and land on
+# top of the one EAS runs for itself. Nothing here is tracked today; these are
+# a fence against a directory that appears the first time somebody debugs a
+# native build on their own machine.
+apps/mobile/android/
+apps/mobile/ios/

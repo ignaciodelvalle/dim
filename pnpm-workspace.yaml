@@ -29,3 +29,49 @@ allowBuilds:
   esbuild: true
   sharp: true
   supabase: true
+
+# ===========================================================================
+# virtualStoreDirMaxLength — pinned because a HASH depends on it
+# ===========================================================================
+# This is the maximum length of a directory name inside `node_modules/.pnpm`.
+# pnpm builds those names as `<pkg>@<version>_<peer-suffix>`, and when the
+# result is longer than this it truncates the middle and appends a 32-character
+# hash of the full suffix, so uniqueness survives but the VISIBLE part does not:
+#
+#   60:  @expo+dom-webview@57.0.1_ex_0f048bff0e42b7ac3ac0bc1ac9518370
+#   120: @expo+dom-webview@57.0.1_expo@57.0.16_react-native@0.86.2_@ba…_0f048bff0e42b7ac3ac0bc1ac9518370
+#
+# WHY IT IS PINNED AT ALL. pnpm's default is PLATFORM-DEPENDENT. Read out of
+# pnpm 11.1.1's own source on 2026-08-26:
+#
+#   "virtual-store-dir-max-length": isWindows() ? 60 : 120
+#
+# — 60 on Windows because of its 260-character path limit, 120 everywhere else.
+# So the same lockfile, installed from the same commit, produces DIFFERENT
+# directory names on the PO's Windows machine and on EAS Build's Linux workers.
+#
+# That would be invisible if nothing hashed those paths. Something does:
+# `apps/mobile/app.config.ts` sets `runtimeVersion: { policy: "fingerprint" }`,
+# and @expo/fingerprint hashes the native dependency set BY PATH. EAS Build
+# recomputes the fingerprint on its own worker and refuses to build when it
+# disagrees with the one eas-cli computed locally. Build
+# 9900114a-c134-41cf-af38-6aaf789d2942 (2026-08-26, production, Android) died
+# exactly there, with ~150 entries in the printed diff that were all the same
+# package under two spellings of its own directory name.
+#
+# WHY 60 AND NOT 120. 60 is what Windows already does, so pinning it changes
+# nothing on the PO's daily machine — the store was measured before the pin and
+# its longest directory name was exactly 60 characters. Pinning 120 would
+# instead push every Windows checkout 60 characters deeper for the first time,
+# against a 260-character ceiling that `C:\dev\dim\node_modules\.pnpm\…` already
+# spends part of. Trading a broken build for a broken checkout is not a fix.
+# The truncated names are not ambiguous: the 32-character hash that survives
+# truncation is taken from the FULL peer suffix.
+#
+# CHANGING THIS VALUE INVALIDATES node_modules. pnpm records the value it
+# installed with in `node_modules/.modules.yaml` and refuses to reuse a tree
+# built with a different one (`ERR_PNPM_VIRTUAL_STORE_DIR_MAX_LENGTH_DIFF`,
+# "Run pnpm install to recreate the modules directory"). It also changes the
+# mobile fingerprint, which means the next OTA update is published under a new
+# runtime version — see docs/mobile/eas-build-profiles.md.
+virtualStoreDirMaxLength: 60
