@@ -136,6 +136,59 @@ export const TERMS_URL = `${API_BASE_URL}/terminos`;
 export const PRIVACY_URL = `${API_BASE_URL}/privacidad`;
 
 /**
+ * The web URL where an account is deleted — a GOOGLE PLAY POLICY REQUIREMENT,
+ * not a convenience.
+ *
+ * Play's "Data deletion" requirement applies to any app that lets a user CREATE
+ * an account, and this one does: `/crear-cuenta` is a native screen posting to
+ * `POST /api/v1/auth/signup` (src/api/endpoints.ts). The rule asks for two
+ * things — an IN-APP route to deletion, and a web URL that can be pasted into
+ * the Play Console's Data safety form. An app that offers signup and nothing
+ * else is rejected before a human ever opens it. Before this constant existed,
+ * `app/ajustes.tsx` offered sign-out and revoke-all-sessions and nothing that
+ * ended the account.
+ *
+ * WHY A BROWSER LINK AND NOT A NATIVE FLOW. The same reasoning as
+ * IDENTITY_COMPLETION_URL, one step stronger. The deletion is `erase_subject_
+ * data`, a Postgres RPC reached through `eraseMySubjectDataAction`
+ * (app/(app)/cuenta/privacidad/PrivacyActions.tsx), and there is no
+ * `DELETE /api/v1/me` for a bearer token to call. Building one is real parity
+ * work — a destructive, irreversible endpoint needs its own reason string, its
+ * own audit action, its own rate limit and its own tests — and shipping a
+ * thinner second definition of "delete my account" beside the web's, in a hurry,
+ * to satisfy a store checklist, is how the two drift. The web page already does
+ * it correctly, including the mandatory reason and the post-erase full-document
+ * navigation, so the honest move is to open it.
+ *
+ * WHAT THIS ACCEPTS, and the screen says both out loud:
+ *   1. THE USER RE-AUTHENTICATES. The web resolves a visitor from a cookie and
+ *      this app holds a bearer token, so the browser opens signed out and asks
+ *      for the same email and password. Unavoidable while the deletion lives on
+ *      a cookie-session page.
+ *   2. THE APP CANNOT CONFIRM IT HAPPENED. Nothing reports back. The local
+ *      session keeps working until its token expires or the user signs out, so
+ *      the screen tells them to close the session here afterwards rather than
+ *      pretending it noticed. It must NOT auto-sign-out on tapping the link:
+ *      that would strand somebody who opened the page and changed their mind.
+ *
+ * WHAT WOULD UPGRADE IT: a `DELETE /api/v1/me` over the same RPC. Then the app
+ * could take the reason natively, get an ok/refusal it can render, and drop the
+ * local session on success — which also closes cost 2. That belongs on the
+ * parity board, not in a policy-compliance change.
+ *
+ * ON THE ORIGIN. Derived from API_BASE_URL like TERMS_URL and PRIVACY_URL,
+ * because in this deployment the API and the web app ARE one origin — the same
+ * Next app serves `/api/v1/*` and `/cuenta/privacidad`. If they are ever split
+ * (an API subdomain, a separate web host), every constant in this block breaks
+ * the same way and with the same tell: the link opens a 404 on the API host
+ * instead of the page. The fix then is a second env var
+ * (`EXPO_PUBLIC_WEB_ORIGIN`) read through the same `envUrl` trim-then-fallback
+ * rule, not a hardcoded hostname here — a pinned host is how a build points at
+ * staging's API and production's deletion page.
+ */
+export const ACCOUNT_DELETION_URL = `${API_BASE_URL}/cuenta/privacidad`;
+
+/**
  * The web URL where a forgotten password is reset.
  *
  * THE HONEST BRIDGE, not a missing feature. The web login offers "¿Olvidaste tu

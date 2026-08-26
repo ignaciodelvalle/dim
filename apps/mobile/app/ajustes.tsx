@@ -20,11 +20,21 @@
 //   it as a bigger version of the first button would surprise somebody who meant
 //   to sign out their old phone and got signed out of the one in their hand. So
 //   the confirmation says so, in those words.
+//
+// AND, SINCE THIS APP CAN CREATE ACCOUNTS, IT HAS TO BE ABLE TO END ONE
+// ---------------------------------------------------------------------------
+// Two sign-outs and no deletion is the shape Google Play rejects: the rule
+// attaches to account CREATION, and `/crear-cuenta` is native. `AccountDeletion
+// Card` is that third way out. It is placed AFTER the two sign-outs and before
+// the footnote, in escalating order of permanence — end this session, end every
+// session, end the account — so nobody reaches the destructive one by aiming at
+// the mild one.
 
 import { useRouter } from "expo-router";
 import { useState } from "react";
 import { StyleSheet, Text, View } from "react-native";
 
+import { AccountDeletionCard } from "../src/account/AccountDeletionCard";
 import { signOut, signOutEverywhere } from "../src/auth/session-store";
 import { useGate } from "../src/auth/useGate";
 import { API_BASE_URL } from "../src/config/api";
@@ -150,6 +160,8 @@ export default function AjustesScreen() {
           />
         ) : null}
       </View>
+
+      <AccountDeletionCard />
 
       <Text style={styles.footnote}>
         El alta de mascotas con foto, las notificaciones y el ingreso con Mi Argentina todavía no
