@@ -1,0 +1,295 @@
+// Generates the Expo client's launcher, adaptive and splash images from the ONE
+// brand mark this project has.
+//
+// Run with: pnpm mobile:icons
+//
+// ---------------------------------------------------------------------------
+// WHY THIS IS A SCRIPT AND NOT THREE HAND-DRAWN FILES
+// ---------------------------------------------------------------------------
+// The mark already exists. `public/logo-dim.png` is the fingerprint oval with
+// the dog and the cat inside it, and `public/icons/icon-512*.png` are the PWA
+// icons already generated from it — the same picture a user sees when they
+// install the web app to their home screen. The phone app must be that picture
+// and not a second one, because two marks is a brand problem no amount of
+// tooling fixes later.
+//
+// So nothing here is drawn. Everything is COMPOSED, from one source, by a
+// recipe that is readable and re-runnable. What would otherwise be three opaque
+// binaries "somebody made in Figma once" is instead three binaries whose
+// provenance is fifty lines of arithmetic.
+//
+// The outputs ARE committed. EAS Build and CI both run `pnpm install
+// --frozen-lockfile` and then read the config; neither runs this script, and a
+// build that regenerated its own icons would be a build whose icons depend on
+// which version of sharp the runner resolved. Committed pixels; reproducible
+// recipe. Re-run it when the mark changes, and only then.
+//
+// ---------------------------------------------------------------------------
+// THE NUMBERS, AND WHERE THEY CAME FROM
+// ---------------------------------------------------------------------------
+// Not invented — MEASURED off the shipped PWA icons, so the phone icon and the
+// installed-PWA icon are the same composition and not merely the same artwork:
+//
+//   public/icons/icon-512.png           mark occupies 393 of 512 px  → 76.8%
+//   public/icons/icon-512-maskable.png  mark occupies 294 of 512 px  → 57.4%
+//
+// THOSE ARE INK MEASUREMENTS, WHICH IS WHY THE SOURCE IS TRIMMED FIRST. Both
+// numbers came from trimming the PWA icon to its non-transparent bounding box,
+// so they describe how much of the canvas the ARTWORK covers — not how wide a
+// rectangle containing it is. `public/logo-dim.png` is 637×463 with the oval
+// painted across 610×443 of that, off-centre inside its own frame: 27px of
+// transparent margin distributed unevenly.
+//
+// Scaling the untrimmed rectangle to those ratios therefore did two wrong
+// things at once, and the test caught both. The ink came out SMALLER than the
+// PWA icons it was supposed to match (the margin ate the difference), and
+// centring the rectangle left the ink 10px off-centre — which on an adaptive
+// icon is 10px of asymmetry inside a mask that assumes none. So every recipe
+// below composes the TRIMMED mark, and `markWidth` means the width of the
+// artwork, exactly as measured.
+//
+// The maskable ratio is the one Android's adaptive icon needs. Android composes
+// a launcher icon from a foreground and a background layer, then lets the OEM
+// mask it to whatever shape that launcher uses — circle, squircle, teardrop,
+// rounded square. Only the CENTRE 66.6% of the layer is guaranteed to survive
+// the mask; the rest is parallax margin the launcher may crop at will. 57.4%
+// sits comfortably inside that, which is exactly why the maskable PWA icon was
+// drawn to it.
+//
+// THE ONE PLACE PIXELS ARE INVENTED: the trimmed mark is 610×443, and a store
+// icon must be 1024×1024. At 76.8% the mark lands at 786px wide — a 1.29×
+// upscale, i.e. roughly a quarter of the pixels in the launcher icon are Lanczos
+// interpolation. On a fingerprint, whose entire subject is fine parallel lines,
+// that is the worst possible thing to interpolate. It is accepted here because
+// the alternative is worse (a second, "cleaner" mark that does not match the
+// web), and it is recorded here because the real fix is a vector or a
+// higher-resolution scan of the original, not a better resampling filter. If
+// one ever arrives, drop it in as SOURCE and re-run; nothing else changes.
+//
+// The other two outputs DOWNSCALE (588 from 610), which is why the splash
+// deliberately reuses the adaptive icon's composition instead of getting its
+// own larger one.
+//
+// ---------------------------------------------------------------------------
+// WHY THERE IS NO adaptive-icon-background.png
+// ---------------------------------------------------------------------------
+// Android's adaptive icon takes two layers, and this script emits one. The
+// background is declared in app.json as `adaptiveIcon.backgroundColor:
+// "#fbfaf5"` — a flat paper fill — and that is a decision, not a shortcut.
+//
+// A background PNG buys exactly one thing: art that is not a flat colour. This
+// brand's ground IS a flat colour; the identity is the mark, and every surface
+// in both clients sits on `--color-ln-paper`. So the PNG would carry no
+// information a hex string does not, and would cost three things that are not
+// hypothetical:
+//
+//   1. A second file to keep in sync with the token when the paper ever moves.
+//      A hex string in app.json is greppable and sits next to the foreground
+//      it pairs with; a PNG's colour is invisible until somebody opens it.
+//   2. Banding. Android scales and masks the background layer per launcher, and
+//      a flat fill delivered as 8-bit PNG through that pipeline can band where
+//      a declared colour cannot — the OS fills it exactly.
+//   3. Weight in every APK, for a rectangle.
+//
+// The moment the background stops being a flat colour, it becomes a PNG and it
+// becomes a fourth recipe below. Until then, the colour is the honest form.
+//
+// ---------------------------------------------------------------------------
+// WHY THERE IS NO DARK SPLASH
+// ---------------------------------------------------------------------------
+// `expo-splash-screen` takes a `dark` variant. This app declares none, and that
+// matches the product rather than skipping work: the design system is
+// light-only by decision — `app/globals.css` disables dark mode outright and
+// `pnpm lint:tokens` fails the build on any `dark:` prefix. The credential is a
+// paper document; it does not have a night mode on the web and must not acquire
+// one on the phone, least of all on the first screen a user sees.
+//
+// (`userInterfaceStyle: "automatic"` in app.json predates this work unit and
+// disagrees with the above. Left alone here — changing it is a UI decision, not
+// a release-plumbing one — but it is worth someone's attention.)
+//
+// ---------------------------------------------------------------------------
+// WHY THE MARK IS NOT RECOLOURED
+// ---------------------------------------------------------------------------
+// It is black on transparent, and the animal silhouettes inside it are KNOCKED
+// OUT — they are holes, not white paint. So whatever sits behind the mark shows
+// through them. Every output below puts Libreta Nacional paper (#fbfaf5,
+// `--color-ln-paper`) behind it, which is why the dog reads as cream in all
+// three and matches the web icon exactly.
+//
+// The ink is pure #000 rather than the palette's `--color-ln-ink` (#1b2a33).
+// That is the mark as it exists, and adjusting it here would make this file a
+// second opinion about the brand — the exact failure `apps/mobile/src/ui/theme.ts`
+// was rewritten to stop committing. If the mark should be ink, the mark should
+// be ink, and that is one edit to one PNG upstream of this script.
+
+import { mkdirSync } from "node:fs";
+import path from "node:path";
+import sharp from "sharp";
+
+/** Repo root, from `scripts/`. */
+const ROOT = path.resolve(import.meta.dirname, "..");
+
+/** The single home of the brand mark. */
+const SOURCE = path.join(ROOT, "public", "logo-dim.png");
+
+const OUT_DIR = path.join(ROOT, "apps", "mobile", "assets");
+
+/**
+ * `--color-ln-paper`, restated as a literal.
+ *
+ * NOT imported from `@dim/contract/tokens`: this script runs under tsx from the
+ * repo root, the token module is an ESM workspace package, and buying that
+ * resolution for one hex string is not worth it.
+ *
+ * BE HONEST ABOUT WHAT GUARDS IT, WHICH IS NOT MUCH. `pnpm lint:token-parity`
+ * fences `--color-ln-paper` between app/globals.css and the contract; it has
+ * never heard of this file. `release-config.test.ts` asserts that app.json's
+ * two `#fbfaf5` literals match each other, so the ground under the mark and the
+ * adaptive background cannot diverge — but all three of those literals could
+ * drift away from the token together and nothing would notice.
+ *
+ * That is a small, contained risk (paper has not moved since the Libreta
+ * Nacional handoff, and a wrong ground is visible on the first launch), and the
+ * fix if it stops being small is a fence, not a comment. Do not read this
+ * paragraph as saying the value is protected.
+ */
+const PAPER = { r: 0xfb, g: 0xfa, b: 0xf5, alpha: 1 } as const;
+
+/** The measured ratios. See the header. */
+const RATIO_LAUNCHER = 393 / 512;
+const RATIO_MASKABLE = 294 / 512;
+
+/** Store icon canvas. Non-negotiable: both stores want 1024×1024. */
+const CANVAS = 1024;
+
+type Recipe = {
+  readonly file: string;
+  readonly what: string;
+  /** Canvas the mark is centred on, or `null` to crop tight to the mark. */
+  readonly canvas: number | null;
+  /** Mark width in px. */
+  readonly markWidth: number;
+  /** `null` means a transparent ground. */
+  readonly ground: typeof PAPER | null;
+};
+
+const RECIPES: readonly Recipe[] = [
+  {
+    file: "icon.png",
+    what: "iOS app icon and the Android legacy/fallback launcher icon",
+    canvas: CANVAS,
+    markWidth: Math.round(CANVAS * RATIO_LAUNCHER),
+    // OPAQUE, and this is a hard requirement rather than a preference: the App
+    // Store rejects an icon with an alpha channel outright, and Android's
+    // legacy launcher composites it over an unknown ground. Paper is also what
+    // the knocked-out silhouettes need behind them to read at all.
+    ground: PAPER,
+  },
+  {
+    file: "adaptive-icon-foreground.png",
+    what: "Android adaptive icon, foreground layer",
+    canvas: CANVAS,
+    markWidth: Math.round(CANVAS * RATIO_MASKABLE),
+    // TRANSPARENT on purpose. The background layer is a flat paper fill
+    // declared in app.json as `backgroundColor` — see the note there for why a
+    // colour and not a second PNG.
+    ground: null,
+  },
+  {
+    file: "splash-icon.png",
+    what: "expo-splash-screen image",
+    // Tight crop, no canvas. expo-splash-screen renders this at `imageWidth`
+    // dp; padding baked into the file would just shrink the mark inside its own
+    // declared width and force a compensating number in the config.
+    canvas: null,
+    markWidth: Math.round(CANVAS * RATIO_MASKABLE),
+    ground: null,
+  },
+];
+
+async function main(): Promise<void> {
+  const meta = await sharp(SOURCE).metadata();
+  if (!meta.width || !meta.height) {
+    throw new Error(`Could not read dimensions from ${SOURCE}`);
+  }
+
+  // THE TRIM IS THE FIRST OPERATION, and everything downstream measures against
+  // its result rather than against the file. See "THOSE ARE INK MEASUREMENTS"
+  // in the header: the mark is painted off-centre inside its own frame, so the
+  // rectangle's dimensions and its centre are both the wrong thing to compose
+  // with.
+  //
+  // Threshold 10 rather than 0: the source's margin is not perfectly clean, and
+  // a handful of near-transparent stray pixels would otherwise defeat the trim
+  // entirely and silently — the failure would be a mark 27px smaller than
+  // intended, which nobody sees on a phone.
+  const trimmed = await sharp(SOURCE).trim({ threshold: 10 }).png().toBuffer();
+  const ink = await sharp(trimmed).metadata();
+  if (!ink.width || !ink.height) {
+    throw new Error(`Could not measure the trimmed mark from ${SOURCE}`);
+  }
+
+  console.log(
+    `source: ${path.relative(ROOT, SOURCE)} — ${meta.width}×${meta.height}, ` +
+      `ink ${ink.width}×${ink.height} after trim`,
+  );
+  mkdirSync(OUT_DIR, { recursive: true });
+
+  for (const recipe of RECIPES) {
+    // Width only — sharp derives the height from the source aspect ratio. The
+    // mark is landscape and squashing it by a rounding pixel is the one
+    // distortion nobody would notice until it was on 12 phones.
+    const mark = await sharp(trimmed)
+      .resize({ width: recipe.markWidth, kernel: "lanczos3" })
+      .png()
+      .toBuffer();
+
+    const out = path.join(OUT_DIR, recipe.file);
+    const scale = recipe.markWidth / ink.width;
+    const scaleLabel = scale >= 1 ? `↑${scale.toFixed(2)}×` : `↓${scale.toFixed(2)}×`;
+
+    if (recipe.canvas === null) {
+      await sharp(mark).png({ compressionLevel: 9 }).toFile(out);
+    } else {
+      let canvas = sharp({
+        create: {
+          width: recipe.canvas,
+          height: recipe.canvas,
+          channels: 4,
+          background: recipe.ground ?? { r: 0, g: 0, b: 0, alpha: 0 },
+        },
+      }).composite([{ input: mark, gravity: "centre" }]);
+
+      // THE ALPHA CHANNEL IS DROPPED, NOT MERELY FILLED. App Store Connect
+      // rejects an app icon that HAS an alpha channel — it does not look at
+      // whether every pixel in it happens to be opaque, which is what a
+      // composite over a solid ground produces. Two separate calls because
+      // they answer two separate questions: `flatten` decides what shows
+      // through the knocked-out silhouettes, `removeAlpha` decides how many
+      // channels the file declares.
+      if (recipe.ground !== null) {
+        canvas = canvas.flatten({ background: recipe.ground }).removeAlpha();
+      }
+
+      await canvas.png({ compressionLevel: 9 }).toFile(out);
+    }
+
+    // Reported from the file on disk, never from the intent above it: `resize`
+    // rounds the derived height, and a log that prints the requested number is
+    // a log that cannot tell you it got something else.
+    const written = await sharp(out).metadata();
+    console.log(
+      `  ${recipe.file.padEnd(30)} ${written.width}×${written.height}` +
+        `  mark ${recipe.markWidth}px ${scaleLabel}` +
+        `  alpha=${written.hasAlpha}  ${recipe.what}`,
+    );
+  }
+
+  console.log(`\nwrote ${RECIPES.length} file(s) to ${path.relative(ROOT, OUT_DIR)}`);
+}
+
+main().catch((error: unknown) => {
+  console.error(error);
+  process.exit(1);
+});
