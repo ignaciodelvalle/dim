@@ -1,14 +1,17 @@
-// ASENTAR — writing one of the ten asientos an owner may write, from the phone.
+// ASENTAR — writing one of the asientos an owner may write, from the phone.
 //
-// SIX WHEN THIS SCREEN WAS BUILT, TEN NOW: WU-L added visita veterinaria,
-// información clínica, esterilización and microchip — every remaining web
-// writer that appends a plain fact under the SAME guard the first six use and
-// through the same idempotent insert. What is still missing from the picker is
-// listed in `writers.ts`, with the evidence for each exclusion; the short of it
-// is that mordedura opens a case, lost/found mutate status, and three others
-// have no idempotency key to honour.
+// SIX WHEN THIS SCREEN WAS BUILT, ELEVEN NOW: WU-L added visita veterinaria,
+// información clínica, esterilización and microchip, and WU-M added síntoma —
+// every web writer that appends a plain fact under the SAME guard the first six
+// use and through the same idempotent insert. What is still missing from the
+// picker is listed in `writers.ts`, with the evidence for each exclusion; the
+// short of it is that mordedura opens a case, lost/found mutate status and have
+// their own endpoints, and two others have no idempotency key to honour.
 //
-// The picker holds NINE of the ten, for the reason spelled out below.
+// SÍNTOMA IS THE ONE THAT DOES MORE THAN APPEND, and the screen says so before
+// the form rather than after the write: its subtitle names the sanitary
+// authority. The server decides everything about that fan-out off the free text
+// — this form sends three fields and no disease, no signal and no recipient.
 //
 // IT APPENDS. Nothing here edits anything: every one of these lands as a new row
 // on an append-only spine, and a mistake is corrected by appending a correction
@@ -16,7 +19,7 @@
 // because a person about to write into a national registry should know that
 // while they can still stop.
 //
-// NINE KINDS ARE PICKED HERE AND THE TENTH IS NOT. Ending a treatment needs the
+// ONE KIND IS NOT PICKED HERE. Ending a treatment needs the
 // `medication_started` asiento it ends, and the only place a person already
 // holds that identifier is that asiento's own screen — so that affordance lives
 // there and arrives here with `sourceEventId` filled in. A picker would have to
@@ -72,6 +75,7 @@ import {
   type RecordKind,
   SAME_DAY_PROMPT_LABEL,
   STERILIZATION_PROCEDURE_OPTIONS,
+  SYMPTOM_SEVERITY_OPTIONS,
   type WritableKind,
   clinicalSubKindLabel,
   dewormingTypeLabel,
@@ -81,6 +85,7 @@ import {
   kindTitle,
   noteCategoryLabel,
   sterilizationProcedureLabel,
+  symptomSeverityLabel,
   validateDraft,
 } from "./record-event-view-model";
 
@@ -288,7 +293,11 @@ function Fields({
   // does not belong inside this change; the format is the same "AAAA-MM-DD" the
   // web posts, the field is pre-filled with today in ARGENTINE time, and the
   // contract refuses a day that does not exist rather than rolling it over.
-  const dateField = (label: string, field: "occurredAt" | "nextDueAt", required: boolean) => (
+  const dateField = (
+    label: string,
+    field: "occurredAt" | "nextDueAt" | "onsetAt",
+    required: boolean,
+  ) => (
     <TextField
       label={label}
       required={required}
@@ -607,6 +616,35 @@ function Fields({
             optionLabel={noteCategoryLabel}
             onSelect={(value) => set("category", draft.category === value ? null : value)}
           />
+        </>
+      );
+
+    case "symptom":
+      return (
+        <>
+          {/* THE FIELD THAT DOES THE WORK. The server's matcher reads THIS —
+              not the severity, not the date — so the placeholder asks for
+              observations and not for a diagnosis. A person writing "parvovirus"
+              here has guessed; a person writing what they saw has reported. */}
+          <TextField
+            label="Qué le viste"
+            required
+            multiline
+            value={draft.freeText}
+            onChangeText={(v) => set("freeText", v)}
+            placeholder="Decaído, no come desde ayer, vómitos"
+          />
+          <Choice
+            label="Gravedad"
+            options={SYMPTOM_SEVERITY_OPTIONS}
+            selected={draft.severity}
+            optionLabel={symptomSeverityLabel}
+            onSelect={(value) => set("severity", draft.severity === value ? null : value)}
+          />
+          {/* OPTIONAL AND BLANK, unlike every other date on this screen. Left
+              empty, the asiento is stamped at the moment of reporting — which
+              is the honest answer when nobody knows when it started. */}
+          {dateField("Desde cuándo (si sabés)", "onsetAt", false)}
         </>
       );
   }

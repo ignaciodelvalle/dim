@@ -51,6 +51,7 @@ export {
   NOTE_CATEGORIES,
   RECORD_EVENT_INPUT_CODES,
   STERILIZATION_PROCEDURES,
+  SYMPTOM_SEVERITIES,
   type ClinicalSubKind,
   type DewormingType,
   type MedicationFrequency,
@@ -59,6 +60,7 @@ export {
   type RecordEventInputCode,
   type RecordEventKind,
   type SterilizationProcedure,
+  type SymptomSeverity,
   firstRecordEventInputCode,
   recordEventInputSchema,
 } from "./record-event.ts";

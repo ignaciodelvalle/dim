@@ -30,6 +30,7 @@ jest.mock("../api/endpoints", () => ({
 jest.mock("../auth/session-store", () => ({ sessionPort: {} }));
 
 import { RecordEventScreen } from "./RecordEventScreen";
+import { RECORD_KINDS, kindTitle } from "./record-event-view-model";
 
 const TOKEN = "DIM-PAMP-0001";
 const EVENT_ID = "33333333-3333-4333-8333-333333333333";
@@ -59,20 +60,14 @@ beforeEach(() => {
 });
 
 describe("RecordEventScreen — the picker", () => {
-  it("offers the nine kinds a person can choose, and says where the tenth lives", () => {
+  it("offers EVERY pickable kind, and says where the one that is not lives", () => {
+    // DRIVEN OFF `RECORD_KINDS`, not off a list written here. The hand-written
+    // list this replaced said "the nine kinds" and would have kept passing with
+    // a tenth in the picker and no test touching it — which is precisely the
+    // failure mode a render test exists to catch.
     render(<RecordEventScreen publicToken={TOKEN} />);
-    for (const label of [
-      "Vacuna",
-      "Peso",
-      "Antiparasitario",
-      "Medicación · inicio",
-      "Visita veterinaria",
-      "Información clínica",
-      "Esterilización",
-      "Microchip",
-      "Nota",
-    ]) {
-      expect(screen.getByText(label)).toBeOnTheScreen();
+    for (const kind of RECORD_KINDS) {
+      expect(screen.getByText(kindTitle(kind))).toBeOnTheScreen();
     }
     // Ending a treatment needs the asiento it ends, so it is NOT a choice here
     // — and the screen says so rather than leaving a gap a person hunts for.
@@ -398,14 +393,90 @@ describe("RecordEventScreen — microchip", () => {
     expect(mockRecordPetEvent).not.toHaveBeenCalled();
   });
 
-  it("shows the immutability note on every one of the four, before the button", () => {
+  it("shows the immutability note on EVERY form, before the button", () => {
     // A person about to write into a national registry should read it while
     // they can still stop — and a new `switch` arm is exactly where it would
-    // have been forgotten.
-    for (const kind of ["vet_visit", "clinical_info", "sterilization", "microchip"] as const) {
+    // have been forgotten, which is why this walks the union rather than the
+    // four kinds it originally listed.
+    for (const kind of [...RECORD_KINDS, "medication_end" as const]) {
       const view = render(<RecordEventScreen publicToken={TOKEN} initialKind={kind} />);
       expect(screen.getByText(/no se editan ni se borran/i)).toBeOnTheScreen();
       view.unmount();
     }
+  });
+});
+
+describe("RecordEventScreen — síntoma", () => {
+  it("warns about the sanitary authority BEFORE the form, not after the write", () => {
+    // The one asiento here whose write can leave the animal's own record. The
+    // subtitle is on screen from the moment the form opens, which is while the
+    // person can still decide not to send it.
+    render(<RecordEventScreen publicToken={TOKEN} initialKind="symptom" />);
+    expect(screen.getByText(/autoridad sanitaria/i)).toBeOnTheScreen();
+    expect(screen.getByText(/no se editan ni se borran/i)).toBeOnTheScreen();
+  });
+
+  it("offers NO date field a person must fill, unlike every other kind", () => {
+    // Síntoma's onset is optional and blank; the form asks "desde cuándo (si
+    // sabés)". A required date here would collect a guess.
+    render(<RecordEventScreen publicToken={TOKEN} initialKind="symptom" />);
+    expect(screen.queryByLabelText("Fecha, obligatorio")).toBeNull();
+    expect(screen.getByLabelText("Desde cuándo (si sabés)")).toBeOnTheScreen();
+  });
+
+  it("sends the free text alone when that is all the person knows", async () => {
+    render(<RecordEventScreen publicToken={TOKEN} initialKind="symptom" />);
+    fireEvent.changeText(
+      screen.getByLabelText("Qué le viste, obligatorio"),
+      "Decaído, no come desde ayer",
+    );
+    fireEvent.press(screen.getByText("Guardar"));
+
+    await waitFor(() => expect(mockRecordPetEvent).toHaveBeenCalledTimes(1));
+    expect(sentBody()).toEqual({
+      kind: "symptom",
+      freeText: "Decaído, no come desde ayer",
+      severity: null,
+      onsetAt: null,
+    });
+    // NO `occurredAt`, even though `emptyDraft` pre-fills one for the other ten.
+    expect(sentBody()).not.toHaveProperty("occurredAt");
+    expect(sentKey()).toMatch(/^[0-9a-f-]{36}$/);
+  });
+
+  it("carries the severity and the onset when the person did know them", async () => {
+    render(<RecordEventScreen publicToken={TOKEN} initialKind="symptom" />);
+    fireEvent.changeText(screen.getByLabelText("Qué le viste, obligatorio"), "Vómitos");
+    fireEvent.press(screen.getByText("Grave"));
+    fireEvent.changeText(screen.getByLabelText("Desde cuándo (si sabés)"), "2026-08-20");
+    fireEvent.press(screen.getByText("Guardar"));
+
+    await waitFor(() => expect(mockRecordPetEvent).toHaveBeenCalledTimes(1));
+    expect(sentBody()).toMatchObject({ severity: "severe", onsetAt: "2026-08-20" });
+  });
+
+  it("lets a severity be UNPICKED, because the web's select starts blank", async () => {
+    render(<RecordEventScreen publicToken={TOKEN} initialKind="symptom" />);
+    fireEvent.changeText(screen.getByLabelText("Qué le viste, obligatorio"), "Tos");
+    fireEvent.press(screen.getByText("Leve"));
+    fireEvent.press(screen.getByText("Leve"));
+    fireEvent.press(screen.getByText("Guardar"));
+
+    await waitFor(() => expect(mockRecordPetEvent).toHaveBeenCalledTimes(1));
+    expect(sentBody()).toMatchObject({ severity: null });
+  });
+
+  it("refuses an empty description WITHOUT calling the server", async () => {
+    render(<RecordEventScreen publicToken={TOKEN} initialKind="symptom" />);
+    fireEvent.press(screen.getByText("Guardar"));
+
+    expect(await screen.findByText("Contá qué le viste.")).toBeOnTheScreen();
+    expect(mockRecordPetEvent).not.toHaveBeenCalled();
+  });
+
+  it("is reachable from the picker, in the place the day happens in", () => {
+    render(<RecordEventScreen publicToken={TOKEN} />);
+    fireEvent.press(screen.getByText("Síntoma"));
+    expect(screen.getByLabelText("Qué le viste, obligatorio")).toBeOnTheScreen();
   });
 });

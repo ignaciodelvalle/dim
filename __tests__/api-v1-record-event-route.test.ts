@@ -1,11 +1,11 @@
-// `POST /api/v1/pets/{token}/events` — the six daily writers.
+// `POST /api/v1/pets/{token}/events` — every owner writer behind one URL.
 //
 // WHAT THIS FILE HAS TO PROVE
 // ---------------------------------------------------------------------------
-//   1. THE GUARD IS NOT UNIFORM, and the asymmetry is the web's. Five kinds
-//      mirror `requireAlivePetAccess` (deceased refuses, org path needs
+//   1. THE GUARD IS NOT UNIFORM, and the asymmetry is the web's. Every kind but
+//      one mirrors `requireAlivePetAccess` (deceased refuses, org path needs
 //      `event.write`); NOTA mirrors `requirePetAccess` (neither). An endpoint
-//      that tidied the six into one rule would silently take a memorial note
+//      that tidied them into one rule would silently take a memorial note
 //      away from a grieving owner, and no typechecker would notice.
 //   2. THE SERVER OWNS THE CALENDAR AND THE SCHEDULE. `occurredAt` is anchored
 //      and checked against the ANIMAL's record; a medication's dose times are
@@ -36,6 +36,14 @@ const control = vi.hoisted(() => ({
   /** Every use-case call. Empty means nothing was written. */
   writes: [] as Array<{ kind: string; input: Record<string, unknown> }>,
   writeResult: null as null | (() => unknown),
+  /**
+   * Síntoma answers in its OWN shape — `{symptomEventId, signalEventIds}`, not
+   * `UseCaseResult<RecordedEvent>` — so it needs its own override rather than
+   * sharing `writeResult`.
+   */
+  symptomResult: null as null | (() => unknown),
+  /** Every dep object the symptom writer was handed. Proves the flush is wired. */
+  symptomDeps: [] as Array<Record<string, unknown>>,
 }));
 
 vi.mock("@/lib/infra/live-user", async (importOriginal) => {
@@ -128,6 +136,19 @@ vi.mock("@/src/modules/events/application/clinical/clinical-info-use-case", () =
   createClinicalInfo: writerMock("clinical_info"),
 }));
 
+vi.mock("@/src/modules/events/application/surveillance/symptom-observed-use-case", () => ({
+  createSymptomObservedWriter: async (
+    input: Record<string, unknown>,
+    deps: Record<string, unknown>,
+  ) => {
+    control.writes.push({ kind: "symptom", input });
+    control.symptomDeps.push(deps);
+    return control.symptomResult
+      ? control.symptomResult()
+      : { ok: true, symptomEventId: EVENT_ID, signalEventIds: [], wasDuplicate: false };
+  },
+}));
+
 vi.mock("@/lib/infra/pet-identifiers", () => ({
   fetchActiveIdentifications: async () => ({
     microchip: control.canonicalChip ? { code: control.canonicalChip } : null,
@@ -162,6 +183,15 @@ function petRow(overrides: Record<string, unknown> = {}) {
     name: "Pampa",
     status: "active",
     dateOfBirth: "2020-01-01",
+    // The animal's SURVEILLANCE CONTEXT, which only síntoma reads: species and
+    // jurisdiction decide which authorities a signal reaches, and the
+    // observation status decides whether a rabies match is an ordinary report
+    // or an escalation inside an open case.
+    species: "dog",
+    jurisdictionCountry: "AR",
+    jurisdictionProvince: "La Pampa",
+    jurisdictionLocality: "Santa Rosa",
+    rabiesObservationStatus: null,
     ...overrides,
   };
 }
@@ -213,6 +243,8 @@ beforeEach(() => {
   control.canonicalChip = null;
   control.writes = [];
   control.writeResult = null;
+  control.symptomResult = null;
+  control.symptomDeps = [];
 });
 
 describe("POST .../events — the guard is the web's, and it is not uniform", () => {
@@ -494,7 +526,7 @@ describe("POST .../events — the envelope", () => {
     expect(control.limits).toEqual([]);
   });
 
-  it("refuses a body whose kind is not one of the ten", async () => {
+  it("refuses a body whose kind is not one the contract names", async () => {
     const response = await call({ kind: "death_recorded", occurredAt: A_PAST_DAY });
     expect(response.status).toBe(400);
     expect(await response.json()).toEqual({ error: "invalid_request" });
@@ -668,6 +700,187 @@ describe("POST .../events — what the four WU-L kinds put on the spine", () => 
 
   it("refuses a sterilization procedure outside the web's two", async () => {
     const response = await call({ ...A_STERILIZATION, procedure: "neuter" });
+    expect(response.status).toBe(400);
+    expect(control.writes).toEqual([]);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// WU-M — síntoma, the eleventh kind, and the only write here that leaves the
+// animal's own record.
+// ---------------------------------------------------------------------------
+
+const A_SYMPTOM = { kind: "symptom", freeText: "Decaído, no come desde ayer" };
+
+describe("POST .../events — síntoma carries the ALIVE guard, each half proved", () => {
+  // `createSymptomObservedAction` guards with `requireAlivePetAccess`
+  // (actions.ts:690) — the same rule the other ten clinical kinds carry, which
+  // is why the switch needed no new guard branch. Asserted anyway, and per
+  // half, because "it fell into the default branch" and "it was checked" look
+  // identical from the outside until one of them stops being true.
+  it("refuses síntoma on a DECEASED animal — 409, about the animal", async () => {
+    control.access = () => ({
+      kind: "owner",
+      pet: petRow({ status: "deceased" }),
+      holderRole: "owner",
+    });
+    const response = await call(A_SYMPTOM);
+    expect(response.status).toBe(409);
+    expect(await response.json()).toEqual({ error: "event_not_allowed" });
+    expect(control.writes).toEqual([]);
+  });
+
+  it("refuses síntoma for an org member without event.write — 403, about the caller", async () => {
+    control.access = orgAccess();
+    control.capabilities = new Set();
+    const response = await call(A_SYMPTOM);
+    expect(response.status).toBe(403);
+    expect(await response.json()).toEqual({ error: "event_forbidden" });
+    expect(control.writes).toEqual([]);
+  });
+
+  it("accepts síntoma from a CARETAKER — the web's guard is not titular-only", async () => {
+    // The person watching the animal day to day is the one who notices. A
+    // titular-only rule invented here would silence exactly the reporter this
+    // kind exists for.
+    control.access = () => ({ kind: "owner", pet: petRow(), holderRole: "caretaker" });
+    const response = await call(A_SYMPTOM);
+    expect(response.status).toBe(201);
+    expect(control.writes.map((w) => w.kind)).toEqual(["symptom"]);
+  });
+});
+
+describe("POST .../events — what a síntoma puts on the spine, and what it may not", () => {
+  it("sends the free text and NOTHING the server decides for itself", async () => {
+    await call({ ...A_SYMPTOM, severity: "moderate" });
+    const input = control.writes[0]?.input as Record<string, unknown>;
+    expect(input.freeText).toBe("Decaído, no come desde ayer");
+    expect(input.severity).toBe("moderate");
+    // The matcher, the outbreak signals, the outbox row and the recipients are
+    // all resolved INSIDE the writer, off this text. A wire that carried a
+    // disease code would be a phone filing a claim; one that carried a
+    // recipient would be a phone choosing who gets woken up.
+    expect(input).not.toHaveProperty("alertedDiseaseCodes");
+    expect(input).not.toHaveProperty("matchedSymptomCodes");
+    expect(input).not.toHaveProperty("signalEventIds");
+  });
+
+  it("reads the animal's surveillance context off the ACCESS query, not off the wire", async () => {
+    control.access = () => ({
+      kind: "owner",
+      pet: petRow({ rabiesObservationStatus: "in_progress" }),
+      holderRole: "owner",
+    });
+    await call(A_SYMPTOM);
+    const input = control.writes[0]?.input as Record<string, unknown>;
+    expect(input.petSpecies).toBe("dog");
+    expect(input.petJurisdictionCountry).toBe("AR");
+    expect(input.petJurisdictionProvince).toBe("La Pampa");
+    expect(input.petJurisdictionLocality).toBe("Santa Rosa");
+    // The escalation switch. A client that could set it would be able to
+    // declare an antirrabic observation nobody opened.
+    expect(input.rabiesObservationStatus).toBe("in_progress");
+  });
+
+  it("WIRES THE NOTIFICATION FLUSH — the fan-out's last leg", async () => {
+    // The quietest possible regression: every signal still written, every row
+    // still on the spine, and nobody told. The writer builds its notifications
+    // inside the transaction and hands them to this dep afterwards; an endpoint
+    // that passed no flush would drop them without failing anything.
+    await call(A_SYMPTOM);
+    expect(typeof control.symptomDeps[0]?.flushNotifications).toBe("function");
+  });
+
+  it("signs with the org path's resolved authorship, never re-derived", async () => {
+    control.access = orgAccess();
+    await call(A_SYMPTOM);
+    expect(control.writes[0]?.input.eventAuthorship).toEqual({
+      authorRole: "shelter",
+      authorOrganizationId: "org-1",
+      authorVerified: false,
+    });
+  });
+
+  it("takes a síntoma with NO date at all, where every other kind requires one", async () => {
+    const response = await call(A_SYMPTOM);
+    expect(response.status).toBe(201);
+    expect(control.writes[0]?.input.onsetAt).toBeNull();
+  });
+
+  it("holds a STATED onset to the animal's own record, both ways", async () => {
+    const future = await call({ ...A_SYMPTOM, onsetAt: "2099-01-01" });
+    expect(future.status).toBe(400);
+    expect(await future.json()).toEqual({ error: "event_date_future" });
+    expect(control.writes).toEqual([]);
+
+    const beforeBirth = await call({ ...A_SYMPTOM, onsetAt: "2019-06-01" });
+    expect(beforeBirth.status).toBe(400);
+    expect(await beforeBirth.json()).toEqual({ error: "event_date_before_birth" });
+    expect(control.writes).toEqual([]);
+  });
+
+  it("passes a stated onset THROUGH as the day string, not as an instant", async () => {
+    // The writer anchors it at noon UTC with the web's own `parseDateInput`. An
+    // endpoint that converted it here would be a second anchor.
+    await call({ ...A_SYMPTOM, onsetAt: A_PAST_DAY });
+    expect(control.writes[0]?.input.onsetAt).toBe(A_PAST_DAY);
+  });
+
+  it("never runs the same-day soft gate for a síntoma — the web has no such gate", async () => {
+    control.sameDay = true;
+    const response = await call(A_SYMPTOM);
+    expect(response.status).toBe(201);
+  });
+
+  it("carries the Idempotency-Key onto it, and reports a replay as 201", async () => {
+    // THE WHOLE REASON THIS KIND COULD CROSS. The exclusion that kept it out for
+    // two work units said this writer took no key; it has taken one since the
+    // W-1 fix of 2026-06-07 and branches to `insertEventIdempotent` on it.
+    await call(A_SYMPTOM);
+    expect(control.writes[0]?.input.clientIdempotencyKey).toBe(KEY);
+
+    control.symptomResult = () => ({
+      ok: true,
+      symptomEventId: EVENT_ID,
+      signalEventIds: [],
+      wasDuplicate: true,
+    });
+    const response = await call(A_SYMPTOM);
+    expect(response.status).toBe(201);
+    expect(await response.json()).toEqual({ eventId: EVENT_ID, wasDuplicate: true });
+  });
+
+  it("answers with the SYMPTOM's event id, never a signal's", async () => {
+    // `signalEventIds` are system-authored rows about a DISEASE in a
+    // jurisdiction. The asiento the owner wrote is the one they can open,
+    // correct and see in their libreta; answering with a signal id would hand a
+    // phone an identifier that resolves to somebody else's fact.
+    control.symptomResult = () => ({
+      ok: true,
+      symptomEventId: EVENT_ID,
+      signalEventIds: ["99999999-9999-4999-8999-999999999999"],
+      wasDuplicate: false,
+    });
+    const response = await call(A_SYMPTOM);
+    expect(await response.json()).toEqual({ eventId: EVENT_ID, wasDuplicate: false });
+  });
+
+  it("maps a failed síntoma to the same retryable code, without leaking its prose", async () => {
+    control.symptomResult = () => ({ ok: false, error: "constraint pet_events_x violated" });
+    const response = await call(A_SYMPTOM);
+    expect(response.status).toBe(500);
+    expect(await response.json()).toEqual({ error: "event_failed" });
+  });
+
+  it("refuses a severity outside the web's three", async () => {
+    const response = await call({ ...A_SYMPTOM, severity: "moderado" });
+    expect(response.status).toBe(400);
+    expect(await response.json()).toEqual({ error: "invalid_request" });
+    expect(control.writes).toEqual([]);
+  });
+
+  it("refuses an empty description before it writes anything", async () => {
+    const response = await call({ kind: "symptom", freeText: "   " });
     expect(response.status).toBe(400);
     expect(control.writes).toEqual([]);
   });

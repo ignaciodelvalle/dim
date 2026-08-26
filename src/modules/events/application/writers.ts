@@ -47,7 +47,36 @@ async function enqueueEnoTriggerInTx(
   await _enqueueEnoTrigger(petEvent, { repo: surveillanceRepo, executor: tx });
 }
 
-async function flushNotifications(pending: import("./types").NewNotification[]): Promise<void> {
+/**
+ * Write the notifications a use-case decided on, AFTER its transaction closed.
+ *
+ * EXPORTED, AND NOT MOVED. `POST /api/v1/pets/{token}/events` needs this the
+ * moment a kind whose write fans out reaches it — síntoma does — and the
+ * obvious tidy-up was to lift the function into its own module that this file
+ * and `actions.ts` both import. It was tried and TWO fences refused it, for
+ * reasons better than tidiness:
+ *
+ *   · `lint:notifications` bans `db.insert(notifications)` in any file not in
+ *     `scripts/notifications-service-baseline.json`, whose list "only ever
+ *     shrinks". A new module holding this insert is baseline GROWTH, and the
+ *     intent is to migrate these two sites onto `createNotification()` /
+ *     `createNotificationsBulk()` — not to add a third.
+ *   · `lint:audit-log` resolves reachability ONE HOP. The twin copy inside
+ *     `actions.ts` is the only direct mutation left in that module, and it is
+ *     what lets that fence still see that `orgRecordNoteAction` mutates. Its
+ *     own docblock there carries the evidence.
+ *
+ * So the duplicate stays and this one is shared instead. When the migration to
+ * the notification service happens, both disappear together.
+ *
+ * WHY IT RUNS OUTSIDE THE TRANSACTION at all: a notification is a CONSEQUENCE
+ * of a fact, not part of it. A failed insert here must never roll back the
+ * append that earned it — `__tests__/notifications-outside-tx.test.ts` is the
+ * fence that keeps that true — which is why the catch swallows.
+ */
+export async function flushNotifications(
+  pending: import("./types").NewNotification[],
+): Promise<void> {
   if (pending.length === 0) return;
   try {
     // biome-ignore lint/suspicious/noExplicitAny: NewNotification is structurally compatible with notifications.$inferInsert

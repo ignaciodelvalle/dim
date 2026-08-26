@@ -286,3 +286,72 @@ describe("recordEventInputSchema — the four WU-L kinds", () => {
     expect(parsed).not.toHaveProperty("sameDayOverride");
   });
 });
+
+// ---------------------------------------------------------------------------
+// WU-M — síntoma, the eleventh kind and the only one with no `occurredAt`.
+// ---------------------------------------------------------------------------
+
+describe("recordEventInputSchema — síntoma", () => {
+  it("accepts the free text ALONE — no date, no severity", () => {
+    // The web's own shape: `createSymptomObservedAction` requires `freeText` and
+    // nothing else. A schema that demanded a day here would refuse a report the
+    // browser takes happily.
+    expect(recordEventInputSchema.parse({ kind: "symptom", freeText: "Decaído, no come" })).toEqual(
+      { kind: "symptom", freeText: "Decaído, no come", severity: undefined, onsetAt: null },
+    );
+  });
+
+  it("refuses an empty description — the one field it cannot do without", () => {
+    expect(codeFor({ kind: "symptom", freeText: "   " })).toBe("SYMPTOM_TEXT_REQUIRED");
+    expect(codeFor({ kind: "symptom" })).toBe("SYMPTOM_TEXT_REQUIRED");
+  });
+
+  it("carries NO occurredAt, which is what separates it from the other ten", () => {
+    const parsed = recordEventInputSchema.parse({ kind: "symptom", freeText: "Tos seca" });
+    expect(parsed).not.toHaveProperty("occurredAt");
+  });
+
+  it("takes the three severities and REFUSES a fourth, where the web drops it silently", () => {
+    for (const severity of ["mild", "moderate", "severe"]) {
+      expect(codeFor({ kind: "symptom", freeText: "Tos", severity })).toBe(null);
+    }
+    // The web's `<select>` cannot produce this; a JSON client can, and a symptom
+    // filed with no severity because the app sent Spanish is a typo that reaches
+    // the ledger. Same call `note.category` makes.
+    expect(codeFor({ kind: "symptom", freeText: "Tos", severity: "moderado" })).toBe(
+      "SYMPTOM_SEVERITY_INVALID",
+    );
+    expect(codeFor({ kind: "symptom", freeText: "Tos", severity: null })).toBe(null);
+  });
+
+  it("normalizes a blank onset to null rather than refusing it", () => {
+    // The web reads `String(formData.get("onsetAt") ?? "").trim() || null`, so an
+    // untouched date input reaches the writer as null. A schema that ran the
+    // regex over "" would answer 400 to a request the web accepts.
+    for (const onsetAt of ["", "   ", null, undefined]) {
+      expect(recordEventInputSchema.parse({ kind: "symptom", freeText: "Tos", onsetAt })).toEqual({
+        kind: "symptom",
+        freeText: "Tos",
+        severity: undefined,
+        onsetAt: null,
+      });
+    }
+  });
+
+  it("holds a STATED onset to the same calendar as every other date here", () => {
+    expect(codeFor({ kind: "symptom", freeText: "Tos", onsetAt: "2026-02-31" })).toBe(
+      "ONSET_AT_INVALID",
+    );
+    expect(codeFor({ kind: "symptom", freeText: "Tos", onsetAt: "20/08/2026" })).toBe(
+      "ONSET_AT_INVALID",
+    );
+    expect(codeFor({ kind: "symptom", freeText: "Tos", onsetAt: A_DAY })).toBe(null);
+  });
+
+  it("caps NOTHING on the description, because the web caps nothing", () => {
+    // The matcher reads this text. A truncation invented here would be a symptom
+    // the browser surfaces to the sanitary authority and the app silently drops.
+    const long = "vómitos ".repeat(500);
+    expect(codeFor({ kind: "symptom", freeText: long })).toBe(null);
+  });
+});

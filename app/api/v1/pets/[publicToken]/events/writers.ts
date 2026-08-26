@@ -1,4 +1,4 @@
-// The ten owner writers, behind `POST /api/v1/pets/{publicToken}/events`.
+// The eleven owner writers, behind `POST /api/v1/pets/{publicToken}/events`.
 //
 // Split out of `route.ts` for the reason the amend endpoint split its own
 // handler: that file's subject is "is this request well formed", and this one's
@@ -8,17 +8,21 @@
 //
 // WHO MAY WRITE — VERIFIED AGAINST THE WEB, NOT ASSUMED, AND NOT UNIFORM
 // ---------------------------------------------------------------------------
-// NINE OF THE TEN are guarded on the web by `requireAlivePetAccess(publicToken)`:
+// TEN OF THE ELEVEN are guarded on the web by `requireAlivePetAccess(publicToken)`,
+// cited at the GUARD CALL rather than at the function that contains it — a
+// function's first line drifts every time somebody adds a parameter, and the
+// line that matters is the one naming the rule:
 //
-//   vacuna              `createVaccinationAction`   actions-medical.ts:69
-//   peso                `createWeightAction`        actions-medical.ts:168
-//   antiparasitario     `createDewormingAction`     actions-medical.ts:241
-//   esterilización      `createSterilizationAction` actions-medical.ts:335
-//   medicación inicio   `createMedicationStartAction` actions-medical.ts:405
-//   medicación fin      `createMedicationEndAction` actions-medical.ts:512
-//   microchip           `createMicrochipAction`     actions.ts:99
-//   visita veterinaria  `createVetVisitAction`      actions.ts:317
-//   información clínica `createClinicalInfoAction`  actions.ts:404
+//   vacuna              `createVaccinationAction`     actions-medical.ts:71
+//   peso                `createWeightAction`          actions-medical.ts:170
+//   antiparasitario     `createDewormingAction`       actions-medical.ts:243
+//   esterilización      `createSterilizationAction`   actions-medical.ts:337
+//   medicación inicio   `createMedicationStartAction` actions-medical.ts:412
+//   medicación fin      `createMedicationEndAction`   actions-medical.ts:519
+//   microchip           `createMicrochipAction`       actions.ts:99
+//   visita veterinaria  `createVetVisitAction`        actions.ts:317
+//   información clínica `createClinicalInfoAction`    actions.ts:404
+//   síntoma             `createSymptomObservedAction` actions.ts:690
 //
 // Read literally, that guard is:
 //
@@ -28,13 +32,13 @@
 //   · Never on a DECEASED animal: a closed life record accepts no new clinical
 //     events.
 //
-// THE TENTH — NOTA (`createNoteAction`, actions.ts:247) — IS GUARDED BY
+// THE ELEVENTH — NOTA (`createNoteAction`, actions.ts:247) — IS GUARDED BY
 // `requirePetAccess`, and the difference is deliberate on the web, marked there
 // with a `PARITY:` comment that says so in as many words. A note needs NO
 // capability on the org path and is accepted on a DECEASED animal. That second
 // half is the one worth stating out loud: a memorial note is the one thing a
 // grieving owner may still write into the libreta, and an endpoint that "tidied
-// up" the ten into one guard would take it away. Mirrored exactly, asymmetry
+// up" the eleven into one guard would take it away. Mirrored exactly, asymmetry
 // included, because the server actions are themselves addressable endpoints —
 // narrowing here would not close anything, it would only make the two doors
 // disagree.
@@ -43,38 +47,68 @@
 // doors resolve through one query (`resolvePetHolderAccess`), and the only
 // branch below is the `kind === "note"` early return in `checkWriteGuard`.
 //
+// SÍNTOMA IS THE ONE WHOSE WRITE LEAVES THE ANIMAL'S OWN RECORD
+// ---------------------------------------------------------------------------
+// Ten of these eleven append a fact and, at most, schedule a reminder for the
+// household. `createSymptomObservedWriter` runs the free text through the
+// disease matcher and, for every REPORTABLE disease flagged alertable, appends
+// a system-authored `outbreak_signal`, enqueues an ENO outbox row and routes
+// notifications to the jurisdiction's authorities — and when the animal is
+// already under an antirrabic observation, escalates.
+//
+// THAT IS THE REASON TO OFFER IT, not a reason to hesitate. The fan-out is the
+// point of the kind; a person noticing something at 23:00 with a phone in their
+// hand is the fastest surveillance input this product has, and it was reachable
+// from a browser and not from the app. What the phone must NOT do is invent any
+// of it: the matcher, the signals, the outbox row and the routing all run
+// SERVER-SIDE off the free text, exactly as they do for the web form, and the
+// wire carries no disease code, no signal and no recipient.
+//
+// IT DOES NOT OPEN A CASE, which is the line that separates it from mordedura
+// below. The rabies escalation fires only when `pets.rabiesObservationStatus`
+// is ALREADY `in_progress` — a lifecycle somebody else started.
+//
 // WHAT DELIBERATELY DID NOT CROSS, AND ON WHAT EVIDENCE
 // ---------------------------------------------------------------------------
 //   · DIAGNÓSTICO DE ENFERMEDAD (`recordDiseaseDiagnosisAction`,
 //     actions.ts:512). NOT AN OWNER WRITER AT ALL: it performs no ownership
-//     check whatsoever and authorizes on `role === "vet" && matriculaVerified`
-//     (actions.ts:529). It shares an `event_type` with información clínica —
-//     `clinical_info_logged`, sub_kind `disease_diagnosis` — which is exactly
-//     why the contract's `CLINICAL_SUB_KINDS` has five members and not six. An
-//     owner's bearer token must not be able to sign a professional's claim.
+//     check whatsoever and authorizes on `role === "vet" && matriculaVerified`.
+//     It shares an `event_type` with información clínica —
+//     `clinical_info_logged`, sub_kind `disease_diagnosis` — which is one of the
+//     two reasons the contract's `CLINICAL_SUB_KINDS` holds five of the spine's
+//     SEVEN. An owner's bearer token must not sign a professional's claim.
 //   · MORDEDURA (`reportBiteAction`, surveillance/actions.ts:191) IS an owner
 //     writer under this same guard, and is still not here: it does not append a
 //     fact, it OPENS A CASE — a `rabies_observation_started` cascade, a
 //     10-day observation lifecycle and an authority fan-out across
 //     jurisdictions. That belongs in its own work unit with its own contract,
-//     not as a tenth branch of a switch whose other nine only append.
+//     not as a twelfth branch of a switch whose other eleven only append.
 //   · PERDIDA / ENCONTRADA (`setPetLostAction` actions.ts:779,
 //     `setPetFoundAction` actions.ts:933) mutate `pets.status` and carry
 //     disclosure preferences, an enriched description and an alert fan-out.
-//     Lost mode is a feature, not an asiento.
+//     Lost mode is a FEATURE and not an asiento: it belongs behind its own
+//     endpoints with their own shapes, not as branches of a switch whose whole
+//     job is to append one row.
 //   · FALLECIMIENTO (`createDeathRecordAction`, actions.ts:1030) is guarded by
 //     `requirePetAccess` like nota, and is deferred for shape rather than for
 //     reach: five cross-field rules, a disease-code lookup and a custody-episode
 //     stamp read before the transaction.
-//   · SÍNTOMA (`createSymptomObservedAction` actions.ts:690), ATESTACIÓN PPP
-//     (actions.ts:175) and EMBARAZO (app/actions/pregnancy.ts:41, :86) are
-//     owner writers whose use-cases DO NOT ROUTE THROUGH
+//   · ATESTACIÓN PPP (actions.ts:175) and EMBARAZO (app/actions/pregnancy.ts:41,
+//     :86) are owner writers whose use-cases DO NOT ROUTE THROUGH
 //     `insertEventIdempotent` — they insert plainly, with no
 //     `clientIdempotencyKey` parameter to pass. This endpoint REQUIRES an
 //     `Idempotency-Key` and promises it is honoured; accepting a kind that
-//     silently could not honour it would make that promise false for three
-//     kinds out of thirteen, which is worse than not offering them. Closing
-//     that gap is a change to those three writers, not to this file.
+//     silently could not honour it would make that promise false, which is
+//     worse than not offering the kind. Closing that gap is a change to those
+//     writers, not to this file.
+//
+//     SÍNTOMA WAS LISTED HERE ON EXACTLY THAT GROUND AND THE GROUND WAS FALSE.
+//     `createSymptomObservedWriter` has taken a `clientIdempotencyKey` and
+//     branched to `insertEventIdempotent` since the W-1 fix of 2026-06-07, with
+//     parity tests, and `createSymptomObservedAction` reads the field off its
+//     own form (actions.ts:717) and passes it (:739). The exclusion outlived
+//     its reason by two work units because nobody re-read the writer — which is
+//     the argument for citing a LINE and not a belief.
 //
 // WHAT THE SERVER DECIDES AND THE CLIENT MAY NOT
 // ---------------------------------------------------------------------------
@@ -91,13 +125,15 @@
 //     holds a validated matrícula. Re-deriving either would be a native write
 //     claiming a verification nobody gave it.
 //
-// NO ATTACHMENTS ON THIS PATH. Every one of the ten web forms offers a file and
+// NO ATTACHMENTS ON THIS PATH. Ten of the eleven web forms offer a file and
 // every call below passes `uploadedPath: null`, because a native upload needs a
 // signed URL and that whole path is blocked. Stated here rather than left as
-// three nulls a reader has to interpret. It costs the four newest kinds more
-// than it costs the first six — a lab result and a sterilization certificate are
-// the kind of asiento a person photographs — and that is an argument for
-// unblocking the upload, not for a native form that pretends to take one.
+// three nulls a reader has to interpret. It costs the four WU-L kinds more than
+// it costs the first six — a lab result and a sterilization certificate are the
+// kind of asiento a person photographs — and that is an argument for unblocking
+// the upload, not for a native form that pretends to take one. Síntoma is the
+// exception that does not pay it: its web form takes no file either, so the
+// native one loses nothing.
 
 import { assertOccurredAtPlausible } from "@/lib/events/plausibility";
 import { apiV1Error, apiV1Json } from "@/lib/infra/api-v1";
@@ -127,7 +163,12 @@ import { createMedicationStart } from "@/src/modules/events/application/medical/
 import { createSterilization } from "@/src/modules/events/application/medical/sterilization-use-case";
 import { createVaccination } from "@/src/modules/events/application/medical/vaccination-use-case";
 import { createWeight } from "@/src/modules/events/application/medical/weight-use-case";
+import { createSymptomObservedWriter } from "@/src/modules/events/application/surveillance/symptom-observed-use-case";
 import type { RecordedEvent, UseCaseResult } from "@/src/modules/events/application/types";
+// NOT a copy of the flush, and the export's own docblock says why moving it
+// into a shared module is refused by two fences. Imported from the module that
+// is already allowed to hold that insert.
+import { flushNotifications } from "@/src/modules/events/application/writers";
 import { EventsRepository } from "@/src/modules/events/infrastructure/events-repository";
 import { getGrantedCapabilities } from "@/src/modules/organizations/infrastructure/authz-resolver";
 import type { EventRecordedV1 } from "@dim/contract/api";
@@ -182,12 +223,19 @@ function parseWireDay(value: string): Date | null {
 /**
  * The `pet_events.event_type` each wire `kind` becomes.
  *
- * ALL SIX, though only two are ever indexed — the same-day gate is the one
- * reader and it applies to vaccination and deworming alone. The other four are
- * here because this is the table a person asks for ("which spine row is a
- * `medication_end`?") and answering four sixths of that question would send them
- * hunting through six use-cases for the rest. The `kind → event_type` mapping is
- * otherwise implicit in the dispatch below, which is not a place to read it.
+ * EVERY KIND, though only two are ever indexed — the same-day gate is the one
+ * reader and it applies to vaccination and deworming alone. The rest are here
+ * because this is the table a person asks for ("which spine row is a
+ * `medication_end`?") and answering a fraction of that question would send them
+ * hunting through the use-cases for the remainder. The `kind → event_type`
+ * mapping is otherwise implicit in the dispatch below, which is not a place to
+ * read it.
+ *
+ * NO COUNT IN THIS SENTENCE, deliberately, for the reason `RecordedEvent`'s doc
+ * dropped its own: it said "all six" while listing ten, because a number in
+ * prose has to be edited every time a kind crosses and nothing fails when it is
+ * not. The property is that the map is TOTAL over the union — which the
+ * `satisfies` below states to the typechecker instead of to a reader.
  */
 const EVENT_TYPE_OF_KIND = {
   vaccination: "vaccination_administered",
@@ -200,7 +248,8 @@ const EVENT_TYPE_OF_KIND = {
   sterilization: "sterilization_performed",
   vet_visit: "vet_visit_logged",
   clinical_info: "clinical_info_logged",
-} as const;
+  symptom: "symptom_observed",
+} as const satisfies Record<RecordEventInput["kind"], string>;
 
 type WriteContext = {
   publicToken: string;
@@ -230,28 +279,44 @@ export async function writeEvent(ctx: WriteContext) {
   const guard = await checkWriteGuard(access, ctx.input.kind);
   if (guard) return guard;
 
-  const occurredAt = parseWireDay(ctx.input.occurredAt);
-  if (!occurredAt) return apiV1Error("invalid_request", 400);
+  // THE DAY THIS EVENT IS ABOUT, or `null` for the one kind entitled not to name
+  // one. Ten kinds state it outright; síntoma carries an OPTIONAL `onsetAt`,
+  // and when it is absent the use-case stamps the moment of REPORTING — the
+  // same shape `createSymptomObservedAction` has.
+  const day = ctx.input.kind === "symptom" ? ctx.input.onsetAt : ctx.input.occurredAt;
 
-  const plausible = assertOccurredAtPlausible({
-    occurredAt,
-    // The wire carries a DAY, so the future check compares ARGENTINE CALENDAR
-    // DAYS and not instants — comparing the noon-UTC anchor against `now` would
-    // refuse every same-day entry made before 09:05 AR.
-    isDateOnly: true,
-    petDateOfBirth: access.pet.dateOfBirth,
-  });
-  if (!plausible.ok) {
-    return apiV1Error(
-      plausible.error === "FUTURE_DATE" ? "event_date_future" : "event_date_before_birth",
-      400,
-    );
+  let occurredAt: Date | null = null;
+  if (day !== null) {
+    occurredAt = parseWireDay(day);
+    if (!occurredAt) return apiV1Error("invalid_request", 400);
   }
 
   const repo = new EventsRepository();
 
-  const softGate = await checkSameDayGate(repo, access.pet.id, ctx.input, occurredAt);
-  if (softGate) return softGate;
+  // BOTH GATES NEED A DAY, and the one kind that may lack one passes through
+  // both untouched anyway: síntoma is neither of the two the same-day gate
+  // reads, nor a medicación fin. Skipping them when there is no day is
+  // therefore not a carve-out — it is the same answer, reached without asking
+  // the database a question with a `null` in it.
+  if (occurredAt) {
+    const plausible = assertOccurredAtPlausible({
+      occurredAt,
+      // The wire carries a DAY, so the future check compares ARGENTINE CALENDAR
+      // DAYS and not instants — comparing the noon-UTC anchor against `now`
+      // would refuse every same-day entry made before 09:05 AR.
+      isDateOnly: true,
+      petDateOfBirth: access.pet.dateOfBirth,
+    });
+    if (!plausible.ok) {
+      return apiV1Error(
+        plausible.error === "FUTURE_DATE" ? "event_date_future" : "event_date_before_birth",
+        400,
+      );
+    }
+
+    const softGate = await checkSameDayGate(repo, access.pet.id, ctx.input, occurredAt);
+    if (softGate) return softGate;
+  }
 
   const sourceCheck = await checkMedicationSource(repo, access.pet.id, ctx.input);
   if (sourceCheck) return sourceCheck;
@@ -360,11 +425,24 @@ async function checkMedicationSource(
 async function append(
   ctx: WriteContext,
   access: Exclude<PetHolderAccess, { kind: "none" }>,
-  occurredAt: Date,
+  occurredAt: Date | null,
   repo: EventsRepository,
 ) {
   const { input } = ctx;
   const pet = access.pet;
+
+  // SÍNTOMA IS DISPATCHED FIRST AND SEPARATELY, because it shares neither of the
+  // two things every other branch below shares: it has no `occurredAt` of its
+  // own to anchor, and its writer answers in its own shape rather than in
+  // `UseCaseResult<RecordedEvent>`. Folding it into the switch would mean a
+  // `common` object with a nullable date nine branches must not have, and a
+  // result variable typed as a union of two shapes.
+  if (input.kind === "symptom") return appendSymptom(ctx, access, input, repo);
+
+  // Every remaining kind states its day outright, and `writeEvent` refused the
+  // request before reaching here if that day did not parse.
+  if (!occurredAt) return apiV1Error("invalid_request", 400);
+
   const common = {
     user: { id: ctx.userId },
     // The person path signs as the owner; the org path signs as its member's
@@ -607,6 +685,77 @@ async function append(
   const payload: EventRecordedV1 = {
     eventId: result.value.eventId,
     wasDuplicate: result.value.wasDuplicate,
+  };
+  return apiV1Json(payload, { status: 201 });
+}
+
+/**
+ * SÍNTOMA — the one write on this endpoint that reaches past the animal.
+ *
+ * WHAT THE PHONE SENDS IS THREE FIELDS AND NOTHING ELSE: the free text, an
+ * optional self-assessed severity, an optional onset. Everything the write
+ * FANS OUT to — which reportable diseases the text matched, the
+ * system-authored `outbreak_signal` rows, the ENO outbox entry, the
+ * jurisdiction's recipients, the antirrabic escalation — is decided inside the
+ * writer, off the pet's own record. A wire that carried a disease code would be
+ * a client filing a claim; a wire that carried a recipient would be a client
+ * choosing who gets woken up.
+ *
+ * THE ANIMAL'S SURVEILLANCE CONTEXT IS READ HERE, from the access query's own
+ * pet row rather than re-fetched: species and jurisdiction decide which
+ * authorities a signal reaches, and `rabiesObservationStatus` decides whether
+ * this is an ordinary report or an escalation inside an open observation. Every
+ * one of them already came back with the guard.
+ */
+async function appendSymptom(
+  ctx: WriteContext,
+  access: Exclude<PetHolderAccess, { kind: "none" }>,
+  input: Extract<RecordEventInput, { kind: "symptom" }>,
+  repo: EventsRepository,
+) {
+  const pet = access.pet;
+
+  const result = await createSymptomObservedWriter(
+    {
+      petId: pet.id,
+      petPublicToken: pet.publicToken,
+      petSpecies: pet.species,
+      petJurisdictionCountry: pet.jurisdictionCountry,
+      petJurisdictionProvince: pet.jurisdictionProvince ?? null,
+      petJurisdictionLocality: pet.jurisdictionLocality ?? null,
+      rabiesObservationStatus: pet.rabiesObservationStatus ?? null,
+      recordedByUserId: ctx.userId,
+      // Same rule as every other kind: the person path signs as the owner, the
+      // org path as its member's resolved authorship. Never re-derived here.
+      eventAuthorship: access.kind === "org" ? access.eventAuthorship : OWNER_AUTHORSHIP,
+      freeText: input.freeText,
+      severity: input.severity ?? null,
+      onsetAt: input.onsetAt,
+      clientIdempotencyKey: ctx.idempotencyKey,
+    },
+    {
+      repo,
+      transaction: async <T>(cb: (tx: unknown) => Promise<T>) =>
+        db.transaction(cb as Parameters<typeof db.transaction>[0]) as Promise<T>,
+      // THE FAN-OUT'S LAST LEG, and an endpoint that dropped it would be the
+      // quietest possible regression: every signal still written, every row
+      // still on the spine, and nobody told. The web's action passes the same
+      // function; this is not the endpoint's own notion of who to notify.
+      flushNotifications,
+    },
+  );
+
+  if (!result.ok) {
+    reportError("api-v1-event", new Error(result.error), { userId: ctx.userId });
+    return apiV1Error("event_failed", 500);
+  }
+
+  // THE SYMPTOM'S OWN EVENT ID, never a signal's. `signalEventIds` are
+  // system-authored rows about a DISEASE in a jurisdiction; the asiento the
+  // owner wrote is the one they can open, correct and see in the libreta.
+  const payload: EventRecordedV1 = {
+    eventId: result.symptomEventId,
+    wasDuplicate: result.wasDuplicate,
   };
   return apiV1Json(payload, { status: 201 });
 }

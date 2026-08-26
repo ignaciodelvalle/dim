@@ -1,19 +1,20 @@
 // Client-input contract for RECORDING an event —
 // `POST /api/v1/pets/{publicToken}/events`.
 //
-// ONE ENDPOINT, TEN KINDS, AND THAT IS THE DOMAIN'S OWN SHAPE. `pet_events` is
-// a single append-only table discriminated by `event_type`; ten sibling URLs
-// would be ten copies of one guard, one limiter pair and one idempotency
-// contract, kept in agreement by hand. A discriminated union puts the ten
-// differences where they are — in the fields and in ONE guard branch — and
-// leaves everything they share written once.
+// ONE ENDPOINT, ELEVEN KINDS, AND THAT IS THE DOMAIN'S OWN SHAPE. `pet_events`
+// is a single append-only table discriminated by `event_type`; eleven sibling
+// URLs would be eleven copies of one guard, one limiter pair and one
+// idempotency contract, kept in agreement by hand. A discriminated union puts
+// the eleven differences where they are — in the fields and in ONE guard branch
+// — and leaves everything they share written once.
 //
 // THE REFERENCE POINT is the web's own writers, field for field:
 //   · `createVaccinationAction`, `createWeightAction`, `createDewormingAction`,
 //     `createMedicationStartAction`, `createMedicationEndAction`,
 //     `createSterilizationAction` (`src/modules/events/actions-medical.ts`)
 //   · `createNoteAction`, `createMicrochipAction`, `createVetVisitAction`,
-//     `createClinicalInfoAction` (`src/modules/events/actions.ts`)
+//     `createClinicalInfoAction`, `createSymptomObservedAction`
+//     (`src/modules/events/actions.ts`)
 // Every name below is the name that action reads out of its `FormData`, and
 // every limit below is that action's limit. Where the web caps nothing, this
 // caps nothing: a text length this schema invented would be a value the web
@@ -25,6 +26,8 @@
 //     the server anchors at NOON UTC (`parseDateInput`). A client sending an
 //     ISO instant would be choosing its own anchor, and a phone in Ushuaia and
 //     a server in Virginia would disagree about which day a vaccine happened.
+//     SÍNTOMA IS THE ONE KIND THAT DOES NOT CARRY IT, and that is the web's own
+//     shape rather than an omission — see the variant's own note.
 //   · `firstDoseAt` is `"YYYY-MM-DDTHH:mm"` — what `<input type="datetime-local">`
 //     posts, read as ARGENTINE wall clock (`parseArDatetimeLocal`). Same reason,
 //     one step finer: a dose at 08:00 means 08:00 where the animal lives.
@@ -96,13 +99,22 @@ export type SterilizationProcedure = (typeof STERILIZATION_PROCEDURES)[number];
  * its existing importers — `src/modules/events/actions.ts` and the org
  * `atender` action — keep reading ONE array.
  *
- * FIVE, NOT SIX: `disease_diagnosis` is a sixth `clinical_info_logged`
- * sub_kind, and it is deliberately not here. Its writer
- * (`recordDiseaseDiagnosisAction`, `actions.ts:512`) has NO ownership check at
- * all — it authorizes on `role === "vet" && matriculaVerified`, and accepting
- * the value here would let a phone with an owner's bearer token file a
- * diagnosis a verified professional is supposed to sign. The web's owner form
- * never offers it either; this is that same exclusion, written down.
+ * FIVE OF THE SPINE'S SEVEN. `clinical_info_logged`'s own payload schema
+ * (`lib/events/event-schemas.ts`) accepts `lab_work`, `imaging`, `surgery`,
+ * `allergy_detection`, `disease_diagnosis`, `pregnancy` and `other`; the two
+ * missing here are missing for two different reasons.
+ *
+ *   · `disease_diagnosis` — its writer (`recordDiseaseDiagnosisAction`,
+ *     `actions.ts:512`) has NO ownership check at all: it authorizes on
+ *     `role === "vet" && matriculaVerified`. Accepting the value here would let
+ *     a phone holding an owner's bearer token file a diagnosis a verified
+ *     professional is supposed to sign.
+ *   · `pregnancy` — written by its own flow (`app/actions/pregnancy.ts`), which
+ *     is not this endpoint's dispatch and carries its own rules.
+ *
+ * The web's owner form offers neither either; this is that same exclusion,
+ * written down. The boundary was always right and the count was not: this said
+ * "five, not six" for as long as the spine had seven.
  */
 export const CLINICAL_SUB_KINDS = [
   "lab_work",
@@ -155,6 +167,20 @@ export const NOTE_CATEGORIES = [
 ] as const;
 export type NoteCategory = (typeof NOTE_CATEGORIES)[number];
 
+/**
+ * How bad the owner judges the sign to be — exactly the three
+ * `createSymptomObservedAction` accepts, and no more.
+ *
+ * SELF-ASSESSED, and the spine's own field name says so
+ * (`severity_self_assessed`). It is not a triage category and nothing downstream
+ * treats it as one: the disease matcher runs on the FREE TEXT, and the alert
+ * cascade is decided by which reportable diseases that text matched, never by
+ * this value. Stated because a field called `severity` invites a client to
+ * believe that picking "severe" summons somebody.
+ */
+export const SYMPTOM_SEVERITIES = ["mild", "moderate", "severe"] as const;
+export type SymptomSeverity = (typeof SYMPTOM_SEVERITIES)[number];
+
 export const RECORD_EVENT_INPUT_CODES = [
   "KIND_REQUIRED",
   "OCCURRED_AT_REQUIRED",
@@ -181,6 +207,9 @@ export const RECORD_EVENT_INPUT_CODES = [
   "VISIT_REASON_REQUIRED",
   "CLINICAL_SUB_KIND_INVALID",
   "CLINICAL_TITLE_REQUIRED",
+  "SYMPTOM_TEXT_REQUIRED",
+  "SYMPTOM_SEVERITY_INVALID",
+  "ONSET_AT_INVALID",
 ] as const;
 export type RecordEventInputCode = (typeof RECORD_EVENT_INPUT_CODES)[number];
 
@@ -434,6 +463,65 @@ const clinicalInfo = z.object({
   notes: optionalText,
 });
 
+/**
+ * A SIGN THE OWNER SAW — and the one kind on this endpoint whose write reaches
+ * past the animal's own record.
+ *
+ * `createSymptomObservedWriter` runs the free text through the disease matcher
+ * and, for every REPORTABLE disease the match flags as alertable, appends a
+ * system-authored `outbreak_signal`, enqueues an ENO outbox row and routes
+ * notifications to the jurisdiction's authorities. That is the whole point of
+ * the kind, not a side effect to be sorry about: a person noticing something at
+ * 23:00 with a phone in their hand is the fastest surveillance input this
+ * product has. It is stated here so no reader believes this variant is as
+ * inert as `note`.
+ *
+ * NO `occurredAt`, WHICH IS THE WEB'S SHAPE AND NOT AN OMISSION. Every other
+ * kind here is a dated act — a dose given, a weighing taken. A symptom is
+ * NOTICED, and `createSymptomObservedAction` asks only for an OPTIONAL onset:
+ * when it is absent the writer stamps the moment of REPORTING, because "I don't
+ * know when this started" is the honest and common answer and a required date
+ * field would collect a guess instead.
+ */
+const symptom = z.object({
+  kind: z.literal("symptom"),
+  /**
+   * What the owner saw, in their words. NO CAP, matching the web, and the free
+   * text is what the matcher reads — a truncation invented here would be a
+   * symptom the web surfaces and the app silently drops.
+   */
+  freeText: z
+    .string({ error: "SYMPTOM_TEXT_REQUIRED" })
+    .trim()
+    .min(1, { error: "SYMPTOM_TEXT_REQUIRED" }),
+  /**
+   * NULLABLE, and a bad value is a REFUSAL here where the web drops it to
+   * `null`. The same call `note.category` makes, for the same reason: the web's
+   * field is a `<select>` of the three, a JSON client has none, and a symptom
+   * silently filed with no severity because the app sent `"moderado"` is a typo
+   * that reaches the ledger.
+   */
+  severity: z.enum(SYMPTOM_SEVERITIES, { error: "SYMPTOM_SEVERITY_INVALID" }).nullish(),
+  /**
+   * When it STARTED, if the person knows. Absent, `null` and blank all mean
+   * "not stated" — the same normalization `nextDueAt` does and for the same
+   * reason: the web reads `String(formData.get("onsetAt") ?? "").trim() || null`
+   * and an untouched date input reaches the writer as `null`.
+   *
+   * A STATED onset is held to the animal's own record — not in the future, not
+   * before it was born — exactly as the web's action does before it writes.
+   */
+  onsetAt: z
+    .union([z.string(), z.null()])
+    .nullish()
+    .transform((v) => {
+      const trimmed = typeof v === "string" ? v.trim() : "";
+      return trimmed.length === 0 ? null : trimmed;
+    })
+    .refine((v) => v === null || ISO_DATE_RE.test(v), { error: "ONSET_AT_INVALID" })
+    .refine((v) => v === null || isRealDay(v), { error: "ONSET_AT_INVALID" }),
+});
+
 export const recordEventInputSchema = z
   .discriminatedUnion("kind", [
     vaccination,
@@ -446,6 +534,7 @@ export const recordEventInputSchema = z
     sterilization,
     vetVisit,
     clinicalInfo,
+    symptom,
   ])
   .superRefine((input, ctx) => {
     if (input.kind !== "medication_start") return;

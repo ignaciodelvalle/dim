@@ -128,7 +128,12 @@ describe("createSymptomObservedWriter", () => {
       flushNotifications: flush,
     });
 
-    expect(result).toEqual({ ok: true, symptomEventId: symptomId, signalEventIds: [] });
+    expect(result).toEqual({
+      ok: true,
+      symptomEventId: symptomId,
+      signalEventIds: [],
+      wasDuplicate: false,
+    });
 
     // Plain insert called once for symptom_observed
     expect(repo.insertEvent).toHaveBeenCalledTimes(1);
@@ -178,7 +183,12 @@ describe("createSymptomObservedWriter", () => {
       },
     );
 
-    expect(result).toEqual({ ok: true, symptomEventId: symptomId, signalEventIds: [signalId] });
+    expect(result).toEqual({
+      ok: true,
+      symptomEventId: symptomId,
+      signalEventIds: [signalId],
+      wasDuplicate: false,
+    });
 
     // outbreak_signal insert (system author)
     const signalCall = repo.insertEvent.mock.calls[1] as [Record<string, unknown>, unknown];
@@ -285,7 +295,12 @@ describe("createSymptomObservedWriter", () => {
       flushNotifications: flush,
     });
 
-    expect(result).toEqual({ ok: true, symptomEventId: symptomId, signalEventIds: [] });
+    expect(result).toEqual({
+      ok: true,
+      symptomEventId: symptomId,
+      signalEventIds: [],
+      wasDuplicate: false,
+    });
 
     // symptom_observed still inserted with empty arrays
     const [insertArg] = repo.insertEvent.mock.calls[0] as [Record<string, unknown>, unknown];
@@ -409,7 +424,12 @@ describe("createSymptomObservedWriter", () => {
       },
     );
 
-    expect(result).toEqual({ ok: true, symptomEventId: symptomId, signalEventIds: [] });
+    expect(result).toEqual({
+      ok: true,
+      symptomEventId: symptomId,
+      signalEventIds: [],
+      wasDuplicate: false,
+    });
     // Must use idempotent path
     expect(repo.insertEventIdempotent).toHaveBeenCalledTimes(1);
     const [insertArg] = repo.insertEventIdempotent.mock.calls[0] as [
@@ -446,7 +466,17 @@ describe("createSymptomObservedWriter", () => {
       },
     );
 
-    expect(result).toEqual({ ok: true, symptomEventId: symptomId, signalEventIds: [] });
+    // `wasDuplicate: true` IS THE REPLAY, REPORTED. It was known inside the
+    // transaction — it is what makes the whole fan-out skip — and used to be
+    // dropped at the boundary; `POST /api/v1/pets/{token}/events` answers with
+    // it, so a phone can say "ya estaba registrado" instead of congratulating
+    // somebody for an asiento they wrote twice.
+    expect(result).toEqual({
+      ok: true,
+      symptomEventId: symptomId,
+      signalEventIds: [],
+      wasDuplicate: true,
+    });
     // No signals, no outbox, no notifications when noop
     expect(repo.enqueueOutbox).not.toHaveBeenCalled();
     expect(mockRouteOutbreakSignalNotifications).not.toHaveBeenCalled();

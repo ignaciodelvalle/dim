@@ -493,6 +493,30 @@ export type {
   RecordDiseaseDiagnosisWriterResult,
 } from "./application/clinical/record-disease-diagnosis-use-case";
 
+/**
+ * NOT REPLACED BY `./application/flush-notifications`, AND THE REASON IS A
+ * FENCE RATHER THAN A PREFERENCE.
+ *
+ * That module exists and is byte-identical to this; `application/writers.ts`
+ * and `POST /api/v1/pets/{token}/events` both import it, and importing it here
+ * too was the obvious third step. It was tried, and `pnpm lint:audit-log` went
+ * red one entry — a STALE one, which is the direction that looks like progress:
+ *
+ *   app/org/[orgToken]/mascotas/[publicToken]/eventos/actions.ts#orgRecordNoteAction
+ *
+ * `check-audit-log-coverage` resolves reachability ONE HOP, and it says so in
+ * its own header. `orgRecordNoteAction` calls `createNoteAction` — in THIS file
+ * — so the fence reads this module's source looking for a mutation. The real
+ * write is another hop away inside the note use-case, out of its reach. The
+ * `db.insert(notifications)` below is the ONLY direct mutation left in this
+ * file, which means it is the entire reason the fence can still see that an
+ * unaudited operator action mutates the database.
+ *
+ * Deleting these lines does not fix that debt. It hides it, and then the fence
+ * asks to have the baseline entry removed — a fence going blind while reporting
+ * a clean ratchet. The duplicate stays until reachability is deepened or that
+ * action gets its audit write, whichever comes first.
+ */
 async function flushNotifications(
   pending: import("./application/types").NewNotification[],
 ): Promise<void> {

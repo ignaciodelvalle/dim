@@ -28,13 +28,15 @@ import {
   type RecordEventInput,
   type RecordEventInputCode,
   STERILIZATION_PROCEDURES,
+  SYMPTOM_SEVERITIES,
   type SterilizationProcedure,
+  type SymptomSeverity,
   firstRecordEventInputCode,
   recordEventInputSchema,
 } from "@dim/contract/input";
 
 /**
- * The nine kinds the "Asentar" picker offers.
+ * The kinds the "Asentar" picker offers.
  *
  * MEDICACIÓN FIN IS NOT AMONG THEM, and its absence is a decision rather than an
  * omission. Ending a treatment needs the `medication_started` event it ends, and
@@ -48,11 +50,16 @@ import {
  * microchip is implanted about once in an animal's life and a sterilization
  * exactly once. A picker sorted by implementation history would put the
  * once-ever items in the same visual weight as the weekly ones.
+ *
+ * SÍNTOMA SITS WHERE THE STORY TURNS — after the three routine acts and before
+ * the treatment and the consultation, because that is the order the day happens
+ * in: something looks wrong, then a medication starts, then the vet sees it.
  */
 export const RECORD_KINDS = [
   "vaccination",
   "weight",
   "deworming",
+  "symptom",
   "medication_start",
   "vet_visit",
   "clinical_info",
@@ -71,7 +78,12 @@ const WRITABLE_KINDS: ReadonlySet<string> = new Set<WritableKind>([
 ]);
 
 /**
- * Is this string one of the six?
+ * Is this string a kind THIS BUILD can write?
+ *
+ * NO COUNT IN THAT SENTENCE, and it used to say "one of the six" while the set
+ * held ten. A number in a docblock has to be edited every time a kind crosses
+ * and nothing fails when it is not — which is exactly how it came to be wrong
+ * by four.
  *
  * Used at the ROUTE boundary, where `kind` arrives from a URL. A deep link
  * carrying a kind this build does not know must land on the picker — which is
@@ -104,6 +116,8 @@ export function kindTitle(kind: WritableKind): string {
       return "Microchip";
     case "note":
       return "Nota";
+    case "symptom":
+      return "Síntoma";
   }
 }
 
@@ -130,6 +144,11 @@ export function kindSubtitle(kind: WritableKind): string {
       return "La implantación de un microchip. Queda como identificación de tu mascota.";
     case "note":
       return "Algo que querés dejar anotado sobre tu mascota.";
+    case "symptom":
+      // SAYS THE FAN-OUT OUT LOUD, before the form and not after. This is the
+      // one asiento whose write can reach the sanitary authority, and a person
+      // is entitled to know that while they can still decide not to send it.
+      return "Algo que le viste y no te cierra. Si coincide con una enfermedad de notificación obligatoria, se avisa a la autoridad sanitaria.";
   }
 }
 
@@ -146,11 +165,12 @@ export function sterilizationProcedureLabel(procedure: SterilizationProcedure): 
 /**
  * es-AR label for a clinical sub-kind.
  *
- * FIVE, and the sixth the spine knows — `disease_diagnosis` — has no label here
- * because it is not in `CLINICAL_SUB_KINDS`. Its writer authorizes on a
- * verified matrícula and checks no ownership at all, so an owner's app must not
- * be able to name it. The exhaustive switch is what keeps that true: if the
- * contract ever admitted it, this function would stop compiling.
+ * FIVE OF THE SPINE'S SEVEN, and the two with no label here have none because
+ * they are not in `CLINICAL_SUB_KINDS`: `disease_diagnosis`, whose writer
+ * authorizes on a verified matrícula and checks no ownership at all, and
+ * `pregnancy`, which has its own flow. The exhaustive switch is what keeps that
+ * true: if the contract ever admitted either, this function would stop
+ * compiling.
  */
 export function clinicalSubKindLabel(subKind: ClinicalSubKind): string {
   switch (subKind) {
@@ -204,6 +224,25 @@ export function frequencyLabel(frequency: MedicationFrequency): string {
   }
 }
 
+/**
+ * es-AR label for a self-assessed severity.
+ *
+ * DELIBERATELY NOT TRIAGE WORDS. "Leve / Moderado / Grave" is how a person
+ * describes what they saw; "urgente" or "emergencia" would be the app implying
+ * that picking one summons somebody, and nothing downstream reads this value —
+ * the alert cascade is decided by what the FREE TEXT matched.
+ */
+export function symptomSeverityLabel(severity: SymptomSeverity): string {
+  switch (severity) {
+    case "mild":
+      return "Leve";
+    case "moderate":
+      return "Moderado";
+    case "severe":
+      return "Grave";
+  }
+}
+
 /** es-AR label for a note category. */
 export function noteCategoryLabel(category: NoteCategory): string {
   switch (category) {
@@ -225,6 +264,7 @@ export const FREQUENCY_OPTIONS = MEDICATION_FREQUENCIES;
 export const NOTE_CATEGORY_OPTIONS = NOTE_CATEGORIES;
 export const STERILIZATION_PROCEDURE_OPTIONS = STERILIZATION_PROCEDURES;
 export const CLINICAL_SUB_KIND_OPTIONS = CLINICAL_SUB_KINDS;
+export const SYMPTOM_SEVERITY_OPTIONS = SYMPTOM_SEVERITIES;
 
 /**
  * Today, as an Argentine calendar day.
@@ -287,6 +327,20 @@ export type EventDraft = {
   // nota
   text: string;
   category: NoteCategory | null;
+  // síntoma
+  freeText: string;
+  severity: SymptomSeverity | null;
+  /**
+   * The onset, SEPARATE from `occurredAt` and blank by default.
+   *
+   * Not folded into `occurredAt` — which every other kind uses and which
+   * `emptyDraft` pre-fills with today — because the two mean opposite things
+   * here. `occurredAt` is a date the person is stating; this one is a date they
+   * may not know, and the writer stamps the moment of reporting when it is
+   * left empty. Pre-filling it with today would turn "I don't know when this
+   * started" into a confident and probably wrong claim.
+   */
+  onsetAt: string;
 };
 
 /** A blank draft, dated today. */
@@ -331,6 +385,12 @@ export function emptyDraft(now: Date = new Date()): EventDraft {
     clinic: "",
     text: "",
     category: null,
+    freeText: "",
+    // NOT pre-selected, unlike `dewormingType` and `procedure` above, because
+    // this chooser is OPTIONAL and the web's is a blank `<select>`. A default
+    // "Leve" would put a judgement in the ledger that nobody made.
+    severity: null,
+    onsetAt: "",
   };
 }
 
@@ -464,6 +524,16 @@ function draftToWire(
         occurredAt: draft.occurredAt.trim(),
         category: draft.category,
       };
+    case "symptom":
+      // NO `occurredAt`. The contract's síntoma variant does not have one, and
+      // sending the draft's pre-filled today would be this form answering a
+      // question the person was never asked.
+      return {
+        kind,
+        freeText: draft.freeText,
+        severity: draft.severity,
+        onsetAt: orNull(draft.onsetAt),
+      };
   }
 }
 
@@ -590,6 +660,14 @@ export function inputCodeMessage(code: RecordEventInputCode | null): string {
       return "Ese tipo de información clínica no existe. Elegí uno de la lista.";
     case "CLINICAL_TITLE_REQUIRED":
       return "Falta el nombre del estudio o procedimiento.";
+    case "SYMPTOM_TEXT_REQUIRED":
+      return "Contá qué le viste.";
+    case "SYMPTOM_SEVERITY_INVALID":
+      // Reachable from a build out of step with the contract, not from the
+      // chips: the chooser only ever offers the three the contract accepts.
+      return "Esa gravedad no existe. Elegí una de la lista.";
+    case "ONSET_AT_INVALID":
+      return "La fecha de inicio no existe. Usá el formato AAAA-MM-DD.";
   }
 }
 

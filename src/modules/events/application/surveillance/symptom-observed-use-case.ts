@@ -19,7 +19,7 @@
 //   - Rabies escalation: rabiesObservationStatus=in_progress + rabies_suspected high_count>=1
 //       → route with escalation=true + push urgent owner notification.
 //   - pendingNotifications flushed by caller (flushNotifications dep).
-//   - Result: { ok: true, symptomEventId, signalEventIds }
+//   - Result: { ok: true, symptomEventId, signalEventIds, wasDuplicate }
 
 import { validateEventPayload } from "@/lib/events/event-schemas";
 import { maybeNotifyOwnersOfPublicAlert } from "@/lib/infra/owner-disease-alerts";
@@ -61,7 +61,27 @@ export type CreateSymptomObservedWriterParams = {
 };
 
 export type CreateSymptomObservedWriterResult =
-  | { ok: true; symptomEventId: string; signalEventIds: string[] }
+  | {
+      ok: true;
+      symptomEventId: string;
+      signalEventIds: string[];
+      /**
+       * Did the idempotent insert resolve to an event that ALREADY EXISTED?
+       *
+       * The same four-line surfacing eb46ac58d gave the six daily writers and
+       * a44be2d0e gave the next four: `wasNoop` was read inside the transaction
+       * — it is what makes the whole surveillance fan-out skip — and then
+       * thrown away at the boundary. Fine while the only caller was a web form
+       * that branches on `ok`; not fine for a phone, where "the asiento exists"
+       * and "you just created it" are different facts and only the second one
+       * should congratulate anybody.
+       *
+       * ALWAYS `false` on the plain-insert path, which is the honest answer:
+       * without a `clientIdempotencyKey` there is no replay to detect and every
+       * call appends.
+       */
+      wasDuplicate: boolean;
+    }
   | { ok: false; error: string };
 
 type Deps = {
@@ -118,6 +138,7 @@ export async function createSymptomObservedWriter(
   }
 
   let symptomEventId = "";
+  let wasDuplicate = false;
   const signalEventIds: string[] = [];
   const pendingNotifications: NewNotification[] = [];
 
@@ -159,7 +180,10 @@ export async function createSymptomObservedWriter(
           tx as Parameters<typeof deps.repo.insertEventIdempotent>[1],
         );
         symptomEventId = event.id;
-        if (wasNoop) return; // early return inside transaction — skip signals
+        if (wasNoop) {
+          wasDuplicate = true;
+          return; // early return inside transaction — skip signals
+        }
         symptomEvent = event;
       } else {
         // PLAIN insert (NOT idempotent) — original headless writer path.
@@ -284,5 +308,5 @@ export async function createSymptomObservedWriter(
   // Flush pending notifications post-tx (failure must not roll back the write).
   await deps.flushNotifications(pendingNotifications);
 
-  return { ok: true, symptomEventId, signalEventIds };
+  return { ok: true, symptomEventId, signalEventIds, wasDuplicate };
 }
