@@ -111,7 +111,7 @@ export async function createMicrochip(
       // termina ignorando un detector.
       //
       // Acá la fecha SÍ se conoce: la acción la exige antes de llegar hasta acá
-      // ("Falta la fecha de implantación", actions.ts:744), así que lo correcto
+      // ("Falta la fecha de implantación", actions.ts:121), así que lo correcto
       // es afirmarlo, no omitirlo.
       implant_date_known: true,
     });

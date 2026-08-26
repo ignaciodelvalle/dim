@@ -19,10 +19,10 @@
 //   esterilización      `createSterilizationAction`   actions-medical.ts:337
 //   medicación inicio   `createMedicationStartAction` actions-medical.ts:412
 //   medicación fin      `createMedicationEndAction`   actions-medical.ts:519
-//   microchip           `createMicrochipAction`       actions.ts:103
-//   visita veterinaria  `createVetVisitAction`        actions.ts:321
-//   información clínica `createClinicalInfoAction`    actions.ts:408
-//   síntoma             `createSymptomObservedAction` actions.ts:722
+//   microchip           `createMicrochipAction`       actions.ts:108
+//   visita veterinaria  `createVetVisitAction`        actions.ts:361
+//   información clínica `createClinicalInfoAction`    actions.ts:448
+//   síntoma             `createSymptomObservedAction` actions.ts:762
 //
 // Read literally, that guard is:
 //
@@ -84,7 +84,7 @@
 // WHAT DELIBERATELY DID NOT CROSS, AND ON WHAT EVIDENCE
 // ---------------------------------------------------------------------------
 //   · DIAGNÓSTICO DE ENFERMEDAD (`recordDiseaseDiagnosisAction`,
-//     actions.ts:561 — the line naming ITS rule, same convention). NOT AN OWNER
+//     actions.ts:601 — the line naming ITS rule, same convention). NOT AN OWNER
 //     WRITER AT ALL: it performs no ownership check whatsoever and authorizes on
 //     `role === "vet" && matriculaVerified`.
 //     It shares an `event_type` with información clínica —
@@ -97,17 +97,17 @@
 //     10-day observation lifecycle and an authority fan-out across
 //     jurisdictions. That belongs in its own work unit with its own contract,
 //     not as a twelfth branch of a switch whose other eleven only append.
-//   · PERDIDA / ENCONTRADA (`setPetLostAction` actions.ts:811,
-//     `setPetFoundAction` actions.ts:965) mutate `pets.status` and carry
+//   · PERDIDA / ENCONTRADA (`setPetLostAction` actions.ts:851,
+//     `setPetFoundAction` actions.ts:1005) mutate `pets.status` and carry
 //     disclosure preferences, an enriched description and an alert fan-out.
 //     Lost mode is a FEATURE and not an asiento: it belongs behind its own
 //     endpoints with their own shapes, not as branches of a switch whose whole
 //     job is to append one row.
-//   · FALLECIMIENTO (`createDeathRecordAction`, actions.ts:1014) is guarded by
+//   · FALLECIMIENTO (`createDeathRecordAction`, actions.ts:1054) is guarded by
 //     `requirePetAccess` like nota, and is deferred for shape rather than for
 //     reach: five cross-field rules, a disease-code lookup and a custody-episode
 //     stamp read before the transaction.
-//   · ATESTACIÓN PPP (actions.ts:179) and EMBARAZO (app/actions/pregnancy.ts:41,
+//   · ATESTACIÓN PPP (actions.ts:184) and EMBARAZO (app/actions/pregnancy.ts:41,
 //     :86) are owner writers whose use-cases DO NOT ROUTE THROUGH
 //     `insertEventIdempotent` — they insert plainly, with no
 //     `clientIdempotencyKey` parameter to pass. This endpoint REQUIRES an
@@ -120,7 +120,7 @@
 //     `createSymptomObservedWriter` has taken a `clientIdempotencyKey` and
 //     branched to `insertEventIdempotent` since the W-1 fix of 2026-06-07, with
 //     parity tests, and `createSymptomObservedAction` reads the field off its
-//     own form (actions.ts:749) and passes it (:771). The exclusion outlived
+//     own form (actions.ts:789) and passes it (:811). The exclusion outlived
 //     its reason by two work units because nobody re-read the writer — which is
 //     the argument for citing a LINE and not a belief.
 //

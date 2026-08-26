@@ -10,9 +10,9 @@
 // FOUR OF THE FIVE are guarded on the web by `requirePetAccess(publicToken)`,
 // cited at the guard call rather than at the function that contains it:
 //
-//   marcar perdida        `setPetLostAction`            actions.ts:811
-//   actualizar avistaje   `updateLostLastSeenAction`    actions.ts:902
-//   marcar encontrada     `setPetFoundAction`           actions.ts:965
+//   marcar perdida        `setPetLostAction`            actions.ts:851
+//   actualizar avistaje   `updateLostLastSeenAction`    actions.ts:942
+//   marcar encontrada     `setPetFoundAction`           actions.ts:1005
 //   preferencias (5)      `setPetDisclosurePrefsAction` app/actions/lost-mode.ts:34
 //
 // Read literally, `requirePetAccess` is WIDER than the clinical writers' guard:

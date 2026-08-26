@@ -616,7 +616,7 @@ const WU_L_KINDS: Array<[string, Record<string, unknown>]> = [
 
 describe("POST .../events — the four WU-L kinds carry the ALIVE guard, each half proved", () => {
   // Every one of the four is `requireAlivePetAccess` on the web
-  // (actions.ts:99 / :317 / :404, actions-medical.ts:335). Both halves of that
+  // (actions.ts:108 / :361 / :448, actions-medical.ts:335). Both halves of that
   // guard are asserted PER KIND rather than once for the group: a switch that
   // fell through for one of them would pass a test written only for the first.
   for (const [kind, body] of WU_L_KINDS) {
@@ -773,7 +773,7 @@ const A_SYMPTOM = { kind: "symptom", freeText: "Decaído, no come desde ayer" };
 
 describe("POST .../events — síntoma carries the ALIVE guard, each half proved", () => {
   // `createSymptomObservedAction` guards with `requireAlivePetAccess`
-  // (actions.ts:690) — the same rule the other ten clinical kinds carry, which
+  // (actions.ts:762) — the same rule the other ten clinical kinds carry, which
   // is why the switch needed no new guard branch. Asserted anyway, and per
   // half, because "it fell into the default branch" and "it was checked" look
   // identical from the outside until one of them stops being true.
