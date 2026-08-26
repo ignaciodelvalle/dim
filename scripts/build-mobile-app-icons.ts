@@ -33,12 +33,40 @@
 //   public/icons/icon-512.png           mark occupies 393 of 512 px  → 76.8%
 //   public/icons/icon-512-maskable.png  mark occupies 294 of 512 px  → 57.4%
 //
-// THOSE ARE INK MEASUREMENTS, WHICH IS WHY THE SOURCE IS TRIMMED FIRST. Both
-// numbers came from trimming the PWA icon to its non-transparent bounding box,
-// so they describe how much of the canvas the ARTWORK covers — not how wide a
-// rectangle containing it is. `public/logo-dim.png` is 637×463 with the oval
-// painted across 610×443 of that, off-centre inside its own frame: 27px of
-// transparent margin distributed unevenly.
+// THOSE ARE INK MEASUREMENTS, WHICH IS WHY THE SOURCE IS TRIMMED FIRST — but
+// the two trims involved are NOT the same trim, and this paragraph said they
+// were until 2026-08-26.
+//
+// IT USED TO READ: "Both numbers came from trimming the PWA icon to its
+// non-transparent bounding box." That mechanism measures nothing on these
+// files. `public/icons/icon-512.png` and `icon-512-maskable.png` are fully
+// OPAQUE — alpha is 255 at every pixel — so their non-transparent bounding box
+// is the whole 512×512 canvas, and `sharp().trim()` on them returns 512×512 at
+// every threshold, because sharp trims on ALPHA when an alpha channel is
+// present. A reader following the stated recipe would have measured 512 and 512
+// and had no way to reach 393 and 294.
+//
+// WHAT ACTUALLY PRODUCES THEM (re-measured with sharp 0.34.5, and both
+// reproduce exactly) is a BORDER-COLOUR trim against the icons' flat
+// background, `#FBFAF5` — the value of their corner pixel, which has to be
+// passed explicitly precisely because the alpha default would not trim:
+//
+//   sharp("public/icons/icon-512.png").trim({ background: "#FBFAF5", threshold: 10 })
+//     → 393×286
+//   sharp("public/icons/icon-512-maskable.png").trim({ background: "#FBFAF5", threshold: 10 })
+//     → 294×215
+//
+// THE NUMBERS WERE ALWAYS RIGHT; only the prose was wrong, and it is corrected
+// rather than quietly edited because of how the error happened. The comment
+// conflated the two trims in this file: the SOURCE mark really is trimmed on
+// alpha — `public/logo-dim.png` DOES carry transparency, and `trim()` on it
+// returns 610×443, the figure stated two lines below — so a true sentence about
+// one file was written as though it described the other.
+//
+// Either way both figures describe how much of the canvas the ARTWORK covers,
+// not how wide a rectangle containing it is. `public/logo-dim.png` is 637×463
+// with the oval painted across 610×443 of that, off-centre inside its own frame:
+// 27px of transparent margin distributed unevenly.
 //
 // Scaling the untrimmed rectangle to those ratios therefore did two wrong
 // things at once, and the test caught both. The ink came out SMALLER than the
