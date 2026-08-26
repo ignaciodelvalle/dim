@@ -98,8 +98,17 @@ const MIN_VIABLE_WORKER_HEAP_MB = 4096;
  *                             SIGKILLed after 8 minutes: every forked worker
  *                             sized its own heap from the same cgroup limit.
  *   headroom / workers     -> what this file computes now.
+ *   reserve 1024           -> held for three days of deploys, then two in a row
+ *                             SIGKILLed ~80s into compilation (2026-08-25) with
+ *                             the ceiling working exactly as designed: 1 worker,
+ *                             7168 MB heap. The heap was never the overrun — a
+ *                             7168 ceiling in an 8192 box leaves ~1 GB for the
+ *                             worker's non-heap RSS, the parent next process,
+ *                             pnpm and the host agent COMBINED, and the module
+ *                             graph outgrew that sliver. The reserve is what was
+ *                             wrong, not the division.
  */
-const RESERVED_MB = 1024;
+const RESERVED_MB = 2048;
 
 /**
  * `os.totalmem()` reports the HOST's memory from inside a container, which is
