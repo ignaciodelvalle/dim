@@ -184,11 +184,35 @@ const nextConfig: NextConfig = {
     // Next stood ready to fork ~15, each inheriting the same NODE_OPTIONS.
     // Empty (an unconstrained box) leaves Next's own default alone.
     ...(process.env.DIM_BUILD_WORKERS ? { cpus: Number(process.env.DIM_BUILD_WORKERS) } : {}),
+    // Trades compilation speed for a lower peak RSS. Only where memory is the
+    // binding constraint: on the workstation and CI the build keeps its speed.
+    ...(process.env.DIM_CONSTRAINED_BUILD === "1" ? { webpackMemoryOptimizations: true } : {}),
     // Welfare denuncia evidence allows up to 5 files × 25 MB.
     serverActions: {
       bodySizeLimit: "50mb",
     },
     optimizePackageImports: ["lucide-react", "recharts", "maplibre-gl"],
+  },
+  webpack: (config) => {
+    // No filesystem cache on the constrained box.
+    //
+    // Three consecutive Vercel builds (32d9bbdc2, 91668ca5e, 297b4a5cc) were
+    // SIGKILLed by the container's OOM killer ~90s into compilation, the last
+    // one with the heap ceiling already lowered to 6144 MB — the V8 heap was
+    // not what overflowed. All three restored the webpack build cache from the
+    // last READY deployment, produced by a module graph that two work units
+    // have since reshaped. Deserializing a large stale cache balloons RSS
+    // outside the heap ceiling's reach, and under cgroup v2 even the page
+    // cache of the cache file itself counts against memory.max.
+    //
+    // Disabling the cache here trades build minutes for a memory profile that
+    // does not depend on what the previous deployment left behind. Scoped to
+    // the constrained box: the workstation and CI keep their incremental
+    // builds untouched.
+    if (process.env.DIM_CONSTRAINED_BUILD === "1") {
+      config.cache = false;
+    }
+    return config;
   },
 };
 
