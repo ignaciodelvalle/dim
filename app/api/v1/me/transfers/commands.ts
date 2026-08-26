@@ -355,7 +355,8 @@ async function initiate(
   // THE INVITATION E-MAIL IS NOT SENT FROM HERE, and that is a documented gap
   // rather than an oversight. `initiatePetTransferAction` calls
   // `admin.auth.admin.inviteUserByEmail` with a `redirectTo` pointing at the WEB
-  // page (`actions.ts:139-155`) — a link into a browser session, which is the
+  // page (`src/modules/transfers/actions.ts:165-181`) — a link into a browser
+  // session, which is the
   // only thing that flow can currently produce. Firing it from a native write
   // would send somebody a web magic link on a phone that has this app installed,
   // landing them where they did not ask to be. `recipientNeedsInvite` is on the

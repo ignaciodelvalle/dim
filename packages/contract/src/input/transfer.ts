@@ -145,7 +145,8 @@ const transferToken = z
  * `toEmail` IS THE ONLY WAY TO NAME A RECIPIENT, and it is deliberately not a
  * user id. The web resolves the address to an account when one exists and leaves
  * `to_owner_id` NULL when it does not, sending a Supabase invitation instead
- * (`actions.ts:139-155`) — so a transfer can be addressed to somebody who has no
+ * (`src/modules/transfers/actions.ts:165-181`) — so a transfer can be addressed
+ * to somebody who has no
  * MiMAR account yet, and that is a feature rather than a gap. A contract that
  * took a user id would make the commonest real case ("mi hermana se queda con
  * Firu") impossible to express.

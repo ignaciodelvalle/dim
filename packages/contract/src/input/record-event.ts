@@ -107,7 +107,8 @@ export type SterilizationProcedure = (typeof STERILIZATION_PROCEDURES)[number];
  * missing here are missing for two different reasons.
  *
  *   · `disease_diagnosis` — its writer (`recordDiseaseDiagnosisAction`,
- *     `actions.ts:512`) has NO ownership check at all: it authorizes on
+ *     `src/modules/events/actions.ts:544`) has NO ownership check at all: it
+ *     authorizes on
  *     `role === "vet" && matriculaVerified`. Accepting the value here would let
  *     a phone holding an owner's bearer token file a diagnosis a verified
  *     professional is supposed to sign.
