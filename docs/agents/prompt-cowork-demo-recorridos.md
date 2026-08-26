@@ -99,12 +99,21 @@ del rate limiter:
   (`src/modules/auth/application/login.ts`), verificado ANTES de tocar
   GoTrue — o sea que hasta un intento fallido cuenta.
 - Hay un segundo límite por IP (10/min · 100/hora), pero **cambiar la IP
-  aparente (`x-real-ip`) no esquiva el límite por email** — solo esquiva el
-  de IP. El propio harness de e2e lo documenta así
-  (`e2e/demo/_helpers.ts`, comentario sobre `uniqueIp()`): repartir una IP
-  distinta por login "does exactly nothing" contra este límite, porque "the
-  per-email budget is keyed on the EMAIL ADDRESS". Ninguna cabecera te salva
-  de ese conteo.
+  aparente (`x-real-ip`) no esquiva el límite por email**. El propio harness
+  de e2e lo documenta así (`e2e/demo/_helpers.ts`, comentario sobre
+  `uniqueIp()`): repartir una IP distinta por login "does exactly nothing"
+  contra este límite, porque "the per-email budget is keyed on the EMAIL
+  ADDRESS". Ninguna cabecera te salva de ese conteo.
+- **Y acá, contra staging, tampoco esquiva el de IP.** Esta línea decía "solo
+  esquiva el de IP" y era falsa para el único entorno que este brief usa
+  (línea 27: `https://dim-staging.vercel.app`). Medido el 2026-08-26 contra
+  staging: 80 logins concurrentes con una IP spoofeada FIJA → 59×401 y después
+  21×429; el mismo disparo rotando la IP `.1`…`.80` → 60×401 y después 20×429.
+  Idéntico — o sea que rotar la cabecera no compró ni un intento. Vercel
+  reescribe `x-real-ip` en el edge, así que el valor que mandás nunca llega al
+  limiter (`lib/infra/rate-limit.ts`, `callerIp()`, fuente 1). Donde sí se
+  honra es en `localhost:3000`, que no tiene edge adelante y cree lo que le
+  mandes; ese es el entorno del que salió la frase original, y no es este.
 - **Regla operativa: un solo login por cuenta por corrida.** Agotá el tour
   completo de esa cuenta antes de pedir la siguiente. Si perdés la sesión a
   mitad de tour (expiró, te desconectaste), NO reintentes el login vos

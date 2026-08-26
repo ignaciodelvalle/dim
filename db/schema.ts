@@ -840,7 +840,33 @@ export const orgContactMessages = pgTable(
     inquirerName: text("inquirer_name"),
     inquirerEmail: text("inquirer_email").notNull(),
     message: text("message").notNull(),
-    /** First IP from X-Forwarded-For — used for daily rate-limit cohort. */
+    /**
+     * The caller IP the daily rate-limit cohort is keyed on.
+     *
+     * ERRATA — this said "First IP from X-Forwarded-For", and so does the
+     * `COMMENT ON COLUMN` in db/migrations/0051_org_contact_messages.sql:30.
+     * Neither was ever true of the code. The value is produced by `callerIp()`
+     * (lib/infra/rate-limit.ts), reached through `callerIpAddress()` in
+     * src/modules/organizations/actions.ts: it reads `x-real-ip` first and, only
+     * if that is absent, walks x-forwarded-for from the RIGHT and takes the LAST
+     * non-empty hop. The first segment is never read.
+     *
+     * WHY THE WRONG SENTENCE IS DANGEROUS RATHER THAN MERELY WRONG. The FIRST
+     * XFF segment is the one this repo documents everywhere else as
+     * CLIENT-CONTROLLED and freely spoofable — it is what a caller puts in the
+     * header, not what the edge observed. A future "fix" that aligned the code
+     * to this comment would therefore key an abuse limiter on the one segment an
+     * abuser chooses, and it would look like tidying a mismatch rather than
+     * removing a control.
+     *
+     * The migration is applied and immutable, so its SQL cannot be edited; the
+     * record is corrected forward instead, by migration 0204, which re-issues
+     * the `COMMENT ON COLUMN` with the real mechanism. Same move as the ERRATA
+     * at the top of src/modules/auth/application/subject-rights/
+     * erase-subject-data.ts, one step further: there the false premise lived
+     * only in a migration HEADER and could only be answered in prose, here it
+     * also lives in a live database object that a forward migration can reach.
+     */
     submitterIp: text("submitter_ip"),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     readAt: timestamp("read_at", { withTimezone: true }),
