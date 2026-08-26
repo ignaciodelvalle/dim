@@ -6,10 +6,17 @@
 // here (lean audit 2026-07-03).
 
 import { AR_TIME_ZONE } from "@/lib/utils/format";
+import type { Tier2Window } from "@dim/contract/input";
 import Link from "next/link";
 
 type DurationCard = {
-  id: "24h" | "7d" | "30d" | "siempre";
+  // FROM THE CONTRACT, so the four ids this picker can post and the four the
+  // API accepts are one list. The server is lenient — `enable-tier2-public.ts:44`
+  // reads `DURATION_MS[duration] ?? DAY_MS` and silently gives an unknown string
+  // 24 hours — which is safe for a `<form>` that can only post one of these and
+  // is not for a JSON body. `@dim/contract/input` refuses the unknown string;
+  // this union is what keeps the two ends naming the same four.
+  id: Tier2Window;
   title: string;
   description: string;
   enabled: boolean;

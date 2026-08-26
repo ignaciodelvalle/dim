@@ -106,6 +106,15 @@ export {
   type PetLostV1,
 } from "./pet-lost.ts";
 export {
+  PET_SHARES_PAYLOAD_VERSION,
+  PET_SHARES_STALE_AFTER_MS,
+  type LibretaShareV1,
+  type PetSharesV1,
+  type ShareCapabilitiesV1,
+  type ShareCommandAckV1,
+  type Tier2StateV1,
+} from "./pet-shares.ts";
+export {
   LOCALITIES_PAYLOAD_VERSION,
   LOCALITIES_STALE_AFTER_MS,
   type LocalitiesV1,

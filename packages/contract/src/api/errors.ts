@@ -347,6 +347,9 @@ export const API_V1_ERROR_CODES = [
   "lost_forbidden",
   "lost_microchip_invalid",
   "lost_failed",
+  "share_forbidden",
+  "share_limit_reached",
+  "tier2_not_allowed",
 ] as const;
 
 export type ApiV1ErrorCode = (typeof API_V1_ERROR_CODES)[number];

@@ -3,6 +3,7 @@
 import { useActionState, useEffect } from "react";
 
 import { LnField, LnInput } from "@/components/ui/Field";
+import { LIBRETA_SHARE_EXPIRY_DAYS, LIBRETA_SHARE_LABEL_MAX } from "@dim/contract/input";
 
 // The action receives the full input including petPublicToken; callers
 // bind (or wrap) it so the component only supplies expiresInDays + label.
@@ -33,9 +34,28 @@ type FormState =
   | { status: "error"; message: string }
   | { status: "success"; shareToken: string };
 
+/**
+ * The share lifetimes, FROM THE CONTRACT.
+ *
+ * This array and the one in `libreta/SharesManager.tsx` were both literals and
+ * they DISAGREED: 7/30/null defaulting to 7 here, 7/30/90/null defaulting to 30
+ * there. `MergedShareSheet` renders both (lines 156 and 226) and both call the
+ * same action, so one sheet offered a person two different menus for one feature
+ * depending on which half they had scrolled to — and the server validated
+ * neither, because `create-libreta-share.ts` multiplies whatever number it is
+ * handed by 86_400_000.
+ *
+ * Unifying them is a DEFECT FIX rather than a product change: 90 días was
+ * already reachable in this very sheet, from the other component. Now
+ * `LIBRETA_SHARE_EXPIRY_DAYS` is the one menu — the `MAX_WEIGHT_KG` move — and
+ * `@dim/contract/input` refuses anything outside it.
+ */
 const DURATION_OPTIONS: Array<{ value: string; label: string; days: number | null }> = [
-  { value: "7", label: "7 días", days: 7 },
-  { value: "30", label: "30 días", days: 30 },
+  ...LIBRETA_SHARE_EXPIRY_DAYS.map((days) => ({
+    value: String(days),
+    label: `${days} días`,
+    days: days as number | null,
+  })),
   { value: "never", label: "Sin vencimiento", days: null },
 ];
 
@@ -112,7 +132,7 @@ export function ShareLibretaSheet({
             name="label"
             type="text"
             placeholder="Ej: Vet de cabecera, Guardería, Viaje"
-            maxLength={80}
+            maxLength={LIBRETA_SHARE_LABEL_MAX}
             aria-describedby={describedBy}
             invalid={invalid}
           />

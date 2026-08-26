@@ -11,10 +11,20 @@ import { and, count, eq, isNull } from "drizzle-orm";
 import { db, libretaShareTokens, ownerships, pets } from "@/db";
 import { generateLibretaShareToken } from "@/lib/infra/publicToken";
 import { generateUniqueToken } from "@/lib/infra/unique-token";
+import { MAX_ACTIVE_LIBRETA_SHARES } from "@dim/contract/input";
 
 import type { CreateShareInput, CreateShareResult } from "./types";
 
-const MAX_ACTIVE_SHARES_PER_PET = 5;
+/**
+ * The five-active cap, FROM THE CONTRACT.
+ *
+ * MOVED THERE (WU-N) from a module-local const here, so both doors read ONE
+ * number — the `MAX_WEIGHT_KG` move, for the same reason. It is enforced HERE
+ * and nowhere else; the contract carries it so a client can disable the create
+ * control with an explanation instead of offering a button that answers with the
+ * refusal below. An affordance hint, never the rule.
+ */
+const MAX_ACTIVE_SHARES_PER_PET = MAX_ACTIVE_LIBRETA_SHARES;
 
 export async function createLibretaShareForUser(
   userId: string,

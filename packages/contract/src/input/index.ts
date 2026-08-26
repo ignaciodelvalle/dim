@@ -54,6 +54,20 @@ export {
   lostCommandInputSchema,
 } from "./lost-mode.ts";
 export {
+  LIBRETA_SHARE_EXPIRY_DAYS,
+  LIBRETA_SHARE_LABEL_MAX,
+  MAX_ACTIVE_LIBRETA_SHARES,
+  SHARE_COMMAND_INPUT_CODES,
+  TIER2_WINDOWS,
+  type LibretaShareExpiryDays,
+  type ShareCommand,
+  type ShareCommandInput,
+  type ShareCommandInputCode,
+  type Tier2Window,
+  firstShareCommandInputCode,
+  shareCommandInputSchema,
+} from "./share.ts";
+export {
   CLINICAL_SUB_KINDS,
   DEWORMING_TYPES,
   MAX_CUSTOM_HOURS,

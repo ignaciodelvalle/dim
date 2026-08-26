@@ -12,6 +12,7 @@ import { LnCheckbox } from "@/components/ui/Field";
 import type { LibretaShareToken } from "@/db/schema";
 import { notifySaved } from "@/lib/ui/action-feedback";
 import { AR_TIME_ZONE } from "@/lib/utils/format";
+import { LIBRETA_SHARE_EXPIRY_DAYS, LIBRETA_SHARE_LABEL_MAX } from "@dim/contract/input";
 
 type Props = {
   petPublicToken: string;
@@ -25,10 +26,27 @@ type Props = {
   onShareCreated?: () => void;
 };
 
+/**
+ * The share lifetimes, FROM THE CONTRACT.
+ *
+ * They used to be a literal array here and a DIFFERENT literal array in
+ * `_share-libreta/ShareLibretaSheet.tsx` — 7/30/90/null with a 30-day default
+ * against 7/30/null with a 7-day default. Both components are rendered by the
+ * same `MergedShareSheet` (lines 156 and 226) and both call the same action, so
+ * one sheet showed a person two different menus for one feature depending on
+ * which half they had scrolled to. Nothing failed, because the server validates
+ * none of it: `create-libreta-share.ts` multiplies whatever number it is handed
+ * by 86_400_000.
+ *
+ * `LIBRETA_SHARE_EXPIRY_DAYS` is now the one menu — the `MAX_WEIGHT_KG` move,
+ * for the same reason and with the same consequence — and `@dim/contract/input`
+ * refuses anything outside it, so a third copy cannot appear without failing.
+ */
 const DURATION_OPTIONS = [
-  { label: "7 días", days: 7 },
-  { label: "30 días", days: 30 },
-  { label: "90 días", days: 90 },
+  ...LIBRETA_SHARE_EXPIRY_DAYS.map((days) => ({
+    label: `${days} días`,
+    days: days as number | null,
+  })),
   { label: "Sin vencimiento", days: null },
 ] as const;
 
@@ -164,6 +182,10 @@ export function SharesManager({ petPublicToken, shares, onShareCreated }: Props)
               value={label}
               onChange={(e) => setLabel(e.target.value)}
               placeholder="Ej: Para Dra. Perez"
+              // The sibling sheet capped this at 80 and this one capped it at
+              // nothing, over a `text` column with no limit either. One cap,
+              // from the contract, for both.
+              maxLength={LIBRETA_SHARE_LABEL_MAX}
               className="w-full text-sm rounded-[var(--radius-sm)] border border-[var(--color-ln-line)] bg-[var(--color-ln-card)] px-3 py-1.5 outline-none focus:border-[var(--color-ln-azul)] focus:shadow-[0_0_0_3px_var(--color-ln-celeste-050)]"
             />
           </div>
