@@ -9,9 +9,12 @@
 > `apps/mobile/eas.json` (`channel`, per build profile).
 
 **Status as of 2026-08-26: nothing has been published.** `npx eas-cli whoami`
-answers `Not logged in`. No channel, no update and no runtime version exists on
-the server. This document describes the rules the first update will be held to,
-not a mechanism anyone here has watched run.
+now answers `ignaciodelvalle2014@gmail.com` (account `nachi7`) and one
+production build has been attempted — it failed on the fingerprint check, see
+[eas-build-profiles.md](./eas-build-profiles.md) — but no `eas update` has run.
+No channel, no update and no runtime version exists on the server. This document
+describes the rules the first update will be held to, not a mechanism anyone
+here has watched run.
 
 ---
 
@@ -117,7 +120,12 @@ knowing *why* an update reached nobody should not require reading a hash:
 - Permissions, the app icon, the adaptive icon, the splash screen.
 - The URL scheme, intent filters, associated domains — including the verified
   App Links work that M5 is waiting on.
-- `newArchEnabled`, or anything else that changes how the binary is built.
+- The build settings a plugin writes — `expo-build-properties`, a
+  `minSdkVersion` bump, anything else that changes how the binary is compiled.
+  `newArchEnabled` used to be the example on this line; SDK 57 removed the key
+  from the config schema entirely, because the New Architecture stopped being
+  optional. It was still sitting in `app.json` on 2026-08-26 and failed the
+  build's own config-schema check — see docs/mobile/eas-build-profiles.md.
 
 ### Anything the store review would have needed to see
 

@@ -32,11 +32,13 @@
 //   Android needs `https://{domain}/.well-known/assetlinks.json` to publish the
 //   SHA-256 fingerprint of the certificate the APK is signed with. Under Play
 //   App Signing that key is Google's, not ours — the fingerprint only exists
-//   after the app is uploaded to a Play console that does not exist yet (no EAS
-//   account as of 2026-08-25). Publishing a fingerprint we control instead
-//   would verify a build Play will never ship, and the link would silently fall
-//   back to the browser on every real install: the failure mode of App Links is
-//   not an error, it is a page that quietly opens in Chrome.
+//   after the app is uploaded to a Play console that does not exist yet. (The
+//   EAS account does now — the first build ran on 2026-08-26 — but Play is a
+//   separate enrolment and is still the blocker.) Publishing a fingerprint we
+//   control instead would verify a build Play will never ship, and the link
+//   would silently fall back to the browser on every real install: the failure
+//   mode of App Links is not an error, it is a page that quietly opens in
+//   Chrome.
 //
 //   iOS needs `https://{domain}/.well-known/apple-app-site-association` carrying
 //   the Team ID, which likewise does not exist before the Apple enrolment.
@@ -118,6 +120,24 @@
 // silently orphan the fleet from a hotfix. That is the correct direction to
 // fail in.
 //
+// AND ONE COST THAT WAS NOT ANTICIPATED, learned from the first real build
+// (9900114a-c134-41cf-af38-6aaf789d2942, 2026-08-26, errored):
+//
+//   A fingerprint that hashes toolchain-generated paths is only reproducible
+//   if the toolchain is pinned.
+//
+// @expo/fingerprint hashes the native dependency set BY PATH, and those paths
+// run through `node_modules/.pnpm/<dir>`, whose names pnpm truncates at a
+// length that DEFAULTS DIFFERENTLY PER PLATFORM (60 on Windows, 120 elsewhere).
+// So the same lockfile fingerprinted to two different values on the PO's
+// machine and on an EAS worker, and EAS — which recomputes the fingerprint and
+// compares — refused the build. The pin now lives in `pnpm-workspace.yaml`
+// (`virtualStoreDirMaxLength: 60`) and is part of this policy, not part of the
+// package manager's configuration: change it and every installed build stops
+// matching the next update. The same failure carried a second, unrelated cause
+// in `apps/mobile/.gitignore`. Both are written up in
+// docs/mobile/eas-build-profiles.md, "Two ways to break a fingerprint".
+//
 // WHY `fallbackToCacheTimeout: 0`, i.e. NEVER BLOCK THE LAUNCH
 // ---------------------------------------------------------------------------
 // The alternative is to hold the splash screen while the app asks the update
@@ -136,9 +156,13 @@
 // `eas.json` declares its own, and that is what keeps a preview update from
 // reaching a production install. Writing one here would apply to every build.
 //
-// Nothing has been published. `npx eas-cli whoami` answers `Not logged in` as
-// of 2026-08-26, so no update, no channel and no runtime version has ever
-// existed on the server. This is the declaration; none of it has run.
+// Nothing has been PUBLISHED. As of 2026-08-26 `npx eas-cli whoami` answers
+// `ignaciodelvalle2014@gmail.com` (account `nachi7`) and one production build
+// has been attempted — and failed, on the fingerprint check described above —
+// so the project now exists on EAS, but no `eas update` has ever run: no
+// channel and no runtime version has ever been served to anything. The
+// `updates` block is still a declaration whose runtime half has never
+// executed.
 
 import { ANDROID_PACKAGE_NAME, IOS_BUNDLE_IDENTIFIER } from "@dim/contract/links";
 import type { ConfigContext, ExpoConfig } from "expo/config";

@@ -29,7 +29,8 @@
 // Two different situations that must not be conflated:
 //
 //   • NO fingerprint configured. That is the state of the world today: there is
-//     no Play console (no EAS account as of 2026-08-25) and therefore no
+//     no Play console — the EAS account exists as of 2026-08-26, Play is a
+//     separate enrolment and is still absent — and therefore no signing
 //     fingerprint to publish. The honest answer is 404 — "there is no
 //     association here" — which is exactly what Android's verifier expects from
 //     a host that has not claimed an app. Serving an empty array instead would
