@@ -102,6 +102,23 @@ export default function MisMascotasScreen() {
       )}
 
       <View style={styles.footer}>
+        {/* THE HUB'S ONLY ENTRY POINT that is not a deep link. It sits here and
+            not on a pet because half of what it lists is about animals that are
+            not in the list above — a proposal is an offer from somebody else's
+            pet, and the person answering it may hold nothing at all yet.
+
+            NO PENDING COUNT ON THE LABEL, deliberately. The web's list page
+            renders one, and it costs two `count()` queries per page load
+            (`lib/analytics/owner-pending-counts.ts`). Reproducing it here would
+            mean a second round trip on the app's most-opened screen to decorate
+            a button; the hub itself answers the question in one read, and it is
+            one tap away. If the badge earns its cost, it belongs in
+            `MyPetsV1` rather than in a call this screen makes on the side. */}
+        <SecondaryButton
+          label="Transferencias"
+          accessibilityHint="Propuestas de transferencia recibidas y enviadas."
+          onPress={() => router.push(ROUTES.transferencias)}
+        />
         <SecondaryButton label="Ajustes" onPress={() => router.push(ROUTES.ajustes)} />
       </View>
     </Screen>
@@ -208,7 +225,7 @@ function StatusChip({ status }: { status: MyPetsV1Item["status"] }) {
 }
 
 const styles = StyleSheet.create({
-  footer: { marginTop: SPACE.lg },
+  footer: { marginTop: SPACE.lg, gap: SPACE.sm },
   petRow: {
     flexDirection: "row",
     alignItems: "center",

@@ -1,17 +1,31 @@
 // Every `/api/v1` call this app makes, in one file.
 //
 // Not because a file per endpoint would be wrong, but because the set is small
-// enough that seeing it whole is worth more than seeing it sorted: ten calls is
-// the entire surface a citizen wallet needs, and a reader asking "what can this
-// app do to my account" should get the answer in one screen rather than by
-// walking a directory.
+// enough that seeing it whole is worth more than seeing it sorted: a reader
+// asking "what can this app do to my account" should get the answer in one
+// screen rather than by walking a directory.
 //
-// THREE of them are writes, and the count is kept in this sentence on purpose:
-// `registerPet` creates an animal, `recordPetEvent` appends an asiento, and
-// `amendPetEvent` corrects a record by APPENDING a correction. NONE of them
-// edits anything — every one is an INSERT onto an append-only spine, which is
-// not a coincidence but the product's first invariant. If a fourth write
-// appears, this line is where a reviewer notices.
+// THE COUNT OF WRITES USED TO LIVE IN THIS HEADER AND IT NO LONGER DOES, which
+// is worth recording rather than quietly deleting. The sentence read "THREE of
+// them are writes, and the count is kept in this sentence on purpose … if a
+// fourth write appears, this line is where a reviewer notices." Two more
+// appeared — `sendLostCommand` and `sendShareCommand` — and each announced
+// itself in its OWN docblock as "the fourth write" and "the fifth" while this
+// paragraph went on saying three. A number in prose has to be edited every time
+// something crosses, nothing fails when it is not, and by the time a sixth
+// arrived the header was contradicting three separate comments below it.
+//
+// What the header keeps instead is the CLAIM the count was standing in for, and
+// this one is checkable by reading the file rather than by trusting a number:
+//
+//   THE WRITES ARE NOT ALL APPENDS, AND A READER MUST NOT ASSUME THEY ARE.
+//   `registerPet`, `recordPetEvent` and `amendPetEvent` are pure INSERTs onto
+//   the append-only spine — a correction is a new event, never an edit. The
+//   other three are not: `sendLostCommand` moves `pets.status` and opens and
+//   closes a case, `sendShareCommand` mints and revokes bearer tokens and moves
+//   two columns, and `sendTransferCommand` can change WHO OWNS AN ANIMAL. The
+//   append-only invariant holds where it applies; it is not a description of
+//   this whole file.
 //
 // HOW MANY ASIENTOS `recordPetEvent` CAN WRITE IS NOT COUNTED ANYWHERE HERE,
 // and it used to be — "one of the six", while the union held ten. A number in
@@ -34,8 +48,10 @@ import {
   type LostCommandAckV1,
   ME_PAYLOAD_VERSION,
   MY_PETS_PAYLOAD_VERSION,
+  MY_TRANSFERS_PAYLOAD_VERSION,
   type MeV1,
   type MyPetsV1,
+  type MyTransfersV1,
   OWNER_PET_DETAIL_PAYLOAD_VERSION,
   type OwnerPetDetailV1,
   PET_EVENT_DETAIL_PAYLOAD_VERSION,
@@ -48,6 +64,7 @@ import {
   type PetRegisteredV1,
   type PetSharesV1,
   type ShareCommandAckV1,
+  type TransferCommandAckV1,
 } from "@dim/contract/api";
 import type {
   AmendEventInput,
@@ -55,6 +72,7 @@ import type {
   RecordEventInput,
   RegisterPetInput,
   ShareCommandInput,
+  TransferCommandInput,
 } from "@dim/contract/input";
 
 import { type ApiResult, type SessionPort, apiRequest, performRequest } from "./client";
@@ -424,6 +442,55 @@ export function sendShareCommand(
       method: "POST",
       body: input,
     },
+    session,
+  );
+}
+
+/**
+ * `GET /me/transfers` — THE ONE READ ON THIS SURFACE THAT IS NOT ABOUT A PET.
+ *
+ * Every other authenticated read here takes a `publicToken`, because it is about
+ * one animal. This one takes none, and it cannot: half of what it returns is
+ * about animals this caller does NOT own — a transfer proposal is an offer from
+ * somebody else's pet. There is no token that would name the read.
+ *
+ * It is also the read that feeds the deep link `mimar://transferencias/{token}`.
+ * The detail screen selects its row out of these three lists rather than calling
+ * a second endpoint: the union of `incoming` and `outgoing` is exactly the set a
+ * caller is authorized to see, so a proposal that is not in it is one this
+ * person may not read, and the screen says so without a round trip.
+ */
+export function fetchMyTransfers(session: SessionPort): Promise<ApiResult<MyTransfersV1>> {
+  return apiRequest<MyTransfersV1>(
+    { path: "/api/v1/me/transfers", expectedPayloadVersion: MY_TRANSFERS_PAYLOAD_VERSION },
+    session,
+  );
+}
+
+/**
+ * `POST /me/transfers` — run one of the four transfer commands.
+ *
+ * THE SIXTH WRITE ON THIS SURFACE, and the first that can change WHO OWNS AN
+ * ANIMAL. `accept` closes the sender's `ownerships` row, opens the caller's,
+ * appends a `custody_transferred` asiento to the spine and ends any live
+ * caretaker arrangement — one transaction, four tables. The append-only
+ * invariant holds where it applies; a reader should not read "write" here and
+ * assume "asiento".
+ *
+ * NO `idempotencyKey` PARAMETER, AND THAT IS THE CONTRACT AND NOT A SHORTCUT.
+ * None of the four writers takes a `clientIdempotencyKey`. What they have —
+ * a partial unique index for `initiate`, an `expectedStatus` guard for the other
+ * three — REFUSES a replay instead of absorbing one, which is a different
+ * promise: after a timeout, `transfer_already_resolved` may mean the first
+ * attempt landed OR that the other party moved first. A caller must re-read;
+ * `@dim/contract/input`'s `transfer.ts` states it at length.
+ */
+export function sendTransferCommand(
+  session: SessionPort,
+  input: TransferCommandInput,
+): Promise<ApiResult<TransferCommandAckV1>> {
+  return apiRequest<TransferCommandAckV1>(
+    { path: "/api/v1/me/transfers", method: "POST", body: input },
     session,
   );
 }

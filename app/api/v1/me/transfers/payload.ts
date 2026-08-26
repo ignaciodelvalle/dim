@@ -23,8 +23,10 @@ import type {
   TransferListItem,
   TransfersForUser,
 } from "@/src/modules/transfers/application/list-transfers-for-user";
+import { apiV1Envelope } from "@/lib/infra/api-v1";
 import {
   MY_TRANSFERS_PAYLOAD_VERSION,
+  MY_TRANSFERS_STALE_AFTER_MS,
   type MyTransferV1,
   type MyTransfersV1,
 } from "@dim/contract/api";
@@ -61,8 +63,15 @@ export function buildMyTransfersV1(input: {
   now: Date;
 }): MyTransfersV1 {
   return {
-    payloadVersion: MY_TRANSFERS_PAYLOAD_VERSION,
-    generatedAt: input.now.toISOString(),
+    // THE SHARED ENVELOPE, not three fields spelled out here. §6 requires
+    // `payloadVersion` / `issuedAt` / `staleAfter` on every read, and a payload
+    // that composed its own would be the fourth place on this surface where the
+    // shape could drift.
+    ...apiV1Envelope({
+      payloadVersion: MY_TRANSFERS_PAYLOAD_VERSION,
+      issuedAt: input.now,
+      staleAfterMs: MY_TRANSFERS_STALE_AFTER_MS,
+    }),
     incoming: {
       pending: input.transfers.incoming.pending.map(toTransferV1),
       history: input.transfers.incoming.history.map(toTransferV1),

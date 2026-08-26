@@ -185,6 +185,20 @@ describe("the door", () => {
     expect(res.headers.get("cache-control")).toContain("no-store");
   });
 
+  it("carries the read envelope §6 requires, built by the shared helper", async () => {
+    // `staleAfter` is what a native client shows next to "esto es lo que el
+    // servidor sabía a las 14:32". It matters more here than on most screens:
+    // the rows move without the caller doing anything (the other party answers,
+    // the cron expires one), so a stale list offers "Aceptar" on something gone.
+    const payload = await bodyOf(await read());
+    expect(payload).toMatchObject({ payloadVersion: 1 });
+    const { issuedAt, staleAfter } = payload as unknown as {
+      issuedAt: string;
+      staleAfter: string;
+    };
+    expect(Date.parse(staleAfter) - Date.parse(issuedAt)).toBe(60_000);
+  });
+
   it("maps every liveness refusal to the surface's shared code", async () => {
     for (const [reason, status, error] of [
       ["NO_SESSION", 401, "auth_expired"],

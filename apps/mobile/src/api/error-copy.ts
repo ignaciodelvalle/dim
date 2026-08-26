@@ -167,5 +167,36 @@ export function apiErrorMessage(code: ApiV1ErrorCode): string {
       return "Llegaste al máximo de links activos. Revocá uno para crear otro.";
     case "tier2_not_allowed":
       return "No se puede mostrar la libreta en la credencial pública de una mascota fallecida.";
+    // WU-O, transferencias. These land on a screen where somebody is about to
+    // give away an animal or take one, so every sentence names the next move and
+    // none of them implies a retry that cannot work.
+    case "transfer_forbidden":
+      // Three different rules behind one code — not the current owner, not the
+      // addressee, not the sender. The sentence names the SITUATION rather than
+      // which rule refused, because saying which would describe somebody else's
+      // proposal, and because the fix is the same in all three: re-read.
+      return "Esta propuesta no es tuya para responder. Actualizá la pantalla.";
+    case "transfer_self":
+      return "No podés transferirte una mascota a vos mismo/a. Revisá el email del receptor.";
+    case "transfer_not_allowed":
+      // Four situations, one sentence, and the screen can do better: the pet
+      // payload it already holds carries `status` and the rehome banner, so a
+      // client that re-reads names the real obstacle. This is the fallback.
+      return "La situación de esta mascota no permite transferirla ahora. Abrí su ficha para ver por qué.";
+    case "transfer_pending_exists":
+      return "Ya hay una transferencia pendiente para esta mascota. Cancelala antes de enviar otra.";
+    case "transfer_already_resolved":
+      // AMBIGUOUS AFTER A TIMEOUT, and the copy must not pretend otherwise: the
+      // first attempt may well have landed. "Actualizá" is the honest
+      // instruction; "volvé a intentar" would be wrong advice.
+      return "Esta propuesta ya fue respondida o cancelada. Actualizá la pantalla para ver cómo quedó.";
+    case "transfer_expired":
+      // NOT the sentence above. Nothing was decided — the seven days ran out —
+      // and the fix is specific and available: ask for a new proposal.
+      return "La propuesta venció. Pedile a quien te la envió que la vuelva a iniciar.";
+    case "transfer_failed":
+      // NO retry advice, unlike `event_failed`. Without an idempotency key a
+      // blind retry of "aceptar" cannot be told from a second attempt.
+      return "No pudimos completar la operación. Actualizá la pantalla para ver cómo quedó.";
   }
 }

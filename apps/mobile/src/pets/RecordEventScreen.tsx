@@ -40,7 +40,7 @@
 
 import { useRouter } from "expo-router";
 import { useRef, useState } from "react";
-import { Pressable, StyleSheet, Text, View } from "react-native";
+import { StyleSheet, View } from "react-native";
 
 import type { EventRecordedV1 } from "@dim/contract/api";
 import type { ApiResult } from "../api/client";
@@ -48,9 +48,9 @@ import { recordPetEvent } from "../api/endpoints";
 import { apiErrorMessage } from "../api/error-copy";
 import { sessionPort } from "../auth/session-store";
 import { Body, Card } from "../ui/components";
-import { FONTS } from "../ui/fonts";
 import {
   Callout,
+  Choice,
   Eyebrow,
   PrimaryButton,
   Screen,
@@ -59,7 +59,7 @@ import {
   Title,
 } from "../ui/kit";
 import { credentialRoute } from "../ui/routes";
-import { COLORS, LABEL_TRACKING_EM, RADIUS, SPACE, TOUCH_TARGET, TYPE } from "../ui/theme";
+import { SPACE } from "../ui/theme";
 
 import { createAttemptSession } from "./idempotency";
 import {
@@ -668,81 +668,10 @@ function NotesField({
   );
 }
 
-/**
- * A one-of-N chooser, in the field anatomy the kit already uses.
- *
- * LOCAL TO THIS SCREEN rather than promoted into `kit.tsx`: it has exactly one
- * consumer, and a primitive with one caller is a guess about the second. It
- * moves the day a second screen needs it.
- *
- * `accessibilityRole="radio"` with `checked` is what a screen reader needs to
- * announce the set as a set rather than as loose buttons.
- */
-function Choice<T extends string>({
-  label,
-  required = false,
-  options,
-  selected,
-  optionLabel,
-  onSelect,
-}: {
-  label: string;
-  required?: boolean;
-  options: readonly T[];
-  selected: T | null;
-  optionLabel: (value: T) => string;
-  onSelect: (value: T) => void;
-}) {
-  return (
-    <View style={styles.choiceField}>
-      <Text style={styles.choiceLabel}>
-        {label}
-        {required ? <Text style={styles.asterisk}>{" *"}</Text> : null}
-      </Text>
-      <View style={styles.choiceRow} accessibilityRole="radiogroup">
-        {options.map((option) => {
-          const active = option === selected;
-          return (
-            <Pressable
-              key={option}
-              accessibilityRole="radio"
-              accessibilityState={{ checked: active }}
-              onPress={() => onSelect(option)}
-              style={[styles.chip, active ? styles.chipActive : null]}
-            >
-              <Text style={active ? styles.chipLabelActive : styles.chipLabel}>
-                {optionLabel(option)}
-              </Text>
-            </Pressable>
-          );
-        })}
-      </View>
-    </View>
-  );
-}
+// `Choice` USED TO LIVE HERE and now lives in `kit.tsx`. Its docblock said it
+// would move "the day a second screen needs it"; the transfer form (WU-O) is
+// that screen, so it moved rather than being copied.
 
 const styles = StyleSheet.create({
   header: { gap: SPACE.xs },
-  choiceField: { alignSelf: "stretch", gap: SPACE.xs },
-  choiceLabel: {
-    fontFamily: FONTS.monoSemibold,
-    fontSize: TYPE.xs,
-    letterSpacing: TYPE.xs * LABEL_TRACKING_EM,
-    textTransform: "uppercase",
-    color: COLORS.inkMuted,
-  },
-  asterisk: { color: COLORS.seal },
-  choiceRow: { flexDirection: "row", flexWrap: "wrap", gap: SPACE.sm },
-  chip: {
-    minHeight: TOUCH_TARGET,
-    justifyContent: "center",
-    borderWidth: 1,
-    borderColor: COLORS.borderStrong,
-    borderRadius: RADIUS.chip,
-    backgroundColor: COLORS.surface,
-    paddingHorizontal: SPACE.md,
-  },
-  chipActive: { borderColor: COLORS.accent, backgroundColor: COLORS.focusRing },
-  chipLabel: { fontFamily: FONTS.sans, fontSize: TYPE.md, color: COLORS.ink },
-  chipLabelActive: { fontFamily: FONTS.sansSemibold, fontSize: TYPE.md, color: COLORS.accent },
 });

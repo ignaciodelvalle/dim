@@ -189,7 +189,9 @@ export type MyTransferV1 = {
  */
 export type MyTransfersV1 = {
   payloadVersion: typeof MY_TRANSFERS_PAYLOAD_VERSION;
-  generatedAt: string;
+  /** The three envelope fields §6 requires on every read. Built by `apiV1Envelope`. */
+  issuedAt: string;
+  staleAfter: string;
   incoming: {
     /** Open proposals addressed to the caller, newest first. */
     pending: MyTransferV1[];

@@ -23,7 +23,43 @@ export const ROUTES = {
   misMascotas: "/mascotas",
   altaMascota: "/alta",
   ajustes: "/ajustes",
+  /**
+   * The transfer hub — THE ONE TOP-LEVEL SCREEN THAT IS NOT ABOUT A PET THIS
+   * PERSON HOLDS. Half of what it lists is offers from animals somebody else
+   * owns, which is why it sits beside `/mascotas` rather than under it.
+   *
+   * The path deliberately matches the WEB's (`/transferencias`), unlike
+   * `/mascotas` which shortens `/mis-mascotas`. The reason is the deep link: a
+   * notification CTA and an invitation e-mail both name `/transferencias/{token}`,
+   * and keeping the app's path identical means the `mimar://` form and the
+   * `https` form differ only in scheme — one less place for the two to drift.
+   */
+  transferencias: "/transferencias",
 } as const;
+
+/**
+ * One transfer proposal.
+ *
+ * THE DEEP-LINK-HEAVY ONE. This is where `mimar://transferencias/{PTR-…}` lands
+ * and where the `pet_transfer_received` notification points, so the segment
+ * shape here is not free: it must equal the web's `/transferencias/:transferToken`
+ * so `DEEP_LINK_MAP.petTransfer` can carry both forms of one destination.
+ */
+export function transferRoute(transferToken: string): `/transferencias/${string}` {
+  return `/transferencias/${encodeURIComponent(transferToken)}`;
+}
+
+/**
+ * The "ofrecer la titularidad" form for one pet.
+ *
+ * NESTED UNDER THE PET even though the other three transfer commands are not,
+ * and the asymmetry is the feature's: `initiate` is the only one addressed by an
+ * ANIMAL. The other three name a proposal, and a proposal outlives the sender's
+ * relationship to the pet — which is the whole point of accepting one.
+ */
+export function transferPetRoute(publicToken: string): `/mascotas/${string}/transferir` {
+  return `/mascotas/${encodeURIComponent(publicToken)}/transferir`;
+}
 
 /** One pet's credential. */
 export function credentialRoute(publicToken: string): `/mascotas/${string}` {
@@ -96,4 +132,6 @@ export type AppRoute =
   | ReturnType<typeof libretaEventRoute>
   | ReturnType<typeof recordEventRoute>
   | ReturnType<typeof lostModeRoute>
-  | ReturnType<typeof sharesRoute>;
+  | ReturnType<typeof sharesRoute>
+  | ReturnType<typeof transferRoute>
+  | ReturnType<typeof transferPetRoute>;

@@ -36,7 +36,7 @@ import { sessionPort } from "../auth/session-store";
 import { Body, Card, Loading, Row, Unavailable } from "../ui/components";
 import { FONTS } from "../ui/fonts";
 import { Callout, Eyebrow, PrimaryButton, Screen, SecondaryButton } from "../ui/kit";
-import { lostModeRoute } from "../ui/routes";
+import { lostModeRoute, sharesRoute, transferPetRoute } from "../ui/routes";
 import { COLORS, LEADING, RADIUS, SPACE, TRACKING, TYPE } from "../ui/theme";
 import {
   type OwnerFaceView,
@@ -135,6 +135,57 @@ function LostModeLink({ publicToken }: { publicToken: string }) {
   );
 }
 
+/**
+ * The way into the sharing cockpit.
+ *
+ * It did not exist until WU-O. `sharesRoute` was written in WU-N and never
+ * called, which made the screen behind it reachable only by typing a URL — the
+ * same "mounted, data-wired and unreachable by clicking" state the web found on
+ * its chapita sheet.
+ */
+function SharesLink({ publicToken }: { publicToken: string }) {
+  const router = useRouter();
+  return (
+    <SecondaryButton
+      label="Compartir"
+      accessibilityHint="Crear o revocar links de la libreta, y mostrarla en la credencial pública."
+      onPress={() => router.push(sharesRoute(publicToken))}
+    />
+  );
+}
+
+/**
+ * The way into "ofrecer la titularidad".
+ *
+ * OFFERED TO EVERY HOLDER, and refused by the server for the ones who may not.
+ * The rule is the narrowest on this surface — the ACTIVE `role='owner'`
+ * ownership row — and this payload carries no flag for it, so hiding the control
+ * on a guess would be this screen inventing a rule. The web offers the same
+ * entry point on `ownershipRole === "owner"`, which it happens to know locally;
+ * this face does not, and asks instead.
+ */
+function TransferLink({
+  publicToken,
+  petName,
+}: {
+  publicToken: string;
+  petName: string | null;
+}) {
+  const router = useRouter();
+  return (
+    <SecondaryButton
+      label="Transferir la titularidad"
+      accessibilityHint="Ofrecerle esta mascota a otra persona. No cambia nada hasta que acepte."
+      onPress={() =>
+        router.push({
+          pathname: transferPetRoute(publicToken),
+          params: petName === null ? {} : { name: petName },
+        })
+      }
+    />
+  );
+}
+
 /** Renders a section, or its refusal. The two are never the same view. */
 function Section<T>({
   view,
@@ -202,6 +253,28 @@ function OwnerFaceBody({ view }: { view: OwnerFaceView }) {
           would hide the entry point in the one state where somebody needs it
           fastest: the moment they notice it is gone. */}
       <LostModeLink publicToken={view.publicToken} />
+
+      {/* COMPARTIR + TRANSFERIR -------------------------------------------- */}
+      {/* THE SHARING COCKPIT HAD NO WAY IN. `sharesRoute` shipped with WU-N and
+          nothing in the app ever called it, so the whole screen — the links, the
+          Tier-2 window, the revoke controls — was reachable only by typing a URL.
+          That is the same dead-weight the web found on its own chapita sheet
+          (`MasSheet.helpers.ts:80-95`), and it is fixed the same way: by linking
+          to it from the face somebody is already looking at.
+
+          BOTH ARE OFFERED UNCONDITIONALLY, for the reason modo perdida is. Who
+          may mint a link is decided by that payload's `capabilities`, and who may
+          transfer is decided by the transfer writer's own ownership check — this
+          face carries neither flag. A CTA hidden on a guess would be this screen
+          inventing a rule it cannot see. */}
+      <SharesLink publicToken={view.publicToken} />
+      <TransferLink
+        publicToken={view.publicToken}
+        // The name travels as a query param, and `null` when the identity
+        // section is unavailable — the form has an honest fallback for that,
+        // and a degraded section must not stop somebody transferring an animal.
+        petName={view.identity.state === "ok" ? view.identity.data.name : null}
+      />
 
       {/* THE ALERT STRIP ------------------------------------------------- */}
       {/* Already ranked by the server. A client that reorders this has

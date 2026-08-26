@@ -110,6 +110,15 @@ export default function RootLayout() {
         <Stack.Screen name="mascotas/[publicToken]/asentar" options={{ title: "Asentar" }} />
         <Stack.Screen name="alta" options={{ title: "Registrar una mascota" }} />
         <Stack.Screen name="ajustes" options={{ title: "Ajustes" }} />
+        {/* The transfer hub is a SIBLING of the pet list, not a child of a pet:
+            half of what it shows is offers from animals somebody else owns. */}
+        <Stack.Screen name="transferencias/index" options={{ title: "Transferencias" }} />
+        {/* THE DEEP-LINK DESTINATION. A person can arrive here from a
+            notification with no history behind them, so the header says what the
+            screen IS rather than naming a step in a flow they did not walk. */}
+        <Stack.Screen name="transferencias/[transferToken]" options={{ title: "Transferencia" }} />
+        {/* The header says the ACT. Which animal is the screen's own title. */}
+        <Stack.Screen name="mascotas/[publicToken]/transferir" options={{ title: "Transferir" }} />
       </Stack>
     </SafeAreaProvider>
   );

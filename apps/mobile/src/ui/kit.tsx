@@ -279,6 +279,70 @@ export function TextField({
   );
 }
 
+// ---------- Choice ---------------------------------------------------------
+
+/**
+ * A one-of-N chooser, in the same field anatomy `TextField` uses.
+ *
+ * PROMOTED FROM `RecordEventScreen` (WU-O), on that file's own instruction. It
+ * lived there as a local component whose docblock said: "LOCAL TO THIS SCREEN
+ * rather than promoted into `kit.tsx`: it has exactly one consumer, and a
+ * primitive with one caller is a guess about the second. It moves the day a
+ * second screen needs it." The transfer form is the second screen — it picks one
+ * of four reasons — so it moved, rather than being copied with a comment
+ * explaining why there are now two.
+ *
+ * `accessibilityRole="radio"` inside a `radiogroup` is what a screen reader
+ * needs to announce the set AS A SET rather than as loose buttons, and it is why
+ * this is not four `SecondaryButton`s with a tick in the label: that spelling
+ * looks selected and announces nothing.
+ *
+ * NOTHING IS PRESELECTED unless the caller passes a `selected` value. On a form
+ * that hands over an animal, a default is a choice somebody did not make.
+ */
+export function Choice<T extends string>({
+  label,
+  required = false,
+  options,
+  selected,
+  optionLabel,
+  onSelect,
+  disabled = false,
+}: {
+  label: string;
+  required?: boolean;
+  options: readonly T[];
+  selected: T | null;
+  optionLabel: (value: T) => string;
+  onSelect: (value: T) => void;
+  disabled?: boolean;
+}) {
+  return (
+    <View style={styles.choiceField}>
+      <FieldLabel required={required}>{label}</FieldLabel>
+      <View style={styles.choiceRow} accessibilityRole="radiogroup">
+        {options.map((option) => {
+          const active = option === selected;
+          return (
+            <Pressable
+              key={option}
+              accessibilityRole="radio"
+              accessibilityState={{ checked: active, disabled }}
+              disabled={disabled}
+              onPress={() => onSelect(option)}
+              style={[styles.chip, active ? styles.chipActive : null]}
+            >
+              <Text style={active ? styles.chipLabelActive : styles.chipLabel}>
+                {optionLabel(option)}
+              </Text>
+            </Pressable>
+          );
+        })}
+      </View>
+    </View>
+  );
+}
+
 // ---------- Buttons --------------------------------------------------------
 
 /** `active:scale-[0.98] active:opacity-90` on the web, for touch feedback. */
@@ -468,6 +532,23 @@ const styles = StyleSheet.create({
   },
 
   field: { alignSelf: "stretch" },
+
+  // Choice — the chip row, moved here with the component (WU-O).
+  choiceField: { alignSelf: "stretch", gap: SPACE.xs },
+  choiceRow: { flexDirection: "row", flexWrap: "wrap", gap: SPACE.sm },
+  chip: {
+    minHeight: TOUCH_TARGET,
+    justifyContent: "center",
+    borderWidth: 1,
+    borderColor: COLORS.borderStrong,
+    borderRadius: RADIUS.chip,
+    backgroundColor: COLORS.surface,
+    paddingHorizontal: SPACE.md,
+  },
+  chipActive: { borderColor: COLORS.accent, backgroundColor: COLORS.focusRing },
+  chipLabel: { fontFamily: FONTS.sans, fontSize: TYPE.md, color: COLORS.ink },
+  chipLabelActive: { fontFamily: FONTS.sansSemibold, fontSize: TYPE.md, color: COLORS.accent },
+
   // The 3px the focus ring will occupy, reserved always so focusing a field
   // never reflows the form. See the note on TextField.
   ring: { padding: 3, margin: -3, borderRadius: RADIUS.control + 3 },
