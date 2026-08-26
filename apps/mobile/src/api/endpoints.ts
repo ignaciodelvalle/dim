@@ -7,11 +7,18 @@
 // walking a directory.
 //
 // THREE of them are writes, and the count is kept in this sentence on purpose:
-// `registerPet` creates an animal, `recordPetEvent` appends one of the six daily
-// asientos, and `amendPetEvent` corrects a record by APPENDING a correction.
-// NONE of them edits anything — every one is an INSERT onto an append-only
-// spine, which is not a coincidence but the product's first invariant. If a
-// fourth write appears, this line is where a reviewer notices.
+// `registerPet` creates an animal, `recordPetEvent` appends an asiento, and
+// `amendPetEvent` corrects a record by APPENDING a correction. NONE of them
+// edits anything — every one is an INSERT onto an append-only spine, which is
+// not a coincidence but the product's first invariant. If a fourth write
+// appears, this line is where a reviewer notices.
+//
+// HOW MANY ASIENTOS `recordPetEvent` CAN WRITE IS NOT COUNTED ANYWHERE HERE,
+// and it used to be — "one of the six", while the union held ten. A number in
+// prose has to be edited every time a kind crosses and nothing fails when it is
+// not, so it drifts silently and then misleads the next reader. The union in
+// `@dim/contract/input` is the count; this file's business is that there is ONE
+// call for all of them.
 //
 // Everything here is a thin wrapper over `apiRequest` / `performRequest`. No
 // endpoint may add its own retry, its own error copy, or its own session
@@ -154,12 +161,12 @@ export function fetchPetEventDetail(
 }
 
 /**
- * `POST /pets/{publicToken}/events` — record one of the six daily asientos.
+ * `POST /pets/{publicToken}/events` — record one asiento.
  *
- * ONE CALL FOR SIX KINDS, because the endpoint is one: `pet_events` is a single
- * append-only table discriminated by `event_type`, and `RecordEventInput` is a
- * discriminated union over exactly that. A wrapper per kind would be six
- * functions that differ only in a string.
+ * ONE CALL FOR EVERY KIND, because the endpoint is one: `pet_events` is a
+ * single append-only table discriminated by `event_type`, and
+ * `RecordEventInput` is a discriminated union over exactly that. A wrapper per
+ * kind would be a pile of functions that differ only in a string.
  *
  * `idempotencyKey` is REQUIRED by the type because the server requires it, and
  * it is scoped to one form MOUNT — see `pets/idempotency.ts` for why a fresh key

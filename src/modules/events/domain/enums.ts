@@ -26,10 +26,17 @@ export type NoteCategory = (typeof NOTE_CATEGORIES)[number];
 
 // MOVED TO THE CONTRACT (WU-L) and re-exported from here, the same move
 // `MAX_WEIGHT_KG` got in WU-K. `POST /api/v1/pets/{token}/events` validates a
-// native `clinical_info` asiento against the SAME five, and two arrays of five
-// strings kept in agreement by hand is a sixth sub-kind added to one of them.
+// native `clinical_info` asiento against the SAME array, and two copies kept in
+// agreement by hand is a sub-kind added to one of them and not the other.
 // Importers here — `src/modules/events/actions.ts` and the org `atender`
 // action — are unchanged and still read one array.
+//
+// The spine's own `clinical_info_logged` schema accepts SEVEN sub-kinds; this
+// owner-facing array holds five of them. `disease_diagnosis` is excluded
+// because its writer authorizes on a verified matrícula and checks no ownership
+// at all, and `pregnancy` because it has its own flow. The contract states both
+// exclusions at length; the numbers live there and not in a second sentence
+// here, which is how the last one came to be off by one.
 export { CLINICAL_SUB_KINDS, type ClinicalSubKind } from "@dim/contract/input";
 
 // ---------------------------------------------------------------------------
