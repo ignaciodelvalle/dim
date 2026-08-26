@@ -66,12 +66,7 @@ import { apiV1Error, apiV1Json } from "@/lib/infra/api-v1";
 import { DbBudgetExceededError, withDbBudgetOrThrow } from "@/lib/infra/db-budget";
 import { createNotificationsBulk } from "@/lib/infra/notification-service";
 import { type PetHolderAccess, resolvePetHolderAccess } from "@/lib/infra/pet-access";
-import {
-  isoToArDateDisplay,
-  parseArDateEndOfDay,
-  parseArDateStartOfDay,
-  parseArDateToIso,
-} from "@/lib/utils/date-input-ar";
+import { parseArDateEndOfDay, parseArDateStartOfDay } from "@/lib/utils/date-input-ar";
 import { acceptCaretakerGrant } from "@/src/modules/caretakers/application/accept-caretaker-grant";
 import { cancelCaretakerGrant } from "@/src/modules/caretakers/application/cancel-caretaker-grant";
 import { designateCaretaker } from "@/src/modules/caretakers/application/designate-caretaker";
@@ -200,19 +195,6 @@ const END_IN_PAST = designationRefusal({
 
 /** The action's own refusal for an `endsAt` that is shaped like a date and is not one. */
 const END_DATE_UNPARSEABLE = "Indicá hasta qué fecha va el cuidado.";
-
-/**
- * Is this `YYYY-MM-DD` a day that exists?
- *
- * ASKS `parseArDateToIso` INSTEAD OF RE-DERIVING ITS RULE. That function already
- * validates a day against the real length of its month (leap years included);
- * writing the same arithmetic here would be a second copy that drifts the first
- * time either is touched. The round trip is the cheapest way to reuse a validator
- * whose input happens to be the other of the module's two date spellings.
- */
-function isRealArCalendarDay(iso: string): boolean {
-  return parseArDateToIso(isoToArDateDisplay(iso)) === iso;
-}
 
 const RULES: readonly Rule[] = [
   // ---- the PERIOD is not one the domain accepts (400) ----------------------
@@ -473,28 +455,20 @@ async function designate(
   const guard = await guardTitular(input.petPublicToken, ctx.userId);
   if (!guard.ok) return guard.response;
 
-  // THE CALENDAR IS CHECKED HERE AND NOWHERE ELSE ON THIS PATH, and the reason is
-  // a measured defect rather than caution (2026-08-26). `parseArDateEndOfDay`
-  // says it answers null for malformed input; what it actually refuses is a
-  // malformed SHAPE and an impossible MONTH. `2026-02-31` is neither: the
-  // ECMAScript date parser ROLLS IT OVER, so the period would silently end on the
-  // 3rd of March — three days of somebody else's access to an animal that nobody
-  // asked for. The web never meets it because `<input type="date">` cannot emit
-  // an impossible day; an API can, and this is the first door that takes one.
-  //
-  // The rule is not re-implemented: `parseArDateToIso` already validates a day
-  // against the real length of its month, leap years included, and the round trip
-  // through `isoToArDateDisplay` is how to ASK it rather than write a second copy
-  // of the arithmetic in a file that would drift from it.
-  if (!isRealArCalendarDay(input.startsAt) || !isRealArCalendarDay(input.endsAt)) {
-    return caretakerRefusal(END_DATE_UNPARSEABLE);
-  }
-
   // THE DAYS BECOME INSTANTS HERE, exactly as `designateCaretakerAction` does it
   // (`actions.ts:129-135`): the first instant of the first Argentine day, and the
   // LAST instant of the last one, because "hasta el 15/09" promises the whole
-  // 15th. A `startsAt` the parser refuses falls back to NOW — the web's own
-  // behaviour, and unreachable here now that the calendar check runs first.
+  // 15th.
+  //
+  // NEITHER FALLBACK BELOW IS REACHABLE, and both stay. `parseArDateStartOfDay`
+  // and `parseArDateEndOfDay` answer null for a malformed shape or an impossible
+  // MONTH, and roll an impossible DAY over silently (`2026-02-31` → 3 March,
+  // measured 2026-08-26) — so on their own they are not enough to trust a date
+  // string with. The route parses this body against `caretakerCommandInputSchema`
+  // first, and that schema's `isRealArDay` refuses every one of those cases with
+  // `DATE_INVALID` before control arrives here. The guards are the belt to that
+  // brace: they cost a comparison and they are what stops a future caller that
+  // reaches these writers by another path from inheriting the rollover.
   const startsAt = parseArDateStartOfDay(input.startsAt) ?? new Date();
   const endsAt = parseArDateEndOfDay(input.endsAt);
   if (!endsAt) return caretakerRefusal(END_DATE_UNPARSEABLE);

@@ -75,6 +75,8 @@
 
 import { z } from "zod";
 
+import { isRealArDay } from "./ar-calendar-day.ts";
+
 /**
  * Maximum length of a caretaker arrangement, in days — `MAX_GRANT_DURATION_DAYS`,
  * mirrored from `src/modules/caretakers/domain/types.ts` where `validateDesignation`
@@ -176,17 +178,24 @@ const petPublicToken = z
  * compute a different boundary than the browser does for the same picked day.
  * The client picks a DAY; the server owns what that day means.
  *
- * The regex is the SHAPE only. `2026-02-31` passes it, and the SERVER is what
- * refuses it with `caretaker_period_invalid` — a calendar this package cannot own
- * without a second copy of the leap-year rule. Worth knowing that the refusal is
- * a deliberate check and not a happy accident: the boundary parser this endpoint
- * uses would have ROLLED THAT DAY OVER to the 3rd of March (measured 2026-08-26),
- * so the endpoint asks the module's own day validator first.
+ * THE REGEX IS NOT THE WHOLE CHECK, and leaving it at that would have been a real
+ * defect rather than a tidy one. `2026-02-31` matches it perfectly and
+ * `parseArDateEndOfDay` — the boundary parser this feature's writers use —
+ * ROLLS IT OVER to the 3rd of March (measured 2026-08-26). A caretaker period the
+ * titular meant to close on the 28th would have closed three days later: three
+ * days of somebody else's access to an animal that nobody asked for.
+ *
+ * `isRealArDay` is what refuses it, and it is IMPORTED rather than restated: the
+ * identical rule was already in this package for `record-event.ts`'s asiento
+ * dates, found there by a test in WU-K. Two copies of one calendar is how two
+ * doors onto one spine stop agreeing. It also means a client learns locally, with
+ * a field code, instead of paying a round trip to be told `invalid_request`.
  */
 const arCalendarDay = z
   .string({ error: "DATE_INVALID" })
   .trim()
-  .regex(/^\d{4}-\d{2}-\d{2}$/, { error: "DATE_INVALID" });
+  .regex(/^\d{4}-\d{2}-\d{2}$/, { error: "DATE_INVALID" })
+  .refine(isRealArDay, { error: "DATE_INVALID" });
 
 /**
  * INVITE SOMEBODY TO LOOK AFTER THIS ANIMAL FOR A WHILE.

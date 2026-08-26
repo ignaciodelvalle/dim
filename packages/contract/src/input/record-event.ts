@@ -62,6 +62,8 @@
 
 import { z } from "zod";
 
+import { isRealArDay } from "./ar-calendar-day.ts";
+
 /**
  * The upper bound on a recorded weight, in kilograms.
  *
@@ -222,25 +224,13 @@ const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
 /**
  * Does this string name a day that EXISTS?
  *
- * A REGEX IS NOT ENOUGH, and finding that out cost a test. `"2026-02-31"`
- * matches `ISO_DATE_RE` perfectly, and `new Date("2026-02-31T12:00:00Z")` does
- * not throw and is not `NaN` — JavaScript ROLLS IT OVER to 3 March. So the
- * server's own `parseDateInput` accepts it, silently, and a vaccination the
- * owner dated 31 February lands in the ledger dated 3 March with nothing
- * anywhere reporting a substitution.
- *
- * The web never had this problem: `<input type="date">` cannot produce a day
- * that does not exist. A JSON client can, which makes this exactly the kind of
- * rule that has to be WRITTEN DOWN when a second door opens onto one spine.
- *
- * Round-tripping is the whole check: a rolled-over date stringifies back to a
- * different day than it came from.
+ * LIVED HERE UNTIL WU-P, as a private helper. It moved to `./ar-calendar-day.ts`
+ * unchanged, because the caretaker schema needs the identical rule and a second
+ * copy of a calendar is how two doors onto one spine stop agreeing. The full
+ * story of the defect it exists for is in that file's header; this alias is kept
+ * so the four call sites below still read in this file's own vocabulary.
  */
-function isRealDay(value: string): boolean {
-  const parsed = new Date(`${value}T12:00:00Z`);
-  if (Number.isNaN(parsed.getTime())) return false;
-  return parsed.toISOString().slice(0, 10) === value;
-}
+const isRealDay = isRealArDay;
 
 /** The same round-trip for the DATE half of a `"YYYY-MM-DDTHH:mm"` value. */
 function isRealDayAndTime(value: string): boolean {

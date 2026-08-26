@@ -116,13 +116,21 @@ describe("dates are Argentine calendar DAYS, never instants", () => {
     expect(codeFor({ ...DESIGNATE, startsAt: "" })).toBe("DATE_INVALID");
   });
 
-  it("does NOT own the calendar — an impossible day parses and the server refuses it", () => {
-    // A leap-year rule in a zod schema is a second copy of one the repo already
-    // has (`parseArDateToIso`, which this package cannot import). `2026-02-31` is
-    // well SHAPED and not a date; the ENDPOINT is what answers
-    // `caretaker_period_invalid`, with a check it makes deliberately — the
-    // boundary parser alone would have rolled that day over to the 3rd of March.
-    expect(codeFor({ ...DESIGNATE, endsAt: "2026-02-31" })).toBe(null);
+  it("refuses a day that does not exist, on either end", () => {
+    // THE REGEX IS NOT THE WHOLE CHECK. `2026-02-31` matches it, and
+    // `parseArDateEndOfDay` — what the writers use — ROLLS IT OVER to the 3rd of
+    // March (measured 2026-08-26), so a period meant to close on the 28th would
+    // have closed three days later. `isRealArDay` is imported from the same place
+    // `record-event.ts` gets it, so there is one calendar in this package.
+    expect(codeFor({ ...DESIGNATE, endsAt: "2026-02-31" })).toBe("DATE_INVALID");
+    expect(codeFor({ ...DESIGNATE, startsAt: "2027-02-29" })).toBe("DATE_INVALID");
+    expect(codeFor({ ...DESIGNATE, endsAt: "2026-13-01" })).toBe("DATE_INVALID");
+  });
+
+  it("still accepts a REAL leap day", () => {
+    // The other half: 2028 is a leap year, so the 29th exists and must go
+    // through. A check that refused it would be a wrong calendar, not a strict one.
+    expect(codeFor({ ...DESIGNATE, startsAt: "2028-02-29", endsAt: "2028-03-10" })).toBe(null);
   });
 
   it("does not enforce the 180-day cap either — that rule needs a clock", () => {

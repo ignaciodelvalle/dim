@@ -440,19 +440,25 @@
  *                         move is a specific edit (change the address) rather
  *                         than "stop".
  * - `caretaker_period_invalid`
- *                       — the period is not one the domain will accept: the end
+ *                       — the period is not one the DOMAIN will accept: the end
  *                         is not after the start, it is longer than
- *                         `CARETAKER_MAX_DURATION_DAYS`, it is already in the
- *                         past, or the day is not a real calendar date
- *                         (`2026-02-31` passes the wire regex and no leap-year
- *                         rule belongs in a zod schema). 400.
+ *                         `CARETAKER_MAX_DURATION_DAYS`, or it is already in the
+ *                         past. 400.
  *
- *                         ONE code for the four because the move is one move —
+ *                         ONE code for the three because the move is one move —
  *                         pick different dates — and the client HOLDS what it
  *                         needs to say why: `CARETAKER_MAX_DURATION_DAYS` is in
  *                         the contract precisely so a picker can be bounded
  *                         before the round trip, exactly as the web form bounds
  *                         its own.
+ *
+ *                         A DAY THAT DOES NOT EXIST IS NOT THIS CODE. `2026-02-31`
+ *                         is refused by the wire schema (`isRealArDay`), so a
+ *                         client sees the field code `DATE_INVALID` locally and
+ *                         the door answers `invalid_request` to anything that
+ *                         sends it anyway. The split is the usual one: the shape
+ *                         of a date is the schema's, what a date MEANS for a
+ *                         period is the domain's.
  * - `caretaker_grant_exists`
  *                       — this animal already has an open arrangement: an active
  *                         caretaker, or an invitation nobody has answered. 409,

@@ -124,13 +124,13 @@ const AR_DATE_ONLY_RE = /^\d{4}-\d{2}-\d{2}$/;
  * and stated because the sentence above reads like a stronger promise than it is.
  * `2026-13-01` is `Invalid Date` and answers null; `2026-02-31` is NOT — the
  * ECMAScript date parser ROLLS IT OVER, so this returns the 3rd of March. Both
- * callers are safe today for the same reason the defect went unnoticed: a
- * `<input type="date">` cannot emit an impossible day. AN API CAN, so a door that
- * takes a bare date string from a client has to check the calendar itself —
- * `parseArDateToIso` above already owns that rule (it validates the day against
- * the real length of the month, leap years included), and round-tripping through
- * `isoToArDateDisplay` into it is how to reuse it rather than write a second copy.
- * `app/api/v1/me/caretaker-grants/commands.ts` does exactly that.
+ * callers are safe today for the same reason the defect went unnoticed: an
+ * `<input type="date">` cannot emit an impossible day. A JSON CLIENT CAN, so a
+ * door that takes a bare date string has to check the calendar BEFORE calling
+ * these. `@dim/contract/input`'s `ar-calendar-day.ts` owns that check for the
+ * whole `/api/v1` surface (`isRealArDay`), which is where the caretaker and
+ * asiento schemas both get it; `parseArDateToIso` above owns the equivalent for
+ * the dd/mm/aaaa spelling the web's own inputs use. Do not write a third.
  *
  * WHY THIS EXISTS ALONGSIDE `parseDateInput`. `parseDateInput` anchors at NOON
  * UTC, which is enough to make the day render correctly in any AR-pinned

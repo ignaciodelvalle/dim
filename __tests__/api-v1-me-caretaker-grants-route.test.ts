@@ -564,21 +564,27 @@ describe("designate turns Argentine days into boundary instants", () => {
     expect(endsAt.toISOString()).toBe("2026-09-16T02:59:59.999Z");
   });
 
-  it("refuses a well-shaped impossible day, on BOTH ends, with the period code", async () => {
+  it("refuses a well-shaped impossible day, on BOTH ends, before any writer runs", async () => {
     // THE REGRESSION TEST FOR A MEASURED DEFECT (2026-08-26), not a hypothetical.
     // The wire regex passes `2026-02-31`, and `parseArDateEndOfDay` does NOT
-    // refuse it — the ECMAScript parser rolls it over, so without the calendar
-    // check this endpoint would have written a period ending on the 3rd of March:
-    // three days of somebody else's access to an animal that nobody asked for.
+    // refuse it — the ECMAScript parser rolls it over, so without the schema's
+    // `isRealArDay` this endpoint would have written a period ending on the 3rd of
+    // March: three days of somebody else's access to an animal nobody asked for.
     // The web never meets it because `<input type="date">` cannot emit such a day.
+    //
+    // `invalid_request` and not `caretaker_period_invalid`, deliberately: the
+    // SHAPE of a date is the schema's business, so the client already had the
+    // field code `DATE_INVALID` locally and reaching this door means it ignored it.
     for (const over of [{ endsAt: "2026-02-31" }, { startsAt: "2027-02-29" }]) {
       control.calls = [];
+      control.accessCalls = [];
       const res = await send({ ...DESIGNATE, ...over });
       expect(res.status, JSON.stringify(over)).toBe(400);
-      expect(await bodyOf(res), JSON.stringify(over)).toEqual({
-        error: "caretaker_period_invalid",
-      });
+      expect(await bodyOf(res), JSON.stringify(over)).toEqual({ error: "invalid_request" });
       expect(control.calls, JSON.stringify(over)).toEqual([]);
+      // Refused before the pet is even resolved — a malformed body must not cost
+      // an access query.
+      expect(control.accessCalls, JSON.stringify(over)).toEqual([]);
     }
   });
 
