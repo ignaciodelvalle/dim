@@ -21,7 +21,7 @@
 //
 // Reference: src/modules/foster/actions.ts, src/modules/adoption/actions.ts
 
-import { db, notifications } from "@/db";
+import { auditLog, db, notifications } from "@/db";
 import { requireUserOrRedirect } from "@/lib/infra/auth-guards";
 import { type CronBudgetHeaders, effectiveDeadlineMs } from "@/lib/infra/cron-dispatcher";
 import { resolveSiteUrl } from "@/lib/infra/site-url";
@@ -70,15 +70,41 @@ type AuditEntry = {
 /**
  * Insert a single audit_log row post-tx, best-effort. Never throws.
  *
- * THE INSERT MOVED TO THE REPOSITORY (WU-O) and this is now the shim that names
- * it. The four owner→owner commands acquired a second door —
- * `POST /api/v1/me/transfers` — and an audit row written by only one of them is
- * an operation that, performed from a phone, leaves no trace at all. The
- * repository's own docblock carries the rest of the reasoning, including why the
- * `lint:audit-log` fence cannot catch this case.
+ * A DUPLICATE OF `TransfersRepository.insertAuditLog`, AND THE REASON IT STAYS
+ * IS A FENCE RATHER THAN A PREFERENCE — the same shape, and the same reason, as
+ * the `flushNotifications` twin in `src/modules/events/actions.ts`.
+ *
+ * The four owner→owner commands acquired a second door in WU-O
+ * (`POST /api/v1/me/transfers`), and an audit row written by only one of them is
+ * an operation that, performed from a phone, leaves no trace — indistinguishable
+ * forever from the operation never having happened. So the repository grew a
+ * named method for the route to call, and collapsing THIS function into it was
+ * the obvious third step.
+ *
+ * It was tried, and `src/modules/transfers/__tests__/actions-parity.test.ts`
+ * went red on 27 assertions. Not incidentally: that file mocks the repository
+ * down to one method on purpose (its dependency graph is large) and pins the
+ * audit rows by asserting `db.insert` was called with the `auditLog` table
+ * SENTINEL. Delegating hides the insert behind a mock the test cannot see
+ * through, and every "R1…R10 inserts auditLog with action=…" assertion — the
+ * C-1 parity fence for nine operations — stops testing anything.
+ *
+ * Making that mock partial would pull the real repository's whole import graph
+ * into a suite that deliberately avoids it. The duplicate is three lines; the
+ * fence covers nine operations. The duplicate stays.
+ *
+ * WHAT MUST BE KEPT IN AGREEMENT is not this code, it is the `action` NAMES and
+ * the payload shape — `pet_transfer_initiated` / `_accepted` / `_rejected` /
+ * `_cancelled`, all four in the `audit_log_action_valid` CHECK constraint. The
+ * route's copies are asserted against the same names in
+ * `__tests__/api-v1-me-transfers-route.test.ts`.
  */
 async function flushAuditLog(entry: AuditEntry): Promise<void> {
-  await TransfersRepository.insertAuditLog(entry);
+  try {
+    await db.insert(auditLog).values(entry as typeof auditLog.$inferInsert);
+  } catch (e) {
+    console.error("[transfers/actions] auditLog insert failed (action did succeed):", e);
+  }
 }
 
 // ---------------------------------------------------------------------------

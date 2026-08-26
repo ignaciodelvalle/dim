@@ -913,8 +913,17 @@ export const TransfersRepository = {
    * one by one instead of mocking a query builder (`shares/commands.ts` states
    * the same rule for itself). Exposing the transaction runner here is how that
    * stays true for a module whose use-cases all require one.
+   *
+   * A METHOD, NOT `db.transaction.bind(db)`. The bound form is what `actions.ts`
+   * passes inline and it reads more directly — but as a property initialiser it
+   * evaluates when this MODULE loads, so any suite that mocks `@/db` without a
+   * `transaction` function throws on import, before a single test runs. A method
+   * defers the lookup to the call: the difference between a mock that is merely
+   * incomplete and a file that cannot be imported at all.
    */
-  transaction: db.transaction.bind(db),
+  transaction<T>(cb: Parameters<typeof db.transaction<T>>[0]): Promise<T> {
+    return db.transaction(cb);
+  },
 
   /**
    * Inserts notifications in batch (used post-tx for best-effort fanout).
