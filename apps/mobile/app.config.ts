@@ -60,6 +60,85 @@
 // The host is a placeholder too: the credential currently lives at
 // `dim-staging.vercel.app`, and a verified link must point at the production
 // domain, not at a preview host whose `.well-known` any Vercel deploy can move.
+//
+// ===========================================================================
+// THE SECOND DECLARATION THAT NEEDS PARAGRAPHS: expo-updates
+// ===========================================================================
+// The header above says the ONE thing this layer adds is the deep-link
+// declaration. That stopped being true here, and for the same reason: the
+// update configuration is three keys whose meaning is entirely in what they
+// FORBID, and JSON cannot say what a key forbids.
+//
+// THE POLICY, WHICH IS NOT "WE HAVE OTA NOW"
+// ---------------------------------------------------------------------------
+// Over-the-air updates are fenced to HOTFIXES by PO decision. OTA is not a
+// release channel here; it is a way to un-break a build that is already on
+// somebody's phone, between store releases. The full argument, the class of
+// change that may never go out this way, and the procedure live in
+// `docs/mobile/ota-policy.md`. Read it before running `eas update`.
+//
+// WHAT `runtimeVersion: { policy: "fingerprint" }` ACTUALLY DOES
+// ---------------------------------------------------------------------------
+// It is the only part of that policy that is a MECHANISM rather than a promise,
+// and it is the reason this policy is enforceable at all.
+//
+// An OTA update replaces the JavaScript bundle. It cannot replace the native
+// runtime that bundle runs against — the compiled Android/iOS binary with its
+// linked native modules. Ship JS that calls into a native module the installed
+// binary does not contain and the app does not degrade: it CRASHES, on launch,
+// on every phone that took the update, and the fix cannot itself be shipped
+// over the air because the broken build is the one that would have to download
+// it. That is the failure mode OTA is famous for, and it bricks a fleet.
+//
+// `runtimeVersion` is the compatibility key: expo-updates only serves an update
+// to a build whose runtime version matches. The `fingerprint` policy computes
+// it by HASHING the things that determine the native runtime — the native
+// dependency set, the config plugins, the app config that feeds prebuild. So:
+//
+//   Add expo-camera, change a plugin, bump the Expo SDK → the fingerprint
+//   changes → the update is published under a runtime version no installed
+//   build has → nobody receives it. The mistake becomes a delivery that reaches
+//   zero devices instead of a crash that reaches all of them.
+//
+// The alternatives were considered and are worse HERE:
+//
+//   `appVersion` — ties the runtime version to `version` in app.json (0.0.1).
+//       Two builds of 0.0.1 with different native modules share a runtime
+//       version, so the crash above is fully available. It only works if a
+//       human remembers to bump `version` on every native change, which is the
+//       same "a rule enforced by nobody" shape `appVersionSource: remote`
+//       exists to get rid of (see docs/mobile/eas-build-profiles.md).
+//   `nativeVersion` / a hand-written string — same class, more typing.
+//
+// The cost of `fingerprint` is real and worth stating: the runtime version is
+// an opaque hash nobody can read, computed rather than declared, so "why did
+// this phone not get the update?" is answered by `eas update:list` and
+// `npx expo-updates fingerprint:generate`, not by looking at a file. It also
+// means a change that is genuinely JS-only but happens to touch the config can
+// silently orphan the fleet from a hotfix. That is the correct direction to
+// fail in.
+//
+// WHY `fallbackToCacheTimeout: 0`, i.e. NEVER BLOCK THE LAUNCH
+// ---------------------------------------------------------------------------
+// The alternative is to hold the splash screen while the app asks the update
+// server whether anything is new. That taxes 100% of cold starts — including
+// every start on the 4G-in-a-veterinary-waiting-room network this app is
+// actually used on — to make a rare hotfix arrive one launch sooner.
+//
+// With 0, the update downloads in the background and applies on the NEXT
+// launch. A hotfix therefore reaches a user on their second open after
+// publication. That is the trade, stated plainly: slower hotfix propagation,
+// bought with a launch that never waits on a network it may not have.
+//
+// WHAT IS NOT HERE
+// ---------------------------------------------------------------------------
+// No `channel`. It is not an app-config value — each build profile in
+// `eas.json` declares its own, and that is what keeps a preview update from
+// reaching a production install. Writing one here would apply to every build.
+//
+// Nothing has been published. `npx eas-cli whoami` answers `Not logged in` as
+// of 2026-08-26, so no update, no channel and no runtime version has ever
+// existed on the server. This is the declaration; none of it has run.
 
 import { ANDROID_PACKAGE_NAME, IOS_BUNDLE_IDENTIFIER } from "@dim/contract/links";
 import type { ConfigContext, ExpoConfig } from "expo/config";
@@ -96,6 +175,29 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
   // its own `extra.router` there during config resolution, and replacing the
   // object instead of merging it would drop that silently.
   extra: { ...config.extra, eas: { projectId: "db4bebed-67f3-49a7-acf7-63c9f19ad511" } },
+  // See "THE SECOND DECLARATION THAT NEEDS PARAGRAPHS" at the top of this file
+  // for why each of these keys is the value it is, and for the one thing this
+  // block does NOT declare (the channel — that is per build profile).
+  //
+  // THE PROJECT ID APPEARS TWICE IN THIS FILE and the second copy is here,
+  // inside the URL, because Expo's update server addresses a project by id in
+  // its path and takes no other form. The two cannot be allowed to drift: a URL
+  // pointing at a project that does not exist produces an app that polls
+  // forever, finds nothing, logs nothing and can never be hotfixed. Held
+  // together by an assertion in src/release/release-config.test.ts rather than
+  // by a comment asking nicely.
+  updates: {
+    url: "https://u.expo.dev/db4bebed-67f3-49a7-acf7-63c9f19ad511",
+    enabled: true,
+    // Ask on every cold start, but see `fallbackToCacheTimeout` — asking is
+    // not the same as waiting for the answer.
+    checkAutomatically: "ON_LOAD",
+    fallbackToCacheTimeout: 0,
+  },
+  // The fence. An update whose fingerprint differs from a build's is not served
+  // to that build, which is what makes "no native changes over the air" a
+  // property of the system rather than a line in a document.
+  runtimeVersion: { policy: "fingerprint" },
   ios: { ...config.ios, bundleIdentifier: IOS_BUNDLE_IDENTIFIER },
   android: {
     ...config.android,
