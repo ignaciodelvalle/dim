@@ -118,3 +118,35 @@ scripts/bulk-cursor-pets-staging.mjs
 # The repo is public: this file must never be committable, same reasoning as
 # e2e/.auth/ above.
 qa-sessions*.json
+
+# A ROOT app.json is Expo debris. The real one is apps/mobile/app.json.
+#
+# `@expo/config`'s `modifyConfigAsync()` writes `path.join(projectRoot, "app.json")`
+# whenever a config-mutating command runs and finds no static config at that root
+# (Config.js: `config.staticConfigPath ?? path.join(projectRoot, 'app.json')`).
+# Run any such command — `expo install`, `expo prebuild`, `eas update:configure`
+# — from C:\dev\dim instead of from apps/mobile and Expo resolves the REPO ROOT
+# as the project root, then leaves `{"expo": {}}` behind. Measured 2026-08-26:
+# from the repo root `expo config` reads the root package.json and reports the
+# WEB app's identity (name "dim", version 0.1.0), which is how it decides the
+# root is a project at all.
+#
+# WHY NOT FIX THE CAUSE, since a symptom in .gitignore is normally the worse
+# trade. There is no cause in this repo to fix, and that was measured rather than
+# assumed. `pnpm verify` → `verify:mobile` runs three things and NONE of them
+# emits the file: `pnpm --filter mimar typecheck`, `pnpm --filter mimar test`,
+# and `pnpm --filter mimar exec expo config --type public` were each run with the
+# root app.json deleted first, and it did not come back. `pnpm --filter mimar
+# exec` reports `cwd = C:\dev\dim\apps\mobile`, which is correct — the repo's own
+# invocation was never the one at fault. The file arrives from an ad-hoc `expo`
+# or `eas` command typed at the repo root, and no package.json script can stop a
+# human's cwd.
+#
+# WHY IT MATTERS ENOUGH TO IGNORE RATHER THAN DELETE. It is untracked, so a
+# `git add -A` sweeps it into somebody's commit; the repo already bans `-A` for
+# other reasons and this is one more. A committed root `app.json` would also be a
+# static Expo config at the root of a monorepo whose real one is two directories
+# down — harmless today (its `{"expo": {}}` merges to nothing over package.json,
+# verified) and exactly the kind of shadow that stops being harmless the first
+# time a tool globs `app.json` from the root.
+/app.json
