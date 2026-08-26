@@ -33,40 +33,66 @@
 //   public/icons/icon-512.png           mark occupies 393 of 512 px  → 76.8%
 //   public/icons/icon-512-maskable.png  mark occupies 294 of 512 px  → 57.4%
 //
-// THOSE ARE INK MEASUREMENTS, WHICH IS WHY THE SOURCE IS TRIMMED FIRST — but
-// the two trims involved are NOT the same trim, and this paragraph said they
-// were until 2026-08-26.
+// THOSE ARE INK MEASUREMENTS, WHICH IS WHY THE SOURCE IS TRIMMED FIRST. Getting
+// the mechanism behind that sentence right has now taken THREE authors, so the
+// wrong answers are kept next to the right one — a corrected paragraph that
+// deletes its own history is a paragraph the next reader gets wrong the same way.
 //
-// IT USED TO READ: "Both numbers came from trimming the PWA icon to its
-// non-transparent bounding box." That mechanism measures nothing on these
-// files. `public/icons/icon-512.png` and `icon-512-maskable.png` are fully
-// OPAQUE — alpha is 255 at every pixel — so their non-transparent bounding box
-// is the whole 512×512 canvas, and `sharp().trim()` on them returns 512×512 at
-// every threshold, because sharp trims on ALPHA when an alpha channel is
-// present. A reader following the stated recipe would have measured 512 and 512
-// and had no way to reach 393 and 294.
+//   ATTEMPT 1 (wrong): "both numbers came from trimming the PWA icon to its
+//     non-transparent bounding box". Alpha is 255 at every pixel of both icons,
+//     so their non-transparent bounding box IS the 512×512 canvas. A trim on
+//     alpha could not produce 393 or 294.
+//   ATTEMPT 2 (also wrong, 2026-08-26): "sharp trims on ALPHA when an alpha
+//     channel is present, so `trim()` returns 512×512 and the numbers require an
+//     explicit `{ background: '#FBFAF5', threshold: 10 }`". The first half is
+//     false and the second half is redundant. Both icons DO carry an alpha
+//     channel (`channels: 4`, `hasAlpha: true`) — they are opaque, not
+//     alpha-less — and plain `trim()` on them does not return 512×512.
 //
-// WHAT ACTUALLY PRODUCES THEM (re-measured with sharp 0.34.5, and both
-// reproduce exactly) is a BORDER-COLOUR trim against the icons' flat
-// background, `#FBFAF5` — the value of their corner pixel, which has to be
-// passed explicitly precisely because the alpha default would not trim:
+// WHAT SHARP ACTUALLY DOES, measured against the locked sharp 0.34.5 /
+// libvips 8.17.3 before this paragraph was written:
 //
-//   sharp("public/icons/icon-512.png").trim({ background: "#FBFAF5", threshold: 10 })
-//     → 393×286
-//   sharp("public/icons/icon-512-maskable.png").trim({ background: "#FBFAF5", threshold: 10 })
-//     → 294×215
+//   sharp("public/icons/icon-512.png").trim()          → 393×286
+//   sharp("public/icons/icon-512-maskable.png").trim() → 294×215
+//   sharp("public/logo-dim.png").trim()                → 610×443
 //
-// THE NUMBERS WERE ALWAYS RIGHT; only the prose was wrong, and it is corrected
-// rather than quietly edited because of how the error happened. The comment
-// conflated the two trims in this file: the SOURCE mark really is trimmed on
-// alpha — `public/logo-dim.png` DOES carry transparency, and `trim()` on it
-// returns 610×443, the figure stated two lines below — so a true sentence about
-// one file was written as though it described the other.
+// ONE RULE, NOT TWO: default `trim()` trims against the TOP-LEFT PIXEL — its
+// colour and its alpha together — at a default threshold of 10. It is not an
+// alpha trim that happens to work on transparent images; alpha is just one of
+// the channels it compares. This is what sharp documents for `trim()`'s
+// `background` option ("defaults to that of the top-left pixel"), and the three
+// measurements above are what confirmed it on THESE files rather than in
+// general — both halves stated, because attempts 1 and 2 each had a plausible
+// rule and neither had a measurement. That single rule explains all three lines
+// above, and the corner pixels are why:
 //
-// Either way both figures describe how much of the canvas the ARTWORK covers,
-// not how wide a rectangle containing it is. `public/logo-dim.png` is 637×463
-// with the oval painted across 610×443 of that, off-centre inside its own frame:
-// 27px of transparent margin distributed unevenly.
+//   icon-512.png           top-left #FBFAF5, alpha 255  → trims the cream field
+//   icon-512-maskable.png  top-left #FBFAF5, alpha 255  → trims the cream field
+//   logo-dim.png           top-left #FFFFFF, alpha 0    → trims the transparency
+//
+// SO THE DEFAULT ALREADY YIELDS THE INK NUMBERS, and `{ background: "#FBFAF5",
+// threshold: 10 }` is REDUNDANT on the icons rather than required: it names the
+// colour the default would have inferred, and 10 is the default threshold. It is
+// worse than redundant on the source mark — `sharp("public/logo-dim.png")
+// .trim({ background: "#FBFAF5", threshold: 10 })` returns 637×463, the whole
+// untrimmed canvas, because the mark's border is transparent and not cream.
+// Attempt 2's "fix" would have destroyed the one trim this script actually runs.
+//
+// THRESHOLD MATTERS AND IS THE DEFAULT, which is the one thing worth pinning:
+// at `threshold: 1` the same two files measure 394×288 and 296×217, at 50 they
+// measure 392×286 and 294×214. 393 and 294 are the threshold-10 answers, so the
+// reproducing recipe is bare `trim()` and nothing else.
+//
+// THE NUMBERS WERE ALWAYS RIGHT through all three attempts. What kept going
+// wrong is a reflex worth naming, because it is what a plausible mechanism does
+// to a reader: "the file has transparency, sharp trims transparency" is a rule
+// that predicts the right answer on `logo-dim.png` and the wrong one on the
+// icons, and both authors checked it against the file where it works.
+//
+// Either way all three figures describe how much of the canvas the ARTWORK
+// covers, not how wide a rectangle containing it is. `public/logo-dim.png` is
+// 637×463 with the oval painted across 610×443 of that, off-centre inside its
+// own frame: 27px of transparent margin distributed unevenly.
 //
 // Scaling the untrimmed rectangle to those ratios therefore did two wrong
 // things at once, and the test caught both. The ink came out SMALLER than the
@@ -252,6 +278,15 @@ async function main(): Promise<void> {
   // a handful of near-transparent stray pixels would otherwise defeat the trim
   // entirely and silently — the failure would be a mark 27px smaller than
   // intended, which nobody sees on a phone.
+  //
+  // WRITTEN OUT EVEN THOUGH 10 IS ALSO SHARP'S DEFAULT (measured, 0.34.5: bare
+  // `trim()` reproduces the threshold-10 result on all three files the header
+  // cites, and differs at 1 and at 50). The explicit value is a pin, not an
+  // override: a default that changes in a minor release would move the ink
+  // measurement under a script whose whole claim is that its outputs are
+  // reproducible. What is NOT passed is `background` — the default compares
+  // against the top-left pixel, which on this file is transparent, and naming
+  // the icons' cream `#FBFAF5` here would return the untrimmed 637×463.
   const trimmed = await sharp(SOURCE).trim({ threshold: 10 }).png().toBuffer();
   const ink = await sharp(trimmed).metadata();
   if (!ink.width || !ink.height) {
