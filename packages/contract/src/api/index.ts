@@ -115,6 +115,17 @@ export {
   type Tier2StateV1,
 } from "./pet-shares.ts";
 export {
+  MY_TRANSFERS_PAYLOAD_VERSION,
+  MY_TRANSFERS_STALE_AFTER_MS,
+  PET_TRANSFER_STATUSES_V1,
+  type MyTransferV1,
+  type MyTransfersV1,
+  type PetTransferStatusV1,
+  type TransferCapabilitiesV1,
+  type TransferCommandAckV1,
+  type TransferPetV1,
+} from "./my-transfers.ts";
+export {
   LOCALITIES_PAYLOAD_VERSION,
   LOCALITIES_STALE_AFTER_MS,
   type LocalitiesV1,

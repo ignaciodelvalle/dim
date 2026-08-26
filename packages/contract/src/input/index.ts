@@ -93,6 +93,18 @@ export {
   recordEventInputSchema,
 } from "./record-event.ts";
 export {
+  OWNER_TRANSFER_REASONS,
+  TRANSFER_COMMAND_INPUT_CODES,
+  TRANSFER_EXPIRY_DAYS,
+  TRANSFER_NOTE_MAX,
+  type OwnerTransferReason,
+  type TransferCommand,
+  type TransferCommandInput,
+  type TransferCommandInputCode,
+  firstTransferCommandInputCode,
+  transferCommandInputSchema,
+} from "./transfer.ts";
+export {
   ACQUISITION_METHODS,
   MAX_PET_AGE_MONTHS,
   MAX_PET_AGE_YEARS,
