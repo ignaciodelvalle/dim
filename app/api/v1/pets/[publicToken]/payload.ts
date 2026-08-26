@@ -248,6 +248,7 @@ export function buildOwnerPetDetailV1(input: {
   // it out and would leave the total one too high on precisely the households
   // big enough to notice.
   const selfCountedInCarousel = input.accessPath === "owner" && input.petStatus !== "deceased";
+  const carouselTotal = Math.max(0, detail.carousel.total - (selfCountedInCarousel ? 1 : 0));
   const carousel: OwnerPetCarouselSection = {
     items: carouselItems.map((p) => ({
       publicToken: p.token,
@@ -255,8 +256,19 @@ export function buildOwnerPetDetailV1(input: {
       photoUrl: p.photoUrl,
       status: toPublicPetStatus(p.status),
     })),
-    total: Math.max(0, detail.carousel.total - (selfCountedInCarousel ? 1 : 0)),
-    truncated: detail.carousel.truncated,
+    total: carouselTotal,
+    // DERIVED HERE, not borrowed from the reader, for the same reason the count
+    // is: the reader's flag answers "did the RANKING hit its cap", and this
+    // section answers a different question — "is this list a prefix of that
+    // total" — after an exclusion the reader never made.
+    //
+    // They come apart on one household exactly: nine live pets, a cap of eight,
+    // and THIS animal ranking ninth. The reader returns eight others and says
+    // truncated; the subtraction then makes the total eight as well, so the wire
+    // list is COMPLETE and the borrowed flag still told a client to print
+    // "mostrando 8 de 8, hay más". `items.length < total` cannot say that, and
+    // it is the same rule `MyPetsV1.truncated` already states.
+    truncated: carouselItems.length < carouselTotal,
   };
 
   return {

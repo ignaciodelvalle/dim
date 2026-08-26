@@ -14,6 +14,13 @@
 // at hardest: excluding the animal from `items` while leaving it inside `total`
 // swaps one wrong number for another.
 //
+// The THIRD half — found by review after the first two shipped — is the flag
+// beside them. `truncated` was borrowed from the reader, which answers "did the
+// ranking hit its cap"; this section answers "is this list a prefix of its
+// total", and the self-subtraction is exactly what makes those two questions
+// different. They disagree on one household: nine live pets, a cap of eight,
+// and the animal being read ranking ninth.
+//
 // The `OwnerPetDetail` fixture names exactly the fields this projection reads
 // and is cast at the boundary. That is honest for a PURE projection — the
 // domain read has its own 22 tests over injected deps
@@ -128,6 +135,40 @@ describe("buildOwnerPetDetailV1 — the carousel is the owner's OTHER pets", () 
     const section = payload.carousel;
     if (section.status !== "ok") throw new Error("carousel section must be ok");
     expect(section.data.total).toBe(8);
+  });
+
+  it("calls a COMPLETE list complete, even when the ranking behind it was capped", () => {
+    // THE HOUSEHOLD WHERE THE READER'S FLAG AND THIS SECTION'S DISAGREE. Nine
+    // live pets, the ranking caps at eight and says truncated, and the animal
+    // being read ranks NINTH — so the page it returned is all eight others.
+    // After the subtraction the total is eight and the list holds eight: there
+    // is nothing beyond it, and a borrowed `true` would have a client print
+    // "mostrando 8 de 8" beside a note that more exist.
+    const tokens = ["DIM-A", "DIM-B", "DIM-C", "DIM-D", "DIM-E", "DIM-F", "DIM-G", "DIM-H"];
+    const payload = build({
+      carousel: { items: tokens.map(carouselItem), total: 9, truncated: true },
+    });
+    const section = payload.carousel;
+    if (section.status !== "ok") throw new Error("carousel section must be ok");
+    expect(section.data.items).toHaveLength(8);
+    expect(section.data.total).toBe(8);
+    expect(section.data.truncated).toBe(false);
+  });
+
+  it("still reports truncation when the list really is a prefix", () => {
+    // The same nine-pet household with the current animal INSIDE the capped
+    // page: seven others render against a total of eight, and the note is true.
+    const tokens = ["DIM-A", "DIM-B", "DIM-C", "DIM-D", "DIM-E", "DIM-F", "DIM-G"];
+    const payload = build({
+      carousel: {
+        items: [carouselItem(SELF), ...tokens.map(carouselItem)],
+        total: 9,
+        truncated: true,
+      },
+    });
+    const section = payload.carousel;
+    if (section.status !== "ok") throw new Error("carousel section must be ok");
+    expect(section.data.truncated).toBe(true);
   });
 
   it("does NOT subtract for a deceased animal, which was never in the count", () => {

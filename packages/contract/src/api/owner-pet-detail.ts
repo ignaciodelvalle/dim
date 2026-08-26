@@ -374,6 +374,15 @@ export type OwnerPetCarouselSection = {
    * rows — which is exactly what happened before this was stated here.
    */
   total: number;
+  /**
+   * True when `items` is a prefix of `total` — that is, `items.length < total`,
+   * measured AFTER the current animal has been dropped from both.
+   *
+   * Not "did the underlying ranking hit its cap". Those two answers come apart
+   * on the household where the cap is the reason the current animal is missing
+   * from the page: nine live pets, eight returned, this one ranking ninth. The
+   * ranking was capped; the list a client receives is nonetheless complete.
+   */
   truncated: boolean;
 };
 
