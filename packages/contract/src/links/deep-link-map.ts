@@ -84,14 +84,28 @@ export type DeepLinkDestination = {
    */
   readonly webPath: string;
   /**
-   * The path AFTER `mimar://`, for the one destination that has a custom-scheme
-   * form today, or `null` — which is almost all of them, on purpose.
+   * The path AFTER `mimar://`, or `null` when the app does not claim this
+   * destination — which is still most of them, on purpose.
    *
-   * A custom scheme cannot be the canonical form of anything a stranger might
-   * scan: no phone camera follows `mimar://…` from a QR it finds in the street,
-   * and it must not. When verified App Links land (blocked on a Play-signed
-   * fingerprint — see apps/mobile/app.config.ts) the remaining entry becomes
-   * `null` too and the `https` path is the only form there is.
+   * A NON-NULL VALUE IS A CLAIM THAT A SCREEN EXISTS, and `__tests__/deep-link-
+   * map.test.ts` checks it against `apps/mobile/app/` — the file-system router,
+   * which cannot lie about which screens are there. That check is the whole
+   * reason this field is worth filling: a `mimar://` url that resolves to
+   * nothing does not error, it opens the app on a blank stack, which is the
+   * failure mode custom schemes are notorious for.
+   *
+   * IT IS NOT THE WEB PATH WITH A DIFFERENT SCHEME. The app's own routes are
+   * shorter in places (`mascotas/…` against the web's `/mis-mascotas/…`), so the
+   * two halves of one destination genuinely differ and this table is where that
+   * difference is recorded instead of being rediscovered.
+   *
+   * A custom scheme still cannot be the canonical form of anything a stranger
+   * might scan: no phone camera follows `mimar://…` from a QR it finds in the
+   * street, and it must not. That is why every PUBLIC destination below is
+   * `null` and will stay `null`. When verified App Links land (blocked on a
+   * Play-signed fingerprint — see apps/mobile/app.config.ts) these paths become
+   * the router's mapping from the `https` form, and this table is what stops the
+   * two from drifting.
    */
   readonly appPath: string | null;
   readonly access: DeepLinkAccess;
@@ -143,11 +157,38 @@ export const DEEP_LINK_MAP = {
   // sends the caller to login first when there is no session.
   // -------------------------------------------------------------------------
 
-  /** The owner's view of one of their pets. */
-  pet: { webPath: "/mis-mascotas/:publicToken", appPath: null, access: "session" },
+  /**
+   * The owner's view of one of their pets.
+   *
+   * THE APP'S PATH IS SHORTER, and the difference is not cosmetic: the native
+   * route is `mascotas/…` because in an app that only ever shows you your own
+   * animals, "mis" is a word the URL does not need. The web says `/mis-mascotas`
+   * because it also has `/p/…` and `/org/…/mascotas/…` to distinguish it from.
+   */
+  pet: {
+    webPath: "/mis-mascotas/:publicToken",
+    appPath: "mascotas/:publicToken",
+    access: "session",
+  },
 
   /** The owner's pet list — where several notifications land when no one pet is the subject. */
-  myPets: { webPath: "/mis-mascotas", appPath: null, access: "session" },
+  myPets: { webPath: "/mis-mascotas", appPath: "mascotas", access: "session" },
+
+  /**
+   * ONE ASIENTO of one animal's libreta.
+   *
+   * IT EARNS A ROW because something outside names it: the vaccination-due and
+   * correction notifications link to `/mis-mascotas/{token}/eventos/{id}`. That
+   * is the bar this table sets in its own header, and it is why the LIBRETA and
+   * the LOST-MODE cockpit are NOT here even though the app has screens for both
+   * — nothing outside either surface names them, and a row for every screen the
+   * app happens to have would make this a second, worse copy of two routers.
+   */
+  petEvent: {
+    webPath: "/mis-mascotas/:publicToken/eventos/:eventId",
+    appPath: "mascotas/:publicToken/eventos/:eventId",
+    access: "session",
+  },
 
   /**
    * One appointment, and THE ONE ENTRY WITH A CUSTOM-SCHEME FORM.
@@ -161,6 +202,15 @@ export const DEEP_LINK_MAP = {
    * Note that `appPath` is NOT `mis-turnos/:appointmentToken`. The two forms of
    * this destination really did drift, in two files that never met. Recording
    * the drift here is the first step to closing it.
+   *
+   * AND IT IS THE ONE ENTRY WHOSE `appPath` NAMES NO SCREEN. Every other value
+   * in this column is a claim the app can honour, checked against
+   * `apps/mobile/app/` by the fitness test. This one is a QR PAYLOAD for a
+   * front-desk reader that does not exist yet, and it is kept byte-for-byte
+   * because changing the string would break whatever eventually reads it. The
+   * test names it as the single exception rather than weakening the rule for
+   * everything; a phone that follows it today lands on `+not-found`, which says
+   * so in words.
    */
   appointment: {
     webPath: "/mis-turnos/:appointmentToken",
@@ -174,8 +224,21 @@ export const DEEP_LINK_MAP = {
   /** An invitation to join an organization. */
   orgInvitation: { webPath: "/r/invite/:invitationToken", appPath: null, access: "session" },
 
-  /** A pending ownership transfer. */
-  petTransfer: { webPath: "/transferencias/:transferToken", appPath: null, access: "session" },
+  /**
+   * A pending ownership transfer — THE DEEP-LINK-HEAVY ONE.
+   *
+   * Two notifications point here (`pet_transfer_received` to the addressee,
+   * `pet_transfer_initiated` to the sender), and the invitation e-mail sent to
+   * an address with no account yet lands here too. It is therefore the
+   * destination most likely to be opened by somebody who did not navigate to it,
+   * and the reason the app's path is kept IDENTICAL to the web's: the two forms
+   * differ only in scheme, which is one less place for them to drift.
+   */
+  petTransfer: {
+    webPath: "/transferencias/:transferToken",
+    appPath: "transferencias/:transferToken",
+    access: "session",
+  },
 
   /** A foster-care proposal awaiting the fosterer's answer. */
   fosterProposal: {

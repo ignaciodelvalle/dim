@@ -56,10 +56,11 @@
 //     Replacing it with the web's two-word link would drop the explanation.
 
 import * as Linking from "expo-linking";
-import { Redirect } from "expo-router";
+import { Redirect, useLocalSearchParams } from "expo-router";
 import { useState } from "react";
 import { StyleSheet, View } from "react-native";
 
+import { returnHref } from "../src/auth/return-to";
 import { sessionEndMessage, signIn } from "../src/auth/session-store";
 import { useSession } from "../src/auth/useSession";
 import { PASSWORD_RECOVERY_URL } from "../src/config/api";
@@ -75,19 +76,20 @@ import {
   TextField,
   Title,
 } from "../src/ui/kit";
-import { ROUTES } from "../src/ui/routes";
 import { SPACE } from "../src/ui/theme";
 
 export default function IngresoScreen() {
   const session = useSession();
+  const params = useLocalSearchParams<{ next?: string | string[] }>();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [busy, setBusy] = useState(false);
   const [failure, setFailure] = useState<string | null>(null);
 
   // Already in. Reached when a session arrives while this screen is mounted —
-  // the "cerrar sesión en todos los dispositivos" flow bounces through here.
-  if (session.phase === "signed-in") return <Redirect href={ROUTES.root} />;
+  // the "cerrar sesión en todos los dispositivos" flow bounces through here, and
+  // since WU-O so does a deep link that found an expired session.
+  if (session.phase === "signed-in") return <Redirect href={returnHref(params.next)} />;
 
   // Why the person is looking at this screen, when we know. `null` for a
   // deliberate sign-out: telling somebody "cerraste sesión" right after they

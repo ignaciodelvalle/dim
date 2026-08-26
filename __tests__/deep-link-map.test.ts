@@ -85,7 +85,50 @@ function discoverRoutes(): Set<string> {
   return routes;
 }
 
+// ---------------------------------------------------------------------------
+// The SECOND corpus, derived from apps/mobile/app/
+// ---------------------------------------------------------------------------
+
+/** Floor for the native screen set. Far below the measurement (14 screens). */
+const MIN_APP_SCREENS = 8;
+
+/**
+ * The one destination whose `mimar://` form names no screen, with its reason.
+ *
+ * `appointment` is a QR PAYLOAD for a front-desk reader that does not exist yet
+ * — see the entry's own comment. It is an exception rather than a reason to
+ * weaken the rule, because the rule is what stops the next `appPath` from being
+ * a link that opens the app onto nothing.
+ */
+const APP_PATH_EXCEPTIONS = new Set<DeepLinkName>(["appointment"]);
+
+/**
+ * Every screen in `apps/mobile/app/`, as an erased pattern.
+ *
+ * expo-router's file conventions, which differ from Next's in the three ways
+ * that matter here: `index.tsx` IS its directory, `_layout.tsx` is not a route,
+ * and `+`-prefixed files (`+not-found`) are the framework's own fallbacks rather
+ * than addressable destinations.
+ */
+function discoverAppScreens(): Set<string> {
+  const files = globSync("apps/mobile/app/**/*.tsx").map((f) => f.replaceAll("\\", "/"));
+
+  const screens = new Set<string>();
+  for (const file of files) {
+    if (file.includes("node_modules/")) continue;
+    const withoutRoot = file.replace(/^apps\/mobile\/app/, "").replace(/\.tsx$/, "");
+    const segments = withoutRoot.split("/").filter((s) => s !== "");
+    const last = segments.at(-1) ?? "";
+    if (last === "_layout" || last.startsWith("+")) continue;
+    // `index` names its parent directory, and the root `index` names "/".
+    const visible = last === "index" ? segments.slice(0, -1) : segments;
+    screens.add(eraseParams(`/${visible.join("/")}`));
+  }
+  return screens;
+}
+
 const ROUTES = discoverRoutes();
+const APP_SCREENS = discoverAppScreens();
 const NAMES = Object.keys(DEEP_LINK_MAP) as DeepLinkName[];
 
 // ---------------------------------------------------------------------------
@@ -153,12 +196,64 @@ describe("the table is unambiguous", () => {
     }
   });
 
-  // The custom scheme is a claim only the installed app can honour, so it must
-  // stay the exception it is today. If this number grows, someone is building
-  // links that resolve for nobody without an install.
-  it("keeps the custom scheme to the one destination that has a reader", () => {
-    const withAppPath = NAMES.filter((n) => DEEP_LINK_MAP[n].appPath !== null);
-    expect(withAppPath).toEqual(["appointment"]);
+  // A `mimar://` form is a CLAIM THAT A SCREEN EXISTS, and the failure mode of a
+  // false one is not an error: the app opens on a blank stack. So the claim is
+  // checked against the native file-system router, which cannot lie about which
+  // screens are there — the same reasoning that checks `webPath` against `app/`.
+  //
+  // THIS REPLACED A COUNT. The rule used to be `expect(withAppPath).toEqual
+  // (["appointment"])`, written when the app had no screens worth naming and the
+  // honest position was "the custom scheme resolves for nobody". That is no
+  // longer true, and a frozen list would have made the fence fight the app
+  // instead of checking it. What the old rule was PROTECTING — that nobody
+  // builds links resolving to nothing — is exactly what this one enforces, and
+  // it enforces it against reality rather than against a number.
+  it.each(NAMES.filter((n) => DEEP_LINK_MAP[n].appPath !== null))(
+    "%s names a screen the app actually has",
+    (name) => {
+      const appPath = DEEP_LINK_MAP[name].appPath as string;
+      if (APP_PATH_EXCEPTIONS.has(name)) return;
+      expect(
+        APP_SCREENS.has(eraseParams(`/${appPath}`)),
+        [
+          `deepLinkMap.${name}.appPath is "${appPath}", which matches no screen under`,
+          "apps/mobile/app/. A mimar:// url for it opens the app on a blank stack —",
+          "custom schemes fail silently. Either add the screen, or set appPath to null.",
+        ].join(" "),
+      ).toBe(true);
+    },
+  );
+
+  // The exception list is a list of DECISIONS, not a place to park failures, so
+  // it is pinned. Growing it is a visible edit next to the reason.
+  it("has exactly one destination claiming a screen that does not exist", () => {
+    expect([...APP_PATH_EXCEPTIONS]).toEqual(["appointment"]);
+    // …and it is the QR payload for a reader that does not exist yet. Kept
+    // byte-for-byte because changing the string would break whatever eventually
+    // reads it. See the entry's own comment.
+    expect(DEEP_LINK_MAP.appointment.appPath).toBe("appointment/:appointmentToken");
+  });
+
+  // Non-vacuity for the second corpus. A glob that stops matching would make
+  // every claim above trivially unsatisfiable, and the `.each` would go red —
+  // but the EXCEPTION test would still pass, so the floor is what proves the
+  // screen set is real.
+  it("discovers the app's screens", () => {
+    expect(APP_SCREENS.size).toBeGreaterThanOrEqual(MIN_APP_SCREENS);
+    expect(APP_SCREENS.has("/mascotas/*")).toBe(true);
+    expect(APP_SCREENS.has("/transferencias/*")).toBe(true);
+  });
+
+  // Every PUBLIC destination stays null, forever. A stranger's phone camera does
+  // not follow `mimar://`, and a public link that only resolves for people with
+  // the app installed is a lost pet nobody can report.
+  it("never claims a public destination", () => {
+    for (const name of NAMES) {
+      if (DEEP_LINK_MAP[name].access !== "public") continue;
+      expect(DEEP_LINK_MAP[name].appPath, `${name} is public and must have no mimar:// form`).toBe(
+        null,
+      );
+    }
   });
 });
 
