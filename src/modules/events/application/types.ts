@@ -25,7 +25,14 @@ export type UseCaseResult<T = void> =
   | { ok: false; error: string };
 
 /**
- * What the six daily writers return when the append succeeded.
+ * What an owner-path event writer returns when the append succeeded.
+ *
+ * SIX WHEN THIS WAS WRITTEN, TEN NOW: WU-L brought microchip, esterilización,
+ * visita veterinaria and información clínica onto it, for the same reason and
+ * with the same four-line change. The count is deliberately no longer in this
+ * sentence — a number here would need editing every time a writer crossed, and
+ * the property is not "there are N of them" but "a writer reachable from
+ * `/api/v1` reports its replays".
  *
  * `wasDuplicate` REPORTS THE REPLAY instead of swallowing it. Every one of these
  * writers routes through `insertEventIdempotent` and every one already knew the

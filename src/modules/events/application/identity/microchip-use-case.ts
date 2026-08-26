@@ -23,7 +23,7 @@ import { checkChipMatchesCanonical } from "@/lib/domain/microchip-validation";
 import { validateEventPayload } from "@/lib/events/event-schemas";
 
 import type { EventsRepository } from "../../infrastructure/events-repository";
-import type { UseCaseResult } from "../types";
+import type { RecordedEvent, UseCaseResult } from "../types";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -68,7 +68,7 @@ type Deps = {
 export async function createMicrochip(
   input: CreateMicrochipInput,
   deps: Deps,
-): Promise<UseCaseResult<{ eventId: string }>> {
+): Promise<UseCaseResult<RecordedEvent>> {
   const {
     pet,
     user,
@@ -95,7 +95,7 @@ export async function createMicrochip(
 
   const now = new Date();
 
-  const eventId = await transaction(async (tx) => {
+  const committed = await transaction(async (tx) => {
     const eventPayload = validateEventPayload("microchip_implanted", {
       chip_number: chipNumber,
       country_code: countryCode,
@@ -131,7 +131,7 @@ export async function createMicrochip(
       tx as Parameters<typeof repo.insertEventIdempotent>[1],
     );
 
-    if (wasNoop) return event.id;
+    if (wasNoop) return { eventId: event.id, wasDuplicate: true };
 
     if (uploadedPath) {
       await repo.insertAttachment(
@@ -173,8 +173,8 @@ export async function createMicrochip(
       );
     }
 
-    return event.id;
+    return { eventId: event.id, wasDuplicate: false };
   });
 
-  return { ok: true, value: { eventId }, notifications: [] };
+  return { ok: true, value: committed, notifications: [] };
 }

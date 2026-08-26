@@ -11,7 +11,7 @@
 import { validateEventPayload } from "@/lib/events/event-schemas";
 
 import type { EventsRepository } from "../../infrastructure/events-repository";
-import type { UseCaseResult } from "../types";
+import type { RecordedEvent, UseCaseResult } from "../types";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -48,7 +48,7 @@ type Deps = {
 export async function createSterilization(
   input: CreateSterilizationInput,
   deps: Deps,
-): Promise<UseCaseResult<{ eventId: string }>> {
+): Promise<UseCaseResult<RecordedEvent>> {
   const {
     pet,
     user,
@@ -67,7 +67,7 @@ export async function createSterilization(
 
   const now = new Date();
 
-  const eventId = await transaction(async (tx) => {
+  const committed = await transaction(async (tx) => {
     const eventPayload = validateEventPayload("sterilization_performed", {
       procedure,
       performed_by: performedBy,
@@ -89,7 +89,7 @@ export async function createSterilization(
       tx as Parameters<typeof repo.insertEventIdempotent>[1],
     );
 
-    if (wasNoop) return event.id;
+    if (wasNoop) return { eventId: event.id, wasDuplicate: true };
 
     if (uploadedPath) {
       await repo.insertAttachment(
@@ -105,8 +105,8 @@ export async function createSterilization(
       );
     }
 
-    return event.id;
+    return { eventId: event.id, wasDuplicate: false };
   });
 
-  return { ok: true, value: { eventId }, notifications: [] };
+  return { ok: true, value: committed, notifications: [] };
 }
