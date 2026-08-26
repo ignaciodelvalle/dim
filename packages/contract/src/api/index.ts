@@ -74,6 +74,7 @@ export {
   type EventAuthorV1,
   type EventFactV1,
   type EventLocationV1,
+  type EventRecordedV1,
   type PetEventDetailV1,
 } from "./pet-event-detail.ts";
 export {

@@ -38,19 +38,16 @@ import {
   parseFrequencyFields,
 } from "@/lib/reference/medication-schedule";
 import { parseDateInput } from "@/lib/utils/format";
+// `MAX_WEIGHT_KG` MOVED TO THE CONTRACT (WU-K) and is imported back here so ONE
+// number exists. P4 item 2 (2026-07-08): it is the upper bound on
+// `weight_recorded.kg`, and the write path below parses kg as a bare positive
+// float, so a fat-fingered "500" persisted silently. It left this file because
+// `/api/v1` needs the same ceiling and a native client needs to know it BEFORE
+// sending — two copies of a data-quality gate is a gate that only holds on one
+// door. The reasoning for the value itself now lives beside it, in
+// packages/contract/src/input/record-event.ts.
+import { MAX_WEIGHT_KG } from "@dim/contract/input";
 import { type EventFormState, cleanupAttachment, makeTransaction } from "./action-support";
-
-// Moved here with the weight action: it was declared in actions.ts but its
-// only two reads sit inside this block, so leaving it behind would have been
-// a cross-file constant with a single local consumer.
-// P4 item 2 (2026-07-08): upper bound on weight_recorded.kg. The write path
-// below parses kg as a bare positive float with no upper bound, so a
-// fat-fingered value like "500" persists silently. 120 kg sits comfortably
-// above any dog breed's healthy adult weight (the heaviest recognized
-// breeds — Mastín, San Bernardo — top out well under 100 kg) — generous
-// enough to never block a real entry, tight enough to catch a decimal-point
-// slip or a kg/lb mixup.
-const MAX_WEIGHT_KG = 120;
 import { createDeworming } from "./application/medical/deworming-use-case";
 import { markMedicationDoseTaken } from "./application/medical/medication-dose-taken-use-case";
 import { createMedicationEnd } from "./application/medical/medication-end-use-case";

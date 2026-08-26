@@ -40,6 +40,25 @@ export {
   firstIntakeInputCode,
 } from "./intake.ts";
 export {
+  DEWORMING_TYPES,
+  MAX_CUSTOM_HOURS,
+  MAX_DURATION_DAYS,
+  MAX_WEIGHT_KG,
+  MEDICATION_FREQUENCIES,
+  MIN_CUSTOM_HOURS,
+  MIN_DURATION_DAYS,
+  NOTE_CATEGORIES,
+  RECORD_EVENT_INPUT_CODES,
+  type DewormingType,
+  type MedicationFrequency,
+  type NoteCategory,
+  type RecordEventInput,
+  type RecordEventInputCode,
+  type RecordEventKind,
+  firstRecordEventInputCode,
+  recordEventInputSchema,
+} from "./record-event.ts";
+export {
   ACQUISITION_METHODS,
   MAX_PET_AGE_MONTHS,
   MAX_PET_AGE_YEARS,

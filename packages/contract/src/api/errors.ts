@@ -209,6 +209,59 @@
  *                         asking, and a client does not know the server's answer
  *                         about its own role until the server gives it. Citizens
  *                         never see it; an admin who personally owns a pet does.
+ *
+ * THE WRITER CODES (WU-K). `POST /api/v1/pets/{token}/events` records the six
+ * daily asientos. The two access refusals are split by WHOSE fact they are, the
+ * same split the correction codes made and for the same reason; the two date
+ * refusals are split because the person's next move differs.
+ *
+ * - `event_forbidden`   — the CALLER holds this pet but may not write clinical
+ *                         events on it: an organization member without
+ *                         `event.write`. 403, and the web says the same words.
+ *                         NOTE the asymmetry the web has and this mirrors: a
+ *                         NOTA needs no capability, because `createNoteAction`
+ *                         guards with `requirePetAccess` and not the alive
+ *                         variant. An endpoint that demanded it for all six
+ *                         would be narrower than the door beside it.
+ * - `event_not_allowed` — the ANIMAL refuses the event, whoever is asking: its
+ *                         life record is closed (`status = 'deceased'`) and the
+ *                         five clinical writers append nothing to a closed
+ *                         record. 409, not 403 — nothing about the caller.
+ *                         A NOTA is still accepted on a deceased animal, which
+ *                         is deliberate on the web and deliberate here: a
+ *                         memorial note is the one thing a grieving owner may
+ *                         still write.
+ * - `event_date_future` — `occurredAt` is a day that has not happened yet in
+ *                         ARGENTINE calendar terms. Its own code because the
+ *                         fix is specific and immediate: pick today or earlier.
+ * - `event_date_before_birth`
+ *                       — `occurredAt` precedes the animal's registered date of
+ *                         birth. A DIFFERENT fix from the one above, which is
+ *                         the whole bar for a second code: either the date is
+ *                         wrong or the birth date on the record is, and only the
+ *                         person can say which. Collapsing the two into "revisá
+ *                         la fecha" would hide the second possibility entirely.
+ * - `same_day_duplicate_suspected`
+ *                       — a vaccination or deworming of the same kind is already
+ *                         recorded for this animal on this ARGENTINE calendar
+ *                         day. A SOFT gate, exactly like `duplicate_pet_suspected`:
+ *                         409, the client asks "¿registrar otra igual?", and a
+ *                         caller who means it re-sends with
+ *                         `sameDayOverride: true`. Two doses in one day are
+ *                         unusual, not impossible, and a hard refusal would be
+ *                         this endpoint claiming to know the animal better than
+ *                         the person holding it.
+ * - `medication_source_invalid`
+ *                       — the `medicationStartedEventId` an END names is not a
+ *                         `medication_started` event on THIS animal: wrong type,
+ *                         wrong pet, or gone. 400. Deliberately not `not_found`,
+ *                         which on this surface always means the PET — answering
+ *                         404 here would tell a client its pet had vanished.
+ * - `event_failed`      — the append itself failed. Same contract as
+ *                         `amend_failed`: a client may retry ONCE with the SAME
+ *                         `Idempotency-Key`, and if the first attempt had in fact
+ *                         committed the retry resolves to it instead of writing
+ *                         a second asiento.
  */
 export const API_V1_ERROR_CODES = [
   "rate_limited",
@@ -229,6 +282,13 @@ export const API_V1_ERROR_CODES = [
   "amend_not_allowed",
   "amend_failed",
   "amend_reason_required",
+  "event_forbidden",
+  "event_not_allowed",
+  "event_date_future",
+  "event_date_before_birth",
+  "same_day_duplicate_suspected",
+  "medication_source_invalid",
+  "event_failed",
 ] as const;
 
 export type ApiV1ErrorCode = (typeof API_V1_ERROR_CODES)[number];

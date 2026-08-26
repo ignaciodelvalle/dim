@@ -180,6 +180,33 @@ export type EventAmendedV1 = {
 };
 
 /**
+ * `POST /api/v1/pets/{publicToken}/events` — HTTP 201.
+ *
+ * The answer to every one of the six daily writers (vacuna, peso,
+ * antiparasitario, the medication pair, nota). One shape for all six because
+ * the caller's next move is the same for all six: the asiento now exists, here
+ * is how to address it, go read the libreta again.
+ *
+ * `wasDuplicate` carries the same fact `EventAmendedV1` does and is there for
+ * the same client: a phone whose first attempt timed out after committing.
+ * `true` means the `Idempotency-Key` resolved to an event that was ALREADY on
+ * the spine — nothing was appended, no reminder was scheduled twice, no cache
+ * was re-derived. A client that ignores it still behaves correctly; one that
+ * reads it can skip a success animation it already played.
+ *
+ * NOTHING ELSE IS ON THIS BODY, and that is deliberate. The endpoint could
+ * echo the composed asiento back, and then two projections of one event would
+ * exist — this one and `GET .../events/{eventId}` — with a way to disagree. The
+ * client refetches; the ledger has one voice.
+ */
+export type EventRecordedV1 = {
+  /** The appended `pet_events` row. Addressable at `GET .../events/{eventId}`. */
+  eventId: string;
+  /** True when the key resolved to an event that already existed. */
+  wasDuplicate: boolean;
+};
+
+/**
  * `GET /api/v1/pets/{publicToken}/events/{eventId}` — HTTP 200.
  *
  * The sections that can fail on their own are wrapped in `CredentialSection`:
