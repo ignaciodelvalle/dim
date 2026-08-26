@@ -14,7 +14,7 @@ import { normalize } from "@/lib/domain/vaccine-reminder-state";
 import { validateEventPayload } from "@/lib/events/event-schemas";
 
 import type { EventsRepository } from "../../infrastructure/events-repository";
-import type { UseCaseResult } from "../types";
+import type { RecordedEvent, UseCaseResult } from "../types";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -68,7 +68,7 @@ type Deps = {
 export async function createVaccination(
   input: CreateVaccinationInput,
   deps: Deps,
-): Promise<UseCaseResult<{ eventId: string }>> {
+): Promise<UseCaseResult<RecordedEvent>> {
   const {
     pet,
     user,
@@ -91,7 +91,7 @@ export async function createVaccination(
 
   const now = new Date();
 
-  const eventId = await transaction(async (tx) => {
+  const committed = await transaction(async (tx) => {
     const eventPayload = validateEventPayload("vaccination_administered", {
       vaccine_name: vaccineName,
       brand,
@@ -115,7 +115,7 @@ export async function createVaccination(
       tx as Parameters<typeof repo.insertEventIdempotent>[1],
     );
 
-    if (wasNoop) return event.id;
+    if (wasNoop) return { eventId: event.id, wasDuplicate: true };
 
     if (uploadedPath) {
       await repo.insertAttachment(
@@ -181,8 +181,8 @@ export async function createVaccination(
       );
     }
 
-    return event.id;
+    return { eventId: event.id, wasDuplicate: false };
   });
 
-  return { ok: true, value: { eventId }, notifications: [] };
+  return { ok: true, value: committed, notifications: [] };
 }

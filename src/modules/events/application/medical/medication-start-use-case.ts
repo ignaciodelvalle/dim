@@ -15,7 +15,7 @@ import { validateEventPayload } from "@/lib/events/event-schemas";
 import type { FrequencyKind } from "@/lib/reference/medication-schedule";
 
 import type { EventsRepository } from "../../infrastructure/events-repository";
-import type { UseCaseResult } from "../types";
+import type { RecordedEvent, UseCaseResult } from "../types";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -60,7 +60,7 @@ type Deps = {
 export async function createMedicationStart(
   input: CreateMedicationStartInput,
   deps: Deps,
-): Promise<UseCaseResult<{ eventId: string }>> {
+): Promise<UseCaseResult<RecordedEvent>> {
   const {
     pet,
     user,
@@ -85,7 +85,7 @@ export async function createMedicationStart(
   const { repo, transaction } = deps;
 
   const now = new Date();
-  const eventId = await transaction(async (tx) => {
+  const committed = await transaction(async (tx) => {
     const eventPayload = validateEventPayload("medication_started", {
       drug_name: drugName,
       dose,
@@ -113,7 +113,7 @@ export async function createMedicationStart(
       tx as Parameters<typeof repo.insertEventIdempotent>[1],
     );
 
-    if (wasNoop) return event.id;
+    if (wasNoop) return { eventId: event.id, wasDuplicate: true };
 
     if (uploadedPath) {
       await repo.insertAttachment(
@@ -144,8 +144,8 @@ export async function createMedicationStart(
       );
     }
 
-    return event.id;
+    return { eventId: event.id, wasDuplicate: false };
   });
 
-  return { ok: true, value: { eventId }, notifications: [] };
+  return { ok: true, value: committed, notifications: [] };
 }

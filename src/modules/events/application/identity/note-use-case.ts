@@ -17,7 +17,7 @@
 import { validateEventPayload } from "@/lib/events/event-schemas";
 
 import type { EventsRepository } from "../../infrastructure/events-repository";
-import type { UseCaseResult } from "../types";
+import type { RecordedEvent, UseCaseResult } from "../types";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -52,7 +52,7 @@ type Deps = {
 export async function createNote(
   input: CreateNoteInput,
   deps: Deps,
-): Promise<UseCaseResult<{ eventId: string }>> {
+): Promise<UseCaseResult<RecordedEvent>> {
   const {
     pet,
     user,
@@ -67,7 +67,7 @@ export async function createNote(
   } = input;
   const { repo, transaction } = deps;
 
-  const eventId = await transaction(async (tx) => {
+  const committed = await transaction(async (tx) => {
     const eventPayload = validateEventPayload("note_added", { category, text });
 
     const { event, wasNoop } = await repo.insertEventIdempotent(
@@ -87,7 +87,7 @@ export async function createNote(
       tx as Parameters<typeof repo.insertEventIdempotent>[1],
     );
 
-    if (wasNoop) return event.id;
+    if (wasNoop) return { eventId: event.id, wasDuplicate: true };
 
     if (uploadedPath) {
       await repo.insertAttachment(
@@ -103,8 +103,8 @@ export async function createNote(
       );
     }
 
-    return event.id;
+    return { eventId: event.id, wasDuplicate: false };
   });
 
-  return { ok: true, value: { eventId }, notifications: [] };
+  return { ok: true, value: committed, notifications: [] };
 }

@@ -12,7 +12,7 @@
 import { validateEventPayload } from "@/lib/events/event-schemas";
 
 import type { EventsRepository } from "../../infrastructure/events-repository";
-import type { UseCaseResult } from "../types";
+import type { RecordedEvent, UseCaseResult } from "../types";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -51,7 +51,7 @@ type Deps = {
 export async function createWeight(
   input: CreateWeightInput,
   deps: Deps,
-): Promise<UseCaseResult<{ eventId: string }>> {
+): Promise<UseCaseResult<RecordedEvent>> {
   const {
     pet,
     user,
@@ -68,7 +68,7 @@ export async function createWeight(
 
   const now = new Date();
 
-  const eventId = await transaction(async (tx) => {
+  const committed = await transaction(async (tx) => {
     const eventPayload = validateEventPayload("weight_recorded", { kg: kgStr });
 
     const { event, wasNoop } = await repo.insertEventIdempotent(
@@ -86,7 +86,7 @@ export async function createWeight(
       tx as Parameters<typeof repo.insertEventIdempotent>[1],
     );
 
-    if (wasNoop) return event.id;
+    if (wasNoop) return { eventId: event.id, wasDuplicate: true };
 
     if (uploadedPath) {
       await repo.insertAttachment(
@@ -113,8 +113,8 @@ export async function createWeight(
       tx as Parameters<typeof repo.updateWeightProjection>[2],
     );
 
-    return event.id;
+    return { eventId: event.id, wasDuplicate: false };
   });
 
-  return { ok: true, value: { eventId }, notifications: [] };
+  return { ok: true, value: committed, notifications: [] };
 }
