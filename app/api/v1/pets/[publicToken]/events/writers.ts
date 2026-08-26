@@ -1,4 +1,4 @@
-// The six daily writers, behind `POST /api/v1/pets/{publicToken}/events`.
+// The ten owner writers, behind `POST /api/v1/pets/{publicToken}/events`.
 //
 // Split out of `route.ts` for the reason the amend endpoint split its own
 // handler: that file's subject is "is this request well formed", and this one's
@@ -8,9 +8,19 @@
 //
 // WHO MAY WRITE — VERIFIED AGAINST THE WEB, NOT ASSUMED, AND NOT UNIFORM
 // ---------------------------------------------------------------------------
-// FIVE OF THE SIX (vacuna, peso, antiparasitario, medicación inicio, medicación
-// fin) are guarded on the web by `requireAlivePetAccess(publicToken)`. Read
-// literally, that is:
+// NINE OF THE TEN are guarded on the web by `requireAlivePetAccess(publicToken)`:
+//
+//   vacuna              `createVaccinationAction`   actions-medical.ts:69
+//   peso                `createWeightAction`        actions-medical.ts:168
+//   antiparasitario     `createDewormingAction`     actions-medical.ts:241
+//   esterilización      `createSterilizationAction` actions-medical.ts:335
+//   medicación inicio   `createMedicationStartAction` actions-medical.ts:405
+//   medicación fin      `createMedicationEndAction` actions-medical.ts:512
+//   microchip           `createMicrochipAction`     actions.ts:99
+//   visita veterinaria  `createVetVisitAction`      actions.ts:317
+//   información clínica `createClinicalInfoAction`  actions.ts:404
+//
+// Read literally, that guard is:
 //
 //   · Any CURRENT HOLDER on the person path — owner, co_owner, foster OR
 //     caretaker. Not titular-only.
@@ -18,15 +28,53 @@
 //   · Never on a DECEASED animal: a closed life record accepts no new clinical
 //     events.
 //
-// THE SIXTH — NOTA — IS GUARDED BY `requirePetAccess`, and the difference is
-// deliberate on the web, marked there with a `PARITY:` comment that says so in
-// as many words. A note needs NO capability on the org path and is accepted on
-// a DECEASED animal. That second half is the one worth stating out loud: a
-// memorial note is the one thing a grieving owner may still write into the
-// libreta, and an endpoint that "tidied up" the six into one guard would take
-// it away. Mirrored exactly, asymmetry included, because the server actions are
-// themselves addressable endpoints — narrowing here would not close anything,
-// it would only make the two doors disagree.
+// THE TENTH — NOTA (`createNoteAction`, actions.ts:247) — IS GUARDED BY
+// `requirePetAccess`, and the difference is deliberate on the web, marked there
+// with a `PARITY:` comment that says so in as many words. A note needs NO
+// capability on the org path and is accepted on a DECEASED animal. That second
+// half is the one worth stating out loud: a memorial note is the one thing a
+// grieving owner may still write into the libreta, and an endpoint that "tidied
+// up" the ten into one guard would take it away. Mirrored exactly, asymmetry
+// included, because the server actions are themselves addressable endpoints —
+// narrowing here would not close anything, it would only make the two doors
+// disagree.
+//
+// The asymmetry is enforced BY CONSTRUCTION rather than by resemblance: both
+// doors resolve through one query (`resolvePetHolderAccess`), and the only
+// branch below is the `kind === "note"` early return in `checkWriteGuard`.
+//
+// WHAT DELIBERATELY DID NOT CROSS, AND ON WHAT EVIDENCE
+// ---------------------------------------------------------------------------
+//   · DIAGNÓSTICO DE ENFERMEDAD (`recordDiseaseDiagnosisAction`,
+//     actions.ts:512). NOT AN OWNER WRITER AT ALL: it performs no ownership
+//     check whatsoever and authorizes on `role === "vet" && matriculaVerified`
+//     (actions.ts:529). It shares an `event_type` with información clínica —
+//     `clinical_info_logged`, sub_kind `disease_diagnosis` — which is exactly
+//     why the contract's `CLINICAL_SUB_KINDS` has five members and not six. An
+//     owner's bearer token must not be able to sign a professional's claim.
+//   · MORDEDURA (`reportBiteAction`, surveillance/actions.ts:191) IS an owner
+//     writer under this same guard, and is still not here: it does not append a
+//     fact, it OPENS A CASE — a `rabies_observation_started` cascade, a
+//     10-day observation lifecycle and an authority fan-out across
+//     jurisdictions. That belongs in its own work unit with its own contract,
+//     not as a tenth branch of a switch whose other nine only append.
+//   · PERDIDA / ENCONTRADA (`setPetLostAction` actions.ts:779,
+//     `setPetFoundAction` actions.ts:933) mutate `pets.status` and carry
+//     disclosure preferences, an enriched description and an alert fan-out.
+//     Lost mode is a feature, not an asiento.
+//   · FALLECIMIENTO (`createDeathRecordAction`, actions.ts:1030) is guarded by
+//     `requirePetAccess` like nota, and is deferred for shape rather than for
+//     reach: five cross-field rules, a disease-code lookup and a custody-episode
+//     stamp read before the transaction.
+//   · SÍNTOMA (`createSymptomObservedAction` actions.ts:690), ATESTACIÓN PPP
+//     (actions.ts:175) and EMBARAZO (app/actions/pregnancy.ts:41, :86) are
+//     owner writers whose use-cases DO NOT ROUTE THROUGH
+//     `insertEventIdempotent` — they insert plainly, with no
+//     `clientIdempotencyKey` parameter to pass. This endpoint REQUIRES an
+//     `Idempotency-Key` and promises it is honoured; accepting a kind that
+//     silently could not honour it would make that promise false for three
+//     kinds out of thirteen, which is worse than not offering them. Closing
+//     that gap is a change to those three writers, not to this file.
 //
 // WHAT THE SERVER DECIDES AND THE CLIENT MAY NOT
 // ---------------------------------------------------------------------------
@@ -43,10 +91,13 @@
 //     holds a validated matrícula. Re-deriving either would be a native write
 //     claiming a verification nobody gave it.
 //
-// NO ATTACHMENTS ON THIS PATH. Every one of the six web forms offers a file and
+// NO ATTACHMENTS ON THIS PATH. Every one of the ten web forms offers a file and
 // every call below passes `uploadedPath: null`, because a native upload needs a
 // signed URL and that whole path is blocked. Stated here rather than left as
-// three nulls a reader has to interpret.
+// three nulls a reader has to interpret. It costs the four newest kinds more
+// than it costs the first six — a lab result and a sterilization certificate are
+// the kind of asiento a person photographs — and that is an argument for
+// unblocking the upload, not for a native form that pretends to take one.
 
 import { assertOccurredAtPlausible } from "@/lib/events/plausibility";
 import { apiV1Error, apiV1Json } from "@/lib/infra/api-v1";
@@ -56,6 +107,7 @@ import {
   type PetHolderAccess,
   resolvePetHolderAccess,
 } from "@/lib/infra/pet-access";
+import { fetchActiveIdentifications } from "@/lib/infra/pet-identifiers";
 import { reportError } from "@/lib/infra/report-error";
 import { findDrugByLabel } from "@/lib/reference/drugs";
 import {
@@ -65,10 +117,14 @@ import {
   parseFrequencyFields,
 } from "@/lib/reference/medication-schedule";
 import { parseDateInput } from "@/lib/utils/format";
+import { createClinicalInfo } from "@/src/modules/events/application/clinical/clinical-info-use-case";
+import { createVetVisit } from "@/src/modules/events/application/clinical/vet-visit-use-case";
+import { createMicrochip } from "@/src/modules/events/application/identity/microchip-use-case";
 import { createNote } from "@/src/modules/events/application/identity/note-use-case";
 import { createDeworming } from "@/src/modules/events/application/medical/deworming-use-case";
 import { createMedicationEnd } from "@/src/modules/events/application/medical/medication-end-use-case";
 import { createMedicationStart } from "@/src/modules/events/application/medical/medication-start-use-case";
+import { createSterilization } from "@/src/modules/events/application/medical/sterilization-use-case";
 import { createVaccination } from "@/src/modules/events/application/medical/vaccination-use-case";
 import { createWeight } from "@/src/modules/events/application/medical/weight-use-case";
 import type { RecordedEvent, UseCaseResult } from "@/src/modules/events/application/types";
@@ -140,6 +196,10 @@ const EVENT_TYPE_OF_KIND = {
   medication_start: "medication_started",
   medication_end: "medication_stopped",
   note: "note_added",
+  microchip: "microchip_implanted",
+  sterilization: "sterilization_performed",
+  vet_visit: "vet_visit_logged",
+  clinical_info: "clinical_info_logged",
 } as const;
 
 type WriteContext = {
@@ -433,6 +493,93 @@ async function append(
           pet: { id: pet.id },
           text: input.text,
           category: input.category ?? null,
+        },
+        deps,
+      );
+      break;
+
+    case "microchip": {
+      // THE CANONICAL CHIP, read here because the use-case needs the NUMBER and
+      // not a boolean. `createMicrochipAction` resolves it the same way and its
+      // own header says why: a boolean collapses "re-submitted the same chip"
+      // and "implanted a different one" into one branch, and that branch wrote
+      // the event while skipping the canonical row.
+      let canonicalChipNumber: string | null;
+      try {
+        const existing = await withDbBudgetOrThrow(
+          fetchActiveIdentifications(pet.id),
+          RESOLVE_BUDGET_MS,
+          "api-v1-event-chip",
+        );
+        canonicalChipNumber = existing.microchip?.code ?? null;
+      } catch (err) {
+        if (err instanceof DbBudgetExceededError) return unavailable();
+        throw err;
+      }
+
+      result = await createMicrochip(
+        {
+          ...common,
+          pet: { id: pet.id, canonicalChipNumber },
+          chipNumber: input.chipNumber,
+          countryCode: input.countryCode,
+          implantedBy: input.implantedBy,
+          locationOnBody: input.locationOnBody,
+          notes: input.notes,
+        },
+        deps,
+      );
+      break;
+    }
+
+    case "sterilization":
+      result = await createSterilization(
+        {
+          ...common,
+          pet: { id: pet.id },
+          procedure: input.procedure,
+          performedBy: input.performedBy,
+          clinic: input.clinic,
+          notes: input.notes,
+        },
+        deps,
+      );
+      break;
+
+    case "vet_visit":
+      result = await createVetVisit(
+        {
+          ...common,
+          pet: { id: pet.id },
+          reason: input.reason,
+          diagnosis: input.diagnosis,
+          vetName: input.vetName,
+          clinic: input.clinic,
+          notes: input.notes,
+          // NOT a narrowing: the web runs its capture through
+          // `normalizeLocationForWrite`, and an untouched form resolves to this
+          // same pair of nulls. See the contract header for why the app has no
+          // location to send yet.
+          eventJurisdictionProvince: null,
+          eventJurisdictionLocality: null,
+        },
+        deps,
+      );
+      break;
+
+    case "clinical_info":
+      result = await createClinicalInfo(
+        {
+          ...common,
+          pet: { id: pet.id },
+          subKind: input.subKind,
+          title: input.title,
+          details: input.details,
+          performedBy: input.performedBy,
+          notes: input.notes,
+          // Same pair of nulls, same reason, as visita veterinaria above.
+          eventJurisdictionProvince: null,
+          eventJurisdictionLocality: null,
         },
         deps,
       );

@@ -1,12 +1,12 @@
-// `POST /api/v1/pets/{publicToken}/events` — record one of the six daily
-// asientos: vacuna, peso, antiparasitario, medicación inicio, medicación fin,
-// nota.
+// `POST /api/v1/pets/{publicToken}/events` — record one of the ten asientos an
+// owner may write: vacuna, peso, antiparasitario, medicación inicio, medicación
+// fin, nota, microchip, esterilización, visita veterinaria, información clínica.
 //
-// ONE ENDPOINT, SIX KINDS, AND THE SPINE'S OWN SHAPE. `pet_events` is a single
-// append-only table discriminated by `event_type`. Six sibling URLs would be
-// six copies of one bearer check, one idempotency contract, one limiter pair
+// ONE ENDPOINT, TEN KINDS, AND THE SPINE'S OWN SHAPE. `pet_events` is a single
+// append-only table discriminated by `event_type`. Ten sibling URLs would be
+// ten copies of one bearer check, one idempotency contract, one limiter pair
 // and one access guard, kept in agreement by hand and drifting the first time
-// somebody edited five of them. The body's `kind` is the discriminator the
+// somebody edited nine of them. The body's `kind` is the discriminator the
 // table already has.
 //
 // IT ONLY EVER APPENDS. Nothing in this product edits or deletes a `pet_events`
@@ -15,12 +15,13 @@
 // (`POST .../events/{eventId}/amend`), which is why 201 is the only success.
 //
 // WHO MAY WRITE is decided in `./writers.ts`, against the web's own guards, and
-// it is NOT uniform across the six: five mirror `requireAlivePetAccess` (any
+// it is NOT uniform across the ten: nine mirror `requireAlivePetAccess` (any
 // current holder; an org member with `event.write`; never on a deceased
 // animal) and NOTA mirrors `requirePetAccess` (no capability, and a deceased
 // animal still accepts one — a memorial note is the one thing a grieving owner
-// may still write). That file states it at length; this one does not restate
-// it, because two copies of a rule is how the copies disagree.
+// may still write). That file states it at length — along with which owner
+// writers deliberately did NOT cross, and on what evidence — and this one does
+// not restate it, because two copies of a rule is how the copies disagree.
 //
 // `Idempotency-Key` IS REQUIRED, AND IT IS HONOURED
 // ---------------------------------------------------------------------------
@@ -35,8 +36,9 @@
 //
 // A replay resolves to the first attempt's event and answers 201 with
 // `wasDuplicate: true`. Nothing is appended twice, no reminder is scheduled
-// twice, no cache is re-derived twice: every one of the six use-cases skips
-// every side effect when the idempotent insert reports a no-op.
+// twice, no cache is re-derived twice: every one of the ten use-cases skips
+// every side effect when the idempotent insert reports a no-op — the canonical
+// `pet_identifications` row a microchip asiento writes included.
 
 import { apiV1Error } from "@/lib/infra/api-v1";
 import { DbBudgetExceededError, withDbBudgetOrThrow } from "@/lib/infra/db-budget";

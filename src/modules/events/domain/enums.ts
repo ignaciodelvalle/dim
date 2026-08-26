@@ -1,7 +1,10 @@
 // Pure domain enums for the events module.
 //
 // Extracted from app/actions/events.ts inline constants.
-// Zero runtime imports — pure constants.
+//
+// Pure constants, and the only import is a RE-EXPORT from `@dim/contract`, a
+// dependency-free package of constants and schemas. Nothing here reaches a
+// database client, so this file still costs a test nothing to import.
 
 // ---------------------------------------------------------------------------
 // Note categories (owner-facing — excludes the reserved "system" category)
@@ -21,15 +24,13 @@ export type NoteCategory = (typeof NOTE_CATEGORIES)[number];
 // Clinical sub-kinds (owner-facing — excludes disease_diagnosis used by vets)
 // ---------------------------------------------------------------------------
 
-export const CLINICAL_SUB_KINDS = [
-  "lab_work",
-  "imaging",
-  "surgery",
-  "allergy_detection",
-  "other",
-] as const;
-
-export type ClinicalSubKind = (typeof CLINICAL_SUB_KINDS)[number];
+// MOVED TO THE CONTRACT (WU-L) and re-exported from here, the same move
+// `MAX_WEIGHT_KG` got in WU-K. `POST /api/v1/pets/{token}/events` validates a
+// native `clinical_info` asiento against the SAME five, and two arrays of five
+// strings kept in agreement by hand is a sixth sub-kind added to one of them.
+// Importers here — `src/modules/events/actions.ts` and the org `atender`
+// action — are unchanged and still read one array.
+export { CLINICAL_SUB_KINDS, type ClinicalSubKind } from "@dim/contract/input";
 
 // ---------------------------------------------------------------------------
 // Dangerous-breed registries

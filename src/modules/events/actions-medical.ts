@@ -46,7 +46,9 @@ import { parseDateInput } from "@/lib/utils/format";
 // sending — two copies of a data-quality gate is a gate that only holds on one
 // door. The reasoning for the value itself now lives beside it, in
 // packages/contract/src/input/record-event.ts.
-import { MAX_WEIGHT_KG } from "@dim/contract/input";
+// `STERILIZATION_PROCEDURES` (WU-L) travelled the same way, out of an inline
+// array literal in `createSterilizationAction` that had no name at all.
+import { MAX_WEIGHT_KG, STERILIZATION_PROCEDURES } from "@dim/contract/input";
 import { type EventFormState, cleanupAttachment, makeTransaction } from "./action-support";
 import { createDeworming } from "./application/medical/deworming-use-case";
 import { markMedicationDoseTaken } from "./application/medical/medication-dose-taken-use-case";
@@ -343,7 +345,12 @@ export async function createSterilizationAction(
   const notes = String(formData.get("notes") ?? "").trim() || null;
   const clientIdempotencyKey = String(formData.get("clientIdempotencyKey") ?? "").trim() || null;
 
-  if (!["castration", "spay"].includes(procedure)) return { error: "Procedimiento inválido." };
+  // `STERILIZATION_PROCEDURES` MOVED TO THE CONTRACT (WU-L) from the inline
+  // literal that used to sit here, so this action and the native endpoint
+  // accept ONE pair. Same move, same reason, as `MAX_WEIGHT_KG` above.
+  if (!(STERILIZATION_PROCEDURES as readonly string[]).includes(procedure)) {
+    return { error: "Procedimiento inválido." };
+  }
   if (!occurredAtRaw) return { error: "Falta la fecha de la cirugía." };
 
   const occurredAt = parseDateInput(occurredAtRaw);

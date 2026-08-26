@@ -31,6 +31,8 @@ const control = vi.hoisted(() => ({
     id: string;
     eventType: string;
   } | null,
+  /** The pet's canonical `pet_identifications` chip code, or null for none. */
+  canonicalChip: null as string | null,
   /** Every use-case call. Empty means nothing was written. */
   writes: [] as Array<{ kind: string; input: Record<string, unknown> }>,
   writeResult: null as null | (() => unknown),
@@ -113,6 +115,24 @@ vi.mock("@/src/modules/events/application/medical/medication-end-use-case", () =
 vi.mock("@/src/modules/events/application/identity/note-use-case", () => ({
   createNote: writerMock("note"),
 }));
+vi.mock("@/src/modules/events/application/identity/microchip-use-case", () => ({
+  createMicrochip: writerMock("microchip"),
+}));
+vi.mock("@/src/modules/events/application/medical/sterilization-use-case", () => ({
+  createSterilization: writerMock("sterilization"),
+}));
+vi.mock("@/src/modules/events/application/clinical/vet-visit-use-case", () => ({
+  createVetVisit: writerMock("vet_visit"),
+}));
+vi.mock("@/src/modules/events/application/clinical/clinical-info-use-case", () => ({
+  createClinicalInfo: writerMock("clinical_info"),
+}));
+
+vi.mock("@/lib/infra/pet-identifiers", () => ({
+  fetchActiveIdentifications: async () => ({
+    microchip: control.canonicalChip ? { code: control.canonicalChip } : null,
+  }),
+}));
 
 vi.mock("@/lib/supabase/bearer", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/lib/supabase/bearer")>();
@@ -190,6 +210,7 @@ beforeEach(() => {
   control.capabilities = new Set(["event.write"]);
   control.sameDay = false;
   control.medicationSource = { id: "med-1", eventType: "medication_started" };
+  control.canonicalChip = null;
   control.writes = [];
   control.writeResult = null;
 });
@@ -473,10 +494,181 @@ describe("POST .../events — the envelope", () => {
     expect(control.limits).toEqual([]);
   });
 
-  it("refuses a body whose kind is not one of the six", async () => {
+  it("refuses a body whose kind is not one of the ten", async () => {
     const response = await call({ kind: "death_recorded", occurredAt: A_PAST_DAY });
     expect(response.status).toBe(400);
     expect(await response.json()).toEqual({ error: "invalid_request" });
+    expect(control.writes).toEqual([]);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// WU-L — the four that crossed next, and the boundary they did not cross.
+// ---------------------------------------------------------------------------
+
+const A_MICROCHIP = { kind: "microchip", chipNumber: "982000123456789", occurredAt: A_PAST_DAY };
+const A_STERILIZATION = { kind: "sterilization", procedure: "castration", occurredAt: A_PAST_DAY };
+const A_VET_VISIT = { kind: "vet_visit", reason: "Control anual", occurredAt: A_PAST_DAY };
+const A_CLINICAL_INFO = {
+  kind: "clinical_info",
+  subKind: "lab_work",
+  title: "Hemograma completo",
+  occurredAt: A_PAST_DAY,
+};
+
+const WU_L_KINDS: Array<[string, Record<string, unknown>]> = [
+  ["microchip", A_MICROCHIP],
+  ["sterilization", A_STERILIZATION],
+  ["vet_visit", A_VET_VISIT],
+  ["clinical_info", A_CLINICAL_INFO],
+];
+
+describe("POST .../events — the four WU-L kinds carry the ALIVE guard, each half proved", () => {
+  // Every one of the four is `requireAlivePetAccess` on the web
+  // (actions.ts:99 / :317 / :404, actions-medical.ts:335). Both halves of that
+  // guard are asserted PER KIND rather than once for the group: a switch that
+  // fell through for one of them would pass a test written only for the first.
+  for (const [kind, body] of WU_L_KINDS) {
+    it(`refuses ${kind} on a DECEASED animal — 409, about the animal`, async () => {
+      control.access = () => ({
+        kind: "owner",
+        pet: petRow({ status: "deceased" }),
+        holderRole: "owner",
+      });
+      const response = await call(body);
+      expect(response.status).toBe(409);
+      expect(await response.json()).toEqual({ error: "event_not_allowed" });
+      expect(control.writes).toEqual([]);
+    });
+
+    it(`refuses ${kind} for an org member without event.write — 403, about the caller`, async () => {
+      control.access = orgAccess();
+      control.capabilities = new Set();
+      const response = await call(body);
+      expect(response.status).toBe(403);
+      expect(await response.json()).toEqual({ error: "event_forbidden" });
+      expect(control.writes).toEqual([]);
+    });
+
+    it(`accepts ${kind} from a CARETAKER — the web's guard is not titular-only`, async () => {
+      // `requireAlivePetAccess` composes `requirePetAccess`, which is
+      // role-agnostic on the person path; only `requireTitularAccess` denies a
+      // caretaker, and none of these four call it. Narrowing here would be this
+      // endpoint inventing a rule the web does not have.
+      control.access = () => ({ kind: "owner", pet: petRow(), holderRole: "caretaker" });
+      const response = await call(body);
+      expect(response.status).toBe(201);
+      expect(control.writes.map((w) => w.kind)).toEqual([kind]);
+    });
+  }
+});
+
+describe("POST .../events — what the four WU-L kinds put on the spine", () => {
+  it("passes a microchip's CANONICAL chip number, not a boolean", async () => {
+    // The use-case needs the number: a boolean collapses "re-submitted the same
+    // chip" and "implanted a different one" into one branch, and that branch
+    // wrote the event while skipping the canonical row.
+    control.canonicalChip = "982000111111111";
+    const response = await call(A_MICROCHIP);
+    expect(response.status).toBe(201);
+    expect(control.writes[0].input.pet).toEqual({
+      id: PET_ID,
+      canonicalChipNumber: "982000111111111",
+    });
+    expect(control.writes[0].input.chipNumber).toBe("982000123456789");
+  });
+
+  it("passes null for a pet that carries no chip yet", async () => {
+    await call(A_MICROCHIP);
+    expect(control.writes[0].input.pet).toEqual({ id: PET_ID, canonicalChipNumber: null });
+  });
+
+  it("sends the two location fields as null, which is what an untouched web form stores", async () => {
+    // NOT a narrowing: `parseLocationFromFormData` over a form nobody touched
+    // yields all-null, and `normalizeLocationForWrite` resolves that to this
+    // same pair. The app has no location affordance to send.
+    for (const body of [A_VET_VISIT, A_CLINICAL_INFO]) {
+      control.writes = [];
+      await call(body);
+      expect(control.writes[0].input.eventJurisdictionProvince).toBeNull();
+      expect(control.writes[0].input.eventJurisdictionLocality).toBeNull();
+    }
+  });
+
+  it("anchors every one of the four at the SAME noon-UTC instant the web uses", async () => {
+    for (const [, body] of WU_L_KINDS) {
+      control.writes = [];
+      await call(body);
+      expect((control.writes[0].input.occurredAt as Date).toISOString()).toBe(
+        `${A_PAST_DAY}T12:00:00.000Z`,
+      );
+    }
+  });
+
+  it("carries the Idempotency-Key onto all four, and reports a replay as 201", async () => {
+    for (const [, body] of WU_L_KINDS) {
+      control.writes = [];
+      await call(body);
+      expect(control.writes[0].input.clientIdempotencyKey).toBe(KEY);
+    }
+
+    control.writeResult = () => ({
+      ok: true,
+      value: { eventId: EVENT_ID, wasDuplicate: true },
+      notifications: [],
+    });
+    const replay = await call(A_STERILIZATION);
+    expect(replay.status).toBe(201);
+    expect(await replay.json()).toEqual({ eventId: EVENT_ID, wasDuplicate: true });
+  });
+
+  it("carries no attachment on any of the four", async () => {
+    for (const [, body] of WU_L_KINDS) {
+      control.writes = [];
+      await call(body);
+      expect(control.writes[0].input.uploadedPath).toBeNull();
+    }
+  });
+
+  it("refuses a future date and a pre-birth date for all four, before writing", async () => {
+    for (const [, body] of WU_L_KINDS) {
+      control.writes = [];
+      const future = await call({ ...body, occurredAt: "2099-01-01" });
+      expect(future.status).toBe(400);
+      expect(await future.json()).toEqual({ error: "event_date_future" });
+
+      const beforeBirth = await call({ ...body, occurredAt: "2019-01-01" });
+      expect(beforeBirth.status).toBe(400);
+      expect(await beforeBirth.json()).toEqual({ error: "event_date_before_birth" });
+      expect(control.writes).toEqual([]);
+    }
+  });
+
+  it("never runs the same-day soft gate for the four — the web does not have one", async () => {
+    // `findSameDayEventOfType` has exactly two callers on the web, vaccination
+    // and deworming. Applying it here would be a refusal a web user never sees.
+    control.sameDay = true;
+    for (const [kind, body] of WU_L_KINDS) {
+      control.writes = [];
+      const response = await call(body);
+      expect(response.status).toBe(201);
+      expect(control.writes.map((w) => w.kind)).toEqual([kind]);
+    }
+  });
+
+  it("refuses the vet-only clinical sub_kind, which is why the enum has five", async () => {
+    // `disease_diagnosis` is a sixth `clinical_info_logged` sub_kind whose
+    // writer does no ownership check at all — it authorizes on a verified
+    // matrícula. An owner's bearer token must not be able to sign it.
+    const response = await call({ ...A_CLINICAL_INFO, subKind: "disease_diagnosis" });
+    expect(response.status).toBe(400);
+    expect(await response.json()).toEqual({ error: "invalid_request" });
+    expect(control.writes).toEqual([]);
+  });
+
+  it("refuses a sterilization procedure outside the web's two", async () => {
+    const response = await call({ ...A_STERILIZATION, procedure: "neuter" });
+    expect(response.status).toBe(400);
     expect(control.writes).toEqual([]);
   });
 });

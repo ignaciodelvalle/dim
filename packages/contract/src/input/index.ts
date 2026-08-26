@@ -40,6 +40,7 @@ export {
   firstIntakeInputCode,
 } from "./intake.ts";
 export {
+  CLINICAL_SUB_KINDS,
   DEWORMING_TYPES,
   MAX_CUSTOM_HOURS,
   MAX_DURATION_DAYS,
@@ -49,12 +50,15 @@ export {
   MIN_DURATION_DAYS,
   NOTE_CATEGORIES,
   RECORD_EVENT_INPUT_CODES,
+  STERILIZATION_PROCEDURES,
+  type ClinicalSubKind,
   type DewormingType,
   type MedicationFrequency,
   type NoteCategory,
   type RecordEventInput,
   type RecordEventInputCode,
   type RecordEventKind,
+  type SterilizationProcedure,
   firstRecordEventInputCode,
   recordEventInputSchema,
 } from "./record-event.ts";

@@ -1,18 +1,19 @@
 // Client-input contract for RECORDING an event —
 // `POST /api/v1/pets/{publicToken}/events`.
 //
-// ONE ENDPOINT, SIX KINDS, AND THAT IS THE DOMAIN'S OWN SHAPE. `pet_events` is
-// a single append-only table discriminated by `event_type`; six sibling URLs
-// would be six copies of one guard, one limiter pair and one idempotency
-// contract, kept in agreement by hand. A discriminated union puts the six
+// ONE ENDPOINT, TEN KINDS, AND THAT IS THE DOMAIN'S OWN SHAPE. `pet_events` is
+// a single append-only table discriminated by `event_type`; ten sibling URLs
+// would be ten copies of one guard, one limiter pair and one idempotency
+// contract, kept in agreement by hand. A discriminated union puts the ten
 // differences where they are — in the fields and in ONE guard branch — and
 // leaves everything they share written once.
 //
 // THE REFERENCE POINT is the web's own writers, field for field:
 //   · `createVaccinationAction`, `createWeightAction`, `createDewormingAction`,
-//     `createMedicationStartAction`, `createMedicationEndAction`
-//     (`src/modules/events/actions-medical.ts`)
-//   · `createNoteAction` (`src/modules/events/actions.ts`)
+//     `createMedicationStartAction`, `createMedicationEndAction`,
+//     `createSterilizationAction` (`src/modules/events/actions-medical.ts`)
+//   · `createNoteAction`, `createMicrochipAction`, `createVetVisitAction`,
+//     `createClinicalInfoAction` (`src/modules/events/actions.ts`)
 // Every name below is the name that action reads out of its `FormData`, and
 // every limit below is that action's limit. Where the web caps nothing, this
 // caps nothing: a text length this schema invented would be a value the web
@@ -43,6 +44,14 @@
 //     affordance to write one closed, so the field would arrive from nowhere.
 //     When that affordance exists, it is one optional uuid here and one line in
 //     the writer.
+//   · THE LOCATION the web's visita-veterinaria and información-clínica forms
+//     can capture. Those two run their value through `normalizeLocationForWrite`,
+//     which resolves a province against the canonical catalog — a SERVER
+//     resolution over a table a phone does not hold, and the app has no location
+//     affordance to feed it. An untouched web form posts every location field
+//     empty and both writers store `null`, which is exactly what this endpoint
+//     sends: the same fact, not a narrower one. Adding it later is a nested
+//     optional object here and the same normalize call in the writer.
 //
 // WHY MACHINE CODES INSTEAD OF MESSAGES: the contract carries data and rules;
 // the consumer owns its words. Same reasoning as `intake.ts` and
@@ -66,6 +75,43 @@ export const MAX_WEIGHT_KG = 120;
 /** Antiparasitic route, exactly the three the web's radio group offers. */
 export const DEWORMING_TYPES = ["internal", "external", "both"] as const;
 export type DewormingType = (typeof DEWORMING_TYPES)[number];
+
+/**
+ * The two sterilization procedures.
+ *
+ * MOVED HERE FROM an INLINE array literal in `createSterilizationAction`
+ * (`actions-medical.ts`), where it had no name at all — the same move
+ * `MAX_WEIGHT_KG` got, for the same reason and with the same consequence: the
+ * action imports it back, so a third procedure is added in one place or in
+ * none. A copy of these two strings living in this file while the web kept its
+ * own literal is exactly the drift the package exists to stop.
+ */
+export const STERILIZATION_PROCEDURES = ["castration", "spay"] as const;
+export type SterilizationProcedure = (typeof STERILIZATION_PROCEDURES)[number];
+
+/**
+ * Clinical sub-kinds the OWNER-FACING form offers.
+ *
+ * MOVED HERE FROM `src/modules/events/domain/enums.ts`, which re-exports it so
+ * its existing importers — `src/modules/events/actions.ts` and the org
+ * `atender` action — keep reading ONE array.
+ *
+ * FIVE, NOT SIX: `disease_diagnosis` is a sixth `clinical_info_logged`
+ * sub_kind, and it is deliberately not here. Its writer
+ * (`recordDiseaseDiagnosisAction`, `actions.ts:512`) has NO ownership check at
+ * all — it authorizes on `role === "vet" && matriculaVerified`, and accepting
+ * the value here would let a phone with an owner's bearer token file a
+ * diagnosis a verified professional is supposed to sign. The web's owner form
+ * never offers it either; this is that same exclusion, written down.
+ */
+export const CLINICAL_SUB_KINDS = [
+  "lab_work",
+  "imaging",
+  "surgery",
+  "allergy_detection",
+  "other",
+] as const;
+export type ClinicalSubKind = (typeof CLINICAL_SUB_KINDS)[number];
 
 /**
  * Dosing frequencies, exactly `parseFrequencyFields`' `VALID_FREQUENCIES`.
@@ -130,6 +176,11 @@ export const RECORD_EVENT_INPUT_CODES = [
   "MEDICATION_SOURCE_REQUIRED",
   "TEXT_REQUIRED",
   "NOTE_CATEGORY_INVALID",
+  "CHIP_NUMBER_REQUIRED",
+  "STERILIZATION_PROCEDURE_INVALID",
+  "VISIT_REASON_REQUIRED",
+  "CLINICAL_SUB_KIND_INVALID",
+  "CLINICAL_TITLE_REQUIRED",
 ] as const;
 export type RecordEventInputCode = (typeof RECORD_EVENT_INPUT_CODES)[number];
 
@@ -320,6 +371,69 @@ const note = z.object({
   category: z.enum(NOTE_CATEGORIES, { error: "NOTE_CATEGORY_INVALID" }).nullish(),
 });
 
+const microchip = z.object({
+  kind: z.literal("microchip"),
+  /**
+   * The chip's code, as printed. NO SHAPE RULE HERE, and that is the web's rule
+   * rather than an omission: `createMicrochipAction` checks only that the field
+   * is non-empty. Whether the number agrees with the pet's CANONICAL chip is
+   * decided by `checkChipMatchesCanonical` inside the use-case, against a row
+   * this schema cannot see — and a 15-digit regex invented here would refuse the
+   * shorter legacy codes the web accepts today.
+   */
+  chipNumber: z
+    .string({ error: "CHIP_NUMBER_REQUIRED" })
+    .trim()
+    .min(1, { error: "CHIP_NUMBER_REQUIRED" }),
+  /** The day of the IMPLANT, not of the reading. */
+  occurredAt,
+  countryCode: optionalText,
+  implantedBy: optionalText,
+  locationOnBody: optionalText,
+  notes: optionalText,
+});
+
+const sterilization = z.object({
+  kind: z.literal("sterilization"),
+  procedure: z.enum(STERILIZATION_PROCEDURES, { error: "STERILIZATION_PROCEDURE_INVALID" }),
+  occurredAt,
+  performedBy: optionalText,
+  clinic: optionalText,
+  notes: optionalText,
+});
+
+const vetVisit = z.object({
+  kind: z.literal("vet_visit"),
+  reason: z
+    .string({ error: "VISIT_REASON_REQUIRED" })
+    .trim()
+    .min(1, { error: "VISIT_REASON_REQUIRED" }),
+  occurredAt,
+  /**
+   * What the vet SAID, as the owner reports it — free text, and deliberately
+   * NOT the `disease_diagnosis` clinical sub-kind. That one is a signed
+   * professional claim with an outbreak-signal cascade behind it; this is a line
+   * in an owner's own libreta and carries no such weight.
+   */
+  diagnosis: optionalText,
+  vetName: optionalText,
+  clinic: optionalText,
+  notes: optionalText,
+});
+
+const clinicalInfo = z.object({
+  kind: z.literal("clinical_info"),
+  subKind: z.enum(CLINICAL_SUB_KINDS, { error: "CLINICAL_SUB_KIND_INVALID" }),
+  title: z
+    .string({ error: "CLINICAL_TITLE_REQUIRED" })
+    .trim()
+    .min(1, { error: "CLINICAL_TITLE_REQUIRED" }),
+  occurredAt,
+  details: optionalText,
+  performedBy: optionalText,
+  notes: optionalText,
+});
+
 export const recordEventInputSchema = z
   .discriminatedUnion("kind", [
     vaccination,
@@ -328,6 +442,10 @@ export const recordEventInputSchema = z
     medicationStart,
     medicationEnd,
     note,
+    microchip,
+    sterilization,
+    vetVisit,
+    clinicalInfo,
   ])
   .superRefine((input, ctx) => {
     if (input.kind !== "medication_start") return;

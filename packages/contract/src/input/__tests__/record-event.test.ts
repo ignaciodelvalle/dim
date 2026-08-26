@@ -191,3 +191,98 @@ describe("recordEventInputSchema — the shape it hands the caller", () => {
     });
   });
 });
+
+describe("recordEventInputSchema — the four WU-L kinds", () => {
+  it("accepts a minimal body for each, and names the one missing required field", () => {
+    expect(codeFor({ kind: "microchip", chipNumber: "982000123456789", occurredAt: A_DAY })).toBe(
+      null,
+    );
+    expect(codeFor({ kind: "microchip", chipNumber: "  ", occurredAt: A_DAY })).toBe(
+      "CHIP_NUMBER_REQUIRED",
+    );
+
+    expect(codeFor({ kind: "sterilization", procedure: "castration", occurredAt: A_DAY })).toBe(
+      null,
+    );
+    expect(codeFor({ kind: "sterilization", procedure: "spay", occurredAt: A_DAY })).toBe(null);
+
+    expect(codeFor({ kind: "vet_visit", reason: "Control anual", occurredAt: A_DAY })).toBe(null);
+    expect(codeFor({ kind: "vet_visit", reason: "", occurredAt: A_DAY })).toBe(
+      "VISIT_REASON_REQUIRED",
+    );
+
+    expect(
+      codeFor({
+        kind: "clinical_info",
+        subKind: "lab_work",
+        title: "Hemograma",
+        occurredAt: A_DAY,
+      }),
+    ).toBe(null);
+    expect(
+      codeFor({ kind: "clinical_info", subKind: "lab_work", title: " ", occurredAt: A_DAY }),
+    ).toBe("CLINICAL_TITLE_REQUIRED");
+  });
+
+  it("refuses a sterilization procedure the web's form does not offer", () => {
+    expect(codeFor({ kind: "sterilization", procedure: "neuter", occurredAt: A_DAY })).toBe(
+      "STERILIZATION_PROCEDURE_INVALID",
+    );
+  });
+
+  it("refuses the VET-ONLY clinical sub_kind, which is why the enum has five", () => {
+    // `disease_diagnosis` is a real `clinical_info_logged` sub_kind whose writer
+    // authorizes on a verified matrícula and checks no ownership at all. If this
+    // schema accepted it, an owner's bearer token could sign a professional's
+    // claim — the one exclusion in this file that is a SECURITY boundary rather
+    // than a copy of a form's options.
+    expect(
+      codeFor({
+        kind: "clinical_info",
+        subKind: "disease_diagnosis",
+        title: "Moquillo",
+        occurredAt: A_DAY,
+      }),
+    ).toBe("CLINICAL_SUB_KIND_INVALID");
+  });
+
+  it("holds all four to the same calendar as the six before them", () => {
+    for (const body of [
+      { kind: "microchip", chipNumber: "982000123456789" },
+      { kind: "sterilization", procedure: "castration" },
+      { kind: "vet_visit", reason: "Control" },
+      { kind: "clinical_info", subKind: "imaging", title: "Radiografía" },
+    ]) {
+      expect(codeFor({ ...body, occurredAt: "2026-02-31" })).toBe("OCCURRED_AT_INVALID");
+      expect(codeFor({ ...body, occurredAt: "" })).toBe("OCCURRED_AT_REQUIRED");
+    }
+  });
+
+  it("normalizes every unstated optional to null on the four as well", () => {
+    expect(
+      recordEventInputSchema.parse({
+        kind: "microchip",
+        chipNumber: "  982000123456789  ",
+        occurredAt: A_DAY,
+        implantedBy: "   ",
+      }),
+    ).toEqual({
+      kind: "microchip",
+      chipNumber: "982000123456789",
+      occurredAt: A_DAY,
+      countryCode: null,
+      implantedBy: null,
+      locationOnBody: null,
+      notes: null,
+    });
+  });
+
+  it("carries NO same-day override on the four — the web has no such gate for them", () => {
+    const parsed = recordEventInputSchema.parse({
+      kind: "sterilization",
+      procedure: "spay",
+      occurredAt: A_DAY,
+    });
+    expect(parsed).not.toHaveProperty("sameDayOverride");
+  });
+});
