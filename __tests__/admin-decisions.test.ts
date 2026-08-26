@@ -579,55 +579,77 @@ describe("scope enforcement — govt cannot decide out-of-scope requests", () =>
     // instead of testing a typo. Note jurisdiction-canonical.ts warns that the
     // province's own name is NOT the sentinel: "Mendoza" is itself a real
     // locality inside Mendoza.
-    await db.insert(govtAssignments).values({
-      userId: govtUserId,
-      jurisdictionProvince: "Mendoza",
-      jurisdictionLocality: WHOLE_PROVINCE_LOCALITY.Mendoza,
-      grantedByUserId: adminUserId,
-    });
-
-    // Create a fresh request in CABA — from an applicant NOBODY promoted.
-    // This used to reuse vetApplicantId, whom the first describe block turns
-    // into role='vet'; the submit then failed, an `if (!submit.ok) return`
-    // swallowed it, and the only assertion in this file's scope coverage never
-    // ran. A failed submit is now a FAILURE: without a pending request there is
-    // no out-of-scope decision to reject and the test proves nothing.
-    const submit = await requestVetUpgradeForUser(scopeApplicantId, {
-      matriculaNumber: "MN-OUT1000",
-      matriculaJurisdiccion: "CABA",
-      operationalProvince: "CABA",
-      operationalLocality: "Colegiales",
-    });
-    expect(submit.ok, "the scope test needs a real pending request to decide").toBe(true);
-
-    const [req] = await db
-      .select({ publicToken: approvalRequests.publicToken, id: approvalRequests.id })
-      .from(approvalRequests)
-      .where(
-        and(
-          eq(approvalRequests.applicantUserId, scopeApplicantId),
-          eq(approvalRequests.jurisdictionLocality, "Colegiales"),
-        ),
-      )
-      .limit(1);
-    expect(req, "the CABA/Colegiales request must exist before it can be denied").toBeDefined();
-
-    const result = await approveRequestForAuthority(govtUserId, req.publicToken, null);
-    expect("error" in result && result.error).toMatch(/permiso|jurisdicc/i);
-
-    // The denial is not just a message: the request must be UNTOUCHED — an
-    // out-of-scope authority that returns an error while still flipping the row
-    // would pass the assertion above.
-    const [row] = await db
-      .select({
-        status: approvalRequests.status,
-        decidedByUserId: approvalRequests.decidedByUserId,
+    // REVOKED IN A `finally`, NOT AT FILE TEARDOWN (2026-08-26).
+    //
+    // This row is scoped to the WHOLE of Mendoza, and Mendoza/Bowen is the
+    // jurisdiction two other suites use precisely because nothing covers it —
+    // `__tests__/_helpers/admin-fallback-jurisdiction.ts` names them. While this
+    // row is live, `findAuthoritiesForJurisdiction` is govt-first for Bowen too,
+    // so the admin fallback those suites assert cannot fire.
+    //
+    // It used to be cleaned only when this FILE tore down, which is fine right
+    // up until the worker dies first — and then the row outlives the run and
+    // three assertions in two unrelated files fail on every run afterwards,
+    // reporting a bare "expected 0" that points at neither this file nor this
+    // row. That happened, and it read as a flake for days. Scoping the fixture
+    // to the test that needs it does not survive a mid-test crash either, but it
+    // removes every ordinary way for the row to escape.
+    const [scopeAssignment] = await db
+      .insert(govtAssignments)
+      .values({
+        userId: govtUserId,
+        jurisdictionProvince: "Mendoza",
+        jurisdictionLocality: WHOLE_PROVINCE_LOCALITY.Mendoza,
+        grantedByUserId: adminUserId,
       })
-      .from(approvalRequests)
-      .where(eq(approvalRequests.id, req.id))
-      .limit(1);
-    expect(row.status).toBe("pending");
-    expect(row.decidedByUserId).toBeNull();
+      .returning({ id: govtAssignments.id });
+
+    try {
+      // Create a fresh request in CABA — from an applicant NOBODY promoted.
+      // This used to reuse vetApplicantId, whom the first describe block turns
+      // into role='vet'; the submit then failed, an `if (!submit.ok) return`
+      // swallowed it, and the only assertion in this file's scope coverage never
+      // ran. A failed submit is now a FAILURE: without a pending request there is
+      // no out-of-scope decision to reject and the test proves nothing.
+      const submit = await requestVetUpgradeForUser(scopeApplicantId, {
+        matriculaNumber: "MN-OUT1000",
+        matriculaJurisdiccion: "CABA",
+        operationalProvince: "CABA",
+        operationalLocality: "Colegiales",
+      });
+      expect(submit.ok, "the scope test needs a real pending request to decide").toBe(true);
+
+      const [req] = await db
+        .select({ publicToken: approvalRequests.publicToken, id: approvalRequests.id })
+        .from(approvalRequests)
+        .where(
+          and(
+            eq(approvalRequests.applicantUserId, scopeApplicantId),
+            eq(approvalRequests.jurisdictionLocality, "Colegiales"),
+          ),
+        )
+        .limit(1);
+      expect(req, "the CABA/Colegiales request must exist before it can be denied").toBeDefined();
+
+      const result = await approveRequestForAuthority(govtUserId, req.publicToken, null);
+      expect("error" in result && result.error).toMatch(/permiso|jurisdicc/i);
+
+      // The denial is not just a message: the request must be UNTOUCHED — an
+      // out-of-scope authority that returns an error while still flipping the row
+      // would pass the assertion above.
+      const [row] = await db
+        .select({
+          status: approvalRequests.status,
+          decidedByUserId: approvalRequests.decidedByUserId,
+        })
+        .from(approvalRequests)
+        .where(eq(approvalRequests.id, req.id))
+        .limit(1);
+      expect(row.status).toBe("pending");
+      expect(row.decidedByUserId).toBeNull();
+    } finally {
+      await db.delete(govtAssignments).where(eq(govtAssignments.id, scopeAssignment.id));
+    }
   });
 });
 

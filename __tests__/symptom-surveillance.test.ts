@@ -16,6 +16,10 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { db, notifications, ownerships, petEvents, pets, profiles } from "@/db";
 import { createSymptomObservedWriter } from "@/src/modules/events/application/writers";
+import {
+  ADMIN_FALLBACK_JURISDICTION,
+  assertAdminFallbackAvailable,
+} from "./_helpers/admin-fallback-jurisdiction";
 import { withMutationOverride } from "./_helpers/db-overrides";
 
 const SUPABASE_URL = "http://127.0.0.1:54321";
@@ -37,16 +41,23 @@ let adminUserId: string;
 
 const insertedPetIds: string[] = [];
 
-// Deliberately OUTSIDE the East region. This suite covers the ADMIN-FALLBACK
-// path — "no govt seeded for this locality" — so it needs a jurisdiction no
-// govt operator holds. It used to sit on CABA/Belgrano, which worked only while
-// Lucas held 5 barrios and Belgrano was not one of them. Lucas now coordinates
-// the whole East region (seed-demo GOVT_ASSIGNMENTS), so CABA has a govt, the
-// signal routes to him, and the fallback never fires — the test's premise, not
-// the code, is what broke. Mendoza has no seeded govt; if that ever changes,
-// move this again rather than deleting the assertion.
-const TEST_PROVINCE = "Mendoza";
-const TEST_LOCALITY = "Bowen";
+// This suite covers the ADMIN-FALLBACK path — "no govt seeded for this
+// locality" — so it needs a jurisdiction no govt operator holds.
+//
+// THE JURISDICTION AND THE REASON BOTH MOVED TO A SHARED HELPER (2026-08-26).
+// `role-upgrade.test.ts` depends on the identical premise and used to carry its
+// own copy of this paragraph and its own `"Mendoza"` / `"Bowen"` literals — two
+// files silently coupled through the database, each free to drift onto a
+// different locality and lose the reason the other picked it.
+//
+// More importantly the premise is now CHECKED rather than hoped for. It broke
+// twice: once when the demo seed gave Lucas the whole East region, and once when
+// a whole-province Mendoza fixture leaked out of `admin-decisions.test.ts` after
+// a worker died before its teardown. The second time cost three assertions
+// across two files, failing together for days as "flakes", because the symptom
+// — `expected 0 to be greater than or equal to 1` on a notification count —
+// names nothing that would lead anyone to a row left behind by another file.
+const { province: TEST_PROVINCE, locality: TEST_LOCALITY } = ADMIN_FALLBACK_JURISDICTION;
 
 // ---------------------------------------------------------------------------
 // Cleanup helpers
@@ -105,6 +116,12 @@ async function insertTestPet(ownerUid: string, tokenSuffix: string) {
 // ---------------------------------------------------------------------------
 
 beforeAll(async () => {
+  // The premise, checked before anything is built on it. Without this, a govt
+  // assignment covering Mendoza/Bowen — usually one leaked by another file —
+  // turns the rabies assertion below into a bare "expected 0", which names
+  // neither the cause nor the file that caused it.
+  await assertAdminFallbackAvailable();
+
   await purgeUserByEmail(OWNER_EMAIL);
   await purgeUserByEmail(ADMIN_EMAIL);
 
