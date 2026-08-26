@@ -95,8 +95,14 @@ export const V1_ROUTE_GLOB = "app/api/v1/**/route.ts";
  * opens while adding a route will keep drifting. Until the floor is derived (a
  * committed manifest of route paths would do it, and would also catch a rename),
  * RAISING IT IS PART OF ADDING A ROUTE. A floor nobody raises stops being one.
+ *
+ * FIFTEEN with compartir (`pets/{token}/shares`), raised in the same commit that
+ * added the route — which is the whole instruction above, followed for once
+ * without a paragraph having to be written about it afterwards. The count was
+ * 14 against a surface of 14 when this landed, so the two paragraphs of drift
+ * recorded above had been closed and stayed closed.
  */
-export const MIN_V1_ROUTE_FILES = 14;
+export const MIN_V1_ROUTE_FILES = 15;
 
 export const HELPER_MODULE = "@/lib/infra/api-v1";
 
