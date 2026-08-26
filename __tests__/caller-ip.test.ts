@@ -5,9 +5,17 @@
 // An attacker can rotate it to get a fresh rate-limit bucket per request.
 //
 // Trust order (Vercel / standard reverse proxy):
-//   1. x-real-ip  — edge-set, not forwarded from client, always trusted.
-//   2. last segment of x-forwarded-for — edge-appended hop, trusted.
+//   1. x-real-ip  — edge-set, not forwarded from the client. MEASURED on Vercel
+//      2026-08-26; an origin with no rewriting proxy believes whatever arrives.
+//   2. last segment of x-forwarded-for — assumed edge-appended. UNMEASURED.
 //   3. "unknown"  — no proxy headers (local dev / direct invocation).
+//
+// WHAT THESE TESTS CAN AND CANNOT PIN. They pin the PARSING — last non-empty
+// segment, never the first, x-real-ip outranking both. They cannot pin what a
+// CDN writes into either header; that is a live-origin measurement, and both its
+// result and the run still owed for source 2 are documented in
+// lib/infra/rate-limit.ts above callerIp(). A green file here is not evidence
+// that a header is trustworthy.
 
 import { describe, expect, it } from "vitest";
 

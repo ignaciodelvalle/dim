@@ -47,11 +47,16 @@ export function emailRateLimitKey(email: string): string {
 //   be "1.2.3.4" — a value the attacker chose, giving them a fresh rate-limit
 //   bucket per request. This defeats every IP-keyed rate limit.
 //
-// TRUSTED SOURCES (Vercel / nginx / typical CDN):
-//   1. x-real-ip  — overwritten by the edge on every request. Preferred.
+// SOURCES IN PRIORITY ORDER (Vercel / nginx / typical CDN), each labelled with
+// how much is actually KNOWN about it rather than assumed:
+//   1. x-real-ip  — overwritten by the edge. Preferred. MEASURED on Vercel, on
+//      two /api/v1 routes, on one day (see below); NOT verified request-shape by
+//      request-shape, nor on any other host. Behind no edge at all it is simply
+//      believed — which is the whole of the local story below.
 //   2. LAST segment of x-forwarded-for  — the edge appends the real observed
 //      source IP as the rightmost hop. Prior hops may be spoofed; the last is
-//      edge-appended and trustworthy.
+//      *assumed* edge-appended and trustworthy. THIS ONE IS UNVERIFIED — see
+//      "SOURCE 2 IS NOT MEASURED" below before relying on it.
 //   3. "unknown" — local dev / direct invocation with no proxy headers.
 //
 // ===========================================================================
@@ -103,9 +108,15 @@ export function emailRateLimitKey(email: string): string {
 //     to substitute inside the single-quoted `sh -c` string, so 80 genuinely
 //     distinct headers went out.
 //
-// CONCLUSION: a client-supplied x-real-ip does NOT reach this function on
-// Vercel. The edge overwrites it. The per-IP ceilings are real and source 1 is
-// safe to prefer.
+// CONCLUSION, AND ITS EXACT SCOPE: a client-supplied x-real-ip did not reach
+// this function on 2026-08-26, on dim-staging.vercel.app, on the two /api/v1
+// routes fired. That is a Vercel-edge property, and it is the one every per-IP
+// ceiling in this repo is deployed behind — so source 1 is safe to prefer THERE.
+// It is not a property of the header, of HTTP, or of any other host: an origin
+// with no rewriting proxy in front of it believes whatever arrives (that is why
+// the local probe and the e2e uniqueIp() device still work, and why such an
+// origin must never be exposed). Read "on every request" as "on every request
+// through that edge", not as a universal law nobody measured.
 //
 // HOW TO RE-TEST IT, because this is a PLATFORM property and platforms change.
 // The shape is the three steps above and the middle one is not optional — a run
@@ -114,8 +125,38 @@ export function emailRateLimitKey(email: string): string {
 // with a well-formed invalid bearer, once with a fixed x-real-ip (expect 429s
 // after `ceiling` responses) and once with a rotated one (expect the SAME
 // result). Two different results would mean the header is believed, and every
-// per-IP ceiling in this repo would have to be re-keyed onto the last segment of
-// x-forwarded-for that day.
+// per-IP ceiling in this repo would need re-keying that day — but NOT blindly
+// onto source 2, for the reason immediately below.
+//
+// ===========================================================================
+// SOURCE 2 IS NOT MEASURED. It is a platform assertion, of the genre that has
+// now been wrong twice in this repo.
+// ===========================================================================
+// "The edge appends the real observed source IP as the rightmost x-forwarded-for
+// hop" is exactly the shape of claim that the paragraph above had to retract:
+// confident, plausible, borrowed from how proxies are generally described, and
+// never fired at a live origin. It is not tested here and it has never been
+// tested against Vercel. `__tests__/caller-ip.test.ts` pins the PARSING (last
+// non-empty segment, never the first) — parsing is all it can pin; a unit test
+// cannot tell you what a CDN writes.
+//
+// Nothing reaches source 2 on Vercel today, which is precisely why nobody has
+// noticed: source 1 is always present there, so this branch is dead code in
+// production and live only for local dev, direct invocation and hosts that set
+// XFF but not x-real-ip.
+//
+// WHAT WOULD HAVE TO BE MEASURED before anyone re-keys onto it. The same
+// three-step shape, with the roles swapped: on the target platform, with
+// x-real-ip ABSENT from the resolver's priority (or an origin that does not set
+// it), fire N > ceiling concurrent requests with a well-formed invalid bearer —
+// once sending NO x-forwarded-for, once sending a client-chosen ROTATED XFF of
+// several segments. If the rotated arm produces no 429 while the control does,
+// the edge is APPENDING to the client's list and the last segment is whatever
+// the client put last: source 2 would then be client-controlled and unusable as
+// a rate-limit key. Only the opposite result — the same ceiling in both arms —
+// licenses the sentence above. Until that run exists, treat source 2 as a
+// best-effort fallback for non-hostile environments, never as a security
+// boundary.
 //
 // A NOTE ON WHAT THE MEASUREMENT ALSO SETTLED, because it is cited elsewhere:
 // the bearer SHAPE check precedes the limiter on every `/api/v1` route, so a
@@ -138,8 +179,10 @@ export interface HeaderGetter {
  * Returns the trusted caller IP from the request headers.
  *
  * Priority:
- *   1. x-real-ip (edge-overwritten; measured not spoofable — see above)
- *   2. last non-empty segment of x-forwarded-for (edge-appended hop)
+ *   1. x-real-ip (measured not spoofable THROUGH VERCEL'S EDGE, 2026-08-26;
+ *      believed as sent by an origin with no rewriting proxy — see above)
+ *   2. last non-empty segment of x-forwarded-for (assumed edge-appended;
+ *      UNVERIFIED — see "SOURCE 2 IS NOT MEASURED" above)
  *   3. "unknown"
  */
 export function callerIp(hdrs: HeaderGetter): string {
@@ -153,9 +196,12 @@ export function callerIp(hdrs: HeaderGetter): string {
   const realIp = hdrs.get("x-real-ip")?.trim();
   if (realIp) return realIp;
 
-  // 2. Last segment of x-forwarded-for — the edge appends the observed source
-  //    IP as the rightmost entry. DO NOT take the first segment: it is set by
-  //    the client and can be freely spoofed to bypass per-IP rate limits.
+  // 2. Last segment of x-forwarded-for — on the assumption that the edge
+  //    appends the observed source IP as the rightmost entry. UNMEASURED: see
+  //    the block above for what would have to be fired to earn that sentence.
+  //    Unreachable on Vercel (source 1 always answers there), so this is the
+  //    non-Vercel / no-edge path. DO NOT take the first segment either way: it
+  //    is set by the client and can be freely spoofed to bypass per-IP limits.
   const xff = hdrs.get("x-forwarded-for");
   if (xff) {
     const segments = xff.split(",");
