@@ -3,6 +3,11 @@
 // The spec mandates a test proving:
 //   1. note action uses requirePetAccess (allows non-alive pets), NOT requireAlivePetAccess.
 //   2. microchip and dangerous-breed-attestation actions use requireAlivePetAccess.
+//   3. (2026-08-26) note action ALSO checks the org `event.write` capability by
+//      hand — `requirePetAccess` checks none, and the org ficha had been gating
+//      its note form on that capability while both writers behind it accepted
+//      the write. PO ratified the gate as the rule; the guard-name assertion in
+//      (1) is no longer the whole rule and would read as if it were.
 //
 // These are unit tests over the use-case layer: they verify the use-case does NOT
 // gate on pet status (that's the action's responsibility) — the use-case processes
@@ -105,6 +110,26 @@ describe("note auth-parity", () => {
     const body = extractActionBody(ACTIONS_SRC, "createNoteAction");
     expect(body).toMatch(/\brequirePetAccess\s*\(/);
     expect(body).not.toMatch(/\brequireAlivePetAccess\s*\(/);
+  });
+
+  it("createNoteAction ALSO checks the org event.write capability (PO decision 2026-08-26)", () => {
+    // The assertion above is only half the rule now, and on its own it reads
+    // like the whole one. `requirePetAccess` checks NEITHER life status nor the
+    // org capability; the note writer used to inherit both gaps, and the org
+    // ficha had been gating its note form on `event.write` the whole time. The
+    // PO ratified the gate as the rule, so the edge asks for itself.
+    //
+    // A SOURCE SCAN AND NOT A BEHAVIOUR TEST, deliberately, for the same reason
+    // the guard-name assertion above is one: this file's subject is which rule
+    // the ACTION EDGE applies, and the behaviour is exercised where the mocks
+    // live (src/modules/events/__tests__/actions-parity.test.ts, and the bearer
+    // door's own __tests__/api-v1-record-event-route.test.ts).
+    const body = extractActionBody(ACTIONS_SRC, "createNoteAction");
+    expect(body).toMatch(/\bgetGrantedCapabilities\s*\(/);
+    expect(body).toMatch(/"event\.write"/);
+    // The deceased half is NOT closed and must not be: a memorial note is the
+    // one thing a grieving owner may still write. Proved by the absence of the
+    // alive guard above, and by the deceased-pet use-case test at the top.
   });
 });
 

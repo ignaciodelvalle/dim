@@ -2,11 +2,17 @@
 //
 // WHAT THIS FILE HAS TO PROVE
 // ---------------------------------------------------------------------------
-//   1. THE GUARD IS NOT UNIFORM, and the asymmetry is the web's. Every kind but
-//      one mirrors `requireAlivePetAccess` (deceased refuses, org path needs
-//      `event.write`); NOTA mirrors `requirePetAccess` (neither). An endpoint
-//      that tidied them into one rule would silently take a memorial note
-//      away from a grieving owner, and no typechecker would notice.
+//   1. THE GUARD IS NOT UNIFORM, and the asymmetry is the web's. Every kind
+//      refuses an org-path caller without `event.write`; every kind but NOTA
+//      also refuses a DECEASED animal. An endpoint that tidied them into one
+//      rule would silently take a memorial note away from a grieving owner, and
+//      no typechecker would notice.
+//
+//      THE CAPABILITY HALF USED TO BE ASYMMETRIC TOO and stopped being on
+//      2026-08-26, by PO decision: `createNoteAction` guards with
+//      `requirePetAccess`, which checks no capability, so a nota was the one
+//      kind an org member could write without the permission the org ficha had
+//      already refused them. The gate is the rule; both doors now ask.
 //   2. THE SERVER OWNS THE CALENDAR AND THE SCHEDULE. `occurredAt` is anchored
 //      and checked against the ANIMAL's record; a medication's dose times are
 //      generated here, never taken off the wire.
@@ -288,11 +294,60 @@ describe("POST .../events — the guard is the web's, and it is not uniform", ()
     expect(control.writes).toEqual([]);
   });
 
-  it("ACCEPTS a nota from an org member without event.write — no capability gate on the web", async () => {
+  // FLIPPED 2026-08-26 (PO decision — a ratified behaviour change). This used
+  // to read "ACCEPTS a nota from an org member without event.write — no
+  // capability gate on the web", and it was an accurate description of a bug:
+  // the org ficha gated the note form on `event.write`, and neither writer
+  // behind it asked. The gate is the rule, so the acceptance became a refusal
+  // on both doors in the same commit.
+  it("refuses a nota for an org member without event.write — the ficha's gate IS the rule", async () => {
     control.access = orgAccess();
     control.capabilities = new Set();
     const response = await call(A_NOTE);
+    expect(response.status).toBe(403);
+    expect(await response.json()).toEqual({ error: "event_forbidden" });
+    expect(control.writes).toEqual([]);
+  });
+
+  it("ADMITS a nota from an org member WITH event.write", async () => {
+    control.access = orgAccess();
+    const response = await call(A_NOTE);
     expect(response.status).toBe(201);
+    expect(control.writes.map((w) => w.kind)).toEqual(["note"]);
+  });
+
+  it("refuses a nota for an org member without event.write EVEN on a deceased animal", async () => {
+    // The two halves of the guard are independent and answer different
+    // questions. The animal's closed record still accepts a memorial note; this
+    // caller is refused for who they are, and the 403 must not be swallowed by
+    // the nota's deceased exemption sitting in front of it.
+    control.access = orgAccess({ pet: petRow({ status: "deceased" }) });
+    control.capabilities = new Set();
+    const response = await call(A_NOTE);
+    expect(response.status).toBe(403);
+    expect(await response.json()).toEqual({ error: "event_forbidden" });
+    expect(control.writes).toEqual([]);
+  });
+
+  it("ACCEPTS a nota on a deceased animal from an org member WITH event.write", async () => {
+    // The memorial note survives the capability change on the ORG path too: a
+    // shelter that held the animal when it died may still write one.
+    control.access = orgAccess({ pet: petRow({ status: "deceased" }) });
+    const response = await call(A_NOTE);
+    expect(response.status).toBe(201);
+    expect(control.writes.map((w) => w.kind)).toEqual(["note"]);
+  });
+
+  it("still ACCEPTS a nota from a person-path CARETAKER — capabilities are an org vocabulary", async () => {
+    // `requirePetAccess` is role-agnostic on the person path and the PO's
+    // decision was about the ORG path. A caretaker holds no membership, so
+    // there is no capability to hold; refusing them here would be a second,
+    // unratified behaviour change.
+    control.access = () => ({ kind: "owner", pet: petRow(), holderRole: "caretaker" });
+    control.capabilities = new Set();
+    const response = await call(A_NOTE);
+    expect(response.status).toBe(201);
+    expect(control.writes.map((w) => w.kind)).toEqual(["note"]);
   });
 
   it("ADMITS an org member WITH event.write, mirroring the web's own guard", async () => {

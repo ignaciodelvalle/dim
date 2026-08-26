@@ -7,10 +7,21 @@
 // These are THIN redirect adapters over the shared event actions in
 // src/modules/events/actions.ts. The PET write is authorized downstream:
 // requireAlivePetAccess / requirePetAccess (lib/infra/pet-access.ts) accept an
-// active org custody row and, for writes, enforce the `event.write` capability
-// server-side (defense in depth behind the UI gate on the ficha). Provenance
-// (#43) is stamped there too: matriculated signer → vet/verified, otherwise
-// shelter/org_registered.
+// active org custody row, and the `event.write` capability is enforced
+// server-side behind the UI gate on the ficha. Provenance (#43) is stamped
+// there too: matriculated signer → vet/verified, otherwise shelter/org_registered.
+//
+// UNTIL 2026-08-26 THAT SENTENCE WAS TRUE OF TWO OF THESE THREE. The capability
+// lives in `requireAlivePetAccess`, and the note wrapper's target guards with
+// `requirePetAccess`, which checks none — so `orgRecordNoteAction` checked
+// `event.write` here and `createNoteAction` did not check it anywhere. That
+// made THIS wrapper the only thing standing between an ungated member and a
+// note, and a wrapper is not a boundary: a "use server" export is addressable
+// on its own, so calling `createNoteAction` directly walked around it. The PO
+// ratified the ficha's gate as the rule and the check moved INTO
+// `createNoteAction`. The call below is now belt and braces, kept because it
+// refuses before the org token is even resolved and because lint:authz reads
+// these bodies for a guard name.
 //
 // The ONLY thing these wrappers change is the success redirect: the shared
 // actions land on the OWNER cockpit (/mis-mascotas/...), which is the wrong

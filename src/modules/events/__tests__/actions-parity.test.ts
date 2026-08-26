@@ -17,6 +17,13 @@
 //     sameDayPrompt (no insert, no upload) when a same-calendar-day event of
 //     the same type already exists and sameDayOverride is not set; the
 //     override flag skips the check and proceeds to the use-case.
+//   - 2026-08-26 (PO decision, a ratified BEHAVIOUR change): createNoteAction
+//     refuses an ORG-path caller without the `event.write` capability. Not a
+//     plausibility rule and it lives here anyway, because this is the one file
+//     that already holds the mock harness for the actions edge — and because
+//     the rule is a PARITY rule, which is this file's subject: the bearer door
+//     (app/api/v1/pets/[publicToken]/events/writers.ts) enforces the same one,
+//     and its half is proved in __tests__/api-v1-record-event-route.test.ts.
 
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -47,6 +54,15 @@ const mockRequirePetAccess = vi.hoisted(() => vi.fn());
 vi.mock("@/lib/infra/pet-access", () => ({
   requireAlivePetAccess: mockRequireAlivePetAccess,
   requirePetAccess: mockRequirePetAccess,
+}));
+
+// The org capability vocabulary. `createNoteAction` reads it directly since the
+// PO decision of 2026-08-26 — see the note-gate describe block at the bottom.
+const mockGetGrantedCapabilities = vi.hoisted(() =>
+  vi.fn().mockResolvedValue(new Set(["event.write"])),
+);
+vi.mock("@/src/modules/organizations/infrastructure/authz-resolver", () => ({
+  getGrantedCapabilities: mockGetGrantedCapabilities,
 }));
 
 vi.mock("@/lib/infra/auth-guards", () => ({
@@ -198,8 +214,11 @@ vi.mock("../application/identity/dangerous-breed-attestation-use-case", () => ({
     .fn()
     .mockResolvedValue({ ok: true, value: {}, notifications: [] }),
 }));
+const mockCreateNote = vi.hoisted(() =>
+  vi.fn().mockResolvedValue({ ok: true, value: {}, notifications: [] }),
+);
 vi.mock("../application/identity/note-use-case", () => ({
-  createNote: vi.fn().mockResolvedValue({ ok: true, value: {}, notifications: [] }),
+  createNote: mockCreateNote,
 }));
 vi.mock("../application/clinical/vet-visit-use-case", () => ({
   createVetVisit: vi.fn().mockResolvedValue({ ok: true, value: {}, notifications: [] }),
@@ -517,5 +536,158 @@ describe("events/actions.ts — P4 plausibility layer", () => {
       expect(rejected.error).toBe("La fecha no puede ser futura.");
       expect(mockCreateSymptomObservedWriter).not.toHaveBeenCalled();
     });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// THE ORG GATE OVER NOTES — PO decision 2026-08-26, a ratified behaviour change.
+//
+// The org pet ficha has always gated its note form on the `event.write`
+// capability, and `createNoteAction` — which is what the form posts to, and
+// which is addressable on its own because it is a "use server" export — checked
+// nothing: `requirePetAccess` resolves WHO holds the animal and asks the
+// capability question of nobody. So a member of a holding organization without
+// `event.write` was refused the form and accepted by the writer behind it.
+//
+// The gate is the rule. These four tests are the rule, one per door position:
+// refused without, admitted with, person path untouched, deceased untouched.
+// ---------------------------------------------------------------------------
+
+const CAPABILITY_REFUSAL =
+  "Necesitás el permiso 'Registrar eventos clínicos' (event.write). Pediselo a un administrador.";
+
+function makeOrgAccess(overrides?: Partial<typeof BASE_PET>) {
+  return {
+    ok: true as const,
+    supabase: { storage: { from: vi.fn().mockReturnValue({ remove: vi.fn() }) } },
+    user: { id: "user-1" },
+    pet: { ...BASE_PET, ...overrides },
+    eventAuthorship: {
+      authorRole: "shelter",
+      authorOrganizationId: "org-1",
+      authorVerified: false,
+    },
+    accessPath: "org",
+    organization: { id: "org-1" },
+    membership: { id: "membership-1", role: "member" },
+    holderRole: null,
+  };
+}
+
+function makePersonAccess(holderRole: string, overrides?: Partial<typeof BASE_PET>) {
+  return {
+    ok: true as const,
+    supabase: { storage: { from: vi.fn().mockReturnValue({ remove: vi.fn() }) } },
+    user: { id: "user-1" },
+    pet: { ...BASE_PET, ...overrides },
+    eventAuthorship: { authorRole: "owner", authorOrganizationId: null, authorVerified: false },
+    accessPath: "owner",
+    organization: null,
+    // The org path is what carries a membership; a person holds none, which is
+    // exactly why there is no capability to ask about below.
+    membership: null,
+    holderRole,
+  };
+}
+
+function noteFormData(overrides?: Record<string, string>): FormData {
+  const fd = new FormData();
+  fd.set("text", "Comió bien toda la semana.");
+  fd.set("occurredAt", "2026-07-08");
+  for (const [k, v] of Object.entries(overrides ?? {})) fd.set(k, v);
+  return fd;
+}
+
+describe("createNoteAction — the org ficha's event.write gate IS the rule", () => {
+  let createNoteAction: typeof import("../actions").createNoteAction;
+
+  beforeEach(async () => {
+    vi.clearAllMocks();
+    mockUploadAttachmentIfPresent.mockResolvedValue({
+      uploadedPath: null,
+      mimeType: null,
+      size: null,
+      error: null,
+    });
+    mockGetGrantedCapabilities.mockResolvedValue(new Set(["event.write"]));
+    mockCreateNote.mockResolvedValue({ ok: true, value: {}, notifications: [] });
+    createNoteAction = (await import("../actions")).createNoteAction;
+  });
+
+  it("REFUSES an org member without event.write, naming the capability", async () => {
+    mockRequirePetAccess.mockResolvedValue(makeOrgAccess());
+    mockGetGrantedCapabilities.mockResolvedValue(new Set());
+
+    const result = await createNoteAction("DIM-TEST-0001", { error: null }, noteFormData());
+
+    expect(result.error).toBe(CAPABILITY_REFUSAL);
+    // NOTHING IS WRITTEN, and nothing is uploaded either: the guard runs before
+    // the attachment leaves the request, so a refusal leaves no orphan in
+    // storage to clean up.
+    expect(mockCreateNote).not.toHaveBeenCalled();
+    expect(mockUploadAttachmentIfPresent).not.toHaveBeenCalled();
+  });
+
+  it("ADMITS an org member WITH event.write", async () => {
+    mockRequirePetAccess.mockResolvedValue(makeOrgAccess());
+
+    const result = await createNoteAction("DIM-TEST-0001", { error: null }, noteFormData());
+
+    expect(result.error).toBeNull();
+    expect(result.ok).toBe(true);
+    expect(mockCreateNote).toHaveBeenCalledOnce();
+    expect(mockGetGrantedCapabilities).toHaveBeenCalledWith({
+      id: "membership-1",
+      role: "member",
+    });
+  });
+
+  it("REFUSES an org member without event.write even on a DECEASED animal", async () => {
+    // The two halves of the guard answer different questions and neither may
+    // swallow the other. The memorial-note exemption is about the ANIMAL; this
+    // caller is refused for who they are.
+    mockRequirePetAccess.mockResolvedValue(makeOrgAccess({ status: "deceased" }));
+    mockGetGrantedCapabilities.mockResolvedValue(new Set());
+
+    const result = await createNoteAction("DIM-TEST-0001", { error: null }, noteFormData());
+
+    expect(result.error).toBe(CAPABILITY_REFUSAL);
+    expect(mockCreateNote).not.toHaveBeenCalled();
+  });
+
+  it("still ACCEPTS a memorial note on a DECEASED animal from an org member WITH it", async () => {
+    // `requireAlivePetAccess` is still NOT the guard here, and that is the half
+    // of the parity quirk the PO deliberately left alone: a shelter that held
+    // the animal when it died may still write into its libreta.
+    mockRequirePetAccess.mockResolvedValue(makeOrgAccess({ status: "deceased" }));
+
+    const result = await createNoteAction("DIM-TEST-0001", { error: null }, noteFormData());
+
+    expect(result.error).toBeNull();
+    expect(mockCreateNote).toHaveBeenCalledOnce();
+  });
+
+  it("never asks the capability question on the PERSON path — a caretaker still writes", async () => {
+    // Capabilities are an ORGANIZATION's vocabulary. A caretaker holds an
+    // ownership row and no membership, so there is nothing to grant them; the
+    // PO's decision was about the org path and this one must not drift with it.
+    mockRequirePetAccess.mockResolvedValue(makePersonAccess("caretaker"));
+    mockGetGrantedCapabilities.mockResolvedValue(new Set());
+
+    const result = await createNoteAction("DIM-TEST-0001", { error: null }, noteFormData());
+
+    expect(result.error).toBeNull();
+    expect(mockCreateNote).toHaveBeenCalledOnce();
+    expect(mockGetGrantedCapabilities).not.toHaveBeenCalled();
+  });
+
+  it("still ACCEPTS a memorial note on a DECEASED animal from the person path", async () => {
+    mockRequirePetAccess.mockResolvedValue(makePersonAccess("owner", { status: "deceased" }));
+
+    const result = await createNoteAction("DIM-TEST-0001", { error: null }, noteFormData());
+
+    expect(result.error).toBeNull();
+    expect(mockCreateNote).toHaveBeenCalledOnce();
+    expect(mockGetGrantedCapabilities).not.toHaveBeenCalled();
   });
 });

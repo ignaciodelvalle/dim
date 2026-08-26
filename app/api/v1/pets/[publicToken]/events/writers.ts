@@ -32,20 +32,33 @@
 //   · Never on a DECEASED animal: a closed life record accepts no new clinical
 //     events.
 //
-// THE ELEVENTH — NOTA (`createNoteAction`, actions.ts:251) — IS GUARDED BY
-// `requirePetAccess`, and the difference is deliberate on the web, marked there
-// with a `PARITY:` comment that says so in as many words. A note needs NO
-// capability on the org path and is accepted on a DECEASED animal. That second
-// half is the one worth stating out loud: a memorial note is the one thing a
-// grieving owner may still write into the libreta, and an endpoint that "tidied
-// up" the eleven into one guard would take it away. Mirrored exactly, asymmetry
-// included, because the server actions are themselves addressable endpoints —
-// narrowing here would not close anything, it would only make the two doors
-// disagree.
+// THE ELEVENTH — NOTA (`createNoteAction`, actions.ts:257) — IS GUARDED BY
+// `requirePetAccess` PLUS AN ORG CAPABILITY CHECK THE ACTION PERFORMS ITSELF,
+// and the asymmetry that remains is now HALF of what it used to be.
 //
-// The asymmetry is enforced BY CONSTRUCTION rather than by resemblance: both
-// doors resolve through one query (`resolvePetHolderAccess`), and the only
-// branch below is the `kind === "note"` early return in `checkWriteGuard`.
+// It used to be both halves. `requirePetAccess` checks neither capability nor
+// life status, so a nota needed no `event.write` on the org path AND was
+// accepted on a deceased animal, and this file mirrored both — on the grounds
+// that the server actions are themselves addressable endpoints, so narrowing
+// here would only make the two doors disagree. That reasoning was right about
+// the doors and wrong about which way to resolve it: the org ficha has always
+// GATED the note form on `event.write`, and the two writers behind it (the
+// action and this route) both let an ungated member through. The PO ratified
+// the gate as the rule on 2026-08-26, so BOTH doors close, in the same commit,
+// rather than one of them narrowing alone.
+//
+// WHAT SURVIVES, AND IT IS THE HALF THAT MATTERED: a nota is still accepted on
+// a DECEASED animal, on both doors. A memorial note is the one thing a grieving
+// owner may still write into the libreta, and an endpoint that "tidied up" the
+// eleven into one guard would take it away. The PO ratified a rule about the
+// CALLER; the closed life record is a fact about the ANIMAL, and widening that
+// would be a second, unratified behaviour change.
+//
+// The remaining asymmetry is enforced BY CONSTRUCTION rather than by
+// resemblance: both doors resolve through one query
+// (`resolvePetHolderAccess`), and the only branch below is the
+// `kind === "note"` early return in `checkWriteGuard` — which now sits AFTER
+// the capability check rather than in front of it.
 //
 // SÍNTOMA IS THE ONE WHOSE WRITE LEAVES THE ANIMAL'S OWN RECORD
 // ---------------------------------------------------------------------------
@@ -331,22 +344,34 @@ export async function writeEvent(ctx: WriteContext) {
  * `null` means "write it". Both refusals are named by WHOSE fact they are: the
  * closed life record is about the ANIMAL (409, and nothing the caller can
  * retry or reword), the missing capability is about the CALLER (403).
+ *
+ * THE ORDER OF THE TWO CHECKS IS THE RULE, and it changed on 2026-08-26. The
+ * caller-side check now runs FIRST and applies to all eleven kinds; only the
+ * animal-side one is skipped for a nota. Written this way rather than as a
+ * second `kind === "note"` branch inside the org arm because the asymmetry is
+ * now exactly one line long, and a reader can see which half of the guard the
+ * nota is exempt from without holding two conditions in their head.
  */
 async function checkWriteGuard(
   access: Exclude<PetHolderAccess, { kind: "none" }>,
   kind: RecordEventInput["kind"],
 ) {
-  // `createNoteAction` guards with `requirePetAccess`, which has neither of the
-  // two checks below. Any holder — person path or org path, capability or not —
-  // may write a note, and a deceased animal still accepts one.
-  if (kind === "note") return null;
-
-  if (access.pet.status === "deceased") return apiV1Error("event_not_allowed", 409);
-
+  // ABOUT THE CALLER — every kind, nota included since the PO ratified the org
+  // ficha's gate as the rule (2026-08-26). `createNoteAction` performs this
+  // same check at the cookie door, so the two still agree by construction.
   if (access.kind === "org") {
     const granted = await getGrantedCapabilities(access.membership);
     if (!granted.has("event.write")) return apiV1Error("event_forbidden", 403);
   }
+
+  // ABOUT THE ANIMAL — and the nota is still exempt, on BOTH doors. A closed
+  // life record refuses clinical facts; a memorial note is the one thing a
+  // grieving owner (or the shelter that held the animal when it died) may still
+  // write. `createNoteAction` still guards with `requirePetAccess` and not the
+  // alive variant, which is what keeps this line honest.
+  if (kind === "note") return null;
+
+  if (access.pet.status === "deceased") return apiV1Error("event_not_allowed", 409);
 
   return null;
 }

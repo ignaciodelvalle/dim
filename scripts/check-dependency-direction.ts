@@ -103,6 +103,16 @@ export const ALLOWED_EDGES = new Set<string>([
   // read from there rather than copied (one definition of the spine match).
   // adoption imports nothing from transfers, so the graph stays acyclic.
   "transfers:adoption",
+  // THE ORG GATE OVER NOTES (PO decision 2026-08-26). `createNoteAction` now
+  // refuses an org-path caller without `event.write`, and the vocabulary for
+  // that question — `getGrantedCapabilities` — lives in `organizations`, the
+  // same shared kernel adoption/foster/transfers/surveillance/rehome/search
+  // already read it from. Not a new KIND of coupling: `lib/infra/pet-access.ts`
+  // has asked organizations the same question for every clinical writer since
+  // requireAlivePetAccess existed; the note is the one writer that skipped it,
+  // and closing that made the existing dependency visible to this fence.
+  // organizations imports from no module, so the graph stays acyclic.
+  "events:organizations",
 ]);
 
 // All module names (directory names under src/modules/).

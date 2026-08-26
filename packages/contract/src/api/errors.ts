@@ -215,14 +215,19 @@
  * same split the correction codes made and for the same reason; the two date
  * refusals are split because the person's next move differs.
  *
- * - `event_forbidden`   — the CALLER holds this pet but may not write clinical
- *                         events on it: an organization member without
- *                         `event.write`. 403, and the web says the same words.
- *                         NOTE the asymmetry the web has and this mirrors: a
- *                         NOTA needs no capability, because `createNoteAction`
- *                         guards with `requirePetAccess` and not the alive
- *                         variant. An endpoint that demanded it for all six
- *                         would be narrower than the door beside it.
+ * - `event_forbidden`   — the CALLER holds this pet but may not write events on
+ *                         it: an organization member without `event.write`.
+ *                         403, and the web says the same words.
+ *                         ALL ELEVEN KINDS, NOTA INCLUDED, since the PO
+ *                         ratified the org ficha's `event.write` gate as the
+ *                         rule (2026-08-26). It used to exempt the nota,
+ *                         because `createNoteAction` guards with
+ *                         `requirePetAccess` and that helper checks no
+ *                         capability — so the UI refused the form and both
+ *                         writers behind it accepted the write. Closing it
+ *                         moved the boundary into `createNoteAction` itself,
+ *                         and this endpoint mirrors that rather than being
+ *                         narrower or wider than the door beside it.
  * - `event_not_allowed` — the ANIMAL refuses the event, whoever is asking: its
  *                         life record is closed (`status = 'deceased'`) and the
  *                         five clinical writers append nothing to a closed
@@ -230,7 +235,10 @@
  *                         A NOTA is still accepted on a deceased animal, which
  *                         is deliberate on the web and deliberate here: a
  *                         memorial note is the one thing a grieving owner may
- *                         still write.
+ *                         still write. That exemption survived the 2026-08-26
+ *                         capability change above precisely because the two
+ *                         codes answer different questions — one about the
+ *                         caller, one about the animal.
  * - `event_date_future` — `occurredAt` is a day that has not happened yet in
  *                         ARGENTINE calendar terms. Its own code because the
  *                         fix is specific and immediate: pick today or earlier.

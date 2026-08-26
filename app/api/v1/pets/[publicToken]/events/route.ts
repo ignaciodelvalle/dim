@@ -18,9 +18,11 @@
 // WHO MAY WRITE is decided in `./writers.ts`, against the web's own guards, and
 // it is NOT uniform across the eleven: ten mirror `requireAlivePetAccess` (any
 // current holder; an org member with `event.write`; never on a deceased
-// animal) and NOTA mirrors `requirePetAccess` (no capability, and a deceased
-// animal still accepts one — a memorial note is the one thing a grieving owner
-// may still write). That file states it at length — along with which owner
+// animal) and NOTA mirrors the same capability rule on the org path — since the
+// PO ratified the org ficha's gate as the rule (2026-08-26) — but a deceased
+// animal still accepts one, because that half is a fact about the ANIMAL and a
+// memorial note is the one thing a grieving owner may still write. That file
+// states it at length — along with which owner
 // writers deliberately did NOT cross, and on what evidence, and which of the
 // eleven fans out past the animal's own record — and this one does not restate
 // it, because two copies of a rule is how the copies disagree.

@@ -5,9 +5,11 @@
 //   - Replay / noop: wasNoop=true → attachment skipped.
 //   - Attachment: uploaded path triggers insertAttachment.
 //   - AUTH PARITY: action uses requirePetAccess (NOT requireAlivePetAccess) —
-//     allows deceased/lost pets. The use-case is auth-agnostic; parity test
-//     belongs in actions layer. Here we verify the use-case itself does NOT
-//     validate status (passes through).
+//     allows deceased/lost pets — AND, since the PO decision of 2026-08-26,
+//     checks the org `event.write` capability by hand, because requirePetAccess
+//     checks none. The use-case is auth-agnostic; both parity tests belong in
+//     the actions layer. Here we verify the use-case itself does NOT validate
+//     status (passes through).
 //   - notes field is always null on the petEvents row (per original parity:
 //     notes: null — the "notes" param is mapped to the payload text, not the notes column).
 

@@ -7,6 +7,14 @@
 //   This differs from all medical use-cases which use requireAlivePetAccess.
 //   The use-case itself is auth-agnostic; the guard distinction is at the action edge.
 //
+// THE QUIRK IS NOW HALF WHAT IT WAS (PO decision 2026-08-26). `requirePetAccess`
+//   checks neither life status NOR the org `event.write` capability, and the
+//   note writer used to inherit both gaps. The capability half is closed at the
+//   action edge — `createNoteAction` asks `getGrantedCapabilities` itself — so
+//   what remains of the quirk is exactly the deceased/lost allowance, which is
+//   the half a memorial note depends on. Still nothing here: this file stays
+//   auth-agnostic, and both gates live at the edge that resolved the caller.
+//
 // Parity:
 //   - Uses insertEventIdempotent; wasNoop=true → skip ALL side-effects.
 //   - Attachment inserted when uploadedPath provided.

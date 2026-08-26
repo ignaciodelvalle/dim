@@ -28,6 +28,11 @@ import { checkboxOn } from "@/lib/ui/form-checkbox";
 import { parseDateInput } from "@/lib/utils/format";
 import { eq } from "drizzle-orm";
 
+// The org capability vocabulary, for the note gate below (PO decision
+// 2026-08-26). `organizations` is a shared kernel — it imports from no module,
+// so `events:organizations` keeps the graph acyclic; the edge is declared in
+// scripts/check-dependency-direction.ts.
+import { getGrantedCapabilities } from "@/src/modules/organizations/infrastructure/authz-resolver";
 import { enqueueEnoTrigger } from "@/src/modules/surveillance/application/enqueue-eno-trigger";
 import { SurveillanceRepository } from "@/src/modules/surveillance/infrastructure/surveillance-repository";
 import { createClinicalInfo } from "./application/clinical/clinical-info-use-case";
@@ -239,7 +244,8 @@ export async function createDangerousBreedAttestationAction(
 }
 
 // ---------------------------------------------------------------------------
-// Note (WU-3 identity) — requirePetAccess (allows deceased/lost)
+// Note (WU-3 identity) — requirePetAccess (allows deceased/lost) PLUS the org
+// capability gate, which is NOT what requirePetAccess does on its own.
 // ---------------------------------------------------------------------------
 
 export async function createNoteAction(
@@ -250,6 +256,40 @@ export async function createNoteAction(
   // PARITY: requirePetAccess (NOT requireAlivePetAccess) — allows deceased/lost pets.
   const access = await requirePetAccess(publicToken);
   if (!access.ok) return { error: access.error };
+
+  // THE GATE IS THE RULE (PO decision 2026-08-26) — A BEHAVIOUR CHANGE.
+  // -------------------------------------------------------------------------
+  // The org ficha has always GATED the note form on `event.write`, and this
+  // action never checked it. A server action is itself an addressable endpoint:
+  // a member of a holding organization without the capability could invoke this
+  // one directly and write a note the UI had already refused them. The wrapper
+  // beside it (`orgRecordNoteAction`) does check — but it is a redirect adapter
+  // anybody can bypass by calling this export, so its check was never the
+  // boundary. The PO ratified the gate as the rule, so the boundary moves here.
+  //
+  // TWO THINGS DELIBERATELY DO NOT CHANGE:
+  //   · The PERSON path. Any current holder — owner, co_owner, foster,
+  //     caretaker — still writes notes with no capability to hold, because
+  //     capabilities are an ORGANIZATION's vocabulary and a person's ownership
+  //     row is not a membership.
+  //   · The DECEASED animal, on BOTH paths. `requireAlivePetAccess` is still
+  //     not the guard here. A closed life record is a fact about the ANIMAL and
+  //     the PO ratified a rule about the CALLER; widening the animal-side rule
+  //     would be a second, unratified behaviour change, and it would take the
+  //     memorial note away from a shelter that held the animal when it died.
+  if (access.accessPath === "org" && access.membership) {
+    const granted = await getGrantedCapabilities(access.membership);
+    if (!granted.has("event.write")) {
+      // The same sentence `requireAlivePetAccess` returns for the clinical
+      // writers, verbatim: one refusal, one wording, and it names the
+      // capability so the person can ask an administrator for the right thing.
+      return {
+        error:
+          "Necesitás el permiso 'Registrar eventos clínicos' (event.write). Pediselo a un administrador.",
+      };
+    }
+  }
+
   const { supabase, user, pet, eventAuthorship } = access;
 
   const text = String(formData.get("text") ?? "").trim();
