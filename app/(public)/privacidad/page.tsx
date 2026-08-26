@@ -146,6 +146,82 @@ export default function PrivacidadPage() {
           </p>
         </section>
 
+        {/*
+          HOW TO DELETE — the section a Google Play reviewer opens this page to find.
+
+          Play's data-deletion requirement asks for two reachable things from an
+          app that offers account creation: an in-app route (apps/mobile/src/
+          account/AccountDeletionCard.tsx) and a WEB URL that explains the
+          request, which is what the Data safety form takes. Until now this page
+          linked twice to /cuenta/privacidad and never said what happens there —
+          and /cuenta/privacidad is behind `requireUserOrRedirect`, so a reviewer
+          following the link without an account lands on a login screen. A link
+          into a login wall is not an explanation; a reviewer cannot tell it from
+          a dead end, and neither can a user deciding whether to sign up.
+
+          THE COPY IS MIRRORED, NOT REWRITTEN. What survives an erasure is stated
+          in app/(app)/cuenta/privacidad/page.tsx, and that wording is the
+          product of a correction (2026-08-17): the retention of sanitary events
+          is a PRODUCT decision, not a legal obligation, and may not be presented
+          as one — see the ERRATA at the top of src/modules/auth/application/
+          subject-rights/erase-subject-data.ts, which found the SENASA / Ley
+          14.072 / Ord. 41.831 citations in the migrations to be false. A second,
+          looser paraphrase here would be a second version of a promise whose
+          whole value is that there is one, so this section says the same thing
+          in the same terms and links onward for the rest.
+
+          WHY LEGAL_VERSION IS NOT BUMPED. It records WHAT a user consented to,
+          and there is no re-acceptance flow (lib/reference/legal-version.ts).
+          This section adds no collection, no sharing and no retention — it
+          documents a right the page already granted and a mechanism that already
+          shipped. Bumping would put every existing profile's stored consent
+          version behind the current one, with nothing able to resolve the gap,
+          in exchange for recording a clarification as a substantive revision.
+        */}
+        <section className="space-y-3">
+          <h2 className="text-base font-semibold text-[var(--color-ln-ink)]">
+            Cómo eliminar tu cuenta
+          </h2>
+          <p className="text-sm text-[var(--color-ln-ink-2)] leading-relaxed">
+            La baja la hacés vos, desde tu cuenta, sin escribirnos y sin esperar una respuesta:
+          </p>
+          <ol className="text-sm text-[var(--color-ln-ink-2)] leading-relaxed space-y-2 list-decimal list-inside">
+            <li>Ingresá con tu correo electrónico y contraseña.</li>
+            <li>
+              Entrá a{" "}
+              <Link
+                href="/cuenta/privacidad"
+                className="underline underline-offset-4 hover:text-[var(--color-ln-azul)] transition-colors"
+              >
+                Mi cuenta → Privacidad y datos personales
+              </Link>
+              .
+            </li>
+            <li>
+              Tocá &quot;Quiero eliminar mi cuenta&quot;, escribí el motivo y confirmá el borrado.
+            </li>
+          </ol>
+          <p className="text-sm text-[var(--color-ln-ink-2)] leading-relaxed">
+            En la app de Android el camino es <strong>Ajustes → Eliminar mi cuenta</strong>, que
+            abre esa misma página en el navegador: la baja se hace en un solo lugar. Si no podés
+            ingresar a tu cuenta, escribinos a la dirección de contacto de más abajo y la tramitamos
+            nosotros.
+          </p>
+          <p className="text-sm text-[var(--color-ln-ink-2)] leading-relaxed">
+            <strong>Qué pasa cuando se elimina una cuenta.</strong> La supresión es un soft-delete
+            con hash de PII: nombre, teléfono, DNI, contactos de emergencia, veterinario de cabecera
+            y foto de perfil quedan anonimizados o borrados, y la cuenta sale de las consultas
+            habituales. Las credenciales públicas de tus mascotas dejan de resolver. Los eventos
+            sanitarios de esas mascotas (libreta, vacunas, observaciones antirrábicas) se conservan
+            por una razón práctica: son el historial de salud del animal, y ese historial lo
+            acompaña aunque cambie de responsable. Dentro de esos eventos, el texto libre que hayas
+            escrito vos se reemplaza por un aviso de contenido eliminado. Si querés que borremos
+            también esos registros sanitarios, pedínoslo:{" "}
+            <strong>no invocamos ninguna obligación legal de conservación</strong> para negarte ese
+            borrado.
+          </p>
+        </section>
+
         <section className="space-y-3">
           <h2 className="text-base font-semibold text-[var(--color-ln-ink)]">Contacto</h2>
           <p className="text-sm text-[var(--color-ln-ink-2)] leading-relaxed">
