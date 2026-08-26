@@ -108,8 +108,14 @@ export const V1_ROUTE_GLOB = "app/api/v1/**/route.ts";
  * `app/api/v1/me/route.ts`, `me/pets/route.ts`, `me/revoke-sessions/route.ts`
  * and now `me/transfers/route.ts` — so `me/` has three siblings a rename could
  * take out together, which is exactly the arrangement this floor exists for.
+ *
+ * SEVENTEEN with cuidador temporal (`me/caretaker-grants`), raised in the same
+ * commit that added the route — the fourth in a row, which is what turns an
+ * instruction into a habit. It is the first route on this surface whose
+ * directory name contains a HYPHEN, so it is also the first that would be missed
+ * by any future narrowing of the glob to a word-character segment.
  */
-export const MIN_V1_ROUTE_FILES = 16;
+export const MIN_V1_ROUTE_FILES = 17;
 
 export const HELPER_MODULE = "@/lib/infra/api-v1";
 

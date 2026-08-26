@@ -41,11 +41,16 @@
 //     refused.
 //
 // THE PET TOKEN IS NOT REDUNDANT ON `cancel` AND `revoke`, even though the grant
-// token alone identifies the row. The guard runs against the PET, and resolving
-// the pet FROM the grant would be a second way to reach `requireTitularAccess`'s
-// input that the web has never used — one that a forged grant token would steer.
-// The client sends both; the server checks the pet it was given and then checks
-// that the grant belongs to it.
+// token alone identifies the row: it is the GUARD'S INPUT. Resolving the pet FROM
+// the grant would be a second way to reach `requireTitularAccess`'s argument that
+// the web has never used — one a forged grant token would steer.
+//
+// Nothing cross-checks that the named grant belongs to the named pet, and the web
+// does not either. What makes a mismatched pair harmless is that the WRITERS
+// check the thing that matters: `cancelCaretakerGrant` refuses unless the caller
+// granted the row, and `endCaretakerGrant` refuses `revoke` on the same rule. A
+// caller who names pet A and a grant they made on pet B ends up doing exactly
+// what naming pet B would have done.
 //
 // IDEMPOTENCY: NO HEADER, AND THAT IS A REFUSAL TO PROMISE
 // ---------------------------------------------------------------------------
@@ -171,9 +176,12 @@ const petPublicToken = z
  * compute a different boundary than the browser does for the same picked day.
  * The client picks a DAY; the server owns what that day means.
  *
- * The regex is the SHAPE only. `2026-02-31` passes it and is rejected by the
- * parser, which answers `caretaker_period_invalid` — a calendar this package
- * cannot own without a second copy of the leap-year rule.
+ * The regex is the SHAPE only. `2026-02-31` passes it, and the SERVER is what
+ * refuses it with `caretaker_period_invalid` — a calendar this package cannot own
+ * without a second copy of the leap-year rule. Worth knowing that the refusal is
+ * a deliberate check and not a happy accident: the boundary parser this endpoint
+ * uses would have ROLLED THAT DAY OVER to the 3rd of March (measured 2026-08-26),
+ * so the endpoint asks the module's own day validator first.
  */
 const arCalendarDay = z
   .string({ error: "DATE_INVALID" })

@@ -25,7 +25,8 @@
 // __tests__/check-titular-gate.test.ts pins it so a future rename cannot
 // silently re-open the blind spot.
 
-import { and, asc, desc, eq, isNotNull, isNull, lte, sql } from "drizzle-orm";
+import { and, asc, desc, eq, isNotNull, isNull, lte, or, sql } from "drizzle-orm";
+import { alias } from "drizzle-orm/pg-core";
 
 import { attachments, db, ownerships, petCaretakerGrants, petEvents, pets, profiles } from "@/db";
 import { validateEventPayload } from "@/lib/events/event-schemas";
@@ -41,6 +42,7 @@ import type {
   InsertGrantArgs,
   PetSummary,
   UpdateGrantStatusArgs,
+  UserGrantRow,
 } from "../application/ports";
 import type { GrantEndOutcome } from "../domain/types";
 
@@ -122,6 +124,66 @@ export const CaretakersRepository = {
       )
       .orderBy(desc(petCaretakerGrants.createdAt));
     return rows.map(toGrantRow);
+  },
+
+  /**
+   * Every OPEN grant one person is a party to, in either role, joined to the
+   * animal and to both display names.
+   *
+   * THE ADDRESSEE PREDICATE IS HERE AND NOWHERE ELSE (see the port's comment).
+   * It is the same id-or-email pair the accept/reject writers apply and
+   * `getGrantForViewer` resolves a relation with, expressed once in SQL so the
+   * three cannot drift into disagreeing about who is shown what.
+   *
+   * `pending` and `accepted` only. The four terminal statuses are history and
+   * history lives in the spine (`caretaker_designated` / `caretaker_ended`),
+   * which the libreta already renders.
+   */
+  async listGrantsForUser(args: { userId: string; callerEmail: string }): Promise<UserGrantRow[]> {
+    const granterProfiles = alias(profiles, "granter_profiles");
+    const caretakerProfiles = alias(profiles, "caretaker_profiles");
+
+    const email = args.callerEmail.trim().toLowerCase();
+    const addressedToCaller =
+      email.length > 0
+        ? or(
+            eq(petCaretakerGrants.caretakerUserId, args.userId),
+            and(
+              isNull(petCaretakerGrants.caretakerUserId),
+              eq(petCaretakerGrants.caretakerEmail, email),
+            ),
+          )
+        : eq(petCaretakerGrants.caretakerUserId, args.userId);
+
+    const rows = await db
+      .select({
+        grant: petCaretakerGrants,
+        petName: pets.name,
+        petToken: pets.publicToken,
+        petSpecies: pets.species,
+        grantedByDisplayName: granterProfiles.displayName,
+        caretakerDisplayName: caretakerProfiles.displayName,
+      })
+      .from(petCaretakerGrants)
+      .innerJoin(pets, eq(pets.id, petCaretakerGrants.petId))
+      .leftJoin(granterProfiles, eq(granterProfiles.id, petCaretakerGrants.grantedByUserId))
+      .leftJoin(caretakerProfiles, eq(caretakerProfiles.id, petCaretakerGrants.caretakerUserId))
+      .where(
+        and(
+          sql`${petCaretakerGrants.status} IN ('pending','accepted')`,
+          or(eq(petCaretakerGrants.grantedByUserId, args.userId), addressedToCaller),
+        ),
+      )
+      .orderBy(desc(petCaretakerGrants.createdAt));
+
+    return rows.map((row) => ({
+      grant: toGrantRow(row.grant),
+      petName: row.petName,
+      petToken: row.petToken,
+      petSpecies: row.petSpecies,
+      grantedByDisplayName: row.grantedByDisplayName,
+      caretakerDisplayName: row.caretakerDisplayName,
+    }));
   },
 
   /**

@@ -64,6 +64,7 @@ export function makeFakeRepo(overrides: Partial<Record<string, unknown>> = {}): 
       .fn()
       .mockImplementation(async (grantId: string) => makeAcceptedGrant({ id: grantId })),
     findOpenGrantsForPet: vi.fn().mockResolvedValue([]),
+    listGrantsForUser: vi.fn().mockResolvedValue([]),
     findLastEndedGrantForPet: vi.fn().mockResolvedValue(null),
     findPetSummaryById: vi.fn().mockResolvedValue(PET),
     // Defaults to "the person who invited is still the titular", because that

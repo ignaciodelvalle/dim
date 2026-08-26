@@ -120,6 +120,18 @@ const AR_DATE_ONLY_RE = /^\d{4}-\d{2}-\d{2}$/;
  * The FIRST instant of an Argentine calendar day, from a `<input type="date">`
  * "YYYY-MM-DD" string. Null for empty/malformed input.
  *
+ * "MALFORMED" MEANS THE SHAPE AND THE MONTH, NOT THE DAY — measured, 2026-08-26,
+ * and stated because the sentence above reads like a stronger promise than it is.
+ * `2026-13-01` is `Invalid Date` and answers null; `2026-02-31` is NOT — the
+ * ECMAScript date parser ROLLS IT OVER, so this returns the 3rd of March. Both
+ * callers are safe today for the same reason the defect went unnoticed: a
+ * `<input type="date">` cannot emit an impossible day. AN API CAN, so a door that
+ * takes a bare date string from a client has to check the calendar itself —
+ * `parseArDateToIso` above already owns that rule (it validates the day against
+ * the real length of the month, leap years included), and round-tripping through
+ * `isoToArDateDisplay` into it is how to reuse it rather than write a second copy.
+ * `app/api/v1/me/caretaker-grants/commands.ts` does exactly that.
+ *
  * WHY THIS EXISTS ALONGSIDE `parseDateInput`. `parseDateInput` anchors at NOON
  * UTC, which is enough to make the day render correctly in any AR-pinned
  * formatter — and that is all it was ever asked to do. It is the wrong answer

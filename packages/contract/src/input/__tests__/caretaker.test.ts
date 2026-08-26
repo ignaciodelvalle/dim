@@ -117,9 +117,11 @@ describe("dates are Argentine calendar DAYS, never instants", () => {
   });
 
   it("does NOT own the calendar — an impossible day parses and the server refuses it", () => {
-    // A leap-year rule in a zod schema is a second copy of one the domain already
-    // has. `2026-02-31` is well SHAPED and not a date; the server's parser answers
-    // null and the endpoint says `caretaker_period_invalid`.
+    // A leap-year rule in a zod schema is a second copy of one the repo already
+    // has (`parseArDateToIso`, which this package cannot import). `2026-02-31` is
+    // well SHAPED and not a date; the ENDPOINT is what answers
+    // `caretaker_period_invalid`, with a check it makes deliberately — the
+    // boundary parser alone would have rolled that day over to the 3rd of March.
     expect(codeFor({ ...DESIGNATE, endsAt: "2026-02-31" })).toBe(null);
   });
 

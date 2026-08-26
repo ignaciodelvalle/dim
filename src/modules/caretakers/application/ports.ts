@@ -124,12 +124,50 @@ export type EndedGrant = {
   endedReason: GrantEndOutcome | null;
 };
 
+/**
+ * One OPEN grant a person is a party to, plus the two names and the animal the
+ * hub read needs to render it.
+ *
+ * Separate from `GrantRow` because it is a JOIN, not a row: widening `GrantRow`
+ * with a pet name and two display names would make every write path carry three
+ * fields it never reads, and would drag the join into `findGrantByIdForUpdate`,
+ * which runs under a lock and must stay one table.
+ */
+export type UserGrantRow = {
+  grant: GrantRow;
+  petName: string;
+  petToken: string;
+  petSpecies: string;
+  /** `profiles.display_name` of the titular who granted it. */
+  grantedByDisplayName: string | null;
+  /** Same, for the caretaker — null until they have an account with a name. */
+  caretakerDisplayName: string | null;
+};
+
 export interface CaretakersRepositoryPort {
   // --- reads ---------------------------------------------------------------
   findGrantByToken(publicToken: string): Promise<GrantRow | null>;
   findGrantByIdForUpdate(grantId: string, tx: unknown): Promise<GrantRow | null>;
   /** The `pending` OR `accepted` grant for a pet, if any. At most one of each. */
   findOpenGrantsForPet(petId: string): Promise<GrantRow[]>;
+  /**
+   * Every OPEN grant this person is a party to, in EITHER role.
+   *
+   * THE ADDRESSEE PREDICATE LIVES IN THE REPOSITORY, ONCE, for the reason
+   * `listTransfersForUser` records after paying for the alternative: the SQL half
+   * decides which invitations a person is SHOWN and the application half decides
+   * which they may ANSWER, and a drift between them is not symmetric. A widened
+   * SQL shows somebody an invitation they cannot accept; a narrowed one hides a
+   * live arrangement.
+   *
+   * `caretakerEmail` is matched only when `caretaker_user_id IS NULL`, which is
+   * the same pair `accept-caretaker-grant.ts` and `getGrantForViewer` compare —
+   * an id once the account resolved, an e-mail only while it has not. An EMPTY
+   * `callerEmail` degrades to the id predicates alone, which is right: a session
+   * with no address cannot be the addressee of an open invitation, and
+   * `eq(col, "")` would match a row nobody can own.
+   */
+  listGrantsForUser(args: { userId: string; callerEmail: string }): Promise<UserGrantRow[]>;
   /**
    * The most recently ENDED arrangement on this pet, or null.
    *
