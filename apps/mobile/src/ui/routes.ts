@@ -19,6 +19,18 @@ export const ROUTES = {
   /** The gate. Decides where a cold start actually lands. */
   root: "/",
   ingreso: "/ingreso",
+  /**
+   * Step 1 of the signup — the account. Step 2 (the identity) is
+   * `identidadPendiente` below, which hands the person a web URL.
+   *
+   * The path deliberately does NOT match the web's, which is `/registro`. The
+   * reason `/transferencias` and `/cuidado` match theirs is that both are
+   * deep-link destinations shared with a notification or an e-mail; nothing
+   * links INTO a signup form from outside the app, so this path is free to say
+   * what the screen does in the words the screen uses ("Crear cuenta") rather
+   * than in the word the web's router happens to use.
+   */
+  crearCuenta: "/crear-cuenta",
   identidadPendiente: "/identidad-pendiente",
   misMascotas: "/mascotas",
   altaMascota: "/alta",

@@ -59,7 +59,7 @@ import {
   type SessionPort,
   apiFailureMessage,
 } from "../api/client";
-import { fetchMe, login, revokeAllSessions } from "../api/endpoints";
+import { fetchMe, login, revokeAllSessions, signup as signupRequest } from "../api/endpoints";
 import { forgetAllCachedCredentials } from "../credential/credential-cache";
 import { AUTH_STORAGE_KEY, authClient, dropLocalSession } from "./supabase-auth";
 
@@ -308,6 +308,113 @@ export async function signIn(email: string, password: string): Promise<SignInRes
 
   setState({ phase: "signed-in", user: result.payload.user });
   return { ok: true };
+}
+
+export type SignUpResult =
+  /** An account exists and this device is signed into it. */
+  | { ok: true; signedIn: true }
+  /**
+   * The server answered 201 and handed back NO session. The person's next step
+   * is the sign-in screen; see below for why this is not an error and why the
+   * caller must not guess at a cause.
+   */
+  | { ok: true; signedIn: false }
+  | { ok: false; message: string };
+
+/**
+ * Create an account: `POST /api/v1/auth/signup`, then seed the SDK with
+ * whatever it returns.
+ *
+ * SAME ORDER AND SAME REASON AS `signIn`. The password never goes to GoTrue
+ * from this app — it goes to `/api/v1/auth/signup`, which applies OUR rate
+ * limit (`auth_signup_ip`, 3/min · 15/hr, spent inside the shared use-case
+ * before GoTrue is touched — TIGHTER than login's, because a signup is never a
+ * high-frequency legitimate action), OUR validation and OUR non-enumerating
+ * response shape. A client that called `signUp` on the Supabase SDK directly
+ * would bypass every one of those, and would also get the raw "User already
+ * registered" error the masquerade exists to hide.
+ *
+ * THE 201 WITH NO SESSION IS A SUCCESS AND MUST BE REPORTED AS ONE. It has two
+ * causes a caller cannot tell apart, and that indistinguishability is the whole
+ * point (audit 28-#3): the email already has an account, or — if email
+ * confirmations are ever turned ON in the Supabase dashboard — a genuine new
+ * account is waiting to be confirmed. This function returns
+ * `{ ok: true, signedIn: false }` for both and says nothing about which, so no
+ * screen can accidentally become the account-enumeration oracle the server
+ * refuses to be.
+ *
+ * THE AUTH-PLANE CHECK RUNS FIRST, BEFORE THE REQUEST, and that ordering is not
+ * cosmetic. `signIn` checks it first to avoid a pointless round trip; here it
+ * avoids CREATING AN ACCOUNT THIS BUILD CANNOT HOLD A SESSION FOR. Spending the
+ * signup budget to mint a credential the app must then throw away is worse than
+ * refusing, and the person would have no way to tell the two apart.
+ */
+export async function signUp(input: {
+  email: string;
+  password: string;
+  confirmPassword: string;
+  tosAccepted: boolean;
+}): Promise<SignUpResult> {
+  const client = authClient();
+  if (client === null) {
+    return {
+      ok: false,
+      message:
+        "Esta compilación de la app no tiene configurado el servidor de sesiones. Avisale a quien te la pasó.",
+    };
+  }
+
+  const result = await signupRequest(input);
+  if (result.outcome !== "ok") {
+    return { ok: false, message: apiFailureMessage(result) ?? "No pudimos crear la cuenta." };
+  }
+
+  const session = result.payload.session;
+  if (session === null) return { ok: true, signedIn: false };
+
+  // Same wrapping as `signIn`, for the same measured reason: `setSession`
+  // returns `{ error }` for an AuthError and THROWS for anything else
+  // (GoTrueClient.js:2849-2854), and an expo-secure-store write failure is a
+  // plain Error. Unwrapped, that rejection propagates into the screen, whose
+  // `submit()` has no catch, and the button stays "Creando la cuenta…" forever.
+  let stored: { error: unknown } = { error: null };
+  try {
+    stored = await client.auth.setSession({
+      access_token: session.accessToken,
+      refresh_token: session.refreshToken,
+    });
+  } catch (err) {
+    stored = { error: err instanceof Error ? err : new Error(String(err)) };
+  }
+
+  if (stored.error) {
+    // THE ACCOUNT EXISTS. It was created server-side and nothing here can undo
+    // that, so the copy must not say "no pudimos crear la cuenta" — it would
+    // send the person back to a form whose next submit answers with the
+    // duplicate masquerade and no explanation. Point them at sign-in instead,
+    // which is where an existing account is used.
+    await clearSession();
+    return {
+      ok: false,
+      message:
+        "Creamos tu cuenta, pero no pudimos guardar la sesión en este dispositivo. Entrá desde la pantalla de ingreso con ese mismo email.",
+    };
+  }
+
+  // Belt and braces, exactly as on the way IN through `signIn`: this device may
+  // be shared, and `clearSession` now swallows its own failures, so a stale
+  // display cache CAN survive a sign-out.
+  await forgetAllCachedCredentials().catch(() => undefined);
+
+  // `/me` RATHER THAN A USER OFF THE SIGNUP RESPONSE, because there is none:
+  // `SignupV1` carries a session and nothing else, deliberately. That is also
+  // the honest shape — a brand-new account has no profile row yet, so `/me`
+  // answers `profilePending: true` and the gate sends the person to
+  // `identidad-pendiente`, which is step 2 and lives on the web. Fabricating a
+  // user here would be this app inventing an answer the server declined to give.
+  const me = await fetchMe(sessionPort);
+  applyMeResult(me);
+  return { ok: true, signedIn: true };
 }
 
 /** "Cerrar sesión" — this device. */

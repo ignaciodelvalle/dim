@@ -18,7 +18,15 @@
 // What the header keeps instead is the CLAIM the count was standing in for, and
 // this one is checkable by reading the file rather than by trusting a number:
 //
-//   THE WRITES ARE NOT ALL APPENDS, AND A READER MUST NOT ASSUME THEY ARE.
+//   NOT EVERY WRITE HERE IS ABOUT AN ANIMAL. `signup` creates an ACCOUNT — the
+//   only call on this surface that mutates something before there is a session
+//   to mutate it with, and the only one whose success may legitimately hand
+//   back nothing to sign in with (see its own docblock). It sits beside
+//   `login` at the top for that reason: the two pre-authentication calls are
+//   the ones a reader asking "what can this app do before I trust it" needs
+//   first.
+//
+//   THE PET WRITES ARE NOT ALL APPENDS, AND A READER MUST NOT ASSUME THEY ARE.
 //   `registerPet`, `recordPetEvent` and `amendPetEvent` are pure INSERTs onto
 //   the append-only spine — a correction is a new event, never an edit. The
 //   other three are not: `sendLostCommand` moves `pets.status` and opens and
@@ -67,6 +75,7 @@ import {
   type PetRegisteredV1,
   type PetSharesV1,
   type ShareCommandAckV1,
+  type SignupV1,
   type TransferCommandAckV1,
 } from "@dim/contract/api";
 import type {
@@ -109,6 +118,58 @@ export async function login(input: {
     };
   }
   return { outcome: "ok", payload: raw.body as LoginV1 };
+}
+
+/**
+ * `POST /auth/signup` — step 1 of the two-step signup, and the second call on
+ * this surface that is not a bearer call because it is what MAKES one.
+ *
+ * `performRequest` directly, for `login`'s reason: routing it through
+ * `apiRequest` would ask the session port for a token that by definition does
+ * not exist yet, and would end a session nobody has.
+ *
+ * 201 IS THE ONLY SUCCESS, AND IT MAY CARRY NO SESSION. `SignupV1.session` is
+ * nullable and BOTH cases are normal — a genuine new account (email
+ * confirmations OFF, PO decision 2026-07-10) gets one, and the
+ * account-enumeration masquerade for an email that already exists returns this
+ * same 201 with `session: null`. A caller MUST read the null as "go to the
+ * login screen", never as an error, and must never turn it into copy that says
+ * the account exists: that copy would rebuild on the phone the oracle audit
+ * 28-#3 closed on the web form.
+ *
+ * NO `Idempotency-Key`, AND THE ENDPOINT ASKS FOR NONE. What protects a double
+ * submit is GoTrue's unique email: the second POST cannot mint a second
+ * account. It is NOT the same promise the write endpoints make, and the
+ * difference is visible to the caller — the second response is the masquerade,
+ * `session: null`, indistinguishable from a duplicate-email refusal. So a
+ * client that retries a signup after a timeout may be handed "go sign in" for
+ * an account it just created a second ago. That is the correct instruction in
+ * both readings, which is why the endpoint needs no key; it is stated here
+ * because "no idempotency key" usually means "retry freely" and here it means
+ * "retry and then sign in".
+ */
+export async function signup(input: {
+  email: string;
+  password: string;
+  confirmPassword: string;
+  tosAccepted: boolean;
+}): Promise<ApiResult<SignupV1>> {
+  const raw = await performRequest({
+    path: "/api/v1/auth/signup",
+    method: "POST",
+    body: input,
+  });
+
+  if (raw.transport === "unreachable") return { outcome: "unreachable", detail: raw.detail };
+  if (raw.transport === "malformed") return { outcome: "malformed", detail: raw.detail };
+  if (raw.status !== 201) {
+    return {
+      outcome: "api-error",
+      code: apiV1ErrorCode(raw.body) ?? "temporarily_unavailable",
+      retryAfterSeconds: raw.retryAfterSeconds,
+    };
+  }
+  return { outcome: "ok", payload: raw.body as SignupV1 };
 }
 
 /** `GET /me` — the four-field shell. No email, no DNI, no pets. */

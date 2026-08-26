@@ -87,6 +87,11 @@ export default function RootLayout() {
             has no chrome either. A stack header saying "Ingresar" above an
             `<h1>` saying "Iniciar sesión" is the same word twice in two voices. */}
         <Stack.Screen name="ingreso" options={{ headerShown: false }} />
+        {/* Same reasoning as ingreso, one door over: the web's `/registro` page
+            has no chrome either and this screen draws its own "Crear cuenta"
+            title. A stack header repeating it would be the same words twice in
+            two voices. */}
+        <Stack.Screen name="crear-cuenta" options={{ headerShown: false }} />
         <Stack.Screen
           name="identidad-pendiente"
           options={{ title: "Falta un paso", headerBackVisible: false }}

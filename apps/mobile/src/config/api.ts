@@ -120,6 +120,22 @@ export function publicCredentialPageUrl(publicToken: string): string {
 export const IDENTITY_COMPLETION_URL = `${API_BASE_URL}/registro`;
 
 /**
+ * The two legal documents the crear-cuenta checkbox accepts.
+ *
+ * THEY OPEN IN THE BROWSER, and that is not a shortcut around a missing native
+ * screen. These pages are the LEGAL text (Ley 25.326 and the Términos), they
+ * are versioned and served by the web app, and a native copy of them would be
+ * a second version of a document whose whole value is that there is one. The
+ * web signup links to `/terminos` and `/privacidad` from the same checkbox
+ * (app/(auth)/registro/SignupForm.tsx); these are the same two hrefs.
+ *
+ * Unlike IDENTITY_COMPLETION_URL neither needs a warning about a lost session:
+ * both are public pages and read the same signed out.
+ */
+export const TERMS_URL = `${API_BASE_URL}/terminos`;
+export const PRIVACY_URL = `${API_BASE_URL}/privacidad`;
+
+/**
  * The web URL where a forgotten password is reset.
  *
  * THE HONEST BRIDGE, not a missing feature. The web login offers "¿Olvidaste tu

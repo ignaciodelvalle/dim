@@ -44,19 +44,29 @@
 //   · The "o" divider between them, which is what makes the placeholder read as
 //     an alternative rather than as a second submit button.
 //
-// NOT closed, and on purpose:
+// A FOURTH gap closed later, and the reversal is worth recording rather than
+// quietly editing:
+//
+//   · "¿No tenés cuenta? Crear cuenta" now exists and opens `/crear-cuenta`.
+//     This block used to list it under "NOT closed, and on purpose", with the
+//     reasoning "the callout at the bottom already says where accounts are made
+//     and why, in more words than a link can carry. Replacing it with the web's
+//     two-word link would drop the explanation." That was true of a callout
+//     reading "por ahora las cuentas se crean desde la web" — there WAS no
+//     native signup, and a link to nothing is worse than a sentence. The
+//     endpoint (`POST /api/v1/auth/signup`) and the screen landed, so the
+//     explanation is no longer the honest thing to show: it now describes a
+//     limitation that has been lifted.
+//
+// NOT closed, and still on purpose:
 //
 //   · "← Volver al inicio". The web's back link goes to a landing page. This
 //     app has no landing page: `/` is the GATE, and it forwards a signed-out
 //     visitor straight back to this screen. The link would be a button that
 //     appears to do nothing, which is worse than its absence.
-//
-//   · "¿No tenés cuenta? Crear cuenta". The callout at the bottom already says
-//     where accounts are made and why, in more words than a link can carry.
-//     Replacing it with the web's two-word link would drop the explanation.
 
 import * as Linking from "expo-linking";
-import { Redirect, useLocalSearchParams } from "expo-router";
+import { Redirect, useLocalSearchParams, useRouter } from "expo-router";
 import { useState } from "react";
 import { StyleSheet, View } from "react-native";
 
@@ -64,7 +74,7 @@ import { returnHref } from "../src/auth/return-to";
 import { sessionEndMessage, signIn } from "../src/auth/session-store";
 import { useSession } from "../src/auth/useSession";
 import { PASSWORD_RECOVERY_URL } from "../src/config/api";
-import { Body, Card, ErrorNotice } from "../src/ui/components";
+import { Body, ErrorNotice } from "../src/ui/components";
 import {
   Callout,
   LabelledDivider,
@@ -76,10 +86,12 @@ import {
   TextField,
   Title,
 } from "../src/ui/kit";
+import { ROUTES } from "../src/ui/routes";
 import { SPACE } from "../src/ui/theme";
 
 export default function IngresoScreen() {
   const session = useSession();
+  const router = useRouter();
   const params = useLocalSearchParams<{ next?: string | string[] }>();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -195,16 +207,16 @@ export default function IngresoScreen() {
           order the web comments spell out for the same three controls. */}
       <SecondaryButton disabled label="Conectar con Mi Argentina (próximamente)" />
 
-      <Card title="¿No tenés cuenta?">
-        {/* No native sign-up. The account creation flow needs the Ley 25.326
-            consent copy and the identity step, both of which live on the web
-            — see identidad-pendiente.tsx for the same reasoning in the case
-            where the account already exists. */}
-        <Body>
-          Por ahora las cuentas se crean desde la web, en mimar.ar. Después entrás acá con el mismo
-          email.
-        </Body>
-      </Card>
+      {/* The web's own two-word affordance, in the web's own words. A Card with
+          a paragraph stood here while there was no native signup to point at;
+          now that there is, the paragraph would be explaining a limitation that
+          no longer exists. What DOES still need saying — that the identity step
+          finishes on the web — is said on the signup screen itself, where it is
+          about to happen, rather than here where it is one step early. */}
+      <View style={styles.footer}>
+        <Body>¿No tenés cuenta?</Body>
+        <LinkText onPress={() => router.push(ROUTES.crearCuenta)}>Crear cuenta</LinkText>
+      </View>
     </Screen>
   );
 }
@@ -213,4 +225,5 @@ const styles = StyleSheet.create({
   heading: { alignItems: "center", gap: SPACE.xs + 2, marginTop: SPACE.xl3 },
   form: { gap: SPACE.lg },
   forgot: { alignItems: "flex-end" },
+  footer: { alignItems: "center", gap: SPACE.xs },
 });
