@@ -498,13 +498,17 @@ export type {
 } from "./application/clinical/record-disease-diagnosis-use-case";
 
 /**
- * NOT REPLACED BY `./application/flush-notifications`, AND THE REASON IS A
- * FENCE RATHER THAN A PREFERENCE.
+ * A DUPLICATE OF `flushNotifications` IN `./application/writers.ts`, AND THE
+ * REASON IT STAYS IS A FENCE RATHER THAN A PREFERENCE.
  *
- * That module exists and is byte-identical to this; `application/writers.ts`
- * and `POST /api/v1/pets/{token}/events` both import it, and importing it here
- * too was the obvious third step. It was tried, and `pnpm lint:audit-log` went
- * red one entry — a STALE one, which is the direction that looks like progress:
+ * There is no `./application/flush-notifications` module — an earlier version
+ * of this docblock claimed one, and it never existed. The shared copy is the
+ * EXPORT `flushNotifications` at `./application/writers.ts:77`, which two route
+ * writers import: `app/api/v1/pets/[publicToken]/events/writers.ts:171` and
+ * `app/api/v1/pets/[publicToken]/lost/commands.ts:96`. Collapsing this function
+ * into that export was the obvious third step. It was tried, and
+ * `pnpm lint:audit-log` went red one entry — a STALE one, which is the
+ * direction that looks like progress:
  *
  *   app/org/[orgToken]/mascotas/[publicToken]/eventos/actions.ts#orgRecordNoteAction
  *
