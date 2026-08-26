@@ -10,10 +10,10 @@
 // FOUR OF THE FIVE are guarded on the web by `requirePetAccess(publicToken)`,
 // cited at the guard call rather than at the function that contains it:
 //
-//   marcar perdida        `setPetLostAction`            actions.ts:779
-//   actualizar avistaje   `updateLostLastSeenAction`    actions.ts:870
-//   marcar encontrada     `setPetFoundAction`           actions.ts:933
-//   preferencias (5)      `setPetDisclosurePrefsAction` app/actions/lost-mode.ts:35
+//   marcar perdida        `setPetLostAction`            actions.ts:811
+//   actualizar avistaje   `updateLostLastSeenAction`    actions.ts:902
+//   marcar encontrada     `setPetFoundAction`           actions.ts:965
+//   preferencias (5)      `setPetDisclosurePrefsAction` app/actions/lost-mode.ts:34
 //
 // Read literally, `requirePetAccess` is WIDER than the clinical writers' guard:
 //
@@ -31,8 +31,11 @@
 // THE TWO EXCEPTIONS, and both are narrowings the web performs itself:
 //
 //   · `discloseCaretakerContactWhenLost` — `setPetDisclosurePrefsAction` swaps
-//     `requirePetAccess` for `requireTitularAccess` when the key is in
-//     `TITULAR_ONLY_DISCLOSURE_KEYS` (app/actions/lost-mode.ts:33). It is KEY 1
+//     `requirePetAccess` for `requireTitularAccess` (app/actions/lost-mode.ts:33)
+//     when `disclosureKeyRequiresTitular(key)` says so — the key set itself is
+//     `TITULAR_ONLY_DISCLOSURE_KEYS`, in
+//     `src/modules/pets/application/lost-mode/disclosure-scope.ts:34`, not in
+//     the shim that reads it. It is KEY 1
 //     of a two-key model: the caretaker consents at invitation accept (key 2),
 //     the titular decides whether to publish (key 1). A caretaker who could flip
 //     key 1 would hold both keys and the second would stop meaning anything.

@@ -13,9 +13,9 @@
 // check, one limiter pair and one access guard, kept in agreement by hand.
 //
 // THE REFERENCE POINT is the web's own actions, field for field:
-//   · `setPetLostAction`          `src/modules/events/actions.ts:773`
-//   · `updateLostLastSeenAction`  `src/modules/events/actions.ts:863`
-//   · `setPetFoundAction`         `src/modules/events/actions.ts:927`
+//   · `setPetLostAction`          `src/modules/events/actions.ts:805`
+//   · `updateLostLastSeenAction`  `src/modules/events/actions.ts:895`
+//   · `setPetFoundAction`         `src/modules/events/actions.ts:959`
 //   · `setPetDisclosurePrefsAction` `app/actions/lost-mode.ts:15`
 //   · `reactivateLostSearchAction`  `app/actions/reactivate-lost-search.ts:12`
 // Every name below is the name that action reads out of its `FormData`, and

@@ -19,10 +19,10 @@
 //   esterilización      `createSterilizationAction`   actions-medical.ts:337
 //   medicación inicio   `createMedicationStartAction` actions-medical.ts:412
 //   medicación fin      `createMedicationEndAction`   actions-medical.ts:519
-//   microchip           `createMicrochipAction`       actions.ts:99
-//   visita veterinaria  `createVetVisitAction`        actions.ts:317
-//   información clínica `createClinicalInfoAction`    actions.ts:404
-//   síntoma             `createSymptomObservedAction` actions.ts:690
+//   microchip           `createMicrochipAction`       actions.ts:103
+//   visita veterinaria  `createVetVisitAction`        actions.ts:321
+//   información clínica `createClinicalInfoAction`    actions.ts:408
+//   síntoma             `createSymptomObservedAction` actions.ts:722
 //
 // Read literally, that guard is:
 //
@@ -32,7 +32,7 @@
 //   · Never on a DECEASED animal: a closed life record accepts no new clinical
 //     events.
 //
-// THE ELEVENTH — NOTA (`createNoteAction`, actions.ts:247) — IS GUARDED BY
+// THE ELEVENTH — NOTA (`createNoteAction`, actions.ts:251) — IS GUARDED BY
 // `requirePetAccess`, and the difference is deliberate on the web, marked there
 // with a `PARITY:` comment that says so in as many words. A note needs NO
 // capability on the org path and is accepted on a DECEASED animal. That second
@@ -71,8 +71,9 @@
 // WHAT DELIBERATELY DID NOT CROSS, AND ON WHAT EVIDENCE
 // ---------------------------------------------------------------------------
 //   · DIAGNÓSTICO DE ENFERMEDAD (`recordDiseaseDiagnosisAction`,
-//     actions.ts:512). NOT AN OWNER WRITER AT ALL: it performs no ownership
-//     check whatsoever and authorizes on `role === "vet" && matriculaVerified`.
+//     actions.ts:561 — the line naming ITS rule, same convention). NOT AN OWNER
+//     WRITER AT ALL: it performs no ownership check whatsoever and authorizes on
+//     `role === "vet" && matriculaVerified`.
 //     It shares an `event_type` with información clínica —
 //     `clinical_info_logged`, sub_kind `disease_diagnosis` — which is one of the
 //     two reasons the contract's `CLINICAL_SUB_KINDS` holds five of the spine's
@@ -83,17 +84,17 @@
 //     10-day observation lifecycle and an authority fan-out across
 //     jurisdictions. That belongs in its own work unit with its own contract,
 //     not as a twelfth branch of a switch whose other eleven only append.
-//   · PERDIDA / ENCONTRADA (`setPetLostAction` actions.ts:779,
-//     `setPetFoundAction` actions.ts:933) mutate `pets.status` and carry
+//   · PERDIDA / ENCONTRADA (`setPetLostAction` actions.ts:811,
+//     `setPetFoundAction` actions.ts:965) mutate `pets.status` and carry
 //     disclosure preferences, an enriched description and an alert fan-out.
 //     Lost mode is a FEATURE and not an asiento: it belongs behind its own
 //     endpoints with their own shapes, not as branches of a switch whose whole
 //     job is to append one row.
-//   · FALLECIMIENTO (`createDeathRecordAction`, actions.ts:1030) is guarded by
+//   · FALLECIMIENTO (`createDeathRecordAction`, actions.ts:1014) is guarded by
 //     `requirePetAccess` like nota, and is deferred for shape rather than for
 //     reach: five cross-field rules, a disease-code lookup and a custody-episode
 //     stamp read before the transaction.
-//   · ATESTACIÓN PPP (actions.ts:175) and EMBARAZO (app/actions/pregnancy.ts:41,
+//   · ATESTACIÓN PPP (actions.ts:179) and EMBARAZO (app/actions/pregnancy.ts:41,
 //     :86) are owner writers whose use-cases DO NOT ROUTE THROUGH
 //     `insertEventIdempotent` — they insert plainly, with no
 //     `clientIdempotencyKey` parameter to pass. This endpoint REQUIRES an
@@ -106,7 +107,7 @@
 //     `createSymptomObservedWriter` has taken a `clientIdempotencyKey` and
 //     branched to `insertEventIdempotent` since the W-1 fix of 2026-06-07, with
 //     parity tests, and `createSymptomObservedAction` reads the field off its
-//     own form (actions.ts:717) and passes it (:739). The exclusion outlived
+//     own form (actions.ts:749) and passes it (:771). The exclusion outlived
 //     its reason by two work units because nobody re-read the writer — which is
 //     the argument for citing a LINE and not a belief.
 //
