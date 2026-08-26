@@ -24,6 +24,7 @@
 // is ever cached, the decision needs its own paragraph in that file, not a
 // silent reuse of one written about something else.
 
+import { useRouter } from "expo-router";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { StyleSheet, Text, View } from "react-native";
 
@@ -34,7 +35,8 @@ import { apiErrorMessage } from "../api/error-copy";
 import { sessionPort } from "../auth/session-store";
 import { Body, Card, Loading, Row, Unavailable } from "../ui/components";
 import { FONTS } from "../ui/fonts";
-import { Callout, Eyebrow, PrimaryButton, Screen } from "../ui/kit";
+import { Callout, Eyebrow, PrimaryButton, Screen, SecondaryButton } from "../ui/kit";
+import { lostModeRoute } from "../ui/routes";
 import { COLORS, LEADING, RADIUS, SPACE, TRACKING, TYPE } from "../ui/theme";
 import {
   type OwnerFaceView,
@@ -115,6 +117,24 @@ export function OwnerFaceScreen({ publicToken }: { publicToken: string }) {
   );
 }
 
+/**
+ * The way into the lost-mode cockpit.
+ *
+ * A SecondaryButton and not a Callout: this face's Callouts are the alert strip,
+ * which the server ranks, and putting an owner-initiated action in that visual
+ * language would make a control look like a warning.
+ */
+function LostModeLink({ publicToken }: { publicToken: string }) {
+  const router = useRouter();
+  return (
+    <SecondaryButton
+      label="Modo perdida"
+      accessibilityHint="Marcar la mascota como perdida, seguir la búsqueda o marcarla encontrada."
+      onPress={() => router.push(lostModeRoute(publicToken))}
+    />
+  );
+}
+
 /** Renders a section, or its refusal. The two are never the same view. */
 function Section<T>({
   view,
@@ -172,6 +192,16 @@ function OwnerFaceBody({ view }: { view: OwnerFaceView }) {
           )
         }
       </Section>
+
+      {/* MODO PERDIDA ----------------------------------------------------- */}
+      {/* OFFERED UNCONDITIONALLY, and that is deliberate. The cockpit behind it
+          serves both directions — marking an animal lost and running the search
+          for one that already is — and WHICH of the five commands this caller
+          may send is decided by the server and reported in that payload. A CTA
+          that appeared only when this face happened to know the animal was lost
+          would hide the entry point in the one state where somebody needs it
+          fastest: the moment they notice it is gone. */}
+      <LostModeLink publicToken={view.publicToken} />
 
       {/* THE ALERT STRIP ------------------------------------------------- */}
       {/* Already ranked by the server. A client that reorders this has

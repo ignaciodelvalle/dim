@@ -136,5 +136,26 @@ export function apiErrorMessage(code: ApiV1ErrorCode): string {
       return "No pudimos identificar la medicación que estás terminando. Abrila desde su asiento en la libreta.";
     case "event_failed":
       return "No pudimos guardar el registro. Volvé a intentar en unos minutos.";
+    // WU-M, modo perdida. These arrive while somebody is looking for an animal,
+    // which is the worst moment to read a sentence that does not say what to do,
+    // so every one of them names the next move.
+    case "lost_already":
+      return "Esta mascota ya está marcada como perdida. Abrí su búsqueda para actualizar dónde la vieron.";
+    case "pet_not_lost":
+      // Covers the honest case (somebody else already marked it found) and the
+      // stale one (the app's copy of the status is old). Both fix the same way.
+      return "Esta mascota no está marcada como perdida. Actualizá la pantalla para ver su estado.";
+    case "lost_episode_closed":
+      // NOT the sentence above, because the animal IS lost and the fix is
+      // specific and available: reopen the search, then update.
+      return "La búsqueda de esta mascota se cerró por inactividad. Reactivala para volver a cargar avistajes.";
+    case "lost_forbidden":
+      // Two cases, one sentence, because the person's position is the same in
+      // both: they hold the animal and this particular decision is not theirs.
+      return "Esta acción es solo del titular de la mascota.";
+    case "lost_microchip_invalid":
+      return "El número de microchip no tiene un formato válido. Revisalo o dejalo vacío.";
+    case "lost_failed":
+      return "No pudimos completar la acción. Volvé a intentar en unos minutos.";
   }
 }

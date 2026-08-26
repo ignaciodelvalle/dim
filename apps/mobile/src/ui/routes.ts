@@ -64,8 +64,22 @@ export function recordEventRoute(
   return `/mascotas/${encodeURIComponent(publicToken)}/asentar${suffix}`;
 }
 
+/**
+ * The lost-mode cockpit for one pet.
+ *
+ * A REAL ROUTE and not a fourth face on the pet screen, because it is not a
+ * FACE: the three faces are documents (the owner's chrome, the libreta, the
+ * public credential) and this is a workflow that only exists some of the time.
+ * Nesting it under the pet is what makes the back gesture land on the animal
+ * somebody came from.
+ */
+export function lostModeRoute(publicToken: string): `/mascotas/${string}/perdida` {
+  return `/mascotas/${encodeURIComponent(publicToken)}/perdida`;
+}
+
 export type AppRoute =
   | (typeof ROUTES)[keyof typeof ROUTES]
   | ReturnType<typeof credentialRoute>
   | ReturnType<typeof libretaEventRoute>
-  | ReturnType<typeof recordEventRoute>;
+  | ReturnType<typeof recordEventRoute>
+  | ReturnType<typeof lostModeRoute>;

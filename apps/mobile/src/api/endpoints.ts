@@ -31,6 +31,7 @@ import {
   LOCALITIES_PAYLOAD_VERSION,
   type LocalitiesV1,
   type LoginV1,
+  type LostCommandAckV1,
   ME_PAYLOAD_VERSION,
   MY_PETS_PAYLOAD_VERSION,
   type MeV1,
@@ -39,11 +40,18 @@ import {
   type OwnerPetDetailV1,
   PET_EVENT_DETAIL_PAYLOAD_VERSION,
   PET_LIBRETA_PAYLOAD_VERSION,
+  PET_LOST_PAYLOAD_VERSION,
   type PetEventDetailV1,
   type PetLibretaV1,
+  type PetLostV1,
   type PetRegisteredV1,
 } from "@dim/contract/api";
-import type { AmendEventInput, RecordEventInput, RegisterPetInput } from "@dim/contract/input";
+import type {
+  AmendEventInput,
+  LostCommandInput,
+  RecordEventInput,
+  RegisterPetInput,
+} from "@dim/contract/input";
 
 import { type ApiResult, type SessionPort, apiRequest, performRequest } from "./client";
 import { apiV1ErrorCode } from "./error-copy";
@@ -300,6 +308,62 @@ export function registerPet(
 export function revokeAllSessions(session: SessionPort): Promise<ApiResult<{ revoked: true }>> {
   return apiRequest<{ revoked: true }>(
     { path: "/api/v1/me/revoke-sessions", method: "POST" },
+    session,
+  );
+}
+
+/**
+ * `GET /pets/{publicToken}/lost` — the owner's lost-mode cockpit.
+ *
+ * ONE READ FOR A FEATURE THE WEB SPREADS ACROSS TWO PLACES: the mark-lost /
+ * update page and the `LostCaseBlock` on the profile. It carries the episode,
+ * the sightings feed, the disclosure settings, and — the part a client must not
+ * recompute — WHICH of the five commands this caller may send.
+ */
+export function fetchPetLostMode(
+  session: SessionPort,
+  publicToken: string,
+): Promise<ApiResult<PetLostV1>> {
+  return apiRequest<PetLostV1>(
+    {
+      path: `/api/v1/pets/${encodeURIComponent(publicToken)}/lost`,
+      expectedPayloadVersion: PET_LOST_PAYLOAD_VERSION,
+    },
+    session,
+  );
+}
+
+/**
+ * `POST /pets/{publicToken}/lost` — run one lost-mode command.
+ *
+ * THE FOURTH WRITE ON THIS SURFACE, which the count in this file's header
+ * deliberately no longer states — but it is worth saying what KIND of write it
+ * is, because it is the first one that is not an append: these five move
+ * `pets.status`, open and close a case, and publish or unpublish an owner's own
+ * contact details. The append-only invariant still holds where it applies — the
+ * spine gets `status_changed` and `note_added` rows, and nothing is edited — but
+ * a reader should not read "write" here and assume "asiento".
+ *
+ * `idempotencyKey` IS NULLABLE, AND THAT IS THE CONTRACT AND NOT A SHORTCUT.
+ * Exactly one of the five APPENDS — `report_last_seen` — and only that one's
+ * writer takes a `clientIdempotencyKey`. The endpoint requires the header for it
+ * and does not read it for the other four, whose writers are idempotent on the
+ * STATE. Sending a key the server would ignore is not harmless: it is a client
+ * believing it holds a guarantee it does not.
+ */
+export function sendLostCommand(
+  session: SessionPort,
+  publicToken: string,
+  input: LostCommandInput,
+  idempotencyKey: string | null,
+): Promise<ApiResult<LostCommandAckV1>> {
+  return apiRequest<LostCommandAckV1>(
+    {
+      path: `/api/v1/pets/${encodeURIComponent(publicToken)}/lost`,
+      method: "POST",
+      body: input,
+      headers: idempotencyKey === null ? undefined : { "idempotency-key": idempotencyKey },
+    },
     session,
   );
 }
