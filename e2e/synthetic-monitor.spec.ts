@@ -293,6 +293,13 @@ test.describe(`synthetic monitor @ ${STAGING ?? "suite baseURL"}`, () => {
     // 1/min + 3/hour (welfare_anon) and (c) just filed a denuncia from this
     // same suite — without this header the submit here is the "2nd in a
     // minute" and is refused. Same TEST-NET-3 pattern as fileDenunciaAt.
+    //
+    // Honoured against a LOCAL target only. This monitor's usual origin is the
+    // DEPLOYED staging deploy, where the edge overwrites x-real-ip before
+    // callerIp() sees it (measured 2026-08-26 — lib/infra/rate-limit.ts above
+    // callerIp()): there (c) and (d) DO share one welfare_anon bucket, and if
+    // this flow ever starts failing on a refusal at 1/min, that is the reason.
+    // The cure is spacing the two submits, not another header.
     await page.setExtraHTTPHeaders({ "x-real-ip": uniqueIp() });
     // Clearly-marked synthetic report so operators can ignore it.
     const description =

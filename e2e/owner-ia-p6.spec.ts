@@ -82,12 +82,20 @@ function tokenFromUrl(url: string): string | null {
 // --- Per-context unique client IP -------------------------------------------
 //
 // The app throttles per caller IP (login: auth_login_ip 10/min·100/h; public
-// credential: public_token_page 60/min·400/h — lib/infra/rate-limit.ts, which
-// trusts x-real-ip). A whole test suite hammering one localhost IP trips those
-// limits even though each individual scan/login is legitimate. We are NOT
-// testing rate-limiting here, so give every context a distinct x-real-ip
-// (TEST-NET-3, RFC 5737 documentation range) — each request looks like a fresh
-// visitor and the content-under-test is never masked by a throttle notice.
+// credential: public_token_page 60/min·400/h — lib/infra/rate-limit.ts). A whole
+// test suite hammering one localhost IP trips those limits even though each
+// individual scan/login is legitimate. We are NOT testing rate-limiting here, so
+// give every context a distinct x-real-ip (TEST-NET-3, RFC 5737 documentation
+// range) — each request looks like a fresh visitor and the content-under-test is
+// never masked by a throttle notice.
+//
+// WHERE THAT HOLDS: against a LOCAL target only. Nothing sits in front of a bare
+// `next start`, so callerIp() believes whatever x-real-ip arrives. Against a
+// Vercel origin the edge overwrites it and this device does nothing — measured
+// 2026-08-26, method and positive control in lib/infra/rate-limit.ts above
+// callerIp(). playwright.staging.config.ts runs this spec too, so the device is
+// load-bearing on one target and inert on the other; do not cite it as the
+// reason a staging run stays under a ceiling.
 let ipCounter = 0;
 function uniqueIp(): string {
   ipCounter += 1;

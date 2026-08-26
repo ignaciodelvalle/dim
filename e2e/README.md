@@ -127,6 +127,14 @@ coverage. They need no secret beyond the public `STAGING_URL`.
   `resetAuthLoginRateLimits()` (`demo/_db-cleanup.ts`, local DB only) before a
   real sign-in. Any spec with its own private login MUST do the same. The
   anonymous denuncia is 1/min per IP — pass a unique `uniqueIp()` per walk.
+  **`uniqueIp()` is honoured against a LOCAL target only.** Measured 2026-08-26:
+  Vercel's edge overwrites a client-supplied `x-real-ip` before `callerIp()` sees
+  it, so under `playwright.staging.config.ts` every per-IP budget in the suite is
+  spent from the runner's ONE egress address regardless of the header (method and
+  positive control in `lib/infra/rate-limit.ts` above `callerIp()`; consequences
+  for the nightly in the header of `playwright.staging.config.ts`). Against
+  staging the protection is structural — sign in once per account per worker, and
+  space repeated anonymous writes — never the header.
 - **Never assert a 404 by HTTP status.** Streaming routes flush the shell
   before the scoped lookup resolves, so `notFound()` fires after headers went
   out and a DENIED page answers **200** with the branded boundary rendered.

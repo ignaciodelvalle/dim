@@ -58,17 +58,29 @@ export const DEMO_PHOTOS = ["bolt.jpg", "courage.jpg", "hachi.jpg"].map((f) =>
   path.join(PHOTO_DIR, f),
 );
 
-// Login is rate-limited per client IP, and the middleware trusts x-real-ip.
-// A spec that logs in once per test drains the bucket and every later login
-// answers "Demasiados intentos. Esperá un momento y volvé a probar." — measured
-// on e2e/a11y-regression.spec.ts, whose 5 tests each log in as the same owner:
-// 4 passed and the 5th could not get past /login.
+// Login is rate-limited per client IP, and against a LOCAL target `callerIp()`
+// reads x-real-ip straight off the request — nothing sits in front of a bare
+// `next start` to overwrite it. A spec that logs in once per test drains the
+// bucket and every later login answers "Demasiados intentos. Esperá un momento y
+// volvé a probar." — measured on e2e/a11y-regression.spec.ts, whose 5 tests each
+// log in as the same owner: 4 passed and the 5th could not get past /login.
 //
 // Handing every login a distinct address makes each one look like a fresh
 // visitor. TEST-NET-3 (RFC 5737) is the documentation range, so these can never
 // collide with a real client. e2e/owner-ia-p6.spec.ts and
 // e2e/authz-ab-isolation.spec.ts each grew their own private copy of this; it
 // lives here now so the next spec does not have to rediscover the throttle.
+//
+// SCOPE — HONOURED LOCALLY, INERT AGAINST STAGING. Measured 2026-08-26: Vercel's
+// edge overwrites a client-supplied x-real-ip before callerIp() sees it (80
+// concurrent requests with one distinct address each hit the SAME ceiling as a
+// fixed-address control; method and positive control in lib/infra/rate-limit.ts
+// above callerIp(), consequences for the nightly in playwright.staging.config.ts).
+// playwright.staging.config.ts runs every spec in this directory tree, so the
+// same call sites execute against both targets. Against staging every login here
+// shares the runner's ONE egress bucket, and what protects the nightly there is
+// not this device but the per-worker session cache below — one real sign-in per
+// account per worker, which is header-independent.
 let ipCounter = 0;
 export function uniqueIp(): string {
   ipCounter += 1;
@@ -161,10 +173,14 @@ export async function loginAs(
     if (cached) sessionCache.delete(email);
   }
 
-  // Fresh apparent origin per login — see uniqueIp above. Note this defeats the
-  // per-IP budget ONLY: the per-email budget is keyed on the address, so a spec
-  // that logs in as the same account more than 5 times a minute (or 20 an hour)
-  // is rate-limited no matter what address it presents.
+  // Fresh apparent origin per login — see uniqueIp above, and note the TWO
+  // scopes on it. (1) It defeats the per-IP budget ONLY: the per-email budget is
+  // keyed on the email address, so a spec that logs in as the same account more
+  // than 5 times a minute (or 20 an hour) is rate-limited no matter what address
+  // it presents. (2) It defeats even that one only where the header is honoured,
+  // i.e. a local target. Against staging the edge overwrites it and every login
+  // shares the runner's one per-IP bucket; the session cache above is what keeps
+  // that budget intact there, and it needs no header.
   await page.setExtraHTTPHeaders({ "x-real-ip": uniqueIp() });
   // Real sign-ins only happen on a cold session cache — i.e. after Playwright
   // replaced the worker (it does so on EVERY test failure, and retries double

@@ -108,11 +108,19 @@ for (const { role, email, nav, loginLandingPattern } of ROLES) {
   const storageStatePath = join(AUTH_DIR, `exec-${role}.json`);
 
   test.describe(`executive smoke — ${role} portal (${hrefs.length} routes)`, () => {
-    // Sign in ONCE per suite, not per test. The staging login limiter trusts
-    // x-real-ip; a per-test login (48× on the single per-run IP) drains the
-    // per-IP bucket and wedges every subsequent route on "Demasiados intentos".
-    // Log in once in beforeAll, persist the session, and reuse it across every
-    // route via storageState — two logins total instead of forty-eight.
+    // Sign in ONCE per suite, not per test. A per-test login (48× from ONE
+    // apparent origin) drains the per-IP bucket and wedges every subsequent
+    // route on "Demasiados intentos". Log in once in beforeAll, persist the
+    // session, and reuse it across every route via storageState — two logins
+    // total instead of forty-eight.
+    //
+    // This sentence used to read "the staging login limiter trusts x-real-ip",
+    // and that is false: measured 2026-08-26, Vercel's edge OVERWRITES a
+    // client-supplied x-real-ip before callerIp() sees it (method and positive
+    // control in lib/infra/rate-limit.ts above callerIp()). Against staging
+    // every login in this suite spends the runner's one real egress bucket no
+    // matter what header it presents, which makes signing in once the only
+    // thing standing between this suite and auth_login_ip — not an optimisation.
     test.use({ storageState: storageStatePath });
 
     test.beforeAll(async ({ browser }) => {

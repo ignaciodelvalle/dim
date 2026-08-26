@@ -67,11 +67,15 @@ test("owner creates a pet with location and it appears in /mis-mascotas", async 
 
   // -- Log in -----------------------------------------------------------
   // Through the SHARED helper, not a private copy. Login is rate-limited per
-  // client IP and the middleware trusts x-real-ip; loginAs hands every login a
-  // distinct TEST-NET-3 address so each looks like a fresh visitor. This spec
-  // had its own inline login without that, so repeated runs drained the bucket
-  // and it failed at the login step — 15s waitForURL timeout — long before it
-  // reached anything it was written to test.
+  // client IP, and against a LOCAL target callerIp() reads x-real-ip straight
+  // off the request; loginAs hands every login a distinct TEST-NET-3 address so
+  // each looks like a fresh visitor. This spec had its own inline login without
+  // that, so repeated runs drained the bucket and it failed at the login step —
+  // 15s waitForURL timeout — long before it reached anything it was written to
+  // test. Against staging that address is INERT (Vercel's edge overwrites the
+  // header — measured 2026-08-26, method in lib/infra/rate-limit.ts above
+  // callerIp()); there what keeps the login budget intact is loginAs's
+  // per-worker session cache, not the header.
   await loginAs(page, OWNER_EMAIL);
 
   // -- Navigate to new-pet form -----------------------------------------

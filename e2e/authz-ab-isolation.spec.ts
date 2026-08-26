@@ -12,9 +12,13 @@ import { uniqueIp } from "./demo/_helpers";
  *      and cannot widen scope by crafting params.
  *
  * Read-only. No writes. Same auth-reuse + unique-x-real-ip conventions as
- * e2e/owner-ia-p6.spec.ts (login rate limits trust x-real-ip; a suite hammering
- * one localhost IP trips them — we are not testing throttling, so each context
- * gets a distinct RFC-5737 documentation IP and each account logs in once).
+ * e2e/owner-ia-p6.spec.ts (a suite hammering one localhost IP trips the per-IP
+ * login limits — we are not testing throttling, so each context gets a distinct
+ * RFC-5737 documentation IP and each account logs in once). The header half of
+ * that convention is honoured ONLY where no rewriting edge sits in front of the
+ * origin: against staging Vercel overwrites x-real-ip before callerIp() sees it
+ * (measured 2026-08-26 — lib/infra/rate-limit.ts above callerIp()), and the
+ * log-in-once half is what carries the suite there.
  *
  * ─── FIXTURE TIER (why these accounts and not the demo cast) ───────────────
  * This spec used to run on ignacio/noeli/lilian@dim.test and the hardcoded

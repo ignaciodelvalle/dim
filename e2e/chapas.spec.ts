@@ -64,7 +64,11 @@ import { ACCOUNTS, assertRealPage, loginAs, uniqueIp } from "./demo/_helpers";
  *  · Activation is rate-limited per IP (5/min · 20/hour, app/actions/tags.ts),
  *    and `loginAs` only sets a fresh `x-real-ip` on a REAL sign-in — a replayed
  *    cached session inherits none, so every spec would share the "unknown"
- *    bucket. Each test that submits the form claims its own `uniqueIp()`.
+ *    bucket. Each test that submits the form claims its own `uniqueIp()`. That
+ *    device works against a LOCAL target only ("unknown" is itself the tell:
+ *    there is no edge stamping the header). Against staging the edge overwrites
+ *    whatever this spec sends and all of it lands in the runner's one real
+ *    bucket — measured 2026-08-26, lib/infra/rate-limit.ts above `callerIp()`.
  *  · Serial-keyed budget too (3/min · 10/hour): the wrong-code walk and the
  *    happy path deliberately use DIFFERENT serials from the batch.
  */
@@ -212,7 +216,9 @@ test.describe("chapas — physical tag lifecycle", () => {
 
     await loginAs(page, ACCOUNTS.owner);
     // Own IP: the per-IP activation budget is 5/min and a replayed session
-    // carries no x-real-ip, so without this every spec shares one bucket.
+    // carries no x-real-ip, so without this every spec shares one bucket —
+    // locally. Against staging the edge overwrites it and they share one bucket
+    // anyway; see the file header.
     await page.setExtraHTTPHeaders({ "x-real-ip": uniqueIp() });
 
     // Attempt 1 — real serial, wrong code.
