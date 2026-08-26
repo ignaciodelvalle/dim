@@ -10,7 +10,7 @@
 //
 // Integration test — requires the local Supabase + Postgres stack.
 
-import { inArray } from "drizzle-orm";
+import { eq, inArray } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { db, petEvents, pets } from "@/db";
@@ -54,13 +54,40 @@ async function insertOwnerEvent(petId: string, occurredAt: Date): Promise<void> 
   });
 }
 
+/**
+ * Remove the fixtures by their JURISDICTION, not by an in-memory id list.
+ *
+ * IT USED TO BE `inArray(pets.id, fixtureIds)` GUARDED BY
+ * `if (fixtureIds.length === 0) return`, and that combination made the
+ * `beforeAll` pre-clean structurally incapable of doing its job: `fixtureIds` is
+ * module state, so in a fresh process it is empty and the guard returns before
+ * touching anything. The pre-clean only ever cleaned up after ITSELF, within one
+ * run.
+ *
+ * That was fine until a vitest worker died mid-file (2026-08-26). `afterAll`
+ * never ran, three `pets` rows survived with their tokens, and every subsequent
+ * run of this file — on any branch, by any author — failed on
+ * `pets_public_token_unique` for `DIM-WP0-RECENT`. A crashed worker left a
+ * booby trap that looked like a code defect in whatever change ran next.
+ *
+ * `LOCALITY` is the durable handle, and the file already invented it for
+ * exactly this property: the header says it is a unique jurisdiction so the
+ * govt-scoped query sees ONLY these fixtures. Deleting by it clears debris from
+ * a previous process as well as from this one.
+ */
 async function cleanup() {
-  if (fixtureIds.length === 0) return;
-  await withMutationOverride(async (tx) => {
-    await tx.delete(petEvents).where(inArray(petEvents.petId, fixtureIds));
-  });
-  await db.delete(pets).where(inArray(pets.id, fixtureIds));
+  const orphans = await db
+    .select({ id: pets.id })
+    .from(pets)
+    .where(eq(pets.jurisdictionLocality, LOCALITY));
   fixtureIds.length = 0;
+  if (orphans.length === 0) return;
+
+  const ids = orphans.map((row) => row.id);
+  await withMutationOverride(async (tx) => {
+    await tx.delete(petEvents).where(inArray(petEvents.petId, ids));
+  });
+  await db.delete(pets).where(inArray(pets.id, ids));
 }
 
 beforeAll(async () => {
