@@ -63,7 +63,7 @@ export function isTitular(accessPath: "owner" | "org", holderRole: string | null
  * NARROWER THAN `isTitular`, AND THE NARROWING IS THE WEB'S OWN — just performed
  * one layer down. `createLibretaShareAction` gates on `requireTitularAccess`,
  * which the ORG path passes; then `createLibretaShareForUser` joins `ownerships`
- * on `owner_user_id = $userId` (`create-libreta-share.ts:31`), which an org
+ * on `owner_user_id = $userId` (`create-libreta-share.ts:41`), which an org
  * member has no row for, and answers "Mascota no encontrada o sin permisos."
  * The refusal is real on the web; it just arrives from the writer instead of the
  * guard. Reporting it as a capability is the same outcome, said before the tap.

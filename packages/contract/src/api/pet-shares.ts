@@ -236,7 +236,7 @@ export type ShareCommandAckV1 = {
    * `false` IS A SUCCESS, and it is the interesting one. All four commands are
    * idempotent on the state and three of them can no-op: minting a link with the
    * same label and an equivalent expiry returns the EXISTING token rather than
-   * burning a slot (`create-libreta-share.ts:75-80`), re-opening a Tier-2 window
+   * burning a slot (`create-libreta-share.ts:85-90`), re-opening a Tier-2 window
    * that already ends within a minute of the requested one writes nothing
    * (`enable-tier2-public.ts:54`), and asking for permanent exposure that is
    * already permanent returns early (`:36`). A client that reported "listo" on

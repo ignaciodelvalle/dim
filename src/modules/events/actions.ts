@@ -504,8 +504,8 @@ export type {
  * There is no `./application/flush-notifications` module — an earlier version
  * of this docblock claimed one, and it never existed. The shared copy is the
  * EXPORT `flushNotifications` at `./application/writers.ts:77`, which two route
- * writers import: `app/api/v1/pets/[publicToken]/events/writers.ts:171` and
- * `app/api/v1/pets/[publicToken]/lost/commands.ts:96`. Collapsing this function
+ * writers import: `app/api/v1/pets/[publicToken]/events/writers.ts:172` and
+ * `app/api/v1/pets/[publicToken]/lost/commands.ts:99`. Collapsing this function
  * into that export was the obvious third step. It was tried, and
  * `pnpm lint:audit-log` went red one entry — a STALE one, which is the
  * direction that looks like progress:

@@ -85,7 +85,7 @@ export const LIBRETA_SHARE_LABEL_MAX = 80;
 /**
  * How many active (unrevoked) share links one animal may hold at once.
  *
- * MIRRORED FROM `create-libreta-share.ts:17`, where it is enforced, and carried
+ * MIRRORED FROM `create-libreta-share.ts:53`, where it is enforced, and carried
  * here so a client can DISABLE the create control with an explanation instead of
  * offering a button that answers with a refusal. It is an affordance hint and
  * NOT the rule — the rule runs in the writer, inside the same query that counts,
@@ -98,7 +98,7 @@ export const MAX_ACTIVE_LIBRETA_SHARES = 5;
  *
  * `siempre` IS ONE OF THEM AND IS NOT LIKE THE OTHER THREE. It is permanent
  * medical exposure on a public QR with no expiry, and the web puts it behind an
- * "Avanzado" expander for exactly that reason (`Tier2PublicView.tsx:44-49`)
+ * "Avanzado" expander for exactly that reason (`Tier2PublicView.tsx:48-53`)
  * rather than inline as a peer of the bounded windows. A client that rendered
  * the four as one flat radio group would have undone that decision — the option
  * is fully available, and it is not a default.

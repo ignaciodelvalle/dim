@@ -30,7 +30,7 @@
 //
 // AND CREATION IS NARROWED AGAIN ONE LAYER DOWN, BY THE WEB ITSELF.
 // `createLibretaShareForUser` joins `ownerships` on `owner_user_id = $userId`
-// (`create-libreta-share.ts:31`), which the ORG path has no row for — so an org
+// (`create-libreta-share.ts:41`), which the ORG path has no row for — so an org
 // member passes the guard and is refused by the writer. Both refusals are real
 // on the web; this endpoint reports them together because they have one fix.
 //
@@ -54,7 +54,7 @@
 // None of the four writers takes a `clientIdempotencyKey` — there is no spine
 // append here at all. All four are idempotent on the STATE instead: a duplicate
 // create returns the EXISTING token rather than burning a slot
-// (`create-libreta-share.ts:75-80`), a re-open of an equivalent Tier-2 window
+// (`create-libreta-share.ts:85-90`), a re-open of an equivalent Tier-2 window
 // writes nothing (`enable-tier2-public.ts:54`), a re-request of permanent
 // exposure returns early (`:36`), and revoking twice sets a flag that is already
 // set. Demanding a header those four could not honour is the false promise
