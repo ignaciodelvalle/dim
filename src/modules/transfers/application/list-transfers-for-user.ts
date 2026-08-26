@@ -159,9 +159,16 @@ export async function listTransfersForUser(
 
   // The repository orders by `initiated_at DESC`, which is right for the two
   // lists a person reads as "what arrived / what I sent". The received HISTORY
-  // is re-sorted by when it was ANSWERED, because that is the web's own order
-  // (`/transferencias/page.tsx:62`) and it is the more useful one: a proposal
-  // sent in March and refused yesterday belongs at the top.
+  // is re-sorted by when it was ANSWERED, and that order is INHERITED rather
+  // than invented: the hub's own history query used to end
+  // `.orderBy(desc(petTransfers.respondedAt))`, and this use-case absorbed it
+  // along with the query. It is also the more useful one — a proposal sent in
+  // March and refused yesterday belongs at the top.
+  //
+  // NO CITATION TO THAT QUERY, because it no longer exists to point at: the
+  // three selects it lived among were replaced by the single repository read
+  // above, in the same change that wrote this file. A line number for deleted
+  // code is worse than none.
   incomingHistory.sort((a, b) => (b.respondedAt?.getTime() ?? 0) - (a.respondedAt?.getTime() ?? 0));
 
   return { incoming: { pending: incomingPending, history: incomingHistory }, outgoing };

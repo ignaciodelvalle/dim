@@ -35,7 +35,7 @@
 // There is no third party. The web renders it unconditionally for the same
 // reason (`/transferencias/[transferToken]/page.tsx:103-104`, ungated by
 // `isSender`), and the hub falls back to it when the recipient has no display
-// name yet (`/transferencias/page.tsx:246`) — an open invitation to somebody
+// name yet (`/transferencias/page.tsx:206-209`) — an open invitation to somebody
 // with no account has nothing else to show.
 //
 // THE SENDER'S EMAIL IS NEVER CARRIED, and it is not merely withheld: it is

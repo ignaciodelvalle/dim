@@ -19,11 +19,11 @@
 // that does cross is the addressee's, which is either the caller's own address
 // or the one they typed — see `@dim/contract/api`'s `my-transfers.ts` header.
 
+import { apiV1Envelope } from "@/lib/infra/api-v1";
 import type {
   TransferListItem,
   TransfersForUser,
 } from "@/src/modules/transfers/application/list-transfers-for-user";
-import { apiV1Envelope } from "@/lib/infra/api-v1";
 import {
   MY_TRANSFERS_PAYLOAD_VERSION,
   MY_TRANSFERS_STALE_AFTER_MS,

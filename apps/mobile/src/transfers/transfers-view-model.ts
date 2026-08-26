@@ -105,7 +105,7 @@ export function transferDeadlineLabel(transfer: MyTransferV1): string | null {
   return `Vence el ${formatDate(transfer.expiresAt)}`;
 }
 
-/** The heading, in the web's own two shapes (`/transferencias/[transferToken]/page.tsx:77-80`). */
+/** The heading, in the web's own two shapes (`/transferencias/[transferToken]/page.tsx:78-79`). */
 export function transferHeadline(transfer: MyTransferV1): string {
   return transfer.direction === "incoming"
     ? `Recibiste a ${transfer.pet.name}`
@@ -121,7 +121,7 @@ export function transferHeadline(transfer: MyTransferV1): string {
  * rather than falling back to something it does not have.
  *
  * OUTGOING FALLS BACK TO THE ADDRESS, which is what the web does
- * (`/transferencias/page.tsx:246`) and is not a leak: it is the address this
+ * (`/transferencias/page.tsx:206-209`) and is not a leak: it is the address this
  * person typed into the form themselves, and for an open invitation to somebody
  * with no account it is the only thing there is to show.
  */

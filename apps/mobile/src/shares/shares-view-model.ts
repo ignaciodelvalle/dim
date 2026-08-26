@@ -79,7 +79,7 @@ export const SHARE_DURATION_CHOICES: ReadonlyArray<{
  * The Tier-2 windows, bounded ones first and `siempre` LAST AND MARKED.
  *
  * The web puts the permanent option behind an "Avanzado" expander
- * (`Tier2PublicView.tsx:44-49`) because it is medical detail on a public QR with
+ * (`Tier2PublicView.tsx:48-53`) because it is medical detail on a public QR with
  * no expiry — the highest-risk choice on the sheet. This app has no expander, so
  * it carries the risk in the copy instead. What it must NOT do is render the
  * four as one flat list of equals, which would undo that decision silently.

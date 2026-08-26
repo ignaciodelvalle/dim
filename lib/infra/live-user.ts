@@ -96,7 +96,7 @@ export type LiveUserSuccess = {
   // compares it — id when `to_owner_id` resolved, e-mail only when it did not.
   // The web's own actions already feed that comparison from
   // `supabase.auth.getUser()`, i.e. this same verified value
-  // (`src/modules/transfers/actions.ts:169-171`), and
+  // (`src/modules/transfers/actions.ts:174-176`), and
   // `app/api/v1/me/transfers/route.ts` reads it here instead of paying a second
   // GoTrue round-trip for the identical answer.
   //
