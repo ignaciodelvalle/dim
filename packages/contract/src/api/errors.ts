@@ -397,6 +397,113 @@
  *                         and that is the honest difference from `event_failed`:
  *                         without an idempotency key a blind retry of `accept`
  *                         cannot be told from a second attempt. Re-read first.
+ *
+ * THE CARETAKER CODES (WU-P). `POST /api/v1/me/caretaker-grants` runs the five
+ * cuidador-temporal commands the web offers: designar, aceptar, rechazar, retirar
+ * la invitación, finalizar el cuidado. The surface has BOTH shapes of caller the
+ * previous two sets split on — a titular acting on their own animal, and an
+ * invitee who holds no ownership row at all — so the split below is again by
+ * WHOSE fact the refusal is about.
+ *
+ * `not_found` is REUSED for "no such grant" and for "no such pet, or one you may
+ * not see", rather than getting caretaker-specific twins. It already means "the
+ * identifier resolves to nothing the caller may see", which is exactly right for
+ * both, and a pet the caller may not touch must answer identically to one that
+ * does not exist or this endpoint becomes a probe over the pet table.
+ *
+ * - `caretaker_forbidden` — the caller is not the party THIS command is for. 403.
+ *                         ONE code for four different rules, because the client's
+ *                         move is identical in all four (stop offering the
+ *                         control, re-read) and because naming which rule refused
+ *                         would describe somebody else's arrangement to a
+ *                         stranger:
+ *                           · `designate`/`cancel`/`revoke` — the caller holds
+ *                             this animal but is its CARETAKER, which
+ *                             `requireTitularAccess` denies (and a caretaker
+ *                             naming a sub-caretaker is deny-list row
+ *                             `caretaker-sub-designation`). Note what this code
+ *                             does NOT mean: a co-owner, a foster and the org
+ *                             path all PASS on the web, so they pass here.
+ *                           · `cancel`/`revoke` — the caller holds the animal as
+ *                             titular but did not GRANT this invitation. A grant
+ *                             is an agreement between two people; a co-owner may
+ *                             not withdraw one they did not make.
+ *                           · `accept`/`reject` — the caller is not the
+ *                             addressee. An id-or-email match against the grant
+ *                             ROW, NOT a custody check: the addressee by
+ *                             definition holds nothing yet, and a surface that
+ *                             answered this with a pet guard would refuse the one
+ *                             caller the command exists for.
+ * - `caretaker_self`    — the titular named their own account, or is trying to
+ *                         accept their own invitation. 400, and NOT
+ *                         `caretaker_forbidden`, by this file's only bar: the
+ *                         move is a specific edit (change the address) rather
+ *                         than "stop".
+ * - `caretaker_period_invalid`
+ *                       — the period is not one the domain will accept: the end
+ *                         is not after the start, it is longer than
+ *                         `CARETAKER_MAX_DURATION_DAYS`, it is already in the
+ *                         past, or the day is not a real calendar date
+ *                         (`2026-02-31` passes the wire regex and no leap-year
+ *                         rule belongs in a zod schema). 400.
+ *
+ *                         ONE code for the four because the move is one move —
+ *                         pick different dates — and the client HOLDS what it
+ *                         needs to say why: `CARETAKER_MAX_DURATION_DAYS` is in
+ *                         the contract precisely so a picker can be bounded
+ *                         before the round trip, exactly as the web form bounds
+ *                         its own.
+ * - `caretaker_grant_exists`
+ *                       — this animal already has an open arrangement: an active
+ *                         caretaker, or an invitation nobody has answered. 409,
+ *                         and its own code because the move is specific and
+ *                         available — end or withdraw the one in flight, then
+ *                         invite. Two partial unique indexes enforce it; this is
+ *                         the readable half.
+ * - `caretaker_already_resolved`
+ *                       — the grant is no longer in the state this command needs:
+ *                         somebody answered the invitation, the titular withdrew
+ *                         it, the sweep expired it, or the arrangement already
+ *                         ended. 409, and the move is always the same one:
+ *                         re-read.
+ *
+ *                         IT ALSO COVERS `cancel` SENT AT A LIVE ARRANGEMENT,
+ *                         which the web answers with its own sentence ("usá
+ *                         «Finalizar ahora»"). No second code, because re-reading
+ *                         IS the fix: the row comes back `accepted` with
+ *                         `canRevoke`, which is the same instruction expressed as
+ *                         data the screen already renders.
+ *
+ *                         THIS IS THE CODE A TIMED-OUT WRITE COMES BACK AS, and
+ *                         it is AMBIGUOUS on purpose. None of the five commands
+ *                         takes an `Idempotency-Key`, so a retry after a timeout
+ *                         that in fact succeeded lands here, and so does a retry
+ *                         that raced the other party. Re-read rather than guess.
+ * - `caretaker_expired` — the period the invitation offers is already over, so
+ *                         accepting it would grant access that ends the same
+ *                         second. 409, and distinct from
+ *                         `caretaker_already_resolved` because nothing was
+ *                         decided: the fix is to ask the titular for a new
+ *                         invitation with new dates.
+ * - `caretaker_granter_not_titular`
+ *                       — the person who invited you no longer holds this animal.
+ *                         409. It earns its own code by the only bar this file
+ *                         applies, and it is the clearest case in the file: every
+ *                         other refusal's move is "re-read" or "ask again", and
+ *                         BOTH are dead ends here. The grant is still `pending`,
+ *                         so a re-read shows an invitation that looks live; the
+ *                         person who sent it cannot re-send it, because they are
+ *                         no longer the titular. The only move is to ask a
+ *                         DIFFERENT person, and no other field on the wire could
+ *                         tell a client that.
+ *
+ *                         The guard (H4) is what stops an invitation surviving a
+ *                         change of owner — designate an accomplice, sell the
+ *                         animal, have them accept inside the window.
+ * - `caretaker_failed`  — the command's transaction failed. 500. NO retry advice,
+ *                         for the same reason `transfer_failed` gives none:
+ *                         without an idempotency key a blind retry of `accept`
+ *                         cannot be told from a second attempt. Re-read first.
  */
 export const API_V1_ERROR_CODES = [
   "rate_limited",
@@ -440,6 +547,14 @@ export const API_V1_ERROR_CODES = [
   "transfer_already_resolved",
   "transfer_expired",
   "transfer_failed",
+  "caretaker_forbidden",
+  "caretaker_self",
+  "caretaker_period_invalid",
+  "caretaker_grant_exists",
+  "caretaker_already_resolved",
+  "caretaker_expired",
+  "caretaker_granter_not_titular",
+  "caretaker_failed",
 ] as const;
 
 export type ApiV1ErrorCode = (typeof API_V1_ERROR_CODES)[number];

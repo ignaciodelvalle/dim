@@ -105,6 +105,17 @@ export {
   transferCommandInputSchema,
 } from "./transfer.ts";
 export {
+  CARETAKER_COMMAND_INPUT_CODES,
+  CARETAKER_INVITATION_EXPIRY_DAYS,
+  CARETAKER_MAX_DURATION_DAYS,
+  CARETAKER_NOTE_MAX,
+  type CaretakerCommand,
+  type CaretakerCommandInput,
+  type CaretakerCommandInputCode,
+  caretakerCommandInputSchema,
+  firstCaretakerCommandInputCode,
+} from "./caretaker.ts";
+export {
   ACQUISITION_METHODS,
   MAX_PET_AGE_MONTHS,
   MAX_PET_AGE_YEARS,

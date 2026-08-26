@@ -126,6 +126,17 @@ export {
   type TransferPetV1,
 } from "./my-transfers.ts";
 export {
+  CARETAKER_GRANT_STATUSES_V1,
+  MY_CARETAKER_GRANTS_PAYLOAD_VERSION,
+  MY_CARETAKER_GRANTS_STALE_AFTER_MS,
+  type CaretakerCommandAckV1,
+  type CaretakerGrantCapabilitiesV1,
+  type CaretakerGrantPetV1,
+  type CaretakerGrantStatusV1,
+  type MyCaretakerGrantV1,
+  type MyCaretakerGrantsV1,
+} from "./my-caretaker-grants.ts";
+export {
   LOCALITIES_PAYLOAD_VERSION,
   LOCALITIES_STALE_AFTER_MS,
   type LocalitiesV1,

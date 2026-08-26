@@ -198,5 +198,42 @@ export function apiErrorMessage(code: ApiV1ErrorCode): string {
       // NO retry advice, unlike `event_failed`. Without an idempotency key a
       // blind retry of "aceptar" cannot be told from a second attempt.
       return "No pudimos completar la operación. Actualizá la pantalla para ver cómo quedó.";
+    // WU-P, cuidador temporal. Two audiences read these: a titular arranging for
+    // somebody to look after their animal, and a person deciding whether to take
+    // that on. Neither is in a crisis, but both are about to be responsible for a
+    // living thing, so no sentence here may leave the next move unsaid.
+    case "caretaker_forbidden":
+      // Four different rules behind one code — you are the caretaker and not the
+      // titular, you did not grant this invitation, or it is not addressed to
+      // you. The sentence names the SITUATION and not which rule refused, because
+      // saying which would describe somebody else's arrangement.
+      return "Esta acción no es tuya para hacer. Actualizá la pantalla para ver cómo quedó.";
+    case "caretaker_self":
+      return "No podés designarte a vos mismo/a como cuidador/a. Revisá el correo de la persona.";
+    case "caretaker_period_invalid":
+      // One sentence for four date refusals, because the move is one move. The
+      // screen holds `CARETAKER_MAX_DURATION_DAYS` and bounds its own picker, so
+      // reaching this code means the dates were wrong in a way the picker could
+      // not prevent.
+      return "Revisá las fechas del cuidado: tienen que ser reales, futuras y dentro del máximo permitido.";
+    case "caretaker_grant_exists":
+      return "Esta mascota ya tiene un cuidado en curso. Terminá o retirá el que está antes de invitar a alguien más.";
+    case "caretaker_already_resolved":
+      // AMBIGUOUS AFTER A TIMEOUT, exactly like `transfer_already_resolved`: the
+      // first attempt may well have landed. "Actualizá" is the honest
+      // instruction; "volvé a intentar" would be wrong advice.
+      return "Este cuidado ya no está en ese estado. Actualizá la pantalla para ver cómo quedó.";
+    case "caretaker_expired":
+      // NOT the sentence above. Nothing was decided — the period the invitation
+      // offers is simply over — and the fix is specific: ask for new dates.
+      return "El período de este cuidado ya terminó. Pedile al titular que te invite de nuevo con fechas nuevas.";
+    case "caretaker_granter_not_titular":
+      // The one refusal on this surface where re-reading is a DEAD END: the
+      // invitation still reads pending, and the person who sent it can no longer
+      // re-send it. The sentence has to redirect the person to somebody else.
+      return "Quien te invitó ya no es titular de esta mascota. Pedile al titular actual que te invite de nuevo.";
+    case "caretaker_failed":
+      // NO retry advice, for the same reason `transfer_failed` gives none.
+      return "No pudimos completar la operación. Actualizá la pantalla para ver cómo quedó.";
   }
 }
