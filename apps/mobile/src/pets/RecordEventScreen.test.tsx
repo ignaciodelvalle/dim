@@ -59,13 +59,21 @@ beforeEach(() => {
 });
 
 describe("RecordEventScreen — the picker", () => {
-  it("offers the five kinds a person can choose, and says where the sixth lives", () => {
+  it("offers the nine kinds a person can choose, and says where the tenth lives", () => {
     render(<RecordEventScreen publicToken={TOKEN} />);
-    expect(screen.getByText("Vacuna")).toBeOnTheScreen();
-    expect(screen.getByText("Peso")).toBeOnTheScreen();
-    expect(screen.getByText("Antiparasitario")).toBeOnTheScreen();
-    expect(screen.getByText("Medicación · inicio")).toBeOnTheScreen();
-    expect(screen.getByText("Nota")).toBeOnTheScreen();
+    for (const label of [
+      "Vacuna",
+      "Peso",
+      "Antiparasitario",
+      "Medicación · inicio",
+      "Visita veterinaria",
+      "Información clínica",
+      "Esterilización",
+      "Microchip",
+      "Nota",
+    ]) {
+      expect(screen.getByText(label)).toBeOnTheScreen();
+    }
     // Ending a treatment needs the asiento it ends, so it is NOT a choice here
     // — and the screen says so rather than leaving a gap a person hunts for.
     expect(screen.getByText("Terminar una medicación")).toBeOnTheScreen();
@@ -246,5 +254,158 @@ describe("RecordEventScreen — the idempotency key", () => {
     await waitFor(() => expect(mockRecordPetEvent).toHaveBeenCalledTimes(2));
 
     expect(sentKey(1)).not.toBe(noteKey);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// WU-L — the four newest forms. One render test per kind, because a `switch`
+// arm that returned the wrong fields would still compile and still submit.
+// ---------------------------------------------------------------------------
+
+describe("RecordEventScreen — visita veterinaria", () => {
+  it("sends the motivo as the wire's `reason`, and the diagnosis as free text", async () => {
+    render(<RecordEventScreen publicToken={TOKEN} initialKind="vet_visit" />);
+
+    fireEvent.changeText(
+      screen.getByLabelText("Motivo de la visita, obligatorio"),
+      "Control anual",
+    );
+    fireEvent.changeText(screen.getByLabelText("Fecha, obligatorio"), "2026-08-20");
+    fireEvent.changeText(screen.getByLabelText("Diagnóstico"), "Otitis externa");
+    fireEvent.changeText(screen.getByLabelText("Veterinario/a"), "Dra. Sosa");
+    fireEvent.press(screen.getByText("Guardar"));
+
+    await waitFor(() => expect(mockRecordPetEvent).toHaveBeenCalledTimes(1));
+    expect(sentBody()).toMatchObject({
+      kind: "vet_visit",
+      reason: "Control anual",
+      occurredAt: "2026-08-20",
+      diagnosis: "Otitis externa",
+      vetName: "Dra. Sosa",
+      // Untouched: null on the wire, not "".
+      clinic: null,
+      notes: null,
+    });
+  });
+
+  it("shows the refusal when the motivo is missing, and sends nothing", async () => {
+    render(<RecordEventScreen publicToken={TOKEN} initialKind="vet_visit" />);
+    fireEvent.press(screen.getByText("Guardar"));
+
+    await waitFor(() =>
+      expect(screen.getByText("Falta el motivo de la visita.")).toBeOnTheScreen(),
+    );
+    expect(mockRecordPetEvent).not.toHaveBeenCalled();
+  });
+});
+
+describe("RecordEventScreen — información clínica", () => {
+  it("sends the chosen sub-kind and the title", async () => {
+    render(<RecordEventScreen publicToken={TOKEN} initialKind="clinical_info" />);
+
+    fireEvent.press(screen.getByText("Imágenes"));
+    fireEvent.changeText(
+      screen.getByLabelText("Estudio o procedimiento, obligatorio"),
+      "Radiografía de tórax",
+    );
+    fireEvent.changeText(screen.getByLabelText("Fecha, obligatorio"), "2026-08-20");
+    fireEvent.press(screen.getByText("Guardar"));
+
+    await waitFor(() => expect(mockRecordPetEvent).toHaveBeenCalledTimes(1));
+    expect(sentBody()).toMatchObject({
+      kind: "clinical_info",
+      subKind: "imaging",
+      title: "Radiografía de tórax",
+      occurredAt: "2026-08-20",
+    });
+  });
+
+  it("offers the five owner sub-kinds and NEVER the vet-only one", () => {
+    // `disease_diagnosis` is a real `clinical_info_logged` sub_kind whose writer
+    // authorizes on a verified matrícula and checks no ownership at all. It is
+    // absent from the contract's enum, so it cannot be rendered here — this
+    // asserts the consequence a reader would otherwise have to take on faith.
+    render(<RecordEventScreen publicToken={TOKEN} initialKind="clinical_info" />);
+    for (const label of ["Análisis", "Imágenes", "Cirugía", "Alergia", "Otro"]) {
+      expect(screen.getByText(label)).toBeOnTheScreen();
+    }
+    expect(screen.queryByText("Diagnóstico de enfermedad")).toBeNull();
+  });
+
+  it("defaults to Análisis rather than to nothing, and the chip says so", async () => {
+    render(<RecordEventScreen publicToken={TOKEN} initialKind="clinical_info" />);
+    fireEvent.changeText(
+      screen.getByLabelText("Estudio o procedimiento, obligatorio"),
+      "Hemograma",
+    );
+    fireEvent.press(screen.getByText("Guardar"));
+
+    await waitFor(() => expect(mockRecordPetEvent).toHaveBeenCalledTimes(1));
+    expect(sentBody()).toMatchObject({ subKind: "lab_work" });
+  });
+});
+
+describe("RecordEventScreen — esterilización", () => {
+  it("sends the chosen procedure", async () => {
+    render(<RecordEventScreen publicToken={TOKEN} initialKind="sterilization" />);
+
+    fireEvent.press(screen.getByText("Ovariectomía"));
+    fireEvent.changeText(screen.getByLabelText("Fecha de la cirugía, obligatorio"), "2026-08-20");
+    fireEvent.changeText(screen.getByLabelText("Clínica"), "Veterinaria del Parque");
+    fireEvent.press(screen.getByText("Guardar"));
+
+    await waitFor(() => expect(mockRecordPetEvent).toHaveBeenCalledTimes(1));
+    expect(sentBody()).toMatchObject({
+      kind: "sterilization",
+      procedure: "spay",
+      occurredAt: "2026-08-20",
+      clinic: "Veterinaria del Parque",
+      performedBy: null,
+    });
+  });
+});
+
+describe("RecordEventScreen — microchip", () => {
+  it("sends the chip number and the implant date", async () => {
+    render(<RecordEventScreen publicToken={TOKEN} initialKind="microchip" />);
+
+    fireEvent.changeText(
+      screen.getByLabelText("Número de microchip, obligatorio"),
+      "982000123456789",
+    );
+    fireEvent.changeText(screen.getByLabelText("Fecha de implantación, obligatorio"), "2026-08-20");
+    fireEvent.changeText(screen.getByLabelText("Zona del cuerpo"), "Cuello, lado izquierdo");
+    fireEvent.press(screen.getByText("Guardar"));
+
+    await waitFor(() => expect(mockRecordPetEvent).toHaveBeenCalledTimes(1));
+    expect(sentBody()).toMatchObject({
+      kind: "microchip",
+      chipNumber: "982000123456789",
+      occurredAt: "2026-08-20",
+      locationOnBody: "Cuello, lado izquierdo",
+      countryCode: null,
+      implantedBy: null,
+    });
+  });
+
+  it("shows the refusal when the number is missing, and sends nothing", async () => {
+    render(<RecordEventScreen publicToken={TOKEN} initialKind="microchip" />);
+    fireEvent.press(screen.getByText("Guardar"));
+
+    await waitFor(() =>
+      expect(screen.getByText("Falta el número de microchip.")).toBeOnTheScreen(),
+    );
+    expect(mockRecordPetEvent).not.toHaveBeenCalled();
+  });
+
+  it("shows the immutability note on every one of the four, before the button", () => {
+    // A person about to write into a national registry should read it while
+    // they can still stop — and a new `switch` arm is exactly where it would
+    // have been forgotten.
+    for (const kind of ["vet_visit", "clinical_info", "sterilization", "microchip"] as const) {
+      const view = render(<RecordEventScreen publicToken={TOKEN} initialKind={kind} />);
+      expect(screen.getByText(/no se editan ni se borran/i)).toBeOnTheScreen();
+      view.unmount();
+    }
   });
 });

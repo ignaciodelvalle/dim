@@ -1,9 +1,14 @@
-// ASENTAR — writing one of the six daily asientos from the phone.
+// ASENTAR — writing one of the ten asientos an owner may write, from the phone.
 //
-// THE FIRST TIME THIS APP WRITES A CLINICAL FACT. Until now it could create an
-// animal and correct a record; this is the day-to-day act the libreta exists
-// for — a vaccine, a weighing, an antiparasitic, a treatment starting or
-// ending, a note.
+// SIX WHEN THIS SCREEN WAS BUILT, TEN NOW: WU-L added visita veterinaria,
+// información clínica, esterilización and microchip — every remaining web
+// writer that appends a plain fact under the SAME guard the first six use and
+// through the same idempotent insert. What is still missing from the picker is
+// listed in `writers.ts`, with the evidence for each exclusion; the short of it
+// is that mordedura opens a case, lost/found mutate status, and three others
+// have no idempotency key to honour.
+//
+// The picker holds NINE of the ten, for the reason spelled out below.
 //
 // IT APPENDS. Nothing here edits anything: every one of these lands as a new row
 // on an append-only spine, and a mistake is corrected by appending a correction
@@ -11,7 +16,7 @@
 // because a person about to write into a national registry should know that
 // while they can still stop.
 //
-// FIVE KINDS ARE PICKED HERE AND THE SIXTH IS NOT. Ending a treatment needs the
+// NINE KINDS ARE PICKED HERE AND THE TENTH IS NOT. Ending a treatment needs the
 // `medication_started` asiento it ends, and the only place a person already
 // holds that identifier is that asiento's own screen — so that affordance lives
 // there and arrives here with `sourceEventId` filled in. A picker would have to
@@ -55,6 +60,7 @@ import { COLORS, LABEL_TRACKING_EM, RADIUS, SPACE, TOUCH_TARGET, TYPE } from "..
 
 import { createAttemptSession } from "./idempotency";
 import {
+  CLINICAL_SUB_KIND_OPTIONS,
   DEWORMING_TYPE_OPTIONS,
   type EventDraft,
   FREQUENCY_OPTIONS,
@@ -65,13 +71,16 @@ import {
   RECORD_KINDS,
   type RecordKind,
   SAME_DAY_PROMPT_LABEL,
+  STERILIZATION_PROCEDURE_OPTIONS,
   type WritableKind,
+  clinicalSubKindLabel,
   dewormingTypeLabel,
   emptyDraft,
   frequencyLabel,
   kindSubtitle,
   kindTitle,
   noteCategoryLabel,
+  sterilizationProcedureLabel,
   validateDraft,
 } from "./record-event-view-model";
 
@@ -443,6 +452,138 @@ function Fields({
             value={draft.reason}
             onChangeText={(v) => set("reason", v)}
             placeholder="Tratamiento completo"
+          />
+          <NotesField draft={draft} set={set} />
+        </>
+      );
+
+    case "vet_visit":
+      return (
+        <>
+          <TextField
+            label="Motivo de la visita"
+            required
+            value={draft.visitReason}
+            onChangeText={(v) => set("visitReason", v)}
+            placeholder="Control anual"
+          />
+          {dateField("Fecha", "occurredAt", true)}
+          {/* FREE TEXT, and deliberately not a disease picker. A diagnosis
+              chosen from the catalog is a signed professional claim with an
+              outbreak-signal cascade behind it; this is the owner writing down
+              what the vet told them. */}
+          <TextField
+            label="Diagnóstico"
+            multiline
+            value={draft.diagnosis}
+            onChangeText={(v) => set("diagnosis", v)}
+            placeholder="Lo que te dijo el veterinario"
+          />
+          <TextField
+            label="Veterinario/a"
+            value={draft.vetName}
+            onChangeText={(v) => set("vetName", v)}
+          />
+          <TextField label="Clínica" value={draft.clinic} onChangeText={(v) => set("clinic", v)} />
+          <NotesField draft={draft} set={set} />
+        </>
+      );
+
+    case "clinical_info":
+      return (
+        <>
+          <Choice
+            label="Tipo"
+            required
+            options={CLINICAL_SUB_KIND_OPTIONS}
+            selected={draft.clinicalSubKind}
+            optionLabel={clinicalSubKindLabel}
+            onSelect={(value) => set("clinicalSubKind", value)}
+          />
+          <TextField
+            label="Estudio o procedimiento"
+            required
+            value={draft.title}
+            onChangeText={(v) => set("title", v)}
+            placeholder="Hemograma completo"
+          />
+          {dateField("Fecha", "occurredAt", true)}
+          <TextField
+            label="Detalle"
+            multiline
+            value={draft.details}
+            onChangeText={(v) => set("details", v)}
+            placeholder="Resultados, valores, observaciones"
+          />
+          <TextField
+            label="Realizado por"
+            value={draft.performedBy}
+            onChangeText={(v) => set("performedBy", v)}
+          />
+          <NotesField draft={draft} set={set} />
+        </>
+      );
+
+    case "sterilization":
+      return (
+        <>
+          <Choice
+            label="Procedimiento"
+            required
+            options={STERILIZATION_PROCEDURE_OPTIONS}
+            selected={draft.procedure}
+            optionLabel={sterilizationProcedureLabel}
+            onSelect={(value) => set("procedure", value)}
+          />
+          {dateField("Fecha de la cirugía", "occurredAt", true)}
+          <TextField
+            label="Realizada por"
+            value={draft.performedBy}
+            onChangeText={(v) => set("performedBy", v)}
+          />
+          <TextField label="Clínica" value={draft.clinic} onChangeText={(v) => set("clinic", v)} />
+          <NotesField draft={draft} set={set} />
+        </>
+      );
+
+    case "microchip":
+      return (
+        <>
+          {/* MONO AND numeric-ish, because this is a code that gets read back
+              off a scanner and compared digit by digit. No length rule: the
+              server checks it against the pet's CANONICAL chip, and a 15-digit
+              mask invented here would refuse the shorter legacy codes the web
+              accepts. */}
+          <TextField
+            label="Número de microchip"
+            required
+            mono
+            value={draft.chipNumber}
+            onChangeText={(v) => set("chipNumber", v)}
+            placeholder="982000123456789"
+            autoCapitalize="none"
+            autoCorrect={false}
+            keyboardType="numbers-and-punctuation"
+          />
+          {dateField("Fecha de implantación", "occurredAt", true)}
+          <TextField
+            label="País"
+            value={draft.countryCode}
+            onChangeText={(v) => set("countryCode", v)}
+            placeholder="AR"
+            autoCapitalize="characters"
+            autoCorrect={false}
+          />
+          <TextField
+            label="Implantado por"
+            value={draft.implantedBy}
+            onChangeText={(v) => set("implantedBy", v)}
+          />
+          <TextField
+            label="Zona del cuerpo"
+            value={draft.locationOnBody}
+            onChangeText={(v) => set("locationOnBody", v)}
+            placeholder="Cuello, lado izquierdo"
           />
           <NotesField draft={draft} set={set} />
         </>

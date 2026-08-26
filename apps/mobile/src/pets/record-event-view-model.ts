@@ -14,6 +14,8 @@
 // owns its copy, the same division `intake.ts` states.
 
 import {
+  CLINICAL_SUB_KINDS,
+  type ClinicalSubKind,
   DEWORMING_TYPES,
   type DewormingType,
   MAX_CUSTOM_HOURS,
@@ -25,12 +27,14 @@ import {
   type NoteCategory,
   type RecordEventInput,
   type RecordEventInputCode,
+  STERILIZATION_PROCEDURES,
+  type SterilizationProcedure,
   firstRecordEventInputCode,
   recordEventInputSchema,
 } from "@dim/contract/input";
 
 /**
- * The five kinds the "Asentar" picker offers.
+ * The nine kinds the "Asentar" picker offers.
  *
  * MEDICACIÓN FIN IS NOT AMONG THEM, and its absence is a decision rather than an
  * omission. Ending a treatment needs the `medication_started` event it ends, and
@@ -38,12 +42,22 @@ import {
  * so the affordance lives on THAT screen, where picking is not required. A
  * picker here would have to invent a list of open treatments, and a list built
  * from a second read is a second source for something the ledger already says.
+ *
+ * THE ORDER IS BY HOW OFTEN A PERSON REACHES FOR IT, not by the order the kinds
+ * were built. A vaccine, a weighing and an antiparasitic are the weekly acts; a
+ * microchip is implanted about once in an animal's life and a sterilization
+ * exactly once. A picker sorted by implementation history would put the
+ * once-ever items in the same visual weight as the weekly ones.
  */
 export const RECORD_KINDS = [
   "vaccination",
   "weight",
   "deworming",
   "medication_start",
+  "vet_visit",
+  "clinical_info",
+  "sterilization",
+  "microchip",
   "note",
 ] as const;
 export type RecordKind = (typeof RECORD_KINDS)[number];
@@ -80,6 +94,14 @@ export function kindTitle(kind: WritableKind): string {
       return "Medicación · inicio";
     case "medication_end":
       return "Medicación · fin";
+    case "vet_visit":
+      return "Visita veterinaria";
+    case "clinical_info":
+      return "Información clínica";
+    case "sterilization":
+      return "Esterilización";
+    case "microchip":
+      return "Microchip";
     case "note":
       return "Nota";
   }
@@ -98,8 +120,50 @@ export function kindSubtitle(kind: WritableKind): string {
       return "El comienzo de un tratamiento. Programa los recordatorios de cada dosis.";
     case "medication_end":
       return "El final de un tratamiento. Cancela los recordatorios que quedaban.";
+    case "vet_visit":
+      return "Una consulta. Queda con el motivo y lo que dijo el veterinario.";
+    case "clinical_info":
+      return "Un análisis, una radiografía, una cirugía o una alergia detectada.";
+    case "sterilization":
+      return "Una castración o una ovariectomía. Se asienta una sola vez.";
+    case "microchip":
+      return "La implantación de un microchip. Queda como identificación de tu mascota.";
     case "note":
       return "Algo que querés dejar anotado sobre tu mascota.";
+  }
+}
+
+/** es-AR label for a sterilization procedure. */
+export function sterilizationProcedureLabel(procedure: SterilizationProcedure): string {
+  switch (procedure) {
+    case "castration":
+      return "Castración";
+    case "spay":
+      return "Ovariectomía";
+  }
+}
+
+/**
+ * es-AR label for a clinical sub-kind.
+ *
+ * FIVE, and the sixth the spine knows — `disease_diagnosis` — has no label here
+ * because it is not in `CLINICAL_SUB_KINDS`. Its writer authorizes on a
+ * verified matrícula and checks no ownership at all, so an owner's app must not
+ * be able to name it. The exhaustive switch is what keeps that true: if the
+ * contract ever admitted it, this function would stop compiling.
+ */
+export function clinicalSubKindLabel(subKind: ClinicalSubKind): string {
+  switch (subKind) {
+    case "lab_work":
+      return "Análisis";
+    case "imaging":
+      return "Imágenes";
+    case "surgery":
+      return "Cirugía";
+    case "allergy_detection":
+      return "Alergia";
+    case "other":
+      return "Otro";
   }
 }
 
@@ -159,6 +223,8 @@ export function noteCategoryLabel(category: NoteCategory): string {
 export const DEWORMING_TYPE_OPTIONS = DEWORMING_TYPES;
 export const FREQUENCY_OPTIONS = MEDICATION_FREQUENCIES;
 export const NOTE_CATEGORY_OPTIONS = NOTE_CATEGORIES;
+export const STERILIZATION_PROCEDURE_OPTIONS = STERILIZATION_PROCEDURES;
+export const CLINICAL_SUB_KIND_OPTIONS = CLINICAL_SUB_KINDS;
 
 /**
  * Today, as an Argentine calendar day.
@@ -199,6 +265,25 @@ export type EventDraft = {
   firstDoseDay: string;
   firstDoseTime: string;
   reason: string;
+  // microchip
+  chipNumber: string;
+  countryCode: string;
+  implantedBy: string;
+  locationOnBody: string;
+  // esterilización
+  procedure: SterilizationProcedure;
+  // visita veterinaria
+  visitReason: string;
+  diagnosis: string;
+  vetName: string;
+  // información clínica
+  clinicalSubKind: ClinicalSubKind;
+  title: string;
+  details: string;
+  // esterilización + información clínica
+  performedBy: string;
+  // esterilización + visita veterinaria
+  clinic: string;
   // nota
   text: string;
   category: NoteCategory | null;
@@ -227,6 +312,23 @@ export function emptyDraft(now: Date = new Date()): EventDraft {
     firstDoseDay: today,
     firstDoseTime: "08:00",
     reason: "",
+    chipNumber: "",
+    countryCode: "",
+    implantedBy: "",
+    locationOnBody: "",
+    // Pre-selected like `dewormingType` above, and for the same reason: these
+    // are one-of-N chip rows whose active option is visible on screen, not a
+    // hidden default. A blank required chooser is a form that refuses on submit
+    // for something the person can see the whole time.
+    procedure: "castration",
+    visitReason: "",
+    diagnosis: "",
+    vetName: "",
+    clinicalSubKind: "lab_work",
+    title: "",
+    details: "",
+    performedBy: "",
+    clinic: "",
     text: "",
     category: null,
   };
@@ -314,6 +416,45 @@ function draftToWire(
         medicationStartedEventId: sourceEventId ?? "",
         occurredAt: draft.occurredAt.trim(),
         reason: orNull(draft.reason),
+        notes: orNull(draft.notes),
+      };
+    case "microchip":
+      return {
+        kind,
+        chipNumber: draft.chipNumber,
+        occurredAt: draft.occurredAt.trim(),
+        countryCode: orNull(draft.countryCode),
+        implantedBy: orNull(draft.implantedBy),
+        locationOnBody: orNull(draft.locationOnBody),
+        notes: orNull(draft.notes),
+      };
+    case "sterilization":
+      return {
+        kind,
+        procedure: draft.procedure,
+        occurredAt: draft.occurredAt.trim(),
+        performedBy: orNull(draft.performedBy),
+        clinic: orNull(draft.clinic),
+        notes: orNull(draft.notes),
+      };
+    case "vet_visit":
+      return {
+        kind,
+        reason: draft.visitReason,
+        occurredAt: draft.occurredAt.trim(),
+        diagnosis: orNull(draft.diagnosis),
+        vetName: orNull(draft.vetName),
+        clinic: orNull(draft.clinic),
+        notes: orNull(draft.notes),
+      };
+    case "clinical_info":
+      return {
+        kind,
+        subKind: draft.clinicalSubKind,
+        title: draft.title,
+        occurredAt: draft.occurredAt.trim(),
+        details: orNull(draft.details),
+        performedBy: orNull(draft.performedBy),
         notes: orNull(draft.notes),
       };
     case "note":
@@ -437,6 +578,18 @@ export function inputCodeMessage(code: RecordEventInputCode | null): string {
       return "Falta el contenido de la nota.";
     case "NOTE_CATEGORY_INVALID":
       return "Esa categoría no existe. Elegí una de la lista.";
+    case "CHIP_NUMBER_REQUIRED":
+      return "Falta el número de microchip.";
+    case "STERILIZATION_PROCEDURE_INVALID":
+      return "Elegí si fue una castración o una ovariectomía.";
+    case "VISIT_REASON_REQUIRED":
+      return "Falta el motivo de la visita.";
+    case "CLINICAL_SUB_KIND_INVALID":
+      // Reachable from a build out of step with the contract, not from the
+      // chips: the picker only ever offers the five the contract accepts.
+      return "Ese tipo de información clínica no existe. Elegí uno de la lista.";
+    case "CLINICAL_TITLE_REQUIRED":
+      return "Falta el nombre del estudio o procedimiento.";
   }
 }
 
