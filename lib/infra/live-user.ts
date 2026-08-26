@@ -83,7 +83,26 @@ export type LiveUserFailureReason =
 export type LiveUserSuccess = {
   ok: true;
   supabase: SupabaseServerClient;
-  // email is exposed for display fallbacks (nav avatar) only — never for authz.
+  // email is exposed for display fallbacks (nav avatar) — never as the PRINCIPAL
+  // an authorization decision keys on. That rule stands: an address is mutable
+  // and reassignable, `id` is not, so a guard that asked "is this caller allowed"
+  // by e-mail would be asking the wrong question.
+  //
+  // ONE EXCEPTION EXISTS, and it is recorded here rather than left to be
+  // rediscovered as a contradiction: an ADDRESSEE match is not a principal
+  // check. `pet_transfers` and `pet_caretaker_grants` can be addressed to
+  // somebody who has no account yet, so the row stores an e-mail and
+  // `validateRecipientMatch` (transfers/domain/owner-transfer-rules.ts:124-134)
+  // compares it — id when `to_owner_id` resolved, e-mail only when it did not.
+  // The web's own actions already feed that comparison from
+  // `supabase.auth.getUser()`, i.e. this same verified value
+  // (`src/modules/transfers/actions.ts:169-171`), and
+  // `app/api/v1/me/transfers/route.ts` reads it here instead of paying a second
+  // GoTrue round-trip for the identical answer.
+  //
+  // What makes it safe is that the value is VERIFIED — it comes from the token
+  // GoTrue just validated, never from a request body or header — and that the
+  // rule it feeds is "was this row addressed to you", not "may you do this".
   user: { id: string; email?: string };
   // Already-resolved profile, so a caller that needs the role does not pay a
   // second round-trip. Null only in the mid-signup window where auth.users

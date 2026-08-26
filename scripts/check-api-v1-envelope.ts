@@ -101,8 +101,15 @@ export const V1_ROUTE_GLOB = "app/api/v1/**/route.ts";
  * without a paragraph having to be written about it afterwards. The count was
  * 14 against a surface of 14 when this landed, so the two paragraphs of drift
  * recorded above had been closed and stayed closed.
+ *
+ * SIXTEEN with transferencias (`me/transfers`), raised in the same commit again.
+ * Note what this one adds to the shape the glob has to keep matching: it is the
+ * first CHILD route under `me/` that is a directory rather than a leaf —
+ * `app/api/v1/me/route.ts`, `me/pets/route.ts`, `me/revoke-sessions/route.ts`
+ * and now `me/transfers/route.ts` — so `me/` has three siblings a rename could
+ * take out together, which is exactly the arrangement this floor exists for.
  */
-export const MIN_V1_ROUTE_FILES = 15;
+export const MIN_V1_ROUTE_FILES = 16;
 
 export const HELPER_MODULE = "@/lib/infra/api-v1";
 

@@ -314,6 +314,89 @@
  *                         commands that carry no `Idempotency-Key`: those are
  *                         idempotent on the STATE, so a retry is safe by
  *                         construction rather than by header.
+ *
+ * THE TRANSFER CODES (WU-O). `POST /api/v1/me/transfers` runs the four
+ * owner→owner commands: ofrecer la titularidad, aceptarla, rechazarla, retirar la
+ * propuesta. This is the first command set on the surface where the CALLER MAY
+ * NOT HOLD THE ANIMAL — that is what a transfer is — so the split below is by
+ * WHOSE fact the refusal is about, and the first code is the one a reviewer
+ * should read.
+ *
+ * - `transfer_forbidden` — the caller is not the party THIS command is for. 403.
+ *                         ONE code for three different rules, because the
+ *                         client's move is identical in all three (stop offering
+ *                         the control, re-read the list) and because saying which
+ *                         rule refused would leak the shape of somebody else's
+ *                         proposal:
+ *                           · `initiate` — the caller does not hold the ACTIVE
+ *                             `role='owner'` ownership row
+ *                             (`initiate-pet-transfer.ts:101-105`). NARROWER than
+ *                             `requireTitularAccess`: a co-owner is refused here.
+ *                           · `accept` / `reject` — the caller is not the
+ *                             addressee. This is an id-or-email match against the
+ *                             transfer ROW (`validateRecipientMatch`) and NOT a
+ *                             custody check, because the addressee by definition
+ *                             does not hold the animal yet. A surface that
+ *                             answered this with a custody guard would refuse the
+ *                             one caller the command exists for.
+ *                           · `cancel` — the caller is not the SENDER
+ *                             (`cancel-pet-transfer.ts:46-53`). A co-owner of the
+ *                             same pet may not withdraw a proposal they did not
+ *                             send.
+ * - `transfer_self`     — the sender and the addressee are the same account:
+ *                         initiating to your own address, or accepting your own
+ *                         proposal. 400, and NOT `transfer_forbidden`, by this
+ *                         file's only bar: the move is a specific edit (change the
+ *                         address) rather than "stop".
+ * - `transfer_not_allowed`
+ *                       — the ANIMAL refuses, whoever is asking: it is registered
+ *                         deceased, it is reported lost, it has an open custody
+ *                         dispute, or a shelter is still accompanying its
+ *                         adoption. 409, nothing about the caller.
+ *
+ *                         ONE code for the four, and the client can still say
+ *                         which: `GET /api/v1/pets/{token}` carries `status` and
+ *                         the `banners.rehome` block, so a screen that re-reads
+ *                         the pet names the real obstacle from data it already
+ *                         holds. Four codes would put four sentences in every
+ *                         consumer's switch to describe facts the pet payload
+ *                         already states better.
+ * - `transfer_pending_exists`
+ *                       — an open proposal already exists for this animal, and
+ *                         the partial unique index `pet_transfers_one_pending_per_pet`
+ *                         refuses a second. 409. Its own code because the move is
+ *                         specific and available: cancel the one in flight, then
+ *                         send this one.
+ * - `transfer_already_resolved`
+ *                       — the proposal is no longer answerable: somebody accepted
+ *                         or refused it, the sender withdrew it, the nightly cron
+ *                         expired it, or the titularity moved out from under it
+ *                         (the TR-C1 guard). 409, and the move is always the same
+ *                         one: re-read.
+ *
+ *                         THIS IS THE CODE A TIMED-OUT WRITE COMES BACK AS, and
+ *                         it is AMBIGUOUS on purpose rather than by accident.
+ *                         None of the four commands takes an `Idempotency-Key`
+ *                         (see `@dim/contract/input`'s `transfer.ts` for why the
+ *                         `expectedStatus` guards are not the same thing), so a
+ *                         retry after a timeout that in fact succeeded lands
+ *                         here, and so does a retry that raced the other party.
+ *                         A client must re-read rather than guess which.
+ * - `transfer_expired`  — the seven-day window closed. 409, and distinct from
+ *                         `transfer_already_resolved` because nothing was
+ *                         decided: the fix is to ask the sender to start a new
+ *                         proposal, where the other code means somebody already
+ *                         answered.
+ *
+ *                         `accept` is the only command that answers it. `reject`
+ *                         deliberately does NOT check expiry
+ *                         (`reject-pet-transfer.ts:53-66`) — refusing something
+ *                         dead is harmless, and taking the control away would
+ *                         leave a row nobody can clear.
+ * - `transfer_failed`   — the command's transaction failed. 500. NO retry advice,
+ *                         and that is the honest difference from `event_failed`:
+ *                         without an idempotency key a blind retry of `accept`
+ *                         cannot be told from a second attempt. Re-read first.
  */
 export const API_V1_ERROR_CODES = [
   "rate_limited",
@@ -350,6 +433,13 @@ export const API_V1_ERROR_CODES = [
   "share_forbidden",
   "share_limit_reached",
   "tier2_not_allowed",
+  "transfer_forbidden",
+  "transfer_self",
+  "transfer_not_allowed",
+  "transfer_pending_exists",
+  "transfer_already_resolved",
+  "transfer_expired",
+  "transfer_failed",
 ] as const;
 
 export type ApiV1ErrorCode = (typeof API_V1_ERROR_CODES)[number];

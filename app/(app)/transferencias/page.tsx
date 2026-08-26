@@ -1,13 +1,27 @@
 // Transferencias hub — Libreta Nacional redesign.
 // UX 3.1: added outgoing (Enviadas) section alongside the existing received view.
+//
+// THE THREE QUERIES ARE GONE, and what replaced them is the point. They ran here
+// inline, and the addressee predicate — "to_owner_id is me, OR the row is an open
+// invitation to my e-mail" — was hand-written beside them as raw Drizzle. That
+// predicate IS `validateRecipientMatch` (owner-transfer-rules.ts:124-134), the
+// rule the accept and reject writers enforce, expressed a second time in a second
+// language in a file that never imported it. Two copies of the rule that decides
+// who may take somebody's animal.
+//
+// `listTransfersForUser` now owns both halves — the SQL predicate, once, in the
+// repository, and the per-row capabilities, computed by calling the domain
+// function itself. This page and `GET /api/v1/me/transfers` read the same lists
+// through the same rule, which is what "parity by construction" has to mean for
+// a feature whose whole security surface is one comparison.
 
 import Link from "next/link";
 
 import { LnSectionHead } from "@/components/ui/DocElements";
-import { db, petTransfers, pets, profiles } from "@/db";
 import { requireUserOrRedirect } from "@/lib/infra/auth-guards";
 import { formatDate, formatDateShort, speciesLabel } from "@/lib/utils/format";
-import { and, desc, eq, inArray, isNull, or } from "drizzle-orm";
+import { listTransfersForUser } from "@/src/modules/transfers/application/list-transfers-for-user";
+import { TransfersRepository } from "@/src/modules/transfers/infrastructure/transfers-repository";
 
 const STATUS_LABELS: Record<string, string> = {
   pending: "Pendiente",
@@ -17,65 +31,19 @@ const STATUS_LABELS: Record<string, string> = {
   cancelled: "Cancelada",
 };
 
-const HISTORY_STATUSES = ["accepted", "rejected", "expired", "cancelled"] as const;
-
 export default async function TransferenciasHubPage() {
   const { supabase, user } = await requireUserOrRedirect();
 
   const { data: authData } = await supabase.auth.getUser();
   const callerEmail = (authData?.user?.email ?? "").toLowerCase();
 
-  const recipientMatch = callerEmail
-    ? or(
-        eq(petTransfers.toOwnerId, user.id),
-        and(isNull(petTransfers.toOwnerId), eq(petTransfers.toOwnerEmail, callerEmail)),
-      )
-    : eq(petTransfers.toOwnerId, user.id);
-
-  // --- Received: active pending ---
-  const activeRows = await db
-    .select({
-      transfer: petTransfers,
-      petName: pets.name,
-      petToken: pets.publicToken,
-      petSpecies: pets.species,
-      fromDisplayName: profiles.displayName,
-    })
-    .from(petTransfers)
-    .innerJoin(pets, eq(pets.id, petTransfers.petId))
-    .leftJoin(profiles, eq(profiles.id, petTransfers.fromOwnerId))
-    .where(and(eq(petTransfers.status, "pending"), recipientMatch))
-    .orderBy(desc(petTransfers.initiatedAt));
-
-  // --- Received: history ---
-  const historyRows = await db
-    .select({
-      transfer: petTransfers,
-      petName: pets.name,
-      petToken: pets.publicToken,
-      fromDisplayName: profiles.displayName,
-    })
-    .from(petTransfers)
-    .innerJoin(pets, eq(pets.id, petTransfers.petId))
-    .leftJoin(profiles, eq(profiles.id, petTransfers.fromOwnerId))
-    .where(and(inArray(petTransfers.status, [...HISTORY_STATUSES]), recipientMatch))
-    .orderBy(desc(petTransfers.respondedAt));
-
-  // --- Outgoing: all transfers initiated by the current user ---
-  // Mirror the received query pattern but filter on fromOwnerId = user.id.
-  // We join the recipient profile (toOwnerId) to show the recipient name when resolved.
-  const outgoingRows = await db
-    .select({
-      transfer: petTransfers,
-      petName: pets.name,
-      petToken: pets.publicToken,
-      toDisplayName: profiles.displayName,
-    })
-    .from(petTransfers)
-    .innerJoin(pets, eq(pets.id, petTransfers.petId))
-    .leftJoin(profiles, eq(profiles.id, petTransfers.toOwnerId))
-    .where(eq(petTransfers.fromOwnerId, user.id))
-    .orderBy(desc(petTransfers.initiatedAt));
+  const { incoming, outgoing } = await listTransfersForUser(
+    { userId: user.id, callerEmail },
+    { repo: TransfersRepository },
+  );
+  const activeRows = incoming.pending;
+  const historyRows = incoming.history;
+  const outgoingRows = outgoing;
 
   return (
     <div className="mx-auto max-w-3xl px-8 py-7 pb-12">
@@ -125,10 +93,10 @@ export default async function TransferenciasHubPage() {
               ) : (
                 <div className="overflow-hidden rounded-[var(--radius-sm)] border border-[var(--color-ln-line)]">
                   {activeRows.map(
-                    ({ transfer, petName, petToken, petSpecies, fromDisplayName }) => (
+                    ({ transferToken, petName, petSpecies, counterpartyName, expiresAt }) => (
                       <Link
-                        key={transfer.id}
-                        href={`/transferencias/${transfer.publicToken}`}
+                        key={transferToken}
+                        href={`/transferencias/${transferToken}`}
                         className="flex items-center justify-between gap-4 border-b border-[var(--color-ln-line-2)] px-4 py-3.5 no-underline last:border-b-0 hover:bg-[var(--color-ln-stripe)] transition-colors"
                       >
                         <div className="min-w-0">
@@ -138,13 +106,13 @@ export default async function TransferenciasHubPage() {
                               ({speciesLabel(petSpecies)})
                             </span>
                           </p>
-                          {fromDisplayName && (
+                          {counterpartyName && (
                             <p className="mt-0.5 text-sm text-[var(--color-ln-mute)]">
-                              De: {fromDisplayName}
+                              De: {counterpartyName}
                             </p>
                           )}
                           <p className="mt-0.5 font-ln-mono text-sm text-[var(--color-ln-mute)]">
-                            Vence {formatDate(transfer.expiresAt)}
+                            Vence {formatDate(expiresAt)}
                           </p>
                         </div>
                         <div className="flex flex-shrink-0 items-center gap-2">
@@ -170,26 +138,26 @@ export default async function TransferenciasHubPage() {
               <div>
                 <LnSectionHead num="02" title="Historial" className="mb-4" />
                 <div className="overflow-hidden rounded-[var(--radius-sm)] border border-[var(--color-ln-line)]">
-                  {historyRows.map(({ transfer, petName, fromDisplayName }) => (
+                  {historyRows.map(({ transferToken, petName, counterpartyName, status }) => (
                     <Link
-                      key={transfer.id}
-                      href={`/transferencias/${transfer.publicToken}`}
+                      key={transferToken}
+                      href={`/transferencias/${transferToken}`}
                       className="flex items-center justify-between gap-3 border-b border-[var(--color-ln-line-2)] px-4 py-3 no-underline last:border-b-0 hover:bg-[var(--color-ln-stripe)] transition-colors"
                     >
                       <p className="text-md text-[var(--color-ln-ink-2)]">
                         {petName}
-                        {fromDisplayName && (
-                          <span className="text-[var(--color-ln-mute)]"> · {fromDisplayName}</span>
+                        {counterpartyName && (
+                          <span className="text-[var(--color-ln-mute)]"> · {counterpartyName}</span>
                         )}
                         {" · "}
                         <span
                           className={
-                            transfer.status === "accepted"
+                            status === "accepted"
                               ? "text-[var(--color-ln-ok)]"
                               : "text-[var(--color-ln-mute)]"
                           }
                         >
-                          {STATUS_LABELS[transfer.status] ?? transfer.status}
+                          {STATUS_LABELS[status] ?? status}
                         </span>
                       </p>
                       <span
@@ -225,44 +193,46 @@ export default async function TransferenciasHubPage() {
             </p>
           ) : (
             <div className="overflow-hidden rounded-[var(--radius-sm)] border border-[var(--color-ln-line)]">
-              {outgoingRows.map(({ transfer, petName, toDisplayName }) => (
-                <Link
-                  key={transfer.id}
-                  href={`/transferencias/${transfer.publicToken}`}
-                  className="flex items-center justify-between gap-3 border-b border-[var(--color-ln-line-2)] px-4 py-3 no-underline last:border-b-0 hover:bg-[var(--color-ln-stripe)] transition-colors"
-                >
-                  <div className="min-w-0">
-                    <p className="text-md text-[var(--color-ln-ink-2)]">
-                      {petName}
-                      {(toDisplayName ?? transfer.toOwnerEmail) && (
-                        <span className="text-[var(--color-ln-mute)]">
-                          {" · "}
-                          Para: {toDisplayName ?? transfer.toOwnerEmail}
-                        </span>
-                      )}
-                    </p>
-                    <p className="mt-0.5 font-ln-mono text-sm text-[var(--color-ln-mute)]">
-                      {formatDateShort(transfer.initiatedAt)}
-                    </p>
-                  </div>
-                  <div className="flex flex-shrink-0 items-center gap-2">
-                    <span
-                      className={
-                        transfer.status === "pending"
-                          ? "inline-flex items-center rounded-[var(--radius-xs)] border border-[var(--color-ln-warn-100)] bg-[var(--color-ln-warn-050)] px-2 py-0.5 font-ln-mono text-xs font-semibold uppercase tracking-[.1em] text-[var(--color-ln-warn)]"
-                          : transfer.status === "accepted"
-                            ? "inline-flex items-center rounded-[var(--radius-xs)] border border-[var(--color-ln-ok-100)] bg-[var(--color-ln-ok-050)] px-2 py-0.5 font-ln-mono text-xs font-semibold uppercase tracking-[.1em] text-[var(--color-ln-ok)]"
-                            : "inline-flex items-center rounded-[var(--radius-xs)] border border-[var(--color-ln-line)] bg-[var(--color-ln-stripe)] px-2 py-0.5 font-ln-mono text-xs font-semibold uppercase tracking-[.1em] text-[var(--color-ln-mute)]"
-                      }
-                    >
-                      {STATUS_LABELS[transfer.status] ?? transfer.status}
-                    </span>
-                    <span aria-hidden="true" className="text-md text-[var(--color-ln-mute)]">
-                      ›
-                    </span>
-                  </div>
-                </Link>
-              ))}
+              {outgoingRows.map(
+                ({ transferToken, petName, counterpartyName, toEmail, initiatedAt, status }) => (
+                  <Link
+                    key={transferToken}
+                    href={`/transferencias/${transferToken}`}
+                    className="flex items-center justify-between gap-3 border-b border-[var(--color-ln-line-2)] px-4 py-3 no-underline last:border-b-0 hover:bg-[var(--color-ln-stripe)] transition-colors"
+                  >
+                    <div className="min-w-0">
+                      <p className="text-md text-[var(--color-ln-ink-2)]">
+                        {petName}
+                        {(counterpartyName ?? toEmail) && (
+                          <span className="text-[var(--color-ln-mute)]">
+                            {" · "}
+                            Para: {counterpartyName ?? toEmail}
+                          </span>
+                        )}
+                      </p>
+                      <p className="mt-0.5 font-ln-mono text-sm text-[var(--color-ln-mute)]">
+                        {formatDateShort(initiatedAt)}
+                      </p>
+                    </div>
+                    <div className="flex flex-shrink-0 items-center gap-2">
+                      <span
+                        className={
+                          status === "pending"
+                            ? "inline-flex items-center rounded-[var(--radius-xs)] border border-[var(--color-ln-warn-100)] bg-[var(--color-ln-warn-050)] px-2 py-0.5 font-ln-mono text-xs font-semibold uppercase tracking-[.1em] text-[var(--color-ln-warn)]"
+                            : status === "accepted"
+                              ? "inline-flex items-center rounded-[var(--radius-xs)] border border-[var(--color-ln-ok-100)] bg-[var(--color-ln-ok-050)] px-2 py-0.5 font-ln-mono text-xs font-semibold uppercase tracking-[.1em] text-[var(--color-ln-ok)]"
+                              : "inline-flex items-center rounded-[var(--radius-xs)] border border-[var(--color-ln-line)] bg-[var(--color-ln-stripe)] px-2 py-0.5 font-ln-mono text-xs font-semibold uppercase tracking-[.1em] text-[var(--color-ln-mute)]"
+                        }
+                      >
+                        {STATUS_LABELS[status] ?? status}
+                      </span>
+                      <span aria-hidden="true" className="text-md text-[var(--color-ln-mute)]">
+                        ›
+                      </span>
+                    </div>
+                  </Link>
+                ),
+              )}
             </div>
           )}
         </section>

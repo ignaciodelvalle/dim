@@ -3,9 +3,11 @@
 // db.transaction(), mirroring the openCase(input, tx) pattern from foster.
 // No auth logic — auth lives at the action / use-case edge.
 
-import { and, asc, desc, eq, gt, inArray, isNull, lt, sql } from "drizzle-orm";
+import { and, asc, desc, eq, gt, inArray, isNull, lt, or, sql } from "drizzle-orm";
+import { alias } from "drizzle-orm/pg-core";
 
 import {
+  auditLog,
   cases,
   custodyDisputes,
   db,
@@ -285,6 +287,64 @@ export const TransfersRepository = {
       .where(eq(petTransfers.publicToken, publicToken))
       .limit(1);
     return row ?? null;
+  },
+
+  /**
+   * Every transfer this person is on either side of, joined for display.
+   *
+   * ONE QUERY FOR THREE LISTS, and the sectioning is left to the use-case. The
+   * hub page used to run three near-identical selects — pending-received,
+   * resolved-received, everything-sent — which is three round trips and, worse,
+   * three places for the addressee predicate to be written. It is now written
+   * once, HERE, and it is written to agree with `validateRecipientMatch` by
+   * construction: id when `to_owner_id` is set, lowercased e-mail when it is not.
+   *
+   * `callerEmail` MUST ALREADY BE LOWERCASED by the caller — `to_owner_email` is
+   * stored lowercased by `initiatePetTransfer` (it lowercases before insert), so
+   * an unnormalised argument here silently returns fewer rows than the person
+   * actually has. That is the failure mode worth naming: it hides an open
+   * proposal rather than showing a spurious one.
+   *
+   * An EMPTY `callerEmail` degrades to the id predicate alone, which is right:
+   * a session with no e-mail address cannot be the addressee of an open
+   * invitation, and `eq(col, "")` would match a row nobody can own.
+   */
+  async listTransfersForUser(args: { userId: string; callerEmail: string }): Promise<
+    Array<{
+      transfer: PetTransferRow;
+      petName: string;
+      petToken: string;
+      petSpecies: string;
+      fromDisplayName: string | null;
+      toDisplayName: string | null;
+    }>
+  > {
+    const toProfiles = alias(profiles, "to_profiles");
+    const fromProfiles = alias(profiles, "from_profiles");
+
+    const recipientMatch =
+      args.callerEmail.length > 0
+        ? or(
+            eq(petTransfers.toOwnerId, args.userId),
+            and(isNull(petTransfers.toOwnerId), eq(petTransfers.toOwnerEmail, args.callerEmail)),
+          )
+        : eq(petTransfers.toOwnerId, args.userId);
+
+    return db
+      .select({
+        transfer: petTransfers,
+        petName: pets.name,
+        petToken: pets.publicToken,
+        petSpecies: pets.species,
+        fromDisplayName: fromProfiles.displayName,
+        toDisplayName: toProfiles.displayName,
+      })
+      .from(petTransfers)
+      .innerJoin(pets, eq(pets.id, petTransfers.petId))
+      .leftJoin(fromProfiles, eq(fromProfiles.id, petTransfers.fromOwnerId))
+      .leftJoin(toProfiles, eq(toProfiles.id, petTransfers.toOwnerId))
+      .where(or(eq(petTransfers.fromOwnerId, args.userId), recipientMatch))
+      .orderBy(desc(petTransfers.initiatedAt));
   },
 
   /**
@@ -843,11 +903,59 @@ export const TransfersRepository = {
   },
 
   /**
+   * The `transaction` dep every write use-case in this module takes.
+   *
+   * `actions.ts` passes `db.transaction.bind(db)` inline, which is fine for a
+   * `"use server"` module that already imports `db` for other reasons. The
+   * `/api/v1` door does not, and should not: `app/api/v1/**` reads nothing from
+   * the database directly — every read and every write goes through a named
+   * use-case or repository method, which is what lets a route test replace them
+   * one by one instead of mocking a query builder (`shares/commands.ts` states
+   * the same rule for itself). Exposing the transaction runner here is how that
+   * stays true for a module whose use-cases all require one.
+   */
+  transaction: db.transaction.bind(db),
+
+  /**
    * Inserts notifications in batch (used post-tx for best-effort fanout).
    */
   async insertNotifications(values: Array<typeof notifications.$inferInsert>): Promise<void> {
     if (values.length === 0) return;
     await db.insert(notifications).values(values);
+  },
+
+  /**
+   * One `audit_log` row, post-tx.
+   *
+   * HERE RATHER THAN IN `actions.ts` BECAUSE THERE ARE TWO DOORS NOW. The four
+   * owner→owner commands are reachable from the web actions and from
+   * `POST /api/v1/me/transfers`, and an audit row written by only one of them
+   * means the same operation performed from a phone leaves no trace — which is
+   * indistinguishable, forever, from the operation never having happened. That
+   * is the exact property Ley 25.326 accountability rests on, and the reason
+   * `check-audit-log-coverage` exists for the surface it can see. It cannot see
+   * this one: it scans `"use server"` modules with OPERATOR authority, and an
+   * owner transferring their own animal is neither. So the fence will not catch
+   * a door that forgets, and the method is what makes forgetting harder.
+   *
+   * `action` MUST be one of the names in the `audit_log_action_valid` CHECK
+   * constraint (db/schema.ts) — the four here are `pet_transfer_initiated`,
+   * `_accepted`, `_rejected`, `_cancelled`.
+   *
+   * BEST-EFFORT, NEVER THROWS, because the write it describes has already
+   * committed: raising here would report a failure for an action that succeeded,
+   * and a caller that retried would run it twice.
+   */
+  async insertAuditLog(entry: {
+    actorUserId: string;
+    action: string;
+    payload: Record<string, unknown>;
+  }): Promise<void> {
+    try {
+      await db.insert(auditLog).values(entry as typeof auditLog.$inferInsert);
+    } catch (e) {
+      console.error("[transfers] auditLog insert failed (the action did succeed):", e);
+    }
   },
 
   // -------------------------------------------------------------------------

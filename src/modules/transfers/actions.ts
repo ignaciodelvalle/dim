@@ -21,7 +21,7 @@
 //
 // Reference: src/modules/foster/actions.ts, src/modules/adoption/actions.ts
 
-import { auditLog, db, notifications } from "@/db";
+import { db, notifications } from "@/db";
 import { requireUserOrRedirect } from "@/lib/infra/auth-guards";
 import { type CronBudgetHeaders, effectiveDeadlineMs } from "@/lib/infra/cron-dispatcher";
 import { resolveSiteUrl } from "@/lib/infra/site-url";
@@ -67,13 +67,18 @@ type AuditEntry = {
   payload: Record<string, unknown>;
 };
 
-/** Insert a single audit_log row post-tx, best-effort. Never throws. */
+/**
+ * Insert a single audit_log row post-tx, best-effort. Never throws.
+ *
+ * THE INSERT MOVED TO THE REPOSITORY (WU-O) and this is now the shim that names
+ * it. The four owner→owner commands acquired a second door —
+ * `POST /api/v1/me/transfers` — and an audit row written by only one of them is
+ * an operation that, performed from a phone, leaves no trace at all. The
+ * repository's own docblock carries the rest of the reasoning, including why the
+ * `lint:audit-log` fence cannot catch this case.
+ */
 async function flushAuditLog(entry: AuditEntry): Promise<void> {
-  try {
-    await db.insert(auditLog).values(entry as typeof auditLog.$inferInsert);
-  } catch (e) {
-    console.error("[transfers/actions] auditLog insert failed (action did succeed):", e);
-  }
+  await TransfersRepository.insertAuditLog(entry);
 }
 
 // ---------------------------------------------------------------------------
