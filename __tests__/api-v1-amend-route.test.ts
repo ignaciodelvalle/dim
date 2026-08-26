@@ -372,11 +372,63 @@ describe("POST .../amend — the refusals", () => {
   it("maps a failed transaction to a retryable code, without leaking its prose", async () => {
     control.writeResult = () => ({
       ok: false,
+      code: "write_failed",
       error: "Error al guardar la enmienda. Intentá de nuevo.",
     });
     const response = await call();
     expect(response.status).toBe(500);
     expect(await response.json()).toEqual({ error: "amend_failed" });
+  });
+
+  // FI-7. Every one of these WAS `amend_failed` 500 — a code whose documented
+  // advice is "retry once with the same key", given to refusals that will answer
+  // the retry identically forever. The prose still never reaches the wire.
+  it("answers 400 for the administrative reason minimum, not a retryable 500", async () => {
+    // D5: an `admin` or `govt` profile must state a reason. The wire schema
+    // cannot know this — the rule is about WHO is asking — so the refusal can
+    // only come back from the write, and it has to come back as a caller error.
+    control.writeResult = () => ({
+      ok: false,
+      code: "reason_required",
+      error:
+        "El motivo es obligatorio para enmiendas de administrador/gobierno (mínimo 5 caracteres).",
+    });
+    const response = await call();
+    expect(response.status).toBe(400);
+    expect(await response.json()).toEqual({ error: "amend_reason_required" });
+  });
+
+  it("answers 409 when the record turns out not to be amendable at write time", async () => {
+    control.writeResult = () => ({
+      ok: false,
+      code: "not_amendable",
+      error: 'El tipo de evento "death_recorded" no admite enmiendas.',
+    });
+    const response = await call();
+    expect(response.status).toBe(409);
+    expect(await response.json()).toEqual({ error: "amend_not_allowed" });
+  });
+
+  it("answers 404 when the target vanished between the read and the write", async () => {
+    control.writeResult = () => ({
+      ok: false,
+      code: "target_not_found",
+      error: "Evento no encontrado.",
+    });
+    const response = await call();
+    expect(response.status).toBe(404);
+    expect(await response.json()).toEqual({ error: "not_found" });
+  });
+
+  it("answers 400, not 500, for a correction the use-case says changes nothing", async () => {
+    control.writeResult = () => ({
+      ok: false,
+      code: "changes_required",
+      error: "Debés indicar al menos un cambio.",
+    });
+    const response = await call();
+    expect(response.status).toBe(400);
+    expect(await response.json()).toEqual({ error: "invalid_request" });
   });
 
   it("spends its own buckets, tighter than a read's", async () => {

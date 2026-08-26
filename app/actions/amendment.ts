@@ -17,7 +17,7 @@ import { requireAlivePetAccess } from "@/lib/infra/pet-access";
 
 import { amendEvent as _amendEvent } from "@/src/modules/events/application/amendment/amend-event";
 import type {
-  AmendEventInput,
+  AmendEventCommand,
   AmendEventResult,
 } from "@/src/modules/events/application/amendment/types";
 
@@ -26,7 +26,7 @@ import type {
 // ---------------------------------------------------------------------------
 
 export type {
-  AmendEventInput,
+  AmendEventCommand,
   AmendEventResult,
   AmendmentSummary,
 } from "@/src/modules/events/application/amendment/types";
@@ -35,11 +35,13 @@ export type {
 // Action wrapper — thin controller for UI components
 // ---------------------------------------------------------------------------
 
-export async function amendEventAction(input: AmendEventInput): Promise<AmendEventResult> {
+export async function amendEventAction(input: AmendEventCommand): Promise<AmendEventResult> {
   // --- 1. Auth gate ---------------------------------------------------------
   const access = await requireAlivePetAccess(input.publicToken);
   if (!access.ok) {
-    return { ok: false, error: access.error };
+    // `not_permitted` is this shim's own code — the use-case cannot produce it.
+    // `/api/v1` resolves access before calling and never sees this arm.
+    return { ok: false, code: "not_permitted", error: access.error };
   }
   const { user, pet } = access;
 

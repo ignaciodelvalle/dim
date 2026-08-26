@@ -19,7 +19,7 @@ import { and, eq, isNull } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 
 import { refreshPetCacheAfterAmendment } from "./refresh-pet-cache-after-amendment";
-import type { AmendEventInput, AmendEventResult } from "./types";
+import type { AmendEventCommand, AmendEventResult } from "./types";
 
 /**
  * Server-derived idempotency key for an amendment (EL-F1). Deterministic in
@@ -45,7 +45,7 @@ export async function amendEvent(
   user: { id: string },
   pet: { id: string; name: string; publicToken: string },
   eventAuthorship: PetEventAuthorship,
-  input: AmendEventInput,
+  input: AmendEventCommand,
 ): Promise<AmendEventResult> {
   const { publicToken, targetEventId, reason, changes } = input;
 
@@ -61,19 +61,20 @@ export async function amendEvent(
     .limit(1);
 
   if (!targetEvent) {
-    return { ok: false, error: "Evento no encontrado." };
+    return { ok: false, code: "target_not_found", error: "Evento no encontrado." };
   }
 
   if (!isAmendableEventType(targetEvent.eventType)) {
     return {
       ok: false,
+      code: "not_amendable",
       error: `El tipo de evento "${targetEvent.eventType}" no admite enmiendas.`,
     };
   }
 
   // --- 3. Validate changes non-empty ----------------------------------------
   if (!changes || changes.length === 0) {
-    return { ok: false, error: "Debés indicar al menos un cambio." };
+    return { ok: false, code: "changes_required", error: "Debés indicar al menos un cambio." };
   }
 
   // --- 4. Determine actor role + D5 sensitive path --------------------------
@@ -95,6 +96,7 @@ export async function amendEvent(
     if (!reason || reason.trim().length < 5) {
       return {
         ok: false,
+        code: "reason_required",
         error:
           "El motivo es obligatorio para enmiendas de administrador/gobierno (mínimo 5 caracteres).",
       };
@@ -143,7 +145,7 @@ export async function amendEvent(
   // web keeps the derived one byte for byte; `/api/v1` requires
   // `Idempotency-Key` and passes it here, because the retry that matters to a
   // phone is a resend of the same REQUEST and the derived key only knows about
-  // identical CORRECTIONS. See `AmendEventInput.clientIdempotencyKey`.
+  // identical CORRECTIONS. See `AmendEventCommand.clientIdempotencyKey`.
   const idempotencyKey =
     input.clientIdempotencyKey ??
     deriveAmendmentIdempotencyKey(resolvedTargetEventId, user.id, changes);
@@ -230,7 +232,11 @@ export async function amendEvent(
       return { id: amendmentEvent.id, wasDuplicate: false };
     });
   } catch {
-    return { ok: false, error: "Error al guardar la enmienda. Intentá de nuevo." };
+    return {
+      ok: false,
+      code: "write_failed",
+      error: "Error al guardar la enmienda. Intentá de nuevo.",
+    };
   }
 
   // --- 9. Revalidate paths --------------------------------------------------

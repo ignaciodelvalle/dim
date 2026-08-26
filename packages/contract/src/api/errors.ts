@@ -179,16 +179,36 @@
  *                         means the client ignored `canAmend`, and a second code
  *                         would widen every consumer's exhaustive switch to say
  *                         the same sentence twice.
- * - `amend_failed`      — the correction transaction itself failed. ONE generic
- *                         code for the same reason `pet_registration_failed` is
- *                         one: the use-case's failure arm is an untyped string
- *                         carrying es-AR prose written for a web form (§3), so
- *                         this endpoint genuinely cannot tell a constraint
- *                         violation from a dead connection, and putting that
- *                         prose on a wire would be worse. A client may retry
- *                         ONCE with the SAME `Idempotency-Key`; if the first
- *                         attempt had in fact committed, the retry resolves to
- *                         it instead of appending a second correction.
+ * - `amend_failed`      — the correction transaction itself failed. A client may
+ *                         retry ONCE with the SAME `Idempotency-Key`; if the
+ *                         first attempt had in fact committed, the retry
+ *                         resolves to it instead of appending a second
+ *                         correction.
+ *
+ *                         NARROWER THAN IT SHIPPED (2026-08-25, WU-J review
+ *                         FI-7). It was the catch-all for every refusal the
+ *                         use-case returned, because that failure arm was an
+ *                         untyped es-AR string and 500 was the only honest thing
+ *                         to say about prose. `AmendEventFailureCode` typed it,
+ *                         so the caller errors inside it now answer as caller
+ *                         errors and this code means what it says: an
+ *                         unexpected server failure. "Retry with the same key"
+ *                         is advice that only ever made sense for THAT.
+ * - `amend_reason_required`
+ *                       — an ADMINISTRATIVE correction (an `admin` or `govt`
+ *                         profile) must state a reason of at least
+ *                         `AMEND_REASON_MIN_LENGTH` characters. 400.
+ *
+ *                         It earns its own code by this file's only bar: the
+ *                         client's move is different and specific — put the
+ *                         reason field back in front of the user, required this
+ *                         time — where `invalid_request` means "your body did
+ *                         not parse" and sends a developer to a schema that
+ *                         accepted this body correctly. It CANNOT live in the
+ *                         wire schema, because the rule depends on who is
+ *                         asking, and a client does not know the server's answer
+ *                         about its own role until the server gives it. Citizens
+ *                         never see it; an admin who personally owns a pet does.
  */
 export const API_V1_ERROR_CODES = [
   "rate_limited",
@@ -208,6 +228,7 @@ export const API_V1_ERROR_CODES = [
   "amend_forbidden",
   "amend_not_allowed",
   "amend_failed",
+  "amend_reason_required",
 ] as const;
 
 export type ApiV1ErrorCode = (typeof API_V1_ERROR_CODES)[number];

@@ -2,10 +2,21 @@
 // Moved verbatim from app/actions/amendment.ts.
 
 // ---------------------------------------------------------------------------
-// Input validation
+// The command
 // ---------------------------------------------------------------------------
 
-export type AmendEventInput = {
+/**
+ * What `amendEvent` is asked to write.
+ *
+ * NAMED `Command`, NOT `Input`, since 2026-08-25 (WU-J review FI-8). There was
+ * an `AmendEventInput` in `@dim/contract/input` too, and the two are different
+ * shapes for different sides of the same correction: the wire one carries
+ * `{field, value}` and no identity (both are path segments), this one carries
+ * `{field, old, new}` plus `publicToken` and `targetEventId`. Two exported types
+ * with one name is an auto-import away from a file that compiles against the
+ * wrong half — and the amend route imports from BOTH modules.
+ */
+export type AmendEventCommand = {
   publicToken: string;
   targetEventId: string;
   reason: string | null;
@@ -36,6 +47,46 @@ export type AmendEventInput = {
   clientIdempotencyKey?: string | null;
 };
 
+/**
+ * WHY a correction was refused, as something a caller can branch on.
+ *
+ * The failure arm used to be an untyped `string` carrying es-AR prose written
+ * for a web form, and `/api/v1` had exactly one thing it could do with that:
+ * answer `amend_failed` 500 to all of it. Two of these are the CALLER's fault
+ * and one is the RECORD's — none of the three is a server incident, and telling
+ * a phone "500, retry with the same key" for a reason it will never satisfy by
+ * retrying is the loop `session_shift_expired` was split out to avoid.
+ *
+ * - `target_not_found` — no such event on this animal. 404 on the wire.
+ * - `not_amendable`    — the record's type is outside the allowlist. The route
+ *                        checks this BEFORE the write too, so reaching it here
+ *                        means the two reads raced; 409 either way.
+ * - `changes_required` — a correction that changes nothing. The wire schema
+ *                        already refuses it (`CHANGES_REQUIRED`), so this is the
+ *                        backstop for the web, whose form has no such parse.
+ * - `reason_required`  — D5: an admin/govt actor must state a reason of at least
+ *                        five characters. A fact about WHO is asking, which is
+ *                        why it cannot live in the wire schema — the client does
+ *                        not know its own role's rule until the server says so.
+ * - `write_failed`     — the transaction itself failed. The only one that is a
+ *                        server incident, the only one worth reporting, and the
+ *                        only one a client should retry.
+ * - `not_permitted`    — the WEB SHIM's own access gate refused
+ *                        (`requireAlivePetAccess`). It is here because
+ *                        `amendEventAction` declares this result type, not
+ *                        because the use-case can produce it: `/api/v1` resolves
+ *                        access itself, before the call, and never reaches this
+ *                        arm. A consumer that maps it anyway should answer what
+ *                        it answers for an unresolvable pet.
+ */
+export type AmendEventFailureCode =
+  | "target_not_found"
+  | "not_amendable"
+  | "changes_required"
+  | "reason_required"
+  | "write_failed"
+  | "not_permitted";
+
 export type AmendEventResult =
   | {
       ok: true;
@@ -51,7 +102,13 @@ export type AmendEventResult =
        */
       wasDuplicate: boolean;
     }
-  | { ok: false; error: string };
+  | {
+      ok: false;
+      /** The machine-readable half. See `AmendEventFailureCode`. */
+      code: AmendEventFailureCode;
+      /** The es-AR sentence the web form renders. Never put on a wire. */
+      error: string;
+    };
 
 // ---------------------------------------------------------------------------
 // Query helper type

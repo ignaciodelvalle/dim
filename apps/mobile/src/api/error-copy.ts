@@ -102,5 +102,11 @@ export function apiErrorMessage(code: ApiV1ErrorCode): string {
       return "Este registro no admite correcciones.";
     case "amend_failed":
       return "No pudimos guardar la corrección. Volvé a intentar en unos minutos.";
+    // FI-7. Reachable only for an `admin` or `govt` profile — a rule about WHO
+    // is asking, which no wire schema can check, so the refusal can only arrive
+    // from the server and has to say what to do about it. A citizen wallet's
+    // user never sees this; an administrator who also owns a pet does.
+    case "amend_reason_required":
+      return "Para corregir este registro tenés que indicar un motivo de al menos 5 caracteres.";
   }
 }

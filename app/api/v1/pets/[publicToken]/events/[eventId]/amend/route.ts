@@ -79,6 +79,7 @@ import { reportError } from "@/lib/infra/report-error";
 import { createClientFromBearer } from "@/lib/supabase/bearer";
 import { isUuid } from "@/lib/utils/uuid";
 import { amendEvent } from "@/src/modules/events/application/amendment/amend-event";
+import type { AmendEventFailureCode } from "@/src/modules/events/application/amendment/types";
 import { loadPetEventDetail } from "@/src/modules/events/application/read/load-pet-event-detail";
 import { getGrantedCapabilities } from "@/src/modules/organizations/infrastructure/authz-resolver";
 import { type EventAmendedV1, isValidIdempotencyKey } from "@dim/contract/api";
@@ -296,15 +297,7 @@ async function writeCorrection(ctx: {
     },
   );
 
-  if (!result.ok) {
-    // ONE generic code. The use-case's failure arm is an untyped string carrying
-    // es-AR prose written for a web form, and it can name internal constraints —
-    // putting it on a wire would be a worse answer than saying nothing. Logged
-    // in full on this side, where it is useful. The branches a client CAN act on
-    // differently were all decided above, before the write.
-    reportError("api-v1-amend", new Error(result.error), { userId: ctx.userId });
-    return apiV1Error("amend_failed", 500);
-  }
+  if (!result.ok) return refusal(result.code, result.error, ctx.userId);
 
   // 201 on both paths — a replay answers with the FIRST attempt's correction and
   // `wasDuplicate: true`. The caller asked for a correction to exist and one
@@ -314,6 +307,58 @@ async function writeCorrection(ctx: {
     wasDuplicate: result.wasDuplicate,
   };
   return apiV1Json(payload, { status: 201 });
+}
+
+/**
+ * The use-case's refusals, mapped one by one.
+ *
+ * IT USED TO BE ONE LINE: every failure became `amend_failed` 500, because the
+ * failure arm was an untyped string of es-AR prose and 500 was the only honest
+ * thing to say about prose you cannot read. That answer was wrong in the way
+ * that costs a client the most — it tells a phone to RETRY, and two of the
+ * refusals underneath it (a missing administrative reason, a correction with no
+ * changes) will refuse the retry identically, forever.
+ *
+ * The prose still never reaches the wire: it is written for a web form and can
+ * name internal constraints. What reaches the wire is the code beside it.
+ *
+ * The switch is exhaustive on purpose — a new `AmendEventFailureCode` must break
+ * this compile rather than fall through to a 500 that means "we did not think
+ * about this one".
+ */
+function refusal(code: AmendEventFailureCode, message: string, userId: string) {
+  switch (code) {
+    case "target_not_found":
+      // The route already read this record, so reaching here means it vanished
+      // between the read and the write — still 404, still indistinguishable
+      // from "you may not see it".
+      return apiV1Error("not_found", 404);
+    case "not_amendable":
+      // Checked before the write too. A race between the two reads lands here,
+      // and the answer must be the same either way.
+      return apiV1Error("amend_not_allowed", 409);
+    case "changes_required":
+      // `amendEventInputSchema` refuses an empty `changes` first, so this is
+      // unreachable from THIS door. Mapped anyway, because a schema and a
+      // use-case agreeing today is not a reason to answer 500 if they ever stop.
+      return apiV1Error("invalid_request", 400);
+    case "reason_required":
+      return apiV1Error("amend_reason_required", 400);
+    case "not_permitted":
+      // The web shim's own gate. Unreachable here — this route resolved access
+      // itself, above — and mapped to what it answers for a pet it cannot
+      // resolve, which is the same refusal by a different road.
+      return apiV1Error("not_found", 404);
+    case "write_failed": {
+      // The ONE that is a server incident, and so the one that is reported.
+      reportError("api-v1-amend", new Error(message), { userId });
+      return apiV1Error("amend_failed", 500);
+    }
+    default: {
+      const unhandled: never = code;
+      throw new Error(`Unhandled amendment refusal: ${JSON.stringify(unhandled)}`);
+    }
+  }
 }
 
 /**
