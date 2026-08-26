@@ -38,22 +38,76 @@
  * It is still the wrong thing to spend a real bucket on, for a reason that has
  * nothing to do with the ceiling: CI has ONE egress address, and behind it sits
  * every other automated run plus anybody sharing that NAT. So this probe sends
- * a random RFC 5737 documentation IP in `x-real-ip` for the whole run — the
- * exact device `playwright.staging.config.ts` already uses against staging, for
- * the exact same reason, and `callerIp()` trusts that header because the edge
- * sets it.
+ * a random RFC 5737 documentation IP in `x-real-ip` for the whole run.
  *
- * WHAT THAT BUYS AND WHAT IT COSTS, both stated:
- *   BUYS   a p95 that measures the APPLICATION. A run that trips a limiter
- *          measures the limiter, and 429s are fast — they would make the number
- *          look BETTER while meaning less.
- *   COSTS  this probe therefore does not exercise the limiters at all. It is not
- *          a rate-limit test and must never be cited as one; the ceilings are
- *          pinned by __tests__/api-v1-rate-limit-families.test.ts and by each
- *          route's own limiter cases.
- * Set PROBE_V1_SPOOF_IP=0 to send no header and share the real bucket — useful
- * exactly once, when you want to confirm a ceiling in a live environment, and
- * never in an unattended run.
+ * ===========================================================================
+ * THAT HEADER WORKS LOCALLY AND DOES NOTHING AGAINST STAGING — measured
+ * ===========================================================================
+ * THIS PARAGRAPH USED TO SAY the header buys "a fresh bucket" full stop, and the
+ * report printed "the limiters are NOT exercised" as a fact on every run. It was
+ * false against the deployed origin, and it was false in the exact way that is
+ * hardest to notice: the runs that motivated the claim never tripped a ceiling,
+ * so nothing ever contradicted it.
+ *
+ * On 2026-08-26 it was measured against https://dim-staging.vercel.app: 80
+ * concurrent requests with a ROTATED `x-real-ip` (one distinct address each)
+ * produced 60×401 then 20×429, against a fixed-address control's 59×401 then
+ * 21×429 — the same ceiling, one request apart, which is what racing 80
+ * requests at a counter of 60 looks like. A believed header would not have
+ * wobbled by one; it would have produced no 429 at all. The edge overwrites the
+ * header and `callerIp()` never sees the value this script chose. The full
+ * method, including the positive control that makes the result mean anything and
+ * the reason the ceiling read 60 rather than this file's 600, is in
+ * `lib/infra/rate-limit.ts` above `callerIp()`.
+ *
+ * SO WHY IS THE HEADER STILL SENT. Because the DEFAULT target of this script is
+ * `http://localhost:3000`, and there is no edge in front of a local `next
+ * start`. Nothing overwrites the header there, `callerIp()` reads it, and the
+ * run really does land in a private bucket instead of sharing the one every
+ * other local run shares (`callerIp()` answers "unknown" for all of them
+ * otherwise — one bucket for the whole machine). The header is load-bearing for
+ * the common case and inert for the remote one; deleting it would cost the
+ * former to tidy up the latter.
+ *
+ * WHAT THAT BUYS AND WHAT IT COSTS, per target, both stated:
+ *   LOCAL   BUYS a p95 that measures the APPLICATION and not the limiter (429s
+ *           are fast; they would make the number look BETTER while meaning
+ *           less). COSTS: a local run does not exercise the per-IP limiters and
+ *           must never be cited as a rate-limit test.
+ *   REMOTE  BUYS nothing. The run spends the REAL per-IP buckets of whatever
+ *           egress address it left from, exactly as if the header were absent.
+ *
+ * Set PROBE_V1_SPOOF_IP=0 to send no header at all. Against a remote target that
+ * changes nothing but the honesty of the printed report; against a local one it
+ * is how you confirm a ceiling on purpose, and never in an unattended run.
+ *
+ * ===========================================================================
+ * SO CAN THIS PROBE NOW MEASURE ITS OWN REFUSALS? Checked, with the numbers.
+ * ===========================================================================
+ * Not at any setting this script permits, and if it ever could, the run FAILS
+ * rather than lying — which is the property that matters and it was verified
+ * rather than assumed:
+ *
+ *   · A 429 is not `expectStatus` (200), so the off-status check fires; the
+ *     dedicated 429 check fires too; `failures.length > 0` marks the route FAIL;
+ *     `printReport` returns false and `main()` exits 1. Two independent guards,
+ *     one exit code, no silent sample-dropping.
+ *
+ *   · PER-IP is not close. Each route this probe drives has its own bucket at
+ *     600/min (`localities` included). The hard cap here is 100 samples + 3
+ *     warm-up = 103 requests per route, ≤ 8 in flight — 17% of one ceiling. The
+ *     default run is 23 per route.
+ *
+ *   · PER-USER IS THE BINDING ONE, and no header can dodge it because it is
+ *     keyed on `live.user.id`. All four authenticated reads spend
+ *     API_V1_AUTHENTICATED_READ_USER_LIMIT — 120/min. 103 against 120 leaves
+ *     SEVENTEEN requests of headroom at the cap, so a maxed-out run followed
+ *     immediately by a second maxed-out run inside the same minute WILL be
+ *     refused. That is a real edge and it is left in place deliberately: the
+ *     cure is the exit code above, not a smaller cap that would also shrink the
+ *     instrument's range. Re-running at `PROBE_V1_SAMPLES=100` twice in a minute
+ *     is an operator decision, and it fails loudly instead of measuring the
+ *     limiter.
  *
  * ANY 429 IS REPORTED AND FAILS THE ROUTE. Not filtered out of the sample: a
  * throttled run is a run whose latency figure means something else, and silently
@@ -85,7 +139,8 @@
  *   PROBE_V1_SAMPLES       measured samples per route (default 20, max 100)
  *   PROBE_V1_CONCURRENCY   in-flight requests (default 4, max 8)
  *   PROBE_V1_P95_MS        p95 target override (default 800 local / 1500 remote)
- *   PROBE_V1_SPOOF_IP      "0" to share the real rate-limit bucket
+ *   PROBE_V1_SPOOF_IP      "0" to send no x-real-ip (only changes anything
+ *                          against a LOCAL target — see the header)
  *   PROBE_V1_TOKEN         a public pet token, when discovery cannot find one
  *   PROBE_V1_BEARER        a pre-obtained access token (skips headless sign-in)
  */
@@ -169,8 +224,22 @@ const P95_TARGET_MS = Number.parseInt(
 );
 
 // One random documentation-range address (TEST-NET-3, RFC 5737) for the whole
-// run — see the header. Empty when the operator asked to share the real bucket.
+// run — see the header. Honoured only where no edge overwrites it, which in
+// practice means the local target. Empty when the operator asked to send none.
 const SPOOF_IP = process.env.PROBE_V1_SPOOF_IP === "0" ? "" : `203.0.113.${randomInt(1, 255)}`;
+
+/**
+ * Does the header this run sends actually decide the bucket?
+ *
+ * Only where nothing rewrites it. Measured 2026-08-26: Vercel's edge overwrites
+ * a client-supplied `x-real-ip`, so against staging the answer is no however
+ * many distinct addresses the run sends. A bare local server has no such edge.
+ *
+ * Derived from `isLocalTarget` rather than from a hand-set flag, so pointing the
+ * probe at a new remote origin with `--allow-unknown-target` cannot accidentally
+ * inherit the local answer.
+ */
+const SPOOF_IP_IS_HONOURED = SPOOF_IP !== "" && isLocalTarget;
 
 // Bootstrap-tier citizen — present on any freshly seeded database, unlike the
 // demo-tier accounts (e2e/demo/_helpers.ts ACCOUNTS.owner + SHARED_PASSWORD).
@@ -472,7 +541,11 @@ async function probeRoute(route: ProbeRoute, token?: string): Promise<RouteRepor
   // 429 next, because it names WHICH refusal, and the cure is different.
   if (throttled > 0) {
     failures.push(
-      `${throttled}/${measured.length} throttled (429) — this row timed the limiter, not the route${SPOOF_IP ? "" : " (PROBE_V1_SPOOF_IP=0 shares the real bucket)"}`,
+      `${throttled}/${measured.length} throttled (429) — this row timed the limiter, not the route${
+        SPOOF_IP_IS_HONOURED
+          ? " (and this run had its OWN per-IP bucket, so it was the per-USER ceiling or a shared local bucket)"
+          : " (this run spends the real per-IP buckets of its egress address)"
+      }`,
     );
   }
   if (serverErrors > 0) failures.push(`${serverErrors} request(s) returned 5xx or failed to fetch`);
@@ -552,9 +625,26 @@ function printReport(
     `  ${SAMPLES} measured samples/route, ${WARMUP_SAMPLES} warm-up (excluded), ` +
       `≤${CONCURRENCY} in flight, p95 target ${P95_TARGET_MS}ms`,
   );
+  // WHAT BUCKET THIS RUN SPENT, and it is a MEASURED claim rather than an
+  // intended one. This line used to print "a fresh bucket — the limiters are NOT
+  // exercised" whenever a header was sent, on every target. Against a Vercel
+  // origin that is false: the edge overwrites x-real-ip and the run lands in the
+  // real per-IP bucket of its egress address (measured 2026-08-26 — see the
+  // header). A report that states the wrong bucket is worse than one that states
+  // none, because the next reader plans a run against it.
   console.log(
-    `  Rate-limit bucket: ${SPOOF_IP ? `x-real-ip ${SPOOF_IP} (a fresh bucket — the limiters are NOT exercised)` : "THE REAL ONE (x-real-ip not sent)"}`,
+    `  Rate-limit bucket: ${
+      SPOOF_IP_IS_HONOURED
+        ? `x-real-ip ${SPOOF_IP} (no edge in front of a local target, so this IS a fresh bucket — the per-IP limiters are NOT exercised)`
+        : SPOOF_IP
+          ? `THE REAL ONE for this run's egress address. x-real-ip ${SPOOF_IP} was sent and the edge overwrites it — see the header`
+          : "THE REAL ONE (x-real-ip not sent)"
+    }`,
   );
+  // The per-USER buckets are spent whatever the answer above is: they are keyed
+  // on the account id, so no header reaches them. 120/min per authenticated
+  // read against at most 103 requests here.
+  console.log("  Per-user buckets: ALWAYS the real ones (keyed on the account, not the address)");
   console.log("=".repeat(100));
   console.log(
     `  ${"Route".padEnd(22)} ${"n".padEnd(4)} ${"warm".padEnd(9)} ${"p50".padEnd(9)} ${"p95".padEnd(9)} ${"max".padEnd(9)} Result`,

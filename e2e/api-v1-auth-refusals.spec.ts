@@ -38,13 +38,26 @@ import { expect, test } from "@playwright/test";
  * `test.skip` in this file and there must never be one: every assertion is about
  * the SURFACE, and a surface is present or the deploy is broken.
  *
- * RATE LIMITS. These requests spend the `/api/v1` per-IP buckets, which
- * `playwright.staging.config.ts` already handles by stamping one random RFC 5737
- * documentation IP per run into `x-real-ip`. WU-EAS-2 raised the authenticated
- * read ceiling to 600/min (`lib/infra/api-v1-limits.ts`), so this file's ~20
- * requests are not close either way — but the header regex runs BEFORE the
- * limiter on every one of these routes, so a request with no `Authorization`
- * header costs no counter write at all.
+ * RATE LIMITS. These requests spend the REAL `/api/v1` per-IP buckets of
+ * whatever address the run leaves from. The first version of this paragraph said
+ * `playwright.staging.config.ts` "already handles" that by stamping a random
+ * RFC 5737 IP into `x-real-ip`; it does not, and that was measured on
+ * 2026-08-26 — Vercel's edge overwrites the header (the method is above
+ * `callerIp()` in `lib/infra/rate-limit.ts`; the consequence for the nightly run
+ * is in the staging config).
+ *
+ * It does not change this file's safety, and the arithmetic is worth having in
+ * writing rather than as a shrug. Twenty-four requests go out here and exactly
+ * FOUR of them reach a limiter — one per authenticated-read bucket, from the
+ * four dead-bearer cases. Every other request omits `Authorization` entirely,
+ * and the bearer-shape check runs BEFORE the limiter on all of these routes
+ * (`/me/revoke-sessions` included), so it costs no counter write at all. Against
+ * a 600/min ceiling that is four in six hundred, and `retries: 1` on CI doubles
+ * a number that has two orders of magnitude of headroom.
+ *
+ * The distinction is not a technicality: it is why the dead bearer below has to
+ * be SHAPED like a JWT. A garbage string would be rejected by the shape check
+ * and would never prove anything about what happens after it.
  */
 
 /** GET routes, and the refusal each must produce. */

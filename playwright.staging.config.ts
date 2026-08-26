@@ -19,12 +19,46 @@ import { defineConfig, devices } from "@playwright/test";
  *   - demo/ (narrated 15-18 min recordings) and perf/ are excluded; they are
  *     not regression tests.
  *
- * Rate-limit workaround (login limiter trusts x-real-ip): a whole suite
- * hammering staging from one CI egress IP trips the per-IP login buckets.
- * Every context in this run carries a random RFC-5737 documentation IP so
- * consecutive nightly runs land in fresh buckets. Suites that need per-context
- * uniqueness (e.g. authz-ab-isolation) already override this header per
- * context with their own uniqueIp() — this default only covers the rest.
+ * ===========================================================================
+ * THE x-real-ip HEADER BELOW IS INERT AGAINST STAGING. Measured 2026-08-26.
+ * ===========================================================================
+ * IT USED TO BE DOCUMENTED AS A RATE-LIMIT WORKAROUND: "the login limiter
+ * trusts x-real-ip", so a random RFC-5737 documentation IP per run would make
+ * consecutive nightly runs land in fresh per-IP buckets. That mechanism does
+ * not work here and never did.
+ *
+ * Measured against https://dim-staging.vercel.app: 80 concurrent requests to
+ * `/api/v1/me/pets` with a ROTATED x-real-ip (one distinct address per request)
+ * produced 60×401 then 20×429, where the fixed-address control on `/api/v1/me`
+ * produced 59×401 then 21×429 — the same ceiling one request apart, not a
+ * different behaviour. Vercel's edge overwrites the header before `callerIp()`
+ * sees it. The method, including the positive control that makes the null result
+ * mean something, is written out in `lib/infra/rate-limit.ts` above `callerIp()`.
+ *
+ * WHY IT STAYS ANYWAY, and it is not sentiment. STAGING_URL is an override, and
+ * the thing it overrides to is not always a Vercel deployment — a `next start`
+ * on a tunnel, a self-hosted preview, a future non-Vercel origin all have no
+ * rewriting edge, and there this header IS honoured. It costs one header on
+ * each request and it documents an intent that is correct wherever it can be.
+ * What it must not do is be BELIEVED against staging, which is what this
+ * paragraph is for.
+ *
+ * WHAT THAT MEANS FOR THE NIGHTLY RUN, stated so nobody re-derives it under
+ * pressure at 03:00 AR:
+ *   · The `/api/v1` per-IP ceilings are 600/min per bucket since WU-EAS-2, and
+ *     the two api-v1 specs spend at most FOUR counter writes into any one of
+ *     them per run — the refusal cases send no Authorization header, and the
+ *     bearer-shape check runs before the limiter, so those cost nothing at all.
+ *     No margin problem there, header or no header.
+ *   · `auth_login_ip` (10/min · 100/hr) is the one to watch, and it is the one
+ *     the deleted sentence claimed to have solved. A serial suite whose specs
+ *     each sign in, with `retries: 1` on CI, shares ONE hourly login budget from
+ *     the runner's egress address. If the nightly ever starts failing in a burst
+ *     of 429s at sign-in, this is the reason, and the cure is spacing or a
+ *     dedicated ceiling — not another header.
+ * Suites that need per-context uniqueness (e.g. authz-ab-isolation) override
+ * this header per context with their own uniqueIp(); that override is subject to
+ * exactly the same measurement and is equally inert against a Vercel origin.
  */
 
 const BASE_URL = (process.env.STAGING_URL?.trim() || "https://dim-staging.vercel.app").replace(
@@ -32,7 +66,8 @@ const BASE_URL = (process.env.STAGING_URL?.trim() || "https://dim-staging.vercel
   "",
 );
 
-// One random documentation-range IP per run (TEST-NET-3, RFC 5737).
+// One random documentation-range IP per run (TEST-NET-3, RFC 5737). Honoured
+// only by an origin with no rewriting edge in front of it — see above.
 const RUN_IP = `203.0.113.${randomInt(1, 255)}`;
 
 const isCI = !!process.env.CI;
