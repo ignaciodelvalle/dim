@@ -1,0 +1,128 @@
+name: Mobile export nightly (Metro bundle)
+
+# Bundles the Expo client the way a release would, every night, so a bundling
+# regression is found on a schedule instead of at the moment somebody needs a
+# build.
+#
+# Cron is UTC: 45 07 UTC = 04:45 in Argentina (UTC-3, no DST). Deliberately
+# after e2e-nightly (06:00) and panorama-qa-nightly (06:30) rather than
+# alongside them — three jobs racing for runners at the same minute makes a slow
+# night look like a broken one.
+on:
+  schedule:
+    - cron: "45 7 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# ---------------------------------------------------------------------------
+# WHAT THIS CATCHES THAT `pnpm verify:mobile` DOES NOT
+# ---------------------------------------------------------------------------
+# The `Mobile` step in ci.yml runs three things — tsc, Jest, and `expo config
+# --type public` — and every one of them is blind to the bundler:
+#
+#   tsc          type-checks the source. Metro does not type-check, and tsc does
+#                not resolve modules the way Metro does. A dependency that
+#                exists for tsc's `moduleResolution` and not for Metro's
+#                resolver typechecks clean and cannot be bundled.
+#   Jest         runs under jest-expo with its own transform and its own module
+#                map. Passing there says nothing about a Metro build.
+#   expo config  proves the config file LOADS. It never opens a source file.
+#
+# So the entire question "does this app still turn into a bundle" was answered
+# nowhere. That is a bad question to first ask on the day the PO wants an APK
+# for 12 testers, because a Metro resolution failure is rarely a one-line fix —
+# it is usually a dependency that has to change.
+#
+# WHY NIGHTLY AND NOT IN ci.yml, MEASURED RATHER THAN ASSUMED
+# ---------------------------------------------------------------------------
+# The honest objection to a nightly is that it finds the breakage a day late.
+# The honest objection to putting it in `check` is that it taxes every web
+# change. Measured locally 2026-08-26: Metro bundles 1611 modules in ~14s, on a
+# warm cache, with the install already done — genuinely cheap, and the argument
+# for hoisting it into ci.yml is therefore real.
+#
+# It is nightly anyway, for one reason: `expo export` is the most
+# environment-sensitive command in this repo. It resolves native modules through
+# autolinking, it depends on a Metro cache, and its failures are frequently
+# about the machine rather than the code. Making it a merge gate means a flaky
+# resolver blocks a database migration, and the repo has already paid for that
+# shape once — see the `&&`-chain note in ci.yml, where one red fence starved
+# 13k tests for 13 consecutive pushes.
+#
+# So: nightly, loud, with the bundle kept as an artifact. If a year of runs
+# shows it is stable, move it into `check` and delete this paragraph.
+
+jobs:
+  export:
+    name: expo export (android)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    # No secrets and no services. `apps/mobile/src/config/api.ts` defaults the
+    # API origin to staging and refuses to guess the auth origin, so a bundle
+    # built with no `EXPO_PUBLIC_*` variables is a bundle that would point at
+    # staging and fail to refresh a token — which is fine, because nobody runs
+    # this artifact. What is being tested is that Metro can produce it.
+    #
+    # `apps/mobile/.env` is gitignored, so a CI checkout genuinely has none of
+    # them and this job exercises the no-env path on purpose.
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 11
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Export the Android bundle
+        run: pnpm -C apps/mobile export
+
+      - name: Assert a bundle was actually written
+        # NOT redundant with the step above, and this repo does not take a zero
+        # exit code as evidence — the Definition of Done in CLAUDE.md is three
+        # paragraphs about commands whose exit codes lie. An `expo export` that
+        # emitted no Hermes bytecode and exited 0 is exactly the false green
+        # this job exists to prevent, and it costs one `find` to rule out.
+        run: |
+          BUNDLE=$(find apps/mobile/dist/_expo/static/js/android -name '*.hbc' -type f 2>/dev/null | head -1)
+          if [[ -z "$BUNDLE" ]]; then
+            echo "::error::expo export exited 0 but wrote no Android bundle under apps/mobile/dist/"
+            find apps/mobile/dist -type f 2>/dev/null | head -50
+            exit 1
+          fi
+          SIZE=$(stat -c%s "$BUNDLE")
+          echo "::notice::Bundle $BUNDLE — $((SIZE / 1024)) KiB"
+          # A bundle far below a megabyte is not a bundle, whatever the exit
+          # code said. The real one measured 4.4MB on 2026-08-26; 512 KiB is a
+          # floor low enough to never fire on legitimate shrinkage and high
+          # enough to catch a truncated or near-empty emit.
+          if (( SIZE < 524288 )); then
+            echo "::error::Bundle is $((SIZE / 1024)) KiB — implausibly small for this app."
+            exit 1
+          fi
+
+      - name: Upload the export
+        # `always()` rather than `failure()`, for the reason the e2e job
+        # documents: a job killed by timeout-minutes is CANCELLED, and
+        # `failure()` is false for a cancelled job — so the one run that most
+        # needs a forensic artifact is the one that would upload nothing.
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: mobile-export-android
+          path: apps/mobile/dist/
+          retention-days: 7
+          if-no-files-found: ignore
