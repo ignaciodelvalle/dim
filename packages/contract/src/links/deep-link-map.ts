@@ -218,8 +218,22 @@ export const DEEP_LINK_MAP = {
     access: "session",
   },
 
-  /** A caretaker invitation — the `/cuidado/{token}` key handed to the invitee. */
-  caretakerGrant: { webPath: "/cuidado/:grantToken", appPath: null, access: "session" },
+  /**
+   * A caretaker invitation — the `/cuidado/{token}` key handed to the invitee.
+   *
+   * THE APP PATH IS THE WEB PATH, deliberately, as `petTransfer`'s is: the
+   * invitation e-mail and the notification CTA both name `/cuidado/{token}`, and
+   * keeping the two identical means the `mimar://` form and the `https` form
+   * differ only in scheme — one less place for a destination to drift.
+   *
+   * Claimed in WU-P, in the commit AFTER the screen landed, so the fitness test
+   * had something to resolve to at every point in the history.
+   */
+  caretakerGrant: {
+    webPath: "/cuidado/:grantToken",
+    appPath: "cuidado/:grantToken",
+    access: "session",
+  },
 
   /** An invitation to join an organization. */
   orgInvitation: { webPath: "/r/invite/:invitationToken", appPath: null, access: "session" },
