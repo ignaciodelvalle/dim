@@ -108,5 +108,33 @@ export function apiErrorMessage(code: ApiV1ErrorCode): string {
     // user never sees this; an administrator who also owns a pet does.
     case "amend_reason_required":
       return "Para corregir este registro tenés que indicar un motivo de al menos 5 caracteres.";
+    // WU-K, the writer codes. Every one of these is reachable from an "Asentar"
+    // form, and every sentence has to say what the person does NEXT — these are
+    // shown under a filled-in form somebody is waiting to submit.
+    case "event_forbidden":
+      // The web's own words: the person needs a capability granted, and naming
+      // it is what lets them ask for the right thing.
+      return "Necesitás el permiso 'Registrar eventos clínicos' (event.write). Pediselo a un administrador.";
+    case "event_not_allowed":
+      // A closed life record. Deliberately says which asiento IS still
+      // accepted, because the endpoint accepts it and a bare refusal would hide
+      // the one thing left to do.
+      return "Esta mascota está registrada como fallecida y no acepta nuevos registros clínicos. Sí podés dejar una nota.";
+    case "event_date_future":
+      return "La fecha no puede ser futura.";
+    case "event_date_before_birth":
+      // NOT folded into the sentence above, because the fix is different: either
+      // the date is wrong or the birth date on the record is, and only the
+      // person can say which.
+      return "La fecha es anterior a la fecha de nacimiento registrada de la mascota.";
+    case "same_day_duplicate_suspected":
+      // A PROMPT, not a wall. The screen turns this code into a confirm
+      // affordance that resends with the override; this sentence is the
+      // fallback for anywhere that does not.
+      return "Ya hay un registro igual para esta mascota en esta fecha.";
+    case "medication_source_invalid":
+      return "No pudimos identificar la medicación que estás terminando. Abrila desde su asiento en la libreta.";
+    case "event_failed":
+      return "No pudimos guardar el registro. Volvé a intentar en unos minutos.";
   }
 }

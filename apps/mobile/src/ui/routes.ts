@@ -45,7 +45,27 @@ export function libretaEventRoute(
   return `/mascotas/${encodeURIComponent(publicToken)}/eventos/${encodeURIComponent(eventId)}`;
 }
 
+/**
+ * The "Asentar" form for one pet.
+ *
+ * `kind` and `source` are OPTIONAL and travel together: they exist for the
+ * "Terminar medicación" affordance on a `medication_started` asiento, which is
+ * the only place a person already holds the identifier a medication END needs.
+ * Called with neither, this opens the picker.
+ */
+export function recordEventRoute(
+  publicToken: string,
+  options: { kind?: string; sourceEventId?: string } = {},
+): `/mascotas/${string}/asentar${string}` {
+  const query = new URLSearchParams();
+  if (options.kind) query.set("kind", options.kind);
+  if (options.sourceEventId) query.set("source", options.sourceEventId);
+  const suffix = query.size === 0 ? "" : `?${query.toString()}`;
+  return `/mascotas/${encodeURIComponent(publicToken)}/asentar${suffix}`;
+}
+
 export type AppRoute =
   | (typeof ROUTES)[keyof typeof ROUTES]
   | ReturnType<typeof credentialRoute>
-  | ReturnType<typeof libretaEventRoute>;
+  | ReturnType<typeof libretaEventRoute>
+  | ReturnType<typeof recordEventRoute>;

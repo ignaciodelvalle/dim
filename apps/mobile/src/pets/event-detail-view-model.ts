@@ -18,6 +18,16 @@ import { type SectionView, sectionView } from "./owner-face-view-model";
 
 export type EventDetailView = {
   eventId: string;
+  /**
+   * The spine's own `event_type`, unworded.
+   *
+   * `kind` beside it is COMPOSED es-AR for a human; this is the machine name,
+   * and the two are not interchangeable. It crosses because one affordance
+   * needs it: "Terminar medicación" may only be offered on a
+   * `medication_started` asiento, and matching on a display string would break
+   * the day somebody rewords one.
+   */
+  eventType: string;
   kind: string;
   title: string;
   subtitle: string | null;
@@ -36,6 +46,7 @@ export type EventDetailView = {
 export function buildEventDetailView(payload: PetEventDetailV1): EventDetailView {
   return {
     eventId: payload.eventId,
+    eventType: payload.eventType,
     kind: payload.kind,
     title: payload.title,
     subtitle: payload.subtitle,
@@ -50,6 +61,24 @@ export function buildEventDetailView(payload: PetEventDetailV1): EventDetailView
     canAmend: payload.amend.canAmend,
     amendRefusal: payload.amend.refusal,
   };
+}
+
+/**
+ * May this asiento offer "Terminar medicación"?
+ *
+ * ONLY A TYPE CHECK, not a permission one — deliberately. Whether this person
+ * may write the end is the SERVER's answer (`event_forbidden` on the org path
+ * without `event.write`, `event_not_allowed` on a deceased animal), and the
+ * form renders that refusal in the person's words. The same posture the
+ * libreta's own "Asentar" button takes: the client offers what the screen is
+ * ABOUT, the door decides who gets through it.
+ *
+ * `medication_stopped` is deliberately not amendable in this product, and this
+ * is the affordance that makes that survivable: a treatment that ended by
+ * mistake is ended again, or corrected upstream — never by editing a row.
+ */
+export function canEndMedication(view: EventDetailView): boolean {
+  return view.eventType === "medication_started";
 }
 
 /**

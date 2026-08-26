@@ -23,8 +23,8 @@
 // different privacy class from the public credential, and `credential-cache.ts`'s
 // justification does not carry over. A failed read says so and offers a retry.
 
-import { useRouter } from "expo-router";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useFocusEffect, useRouter } from "expo-router";
+import { useCallback, useRef, useState } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 
 import type { LibretaEntryV1, PetLibretaV1 } from "@dim/contract/api";
@@ -34,8 +34,8 @@ import { apiErrorMessage } from "../api/error-copy";
 import { sessionPort } from "../auth/session-store";
 import { Body, Card, Loading, Row, Unavailable } from "../ui/components";
 import { FONTS } from "../ui/fonts";
-import { PrimaryButton, Screen } from "../ui/kit";
-import { libretaEventRoute } from "../ui/routes";
+import { PrimaryButton, Screen, SecondaryButton } from "../ui/kit";
+import { libretaEventRoute, recordEventRoute } from "../ui/routes";
 import { COLORS, LEADING, RADIUS, SPACE, TOUCH_TARGET, TRACKING, TYPE } from "../ui/theme";
 import {
   LEDGER_EMPTY_LABEL,
@@ -78,6 +78,7 @@ function failureMessage(result: ApiResult<PetLibretaV1>): string {
 }
 
 export function LibretaScreen({ publicToken }: { publicToken: string }) {
+  const router = useRouter();
   const [state, setState] = useState<ScreenState>({ phase: "loading" });
   // Guards against a stale response overwriting a newer one after a fast
   // double-tap on "Actualizar" — the same generation counter its sibling
@@ -96,9 +97,16 @@ export function LibretaScreen({ publicToken }: { publicToken: string }) {
     setState({ phase: "failed", message: failureMessage(result) });
   }, [publicToken]);
 
-  useEffect(() => {
-    void load();
-  }, [load]);
+  // ON FOCUS, NOT ONLY ON MOUNT, and that changed the day this screen grew a
+  // write. "Asentar" pushes a route on top of this one; coming back does not
+  // remount, so a plain mount effect would leave the owner staring at the
+  // libreta they just added to, unchanged, wondering whether it saved. The
+  // generation counter already makes a redundant load harmless.
+  useFocusEffect(
+    useCallback(() => {
+      void load();
+    }, [load]),
+  );
 
   return (
     <Screen>
@@ -109,7 +117,18 @@ export function LibretaScreen({ publicToken }: { publicToken: string }) {
         </Card>
       ) : null}
       {state.phase === "ready" ? <LibretaBody view={state.view} /> : null}
+      {/* THE WRITE, offered from the face it writes into. Above "Actualizar"
+          because it is the reason a person opened the libreta on a phone: the
+          refresh is maintenance, this is the act. Offered even while the read
+          failed — a section this app could not load says nothing about whether
+          the animal was vaccinated this morning, and the server is the one that
+          decides whether the write is allowed. */}
       <PrimaryButton
+        label="Asentar"
+        onPress={() => router.push(recordEventRoute(publicToken))}
+        disabled={state.phase === "loading"}
+      />
+      <SecondaryButton
         label="Actualizar"
         onPress={() => void load()}
         disabled={state.phase === "loading"}

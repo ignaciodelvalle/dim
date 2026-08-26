@@ -6,10 +6,12 @@
 // app do to my account" should get the answer in one screen rather than by
 // walking a directory.
 //
-// TWO of them are writes, and the count is kept in this sentence on purpose:
-// `registerPet` creates an animal, `amendPetEvent` corrects a record by
-// APPENDING a correction to the append-only spine. Neither edits anything. If a
-// third write appears, this line is where a reviewer notices.
+// THREE of them are writes, and the count is kept in this sentence on purpose:
+// `registerPet` creates an animal, `recordPetEvent` appends one of the six daily
+// asientos, and `amendPetEvent` corrects a record by APPENDING a correction.
+// NONE of them edits anything — every one is an INSERT onto an append-only
+// spine, which is not a coincidence but the product's first invariant. If a
+// fourth write appears, this line is where a reviewer notices.
 //
 // Everything here is a thin wrapper over `apiRequest` / `performRequest`. No
 // endpoint may add its own retry, its own error copy, or its own session
@@ -18,6 +20,7 @@
 
 import {
   type EventAmendedV1,
+  type EventRecordedV1,
   LOCALITIES_PAYLOAD_VERSION,
   type LocalitiesV1,
   type LoginV1,
@@ -33,7 +36,7 @@ import {
   type PetLibretaV1,
   type PetRegisteredV1,
 } from "@dim/contract/api";
-import type { AmendEventInput, RegisterPetInput } from "@dim/contract/input";
+import type { AmendEventInput, RecordEventInput, RegisterPetInput } from "@dim/contract/input";
 
 import { type ApiResult, type SessionPort, apiRequest, performRequest } from "./client";
 import { apiV1ErrorCode } from "./error-copy";
@@ -145,6 +148,36 @@ export function fetchPetEventDetail(
     {
       path: `/api/v1/pets/${encodeURIComponent(publicToken)}/events/${encodeURIComponent(eventId)}`,
       expectedPayloadVersion: PET_EVENT_DETAIL_PAYLOAD_VERSION,
+    },
+    session,
+  );
+}
+
+/**
+ * `POST /pets/{publicToken}/events` — record one of the six daily asientos.
+ *
+ * ONE CALL FOR SIX KINDS, because the endpoint is one: `pet_events` is a single
+ * append-only table discriminated by `event_type`, and `RecordEventInput` is a
+ * discriminated union over exactly that. A wrapper per kind would be six
+ * functions that differ only in a string.
+ *
+ * `idempotencyKey` is REQUIRED by the type because the server requires it, and
+ * it is scoped to one form MOUNT — see `pets/idempotency.ts` for why a fresh key
+ * per HTTP attempt would opt out of the failure the header exists for, and for
+ * what that scoping costs when someone edits and resends.
+ */
+export function recordPetEvent(
+  session: SessionPort,
+  publicToken: string,
+  input: RecordEventInput,
+  idempotencyKey: string,
+): Promise<ApiResult<EventRecordedV1>> {
+  return apiRequest<EventRecordedV1>(
+    {
+      path: `/api/v1/pets/${encodeURIComponent(publicToken)}/events`,
+      method: "POST",
+      body: input,
+      headers: { "idempotency-key": idempotencyKey },
     },
     session,
   );

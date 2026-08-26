@@ -104,6 +104,10 @@ export default function RootLayout() {
           name="mascotas/[publicToken]/eventos/[eventId]"
           options={{ title: "Registro" }}
         />
+        {/* The header says the ACT, not the kind: which asiento is being written
+            is the screen's own title, and the picker has not decided yet when
+            this header first draws. */}
+        <Stack.Screen name="mascotas/[publicToken]/asentar" options={{ title: "Asentar" }} />
         <Stack.Screen name="alta" options={{ title: "Registrar una mascota" }} />
         <Stack.Screen name="ajustes" options={{ title: "Ajustes" }} />
       </Stack>

@@ -21,6 +21,7 @@
 // be worse than an honest handoff.
 
 import * as Linking from "expo-linking";
+import { useRouter } from "expo-router";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Image, Pressable, StyleSheet, Text, View } from "react-native";
 
@@ -32,6 +33,7 @@ import { sessionPort } from "../auth/session-store";
 import { Body, Card, ErrorNotice, Loading, Row, Unavailable } from "../ui/components";
 import { FONTS } from "../ui/fonts";
 import { Callout, PrimaryButton, Screen, SecondaryButton, TextField } from "../ui/kit";
+import { recordEventRoute } from "../ui/routes";
 import { COLORS, LEADING, RADIUS, SPACE, TOUCH_TARGET, TRACKING, TYPE } from "../ui/theme";
 import {
   AMENDMENTS_EMPTY_LABEL,
@@ -49,6 +51,7 @@ import {
   attachmentExpiryLabel,
   buildAmendChanges,
   buildEventDetailView,
+  canEndMedication,
   initialAmendEdits,
 } from "./event-detail-view-model";
 import { createAttemptSession } from "./idempotency";
@@ -233,8 +236,51 @@ function EventDetailBody({
         }
       </Section>
 
+      <EndMedicationBlock view={view} publicToken={publicToken} />
+
       <AmendBlock view={view} publicToken={publicToken} onAmended={onAmended} />
     </>
+  );
+}
+
+/**
+ * "Terminar medicación", offered only on the asiento that STARTED one.
+ *
+ * IT LIVES HERE AND NOT IN THE "ASENTAR" PICKER because ending a treatment
+ * needs the identifier of the event it ends, and this screen is the only place
+ * a person already holds it. A picker would have to build a list of open
+ * treatments from a second read — a second source for something the ledger
+ * already says, and one more thing to keep in agreement.
+ *
+ * ENDING IS AN APPEND, like everything else: it writes a `medication_stopped`
+ * event that references this one and cancels the dose reminders still ahead.
+ * The original treatment stays in the libreta forever.
+ */
+function EndMedicationBlock({
+  view,
+  publicToken,
+}: {
+  view: EventDetailView;
+  publicToken: string;
+}) {
+  const router = useRouter();
+  if (!canEndMedication(view)) return null;
+
+  return (
+    <Card title="Fin del tratamiento">
+      <Body>
+        Registrá el fin de este tratamiento. Se cancelan los recordatorios de las dosis que
+        faltaban; el asiento del inicio queda igual.
+      </Body>
+      <SecondaryButton
+        label="Terminar medicación"
+        onPress={() =>
+          router.push(
+            recordEventRoute(publicToken, { kind: "medication_end", sourceEventId: view.eventId }),
+          )
+        }
+      />
+    </Card>
   );
 }
 
