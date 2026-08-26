@@ -75,14 +75,29 @@ import type { TransferCommandInput } from "@dim/contract/input";
 const UNAVAILABLE_RETRY_AFTER_SECONDS = 5;
 
 /**
- * The reads that happen before a write, budgeted.
+ * The LIST read, budgeted — and it is the ONLY thing on this surface that is.
  *
- * The WRITES are deliberately outside any budget, for the reason the events
- * endpoint records and `shares/commands.ts` repeats: `withDbBudgetOrThrow` races
- * a promise against a timer and rejects, which does not abort a Postgres
- * transaction. Wrapping a write would produce a 503 for a mutation that then
- * COMMITS — and on THIS surface that mutation is a change of ownership, so the
- * client and the registry would disagree about who owns an animal, forever.
+ * `readTransfers`, at the bottom of this file, is the single consumer: the GET's
+ * one read, bounded so a degraded pooler answers 503 instead of hanging. The
+ * whole POST path runs outside any budget, and that is TWO different decisions
+ * wearing one word, so both are written down rather than left to be inferred
+ * from a constant's name:
+ *
+ *   · The WRITES are deliberately unbudgeted, for the reason the events endpoint
+ *     records and `shares/commands.ts` repeats: `withDbBudgetOrThrow` races a
+ *     promise against a timer and rejects, which does not abort a Postgres
+ *     transaction. Wrapping a write would produce a 503 for a mutation that then
+ *     COMMITS — and on THIS surface that mutation is a change of ownership, so
+ *     the client and the registry would disagree about who owns an animal,
+ *     forever.
+ *   · The reads each use-case does BEFORE its write — `findTransferByToken`,
+ *     `findActiveOwnerOwnership`, the pet lookup — are unbudgeted too, and that
+ *     one is a GAP rather than a decision. They happen inside the use-case call,
+ *     which is shared with the web, so there is no seam in this file to bound
+ *     them at; bounding them would mean changing a writer the browser also uses.
+ *     Recorded here because an earlier version of this docblock claimed they
+ *     were covered, and a promise a reader believes is worse than an absence
+ *     they can see.
  */
 const READ_BUDGET_MS = 8_000;
 
@@ -288,6 +303,13 @@ export async function runTransferCommand(ctx: TransferCommandContext) {
         return await cancel(ctx, ctx.input);
     }
   } catch (err) {
+    // DEFENSIVE, AND UNREACHABLE TODAY — said out loud so nobody reads it as
+    // evidence that this path is bounded. Nothing under the switch above is
+    // wrapped in a budget (see `READ_BUDGET_MS`), and the one budgeted call the
+    // POST makes — `requireLiveUser` — is caught in `route.ts:180-183`, before
+    // control ever reaches here. It stays because the day a pre-read in this
+    // file IS bounded, 503 is the right answer and a rethrow would turn a
+    // timeout into a 500.
     if (err instanceof DbBudgetExceededError) return unavailable();
     throw err;
   }
