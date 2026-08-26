@@ -462,3 +462,87 @@ describe("app identity assets", () => {
     });
   });
 });
+
+// ---------------------------------------------------------------------------
+// .easignore — the archive EAS uploads
+// ---------------------------------------------------------------------------
+
+/**
+ * The git repository root. `.easignore` is the one release file that does NOT
+ * live in apps/mobile: EAS reads it only from the root of the git repository
+ * ("`.easignore` can only be located in the root of your git repository"), and
+ * a copy placed next to eas.json would be ignored in silence.
+ */
+const REPO_ROOT = path.resolve(MOBILE_ROOT, "..", "..");
+
+/** Every rule in an ignore file: no blank lines, no comments, order preserved. */
+function ignoreRules(file: string): string[] {
+  return (
+    readFileSync(path.join(REPO_ROOT, file), "utf8")
+      // Split on the newline only: the trim below removes any carriage return,
+      // so this needs no regex and stays readable in a file full of them.
+      .split("\n")
+      .map((line) => line.trim())
+      .filter((line) => line.length > 0 && !line.startsWith("#"))
+  );
+}
+
+describe(".easignore", () => {
+  // THE FAILURE THIS EXISTS TO CATCH IS NOT A BIG ARCHIVE. It is a leaked
+  // secret. `.easignore` REPLACES `.gitignore` rather than extending it, so the
+  // moment this file exists, every rule .gitignore carries stops applying to
+  // the upload unless it is restated. `.env.local` holds the Supabase service
+  // role key. Nothing else in this repo notices: the build succeeds, the app
+  // works, and the key is sitting in a build server's archive.
+  //
+  // The gate has to be a comparison against .gitignore rather than a list of
+  // "important" patterns, because the dangerous case is the pattern somebody
+  // adds to .gitignore NEXT MONTH — a new credentials file, a new dump — with
+  // no reason to think about a build config two directories away.
+
+  it("restates every rule .gitignore carries", () => {
+    const easRules = new Set(ignoreRules(".easignore"));
+    const missing = ignoreRules(".gitignore").filter((rule) => !easRules.has(rule));
+    expect(missing).toEqual([]);
+  });
+
+  it("keeps the secrets out even if the sync check above is ever relaxed", () => {
+    // Named explicitly, so a future decision to loosen the mirror rule cannot
+    // quietly take these with it. These are the four that carry credentials or
+    // live session tokens.
+    const rules = new Set(ignoreRules(".easignore"));
+    expect(rules.has(".env*")).toBe(true);
+    expect(rules.has(".env.local")).toBe(true);
+    expect(rules.has("e2e/.auth/")).toBe(true);
+    expect(rules.has("qa-sessions*.json")).toBe(true);
+  });
+
+  it("excludes the three tracked trees a native build never opens", () => {
+    // docs/ is 84.4 MB of the 126.3 MB tracked tree on its own. Without these the
+    // file would be pure overhead: same archive, one more thing to keep in
+    // sync. Every reference to these paths from app, apps, components, lib,
+    // src, db and packages was swept and is inside a comment.
+    const rules = new Set(ignoreRules(".easignore"));
+    expect(rules.has("docs/")).toBe(true);
+    expect(rules.has("__tests__/")).toBe(true);
+    expect(rules.has("e2e/")).toBe(true);
+  });
+
+  it("keeps the workspace the mobile app actually depends on", () => {
+    // packages/contract is `@dim/contract: workspace:*` in apps/mobile's
+    // package.json. Excluding it (or the root manifests that make the workspace
+    // resolvable) produces a build that fails during install, far from the file
+    // that caused it.
+    const rules = ignoreRules(".easignore");
+    for (const kept of [
+      "packages/",
+      "packages/contract",
+      "apps/",
+      "package.json",
+      "pnpm-lock.yaml",
+      "pnpm-workspace.yaml",
+    ]) {
+      expect(rules).not.toContain(kept);
+    }
+  });
+});
