@@ -52,6 +52,21 @@ describe("recordEventInputSchema — the calendar", () => {
     expect(codeFor(notLeap)).toBe("OCCURRED_AT_INVALID");
   });
 
+  it("reads a BLANK optional date as unstated, exactly as the web's action does", () => {
+    // `String(formData.get("nextDueAt") ?? "").trim() || null` is what the web
+    // writer does with an untouched date input. A schema that ran the regex over
+    // `""` would refuse a request the other door takes happily.
+    const parsed = recordEventInputSchema.parse({
+      kind: "deworming",
+      product: "Endogard",
+      type: "internal",
+      occurredAt: A_DAY,
+      nextDueAt: "   ",
+    });
+    expect(parsed).toMatchObject({ nextDueAt: null });
+    expect(codeFor({ kind: "weight", kg: 10, occurredAt: A_DAY, notes: "" })).toBe(null);
+  });
+
   it("applies the same round-trip to a next-dose date", () => {
     expect(
       codeFor({

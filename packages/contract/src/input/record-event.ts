@@ -188,13 +188,25 @@ const optionalText = z
 
 const occurredAt = isoDate("OCCURRED_AT_REQUIRED", "OCCURRED_AT_INVALID");
 
+/**
+ * An OPTIONAL day: absent, `null` and blank all mean "not stated".
+ *
+ * The blank case is why this is not just `isoDate(...).nullish()`. The web's
+ * actions read `String(formData.get("nextDueAt") ?? "").trim() || null`, so an
+ * untouched date input reaches the writer as `null` and is accepted; a schema
+ * that ran the regex over `""` would answer 400 to a request the web takes
+ * happily. The blank is normalized away FIRST, and everything that survives is
+ * held to the same calendar as `occurredAt`.
+ */
 const nextDueAt = z
-  .string()
-  .trim()
-  .regex(ISO_DATE_RE, { error: "NEXT_DUE_AT_INVALID" })
-  .refine(isRealDay, { error: "NEXT_DUE_AT_INVALID" })
+  .union([z.string(), z.null()])
   .nullish()
-  .transform((v) => (v ? v : null));
+  .transform((v) => {
+    const trimmed = typeof v === "string" ? v.trim() : "";
+    return trimmed.length === 0 ? null : trimmed;
+  })
+  .refine((v) => v === null || ISO_DATE_RE.test(v), { error: "NEXT_DUE_AT_INVALID" })
+  .refine((v) => v === null || isRealDay(v), { error: "NEXT_DUE_AT_INVALID" });
 
 const vaccination = z.object({
   kind: z.literal("vaccination"),

@@ -123,7 +123,16 @@ function parseWireDay(value: string): Date | null {
   return parsed.toISOString().slice(0, 10) === value ? parsed : null;
 }
 
-/** The `pet_events.event_type` each wire `kind` becomes. */
+/**
+ * The `pet_events.event_type` each wire `kind` becomes.
+ *
+ * ALL SIX, though only two are ever indexed — the same-day gate is the one
+ * reader and it applies to vaccination and deworming alone. The other four are
+ * here because this is the table a person asks for ("which spine row is a
+ * `medication_end`?") and answering four sixths of that question would send them
+ * hunting through six use-cases for the rest. The `kind → event_type` mapping is
+ * otherwise implicit in the dispatch below, which is not a place to read it.
+ */
 const EVENT_TYPE_OF_KIND = {
   vaccination: "vaccination_administered",
   weight: "weight_recorded",
