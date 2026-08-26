@@ -116,6 +116,7 @@
     "close:rabies-observations": "tsx scripts/close-rabies-observations.ts",
     "backfill:eno": "node --conditions=react-server --import tsx scripts/backfill-eno-trigger.ts",
     "probe:load": "tsx scripts/load-probe.ts",
+    "probe:load:v1": "tsx scripts/load-probe-api-v1.ts",
     "test": "vitest run",
     "test:verified": "tsx scripts/run-verified-suite.ts",
     "check:suite-coverage": "tsx scripts/check-suite-coverage.ts",

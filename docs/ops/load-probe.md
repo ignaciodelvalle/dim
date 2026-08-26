@@ -1,4 +1,18 @@
-# Load probe — `scripts/load-probe.ts`
+# Load probes
+
+Two of them, and they are not interchangeable:
+
+| script | `pnpm` | surface | caller | credential |
+|---|---|---|---|---|
+| `scripts/load-probe.ts` | `probe:load` | the three panorama analytics routes + `/api/health` | a govt operator | reconstructed `@supabase/ssr` **cookie** |
+| `scripts/load-probe-api-v1.ts` | `probe:load:v1` | the `/api/v1` client surface | a citizen | `Authorization: **Bearer**` |
+
+The `/api/v1` one is documented at the bottom of this file. Everything until
+that heading is about the panorama probe.
+
+---
+
+## Panorama probe — `scripts/load-probe.ts`
 
 A repeatable concurrency probe against DIM/MiMAR's hottest endpoints: the
 three panorama analytics routes (`/api/panorama/kpis`, `/api/panorama/perdidas`,
@@ -145,3 +159,131 @@ caveat above, not a regression — running the probe again immediately after
 Treat a lone FAIL driven by first-wave misses as a prompt to re-run and check
 the cache split before opening an issue — a real regression shows hits that
 are ALSO slow, or a p95 that stays high across all three waves.
+
+---
+
+# `/api/v1` p95 probe — `scripts/load-probe-api-v1.ts`
+
+What a native client waits for, measured. Per-route p50/p95/max over the
+`/api/v1` surface, plus an explicit inventory of every route the run did **not**
+drive and why.
+
+Run it: after any change to a `/api/v1` route, its use-case, or the pooler; and
+before shipping a native build that depends on one. It is deliberately **not**
+in `pnpm verify` — it is a live-environment probe, not a static check.
+
+```bash
+# Local — against `pnpm start` on :3000, with the local Supabase stack up
+pnpm probe:load:v1
+
+# Staging
+PROBE_URL=https://dim-staging.vercel.app pnpm probe:load:v1
+```
+
+## The target is an allowlist, not a warning
+
+Unknown origins are **refused** unless you pass `--allow-unknown-target` on the
+command line. Local and `https://dim-staging.vercel.app` need no flag.
+
+A flag rather than an env var, on purpose: an env var set once in a shell stays
+set for every later run in that shell, and this guard exists to interrupt the run
+nobody thought about. The probe signs in as a real account and drives that
+account's reads, so an unintended origin costs somebody's data and somebody's
+bill.
+
+## Load it with the env that matches the target
+
+The probe signs in headlessly as `owner@dim.test` (bootstrap tier — present on
+any seeded database) against `NEXT_PUBLIC_SUPABASE_URL` /
+`NEXT_PUBLIC_SUPABASE_ANON_KEY`, then sends the resulting access token to
+`PROBE_URL`.
+
+**Those two have to be the same environment.** Pointed at staging from a
+checkout whose `.env.local` holds LOCAL keys, the probe mints a token against
+`127.0.0.1:54321` and staging answers 401 — and it caught itself doing exactly
+that on its first run, reporting a healthy 204ms p95 over four endpoints that had
+said no ten times each. Two guards now stop it: a split-environment check that
+refuses the token (and reports the authenticated routes as unreached, with the
+reason), and a per-route **expected status**, so a row of refusals fails instead
+of passing with a flattering number.
+
+For staging, load `.env.staging.local` — or set `PROBE_V1_BEARER` to a token you
+obtained yourself.
+
+## The rate-limit interaction, and what it costs
+
+`/api/v1`'s per-IP ceilings were re-derived against carrier NAT in WU-EAS-2
+(`lib/infra/api-v1-limits.ts`, and §1.6 of `docs/architecture/api-invariants.md`).
+A default run is well inside them — but CI has ONE egress address, shared with
+every other automated run.
+
+So the probe sends a random RFC 5737 documentation IP in `x-real-ip` for the
+whole run, landing in a fresh bucket. This is the device
+`playwright.staging.config.ts` already uses against staging, for the same reason.
+
+- **It buys** a p95 that measures the application. Refusals are fast, so a
+  throttled run reports a *better* number while meaning less.
+- **It costs** any coverage of the limiters. This probe is **not** a rate-limit
+  test and must not be cited as one — the ceilings are pinned by
+  `__tests__/api-v1-rate-limit-families.test.ts` and each route's own cases.
+
+`PROBE_V1_SPOOF_IP=0` shares the real bucket. Use it when you want to confirm a
+ceiling in a live environment, attended, once. Any 429 is reported and **fails**
+the row rather than being dropped from the sample.
+
+## The bound
+
+| | |
+|---|---|
+| samples per route | 20 (`PROBE_V1_SAMPLES`, hard cap **100**) |
+| warm-up per route | 3, **excluded** from every percentile, median printed separately |
+| in flight | 4 (`PROBE_V1_CONCURRENCY`, hard cap **8**) |
+| worst case, one run | 6 routes × (100 + 3) = **618 requests** |
+| default run | 6 × 23 = **138 requests** |
+
+The caps are enforced in code, not merely defaulted: a default is a suggestion,
+and an env var on a CI job is how a suggestion becomes 10.000. Staging is a
+Vercel deployment against a shared Supabase project — 138 requests is a probe.
+
+## What it cannot measure
+
+Six routes are driven. The rest are printed by name with a reason, derived from
+the route tree rather than a hand-written list — and a `/api/v1` route with **no
+declared reason fails the run**, so "we did not measure it" costs as much to
+write as measuring it.
+
+- **Writes** are never driven: they register animals, mint share links that
+  disclose owner contact data, put real animals into lost mode, or revoke the
+  probe's own session.
+- **`/api/v1/auth/login`** spends `auth_login_email` — 5/min · 20/hr keyed on the
+  EMAIL, so a unique `x-real-ip` does nothing and a probe would lock the shared
+  demo account out for every other run on that target.
+- **Owner-scoped pet reads** (`/pets/{token}`, `libreta`, `events`, `lost` GET,
+  `shares` GET) need a pet the probe ACCOUNT holds. Discovery only finds PUBLIC
+  tokens off `/adoptar`, and a token the account does not hold answers 404 —
+  which would time a refusal and call it a read.
+- **The credential read** needs a public token, discovered at runtime from the
+  target's own `/adoptar` catalogue (never hardcoded — `e2e/README.md`'s rule).
+  An empty catalogue reports it unreached. `PROBE_V1_TOKEN` names one by hand.
+
+## Sample staging run
+
+Captured 2026-08-26 against `https://dim-staging.vercel.app` with
+`.env.staging.local` loaded, `PROBE_V1_SAMPLES=10`:
+
+```
+  Route                  n    warm      p50       p95       max       Result
+  ------------------------------------------------------------------------------------------------
+  localities             10   344ms     123ms     201ms     201ms     PASS
+  me                     10   340ms     153ms     388ms     388ms     PASS
+  me/pets                10   386ms     190ms     210ms     210ms     PASS
+  me/transfers           10   188ms     183ms     315ms     315ms     PASS
+  me/caretaker-grants    10   200ms     171ms     189ms     189ms     PASS
+  credential             10   348ms     219ms     272ms     272ms     PASS
+```
+
+Reading it: the `warm` column is the median of the three excluded warm-up
+requests, and it is 1,5-3× the p50 on every route — that is the Vercel cold start,
+and folding it into the percentiles is exactly how a p95 hides the number an
+operator actually wants. Nothing here is near the 1500ms remote target; the value
+of the run is that the next one has something to be compared against.
