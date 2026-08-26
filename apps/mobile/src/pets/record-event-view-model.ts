@@ -251,8 +251,10 @@ function numberOrNull(value: string): number | null {
  *
  * Deliberately not clever: it never decides a field is wrong — that is
  * `recordEventInputSchema`'s job and duplicating it here is how the app and the
- * server end up refusing different things. `NaN` for an unreadable weight is
- * passed straight through so the schema can name it `WEIGHT_INVALID`.
+ * server end up refusing different things. An unreadable weight still becomes
+ * `NaN` here, because `kg` is a NUMBER on the wire and "abc" has no other
+ * representation to send; what that `NaN` MEANS is settled by
+ * `unreadableWeight` before the parse, for the reason written there.
  */
 function draftToWire(
   kind: WritableKind,
@@ -329,6 +331,30 @@ export type DraftResult =
   | { ok: false; message: string; code: RecordEventInputCode | null };
 
 /**
+ * Is the weight field filled in with something that is not a number?
+ *
+ * THE ONE REFUSAL THE SCHEMA CANNOT WORD, and it took reading zod's own type
+ * check to see why. `kg` is a NUMBER on the wire, so "abc" has no representation
+ * to send and `draftToWire` sends `NaN` — and `z.number()` rejects `NaN` as an
+ * INVALID TYPE, which is the very same issue a MISSING number raises. Both come
+ * back `WEIGHT_REQUIRED`, so the person read "Falta el peso." underneath a field
+ * with "abc" sitting visibly in it. The `WEIGHT_INVALID` refine below it never
+ * runs, because a value that failed the type check never reaches a refinement.
+ *
+ * This is NOT the re-stated rule the file header warns about. The ceiling is
+ * still `MAX_WEIGHT_KG` in the contract and the positivity is still the schema's
+ * refine; what is decided here is whether the text is a number AT ALL — a fact
+ * about the TEXT, which only the layer holding the text has. It answers with the
+ * contract's own `WEIGHT_INVALID`, so there is still one vocabulary and one
+ * message table.
+ */
+function unreadableWeight(kind: WritableKind, draft: EventDraft): boolean {
+  if (kind !== "weight") return false;
+  const trimmed = draft.kg.trim();
+  return trimmed.length > 0 && numberOrNull(trimmed) === null;
+}
+
+/**
  * Validate a draft against the SERVER'S schema and hand back either the body to
  * send or the one sentence to show.
  *
@@ -342,6 +368,10 @@ export function validateDraft(
   draft: EventDraft,
   options: { sourceEventId?: string | null; sameDayOverride?: boolean } = {},
 ): DraftResult {
+  if (unreadableWeight(kind, draft)) {
+    return { ok: false, code: "WEIGHT_INVALID", message: inputCodeMessage("WEIGHT_INVALID") };
+  }
+
   const wire = draftToWire(
     kind,
     draft,

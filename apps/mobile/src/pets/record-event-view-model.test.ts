@@ -76,6 +76,19 @@ describe("validateDraft — what leaves the device", () => {
     expect(!without.ok && without.code).toBe("MEDICATION_SOURCE_REQUIRED");
   });
 
+  it("tells a filled-in unreadable weight apart from a missing one", () => {
+    // `kg` is a number on the wire, so "abc" arrives as NaN — and zod rejects
+    // NaN as an INVALID TYPE, the same issue a missing number raises. Without
+    // the pre-check both said "Falta el peso." and one of them was looking at a
+    // field with "abc" in it.
+    const unreadable = validateDraft("weight", draft({ kg: "abc" }));
+    expect(!unreadable.ok && unreadable.code).toBe("WEIGHT_INVALID");
+    expect(!unreadable.ok && unreadable.message).toContain("número");
+
+    const missing = validateDraft("weight", draft({ kg: "  " }));
+    expect(!missing.ok && missing.code).toBe("WEIGHT_REQUIRED");
+  });
+
   it("refuses what the SERVER would refuse, before the network sees it", () => {
     const tooHeavy = validateDraft("weight", draft({ kg: "500" }));
     expect(!tooHeavy.ok && tooHeavy.code).toBe("WEIGHT_TOO_HIGH");
