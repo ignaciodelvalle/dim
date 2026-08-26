@@ -165,6 +165,10 @@ vi.mock("@/lib/supabase/bearer", async (importOriginal) => {
 });
 
 import { POST } from "@/app/api/v1/pets/[publicToken]/events/route";
+// The REAL export, for an identity check rather than a shape check. Safe to
+// import here: the route above already pulls this module in (writers.ts imports
+// `flushNotifications` from it), so this adds no module to the graph.
+import { flushNotifications } from "@/src/modules/events/application/writers";
 
 const OWNER_ID = "11111111-1111-4111-8111-111111111111";
 const PET_ID = "22222222-2222-4222-8222-222222222222";
@@ -787,8 +791,12 @@ describe("POST .../events — what a síntoma puts on the spine, and what it may
     // still on the spine, and nobody told. The writer builds its notifications
     // inside the transaction and hands them to this dep afterwards; an endpoint
     // that passed no flush would drop them without failing anything.
+    //
+    // ASSERTED BY IDENTITY, not by `typeof === "function"`. A shape check passes
+    // for `() => {}`, which is precisely the regression it is here to catch: a
+    // flush that is wired, callable, and tells nobody.
     await call(A_SYMPTOM);
-    expect(typeof control.symptomDeps[0]?.flushNotifications).toBe("function");
+    expect(control.symptomDeps[0]?.flushNotifications).toBe(flushNotifications);
   });
 
   it("signs with the org path's resolved authorship, never re-derived", async () => {
