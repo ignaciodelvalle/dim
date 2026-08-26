@@ -267,10 +267,29 @@ export const API_V1_AUTHENTICATED_READ_USER_LIMIT: RateLimitConfig = {
 };
 
 /**
- * Authenticated writes, per IP: 12× the per-user ceiling, so the USER bucket
- * stays the binding constraint for any plausible number of simultaneous
- * legitimate writers behind one address. Derived from `…WRITE_USER_LIMIT`
- * below rather than from the adoption figure — see the header.
+ * Authenticated writes, per IP. Derived from `…WRITE_USER_LIMIT` below rather
+ * than from the adoption figure — see the header — so that the USER bucket stays
+ * the binding constraint for any plausible number of simultaneous legitimate
+ * writers behind one address.
+ *
+ * THE MULTIPLE IS NOT ONE NUMBER, and this docblock claimed it was until
+ * 2026-08-26 ("12× the per-user ceiling", flat). Per minute that is right;
+ * per hour it is not, and the header has always told the honest story while this
+ * summary rounded it into a single factor:
+ *
+ *   per minute   120 = 12 × 10      twelve accounts at their full per-minute rate
+ *   per hour   1,200 = 30 × 40      thirty accounts at their full hourly rate
+ *
+ * The two multiples differ because the per-user ceiling is not a flat rate
+ * either: 10/min would be 600/hr if sustained, and the per-user hourly cap of
+ * 40 is deliberately far below that. So the same IP ceiling admits twelve
+ * simultaneous writers in a burst and thirty across an hour, which is the shape
+ * intended — a gateway is bursty in the minute and broad in the hour.
+ *
+ * The CONSTANTS were never wrong; only this derivation was, and a wrong
+ * derivation is worse than none, because it is the sentence somebody uses to
+ * re-derive the number after changing the per-user one.
+ * `__tests__/api-v1-rate-limit-families.test.ts` pins the per-minute half.
  *
  * `/me/transfers` (POST), `/me/caretaker-grants` (POST).
  */
@@ -293,8 +312,17 @@ export const API_V1_AUTHENTICATED_WRITE_USER_LIMIT: RateLimitConfig = {
 
 /**
  * Account-security writes, per IP. `/me/revoke-sessions` only: 12× its
- * use-case's per-user ceiling (5/min + 20/hr), by the write family's rule, and
- * an order of magnitude below the read family because the act really is rare.
+ * use-case's per-user ceiling (5/min + 20/hr) — 60 = 12 × 5 and 240 = 12 × 20,
+ * flat on both windows — and an order of magnitude below the read family
+ * because the act really is rare.
+ *
+ * IT IS FLAT HERE AND NOT IN THE WRITE FAMILY ABOVE, which is worth one line so
+ * that "by the write family's rule" is not read as "the same multiple". That
+ * family's per-user ceilings are 10/min and 40/hr, a pair chosen so the hourly
+ * one is far below a sustained per-minute rate; multiplying both by 12 would
+ * have carried that deliberate narrowing up into the IP ceiling, so the hourly
+ * side went to 1,200 (= 30 × 40) instead. Here the per-user pair is already
+ * proportionate, so 12× on both windows preserves it.
  *
  * The per-user half is NOT here — it lives inside `revokeAllSessions` so the web
  * button and this endpoint spend the same budget. A ceiling that belongs to the
