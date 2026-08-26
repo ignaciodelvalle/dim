@@ -157,5 +157,15 @@ export function apiErrorMessage(code: ApiV1ErrorCode): string {
       return "El número de microchip no tiene un formato válido. Revisalo o dejalo vacío.";
     case "lost_failed":
       return "No pudimos completar la acción. Volvé a intentar en unos minutos.";
+    case "share_forbidden":
+      // Covers three different web refusals — a caretaker, an org member with no
+      // `ownerships` row, and a holder who did not create the link they are
+      // trying to revoke. The sentence names the rule rather than the identity,
+      // because the screen already knows which control was pressed.
+      return "No tenés permiso para esta acción de compartir.";
+    case "share_limit_reached":
+      return "Llegaste al máximo de links activos. Revocá uno para crear otro.";
+    case "tier2_not_allowed":
+      return "No se puede mostrar la libreta en la credencial pública de una mascota fallecida.";
   }
 }

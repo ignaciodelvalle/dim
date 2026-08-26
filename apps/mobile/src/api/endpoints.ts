@@ -41,16 +41,20 @@ import {
   PET_EVENT_DETAIL_PAYLOAD_VERSION,
   PET_LIBRETA_PAYLOAD_VERSION,
   PET_LOST_PAYLOAD_VERSION,
+  PET_SHARES_PAYLOAD_VERSION,
   type PetEventDetailV1,
   type PetLibretaV1,
   type PetLostV1,
   type PetRegisteredV1,
+  type PetSharesV1,
+  type ShareCommandAckV1,
 } from "@dim/contract/api";
 import type {
   AmendEventInput,
   LostCommandInput,
   RecordEventInput,
   RegisterPetInput,
+  ShareCommandInput,
 } from "@dim/contract/input";
 
 import { type ApiResult, type SessionPort, apiRequest, performRequest } from "./client";
@@ -363,6 +367,62 @@ export function sendLostCommand(
       method: "POST",
       body: input,
       headers: idempotencyKey === null ? undefined : { "idempotency-key": idempotencyKey },
+    },
+    session,
+  );
+}
+
+/**
+ * `GET /pets/{publicToken}/shares` — who else can see this animal's record.
+ *
+ * THE ONE READ ON THIS SURFACE THAT CARRIES BEARER SECRETS. Each active share
+ * link comes back with its `shareToken`, which reads the animal's medical record
+ * for whoever holds it. The contract's `pet-shares.ts` states the rules at
+ * length; the one that binds a CALLER is: this payload is not cached, not
+ * logged, and not echoed into an error. It belongs in a screen's state and dies
+ * with the screen — the line `LibretaScreen` already draws, with a credential on
+ * top.
+ */
+export function fetchPetShares(
+  session: SessionPort,
+  publicToken: string,
+): Promise<ApiResult<PetSharesV1>> {
+  return apiRequest<PetSharesV1>(
+    {
+      path: `/api/v1/pets/${encodeURIComponent(publicToken)}/shares`,
+      expectedPayloadVersion: PET_SHARES_PAYLOAD_VERSION,
+    },
+    session,
+  );
+}
+
+/**
+ * `POST /pets/{publicToken}/shares` — run one sharing command.
+ *
+ * THE FIFTH WRITE ON THIS SURFACE, and the first that touches no spine at all.
+ * `create_libreta_share` inserts into `libreta_share_tokens`;
+ * `revoke_libreta_share` flips `revoked_at`; the two Tier-2 commands move two
+ * columns on `pets`. Nothing is appended and nothing is edited that was ever a
+ * FACT — an exposure is not an asiento — so the append-only invariant is
+ * untouched rather than bent.
+ *
+ * NO `idempotencyKey` PARAMETER, AND THAT IS THE CONTRACT AND NOT A SHORTCUT.
+ * None of the four writers takes a `clientIdempotencyKey`; all four are
+ * idempotent on the STATE instead, and three of them recognise a replay and
+ * report it as `changed: false`. Requiring a header the server would ignore is
+ * a client believing it holds a guarantee it does not — the same refusal
+ * `writers.ts` makes for atestación PPP and embarazo.
+ */
+export function sendShareCommand(
+  session: SessionPort,
+  publicToken: string,
+  input: ShareCommandInput,
+): Promise<ApiResult<ShareCommandAckV1>> {
+  return apiRequest<ShareCommandAckV1>(
+    {
+      path: `/api/v1/pets/${encodeURIComponent(publicToken)}/shares`,
+      method: "POST",
+      body: input,
     },
     session,
   );

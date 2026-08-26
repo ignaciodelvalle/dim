@@ -77,9 +77,23 @@ export function lostModeRoute(publicToken: string): `/mascotas/${string}/perdida
   return `/mascotas/${encodeURIComponent(publicToken)}/perdida`;
 }
 
+/**
+ * The sharing cockpit for one pet — share links and the Tier-2 public window.
+ *
+ * A REAL ROUTE and not a face on the pet screen, for the reason modo perdida is
+ * one: the faces are DOCUMENTS (the owner's chrome, the libreta, the public
+ * credential) and this is a control panel over who may read them. It is also the
+ * one screen in the app that holds bearer secrets, which is a second reason to
+ * give it its own lifetime — it dies on back, and the tokens die with it.
+ */
+export function sharesRoute(publicToken: string): `/mascotas/${string}/compartir` {
+  return `/mascotas/${encodeURIComponent(publicToken)}/compartir`;
+}
+
 export type AppRoute =
   | (typeof ROUTES)[keyof typeof ROUTES]
   | ReturnType<typeof credentialRoute>
   | ReturnType<typeof libretaEventRoute>
   | ReturnType<typeof recordEventRoute>
-  | ReturnType<typeof lostModeRoute>;
+  | ReturnType<typeof lostModeRoute>
+  | ReturnType<typeof sharesRoute>;
