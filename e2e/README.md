@@ -48,6 +48,23 @@ NEXT_BUILT=1 pnpm playwright test e2e/crisis-*.spec.ts
   evidence-gate refusal, and revocation. Cleans up its own lote through
   `deleteTagsByLotePrefix` (local DB only) — there is no "delete a chapa"
   flow in the product.
+- `api-v1-public-contract.spec.ts` — the ANONYMOUS `/api/v1` surface, over the
+  `request` fixture (no browser): the locality typeahead's envelope and its
+  five projected fields, the documented "one character → 200 with no results"
+  non-error, an unknown province → 400, and the credential read for a token
+  **discovered at runtime** from `/adoptar`. The load-bearing assertion is
+  `Cache-Control: no-store` on a DEPLOYED origin — §4 says the header is not
+  inherited, and the 2026-07-07 privacy class (a found pet served stale from the
+  CDN at the exact shared URL) is a CDN-level defect no unit test can see.
+- `api-v1-auth-refusals.spec.ts` — the `/api/v1` auth failure space a native
+  client writes ONE handler for: `auth_required` vs `auth_expired` across the
+  four `/me` reads and the three `/me` writes, plus what a refusal must never
+  BECOME in production — a redirect (there is no browser to redirect; ADR
+  2026-07-18 D3), an HTML error page from an edge layer, a cacheable 401, or an
+  envelope with more than one key. **Signs in nowhere**, on purpose: every case
+  is a refusal, so it never spends `auth_login_email` — the EMAIL-keyed budget
+  whose reset helper is local-DB-only and which a serial staging run shares with
+  every spec that logs in.
 - `public-smoke.spec.ts`, `auth.spec.ts`, `auth-bypass.spec.ts`,
   `create-pet.spec.ts`, `cross-tenant-isolation.spec.ts`,
   `owner-shell.spec.ts`, `admin-topbar.spec.ts`, `executive-smoke.spec.ts`,
@@ -55,6 +72,13 @@ NEXT_BUILT=1 pnpm playwright test e2e/crisis-*.spec.ts
   RLS/tenant isolation, a11y).
 - `demo/` — long-running (15–18 min) narrated recording scripts, not
   regression tests. Do not run these as part of a normal e2e pass.
+
+Both `api-v1-*` specs join the **nightly staging pass automatically** —
+`playwright.staging.config.ts` has `testDir: "./e2e"` and ignores only `demo/`
+and `perf/`, so a new spec file is in the 06:00 AR run
+(`.github/workflows/e2e-nightly.yml`) without touching the workflow. Adding a
+parallel job for them would have been a second place to keep in sync for no
+coverage. They need no secret beyond the public `STAGING_URL`.
 
 ## Conventions
 
