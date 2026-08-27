@@ -217,13 +217,35 @@ const RATIO_MASKABLE = 294 / 512;
 /** Store icon canvas. Non-negotiable: both stores want 1024×1024. */
 const CANVAS = 1024;
 
+/**
+ * Google Play's feature graphic. Also non-negotiable, and unlike the icon
+ * canvas it is NOT square — 1024×500, the only LANDSCAPE output this script
+ * produces. Play rejects anything else outright, PNG or JPEG, ≤15 MB.
+ */
+const FEATURE_GRAPHIC_WIDTH = 1024;
+const FEATURE_GRAPHIC_HEIGHT = 500;
+
 type Recipe = {
   readonly file: string;
   readonly what: string;
-  /** Canvas the mark is centred on, or `null` to crop tight to the mark. */
-  readonly canvas: number | null;
-  /** Mark width in px. */
-  readonly markWidth: number;
+  /**
+   * Canvas the mark is centred on, or `null` (both fields) to crop tight to
+   * the mark. Two fields rather than one square number because the feature
+   * graphic below is not square — width and height diverge for it.
+   */
+  readonly canvasWidth: number | null;
+  readonly canvasHeight: number | null;
+  /**
+   * How the mark is resized onto that canvas: `sharp` derives the other axis
+   * from the source aspect ratio either way, so this is just which axis is
+   * the BINDING one. For the three square outputs it is `width` — on a
+   * square canvas either axis gives the same answer, so `width` was picked
+   * arbitrarily. It stops being arbitrary for the feature graphic: 1024×500
+   * is wide and short, height (500) is the dimension that runs out first, and
+   * sizing off width there would either overflow the canvas or require a
+   * second, undocumented shrink to compensate.
+   */
+  readonly markSize: { readonly by: "width" | "height"; readonly px: number };
   /** `null` means a transparent ground. */
   readonly ground: typeof PAPER | null;
 };
@@ -232,8 +254,9 @@ const RECIPES: readonly Recipe[] = [
   {
     file: "icon.png",
     what: "iOS app icon and the Android legacy/fallback launcher icon",
-    canvas: CANVAS,
-    markWidth: Math.round(CANVAS * RATIO_LAUNCHER),
+    canvasWidth: CANVAS,
+    canvasHeight: CANVAS,
+    markSize: { by: "width", px: Math.round(CANVAS * RATIO_LAUNCHER) },
     // OPAQUE, and this is a hard requirement rather than a preference: the App
     // Store rejects an icon with an alpha channel outright, and Android's
     // legacy launcher composites it over an unknown ground. Paper is also what
@@ -243,8 +266,9 @@ const RECIPES: readonly Recipe[] = [
   {
     file: "adaptive-icon-foreground.png",
     what: "Android adaptive icon, foreground layer",
-    canvas: CANVAS,
-    markWidth: Math.round(CANVAS * RATIO_MASKABLE),
+    canvasWidth: CANVAS,
+    canvasHeight: CANVAS,
+    markSize: { by: "width", px: Math.round(CANVAS * RATIO_MASKABLE) },
     // TRANSPARENT on purpose. The background layer is a flat paper fill
     // declared in app.json as `backgroundColor` — see the note there for why a
     // colour and not a second PNG.
@@ -256,9 +280,35 @@ const RECIPES: readonly Recipe[] = [
     // Tight crop, no canvas. expo-splash-screen renders this at `imageWidth`
     // dp; padding baked into the file would just shrink the mark inside its own
     // declared width and force a compensating number in the config.
-    canvas: null,
-    markWidth: Math.round(CANVAS * RATIO_MASKABLE),
+    canvasWidth: null,
+    canvasHeight: null,
+    markSize: { by: "width", px: Math.round(CANVAS * RATIO_MASKABLE) },
     ground: null,
+  },
+  {
+    file: "feature-graphic.png",
+    what: "Google Play Store listing feature graphic",
+    canvasWidth: FEATURE_GRAPHIC_WIDTH,
+    canvasHeight: FEATURE_GRAPHIC_HEIGHT,
+    // RATIO_LAUNCHER, not RATIO_MASKABLE: this graphic answers to nobody's
+    // safe-zone mask, so there is no 66.6%-survives-the-crop ceiling pulling
+    // it down to the maskable ratio. It is a marketing surface arguing for
+    // the credential's identity at a glance, which is what the full-bleed
+    // icon ratio is FOR — reusing it here is reusing a measurement, not
+    // inventing a new fraction for this one canvas.
+    //
+    // Sized BY HEIGHT (500px), the binding dimension of a 1024×500 rectangle:
+    // 500 × 0.768 ≈ 384px of mark height, which at the source's 610:443 ink
+    // ratio comes out to roughly 529px wide — comfortably inside the 1024px
+    // canvas, with margin on the left and right rather than the mark
+    // spanning edge to edge.
+    markSize: { by: "height", px: Math.round(FEATURE_GRAPHIC_HEIGHT * RATIO_LAUNCHER) },
+    // OPAQUE. Play's feature graphic spec requires no alpha channel — same
+    // requirement as icon.png above, different store. See the fence in
+    // release-config.test.ts for why this one additionally cannot borrow the
+    // adaptive icon's or splash's transparent posture: THIS asset is Play's,
+    // and Play's rule, not this app's convention, governs it.
+    ground: PAPER,
   },
 ];
 
@@ -300,25 +350,32 @@ async function main(): Promise<void> {
   mkdirSync(OUT_DIR, { recursive: true });
 
   for (const recipe of RECIPES) {
-    // Width only — sharp derives the height from the source aspect ratio. The
-    // mark is landscape and squashing it by a rounding pixel is the one
-    // distortion nobody would notice until it was on 12 phones.
+    // Only ONE axis is ever passed to `resize` — sharp derives the other from
+    // the source aspect ratio. The mark is landscape and squashing it by a
+    // rounding pixel is the one distortion nobody would notice until it was
+    // on 12 phones. Which axis is passed is `markSize.by`; see the Recipe
+    // type for why that stops being arbitrary once the canvas is not square.
     const mark = await sharp(trimmed)
-      .resize({ width: recipe.markWidth, kernel: "lanczos3" })
+      .resize(
+        recipe.markSize.by === "width"
+          ? { width: recipe.markSize.px, kernel: "lanczos3" }
+          : { height: recipe.markSize.px, kernel: "lanczos3" },
+      )
       .png()
       .toBuffer();
 
     const out = path.join(OUT_DIR, recipe.file);
-    const scale = recipe.markWidth / ink.width;
+    const scaleBasis = recipe.markSize.by === "width" ? ink.width : ink.height;
+    const scale = recipe.markSize.px / scaleBasis;
     const scaleLabel = scale >= 1 ? `↑${scale.toFixed(2)}×` : `↓${scale.toFixed(2)}×`;
 
-    if (recipe.canvas === null) {
+    if (recipe.canvasWidth === null || recipe.canvasHeight === null) {
       await sharp(mark).png({ compressionLevel: 9 }).toFile(out);
     } else {
       let canvas = sharp({
         create: {
-          width: recipe.canvas,
-          height: recipe.canvas,
+          width: recipe.canvasWidth,
+          height: recipe.canvasHeight,
           channels: 4,
           background: recipe.ground ?? { r: 0, g: 0, b: 0, alpha: 0 },
         },
@@ -344,7 +401,7 @@ async function main(): Promise<void> {
     const written = await sharp(out).metadata();
     console.log(
       `  ${recipe.file.padEnd(30)} ${written.width}×${written.height}` +
-        `  mark ${recipe.markWidth}px ${scaleLabel}` +
+        `  mark ${recipe.markSize.px}px-${recipe.markSize.by} ${scaleLabel}` +
         `  alpha=${written.hasAlpha}  ${recipe.what}`,
     );
   }

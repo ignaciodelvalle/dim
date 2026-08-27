@@ -379,6 +379,126 @@ function inkBounds(relative: string): {
   return { left, top, width: right - left + 1, height: bottom - top + 1 };
 }
 
+/**
+ * Walk the chunk list for an OPAQUE PNG — colour type 2 (RGB, no alpha).
+ *
+ * A near-duplicate of readPngChunks() above rather than a shared parameter,
+ * on purpose: colour type is exactly the fact this repo's generator uses to
+ * MEAN something. Colour type 6 (RGBA) is what adaptive-icon-foreground.png
+ * and splash-icon.png carry, on purpose, because they composite onto
+ * whatever sits behind them. Colour type 2 is Play's requirement for the
+ * feature graphic — no alpha channel, full stop — satisfied by
+ * build-mobile-app-icons.ts flattening the mark onto paper and calling
+ * `removeAlpha()`. A reader that accepted either type without distinguishing
+ * them would blur that requirement back into "a PNG, channel count not
+ * asserted", which is the exact class of drift the rest of this file exists
+ * to catch elsewhere (see "ships an app icon with NO alpha channel" above).
+ */
+function readPngChunksRgb(
+  bytes: Buffer,
+  label: string,
+): { width: number; height: number; pixels: Buffer } {
+  let cursor = 8; // past the signature
+  let header: { width: number; height: number } | null = null;
+  const pixelChunks: Buffer[] = [];
+
+  while (cursor + 8 <= bytes.length) {
+    const length = bytes.readUInt32BE(cursor);
+    const kind = bytes.subarray(cursor + 4, cursor + 8).toString("ascii");
+    const data = bytes.subarray(cursor + 8, cursor + 8 + length);
+
+    if (kind === "IHDR") {
+      const bitDepth = data.readUInt8(8);
+      const colourType = data.readUInt8(9);
+      const interlace = data.readUInt8(12);
+      if (bitDepth !== 8 || colourType !== 2 || interlace !== 0) {
+        throw new Error(
+          `${label}: expected 8-bit non-interlaced RGB (no alpha), got bitDepth=${bitDepth} ` +
+            `colourType=${colourType} interlace=${interlace}`,
+        );
+      }
+      header = { width: data.readUInt32BE(0), height: data.readUInt32BE(4) };
+    } else if (kind === "IDAT") {
+      pixelChunks.push(Buffer.from(data));
+    } else if (kind === "IEND") {
+      break;
+    }
+
+    cursor += 12 + length; // length + type + data + crc
+  }
+
+  if (!header) throw new Error(`${label}: no IHDR chunk`);
+  return { ...header, pixels: Buffer.concat(pixelChunks) };
+}
+
+/**
+ * The bounding box of everything actually INK-COLOURED in an opaque RGB PNG.
+ *
+ * WHY THIS IS A SEPARATE FUNCTION FROM inkBounds() ABOVE, NOT A REUSE OF IT
+ * -------------------------------------------------------------------------
+ * inkBounds() finds ink by ALPHA — a pixel counts if it is not transparent.
+ * That is the right test for the three RGBA outputs, whose canvas IS
+ * transparent everywhere the mark is not. feature-graphic.png cannot be
+ * measured that way: Play requires it opaque, so every pixel in the file —
+ * paper and mark alike — carries alpha 255 by construction. Running
+ * inkBounds()'s threshold over this file would call the ENTIRE 1024×500
+ * canvas "ink" (or throw, since the file has no alpha channel to read at
+ * all) — a vacuous pass wearing a different disguise than a 1×1 dot, and
+ * exactly the trap a fence tuned for the square, transparent assets falls
+ * into on the one landscape, opaque asset in the set.
+ *
+ * So presence is measured by COLOUR DISTANCE from the paper ground instead: a
+ * pixel counts as ink if any channel differs from `#fbfaf5` by more than the
+ * threshold. The mark is pure black ink on cream paper, so real ink sits far
+ * past this threshold and only the resampler's anti-aliased fringe sits near
+ * it.
+ */
+/** How far an RGB triple sits from the paper ground, in the worst single channel. */
+function colourDistance(
+  r: number,
+  g: number,
+  b: number,
+  background: { r: number; g: number; b: number },
+): number {
+  return Math.max(
+    Math.abs(r - background.r),
+    Math.abs(g - background.g),
+    Math.abs(b - background.b),
+  );
+}
+
+function inkBoundsOpaque(
+  relative: string,
+  background: { r: number; g: number; b: number },
+): { left: number; top: number; width: number; height: number } {
+  const BPP = 3;
+  const THRESHOLD = 24; // out of 255 — comfortably past anti-aliasing, far short of black-on-cream contrast.
+  const bytes = readFileSync(path.join(MOBILE_ROOT, relative));
+  const { width, height, pixels } = readPngChunksRgb(bytes, relative);
+  const raw = decodeRgba(pixels, width, height, BPP);
+  const stride = width * BPP;
+
+  let left = width;
+  let right = -1;
+  let top = height;
+  let bottom = -1;
+  for (let y = 0; y < height; y++) {
+    for (let x = 0; x < width; x++) {
+      const i = y * stride + x * BPP;
+      const isInk =
+        colourDistance(raw[i] ?? 0, raw[i + 1] ?? 0, raw[i + 2] ?? 0, background) > THRESHOLD;
+      if (!isInk) continue;
+      if (x < left) left = x;
+      if (x > right) right = x;
+      if (y < top) top = y;
+      if (y > bottom) bottom = y;
+    }
+  }
+
+  if (right < 0) throw new Error(`${relative}: no pixel differs from the paper ground — no ink`);
+  return { left, top, width: right - left + 1, height: bottom - top + 1 };
+}
+
 describe("app identity assets", () => {
   it("declares the icon app.json points at, at store size", () => {
     expect(appJson.expo.icon).toBe("./assets/icon.png");
@@ -451,6 +571,73 @@ describe("app identity assets", () => {
     // would catch a second, differently-drawn mark dropped in under the same
     // filename — the one failure the dimension checks above cannot see.
     expect(splash.width / splash.height).toBeCloseTo(610 / 443, 1);
+  });
+
+  it("ships a Google Play feature graphic at the exact size Play accepts", () => {
+    // Play's Store Listing "Graphics" section rejects an upload that is not
+    // EXACTLY 1024×500 — not "close", not "fits inside" — so this is checked
+    // as equality, the same way the icon test above checks 1024×1024.
+    const graphic = readPng("assets/feature-graphic.png");
+    expect(graphic).toMatchObject({ width: 1024, height: 500 });
+
+    // OPAQUE: Play's spec for this asset forbids an alpha channel outright,
+    // the same rule App Store Connect enforces on icon.png above — but here
+    // it is worth stating explicitly that it DIFFERS from this file's other
+    // two generated assets. adaptive-icon-foreground.png and
+    // splash-icon.png both keep alpha on purpose (they composite onto a
+    // background layer or a config-declared colour); this one does not
+    // because it is Play's requirement, not this app's usual posture, that
+    // governs it.
+    expect(graphic.hasAlpha).toBe(false);
+
+    // THE LANDSCAPE TRAP: every non-vacuity and centring check above this
+    // point was written for a SQUARE canvas, and reusing their numbers here
+    // verbatim would pass on garbage. A `width === height` assertion would
+    // fail on every correct file this test could ever see. A floor expressed
+    // as "fraction of a square's area" (1024²) would be checking against the
+    // wrong denominator — this canvas is 1024×500, half that area. And a
+    // single left/right-only centring check would miss the mark sliding
+    // vertically, which a square asset has no way to distinguish from
+    // sliding horizontally. So every number below is re-derived for THIS
+    // 1024×500 canvas rather than copied from the icon or splash checks.
+    const ink = inkBoundsOpaque("assets/feature-graphic.png", { r: 0xfb, g: 0xfa, b: 0xf5 });
+
+    // Non-vacuity, on the BINDING axis. build-mobile-app-icons.ts sizes this
+    // mark by HEIGHT (500px is what runs out first on a 1024-wide canvas,
+    // see the recipe's comment) — so the floor and ceiling that catch "mark
+    // is a degenerate dot" or "mark fills the whole canvas" both have to be
+    // read off height, not width. Measured at build time: ink height is 384
+    // of 500 (76.8%). Floor well below that catches a shrunk-to-nothing
+    // mark; ceiling well above it catches a mark stretched edge to edge.
+    const heightFraction = ink.height / graphic.height;
+    expect(heightFraction).toBeGreaterThan(0.5);
+    expect(heightFraction).toBeLessThan(0.95);
+
+    // Non-vacuity again, but over AREA rather than a single axis — the check
+    // a square asset's "fraction of edge length" reasoning cannot express,
+    // because on a 1024×500 canvas the two axes disagree by more than 2×.
+    // This is what catches a mark that is tall enough to pass the height
+    // check above but a sliver wide (or vice versa) — a failure mode the
+    // per-axis check alone is blind to. Measured: ~39.7% of the canvas.
+    const areaFraction = (ink.width * ink.height) / (graphic.width * graphic.height);
+    expect(areaFraction).toBeGreaterThan(0.15);
+    expect(areaFraction).toBeLessThan(0.9);
+
+    // Centred on BOTH axes, independently — not just horizontally the way a
+    // square asset's single check would read. On a landscape canvas, a mark
+    // that is centred left-right but has drifted up or down is a real,
+    // visible defect a symmetric-canvas check has no way to catch, because
+    // on a square canvas "centred" only ever meant one thing.
+    const leftMargin = ink.left;
+    const rightMargin = graphic.width - (ink.left + ink.width);
+    const topMargin = ink.top;
+    const bottomMargin = graphic.height - (ink.top + ink.height);
+    expect(Math.abs(leftMargin - rightMargin)).toBeLessThanOrEqual(8);
+    expect(Math.abs(topMargin - bottomMargin)).toBeLessThanOrEqual(8);
+
+    // Same mark, same shape: catches a second, differently-drawn mark landing
+    // under this filename, exactly as the splash check above does.
+    expect(ink.width / ink.height).toBeCloseTo(610 / 443, 1);
   });
 
   it("configures the splash plugin against the file it ships", () => {
