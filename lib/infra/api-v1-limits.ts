@@ -291,6 +291,23 @@
 // happening again, one line lower. So the number is named and not repeated. Read
 // the constant.
 //
+// ---------------------------------------------------------------------------
+// AND THE ROUTES THAT ARE IN NO FAMILY AT ALL, WHICH IS ALSO A DECISION
+// ---------------------------------------------------------------------------
+// `app/api/v1/auth/**` spends no `api_v1_*` bucket, so the map below names none
+// of it and the fence collects none of it. That reads like a hole and is the
+// opposite of one: those handlers are adapters over use-cases the WEB FORMS also
+// call, and the ceilings they spend (`auth_login_ip`, `auth_login_email`,
+// `auth_signup_ip`, `auth_password_reset_ip`, `auth_password_reset_email`) are
+// named for the ACT rather than for the surface, precisely so that switching
+// transport buys no fresh budget. A ceiling filed under a `/api/v1` family would
+// be a ceiling only one of the two doors spends.
+//
+// A reader auditing one of those URLs should follow the use-case, not this file.
+// The password-reset pair carries its own derivation next to the use-case
+// (`src/modules/auth/application/password-reset/limits.ts`); the login and signup
+// numbers are stated at their own `enforceRateLimit` call sites.
+//
 // The `pre-cgnat` buckets are outside that sum and add their own ceilings on top;
 // what they are is `API_V1_IP_BUCKET_FAMILIES`'s `pre-cgnat` entries, and what
 // each one spends is the route-local constant in its own file. That is

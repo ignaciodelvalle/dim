@@ -31,6 +31,19 @@ export const ROUTES = {
    * than in the word the web's router happens to use.
    */
   crearCuenta: "/crear-cuenta",
+  /**
+   * Password recovery — ask for a code, then set a new password.
+   *
+   * The path MATCHES the web's (`/recuperar`), and for once that is not the
+   * deep-link reason `/transferencias` and `/cuidado` match theirs. Nothing links
+   * into this screen from outside the app and nothing may: it is NOT in
+   * `DEEP_LINK_MAP` and must never be added to it. A `mimar://recuperar` url
+   * would be an unverified custom scheme any installed app can claim, standing
+   * in front of the one flow whose entire job is to hand back control of an
+   * account. The paths agree here simply because both surfaces call the act the
+   * same thing.
+   */
+  recuperar: "/recuperar",
   identidadPendiente: "/identidad-pendiente",
   misMascotas: "/mascotas",
   altaMascota: "/alta",

@@ -891,8 +891,8 @@ describe("listRouteHandlerFiles", () => {
     expect(offenders).toEqual([]);
   });
 
-  it("the intentionally-public handlers are exactly the twelve documented ones", () => {
-    // A THIRTEENTH opt-out appearing here is a decision, not a detail: it means
+  it("the intentionally-public handlers are exactly the thirteen documented ones", () => {
+    // A FOURTEENTH opt-out appearing here is a decision, not a detail: it means
     // an endpoint was made public and this list is where that shows up in review.
     //
     // The seventh arrived on 2026-08-21 with the first `/api/v1` endpoint. It is
@@ -983,6 +983,27 @@ describe("listRouteHandlerFiles", () => {
     // because the scanner matches the token and not the sentence around it. This
     // assertion is what caught it. The route now says "AUTHORIZED, not opted out"
     // without spelling the marker.
+    // The THIRTEENTH arrived on 2026-08-27 with WU-R-1:
+    // `POST /api/v1/auth/password-reset`. NOT a sixth kind — it is the third
+    // member of the PRE-AUTHENTICATION family the eighth and ninth opened, and it
+    // is the plainest case of it: the caller is here precisely BECAUSE they
+    // cannot sign in, so there is no identity to resolve and nothing a guard
+    // could ask for. Bounded rather than authorized, by the same two budgets
+    // `/recuperar` spends — `auth_password_reset_ip` and
+    // `auth_password_reset_email` — enforced inside the shared use-case before
+    // GoTrue is touched.
+    //
+    // What is worth reviewing about it is not the opt-out but the DISCLOSURE, and
+    // that is asserted elsewhere rather than described here: the response is a
+    // single-inhabitant type, identical for an address that has an account and
+    // one that does not, and `__tests__/api-v1-auth-password-reset-route.test.ts`
+    // pins that as an equality over status, body AND headers.
+    //
+    // The REDEMPTION half of that flow is deliberately not on this list, and its
+    // absence is not an oversight: there is no route for it. A native client
+    // verifies the mailed code against GoTrue directly (auth plane, like token
+    // refresh), so there is no handler here to opt anything out of. See the
+    // route's own header for what that costs.
     const optedOut = handlers.filter((f) =>
       extractExportedAsyncFunctions(readFileSync(f, "utf8")).some((fn) => fn.hasNoAuthComment),
     );
@@ -996,6 +1017,8 @@ describe("listRouteHandlerFiles", () => {
       "app/.well-known/assetlinks.json/route.ts",
       "app/api/health/route.ts",
       "app/api/v1/auth/login/route.ts",
+      // Sorts between its two siblings: 'l' < 'p' < 's'.
+      "app/api/v1/auth/password-reset/route.ts",
       "app/api/v1/auth/signup/route.ts",
       "app/api/v1/localities/route.ts",
       "app/api/v1/pets/[publicToken]/credential/route.ts",

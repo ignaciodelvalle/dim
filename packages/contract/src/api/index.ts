@@ -28,6 +28,7 @@ export {
   type LoginV1,
   type MeV1,
   type MeV1User,
+  type PasswordResetRequestedV1,
   type SignupV1,
 } from "./auth.ts";
 export { API_V1_ERROR_CODES, type ApiV1Error, type ApiV1ErrorCode } from "./errors.ts";

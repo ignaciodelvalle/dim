@@ -115,7 +115,6 @@
         "src/modules/adoption/application/bulk-adoption-actions/bulk-reject-adoption-applications.ts",
         "src/modules/auth/application/complete-identity.ts",
         "src/modules/auth/application/logout.ts",
-        "src/modules/auth/application/password-reset/request-password-reset.ts",
         "src/modules/auth/application/password-reset/update-password.ts",
         "src/modules/auth/application/subject-rights/erase-subject-data.ts",
         "src/modules/auth/application/subject-rights/export-subject-data.ts",

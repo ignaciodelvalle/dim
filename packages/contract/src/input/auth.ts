@@ -121,6 +121,38 @@ export const signupInputSchema = z
 export type SignupInput = z.infer<typeof signupInputSchema>;
 
 // ---------------------------------------------------------------------------
+// Password recovery — the REQUEST half
+// ---------------------------------------------------------------------------
+
+/**
+ * One code, and there will never be a second one that is about the account.
+ *
+ * `EMAIL_REQUIRED` is about the FIELD — the box is empty. There is deliberately
+ * no `ACCOUNT_NOT_FOUND` and no `EMAIL_INVALID`: the first would be the
+ * enumeration oracle the whole flow refuses to be, and the second would reject
+ * at the door an address the web path accepts and lets GoTrue answer for (see
+ * the note on login's email above — two transports refusing different sets of
+ * inputs is the drift the shared use-case exists to prevent).
+ */
+export const PASSWORD_RESET_REQUEST_INPUT_CODES = ["EMAIL_REQUIRED"] as const;
+export type PasswordResetRequestInputCode = (typeof PASSWORD_RESET_REQUEST_INPUT_CODES)[number];
+
+/**
+ * What a client sends to ask for a recovery credential.
+ *
+ * ONE FIELD, AND NO `redirectTo`. Where the recovery link points is the SERVER's
+ * decision and must stay that way: a client-chosen redirect on a flow that mails
+ * a credential is an open-redirect that arrives by e-mail. The native client does
+ * not want one either — it redeems the six-digit code, not the link. See
+ * `recoveryRedirectTo` in the use-case.
+ */
+export const passwordResetRequestInputSchema = z.object({
+  email: requiredText("EMAIL_REQUIRED"),
+});
+
+export type PasswordResetRequestInput = z.infer<typeof passwordResetRequestInputSchema>;
+
+// ---------------------------------------------------------------------------
 // Reporting
 // ---------------------------------------------------------------------------
 

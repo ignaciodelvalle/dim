@@ -119,8 +119,16 @@ export const V1_ROUTE_GLOB = "app/api/v1/**/route.ts";
  * added the route — the fifth in a row. `me/` now has FIVE siblings a directory
  * rename could take out together, which is the arrangement this floor was raised
  * to seventeen for one route ago and is the reason it keeps being worth raising.
+ *
+ * NINETEEN with password recovery (`auth/password-reset`), raised in the same
+ * commit that added the route — the sixth in a row. It is the first route to
+ * JOIN `auth/` since that directory was created, and `auth/` is the arrangement
+ * this floor exists for in its other half: a set of siblings that no `me/`-shaped
+ * glob covers, which a single directory rename would take out together and which
+ * nothing but this number would then notice. The count of them is not written
+ * here on purpose — `listV1RouteFiles()` is the list that cannot lie.
  */
-export const MIN_V1_ROUTE_FILES = 18;
+export const MIN_V1_ROUTE_FILES = 19;
 
 export const HELPER_MODULE = "@/lib/infra/api-v1";
 

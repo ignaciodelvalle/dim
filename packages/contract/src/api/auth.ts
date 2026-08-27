@@ -128,6 +128,41 @@ export type SignupV1 = {
 };
 
 // ---------------------------------------------------------------------------
+// POST /api/v1/auth/password-reset
+// ---------------------------------------------------------------------------
+
+/**
+ * The answer to a recovery request (HTTP 202).
+ *
+ * A CONSTANT, AND ITS CONSTANCY IS THE ENTIRE PAYLOAD. There is one inhabitant
+ * of this type, so the body for an address that has an account and one that does
+ * not is the same bytes — not "two generic strings that happen to match today",
+ * which is the shape a later edit widens by adding one honest-looking field.
+ * `__tests__/api-v1-auth-password-reset-route.test.ts` asserts the equality of
+ * the two responses rather than trusting this paragraph.
+ *
+ * 202 AND NOT 200, deliberately. 200 would claim the request was completed; what
+ * actually happened is that it was ACCEPTED and everything downstream of that —
+ * whether a token was minted, whether a mail was handed to a provider, whether it
+ * arrives — is information this endpoint declines to have. 202 is the status that
+ * says so, and it is the same status for both addresses.
+ *
+ * WHAT A CLIENT DOES WITH IT: show the person the "si existe una cuenta…"
+ * sentence and move to the redemption step. It must NEVER render a branch on
+ * whether the account exists, because it was not told, and inventing one is how
+ * the enumeration oracle gets rebuilt on the phone out of helpfulness (the same
+ * failure `LoginV1`'s single `invalid_credentials` exists to prevent).
+ *
+ * NO PAYLOAD VERSION, NO `issuedAt`, NO `staleAfter`. Those three are §6's
+ * envelope for a READ — a snapshot a client may cache and must know the age of.
+ * This is an acknowledgement of a command; there is nothing here to go stale, and
+ * a client that cached it would be caching the word "ok".
+ */
+export type PasswordResetRequestedV1 = {
+  requested: true;
+};
+
+// ---------------------------------------------------------------------------
 // GET /api/v1/me
 // ---------------------------------------------------------------------------
 

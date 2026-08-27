@@ -30,11 +30,16 @@
 //
 // Three gaps are closed rather than restyled:
 //
-//   · "¿Olvidaste tu contraseña?" now exists and opens the browser at
-//     `/recuperar`. There is no native recovery flow and there should not be
-//     one — see PASSWORD_RECOVERY_URL for why the native half would end at the
-//     same web page anyway. A person locked out of this screen previously had
-//     NO way forward from it.
+//   · "¿Olvidaste tu contraseña?" now exists. It opened the BROWSER at
+//     `/recuperar` when it landed, under a written argument that there should
+//     never be a native recovery flow because "the native half would end at the
+//     same web page anyway". WU-R-1 reversed that, and the reversal is recorded
+//     rather than quietly edited: the mail carries the recovery token as a
+//     six-digit CODE as well as a link, and a code needs no browser to come back
+//     — which is the only thing that works on a device with no verified App
+//     Links. The link now pushes `/recuperar`, this app's own screen, and
+//     `RecuperarScreen` carries the full account of what changed and what did
+//     not.
 //
 //   · The "Conectar con Mi Argentina (próximamente)" placeholder, disabled,
 //     because invariant #6 makes federation the premise and the web has been
@@ -65,7 +70,6 @@
 //     visitor straight back to this screen. The link would be a button that
 //     appears to do nothing, which is worse than its absence.
 
-import * as Linking from "expo-linking";
 import { Redirect, useLocalSearchParams, useRouter } from "expo-router";
 import { useState } from "react";
 import { StyleSheet, View } from "react-native";
@@ -73,7 +77,6 @@ import { StyleSheet, View } from "react-native";
 import { returnHref } from "../src/auth/return-to";
 import { sessionEndMessage, signIn } from "../src/auth/session-store";
 import { useSession } from "../src/auth/useSession";
-import { PASSWORD_RECOVERY_URL } from "../src/config/api";
 import { Body, ErrorNotice } from "../src/ui/components";
 import {
   Callout,
@@ -181,12 +184,13 @@ export default function IngresoScreen() {
           value={password}
         />
 
-        {/* Right-aligned, as on the web (`flex justify-end`). */}
+        {/* Right-aligned, as on the web (`flex justify-end`). PUSH and not
+            replace, unlike the two `router.replace` calls elsewhere in this
+            flow: somebody who taps this by accident, or who remembers the
+            password on the way, must be able to come back with the gesture
+            their phone already gives them. */}
         <View style={styles.forgot}>
-          <LinkText
-            accessibilityHint="Se abre en el navegador"
-            onPress={() => void Linking.openURL(PASSWORD_RECOVERY_URL)}
-          >
+          <LinkText onPress={() => router.push(ROUTES.recuperar)}>
             ¿Olvidaste tu contraseña?
           </LinkText>
         </View>

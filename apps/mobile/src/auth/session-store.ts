@@ -52,6 +52,7 @@
 // because swallowing it produces the "it logs me out sometimes" mystery.
 
 import type { MeV1User } from "@dim/contract/api";
+import { MIN_PASSWORD_LENGTH } from "@dim/contract/input";
 
 import {
   type ApiResult,
@@ -59,7 +60,13 @@ import {
   type SessionPort,
   apiFailureMessage,
 } from "../api/client";
-import { fetchMe, login, revokeAllSessions, signup as signupRequest } from "../api/endpoints";
+import {
+  fetchMe,
+  login,
+  requestPasswordReset as requestPasswordResetRequest,
+  revokeAllSessions,
+  signup as signupRequest,
+} from "../api/endpoints";
 import { forgetAllCachedCredentials } from "../credential/credential-cache";
 import { AUTH_STORAGE_KEY, authClient, dropLocalSession } from "./supabase-auth";
 
@@ -415,6 +422,197 @@ export async function signUp(input: {
   const me = await fetchMe(sessionPort);
   applyMeResult(me);
   return { ok: true, signedIn: true };
+}
+
+// ===========================================================================
+// PASSWORD RECOVERY — THE TWO HALVES, AND WHY THEY GO TO DIFFERENT PLACES
+// ===========================================================================
+// The REQUEST goes through `/api/v1/auth/password-reset`, for `signIn`'s reason:
+// that endpoint spends OUR budgets (`auth_password_reset_ip`,
+// `auth_password_reset_email`) inside the same use-case the web form calls, so a
+// phone gets no fresh ceiling by being a phone. Calling
+// `supabase.auth.resetPasswordForEmail` from here would bypass both.
+//
+// The REDEMPTION goes to GoTrue DIRECTLY, and that is not the same shortcut
+// wearing a different hat. It is the auth plane — `verifyOtp` exchanges a
+// mailed credential for a session and `updateUser` replaces a password inside
+// `auth.users`; neither reads an application table, so PO decision #2 (no
+// PostgREST for pets, events or custody) is untouched. It is the same line
+// `AuthSessionV1` draws for token refresh.
+//
+// WHY THERE IS NO SERVER ENDPOINT FOR THE SECOND HALF. Because there is nothing
+// for one to add. A `POST /api/v1/auth/password-reset/confirm` would hold a
+// credential the caller already holds, forward it to GoTrue, and forward the
+// answer back — a round trip and a second place to get the recovery-token window
+// wrong. What it WOULD add is our own ceiling on code guesses, and that is the
+// honest cost of not building it: the brute-force bound on a six-digit code is
+// GoTrue's `token_verifications` (30 per 5 minutes per IP, supabase/config.toml)
+// and not ours. Six digits, one hour of validity, thirty attempts per five
+// minutes is a bound; it is not a bound WE chose, and if that ever needs to be
+// ours, the confirm endpoint is what to build.
+//
+// WHY A CODE AND NOT THE LINK, which is the whole design in one paragraph. The
+// mail carries the same recovery token twice — a link and a six-digit code.
+// Android hands an unverified `https` link to Chrome, because verified App Links
+// need a Play-signed fingerprint this project does not have yet (app.config.ts),
+// so the link cannot come back into this app. A `mimar://` link would be worse
+// rather than better: the scheme is unverified and any installed app may claim
+// it, so mailing a recovery credential to it hands account recovery to whoever
+// claimed it first. The code is the only channel that survives a device with no
+// verified deep links, because it travels through the person's own eyes.
+//
+// THE DASHBOARD GATE, SAID OUT LOUD RATHER THAN DISCOVERED. Supabase's DEFAULT
+// recovery template renders `{{ .ConfirmationURL }}` and nothing else, so the
+// six-digit `{{ .Token }}` reaches nobody until the template is edited in the
+// Supabase dashboard (PO-gated, exactly like "email confirmations ON" in
+// `signup.ts`). Until then this flow's first half works and its second half has
+// nothing to type in — which is why `RecuperarScreen` still offers the browser
+// bridge as a secondary affordance, and why that bridge is not dead weight.
+
+export type PasswordResetRequestResult = { ok: true } | { ok: false; message: string };
+
+/**
+ * Ask for a recovery credential. See the block above for what this is half of.
+ *
+ * SUCCESS SAYS NOTHING ABOUT THE ADDRESS and this function must never learn to.
+ * The server answers the same 202 for an e-mail with an account and one without,
+ * because it does not know which it was; a caller that turned the two into
+ * different copy would rebuild the enumeration oracle on the phone.
+ *
+ * NO AUTH-PLANE CHECK FIRST, unlike `signIn` and `signUp`. Those two need a
+ * client to store what they get back; this one gets nothing to store. A build
+ * with no `EXPO_PUBLIC_SUPABASE_URL` can still send somebody a recovery mail they
+ * can redeem in a browser, and refusing here would take that away for a reason
+ * that does not apply until the second half.
+ */
+export async function requestPasswordReset(email: string): Promise<PasswordResetRequestResult> {
+  const result = await requestPasswordResetRequest({ email });
+  if (result.outcome !== "ok") {
+    return {
+      ok: false,
+      message: apiFailureMessage(result) ?? "No pudimos enviar el correo de recuperación.",
+    };
+  }
+  return { ok: true };
+}
+
+export type PasswordResetResult = { ok: true } | { ok: false; message: string };
+
+/**
+ * Redeem the six-digit code and set a new password, then land signed in.
+ *
+ * THE PASSWORD IS VALIDATED BEFORE THE CODE IS SPENT, and the order is the
+ * interesting part of this function rather than a style choice. A recovery code
+ * is SINGLE-USE: `verifyOtp` consumes it. Checking the new password only after
+ * that — which is what the obvious ordering does — means a typo'd confirmation
+ * burns the code and sends the person back to ask for another one, on an endpoint
+ * that allows five an hour for their address. So the two local rules run first
+ * and cost nothing.
+ *
+ * ON A FAILED `updateUser` THE SESSION IS DROPPED. By then `verifyOtp` has
+ * already stored a live recovery session, and leaving it there would give this
+ * app a session it never told the store about: the screen shows an error, the
+ * person backs out, and the app is signed in while its UI says otherwise. That is
+ * the inverse of the "it logs me out sometimes" mystery the storage adapter
+ * exists to prevent, and it is worse, because it is a session nobody asked for.
+ * The code is burnt either way, so the honest instruction is "pedí un código
+ * nuevo".
+ *
+ * EVERY GoTrue CALL IS WRAPPED, for the reason at the top of this file: auth-js
+ * rethrows anything that is not an AuthError, and an expo-secure-store write
+ * failure is a plain `Error`. Unwrapped, that rejection propagates into a screen
+ * whose `submit()` has no catch and the button never comes back.
+ */
+export async function resetPasswordWithCode(input: {
+  email: string;
+  code: string;
+  password: string;
+  confirmPassword: string;
+}): Promise<PasswordResetResult> {
+  const client = authClient();
+  if (client === null) {
+    return {
+      ok: false,
+      message:
+        "Esta compilación de la app no tiene configurado el servidor de sesiones. Avisale a quien te la pasó.",
+    };
+  }
+
+  // The same two rules `updatePasswordAction` applies on the web, in the same
+  // order and with the same sentences — a person who typed the same short
+  // password twice should be told the length, not that the two boxes disagree.
+  if (input.password.length < MIN_PASSWORD_LENGTH) {
+    return {
+      ok: false,
+      message: `La contraseña debe tener al menos ${MIN_PASSWORD_LENGTH} caracteres.`,
+    };
+  }
+  if (input.password !== input.confirmPassword) {
+    return { ok: false, message: "Las contraseñas no coinciden." };
+  }
+
+  let verified: { error: unknown } = { error: null };
+  try {
+    const { error } = await client.auth.verifyOtp({
+      email: input.email,
+      token: input.code,
+      type: "recovery",
+    });
+    verified = { error };
+  } catch (err) {
+    verified = { error: err instanceof Error ? err : new Error(String(err)) };
+  }
+
+  if (verified.error) {
+    // ONE SENTENCE FOR EVERY CAUSE, and that is a security property rather than
+    // laziness. A wrong code, an expired code, a code for an address that has no
+    // account and a code already spent all arrive here, and telling them apart
+    // would answer "does this e-mail have an account" — the exact question the
+    // request half refuses. It also names the recovery, which is what a person
+    // who mistyped one digit actually needs.
+    return {
+      ok: false,
+      message: "El código no es válido o ya venció. Pedí uno nuevo y volvé a intentar.",
+    };
+  }
+
+  let updated: { error: unknown } = { error: null };
+  try {
+    const { error } = await client.auth.updateUser({ password: input.password });
+    updated = { error };
+  } catch (err) {
+    updated = { error: err instanceof Error ? err : new Error(String(err)) };
+  }
+
+  if (updated.error) {
+    await clearSession();
+    return {
+      ok: false,
+      message: "No pudimos cambiar la contraseña. Pedí un código nuevo y volvé a intentar.",
+    };
+  }
+
+  // MED-5 parity with the web's `updatePasswordAction`: a reset is the canonical
+  // response to a compromised account, so any session an attacker minted before
+  // it must die. `scope: "others"` spares the recovery session this device is
+  // holding, which is what keeps the person signed in on the phone they just
+  // recovered. Best-effort on purpose — the password is already changed, and a
+  // transient failure here must not be reported as a failed reset.
+  try {
+    await client.auth.signOut({ scope: "others" });
+  } catch {
+    // Ignored, deliberately. See above.
+  }
+
+  // The device may be shared. Same reasoning as `signIn`.
+  await forgetAllCachedCredentials().catch(() => undefined);
+
+  // `/me` rather than a fabricated user: this account may be mid-signup, in which
+  // case the gate belongs at `identidad-pendiente` and not at the pet list. The
+  // same call `signUp` makes, for the same reason.
+  const me = await fetchMe(sessionPort);
+  applyMeResult(me);
+  return { ok: true };
 }
 
 /** "Cerrar sesión" — this device. */

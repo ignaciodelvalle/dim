@@ -1,14 +1,15 @@
 "use server";
 
-// Thin action controllers for the auth domain — the WEB edge of `login` and
-// `signup` (native-readiness WU-A).
+// Thin action controllers for the auth domain — the WEB edge of the
+// pre-authentication use-cases (native-readiness WU-A; `requestPasswordReset`
+// joined in WU-R-1, when the phone became the second transport for it too).
 //
 // WHY THIS FILE EXISTS AT ALL
 // ---------------------------------------------------------------------------
-// The two use-cases used to do this work themselves: read `FormData`, call
+// Those use-cases used to do this work themselves: read `FormData`, call
 // `headers()` for the caller IP, and build a cookie-backed Supabase client.
-// That is a web request living inside a use-case, and it is what kept both
-// files on the application-fence exemption list. Everything web-shaped moved
+// That is a web request living inside a use-case, and it is what kept each of
+// them on the application-fence exemption list. Everything web-shaped moved
 // HERE, which is the layer whose job it is (ADR 2026-07-18, Decision 1;
 // docs/architecture/hexagonal-lite.md). What is left in `application/` is
 // callable from `/api/v1`, from a script, and from a native client's request.
@@ -38,6 +39,8 @@ import { callerIp } from "@/lib/infra/rate-limit";
 import { createClient } from "@/lib/supabase/server";
 
 import { login } from "./application/login";
+import { requestPasswordReset } from "./application/password-reset/request-password-reset";
+import type { PasswordResetRequestState } from "./application/password-reset/types";
 import { signup } from "./application/signup";
 import type { AuthFormState } from "./application/types";
 
@@ -102,4 +105,32 @@ export async function signupAction(
   // returns is deliberately dropped: the cookie client already persisted it,
   // and a form has nowhere to put a token. `/api/v1` is where it is read.
   return { error: null, ok: true };
+}
+
+// @no-auth-required: pre-authentication entrypoint — a person asking for a recovery credential is by definition unable to sign in
+export async function requestPasswordResetAction(
+  _previous: PasswordResetRequestState,
+  formData: FormData,
+): Promise<PasswordResetRequestState> {
+  const result = await requestPasswordReset(
+    {
+      email: String(formData.get("email") ?? ""),
+      callerIp: callerIp(await headers()),
+    },
+    { auth: cookieAuth },
+  );
+
+  if (!result.ok) return { message: null, error: result.error.message };
+
+  // ONE SENTENCE FOR EVERY SUCCESS, and it is the enumeration defence rather
+  // than vague copy. The use-case cannot tell this layer whether a mail went out
+  // — its success arm has no field for it, on purpose — so there is nothing here
+  // to condition on even if a future edit wanted to. NO email echo, unlike the
+  // two refusing actions above: the form is replaced by this message, so there is
+  // no input left for React 19's reset to wipe.
+  return {
+    message:
+      "Si existe una cuenta con ese correo, te enviamos un enlace para restablecer tu contraseña. Revisá también tu carpeta de spam.",
+    error: null,
+  };
 }

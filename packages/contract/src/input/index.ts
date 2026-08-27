@@ -17,13 +17,17 @@ export {
 export {
   LOGIN_INPUT_CODES,
   MIN_PASSWORD_LENGTH,
+  PASSWORD_RESET_REQUEST_INPUT_CODES,
   SIGNUP_INPUT_CODES,
   type LoginInput,
   type LoginInputCode,
+  type PasswordResetRequestInput,
+  type PasswordResetRequestInputCode,
   type SignupInput,
   type SignupInputCode,
   firstInputCode,
   loginInputSchema,
+  passwordResetRequestInputSchema,
   signupInputSchema,
 } from "./auth.ts";
 export {

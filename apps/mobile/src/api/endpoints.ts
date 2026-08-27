@@ -72,6 +72,7 @@ import {
   PET_LIBRETA_PAYLOAD_VERSION,
   PET_LOST_PAYLOAD_VERSION,
   PET_SHARES_PAYLOAD_VERSION,
+  type PasswordResetRequestedV1,
   type PetEventDetailV1,
   type PetLibretaV1,
   type PetLostV1,
@@ -174,6 +175,52 @@ export async function signup(input: {
     };
   }
   return { outcome: "ok", payload: raw.body as SignupV1 };
+}
+
+/**
+ * `POST /auth/password-reset` — ask for a recovery credential by e-mail.
+ *
+ * THE THIRD CALL ON THIS SURFACE THAT IS NOT A BEARER CALL, and the only one
+ * that does not make a bearer either. `performRequest` directly, for `login`'s
+ * reason: routing it through `apiRequest` would ask the session port for a token
+ * that by definition does not exist — somebody using this is locked out.
+ *
+ * 202 IS THE ONLY SUCCESS AND IT MEANS NOTHING ABOUT THE ADDRESS. The body is a
+ * constant, identical for an e-mail that has an account and one that does not,
+ * because the server never learns which it was (see `PasswordResetRequestedV1`).
+ * A caller MUST NOT branch on it, must not "helpfully" report that no account was
+ * found, and must not treat the absence of a mail as an error — doing any of
+ * those rebuilds on the phone the enumeration oracle the server refuses to be.
+ *
+ * THE PAYLOAD IS RETURNED AND NOTHING READS IT, deliberately. Dropping it to
+ * `ApiResult<void>` would be a truthful description of today and a trap
+ * tomorrow: the field that gets added to make it useful is the field that makes
+ * it an oracle. Keeping the type is what makes that visible in a diff.
+ *
+ * WHAT COMES NEXT IS NOT AN ENDPOINT. The redemption goes to GoTrue directly —
+ * `verifyOtp` then `updateUser` — because the loop cannot close through a link on
+ * a device with no verified App Links. `session-store.ts`'s `resetPasswordWithCode`
+ * is where that is written out.
+ */
+export async function requestPasswordReset(input: {
+  email: string;
+}): Promise<ApiResult<PasswordResetRequestedV1>> {
+  const raw = await performRequest({
+    path: "/api/v1/auth/password-reset",
+    method: "POST",
+    body: { email: input.email },
+  });
+
+  if (raw.transport === "unreachable") return { outcome: "unreachable", detail: raw.detail };
+  if (raw.transport === "malformed") return { outcome: "malformed", detail: raw.detail };
+  if (raw.status !== 202) {
+    return {
+      outcome: "api-error",
+      code: apiV1ErrorCode(raw.body) ?? "temporarily_unavailable",
+      retryAfterSeconds: raw.retryAfterSeconds,
+    };
+  }
+  return { outcome: "ok", payload: raw.body as PasswordResetRequestedV1 };
 }
 
 /** `GET /me` — the four-field shell. No email, no DNI, no pets. */

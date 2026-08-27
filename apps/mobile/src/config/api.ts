@@ -191,18 +191,32 @@ export const ACCOUNT_DELETION_URL = `${API_BASE_URL}/cuenta/privacidad`;
 /**
  * The web URL where a forgotten password is reset.
  *
- * THE HONEST BRIDGE, not a missing feature. The web login offers "¿Olvidaste tu
- * contraseña?" and this app offered nothing, so the one person who needs it —
- * somebody locked out of the only screen the app can show them — had no way
- * forward at all. There is no NATIVE recovery flow to link to and building one
- * here would be the same mistake as a native identity form (see
- * IDENTITY_COMPLETION_URL): the reset round-trip is an emailed link that opens
- * in a BROWSER, so the native half would end at the same web page anyway, minus
- * the rate limiting and the account-state refusals that live there.
+ * NO LONGER THE PRIMARY PATH, AND THE ARGUMENT THAT MADE IT ONE IS RECORDED
+ * RATHER THAN DELETED. This constant used to carry a case AGAINST a native
+ * recovery flow: "the reset round-trip is an emailed link that opens in a
+ * BROWSER, so the native half would end at the same web page anyway, minus the
+ * rate limiting and the account-state refusals that live there." WU-R-1 answered
+ * both halves of it —
  *
- * So the app opens the browser at `/recuperar` — the same href the web login's
- * link carries (app/(auth)/iniciar-sesion/LoginForm.tsx). Unlike the identity
- * link this one needs no warning about a lost session: password recovery starts
- * signed out by definition.
+ *   · the rate limiting is NOT lost: `POST /api/v1/auth/password-reset` is an
+ *     adapter over the same use-case the web form calls, spending the same two
+ *     buckets, so switching transport buys no fresh budget;
+ *   · the round-trip is NOT only a link: the mail carries the recovery token as
+ *     a six-digit CODE too, and a code comes back through the person's own eyes
+ *     rather than through a browser — the one channel that works on a device
+ *     with no verified App Links (apps/mobile/app.config.ts).
+ *
+ * — so `/recuperar` is now a NATIVE screen (`ROUTES.recuperar`) and this URL is
+ * the secondary affordance on it.
+ *
+ * IT IS NOT DEAD WEIGHT WHILE IT SITS THERE. Supabase's default recovery
+ * template renders the link and not `{{ .Token }}`, so until that template is
+ * edited in the dashboard (PO-gated, exactly like "email confirmations ON" in
+ * signup.ts) the link is the only half of the mail that arrives, and this is
+ * where a real tester finishes. Delete the affordance on the day the template
+ * lands — and not before.
+ *
+ * Unlike IDENTITY_COMPLETION_URL this one needs no warning about a lost session:
+ * password recovery starts signed out by definition.
  */
 export const PASSWORD_RECOVERY_URL = `${API_BASE_URL}/recuperar`;

@@ -67,6 +67,21 @@ export type SignupAuthPort = {
 };
 
 /**
+ * What `requestPasswordReset` needs — ONE method, and no return value read.
+ *
+ * The answer is deliberately typed as `unknown` rather than as
+ * `GoTrueAuthResponse`. GoTrue does return `{ data, error }` here, and the
+ * use-case IGNORES both: a distinguishable answer for "no such account" is the
+ * enumeration oracle the whole flow exists not to be, so the type says what the
+ * code is allowed to know rather than what the SDK happens to hand over. A
+ * future edit that starts branching on the error has to widen this type first,
+ * which is the point at which somebody asks why.
+ */
+export type PasswordResetAuthPort = {
+  resetPasswordForEmail(email: string, options: { redirectTo: string }): Promise<unknown>;
+};
+
+/**
  * GoTrue's snake_case session → the camelCase `/api/v1` wire shape.
  *
  * `expires_at` is epoch SECONDS and is carried across as such, NOT converted to
