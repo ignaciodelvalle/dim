@@ -1,4 +1,4 @@
-import { and, eq, inArray, isNull } from "drizzle-orm";
+import { and, eq, inArray, isNull, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 
 import { attachments, db, ownerships, petCaretakerGrants, pets } from "@/db";
@@ -118,7 +118,11 @@ async function purgeOwnedPetAttachments(userId: string): Promise<void> {
  * PII and flips PENDING invitations only. It deliberately does not flip an
  * ACCEPTED grant, because ending one is THREE writes that must land together —
  * close the `ownerships` row, emit `caretaker_ended`, flip the grant — and
- * there is exactly ONE definition of them, `endCaretakerGrantAtomically()`.
+ * there is exactly ONE definition of them, `endCaretakerGrantAtomically` in
+ * lib/infra/end-pet-ownerships.ts. (Named without parentheses on purpose: the
+ * lock fence in src/modules/rehome/__tests__/owner-row-lock.test.ts finds the
+ * first `name(` in the file and requires the pet advisory lock above it, and it
+ * cannot tell a call from a sentence about one.)
  * A status flip in SQL with no event would leave a grant the spine cannot
  * explain: `detect-pet-cache-drift` reports `pet_caretaker_ownership_drift`,
  * `rederive-pet-ownerships` reports the ownership row's `ended_at` as
@@ -171,8 +175,16 @@ async function endCaretakerArrangementsForErasure(userId: string): Promise<void>
     // this guard.
     const { ownershipId } = grant;
     if (ownershipId === null) continue;
-    await db.transaction((tx) =>
-      endCaretakerGrantAtomically(
+    await db.transaction(async (tx) => {
+      // THE PET LOCK COMES FIRST — every pet-scoped custody writer in this repo
+      // takes this one key before any row lock, because two transactions taking
+      // the same `ownerships` rows in opposite orders is a 40P01 deadlock and
+      // Postgres resolves it by killing one side. A finalize or a withdraw
+      // racing this erasure is exactly that cycle. Pinned by
+      // src/modules/rehome/__tests__/owner-row-lock.test.ts, whose derived arm
+      // discovered this writer the day it was written.
+      await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtext(${grant.petId}))`);
+      await endCaretakerGrantAtomically(
         {
           grantId: grant.grantId,
           ownershipId,
@@ -183,8 +195,8 @@ async function endCaretakerArrangementsForErasure(userId: string): Promise<void>
           actorUserId: userId,
         },
         tx,
-      ),
-    );
+      );
+    });
     // The TITULAR has to be told: their animal may still be physically with the
     // person whose access just closed. The copy does NOT say why — that an
     // account was erased is the counterparty's own exercise of a legal right,
@@ -223,12 +235,14 @@ async function endCaretakerArrangementsForErasure(userId: string): Promise<void>
     );
 
   for (const pet of ownedPets) {
-    const { endedCaretakerGrants } = await db.transaction((tx) =>
-      endCaretakerArrangementsForPet(
+    const { endedCaretakerGrants } = await db.transaction(async (tx) => {
+      // Same key, same reason, same position: first statement of the transaction.
+      await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtext(${pet.petId}))`);
+      return endCaretakerArrangementsForPet(
         { petId: pet.petId, outcome: "revoked_by_owner", actorUserId: userId, now },
         tx,
-      ),
-    );
+      );
+    });
     // MUST be after the transaction commits (ARCH-P): a notification failure may
     // not roll back an erasure step. createNotification dead-letters rather than
     // throwing, so this cannot fail the caller.
