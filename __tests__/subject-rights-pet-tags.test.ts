@@ -126,7 +126,7 @@ afterAll(async () => {
 }, 30_000);
 
 describe("export_subject_data — pet_tags section (art. 14)", () => {
-  it("returns the subject's tag history WITHOUT activation_code_hash, schema_version 3", async () => {
+  it("returns the subject's tag history WITHOUT activation_code_hash, schema_version 4", async () => {
     const { data, error } = await callRpcAs<Record<string, unknown>>(
       subjectUserId,
       sql`SELECT public.export_subject_data(${subjectUserId}::uuid)`,
@@ -137,7 +137,7 @@ describe("export_subject_data — pet_tags section (art. 14)", () => {
       schema_version: number;
       pet_tags: Array<Record<string, unknown>>;
     };
-    expect(exportJson.schema_version).toBe(3);
+    expect(exportJson.schema_version).toBe(4);
 
     const serials = exportJson.pet_tags.map((t) => t.serial);
     expect(serials).toContain(activeSerial);

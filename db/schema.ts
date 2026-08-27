@@ -362,9 +362,32 @@ export const profiles = pgTable(
     // Added by migration 0087.
     tosAcceptedAt: timestamp("tos_accepted_at", { withTimezone: true }),
     tosVersion: text("tos_version"),
-    // Coarse location of the user — collected at registration (step 2) and
-    // used for regional health-campaign targeting. Never precise coordinates.
-    // Added by migration 0097.
+    /**
+     * INERT since migration 0205. Do not write to these.
+     *
+     * ERRATA — this said "collected at registration (step 2) and used for
+     * regional health-campaign targeting". The first half was true; the second
+     * was never true of the code. The columns had exactly ONE writer
+     * (completeIdentityAction) and ZERO readers: every aggregate, panorama
+     * layer, k-anonymity cell and routing path keys on `pets.*`,
+     * `welfare_reports.*`, `service_offerings.*`, `govt_assignments.*` or
+     * `organizations.*`, never on profiles — and lib/infra/admin-search.ts
+     * records the profile→jurisdiction link being REJECTED on purpose for govt
+     * user scoping.
+     *
+     * The same false purpose was printed on the public privacy page ("se usan
+     * para enrutar denuncias y estimar coberturas") and in the signup field's
+     * own hint. Holding a personal datum for a purpose that does not exist is a
+     * finalidad problem under Ley 25.326 art. 4 in its own right, so the
+     * decision (PO, 2026-08-27: "la jurisdicción implica compliance, pero es a
+     * nivel mascota y no cuenta") was to stop asking rather than to reword the
+     * promise. 0205 removed the writer, removed the form field, nulled both
+     * columns for every existing profile and re-issued the COMMENT ON COLUMN.
+     *
+     * Kept as columns rather than dropped: `export_subject_data` projects the
+     * whole profile row with `row_to_json`, so dropping them would change the
+     * shape of an art. 14 export for no benefit. Added by migration 0097.
+     */
     jurisdictionProvince: text("jurisdiction_province"),
     jurisdictionLocality: text("jurisdiction_locality"),
     // PII baseline (compliance PR 1, migration 0058). Added by

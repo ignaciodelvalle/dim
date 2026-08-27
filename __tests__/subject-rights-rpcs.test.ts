@@ -357,7 +357,7 @@ describe("export_subject_data RPC", () => {
   // V1-2 fix C: export now includes every relation the subject is party to.
   // Schema v3 since migration 0170 (adds the pet_tags section — covered in
   // depth by subject-rights-pet-tags.test.ts).
-  it("includes welfare reports, disputes, transfers, notifications, memberships and audit rows (schema v3)", async () => {
+  it("includes welfare reports, disputes, transfers, notifications, memberships and audit rows (schema v4)", async () => {
     const { data, error } = await callRpcAs<Record<string, unknown>>(
       ownerUserId,
       sql`SELECT public.export_subject_data(${ownerUserId}::uuid) AS result`,
@@ -365,7 +365,9 @@ describe("export_subject_data RPC", () => {
     expect(error).toBeNull();
     const payload = data as Record<string, unknown>;
 
-    expect(payload.schema_version).toBe(3);
+    // 3 → 4 in migration 0205 (pet_caretaker_grants, foster_volunteers,
+    // org_contact_messages and push_subscriptions joined the projection).
+    expect(payload.schema_version).toBe(4);
 
     const welfare = payload.welfare_reports_filed as Array<Record<string, unknown>>;
     expect(Array.isArray(welfare)).toBe(true);
