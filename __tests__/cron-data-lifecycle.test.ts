@@ -14,11 +14,22 @@ import { createClient } from "@supabase/supabase-js";
 import { eq, like } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
-import { cronRuns, db, notifications, profiles, pushSubscriptions, rateLimitBuckets } from "@/db";
+import {
+  cronRuns,
+  db,
+  notifications,
+  orgContactMessages,
+  organizations,
+  profiles,
+  pushSubscriptions,
+  rateLimitBuckets,
+} from "@/db";
 import {
   CRON_RUNS_CLEANUP_MAX_BATCHES,
   CRON_RUNS_TTL_DAYS,
   NOTIFICATIONS_CLEANUP_MAX_BATCHES,
+  ORG_CONTACT_IP_CLEANUP_MAX_BATCHES,
+  ORG_CONTACT_IP_TTL_DAYS,
   PUSH_SUBSCRIPTIONS_CLEANUP_MAX_BATCHES,
   PUSH_SUBSCRIPTION_REVOKED_TTL_DAYS,
   RATE_LIMIT_CLEANUP_MAX_BATCHES,
@@ -26,6 +37,7 @@ import {
   purgeExpiredNotifications,
   purgeExpiredRateLimitBuckets,
   purgeOldCronRuns,
+  purgeOldOrgContactIps,
   purgeRevokedPushSubscriptions,
   runDataLifecyclePurge,
 } from "@/lib/infra/data-lifecycle";
@@ -565,6 +577,7 @@ describe("runDataLifecyclePurge — order, caps and fair share (fake purgers)", 
         rateLimitBuckets: endless(500, calls, "b"),
         notifications: endless(500, calls, "n"),
         pushSubscriptions: endless(500, calls, "p"),
+        orgContactIps: endless(500, calls, "o"),
         cronRuns: endless(500, calls, "c"),
       },
     });
@@ -576,38 +589,47 @@ describe("runDataLifecyclePurge — order, caps and fair share (fake purgers)", 
     // bucket table — the one that actually fills — got a turn.
     expect(count("n")).toBe(NOTIFICATIONS_CLEANUP_MAX_BATCHES);
     expect(count("p")).toBe(PUSH_SUBSCRIPTIONS_CLEANUP_MAX_BATCHES);
+    expect(count("o")).toBe(ORG_CONTACT_IP_CLEANUP_MAX_BATCHES);
     expect(count("c")).toBe(CRON_RUNS_CLEANUP_MAX_BATCHES);
     expect(result.backlogged).toEqual({
       rateLimitBuckets: true,
       notifications: true,
       pushSubscriptions: true,
+      orgContactIps: true,
       cronRuns: true,
     });
     expect(result.notificationsDeleted).toBe(NOTIFICATIONS_CLEANUP_MAX_BATCHES * 500);
   });
 
   it("splits the deadline FAIRLY: a backlogged first target cannot starve the ones after it", async () => {
-    // 40 s budget, every batch costs 1 s, every target has an endless backlog,
+    // 50 s budget, every batch costs 1 s, every target has an endless backlog,
     // caps far above what the budget allows. Under the OLD shared deadline the
-    // first target would have run ~40 batches and the other three would have
+    // first target would have run ~50 batches and the other four would have
     // got one batch each (the loop always runs one before checking the
     // clock). Under the fair share each target gets (what is left) / (targets
-    // still to run): 10 s, then 10 s, then 10 s, then the rest.
+    // still to run): 10 s, then 10 s, then 10 s, then 10 s, then the rest.
+    //
+    // The budget was 40 s while there were four targets. It scales with the
+    // target count on purpose: the property under test is "each target gets a
+    // real share", and holding the budget fixed while adding a fifth target
+    // would have shrunk every share and turned a passing bound into a failing
+    // one without anything about fairness having changed.
     const calls: string[] = [];
     const result = await runDataLifecyclePurge({
-      maxDurationMs: 40_000,
+      maxDurationMs: 50_000,
       now: ticking(1_000),
       purgers: {
         rateLimitBuckets: endless(500, calls, "b"),
         notifications: endless(500, calls, "n"),
         pushSubscriptions: endless(500, calls, "p"),
+        orgContactIps: endless(500, calls, "o"),
         cronRuns: endless(500, calls, "c"),
       },
     });
 
     const count = (name: string) => calls.filter((c) => c === name).length;
-    // Each target drained for roughly its quarter — not one, not forty.
-    for (const name of ["b", "n", "p", "c"]) {
+    // Each target drained for roughly its fifth — not one, not forty.
+    for (const name of ["b", "n", "p", "o", "c"]) {
       expect(count(name)).toBeGreaterThanOrEqual(5);
       expect(count(name)).toBeLessThanOrEqual(15);
     }
@@ -617,10 +639,10 @@ describe("runDataLifecyclePurge — order, caps and fair share (fake purgers)", 
   it("issues NOTHING when the budget is already spent — every target reports a backlog, no DELETE runs", async () => {
     // A 0 ms budget: every target's fair share is 0, every deadline is its own
     // entry instant, and drainPurge refuses at entry. Until 2026-08-22 this ran
-    // one batch per target ("b", "n", "p", "c") — four DELETEs under a budget
-    // the dispatcher had already spent. The zero leftover is handed forward
-    // unchanged (0 / targets left is still 0), so the later targets do not
-    // inherit a phantom share either.
+    // one batch per target ("b", "n", "p", "o", "c") — a write per table under a
+    // budget the dispatcher had already spent. The zero leftover is handed
+    // forward unchanged (0 / targets left is still 0), so the later targets do
+    // not inherit a phantom share either.
     const calls: string[] = [];
     const result = await runDataLifecyclePurge({
       maxDurationMs: 0,
@@ -629,6 +651,7 @@ describe("runDataLifecyclePurge — order, caps and fair share (fake purgers)", 
         rateLimitBuckets: endless(500, calls, "b"),
         notifications: endless(500, calls, "n"),
         pushSubscriptions: endless(500, calls, "p"),
+        orgContactIps: endless(500, calls, "o"),
         cronRuns: endless(500, calls, "c"),
       },
     });
@@ -637,14 +660,104 @@ describe("runDataLifecyclePurge — order, caps and fair share (fake purgers)", 
       rateLimitBuckets: true,
       notifications: true,
       pushSubscriptions: true,
+      orgContactIps: true,
       cronRuns: true,
     });
     expect(result.rateLimitBucketsDeleted + result.notificationsDeleted).toBe(0);
   });
 });
 
+// ---------------------------------------------------------------------------
+// org_contact_messages.submitter_ip — the fifth target
+// ---------------------------------------------------------------------------
+//
+// The only target that UPDATEs instead of deleting, and the only one whose
+// reason is purely a retention bound rather than table growth: the IP had NO
+// READER ANYWHERE (rate limiting lives in rate_limit_buckets) and indefinite
+// retention. The MESSAGE must survive — it is the organization's inbox, a
+// record of a real conversation — so a purge that took the row would be wrong
+// in the other direction.
+describe("purgeOldOrgContactIps", () => {
+  const DAY_MS = 24 * 60 * 60 * 1000;
+  let orgId: string;
+
+  beforeAll(async () => {
+    const [org] = await db
+      .insert(organizations)
+      .values({
+        publicToken: `ORG-DLC-${Date.now().toString(36).toUpperCase()}`,
+        legalName: "Refugio Data Lifecycle Test",
+        displayName: "Refugio DLC",
+        orgType: "shelter",
+        email: "refugio-dlc@dim-test.local",
+      })
+      .returning({ id: organizations.id });
+    orgId = org.id;
+  });
+
+  afterAll(async () => {
+    await db.delete(orgContactMessages).where(eq(orgContactMessages.organizationId, orgId));
+    await db.delete(organizations).where(eq(organizations.id, orgId));
+  });
+
+  async function insertMessage(createdAt: Date, ip: string | null): Promise<string> {
+    const [row] = await db
+      .insert(orgContactMessages)
+      .values({
+        organizationId: orgId,
+        inquirerEmail: "vecino@dim-test.local",
+        message: "Hola, quiero saber si puedo colaborar.",
+        submitterIp: ip,
+        createdAt,
+      })
+      .returning({ id: orgContactMessages.id });
+    return row.id;
+  }
+
+  it("nulls the IP past the TTL, keeps a recent one, and never touches the message", async () => {
+    const oldId = await insertMessage(
+      new Date(Date.now() - (ORG_CONTACT_IP_TTL_DAYS + 1) * DAY_MS),
+      "203.0.113.7",
+    );
+    const freshId = await insertMessage(new Date(Date.now() - DAY_MS), "203.0.113.8");
+
+    const purged = await purgeOldOrgContactIps();
+    expect(purged).toBeGreaterThanOrEqual(1);
+
+    const rows = await db
+      .select({
+        id: orgContactMessages.id,
+        submitterIp: orgContactMessages.submitterIp,
+        message: orgContactMessages.message,
+      })
+      .from(orgContactMessages)
+      .where(eq(orgContactMessages.organizationId, orgId));
+
+    const old = rows.find((r) => r.id === oldId);
+    const fresh = rows.find((r) => r.id === freshId);
+    expect(old?.submitterIp).toBeNull();
+    expect(fresh?.submitterIp).toBe("203.0.113.8");
+    // THE HALF THAT MUST SURVIVE. Nulling the message here would delete an
+    // organization's record of a conversation somebody had with them; the
+    // subject's own copy is redacted by erase_subject_data when they ask.
+    expect(old?.message).toBe("Hola, quiero saber si puedo colaborar.");
+  });
+
+  it("CONVERGES: a second pass finds nothing, because already-null rows are excluded", async () => {
+    await insertMessage(
+      new Date(Date.now() - (ORG_CONTACT_IP_TTL_DAYS + 2) * DAY_MS),
+      "203.0.113.9",
+    );
+    await purgeOldOrgContactIps();
+    // Without `submitter_ip IS NOT NULL` in the predicate every batch would
+    // re-select the same nulled rows, drainPurge would never see a short batch,
+    // and the composite would report a permanent phantom backlog.
+    expect(await purgeOldOrgContactIps()).toBe(0);
+  });
+});
+
 describe("runDataLifecyclePurge", () => {
-  it("returns counts for all four sections", async () => {
+  it("returns counts for all five sections", async () => {
     // Seed one expired row in each category.
     await insertNotification(new Date(Date.now() - 1000));
     await insertBucket(`dlc_test_composite_${Date.now()}`, new Date(Date.now() - 1000));
@@ -668,6 +781,7 @@ describe("runDataLifecyclePurge", () => {
     expect(result).toHaveProperty("rateLimitBucketsDeleted");
     expect(result).toHaveProperty("cronRunsDeleted");
     expect(result).toHaveProperty("pushSubscriptionsDeleted");
+    expect(result).toHaveProperty("orgContactIpsPurged");
     expect(result.notificationsDeleted).toBeGreaterThanOrEqual(1);
     expect(result.rateLimitBucketsDeleted).toBeGreaterThanOrEqual(1);
     expect(result.cronRunsDeleted).toBeGreaterThanOrEqual(1);
@@ -679,8 +793,8 @@ describe("runDataLifecyclePurge", () => {
 
     const result = await runDataLifecyclePurge();
 
-    // The shape, not the value: on a dev DB the four targets drain in one
-    // batch each, so all four read false. What must exist is the CHANNEL — a
+    // The shape, not the value: on a dev DB the five targets drain in one
+    // batch each, so all five read false. What must exist is the CHANNEL — a
     // cron row that can only say "N deleted" cannot distinguish a finished
     // purge from one that stopped at the cap on a table still filling up.
     expect(result.backlogged).toEqual({
@@ -688,6 +802,7 @@ describe("runDataLifecyclePurge", () => {
       rateLimitBuckets: expect.any(Boolean),
       cronRuns: expect.any(Boolean),
       pushSubscriptions: expect.any(Boolean),
+      orgContactIps: expect.any(Boolean),
     });
   });
 });

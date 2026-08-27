@@ -23,11 +23,13 @@ const DRAINED: DataLifecycleResult = {
   rateLimitBucketsDeleted: 7,
   cronRunsDeleted: 1,
   pushSubscriptionsDeleted: 2,
+  orgContactIpsPurged: 4,
   backlogged: {
     notifications: false,
     rateLimitBuckets: false,
     cronRuns: false,
     pushSubscriptions: false,
+    orgContactIps: false,
   },
 };
 
@@ -86,6 +88,7 @@ describe("GET /api/cron/data-lifecycle — backlog reporting", () => {
         rateLimitBuckets: true,
         cronRuns: false,
         pushSubscriptions: false,
+        orgContactIps: false,
       },
     }));
 
@@ -124,6 +127,7 @@ describe("GET /api/cron/data-lifecycle — backlog reporting", () => {
         rateLimitBuckets: false,
         cronRuns: false,
         pushSubscriptions: true,
+        orgContactIps: false,
       },
     }));
 

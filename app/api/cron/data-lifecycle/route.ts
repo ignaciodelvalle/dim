@@ -58,6 +58,7 @@ const BACKLOG_TABLES: [keyof DataLifecycleResult["backlogged"], string][] = [
   ["rateLimitBuckets", "rate_limit_buckets"],
   ["notifications", "notifications"],
   ["pushSubscriptions", "push_subscriptions"],
+  ["orgContactIps", "org_contact_messages.submitter_ip"],
   ["cronRuns", "cron_runs"],
 ];
 
@@ -83,11 +84,13 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
     rateLimitBucketsDeleted: 0,
     cronRunsDeleted: 0,
     pushSubscriptionsDeleted: 0,
+    orgContactIpsPurged: 0,
     backlogged: {
       notifications: true,
       rateLimitBuckets: true,
       cronRuns: true,
       pushSubscriptions: true,
+      orgContactIps: true,
     },
   };
   const errors: { section: string; reason: string }[] = [];
@@ -146,7 +149,10 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
         counts.notificationsDeleted +
         counts.rateLimitBucketsDeleted +
         counts.cronRunsDeleted +
-        counts.pushSubscriptionsDeleted,
+        counts.pushSubscriptionsDeleted +
+        // Counted as an item processed even though it is an UPDATE: what the
+        // number means is "rows this run acted on", not "rows deleted".
+        counts.orgContactIpsPurged,
       details: errors.length > 0 ? { ...counts, errors } : counts,
     })
     .where(eq(cronRuns.id, run.id));
