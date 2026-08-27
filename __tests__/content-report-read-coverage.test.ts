@@ -62,17 +62,23 @@ const MUST_SUBTRACT: readonly string[] = [
 /**
  * Reads that deliberately do NOT subtract, with the reason in one line each.
  *
- * The first two are STATE-FACING AGGREGATES: a dot on a map and a number on a
- * dashboard, neither of which renders anybody's sentence. Letting an owner erase
- * points from an official map by reporting them would be a moderation control
- * with a jurisdictional reach nobody asked for. The cost — the owner's counter
- * and a gob counter can disagree — is declared in `content-reports.ts` and in
- * AGENTS.md § Privacidad 6c.
+ * SIX of the seven are STATE-FACING AGGREGATES: a dot on a map and a number on a
+ * dashboard, neither of which renders anybody's sentence — none of them selects
+ * `payload`. Letting an owner erase points from an official map by reporting them
+ * would be a moderation control with a jurisdictional reach nobody asked for. The
+ * cost — the owner's counter and a gob counter can disagree — is declared in
+ * `content-reports.ts` and in AGENTS.md § Privacidad 6c.
  *
- * The third is the WRITER itself: it has to find the target row in order to
+ * The SEVENTH is the WRITER itself: it has to find the target row in order to
  * validate it, and it has to find an existing report in order to answer
  * `alreadyReported`. A writer that could not see what it is reporting could not
  * report anything.
+ *
+ * COUNT THE ARRAY, NOT THIS SENTENCE. This docblock said "the first two" and
+ * "the third" for one revision after the array below had grown to seven. Prose
+ * that counts a list it sits next to is the exact defect this fence exists for,
+ * and it reappeared here, inside the fence. The array is the truth; if these
+ * words disagree with it, the words are wrong.
  */
 const DECLARED_EXEMPTIONS: readonly string[] = [
   // Government dashboards + the panorama map. These COUNT a reported row, and

@@ -166,12 +166,21 @@ export function LostCaseBlock({
 
   const toggleAction = setPetDisclosurePrefsAction.bind(null, pet.publicToken);
   // Bound here and passed ONLY to the holder variant of the feed, never to the
-  // org one. The server refuses `report_content` on the org path (see
-  // `checkCommandGuard`): the hide is pet-global, so an organization holding
+  // org one. The server refuses `report_content` on the org path in BOTH doors —
+  // `reportLostFeedItemAction` itself for this web path, and `checkCommandGuard`
+  // for the API the phone uses. Naming only the API one, as this comment did for
+  // a revision, credits the guard that does NOT protect this call site.
+  //
+  // WITHHOLDING THE CONTROL HERE IS COSMETIC, NOT THE CONTROL. This action is
+  // bound at module level in a component that renders on both variants, so its
+  // action id reaches the org client either way and can be POSTed directly. The
+  // authorization is the server-side refusal; this line only avoids offering a
+  // button that would answer with a refusal — the same thing the disclosure card
+  // refuses to do for a caretaker.
+  //
+  // WHY the refusal exists: the hide is pet-global, so an organization holding
   // custody could otherwise make a finder's "tengo a tu perro" vanish from the
-  // owner's own cockpit. Rendering the control there would be offering a button
-  // that answers 403 — the same thing the disclosure card refuses to do for a
-  // caretaker.
+  // owner's own cockpit.
   const reportAction = reportLostFeedItemAction.bind(null, pet.publicToken);
 
   const prefs: DisclosurePrefs = {

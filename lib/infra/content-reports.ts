@@ -59,8 +59,13 @@
 // person. Nobody was careless; the set was simply never counted by anything that
 // could fail.
 //
-// WHERE IT IS DELIBERATELY *NOT* APPLIED — four files, declared here because
-// invariant #3 exists to forbid the undeclared kind:
+// WHERE IT IS DELIBERATELY *NOT* APPLIED — SEVEN files (six State-facing reads
+// plus the writer), declared here because invariant #3 exists to forbid the
+// undeclared kind. This heading said "four" for one revision after the list
+// below had already grown to seven — the same sentence-vs-set drift this whole
+// file is about, one line above the list it miscounts. The authoritative count
+// is `DECLARED_EXEMPTIONS` in the coverage fence; if this comment disagrees with
+// it, this comment is wrong:
 //
 //   · THE PANORAMA MAP — `repository-by-unit.ts` (per-unit counts, and the
 //     individual DOTS with pet name, species and coords), `repository-history.ts`

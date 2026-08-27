@@ -123,10 +123,16 @@ describe("reportLostFeedItemAction — who may report on the web door", () => {
   });
 
   it("lets a CARETAKER report — they arrive on the person path the titular opened", async () => {
+    // A caretaker signs with OWNER_AUTHORSHIP, not `authorRole: "caretaker"` —
+    // that is not a legal `PetEventAuthorship` value. An earlier draft of this
+    // fixture used it: harmless, because the action never branches on authorship,
+    // but a fixture depicting an impossible row teaches the next reader a shape
+    // the system cannot produce. What actually distinguishes a caretaker here is
+    // the ACCESS PATH (person, not org), which is what the guard reads.
     mockRequirePetAccess.mockResolvedValue(
       personAccess({
         eventAuthorship: {
-          authorRole: "caretaker",
+          authorRole: "owner",
           authorOrganizationId: null,
           authorVerified: false,
         },
