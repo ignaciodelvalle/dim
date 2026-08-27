@@ -1658,7 +1658,17 @@ Any jurisdiction-grouped aggregate returned to a public or analyst surface must 
 | `note` | Texto libre que el titular le escribe al cuidador ("Pampa toma media pastilla a la mañana"). | Puede traer datos de salud y rutinas del hogar. **Se desnormaliza dentro del payload de `caretaker_designated`** — a propósito: la espina tiene que seguir diciendo qué se acordó al empezar. Consecuencia que hay que tener presente: es texto libre dentro de un evento append-only, así que cae bajo §3 (nunca devolver un `payload` crudo) y no es editable ni borrable después. |
 | `public_contact_consent_at` | **Llave 2** del modelo de dos llaves. Marca de tiempo, capturada en el ACCEPT. | Publicar el contacto de un cuidador en una credencial pública es el titular consintiendo por otra persona. Hacen falta DOS llaves: la del cuidador (esta) y la del titular (`pets.disclose_caretaker_contact_when_lost`, migración 0193). Sin la llave 2 **el toggle del titular ni siquiera se renderiza** — un switch que no puede cambiar nada es una mentira con forma de control. Predicado único: `lib/infra/caretaker-public-contact.ts`. |
 
-**HUECO ABIERTO, no cerrado por esta entrega.** `pet_caretaker_grants` no figura en `export_subject_data` (art. 14) ni en `erase_subject_data` (art. 16) — verificado contra la base viva. `pii.apply_baseline` es solo la mitad de almacenamiento. La pregunta "qué significa borrar un grant cuando el sujeto es el CUIDADOR y no quien lo otorgó" tiene dos respuestas defendibles y es una decisión legal/PO, no de ingeniería; el arreglo además modifica dos funciones SECURITY DEFINER que gobiernan derechos del titular de los datos. Ver también §7: **nada vincula hoy las tablas con `pii.apply_baseline` a los dos RPC**, la cobertura se escribe a mano tabla por tabla, así que esta clase de omisión es invisible para CI y va a repetirse.
+**HUECO CERRADO — migración 0205 (2026-08-27).** `pet_caretaker_grants` ya figura en los dos RPC. La pregunta que estaba abierta ("qué significa borrar un grant cuando el sujeto es el CUIDADOR y no quien lo otorgó") se respondió así, y las tres mitades importan:
+
+| Sujeto | Qué hace `erase_subject_data` |
+|---|---|
+| **Invitado** (por cuenta o por email) | Invitación `pending` → `rejected` con `responded_at`. Centinela `erased@invalid.local` en `caretaker_email`, en **todos** los estados. |
+| **Otorgante** | Invitación `pending` → `cancelled`. `note` → NULL. El `caretaker_email` **no se toca**: ahí es el correo de un TERCERO (mismo criterio que §6c). |
+| **Los dos, con el grant `accepted`** | **No lo toca el RPC.** Terminar un cuidado aceptado son TRES escrituras que van juntas —cerrar la fila de `ownerships`, emitir `caretaker_ended`, girar el grant— y existe **una sola** definición de eso: `endCaretakerGrantAtomically()` en `lib/infra/end-pet-ownerships.ts`. Un flip de estado en SQL sin evento deja un grant que la espina no puede explicar (`detect-pet-cache-drift` lo reporta como `pet_caretaker_ownership_drift`). Así que el cierre lo hace `erase-subject-data.ts` **antes** de llamar al RPC, por ese único escritor. La línea es la del propio dominio: *accepted* debe un hecho a la espina, *pending* es estado de flujo y no debe nada. |
+
+`caretaker_user_id` tampoco se anula: el perfil al que apunta queda soft-deleted y anonimizado, nada borra perfiles en duro, y `pet_caretaker_grants_accept_check` (0192) convierte ese NULL en violación de constraint sobre una fila `accepted`/`ended`. Mismo trato que `pet_transfers`.
+
+**Y la clase de omisión ya no es invisible para CI.** `pnpm lint:subject-rights` (`scripts/check-subject-rights-coverage.ts`) enumera **todas** las tablas de `public` del catálogo vivo y obliga a que cada una esté declarada en exactamente una de cuatro listas — `IN_EXPORT`, `IN_ERASE`, `EXEMPT` (con razón escrita) o `KNOWN_GAP` (con nota) — y verifica las dos primeras **en las dos direcciones** contra `pg_get_functiondef`. Una tabla nueva que no esté en ninguna lista es rojo. Deriva de `pii.apply_baseline` **a propósito no**: solo seis tablas están bajo la baseline y los RPC ya alcanzan dieciocho. **La fence prueba MENCIÓN, no que el predicado sea el correcto** — lo dice ella misma en su cabecera y en su línea verde; eso lo prueban los tests de integración. Hoy declara **21 tablas en `KNOWN_GAP`**: es deuda nombrada, no cobertura.
 
 ### 6c. Reportar contenido — moderación sin cuentas, y sin hueco nuevo de borrado
 
@@ -1703,10 +1713,13 @@ Una tabla `lost_feed_item_reports` habría sido la otra opción defendible y se 
 
 | Right | Enforcement |
 |---|---|
-| Access (art. 14) — `export_subject_data(p_user_id)` RPC | migration 0059 (pet_tags added in 0170, `activation_code_hash` excluded from the projection) |
-| Erasure (art. 16) — `erase_subject_data(p_user_id, p_reason)` RPC | migration 0059 (+ migration 0106 for `dni_hash`/`miarg_sub`; + 0170 nulls `pet_tags` actor FKs, `pet_tags_scrubbed` in audit) |
-| New PII tables → `pii.apply_baseline(tbl)` adds `purpose`, `deleted_at`, `retention_until` | schema `pii` helper |
-| Include new PII tables in `export_subject_data` | migration 0059 RPC |
+| Access (art. 14) — `export_subject_data(p_user_id)` RPC | migration 0059; `pet_tags` in 0170 (`activation_code_hash` excluded); `pet_caretaker_grants`, `foster_volunteers`, `org_contact_messages` y `push_subscriptions` en **0205** (`p256dh`/`auth` excluidos: sin esas claves RFC 8291 el endpoint no entrega nada). `schema_version` **4** |
+| Erasure (art. 16) — `erase_subject_data(p_user_id, p_reason)` RPC | migration 0059 (+ 0106 `dni_hash`/`miarg_sub`; + 0170 FKs de `pet_tags`; + **0205**: grants de cuidado, `foster_volunteers` borrada, `profiles.jurisdiction_*`, los espejos por mascota `emergency_contact_*`/`preferred_vet_*`/`insurance_*`, y `submitter_ip` + `message` en `org_contact_messages`). Siete contadores nuevos en el payload `subject_erasure` |
+| **Cada tabla nueva de `public` se declara contra los dos RPC** | `pnpm lint:subject-rights` → `scripts/check-subject-rights-coverage.ts`. Cuatro listas, verificación en las dos direcciones contra `pg_get_functiondef`. **Prueba mención, no corrección del predicado.** 21 tablas siguen en `KNOWN_GAP` |
+| New PII tables → `pii.apply_baseline(tbl)` adds `purpose`, `deleted_at`, `retention_until` | schema `pii` helper (solo seis tablas; **no** es la fuente de verdad de la cobertura) |
+| Terminar un cuidado `accepted` durante una supresión pasa por el escritor único | `endCaretakerGrantAtomically()`, llamado desde `erase-subject-data.ts` **antes** del RPC. Ver §6b |
+| `submitter_ip` caduca a los 30 días para todo el mundo, no solo para quien pide la baja | `ORG_CONTACT_IP_TTL_DAYS` en `lib/infra/data-lifecycle.ts` (quinto target del purge diario) |
+| La cuenta **no** guarda provincia ni localidad | Retirado del formulario y del writer en 0205 (un writer, cero lectores). La jurisdicción es un hecho **de la mascota** |
 | `pet_events` is append-only by design → exempt from soft-delete | Core principle #2 |
 
 ---
