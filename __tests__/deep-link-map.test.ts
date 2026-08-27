@@ -377,6 +377,49 @@ describe("matchWebPath — no two destinations can claim the same path", () => {
     });
   });
 
+  it("answers null for a segment that will not decode, instead of throwing", () => {
+    // THE FAILURE THIS PINS IS TOTAL, NOT ROW-LOCAL. `matchWebPath` is called
+    // from `ctaOf` inside `buildMyNotificationV1`, which runs while the inbox
+    // payload is being assembled — outside the try/catch in
+    // `app/api/v1/me/notifications/route.ts`. An unguarded `decodeURIComponent`
+    // therefore answers 500 for the caller's WHOLE native inbox on one stored
+    // `cta_url` with a stray `%`, while the web renders the same row's
+    // `cta_url` as a plain href and never notices.
+    //
+    // Latent rather than live: every current writer interpolates a
+    // server-generated token or a uuid. It is still new parsing of STORED,
+    // writer-produced strings, which is the class this repo keeps paying for.
+    //
+    // Each of these throws URIError out of a bare decodeURIComponent, and each
+    // sits in a `:param` position of a pattern whose SEGMENT COUNT matches — so
+    // "the loop never reaches the decode" is not what makes them null.
+    for (const poisoned of [
+      "/casos/50%", // truncated escape at the end
+      "/casos/%", // nothing but the escape character
+      "/casos/%zz", // two non-hex digits
+      "/casos/%E0%A4%A", // truncated multi-byte sequence
+      "/casos/%C0%80", // overlong encoding of NUL
+      "/casos/%ED%A0%80", // lone UTF-16 surrogate
+      "/denuncias/codigo/AB%2", // the same, one pattern deeper
+      "/mis-mascotas/DIM-PAMP-0001/eventos/%", // in the second placeholder of two
+    ]) {
+      expect(matchWebPath(poisoned)).toBe(null);
+    }
+
+    // NON-VACUITY, because every assertion above is `toBe(null)` and this table
+    // answers null for most strings. The same paths with the escape completed
+    // match, which is what proves the loop reached the decode and that only the
+    // malformed input is being refused.
+    expect(matchWebPath("/casos/50%25")).toEqual({
+      name: "welfareCase",
+      params: { publicCode: "50%" },
+    });
+    expect(matchWebPath("/denuncias/codigo/AB%2F12")).toEqual({
+      name: "welfareReport",
+      params: { referenceCode: "AB/12" },
+    });
+  });
+
   it("drops query and fragment without returning them", () => {
     expect(matchWebPath("/mis-mascotas/DIM-PAMP-0001?tab=libreta#top")).toEqual({
       name: "pet",

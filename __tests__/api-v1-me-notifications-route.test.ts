@@ -328,6 +328,35 @@ describe("GET /api/v1/me/notifications — the projection", () => {
     expect(body.notifications[0]?.cta?.route).toBe(null);
   });
 
+  it("answers 200 for a poisoned cta_url instead of 500ing the whole inbox", async () => {
+    // A stored `cta_url` whose `:param` segment carries malformed
+    // percent-encoding used to throw `URIError` out of `matchWebPath` →
+    // `ctaOf` → `buildMyNotificationV1`. That chain runs while the payload is
+    // being built, AFTER the try/catch above it has returned — so one bad row
+    // cost the caller their entire native inbox, not its own button. The web is
+    // unaffected either way: it renders `cta_url` as a plain href.
+    //
+    // Latent, not live — every current writer interpolates a server-generated
+    // token or a uuid — but the blast radius is what makes it worth a test: the
+    // sibling judgement calls in this payload (an unrecognised category, a
+    // redacted CTA) each cost their own row and nothing more.
+    control.list = () => ({
+      rows: [
+        row({ notification: { ctaLabel: "Ver el caso", ctaUrl: "/casos/50%" } }),
+        row({ notification: { ctaLabel: "Ver la ficha", ctaUrl: "/mis-mascotas/DIM-PAMP-0001" } }),
+      ],
+      hasMore: false,
+    });
+    const response = await GET(req());
+    expect(response.status).toBe(200);
+    const body = (await response.json()) as MyNotificationsV1;
+    // The poisoned row keeps its words and loses only its destination …
+    expect(body.notifications[0]?.cta).toEqual({ label: "Ver el caso", route: null });
+    // … and the row behind it still routes, which is the part a thrown URIError
+    // took away.
+    expect(body.notifications[1]?.cta?.route).toBe("/mascotas/DIM-PAMP-0001");
+  });
+
   it("refuses the pet link for a type whose recipient no longer holds the animal", async () => {
     // The row HAS a pet. The affordance is still dead, and only the denylist
     // knows it — a client deriving this from "do I own this pet" would rebuild

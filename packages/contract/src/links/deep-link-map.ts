@@ -370,6 +370,22 @@ export function deepLinkUrl<N extends DeepLinkName>(
  * so `matchWebPath("/mis-mascotas/DIM-PAMP-0001")` answers
  * `{ name: "pet", params: { publicToken: "DIM-PAMP-0001" } }`.
  *
+ * A SEGMENT THAT WILL NOT DECODE IS NOT A MATCH, and the reason is where this
+ * function is CALLED from rather than anything about percent-encoding.
+ * `decodeURIComponent` throws `URIError` on malformed input (`/casos/50%`), and
+ * the caller is `ctaOf` inside `buildMyNotificationV1`, which runs while the
+ * inbox payload is being built — OUTSIDE the route's try/catch. One stored
+ * `cta_url` with a stray `%` in a `:param` position of a length-matching pattern
+ * would therefore answer 500 for the caller's ENTIRE native inbox rather than
+ * costing that one row its button. No writer can emit such a string today: every
+ * one of them interpolates a server-generated token or a uuid. This is new
+ * parsing of STORED, writer-produced strings all the same, and the posture the
+ * sibling payload module states for its other two judgement calls — an
+ * unrecognised category comes across as `null`, a redacted CTA comes across
+ * absent — is that a bad row costs itself and nothing else. Refusing the match
+ * is what makes that true here: the label still rides, `route` is `null`, and the
+ * other ninety-nine rows render.
+ *
  * `null` FOR ANYTHING THIS TABLE DOES NOT NAME, and that is most of the web app
  * on purpose (see the header: this is not a route registry). A caller must treat
  * `null` as "the app has no screen for this", never as "the link is broken".
@@ -388,6 +404,23 @@ export function deepLinkUrl<N extends DeepLinkName>(
  * literals and the literals differ. Without that check, "the first match wins"
  * would be a silent decision about which of two destinations a path names.
  */
+/**
+ * `decodeURIComponent`, as a value rather than as a throw.
+ *
+ * The ONLY thing it catches is `URIError`, and it rethrows anything else. A
+ * blanket `catch` here would swallow a future bug in this function and report it
+ * as "that path names nothing", which is the quietest possible way to lose a
+ * link.
+ */
+function decodeSegment(segment: string): string | null {
+  try {
+    return decodeURIComponent(segment);
+  } catch (error) {
+    if (error instanceof URIError) return null;
+    throw error;
+  }
+}
+
 export function matchWebPath(
   path: string,
 ): { name: DeepLinkName; params: Record<string, string> } | null {
@@ -409,7 +442,15 @@ export function matchWebPath(
           matched = false;
           break;
         }
-        params[expected.slice(1)] = decodeURIComponent(actual);
+        // Malformed percent-encoding is not a value either. See the docblock:
+        // letting the URIError out would turn one bad stored row into a 500 for
+        // the whole inbox, because this runs outside the route's try/catch.
+        const decoded = decodeSegment(actual);
+        if (decoded === null) {
+          matched = false;
+          break;
+        }
+        params[expected.slice(1)] = decoded;
         continue;
       }
       if (expected !== actual) {
