@@ -6,14 +6,19 @@
 > gone the other way. This is where the "why" lives. Change one of them, change
 > the other.
 
-**Status as of 2026-08-26 (evening): the first real build has run, and failed.**
-`npx eas-cli whoami` now answers `ignaciodelvalle2014@gmail.com`, account
-`nachi7`. Build `9900114a-c134-41cf-af38-6aaf789d2942` — `production`, Android,
-commit `c1b7fb977`, `versionCode` 2 — ran for fifteen minutes and errored. What
-it broke on, and what was done about it, is the last section of this file:
-[Two ways to break a fingerprint](#two-ways-to-break-a-fingerprint-and-the-first-real-build-found-both).
-No update, no channel and no OTA has been published; claims below about *those*
-are still read from EAS's contract rather than measured.
+**Status as of 2026-08-27: three real builds have run and all three failed**, each
+one further along than the last — fingerprint, then Metro, then the native C++
+compiler. `npx eas-cli whoami` answers `ignaciodelvalle2014@gmail.com`, account
+`nachi7`. The builds, their `versionCode`s and their causes are in the running
+tally under [First-run order, when the PO logs in](#first-run-order-when-the-po-logs-in);
+each cause then has its own section at the end of this file. No artifact has been
+produced, no update, channel or OTA has been
+published, and claims below about *those* are still read from EAS's contract
+rather than measured.
+
+One sentence is worth carrying out of all three: **every failure so far has been
+a dependency this repo did not declare**, resolved by accident on one machine and
+differently — or not at all — on the worker.
 
 ---
 
@@ -220,10 +225,13 @@ decision, the fence is `runtimeVersion`, and the whole argument lives in
    | 1 | — | consumed before the first recorded build |
    | 2 | `9900114a-c134-41cf-af38-6aaf789d2942` | errored — fingerprint mismatch, two causes |
    | 3 | `e2a89561-910b-4ad7-97fa-ab0f2a481db8` | errored — `Cannot find module 'babel-preset-expo'` in Gradle |
+   | 4 | `9bdab7b8-b5e2-4aa5-8272-f8e990c0cce3` | errored — C++ compile: `no member named 'executeSync'` in `expo-modules-core` |
 
-   Three numbers spent, zero artifacts produced. Play will never see 1, 2 or 3,
+   Four numbers spent, zero artifacts produced. Play will never see 1 through 4,
    and that is fine — the counter only has to increase — but it is the reason
-   each of these failures earns a written-down cause rather than a retry.
+   each of these failures earns a written-down cause rather than a retry. The
+   four causes are four different LAYERS (fingerprint, Metro, native compile) and
+   one single shape, which the last section of this file names.
 
 ---
 
@@ -774,3 +782,242 @@ loud enough, but it is not this test catching it.
    resolves — read it out of the depending package's `package.json`, not out of
    `expo install`'s floor — and confirm the lockfile moved by one importer entry.
 4. Sweep the rest of the config surface before moving on.
+
+---
+
+## The fourth failure — a C++ compiler, nine and a half minutes in
+
+Build `9bdab7b8-b5e2-4aa5-8272-f8e990c0cce3` (2026-08-27, production, commit
+`d3237b654`, `versionCode` 4) got further than any before it. The fingerprint
+matched, `Configure expo-updates` passed, Metro bundled the whole app, Gradle
+started compiling native code, and 9m32s in:
+
+```
+> Task :expo-modules-core:buildCMakeRelWithDebInfo[arm64-v8a] FAILED
+expo-modules-core@57.0.14/android/src/main/cpp/worklets/WorkletJSCallInvoker.cpp:27:21:
+  error: no member named 'executeSync' in 'worklets::WorkletRuntime'
+   27 |     workletRuntime->executeSync([func = std::move(func)](jsi::Runtime &rt) -> jsi::Value {
+      |     ~~~~~~~~~~~~~~~~^
+1 error generated.
+ninja: build stopped: subcommand failed.
+```
+
+### The method exists, in a version this tree did not have
+
+Measured, not inferred — both tarballs unpacked and the one header compared:
+
+| `react-native-worklets` | `Common/cpp/worklets/WorkletRuntime/WorkletRuntime.h` |
+|---|---|
+| `0.10.1` | `jsi::Value executeSync(...)`, three overloads |
+| `0.12.1` | no `executeSync` — the same operation is `runSync` / `runSyncAndDrainMicrotasks` |
+
+`expo-modules-core@57.0.14` calls `executeSync`. The tree had worklets `0.12.1`.
+That is the whole defect.
+
+### Nobody chose 0.12.1, and nobody could have
+
+`react-native-worklets` is **not declared anywhere in this repository** — not in
+`apps/mobile/package.json`, not in the root one. Neither is
+`react-native-reanimated`, and neither is `react-native-gesture-handler`. All
+three arrive as auto-installed OPTIONAL PEERS, down a chain nobody wrote:
+
+```
+expo-router@57.0.17   peer  react-native-reanimated: '*'        (optional)
+  react-native-reanimated@4.6.0   peer  react-native-worklets: 0.12.x
+    react-native-worklets@0.12.1
+```
+
+pnpm's `auto-install-peers` is on by default and there is no `.npmrc` in this
+repo, so each of those `*` peers resolved to `latest`. Nothing in the workspace
+narrowed them, and `expo-modules-core`'s own peer range — which is
+`^0.7.4 || ^0.8.0 || ^0.9.0 || ^0.10.0`, i.e. flatly excludes 0.12 — lost,
+because it is declared `optional: true` and pnpm hands an optional peer whatever
+the parent already resolved.
+
+**That range is identical in 57.0.13 and 57.0.14**, checked against the registry.
+So the dependency bump earlier in this saga did not move the declaration; it
+moved the C++ that the declaration was always describing. The tree had been
+wrong since before any build ran — it simply had not compiled native code yet.
+
+### The authority used, and why it is this one
+
+Expo ships `expo/bundledNativeModules.json`: the table `expo install` writes
+versions from and `expo-doctor` validates declared versions against. Read out of
+the installed `expo@57.0.17`:
+
+```
+react-native-worklets        => 0.10.1
+react-native-reanimated      => 4.5.1
+react-native-gesture-handler => ~2.32.0
+expo-modules-core            => ~57.0.14
+```
+
+Consistent all the way down: reanimated `4.5.1` peers `react-native-worklets:
+0.10.x`, worklets `0.10.1` peers `react-native: 0.83 - 0.86` (satisfied by
+0.86.3), and `^0.10.0` is inside `expo-modules-core`'s range. The pair that was
+installed — worklets `0.12.1` with reanimated `4.6.0` — is consistent only with
+itself.
+
+So all three are now declared in `apps/mobile/package.json` at the SDK's own
+numbers. Same rule the `babel-preset-expo` section above landed on: **declare it
+at the version the SDK already resolves, read out of the SDK's declaration and
+not out of `expo install`'s floor.**
+
+### The full sweep, because one drifted package is an incident and three is a shape
+
+`bundledNativeModules.json` names 123 packages. **35 of them resolve into this
+workspace; 30 matched the SDK's pin and 5 did not.** In full:
+
+| Package | SDK 57 pins | Was resolved | Declared? |
+|---|---|---|---|
+| `react-native-worklets` | `0.10.1` | `0.12.1` | no |
+| `react-native-reanimated` | `4.5.1` | `4.6.0` | no |
+| `react-native-gesture-handler` | `~2.32.0` | `3.2.1` | no |
+| `react` | `19.2.3` | `19.2.3` **and** `19.2.6` | yes, at `19.2.3` |
+| `react-dom` | `19.2.3` | `19.2.6` | no |
+
+The last two are the WEB app's and are not a native drift: `apps/mobile` declares
+React at the pin exactly and Next.js resolves its own copy, and `react-dom` is
+`expo-router`'s optional web peer, never autolinked and never compiled into an
+`.aab`. The first three are the shape — **every drifting native module was
+undeclared, and every declared one was correct.** That is not a coincidence, it
+is the mechanism: `expo install --check` and `expo-doctor` both validate
+DECLARED versions against this same table, which is exactly why both reported
+"Dependencies are up to date" and 21/21 while three native modules sat past the
+pin. Declaring a package is what makes it visible to the tools that check it —
+and both tools say the same words after the fix, except that now the sentence
+covers the three packages that mattered.
+
+Only `react-native-worklets` could have produced THIS error. The other two were
+fixed in the same commit because they are the same defect one build away:
+gesture-handler was a full major ahead of the version SDK 57 was built against,
+and a failed build costs a `versionCode` nobody gets back.
+
+### It removed a second Metro nobody knew was there
+
+The lockfile moved by **26 resolutions dropped and 10 added** — 33 packages
+beyond the three that were the point. Every one of them is downstream of
+worklets:
+
+- **22 dropped, one island**: `metro@0.87.0` plus 13 `metro-*@0.87.0`,
+  `ob1@0.87.0`, six `@react-native/*@0.87.0` (`babel-preset`,
+  `babel-plugin-codegen`, `codegen`, `js-polyfills`, `metro-babel-transformer`,
+  `metro-config`), `image-size@1.2.1` and `queue@6.0.2`.
+  `react-native-worklets@0.12.1` peers `@react-native/metro-config: '*'`, which
+  resolved to `0.87.0` — ahead of react-native `0.86.3`'s own — and dragged the
+  entire Metro 0.87 tree in beside the `metro@0.84.5` this app actually bundles
+  with. **The tree held two Metros.** It now holds one.
+- **4 dropped, 3 added, gesture-handler's own dependency shape**: v3 dropped
+  `@egjs/hammerjs`, `@types/hammerjs`, `hoist-non-react-statics` and
+  `react-is@16.13.1`; v2.32.0 needs them.
+- **3 added**: `@react-native/babel-preset`, `@react-native/metro-babel-transformer`
+  and `@react-native/metro-config`, all at `0.86.3` — the 0.87.0 trio
+  deduplicating onto react-native's own version.
+
+Net: 44 packages added, 60 removed. A dependency fix that makes the tree
+**smaller and more internally consistent** is the shape a correct one has; the
+"two Babel presets compiling the same app" hazard the previous section warned
+about was already here, one layer down, as two Metros.
+
+### What could have caught it, and the answer is not "nothing"
+
+It is tempting to write this one off as unobservable, and the tempting version is
+half true: **there is no Android NDK on the machines this repo builds on, and
+`expo export` only bundles JavaScript, so that C++ compiler never runs here.**
+The error itself cannot be reproduced locally today and it would be dishonest to
+imply otherwise.
+
+But the error is not the defect. The defect is a native module resolved outside
+the SDK's own pin, and **`pnpm peers check` named it — by package, by range, and
+by the package that wanted it.** Measured by restoring the pre-fix
+`package.json` and lockfile and reinstalling:
+
+```
+$ pnpm peers check          # BEFORE — 4 unmet peers
+X unmet peer react-native-worklets
+  Installed: 0.12.1
+  Wanted:
+    "^0.7.4 || ^0.8.0 || ^0.9.0 || ^0.10.0":
+      expo-modules-core@57.0.14
+
+X unmet peer @react-native/metro-config
+  Installed: 0.87.0
+  Wanted:
+    0.86.3:
+      @react-native/community-cli-plugin@0.86.3
+```
+
+```
+$ pnpm peers check          # AFTER — 2 unmet peers, neither native
+X unmet peer @react-native/jest-preset   (0.86.2 installed, jest-expo wants ^0.86.3)
+X unmet peer react                       (19.2.3 installed, react-dom@19.2.6 wants ^19.2.6)
+```
+
+Both of the two that vanished are this failure: the first IS the C++ error stated
+in npm's own vocabulary, and the second is the second Metro. Both remaining ones
+are pre-existing, JavaScript-only, and touch nothing a native build compiles.
+
+So the honest answer to "was there a local signal" is **yes, on every single
+`pnpm install`, for free** — and it was collapsed into one line nobody expanded:
+
+```
+[WARN] Issues with peer dependencies found. Run "pnpm peers check" to list them.
+```
+
+That line was printed by the install that produced the tree this build failed on.
+Three of the four failures in this saga are "something the local environment
+resolves by accident that the worker does not". This one is worse and better at
+the same time: the local environment did NOT resolve it by accident. It said so
+out loud, and the summary was mistaken for noise.
+
+### What guards it now
+
+`apps/mobile/src/release/release-config.test.ts` gained
+`describe("SDK-pinned native modules")`. It reads
+`expo/bundledNativeModules.json` through `require.resolve` — so it is always the
+table belonging to the resolved `expo` — and the `packages:` section of
+`pnpm-lock.yaml`, and asserts every resolution of every bundled name satisfies
+the SDK's pin.
+
+**The lockfile and not `node_modules`, deliberately.** Under pnpm a package
+nothing declares is invisible from `apps/mobile` — which is precisely the class
+of package this exists to judge — while the lockfile lists every resolution in
+the workspace whether or not anything can reach it by name. A fence over
+declarations would have agreed with `expo-doctor` and reported green.
+
+It carries no semver dependency: `~`, `^` and exact are the only three shapes the
+table uses, they are implemented in eight lines, and **any other shape throws**
+rather than being skipped. It carries the non-vacuity floor this repo's fences
+use (at least 20 of the table's names must have been checked; 35 resolve today).
+The two exemptions are `react` and `react-dom`, named with their reason, and the
+second `it` asserts that whatever `apps/mobile` itself declares for an exempt
+name still matches the pin — so the exemption cannot widen into "React is never
+checked".
+
+Proven by mutation, four ways:
+
+| Mutation | Result |
+|---|---|
+| `react-native-worklets@0.10.1` restored to `0.12.1` in the lockfile | red — `"react-native-worklets@0.12.1 — SDK 57 pins 0.10.1"` |
+| `packages:` renamed so the parse finds nothing | red — the floor fires (`Expected >= 20, Received 0`) |
+| a pin shape the reader does not know | red — `Unreadable version pin` |
+| an exempt name that is not in the table | red — the exemption's own non-vacuity check |
+
+The first mutation is the real one: it reproduces exactly the tree that burned
+`versionCode` 4, and the fence names the package and the number in one line, in
+under five milliseconds, with no NDK anywhere.
+
+### If a native compile fails on a symbol that "should" exist
+
+1. The error names a class or method (`worklets::WorkletRuntime::executeSync`).
+   The owner of the C++ that CALLS it and the owner of the header that should
+   DEFINE it are two different packages. Find both.
+2. Run `pnpm peers check` before anything else. It is free, it is local, and in
+   this case it printed the answer.
+3. Compare the defining package against `expo/bundledNativeModules.json` — the
+   SDK's pin, not npm's `latest` and not `expo install`'s floor.
+4. If it is not in `apps/mobile/package.json`, that is the bug. An undeclared
+   package resolves to whatever the peer graph happens to want, and nothing that
+   validates versions in this repo looks at it.
+5. Fix the whole class, not the one that failed. Three native modules had
+   drifted; one had compiled.

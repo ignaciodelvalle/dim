@@ -197,12 +197,20 @@ export type MyNotificationsV1 = {
    */
   categories: NotificationCategoryCountV1[];
   /**
-   * Unread rows across the WHOLE inbox, not just this page.
+   * Unread rows across the whole VIEW, not just this page — the same scope
+   * `total` below carries, and for the same reason.
    *
-   * The web learned this the hard way (review C.3): counting unread over the
-   * ≤100-row page understated it for anyone with more than a page of them, and
-   * "notifications say fewer than there are" is a first-hand trust symptom. It is
-   * an aggregate with the same predicate the list uses.
+   * It said "the whole INBOX" until 2026-08-27 and that overclaimed: a `?cat=`
+   * read counts the unread of THAT category, because `readInbox` passes the
+   * filter to `fetchUnreadNotificationCount`. No client diverges — the web shows
+   * exactly the same figure for the same tab — but a reader sizing a badge off
+   * this sentence would have expected an inbox-wide number from a filtered call.
+   *
+   * The part that was never in doubt, and is the reason the field exists: it is
+   * NOT the page's. The web learned that the hard way (review C.3) — counting
+   * unread over the ≤100-row page understated it for anyone with more than a page
+   * of them, and "notifications say fewer than there are" is a first-hand trust
+   * symptom. It is an aggregate with the same predicate the list uses.
    */
   unreadCount: number;
   /** Non-archived rows across the whole inbox, by the same predicate. */

@@ -153,12 +153,19 @@ const MIN_FILES_SCANNED = 1500;
  * project, which is PARALLEL by design.
  *
  * THIS EXACT DEFECT WAS DIAGNOSED AND FIXED ONCE ALREADY, on 2026-08-25
- * (`4e55e97be`), and the fix landed on ONE of the four cases that need it — the
+ * (`4e55e97be`), and the fix landed on ONE of the FIVE cases that need it — the
  * anti-vacuity block below, which got an explicit 20 s budget and a paragraph
- * of measurement justifying it. The other three were left on the default and
+ * of measurement justifying it. The other FOUR are the four `it`s in the
+ * `describe` immediately below this comment; they were left on the default and
  * timed out in the two full-suite runs of WU-Q-1, both times passing in
  * isolation (14 s for the whole file). That is the same wall-clock signature
  * the earlier commit documented, on the siblings its remedy did not reach.
+ *
+ * The counts are stated twice in this file and one of them used to be wrong:
+ * this paragraph said "four cases" and "the other three" while the block at the
+ * bottom said "the four cases above" and "all four". Five cases, four of them
+ * up here — the bottom one was right. Corrected 2026-08-27 rather than quietly
+ * reworded, in the shape that block already uses for its own error.
  *
  * SO THE FIX IS THE SAME ONE, APPLIED TO THE WHOLE SET rather than to one
  * member of it — which is the failure mode this repo keeps paying for: a remedy
