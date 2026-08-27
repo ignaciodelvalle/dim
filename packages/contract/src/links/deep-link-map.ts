@@ -268,6 +268,22 @@ export const DEEP_LINK_MAP = {
 export type DeepLinkName = keyof typeof DEEP_LINK_MAP;
 
 /**
+ * Destinations whose `appPath` names NO SCREEN in `apps/mobile/app/`.
+ *
+ * There is exactly one and its reason is written out on `appointment` above: it
+ * is a QR PAYLOAD for a front-desk reader that does not exist yet, kept
+ * byte-for-byte, not a route the app can open. A phone that follows it lands on
+ * `+not-found`.
+ *
+ * IT LIVES HERE RATHER THAN IN THE FITNESS TEST, where it used to, because it is
+ * now load-bearing at RUNTIME as well as in CI: `appRoutePath` has to refuse this
+ * destination, and a second copy of "the one exception" is exactly the kind of
+ * pair that agrees on the day it is written and disagrees a year later.
+ * `__tests__/deep-link-map.test.ts` still pins the contents.
+ */
+export const APP_PATH_NAMES_NO_SCREEN: ReadonlySet<DeepLinkName> = new Set(["appointment"]);
+
+/**
  * The `:name` placeholders of a path pattern, as a union of string literals.
  *
  * This is what makes the table worth using instead of a template literal: pass
@@ -337,6 +353,98 @@ export function deepLinkUrl<N extends DeepLinkName>(
   params: DeepLinkParams<N>,
 ): string {
   return `${origin.replace(/\/+$/, "")}${deepLinkPath(name, params)}`;
+}
+
+/**
+ * The reverse direction: a CONCRETE web path, matched back to the destination it
+ * names and the values its placeholders held.
+ *
+ * WHY IT EXISTS. `notifications.cta_url` stores a web path — the string the
+ * browser's CTA button links to — and it is written by twenty-odd notification
+ * writers that have never heard of a phone. The native inbox has to open the
+ * thing a notification is ABOUT, and the only way to do that without a second
+ * table mapping notification types to native screens is to read the path the web
+ * already stores and ask this table what it names.
+ *
+ * A `:param` segment matches any non-empty segment and yields its DECODED value,
+ * so `matchWebPath("/mis-mascotas/DIM-PAMP-0001")` answers
+ * `{ name: "pet", params: { publicToken: "DIM-PAMP-0001" } }`.
+ *
+ * `null` FOR ANYTHING THIS TABLE DOES NOT NAME, and that is most of the web app
+ * on purpose (see the header: this is not a route registry). A caller must treat
+ * `null` as "the app has no screen for this", never as "the link is broken".
+ *
+ * QUERY AND FRAGMENT ARE DROPPED before matching, and their values are NOT
+ * returned. Nothing in this table takes a query parameter, and a caller that got
+ * one back would be tempted to forward it into a native route that cannot read
+ * it. An ABSOLUTE url is refused outright rather than parsed: `cta_url` also
+ * holds external `https://` links (the card opens those in a browser tab), and
+ * quietly matching an attacker-chosen origin's path against this table would let
+ * a link that is not ours name one of our screens.
+ *
+ * AMBIGUITY IS IMPOSSIBLE BY CONSTRUCTION rather than by luck, and
+ * `__tests__/deep-link-map.test.ts` proves it: for every pair of destinations
+ * with the same segment count there is at least one position where both are
+ * literals and the literals differ. Without that check, "the first match wins"
+ * would be a silent decision about which of two destinations a path names.
+ */
+export function matchWebPath(
+  path: string,
+): { name: DeepLinkName; params: Record<string, string> } | null {
+  if (!path.startsWith("/")) return null;
+  const clean = path.split("#")[0]?.split("?")[0] ?? "";
+  const segments = clean.split("/");
+
+  for (const name of Object.keys(DEEP_LINK_MAP) as DeepLinkName[]) {
+    const pattern = DEEP_LINK_MAP[name].webPath.split("/");
+    if (pattern.length !== segments.length) continue;
+
+    const params: Record<string, string> = {};
+    let matched = true;
+    for (const [index, expected] of pattern.entries()) {
+      const actual = segments[index] ?? "";
+      if (expected.startsWith(":")) {
+        // An empty segment ("/mis-mascotas//eventos/x") is not a value.
+        if (actual === "") {
+          matched = false;
+          break;
+        }
+        params[expected.slice(1)] = decodeURIComponent(actual);
+        continue;
+      }
+      if (expected !== actual) {
+        matched = false;
+        break;
+      }
+    }
+    if (matched) return { name, params };
+  }
+  return null;
+}
+
+/**
+ * The IN-APP route for a destination — a path the native router can push — or
+ * `null` when the app has no screen for it.
+ *
+ * It is `appPath` with a leading slash, which is not a cosmetic difference:
+ * `appPath` is the part AFTER `mimar://`, and expo-router addresses its screens
+ * from the root. Two callers building that slash by hand is one of them
+ * forgetting it.
+ *
+ * NULL IN TWO CASES, and they mean the same thing to a caller: the destination
+ * has no `mimar://` form at all (most of the table — every public one, forever),
+ * or its `appPath` names no screen (`APP_PATH_NAMES_NO_SCREEN` — exactly one).
+ * Both mean "do not send a phone here"; a caller that distinguished them would be
+ * deciding to open a link that resolves to a blank stack.
+ */
+export function appRoutePath<N extends DeepLinkName>(
+  name: N,
+  params: DeepLinkParams<N>,
+): string | null {
+  const { appPath } = DEEP_LINK_MAP[name];
+  if (appPath === null) return null;
+  if (APP_PATH_NAMES_NO_SCREEN.has(name)) return null;
+  return `/${fillPattern(appPath, params as Record<string, string>, name)}`;
 }
 
 /**

@@ -14,6 +14,7 @@
     "./events": "./src/events/index.ts",
     "./input": "./src/input/index.ts",
     "./links": "./src/links/index.ts",
+    "./notifications": "./src/notifications/index.ts",
     "./reference": "./src/reference/index.ts",
     "./tokens": "./src/tokens/index.ts",
     "./viz": "./src/viz/index.ts",

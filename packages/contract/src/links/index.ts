@@ -15,6 +15,7 @@
 // so the next regression is caught by a gate instead of by a build attempt.
 export {
   ANDROID_PACKAGE_NAME,
+  APP_PATH_NAMES_NO_SCREEN,
   APP_SCHEME,
   DEEP_LINK_MAP,
   IOS_BUNDLE_IDENTIFIER,
@@ -22,8 +23,10 @@ export {
   type DeepLinkDestination,
   type DeepLinkName,
   type DeepLinkParams,
+  appRoutePath,
   deepLinkAppUrl,
   deepLinkPath,
   deepLinkUrl,
+  matchWebPath,
   pathParamNames,
 } from "./deep-link-map.ts";

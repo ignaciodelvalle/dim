@@ -21,12 +21,15 @@
 import { globSync } from "node:fs";
 
 import {
+  APP_PATH_NAMES_NO_SCREEN,
   APP_SCHEME,
   DEEP_LINK_MAP,
   type DeepLinkName,
+  appRoutePath,
   deepLinkAppUrl,
   deepLinkPath,
   deepLinkUrl,
+  matchWebPath,
   pathParamNames,
 } from "@dim/contract/links";
 import { describe, expect, it } from "vitest";
@@ -99,8 +102,14 @@ const MIN_APP_SCREENS = 8;
  * — see the entry's own comment. It is an exception rather than a reason to
  * weaken the rule, because the rule is what stops the next `appPath` from being
  * a link that opens the app onto nothing.
+ *
+ * IT USED TO BE DECLARED HERE and is now IMPORTED, because WU-Q-1 made it
+ * load-bearing at runtime too: `appRoutePath` has to refuse this destination, and
+ * a fence holding its own private copy of "the one exception" would agree with
+ * the contract on the day it was written and not afterwards. The pinning test
+ * below is unchanged and is what keeps the imported set honest.
  */
-const APP_PATH_EXCEPTIONS = new Set<DeepLinkName>(["appointment"]);
+const APP_PATH_EXCEPTIONS = APP_PATH_NAMES_NO_SCREEN;
 
 /**
  * Every screen in `apps/mobile/app/`, as an erased pattern.
@@ -312,5 +321,113 @@ describe("deepLinkAppUrl", () => {
     expect(() => deepLinkAppUrl("credential", { publicToken: "DIM-PAMP-0001" })).toThrow(
       /no mimar:\/\/ form/,
     );
+  });
+});
+
+// ---------------------------------------------------------------------------
+// The reverse direction (WU-Q-1) — a stored web path, matched back to a name
+// ---------------------------------------------------------------------------
+
+describe("matchWebPath — no two destinations can claim the same path", () => {
+  // THE ASSUMPTION `matchWebPath` IS BUILT ON, checked rather than asserted in a
+  // comment. It returns the FIRST pattern that matches, which is only a
+  // well-defined answer if at most one ever can. Two rows with the same segment
+  // count are distinguishable when there is at least one position where BOTH are
+  // literals and the literals differ; if no such position exists, some concrete
+  // path matches both and "first wins" silently decides which screen a
+  // notification opens.
+  it("has no pair of patterns a concrete path could satisfy twice", () => {
+    const collisions: string[] = [];
+    for (let i = 0; i < NAMES.length; i += 1) {
+      for (let j = i + 1; j < NAMES.length; j += 1) {
+        const left = (DEEP_LINK_MAP[NAMES[i] as DeepLinkName].webPath as string).split("/");
+        const right = (DEEP_LINK_MAP[NAMES[j] as DeepLinkName].webPath as string).split("/");
+        if (left.length !== right.length) continue;
+        const separable = left.some((segment, index) => {
+          const other = right[index] as string;
+          return !segment.startsWith(":") && !other.startsWith(":") && segment !== other;
+        });
+        if (!separable) collisions.push(`${NAMES[i]} vs ${NAMES[j]}`);
+      }
+    }
+    expect(
+      collisions,
+      "two destinations are shape-identical, so matchWebPath's answer for a path " +
+        "matching both is whichever happens to come first in the table",
+    ).toEqual([]);
+  });
+
+  it("matches a concrete path back to its destination and values", () => {
+    expect(matchWebPath("/mis-mascotas/DIM-PAMP-0001")).toEqual({
+      name: "pet",
+      params: { publicToken: "DIM-PAMP-0001" },
+    });
+    expect(matchWebPath("/mis-mascotas/DIM-PAMP-0001/eventos/abc-123")).toEqual({
+      name: "petEvent",
+      params: { publicToken: "DIM-PAMP-0001", eventId: "abc-123" },
+    });
+    // A no-placeholder row still resolves — several notifications land on the list.
+    expect(matchWebPath("/mis-mascotas")).toEqual({ name: "myPets", params: {} });
+  });
+
+  it("decodes a percent-encoded segment", () => {
+    expect(matchWebPath("/denuncias/codigo/AB%2F12")).toEqual({
+      name: "welfareReport",
+      params: { referenceCode: "AB/12" },
+    });
+  });
+
+  it("drops query and fragment without returning them", () => {
+    expect(matchWebPath("/mis-mascotas/DIM-PAMP-0001?tab=libreta#top")).toEqual({
+      name: "pet",
+      params: { publicToken: "DIM-PAMP-0001" },
+    });
+  });
+
+  it("answers null for anything the table does not name", () => {
+    // Most of the web app, on purpose: this is not a route registry.
+    expect(matchWebPath("/inicio")).toBe(null);
+    expect(matchWebPath("/mis-mascotas/DIM-PAMP-0001/libreta")).toBe(null);
+    // An empty segment is not a value.
+    expect(matchWebPath("/mis-mascotas//eventos/x")).toBe(null);
+  });
+
+  it("refuses an absolute url instead of matching its path", () => {
+    // `cta_url` also holds external https links. Matching an attacker-chosen
+    // origin's PATH against this table would let a link that is not ours name
+    // one of our screens.
+    expect(matchWebPath("https://evil.example/mis-mascotas/DIM-PAMP-0001")).toBe(null);
+    expect(matchWebPath("mis-mascotas/DIM-PAMP-0001")).toBe(null);
+  });
+});
+
+describe("appRoutePath", () => {
+  it("returns the app's own path, rooted", () => {
+    // Rooted, and shorter than the web's: the native route is `mascotas/…`.
+    expect(appRoutePath("pet", { publicToken: "DIM-PAMP-0001" })).toBe("/mascotas/DIM-PAMP-0001");
+    expect(appRoutePath("petTransfer", { transferToken: "PTR-9" })).toBe("/transferencias/PTR-9");
+  });
+
+  it("answers null when the app has no screen for the destination", () => {
+    // Two different reasons, one answer — see the function's docblock.
+    expect(appRoutePath("credential", { publicToken: "DIM-PAMP-0001" })).toBe(null);
+    expect(appRoutePath("appointment", { appointmentToken: "APT-123" })).toBe(null);
+  });
+
+  it("answers non-null for exactly the destinations the app can open", () => {
+    // The `.each` above proves that a non-null `appPath` names a real screen.
+    // This is the OTHER end of the same claim: that `appRoutePath` hands one back
+    // for exactly those destinations and refuses every other — so a caller can
+    // treat `null` as "do not send a phone here" without consulting the table.
+    const resolve = appRoutePath as (
+      name: DeepLinkName,
+      params: Record<string, string>,
+    ) => string | null;
+    for (const name of NAMES) {
+      const { appPath, webPath } = DEEP_LINK_MAP[name];
+      const params = Object.fromEntries(pathParamNames(webPath).map((p) => [p, "x"]));
+      const openable = appPath !== null && !APP_PATH_EXCEPTIONS.has(name);
+      expect(resolve(name, params) === null, name).toBe(!openable);
+    }
   });
 });

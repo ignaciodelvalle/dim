@@ -1,33 +1,58 @@
-// Notification list ordering + grouping — pure, testable projection helpers.
+// Notification list ordering + grouping — the WEB's adapter over the shared rule.
 //
-// The /notificaciones page fetches a chronologically ordered page (keyset
-// pagination on created_at,id). These helpers reshape THAT page for display:
-//   1. sortNotificationsForDisplay — severity-first, then recency (the inbox
-//      floats urgent items to the top of the current page).
-//   2. groupNotifications — collapses ≥3 same-pet+type rows into one group.
+// THE RULE ITSELF IS NO LONGER HERE. It moved to `@dim/contract/notifications`
+// in WU-Q-1, when the native inbox landed and this file's logic acquired a
+// second renderer. What stays is the projection: how a Drizzle row answers the
+// five questions the rule asks, and nothing else.
+//
+// NOTHING ABOUT THIS SURFACE'S BEHAVIOUR CHANGED IN THAT MOVE, and the evidence
+// is that `./notification-ordering.test.ts` was not edited: the same cases, the
+// same expectations, now running through the delegation. A rule that had been
+// retyped rather than moved would have needed the test adjusted, which is
+// exactly the review signal a copy-paste hides.
+//
+// THE EXPORTS KEEP THEIR NAMES AND THEIR SHAPES on purpose. `page.tsx` and
+// `lib/infra/notify-owners-of-clinical-event.test.ts` both import from here, and
+// renaming a function in the same change that moves its body makes the diff
+// unreadable at precisely the moment it needs to be readable.
 //
 // Both are non-mutating. The caller keeps its SQL-ordered `rows` intact because
 // the keyset cursor is derived from the SQL order's last row, NOT from the
 // display order — reordering in place would corrupt "Ver más antiguos".
 
 import type { Notification, Pet } from "@/db";
+import {
+  type NotificationGroup,
+  type NotificationOrderingFacts,
+  groupForDisplay,
+  severityRank as sharedSeverityRank,
+  sortForDisplay,
+} from "@dim/contract/notifications";
 
 export type NotificationRow = { notification: Notification; pet: Pet | null };
 
-// ---------------------------------------------------------------------------
-// Severity ordering
-// ---------------------------------------------------------------------------
+/**
+ * The web's projection: one Drizzle row, as the five values the rule reads.
+ *
+ * `relatedPetId` GOES ACROSS AS THE DATABASE ID HERE, while the native adapter
+ * substitutes the pet's public token. The two are different strings and produce
+ * IDENTICAL buckets, because grouping only ever asks whether two rows name the
+ * same animal and both columns are unique per animal.
+ * `__tests__/notification-ordering-parity.test.ts` is what holds that claim up.
+ */
+function facts(row: NotificationRow): NotificationOrderingFacts {
+  return {
+    severity: row.notification.severity,
+    createdAtMs: row.notification.createdAt.getTime(),
+    id: row.notification.id,
+    relatedPetId: row.notification.relatedPetId,
+    notificationType: row.notification.notificationType,
+  };
+}
 
-// Inbox priority: urgent surfaces first, info last. Lower number = higher up.
-const SEVERITY_RANK: Record<Notification["severity"], number> = {
-  urgent: 0,
-  warning: 1,
-  success: 2,
-  info: 3,
-};
-
+/** Where a severity sits in the inbox. Lower is higher up. */
 export function severityRank(severity: Notification["severity"]): number {
-  return SEVERITY_RANK[severity] ?? SEVERITY_RANK.info;
+  return sharedSeverityRank(severity);
 }
 
 /**
@@ -37,56 +62,18 @@ export function severityRank(severity: Notification["severity"]): number {
  * caller's chronologically ordered page stays valid for keyset pagination.
  */
 export function sortNotificationsForDisplay(rows: NotificationRow[]): NotificationRow[] {
-  return [...rows].sort((a, b) => {
-    const rankDelta = severityRank(a.notification.severity) - severityRank(b.notification.severity);
-    if (rankDelta !== 0) return rankDelta;
-    const tsDelta = b.notification.createdAt.getTime() - a.notification.createdAt.getTime();
-    if (tsDelta !== 0) return tsDelta;
-    return b.notification.id.localeCompare(a.notification.id);
-  });
+  return sortForDisplay(rows, facts);
 }
 
-// ---------------------------------------------------------------------------
-// Grouping
-// ---------------------------------------------------------------------------
-
-const GROUP_MIN = 3;
-
-export type Group =
-  | { kind: "single"; row: NotificationRow }
-  | { kind: "group"; leader: NotificationRow; rest: NotificationRow[] };
+export type Group = NotificationGroup<NotificationRow>;
 
 /**
- * Collapse runs of the same (relatedPetId, notificationType) into one group
- * once there are at least GROUP_MIN of them. Adjacency-independent: rows are
- * bucketed by key wherever they appear, so a prior severity sort does not
- * fragment a group — the group leader is simply the first instance in the
- * incoming order (i.e. the highest-priority one after sortNotificationsForDisplay).
+ * Collapse runs of the same (relatedPetId, notificationType) into one group once
+ * there are at least three of them. Adjacency-independent: rows are bucketed by
+ * key wherever they appear, so a prior severity sort does not fragment a group —
+ * the group leader is simply the first instance in the incoming order (i.e. the
+ * highest-priority one after sortNotificationsForDisplay).
  */
 export function groupNotifications(rows: NotificationRow[]): Group[] {
-  const counts = new Map<string, number>();
-  for (const row of rows) {
-    const key = `${row.notification.relatedPetId ?? "_"}|${row.notification.notificationType}`;
-    counts.set(key, (counts.get(key) ?? 0) + 1);
-  }
-
-  const result: Group[] = [];
-  const seenBuckets = new Map<string, NotificationRow[]>();
-  for (const row of rows) {
-    const key = `${row.notification.relatedPetId ?? "_"}|${row.notification.notificationType}`;
-    const total = counts.get(key) ?? 0;
-    if (total < GROUP_MIN) {
-      result.push({ kind: "single", row });
-      continue;
-    }
-    const existing = seenBuckets.get(key);
-    if (existing) {
-      existing.push(row);
-      continue;
-    }
-    const rest: NotificationRow[] = [];
-    seenBuckets.set(key, rest);
-    result.push({ kind: "group", leader: row, rest });
-  }
-  return result;
+  return groupForDisplay(rows, facts);
 }
