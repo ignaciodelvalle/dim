@@ -57,12 +57,15 @@ import {
   type LostCommandAckV1,
   ME_PAYLOAD_VERSION,
   MY_CARETAKER_GRANTS_PAYLOAD_VERSION,
+  MY_NOTIFICATIONS_PAYLOAD_VERSION,
   MY_PETS_PAYLOAD_VERSION,
   MY_TRANSFERS_PAYLOAD_VERSION,
   type MeV1,
   type MyCaretakerGrantsV1,
+  type MyNotificationsV1,
   type MyPetsV1,
   type MyTransfersV1,
+  type NotificationCommandAckV1,
   OWNER_PET_DETAIL_PAYLOAD_VERSION,
   type OwnerPetDetailV1,
   PET_EVENT_DETAIL_PAYLOAD_VERSION,
@@ -82,6 +85,7 @@ import type {
   AmendEventInput,
   CaretakerCommandInput,
   LostCommandInput,
+  NotificationCommandInput,
   RecordEventInput,
   RegisterPetInput,
   ShareCommandInput,
@@ -621,6 +625,66 @@ export function sendCaretakerCommand(
 ): Promise<ApiResult<CaretakerCommandAckV1>> {
   return apiRequest<CaretakerCommandAckV1>(
     { path: "/api/v1/me/caretaker-grants", method: "POST", body: input },
+    session,
+  );
+}
+
+/**
+ * `GET /me/notifications` — the inbox, one page of it plus the tab counts.
+ *
+ * THE THIRD READ ON THIS SURFACE THAT IS NOT ABOUT A PET, and the one where the
+ * reason is plainest: a notification is addressed to a PERSON. Many are about an
+ * animal, several are about an animal the caller no longer holds — that is what
+ * `pet_transfer_accepted` IS — and some are about no animal at all.
+ *
+ * THE ARRAY IS NOT IN DISPLAY ORDER and must not be rendered as it arrives. It
+ * comes back chronological, because that is the order the server's cursor is
+ * derived from; the severity-first order a reader sees is
+ * `@dim/contract/notifications`, the same function the web page calls. See
+ * `notifications-view-model.ts`, which is the only place in this app that sorts.
+ *
+ * `cat` IS THE WEB'S OWN PARAMETER and an unknown value falls back to the whole
+ * inbox rather than erroring — a filter is a view, not an assertion.
+ */
+export function fetchMyNotifications(
+  session: SessionPort,
+  category?: string | null,
+): Promise<ApiResult<MyNotificationsV1>> {
+  const suffix = category ? `?cat=${encodeURIComponent(category)}` : "";
+  return apiRequest<MyNotificationsV1>(
+    {
+      path: `/api/v1/me/notifications${suffix}`,
+      expectedPayloadVersion: MY_NOTIFICATIONS_PAYLOAD_VERSION,
+    },
+    session,
+  );
+}
+
+/**
+ * `POST /me/notifications` — run one of the three inbox commands.
+ *
+ * THE CHEAPEST WRITE ON THIS SURFACE, and the only one that touches no domain
+ * fact at all: `read_at` and `archived_at` on the caller's own rows. Nothing is
+ * appended, nothing is derived from it, and no re-derivation could reconstruct
+ * it — a read receipt is a fact about a person's inbox, not about an animal.
+ *
+ * NO `idempotencyKey` PARAMETER, AND HERE THAT IS A STRONGER PROMISE RATHER THAN
+ * A WEAKER ONE. All three commands are idempotent on the STATE — a row already
+ * read is not read twice — and each says so through `changed`. There is nothing
+ * a key would add, and sending one the server ignores is a client believing it
+ * holds a guarantee nobody made.
+ *
+ * `unreadCount` CAN COME BACK `null` ON A SUCCESS. The badge is re-read after
+ * the write commits, so a pooler that degrades in between leaves the endpoint
+ * holding a write that landed and a count it cannot compute. A caller must read
+ * `null` as "your tap worked, the badge is stale" and NOT retry the command.
+ */
+export function sendNotificationCommand(
+  session: SessionPort,
+  input: NotificationCommandInput,
+): Promise<ApiResult<NotificationCommandAckV1>> {
+  return apiRequest<NotificationCommandAckV1>(
+    { path: "/api/v1/me/notifications", method: "POST", body: input },
     session,
   );
 }

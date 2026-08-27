@@ -142,9 +142,7 @@ function row(overrides: Record<string, unknown> = {}) {
       ...(overrides.notification as object | undefined),
     },
     pet:
-      overrides.pet === undefined
-        ? { publicToken: "DIM-PAMP-0001", name: "Pampa" }
-        : overrides.pet,
+      overrides.pet === undefined ? { publicToken: "DIM-PAMP-0001", name: "Pampa" } : overrides.pet,
   };
 }
 
@@ -186,7 +184,10 @@ beforeEach(() => {
 
 describe("/api/v1/me/notifications — authorization", () => {
   it("refuses a request with no Authorization header at all", async () => {
-    for (const res of [await GET(req({ authorization: null })), await POST(postReq({}, { authorization: null }))]) {
+    for (const res of [
+      await GET(req({ authorization: null })),
+      await POST(postReq({}, { authorization: null })),
+    ]) {
       expect(res.status).toBe(401);
       expect(await res.json()).toEqual({ error: "auth_required" });
       expect(res.headers.get("cache-control")).toBe("no-store");
@@ -307,7 +308,11 @@ describe("GET /api/v1/me/notifications — the projection", () => {
 
   it("keeps an external CTA's label and refuses to route it", async () => {
     control.list = () => ({
-      rows: [row({ notification: { ctaLabel: "Leer la resolución", ctaUrl: "https://boletin.gob.ar/x" } })],
+      rows: [
+        row({
+          notification: { ctaLabel: "Leer la resolución", ctaUrl: "https://boletin.gob.ar/x" },
+        }),
+      ],
       hasMore: false,
     });
     const body = (await (await GET(req())).json()) as MyNotificationsV1;
@@ -392,7 +397,9 @@ describe("GET /api/v1/me/notifications — the projection", () => {
       perdidas: 239,
       perdidasUrgent: 0,
     });
-    const res = await GET(req({ url: "http://localhost:3000/api/v1/me/notifications?cat=custody" }));
+    const res = await GET(
+      req({ url: "http://localhost:3000/api/v1/me/notifications?cat=custody" }),
+    );
     const body = (await res.json()) as MyNotificationsV1;
     expect(body.total).toBe(1);
     expect(body.truncated).toBe(false);
@@ -413,7 +420,9 @@ describe("GET /api/v1/me/notifications — the projection", () => {
       perdidas: 7,
       perdidasUrgent: 0,
     });
-    const res = await GET(req({ url: "http://localhost:3000/api/v1/me/notifications?cat=marciano" }));
+    const res = await GET(
+      req({ url: "http://localhost:3000/api/v1/me/notifications?cat=marciano" }),
+    );
     expect(res.status).toBe(200);
     expect(((await res.json()) as MyNotificationsV1).total).toBe(7);
   });
@@ -549,7 +558,7 @@ describe("/api/v1/me/notifications — rate limiting", () => {
     // byte-identical so the response never says which budget ran out
     // (api-invariants.md §10).
     control.limiterThrows = () => {
-      throw new RateLimitError("over", 60);
+      throw new RateLimitError(new Date("2026-08-26T00:01:00.000Z"), "minute");
     };
     const res = await GET(req());
     expect(res.status).toBe(429);

@@ -119,6 +119,18 @@ export default function MisMascotasScreen() {
           accessibilityHint="Propuestas de transferencia recibidas y enviadas."
           onPress={() => router.push(ROUTES.transferencias)}
         />
+        {/* THE INBOX'S ONLY ENTRY POINT, and it sits here for the transfer hub's
+            reason: most of what it lists is not about the animals above it.
+            NO UNREAD BADGE ON THE LABEL, deliberately and for exactly the reason
+            the button above carries no pending count — reproducing it would mean
+            a second round trip on the app's most-opened screen to decorate a
+            button. The badge earning its cost means it belongs in `MyPetsV1`,
+            not in a call this screen makes on the side. */}
+        <SecondaryButton
+          label="Notificaciones"
+          accessibilityHint="Avisos sobre tus mascotas y tu cuenta."
+          onPress={() => router.push(ROUTES.notificaciones)}
+        />
         <SecondaryButton label="Ajustes" onPress={() => router.push(ROUTES.ajustes)} />
       </View>
     </Screen>

@@ -47,6 +47,20 @@ export const ROUTES = {
    * `https` form differ only in scheme — one less place for the two to drift.
    */
   transferencias: "/transferencias",
+  /**
+   * La bandeja — THE OTHER TOP-LEVEL SCREEN THAT IS NOT ABOUT A PET THIS PERSON
+   * HOLDS, and the one where the reason is plainest: a notification is addressed
+   * to a person, not to an animal. Some rows are about a pet, several are about a
+   * pet whose custody LEFT the reader (that is what `pet_transfer_accepted` is),
+   * and some are about no animal at all.
+   *
+   * The path matches the WEB's for the reason `/transferencias` does, one step
+   * early: nothing links in from outside today — `DEEP_LINK_MAP` has no row for
+   * it, because nothing outside the rendering surface names it — but a push
+   * opening the inbox is exactly what the next work unit is, and two paths that
+   * already agree are one less thing to reconcile when it lands.
+   */
+  notificaciones: "/notificaciones",
 } as const;
 
 /**

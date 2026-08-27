@@ -536,7 +536,13 @@ Indexes: partial index on `(user_id) where read_at IS NULL AND archived_at IS NU
 2. **Server actions** — `createPetAction` and `updatePetAction` insert a `ppp_registration_reminder` when a pet's breed is in the dangerous list.
 3. **Future: scheduled jobs** — `vaccine_due` reminders fire from upcoming `Reminder` rows, generating notifications a few days before the due date.
 
-UI for browsing notifications is built — `/notificaciones` (`app/(app)/notificaciones/page.tsx`) lists the inbox with category grouping, keyset pagination, and a mark-all-read action.
+UI for browsing notifications is built on **both clients**, and they read through one door:
+
+- **Web** — `/notificaciones` (`app/(app)/notificaciones/page.tsx`): the inbox with category tabs, keyset pagination, per-row CTA / "Ver {nombre}" / marcar leída / archivar, a mark-all-read action, and the quick-reply island for the actionable types.
+- **Native** — `/notificaciones` (`apps/mobile/app/notificaciones.tsx`) over `GET|POST /api/v1/me/notifications`. Same actions minus pagination (no cursor on that surface yet — the payload declares `truncated`) and minus quick reply (that is the capture-console surface, not the inbox).
+- **The query is one function** — `listNotificationsForUser` (`src/modules/notifications/application/read/`), called by the page and the route, so "what is in the inbox" (own rows, not archived, minus the two read-time reconciliations, optionally one category) has one definition.
+- **The display order is one function** — `@dim/contract/notifications` (`sortForDisplay` + `groupForDisplay`), called by both clients. `__tests__/notification-ordering-parity.test.ts` runs both projections over the same rows and asserts the orders are identical.
+- **The write is not a spine fact.** `read_at` / `archived_at` are operational state on `notifications`; nothing is appended and nothing derives them. The POST family is `inbox-state` in `lib/infra/api-v1-limits.ts` — its own family, because the authenticated-write ceiling is sized against handing over an animal.
 
 ### `PushSubscription` — Web Push (VAPID) endpoints, migration `0152`
 

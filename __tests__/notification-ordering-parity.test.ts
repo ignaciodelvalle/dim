@@ -99,14 +99,27 @@ function asWireRow(logical: Logical): MyNotificationV1 {
   };
 }
 
+/**
+ * Two animals, INVENTED HERE and deliberately not the demo seed's.
+ *
+ * The first draft used `DIM-PAMP-0001`, the flagship, and
+ * `__tests__/seed-precondition-contract.test.ts` refused it — correctly, and for
+ * a reason worth writing down rather than working around. That fence reads
+ * `from "@/db"` to decide a test touches the database, and this file DOES import
+ * from `@/db`: only types, which erase, but a regex cannot see that and should
+ * not have to. A database-shaped test naming a token only a demo seed writes is
+ * a test that passes on a stale local database and goes red on a fresh CI one,
+ * and being type-only is exactly the kind of exemption that stops being true
+ * later. These tokens are this file's own; nothing seeds them, nothing needs to.
+ */
 const PAMPA = {
   id: "11111111-1111-1111-1111-111111111111",
-  publicToken: "DIM-PAMP-0001",
+  publicToken: "DIM-TEST-0001",
   name: "Pampa",
 };
 const FIRU = {
   id: "22222222-2222-2222-2222-222222222222",
-  publicToken: "DIM-FIRU-0002",
+  publicToken: "DIM-TEST-0002",
   name: "Firu",
 };
 

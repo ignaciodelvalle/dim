@@ -118,6 +118,9 @@ export default function RootLayout() {
         {/* The transfer hub is a SIBLING of the pet list, not a child of a pet:
             half of what it shows is offers from animals somebody else owns. */}
         <Stack.Screen name="transferencias/index" options={{ title: "Transferencias" }} />
+        {/* The inbox, a sibling for the same reason and a stronger one: a
+            notification is addressed to a person, not to an animal. */}
+        <Stack.Screen name="notificaciones" options={{ title: "Notificaciones" }} />
         {/* THE DEEP-LINK DESTINATION. A person can arrive here from a
             notification with no history behind them, so the header says what the
             screen IS rather than naming a step in a flow they did not walk. */}

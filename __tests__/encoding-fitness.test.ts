@@ -142,37 +142,85 @@ function scan(dirs: string[], pattern: RegExp): { offenders: string[]; filesScan
  */
 const MIN_FILES_SCANNED = 1500;
 
+/**
+ * THE CLOCK, AND WHY EVERY CASE IN THIS FILE NOW CARRIES IT.
+ *
+ * Each `it` below performs ONE full recursive walk of the repo, reading every
+ * matching file synchronously. Measured on an idle machine (2026-08-27):
+ * 1.688 ms over CODE_SCAN_DIRS (3.505 files, 26,5 MB) and 1.928 ms over
+ * BYTE_SCAN_DIRS (4.153 files, 33,3 MB) — against vitest's DEFAULT of 5.000 ms.
+ * That is ~38% of the budget spent before any contention exists, in the "unit"
+ * project, which is PARALLEL by design.
+ *
+ * THIS EXACT DEFECT WAS DIAGNOSED AND FIXED ONCE ALREADY, on 2026-08-25
+ * (`4e55e97be`), and the fix landed on ONE of the four cases that need it — the
+ * anti-vacuity block below, which got an explicit 20 s budget and a paragraph
+ * of measurement justifying it. The other three were left on the default and
+ * timed out in the two full-suite runs of WU-Q-1, both times passing in
+ * isolation (14 s for the whole file). That is the same wall-clock signature
+ * the earlier commit documented, on the siblings its remedy did not reach.
+ *
+ * SO THE FIX IS THE SAME ONE, APPLIED TO THE WHOLE SET rather than to one
+ * member of it — which is the failure mode this repo keeps paying for: a remedy
+ * applied to the instance that was in front of somebody instead of to the class.
+ *
+ * NO ASSERTION MOVES. Every case still asserts `toEqual([])` over the same
+ * scan, and the anti-vacuity floor below still tells "clean" apart from
+ * "blind". Only the clock moves, because the clock was measuring the disk.
+ *
+ * NOT THE CORPUS GROWING, and the arithmetic is worth keeping: WU-Q-1 added 8
+ * files to 4.153 — about 4 ms of the 1.900. If any of these ever times out at
+ * 20.000 ms, the walk really is broken and that is worth stopping for.
+ */
+const SCAN_TIMEOUT_MS = 20_000;
+
 describe("encoding fitness", () => {
-  it("no source file contains mojibake or replacement characters", () => {
-    const { offenders } = scan(SCAN_DIRS, MOJIBAKE);
-    expect(offenders, offenders.join("\n")).toEqual([]);
-  });
+  it(
+    "no source file contains mojibake or replacement characters",
+    () => {
+      const { offenders } = scan(SCAN_DIRS, MOJIBAKE);
+      expect(offenders, offenders.join("\n")).toEqual([]);
+    },
+    SCAN_TIMEOUT_MS,
+  );
 
-  it("no code/data file contains a U+00AD soft hyphen", () => {
-    const { offenders } = scan(CODE_SCAN_DIRS, SOFT_HYPHEN);
-    expect(offenders, offenders.join("\n")).toEqual([]);
-  });
+  it(
+    "no code/data file contains a U+00AD soft hyphen",
+    () => {
+      const { offenders } = scan(CODE_SCAN_DIRS, SOFT_HYPHEN);
+      expect(offenders, offenders.join("\n")).toEqual([]);
+    },
+    SCAN_TIMEOUT_MS,
+  );
 
-  it("no code/test file contains a control character (NUL, BACKSPACE, ESC …)", () => {
-    // The NUL case is the expensive one: a single U+0000 makes git treat the
-    // whole file as BINARY, so it loses its inline diff and its line counts.
-    // Two modules shipped that way. TAB/LF/CR are excluded as legitimate text.
-    const { offenders } = scan(BYTE_SCAN_DIRS, CONTROL_CHAR);
-    expect(
-      offenders,
-      `Control characters in source. A NUL (U+0000) also makes git treat the file as binary — no diff, no line counts. Use a JSON tuple or an explicit escape instead of a raw control byte.\n${offenders.join("\n")}`,
-    ).toEqual([]);
-  });
+  it(
+    "no code/test file contains a control character (NUL, BACKSPACE, ESC …)",
+    () => {
+      // The NUL case is the expensive one: a single U+0000 makes git treat the
+      // whole file as BINARY, so it loses its inline diff and its line counts.
+      // Two modules shipped that way. TAB/LF/CR are excluded as legitimate text.
+      const { offenders } = scan(BYTE_SCAN_DIRS, CONTROL_CHAR);
+      expect(
+        offenders,
+        `Control characters in source. A NUL (U+0000) also makes git treat the file as binary — no diff, no line counts. Use a JSON tuple or an explicit escape instead of a raw control byte.\n${offenders.join("\n")}`,
+      ).toEqual([]);
+    },
+    SCAN_TIMEOUT_MS,
+  );
 
-  it("no code/test file starts with a UTF-8 BOM", () => {
-    // Leading BOM only. The CSV exporters PREPEND U+FEFF to their OUTPUT on
-    // purpose (Excel), which is correct and must not fail here.
-    const { offenders } = scan(BYTE_SCAN_DIRS, LEADING_BOM);
-    expect(
-      offenders,
-      `Source files starting with a UTF-8 BOM. Invisible in an editor; enough to break a first-line directive or a naive parser. Re-save as UTF-8 without BOM.\n${offenders.join("\n")}`,
-    ).toEqual([]);
-  });
+  it(
+    "no code/test file starts with a UTF-8 BOM",
+    () => {
+      // Leading BOM only. The CSV exporters PREPEND U+FEFF to their OUTPUT on
+      // purpose (Excel), which is correct and must not fail here.
+      const { offenders } = scan(BYTE_SCAN_DIRS, LEADING_BOM);
+      expect(
+        offenders,
+        `Source files starting with a UTF-8 BOM. Invisible in an editor; enough to break a first-line directive or a naive parser. Re-save as UTF-8 without BOM.\n${offenders.join("\n")}`,
+      ).toEqual([]);
+    },
+    SCAN_TIMEOUT_MS,
+  );
 });
 
 describe("encoding fitness — anti-vacuity", () => {
@@ -199,6 +247,14 @@ describe("encoding fitness — anti-vacuity", () => {
   // normal week of new files cannot approach it (WU-A added 9 files to ~2.200 —
   // about 7 ms of the 1.800). If this ever times out again at 20.000 ms, the
   // walk really is broken and that is worth stopping for.
+  //
+  // WHAT THIS PARAGRAPH GOT WRONG, recorded rather than quietly corrected: it
+  // was written as if this case were the only one that walks the tree. It is
+  // not — the four cases above each walk it once, and they were left on the
+  // default 5.000 ms while this one was given room. All four timed out in
+  // WU-Q-1's full-suite runs. The remedy is now `SCAN_TIMEOUT_MS`, shared by
+  // the whole set; this block keeps its own literal because its budget covers
+  // THREE walks rather than one.
   it("actually opens a corpus, in every scan set it judges", () => {
     for (const [name, dirs] of [
       ["SCAN_DIRS", SCAN_DIRS],
