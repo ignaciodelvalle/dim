@@ -1,5 +1,7 @@
 import { Icon } from "@/components/Icon";
+import { LostFeedItemReport } from "@/components/pet-profile/LostFeedItemReport";
 import { LOST_SCAN_FEED_CAP } from "@/lib/infra/lost-mode";
+import type { ContentReportCategory } from "@dim/contract/events";
 
 // LostScanFeed — unified feed of QR scans and finder messages for an
 // active lost_pet_episode case.
@@ -68,12 +70,34 @@ export type ScanFeedItem =
       photoUrl?: string | null;
     };
 
+/**
+ * Reportar un mensaje — la Server Action ya atada al `publicToken`.
+ *
+ * OPCIONAL a propósito. Este componente lo renderizan superficies que no
+ * siempre tienen a quién atribuirle el reporte; sin la prop, las filas se
+ * dibujan igual y sin control. Un `undefined` acá no es un control roto, es una
+ * superficie que todavía no lo ofrece.
+ */
+export type ReportFeedItemAction = (
+  targetEventId: string,
+  category: ContentReportCategory,
+  reason: string | null,
+) => Promise<{ error: string | null }>;
+
 interface Props {
   items: ScanFeedItem[];
   /** Total scan count for the header strip (since case opened). */
   totalScans: number;
   /** Total sightings count (since case opened). */
   totalSightings: number;
+  /**
+   * Pre-bound "reportar" action; omitted on surfaces that may not offer it.
+   *
+   * The ORG variant of `LostCaseBlock` omits it on purpose — the server refuses
+   * `report_content` on the org path, and a control that answers 403 is a
+   * control that lies.
+   */
+  reportAction?: ReportFeedItemAction;
 }
 
 // Chrome-less by design (QA 2026-08-03 redesign): the caller owns the section
@@ -81,7 +105,7 @@ interface Props {
 // ScanFeedSection) — this component renders only the feed body. The old
 // bordered card + "Actividad" heading stacked a second box and a second
 // title inside the parent section.
-export function LostScanFeed({ items, totalScans, totalSightings }: Props) {
+export function LostScanFeed({ items, totalScans, totalSightings, reportAction }: Props) {
   const possessionCount = items.filter((it) => it.kind === "finder").length;
   return (
     <div>
@@ -115,7 +139,7 @@ export function LostScanFeed({ items, totalScans, totalSightings }: Props) {
           <ul className="divide-y divide-ln-line ">
             {items.map((it) => (
               <li key={`${it.kind}-${it.id}`}>
-                <FeedRow item={it} />
+                <FeedRow item={it} reportAction={reportAction} />
               </li>
             ))}
           </ul>
@@ -137,7 +161,32 @@ const CONDITION_LABELS: Record<string, string> = {
   necesita_vet_urgente: "Necesita veterinario urgente",
 };
 
-function FeedRow({ item }: { item: ScanFeedItem }) {
+/**
+ * El control de reportar, o nada.
+ *
+ * SOLO EN LAS DOS CLASES CON AUTOR. Un `scan` es una máquina leyendo un QR: no
+ * hay autor, no hay texto, no hay nada que alguien pueda haber escrito mal — así
+ * que abajo no se lo llama nunca desde esa rama, y el servidor rechaza igual un
+ * target de escaneo. Sin acción (superficie que no lo ofrece) también es nada.
+ */
+function ReportControl({
+  item,
+  reportAction,
+}: {
+  item: ScanFeedItem;
+  reportAction?: ReportFeedItemAction;
+}) {
+  if (!reportAction) return null;
+  return <LostFeedItemReport targetEventId={item.id} reportAction={reportAction} />;
+}
+
+function FeedRow({
+  item,
+  reportAction,
+}: {
+  item: ScanFeedItem;
+  reportAction?: ReportFeedItemAction;
+}) {
   if (item.kind === "finder") {
     // The handoff crux: a finder physically HAS the pet. Render it as a
     // highlighted, high-contrast row so the owner can contact them immediately.
@@ -201,6 +250,7 @@ function FeedRow({ item }: { item: ScanFeedItem }) {
               />
             </div>
           )}
+          <ReportControl item={item} reportAction={reportAction} />
         </div>
         <p className="shrink-0 text-sm text-ln-mute">{relativeShort(item.at)}</p>
       </div>
@@ -262,12 +312,15 @@ function FeedRow({ item }: { item: ScanFeedItem }) {
               </span>
             </p>
           )}
+          <ReportControl item={item} reportAction={reportAction} />
         </div>
         <p className="shrink-0 text-sm text-ln-mute ">{relativeShort(item.at)}</p>
       </div>
     );
   }
 
+  // Rama `scan`: SIN control de reportar, y esa ausencia es la regla y no un
+  // olvido. Ver el docblock de ReportControl.
   return (
     <div className="flex items-start gap-3 py-2.5">
       <span

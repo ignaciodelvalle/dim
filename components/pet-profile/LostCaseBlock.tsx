@@ -78,7 +78,11 @@ import {
   LostDisclosureCard,
 } from "@/components/pet-profile/LostDisclosureCard";
 import { LostLastSeenCard } from "@/components/pet-profile/LostLastSeenCard";
-import { LostScanFeed, type ScanFeedItem } from "@/components/pet-profile/LostScanFeed";
+import {
+  LostScanFeed,
+  type ReportFeedItemAction,
+  type ScanFeedItem,
+} from "@/components/pet-profile/LostScanFeed";
 import { LostShareCard } from "@/components/pet-profile/LostShareCard";
 import { MarkFoundInlineForm } from "@/components/pet-profile/MarkFoundInlineForm";
 import { SheetTriggerLink } from "@/components/pet-profile/SheetTriggerLink";
@@ -86,6 +90,7 @@ import { LnAlert } from "@/components/ui/Alert";
 import type { LostEpisode } from "@/lib/infra/lost-mode";
 import { credentialQrUrl } from "@/lib/infra/site-url";
 import { formatDateShort, foundParticiple, lostThirdPersonPhrase } from "@/lib/utils/format";
+import { reportLostFeedItemAction } from "@/src/modules/events/actions";
 
 export type LostCaseBlockPet = {
   id: string;
@@ -160,6 +165,14 @@ export function LostCaseBlock({
   }
 
   const toggleAction = setPetDisclosurePrefsAction.bind(null, pet.publicToken);
+  // Bound here and passed ONLY to the holder variant of the feed, never to the
+  // org one. The server refuses `report_content` on the org path (see
+  // `checkCommandGuard`): the hide is pet-global, so an organization holding
+  // custody could otherwise make a finder's "tengo a tu perro" vanish from the
+  // owner's own cockpit. Rendering the control there would be offering a button
+  // that answers 403 — the same thing the disclosure card refuses to do for a
+  // caretaker.
+  const reportAction = reportLostFeedItemAction.bind(null, pet.publicToken);
 
   const prefs: DisclosurePrefs = {
     discloseFirstNameWhenLost: pet.discloseFirstNameWhenLost,
@@ -342,6 +355,7 @@ export function LostCaseBlock({
                   scanCount={scanCount}
                   sightingsCount={sightingsCount}
                   caseHref={caseHref}
+                  reportAction={reportAction}
                 />
               </div>
 
@@ -391,6 +405,8 @@ export function LostCaseBlock({
 
           {/* Avistamientos y escaneos — capability 4, visible to both roles */}
           <div className="border-t border-[var(--color-ln-line-2)] pt-4">
+            {/* NO `reportAction`: the org path may not report. The prop is
+                optional precisely so a surface can decline to offer it. */}
             <ScanFeedSection
               scans={scans}
               scanCount={scanCount}
@@ -415,11 +431,14 @@ function ScanFeedSection({
   scanCount,
   sightingsCount,
   caseHref,
+  reportAction,
 }: {
   scans: ScanFeedItem[];
   scanCount: number;
   sightingsCount: number;
   caseHref: string;
+  /** Omitted by the ORG variant — the org path may not report. */
+  reportAction?: ReportFeedItemAction;
 }) {
   return (
     <section aria-labelledby="lp-feed-h">
@@ -442,7 +461,12 @@ function ScanFeedSection({
           Ver caso →
         </Link>
       </div>
-      <LostScanFeed items={scans} totalScans={scanCount} totalSightings={sightingsCount} />
+      <LostScanFeed
+        items={scans}
+        totalScans={scanCount}
+        totalSightings={sightingsCount}
+        reportAction={reportAction}
+      />
     </section>
   );
 }

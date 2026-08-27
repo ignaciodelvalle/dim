@@ -116,3 +116,90 @@ describe("relativeShort — pure given a fixed now", () => {
     expect(relativeShort(new Date("2026-07-01T12:00:00Z"), NOW)).toBe("hace 3 d.");
   });
 });
+
+// ---------------------------------------------------------------------------
+// Reportar — dónde aparece el control, y dónde deliberadamente no
+// ---------------------------------------------------------------------------
+//
+// La web renderiza el MISMO feed que la app, así que la afordancia que una
+// declaración de clasificación de contenido promete tiene que existir en las
+// dos. Lo que estas pruebas fijan es la regla que decide en qué filas:
+// avistaje y "la tengo" los escribió un desconocido anónimo; un escaneo es una
+// máquina leyendo un QR, sin autor y sin texto.
+
+function renderFeedWithReport(items: ScanFeedItem[]): string {
+  return renderToStaticMarkup(
+    React.createElement(LostScanFeed, {
+      items,
+      totalScans: items.filter((i) => i.kind === "scan").length,
+      totalSightings: items.filter((i) => i.kind !== "scan").length,
+      reportAction: async () => ({ error: null }),
+    }),
+  );
+}
+
+function makeScanItem(): ScanFeedItem {
+  return {
+    kind: "scan",
+    id: "test-scan-id",
+    at: new Date("2026-05-01T09:00:00Z"),
+    count: 1,
+    localityLabel: "Santa Rosa",
+  };
+}
+
+function makeFinderItem(): ScanFeedItem {
+  return {
+    kind: "finder",
+    id: "test-finder-id",
+    at: new Date("2026-05-01T11:00:00Z"),
+    finderName: "Vecina",
+    finderContact: null,
+    petCondition: null,
+    localityLabel: null,
+    message: null,
+    availabilityLabel: null,
+  };
+}
+
+/** Cuántas veces aparece `needle` en `haystack`. */
+function count(haystack: string, needle: string): number {
+  return haystack.split(needle).length - 1;
+}
+
+describe("LostScanFeed — reportar un mensaje", () => {
+  it("ofrece el control en el avistaje y en el 'la tengo', y NUNCA en el escaneo", () => {
+    const html = renderFeedWithReport([makeSightingItem(), makeFinderItem(), makeScanItem()]);
+    // DOS controles sobre TRES filas. Contar y no chequear existencia es toda la
+    // prueba: si el escaneo creciera uno, esto daría 3.
+    expect(count(html, 'aria-label="Reportar este mensaje"')).toBe(2);
+  });
+
+  it("no ofrece ninguno cuando el feed es sólo escaneos", () => {
+    const html = renderFeedWithReport([makeScanItem()]);
+    expect(html).not.toContain("Reportar este mensaje");
+  });
+
+  it("no ofrece ninguno en la variante ORG — el servidor lo rechaza ahí", () => {
+    // `LostCaseBlock` no le pasa `reportAction` a la variante de organización
+    // porque el servidor refuta `report_content` en ese camino: el ocultamiento
+    // es global a la mascota, así que una organización con custodia podría hacer
+    // desaparecer un "tengo a tu perro" del panel del DUEÑO. Un control que
+    // contesta 403 es un control que miente.
+    const html = renderFeed([makeSightingItem(), makeFinderItem()]);
+    expect(html).not.toContain("Reportar este mensaje");
+  });
+
+  it("no ofrece ninguno cuando la superficie no pasa la acción", () => {
+    // La prop es opcional a propósito: sin ella las filas se dibujan igual y sin
+    // control. Un `undefined` no es un control roto, es una superficie que
+    // todavía no lo ofrece.
+    const html = renderFeed([makeSightingItem(), makeFinderItem()]);
+    expect(html).not.toContain("Reportar este mensaje");
+  });
+
+  it("nunca dice 'denunciar' — esa palabra ya es una denuncia por Ley 14.346", () => {
+    const html = renderFeedWithReport([makeSightingItem(), makeFinderItem(), makeScanItem()]);
+    expect(html.toLowerCase()).not.toContain("denunci");
+  });
+});

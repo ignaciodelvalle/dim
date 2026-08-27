@@ -26,6 +26,7 @@ import { uploadAttachmentIfPresent } from "@/lib/infra/uploads";
 import { findDisease } from "@/lib/reference/diseases";
 import { checkboxOn } from "@/lib/ui/form-checkbox";
 import { parseDateInput } from "@/lib/utils/format";
+import type { ContentReportCategory } from "@dim/contract/events";
 import { eq } from "drizzle-orm";
 
 // The org capability vocabulary, for the note gate below (PO decision
@@ -47,6 +48,7 @@ import {
   findBroadcastRecipientUserIds,
   resolveFoundConfirmationRecipient,
 } from "./application/lifecycle/found-notification-audience";
+import { reportLostFeedItem } from "./application/lifecycle/report-lost-feed-item-use-case";
 import { setPetFound } from "./application/lifecycle/set-pet-found-use-case";
 import { setPetLostWriter } from "./application/lifecycle/set-pet-lost-use-case";
 import { updateLostLastSeen } from "./application/lifecycle/update-lost-last-seen-use-case";
@@ -1039,6 +1041,86 @@ export async function setPetFoundAction(
   );
 
   return { error: null, ok: true, redirectTo: `/mis-mascotas/${publicToken}` };
+}
+
+// ---------------------------------------------------------------------------
+// Reportar un mensaje del feed de modo perdida (moderación de contenido)
+// ---------------------------------------------------------------------------
+
+/**
+ * REPORT ONE ITEM OF THE LOST-MODE FEED.
+ *
+ * IT LIVES HERE AND NOT IN `app/actions/lost-mode.ts`, and that distinction is
+ * the codebase's, not mine. That file is a strangler shim under a line budget
+ * and holds only the disclosure preference, which writes COLUMNS on `pets`. The
+ * lost-mode commands that APPEND AN EVENT — mark lost, update the sighting,
+ * mark found — live in this module, build their dependencies with
+ * `new EventsRepository()` and `makeTransaction()`, and this does exactly what
+ * they do a couple of functions above.
+ *
+ * PARITY WITH THE APP, NOT A SECOND POLICY. The native app sends
+ * `report_content` to `POST /api/v1/pets/{token}/lost`; this action calls the
+ * SAME use-case behind the SAME guard. Only the door differs.
+ *
+ * `requirePetAccess`, then ONE NARROWING. Whoever may READ this feed may report
+ * an item on it — including the temporary caretaker, likely the person reading
+ * the abusive message while the titular deals with other things. The ORG PATH
+ * IS REFUSED, mirroring the API's `checkCommandGuard`: the hide is pet-global,
+ * so an organization holding `shelter_custody` could otherwise make a finder's
+ * "tengo a tu perro, llamame" vanish from the OWNER's cockpit. `LostCaseBlock`
+ * withholds the control on its org variant so this refusal is never a button
+ * that answers 403.
+ *
+ * NO STATE GATE. Reporting objects to a sentence; it asks nothing of the
+ * animal's status. Requiring `lost` would mean somebody who already marked
+ * their pet found could no longer take down a message received during the
+ * search.
+ *
+ * RETURNS `EventFormState` RATHER THAN THROWING, like its siblings above, and
+ * for a reason that is not symmetry: in production Next REDACTS the message of
+ * an error crossing a Server Action boundary. A `throw` carrying "ese mensaje ya
+ * no está en la búsqueda" would reach the client as "An error occurred in the
+ * Server Components render" — the one branch a person actually reaches would be
+ * the one branch they cannot read.
+ */
+export async function reportLostFeedItemAction(
+  publicToken: string,
+  targetEventId: string,
+  category: ContentReportCategory,
+  reason: string | null,
+): Promise<EventFormState> {
+  const access = await requirePetAccess(publicToken);
+  if (!access.ok) return { error: access.error };
+  const { user, pet, eventAuthorship } = access;
+
+  const result = await reportLostFeedItem(
+    {
+      petId: pet.id,
+      targetEventId,
+      category,
+      reason,
+      recordedByUserId: user.id,
+      eventAuthorship: eventAuthorship as {
+        authorRole: string;
+        authorOrganizationId: string | null;
+        authorVerified: boolean;
+      },
+    },
+    { repo: new EventsRepository(), transaction: makeTransaction() },
+  );
+
+  // The named row is not a reportable item of THIS pet. A non-existent id, one
+  // belonging to another animal, and a scan all answer identically on purpose:
+  // telling them apart would make this an oracle for which event ids are real.
+  if (result.error === "TARGET_INVALID") {
+    return { error: "Ese mensaje ya no está en la búsqueda. Actualizá la página." };
+  }
+
+  // NO `redirectTo`. The other actions in this family send the caller to the
+  // pet's page because they changed the animal's state; here the person stays
+  // where they are and the row disappears when the page is re-derived. Who
+  // navigates is the client's call, and the list is recomputed on read.
+  return { error: null, ok: true };
 }
 
 // ---------------------------------------------------------------------------
