@@ -9,6 +9,7 @@
 import { and, desc, eq, ilike, inArray, isNull, sql } from "drizzle-orm";
 
 import { attachments, db, petEvents, pets } from "@/db";
+import { notReportedClause } from "@/lib/infra/content-reports";
 
 import type {
   LostListingCursor,
@@ -242,6 +243,16 @@ export async function queryLostListing(
               eq(petEvents.authorRole, "owner"),
               sql`${petEvents.payload}->>'kind' = 'sighting'`,
               sql`(${petEvents.payload}->>'location_description' IS NOT NULL OR ${petEvents.locationLat} IS NOT NULL)`,
+              // BLOQUEANTE, found by a fresh-context review. Without this the
+              // canonical scenario this whole mechanism was written for breaks
+              // in half: an owner who mistyped their HOME ADDRESS into
+              // "actualizar dónde la vieron" takes it down from the credential
+              // and it stays on the public `/perdidas` card — and the two
+              // public surfaces then DISAGREE, because the credential falls
+              // back to the previous update while this one still shows the
+              // reported text. It comes down everywhere at once or it has not
+              // come down.
+              notReportedClause(),
             ),
           )
           .orderBy(desc(petEvents.occurredAt))

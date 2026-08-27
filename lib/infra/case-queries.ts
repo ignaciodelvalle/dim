@@ -8,6 +8,7 @@
 // helpers stay correct — they query the same rows the policies expose.
 
 import { HIDDEN_FROM_SUBJECT_CASE_KINDS } from "@/lib/infra/case-access";
+import { notReportedClause } from "@/lib/infra/content-reports";
 import { jurisdictionPairClause } from "@/lib/metrics/scope";
 import { type KeysetCursor, decodeCursor, keysetWhere } from "@/lib/utils/keyset-pagination";
 import {
@@ -340,7 +341,20 @@ export async function getCaseDetailByPublicCode(publicCode: string): Promise<Cas
         authorRole: petEvents.authorRole,
       })
       .from(petEvents)
-      .where(eq(petEvents.caseId, row.c.id))
+      .where(
+        and(
+          eq(petEvents.caseId, row.c.id),
+          // BLOQUEANTE, found by a fresh-context review: `lost_pet_episode` is
+          // in `PUBLIC_ANONYMOUS_KINDS`, so this timeline is readable by ANYBODY
+          // holding the CAS code — and CAS codes get handed around while
+          // publicising a search. Sightings are case-scoped, so a stranger's
+          // abusive message was leaving the owner's feed and both overlays and
+          // staying here, verbatim, on an anonymous URL. Applied for every
+          // reader including gob/admin: an authority audits the SPINE, which
+          // still holds the row, not a public case page.
+          notReportedClause(),
+        ),
+      )
       .orderBy(desc(petEvents.occurredAt))
       // Cap newest 200; merged timeline sorted desc after join. PERF-5 will
       // add cursor-based pagination for deep case histories.

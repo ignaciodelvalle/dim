@@ -43,6 +43,7 @@ import { type NextRequest, NextResponse } from "next/server";
 import { db, ownerships, petEvents, pets, profiles } from "@/db";
 import type { EventType } from "@/db/schema";
 import { overlayAmendments } from "@/lib/infra/amendment";
+import { notReportedClause } from "@/lib/infra/content-reports";
 import {
   LIBRETA_GROUPS,
   LIBRETA_GROUP_LABELS,
@@ -184,6 +185,9 @@ export async function GET(
       and(
         eq(petEvents.petId, petRow.id),
         or(libretaSanitariaClause(), eq(petEvents.eventType, "event_amended")),
+        // `note_added` is a libreta type, so a reported lost-feed message would
+        // otherwise be exported into the owner's own downloadable record.
+        notReportedClause(),
       ),
     )
     .orderBy(desc(petEvents.occurredAt));

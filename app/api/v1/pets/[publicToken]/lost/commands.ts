@@ -1,4 +1,4 @@
-// The five lost-mode commands, behind `POST /api/v1/pets/{publicToken}/lost`.
+// The six lost-mode commands, behind `POST /api/v1/pets/{publicToken}/lost`.
 //
 // Split out of `route.ts` for the reason the events endpoint split its own
 // writers: that file's subject is "is this request well formed", and this one's
@@ -7,7 +7,7 @@
 //
 // WHO MAY RUN EACH ONE — VERIFIED AGAINST THE WEB, AND NOT UNIFORM
 // ---------------------------------------------------------------------------
-// FOUR OF THE FIVE are guarded on the web by `requirePetAccess(publicToken)`,
+// FOUR OF THE SIX are guarded on the web by `requirePetAccess(publicToken)`,
 // cited at the guard call rather than at the function that contains it:
 //
 //   marcar perdida        `setPetLostAction`            actions.ts:851
@@ -42,23 +42,36 @@
 //   · `reactivate_search` — `reactivateLostSearchAction` guards with
 //     `requirePetAccess` AND THEN throws on `accessPath !== "owner"`
 //     (app/actions/reactivate-lost-search.ts:17). The ORG path is refused, alone
-//     on this surface. Mirrored exactly; an endpoint that "tidied" the five into
-//     one rule would hand an org member a reactivation the web denies them.
+//     on this surface. Mirrored exactly; an endpoint that "tidied" the commands
+//     into one rule would hand an org member a reactivation the web denies them.
+//
+// THE SIXTH, `report_content`, HAS NO WEB COUNTERPART AT ALL and therefore no
+// guard to mirror — so it takes the one the four above share, unchanged. Whoever
+// may READ this feed may report an item on it. Its own docblock below says why
+// that is the right shape rather than a shortcut, and why the word in every
+// string a person reads is "reportar" and never "denunciar".
 //
 // IDEMPOTENCY, AND WHY THE HEADER IS NOT UNIFORM EITHER
 // ---------------------------------------------------------------------------
-// ONE of the five APPENDS: `report_last_seen` writes a `note_added` onto the
-// append-only spine, and `updateLostLastSeen` takes a `clientIdempotencyKey` and
-// routes through `insertEventIdempotent`. That one REQUIRES an `Idempotency-Key`
-// and honours it, and now REPORTS the replay as well.
+// TWO of the six APPEND and only ONE of the two needs a header, which is the
+// proof that the split is the STATE and not the append.
 //
-// The other four are STATE commands, idempotent on the state itself:
+// `report_last_seen` writes a `note_added` onto the append-only spine, and
+// `updateLostLastSeen` takes a `clientIdempotencyKey` and routes through
+// `insertEventIdempotent`. Two sightings minutes apart are two facts, so it
+// REQUIRES an `Idempotency-Key`, honours it, and reports the replay.
+//
+// The other five are idempotent on the state itself:
 //   · `mark_lost` refuses an animal already lost.
 //   · `mark_found` writes NOTHING for an animal that is not lost.
 //   · `reactivate_search` returns the OPEN episode when one exists rather than
 //     forking the search into two untracked cases.
 //   · `set_disclosure` is a no-op when the value already matches.
-// Demanding a header those four cannot honour is exactly the false promise the
+//   · `report_content` appends `content_reported` — an append — but an item
+//     already reported is not reported twice: the writer probes and answers
+//     `alreadyReported`, and the item is hidden either way, because the feed's
+//     exclusion is a set membership and not a count.
+// Demanding a header those five cannot honour is exactly the false promise the
 // events endpoint refuses to make for atestación PPP and embarazo, and the read
 // payload's capability flags are how a client knows which command it is sending.
 //
@@ -93,6 +106,7 @@ import {
   findBroadcastRecipientUserIds,
   resolveFoundConfirmationRecipient,
 } from "@/src/modules/events/application/lifecycle/found-notification-audience";
+import { reportLostFeedItem } from "@/src/modules/events/application/lifecycle/report-lost-feed-item-use-case";
 import { setPetFound } from "@/src/modules/events/application/lifecycle/set-pet-found-use-case";
 import { setPetLostWriter } from "@/src/modules/events/application/lifecycle/set-pet-lost-use-case";
 import { updateLostLastSeen } from "@/src/modules/events/application/lifecycle/update-lost-last-seen-use-case";
@@ -195,10 +209,33 @@ function checkCommandGuard(
     return apiV1Error("lost_forbidden", 403);
   }
 
-  // The org path is refused for this one command alone on the whole lost-mode
-  // surface: a shelter holding custody may mark an animal lost and found, and
-  // may not reopen a search the stale-case cron closed.
-  if (input.command === "reactivate_search" && access.kind === "org") {
+  // The org path is refused for TWO commands on this surface, and the second
+  // one is `report_content` — added after a fresh-context review named the
+  // attack out loud.
+  //
+  // THE HIDE IS PET-GLOBAL. `notReportedClause` subtracts a reported item for
+  // EVERY reader of that animal's record, not just for whoever reported it —
+  // that is deliberate (a per-viewer feed would be a second truth about one
+  // spine, and an abusive message is no less abusive to the next person). But
+  // combined with an org-path reporter it becomes something nobody designed:
+  // an organization holding `shelter_custody` could make a finder's "tengo a tu
+  // perro, llamame" disappear from the OWNER's feed, counter and public
+  // credential — silently, with no notice and no un-report. In a product that
+  // has custody disputes as a first-class concept, that is a lever pointed at
+  // the exact moment a search is about to end.
+  //
+  // A caretaker keeps the affordance: they are a person the TITULAR invited,
+  // through a two-key model, and they are often the one actually reading the
+  // feed. An organization is not that.
+  //
+  // Mirrored from `reactivate_search` rather than invented: that command is
+  // refused on the org path alone for the same shape of reason — a shelter
+  // holding custody may mark an animal lost and found, and may not reopen a
+  // search the stale-case cron closed.
+  if (
+    (input.command === "reactivate_search" || input.command === "report_content") &&
+    access.kind === "org"
+  ) {
     return apiV1Error("lost_forbidden", 403);
   }
 
@@ -248,6 +285,18 @@ function checkSituation(status: string, input: LostCommandInput) {
       // publish about them.
       return null;
 
+    case "report_content":
+      // NO situation gate either, and for a sharper reason than the preference
+      // above. Every other command here asks something OF the animal's state;
+      // this one objects to a sentence a stranger wrote. Gating it on `lost`
+      // would mean an owner who marked their animal found can no longer take
+      // down a message they received during the search — and the message would
+      // still be in the spine, and its address would still be overlaid onto the
+      // public credential the next time the animal went missing. The guard that
+      // matters is the TARGET's, and it lives in the writer: the row must belong
+      // to this animal and be one of the two authored kinds.
+      return null;
+
     default: {
       const unhandled: never = input;
       throw new Error(`Unhandled lost command: ${JSON.stringify(unhandled)}`);
@@ -273,6 +322,8 @@ async function dispatch(ctx: CommandContext, access: Exclude<PetHolderAccess, { 
       return setDisclosure(pet, input);
     case "reactivate_search":
       return reactivate(ctx, pet);
+    case "report_content":
+      return reportContent(ctx, pet, authorship, input);
   }
 }
 
@@ -508,6 +559,65 @@ async function setDisclosure(
 ) {
   const changed = await setPetDisclosurePrefs(pet.id, pet.publicToken, input.key, input.value);
   return ack("set_disclosure", pet.status as LostPetStatus, changed);
+}
+
+/**
+ * REPORTAR UN MENSAJE DEL FEED — the command with no web action behind it.
+ *
+ * THE GUARD IS THE HOLDER GUARD, NARROWED ONCE. `resolvePetHolderAccess` ran at
+ * the top of `runLostCommand` and admits exactly the callers the web's
+ * `requirePetAccess` admits; `checkCommandGuard` then refuses the ORG PATH for
+ * this command, and its comment carries the reasoning at length. The short
+ * version: the hide is pet-global by design, so an org holding
+ * `shelter_custody` could have made a finder's "tengo a tu perro" vanish from
+ * the owner's own cockpit. A caretaker keeps it — the titular invited them.
+ *
+ * THE HIDE IS PET-GLOBAL, IRREVERSIBLE AND HAS NO "HIDDEN ITEMS" VIEW, and that
+ * is stated here rather than discovered later. Reporting is not a per-viewer
+ * mute: the item leaves the record for everyone who reads it. There is no
+ * un-report — the correction path is a future read rule, because the spine
+ * cannot be edited. A titular and their caretaker can each hide from the other,
+ * and neither is told. That is an accepted cost of the item-level model, not an
+ * oversight, and it is why the ORG path — the one actor with a custody motive —
+ * is the one refused.
+ *
+ * "REPORTAR" AND NEVER "DENUNCIAR", in every string a person reads. In this
+ * product `denuncia` already names a Ley 14.346 animal-cruelty complaint — nine
+ * kinds, four severities, routed to a real authority, `src/modules/welfare/**`.
+ * Borrowing the word for content moderation would promise a legal proceeding
+ * where there is a hidden message.
+ *
+ * NO `Idempotency-Key`. The writer is idempotent on the state — an item already
+ * reported is not reported twice — so this answers `changed: false` rather than
+ * appending a second identical objection. See the endpoint header's taxonomy:
+ * the split is the state, not the append.
+ */
+async function reportContent(
+  ctx: CommandContext,
+  pet: PetRow,
+  eventAuthorship: Authorship,
+  input: Extract<LostCommandInput, { command: "report_content" }>,
+) {
+  const result = await reportLostFeedItem(
+    {
+      petId: pet.id,
+      targetEventId: input.targetEventId,
+      category: input.category,
+      reason: input.reason,
+      recordedByUserId: ctx.userId,
+      eventAuthorship,
+    },
+    { repo: new EventsRepository(), transaction: makeTransaction() },
+  );
+
+  // ONE refusal arm, and it is a 400 with its own code rather than a 404: on
+  // this surface 404 means "this animal is not yours", and a client that got one
+  // here would navigate somebody away from a search that is running fine. The
+  // contract's `lost_report_target_invalid` docblock carries the rest, including
+  // why the three ways to be invalid answer identically.
+  if (result.error === "TARGET_INVALID") return apiV1Error("lost_report_target_invalid", 400);
+
+  return ack("report_content", pet.status as LostPetStatus, !result.alreadyReported);
 }
 
 /**

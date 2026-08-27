@@ -26,7 +26,11 @@
 import { z } from "zod";
 
 import { findDisease } from "@/lib/reference/diseases";
-import type { EventType } from "@dim/contract/events";
+import {
+  CONTENT_REPORT_CATEGORIES,
+  CONTENT_REPORT_TARGET_KINDS,
+  type EventType,
+} from "@dim/contract/events";
 
 import { caretakerDesignated, caretakerEnded } from "./caretaker-event-schemas";
 import { withVersion } from "./payload-version";
@@ -1108,6 +1112,50 @@ const eventAmended = z
   )
   .strict();
 
+// ---------------------------------------------------------------------------
+// Content moderation — written by reportLostFeedItem
+// ---------------------------------------------------------------------------
+
+/**
+ * `content_reported` — a holder objected to something a stranger wrote about
+ * their animal.
+ *
+ * `target_event_id` IS THE WHOLE MECHANISM. The reported row is never touched
+ * (invariant #2), so the hide is derived on read: `fetchLostScanEvents` and
+ * `fetchLostEpisodeForPet` exclude any `note_added` whose id appears as a
+ * `target_event_id` here. That makes the payload key load-bearing rather than
+ * descriptive — a report written without it hides nothing at all, which is why
+ * it is required and why the schema is `.strict()`.
+ *
+ * THE FREE TEXT IS UNDER THE KEY `reason`, AND THAT IS A DELIBERATE CHOICE
+ * ABOUT ERASURE. `erase_subject_data` (0159→0166, consolidated in 0170)
+ * sentinel-redacts the key `reason` across ALL event types. The reporter here is
+ * the animal's own holder — the data subject — so storing their words under any
+ * other key would put un-erasable free text into the spine. The mirror-image
+ * rule is `rehome_sponsorship_ended`, whose terminal discriminator had to be
+ * named `outcome` and NOT `reason` for exactly the same behaviour, because that
+ * value is an enum the redaction would have destroyed. (`tag_revoked` makes the
+ * same call with `revoke_reason`.) Ours is prose, so redaction is the correct
+ * outcome; `category` is the enum and it is a separate key.
+ * Ours is prose, so redaction is the correct outcome; `category` is the enum and
+ * it is a separate key, untouched by the sweep.
+ */
+const contentReported = z
+  .object(
+    withVersion({
+      // The surface the reported item lives on. ONE value today; it exists so a
+      // second reportable surface is a value here and not a second event type.
+      surface: z.literal("lost_feed"),
+      /** The `pet_events.id` being reported. See the docblock — load-bearing. */
+      target_event_id: z.string().uuid(),
+      target_kind: z.enum(CONTENT_REPORT_TARGET_KINDS),
+      category: z.enum(CONTENT_REPORT_CATEGORIES),
+      /** The reporter's own words. Erasable — see the docblock. */
+      reason: z.string().max(500).nullable().optional(),
+    }),
+  )
+  .strict();
+
 // Tag (0169), caretaker (0189) and rehome payloads live in siblings (size ratchet).
 
 // ---------------------------------------------------------------------------
@@ -1172,6 +1220,7 @@ export const PayloadSchemas: Partial<Record<EventType, z.ZodTypeAny>> = {
   caretaker_ended: caretakerEnded,
   rehome_sponsorship_started: rehomeSponsorshipStarted,
   rehome_sponsorship_ended: rehomeSponsorshipEnded,
+  content_reported: contentReported,
 };
 
 /**

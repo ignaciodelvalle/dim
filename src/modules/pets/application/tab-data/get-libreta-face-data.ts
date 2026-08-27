@@ -46,6 +46,7 @@ import { excludeAuthorityOnlyClause, excludeSelfScansClause } from "@/lib/events
 import { overlayAmendments } from "@/lib/infra/amendment";
 import { resolveBusinessRule } from "@/lib/infra/business-rules-resolver";
 import { HIDDEN_FROM_SUBJECT_CASE_KINDS } from "@/lib/infra/case-access";
+import { notReportedClause } from "@/lib/infra/content-reports";
 import { fetchActiveIdentifications } from "@/lib/infra/pet-identifiers";
 import { eventAttachmentSignedUrl } from "@/lib/infra/storage";
 import type { HistorialEventRow, LibretaFaceData } from "./types";
@@ -161,6 +162,12 @@ export async function getLibretaFaceData(
           // Owner-path only — org/vet viewers are never the investigation
           // subject, so the hidden-case filter doesn't apply to them.
           accessPath === "owner" ? notHiddenCaseClause() : undefined,
+          // A lost-feed message the holder reported. `note_added` IS a libreta
+          // type, so an abusive sighting was rendering here as
+          // "Avistaje · {finderName}" with its full text — in the record a vet
+          // reads. Unlike the hidden-case clause above this applies on EVERY
+          // access path: the message is no less abusive to an org viewer.
+          notReportedClause(),
         ),
       )
       .orderBy(desc(petEvents.occurredAt))

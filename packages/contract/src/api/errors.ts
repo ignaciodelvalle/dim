@@ -273,8 +273,9 @@
  *
  * THE LOST-MODE CODES (WU-M). `POST /api/v1/pets/{token}/lost` runs the five
  * owner commands of the search: marcar perdida, actualizar el avistaje, marcar
- * encontrada, cambiar una preferencia de divulgación, reactivar la búsqueda.
- * FOUR of these five refusals are about the ANIMAL'S SITUATION rather than about
+ * encontrada, cambiar una preferencia de divulgación, reactivar la búsqueda,
+ * reportar un mensaje del feed.
+ * THREE of these refusals are about the ANIMAL'S SITUATION rather than about
  * the caller or the request — a distinction worth its own codes, because each one
  * names a DIFFERENT next move and a client that collapsed them into
  * `invalid_request` would send somebody to re-read a body that was fine.
@@ -317,6 +318,25 @@
  *                         a wire schema cannot express it and a client told
  *                         "your body did not parse" would go looking at the
  *                         wrong field.
+ * - `lost_report_target_invalid`
+ *                       — `report_content` names a `targetEventId` that is not a
+ *                         reportable item of THIS animal's feed. 400.
+ *                         ONE CODE FOR THREE SITUATIONS, and that is the point:
+ *                         no such event, an event belonging to a DIFFERENT
+ *                         animal, and an event that exists here but is not
+ *                         reportable (a `credential_scanned` — a QR read has no
+ *                         author and nothing anybody could have written wrongly)
+ *                         all answer identically. Telling the three apart would
+ *                         turn this command into an oracle for which event ids
+ *                         are real, which is the same refusal `not_found`
+ *                         already makes for tokens one URL up.
+ *                         NOT 404, deliberately: on this surface 404 means "this
+ *                         animal is not yours or does not exist", and a client
+ *                         that received it here would navigate a person away
+ *                         from a search that is running perfectly well.
+ *                         NOT `invalid_request` either — the body parsed, the
+ *                         uuid is well formed, and a client told otherwise would
+ *                         go looking at the wrong field.
  * - `lost_failed`       — the command itself failed. Same contract as
  *                         `event_failed`, minus the retry advice for the four
  *                         commands that carry no `Idempotency-Key`: those are
@@ -550,6 +570,7 @@ export const API_V1_ERROR_CODES = [
   "lost_episode_closed",
   "lost_forbidden",
   "lost_microchip_invalid",
+  "lost_report_target_invalid",
   "lost_failed",
   "share_forbidden",
   "share_limit_reached",

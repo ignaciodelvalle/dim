@@ -103,6 +103,21 @@ export type LostEpisodeV1 = {
  * finder is a person saying they HAVE it — the one that ends the search, and the
  * reason the web sorts it to the top rather than letting it scroll away under
  * nine scans.
+ *
+ * TWO OF THE THREE HAVE AN AUTHOR AND THE THIRD DOES NOT, which is what decides
+ * where a "Reportar" affordance may appear. A `sighting` and a `finder` are
+ * WRITTEN BY AN ANONYMOUS MEMBER OF THE PUBLIC — somebody who scanned a QR in
+ * the street and typed into a form — and carry no user id, because there is no
+ * account behind them. That is exactly why `report_content` reports an ITEM and
+ * why there is no "block this person": there is nobody to block. A `scan` is a
+ * machine reading a code; it has no text and nobody wrote it, so a client must
+ * not offer to report one and the server refuses if it tries.
+ *
+ * A REPORTED ITEM IS SIMPLY ABSENT FROM THIS LIST. Nothing here says "hidden"
+ * and nothing carries a moderation state, because the row is not modified — a
+ * `content_reported` event names it and every read subtracts the named ids. A
+ * client therefore has nothing to render for it and nothing to reconcile: the
+ * item was there, the person reported it, the next read does not contain it.
  */
 export type LostFeedItemV1 =
   | {

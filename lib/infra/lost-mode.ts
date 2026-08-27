@@ -5,6 +5,7 @@
 
 import type { ScanFeedItem } from "@/components/pet-profile/LostScanFeed";
 import { cases, db, petEvents } from "@/db";
+import { notReportedClause } from "@/lib/infra/content-reports";
 import { and, count, desc, eq, gte, sql } from "drizzle-orm";
 
 // ---------------------------------------------------------------------------
@@ -181,6 +182,9 @@ export async function fetchLostEpisodeForPet(petId: string): Promise<LostEpisode
         eq(petEvents.authorRole, "owner"),
         sql`${petEvents.payload}->>'kind' = 'sighting'`,
         sql`(${petEvents.payload}->>'location_description' IS NOT NULL OR ${petEvents.locationLat} IS NOT NULL)`,
+        // A reported update is not the headline either — including one the
+        // OWNER wrote and then took down. See notReportedClause.
+        notReportedClause(),
       ),
     )
     .orderBy(desc(petEvents.occurredAt))
@@ -222,6 +226,9 @@ export async function fetchLostEpisodeForPet(petId: string): Promise<LostEpisode
         eq(petEvents.caseId, caseRow.id),
         gte(petEvents.occurredAt, openedAt),
         sql`${petEvents.payload}->>'kind' = 'sighting'`,
+        // A reported sighting is not shown, so it is not counted either. See
+        // notReportedClause.
+        notReportedClause(),
       ),
     );
 
@@ -357,6 +364,9 @@ export async function fetchLostScanEvents(
         // prior lost episode (lost→found→lost scenario).
         caseId ? eq(petEvents.caseId, caseId) : undefined,
         sql`${petEvents.payload}->>'kind' IN ('sighting', 'finder_in_possession')`,
+        // Items the holder reported. Excluded HERE and not after the fetch so
+        // the cap below is spent on rows somebody will actually see.
+        notReportedClause(),
       ),
     )
     .orderBy(desc(petEvents.occurredAt))

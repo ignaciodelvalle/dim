@@ -2,14 +2,15 @@
 // `POST /api/v1/pets/{publicToken}/lost`.
 //
 // NOT ASIENTOS, AND THAT IS WHY THEY ARE NOT ON THE EVENTS ENDPOINT. Every kind
-// behind `POST .../events` appends one row and answers with its id. These five
-// are FEATURE COMMANDS: they move `pets.status`, open and close a case, publish
-// or unpublish an owner's own contact details, and fan an alert out to the
-// organizations in a jurisdiction. `writers.ts` says so in its exclusion list,
-// and this file is the other half of that sentence.
+// behind `POST .../events` appends one row and answers with its id. These are
+// FEATURE COMMANDS: they move `pets.status`, open and close a case, publish
+// or unpublish an owner's own contact details, fan an alert out to the
+// organizations in a jurisdiction, and take a stranger's message off the
+// owner's own feed. `writers.ts` says so in its exclusion list, and this file is
+// the other half of that sentence.
 //
-// ONE ENDPOINT, FIVE COMMANDS, for the same reason the events endpoint has one
-// URL and eleven kinds: five sibling URLs would be five copies of one bearer
+// ONE ENDPOINT, SIX COMMANDS, for the same reason the events endpoint has one
+// URL and eleven kinds: six sibling URLs would be six copies of one bearer
 // check, one limiter pair and one access guard, kept in agreement by hand.
 //
 // THE REFERENCE POINT is the web's own actions, field for field:
@@ -21,17 +22,24 @@
 // Every name below is the name that action reads out of its `FormData`, and
 // every limit below is that action's limit.
 //
-// IDEMPOTENCY IS NOT UNIFORM ACROSS THE FIVE, and the endpoint does not pretend
-// otherwise. Exactly one of them APPENDS — `report_last_seen` writes a
-// `note_added` onto an append-only spine — and its use-case takes a
-// `clientIdempotencyKey` and routes through `insertEventIdempotent`. That one
-// requires an `Idempotency-Key` header and honours it. The other four are STATE
-// commands whose writers are idempotent on the state itself: marking lost an
-// animal already lost is refused, marking found one already active writes
-// nothing, reactivating with an open episode returns that episode, and setting a
-// preference to the value it already holds is a no-op. Demanding a header those
-// four could not honour is the false promise `writers.ts` refuses to make for
-// atestación PPP and embarazo.
+// FIVE OF THE SIX, THAT IS. `report_content` has no web counterpart to mirror:
+// it is new on this surface, it exists because a Google Play content-rating
+// declaration says this app has it, and its own docblock below carries the
+// reasoning the other five take from the action they copy.
+//
+// IDEMPOTENCY IS NOT UNIFORM, and the endpoint does not pretend otherwise. The
+// split is "is this writer idempotent on the STATE" and NOT "does it append" —
+// two of the six append and only one of the two needs a header.
+//   · `report_last_seen` writes a `note_added` onto an append-only spine and its
+//     use-case takes a `clientIdempotencyKey`; two sightings minutes apart are
+//     two facts, so it requires an `Idempotency-Key` header and honours it.
+//   · The other five are idempotent on the state itself: marking lost an animal
+//     already lost is refused, marking found one already active writes nothing,
+//     reactivating with an open episode returns that episode, setting a
+//     preference to the value it already holds is a no-op, and reporting an item
+//     already reported appends nothing because it is not a second fact.
+// Demanding a header those five could not honour is the false promise
+// `writers.ts` refuses to make for atestación PPP and embarazo.
 //
 // WHAT IS NOT HERE, AND WHY:
 //   · `publicToken` — a PATH segment. A body naming it too would be a second
@@ -47,6 +55,8 @@
 //     owner's.
 
 import { z } from "zod";
+
+import { CONTENT_REPORT_CATEGORIES } from "../events/event-types.ts";
 
 /**
  * The five disclosure toggles `setPetLostWriter` snapshots when an episode
@@ -108,6 +118,9 @@ export const LOST_COMMAND_INPUT_CODES = [
   "COORDS_INVALID",
   "COORDS_OUT_OF_RANGE",
   "COORDS_INCOMPLETE",
+  "REPORT_TARGET_REQUIRED",
+  "REPORT_CATEGORY_INVALID",
+  "REPORT_REASON_TOO_LONG",
 ] as const;
 export type LostCommandInputCode = (typeof LOST_COMMAND_INPUT_CODES)[number];
 
@@ -230,12 +243,74 @@ const setDisclosure = z.object({
 
 const reactivateSearch = z.object({ command: z.literal("reactivate_search") });
 
+/**
+ * REPORTAR UN MENSAJE DEL FEED — the sixth command, and the only one with no
+ * counterpart on the web's own actions.
+ *
+ * WHY IT EXISTS. Google Play's IARC questionnaire declares this app as one where
+ * users interact and CONTENT CAN BE REPORTED. A declaration describes the app as
+ * published, so the affordance ships or the declaration is false.
+ *
+ * WHY "REPORT" AND NOT "BLOCK". Two of the three feed kinds are written by
+ * ANONYMOUS members of the public — somebody who scanned a QR in the street and
+ * typed into a form. There is no account behind them, so "block this user" has no
+ * subject to name. The only honest analogue would be a valve that stops the pet
+ * accepting reports at all, and a valve is a defence nobody uses when they need
+ * it most: an owner searching for their animal will not close the channel the
+ * message that finds it might arrive through. Reporting ONE item and having it
+ * disappear is the protection that gets used.
+ *
+ * WHAT IT DOES TO THE SPINE: NOTHING TO THE REPORTED ROW. The command appends a
+ * `content_reported` event naming the target; every read of the feed subtracts
+ * the named ids. The message and the objection to it are both facts and both
+ * survive — see `lib/infra/lost-mode.ts::notReportedClause`.
+ *
+ * NO `Idempotency-Key`, AND THAT IS THE STATE RULE AND NOT AN EXEMPTION FOR AN
+ * APPEND. This file's header splits the commands by whether their writer is
+ * idempotent on the STATE; `report_last_seen` needs a key because two sightings
+ * minutes apart are two facts. Reporting the same item twice is not two facts,
+ * so the writer probes for an existing report on the same target and appends
+ * nothing — answering `changed: false`, exactly like `set_disclosure` set to the
+ * value it already holds. The taxonomy is "idempotent on the state or not",
+ * never "appends or not".
+ *
+ * A `scan` CANNOT BE REPORTED and the contract says so by construction: the
+ * target must resolve, server-side, to a `note_added` of one of the two authored
+ * kinds. A QR read has no author and no text — there is nothing to have written
+ * wrongly.
+ */
+const reportContent = z.object({
+  command: z.literal("report_content"),
+  /**
+   * The feed item's `id` — which is a `pet_events.id`, the same value
+   * `LostFeedItemV1` carries. A client never constructs one; it echoes the id of
+   * the row the person tapped.
+   */
+  targetEventId: z.uuid({ error: "REPORT_TARGET_REQUIRED" }),
+  category: z.enum(CONTENT_REPORT_CATEGORIES, { error: "REPORT_CATEGORY_INVALID" }),
+  /**
+   * The reporter's own words, optional.
+   *
+   * 500 is the STORED limit — `content_reported`'s payload schema refuses more —
+   * restated here so a person is told before they send rather than after. It is
+   * the only field on this command where the two schemas could drift, so the
+   * number appears twice with this sentence attached to both.
+   */
+  reason: z
+    .string()
+    .trim()
+    .max(500, { error: "REPORT_REASON_TOO_LONG" })
+    .nullish()
+    .transform((v) => (v ? v : null)),
+});
+
 export const lostCommandInputSchema = z.discriminatedUnion("command", [
   markLost,
   reportLastSeen,
   markFound,
   setDisclosure,
   reactivateSearch,
+  reportContent,
 ]);
 
 export type LostCommandInput = z.infer<typeof lostCommandInputSchema>;

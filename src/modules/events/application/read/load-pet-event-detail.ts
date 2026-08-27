@@ -38,6 +38,7 @@ import { attachments, db, organizations, petEvents } from "@/db";
 import type { EventType } from "@/db/schema";
 import { upcastPayload } from "@/lib/events/event-upcasters";
 import { type ChangeEntry, applyAmendments } from "@/lib/infra/amendment";
+import { notReportedClause } from "@/lib/infra/content-reports";
 
 // ---------------------------------------------------------------------------
 // Output
@@ -119,7 +120,11 @@ export async function readEventRow(petId: string, eventId: string): Promise<Even
       locationLng: petEvents.locationLng,
     })
     .from(petEvents)
-    .where(and(eq(petEvents.id, eventId), eq(petEvents.petId, petId)))
+    // Reached BY ID, which is why it needs the clause at all: a row subtracted
+    // from every listing is still addressable by URL without it. A reported
+    // item answers "not found" here, which is the same answer the listings give
+    // by omission.
+    .where(and(eq(petEvents.id, eventId), eq(petEvents.petId, petId), notReportedClause()))
     .limit(1);
   return rows[0] ?? null;
 }

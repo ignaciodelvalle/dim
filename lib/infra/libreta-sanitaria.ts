@@ -118,6 +118,11 @@ export const NON_LIBRETA_EVENT_TYPES = [
   // medical from an arrangement between a family and a shelter.
   "rehome_sponsorship_started",
   "rehome_sponsorship_ended",
+  // Content moderation — a holder objecting to a stranger's message about their
+  // animal. A vet or an inspector reading the libreta learns nothing medical
+  // from it, and the libreta is the one surface where an unrelated entry costs
+  // real credibility: it is read as a health record.
+  "content_reported",
 ] as const satisfies readonly EventType[];
 
 const LIBRETA_SET: ReadonlySet<string> = new Set(LIBRETA_SANITARIA_EVENT_TYPES);

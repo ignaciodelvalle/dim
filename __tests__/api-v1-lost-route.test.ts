@@ -42,6 +42,10 @@ const control = vi.hoisted(() => ({
   foundResult: { ok: true, alreadyActive: false } as { ok: true; alreadyActive: boolean },
   disclosureResult: true,
   reactivateResult: { ok: true, caseId: "case-2", alreadyOpen: false } as Record<string, unknown>,
+  reportResult: { error: null, alreadyReported: false } as {
+    error: string | null;
+    alreadyReported: boolean;
+  },
 }));
 
 vi.mock("@/lib/infra/live-user", async (importOriginal) => {
@@ -120,6 +124,13 @@ vi.mock("@/src/modules/cases/application/reactivate-lost-search", () => ({
   reactivateLostSearch: async (input: Record<string, unknown>) => {
     control.writes.push({ command: "reactivate_search", input });
     return control.reactivateResult;
+  },
+}));
+
+vi.mock("@/src/modules/events/application/lifecycle/report-lost-feed-item-use-case", () => ({
+  reportLostFeedItem: async (input: Record<string, unknown>) => {
+    control.writes.push({ command: "report_content", input });
+    return control.reportResult;
   },
 }));
 
@@ -221,6 +232,13 @@ const MARK_LOST = { command: "mark_lost", disclosure: A_DISCLOSURE };
 const REPORT = { command: "report_last_seen", locationDescription: "Cerca de la plaza" };
 const MARK_FOUND = { command: "mark_found" };
 const REACTIVATE = { command: "reactivate_search" };
+const TARGET_EVENT_ID = "77777777-7777-4777-8777-777777777777";
+const REPORT_CONTENT = {
+  command: "report_content",
+  targetEventId: TARGET_EVENT_ID,
+  category: "harassment",
+  reason: "Me insulta cada vez que le escribo.",
+};
 
 async function post(
   body: unknown = MARK_LOST,
@@ -258,6 +276,7 @@ beforeEach(() => {
   control.episode = null;
   control.scans = [];
   control.writes = [];
+  control.reportResult = { error: null, alreadyReported: false };
   control.markLostResult = { error: null };
   control.lastSeenResult = { error: null, wasDuplicate: false };
   control.foundResult = { ok: true, alreadyActive: false };
@@ -774,6 +793,145 @@ describe("GET .../lost — the read", () => {
     ]);
     control.limits = [];
     await post(MARK_LOST);
+    expect(control.limits.map((l) => l.endpoint)).toEqual([
+      "api_v1_lost_write_ip",
+      "api_v1_lost_write_user",
+    ]);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// report_content — the compliance command
+// ---------------------------------------------------------------------------
+//
+// WHAT THIS BLOCK IS FOR. Google Play's IARC questionnaire declares this app as
+// one where content CAN BE REPORTED. That is a statement about the app as
+// published, so what matters here is not only that the command works but that it
+// is REACHABLE by the people who actually read the feed — a caretaker looking
+// after somebody's animal during the search, a shelter holding custody — and
+// unreachable by anybody else.
+//
+// THE AUTHORIZATION PATH IS THE EXISTING ONE, and these tests exist to prove
+// nobody invented a second: no titular check, no org refusal, no status gate.
+// The two narrowings on this surface are mirrors of narrowings the WEB performs,
+// and neither of them is about this command.
+
+describe("POST /lost — report_content", () => {
+  it("lets the titular report an item and answers changed: true", async () => {
+    const response = await post(REPORT_CONTENT, { key: null });
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({
+      command: "report_content",
+      status: "active",
+      changed: true,
+    });
+    expect(control.writes).toHaveLength(1);
+    expect(control.writes[0].input.targetEventId).toBe(TARGET_EVENT_ID);
+    expect(control.writes[0].input.category).toBe("harassment");
+  });
+
+  it("lets a CARETAKER report — the person most likely to be reading the feed", async () => {
+    // Not a titular-only command, and this is the assertion that keeps it that
+    // way. A caretaker minding the animal during a search is exactly who reads
+    // the abusive message; a narrowing invented here would take the safety
+    // control away from them.
+    control.access = ownerAccess({ status: "lost" }, "caretaker");
+    const response = await post(REPORT_CONTENT, { key: null });
+    expect(response.status).toBe(200);
+    expect(control.writes).toHaveLength(1);
+  });
+
+  it("REFUSES the ORG path — the second command narrowed there, and why", async () => {
+    // The hide is pet-global: a reported item leaves the record for every reader
+    // of that animal. Combined with an org-path reporter that becomes a lever —
+    // an organization holding `shelter_custody` could make a finder's "tengo a
+    // tu perro, llamame" vanish from the OWNER's feed, counter and public
+    // credential, silently and with no un-report, at the exact moment a search
+    // is about to end. In a product with custody disputes as a first-class
+    // concept that is not a hypothetical.
+    //
+    // Mirrors `reactivate_search`, refused on the org path for the same shape of
+    // reason. A CARETAKER keeps the affordance — the titular invited them.
+    control.access = orgAccess({ status: "lost" });
+    const response = await post(REPORT_CONTENT, { key: null });
+    expect(response.status).toBe(403);
+    expect(await response.json()).toEqual({ error: "lost_forbidden" });
+    expect(control.writes).toEqual([]);
+  });
+
+  it("still lets the org path run the OTHER lost commands — the narrowing is one command wide", async () => {
+    // NON-VACUITY for the refusal above: if the org guard had been widened to
+    // the whole surface, this would 403 too and the test above would pass for
+    // the wrong reason.
+    control.access = orgAccess({ status: "lost" });
+    const response = await post(MARK_FOUND, { key: null });
+    expect(response.status).toBe(200);
+  });
+
+  it("answers 404 for a caller who may not touch this animal, and writes NOTHING", async () => {
+    control.access = () => ({ kind: "none" });
+    const response = await post(REPORT_CONTENT, { key: null });
+    expect(response.status).toBe(404);
+    expect(await response.json()).toEqual({ error: "not_found" });
+    expect(control.writes).toEqual([]);
+  });
+
+  it("does NOT require an Idempotency-Key — the writer is idempotent on the state", async () => {
+    // The command APPENDS and still needs no header, which is the case that
+    // proves the rule on this endpoint is about state and not about appending.
+    const response = await post(REPORT_CONTENT, { key: null });
+    expect(response.status).toBe(200);
+  });
+
+  it("answers changed: false when the item was already reported", async () => {
+    control.reportResult = { error: null, alreadyReported: true };
+    const response = await post(REPORT_CONTENT, { key: null });
+    const body = (await response.json()) as { changed: boolean };
+    expect(body.changed).toBe(false);
+  });
+
+  it("maps an unreportable target to 400 lost_report_target_invalid, never 404", async () => {
+    // 404 on this surface means "this animal is not yours"; sending one here
+    // would navigate somebody away from a search that is running fine.
+    control.reportResult = { error: "TARGET_INVALID", alreadyReported: false };
+    const response = await post(REPORT_CONTENT, { key: null });
+    expect(response.status).toBe(400);
+    expect(await response.json()).toEqual({ error: "lost_report_target_invalid" });
+  });
+
+  it("refuses a malformed body before any writer runs", async () => {
+    const response = await post(
+      { command: "report_content", targetEventId: "not-a-uuid", category: "harassment" },
+      { key: null },
+    );
+    expect(response.status).toBe(400);
+    expect(await response.json()).toEqual({ error: "invalid_request" });
+    expect(control.writes).toEqual([]);
+  });
+
+  it("refuses a category the contract does not name", async () => {
+    const response = await post(
+      { command: "report_content", targetEventId: TARGET_EVENT_ID, category: "denuncia" },
+      { key: null },
+    );
+    expect(response.status).toBe(400);
+    expect(control.writes).toEqual([]);
+  });
+
+  it("runs for an animal that is NOT lost — the report is about a message, not a status", async () => {
+    // Every other command here asks something of the animal's state. This one
+    // objects to a sentence, and an owner who marked their animal found must
+    // still be able to take down what somebody wrote during the search.
+    control.access = ownerAccess({ status: "active" });
+    const response = await post(REPORT_CONTENT, { key: null });
+    expect(response.status).toBe(200);
+    expect(control.writes).toHaveLength(1);
+  });
+
+  it("spends the WRITE buckets, joining the existing lost-mode family", async () => {
+    // No new bucket and no new route: the ceiling that already bounds an owner
+    // flipping disclosure toggles during a search bounds this too.
+    await post(REPORT_CONTENT, { key: null });
     expect(control.limits.map((l) => l.endpoint)).toEqual([
       "api_v1_lost_write_ip",
       "api_v1_lost_write_user",

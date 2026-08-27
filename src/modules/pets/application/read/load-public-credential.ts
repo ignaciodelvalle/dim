@@ -42,6 +42,7 @@ import { deriveCredentialRegistryClaim } from "@/lib/domain/credential-claims";
 import { readPoint } from "@/lib/domain/location";
 import { resolveBusinessRule } from "@/lib/infra/business-rules-resolver";
 import { resolveCaretakerPublicContact } from "@/lib/infra/caretaker-public-contact";
+import { notReportedClause } from "@/lib/infra/content-reports";
 import { fetchActiveIdentifications } from "@/lib/infra/pet-identifiers";
 import { reportError } from "@/lib/infra/report-error";
 import { petPhotoUrl } from "@/lib/infra/storage";
@@ -336,6 +337,12 @@ export async function loadCredentialViewData(pet: Pet) {
             gte(petEvents.occurredAt, latestLostEvent.occurredAt),
             sql`${petEvents.payload}->>'kind' = 'sighting'`,
             sql`(${petEvents.payload}->>'location_description' IS NOT NULL OR ${petEvents.locationLat} IS NOT NULL)`,
+            // Overlay parity, second half: an owner who reported their own
+            // update — the way somebody takes down a home address they typed by
+            // mistake — must stop seeing it HERE above all, because this is the
+            // page a stranger with the QR is reading. `notReportedClause` states
+            // the rule and names the one surface it deliberately spares.
+            notReportedClause(),
           ),
         )
         .orderBy(desc(petEvents.occurredAt))

@@ -1,6 +1,7 @@
 // Event detail screen — Libreta Nacional redesign.
 // Presentation only; data fetching and payload rendering logic unchanged.
 
+import { notReportedClause } from "@/lib/infra/content-reports";
 import { requireUuidParam } from "@/lib/infra/route-params";
 import dynamic from "next/dynamic";
 import Link from "next/link";
@@ -41,7 +42,11 @@ export default async function EventDetailPage({
   const [event] = await db
     .select()
     .from(petEvents)
-    .where(and(eq(petEvents.id, eventId), eq(petEvents.petId, pet.id)))
+    // A SECOND read of the same row — this page does not go through
+    // `loadPetEventDetail`, so the clause has to be here too. Found by the
+    // coverage fence, not by reading: a reported item is addressable by URL
+    // even when every listing has dropped it.
+    .where(and(eq(petEvents.id, eventId), eq(petEvents.petId, pet.id), notReportedClause()))
     .limit(1);
   if (!event) notFound();
 

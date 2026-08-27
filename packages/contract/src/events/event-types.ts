@@ -166,5 +166,72 @@ export const EVENT_TYPES = [
   // so no third type is ever needed to say how an arrangement finished.
   "rehome_sponsorship_started",
   "rehome_sponsorship_ended",
+  // Content moderation — a holder reports an item somebody else authored about
+  // their animal. TODAY that is the lost-mode feed: a `note_added` sighting or
+  // finder-in-possession message written by an anonymous stranger who scanned
+  // the QR in the street.
+  //
+  // WHY AN EVENT AND NOT A COLUMN OR A TABLE. Invariant #2 forbids editing the
+  // reported row, so "ocultar" cannot be a flag set on it. The report is a NEW
+  // fact — somebody objected, at a time, for a stated reason — and the feed's
+  // exclusion is DERIVED from it on read (`lib/infra/lost-mode.ts`), which is
+  // what makes the hide reversible-by-derivation rather than destructive. A
+  // sibling moderation TABLE would have been the other honest option and was
+  // rejected for a specific reason: `erase_subject_data` (migration 0170)
+  // enumerates its tables by hand, so a new one is a new erasure gap, and this
+  // repo already has one open for `pet_caretaker_grants`. `pet_events` is
+  // already enumerated there — including the sentinel redaction of the payload
+  // key `reason`, which is why the reporter's free text is stored under exactly
+  // that key.
+  //
+  // ONE TYPE WITH A `surface` DISCRIMINATOR, the same call the catalog cleanup
+  // made everywhere else: a second surface that needs reporting later adds a
+  // value there, not a second event type.
+  //
+  // NO DATABASE MIGRATION accompanies this entry, and that is not an omission:
+  // `pet_events.event_type` is TEXT with no CHECK and no enum (stated in
+  // db/migrations/0189_pet_caretaker_grants.sql:23), which is precisely the
+  // property this file's header describes.
+  "content_reported",
 ] as const;
 export type EventType = (typeof EVENT_TYPES)[number];
+
+/**
+ * Why somebody reported a feed item — the `category` of a `content_reported`
+ * payload, and the same list a client offers.
+ *
+ * IT LIVES HERE so the wire schema (`@dim/contract/input`) and the stored
+ * payload schema (`lib/events/event-schemas.ts`) read ONE list. Two copies of a
+ * five-value enum is how the app ends up able to send a category the spine
+ * refuses.
+ *
+ * FIVE REASONS AND NOT NINE, deliberately. `src/modules/welfare/**` already has
+ * a nine-kind, four-severity taxonomy — that is a Ley 14.346 DENUNCIA, routed to
+ * an authority. This is content moderation on a message, and a list long enough
+ * to need thought is a list that gets picked at random. `other` carries the
+ * long tail, with the free text beside it.
+ */
+export const CONTENT_REPORT_CATEGORIES = [
+  /** Advertising, a scam, or a demand for money to return the animal. */
+  "spam",
+  /** Insults, threats, or abuse directed at the person searching. */
+  "harassment",
+  /** A sighting or a claim of possession the owner believes is invented. */
+  "false_information",
+  /** Somebody else's personal data published inside the message. */
+  "personal_data",
+  /** Everything the four above do not name. The free text carries it. */
+  "other",
+] as const;
+export type ContentReportCategory = (typeof CONTENT_REPORT_CATEGORIES)[number];
+
+/**
+ * The feed kinds a report may target — the `payload->>'kind'` of the
+ * `note_added` rows in the lost-mode feed.
+ *
+ * A `credential_scanned` row is NOT here and that is the rule rather than an
+ * oversight: a scan is a machine reading a QR. There is no author, no text and
+ * nothing anybody could have written wrongly, so there is nothing to report.
+ */
+export const CONTENT_REPORT_TARGET_KINDS = ["sighting", "finder_in_possession"] as const;
+export type ContentReportTargetKind = (typeof CONTENT_REPORT_TARGET_KINDS)[number];

@@ -867,6 +867,11 @@ const EVENT_TYPE_LABELS = {
   // que el resto del cambio existe para desactivar.
   rehome_sponsorship_started: "Apadrinamiento de adopción iniciado",
   rehome_sponsorship_ended: "Apadrinamiento de adopción finalizado",
+  // Moderación de contenido. "Reportado" y NUNCA "denunciado": en este producto
+  // `denuncia` ya nombra una denuncia por maltrato (Ley 14.346), con nueve tipos
+  // y cuatro severidades, que se rutea a una autoridad real. Usar esa palabra
+  // acá sugeriría un expediente donde sólo hay un mensaje ocultado.
+  content_reported: "Contenido reportado",
 } satisfies Record<EventType, string>;
 
 export function eventTypeLabel(eventType: EventType): string {

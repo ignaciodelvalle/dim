@@ -10,6 +10,7 @@ import { LnCallout } from "@/components/ui/DocElements";
 import { attachments, db, libretaShareTokens, petEvents, pets, profiles } from "@/db";
 import { excludeSelfScansClause } from "@/lib/events/events";
 import { overlayAmendments } from "@/lib/infra/amendment";
+import { notReportedClause } from "@/lib/infra/content-reports";
 import { groupLibretaEvents, libretaSanitariaClause } from "@/lib/infra/libreta-sanitaria";
 import { validateShareToken } from "@/lib/infra/libreta-share-token";
 import { fetchActiveIdentifications } from "@/lib/infra/pet-identifiers";
@@ -156,6 +157,10 @@ export default async function PublicLibretaPage({
           // overlayAmendments can project corrections below. They never render:
           // groupLibretaEvents drops them (no libreta group).
           or(libretaSanitariaClause(), eq(petEvents.eventType, "event_amended")),
+          // THE SHARE A VET OPENS. A message the owner reported as abusive must
+          // not ride along into a clinical document about their animal — and
+          // this link leaves the owner's control the moment it is sent.
+          notReportedClause(),
         ),
       )
       .orderBy(desc(petEvents.occurredAt)),

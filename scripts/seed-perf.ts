@@ -1053,6 +1053,18 @@ function buildShowcaseEvents(
       outcome: "withdrawn_by_titular",
       ended_at: "2026-12-31T00:00:00.000Z",
     }),
+    // Content moderation. `target_event_id` deliberately names an id no row
+    // holds: the showcase pet's feed items are seeded in the same loop and no
+    // ordering here could make it point at a real one. A report that hides
+    // nothing is the right seed — the alternative would be a showcase pet whose
+    // feed silently loses a row.
+    content_reported: () => ({
+      surface: "lost_feed",
+      target_event_id: "00000000-0000-0000-0000-000000000007",
+      target_kind: "sighting",
+      category: "other",
+      reason: "Seed de performance — no corresponde a un reporte real.",
+    }),
   } satisfies Record<EventType, () => Record<string, unknown>>;
 
   const events: Array<Record<string, unknown>> = [];

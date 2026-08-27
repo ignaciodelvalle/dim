@@ -2,21 +2,28 @@
 //
 // GET reads the whole cockpit: the open episode, the sightings feed, what the
 // public credential is publishing about the owner while the search runs, and
-// which of the five commands this caller may send. POST runs one of those five:
+// which of the state commands this caller may send. POST runs one of six:
 // marcar perdida, actualizar el avistaje, marcar encontrada, cambiar una
-// preferencia de divulgación, reactivar la búsqueda.
+// preferencia de divulgación, reactivar la búsqueda, reportar un mensaje.
 //
 // WHY THIS IS NOT ON THE EVENTS ENDPOINT. Every kind behind
-// `POST .../events` appends one row and answers with its id. These five move
+// `POST .../events` appends one row and answers with its id. These six move
 // `pets.status`, open and close a case, publish or unpublish an owner's own
-// contact details, and fan an alert out to the organizations in a jurisdiction.
-// `events/writers.ts` names lost mode in its exclusion list and says exactly
-// that: a feature, not an asiento.
+// contact details, fan an alert out to the organizations in a jurisdiction, and
+// take a stranger's message off the owner's own feed. `events/writers.ts` names
+// lost mode in its exclusion list and says exactly that: a feature, not an
+// asiento.
 //
-// ONE URL AND FIVE COMMANDS, for the reason the events endpoint has one URL and
-// eleven kinds: five sibling routes would be five copies of one bearer check,
+// ONE URL AND SIX COMMANDS, for the reason the events endpoint has one URL and
+// eleven kinds: six sibling routes would be six copies of one bearer check,
 // one idempotency rule, one limiter pair and one access guard, kept in agreement
-// by hand and drifting the first time somebody edited four of them.
+// by hand and drifting the first time somebody edited five of them.
+//
+// THE SIXTH IS A COMPLIANCE COMMAND, and it is worth naming as one. Google
+// Play's IARC content-rating questionnaire declares this app as one where users
+// interact and CONTENT CAN BE REPORTED. That declaration describes the app AS
+// PUBLISHED, so `report_content` is not a feature request — it is the half of a
+// statement already made to a store.
 //
 // WHO MAY DO WHAT is decided in `./commands.ts`, against the web's own guards,
 // and it is NOT uniform: four of the five mirror `requirePetAccess` (any current
@@ -36,13 +43,20 @@
 // retryable-looking failure that reproduces forever — and reports the replay as
 // `changed: false`.
 //
-// The other four carry no header, and that is a REFUSAL TO PROMISE rather than
+// The other five carry no header, and that is a REFUSAL TO PROMISE rather than
 // an omission. Their writers are idempotent on the STATE: marking lost an animal
 // already lost is refused, marking found one already active writes nothing,
-// reactivating with an open episode returns that episode, and setting a
-// preference to the value it already holds is a no-op. Demanding a key those
-// four could not honour would make this endpoint's promise false — the same call
-// `events/writers.ts` makes about atestación PPP and embarazo.
+// reactivating with an open episode returns that episode, setting a preference
+// to the value it already holds is a no-op, and reporting an item already
+// reported appends nothing. Demanding a key those five could not honour would
+// make this endpoint's promise false — the same call `events/writers.ts` makes
+// about atestación PPP and embarazo.
+//
+// `report_content` IS THE ONE THAT PROVES THE RULE IS ABOUT STATE. It APPENDS —
+// a `content_reported` event — and still carries no header, because "this item
+// is reported" is a fact that is either true or not, never true twice. Reading
+// the rule as "appends ⇒ header" would have demanded one here and got the
+// taxonomy backwards.
 
 import { apiV1Error, apiV1Json } from "@/lib/infra/api-v1";
 import { DbBudgetExceededError, withDbBudgetOrThrow } from "@/lib/infra/db-budget";

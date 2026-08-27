@@ -50,6 +50,21 @@ export type AttachmentRule = BaseAttachmentRule & {
 
 export const CASE_ATTACHMENT_RULES: Record<EventType, AttachmentRule> = {
   // ---------------------------------------------------------------------
+  // Content moderation (1)
+  // ---------------------------------------------------------------------
+  //
+  // A report belongs to the episode whose feed carried the reported item, so it
+  // is filed with it: `reportLostFeedItem` copies the TARGET row's own
+  // `case_id`, which is stricter than this declaration — the target was already
+  // scoped to that episode, so the report cannot land on a sibling case even if
+  // two were somehow open. `attaches-when-open` is the honest declaration for
+  // any OTHER door that ever writes this type, and `never` would have been a
+  // false one: the rows this event points at always live inside a case.
+  content_reported: {
+    mode: "attaches-when-open",
+    compatibleWith: ["lost_pet_episode"],
+  },
+  // ---------------------------------------------------------------------
   // Lifecycle (4)
   // ---------------------------------------------------------------------
   pet_registered: { mode: "never", compatibleWith: [] },

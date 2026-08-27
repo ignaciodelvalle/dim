@@ -65,6 +65,7 @@ import {
   canonicalJurisdictionKey,
   resolveBusinessRuleForJurisdictions,
 } from "@/lib/infra/business-rules-resolver";
+import { notReportedClause } from "@/lib/infra/content-reports";
 import {
   excludeResolvedLostEpisodeSql,
   excludeStaleWelcomeSql,
@@ -1952,7 +1953,11 @@ export async function fetchPetEventsForProfileV2(petId: string): Promise<PetProf
         payload: petEvents.payload,
       })
       .from(petEvents)
-      .where(and(eq(petEvents.petId, petId), excludeAuthorityOnlyClause()))
+      // NO type filter here, which is why this one leaked: `deriveEventSummary`
+      // renders `payload.text` for `note_added`, so a reported lost-feed message
+      // was previewable in the owner's "últimos movimientos" strip. Found by the
+      // coverage fence.
+      .where(and(eq(petEvents.petId, petId), excludeAuthorityOnlyClause(), notReportedClause()))
       .orderBy(desc(petEvents.occurredAt))
       .limit(5),
   ]);
