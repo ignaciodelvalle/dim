@@ -117,7 +117,16 @@ describe("the notification-recipient predicate has one home", () => {
     // The other direction. A file that no longer hand-rolls the query but is
     // still listed makes the debt look larger than it is, and the next reader
     // wastes a pass discovering that.
-    const stale = BASELINE.filter((f) => !handRolledSites().includes(f));
+    // HOISTED, and that is a fix rather than a tidy. Inline inside the filter
+    // callback, `handRolledSites()` — a recursive walk of app/lib/src that
+    // `readFileSync`s every one of ~1.800 files — ran ONCE PER BASELINE ENTRY,
+    // so this one assertion did eight full repo scans and took ~7,6 s against
+    // vitest's 5 s default. It failed as a TIMEOUT, which reads like a flake and
+    // is not one: it is deterministic, it gets worse every time the repo grows
+    // or the list does, and its sibling assertion above calls the same function
+    // once and passes comfortably. Found while gating an unrelated change.
+    const sites = handRolledSites();
+    const stale = BASELINE.filter((f) => !sites.includes(f));
     expect(stale).toEqual([]);
   });
 
