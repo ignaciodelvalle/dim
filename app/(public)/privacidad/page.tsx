@@ -51,8 +51,9 @@ export default function PrivacidadPage() {
             </li>
             <li>
               <strong>Datos de ubicación:</strong> tu cuenta no guarda una provincia ni una
-              localidad. La jurisdicción se registra en cada mascota, y es esa la que se usa para
-              enrutar denuncias y estimar coberturas. En los formularios de mascota perdida,
+              localidad. Las denuncias se enrutan por la ubicación del hecho que reportás, no por la
+              de tu cuenta ni por la de una mascota; la jurisdicción registrada en cada mascota es
+              la que alimenta las estimaciones de cobertura. En los formularios de mascota perdida,
               avistajes, denuncias y mordeduras podés indicar una ubicación exacta (GPS del
               dispositivo, un pin en el mapa o una dirección geocodificada) — siempre por una acción
               tuya explícita (tocar &quot;Usar mi ubicación&quot; o marcar el mapa), nunca de forma

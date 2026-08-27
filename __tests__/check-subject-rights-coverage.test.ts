@@ -129,7 +129,7 @@ describe("evaluate — each check actually fires", () => {
   });
 });
 
-describe("the debt register is not empty and says so", () => {
+describe("the debt register is not empty, says so, and may not grow quietly", () => {
   it("reports the KNOWN_GAP count, so shrinking it is measurable", () => {
     const { gapCount } = evaluate(ALL_DECLARED, FULL_EXPORT_BODY, FULL_ERASE_BODY);
     expect(gapCount).toBe(Object.keys(KNOWN_GAP).length);
@@ -137,5 +137,30 @@ describe("the debt register is not empty and says so", () => {
     // assertion that the channel carries a real value: a gapCount hard-wired to
     // zero would read as "no debt" on a run that never looked.
     expect(gapCount).toBeGreaterThan(0);
+  });
+
+  // THE RATCHET. Without it, "we know about these 21" degrades into 40 one
+  // reviewed diff at a time: KNOWN_GAP is the one escape hatch in the fence, and
+  // an escape hatch with no ceiling is just a slower way of not having a fence.
+  // A new PII table must be added to a subject-rights RPC, or land here with the
+  // ceiling raised BY HAND in the same commit — which is the moment somebody has
+  // to justify it in a diff instead of appending a line.
+  const KNOWN_GAP_CEILING = 21;
+
+  it("does not grow past the declared ceiling without someone raising it on purpose", () => {
+    expect(
+      Object.keys(KNOWN_GAP).length,
+      `KNOWN_GAP grew past ${KNOWN_GAP_CEILING}. Reach the table from export_subject_data / erase_subject_data instead — or raise KNOWN_GAP_CEILING in this test, in the same commit, with the reason in the commit body.`,
+    ).toBeLessThanOrEqual(KNOWN_GAP_CEILING);
+  });
+
+  it("ratchets DOWN: closing a gap must lower the ceiling, so it cannot be re-spent", () => {
+    // The other half, and the one that makes this a ratchet rather than a cap.
+    // Without it, closing five gaps would leave five free slots for the next
+    // five tables to occupy silently.
+    expect(
+      Object.keys(KNOWN_GAP).length,
+      `KNOWN_GAP shrank below ${KNOWN_GAP_CEILING} — good. Lower KNOWN_GAP_CEILING to match, so the slots you just freed cannot be silently refilled.`,
+    ).toBeGreaterThanOrEqual(KNOWN_GAP_CEILING);
   });
 });
