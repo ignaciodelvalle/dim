@@ -796,6 +796,15 @@ jobs:
         if: ${{ !cancelled() && steps.seed.outcome == 'success' }}
         run: pnpm lint:rls
 
+      - name: "Fence: subject-rights coverage (lint:subject-rights)"
+        # Every public table is classified against export_subject_data /
+        # erase_subject_data (Ley 25.326 arts. 14 + 16), and the two covered
+        # lists are verified BOTH ways against the live function bodies. The
+        # omission this catches — a new PII table in neither RPC — is exactly
+        # what happened to pet_caretaker_grants (0189 → 0205).
+        if: ${{ !cancelled() && steps.seed.outcome == 'success' }}
+        run: pnpm lint:subject-rights
+
       - name: "Fence: jurisdiction scope ↔ RLS (lint:scope-authz)"
         # The jurisdiction WHERE-clauses are backed by a real RLS policy.
         if: ${{ !cancelled() && steps.seed.outcome == 'success' }}
