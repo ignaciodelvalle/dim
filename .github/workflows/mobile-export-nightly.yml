@@ -91,7 +91,36 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: Export the Android bundle
-        run: pnpm -C apps/mobile export
+        # NOT `pnpm -C apps/mobile export`, and the difference is the whole
+        # reason this step is worth having.
+        #
+        # That command resolves `expo` through `node_modules/.bin`, and pnpm's
+        # bin shim is a generated script whose first act is to export NODE_PATH
+        # pointing at `node_modules/.pnpm/expo@<version>_<hash>/node_modules` —
+        # the virtual-store directory holding expo's OWN dependencies. Node
+        # folds NODE_PATH into `Module.globalPaths` and appends it to every bare
+        # lookup, so anything expo depends on becomes resolvable by bare name
+        # from anywhere, declared or not.
+        #
+        # EAS's Gradle bundle task runs `node` directly ("Process 'command
+        # 'node'' finished with non-zero exit value 1"), with no shim and no
+        # NODE_PATH. Build e2a89561-910b-4ad7-97fa-ab0f2a481db8 died there on
+        # `Cannot find module 'babel-preset-expo'` — an undeclared dependency
+        # that `pnpm export` had never once failed to resolve. Measured on that
+        # exact pre-fix tree: this job's old command exited 0 and bundled 1617
+        # modules. The fence existed and could not see the defect.
+        #
+        # There is no way to fix that with the environment: the shim OVERWRITES
+        # an empty NODE_PATH and PREPENDS to a non-empty one, so the only way
+        # out is to skip the shim. `node_modules/expo/bin/cli` is exactly what
+        # the shim execs, minus the NODE_PATH line.
+        #
+        # This is a strictly stronger environment than the developer path — what
+        # bundles here bundles under `pnpm export` too — so nothing is lost by
+        # testing the harsher one. See docs/mobile/eas-build-profiles.md, "The
+        # third failure".
+        working-directory: apps/mobile
+        run: node node_modules/expo/bin/cli export --platform android
 
       - name: Assert a bundle was actually written
         # NOT redundant with the step above, and this repo does not take a zero
