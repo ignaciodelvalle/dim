@@ -285,6 +285,103 @@ a different one (`ERR_PNPM_VIRTUAL_STORE_DIR_MAX_LENGTH_DIFF` — the cure is
 `pnpm install`). And it moves the fingerprint, which means a new runtime version
 and a fleet that no longer matches whatever was last published.
 
+### One pnpm, everywhere — why `packageManager` is in the root `package.json`
+
+The pin above has a precondition nobody had written down: **it is only read by a
+pnpm that knows to read it.** Settings arrive from `pnpm-workspace.yaml` through
+`addSettingsFromWorkspaceManifestToConfig`, which is a mechanism pnpm grew at a
+particular version. A pnpm that predates it does not error and does not warn — it
+ignores the file's settings, truncates at its own platform default, and lands
+back in exactly the fifteen-minute mismatch above, with `virtualStoreDirMaxLength:
+60` sitting in the repo the whole time looking like the problem was solved.
+
+Which pnpm runs where was, until now, three different accidents:
+
+| Where | Which pnpm ran | Decided by |
+|---|---|---|
+| The PO's Windows machine | whatever `npm i -g pnpm` last installed | nobody |
+| GitHub Actions | `11` — a major, so any patch inside it | eleven copies of a workflow input |
+| **The EAS Build worker** | **whatever its image ships** | **Expo, without telling us** |
+
+The third one is the one that matters, because it is the side of the comparison
+this machine cannot see. It is not hypothetical that images move: the SDK 57
+Android image ships pnpm **11.9.0** today, and the image that runs next month's
+build is not this one.
+
+So the root `package.json` carries one line:
+
+```json
+"packageManager": "pnpm@11.1.1"
+```
+
+**This is not tidiness, and it is not Corepack.** pnpm enforces the field
+*itself*, and reading pnpm 11.1.1's own bundled `lib/main.js` is what settles
+what happens: a `packageManager` field with no explicit `onFail` is defaulted to
+`"download"`, and then
+
+```js
+if (pm.name === 'pnpm' && pm.onFail === 'download' && !isExecutedByCorepack()) {
+  await switchCliVersion(config, context)
+}
+```
+
+— pnpm fetches the pinned version and re-executes as it, *before* it resolves a
+single path. The pnpm that computes the paths `@expo/fingerprint` hashes is
+therefore the same pnpm on all three machines, whatever the worker image happens
+to ship. `switchCliVersion` returns immediately when the running version already
+equals the pinned one (`pm.version === packageManager.version`), so the PO's
+machine pays nothing: measured at 0.486s for `pnpm --version` and 360ms for a
+no-op `pnpm install --frozen-lockfile`.
+
+And if some future worker's pnpm is too old to know how to switch, it fails with
+`ERR_PNPM_BAD_PM_VERSION` in the install step — thirty seconds in, naming the
+version it wanted. That is a *strictly better* failure than the one this whole
+section is about, which is why the pin is worth having even in the case where its
+mechanism does not work.
+
+**Corepack is deliberately not used.** `eas.json` has a `corepack: true` switch
+and it is left `false`: under Corepack pnpm refuses to switch versions at all
+(`main.js` says so in the error hint — "pnpm does not switch versions when
+running under corepack"), and eas-cli issue #3148, still open, is a project that
+turned it on and found EAS installing pnpm a second time on top of Corepack's
+shim.
+
+**The web deploy is not in the blast radius.** Vercel reads `packageManager`
+*only* when a project sets `ENABLE_EXPERIMENTAL_COREPACK=1`; without it, Vercel
+keeps detecting the package manager from the committed lockfile exactly as
+before. So this line does not change how `dim-staging` installs. If a Vercel
+build ever does report a surprising pnpm, that env var is the first thing to
+look at.
+
+#### Why `eas.json` does NOT also declare it
+
+`eas.json` build profiles accept a `"pnpm": "<version>"` field. Adding it would
+be a second number to keep in sync with the first, which is the class of drift
+this repo writes fences against — and it would buy nothing, because it only
+chooses what EAS puts on `PATH` before an install that then switches versions
+anyway. It also does not travel: a local checkout and a CI runner never read
+`eas.json`. `package.json` is the one declaration all three machines already
+open. **One pin, in the file every machine reads.**
+
+#### The eleven `version: 11` inputs had to go, and not for tidiness
+
+`pnpm/action-setup@v4` compares its `version:` input against the `packageManager`
+field **as raw strings**:
+
+```js
+if (packageManagerVersion && packageManagerVersion !== version) {
+  throw new Error(`Multiple versions of pnpm specified: …`)
+}
+```
+
+`"11.1.1" !== "11"`, so adding the field while leaving the input in place would
+have failed *every job in every workflow* at the setup step — not subtly, and not
+only on the mobile ones. The input is removed from all eleven steps; with no
+input the action reads the field, which is the behaviour we want anyway. The
+comment above each step says so, and
+`apps/mobile/src/release/release-config.test.ts` fails if a `version:` input ever
+comes back.
+
 ### Cause 2 — EAS prebuilds `android/`, and nothing was ignoring it
 
 One line in the same diff had no story:
@@ -373,10 +470,75 @@ removing the dependent forces a re-resolution.
 ### Two dead keys in `app.json`
 
 The same doctor run failed the config-schema check on `newArchEnabled` and
-`android.edgeToEdgeEnabled`. Both were removed. Both are **no-ops in SDK 57**,
-which was checked rather than assumed: neither name appears anywhere in
-`@expo/config-types@57.0.2` (the schema doctor validates against), and a
-case-insensitive sweep of `@expo/prebuild-config@57.0.14` and
-`@expo/config-plugins` finds no reader for either. The New Architecture and
-edge-to-edge are unconditional now; the keys were vestigial, and the only thing
-they still did was fail the build.
+`android.edgeToEdgeEnabled`. Both were removed. Both are **no-ops in SDK 57** —
+the New Architecture and edge-to-edge are unconditional now, the keys were
+vestigial, and the only thing they still did was fail the build.
+
+**One sentence of the evidence for that was wrong, and is corrected here.** The
+original write-up said a sweep of `@expo/prebuild-config@57.0.14` finds no reader
+for either key. Two things were off. The sweep was run against `57.0.14`, and the
+dependency bump described in the section above *replaced that version in the same
+work unit* — so the claim was already unfalsifiable against the tree it shipped
+in. And re-run against what is actually installed, it does not hold:
+
+| Key | `@expo/config-types@57.0.2` | `@expo/prebuild-config@57.0.15` | `@expo/config-plugins@57.0.9` |
+|---|---|---|---|
+| `newArchEnabled` | absent | absent | absent |
+| `edgeToEdgeEnabled` | absent | **1 reader** | absent |
+
+The reader is `build/plugins/unversioned/edge-to-edge/withEdgeToEdge.js`:
+
+```js
+if ('edgeToEdgeEnabled' in (config.android ?? {})) {
+  WarningAggregator.addWarningAndroid(TAG,
+    '`edgeToEdgeEnabled` customization is no longer available - Android 16 makes ' +
+    'edge-to-edge mandatory. Remove the `edgeToEdgeEnabled` entry from your ' +
+    'app.json/app.config.js.');
+}
+```
+
+It reads the key only to tell you to delete it; the behaviour it used to control
+runs unconditionally either way. **So the conclusion survives intact — removing
+the key is a no-op plus one fewer warning — but the reason it survives is not the
+reason that was written down.** A conclusion that happens to be true is not the
+same as a verified one, and this repo's rule is that the recorded evidence has to
+hold against the committed tree.
+
+> A note on how the correction was measured, because it nearly went the other
+> way. The first sweep here was `rg -ril --no-ignore --hidden 'edgetoedge'` over
+> the installed package, and it returned **zero** — a false zero, from the same
+> family as the dotfile misses this repo already warns about. The settled answer
+> came from a Node script that builds the needle with `String.fromCharCode` and
+> reports **counts**, not echoed text: `edgeToEdgeEnabled` appears 3 times in
+> that one file, `newArchEnabled` 0 times across all 356 files of the three
+> packages. When a sweep's whole value is its exhaustiveness, prefer the
+> instrument that returns a number you can check for non-vacuity over one that
+> returns silence.
+
+### Gate evidence for `6c0e0f607..a372510ad`, recorded late
+
+Those four commits — the dependency bump, the two dead keys, the fingerprint fix
+and the write-up above — were gated together, and the run that gated them was a
+**third-signature red**. CLAUDE.md's rule for that signature is that it may be
+committed only with **both** verdict lines quoted in the commit message. Their
+messages carry neither, and they are already pushed, so the messages cannot be
+corrected. The honest repair is not a rewritten history; it is putting the two
+lines where anyone auditing that range will meet them:
+
+```
+run 1: reported 1425 file(s); 1425 discovered; 0 failing test(s); 1 broken file(s)
+       victim __tests__/owned-pets-count-deceased.test.tsx — 2 tests pending,
+       "Worker exited unexpectedly"
+run 2: reported 1425 file(s); 1425 discovered; 0 failing test(s); 0 broken file(s)
+```
+
+That is the documented shape of the open worker defect and not of a real
+failure: one clean re-run, and a victim — the owned-pets deceased-count test —
+with no relationship whatsoever to a dependency bump and two ignore rules. The
+rule was followed; only the *recording* of it was skipped, which is the part that
+makes the rule worth anything a month later.
+
+The lesson is procedural and it is the reason this section exists: **evidence
+that lives only in a terminal has not been kept.** A commit message is the
+cheapest durable place for it, and it is write-once — after the push, the only
+remaining option is a paragraph like this one.

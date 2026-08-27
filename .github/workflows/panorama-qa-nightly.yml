@@ -33,9 +33,12 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Setup pnpm
+        # No `version:` input on purpose. The version comes from the
+        # `packageManager` field in the root package.json, which is the
+        # single place this repo pins pnpm — and this action FAILS when
+        # both are set and the strings differ ("11" is not "11.1.1").
+        # See docs/mobile/eas-build-profiles.md, "One pnpm, everywhere".
         uses: pnpm/action-setup@v4
-        with:
-          version: 11
 
       - name: Setup Node
         uses: actions/setup-node@v4
@@ -128,9 +131,12 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Setup pnpm
+        # No `version:` input on purpose. The version comes from the
+        # `packageManager` field in the root package.json, which is the
+        # single place this repo pins pnpm — and this action FAILS when
+        # both are set and the strings differ ("11" is not "11.1.1").
+        # See docs/mobile/eas-build-profiles.md, "One pnpm, everywhere".
         uses: pnpm/action-setup@v4
-        with:
-          version: 11
 
       - name: Setup Node
         uses: actions/setup-node@v4

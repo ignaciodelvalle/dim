@@ -37,7 +37,7 @@
 // config. So it is imported and called, with app.json's block as its input,
 // which is also how `expo config` reaches it.
 
-import { readFileSync } from "node:fs";
+import { readFileSync, readdirSync } from "node:fs";
 import path from "node:path";
 import { inflateSync } from "node:zlib";
 
@@ -575,6 +575,10 @@ describe("runtime version reproducibility", () => {
   // The failure mode if either regresses is not subtle and not local: every
   // build is refused with a runtime-version mismatch, fifteen minutes after it
   // starts, with a diff of several hundred paths to read.
+  //
+  // A third line joined them afterwards. It is not a third CAUSE — it is what
+  // makes the cure for the first one binding rather than hopeful, by pinning
+  // the pnpm that has to read it.
 
   it("pins pnpm's virtual store length so the hash does not depend on the OS", () => {
     // pnpm's default for this is `isWindows() ? 60 : 120`, and @expo/fingerprint
@@ -588,6 +592,62 @@ describe("runtime version reproducibility", () => {
     // purpose — see the comment above the line itself.
     const workspace = readFileSync(path.join(REPO_ROOT, "pnpm-workspace.yaml"), "utf8");
     expect(workspace).toMatch(/^virtualStoreDirMaxLength: 60$/m);
+  });
+
+  it("pins the pnpm that reads that setting, so the pin cannot be ignored", () => {
+    // The store-length pin above only reaches a machine whose pnpm is new
+    // enough to read settings out of pnpm-workspace.yaml at all. Nothing used
+    // to say which pnpm that is: the EAS worker ran whatever its image
+    // shipped, and an older one would truncate at its own default and
+    // reproduce the identical mismatch — the store-length pin sitting right
+    // there, silently unread.
+    //
+    // `packageManager` closes it because pnpm ENFORCES the field itself.
+    // pnpm 11.1.1 defaults `wantedPackageManager.onFail` to "download" and
+    // then switches the CLI to the pinned version before doing any work, so
+    // the pnpm that computes those paths is the same one everywhere.
+    //
+    // Asserted as a shape rather than as the literal string, so a deliberate
+    // pnpm upgrade is one edit and not two — but the field's ABSENCE, which
+    // is what a tidying pass would produce, fails here.
+    const rootPackageJson = JSON.parse(
+      readFileSync(path.join(REPO_ROOT, "package.json"), "utf8"),
+    ) as { packageManager?: string };
+    expect(rootPackageJson.packageManager).toMatch(/^pnpm@\d+\.\d+\.\d+$/);
+  });
+
+  it("pins that version in exactly one place", () => {
+    // THE FAILURE THIS EXISTS TO CATCH IS A GREEN-LOOKING SECOND PIN.
+    // `pnpm/action-setup` compares its `version:` input to the package.json
+    // field as RAW STRINGS and throws "Multiple versions of pnpm specified"
+    // when they differ — so the perfectly reasonable-looking `version: 11`
+    // that used to sit in all eleven of these steps does not merely go stale
+    // next to `pnpm@11.1.1`, it fails every job in every workflow at the
+    // setup step. Restoring it "for clarity" is a whole-CI outage.
+    const workflowDir = path.join(REPO_ROOT, ".github", "workflows");
+    const offenders: string[] = [];
+    let stepsSeen = 0;
+
+    for (const file of readdirSync(workflowDir).filter((name) => name.endsWith(".yml"))) {
+      const lines = readFileSync(path.join(workflowDir, file), "utf8").split("\n");
+      for (let i = 0; i < lines.length; i++) {
+        if (!lines[i]?.includes("pnpm/action-setup")) continue;
+        stepsSeen += 1;
+        // Walk the rest of this step — up to the next list item — looking for
+        // an input that names a version.
+        for (let j = i + 1; j < lines.length && !/^\s*-\s/.test(lines[j] ?? ""); j++) {
+          if (/^\s*version:/.test(lines[j] ?? "")) offenders.push(`${file}:${j + 1}`);
+        }
+      }
+    }
+
+    expect(offenders).toEqual([]);
+
+    // The non-vacuity floor. A renamed action, a moved workflow directory or a
+    // glob that stops matching would otherwise make this test pass by finding
+    // nothing at all — which is the same green it shows when everything is
+    // right.
+    expect(stepsSeen).toBeGreaterThan(0);
   });
 
   it("ignores the generated native projects FROM apps/mobile, not from the root", () => {
@@ -609,9 +669,11 @@ describe("runtime version reproducibility", () => {
   it("carries no key SDK 57 dropped from the config schema", () => {
     // `newArchEnabled` and `android.edgeToEdgeEnabled` were both in app.json and
     // both failed the build's own `expo config` schema check. Neither appears in
-    // @expo/config-types@57.0.2 and neither is read by @expo/prebuild-config, so
-    // removing them changed nothing except that the build stopped failing: the
-    // New Architecture and edge-to-edge are unconditional in SDK 57.
+    // @expo/config-types@57.0.2, so removing them changed nothing except that
+    // the build stopped failing: the New Architecture and edge-to-edge are
+    // unconditional in SDK 57. `edgeToEdgeEnabled` does still have exactly one
+    // reader — a deprecation warning, measured, not assumed; see
+    // docs/mobile/eas-build-profiles.md.
     //
     // Asserted against the RAW app.json rather than the resolved config, because
     // that is the file the schema check reads and the place a copy-pasted
