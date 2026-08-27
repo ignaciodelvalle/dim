@@ -69,6 +69,7 @@ const easJson = readJson("eas.json") as {
 const packageJson = readJson("package.json") as {
   scripts: Record<string, string | undefined>;
   dependencies: Record<string, string | undefined>;
+  devDependencies?: Record<string, string | undefined>;
 };
 
 const appJson = readJson("app.json") as { expo: ExpoConfig };
@@ -681,5 +682,131 @@ describe("runtime version reproducibility", () => {
     const raw = (readJson("app.json") as { expo: Record<string, unknown> }).expo;
     expect(raw.newArchEnabled).toBeUndefined();
     expect((raw.android as Record<string, unknown> | undefined)?.edgeToEdgeEnabled).toBeUndefined();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// The third way a build dies: a config naming a package nobody declared
+// ---------------------------------------------------------------------------
+
+/**
+ * Babel's own name standardisation, transcribed from
+ * `@babel/core/lib/config/files/plugins.js` (7.29.7).
+ *
+ * It exists because the string in a preset list is not the package name. Babel
+ * expands `expo` to `babel-preset-expo`, `@babel/typescript` to
+ * `@babel/preset-typescript`, `@acme/thing` to `@acme/babel-preset-thing`, and
+ * strips a `module:` prefix — so a fence that compared the raw strings to
+ * package.json would report a miss for every shorthand and a pass for none of
+ * the real ones. Copied rather than imported: `@babel/core` does not export it.
+ */
+const BABEL_NAME_RULES = {
+  preset: {
+    prefix: /^(?!@|module:|[^/]+\/|babel-preset-)/,
+    org: /^(@babel\/)(?!preset-|[^/]+\/)/,
+    otherOrg: /^(@(?!babel\/)[^/]+\/)(?![^/]*babel-preset(?:-|\/|$)|[^/]+\/)/,
+  },
+  plugin: {
+    prefix: /^(?!@|module:|[^/]+\/|babel-plugin-)/,
+    org: /^(@babel\/)(?!plugin-|[^/]+\/)/,
+    otherOrg: /^(@(?!babel\/)[^/]+\/)(?![^/]*babel-plugin(?:-|\/|$)|[^/]+\/)/,
+  },
+} as const;
+
+function standardizeBabelName(type: "preset" | "plugin", name: string): string {
+  const rules = BABEL_NAME_RULES[type];
+  return name
+    .replace(rules.prefix, `babel-${type}-`)
+    .replace(rules.org, `$1${type}-`)
+    .replace(rules.otherOrg, `$1babel-${type}-`)
+    .replace(/^(@(?!babel$)[^/]+)$/, `$1/babel-${type}`)
+    .replace(/^module:/, "");
+}
+
+/** The npm package names a babel preset/plugin list resolves to. */
+function babelPackageNames(type: "preset" | "plugin", entries: readonly unknown[]): string[] {
+  const names: string[] = [];
+  for (const entry of entries) {
+    // An entry is either `"name"` or `["name", options]`; an inline function is
+    // neither, and a relative or absolute path is a file in this repo, not a
+    // package. All three are correctly nothing to declare.
+    const raw = Array.isArray(entry) ? (entry as unknown[])[0] : entry;
+    if (typeof raw !== "string") continue;
+    if (raw.startsWith(".") || path.isAbsolute(raw)) continue;
+    const standardized = standardizeBabelName(type, raw);
+    const segments = standardized.split("/");
+    const pkg = standardized.startsWith("@") ? segments.slice(0, 2).join("/") : (segments[0] ?? "");
+    if (pkg.length > 0) names.push(pkg);
+  }
+  return names;
+}
+
+describe("babel toolchain declarations", () => {
+  it("declares every package babel.config.js names as a preset or plugin", () => {
+    // WHAT THIS GUARDS, AND WHY EVERY LOCAL INSTRUMENT SAID GREEN WHILE IT WAS
+    // BROKEN.
+    //
+    // Build e2a89561-910b-4ad7-97fa-ab0f2a481db8 (2026-08-26, production,
+    // versionCode 3) cleared the two fingerprint causes the block above pins,
+    // reached Gradle, and died in `:app:createBundleReleaseJsAndAssets`:
+    //
+    //     Failed to construct transformer:
+    //     Error: Cannot find module 'babel-preset-expo'
+    //
+    // `babel.config.js` had named `babel-preset-expo` since this app was
+    // created and NOTHING in the repo declared it — not this package.json, not
+    // the root one. It resolved anyway on the PO's machine, and the mechanism
+    // is the whole lesson: `pnpm -C apps/mobile export` runs through pnpm's
+    // `node_modules/.bin/expo` shim, and that shim exports NODE_PATH pointing
+    // at `node_modules/.pnpm/expo@<version>_<hash>/node_modules` — the
+    // virtual-store directory holding expo's OWN dependencies, of which
+    // `babel-preset-expo` is one. Node folds NODE_PATH into
+    // `Module.globalPaths` and appends it to every bare lookup, so Babel found
+    // a preset this app had no declared route to. EAS's Gradle task runs `node`
+    // directly ("Process 'command 'node'' finished with non-zero exit value 1"),
+    // no shim, no NODE_PATH, no preset.
+    //
+    // The generalisation, which is why this reads the names instead of
+    // asserting the one: a config file may only name packages this package.json
+    // declares. Anything else is a dependency that exists by accident of the
+    // installer's layout, and the layout is not the same on the machine that
+    // builds the release.
+    //
+    // The config is CALLED rather than pattern-matched, so the list is exactly
+    // the one Babel receives.
+    const factory = require("../../babel.config.js") as (api: unknown) => {
+      presets?: readonly unknown[];
+      plugins?: readonly unknown[];
+    };
+    const cache = Object.assign(() => undefined, {
+      forever: () => undefined,
+      never: () => undefined,
+      using: () => undefined,
+      invalidate: () => undefined,
+    });
+    const config = factory({
+      cache,
+      env: () => "test",
+      caller: () => undefined,
+      assertVersion: () => undefined,
+      version: "7",
+    });
+
+    const named = [
+      ...babelPackageNames("preset", config.presets ?? []),
+      ...babelPackageNames("plugin", config.plugins ?? []),
+    ];
+    const declared = new Set([
+      ...Object.keys(packageJson.dependencies ?? {}),
+      ...Object.keys(packageJson.devDependencies ?? {}),
+    ]);
+
+    expect(named.filter((name) => !declared.has(name))).toEqual([]);
+
+    // The non-vacuity floor, in the shape this file already uses for the
+    // workflow sweep. A config that stopped exporting a factory, or one whose
+    // presets moved behind a helper this cannot see, would otherwise pass by
+    // finding nothing — the same green it shows when everything is declared.
+    expect(named.length).toBeGreaterThan(0);
   });
 });
