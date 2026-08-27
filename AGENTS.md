@@ -79,7 +79,7 @@ Before writing a new event type, walk through `docs/event-design-checklist.md`. 
 | Legal framework | [#legal-framework](#legal-framework) | Compliance, SENASA, Ley 25.326 |
 | Data model | [#data-model](#data-model) | Schema, new tables, migrations |
 | Libreta sanitaria | [#libreta-sanitaria](#libreta-sanitaria) | Medical events, UI surfaces |
-| Event catalog — 54 types | [#event-catalog--54-types](#event-catalog--54-types) | New event types, payload design |
+| Event catalog — 55 types | [#event-catalog--55-types](#event-catalog--55-types) | New event types, payload design |
 | Privacy tiers | [#privacy-tiers-the-public-surface](#privacy-tiers-the-public-surface) | Public credential, Tier 0/1/2 |
 | Dashboards & projections | [#dashboards--projections-the-consumers](#dashboards--projections-the-consumers) | Govt / analyst / welfare views |
 | Aggregation & privacy policy | [#aggregation--privacy-policy](#aggregation--privacy-policy) | k-anonymity, opt-in, PII rules |
@@ -671,7 +671,7 @@ A conditional whose justification NAMES a specific flow becomes wrong the day th
 
 The naming is not cosmetic. It is the conceptual surface that makes DIM legible to non-technical dueños, which is precisely what the North Star ("the data-collection layer must be valuable on its own to drive adoption") requires. Renaming this later would mean retraining users we already onboarded. Lock it now, before scale.
 
-## Event catalog — 54 types
+## Event catalog — 55 types
 
 `UI` column: `v1` = recordable by owner in the v1 PWA · `system` = system-emitted · `later` = schema-ready, UI deferred (either non-owner reporter flow needed, or the owner-facing form just hasn't been built yet).
 
@@ -750,6 +750,14 @@ El titular que ya no puede tener a su mascota le pide a una organización verifi
 | Type         | UI | Payload                              |
 | ------------ | -- | ------------------------------------ |
 | `note_added` | v1 | `{ category?, text }` — catch-all   |
+
+**Moderación de contenido**
+
+Un tenedor objeta algo que escribió **otra persona** sobre su animal. Hoy eso es el feed de modo perdida: un avistaje o un "la tengo" tipeado por un desconocido anónimo que escaneó el QR en la calle. Existe porque el cuestionario IARC de Google Play declara esta app como una donde **se puede reportar contenido**, y una declaración describe la app tal como se publica. Ver [§ Privacidad 6c](#privacidad-y-manejo-de-datos) para el modelo entero, incluido por qué no hay "bloquear" y por qué la palabra es "reportar" y nunca "denunciar".
+
+| Type               | UI | Payload                              |
+| ------------------ | -- | ------------------------------------ |
+| `content_reported` | v1 | `{ surface: lost_feed, target_event_id, target_kind: sighting\|finder_in_possession, category: spam\|harassment\|false_information\|personal_data\|other, reason? }` — `target_event_id` **es** el mecanismo: la fila reportada nunca se toca (invariante #2), y toda lectura del feed resta los ids nombrados acá (`notReportedClause`). El texto libre va bajo `reason` a propósito, al revés que `rehome_sponsorship_ended`: acá la redacción centinela del RPC de borrado es el resultado correcto, porque quien reporta es el sujeto. El enum vive en `category`, clave aparte |
 
 **System / observed**
 
@@ -1645,6 +1653,41 @@ Any jurisdiction-grouped aggregate returned to a public or analyst surface must 
 | `public_contact_consent_at` | **Llave 2** del modelo de dos llaves. Marca de tiempo, capturada en el ACCEPT. | Publicar el contacto de un cuidador en una credencial pública es el titular consintiendo por otra persona. Hacen falta DOS llaves: la del cuidador (esta) y la del titular (`pets.disclose_caretaker_contact_when_lost`, migración 0193). Sin la llave 2 **el toggle del titular ni siquiera se renderiza** — un switch que no puede cambiar nada es una mentira con forma de control. Predicado único: `lib/infra/caretaker-public-contact.ts`. |
 
 **HUECO ABIERTO, no cerrado por esta entrega.** `pet_caretaker_grants` no figura en `export_subject_data` (art. 14) ni en `erase_subject_data` (art. 16) — verificado contra la base viva. `pii.apply_baseline` es solo la mitad de almacenamiento. La pregunta "qué significa borrar un grant cuando el sujeto es el CUIDADOR y no quien lo otorgó" tiene dos respuestas defendibles y es una decisión legal/PO, no de ingeniería; el arreglo además modifica dos funciones SECURITY DEFINER que gobiernan derechos del titular de los datos. Ver también §7: **nada vincula hoy las tablas con `pii.apply_baseline` a los dos RPC**, la cobertura se escribe a mano tabla por tabla, así que esta clase de omisión es invisible para CI y va a repetirse.
+
+### 6c. Reportar contenido — moderación sin cuentas, y sin hueco nuevo de borrado
+
+El feed de modo perdida trae dos clases de fila escritas por **desconocidos anónimos**: el avistaje (`/p/{token}/sighting`) y el "la tengo" (`/p/{token}/encontre`). No hay cuenta detrás de ninguna: `LostFeedItemV1` no lleva user id porque no existe. De ahí salen las dos decisiones que definen esta función.
+
+**Se reporta un ÍTEM, no una persona.** "Bloquear al usuario" no tiene sujeto. La única analogía honesta sería una válvula que corte los reportes de esa mascota, y una válvula es una defensa que nadie usa justo cuando la necesita: quien está buscando a su animal no va a cerrar el canal por donde puede llegar el mensaje que lo encuentra. Reportar un ítem y que desaparezca del propio panel es la protección que sí se usa.
+
+**"Reportar", nunca "denunciar", en toda la copy.** En este producto `denuncia` ya nombra una denuncia por maltrato (Ley 14.346) con nueve tipos, cuatro severidades y ruteo a una autoridad real (`src/modules/welfare/**`). Usar esa palabra en un botón que oculta un mensaje prometería un expediente que no existe. Fence: `apps/mobile/src/lost/lost-view-model.test.ts` recorre toda la copy de la función y falla ante cualquier `denunci`.
+
+**Ocultar es una DERIVACIÓN, no una mutación.** El evento reportado no se toca — el invariante #2 lo prohíbe y el trigger `enforce_pet_events_append_only` lo hace imposible. Se agrega un `content_reported` que nombra la fila en `payload.target_event_id`, y **toda** lectura que pueda devolver esa fila la resta (`lib/infra/content-reports.ts::notReportedClause`). La regla es una frase y **sólo sigue siendo cierta si se aplica en las doce**: *un ítem reportado no se muestra, no se cuenta y no es el titular*.
+
+> **Cómo se contó mal la primera vez.** La primera entrega aplicó la cláusula en **cuatro** lecturas y el comentario decía "toda lectura". Una revisión a contexto fresco encontró **ocho**; al re-enumerar contra el árbol aparecieron **diez**; y escribir la fence —que obliga a clasificar cada candidato en exactamente una de tres listas— encontró las **dos** últimas: la tira de "últimos movimientos" del panel del dueño (sin filtro de tipo, renderiza `payload.text`) y la página de detalle de un evento, que hace su propia lectura sin pasar por el loader. Total: **doce consultas en diez archivos**, más **cuatro** exenciones declaradas. Las que no había visto ninguno de los dos son las que más duelen: la exportación de la libreta, el **compartir Tier-2 que abre un veterinario**, y las dos que encontró la fence. Por eso la cláusula ya no vive en `lost-mode.ts` ni recibe un `petId`: correlaciona contra la fila misma, así que sirve en una consulta scopeada por `pet_id`, por `case_id` o por `id`. Un helper con parámetro es una forma de equivocarse; uno que no se puede aplicar a una consulta por `case_id` es un helper que esa consulta simplemente no va a usar.
+
+Las doce lecturas están enumeradas en el docblock de `content-reports.ts` y verificadas por `__tests__/content-report-read-coverage.test.ts`, que deriva la lista del código y falla en las dos direcciones. Las dos peores que faltaban:
+
+| Fuga | Por qué era grave |
+|---|---|
+| `lib/infra/case-queries.ts` → `/casos/{code}` | `lost_pet_episode` está en `PUBLIC_ANONYMOUS_KINDS`: la línea de tiempo del caso la lee **cualquiera** que tenga el código CAS, y los códigos CAS se comparten justamente para difundir una búsqueda. El mensaje agresivo salía del feed y de los dos overlays y se quedaba, textual, en una URL anónima. |
+| `src/modules/lost/infrastructure/lost-listing-read.ts` → `/perdidas` | Rompía **el escenario canónico de este mismo mecanismo**: quien tipeó mal su domicilio en "actualizar dónde la vieron" lo bajaba de la credencial y seguía en la tarjeta pública — y las dos superficies públicas quedaban en **desacuerdo**, porque la credencial cae al update anterior y `/perdidas` mostraba el reportado. |
+
+**Cuatro exenciones, declaradas.** Tres son **agregados para el Estado**: el mapa de panorama (`repository-scope.ts`), su historial (`repository-history.ts`) y los contadores de avistajes de los tableros de gobierno (`lib/analytics/dashboards/perdidas.ts`) — un punto y un número, nunca la frase de nadie. La cuarta es el **writer** (`report-lost-feed-item-use-case.ts`): tiene que ver la fila que está reportando para validarla. Dejar que un dueño borre puntos de un mapa oficial reportándolos sería un control de moderación con alcance jurisdiccional que nadie pidió. **La consecuencia se dice en voz alta**: el panel del dueño puede leer "2 avistajes" y un tablero de gob contar 3. Son dos denominadores para dos audiencias — lo que la ley de diseño "nombrá tu denominador" ya permite; lo que no permite es que la divergencia sea una sorpresa.
+
+**El ocultamiento es GLOBAL a la mascota, irreversible y sin vista de "ocultos".** No es un mute por espectador: el ítem se va del registro para todos los que lo leen — a propósito, porque un feed por espectador serían dos verdades sobre una sola espina. No hay des-reportar: la corrección es una regla de lectura futura, porque la espina no se edita. **Por eso el camino ORG está prohibido** (`checkCommandGuard`, espejando `reactivate_search`): con el ocultamiento global, una organización con `shelter_custody` podía hacer desaparecer un "tengo a tu perro, llamame" del panel del **dueño**, en silencio y sin aviso — una palanca apuntada al momento exacto en que una búsqueda está por terminar, en un producto que tiene disputas de custodia como concepto de primera clase. El cuidador la conserva: lo invitó el titular, con el modelo de dos llaves.
+
+**Qué significa para Data Safety: NO abre un hueco nuevo.** Fue el criterio que eligió el mecanismo por encima de una tabla de moderación aparte.
+
+| Pregunta | Respuesta |
+|---|---|
+| ¿Es borrable bajo `erase_subject_data`? | **Sí, sin tocar la 0170.** `content_reported` es una fila de `pet_events`, tabla que el RPC ya enumera: redacta el PII de tercero en los payloads del sujeto y centinela-reemplaza las claves de texto libre conocidas. |
+| ¿Y el texto que escribió quien reporta? | El motivo libre se guarda bajo la clave **`reason`**, elegida a propósito: el RPC centinela-reemplaza `reason` en **todos** los tipos de evento (0159→0166, consolidado en 0170). Quien reporta es el titular de la mascota, o sea el sujeto: sus palabras se van con su cuenta. Es el espejo exacto de `tag_revoked`, que tuvo que **evitar** `reason` porque el valor era un enum que la redacción habría destruido. La nuestra es prosa; el enum vive en `category`, clave aparte que el barrido no toca. |
+| ¿Y el mensaje del desconocido que fue reportado? | Sigue donde estaba. No es dato del sujeto que reporta y el spine no borra. Reportar oculta; no es una vía de supresión de datos ajenos. |
+| ¿Se borra el `reason` de **cualquiera** que reporte? | **No, y esto es un hueco chico pero real.** `0170:326-331` barre `payload ? 'reason'` sólo `WHERE pet_id IN (SELECT … role='owner' AND ended_at IS NULL)` — no tiene un brazo `recorded_by_user_id = p_user_id` como sí tiene `incident_reported`. O sea: un **cuidador** que reporta y después borra su cuenta deja su texto libre en la mascota de otra persona; un ex-titular, lo mismo. El camino ORG ya no puede reportar, así que la exposición se reduce al cuidador y al ex-dueño. **No se arregla acá** — tocar el RPC es su propia unidad, la misma que tiene que cerrar el hueco de `pet_caretaker_grants` (§6b) — pero queda escrito para que no sea el segundo hueco silencioso. Ver §7: nada vincula hoy `pii.apply_baseline` con los dos RPC, y por eso esta clase de omisión es invisible para CI. |
+| ¿Hizo falta una migración? | **No.** `pet_events.event_type` es TEXT sin CHECK ni enum (dicho en `0189:23`), así que sumar un tipo de evento al catálogo es TypeScript y nada más. |
+
+Una tabla `lost_feed_item_reports` habría sido la otra opción defendible y se descartó justamente por la primera fila de esa tabla: el RPC de borrado enumera tablas **a mano**, así que una tabla nueva es un hueco nuevo — y ya hay uno abierto en §6b. Ver §7: nada vincula hoy `pii.apply_baseline` con los dos RPC, y esa es la razón por la que la elección de mecanismo, acá, es una decisión de privacidad y no de gusto.
 
 ### 7. Subject rights (Ley 25.326)
 
