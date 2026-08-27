@@ -75,9 +75,34 @@ const MUST_SUBTRACT: readonly string[] = [
  * report anything.
  */
 const DECLARED_EXEMPTIONS: readonly string[] = [
+  // Government dashboards + the panorama map. These COUNT a reported row, and
+  // two of them plot it as a dot with the pet's name and coordinates — but NONE
+  // of them selects `payload` text, so no sentence of anybody's is rendered.
+  // Letting an owner erase points from an official map by reporting them would
+  // be a moderation control with a jurisdictional reach nobody asked for.
+  "lib/analytics/dashboards/exports.ts",
   "lib/analytics/dashboards/perdidas.ts",
-  "src/modules/events/application/lifecycle/report-lost-feed-item-use-case.ts",
+  "lib/metrics/event-ledger.ts",
+  "src/modules/panorama/infrastructure/repository-by-unit.ts",
+  "src/modules/panorama/infrastructure/repository-histogram.ts",
   "src/modules/panorama/infrastructure/repository-history.ts",
+  // The WRITER. It must see the target row to validate it, and must see an
+  // existing report to answer `alreadyReported`.
+  "src/modules/events/application/lifecycle/report-lost-feed-item-use-case.ts",
+];
+
+/**
+ * `repository-scope.ts` is NOT in the list above, and its absence is the
+ * finding that produced this comment.
+ *
+ * It was listed for two revisions as "the map layer" — and it contains no query
+ * at all. It is a PREDICATE BUILDER: `perdidasEventPredicate()` and
+ * `sightingEventPredicate()` are spelled there and called from the three
+ * repositories that do the reading. Naming it exempted a file that never reads,
+ * while the five files that actually read were in no list whatsoever. An
+ * inventory that names the wrong file reads as complete and is not.
+ */
+const PREDICATE_BUILDERS: readonly string[] = [
   "src/modules/panorama/infrastructure/repository-scope.ts",
 ];
 
@@ -139,14 +164,31 @@ const READS_PET_EVENTS = /\.from\(petEvents\)|FROM public\.pet_events|FROM pet_e
 /**
  * Does this file read `note_added` rows that can be lost-feed messages?
  *
- * Three shapes, because the reads that leaked were exactly the ones that never
- * spell `'sighting'`: a kind-filtered query, a `note_added`-typed query, and a
- * query with NO type filter at all that pulls a whole case or a single row by
- * id. The last shape is why the libreta clause and the case/detail readers are
- * named explicitly — a regex cannot see the absence of a filter.
+ * FOUR shapes, and the fourth was added after this fence MISSED FIVE READERS —
+ * inside the very instrument built to stop that happening:
+ *
+ *   1. a kind-filtered query (`payload->>'kind' = 'sighting'`)
+ *   2. a `note_added`-typed query, or one using `libretaSanitariaClause`
+ *   3. a query with NO type filter that pulls a whole case, or one row by id
+ *   4. A QUERY THAT IMPORTS ITS PREDICATE. `repository-by-unit.ts`,
+ *      `repository-histogram.ts` and `repository-history.ts` call
+ *      `perdidasEventPredicate()` / `sightingEventPredicate()`, which spell the
+ *      kind inside `repository-scope.ts`. Every one of them scored ZERO on the
+ *      first version of this regex, because the fence looked for the FORMS a
+ *      query spells rather than the SUBJECT it selects — the exact diagnosis
+ *      this whole change was written around, reproduced one level up.
+ *
+ * WHAT IT STILL CANNOT SEE, declared rather than left to be discovered. Shape 3
+ * is not detectable in general: a reader that selects EVERY event type and
+ * happens to include a reported row spells nothing this regex can match.
+ * `lib/metrics/event-ledger.ts` and `lib/analytics/dashboards/exports.ts` are
+ * exactly that and are listed by hand below. A sixth such reader added tomorrow
+ * WILL sail through this fence. If you are adding a query over `pet_events` that
+ * does not filter by `event_type`, you must triage it into one of the three
+ * lists yourself — nothing here will make you.
  */
 const CAN_CARRY_LOST_NOTE =
-  /'sighting'|finder_in_possession|note_added|libretaSanitariaClause|eq\(petEvents\.caseId|eq\(petEvents\.id, eventId\)/;
+  /'sighting'|finder_in_possession|note_added|libretaSanitariaClause|eq\(petEvents\.caseId|eq\(petEvents\.id, eventId\)|perdidasEventPredicate|sightingEventPredicate/;
 
 function carriesClause(file: string): boolean {
   return readFileSync(join(ROOT, file), "utf8").includes("notReportedClause()");
@@ -164,18 +206,34 @@ describe("content-report read coverage", () => {
     expect(missing).toEqual([]);
   });
 
-  it("every declared exemption still exists and still touches a lost-feed note", () => {
-    // NOT keyed on `from(petEvents)`: `repository-scope.ts` builds reusable SQL
-    // PREDICATES and never spells the table read itself. Keying the liveness
-    // check on the narrower marker made this fence report a live exemption as
-    // stale — the same "narrower than the concept" mistake one level up, caught
-    // by the fence failing rather than by anybody noticing.
-    const stale = DECLARED_EXEMPTIONS.filter((f) => {
+  it("every declared exemption really QUERIES pet_events — not just mentions it", () => {
+    // The assertion that would have caught `repository-scope.ts`. An exemption
+    // is a statement about a READ; a file with no query cannot be one, and while
+    // one sat in the list the five real readers sat in none.
+    const notReaders = DECLARED_EXEMPTIONS.filter((f) => {
       if (!files.includes(f)) return true;
-      const src = readFileSync(join(ROOT, f), "utf8");
-      return !CAN_CARRY_LOST_NOTE.test(src);
+      return !READS_PET_EVENTS.test(readFileSync(join(ROOT, f), "utf8"));
     });
-    expect(stale).toEqual([]);
+    expect(notReaders).toEqual([]);
+  });
+
+  it("every MUST_SUBTRACT entry really queries pet_events too", () => {
+    const notReaders = MUST_SUBTRACT.filter((f) => {
+      if (!files.includes(f)) return true;
+      return !READS_PET_EVENTS.test(readFileSync(join(ROOT, f), "utf8"));
+    });
+    expect(notReaders).toEqual([]);
+  });
+
+  it("the predicate builders still build predicates and still do not query", () => {
+    // If one of these grows a query it becomes a READER and has to be triaged
+    // into one of the three lists — which nothing else here would notice.
+    for (const f of PREDICATE_BUILDERS) {
+      expect(files).toContain(f);
+      const src = readFileSync(join(ROOT, f), "utf8");
+      expect(READS_PET_EVENTS.test(src)).toBe(false);
+      expect(CAN_CARRY_LOST_NOTE.test(src)).toBe(true);
+    }
   });
 
   it("every triaged false positive still exists", () => {

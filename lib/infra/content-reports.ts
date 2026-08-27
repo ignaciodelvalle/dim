@@ -62,26 +62,41 @@
 // WHERE IT IS DELIBERATELY *NOT* APPLIED — four files, declared here because
 // invariant #3 exists to forbid the undeclared kind:
 //
-//   · src/modules/panorama/infrastructure/repository-scope.ts and
-//     src/modules/panorama/infrastructure/repository-history.ts — the map layer
-//     and its history. They plot a DOT and count it. No message of anybody's is
-//     rendered, and letting an owner erase points from an official map by
-//     reporting them would be a moderation control with a jurisdictional reach
-//     nobody asked for.
-//   · lib/analytics/dashboards/perdidas.ts — the sightings counters on the
-//     government dashboards. Same family, same reason: an aggregate for the
-//     State, no sentence rendered.
+//   · THE PANORAMA MAP — `repository-by-unit.ts` (per-unit counts, and the
+//     individual DOTS with pet name, species and coords), `repository-history.ts`
+//     and `repository-histogram.ts`. They plot a dot and count it; none selects
+//     `payload`, so no message of anybody's is rendered. Letting an owner erase
+//     points from an official map by reporting them would be a moderation
+//     control with a jurisdictional reach nobody asked for.
+//
+//     NOTE THE FILENAMES. For two revisions this list said
+//     `repository-scope.ts` — a file with NO QUERY IN IT. It is a predicate
+//     BUILDER: `perdidasEventPredicate()` and `sightingEventPredicate()` are
+//     spelled there and called from the three repositories above. So the
+//     inventory exempted a file that never reads while the files that do read
+//     were in no list at all, and the coverage fence could not see them either,
+//     because it matched the FORMS a query spells rather than the SUBJECT it
+//     selects — this change's own diagnosis, reproduced inside the instrument
+//     built to prevent it. The fence now matches the predicate names too.
+//   · lib/analytics/dashboards/perdidas.ts, lib/metrics/event-ledger.ts and
+//     lib/analytics/dashboards/exports.ts — sightings counters and the
+//     admin/gob event ledger + export. They list or count the row's EXISTENCE
+//     (type, month, author role, pet token) and never its payload.
 //   · src/modules/events/application/lifecycle/report-lost-feed-item-use-case.ts
 //     — the WRITER. It must see the target row to validate it and must see an
 //     existing report to answer `alreadyReported`. A writer that could not see
 //     what it is reporting could not report anything.
 //
-//   The consequence of the first three is stated rather than hidden: the owner's
-//   cockpit can read "2 avistajes" while a gob dashboard counts 3. That is two
-//   denominators for two audiences, which this codebase's own "name your
-//   denominator" design law already permits — what it does not permit is the
-//   divergence being a surprise. It is written here and in AGENTS.md
-//   § Privacidad 6c.
+//   The consequence is stated rather than hidden: the owner's cockpit can read
+//   "2 avistajes" while a gob dashboard counts 3, and a reported sighting stays
+//   a dot on the panorama map. That is two denominators for two audiences, which
+//   this codebase's own "name your denominator" design law already permits —
+//   what it does not permit is the divergence being a surprise. It is written
+//   here and in AGENTS.md § Privacidad 6c. The one-line rule elsewhere in this
+//   file says a reported item is never SHOWN, never COUNTED and never the
+//   HEADLINE; "never counted" is true of the surfaces that render what somebody
+//   wrote, and false of these State-facing aggregates. Both halves are the
+//   contract.
 //
 // WHY A CORRELATED `NOT EXISTS` AND NOT A `NOT IN (…)` OVER A PET ID
 // ---------------------------------------------------------------------------
@@ -108,6 +123,14 @@ import { sql } from "drizzle-orm";
  *
  * Use inside an `and(...)`. Correlates on the row under test, so it composes
  * with any scoping — `pet_id`, `case_id`, `id`, or none.
+ *
+ * WHO MAY CAUSE A ROW TO BE SUBTRACTED: any holder on the PERSON path,
+ * including a temporary caretaker. The ORG path is refused, on BOTH doors —
+ * `checkCommandGuard` for the API the phone uses, and `reportLostFeedItemAction`
+ * for the web. It shipped once on the API door only, with three documents
+ * (including this one) asserting otherwise while the web action had no refusal
+ * at all and the component merely hid the button. A hidden button is not an
+ * authorization control.
  *
  * THE REPORTED ROW IS NEVER TOUCHED. Invariant #2 forbids editing it and the
  * `enforce_pet_events_append_only` trigger makes it impossible: a `DELETE` or

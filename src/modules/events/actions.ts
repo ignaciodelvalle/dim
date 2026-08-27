@@ -1091,7 +1091,30 @@ export async function reportLostFeedItemAction(
 ): Promise<EventFormState> {
   const access = await requirePetAccess(publicToken);
   if (!access.ok) return { error: access.error };
-  const { user, pet, eventAuthorship } = access;
+  const { user, pet, eventAuthorship, accessPath } = access;
+
+  // THE ORG REFUSAL, ON THIS DOOR TOO. It lived only in the API's
+  // `checkCommandGuard`, so the mobile door was closed and this one was wide
+  // open — while three documents asserted the control existed. Withholding the
+  // control in `LostCaseBlock` did NOT close it: the action is imported and
+  // bound at module level in a component that renders on both variants, so its
+  // action id ships to the org client and can simply be POSTed. A HIDDEN BUTTON
+  // IS NOT AN AUTHORIZATION CONTROL.
+  //
+  // `requirePetAccess` returns ok for the org path and does not even check
+  // `event.write` — that gate lives in `requireAlivePetAccess`, which this
+  // action deliberately does not call. So the refusal has to be here, spelled
+  // out, exactly as `reactivateLostSearchAction` spells its own.
+  //
+  // WHY: the hide is pet-global. An org holding `shelter_custody` could make a
+  // finder's "tengo a tu perro, llamame" disappear from the OWNER's feed,
+  // counter, credential, /perdidas and /casos — silently, irreversibly, at the
+  // moment a search is about to end, in a product with custody disputes as a
+  // first-class concept. A caretaker keeps the affordance: they come through
+  // the PERSON path, which the titular opened for them.
+  if (accessPath === "org") {
+    return { error: "Solo quien tiene a la mascota a su cargo puede reportar un mensaje." };
+  }
 
   const result = await reportLostFeedItem(
     {
