@@ -50,9 +50,10 @@ export default function PrivacidadPage() {
               sanitarios que vos ingresás voluntariamente.
             </li>
             <li>
-              <strong>Datos de ubicación:</strong> la provincia y localidad de tu cuenta se usan
-              para enrutar denuncias y estimar coberturas. Además, en los formularios de mascota
-              perdida, avistajes, denuncias y mordeduras podés indicar una ubicación exacta (GPS del
+              <strong>Datos de ubicación:</strong> tu cuenta no guarda una provincia ni una
+              localidad. La jurisdicción se registra en cada mascota, y es esa la que se usa para
+              enrutar denuncias y estimar coberturas. En los formularios de mascota perdida,
+              avistajes, denuncias y mordeduras podés indicar una ubicación exacta (GPS del
               dispositivo, un pin en el mapa o una dirección geocodificada) — siempre por una acción
               tuya explícita (tocar &quot;Usar mi ubicación&quot; o marcar el mapa), nunca de forma
               automática ni en segundo plano. Esas coordenadas quedan asociadas al evento
@@ -211,12 +212,16 @@ export default function PrivacidadPage() {
             <strong>Qué pasa cuando se elimina una cuenta.</strong> La supresión es un soft-delete
             con hash de PII: nombre, teléfono, DNI, contactos de emergencia, veterinario de cabecera
             y foto de perfil quedan anonimizados o borrados, y la cuenta sale de las consultas
-            habituales. Las credenciales públicas de tus mascotas dejan de resolver. Los eventos
-            sanitarios de esas mascotas (libreta, vacunas, observaciones antirrábicas) se conservan
-            por una razón práctica: son el historial de salud del animal, y ese historial lo
-            acompaña aunque cambie de responsable. Dentro de esos eventos, el texto libre que hayas
-            escrito vos se reemplaza por un aviso de contenido eliminado. Si querés que borremos
-            también esos registros sanitarios, pedínoslo:{" "}
+            habituales. Se borran también los mismos datos cargados en cada mascota —contacto de
+            emergencia, veterinario y seguro—, las invitaciones de cuidado temporal que hayas
+            enviado o recibido, tu inscripción como hogar de tránsito, tus dispositivos con
+            notificaciones y el contenido de los mensajes que le hayas escrito a una organización.
+            Las credenciales públicas de tus mascotas dejan de resolver. Los eventos sanitarios de
+            esas mascotas (libreta, vacunas, observaciones antirrábicas) se conservan por una razón
+            práctica: son el historial de salud del animal, y ese historial lo acompaña aunque
+            cambie de responsable. Dentro de esos eventos, el texto libre que hayas escrito vos se
+            reemplaza por un aviso de contenido eliminado. Si querés que borremos también esos
+            registros sanitarios, pedínoslo:{" "}
             <strong>no invocamos ninguna obligación legal de conservación</strong> para negarte ese
             borrado.
           </p>

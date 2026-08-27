@@ -6,7 +6,6 @@ import {
   completeIdentityAction,
   signupAction,
 } from "@/app/actions/auth";
-import { LocationFields } from "@/components/LocationFields";
 import { LnCheckbox, LnField, LnInput, LnPasswordInput } from "@/components/ui/Field";
 import { useStepFocus } from "@/lib/ui/use-step-focus";
 import Link from "next/link";
@@ -154,16 +153,15 @@ export function SignupForm({
             )}
           </LnField>
 
-          <div className="space-y-1.5">
-            {/* allowAnonymous: signup runs before a session exists, so the
-                locality autocomplete must use the no-auth public search action
-                (the default auth-gated one redirects to /login on first keystroke). */}
-            <LocationFields mode="l1" l1Label="Localidad (opcional)" allowAnonymous cascade />
-            <p className="text-xs text-[var(--color-ln-mute)]">
-              Ayuda a las campañas regionales de salud animal.
-            </p>
-          </div>
-
+          {/* THE LOCALITY FIELD WAS REMOVED HERE (2026-08-27). It wrote
+              profiles.jurisdiction_province / _locality, which had one writer and
+              zero readers, under a hint that promised it "ayuda a las campañas
+              regionales de salud animal" — a purpose the code never had.
+              Collecting a personal datum for a purpose that does not exist is
+              itself a finalidad problem (Ley 25.326 art. 4), so the field is gone
+              rather than better worded. Jurisdiction is a PET-level fact in this
+              product and is captured on the pet. See
+              src/modules/auth/application/complete-identity.ts. */}
           {identityState.error && (
             <p className="text-sm text-[var(--color-ln-err)]" role="alert">
               {identityState.error}

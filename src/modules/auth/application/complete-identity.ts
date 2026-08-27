@@ -19,8 +19,6 @@
 import { eq, sql } from "drizzle-orm";
 
 import { db, profiles } from "@/db";
-import { CoordError, normalizeLocationForWrite } from "@/lib/domain/location-normalize";
-import { parseLocationFromFormData } from "@/lib/domain/location-value";
 import { LEGAL_VERSION } from "@/lib/reference/legal-version";
 import { createClient } from "@/lib/supabase/server";
 import { dniLast4, hashDni } from "@/lib/utils/dni-hash";
@@ -49,22 +47,24 @@ export async function completeIdentityAction(
     return { error: "El DNI debe tener 7 u 8 dígitos numéricos.", firstName, lastName };
   }
 
-  // Location — optional. LocationFields (l1 mode) submits provinceCode (ISO)
-  // + localityName. locality:"none" canonicalizes the ISO code to the canonical
-  // province display name; no locality catalog lookup (auth behavior unchanged).
-  const loc = parseLocationFromFormData(formData);
-  let normalizedLoc: Awaited<ReturnType<typeof normalizeLocationForWrite>>;
-  try {
-    normalizedLoc = await normalizeLocationForWrite(loc, { locality: "none" });
-  } catch (err) {
-    if (err instanceof CoordError) {
-      return { error: err.message, firstName, lastName };
-    }
-    throw err;
-  }
-  const jurisdictionProvince = normalizedLoc.province;
-  const jurisdictionLocality = normalizedLoc.locality;
-
+  // NO LOCATION IS COLLECTED HERE ANY MORE (2026-08-27, PO decision:
+  // "la jurisdicción implica compliance, pero es a nivel mascota y no cuenta").
+  //
+  // This step used to render a locality field and write
+  // profiles.jurisdiction_province / _locality. It had exactly ONE writer — this
+  // function — and ZERO readers: every aggregate, panorama layer, k-anonymity
+  // cell and routing path in the product keys on pets.*, welfare_reports.*,
+  // service_offerings.*, govt_assignments.* or organizations.*, never on
+  // profiles. lib/infra/admin-search.ts records the profile→jurisdiction link
+  // being REJECTED on purpose for govt user scoping.
+  //
+  // The field's own hint said it "ayuda a las campañas regionales de salud
+  // animal" and the public privacy page said the province and locality "se usan
+  // para enrutar denuncias y estimar coberturas". Neither was true of the code.
+  // Collecting a personal datum for a purpose that does not exist is a finalidad
+  // problem under Ley 25.326 art. 4 in its own right, so the honest fix is not
+  // to erase it harder — it is to stop asking. Migration 0205 nulls the two
+  // columns for every existing profile and marks them inert.
   const supabase = await createClient();
   const {
     data: { user },
@@ -98,10 +98,6 @@ export async function completeIdentityAction(
         // dniVerified stays false (default). The /cuenta/verificar-dni flow
         // sets dniVerified=true with audit trail.
         ...(rawDni ? { dniHash: hashDni(rawDni), dniLast4: dniLast4(rawDni) } : {}),
-        // Persist user location when provided. Both columns are nullable so
-        // omitting them (empty form) leaves the profile without location.
-        ...(jurisdictionProvince !== null ? { jurisdictionProvince } : {}),
-        ...(jurisdictionLocality !== null ? { jurisdictionLocality } : {}),
         // Persist provable consent (Ley 25.326 art. 5). The TOS/privacy checkbox
         // is required in step 1 (signupAction) and step 2 is unreachable without
         // it, so reaching here means consent was given. We record it on the same
