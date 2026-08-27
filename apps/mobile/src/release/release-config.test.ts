@@ -810,3 +810,185 @@ describe("babel toolchain declarations", () => {
     expect(named.length).toBeGreaterThan(0);
   });
 });
+
+// ---------------------------------------------------------------------------
+// The SDK's own pin, against what the installer actually resolved
+// ---------------------------------------------------------------------------
+
+/**
+ * `expo`'s `bundledNativeModules.json` — the SDK's declaration of which version
+ * of each native module SDK 57 was built and tested against.
+ *
+ * It is not a document about this app: it is the table `expo install` writes
+ * versions from and `expo-doctor` validates declared versions against. Read
+ * through `require.resolve` rather than a relative path so it is always the
+ * table belonging to the `expo` this app resolves.
+ */
+const BUNDLED_NATIVE_MODULES = JSON.parse(
+  readFileSync(require.resolve("expo/bundledNativeModules.json", { paths: [MOBILE_ROOT] }), "utf8"),
+) as Record<string, string>;
+
+/**
+ * Every `name@version` the lockfile RESOLVED, from its `packages:` section.
+ *
+ * The lockfile rather than `node_modules` on purpose: under pnpm a package
+ * nothing declares is invisible from `apps/mobile` — which is exactly the class
+ * of package this block exists to judge — while the lockfile lists every
+ * resolution in the workspace whether or not anything can see it by name.
+ */
+function resolvedVersions(): Map<string, string[]> {
+  const lock = readFileSync(path.join(REPO_ROOT, "pnpm-lock.yaml"), "utf8").split("\n");
+  const found = new Map<string, string[]>();
+  let inPackages = false;
+  for (const raw of lock) {
+    const line = raw.replace(/\r$/, "");
+    if (line === "packages:") {
+      inPackages = true;
+      continue;
+    }
+    // `packages:` is followed by `snapshots:`; anything at column 0 ends it.
+    if (inPackages && /^\S/.test(line)) break;
+    if (!inPackages) continue;
+    const match = line.match(/^ {2}'?((?:@[^@']+\/)?[^@']+)@([^':]+)'?:$/);
+    if (match === null) continue;
+    const [, name, version] = match as unknown as [string, string, string];
+    found.set(name, [...(found.get(name) ?? []), version]);
+  }
+  return found;
+}
+
+/**
+ * `~`, `^` and exact — the only three shapes `bundledNativeModules.json` uses,
+ * checked without a semver dependency because adding one to satisfy a test
+ * would be this file's own lesson, inverted.
+ *
+ * AN UNRECOGNISED SHAPE THROWS rather than passing. A range form this cannot
+ * read is a case nobody has judged, and a fence that silently skips what it does
+ * not understand is the fence that reports green on the thing it was built for.
+ */
+function satisfiesPin(version: string, pin: string): boolean {
+  const parse = (value: string): [number, number, number] | null => {
+    const m = value.match(/^(\d+)\.(\d+)\.(\d+)$/);
+    return m === null ? null : [Number(m[1]), Number(m[2]), Number(m[3])];
+  };
+  // A prerelease or build-metadata resolution is never the pinned release.
+  const got = parse(version);
+  if (got === null) return false;
+
+  const operator = pin.startsWith("~") || pin.startsWith("^") ? pin[0] : "";
+  const want = parse(operator === "" ? pin : pin.slice(1));
+  if (want === null) throw new Error(`Unreadable version pin: ${JSON.stringify(pin)}`);
+
+  const atLeast =
+    got[0] > want[0] ||
+    (got[0] === want[0] && (got[1] > want[1] || (got[1] === want[1] && got[2] >= want[2])));
+  if (!atLeast) return false;
+  if (operator === "") return got[0] === want[0] && got[1] === want[1] && got[2] === want[2];
+  if (operator === "~") return got[0] === want[0] && got[1] === want[1];
+  // `^` on a 0.x pin is caret-on-zero: the minor is the breaking axis.
+  return want[0] === 0 ? got[0] === 0 && got[1] === want[1] : got[0] === want[0];
+}
+
+/**
+ * The two SDK-bundled names the WEB app owns, and why neither is a native
+ * module drifting.
+ *
+ * They are exempt from the resolved-version rule and from nothing else — `react`
+ * is asserted against this app's OWN declaration below, so the exemption cannot
+ * hide a drift on the side that matters.
+ */
+const WEB_OWNED_BUNDLED_NAMES: Record<string, string> = {
+  // Next.js resolves 19.2.6. apps/mobile declares the SDK's pin exactly, and the
+  // Android build never sees the other copy.
+  react: "the web app resolves its own React; this app declares the pin exactly",
+  // expo-router's OPTIONAL web peer. Never autolinked, never compiled, never in
+  // an .aab.
+  "react-dom": "web-only peer of expo-router; not an autolinked native module",
+};
+
+/**
+ * Measured 2026-08-27: 35 of the table's 123 names resolve into this workspace.
+ * The floor sits far enough below that ordinary dependency churn cannot trip it
+ * and far enough above zero that a broken lockfile parse cannot pass as a clean
+ * tree — the same shape `__tests__/encoding-fitness.test.ts` uses.
+ */
+const MIN_BUNDLED_NAMES_CHECKED = 20;
+
+describe("SDK-pinned native modules", () => {
+  it("resolves every SDK-bundled native module at the version SDK 57 pins", () => {
+    // WHAT THIS GUARDS, AND WHY IT IS THE ONLY LOCAL INSTRUMENT THAT COULD HAVE
+    // SEEN IT.
+    //
+    // Build 9bdab7b8-b5e2-4aa5-8272-f8e990c0cce3 (2026-08-27, production,
+    // versionCode 4) got past the fingerprint, past Metro, and died 9m32s into
+    // real native compilation:
+    //
+    //     expo-modules-core/android/src/main/cpp/worklets/
+    //       WorkletJSCallInvoker.cpp:27:21: error: no member named
+    //       'executeSync' in 'worklets::WorkletRuntime'
+    //
+    // `expo-modules-core@57.0.14` calls `WorkletRuntime::executeSync`. That
+    // method exists in `react-native-worklets@0.10.1` — the version this table
+    // pins — and was renamed to `runSync` by 0.12. The tree had 0.12.1, because
+    // NOTHING DECLARED `react-native-worklets` AT ALL: it arrived as an
+    // auto-installed optional peer of `react-native-reanimated`, itself an
+    // auto-installed optional peer of `expo-router`, and pnpm resolved each to
+    // `latest` because no range in this repo narrowed it.
+    //
+    // THAT IS WHY THIS READS THE LOCKFILE AND NOT package.json. `expo install
+    // --check` and `expo-doctor` both validate DECLARED versions against this
+    // same table, so they reported "up to date" and 21/21 while three native
+    // modules sat in the tree past the pin. A fence over declarations would have
+    // agreed with them. The undeclared package is the whole failure mode.
+    //
+    // THE COMPILER ERROR ITSELF IS NOT OBSERVABLE HERE — there is no Android NDK
+    // on the machines this suite runs on, and `expo export` only bundles
+    // JavaScript. Its CAUSE is, entirely, from two JSON files.
+    const inTree = resolvedVersions();
+    const offenders: string[] = [];
+    let checked = 0;
+
+    for (const [name, pin] of Object.entries(BUNDLED_NATIVE_MODULES)) {
+      const versions = inTree.get(name);
+      if (versions === undefined) continue;
+      checked += 1;
+      if (name in WEB_OWNED_BUNDLED_NAMES) continue;
+      for (const version of versions) {
+        if (!satisfiesPin(version, pin)) {
+          offenders.push(`${name}@${version} — SDK 57 pins ${pin}`);
+        }
+      }
+    }
+
+    // Each offender carries its own message — the name, what resolved, and what
+    // the SDK pins — because jest's `expect` takes no second argument and a bare
+    // `[]` mismatch would name the package without naming the rule it broke.
+    expect(offenders.sort()).toEqual([]);
+
+    // The non-vacuity floor. Without it a lockfile whose `packages:` section
+    // stopped matching the pattern would report zero offenders over zero
+    // packages, which is the same green as a clean tree.
+    expect(checked).toBeGreaterThanOrEqual(MIN_BUNDLED_NAMES_CHECKED);
+  });
+
+  it("declares the exempt names at the pin, or does not declare them at all", () => {
+    // The exemption above is scoped to the WEB's copies. This is what keeps it
+    // from widening into "React is never checked": whatever `apps/mobile` itself
+    // says about an exempt name still has to match SDK 57.
+    const declared = {
+      ...packageJson.dependencies,
+      ...(packageJson.devDependencies ?? {}),
+    };
+    for (const name of Object.keys(WEB_OWNED_BUNDLED_NAMES)) {
+      const range = declared[name];
+      if (range === undefined) continue;
+      expect(`${name}@${range}`).toBe(`${name}@${BUNDLED_NATIVE_MODULES[name]}`);
+    }
+
+    // Non-vacuity: an exemption list that drifted to names outside the table
+    // would exempt nothing and assert nothing, silently.
+    for (const name of Object.keys(WEB_OWNED_BUNDLED_NAMES)) {
+      expect(Object.keys(BUNDLED_NATIVE_MODULES)).toContain(name);
+    }
+  });
+});
