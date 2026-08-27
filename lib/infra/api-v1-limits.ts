@@ -169,6 +169,53 @@
 // rare, which is the half of the original argument that survives.
 //
 // ---------------------------------------------------------------------------
+// INBOX STATE, per IP: 240/min + 2,400/hr — A NEW FAMILY (WU-Q-1)
+// ---------------------------------------------------------------------------
+// `POST /me/notifications` marks rows read and archives them. It is a WRITE and
+// it is deliberately NOT in the authenticated-write family, for the reason
+// `/me/revoke-sessions` is not: that family's numbers are derived from a
+// particular kind of act, and this is not that act.
+//
+// Read `me/transfers/route.ts`'s own note on what its ceiling is sized against:
+// "offering an animal to somebody is not [something an owner does in bursts] …
+// What this write PRODUCES is not a row — it is a change of who owns an animal
+// in the national registry." Ten a minute is generous for THAT. It is absurd for
+// an inbox: a person clearing a backlog of notifications taps as fast as they can
+// read, and the eleventh tap in a minute would be refused on the one screen whose
+// entire purpose is to be tapped through. The web has no limiter on these writes
+// at all (they are server actions), so a ceiling that binds here makes the phone
+// strictly worse than the browser at the thing both are for.
+//
+// WHAT THE WRITE ACTUALLY COSTS, which is the honest basis for a number: one
+// indexed UPDATE on `notifications` scoped to `user_id`, touching `read_at` or
+// `archived_at`. No transaction spanning four tables, no e-mail, no notification
+// fan-out, no ownership change — see `@dim/contract/input`'s `notification.ts`
+// for why a read receipt is neither a spine fact nor a cache. It is the cheapest
+// authenticated write on this surface by an order of magnitude.
+//
+// PER USER: 20/min + 200/hr, and the shape of the command is half the derivation.
+// `mark_read` takes a LIST (up to one page), so "clear everything I can see" is
+// ONE call and not a hundred; what remains per-tap is `archive`, which is
+// singular on purpose because it has no undo. Twenty a minute is faster than
+// anybody archives deliberately, and 200/hr is a whole inbox emptied twice with
+// room over.
+//
+// PER IP: 12× both windows — 240/min and 2,400/hr. The multiple is
+// `/me/revoke-sessions`'s FLAT one rather than the write family's split one, and
+// the reason is the same as there: the per-user pair (20/min, 200/hr) is already
+// proportionate, so scaling both by the same factor preserves the shape.
+// Twelve accounts behind one carrier gateway all clearing notifications inside
+// the same minute is already a stretch; being refused at the thirteenth is a
+// bound rather than a shape.
+//
+// WHAT IT GIVES UP, stated as its siblings state it: the IP bucket runs BEFORE
+// the liveness guard, so 240/min is 240 GoTrue round-trips a minute an
+// unauthenticated caller with a well-formed but invalid token can force from one
+// address. That is twice the write family's exposure and a twentieth of the read
+// family's, which is the right place for it — this endpoint is cheaper per
+// request than either.
+//
+// ---------------------------------------------------------------------------
 // PUBLIC REFERENCE, per IP: 60/min → 600/min, 600/hr → 6,000/hr
 // ---------------------------------------------------------------------------
 // `/api/v1/localities` is the only route here with NO identity to key on, so
@@ -236,11 +283,20 @@
 // side.
 //
 // The aggregate per-IP per-minute ceiling across the CGNAT-derived families is
-// computed below and is 3,300/min. The `pre-cgnat` buckets add 420/min more
-// today (5 × 60 + 3 × 20 + 2 × 30), transcribed here in prose and NOT summed in
-// code, because a transcribed number that something computes from is a number
-// that drifts silently. When the follow-up moves those routes, that sentence
-// disappears and the computed figure becomes the whole surface.
+// `API_V1_CGNAT_FAMILY_IP_CEILING_PER_MINUTE`, computed below. IT USED TO BE
+// TRANSCRIBED HERE TOO ("and is 3,300/min") and that sentence went stale the
+// first time a route landed: WU-Q-1 added two buckets and the figure moved,
+// while the prose went on stating the old one in the very paragraph that exists
+// to state it honestly — which is §1.1 of docs/architecture/api-invariants.md
+// happening again, one line lower. So the number is named and not repeated. Read
+// the constant.
+//
+// The `pre-cgnat` buckets are outside that sum and add their own ceilings on top;
+// what they are is `API_V1_IP_BUCKET_FAMILIES`'s `pre-cgnat` entries, and what
+// each one spends is the route-local constant in its own file. That is
+// deliberately not totalled here either, in prose or in code: these are exactly
+// the routes nobody re-derived, so a figure standing for them would be an
+// arithmetic claim about numbers this file does not own.
 
 import type { RateLimitConfig } from "@/lib/infra/rate-limit";
 
@@ -334,6 +390,38 @@ export const API_V1_ACCOUNT_SECURITY_IP_LIMIT: RateLimitConfig = {
 };
 
 /**
+ * Inbox-state writes, per IP. `POST /me/notifications` only: 12× its per-user
+ * ceiling on both windows — 240 = 12 × 20 and 2,400 = 12 × 200 — and derived from
+ * what the write COSTS (one indexed UPDATE on the caller's own rows) rather than
+ * from what a transfer costs. Full argument in the header.
+ */
+export const API_V1_INBOX_STATE_IP_LIMIT: RateLimitConfig = {
+  maxPerMinute: 240,
+  maxPerHour: 2_400,
+};
+
+/**
+ * Inbox-state writes, per user — the anchor the IP ceiling above is derived from,
+ * and the bucket that actually bounds a PERSON.
+ *
+ * IT IS TWICE THE AUTHENTICATED-WRITE FAMILY'S PER-MINUTE CEILING AND FIVE TIMES
+ * ITS HOURLY ONE, which is the point rather than an oversight: the act is
+ * clearing an inbox, not handing over an animal. See the header, and see
+ * `@dim/contract/input`'s `notification.ts` for why `mark_read` batches — that
+ * batching is what makes 20/min the ceiling for a hundred-row screen instead of
+ * the ceiling for five taps.
+ *
+ * NO DAILY FIGURE, unlike the write family's. That one exists as an abuse
+ * backstop because each transfer initiation sends mail to an address it names;
+ * nothing here leaves the caller's own rows, so a daily cap would bound only how
+ * much of their own inbox somebody may read.
+ */
+export const API_V1_INBOX_STATE_USER_LIMIT: RateLimitConfig = {
+  maxPerMinute: 20,
+  maxPerHour: 200,
+};
+
+/**
  * Public reference reads, per IP. `/api/v1/localities` only, and the only route
  * in this file with no identity to fall back on — which is why it takes the
  * read family's ceiling rather than something tighter.
@@ -362,8 +450,42 @@ export type ApiV1IpFamily =
   | "authenticated-read"
   | "authenticated-write"
   | "account-security"
+  | "inbox-state"
   | "public-reference"
   | "pre-cgnat";
+
+/**
+ * Every family there is, as a runtime list.
+ *
+ * IT EXISTS SO A FENCE CAN BE EXHAUSTIVE. `__tests__/api-v1-rate-limit-families
+ * .test.ts` partitions the families into "read handlers only" and "write handlers
+ * only"; a family missing from BOTH of its lists is silently exempt from the
+ * check that catches a write route wearing a read ceiling — which is the exact
+ * defect that test was extended to catch in the first place, reintroduced one
+ * level up by omission. Deriving the list from the bucket map would not do: a
+ * family whose only route was deleted would vanish from it and take its own
+ * assertion with it.
+ *
+ * The `satisfies` below is what keeps it complete: adding a member to
+ * `ApiV1IpFamily` without adding it here is a type error in this file.
+ */
+export const API_V1_IP_FAMILIES = [
+  "authenticated-read",
+  "authenticated-write",
+  "account-security",
+  "inbox-state",
+  "public-reference",
+  "pre-cgnat",
+] as const satisfies readonly ApiV1IpFamily[];
+
+type _EveryFamilyIsListed = ApiV1IpFamily extends (typeof API_V1_IP_FAMILIES)[number]
+  ? true
+  : [
+      "missing from API_V1_IP_FAMILIES",
+      Exclude<ApiV1IpFamily, (typeof API_V1_IP_FAMILIES)[number]>,
+    ];
+const _everyFamilyIsListed: _EveryFamilyIsListed = true;
+void _everyFamilyIsListed;
 
 export const API_V1_IP_BUCKET_FAMILIES: Readonly<Record<string, ApiV1IpFamily>> = {
   // Re-derived by WU-EAS-2.
@@ -375,6 +497,12 @@ export const API_V1_IP_BUCKET_FAMILIES: Readonly<Record<string, ApiV1IpFamily>> 
   api_v1_me_caretaker_grants_write_ip: "authenticated-write",
   api_v1_me_revoke_sessions_ip: "account-security",
   api_v1_localities: "public-reference",
+
+  // Added by WU-Q-1 with the native inbox. The READ joins the existing family;
+  // the WRITE gets its own, because the authenticated-write ceiling is sized
+  // against handing over an animal and this is marking a notification read.
+  api_v1_me_notifications_read_ip: "authenticated-read",
+  api_v1_me_notifications_write_ip: "inbox-state",
 
   // Knowingly out of scope — see the header. Same shape, same caller, older
   // ceiling, and each one owns its number in its own route file.
@@ -403,7 +531,10 @@ export const API_V1_IP_BUCKET_FAMILIES: Readonly<Record<string, ApiV1IpFamily>> 
  * ceiling by 2.2× in the very paragraph that existed to state it honestly.
  *
  * `pre-cgnat` buckets are NOT in this sum; they are not this file's numbers to
- * add up. Today they contribute 420/min more (the header transcribes the terms).
+ * add up. THIS DOCBLOCK USED TO SAY HOW MUCH THEY CONTRIBUTE ("420/min more"),
+ * with the terms transcribed in the header — a second copy of a set, in prose,
+ * next to a comment explaining why that is dangerous. The list that cannot lie is
+ * `API_V1_IP_BUCKET_FAMILIES` and each route's own constant; read those.
  */
 export const API_V1_CGNAT_FAMILY_IP_CEILING_PER_MINUTE: number = Object.values(
   API_V1_IP_BUCKET_FAMILIES,
@@ -415,6 +546,8 @@ export const API_V1_CGNAT_FAMILY_IP_CEILING_PER_MINUTE: number = Object.values(
       return total + (API_V1_AUTHENTICATED_WRITE_IP_LIMIT.maxPerMinute ?? 0);
     case "account-security":
       return total + (API_V1_ACCOUNT_SECURITY_IP_LIMIT.maxPerMinute ?? 0);
+    case "inbox-state":
+      return total + (API_V1_INBOX_STATE_IP_LIMIT.maxPerMinute ?? 0);
     case "public-reference":
       return total + (API_V1_PUBLIC_REFERENCE_IP_LIMIT.maxPerMinute ?? 0);
     case "pre-cgnat":

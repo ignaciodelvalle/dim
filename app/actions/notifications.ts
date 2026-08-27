@@ -16,6 +16,12 @@
 // file that defines a guard's name (findShadowedGuardDefinitions).
 //
 // CRITICAL: Every runtime export in a "use server" file must be an async function.
+//
+// The three wrappers `await` their use-case and return `void` while the use-cases
+// now return a changed-row count. That is not a value dropped by accident: these
+// are FORM actions, React types one as `(formData) => void | Promise<void>`, and
+// forwarding `Promise<{changed:number}>` would not be assignable. The count is
+// for `POST /api/v1/me/notifications`; a browser has nowhere to put it.
 
 import { requireLiveUser } from "@/lib/infra/live-user";
 import {
@@ -27,17 +33,17 @@ import {
 export async function markNotificationReadAction(notificationId: string): Promise<void> {
   const live = await requireLiveUser();
   if (!live.ok) throw new Error(live.error);
-  return _markNotificationRead(live.user.id, notificationId);
+  await _markNotificationRead(live.user.id, notificationId);
 }
 
 export async function archiveNotificationAction(notificationId: string): Promise<void> {
   const live = await requireLiveUser();
   if (!live.ok) throw new Error(live.error);
-  return _archiveNotification(live.user.id, notificationId);
+  await _archiveNotification(live.user.id, notificationId);
 }
 
 export async function markAllNotificationsReadAction(): Promise<void> {
   const live = await requireLiveUser();
   if (!live.ok) throw new Error(live.error);
-  return _markAllNotificationsRead(live.user.id);
+  await _markAllNotificationsRead(live.user.id);
 }

@@ -10,18 +10,13 @@ import { NotificationCard } from "@/components/NotificationCard";
 import { LnButton } from "@/components/ui/Button";
 import { LnEmptyState } from "@/components/ui/EmptyState";
 import { type UrlTabItem, UrlTabs } from "@/components/ui/UrlTabs";
-import { db, notifications, pets } from "@/db";
 import {
   fetchNotificationCategoryCounts,
   fetchUnreadNotificationCount,
 } from "@/lib/analytics/owner-dashboard";
 import { requireUserOrRedirect } from "@/lib/infra/auth-guards";
-import {
-  excludeResolvedLostEpisodeSql,
-  excludeStaleWelcomeSql,
-} from "@/lib/infra/notification-reconcile";
-import { decodeCursor, keysetWhere, newerHref, olderHref } from "@/lib/utils/keyset-pagination";
-import { and, desc, eq, isNull } from "drizzle-orm";
+import { decodeCursor, newerHref, olderHref } from "@/lib/utils/keyset-pagination";
+import { listNotificationsForUser } from "@/src/modules/notifications/application/read/list-notifications-for-user";
 
 import { groupNotifications, sortNotificationsForDisplay } from "./notification-ordering";
 
@@ -106,32 +101,19 @@ export default async function NotificacionesPage({
 
   const visibleCategories = CATEGORY_ORDER.filter((c) => c === "all" || countByCategory[c] > 0);
 
-  const baseClauses = [
-    eq(notifications.userId, user.id),
-    isNull(notifications.archivedAt),
-    activeCat !== "all" ? eq(notifications.category, activeCat) : undefined,
-    // Reconcile against current state: drop lost-active alerts (sighting,
-    // broadcast, possession) once the subject pet is no longer lost (PO QA §2).
-    excludeResolvedLostEpisodeSql,
-    // Drop the onboarding welcome ("Registrá tu primera mascota") once the
-    // user actually owns a pet (tester fix #8 — read-time, no migration).
-    excludeStaleWelcomeSql,
-    // Keyset predicate: only rows older than the cursor.
-    keysetWhere(notifications.createdAt, notifications.id, cursor),
-  ].filter(Boolean);
-  const whereClause = and(...(baseClauses as Parameters<typeof and>));
-
-  // Fetch limit+1 to detect whether a next page exists.
-  const rawRows = await db
-    .select({ notification: notifications, pet: pets })
-    .from(notifications)
-    .leftJoin(pets, eq(notifications.relatedPetId, pets.id))
-    .where(whereClause)
-    .orderBy(desc(notifications.createdAt), desc(notifications.id))
-    .limit(NOTIFICATIONS_PAGE_LIMIT + 1);
-
-  const hasMore = rawRows.length > NOTIFICATIONS_PAGE_LIMIT;
-  const rows = hasMore ? rawRows.slice(0, NOTIFICATIONS_PAGE_LIMIT) : rawRows;
+  // THE QUERY IS NOT HERE ANY MORE. `listNotificationsForUser` owns the four
+  // clauses that decide what "in the inbox" means (own rows, not archived, minus
+  // the two read-time reconciliations, optionally one category) and it is the
+  // same function `GET /api/v1/me/notifications` calls. It moved out of this page
+  // in WU-Q-1 for the reason `listOwnerPets` moved out of /mis-mascotas: a route
+  // handler with its own copy of that predicate is how the native list eventually
+  // shows a row this one does not.
+  const { rows, hasMore } = await listNotificationsForUser({
+    userId: user.id,
+    category: activeCat === "all" ? null : activeCat,
+    limit: NOTIFICATIONS_PAGE_LIMIT,
+    cursor,
+  });
 
   // Build filter params map (cursor excluded — it's managed by pagination links).
   const filterParams: Record<string, string | undefined> =

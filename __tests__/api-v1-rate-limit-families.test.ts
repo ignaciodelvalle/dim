@@ -72,7 +72,10 @@ import {
   API_V1_AUTHENTICATED_WRITE_IP_LIMIT,
   API_V1_AUTHENTICATED_WRITE_USER_LIMIT,
   API_V1_CGNAT_FAMILY_IP_CEILING_PER_MINUTE,
+  API_V1_INBOX_STATE_IP_LIMIT,
+  API_V1_INBOX_STATE_USER_LIMIT,
   API_V1_IP_BUCKET_FAMILIES,
+  API_V1_IP_FAMILIES,
   API_V1_PUBLIC_REFERENCE_IP_LIMIT,
   type ApiV1IpFamily,
 } from "@/lib/infra/api-v1-limits";
@@ -86,7 +89,7 @@ const ROUTE_GLOB = "app/api/v1/**/route.ts";
  * job of the number, and `check-api-v1-envelope.ts` has two written paragraphs
  * about the two times its own floor drifted instead.
  */
-const MIN_IP_BUCKETS = 18;
+const MIN_IP_BUCKETS = 20;
 
 /**
  * Collects `enforceRateLimit`-style bucket literals from a route's source and
@@ -133,12 +136,25 @@ const FAMILY_OF_SHARED_CEILING: Readonly<Record<string, ApiV1IpFamily>> = {
   API_V1_AUTHENTICATED_READ_IP_LIMIT: "authenticated-read",
   API_V1_AUTHENTICATED_WRITE_IP_LIMIT: "authenticated-write",
   API_V1_ACCOUNT_SECURITY_IP_LIMIT: "account-security",
+  API_V1_INBOX_STATE_IP_LIMIT: "inbox-state",
   API_V1_PUBLIC_REFERENCE_IP_LIMIT: "public-reference",
 };
 
-/** Families whose buckets may only be spent by a read handler, and vice versa. */
+/**
+ * Families whose buckets may only be spent by a read handler, and vice versa.
+ *
+ * EVERY FAMILY EXCEPT `pre-cgnat` HAS TO BE IN ONE OF THESE TWO, or the method
+ * fence below silently stops applying to it — a family missing from both lists
+ * is exempt from the check that catches a write route wearing a read ceiling,
+ * which is the failure this whole describe block exists for. The exhaustiveness
+ * test underneath is what makes that impossible to do by omission.
+ */
 const READ_FAMILIES: readonly ApiV1IpFamily[] = ["authenticated-read", "public-reference"];
-const WRITE_FAMILIES: readonly ApiV1IpFamily[] = ["authenticated-write", "account-security"];
+const WRITE_FAMILIES: readonly ApiV1IpFamily[] = [
+  "authenticated-write",
+  "account-security",
+  "inbox-state",
+];
 
 type IpBucketSite = {
   readonly bucket: string;
@@ -381,9 +397,69 @@ describe("/api/v1 rate-limit families — the numbers the derivation committed t
     // transplanted into the per-minute slot and overstated the ceiling by 2.2×
     // in the paragraph that existed to state it honestly.
     //
-    // 5 × 600 (four authenticated reads + localities) + 2 × 120 (the writes)
-    // + 1 × 60 (revoke-sessions) = 3.300/min. The ten `pre-cgnat` buckets are
-    // deliberately not in the sum.
-    expect(API_V1_CGNAT_FAMILY_IP_CEILING_PER_MINUTE).toBe(3_300);
+    // THE TERMS USED TO BE TRANSCRIBED HERE ("5 × 600 … + 1 × 60 = 3.300/min")
+    // and WU-Q-1 made them wrong: two buckets landed, the sum moved to 4.140,
+    // and the arithmetic in this comment described a surface that no longer
+    // existed. A comment that enumerates a set is a second copy of the set. The
+    // list that cannot lie is `API_V1_IP_BUCKET_FAMILIES` next to the five
+    // ceiling constants; what stays here is the PIN, which is the only part a
+    // test can hold. `pre-cgnat` buckets are deliberately not in the sum.
+    expect(API_V1_CGNAT_FAMILY_IP_CEILING_PER_MINUTE).toBe(4_140);
+  });
+
+  it("keeps inbox-state flat at 12× on BOTH windows, like account-security", () => {
+    // The new family's own relationship, pinned for the reason the two above are:
+    // its per-user pair (20/min, 200/hr) is already proportionate, so 12× carries
+    // onto both windows without propagating a deliberate narrowing.
+    expect(API_V1_INBOX_STATE_IP_LIMIT.maxPerMinute).toBe(
+      (API_V1_INBOX_STATE_USER_LIMIT.maxPerMinute ?? 0) * 12,
+    );
+    expect(API_V1_INBOX_STATE_IP_LIMIT.maxPerHour).toBe(
+      (API_V1_INBOX_STATE_USER_LIMIT.maxPerHour ?? 0) * 12,
+    );
+  });
+
+  it("lets a person clear an inbox faster than they can hand over an animal", () => {
+    // THE REASON THIS FAMILY EXISTS AT ALL, as an assertion rather than a
+    // paragraph. If the inbox ceiling ever falls to the authenticated-write
+    // family's, the eleventh tap on a screen whose entire purpose is to be tapped
+    // through gets a 429 — and the web, which limits these writes not at all,
+    // becomes strictly better at the thing both surfaces are for.
+    expect(API_V1_INBOX_STATE_USER_LIMIT.maxPerMinute ?? 0).toBeGreaterThan(
+      API_V1_AUTHENTICATED_WRITE_USER_LIMIT.maxPerMinute ?? 0,
+    );
+  });
+});
+
+describe("/api/v1 rate-limit families — the method fence covers every family", () => {
+  it("classifies every non-pre-cgnat family as read-only or write-only", () => {
+    // THE FENCE'S OWN BLIND SPOT, closed. The method check above skips any family
+    // that is in neither READ_FAMILIES nor WRITE_FAMILIES — so a family added to
+    // the union and forgotten in those two lists is silently exempt from the
+    // check that catches a write route wearing a read ceiling. That is the very
+    // defect this describe block was extended to catch, reintroduced one level up
+    // by omission.
+    //
+    // `API_V1_IP_FAMILIES` is complete by construction (a `satisfies` in
+    // api-v1-limits.ts fails the build if a member is missing), which is what
+    // makes this assertion mean something.
+    const unclassified = API_V1_IP_FAMILIES.filter(
+      (family) =>
+        family !== "pre-cgnat" &&
+        !READ_FAMILIES.includes(family) &&
+        !WRITE_FAMILIES.includes(family),
+    );
+    expect(
+      unclassified,
+      "a family in neither list is exempt from the read/write direction check — " +
+        "add it to READ_FAMILIES or WRITE_FAMILIES",
+    ).toEqual([]);
+  });
+
+  it("never puts a family in both lists", () => {
+    const both = API_V1_IP_FAMILIES.filter(
+      (family) => READ_FAMILIES.includes(family) && WRITE_FAMILIES.includes(family),
+    );
+    expect(both).toEqual([]);
   });
 });

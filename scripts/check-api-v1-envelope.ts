@@ -114,8 +114,13 @@ export const V1_ROUTE_GLOB = "app/api/v1/**/route.ts";
  * instruction into a habit. It is the first route on this surface whose
  * directory name contains a HYPHEN, so it is also the first that would be missed
  * by any future narrowing of the glob to a word-character segment.
+ *
+ * EIGHTEEN with the inbox (`me/notifications`), raised in the same commit that
+ * added the route — the fifth in a row. `me/` now has FIVE siblings a directory
+ * rename could take out together, which is the arrangement this floor was raised
+ * to seventeen for one route ago and is the reason it keeps being worth raising.
  */
-export const MIN_V1_ROUTE_FILES = 17;
+export const MIN_V1_ROUTE_FILES = 18;
 
 export const HELPER_MODULE = "@/lib/infra/api-v1";
 
