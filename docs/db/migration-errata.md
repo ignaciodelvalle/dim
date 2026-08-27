@@ -187,6 +187,54 @@ triggers.sql gets flagged until the two sources reconcile.
 
 ---
 
+## The one case where editing the file IS the honest move
+
+The closing rule below says a wrong SQL effect is not an erratum — it is a new
+forward-only migration, "and the old file stays as the record of what actually
+ran." That qualifier is the whole rule, and it has an edge the rest of this
+document does not cover.
+
+**If the file ran nowhere real, there is no record to preserve.** A migration
+applied only to a developer's local Supabase stack has exactly one ledger row,
+on a database that can be rebuilt from scratch with `pnpm db:bootstrap`. Delete
+that row, re-run `pnpm db:migrate`, and the ledger records the corrected bytes:
+no environment disagrees with the committed SQL, no drift warning fires, and
+`pnpm db:doctor` section A stays green. Nothing has been hidden, because nothing
+had been shipped.
+
+**And for a DESTRUCTIVE statement, a corrective is not a fix at all.** A
+corrective migration runs *after* the one it corrects, in the same
+`pnpm db:migrate` invocation. If the flaw nulls or deletes a column, the damage
+lands on staging and production first and the corrective can only apologise for
+it. "Forward-only" protects the record; it was never meant to guarantee that a
+known-destructive statement gets to run once on every environment before anyone
+is allowed to fix it.
+
+So the test is not "has it been applied" but **"has it been applied anywhere
+whose history I would be falsifying"**:
+
+| Applied to | Flaw is prose | Flaw is a wrong/destructive SQL effect |
+|---|---|---|
+| staging or production | erratum here (`## E-N`) | new forward-only migration |
+| local dev only | edit the file | **edit the file**, delete the ledger row, re-apply |
+
+Exercised once, deliberately: `0205_subject_rights_caretaker_grants_foster_contact.sql`
+(2026-08-27). An adversarial review found its `C2` backfill missing
+`o.ended_at IS NULL`, so it would have nulled a *living* third party's emergency
+contact, vet and insurance on any pet an erased user had merely transferred
+away. It had reached no environment but one local dev database. The file was
+corrected in place — the predicate now matches the live RPC's, and the migration
+header says so — the local ledger row was deleted, and `pnpm db:migrate`
+re-recorded the true checksum. No erratum entry exists for it because there is
+no divergence to record; this section is the record.
+
+If you reach for this, say in the commit body **which** environments had run the
+file, and how you confirmed it. "Local only" is a claim about the world, and
+`pnpm db:doctor -- --allow-remote` against staging is how you check it rather
+than assume it.
+
+---
+
 ## Adding an entry
 
 One `## E-N` section per erratum. Include, in this order: the file, the exact lines, whether SQL or prose is affected, the claim, the truth, and how the truth was verified. Say the verification out loud — an erratum that only asserts is a second unverified claim stacked on the first.

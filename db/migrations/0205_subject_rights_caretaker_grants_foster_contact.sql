@@ -73,6 +73,24 @@
 -- function must use the app's own notion of identity, not a stricter one that
 -- silently misses a row. Same reason the ORDER below is load-bearing.
 --
+-- The `pet_transfers` statements a few blocks down still compare `to_owner_email`
+-- with a plain `=`, inherited verbatim from 0170. That asymmetry is deliberate
+-- and it is LATENT, not live: `initiate-pet-transfer.ts` lowercases the address
+-- at its single write path and `auth.users.email` is stored lowercased, so no
+-- row the app can write is missed today. It is named here rather than silently
+-- left as two adjacent predicates in one file that disagree — the day a second
+-- writer appears, this is the paragraph that says which one is the bug.
+--
+-- WHAT AN ADVERSARIAL REVIEW CAUGHT BEFORE THIS FILE RAN ANYWHERE REAL. PART C2
+-- was written without `o.ended_at IS NULL`, which would have nulled a LIVING
+-- third party's contact data on a pet an erased user had merely transferred
+-- away. Full reasoning at C2. The file was corrected in place rather than
+-- superseded, because a corrective migration runs AFTER this one in the same
+-- `pnpm db:migrate` invocation: it could not have un-nulled a column, only
+-- apologised for it. 0205 had been applied to no environment but a local dev
+-- database, whose ledger row was deleted and re-recorded so the checksum still
+-- matches the bytes that ran.
+--
 -- ORDERING INSIDE THE ERASE, AND WHY IT IS NOT COSMETIC. The pending-invitation
 -- flips match the subject BY EMAIL; the sentinel then overwrites that email.
 -- Run the sentinel first and the flips find nothing. Flips precede the sentinel.
@@ -123,12 +141,17 @@ BEGIN
    WHERE deleted_at IS NOT NULL
      AND (jurisdiction_province IS NOT NULL OR jurisdiction_locality IS NOT NULL);
 
+  -- The predicate is THE SAME ONE the live RPC uses (see PART C2's header for
+  -- why `o.ended_at IS NULL` is load-bearing rather than decorative). Counting
+  -- with a wider predicate than the backfill applies would report a number
+  -- nobody is about to act on.
   SELECT count(*) INTO n_pets_contact
     FROM public.pets p
    WHERE EXISTS (
            SELECT 1 FROM public.ownerships o
              JOIN public.profiles pr ON pr.id = o.owner_user_id
-            WHERE o.pet_id = p.id AND o.role = 'owner' AND pr.deleted_at IS NOT NULL
+            WHERE o.pet_id = p.id AND o.role = 'owner' AND o.ended_at IS NULL
+              AND pr.deleted_at IS NOT NULL
          )
      AND (p.emergency_contact_name IS NOT NULL OR p.emergency_contact_phone IS NOT NULL
           OR p.preferred_vet_name IS NOT NULL OR p.preferred_vet_phone IS NOT NULL
@@ -900,6 +923,32 @@ COMMENT ON COLUMN public.profiles.jurisdiction_locality IS
   'INERT since migration 0205 — see the comment on jurisdiction_province.';
 
 -- C2 — pets of an erased owner still carrying owner-provided contact data.
+--
+-- THE PREDICATE IS DELIBERATELY IDENTICAL TO THE LIVE RPC'S (PART B, the
+-- `pets_contact_scrubbed` statement): owner_user_id is an erased profile, the
+-- role is 'owner', AND THE OWNERSHIP ROW IS STILL LIVE. The two must not drift,
+-- and the `o.ended_at IS NULL` half is the whole reason to say so out loud —
+-- it was MISSING from this backfill in the first cut, and an adversarial review
+-- caught it before the file ran anywhere real.
+--
+-- What the missing filter did: `ownerships` keeps CLOSED rows forever, so an
+-- EXISTS without `ended_at IS NULL` matches any pet that an erased profile once
+-- owned. A transfers A -> B (accept closes A's owner row via
+-- `closeOwnerOwnerships`), A later erases their account, and this statement
+-- would then null B's CURRENT emergency contact, vet and insurance on B's own
+-- animal. B asked for nothing, B is not the data subject, and a NULL is not
+-- recoverable. That is the exact inversion of what an art. 16 backfill is for:
+-- destroying a living third party's data in the name of somebody else's right.
+--
+-- Dropping the filter also gains nothing. `erase_subject_data` never ends an
+-- ownership row, so every pet the backfill is meant to reach — an erased owner
+-- whose row is still open — already satisfies the narrow predicate. The wide
+-- one adds transferred-away pets and nothing else.
+--
+-- The values on such a transferred pet MAY be the erased ex-owner's stale
+-- entries (a transfer does not clear these six columns), but this statement
+-- cannot tell those from the new owner's own. "May be stale" is not a licence.
+-- Cleaning them up belongs to a transfer-time decision, not to an erasure.
 UPDATE public.pets p
    SET emergency_contact_name  = NULL,
        emergency_contact_phone = NULL,
@@ -914,6 +963,7 @@ UPDATE public.pets p
            JOIN public.profiles pr ON pr.id = o.owner_user_id
           WHERE o.pet_id = p.id
             AND o.role = 'owner'
+            AND o.ended_at IS NULL
             AND pr.deleted_at IS NOT NULL
        )
    AND (p.emergency_contact_name IS NOT NULL
@@ -1033,12 +1083,16 @@ BEGIN
     RAISE EXCEPTION '0205 fence: % profile(s) still carry an account jurisdiction', leftovers;
   END IF;
 
+  -- Same predicate as C2 and as the live RPC, for the third time and on purpose:
+  -- a fence that asserts a WIDER emptiness than the backfill produces would fail
+  -- the migration over rows it deliberately does not touch.
   SELECT count(*) INTO leftovers
     FROM public.pets p
    WHERE EXISTS (
            SELECT 1 FROM public.ownerships o
              JOIN public.profiles pr ON pr.id = o.owner_user_id
-            WHERE o.pet_id = p.id AND o.role = 'owner' AND pr.deleted_at IS NOT NULL
+            WHERE o.pet_id = p.id AND o.role = 'owner' AND o.ended_at IS NULL
+              AND pr.deleted_at IS NOT NULL
          )
      AND (p.emergency_contact_name IS NOT NULL OR p.emergency_contact_phone IS NOT NULL
           OR p.preferred_vet_name IS NOT NULL OR p.preferred_vet_phone IS NOT NULL

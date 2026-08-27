@@ -64,6 +64,8 @@ let inviteeUserId: string;
 let otherOwnerUserId: string;
 let grantorPetId: string;
 let otherPetId: string;
+/** Owned by the grantor once, transferred to otherOwner — the living third party. */
+let transferredPetId: string;
 /** Grant on the grantor's own pet, addressed to the invitee BY ACCOUNT. */
 let byAccountGrantId: string;
 /** Grant on a third party's pet, addressed to the invitee BY EMAIL only. */
@@ -176,6 +178,18 @@ beforeAll(async () => {
   const stamp = Date.now().toString(36).toUpperCase().slice(-4);
   grantorPetId = await createPet(`DIM-SR05-${stamp}`, grantorUserId);
   otherPetId = await createPet(`DIM-SR06-${stamp}`, otherOwnerUserId);
+
+  // A pet the grantor owned and TRANSFERRED AWAY: their `owner` row is closed
+  // (what `closeOwnerOwnerships` does on accept) and the buyer's is live. The
+  // contact fields on it are now the buyer's — a living person who requested
+  // nothing and is not the data subject.
+  transferredPetId = await createPet(`DIM-SR07-${stamp}`, otherOwnerUserId);
+  await db.insert(ownerships).values({
+    petId: transferredPetId,
+    ownerUserId: grantorUserId,
+    role: "owner",
+    endedAt: new Date(Date.now() - 24 * 60 * 60 * 1000),
+  });
 
   // The account-level jurisdiction 0205 stops collecting. Written directly here
   // because the writer it used to have was removed in the same change.
@@ -354,6 +368,61 @@ describe("erase_subject_data — the GRANTOR side (art. 16)", () => {
       .where(eq(profiles.id, grantorUserId));
     expect(profile.province).toBeNull();
     expect(profile.locality).toBeNull();
+  });
+
+  // THE THIRD PARTY THIS PINS. `ownerships` keeps closed rows forever, so any
+  // predicate that forgets `ended_at IS NULL` reaches every pet the subject EVER
+  // owned — including one they transferred away, whose contact fields now belong
+  // to the person who bought it. An adversarial review found exactly that in the
+  // C2 backfill of 0205 before the file ran anywhere real; the live RPC always
+  // had the filter, and this is what stops a future edit from dropping it.
+  it("LEAVES ALONE a pet the subject transferred away — those fields are the new owner's", async () => {
+    const [pet] = await db
+      .select({
+        emergencyContactName: pets.emergencyContactName,
+        preferredVetName: pets.preferredVetName,
+        insuranceCompany: pets.insuranceCompany,
+        deletedAt: pets.deletedAt,
+      })
+      .from(pets)
+      .where(eq(pets.id, transferredPetId));
+    expect(pet.emergencyContactName).toBe("Vecina Marta");
+    expect(pet.preferredVetName).toBe("Dr. Quiroga");
+    expect(pet.insuranceCompany).toBe("Mascota Segura SA");
+    // And it is not soft-deleted either: the pets soft-delete carries the same
+    // `ended_at IS NULL` scoping, for the same reason.
+    expect(pet.deletedAt).toBeNull();
+
+    // NON-VACUITY. The assertions above would also pass on a fixture where no
+    // predicate could ever have reached this pet, which would make them decoration.
+    // So run the WIDE predicate — the one 0205's C2 backfill carried before the
+    // review — and prove it DOES select this row. Narrow spares it, wide takes it:
+    // the difference is real on this fixture, and that is what the test pins.
+    const wide = (await db.execute(sql`
+      SELECT count(*)::int AS n
+        FROM public.pets p
+       WHERE p.id = ${transferredPetId}
+         AND EXISTS (
+               SELECT 1 FROM public.ownerships o
+                 JOIN public.profiles pr ON pr.id = o.owner_user_id
+                WHERE o.pet_id = p.id AND o.role = 'owner'
+                  AND pr.deleted_at IS NOT NULL
+             )
+    `)) as unknown as Array<{ n: number }>;
+    expect(wide[0].n).toBe(1);
+
+    const narrow = (await db.execute(sql`
+      SELECT count(*)::int AS n
+        FROM public.pets p
+       WHERE p.id = ${transferredPetId}
+         AND EXISTS (
+               SELECT 1 FROM public.ownerships o
+                 JOIN public.profiles pr ON pr.id = o.owner_user_id
+                WHERE o.pet_id = p.id AND o.role = 'owner' AND o.ended_at IS NULL
+                  AND pr.deleted_at IS NOT NULL
+             )
+    `)) as unknown as Array<{ n: number }>;
+    expect(narrow[0].n).toBe(0);
   });
 
   it("scrubs the PER-PET mirrors of the profile contact fields", async () => {
