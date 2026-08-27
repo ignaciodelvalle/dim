@@ -155,6 +155,12 @@ export function apiErrorMessage(code: ApiV1ErrorCode): string {
       return "Esta acción es solo del titular de la mascota.";
     case "lost_microchip_invalid":
       return "El número de microchip no tiene un formato válido. Revisalo o dejalo vacío.";
+    case "lost_report_target_invalid":
+      // The item the person tapped is not on this animal's feed any more —
+      // somebody else already reported it, or the screen is holding an old copy
+      // of the list. Both fix by re-reading, and neither is the person's fault,
+      // so the sentence says what to do and does not accuse them of anything.
+      return "Ese mensaje ya no está en la búsqueda. Actualizá la pantalla para ver el listado al día.";
     case "lost_failed":
       return "No pudimos completar la acción. Volvé a intentar en unos minutos.";
     case "share_forbidden":

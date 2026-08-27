@@ -12,12 +12,19 @@
 // the WORDS — the contract carries codes, the consumer owns its copy.
 //
 // THE CAPABILITIES ARE THE SERVER'S TOO, AND THIS FILE NEVER RECOMPUTES THEM.
-// `payload.capabilities` says which of the five commands this caller may send. A
-// screen that derived "can mark found" from `status === "lost"` would get four
-// of five right and reactivation — refused on the ORG path alone, which nothing
-// in the payload's status hints at — silently wrong.
+// `payload.capabilities` says which of the five STATE commands this caller may
+// send. A screen that derived "can mark found" from `status === "lost"` would get
+// four of five right and reactivation — refused on the ORG path alone, which
+// nothing in the payload's status hints at — silently wrong.
+//
+// THE SIXTH COMMAND HAS NO FLAG, and `feedItemReportable` explains why at its own
+// definition: reporting takes an ITEM rather than the animal, the right to do it
+// is co-extensive with the right to read the feed, and a boolean that is `true`
+// on every payload teaches a reader to stop checking it.
 
 import type { LostDisclosureV1, LostFeedItemV1, PetLostV1 } from "@dim/contract/api";
+import type { ContentReportCategory } from "@dim/contract/events";
+import { CONTENT_REPORT_CATEGORIES } from "@dim/contract/events";
 import type {
   LostCommandInput,
   LostCommandInputCode,
@@ -175,6 +182,62 @@ export function feedItemContact(item: LostFeedItemV1): string | null {
   return item.finderContact;
 }
 
+/**
+ * May this row be reported?
+ *
+ * THE ANSWER IS THE KIND AND NOTHING ELSE, and it is not a recomputation of a
+ * server decision — it is the contract read literally. A `sighting` and a
+ * `finder` were typed by an anonymous stranger; a `scan` is a machine reading a
+ * QR, with no author and no text, so there is nothing anybody could have written
+ * wrongly. The server refuses a scan target regardless, with
+ * `lost_report_target_invalid`; this is what keeps the app from offering a
+ * control that would be refused.
+ *
+ * NOT A CAPABILITY FLAG, deliberately. `capabilities` carries the five conditions
+ * a client would get WRONG on its own — whether an episode is open, whether this
+ * caller came through an organization. The right to report is co-extensive with
+ * the right to read the feed, so a flag would be `true` on every payload that
+ * ever reached a screen, and a boolean that never varies teaches a reader to
+ * stop checking it.
+ */
+export function feedItemReportable(item: LostFeedItemV1): boolean {
+  return item.kind !== "scan";
+}
+
+/** The affordance's label. "Reportar", never "Denunciar" — see REPORT_INTRO. */
+export const REPORT_ACTION_LABEL = "Reportar";
+
+/**
+ * What the person is told before they report something.
+ *
+ * SAYS WHAT ACTUALLY HAPPENS, in the two directions people assume wrongly: the
+ * message leaves THEIR feed (not the internet), and nothing is deleted from the
+ * record. The second half matters more than it looks — this app tells people
+ * everywhere else that events are never edited or erased, and an affordance that
+ * appeared to contradict that would undermine the promise that makes the whole
+ * credential worth anything.
+ */
+export const REPORT_INTRO =
+  "El mensaje deja de aparecer en tu búsqueda. No se borra del historial y quien lo escribió no recibe ningún aviso.";
+
+/** es-AR label for one report category. Exhaustive over the contract's list. */
+export function reportCategoryLabel(category: ContentReportCategory): string {
+  switch (category) {
+    case "spam":
+      return "Publicidad o me piden plata";
+    case "harassment":
+      return "Me insultan o me amenazan";
+    case "false_information":
+      return "Es información inventada";
+    case "personal_data":
+      return "Publica datos de otra persona";
+    case "other":
+      return "Otro motivo";
+  }
+}
+
+export const REPORT_CATEGORY_OPTIONS: readonly ContentReportCategory[] = CONTENT_REPORT_CATEGORIES;
+
 export const FEED_EMPTY_LABEL = "Todavía no hay avistajes ni escaneos.";
 
 /**
@@ -312,6 +375,21 @@ export function buildSetDisclosure(key: DisclosureKey, value: boolean): CommandR
 }
 
 /**
+ * REPORTAR UN MENSAJE, from the row the person tapped.
+ *
+ * `targetEventId` IS THE FEED ITEM'S OWN `id`, echoed — never constructed. The
+ * screen holds the row; the contract holds the uuid rule; nothing here invents
+ * an identifier.
+ */
+export function buildReportContent(
+  targetEventId: string,
+  category: ContentReportCategory,
+  reason: string,
+): CommandResult {
+  return validated({ command: "report_content", targetEventId, category, reason: orNull(reason) });
+}
+
+/**
  * es-AR copy for every input code. Exhaustive: a code added to the contract is
  * a COMPILE error here, the same guarantee `apiErrorMessage` gives for the
  * failure vocabulary.
@@ -337,6 +415,15 @@ export function lostInputCodeMessage(code: LostCommandInputCode | null): string 
       return "La ubicación está fuera de rango.";
     case "COORDS_INCOMPLETE":
       return "Falta una de las dos coordenadas del punto.";
+    case "REPORT_TARGET_REQUIRED":
+      // The app sends the row's own id, so a person can never cause this. It is
+      // a build out of step with the contract, and the sentence says so rather
+      // than asking somebody to fix a field they never saw.
+      return "Esta versión de la app no pudo identificar el mensaje. Actualizá la app.";
+    case "REPORT_CATEGORY_INVALID":
+      return "Elegí uno de los motivos de la lista.";
+    case "REPORT_REASON_TOO_LONG":
+      return "El motivo es muy largo. Contalo en 500 caracteres o menos.";
   }
 }
 
@@ -353,6 +440,11 @@ export function commandDoneLabel(command: LostCommandInput["command"], petSex: s
       return "Búsqueda reactivada.";
     case "set_disclosure":
       return "Preferencia guardada.";
+    case "report_content":
+      // Says the two things a person needs and neither of them is "gracias por
+      // reportar": what changed (it is gone from their list) and what did not
+      // (the record still has it).
+      return "Listo. Ese mensaje ya no aparece en tu búsqueda.";
   }
 }
 
@@ -379,6 +471,11 @@ export function commandUnchangedLabel(command: LostCommandInput["command"]) {
       return "La búsqueda ya estaba activa.";
     case "set_disclosure":
       return "Esa preferencia ya estaba así.";
+    case "report_content":
+      // Reachable in one real situation: a caretaker and the titular are both
+      // looking at the feed and both report the same message. Nothing was
+      // written twice and the item is gone either way.
+      return "Ese mensaje ya estaba reportado.";
   }
 }
 

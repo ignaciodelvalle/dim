@@ -442,3 +442,155 @@ describe("LostScreen — the refusals a person sees", () => {
     expect(await screen.findByText(/solo del titular/i)).toBeOnTheScreen();
   });
 });
+
+// ---------------------------------------------------------------------------
+// Reportar — the affordance a content-rating declaration already promised
+// ---------------------------------------------------------------------------
+//
+// WHAT THESE HAVE TO PROVE
+//   5. THE CONTROL IS ON THE TWO AUTHORED KINDS AND NOT ON A SCAN. A QR read has
+//      no author and no text; offering to report one would be a control the
+//      server refuses, and the person who tapped it would learn that as an
+//      error.
+//   6. THE COMMAND CARRIES THE ROW'S OWN ID. The screen echoes what it was
+//      given; an id built or guessed here would hide the wrong message.
+//   7. NO IDEMPOTENCY KEY. The command appends and still needs none, because its
+//      writer is idempotent on the state.
+//   8. THE PERSON IS TOLD WHAT ACTUALLY HAPPENS — it leaves their search, it is
+//      not erased, and nobody is notified. This app promises everywhere else
+//      that events are never deleted, and this screen must not appear to break
+//      that promise.
+
+// REAL UUIDs, because a feed item's `id` IS a `pet_events.id` and the contract
+// refuses anything else. A first draft of this fixture used "ev-sighting-1" and
+// every send test failed with the screen showing "la app no pudo identificar el
+// mensaje" — the client-side schema doing exactly its job, on a fixture that
+// could never have existed.
+const SIGHTING_EVENT_ID = "3f2504e0-4f89-41d3-9a0c-0305e82c3301";
+const SCAN_EVENT_ID = "3f2504e0-4f89-41d3-9a0c-0305e82c3302";
+
+/**
+ * The one "Reportar" control on the feed, asserted to exist as it is fetched.
+ *
+ * `getAllByLabelText(...)[0]` is `T | undefined` under this project's
+ * `noUncheckedIndexedAccess`, and silencing that with a `!` would turn "the
+ * control is missing" into a null-press somewhere further down the test.
+ */
+function theReportControl() {
+  const [control] = screen.getAllByLabelText(/Reportar este mensaje/);
+  if (!control) throw new Error("no Reportar control on the feed");
+  return control;
+}
+
+const SIGHTING_ROW = {
+  kind: "sighting" as const,
+  id: SIGHTING_EVENT_ID,
+  at: "2026-08-22T10:00:00.000Z",
+  description: "Andá a buscarla vos",
+  localityLabel: null,
+  lat: null,
+  lng: null,
+  finderContact: null,
+  hasPhoto: false,
+};
+
+const SCAN_ROW = {
+  kind: "scan" as const,
+  id: SCAN_EVENT_ID,
+  at: "2026-08-22T09:00:00.000Z",
+  count: 1,
+  localityLabel: null,
+};
+
+const REPORTABLE_FEED = {
+  truncated: false,
+  totalScans: 1,
+  totalSightings: 1,
+  items: [SIGHTING_ROW, SCAN_ROW],
+};
+
+describe("LostScreen — reportar un mensaje del feed", () => {
+  beforeEach(() => {
+    mockFetch.mockResolvedValue(ok(searching({ feed: REPORTABLE_FEED })));
+  });
+
+  it("offers ONE Reportar — on the sighting, never on the scan", async () => {
+    render(<LostScreen publicToken={TOKEN} />);
+    await screen.findByText("Alguien la vio");
+    // Two rows, one control. If the scan grew one, this would be 2 — which is
+    // the whole assertion, so it counts rather than checking existence.
+    expect(screen.getAllByLabelText(/Reportar este mensaje/)).toHaveLength(1);
+  });
+
+  it("offers none at all when the feed is only scans", async () => {
+    mockFetch.mockResolvedValue(ok(searching({ feed: { ...REPORTABLE_FEED, items: [SCAN_ROW] } })));
+    render(<LostScreen publicToken={TOKEN} />);
+    await screen.findByText(/Escanearon su QR/);
+    expect(screen.queryAllByLabelText(/Reportar este mensaje/)).toHaveLength(0);
+  });
+
+  it("says what reporting does and does NOT do before anybody commits", async () => {
+    render(<LostScreen publicToken={TOKEN} />);
+    await screen.findByText("Alguien la vio");
+    fireEvent.press(theReportControl());
+
+    expect(await screen.findByText(/deja de aparecer en tu búsqueda/)).toBeOnTheScreen();
+    expect(screen.getByText(/No se borra del historial/)).toBeOnTheScreen();
+    expect(screen.getByText(/no recibe ningún aviso/)).toBeOnTheScreen();
+    // The word is "Reportar". "Denunciar" already means a Ley 14.346 complaint
+    // routed to an authority, and it must never appear on this flow.
+    expect(screen.queryByText(/[Dd]enunci/)).toBeNull();
+  });
+
+  it("refuses to send without a motive, and says so instead of doing nothing", async () => {
+    render(<LostScreen publicToken={TOKEN} />);
+    await screen.findByText("Alguien la vio");
+    fireEvent.press(theReportControl());
+    fireEvent.press(await screen.findByText("Reportar"));
+
+    expect(await screen.findByText("Elegí un motivo.")).toBeOnTheScreen();
+    expect(mockSend).not.toHaveBeenCalled();
+  });
+
+  it("sends the row's OWN id, the chosen category, and NO idempotency key", async () => {
+    mockSend.mockResolvedValue(ack("report_content", true));
+    render(<LostScreen publicToken={TOKEN} />);
+    await screen.findByText("Alguien la vio");
+    fireEvent.press(theReportControl());
+    fireEvent.press(await screen.findByText("Me insultan o me amenazan"));
+    fireEvent.press(screen.getByText("Reportar"));
+
+    await waitFor(() => expect(mockSend).toHaveBeenCalled());
+    expect(sentBody()).toEqual({
+      command: "report_content",
+      targetEventId: SIGHTING_EVENT_ID,
+      category: "harassment",
+      reason: null,
+    });
+    expect(sentKey()).toBeNull();
+  });
+
+  it("tells the person what changed, and re-reads rather than patching the list", async () => {
+    mockSend.mockResolvedValue(ack("report_content", true));
+    render(<LostScreen publicToken={TOKEN} />);
+    await screen.findByText("Alguien la vio");
+    fireEvent.press(theReportControl());
+    fireEvent.press(await screen.findByText("Otro motivo"));
+    fireEvent.press(screen.getByText("Reportar"));
+
+    expect(await screen.findByText(/ya no aparece en tu búsqueda/)).toBeOnTheScreen();
+    // The ack deliberately does not carry the new feed; the screen re-reads.
+    await waitFor(() => expect(mockFetch).toHaveBeenCalledTimes(2));
+  });
+
+  it("says 'ya estaba reportado' rather than congratulating somebody twice", async () => {
+    mockSend.mockResolvedValue(ack("report_content", false));
+    render(<LostScreen publicToken={TOKEN} />);
+    await screen.findByText("Alguien la vio");
+    fireEvent.press(theReportControl());
+    fireEvent.press(await screen.findByText("Otro motivo"));
+    fireEvent.press(screen.getByText("Reportar"));
+
+    expect(await screen.findByText("Ese mensaje ya estaba reportado.")).toBeOnTheScreen();
+  });
+});

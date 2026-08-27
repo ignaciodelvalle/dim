@@ -405,7 +405,11 @@ export function revokeAllSessions(session: SessionPort): Promise<ApiResult<{ rev
  * ONE READ FOR A FEATURE THE WEB SPREADS ACROSS TWO PLACES: the mark-lost /
  * update page and the `LostCaseBlock` on the profile. It carries the episode,
  * the sightings feed, the disclosure settings, and — the part a client must not
- * recompute — WHICH of the five commands this caller may send.
+ * recompute — WHICH of the state commands this caller may send.
+ *
+ * THE FEED IT CARRIES IS ALREADY FILTERED. An item somebody reported is simply
+ * absent; there is no moderation flag on the wire and nothing for a client to
+ * reconcile, because the reported row is never modified — see `pet-lost.ts`.
  */
 export function fetchPetLostMode(
   session: SessionPort,
@@ -425,18 +429,22 @@ export function fetchPetLostMode(
  *
  * THE FOURTH WRITE ON THIS SURFACE, which the count in this file's header
  * deliberately no longer states — but it is worth saying what KIND of write it
- * is, because it is the first one that is not an append: these five move
- * `pets.status`, open and close a case, and publish or unpublish an owner's own
- * contact details. The append-only invariant still holds where it applies — the
- * spine gets `status_changed` and `note_added` rows, and nothing is edited — but
- * a reader should not read "write" here and assume "asiento".
+ * is, because it is the first one that is not an append: these six move
+ * `pets.status`, open and close a case, publish or unpublish an owner's own
+ * contact details, and take a stranger's message off the owner's feed. The
+ * append-only invariant still holds where it applies — the spine gets
+ * `status_changed`, `note_added` and `content_reported` rows, and NOTHING is
+ * edited, the reported item least of all — but a reader should not read "write"
+ * here and assume "asiento".
  *
  * `idempotencyKey` IS NULLABLE, AND THAT IS THE CONTRACT AND NOT A SHORTCUT.
- * Exactly one of the five APPENDS — `report_last_seen` — and only that one's
- * writer takes a `clientIdempotencyKey`. The endpoint requires the header for it
- * and does not read it for the other four, whose writers are idempotent on the
- * STATE. Sending a key the server would ignore is not harmless: it is a client
- * believing it holds a guarantee it does not.
+ * Only `report_last_seen`'s writer takes a `clientIdempotencyKey`, because two
+ * sightings minutes apart are two facts. The endpoint requires the header for
+ * that one and does not read it for the other five, whose writers are idempotent
+ * on the STATE — including `report_content`, which appends and still needs none,
+ * since an item already reported is not reported twice. Sending a key the server
+ * would ignore is not harmless: it is a client believing it holds a guarantee it
+ * does not.
  */
 export function sendLostCommand(
   session: SessionPort,

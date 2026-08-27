@@ -7,12 +7,17 @@
 
 import { describe, expect, it } from "@jest/globals";
 
-import type { LostDisclosureV1, PetLostV1 } from "@dim/contract/api";
+import type { LostDisclosureV1, LostFeedItemV1, PetLostV1 } from "@dim/contract/api";
+import { CONTENT_REPORT_CATEGORIES } from "@dim/contract/events";
 
 import {
   DISCLOSURE_TITULAR_ONLY_NOTE,
   POSTER_UNAVAILABLE_NOTE,
+  REPORT_ACTION_LABEL,
+  REPORT_CATEGORY_OPTIONS,
+  REPORT_INTRO,
   buildMarkLost,
+  buildReportContent,
   buildReportLastSeen,
   buildSetDisclosure,
   commandDoneLabel,
@@ -23,11 +28,13 @@ import {
   emptyLostDraft,
   feedItemContact,
   feedItemDetail,
+  feedItemReportable,
   feedItemTitle,
   feedTruncationNote,
   foundAdjective,
   lostAdjective,
   lostInputCodeMessage,
+  reportCategoryLabel,
   situationHeadline,
 } from "./lost-view-model";
 
@@ -292,6 +299,7 @@ describe("the copy every branch owes", () => {
       "mark_found",
       "reactivate_search",
       "set_disclosure",
+      "report_content",
     ] as const) {
       expect(commandDoneLabel(command, "female").length).toBeGreaterThan(0);
       expect(commandUnchangedLabel(command).length).toBeGreaterThan(0);
@@ -312,5 +320,123 @@ describe("the copy every branch owes", () => {
     // than this screen's guard and embeds a server-generated QR; a native copy
     // would be a second implementation of a privacy filter.
     expect(POSTER_UNAVAILABLE_NOTE).toContain("web");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Reportar — the rule that decides where the affordance may appear
+// ---------------------------------------------------------------------------
+
+describe("lost-view-model — reportar un mensaje", () => {
+  const A_SIGHTING: LostFeedItemV1 = {
+    kind: "sighting",
+    id: "3f2504e0-4f89-41d3-9a0c-0305e82c3301",
+    at: "2026-08-22T10:00:00.000Z",
+    description: "Andá a buscarla vos",
+    localityLabel: null,
+    lat: null,
+    lng: null,
+    finderContact: null,
+    hasPhoto: false,
+  };
+  const A_FINDER: LostFeedItemV1 = {
+    kind: "finder",
+    id: "3f2504e0-4f89-41d3-9a0c-0305e82c3303",
+    at: "2026-08-22T11:00:00.000Z",
+    finderName: "Vecina",
+    finderContact: null,
+    petCondition: null,
+    localityLabel: null,
+    message: null,
+    availabilityLabel: null,
+    hasPhoto: false,
+  };
+  const A_SCAN: LostFeedItemV1 = {
+    kind: "scan",
+    id: "3f2504e0-4f89-41d3-9a0c-0305e82c3302",
+    at: "2026-08-22T09:00:00.000Z",
+    count: 1,
+    localityLabel: null,
+  };
+
+  it("reports the two AUTHORED kinds and refuses the scan", () => {
+    // A QR read has no author and no text. There is nothing anybody could have
+    // written wrongly, so there is nothing to report — and the server refuses
+    // the target regardless, which is what this line keeps the app from
+    // discovering in somebody's hands.
+    expect(feedItemReportable(A_SIGHTING)).toBe(true);
+    expect(feedItemReportable(A_FINDER)).toBe(true);
+    expect(feedItemReportable(A_SCAN)).toBe(false);
+  });
+
+  it("builds the command from the row's own id and a category", () => {
+    const built = buildReportContent(A_SIGHTING.id, "harassment", "  Me insultó.  ");
+    expect(built.ok).toBe(true);
+    if (!built.ok) return;
+    expect(built.input).toEqual({
+      command: "report_content",
+      targetEventId: A_SIGHTING.id,
+      category: "harassment",
+      // Trimmed by the contract, so the spine never stores a person's stray
+      // whitespace as if it were part of what they said.
+      reason: "Me insultó.",
+    });
+  });
+
+  it("sends an untouched motive as null, not as an empty string", () => {
+    const built = buildReportContent(A_SIGHTING.id, "other", "   ");
+    expect(built.ok).toBe(true);
+    if (!built.ok) return;
+    expect((built.input as { reason: string | null }).reason).toBeNull();
+  });
+
+  it("refuses an id that is not an event id, with a message that blames the app", () => {
+    // A person cannot cause this: the screen echoes the row it was handed. It
+    // means a build out of step with its own contract, and the copy says so
+    // rather than sending somebody to fix a field they never saw.
+    const built = buildReportContent("ev-sighting-1", "spam", "");
+    expect(built.ok).toBe(false);
+    if (built.ok) return;
+    expect(built.code).toBe("REPORT_TARGET_REQUIRED");
+    expect(built.message).toContain("Actualizá la app");
+  });
+
+  it("refuses a motive longer than the spine will store", () => {
+    // 500 is the STORED limit; saying so before the send beats a 400 after it.
+    const built = buildReportContent(A_SIGHTING.id, "other", "x".repeat(501));
+    expect(built.ok).toBe(false);
+    if (built.ok) return;
+    expect(built.code).toBe("REPORT_REASON_TOO_LONG");
+  });
+
+  it("has es-AR copy for every category the contract names — no gaps, no repeats", () => {
+    const labels = REPORT_CATEGORY_OPTIONS.map(reportCategoryLabel);
+    expect(labels).toHaveLength(CONTENT_REPORT_CATEGORIES.length);
+    // Distinct: two motives with the same words is a list where one of them can
+    // never be chosen on purpose.
+    expect(new Set(labels).size).toBe(labels.length);
+    for (const label of labels) expect(label.length).toBeGreaterThan(0);
+  });
+
+  it("never says 'denunciar' — that word is already a Ley 14.346 complaint", () => {
+    // In this product `denuncia` names an animal-cruelty complaint routed to a
+    // real authority. Borrowing it for content moderation would promise a
+    // proceeding that is not happening.
+    const strings = [
+      REPORT_ACTION_LABEL,
+      REPORT_INTRO,
+      ...REPORT_CATEGORY_OPTIONS.map(reportCategoryLabel),
+      commandDoneLabel("report_content", "female"),
+      commandUnchangedLabel("report_content"),
+    ];
+    for (const text of strings) expect(text.toLowerCase()).not.toContain("denunci");
+  });
+
+  it("tells the person what does NOT happen, not only what does", () => {
+    // The two things people assume wrongly: that the message is erased, and
+    // that its author is told. Neither is true, and this app's whole promise is
+    // that events are never deleted.
+    expect(REPORT_INTRO).toContain("No se borra");
+    expect(REPORT_INTRO).toContain("ningún aviso");
   });
 });

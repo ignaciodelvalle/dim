@@ -8,12 +8,25 @@
 // question.
 //
 // EVERY AFFORDANCE COMES FROM `capabilities`, NEVER FROM `status`. The server
-// decides which of the five commands this caller may send, because four of the
+// decides which of the state commands this caller may send, because four of the
 // five conditions need facts a client does not hold — whether a
 // `lost_pet_episode` is open, and whether this caller reached the animal through
 // an organization (which is refused for reactivation and for nothing else). A
 // screen that computed them from `status` would get four right and the fifth
 // wrong, and the wrong one would only show up as a 403 in somebody's hands.
+//
+// "REPORTAR" IS THE EXCEPTION, AND IT IS NOT A CAPABILITY. The sixth command
+// takes an ITEM rather than the animal, and the right to report one is
+// co-extensive with the right to read the feed it is on — so there is no flag to
+// obey, and a flag would have been `true` on every payload that ever reached
+// this screen. What decides where the control appears is the item's KIND: a
+// sighting and a finder message were typed by an anonymous stranger, a scan is a
+// machine reading a QR. `feedItemReportable` is that one line.
+//
+// AND IT IS "REPORTAR", NEVER "DENUNCIAR". In this product `denuncia` already
+// names a Ley 14.346 animal-cruelty complaint routed to an authority. Using that
+// word on a button that hides a message would promise a proceeding that is not
+// happening.
 //
 // THE DISCLOSURE ROWS ARE THE PRIVACY SURFACE, and they are the reason this
 // screen says who sees each thing rather than just naming it. Every toggle
@@ -24,10 +37,11 @@
 // rendering a live switch that answers 403 would be a control that lies.
 //
 // ONE KEY PER AVISTAJE FORM MOUNT, the same rule "Asentar" follows and for the
-// same reason: the avistaje is the one command here that APPENDS, and a double
-// tap on a flaky connection must not put two sightings in one episode. The other
-// four commands send no key at all — their writers are idempotent on the state,
-// and a key they would ignore is a guarantee nobody has.
+// same reason: a double tap on a flaky connection must not put two sightings in
+// one episode. The other five commands send no key at all — their writers are
+// idempotent on the state, and a key they would ignore is a guarantee nobody
+// has. `report_content` APPENDS and still sends none, which is the proof the
+// rule is about state: an item already reported is not reported twice.
 //
 // NO MAP AND NO COORDINATES. The web captures a pin; this sends the last-seen
 // place as TEXT, which is exactly what an untouched web wizard sends. Adding a
@@ -38,6 +52,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 
 import type { LostCommandAckV1, LostFeedItemV1, PetLostV1 } from "@dim/contract/api";
+import type { ContentReportCategory } from "@dim/contract/events";
 import type { LostCommandInput } from "@dim/contract/input";
 
 import type { ApiResult } from "../api/client";
@@ -64,9 +79,13 @@ import {
   FEED_EMPTY_LABEL,
   type LostDraft,
   POSTER_UNAVAILABLE_NOTE,
+  REPORT_ACTION_LABEL,
+  REPORT_CATEGORY_OPTIONS,
+  REPORT_INTRO,
   buildMarkFound,
   buildMarkLost,
   buildReactivateSearch,
+  buildReportContent,
   buildReportLastSeen,
   buildSetDisclosure,
   commandDoneLabel,
@@ -77,9 +96,11 @@ import {
   emptyLostDraft,
   feedItemContact,
   feedItemDetail,
+  feedItemReportable,
   feedItemTitle,
   feedTruncationNote,
   lostAdjective,
+  reportCategoryLabel,
   situationHeadline,
 } from "./lost-view-model";
 
@@ -104,13 +125,26 @@ type ScreenState =
   | { phase: "ready"; view: PetLostV1 }
   | { phase: "failed"; message: string };
 
-/** Which of the three panes is on screen. The forms are panes, not routes. */
-type Pane = "overview" | "mark-lost" | "report";
+/**
+ * Which pane is on screen. The forms are panes, not routes.
+ *
+ * `report` is the AVISTAJE form and `report-content` is the MODERATION one, and
+ * the two names are close enough to be worth separating out loud: one adds a
+ * sighting to the search, the other takes a stranger's message off it. The
+ * commands behind them are `report_last_seen` and `report_content`, which is the
+ * same collision the contract carries — "reportar un avistaje" is the ordinary
+ * Spanish for logging one, and the word arrived here first.
+ */
+type Pane = "overview" | "mark-lost" | "report" | "report-content";
 
 export function LostScreen({ publicToken }: { publicToken: string }) {
   const [state, setState] = useState<ScreenState>({ phase: "loading" });
   const [pane, setPane] = useState<Pane>("overview");
   const [notice, setNotice] = useState<{ tone: "ok" | "warn"; message: string } | null>(null);
+  // The feed row the person chose to report. Held on the SCREEN and not inside
+  // the pane, because the pane is unmounted the moment the command returns and
+  // the row's id has to survive being handed to it.
+  const [reporting, setReporting] = useState<LostFeedItemV1 | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   // Guards against a stale response overwriting a newer one after a fast double
@@ -204,6 +238,10 @@ export function LostScreen({ publicToken }: { publicToken: string }) {
           busy={busy}
           onMarkLost={() => setPane("mark-lost")}
           onReport={() => setPane("report")}
+          onReportItem={(item) => {
+            setReporting(item);
+            setPane("report-content");
+          }}
           onRun={run}
           onReload={() => void load()}
         />
@@ -221,6 +259,18 @@ export function LostScreen({ publicToken }: { publicToken: string }) {
       {state.phase === "ready" && pane === "report" ? (
         <ReportForm busy={busy} onCancel={() => setPane("overview")} onRun={run} />
       ) : null}
+
+      {state.phase === "ready" && pane === "report-content" && reporting !== null ? (
+        <ReportContentForm
+          item={reporting}
+          busy={busy}
+          onCancel={() => {
+            setReporting(null);
+            setPane("overview");
+          }}
+          onRun={run}
+        />
+      ) : null}
     </Screen>
   );
 }
@@ -232,6 +282,7 @@ function Overview({
   busy,
   onMarkLost,
   onReport,
+  onReportItem,
   onRun,
   onReload,
 }: {
@@ -239,6 +290,7 @@ function Overview({
   busy: boolean;
   onMarkLost: () => void;
   onReport: () => void;
+  onReportItem: (item: LostFeedItemV1) => void;
   onRun: RunFn;
   onReload: () => void;
 }) {
@@ -311,7 +363,7 @@ function Overview({
         ) : (
           <>
             {view.feed.items.map((item) => (
-              <FeedRow key={item.id} item={item} />
+              <FeedRow key={item.id} item={item} busy={busy} onReport={() => onReportItem(item)} />
             ))}
             {feedTruncationNote(view.feed.truncated) ? (
               <Body>{feedTruncationNote(view.feed.truncated)}</Body>
@@ -340,7 +392,15 @@ function Overview({
   );
 }
 
-function FeedRow({ item }: { item: LostFeedItemV1 }) {
+function FeedRow({
+  item,
+  busy,
+  onReport,
+}: {
+  item: LostFeedItemV1;
+  busy: boolean;
+  onReport: () => void;
+}) {
   const detail = feedItemDetail(item);
   const contact = feedItemContact(item);
   return (
@@ -353,6 +413,23 @@ function FeedRow({ item }: { item: LostFeedItemV1 }) {
         // The file is not on this payload — see the contract header. Saying it
         // exists is honest; a broken image would not be.
         <Body>Dejó una foto. Se ve desde la web.</Body>
+      ) : null}
+
+      {/* ON THE TWO AUTHORED KINDS ONLY. A `scan` is a machine reading a QR: no
+          author, no text, nothing anybody could have written wrongly — so there
+          is no control here at all, rather than a disabled one. The rule is
+          `feedItemReportable`, and the server refuses a scan target regardless. */}
+      {feedItemReportable(item) ? (
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={`${REPORT_ACTION_LABEL} este mensaje`}
+          accessibilityState={{ disabled: busy }}
+          disabled={busy}
+          onPress={onReport}
+          style={styles.reportControl}
+        >
+          <Text style={styles.reportLabel}>{REPORT_ACTION_LABEL}</Text>
+        </Pressable>
       ) : null}
     </View>
   );
@@ -591,6 +668,109 @@ function ReportForm({
 }
 
 /**
+ * REPORTAR UN MENSAJE — the moderation pane.
+ *
+ * ONE CATEGORY, OPTIONAL WORDS, ONE BUTTON. There is no "block" and no "stop
+ * accepting messages": the two reportable kinds are written by ANONYMOUS people
+ * who scanned a QR in the street, so there is no account to block — and a valve
+ * that closed the channel would be a defence nobody uses at the moment they need
+ * it, because an owner searching for their animal will not shut off the message
+ * that might find it.
+ *
+ * NO CONFIRMATION STEP, unlike "marcar encontrada". That one is a two-step
+ * because a mis-tap closes a search and notifies everybody who was looking; this
+ * one removes a row from one person's own list and notifies nobody. Making a
+ * safety affordance harder to reach than it needs to be is its own failure.
+ *
+ * NO IDEMPOTENCY KEY — the command is idempotent on the state, and a double tap
+ * answers `changed: false` with its own sentence.
+ */
+function ReportContentForm({
+  item,
+  busy,
+  onCancel,
+  onRun,
+}: {
+  item: LostFeedItemV1;
+  busy: boolean;
+  onCancel: () => void;
+  onRun: RunFn;
+}) {
+  const [category, setCategory] = useState<ContentReportCategory | null>(null);
+  const [reason, setReason] = useState("");
+  const [message, setMessage] = useState<string | null>(null);
+
+  async function submit() {
+    if (category === null) {
+      setMessage("Elegí un motivo.");
+      return;
+    }
+    const built = buildReportContent(item.id, category, reason);
+    if (!built.ok) {
+      setMessage(built.message);
+      return;
+    }
+    setMessage(null);
+    await onRun(built.input, null);
+  }
+
+  return (
+    <>
+      {/* The heading NAMES the pane and the button NAMES the act, and the two
+          are deliberately different strings. Both reading "Reportar" put two
+          identical labels on one screen — invisible to a sighted person and
+          genuinely ambiguous to anybody navigating by label. */}
+      <Card title="Reportar un mensaje">
+        {/* The row being reported, echoed — a list of five motives with no
+            reminder of WHICH message they are about is how somebody reports the
+            wrong one. */}
+        <Body>{feedItemTitle(item)}</Body>
+        <Text style={styles.feedMeta}>{formatIsoDateTime(item.at)}</Text>
+        <Body>{REPORT_INTRO}</Body>
+      </Card>
+
+      <Card title="¿Qué pasa con este mensaje?">
+        {REPORT_CATEGORY_OPTIONS.map((option) => (
+          <Pressable
+            key={option}
+            accessibilityRole="radio"
+            accessibilityState={{ checked: category === option, disabled: busy }}
+            disabled={busy}
+            onPress={() => setCategory(option)}
+            style={styles.disclosureRow}
+          >
+            <Text style={category === option ? styles.disclosureOn : styles.disclosureOff}>
+              {reportCategoryLabel(option)}
+            </Text>
+          </Pressable>
+        ))}
+      </Card>
+
+      <TextField
+        label="Contanos más (opcional)"
+        multiline
+        value={reason}
+        onChangeText={setReason}
+        placeholder="Lo que quieras agregar"
+      />
+
+      {message === null ? null : (
+        <Callout tone="err" title="Revisá los datos">
+          <Body>{message}</Body>
+        </Callout>
+      )}
+
+      <PrimaryButton
+        label={busy ? "Enviando…" : REPORT_ACTION_LABEL}
+        disabled={busy}
+        onPress={() => void submit()}
+      />
+      <SecondaryButton label="Cancelar" disabled={busy} onPress={onCancel} />
+    </>
+  );
+}
+
+/**
  * The four commands with NO form cannot fail validation — they have no fields.
  *
  * They still go through the contract's schema, because "this build and the
@@ -660,4 +840,21 @@ const styles = StyleSheet.create({
   },
   disclosureOn: { fontFamily: FONTS.sansSemibold, fontSize: TYPE.md, color: COLORS.accent },
   disclosureOff: { fontFamily: FONTS.sans, fontSize: TYPE.md, color: COLORS.ink },
+  // A full touch target, on a control that is deliberately quiet. Reporting a
+  // message must be REACHABLE and must not compete with "marcá que la
+  // encontraste" for attention on the same screen.
+  reportControl: {
+    alignSelf: "flex-start",
+    minHeight: TOUCH_TARGET,
+    justifyContent: "center",
+    paddingHorizontal: SPACE.sm,
+    borderRadius: RADIUS.chip,
+  },
+  reportLabel: {
+    fontFamily: FONTS.monoSemibold,
+    fontSize: TYPE.xs,
+    letterSpacing: TYPE.xs * LABEL_TRACKING_EM,
+    textTransform: "uppercase",
+    color: COLORS.inkMuted,
+  },
 });
