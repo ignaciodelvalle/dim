@@ -62,10 +62,17 @@ export const MY_NOTIFICATIONS_STALE_AFTER_MS = 30_000;
 /**
  * The most rows one read returns.
  *
- * THE WEB'S OWN PAGE SIZE (`NOTIFICATIONS_PAGE_LIMIT`), taken deliberately: the
- * two surfaces collapse the same runs into groups, and a group is only correct
- * over the rows it can see, so a phone reading a smaller page would collapse a
- * run of three into two singles the browser folded. Same page, same grouping.
+ * THE WEB'S OWN PAGE SIZE, and it is the web's because the web IMPORTS THIS
+ * CONSTANT — `app/(app)/notificaciones/page.tsx` passes it straight to
+ * `listNotificationsForUser`. That sentence used to name a `NOTIFICATIONS_PAGE_LIMIT`
+ * literal declared over there, which is a different thing entirely: two numbers
+ * that happened to be equal, under a comment claiming they could not diverge.
+ *
+ * WHY THE TWO HAVE TO BE ONE NUMBER: both surfaces collapse the same runs into
+ * groups, and a group is only correct over the rows its reader can SEE. A phone
+ * reading a smaller page would show as two singles a run of three the browser
+ * folded into one — not a crash, not a diff anyone reads, just two clients
+ * disagreeing about the same inbox. Same page, same grouping, one literal.
  *
  * THERE IS NO CURSOR ON THIS SURFACE and the web has one. That is a REAL
  * shortfall rather than a design: `MyNotificationsV1.truncated` says so, and the

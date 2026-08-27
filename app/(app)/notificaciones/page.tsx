@@ -17,12 +17,9 @@ import {
 import { requireUserOrRedirect } from "@/lib/infra/auth-guards";
 import { decodeCursor, newerHref, olderHref } from "@/lib/utils/keyset-pagination";
 import { listNotificationsForUser } from "@/src/modules/notifications/application/read/list-notifications-for-user";
+import { MY_NOTIFICATIONS_PAGE_LIMIT } from "@dim/contract/api";
 
 import { groupNotifications, sortNotificationsForDisplay } from "./notification-ordering";
-
-// Maximum notifications rendered per page (PERF-5 keyset pagination).
-// We fetch LIMIT+1 to detect hasMore; render only LIMIT rows.
-const NOTIFICATIONS_PAGE_LIMIT = 100;
 
 // Ordering + grouping logic lives in ./notification-ordering (pure + unit
 // tested): severity-first display sort, then same-pet+type collapse.
@@ -111,7 +108,16 @@ export default async function NotificacionesPage({
   const { rows, hasMore } = await listNotificationsForUser({
     userId: user.id,
     category: activeCat === "all" ? null : activeCat,
-    limit: NOTIFICATIONS_PAGE_LIMIT,
+    // Maximum notifications rendered per page (PERF-5 keyset pagination); the
+    // reader fetches LIMIT+1 to detect hasMore and renders only LIMIT rows.
+    //
+    // IMPORTED, not re-declared. Grouping is PAGE-SCOPED — a group is only
+    // correct over the rows its reader can see — so the moment this page and
+    // `/api/v1/me/notifications` size their pages differently, a run of three
+    // straddling a boundary collapses on one client and stays three singles on
+    // the other. The two literals agreed by inspection until now, under a
+    // comment in the contract asserting they were the same number.
+    limit: MY_NOTIFICATIONS_PAGE_LIMIT,
     cursor,
   });
 
