@@ -175,28 +175,45 @@ async function endCaretakerArrangementsForErasure(userId: string): Promise<void>
     // this guard.
     const { ownershipId } = grant;
     if (ownershipId === null) continue;
-    await db.transaction(async (tx) => {
-      // THE PET LOCK COMES FIRST — every pet-scoped custody writer in this repo
-      // takes this one key before any row lock, because two transactions taking
-      // the same `ownerships` rows in opposite orders is a 40P01 deadlock and
-      // Postgres resolves it by killing one side. A finalize or a withdraw
-      // racing this erasure is exactly that cycle. Pinned by
-      // src/modules/rehome/__tests__/owner-row-lock.test.ts, whose derived arm
-      // discovered this writer the day it was written.
-      await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtext(${grant.petId}))`);
-      await endCaretakerGrantAtomically(
-        {
-          grantId: grant.grantId,
-          ownershipId,
-          petId: grant.petId,
-          outcome: "withdrawn_by_caretaker",
-          endsAt: grant.endsAt,
-          now,
-          actorUserId: userId,
-        },
-        tx,
-      );
-    });
+    try {
+      await db.transaction(async (tx) => {
+        // THE PET LOCK COMES FIRST — every pet-scoped custody writer in this repo
+        // takes this one key before any row lock, because two transactions taking
+        // the same `ownerships` rows in opposite orders is a 40P01 deadlock and
+        // Postgres resolves it by killing one side. A finalize or a withdraw
+        // racing this erasure is exactly that cycle. Pinned by
+        // src/modules/rehome/__tests__/owner-row-lock.test.ts, whose derived arm
+        // discovered this writer the day it was written.
+        await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtext(${grant.petId}))`);
+        await endCaretakerGrantAtomically(
+          {
+            grantId: grant.grantId,
+            ownershipId,
+            petId: grant.petId,
+            outcome: "withdrawn_by_caretaker",
+            endsAt: grant.endsAt,
+            now,
+            actorUserId: userId,
+          },
+          tx,
+        );
+      });
+    } catch (err) {
+      // PER GRANT, not per run. `endCaretakerGrantAtomically` THROWS when its
+      // `UPDATE … WHERE status='accepted'` matches zero rows — the narrow race
+      // where a concurrent revoke or the expiry cron resolved this grant between
+      // the read above and the write. One outer catch around the whole function
+      // would let that single throw abandon every REMAINING arrangement, and the
+      // RPC would then run over a subject who still holds live accepted grants:
+      // exactly the state the migration header says has no path in the app.
+      // Skip the one grant, keep going, and say which one.
+      console.error("[erase-subject-data] could not end caretaker grant", {
+        userId,
+        grantId: grant.grantId,
+        message: err instanceof Error ? err.message : String(err),
+      });
+      continue;
+    }
     // The TITULAR has to be told: their animal may still be physically with the
     // person whose access just closed. The copy does NOT say why — that an
     // account was erased is the counterparty's own exercise of a legal right,
@@ -235,14 +252,29 @@ async function endCaretakerArrangementsForErasure(userId: string): Promise<void>
     );
 
   for (const pet of ownedPets) {
-    const { endedCaretakerGrants } = await db.transaction(async (tx) => {
-      // Same key, same reason, same position: first statement of the transaction.
-      await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtext(${pet.petId}))`);
-      return endCaretakerArrangementsForPet(
-        { petId: pet.petId, outcome: "revoked_by_owner", actorUserId: userId, now },
-        tx,
-      );
-    });
+    let endedCaretakerGrants: Awaited<
+      ReturnType<typeof endCaretakerArrangementsForPet>
+    >["endedCaretakerGrants"];
+    try {
+      // PER PET, for the same reason as the per-grant catch above: one animal
+      // whose arrangement lost a race must not cost the subject the closure of
+      // all the others.
+      ({ endedCaretakerGrants } = await db.transaction(async (tx) => {
+        // Same key, same reason, same position: first statement of the transaction.
+        await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtext(${pet.petId}))`);
+        return endCaretakerArrangementsForPet(
+          { petId: pet.petId, outcome: "revoked_by_owner", actorUserId: userId, now },
+          tx,
+        );
+      }));
+    } catch (err) {
+      console.error("[erase-subject-data] could not end arrangements for pet", {
+        userId,
+        petId: pet.petId,
+        message: err instanceof Error ? err.message : String(err),
+      });
+      continue;
+    }
     // MUST be after the transaction commits (ARCH-P): a notification failure may
     // not roll back an erasure step. createNotification dead-letters rather than
     // throwing, so this cannot fail the caller.
@@ -276,6 +308,11 @@ export async function eraseMySubjectDataAction(reason: string): Promise<EraseSub
   // writer, BEFORE the RPC soft-deletes the pets and cancels the pending
   // invitations on them. See the function's own header for why this cannot live
   // inside erase_subject_data.
+  //
+  // This catch is the LAST RESORT, not the granularity. Each grant and each pet
+  // has its own try/catch inside, so one lost race closes one arrangement short
+  // rather than abandoning the rest; what reaches here is a failure of the two
+  // reads that drive the loops, which leaves nothing half-done.
   try {
     await endCaretakerArrangementsForErasure(user.id);
   } catch (err) {
