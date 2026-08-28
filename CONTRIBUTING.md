@@ -101,6 +101,15 @@ silently, so read them before adding a `cron:` to anything.
    it. Every nightly was therefore grading three-week-old code against a live
    app. Give each scheduled checkout an explicit
    `ref: <the branch staging ships from>`.
+3. **A schedule run also executes the default branch's *copy* of the workflow
+   file.** Not just its presence — its content. The `ref:` you add here, the
+   alert job you wire, the lint step you put in `ci.yml`: on a timer, none of it
+   exists until the branch is merged. `git show origin/main:.github/workflows/e2e-nightly.yml`
+   on 2026-08-28 contained zero occurrences of `ref:` and zero of `red-streak`,
+   three weeks *after* both were written. `pnpm lint:sched-refs` prints this as a
+   named list under its pass line — it warns rather than fails, because nothing
+   you can do in your branch clears it, but a green line that stayed quiet about
+   it would be the same false safety the rest of this section is about.
 
 What this actually cost, before anyone looked:
 
@@ -120,15 +129,35 @@ the standing exemption: its SARIF is attributed to the ref that triggered the
 run, so a schedule must keep scanning the default branch or it files alerts
 against `main` for code not in `main`.
 
-**Also give it an alarm.** GitHub's failed-workflow email fires on the
-green → red *transition*. A fence whose first run is already red never
-transitions, so it never mails anybody — which is how 32 consecutive failures
-across two workflows went unannounced. Wire the
+**Also give it an alarm — and this is enforced, not requested.** GitHub's
+failed-workflow email fires on the green → red *transition*. A fence whose first
+run is already red never transitions, so it never mails anybody — which is how 32
+consecutive failures across two workflows went unannounced. Wire the
 `.github/actions/red-streak-alert` composite action into any new scheduled gate:
 it keys on the consecutive-failure **streak**, opens one issue, keeps it current,
 and closes it on recovery. It uses the per-run `GITHUB_TOKEN` and needs no secret
 — deliberately, because an absent secret would turn alerting back into a silent
 no-op.
+
+`pnpm lint:sched-refs` fails any scheduled workflow with no alert wiring unless
+it is in `ALERT_EXEMPT` with the argument for why, checked in both directions
+like the ref exemptions. Two standing exemptions: `staging-health.yml` (588 runs,
+3 failures — the one fence with enough green history that GitHub's transition
+mail genuinely fires, and a `*/15` cron where an alert job would cost ~96 extra
+checkouts a day) and `codeql.yml` (also runs on every push to `integration/**`,
+so a break is red the same day). Until 2026-08-28 this paragraph was advice and
+the test asserted the wiring only for the two workflows that already had it —
+enforcement exactly where it was already followed.
+
+**If the job can no-op-skip, say so.** A job whose steps are all skipped by a
+guard reports `success`, and the alert action reads a success as recovery: it
+would close the open issue with *"Green again"* on the strength of a run that
+audited nothing. Publish the guard as a job output and pass it —
+`audited: ${{ needs.<job>.outputs.audited }}` — so the action neither opens nor
+closes on that run. `db-doctor-staging.yml` is the worked example; the fence
+requires it of any workflow that combines an `if: steps.<id>…` guard with the
+alert. (The guard has to be a *step*, not a job-level `if:`: `secrets` is not in
+the context available to `jobs.<id>.if`.)
 
 ## Writing a new event type
 

@@ -240,3 +240,71 @@ jobs:
       - name: Stop Supabase local stack
         if: always()
         run: pnpm exec supabase stop --no-backup
+
+  # ---------------------------------------------------------------------------
+  # Make a permanently-red fence audible.
+  #
+  # "REPORT, NOT GATE" (see the header) is about the three QA SCRIPTS: none of
+  # them can turn a run red on a finding. It says nothing about the eleven steps
+  # around them — `supabase start`, `db:bootstrap`, `seed:panorama`, `pnpm build`,
+  # `pnpm start` — every one of which can fail and takes the whole report with
+  # it. A report-only job that produces no report is exactly as silent as a gate
+  # that never runs.
+  #
+  # And this workflow has never run once: `gh run list --workflow
+  # panorama-qa-nightly.yml` answers `HTTP 404: workflow not found on the default
+  # branch` (measured 2026-08-28). So its first run on `main` has no green to
+  # transition from, and GitHub's transition email — the only alerting this file
+  # had — would not fire on it. The streak alert does.
+  # ---------------------------------------------------------------------------
+  alert:
+    name: Alert on a red streak
+    needs: [a11y-vis, chaos]
+    if: always()
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      # Reading the workflow's own run history is what turns one red run into a
+      # streak; writing the issue is the alert itself. Both come from the per-run
+      # GITHUB_TOKEN — no secret to provision, so nothing to forget.
+      actions: read
+      issues: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          # Local composite actions resolve from the checked-out tree, so this
+          # job needs the same pin as the ones above.
+          ref: integration/all-20260703
+
+      - name: Fold two job results into one outcome
+        id: combined
+        # Done in bash rather than a `${{ a && 'x' || b && 'y' || 'z' }}` chain
+        # in the `with:` block below. That idiom is unreadable, has no local
+        # test, and fails by silently evaluating to the wrong branch — the exact
+        # class of quiet wrongness this whole unit is about. Here every branch is
+        # explicit and the fall-through emits BOTH results verbatim, which the
+        # action reports as "neither pass nor fail" and leaves the alert alone.
+        env:
+          A11Y: ${{ needs.a11y-vis.result }}
+          CHAOS: ${{ needs.chaos.result }}
+        run: |
+          set -uo pipefail
+          if [ "${A11Y}" = "failure" ] || [ "${CHAOS}" = "failure" ]; then
+            OUTCOME=failure
+          elif [ "${A11Y}" = "success" ] && [ "${CHAOS}" = "success" ]; then
+            OUTCOME=success
+          else
+            OUTCOME="a11y-vis=${A11Y},chaos=${CHAOS}"
+          fi
+          echo "outcome=${OUTCOME}" >> "$GITHUB_OUTPUT"
+          echo "a11y-vis=${A11Y} chaos=${CHAOS} -> ${OUTCOME}"
+
+      - name: Open or update the alert issue
+        uses: ./.github/actions/red-streak-alert
+        with:
+          workflow: panorama-qa-nightly.yml
+          outcome: ${{ steps.combined.outputs.outcome }}
+          token: ${{ secrets.GITHUB_TOKEN }}
+          title: "[nightly] Panorama QA nightly is failing"

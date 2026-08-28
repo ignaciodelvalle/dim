@@ -22,17 +22,25 @@ import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 
 import {
+  ALERT_ACTION,
+  ALERT_EXEMPT,
   DEFAULT_BRANCH,
   DEPLOY_REF,
   NOT_ON_DEFAULT_BRANCH,
   REF_EXEMPT,
   WORKFLOW_DIR,
+  alertFindings,
+  auditedFindings,
   checkoutSteps,
   defaultBranchFindings,
+  defaultBranchWorkflowYaml,
   exemptionFindings,
   hasSchedule,
+  inertRows,
+  livenessRows,
   refFindings,
   scheduledWorkflows,
+  wiresAlert,
   workflowsOnDefaultBranch,
 } from "@/scripts/check-scheduled-fence-refs";
 
@@ -59,6 +67,34 @@ jobs:
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
 `;
+
+const ALERT_JOB = `
+  alert:
+    needs: nightly
+    if: always()
+    steps:
+      - name: Open or update the alert issue
+        uses: ${ALERT_ACTION}
+        with:
+          workflow: nightly.yml
+          outcome: \${{ needs.nightly.result }}
+`;
+
+/** A workflow whose steps hide behind a secret guard — the shape that no-op-skips. */
+const GUARDED = `
+jobs:
+  nightly:
+    outputs:
+      audited: \${{ steps.guard.outputs.run }}
+    steps:
+      - name: Gate on a secret
+        id: guard
+        run: echo "run=false" >> "$GITHUB_OUTPUT"
+
+      - name: Do the audit
+        if: steps.guard.outputs.run == 'true'
+        run: pnpm db:doctor
+${ALERT_JOB}`;
 
 describe("hasSchedule", () => {
   it("sees a schedule trigger", () => {
@@ -160,8 +196,13 @@ describe("refFindings", () => {
 
 describe("exemptionFindings", () => {
   it("flags an exemption naming a workflow that is not scheduled at all", () => {
+    // Both lists, audited by the same code — a stale ALERT_EXEMPT entry is the
+    // same lie as a stale REF_EXEMPT one.
     const found = exemptionFindings([{ file: "nightly.yml", yaml: PINNED_STEP }]);
-    expect(found.map((f) => f.workflow)).toEqual([REF_EXEMPT[0].workflow]);
+    expect(found.map((f) => f.workflow).sort()).toEqual(
+      [...REF_EXEMPT, ...ALERT_EXEMPT].map((e) => e.workflow).sort(),
+    );
+    expect(found.map((f) => f.problem).join(" ")).toContain("ALERT_EXEMPT");
   });
 
   it("is quiet when every exemption still names a real scheduled workflow", () => {
@@ -272,11 +313,16 @@ describe("red-streak alerting", () => {
     // A webhook secret that is absent turns alerting into a silent no-op, which
     // is the disease. Anything matching `secrets.<NAME>` other than GITHUB_TOKEN
     // in a workflow's alert wiring would be exactly that.
-    for (const file of ["e2e-nightly.yml", "db-doctor-staging.yml"]) {
-      const yaml = readFileSync(join(WORKFLOW_DIR, file), "utf8");
+    //
+    // Derived from the tree rather than listed: a hardcoded pair would stop
+    // covering the next workflow the moment one is added, which is the same
+    // mistake the alert-wiring assertion below used to make.
+    const wired = scheduledWorkflows().filter((w) => wiresAlert(w.yaml));
+    expect(wired.length).toBeGreaterThanOrEqual(4);
+    for (const { file, yaml } of wired) {
       const alertBlock = yaml.slice(yaml.indexOf("red-streak-alert"));
       const secrets = [...alertBlock.matchAll(/secrets\.([A-Z_]+)/g)].map((m) => m[1]);
-      expect([...new Set(secrets)]).toEqual(["GITHUB_TOKEN"]);
+      expect([...new Set(secrets)], file).toEqual(["GITHUB_TOKEN"]);
     }
   });
 
@@ -285,8 +331,215 @@ describe("red-streak alerting", () => {
     // 2026-08-27, both with zero notification of any kind before this.
     for (const file of ["e2e-nightly.yml", "db-doctor-staging.yml"]) {
       const yaml = readFileSync(join(WORKFLOW_DIR, file), "utf8");
-      expect(yaml).toContain("uses: ./.github/actions/red-streak-alert");
+      expect(yaml).toContain(`uses: ${ALERT_ACTION}`);
       expect(yaml).toMatch(/issues:\s*write/);
+    }
+  });
+
+  // The two nightlies that have never run at all. Their first run on `main` has
+  // no green to transition from, so GitHub's mail would not fire on it — the
+  // 20-silent-nights disease, pre-installed on the newest gates. Measured
+  // 2026-08-28: `gh run list --workflow mobile-export-nightly.yml` answers
+  // `HTTP 404: workflow not found on the default branch`.
+  it("is wired into the two fences that have never run once", () => {
+    for (const file of ["mobile-export-nightly.yml", "panorama-qa-nightly.yml"]) {
+      const yaml = readFileSync(join(WORKFLOW_DIR, file), "utf8");
+      expect(wiresAlert(yaml), file).toBe(true);
+      expect(yaml).toMatch(/issues:\s*write/);
+    }
+  });
+});
+
+describe("wiresAlert", () => {
+  it("sees a real `uses:` of the composite action", () => {
+    expect(wiresAlert(ALERT_JOB)).toBe(true);
+  });
+
+  it("does NOT count the action named in a comment", () => {
+    // Every one of these workflows explains the alert in prose, and several name
+    // the action's path while doing it. A detector that counted prose would
+    // report all seven files as wired and check nothing at all.
+    expect(wiresAlert(`# wire ${ALERT_ACTION} into any new gate\njobs: {}\n`)).toBe(false);
+  });
+
+  it("does not match a different action whose path merely starts the same", () => {
+    expect(wiresAlert(`      - uses: ${ALERT_ACTION}-v2\n`)).toBe(false);
+  });
+});
+
+describe("alertFindings", () => {
+  it("flags a scheduled fence with no alert wiring", () => {
+    const found = alertFindings([{ file: "nightly.yml", yaml: PINNED_STEP }]);
+    expect(found).toHaveLength(1);
+    expect(found[0].problem).toContain("no `uses:");
+  });
+
+  it("is quiet once the alert is wired", () => {
+    expect(alertFindings([{ file: "nightly.yml", yaml: PINNED_STEP + ALERT_JOB }])).toEqual([]);
+  });
+
+  it("lets an ALERT_EXEMPT workflow ship without one", () => {
+    expect(alertFindings([{ file: ALERT_EXEMPT[0].workflow, yaml: PINNED_STEP }])).toEqual([]);
+  });
+
+  // Both directions, like REF_EXEMPT. An exemption that no longer describes the
+  // file is a lie the next reader will believe.
+  it("flags an exemption for a workflow that now wires the alert anyway", () => {
+    const found = alertFindings([
+      { file: ALERT_EXEMPT[0].workflow, yaml: PINNED_STEP + ALERT_JOB },
+    ]);
+    expect(found).toHaveLength(1);
+    expect(found[0].problem).toContain("ALERT_EXEMPT");
+  });
+
+  it("is quiet against the real tree", () => {
+    expect(alertFindings(scheduledWorkflows())).toEqual([]);
+  });
+
+  it("gives every alert exemption a reason someone can argue with", () => {
+    for (const entry of ALERT_EXEMPT) expect(entry.reason.length).toBeGreaterThan(40);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// The third state: succeeded != audited.
+// ---------------------------------------------------------------------------
+
+describe("auditedFindings", () => {
+  it("flags a guard-skipping workflow that wires the alert without `audited:`", () => {
+    const found = auditedFindings([{ file: "nightly.yml", yaml: GUARDED }]);
+    expect(found).toHaveLength(1);
+    expect(found[0].problem).toContain("audited");
+  });
+
+  it("is quiet once the guard's output is passed through", () => {
+    const fixed = GUARDED.replace(
+      "outcome: ${{ needs.nightly.result }}",
+      "outcome: ${{ needs.nightly.result }}\n          audited: ${{ needs.nightly.outputs.audited }}",
+    );
+    expect(auditedFindings([{ file: "nightly.yml", yaml: fixed }])).toEqual([]);
+  });
+
+  it("does not demand `audited:` from a workflow that cannot no-op-skip", () => {
+    expect(auditedFindings([{ file: "nightly.yml", yaml: PINNED_STEP + ALERT_JOB }])).toEqual([]);
+  });
+
+  it("is quiet against the real tree", () => {
+    expect(auditedFindings(scheduledWorkflows())).toEqual([]);
+  });
+});
+
+describe("the alert action's third state", () => {
+  const action = readFileSync(".github/actions/red-streak-alert/action.yml", "utf8");
+
+  it("declares an `audited` input that defaults to true", () => {
+    // Defaulting to "true" is what keeps the six workflows with no guard from
+    // having to opt in; the guarded one opts OUT explicitly.
+    expect(action).toMatch(/^ {2}audited:/m);
+    expect(action).toMatch(/audited:[\s\S]*?default: "true"/);
+  });
+
+  it("compares for equality with true, so an EMPTY value cannot close an alert", () => {
+    // `needs.<job>.outputs.audited` is "" when the job died before its guard
+    // step ran. `!= "true"` treats that as not-audited, which leaves the alert
+    // open — the safe direction. `= "false"` would have closed it.
+    expect(action).toContain('if [ "${AUDITED}" != "true" ] && [ "${OUTCOME}" != "failure" ]');
+  });
+
+  it("still alerts on a real failure whatever `audited` says", () => {
+    // The asymmetry is the point: the flag can suppress a CLOSE, never an OPEN.
+    // A guard-skipped job cannot fail, so this can only ever protect a red.
+    const guardLine = action
+      .split("\n")
+      .find((l) => l.includes('[ "${AUDITED}" != "true" ]')) as string;
+    expect(guardLine).toContain('[ "${OUTCOME}" != "failure" ]');
+  });
+
+  it("puts the guard before every write to the issue", () => {
+    const guardAt = action.indexOf('[ "${AUDITED}" != "true" ]');
+    expect(guardAt).toBeGreaterThan(-1);
+    for (const write of [
+      "gh issue close",
+      "gh issue create",
+      "gh issue edit",
+      "gh issue comment",
+    ]) {
+      expect(action.indexOf(write), write).toBeGreaterThan(guardAt);
+    }
+  });
+
+  it("is actually consumed by the workflow that can no-op-skip", () => {
+    const yaml = readFileSync(join(WORKFLOW_DIR, "db-doctor-staging.yml"), "utf8");
+    expect(yaml).toMatch(/^ {4}outputs:\n {6}audited: \$\{\{ steps\.guard\.outputs\.run \}\}$/m);
+    expect(yaml).toContain("audited: ${{ needs.doctor.outputs.audited }}");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Is any of this LIVE? The half the fence used to get wrong about ITSELF.
+// ---------------------------------------------------------------------------
+
+describe("livenessRows / inertRows", () => {
+  const here = [{ file: "nightly.yml", yaml: PINNED_STEP + ALERT_JOB }];
+
+  it("calls a pin inert when the default branch's copy does not carry it", () => {
+    const copies = new Map([["nightly.yml", BARE_STEP]]);
+    const [row] = livenessRows(here, copies);
+    expect(row).toMatchObject({ present: true, pinnedHere: true, pinnedThere: false });
+    expect(inertRows([row])[0].missing).toContain("the `ref:` pin");
+  });
+
+  it("calls an alert job inert when the default branch's copy does not wire it", () => {
+    const copies = new Map([["nightly.yml", PINNED_STEP]]);
+    expect(inertRows(livenessRows(here, copies))[0].missing).toContain("the red-streak alert job");
+  });
+
+  it("reports an absent file as having no schedule at all, not as a missing pin", () => {
+    const copies = new Map<string, string | null>([["nightly.yml", null]]);
+    expect(inertRows(livenessRows(here, copies))[0].missing).toEqual([
+      "the file itself (so: no schedule at all)",
+    ]);
+  });
+
+  it("is empty when the default branch's copy is identical", () => {
+    const copies = new Map([["nightly.yml", PINNED_STEP + ALERT_JOB]]);
+    expect(inertRows(livenessRows(here, copies))).toEqual([]);
+  });
+
+  // The bug this whole section exists to make impossible: an exempt workflow
+  // that is unpinned HERE must not be reported as "missing its pin" THERE.
+  it("does not accuse a ref-exempt workflow of a missing pin", () => {
+    const exemptFile = REF_EXEMPT[0].workflow;
+    const copies = new Map([[exemptFile, BARE_STEP]]);
+    expect(inertRows(livenessRows([{ file: exemptFile, yaml: BARE_STEP }], copies))).toEqual([]);
+  });
+});
+
+describe("the real tree, against the default branch's copy of itself", () => {
+  it("does not claim anything is live on the default branch that is not", () => {
+    const scheduled = scheduledWorkflows();
+    const onDefault = workflowsOnDefaultBranch();
+    if (onDefault === null) return; // reported as SKIPPED by the CLI; see above.
+
+    const copies = new Map(
+      scheduled.map((w) => [w.file, defaultBranchWorkflowYaml(w.file)] as const),
+    );
+    const rows = livenessRows(scheduled, copies);
+
+    // Every row's `present` must agree with the independent ls-tree listing —
+    // two different git reads of the same fact, which is what makes this a check
+    // rather than a restatement.
+    const present = new Set(onDefault);
+    for (const row of rows) expect(row.present, row.file).toBe(present.has(row.file));
+
+    // And every "here but not there" must appear in the inert list. The failure
+    // this forbids is the one the pass line committed for a day: pins written on
+    // this branch, reported as done, inert on every scheduled run.
+    const inert = new Set(inertRows(rows).map((r) => r.file));
+    for (const row of rows) {
+      if (!row.present) expect(inert.has(row.file), row.file).toBe(true);
+      if (row.pinnedHere && !row.pinnedThere) expect(inert.has(row.file), row.file).toBe(true);
+      if (row.alertedHere && !row.alertedThere) expect(inert.has(row.file), row.file).toBe(true);
     }
   });
 });

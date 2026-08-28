@@ -181,3 +181,48 @@ jobs:
           path: apps/mobile/dist/
           retention-days: 7
           if-no-files-found: ignore
+
+  # ---------------------------------------------------------------------------
+  # Make a permanently-red fence audible — and this workflow is the worst case
+  # for the mechanism it replaces.
+  #
+  # GitHub's failed-workflow email fires on the green -> red TRANSITION. This
+  # workflow has NEVER RUN (the API is blunt about it: `gh run list --workflow
+  # mobile-export-nightly.yml` answers `HTTP 404: workflow not found on the
+  # default branch`, measured 2026-08-28), so its first run on `main` has no
+  # green to transition from. If that first run is red — likely, for a job whose
+  # command has never executed in CI — nothing would be sent to anybody. That is
+  # the 20-silent-nights disease, pre-installed.
+  #
+  # The alert keys on the STREAK instead, which is >= 1 on the first red whether
+  # or not a green ever preceded it.
+  # ---------------------------------------------------------------------------
+  alert:
+    name: Alert on a red streak
+    needs: export
+    if: always()
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      # Reading the workflow's own run history is what turns one red run into a
+      # streak; writing the issue is the alert itself. Both come from the per-run
+      # GITHUB_TOKEN — no secret to provision, so nothing to forget.
+      actions: read
+      issues: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          # Local composite actions resolve from the checked-out tree, so this
+          # job needs the same pin as the one above — otherwise the alert would
+          # run the default branch's copy of the action.
+          ref: integration/all-20260703
+
+      - name: Open or update the alert issue
+        uses: ./.github/actions/red-streak-alert
+        with:
+          workflow: mobile-export-nightly.yml
+          outcome: ${{ needs.export.result }}
+          token: ${{ secrets.GITHUB_TOKEN }}
+          title: "[nightly] Mobile export (Metro bundle) is failing"

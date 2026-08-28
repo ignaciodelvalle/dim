@@ -2,11 +2,14 @@
 //
 // THE INVARIANT
 // ---------------------------------------------------------------------------
-//   A scheduled fence must check out the code it is meant to guard, and a
-//   workflow that is not on the default branch does not run at all.
+//   A scheduled fence must check out the code it is meant to guard, must say so
+//   out loud when it is red, and a workflow that is not on the default branch
+//   does not run at all.
 //
-// Both halves are properties of GitHub's `schedule:` trigger, and both are
-// invisible until somebody goes looking:
+// Three parts. The first two are properties of GitHub's `schedule:` trigger and
+// both are invisible until somebody goes looking; the third is the alarm, which
+// CONTRIBUTING.md asked for from 2026-08-27 and nothing enforced until
+// 2026-08-28 (see ALERT_EXEMPT and {@link alertFindings}):
 //
 //   · A `schedule:` event fires ONLY from the repository's DEFAULT branch, and
 //     `actions/checkout` with no `ref:` checks that branch out. This repo ships
@@ -15,7 +18,14 @@
 //     nobody was running, against an app built from code it had never seen.
 //   · A workflow file that is absent from the default branch has no schedule.
 //     Not a late schedule — none. It sits in the repo looking exactly like a
-//     fence and has never executed once.
+//     fence and has never executed once. GitHub is blunt about it if you ask:
+//     `gh run list --workflow panorama-qa-nightly.yml` answers `HTTP 404:
+//     workflow not found on the default branch` (measured 2026-08-28).
+//   · And a scheduled run executes the DEFAULT BRANCH'S COPY of the file. Not
+//     just its presence — its CONTENT. A pin, an alert job, or a lint step that
+//     exists only on the integration branch does nothing on a timer, however
+//     right it looks in the working tree. That includes this fence. See the
+//     "Is any of this LIVE?" section near the bottom.
 //
 // WHAT IT ACTUALLY COST, BEFORE THE FIX
 // ---------------------------------------------------------------------------
@@ -65,6 +75,14 @@ export const DEFAULT_BRANCH = "main";
  */
 export const DEPLOY_REF = "integration/all-20260703";
 
+/**
+ * The local composite action every scheduled fence must wire, spelled exactly as
+ * a `uses:` value. CONTRIBUTING.md tells every contributor to add it to any new
+ * scheduled gate; {@link alertFindings} is what makes that instruction true
+ * instead of aspirational.
+ */
+export const ALERT_ACTION = "./.github/actions/red-streak-alert";
+
 export type Exemption = { workflow: string; reason: string };
 
 /**
@@ -102,11 +120,60 @@ export const REF_EXEMPT: Exemption[] = [
 export const NOT_ON_DEFAULT_BRANCH: Exemption[] = [
   {
     workflow: "mobile-export-nightly.yml",
-    reason: "Written 2026-08-27; 0 runs as of that date. Merge to main to give it a schedule.",
+    reason:
+      "Written 2026-08-27; 0 runs. Confirmed by the API itself on 2026-08-28 — `gh run list " +
+      "--workflow mobile-export-nightly.yml` answers `HTTP 404: workflow not found on the default " +
+      "branch`. Merge to main to give it a schedule.",
   },
   {
     workflow: "panorama-qa-nightly.yml",
-    reason: "0 runs as of 2026-08-27. Merge to main to give it a schedule.",
+    reason:
+      "0 runs; same `HTTP 404: workflow not found on the default branch` from `gh run list` on " +
+      "2026-08-28. Merge to main to give it a schedule.",
+  },
+];
+
+/**
+ * Scheduled workflows that deliberately ship WITHOUT `red-streak-alert`.
+ *
+ * CONTRIBUTING.md tells everyone to wire the alert into any new scheduled gate,
+ * and until 2026-08-28 nothing checked it: the test asserted the wiring for the
+ * two workflows that already had it, so the instruction was enforced exactly
+ * where it was already followed. {@link alertFindings} closes that, and an entry
+ * here is the only way out — with the argument written down.
+ *
+ * Checked in both directions, like {@link REF_EXEMPT}: the workflow must exist,
+ * must be scheduled, and must NOT wire the alert. Wire it later without deleting
+ * the entry and this fails, so the exemption cannot outlive its reason.
+ *
+ * Run counts below are reproducible, not remembered:
+ *   gh api "repos/<owner>/<repo>/actions/workflows/<file>/runs?per_page=1" --jq .total_count
+ *   gh api "repos/<owner>/<repo>/actions/workflows/<file>/runs?per_page=1&status=failure" --jq .total_count
+ */
+export const ALERT_EXEMPT: Exemption[] = [
+  {
+    workflow: "staging-health.yml",
+    reason:
+      "The ONE workflow here for which GitHub's built-in green->red transition mail actually " +
+      "fires, because it is the only one with dense green history to transition FROM: measured " +
+      "2026-08-28, 588 runs, 3 failures (2026-08-09 and two on 2026-08-16), each an isolated red " +
+      "between greens. The streak alert exists to cover fences whose FIRST run was red and that " +
+      "therefore never transition; that is not this one. The cost of wiring it anyway is real and " +
+      "one-sided: the health poll is a */15 cron, so an alert job would add ~96 checkouts a day to " +
+      "re-derive a signal that already arrives. Revisit if this workflow ever goes red twice in a " +
+      "row — a streak is precisely what the mail handles badly.",
+  },
+  {
+    workflow: "codeql.yml",
+    reason:
+      "Runs on `push:` to main, develop AND integration/** as well as the weekly cron, so a broken " +
+      "scan turns the very next push red the same day — it cannot sit silently red for twenty " +
+      "nights, which is the failure mode the alert exists for. Measured 2026-08-28: 484 runs, 0 " +
+      "failures. There is also a mechanical reason: the alert job needs `actions/checkout` to " +
+      "resolve the local composite action, and codeql.yml is in REF_EXEMPT, whose bidirectional " +
+      "check reads ANY pinned checkout in the file as a broken exemption. Wiring the alert here " +
+      "would mean loosening that check to per-job parsing — trading a fence that is exact for one " +
+      "that is approximate, to cover a workflow that is already covered by push.",
   },
 ];
 
@@ -148,6 +215,22 @@ export function stripComments(yaml: string): string {
 export function hasSchedule(yaml: string): boolean {
   const source = stripComments(yaml);
   return /^ {2}schedule:\s*$/m.test(source) || /(?:^|[\s{,[])cron\s*:/m.test(source);
+}
+
+/**
+ * True when the workflow actually WIRES the red-streak alert — a `uses:` line,
+ * not a mention.
+ *
+ * Comments are stripped first for the reason the whole file strips them: these
+ * workflows carry pages of prose about alerting, and every one of them names the
+ * action in a paragraph explaining why it exists. A fence that counted prose
+ * would pass on all seven files and check nothing.
+ */
+export function wiresAlert(yaml: string): boolean {
+  return new RegExp(
+    `^\\s*(?:-\\s+)?uses:\\s*${ALERT_ACTION.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\s*$`,
+    "m",
+  ).test(stripComments(yaml));
 }
 
 export type CheckoutStep = {
@@ -239,6 +322,24 @@ export function workflowsOnDefaultBranch(): string[] | null {
   return null;
 }
 
+/**
+ * The default branch's COPY of a workflow file, or null when the file is not on
+ * that branch (or the branch is not visible).
+ *
+ * Presence is not the question this answers — {@link workflowsOnDefaultBranch}
+ * answers that. This one exists because a scheduled run executes the DEFAULT
+ * BRANCH'S CONTENT of the workflow file, so a pin, an alert job, or a fence step
+ * that lives only on this branch does nothing on a schedule, however correct it
+ * looks in the working tree.
+ */
+export function defaultBranchWorkflowYaml(file: string): string | null {
+  for (const ref of [`origin/${DEFAULT_BRANCH}`, DEFAULT_BRANCH]) {
+    const out = git(["show", `${ref}:${WORKFLOW_DIR}/${file}`]);
+    if (out !== null) return out;
+  }
+  return null;
+}
+
 /** True/false when the deploy ref is resolvable/unresolvable; null when git cannot answer. */
 export function deployRefResolves(): boolean | null {
   // Gate on the default branch being visible. A CI checkout fetches only the
@@ -301,12 +402,83 @@ export function refFindings(workflows: { file: string; yaml: string }[]): Findin
  */
 export function exemptionFindings(workflows: { file: string; yaml: string }[]): Finding[] {
   const scheduledNames = new Set(workflows.map((w) => w.file));
-  return REF_EXEMPT.filter((e) => !scheduledNames.has(e.workflow)).map(({ workflow }) => ({
-    workflow,
-    problem:
-      "is in REF_EXEMPT but is not a scheduled workflow (renamed, deleted, or its " +
-      "`schedule:` trigger was removed). Remove the stale entry.",
-  }));
+  const stale = (list: Exemption[], name: string) =>
+    list
+      .filter((e) => !scheduledNames.has(e.workflow))
+      .map(({ workflow }) => ({
+        workflow,
+        problem: `is in ${name} but is not a scheduled workflow (renamed, deleted, or its \`schedule:\` trigger was removed). Remove the stale entry.`,
+      }));
+  return [...stale(REF_EXEMPT, "REF_EXEMPT"), ...stale(ALERT_EXEMPT, "ALERT_EXEMPT")];
+}
+
+/**
+ * Every scheduled workflow either wires the red-streak alert or is in
+ * {@link ALERT_EXEMPT} with the argument for why it does not.
+ *
+ * This is the enforcement CONTRIBUTING.md's "Also give it an alarm" paragraph
+ * was missing: the doc has asked for the wiring since 2026-08-27, while the only
+ * check was a test naming the two workflows that already had it — a rule
+ * enforced exactly where it was already followed.
+ *
+ * Both directions, like {@link refFindings}: an exemption for a workflow that
+ * now wires the alert is stale and fails. The other staleness — an exemption
+ * naming a workflow that is not scheduled at all — lives in
+ * {@link exemptionFindings} with the ref-exemption one, so both lists are
+ * audited by the same code.
+ */
+export function alertFindings(workflows: { file: string; yaml: string }[]): Finding[] {
+  const findings: Finding[] = [];
+  const exempt = new Set(ALERT_EXEMPT.map((e) => e.workflow));
+
+  for (const { file, yaml } of workflows) {
+    const wired = wiresAlert(yaml);
+    if (exempt.has(file)) {
+      if (wired) {
+        findings.push({
+          workflow: file,
+          problem: `is in ALERT_EXEMPT but now wires ${ALERT_ACTION}. Delete the exemption in scripts/check-scheduled-fence-refs.ts, or delete the wiring — an exemption that no longer describes the file is worse than none.`,
+        });
+      }
+      continue;
+    }
+    if (!wired) {
+      findings.push({
+        workflow: file,
+        problem: `is a scheduled fence with no \`uses: ${ALERT_ACTION}\`. GitHub's failed-workflow mail fires on the green->red TRANSITION, so a fence whose first run is red never mails anybody — that is how 32 consecutive failures went unannounced. Wire the alert (see e2e-nightly.yml) or add it to ALERT_EXEMPT with the reason.`,
+      });
+    }
+  }
+
+  return findings;
+}
+
+/**
+ * A guard-skipped job reports SUCCESS, and the alert action reads a success as
+ * recovery. So a workflow that both (a) skips steps behind a step-level guard
+ * and (b) wires the alert MUST tell the action whether it actually audited
+ * anything, or a night that ran nothing closes the open alert with "Green
+ * again". That is what db-doctor-staging.yml did until 2026-08-28.
+ *
+ * The detector is `if: steps.<id>.outputs...` on a step, which is the only way
+ * to express that guard: `secrets` is not in the context available to a
+ * job-level `if:`, so the pattern cannot be written any other way.
+ */
+export function auditedFindings(workflows: { file: string; yaml: string }[]): Finding[] {
+  const findings: Finding[] = [];
+  for (const { file, yaml } of workflows) {
+    if (!wiresAlert(yaml)) continue;
+    const source = stripComments(yaml);
+    if (!/^\s*if:\s*steps\./m.test(source)) continue;
+    const wiring = source.slice(source.indexOf(ALERT_ACTION));
+    if (!/^\s*audited:\s*\S/m.test(wiring)) {
+      findings.push({
+        workflow: file,
+        problem: `skips steps behind an \`if: steps.<id>...\` guard and wires ${ALERT_ACTION}, but passes no \`audited:\`. A guard-skipped job reports SUCCESS, and the action reads a success as recovery — so a night that audited NOTHING would close the open alert with "Green again". Pass \`audited: \${{ needs.<job>.outputs.audited }}\` from the guard's output.`,
+      });
+    }
+  }
+  return findings;
 }
 
 /** The default-branch half of the invariant. Returns null when it could not be checked. */
@@ -354,6 +526,88 @@ export function defaultBranchFindings(
   return findings;
 }
 
+// ---------------------------------------------------------------------------
+// Is any of this LIVE?
+//
+// The half this fence got wrong about itself. Until 2026-08-28 the pass line
+// read "N pinned ... 2 workflow(s) still waiting to be merged there", which a
+// reader takes to mean the pins are done and only two absent files are waiting.
+//
+// They are not. A `schedule:` event runs the DEFAULT BRANCH'S COPY of the
+// workflow file. Measured 2026-08-28 with:
+//     git show origin/main:.github/workflows/e2e-nightly.yml
+// main's copies of e2e-nightly, db-doctor-staging, staging-health and codeql
+// contain ZERO occurrences of `ref:`, zero of `red-streak`, and main's ci.yml
+// zero of `sched-refs`. So on a schedule, none of it exists: not the pins, not
+// the alert jobs, and not this fence. Only a merge changes that.
+//
+// WHY THIS WARNS INSTEAD OF FAILING
+// ---------------------------------------------------------------------------
+// `lint:sched-refs` runs inside `pnpm verify`, which is this repo's Definition
+// of Done for EVERY commit. Failing on "not yet merged to main" would make every
+// commit on the integration branch red for a condition no edit in that branch
+// can clear — three weeks of guaranteed red, which is how a fence teaches people
+// to pass `--no-verify` and stop reading it. That is the same disease one level
+// up. So it warns; but it warns in the PASS output, with counts and names, and
+// the summary line above it no longer says anything that implies otherwise.
+// ---------------------------------------------------------------------------
+
+export type LivenessRow = {
+  file: string;
+  /** Present on the default branch at all — if false it has no schedule to speak of. */
+  present: boolean;
+  /** This tree pins the checkout to DEPLOY_REF. */
+  pinnedHere: boolean;
+  /** The default branch's copy pins it too — i.e. the pin is live on a schedule. */
+  pinnedThere: boolean;
+  /** This tree wires the red-streak alert. */
+  alertedHere: boolean;
+  /** The default branch's copy wires it too. */
+  alertedThere: boolean;
+};
+
+/**
+ * Compares each scheduled workflow against the default branch's copy of itself.
+ *
+ * Pure: `copies` maps file name to the default branch's YAML (null = absent), so
+ * the whole thing is exercisable without a git repository.
+ */
+export function livenessRows(
+  workflows: { file: string; yaml: string }[],
+  copies: Map<string, string | null>,
+): LivenessRow[] {
+  const pinned = (yaml: string) => checkoutSteps(yaml).some((s) => s.ref === DEPLOY_REF);
+  return workflows.map(({ file, yaml }) => {
+    const there = copies.get(file) ?? null;
+    return {
+      file,
+      present: there !== null,
+      pinnedHere: pinned(yaml),
+      pinnedThere: there !== null && pinned(there),
+      alertedHere: wiresAlert(yaml),
+      alertedThere: there !== null && wiresAlert(there),
+    };
+  });
+}
+
+/**
+ * The rows where this branch carries something a scheduled run would not get,
+ * with what is missing. An empty result means everything in this tree is live.
+ */
+export function inertRows(rows: LivenessRow[]): { file: string; missing: string[] }[] {
+  return rows
+    .map((r) => {
+      const missing: string[] = [];
+      if (!r.present) missing.push("the file itself (so: no schedule at all)");
+      else {
+        if (r.pinnedHere && !r.pinnedThere) missing.push("the `ref:` pin");
+        if (r.alertedHere && !r.alertedThere) missing.push("the red-streak alert job");
+      }
+      return { file: r.file, missing };
+    })
+    .filter((r) => r.missing.length > 0);
+}
+
 function runCheck(): void {
   const workflows = scheduledWorkflows();
 
@@ -364,7 +618,12 @@ function runCheck(): void {
     process.exit(1);
   }
 
-  const findings = [...refFindings(workflows), ...exemptionFindings(workflows)];
+  const findings = [
+    ...refFindings(workflows),
+    ...exemptionFindings(workflows),
+    ...alertFindings(workflows),
+    ...auditedFindings(workflows),
+  ];
 
   const onDefault = workflowsOnDefaultBranch();
   const branchFindings = defaultBranchFindings(workflows, onDefault);
@@ -394,21 +653,60 @@ function runCheck(): void {
   }
 
   const pinned = workflows.filter((w) => !REF_EXEMPT.some((e) => e.workflow === w.file)).length;
+  const alerted = workflows.filter((w) => wiresAlert(w.yaml)).length;
+  // "IN THIS TREE" is load-bearing. The old line said "N pinned" full stop, and
+  // a pin in this tree is not a pin a scheduled run will ever execute.
   console.log(
-    `✓ Scheduled-fence refs — ${workflows.length} scheduled workflow(s): ${pinned} pinned to ` +
-      `${DEPLOY_REF}, ${REF_EXEMPT.length} documented exemption(s).`,
+    `✓ Scheduled-fence refs — ${workflows.length} scheduled workflow(s) IN THIS TREE: ${pinned} pinned to ` +
+      `${DEPLOY_REF} (${REF_EXEMPT.length} ref exemption(s)), ${alerted} wiring the red-streak alert ` +
+      `(${ALERT_EXEMPT.length} alert exemption(s)).`,
   );
   console.log(
     onDefault === null
       ? `  · default-branch presence: SKIPPED (origin/${DEFAULT_BRANCH} is not in this clone — a CI checkout fetches only the triggering ref). Runs on a full clone, e.g. \`pnpm verify\`.`
       : `  · default-branch presence: checked against origin/${DEFAULT_BRANCH} — ` +
-          `${NOT_ON_DEFAULT_BRANCH.length} workflow(s) still waiting to be merged there.`,
+          `${NOT_ON_DEFAULT_BRANCH.length} of ${workflows.length} absent there, so those have no \`schedule:\` at all.`,
   );
   console.log(
     refResolves === null
       ? `  · ${DEPLOY_REF} resolvable: SKIPPED (this clone cannot see origin/${DEFAULT_BRANCH} either).`
       : `  · ${DEPLOY_REF} resolvable: yes.`,
   );
+
+  // ---- What a scheduled run would ACTUALLY execute. -----------------------
+  if (onDefault === null) {
+    console.log(
+      `  · live on origin/${DEFAULT_BRANCH}: SKIPPED (same reason). Until this runs on a full clone,\n    NOTHING here has been shown to take effect on a schedule.`,
+    );
+    return;
+  }
+
+  const copies = new Map(workflows.map((w) => [w.file, defaultBranchWorkflowYaml(w.file)]));
+  const inert = inertRows(livenessRows(workflows, copies));
+
+  if (inert.length === 0) {
+    console.log(
+      `  · live on origin/${DEFAULT_BRANCH}: yes — every pin and every alert job in this tree is also in the copy a scheduled run executes.`,
+    );
+    return;
+  }
+
+  const lines = [
+    `  ! NOT LIVE on origin/${DEFAULT_BRANCH} — ${inert.length} of ${workflows.length} scheduled workflow(s).`,
+    `    A schedule runs origin/${DEFAULT_BRANCH}'s COPY of the file, so what is listed below exists`,
+    "    only in this branch and does nothing on a timer until the branch is merged.",
+    "    This is a WARNING and not a failure on purpose: no edit in this branch can clear it,",
+    "    and a fence that is red for three weeks for reasons nobody can fix is a fence people",
+    "    learn to skip. It is not, however, a pass — read the list.",
+    ...inert.map((r) => `        ${r.file}: missing ${r.missing.join(", ")}`),
+  ];
+  for (const line of lines) console.log(line);
+  if (process.env.GITHUB_ACTIONS === "true") {
+    console.log(
+      `::warning::${inert.length} scheduled workflow(s) carry pins or alert jobs that are not on ` +
+        `origin/${DEFAULT_BRANCH} and therefore do not run on a schedule: ${inert.map((r) => r.file).join(", ")}`,
+    );
+  }
 }
 
 // Only run when invoked as a CLI; importing from tests must not exit.
