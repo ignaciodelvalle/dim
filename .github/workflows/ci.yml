@@ -284,6 +284,17 @@ jobs:
         # docs/design/handoffs/2026-07-04-router-refresh-tiers.md.
         run: pnpm lint:nav
 
+      - name: Lint (scheduled-fence refs)
+        # The other half of "a fence that never ran is not a fence". `ci.yml`
+        # keeps NO `ref:` — it runs on push and pull_request, where the whole
+        # point is to test the code that was just pushed or proposed, and a fixed
+        # ref would make it grade the wrong tree on every PR. The *scheduled*
+        # workflows are the opposite case: `schedule:` fires from, and checks
+        # out, the DEFAULT branch, which on 2026-08-27 was 3876 commits behind
+        # the deployed app. This step asserts each one pins the branch staging
+        # ships from, or documents in one named place why it must not.
+        run: pnpm lint:sched-refs
+
       - name: Lint (CI ↔ verify parity)
         # The ratchet that keeps this workflow honest. `pnpm verify` is the
         # Definition of Done and runs on one machine; CI is what blocks a merge.
