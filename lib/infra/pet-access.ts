@@ -272,6 +272,51 @@ export async function requirePetAccess(publicToken: string): Promise<PetAccessRe
  * The caller is responsible for having established that `userId` belongs to a
  * live, non-erased account. This function does not check that and must not be
  * called with an unvalidated id.
+ *
+ * ===========================================================================
+ * KNOWN GAP — THIS FUNCTION DOES NOT FILTER `pets.deleted_at` (measured
+ * 2026-08-28). NOT FIXED; SCOPED AS ITS OWN UNIT.
+ * ===========================================================================
+ * The Path-1 predicate below is `pets.public_token = ? AND
+ * ownerships.owner_user_id = ? AND ownerships.ended_at IS NULL`. There is no
+ * `pets.deleted_at IS NULL` anywhere in it, and Path 2 has the same shape.
+ *
+ * WHY THAT IS REACHABLE RATHER THAN THEORETICAL. `erase_subject_data`
+ * SOFT-DELETES the pet and leaves the `ownerships` row standing —
+ * `purgeOwnedPetAttachments` in erase-subject-data.ts depends on exactly that
+ * and says so: "ownerships rows survive the RPC (only pets are soft-deleted)".
+ * So after an account erasure the animal still has a live ownership row, and
+ * this function still answers `kind: "owner"` for it.
+ *
+ * `requireAlivePetAccess` DOES NOT COVER THIS. It refuses `status ===
+ * 'deceased'`, which is a different column and a different fact: a soft-deleted
+ * pet is not a deceased one, and an erased owner's animal passes that gate
+ * untouched.
+ *
+ * MEASURED BLAST RADIUS, derived from the tree rather than estimated:
+ *   · 12 direct call sites of this function. ELEVEN carry no `deleted_at`
+ *     guard of their own. The one that does is
+ *     `app/api/v1/pets/[publicToken]/photo/route.ts`, which added it after
+ *     `__tests__/public-soft-delete-resolution.test.ts` flagged the module it
+ *     calls — that fence is currently the only thing in the repo that notices
+ *     this class, and it only watches modules reachable from `app/api/v1/**`.
+ *   · 60 call sites of the three guards composed on top of this one
+ *     (`requirePetAccess` 24, `requireAlivePetAccess` 18,
+ *     `requireTitularAccess` 18) across 34 files. ZERO of those files carry a
+ *     pet `deleted_at` guard — the only `deletedAt` string among all 34 is the
+ *     comment further down THIS file, and it is about `profiles`, not `pets`.
+ *
+ * WHY IT IS NOT FIXED HERE. Adding `isNull(pets.deletedAt)` to both paths is
+ * one line and is probably right, but it silently changes the answer for 72
+ * call sites at once — including reads where a soft-deleted pet may be
+ * something an operator is still meant to see (decomiso custody chains, govt
+ * aggregates, the former-owner read grant below). That is a decision with a
+ * blast radius, not a patch, and it belongs to a unit that can enumerate the
+ * exceptions. Ley 25.326 art. 16 is the clock on it.
+ *
+ * WHAT A NEW CALLER MUST DO MEANWHILE: check `pet.deletedAt` yourself if your
+ * surface must not act on an erased animal, and answer the way the rest of this
+ * surface answers about a pet nobody may see — 404, never a distinct code.
  */
 export type PetHolderAccess =
   | { kind: "owner"; pet: Pet; holderRole: OwnershipRole }

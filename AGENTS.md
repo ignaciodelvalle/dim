@@ -1721,6 +1721,11 @@ Una tabla `lost_feed_item_reports` habría sido la otra opción defendible y se 
 | `submitter_ip` caduca a los 30 días para todo el mundo, no solo para quien pide la baja | `ORG_CONTACT_IP_TTL_DAYS` en `lib/infra/data-lifecycle.ts` (quinto target del purge diario) |
 | La cuenta **no** guarda provincia ni localidad | Retirado del formulario y del writer en 0205 (un writer, cero lectores). La jurisdicción es un hecho **de la mascota** |
 | `pet_events` is append-only by design → exempt from soft-delete | Core principle #2 |
+| **HUECO ABIERTO — el soft-delete de la mascota no se filtra en el guard de acceso** | `resolvePetHolderAccess` (`lib/infra/pet-access.ts`) no lleva `pets.deleted_at IS NULL` en ninguno de sus dos caminos. Medido 2026-08-28: **11 de 12** call sites directos sin guard propio, y **0 de 34** archivos que usan los tres guards de la web (`requirePetAccess` 24 + `requireAlivePetAccess` 18 + `requireTitularAccess` 18 = 60 call sites). El docblock de la función tiene la derivación completa |
+
+> **Por qué ese hueco es de esta sección y no de autorización.** `erase_subject_data` hace SOFT-DELETE de la mascota y **deja viva la fila de `ownerships`** — `purgeOwnedPetAttachments` depende de eso y lo dice: "ownerships rows survive the RPC (only pets are soft-deleted)". Entonces, después de una supresión, el animal sigue teniendo una fila de tenencia viva y el guard sigue contestando `kind: "owner"`. `requireAlivePetAccess` **no** lo tapa: rechaza `status === 'deceased'`, que es otra columna y otro hecho.
+>
+> Lo único que hoy nota esta clase es `__tests__/public-soft-delete-resolution.test.ts`, y sólo mira módulos alcanzables desde `app/api/v1/**` — así fue como apareció, al marcar `lib/infra/pet-photo-upload.ts`. La puerta de la foto lo cerró en su ruta y dentro de su transacción; las otras once no. **Arreglarlo es una unidad propia**: agregar `isNull(pets.deletedAt)` es una línea que cambia la respuesta de 72 call sites a la vez, incluidas lecturas donde una mascota borrada quizá SÍ deba verse (cadenas de custodia de decomiso, agregados de gob, el permiso de lectura del ex-titular). La ley 25.326 art. 16 es el reloj.
 
 ---
 
