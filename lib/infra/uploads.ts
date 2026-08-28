@@ -1,64 +1,18 @@
 import { randomUUID } from "node:crypto";
 
-const MAX_BYTES = 5 * 1024 * 1024;
+import {
+  MAX_IMAGE_BYTES,
+  RASTER_IMAGE_TYPES,
+  detectRasterMime,
+  reencodeRaster,
+} from "@/lib/media/validate";
 
-// Whitelist of real raster image types we accept. The KEY is the canonical
-// MIME (validated by magic bytes, NOT by the client-supplied `file.type`),
-// the VALUE is the storage-key extension derived from it. SVG is intentionally
-// excluded — it is an XSS vector when served from a public bucket.
-const RASTER_IMAGE_TYPES = {
-  "image/jpeg": "jpg",
-  "image/png": "png",
-  "image/webp": "webp",
-} as const;
-type RasterMime = keyof typeof RASTER_IMAGE_TYPES;
+const MAX_BYTES = MAX_IMAGE_BYTES;
 
 // Buckets whose objects are publicly readable. Uploads to these buckets MUST be
 // re-encoded through sharp so attacker-controlled bytes (polyglots, embedded
 // scripts, malformed rasters) never reach a public URL verbatim.
 const PUBLIC_REENCODE_BUCKETS = new Set(["pet-photos"]);
-
-/**
- * Identify a raster image by its MAGIC BYTES (file signature). Returns the
- * canonical MIME type or null when the bytes match none of the whitelisted
- * raster formats. This is the authoritative content check — `file.type` is
- * client-controlled and must never be trusted for a security decision.
- */
-function detectRasterMime(bytes: Uint8Array): RasterMime | null {
-  // JPEG: FF D8 FF
-  if (bytes.length >= 3 && bytes[0] === 0xff && bytes[1] === 0xd8 && bytes[2] === 0xff) {
-    return "image/jpeg";
-  }
-  // PNG: 89 50 4E 47 0D 0A 1A 0A
-  if (
-    bytes.length >= 8 &&
-    bytes[0] === 0x89 &&
-    bytes[1] === 0x50 &&
-    bytes[2] === 0x4e &&
-    bytes[3] === 0x47 &&
-    bytes[4] === 0x0d &&
-    bytes[5] === 0x0a &&
-    bytes[6] === 0x1a &&
-    bytes[7] === 0x0a
-  ) {
-    return "image/png";
-  }
-  // WEBP: "RIFF" (52 49 46 46) .... "WEBP" (57 45 42 50) at offset 8
-  if (
-    bytes.length >= 12 &&
-    bytes[0] === 0x52 &&
-    bytes[1] === 0x49 &&
-    bytes[2] === 0x46 &&
-    bytes[3] === 0x46 &&
-    bytes[8] === 0x57 &&
-    bytes[9] === 0x45 &&
-    bytes[10] === 0x42 &&
-    bytes[11] === 0x50
-  ) {
-    return "image/webp";
-  }
-  return null;
-}
 
 export type UploadResult = {
   uploadedPath: string | null;
@@ -89,22 +43,6 @@ type SupabaseStorageClient = {
     };
   };
 };
-
-/**
- * Strips EXIF metadata from a raster image using sharp.
- * - `.rotate()` bakes the EXIF orientation into pixel data and, by default,
- *   sharp outputs the result WITHOUT any EXIF metadata (GPS, camera model,
- *   timestamps, etc.) unless `.withMetadata()` is called. We intentionally
- *   omit `.withMetadata()` to achieve the strip.
- * - Returns the processed Buffer on success.
- * - Throws on any sharp error; callers should fall back to the original file.
- */
-async function stripExifFromBuffer(buffer: Buffer): Promise<Buffer> {
-  // Dynamic import keeps sharp out of the client bundle and lets the module
-  // resolve lazily (only invoked on the server for finder photo uploads).
-  const sharp = (await import("sharp")).default;
-  return sharp(buffer).rotate().toBuffer();
-}
 
 export async function uploadAttachmentIfPresent(
   supabase: SupabaseStorageClient,
@@ -157,7 +95,7 @@ export async function uploadAttachmentIfPresent(
   let uploadBody: File | Buffer = file;
   if (shouldReencode) {
     try {
-      uploadBody = await stripExifFromBuffer(inputBuffer);
+      uploadBody = await reencodeRaster(inputBuffer);
     } catch (err) {
       if (mustReencode) {
         // Public bucket: never fall back to the raw, un-normalized bytes.
