@@ -16,6 +16,7 @@ import {
   openCase,
 } from "@/lib/infra/case-helpers";
 import { ORG_CUSTODY_TAKEN_ERROR, findLiveOrgShelterCustody } from "@/lib/infra/org-custody";
+import { unerasedPetByToken } from "@/lib/infra/public-pet-lookup";
 import { hashDni } from "@/lib/utils/dni-hash";
 
 import {
@@ -237,7 +238,8 @@ export const AdoptionRepository = {
       .innerJoin(ownerships, eq(ownerships.petId, pets.id))
       .where(
         and(
-          eq(pets.publicToken, petPublicToken),
+          // Art. 16: an erased pet answers like a token that never existed.
+          unerasedPetByToken(petPublicToken),
           eq(ownerships.ownerOrganizationId, organizationId),
           eq(ownerships.role, "shelter_custody"),
           isNull(ownerships.endedAt),
@@ -715,7 +717,8 @@ export const AdoptionRepository = {
       .innerJoin(organizations, eq(organizations.id, ownerships.ownerOrganizationId))
       .where(
         and(
-          eq(pets.publicToken, petPublicToken),
+          // Art. 16: an erased pet answers like a token that never existed.
+          unerasedPetByToken(petPublicToken),
           eq(ownerships.role, "shelter_custody"),
           isNull(ownerships.endedAt),
         ),
@@ -1274,7 +1277,8 @@ export const AdoptionRepository = {
     const [row] = await client
       .select({ id: pets.id, name: pets.name })
       .from(pets)
-      .where(eq(pets.publicToken, petPublicToken))
+      // Art. 16: an erased pet answers like a token that never existed.
+      .where(unerasedPetByToken(petPublicToken))
       .limit(1);
     return row ?? null;
   },

@@ -37,6 +37,7 @@ import {
   findOpenCaseForPetAndKind,
   openCase,
 } from "@/lib/infra/case-helpers";
+import { unerasedPetByToken } from "@/lib/infra/public-pet-lookup";
 import { AdoptionRepository } from "@/src/modules/adoption/infrastructure/adoption-repository";
 import {
   endRehomeSponsorship,
@@ -160,7 +161,8 @@ export const RehomeRepository = {
     const [row] = await db
       .select(PET_SUMMARY_COLUMNS)
       .from(pets)
-      .where(eq(pets.publicToken, publicToken))
+      // Art. 16: an erased pet answers like a token that never existed.
+      .where(unerasedPetByToken(publicToken))
       .limit(1);
     return row ?? null;
   },

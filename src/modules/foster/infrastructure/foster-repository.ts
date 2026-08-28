@@ -23,6 +23,7 @@ import type { CoverageArea } from "@/lib/domain/org-coverage";
 import { validateEventPayload } from "@/lib/events/event-schemas";
 import { closeCase, findOpenCaseForPetAndKind, openCase } from "@/lib/infra/case-helpers";
 import { type CronBudgetHeaders, effectiveDeadlineMs } from "@/lib/infra/cron-dispatcher";
+import { unerasedPetByToken } from "@/lib/infra/public-pet-lookup";
 
 import { insertConvertFosterToOwner } from "./foster-convert-to-owner-writer";
 import { insertEndFoster } from "./foster-end-writer";
@@ -131,7 +132,8 @@ export const FosterRepository = {
       .innerJoin(ownerships, eq(ownerships.petId, pets.id))
       .where(
         and(
-          eq(pets.publicToken, petPublicToken),
+          // Art. 16: an erased pet answers like a token that never existed.
+          unerasedPetByToken(petPublicToken),
           eq(ownerships.ownerOrganizationId, organizationId),
           eq(ownerships.role, "shelter_custody"),
           isNull(ownerships.endedAt),
@@ -1340,7 +1342,8 @@ export const FosterRepository = {
     const [row] = await client
       .select()
       .from(pets)
-      .where(eq(pets.publicToken, publicToken))
+      // Art. 16: an erased pet answers like a token that never existed.
+      .where(unerasedPetByToken(publicToken))
       .limit(1);
     return row ?? null;
   },

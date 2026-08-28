@@ -32,6 +32,7 @@ import {
   endCaretakerArrangementsForPet,
 } from "@/lib/infra/end-pet-ownerships";
 import { findLiveOrgShelterCustody } from "@/lib/infra/org-custody";
+import { unerasedPetByToken } from "@/lib/infra/public-pet-lookup";
 import {
   type OpenSponsorship,
   findOpenSponsorship,
@@ -149,7 +150,8 @@ export const TransfersRepository = {
     const [row] = await (client as typeof db)
       .select()
       .from(pets)
-      .where(eq(pets.publicToken, publicToken))
+      // Art. 16: an erased pet answers like a token that never existed.
+      .where(unerasedPetByToken(publicToken))
       .limit(1);
     return row ?? null;
   },
@@ -842,7 +844,8 @@ export const TransfersRepository = {
       .innerJoin(ownerships, eq(ownerships.petId, pets.id))
       .where(
         and(
-          eq(pets.publicToken, petPublicToken),
+          // Art. 16: an erased pet answers like a token that never existed.
+          unerasedPetByToken(petPublicToken),
           eq(ownerships.ownerOrganizationId, orgId),
           isNull(ownerships.endedAt),
         ),
