@@ -45,6 +45,11 @@ export async function replaceMicrochipVetAction(
         eq(ownerships.ownerOrganizationId, organization.id),
         isNull(ownerships.endedAt),
         inArray(ownerships.role, ["shelter_custody", "foster"]),
+        // Art. 16: the custody/foster row survives an erasure; without this a
+        // member with event.write could keep appending microchip events to an
+        // erased pet. The refusal below already reads like "no custody", so an
+        // erased pet stays indistinguishable from one the org never held.
+        isNull(pets.deletedAt),
       ),
     )
     .limit(1);

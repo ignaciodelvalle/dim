@@ -54,11 +54,14 @@ export async function confirmChipMatchAsRefugioWriter({
     return { error: "Coincidencia de intake no válida o expirada. Reintentá el ingreso." };
   }
 
-  // Look up matched pet and its active owner.
+  // Look up matched pet and its active owner. Art. 16: an erased pet must
+  // answer like a token that never existed — BOTH decisions write onto the
+  // matched pet ('same' takes custody + notifies, 'not_same' appends a note),
+  // and neither may land on a credential the erasure switched off.
   const [petRow] = await db
     .select({ pet: pets })
     .from(pets)
-    .where(eq(pets.publicToken, matchedPetToken))
+    .where(and(eq(pets.publicToken, matchedPetToken), isNull(pets.deletedAt)))
     .limit(1);
 
   if (!petRow) return { error: "Mascota no encontrada." };

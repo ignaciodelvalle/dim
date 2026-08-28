@@ -60,6 +60,12 @@ export async function startApplyIntentAction(petToken: string): Promise<StartApp
         eq(pets.publicToken, petToken),
         eq(ownerships.role, "shelter_custody"),
         isNull(ownerships.endedAt),
+        // Art. 16: the rehome-R4 population (org custody live, family erased)
+        // keeps every listing field intact, so without this an erased pet's
+        // saved /adoptar link could still start an apply intent. Same filter
+        // adoption-listing-read.ts applies to the listing itself; refusal
+        // stays "Mascota no encontrada." — indistinguishable from never-existed.
+        isNull(pets.deletedAt),
       ),
     )
     .limit(1);

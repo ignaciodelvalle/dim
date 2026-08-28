@@ -57,10 +57,13 @@ export async function confirmChipMatchAsVecinoWriter({
 }): Promise<ConfirmChipMatchResult> {
   const now = new Date();
 
+  // Art. 16: an erased pet must answer like a token that never existed — both
+  // decisions write onto the matched pet (custody + owner notification, or the
+  // chip-return receipt), same reasoning as the refugio writer.
   const [petRow] = await db
     .select({ pet: pets })
     .from(pets)
-    .where(eq(pets.publicToken, matchedPetToken))
+    .where(and(eq(pets.publicToken, matchedPetToken), isNull(pets.deletedAt)))
     .limit(1);
 
   if (!petRow) return { error: "Mascota no encontrada." };

@@ -27,7 +27,7 @@ import { findDisease } from "@/lib/reference/diseases";
 import { checkboxOn } from "@/lib/ui/form-checkbox";
 import { parseDateInput } from "@/lib/utils/format";
 import type { ContentReportCategory } from "@dim/contract/events";
-import { eq } from "drizzle-orm";
+import { and, eq, isNull } from "drizzle-orm";
 
 // The org capability vocabulary, for the note gate below (PO decision
 // 2026-08-26). `organizations` is a shared kernel — it imports from no module,
@@ -624,8 +624,17 @@ export async function recordDiseaseDiagnosisAction(
     };
   }
 
-  // Resolve pet by publicToken — NO ownership check (vet can diagnose any pet).
-  const [pet] = await db.select().from(pets).where(eq(pets.publicToken, publicToken)).limit(1);
+  // Resolve pet by publicToken — NO ownership check (vet can diagnose any pet;
+  // that absence is deliberate and stays). Art. 16 (Ley 25.326): the deleted_at
+  // filter is the ONLY addition — an erased pet answers the same "Mascota no
+  // encontrada." as a token that never existed, so the verified-vet surface
+  // does not become an erasure oracle, and no new event lands on the spine of
+  // a credential the erasure switched off.
+  const [pet] = await db
+    .select()
+    .from(pets)
+    .where(and(eq(pets.publicToken, publicToken), isNull(pets.deletedAt)))
+    .limit(1);
   if (!pet) return { error: "Mascota no encontrada." };
 
   const plausibility = checkOccurredAtPlausible(diagnosisDate, pet.dateOfBirth);
