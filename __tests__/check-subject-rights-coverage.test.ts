@@ -145,7 +145,9 @@ describe("the debt register is not empty, says so, and may not grow quietly", ()
   // A new PII table must be added to a subject-rights RPC, or land here with the
   // ceiling raised BY HAND in the same commit — which is the moment somebody has
   // to justify it in a diff instead of appending a line.
-  const KNOWN_GAP_CEILING = 21;
+  // 0207 moved libreta_share_tokens out of the register (erase now revokes
+  // the subject's outstanding shares), so the ceiling ratchets 21 -> 20.
+  const KNOWN_GAP_CEILING = 20;
 
   it("does not grow past the declared ceiling without someone raising it on purpose", () => {
     expect(

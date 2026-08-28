@@ -1,4 +1,4 @@
-import { and, desc, eq, or } from "drizzle-orm";
+import { and, desc, eq, isNull, or } from "drizzle-orm";
 import { headers } from "next/headers";
 import Link from "next/link";
 import { notFound } from "next/navigation";
@@ -104,10 +104,17 @@ export default async function PublicLibretaPage({
   // Always load the pet so terminal views (revoked / expired / deceased) can
   // show context. If the pet row vanished (cascade or hard delete), fall back
   // to a 404 since the share token is meaningless without it.
+  //
+  // Art. 16 (Ley 25.326): the same 404 for a SOFT-deleted pet. A share can be
+  // non-expiring and outlive the erasure, and `erase_subject_data` revokes only
+  // the shares it can see at erasure time (0207) — this filter is what
+  // guarantees no already-issued link keeps serving the erased pet's full
+  // Tier-2 libreta. No terminal view either: rendering name + photo on a
+  // "revoked" screen would republish exactly what the erasure switched off.
   const [pet] = await db
     .select(PET_LIBRETA_SHARE_SELECT)
     .from(pets)
-    .where(eq(pets.id, share.petId))
+    .where(and(eq(pets.id, share.petId), isNull(pets.deletedAt)))
     .limit(1);
   if (!pet) notFound();
 

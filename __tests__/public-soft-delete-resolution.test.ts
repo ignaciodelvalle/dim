@@ -40,23 +40,33 @@
 import { readFileSync, readdirSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { createClient } from "@supabase/supabase-js";
-import { eq, sql } from "drizzle-orm";
+import { and, eq, inArray, sql } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import {
   db,
+  libretaShareTokens,
   organizationMemberships,
   organizations,
   ownerships,
+  petEvents,
   petTags,
   pets,
   profiles,
 } from "@/db";
+import { fetchOrgCensus } from "@/lib/analytics/org-census";
+import {
+  fetchActiveAdoptions,
+  fetchAvailableForAdoption,
+  fetchIntakesLastWeek,
+} from "@/lib/analytics/org-dashboard";
+import { generateIntakeMatchClaim } from "@/lib/infra/intake-match-claim";
 import { resolvePetHolderAccess } from "@/lib/infra/pet-access";
 import { publicPetByToken } from "@/lib/infra/public-pet-lookup";
 import { generateTagActivationCode, generateTagSerial } from "@/lib/infra/publicToken";
 import { lookupTagBySerial } from "@/lib/infra/tag-lookup";
 import { hashTagActivationCode } from "@/lib/utils/tag-code-hash";
+import { confirmChipMatchAsRefugioWriter } from "@/src/modules/pets/application/chip-match/confirm-chip-match-refugio";
 import { withMutationOverride } from "./_helpers/db-overrides";
 import { ROOT, directDeps } from "./db-reachability";
 
@@ -78,10 +88,13 @@ const admin = createClient(SUPABASE_URL, SECRET, { auth: { persistSession: false
 let erasedUserId: string;
 let keeperUserId: string;
 let sponsorUserId: string;
+let sponsorOrgId: string;
 let erasedPetId: string;
 let movedPetId: string;
 let serialErased: string;
 let serialMoved: string;
+let erasedShareId: string;
+let keeperShareId: string;
 
 // Auth users are REUSED across runs (audit_log points back at actor_user_id
 // with ON DELETE RESTRICT, so delete-and-recreate breaks on the second run —
@@ -123,15 +136,18 @@ async function activateTagFor(petId: string, userId: string): Promise<string> {
 
 async function cleanup() {
   await db.delete(petTags).where(eq(petTags.loteId, TEST_LOTE));
-  // The org cascades its memberships and its ownership rows; pet deletion
-  // below cascades the rest.
-  await db.delete(organizations).where(eq(organizations.publicToken, ORG_TOKEN));
+  // Pets FIRST (their cascade removes pet_events under the override), org
+  // AFTER: the org's ON DELETE SET NULL on pet_events.author_organization_id
+  // is an UPDATE the append-only trigger blocks, so deleting the org while
+  // any fixture event still names it aborts the whole cleanup.
   await withMutationOverride(async (tx) => {
     for (const token of [TOKEN_ERASED, TOKEN_MOVED]) {
       const stale = await tx.select({ id: pets.id }).from(pets).where(eq(pets.publicToken, token));
       for (const { id } of stale) await tx.delete(pets).where(eq(pets.id, id));
     }
   });
+  // The org cascades its memberships and any leftover ownership rows.
+  await db.delete(organizations).where(eq(organizations.publicToken, ORG_TOKEN));
 }
 
 beforeAll(async () => {
@@ -210,6 +226,8 @@ beforeAll(async () => {
     { petId: movedPetId, ownerOrganizationId: org.id, role: "shelter_custody" },
   ]);
 
+  sponsorOrgId = org.id;
+
   // A SECOND live person row on the soon-to-be-erased pet. The erasure only
   // soft-deletes pets where the SUBJECT holds the live 'owner' row; other
   // people's rows on that pet are untouched, so this one also survives.
@@ -218,6 +236,81 @@ beforeAll(async () => {
     ownerUserId: keeperUserId,
     role: "co_owner",
   });
+
+  // ------------------------------------------------------------------------
+  // Art. 16 follow-up fixtures (thirteen-surfaces unit). Everything below is
+  // seeded BEFORE the erasure so the tests read what an org member (or a
+  // share-link holder) would actually see the morning after.
+  // ------------------------------------------------------------------------
+
+  // Both pets adoption-eligible: the "Disponibles" KPI population. The check
+  // constraint pairs adoption_eligible with adoption_eligibility_set_at.
+  await db
+    .update(pets)
+    .set({ adoptionEligible: true, adoptionEligibilitySetAt: new Date() })
+    .where(inArray(pets.id, [erasedPetId, movedPetId]));
+
+  // One open adoption application + one fresh intake per pet, so each org
+  // KPI has exactly one row on each side of the erasure line.
+  const now = new Date();
+  await db.insert(petEvents).values([
+    {
+      petId: erasedPetId,
+      eventType: "adoption_application_submitted",
+      occurredAt: now,
+      recordedByUserId: keeperUserId,
+      payload: { applicant_user_id: keeperUserId, housing_type: "house" },
+    },
+    {
+      petId: movedPetId,
+      eventType: "adoption_application_submitted",
+      occurredAt: now,
+      recordedByUserId: keeperUserId,
+      payload: { applicant_user_id: keeperUserId, housing_type: "house" },
+    },
+    {
+      petId: erasedPetId,
+      eventType: "shelter_intake_recorded",
+      occurredAt: now,
+      recordedByUserId: sponsorUserId,
+      authorRole: "shelter",
+      authorOrganizationId: sponsorOrgId,
+      payload: {},
+    },
+    {
+      petId: movedPetId,
+      eventType: "shelter_intake_recorded",
+      occurredAt: now,
+      recordedByUserId: sponsorUserId,
+      authorRole: "shelter",
+      authorOrganizationId: sponsorOrgId,
+      payload: {},
+    },
+  ]);
+
+  // Libreta shares: the subject's NON-EXPIRING share on their own pet (the
+  // exact artifact the erasure left serving before 0207), and the keeper's
+  // share on the live pet (the control that proves the revocation is scoped).
+  const [erasedShare] = await db
+    .insert(libretaShareTokens)
+    .values({
+      shareToken: "po4-erased-share-token",
+      petId: erasedPetId,
+      createdByUserId: erasedUserId,
+      expiresAt: null,
+    })
+    .returning({ id: libretaShareTokens.id });
+  erasedShareId = erasedShare.id;
+  const [keeperShare] = await db
+    .insert(libretaShareTokens)
+    .values({
+      shareToken: "po4-keeper-share-token",
+      petId: movedPetId,
+      createdByUserId: keeperUserId,
+      expiresAt: null,
+    })
+    .returning({ id: libretaShareTokens.id });
+  keeperShareId = keeperShare.id;
 
   // The real thing: the subject exercises art. 16.
   await db.transaction(async (tx) => {
@@ -320,6 +413,96 @@ describe("resolvePetHolderAccess — an erased pet resolves no holder access (ar
   });
 });
 
+describe("org roster projections — an erased pet keeps no seat (art. 16 follow-up)", () => {
+  // These call the REAL analytics functions over the post-erasure rows. Each
+  // pair (erased pet excluded / live pet still counted) pins one caller-side
+  // `pets.deleted_at` filter added by the thirteen-surfaces follow-up; the
+  // live pet is the non-vacuity half — a projection answering 0 to everything
+  // would fail it.
+
+  it("fetchAvailableForAdoption counts only the live pet", async () => {
+    // Both pets are adoption-eligible and in the org's live custody; only the
+    // non-erased one may count — this is the KPI the mascotas list claims to
+    // match, and the claim broke the day the list took the filter alone.
+    expect(await fetchAvailableForAdoption(sponsorOrgId)).toBe(1);
+  });
+
+  it("fetchActiveAdoptions counts only the live pet's open application", async () => {
+    expect(await fetchActiveAdoptions(sponsorOrgId)).toBe(1);
+  });
+
+  it("fetchIntakesLastWeek counts only the live pet's intake", async () => {
+    expect(await fetchIntakesLastWeek(sponsorOrgId)).toBe(1);
+  });
+
+  it("fetchOrgCensus seats only the live pet", async () => {
+    const census = await fetchOrgCensus(sponsorOrgId);
+    expect(census.dogs + census.cats + census.other).toBe(1);
+  });
+});
+
+describe("erase_subject_data — outstanding libreta shares die with the account (0207)", () => {
+  // The share link serves the pet's full Tier-2 libreta, can be non-expiring,
+  // and the erasure 404s every surface that could revoke it — so the RPC now
+  // revokes it itself, the way it already cancels pending transfers. The
+  // keeper's share on the live pet is the scope control.
+
+  it("revokes the subject's non-expiring share on the erased pet", async () => {
+    const [share] = await db
+      .select({ revokedAt: libretaShareTokens.revokedAt })
+      .from(libretaShareTokens)
+      .where(eq(libretaShareTokens.id, erasedShareId));
+    expect(share.revokedAt).not.toBeNull();
+  });
+
+  it("leaves another holder's share on a live pet untouched", async () => {
+    const [share] = await db
+      .select({ revokedAt: libretaShareTokens.revokedAt })
+      .from(libretaShareTokens)
+      .where(eq(libretaShareTokens.id, keeperShareId));
+    expect(share.revokedAt).toBeNull();
+  });
+});
+
+describe("chip-match confirm — an erased pet reads as never-existed (shape B write)", () => {
+  // The confirm writers append to a pet resolved by a bare token (the HMAC
+  // claim authorizes the org, not the pet's continued existence). Both
+  // decisions write onto the matched pet, so the erased one must refuse with
+  // the same copy a nonexistent token gets — and write NOTHING.
+
+  const sponsorAuth = () => ({
+    user: { id: sponsorUserId },
+    organization: { id: sponsorOrgId, displayName: "Refugio PO4 Sponsor", verified: false },
+  });
+
+  it("refugio writer refuses the erased pet with the never-existed copy and appends no event", async () => {
+    const result = await confirmChipMatchAsRefugioWriter({
+      auth: sponsorAuth(),
+      orgToken: ORG_TOKEN,
+      claim: generateIntakeMatchClaim(ORG_TOKEN, TOKEN_ERASED),
+      matchedPetToken: TOKEN_ERASED,
+      decision: "not_same",
+    });
+    expect(result).toEqual({ error: "Mascota no encontrada." });
+    const notes = await db
+      .select({ id: petEvents.id })
+      .from(petEvents)
+      .where(and(eq(petEvents.petId, erasedPetId), eq(petEvents.eventType, "note_added")));
+    expect(notes).toHaveLength(0);
+  });
+
+  it("non-vacuity: the live pet still resolves through the same writer", async () => {
+    const result = await confirmChipMatchAsRefugioWriter({
+      auth: sponsorAuth(),
+      orgToken: ORG_TOKEN,
+      claim: generateIntakeMatchClaim(ORG_TOKEN, TOKEN_MOVED),
+      matchedPetToken: TOKEN_MOVED,
+      decision: "not_same",
+    });
+    expect(result).toEqual({ ok: true });
+  });
+});
+
 // ---------------------------------------------------------------------------
 // Static sweep — A RULE, NOT A LIST.
 //
@@ -404,10 +587,6 @@ const SOFT_DELETE_DEBT = new Map<string, string>([
   [
     "app/page.tsx",
     "Landing demo-pet existence probe. Leaks only whether the DECLARED demo token resolves, and the token is a deployment constant.",
-  ],
-  [
-    "app/libreta/compartir/[shareToken]/page.tsx",
-    "Tier-2 medical share. Reached by share token, so an erased pet keeps serving its libreta to whoever already holds the link.",
   ],
   [
     "lib/infra/caretaker-public-contact.ts",

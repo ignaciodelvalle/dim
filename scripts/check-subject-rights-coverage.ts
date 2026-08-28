@@ -112,6 +112,11 @@ export const IN_ERASE: readonly string[] = [
   "case_events",
   "custody_dispute_parties",
   "foster_volunteers",
+  // 0207: the erasure revokes the subject's outstanding libreta shares (their
+  // own grants of access die with the account). The art. 14 side is still a
+  // gap — export_subject_data does not return the `label` the user typed —
+  // but the table can no longer sit in KNOWN_GAP: erase reaches it.
+  "libreta_share_tokens",
   "notifications",
   "org_contact_messages",
   "ownerships",
@@ -169,7 +174,6 @@ export const KNOWN_GAP: Record<string, string> = {
     "volunteer_user_id plus `proposed_notes`, `response_notes`, `cancellation_reason` — free text about the volunteer.",
   govt_assignments: "The subject's official assignment, `revocation_reason` and `notes`.",
   govt_business_rules: "Operator `notes` and the created_by / updated_by actor pair.",
-  libreta_share_tokens: "created_by_user_id and a `label` the user types.",
   notification_dead_letter: "The undelivered notification's `payload` — its title and body.",
   operator_feed_watermarks: "One row per user: their read watermark on the operator feed.",
   organization_capability_grants: "`requested_reason` and `decision_reason` free text.",
