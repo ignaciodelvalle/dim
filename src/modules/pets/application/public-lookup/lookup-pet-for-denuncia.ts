@@ -10,12 +10,12 @@
 //   - DIM-XXXX-XXXX → public token
 //   - anything else → not_found (no fuzzy matching to avoid scraping)
 
-import { eq } from "drizzle-orm";
 import { headers } from "next/headers";
 
 import { db, pets } from "@/db";
 import { DIM_TOKEN_PATTERN } from "@/lib/domain/dim-token";
 import { lookupByChip } from "@/lib/infra/chip-lookup";
+import { publicPetByToken } from "@/lib/infra/public-pet-lookup";
 import { RateLimitError, callerIp, enforceRateLimit } from "@/lib/infra/rate-limit";
 
 import type { PublicLookupResult } from "./types";
@@ -76,7 +76,10 @@ export async function lookupPetForDenuncia(query: string): Promise<PublicLookupR
         petStatus: pets.status,
       })
       .from(pets)
-      .where(eq(pets.publicToken, trimmed))
+      // Art. 16 (PO-4): the canonical predicate, not a hand-rolled eq — an
+      // erased pet answered here with its NAME until this was closed (it was
+      // the declared debt in public-soft-delete-resolution.test.ts).
+      .where(publicPetByToken(trimmed))
       .limit(1);
     if (!row) return { found: false };
     return {

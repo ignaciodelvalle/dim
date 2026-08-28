@@ -89,7 +89,11 @@ export async function lookupForClaimForUser(
       ownerDisplayName: profiles.displayName,
     })
     .from(petIdentifications)
-    .innerJoin(pets, eq(pets.id, petIdentifications.petId))
+    // Art. 16 (PO-4): an erased pet's tattoo answers `not_found`, same as the
+    // chip path (whose filter lives inside lookupByChip). "Erased" must not be
+    // distinguishable from "never existed" — before this filter the claim
+    // wizard returned a named card for an erased pet in every variant.
+    .innerJoin(pets, and(eq(pets.id, petIdentifications.petId), isNull(pets.deletedAt)))
     .leftJoin(
       ownerships,
       and(eq(ownerships.petId, pets.id), isNull(ownerships.endedAt), eq(ownerships.role, "owner")),

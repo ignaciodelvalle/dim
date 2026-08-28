@@ -35,8 +35,11 @@ vi.mock("@/lib/infra/storage", () => ({ petPhotoUrl: () => null }));
 
 // Drizzle chain stub: every builder method returns the chain, and awaiting it
 // yields the next queued result. The page runs three queries in order —
-// pet+photo, owner profile, latest lost event.
+// pet+photo, owner profile, latest lost event. `.where()` predicates are
+// CAPTURED (in call order) instead of discarded, so the art. 16 test below
+// can read what the page actually asked the database.
 const queuedResults: unknown[][] = [];
+const whereCalls: unknown[] = [];
 vi.mock("@/db", async (importOriginal) => {
   // Partial mock: the real Drizzle schema objects stay (the page's transitive
   // imports build SQL fragments out of them at module load); only the client
@@ -51,7 +54,10 @@ vi.mock("@/db", async (importOriginal) => {
             const rows = queuedResults.shift() ?? [];
             return (resolve: (v: unknown) => void) => resolve(rows);
           }
-          return () => makeChain();
+          return (...args: unknown[]) => {
+            if (prop === "where") whereCalls.push(args[0]);
+            return makeChain();
+          };
         },
       },
     );
@@ -81,11 +87,29 @@ function findByTypeName(node: unknown, name: string): Element | undefined {
 
 function renderPage(chip?: string | string[]) {
   queuedResults.length = 0;
+  whereCalls.length = 0;
   queuedResults.push([{ pet: PET, photo: null }], [], []);
   return VecinoMatchPage({
     params: Promise.resolve({ matchedPetToken: "DIM-LOST-0001" }),
     searchParams: Promise.resolve(chip === undefined ? {} : { chip }),
   });
+}
+
+/**
+ * Column names referenced by a captured Drizzle predicate. Walks `queryChunks`
+ * only — NEVER a column's `.table` back-reference, which reaches every column
+ * of `pets` and would make any pets predicate "contain" deleted_at.
+ */
+function predicateColumnNames(node: unknown, out: string[] = []): string[] {
+  if (!node || typeof node !== "object") return out;
+  if (Array.isArray(node)) {
+    for (const child of node) predicateColumnNames(child, out);
+    return out;
+  }
+  const el = node as { name?: unknown; table?: unknown; queryChunks?: unknown };
+  if (typeof el.name === "string" && el.table !== undefined) out.push(el.name);
+  if (el.queryChunks !== undefined) predicateColumnNames(el.queryChunks, out);
+  return out;
 }
 
 beforeEach(() => {
@@ -115,6 +139,35 @@ describe("vecino match page — ?chip= gate", () => {
     const card = findByTypeName(element, "MatchConfirmationCardVecino");
     expect(card, "the page must render the confirmation card").toBeDefined();
     expect(card?.props.attemptedMicrochipId).toBe("999000111222333");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Art. 16 — the token must resolve through the soft-delete predicate
+// ---------------------------------------------------------------------------
+//
+// The org twin (intake/match) filters `isNull(pets.deletedAt)`; this page
+// resolved with a bare eq(pets.publicToken) until the range-5 unit — a live
+// session plus an erased lost pet's token and its chip rendered the name,
+// photo, owner first name and last-seen location the erasure retired. The DB
+// stub above cannot run the predicate, but it can READ it: the page must ask
+// for the pet through `unerasedPetByToken` (publicPetByToken's authenticated
+// alias), whose SQL names BOTH public_token and deleted_at. The predicate's
+// runtime semantics are proven against the real RPC in
+// public-soft-delete-resolution.test.ts; this pin is the page-level half.
+
+describe("vecino match page — art. 16 predicate", () => {
+  it("resolves the pet with the soft-delete filter, not a bare token equality", async () => {
+    attemptedChipMatchesPetMock.mockResolvedValue(true);
+    await renderPage("999000111222333");
+
+    const petQueryPredicate = whereCalls[0];
+    expect(petQueryPredicate, "the pet query must pass a where predicate").toBeDefined();
+    const cols = predicateColumnNames(petQueryPredicate);
+    expect(cols).toContain("public_token");
+    // The load-bearing assertion: revert the page to eq(pets.publicToken, …)
+    // and this line is the one that goes red.
+    expect(cols).toContain("deleted_at");
   });
 });
 

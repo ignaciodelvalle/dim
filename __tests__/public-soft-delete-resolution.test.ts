@@ -50,6 +50,7 @@ import {
   organizations,
   ownerships,
   petEvents,
+  petIdentifications,
   petTags,
   pets,
   profiles,
@@ -63,16 +64,19 @@ import {
   fetchOrgQueueSignals,
   fetchRequiresAction,
 } from "@/lib/analytics/org-dashboard";
+import { lookupByChip } from "@/lib/infra/chip-lookup";
 import { generateIntakeMatchClaim } from "@/lib/infra/intake-match-claim";
 import { resolvePetHolderAccess } from "@/lib/infra/pet-access";
 import { publicPetByToken } from "@/lib/infra/public-pet-lookup";
 import { generateTagActivationCode, generateTagSerial } from "@/lib/infra/publicToken";
 import { lookupTagBySerial } from "@/lib/infra/tag-lookup";
+import { lookupByTattoo } from "@/lib/infra/tattoo-lookup";
 import { hashTagActivationCode } from "@/lib/utils/tag-code-hash";
 import { AdoptionRepository } from "@/src/modules/adoption/infrastructure/adoption-repository";
 import { FosterRepository } from "@/src/modules/foster/infrastructure/foster-repository";
 import { confirmChipMatchAsRefugioWriter } from "@/src/modules/pets/application/chip-match/confirm-chip-match-refugio";
 import { confirmChipMatchAsVecinoWriter } from "@/src/modules/pets/application/chip-match/confirm-chip-match-vecino";
+import { lookupForClaimForUser } from "@/src/modules/pets/application/claim/lookup-for-claim";
 import { RehomeRepository } from "@/src/modules/rehome/infrastructure/rehome-repository";
 import { actorCancelProposalUseCase } from "@/src/modules/return-to-owner/application/actor-cancel-proposal";
 import { orgAcceptOwnerReturnUseCase } from "@/src/modules/return-to-owner/application/org-accept-owner-return";
@@ -96,6 +100,14 @@ const SPONSOR_EMAIL = "po4-sponsor@dim-test.local";
 
 const TOKEN_ERASED = "DIM-PO4E-RASE";
 const TOKEN_MOVED = "DIM-PO4M-OVED";
+// Secondary identifiers (range-5 unit): erasure leaves the chip/tattoo rows
+// `active` in pet_identifications (migration 0207 has no statements over that
+// table), so the LOOKUPS carry the art. 16 filter — these codes exist to prove
+// it. Both cascade away with the pets in cleanup().
+const CHIP_ERASED = "981098109810001";
+const CHIP_MOVED = "981098109810002";
+const TATTOO_ERASED = "PO4TATERASED";
+const TATTOO_MOVED = "PO4TATMOVED";
 const TEST_LOTE = "TEST-LOTE-PO4";
 const ORG_TOKEN = "ORG-PO4S-PONS";
 
@@ -369,6 +381,16 @@ beforeAll(async () => {
     })
     .returning({ id: libretaShareTokens.id });
   keeperShareId = keeperShare.id;
+
+  // Secondary identifiers, seeded BEFORE the erasure: an active chip and an
+  // active tattoo on each pet. The erasure touches neither row — what must
+  // change is what the lookups answer.
+  await db.insert(petIdentifications).values([
+    { petId: erasedPetId, kind: "microchip_iso", code: CHIP_ERASED, status: "active" },
+    { petId: movedPetId, kind: "microchip_iso", code: CHIP_MOVED, status: "active" },
+    { petId: erasedPetId, kind: "tattoo", code: TATTOO_ERASED, status: "active" },
+    { petId: movedPetId, kind: "tattoo", code: TATTOO_MOVED, status: "active" },
+  ]);
 
   // The real thing: the subject exercises art. 16.
   await db.transaction(async (tx) => {
@@ -763,6 +785,52 @@ describe("custody repository resolvers — an erased pet resolves null (shape B)
   });
 });
 
+describe("secondary identifiers — an erased pet's chip and tattoo read as never registered", () => {
+  // Range-5 family (the one every previous sweep missed, because every sweep
+  // searched for TOKEN resolution): pet_identifications rows stay `active`
+  // after the erasure, so without a filter inside the lookups the chip
+  // answered with the pet's name, token, status and the owner's first name —
+  // across the alta cross-checks, the claim wizard, the denuncia form, org
+  // intake and the CSV import, every one of them distinguishable from "never
+  // existed". The filter lives in the two lookup helpers (and in the claim
+  // wizard's own tattoo query), so each test below is that filter's mutation
+  // tripwire; the live pet in each is the non-vacuity floor.
+
+  it("lookupByChip resolves nothing for the erased pet's chip, still resolves the moved pet's", async () => {
+    expect(await lookupByChip(CHIP_ERASED)).toBeNull();
+    const live = await lookupByChip(CHIP_MOVED);
+    expect(live?.pet.id).toBe(movedPetId);
+  });
+
+  it("lookupByTattoo resolves nothing for the erased pet's tattoo, still resolves the moved pet's", async () => {
+    expect(await lookupByTattoo(TATTOO_ERASED)).toBeNull();
+    const live = await lookupByTattoo(TATTOO_MOVED);
+    expect(live?.pet.id).toBe(movedPetId);
+  });
+
+  it("claim lookup answers not_found for the erased pet's chip — not a named card", async () => {
+    // Before the filter this returned `active_owner` with the pet's NAME: the
+    // erased subject's ownership row is still live (the RPC never touches
+    // ownerships), so every variant of the wizard named the erased pet.
+    expect(
+      await lookupForClaimForUser(keeperUserId, { kind: "microchip", value: CHIP_ERASED }),
+    ).toEqual({ variant: "not_found" });
+    const live = await lookupForClaimForUser(keeperUserId, {
+      kind: "microchip",
+      value: CHIP_MOVED,
+    });
+    expect("variant" in live && live.variant).toBe("active_owner");
+  });
+
+  it("claim lookup answers not_found for the erased pet's tattoo — its own query, its own filter", async () => {
+    expect(
+      await lookupForClaimForUser(keeperUserId, { kind: "tattoo", value: TATTOO_ERASED }),
+    ).toEqual({ variant: "not_found" });
+    const live = await lookupForClaimForUser(keeperUserId, { kind: "tattoo", value: TATTOO_MOVED });
+    expect("variant" in live && live.variant).toBe("active_owner");
+  });
+});
+
 describe("org queue projections — pinned the day the 'not invocable from vitest' claim fell", () => {
   // countActiveFosters / signalActiveAdoptions / fetchRequiresAction carry
   // their art. 16 filters since the thirteen-surfaces unit, but were left
@@ -884,10 +952,6 @@ const SOFT_DELETE_DEBT = new Map<string, string>([
   [
     "lib/infra/caretaker-public-contact.ts",
     "Joins pets to decide the lost-mode caretaker disclosure. Its caller resolves the pet through the guard first, so it is reachable only for a live pet today — an assumption nothing enforces.",
-  ],
-  [
-    "src/modules/pets/application/public-lookup/lookup-pet-for-denuncia.ts",
-    "Hand-rolled eq(pets.publicToken). An erased pet still answers with its name in the denuncia form.",
   ],
   [
     "src/modules/pets/application/scans/log-scan.ts",

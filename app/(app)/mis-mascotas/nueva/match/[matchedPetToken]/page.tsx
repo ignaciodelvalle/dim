@@ -8,6 +8,7 @@ import { LnButton } from "@/components/ui/Button";
 import { attachments, db, ownerships, petEvents, pets, profiles } from "@/db";
 import { requireUserOrRedirect } from "@/lib/infra/auth-guards";
 import { attemptedChipMatchesPet } from "@/lib/infra/chip-lookup";
+import { unerasedPetByToken } from "@/lib/infra/public-pet-lookup";
 import { petPhotoUrl } from "@/lib/infra/storage";
 import { trimmedSearchParam } from "@/lib/utils/search-params";
 import { and, desc, eq, isNull, sql } from "drizzle-orm";
@@ -30,11 +31,16 @@ export default async function VecinoMatchPage({
 
   await requireUserOrRedirect();
 
+  // Art. 16: an erased lost pet must read as never-existed here, exactly as
+  // its refugio twin (org intake match) already does — this page renders the
+  // pet's name, photo, owner first name and last-seen location, and the
+  // confirm writer it fronts filters the same way. `unerasedPetByToken` is the
+  // authenticated alias of the PO-4 predicate.
   const [petResult] = await db
     .select({ pet: pets, photo: attachments })
     .from(pets)
     .leftJoin(attachments, eq(attachments.id, pets.primaryPhotoId))
-    .where(eq(pets.publicToken, matchedPetToken))
+    .where(unerasedPetByToken(matchedPetToken))
     .limit(1);
 
   if (!petResult) notFound();

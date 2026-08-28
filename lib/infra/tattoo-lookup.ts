@@ -49,7 +49,9 @@ export async function lookupByTattoo(rawCode: string): Promise<TattooLookupResul
       ownerDisplayName: profiles.displayName,
     })
     .from(petIdentifications)
-    .innerJoin(pets, eq(pets.id, petIdentifications.petId))
+    // Art. 16 (PO-4): same soft-delete filter as lookupByChip — an erased
+    // pet's tattoo must read as never-registered on every cross-check.
+    .innerJoin(pets, and(eq(pets.id, petIdentifications.petId), isNull(pets.deletedAt)))
     .leftJoin(
       ownerships,
       and(eq(ownerships.petId, pets.id), isNull(ownerships.endedAt), eq(ownerships.role, "owner")),

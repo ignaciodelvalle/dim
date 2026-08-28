@@ -672,7 +672,16 @@ describe("public-token routes are rate limited", () => {
     // first like its two siblings. A marker list only sees the spellings it
     // knows: this count is what tells you when the set of files it can see
     // changed, so grow it deliberately and say why, never to make a red go away.
-    expect(publicTokenPages().filter((s) => s.file.startsWith("src/")).length).toBe(4);
+    //
+    // 4 → 5 on 2026-08-28, the same lesson again, in the other file the
+    // soft-delete sweep had been carrying as declared debt:
+    // `lookup-pet-for-denuncia.ts` resolved its token path with a hand-rolled
+    // `eq(pets.publicToken, …)` — invisible to this census AND answering with
+    // an erased pet's name. The art. 16 fix moved it onto the canonical
+    // predicate, which is what put it in scope here; its per-IP
+    // `denuncia_lookup` limiter (WRITE form) already ran before the lookup,
+    // so it entered the census compliant.
+    expect(publicTokenPages().filter((s) => s.file.startsWith("src/")).length).toBe(5);
   });
 
   it("makes every caller of the door hand over a literal, known bucket", () => {

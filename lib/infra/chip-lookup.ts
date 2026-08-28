@@ -41,7 +41,15 @@ export async function lookupByChip(microchipId: string): Promise<ChipLookupResul
       ownerDisplayName: profiles.displayName,
     })
     .from(petIdentifications)
-    .innerJoin(pets, eq(pets.id, petIdentifications.petId))
+    // The join carries the soft-delete filter (art. 16, PO-4): erasure leaves
+    // the chip row `active` (migration 0207 has no statements over
+    // pet_identifications) but the pet itself must answer like a chip that was
+    // never registered — the same posture lookupTagBySerial takes for the
+    // chapa. Filtering HERE closes every consumer at once (alta cross-checks,
+    // claim, denuncia, org intake, CSV import): an erased pet's chip is
+    // indistinguishable from an unknown one, so no caller can leak its name,
+    // token, status or owner.
+    .innerJoin(pets, and(eq(pets.id, petIdentifications.petId), isNull(pets.deletedAt)))
     .leftJoin(
       ownerships,
       and(eq(ownerships.petId, pets.id), isNull(ownerships.endedAt), eq(ownerships.role, "owner")),
