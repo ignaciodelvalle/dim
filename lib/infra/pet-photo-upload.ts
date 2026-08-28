@@ -108,7 +108,7 @@ export const PET_PHOTO_BUCKET = "pet-photos";
  * tell a client the truth; it does not configure anything. If the SDK ever
  * exposes an expiry, this is the line that changes and the only one.
  */
-export const TICKET_TTL_SECONDS = 2 * 60 * 60;
+export const SUPABASE_SIGNED_UPLOAD_VALIDITY_SECONDS = 2 * 60 * 60;
 
 /**
  * The object key a ticket mints, and the ONLY shape `confirm` will accept.
@@ -188,7 +188,7 @@ export async function mintPetPhotoTicket(
       token: data.token,
       stagedPath,
       bucket: STAGING_BUCKET,
-      expiresInSeconds: TICKET_TTL_SECONDS,
+      validForSeconds: SUPABASE_SIGNED_UPLOAD_VALIDITY_SECONDS,
     },
   };
 }
@@ -240,10 +240,30 @@ export type ConfirmResult =
  *     never points at a row that does not exist.
  *  7. THE CLEANUP. The staged object goes on every path out of here, success or
  *     refusal. Best-effort: a Storage hiccup must not turn a saved photo into an
- *     error. What a crashed client leaves behind is a NAMED RESIDUAL — see
- *     migration 0206's lifecycle note: this repo has no storage GC for any
- *     bucket, so the staged object is bounded by the rate limiter and swept by
- *     erasure, not collected.
+ *     error. What a crashed client leaves behind is a NAMED RESIDUAL.
+ *
+ *     ── CORRECTION, AND IT LIVES HERE BECAUSE MIGRATIONS ARE IMMUTABLE ──
+ *     Migration 0206's lifecycle note says the leftovers are "bounded rather
+ *     than collected, and the bounds are real". THAT IS WRONG and this is the
+ *     correction, at the live code site, because 0206 has been applied and its
+ *     text cannot change without checksum drift (see docs/db/migration-errata.md
+ *     for the same pattern, and erase-subject-data.ts for the precedent of
+ *     correcting a migration's premise in the code it governs).
+ *
+ *     A RATE LIMIT IS NOT A BOUND. The `media-upload` family caps one account at
+ *     120 requests/day — ~600 MB/day/account at 5 MiB each — and nothing caps
+ *     the TOTAL. Accumulation is unbounded in time; only its slope is limited.
+ *
+ *     What is actually true is smaller: the objects are private and unreadable
+ *     by any caller role (so this is storage cost and hygiene, not disclosure);
+ *     each is capped at 5 MiB by the bucket; and every staged object is
+ *     ATTRIBUTABLE to an account and a pet, because minting requires an
+ *     authenticated holder — which is what will make a sweeper easy to write and
+ *     is not itself a sweeper. Exactly two things delete, and both are
+ *     event-triggered: this confirm step, and `purgeOwnedPetAttachments` on
+ *     erasure. Neither runs on a schedule; neither runs for an account that
+ *     never comes back. This repo has NO storage GC for ANY bucket (RN-4 A9:
+ *     "24 crons, none touches storage"), and that is the work that closes it.
  *
  * WHAT IT DOES NOT DO: delete the photo it replaced. The previous
  * `attachments` row and its object stay. That is deliberate and it matches the

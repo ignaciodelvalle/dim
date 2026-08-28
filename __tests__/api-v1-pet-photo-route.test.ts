@@ -85,7 +85,7 @@ vi.mock("@/lib/infra/pet-photo-upload", () => ({
           token: "t",
           stagedPath: `${petId}/aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa.jpg`,
           bucket: "uploads-staging",
-          expiresInSeconds: 7200,
+          validForSeconds: 7200,
         },
       }
     );
@@ -330,7 +330,7 @@ describe("the answers", () => {
     expect(res.status).toBe(201);
     const body = (await res.json()) as Record<string, unknown>;
     expect(body.bucket).toBe("uploads-staging");
-    expect(body.expiresInSeconds).toBe(7200);
+    expect(body.validForSeconds).toBe(7200);
     // Writes carry no `payloadVersion` / `staleAfter` — that envelope is a
     // read's, and `check-api-v1-envelope` keeps the two apart.
     expect(body.payloadVersion).toBeUndefined();

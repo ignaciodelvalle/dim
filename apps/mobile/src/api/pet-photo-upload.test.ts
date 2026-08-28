@@ -28,7 +28,7 @@ const ticket = {
   token: "tok",
   stagedPath: STAGED,
   bucket: "uploads-staging",
-  expiresInSeconds: 7200,
+  validForSeconds: 7200,
 };
 
 /** Every `endSession` call. Empty is the assertion that matters most here. */

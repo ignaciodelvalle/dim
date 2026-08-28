@@ -21,7 +21,7 @@
 // ---------------------------------------------------------------------------
 // `createSignedUploadUrl` in `@supabase/storage-js` takes a path and an optional
 // `{ upsert }` and NOTHING ELSE; its own docblock says the URLs "are valid for 2
-// hours". There is no `expiresIn` to pass, so `expiresInSeconds` below reports
+// hours". There is no `expiresIn` to pass, so `validForSeconds` below reports
 // the window that exists rather than one we picked, and it is reported at all so
 // a client can decide to re-ticket instead of retrying a dead URL.
 //
@@ -54,8 +54,18 @@ export type PetPhotoTicketV1 = {
   readonly stagedPath: string;
   /** The staging bucket's name, so a client need not hard-code it. */
   readonly bucket: string;
-  /** How long the capability lives. See the header: not a number we chose. */
-  readonly expiresInSeconds: number;
+  /**
+   * How long the capability lives — REPORTED, NOT SET.
+   *
+   * It was called `expiresInSeconds` first, and that name was wrong in the one
+   * way that matters: it reads like a knob this API turned. It is not. Supabase
+   * fixes the window at two hours and exposes no way to ask for another, so
+   * this field is a measurement of somebody else's behaviour that a client is
+   * told so it can re-ticket instead of retrying a dead URL. If the SDK ever
+   * accepts an expiry, `SUPABASE_SIGNED_UPLOAD_VALIDITY_SECONDS` in
+   * lib/infra/pet-photo-upload.ts is the one line that changes.
+   */
+  readonly validForSeconds: number;
 };
 
 /**
