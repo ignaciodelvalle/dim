@@ -45,6 +45,13 @@ const control = vi.hoisted(() => ({
   calls: [] as string[],
   /** Buckets + keys handed to the limiter, in order. */
   limits: [] as Array<{ endpoint: string; identifier: string }>,
+  /**
+   * The CEILINGS handed to the limiter, in order — recorded separately from
+   * `limits` so the existing `toEqual` assertions on bucket+key keep their
+   * exact shape. This is what catches a call site that goes back to writing an
+   * object literal instead of spending the derived constant.
+   */
+  limitConfigs: [] as unknown[],
   /** When set, the limiter throws it. */
   limiterThrows: null as null | (() => never),
 }));
@@ -75,14 +82,20 @@ vi.mock("@/lib/infra/rate-limit", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/lib/infra/rate-limit")>();
   return {
     ...actual,
-    enforceRateLimit: async (endpoint: string, identifier: string) => {
+    enforceRateLimit: async (endpoint: string, identifier: string, config: unknown) => {
       control.limits.push({ endpoint, identifier });
+      control.limitConfigs.push(config);
       control.limiterThrows?.();
     },
   };
 });
 
 import { RateLimitError, emailRateLimitKey } from "@/lib/infra/rate-limit";
+import {
+  LOGIN_EMAIL_LIMIT,
+  LOGIN_IP_LIMIT,
+  LOGIN_SIMULTANEOUS_CALLERS,
+} from "@/src/modules/auth/application/login-limits";
 
 import { POST as loginRoute } from "@/app/api/v1/auth/login/route";
 import { POST as signupRoute } from "@/app/api/v1/auth/signup/route";
@@ -120,6 +133,7 @@ beforeEach(() => {
   control.answer = null;
   control.calls = [];
   control.limits = [];
+  control.limitConfigs = [];
   control.limiterThrows = null;
 });
 
@@ -254,6 +268,53 @@ describe("POST /api/v1/auth/login — the budget is the web form's", () => {
     });
     await loginRoute(req);
     expect(control.limits[0]).toEqual({ endpoint: "auth_login_ip", identifier: "198.51.100.9" });
+  });
+
+  it("spends the derived ceilings themselves, not a literal at the call site", async () => {
+    // The two ceilings lived as object literals inside `login.ts` until the
+    // per-IP one was re-derived (see login-limits.ts). A literal at the call
+    // site is how the old number got to be twice the per-email one without ever
+    // meeting an argument, so the route is held to spending the CONSTANTS —
+    // which is what makes the relationship assertions below mean anything about
+    // what actually runs, rather than about two numbers nobody reads.
+    control.answer = { data: { user: null, session: null }, error: { message: "Invalid" } };
+    await loginRoute(post("/auth/login", { email: "a@b.co", password: "x" }));
+
+    expect(control.limitConfigs).toEqual([LOGIN_IP_LIMIT, LOGIN_EMAIL_LIMIT]);
+  });
+
+  it("keeps the per-EMAIL anchor where the brute-force argument put it", async () => {
+    // The non-vacuity floor for the two assertions after this one. They are
+    // equalities against a product, and `0 === 0 * 12` is true — an anchor
+    // silently zeroed would make both of them pass while the ceiling they
+    // describe collapsed. It is also the assertion a change to the per-account
+    // brute-force ceiling has to walk past on purpose: this bucket is what
+    // stops a distributed attack on ONE account, and it is spent on failed
+    // attempts too.
+    expect(LOGIN_EMAIL_LIMIT.maxPerMinute).toBe(5);
+    expect(LOGIN_EMAIL_LIMIT.maxPerHour).toBe(20);
+  });
+
+  it("sizes the per-IP ceiling at N callers at their own per-email ceiling, per MINUTE", async () => {
+    // The IP bucket's only job is to stay far enough above the email bucket that
+    // the EMAIL one is the binding constraint for any plausible crowd behind one
+    // address. At the old 10/min it was not: two people at their own ceiling
+    // exhausted the whole gateway, which is the shape api-v1-limits.ts named as
+    // upside down for the authenticated-write family and fixed there first.
+    expect(LOGIN_IP_LIMIT.maxPerMinute).toBe(
+      (LOGIN_EMAIL_LIMIT.maxPerMinute ?? 0) * LOGIN_SIMULTANEOUS_CALLERS,
+    );
+  });
+
+  it("sizes it at the same N per HOUR, and pins that window separately", async () => {
+    // PINNED SEPARATELY on purpose, the way password-reset's pair is: the two
+    // windows are only multiplied by the same factor here because login's
+    // per-email anchor happens to have both. A reader who assumes one factor is
+    // structural would "tidy" one of these away, and the hour is the window a
+    // whole nightly run — or a whole carrier at 03:00 — actually spends.
+    expect(LOGIN_IP_LIMIT.maxPerHour).toBe(
+      (LOGIN_EMAIL_LIMIT.maxPerHour ?? 0) * LOGIN_SIMULTANEOUS_CALLERS,
+    );
   });
 });
 

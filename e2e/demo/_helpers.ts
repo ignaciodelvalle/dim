@@ -91,8 +91,10 @@ export function uniqueIp(): string {
  * Read the login form's error alert, if the server put one there.
  *
  * The login action answers with a rendered message and NO navigation for every
- * refusal — bad credentials, and both rate-limit budgets (per-IP 10/min·100/hr,
- * per-email 5/min·20/hr; see src/modules/auth/application/login.ts). A helper
+ * refusal — bad credentials, and both rate-limit budgets (`LOGIN_IP_LIMIT` and
+ * `LOGIN_EMAIL_LIMIT`, src/modules/auth/application/login-limits.ts; the numbers
+ * are not copied here, because the copy that was on this line went stale the day
+ * the per-IP ceiling was re-derived). A helper
  * that only waits for the URL to change cannot tell those apart from a slow
  * server, so it burns its whole budget and reports "Test timeout of 30000ms
  * exceeded while running beforeEach hook" — which names the hook and not one
@@ -108,6 +110,72 @@ async function loginErrorText(page: Page): Promise<string> {
       .innerText()
       .catch(() => "")
   ).trim();
+}
+
+/**
+ * The greppable token a login refused for BUDGET carries, and the reason it is
+ * in English in an es-AR codebase.
+ *
+ * Until now the only trace a budget refusal left in a CI log was the server's
+ * user-facing copy, "Demasiados intentos…". That is a UI string: it is the right
+ * thing for a person to read in the browser and the wrong thing to be the only
+ * handle a night-shift reader has on a run. Anyone asking "did the nightly run
+ * out of login budget?" has to already know the Spanish sentence to search for
+ * it — which is exactly the search that was run over six nightly runs on
+ * 2026-08-27, and it is a search you cannot perform unless you already suspect
+ * the answer.
+ *
+ * So the failure carries a stable token that names the MECHANISM. `grep`
+ * `LOGIN BUDGET EXHAUSTED` over a job log and the question is answered without
+ * knowing any copy, any bucket name, or any Spanish.
+ */
+export const LOGIN_BUDGET_MARKER = "LOGIN BUDGET EXHAUSTED";
+
+/**
+ * Turn a refusal alert into the error the report will show, distinguishing the
+ * two refusals that look alike in a list of failures and mean opposite things.
+ *
+ * A CREDENTIAL refusal is about this spec: the account, the password, the seed.
+ * A BUDGET refusal is about the RUN: the ceiling is shared by every spec that
+ * signs in, from one egress address, and `retries: 1` doubles the spend — so a
+ * budget refusal says nothing about the test that reported it, and every later
+ * failure in the same run is suspect for the same reason.
+ *
+ * That distinction is the whole point. An instrument that fails confusingly is
+ * worse than one that fails: a run that blames thirty specs for one exhausted
+ * budget sends a reader to debug thirty things that were never broken. This
+ * cannot PROVE the later failures are downstream — nothing here can — so it says
+ * what is true and what is suspect, and names where the argument lives.
+ *
+ * Exported so a spec with its OWN private sign-in can raise the same error
+ * instead of a bare timeout. None do yet; `rg -l --sort path 'storageState' e2e`
+ * lists the ones that would have to.
+ */
+export function loginRefusalError(email: string, refusal: string): Error {
+  if (!/demasiados intentos/i.test(refusal)) {
+    return new Error(`login refused for ${email}: "${refusal}"`);
+  }
+  return new Error(
+    [
+      `${LOGIN_BUDGET_MARKER} — login refused for ${email} by a RATE LIMIT, not by credentials.`,
+      `Server said: "${refusal}"`,
+      "",
+      "This is a budget shared by the WHOLE RUN, not a fact about this spec:",
+      "  · auth_login_ip    — per egress address; against a Vercel origin the",
+      "    x-real-ip header is overwritten at the edge, so every spec in the run",
+      "    spends one bucket no matter what address it presents (measured",
+      "    2026-08-26; see the header of playwright.staging.config.ts).",
+      "  · auth_login_email — per account, and it counts FAILED attempts too.",
+      "  · retries: 1 on CI doubles both, and Playwright replaces the worker on",
+      "    every failure, which empties the session cache and forces real",
+      "    sign-ins — so the spend scales with FAILURES, not with tests.",
+      "",
+      "Every later failure in this run is therefore SUSPECT, and this one is not",
+      "necessarily the first real problem. Find the earliest failure that is not",
+      `a ${LOGIN_BUDGET_MARKER} and start there.`,
+      "The ceilings and the argument for them: src/modules/auth/application/login-limits.ts",
+    ].join("\n"),
+  );
 }
 
 /**
@@ -204,13 +272,13 @@ export async function loginAs(
     // Either the click was swallowed before hydration (the #39 workaround), or
     // the server refused. Check for a refusal first so it is reported as one.
     const refusal = await loginErrorText(page);
-    if (refusal) throw new Error(`login refused for ${email}: "${refusal}"`);
+    if (refusal) throw loginRefusalError(email, refusal);
     await page.getByRole("textbox", { name: "Contraseña" }).press("Enter");
     try {
       await page.waitForURL(leftSignIn, { timeout: 20_000 });
     } catch (err) {
       const late = await loginErrorText(page);
-      throw late ? new Error(`login refused for ${email}: "${late}"`) : err;
+      throw late ? loginRefusalError(email, late) : err;
     }
   }
   await page.waitForLoadState("networkidle", { timeout: 6_000 }).catch(() => {});

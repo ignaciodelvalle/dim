@@ -12,9 +12,14 @@
 //
 // WHY THE LIMITS CANNOT BE SIDESTEPPED BY SWITCHING TRANSPORT
 // ---------------------------------------------------------------------------
-// `auth_login_ip` (10/min · 100/hr) and `auth_login_email` (5/min · 20/hr,
-// keyed on the SHA-256 of the normalized email) are enforced inside the
-// use-case, before GoTrue and before any profile read. They are therefore the
+// `auth_login_ip` and `auth_login_email` (the latter keyed on the SHA-256 of the
+// normalized email) are enforced inside the use-case, before GoTrue and before
+// any profile read. The ceilings are `LOGIN_IP_LIMIT` and `LOGIN_EMAIL_LIMIT` in
+// `src/modules/auth/application/login-limits.ts`, deliberately NOT restated
+// here: this comment carried a transcribed copy of both pairs until 2026-08-27,
+// when the per-IP one was re-derived and this line went on stating the old
+// number in the paragraph whose whole subject is what the ceilings are. They are
+// therefore the
 // same buckets and the same keys as the form's: an attacker who exhausts an
 // account's budget on `/iniciar-sesion` does not get a fresh one here, and one
 // who starts here does not get a fresh one on the form. That property is not a

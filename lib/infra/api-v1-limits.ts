@@ -305,8 +305,13 @@
 //
 // A reader auditing one of those URLs should follow the use-case, not this file.
 // The password-reset pair carries its own derivation next to the use-case
-// (`src/modules/auth/application/password-reset/limits.ts`); the login and signup
-// numbers are stated at their own `enforceRateLimit` call sites.
+// (`src/modules/auth/application/password-reset/limits.ts`) and so does the login
+// pair (`login-limits.ts`, re-derived 2026-08-27 when the Android app reached
+// Play and logins started arriving from carrier NAT — its per-IP ceiling had the
+// same upside-down shape the authenticated-write family above is corrected for,
+// and it uses the same twelve). `auth_signup_ip` is the one still stated as a
+// literal at its own `enforceRateLimit` call site, and `login-limits.ts` says why
+// it was left there rather than swept up in the same change.
 //
 // The `pre-cgnat` buckets are outside that sum and add their own ceilings on top;
 // what they are is `API_V1_IP_BUCKET_FAMILIES`'s `pre-cgnat` entries, and what

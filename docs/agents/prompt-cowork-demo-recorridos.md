@@ -96,9 +96,13 @@ serie. Esto no es una preferencia de organización — es una restricción dura
 del rate limiter:
 
 - El límite es **5 logins por minuto Y 20 por hora, contado por EMAIL**
-  (`src/modules/auth/application/login.ts`), verificado ANTES de tocar
+  (`LOGIN_EMAIL_LIMIT`, en `src/modules/auth/application/login-limits.ts`;
+  se gasta en `login.ts`), verificado ANTES de tocar
   GoTrue — o sea que hasta un intento fallido cuenta.
-- Hay un segundo límite por IP (10/min · 100/hora), pero **cambiar la IP
+- Hay un segundo límite por IP (`LOGIN_IP_LIMIT`, en
+  `src/modules/auth/application/login-limits.ts` — no lo copiamos acá porque la
+  copia que estaba en esta línea quedó vieja el día que ese techo se re-derivó),
+  pero **cambiar la IP
   aparente (`x-real-ip`) no esquiva el límite por email**. El propio harness
   de e2e lo documenta así (`e2e/demo/_helpers.ts`, comentario sobre
   `uniqueIp()`): repartir una IP distinta por login "does exactly nothing"

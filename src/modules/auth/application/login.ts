@@ -45,6 +45,7 @@ import {
 import type { AuthSessionV1 } from "@dim/contract/api";
 
 import { type LoginAuthPort, toAuthSessionV1 } from "./gotrue-port";
+import { LOGIN_EMAIL_LIMIT, LOGIN_IP_LIMIT } from "./login-limits";
 
 // Friendly, non-enumerating message shown when either the per-IP or per-email
 // login budget is exceeded. Deliberately identical regardless of which budget
@@ -152,15 +153,13 @@ export async function login(input: LoginInput, deps: LoginDeps): Promise<LoginRe
   //                which the per-IP budget alone cannot stop.
   // Keyed off the trusted edge IP the caller resolved (never the spoofable
   // first XFF segment). A non-RateLimitError propagates → fail closed.
+  //
+  // The NUMBERS live in ./login-limits.ts with the argument that chose them —
+  // they used to be object literals right here, where the per-IP ceiling sat at
+  // twice the per-email one and nobody had to meet a paragraph to move it.
   try {
-    await enforceRateLimit("auth_login_ip", input.callerIp, {
-      maxPerMinute: 10,
-      maxPerHour: 100,
-    });
-    await enforceRateLimit("auth_login_email", emailRateLimitKey(email), {
-      maxPerMinute: 5,
-      maxPerHour: 20,
-    });
+    await enforceRateLimit("auth_login_ip", input.callerIp, LOGIN_IP_LIMIT);
+    await enforceRateLimit("auth_login_email", emailRateLimitKey(email), LOGIN_EMAIL_LIMIT);
   } catch (err) {
     if (err instanceof RateLimitError) return refuse("rate_limited", TOO_MANY_ATTEMPTS);
     throw err;

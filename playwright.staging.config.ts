@@ -50,12 +50,29 @@ import { defineConfig, devices } from "@playwright/test";
  *     them per run — the refusal cases send no Authorization header, and the
  *     bearer-shape check runs before the limiter, so those cost nothing at all.
  *     No margin problem there, header or no header.
- *   · `auth_login_ip` (10/min · 100/hr) is the one to watch, and it is the one
- *     the deleted sentence claimed to have solved. A serial suite whose specs
- *     each sign in, with `retries: 1` on CI, shares ONE hourly login budget from
- *     the runner's egress address. If the nightly ever starts failing in a burst
- *     of 429s at sign-in, this is the reason, and the cure is spacing or a
- *     dedicated ceiling — not another header.
+ *   · `auth_login_ip` is the one to watch, and it is the one the deleted
+ *     sentence claimed to have solved. A serial suite whose specs each sign in,
+ *     with `retries: 1` on CI, shares ONE hourly login budget from the runner's
+ *     egress address, and no header changes that. The ceiling is NOT restated
+ *     here — it is `LOGIN_IP_LIMIT` in
+ *     `src/modules/auth/application/login-limits.ts`, with the derivation next
+ *     to it; a number transcribed into a second file is a number that goes
+ *     stale, which is what happened to the pair that used to sit on this line.
+ *
+ *     IT HAS NOT BEEN HAPPENING, and that is measured rather than assumed. On
+ *     2026-08-27 the six most recent nightly runs were searched for all three
+ *     signatures a login refusal leaves — the es-AR throttle copy, the helper's
+ *     refusal message, and the `rate_limited` code — and every one of the six
+ *     returned zero of all three. The nightly HAS been failing, on every one of
+ *     those nights, on seed data and missing fixtures. It has not been failing
+ *     on this.
+ *
+ *     WHAT TO DO IF IT EVER DOES. Do not re-derive it at 03:00: `loginAs`
+ *     raises `LOGIN_BUDGET_MARKER` — the literal string `LOGIN BUDGET
+ *     EXHAUSTED` — on a refusal that is a rate limit rather than a credential
+ *     failure, and the message explains what is suspect afterwards. Grep the job
+ *     log for it. If it is absent, the budget is not your problem, whatever else
+ *     the run looks like.
  * Suites that need per-context uniqueness (e.g. authz-ab-isolation) override
  * this header per context with their own uniqueIp(); that override is subject to
  * exactly the same measurement and is equally inert against a Vercel origin.

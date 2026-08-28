@@ -17,9 +17,12 @@ import { ACCOUNTS, discoverPetToken, resolveOrgToken } from "./demo/_helpers";
  *   - baseURL from playwright.local3000.config.ts (http://localhost:3000).
  *   - Serial (workers:1) — the config runs one worker.
  *
- * AUTH SESSION REUSE (important): the app's loginAction enforces a login rate
- * limit (auth_login_email 5/min·20/h, auth_login_ip 10/min·100/h — see
- * src/modules/auth/application/login.ts). Logging in fresh in every test tripped
+ * AUTH SESSION REUSE (important): the app's loginAction enforces two login rate
+ * limits, `auth_login_email` and `auth_login_ip` — the ceilings are
+ * `LOGIN_EMAIL_LIMIT` and `LOGIN_IP_LIMIT` in
+ * src/modules/auth/application/login-limits.ts, and are not copied here because
+ * the copy that used to be on this line went stale the day the per-IP one was
+ * re-derived. Logging in fresh in every test tripped
  * that limiter across repeated full-suite runs. So each account authenticates
  * ONCE per run; its storageState (auth cookies) is cached and reused by every
  * test that needs it. This is also the Playwright-recommended pattern.
@@ -81,7 +84,8 @@ function tokenFromUrl(url: string): string | null {
 
 // --- Per-context unique client IP -------------------------------------------
 //
-// The app throttles per caller IP (login: auth_login_ip 10/min·100/h; public
+// The app throttles per caller IP (login: `auth_login_ip`, whose ceiling is
+// `LOGIN_IP_LIMIT` in src/modules/auth/application/login-limits.ts; public
 // credential: public_token_page 60/min·400/h — lib/infra/rate-limit.ts). A whole
 // test suite hammering one localhost IP trips those limits even though each
 // individual scan/login is legitimate. We are NOT testing rate-limiting here, so

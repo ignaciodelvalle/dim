@@ -135,6 +135,21 @@ coverage. They need no secret beyond the public `STAGING_URL`.
   for the nightly in the header of `playwright.staging.config.ts`). Against
   staging the protection is structural — sign in once per account per worker, and
   space repeated anonymous writes — never the header.
+- **A login refusal now says which KIND it is, and you should grep for it before
+  believing a red run.** The two refusals look alike in a failure list and mean
+  opposite things: a credential refusal is about that spec, a budget refusal is
+  about the whole run — the ceiling is shared from one egress address and
+  `retries: 1` doubles the spend, so every later failure is suspect and none of
+  them is necessarily the bug. `loginAs` raises **`LOGIN BUDGET EXHAUSTED`**
+  (`LOGIN_BUDGET_MARKER` in `demo/_helpers.ts`) for the second kind, with the
+  reasoning in the message. It is deliberately an English token and not the es-AR
+  copy: before it existed, the only way to ask "did the run exhaust its login
+  budget?" was to already know the Spanish sentence to search for. The ceilings
+  themselves are NOT restated here — they are `LOGIN_IP_LIMIT` and
+  `LOGIN_EMAIL_LIMIT` in `src/modules/auth/application/login-limits.ts`, with the
+  derivation next to them. Specs with their own private sign-in do not go through
+  `loginAs` and get none of this; `rg -l --sort path 'storageState' e2e` lists
+  the ones that would have to adopt `loginRefusalError()` to get it.
 - **Never assert a 404 by HTTP status.** Streaming routes flush the shell
   before the scoped lookup resolves, so `notFound()` fires after headers went
   out and a DENIED page answers **200** with the branded boundary rendered.
