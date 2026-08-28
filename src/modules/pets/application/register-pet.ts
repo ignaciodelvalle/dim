@@ -20,8 +20,21 @@
 //   - Flushing pendingNotifications (post-tx, best-effort)
 //   - redirect("/mis-mascotas")
 
+import { matchesDbError } from "@/lib/infra/db-errors";
+
 import type { NewNotification, RegisterPetInput, UseCaseResult } from "../domain/types";
 import type { PetsRepository } from "../infrastructure/pets-repository";
+
+// Residual-race guidance: the action cross-checks the chip via lookupByChip
+// BEFORE the transaction, but a concurrent write can claim the same code between
+// that check and the insert — tripping pet_identifications_chip_unique (the
+// partial unique index on an ACTIVE microchip_iso code). Translate it into the
+// same friendly guidance the owner cross-check already gives, instead of leaking
+// the raw driver string ("duplicate key value violates unique constraint …").
+// Mirrors create-intake.ts:641 and mark-appointment-attended.ts:269 for the
+// org/vet paths, and the owner-side CHIP_ALREADY_REGISTERED_MSG in actions.ts.
+const CHIP_ALREADY_REGISTERED_MSG =
+  "Este microchip ya figura registrado en miMAR para otra mascota. Si es tuya, vinculala a tu cuenta o pedí la transferencia desde “Mis mascotas › Reclamar una mascota”.";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -150,6 +163,9 @@ export async function registerPet(
       }
     });
   } catch (err) {
+    if (matchesDbError(err, { code: "23505", constraint: "pet_identifications_chip_unique" })) {
+      return { ok: false, error: CHIP_ALREADY_REGISTERED_MSG };
+    }
     return {
       ok: false,
       error: `No se pudo crear la mascota: ${err instanceof Error ? err.message : "error desconocido"}`,

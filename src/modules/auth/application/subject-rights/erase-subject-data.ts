@@ -1,7 +1,7 @@
-import { and, eq, inArray, isNull, sql } from "drizzle-orm";
+import { and, eq, inArray, isNotNull, isNull, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 
-import { attachments, db, ownerships, petCaretakerGrants, pets } from "@/db";
+import { attachments, db, ownerships, petCaretakerGrants, petIdentifications, pets } from "@/db";
 import { requireUserOrRedirect } from "@/lib/infra/auth-guards";
 import {
   endCaretakerArrangementsForPet,
@@ -10,6 +10,7 @@ import {
 import { createNotification } from "@/lib/infra/notification-service";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
+import { replaceMicrochipForUser } from "@/src/modules/pets/application/microchip/replace-microchip";
 
 import type { EraseSubjectDataResult } from "./types";
 
@@ -386,6 +387,120 @@ async function endCaretakerArrangementsForErasure(userId: string): Promise<void>
   }
 }
 
+/**
+ * RELEASE THE MICROCHIP OF EVERY PET THIS ERASURE SUPPRESSED — so a finder can
+ * re-register the animal.
+ *
+ * PO-4 retires the erased pet's public credential and its physical chapa "even
+ * for reunification" (tag-lookup.ts). A microchip is the SAME class of durable
+ * reunification identifier, and today it stays `status='active'` forever,
+ * occupying the partial unique index `pet_identifications_chip_unique` (on
+ * `code WHERE kind='microchip_iso' AND status='active'` — it does NOT reference
+ * deleted_at, so only a status change frees it). That leaves the animal
+ * un-re-registerable by whoever now physically holds it. This releases it.
+ *
+ * EVENT-BACKED, NOT A BARE STATUS FLIP. `pet_identifications` is CANONICAL (the
+ * pets.* chip columns derive FROM it — rederive-pet-cache.ts), and
+ * `detect-pet-cache-drift` replays events for ALL pets (no deleted_at filter)
+ * and compares to the stored row. Erasure RETAINS the `microchip_implanted`
+ * event (append-only spine, invariant #2), so a flip with no retraction event
+ * would leave the replay seeing an active chip forever → false-positive drift on
+ * every erased pet. The revoke use-case emits a `microchip_replaced` with
+ * `new_chip_number=null`, which lib/projections/pet-microchip.ts folds to "active
+ * row → 'replaced', no successor" — so stored and derived agree and drift stays
+ * clean. `replaceMicrochipForUser` also flips the canonical row itself, in the
+ * same transaction as the event.
+ *
+ * SCOPE — EXACTLY the pets this erasure suppressed: the subject's live `owner`
+ * rows (role='owner', ended_at IS NULL — the same scope the RPC soft-deletes)
+ * whose pet is now soft-deleted (deleted_at IS NOT NULL). A pet the subject
+ * merely fosters, a pet transferred away BEFORE the erasure (its owner row is
+ * ended), and any pet whose row is not soft-deleted are all excluded — the chip
+ * of a non-erased animal is never touched. The revoke's own owner gate is the
+ * second lock: it re-verifies the subject holds a live ownership on the pet.
+ *
+ * IDEMPOTENT + PARTIAL-FAILURE-SAFE, like the steps around it. The revoke flips
+ * the active row to 'replaced', so a re-run of the erasure finds no active chip
+ * and does nothing; a pet with no active chip is simply absent from the scan;
+ * and one pet's failure is logged and does not abort the rest.
+ *
+ * WHY IT RUNS BEFORE the auth.users deletion (Step 2): the revoke writes a
+ * pet_events row (recorded_by_user_id) and an audit_log row (actor_user_id, ON
+ * DELETE RESTRICT) attributed to the subject's uid, so that row must still
+ * exist when this runs. The soft-deleted profile row is enough — only Step 2
+ * deletes the auth row, and this precedes it.
+ */
+export async function releaseMicrochipsForErasedPets(userId: string): Promise<void> {
+  // Owned + now soft-deleted pets. Same owner scope as purgeOwnedPetAttachments
+  // and the RPC's own soft-delete, intersected with deleted_at IS NOT NULL so a
+  // non-erased pet can never enter the set. Deduped: a pet with more than one
+  // matching ownership row must yield one release, not one per row.
+  const erasedOwnedPets = await db
+    .selectDistinct({ petId: ownerships.petId })
+    .from(ownerships)
+    .innerJoin(pets, eq(pets.id, ownerships.petId))
+    .where(
+      and(
+        eq(ownerships.ownerUserId, userId),
+        eq(ownerships.role, "owner"),
+        isNull(ownerships.endedAt),
+        isNotNull(pets.deletedAt),
+      ),
+    );
+  const petIds = erasedOwnedPets.map((p) => p.petId);
+  if (petIds.length === 0) return;
+
+  const activeChips = await db
+    .select({ petId: petIdentifications.petId, code: petIdentifications.code })
+    .from(petIdentifications)
+    .where(
+      and(
+        inArray(petIdentifications.petId, petIds),
+        eq(petIdentifications.kind, "microchip_iso"),
+        eq(petIdentifications.status, "active"),
+      ),
+    );
+
+  // One release per pet (the model is one active chip per pet; guard anyway so a
+  // stray second active row cannot emit a spurious second revocation event).
+  const chipByPet = new Map<string, string>();
+  for (const chip of activeChips) {
+    if (chip.code && !chipByPet.has(chip.petId)) chipByPet.set(chip.petId, chip.code);
+  }
+
+  const now = new Date();
+  for (const [petId, code] of chipByPet) {
+    try {
+      // Reuse the microchip revocation use-case: it emits the microchip_replaced
+      // event AND flips the canonical row, atomically. new_chip_number=null with
+      // reason 'owner_request' is the pure-revocation shape it already supports.
+      const result = await replaceMicrochipForUser(userId, {
+        petId,
+        previousChipNumber: code,
+        newChipNumber: null,
+        reason: "owner_request",
+        replacedAt: now.toISOString(),
+        actorContext: { kind: "owner" },
+      });
+      if ("error" in result) {
+        // PER PET, not per run: one pet whose release fails (a lost race, a
+        // vanished ownership) must not cost the subject the release of the rest.
+        console.error("[erase-subject-data] microchip release failed", {
+          userId,
+          petId,
+          message: result.error,
+        });
+      }
+    } catch (err) {
+      console.error("[erase-subject-data] microchip release threw", {
+        userId,
+        petId,
+        message: err instanceof Error ? err.message : String(err),
+      });
+    }
+  }
+}
+
 export async function eraseMySubjectDataAction(reason: string): Promise<EraseSubjectDataResult> {
   const { user } = await requireUserOrRedirect();
   if (!reason || reason.trim().length < 5) {
@@ -424,6 +539,23 @@ export async function eraseMySubjectDataAction(reason: string): Promise<EraseSub
 
   if (error) {
     return { ok: false, error: error.message };
+  }
+
+  // Step 1.5 — release the microchip of every pet this erasure just suppressed,
+  // so a finder can re-register the animal (PO-4 parity for the durable
+  // reunification identifier — see the function header). Event-backed, so drift
+  // replay and the stored canonical row stay in agreement. Runs BEFORE the
+  // auth.users deletion below because the revocation event + audit row are
+  // attributed to the subject's uid. Best-effort like the steps around it: a
+  // failure here must not leave the subject staring at an error after their
+  // profile PII is already gone.
+  try {
+    await releaseMicrochipsForErasedPets(user.id);
+  } catch (err) {
+    console.error("[erase-subject-data] microchip release step failed", {
+      userId: user.id,
+      message: err instanceof Error ? err.message : String(err),
+    });
   }
 
   // Step 2 — delete the auth.users row (Ley 25.326 art. 16). Without this the

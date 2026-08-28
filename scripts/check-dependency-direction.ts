@@ -113,6 +113,18 @@ export const ALLOWED_EDGES = new Set<string>([
   // and closing that made the existing dependency visible to this fence.
   // organizations imports from no module, so the graph stays acyclic.
   "events:organizations",
+
+  // SUBJECT-RIGHTS ERASE RELEASES THE MICROCHIP (2026-08-28, PO/Claude decision).
+  // When a person erases their account, the suppressed pet's microchip must be
+  // RELEASED so whoever finds the animal can re-register it — the same
+  // reunification-ceases-to-exist posture PO-4 already chose for the physical
+  // chapa. `erase-subject-data.ts` is a cross-cutting privacy saga that already
+  // tears down caretaker grants, attachments and pet-contact data; it invokes
+  // the pets domain's own `replaceMicrochipForUser` revoke use-case (event-backed)
+  // rather than raw-SQL flipping the canonical row — a bare status flip with no
+  // retraction event would false-positive the drift detector on every erased pet.
+  // `pets` imports nothing from `auth`, so the graph stays acyclic.
+  "auth:pets",
 ]);
 
 // All module names (directory names under src/modules/).

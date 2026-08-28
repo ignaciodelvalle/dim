@@ -24,7 +24,18 @@ vi.mock("@/lib/infra/auth-guards", () => ({
 //   3. delete those attachment rows
 const mockOwnedRows: { petId: string }[] = [];
 const mockAttachmentRows: { id: string; storagePath: string; eventId: string | null }[] = [];
-const mockWhere: { ownerships?: unknown; attachments?: unknown; del?: unknown } = {};
+// Reunification unit (chip release, Step 1.5): selectDistinct over ownerships⋈pets
+// yields the erased-and-owned pets; a second select over pet_identifications
+// yields their active chips.
+const mockErasedOwnedPets: { petId: string }[] = [];
+const mockActiveChips: { petId: string; code: string }[] = [];
+const mockWhere: {
+  ownerships?: unknown;
+  attachments?: unknown;
+  del?: unknown;
+  erasedOwned?: unknown;
+  chips?: unknown;
+} = {};
 vi.mock("@/db", async () => {
   const schema = await vi.importActual<typeof import("@/db/schema")>("@/db/schema");
   const db = {
@@ -35,9 +46,23 @@ vi.mock("@/db", async () => {
             mockWhere.ownerships = cond;
             return Promise.resolve(mockOwnedRows);
           }
+          if (table === schema.petIdentifications) {
+            mockWhere.chips = cond;
+            return Promise.resolve(mockActiveChips);
+          }
           mockWhere.attachments = cond;
           return Promise.resolve(mockAttachmentRows);
         },
+      }),
+    }),
+    selectDistinct: () => ({
+      from: () => ({
+        innerJoin: () => ({
+          where: (cond: unknown) => {
+            mockWhere.erasedOwned = cond;
+            return Promise.resolve(mockErasedOwnedPets);
+          },
+        }),
       }),
     }),
     delete: () => ({
@@ -49,6 +74,11 @@ vi.mock("@/db", async () => {
   };
   return { ...schema, db };
 });
+
+const mockReplaceMicrochip = vi.fn();
+vi.mock("@/src/modules/pets/application/microchip/replace-microchip", () => ({
+  replaceMicrochipForUser: (...args: unknown[]) => mockReplaceMicrochip(...args),
+}));
 
 const mockRpc = vi.fn();
 const mockSignOut = vi.fn();
@@ -94,11 +124,16 @@ beforeEach(() => {
   mockDeleteUser.mockResolvedValue({ error: null });
   // Default: the staging bucket is empty, so the sweep does one list and stops.
   mockStorageList.mockResolvedValue({ data: [], error: null });
+  mockReplaceMicrochip.mockResolvedValue({ ok: true, eventId: "ev-mc", caseId: null });
   mockOwnedRows.length = 0;
   mockAttachmentRows.length = 0;
+  mockErasedOwnedPets.length = 0;
+  mockActiveChips.length = 0;
   mockWhere.ownerships = undefined;
   mockWhere.attachments = undefined;
   mockWhere.del = undefined;
+  mockWhere.erasedOwned = undefined;
+  mockWhere.chips = undefined;
 });
 
 describe("eraseMySubjectDataAction", () => {
@@ -271,6 +306,94 @@ describe("eraseMySubjectDataAction", () => {
       // Best-effort, like every other remove here: a supresión must not leave
       // the subject staring at an error after their DB data is already gone.
       expect(result.ok).toBe(true);
+    });
+  });
+
+  // ------------------------------------------------------------------
+  // Chip release (Step 1.5) — the microchip of every pet the erasure
+  // suppressed is RELEASED through the event-backed revoke use-case so a finder
+  // can re-register the animal. These pin the orchestration (call, scope,
+  // ordering, failure tolerance); the real event/canonical/drift behaviour is
+  // pinned against a live DB in public-soft-delete-resolution.test.ts.
+  // ------------------------------------------------------------------
+  describe("releases the microchip of every pet the erasure suppressed", () => {
+    const ERASED_PET = "pet-erased-0000-0000-000000000009";
+    const CHIP = "981098109810777";
+
+    it("revokes the active chip via the event-backed use-case, after the RPC and before the auth-row deletion", async () => {
+      mockErasedOwnedPets.push({ petId: ERASED_PET });
+      mockActiveChips.push({ petId: ERASED_PET, code: CHIP });
+
+      const result = await eraseMySubjectDataAction("borro mi cuenta");
+      expect(result.ok).toBe(true);
+
+      expect(mockReplaceMicrochip).toHaveBeenCalledTimes(1);
+      const [userId, input] = mockReplaceMicrochip.mock.calls[0];
+      expect(userId).toBe(USER_ID);
+      // Pure revocation, attributed to the erasing owner: the shape the revoke
+      // use-case folds to "active canonical row → 'replaced', no successor".
+      expect(input).toMatchObject({
+        petId: ERASED_PET,
+        previousChipNumber: CHIP,
+        newChipNumber: null,
+        reason: "owner_request",
+        actorContext: { kind: "owner" },
+      });
+
+      // Ordering: RPC soft-deletes the pets → the release emits an event + audit
+      // row attributed to the subject's uid → the auth row is deleted (which,
+      // run first, would break those FKs).
+      const rpcOrder = mockRpc.mock.invocationCallOrder[0];
+      const releaseOrder = mockReplaceMicrochip.mock.invocationCallOrder[0];
+      const deleteOrder = mockDeleteUser.mock.invocationCallOrder[0];
+      expect(rpcOrder).toBeLessThan(releaseOrder);
+      expect(releaseOrder).toBeLessThan(deleteOrder);
+    });
+
+    it("scopes the scan to role='owner' AND a soft-deleted pet (deleted_at IS NOT NULL)", async () => {
+      // The overreach guard: only pets THIS erasure suppressed. role='owner'
+      // excludes fostered/caretaken pets under the same owner_user_id;
+      // deleted_at IS NOT NULL excludes any live (non-erased) pet.
+      mockErasedOwnedPets.push({ petId: ERASED_PET });
+      await eraseMySubjectDataAction("borro mi cuenta");
+      const { sql, params } = new PgDialect().sqlToQuery(mockWhere.erasedOwned as never);
+      expect(sql).toMatch(/"role"/);
+      expect(params).toContain("owner");
+      expect(sql).toMatch(/deleted_at.*is not null/i);
+    });
+
+    it("does nothing when the suppressed pet carries no active chip", async () => {
+      mockErasedOwnedPets.push({ petId: ERASED_PET });
+      // mockActiveChips stays empty → the second scan is empty → no revocation.
+      const result = await eraseMySubjectDataAction("borro mi cuenta");
+      expect(result.ok).toBe(true);
+      expect(mockReplaceMicrochip).not.toHaveBeenCalled();
+    });
+
+    it("does not release when the subject suppressed no pets", async () => {
+      const result = await eraseMySubjectDataAction("borro mi cuenta");
+      expect(result.ok).toBe(true);
+      expect(mockReplaceMicrochip).not.toHaveBeenCalled();
+    });
+
+    it("one chip's release failure neither aborts the others nor the erasure", async () => {
+      const errSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+      mockErasedOwnedPets.push({ petId: ERASED_PET }, { petId: "pet-2" });
+      mockActiveChips.push(
+        { petId: ERASED_PET, code: CHIP },
+        { petId: "pet-2", code: "981098109810888" },
+      );
+      mockReplaceMicrochip
+        .mockResolvedValueOnce({ error: "lost the race" })
+        .mockResolvedValue({ ok: true, eventId: "ev", caseId: null });
+
+      const result = await eraseMySubjectDataAction("borro mi cuenta");
+      // Per-pet tolerance: the failed pet is logged, the rest still run, and the
+      // erasure completes and proceeds to delete the auth row.
+      expect(result.ok).toBe(true);
+      expect(mockReplaceMicrochip).toHaveBeenCalledTimes(2);
+      expect(mockDeleteUser).toHaveBeenCalled();
+      errSpy.mockRestore();
     });
   });
 });

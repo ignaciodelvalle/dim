@@ -71,8 +71,10 @@ import { publicPetByToken } from "@/lib/infra/public-pet-lookup";
 import { generateTagActivationCode, generateTagSerial } from "@/lib/infra/publicToken";
 import { lookupTagBySerial } from "@/lib/infra/tag-lookup";
 import { lookupByTattoo } from "@/lib/infra/tattoo-lookup";
+import { replayPetMicrochip } from "@/lib/projections/pet-microchip";
 import { hashTagActivationCode } from "@/lib/utils/tag-code-hash";
 import { AdoptionRepository } from "@/src/modules/adoption/infrastructure/adoption-repository";
+import { releaseMicrochipsForErasedPets } from "@/src/modules/auth/application/subject-rights/erase-subject-data";
 import { FosterRepository } from "@/src/modules/foster/infrastructure/foster-repository";
 import { confirmChipMatchAsRefugioWriter } from "@/src/modules/pets/application/chip-match/confirm-chip-match-refugio";
 import { confirmChipMatchAsVecinoWriter } from "@/src/modules/pets/application/chip-match/confirm-chip-match-vecino";
@@ -108,6 +110,9 @@ const CHIP_ERASED = "981098109810001";
 const CHIP_MOVED = "981098109810002";
 const TATTOO_ERASED = "PO4TATERASED";
 const TATTOO_MOVED = "PO4TATMOVED";
+// Reunification unit: a throwaway pet that re-claims the erased chip's code
+// AFTER the release, proving the code is free again. Cleaned up with the others.
+const TOKEN_RECLAIM = "DIM-PO4R-CLM1";
 const TEST_LOTE = "TEST-LOTE-PO4";
 const ORG_TOKEN = "ORG-PO4S-PONS";
 
@@ -169,7 +174,7 @@ async function cleanup() {
   // is an UPDATE the append-only trigger blocks, so deleting the org while
   // any fixture event still names it aborts the whole cleanup.
   await withMutationOverride(async (tx) => {
-    for (const token of [TOKEN_ERASED, TOKEN_MOVED]) {
+    for (const token of [TOKEN_ERASED, TOKEN_MOVED, TOKEN_RECLAIM]) {
       const stale = await tx.select({ id: pets.id }).from(pets).where(eq(pets.publicToken, token));
       for (const { id } of stale) await tx.delete(pets).where(eq(pets.id, id));
     }
@@ -391,6 +396,18 @@ beforeAll(async () => {
     { petId: erasedPetId, kind: "tattoo", code: TATTOO_ERASED, status: "active" },
     { petId: movedPetId, kind: "tattoo", code: TATTOO_MOVED, status: "active" },
   ]);
+
+  // A microchip_implanted event for the erased pet's chip, so the append-only
+  // spine actually CARRIES the implant the release must retract. Without it the
+  // drift-replay proof in the reunification unit below would be vacuous (nothing
+  // for the revocation event to fold against).
+  await db.insert(petEvents).values({
+    petId: erasedPetId,
+    eventType: "microchip_implanted",
+    occurredAt: tenDaysAgo,
+    recordedByUserId: erasedUserId,
+    payload: { chip_number: CHIP_ERASED, country_code: "981", implant_date_known: false },
+  });
 
   // The real thing: the subject exercises art. 16.
   await db.transaction(async (tx) => {
@@ -864,6 +881,140 @@ describe("org queue projections — pinned the day the 'not invocable from vites
     const ids = items.map((i) => i.petId);
     expect(ids).toContain(movedPetId);
     expect(ids).not.toContain(erasedPetId);
+  });
+});
+
+describe("erase releases the microchip so a finder can re-register (reunification unit)", () => {
+  // The chip release is APPLICATION-layer (erase-subject-data.ts Step 1.5,
+  // outside the RPC), so it is invoked here against the same post-erasure
+  // fixtures the RPC produced in beforeAll: the erased pet is soft-deleted with
+  // its owner row still live and carries an active chip + a microchip_implanted
+  // event; the moved pet is the non-erased control. Every assertion below is the
+  // decided unit — a RELEASED (not deleted, not bare-flipped) reunification
+  // identifier that a finder can re-register.
+  beforeAll(async () => {
+    await releaseMicrochipsForErasedPets(erasedUserId);
+  });
+
+  it("flips the erased pet's canonical chip row out of 'active' (released, not deleted)", async () => {
+    const [row] = await db
+      .select({ status: petIdentifications.status })
+      .from(petIdentifications)
+      .where(
+        and(
+          eq(petIdentifications.petId, erasedPetId),
+          eq(petIdentifications.kind, "microchip_iso"),
+          eq(petIdentifications.code, CHIP_ERASED),
+        ),
+      );
+    // The row still EXISTS (append-only history is not destroyed) — it just left
+    // the partial unique index by ceasing to be 'active'.
+    expect(row).toBeDefined();
+    expect(row.status).not.toBe("active");
+  });
+
+  it("emits a microchip_replaced revocation event (new_chip_number = null)", async () => {
+    const events = await db
+      .select({ id: petEvents.id, payload: petEvents.payload })
+      .from(petEvents)
+      .where(and(eq(petEvents.petId, erasedPetId), eq(petEvents.eventType, "microchip_replaced")));
+    const revocation = events.find(
+      (e) => (e.payload as Record<string, unknown>).new_chip_number === null,
+    );
+    expect(
+      revocation,
+      "a pure-revocation microchip_replaced event on the erased pet",
+    ).toBeDefined();
+  });
+
+  it("keeps the stored canonical row and the event replay in agreement (no drift)", async () => {
+    // The whole reason the release is event-backed. detect-pet-cache-drift
+    // replays events for ALL pets (no deleted_at filter) and compares to the
+    // stored row. A bare status flip with no retraction event would leave the
+    // replay seeing the implant's active chip forever → false-positive drift on
+    // every erased pet. With the revocation event, BOTH say "no active chip".
+    const events = await db
+      .select({
+        id: petEvents.id,
+        eventType: petEvents.eventType,
+        occurredAt: petEvents.occurredAt,
+        recordedAt: petEvents.recordedAt,
+        payload: petEvents.payload,
+      })
+      .from(petEvents)
+      .where(eq(petEvents.petId, erasedPetId))
+      .orderBy(petEvents.occurredAt);
+    // Derived (event replay): no active chip.
+    expect(replayPetMicrochip(events).microchipId).toBeNull();
+    // Stored (canonical): no active chip row either.
+    const activeRows = await db
+      .select({ id: petIdentifications.id })
+      .from(petIdentifications)
+      .where(
+        and(
+          eq(petIdentifications.petId, erasedPetId),
+          eq(petIdentifications.kind, "microchip_iso"),
+          eq(petIdentifications.status, "active"),
+        ),
+      );
+    expect(activeRows).toHaveLength(0);
+  });
+
+  it("never touches a non-erased pet's active chip", async () => {
+    // The overreach guard, mirroring the pet-soft-delete asymmetry above: the
+    // moved pet was never erased, so its chip stays active and no revocation
+    // event is written on its spine.
+    const [row] = await db
+      .select({ status: petIdentifications.status })
+      .from(petIdentifications)
+      .where(
+        and(eq(petIdentifications.petId, movedPetId), eq(petIdentifications.code, CHIP_MOVED)),
+      );
+    expect(row.status).toBe("active");
+    const events = await db
+      .select({ id: petEvents.id })
+      .from(petEvents)
+      .where(and(eq(petEvents.petId, movedPetId), eq(petEvents.eventType, "microchip_replaced")));
+    expect(events).toHaveLength(0);
+  });
+
+  it("frees the released code — re-registering it now succeeds (no 23505)", async () => {
+    // Before the release CHIP_ERASED was an active row and this exact insert
+    // violated pet_identifications_chip_unique. Now the erased pet's row is
+    // 'replaced' — outside the partial index — so whoever now holds the animal
+    // can register it. This is the finder's re-registration, reduced to its
+    // load-bearing statement.
+    const reclaimerPetId = await insertPet(TOKEN_RECLAIM, "PO4 Reclaimer");
+    try {
+      await expect(
+        db.insert(petIdentifications).values({
+          petId: reclaimerPetId,
+          kind: "microchip_iso",
+          code: CHIP_ERASED,
+          status: "active",
+        }),
+      ).resolves.toBeDefined();
+    } finally {
+      // pet_identifications.pet_id is ON DELETE CASCADE, so this removes the
+      // reclaim row with the pet. No events on it, so no override needed.
+      await db.delete(pets).where(eq(pets.id, reclaimerPetId));
+    }
+  });
+
+  it("is idempotent — a second release emits no further event", async () => {
+    // Re-running the erasure (or this step) must be a no-op: the active row is
+    // already 'replaced', so the scan finds no active chip and nothing is
+    // emitted. This is what makes the step safe to retry after a partial failure.
+    const before = await db
+      .select({ id: petEvents.id })
+      .from(petEvents)
+      .where(and(eq(petEvents.petId, erasedPetId), eq(petEvents.eventType, "microchip_replaced")));
+    await releaseMicrochipsForErasedPets(erasedUserId);
+    const after = await db
+      .select({ id: petEvents.id })
+      .from(petEvents)
+      .where(and(eq(petEvents.petId, erasedPetId), eq(petEvents.eventType, "microchip_replaced")));
+    expect(after.length).toBe(before.length);
   });
 });
 

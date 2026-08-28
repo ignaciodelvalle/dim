@@ -323,6 +323,38 @@ describe("registerPet", () => {
       expect(result.error).toMatch(/No se pudo crear la mascota/);
     });
 
+    it("translates a pet_identifications_chip_unique race into friendly chip guidance, not the raw driver string", async () => {
+      // Defense-in-depth for the residual race: the action cross-checks the chip
+      // before the tx, but a concurrent write can claim the code between that
+      // check and the insert, tripping the partial unique index. The unwrapped
+      // pg error lives on `.cause` (drizzle 0.45), which matchesDbError walks.
+      const raceError = Object.assign(new Error("Failed query: insert into pet_identifications"), {
+        cause: {
+          code: "23505",
+          constraint_name: "pet_identifications_chip_unique",
+          message:
+            'duplicate key value violates unique constraint "pet_identifications_chip_unique"',
+        },
+      });
+      const repo = makeFakeRepo({
+        insertPetRegistered: vi.fn().mockRejectedValue(raceError),
+      });
+
+      const result = await registerPet(makeInput(), {
+        repo,
+        actor: { user: { id: "user-1" } },
+        transaction: async (cb) => await cb({} as never),
+      });
+
+      expect(result.ok).toBe(false);
+      if (result.ok) throw new Error("unreachable");
+      // The friendly copy, NOT the generic "No se pudo crear la mascota: …"
+      // wrapper and NOT the raw "duplicate key value …" driver text.
+      expect(result.error).toMatch(/microchip ya figura registrado/i);
+      expect(result.error).not.toMatch(/No se pudo crear la mascota/);
+      expect(result.error).not.toMatch(/duplicate key/i);
+    });
+
     it("does NOT call insertPetRegistered when generatePublicToken throws", async () => {
       const repo = makeFakeRepo({
         generatePublicToken: vi.fn().mockRejectedValue(new Error("token gen failed")),
