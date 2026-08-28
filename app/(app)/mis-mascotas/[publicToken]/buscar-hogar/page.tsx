@@ -193,6 +193,11 @@ export default async function BuscarHogarPage({
     .where(
       and(
         eq(pets.publicToken, publicToken),
+        // Art. 16 (Ley 25.326): an erased pet reads as never registered. Access
+        // is resolved INLINE here, and the foster branch below is reachable by a
+        // live foster row — which the erasure leaves intact — so without this
+        // term a foster would still see the erased pet's name on this screen.
+        isNull(pets.deletedAt),
         eq(ownerships.ownerUserId, user.id),
         or(eq(ownerships.role, "owner"), eq(ownerships.role, "foster")),
         isNull(ownerships.endedAt),

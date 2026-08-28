@@ -1256,87 +1256,112 @@ describe("every org-portal read of `pets` carries the soft-delete filter (art. 1
 });
 
 // ---------------------------------------------------------------------------
-// CITIZEN TRÁNSITO + TURNO SWEEP (ninth art. 16 family, 2026-08-28). Neither
-// sweep above can see app/(app): the public rule stops at unauthenticated
-// reachability, and the org sweep scans only app/org. But the citizen side has
-// the SAME structural leak the org portal had — the erasure RPC soft-deletes
-// only role='owner' pets and ends only role='caretaker' rows, so a role='foster'
-// ownership survives with ended_at = NULL, and bookSlotAction accepts ANY active
-// ownership role, so a non-owner booker holds an appointment whose ownerUserId
-// is their own id. Through either surviving row a THIRD PARTY (the foster / the
-// non-owner booker) kept seeing the erased pet's NAME and a working
-// /mis-mascotas link. Six screens carried zero guards when this sweep was
-// seeded: tránsitos activos, propuestas (inbox + detail), historial (two reads),
-// and mis-turnos (list + detail).
+// CITIZEN APP-TREE SWEEP (ninth art. 16 family, 2026-08-28; WIDENED the same day
+// to the WHOLE app/(app) tree — the "tenth form"). Neither sweep above can see
+// app/(app): the public rule stops at unauthenticated reachability, and the org
+// sweep scans only app/org. But the citizen side has the SAME structural leak
+// the org portal had — the erasure RPC soft-deletes only role='owner' pets and
+// ends only role='caretaker' rows, so a role='foster' (or co_owner) ownership
+// survives with ended_at = NULL, and bookSlotAction accepts ANY active ownership
+// role, so a non-owner booker holds an appointment whose ownerUserId is their
+// own id. Through such a surviving row a THIRD PARTY (the foster, the non-owner
+// booker, an adoption applicant, a welfare reporter) kept seeing the erased
+// pet's NAME and a working link.
+//
+// THIS SWEEP NOW WALKS THE ENTIRE app/(app) TREE. Its FIRST version scoped only
+// cuenta/transitos + mis-turnos and said so in a SCOPE note that flagged the
+// rest of app/(app) as un-audited debt. A follow-up measurement found ~8 more
+// under-guarded readers under app/(app) — cuenta/chapas, denuncias/[id], three
+// mis-mascotas subpages that resolve access INLINE (asistencia, buscar-hogar,
+// devolucion) rather than through resolvePetHolderAccess, the IntentApplyBanner
+// (a shelter_custody adoption listing that survives a rehome-R4 titular's
+// erasure), and both turnos/buscar readers (the booking pet picker + the
+// jurisdiction prefill). All were filtered in the same change; the old scope
+// note is gone because the scope is now the whole tree.
 //
 // Same counting rule as the sweeps above (`guards >= reads`, comments and
 // imports stripped), same stated blind spots. Post-fix the exception list is
-// EMPTY — every file under these two roots is fully guarded, so any new
-// under-guarded read here fails immediately. If a genuine guard-at-origin shape
-// ever appears (reads all scoped by a petIds list bounded elsewhere), it gets a
-// pin naming the origin, exactly like ORG_GUARD_AT_ORIGIN — never a cosmetic
-// filter to quiet this sweep.
+// EMPTY — every direct `pets` read under app/(app) is DIRECTLY guarded, so any
+// new under-guarded read here fails immediately.
 //
-// SCOPE (honest boundary): this sweep covers ONLY app/(app)/cuenta/transitos
-// and app/(app)/mis-turnos — the two neighborhoods fixed in this change. The
-// wider app/(app) tree (turnos/buscar, cuenta/chapas, denuncias, several
-// mis-mascotas subpages) still holds unguarded pets reads that were NOT audited
-// here; do not read this sweep's green as coverage of those.
+// WHAT THIS SWEEP DOES NOT SEE, and why it needs no pins today: the many
+// mis-mascotas subpages that gate on resolvePetHolderAccess (lib/infra/
+// pet-access.ts, which already filters isNull(pets.deletedAt) on BOTH of its
+// paths) do NO direct `.from/join(pets)` of their own, so they never enter this
+// scan — their guard-at-origin is real but invisible here by construction, not
+// by exemption. If a genuine guard-at-origin shape ever appears IN this scan
+// (a file whose reads are all scoped by a petIds list bounded in ANOTHER file),
+// it gets a pin naming the origin, exactly like ORG_GUARD_AT_ORIGIN — never a
+// cosmetic filter to quiet this sweep.
 // ---------------------------------------------------------------------------
 
 type CitizenOriginPin = { reads: number; guards: number; origin: string };
 
-/** Empty by construction — every read under these roots is directly guarded. */
-const CITIZEN_GUARD_AT_ORIGIN: Record<string, CitizenOriginPin> = {};
+/**
+ * GUARD-AT-ORIGIN pins for app/(app). EMPTY by construction today: every direct
+ * `pets` read under app/(app) carries its own soft-delete term, and the subpages
+ * bounded upstream by resolvePetHolderAccess do no direct read so never reach
+ * this scan. A file whose reads are all scoped by a petIds list resolved
+ * elsewhere would flag here even with a real origin guard — that file gets a pin
+ * with the origin named, exactly like ORG_GUARD_AT_ORIGIN. None exists today.
+ */
+const APP_GUARD_AT_ORIGIN: Record<string, CitizenOriginPin> = {};
 
-const CITIZEN_SWEEP_ROOTS = [
-  join("app", "(app)", "cuenta", "transitos"),
-  join("app", "(app)", "mis-turnos"),
-];
+const APP_SWEEP_ROOT = join("app", "(app)");
 
-function scanCitizenTransitoTurnoReaders(): PetsReader[] {
+function scanAppTreePetsReaders(): PetsReader[] {
   const out: PetsReader[] = [];
-  for (const rootRel of CITIZEN_SWEEP_ROOTS) {
-    const root = resolve(ROOT, rootRel);
-    for (const entry of readdirSync(root, { withFileTypes: true, recursive: true })) {
-      if (!entry.isFile()) continue;
-      if (!entry.name.endsWith(".ts") && !entry.name.endsWith(".tsx")) continue;
-      if (entry.name.includes(".test.")) continue;
-      const full = join(entry.parentPath, entry.name);
-      const { reads, guards } = countPetsAccess(readFileSync(full, "utf8"));
-      if (reads === 0) continue;
-      out.push({ rel: full.slice(`${ROOT}`.length + 1).replaceAll("\\", "/"), reads, guards });
-    }
+  const root = resolve(ROOT, APP_SWEEP_ROOT);
+  for (const entry of readdirSync(root, { withFileTypes: true, recursive: true })) {
+    if (!entry.isFile()) continue;
+    if (!entry.name.endsWith(".ts") && !entry.name.endsWith(".tsx")) continue;
+    if (entry.name.includes(".test.")) continue;
+    const full = join(entry.parentPath, entry.name);
+    const { reads, guards } = countPetsAccess(readFileSync(full, "utf8"));
+    if (reads === 0) continue;
+    out.push({ rel: full.slice(`${ROOT}`.length + 1).replaceAll("\\", "/"), reads, guards });
   }
   return out.sort((a, b) => a.rel.localeCompare(b.rel));
 }
 
-describe("every citizen tránsito/turno read of `pets` carries the soft-delete filter (art. 16)", () => {
-  const readers = scanCitizenTransitoTurnoReaders();
+describe("every app/(app) citizen read of `pets` carries the soft-delete filter (art. 16)", () => {
+  const readers = scanAppTreePetsReaders();
   const violations = readers.filter((r) => r.guards < r.reads);
 
   it("actually reaches the citizen surfaces it claims to check", () => {
     const rels = readers.map((r) => r.rel);
-    expect(readers.length).toBeGreaterThanOrEqual(6);
-    // Named anchors: the six screens this sweep was seeded FOR.
+    // 16 readers today; a floor well below that stays non-vacuous while
+    // tolerating a page being deleted, and still fails a graph walk that
+    // silently returns nothing.
+    expect(readers.length).toBeGreaterThanOrEqual(14);
+    // Named anchors: the six tránsito/turno screens the sweep was seeded for,
+    // plus the eight readers the widening to the whole app/(app) tree pulled in.
     expect(rels).toContain("app/(app)/cuenta/transitos/activos/page.tsx");
     expect(rels).toContain("app/(app)/cuenta/transitos/historial/page.tsx");
     expect(rels).toContain("app/(app)/cuenta/transitos/propuestas/page.tsx");
     expect(rels).toContain("app/(app)/cuenta/transitos/propuestas/[proposalToken]/page.tsx");
     expect(rels).toContain("app/(app)/mis-turnos/page.tsx");
     expect(rels).toContain("app/(app)/mis-turnos/[appointmentToken]/page.tsx");
+    expect(rels).toContain("app/(app)/cuenta/chapas/page.tsx");
+    expect(rels).toContain("app/(app)/denuncias/[id]/page.tsx");
+    expect(rels).toContain("app/(app)/mis-mascotas/[publicToken]/asistencia/page.tsx");
+    expect(rels).toContain("app/(app)/mis-mascotas/[publicToken]/buscar-hogar/page.tsx");
+    expect(rels).toContain("app/(app)/mis-mascotas/[publicToken]/devolucion/page.tsx");
+    expect(rels).toContain("app/(app)/mis-mascotas/_components/IntentApplyBanner.tsx");
+    expect(rels).toContain("app/(app)/turnos/buscar/page.tsx");
+    expect(rels).toContain("app/(app)/turnos/buscar/[offeringToken]/reservar/[slotId]/page.tsx");
   });
 
   it("has no under-guarded file outside the pinned guard-at-origin shapes", () => {
     const unexplained = violations.filter((r) => {
-      const pin = CITIZEN_GUARD_AT_ORIGIN[r.rel];
+      const pin = APP_GUARD_AT_ORIGIN[r.rel];
       return !pin || pin.reads !== r.reads || pin.guards !== r.guards;
     });
     expect(unexplained).toEqual([]);
   });
 
   it("carries no stale or drifted pin — a pin describes exactly what was reviewed", () => {
-    for (const [rel, pin] of Object.entries(CITIZEN_GUARD_AT_ORIGIN)) {
+    for (const [rel, pin] of Object.entries(APP_GUARD_AT_ORIGIN)) {
       const reader = readers.find((r) => r.rel === rel);
       expect(reader, `${rel} no longer reads pets — delete its pin`).toBeDefined();
       expect(

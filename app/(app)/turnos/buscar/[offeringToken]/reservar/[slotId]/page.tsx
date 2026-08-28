@@ -57,12 +57,16 @@ export default async function ReservarTurnoPage({
 
   // Deceased pets are excluded — a turno cannot be booked for them (Cowork
   // QA v3, B2). Same filter shape as lib/analytics/owner-dashboard.ts.
+  // Art. 16 (Ley 25.326): an erased pet reads as never registered. bookSlotAction
+  // accepts ANY active ownership role, and the erasure leaves a foster/co-owner
+  // row intact on the now-soft-deleted pet, so without pets.deletedAt IS NULL a
+  // non-owner booker would see the erased pet in this picker and book for it.
   const userPets = await db
     .select({ pet: pets })
     .from(pets)
     .innerJoin(ownerships, eq(ownerships.petId, pets.id))
     .where(
-      sql`${ownerships.ownerUserId} = ${user.id} AND ${ownerships.endedAt} IS NULL AND ${pets.status} <> 'deceased'`,
+      sql`${ownerships.ownerUserId} = ${user.id} AND ${ownerships.endedAt} IS NULL AND ${pets.status} <> 'deceased' AND ${pets.deletedAt} IS NULL`,
     )
     .orderBy(pets.name);
 

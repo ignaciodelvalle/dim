@@ -53,7 +53,13 @@ export default async function BuscarTurnosPage({
       })
       .from(pets)
       .innerJoin(ownerships, eq(ownerships.petId, pets.id))
-      .where(sql`${ownerships.ownerUserId} = ${user.id} AND ${ownerships.endedAt} IS NULL`)
+      // Art. 16 (Ley 25.326): an erased pet reads as never registered. This only
+      // prefills the search jurisdiction, but a foster/co-owner row survives the
+      // erasure, so without pets.deletedAt IS NULL an erased pet's location would
+      // still seed a live third party's search — a per-pet read of a dead row.
+      .where(
+        sql`${ownerships.ownerUserId} = ${user.id} AND ${ownerships.endedAt} IS NULL AND ${pets.deletedAt} IS NULL`,
+      )
       .orderBy(pets.createdAt)
       .limit(1);
 

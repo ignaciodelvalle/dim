@@ -48,6 +48,13 @@ export async function IntentApplyBanner() {
     .where(
       and(
         eq(pets.publicToken, petToken),
+        // Art. 16 (Ley 25.326): an erased pet reads as never registered. A
+        // shelter_custody row survives the erasure (rehome-by-titular R4: the
+        // org sponsors while the family keeps the animal), so if that titular
+        // erases their account the pet is soft-deleted while this listing row
+        // lives on — without this term the adoption applicant (a live third
+        // party) would still see the erased pet's name and a resume CTA.
+        isNull(pets.deletedAt),
         eq(ownerships.role, "shelter_custody"),
         isNull(ownerships.endedAt),
       ),

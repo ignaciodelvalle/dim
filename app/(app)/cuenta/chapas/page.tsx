@@ -27,24 +27,33 @@ async function loadTags(userId: string) {
       .where(and(eq(ownerships.ownerUserId, userId), isNull(ownerships.endedAt)))
   ).map((r) => r.petId);
 
-  return db
-    .select({
-      id: petTags.id,
-      serial: petTags.serial,
-      status: petTags.status,
-      activatedAt: petTags.activatedAt,
-      revokedAt: petTags.revokedAt,
-      petName: pets.name,
-      petToken: pets.publicToken,
-    })
-    .from(petTags)
-    .leftJoin(pets, eq(pets.id, petTags.petId))
-    .where(
-      ownedPetIds.length > 0
-        ? or(eq(petTags.activatedByUserId, userId), inArray(petTags.petId, ownedPetIds))
-        : eq(petTags.activatedByUserId, userId),
-    )
-    .orderBy(petTags.createdAt);
+  return (
+    db
+      .select({
+        id: petTags.id,
+        serial: petTags.serial,
+        status: petTags.status,
+        activatedAt: petTags.activatedAt,
+        revokedAt: petTags.revokedAt,
+        petName: pets.name,
+        petToken: pets.publicToken,
+      })
+      .from(petTags)
+      // Art. 16 (Ley 25.326): an erased pet reads as never registered. The guard
+      // lives in the leftJoin ON — not the WHERE — so the user's own tag stays
+      // listed (account-scoped surface, revoke still works) while the erased pet's
+      // name and token drop to null, exactly as lookupTagBySerial nulls the
+      // destination of an active chapa whose pet was erased. Reachable by a live
+      // third party: a co-owner's ownership row survives the erasure, so the
+      // erased petId lands in ownedPetIds below.
+      .leftJoin(pets, and(eq(pets.id, petTags.petId), isNull(pets.deletedAt)))
+      .where(
+        ownedPetIds.length > 0
+          ? or(eq(petTags.activatedByUserId, userId), inArray(petTags.petId, ownedPetIds))
+          : eq(petTags.activatedByUserId, userId),
+      )
+      .orderBy(petTags.createdAt)
+  );
 }
 
 export default async function ChapasPage() {

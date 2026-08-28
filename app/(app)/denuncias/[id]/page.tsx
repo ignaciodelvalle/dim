@@ -21,7 +21,7 @@ import {
   welfareReportStatusLabel,
   welfareReportSubjectKindLabel,
 } from "@/src/modules/welfare/domain/types";
-import { and, desc, eq } from "drizzle-orm";
+import { and, desc, eq, isNull } from "drizzle-orm";
 import { type CommentFormState, ReporterCommentForm } from "./_components/ReporterCommentForm";
 
 const LocationMap = dynamic(() => import("@/components/LocationMap"), {
@@ -107,7 +107,10 @@ export default async function WelfareReportDetailPage({
     const [petRow] = await db
       .select({ publicToken: pets.publicToken, name: pets.name })
       .from(pets)
-      .where(eq(pets.id, report.subjectPetId))
+      // Art. 16 (Ley 25.326): the reporter is a live third party (the report is
+      // scoped to reporterUserId, not the pet's owner), so an erased subject pet
+      // must read as never registered — no name, no token, no working link.
+      .where(and(eq(pets.id, report.subjectPetId), isNull(pets.deletedAt)))
       .limit(1);
     subjectPet = petRow ?? null;
   }

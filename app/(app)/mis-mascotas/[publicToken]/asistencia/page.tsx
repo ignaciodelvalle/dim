@@ -81,6 +81,12 @@ export default async function AsistenciaPage({
     .where(
       and(
         eq(pets.publicToken, publicToken),
+        // Art. 16 (Ley 25.326): an erased pet reads as never registered. This
+        // page resolves access INLINE (not through resolvePetHolderAccess), and
+        // the erasure only soft-deletes the role='owner' pet — a co-owner or
+        // foster keeps a live ownership row, so without this term a non-owner
+        // holder would still land on FriendlyOwnerOnlyPage naming the erased pet.
+        isNull(pets.deletedAt),
         eq(ownerships.ownerUserId, user.id),
         isNull(ownerships.endedAt),
       ),

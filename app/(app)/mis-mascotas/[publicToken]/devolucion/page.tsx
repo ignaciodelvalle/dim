@@ -63,6 +63,11 @@ export default async function DevolucionPage({
     .where(
       and(
         eq(pets.publicToken, publicToken),
+        // Art. 16 (Ley 25.326): an erased pet reads as never registered. Access
+        // is resolved INLINE here; the foster and co-owner branches are reachable
+        // by ownership rows the erasure leaves intact, so without this term a
+        // non-owner holder would still see the erased pet's name.
+        isNull(pets.deletedAt),
         eq(ownerships.ownerUserId, user.id),
         isNull(ownerships.endedAt),
       ),
