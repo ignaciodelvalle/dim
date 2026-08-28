@@ -293,21 +293,42 @@ export async function requirePetAccess(publicToken: string): Promise<PetAccessRe
  * pet is not a deceased one, and an erased owner's animal passes that gate
  * untouched.
  *
- * MEASURED BLAST RADIUS, derived from the tree rather than estimated:
- *   · 12 direct call sites of this function. ELEVEN carry no `deleted_at`
- *     guard of their own. The one that does is
+ * MEASURED BLAST RADIUS. The numbers below are a snapshot; THE METHOD IS THE
+ * PART THAT MATTERS, because a figure labelled "measured" that does not
+ * reproduce is worse than no figure — the next unit scopes from it. Re-derive
+ * rather than trust, with `bash scripts/derive-pet-access-callers.sh`, which is
+ * the exact command that produced these and prints them in this order.
+ *
+ * COUNTING RULES, stated because the first version of this comment got them
+ * wrong and read 60/34 instead of 54/29:
+ *   - production only — `app/`, `lib/`, `src/`, `.ts`/`.tsx`;
+ *   - AWAITED INVOCATIONS, not mentions: a guard named inside a docblock is not
+ *     a call site, and this file's docblocks name all three of them;
+ *   - `__tests__/` and `*.test.*` excluded — a test calling a guard is not a
+ *     surface that needs one;
+ *   - archived design docs excluded by construction (the sweep is over `.ts`
+ *     only; `docs/superpowers/specs/archive/*.md` contains `await
+ *     requirePetAccess(` and is not code);
+ *   - THIS FILE excluded — `requireAlivePetAccess` and `requireTitularAccess`
+ *     each `await requirePetAccess(...)`, which is internal composition, not an
+ *     independent consumer. Those two lines are the whole difference between 23
+ *     and 21.
+ *
+ * Snapshot, 2026-08-28:
+ *   · 11 direct consumers of this function. TEN carry no `deleted_at` guard of
+ *     their own. The one that does is
  *     `app/api/v1/pets/[publicToken]/photo/route.ts`, which added it after
  *     `__tests__/public-soft-delete-resolution.test.ts` flagged the module it
  *     calls — that fence is currently the only thing in the repo that notices
- *     this class, and it only watches modules reachable from `app/api/v1/**`.
- *   · 60 call sites of the three guards composed on top of this one
- *     (`requirePetAccess` 24, `requireAlivePetAccess` 18,
- *     `requireTitularAccess` 18) across 34 files. ZERO of those files carry a
- *     pet `deleted_at` guard — the only `deletedAt` string among all 34 is the
- *     comment further down THIS file, and it is about `profiles`, not `pets`.
+ *     this class, and it only watches modules reachable from `app/api/v1/**`,
+ *     which is why the web files below are invisible to it.
+ *   · 54 consumers of the three guards composed on top of this one
+ *     (`requirePetAccess` 21, `requireAlivePetAccess` 16,
+ *     `requireTitularAccess` 17) across 29 files. ZERO of those files mention
+ *     `pets.deletedAt` or `pets.deleted_at` at all.
  *
  * WHY IT IS NOT FIXED HERE. Adding `isNull(pets.deletedAt)` to both paths is
- * one line and is probably right, but it silently changes the answer for 72
+ * one line and is probably right, but it silently changes the answer for 65
  * call sites at once — including reads where a soft-deleted pet may be
  * something an operator is still meant to see (decomiso custody chains, govt
  * aggregates, the former-owner read grant below). That is a decision with a
