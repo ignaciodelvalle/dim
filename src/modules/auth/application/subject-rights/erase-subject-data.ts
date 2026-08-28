@@ -50,11 +50,16 @@ import type { EraseSubjectDataResult } from "./types";
 // logic here on the strength of this note.
 // ---------------------------------------------------------------------------
 
-// Storage objects the RPC cannot reach (SQL has no object-store access): pet
-// photos and event attachments hanging off the subject's owned pets. Each
-// attachment row's bucket is inferred from its shape — an attachment carrying an
-// event_id is an event attachment (private bucket); one with only a pet_id is a
-// pet photo (public bucket), mirroring lib/infra/storage.ts.
+// Storage objects the RPC cannot reach (SQL has no object-store access), in
+// THREE buckets, and the third one is reached differently from the other two:
+//
+//   · pet-photos and event-attachments — found through `attachments` rows on
+//     the subject's owned pets. Each row's bucket is inferred from its shape: a
+//     row carrying an event_id is an event attachment (private bucket); one
+//     with only a pet_id is a pet photo (public bucket), mirroring
+//     lib/infra/storage.ts.
+//   · uploads-staging — found by PREFIX, because a staged upload that was never
+//     confirmed has no row at all. See the sweep below.
 async function purgeOwnedPetAttachments(userId: string): Promise<void> {
   // Owned pets (active custody). ownerships rows survive the RPC (only pets are
   // soft-deleted), so this resolves correctly whether run before or after it.
@@ -78,6 +83,37 @@ async function purgeOwnedPetAttachments(userId: string): Promise<void> {
   const petIds = owned.map((o) => o.petId);
   if (petIds.length === 0) return;
 
+  const admin = createAdminClient();
+
+  // STAGED UPLOADS FIRST, and they are the one thing here that is NOT reachable
+  // from a row.
+  //
+  // The pet-photo door (0206) mints a signed upload URL into the private
+  // `uploads-staging` bucket and only writes an `attachments` row once the
+  // bytes have been validated. An upload that was ticketed and PUT but never
+  // confirmed therefore has NO row pointing at it — it is a photo of the
+  // subject's animal, in our object store, invisible to the `attachments` scan
+  // below. Erasure has to reach it by PREFIX, which is exactly why the staged
+  // key is `{petId}/…` rather than a flat UUID.
+  //
+  // Best-effort, like the removes further down: a supresión must not stall on a
+  // Storage hiccup. And it is the ONLY thing that removes an abandoned staged
+  // object — there is no storage GC cron in this repo for any bucket (RN-4 A9),
+  // so for a subject exercising art. 16 this loop is not a belt-and-braces
+  // sweep, it is the sweep.
+  for (const petId of petIds) {
+    try {
+      const listed = await admin.storage.from("uploads-staging").list(petId);
+      const paths = (listed.data ?? []).map((entry) => `${petId}/${entry.name}`);
+      if (paths.length > 0) await admin.storage.from("uploads-staging").remove(paths);
+    } catch (err) {
+      console.warn("[erase-subject-data] staged-upload sweep failed", {
+        petId,
+        message: err instanceof Error ? err.message : String(err),
+      });
+    }
+  }
+
   // Event attachments carry pet_id too (schema.ts), so `pet_id IN (owned)`
   // captures both pet photos and event attachments on the subject's pets.
   const rows = await db
@@ -93,7 +129,6 @@ async function purgeOwnedPetAttachments(userId: string): Promise<void> {
   const eventPaths = rows.filter((r) => r.eventId !== null).map((r) => r.storagePath);
   const photoPaths = rows.filter((r) => r.eventId === null).map((r) => r.storagePath);
 
-  const admin = createAdminClient();
   if (eventPaths.length > 0) {
     await admin.storage.from("event-attachments").remove(eventPaths);
   }
