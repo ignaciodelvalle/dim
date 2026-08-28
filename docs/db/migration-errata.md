@@ -187,6 +187,41 @@ triggers.sql gets flagged until the two sources reconcile.
 
 ---
 
+## E-4 — `0206_uploads_staging_bucket.sql`: the lifecycle note calls a rate limit a bound
+
+| | |
+|---|---|
+| **File** | `db/migrations/0206_uploads_staging_bucket.sql` |
+| **Lines** | 80–85 (the "WHAT IS LEFT" lifecycle note) |
+| **Nature** | Comments only. **The SQL is correct** — the bucket, its two limits and the DO-block fence all do what the header says. |
+| **Recorded** | 2026-08-28, from the uploads-firmados review |
+
+### What the file claims vs. what is true
+
+| Line | The file says | Actually |
+|---|---|---|
+| 80 | abandoned staged uploads are "**bounded** rather than collected, and the bounds are real" | They are **not bounded**. Nothing caps the total and nothing collects them. |
+| 81–85 | offers the `media-upload` rate-limit family as one of those bounds | 120 requests/day/account is a **slope**, not a ceiling: ~600 MB/day/account at 5 MiB each, and unbounded in time. |
+
+### The truth, and how it was verified
+
+Exactly two things delete a staged object, and **both are event-triggered, neither scheduled**:
+
+1. `confirmPetPhoto` (`lib/infra/pet-photo-upload.ts`) — on every path out, success and both refusals alike.
+2. `purgeOwnedPetAttachments` (`erase-subject-data.ts`) — only when the subject erases their account.
+
+An account that mints tickets, uploads, and never confirms — and never erases — leaves objects nothing will ever remove. Verified by enumerating the deleters: a single `rg` for `uploads-staging` across the tree returns those two call sites plus the migration and the contract, with no scheduled sweeper among them. RN-4 A9 is the general statement of the same fact: **no storage GC cron exists for any bucket** ("24 crons, none touches storage").
+
+What *is* true is smaller and worth keeping: the objects are private and unreadable by any caller role, so this is storage cost and hygiene and **not** disclosure; each is capped at 5 MiB by the bucket; and every staged object is attributable to an account and a pet, because minting requires an authenticated holder — which is what will make a sweeper straightforward to write, and is not itself a sweeper.
+
+### Why an erratum and not an edit
+
+The table further down permits editing a **local-dev-only** file whose flaw is prose, and `0206` is in exactly that position on this machine — the ledger returns one row for it, applied 2026-08-28. The edit was **not** taken, because that same section says "'local only' is a claim about the world" and names `pnpm db:doctor -- --allow-remote` against staging as the way to check it rather than assume it. That check was not run here, and the branch has since been pushed. An erratum is correct whether or not `0206` has reached staging; an edit is correct only under a premise nobody verified. When the cheaper answer needs an unverified premise, take the more expensive one.
+
+The live correction also exists at the code site — the `confirmPetPhoto` docblock in `lib/infra/pet-photo-upload.ts` — because that is where a reader of the upload path is standing. This entry is what a reader of the **migration** finds, which is the audience the header of this document names.
+
+---
+
 ## The one case where editing the file IS the honest move
 
 The closing rule below says a wrong SQL effect is not an erratum — it is a new
