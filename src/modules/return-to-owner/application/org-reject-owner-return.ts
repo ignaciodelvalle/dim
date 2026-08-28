@@ -7,10 +7,11 @@
 //   1. Look up pet, re-verify pending proposal for this org.
 //   2. In a tx: emit custody_transfer_cancelled, notify the owner.
 
-import { eq, sql } from "drizzle-orm";
+import { sql } from "drizzle-orm";
 
 import { db, notifications, petEvents, pets } from "@/db";
 import { validateEventPayload } from "@/lib/events/event-schemas";
+import { unerasedPetByToken } from "@/lib/infra/public-pet-lookup";
 
 import type { OrgRejectOwnerReturnResult } from "../domain/types";
 import { fetchPendingOwnerReturnProposalForOrg } from "./proposal-queries";
@@ -31,7 +32,8 @@ export async function orgRejectOwnerReturnUseCase({
   const [petRow] = await db
     .select({ pet: pets })
     .from(pets)
-    .where(eq(pets.publicToken, petPublicToken))
+    // Art. 16: an erased pet answers like a token that never existed.
+    .where(unerasedPetByToken(petPublicToken))
     .limit(1);
   if (!petRow) return { error: "Mascota no encontrada." };
   const pet = petRow.pet;

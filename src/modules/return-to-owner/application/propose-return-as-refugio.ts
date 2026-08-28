@@ -17,6 +17,7 @@ import { and, eq, isNull, sql } from "drizzle-orm";
 
 import { cases, db, notifications, ownerships, petEvents, pets, profiles } from "@/db";
 import { validateEventPayload } from "@/lib/events/event-schemas";
+import { unerasedPetByToken } from "@/lib/infra/public-pet-lookup";
 
 import type { ProposeReturnResult } from "../domain/types";
 import { hasPendingProposal } from "./proposal-queries";
@@ -38,7 +39,8 @@ export async function proposeReturnAsRefugioUseCase({
   const [petRow] = await db
     .select({ pet: pets })
     .from(pets)
-    .where(eq(pets.publicToken, petPublicToken))
+    // Art. 16: an erased pet answers like a token that never existed.
+    .where(unerasedPetByToken(petPublicToken))
     .limit(1);
   if (!petRow) return { error: "Mascota no encontrada." };
   const pet = petRow.pet;

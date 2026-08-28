@@ -17,6 +17,7 @@ import { and, eq, isNull } from "drizzle-orm";
 
 import { db, ownerships, pets } from "@/db";
 import { requireOrgAccessByToken, requireUserOrRedirect } from "@/lib/infra/auth-guards";
+import { unerasedPetByToken } from "@/lib/infra/public-pet-lookup";
 import { getGrantedCapabilities } from "@/src/modules/organizations/infrastructure/authz-resolver";
 
 // Writer-pattern inner functions are NOT re-exported from this "use server"
@@ -174,7 +175,9 @@ export async function ownerProposeReturnToOrgAction({
   const [petRow] = await db
     .select({ id: pets.id })
     .from(pets)
-    .where(eq(pets.publicToken, petPublicToken))
+    // Art. 16: defense in depth — the writer re-resolves through the same
+    // guard, but this pre-resolution must not see the erased pet either.
+    .where(unerasedPetByToken(petPublicToken))
     .limit(1);
   if (!petRow) return { error: "Mascota no encontrada." };
 

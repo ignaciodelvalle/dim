@@ -22,6 +22,7 @@ import {
   findLiveOrgShelterCustody,
   isOrgCustodyCollision,
 } from "@/lib/infra/org-custody";
+import { unerasedPetByToken } from "@/lib/infra/public-pet-lookup";
 
 import type { OrgAcceptOwnerReturnResult } from "../domain/types";
 import { fetchPendingOwnerReturnProposalForOrg } from "./proposal-queries";
@@ -40,7 +41,8 @@ export async function orgAcceptOwnerReturnUseCase({
   const [petRow] = await db
     .select({ pet: pets })
     .from(pets)
-    .where(eq(pets.publicToken, petPublicToken))
+    // Art. 16: an erased pet answers like a token that never existed.
+    .where(unerasedPetByToken(petPublicToken))
     .limit(1);
   if (!petRow) return { error: "Mascota no encontrada." };
   const pet = petRow.pet;
