@@ -100,10 +100,19 @@ export async function logScan(publicToken: string, opts?: { coords?: ScanCoords 
     if (err instanceof RateLimitError) return;
   }
 
+  // ART. 16 (Ley 25.326) — a soft-deleted pet reads as NEVER REGISTERED to
+  // civil surfaces. The public credential page already 404s for it, but this
+  // use-case is reachable directly via the @no-auth-required logScanAction with
+  // a token saved before deletion (an old QR). Without the isNull(deletedAt)
+  // term the erased pet's row still returns here, so the scan would be logged
+  // AND notifyOwnerOfFirstStrangerScan would fire at a surviving co-owner (the
+  // erasure RPC soft-deletes the pet but never ends ownership rows) — telling a
+  // live person about scan activity on a pet civil surfaces call never-existed.
+  // Filtering deleted_at makes `if (!pet) return;` short-circuit the erased pet.
   const [pet] = await db
     .select({ id: pets.id, status: pets.status, name: pets.name })
     .from(pets)
-    .where(eq(pets.publicToken, publicToken))
+    .where(and(eq(pets.publicToken, publicToken), isNull(pets.deletedAt)))
     .limit(1);
   if (!pet) return;
 

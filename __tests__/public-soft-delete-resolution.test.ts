@@ -976,10 +976,6 @@ const SOFT_DELETE_DEBT = new Map<string, string>([
     "lib/infra/caretaker-public-contact.ts",
     "Joins pets to decide the lost-mode caretaker disclosure. Its caller resolves the pet through the guard first, so it is reachable only for a live pet today — an assumption nothing enforces.",
   ],
-  [
-    "src/modules/pets/application/scans/log-scan.ts",
-    "Hand-rolled eq(pets.publicToken). Records a scan against an erased pet and can fire the owner alert.",
-  ],
 ]);
 
 function publicOnlyModules(): string[] {
