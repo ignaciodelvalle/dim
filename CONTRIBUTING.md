@@ -81,6 +81,55 @@ also runs nightly against staging (`.github/workflows/e2e-nightly.yml`).
 
 If a step fails on your branch but passes on `develop`, your branch is the source. Fix it before opening the PR.
 
+## Adding a scheduled workflow (nightlies, crons, health probes)
+
+> **A scheduled fence must check out the code it is meant to guard, and a
+> workflow that is not on the default branch does not run at all.**
+
+Both halves are properties of GitHub's `schedule:` trigger and both fail
+silently, so read them before adding a `cron:` to anything.
+
+1. **`schedule:` is read only from the default branch.** A workflow file that
+   lives on a feature or integration branch has no schedule. Not a late
+   schedule — none. It sits in `.github/workflows/` looking exactly like a
+   fence and has never executed once. The only fix is a merge to `main`;
+   nothing you can write in the file changes it. Precedent: `1a32c926d`
+   (*"el cron nocturno necesita vivir en main"*) learned this for db-doctor
+   and did not generalise it, so the next two nightlies repeated it.
+2. **A schedule run checks out the default branch too.** Staging deploys from
+   `integration/all-*`, and on 2026-08-27 `main` was **3876 commits** behind
+   it. Every nightly was therefore grading three-week-old code against a live
+   app. Give each scheduled checkout an explicit
+   `ref: <the branch staging ships from>`.
+
+What this actually cost, before anyone looked:
+
+| Workflow | Runs | Green | Cause |
+|---|---|---|---|
+| `e2e-nightly.yml` | 20 | **0** | Ran `main`'s `loginAs`, which the `/login` → `/iniciar-sesion` 308 broke. Fixed 2026-08-10 in `63c093065`; the nightly never checked that commit out. |
+| `db-doctor-staging.yml` | 12 | **0** | Compared `main`'s `db/migrations/` (stops at 0170) against staging's ledger (0202) and reported the gap as drift. Sections B and C, which query the DB directly, passed in the same run. |
+| `mobile-export-nightly.yml` | **0** | — | Not on `main`. |
+| `panorama-qa-nightly.yml` | **0** | — | Not on `main`. |
+
+`pnpm lint:sched-refs` (`scripts/check-scheduled-fence-refs.ts`, in `verify` and
+in CI) enforces both halves and is the **single place** the deploy branch name is
+decided — rename or merge the branch and it fails naming every workflow line to
+change. Exemptions live there too, each with the argument that justifies it, and
+are checked in both directions so one cannot outlive its reason. `codeql.yml` is
+the standing exemption: its SARIF is attributed to the ref that triggered the
+run, so a schedule must keep scanning the default branch or it files alerts
+against `main` for code not in `main`.
+
+**Also give it an alarm.** GitHub's failed-workflow email fires on the
+green → red *transition*. A fence whose first run is already red never
+transitions, so it never mails anybody — which is how 32 consecutive failures
+across two workflows went unannounced. Wire the
+`.github/actions/red-streak-alert` composite action into any new scheduled gate:
+it keys on the consecutive-failure **streak**, opens one issue, keeps it current,
+and closes it on recovery. It uses the per-run `GITHUB_TOKEN` and needs no secret
+— deliberately, because an absent secret would turn alerting back into a silent
+no-op.
+
 ## Writing a new event type
 
 Event-sourced state changes (anything that mutates `pet_events`, opens a `case`, or emits a `notification`) are the hot path. Walk through **[docs/event-design-checklist.md](./docs/event-design-checklist.md)** before writing any code — it covers cross-cutting pattern selection, projection target, auto-close cron + idempotency, payload Zod schema with `schemaVersion`, libreta vs non-libreta, dashboard consumers, and the required test surface. If you can't answer one of those questions, the design isn't ready — write the spec first.
