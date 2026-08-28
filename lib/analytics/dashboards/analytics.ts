@@ -148,6 +148,17 @@ export async function fetchAnalyticsMetrics(
   const petsScope = petsScopeClause(actor, jurisdictions, adminProvince, adminLocality);
 
   // 1. totalPets: active or lost in scope.
+  //
+  // DELIBERATELY NO pets.deleted_at FILTER, here or in the joins below.
+  // Art. 16 (Ley 25.326) retires the animal's IDENTITY, not the fact that it
+  // was registered: these are jurisdiction-level aggregates that carry no
+  // token, no name, no per-pet row — nothing an erasure is entitled to remove
+  // from a census. The repo-wide line is: per-pet surfaces exclude
+  // soft-deleted pets; identity-free aggregates include them (same stance as
+  // lib/metrics/census.ts). An earlier record claimed this module "aggregates
+  // by event, with no roster join" — false (this count reads FROM pets and
+  // several sub-queries inner-join it); the join is real, the reason to leave
+  // it unfiltered is that aggregates carry no identity.
   const totalConditions = [sql`${pets.status} IN ('active', 'lost')`];
   if (petsScope) totalConditions.push(sql`(${petsScope})`);
 

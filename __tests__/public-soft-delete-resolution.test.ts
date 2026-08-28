@@ -59,6 +59,9 @@ import {
   fetchActiveAdoptions,
   fetchAvailableForAdoption,
   fetchIntakesLastWeek,
+  fetchOrgQueueCounts,
+  fetchOrgQueueSignals,
+  fetchRequiresAction,
 } from "@/lib/analytics/org-dashboard";
 import { generateIntakeMatchClaim } from "@/lib/infra/intake-match-claim";
 import { resolvePetHolderAccess } from "@/lib/infra/pet-access";
@@ -66,7 +69,20 @@ import { publicPetByToken } from "@/lib/infra/public-pet-lookup";
 import { generateTagActivationCode, generateTagSerial } from "@/lib/infra/publicToken";
 import { lookupTagBySerial } from "@/lib/infra/tag-lookup";
 import { hashTagActivationCode } from "@/lib/utils/tag-code-hash";
+import { AdoptionRepository } from "@/src/modules/adoption/infrastructure/adoption-repository";
+import { FosterRepository } from "@/src/modules/foster/infrastructure/foster-repository";
 import { confirmChipMatchAsRefugioWriter } from "@/src/modules/pets/application/chip-match/confirm-chip-match-refugio";
+import { confirmChipMatchAsVecinoWriter } from "@/src/modules/pets/application/chip-match/confirm-chip-match-vecino";
+import { RehomeRepository } from "@/src/modules/rehome/infrastructure/rehome-repository";
+import { actorCancelProposalUseCase } from "@/src/modules/return-to-owner/application/actor-cancel-proposal";
+import { orgAcceptOwnerReturnUseCase } from "@/src/modules/return-to-owner/application/org-accept-owner-return";
+import { orgRejectOwnerReturnUseCase } from "@/src/modules/return-to-owner/application/org-reject-owner-return";
+import { ownerAcceptReturnUseCase } from "@/src/modules/return-to-owner/application/owner-accept-return";
+import { ownerProposeReturnToOrgUseCase } from "@/src/modules/return-to-owner/application/owner-propose-return-to-org";
+import { ownerRejectReturnUseCase } from "@/src/modules/return-to-owner/application/owner-reject-return";
+import { proposeReturnAsRefugioUseCase } from "@/src/modules/return-to-owner/application/propose-return-as-refugio";
+import { proposeReturnAsVecinoUseCase } from "@/src/modules/return-to-owner/application/propose-return-as-vecino";
+import { TransfersRepository } from "@/src/modules/transfers/infrastructure/transfers-repository";
 import { withMutationOverride } from "./_helpers/db-overrides";
 import { ROOT, directDeps } from "./db-reachability";
 
@@ -253,11 +269,17 @@ beforeAll(async () => {
   // One open adoption application + one fresh intake per pet, so each org
   // KPI has exactly one row on each side of the erasure line.
   const now = new Date();
+  // The ERASED pet's application is 10 days OLDER than the live one on
+  // purpose: signalActiveAdoptions reports the age of the OLDEST pending
+  // application, so with the art. 16 filter the signal reads 0 days (the live
+  // pet's) and with the filter reverted it reads 10 (the erased pet's) — the
+  // asymmetry is what makes that pin mutation-sensitive.
+  const tenDaysAgo = new Date(now.getTime() - 10 * 24 * 60 * 60 * 1000);
   await db.insert(petEvents).values([
     {
       petId: erasedPetId,
       eventType: "adoption_application_submitted",
-      occurredAt: now,
+      occurredAt: tenDaysAgo,
       recordedByUserId: keeperUserId,
       payload: { applicant_user_id: keeperUserId, housing_type: "house" },
     },
@@ -285,6 +307,42 @@ beforeAll(async () => {
       authorRole: "shelter",
       authorOrganizationId: sponsorOrgId,
       payload: {},
+    },
+  ]);
+
+  // ------------------------------------------------------------------------
+  // Custody-writers unit fixtures (art. 16 follow-up #2). Also seeded BEFORE
+  // the erasure: ownerships and pet_events survive it by design, so these
+  // rows are exactly the survivors the counters read the morning after.
+  // ------------------------------------------------------------------------
+
+  // A live foster row on each pet: countActiveFosters' population is custody
+  // rows that ALSO carry a live foster. The holder is the soon-to-be-erased
+  // subject on purpose — erasure never touches ownerships (#899 scoped it to
+  // role='owner' PETS, not rows), and no other test resolves this user.
+  await db.insert(ownerships).values([
+    { petId: erasedPetId, ownerUserId: erasedUserId, role: "foster" },
+    { petId: movedPetId, ownerUserId: erasedUserId, role: "foster" },
+  ]);
+
+  // One vaccination per pet whose next dose is overdue: fetchRequiresAction's
+  // overdue_vaccine flag, on both sides of the erasure line.
+  await db.insert(petEvents).values([
+    {
+      petId: erasedPetId,
+      eventType: "vaccination_administered",
+      occurredAt: tenDaysAgo,
+      recordedByUserId: sponsorUserId,
+      proximaDosisAt: "2026-01-01",
+      payload: { vaccine_name: "Sextuple" },
+    },
+    {
+      petId: movedPetId,
+      eventType: "vaccination_administered",
+      occurredAt: tenDaysAgo,
+      recordedByUserId: sponsorUserId,
+      proximaDosisAt: "2026-01-01",
+      payload: { vaccine_name: "Sextuple" },
     },
   ]);
 
@@ -500,6 +558,241 @@ describe("chip-match confirm — an erased pet reads as never-existed (shape B w
       decision: "not_same",
     });
     expect(result).toEqual({ ok: true });
+  });
+});
+
+describe("chip-match confirm vecino — pinned the day the 'not invocable from vitest' claim fell", () => {
+  // The sibling refugio writer was mutation-proved above; this one was left
+  // unpinned behind a claim that it could not be invoked from vitest. It takes
+  // plain args like everything else in this file. The filter sits BEFORE the
+  // chip-proof gate, so erased == never-existed even for a caller who cannot
+  // produce the chip.
+
+  it("refuses the erased pet with the never-existed copy, without a chip", async () => {
+    const result = await confirmChipMatchAsVecinoWriter({
+      userId: sponsorUserId,
+      matchedPetToken: TOKEN_ERASED,
+      attemptedMicrochipId: "999999999999999",
+      decision: "not_same",
+    });
+    expect(result).toEqual({ error: "Mascota no encontrada." });
+  });
+
+  it("non-vacuity: the live pet passes resolution and fails on the chip proof instead", async () => {
+    // Reverting the filter routes the erased pet here too — a different copy,
+    // which is what turns the mutation red.
+    const result = await confirmChipMatchAsVecinoWriter({
+      userId: sponsorUserId,
+      matchedPetToken: TOKEN_MOVED,
+      attemptedMicrochipId: "999999999999999",
+      decision: "not_same",
+    });
+    expect(result).toEqual({
+      error:
+        "No pudimos verificar la coincidencia de microchip. Volvé a ingresar el número y reintentá.",
+    });
+  });
+});
+
+describe("return-to-owner writers — an erased pet reads as never-existed (shape A write)", () => {
+  // The ALTA of the custody-writers unit. propose-return-as-vecino is gated
+  // only by a shelter_custody row and status='lost', BOTH of which survive
+  // erasure — so before the filter, any ordinary live custodian could append
+  // a custody_transfer_proposed event onto the erased spine AND fire an
+  // urgent "Devolución propuesta de {name}" notification into the erased
+  // owner's account, republishing the name the erasure retired. The family
+  // resolves inline (not through a repository), which is how a
+  // repository-shaped sweep missed it.
+  //
+  // Every writer resolves the token FIRST and each writer's SECOND gate uses
+  // a different copy, so each refusal below is its own mutation tripwire:
+  // revert one call site's filter and exactly that test answers the second
+  // gate's copy instead.
+
+  const NOT_FOUND = { error: "Mascota no encontrada." };
+  const orgArgs = () => ({
+    orgId: sponsorOrgId,
+    orgDisplayName: "Refugio PO4 Sponsor",
+    actingUserId: sponsorUserId,
+  });
+
+  it("propose-return-as-vecino refuses the erased pet", async () => {
+    expect(
+      await proposeReturnAsVecinoUseCase({
+        userId: sponsorUserId,
+        petPublicToken: TOKEN_ERASED,
+        notes: null,
+      }),
+    ).toEqual(NOT_FOUND);
+  });
+
+  it("propose-return-as-refugio refuses the erased pet", async () => {
+    expect(
+      await proposeReturnAsRefugioUseCase({
+        userId: sponsorUserId,
+        organization: { id: sponsorOrgId, displayName: "Refugio PO4 Sponsor" },
+        petPublicToken: TOKEN_ERASED,
+        notes: null,
+      }),
+    ).toEqual(NOT_FOUND);
+  });
+
+  it("owner-propose-return-to-org refuses the erased pet", async () => {
+    expect(
+      await ownerProposeReturnToOrgUseCase({
+        userId: keeperUserId,
+        petPublicToken: TOKEN_ERASED,
+        reason: "moving",
+        notes: null,
+        proposedAt: new Date().toISOString(),
+      }),
+    ).toEqual(NOT_FOUND);
+  });
+
+  it("owner-accept-return refuses the erased pet", async () => {
+    expect(
+      await ownerAcceptReturnUseCase({ userId: keeperUserId, petPublicToken: TOKEN_ERASED }),
+    ).toEqual(NOT_FOUND);
+  });
+
+  it("owner-reject-return refuses the erased pet", async () => {
+    expect(
+      await ownerRejectReturnUseCase({
+        userId: keeperUserId,
+        petPublicToken: TOKEN_ERASED,
+        reason: "no",
+      }),
+    ).toEqual(NOT_FOUND);
+  });
+
+  it("org-accept-owner-return refuses the erased pet", async () => {
+    expect(
+      await orgAcceptOwnerReturnUseCase({ ...orgArgs(), petPublicToken: TOKEN_ERASED }),
+    ).toEqual(NOT_FOUND);
+  });
+
+  it("org-reject-owner-return refuses the erased pet", async () => {
+    expect(
+      await orgRejectOwnerReturnUseCase({
+        ...orgArgs(),
+        petPublicToken: TOKEN_ERASED,
+        reason: "no",
+      }),
+    ).toEqual(NOT_FOUND);
+  });
+
+  it("actor-cancel-proposal refuses the erased pet", async () => {
+    expect(
+      await actorCancelProposalUseCase({
+        userId: sponsorUserId,
+        petPublicToken: TOKEN_ERASED,
+        reason: "cancel",
+      }),
+    ).toEqual(NOT_FOUND);
+  });
+
+  it("non-vacuity: the live pet passes resolution and fails on the NEXT gate instead", async () => {
+    // status='active' and no pending proposal, so a RESOLVED pet answers a
+    // later gate's copy — proof the refusals above came from the token filter,
+    // not from writers that refuse everything.
+    expect(
+      await proposeReturnAsVecinoUseCase({
+        userId: sponsorUserId,
+        petPublicToken: TOKEN_MOVED,
+        notes: null,
+      }),
+    ).toEqual({ error: "La mascota no está en estado 'perdida' (estado actual: active)." });
+    expect(
+      await orgAcceptOwnerReturnUseCase({ ...orgArgs(), petPublicToken: TOKEN_MOVED }),
+    ).toEqual({ error: "No hay propuesta de devolución pendiente para esta mascota." });
+  });
+});
+
+describe("custody repository resolvers — an erased pet resolves null (shape B)", () => {
+  // The six token→pet resolvers the previous unit deferred on purpose: each
+  // is fronted by a caller-scoped custody predicate, so reaching one takes
+  // the org that legitimately held the animal — lower exposure than the
+  // writers above, same class. All of them now resolve through
+  // publicPetByToken (ONE guarded helper, not eight hand-rolled filters).
+  // Each pair below is one resolver's own mutation tripwire: revert its call
+  // site and exactly that pair goes red — the live half is the per-resolver
+  // non-vacuity floor.
+
+  it("FosterRepository.findShelterPetByToken drops the erased pet, keeps the live one", async () => {
+    expect(await FosterRepository.findShelterPetByToken(TOKEN_ERASED, sponsorOrgId)).toBeNull();
+    const live = await FosterRepository.findShelterPetByToken(TOKEN_MOVED, sponsorOrgId);
+    expect(live?.id).toBe(movedPetId);
+  });
+
+  it("FosterRepository.findPetByToken drops the erased pet, keeps the live one", async () => {
+    expect(await FosterRepository.findPetByToken(TOKEN_ERASED)).toBeNull();
+    expect((await FosterRepository.findPetByToken(TOKEN_MOVED))?.id).toBe(movedPetId);
+  });
+
+  it("TransfersRepository.findPetByToken drops the erased pet, keeps the live one", async () => {
+    expect(await TransfersRepository.findPetByToken(TOKEN_ERASED)).toBeNull();
+    expect((await TransfersRepository.findPetByToken(TOKEN_MOVED))?.id).toBe(movedPetId);
+  });
+
+  it("TransfersRepository.findPetUnderOrg drops the erased pet, keeps the live one", async () => {
+    expect(await TransfersRepository.findPetUnderOrg(TOKEN_ERASED, sponsorOrgId)).toBeNull();
+    const live = await TransfersRepository.findPetUnderOrg(TOKEN_MOVED, sponsorOrgId);
+    expect(live?.pet.id).toBe(movedPetId);
+  });
+
+  it("AdoptionRepository.findShelterPet drops the erased pet, keeps the live one", async () => {
+    expect(await AdoptionRepository.findShelterPet(TOKEN_ERASED, sponsorOrgId)).toBeNull();
+    const live = await AdoptionRepository.findShelterPet(TOKEN_MOVED, sponsorOrgId);
+    expect(live?.id).toBe(movedPetId);
+  });
+
+  it("AdoptionRepository.findPetForApplication drops the erased pet, keeps the live one", async () => {
+    expect(await AdoptionRepository.findPetForApplication(TOKEN_ERASED)).toBeNull();
+    const live = await AdoptionRepository.findPetForApplication(TOKEN_MOVED);
+    expect(live?.pet.id).toBe(movedPetId);
+  });
+
+  it("AdoptionRepository.findPetByToken drops the erased pet, keeps the live one", async () => {
+    expect(await AdoptionRepository.findPetByToken(TOKEN_ERASED)).toBeNull();
+    expect((await AdoptionRepository.findPetByToken(TOKEN_MOVED))?.id).toBe(movedPetId);
+  });
+
+  it("RehomeRepository.findPetByToken drops the erased pet, keeps the live one", async () => {
+    expect(await RehomeRepository.findPetByToken(TOKEN_ERASED)).toBeNull();
+    expect((await RehomeRepository.findPetByToken(TOKEN_MOVED))?.id).toBe(movedPetId);
+  });
+});
+
+describe("org queue projections — pinned the day the 'not invocable from vitest' claim fell", () => {
+  // countActiveFosters / signalActiveAdoptions / fetchRequiresAction carry
+  // their art. 16 filters since the thirteen-surfaces unit, but were left
+  // unpinned behind the same false claim as the vecino writer. They are
+  // reachable through exported functions like everything else here; the
+  // honest cost was FIXTURES, paid above (foster rows, an aged application,
+  // overdue vaccinations). fetchTodayAgenda and countOverdueCheckins stay
+  // unpinned — their fixture worlds (appointments stack; a second pet pair
+  // with adoption_finalized, which would zero fetchActiveAdoptions here) are
+  // not paid in this file, and the registry says so.
+
+  it("countActiveFosters (via fetchOrgQueueCounts) counts only the live pet's foster", async () => {
+    const counts = await fetchOrgQueueCounts(sponsorOrgId, ["activeFosters"]);
+    expect(counts.activeFosters).toBe(1);
+  });
+
+  it("signalActiveAdoptions (via fetchOrgQueueSignals) ages only the live application", async () => {
+    const signals = await fetchOrgQueueSignals(sponsorOrgId, ["activeAdoptions"]);
+    // The erased pet's application is 10 days old; the live one is from today.
+    // <= 1 (not 0) so an AR-midnight boundary between fixture and assertion
+    // cannot flake this — still an order of magnitude away from the 10 the
+    // reverted filter reports.
+    expect(signals.activeAdoptions?.oldestAgeDays).toBeLessThanOrEqual(1);
+  });
+
+  it("fetchRequiresAction flags only the live pet's overdue vaccine", async () => {
+    const items = await fetchRequiresAction(sponsorOrgId);
+    const ids = items.map((i) => i.petId);
+    expect(ids).toContain(movedPetId);
+    expect(ids).not.toContain(erasedPetId);
   });
 });
 
