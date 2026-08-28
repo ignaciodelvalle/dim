@@ -76,6 +76,8 @@ import {
   type PetEventDetailV1,
   type PetLibretaV1,
   type PetLostV1,
+  type PetPhotoTicketV1,
+  type PetPhotoUpdatedV1,
   type PetRegisteredV1,
   type PetSharesV1,
   type ShareCommandAckV1,
@@ -87,6 +89,7 @@ import type {
   CaretakerCommandInput,
   LostCommandInput,
   NotificationCommandInput,
+  PetPhotoContentType,
   RecordEventInput,
   RegisterPetInput,
   ShareCommandInput,
@@ -732,6 +735,117 @@ export function sendNotificationCommand(
 ): Promise<ApiResult<NotificationCommandAckV1>> {
   return apiRequest<NotificationCommandAckV1>(
     { path: "/api/v1/me/notifications", method: "POST", body: input },
+    session,
+  );
+}
+
+/**
+ * `POST /pets/{publicToken}/photo` — step 1 of 3. Ask for an upload ticket.
+ *
+ * THE FIRST WRITE ON THIS SURFACE THAT DOES NOT END WITH THE SERVER HOLDING THE
+ * DATA. It hands back a bearer capability to write ONE object into a private
+ * staging bucket; `uploadPetPhotoBytes` spends it, and `confirmPetPhoto` is what
+ * turns the result into the animal's photo. Until that third call succeeds
+ * NOTHING has changed — a client that shows "listo" after this one is lying.
+ *
+ * DO NOT PERSIST THE TICKET. Not to AsyncStorage, not to a log, not into a
+ * crash report. The rule `pet-shares.ts` states for share tokens applies here
+ * for the same reason: it is a credential, and it belongs in the upload call it
+ * was minted for.
+ */
+export function requestPetPhotoTicket(
+  session: SessionPort,
+  publicToken: string,
+  contentType: PetPhotoContentType,
+): Promise<ApiResult<PetPhotoTicketV1>> {
+  return apiRequest<PetPhotoTicketV1>(
+    {
+      path: `/api/v1/pets/${encodeURIComponent(publicToken)}/photo`,
+      method: "POST",
+      body: { command: "request_ticket", contentType },
+    },
+    session,
+  );
+}
+
+/**
+ * Step 2 of 3. PUT the bytes to the ticket's URL — NOT to `/api/v1`.
+ *
+ * THE ONE CALL IN THIS FILE THAT DOES NOT GO THROUGH `apiRequest`, and the
+ * exception is deliberate rather than a shortcut. Everything `apiRequest` does
+ * is wrong here: there is no bearer to attach (the capability is in the URL),
+ * there is no `{ error }` envelope to interpret (Supabase Storage speaks its
+ * own), there is no `payloadVersion` to gate, and a 401 from the object store
+ * means the ticket expired — NOT that the account's session is over. Routing
+ * this through the session layer would sign a user out because a two-hour-old
+ * upload URL went stale, which is the exact class of bug `client.ts`'s header
+ * describes for `session_shift_expired`.
+ *
+ * So it reports its own outcome, in three arms, and the caller decides:
+ *   · `ok`        — the bytes are staged. Call `confirmPetPhoto` next.
+ *   · `expired`   — the ticket is no longer valid. Re-ticket; do not sign out.
+ *   · `failed`    — anything else, including no signal. Retry with the same
+ *                   ticket is safe (nothing has been claimed).
+ *
+ * `body` is a `Blob`. React Native's `fetch` handles a Blob from
+ * `expo-file-system` or a picker without the FormData workaround
+ * `@supabase/storage-js` warns about, because there is no multipart envelope
+ * here — the signed upload endpoint takes the raw bytes.
+ */
+export type PetPhotoUploadOutcome =
+  | { outcome: "ok" }
+  | { outcome: "expired" }
+  | { outcome: "failed"; detail: string };
+
+export async function uploadPetPhotoBytes(
+  ticket: PetPhotoTicketV1,
+  body: Blob,
+  contentType: PetPhotoContentType,
+): Promise<PetPhotoUploadOutcome> {
+  try {
+    const response = await fetch(ticket.uploadUrl, {
+      method: "PUT",
+      headers: { "content-type": contentType },
+      body,
+    });
+    if (response.ok) return { outcome: "ok" };
+    // 400 is what the Storage API answers for an expired or already-spent
+    // signed upload token; 401/403 for a malformed one. All of them mean "this
+    // ticket is done", and none of them means "this account is done".
+    if (response.status === 400 || response.status === 401 || response.status === 403) {
+      return { outcome: "expired" };
+    }
+    return { outcome: "failed", detail: `HTTP ${response.status}` };
+  } catch (error) {
+    return { outcome: "failed", detail: error instanceof Error ? error.message : String(error) };
+  }
+}
+
+/**
+ * Step 3 of 3. Ask the server to accept the staged bytes as the animal's photo.
+ *
+ * THE SERVER RE-AUTHORIZES AND RE-VALIDATES HERE, which is why `stagedPath` may
+ * be sent back as-is: it is a claim, not a capability. The server refuses any
+ * key that does not belong to the pet in the URL, refuses bytes that are not a
+ * JPEG/PNG/WebP by their magic bytes rather than by what the ticket declared,
+ * and re-encodes what survives before it reaches the public bucket.
+ *
+ * NO IDEMPOTENCY KEY, and none is needed: this sets a value rather than
+ * appending a row, so a retry after a timeout that in fact landed sets the same
+ * photo again. That makes it the one write on this surface a client may retry
+ * blind.
+ */
+export function confirmPetPhoto(
+  session: SessionPort,
+  publicToken: string,
+  stagedPath: string,
+): Promise<ApiResult<PetPhotoUpdatedV1>> {
+  return apiRequest<PetPhotoUpdatedV1>(
+    {
+      path: `/api/v1/pets/${encodeURIComponent(publicToken)}/photo`,
+      method: "POST",
+      body: { command: "confirm", stagedPath },
+    },
     session,
   );
 }

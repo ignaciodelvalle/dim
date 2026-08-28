@@ -34,9 +34,17 @@
 // mitigated the same way: switching kinds remounts the form (a new key), and a
 // finished write leaves the form rather than reusing it.
 //
-// NO ATTACHMENTS. Every web form here offers a photo; this one cannot, because a
-// native upload needs a signed URL and that path is blocked. The endpoint takes
-// none either, so the two doors agree about it.
+// NO ATTACHMENTS, AND THE REASON CHANGED. Every web form here offers a photo;
+// this one still does not. It used to say the path was blocked because "a native
+// upload needs a signed URL and that path is blocked" — that half is now false:
+// `POST /pets/{token}/photo` is the ticket-then-confirm door, and
+// `lib/infra/pet-photo-upload.ts` is a primitive an event attachment can reuse.
+//
+// What is still true is the other half: `POST .../events` takes no attachment,
+// so wiring one here would be a client offering a field the endpoint discards.
+// The two doors agree about it, and they have to move together — an attachment
+// on an event is a `attachments` row with an `event_id`, which means the confirm
+// step has to know which event it is claiming for, which is its own work unit.
 
 import { useRouter } from "expo-router";
 import { useRef, useState } from "react";

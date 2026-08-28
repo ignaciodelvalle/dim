@@ -241,5 +241,18 @@ export function apiErrorMessage(code: ApiV1ErrorCode): string {
     case "caretaker_failed":
       // NO retry advice, for the same reason `transfer_failed` gives none.
       return "No pudimos completar la operación. Actualizá la pantalla para ver cómo quedó.";
+    case "photo_forbidden":
+      // Today this reaches only an org-path caller without `event.write`. The
+      // sentence names the permission the way the web names it, so the person
+      // can repeat it to whoever administers their organización.
+      return "No tenés permiso para cambiar la foto de esta mascota. Pedile a un administrador el permiso «Registrar eventos clínicos».";
+    case "photo_not_an_image":
+      // The file, not the request. "Volvé a intentar" would be wrong advice:
+      // the same file will fail again.
+      return "Ese archivo no es una foto que podamos usar. Elegí una imagen JPG, PNG o WebP.";
+    case "photo_failed":
+      // The ONE arm on this surface where retrying is honestly safe: a photo is
+      // a value, not an append, so setting it twice is setting it once.
+      return "No pudimos guardar la foto. Volvé a intentar.";
   }
 }

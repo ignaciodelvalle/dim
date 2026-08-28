@@ -196,8 +196,16 @@ function PetRow({ pet, onPress }: { pet: MyPetsV1Item; onPress: () => void }) {
       style={styles.petRow}
     >
       {pet.photoUrl === null ? (
-        // A placeholder that says WHAT is missing. A grey square says nothing,
-        // and photo upload is a later work unit (M4b) rather than a bug.
+        // A placeholder that says WHAT is missing. A grey square says nothing.
+        //
+        // THE SERVER SIDE OF THE UPLOAD NOW EXISTS — `POST /pets/{token}/photo`
+        // and the three calls in `api/endpoints.ts` that drive it
+        // (`requestPetPhotoTicket` → `uploadPetPhotoBytes` → `confirmPetPhoto`).
+        // What is still missing on THIS side is the picker: choosing an image
+        // needs a native module this build does not carry, so it is a screen and
+        // an `expo install` rather than a protocol. The placeholder stays until
+        // then, and it is no longer describing a blocked path — only an unbuilt
+        // one.
         <View style={styles.photoFallback}>
           <Text style={styles.photoFallbackText}>Sin foto</Text>
         </View>
