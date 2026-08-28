@@ -130,7 +130,10 @@ vi.mock("@/db", () => ({
   },
 }));
 
-vi.mock("@/db/schema", () => ({ attachments: {}, pets: { id: {}, primaryPhotoId: {} } }));
+// NO MOCK FOR `@/db/schema`, deliberately. The real module is pure drizzle table
+// definitions — no connection, no side effect — and the fake `tx` below ignores
+// the column objects it is handed anyway, so stubbing it bought nothing and made
+// this the only file in the repo that replaced the shared schema module.
 
 vi.mock("@/lib/infra/storage", () => ({
   petPhotoUrl: (path: string | null) =>
