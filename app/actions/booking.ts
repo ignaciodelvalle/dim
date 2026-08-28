@@ -53,9 +53,14 @@ export async function bookSlotAction(
     .from(ownerships)
     .innerJoin(pets, eq(pets.id, ownerships.petId))
     .where(
+      // Art. 16 (Ley 25.326): an erased pet folds into the SAME "no te
+      // pertenece" a never-owned petId gets — a guard here (reachable directly
+      // by a surviving foster/co-owner), not a distinct error, so it is not an
+      // existence oracle. Full rationale in the commit message.
       sql`${ownerships.ownerUserId} = ${user.id}
           AND ${ownerships.petId} = ${petId}
-          AND ${ownerships.endedAt} IS NULL`,
+          AND ${ownerships.endedAt} IS NULL
+          AND ${pets.deletedAt} IS NULL`,
     )
     .limit(1);
 

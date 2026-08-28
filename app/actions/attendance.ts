@@ -12,7 +12,7 @@
 // CRITICAL: Every runtime export in a "use server" file must be an async
 // function. Types are re-exported with `export type` (erased at runtime).
 
-import { eq } from "drizzle-orm";
+import { and, eq, isNull } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 
 import { appointments, db, pets } from "@/db";
@@ -71,7 +71,13 @@ export async function markAppointmentAttendedAction(
     })
     .from(appointments)
     .innerJoin(pets, eq(pets.id, appointments.petId))
-    .where(eq(appointments.publicToken, appointmentToken))
+    // Art. 16 (Ley 25.326): a soft-deleted pet reads as NEVER REGISTERED.
+    // Marking attendance appends a medical event onto the pet's spine and
+    // republishes its libreta cache path; the org agenda already hides an
+    // erased pet, but this action is reachable directly by appointmentToken.
+    // Dropping the erased pet here folds it into the SAME "Turno no encontrado."
+    // a missing appointment returns — no distinguishable existence oracle.
+    .where(and(eq(appointments.publicToken, appointmentToken), isNull(pets.deletedAt)))
     .limit(1);
 
   if (!appt) return { error: "Turno no encontrado." };

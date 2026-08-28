@@ -144,6 +144,14 @@ export async function GET(
     .where(
       and(
         eq(pets.publicToken, publicToken),
+        // Art. 16 (Ley 25.326): a soft-deleted pet reads as NEVER REGISTERED.
+        // requireLiveUser() above closes the ERASED SUBJECT's own path (their
+        // profile is soft-deleted → 401), but the erasure soft-deletes the pet
+        // while leaving OTHER live 'owner' rows on it intact — a surviving live
+        // co-owner would otherwise export the full Tier-2 libreta of a pet that
+        // must read as gone. Defense in depth, and it folds the erased pet into
+        // the SAME 404 a non-owned token returns (no existence oracle).
+        isNull(pets.deletedAt),
         eq(ownerships.ownerUserId, user.id),
         eq(ownerships.role, "owner"),
         isNull(ownerships.endedAt),

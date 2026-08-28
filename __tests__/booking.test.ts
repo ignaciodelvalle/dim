@@ -66,6 +66,7 @@ let ownerUserId: string;
 let otherUserId: string;
 let petId: string;
 let deceasedPetId: string;
+let softDeletedPetId: string;
 let offeringId: string;
 let futureSlotId: string;
 let fullSlotId: string;
@@ -168,6 +169,34 @@ beforeAll(async () => {
     petId: deceasedPetId,
     ownerUserId,
     role: "owner",
+  });
+
+  // A soft-deleted pet (Ley 25.326 art. 16 erasure sets pets.deleted_at) on
+  // which the booking user still holds a SURVIVING active tenencia — role
+  // 'foster' here, since the erasure ends neither a foster nor a co_owner row.
+  // status stays 'active' on purpose so the deceased guard never fires: the ONLY
+  // thing that must refuse this booking is the deleted_at term. This is the
+  // write-twin of the read-side leak the reservar selector already closed — a
+  // live third party (the foster booker) hand-POSTing a turno onto an erased
+  // pet, whose ownerUserId would then be their own id.
+  const [softDeletedPet] = await db
+    .insert(pets)
+    .values({
+      publicToken: generatePublicToken(),
+      species: "dog",
+      name: "Turno Test Borrado",
+      status: "active",
+      deletedAt: new Date(),
+      jurisdictionProvince: "Buenos Aires",
+      jurisdictionLocality: "CABA",
+    })
+    .returning();
+  softDeletedPetId = softDeletedPet.id;
+
+  await db.insert(ownerships).values({
+    petId: softDeletedPetId,
+    ownerUserId,
+    role: "foster",
   });
 
   // Seed a service offering (status=approved is required by search but writer
@@ -284,6 +313,8 @@ afterAll(async () => {
   await db.execute(sql`DELETE FROM pets WHERE id = ${petId}`);
   await db.delete(ownerships).where(eq(ownerships.petId, deceasedPetId));
   await db.execute(sql`DELETE FROM pets WHERE id = ${deceasedPetId}`);
+  await db.delete(ownerships).where(eq(ownerships.petId, softDeletedPetId));
+  await db.execute(sql`DELETE FROM pets WHERE id = ${softDeletedPetId}`);
 
   await purgeUserByEmail(OWNER_EMAIL);
   await purgeUserByEmail(OTHER_EMAIL);
@@ -386,6 +417,33 @@ describe("bookSlotAction — server-side guards", () => {
       .select({ id: appointments.id })
       .from(appointments)
       .where(eq(appointments.petId, deceasedPetId));
+    expect(booked).toHaveLength(0);
+  });
+
+  // Art. 16 write-twin: a soft-deleted pet must read as NEVER REGISTERED even
+  // on the WRITE path. The read-side reservar selector already hides it, but the
+  // action is reachable directly, and it accepts ANY active tenencia role — the
+  // foster row seeded above survives the erasure. Without the deleted_at term in
+  // the ownership lookup, this booking SUCCEEDS (the bug); with it, the erased
+  // pet folds into the SAME "no te pertenece" outcome a never-owned pet gets —
+  // not a distinguishable error, so it cannot act as an existence oracle.
+  it("refuses a soft-deleted (erased) pet even though an active tenencia survives", async () => {
+    const result = await bookSlotAction(actionSlotId, softDeletedPetId);
+
+    expect(result).toEqual({ error: "Esta mascota no te pertenece." });
+
+    // Nothing was written: no appointment, and the slot is still empty.
+    const [slot] = await db
+      .select({ bookingsCount: timeSlots.bookingsCount })
+      .from(timeSlots)
+      .where(eq(timeSlots.id, actionSlotId))
+      .limit(1);
+    expect(slot!.bookingsCount).toBe(0);
+
+    const booked = await db
+      .select({ id: appointments.id })
+      .from(appointments)
+      .where(eq(appointments.petId, softDeletedPetId));
     expect(booked).toHaveLength(0);
   });
 

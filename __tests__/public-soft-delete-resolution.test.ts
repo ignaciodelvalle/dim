@@ -1436,3 +1436,122 @@ describe("every app/(app) citizen read of `pets` carries the soft-delete filter 
     }
   });
 });
+
+// ---------------------------------------------------------------------------
+// WRITE-SIDE + API SWEEP (eleventh art. 16 family, 2026-08-28). The three
+// sweeps above scan RENDER surfaces — public reachability, app/org, app/(app)
+// pages — so none of them looks at app/actions (Server Actions) or app/api
+// (route handlers), the WRITE/mutation and second-door layer. That is exactly
+// where the read-side booking fix left a twin hole: the reservar selector hid
+// the erased pet (fixed in 36c9214b5), but `bookSlotAction` validated only
+// `petStatus === 'deceased'`, never `pets.deleted_at`, and it accepts ANY
+// active tenencia role — so a surviving foster/co-owner (the erasure ends
+// neither) could hand-POST a booking onto an erased pet the read UI no longer
+// offered. Fixing a read UI and not its write action leaves the mutation
+// reachable directly; this sweep is the fence over that layer.
+//
+// SCOPE — and why it is honest. app/actions + app/api hold MANY pets readers
+// that are legitimately owner/authenticated and NOT third-party-reachable, so a
+// blanket `guards >= reads` here could have been noisy. It is not: the whole
+// two-tree walk finds exactly FIVE direct `pets` readers today (measured, not
+// asserted). Four are per-pet reads/writes reachable by a live third party —
+// the ART.16 CLASS this fence exists for — and all four now carry the guard
+// directly:
+//   • app/actions/booking.ts        — the booking write-twin fixed in this unit
+//   • app/actions/attendance.ts     — org marks attendance (writes onto the
+//                                     spine + republishes the libreta cache);
+//                                     guarded in this unit
+//   • app/api/mis-mascotas/[publicToken]/libreta-export/route.ts — full Tier-2
+//                                     libreta export; its header claimed a
+//                                     requirePetAccess gate but the real query
+//                                     is an INLINE owner join that lacked the
+//                                     term (a surviving live co-owner of an
+//                                     erased pet would export everything);
+//                                     guarded in this unit
+//   • app/actions/return-to-owner.ts — already guarded (unerasedPetByToken,
+//                                     defense-in-depth) before this unit
+// The fifth is OUT OF CLASS and pinned below. Because the class-membership
+// judgement (which readers are third-party-reachable) is DECLARED, not derived,
+// this sweep is `guards >= reads` over both trees with one pinned exception —
+// coarser than the reachability walk of the public sweep, mechanical in body,
+// and honest about resting on the count being small enough to have read every
+// reader. A NEW under-guarded reader in either tree fails immediately.
+//
+// Same counting rule as the sweeps above (`guards >= reads`, comments and
+// imports stripped), same stated blind spots (it counts, it does not parse; it
+// sees static reads only; RLS is the other half).
+// ---------------------------------------------------------------------------
+
+type WriteApiPin = { reads: number; guards: number; reason: string };
+
+/**
+ * OUT-OF-CLASS pins — files whose unguarded `pets` read is NOT the art. 16
+ * class this fence polices, verified by reading the file. Counts are pinned
+ * EXACTLY: add a read (or a guard) and the shape changes, failing this sweep
+ * until a human re-reads the file and re-pins it.
+ */
+const WRITE_API_OUT_OF_CLASS: Record<string, WriteApiPin> = {
+  "app/api/cron/reconcile-pet-status/route.ts": {
+    reads: 1,
+    guards: 0,
+    reason:
+      "System cron (cron-authenticated, no per-person viewer). It keyset-scans ALL pets to reconcile the pets.status cache against the event spine and backs the 'Deriva de caché' ops card; a soft-deleted pet's cached status must still be reconciled, so filtering deleted_at here would blind a legitimate system job. No per-pet surface, no third-party reachability — out of class, not debt.",
+  },
+};
+
+function scanWriteApiPetsReaders(): PetsReader[] {
+  const out: PetsReader[] = [];
+  for (const rootRel of ["app/actions", "app/api"]) {
+    const root = resolve(ROOT, rootRel);
+    for (const entry of readdirSync(root, { withFileTypes: true, recursive: true })) {
+      if (!entry.isFile()) continue;
+      if (!entry.name.endsWith(".ts") && !entry.name.endsWith(".tsx")) continue;
+      if (entry.name.includes(".test.")) continue;
+      const full = join(entry.parentPath, entry.name);
+      const { reads, guards } = countPetsAccess(readFileSync(full, "utf8"));
+      if (reads === 0) continue;
+      out.push({ rel: full.slice(`${ROOT}`.length + 1).replaceAll("\\", "/"), reads, guards });
+    }
+  }
+  return out.sort((a, b) => a.rel.localeCompare(b.rel));
+}
+
+describe("every write-side/API read of `pets` carries the soft-delete filter (art. 16)", () => {
+  const readers = scanWriteApiPetsReaders();
+  const violations = readers.filter((r) => r.guards < r.reads);
+
+  it("actually reaches the write/API surfaces it claims to check", () => {
+    const rels = readers.map((r) => r.rel);
+    // Five readers today; a floor of 4 stays non-vacuous while tolerating one
+    // being deleted, and still fails a walk that silently returns nothing.
+    expect(readers.length).toBeGreaterThanOrEqual(4);
+    // Named anchors: the booking write-twin this unit fixed, its provider-side
+    // attendance sibling, the full-libreta export door, and the already-guarded
+    // return-to-owner action — the class this fence exists for.
+    expect(rels).toContain("app/actions/booking.ts");
+    expect(rels).toContain("app/actions/attendance.ts");
+    expect(rels).toContain("app/actions/return-to-owner.ts");
+    expect(rels).toContain("app/api/mis-mascotas/[publicToken]/libreta-export/route.ts");
+  });
+
+  it("has no under-guarded file outside the pinned out-of-class shapes", () => {
+    const unexplained = violations.filter((r) => {
+      const pin = WRITE_API_OUT_OF_CLASS[r.rel];
+      return !pin || pin.reads !== r.reads || pin.guards !== r.guards;
+    });
+    expect(unexplained).toEqual([]);
+  });
+
+  it("carries no stale or drifted pin — a pin describes exactly what was reviewed", () => {
+    for (const [rel, pin] of Object.entries(WRITE_API_OUT_OF_CLASS)) {
+      const reader = readers.find((r) => r.rel === rel);
+      expect(reader, `${rel} no longer reads pets — delete its pin`).toBeDefined();
+      expect(
+        { reads: reader?.reads, guards: reader?.guards },
+        `${rel} changed shape — re-review the file and re-pin`,
+      ).toEqual({ reads: pin.reads, guards: pin.guards });
+      // A pin is only for an under-guarded shape; a fully guarded file needs none.
+      expect(pin.guards).toBeLessThan(pin.reads);
+    }
+  });
+});
