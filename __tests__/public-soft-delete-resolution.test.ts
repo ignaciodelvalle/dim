@@ -934,13 +934,29 @@ const UNAUTHENTICATED_ENTRY_FILES = [
 const NEXT_ENTRY_FILE =
   /^(page|route|layout|default|opengraph-image|twitter-image|icon|apple-icon|sitemap|robots|error|not-found|loading)\.tsx?$/;
 
-/** A read of the `pets` table: the FROM side or any join onto it. */
-const PETS_READ = /\.(?:from|leftJoin|innerJoin|rightJoin|fullJoin)\(\s*pets\b/g;
+/**
+ * A read of the `pets` table, in BOTH shapes this repo uses:
+ *   • the Drizzle query builder — the FROM side or any join onto it
+ *     (`.from(pets`, `.leftJoin(pets`, …); and
+ *   • raw SQL inside a `sql`…`` template — `FROM pets` / `JOIN pets`, which is
+ *     plain text the builder pattern above cannot see. postulaciones and the
+ *     org adopciones queue resolve `pets` this way (`db.execute(sql`… JOIN pets
+ *     p …`)`); a bare token join there leaked an erased pet until this branch
+ *     was added. The raw branch requires whitespace after from/join, so the
+ *     builder's `from(pets`/`Join(pets` never double-counts here.
+ */
+const PETS_READ =
+  /\.(?:from|leftJoin|innerJoin|rightJoin|fullJoin)\(\s*pets\b|\b(?:from|join)\s+pets\b/gi;
 /** The soft-delete guard, in every spelling this repo actually uses.
  * `unerasedPetByToken` is the authenticated ALIAS of publicPetByToken — the
  * SAME predicate object, so it filters identically and counts as a guard here.
  * (Whether a file is ALLOWED to spell the alias is the throttle census's
- * question — public-token-throttle-coverage.test.ts pins that set.) */
+ * question — public-token-throttle-coverage.test.ts pins that set.)
+ * `deleted_at IS NULL` is the RAW-SQL spelling — the term a `sql`…`` template
+ * carries (`AND p.deleted_at IS NULL`, and `${pets.deletedAt} IS NULL` whose
+ * `pets.deletedAt` half is matched directly). It is the guard that pairs with
+ * the raw-SQL read branch of PETS_READ above; postulaciones and the org
+ * adopciones queue both spell it. */
 const SOFT_DELETE_GUARD =
   /(pets\.deletedAt|pets\.deleted_at|publicPetByToken|unerasedPetByToken|deleted_at\s+IS\s+NULL)/gi;
 
@@ -1113,6 +1129,36 @@ describe("the guard counter does not mistake declarations for filters", () => {
 
     expect(countPetsAccess(source).guards).toBe(0);
   });
+
+  it("sees a raw-SQL `JOIN pets` read, and its `deleted_at IS NULL` guard", () => {
+    // The blind spot postulaciones fell into: a pets read spelled in raw SQL
+    // inside a sql`…` template, which the Drizzle-builder pattern never matched.
+    // Unguarded → one read, zero guards (the leak). Guarded with the raw-SQL
+    // spelling → one read, one guard (the fix). Both halves proven here so the
+    // regex change is pinned independently of the DB-backed sweep below.
+    const leaky = [
+      "const rows = await db.execute(sql`",
+      "  SELECT p.name FROM my_submissions s",
+      "  JOIN pets p ON p.id = s.pet_id",
+      "`);",
+    ].join("\n");
+    expect(countPetsAccess(leaky).reads).toBe(1);
+    expect(countPetsAccess(leaky).guards).toBe(0);
+
+    const guarded = [
+      "const rows = await db.execute(sql`",
+      "  SELECT p.name FROM my_submissions s",
+      "  JOIN pets p ON p.id = s.pet_id",
+      "    AND p.deleted_at IS NULL",
+      "`);",
+    ].join("\n");
+    expect(countPetsAccess(guarded).reads).toBe(1);
+    expect(countPetsAccess(guarded).guards).toBe(1);
+
+    // A raw JOIN onto pet_events must NOT be mistaken for a pets read.
+    const eventsOnly = "FROM pet_events e JOIN pet_events d ON d.pet_id = e.pet_id";
+    expect(countPetsAccess(eventsOnly).reads).toBe(0);
+  });
 });
 
 describe("every unauthenticated read of `pets` carries the soft-delete filter (PO-4 rule)", () => {
@@ -1268,21 +1314,36 @@ describe("every org-portal read of `pets` carries the soft-delete filter (art. 1
 // booker, an adoption applicant, a welfare reporter) kept seeing the erased
 // pet's NAME and a working link.
 //
-// THIS SWEEP NOW WALKS THE ENTIRE app/(app) TREE. Its FIRST version scoped only
-// cuenta/transitos + mis-turnos and said so in a SCOPE note that flagged the
-// rest of app/(app) as un-audited debt. A follow-up measurement found ~8 more
-// under-guarded readers under app/(app) — cuenta/chapas, denuncias/[id], three
-// mis-mascotas subpages that resolve access INLINE (asistencia, buscar-hogar,
-// devolucion) rather than through resolvePetHolderAccess, the IntentApplyBanner
-// (a shelter_custody adoption listing that survives a rehome-R4 titular's
-// erasure), and both turnos/buscar readers (the booking pet picker + the
-// jurisdiction prefill). All were filtered in the same change; the old scope
-// note is gone because the scope is now the whole tree.
+// THIS SWEEP NOW WALKS THE ENTIRE app/(app) TREE, IN BOTH READ SHAPES. Its
+// FIRST version scoped only cuenta/transitos + mis-turnos and said so in a
+// SCOPE note that flagged the rest of app/(app) as un-audited debt. A follow-up
+// measurement found ~8 more under-guarded readers under app/(app) —
+// cuenta/chapas, denuncias/[id], three mis-mascotas subpages that resolve
+// access INLINE (asistencia, buscar-hogar, devolucion) rather than through
+// resolvePetHolderAccess, the IntentApplyBanner (a shelter_custody adoption
+// listing that survives a rehome-R4 titular's erasure), and both turnos/buscar
+// readers (the booking pet picker + the jurisdiction prefill). All were
+// filtered in the same change; the old scope note is gone because the scope is
+// now the whole tree.
+//
+// But "the whole tree" was a HALF-TRUTH until PETS_READ learned raw SQL. The
+// counter matched only the Drizzle builder (`.from/join(pets`), so a pets read
+// spelled `db.execute(sql`… JOIN pets p …`)` scored reads=0 and the file was
+// SKIPPED — invisible, not guarded. mis-mascotas/postulaciones/page.tsx was
+// exactly that: the ONLY raw-SQL pets reader under app/(app), a `JOIN pets p`
+// that fed an erased pet's name and a live /adoptar link to a third-party
+// adoption applicant (same rehome-R4 reachability as IntentApplyBanner). The
+// same-day widening claimed whole-tree coverage while this reader leaked. The
+// fix has two halves, both landed here: postulaciones now carries
+// `AND p.deleted_at IS NULL`, and PETS_READ's raw-SQL branch (plus the guard
+// regex's `deleted_at IS NULL` spelling) makes that reader — and every future
+// raw-SQL one — VISIBLE and checkable. (The org adopciones queue reads `pets`
+// the same raw way and was already guarded; the org sweep now sees it too.)
 //
 // Same counting rule as the sweeps above (`guards >= reads`, comments and
 // imports stripped), same stated blind spots. Post-fix the exception list is
-// EMPTY — every direct `pets` read under app/(app) is DIRECTLY guarded, so any
-// new under-guarded read here fails immediately.
+// EMPTY — every direct `pets` read under app/(app), Drizzle OR raw SQL, is
+// DIRECTLY guarded, so any new under-guarded read here fails immediately.
 //
 // WHAT THIS SWEEP DOES NOT SEE, and why it needs no pins today: the many
 // mis-mascotas subpages that gate on resolvePetHolderAccess (lib/infra/
@@ -1330,12 +1391,15 @@ describe("every app/(app) citizen read of `pets` carries the soft-delete filter 
 
   it("actually reaches the citizen surfaces it claims to check", () => {
     const rels = readers.map((r) => r.rel);
-    // 16 readers today; a floor well below that stays non-vacuous while
-    // tolerating a page being deleted, and still fails a graph walk that
-    // silently returns nothing.
-    expect(readers.length).toBeGreaterThanOrEqual(14);
+    // 17 readers today (16 Drizzle + postulaciones once PETS_READ learned raw
+    // SQL); a floor well below that stays non-vacuous while tolerating a page
+    // being deleted, and still fails a graph walk that silently returns nothing.
+    expect(readers.length).toBeGreaterThanOrEqual(15);
     // Named anchors: the six tránsito/turno screens the sweep was seeded for,
-    // plus the eight readers the widening to the whole app/(app) tree pulled in.
+    // the eight readers the widening to the whole app/(app) tree pulled in, and
+    // postulaciones — the one RAW-SQL reader, invisible until PETS_READ learned
+    // to see `JOIN pets` inside a sql template (the whole point of this unit).
+    expect(rels).toContain("app/(app)/mis-mascotas/postulaciones/page.tsx");
     expect(rels).toContain("app/(app)/cuenta/transitos/activos/page.tsx");
     expect(rels).toContain("app/(app)/cuenta/transitos/historial/page.tsx");
     expect(rels).toContain("app/(app)/cuenta/transitos/propuestas/page.tsx");

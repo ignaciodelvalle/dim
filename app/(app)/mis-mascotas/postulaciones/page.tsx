@@ -178,6 +178,12 @@ export default async function MisPostulacionesPage({
       COALESCE(f.finalized_at, d.decision_at)::text AS decision_at
     FROM my_submissions s
     JOIN pets p ON p.id = s.pet_id
+      -- Art. 16 (Ley 25.326): a soft-deleted pet reads as never registered.
+      -- The applicant's my_submissions row and the shelter_custody LATERAL both
+      -- survive a rehome-R4 titular's erasure, so without this the erased pet's
+      -- name and a live /adoptar link would still render to the third-party
+      -- applicant. Same guard the org-side adopciones queue already carries.
+      AND p.deleted_at IS NULL
     LEFT JOIN LATERAL (
       SELECT o2.*
       FROM ownerships ow
