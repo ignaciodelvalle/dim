@@ -50,7 +50,12 @@ import "server-only";
 // Invariant #2 says events are append-only; invariant #3 says facts are
 // event-sourced and caches declare themselves. A photo is neither a medical nor
 // a custody lifecycle fact: the event catalog has no photo event
-// (`packages/contract/src/events/event-types.ts`, 45 entries, checked), and the
+// (`packages/contract/src/events/event-types.ts` — 55 entries, the figure
+// CLAUDE.md also states; re-derive with
+// `sed -n '/^export const EVENT_TYPES = \[/,/^\] as const/p'` over that file
+// piped to `grep -cE '^\s+"'`, which counts the array's own entries and not the
+// other literal lists in the same file — the mistake that made this comment say
+// "45 entries, checked" for one commit), and the
 // web has never written one — `pet_registered` carries `has_photo` as a
 // BOOLEAN, which is a registration detail rather than a photo log.
 //
@@ -193,6 +198,22 @@ export async function mintPetPhotoTicket(
   };
 }
 
+/**
+ * Thrown inside the confirm transaction when the pointer UPDATE matches zero
+ * rows — i.e. the pet was erased after this transaction read it.
+ *
+ * A CLASS RATHER THAN A RETURN, because by that point the `attachments` row is
+ * already inserted and only an exception unwinds it. Caught immediately outside
+ * the transaction and mapped to `pet_gone`, so a rollback we asked for is never
+ * reported as a database failure.
+ */
+class PetErasedDuringConfirm extends Error {
+  constructor() {
+    super("pet was soft-deleted during confirm");
+    this.name = "PetErasedDuringConfirm";
+  }
+}
+
 export type ConfirmResult =
   | { ok: true; photo: PetPhotoUpdatedV1 }
   /**
@@ -272,6 +293,60 @@ export type ConfirmResult =
  * every row keyed on the pet regardless of which one is current. The cost is
  * storage, and it is named in RN-4 A9 as part of the GC work that is not this.
  */
+type StagedImage =
+  | { ok: true; normalised: Buffer; detected: RasterMime }
+  | { ok: false; code: "photo_not_an_image" | "photo_failed" };
+
+/**
+ * Fetch the staged bytes and decide what they are — steps 2 to 4 of the confirm
+ * sequence, lifted out of `confirmPetPhoto` so that function stays under the
+ * cognitive-complexity cap once the erasure race earned its own arm.
+ *
+ * IT DELETES NOTHING. Cleanup stays with the caller, because the caller is the
+ * one that knows a read failure must NOT discard the staged object — see the
+ * call site, where that exception is the whole reason this returns a code
+ * instead of doing the tidying itself.
+ */
+async function loadAndNormaliseStagedImage(
+  admin: ReturnType<typeof createAdminClient>,
+  stagedPath: string,
+): Promise<StagedImage> {
+  let bytes: Buffer;
+  try {
+    const { data, error } = await admin.storage.from(STAGING_BUCKET).download(stagedPath);
+    if (error || !data) return { ok: false, code: "photo_not_an_image" };
+    bytes = Buffer.from(await data.arrayBuffer());
+  } catch (err) {
+    console.error("[pet-photo] could not read the staged object", {
+      stagedPath,
+      message: err instanceof Error ? err.message : String(err),
+    });
+    return { ok: false, code: "photo_failed" };
+  }
+
+  // Re-checked even though the bucket declares the same ceiling: the bucket
+  // limit is configuration on a remote service, and this is the last point at
+  // which we are the ones deciding.
+  if (bytes.byteLength === 0 || bytes.byteLength > MAX_IMAGE_BYTES) {
+    return { ok: false, code: "photo_not_an_image" };
+  }
+
+  const detected = detectRasterMime(bytes);
+  if (!detected) return { ok: false, code: "photo_not_an_image" };
+
+  try {
+    return { ok: true, normalised: await reencodeRaster(bytes), detected };
+  } catch (err) {
+    // FAILS CLOSED. `pet-photos` is public; there is no fallback-to-original arm
+    // here and there must never be one. See uploads.ts, same rule, same bucket.
+    console.warn("[pet-photo] re-encode failed for the public bucket, rejecting", {
+      stagedPath,
+      message: err instanceof Error ? err.message : String(err),
+    });
+    return { ok: false, code: "photo_not_an_image" };
+  }
+}
+
 export async function confirmPetPhoto(params: {
   petId: string;
   userId: string;
@@ -298,50 +373,16 @@ export async function confirmPetPhoto(params: {
     }
   };
 
-  let bytes: Buffer;
-  try {
-    const { data, error } = await admin.storage.from(STAGING_BUCKET).download(stagedPath);
-    if (error || !data) {
-      await discardStaged();
-      return { ok: false, code: "photo_not_an_image" };
-    }
-    bytes = Buffer.from(await data.arrayBuffer());
-  } catch (err) {
-    console.error("[pet-photo] could not read the staged object", {
-      stagedPath,
-      message: err instanceof Error ? err.message : String(err),
-    });
-    return { ok: false, code: "photo_failed" };
+  const image = await loadAndNormaliseStagedImage(admin, stagedPath);
+  if (!image.ok) {
+    // Every refusal here discards the staged object EXCEPT a read failure, which
+    // leaves it alone on purpose: a Storage error means we do not know what is
+    // there, and deleting on "we could not read it" turns a transient outage into
+    // data loss the client could otherwise recover from by confirming again.
+    if (image.code !== "photo_failed") await discardStaged();
+    return { ok: false, code: image.code };
   }
-
-  // Re-checked here even though the bucket declares the same ceiling: the
-  // bucket limit is configuration on a remote service, and this is the last
-  // point at which we are the ones deciding.
-  if (bytes.byteLength === 0 || bytes.byteLength > MAX_IMAGE_BYTES) {
-    await discardStaged();
-    return { ok: false, code: "photo_not_an_image" };
-  }
-
-  const detected = detectRasterMime(bytes);
-  if (!detected) {
-    await discardStaged();
-    return { ok: false, code: "photo_not_an_image" };
-  }
-
-  let normalised: Buffer;
-  try {
-    normalised = await reencodeRaster(bytes);
-  } catch (err) {
-    // FAILS CLOSED. `pet-photos` is public; there is no fallback-to-original
-    // arm here and there must never be one. See uploads.ts, which says the same
-    // about the same bucket.
-    console.warn("[pet-photo] re-encode failed for the public bucket, rejecting", {
-      stagedPath,
-      message: err instanceof Error ? err.message : String(err),
-    });
-    await discardStaged();
-    return { ok: false, code: "photo_not_an_image" };
-  }
+  const { normalised, detected } = image;
 
   // Derived from what the BYTES are, not from what the ticket claimed. A caller
   // that declared `image/png` and uploaded a JPEG gets a `.jpg` key and a
@@ -385,18 +426,45 @@ export async function confirmPetPhoto(params: {
         })
         .returning({ id: attachments.id });
 
-      // The filter is repeated on the WRITE, not inherited from the read above.
-      // Inside one transaction the two are consistent, so this is belt on top of
-      // braces — but a `set()` whose predicate is "this id" and nothing else is
-      // one refactor away from being moved out of the transaction, and then the
-      // braces are gone and nobody notices.
-      await tx
+      // The filter is repeated on the WRITE, and ITS AFFECTED-ROW COUNT IS THE
+      // ANSWER — not a second opinion on the read above.
+      //
+      // The transaction runs READ COMMITTED, so an erasure that commits between
+      // the SELECT and this UPDATE is invisible to the SELECT and fatal to the
+      // UPDATE: the predicate matches zero rows. Without checking that, the
+      // function returned SUCCESS with the attachments row inserted, the public
+      // object written, and `purgeOwnedPetAttachments` already past — leaving a
+      // re-encoded photo of an erased animal that nothing would ever collect.
+      // Milliseconds wide, and art. 16 does not have a width exemption.
+      //
+      // Zero rows is therefore the SAME outcome as the SELECT finding nothing:
+      // `pet_gone`, which the caller unwinds by removing both objects.
+      const updated = await tx
         .update(pets)
         .set({ primaryPhotoId: row.id })
-        .where(and(eq(pets.id, petId), isNull(pets.deletedAt)));
+        .where(and(eq(pets.id, petId), isNull(pets.deletedAt)))
+        .returning({ id: pets.id });
+      // THROWN, NOT RETURNED, and the difference is the whole fix. The
+      // attachments row above is already inserted in this transaction; returning
+      // would COMMIT it, leaving a row pointing at an object the caller is about
+      // to delete. Throwing rolls the insert back, and the sentinel is caught
+      // below so a rollback that we caused is not reported as a database
+      // failure.
+      if (updated.length === 0) throw new PetErasedDuringConfirm();
       return current.primaryPhotoId != null;
     });
   } catch (err) {
+    // OUR OWN ROLLBACK, not a failure. Same unwind as the zero-row SELECT: take
+    // back both objects and answer `pet_gone`.
+    if (err instanceof PetErasedDuringConfirm) {
+      try {
+        await admin.storage.from(PET_PHOTO_BUCKET).remove([finalPath]);
+      } catch {
+        // Best-effort, exactly like the staged discard.
+      }
+      await discardStaged();
+      return { ok: false, code: "pet_gone" };
+    }
     console.error("[pet-photo] could not record the photo", {
       petId,
       message: err instanceof Error ? err.message : String(err),

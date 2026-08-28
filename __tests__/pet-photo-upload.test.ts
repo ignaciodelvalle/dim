@@ -51,6 +51,8 @@ const control = vi.hoisted(() => ({
   primaryPhotoId: null as string | null,
   /** `false` makes the soft-delete-filtered select return no row at all. */
   petIsLive: true,
+  /** The READ COMMITTED race: SELECT saw a live pet, the UPDATE matches zero rows. */
+  erasedMidTransaction: false,
   txThrows: false,
   removed: [] as Array<{ bucket: string; paths: string[] }>,
   uploaded: [] as Array<{ bucket: string; path: string; contentType: string; bytes: number }>,
@@ -123,9 +125,31 @@ vi.mock("@/db", () => ({
             return { returning: async () => [{ id: "att-1" }] };
           },
         }),
-        update: () => ({ set: () => ({ where: async () => undefined }) }),
+        // The pointer UPDATE now REPORTS its affected rows, and the mock has to
+        // model that: `erasedMidTransaction` is the READ COMMITTED race where
+        // the SELECT saw a live pet and the UPDATE's predicate matches nothing
+        // because an erasure committed in between.
+        update: () => ({
+          set: () => ({
+            where: () => ({
+              returning: async () => (control.erasedMidTransaction ? [] : [{ id: PET_ID }]),
+            }),
+          }),
+        }),
       };
-      return fn(tx);
+      // THE FAKE ACTUALLY ROLLS BACK, and it has to. A drizzle transaction
+      // undoes everything the callback did when the callback throws; a fake that
+      // just pushed rows into an array would keep them, and the assertion "no
+      // attachments row survived the erasure race" would be checking the mock's
+      // sloppiness rather than the code's correctness. Snapshot, run, truncate
+      // on throw.
+      const inserted = control.inserted.length;
+      try {
+        return await fn(tx);
+      } catch (err) {
+        control.inserted.length = inserted;
+        throw err;
+      }
     },
   },
 }));
@@ -155,6 +179,7 @@ beforeEach(() => {
   control.sharpThrows = false;
   control.primaryPhotoId = null;
   control.petIsLive = true;
+  control.erasedMidTransaction = false;
   control.txThrows = false;
   control.removed = [];
   control.uploaded = [];
@@ -358,6 +383,32 @@ describe("confirming — the bytes decide, not the declaration", () => {
     // Nothing was recorded…
     expect(control.inserted).toEqual([]);
     // …and the object that had already been written is taken back.
+    expect(control.removed.map((r) => r.bucket).sort()).toEqual(
+      ["pet-photos", STAGING_BUCKET].sort(),
+    );
+  });
+
+  it("refuses an erasure that lands BETWEEN the select and the pointer update", async () => {
+    // The READ COMMITTED race. The SELECT sees a live pet; an erasure commits;
+    // the UPDATE's `isNull(deletedAt)` predicate then matches zero rows.
+    //
+    // Before the affected-row count was checked, this returned SUCCESS with the
+    // attachments row committed and the public object written — after
+    // `purgeOwnedPetAttachments` had already run — leaving a re-encoded photo of
+    // an erased animal that nothing in the repo would ever collect. Milliseconds
+    // wide, and art. 16 has no width exemption.
+    control.petIsLive = true;
+    control.erasedMidTransaction = true;
+
+    const result = await confirmPetPhoto({ petId: PET_ID, userId: USER_ID, stagedPath: STAGED });
+    expect(result).toEqual({ ok: false, code: "pet_gone" });
+
+    // ROLLED BACK, not merely unreported: the insert must not survive. This is
+    // why the transaction fake truncates on throw — a `return null` here would
+    // have COMMITTED the row.
+    expect(control.inserted).toEqual([]);
+
+    // And both objects are taken back, so the public bucket keeps nothing.
     expect(control.removed.map((r) => r.bucket).sort()).toEqual(
       ["pet-photos", STAGING_BUCKET].sort(),
     );
