@@ -61,12 +61,20 @@ vi.mock("@/lib/supabase/server", () => ({
 
 const mockDeleteUser = vi.fn();
 const mockStorageRemove = vi.fn();
+const mockStorageList = vi.fn();
 vi.mock("@/lib/supabase/admin", () => ({
   createAdminClient: vi.fn(() => ({
     auth: { admin: { deleteUser: (...args: unknown[]) => mockDeleteUser(...args) } },
     storage: {
       from: (bucket: string) => ({
         remove: (paths: string[]) => mockStorageRemove(bucket, paths),
+        // `list` IS MOCKED SEPARATELY FROM `remove` on purpose. The staged-upload
+        // sweep pages through `list` and deletes each page; a mock that only had
+        // `remove` made the sweep throw into its own best-effort catch, so the
+        // whole loop was invisible to this file while every assertion still
+        // passed. That is the shape of a test that proves nothing.
+        list: (prefix: string, opts?: { limit?: number; offset?: number }) =>
+          mockStorageList(bucket, prefix, opts),
       }),
     },
   })),
@@ -84,6 +92,8 @@ beforeEach(() => {
   mockRpc.mockResolvedValue({ error: null });
   mockSignOut.mockResolvedValue({ error: null });
   mockDeleteUser.mockResolvedValue({ error: null });
+  // Default: the staging bucket is empty, so the sweep does one list and stops.
+  mockStorageList.mockResolvedValue({ data: [], error: null });
   mockOwnedRows.length = 0;
   mockAttachmentRows.length = 0;
   mockWhere.ownerships = undefined;
@@ -186,6 +196,81 @@ describe("eraseMySubjectDataAction", () => {
       const result = await eraseMySubjectDataAction("borro mi cuenta");
       expect(result.ok).toBe(true);
       expect(mockStorageRemove).not.toHaveBeenCalled();
+    });
+
+    // ------------------------------------------------------------------
+    // The staged-upload sweep. It is the ONLY thing that removes an
+    // abandoned `uploads-staging` object — there is no storage GC cron in
+    // this repo for any bucket — so a sweep that silently stops short is an
+    // art. 16 completeness gap, not an efficiency one.
+    // ------------------------------------------------------------------
+    it("PAGES through uploads-staging instead of stopping at the storage-js default", async () => {
+      // storage-js defaults `list` to 100 entries. The media-upload family
+      // admits 120 tickets a day for one account, so >100 abandoned staged
+      // objects on ONE pet is reachable inside a single day. The first version
+      // of this sweep passed no options, removed an arbitrary 100, and left the
+      // rest forever.
+      mockOwnedRows.push({ petId: OWNED_PET_Y });
+
+      const page = (n: number) => ({
+        data: Array.from({ length: n }, (_, i) => ({ name: `obj-${i}.jpg` })),
+        error: null,
+      });
+      // A FULL page means "ask again"; a short page means "done". Two full
+      // pages then a short one — three lists, three removes.
+      mockStorageList
+        .mockResolvedValueOnce(page(1000))
+        .mockResolvedValueOnce(page(1000))
+        .mockResolvedValueOnce(page(7))
+        .mockResolvedValue({ data: [], error: null });
+
+      const result = await eraseMySubjectDataAction("borro mi cuenta");
+      expect(result.ok).toBe(true);
+
+      const listCalls = mockStorageList.mock.calls.filter((c) => c[0] === "uploads-staging");
+      expect(listCalls).toHaveLength(3);
+
+      // An explicit limit is passed — the whole point. And the OFFSET STAYS AT
+      // ZERO: the previous page was just deleted, so the next unremoved object
+      // is again at the start. Advancing it would step past the objects that
+      // slid down into the gap and leave every other page behind.
+      for (const call of listCalls) {
+        expect(call[1]).toBe(OWNED_PET_Y);
+        expect(call[2]).toEqual({ limit: 1000, offset: 0 });
+      }
+
+      const stagingRemoves = mockStorageRemove.mock.calls.filter((c) => c[0] === "uploads-staging");
+      expect(stagingRemoves).toHaveLength(3);
+      expect(stagingRemoves.map((c) => (c[1] as string[]).length)).toEqual([1000, 1000, 7]);
+      // Keys are prefixed with the pet id, which is what makes a prefix sweep
+      // possible at all.
+      expect((stagingRemoves[0][1] as string[])[0]).toBe(`${OWNED_PET_Y}/obj-0.jpg`);
+    });
+
+    it("stops at the page cap rather than spinning a supresión forever", async () => {
+      // A Storage bug that keeps answering with full pages must not hang an
+      // erasure. 20 pages of 1000 is ~166 days of one account minting at its
+      // full ceiling and never confirming; past that, deleting harder does not
+      // help and the subject still needs their request to finish.
+      mockOwnedRows.push({ petId: OWNED_PET_Y });
+      mockStorageList.mockResolvedValue({
+        data: Array.from({ length: 1000 }, (_, i) => ({ name: `obj-${i}.jpg` })),
+        error: null,
+      });
+
+      const result = await eraseMySubjectDataAction("borro mi cuenta");
+      expect(result.ok).toBe(true);
+      expect(mockStorageList.mock.calls.filter((c) => c[0] === "uploads-staging")).toHaveLength(20);
+    });
+
+    it("does not let a Storage failure in the sweep stall the erasure", async () => {
+      mockOwnedRows.push({ petId: OWNED_PET_Y });
+      mockStorageList.mockRejectedValue(new Error("storage unreachable"));
+
+      const result = await eraseMySubjectDataAction("borro mi cuenta");
+      // Best-effort, like every other remove here: a supresión must not leave
+      // the subject staring at an error after their DB data is already gone.
+      expect(result.ok).toBe(true);
     });
   });
 });

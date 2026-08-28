@@ -50,6 +50,26 @@ import type { EraseSubjectDataResult } from "./types";
 // logic here on the strength of this note.
 // ---------------------------------------------------------------------------
 
+/**
+ * Page size for the `uploads-staging` sweep below.
+ *
+ * 1000 is the Storage API ceiling for one `list`; storage-js DEFAULTS TO 100
+ * when you pass nothing, which is how the first version of that sweep came to
+ * truncate silently. Named here rather than inlined so the number and the reason
+ * travel together.
+ */
+const STAGING_SWEEP_PAGE_SIZE = 1000;
+
+/**
+ * How many pages the sweep will ask for before giving up on one pet.
+ *
+ * 20 × 1000 = 20.000 staged objects per pet, which is roughly 166 days of one
+ * account minting at its full 120/day ceiling and never confirming. Past that,
+ * something is wrong that deleting harder will not fix, and a supresión must
+ * still finish.
+ */
+const STAGING_SWEEP_MAX_PAGES = 20;
+
 // Storage objects the RPC cannot reach (SQL has no object-store access), in
 // THREE buckets, and the third one is reached differently from the other two:
 //
@@ -101,11 +121,46 @@ async function purgeOwnedPetAttachments(userId: string): Promise<void> {
   // object — there is no storage GC cron in this repo for any bucket (RN-4 A9),
   // so for a subject exercising art. 16 this loop is not a belt-and-braces
   // sweep, it is the sweep.
+  // PAGINATED, AND THE PAGE SIZE IS WHY. `list()` defaults to 100 entries in
+  // storage-js and takes no "give me all of them" option, so the first version of
+  // this loop removed an arbitrary 100 objects per pet and left the rest FOREVER
+  // — nothing else deletes them. That is reachable, not theoretical: the
+  // media-upload family admits 120 tickets a day for one account, so a single pet
+  // can hold more than 100 abandoned staged objects inside one day. A sweep that
+  // calls itself "the sweep" and silently stops at 100 is worse than one that
+  // admits it is partial.
+  //
+  // WHAT BOUNDS THE LOOP: STAGING_SWEEP_MAX_PAGES, and it is a real stop rather
+  // than a formality. A page that comes back full means there may be more, so we
+  // ask again; a short page means we are done. The cap exists so a Storage bug
+  // that keeps returning full pages cannot spin a supresión forever — and when
+  // it is hit we say so in the log, because a truncated sweep the subject is
+  // never told about is the exact defect this paragraph replaces.
   for (const petId of petIds) {
     try {
-      const listed = await admin.storage.from("uploads-staging").list(petId);
-      const paths = (listed.data ?? []).map((entry) => `${petId}/${entry.name}`);
-      if (paths.length > 0) await admin.storage.from("uploads-staging").remove(paths);
+      let removed = 0;
+      let page = 0;
+      for (; page < STAGING_SWEEP_MAX_PAGES; page += 1) {
+        const listed = await admin.storage
+          .from("uploads-staging")
+          .list(petId, { limit: STAGING_SWEEP_PAGE_SIZE, offset: 0 });
+        const paths = (listed.data ?? []).map((entry) => `${petId}/${entry.name}`);
+        if (paths.length === 0) break;
+        await admin.storage.from("uploads-staging").remove(paths);
+        removed += paths.length;
+        // OFFSET STAYS AT ZERO on purpose: the previous page was just deleted,
+        // so the next unremoved object is again at the start. Advancing the
+        // offset would step PAST the objects that slid down into the gap and
+        // leave every other page behind.
+        if (paths.length < STAGING_SWEEP_PAGE_SIZE) break;
+      }
+      if (page === STAGING_SWEEP_MAX_PAGES) {
+        console.warn("[erase-subject-data] staged-upload sweep hit its page cap", {
+          petId,
+          removed,
+          cap: STAGING_SWEEP_MAX_PAGES * STAGING_SWEEP_PAGE_SIZE,
+        });
+      }
     } catch (err) {
       console.warn("[erase-subject-data] staged-upload sweep failed", {
         petId,
