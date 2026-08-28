@@ -106,6 +106,7 @@ export {
   type LostPetStatus,
   type PetLostV1,
 } from "./pet-lost.ts";
+export type { PetPhotoTicketV1, PetPhotoUpdatedV1 } from "./pet-photo.ts";
 export {
   PET_SHARES_PAYLOAD_VERSION,
   PET_SHARES_STALE_AFTER_MS,

@@ -128,7 +128,7 @@ export const V1_ROUTE_GLOB = "app/api/v1/**/route.ts";
  * nothing but this number would then notice. The count of them is not written
  * here on purpose — `listV1RouteFiles()` is the list that cannot lie.
  */
-export const MIN_V1_ROUTE_FILES = 19;
+export const MIN_V1_ROUTE_FILES = 20;
 
 export const HELPER_MODULE = "@/lib/infra/api-v1";
 

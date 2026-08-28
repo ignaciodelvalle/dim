@@ -698,6 +698,52 @@ export const API_V1_PET_REGISTRATION_USER_LIMIT: RateLimitConfig = {
 };
 
 /**
+ * Media uploads, per IP. `POST /pets/{token}/photo` only — 12× its per-user
+ * anchor on both windows.
+ *
+ * ONE FAMILY FOR BOTH COMMANDS ON ONE ROUTE, and the route spends it TWICE per
+ * photo (once minting the ticket, once confirming). That is the honest shape:
+ * the two are one act, a client that gets a ticket and never confirms has still
+ * spent the expensive half of the decision, and sizing the anchor for six
+ * PHOTOS while the counter ticks per REQUEST would silently halve it. The
+ * numbers below are per REQUEST and the derivation says so.
+ */
+export const API_V1_MEDIA_UPLOAD_IP_LIMIT: RateLimitConfig = {
+  maxPerMinute: 144,
+  maxPerHour: 576,
+};
+
+/**
+ * Media uploads, per user — the anchor the ceiling above is derived from, and
+ * the tightest per-user WRITE budget on this surface.
+ *
+ * IT IS TIGHTER THAN AN ASIENTO ON PURPOSE, and the reason is what the two
+ * requests AUTHORISE rather than what they cost us. Minting a ticket is one
+ * signature and one round trip — cheap. What it hands out is a capability to
+ * write 5 MB into our object store, valid for two hours (a window Supabase
+ * picks, not us — see `packages/contract/src/api/pet-photo.ts`), and the
+ * confirm that follows fetches those 5 MB back, runs them through sharp, and
+ * writes a normalised copy out again. So the unit being bounded is not "a row"
+ * but "≈15 MB of object-store traffic and a CPU-bound re-encode", and the
+ * ceiling that matters is the one on ISSUED CAPABILITIES, not on completed
+ * photos.
+ *
+ * 12/min is six photos a minute at two requests each — a person retrying a
+ * flaky upload on 4G several times over, which is the real case this has to
+ * survive. 48/hr is 24 photos in an hour: more than a shelter worker
+ * photographing a morning's intake, and far short of a script. 120/day is the
+ * abuse backstop, past which an account is not photographing animals.
+ *
+ * A SHELTER WITH A REAL BULK NEED IS NOT THE CASE THIS BOUNDS. That is an org
+ * on the web with a keyboard, and it does not come through this door.
+ */
+export const API_V1_MEDIA_UPLOAD_USER_LIMIT: RateLimitConfig = {
+  maxPerMinute: 12,
+  maxPerHour: 48,
+  maxPerDay: 120,
+};
+
+/**
  * Which family each per-IP bucket on `/api/v1` belongs to.
  *
  * THIS IS THE FENCE, and it is the reason the prose list in the header is safe
@@ -724,6 +770,7 @@ export type ApiV1IpFamily =
   | "pet-disclosure-write"
   | "pet-record-write"
   | "pet-registration"
+  | "media-upload"
   | "route-local";
 
 /**
@@ -750,6 +797,7 @@ export const API_V1_IP_FAMILIES = [
   "pet-disclosure-write",
   "pet-record-write",
   "pet-registration",
+  "media-upload",
   "route-local",
 ] as const satisfies readonly ApiV1IpFamily[];
 
@@ -796,6 +844,11 @@ export const API_V1_IP_BUCKET_FAMILIES: Readonly<Record<string, ApiV1IpFamily>> 
   api_v1_lost_write_ip: "pet-disclosure-write",
   api_v1_event_ip: "pet-record-write",
   api_v1_pets_register_ip: "pet-registration",
+
+  // Landed with the pet-photo door. ONE bucket for a route the client hits
+  // twice per photo (ticket, then confirm) — see API_V1_MEDIA_UPLOAD_USER_LIMIT
+  // for why the anchor is sized per REQUEST rather than per photo.
+  api_v1_pet_photo_ip: "media-upload",
 };
 
 /**
@@ -838,6 +891,8 @@ export const API_V1_CGNAT_FAMILY_IP_CEILING_PER_MINUTE: number = Object.values(
       return total + (API_V1_PET_RECORD_WRITE_IP_LIMIT.maxPerMinute ?? 0);
     case "pet-registration":
       return total + (API_V1_PET_REGISTRATION_IP_LIMIT.maxPerMinute ?? 0);
+    case "media-upload":
+      return total + (API_V1_MEDIA_UPLOAD_IP_LIMIT.maxPerMinute ?? 0);
     case "route-local":
       // Unreachable while the map has no `route-local` entry, and the fence
       // asserts it has none. Kept as a case rather than folded into the default

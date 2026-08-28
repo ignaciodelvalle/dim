@@ -84,6 +84,8 @@ import {
   API_V1_INBOX_STATE_USER_LIMIT,
   API_V1_IP_BUCKET_FAMILIES,
   API_V1_IP_FAMILIES,
+  API_V1_MEDIA_UPLOAD_IP_LIMIT,
+  API_V1_MEDIA_UPLOAD_USER_LIMIT,
   API_V1_PET_DISCLOSURE_WRITE_IP_LIMIT,
   API_V1_PET_DISCLOSURE_WRITE_USER_LIMIT,
   API_V1_PET_RECORD_WRITE_IP_LIMIT,
@@ -156,6 +158,7 @@ const FAMILY_OF_SHARED_CEILING: Readonly<Record<string, ApiV1IpFamily>> = {
   API_V1_PET_DISCLOSURE_WRITE_IP_LIMIT: "pet-disclosure-write",
   API_V1_PET_RECORD_WRITE_IP_LIMIT: "pet-record-write",
   API_V1_PET_REGISTRATION_IP_LIMIT: "pet-registration",
+  API_V1_MEDIA_UPLOAD_IP_LIMIT: "media-upload",
 };
 
 /**
@@ -175,6 +178,7 @@ const WRITE_FAMILIES: readonly ApiV1IpFamily[] = [
   "pet-disclosure-write",
   "pet-record-write",
   "pet-registration",
+  "media-upload",
 ];
 
 type IpBucketSite = {
@@ -426,7 +430,7 @@ describe("/api/v1 rate-limit families — the numbers the derivation committed t
     // list that cannot lie is `API_V1_IP_BUCKET_FAMILIES` next to the ceiling
     // constants; what stays here is the PIN, which is the only part a test can
     // hold. `route-local` is empty, so the sum is now the whole surface.
-    expect(API_V1_CGNAT_FAMILY_IP_CEILING_PER_MINUTE).toBe(7_980);
+    expect(API_V1_CGNAT_FAMILY_IP_CEILING_PER_MINUTE).toBe(8_124);
   });
 
   it("keeps pet-disclosure-write at N callers on BOTH windows", () => {
@@ -460,6 +464,30 @@ describe("/api/v1 rate-limit families — the numbers the derivation committed t
     );
   });
 
+  it("keeps media-upload at N callers on BOTH windows", () => {
+    expect(API_V1_MEDIA_UPLOAD_IP_LIMIT.maxPerMinute).toBe(
+      (API_V1_MEDIA_UPLOAD_USER_LIMIT.maxPerMinute ?? 0) * API_V1_SIMULTANEOUS_CALLERS,
+    );
+    expect(API_V1_MEDIA_UPLOAD_IP_LIMIT.maxPerHour).toBe(
+      (API_V1_MEDIA_UPLOAD_USER_LIMIT.maxPerHour ?? 0) * API_V1_SIMULTANEOUS_CALLERS,
+    );
+  });
+
+  it("keeps the media-upload per-user anchor the tightest write on the surface", () => {
+    // NOT a taste check. The two requests behind one photo authorise ≈15 MB of
+    // object-store traffic and a CPU-bound re-encode, so this anchor must stay
+    // BELOW the ones that bound a row append — and the direction is the thing
+    // worth pinning, because the number is the part somebody will want to raise
+    // when an upload feels slow. Raising it past an asiento's ceiling is a
+    // decision that has to walk past this line on purpose.
+    const perMinute = API_V1_MEDIA_UPLOAD_USER_LIMIT.maxPerMinute ?? 0;
+    expect(perMinute).toBeGreaterThan(0);
+    expect(perMinute).toBeLessThan(API_V1_PET_RECORD_WRITE_USER_LIMIT.maxPerMinute ?? 0);
+    expect(API_V1_MEDIA_UPLOAD_USER_LIMIT.maxPerHour ?? 0).toBeLessThan(
+      API_V1_PET_RECORD_WRITE_USER_LIMIT.maxPerHour ?? 0,
+    );
+  });
+
   it("keeps every per-user anchor above zero, so the products mean something", () => {
     // THE NON-VACUITY FLOOR FOR THE SIX ASSERTIONS ABOVE, and the one
     // `api-v1-auth-routes.test.ts` had to add for the same reason: `0 === 0 * 12`
@@ -471,6 +499,7 @@ describe("/api/v1 rate-limit families — the numbers the derivation committed t
       API_V1_PET_DISCLOSURE_WRITE_USER_LIMIT,
       API_V1_PET_RECORD_WRITE_USER_LIMIT,
       API_V1_PET_REGISTRATION_USER_LIMIT,
+      API_V1_MEDIA_UPLOAD_USER_LIMIT,
     ];
     for (const anchor of anchors) {
       expect(anchor.maxPerMinute ?? 0).toBeGreaterThan(0);

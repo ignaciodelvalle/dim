@@ -58,6 +58,16 @@ export {
   lostCommandInputSchema,
 } from "./lost-mode.ts";
 export {
+  PET_PHOTO_COMMAND_INPUT_CODES,
+  PET_PHOTO_CONTENT_TYPES,
+  type PetPhotoCommand,
+  type PetPhotoCommandInput,
+  type PetPhotoCommandInputCode,
+  type PetPhotoContentType,
+  firstPetPhotoCommandInputCode,
+  petPhotoCommandInputSchema,
+} from "./pet-photo.ts";
+export {
   LIBRETA_SHARE_EXPIRY_DAYS,
   LIBRETA_SHARE_LABEL_MAX,
   MAX_ACTIVE_LIBRETA_SHARES,

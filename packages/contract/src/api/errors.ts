@@ -538,6 +538,37 @@
  *                         for the same reason `transfer_failed` gives none:
  *                         without an idempotency key a blind retry of `accept`
  *                         cannot be told from a second attempt. Re-read first.
+ * - `photo_forbidden`   — the caller holds this animal but not in a way that may
+ *                         set its photo. 403. Today that is exactly one case: an
+ *                         ORG-path caller whose membership lacks `event.write`,
+ *                         the same capability the attachment-bearing event door
+ *                         demands. A CARETAKER is NOT refused here — the
+ *                         titular-only deny-list names photos as one of the
+ *                         things a caretaker MAY do
+ *                         (`lib/domain/titular-only.ts`), and
+ *                         `primaryPhotoId` is deliberately absent from
+ *                         `TITULAR_ONLY_PET_COLUMNS`.
+ * - `photo_not_an_image`
+ *                       — the staged bytes are not a JPEG, PNG or WebP. 400, and
+ *                         it is decided by MAGIC BYTES over the bytes that
+ *                         arrived, never by the content type the ticket
+ *                         declared. It earns its own code rather than
+ *                         `invalid_request` because the fix is a different one:
+ *                         `invalid_request` means "your JSON was wrong", this
+ *                         means "your JSON was right and your file is not a
+ *                         photo", and a client should say so about the file.
+ *
+ *                         A staged object the server cannot find lands here too,
+ *                         and the collapse is deliberate: distinguishing "your
+ *                         upload never arrived" from "somebody else's key" would
+ *                         make `confirm` an oracle for which staged keys exist.
+ * - `photo_failed`      — the confirm transaction failed after the bytes
+ *                         validated: the re-encode, the write into `pet-photos`,
+ *                         or the row. 500. RETRYING IS SAFE HERE and this is the
+ *                         one failure arm on this surface where that is true
+ *                         without an idempotency key — a photo is a value, not
+ *                         an append, so setting it twice is setting it once. The
+ *                         ticket may be dead by then; re-ticket and re-upload.
  */
 export const API_V1_ERROR_CODES = [
   "rate_limited",
@@ -590,6 +621,9 @@ export const API_V1_ERROR_CODES = [
   "caretaker_expired",
   "caretaker_granter_not_titular",
   "caretaker_failed",
+  "photo_forbidden",
+  "photo_not_an_image",
+  "photo_failed",
 ] as const;
 
 export type ApiV1ErrorCode = (typeof API_V1_ERROR_CODES)[number];
