@@ -16,7 +16,12 @@ export default async function TransitosActivosPage() {
   const rows = await db
     .select({ ownership: ownerships, pet: pets })
     .from(ownerships)
-    .innerJoin(pets, eq(pets.id, ownerships.petId))
+    // Art. 16: the erasure RPC soft-deletes only role='owner' pets and never
+    // touches a role='foster' ownership — a foster keeps a live tenencia row
+    // pointing at the erased pet. Drop the erased pet so a third party (the
+    // foster) stops seeing its name and /mis-mascotas link (same reasoning as
+    // voluntarios/propuestas/page.tsx).
+    .innerJoin(pets, and(eq(pets.id, ownerships.petId), isNull(pets.deletedAt)))
     .where(
       and(
         eq(ownerships.ownerUserId, user.id),

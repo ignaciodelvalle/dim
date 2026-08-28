@@ -6,7 +6,7 @@ import { LnSectionHead } from "@/components/ui/DocElements";
 import { db, fosterProposals, organizations, pets } from "@/db";
 import { requireUserOrRedirect } from "@/lib/infra/auth-guards";
 import { formatDate, pluralizeEs, speciesLabel } from "@/lib/utils/format";
-import { desc, eq } from "drizzle-orm";
+import { and, desc, eq, isNull } from "drizzle-orm";
 
 import { STATUS_LABELS } from "./status-labels";
 
@@ -16,7 +16,11 @@ export default async function PropuestasInboxPage() {
   const proposals = await db
     .select({ proposal: fosterProposals, pet: pets, org: organizations })
     .from(fosterProposals)
-    .innerJoin(pets, eq(pets.id, fosterProposals.petId))
+    // Art. 16: the erasure RPC never touches foster_proposals, so an erased
+    // pet's proposal survives and would surface its name to the volunteer (a
+    // third party). Drop it — every action on the pet 404s anyway (same
+    // reasoning as voluntarios/propuestas/page.tsx).
+    .innerJoin(pets, and(eq(pets.id, fosterProposals.petId), isNull(pets.deletedAt)))
     .innerJoin(organizations, eq(organizations.id, fosterProposals.organizationId))
     .where(eq(fosterProposals.volunteerUserId, user.id))
     .orderBy(desc(fosterProposals.proposedAt));

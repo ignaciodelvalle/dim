@@ -5,7 +5,7 @@ import Link from "next/link";
 import { LnSectionHead } from "@/components/ui/DocElements";
 import { db, fosterProposals, organizations, ownerships, pets } from "@/db";
 import { requireUserOrRedirect } from "@/lib/infra/auth-guards";
-import { and, desc, eq, isNotNull, ne } from "drizzle-orm";
+import { and, desc, eq, isNotNull, isNull, ne } from "drizzle-orm";
 
 import { formatDateShort } from "@/lib/utils/format";
 
@@ -23,7 +23,10 @@ export default async function TransitosHistorialPage() {
   const past = await db
     .select({ ownership: ownerships, pet: pets })
     .from(ownerships)
-    .innerJoin(pets, eq(pets.id, ownerships.petId))
+    // Art. 16: a foster's ownership row survives the erasure RPC (only
+    // role='owner' pets are soft-deleted), so a finalized tránsito would still
+    // name the erased pet and link /mis-mascotas. Drop it.
+    .innerJoin(pets, and(eq(pets.id, ownerships.petId), isNull(pets.deletedAt)))
     .where(
       and(
         eq(ownerships.ownerUserId, user.id),
@@ -36,7 +39,9 @@ export default async function TransitosHistorialPage() {
   const noProposals = await db
     .select({ proposal: fosterProposals, pet: pets, org: organizations })
     .from(fosterProposals)
-    .innerJoin(pets, eq(pets.id, fosterProposals.petId))
+    // Art. 16: foster_proposals is untouched by the erasure RPC — an erased
+    // pet's not-concretada proposal survives and would name the pet. Drop it.
+    .innerJoin(pets, and(eq(pets.id, fosterProposals.petId), isNull(pets.deletedAt)))
     .innerJoin(organizations, eq(organizations.id, fosterProposals.organizationId))
     .where(
       and(

@@ -1254,3 +1254,96 @@ describe("every org-portal read of `pets` carries the soft-delete filter (art. 1
     }
   });
 });
+
+// ---------------------------------------------------------------------------
+// CITIZEN TRÁNSITO + TURNO SWEEP (ninth art. 16 family, 2026-08-28). Neither
+// sweep above can see app/(app): the public rule stops at unauthenticated
+// reachability, and the org sweep scans only app/org. But the citizen side has
+// the SAME structural leak the org portal had — the erasure RPC soft-deletes
+// only role='owner' pets and ends only role='caretaker' rows, so a role='foster'
+// ownership survives with ended_at = NULL, and bookSlotAction accepts ANY active
+// ownership role, so a non-owner booker holds an appointment whose ownerUserId
+// is their own id. Through either surviving row a THIRD PARTY (the foster / the
+// non-owner booker) kept seeing the erased pet's NAME and a working
+// /mis-mascotas link. Six screens carried zero guards when this sweep was
+// seeded: tránsitos activos, propuestas (inbox + detail), historial (two reads),
+// and mis-turnos (list + detail).
+//
+// Same counting rule as the sweeps above (`guards >= reads`, comments and
+// imports stripped), same stated blind spots. Post-fix the exception list is
+// EMPTY — every file under these two roots is fully guarded, so any new
+// under-guarded read here fails immediately. If a genuine guard-at-origin shape
+// ever appears (reads all scoped by a petIds list bounded elsewhere), it gets a
+// pin naming the origin, exactly like ORG_GUARD_AT_ORIGIN — never a cosmetic
+// filter to quiet this sweep.
+//
+// SCOPE (honest boundary): this sweep covers ONLY app/(app)/cuenta/transitos
+// and app/(app)/mis-turnos — the two neighborhoods fixed in this change. The
+// wider app/(app) tree (turnos/buscar, cuenta/chapas, denuncias, several
+// mis-mascotas subpages) still holds unguarded pets reads that were NOT audited
+// here; do not read this sweep's green as coverage of those.
+// ---------------------------------------------------------------------------
+
+type CitizenOriginPin = { reads: number; guards: number; origin: string };
+
+/** Empty by construction — every read under these roots is directly guarded. */
+const CITIZEN_GUARD_AT_ORIGIN: Record<string, CitizenOriginPin> = {};
+
+const CITIZEN_SWEEP_ROOTS = [
+  join("app", "(app)", "cuenta", "transitos"),
+  join("app", "(app)", "mis-turnos"),
+];
+
+function scanCitizenTransitoTurnoReaders(): PetsReader[] {
+  const out: PetsReader[] = [];
+  for (const rootRel of CITIZEN_SWEEP_ROOTS) {
+    const root = resolve(ROOT, rootRel);
+    for (const entry of readdirSync(root, { withFileTypes: true, recursive: true })) {
+      if (!entry.isFile()) continue;
+      if (!entry.name.endsWith(".ts") && !entry.name.endsWith(".tsx")) continue;
+      if (entry.name.includes(".test.")) continue;
+      const full = join(entry.parentPath, entry.name);
+      const { reads, guards } = countPetsAccess(readFileSync(full, "utf8"));
+      if (reads === 0) continue;
+      out.push({ rel: full.slice(`${ROOT}`.length + 1).replaceAll("\\", "/"), reads, guards });
+    }
+  }
+  return out.sort((a, b) => a.rel.localeCompare(b.rel));
+}
+
+describe("every citizen tránsito/turno read of `pets` carries the soft-delete filter (art. 16)", () => {
+  const readers = scanCitizenTransitoTurnoReaders();
+  const violations = readers.filter((r) => r.guards < r.reads);
+
+  it("actually reaches the citizen surfaces it claims to check", () => {
+    const rels = readers.map((r) => r.rel);
+    expect(readers.length).toBeGreaterThanOrEqual(6);
+    // Named anchors: the six screens this sweep was seeded FOR.
+    expect(rels).toContain("app/(app)/cuenta/transitos/activos/page.tsx");
+    expect(rels).toContain("app/(app)/cuenta/transitos/historial/page.tsx");
+    expect(rels).toContain("app/(app)/cuenta/transitos/propuestas/page.tsx");
+    expect(rels).toContain("app/(app)/cuenta/transitos/propuestas/[proposalToken]/page.tsx");
+    expect(rels).toContain("app/(app)/mis-turnos/page.tsx");
+    expect(rels).toContain("app/(app)/mis-turnos/[appointmentToken]/page.tsx");
+  });
+
+  it("has no under-guarded file outside the pinned guard-at-origin shapes", () => {
+    const unexplained = violations.filter((r) => {
+      const pin = CITIZEN_GUARD_AT_ORIGIN[r.rel];
+      return !pin || pin.reads !== r.reads || pin.guards !== r.guards;
+    });
+    expect(unexplained).toEqual([]);
+  });
+
+  it("carries no stale or drifted pin — a pin describes exactly what was reviewed", () => {
+    for (const [rel, pin] of Object.entries(CITIZEN_GUARD_AT_ORIGIN)) {
+      const reader = readers.find((r) => r.rel === rel);
+      expect(reader, `${rel} no longer reads pets — delete its pin`).toBeDefined();
+      expect(
+        { reads: reader?.reads, guards: reader?.guards },
+        `${rel} changed shape — re-review the file and re-pin`,
+      ).toEqual({ reads: pin.reads, guards: pin.guards });
+      expect(pin.guards).toBeLessThan(pin.reads);
+    }
+  });
+});

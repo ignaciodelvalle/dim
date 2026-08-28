@@ -2,7 +2,7 @@
 // CancelButton, MisTurnosSheetMounter (client components) unchanged.
 
 import { deepLinkAppUrl } from "@dim/contract/links";
-import { eq } from "drizzle-orm";
+import { and, eq, isNull } from "drizzle-orm";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import QRCode from "qrcode";
@@ -47,7 +47,11 @@ export default async function AppointmentDetailPage({
     .from(appointments)
     .innerJoin(timeSlots, eq(timeSlots.id, appointments.slotId))
     .innerJoin(serviceOfferings, eq(serviceOfferings.id, appointments.serviceOfferingId))
-    .innerJoin(pets, eq(pets.id, appointments.petId))
+    // Art. 16: same as the /mis-turnos list — a foster/caretaker booker holds
+    // an appointment (ownerUserId = their id) that survives the owner's
+    // erasure, so an erased pet's detail would render one click deeper. Drop it
+    // and the page 404s, as an erased pet should.
+    .innerJoin(pets, and(eq(pets.id, appointments.petId), isNull(pets.deletedAt)))
     .leftJoin(organizations, eq(organizations.id, appointments.organizationId))
     .leftJoin(profiles, eq(profiles.id, serviceOfferings.providerUserId))
     .where(eq(appointments.publicToken, appointmentToken))

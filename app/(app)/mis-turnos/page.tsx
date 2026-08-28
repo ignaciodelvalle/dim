@@ -1,7 +1,7 @@
 // /mis-turnos — Libreta Nacional redesign.
 // AppointmentCard (component) is unchanged.
 
-import { desc, eq } from "drizzle-orm";
+import { and, desc, eq, isNull } from "drizzle-orm";
 import Link from "next/link";
 
 import { AppointmentCard } from "@/components/AppointmentCard";
@@ -45,7 +45,12 @@ export default async function MisTurnosPage() {
     .from(appointments)
     .innerJoin(timeSlots, eq(timeSlots.id, appointments.slotId))
     .innerJoin(serviceOfferings, eq(serviceOfferings.id, appointments.serviceOfferingId))
-    .innerJoin(pets, eq(pets.id, appointments.petId))
+    // Art. 16: bookSlotAction accepts ANY active ownership role (not just
+    // owner), so a foster/caretaker books with appointments.ownerUserId = their
+    // own id. The erasure RPC soft-deletes only the role='owner' pet and leaves
+    // that foster ownership + this appointment intact — so the erased pet would
+    // surface here to a non-owner booker. Drop it.
+    .innerJoin(pets, and(eq(pets.id, appointments.petId), isNull(pets.deletedAt)))
     .leftJoin(organizations, eq(organizations.id, appointments.organizationId))
     .leftJoin(profiles, eq(profiles.id, serviceOfferings.providerUserId))
     .where(eq(appointments.ownerUserId, user.id))

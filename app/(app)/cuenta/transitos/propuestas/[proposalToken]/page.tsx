@@ -9,7 +9,7 @@ import { LnCallout } from "@/components/ui/DocElements";
 import { db, fosterProposals, organizations, pets, profiles } from "@/db";
 import { requireUserOrRedirect } from "@/lib/infra/auth-guards";
 import { formatDate, pluralizeEs, sexLabel, speciesLabel } from "@/lib/utils/format";
-import { eq } from "drizzle-orm";
+import { and, eq, isNull } from "drizzle-orm";
 
 import { STATUS_LABELS } from "../status-labels";
 import { ProposalActions } from "./ProposalActions";
@@ -25,7 +25,10 @@ export default async function ProposalDetailPage({
   const [row] = await db
     .select({ proposal: fosterProposals, pet: pets, org: organizations, proposer: profiles })
     .from(fosterProposals)
-    .innerJoin(pets, eq(pets.id, fosterProposals.petId))
+    // Art. 16: foster_proposals survives the erasure RPC, so an erased pet's
+    // proposal detail would still render its name to the volunteer. Drop it —
+    // the row falls out and the page 404s, as an erased pet should.
+    .innerJoin(pets, and(eq(pets.id, fosterProposals.petId), isNull(pets.deletedAt)))
     .innerJoin(organizations, eq(organizations.id, fosterProposals.organizationId))
     .innerJoin(profiles, eq(profiles.id, fosterProposals.proposedByUserId))
     .where(eq(fosterProposals.publicToken, proposalToken))
