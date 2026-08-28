@@ -73,6 +73,10 @@ export default async function OrgPetDetailPage({
     .where(
       and(
         eq(pets.publicToken, publicToken),
+        // Erased pet (art. 16): the sponsorship row survives the erasure RPC,
+        // but every action here 404s via resolvePetHolderAccess — same filter,
+        // caller-side, so the ficha never renders a shell of dead ends.
+        isNull(pets.deletedAt),
         eq(ownerships.ownerOrganizationId, organization.id),
         isNull(ownerships.endedAt),
         inArray(ownerships.role, ["shelter_custody", "foster", "owner", "co_owner", "caretaker"]),
@@ -85,12 +89,16 @@ export default async function OrgPetDetailPage({
     // genuinely does not exist" (→ 404) from "the pet exists but left this
     // org's custody" (e.g. a finalized adoption or transfer). The latter is a
     // stale in-app link and deserves a confirming state, not a bare dead-end
-    // 404 (QA ALTO, 2026-07-16). Existence by publicToken is already public
-    // (Tier-0 credential, /p/[token]), so this leaks nothing new.
+    // 404 (QA ALTO, 2026-07-16). Existence of a LIVE pet by publicToken is
+    // already public (Tier-0 credential, /p/[token]), so this leaks nothing
+    // new — but the probe must carry the soft-delete filter, because under
+    // PO-4 an erased pet and a pet that never existed are the same answer,
+    // and /p no longer resolves it either. Without the filter this branch
+    // would print an erased animal's name.
     const [stillExists] = await db
       .select({ id: pets.id, name: pets.name })
       .from(pets)
-      .where(eq(pets.publicToken, publicToken))
+      .where(and(eq(pets.publicToken, publicToken), isNull(pets.deletedAt)))
       .limit(1);
     if (!stillExists) notFound();
 

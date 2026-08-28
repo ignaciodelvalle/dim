@@ -162,7 +162,16 @@ export async function GET(_req: Request, { params }: { params: Promise<{ orgToke
     .select({ pet: pets, ownershipRole: ownerships.role, startedAt: ownerships.startedAt })
     .from(pets)
     .innerJoin(ownerships, eq(ownerships.petId, pets.id))
-    .where(and(eq(ownerships.ownerOrganizationId, organization.id), isNull(ownerships.endedAt)));
+    .where(
+      and(
+        eq(ownerships.ownerOrganizationId, organization.id),
+        isNull(ownerships.endedAt),
+        // Same population as the list page ("the file reads like the screen it
+        // came from"): an erased pet's surviving sponsorship row must not put
+        // it back into the roster the screen just excluded.
+        isNull(pets.deletedAt),
+      ),
+    );
 
   const byPetId = new Map<string, (typeof orgRows)[number]>();
   for (const row of orgRows) {

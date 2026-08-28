@@ -121,6 +121,11 @@ export default async function OrgMascotasPage({
   const whereConditions = [
     eq(ownerships.ownerOrganizationId, organization.id),
     isNull(ownerships.endedAt),
+    // An erased pet (art. 16 soft-delete) keeps its sponsorship row alive —
+    // the erasure RPC never touches ownerships — but every action on it 404s
+    // via resolvePetHolderAccess, so listing it here would be a card of dead
+    // ends. Caller-side twin of the resolver's own filter.
+    isNull(pets.deletedAt),
   ];
   if (speciesFilter) whereConditions.push(eq(pets.species, speciesFilter));
   if (isOtherSpecies) whereConditions.push(notInArray(pets.species, ["dog", "cat"]));
