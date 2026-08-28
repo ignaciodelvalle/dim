@@ -14,12 +14,14 @@
 //   import { deepLinkPath } from "@dim/contract/links";
 //   import { sortForDisplay } from "@dim/contract/notifications";
 //   import { LN_COLORS } from "@dim/contract/tokens";
+//   import { PET_PROFILE_ICONS } from "@dim/contract/icons";
 //
 // `input` is the one entry point with a runtime dependency (zod). A consumer
 // that only reads the event vocabulary, the scales, the static catalogs, the
 // `/api/v1` wire shapes or the deep-link table never loads it.
 export * from "./api/index.ts";
 export * from "./events/index.ts";
+export * from "./icons/index.ts";
 export * from "./input/index.ts";
 export * from "./links/index.ts";
 export * from "./notifications/index.ts";

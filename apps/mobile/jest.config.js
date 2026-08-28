@@ -69,4 +69,32 @@ module.exports = {
   // steps the whole class: no separator ever reaches micromatch.
   roots: ["<rootDir>/src"],
   testMatch: ["**/*.test.ts", "**/*.test.tsx"],
+
+  // The preset's list, plus `lucide-react-native`. That package ships
+  // untransformed ESM (`dist/esm/*.mjs`) and its exports map puts the
+  // `react-native` condition before `require`, so the test environment's
+  // customExportConditions resolve the .mjs — which Jest cannot parse without
+  // Babel. The preset's default exception list covers the RN ecosystem by
+  // name-prefix and "lucide-react-native" does not start with "react-native",
+  // so it must be named. Everything except that one addition is the preset's
+  // own value, copied because transformIgnorePatterns REPLACES rather than
+  // merges; re-check `require("jest-expo/jest-preset").transformIgnorePatterns`
+  // when upgrading the SDK.
+  transformIgnorePatterns: [
+    "/node_modules/(?!(.pnpm|react-native|@react-native|@react-native-community|expo|@expo|@expo-google-fonts|react-navigation|@react-navigation|@sentry/react-native|native-base|standard-navigation|lucide-react-native))",
+    "/node_modules/react-native-reanimated/plugin/",
+    "/node_modules/@react-native/babel-preset/",
+  ],
+
+  // The preset's transform, extended to `.mjs`. Its babel entry is keyed
+  // `\.[jt]sx?$`, which never matches `lucide-react-native`'s ESM build
+  // (`dist/esm/*.mjs` — what the `react-native` export condition resolves, i.e.
+  // what Metro actually bundles), so exempting the package above still fed raw
+  // `export` statements to the runtime. Reusing the preset's own babel-jest
+  // entry keeps the options (caller: metro, this app's babel.config.js) in one
+  // place instead of copying them.
+  transform: {
+    ...require("jest-expo/jest-preset").transform,
+    "\\.mjs$": require("jest-expo/jest-preset").transform["\\.[jt]sx?$"],
+  },
 };
