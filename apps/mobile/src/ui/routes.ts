@@ -106,6 +106,20 @@ export function credentialRoute(publicToken: string): `/mascotas/${string}` {
 }
 
 /**
+ * One pet's PUBLIC credential — the anonymous document behind the QR.
+ *
+ * A ROUTE AND NOT A FACE, since the two-face rewrite (PO decision, 2026-08-28):
+ * the web's card has exactly two faces (Credencial · frente, Libreta · dorso)
+ * and its public document lives one tap away at `/p/{token}`. This is that tap,
+ * reached from the profile's QR block and from "Más" — mirroring where the web
+ * puts it rather than surfacing the public page as a third tab beside the two
+ * faces it is not one of.
+ */
+export function publicCredentialRoute(publicToken: string): `/mascotas/${string}/credencial` {
+  return `/mascotas/${encodeURIComponent(publicToken)}/credencial`;
+}
+
+/**
  * One asiento of one pet's libreta.
  *
  * A REAL ROUTE and not a panel inside the libreta tab, because a detail screen
@@ -197,6 +211,7 @@ export function caretakerGrantRoute(grantToken: string): `/cuidado/${string}` {
 export type AppRoute =
   | (typeof ROUTES)[keyof typeof ROUTES]
   | ReturnType<typeof credentialRoute>
+  | ReturnType<typeof publicCredentialRoute>
   | ReturnType<typeof libretaEventRoute>
   | ReturnType<typeof recordEventRoute>
   | ReturnType<typeof lostModeRoute>

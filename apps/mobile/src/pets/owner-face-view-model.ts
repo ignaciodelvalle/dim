@@ -8,7 +8,8 @@
 // WHAT THIS FACE IS. Not the credential. `/pets/{token}/credential` is the
 // anonymous public document and renders identically for the owner and for a
 // stranger who scanned the QR. This is what the person RESPONSIBLE for the
-// animal sees. Both live on the same screen; neither replaces the other.
+// animal sees. Since the two-face rewrite the public document is a ROUTE one
+// tap from this face's QR block; neither replaces the other.
 
 import type {
   CredentialSection,
@@ -116,6 +117,18 @@ export function viewerRoleLabel(role: OwnerPetDetailViewerRole): string {
       return String(unknown);
     }
   }
+}
+
+/**
+ * The registration badge's word, gender-agreed with the animal's recorded sex —
+ * the same rule the web's `registeredAdjective` (lib/utils/format.ts) applies
+ * to the identical badge. Presentational agreement, not a state decision: the
+ * STATE (active) comes from the payload.
+ */
+export function registeredBadgeWord(sex: string | null): string {
+  if (sex === "male") return "Registrado";
+  if (sex === "female") return "Registrada";
+  return "Registrado/a";
 }
 
 // ---------------------------------------------------------------------------
@@ -258,6 +271,9 @@ export function casesLine(cases: OwnerPetCasesSection): string {
 export type OwnerFaceView = {
   publicToken: string;
   viewerLabel: string;
+  /** The raw viewer role — the disabled-row gates key off it (a dead control
+   *  has no server to refuse it, so the client mirrors the web's own gates). */
+  viewerRole: OwnerPetDetailViewerRole;
   isTitular: boolean;
   identity: SectionView<OwnerPetIdentitySection>;
   status: SectionView<OwnerPetStatusSection>;
@@ -274,6 +290,7 @@ export function buildOwnerFaceView(payload: OwnerPetDetailV1): OwnerFaceView {
   return {
     publicToken: payload.publicToken,
     viewerLabel: viewerRoleLabel(payload.viewer.role),
+    viewerRole: payload.viewer.role,
     isTitular: payload.viewer.isTitular,
     identity: sectionView(payload.identity),
     status: sectionView(payload.status),

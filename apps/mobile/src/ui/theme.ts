@@ -47,6 +47,9 @@ export const COLORS = {
 
   /** The warm hairline every card and row wears. */
   border: LN_COLORS.line,
+  /** The lighter hairline for dividers INSIDE a card — the web's `line-2`,
+   *  which the document chrome's inner frame and section dividers wear. */
+  borderSoft: LN_COLORS.line2,
   /** The heavier warm border for controls and outline buttons. */
   borderStrong: LN_COLORS.lineStrong,
 
@@ -60,8 +63,13 @@ export const COLORS = {
   accent: LN_COLORS.azul,
   /** Its pressed state. */
   accentPressed: LN_COLORS.azul700,
+  /** The deep navy the credential band's gradient starts from (`azul-900`). */
+  bandDeep: LN_COLORS.azul900,
   /** Links and informational accents on tinted ground. */
   celeste: LN_COLORS.celeste,
+  /** The celeste hairline — the registration badge's border, the observación
+   *  band tint's face border. */
+  celeste100: LN_COLORS.celeste100,
   /** The 3px focus ring fill. */
   focusRing: LN_COLORS.celeste050,
 
@@ -120,6 +128,9 @@ export const RADIUS = {
   control: LN_RADII.sm,
   button: LN_RADII.pill,
   chip: LN_RADII.xs,
+  /** The credential card's own corner — the web's `--radius-card` (16px),
+   *  worn by the two-faced document sheet and nothing smaller. */
+  card: LN_RADII.card,
 } as const;
 
 /** Font sizes. The web's named steps, by the same names. */

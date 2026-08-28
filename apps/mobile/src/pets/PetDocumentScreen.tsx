@@ -1,0 +1,169 @@
+// One pet, as ONE two-sided document — the native mirror of the web's card.
+//
+// TWO FACES, NOT THREE (PO decision, 2026-08-28): Credencial · frente (the
+// owner's front face, `OwnerCredentialFace`) and Libreta · dorso
+// (`LibretaScreen`), inside the shared `DocumentChromeNative` — band, mono
+// title, situation chip, turn button, hairline frame. The public credential is
+// a ROUTE one tap from the QR block and from "Más", not a face; see the route
+// shell (`app/mascotas/[publicToken].tsx`) for the argument with the old
+// three-face layering.
+//
+// THE TURN IS AN INSTANT SWAP in this unit — the reduced-motion path IS the
+// mechanic; the animated turn is the next unit (React Native core `Animated`,
+// never Reanimated — see release-config.test.ts for the production build the
+// worklets runtime cost this repo).
+//
+// WHO OWNS WHAT. This screen owns the one scroll view, the owner-detail read
+// (the front face's data AND the band chip's situation — the chip must
+// survive a flip to the back face, so the read cannot live inside the face
+// that unmounts), and the face state. The libreta face brings its own read,
+// failure copy and write, unchanged. The situation chip's key/tone/icon/label
+// are decided SERVER-SIDE (`OwnerPetSituationV1`); nothing here re-derives
+// them.
+//
+// NOT CACHED — the deliberate v1 decision the old owner face recorded, still
+// true: `credential-cache.ts` justifies caching the PUBLIC document precisely
+// because it is public; this payload (open cases, caretaker names, the
+// household's other animals) is a different privacy class and none of that
+// reasoning carries over. A failed read says so and offers a retry.
+
+import type { OwnerPetDetailV1, OwnerPetSituationV1 } from "@dim/contract/api";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { StyleSheet, Text, View } from "react-native";
+
+import type { ApiResult } from "../api/client";
+import { fetchOwnerPetDetail } from "../api/endpoints";
+import { apiErrorMessage } from "../api/error-copy";
+import { sessionPort } from "../auth/session-store";
+import { Body, Card, Loading } from "../ui/components";
+import { FONTS } from "../ui/fonts";
+import { Eyebrow, PrimaryButton, Screen } from "../ui/kit";
+import { COLORS, LEADING, SPACE, TYPE } from "../ui/theme";
+import { DocumentChromeNative, type DocumentFace } from "./DocumentChromeNative";
+import { LibretaScreen } from "./LibretaScreen";
+import { OwnerCredentialFace, OwnerExtraSections } from "./OwnerFace";
+import { type OwnerFaceView, buildOwnerFaceView } from "./owner-face-view-model";
+
+type OwnerState =
+  | { phase: "loading" }
+  | { phase: "ready"; view: OwnerFaceView }
+  | { phase: "failed"; message: string };
+
+/** One sentence per failure arm. No arm may fall through to a generic shrug. */
+function failureMessage(result: ApiResult<OwnerPetDetailV1>): string {
+  switch (result.outcome) {
+    case "api-error":
+      return apiErrorMessage(result.code);
+    case "unsupported-version":
+      return "Esta versión de la app no puede leer los datos de esta mascota. Actualizá la app.";
+    case "malformed":
+      return "La respuesta del servidor no se pudo leer.";
+    case "unreachable":
+      return "No pudimos conectarnos. Revisá tu conexión.";
+    default:
+      return "No pudimos leer esta mascota.";
+  }
+}
+
+/** The band chip's payload, read off the view — null when the read failed or
+ *  the situation is the default (no pill rather than a green one). */
+function situationOf(view: OwnerFaceView | null): OwnerPetSituationV1 | null {
+  if (view === null || view.status.state !== "ok") return null;
+  return view.status.data.situation;
+}
+
+export function PetDocumentScreen({ publicToken }: { publicToken: string }) {
+  const [face, setFace] = useState<DocumentFace>("credencial");
+  const [owner, setOwner] = useState<OwnerState>({ phase: "loading" });
+  // Guards against a stale response overwriting a newer one after a fast
+  // double-tap on "Actualizar" — the same generation counter CredentialScreen
+  // uses, and for the same reason.
+  const generation = useRef(0);
+
+  const load = useCallback(async () => {
+    const mine = ++generation.current;
+    setOwner({ phase: "loading" });
+    const result = await fetchOwnerPetDetail(sessionPort, publicToken);
+    if (mine !== generation.current) return;
+    if (result.outcome === "ok") {
+      setOwner({ phase: "ready", view: buildOwnerFaceView(result.payload) });
+      return;
+    }
+    setOwner({ phase: "failed", message: failureMessage(result) });
+  }, [publicToken]);
+
+  useEffect(() => {
+    void load();
+  }, [load]);
+
+  const view = owner.phase === "ready" ? owner.view : null;
+
+  return (
+    <Screen>
+      <View style={styles.masthead}>
+        <Eyebrow>Ficha del dueño</Eyebrow>
+        {/* The viewer line — a caretaker or a foster reading this document
+            needs to know WHY some things are missing from it; an unexplained
+            gap reads as a bug. */}
+        {view === null ? null : <Text style={styles.viewerLine}>{view.viewerLabel}</Text>}
+      </View>
+
+      <DocumentChromeNative
+        face={face}
+        onTurn={() => setFace((current) => (current === "credencial" ? "libreta" : "credencial"))}
+        situation={situationOf(view)}
+      >
+        {face === "credencial" ? (
+          <FrontFaceBody state={owner} />
+        ) : (
+          <LibretaScreen publicToken={publicToken} />
+        )}
+      </DocumentChromeNative>
+
+      {face === "credencial" ? (
+        <>
+          {view === null ? null : <OwnerExtraSections view={view} />}
+          <PrimaryButton
+            label="Actualizar"
+            onPress={() => void load()}
+            disabled={owner.phase === "loading"}
+          />
+        </>
+      ) : null}
+    </Screen>
+  );
+}
+
+/** The front face's three phases, inside the chrome. A failed read renders its
+ *  refusal INSIDE the card — the document is still a document, just unread. */
+function FrontFaceBody({ state }: { state: OwnerState }) {
+  if (state.phase === "loading") {
+    return (
+      <View style={styles.facePad}>
+        <Loading label="Leyendo la ficha…" />
+      </View>
+    );
+  }
+  if (state.phase === "failed") {
+    return (
+      <View style={styles.facePad}>
+        <Card title="No disponible">
+          <Body>{state.message}</Body>
+        </Card>
+      </View>
+    );
+  }
+  return <OwnerCredentialFace view={state.view} />;
+}
+
+const styles = StyleSheet.create({
+  masthead: { gap: SPACE.xs },
+  viewerLine: {
+    fontFamily: FONTS.sansMedium,
+    fontSize: TYPE.md,
+    lineHeight: TYPE.md * LEADING.md,
+    color: COLORS.inkSoft,
+  },
+  // The `.ln-sec` phone padding, for the two non-face bodies (loading/failed).
+  facePad: { paddingVertical: 20, paddingHorizontal: 18 },
+});

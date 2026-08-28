@@ -1,10 +1,12 @@
 // The LIBRETA face of one pet — the ledger of asientos.
 //
-// THE THIRD FACE, AND THE ONE THE PRODUCT IS NAMED AFTER. `CredentialScreen`
-// renders the anonymous public document; `OwnerFaceScreen` renders the owner's
-// chrome around it — alerts, compliance, arrangements. This is what the web
-// bands as "Libreta · dorso": what is coming due, and every asiento the animal
-// has, newest first.
+// THE BACK FACE, AND THE ONE THE PRODUCT IS NAMED AFTER. Since the two-face
+// rewrite (PO decision, 2026-08-28) this renders INSIDE the document chrome as
+// "Libreta · dorso" — the back of the same physical card whose front is the
+// credential — rather than as a standalone tab. The content is what it always
+// was: what is coming due, and every asiento the animal has, newest first.
+// (`PetDocumentScreen` owns the scroll view and the chrome; this face brings
+// its own read, its own failure copy and its own write.)
 //
 // EVERY SECTION FAILS ON ITS OWN, with the same contract the other two faces
 // use: `unavailable` means the server could not read it — NOT that it is empty.
@@ -19,7 +21,7 @@
 // travelling with its owner must not renumber an animal's dates. What this
 // screen owns is the copy AROUND them and the honest empty states.
 //
-// NOT CACHED, the same v1 decision `OwnerFaceScreen` records: this payload is a
+// NOT CACHED, the same v1 decision `PetDocumentScreen` records: this payload is a
 // different privacy class from the public credential, and `credential-cache.ts`'s
 // justification does not carry over. A failed read says so and offers a retry.
 
@@ -34,7 +36,7 @@ import { apiErrorMessage } from "../api/error-copy";
 import { sessionPort } from "../auth/session-store";
 import { Body, Card, Loading, Row, Unavailable } from "../ui/components";
 import { FONTS } from "../ui/fonts";
-import { PrimaryButton, Screen, SecondaryButton } from "../ui/kit";
+import { PrimaryButton, SecondaryButton } from "../ui/kit";
 import { libretaEventRoute, recordEventRoute } from "../ui/routes";
 import { COLORS, LEADING, RADIUS, SPACE, TOUCH_TARGET, TRACKING, TYPE } from "../ui/theme";
 import {
@@ -108,8 +110,10 @@ export function LibretaScreen({ publicToken }: { publicToken: string }) {
     }, [load]),
   );
 
+  // No <Screen> of its own since the two-face rewrite: PetDocumentScreen owns
+  // the one scroll view, and this face renders inside the card's body.
   return (
-    <Screen>
+    <View style={styles.faceBody}>
       {state.phase === "loading" ? <Loading label="Leyendo la libreta…" /> : null}
       {state.phase === "failed" ? (
         <Card title="No disponible">
@@ -133,7 +137,7 @@ export function LibretaScreen({ publicToken }: { publicToken: string }) {
         onPress={() => void load()}
         disabled={state.phase === "loading"}
       />
-    </Screen>
+    </View>
   );
 }
 
@@ -327,6 +331,9 @@ function FactRow({ fact }: { fact: LibretaEntryV1["facts"][number] }) {
 }
 
 const styles = StyleSheet.create({
+  // The face's inner rhythm — the web's `.ln-sec` phone padding (20/18), with
+  // the Screen's old inter-block gap kept between sections.
+  faceBody: { paddingVertical: 20, paddingHorizontal: 18, gap: SPACE.lg },
   petName: {
     fontFamily: FONTS.serif,
     fontSize: TYPE.xl2,
