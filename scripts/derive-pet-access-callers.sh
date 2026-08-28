@@ -82,5 +82,8 @@ echo "  total: $TOTAL across $FILES file(s)"
 echo "  ...of those files, mentioning pets.deleted_at: $GUARDED"
 
 echo
-echo "== blast radius of adding isNull(pets.deletedAt) to resolvePetHolderAccess =="
+# The filter landed 2026-08-28: resolvePetHolderAccess carries
+# isNull(pets.deletedAt) on both paths, so this figure is the number of call
+# sites the choke-point fix covers, not a pending blast radius.
+echo "== call sites covered by isNull(pets.deletedAt) inside resolvePetHolderAccess =="
 echo "  $((DIRECT_N + TOTAL)) call site(s)"

@@ -274,70 +274,45 @@ export async function requirePetAccess(publicToken: string): Promise<PetAccessRe
  * called with an unvalidated id.
  *
  * ===========================================================================
- * KNOWN GAP — THIS FUNCTION DOES NOT FILTER `pets.deleted_at` (measured
- * 2026-08-28). NOT FIXED; SCOPED AS ITS OWN UNIT.
+ * AN ERASED PET RESOLVES NOTHING — both paths filter `pets.deleted_at`
+ * (closed 2026-08-28, the same day the gap was measured open).
  * ===========================================================================
- * The Path-1 predicate below is `pets.public_token = ? AND
- * ownerships.owner_user_id = ? AND ownerships.ended_at IS NULL`. There is no
- * `pets.deleted_at IS NULL` anywhere in it, and Path 2 has the same shape.
+ * `erase_subject_data` SOFT-DELETES the pet and leaves the `ownerships` row
+ * standing — `purgeOwnedPetAttachments` in erase-subject-data.ts depends on
+ * exactly that and says so: "ownerships rows survive the RPC (only pets are
+ * soft-deleted)". So after an account erasure the animal still has a live
+ * ownership row, and without the `isNull(pets.deletedAt)` term in each
+ * predicate below this function kept answering a holder kind for it (Ley
+ * 25.326 art. 16). `requireAlivePetAccess` covered none of that: it refuses
+ * `status === 'deceased'`, a different column and a different fact.
  *
- * WHY THAT IS REACHABLE RATHER THAN THEORETICAL. `erase_subject_data`
- * SOFT-DELETES the pet and leaves the `ownerships` row standing —
- * `purgeOwnedPetAttachments` in erase-subject-data.ts depends on exactly that
- * and says so: "ownerships rows survive the RPC (only pets are soft-deleted)".
- * So after an account erasure the animal still has a live ownership row, and
- * this function still answers `kind: "owner"` for it.
+ * An erased pet now answers `{ kind: "none" }`, which every caller maps to
+ * "not-found-or-forbidden" → 404 — under PO-4 an erased pet and a pet that
+ * never existed are the same answer.
  *
- * `requireAlivePetAccess` DOES NOT COVER THIS. It refuses `status ===
- * 'deceased'`, which is a different column and a different fact: a soft-deleted
- * pet is not a deceased one, and an erased owner's animal passes that gate
- * untouched.
+ * DELIBERATELY NO OPT-IN PARAMETER. A read-only classification of every call
+ * site (2026-08-28) found none that must still resolve a soft-deleted pet.
+ * The populations that looked like they might do not route through this
+ * resolver at all: government aggregates read `pets` directly and
+ * deliberately unfiltered (migration 0205 PART C1; the census stays out of
+ * the soft-delete fence's scope by assertion), `getFormerOwnerReadAccess`
+ * below is its own sibling resolver, and decomiso custody is mutually
+ * exclusive by SQL — erasure soft-deletes only pets whose subject holds a
+ * live 'owner' row, while executeDecomiso ends every individual row when
+ * opening the episode. If a future admin-recovery surface needs to see an
+ * erased pet, it gets its own named resolver, the way
+ * `getFormerOwnerReadAccess` is a sibling rather than a flag: an unused
+ * escape hatch on a security boundary is an invitation.
  *
- * MEASURED BLAST RADIUS. The numbers below are a snapshot; THE METHOD IS THE
- * PART THAT MATTERS, because a figure labelled "measured" that does not
- * reproduce is worse than no figure — the next unit scopes from it. Re-derive
- * rather than trust, with `bash scripts/derive-pet-access-callers.sh`, which is
- * the exact command that produced these and prints them in this order.
+ * Call-site counts live in `bash scripts/derive-pet-access-callers.sh` —
+ * re-derive, never transcribe.
  *
- * COUNTING RULES, stated because the first version of this comment got them
- * wrong and read 60/34 instead of 54/29:
- *   - production only — `app/`, `lib/`, `src/`, `.ts`/`.tsx`;
- *   - AWAITED INVOCATIONS, not mentions: a guard named inside a docblock is not
- *     a call site, and this file's docblocks name all three of them;
- *   - `__tests__/` and `*.test.*` excluded — a test calling a guard is not a
- *     surface that needs one;
- *   - archived design docs excluded by construction (the sweep is over `.ts`
- *     only; `docs/superpowers/specs/archive/*.md` contains `await
- *     requirePetAccess(` and is not code);
- *   - THIS FILE excluded — `requireAlivePetAccess` and `requireTitularAccess`
- *     each `await requirePetAccess(...)`, which is internal composition, not an
- *     independent consumer. Those two lines are the whole difference between 23
- *     and 21.
- *
- * Snapshot, 2026-08-28:
- *   · 11 direct consumers of this function. TEN carry no `deleted_at` guard of
- *     their own. The one that does is
- *     `app/api/v1/pets/[publicToken]/photo/route.ts`, which added it after
- *     `__tests__/public-soft-delete-resolution.test.ts` flagged the module it
- *     calls — that fence is currently the only thing in the repo that notices
- *     this class, and it only watches modules reachable from `app/api/v1/**`,
- *     which is why the web files below are invisible to it.
- *   · 54 consumers of the three guards composed on top of this one
- *     (`requirePetAccess` 21, `requireAlivePetAccess` 16,
- *     `requireTitularAccess` 17) across 29 files. ZERO of those files mention
- *     `pets.deletedAt` or `pets.deleted_at` at all.
- *
- * WHY IT IS NOT FIXED HERE. Adding `isNull(pets.deletedAt)` to both paths is
- * one line and is probably right, but it silently changes the answer for 65
- * call sites at once — including reads where a soft-deleted pet may be
- * something an operator is still meant to see (decomiso custody chains, govt
- * aggregates, the former-owner read grant below). That is a decision with a
- * blast radius, not a patch, and it belongs to a unit that can enumerate the
- * exceptions. Ley 25.326 art. 16 is the clock on it.
- *
- * WHAT A NEW CALLER MUST DO MEANWHILE: check `pet.deletedAt` yourself if your
- * surface must not act on an erased animal, and answer the way the rest of this
- * surface answers about a pet nobody may see — 404, never a distinct code.
+ * THE FENCE IS RUNTIME, AT THIS CHOKE POINT.
+ * `__tests__/public-soft-delete-resolution.test.ts` runs the real erasure RPC
+ * against a real DB and asserts both paths answer `{ kind: "none" }` — for a
+ * surviving org sponsorship and for a surviving live person row.
+ * `__tests__/pet-access.test.ts` cannot see this predicate: its mocked
+ * `.where()` discards the argument.
  */
 export type PetHolderAccess =
   | { kind: "owner"; pet: Pet; holderRole: OwnershipRole }
@@ -375,6 +350,8 @@ export async function resolvePetHolderAccess(
     .where(
       and(
         eq(pets.publicToken, publicToken),
+        // Erased pets resolve nothing (art. 16) — see the docblock above.
+        isNull(pets.deletedAt),
         eq(ownerships.ownerUserId, userId),
         isNull(ownerships.endedAt),
       ),
@@ -420,7 +397,17 @@ export async function resolvePetHolderAccess(
       ),
     )
     .innerJoin(profiles, eq(profiles.id, organizationMemberships.userId))
-    .where(and(eq(pets.publicToken, publicToken), isNull(ownerships.endedAt)))
+    .where(
+      and(
+        eq(pets.publicToken, publicToken),
+        // Erased pets resolve nothing (art. 16) — the org path is the one
+        // population that still reaches this resolver for an erased animal:
+        // rehome (R4) keeps the org's sponsorship row live alongside the
+        // family's owner row, and the erasure RPC ends neither.
+        isNull(pets.deletedAt),
+        isNull(ownerships.endedAt),
+      ),
+    )
     .limit(1);
   if (orgRow) {
     // VET-role trust keystone (#43): bind the provenance tier to the SIGNER's
@@ -631,7 +618,16 @@ export async function getFormerOwnerReadAccess(
   publicToken: string,
   userId: string,
 ): Promise<FormerOwnerReadAccess> {
-  const [petRow] = await db.select().from(pets).where(eq(pets.publicToken, publicToken)).limit(1);
+  // An erased pet grants no read either (art. 16). Unreachable for a
+  // soft-deleted pet today — soft-delete requires a live 'owner' row, and this
+  // grant requires an open custody episode, which requires that row ended —
+  // but a sibling of the holder resolver must not be the one bare `pets` read
+  // left in this file.
+  const [petRow] = await db
+    .select()
+    .from(pets)
+    .where(and(eq(pets.publicToken, publicToken), isNull(pets.deletedAt)))
+    .limit(1);
   if (!petRow) return { ok: false };
 
   // Must be a CURRENTLY OPEN custody_episode for this pet — the derivation

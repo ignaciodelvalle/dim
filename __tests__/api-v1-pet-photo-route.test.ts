@@ -186,12 +186,15 @@ describe("who may reach the door", () => {
   });
 
   it("refuses a SOFT-DELETED pet as 404, and mints nothing", async () => {
-    // `resolvePetHolderAccess` does NOT filter `pets.deleted_at`, and
-    // `erase_subject_data` soft-deletes the PET while the `ownerships` row
-    // survives — so an animal whose owner exercised art. 16 still resolves
-    // holder access. Without this the door would mint a capability to write a
-    // photo onto an erased animal. Found by
-    // `__tests__/public-soft-delete-resolution.test.ts`.
+    // Belt-and-braces against a resolver regression. `resolvePetHolderAccess`
+    // now filters `pets.deleted_at` on both paths (closed 2026-08-28), so a
+    // real erased pet resolves `kind: "none"` before this route-level check is
+    // reached — but this door mints a capability, and the route keeps its own
+    // refusal so a regression in the resolver cannot silently reopen it. The
+    // resolver here is a STUB, which is exactly why this test stays meaningful:
+    // it pins the route's behavior when handed a deleted pet, whatever the
+    // resolver does. The load-bearing fence on the resolver itself lives in
+    // `__tests__/public-soft-delete-resolution.test.ts`, against a real DB.
     control.access = () => ({
       kind: "owner",
       pet: petRow({ deletedAt: new Date("2026-08-01T00:00:00.000Z") }),

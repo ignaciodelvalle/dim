@@ -211,15 +211,15 @@ export async function POST(
   // IDENTICALLY. Anything else turns this endpoint into an oracle for which
   // tokens are real.
   //
-  // AN ERASED ANIMAL IS ONE OF THOSE. `resolvePetHolderAccess` does NOT filter
-  // `pets.deleted_at` — measured, not assumed — and `erase_subject_data`
-  // soft-deletes the PET while the `ownerships` row survives, so a pet whose
-  // owner exercised Ley 25.326 art. 16 still resolves holder access here. Caught
-  // by `__tests__/public-soft-delete-resolution.test.ts`, whose rule is that
-  // every module reachable from `app/api/v1/**` carries the filter on any read
-  // of `pets`. Refused BEFORE the ticket, so no capability is minted against an
-  // erased animal; `confirmPetPhoto` repeats the check inside its transaction,
-  // because the erasure can land in the two hours between the two calls.
+  // AN ERASED ANIMAL IS ONE OF THOSE. `resolvePetHolderAccess` now filters
+  // `pets.deleted_at` on both of its paths (closed 2026-08-28), so an erased
+  // pet already resolves `kind: "none"` above. The explicit check below is
+  // belt-and-braces against a resolver regression — this door mints a
+  // capability, and it was the first surface to catch the class when the
+  // resolver still had the gap (`__tests__/public-soft-delete-resolution
+  // .test.ts` flagged it). `confirmPetPhoto` repeats the check inside its
+  // transaction regardless, because the erasure can land in the two hours
+  // between the two calls.
   if (access.kind === "none" || (access.pet as { deletedAt: Date | null }).deletedAt !== null) {
     return apiV1Error("not_found", 404);
   }

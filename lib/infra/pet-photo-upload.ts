@@ -221,17 +221,16 @@ export type ConfirmResult =
    * route answers it as `not_found`, because under PO-4 an erased pet and a pet
    * that never existed are the same answer.
    *
-   * IT IS NOT DEFENCE IN DEPTH; IT IS THE ONLY DEFENCE THERE IS.
-   * `resolvePetHolderAccess` does not filter `pets.deleted_at` — measured, not
-   * assumed — and `erase_subject_data` soft-deletes the PET while leaving the
-   * `ownerships` row standing (`purgeOwnedPetAttachments` relies on exactly
-   * that: "ownerships rows survive the RPC, only pets are soft-deleted"). So an
-   * erased animal still resolves holder access, and without this check a photo
-   * would be written onto it after its owner exercised art. 16.
+   * DEFENCE IN DEPTH, AND THE ONLY DEFENCE AGAINST THE MID-FLOW RACE.
+   * `resolvePetHolderAccess` now filters `pets.deleted_at` on both paths
+   * (closed 2026-08-28), so the route refuses an erased animal before the
+   * ticket is ever minted. But a ticket lives for two hours, and
+   * `erase_subject_data` can land between mint and confirm — this in-transaction
+   * check is what catches THAT, and no resolver fix can replace it.
    *
-   * Found by `__tests__/public-soft-delete-resolution.test.ts`, whose rule is
-   * that every module reachable from `app/api/v1/**` must carry the filter on
-   * any read of `pets`. It was right.
+   * The class was found by `__tests__/public-soft-delete-resolution.test.ts`,
+   * whose rule is that every module reachable from `app/api/v1/**` must carry
+   * the filter on any read of `pets`. It was right.
    */
   | { ok: false; code: "pet_gone" }
   | { ok: false; code: "photo_not_an_image" | "photo_failed" };

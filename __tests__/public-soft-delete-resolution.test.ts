@@ -7,7 +7,7 @@
 // answering anyone who scanned the QR. The physical chapa (/t/[serial] → 307
 // → /p) made that pre-existing behavior reachable from a durable object.
 //
-// The three things this file proves, against the REAL RPC and a real DB:
+// The four things this file proves, against the REAL RPC and a real DB:
 //
 //   1. The erasure soft-deletes the pet still in the subject's custody and
 //      does NOT touch a pet transferred away BEFORE the erasure. That
@@ -19,6 +19,12 @@
 //   3. `lookupTagBySerial` returns NO destination for an ACTIVE chapa whose
 //      pet was erased, so /t/[serial] can render its honest neutral state
 //      instead of 307-ing a person in the street into a 404.
+//   4. `resolvePetHolderAccess` — the choke point all authenticated pet
+//      surfaces resolve through, web and API — answers `{ kind: "none" }` for
+//      the erased pet on BOTH of its paths, even though the erasure RPC leaves
+//      every `ownerships` row alive. This is the runtime fence on the art. 16
+//      filter inside the resolver; the mocked `pet-access.test.ts` discards
+//      `.where()` predicates and cannot see it.
 //
 // The page-level side of (3) — what the scanner actually reads — lives in
 // tag-resolver-page.test.tsx, which drives the resolver's four-state matrix
@@ -37,7 +43,16 @@ import { createClient } from "@supabase/supabase-js";
 import { eq, sql } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
-import { db, ownerships, petTags, pets, profiles } from "@/db";
+import {
+  db,
+  organizationMemberships,
+  organizations,
+  ownerships,
+  petTags,
+  pets,
+  profiles,
+} from "@/db";
+import { resolvePetHolderAccess } from "@/lib/infra/pet-access";
 import { publicPetByToken } from "@/lib/infra/public-pet-lookup";
 import { generateTagActivationCode, generateTagSerial } from "@/lib/infra/publicToken";
 import { lookupTagBySerial } from "@/lib/infra/tag-lookup";
@@ -51,15 +66,18 @@ const PASS = "SoftDelete_2026!";
 
 const ERASED_EMAIL = "po4-erased@dim-test.local";
 const KEEPER_EMAIL = "po4-keeper@dim-test.local";
+const SPONSOR_EMAIL = "po4-sponsor@dim-test.local";
 
 const TOKEN_ERASED = "DIM-PO4E-RASE";
 const TOKEN_MOVED = "DIM-PO4M-OVED";
 const TEST_LOTE = "TEST-LOTE-PO4";
+const ORG_TOKEN = "ORG-PO4S-PONS";
 
 const admin = createClient(SUPABASE_URL, SECRET, { auth: { persistSession: false } });
 
 let erasedUserId: string;
 let keeperUserId: string;
+let sponsorUserId: string;
 let erasedPetId: string;
 let movedPetId: string;
 let serialErased: string;
@@ -105,6 +123,9 @@ async function activateTagFor(petId: string, userId: string): Promise<string> {
 
 async function cleanup() {
   await db.delete(petTags).where(eq(petTags.loteId, TEST_LOTE));
+  // The org cascades its memberships and its ownership rows; pet deletion
+  // below cascades the rest.
+  await db.delete(organizations).where(eq(organizations.publicToken, ORG_TOKEN));
   await withMutationOverride(async (tx) => {
     for (const token of [TOKEN_ERASED, TOKEN_MOVED]) {
       const stale = await tx.select({ id: pets.id }).from(pets).where(eq(pets.publicToken, token));
@@ -155,6 +176,48 @@ beforeAll(async () => {
 
   serialErased = await activateTagFor(erasedPetId, erasedUserId);
   serialMoved = await activateTagFor(movedPetId, keeperUserId);
+
+  // Sponsor org with a live shelter_custody row on BOTH pets, seeded BEFORE
+  // the erasure. Rehome (design R4) is why this population exists: the org
+  // only publishes and vets while the animal keeps living with its family, so
+  // the family's owner row and the org's custody row are live at the same
+  // time — and `erase_subject_data` contains zero statements over
+  // `ownerships`, so the sponsorship SURVIVES the erasure. Org members are
+  // the one live population that still reaches resolvePetHolderAccess for an
+  // erased pet (the erased owner is stopped earlier by requireLiveUser).
+  sponsorUserId = await ensureUser(SPONSOR_EMAIL);
+  await db
+    .update(profiles)
+    .set({ displayName: "PO4 Sponsor Member", deletedAt: null, updatedAt: new Date() })
+    .where(eq(profiles.id, sponsorUserId));
+  const [org] = await db
+    .insert(organizations)
+    .values({
+      publicToken: ORG_TOKEN,
+      legalName: "Refugio PO4 Sponsor",
+      displayName: "Refugio PO4 Sponsor",
+      orgType: "shelter",
+      email: "refugio-po4@dim-test.local",
+    })
+    .returning({ id: organizations.id });
+  await db.insert(organizationMemberships).values({
+    organizationId: org.id,
+    userId: sponsorUserId,
+    role: "member",
+  });
+  await db.insert(ownerships).values([
+    { petId: erasedPetId, ownerOrganizationId: org.id, role: "shelter_custody" },
+    { petId: movedPetId, ownerOrganizationId: org.id, role: "shelter_custody" },
+  ]);
+
+  // A SECOND live person row on the soon-to-be-erased pet. The erasure only
+  // soft-deletes pets where the SUBJECT holds the live 'owner' row; other
+  // people's rows on that pet are untouched, so this one also survives.
+  await db.insert(ownerships).values({
+    petId: erasedPetId,
+    ownerUserId: keeperUserId,
+    role: "co_owner",
+  });
 
   // The real thing: the subject exercises art. 16.
   await db.transaction(async (tx) => {
@@ -228,6 +291,32 @@ describe("/t/[serial] lookup — an active chapa never points at an erased pet (
       .where(eq(petTags.serial, serialErased));
     expect(row.status).toBe("active");
     expect(row.petId).toBe(erasedPetId);
+  });
+});
+
+describe("resolvePetHolderAccess — an erased pet resolves no holder access (art. 16)", () => {
+  // THE RUNTIME FENCE on the `isNull(pets.deletedAt)` term inside the
+  // resolver, and the only test that can see it: `pet-access.test.ts` mocks
+  // the query chain and its `.where()` discards the predicate, so a mocked
+  // case there would stay green with the filter deleted. These run the real
+  // query against the real post-erasure rows. Both paths are pinned, because
+  // each has its own predicate and fixing one does not fix the other.
+
+  it("org path: a surviving shelter_custody sponsorship resolves { kind: 'none' }", async () => {
+    expect(await resolvePetHolderAccess(TOKEN_ERASED, sponsorUserId)).toEqual({ kind: "none" });
+  });
+
+  it("owner path: a surviving live person row resolves { kind: 'none' }", async () => {
+    expect(await resolvePetHolderAccess(TOKEN_ERASED, keeperUserId)).toEqual({ kind: "none" });
+  });
+
+  it("non-vacuity: both paths still resolve the live pet", async () => {
+    // Without these, a resolver that answered "none" to everything would pass
+    // the two refusals above.
+    const owner = await resolvePetHolderAccess(TOKEN_MOVED, keeperUserId);
+    expect(owner.kind).toBe("owner");
+    const viaOrg = await resolvePetHolderAccess(TOKEN_MOVED, sponsorUserId);
+    expect(viaOrg.kind).toBe("org");
   });
 });
 

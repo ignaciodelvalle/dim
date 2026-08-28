@@ -363,9 +363,12 @@ describe("confirming — the bytes decide, not the declaration", () => {
 
   it("refuses a SOFT-DELETED pet and takes back the object it wrote", async () => {
     // `erase_subject_data` soft-deletes the PET and leaves the `ownerships` row
-    // standing, and `resolvePetHolderAccess` does not filter `deleted_at` — so
-    // an erased animal reaches this function with its access check passed. A
-    // photo of an erased pet is exactly what art. 16 removed.
+    // standing. `resolvePetHolderAccess` now filters `deleted_at` on both paths
+    // (closed 2026-08-28), so an erased animal no longer reaches this function
+    // through the front door — but a ticket lives for two hours and the erasure
+    // can land between mint and confirm, and THAT caller arrives with its
+    // access check already passed. A photo of an erased pet is exactly what
+    // art. 16 removed.
     //
     // WHAT THIS ASSERTION DOES AND DOES NOT PROVE, said plainly. It proves the
     // BRANCH: when the filtered read finds nothing, nothing is inserted and the
