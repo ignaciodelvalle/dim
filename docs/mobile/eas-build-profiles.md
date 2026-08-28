@@ -6,18 +6,21 @@
 > gone the other way. This is where the "why" lives. Change one of them, change
 > the other.
 
-**Status as of 2026-08-27: three real builds have run and all three failed**, each
-one further along than the last — fingerprint, then Metro, then the native C++
-compiler. `npx eas-cli whoami` answers `ignaciodelvalle2014@gmail.com`, account
-`nachi7`. The builds, their `versionCode`s and their causes are in the running
-tally under [First-run order, when the PO logs in](#first-run-order-when-the-po-logs-in);
-each cause then has its own section at the end of this file. No artifact has been
-produced, no update, channel or OTA has been
-published, and claims below about *those* are still read from EAS's contract
-rather than measured.
+**Status as of 2026-08-27: the running tally under
+[First-run order, when the PO logs in](#first-run-order-when-the-po-logs-in) is the
+record — read it rather than a count in a sentence.** Every build recorded there
+before `94ab653c…` errored, each one further along than the last (fingerprint,
+then Metro, then the native C++ compiler), and each cause has its own section at
+the end of this file. `94ab653c…` is the first to produce an artifact and the
+first to reach Play — internal testing, 2026-08-27 — and Play answered it with
+exactly one warning, which is
+[its own section below](#the-play-warning-about-a-deobfuscation-file-and-why-there-is-nothing-to-upload).
+`npx eas-cli whoami` answers `ignaciodelvalle2014@gmail.com`, account `nachi7`.
+No update, channel or OTA has been published, and claims below about *those* are
+still read from EAS's contract rather than measured.
 
-One sentence is worth carrying out of all three: **every failure so far has been
-a dependency this repo did not declare**, resolved by accident on one machine and
+One sentence is worth carrying out of the failures: **every one of them was a
+dependency this repo did not declare**, resolved by accident on one machine and
 differently — or not at all — on the worker.
 
 ---
@@ -226,12 +229,25 @@ decision, the fence is `runtimeVersion`, and the whole argument lives in
    | 2 | `9900114a-c134-41cf-af38-6aaf789d2942` | errored — fingerprint mismatch, two causes |
    | 3 | `e2a89561-910b-4ad7-97fa-ab0f2a481db8` | errored — `Cannot find module 'babel-preset-expo'` in Gradle |
    | 4 | `9bdab7b8-b5e2-4aa5-8272-f8e990c0cce3` | errored — C++ compile: `no member named 'executeSync'` in `expo-modules-core` |
+   | 5 | `94ab653c…` | **shipped** — first artifact; uploaded to Play internal testing 2026-08-27 |
 
-   Four numbers spent, zero artifacts produced. Play will never see 1 through 4,
-   and that is fine — the counter only has to increase — but it is the reason
-   each of these failures earns a written-down cause rather than a retry. The
-   four causes are four different LAYERS (fingerprint, Metro, native compile) and
-   one single shape, which the last section of this file names.
+   Every number above a failing row was spent for nothing, and Play will never
+   see them — that is fine, the counter only has to increase, but it is the
+   reason each failure earns a written-down cause rather than a retry. Those
+   causes are the `##` sections at the end of this file: one per section, and the
+   sections are the list, not this paragraph. They sit at three different LAYERS
+   (fingerprint, Metro, native compile) and share one shape, which the last of
+   them names.
+
+   **Two things in the `94ab653c…` row are reported rather than measured**, and
+   the distinction is the whole reason this file exists. The build id is recorded
+   at the prefix the PO quoted, and the upload to Play is his report — nothing on
+   this machine can reach EAS to confirm either (`eas-cli` is deliberately not a
+   repo dependency, per `cli.version` above, so there is no session and no
+   `build:list` here). The `versionCode` of `5` is neither: it is *derived* from
+   `autoIncrement: true` plus the rows above it, i.e. from this file's own rule
+   that a failed build costs a number. If EAS ever reports a different one, the
+   rule is what was wrong, and both belong in this table.
 
 ---
 
@@ -1021,3 +1037,132 @@ under five milliseconds, with no NDK anywhere.
    validates versions in this repo looks at it.
 5. Fix the whole class, not the one that failed. Three native modules had
    drifted; one had compiled.
+
+---
+
+## The Play warning about a deobfuscation file, and why there is nothing to upload
+
+The upload of `94ab653c…` produced exactly one warning:
+
+> There is no deobfuscation file associated with this App Bundle.
+
+The tempting reading — the one this section exists to refuse — is: *Android
+release builds run R8, so the stack trace in a tester's crash report is minified,
+so we must start uploading `mapping.txt`.* Every clause of that is true of a
+generic Android project and the **first one is false here**, which makes the rest
+of it a pipeline nobody needs.
+
+### This app does not minify, and the default is not Android's
+
+`minifyEnabled` for the release build type is not AGP's default in this project;
+it is a property Expo's prebuild template reads, and the template defaults it
+OFF. From the template EAS unpacks — `expo@57.0.17`'s own `template.tgz`,
+`package/android/app/build.gradle`:
+
+```groovy
+/**
+ * Set this to true in release builds to optimize the app using [R8](…).
+ */
+def enableMinifyInReleaseBuilds = (findProperty('android.enableMinifyInReleaseBuilds') ?: false).toBoolean()
+…
+        release {
+            def enableShrinkResources = findProperty('android.enableShrinkResourcesInReleaseBuilds') ?: 'false'
+            shrinkResources enableShrinkResources.toBoolean()
+            minifyEnabled enableMinifyInReleaseBuilds
+```
+
+`?: false` is the whole answer, provided nothing sets the property. Nothing does,
+and the check is one sweep rather than a claim:
+
+```
+$ rg --hidden --sort path -n \
+    'enableMinifyInReleaseBuilds|enableProguardInReleaseBuilds|enableShrinkResourcesInReleaseBuilds|expo-build-properties|minifyEnabled' \
+    --glob '!node_modules' .
+docs/mobile/ota-policy.md:123:- The build settings a plugin writes — `expo-build-properties`, a
+```
+
+One hit, and it is prose. The other two places that could have set it are empty
+for structural reasons this file already documents: the template's own
+`package/android/gradle.properties` never mentions the property (extract it with
+`tar -xzOf …/expo/template.tgz package/android/gradle.properties` and read it —
+`hermesEnabled`, `newArchEnabled` and `reactNativeArchitectures` are there;
+`android.enableMinifyInReleaseBuilds` is not), and there is no
+`apps/mobile/android/` to hand-edit, because EAS prebuilds it on the worker and
+`apps/mobile/.gitignore` keeps it out of the fingerprint
+([Cause 2](#cause-2--eas-prebuilds-android-and-nothing-was-ignoring-it)).
+`app.json` loads no `expo-build-properties` plugin either.
+
+So R8 never runs, **no `mapping.txt` is ever produced**, and there is nothing to
+upload. The warning is accurate, expected, and cosmetic: Play is reporting the
+absence of a file that does not exist, and the Java/Kotlin frames it would have
+deobfuscated are already carrying their real names.
+
+### There was never an `eas.json` line to add, in either world
+
+This matters because "one `eas.json` setting" is the shape the fix was expected
+to take, and it does not exist on either branch of the question.
+
+With minification off there is no map to upload. With minification **on**, there
+is still nothing to configure: since AGP 4.1 a minified App Bundle carries its
+own map inside the artifact, at
+`BUNDLE-METADATA/com.android.tools.build.obfuscation/proguard.map`, and Play
+reads it from there — the mapping travels *with* the `.aab` rather than beside
+it. That second half is **read from AGP's contract and not measured here**: this
+repo has never produced a minified bundle to open, and until it does, the claim
+carries the same status as everything else in this file marked that way.
+
+The load-bearing conclusion does not depend on it. Even if the AGP behaviour were
+different, the first half stands on its own: with `minifyEnabled false` there is
+no input to any upload mechanism.
+
+### What was rejected
+
+| Option | Why not |
+|---|---|
+| Add a mapping-upload setting to `eas.json` | No such setting, and no file for it to carry — see above. |
+| Turn minification on so a map exists | It buys readable Java frames that are *already* readable, and it is not free: it changes the native build inputs, so it moves the `runtimeVersion` fingerprint and orphans every installed build from the next OTA (`app.config.ts`), and finding out costs a `versionCode`. If it is ever done it must be done as a size/performance decision with its own measurement, not as a way to silence a warning. |
+| Build and upload a mapping by hand | There is nothing to build one from. |
+
+### The gap the warning does NOT name, and it is the one a tester will hit
+
+`mapping.txt` maps **Java and Kotlin**. The crash a tester of a React Native app
+is most likely to produce is a **JavaScript** one, and no deobfuscation file has
+ever had anything to say about those. Two measurements on the shipping bundle,
+so that nobody assumes the JS side is fine just because this section closed the
+Java side:
+
+**1. Function names survive the bundle only sometimes.** Against
+`apps/mobile/dist/_expo/static/js/android/entry-….hbc` — the Hermes bytecode
+`pnpm -C apps/mobile export` produces — six plain, non-exported, non-component
+local functions from this app's source were searched for by name, with a
+nonexistent name as the negative control:
+
+```
+sessionEndingReason    -> 1        modulesToPath          -> 0
+applyMeResult          -> 1        unreadableWeight       -> 0
+pressedOpacity         -> 1        formatIsoDateTime      -> 0
+zzzNotARealSymbolXYZ   -> 0   ← negative control
+```
+
+Three of six are present verbatim. Non-exported and non-component was the point
+of the sample: an exported name survives as an object property key whatever the
+minifier does to the function, so it would have proved nothing. **What this does
+not settle is which layer decides** — inlining and mangling both produce a
+missing name and this measurement cannot tell them apart. What it settles is the
+only thing this section needs: a JS frame may or may not carry a real name, and
+`mapping.txt` has no bearing on either outcome.
+
+**2. No source map ships, and nothing collects a crash.** `find dist -name '*.map'`
+returns nothing; `dist/_expo/static/js/android/` holds exactly one file, the
+`.hbc`. So a JS frame that *does* carry a name still carries no file and no line.
+And `rg 'sentry|bugsnag|crashlytics|firebase' apps/mobile/package.json package.json`
+returns nothing: there is no reporter, so an unhandled JS exception reaches
+nobody at all unless the tester says "se cerró sola".
+
+That is a real hole and this section does not close it. Closing it is
+`--source-maps` on the export plus somewhere to send the trace, and it is its own
+change with its own argument about what a crash report may contain (a stack from
+a phone is not obviously free of PII, and this repo has a checklist for that).
+**It is written down here, in the section about the warning, precisely so that
+"we handled the deobfuscation warning" can never be mistaken for "we can read a
+tester's crash".**
