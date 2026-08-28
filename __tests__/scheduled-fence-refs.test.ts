@@ -28,6 +28,7 @@ import {
   DEPLOY_REF,
   NOT_ON_DEFAULT_BRANCH,
   REF_EXEMPT,
+  STEP_OUTPUT_GUARD,
   WORKFLOW_DIR,
   alertFindings,
   auditedFindings,
@@ -426,6 +427,42 @@ describe("auditedFindings", () => {
 
   it("is quiet against the real tree", () => {
     expect(auditedFindings(scheduledWorkflows())).toEqual([]);
+  });
+
+  // The detector's first version required `steps.` IMMEDIATELY after `if:`, so
+  // the `${{ ... }}` spelling of the same guard walked straight past it — and
+  // unlike wiresAlert(), whose narrowness fails loud, this one failed SILENT:
+  // the workflow simply escaped the `audited:` requirement. Fence the subject
+  // (an `if:` consulting a step output), not the two ways to type it.
+  it("catches the guard in the wrapped-expression spelling too", () => {
+    const wrapped = GUARDED.replace(
+      "if: steps.guard.outputs.run == 'true'",
+      "if: ${{ steps.guard.outputs.run == 'true' }}",
+    );
+    expect(wrapped).toContain("${{ steps.guard");
+    const found = auditedFindings([{ file: "nightly.yml", yaml: wrapped }]);
+    expect(found).toHaveLength(1);
+    expect(found[0].problem).toContain("audited");
+  });
+
+  it("recognises both spellings through the one exported regex", () => {
+    expect(STEP_OUTPUT_GUARD.test("        if: steps.guard.outputs.run == 'true'")).toBe(true);
+    expect(STEP_OUTPUT_GUARD.test("        if: ${{ steps.guard.outputs.run == 'true' }}")).toBe(
+      true,
+    );
+    expect(STEP_OUTPUT_GUARD.test("    if: ${{ !cancelled() && steps.g.outputs.ok == '1' }}")).toBe(
+      true,
+    );
+  });
+
+  // A job-level `if:` on needs.* is a different subject: it cannot consult a
+  // secret, so it is not the guard this rule is about. Widening must not have
+  // swallowed it.
+  it("does not treat a needs-based condition as a step guard", () => {
+    expect(STEP_OUTPUT_GUARD.test("    if: ${{ needs.build.outputs.changed == 'true' }}")).toBe(
+      false,
+    );
+    expect(STEP_OUTPUT_GUARD.test("    if: always()")).toBe(false);
   });
 });
 

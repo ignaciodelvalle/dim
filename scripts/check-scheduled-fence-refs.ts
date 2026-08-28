@@ -460,16 +460,35 @@ export function alertFindings(workflows: { file: string; yaml: string }[]): Find
  * anything, or a night that ran nothing closes the open alert with "Green
  * again". That is what db-doctor-staging.yml did until 2026-08-28.
  *
- * The detector is `if: steps.<id>.outputs...` on a step, which is the only way
- * to express that guard: `secrets` is not in the context available to a
- * job-level `if:`, so the pattern cannot be written any other way.
+ * The guard can ONLY be a step-level `if:` reading a step output: `secrets` is
+ * not in the context available to a job-level `if:` (GitHub's context table
+ * gives `jobs.<id>.if` only `github`, `needs`, `vars`, `inputs`), so a job that
+ * decides on a secret has to test the secret in a step and publish the verdict.
+ *
+ * The subject is therefore "an `if:` that consults a step's output", and the
+ * detector matches THAT, not one spelling of it. Both of these are the same
+ * guard and both must be caught:
+ *
+ *     if: steps.guard.outputs.run == 'true'
+ *     if: ${{ steps.guard.outputs.run == 'true' }}
+ *
+ * The first version of this detector required `steps.` immediately after `if:`
+ * and so was blind to the second — a silent pass, unlike wiresAlert() whose
+ * narrowness fails loud. Found in review 2026-08-28, before it could bite.
  */
+/**
+ * An `if:` whose expression consults a step's output, in either YAML spelling.
+ * Exported so the test can assert both forms against the one regex rather than
+ * re-typing it.
+ */
+export const STEP_OUTPUT_GUARD = /^\s*if:[^#\n]*\bsteps\.[A-Za-z0-9_-]+\.outputs\b/m;
+
 export function auditedFindings(workflows: { file: string; yaml: string }[]): Finding[] {
   const findings: Finding[] = [];
   for (const { file, yaml } of workflows) {
     if (!wiresAlert(yaml)) continue;
     const source = stripComments(yaml);
-    if (!/^\s*if:\s*steps\./m.test(source)) continue;
+    if (!STEP_OUTPUT_GUARD.test(source)) continue;
     const wiring = source.slice(source.indexOf(ALERT_ACTION));
     if (!/^\s*audited:\s*\S/m.test(wiring)) {
       findings.push({
