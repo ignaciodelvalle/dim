@@ -731,11 +731,14 @@ describe("return-to-owner writers — an erased pet reads as never-existed (shap
 });
 
 describe("custody repository resolvers — an erased pet resolves null (shape B)", () => {
-  // The six token→pet resolvers the previous unit deferred on purpose: each
-  // is fronted by a caller-scoped custody predicate, so reaching one takes
-  // the org that legitimately held the animal — lower exposure than the
-  // writers above, same class. All of them now resolve through
-  // publicPetByToken (ONE guarded helper, not eight hand-rolled filters).
+  // The EIGHT token→pet resolvers below (count the tests, not this prose —
+  // an earlier version said "six" over these same eight): each is fronted by
+  // a caller-scoped custody predicate, so reaching one takes the org that
+  // legitimately held the animal — lower exposure than the writers above,
+  // same class. All of them now resolve through `unerasedPetByToken` — the
+  // authenticated ALIAS of publicPetByToken (ONE guarded predicate, not
+  // eight hand-rolled filters; the alias exists so the throttle census does
+  // not flag these authenticated files as anonymous resolvers).
   // Each pair below is one resolver's own mutation tripwire: revert its call
   // site and exactly that pair goes red — the live half is the per-resolver
   // non-vacuity floor.
@@ -933,9 +936,13 @@ const NEXT_ENTRY_FILE =
 
 /** A read of the `pets` table: the FROM side or any join onto it. */
 const PETS_READ = /\.(?:from|leftJoin|innerJoin|rightJoin|fullJoin)\(\s*pets\b/g;
-/** The soft-delete guard, in every spelling this repo actually uses. */
+/** The soft-delete guard, in every spelling this repo actually uses.
+ * `unerasedPetByToken` is the authenticated ALIAS of publicPetByToken — the
+ * SAME predicate object, so it filters identically and counts as a guard here.
+ * (Whether a file is ALLOWED to spell the alias is the throttle census's
+ * question — public-token-throttle-coverage.test.ts pins that set.) */
 const SOFT_DELETE_GUARD =
-  /(pets\.deletedAt|pets\.deleted_at|publicPetByToken|deleted_at\s+IS\s+NULL)/gi;
+  /(pets\.deletedAt|pets\.deleted_at|publicPetByToken|unerasedPetByToken|deleted_at\s+IS\s+NULL)/gi;
 
 /**
  * KNOWN DEBT — public-only files that read `pets` without the guard.

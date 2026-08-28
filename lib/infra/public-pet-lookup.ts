@@ -28,10 +28,14 @@
 // scope from CALL SITES of that name, on the premise that anything spelling
 // it is anonymous code that must take the per-IP read limiter. Authenticated
 // resolvers sit behind requireUserOrRedirect / requireOrgAccessByToken and
-// take auth-scoped limits instead, so they resolve through the ALIAS below —
-// same predicate object, a name the throttle fence deliberately does not
-// match. Collapsing the two names back into one re-flags thirteen
-// authenticated files as unthrottled anonymous resolvers.
+// take NO rate limiter at all — the session gate is their only limit (the
+// art. 16 range-5 review measured every alias caller: none throttles). They
+// resolve through the ALIAS below — same predicate object, a name the
+// throttle fence deliberately does not match. The fence now also PINS the
+// set of files allowed to spell the alias (public-token-throttle-coverage
+// .test.ts), so a new speller — authenticated or not — is a reviewed event,
+// and collapsing the two names back into one re-flags every one of them as
+// an unthrottled anonymous resolver.
 
 import { and, eq, isNull } from "drizzle-orm";
 

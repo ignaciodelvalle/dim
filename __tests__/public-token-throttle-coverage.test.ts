@@ -30,6 +30,12 @@
 // lives. The exemptions below are the shapes that legitimately do not take the
 // READ limiter, each with the reason and the limiter it takes instead.
 //
+// THE SAME PREDICATE HAS A SECOND NAME this census deliberately does not
+// match: `unerasedPetByToken`, the authenticated alias. Which files may spell
+// it is pinned by the ALIAS census at the bottom of this file — added
+// 2026-08-28, when the blind spot ("an anonymous route resolving through the
+// alias escapes this enumeration") turned out to have no fence at all.
+//
 // WIDENED TO src/ (Track 2, 2026-08-21) — AND WHY, IN THE SAME COMMIT
 // ---------------------------------------------------------------------------
 // The scan walked `app/` only. That was the whole world while every resolver
@@ -1029,5 +1035,72 @@ export async function peekPetStatus(publicToken: string) {
         if (!pet) return { ok: false, error: "Mascota no encontrada." };
       }`;
     expect(guardPrecedesLookup(correct)).toBe(true);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// The ALIAS census — the second name of the same predicate.
+//
+// `unerasedPetByToken` (lib/infra/public-pet-lookup.ts) is publicPetByToken
+// under a name this fence deliberately does NOT match: authenticated resolvers
+// spell it precisely so they are not flagged as unthrottled anonymous code.
+// Until 2026-08-28 that was the census's blind spot, and it was already real:
+// nothing verified that alias spellers actually ARE authenticated, and
+// adoption-repository — an alias speller — is imported by the public
+// /adoptar/[petToken]/postular page. A future anonymous route resolving
+// through the alias in a shared module would escape this census silently.
+//
+// Reachability ("no alias in the anonymous import closure") is not assertable
+// today for exactly that reason — shared repositories sit in both closures.
+// What IS assertable: the SET of files allowed to spell the alias, pinned in
+// both directions. A new speller fails until a human decides which name it
+// deserves: an authenticated resolver joins this list in its own review; an
+// anonymous surface must spell publicPetByToken and take the read limiter.
+// Growth here is the rare, visible event — the same trade the soft-delete
+// sweep makes with its declared entry prefixes ("coarser seed, mechanical
+// body").
+// ---------------------------------------------------------------------------
+
+const ALIAS = "unerasedPetByToken(";
+
+/** Reviewed authenticated resolvers — the only files that may spell the alias. */
+const ALIAS_RESOLVERS = [
+  "app/(app)/mis-mascotas/nueva/match/[matchedPetToken]/page.tsx",
+  "app/actions/return-to-owner.ts",
+  "src/modules/adoption/infrastructure/adoption-repository.ts",
+  "src/modules/foster/infrastructure/foster-repository.ts",
+  "src/modules/rehome/infrastructure/rehome-repository.ts",
+  "src/modules/return-to-owner/application/actor-cancel-proposal.ts",
+  "src/modules/return-to-owner/application/org-accept-owner-return.ts",
+  "src/modules/return-to-owner/application/org-reject-owner-return.ts",
+  "src/modules/return-to-owner/application/owner-accept-return.ts",
+  "src/modules/return-to-owner/application/owner-propose-return-to-org.ts",
+  "src/modules/return-to-owner/application/owner-reject-return.ts",
+  "src/modules/return-to-owner/application/propose-return-as-refugio.ts",
+  "src/modules/return-to-owner/application/propose-return-as-vecino.ts",
+  "src/modules/transfers/infrastructure/transfers-repository.ts",
+] as const;
+
+describe("the authenticated alias is a pinned set, not an open door", () => {
+  it("every file spelling unerasedPetByToken( is a reviewed authenticated resolver — in both directions", () => {
+    const spellers = allSources()
+      .filter((s) => code(s.src).includes(ALIAS))
+      .map((s) => s.file);
+    // toEqual over sorted arrays checks both directions at once: a NEW speller
+    // appears on the left and fails; a REMOVED one leaves a stale pin that
+    // fails too, so this list cannot rot in either direction.
+    expect(spellers).toEqual([...ALIAS_RESOLVERS].sort((a, b) => a.localeCompare(b)));
+  });
+
+  it("does not count the alias out of comments or imports-only mentions", () => {
+    // The call-shaped needle: `unerasedPetByToken(`. An import statement ends
+    // in a comma or brace, never an open paren, and comments are stripped —
+    // same discipline as every other predicate in this file.
+    const importOnly = 'import { unerasedPetByToken } from "@/lib/infra/public-pet-lookup";';
+    expect(code(importOnly).includes(ALIAS)).toBe(false);
+    const commented = "// resolves via unerasedPetByToken(token) since the custody unit";
+    expect(code(commented).includes(ALIAS)).toBe(false);
+    const realCall = "const [pet] = await db.select().from(pets).where(unerasedPetByToken(token));";
+    expect(code(realCall).includes(ALIAS)).toBe(true);
   });
 });
