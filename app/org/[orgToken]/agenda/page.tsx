@@ -6,7 +6,7 @@
 // service_kind, status badge. Action buttons: mark attended / no-show / cancel.
 // Also shows per-offering slot occupancy ("Cupos del día") with block action.
 
-import { and, eq, gte, lt } from "drizzle-orm";
+import { and, eq, gte, isNull, lt } from "drizzle-orm";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
@@ -97,7 +97,11 @@ export default async function OrgAgendaPage({
       .from(appointments)
       .innerJoin(timeSlots, eq(timeSlots.id, appointments.slotId))
       .innerJoin(serviceOfferings, eq(serviceOfferings.id, appointments.serviceOfferingId))
-      .innerJoin(pets, eq(pets.id, appointments.petId))
+      // Art. 16: the erasure RPC never touches `appointments`, so an erased
+      // pet's booking survives — but its name must not render on the agenda.
+      // The inner join drops the whole row (the slot's bookingsCount may then
+      // exceed the visible rows; honest, and the count column never names).
+      .innerJoin(pets, and(eq(pets.id, appointments.petId), isNull(pets.deletedAt)))
       .leftJoin(profiles, eq(profiles.id, appointments.ownerUserId))
       .where(
         and(

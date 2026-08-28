@@ -3,7 +3,7 @@
 // Capability-gated: appointment.manage.
 // Renders the per-service-kind attendance form and no-show / cancel controls.
 
-import { eq } from "drizzle-orm";
+import { and, eq, isNull } from "drizzle-orm";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
@@ -54,7 +54,9 @@ export default async function OrgAppointmentDetailPage({
     .from(appointments)
     .innerJoin(timeSlots, eq(timeSlots.id, appointments.slotId))
     .innerJoin(serviceOfferings, eq(serviceOfferings.id, appointments.serviceOfferingId))
-    .innerJoin(pets, eq(pets.id, appointments.petId))
+    // Art. 16: an erased pet's appointment 404s like the agenda row it came
+    // from — the detail renders the pet's name, species and owner contact.
+    .innerJoin(pets, and(eq(pets.id, appointments.petId), isNull(pets.deletedAt)))
     .leftJoin(profiles, eq(profiles.id, appointments.ownerUserId))
     .where(eq(appointments.publicToken, appointmentToken))
     .limit(1);

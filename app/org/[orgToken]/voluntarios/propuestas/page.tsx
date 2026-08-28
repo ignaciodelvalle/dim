@@ -3,7 +3,7 @@ import { db, fosterProposals, pets, profiles } from "@/db";
 import { requireOrgAccessByToken } from "@/lib/infra/auth-guards";
 import { formatDateShort } from "@/lib/utils/format";
 import { capRows } from "@/lib/utils/list-pagination";
-import { and, desc, eq } from "drizzle-orm";
+import { and, desc, eq, isNull } from "drizzle-orm";
 
 import { CancelProposalButton } from "./CancelProposalButton";
 
@@ -56,7 +56,11 @@ export default async function OrgPropuestasPage({
       volunteer: profiles,
     })
     .from(fosterProposals)
-    .innerJoin(pets, eq(pets.id, fosterProposals.petId))
+    // Art. 16: a proposal names the pet (full row selected below) and the
+    // erasure RPC never touches foster_proposals — an erased pet's proposal
+    // is a card of dead ends (every action on the pet 404s), so it drops,
+    // same reasoning as mascotas/page.tsx.
+    .innerJoin(pets, and(eq(pets.id, fosterProposals.petId), isNull(pets.deletedAt)))
     .innerJoin(profiles, eq(profiles.id, fosterProposals.volunteerUserId))
     .where(
       statusFilter

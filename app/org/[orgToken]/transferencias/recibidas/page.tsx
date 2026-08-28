@@ -109,7 +109,9 @@ export default async function OrgTransferenciasEntrantesPage({
       petEvents,
       and(eq(petEvents.caseId, cases.id), eq(petEvents.eventType, "custody_transfer_proposed")),
     )
-    .leftJoin(pets, eq(pets.id, cases.primaryPetId))
+    // Art. 16: the inbox row (the org's own case) survives; an erased pet's
+    // name nulls out to "(sin pet)". Filter in the join, same as salientes.
+    .leftJoin(pets, and(eq(pets.id, cases.primaryPetId), isNull(pets.deletedAt)))
     .leftJoin(organizations, eq(organizations.id, cases.openedByOrganizationId))
     .where(
       and(
@@ -168,7 +170,8 @@ export default async function OrgTransferenciasEntrantesPage({
       petEvents,
       and(eq(petEvents.caseId, cases.id), eq(petEvents.eventType, "shelter_intake_recorded")),
     )
-    .leftJoin(pets, eq(pets.id, cases.primaryPetId))
+    // Art. 16: same join-level filter as the handshake query above.
+    .leftJoin(pets, and(eq(pets.id, cases.primaryPetId), isNull(pets.deletedAt)))
     .where(
       and(eq(cases.caseKind, "custody_episode"), eq(cases.receiverOrganizationId, organization.id)),
     )

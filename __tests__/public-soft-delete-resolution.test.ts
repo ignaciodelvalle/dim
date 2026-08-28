@@ -1153,3 +1153,97 @@ describe("every unauthenticated read of `pets` carries the soft-delete filter (P
     expect([...SOFT_DELETE_DEBT.keys()].filter((rel) => !violations.includes(rel))).toEqual([]);
   });
 });
+
+// ---------------------------------------------------------------------------
+// ORG PORTAL SWEEP (range-5 unit, 2026-08-28). The public rule above cannot
+// see app/org — those pages answer authenticated org members — but the org
+// portal turned out to be where the erasure leaked longest: `ownerships`
+// survives the RPC by design, so every org join that reaches `pets` through a
+// custody row, an event, a case or an appointment still surfaced the erased
+// pet's NAME. Seven screens carried zero guards when this sweep was seeded
+// (agenda + turno detail, intake queue, maltrato ×2 reads, transferencias
+// salientes + recibidas ×2, voluntarios/propuestas) — the previous unit
+// declined to seed precisely because its measurement predated those fixes and
+// forecast a 12-entry exception list. Post-fix the list is TWO pinned
+// guard-at-origin shapes, both structural, neither debt.
+//
+// Same counting rule as the public sweep (`guards >= reads`, comments and
+// imports stripped), same stated blind spots — plus one of its own: a file
+// whose reads are all scoped by petIds resolved in ANOTHER file would flag
+// here even though its origin guard is real. None exists under app/org today;
+// if one appears, it gets a pin with the origin named, like the two below.
+// ---------------------------------------------------------------------------
+
+type OrgOriginPin = { reads: number; guards: number; origin: string };
+
+/**
+ * GUARD-AT-ORIGIN pins — files where ONE textual guard covers SEVERAL reads
+ * by construction. Counts are pinned EXACTLY: adding a read (or a guard) to a
+ * pinned file changes its shape and fails this sweep until a human re-reviews
+ * the file and re-pins it. That is the point — these two shapes were verified
+ * by reading the code, and the pin must not outlive what was read.
+ */
+const ORG_GUARD_AT_ORIGIN: Record<string, OrgOriginPin> = {
+  "app/org/[orgToken]/checkins/page.tsx": {
+    reads: 3,
+    guards: 1,
+    origin:
+      "The adopted-pet id list is bounded by isNull(pets.deletedAt) at its source query; the two list reads below it filter by inArray(petIds) and cannot reach a pet the source dropped.",
+  },
+  "app/org/[orgToken]/mascotas/page.tsx": {
+    reads: 2,
+    guards: 1,
+    origin:
+      "One whereConditions array carries the guard and feeds BOTH reads (the list and its count) — two queries, one predicate.",
+  },
+};
+
+function scanOrgPetsReaders(): PetsReader[] {
+  const orgDir = resolve(ROOT, "app", "org");
+  const out: PetsReader[] = [];
+  for (const entry of readdirSync(orgDir, { withFileTypes: true, recursive: true })) {
+    if (!entry.isFile()) continue;
+    if (!entry.name.endsWith(".ts") && !entry.name.endsWith(".tsx")) continue;
+    if (entry.name.includes(".test.")) continue;
+    const full = join(entry.parentPath, entry.name);
+    const { reads, guards } = countPetsAccess(readFileSync(full, "utf8"));
+    if (reads === 0) continue;
+    out.push({ rel: full.slice(`${ROOT}`.length + 1).replaceAll("\\", "/"), reads, guards });
+  }
+  return out.sort((a, b) => a.rel.localeCompare(b.rel));
+}
+
+describe("every org-portal read of `pets` carries the soft-delete filter (art. 16)", () => {
+  const readers = scanOrgPetsReaders();
+  const violations = readers.filter((r) => r.guards < r.reads);
+
+  it("actually reaches the org surfaces it claims to check", () => {
+    const rels = readers.map((r) => r.rel);
+    expect(readers.length).toBeGreaterThanOrEqual(20);
+    // Named anchors: the screens this sweep was seeded FOR.
+    expect(rels).toContain("app/org/[orgToken]/agenda/page.tsx");
+    expect(rels).toContain("app/org/[orgToken]/maltrato/recibidos/page.tsx");
+    expect(rels).toContain("app/org/[orgToken]/mascotas/page.tsx");
+  });
+
+  it("has no under-guarded file outside the pinned guard-at-origin shapes", () => {
+    const unexplained = violations.filter((r) => {
+      const pin = ORG_GUARD_AT_ORIGIN[r.rel];
+      return !pin || pin.reads !== r.reads || pin.guards !== r.guards;
+    });
+    expect(unexplained).toEqual([]);
+  });
+
+  it("carries no stale or drifted pin — a pin describes exactly what was reviewed", () => {
+    for (const [rel, pin] of Object.entries(ORG_GUARD_AT_ORIGIN)) {
+      const reader = readers.find((r) => r.rel === rel);
+      expect(reader, `${rel} no longer reads pets — delete its pin`).toBeDefined();
+      expect(
+        { reads: reader?.reads, guards: reader?.guards },
+        `${rel} changed shape — re-review the file and re-pin`,
+      ).toEqual({ reads: pin.reads, guards: pin.guards });
+      // A pin is only for the under-guarded shape; a fully guarded file needs none.
+      expect(pin.guards).toBeLessThan(pin.reads);
+    }
+  });
+});

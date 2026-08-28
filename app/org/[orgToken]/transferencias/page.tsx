@@ -8,7 +8,7 @@
 // Sender flow itself is wired by PR-033 (ProposeTransferForm as wizard).
 // ---------------------------------------------------------------------------
 
-import { and, desc, eq } from "drizzle-orm";
+import { and, desc, eq, isNull } from "drizzle-orm";
 import Link from "next/link";
 
 import { LnEmptyState } from "@/components/ui/EmptyState";
@@ -81,7 +81,10 @@ export default async function OrgTransferenciasSalientesPage({
       petPublicToken: pets.publicToken,
     })
     .from(cases)
-    .leftJoin(pets, eq(pets.id, cases.primaryPetId))
+    // Art. 16: the CASE is the org's own record and stays listed; the erased
+    // pet's name goes dark (the left join yields null → "(sin pet)"). Filter
+    // in the join, not the where, so the case row itself survives.
+    .leftJoin(pets, and(eq(pets.id, cases.primaryPetId), isNull(pets.deletedAt)))
     .where(
       and(
         eq(cases.openedByOrganizationId, organization.id),

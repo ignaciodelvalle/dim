@@ -6,7 +6,7 @@
 // The createIntakeAction re-checks `intake.create` defensively, so this page
 // is best-effort UX, not the security boundary.
 
-import { and, desc, eq } from "drizzle-orm";
+import { and, desc, eq, isNull } from "drizzle-orm";
 import Link from "next/link";
 
 import { OpCard, OpCardBody, OpCardHead, OpCrumbs } from "@/components/ui/dashboard";
@@ -71,7 +71,11 @@ export default async function IntakePage({
             occurredAt: petEvents.occurredAt,
           })
           .from(petEvents)
-          .innerJoin(pets, eq(pets.id, petEvents.petId))
+          // Art. 16: an intake the org recorded can end in adoption, and the
+          // adopter's later erasure soft-deletes the pet while the intake
+          // event survives. The queue must not keep naming it (same
+          // population filter as checkins/page.tsx and countOverdueCheckins).
+          .innerJoin(pets, and(eq(pets.id, petEvents.petId), isNull(pets.deletedAt)))
           .where(
             and(
               eq(petEvents.eventType, "shelter_intake_recorded"),

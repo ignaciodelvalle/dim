@@ -125,6 +125,12 @@ export default async function OrgMascotasPage({
     // the erasure RPC never touches ownerships — but every action on it 404s
     // via resolvePetHolderAccess, so listing it here would be a card of dead
     // ends. Caller-side twin of the resolver's own filter.
+    //
+    // GUARD-AT-ORIGIN: this ONE condition feeds BOTH `pets` reads below (the
+    // list and its count run over the same `whereConditions` array), so a
+    // reads-vs-guards scan of this file sees 2 reads / 1 guard and must not
+    // read that as a missing filter — the org sweep in
+    // public-soft-delete-resolution.test.ts pins this shape explicitly.
     isNull(pets.deletedAt),
   ];
   if (speciesFilter) whereConditions.push(eq(pets.species, speciesFilter));

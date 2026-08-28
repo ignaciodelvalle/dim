@@ -149,7 +149,13 @@ export default async function OrgMaltratoRecibidosPage({
     const rawRows = await db
       .select({ ...orgSafeShape, derivedAt: welfareReports.derivedAt })
       .from(welfareReports)
-      .leftJoin(pets, eq(pets.id, welfareReports.subjectPetId))
+      // Art. 16: the derived report is the org's working record and stays
+      // listed; an erased subject pet's NAME goes dark (null → the row falls
+      // back to subjectDescription, which the reporter wrote). Note the STATE
+      // inspector path (loadGobPetSubView) deliberately keeps resolving a pet
+      // with a welfare nexus — that carve-out is the authority's, not a civil
+      // org's: every other org screen filters, and so does this one.
+      .leftJoin(pets, and(eq(pets.id, welfareReports.subjectPetId), isNull(pets.deletedAt)))
       .where(eq(welfareReports.derivedToOrganizationId, organization.id))
       .orderBy(desc(welfareReports.derivedAt))
       .limit(REPORT_LIST_CAP + 1);
@@ -159,7 +165,8 @@ export default async function OrgMaltratoRecibidosPage({
     const rawRows = await db
       .select({ ...orgSafeShape, derivedAt: sql<Date | null>`null` })
       .from(welfareReports)
-      .leftJoin(pets, eq(pets.id, welfareReports.subjectPetId))
+      // Art. 16: same join-level filter as the "recibidos" tab above.
+      .leftJoin(pets, and(eq(pets.id, welfareReports.subjectPetId), isNull(pets.deletedAt)))
       .where(eq(welfareReports.reporterOrganizationId, organization.id))
       .orderBy(desc(welfareReports.createdAt))
       .limit(REPORT_LIST_CAP + 1);
