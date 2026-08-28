@@ -125,6 +125,8 @@ export default async function AdoptionReviewIndexPage({
         ) AS info_requested
       FROM pet_events s
       JOIN pets p ON p.id = s.pet_id
+        -- Art. 16: the sponsorship row survives an erasure; the pet must not.
+        AND p.deleted_at IS NULL
       JOIN ownerships o ON o.pet_id = p.id
         AND o.role = 'shelter_custody'
         AND o.ended_at IS NULL
@@ -175,6 +177,8 @@ export default async function AdoptionReviewIndexPage({
         res.recorded_at::text AS decided_at
       FROM pet_events s
       JOIN pets p ON p.id = s.pet_id
+        -- Art. 16: same filter as the pending tab above.
+        AND p.deleted_at IS NULL
       JOIN ownerships o ON o.pet_id = p.id
         AND o.role = 'shelter_custody'
         AND o.owner_organization_id = ${organization.id}

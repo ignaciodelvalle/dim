@@ -95,6 +95,8 @@ export async function fetchTodayAgenda(organizationId: string): Promise<TodayAge
         eq(appointments.organizationId, organizationId),
         gte(timeSlots.startsAt, localMidnight),
         lt(timeSlots.startsAt, localNextMidnight),
+        // Art. 16: an erased pet's name must not surface on the agenda.
+        isNull(pets.deletedAt),
       ),
     )
     .orderBy(timeSlots.startsAt);
@@ -170,11 +172,15 @@ export async function fetchIntakesLastWeek(organizationId: string): Promise<numb
   const [row] = await db
     .select({ n: count() })
     .from(petEvents)
+    // Art. 16: the intake event survives an erasure (append-only spine); the
+    // KPI must stop counting the pet it belongs to.
+    .innerJoin(pets, eq(pets.id, petEvents.petId))
     .where(
       and(
         eq(petEvents.eventType, "shelter_intake_recorded"),
         eq(petEvents.authorOrganizationId, organizationId),
         gt(petEvents.occurredAt, since),
+        isNull(pets.deletedAt),
       ),
     );
   return Number(row?.n ?? 0);
@@ -194,6 +200,9 @@ export async function fetchAvailableForAdoption(organizationId: string): Promise
         eq(ownerships.role, "shelter_custody"),
         isNull(ownerships.endedAt),
         eq(pets.adoptionEligible, true),
+        // Art. 16: mascotas/page.tsx filters the "Disponibles" list this KPI
+        // claims to match — the count takes the same filter or the claim lies.
+        isNull(pets.deletedAt),
       ),
     );
   return Number(row?.n ?? 0);
@@ -212,6 +221,11 @@ export async function fetchActiveAdoptions(organizationId: string): Promise<numb
   const rows = await db.execute<CountRow>(sql`
     SELECT COUNT(*)::int AS n
     FROM pet_events s
+    -- Art. 16: the application events survive an erasure; the pet must not
+    -- keep counting (same filter as the adopciones list this count mirrors).
+    JOIN pets p
+      ON p.id = s.pet_id
+      AND p.deleted_at IS NULL
     JOIN ownerships o
       ON o.pet_id = s.pet_id
       AND o.role = 'shelter_custody'
@@ -343,6 +357,8 @@ export async function fetchRequiresAction(organizationId: string): Promise<Requi
       WHERE o.owner_organization_id = ${organizationId}
         AND o.role = 'shelter_custody'
         AND o.ended_at IS NULL
+        -- Art. 16: an erased pet's name must not surface in the action queue.
+        AND p.deleted_at IS NULL
     )
     SELECT *
     FROM flagged
@@ -615,6 +631,16 @@ export function applicableOrgQueues(
 // Per-queue count helpers (each cheap + indexed). New ones (activeFosters,
 // overdueCheckins, derivedWelfare, pendingPermits) fill the inventory gaps the
 // pre-verification flagged.
+//
+// ART. 16 SCOPE LINE, drawn on purpose: counters that count the org's PET
+// population (activeFosters, overdueCheckins, activeAdoptions) filter
+// `pets.deleted_at` — an erased pet must not keep a seat in them. Counters
+// that count the org's own CASE/WORKFLOW rows (openCases, rabiesObservations,
+// pendingTransfers, fosterProposals, derivedWelfare, pendingPermits) do NOT:
+// each mirrors a list surface (`listCasesForOrg`, transferencias/recibidas)
+// that does not filter either, and C2 says badge and list must agree. Whether
+// the CASES family should hide an erased pet's identity is that family's
+// question — filtering only the badge here would answer it with a lie.
 // ---------------------------------------------------------------------------
 
 /**
@@ -771,6 +797,11 @@ async function countActiveFosters(orgId: string): Promise<number> {
   const rows = await db.execute<{ n: string | number }>(sql`
     SELECT COUNT(*)::int AS n
     FROM ownerships c
+    -- Art. 16: neither custody nor foster rows are touched by an erasure;
+    -- only the pets row says the animal went dark.
+    JOIN pets p
+      ON p.id = c.pet_id
+      AND p.deleted_at IS NULL
     JOIN ownerships f
       ON f.pet_id = c.pet_id
       AND f.role = 'foster'
@@ -807,6 +838,9 @@ async function countOverdueCheckins(orgId: string): Promise<number> {
     JOIN (
       SELECT DISTINCT e.pet_id
       FROM pet_events e
+      -- Art. 16: same filter as checkins/page.tsx, which this count promotes —
+      -- the badge and the page must count the same population.
+      JOIN pets p ON p.id = e.pet_id AND p.deleted_at IS NULL
       WHERE e.event_type = 'adoption_finalized'
         AND e.payload->>'previous_owner_organization_id' = ${orgId}
     ) adopted ON adopted.pet_id = r.pet_id
@@ -1039,6 +1073,11 @@ async function signalActiveAdoptions(orgId: string, now: Date): Promise<OrgQueue
   const rows = await db.execute<SignalRow>(sql`
     SELECT MIN(s.occurred_at) AS oldest
     FROM pet_events s
+    -- Art. 16: fetchActiveAdoptions' filter, verbatim — the age must describe
+    -- exactly the applications the count counts.
+    JOIN pets p
+      ON p.id = s.pet_id
+      AND p.deleted_at IS NULL
     JOIN ownerships o
       ON o.pet_id = s.pet_id
       AND o.role = 'shelter_custody'

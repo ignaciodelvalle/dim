@@ -83,6 +83,9 @@ export async function fetchOrgCensus(organizationId: string): Promise<SpeciesCou
         eq(ownerships.ownerOrganizationId, organizationId),
         eq(ownerships.role, "shelter_custody"),
         isNull(ownerships.endedAt),
+        // Art. 16: erasure soft-deletes the pet but not the ownership rows —
+        // an erased pet must not keep a seat in the census.
+        isNull(pets.deletedAt),
       ),
     )
     .groupBy(pets.species);

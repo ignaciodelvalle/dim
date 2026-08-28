@@ -90,6 +90,11 @@ export default async function AdoptionReviewDetailPage({
         eq(ownerships.ownerOrganizationId, organization.id),
         eq(ownerships.role, "shelter_custody"),
         isNull(ownerships.endedAt),
+        // Art. 16 (Ley 25.326): an erased pet's saved application link must
+        // 404 — the sponsorship row survives the erasure, this filter is what
+        // stops it from resolving the pet (same caller-side rule as the
+        // mascotas list/ficha/CSV).
+        isNull(pets.deletedAt),
       ),
     )
     .limit(1);

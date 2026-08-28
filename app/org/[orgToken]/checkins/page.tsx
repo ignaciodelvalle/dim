@@ -78,10 +78,17 @@ export default async function CheckinsPage({
     db
       .selectDistinct({ petId: petEvents.petId })
       .from(petEvents)
+      // Art. 16: bound petIds to non-erased pets at the source — every list
+      // below (check-ins, overdue reminders) renders the pet's name, and the
+      // adopter's erasure soft-deletes the pet without touching these events.
+      // Same filter countOverdueCheckins (org-dashboard.ts) applies, so the
+      // shared badge and this page keep counting the same population.
+      .innerJoin(pets, eq(pets.id, petEvents.petId))
       .where(
         and(
           eq(petEvents.eventType, "adoption_finalized"),
           sql`${petEvents.payload}->>'previous_owner_organization_id' = ${organization.id}`,
+          isNull(pets.deletedAt),
         ),
       ),
   );

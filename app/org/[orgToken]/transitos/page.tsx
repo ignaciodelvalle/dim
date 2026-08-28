@@ -55,6 +55,8 @@ export default async function OrgTransitosPage({
     .where(
       and(
         eq(ownerships.ownerOrganizationId, organization.id),
+        // Art. 16: erasure soft-deletes the pet but not the ownership rows.
+        isNull(pets.deletedAt),
         ...(activeTab === "activos" ? [isNull(ownerships.endedAt)] : []),
       ),
     );

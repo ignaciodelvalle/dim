@@ -36,7 +36,7 @@ import {
   type LiveOrgActorFailureReason,
   resolveLiveOrgActor,
 } from "@/src/modules/organizations/infrastructure/authz-resolver";
-import { eq } from "drizzle-orm";
+import { and, eq, isNull } from "drizzle-orm";
 import { headers } from "next/headers";
 
 // Lookup throttle: stricter than the public /p page (60/400) since the legit
@@ -302,7 +302,11 @@ export async function resolveAtenderPet(
       dateOfBirth: pets.dateOfBirth,
     })
     .from(pets)
-    .where(eq(pets.publicToken, normalized))
+    // Art. 16 (Ley 25.326): an erased pet must answer exactly like a code that
+    // never existed — same NOT_FOUND, same copy. This resolver gates the seven
+    // walk-in clinical WRITERS, so without the filter a clinic could keep
+    // appending events to a credential the erasure switched off.
+    .where(and(eq(pets.publicToken, normalized), isNull(pets.deletedAt)))
     .limit(1);
 
   if (!petRow) {

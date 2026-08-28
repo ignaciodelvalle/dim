@@ -57,6 +57,8 @@ export default async function TransferCustodyPage({
         eq(pets.publicToken, publicToken),
         eq(ownerships.ownerOrganizationId, organization.id),
         isNull(ownerships.endedAt),
+        // Art. 16: erasure soft-deletes the pet but not the ownership rows.
+        isNull(pets.deletedAt),
       ),
     )
     .limit(1);

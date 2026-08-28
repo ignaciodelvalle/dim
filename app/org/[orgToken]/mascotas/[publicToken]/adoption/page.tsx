@@ -57,6 +57,8 @@ export default async function AdoptionPage({
         eq(ownerships.ownerOrganizationId, organization.id),
         eq(ownerships.role, "shelter_custody"),
         isNull(ownerships.endedAt),
+        // Art. 16: erasure soft-deletes the pet but not the ownership rows.
+        isNull(pets.deletedAt),
       ),
     )
     .limit(1);
@@ -85,6 +87,9 @@ export default async function AdoptionPage({
           eq(ownerships.ownerOrganizationId, organization.id),
           eq(ownerships.role, "shelter_custody"),
           sql`${ownerships.endedAt} IS NOT NULL`,
+          // Art. 16: for an erased pet the "adopcion ya finalizada" story must
+          // not be told either — generic "No disponible" is the honest floor.
+          isNull(pets.deletedAt),
         ),
       )
       .limit(1);

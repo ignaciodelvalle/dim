@@ -48,7 +48,9 @@ export default async function IntakeMatchPage({
     .select({ pet: pets, photo: attachments })
     .from(pets)
     .leftJoin(attachments, eq(attachments.id, pets.primaryPhotoId))
-    .where(eq(pets.publicToken, matchedPetToken))
+    // Art. 16: an erased lost pet must read as never-existed to the intake
+    // cross-check, not render its name and photo to any org member.
+    .where(and(eq(pets.publicToken, matchedPetToken), isNull(pets.deletedAt)))
     .limit(1);
 
   if (!petResult) notFound();

@@ -42,6 +42,8 @@ export default async function PetsNoAptasPage({
         eq(ownerships.role, "shelter_custody"),
         isNull(ownerships.endedAt),
         eq(pets.adoptionEligible, false),
+        // Art. 16: erasure soft-deletes the pet but not the ownership rows.
+        isNull(pets.deletedAt),
       ),
     )
     .orderBy(desc(pets.updatedAt))

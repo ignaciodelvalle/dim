@@ -57,6 +57,8 @@ export default async function VoluntariosPage({
         eq(ownerships.ownerOrganizationId, organization.id),
         eq(ownerships.role, "shelter_custody"),
         isNull(ownerships.endedAt),
+        // Art. 16: erasure soft-deletes the pet but not the ownership rows.
+        isNull(pets.deletedAt),
       ),
     );
 
