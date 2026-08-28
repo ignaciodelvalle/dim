@@ -15,8 +15,11 @@
 | 4 | `owner@dim.test` | El vecino — reserva; y el dueño del beat 5b |
 | 5 | `vet@dim.test` | Matriculado — atiende y firma |
 
-**Regla dura**: NO loguearse en vivo. El rate limit es 5/min por email y 10/min
-por IP; una demo con retomas se lo come. Cinco perfiles de navegador separados,
+**Regla dura**: NO loguearse en vivo. Hay rate limit de login por email y por IP
+(`LOGIN_EMAIL_LIMIT` y `LOGIN_IP_LIMIT` en
+`src/modules/auth/application/login-limits.ts` — los números no se copian acá;
+esta línea decía "10/min por IP" hasta el 2026-08-27); una demo con retomas se
+lo come. Cinco perfiles de navegador separados,
 sesiones abiertas antes de empezar.
 
 ## Las 5 vistas

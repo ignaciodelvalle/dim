@@ -320,7 +320,7 @@ no lo busques.**
 | | Valor |
 |---|---|
 | Techo por **EMAIL** | **5 por minuto · 20 por hora** |
-| Techo por IP | 10 por minuto · 100 por hora |
+| Techo por IP | **no se transcribe acá** — es `LOGIN_IP_LIMIT` en `src/modules/auth/application/login-limits.ts`, con la derivación al lado. Esta celda decía "10 por minuto · 100 por hora" hasta el 2026-08-27, cuando el techo se sextuplicó al llegar la app a Play; leé la constante |
 | Dónde se cobra | `src/modules/auth/application/login.ts`, **antes** de tocar el proveedor de auth |
 | Se puede resetear en staging | **NO** |
 | Un intento fallido | **también gasta presupuesto** |

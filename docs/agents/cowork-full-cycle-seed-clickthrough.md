@@ -29,7 +29,12 @@ los datos por los flujos reales — como lo haría una persona. Nada de atajos.
 3. **Cuentas: usá el elenco sembrado** (todas con `Test1234!`): `admin@dim.test`,
    `govt-local@dim.test` (CABA/Palermo), `orgadmin@dim.test` (Refugio Test),
    `vet@dim.test` (matriculado), `owner@dim.test`, `graciela@dim.test` (2ª dueña).
-   **Rate limit real: 5 logins/min por email, 10/min por IP.** Logueá cada cuenta
+   **Hay rate limit real de login, por email Y por IP.** Los dos techos son
+   `LOGIN_EMAIL_LIMIT` y `LOGIN_IP_LIMIT` en
+   `src/modules/auth/application/login-limits.ts`, con la derivación al lado; no
+   se copian acá porque un número transcripto es un número que se pudre (este
+   párrafo decía 10/min por IP hasta el 2026-08-27, cuando el techo se sextuplicó
+   al llegar la app a Play). Logueá cada cuenta
    UNA vez en su propia pestaña/contexto y reusá la sesión. Si te bloquea, esperá
    2 minutos — no insistas.
 4. **Registro de todo lo creado**: al final, una tabla con cada entidad (tipo,

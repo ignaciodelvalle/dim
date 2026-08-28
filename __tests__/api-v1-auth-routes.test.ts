@@ -277,10 +277,20 @@ describe("POST /api/v1/auth/login — the budget is the web form's", () => {
     // meeting an argument, so the route is held to spending the CONSTANTS —
     // which is what makes the relationship assertions below mean anything about
     // what actually runs, rather than about two numbers nobody reads.
+    //
+    // `toBe` AND NOT `toEqual`, WHICH IS THE ENTIRE ASSERTION. This test claimed
+    // to catch "a call site that went back to an object literal" while comparing
+    // STRUCTURALLY, so `{ maxPerMinute: 60, maxPerHour: 240 }` re-inlined in
+    // `login.ts` passed it — the exact edit the test names, sailing through the
+    // test that names it. Identity is what "spends the CONSTANT" means: the
+    // limiter records the object it was handed, so only the shared reference
+    // satisfies this. A re-inlined literal now fails on the first spend.
     control.answer = { data: { user: null, session: null }, error: { message: "Invalid" } };
     await loginRoute(post("/auth/login", { email: "a@b.co", password: "x" }));
 
-    expect(control.limitConfigs).toEqual([LOGIN_IP_LIMIT, LOGIN_EMAIL_LIMIT]);
+    expect(control.limitConfigs).toHaveLength(2);
+    expect(control.limitConfigs[0]).toBe(LOGIN_IP_LIMIT);
+    expect(control.limitConfigs[1]).toBe(LOGIN_EMAIL_LIMIT);
   });
 
   it("keeps the per-EMAIL anchor where the brute-force argument put it", async () => {

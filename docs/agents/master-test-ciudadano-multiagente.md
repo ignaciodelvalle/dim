@@ -124,7 +124,7 @@ Lucas (gob) → Ignacio → Noelí → Graciela → Alejo (instituciones) → Li
 
 **Por qué la vuelta completa y no "seguir al que pueda avanzar":** si perseguís al desbloqueado, terminás haciendo los dos lados de cada circuito seguidos y esto se vuelve el clickthrough que ya tenemos. **La vuelta completa es lo que fuerza la espera real** — que es lo único que un usuario vive todo el tiempo y ningún test nuestro prueba.
 
-> **Rate limit real: 5 logins/min por email, 10/min por IP.** Una vuelta son 6 logins, **pero los `[CORTE]` no están contados ahí**: cada corte re-loguea hasta 3 cuentas, y suele caer justo después del hito, o sea volviendo a una cuenta que acabás de dejar. La corrida completa ronda los **55 logins** con ráfagas peores que una vuelta. Espaciá los cortes del hito que los motiva; si te bloquea, esperá dos minutos y no insistas.
+> **Hay rate limit real de login, por email Y por IP** — los dos techos son `LOGIN_EMAIL_LIMIT` y `LOGIN_IP_LIMIT` en `src/modules/auth/application/login-limits.ts`, y no se copian acá: este párrafo decía "10/min por IP" hasta el 2026-08-27, cuando el techo por IP se sextuplicó al llegar la app a Play. Una vuelta son 6 logins, **pero los `[CORTE]` no están contados ahí**: cada corte re-loguea hasta 3 cuentas, y suele caer justo después del hito, o sea volviendo a una cuenta que acabás de dejar. La corrida completa ronda los **55 logins** con ráfagas peores que una vuelta. Espaciá los cortes del hito que los motiva; si te bloquea, esperá dos minutos y no insistas.
 
 ---
 
