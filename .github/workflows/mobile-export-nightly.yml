@@ -8,6 +8,23 @@ name: Mobile export nightly (Metro bundle)
 # after e2e-nightly (06:00) and panorama-qa-nightly (06:30) rather than
 # alongside them — three jobs racing for runners at the same minute makes a slow
 # night look like a broken one.
+#
+# TWO THINGS THIS FILE NEEDS THAT ARE NOT IN THIS FILE
+# ---------------------------------------------------------------------------
+# 1. IT MUST BE MERGED TO `main`. A `schedule:` trigger is read ONLY from the
+#    repository's default branch. A scheduled workflow that lives on a feature or
+#    integration branch has no schedule at all — it is not late, it does not
+#    exist. Verified 2026-08-27: this workflow was written on 2026-08-27 and has
+#    run ZERO times, because it has never reached `main`. No `ref:` can fix that;
+#    only a merge can. `pnpm lint:sched-refs` fails until this line is stale.
+# 2. IT MUST NOT CHECK OUT `main`. A schedule fires from the default branch AND
+#    checks it out, and staging ships from `integration/all-*` — so once (1) is
+#    done, this job would bundle three-week-old mobile sources unless the
+#    explicit `ref:` below says otherwise.
+#
+# The branch name is a LITERAL on purpose: `${{ vars.X }}` resolves to the empty
+# string when unset, and an empty `ref:` silently falls back to the default
+# branch — reintroducing the bug with no signal.
 on:
   schedule:
     - cron: "45 7 * * *"
@@ -72,6 +89,12 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          # The branch staging is deployed from — NOT the default branch this
+          # schedule fires on. See the header. Kept in sync by
+          # `pnpm lint:sched-refs`, which names every file to change when the
+          # branch is renamed or merged.
+          ref: integration/all-20260703
 
       - name: Setup pnpm
         # No `version:` input on purpose. The version comes from the

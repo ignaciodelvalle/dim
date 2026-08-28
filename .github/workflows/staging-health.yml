@@ -21,6 +21,25 @@
 #     clone/fork never red-Xes on missing config. Job (a) always runs.
 #   The staging deploy must carry the demo seed (DIM-DEMO-0001 + the demo
 #   accounts in e2e/demo/_helpers) for job (b) to pass.
+#
+# THE SCHEDULED-FENCE RULE, APPLIED PER JOB (scripts/check-scheduled-fence-refs.ts)
+#   A `schedule:` event fires from — and checks out — the DEFAULT branch, while
+#   staging deploys from `integration/all-*`. The two jobs below sit on opposite
+#   sides of that rule and are treated differently ON PURPOSE:
+#
+#   (a) health-poll  has NO checkout at all: it is curl + jq against a URL. It
+#                    carries no copy of the app's code, so there is no stale tree
+#                    to run and nothing to pin. Adding a checkout here would cost
+#                    a fetch and buy nothing.
+#   (b) synthetic    runs `e2e/synthetic-monitor.spec.ts` FROM the checked-out
+#                    tree against the deployed staging origin. Same class as
+#                    e2e-nightly, and the same failure: it graded specs from a
+#                    tree measured 3876 commits behind the app it was driving
+#                    (2026-08-27). It carries the explicit `ref:` below.
+#
+# The branch name is a LITERAL on purpose: `${{ vars.X }}` resolves to the empty
+# string when unset, and an empty `ref:` silently falls back to the default
+# branch — reintroducing the bug with no signal.
 
 name: Staging health
 
@@ -99,6 +118,12 @@ jobs:
       - name: Checkout
         if: steps.guard.outputs.run == 'true'
         uses: actions/checkout@v4
+        with:
+          # The branch staging is deployed from — NOT the default branch this
+          # schedule fires on. See the header. Kept in sync by
+          # `pnpm lint:sched-refs`, which names every file to change when the
+          # branch is renamed or merged.
+          ref: integration/all-20260703
 
       - name: Setup pnpm
         if: steps.guard.outputs.run == 'true'

@@ -2,6 +2,27 @@ name: E2E nightly (staging)
 
 # Nightly Playwright pass against the deployed staging origin.
 # Cron is UTC: 06:00 UTC = 03:00 in Argentina (UTC-3, no DST).
+#
+# THE SCHEDULED-FENCE RULE (see scripts/check-scheduled-fence-refs.ts)
+# ---------------------------------------------------------------------------
+# A `schedule:` event only fires from the DEFAULT branch and checks out the
+# DEFAULT branch. This repo deploys staging from `integration/all-20260703`,
+# so without the explicit `ref:` below this job graded `main` — measured
+# 2026-08-27, 3876 commits and three weeks behind the app it was pointing at.
+#
+# That is not a hypothetical. This workflow has failed EVERY run it has ever
+# had (20 of 20, 2026-08-08 → 2026-08-27, all on headBranch `main`), because
+# `65815dcb6` renamed /login → /iniciar-sesion with a 308 and main's
+# `e2e/demo/_helpers.ts` still waits on `!pathname.startsWith("/login")` —
+# true the instant the redirect lands, so `loginAs` caches an ANONYMOUS
+# cookie jar and every authenticated spec then lands on the sign-in page. The
+# fix shipped on 2026-08-10 in `63c093065` (e2e/_sign-in-route.ts). The
+# nightly never checked out the commit that fixed it.
+#
+# The branch name is a LITERAL on purpose. `${{ vars.X }}` resolves to the
+# empty string when unset, and an empty `ref:` silently falls back to the
+# default branch — reintroducing exactly this bug with no signal. A literal
+# that stops naming a branch makes actions/checkout fail loudly instead.
 on:
   schedule:
     - cron: "0 6 * * *"
@@ -36,6 +57,12 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          # The branch staging is deployed from — NOT the default branch this
+          # schedule fires on. See the header. Kept in sync by
+          # `pnpm lint:sched-refs`, which names every file to change when the
+          # branch is renamed or merged.
+          ref: integration/all-20260703
 
       - name: Setup pnpm
         # No `version:` input on purpose. The version comes from the
@@ -67,3 +94,43 @@ jobs:
           name: playwright-report-staging
           path: playwright-report/
           retention-days: 14
+
+  # ---------------------------------------------------------------------------
+  # Make a permanently-red fence audible.
+  #
+  # Until 2026-08-27 the only thing this workflow did on failure was upload an
+  # artifact. GitHub's own failed-workflow email fires on the green -> red
+  # TRANSITION, and this job's FIRST run was already red — so there was never a
+  # transition and the mail was never sent. Twenty consecutive failures went
+  # unannounced. The alert below keys on the STREAK instead, which is >= 1 on the
+  # first red whether or not a green ever preceded it.
+  # ---------------------------------------------------------------------------
+  alert:
+    name: Alert on a red streak
+    needs: e2e-staging
+    if: always()
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      # Reading the workflow's own run history is what turns one red run into a
+      # streak; writing the issue is the alert itself. Both come from the
+      # per-run GITHUB_TOKEN — no secret to provision, so nothing to forget.
+      actions: read
+      issues: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          # Local composite actions resolve from the checked-out tree, so this
+          # job needs the same pin as the one above — otherwise the alert would
+          # run the default branch's copy of the action.
+          ref: integration/all-20260703
+
+      - name: Open or update the alert issue
+        uses: ./.github/actions/red-streak-alert
+        with:
+          workflow: e2e-nightly.yml
+          outcome: ${{ needs.e2e-staging.result }}
+          token: ${{ secrets.GITHUB_TOKEN }}
+          title: "[nightly] E2E vs staging is failing"

@@ -7,11 +7,35 @@ name: DB doctor (staging)
 # Requires the STAGING_DATABASE_URL secret (the Session-pooler connection
 # string, docs/ops/staging-deploy.md) — provisioning it is Ignacio-gated. The
 # job SKIPS with a notice when the secret is absent, so merging this workflow
-# is safe before the secret exists. Alerting = GitHub's failed-workflow email,
-# same channel staging-health.yml relies on.
+# is safe before the secret exists.
+#
+# Alerting is the `alert` job below, NOT GitHub's failed-workflow email as this
+# header used to claim. That email fires on a green -> red transition, and this
+# workflow's very first run was already red — so it never transitioned and never
+# mailed anyone across 12 consecutive failures.
 #
 # Cron is UTC: 09:00 UTC = 06:00 in Argentina (UTC-3, no DST) — after the
 # nightly QA runs, before the workday.
+#
+# THE SCHEDULED-FENCE RULE (see scripts/check-scheduled-fence-refs.ts)
+# ---------------------------------------------------------------------------
+# A `schedule:` event only fires from the DEFAULT branch and checks out the
+# DEFAULT branch. This job compares `db/migrations/` ON DISK against the ledger
+# in the STAGING database — and staging is deployed from `integration/all-*`, not
+# from `main`. Without the explicit `ref:` below, the two sides of the comparison
+# came from different trees, which is not a comparison at all.
+#
+# Measured on run 33109613780 (2026-08-27), the last one before this pin: main's
+# tree stops at migration 0170 while staging has 0202 applied, so section A
+# reported every migration in between as "in the ledger, NOT on disk" — pure
+# phantom drift, an alarm about nothing. Sections B (real RLS state) and C
+# (effect probes) ask the database directly and are ref-independent; both passed.
+# The only failing section was the only one that reads the checked-out tree. This
+# workflow had failed all 12 runs it has ever had, for that reason.
+#
+# The branch name is a LITERAL on purpose: `${{ vars.X }}` resolves to the empty
+# string when unset, and an empty `ref:` silently falls back to the default
+# branch — reintroducing exactly this bug with no signal.
 on:
   schedule:
     - cron: "0 9 * * *"
@@ -40,6 +64,12 @@ jobs:
       - name: Checkout
         if: steps.guard.outputs.run == 'true'
         uses: actions/checkout@v4
+        with:
+          # The branch staging is deployed from — NOT the default branch this
+          # schedule fires on. See the header. Kept in sync by
+          # `pnpm lint:sched-refs`, which names every file to change when the
+          # branch is renamed or merged.
+          ref: integration/all-20260703
 
       - name: Setup pnpm
         if: steps.guard.outputs.run == 'true'
@@ -66,3 +96,30 @@ jobs:
         env:
           DATABASE_URL: ${{ secrets.STAGING_DATABASE_URL }}
         run: pnpm db:doctor -- --allow-remote
+
+  # A guard-skipped audit reports `success`, so this alerts on a real red only.
+  alert:
+    name: Alert on a red streak
+    needs: doctor
+    if: always()
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      actions: read
+      issues: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          # Local composite actions resolve from the checked-out tree, so this
+          # job needs the same pin as the one above.
+          ref: integration/all-20260703
+
+      - name: Open or update the alert issue
+        uses: ./.github/actions/red-streak-alert
+        with:
+          workflow: db-doctor-staging.yml
+          outcome: ${{ needs.doctor.result }}
+          token: ${{ secrets.GITHUB_TOKEN }}
+          title: "[nightly] DB doctor (staging) is failing"
