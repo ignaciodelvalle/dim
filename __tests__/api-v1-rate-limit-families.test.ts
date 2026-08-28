@@ -15,6 +15,13 @@
 // later. So the list of what moved and what did not is NOT written in prose. It
 // is `API_V1_IP_BUCKET_FAMILIES`, and this file is what makes it true.
 //
+// THE TEN LANDED ON 2026-08-27 and the map is what carried the change: every one
+// of them was re-derived into a family, three families were added because the five
+// writes did not share a per-user anchor, and `route-local` — what `pre-cgnat`
+// became — is now EMPTY, with an assertion below that keeps it empty. This file
+// did not have to be rewritten to notice any of that; it had to be told the new
+// constants' names. That is the property the map was for.
+//
 // WHAT IS ASSERTED, AND WHY BOTH DIRECTIONS
 // ---------------------------------------------------------------------------
 //   source → map: a per-IP bucket that exists in a route but is in no family is
@@ -37,21 +44,22 @@
 // route and not only the undeclared one, so two more things are derived from
 // source rather than trusted:
 //
-//   CEILING → FAMILY. Every CGNAT-family call site passes a shared constant
-//     (`API_V1_AUTHENTICATED_READ_IP_LIMIT` and its three siblings) as the third
-//     argument to its limiter. That identifier says what the route ACTUALLY
-//     spends, so the declared family must be the one that constant belongs to. A
-//     route-local constant (`PET_DETAIL_IP_LIMIT` and friends) means the route
-//     owns its own number, which is exactly what `pre-cgnat` declares.
+//   CEILING → FAMILY. Every family call site passes a shared constant from
+//     `lib/infra/api-v1-limits.ts` as the third argument to its limiter. That
+//     identifier says what the route ACTUALLY spends, so the declared family must
+//     be the one that constant belongs to. A constant declared inside the route
+//     file means the route owns its own number, which is exactly what
+//     `route-local` declares — and since 2026-08-27 no route does, which is why
+//     the default is now a trap rather than a category.
 //
 //   HTTP METHOD → FAMILY. A bucket spent inside `export async function GET`
 //     cannot belong to a write family and vice versa. This is the half that
 //     catches the review's scenario at its source: mislabelling a POST route as
 //     `authenticated-read` requires ALSO handing it the read constant, and the
-//     handler it sits in gives that away. `pre-cgnat` is exempt — it contains
-//     both reads and writes by construction — but it is not exempt from the
-//     ceiling check, so a `pre-cgnat` bucket cannot quietly pick up a CGNAT
-//     ceiling while still reading as out of scope.
+//     handler it sits in gives that away. `route-local` is exempt from THIS half
+//     only, because it is a mechanism rather than a direction — but it is not
+//     exempt from the ceiling check, and since 2026-08-27 it is not exempt from
+//     being empty either.
 //
 // HOW A BUCKET IS RECOGNISED AS PER-IP, and the blind spot that comes with it.
 // The `api_v1_*` bucket literals in a route are collected, then partitioned by
@@ -76,7 +84,14 @@ import {
   API_V1_INBOX_STATE_USER_LIMIT,
   API_V1_IP_BUCKET_FAMILIES,
   API_V1_IP_FAMILIES,
+  API_V1_PET_DISCLOSURE_WRITE_IP_LIMIT,
+  API_V1_PET_DISCLOSURE_WRITE_USER_LIMIT,
+  API_V1_PET_RECORD_WRITE_IP_LIMIT,
+  API_V1_PET_RECORD_WRITE_USER_LIMIT,
+  API_V1_PET_REGISTRATION_IP_LIMIT,
+  API_V1_PET_REGISTRATION_USER_LIMIT,
   API_V1_PUBLIC_REFERENCE_IP_LIMIT,
+  API_V1_SIMULTANEOUS_CALLERS,
   type ApiV1IpFamily,
 } from "@/lib/infra/api-v1-limits";
 
@@ -129,7 +144,7 @@ function collectIpBuckets(): string[] {
  * Keyed by IDENTIFIER, because the identifier is what appears at the call site
  * and the call site is the only place that says what a route really spends.
  * Renaming an export therefore fails this file loudly instead of silently
- * dropping a route into the `pre-cgnat` bucket below — which is the failure
+ * dropping a route into the `route-local` bucket below — which is the failure
  * this table would otherwise introduce.
  */
 const FAMILY_OF_SHARED_CEILING: Readonly<Record<string, ApiV1IpFamily>> = {
@@ -138,12 +153,15 @@ const FAMILY_OF_SHARED_CEILING: Readonly<Record<string, ApiV1IpFamily>> = {
   API_V1_ACCOUNT_SECURITY_IP_LIMIT: "account-security",
   API_V1_INBOX_STATE_IP_LIMIT: "inbox-state",
   API_V1_PUBLIC_REFERENCE_IP_LIMIT: "public-reference",
+  API_V1_PET_DISCLOSURE_WRITE_IP_LIMIT: "pet-disclosure-write",
+  API_V1_PET_RECORD_WRITE_IP_LIMIT: "pet-record-write",
+  API_V1_PET_REGISTRATION_IP_LIMIT: "pet-registration",
 };
 
 /**
  * Families whose buckets may only be spent by a read handler, and vice versa.
  *
- * EVERY FAMILY EXCEPT `pre-cgnat` HAS TO BE IN ONE OF THESE TWO, or the method
+ * EVERY FAMILY EXCEPT `route-local` HAS TO BE IN ONE OF THESE TWO, or the method
  * fence below silently stops applying to it — a family missing from both lists
  * is exempt from the check that catches a write route wearing a read ceiling,
  * which is the failure this whole describe block exists for. The exhaustiveness
@@ -154,6 +172,9 @@ const WRITE_FAMILIES: readonly ApiV1IpFamily[] = [
   "authenticated-write",
   "account-security",
   "inbox-state",
+  "pet-disclosure-write",
+  "pet-record-write",
+  "pet-registration",
 ];
 
 type IpBucketSite = {
@@ -214,11 +235,12 @@ function collectIpBucketSites(): IpBucketSite[] {
 /** The family a call site's ceiling identifier implies. */
 function familyFromCeiling(ceiling: string): ApiV1IpFamily {
   // A route-local constant IS the declaration that the route owns its own
-  // number, which is what `pre-cgnat` means. Nothing else in this file has to
-  // enumerate them, which matters: the ten of them are out of scope precisely
-  // because nobody re-derived their ceilings, and a list here would be an
-  // eleventh place to keep in step.
-  return FAMILY_OF_SHARED_CEILING[ceiling] ?? "pre-cgnat";
+  // number, which is what `route-local` means. Nothing else in this file has to
+  // enumerate them, which matters: a list here would be one more place to keep in
+  // step. Since 2026-08-27 nothing is filed under it — so this default is now the
+  // way a NEW route with its own literal announces itself, and the assertions
+  // below turn that announcement into a failure.
+  return FAMILY_OF_SHARED_CEILING[ceiling] ?? "route-local";
 }
 
 describe("/api/v1 per-IP rate-limit buckets — every one has a declared family", () => {
@@ -311,13 +333,13 @@ describe("/api/v1 per-IP buckets — every one is filed under the RIGHT family",
 
   it("never spends a read family's ceiling from a write handler, or the reverse", () => {
     // The second half, and the one that catches the mislabelling BEFORE the
-    // ceiling constant is chosen to match it. `pre-cgnat` is exempt by
-    // construction — it holds both `api_v1_shares_read_ip` (GET) and
-    // `api_v1_shares_write_ip` (POST) and always will.
+    // ceiling constant is chosen to match it. `route-local` is exempt by
+    // construction — it is a mechanism, not a direction, and it held both GET and
+    // POST buckets for as long as it held any.
     const wrongDirection = sites
       .filter((s) => {
         const family = API_V1_IP_BUCKET_FAMILIES[s.bucket];
-        if (!family || family === "pre-cgnat") return false;
+        if (!family || family === "route-local") return false;
         return s.method === "GET"
           ? WRITE_FAMILIES.includes(family)
           : READ_FAMILIES.includes(family);
@@ -401,10 +423,78 @@ describe("/api/v1 rate-limit families — the numbers the derivation committed t
     // and WU-Q-1 made them wrong: two buckets landed, the sum moved to 4.140,
     // and the arithmetic in this comment described a surface that no longer
     // existed. A comment that enumerates a set is a second copy of the set. The
-    // list that cannot lie is `API_V1_IP_BUCKET_FAMILIES` next to the five
-    // ceiling constants; what stays here is the PIN, which is the only part a
-    // test can hold. `pre-cgnat` buckets are deliberately not in the sum.
-    expect(API_V1_CGNAT_FAMILY_IP_CEILING_PER_MINUTE).toBe(4_140);
+    // list that cannot lie is `API_V1_IP_BUCKET_FAMILIES` next to the ceiling
+    // constants; what stays here is the PIN, which is the only part a test can
+    // hold. `route-local` is empty, so the sum is now the whole surface.
+    expect(API_V1_CGNAT_FAMILY_IP_CEILING_PER_MINUTE).toBe(7_980);
+  });
+
+  it("keeps pet-disclosure-write at N callers on BOTH windows", () => {
+    // Two routes, one anchor: `POST /pets/{token}/shares` and
+    // `POST /pets/{token}/lost` carried identical per-user ceilings in two files
+    // before they moved here, which is why they share one IP ceiling and why the
+    // relationship rather than the digits is what this pins.
+    expect(API_V1_PET_DISCLOSURE_WRITE_IP_LIMIT.maxPerMinute).toBe(
+      (API_V1_PET_DISCLOSURE_WRITE_USER_LIMIT.maxPerMinute ?? 0) * API_V1_SIMULTANEOUS_CALLERS,
+    );
+    expect(API_V1_PET_DISCLOSURE_WRITE_IP_LIMIT.maxPerHour).toBe(
+      (API_V1_PET_DISCLOSURE_WRITE_USER_LIMIT.maxPerHour ?? 0) * API_V1_SIMULTANEOUS_CALLERS,
+    );
+  });
+
+  it("keeps pet-record-write at N callers on BOTH windows", () => {
+    expect(API_V1_PET_RECORD_WRITE_IP_LIMIT.maxPerMinute).toBe(
+      (API_V1_PET_RECORD_WRITE_USER_LIMIT.maxPerMinute ?? 0) * API_V1_SIMULTANEOUS_CALLERS,
+    );
+    expect(API_V1_PET_RECORD_WRITE_IP_LIMIT.maxPerHour).toBe(
+      (API_V1_PET_RECORD_WRITE_USER_LIMIT.maxPerHour ?? 0) * API_V1_SIMULTANEOUS_CALLERS,
+    );
+  });
+
+  it("keeps pet-registration at N callers on BOTH windows", () => {
+    expect(API_V1_PET_REGISTRATION_IP_LIMIT.maxPerMinute).toBe(
+      (API_V1_PET_REGISTRATION_USER_LIMIT.maxPerMinute ?? 0) * API_V1_SIMULTANEOUS_CALLERS,
+    );
+    expect(API_V1_PET_REGISTRATION_IP_LIMIT.maxPerHour).toBe(
+      (API_V1_PET_REGISTRATION_USER_LIMIT.maxPerHour ?? 0) * API_V1_SIMULTANEOUS_CALLERS,
+    );
+  });
+
+  it("keeps every per-user anchor above zero, so the products mean something", () => {
+    // THE NON-VACUITY FLOOR FOR THE SIX ASSERTIONS ABOVE, and the one
+    // `api-v1-auth-routes.test.ts` had to add for the same reason: `0 === 0 * 12`
+    // is true, so an anchor silently zeroed would satisfy every relationship in
+    // this describe block while the ceiling it describes collapsed. These are the
+    // buckets that bound a PERSON; a change to one of them has to walk past this
+    // line on purpose.
+    const anchors = [
+      API_V1_PET_DISCLOSURE_WRITE_USER_LIMIT,
+      API_V1_PET_RECORD_WRITE_USER_LIMIT,
+      API_V1_PET_REGISTRATION_USER_LIMIT,
+    ];
+    for (const anchor of anchors) {
+      expect(anchor.maxPerMinute ?? 0).toBeGreaterThan(0);
+      expect(anchor.maxPerHour ?? 0).toBeGreaterThan(0);
+    }
+    expect(API_V1_SIMULTANEOUS_CALLERS).toBe(12);
+  });
+
+  it("never lets a write family's IP ceiling reach the read family's", () => {
+    // The three families that landed on 2026-08-27 are the widest writes on the
+    // surface, and `pet-record-write` in particular sits at the same per-minute
+    // figure as `inbox-state`. None of them may drift up to a READ ceiling: a
+    // write costs more per request than a read on every one of these routes, and
+    // the moment a write bucket admits as much traffic as the read family the
+    // ordering argument in api-v1-limits.ts stops being true.
+    const readCeiling = API_V1_AUTHENTICATED_READ_IP_LIMIT.maxPerMinute ?? 0;
+    for (const write of [
+      API_V1_AUTHENTICATED_WRITE_IP_LIMIT,
+      API_V1_PET_DISCLOSURE_WRITE_IP_LIMIT,
+      API_V1_PET_RECORD_WRITE_IP_LIMIT,
+      API_V1_PET_REGISTRATION_IP_LIMIT,
+    ]) {
+      expect(write.maxPerMinute ?? 0).toBeLessThan(readCeiling);
+    }
   });
 
   it("keeps inbox-state flat at 12× on BOTH windows, like account-security", () => {
@@ -432,7 +522,7 @@ describe("/api/v1 rate-limit families — the numbers the derivation committed t
 });
 
 describe("/api/v1 rate-limit families — the method fence covers every family", () => {
-  it("classifies every non-pre-cgnat family as read-only or write-only", () => {
+  it("classifies every non-route-local family as read-only or write-only", () => {
     // THE FENCE'S OWN BLIND SPOT, closed. The method check above skips any family
     // that is in neither READ_FAMILIES nor WRITE_FAMILIES — so a family added to
     // the union and forgotten in those two lists is silently exempt from the
@@ -445,7 +535,7 @@ describe("/api/v1 rate-limit families — the method fence covers every family",
     // makes this assertion mean something.
     const unclassified = API_V1_IP_FAMILIES.filter(
       (family) =>
-        family !== "pre-cgnat" &&
+        family !== "route-local" &&
         !READ_FAMILIES.includes(family) &&
         !WRITE_FAMILIES.includes(family),
     );
@@ -461,5 +551,29 @@ describe("/api/v1 rate-limit families — the method fence covers every family",
       (family) => READ_FAMILIES.includes(family) && WRITE_FAMILIES.includes(family),
     );
     expect(both).toEqual([]);
+  });
+
+  it("keeps route-local EMPTY, so it cannot become the next `pre-cgnat`", () => {
+    // THE RATCHET, and the reason the family was renamed rather than deleted.
+    // `familyFromCeiling` returns `route-local` for any ceiling that is not one of
+    // this repo's shared constants, so the family has to exist — it is what a
+    // route hands the limiter when it owns its own number. What it must never
+    // again be is a PLACE TO PUT ONE: `pre-cgnat` held ten buckets for two days
+    // and every one of them read as "somebody decided" while being a route nobody
+    // had re-derived. Filing a bucket here would pass both set assertions and the
+    // ceiling assertion, because a route-local ceiling really does imply
+    // `route-local` — which is precisely why the emptiness has to be its own line.
+    //
+    // A new route with its own literal now fails "declares a family for every
+    // per-IP bucket"; a new route ADDED to the map as `route-local` fails here.
+    // The fix for both is a family and a derivation in api-v1-limits.ts.
+    const filed = Object.entries(API_V1_IP_BUCKET_FAMILIES)
+      .filter(([, family]) => family === "route-local")
+      .map(([bucket]) => bucket);
+    expect(
+      filed,
+      "a per-IP bucket filed as `route-local` is a route running a ceiling nobody " +
+        "derived — give it a family and a derivation in lib/infra/api-v1-limits.ts",
+    ).toEqual([]);
   });
 });

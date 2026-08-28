@@ -51,6 +51,12 @@
 // call `events/writers.ts` makes about atestación PPP and embarazo.
 
 import { apiV1Error, apiV1Json } from "@/lib/infra/api-v1";
+import {
+  API_V1_AUTHENTICATED_READ_IP_LIMIT,
+  API_V1_AUTHENTICATED_READ_USER_LIMIT,
+  API_V1_PET_DISCLOSURE_WRITE_IP_LIMIT,
+  API_V1_PET_DISCLOSURE_WRITE_USER_LIMIT,
+} from "@/lib/infra/api-v1-limits";
 import { DbBudgetExceededError, withDbBudgetOrThrow } from "@/lib/infra/db-budget";
 import { type LiveUserFailureReason, requireLiveUser } from "@/lib/infra/live-user";
 import { resolvePetHolderAccess } from "@/lib/infra/pet-access";
@@ -82,41 +88,29 @@ const ACCESS_BUDGET_MS = 5_000;
  */
 const SHARES_BUDGET_MS = 8_000;
 
-/**
- * Per-IP read ceiling: 60/min, 600/hour.
- *
- * The same numbers as `/pets/{token}`, `/libreta` and `/lost`, deliberately: a
- * client that opens a pet and flips to its sharing sheet calls both inside one
- * second. Its OWN bucket name, though — a shared counter makes "which surface is
- * being hammered" unanswerable from the limiter's own storage.
- */
-const SHARES_READ_IP_LIMIT = { maxPerMinute: 60, maxPerHour: 600 };
-
-/** Per-user read ceiling: 120/min, 1.200/hour. Twice the IP budget, as siblings. */
-const SHARES_READ_USER_LIMIT = { maxPerMinute: 120, maxPerHour: 1_200 };
-
-/**
- * Per-IP write ceiling: 20/min, 120/hour.
- *
- * TIGHTER than the events write (30/200), and the reason is what the write
- * PRODUCES rather than what it costs. Recording a vaccine appends a row; a
- * successful create here hands out a bearer credential over a medical record.
- * The five-active cap bounds how many can exist at once but not how fast they
- * can be minted and revoked, and a limiter is the only thing that does.
- */
-const SHARES_WRITE_IP_LIMIT = { maxPerMinute: 20, maxPerHour: 120 };
-
-/**
- * Per-user write ceiling: 15/min, 60/hour, 200/day.
- *
- * Sized against the legitimate worst case, which is NOT minting links — the cap
- * stops that at five. It is an owner in a waiting room revoking the old link,
- * making a new one, and toggling the Tier-2 window while they think about what
- * they are comfortable publishing. 15/min is headroom for that plus retries; the
- * daily figure is the abuse backstop, past which an account is doing something
- * no owner does.
- */
-const SHARES_WRITE_USER_LIMIT = { maxPerMinute: 15, maxPerHour: 60, maxPerDay: 200 };
+// TWO FAMILIES, ONE FILE — numbers and derivations in lib/infra/api-v1-limits.ts.
+// ---------------------------------------------------------------------------
+// THE READ is the authenticated-read family, on this file's own argument: "the
+// same numbers as `/pets/{token}`, `/libreta` and `/lost`, deliberately: a client
+// that opens a pet and flips to its sharing sheet calls both inside one second."
+//
+// THE WRITE is `pet-disclosure-write`, which it shares with `POST /lost` and with
+// nothing else. The per-user anchor is identical in both files and so is the act:
+// an owner flipping what other people may see of one animal while they think about
+// what they are comfortable publishing. The old per-IP ceiling was 20/min against
+// a per-user 15/min — ONE owner at their own ceiling and a third of a second owner
+// exhausted the whole carrier gateway, which is the inversion this repo has now
+// corrected in four places.
+//
+// WHAT DOES NOT MOVE, and it is the load-bearing half of this endpoint's argument:
+// what a successful create PRODUCES. It hands out a bearer credential over a
+// medical record, the five-active cap bounds how many exist at once but not how
+// fast they are minted and revoked, and the bucket that bounds THAT is the per-user
+// one — unchanged at 15/min + 60/hr + 200/day. The IP ceiling never was that
+// bucket; it was a CGNAT-blind proxy for it.
+//
+// Both keep their OWN bucket names: a shared counter makes "which surface is being
+// hammered" unanswerable from the limiter's own storage.
 
 // AUTHORIZED, not opted out: both handlers call requireLiveUser and then resolve
 // pet access, and those two calls ARE the authorization. Said here for a reader
@@ -135,7 +129,11 @@ export async function GET(
   }
 
   if (
-    !(await spendBudget("api_v1_shares_read_ip", callerIp(request.headers), SHARES_READ_IP_LIMIT))
+    !(await spendBudget(
+      "api_v1_shares_read_ip",
+      callerIp(request.headers),
+      API_V1_AUTHENTICATED_READ_IP_LIMIT,
+    ))
   ) {
     return apiV1Error("rate_limited", 429);
   }
@@ -158,7 +156,13 @@ export async function GET(
   }
   if (!live.ok) return liveUserRefusal(live.reason);
 
-  if (!(await spendBudget("api_v1_shares_read_user", live.user.id, SHARES_READ_USER_LIMIT))) {
+  if (
+    !(await spendBudget(
+      "api_v1_shares_read_user",
+      live.user.id,
+      API_V1_AUTHENTICATED_READ_USER_LIMIT,
+    ))
+  ) {
     return apiV1Error("rate_limited", 429);
   }
 
@@ -243,7 +247,11 @@ export async function POST(
   }
 
   if (
-    !(await spendBudget("api_v1_shares_write_ip", callerIp(request.headers), SHARES_WRITE_IP_LIMIT))
+    !(await spendBudget(
+      "api_v1_shares_write_ip",
+      callerIp(request.headers),
+      API_V1_PET_DISCLOSURE_WRITE_IP_LIMIT,
+    ))
   ) {
     return apiV1Error("rate_limited", 429);
   }
@@ -264,7 +272,13 @@ export async function POST(
   }
   if (!live.ok) return liveUserRefusal(live.reason);
 
-  if (!(await spendBudget("api_v1_shares_write_user", live.user.id, SHARES_WRITE_USER_LIMIT))) {
+  if (
+    !(await spendBudget(
+      "api_v1_shares_write_user",
+      live.user.id,
+      API_V1_PET_DISCLOSURE_WRITE_USER_LIMIT,
+    ))
+  ) {
     return apiV1Error("rate_limited", 429);
   }
 

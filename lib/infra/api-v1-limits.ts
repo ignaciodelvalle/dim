@@ -258,32 +258,165 @@
 // write amplification with a rationale.
 //
 // ===========================================================================
-// WHAT THIS FILE DELIBERATELY DID NOT TOUCH — READ THIS BEFORE COPYING A NUMBER
+// THE TEN UNDER `pets/**` THE FIRST PASS LEFT BEHIND — CLOSED 2026-08-27
 // ===========================================================================
-// WU-EAS-2's scope was `app/api/v1/me/**` and `app/api/v1/localities/**`. It is
-// not the whole `/api/v1` surface, and the routes it left alone are the same
-// SHAPE as the ones it moved:
+// WU-EAS-2's scope was `app/api/v1/me/**` and `app/api/v1/localities/**`, so ten
+// sibling per-IP buckets under `app/api/v1/pets/**` stayed on their pre-B13
+// numbers. This section used to be the paragraph that admitted it:
 //
-//   api_v1_pet_detail_ip · api_v1_pet_libreta_ip · api_v1_pet_event_detail_ip ·
-//   api_v1_shares_read_ip · api_v1_lost_read_ip    — still 60/min + 600/hr
-//   api_v1_shares_write_ip · api_v1_lost_write_ip ·
-//   api_v1_amend_ip                                 — still 20/min + 120/hr
-//   api_v1_event_ip · api_v1_pets_register_ip       — still 30/min
+//   "a native client that cold-launches (600/min on `/me` and `/me/pets`) and
+//    then taps a pet lands on 60/min at `/pets/{token}`, from the same phone,
+//    behind the same gateway, one screen later. That is a REAL inconsistency and
+//    this paragraph is not an apology for it."
 //
-// So a native client that cold-launches (600/min on `/me` and `/me/pets`) and
-// then taps a pet lands on 60/min at `/pets/{token}`, from the same phone,
-// behind the same gateway, one screen later. That is a REAL inconsistency and
-// this paragraph is not an apology for it — it is the thing that makes it
-// impossible to read the gap as a decision. The count in a comment is exactly
-// how `/adoptar/{petToken}` spent months looking like an exception instead of a
-// gap (see `public-token-throttle.ts`), so the list above is not the fence: the
-// FAMILY MAP below is, and `__tests__/api-v1-rate-limit-families.test.ts`
-// asserts every per-IP bucket on the surface is in it — including the ones
-// marked `pre-cgnat`, which is the point. A route cannot quietly join either
-// side.
+// On 2026-08-27 the Android build reached Play internal testing and real testers
+// began installing it on Argentine carrier networks — the same day and the same
+// trigger that moved `login-limits.ts`. That turned a documented gap into a live
+// one, because the burst the 600 was sized for does not stop at the home screen:
+// a barrio-wide lost-pet alert puts fifty people behind one carrier gateway into
+// the app at once, and what they do next is TAP THE PET. The 60 was there.
+//
+// So the ten move here. It is NOT one derivation, and making it one is the
+// mistake this whole file exists to refuse.
+//
+// WHAT IS TRUE OF ALL TEN — read out of the handlers, not assumed
+// ---------------------------------------------------------------------------
+// FIRST, NONE OF THEM IS PUBLIC. That is worth stating because a public bucket's
+// derivation is not this one — `credential/limits.ts` sizes against 1,000
+// SUBSCRIBERS per address precisely because a stranger with a camera needs no
+// account. Every one of the ten sits in a handler that calls
+// `createClientFromBearer` and then `requireLiveUser`, and nine of the ten then
+// call `resolvePetHolderAccess` (registration cannot: the pet does not exist
+// yet). The anonymous credential surface is a DIFFERENT route with its own file
+// and its own arithmetic, and it was raised in B13 — it never was one of the ten.
+// So the population is this file's: app-holding clients behind a gateway.
+//
+// SECOND, THE ORDERING IS UNIFORM, and it is what each raise below costs. In all
+// ten handlers the sequence is: header regexes (free) → the per-IP bucket → the
+// GoTrue round-trip → the per-user bucket → the DB access guard. NO ROUTE READS
+// THE DATABASE BEFORE AUTHENTICATING, so no raise here widens an unauthenticated
+// read of anything. What every raise buys a caller holding a well-formed but
+// invalid token is more `auth.getUser()` round-trips from one address — the same
+// cost, in the same words, this file already accepts at 600 for the read family,
+// bounded by the same three things and by the platform's DDoS layer. One of the
+// ten claims a second job beyond that; it is named and re-checked below.
+//
+// ---------------------------------------------------------------------------
+// THE FIVE READS: they were `/me/pets`'s numbers all along
+// ---------------------------------------------------------------------------
+// `api_v1_pet_detail_ip`, `api_v1_pet_libreta_ip`, `api_v1_pet_event_detail_ip`,
+// `api_v1_shares_read_ip`, `api_v1_lost_read_ip` — all five ran 60/min + 600/hr
+// per IP and 120/min + 1,200/hr per user, byte-identical to what `/me/pets` ran
+// before WU-EAS-2 moved it, and their own docblocks SAID SO: "identical ON
+// PURPOSE rather than by copy-paste: a client that opens a list and then taps
+// into a pet calls both at the same moments, so one number bounds both and a
+// client author has one budget to reason about."
+//
+// There is no second derivation to do. The five are the authenticated-read family
+// and always were; what happened is that the family moved without them. They take
+// `API_V1_AUTHENTICATED_READ_IP_LIMIT` and `API_V1_AUTHENTICATED_READ_USER_LIMIT`
+// — and the per-user half is not a change of value at all. It is the same pair,
+// stated once instead of five times, so the next time the family moves it cannot
+// leave them behind again. That is the entire point of the file.
+//
+// ---------------------------------------------------------------------------
+// THE FIVE WRITES: one RULE, three anchors, and therefore not one number
+// ---------------------------------------------------------------------------
+// The writes do not share a per-user ceiling, and a per-IP ceiling in this file is
+// derived FROM the per-user one. Handing all five the authenticated-write family's
+// 120/min because they are the same SHAPE is exactly what `credential/limits.ts`
+// refuses to do with its own numbers ("they land on the same numbers; they land
+// there by different arithmetic"), so it is not done here either.
+//
+// The rule is the one `login-limits.ts` names and `API_V1_ACCOUNT_SECURITY_IP_LIMIT`
+// and `API_V1_INBOX_STATE_IP_LIMIT` already follow: TWELVE simultaneous legitimate
+// callers at their own full per-user ceiling, on both windows. Every one of the
+// five is upside down without it — the IP bucket, the one with no reasoning behind
+// its number, is what refuses the second or third legitimate writer behind a
+// gateway:
+//
+//   api_v1_amend_ip          20/min against 10/min per user — TWO people
+//   api_v1_shares_write_ip   20/min against 15/min per user — ONE and a third
+//   api_v1_lost_write_ip     20/min against 15/min per user — ONE and a third
+//   api_v1_event_ip          30/min against 20/min per user — ONE and a half
+//   api_v1_pets_register_ip  30/min against 10/min per user — THREE people
+//
+// AMEND JOINS THE AUTHENTICATED-WRITE FAMILY rather than getting a constant of its
+// own. Its per-user ceiling is 10/min + 40/hr + 100/day, which is not merely close
+// to `API_V1_AUTHENTICATED_WRITE_USER_LIMIT` — it is the same three numbers — and
+// the act is the same class: a deliberate, consequential correction to the
+// national registry's append-only spine, the way a transfer is a deliberate change
+// of who owns an animal. Same anchor and same act is the same family. A separate
+// constant carrying identical numbers would be the eleven-paragraphs problem from
+// the top of this file, once more.
+//
+// SHARES AND LOST WRITES SHARE ONE — `API_V1_PET_DISCLOSURE_WRITE_IP_LIMIT`, and
+// they share it for the reason amend joins an existing family rather than for the
+// reason they are both writes. Same per-user anchor (15/min + 60/hr + 200/day),
+// and two docblocks describing the same act in nearly the same words: an owner
+// "flipping disclosure toggles while they think about what they are comfortable
+// publishing", in a waiting room or in the middle of a search. Both change what
+// OTHER people may see of one animal — one mints a bearer credential over a
+// medical record, the other broadcasts a search to every organization in a
+// jurisdiction. Twelve such callers behind one gateway is 180/min + 720/hr.
+//
+// RECORDING AN ASIENTO GETS ITS OWN — `API_V1_PET_RECORD_WRITE_IP_LIMIT`, from an
+// anchor of 20/min + 80/hr + 300/day, the widest per-user write budget on the
+// surface. Its route already says why the anchor is wide, and the sentence is the
+// whole derivation: "recording is the ORDINARY act on this surface and correcting
+// is the exceptional one, and a vet day at a rescue is many animals from one
+// egress in one afternoon." Twelve of those is 240/min + 960/hr — the same
+// per-minute figure as `inbox-state`, and deliberately NOT that constant. An
+// asiento is a row on the spine; a read receipt is not. Two families that happen
+// to meet at a number must not be merged on the strength of the coincidence.
+//
+// REGISTRATION GETS ITS OWN — `API_V1_PET_REGISTRATION_IP_LIMIT`, from 10/min +
+// 30/hr + 60/day: 120/min + 360/hr. This is the one whose old ceiling claimed a
+// derivation it did not have. Its docblock read "Sized for CGNAT, not for a
+// household. Mobile carriers put hundreds of subscribers behind one address" —
+// above 30/min + 120/hr, which is FOUR accounts per gateway per hour at their own
+// 30/hr. And the burst is not hypothetical: `/api/v1/localities` was raised to
+// 600/min in this very file for "a municipality running a registration drive in a
+// plaza, twenty people registering a pet at once on the same cell". The typeahead
+// was made to survive that drive while the registration it feeds was left at a
+// ceiling the drive exhausts inside an hour. That is a SECOND cliff, sharper than
+// the one this section was written about, and the same change closes it.
+//
+// WHAT THE REGISTRATION RAISE GIVES UP, which is less than it looks and is the
+// one place the uniform GoTrue answer above is not the whole answer. Alone among
+// the ten, this bucket claims a second job: it is "here to bound a SCRIPTED farm
+// running from one host, which the per-user budget below structurally cannot see
+// (a farm makes an account per pet)". That is true, and the binding constraint on
+// that farm is not this ceiling. A farm needs one ACCOUNT per pet, and accounts
+// come from `auth_signup_ip` — 3/min + 15/hr, deliberately unchanged, and
+// `login-limits.ts` says why it was left alone. Fifteen accounts an hour from one
+// host caps the farm at fifteen pets an hour whether this endpoint allows 120/hr
+// or 360/hr. The ceiling doing that work is upstream of this one and eight times
+// tighter; this one was only ever the second-tightest link, and it still is.
+//
+// ---------------------------------------------------------------------------
+// WHAT `route-local` MEANS NOW, AND WHY IT IS EMPTY
+// ---------------------------------------------------------------------------
+// The family the ten used to be in was called `pre-cgnat`: "knowingly left on the
+// pre-B13 ceiling by WU-EAS-2's scope". Nothing is left on one, so that name now
+// describes an empty set — a comment standing for a condition nothing satisfies,
+// which is the exact defect `public-token-throttle.ts` records and this file keeps
+// re-learning. It is renamed `route-local`, which names the MECHANISM instead of a
+// moment: a bucket whose route hands the limiter its own literal rather than one
+// of this file's constants. That is what
+// `__tests__/api-v1-rate-limit-families.test.ts` infers from a call site, so it is
+// what the family has to mean.
+//
+// It is EMPTY, and the fence asserts that it stays empty. A per-IP bucket that
+// lands with its own literal fails there, and the fix is a family and a derivation
+// in this file — not an entry in the map. The escape hatch is closed because these
+// ten are what it cost: a route can be filed under "somebody decided" and still be
+// a route nobody ever re-derived.
 //
 // The aggregate per-IP per-minute ceiling across the CGNAT-derived families is
-// `API_V1_CGNAT_FAMILY_IP_CEILING_PER_MINUTE`, computed below. IT USED TO BE
+// `API_V1_CGNAT_FAMILY_IP_CEILING_PER_MINUTE`, computed below — and since the ten
+// landed it is the ceiling across the WHOLE `/api/v1` per-IP surface, because
+// there is no longer a set of buckets sitting outside it. IT USED TO BE
 // TRANSCRIBED HERE TOO ("and is 3,300/min") and that sentence went stale the
 // first time a route landed: WU-Q-1 added two buckets and the figure moved,
 // while the prose went on stating the old one in the very paragraph that exists
@@ -313,12 +446,13 @@
 // literal at its own `enforceRateLimit` call site, and `login-limits.ts` says why
 // it was left there rather than swept up in the same change.
 //
-// The `pre-cgnat` buckets are outside that sum and add their own ceilings on top;
-// what they are is `API_V1_IP_BUCKET_FAMILIES`'s `pre-cgnat` entries, and what
-// each one spends is the route-local constant in its own file. That is
-// deliberately not totalled here either, in prose or in code: these are exactly
-// the routes nobody re-derived, so a figure standing for them would be an
-// arithmetic claim about numbers this file does not own.
+// THIS PARAGRAPH USED TO CARRY A CAVEAT and the caveat is now gone, which is the
+// most useful thing about it. It said the `pre-cgnat` buckets sat outside the sum
+// and added their own ceilings on top, deliberately not totalled "because these
+// are exactly the routes nobody re-derived, so a figure standing for them would be
+// an arithmetic claim about numbers this file does not own". They are this file's
+// numbers now. The sum below covers every per-IP bucket the surface spends, and a
+// reader no longer has to add an untotalled remainder to it in their head.
 
 import type { RateLimitConfig } from "@/lib/infra/rate-limit";
 
@@ -454,6 +588,116 @@ export const API_V1_PUBLIC_REFERENCE_IP_LIMIT: RateLimitConfig = {
 };
 
 /**
+ * How many simultaneous legitimate callers behind ONE carrier gateway every
+ * per-user-anchored family in this file is sized for.
+ *
+ * NAMED RATHER THAN TRANSCRIBED, the way `LOGIN_SIMULTANEOUS_CALLERS` is in
+ * `src/modules/auth/application/login-limits.ts`. It is the same twelve, chosen
+ * for the same reason in `API_V1_ACCOUNT_SECURITY_IP_LIMIT`,
+ * `API_V1_INBOX_STATE_IP_LIMIT` and `PASSWORD_RESET_IP_LIMIT`: far enough above
+ * the per-user ceiling that the USER bucket is the binding constraint for any
+ * plausible crowd behind one address, and low enough that the IP bucket is still
+ * a bound.
+ *
+ * THE CONSTANTS BELOW ARE STILL WRITTEN OUT AS LITERALS, and `login-limits.ts`
+ * gives the reason not to compute them from their anchors: a formula would make
+ * the fence assert `a === a`, and would let somebody raise a per-USER ceiling —
+ * the bucket that bounds a person — and take a twelvefold raise on the per-IP one
+ * along with it without meeting a single argument. Literals plus a relationship
+ * assertion make that edit fail loudly.
+ */
+export const API_V1_SIMULTANEOUS_CALLERS = 12;
+
+/**
+ * Pet-disclosure writes, per IP. `POST /pets/{token}/shares` and
+ * `POST /pets/{token}/lost` — 12× their shared per-user anchor on both windows.
+ *
+ * ONE CONSTANT FOR TWO ROUTES BECAUSE THEY SHARE AN ANCHOR, not because they are
+ * both writes. Full argument in the header; the short version is that both writes
+ * change what other people may see of one animal, and both routes describe the
+ * same owner doing the same thing — flipping disclosure toggles mid-situation.
+ */
+export const API_V1_PET_DISCLOSURE_WRITE_IP_LIMIT: RateLimitConfig = {
+  maxPerMinute: 180,
+  maxPerHour: 720,
+};
+
+/**
+ * Pet-disclosure writes, per user — the anchor the ceiling above is derived from,
+ * and the bucket that bounds a PERSON.
+ *
+ * Byte-identical in both routes before it moved here, and moved for the reason
+ * everything else in this file moved: a ceiling that must stay in step with a
+ * sibling cannot live as a literal beside one of the two siblings.
+ */
+export const API_V1_PET_DISCLOSURE_WRITE_USER_LIMIT: RateLimitConfig = {
+  maxPerMinute: 15,
+  maxPerHour: 60,
+  maxPerDay: 200,
+};
+
+/**
+ * Spine-record writes, per IP. `POST /pets/{token}/events` only — 12× its
+ * per-user anchor on both windows.
+ *
+ * NUMERICALLY THE SAME PER-MINUTE FIGURE AS `API_V1_INBOX_STATE_IP_LIMIT` and
+ * deliberately not that constant. Recording an asiento appends to the append-only
+ * spine; marking a notification read touches the caller's own row. Two families
+ * that meet at a number are still two families.
+ */
+export const API_V1_PET_RECORD_WRITE_IP_LIMIT: RateLimitConfig = {
+  maxPerMinute: 240,
+  maxPerHour: 960,
+};
+
+/**
+ * Spine-record writes, per user — the widest per-user write budget on this
+ * surface, and the anchor the ceiling above is derived from.
+ *
+ * The width is deliberate and its route wrote the argument: recording is the
+ * ORDINARY act here and correcting is the exceptional one, 80/hr is a shelter
+ * worker doing rounds, and 300/day is the abuse backstop past which an account is
+ * doing something no holder does — every asiento signed by it and auditable.
+ */
+export const API_V1_PET_RECORD_WRITE_USER_LIMIT: RateLimitConfig = {
+  maxPerMinute: 20,
+  maxPerHour: 80,
+  maxPerDay: 300,
+};
+
+/**
+ * Registration, per IP. `POST /api/v1/pets` only — 12× its per-user anchor on
+ * both windows.
+ *
+ * THE PER-HOUR HALF IS THE ONE THAT MATTERED. At the old 120/hr this bucket
+ * admitted four accounts per gateway per hour at their own 30/hr, on the endpoint
+ * `/api/v1/localities` was raised to 600/min to protect — the typeahead survived
+ * the plaza registration drive and the registration did not. Full argument in the
+ * header, including why raising it does not widen the scripted-farm case the old
+ * docblock claimed this bucket was for (`auth_signup_ip` is upstream and eight
+ * times tighter).
+ */
+export const API_V1_PET_REGISTRATION_IP_LIMIT: RateLimitConfig = {
+  maxPerMinute: 120,
+  maxPerHour: 360,
+};
+
+/**
+ * Registration, per user — the anchor the ceiling above is derived from.
+ *
+ * Unchanged from the route, where the argument for each of the three numbers
+ * lives: 10/min is headroom for retries of a form that takes minutes to fill,
+ * 30/hr is ten pets with three attempts each, 60/day is the abuse backstop. A
+ * family registering three pets in an evening is not within an order of magnitude
+ * of the tightest of them.
+ */
+export const API_V1_PET_REGISTRATION_USER_LIMIT: RateLimitConfig = {
+  maxPerMinute: 10,
+  maxPerHour: 30,
+  maxPerDay: 60,
+};
+
+/**
  * Which family each per-IP bucket on `/api/v1` belongs to.
  *
  * THIS IS THE FENCE, and it is the reason the prose list in the header is safe
@@ -463,10 +707,13 @@ export const API_V1_PUBLIC_REFERENCE_IP_LIMIT: RateLimitConfig = {
  * directions: a new route cannot land without declaring a family, and a bucket
  * that disappears cannot linger here pretending the surface still has it.
  *
- * `pre-cgnat` is a real family, not a to-do marker. It means "this bucket was
- * knowingly left on the pre-B13 ceiling by WU-EAS-2's scope", and a bucket in it
- * is a bucket somebody decided about. The alternative — leaving them out of the
- * map — is what turns a gap into an exception.
+ * `route-local` is the sentinel and it is EMPTY. It means "this bucket's route
+ * hands the limiter its own literal instead of one of this file's constants",
+ * which is what the fence infers from a call site — so a bucket that lands with
+ * its own number falls into it and fails, and the fix is a family and a derivation
+ * here. It used to be `pre-cgnat` ("knowingly left on the pre-B13 ceiling") and
+ * held ten buckets; those landed on 2026-08-27, and a family named for a moment
+ * nothing satisfies any more is a comment describing an empty set.
  */
 export type ApiV1IpFamily =
   | "authenticated-read"
@@ -474,7 +721,10 @@ export type ApiV1IpFamily =
   | "account-security"
   | "inbox-state"
   | "public-reference"
-  | "pre-cgnat";
+  | "pet-disclosure-write"
+  | "pet-record-write"
+  | "pet-registration"
+  | "route-local";
 
 /**
  * Every family there is, as a runtime list.
@@ -497,7 +747,10 @@ export const API_V1_IP_FAMILIES = [
   "account-security",
   "inbox-state",
   "public-reference",
-  "pre-cgnat",
+  "pet-disclosure-write",
+  "pet-record-write",
+  "pet-registration",
+  "route-local",
 ] as const satisfies readonly ApiV1IpFamily[];
 
 type _EveryFamilyIsListed = ApiV1IpFamily extends (typeof API_V1_IP_FAMILIES)[number]
@@ -526,18 +779,23 @@ export const API_V1_IP_BUCKET_FAMILIES: Readonly<Record<string, ApiV1IpFamily>> 
   api_v1_me_notifications_read_ip: "authenticated-read",
   api_v1_me_notifications_write_ip: "inbox-state",
 
-  // Knowingly out of scope — see the header. Same shape, same caller, older
-  // ceiling, and each one owns its number in its own route file.
-  api_v1_pet_detail_ip: "pre-cgnat",
-  api_v1_pet_libreta_ip: "pre-cgnat",
-  api_v1_pet_event_detail_ip: "pre-cgnat",
-  api_v1_shares_read_ip: "pre-cgnat",
-  api_v1_lost_read_ip: "pre-cgnat",
-  api_v1_shares_write_ip: "pre-cgnat",
-  api_v1_lost_write_ip: "pre-cgnat",
-  api_v1_amend_ip: "pre-cgnat",
-  api_v1_event_ip: "pre-cgnat",
-  api_v1_pets_register_ip: "pre-cgnat",
+  // The ten under `pets/**`, landed 2026-08-27. They carried `pre-cgnat` until
+  // then; the header derives each one. The five reads were the authenticated-read
+  // family's own numbers all along and only ever needed to be told the family
+  // moved. The five writes did NOT share an anchor, so they did not all land on
+  // one ceiling: amend's per-user anchor IS the authenticated-write family's, the
+  // two disclosure writes share one of their own, and the asiento and the
+  // registration each keep theirs.
+  api_v1_pet_detail_ip: "authenticated-read",
+  api_v1_pet_libreta_ip: "authenticated-read",
+  api_v1_pet_event_detail_ip: "authenticated-read",
+  api_v1_shares_read_ip: "authenticated-read",
+  api_v1_lost_read_ip: "authenticated-read",
+  api_v1_amend_ip: "authenticated-write",
+  api_v1_shares_write_ip: "pet-disclosure-write",
+  api_v1_lost_write_ip: "pet-disclosure-write",
+  api_v1_event_ip: "pet-record-write",
+  api_v1_pets_register_ip: "pet-registration",
 };
 
 /**
@@ -552,11 +810,13 @@ export const API_V1_IP_BUCKET_FAMILIES: Readonly<Record<string, ApiV1IpFamily>> 
  * hourly figure was transplanted into the per-minute slot and overstated the
  * ceiling by 2.2× in the very paragraph that existed to state it honestly.
  *
- * `pre-cgnat` buckets are NOT in this sum; they are not this file's numbers to
- * add up. THIS DOCBLOCK USED TO SAY HOW MUCH THEY CONTRIBUTE ("420/min more"),
- * with the terms transcribed in the header — a second copy of a set, in prose,
- * next to a comment explaining why that is dangerous. The list that cannot lie is
- * `API_V1_IP_BUCKET_FAMILIES` and each route's own constant; read those.
+ * SINCE 2026-08-27 IT IS THE WHOLE PER-IP SURFACE. The ten `pets/**` buckets used
+ * to sit outside it on route-local numbers, and this docblock used to say how much
+ * they contribute ("420/min more") — a second copy of a set, in prose, next to a
+ * comment explaining why that is dangerous. It then said that too, and dropped the
+ * figure. Now there is nothing outside the sum to state or to drop: `route-local`
+ * is empty and the fence keeps it empty. The list that cannot lie is still
+ * `API_V1_IP_BUCKET_FAMILIES`; read that, not a number in a sentence.
  */
 export const API_V1_CGNAT_FAMILY_IP_CEILING_PER_MINUTE: number = Object.values(
   API_V1_IP_BUCKET_FAMILIES,
@@ -572,7 +832,17 @@ export const API_V1_CGNAT_FAMILY_IP_CEILING_PER_MINUTE: number = Object.values(
       return total + (API_V1_INBOX_STATE_IP_LIMIT.maxPerMinute ?? 0);
     case "public-reference":
       return total + (API_V1_PUBLIC_REFERENCE_IP_LIMIT.maxPerMinute ?? 0);
-    case "pre-cgnat":
+    case "pet-disclosure-write":
+      return total + (API_V1_PET_DISCLOSURE_WRITE_IP_LIMIT.maxPerMinute ?? 0);
+    case "pet-record-write":
+      return total + (API_V1_PET_RECORD_WRITE_IP_LIMIT.maxPerMinute ?? 0);
+    case "pet-registration":
+      return total + (API_V1_PET_REGISTRATION_IP_LIMIT.maxPerMinute ?? 0);
+    case "route-local":
+      // Unreachable while the map has no `route-local` entry, and the fence
+      // asserts it has none. Kept as a case rather than folded into the default
+      // so that a bucket landing here contributes ZERO to a ceiling this file
+      // does not own, instead of throwing on a sum nobody asked for.
       return total;
     default: {
       const unhandled: never = family;

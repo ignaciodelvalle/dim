@@ -303,14 +303,32 @@ buried in its result. It is the first thing to re-derive when there is telemetry
 | `authenticated-write` | `/me/transfers` POST, `/me/caretaker-grants` POST | 20/min · 120/hr → **120/min · 1.200/hr** | 10/min · 40/hr · 100/day (unchanged) |
 | `account-security` | `/me/revoke-sessions` POST | 30/min · 120/hr → **60/min · 240/hr** | 5/min · 20/hr · 40/day, inside the use-case (unchanged) |
 | `public-reference` | `/localities` | 60/min · 600/hr → **600/min · 6.000/hr** | none available — no identity to key on |
+| `pet-disclosure-write` | `/pets/{token}/shares` POST, `/pets/{token}/lost` POST | 20/min · 120/hr → **180/min · 720/hr** | 15/min · 60/hr · 200/day (unchanged) |
+| `pet-record-write` | `/pets/{token}/events` POST | 30/min · 200/hr → **240/min · 960/hr** | 20/min · 80/hr · 300/day (unchanged) |
+| `pet-registration` | `/pets` POST | 30/min · 120/hr → **120/min · 360/hr** | 10/min · 30/hr · 60/day (unchanged) |
+
+The first five rows landed with WU-EAS-2 on 2026-08-26; the last three, plus the
+ten `pets/**` buckets folded into the first two rows, landed on 2026-08-27 — see
+§1.6b. `inbox-state` (`/me/notifications` POST, 240/min · 2.400/hr against a
+per-user 20/min · 200/hr) arrived with WU-Q-1 between the two and was missing
+from this table until the second pass; the fence has always had it.
 
 **Two different rules produced those numbers, and mixing them up is the mistake
 to avoid.** The read families are sized against a *push-broadcast burst* (half a
-gateway's app-holders opening within the same minute). The write and
-account-security families are sized as **12× their own per-user ceiling**, so the
-USER bucket stays the binding constraint: at the old 20/min, two people at their
-individual ceiling exhausted a whole gateway, which put the refusal in the bucket
-with no reasoning behind its number.
+gateway's app-holders opening within the same minute). Every write family is
+sized as **`API_V1_SIMULTANEOUS_CALLERS` × its own per-user ceiling** — twelve
+callers, the same twelve `LOGIN_SIMULTANEOUS_CALLERS` and
+`PASSWORD_RESET_SIMULTANEOUS_CALLERS` use — so the USER bucket stays the binding
+constraint: at the old 20/min, two people at their individual ceiling exhausted a
+whole gateway, which put the refusal in the bucket with no reasoning behind its
+number. **Each write family has its own anchor, which is why there are five of
+them and not one**: the per-user ceilings are 10, 15, 20 and 5 per minute, and a
+single shared IP ceiling would be twelve callers for one of them and two for
+another. `authenticated-write` is the one exception to the flat twelve — its
+hourly side is 30× rather than 12×, because its per-user hourly cap is
+deliberately far below a sustained per-minute rate and carrying 12× onto both
+windows would propagate that narrowing into the IP ceiling. The fence pins both
+multiples separately for exactly that reason.
 
 **What it gives up, stated rather than hidden.** These per-IP buckets run BEFORE
 the GoTrue round-trip — that is their job — so 600/min is 600 `auth.getUser()`
@@ -321,35 +339,72 @@ design), a valid token is bounded per-account by the user bucket, and 10 req/s
 sustained from one address is the platform's DDoS layer's problem — the same
 conclusion §1.1 reached, not a stronger one just because this endpoint costs more.
 
-**The aggregate.** `API_V1_CGNAT_FAMILY_IP_CEILING_PER_MINUTE` is **computed**,
-not written down: 5 × 600 + 2 × 120 + 60 = **3.300/min** per IP across these
-eight buckets. Computed on purpose — §1.1 records what happened when the
-equivalent figure lived only in prose (an hourly number transplanted into the
-per-minute slot, overstating the ceiling by 2,2× in the paragraph that existed to
-state it honestly).
+**The aggregate.** `API_V1_CGNAT_FAMILY_IP_CEILING_PER_MINUTE` is **computed**
+from `API_V1_IP_BUCKET_FAMILIES`, and this paragraph deliberately does not
+restate it. It used to: “5 × 600 + 2 × 120 + 60 = **3.300/min** per IP across
+these eight buckets”, which WU-Q-1 made wrong the moment two buckets landed and
+which stayed wrong here while the constant tracked the surface. That is §1.1
+happening a third time, in the paragraph that exists to state the figure
+honestly. **Read the constant.** Since 2026-08-27 it covers every per-IP bucket
+the surface spends, because nothing sits outside it any more.
 
-#### 1.6b What WU-EAS-2 knowingly did not move — a gap, not an exception
+#### 1.6b The ten that stayed behind — closed 2026-08-27
 
-Ten sibling per-IP buckets stayed on the older ceilings, because the work unit's
-scope was `me/**` and `localities/**`:
+Ten sibling per-IP buckets under `app/api/v1/pets/**` stayed on the older
+ceilings, because WU-EAS-2's scope was `me/**` and `localities/**`. The
+consequence was written down here at the time and not softened: *a native client
+cold-launches at 600/min on `/me` and `/me/pets`, taps a pet, and lands on 60/min
+at `/pets/{token}` — same phone, same gateway, one screen later.*
 
-- still 60/min · 600/hr: `api_v1_pet_detail_ip`, `api_v1_pet_libreta_ip`,
-  `api_v1_pet_event_detail_ip`, `api_v1_shares_read_ip`, `api_v1_lost_read_ip`
-- still 20/min · 120/hr: `api_v1_shares_write_ip`, `api_v1_lost_write_ip`,
-  `api_v1_amend_ip`
-- still 30/min: `api_v1_event_ip`, `api_v1_pets_register_ip`
+**The trigger for closing it was the app going live.** On 2026-08-27 the Android
+build reached Play internal testing and real testers began installing it on
+Argentine carrier networks — the same day and the same reason `LOGIN_IP_LIMIT`
+moved. The burst the 600 was sized for (a barrio-wide lost-pet alert, fifty people
+behind one carrier gateway opening the app at once) does not stop at the home
+screen; what those fifty people do next is tap the pet.
 
-So a native client cold-launches at 600/min on `/me` and `/me/pets`, taps a pet,
-and lands on 60/min at `/pets/{token}` — same phone, same gateway, one screen
-later. **That is a real inconsistency and this section is not an apology for
-it.** §1.1b is the reason it is written this way: a count in prose is what let
-`/adoptar/{petToken}` read as a deliberate exception for months when it was a
-gap. The list above is therefore not the fence. The fence is
-`API_V1_IP_BUCKET_FAMILIES`, where those ten carry the family `pre-cgnat` — a
-real family meaning "somebody decided" — and the test asserts every per-IP bucket
-on the surface is in the map, both directions. A route cannot quietly join either
-side. Closing the gap is a follow-up; when it lands, the aggregate above stops
-needing the words "across these eight buckets".
+**It is not one derivation, and that is the finding.** The full argument is in the
+header of `lib/infra/api-v1-limits.ts`; the shape of it:
+
+- **None of the ten is public.** Every one sits in a handler that calls
+  `createClientFromBearer` then `requireLiveUser`, and nine of the ten then call
+  `resolvePetHolderAccess` (registration cannot — the pet does not exist yet). The
+  anonymous credential surface is a different route with its own file and its own
+  1.000-subscribers derivation; it was raised in B13 and never was one of the ten.
+- **The five READS were the authenticated-read family's numbers all along.** Their
+  own docblocks said so — “identical ON PURPOSE … so one number bounds both” — and
+  the family moved without them. They now spend the family constants, per-user
+  included, which is the same pair of numbers stated once instead of five times.
+- **The five WRITES do not share an anchor, so they did not all land on one
+  ceiling.** `api_v1_amend_ip`'s per-user anchor *is* the authenticated-write
+  family's, to the digit, and the act is the same class, so it joins that family.
+  The two disclosure writes share an anchor with each other and nothing else. The
+  asiento and the registration each keep theirs. Every one of the five was upside
+  down before: the tightest was one and a third owners at their own per-user
+  ceiling, for a whole carrier gateway.
+- **`api_v1_pets_register_ip` was a second, sharper cliff.** `/api/v1/localities`
+  was raised to 600/min *for a plaza registration drive*, while the registration
+  that typeahead feeds sat at 30/min · 120/hr — four accounts per gateway per hour.
+
+**What the raises cost, checked rather than asserted.** In all ten handlers the
+ordering is: header regexes (free) → per-IP bucket → GoTrue → per-user bucket → DB
+access guard. **No route reads the database before authenticating**, so no raise
+widens an unauthenticated read of anything; what each buys a caller holding a
+well-formed but invalid token is more `auth.getUser()` round-trips from one
+address, the cost §1.6 already states for the read family at 600. One exception is
+named because its docblock claimed a second job: `api_v1_pets_register_ip` was
+said to bound “a scripted farm running from one host”. The binding constraint on
+that farm is `auth_signup_ip` (3/min · 15/hr, deliberately unchanged) — fifteen
+accounts an hour is fifteen pets an hour whether this endpoint allows 120/hr or
+360/hr.
+
+**The family `pre-cgnat` is now `route-local`, and it is empty.** It meant
+“knowingly left on the pre-B13 ceiling”; nothing is, so the name described an
+empty set. `route-local` names the mechanism instead — a bucket whose route hands
+the limiter its own literal — which is what the fence infers from a call site. The
+fence asserts it stays empty, so a new per-IP bucket cannot be filed under
+“somebody decided” without a derivation: the fix is a family and an argument in
+`api-v1-limits.ts`.
 
 ---
 

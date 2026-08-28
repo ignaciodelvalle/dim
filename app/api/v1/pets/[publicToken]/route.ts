@@ -36,6 +36,10 @@
 
 import { ownerPetDetailPorts } from "@/app/_composition/owner-pet-detail-ports";
 import { apiV1Error, apiV1Json } from "@/lib/infra/api-v1";
+import {
+  API_V1_AUTHENTICATED_READ_IP_LIMIT,
+  API_V1_AUTHENTICATED_READ_USER_LIMIT,
+} from "@/lib/infra/api-v1-limits";
 import { DbBudgetExceededError, withDbBudgetOrThrow } from "@/lib/infra/db-budget";
 import { requireLiveUser } from "@/lib/infra/live-user";
 import { resolvePetHolderAccess } from "@/lib/infra/pet-access";
@@ -65,27 +69,24 @@ const DETAIL_BUDGET_MS = 8_000;
 
 const UNAVAILABLE_RETRY_AFTER_SECONDS = 5;
 
-/**
- * Per-IP surface bucket: 60/min, 600/hour.
- *
- * Byte-identical to `/me/pets`, and identical ON PURPOSE rather than by
- * copy-paste: a client that opens a list and then taps into a pet calls both at
- * the same moments, so one number bounds both and a client author has one budget
- * to reason about. The CGNAT cost `/me/pets` documents applies here unchanged —
- * this bucket is what bounds a hammer BEFORE the GoTrue round-trip, and the
- * per-user bucket below is the one that bounds a person.
- */
-const PET_DETAIL_IP_LIMIT = { maxPerMinute: 60, maxPerHour: 600 };
-
-/**
- * Per-user ceiling: 120/min, 1.200/hour.
- *
- * Twice the IP budget and above it on purpose, mirroring `/me/pets`: this bounds
- * a single ACCOUNT hammering from many addresses, which the IP bucket
- * structurally cannot see. A person cannot open a pet 120 times a minute; a
- * script signed in as them can.
- */
-const PET_DETAIL_USER_LIMIT = { maxPerMinute: 120, maxPerHour: 1_200 };
+// THE AUTHENTICATED-READ FAMILY — and the sentence that proves it always was
+// ---------------------------------------------------------------------------
+// The numbers and the carrier-NAT arithmetic live in lib/infra/api-v1-limits.ts.
+// What was specific to this file is kept, because it is the record of a claim
+// that turned out to be true and then went unhonoured for two days.
+//
+// The per-IP ceiling here was 60/min + 600/hr and its docblock said: "Byte-
+// identical to `/me/pets`, and identical ON PURPOSE rather than by copy-paste: a
+// client that opens a list and then taps into a pet calls both at the same
+// moments, so one number bounds both and a client author has one budget to reason
+// about." WU-EAS-2 then moved `/me/pets` to 600/min and left this one at 60 — so
+// the client that opens a list and taps into a pet met two numbers an order of
+// magnitude apart, one screen apart. That is the cliff, and a literal beside one
+// of two siblings is how "one number bounds both" became a sentence nothing kept.
+//
+// What did NOT change: the pairing or the ordering. The IP bucket runs first,
+// before the GoTrue round-trip, because that is what bounds a hammer cheaply. The
+// USER bucket runs after the guard, because there is no user id before it.
 
 // AUTHORIZED, not opted out: this handler calls requireLiveUser and then
 // resolvePetHolderAccess in its own body, and those two calls ARE the
@@ -109,7 +110,11 @@ export async function GET(
   // default silently when the matcher does not run, and a value the request
   // influences must not decide what a caller may do.
   try {
-    await enforceRateLimit("api_v1_pet_detail_ip", callerIp(request.headers), PET_DETAIL_IP_LIMIT);
+    await enforceRateLimit(
+      "api_v1_pet_detail_ip",
+      callerIp(request.headers),
+      API_V1_AUTHENTICATED_READ_IP_LIMIT,
+    );
   } catch (err) {
     if (err instanceof RateLimitError) return apiV1Error("rate_limited", 429);
     // FAIL OPEN, deliberately — the same direction `/me/pets` chose. The limiter
@@ -161,7 +166,11 @@ export async function GET(
   // — there is no user id before the guard answers — so an unauthenticated
   // hammer never writes into the per-user keyspace at all.
   try {
-    await enforceRateLimit("api_v1_pet_detail_user", live.user.id, PET_DETAIL_USER_LIMIT);
+    await enforceRateLimit(
+      "api_v1_pet_detail_user",
+      live.user.id,
+      API_V1_AUTHENTICATED_READ_USER_LIMIT,
+    );
   } catch (err) {
     if (err instanceof RateLimitError) return apiV1Error("rate_limited", 429);
     console.error("[api-v1-pet-detail] user rate limiter unavailable, failing open:", err);

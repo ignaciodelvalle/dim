@@ -45,6 +45,10 @@
 // endpoint under `events/{eventId}/amend`, and this file must not grow it.
 
 import { apiV1Error, apiV1Json } from "@/lib/infra/api-v1";
+import {
+  API_V1_AUTHENTICATED_READ_IP_LIMIT,
+  API_V1_AUTHENTICATED_READ_USER_LIMIT,
+} from "@/lib/infra/api-v1-limits";
 import { DbBudgetExceededError, withDbBudgetOrThrow } from "@/lib/infra/db-budget";
 import { type LiveUserFailureReason, requireLiveUser } from "@/lib/infra/live-user";
 import { resolvePetHolderAccess } from "@/lib/infra/pet-access";
@@ -76,28 +80,18 @@ const LIBRETA_BUDGET_MS = 8_000;
 
 const UNAVAILABLE_RETRY_AFTER_SECONDS = 5;
 
-/**
- * Per-IP surface bucket: 60/min, 600/hour.
- *
- * The same numbers as `/pets/{token}` and `/me/pets`, and the same numbers ON
- * PURPOSE: a client that opens a pet and then flips to its libreta calls both
- * inside the same second, so one figure bounds the pair and whoever writes the
- * client has one budget to reason about instead of three. Its OWN bucket name,
- * though — a shared counter would make "which surface is being hammered"
- * unanswerable from the limiter's own storage.
- *
- * The CGNAT cost `/me/pets` documents applies here unchanged.
- */
-const LIBRETA_IP_LIMIT = { maxPerMinute: 60, maxPerHour: 600 };
-
-/**
- * Per-user ceiling: 120/min, 1.200/hour.
- *
- * Twice the IP budget and above it on purpose, mirroring its siblings: this
- * bounds a single ACCOUNT hammering from many addresses, which the IP bucket
- * structurally cannot see.
- */
-const LIBRETA_USER_LIMIT = { maxPerMinute: 120, maxPerHour: 1_200 };
+// THE AUTHENTICATED-READ FAMILY — numbers in lib/infra/api-v1-limits.ts.
+// ---------------------------------------------------------------------------
+// This file's own argument for them was "the same numbers as `/pets/{token}` and
+// `/me/pets`, and the same numbers ON PURPOSE: a client that opens a pet and then
+// flips to its libreta calls both inside the same second, so one figure bounds the
+// pair and whoever writes the client has one budget to reason about instead of
+// three." Three copies of a figure is how it became two different figures when
+// `/me/pets` moved and this did not; the figure is now stated once.
+//
+// The BUCKET NAME stays this surface's own, which is the half that must not be
+// shared: a shared counter makes "which surface is being hammered" unanswerable
+// from the limiter's own storage.
 
 // AUTHORIZED, not opted out: this handler calls requireLiveUser and then
 // resolvePetHolderAccess in its own body, and those two calls ARE the
@@ -121,7 +115,11 @@ export async function GET(
   // default silently when the matcher does not run, and a value the request
   // influences must not decide what a caller may do.
   try {
-    await enforceRateLimit("api_v1_pet_libreta_ip", callerIp(request.headers), LIBRETA_IP_LIMIT);
+    await enforceRateLimit(
+      "api_v1_pet_libreta_ip",
+      callerIp(request.headers),
+      API_V1_AUTHENTICATED_READ_IP_LIMIT,
+    );
   } catch (err) {
     if (err instanceof RateLimitError) return apiV1Error("rate_limited", 429);
     // FAIL OPEN, deliberately — the same direction every sibling limiter
@@ -150,7 +148,11 @@ export async function GET(
   // — there is no user id before the guard answers — so an unauthenticated
   // hammer never writes into the per-user keyspace at all.
   try {
-    await enforceRateLimit("api_v1_pet_libreta_user", live.user.id, LIBRETA_USER_LIMIT);
+    await enforceRateLimit(
+      "api_v1_pet_libreta_user",
+      live.user.id,
+      API_V1_AUTHENTICATED_READ_USER_LIMIT,
+    );
   } catch (err) {
     if (err instanceof RateLimitError) return apiV1Error("rate_limited", 429);
     console.error("[api-v1-pet-libreta] user rate limiter unavailable, failing open:", err);

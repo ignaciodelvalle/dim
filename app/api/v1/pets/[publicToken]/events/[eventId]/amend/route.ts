@@ -67,6 +67,10 @@
 
 import { isAmendableEventType } from "@/lib/infra/amendment";
 import { apiV1Error, apiV1Json } from "@/lib/infra/api-v1";
+import {
+  API_V1_AUTHENTICATED_WRITE_IP_LIMIT,
+  API_V1_AUTHENTICATED_WRITE_USER_LIMIT,
+} from "@/lib/infra/api-v1-limits";
 import { DbBudgetExceededError, withDbBudgetOrThrow } from "@/lib/infra/db-budget";
 import { type LiveUserFailureReason, requireLiveUser } from "@/lib/infra/live-user";
 import {
@@ -106,30 +110,27 @@ const RESOLVE_BUDGET_MS = 8_000;
 
 const UNAVAILABLE_RETRY_AFTER_SECONDS = 5;
 
-/**
- * Per-IP ceiling: 20/min, 120/hour.
- *
- * A THIRD of the read budget, because this one appends to the spine and a read
- * does not. Sized for CGNAT rather than for a household — a mobile carrier puts
- * hundreds of subscribers behind one address — so it must never be what stops a
- * real correction: 20/min is roughly seven simultaneous corrections from one
- * carrier egress with two retries each, against a behaviour (fixing a typo in a
- * vaccine record) that no person performs twice in a minute.
- */
-const AMEND_IP_LIMIT = { maxPerMinute: 20, maxPerHour: 120 };
-
-/**
- * Per-user ceiling: 10/min, 40/hour, 100/day.
- *
- * This is the one that bounds a PERSON, and each number is set against the
- * legitimate worst case: 10/min is headroom for RETRIES of one correction on a
- * flaky connection (a limit that punishes the retry it just asked for would be
- * self-defeating); 40/hour is somebody methodically fixing a whole libreta after
- * a bad import; 100/day is the abuse backstop, past which an account is doing
- * something no owner does — and every correction it wrote is signed by it and
- * auditable, so the cost of being wrong is a support conversation.
- */
-const AMEND_USER_LIMIT = { maxPerMinute: 10, maxPerHour: 40, maxPerDay: 100 };
+// THE AUTHENTICATED-WRITE FAMILY — numbers in lib/infra/api-v1-limits.ts.
+// ---------------------------------------------------------------------------
+// This route joins the family `/me/transfers` and `/me/caretaker-grants` are in
+// rather than getting a ceiling of its own, and the reason is not that all three
+// are writes. It is that the per-user anchor here was already the family's, to the
+// digit — 10/min + 40/hr + 100/day — and the ACT is the same class: a deliberate,
+// consequential correction to the national registry's append-only spine, the way
+// a transfer is a deliberate change of who owns an animal.
+//
+// THE OLD PER-IP CEILING WAS 20/min AND ITS DOCBLOCK CLAIMED CGNAT: "Sized for
+// CGNAT rather than for a household — a mobile carrier puts hundreds of
+// subscribers behind one address — so it must never be what stops a real
+// correction." Twenty a minute over a per-user ten is TWO people; the family's own
+// header names that shape and calls it upside down, because the bucket doing the
+// refusing is the one with no reasoning behind its number.
+//
+// The per-user ceiling is where the reasoning is and it does not move: 10/min is
+// headroom for retries of one correction on a flaky connection, 40/hr is somebody
+// methodically fixing a whole libreta after a bad import, 100/day is the abuse
+// backstop — and every correction is signed and auditable, so the cost of being
+// wrong there is a support conversation.
 
 // AUTHORIZED, not opted out: this handler calls requireLiveUser and then
 // resolvePetHolderAccess in its own body, and those two calls ARE the
@@ -161,7 +162,13 @@ export async function POST(
 
   if (!isUuid(eventId)) return apiV1Error("not_found", 404);
 
-  if (!(await spendBudget("api_v1_amend_ip", callerIp(request.headers), AMEND_IP_LIMIT))) {
+  if (
+    !(await spendBudget(
+      "api_v1_amend_ip",
+      callerIp(request.headers),
+      API_V1_AUTHENTICATED_WRITE_IP_LIMIT,
+    ))
+  ) {
     return apiV1Error("rate_limited", 429);
   }
 
@@ -178,7 +185,9 @@ export async function POST(
   }
   if (!live.ok) return liveUserRefusal(live.reason);
 
-  if (!(await spendBudget("api_v1_amend_user", live.user.id, AMEND_USER_LIMIT))) {
+  if (
+    !(await spendBudget("api_v1_amend_user", live.user.id, API_V1_AUTHENTICATED_WRITE_USER_LIMIT))
+  ) {
     return apiV1Error("rate_limited", 429);
   }
 

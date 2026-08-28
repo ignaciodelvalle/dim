@@ -94,6 +94,10 @@ import {
   normalizeLocationForWrite,
 } from "@/lib/domain/location-normalize";
 import { apiV1Error, apiV1Json } from "@/lib/infra/api-v1";
+import {
+  API_V1_PET_REGISTRATION_IP_LIMIT,
+  API_V1_PET_REGISTRATION_USER_LIMIT,
+} from "@/lib/infra/api-v1-limits";
 import { DbBudgetExceededError, withDbBudgetOrThrow } from "@/lib/infra/db-budget";
 import { type LiveUserFailureReason, requireLiveUser } from "@/lib/infra/live-user";
 import { createNotificationsBulk } from "@/lib/infra/notification-service";
@@ -121,43 +125,37 @@ const RESOLVE_BUDGET_MS = 8_000;
 
 const UNAVAILABLE_RETRY_AFTER_SECONDS = 5;
 
-/**
- * Per-IP ceiling: 30/min, 120/hour.
- *
- * Sized for CGNAT, not for a household. Mobile carriers put hundreds of
- * subscribers behind one address, so this bucket is shared far more widely than
- * it looks and must never be the thing that stops a real registration — it is
- * here to bound a SCRIPTED farm running from one host, which the per-user budget
- * below structurally cannot see (a farm makes an account per pet).
- *
- * 30/min is roughly ten simultaneous registrations from one carrier egress with
- * two retries each. The family-of-three-pets case the brief names is not close:
- * three registrations in an evening, each a minute of typing, is 3 requests in
- * that hour against a ceiling of 120.
- */
-const REGISTER_IP_LIMIT = { maxPerMinute: 30, maxPerHour: 120 };
-
-/**
- * Per-user ceiling: 10/min, 30/hour, 60/day.
- *
- * This is the one that bounds a PERSON, and every number is set against the
- * legitimate worst case rather than the median:
- *   · 10/min — a registration takes minutes of typing, so a human never
- *     approaches it. The headroom is for RETRIES: a flaky connection replaying
- *     the same `Idempotency-Key` still spends a counter on every attempt, and a
- *     limit that punishes the retry it just asked for would be self-defeating.
- *   · 30/hour — ten pets with three attempts each. Well past a household and
- *     past a foster taking in a litter; a rescue at real volume uses the org
- *     intake flow, which has its own surface and its own budget.
- *   · 60/day — the abuse backstop. An account past this is doing something no
- *     citizen does, and every pet it created is owned by it and auditable, so
- *     the cost of being wrong here is a support conversation rather than a lost
- *     animal.
- *
- * A family registering three pets in an evening must never hit any of the three,
- * and does not come within an order of magnitude of the tightest one.
- */
-const REGISTER_USER_LIMIT = { maxPerMinute: 10, maxPerHour: 30, maxPerDay: 60 };
+// THE `pet-registration` FAMILY — numbers in lib/infra/api-v1-limits.ts.
+// ---------------------------------------------------------------------------
+// THE OLD PER-IP CEILING CLAIMED THE DERIVATION IT DID NOT HAVE, which is the
+// reason this paragraph is longer than its siblings'. It read "Sized for CGNAT,
+// not for a household. Mobile carriers put hundreds of subscribers behind one
+// address, so this bucket is shared far more widely than it looks and must never
+// be the thing that stops a real registration" — above 30/min + 120/hr. Per hour
+// that is FOUR accounts at their own 30/hr, for an entire carrier gateway.
+//
+// AND THE BURST IS THIS PRODUCT'S OWN. `/api/v1/localities` was raised to 600/min
+// in api-v1-limits.ts for "a municipality running a registration drive in a plaza,
+// twenty people registering a pet at once on the same cell", with that route's
+// note that "a false throttle here costs a pet its credential". The typeahead was
+// made to survive the drive; the registration it feeds was left at a ceiling the
+// same drive exhausts inside an hour.
+//
+// THE SECOND JOB THIS BUCKET CLAIMS, re-checked rather than inherited. It was
+// "here to bound a SCRIPTED farm running from one host, which the per-user budget
+// below structurally cannot see (a farm makes an account per pet)". True, and the
+// binding constraint on that farm is not this ceiling: accounts come from
+// `auth_signup_ip`, 3/min + 15/hr, deliberately unchanged. Fifteen accounts an
+// hour from one host is fifteen pets an hour whether this endpoint allows 120/hr
+// or 360/hr. The ceiling doing that work is upstream and eight times tighter.
+//
+// The per-user ceiling does not move and is where the reasoning stays: 10/min is
+// headroom for RETRIES of a form that takes minutes to type (a limit that punishes
+// the retry it just asked for would be self-defeating); 30/hr is ten pets with
+// three attempts each, past a household and past a foster with a litter — a rescue
+// at real volume uses the org intake flow and its own budget; 60/day is the abuse
+// backstop, and every pet created is owned by the account and auditable, so being
+// wrong there costs a support conversation rather than an animal.
 
 // AUTHORIZED, not opted out: this handler calls requireLiveUser in its own body
 // and that call IS the authorization — a pet does not exist yet, so there is no
@@ -201,7 +199,7 @@ export async function POST(request: Request) {
   const ipAllowed = await spendBudget(
     "api_v1_pets_register_ip",
     callerIp(request.headers),
-    REGISTER_IP_LIMIT,
+    API_V1_PET_REGISTRATION_IP_LIMIT,
   );
   if (!ipAllowed) return apiV1Error("rate_limited", 429);
 
@@ -223,7 +221,11 @@ export async function POST(request: Request) {
   // Per-user budget, spent only once the caller is KNOWN. It cannot run earlier
   // — there is no user id before the guard answers — and running it here means
   // an unauthenticated hammer never writes into the per-user keyspace at all.
-  const userAllowed = await spendBudget("api_v1_pets_register_user", userId, REGISTER_USER_LIMIT);
+  const userAllowed = await spendBudget(
+    "api_v1_pets_register_user",
+    userId,
+    API_V1_PET_REGISTRATION_USER_LIMIT,
+  );
   if (!userAllowed) return apiV1Error("rate_limited", 429);
 
   let body: unknown;

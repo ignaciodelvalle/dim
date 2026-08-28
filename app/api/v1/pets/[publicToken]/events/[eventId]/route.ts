@@ -48,6 +48,10 @@
 // `./amend`; this file must not grow one.
 
 import { apiV1Error, apiV1Json } from "@/lib/infra/api-v1";
+import {
+  API_V1_AUTHENTICATED_READ_IP_LIMIT,
+  API_V1_AUTHENTICATED_READ_USER_LIMIT,
+} from "@/lib/infra/api-v1-limits";
 import { DbBudgetExceededError, withDbBudgetOrThrow } from "@/lib/infra/db-budget";
 import { type LiveUserFailureReason, requireLiveUser } from "@/lib/infra/live-user";
 import { resolvePetHolderAccess } from "@/lib/infra/pet-access";
@@ -86,22 +90,12 @@ const SIGN_BUDGET_MS = 5_000;
 
 const UNAVAILABLE_RETRY_AFTER_SECONDS = 5;
 
-/**
- * Per-IP surface bucket: 60/min, 600/hour.
- *
- * The same numbers as the libreta and the owner face — a client that opens a
- * ledger and taps three rows spends one budget, not three. Its own bucket name
- * so the limiter's storage can still say which surface is being hammered.
- */
-const EVENT_DETAIL_IP_LIMIT = { maxPerMinute: 60, maxPerHour: 600 };
-
-/**
- * Per-user ceiling: 120/min, 1.200/hour.
- *
- * Twice the IP budget, mirroring its siblings: this bounds a single ACCOUNT
- * hammering from many addresses, which the IP bucket structurally cannot see.
- */
-const EVENT_DETAIL_USER_LIMIT = { maxPerMinute: 120, maxPerHour: 1_200 };
+// THE AUTHENTICATED-READ FAMILY — numbers in lib/infra/api-v1-limits.ts.
+// ---------------------------------------------------------------------------
+// The argument for them was this file's own: "the same numbers as the libreta and
+// the owner face — a client that opens a ledger and taps three rows spends one
+// budget, not three." Its own BUCKET NAME is kept, so the limiter's storage can
+// still say which surface is being hammered.
 
 // AUTHORIZED, not opted out: this handler calls requireLiveUser and then
 // resolvePetHolderAccess in its own body, and those two calls ARE the
@@ -123,7 +117,7 @@ export async function GET(
     await enforceRateLimit(
       "api_v1_pet_event_detail_ip",
       callerIp(request.headers),
-      EVENT_DETAIL_IP_LIMIT,
+      API_V1_AUTHENTICATED_READ_IP_LIMIT,
     );
   } catch (err) {
     if (err instanceof RateLimitError) return apiV1Error("rate_limited", 429);
@@ -146,7 +140,11 @@ export async function GET(
   if (!live.ok) return liveUserRefusal(live.reason);
 
   try {
-    await enforceRateLimit("api_v1_pet_event_detail_user", live.user.id, EVENT_DETAIL_USER_LIMIT);
+    await enforceRateLimit(
+      "api_v1_pet_event_detail_user",
+      live.user.id,
+      API_V1_AUTHENTICATED_READ_USER_LIMIT,
+    );
   } catch (err) {
     if (err instanceof RateLimitError) return apiV1Error("rate_limited", 429);
     console.error("[api-v1-pet-event-detail] user rate limiter unavailable, failing open:", err);

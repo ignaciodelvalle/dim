@@ -46,6 +46,10 @@
 // outbreak-signal fan-out a síntoma would otherwise repeat.
 
 import { apiV1Error } from "@/lib/infra/api-v1";
+import {
+  API_V1_PET_RECORD_WRITE_IP_LIMIT,
+  API_V1_PET_RECORD_WRITE_USER_LIMIT,
+} from "@/lib/infra/api-v1-limits";
 import { DbBudgetExceededError, withDbBudgetOrThrow } from "@/lib/infra/db-budget";
 import { type LiveUserFailureReason, requireLiveUser } from "@/lib/infra/live-user";
 import { RateLimitError, callerIp, enforceRateLimit } from "@/lib/infra/rate-limit";
@@ -61,29 +65,29 @@ export const dynamic = "force-dynamic";
 /** One GoTrue round-trip plus one indexed profile read. */
 const AUTH_BUDGET_MS = 5_000;
 
-/**
- * Per-IP ceiling: 30/min, 200/hour.
- *
- * Sized for CGNAT rather than for a household — a mobile carrier puts hundreds
- * of subscribers behind one address — so this must never be what stops a real
- * asiento. Wider than the correction endpoint's 20/120 on purpose: recording is
- * the ORDINARY act on this surface and correcting is the exceptional one, and a
- * vet day at a rescue is many animals from one egress in one afternoon.
- */
-const EVENT_IP_LIMIT = { maxPerMinute: 30, maxPerHour: 200 };
-
-/**
- * Per-user ceiling: 20/min, 80/hour, 300/day.
- *
- * The one that bounds a PERSON, each number set against the legitimate worst
- * case: 20/min is headroom for RETRIES on a flaky connection plus an owner
- * entering a vaccine, a weight and a note in one sitting (a limit that punishes
- * the retry it just asked for would be self-defeating); 80/hour is a shelter
- * worker doing rounds; 300/day is the abuse backstop, past which an account is
- * doing something no holder does — and every asiento it wrote is signed by it
- * and auditable, so the cost of being wrong is a support conversation.
- */
-const EVENT_USER_LIMIT = { maxPerMinute: 20, maxPerHour: 80, maxPerDay: 300 };
+// THE `pet-record-write` FAMILY — numbers in lib/infra/api-v1-limits.ts.
+// ---------------------------------------------------------------------------
+// ITS OWN FAMILY RATHER THAN THE AUTHENTICATED-WRITE ONE, because a per-IP ceiling
+// in this repo is derived from the per-user anchor beneath it and this anchor is
+// the widest write budget on the surface — 20/min + 80/hr + 300/day against the
+// transfer family's 10 + 40 + 100. The reason for the width is this file's own
+// sentence, and it is the whole derivation: "recording is the ORDINARY act on this
+// surface and correcting is the exceptional one, and a vet day at a rescue is many
+// animals from one egress in one afternoon."
+//
+// THE OLD PER-IP CEILING SAID IT WAS SIZED FOR CGNAT and was not: 30/min above a
+// per-user 20/min is ONE AND A HALF people at their own ceiling, on a bucket a
+// whole carrier gateway shares. Twelve of them is what it is now.
+//
+// SAME PER-MINUTE FIGURE AS `inbox-state`, DIFFERENT FAMILY, and deliberately so.
+// An asiento is a row on the append-only spine; a read receipt is an UPDATE on the
+// caller's own notification. Two families that meet at a number are still two.
+//
+// The per-user ceiling does not move and is where the reasoning stays: 20/min is
+// headroom for retries plus an owner entering a vaccine, a weight and a note in
+// one sitting; 80/hr is a shelter worker doing rounds; 300/day is the abuse
+// backstop, past which an account is doing something no holder does — and every
+// asiento it wrote is signed by it and auditable.
 
 // AUTHORIZED, not opted out: this handler calls requireLiveUser and its writer
 // calls resolvePetHolderAccess, and those two calls ARE the authorization. Said
@@ -111,7 +115,13 @@ export async function POST(
     return apiV1Error("idempotency_key_required", 400);
   }
 
-  if (!(await spendBudget("api_v1_event_ip", callerIp(request.headers), EVENT_IP_LIMIT))) {
+  if (
+    !(await spendBudget(
+      "api_v1_event_ip",
+      callerIp(request.headers),
+      API_V1_PET_RECORD_WRITE_IP_LIMIT,
+    ))
+  ) {
     return apiV1Error("rate_limited", 429);
   }
 
@@ -128,7 +138,7 @@ export async function POST(
   }
   if (!live.ok) return liveUserRefusal(live.reason);
 
-  if (!(await spendBudget("api_v1_event_user", live.user.id, EVENT_USER_LIMIT))) {
+  if (!(await spendBudget("api_v1_event_user", live.user.id, API_V1_PET_RECORD_WRITE_USER_LIMIT))) {
     return apiV1Error("rate_limited", 429);
   }
 

@@ -59,6 +59,12 @@
 // taxonomy backwards.
 
 import { apiV1Error, apiV1Json } from "@/lib/infra/api-v1";
+import {
+  API_V1_AUTHENTICATED_READ_IP_LIMIT,
+  API_V1_AUTHENTICATED_READ_USER_LIMIT,
+  API_V1_PET_DISCLOSURE_WRITE_IP_LIMIT,
+  API_V1_PET_DISCLOSURE_WRITE_USER_LIMIT,
+} from "@/lib/infra/api-v1-limits";
 import { DbBudgetExceededError, withDbBudgetOrThrow } from "@/lib/infra/db-budget";
 import { type LiveUserFailureReason, requireLiveUser } from "@/lib/infra/live-user";
 import { fetchLostEpisodeForPet, fetchLostScanEvents } from "@/lib/infra/lost-mode";
@@ -90,42 +96,27 @@ const ACCESS_BUDGET_MS = 5_000;
  */
 const LOST_BUDGET_MS = 8_000;
 
-/**
- * Per-IP read ceiling: 60/min, 600/hour.
- *
- * The same numbers as `/pets/{token}` and `/libreta`, deliberately: a client
- * that opens a pet and flips to its lost cockpit calls both inside one second,
- * so one figure bounds the pair. Its OWN bucket name, though — a shared counter
- * makes "which surface is being hammered" unanswerable from the limiter's own
- * storage.
- */
-const LOST_READ_IP_LIMIT = { maxPerMinute: 60, maxPerHour: 600 };
-
-/** Per-user read ceiling: 120/min, 1.200/hour. Twice the IP budget, as siblings. */
-const LOST_READ_USER_LIMIT = { maxPerMinute: 120, maxPerHour: 1_200 };
-
-/**
- * Per-IP write ceiling: 20/min, 120/hour.
- *
- * TIGHTER than the events write (30/200) on purpose, and the reason is the
- * fan-out rather than the row: one `mark_lost` broadcasts to every organization
- * in a jurisdiction. Recording a vaccine costs one insert; opening a search
- * costs a lot of people a notification, and a limiter that treated the two the
- * same would be sizing the cheap one.
- */
-const LOST_WRITE_IP_LIMIT = { maxPerMinute: 20, maxPerHour: 120 };
-
-/**
- * Per-user write ceiling: 15/min, 60/hour, 200/day.
- *
- * Sized against the legitimate worst case, which is NOT marking animals lost —
- * it is an owner in the middle of a search flipping disclosure toggles while
- * they think about what they are comfortable publishing, and updating the
- * last-seen point every time somebody calls. 15/min is headroom for that plus
- * retries; the daily figure is the abuse backstop, past which an account is
- * doing something no owner does.
- */
-const LOST_WRITE_USER_LIMIT = { maxPerMinute: 15, maxPerHour: 60, maxPerDay: 200 };
+// TWO FAMILIES, ONE FILE — numbers and derivations in lib/infra/api-v1-limits.ts.
+// ---------------------------------------------------------------------------
+// THE READ is the authenticated-read family, on this file's own argument: "the
+// same numbers as `/pets/{token}` and `/libreta`, deliberately: a client that
+// opens a pet and flips to its lost cockpit calls both inside one second."
+//
+// THE WRITE is `pet-disclosure-write`, shared with `POST /shares` and with nothing
+// else: same per-user anchor, same act — an owner mid-search flipping what other
+// people may see of one animal. The old per-IP ceiling of 20/min sat below a
+// per-user 15/min, so a single owner and a third of a second one exhausted a whole
+// carrier gateway.
+//
+// WHAT DOES NOT MOVE is this endpoint's real argument: the FAN-OUT. One `mark_lost`
+// broadcasts to every organization in a jurisdiction, which is why the write is
+// budgeted apart from an asiento at all — and the bucket that bounds a person
+// producing that fan-out is the per-user one, unchanged at 15/min + 60/hr + 200/day.
+// The per-IP ceiling was never the instrument for it; keyed on a carrier gateway it
+// could not tell one owner from a hundred.
+//
+// Both keep their OWN bucket names: a shared counter makes "which surface is being
+// hammered" unanswerable from the limiter's own storage.
 
 // AUTHORIZED, not opted out: both handlers call requireLiveUser and then resolve
 // pet access, and those two calls ARE the authorization. Said here for a reader
@@ -143,7 +134,13 @@ export async function GET(
     return apiV1Error(client.reason === "MISSING" ? "auth_required" : "auth_expired", 401);
   }
 
-  if (!(await spendBudget("api_v1_lost_read_ip", callerIp(request.headers), LOST_READ_IP_LIMIT))) {
+  if (
+    !(await spendBudget(
+      "api_v1_lost_read_ip",
+      callerIp(request.headers),
+      API_V1_AUTHENTICATED_READ_IP_LIMIT,
+    ))
+  ) {
     return apiV1Error("rate_limited", 429);
   }
 
@@ -165,7 +162,13 @@ export async function GET(
   }
   if (!live.ok) return liveUserRefusal(live.reason);
 
-  if (!(await spendBudget("api_v1_lost_read_user", live.user.id, LOST_READ_USER_LIMIT))) {
+  if (
+    !(await spendBudget(
+      "api_v1_lost_read_user",
+      live.user.id,
+      API_V1_AUTHENTICATED_READ_USER_LIMIT,
+    ))
+  ) {
     return apiV1Error("rate_limited", 429);
   }
 
@@ -242,7 +245,11 @@ export async function POST(
   }
 
   if (
-    !(await spendBudget("api_v1_lost_write_ip", callerIp(request.headers), LOST_WRITE_IP_LIMIT))
+    !(await spendBudget(
+      "api_v1_lost_write_ip",
+      callerIp(request.headers),
+      API_V1_PET_DISCLOSURE_WRITE_IP_LIMIT,
+    ))
   ) {
     return apiV1Error("rate_limited", 429);
   }
@@ -263,7 +270,13 @@ export async function POST(
   }
   if (!live.ok) return liveUserRefusal(live.reason);
 
-  if (!(await spendBudget("api_v1_lost_write_user", live.user.id, LOST_WRITE_USER_LIMIT))) {
+  if (
+    !(await spendBudget(
+      "api_v1_lost_write_user",
+      live.user.id,
+      API_V1_PET_DISCLOSURE_WRITE_USER_LIMIT,
+    ))
+  ) {
     return apiV1Error("rate_limited", 429);
   }
 
