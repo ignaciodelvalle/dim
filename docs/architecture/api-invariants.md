@@ -268,6 +268,28 @@ direct-to-storage with a signed URL loses all three at once. No
 `createSignedUploadUrl` exists anywhere today — every signed URL in the repo is
 a *download*. Keep it that way, or replicate all three server-side first.
 
+> **Updated 2026-08-28 — the second branch is now taken, for one destination.**
+> `POST /api/v1/pets/{token}/photo` is the first `createSignedUploadUrl` in the
+> repo, and it does NOT point at `pet-photos`. It points at `uploads-staging`
+> (migration 0206): private, deny-all to caller roles, `file_size_limit` and
+> `allowed_mime_types` set on the bucket so the two limits a bearer capability
+> could otherwise ignore are enforced by the object store rather than by us. A
+> second, re-authorized `confirm` command fetches the staged bytes and runs all
+> three properties over them — `lib/media/validate.ts`, which is where
+> `detectRasterMime` and the sharp re-encode moved so ONE copy serves both the
+> `File`-shaped Server Action path and the `Buffer`-shaped route path — before
+> writing a normalised copy into `pet-photos`.
+>
+> So the sentence above still holds as written: a signed URL pointed at a public
+> bucket is still the mistake, and this is the "replicate all three server-side
+> first" branch rather than an exception to it.
+>
+> **What did NOT change**: the two frozen `bucket_id`-only INSERT grants on
+> `pet-photos` and `event-attachments` (§ `check-storage-write-policies.ts`).
+> Closing them needs the ~30 Server-Action upload sites to move onto this
+> primitive, which is a separate change and a much larger one. The primitive now
+> exists; the migration of the callers has not started.
+
 ---
 
 ### 1.6 The `/api/v1` client-surface families — carrier NAT, part 3

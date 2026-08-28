@@ -18,6 +18,16 @@
 > blanket `bucket_id`-only INSERT grants, the `avatars` bucket, intake/bite
 > media, EXIF stripping, or storage GC.
 
+> **Status re-run 2026-08-28 — improvement #1 landed, for ONE destination.**
+>
+> | Finding / improvement | Status | Evidence |
+> |---|---|---|
+> | Improvement 1 — `POST /api/v1/uploads`, the keystone | **PARTIAL, and the shape is as ranked** | It landed as `POST /api/v1/pets/{token}/photo` rather than a generic `/uploads`: the authorization is per-resource (`resolvePetHolderAccess` + the org `event.write` capability), so a URL that took a "purpose" would have to re-derive which pet it was about anyway. The first step this improvement asked for is done exactly as written — `detectRasterMime` + the sharp re-encode now live in `lib/media/validate.ts` over a `Buffer`, one copy, imported by both `lib/infra/uploads.ts` (the `File` path) and the new route. The staged object is validated in a post-upload verify step and NOTHING claims an unverified one. What did NOT land: the zero-parent staged ROW — there is no row until the bytes validate, which is stricter than the improvement proposed and removes A9's "zero-parent rows" gap for this path rather than adding to it. |
+> | Improvement 2 — close the `bucket_id`-only INSERT grants, same PR | **NOT DONE, deliberately** | The improvement says "same PR as #1" and that was not possible in the direction it assumed: the grants are load-bearing for ~30 Server-Action sites that still upload as the signed-in user, and dropping them would break every one. The primitive exists first; the callers move second. A2/B2 is therefore STILL LIVE and still the ⚠️ PO flag below. |
+> | A9 — erasure misses buckets | **PARTIALLY NARROWED** | `purgeOwnedPetAttachments` now sweeps the `uploads-staging` `{petId}/` prefix, which is why the staged key carries the pet id instead of being flat. Avatars and welfare-evidence are unchanged. |
+> | A9 — no orphan GC | **STILL TRUE, and now named at the source** | Migration 0206's lifecycle note states it rather than implying a sweeper exists: an upload that is ticketed, PUT and never confirmed is bounded by the `media-upload` rate-limit family and collected by nothing. |
+> | A10 — no rate limit on any upload path | **narrowed again** | The new door is in the `media-upload` family (12/min + 48/hr + 120/day per user), the tightest per-user write on `/api/v1`. The authenticated WEB upload paths (events, atender, tattoo, adoption, checkin) remain unlimited. |
+
 ## Findings (ranked)
 
 ### A1 — BLOCKER: no non-browser client can READ a private attachment

@@ -19,13 +19,28 @@
 // storage API directly with its own token.
 //
 // The point of THIS file is narrower than fixing that, and the difference
-// matters: closing those two grants needs signed uploads to land in the same
-// change (~30 upload sites legitimately run as the signed-in user), which is a
-// later work unit. What must not happen in the meantime is the pattern
-// SPREADING, silently, because the fence that would have noticed reads only
-// SELECT. So the two known grants are frozen — named, with their exact
-// predicates pinned — and anything NEW of the same shape, or any widening of
-// these two, fails.
+// matters: closing those two grants needs every upload site to stop running as
+// the signed-in user (~30 of them do), which is a later work unit. What must not
+// happen in the meantime is the pattern SPREADING, silently, because the fence
+// that would have noticed reads only SELECT. So the two known grants are frozen
+// — named, with their exact predicates pinned — and anything NEW of the same
+// shape, or any widening of these two, fails.
+//
+// PROGRESS, 2026-08-28, stated so the frozen entries are not read as stalled:
+// the primitive those entries wait on now exists. `uploads-staging` (migration
+// 0206) is a bucket with NO caller-facing policy at all — writes reach it only
+// through a service-role-minted signed upload URL, which does not consult RLS —
+// and `lib/infra/pet-photo-upload.ts` validates what lands there before any of
+// it becomes a photo. That is the "server mints a scoped URL, bucket goes
+// deny-all to callers" end state, demonstrated on one destination.
+//
+// A BUCKET WITH NO POLICY IS INVISIBLE TO THIS FENCE, which only reports
+// policies that exist. So `uploads-staging` contributes nothing to any count
+// here and this scan cannot notice if a caller-facing grant is added to it
+// later — it would notice a bucket-name-only one (the `unfrozen` rule catches
+// that on ANY bucket) but not one carrying `auth.uid()`. Migration 0206 carries
+// its own replay-time DO-block assertion for the rest, and says out loud that
+// it is the weaker half.
 //
 // This is a tripwire, not an absolution. A frozen allowlist entry is a debt with
 // a ticket on it, not a policy that is fine.
@@ -175,12 +190,12 @@ export const FROZEN_WRITE_GRANTS: Record<string, FrozenGrant> = {
   pet_photos_authenticated_upload: {
     predicate: "bucket_id = 'pet-photos'",
     reason:
-      "B24 — every authenticated account may write any object into pet-photos. Uploads are supposed to be gated by the server action that verifies pet ownership; the GRANT does not know that, and a client can call the storage API directly with its own token. CLOSED BY: signed uploads (server mints a scoped URL, bucket goes deny-all to callers), a later work unit — the two must land together because ~30 upload sites legitimately run as the signed-in user today.",
+      "B24 — every authenticated account may write any object into pet-photos. Uploads are supposed to be gated by the server action that verifies pet ownership; the GRANT does not know that, and a client can call the storage API directly with its own token. CLOSED BY: moving the ~30 Server-Action upload sites onto the signed upload primitive, after which this grant goes away and so does this entry. THE PRIMITIVE NOW EXISTS (2026-08-28): lib/infra/pet-photo-upload.ts mints a scoped URL into the deny-all `uploads-staging` bucket (migration 0206) and validates the bytes in a second, re-authorized step. What has not happened is the migration of the callers — that is the work this entry is still waiting on, and it is bigger than the primitive was.",
   },
   event_attachments_authenticated_upload: {
     predicate: "bucket_id = 'event-attachments'",
     reason:
-      "B24 — same shape, Tier-3 data. db/storage.sql argues INSERT is safe here because 'an insert-only policy cannot enumerate', which is true and is not the whole question: it can still WRITE, into any path of a bucket holding vaccine cards and vet receipts. The read side was already closed (migration 0172 removed event_attachments_authenticated_read). CLOSED BY: signed uploads, same change as pet-photos.",
+      "B24 — same shape, Tier-3 data. db/storage.sql argues INSERT is safe here because 'an insert-only policy cannot enumerate', which is true and is not the whole question: it can still WRITE, into any path of a bucket holding vaccine cards and vet receipts. The read side was already closed (migration 0172 removed event_attachments_authenticated_read). CLOSED BY: the same caller migration as pet-photos, onto the same signed upload primitive, plus one thing pet-photos did not need — an event attachment's confirm step has to know which event it is claiming for, so the primitive grows a parent argument before this bucket can use it.",
   },
 };
 

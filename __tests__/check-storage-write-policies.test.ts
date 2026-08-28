@@ -114,6 +114,15 @@ describe("the real repo", () => {
       // An allowlist entry with no stated exit is a permanent exemption wearing
       // a temporary label.
       expect(grant.reason, name).toContain("signed upload");
+      // AND THE STRUCTURAL MARKER, added 2026-08-28 after the phrase above
+      // caught a rewrite that had strengthened the entry rather than weakened
+      // it (it said "signed-upload primitive", with a hyphen). A phrase is a
+      // spelling and spellings get rewritten; `CLOSED BY:` is the shape every
+      // entry already uses to introduce its exit, and it is what a reader scans
+      // for. Both are asserted because each catches what the other cannot: the
+      // phrase catches an exit that drifted to some other plan, the marker
+      // catches an entry that stopped naming an exit at all.
+      expect(grant.reason, name).toContain("CLOSED BY:");
     }
   });
 });
