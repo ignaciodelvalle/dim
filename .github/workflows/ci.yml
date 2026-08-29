@@ -37,6 +37,14 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
+      - name: Lint (Node version — the four declarations agree)
+        # .nvmrc, .node-version, package.json engines.node and every
+        # setup-node step above must name one version. engines.node used to be
+        # the open range ">=22.13.0", which claimed Node 25 works; on 25 the
+        # built-in Web Storage shadows jsdom's and ~125 suites die. See
+        # scripts/check-node-version.ts.
+        run: pnpm lint:node-version
+
       - name: Lint (Biome)
         run: pnpm lint
 

@@ -4,7 +4,12 @@ Thanks for jumping in. DIM is a Next.js + Drizzle + Postgres / Supabase app, eve
 
 ## Quickstart
 
-Requires **Node ≥ 22.13**, **pnpm**, and **Docker Desktop** running.
+Requires **Node 22.15.0 – 22.x** (`.nvmrc` pins it; `fnm use` / `nvm use` picks
+it up), **pnpm**, and **Docker Desktop** running. The range is closed at both
+ends and `pnpm lint:node-version` enforces it: below 22.15.0 `node:module` has
+no `registerHooks`, so every `seed:*` script dies on import; on 23+ Node's
+built-in Web Storage shadows jsdom's and ~125 suites fail for reasons that are
+not yours.
 
 ```bash
 pnpm install

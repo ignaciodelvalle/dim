@@ -162,7 +162,9 @@ overall order.
    `reconcile-pet-status/route.ts`'s internal `MAX_DURATION_MS` (currently 45s)
    still leaves adequate margin under whatever ceiling the plan actually grants.
 4. Confirm Node.js version in Project Settings matches `.node-version`
-   (22.13.0) or at least satisfies `>=22.13.0`.
+   (22.15.0) and stays inside `engines.node` (`>=22.15.0 <23`). Both ends bite:
+   below 22.15.0 the `seed:*` loader has no `node:module` `registerHooks`, and
+   23+ breaks the suite's jsdom storage. `pnpm lint:node-version` checks it.
 5. Trigger the deploy per whatever model step 1 confirmed. For production,
    apply migrations as a **separate, reviewed** step, then run
    `pnpm db:migrate:check` (exits 6 if anything is pending) as a hard gate
