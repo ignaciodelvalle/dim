@@ -1472,14 +1472,32 @@ In production none of these apply; Supavisor/pgBouncer sits in front anyway.
 This pool cap only matters to the `db` project — `unit` files never open a
 pool.
 
-### Global teardown
+### `globalSetup` — what it actually does
 
 `__tests__/global-setup.ts` is registered as `globalSetup` in `vitest.config.ts`.
-Its `teardown()` drains the postgres.js pool via `db.$client.end()` after the
-full suite finishes. This prevents "Worker exited unexpectedly" errors from open
-sockets being forcibly torn down by the process exit handler.
+It runs in the MAIN process, once, around the whole suite:
 
-**Do not remove the `globalSetup` entry** — the worker-exit errors come back.
+- **Sets `VITEST=true` before any test file imports `db/index.ts`**, which is what
+  activates the bounded pool config above. This is the load-bearing one — the cap
+  has to be in place before the first pool is constructed.
+- **Forces `DATABASE_URL` to the local stack** when it is unset or not pointing at
+  `127.0.0.1`. Per-file `setup.ts` does this for workers; `globalSetup` runs first,
+  so the value is right from the very beginning.
+- **Sweeps eventless pet rows** left behind by an aborted earlier run, before the
+  suite starts, and logs what it removed. Debris with no spine event is what
+  invariant #3 forbids and what `pnpm lint:spine` fails on for everybody sharing
+  the local database.
+
+**Its `teardown()` does NOT drain the pool.** It is an explicit no-op, and says so
+in the file: globalSetup runs in a different process from the worker that owns the
+postgres.js pool, so it has no handle to reach. This page claimed the opposite for
+some time and sent people investigating the "Worker exited unexpectedly" defect at
+the wrong process. Pools are drained **per test file** by `closeDbPools()` in
+`__tests__/setup.ts` — that is the code to read, and the change that recovered 5
+tests previously lost with the sockets. See `docs/ops/local-dev-runbook.md`.
+
+**Do not remove the `globalSetup` entry** — not for teardown, which does nothing,
+but for the three things in the list above.
 
 ### Pet-cache fitness sweep scoping
 
