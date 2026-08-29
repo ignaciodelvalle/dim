@@ -32,8 +32,17 @@
 // That was the obvious idea and it is not honest. Only SIX tables are under the
 // baseline (profiles, pets, pet_identifications, custody_disputes, pet_tags,
 // pet_caretaker_grants — migrations 0058/0169/0189), while the RPCs already
-// reach eighteen. Deriving from the baseline would declare twelve covered
+// reach twenty-two. Deriving from the baseline would declare sixteen covered
 // tables out of scope and call the result coverage.
+//
+// EVERY NUMBER IN THIS HEADER IS FENCED, and that is new. It said "eighteen"
+// and "twelve" — the arithmetic was consistent with itself and both halves were
+// stale, which is the failure mode a lone reader cannot catch. The counts are
+// derivable from the four lists BELOW IN THIS SAME FILE, so
+// __tests__/documented-subject-rights-counts.test.ts flows this comment block
+// into prose and asserts each word against the list it describes. Correct the
+// list and this header goes red until it agrees; there is no longer a version
+// of this file where the prose and the data disagree in silence.
 //
 // THE FOUR LISTS, AND WHY THERE ARE FOUR RATHER THAN THREE
 // ---------------------------------------------------------------------------
@@ -53,11 +62,13 @@
 // pet_caretaker_grants cannot arrive unnoticed, and the existing ones cannot be
 // laundered into "reviewed and fine".
 //
-// The count is prose and drifts: it read "twenty-one" while the list held 20
-// (0207 closed libreta_share_tokens and only the test ceiling was lowered).
-// 0208 closed operator_feed_watermarks, physical_tag_interest and
-// organization_invitations, so it is seventeen. The number the CI line prints
-// is computed from the list; this sentence is the one a human has to maintain.
+// The count is prose and it drifted twice: it read "twenty-one" while the list
+// held 20 (0207 closed libreta_share_tokens and only the test ceiling was
+// lowered), and AGENTS.md §6b was still reading "21" on 2026-08-29, forty-six
+// lines above a §7 that already said 17. 0208 closed operator_feed_watermarks,
+// physical_tag_interest and organization_invitations, so it is seventeen. The
+// number the CI line prints has always been computed from the list; what used
+// to be maintained by hand — these sentences — is now fenced against it too.
 //
 // Moving a table OUT of KNOWN_GAP is done by adding it to a function, not by
 // editing this file: check 4 fails a KNOWN_GAP entry that the live body

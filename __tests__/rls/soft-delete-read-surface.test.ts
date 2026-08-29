@@ -23,11 +23,38 @@
 // WHAT THE MEASUREMENT FOUND (2026-08-29) — READ THIS BEFORE EDITING
 // ----------------------------------------------------------------------------
 //
-// NOT ONE of the 10 SELECT policies over the six `deleted_at`-bearing tables
-// (profiles, pets, pet_caretaker_grants, custody_disputes, pet_identifications,
-// pet_tags) mentions `deleted_at`. Introspected from pg_policies; the count of
-// policies whose USING clause references the column is ZERO. RLS therefore does
-// not implement any part of the suppression epic, and three reads survive:
+// NOT ONE read policy over the six `deleted_at`-bearing tables (profiles, pets,
+// pet_caretaker_grants, custody_disputes, pet_identifications, pet_tags)
+// mentions `deleted_at`. Introspected from pg_policies; the count of policies
+// whose USING clause references the column is ZERO. RLS therefore does not
+// implement any part of the suppression epic, and three reads survive:
+//
+// THE ZERO IS THE CLAIM, AND IT IS THE ONE THIS FILE FENCES — section 5 below
+// runs the introspection and fails on the first policy that gains the
+// predicate. The population it is zero OUT OF is a measurement, dated, and is
+// deliberately not restated as a live count anywhere in this header: re-derive
+// it by running that query rather than by trusting this paragraph.
+//
+//   Measured 2026-08-29 against the local stack, from the section 5 query
+//   (`p.cmd in ('SELECT','ALL')` joined to the columns carrying `deleted_at`):
+//   EIGHT read policies, all of them `SELECT` — there is no `ALL` policy on
+//   these tables today — spread over all six tables, and ZERO of the eight
+//   name the column.
+//
+//   This paragraph said "the 10 SELECT policies" until 2026-08-29 and that was
+//   wrong twice over: ten is every policy on those tables regardless of
+//   command, and the two that make up the difference are `Pets updatable by
+//   active owner` and `Profiles updatable by self` — both UPDATE, neither one
+//   a read. The finding does not change (zero is zero), but a reader checking
+//   the claim would have counted ten rows out of a query that returns eight
+//   and had no way to tell which of the two was wrong.
+//
+//   NOT PINNED, AND SAY SO: section 5 asserts `rows.length > 0` as an
+//   anti-vacuous guard, never `=== 8`. So this eight can rot the way the ten
+//   did — a seventh read policy would not turn anything red. Pinning it is a
+//   one-line change to that assertion and belongs to whoever next owns the
+//   body of this file; the lane that corrected this header was scoped to the
+//   header alone and did not make it.
 //
 //   FINDING 1 — `pets`, role `authenticated` as the ACTIVE OWNER.
 //     Policy "Pets readable by active owner" is
