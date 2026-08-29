@@ -139,6 +139,18 @@ export {
   firstCaretakerCommandInputCode,
 } from "./caretaker.ts";
 export {
+  EMERGENCY_CONTACT_NAME_MAX,
+  EMERGENCY_CONTACT_PHONE_MAX,
+  PET_COLOR_MAX,
+  PET_NAME_MAX,
+  PET_PROFILE_COMMAND_INPUT_CODES,
+  type PetProfileCommand,
+  type PetProfileCommandInput,
+  type PetProfileCommandInputCode,
+  firstPetProfileCommandInputCode,
+  petProfileCommandInputSchema,
+} from "./pet-profile-edit.ts";
+export {
   ACQUISITION_METHODS,
   MAX_PET_AGE_MONTHS,
   MAX_PET_AGE_YEARS,

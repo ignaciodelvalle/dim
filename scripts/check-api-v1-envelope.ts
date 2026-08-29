@@ -127,8 +127,15 @@ export const V1_ROUTE_GLOB = "app/api/v1/**/route.ts";
  * glob covers, which a single directory rename would take out together and which
  * nothing but this number would then notice. The count of them is not written
  * here on purpose — `listV1RouteFiles()` is the list that cannot lie.
+ *
+ * TWENTY-ONE with editar (`pets/{token}/profile`), raised in the same commit
+ * that added the route — the seventh in a row. It is the FIFTH sibling under
+ * `pets/{token}/`, which is now the densest directory on the surface and
+ * therefore the one where a single rename costs the most: `credential`,
+ * `events`, `libreta`, `lost`, `photo`, `shares` and `profile` would all leave
+ * the glob together, and this number is the only thing that would say so.
  */
-export const MIN_V1_ROUTE_FILES = 20;
+export const MIN_V1_ROUTE_FILES = 21;
 
 export const HELPER_MODULE = "@/lib/infra/api-v1";
 

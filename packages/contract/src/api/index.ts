@@ -169,6 +169,16 @@ export {
   type PetRegisteredV1,
 } from "./pets.ts";
 export {
+  PET_PROFILE_EDIT_PAYLOAD_VERSION,
+  PET_PROFILE_EDIT_STALE_AFTER_MS,
+  type PetEmergencyAccountDefaultV1,
+  type PetEmergencyDraftV1,
+  type PetIdentityDraftV1,
+  type PetProfileEditAckV1,
+  type PetProfileEditCapabilitiesV1,
+  type PetProfileEditV1,
+} from "./pet-profile-edit.ts";
+export {
   PUBLIC_CREDENTIAL_PAYLOAD_VERSION,
   PUBLIC_CREDENTIAL_SITUATIONS,
   PUBLIC_CREDENTIAL_STALE_AFTER_MS,

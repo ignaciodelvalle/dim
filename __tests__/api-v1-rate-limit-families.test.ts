@@ -430,7 +430,14 @@ describe("/api/v1 rate-limit families — the numbers the derivation committed t
     // list that cannot lie is `API_V1_IP_BUCKET_FAMILIES` next to the ceiling
     // constants; what stays here is the PIN, which is the only part a test can
     // hold. `route-local` is empty, so the sum is now the whole surface.
-    expect(API_V1_CGNAT_FAMILY_IP_CEILING_PER_MINUTE).toBe(8_124);
+    //
+    // 8.124 → 8.844 with the editar door (`pets/{token}/profile`), which adds
+    // one authenticated-read bucket (600/min) and one authenticated-write
+    // bucket (120/min). MOVING THIS NUMBER IS PART OF ADDING A ROUTE and the
+    // paragraph above is why it is deliberately a hand-edited pin: the sum is
+    // computed, so an unexplained rise here is a bucket somebody added without
+    // deciding what its ceiling should be.
+    expect(API_V1_CGNAT_FAMILY_IP_CEILING_PER_MINUTE).toBe(8_844);
   });
 
   it("keeps pet-disclosure-write at N callers on BOTH windows", () => {

@@ -254,5 +254,22 @@ export function apiErrorMessage(code: ApiV1ErrorCode): string {
       // The ONE arm on this surface where retrying is honestly safe: a photo is
       // a value, not an append, so setting it twice is setting it once.
       return "No pudimos guardar la foto. Volvé a intentar.";
+    // Editar datos y contactos de emergencia. The screen reads `capabilities`
+    // and does not offer a control it may not use, so reaching either refusal
+    // below means the arrangement changed under the person's feet — somebody
+    // transferred the animal, or a cuidado started — and "actualizá" is the
+    // honest instruction rather than "pedí permiso".
+    case "profile_forbidden":
+      // TWO rules behind one code (see the contract). The sentence names
+      // neither, because which one refused describes somebody else's role.
+      return "Esta acción no es tuya para hacer. Actualizá la pantalla para ver cómo quedó.";
+    case "profile_breed_invalid":
+      // The FIELD, not the request. The picker offers the catalog, so this
+      // reaches a person only when the value did not come from it.
+      return "Esa raza no está en el catálogo. Elegí una de la lista o dejá el campo vacío.";
+    case "profile_failed":
+      // Retrying IS safe: an edit is a value, not an append, and repeating one
+      // that already landed appends nothing at all.
+      return "No pudimos guardar los cambios. Volvé a intentar.";
   }
 }
