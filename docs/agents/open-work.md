@@ -37,17 +37,63 @@ Ordered by what a live tester hits first, not by size.
 |---|---|---|---|
 | 1 | **Edit pet identity** (name, breed, colour, markings) + **emergency contacts** + **vet** — native screens | M | The three walls testers hit first. No native module needed. `apps/mobile/app/` is expo-router; there is no edit screen of any kind today. The web serves both; reuse its guards — edit identity is **titular-only** on the web, match that exactly. |
 | 2 | **Pet photo** — native image picker | M | Server side is **done**: signed upload → private bucket → `confirm` re-authorizes, verifies magic bytes, re-encodes, then writes to the public bucket. Only the picker is missing — which needs a native module, so an EAS build. That pipeline cost 6 builds / 5 distinct root causes. **Not a first task.** |
-| 3 | **WU-R** — rest of account: edit profile, ARCO privacy, native account-deletion screen | M | Deletion is reachable today via a link to `/cuenta/privacidad` (satisfies Play policy); the PO wants a native screen. |
-| 4 | **WU-S** — appointments: search, book, my appointments, cancel, check-in QR | L | Not in the web nav either; deep links only. |
-| 5 | **WU-U** — adoption: catalogue, detail, apply, my applications | M | The application flow earns its own rate limit here. |
-| 6 | **WU-V** — camera scan + confirm chip + claim | M | |
-| 7 | **WU-T** — citizen abuse reports | M | Attachments blocked on signed uploads. **Not the same thing as reporting content** — this is Ley 14.346, nine types, routed to an authority. |
-| 8 | **WU-P** — rehoming, foster, return, relocation, org memberships | L | Advanced custody cycle. |
-| 9 | Animated card flip on the native profile | S | The two-faced profile shipped with an instant swap, which is exactly the path the web takes under reduced-motion. The animation (~485ms, one face painted at a time) is the follow-up. |
+| 3 | **WU-S** — appointments: search, book, my appointments, cancel, check-in QR | L | Not in the web nav either; deep links only. |
+| 4 | **WU-U** — adoption: catalogue, detail, apply, my applications | M | The application flow earns its own rate limit here. |
+| 5 | **WU-V** — camera scan + confirm chip + claim | M | |
+| 6 | **WU-T** — citizen abuse reports | M | Attachments blocked on signed uploads. **Not the same thing as reporting content** — this is Ley 14.346, nine types, routed to an authority. |
+| 7 | **WU-P** — rehoming, foster, return, relocation, org memberships | L | Advanced custody cycle. |
+| 8 | Animated card flip on the native profile | S | The two-faced profile shipped with an instant swap, which is exactly the path the web takes under reduced-motion. The animation (~485ms, one face painted at a time) is the follow-up. |
 
 **Landed since this snapshot — do not pick it up again.** The row that used to sit
-at #9 was `auth_signup_ip` — 15 signups/hour per gateway, which refused five of
-twenty neighbours at a plaza registration drive. Re-derived on 2026-08-29 into a
+at #3 was **WU-R**, "rest of account: edit profile, ARCO privacy, native
+account-deletion screen". All three shipped on 2026-08-29, behind two new
+endpoints and two new native routes.
+
+- **What was built.** `GET|POST /api/v1/me/privacy` (art. 14 export, art. 16
+  supresión) and `GET|POST /api/v1/me/profile` (the six editable account
+  fields), plus `apps/mobile/app/cuenta/privacidad.tsx` and
+  `apps/mobile/app/cuenta/editar.tsx`. `AccountDeletionCard` is now a signpost
+  into the native screen instead of a link out to a browser.
+- **What was decided, and what it cost.** The erasure is NOT a second
+  implementation: `eraseSubjectDataFor` and `exportSubjectDataFor` were carved
+  out of the two server actions so the cookie door and the bearer door run the
+  same six ordered steps. That split is also where the two rights got their
+  FIRST rate limit — neither surface had one, on either side, and the budgets
+  live in the use-cases so the web button and the app spend one budget
+  (`revoke-sessions.ts`'s 2026-08-25 lesson). Their failure directions are
+  deliberately opposite: the export fails CLOSED (a limiter outage would be an
+  unbounded PII dump), the erasure fails OPEN (nothing leaves, and an abuse
+  control must not stand between a person and a legal right). The URL is one
+  path with two methods rather than the `DELETE /api/v1/me` that
+  `apps/mobile/src/config/api.ts` predicted — that verb serves one of the two
+  rights and cannot carry the other.
+- **What it did NOT solve, and none of it is blocked:**
+  - **No file lands on the phone.** The export is SHOWN and handed to the OS
+    share sheet (`react-native`'s own `Share`, no new dependency). Writing a
+    real `.json` needs `expo-file-system` → a native module → an EAS build, the
+    pipeline row #2 rules out. The web link stays underneath for exactly this,
+    and the Data safety form still names it. Delete that affordance the day the
+    app can write a file, not before.
+  - **No avatar.** Same reason as the pet photo: it needs an image picker.
+    `GET /me/profile` deliberately carries no avatar URL either.
+  - **`MyProfileUpdatedV1` is `{ saved: true }` and should be
+    `{ changed: boolean }`.** The writer already computes the diff for its audit
+    row, and `pets/{token}/profile` reports exactly that. It was not done
+    because `UpdateProfileResult` is shared with `updateEmergencyContactsForPet`
+    and splitting a shared writer's return type mid-worktree-window was the one
+    change worth deferring. Reasoned out in `packages/contract/src/api/my-profile.ts`.
+  - **Rectificación (the "R" in ARCO) is still served nowhere in this product.**
+    The input schema is a one-member discriminated union so that right is one
+    more member rather than a migration, but nobody has specified it.
+  - **`AR_PHONE_RE` rejects a well-formed Bariloche mobile.** Found while
+    writing a fixture: `+54 9 294 123-4567` warns. The regex is pre-existing and
+    was moved, not edited — it now lives in `@dim/contract/input`'s `ar-phone.ts`
+    with `lib/reference/ar-phone.ts` re-exporting it, so there is one place to
+    fix. Reported, not fixed: it is a soft hint, it blocks no save, and widening
+    a regex on a hunch is how one gets wrong in the other direction.
+
+The row before that, at #9, was `auth_signup_ip` — 15 signups/hour per gateway,
+which refused five of twenty neighbours at a plaza registration drive. Re-derived on 2026-08-29 into a
 wide burst allowance under a day ceiling (60/min · 180/hr · 360/day, the day
 window being new). The derivation, the costs it accepts — including a UTC-boundary
 straddle that nearly doubles the worst-case rolling-24h yield — and the four
