@@ -36,8 +36,80 @@ jest.mock("../api/endpoints", () => ({
 jest.mock("../auth/session-store", () => ({ sessionPort: {} }));
 
 import { PetDocumentScreen } from "./PetDocumentScreen";
+import { TURN_PERSPECTIVE } from "./document-turn";
 
 const TOKEN = "DIM-PAMP-0001";
+
+// THE WIRING, READ OFF THE RENDERED TREE. `useDocumentTurn` and `TurningSheet`
+// are two halves of one feature and only the hook leaves a trace in behaviour:
+// with the `<TurningSheet turn={turn}>` wrapper deleted from this screen the
+// faces still swap on their ~205ms delay, so every other test in this file —
+// and every test in DocumentTurn.test.tsx, which mounts the sheet itself —
+// stays green while the credential stops turning altogether. The only witness
+// is the transform on the tree, so these helpers go and find it.
+
+/** A node of the tree as `toJSON` hands it back. */
+type RenderedNode = {
+  readonly type: string;
+  readonly props: Record<string, unknown>;
+  readonly children: readonly unknown[] | null;
+};
+
+function isNode(value: unknown): value is RenderedNode {
+  return typeof value === "object" && value !== null && "props" in value && "children" in value;
+}
+
+/** The node's `transform` array, or null when it has no style with one. */
+function transformOf(node: RenderedNode): readonly unknown[] | null {
+  const { style } = node.props;
+  if (typeof style !== "object" || style === null) return null;
+  const { transform } = style as { transform?: unknown };
+  return Array.isArray(transform) ? transform : null;
+}
+
+/** The stage the credential turns on: the one view carrying the web's
+ *  perspective. Found by that value rather than by component type, so it is the
+ *  rendered result being asserted and not the shape of the JSX. */
+function stagesIn(node: unknown, found: RenderedNode[] = []): RenderedNode[] {
+  if (Array.isArray(node)) {
+    for (const child of node) stagesIn(child, found);
+    return found;
+  }
+  if (!isNode(node)) return found;
+  const isStage = transformOf(node)?.some(
+    (entry) =>
+      typeof entry === "object" &&
+      entry !== null &&
+      (entry as { perspective?: unknown }).perspective === TURN_PERSPECTIVE,
+  );
+  if (isStage === true) found.push(node);
+  if (node.children !== null) stagesIn(node.children, found);
+  return found;
+}
+
+/** Every string rendered inside a node — what the reader sees on that sheet. */
+function textUnder(node: unknown, found: string[] = []): string[] {
+  if (typeof node === "string") {
+    found.push(node);
+    return found;
+  }
+  if (Array.isArray(node)) {
+    for (const child of node) textUnder(child, found);
+    return found;
+  }
+  if (isNode(node) && node.children !== null) textUnder(node.children, found);
+  return found;
+}
+
+/** The single stage, or a failure that says what is missing rather than a
+ *  `undefined` two assertions later. */
+function theStage(): RenderedNode {
+  const stages = stagesIn(screen.toJSON());
+  expect(stages).toHaveLength(1);
+  const stage = stages[0];
+  if (stage === undefined) throw new Error("the document is not mounted on a turning sheet");
+  return stage;
+}
 
 const OK = <T,>(data: T) => ({ status: "ok", data }) as const;
 const UNAVAILABLE = { status: "unavailable" } as const;
@@ -110,13 +182,28 @@ describe("PetDocumentScreen — two faces of one document", () => {
     expect(turn.props.accessibilityState.selected).toBe(false);
 
     fireEvent.press(turn);
-    expect(screen.getByText("Libreta · dorso", { includeHiddenElements: true })).toBeOnTheScreen();
+    // The toggle answers the press AT ONCE, off the requested face — while the
+    // band, which names the face actually painted, is still on the front for
+    // the ~205ms the sheet spends turning. The two disagreeing here is the
+    // design (see DocumentChromeNative's header), not a lag.
+    expect(screen.getByLabelText("Girar a Libreta").props.accessibilityState.selected).toBe(true);
+
+    // Same 5s room as every other post-turn wait in this file: the turn is
+    // ~485ms of real timers, and the default 1000ms is only ~2× that on a box
+    // shared with every other agent's suite.
+    await screen.findByText("Libreta · dorso", { includeHiddenElements: true }, { timeout: 5000 });
     const turnBack = screen.getByLabelText("Girar a Credencial");
     expect(turnBack.props.accessibilityState.selected).toBe(true);
 
     fireEvent.press(turnBack);
     expect(
-      screen.getByText("Credencial · frente", { includeHiddenElements: true }),
+      await screen.findByText(
+        "Credencial · frente",
+        { includeHiddenElements: true },
+        {
+          timeout: 5000,
+        },
+      ),
     ).toBeOnTheScreen();
   });
 
@@ -159,9 +246,77 @@ describe("PetDocumentScreen — two faces of one document", () => {
     await screen.findByText("Pampa");
     expect(screen.getByText("Perdida")).toBeOnTheScreen();
     // The chip must survive the flip — on the back face it is the only
-    // textual carrier of the state.
+    // textual carrier of the state. It must also survive the TURN itself: the
+    // chip lives in the chrome, which rotates with the sheet rather than being
+    // rebuilt at the swap.
     fireEvent.press(screen.getByLabelText("Girar a Libreta"));
     expect(screen.getByText("Perdida")).toBeOnTheScreen();
+    await screen.findByText("Libreta · dorso", { includeHiddenElements: true }, { timeout: 5000 });
+    expect(screen.getByText("Perdida")).toBeOnTheScreen();
+  });
+});
+
+describe("PetDocumentScreen — the credential is mounted ON the sheet that turns", () => {
+  it("puts the whole card on the stage, and leaves the sections below it off", async () => {
+    render(<PetDocumentScreen publicToken={TOKEN} />);
+    await screen.findByText("Pampa");
+
+    const stage = theStage();
+    // Flat and facing the reader at rest, on the web's perspective. The
+    // perspective is what makes the turn read as a sheet standing up in space
+    // rather than a horizontal squash, and it lives in the same transform
+    // array as the rotation because that is where React Native reads it.
+    expect(transformOf(stage)).toEqual([{ perspective: TURN_PERSPECTIVE }, { rotateY: "0deg" }]);
+
+    // The band and the face are ON it: this is one document turning over, not a
+    // decorated container next to one.
+    const onTheSheet = textUnder(stage);
+    expect(onTheSheet).toContain("Credencial · frente");
+    expect(onTheSheet).toContain("Pampa");
+    // And the footer sections are NOT: they belong to the face but are drawn
+    // below the card, and a sheet that rotated them too would tip the whole
+    // screen over instead of the credential.
+    expect(onTheSheet).not.toContain("Recordatorios");
+    expect(screen.getByText("Recordatorios")).toBeOnTheScreen();
+  });
+
+  it("keeps the libreta on that same stage once the document has turned", async () => {
+    render(<PetDocumentScreen publicToken={TOKEN} />);
+    await screen.findByText("Pampa");
+
+    fireEvent.press(screen.getByLabelText("Girar a Libreta"));
+    await screen.findByText("Libreta · dorso", { includeHiddenElements: true }, { timeout: 5000 });
+
+    // Still exactly one stage, now carrying the other face — the sheet is the
+    // thing that persists across the turn, and the libreta is on it rather
+    // than beside it.
+    //
+    // NO ANGLE IS ASSERTED HERE, and the reason is worth writing down: the
+    // libreta appears AT THE SWAP, with the sheet edge-on, and the tree reads
+    // `-87deg` at this instant because the jump has just landed and phase 2
+    // runs on the native driver without re-rendering. That is the choreography
+    // working, but it is a fact about when this line runs rather than about
+    // what the screen owes the reader, so it stays out of the assertion.
+    const stage = theStage();
+    expect(textUnder(stage)).toContain("Libreta · dorso");
+  });
+});
+
+describe("PetDocumentScreen — the sheet and what sits under it turn together", () => {
+  it("keeps the front face's footer until the document has actually turned", async () => {
+    // "Recordatorios" and its siblings belong to the credencial face but are
+    // drawn BELOW the card, outside the rotating sheet. If they keyed off the
+    // requested face they would disappear ~205ms before the card showed the
+    // libreta — one screen changing in two visible waves. ("Actualizar" cannot
+    // be the marker here: BOTH faces offer one, so it never goes away.)
+    render(<PetDocumentScreen publicToken={TOKEN} />);
+    await screen.findByText("Pampa");
+
+    fireEvent.press(screen.getByLabelText("Girar a Libreta"));
+    expect(screen.getByText("Recordatorios")).toBeOnTheScreen();
+
+    await screen.findByText("Libreta · dorso", { includeHiddenElements: true }, { timeout: 5000 });
+    expect(screen.queryByText("Recordatorios")).toBeNull();
   });
 });
 
@@ -207,7 +362,15 @@ describe("PetDocumentScreen — a failure is never drawn as an absence", () => {
     // The libreta face has its own read; a failed front face must not
     // imprison the reader on it.
     fireEvent.press(screen.getByLabelText("Girar a Libreta"));
-    expect(screen.getByText("Libreta · dorso", { includeHiddenElements: true })).toBeOnTheScreen();
+    expect(
+      await screen.findByText(
+        "Libreta · dorso",
+        { includeHiddenElements: true },
+        {
+          timeout: 5000,
+        },
+      ),
+    ).toBeOnTheScreen();
   });
 });
 

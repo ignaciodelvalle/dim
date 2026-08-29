@@ -24,12 +24,17 @@
 // yet and this file invents no value — the chip still carries the state as
 // icon + text, so nothing rests on color alone (WCAG).
 //
-// THE TURN IS INSTANT. This chrome owns the button, not the motion: the
-// reduced-motion path (conditional render swap) IS the mechanic in this unit;
-// the animated turn is a later unit, and it will be React Native core
-// `Animated`, not Reanimated — this repo lost a production build to the
-// worklets runtime (see src/release/release-config.test.ts) and the card stays
-// off it.
+// THIS CHROME OWNS THE BUTTON, NOT THE MOTION. The turn itself lives in
+// `DocumentTurn.tsx` (React Native core `Animated`, never Reanimated — this
+// repo lost a production build to the worklets runtime, see
+// src/release/release-config.test.ts). What that split costs this file is one
+// extra prop, and it is the web's split exactly: `face` is the face PAINTED on
+// the sheet right now and names the button ("Dar vuelta" / "Girar a Libreta"),
+// while `isLibretaActive` is the face the reader has REQUESTED and carries the
+// toggle state. They disagree for the ~205ms the sheet spends turning, and
+// during that gap the toggle is the honest one — the press registered, the
+// document is on its way. `DocumentChrome.tsx` on the web threads the same two
+// values into the same two places, for the same reason.
 
 import type { OwnerPetSituationV1 } from "@dim/contract/api";
 import type { ReactNode } from "react";
@@ -148,7 +153,11 @@ const BAND_H = 120;
 const BAND_VIEWBOX_W = 400;
 
 type DocumentChromeNativeProps = {
+  /** The face PAINTED on the sheet right now — names the band and the button. */
   face: DocumentFace;
+  /** The face the reader has REQUESTED — the turn button's toggle state, so a
+   *  press reads as registered before the sheet finishes turning. */
+  isLibretaActive: boolean;
   onTurn: () => void;
   /** Server-decided situation (key/tone/icon/label) — or null for the default
    *  blue band and no chip. Never re-derived client-side. */
@@ -158,6 +167,7 @@ type DocumentChromeNativeProps = {
 
 export function DocumentChromeNative({
   face,
+  isLibretaActive,
   onTurn,
   situation,
   children,
@@ -189,11 +199,12 @@ export function DocumentChromeNative({
           </View>
         )}
         {/* The single flip control. `selected` carries the toggle state the
-            web expresses with aria-pressed. */}
+            web expresses with aria-pressed — off the REQUESTED face, so it
+            answers the press immediately instead of waiting out the turn. */}
         <Pressable
           accessibilityRole="button"
           accessibilityLabel={turnAria}
-          accessibilityState={{ selected: face === "libreta" }}
+          accessibilityState={{ selected: isLibretaActive }}
           onPress={onTurn}
           style={styles.turn}
         >

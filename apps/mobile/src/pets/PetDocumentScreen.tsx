@@ -8,10 +8,18 @@
 // shell (`app/mascotas/[publicToken].tsx`) for the argument with the old
 // three-face layering.
 //
-// THE TURN IS AN INSTANT SWAP in this unit — the reduced-motion path IS the
-// mechanic; the animated turn is the next unit (React Native core `Animated`,
-// never Reanimated — see release-config.test.ts for the production build the
-// worklets runtime cost this repo).
+// THE TURN IS ANIMATED, AND THE INSTANT SWAP IS STILL A FIRST-CLASS PATH — it
+// is what a reader who asked for less motion gets, and what this document
+// shipped with. `DocumentTurn.tsx` owns the motion and the preference; see its
+// header for why the preference lives in a ref instead of state.
+//
+// TWO FACE VARIABLES, AND THE DIFFERENCE MATTERS. `face` is what the reader
+// REQUESTED (a button press changes it, and the turn button's toggle state
+// reports it at once); `turn.paintedFace` is what is actually on the sheet, and
+// it lags by the ~205ms the sheet spends standing edge-on. Everything that
+// renders content — the sheet's body, the band's subtitle, and the sections
+// BELOW the card — follows the painted face, so the whole screen changes at the
+// single moment the document turns over rather than in two visible waves.
 //
 // WHO OWNS WHAT. This screen owns the one scroll view, the owner-detail read
 // (the front face's data AND the band chip's situation — the chip must
@@ -40,6 +48,7 @@ import { FONTS } from "../ui/fonts";
 import { Eyebrow, PrimaryButton, Screen } from "../ui/kit";
 import { COLORS, LEADING, SPACE, TYPE } from "../ui/theme";
 import { DocumentChromeNative, type DocumentFace } from "./DocumentChromeNative";
+import { TurningSheet, useDocumentTurn } from "./DocumentTurn";
 import { LibretaScreen } from "./LibretaScreen";
 import { OwnerCredentialFace, OwnerExtraSections } from "./OwnerFace";
 import { type OwnerFaceView, buildOwnerFaceView } from "./owner-face-view-model";
@@ -74,6 +83,8 @@ function situationOf(view: OwnerFaceView | null): OwnerPetSituationV1 | null {
 
 export function PetDocumentScreen({ publicToken }: { publicToken: string }) {
   const [face, setFace] = useState<DocumentFace>("credencial");
+  const turn = useDocumentTurn(face);
+  const painted = turn.paintedFace;
   const [owner, setOwner] = useState<OwnerState>({ phase: "loading" });
   // Guards against a stale response overwriting a newer one after a fast
   // double-tap on "Actualizar" — the same generation counter CredentialScreen
@@ -108,19 +119,22 @@ export function PetDocumentScreen({ publicToken }: { publicToken: string }) {
         {view === null ? null : <Text style={styles.viewerLine}>{view.viewerLabel}</Text>}
       </View>
 
-      <DocumentChromeNative
-        face={face}
-        onTurn={() => setFace((current) => (current === "credencial" ? "libreta" : "credencial"))}
-        situation={situationOf(view)}
-      >
-        {face === "credencial" ? (
-          <FrontFaceBody state={owner} />
-        ) : (
-          <LibretaScreen publicToken={publicToken} />
-        )}
-      </DocumentChromeNative>
+      <TurningSheet turn={turn}>
+        <DocumentChromeNative
+          face={painted}
+          isLibretaActive={face === "libreta"}
+          onTurn={() => setFace((current) => (current === "credencial" ? "libreta" : "credencial"))}
+          situation={situationOf(view)}
+        >
+          {painted === "credencial" ? (
+            <FrontFaceBody state={owner} />
+          ) : (
+            <LibretaScreen publicToken={publicToken} />
+          )}
+        </DocumentChromeNative>
+      </TurningSheet>
 
-      {face === "credencial" ? (
+      {painted === "credencial" ? (
         <>
           {view === null ? null : <OwnerExtraSections view={view} />}
           <PrimaryButton
