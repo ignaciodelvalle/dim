@@ -71,6 +71,7 @@ import {
   PET_EVENT_DETAIL_PAYLOAD_VERSION,
   PET_LIBRETA_PAYLOAD_VERSION,
   PET_LOST_PAYLOAD_VERSION,
+  PET_PROFILE_EDIT_PAYLOAD_VERSION,
   PET_SHARES_PAYLOAD_VERSION,
   type PasswordResetRequestedV1,
   type PetEventDetailV1,
@@ -78,6 +79,8 @@ import {
   type PetLostV1,
   type PetPhotoTicketV1,
   type PetPhotoUpdatedV1,
+  type PetProfileEditAckV1,
+  type PetProfileEditV1,
   type PetRegisteredV1,
   type PetSharesV1,
   type ShareCommandAckV1,
@@ -90,6 +93,7 @@ import type {
   LostCommandInput,
   NotificationCommandInput,
   PetPhotoContentType,
+  PetProfileCommandInput,
   RecordEventInput,
   RegisterPetInput,
   ShareCommandInput,
@@ -566,6 +570,63 @@ export function sendShareCommand(
   return apiRequest<ShareCommandAckV1>(
     {
       path: `/api/v1/pets/${encodeURIComponent(publicToken)}/shares`,
+      method: "POST",
+      body: input,
+    },
+    session,
+  );
+}
+
+/**
+ * `GET /pets/{publicToken}/profile` — what the "Editar datos" form pre-fills with.
+ *
+ * NOT A SIXTH FACE OF THE PET. `/pets/{token}` is what an owner READS about
+ * their animal; this is the narrow set a form WRITES, plus the two capability
+ * flags that decide which halves of the form exist at all. They are separate
+ * reads because they answer to different rules — the owner face is every current
+ * holder, the emergency-contact half of this one is the legal owner alone — and
+ * folding the editable fields into the read face would have put the titular's
+ * own vet and phone number into the payload a caretaker's device caches.
+ */
+export function fetchPetProfileEdit(
+  session: SessionPort,
+  publicToken: string,
+): Promise<ApiResult<PetProfileEditV1>> {
+  return apiRequest<PetProfileEditV1>(
+    {
+      path: `/api/v1/pets/${encodeURIComponent(publicToken)}/profile`,
+      expectedPayloadVersion: PET_PROFILE_EDIT_PAYLOAD_VERSION,
+    },
+    session,
+  );
+}
+
+/**
+ * `POST /pets/{publicToken}/profile` — run one of the two edit commands.
+ *
+ * THE ONE WRITE ON THIS SURFACE THAT CORRECTS A FACT ALREADY RECORDED. Every
+ * other one appends (an asiento, a sighting), moves a status, or opens and
+ * closes an exposure. `edit_identity` overwrites `pets.name`/`breed`/`color` —
+ * and does NOT bend the append-only invariant while doing it: the previous
+ * values leave in a bundled `pet_profile_updated` event carrying the diff, so
+ * the correction is itself a new entry in the ledger and nothing in the spine is
+ * edited. `set_emergency_contacts` appends nothing at all, because the four
+ * columns it moves are preferences and not facts about the animal.
+ *
+ * NO `idempotencyKey` PARAMETER, AND THAT IS THE CONTRACT AND NOT A SHORTCUT.
+ * Neither writer takes a `clientIdempotencyKey`; both are idempotent on the
+ * STATE, and the identity edit recognises a replay and reports it as
+ * `changed: false`. Requiring a header the server would ignore is a client
+ * believing it holds a guarantee it does not.
+ */
+export function sendPetProfileCommand(
+  session: SessionPort,
+  publicToken: string,
+  input: PetProfileCommandInput,
+): Promise<ApiResult<PetProfileEditAckV1>> {
+  return apiRequest<PetProfileEditAckV1>(
+    {
+      path: `/api/v1/pets/${encodeURIComponent(publicToken)}/profile`,
       method: "POST",
       body: input,
     },

@@ -569,6 +569,30 @@
  *                         without an idempotency key — a photo is a value, not
  *                         an append, so setting it twice is setting it once. The
  *                         ticket may be dead by then; re-ticket and re-upload.
+ * - `profile_forbidden` — the caller holds this animal but not in a way that may
+ *                         run the command they sent. 403, and it covers TWO
+ *                         different rules rather than one, which is why the read
+ *                         reports them as two separate booleans:
+ *                         `edit_identity` is refused for a person-path
+ *                         CARETAKER alone (deny-list row `identity-field-edits`,
+ *                         mirroring `requireTitularAccess`), while
+ *                         `set_emergency_contacts` is refused for everybody
+ *                         except the LEGAL owner — a co-owner, a foster and the
+ *                         org path included, because those numbers are the
+ *                         titular's own and the writer's `ownerships` join says
+ *                         `role = 'owner'`.
+ * - `profile_breed_invalid`
+ *                       — the submitted breed does not resolve within the
+ *                         PERSISTED species' catalog. 400, and its own code
+ *                         rather than `invalid_request` for the
+ *                         `photo_not_an_image` reason: the body was well formed
+ *                         and one named field is wrong, so a client should point
+ *                         at the breed picker instead of saying the request was
+ *                         malformed. The animal's CURRENT stored breed always
+ *                         resolves, off-catalog or not (QA A5).
+ * - `profile_failed`    — the write itself failed. 500. RETRYING IS SAFE: an
+ *                         identity edit is a value, not an append, and a no-op
+ *                         repeat appends no event at all.
  */
 export const API_V1_ERROR_CODES = [
   "rate_limited",
@@ -624,6 +648,9 @@ export const API_V1_ERROR_CODES = [
   "photo_forbidden",
   "photo_not_an_image",
   "photo_failed",
+  "profile_forbidden",
+  "profile_breed_invalid",
+  "profile_failed",
 ] as const;
 
 export type ApiV1ErrorCode = (typeof API_V1_ERROR_CODES)[number];

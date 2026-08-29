@@ -180,6 +180,28 @@ export function sharesRoute(publicToken: string): `/mascotas/${string}/compartir
 }
 
 /**
+ * Editar los datos de la mascota, and the emergency contacts, on ONE screen.
+ *
+ * TWO ENTRY POINTS LAND HERE and that is deliberate. The web keeps them as two
+ * rows of the "⋯ Más" sheet — "Editar datos y ficha" and "Contactos de
+ * emergencia" — because each opens a different `?sheet=`, which is a URL
+ * mechanism a stack navigator does not have. Splitting them into two native
+ * routes would have bought a second copy of one fetch, one guard-derived
+ * capability pair and one save path, to hide a card a person can already see by
+ * scrolling. The two entry points differ in what they PROMISE and in nothing
+ * else: this function takes no section argument, the screen renders both cards
+ * in a fixed order — datos, then contactos — and whichever row was tapped, the
+ * other is one scroll away.
+ *
+ * The path matches the WEB's leaf (`/mis-mascotas/{token}/editar`), unlike the
+ * `?sheet=` half: nothing deep-links in today, and when something does, the
+ * `mimar://` and `https` forms will already agree on the word.
+ */
+export function editPetRoute(publicToken: string): `/mascotas/${string}/editar` {
+  return `/mascotas/${encodeURIComponent(publicToken)}/editar`;
+}
+
+/**
  * The cuidador-temporal cockpit for one pet — the TITULAR'S side.
  *
  * NESTED UNDER THE PET, unlike its sibling below, and the split is the feature's
@@ -216,6 +238,7 @@ export type AppRoute =
   | ReturnType<typeof recordEventRoute>
   | ReturnType<typeof lostModeRoute>
   | ReturnType<typeof sharesRoute>
+  | ReturnType<typeof editPetRoute>
   | ReturnType<typeof transferRoute>
   | ReturnType<typeof transferPetRoute>
   | ReturnType<typeof caretakerPetRoute>

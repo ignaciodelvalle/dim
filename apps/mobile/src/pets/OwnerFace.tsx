@@ -39,6 +39,7 @@ import { FONTS } from "../ui/fonts";
 import { Callout } from "../ui/kit";
 import {
   caretakerPetRoute,
+  editPetRoute,
   lostModeRoute,
   publicCredentialRoute,
   recordEventRoute,
@@ -325,8 +326,8 @@ function ActionFooter({ view }: { view: OwnerFaceView }) {
           <FaceAction
             icon="edit"
             label="Editar datos"
-            caption="Desde la web"
-            accessibilityHint="Los datos se editan desde la web por ahora."
+            accessibilityHint="Cambiar el nombre, la raza y el color. Queda registrado en la libreta."
+            onPress={() => router.push(editPetRoute(view.publicToken))}
           />
         )}
         <FaceAction
@@ -372,7 +373,21 @@ function ActionFooter({ view }: { view: OwnerFaceView }) {
               ) : (
                 <MoreRow label="Acompañamiento de adopción" caption="Disponible en la web" />
               )}
-              <MoreRow label="Contactos de emergencia" caption="Disponible en la web" />
+              {/* THE SAME DESTINATION AS "Editar datos" above, and that is the
+                  web's two `?sheet=` rows meeting a stack navigator: both
+                  halves live on one screen there. The row survives as its own
+                  entry point because the two promise different things — a
+                  person looking for "a quién llamamos" is not looking to edit a
+                  name — and because the web keeps it. Whether the block it
+                  lands on is EDITABLE is the server's call, not this row's: a
+                  co-owner and a foster reach it and are shown the reason
+                  instead of a form. Only the caretaker is hidden here, which is
+                  `deriveMasSheetItems`' own rule. */}
+              <MoreRow
+                label="Contactos de emergencia"
+                accessibilityHint="El veterinario y la persona a la que llamamos por esta mascota."
+                onPress={() => router.push(editPetRoute(view.publicToken))}
+              />
             </>
           )}
           <MoreRow label="Viaje y movilidad" caption="Próximamente" />

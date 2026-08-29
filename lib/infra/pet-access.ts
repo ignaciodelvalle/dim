@@ -498,10 +498,37 @@ export async function requireAlivePetAccess(publicToken: string): Promise<PetAcc
 // import the caretakers module — inverting the dependency direction the whole
 // module fence exists to protect. The fence is scripts/check-titular-gate.ts;
 // this is the guard it looks for.
+
+/**
+ * The titular rule as a PREDICATE, for callers that report it instead of
+ * enforcing it.
+ *
+ * `requireTitularAccess` is a cookie-session guard: it opens a Supabase client,
+ * resolves the pet and answers a redirect-shaped refusal. A bearer endpoint that
+ * has ALREADY resolved the holder cannot call it, and what it usually needs is
+ * not a refusal at all but a boolean to put in a `capabilities` block, so a
+ * client is never offered a control the write would refuse.
+ *
+ * Those callers were each writing `!(path === "owner" && role === "caretaker")`
+ * out again, which is a rule maintained in N places by hand. This is the same
+ * expression, exported once — and the guard below CALLS IT, so the predicate and
+ * the gate cannot drift into disagreeing about who a titular is.
+ *
+ * A DENY and not an allow-list, for the reason the block above gives: an
+ * allow-list silently narrows the roles the web admits the first time somebody
+ * adds a role to the system.
+ */
+export function isTitularHolder(
+  accessPath: PetAccessPath | null,
+  holderRole: OwnershipRole | string | null,
+): boolean {
+  return !(accessPath === "owner" && holderRole === "caretaker");
+}
+
 export async function requireTitularAccess(publicToken: string): Promise<PetAccessResult> {
   const access = await requirePetAccess(publicToken);
   if (!access.ok) return access;
-  if (access.accessPath === "owner" && access.holderRole === "caretaker") {
+  if (!isTitularHolder(access.accessPath, access.holderRole)) {
     return {
       ok: false,
       supabase: access.supabase,

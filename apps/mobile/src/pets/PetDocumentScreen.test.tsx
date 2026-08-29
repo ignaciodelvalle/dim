@@ -375,33 +375,46 @@ describe("PetDocumentScreen — a failure is never drawn as an absence", () => {
 });
 
 describe("PetDocumentScreen — controls with no native destination are drawn honest", () => {
-  it("draws Editar datos as itself, visibly unavailable, with the reason", async () => {
-    // Omitting it would make the card look like a different product — the
-    // thing the PO ordered against. Drawing it live would be a lie in the
-    // shape of a control. So: same row, announced disabled, honest caption.
+  it("takes Editar datos to the native edit screen, not to a caption", async () => {
+    // This row USED to be the honest-disabled rendering, captioned "Desde la
+    // web": same pill, muted, announced disabled. The screen behind it now
+    // exists, so the caption would have become the lie the caption existed to
+    // avoid. The assertion is kept pointing at the same row on purpose — it is
+    // the one that fails if the destination is ever removed again without the
+    // caption coming back.
     render(<PetDocumentScreen publicToken={TOKEN} />);
     await screen.findByText("Pampa");
-    const label = screen.getByText("Editar datos");
-    expect(screen.getByText("Desde la web")).toBeOnTheScreen();
-    fireEvent.press(label);
-    expect(mockPush).not.toHaveBeenCalled();
+    fireEvent.press(screen.getByText("Editar datos"));
+    expect(mockPush).toHaveBeenCalledWith(`/mascotas/${TOKEN}/editar`);
+    expect(screen.queryByText("Desde la web")).toBeNull();
   });
 
-  it("marks the web-only Más rows with where they ARE available", async () => {
+  it("takes Contactos de emergencia to the same screen, and leaves the rest honest", async () => {
+    // The two rows share a destination because the web's two `?sheet=` rows are
+    // one screen here — see the comment at the row. What matters for THIS test
+    // is that the rows which are still web-only keep saying so: a live row and
+    // a dead row must not look alike.
     render(<PetDocumentScreen publicToken={TOKEN} />);
     await screen.findByText("Pampa");
     fireEvent.press(screen.getByText("Más"));
     expect(screen.getByText("Chapa física")).toBeOnTheScreen();
-    expect(screen.getByText("Contactos de emergencia")).toBeOnTheScreen();
-    expect(screen.getAllByText("Disponible en la web").length).toBeGreaterThanOrEqual(3);
+    fireEvent.press(screen.getByText("Contactos de emergencia"));
+    expect(mockPush).toHaveBeenCalledWith(`/mascotas/${TOKEN}/editar`);
+
+    mockPush.mockClear();
+    expect(screen.getAllByText("Disponible en la web").length).toBeGreaterThanOrEqual(2);
     // Viaje is disabled on the WEB too, with the web's own badge.
     expect(screen.getByText("Viaje y movilidad")).toBeOnTheScreen();
     expect(screen.getByText("Próximamente")).toBeOnTheScreen();
-    // None of them navigates.
+    // The ones still marked web-only do not navigate.
     fireEvent.press(screen.getByText("Chapa física"));
-    fireEvent.press(screen.getByText("Contactos de emergencia"));
     expect(mockPush).not.toHaveBeenCalled();
   });
+
+  // A CARETAKER SEES NEITHER ROW, and that case is asserted where the rest of
+  // the per-role rules live — see "tells a caretaker how they hold the animal"
+  // below. It is named here so a reader of this block does not conclude the
+  // rows are unconditional now that they navigate.
 });
 
 describe("PetDocumentScreen — the viewer line survives, per role", () => {
