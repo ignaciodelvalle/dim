@@ -355,9 +355,11 @@ describe("export_subject_data RPC", () => {
   });
 
   // V1-2 fix C: export now includes every relation the subject is party to.
-  // Schema v3 since migration 0170 (adds the pet_tags section — covered in
-  // depth by subject-rights-pet-tags.test.ts).
-  it("includes welfare reports, disputes, transfers, notifications, memberships and audit rows (schema v4)", async () => {
+  // The per-section depth lives in the file that owns each section
+  // (pet_tags → subject-rights-pet-tags.test.ts; the 0205 four →
+  // subject-rights-caretaker-foster-contact.test.ts). What THIS test owns is
+  // the export's top-level shape: the version stamp and the set of keys.
+  it("includes welfare reports, disputes, transfers, notifications, memberships and audit rows (schema v5)", async () => {
     const { data, error } = await callRpcAs<Record<string, unknown>>(
       ownerUserId,
       sql`SELECT public.export_subject_data(${ownerUserId}::uuid) AS result`,
@@ -366,8 +368,37 @@ describe("export_subject_data RPC", () => {
     const payload = data as Record<string, unknown>;
 
     // 3 → 4 in migration 0205 (pet_caretaker_grants, foster_volunteers,
-    // org_contact_messages and push_subscriptions joined the projection).
-    expect(payload.schema_version).toBe(4);
+    // org_contact_messages and push_subscriptions joined the projection);
+    // 4 → 5 in migration 0208 (operator_feed_watermarks, physical_tag_interest
+    // and organization_invitations joined it too).
+    expect(payload.schema_version).toBe(5);
+
+    // The three sections that BUY the 5. Without them the number above is a
+    // decoration: it would keep passing over an export that dropped them.
+    //
+    // What this pins and what it does NOT: it proves the key is built into the
+    // returned object under the name the subject-rights fence declares, and that
+    // it is an array. It does NOT prove the section is populated correctly —
+    // this test seeds no rows into any of the three, so an empty array satisfies
+    // it, and that is the honest limit here. Contents are the 0208 lane's own
+    // tests; that the RPC body reaches each table at all is
+    // scripts/check-subject-rights-coverage.ts, which — by its own header —
+    // proves MENTION and nothing more: it greps the live function TEXT for
+    // `public.<table>`. So it cannot see a section that is SELECTed from the
+    // right table and then returned under the wrong key. Measured on a mutant
+    // that renames the returned key to `operator_feed_watermarks_typo`: the
+    // `FROM public.operator_feed_watermarks` the fence greps for is still there,
+    // and only this loop goes red. Closing that gap is the point of the loop.
+    for (const section of [
+      "operator_feed_watermarks",
+      "physical_tag_interest",
+      "organization_invitations",
+    ]) {
+      expect(payload, `export_subject_data must return a '${section}' section`).toHaveProperty(
+        section,
+      );
+      expect(Array.isArray(payload[section]), `'${section}' must be an array`).toBe(true);
+    }
 
     const welfare = payload.welfare_reports_filed as Array<Record<string, unknown>>;
     expect(Array.isArray(welfare)).toBe(true);

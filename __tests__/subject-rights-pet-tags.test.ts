@@ -126,7 +126,7 @@ afterAll(async () => {
 }, 30_000);
 
 describe("export_subject_data — pet_tags section (art. 14)", () => {
-  it("returns the subject's tag history WITHOUT activation_code_hash, schema_version 4", async () => {
+  it("returns the subject's tag history WITHOUT activation_code_hash, schema_version 5", async () => {
     const { data, error } = await callRpcAs<Record<string, unknown>>(
       subjectUserId,
       sql`SELECT public.export_subject_data(${subjectUserId}::uuid)`,
@@ -137,7 +137,13 @@ describe("export_subject_data — pet_tags section (art. 14)", () => {
       schema_version: number;
       pet_tags: Array<Record<string, unknown>>;
     };
-    expect(exportJson.schema_version).toBe(4);
+    // 4 -> 5 in migration 0208, which added operator_feed_watermarks,
+    // physical_tag_interest and organization_invitations. Nothing about the
+    // pet_tags section itself changed — 0208 copies it verbatim — so this file
+    // moves the version pin and NOTHING else. The three new sections are
+    // asserted where they belong: their key presence in
+    // subject-rights-rpcs.test.ts, their contents in the 0208 lane's own tests.
+    expect(exportJson.schema_version).toBe(5);
 
     const serials = exportJson.pet_tags.map((t) => t.serial);
     expect(serials).toContain(activeSerial);
