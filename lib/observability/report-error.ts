@@ -77,14 +77,49 @@ const ALLOWED_CONTEXT_KEYS = [
  * Keys whose values this application GENERATES and therefore knows are free of
  * PII by construction. They skip the text scrubber.
  *
- * `correlationId` is 8 hex characters (`lib/analytics/analytics-load.ts`). Two
- * point three percent of them are all-digits, and the fail-closed 7+ digit rule
- * would redact exactly those — silently destroying, one time in forty-three,
- * the identifier whose entire job is to be quotable back to support. Skipping
- * the scrubber for a value we minted ourselves is safe and keeps the feature
- * working; the distinction is made by KEY, never by inspecting the shape.
+ * `correlationId` is 8 hex characters (`lib/analytics/analytics-load.ts`
+ * `newCorrelationId`, the first 8 hex of a UUID).
+ *
+ * HOW OFTEN THE SCRUBBER WOULD EAT ONE — recounted 2026-08-29, and the old
+ * number here was wrong by 2.2x for a reason worth keeping. It said "2.3% are
+ * all-digits ... one time in forty-three", which is the right arithmetic for
+ * the wrong event: `(10/16)^8 = 2.33%` is the chance that all eight characters
+ * are digits. But the rule is `\d{7,}`, a run of SEVEN or more, so it also
+ * destroys the two families where a single non-digit sits at one end
+ * (`a0318775`, `4031877a`). Exhaustively over all 256 digit/non-digit masks:
+ * `(10/16)^8 + 2·(10/16)^7·(6/16)` = **5.12%, about one in twenty**. Counting
+ * the all-digits case only was a reasoning error, not a slip in the sum.
+ *
+ * So the bypass is not a nicety at 1-in-43; at 1-in-20 it is the difference
+ * between a support workflow that works and one that silently fails for every
+ * twentieth caller.
+ *
+ * WHICH KEY may bypass is decided by KEY, never by inspecting the value's
+ * shape — a scrubber you can talk your way out of by looking like something
+ * safe is not a scrubber. The bound below is a separate question from that
+ * one: given a key that IS eligible, how much damage can a call site do
+ * through it?
  */
 const OPAQUE_CONTEXT_KEYS: ReadonlySet<string> = new Set(["correlationId"]);
+
+/**
+ * The bound on the opaque bypass.
+ *
+ * The bypass exists for identifiers this app mints, and everything it mints is
+ * a short, unpunctuated token. A value that is not one of those did not come
+ * from `newCorrelationId`, so the reason for exempting it does not apply.
+ * Without this bound the type is the only thing standing between a call site
+ * and an unscrubbed free-text field: `correlationId` is declared `string`, and
+ * a caller who put `` `${email} at ${href}` `` there — by mistake, or because
+ * the field looked like a convenient place to hang a note — would have shipped
+ * it verbatim to a third party. The type system is not present at the moment
+ * the payload is sent, which is the whole reason `redactContext` re-checks the
+ * allowlist at runtime; the bypass inside it needs the same treatment.
+ *
+ * A value that fails the bound is NOT dropped — it falls through to the normal
+ * scrubber, which is the safe path, not the lossy one.
+ */
+const OPAQUE_VALUE_SHAPE = /^[A-Za-z0-9_-]{1,32}$/;
 
 export type { RedactedErrorReport } from "@/lib/observability/sink";
 
@@ -111,11 +146,12 @@ function redactContext(
     const raw = (context as Record<string, unknown>)[key];
     if (raw === undefined || raw === null) continue;
 
-    const value = OPAQUE_CONTEXT_KEYS.has(key)
-      ? typeof raw === "string" || typeof raw === "number" || typeof raw === "boolean"
-        ? raw
-        : undefined
-      : redactContextValue(raw);
+    // The bypass is eligible by KEY, and then bounded by what the app actually
+    // mints. Anything outside the bound takes the ordinary scrubbed path.
+    const bypasses =
+      OPAQUE_CONTEXT_KEYS.has(key) && typeof raw === "string" && OPAQUE_VALUE_SHAPE.test(raw);
+
+    const value = bypasses ? raw : redactContextValue(raw);
 
     if (value !== undefined) out[key] = value;
   }

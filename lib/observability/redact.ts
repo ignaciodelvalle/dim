@@ -46,22 +46,153 @@
 // vendor's index. Those are not comparable, so the rule does not try to be
 // clever about telling them apart.
 
-/** Applied in order; earlier, more specific rules win over later, broader ones. */
+/**
+ * Credential-code namespace prefixes, hyphen INCLUDED.
+ *
+ * WHY THE HYPHEN IS PART OF THE VALUE, and not glued on when the regex is
+ * built: a prefix here is a *namespace*, and the hyphen is what makes it one.
+ * `scripts/check-brand-casing.ts` Rule 2 draws exactly that distinction — bare
+ * `DIM` is the internal codename leaking into something a user reads, while
+ * `DIM-` is a public credential token and is never flagged. Writing the values
+ * in their true form is what keeps this list truthful AND keeps `lint:brand`
+ * green, with no `dim-codename-ok` pragma. A pragma here would have been the
+ * wrong instrument twice over: it would freeze a list we already knew was
+ * incomplete, and it would silence the one fence that noticed.
+ *
+ * RECOUNTED AT THE SOURCE on 2026-08-29, not transcribed from a header. The
+ * header of `lib/infra/publicToken.ts` lists seven prefixes and is itself
+ * stale: four more (`CAS`, `DIS`, `PTR`, `FP`) are minted by call sites in
+ * `src/modules/**` that pass their own literal to `generatePrefixedToken`,
+ * which takes a plain `string` and therefore constrains nobody. `DEN` comes
+ * from a second, unrelated generator entirely
+ * (`src/modules/welfare/domain/reference-code.ts`, its own alphabet). Twelve
+ * in total. The previous version of this rule covered three.
+ *
+ * WHY THIS IS A LIST PLUS A FENCE, AND NOT AN IMPORT. Importing the prefixes
+ * from `lib/infra/publicToken.ts` would be the obvious derivation, and it is
+ * not available: that module imports `node:crypto`, and this one is bundled
+ * into the BROWSER. So the list is local, and `redact-prefix-coverage.test.ts`
+ * re-derives the true set from the repo on every run and fails when the two
+ * disagree. A transcribed list goes stale in silence; a transcribed list with
+ * a fence in front of it goes stale loudly, which is the property that matters.
+ */
+export const CREDENTIAL_TOKEN_PREFIXES: readonly string[] = [
+  "DIM-", // pet credential public token, and organizations.public_token
+  "LBR-", // libreta share token — the link handed to a vet or a walker
+  "APR-", // approval request (org upgrade, service-dog verification)
+  "OFR-", // service offering
+  "APT-", // appointment
+  "INV-", // organization invitation — accepting it grants membership
+  "TAG-", // physical tag serial
+  "CAS-", // case
+  "DIS-", // custody dispute
+  "PTR-", // pet transfer
+  "FP-", // foster proposal (two letters, not three — a `[A-Z]{3}` rule misses it)
+  "DEN-", // welfare denuncia reference code, from the welfare generator
+];
+
+/** Escapes a literal for embedding in a regex source string. */
+function escapeForRegex(literal: string): string {
+  return literal.replace(/[.*+?^${}()|[\]\\-]/g, "\\$&");
+}
+
+/**
+ * Route segments whose NEXT path segment is an unguessable bearer string.
+ *
+ * Holding the string IS the authorization for these, so a leaked one is a live
+ * grant rather than merely an identifier. Recounted from the router on
+ * 2026-08-29 by enumerating every dynamic segment under `app/` and
+ * `apps/mobile/app/` whose param carries a token, code or serial.
+ *
+ * Most of the values behind these segments are ALSO covered by the credential
+ * rule above, because they are `PREFIX-XXXX-XXXX` codes. That redundancy is
+ * deliberate: this rule is the one that still fires if a token format changes,
+ * and it is the only rule that covers a shape nobody enumerated. `cuidado`
+ * earns its place outright — a care grant is `CG-` + 32 hex, which no
+ * credential-code rule matches.
+ *
+ * The trade is the same one the digit catch-all makes: `/casos/abierto` gets
+ * redacted along with `/casos/CAS-A1B2-C3D4`, because the rule cannot tell a
+ * status slug from a token without knowing every slug. A less readable log
+ * line is the cheaper mistake.
+ */
+export const CAPABILITY_PATH_SEGMENTS: readonly string[] = [
+  "p", // /p/[publicToken] — the public credential page
+  "org", // /org/[orgToken] — the org portal
+  "refugios", // /refugios/[orgToken]
+  "compartir", // /libreta/compartir/[shareToken]
+  "cuidado", // /cuidado/[grantToken] — CG- + 32 hex, prefix rules miss it
+  "adoptar", // /adoptar/[petToken]
+  "mis-mascotas", // /mis-mascotas/[publicToken]
+  "mascotas", // /gob|/admin|/org/.../mascotas/[token], and apps/mobile
+  "pets", // /api/v1/pets/[publicToken] — the public API, same token
+  "atender", // /org/[orgToken]/atender/[publicToken]
+  "cola", // /gob|/admin/cola/[publicToken]
+  "observaciones", // /gob|/admin/observaciones/[publicToken]
+  "casos", // /casos|/gob/casos|/admin/casos/[publicCode]
+  "decomisos", // /gob/decomisos/[publicCode]
+  "disputas", // /gob/disputas/[disputeToken]
+  "investigaciones", // /gob/vigilancia/investigaciones/[caseCode]
+  "codigo", // /denuncias/codigo/[code] — an anonymous reporter's ONLY key
+  "transferencias", // /transferencias/[transferToken]
+  "propuestas", // /cuenta/transitos/propuestas/[proposalToken]
+  "servicios", // /gob|/admin|/org/.../servicios/[offeringToken]
+  "turnos", // /org/[orgToken]/agenda/turnos/[appointmentToken]
+  "mis-turnos", // /mis-turnos/[appointmentToken]
+  "buscar", // /turnos/buscar/[offeringToken]
+  "invite", // /r/invite/[token] — accepting it grants org membership
+  "match", // /mis-mascotas/nueva/match/[matchedPetToken]
+  "nueva", // /mis-mascotas/nueva/[publicToken]
+  "t", // /t/[serial] — physical tag serial
+];
+
+/**
+ * Applied in order; earlier, more specific rules win over later, broader ones.
+ *
+ * The ordering is LOAD-BEARING, not stylistic, and
+ * `redact.test.ts` pins it with a case where the two orders give different
+ * output: the broad digit catch-all would otherwise consume the digits inside
+ * a separated phone number and leave `[redacted:digits]` where
+ * `[redacted:phone]` belongs, destroying the one bit of signal a reader needs
+ * to know what kind of value was there.
+ */
 const SCRUB_RULES: ReadonlyArray<{ pattern: RegExp; replacement: string }> = [
   // Email addresses.
   {
     pattern: /[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}/g,
     replacement: "[redacted:email]",
   },
-  // Product credential codes: DIM- (pet public token), CAS- (case), DEN-
-  // (denuncia). Format is `PREFIX-XXXX-XXXX` — see db/schema.ts:462.
+  // Product credential codes, built from the recounted prefix list above so a
+  // new prefix cannot be added to the product without also being redacted.
   {
-    pattern: /\b(?:DIM|CAS|DEN)-[A-Z0-9]{4}-[A-Z0-9]{4}\b/gi,
+    pattern: new RegExp(
+      `\\b(?:${CREDENTIAL_TOKEN_PREFIXES.map(escapeForRegex).join("|")})[A-Z0-9]{4}-[A-Z0-9]{4}\\b`,
+      "gi",
+    ),
     replacement: "[redacted:credential]",
   },
-  // JWTs (Supabase access/refresh tokens are JWTs and DO reach the browser).
+  // Care-grant tokens: a namespace prefix plus 32 hex, minted by
+  // `src/modules/caretakers/infrastructure/caretakers-repository.ts`. A
+  // different shape from every other token in the product, so it needs its own
+  // rule — the page it opens shows a pet's name, photo and the titular's
+  // display name to an unauthenticated visitor holding the link.
   {
-    pattern: /\beyJ[A-Za-z0-9_-]{6,}\.[A-Za-z0-9_-]{6,}(?:\.[A-Za-z0-9_-]+)?/g,
+    pattern: /\bCG-[0-9a-f]{32}\b/gi,
+    replacement: "[redacted:grant]",
+  },
+  // JWTs (Supabase access/refresh tokens are JWTs and DO reach the browser).
+  // The signature segment is NOT optional in this pattern: matching only
+  // `header.payload` would leave the signature trailing in cleartext, which is
+  // the half that makes the token forgeable.
+  {
+    pattern: /\beyJ[A-Za-z0-9_-]{6,}\.[A-Za-z0-9_-]{6,}\.[A-Za-z0-9_-]+/g,
+    replacement: "[redacted:jwt]",
+  },
+  // An unsigned or malformed JWT — still a bearer-shaped blob, still not ours
+  // to forward. Second rule rather than an optional group, so the signed case
+  // above can never be satisfied by a prefix of itself.
+  {
+    pattern: /\beyJ[A-Za-z0-9_-]{6,}\.[A-Za-z0-9_-]{6,}/g,
     replacement: "[redacted:jwt]",
   },
   // `Authorization: Bearer …` / `Basic …` echoed into a fetch error message.
@@ -69,12 +200,12 @@ const SCRUB_RULES: ReadonlyArray<{ pattern: RegExp; replacement: string }> = [
     pattern: /\b(?:Bearer|Basic)\s+[A-Za-z0-9._~+/=-]{8,}/gi,
     replacement: "[redacted:authorization]",
   },
-  // Capability tokens carried as a URL PATH segment. These are the unguessable
-  // bearer strings behind `/libreta/compartir/:shareToken`, `/org/:orgToken`,
-  // `/cuidado/:token` — holding the string IS the authorization, so a leaked
-  // one is a live grant, not merely an identifier.
+  // Capability tokens carried as a URL PATH segment.
   {
-    pattern: /\/(org|cuidado|compartir|adoptar|mis-mascotas|p)\/[A-Za-z0-9_-]{6,}/gi,
+    pattern: new RegExp(
+      `/(${CAPABILITY_PATH_SEGMENTS.map(escapeForRegex).join("|")})/[A-Za-z0-9_-]{6,}`,
+      "gi",
+    ),
     replacement: "/$1/[redacted:token]",
   },
   // Sensitive URL query/fragment parameters — value replaced, key kept so the

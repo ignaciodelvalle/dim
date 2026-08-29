@@ -29,9 +29,19 @@ Wiring a provider is now a **config change**, not a refactor:
   bootstrap. No error boundary changes.
 - `lib/observability/redact.ts` — redaction runs **before** the sink is handed
   anything, so no provider adapter can leak by forgetting to scrub, and the
-  rules are not re-implemented per vendor. Covers DNI, product credential codes
-  (`DIM-`/`CAS-`/`DEN-`), emails, phones, JWTs, `Authorization` headers,
-  capability tokens in URL path segments, and sensitive query-string values.
+  rules are not re-implemented per vendor. Covers DNI, **all twelve** product
+  credential-code prefixes, care-grant tokens, emails, phones, JWTs,
+  `Authorization` headers, capability tokens in URL path segments, and
+  sensitive query-string values.
+
+  The prefix list and the capability-segment list are both **drift-fenced**
+  (`redact-prefix-coverage.test.ts`): one re-derives the prefixes the repo
+  actually mints by scanning source for `generatePrefixedToken(...)` literals
+  plus the welfare denuncia generator, the other re-derives the capability
+  segments from the router. Neither list can go stale without turning the suite
+  red. That fence is not decoration — the first version of this rule covered
+  three prefixes out of twelve, and the `publicToken.ts` header it was
+  transcribed from lists seven and is itself out of date.
 - `lib/observability/report-error.ts` — the context object is a **closed
   allowlist**; an unreviewed field is a compile error at the call site and is
   dropped at runtime too.
@@ -110,3 +120,19 @@ in front of it.
   purpose: the first adapter that re-implements it and gets it wrong leaks
   silently, and a leak of this kind is not recoverable once it is in a vendor's
   index.
+
+## Known residual gap in the redaction layer
+
+The **physical tag activation code** (`generateTagActivationCode`) is
+deliberately **unprefixed** — a bare `XXXX-XXXX` printed on the tag's wrapper
+as the proof-of-possession secret, stored only as a peppered HMAC. It is a live
+secret and it is **not** redacted, because a bare four-four alphanumeric group
+is indistinguishable from a great deal of innocuous text and a rule for it
+would fire constantly.
+
+That is a judgement, not a proof, and it is written down here rather than left
+implicit. Two things reduce it: the code is typed into an activation form
+rather than carried in a URL, so it is unlikely to appear in a stack; and the
+fail-closed digit rule catches the all-digit cases. Neither is a guarantee. If
+a provider is wired and this becomes load-bearing, the cheap fix is a rule
+scoped to the activation route's own error boundary, not a global one.

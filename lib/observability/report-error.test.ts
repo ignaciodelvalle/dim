@@ -57,6 +57,20 @@ describe("payload contract", () => {
     expect(received[0].name).toBe("TypeError");
   });
 
+  it("OMITS the class name for a plain Error, which says nothing", () => {
+    // The other half of "more specific than Error", and the half nothing
+    // pinned: relaxing the guard to `error.name ? …` kept every assertion in
+    // this file green, because `toMatchObject` ignores extra properties. A
+    // payload contract that only ever asserts presence cannot notice a field
+    // that should not be there.
+    const received = captureReports();
+
+    reportError(new Error("plain"));
+
+    expect(received[0].name).toBeUndefined();
+    expect(received[0]).not.toHaveProperty("name");
+  });
+
   it("puts allowlisted context under `context`, not at the top level", () => {
     const received = captureReports();
 
@@ -110,12 +124,57 @@ describe("the context allowlist is closed, and enforced at runtime", () => {
   it("keeps an all-digit correlationId, which the scrubber would otherwise eat", () => {
     const received = captureReports();
 
-    // 8 hex chars; ~2.3% of them are all digits, and the fail-closed 7+ digit
-    // rule would redact exactly those. Distinguished by KEY, never by shape.
+    // 8 hex chars. 5.1% of them — about one in twenty, not the one in
+    // forty-three this comment used to claim — carry a run of 7+ digits and
+    // would be eaten by the fail-closed rule. Distinguished by KEY, never by
+    // shape.
     reportError(new Error("timeout"), { source: "loadWithTimeout", correlationId: "40318775" });
 
     expect(received[0].context.correlationId).toBe("40318775");
     expect(received[0].context.source).toBe("loadWithTimeout");
+  });
+
+  it("keeps a correlationId whose digits run only to one end", () => {
+    // `a0318775` — a 7-digit run with a single non-digit at the front. This is
+    // the family the old 2.3% number forgot: it is not all-digits, and the
+    // `\d{7,}` rule destroys it anyway. Two of these families exist, and
+    // together they are 2.2x the all-digits case on their own.
+    const received = captureReports();
+
+    reportError(new Error("timeout"), { correlationId: "a0318775" });
+
+    expect(received[0].context.correlationId).toBe("a0318775");
+  });
+
+  it("scrubs an 8-hex-shaped value under a key that is NOT opaque", () => {
+    // Which key bypasses the scrubber is decided by KEY, never by the value's
+    // shape — a scrubber you can talk your way out of by looking like
+    // something safe is not a scrubber. Keying the bypass on
+    // /^[0-9a-f]{8}$/ instead left every existing assertion green, because the
+    // only value tested against it was a correlationId that matched both ways.
+    const received = captureReports();
+
+    reportError(new Error("boom"), { source: "40318775" } as never);
+
+    expect(received[0].context.source).toBe("[redacted:digits]");
+  });
+
+  it("bounds the opaque bypass: free text in correlationId is still scrubbed", () => {
+    // `correlationId` is declared `string`, and the bypass forwards it
+    // verbatim. Everything this app mints there is a short unpunctuated token,
+    // so a value that is not one did not come from `newCorrelationId` and the
+    // reason for exempting it does not apply. A caller who hung a note on the
+    // field — by mistake, or because it looked like a convenient place — would
+    // otherwise have shipped it to a third party untouched.
+    const received = captureReports();
+
+    reportError(new Error("boom"), {
+      correlationId: "owner ivan@gmail.com dni 30123456",
+    });
+
+    const value = String(received[0].context.correlationId);
+    expect(value).not.toContain("ivan@gmail.com");
+    expect(value).not.toContain("30123456");
   });
 });
 
@@ -149,14 +208,16 @@ describe("redaction happens before the sink ever sees the report", () => {
     const error = Object.assign(new Error("owner ivan@gmail.com dni 30123456"), {
       digest: "d-1",
     });
-    error.stack = "Error\n    at x (/libreta/compartir/s7Kd93ptQxLm:1:1)";
+    // The share token in the shape this product actually mints, plus a pet
+    // credential quoted bare in the message with no path to save it.
+    error.stack = "Error\n    at x (/libreta/compartir/LBR-7K2M-9QXD:1:1)";
 
     reportError(error, { homeHref: "/org/9f3kd82hsn2p" } as never);
 
     const serialized = JSON.stringify(received[0]);
     expect(serialized).not.toContain("ivan@gmail.com");
     expect(serialized).not.toContain("30123456");
-    expect(serialized).not.toContain("s7Kd93ptQxLm");
+    expect(serialized).not.toContain("LBR-7K2M-9QXD");
     expect(serialized).not.toContain("9f3kd82hsn2p");
   });
 });
