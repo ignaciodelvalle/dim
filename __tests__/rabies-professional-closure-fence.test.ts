@@ -39,11 +39,29 @@ function stripComments(src: string): string {
   return src.replace(/\/\*[\s\S]*?\*\//g, "").replace(/^\s*\/\/.*$/gm, "");
 }
 
+/**
+ * Excluded from the scan: test and mock sources. Filtered in JS rather than via
+ * `globSync`'s `exclude` option, which only accepts a list of glob patterns on
+ * Node >= 24 — on the pinned 22.13.0 it must be a function, and passing the
+ * array threw `TypeError: The "options.exclude" property must be of type
+ * function`, which took every test in this file down with it. Sibling linters in
+ * `scripts/` filter the same way for the same reason.
+ */
+function isExcluded(relPath: string): boolean {
+  return (
+    relPath.endsWith(".test.ts") ||
+    relPath.endsWith(".test.tsx") ||
+    relPath.includes("__tests__/") ||
+    relPath.includes("__mocks__/")
+  );
+}
+
 function productionSources(): string[] {
   return globSync(["app/**/*.ts", "app/**/*.tsx", "src/**/*.ts", "src/**/*.tsx", "lib/**/*.ts"], {
     cwd: ROOT,
-    exclude: ["**/*.test.ts", "**/*.test.tsx", "**/__tests__/**", "**/__mocks__/**"],
-  });
+  })
+    .map((rel) => rel.replace(/\\/g, "/"))
+    .filter((rel) => !isExcluded(rel));
 }
 
 describe("rabies observation — clinical outcome fence", () => {
