@@ -26,6 +26,7 @@ import {
   ALERT_EXEMPT,
   DEFAULT_BRANCH,
   DEPLOY_REF,
+  type Exemption,
   NOT_ON_DEFAULT_BRANCH,
   REF_EXEMPT,
   STEP_OUTPUT_GUARD,
@@ -212,14 +213,33 @@ describe("exemptionFindings", () => {
   });
 });
 
+// Every case here states its own `waiting` list. Reaching into the live
+// NOT_ON_DEFAULT_BRANCH for a sample is what broke this block: the merged-entry
+// case read `NOT_ON_DEFAULT_BRANCH[0].workflow`, so the day both waiting
+// workflows reached main and the list correctly emptied, it died with
+// `TypeError: Cannot read properties of undefined (reading 'workflow')` — a
+// test that fails because production got BETTER, which is the self-referential
+// shape docs/agents/README.md forbids. What is under test is a property of the
+// function; it holds whether the real list has two entries or none.
+//
+// The live list keeps its coverage where it belongs: the real-tree block below
+// calls the two-argument form, so the default binding is still exercised
+// against production data by the check that is actually about production data.
 describe("defaultBranchFindings", () => {
   const scheduled = [
     { file: "on-main.yml", yaml: PINNED_STEP },
     { file: "not-on-main.yml", yaml: PINNED_STEP },
   ];
 
+  const WAITING: Exemption[] = [
+    {
+      workflow: "not-on-main.yml",
+      reason: "Synthetic fixture: a workflow this tree has, that the default branch does not.",
+    },
+  ];
+
   it("flags a scheduled workflow that is absent from the default branch and undocumented", () => {
-    const found = defaultBranchFindings(scheduled, ["on-main.yml"]);
+    const found = defaultBranchFindings(scheduled, ["on-main.yml"], []);
     expect(found?.map((f) => f.workflow)).toContain("not-on-main.yml");
     expect(found?.find((f) => f.workflow === "not-on-main.yml")?.problem).toContain(
       "DOES NOT EXIST",
@@ -227,11 +247,35 @@ describe("defaultBranchFindings", () => {
   });
 
   it("flags a NOT_ON_DEFAULT_BRANCH entry that has since been merged", () => {
-    const waiting = NOT_ON_DEFAULT_BRANCH[0].workflow;
-    const found = defaultBranchFindings([{ file: waiting, yaml: PINNED_STEP }], [waiting]);
-    expect(found?.find((f) => f.workflow === waiting)?.problem).toContain(
+    const found = defaultBranchFindings(scheduled, ["on-main.yml", "not-on-main.yml"], WAITING);
+    expect(found?.find((f) => f.workflow === "not-on-main.yml")?.problem).toContain(
       `has reached ${DEFAULT_BRANCH}`,
     );
+  });
+
+  // The other direction of the same rule, and what stops the assertion above
+  // from passing on a flag that fires unconditionally: an entry whose workflow
+  // really is still absent is the documented state, and says nothing.
+  it("is quiet about an entry whose workflow is still absent from the default branch", () => {
+    expect(defaultBranchFindings(scheduled, ["on-main.yml"], WAITING)).toEqual([]);
+  });
+
+  // Third direction: the list must name files that exist here at all. This one
+  // is checkable with no git and no default branch, hence the null `onDefault`.
+  it("flags an entry naming a workflow that is not in this tree, with no git at all", () => {
+    const gone: Exemption[] = [{ workflow: "deleted.yml", reason: "Synthetic fixture." }];
+    const found = defaultBranchFindings(scheduled, null, gone);
+    expect(found?.map((f) => f.workflow)).toEqual(["deleted.yml"]);
+    expect(found?.[0].problem).toContain("Remove the stale entry");
+  });
+
+  // The real list is asserted ON, not sampled FROM. This is the assertion the
+  // broken case was reaching for, and it survives the list being empty.
+  it("keeps the live list describing only workflows this tree really schedules", () => {
+    const scheduledNames = new Set(scheduledWorkflows().map((w) => w.file));
+    for (const { workflow } of NOT_ON_DEFAULT_BRANCH) {
+      expect(scheduledNames.has(workflow), workflow).toBe(true);
+    }
   });
 });
 

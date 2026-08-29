@@ -566,17 +566,28 @@ export function auditedFindings(workflows: { file: string; yaml: string }[]): Fi
   return findings;
 }
 
-/** The default-branch half of the invariant. Returns null when it could not be checked. */
+/**
+ * The default-branch half of the invariant. Returns null when it could not be
+ * checked.
+ *
+ * `waiting` defaults to the live {@link NOT_ON_DEFAULT_BRANCH}, which is what
+ * every production caller uses. It is a parameter so a test can state its own
+ * fixture: the behaviour here ("an entry that has since been merged is
+ * flagged") is a property of the function, not of whatever the real list
+ * happens to hold today, and a test that reached into the live list for a
+ * sample died with a TypeError on the day that list correctly emptied.
+ */
 export function defaultBranchFindings(
   workflows: { file: string; yaml: string }[],
   onDefault: string[] | null,
+  waiting: Exemption[] = NOT_ON_DEFAULT_BRANCH,
 ): Finding[] | null {
-  const listed = new Set(NOT_ON_DEFAULT_BRANCH.map((e) => e.workflow));
+  const listed = new Set(waiting.map((e) => e.workflow));
   const scheduledNames = new Set(workflows.map((w) => w.file));
   const findings: Finding[] = [];
 
   // Checkable with or without git: the list must describe real files.
-  for (const { workflow } of NOT_ON_DEFAULT_BRANCH) {
+  for (const { workflow } of waiting) {
     if (!scheduledNames.has(workflow)) {
       findings.push({
         workflow,
