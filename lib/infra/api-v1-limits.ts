@@ -388,11 +388,35 @@
 // running from one host, which the per-user budget below structurally cannot see
 // (a farm makes an account per pet)". That is true, and the binding constraint on
 // that farm is not this ceiling. A farm needs one ACCOUNT per pet, and accounts
-// come from `auth_signup_ip` — 3/min + 15/hr, deliberately unchanged, and
-// `login-limits.ts` says why it was left alone. Fifteen accounts an hour from one
-// host caps the farm at fifteen pets an hour whether this endpoint allows 120/hr
-// or 360/hr. The ceiling doing that work is upstream of this one and eight times
-// tighter; this one was only ever the second-tightest link, and it still is.
+// come from `auth_signup_ip`. The ceiling doing that work is upstream of this one
+// and far tighter; this one was only ever the second-tightest link, and it still
+// is.
+//
+// THE MULTIPLE THIS PARAGRAPH USED TO QUOTE IS GONE, and how it went is the
+// useful part. It read "3/min + 15/hr, deliberately unchanged … fifteen accounts
+// an hour from one host caps the farm at fifteen pets an hour … eight times
+// tighter" — an HOURLY comparison, which was the only kind available while every
+// auth bucket had only short windows. `signup-limits.ts` re-derived that bucket on
+// 2026-08-29 and the comparison moved a window down, because a pet farm is not
+// bounded by its best hour:
+//
+//   signup       60/min + 180/hr + 360/DAY   → 360 accounts/day per address
+//   this bucket  120/min + 360/hr, no day    → 8,640 pets/day per address
+//
+// SAID COMPLETELY, BECAUSE ONE WINDOW FLATTERS AND TWO DO NOT. Signup against
+// this bucket, before → after:
+//
+//   per minute    3 vs 120  = 40× tighter  →   60 vs 120  =  2× tighter
+//   per hour     15 vs 360  = 24× tighter  →  180 vs 360  =  2× tighter
+//   per day     360 vs 8640 = 24× tighter  →  360 vs 8640 = 24× tighter
+//
+// So the margin COLLAPSED to 2× on both short windows and held at 24× only on
+// the day. Quoting "24× instead of 8×" and stopping — which an earlier draft of
+// this paragraph did — picks the one window that improved. The conclusion still
+// holds, on the ground this section always stood on: a farm needs an account per
+// pet and is bounded by its daily yield, not by its best minute, and signup binds
+// it at 360 pets a day — the SAME 360 the old 15/hr yielded across 24 hours. What
+// a reader must not carry away is short-window headroom: there is now 2× of it.
 //
 // ---------------------------------------------------------------------------
 // WHAT `route-local` MEANS NOW, AND WHY IT IS EMPTY
@@ -442,9 +466,50 @@
 // pair (`login-limits.ts`, re-derived 2026-08-27 when the Android app reached
 // Play and logins started arriving from carrier NAT — its per-IP ceiling had the
 // same upside-down shape the authenticated-write family above is corrected for,
-// and it uses the same twelve). `auth_signup_ip` is the one still stated as a
-// literal at its own `enforceRateLimit` call site, and `login-limits.ts` says why
-// it was left there rather than swept up in the same change.
+// and it uses the same twelve). `auth_signup_ip` used to be the one still stated
+// as a literal at its own `enforceRateLimit` call site; it got its own file on
+// 2026-08-29 (`signup-limits.ts`), so every ceiling in the `auth_*` FAMILY now
+// carries a derivation in a file beside its use-case.
+//
+// THAT SCOPE IS THE WHOLE CLAIM, and it is worth saying why it is written so
+// narrowly. The first draft of this sentence read "and no per-IP ceiling in this
+// repo is an inline literal any more" — false, and false three lines below the
+// paragraph above about a sentence that went stale precisely by being absolute.
+// The second draft then replaced it with a list of seven, which was the SAME
+// defect wearing a number: a hand-made list reads as an inventory whether or not
+// it is one, and that one was not. There are at least TWELVE per-IP ceilings
+// outside `/api/v1` and outside `auth_*` still stated as literals at their call
+// sites — `org_contact_ip`, `tag_activate_ip`, `case_detail_public`,
+// `denuncia_seguimiento` and `welfare_anon` among them — plus half a dozen more
+// whose key concatenates the address with a token or an org id, which rotate away
+// with the address just the same.
+//
+// TWELVE IS A FLOOR MEASURED BY HAND ON 2026-08-29, NOT A COUNT THIS FILE OWNS.
+// Nothing generates it: the classification is "read the second argument of every
+// `enforceRateLimit` call and decide whether it is an address", and no fence does
+// that. Recount it before quoting it —
+//
+//   rg -n --glob '!node_modules' --glob '!*.test.*' 'enforceRateLimit\(' -A3
+//
+// — and read the key. Two absolutes about this exact set have now gone stale in
+// this exact paragraph, so the third statement is deliberately not one: the point
+// that survives re-counting is that MANY public-route per-IP ceilings are still
+// underived literals, not any particular number of them. None was re-derived on
+// 2026-08-29 and none is this file's surface. The auth family is what got closed;
+// the public-route ones are open.
+//
+// THAT ONE DOES NOT USE THE TWELVE, and it is the exception worth knowing about
+// before reaching for this file's shape a fourth time. Every PER-USER-ANCHORED
+// derivation here multiplies a per-IDENTITY ceiling — the qualifier
+// `API_V1_SIMULTANEOUS_CALLERS` uses about itself, and a third absolute in this
+// same file went stale on 2026-08-29 for dropping it, since
+// `API_V1_PUBLIC_REFERENCE_IP_LIMIT` and `API_V1_ACCOUNT_SECURITY_IP_LIMIT` have
+// no per-user pair to multiply either. Signup has none to multiply because it is
+// what CREATES the identity, so a per-email counter there reads 1 for a citizen
+// and 1 for a farm. It is anchored instead on a plaza registration drive — the
+// same twenty people `API_V1_PUBLIC_REFERENCE_IP_LIMIT` and
+// `API_V1_PET_REGISTRATION_IP_LIMIT` are already sized against — and bounded by a
+// per-DAY window rather than by a multiple.
 //
 // THIS PARAGRAPH USED TO CARRY A CAVEAT and the caveat is now gone, which is the
 // most useful thing about it. It said the `pre-cgnat` buckets sat outside the sum

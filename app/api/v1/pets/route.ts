@@ -145,9 +145,25 @@ const UNAVAILABLE_RETRY_AFTER_SECONDS = 5;
 // "here to bound a SCRIPTED farm running from one host, which the per-user budget
 // below structurally cannot see (a farm makes an account per pet)". True, and the
 // binding constraint on that farm is not this ceiling: accounts come from
-// `auth_signup_ip`, 3/min + 15/hr, deliberately unchanged. Fifteen accounts an
-// hour from one host is fifteen pets an hour whether this endpoint allows 120/hr
-// or 360/hr. The ceiling doing that work is upstream and eight times tighter.
+// `auth_signup_ip`, and that ceiling is upstream of this one and far tighter,
+// whether this endpoint allows 120/hr or 360/hr.
+//
+// THE COMPARISON MOVED A WINDOW DOWN on 2026-08-29 and the conclusion did not.
+// This paragraph used to read "3/min + 15/hr, deliberately unchanged. Fifteen
+// accounts an hour from one host is fifteen pets an hour … eight times tighter" —
+// true, and an HOURLY comparison, which was all that existed while every auth
+// bucket had only short windows. `signup-limits.ts` re-derived that bucket into a
+// burst allowance under a DAY ceiling, so the honest comparison is now the one
+// that decides a farm's yield rather than its peak: signup allows 360 accounts per
+// address per day; this endpoint has no daily bound at all (360/hr = 8,640/day).
+//
+// SAID COMPLETELY: the multiple did not improve on every window. Signup against
+// this bucket, before → after — minute 40× → 2×, hour 24× → 2×, day 24× → 24×.
+// Both short windows collapsed to 2× and only the day held. Signup still binds,
+// because a farm needs an account per pet and is bounded by its daily yield
+// rather than by its best minute, and it binds at the SAME 360 pets a day the old
+// 15/hr yielded over 24 hours. But there is now 2× of short-window headroom here,
+// not 24×, and a burst argument that leans on this paragraph has to use that.
 //
 // The per-user ceiling does not move and is where the reasoning stays: 10/min is
 // headroom for RETRIES of a form that takes minutes to type (a limit that punishes

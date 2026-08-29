@@ -107,14 +107,40 @@
 //      written out here for the same reason: it is the kind of sentence that
 //      makes a number look safer than it is when it is left unsaid.
 //
-// WHAT IS DELIBERATELY NOT IN THIS FILE
+// WHAT IS DELIBERATELY NOT IN THIS FILE — AND WHERE IT WENT (2026-08-29)
 // ---------------------------------------------------------------------------
-// `auth_signup_ip` (3/min + 15/hr, spent in `signup.ts`) has the same shape and
+// `auth_signup_ip` (3/min + 15/hr, spent in `signup.ts`) had the same shape and
 // the same live-app exposure — fifteen new accounts an hour for an entire
-// carrier gateway — and it is NOT changed here. It has no per-account anchor to
-// derive against, so it needs an argument of its own rather than this one
-// copied, and signup is the more abuse-attractive of the two doors. It is named
-// here so the gap reads as a decision and not as an oversight.
+// carrier gateway — and was NOT changed here. It has no per-account anchor to
+// derive against, so it needed an argument of its own rather than this one
+// copied, and signup is the more abuse-attractive of the two doors. It was named
+// here so the gap read as a decision and not as an oversight.
+//
+// IT HAS THAT ARGUMENT NOW: `signup-limits.ts`, and the prediction above held —
+// nothing in this file transferred. Having no per-identity anchor turned out not
+// to be a missing number but a different SHAPE: a per-email counter on signup
+// reads 1 for a citizen and 1 for a farm, because signup is what creates the
+// identity, so no per-IP rate can separate the two populations at all. What
+// separates them is duration, so that bucket is now a wide burst allowance under
+// a DAY ceiling — the first one on any auth bucket keyed on an ADDRESS — set at
+// exactly what the old 15/hr already yielded over 24 hours.
+//
+// "KEYED ON AN ADDRESS" IS THE SCOPE AND IT IS NARROWER THAN THE FIRST DRAFT'S.
+// That sentence read "the one window this repo's auth limiters did not use",
+// which is false: `REVOKE_SESSIONS_USER_LIMIT`
+// (`src/modules/auth/application/revoke-sessions.ts`) is 5/min · 20/hr · 40/day
+// and sits in this same module. It is keyed on a USER id, so it is not a
+// precedent for what signup needed — a day ceiling anchored on a person is the
+// ordinary case, and having no person to anchor on is signup's whole problem —
+// but it IS a day window on an `auth_*` bucket, and the absolute walked past it.
+// The checkable version of the claim: `rg maxPerDay src/modules/auth/` finds two
+// definitions, `REVOKE_SESSIONS_USER_LIMIT`'s and `SIGNUP_IP_LIMIT`'s, and the
+// rest of the hits are prose. Recount it rather than quoting this line.
+//
+// The sentence to carry away for THIS file: the twelve above is not a house
+// constant, it is what "simultaneous legitimate callers" is worth when a
+// per-identity anchor exists to multiply. Where none does, the multiple is not
+// the thing to reach for.
 //
 // WHAT WOULD RE-DERIVE ANY OF IT: real telemetry. Both numbers below are
 // reasoning about a product whose login volume nobody has measured. The first

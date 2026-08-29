@@ -416,9 +416,33 @@ well-formed but invalid token is more `auth.getUser()` round-trips from one
 address, the cost §1.6 already states for the read family at 600. One exception is
 named because its docblock claimed a second job: `api_v1_pets_register_ip` was
 said to bound “a scripted farm running from one host”. The binding constraint on
-that farm is `auth_signup_ip` (3/min · 15/hr, deliberately unchanged) — fifteen
-accounts an hour is fifteen pets an hour whether this endpoint allows 120/hr or
-360/hr.
+that farm is `auth_signup_ip`, upstream and far tighter, whether this endpoint
+allows 120/hr or 360/hr.
+
+> **The multiple moved a window down on 2026-08-29, and the conclusion did not.**
+> This paragraph read “3/min · 15/hr, deliberately unchanged — fifteen accounts an
+> hour is fifteen pets an hour … eight times tighter”, an *hourly* comparison,
+> which was the only kind available while every auth bucket had only short
+> windows. `signup-limits.ts` re-derived that bucket into a burst allowance under
+> a per-**day** ceiling, because a pet farm is bounded by its yield and not by its
+> best hour. Signup now allows 360 accounts per address per day; this endpoint has
+> no daily bound (360/hr = 8,640/day).
+>
+> **Said completely, because only one window improved.** Signup measured against
+> `api_v1_pets_register_ip`, before → after:
+>
+> | window | before | after |
+> |---|---|---|
+> | per minute | 3 vs 120 — 40× tighter | 60 vs 120 — **2×** |
+> | per hour | 15 vs 360 — 24× tighter | 180 vs 360 — **2×** |
+> | per day | 360 vs 8,640 — 24× tighter | 360 vs 8,640 — **24×** |
+>
+> Both short windows collapsed to 2×; only the day held at 24×. Quoting “24×
+> instead of 8×” and stopping would pick the one window that improved. The
+> conclusion survives on the ground it always stood on — a farm needs an account
+> per pet and is bounded by its daily yield — and signup binds it at the *same*
+> 360 pets a day the old 15/hr already yielded over 24 hours. Short-window
+> headroom, however, is now 2× and not 24×.
 
 **The family `pre-cgnat` is now `route-local`, and it is empty.** It meant
 “knowingly left on the pre-B13 ceiling”; nothing is, so the name described an

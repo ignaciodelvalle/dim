@@ -35,6 +35,7 @@ import { MIN_PASSWORD_LENGTH } from "@dim/contract/input";
 import { RateLimitError, enforceRateLimit } from "@/lib/infra/rate-limit";
 
 import { type SignupAuthPort, toAuthSessionV1 } from "./gotrue-port";
+import { SIGNUP_IP_LIMIT } from "./signup-limits";
 
 /**
  * Plain-data input. `callerIp` is resolved by the caller from the request
@@ -101,13 +102,38 @@ export async function signup(input: SignupInput, deps: SignupDeps): Promise<Sign
     );
   }
 
-  // Rate limit per trusted edge IP before creating a GoTrue user. Tighter than
-  // login: signup is never a high-frequency legitimate action, so a low ceiling
-  // caps both account-spam and the enumeration oracle (audit 28-#3) cost.
-  // Keyed off the caller-resolved edge IP (x-real-ip / last XFF hop, not the
-  // spoofable first segment). A non-RateLimitError propagates → fail closed.
+  // Rate limit per trusted edge IP before creating a GoTrue user. Keyed off the
+  // caller-resolved edge IP (x-real-ip / last XFF hop, not the spoofable first
+  // segment). A non-RateLimitError propagates → fail closed.
+  //
+  // THE CEILING IS NO LONGER A LITERAL HERE, and the paragraph that used to
+  // justify one is gone with it. It read "Tighter than login: signup is never a
+  // high-frequency legitimate action, so a low ceiling caps both account-spam and
+  // the enumeration oracle (audit 28-#3) cost" — a good instinct sized for a
+  // browser, which refused the sixteenth citizen behind a carrier gateway once the
+  // app shipped.
+  //
+  // IT NAMED TWO THINGS AND THE SECOND ONE IS PAID FOR SOMEWHERE. That sentence
+  // was the only place in the repo linking this ceiling to the enumeration oracle
+  // below, so deleting it would have retired the analysis along with the number.
+  // The oracle is still open on the session-presence channel (see the masquerade
+  // further down, and `enable_confirmations=false`), this bucket is the only thing
+  // metering it, and raising the two SHORT windows (3/min · 15/hr → 60/min ·
+  // 180/hr) lets one address test a list of citizens' addresses 240× faster —
+  // 180 of them in three minutes where it took twelve hours — for the same
+  // unchanged daily total of 360. That is
+  // priced as cost 6 in `signup-limits.ts`, with the table, the squatting side
+  // effect, and why the fix is a PO decision and not a smaller number here.
+  //
+  // This is the ONLY bucket this act has: signup CREATES the identity, so unlike
+  // login and password-recovery there is no per-email anchor standing behind the
+  // per-IP one (a per-email counter reads 1 for a citizen and 1 for a farm
+  // alike). That is why the derivation is its own file rather than a copy of a
+  // sibling's, and why it is shaped as a burst allowance with a DAY ceiling
+  // instead of a single window. See `signup-limits.ts` — including what the
+  // change costs and the three instruments it deliberately does not reach for.
   try {
-    await enforceRateLimit("auth_signup_ip", input.callerIp, { maxPerMinute: 3, maxPerHour: 15 });
+    await enforceRateLimit("auth_signup_ip", input.callerIp, SIGNUP_IP_LIMIT);
   } catch (err) {
     if (err instanceof RateLimitError) {
       return refuse("rate_limited", "Demasiados intentos. Esperá un momento y volvé a probar.");
