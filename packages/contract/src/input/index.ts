@@ -150,6 +150,14 @@ export {
   transferCommandInputSchema,
 } from "./transfer.ts";
 export {
+  APPOINTMENT_COMMAND_INPUT_CODES,
+  type AppointmentCommand,
+  type AppointmentCommandInput,
+  type AppointmentCommandInputCode,
+  appointmentCommandInputSchema,
+  firstAppointmentCommandInputCode,
+} from "./appointment.ts";
+export {
   CARETAKER_COMMAND_INPUT_CODES,
   CARETAKER_INVITATION_EXPIRY_DAYS,
   CARETAKER_MAX_DURATION_DAYS,
