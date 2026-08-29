@@ -41,7 +41,7 @@ import { readFileSync, readdirSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { createClient } from "@supabase/supabase-js";
 import { and, eq, inArray, sql } from "drizzle-orm";
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 
 import {
   db,
@@ -118,6 +118,30 @@ const ORG_TOKEN = "ORG-PO4S-PONS";
 
 const admin = createClient(SUPABASE_URL, SECRET, { auth: { persistSession: false } });
 
+// The ONLY mock in this real-DB file, and it is deliberately surgical: the admin
+// microchip-replacement server action opens with `requireAdminOrRedirect()`,
+// which needs a request scope vitest does not have. Everything the action then
+// does — resolving the pet, reading the canonical identifiers, refusing — runs
+// against the real Postgres and the real post-erasure fixtures, so the guard
+// under test is never the mocked half. `importOriginal` keeps every other export
+// real: nothing else in this file's graph may change behaviour because of it.
+const adminActor = vi.hoisted(() => ({ id: "" }));
+vi.mock("@/lib/infra/auth-guards", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/infra/auth-guards")>();
+  return {
+    ...actual,
+    requireAdminOrRedirect: async () => ({
+      user: { id: adminActor.id },
+      profile: {
+        id: adminActor.id,
+        role: "admin",
+        accountType: "personal",
+        deactivatedAt: null,
+      },
+    }),
+  };
+});
+
 let erasedUserId: string;
 let keeperUserId: string;
 let sponsorUserId: string;
@@ -188,6 +212,10 @@ beforeAll(async () => {
 
   erasedUserId = await ensureUser(ERASED_EMAIL);
   keeperUserId = await ensureUser(KEEPER_EMAIL);
+  // The actor the mocked admin guard hands the microchip action. It must be a
+  // LIVE auth user because the action's success path writes an event authored by
+  // it; the erased subject would be the wrong choice for exactly that reason.
+  adminActor.id = keeperUserId;
 
   // The erasure RPC is not idempotent across runs from the test's point of
   // view (it soft-deletes the profile), so reset the subject to a live state.
@@ -1018,6 +1046,43 @@ describe("erase releases the microchip so a finder can re-register (reunificatio
   });
 });
 
+describe("admin microchip door — an erased pet reads as never-existed (token-addressed write)", () => {
+  // The WRITE half of the state-operator token door (see the sweep at the bottom
+  // of this file for the whole map). `replaceMicrochipAdminAction` is reachable
+  // with a pet token and an admin session and NOTHING else: no welfare report,
+  // no case, no observation mediates it. Before the art. 16 term it resolved the
+  // erased pet and refused one gate later, with the WRONG sentence — "Esta
+  // mascota no tiene microchip registrado.", produced by the chip release the
+  // erasure itself performs. That is a refusal borrowed from another invariant:
+  // it tells the caller the pet EXISTS and merely lacks a chip. Art. 16 says
+  // deleted must be indistinguishable from never-existed, so the refusal has to
+  // come from resolution.
+  //
+  // The page twin (`.../reemplazar/page.tsx`) got the same term in the same
+  // change but is a server component with no plain-argument entry point; it is
+  // pinned STATICALLY only, by the sweep below. Said, not hidden.
+  const importAction = async () =>
+    (await import("@/app/admin/observaciones/[publicToken]/microchip/reemplazar/action"))
+      .replaceMicrochipAdminAction;
+
+  it("refuses the erased pet with the never-existed copy", async () => {
+    const replaceMicrochipAdminAction = await importAction();
+    const result = await replaceMicrochipAdminAction(TOKEN_ERASED, { error: null }, new FormData());
+    expect(result).toEqual({ error: "Mascota no encontrada." });
+  });
+
+  it("non-vacuity: the live pet passes resolution and fails on the NEXT gate instead", async () => {
+    // The moved pet was never erased and still carries CHIP_MOVED as its active
+    // canonical chip (pinned by the reunification unit above), so it clears BOTH
+    // resolution and the has-a-chip gate and dies on reason validation. That is
+    // what makes the assertion above about the FILTER and not about the action
+    // refusing everything.
+    const replaceMicrochipAdminAction = await importAction();
+    const result = await replaceMicrochipAdminAction(TOKEN_MOVED, { error: null }, new FormData());
+    expect(result).toEqual({ error: "Motivo inválido." });
+  });
+});
+
 // ---------------------------------------------------------------------------
 // Static sweep — A RULE, NOT A LIST.
 //
@@ -1691,6 +1756,234 @@ describe("every write-side/API read of `pets` carries the soft-delete filter (ar
 
   it("carries no stale or drifted pin — a pin describes exactly what was reviewed", () => {
     for (const [rel, pin] of Object.entries(WRITE_API_OUT_OF_CLASS)) {
+      const reader = readers.find((r) => r.rel === rel);
+      expect(reader, `${rel} no longer reads pets — delete its pin`).toBeDefined();
+      expect(
+        { reads: reader?.reads, guards: reader?.guards },
+        `${rel} changed shape — re-review the file and re-pin`,
+      ).toEqual({ reads: pin.reads, guards: pin.guards });
+      // A pin is only for an under-guarded shape; a fully guarded file needs none.
+      expect(pin.guards).toBeLessThan(pin.reads);
+    }
+  });
+});
+
+// ---------------------------------------------------------------------------
+// STATE-OPERATOR TOKEN-DOOR SWEEP (twelfth art. 16 family, 2026-08-29).
+//
+// The four sweeps above cover public reachability, app/org, app/(app) and
+// app/actions+app/api. They left app/gob and app/admin uncovered, and in those
+// two trees `deleted_at` / `deletedAt` appeared ZERO times. The obvious move —
+// a fifth `guards >= reads` sweep over both trees — is the WRONG one, and this
+// header is the measurement that says why.
+//
+// THE LINE THE REPO ALREADY DREW, and it is not "the state sees everything".
+// lib/infra/gob-pet-subview.ts holds TWO loaders that build the SAME projection
+// for the SAME roles (admin + govt) and filter OPPOSITELY:
+//
+//   • loadGobPetSubView   — reachable ONLY through an in-jurisdiction welfare
+//     report or case naming this pet (and, for govt, only while that record is
+//     non-terminal). Reads `pets` with NO soft-delete term, on purpose.
+//   • loadOperatorPetSubView — reachable by JURISDICTION ALONE, addressed by the
+//     pet's own token, no linking record required. Carries isNull(pets.deletedAt).
+//
+// Same official, same screen, different door. So the carve-out is NEXUS, not
+// ROLE: a state record about this animal is what survives the citizen's erasure,
+// because the state's case does not belong to the citizen. 455a905b4 said the
+// same thing from the other side when it closed the org portal — "el carve-out
+// de nexo de bienestar es del inspector ESTATAL (loadGobPetSubView), no de un
+// org civil". An inspector working an open maltrato file must not be blinded by
+// the abuser deleting their account; an operator who merely pasted a token has
+// no such claim.
+//
+// THE MEASUREMENT (run over this tree, not inherited). The PETS_READ regex above
+// finds ELEVEN direct `pets` readers under app/gob + app/admin, every one of
+// them reads=1 guards=0. Verdict per file, by the nexus rule:
+//
+//   NEXUS — reached THROUGH a state record's foreign key. Carve-out, unfiltered:
+//     app/gob/maltrato/[id]/page.tsx        report.subjectPetId → token, to
+//                                           pre-fill the decomiso form. This is
+//                                           loadGobPetSubView's own shape.
+//     app/gob/moderacion/[id]/page.tsx      report.subjectPetId → token (link).
+//     app/admin/moderacion/[id]/page.tsx    its admin twin.
+//     app/gob/decomisos/page.tsx            from(cases).leftJoin(pets): the
+//                                           custody_episode IS the seizure the
+//                                           inspector performed.
+//     app/admin/observaciones/[publicToken]/page.tsx
+//                                           token-addressed BUT gated on
+//                                           isObservationOpen → notFound; an OPEN
+//                                           rabies observation (ENO) is a public-
+//                                           health nexus, and the open-only gate
+//                                           is the stricter form of
+//                                           loadGobPetSubView's LOW-2 expiry rule.
+//                                           PINNED below — this sweep does see it,
+//                                           so it needs a reason on the record
+//                                           rather than silence.
+//
+//   AMBIGUOUS — left OUT, with the reason, because closing them is a product
+//   decision this unit does not own:
+//     app/gob/disputas/DisputasScreen.tsx
+//     app/gob/disputas/[disputeToken]/page.tsx
+//                                           from(custodyDisputes).innerJoin(pets),
+//                                           rendering pet.name. A custody dispute
+//                                           is a state adjudication, but the join
+//                                           is INNER: filtering would delete the
+//                                           dispute ROW from the operator queue,
+//                                           not merely darken a name. The org
+//                                           sweep's precedent is the opposite
+//                                           shape ("el CASO sigue listado; el
+//                                           nombre se apaga via left join
+//                                           filtrado"), and turning an inner join
+//                                           into a filtered left join on a state
+//                                           case queue changes what an
+//                                           adjudicator sees. Handed back.
+//     app/admin/outbox/page.tsx             petEvents innerJoin pets → token, for
+//                                           the "Evento origen" column.
+//     app/admin/outbox/[id]/page.tsx        the same resolution, and it reads the
+//                                           NAME. Both are platform DELIVERY ops,
+//                                           whose nearest decided sibling is the
+//                                           PINNED out-of-class cron in
+//                                           WRITE_API_OUT_OF_CLASS — a pipeline
+//                                           surface, not a per-pet one. Unlike
+//                                           that cron it does have a human viewer,
+//                                           so it is not obviously out of class
+//                                           either. Both reads are SEPARATE
+//                                           queries, so a filter would leave the
+//                                           outbox row intact and only drop the
+//                                           pet link — cheap to do, but "should a
+//                                           breach-triage operator see which pet's
+//                                           notification failed" is a product
+//                                           question. Handed back.
+//
+//   LEAK — token-addressed with NO state record behind it. FIXED in this unit:
+//     app/admin/observaciones/[publicToken]/microchip/reemplazar/page.tsx
+//     app/admin/observaciones/[publicToken]/microchip/reemplazar/action.ts
+//                                           requireAdminOrRedirect and a token;
+//                                           nothing re-checks the observation the
+//                                           parent segment gates on. The page put
+//                                           the erased pet's NAME in the crumb and
+//                                           the heading; the action is hand-
+//                                           POSTable. Exactly
+//                                           loadOperatorPetSubView's door, which
+//                                           the repo already filters.
+//
+// WHY THE BROAD SWEEP IS NOT SEEDED. After the two fixes, a `guards >= reads`
+// rule over app/gob + app/admin would need NINE exceptions on ELEVEN readers.
+// 6d47f0479 already made this exact call for app/org before its leaks were
+// closed ("Una fence con esa lista silencia el drift en vez de detectarla"), and
+// a fence that pins nine of eleven is a list wearing a rule's clothes. The
+// measurement above is the deliverable instead; it lives here so the next unit
+// starts from a number rather than from a re-count.
+//
+// WHAT IS SEEDED is the narrow rule the repo's own code already justifies: under
+// app/gob + app/admin, a file whose ROUTE addresses the pet by its OWN token
+// ([publicToken] / [token]) must carry the soft-delete term, because no state
+// record mediates that access. Three readers today, ONE pin, and it catches the
+// next token-addressed operator route somebody adds.
+//
+// WHAT THIS SWEEP CANNOT SEE, stated rather than left to be rediscovered:
+//   • It is a PATH rule. A token-addressed door outside app/gob and app/admin is
+//     invisible here — loadGobPetSubView itself is token-addressed and unguarded
+//     in lib/infra/, and is out of scope on purpose (its nexus arrives AFTER the
+//     read, which no path rule can express).
+//   • It says nothing about the eight record-mediated readers above. Their
+//     verdicts are prose in this header, not assertions.
+//   • Same counting blind spots as every sweep above: it counts, it does not
+//     parse; static reads only; RLS is the other half.
+// ---------------------------------------------------------------------------
+
+type OperatorNexusPin = { reads: number; guards: number; nexus: string };
+
+/**
+ * NEXUS pins — token-addressed operator doors whose unguarded `pets` read is the
+ * deliberate state carve-out, verified by reading the file. Counts are pinned
+ * EXACTLY: add a read (or a guard) and the shape changes, failing this sweep
+ * until a human re-reads the file and re-pins it.
+ */
+const OPERATOR_TOKEN_DOOR_NEXUS: Record<string, OperatorNexusPin> = {
+  "app/admin/observaciones/[publicToken]/page.tsx": {
+    reads: 1,
+    guards: 0,
+    nexus:
+      "Rabies-observation detail. The route 404s unless isObservationOpen(pet.rabiesObservationStatus) — an OPEN ENO public-health record is the nexus, and it is the stricter form of loadGobPetSubView's LOW-2 rule (access dies with the record, not with the account). A bite victim's 10-day observation cannot be closed by the biter deleting their MiMAR account. govt callers are additionally jurisdiction-scoped; admin is universal, as everywhere else on this tree.",
+  },
+};
+
+const OPERATOR_SWEEP_ROOTS = ["app/gob", "app/admin"] as const;
+
+/**
+ * The pet's OWN token as a route segment. Deliberately exact: `[disputeToken]`
+ * addresses the DISPUTE and `[orgToken]` the ORG — in both, the pet arrives
+ * through that record, which is the nexus this rule exists to respect. A looser
+ * pattern would swallow the custody-dispute queue and turn this fence into the
+ * broad sweep the header refuses to seed.
+ */
+const TOKEN_ADDRESSED_SEGMENT = /\[(?:publicToken|token)\]/;
+
+function scanOperatorTokenDoorPetsReaders(): PetsReader[] {
+  const out: PetsReader[] = [];
+  for (const rootRel of OPERATOR_SWEEP_ROOTS) {
+    const root = resolve(ROOT, rootRel);
+    for (const entry of readdirSync(root, { withFileTypes: true, recursive: true })) {
+      if (!entry.isFile()) continue;
+      if (!entry.name.endsWith(".ts") && !entry.name.endsWith(".tsx")) continue;
+      if (entry.name.includes(".test.")) continue;
+      const full = join(entry.parentPath, entry.name);
+      const rel = full.slice(`${ROOT}`.length + 1).replaceAll("\\", "/");
+      if (!TOKEN_ADDRESSED_SEGMENT.test(rel)) continue;
+      const { reads, guards } = countPetsAccess(readFileSync(full, "utf8"));
+      if (reads === 0) continue;
+      out.push({ rel, reads, guards });
+    }
+  }
+  return out.sort((a, b) => a.rel.localeCompare(b.rel));
+}
+
+describe("every token-addressed operator read of `pets` carries the soft-delete filter (art. 16)", () => {
+  const readers = scanOperatorTokenDoorPetsReaders();
+  const violations = readers.filter((r) => r.guards < r.reads);
+
+  it("the token-door predicate names the pet's OWN token, not any token-shaped segment", () => {
+    // The scoping predicate IS the rule here, so it is pinned before the sweep
+    // that rests on it. Widen it and the eight record-mediated readers the header
+    // triages flood in; narrow it to nothing and the sweep goes vacuously green.
+    expect(TOKEN_ADDRESSED_SEGMENT.test("app/admin/observaciones/[publicToken]/page.tsx")).toBe(
+      true,
+    );
+    expect(TOKEN_ADDRESSED_SEGMENT.test("app/gob/mascotas/[token]/page.tsx")).toBe(true);
+    // A dispute token addresses the DISPUTE; the pet arrives through it (nexus).
+    expect(TOKEN_ADDRESSED_SEGMENT.test("app/gob/disputas/[disputeToken]/page.tsx")).toBe(false);
+    expect(TOKEN_ADDRESSED_SEGMENT.test("app/org/[orgToken]/mascotas/page.tsx")).toBe(false);
+    // A numeric record id is not a pet token either.
+    expect(TOKEN_ADDRESSED_SEGMENT.test("app/gob/maltrato/[id]/page.tsx")).toBe(false);
+  });
+
+  it("actually reaches the operator token doors it claims to check", () => {
+    const rels = readers.map((r) => r.rel);
+    // Three readers today; the floor tolerates one being deleted and still fails
+    // a walk that silently returns nothing.
+    expect(readers.length).toBeGreaterThanOrEqual(2);
+    expect(rels).toContain("app/admin/observaciones/[publicToken]/page.tsx");
+    expect(rels).toContain("app/admin/observaciones/[publicToken]/microchip/reemplazar/page.tsx");
+    expect(rels).toContain("app/admin/observaciones/[publicToken]/microchip/reemplazar/action.ts");
+    // And it must NOT have swallowed the record-mediated half — those eight are
+    // triaged in the header, not policed by this rule. Seeing one here means the
+    // scoping predicate stopped scoping.
+    expect(rels).not.toContain("app/gob/decomisos/page.tsx");
+    expect(rels).not.toContain("app/gob/disputas/DisputasScreen.tsx");
+    expect(rels).not.toContain("app/admin/outbox/page.tsx");
+  });
+
+  it("has no under-guarded file outside the pinned nexus shapes", () => {
+    const unexplained = violations.filter((r) => {
+      const pin = OPERATOR_TOKEN_DOOR_NEXUS[r.rel];
+      return !pin || pin.reads !== r.reads || pin.guards !== r.guards;
+    });
+    expect(unexplained).toEqual([]);
+  });
+
+  it("carries no stale or drifted pin — a pin describes exactly what was reviewed", () => {
+    for (const [rel, pin] of Object.entries(OPERATOR_TOKEN_DOOR_NEXUS)) {
       const reader = readers.find((r) => r.rel === rel);
       expect(reader, `${rel} no longer reads pets — delete its pin`).toBeDefined();
       expect(
