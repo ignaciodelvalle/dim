@@ -15,14 +15,15 @@ name: Panorama QA nightly (local stack)
 # Cron is UTC: 06:30 UTC = 03:30 in Argentina (UTC-3, no DST) — offset from
 # e2e-nightly's 06:00 so the two never compete for attention on a red morning.
 #
-# TWO THINGS THIS FILE NEEDS THAT ARE NOT IN THIS FILE
+# ONE THING THIS FILE NEEDS THAT IS NOT IN THIS FILE
 # ---------------------------------------------------------------------------
-# 1. IT MUST BE MERGED TO `main`. A `schedule:` trigger is read ONLY from the
-#    repository's default branch. A scheduled workflow living on an integration
-#    branch has no schedule at all — it is not late, it does not exist. Verified
-#    2026-08-27: this workflow has run ZERO times because it has never reached
-#    `main`. No `ref:` can fix that; only a merge can. `pnpm lint:sched-refs`
-#    fails once this line goes stale.
+# (1) IS DONE — 2026-08-28. This workflow needed to reach `main`, because a
+#    `schedule:` trigger is read ONLY from the repository's default branch: a
+#    scheduled workflow living on an integration branch has no schedule at all —
+#    it is not late, it does not exist. It had run ZERO times for exactly that
+#    reason. `main` was then moved to the integration tip (`a3ec504c5`), which is
+#    the only thing that could fix it; no `ref:` could. Its first scheduled run
+#    is the confirmation, not this comment.
 # 2. IT MUST NOT CHECK OUT `main`. Every job here builds and serves THE CHECKED-
 #    OUT TREE (`pnpm db:bootstrap`, `pnpm build`, `pnpm start`) and then reports
 #    on it, so the checkout is the entire subject of the report. Measured
@@ -251,11 +252,14 @@ jobs:
   # it. A report-only job that produces no report is exactly as silent as a gate
   # that never runs.
   #
-  # And this workflow has never run once: `gh run list --workflow
-  # panorama-qa-nightly.yml` answers `HTTP 404: workflow not found on the default
-  # branch` (measured 2026-08-28). So its first run on `main` has no green to
-  # transition from, and GitHub's transition email — the only alerting this file
-  # had — would not fire on it. The streak alert does.
+  # And this workflow had never run once: `gh run list --workflow
+  # panorama-qa-nightly.yml` answered `HTTP 404: workflow not found on the
+  # default branch` (measured 2026-08-28, hours before `main` was moved to the
+  # integration tip). So its first run has NO GREEN TO TRANSITION FROM, and
+  # GitHub's transition email — the only alerting this file had — will not fire
+  # on it. The streak alert does. That is not a historical note: the very first
+  # scheduled run this file ever gets is the one the transition email cannot
+  # report, so the alert below is load-bearing precisely now.
   # ---------------------------------------------------------------------------
   alert:
     name: Alert on a red streak

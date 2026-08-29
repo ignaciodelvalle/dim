@@ -9,14 +9,15 @@ name: Mobile export nightly (Metro bundle)
 # alongside them — three jobs racing for runners at the same minute makes a slow
 # night look like a broken one.
 #
-# TWO THINGS THIS FILE NEEDS THAT ARE NOT IN THIS FILE
+# ONE THING THIS FILE NEEDS THAT IS NOT IN THIS FILE
 # ---------------------------------------------------------------------------
-# 1. IT MUST BE MERGED TO `main`. A `schedule:` trigger is read ONLY from the
-#    repository's default branch. A scheduled workflow that lives on a feature or
-#    integration branch has no schedule at all — it is not late, it does not
-#    exist. Verified 2026-08-27: this workflow was written on 2026-08-27 and has
-#    run ZERO times, because it has never reached `main`. No `ref:` can fix that;
-#    only a merge can. `pnpm lint:sched-refs` fails until this line is stale.
+# (1) IS DONE — 2026-08-28. This workflow needed to reach `main`, because a
+#    `schedule:` trigger is read ONLY from the repository's default branch: a
+#    scheduled workflow living on a feature or integration branch has no schedule
+#    at all — it is not late, it does not exist. Written 2026-08-27, it had run
+#    ZERO times for exactly that reason. `main` was then moved to the integration
+#    tip (`a3ec504c5`), which is the only thing that could fix it; no `ref:`
+#    could. Its first scheduled run is the confirmation, not this comment.
 # 2. IT MUST NOT CHECK OUT `main`. A schedule fires from the default branch AND
 #    checks it out, and staging ships from `integration/all-*` — so once (1) is
 #    done, this job would bundle three-week-old mobile sources unless the

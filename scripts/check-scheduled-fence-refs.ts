@@ -117,21 +117,19 @@ export const REF_EXEMPT: Exemption[] = [
  * workflow absent from the default branch with no entry here also fails, so a
  * newly added nightly cannot quietly join the two below.
  */
-export const NOT_ON_DEFAULT_BRANCH: Exemption[] = [
-  {
-    workflow: "mobile-export-nightly.yml",
-    reason:
-      "Written 2026-08-27; 0 runs. Confirmed by the API itself on 2026-08-28 — `gh run list " +
-      "--workflow mobile-export-nightly.yml` answers `HTTP 404: workflow not found on the default " +
-      "branch`. Merge to main to give it a schedule.",
-  },
-  {
-    workflow: "panorama-qa-nightly.yml",
-    reason:
-      "0 runs; same `HTTP 404: workflow not found on the default branch` from `gh run list` on " +
-      "2026-08-28. Merge to main to give it a schedule.",
-  },
-];
+// EMPTY since 2026-08-28, and that emptiness is the point.
+//
+// Both entries — mobile-export-nightly.yml and panorama-qa-nightly.yml — were
+// cleared the only way an entry here can be cleared: `main` was moved to the
+// integration tip (`a3ec504c5`), so the two files reached the default branch and
+// their schedules became real. The fence caught its own staleness within minutes
+// of that push, in the reverse direction it was built to check, and named both
+// files. That reverse check earned its keep on the first occasion it had.
+//
+// Adding an entry here is not a way to silence a red. It asserts that a
+// scheduled workflow is ABSENT from `${DEFAULT_BRANCH}` — a claim the fence
+// verifies against the default branch and fails if untrue.
+export const NOT_ON_DEFAULT_BRANCH: Exemption[] = [];
 
 /**
  * Scheduled workflows that deliberately ship WITHOUT `red-streak-alert`.
