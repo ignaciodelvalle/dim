@@ -1,7 +1,20 @@
 // The in-app route to account deletion — the one Google Play will not ship the
 // app without.
 //
-// WHY IT IS A COMPONENT AND NOT SIX LINES INSIDE `app/ajustes.tsx`
+// IT IS NO LONGER A LINK TO A BROWSER (WU-R, 2026-08-29)
+// ---------------------------------------------------------------------------
+// This card used to open `ACCOUNT_DELETION_URL` and its docblock spent four
+// paragraphs explaining the two costs of that: the person re-authenticates in a
+// signed-out tab, and this app cannot know the deletion happened, so the card
+// had to ASK them to close the session here afterwards. Both are paid off.
+// `POST /api/v1/me/privacy` is a bearer call, and its 200 is what drops the
+// session — see `eraseAccount` in the session store.
+//
+// So this is now a signpost and not a door out of the app: it says what the
+// supresión is, and it navigates to the screen where the mandatory reason and
+// the destructive confirmation live.
+//
+// WHY IT IS STILL A COMPONENT AND NOT SIX LINES INSIDE `app/ajustes.tsx`
 // ---------------------------------------------------------------------------
 // jest's `roots` is `<rootDir>/src` (jest.config.js, and the comment there
 // explains why the glob cannot be widened safely on Windows), so nothing under
@@ -10,61 +23,49 @@
 // test at all — and its failure mode is silent: a refactor drops the card, the
 // build still compiles, and the next thing that notices is a Play review
 // rejection weeks later. Every other real screen in this app already lives in
-// `src/` for the same reason (CrearCuentaScreen, LostScreen, LibretaScreen);
-// this follows them rather than inventing a shape.
+// `src/` for the same reason (CrearCuentaScreen, LostScreen, LibretaScreen).
 //
-// WHY THE BUTTON IS SECONDARY AND NOT `tone="seal"`
+// WHY THE BUTTON IS SECONDARY AND NOT `tone="seal"` — UNCHANGED, AND NOW WITH A
+// SECOND REASON
 // ---------------------------------------------------------------------------
 // `seal` is this design's destructive tone, and pressing THIS button destroys
-// nothing — it opens a browser. A red button that only navigates teaches people
+// nothing — it opens a screen. A red button that only navigates teaches people
 // that red means "maybe", which is exactly the lesson that gets somebody to tap
-// the real one. The destructive confirmation lives on the web page, where the
-// mandatory reason field and the "Confirmar borrado" button are.
+// the real one. That real one is on `PrivacyScreen`, behind a disclosure step
+// and a motivo of at least five characters, and it IS `seal`.
 //
-// WHY IT DOES NOT SIGN THE USER OUT ON PRESS
-// ---------------------------------------------------------------------------
-// Tapping a link is not a decision to delete. Somebody who opens the page, reads
-// what happens to their pets' records and closes the tab must come back to a
-// working app. The trade is that this app cannot know the deletion happened
-// (see ACCOUNT_DELETION_URL) — so the card SAYS so and asks them to close the
-// session here afterwards, instead of guessing.
+// The second reason is new: the screen this opens is not only the deletion. It
+// is also the art. 14 export, which is not destructive at all, and painting its
+// entrance red would misdescribe half of what is behind it.
 
-import * as Linking from "expo-linking";
-import { StyleSheet, Text, View } from "react-native";
+import { useRouter } from "expo-router";
 
-import { ACCOUNT_DELETION_URL } from "../config/api";
+import { StyleSheet, View } from "react-native";
 import { Body, Card } from "../ui/components";
-import { FONTS } from "../ui/fonts";
 import { SecondaryButton } from "../ui/kit";
-import { COLORS, RADIUS, SPACE, TRACKING, TYPE } from "../ui/theme";
+import { ROUTES } from "../ui/routes";
+import { SPACE } from "../ui/theme";
 
 export function AccountDeletionCard() {
+  const router = useRouter();
+
   return (
-    <Card title="Eliminar mi cuenta">
+    <Card title="Privacidad y datos personales">
       <Body>
-        Podés dar de baja tu cuenta y pedir la supresión de tus datos personales (Ley 25.326, art.
-        16). Tus datos de contacto se anonimizan; los eventos sanitarios de tus mascotas se
-        conservan como historial de salud del animal.
-      </Body>
-      <Body>Por ahora la baja se hace en la web. Abrí este link en el navegador:</Body>
-      {/* Shown in full and `selectable`, same as identidad-pendiente: somebody
-          whose browser will not open from here can still type it, and a Play
-          reviewer can read the destination before tapping. Mono, like every
-          other machine string in this design. */}
-      <Text selectable style={styles.url}>
-        {ACCOUNT_DELETION_URL}
-      </Text>
-      <Body>
-        Vas a tener que ingresar de nuevo con el mismo email: el navegador no comparte la sesión de
-        esta app.
+        Podés descargar todo lo que guardamos sobre vos (Ley 25.326, art. 14) y dar de baja tu
+        cuenta pidiendo la supresión de tus datos personales (art. 16).
       </Body>
       <Body>
-        Cuando termines, cerrá la sesión acá: esta app no se entera de la baja por su cuenta.
+        Al darte de baja, tus datos de contacto se anonimizan; los eventos sanitarios de tus
+        mascotas se conservan como historial de salud del animal.
       </Body>
       <View style={styles.actions}>
+        {/* `push` and not `replace`: somebody who opens this to read what
+            happens to their pets' records and changes their mind must land back
+            on ajustes with the back gesture, not on the pet list. */}
         <SecondaryButton
-          label="Eliminar mi cuenta en la web"
-          onPress={() => void Linking.openURL(ACCOUNT_DELETION_URL)}
+          label="Ver mis datos o eliminar mi cuenta"
+          onPress={() => router.push(ROUTES.privacidad)}
         />
       </View>
     </Card>
@@ -72,16 +73,5 @@ export function AccountDeletionCard() {
 }
 
 const styles = StyleSheet.create({
-  url: {
-    backgroundColor: COLORS.stripe,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    borderRadius: RADIUS.control,
-    padding: SPACE.md,
-    fontFamily: FONTS.mono,
-    fontSize: TYPE.sm,
-    letterSpacing: TYPE.sm * TRACKING.wide,
-    color: COLORS.accent,
-  },
   actions: { gap: SPACE.sm, marginTop: SPACE.xs },
 });

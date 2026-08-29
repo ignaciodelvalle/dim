@@ -61,6 +61,7 @@ import {
   apiFailureMessage,
 } from "../api/client";
 import {
+  eraseMyAccount,
   fetchMe,
   login,
   requestPasswordReset as requestPasswordResetRequest,
@@ -647,6 +648,53 @@ export async function signOutEverywhere(): Promise<RevokeResult> {
   }
   await clearSession();
   setState({ phase: "signed-out", reason: "revoked_all" });
+  return { ok: true };
+}
+
+export type EraseAccountResult = { ok: true } | { ok: false; message: string };
+
+/**
+ * "Eliminar mi cuenta" — Ley 25.326 art. 16, from the phone.
+ *
+ * IT LIVES HERE AND NOT IN THE SCREEN for the reason `signOutEverywhere` does:
+ * the call and the session teardown are one act, and a screen that made the
+ * request and then remembered to clear the keychain is a screen that will one
+ * day forget. Anything that ends this session ends it in this file.
+ *
+ * THE SUCCESS ARM DROPS THE TOKENS AND NOTHING TRIES TO REFRESH. `auth.users` is
+ * deleted inside the erasure, so the access token in hand is already dead and a
+ * refresh is guaranteed to fail — and its failure would surface as "tu sesión
+ * venció", which reads like a bug instead of like the thing the person just
+ * asked for. Exactly the trap `signOutEverywhere` documents, one step harder:
+ * there is no longer an account for the token to belong to.
+ *
+ * THE REASON IS `account_erased`, which already existed in the vocabulary with
+ * the copy "Esta cuenta ya no existe." — written for the arm where the SERVER
+ * refuses a request from an erased account. It is the same fact and the same
+ * sentence, so the sign-in screen says the true thing whether the person got
+ * here by finishing a supresión or by opening an app whose account was erased
+ * from the web.
+ *
+ * ON FAILURE THE SESSION IS LEFT ALONE. A refused erasure that also signed
+ * somebody out would leave them staring at a login screen with no idea whether
+ * their account still exists — and the honest answer, "it does, try again", is
+ * unavailable from there.
+ */
+export async function eraseAccount(reason: string): Promise<EraseAccountResult> {
+  const result = await eraseMyAccount(sessionPort, { command: "erase_account", reason });
+  if (result.outcome !== "ok") {
+    return {
+      ok: false,
+      message: apiFailureMessage(result) ?? "No pudimos completar la baja.",
+    };
+  }
+  // The device may be shared, and the cached credentials of pets this person no
+  // longer holds must not survive the account that held them. Same call and same
+  // reasoning as `signIn`/`signOut`; best-effort, because a cache that refuses to
+  // clear must not turn a completed supresión into an error message.
+  await forgetAllCachedCredentials().catch(() => undefined);
+  await clearSession();
+  setState({ phase: "signed-out", reason: "account_erased" });
   return { ok: true };
 }
 

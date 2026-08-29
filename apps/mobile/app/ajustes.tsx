@@ -29,6 +29,13 @@
 // the footnote, in escalating order of permanence — end this session, end every
 // session, end the account — so nobody reaches the destructive one by aiming at
 // the mild one.
+//
+// SINCE WU-R IT IS A SIGNPOST AND NOT A DOOR OUT OF THE APP. The card used to
+// open the web page in a browser; it now pushes `/cuenta/privacidad`, which is a
+// native screen carrying BOTH Ley 25.326 rights — the art. 14 export as well as
+// the art. 16 supresión. Its position in the escalating order is unchanged, and
+// so is the reasoning: what sits here is still the entrance to the most
+// permanent thing this screen can do.
 
 import { useRouter } from "expo-router";
 import { useState } from "react";

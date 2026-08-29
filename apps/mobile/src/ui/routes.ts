@@ -49,6 +49,19 @@ export const ROUTES = {
   altaMascota: "/alta",
   ajustes: "/ajustes",
   /**
+   * The Ley 25.326 rights — descargar mis datos (art. 14) and eliminar mi cuenta
+   * (art. 16).
+   *
+   * THE PATH MATCHES THE WEB'S EXACTLY (`/cuenta/privacidad`) and here that is
+   * not the forward-looking deep-link argument `/notificaciones` makes: this
+   * URL is ALREADY in the world. `ACCOUNT_DELETION_URL` has been handing it to
+   * people in a browser since the Play submission and the Data safety form
+   * names it. Choosing `/ajustes/privacidad` — which is where the entry point
+   * actually is — would have meant the one screen a store reviewer is told to
+   * look for lives at a different address in the two clients.
+   */
+  privacidad: "/cuenta/privacidad",
+  /**
    * The transfer hub — THE ONE TOP-LEVEL SCREEN THAT IS NOT ABOUT A PET THIS
    * PERSON HOLDS. Half of what it lists is offers from animals somebody else
    * owns, which is why it sits beside `/mascotas` rather than under it.
