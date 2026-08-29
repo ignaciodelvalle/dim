@@ -3,10 +3,16 @@
 //
 // The same adapter shape as its login sibling: parse with the schema the client
 // already validated against, call the SAME `signup` use-case the web form
-// calls, map the coded result to a status. The per-IP budget (`auth_signup_ip`,
-// 3/min · 15/hr — tighter than login, because signup is never a high-frequency
-// legitimate action) is spent inside the use-case, so this transport shares the
-// form's counter rather than getting its own.
+// calls, map the coded result to a status. The per-IP budget (`auth_signup_ip`)
+// is spent inside the use-case, so this transport shares the form's counter
+// rather than getting its own.
+//
+// THAT BUDGET IS THE ONLY ONE THIS ACT HAS, which is why it is shaped unlike
+// every other ceiling on this surface: signup CREATES the identity, so there is
+// no per-email bucket standing behind the per-IP one the way there is on login.
+// It is a wide burst allowance (60/min · 180/hr, sized for a plaza registration
+// drive) under a per-DAY ceiling (360) that is what a farm actually runs into.
+// Derivation, costs and the options rejected: `signup-limits.ts`.
 //
 // THE 201 THAT MAY CARRY NO SESSION, AND WHY THAT IS THE POINT
 // ---------------------------------------------------------------------------

@@ -43,8 +43,21 @@ Ordered by what a live tester hits first, not by size.
 | 6 | **WU-V** — camera scan + confirm chip + claim | M | |
 | 7 | **WU-T** — citizen abuse reports | M | Attachments blocked on signed uploads. **Not the same thing as reporting content** — this is Ley 14.346, nine types, routed to an authority. |
 | 8 | **WU-P** — rehoming, foster, return, relocation, org memberships | L | Advanced custody cycle. |
-| 9 | `auth_signup_ip` — 15 signups/hour per gateway | S | Breaks a plaza signup drive for citizens **without an account**: twenty new people behind one cell tower, five get locked out. Needs its own derivation — there is no per-account anchor to copy. |
-| 10 | Animated card flip on the native profile | S | The two-faced profile shipped with an instant swap, which is exactly the path the web takes under reduced-motion. The animation (~485ms, one face painted at a time) is the follow-up. |
+| 9 | Animated card flip on the native profile | S | The two-faced profile shipped with an instant swap, which is exactly the path the web takes under reduced-motion. The animation (~485ms, one face painted at a time) is the follow-up. |
+
+**Landed since this snapshot — do not pick it up again.** The row that used to sit
+at #9 was `auth_signup_ip` — 15 signups/hour per gateway, which refused five of
+twenty neighbours at a plaza registration drive. Re-derived on 2026-08-29 into a
+wide burst allowance under a day ceiling (60/min · 180/hr · 360/day, the day
+window being new). The derivation, the costs it accepts — including a UTC-boundary
+straddle that nearly doubles the worst-case rolling-24h yield — and the four
+instruments it considered and rejected are in
+`src/modules/auth/application/signup-limits.ts`.
+
+What it did **not** solve is still open and is still not agent work: signup has no
+per-identity anchor to derive against, and the two instruments that would give it
+one are email confirmation (blocked behind the Resend setup, PO-gated item 4
+below) and phone verification. No arrangement of windows substitutes for either.
 
 Also not done from the phone, each its own slice: correct species, rabies
 appointment, physical tag, printable lost poster, health-record export,
