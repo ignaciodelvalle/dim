@@ -8,6 +8,12 @@ row, check it against the code — the repo's own history is full of boards that
 were confidently wrong. Where a row says "measured", it was verified on the date
 above and nowhere since.
 
+It went stale exactly that way and it cost someone: two rows kept being offered
+after they had already shipped, because the lanes that shipped them updated no
+board. **Every row in the table below was re-checked against `4a87f661f` on
+2026-08-29** — routes, modules and the merge that closed each one. That is the
+only part of this page carrying that date.
+
 ## Where the project is
 
 MiMAR is **published on Google Play, internal testing track**, since 2026-08-27.
@@ -35,35 +41,131 @@ Ordered by what a live tester hits first, not by size.
 
 | # | Work | Size | Notes |
 |---|---|---|---|
-| 1 | **Edit pet identity** (name, breed, colour, markings) + **emergency contacts** + **vet** — native screens | M | The three walls testers hit first. No native module needed. `apps/mobile/app/` is expo-router; there is no edit screen of any kind today. The web serves both; reuse its guards — edit identity is **titular-only** on the web, match that exactly. |
-| 2 | **Pet photo** — native image picker | M | Server side is **done**: signed upload → private bucket → `confirm` re-authorizes, verifies magic bytes, re-encodes, then writes to the public bucket. Only the picker is missing — which needs a native module, so an EAS build. That pipeline cost 6 builds / 5 distinct root causes. **Not a first task.** |
-| 3 | **WU-R** — rest of account: edit profile, ARCO privacy, native account-deletion screen | M | Deletion is reachable today via a link to `/cuenta/privacidad` (satisfies Play policy); the PO wants a native screen. |
-| 4 | **WU-S** — appointments: search, book, my appointments, cancel, check-in QR | L | Not in the web nav either; deep links only. |
-| 5 | **WU-U** — adoption: catalogue, detail, apply, my applications | M | The application flow earns its own rate limit here. |
-| 6 | **WU-V** — camera scan + confirm chip + claim | M | |
-| 7 | **WU-T** — citizen abuse reports | M | Attachments blocked on signed uploads. **Not the same thing as reporting content** — this is Ley 14.346, nine types, routed to an authority. |
-| 8 | **WU-P** — rehoming, foster, return, relocation, org memberships | L | Advanced custody cycle. |
-| 9 | Animated card flip on the native profile | S | The two-faced profile shipped with an instant swap, which is exactly the path the web takes under reduced-motion. The animation (~485ms, one face painted at a time) is the follow-up. |
-
-**Landed since this snapshot — do not pick it up again.** The row that used to sit
-at #9 was `auth_signup_ip` — 15 signups/hour per gateway, which refused five of
-twenty neighbours at a plaza registration drive. Re-derived on 2026-08-29 into a
-wide burst allowance under a day ceiling (60/min · 180/hr · 360/day, the day
-window being new). The derivation, the costs it accepts — including a UTC-boundary
-straddle that nearly doubles the worst-case rolling-24h yield — and the four
-instruments it considered and rejected are in
-`src/modules/auth/application/signup-limits.ts`.
-
-What it did **not** solve is still open and is still not agent work: signup has no
-per-identity anchor to derive against, and the two instruments that would give it
-one are email confirmation (blocked behind the Resend setup, PO-gated item 4
-below) and phone verification. No arrangement of windows substitutes for either.
+| 1 | **Pet photo** — native image picker | M | Server side is **done**: signed upload → private bucket → `confirm` re-authorizes, verifies magic bytes, re-encodes, then writes to the public bucket. Only the picker is missing — which needs a native module, so an EAS build. That pipeline cost 6 builds / 5 distinct root causes. **Not a first task.** |
+| 2 | **WU-R** — rest of account: edit profile, ARCO privacy, native account-deletion screen | M | Deletion is reachable today via a link to `/cuenta/privacidad` (satisfies Play policy); the PO wants a native screen. |
+| 3 | **WU-S** — appointments: search, book, my appointments, cancel, check-in QR | L | Not in the web nav either; deep links only. |
+| 4 | **WU-U** — adoption: catalogue, detail, apply, my applications | M | The application flow earns its own rate limit here. |
+| 5 | **WU-V** — camera scan + confirm chip + claim | M | |
+| 6 | **WU-T** — citizen abuse reports | M | Attachments blocked on signed uploads. **Not the same thing as reporting content** — this is Ley 14.346, nine types, routed to an authority. |
+| 7 | **WU-P** — rehoming, foster, return, relocation, org memberships | L | Advanced custody cycle. |
 
 Also not done from the phone, each its own slice: correct species, rabies
 appointment, physical tag, printable lost poster, health-record export,
 assistance dog (Ley 26.858), attaching a photo to an entry, and five entry types
 (tattoo, microchip replacement, bite, death, post-adoption check-in — the app
 writes 11 of 16). Reminders are read-only rows: no "snooze 7 days", no "record".
+Editing the pet now works, but only for three fields — see the landed block for
+the fourteen columns it left on the web.
+
+## Landed since this snapshot — do not pick it up again
+
+Three rows have come off the table above. Each is written up the same way: what
+was done, what it **decided**, and what it did **not** solve. A row deleted
+without its remainder is how the remainder gets lost — and a row left on the
+table after it landed is how the next agent spends a day rebuilding it. Both
+have happened here.
+
+### `auth_signup_ip` — the plaza registration drive
+
+15 signups/hour per gateway, which refused five of twenty neighbours at a plaza
+registration drive. Re-derived on 2026-08-29 into a wide burst allowance under a
+day ceiling (60/min · 180/hr · 360/day, the day window being new). The
+derivation, the costs it accepts — including a UTC-boundary straddle that nearly
+doubles the worst-case rolling-24h yield — and the four instruments it considered
+and rejected are in `src/modules/auth/application/signup-limits.ts`.
+
+What it did **not** solve is still open and is still not agent work: signup has no
+per-identity anchor to derive against, and the two instruments that would give it
+one are email confirmation (blocked behind the Resend setup, PO-gated item 4
+below) and phone verification. No arrangement of windows substitutes for either.
+
+### Edit pet identity + emergency contacts + vet — landed `ecc835aa4` (lane def-1)
+
+`GET/POST /api/v1/pets/{publicToken}/profile` plus the native
+`app/mascotas/[publicToken]/editar.tsx` screen. "Editar datos" used to be a
+footer that said "Desde la web"; it now edits the animal. Both capabilities
+already existed server-side for the web and neither had a bearer-session entry
+point, so the three walls a tester hit were one wall.
+
+What it **decided**:
+
+- **Two commands behind one endpoint, not one "Guardar".** `edit_identity`
+  mirrors `requireTitularAccess` and appends a bundled `pet_profile_updated` to
+  the spine — the correction is itself an entry. `set_emergency_contacts` is
+  strictly narrower (`ownerships.role = 'owner'` alone), moves four preference
+  columns and appends nothing, because they are a preference of the person and
+  not a fact about the pet. Both rules are copied as negations of the web's own
+  call sites rather than re-derived, and the read reports them as **two
+  booleans** so a client never draws a control the write would refuse. A foster
+  in transit holds the animal and does not see the titular's vet or phone.
+- **`composePetIdentityEdit`** (`src/modules/pets/domain/pet-identity-edit.ts`)
+  exists because `updatePetProfile` writes **seventeen** columns from `parsed`
+  in one unconditional `SET`. A three-field request assembled from itself would
+  have nulled weight, favourite foods, allergies, training level, insurance and
+  permanent conditions, flipped two disclosure booleans off, returned 200, and
+  written an event recording the wipe as if somebody had asked for it.
+- **Species and jurisdiction stay FULL-LOCK** (PO decision #40). There is no
+  request field for either, so the fabricated-species breed bypass closed on
+  2026-08-14 is unreachable here by construction rather than by a check.
+- **No length cap was invented over `pets.name` / `pets.color`.** They are
+  unbounded `text` and the web's only writer never capped them, so longer values
+  already exist; a cap applied on the way back out would have locked an owner
+  out of correcting the COLOUR because the form posts both fields.
+  `resolvePetIdentityLengths` gates only NEW values. The two contact caps (80 /
+  40) are in the schema because they mirror a server cap that already exists.
+
+What it did **not** solve:
+
+- **The screen edits three identity fields — name, breed, colour.** The other
+  fourteen columns `updatePetProfile` writes remain web-only: sex, date of birth
+  and its estimated flag, weight, favourite foods, allergies, training level,
+  insurance company and policy, acquisition method, permanent conditions and
+  their free-text, and the two disclosure booleans.
+- **"Markings" was never a field.** The old row promised it; there is no such
+  column on `pets`, on the phone or on the web. Do not go looking for it.
+- The endpoint sends notifications through `lib/infra/notification-service.ts`
+  rather than the raw insert the neighbouring cookie door still uses. That door
+  is baselined debt and is still there.
+
+### Animated card flip on the native profile — landed `28aa329f7` (lane def-3)
+
+`apps/mobile/src/pets/document-turn.ts` (the choreography as data, no React) and
+`DocumentTurn.tsx` (the driver). The two-faced document had shipped with an
+instant swap; the turn is now the animated path and the instant swap stays a
+first-class path for a reader who asked for less motion, not a fallback.
+
+What it **decided**:
+
+- **87°, not 90°, is a requirement.** This app mounts one face at a time, so a
+  lone face has no backface to hide behind: past 90° the reader would be looking
+  at the front of the credential from behind, mirrored and legible as such. The
+  sheet stops one hair short, swaps behind the edge, and returns from the OTHER
+  edge. `extrapolate: "clamp"` is what makes that true — RN defaults to
+  `"extend"` on both ends, so an off-plan 180 would have rendered as `180deg`.
+- **Core `Animated` with the native driver, never Reanimated** — this repo lost
+  a production build to the worklets runtime, and the screen animates while the
+  other face's fetch is in flight on the JS thread.
+- **Reduced motion is read at turn time, not during render**, and the
+  `reduceMotionChanged` event beats the mount-time read when they disagree: the
+  read answers a question asked before the reader touched anything.
+- The libreta's fetch now starts at the swap (~205ms later than before) so the
+  whole screen changes in the one moment the document turns, instead of in two
+  visible waves.
+
+What it did **not** solve:
+
+- **The six copied numbers have no shared source.** 200 / 205 / 260 / 280 (the
+  durations, which derive the 485 the old row quoted), 87 and 1700 were
+  transcribed by hand from `components/pet-profile/FlipCard.tsx` and
+  `app/globals.css`; `@dim/contract/tokens` carries colour and radius and no
+  motion at all. `document-turn.test.ts` pins all seven values as literals, so
+  the MOBILE side cannot drift silently — but nothing reads the web files, so if
+  the web's FlipCard changes a duration the two simply disagree and every test
+  stays green. Same shape as the two band tints in the debts table below.
+- One test header in `DocumentTurn.test.tsx` had to be corrected rather than
+  the test: React coalesces every state update inside one `act` window into a
+  single commit, so a log of painted faces cannot count how many turns ran. The
+  spy call count is the assertion now; the log is degraded to what it can hold.
 
 ## Declared debts, with an owner
 
@@ -98,6 +200,15 @@ a working copy path (`C:\dim`) and a test count (6511) that no longer exist. Rea
 the tables, ignore the banner. Older initiative docs — the master integrity plan
 (Ola II) and the Ola 1 batch plan — date from July and may or may not still be
 live; ask before picking work from them.
+
+`docs/agents/collaborating-writer.md` — its **"Your first task"** section still
+hands every new writer "let an owner edit their pet's data and their emergency
+contacts", and says "there is no edit screen of any kind". Both stopped being
+true at `ecc835aa4`; see the landed block above. The ten rules on that page are
+current — it is the first-task section, and only that section, that is stale.
+Left in place deliberately: this snapshot's lane does not own that file, and
+a parallel writer may be in it. **Whoever integrates next should retarget that
+section at row 1 of the table above.**
 
 ## Branch topology — changed 2026-08-28
 
