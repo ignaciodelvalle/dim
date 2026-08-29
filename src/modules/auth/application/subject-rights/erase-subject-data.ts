@@ -1,3 +1,4 @@
+import type { SupabaseClient } from "@supabase/supabase-js";
 import { and, eq, inArray, isNotNull, isNull, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 
@@ -8,6 +9,8 @@ import {
   endCaretakerGrantAtomically,
 } from "@/lib/infra/end-pet-ownerships";
 import { createNotification } from "@/lib/infra/notification-service";
+import { type RateLimitConfig, RateLimitError, enforceRateLimit } from "@/lib/infra/rate-limit";
+import { reportError } from "@/lib/infra/report-error";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import { replaceMicrochipForUser } from "@/src/modules/pets/application/microchip/replace-microchip";
@@ -501,13 +504,117 @@ export async function releaseMicrochipsForErasedPets(userId: string): Promise<vo
   }
 }
 
-export async function eraseMySubjectDataAction(reason: string): Promise<EraseSubjectDataResult> {
-  const { user } = await requireUserOrRedirect();
-  if (!reason || reason.trim().length < 5) {
-    return { ok: false, error: "Indicá brevemente el motivo (mínimo 5 caracteres)." };
+/**
+ * ONE bucket for both transports, keyed on the subject.
+ *
+ * Not `api_v1_…`, for the reason `REVOKE_SESSIONS_USER_BUCKET` gives: a name
+ * that says `api_v1` on a call from a web form reads like a different budget,
+ * and the whole point is that it is not one.
+ */
+export const SUBJECT_DATA_ERASURE_USER_BUCKET = "subject_data_erasure_user";
+
+/**
+ * Deliberately not tight, for the reason `REVOKE_SESSIONS_USER_LIMIT` is not:
+ * the control is bounded by construction, since a successful call destroys the
+ * `auth.users` row that the next one would need.
+ *
+ * What it really bounds is the RETRY LOOP. Every step after the RPC is
+ * best-effort — the microchip release, the auth deletion, the Storage purge all
+ * log and continue — so a subject whose erasure half-finished may reasonably
+ * press the button again, and each attempt re-runs a caretaker sweep and a
+ * Storage listing over their pets. Five in a minute covers a person retrying;
+ * anything above it is a loop nobody is watching.
+ *
+ * A DAILY FIGURE for a different reason than the export's: not exfiltration,
+ * but the fact that the second erasure of an already-erased subject does real
+ * work (the sweeps run again) and buys nothing.
+ */
+export const SUBJECT_DATA_ERASURE_USER_LIMIT: RateLimitConfig = {
+  maxPerMinute: 5,
+  maxPerHour: 20,
+  maxPerDay: 40,
+};
+
+/** The two es-AR sentences both surfaces show, so neither invents its own. */
+const REASON_REQUIRED_COPY = "Indicá brevemente el motivo (mínimo 5 caracteres).";
+const RATE_LIMITED_COPY =
+  "Pediste la baja varias veces seguidas. Esperá unos minutos y volvé a intentar.";
+
+export type EraseSubjectDataInput = {
+  /** The subject, resolved by the surface's own guard. Never read from a token. */
+  userId: string;
+  /**
+   * A client already authenticated AS the subject — cookie or bearer. The RPC is
+   * SECURITY DEFINER and authorizes on `auth.uid()`, so this client IS the
+   * authorization; a service-role one would silently bypass it and erase whoever
+   * the caller named.
+   */
+  supabase: SupabaseClient;
+  /** The subject's own words. Minimum five characters, recorded by the RPC. */
+  reason: string;
+};
+
+/**
+ * Run the supresión for an already-resolved subject — every step, in the one
+ * order that works.
+ *
+ * WHAT IS IN HERE AND WHAT IS NOT (WU-R, 2026-08-29)
+ * ---------------------------------------------------------------------------
+ * Everything that touches the subject's DATA is in here, so the native door and
+ * the web button run the SAME six steps rather than two implementations of them.
+ * That is the whole reason this function was carved out of the action: an
+ * erasure has an ordering constraint at every joint — the caretaker sweep must
+ * precede the RPC, the microchip release and the Storage purge must precede the
+ * `auth.users` deletion because they write rows attributed to that uid — and a
+ * second copy of it written against a bearer token would have got one of them
+ * wrong within a month.
+ *
+ * What is NOT in here is the SESSION TEARDOWN, and its absence is deliberate.
+ * The two surfaces end a session differently and neither can do the other's:
+ * the web calls `supabase.auth.signOut()` on a cookie client and revalidates,
+ * while a bearer client's `signOut` is the documented no-op that
+ * `revoke-sessions.ts` measured (auth-js reads the session from STORAGE, and a
+ * `persistSession: false` client never stored one — it would report success and
+ * revoke nothing). The native client drops its own keychain entry instead. So
+ * the caller ends the session; this function ends the account.
+ */
+export async function eraseSubjectDataFor(
+  input: EraseSubjectDataInput,
+): Promise<EraseSubjectDataResult> {
+  const { userId, supabase } = input;
+  const reason = input.reason?.trim() ?? "";
+
+  // VALIDATED BEFORE THE LIMITER IS SPENT, which is the opposite of the usual
+  // order on this project and is right here. Elsewhere the limiter comes first
+  // so a malformed hammer costs nothing downstream; there is no hammer to bound
+  // here, because the only account this call can erase is the caller's own. What
+  // there IS, is somebody typing "no" into a mandatory reason field three times
+  // — and a budget spent on their typos is a budget missing when they finally
+  // write a sentence, on the one action they cannot come back to later.
+  if (reason.length < 5) {
+    return { ok: false, reason: "reason_required", error: REASON_REQUIRED_COPY };
   }
 
-  const supabase = await createClient();
+  try {
+    await enforceRateLimit(
+      SUBJECT_DATA_ERASURE_USER_BUCKET,
+      userId,
+      SUBJECT_DATA_ERASURE_USER_LIMIT,
+    );
+  } catch (err) {
+    if (err instanceof RateLimitError) {
+      return { ok: false, reason: "rate_limited", error: RATE_LIMITED_COPY };
+    }
+    // FAILS OPEN, and this is the opposite direction from the export's limiter
+    // one file over — so it is worth saying why they differ rather than letting
+    // a reader assume one of them is a mistake. The export's strict direction
+    // protects against EXFILTRATION: a limiter outage there would mean an
+    // unbounded PII dump. Nothing leaves here. Refusing on a
+    // `rate_limit_buckets` hiccup would instead deny somebody the exercise of a
+    // legal right over an abuse control, which is the trade `revoke-sessions.ts`
+    // also refuses to make.
+    reportError("subject-rights/erasure-limiter", err);
+  }
 
   // Step 0 — end every live caretaker arrangement through the spine's one
   // writer, BEFORE the RPC soft-deletes the pets and cancels the pending
@@ -519,10 +626,10 @@ export async function eraseMySubjectDataAction(reason: string): Promise<EraseSub
   // rather than abandoning the rest; what reaches here is a failure of the two
   // reads that drive the loops, which leaves nothing half-done.
   try {
-    await endCaretakerArrangementsForErasure(user.id);
+    await endCaretakerArrangementsForErasure(userId);
   } catch (err) {
     console.error("[erase-subject-data] caretaker arrangement close failed", {
-      userId: user.id,
+      userId,
       message: err instanceof Error ? err.message : String(err),
     });
   }
@@ -533,12 +640,12 @@ export async function eraseMySubjectDataAction(reason: string): Promise<EraseSub
   // payloads. Must run BEFORE the auth row is deleted: the RPC authorizes on
   // auth.uid() and the trigger override it emits is attributed to that uid.
   const { error } = await supabase.rpc("erase_subject_data", {
-    p_user_id: user.id,
-    p_reason: reason.trim(),
+    p_user_id: userId,
+    p_reason: reason,
   });
 
   if (error) {
-    return { ok: false, error: error.message };
+    return { ok: false, reason: "failed", error: error.message };
   }
 
   // Step 1.5 — release the microchip of every pet this erasure just suppressed,
@@ -550,10 +657,10 @@ export async function eraseMySubjectDataAction(reason: string): Promise<EraseSub
   // failure here must not leave the subject staring at an error after their
   // profile PII is already gone.
   try {
-    await releaseMicrochipsForErasedPets(user.id);
+    await releaseMicrochipsForErasedPets(userId);
   } catch (err) {
     console.error("[erase-subject-data] microchip release step failed", {
-      userId: user.id,
+      userId,
       message: err instanceof Error ? err.message : String(err),
     });
   }
@@ -567,16 +674,16 @@ export async function eraseMySubjectDataAction(reason: string): Promise<EraseSub
   // leave the subject staring at an error after their data is gone.
   try {
     const admin = createAdminClient();
-    const { error: deleteError } = await admin.auth.admin.deleteUser(user.id);
+    const { error: deleteError } = await admin.auth.admin.deleteUser(userId);
     if (deleteError) {
       console.error("[erase-subject-data] auth.users deletion failed", {
-        userId: user.id,
+        userId,
         message: deleteError.message,
       });
     }
   } catch (err) {
     console.error("[erase-subject-data] auth.users deletion threw", {
-      userId: user.id,
+      userId,
       message: err instanceof Error ? err.message : String(err),
     });
   }
@@ -586,17 +693,39 @@ export async function eraseMySubjectDataAction(reason: string): Promise<EraseSub
   // Best-effort like the auth deletion: a Storage hiccup must not leave the
   // subject staring at an error after their DB data is already gone.
   try {
-    await purgeOwnedPetAttachments(user.id);
+    await purgeOwnedPetAttachments(userId);
   } catch (err) {
     console.error("[erase-subject-data] attachment/storage purge failed", {
-      userId: user.id,
+      userId,
       message: err instanceof Error ? err.message : String(err),
     });
   }
 
+  return { ok: true };
+}
+
+/**
+ * The COOKIE door onto the supresión — the web privacy page's button.
+ *
+ * Everything below the guard is the shared use-case. What is left here is what
+ * only a browser session has: signing the cookie session out, and revalidating
+ * the router cache so the next render is unauthenticated. The native door does
+ * neither — see `eraseSubjectDataFor`'s header for why a bearer client's
+ * `signOut()` would report success and revoke nothing.
+ */
+export async function eraseMySubjectDataAction(reason: string): Promise<EraseSubjectDataResult> {
+  const { user } = await requireUserOrRedirect();
+  const supabase = await createClient();
+
+  const result = await eraseSubjectDataFor({ userId: user.id, supabase, reason });
+  if (!result.ok) return result;
+
   // Drop the session — the profile row is now soft-deleted + PII hashed and the
-  // auth row is gone.
+  // auth row is gone. ONLY on success: a refused erasure (a short reason, a
+  // spent budget) must leave the person signed in and looking at the form they
+  // can still fix, not bounced to a login screen having lost nothing but their
+  // session.
   await supabase.auth.signOut();
   revalidatePath("/");
-  return { ok: true };
+  return result;
 }

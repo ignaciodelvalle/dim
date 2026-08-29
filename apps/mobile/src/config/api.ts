@@ -148,33 +148,45 @@ export const PRIVACY_URL = `${API_BASE_URL}/privacidad`;
  * `app/ajustes.tsx` offered sign-out and revoke-all-sessions and nothing that
  * ended the account.
  *
- * WHY A BROWSER LINK AND NOT A NATIVE FLOW. The same reasoning as
- * IDENTITY_COMPLETION_URL, one step stronger. The deletion is `erase_subject_
- * data`, a Postgres RPC reached through `eraseMySubjectDataAction`
- * (app/(app)/cuenta/privacidad/PrivacyActions.tsx), and there is no
+ * NO LONGER THE PRIMARY PATH (WU-R, 2026-08-29), AND THE ARGUMENT THAT MADE IT
+ * ONE IS RECORDED RATHER THAN DELETED — the same treatment
+ * `PASSWORD_RECOVERY_URL` got when `/recuperar` went native.
+ *
+ * This constant used to carry a case AGAINST a native deletion: "there is no
  * `DELETE /api/v1/me` for a bearer token to call. Building one is real parity
  * work — a destructive, irreversible endpoint needs its own reason string, its
  * own audit action, its own rate limit and its own tests — and shipping a
- * thinner second definition of "delete my account" beside the web's, in a hurry,
- * to satisfy a store checklist, is how the two drift. The web page already does
- * it correctly, including the mandatory reason and the post-erase full-document
- * navigation, so the honest move is to open it.
+ * thinner second definition of 'delete my account' beside the web's, in a hurry,
+ * to satisfy a store checklist, is how the two drift."
  *
- * WHAT THIS ACCEPTS, and the screen says both out loud:
- *   1. THE USER RE-AUTHENTICATES. The web resolves a visitor from a cookie and
- *      this app holds a bearer token, so the browser opens signed out and asks
- *      for the same email and password. Unavoidable while the deletion lives on
- *      a cookie-session page.
- *   2. THE APP CANNOT CONFIRM IT HAPPENED. Nothing reports back. The local
- *      session keeps working until its token expires or the user signs out, so
- *      the screen tells them to close the session here afterwards rather than
- *      pretending it noticed. It must NOT auto-sign-out on tapping the link:
- *      that would strand somebody who opened the page and changed their mind.
+ * Every clause of that is still true and none of it argues for a link any more,
+ * because the work it describes is what landed: `/api/v1/me/privacy` exists, and
+ * it is emphatically NOT a second definition — both surfaces call the same
+ * `eraseSubjectDataFor`, spend the same per-user budget, and are audited by the
+ * same RPC. What the paragraph was really refusing was a HURRIED copy, and it
+ * was right to.
  *
- * WHAT WOULD UPGRADE IT: a `DELETE /api/v1/me` over the same RPC. Then the app
- * could take the reason natively, get an ok/refusal it can render, and drop the
- * local session on success — which also closes cost 2. That belongs on the
- * parity board, not in a policy-compliance change.
+ * The prediction it made about the URL was wrong in one detail, which is worth
+ * keeping: `DELETE /api/v1/me` serves the supresión and cannot serve the art. 14
+ * export, so the endpoint is one path with two methods. See
+ * `@dim/contract/api`'s `my-privacy.ts`.
+ *
+ * THE TWO COSTS IT ACCEPTED ARE PAID OFF. The person no longer re-authenticates
+ * in a signed-out tab (the erasure takes the bearer token this app already
+ * holds), and the app no longer fails to notice (the 200 is what drops the
+ * session — `eraseAccount` in the session store). `AccountDeletionCard`'s copy
+ * lost both warnings with them.
+ *
+ * WHAT IT IS STILL FOR, and it is not sentiment:
+ *   1. THE DATA SAFETY FORM NAMES THIS URL. Play asks for a web address a
+ *      reviewer can open without installing anything, and that requirement did
+ *      not go away when the in-app route got better.
+ *   2. IT IS THE ONLY WAY TO GET A REAL `.json` ONTO A DEVICE. The native screen
+ *      SHOWS the export and hands it to the OS share sheet; writing a file needs
+ *      `expo-file-system`, which is a native module, which is an EAS build. The
+ *      web page downloads one. `PrivacyScreen` says so and offers this link
+ *      underneath.
+ * Delete the affordance on the day this app can write a file — and not before.
  *
  * ON THE ORIGIN. Derived from API_BASE_URL like TERMS_URL and PRIVACY_URL,
  * because in this deployment the API and the web app ARE one origin — the same

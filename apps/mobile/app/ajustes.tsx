@@ -29,6 +29,13 @@
 // the footnote, in escalating order of permanence — end this session, end every
 // session, end the account — so nobody reaches the destructive one by aiming at
 // the mild one.
+//
+// SINCE WU-R IT IS A SIGNPOST AND NOT A DOOR OUT OF THE APP. The card used to
+// open the web page in a browser; it now pushes `/cuenta/privacidad`, which is a
+// native screen carrying BOTH Ley 25.326 rights — the art. 14 export as well as
+// the art. 16 supresión. Its position in the escalating order is unchanged, and
+// so is the reasoning: what sits here is still the entrance to the most
+// permanent thing this screen can do.
 
 import { useRouter } from "expo-router";
 import { useState } from "react";
@@ -41,6 +48,7 @@ import { API_BASE_URL } from "../src/config/api";
 import { Body, Card, ErrorNotice, Row } from "../src/ui/components";
 import { FONTS } from "../src/ui/fonts";
 import { PrimaryButton, Screen, SecondaryButton } from "../src/ui/kit";
+import { ROUTES } from "../src/ui/routes";
 import { COLORS, LEADING, SPACE, TYPE } from "../src/ui/theme";
 
 type RevokeState =
@@ -94,6 +102,18 @@ export default function AjustesScreen() {
             <Row label="Nombre" value={user.displayName} />
             <Row label="Rol" value={ROLE_LABELS[user.role]} />
             <Row label="Tipo de cuenta" value={ACCOUNT_TYPE_LABELS[user.accountType]} />
+            {/* THE EDIT DOOR IS INSIDE THIS CARD and hidden while the profile is
+                pending, which is not a styling choice. There is no `profiles`
+                row to edit in that window — the endpoint 404s and the writer
+                answers NOT_FOUND — so offering the control would be a button
+                whose only outcome is an error. The gate on the route refuses it
+                too; this is what stops a person reaching the refusal at all. */}
+            <View style={styles.editRow}>
+              <SecondaryButton
+                label="Editar mis datos"
+                onPress={() => router.push(ROUTES.editarCuenta)}
+              />
+            </View>
           </>
         )}
       </Card>
@@ -172,6 +192,7 @@ export default function AjustesScreen() {
 }
 
 const styles = StyleSheet.create({
+  editRow: { marginTop: SPACE.md },
   actions: { gap: SPACE.md, marginTop: SPACE.sm },
   confirmActions: { gap: SPACE.sm, marginTop: SPACE.sm },
   machine: {

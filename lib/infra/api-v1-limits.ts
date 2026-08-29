@@ -929,6 +929,43 @@ export const API_V1_IP_BUCKET_FAMILIES: Readonly<Record<string, ApiV1IpFamily>> 
   // editing their own records" anchor.
   api_v1_profile_read_ip: "authenticated-read",
   api_v1_profile_write_ip: "authenticated-write",
+
+  // Landed with the native privacidad door (WU-R, `me/privacy`) — the Ley 25.326
+  // rights, and the only pair here whose two halves sit in families two orders
+  // of magnitude apart. That is deliberate rather than an oversight:
+  //
+  // THE READ (the art. 14 export) joins `authenticated-read` because the per-IP
+  // bucket answers a different question from "how expensive is this call". It
+  // exists so an UNAUTHENTICATED hammer is refused before the guard runs, and it
+  // must not refuse the 51st neighbour behind a carrier gateway — the exact error
+  // B13 found in the credential endpoint. What actually bounds an export is the
+  // per-USER bucket inside the use-case (3/min · 10/hr · 20/day, the tightest on
+  // this project), which is where a ceiling sized against exfiltration belongs
+  // and where the WEB button spends the same budget.
+  //
+  // THE WRITE (the art. 16 supresión) joins `account-security`, the family of
+  // exactly one route until now, and it is the same act in every respect that
+  // family was derived for: rare, deliberate, irreversible, done on your own
+  // account, and — like `revoke-sessions` — bounded by construction, since a
+  // successful call destroys the credential the next one would need. Putting it
+  // in `authenticated-write` would size a supresión against "one person editing
+  // their own records".
+  api_v1_me_privacy_read_ip: "authenticated-read",
+  api_v1_me_privacy_write_ip: "account-security",
+
+  // Landed with the native "editar mis datos" door (WU-R, `me/profile`). Both
+  // halves take the GENERIC families, and the write's choice is the one worth a
+  // line: it is NOT `account-security`, even though its sibling one block up is
+  // and both live under `/me`.
+  //
+  // The family that route is in exists for acts whose failure mode is "you
+  // cannot sign out of the phone you lost" or "you cannot exercise a legal
+  // right" — rare, deliberate, irreversible. Correcting your own phone number is
+  // none of those: it is somebody in a form, possibly saving twice because the
+  // first tap did not register, and the anchor for that is the ordinary
+  // authenticated-write budget the pet's own editar door already runs on.
+  api_v1_me_profile_read_ip: "authenticated-read",
+  api_v1_me_profile_write_ip: "authenticated-write",
 };
 
 /**

@@ -271,5 +271,22 @@ export function apiErrorMessage(code: ApiV1ErrorCode): string {
       // Retrying IS safe: an edit is a value, not an append, and repeating one
       // that already landed appends nothing at all.
       return "No pudimos guardar los cambios. Volvé a intentar.";
+    // Privacidad — los dos derechos de la Ley 25.326 desde el teléfono.
+    case "erasure_reason_required":
+      // The screen already disables its button below five characters, so this
+      // reaches a person only if their build is out of step with the contract.
+      // It still names the FIELD rather than the request, because that is the
+      // one thing they can act on.
+      return "Contanos brevemente por qué querés darte de baja (mínimo 5 caracteres).";
+    case "export_failed":
+      // Retrying is safe — the export writes nothing the subject can see.
+      return "No pudimos armar el archivo con tus datos. Volvé a intentar.";
+    case "erasure_failed":
+      // DELIBERATELY DOES NOT SAY "no se borró nada". This arm is reached when
+      // the RPC itself refused, so the data really is intact — but a later step
+      // failing never reaches here (it logs and still reports success), and copy
+      // that promised an untouched account would be a promise this code cannot
+      // keep for the case it does not cover. "Volvé a intentar" is true in both.
+      return "No pudimos completar la baja. Volvé a intentar en unos minutos.";
   }
 }

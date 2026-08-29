@@ -59,11 +59,16 @@ import {
   MY_CARETAKER_GRANTS_PAYLOAD_VERSION,
   MY_NOTIFICATIONS_PAYLOAD_VERSION,
   MY_PETS_PAYLOAD_VERSION,
+  MY_PRIVACY_PAYLOAD_VERSION,
+  MY_PROFILE_PAYLOAD_VERSION,
   MY_TRANSFERS_PAYLOAD_VERSION,
   type MeV1,
   type MyCaretakerGrantsV1,
   type MyNotificationsV1,
   type MyPetsV1,
+  type MyProfileUpdatedV1,
+  type MyProfileV1,
+  type MySubjectDataExportV1,
   type MyTransfersV1,
   type NotificationCommandAckV1,
   OWNER_PET_DETAIL_PAYLOAD_VERSION,
@@ -85,18 +90,21 @@ import {
   type PetSharesV1,
   type ShareCommandAckV1,
   type SignupV1,
+  type SubjectDataErasedV1,
   type TransferCommandAckV1,
 } from "@dim/contract/api";
 import type {
   AmendEventInput,
   CaretakerCommandInput,
   LostCommandInput,
+  MyProfileEditInput,
   NotificationCommandInput,
   PetPhotoContentType,
   PetProfileCommandInput,
   RecordEventInput,
   RegisterPetInput,
   ShareCommandInput,
+  SubjectRightsCommandInput,
   TransferCommandInput,
 } from "@dim/contract/input";
 
@@ -453,6 +461,99 @@ export function registerPet(
 export function revokeAllSessions(session: SessionPort): Promise<ApiResult<{ revoked: true }>> {
   return apiRequest<{ revoked: true }>(
     { path: "/api/v1/me/revoke-sessions", method: "POST" },
+    session,
+  );
+}
+
+/**
+ * `GET /me/profile` — what the "Editar mis datos" form pre-fills with.
+ *
+ * NOT A RICHER `/me`. That endpoint is the shell every cold launch fetches and
+ * it carries no phone by design; this one carries exactly the six fields the
+ * POST below writes back, and is fetched only when somebody opens the form. The
+ * full argument, and what breaks if a seventh field is ever added, is in
+ * `@dim/contract/api`'s `my-profile.ts` — read it before widening this payload.
+ */
+export function fetchMyProfile(session: SessionPort): Promise<ApiResult<MyProfileV1>> {
+  return apiRequest<MyProfileV1>(
+    { path: "/api/v1/me/profile", expectedPayloadVersion: MY_PROFILE_PAYLOAD_VERSION },
+    session,
+  );
+}
+
+/**
+ * `POST /me/profile` — save the person's own data.
+ *
+ * THE THREE-WAY FIELD RULE IS THE CALLER'S TO HONOUR and it is not decoration:
+ * an omitted key leaves the stored value alone, `""` CLEARS the column, and a
+ * string stores as given. A screen that sent `""` for a field it never rendered
+ * would silently erase a phone number the person entered on the web.
+ *
+ * NO `idempotencyKey`: a profile update is a value, not an append. Saving the
+ * same six fields twice is saving them once.
+ */
+export function saveMyProfile(
+  session: SessionPort,
+  input: MyProfileEditInput,
+): Promise<ApiResult<MyProfileUpdatedV1>> {
+  return apiRequest<MyProfileUpdatedV1>(
+    { path: "/api/v1/me/profile", method: "POST", body: input },
+    session,
+  );
+}
+
+/**
+ * `GET /me/privacy` — derecho de acceso (Ley 25.326 art. 14).
+ *
+ * THE ONE READ ON THIS SURFACE A CLIENT MUST NOT CACHE. Every other payload
+ * here carries a `staleAfter` worth honouring; this one comes back with
+ * `staleAfter === issuedAt` because `MY_PRIVACY_STALE_AFTER_MS` is 0 — the body
+ * is the caller's whole PII record, and there is no situation in which reusing a
+ * copy of it is better than asking again. Nothing in this file persists a
+ * payload, so honouring that costs nothing; what it forbids is a future screen
+ * deciding to keep one "so the back button is fast".
+ *
+ * `subject` is deliberately `Record<string, unknown>` — see `my-privacy.ts` for
+ * why the contract refuses to model the export's tree.
+ */
+export function fetchMySubjectDataExport(
+  session: SessionPort,
+): Promise<ApiResult<MySubjectDataExportV1>> {
+  return apiRequest<MySubjectDataExportV1>(
+    { path: "/api/v1/me/privacy", expectedPayloadVersion: MY_PRIVACY_PAYLOAD_VERSION },
+    session,
+  );
+}
+
+/**
+ * `POST /me/privacy` — derecho de supresión (art. 16). THE ONE IRREVERSIBLE
+ * WRITE THIS APP CAN MAKE.
+ *
+ * Every other write here changes a value, appends an entry, or opens and closes
+ * an exposure — all of them survivable, most of them correctable by a second
+ * write. This one ends the account, deletes the `auth.users` row and purges the
+ * subject's objects out of three Storage buckets. There is no command that
+ * undoes it and no support flow that restores it.
+ *
+ * A 200 MEANS THE CALLER IS SIGNED OUT TOO, and for a harder reason than
+ * `revokeAllSessions`: there is no longer an account for the token to belong to.
+ * So the caller must drop its keychain entry and go to sign-in, and it must NOT
+ * refresh — the refresh will fail and its failure would be reported as "tu
+ * sesión venció", which reads like a bug instead of like the thing the person
+ * just asked for. That is why the body is `{ erased: true }` rather than empty:
+ * one unambiguous signal to act on.
+ *
+ * NO `idempotencyKey`, and that is the contract rather than a shortcut. The
+ * server takes no key here: a supresión has no duplicate to create, and after a
+ * successful one the token a retry would carry is already dead, so the retry
+ * lands on 401 instead of on a second erasure.
+ */
+export function eraseMyAccount(
+  session: SessionPort,
+  input: SubjectRightsCommandInput,
+): Promise<ApiResult<SubjectDataErasedV1>> {
+  return apiRequest<SubjectDataErasedV1>(
+    { path: "/api/v1/me/privacy", method: "POST", body: input },
     session,
   );
 }

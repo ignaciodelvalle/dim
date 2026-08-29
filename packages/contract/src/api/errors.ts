@@ -593,6 +593,31 @@
  * - `profile_failed`    — the write itself failed. 500. RETRYING IS SAFE: an
  *                         identity edit is a value, not an append, and a no-op
  *                         repeat appends no event at all.
+ * - `erasure_reason_required`
+ *                       — the supresión arrived without a usable motivo. 400,
+ *                         and a code of its own rather than `invalid_request`
+ *                         for the `profile_breed_invalid` reason: the body was
+ *                         well formed and ONE named field is short, so a client
+ *                         should point at the reason box instead of telling the
+ *                         person their request was malformed. It is also the one
+ *                         refusal on this surface that costs the caller NOTHING
+ *                         — the use-case validates before it spends the budget,
+ *                         so a person fixing their sentence is not throttled for
+ *                         having tried.
+ * - `export_failed`     — `export_subject_data` refused or came back empty. 500.
+ *                         RETRYING IS SAFE: the export writes nothing the
+ *                         subject can see (only its own audit row) and reading
+ *                         it twice reads it once.
+ * - `erasure_failed`    — the supresión did not complete. 500, and this is the
+ *                         one 500 on this surface a client must NOT present as
+ *                         "nothing happened". The erasure is six steps and only
+ *                         the first two are transactional; a failure reported
+ *                         here means the RPC itself refused, so the subject's
+ *                         data is intact — but retrying is the right move and
+ *                         the copy must not promise that the account is
+ *                         untouched, because a LATER step failing does not
+ *                         reach this arm at all (it logs and still reports
+ *                         success, by design: see `eraseSubjectDataFor`).
  */
 export const API_V1_ERROR_CODES = [
   "rate_limited",
@@ -651,6 +676,9 @@ export const API_V1_ERROR_CODES = [
   "profile_forbidden",
   "profile_breed_invalid",
   "profile_failed",
+  "erasure_reason_required",
+  "export_failed",
+  "erasure_failed",
 ] as const;
 
 export type ApiV1ErrorCode = (typeof API_V1_ERROR_CODES)[number];
