@@ -7,8 +7,9 @@
 // Covers (Ley 25.326):
 //   art. 14 — export_subject_data returns pet_caretaker_grants (all three
 //             predicates), foster_volunteers, org_contact_messages and
-//             push_subscriptions, at schema_version 4, and NEVER hands back the
-//             RFC 8291 push encryption keys.
+//             push_subscriptions, at schema_version 5 (0205 shipped these four
+//             at 4; 0208 added three more sections and bumped it), and NEVER
+//             hands back the RFC 8291 push encryption keys.
 //   art. 16 — erase_subject_data, for BOTH sides of a caretaker grant:
 //               · grantor  → pending cancelled, `note` nulled, the invitee's
 //                            email LEFT ALONE (it is a third party's).
@@ -282,7 +283,7 @@ afterAll(async () => {
 }, 30_000);
 
 describe("export_subject_data — the four sections migration 0205 added (art. 14)", () => {
-  it("returns grants, foster enrolment, contact messages and push registrations at schema_version 4", async () => {
+  it("returns grants, foster enrolment, contact messages and push registrations at schema_version 5", async () => {
     const { data, error } = await callRpcAs<Record<string, unknown>>(
       grantorUserId,
       sql`SELECT public.export_subject_data(${grantorUserId}::uuid)`,
@@ -296,7 +297,9 @@ describe("export_subject_data — the four sections migration 0205 added (art. 1
       push_subscriptions: Array<Record<string, unknown>>;
     };
 
-    expect(payload.schema_version).toBe(4);
+    // 0208 bumped 4 -> 5 when it added operator_feed_watermarks,
+    // physical_tag_interest and organization_invitations.
+    expect(payload.schema_version).toBe(5);
     expect(payload.pet_caretaker_grants.map((g) => g.id)).toContain(byAccountGrantId);
     expect(payload.foster_volunteers).toHaveLength(1);
     expect(payload.foster_volunteers[0].notes).toBe("Tengo patio y dos perros propios.");
