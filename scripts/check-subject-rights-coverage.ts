@@ -45,13 +45,19 @@
 //   KNOWN_GAP — the table DOES hold subject data and neither RPC reaches it.
 //
 // The fourth list is the point. A three-list design forces every uncovered
-// table into EXEMPT, and there are twenty-one tables here that hold real
+// table into EXEMPT, and there are seventeen tables here that hold real
 // subject data the RPCs do not touch. Writing "exempt" next to each of them
-// would be twenty-one false statements in the one file whose whole job is to
+// would be seventeen false statements in the one file whose whole job is to
 // stop a false statement about coverage. KNOWN_GAP names the debt, prints it on
 // every run, and still fails on a table that is in no list at all — so the NEXT
 // pet_caretaker_grants cannot arrive unnoticed, and the existing ones cannot be
 // laundered into "reviewed and fine".
+//
+// The count is prose and drifts: it read "twenty-one" while the list held 20
+// (0207 closed libreta_share_tokens and only the test ceiling was lowered).
+// 0208 closed operator_feed_watermarks, physical_tag_interest and
+// organization_invitations, so it is seventeen. The number the CI line prints
+// is computed from the list; this sentence is the one a human has to maintain.
 //
 // Moving a table OUT of KNOWN_GAP is done by adding it to a function, not by
 // editing this file: check 4 fails a KNOWN_GAP entry that the live body
@@ -92,7 +98,9 @@ export const IN_EXPORT: readonly string[] = [
   "custody_disputes",
   "foster_volunteers",
   "notifications",
+  "operator_feed_watermarks",
   "org_contact_messages",
+  "organization_invitations",
   "organization_memberships",
   "ownerships",
   "pet_caretaker_grants",
@@ -101,6 +109,7 @@ export const IN_EXPORT: readonly string[] = [
   "pet_tags",
   "pet_transfers",
   "pets",
+  "physical_tag_interest",
   "profiles",
   "push_subscriptions",
   "welfare_reports",
@@ -118,13 +127,25 @@ export const IN_ERASE: readonly string[] = [
   // but the table can no longer sit in KNOWN_GAP: erase reaches it.
   "libreta_share_tokens",
   "notifications",
+  // 0208: the watermark row is DELETED (user_id is its PK — it cannot exist
+  // without naming the subject), and the export returns it first so art. 14
+  // shows what art. 16 is about to destroy.
+  "operator_feed_watermarks",
   "org_contact_messages",
+  // 0208: REDACTED, not deleted. The invitee email is sentinelled and
+  // outstanding invitations are revoked on both sides, while the actor FKs and
+  // the accepted rows stay — an accepted invitation is the provenance of an
+  // organization membership, and that trail is not the subject's alone.
+  "organization_invitations",
   "ownerships",
   "pet_caretaker_grants",
   "pet_events",
   "pet_tags",
   "pet_transfers",
   "pets",
+  // 0208: DELETED. `user_id` is NOT NULL, so the row cannot be anonymised in
+  // place — a demand signal is not a lawful basis for keeping a named row.
+  "physical_tag_interest",
   "profiles",
   "push_subscriptions",
   "welfare_reports",
@@ -175,15 +196,11 @@ export const KNOWN_GAP: Record<string, string> = {
   govt_assignments: "The subject's official assignment, `revocation_reason` and `notes`.",
   govt_business_rules: "Operator `notes` and the created_by / updated_by actor pair.",
   notification_dead_letter: "The undelivered notification's `payload` — its title and body.",
-  operator_feed_watermarks: "One row per user: their read watermark on the operator feed.",
   organization_capability_grants: "`requested_reason` and `decision_reason` free text.",
-  organization_invitations:
-    "The invitee's `email` in cleartext — exactly the shape of pet_caretaker_grants.caretaker_email, which 0205 had to close.",
   organizations:
     "A legal entity, but `email` / `phone` may be a natural person's for a one-person org, and created_by / verified_by are actor FKs.",
   pet_achievement_views: "One row per (user, pet, achievement) — a per-user reading record.",
   pet_service_dog: "Credential fields and `notes`, plus verified_by / revoked_by actor FKs.",
-  physical_tag_interest: "user_id and free-text `notes`.",
   reminders: "user_id plus the reminder's `title` and `description`.",
   service_offerings: "provider_user_id — a natural person can be the provider — and `description`.",
   welfare_report_attachments: "uploaded_by_user_id and `original_filename`.",

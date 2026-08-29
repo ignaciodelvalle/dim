@@ -147,7 +147,11 @@ describe("the debt register is not empty, says so, and may not grow quietly", ()
   // to justify it in a diff instead of appending a line.
   // 0207 moved libreta_share_tokens out of the register (erase now revokes
   // the subject's outstanding shares), so the ceiling ratchets 21 -> 20.
-  const KNOWN_GAP_CEILING = 20;
+  // 0208 moved out operator_feed_watermarks (deleted), physical_tag_interest
+  // (deleted) and organization_invitations (email sentinelled + outstanding
+  // invitations revoked; the actor FKs and accepted rows kept as the access
+  // trail), so it ratchets 20 -> 17.
+  const KNOWN_GAP_CEILING = 17;
 
   it("does not grow past the declared ceiling without someone raising it on purpose", () => {
     expect(
@@ -165,4 +169,67 @@ describe("the debt register is not empty, says so, and may not grow quietly", ()
       `KNOWN_GAP shrank below ${KNOWN_GAP_CEILING} — good. Lower KNOWN_GAP_CEILING to match, so the slots you just freed cannot be silently refilled.`,
     ).toBeGreaterThanOrEqual(KNOWN_GAP_CEILING);
   });
+});
+
+// The sin the fence's own header names, turned into a check instead of a
+// paragraph: "`push_subscriptions` was DELETED by art. 16 while art. 14 never
+// returned it, so the subject could not see what was about to be destroyed."
+// Nothing enforced that. A table can still be added to erase_subject_data alone
+// and the four catalogue checks all pass — the fence asks whether each table is
+// CLASSIFIED, never whether the two rights agree with each other.
+describe("art. 16 may not reach further than art. 14", () => {
+  // The two tables where erase reaches and export does not, TODAY. Frozen by
+  // hand for the same reason KNOWN_GAP_CEILING is: an exception list with no
+  // ceiling is not an exception list.
+  //
+  //  · case_events — erase redacts the subject's own reporter_comment notes
+  //    (0130); the export has never returned a case_events section.
+  //  · libreta_share_tokens — 0207 revokes the subject's outstanding shares and
+  //    says so in the fence itself: "The art. 14 side is still a gap —
+  //    export_subject_data does not return the `label` the user typed."
+  const ERASE_ONLY_KNOWN: readonly string[] = ["case_events", "libreta_share_tokens"];
+
+  it("every table erase_subject_data reaches is also returned by export_subject_data", () => {
+    const inExport = new Set(IN_EXPORT);
+    const allowed = new Set(ERASE_ONLY_KNOWN);
+    const undisclosed = IN_ERASE.filter((t) => !inExport.has(t) && !allowed.has(t));
+    expect(
+      undisclosed,
+      `${undisclosed.join(", ")} — erase_subject_data destroys or rewrites these and export_subject_data never shows them, so the subject cannot see what art. 16 is about to do. Add a section to the export, or declare it in ERASE_ONLY_KNOWN with the reason.`,
+    ).toEqual([]);
+  });
+
+  it("the exception list has no stale entry, so closing one of them frees nothing", () => {
+    // The down-ratchet for this list. Without it, giving case_events an export
+    // section would leave a free slot another table could quietly occupy.
+    const inExport = new Set(IN_EXPORT);
+    const inErase = new Set(IN_ERASE);
+    for (const t of ERASE_ONLY_KNOWN) {
+      expect(inErase.has(t), `${t} is in ERASE_ONLY_KNOWN but not in IN_ERASE`).toBe(true);
+      expect(
+        inExport.has(t),
+        `${t} is now in IN_EXPORT — the art. 14 side was closed. Remove it from ERASE_ONLY_KNOWN in the same commit.`,
+      ).toBe(false);
+    }
+  });
+});
+
+// Migration 0208. These three left KNOWN_GAP together; this is the regression
+// guard that they left it in BOTH directions rather than only the cheap one.
+describe("the three gaps migration 0208 closed", () => {
+  const CLOSED_BY_0208 = [
+    "operator_feed_watermarks",
+    "physical_tag_interest",
+    "organization_invitations",
+  ] as const;
+
+  it.each(CLOSED_BY_0208)(
+    "%s is reached by BOTH rights, and is no longer declared as debt",
+    (t) => {
+      expect(IN_EXPORT, `${t} must be returned by export_subject_data (art. 14)`).toContain(t);
+      expect(IN_ERASE, `${t} must be reached by erase_subject_data (art. 16)`).toContain(t);
+      expect(Object.hasOwn(KNOWN_GAP, t), `${t} is still in the debt register`).toBe(false);
+      expect(Object.hasOwn(EXEMPT, t), `${t} holds subject data — it is not EXEMPT`).toBe(false);
+    },
+  );
 });
