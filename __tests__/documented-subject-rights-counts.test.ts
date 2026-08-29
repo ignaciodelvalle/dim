@@ -43,6 +43,17 @@ const REPO_ROOT = join(__dirname, "..");
 const FENCE_PATH = "scripts/check-subject-rights-coverage.ts";
 const AGENTS_PATH = "AGENTS.md";
 
+/**
+ * Every prose document that has ever put a number on the debt register.
+ *
+ * AGENTS.md §7 is the one allowed to state it. The board is here because it
+ * carried a FOURTH copy — "The 21 tables the Ley 25.326 fence revealed" — that
+ * had been wrong since 0207 and that nothing pointed at, which is precisely how
+ * a corrected number comes back: not by being edited, but by surviving
+ * somewhere nobody thought to look.
+ */
+const PROSE_PATHS = [AGENTS_PATH, "docs/agents/open-work.md"] as const;
+
 /** Tables reached by at least one of the two RPCs — the union, never a sum. */
 const REACHED = new Set([...IN_EXPORT, ...IN_ERASE]).size;
 const GAP = Object.keys(KNOWN_GAP).length;
@@ -185,7 +196,7 @@ describe(`${FENCE_PATH} — the header's numbers are the lists' numbers`, () => 
   });
 });
 
-describe("AGENTS.md — §7 is the only place that writes the KNOWN_GAP count", () => {
+describe("the docs — AGENTS.md §7 is the only place that writes the KNOWN_GAP count", () => {
   it("§7's cell states the live count", () => {
     const numeral = capture(
       agentsDoc,
@@ -198,23 +209,32 @@ describe("AGENTS.md — §7 is the only place that writes the KNOWN_GAP count", 
     ).toBe(GAP);
   });
 
-  it("no OTHER count of KNOWN_GAP tables contradicts it", () => {
-    // §6b carried its own copy and it was four migrations stale. Rather than
-    // trusting the next writer to remember which section owns the number, every
-    // quantity written next to KNOWN_GAP is collected and must agree.
+  it.each(PROSE_PATHS)("%s states no OTHER count that contradicts it", (path) => {
+    // §6b carried its own copy and it was four migrations stale; the board
+    // carried a third. Rather than trusting the next writer to remember which
+    // section owns the number, every quantity written next to KNOWN_GAP in
+    // either document is collected and must agree.
+    const doc = readFileSync(join(REPO_ROOT, path), "utf8");
     const wrong: string[] = [];
-    const re = /(\d+|[a-záéíóú]+)\s+tablas?\b[^.|\n]{0,60}?KNOWN_GAP/gi;
-    for (const m of agentsDoc.matchAll(re)) {
+    // The hyphen in the class is not decoration. Without it `twenty-one tables`
+    // captures only "one", which is in no lookup table, so the whole statement
+    // was skipped as "not a count" — a mutation run caught exactly that hole
+    // before this file was committed. Compound English number words are the
+    // form the board uses, so they are the form that must not slip through.
+    const re = /([\d]+|[a-záéíóú-]+)\s+(?:tablas?|tables?)\b[^.|\n]{0,60}?KNOWN_GAP/gi;
+    for (const m of doc.matchAll(re)) {
       const token = m[1].toLowerCase();
-      const value = /^\d+$/.test(token) ? Number(token) : SPANISH_NUMERALS[token];
-      if (value === undefined) continue; // "las tablas", "esas tablas" — not a count.
+      const value = /^\d+$/.test(token)
+        ? Number(token)
+        : (SPANISH_NUMERALS[token] ?? NUMBER_WORDS[token]);
+      if (value === undefined) continue; // "las tablas", "these tables" — not a count.
       if (value !== GAP) wrong.push(`"${m[0].trim()}"`);
     }
     expect(
       wrong,
-      `These statements in AGENTS.md put a number on KNOWN_GAP that is not ${GAP}: ${wrong.join(
+      `These statements in ${path} put a number on KNOWN_GAP that is not ${GAP}: ${wrong.join(
         " | ",
-      )}. §7's table cell is the one place that carries this count — every other mention should point at it, not restate it.`,
+      )}. AGENTS.md §7's table cell is the one place that carries this count — every other mention should point at it, not restate it.`,
     ).toEqual([]);
   });
 });
