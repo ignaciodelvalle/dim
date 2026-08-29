@@ -22,7 +22,43 @@
 // nothing leaves the browser. A reader who wants to know whether production
 // errors reach anyone gets a truthful answer from the code.
 
-/** A report that has already passed through the redaction layer. */
+/**
+ * A report that has already passed through the redaction layer.
+ *
+ * WHY CALLER CONTEXT IS NESTED AND NOT SPREAD
+ * ---------------------------------------------------------------------------
+ * The payload this replaced was FLAT — `{message, stack, digest, ...context}`
+ * — so `source` and `correlationId` sat at the top level next to the error's
+ * own fields. Nesting them under `context` is a deliberate choice, and the
+ * reason is not tidiness:
+ *
+ * The two halves are scrubbed by DIFFERENT rules and cannot be. `message`,
+ * `stack` and `digest` come from the runtime and are free text, so they go
+ * through `redactText`'s denylist — you cannot allowlist what an exception
+ * chose to interpolate. Caller context is structured, so it goes through a
+ * CLOSED allowlist, and one key (`correlationId`) is even exempted from
+ * scrubbing entirely. Two namespaces with two different security properties
+ * must not share one flat namespace, because the spread order silently decides
+ * which wins: in the old shape `...context` came LAST, so a context key named
+ * `message` would have overwritten the denylist-scrubbed error message with an
+ * allowlist-scrubbed — or, for an opaque key, an UNSCRUBBED — value, under the
+ * exact field name a provider indexes as "the error". `ReportErrorContext` is
+ * explicitly designed to be added to ("adding a key here is the review point"),
+ * so that collision was one plausible field name away, and it would have been
+ * silent.
+ *
+ * Nesting makes it structurally impossible: no context key can shadow a
+ * reporter field, and no reporter field added later can shadow a context key.
+ * It also gives a provider adapter exactly one subtree to point at as
+ * "caller-supplied", which is what the configuration warning in
+ * `docs/architecture/client-error-sink-pending-decision.md` asks for. And it
+ * matches `lib/infra/report-error.ts`, the server reporter, which already
+ * nests caller data under `meta` — the same split, arrived at independently.
+ *
+ * The cost was one consumer: `__tests__/analytics-load.test.ts` read
+ * `payload.correlationId` through an `as` cast and went red. The cast is gone;
+ * it now reads this type, so the next shape change is a compile error.
+ */
 export type RedactedErrorReport = {
   /** Scrubbed `error.message`. */
   message: string;

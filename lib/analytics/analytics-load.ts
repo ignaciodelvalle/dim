@@ -54,9 +54,13 @@ function newCorrelationId(): string {
  * Never rejects — the caller branches on `ok`. The timer is always cleared so a
  * fast success does not keep the event loop alive.
  *
- * Failures log the underlying error server-side through reportError (the
- * repo's structured {message, stack, digest, context} shape) tagged with the
- * correlation id the fallback UI displays.
+ * Failures report the underlying error through `lib/observability/report-error`
+ * tagged with the correlation id the fallback UI displays. The id travels in
+ * the report's `context` subtree, NOT at its top level: `buildErrorReport`
+ * keeps the error's own fields (`message`, `name`, `stack`, `digest`, `ts`)
+ * separate from caller-supplied context, because the two are scrubbed by
+ * different rules — free text by denylist, context by a closed allowlist.
+ * Read `report.context.correlationId`, never `report.correlationId`.
  *
  * NOTE: a timeout does not cancel the underlying work (DB queries keep running
  * to completion in the background); it only bounds how long the request waits.
