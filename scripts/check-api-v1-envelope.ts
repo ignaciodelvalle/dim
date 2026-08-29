@@ -134,8 +134,17 @@ export const V1_ROUTE_GLOB = "app/api/v1/**/route.ts";
  * and therefore the one where a single rename costs the most: `credential`,
  * `events`, `libreta`, `lost`, `photo`, `shares` and `profile` would all leave
  * the glob together, and this number is the only thing that would say so.
+ *
+ * TWENTY-THREE with the two account doors (`me/privacy`, `me/profile`), raised
+ * by the INTEGRATOR and not by the lane that added them — the first break in the
+ * run of seven. The lane shipped both routes and left the floor at 21, which is
+ * exactly the failure this file warns about in its own prose: a floor is
+ * satisfied by any number above it, so a stale one loosens in SILENCE and no
+ * gate goes red. Nothing failed; it was caught by recounting
+ * `listV1RouteFiles()` after the merge. Raising this number is part of adding a
+ * route, and the recount belongs to whoever merges when the lane forgets.
  */
-export const MIN_V1_ROUTE_FILES = 21;
+export const MIN_V1_ROUTE_FILES = 23;
 
 export const HELPER_MODULE = "@/lib/infra/api-v1";
 
