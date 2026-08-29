@@ -269,7 +269,10 @@ afterAll(async () => {
     await client?.auth.signOut().catch(() => {});
   }
   if (deletedTagId) {
-    await db.delete(petTags).where(eq(petTags.id, deletedTagId)).catch(() => {});
+    await db
+      .delete(petTags)
+      .where(eq(petTags.id, deletedTagId))
+      .catch(() => {});
   }
   const identIds = [deletedIdentificationId, liveIdentificationId].filter(
     (id): id is string => id !== null,
@@ -282,8 +285,14 @@ afterAll(async () => {
   }
   const petIds = [deletedPetId, livePetId].filter((id): id is string => id !== null);
   if (petIds.length > 0) {
-    await db.delete(ownerships).where(inArray(ownerships.petId, petIds)).catch(() => {});
-    await db.delete(pets).where(inArray(pets.id, petIds)).catch(() => {});
+    await db
+      .delete(ownerships)
+      .where(inArray(ownerships.petId, petIds))
+      .catch(() => {});
+    await db
+      .delete(pets)
+      .where(inArray(pets.id, petIds))
+      .catch(() => {});
   }
 });
 
@@ -334,11 +343,7 @@ describe("soft-delete RLS probe — positive controls (the fixture is real)", ()
     // `isNotNull(deletedAt)` filter kills the subtler twin — a row that exists
     // but was never marked, which would make every reader below correct to
     // serve it and the whole file a tautology.
-    const rows = await db
-      .select({ id: pets.id })
-      .from(pets)
-      .where(eq(pets.id, petId))
-      .limit(1);
+    const rows = await db.select({ id: pets.id }).from(pets).where(eq(pets.id, petId)).limit(1);
     expect(rows.length, "the soft-deleted fixture pet does not exist at all").toBe(1);
 
     const marked = await db
