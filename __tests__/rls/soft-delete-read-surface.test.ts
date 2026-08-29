@@ -27,7 +27,7 @@
 // (profiles, pets, pet_caretaker_grants, custody_disputes, pet_identifications,
 // pet_tags) mentions `deleted_at`. Introspected from pg_policies; the count of
 // policies whose USING clause references the column is ZERO. RLS therefore does
-// not implement any part of the suppression epic, and two reads survive:
+// not implement any part of the suppression epic, and three reads survive:
 //
 //   FINDING 1 — `pets`, role `authenticated` as the ACTIVE OWNER.
 //     Policy "Pets readable by active owner" is
@@ -82,9 +82,24 @@
 // erasure subject may see their own erased pet is how you take the product down
 // to close a leak nobody had triaged yet.
 //
+// THAT IS NOT AN ABSTRACT WORRY — IT WAS MEASURED WHILE WRITING THIS FILE. The
+// obvious fix for FINDING 2, adding
+//     AND EXISTS (SELECT 1 FROM pets pt
+//                 WHERE pt.id = pet_identifications.pet_id AND pt.deleted_at IS NULL)
+// to the admin policy, was applied to a scratch database and it broke admin's
+// read of LIVE identifications too — every one of them. The subquery is
+// evaluated as the CALLING user, `pets` carries its own RLS, and there is no
+// `pets` read policy for admin, so the join yields zero rows for a live pet and
+// a deleted one alike. This is the same mechanism matrix-govt-jurisdiction.test.ts
+// documents for R1. Any real fix has to reach the pet's state WITHOUT a
+// naive RLS-gated subquery — a SECURITY DEFINER helper, or a denormalised
+// column. Whoever picks this up: that is the trap, and it is one ALTER POLICY
+// away from looking correct.
+//
 // So the finding is PINNED instead: the assertions below say `1`, which is what
 // the database does today. The moment someone adds `deleted_at IS NULL` to
-// either policy, THESE TESTS GO RED and name the finding they belong to. That is
+// any of the three policies, THESE TESTS GO RED and name the finding they
+// belong to. That is
 // the intended trigger, not a regression — update the expectation to 0, move the
 // finding to "closed", and keep the positive controls. A green run of this file
 // means "the gap is exactly as described above", never "the gap is closed".
