@@ -143,6 +143,12 @@ export {
   type NotificationPetV1,
 } from "./my-notifications.ts";
 export {
+  MY_PRIVACY_PAYLOAD_VERSION,
+  MY_PRIVACY_STALE_AFTER_MS,
+  type MySubjectDataExportV1,
+  type SubjectDataErasedV1,
+} from "./my-privacy.ts";
+export {
   CARETAKER_GRANT_STATUSES_V1,
   MY_CARETAKER_GRANTS_PAYLOAD_VERSION,
   MY_CARETAKER_GRANTS_STALE_AFTER_MS,

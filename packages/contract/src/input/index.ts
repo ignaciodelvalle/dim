@@ -116,6 +116,16 @@ export {
   notificationCommandInputSchema,
 } from "./notification.ts";
 export {
+  ERASURE_REASON_MAX_LENGTH,
+  ERASURE_REASON_MIN_LENGTH,
+  SUBJECT_RIGHTS_COMMAND_INPUT_CODES,
+  type SubjectRightsCommand,
+  type SubjectRightsCommandInput,
+  type SubjectRightsCommandInputCode,
+  firstSubjectRightsCommandInputCode,
+  subjectRightsCommandInputSchema,
+} from "./subject-rights.ts";
+export {
   OWNER_TRANSFER_REASONS,
   TRANSFER_COMMAND_INPUT_CODES,
   TRANSFER_EXPIRY_DAYS,
