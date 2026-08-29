@@ -39,6 +39,16 @@
 //     the fix for the 2026-08-14 adversarial finding on `updatePetAction`, and
 //     this endpoint inherits it by construction: there is no request field that
 //     could disagree with the stored species in the first place.
+//   · `custodyKind` IS A CONSTANT, and unlike `localityId` it cannot be omitted:
+//     `ParsedPet` requires it. `"owner"` is inert rather than a claim — the only
+//     reader of the field is `insertPetRegistered`, which turns it into the
+//     ownerships ROLE and the `pet_registered` payload on the CREATE path.
+//     `updatePetProfile` never touches it, `diffPet` has no such field, and no
+//     value here could reach a column or an event. It is `"owner"` and not
+//     `"foster_in_transit"` because a constant with no reader should be the one
+//     that is true of most animals, not the one that is unusual. The snapshot
+//     deliberately does not carry the pet's real custody: doing so would imply
+//     this door decides something about it, and it decides nothing.
 
 import type { PermanentCondition } from "@/lib/reference/permanent-conditions";
 
@@ -128,6 +138,8 @@ export function composePetIdentityEdit(
     microchipImplantedAt: null,
     microchipImplantedBy: null,
     microchipLocation: null,
+    // Required by `ParsedPet` and read by nobody on the update path — only
+    // `insertPetRegistered` consumes it. See the header's last bullet.
     custodyKind: "owner",
   };
 }

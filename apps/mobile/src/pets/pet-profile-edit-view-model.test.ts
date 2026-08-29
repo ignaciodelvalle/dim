@@ -9,10 +9,15 @@
 //   3. AN EMPTY FIELD CLEARS, and a cleared field is described honestly —
 //      including when the account default is empty too.
 //   4. A NO-OP SAVE IS REPORTED AS ONE.
+//   5. THE LENGTH CAPS ARE GRANDFATHERED, in both directions. An animal whose
+//      stored name is longer than the cap must still be editable — the input
+//      must not TRUNCATE it on screen, and the save must not refuse it on the
+//      way back. Both halves come from the payload the screen already holds.
 
 import { describe, expect, it } from "@jest/globals";
 
 import type { PetProfileEditV1 } from "@dim/contract/api";
+import { PET_NAME_MAX } from "@dim/contract/input";
 
 import {
   accountFallbackLabel,
@@ -23,6 +28,7 @@ import {
   emergencyDraftFrom,
   identityBlockedReason,
   identityDraftFrom,
+  identityFieldCaps,
   petProfileInputCodeMessage,
   savedLabel,
 } from "./pet-profile-edit-view-model";
@@ -133,9 +139,14 @@ describe("what clearing a field will actually show", () => {
   });
 });
 
+const STORED = { name: "Pampa", color: "Atigrada" };
+
+/** Longer than any cap — the shape a legacy `pets.name` can already hold. */
+const LONG_NAME = "Pampa ".repeat(30).trim();
+
 describe("drafts become commands the contract accepts", () => {
   it("sends an empty breed and colour as null — an empty box means empty", () => {
-    const built = buildIdentityEdit({ name: "Pampa", breed: "   ", color: "" });
+    const built = buildIdentityEdit({ name: "Pampa", breed: "   ", color: "" }, STORED);
     expect(built.ok).toBe(true);
     if (built.ok) {
       expect(built.input).toEqual({
@@ -148,7 +159,7 @@ describe("drafts become commands the contract accepts", () => {
   });
 
   it("refuses an empty name locally, with the field's own sentence", () => {
-    const built = buildIdentityEdit({ name: "   ", breed: "", color: "" });
+    const built = buildIdentityEdit({ name: "   ", breed: "", color: "" }, STORED);
     expect(built.ok).toBe(false);
     if (!built.ok) {
       expect(built.code).toBe("NAME_REQUIRED");
@@ -156,10 +167,43 @@ describe("drafts become commands the contract accepts", () => {
     }
   });
 
-  it("refuses a name past the contract's cap rather than posting it", () => {
-    const built = buildIdentityEdit({ name: "x".repeat(200), breed: "", color: "" });
+  it("refuses a NEW name past the cap rather than posting it", () => {
+    const built = buildIdentityEdit({ name: LONG_NAME, breed: "", color: "" }, STORED);
     expect(built.ok).toBe(false);
     if (!built.ok) expect(built.code).toBe("NAME_TOO_LONG");
+  });
+
+  it("lets the owner of an over-long name correct the COLOUR", () => {
+    // THE LOCKOUT this exists to prevent. `edit_identity` posts all three fields
+    // on every save, so a cap applied to the carried-over name would refuse a
+    // request that only wants to change the colour — and that owner could never
+    // edit anything on this screen again, from the one device they have.
+    const built = buildIdentityEdit(
+      { name: LONG_NAME, breed: "", color: "Blanca" },
+      { name: LONG_NAME, color: "Atigrada" },
+    );
+    expect(built.ok).toBe(true);
+    if (built.ok) expect(built.input).toMatchObject({ name: LONG_NAME, color: "Blanca" });
+  });
+
+  it("still refuses a DIFFERENT over-long name on that same animal", () => {
+    // The grandfather is for the value on the row, not a licence to type any
+    // length once one long value exists.
+    const built = buildIdentityEdit(
+      { name: `${LONG_NAME} y algo más`, breed: "", color: "" },
+      { name: LONG_NAME, color: null },
+    );
+    expect(built.ok).toBe(false);
+    if (!built.ok) expect(built.code).toBe("NAME_TOO_LONG");
+  });
+
+  it("refuses a NEW over-long colour with the colour's code, not the name's", () => {
+    const built = buildIdentityEdit(
+      { name: "Pampa", breed: "", color: "atigrada con manchas ".repeat(20) },
+      STORED,
+    );
+    expect(built.ok).toBe(false);
+    if (!built.ok) expect(built.code).toBe("COLOR_TOO_LONG");
   });
 
   it("sends all four contact fields every time, so an empty one clears", () => {
@@ -190,6 +234,32 @@ describe("drafts become commands the contract accepts", () => {
     });
     expect(built.ok).toBe(false);
     if (!built.ok) expect(built.code).toBe("CONTACT_PHONE_TOO_LONG");
+  });
+});
+
+describe("the input caps cannot shorten what is already stored", () => {
+  it("uses the contract's constant for an ordinary name", () => {
+    expect(identityFieldCaps(view()).name).toBe(PET_NAME_MAX);
+  });
+
+  it("rises to the stored length when the animal already carries a longer one", () => {
+    // A `TextInput` TRUNCATES the value it is handed. A fixed cap here would put
+    // a shortened name on screen and the next "Guardar datos" would store it —
+    // an unrequested edit to the field the credential is read by, which is worse
+    // than the refusal, because nobody would see it happen.
+    const caps = identityFieldCaps(
+      view({ identity: { name: LONG_NAME, breed: null, color: null } }),
+    );
+    expect(caps.name).toBe(LONG_NAME.length);
+  });
+
+  it("does the same for the colour, and the two do not borrow each other's cap", () => {
+    const longColor = "atigrada con manchas ".repeat(20).trim();
+    const caps = identityFieldCaps(
+      view({ identity: { name: "Pampa", breed: null, color: longColor } }),
+    );
+    expect(caps.color).toBe(longColor.length);
+    expect(caps.name).toBe(PET_NAME_MAX);
   });
 });
 

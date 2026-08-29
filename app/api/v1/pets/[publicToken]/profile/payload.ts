@@ -9,14 +9,16 @@
 // as a screen that hides one the endpoint would allow.
 //
 // THE EMERGENCY BLOCK IS `null` FOR ANYBODY BUT THE LEGAL OWNER, and that is
-// the web's own behaviour rather than a tightening (`page.tsx:499` and `:766`,
-// both tagged "M2 fresh-review required fix 2"). It matters because the fields
+// the web's own behaviour rather than a tightening: `mis-mascotas/[publicToken]`
+// gates BOTH `resolvedEmergencyContacts` and the sheet's initial values on
+// `isOwner && ownershipRole === "owner"`, each tagged "M2 fresh-review required
+// fix 2" — grep the tag, not a line number. It matters because the fields
 // are not about the ANIMAL: they are the titular's own vet and the person to
 // call, and a foster holding the animal in transit is a Path-1 holder with no
 // business reading them. `null` and not an empty draft — see the contract.
 
 import { apiV1Envelope } from "@/lib/infra/api-v1";
-import type { PetHolderAccess } from "@/lib/infra/pet-access";
+import { type PetHolderAccess, isTitularHolder } from "@/lib/infra/pet-access";
 import type { OwnerPetViewerContactsRead } from "@/src/modules/pets/application/read/owner-pet-detail-queries";
 import {
   PET_PROFILE_EDIT_PAYLOAD_VERSION,
@@ -50,19 +52,32 @@ export type ResolvedProfileAccess = Exclude<PetHolderAccess, { kind: "none" }>;
  *
  *   · IDENTITY mirrors `requireTitularAccess`, which denies exactly one thing —
  *     a person-path holder whose `ownerships.role` is `caretaker`. A co-owner
- *     passes, a foster passes, the org path passes.
+ *     passes, a foster passes, the org path passes. It is not re-derived here:
+ *     `isTitularHolder` is the guard's OWN predicate, exported from
+ *     `lib/infra/pet-access.ts` and called by `requireTitularAccess` itself, so
+ *     the two cannot drift into disagreeing about who a titular is. This file
+ *     writing the expression out again would have been the fourth hand-kept copy
+ *     of one rule on this API surface.
  *   · CONTACTS is not a `requireTitularAccess` question at all and cannot be
  *     expressed as one: the writer's own query joins `ownerships` on
  *     `role = 'owner'`, so co-owner, foster and the entire org path are outside
  *     it. Written as `kind === "owner" && holderRole === "owner"` — the positive
  *     form here, because this rule genuinely IS a single role and pretending
- *     otherwise would make the code read like the looser one beside it.
+ *     otherwise would make the code read like the looser one beside it. There is
+ *     no shared predicate to borrow: it is this endpoint's only.
  */
 export function petProfileCapabilities(
   access: ResolvedProfileAccess,
 ): PetProfileEditCapabilitiesV1 {
   return {
-    canEditIdentity: !(access.kind === "owner" && access.holderRole === "caretaker"),
+    // `kind` and `accessPath` are the same discriminator under two names — the
+    // holder resolver calls it `kind`, the cookie guard `accessPath` — and
+    // `holderRole` exists only on the owner arm, which is exactly the arm the
+    // predicate reads.
+    canEditIdentity: isTitularHolder(
+      access.kind,
+      access.kind === "owner" ? access.holderRole : null,
+    ),
     canEditEmergencyContacts: access.kind === "owner" && access.holderRole === "owner",
   };
 }

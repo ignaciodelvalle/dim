@@ -144,11 +144,15 @@ export {
   PET_COLOR_MAX,
   PET_NAME_MAX,
   PET_PROFILE_COMMAND_INPUT_CODES,
+  type PetIdentityLengthResolution,
   type PetProfileCommand,
   type PetProfileCommandInput,
   type PetProfileCommandInputCode,
+  type StoredPetIdentityText,
   firstPetProfileCommandInputCode,
+  petIdentityFieldCap,
   petProfileCommandInputSchema,
+  resolvePetIdentityLengths,
 } from "./pet-profile-edit.ts";
 export {
   ACQUISITION_METHODS,

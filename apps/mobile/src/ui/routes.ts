@@ -188,8 +188,10 @@ export function sharesRoute(publicToken: string): `/mascotas/${string}/compartir
  * mechanism a stack navigator does not have. Splitting them into two native
  * routes would have bought a second copy of one fetch, one guard-derived
  * capability pair and one save path, to hide a card a person can already see by
- * scrolling. The two entry points differ in what they PROMISE, not in where they
- * go, and the screen renders both blocks with the one that was asked for first.
+ * scrolling. The two entry points differ in what they PROMISE and in nothing
+ * else: this function takes no section argument, the screen renders both cards
+ * in a fixed order — datos, then contactos — and whichever row was tapped, the
+ * other is one scroll away.
  *
  * The path matches the WEB's leaf (`/mis-mascotas/{token}/editar`), unlike the
  * `?sheet=` half: nothing deep-links in today, and when something does, the

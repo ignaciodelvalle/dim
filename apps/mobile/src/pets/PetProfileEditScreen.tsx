@@ -28,6 +28,15 @@
 // it, an owner whose animal is recorded as a breed the catalog has since dropped
 // would have no way to keep it, and correcting the NAME would silently take the
 // breed with it.
+//
+// THE NAME AND COLOUR CAPS ARE GRANDFATHERED THE SAME WAY, and they have to be
+// twice over. `pets.name` and `pets.color` are unbounded `text` with no cap
+// anywhere in the web's writer, so longer values already exist; a fixed
+// `maxLength` would TRUNCATE such a name into the input and the next save would
+// store the shortened one, while a fixed refusal on the way back would leave
+// that owner unable to correct the COLOUR either, because this form posts both.
+// `identityFieldCaps` handles the first half and `buildIdentityEdit`, given the
+// server's own values, the second.
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
@@ -56,6 +65,7 @@ import {
   emergencyDraftFrom,
   identityBlockedReason,
   identityDraftFrom,
+  identityFieldCaps,
   savedLabel,
 } from "./pet-profile-edit-view-model";
 
@@ -153,6 +163,11 @@ export function PetProfileEditScreen({ publicToken }: { publicToken: string }) {
   const view = state.view;
   const identityBlocked = identityBlockedReason(view);
   const contactsBlocked = contactsBlockedReason(view);
+  // GRANDFATHERED against what is stored, never the bare constant: a `TextInput`
+  // truncates the value it is handed, so a fixed cap under an already-longer
+  // name would shorten it on screen and the next save would write the shortened
+  // one. See `identityFieldCaps`.
+  const identityCaps = identityFieldCaps(view);
 
   return (
     // `keyboardAvoiding` because both forms are text inputs down a long scroll —
@@ -180,7 +195,7 @@ export function PetProfileEditScreen({ publicToken }: { publicToken: string }) {
             <TextField
               label="Nombre"
               required
-              maxLength={FIELD_LIMITS.name}
+              maxLength={identityCaps.name}
               onChangeText={(name) => setIdentity({ ...identity, name })}
               value={identity.name}
             />
@@ -194,7 +209,7 @@ export function PetProfileEditScreen({ publicToken }: { publicToken: string }) {
             />
             <TextField
               label="Color"
-              maxLength={FIELD_LIMITS.color}
+              maxLength={identityCaps.color}
               onChangeText={(color) => setIdentity({ ...identity, color })}
               placeholder="Atigrado, negro con blanco en el pecho…"
               value={identity.color}
@@ -203,7 +218,7 @@ export function PetProfileEditScreen({ publicToken }: { publicToken: string }) {
               label="Guardar datos"
               disabled={busy}
               onPress={() => {
-                const built = buildIdentityEdit(identity);
+                const built = buildIdentityEdit(identity, view.identity);
                 if (!built.ok) {
                   setNotice({ tone: "err", message: built.message });
                   return;

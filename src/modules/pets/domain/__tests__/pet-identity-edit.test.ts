@@ -10,12 +10,21 @@
 // corrected a typo in a name and lost their animal's weight, allergies, training
 // level, insurance policy and permanent medical conditions in the same click.
 //
-// The first test therefore asserts the IDENTITY of every preserved field by
-// name, rather than spot-checking two of them. A field added to `ParsedPet`
-// later and forgotten here is exactly the regression, and the exhaustive
-// comparison is what fails when it happens.
+// The first test is therefore a WHOLE-OBJECT comparison against a literal, not
+// a list of `expect(parsed.x)` lines. The difference is not style. A list can
+// only fail on a field somebody remembered to list, which makes it blind to
+// exactly the regression that matters: a field added to `ParsedPet` later and
+// wired here to `null` instead of to `existing`. `toEqual` against a complete
+// literal fails on that, on a field quietly dropped, and on a field added to the
+// output that nobody declared — none of which a spot check can see.
+//
+// TypeScript covers the other half and only the other half: `composePetIdentityEdit`
+// returns `ParsedPet`, so FORGETTING a new required field is a compile error. It
+// is filling one in wrongly that compiles, and that is this test's subject.
 
 import { describe, expect, it } from "vitest";
+
+import type { ParsedPet } from "@/src/modules/pets/domain/types";
 
 import {
   type EditablePetSnapshot,
@@ -50,37 +59,58 @@ function fullPet(over: Partial<EditablePetSnapshot> = {}): EditablePetSnapshot {
 }
 
 describe("composePetIdentityEdit — what the caller did not name survives", () => {
-  it("carries every non-identity field through unchanged", () => {
-    const existing = fullPet();
-    const parsed = composePetIdentityEdit(existing, {
+  it("produces exactly this object and nothing else", () => {
+    const parsed = composePetIdentityEdit(fullPet(), {
       name: "Pampita",
       breed: "Caniche",
       color: "Blanca",
     });
 
-    // The three that were asked for.
-    expect(parsed.name).toBe("Pampita");
-    expect(parsed.breed).toBe("Caniche");
-    expect(parsed.color).toBe("Blanca");
+    // THE WHOLE OBJECT, written out. Annotated `ParsedPet` on purpose: a field
+    // added to the type shows up here as a compile error in the LITERAL, which
+    // is a reviewer being asked "carried over, or deliberately not?" rather than
+    // a green suite that never noticed.
+    const expected: ParsedPet = {
+      // The three that were asked for.
+      name: "Pampita",
+      breed: "Caniche",
+      color: "Blanca",
 
-    // Everything the repository would otherwise have nulled or flipped.
-    expect(parsed.species).toBe("dog");
-    expect(parsed.sex).toBe("female");
-    expect(parsed.dateOfBirth).toBe("2021-03-04");
-    expect(parsed.birthDateIsEstimated).toBe(true);
-    expect(parsed.estimatedWeightKg).toBe("18.50");
-    expect(parsed.favouriteFoods).toEqual(["pollo", "zanahoria"]);
-    expect(parsed.knownAllergies).toEqual(["polen"]);
-    expect(parsed.trainingLevel).toBe("basic");
-    expect(parsed.insuranceCompany).toBe("Aseguradora Sur");
-    expect(parsed.insurancePolicyNumber).toBe("POL-9182");
-    expect(parsed.jurisdictionProvince).toBe("Buenos Aires");
-    expect(parsed.jurisdictionLocality).toBe("San Carlos de Bariloche");
-    expect(parsed.acquisitionMethod).toBe("adopted");
-    expect(parsed.emergencyInfoVisible).toBe(true);
-    expect(parsed.permanentConditions).toEqual(["ciego", "otra"]);
-    expect(parsed.permanentConditionsOther).toBe("displasia de cadera");
-    expect(parsed.discloseConditionsPublicly).toBe(true);
+      // Everything the repository's unconditional `SET` would otherwise have
+      // nulled or flipped.
+      species: "dog",
+      sex: "female",
+      dateOfBirth: "2021-03-04",
+      birthDateIsEstimated: true,
+      estimatedWeightKg: "18.50",
+      favouriteFoods: ["pollo", "zanahoria"],
+      knownAllergies: ["polen"],
+      trainingLevel: "basic",
+      insuranceCompany: "Aseguradora Sur",
+      insurancePolicyNumber: "POL-9182",
+      jurisdictionProvince: "Buenos Aires",
+      jurisdictionLocality: "San Carlos de Bariloche",
+      acquisitionMethod: "adopted",
+      emergencyInfoVisible: true,
+      permanentConditions: ["ciego", "otra"],
+      permanentConditionsOther: "displasia de cadera",
+      discloseConditionsPublicly: true,
+
+      // Deliberately not carried — each one for its own reason, in the header.
+      microchipId: null,
+      microchipCountryCode: null,
+      microchipImplantedAt: null,
+      microchipImplantedBy: null,
+      microchipLocation: null,
+      custodyKind: "owner",
+    };
+
+    expect(parsed).toEqual(expected);
+    // `toEqual` ignores keys whose value is `undefined`, so it would not notice
+    // `localityId: undefined` appearing. The key list is checked on its own —
+    // `localityId` is OMITTED here, not nulled, because `updatePetProfile` has
+    // no writer for it and stating a value would imply one.
+    expect(Object.keys(parsed).sort()).toEqual(Object.keys(expected).sort());
   });
 
   it("does not silently drop a permanent condition the catalog no longer names", () => {

@@ -19,6 +19,12 @@
 //   6. NOTHING IS WRITTEN when any gate refuses.
 //   7. THE REFUSALS CARRY THE RIGHT STATUS PER WHOSE FACT THEY ARE: 403 for the
 //      CALLER, 400 for the request, 404 for anything a caller may not see.
+//   8. A LENGTH CAP INVENTED AFTER THE DATA DOES NOT LOCK AN OWNER OUT. The two
+//      identity columns are unbounded `text`, so over-long values already exist;
+//      the animal's own value passes back unchanged at any length while a NEW
+//      one over the cap is refused.
+//   9. THE LIVENESS REFUSALS AND THE NOTIFICATION FLUSH ARE REAL PATHS, not
+//      scaffolding — each arm of the one and the dedupe key of the other.
 
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -37,6 +43,10 @@ const control = vi.hoisted(() => ({
   updateResult: { ok: true, notifications: [] } as Record<string, unknown>,
   /** Every writer call. Empty means nothing was written. */
   writes: [] as Array<{ command: string; input: Record<string, unknown> }>,
+  /** Every row handed to the canonical notification service. */
+  notified: [] as Array<Record<string, unknown>>,
+  /** When set, the notification service throws instead of answering. */
+  notifyThrows: false,
 }));
 
 vi.mock("@/lib/infra/live-user", async (importOriginal) => {
@@ -97,6 +107,17 @@ vi.mock("@/src/modules/pets/application/profile/update-emergency-contacts", () =
       input: { userId, publicToken, ...input },
     });
     return control.contactsResult;
+  },
+}));
+
+// The CANONICAL write path, mocked so its rows can be read. `commands.ts` uses
+// it instead of the raw `db.insert(notifications)` the cookie door beside it
+// still does, and the dedupe key it builds is a decision this file asserts.
+vi.mock("@/lib/infra/notification-service", () => ({
+  createNotificationsBulk: async (rows: Array<Record<string, unknown>>) => {
+    if (control.notifyThrows) throw new Error("notification service is down");
+    control.notified.push(...rows);
+    return { created: rows.length, deadLettered: 0 };
   },
 }));
 
@@ -192,6 +213,8 @@ beforeEach(() => {
   control.contactsResult = { ok: true };
   control.updateResult = { ok: true, notifications: [] };
   control.writes = [];
+  control.notified = [];
+  control.notifyThrows = false;
 });
 
 describe("GET — what the form pre-fills with", () => {
@@ -372,6 +395,181 @@ describe("POST — editar identidad", () => {
     expect(response.status).toBe(400);
     expect(await response.json()).toEqual({ error: "invalid_request" });
     expect(control.writes).toHaveLength(0);
+  });
+});
+
+describe("POST — a cap invented after the data does not lock the owner out", () => {
+  // `pets.name` and `pets.color` are unbounded `text`, and `ln()` — the only
+  // writer either column has ever had — caps neither. So values longer than
+  // `PET_NAME_MAX` already exist, and this whole block is about what happens to
+  // that animal's owner on a phone that has no second door.
+  const LONG_NAME = "Pampa ".repeat(30).trim();
+
+  const withLongName = () => () => ({
+    kind: "owner",
+    pet: petRow({ name: LONG_NAME }),
+    holderRole: "owner",
+  });
+
+  it("lets the owner of an over-long name correct the COLOUR", async () => {
+    // THE LOCKOUT. `edit_identity` carries all three fields on every save, so a
+    // cap enforced against the carried-over name would refuse a request that is
+    // only trying to change the colour — and the owner could never edit anything
+    // on this screen again.
+    control.access = withLongName();
+    const response = await send({
+      command: "edit_identity",
+      name: LONG_NAME,
+      breed: "Caniche",
+      color: "Blanca",
+    });
+    expect(response.status).toBe(200);
+    expect(control.writes).toHaveLength(1);
+    expect((control.writes[0].input.parsed as Record<string, unknown>).color).toBe("Blanca");
+    // And the long name goes back exactly as it came, not truncated.
+    expect((control.writes[0].input.parsed as Record<string, unknown>).name).toBe(LONG_NAME);
+  });
+
+  it("lets that same owner SHORTEN the name, which is what the cap is for", async () => {
+    control.access = withLongName();
+    const response = await send({ ...IDENTITY, name: "Pampita" });
+    expect(response.status).toBe(200);
+    expect((control.writes[0].input.parsed as Record<string, unknown>).name).toBe("Pampita");
+  });
+
+  it("still refuses a NEW over-long name, and writes nothing", async () => {
+    const response = await send({ ...IDENTITY, name: LONG_NAME });
+    expect(response.status).toBe(400);
+    expect(await response.json()).toEqual({ error: "invalid_request" });
+    expect(control.writes).toHaveLength(0);
+  });
+
+  it("still refuses a NEW over-long name on an animal that already has one", async () => {
+    // The grandfather is for the value on the row, not a licence to type any
+    // length once one long value exists.
+    control.access = withLongName();
+    const response = await send({ ...IDENTITY, name: `${LONG_NAME} y algo más` });
+    expect(response.status).toBe(400);
+    expect(control.writes).toHaveLength(0);
+  });
+
+  it("grandfathers the COLOUR the same way while the name is corrected", async () => {
+    const longColor = "atigrada con manchas ".repeat(20).trim();
+    control.access = () => ({
+      kind: "owner",
+      pet: petRow({ color: longColor }),
+      holderRole: "owner",
+    });
+    const response = await send({
+      command: "edit_identity",
+      name: "Pampita",
+      breed: "Caniche",
+      color: longColor,
+    });
+    expect(response.status).toBe(200);
+    expect((control.writes[0].input.parsed as Record<string, unknown>).color).toBe(longColor);
+  });
+
+  it("refuses a NEW over-long colour", async () => {
+    const response = await send({
+      ...IDENTITY,
+      color: "atigrada con manchas ".repeat(20).trim(),
+    });
+    expect(response.status).toBe(400);
+    expect(control.writes).toHaveLength(0);
+  });
+});
+
+describe("POST — the PPP notification the identity edit can queue", () => {
+  // REACHABLE, not defensive: `updatePet` queues the registration reminder when
+  // an animal BECOMES potentially dangerous, which needs a breed change, and
+  // this door edits the breed.
+  const PENDING = {
+    userId: OWNER_ID,
+    notificationType: "ppp_registration_required",
+    title: "Registrá a Pampa",
+    body: "Su raza requiere inscripción.",
+    severity: "warning",
+    relatedPetId: PET_ID,
+  };
+
+  it("flushes through the canonical service with a DAY-SCOPED dedupe key", async () => {
+    // Day-scoped and not permanent: an animal that stopped being PPP and later
+    // became so again must be able to re-notify, or a legal obligation is
+    // silently dropped. A double-tap on one day still collapses.
+    control.updateResult = { ok: true, notifications: [PENDING] };
+    expect((await send(IDENTITY)).status).toBe(200);
+    expect(control.notified).toHaveLength(1);
+    const today = new Date().toISOString().slice(0, 10);
+    expect(control.notified[0].dedupeKey).toBe(
+      `ppp_registration_required:${PET_ID}:${OWNER_ID}:${today}`,
+    );
+  });
+
+  it("narrows a severity the service does not carry down to warning", async () => {
+    // The pets module's own union has an `"error"` the service has no arm for.
+    // Warning is the honest floor for a notice about a legal obligation.
+    control.updateResult = { ok: true, notifications: [{ ...PENDING, severity: "error" }] };
+    await send(IDENTITY);
+    expect(control.notified[0].severity).toBe("warning");
+  });
+
+  it("does not touch the service at all when nothing was queued", async () => {
+    await send(IDENTITY);
+    expect(control.notified).toHaveLength(0);
+  });
+
+  it("still answers 200 when the notification service itself breaks", async () => {
+    // The primary write already committed. Undoing an identity correction
+    // because a notice did not send would lose the thing the person asked for.
+    control.updateResult = { ok: true, notifications: [PENDING] };
+    control.notifyThrows = true;
+    const response = await send(IDENTITY);
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({ command: "edit_identity", changed: true });
+  });
+});
+
+describe("the liveness guard's refusals, on both methods", () => {
+  // One URL, one liveness rule. Splitting it by method would be this endpoint
+  // inventing a policy none of its siblings has — so every arm is asserted on
+  // the READ and the WRITE alike.
+  const ARMS: ReadonlyArray<[string, number, string]> = [
+    ["NO_SESSION", 401, "auth_expired"],
+    ["ACCOUNT_ERASED", 403, "account_erased"],
+    ["DEACTIVATED", 403, "account_deactivated"],
+    ["SHIFT_EXPIRED", 401, "session_shift_expired"],
+  ];
+
+  for (const [reason, status, code] of ARMS) {
+    it(`answers ${status} ${code} for ${reason}`, async () => {
+      control.live = () => ({ ok: false, reason });
+      const get = await read();
+      expect(get.status).toBe(status);
+      expect(await get.json()).toEqual({ error: code });
+
+      const post = await send(IDENTITY);
+      expect(post.status).toBe(status);
+      expect(await post.json()).toEqual({ error: code });
+      expect(control.writes).toHaveLength(0);
+    });
+  }
+
+  it("answers 503 with a retry-after during MAINTENANCE", async () => {
+    control.live = () => ({ ok: false, reason: "MAINTENANCE" });
+    const response = await send(IDENTITY);
+    expect(response.status).toBe(503);
+    expect(await response.json()).toEqual({ error: "temporarily_unavailable" });
+    expect(response.headers.get("retry-after")).toBe("5");
+    expect(control.writes).toHaveLength(0);
+  });
+
+  it("throws rather than guessing when a refusal arm is unknown to the switch", async () => {
+    // The `never` default. A reason added to `LiveUserFailureReason` and not
+    // mapped here must not fall through to a 200 or a silent 500 shrug — the
+    // test that fails is the one that says the endpoint noticed.
+    control.live = () => ({ ok: false, reason: "SOMETHING_NEW" });
+    await expect(send(IDENTITY)).rejects.toThrow("Unhandled liveness refusal");
   });
 });
 

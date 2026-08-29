@@ -223,6 +223,52 @@ describe("PetProfileEditScreen — the breed the catalog forgot", () => {
   });
 });
 
+describe("PetProfileEditScreen — a name longer than the cap invented after it", () => {
+  // `pets.name` is unbounded `text` and the web's parser caps it nowhere, so
+  // over-long values already exist. This animal's owner has a phone and no
+  // second door.
+  const LONG_NAME = "Pampa ".repeat(30).trim();
+
+  beforeEach(() => {
+    mockFetch.mockResolvedValue({
+      outcome: "ok",
+      payload: payload({ identity: { name: LONG_NAME, breed: "Mestizo", color: "Atigrada" } }),
+    });
+  });
+
+  it("does not TRUNCATE it into the input", async () => {
+    // The quiet half of the bug: `TextInput` cuts the value it is handed to
+    // `maxLength`, so a fixed cap would show a shortened name and the next save
+    // would store it — an edit to the credential's own field that nobody made.
+    render(<PetProfileEditScreen publicToken={TOKEN} />);
+    const name = await screen.findByDisplayValue(LONG_NAME);
+    expect(name.props.maxLength).toBeGreaterThanOrEqual(LONG_NAME.length);
+  });
+
+  it("posts the colour correction with the long name carried over intact", async () => {
+    render(<PetProfileEditScreen publicToken={TOKEN} />);
+    const color = await screen.findByDisplayValue("Atigrada");
+    fireEvent.changeText(color, "Blanca");
+    fireEvent.press(screen.getByText("Guardar datos"));
+    await waitFor(() => expect(mockSend).toHaveBeenCalled());
+    expect(mockSend).toHaveBeenCalledWith({}, TOKEN, {
+      command: "edit_identity",
+      name: LONG_NAME,
+      breed: "Mestizo",
+      color: "Blanca",
+    });
+  });
+
+  it("still refuses a DIFFERENT over-long name, and does not post it", async () => {
+    render(<PetProfileEditScreen publicToken={TOKEN} />);
+    const name = await screen.findByDisplayValue(LONG_NAME);
+    fireEvent.changeText(name, `${LONG_NAME} y algo más`);
+    fireEvent.press(screen.getByText("Guardar datos"));
+    expect(await screen.findByText(/demasiado largo/)).toBeOnTheScreen();
+    expect(mockSend).not.toHaveBeenCalled();
+  });
+});
+
 describe("PetProfileEditScreen — the read failing", () => {
   it("says so and offers a retry rather than an empty form", async () => {
     // An empty form over a failed read is the worst outcome available: a person

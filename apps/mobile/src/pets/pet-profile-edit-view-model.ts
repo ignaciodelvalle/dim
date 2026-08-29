@@ -18,14 +18,20 @@
 // review and exactly what this app must not undo.
 
 import type { PetProfileEditV1 } from "@dim/contract/api";
-import type { PetProfileCommandInput, PetProfileCommandInputCode } from "@dim/contract/input";
+import type {
+  PetProfileCommandInput,
+  PetProfileCommandInputCode,
+  StoredPetIdentityText,
+} from "@dim/contract/input";
 import {
   EMERGENCY_CONTACT_NAME_MAX,
   EMERGENCY_CONTACT_PHONE_MAX,
   PET_COLOR_MAX,
   PET_NAME_MAX,
   firstPetProfileCommandInputCode,
+  petIdentityFieldCap,
   petProfileCommandInputSchema,
+  resolvePetIdentityLengths,
 } from "@dim/contract/input";
 import { breedsForSpecies } from "@dim/contract/reference";
 
@@ -44,13 +50,34 @@ export type EmergencyDraft = {
   emergencyContactPhone: string;
 };
 
-/** The caps the two forms put on their own inputs, from the contract. */
+/**
+ * The caps the CONTACTS form puts on its own inputs, from the contract.
+ *
+ * The two identity fields are not here: their cap depends on what the animal
+ * already holds — see `identityFieldCaps`.
+ */
 export const FIELD_LIMITS = {
-  name: PET_NAME_MAX,
-  color: PET_COLOR_MAX,
   contactName: EMERGENCY_CONTACT_NAME_MAX,
   contactPhone: EMERGENCY_CONTACT_PHONE_MAX,
 } as const;
+
+/**
+ * The `maxLength` the two identity inputs may carry for THIS animal.
+ *
+ * A FIXED CAP HERE SILENTLY EDITS THE PET. `TextInput` truncates the value it is
+ * handed, so an animal whose stored name is longer than `PET_NAME_MAX` would
+ * arrive on screen already shortened and the next "Guardar datos" would write
+ * the shortened name — a correction nobody asked for, to the field the
+ * credential is read by. `petIdentityFieldCap` raises the cap to whatever is
+ * stored, which is the same grandfather `resolvePetIdentityLengths` grants the
+ * value on the way back.
+ */
+export function identityFieldCaps(payload: PetProfileEditV1): { name: number; color: number } {
+  return {
+    name: petIdentityFieldCap(PET_NAME_MAX, payload.identity.name),
+    color: petIdentityFieldCap(PET_COLOR_MAX, payload.identity.color),
+  };
+}
 
 /** The server's current values, as the form should start. */
 export function identityDraftFrom(payload: PetProfileEditV1): IdentityDraft {
@@ -151,13 +178,30 @@ function validated(wire: unknown): CommandResult {
  * An empty `breed` or `color` travels as `null`, which CLEARS the field — the
  * contract's own semantics, and the reason the two are required keys rather
  * than optional ones. A person who empties the colour box means to empty it.
+ *
+ * IT TAKES THE STORED VALUES because the length rule needs them. The cap gates
+ * NEW text only: an animal already recorded with a name longer than
+ * `PET_NAME_MAX` must still be able to have its COLOUR corrected, and this form
+ * posts both fields on every save. Passing the payload's own `identity` is what
+ * makes the local refusal agree with the server's, field for field — a screen
+ * that refused what the endpoint would accept is the same bug as one that
+ * offered what it would refuse.
  */
-export function buildIdentityEdit(draft: IdentityDraft): CommandResult {
+export function buildIdentityEdit(
+  draft: IdentityDraft,
+  stored: StoredPetIdentityText,
+): CommandResult {
+  const name = draft.name.trim();
+  const color = draft.color.trim() || null;
+  const lengths = resolvePetIdentityLengths({ name, color }, stored);
+  if (!lengths.ok) {
+    return { ok: false, code: lengths.code, message: petProfileInputCodeMessage(lengths.code) };
+  }
   return validated({
     command: "edit_identity",
     name: draft.name,
     breed: draft.breed.trim() || null,
-    color: draft.color.trim() || null,
+    color,
   });
 }
 

@@ -5,20 +5,23 @@
 // single most important thing this file records, because the temptation is to
 // read them as one screen and therefore one rule:
 //
+// Each rule is cited by the SYMBOL that carries it, never by a line number: a
+// line number is a fact about a file's length and rots on the next edit above
+// it, while these names are greppable and survive.
+//
 //   · IDENTITY (name, breed, colour) is `requireTitularAccess` on the web —
-//     `editar/page.tsx:28` gates the FORM and `updatePetAction`
-//     (`src/modules/pets/actions.ts:398`) gates the WRITE. That guard denies
-//     exactly one thing: a person-path holder whose `ownerships.role` is
-//     `caretaker`. A co-owner passes, a foster passes, the ORG path passes.
+//     `EditPetPage` gates the FORM and `updatePetAction` gates the WRITE. That
+//     guard denies exactly one thing: a person-path holder whose
+//     `ownerships.role` is `caretaker`. A co-owner passes, a foster passes, the
+//     ORG path passes.
 //   · EMERGENCY CONTACTS (the preferred vet and the person to call) is
 //     NARROWER, and narrower in a way `requireTitularAccess` cannot express:
-//     `updateEmergencyContactsForPet` joins `ownerships` with
-//     `role = 'owner'` and no other role passes
-//     (`application/profile/update-emergency-contacts.ts:70`), and the web page
-//     nulls the sheet's data for anybody else
-//     (`mis-mascotas/[publicToken]/page.tsx:499`, "M2 fresh-review required fix
-//     2"). A foster in transit is a Path-1 holder and must not see, let alone
-//     edit, the legal owner's own phone numbers.
+//     `updateEmergencyContactsForPet` joins `ownerships` with `role = 'owner'`
+//     and no other role passes, and the web page nulls the sheet's data for
+//     anybody else (`mis-mascotas/[publicToken]/page.tsx`, both places tagged
+//     "M2 fresh-review required fix 2" — grep the tag). A foster in transit is a
+//     Path-1 holder and must not see, let alone edit, the legal owner's own
+//     phone numbers.
 //
 // So `capabilities` carries TWO booleans and a client renders each control from
 // its own. Deriving either from "this pet is mine" is how a foster ends up
@@ -73,8 +76,9 @@ export type PetIdentityDraftV1 = {
 /**
  * The pet-level emergency-contact OVERRIDE, exactly as stored.
  *
- * EMPTY STRINGS, NOT NULLS, and that is the web's own pre-fill
- * (`page.tsx:773` — `pet.preferredVetName ?? ""`). The distinction is load
+ * EMPTY STRINGS, NOT NULLS, and that is the web's own pre-fill — the sheet's
+ * initial values are `pet.preferredVetName ?? ""` and its three siblings, in
+ * `mis-mascotas/[publicToken]/page.tsx`. The distinction is load
  * bearing on the way back out: a field left empty CLEARS the override and the
  * account default shows through, which is a different act from never having set
  * one. A client renders these into text inputs and posts them back unchanged.

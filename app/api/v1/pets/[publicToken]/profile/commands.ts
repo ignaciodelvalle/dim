@@ -8,11 +8,12 @@
 // ---------------------------------------------------------------------------
 // The two booleans are derived in `./payload.ts` and used by BOTH the read and
 // this file, so a screen can never be offered a control this file refuses. The
-// rules themselves are cited at the guard call:
+// rules themselves are cited by SYMBOL and not by line — a line number in a
+// comment is a fact about a file's length and rots on the next edit above it:
 //
-//   editar identidad   `updatePetAction`                src/modules/pets/actions.ts:398
-//                      `EditPetPage`                    …/[publicToken]/editar/page.tsx:28
-//   contactos          `updateEmergencyContactsForPet`  …/profile/update-emergency-contacts.ts:70
+//   editar identidad   `updatePetAction`                src/modules/pets/actions.ts
+//                      `EditPetPage`                    …/[publicToken]/editar/page.tsx
+//   contactos          `updateEmergencyContactsForPet`  …/profile/update-emergency-contacts.ts
 //
 // and the second is NOT a narrowing this endpoint invented: the writer's own
 // `ownerships` join says `role = 'owner'`, so it refuses a co-owner, a foster
@@ -69,7 +70,7 @@ import { composePetIdentityEdit } from "@/src/modules/pets/domain/pet-identity-e
 import type { NewNotification } from "@/src/modules/pets/domain/types";
 import { PetsRepository } from "@/src/modules/pets/infrastructure/pets-repository";
 import type { PetProfileEditAckV1 } from "@dim/contract/api";
-import type { PetProfileCommandInput } from "@dim/contract/input";
+import { type PetProfileCommandInput, resolvePetIdentityLengths } from "@dim/contract/input";
 
 import { type ResolvedProfileAccess, petProfileCapabilities } from "./payload";
 
@@ -149,6 +150,25 @@ async function editIdentity(
     storedBreed: pet.breed,
   });
   if (!breedResolution.ok) return apiV1Error("profile_breed_invalid", 400);
+
+  // THE LENGTH GATE, and it is HERE rather than on the schema for the same
+  // reason the breed gate is: both need the animal's current row. `pets.name`
+  // and `pets.color` are `text` and the web's parser caps neither, so an
+  // over-long value ALREADY EXISTS on some animals — and a cap applied to it on
+  // the way back out would refuse the whole request, colour correction included,
+  // leaving the owner unable to edit their own record from the phone. Only NEW
+  // values are gated; what the animal already carries passes at any length.
+  //
+  // `invalid_request` and not a code of its own: the client holds the same
+  // payload this compares against and says so per field before posting, so
+  // reaching here means a client out of step with the contract — the case the
+  // route's own schema backstop already answers with one key and no field
+  // detail.
+  const lengths = resolvePetIdentityLengths(
+    { name: input.name, color: input.color },
+    { name: pet.name, color: pet.color },
+  );
+  if (!lengths.ok) return apiV1Error("invalid_request", 400);
 
   const parsed = composePetIdentityEdit(pet, {
     name: input.name,
@@ -323,9 +343,10 @@ function parseEstimatedWeightKg(raw: string | null): number | null {
  * became so again would never re-notify — a legal obligation silently dropped.
  * Keyed with the day, a double-tap or a retry collapses (which is the whole
  * risk here) and a genuine re-transition tomorrow still speaks. Same shape and
- * same UTC day bucket as `lib/infra/notifications.ts:238`, whose own comment
- * spells out the property: a later day is a new bucket, and two concurrent runs
- * on one day collapse into one row.
+ * same UTC `dayBucket` as the `vaccine_due` reminder in
+ * `lib/infra/notifications.ts`, whose own comment spells out the property: a
+ * later day is a new bucket, and two concurrent runs on one day collapse into
+ * one row.
  *
  * `severity` is narrowed rather than cast: the pets module's own union carries
  * an `"error"` the service does not, and the one notification reachable from
