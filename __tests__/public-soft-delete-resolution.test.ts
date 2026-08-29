@@ -1967,11 +1967,14 @@ describe("every token-addressed operator read of `pets` carries the soft-delete 
     expect(rels).toContain("app/admin/observaciones/[publicToken]/microchip/reemplazar/page.tsx");
     expect(rels).toContain("app/admin/observaciones/[publicToken]/microchip/reemplazar/action.ts");
     // And it must NOT have swallowed the record-mediated half — those eight are
-    // triaged in the header, not policed by this rule. Seeing one here means the
-    // scoping predicate stopped scoping.
-    expect(rels).not.toContain("app/gob/decomisos/page.tsx");
-    expect(rels).not.toContain("app/gob/disputas/DisputasScreen.tsx");
-    expect(rels).not.toContain("app/admin/outbox/page.tsx");
+    // triaged in the header, not policed by this rule. The anchor that carries
+    // weight is the DISPUTE detail: it is the only one of the eight whose path
+    // has a token-shaped segment at all, so it is the only one a widened
+    // predicate can actually pull in. (An earlier version of this test also
+    // named decomisos/page.tsx and outbox/page.tsx here — neither path contains
+    // a bracket, so no widening could ever have made those assertions fire.
+    // Anchors that cannot fail are decoration; they are gone.)
+    expect(rels).not.toContain("app/gob/disputas/[disputeToken]/page.tsx");
   });
 
   it("has no under-guarded file outside the pinned nexus shapes", () => {
