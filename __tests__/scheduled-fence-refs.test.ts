@@ -35,6 +35,7 @@ import {
   checkoutSteps,
   defaultBranchFindings,
   defaultBranchWorkflowYaml,
+  deployRefVerdict,
   exemptionFindings,
   hasSchedule,
   inertRows,
@@ -231,6 +232,51 @@ describe("defaultBranchFindings", () => {
     expect(found?.find((f) => f.workflow === waiting)?.problem).toContain(
       `has reached ${DEFAULT_BRANCH}`,
     );
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Does DEPLOY_REF still name a branch? The half that accused a LIVE branch.
+// ---------------------------------------------------------------------------
+
+describe("deployRefVerdict", () => {
+  // The bug, exactly: the old resolver gated on origin/main being visible and
+  // then looked for origin/<DEPLOY_REF> in the LOCAL clone. A CI checkout with
+  // no fetch-depth has the first and not the second, so the fence announced
+  // "no longer names a branch" about a branch `git ls-remote` answered for.
+  // The fix moved the question to the remote; these pin the mapping, which is
+  // the part a network call cannot test.
+  it("reads exit 0 as: the remote listed the ref", () => {
+    expect(deployRefVerdict(0)).toBe(true);
+  });
+
+  // The one and only red. `--exit-code` returns 2 when the remote ANSWERED and
+  // matched nothing — a real deletion, which is what this fence is for.
+  it("reads exit 2 as: the remote answered and has no such branch", () => {
+    expect(deployRefVerdict(2)).toBe(false);
+  });
+
+  // The regression this file most needs to prevent, because it is the original
+  // bug wearing different clothes: any other status means git did not find out.
+  // Reporting "cannot answer" as "it is gone" is what put CI red over a branch
+  // that was alive, so no failure mode may collapse into `false`.
+  it("reads every other status as: git could not answer, so no verdict", () => {
+    for (const status of [1, 128, 129, -1]) {
+      expect(deployRefVerdict(status), `exit ${status}`).toBeNull();
+    }
+  });
+
+  it("reads a git that never ran at all as no verdict, not as a deletion", () => {
+    // null is what the caller passes for a timeout, a signal, or no git binary.
+    expect(deployRefVerdict(null)).toBeNull();
+  });
+
+  it("only ever reports a problem on an exact false, so null stays silent", () => {
+    // Guards the contract between the two: the CLI pushes a finding when the
+    // verdict `=== false`. If null ever started reading as falsy-enough, the
+    // SKIPPED path would become a failure again.
+    expect(deployRefVerdict(null) === false).toBe(false);
+    expect(deployRefVerdict(128) === false).toBe(false);
   });
 });
 

@@ -59,7 +59,7 @@
 //
 // Run:  pnpm tsx scripts/check-scheduled-fence-refs.ts   (or: pnpm lint:sched-refs)
 
-import { execFileSync } from "node:child_process";
+import { execFileSync, spawnSync } from "node:child_process";
 import { readFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 
@@ -338,18 +338,86 @@ export function defaultBranchWorkflowYaml(file: string): string | null {
   return null;
 }
 
-/** True/false when the deploy ref is resolvable/unresolvable; null when git cannot answer. */
+/**
+ * How long to wait for the remote before giving up and reporting SKIPPED.
+ *
+ * This check runs inside `pnpm verify`, which is the Definition of Done for
+ * every commit, so it may never become the reason a developer's gate hangs. A
+ * timeout is answered as "cannot answer", never as "the branch is gone".
+ */
+const LS_REMOTE_TIMEOUT_MS = 10_000;
+
+/**
+ * Runs git and reports its EXIT STATUS, not just its output.
+ *
+ * {@link git} folds every failure into `null`, which is the right shape for the
+ * ls-tree/show readers above: there, "no output" and "no such ref" are the same
+ * answer. It is the wrong shape for a check whose entire job is to tell "the
+ * remote answered, and it has no such branch" apart from "git could not reach
+ * the remote at all" — two states that must produce opposite verdicts.
+ *
+ * Returns null only when git could not be run to completion (not on disk,
+ * killed by a signal, or past {@link LS_REMOTE_TIMEOUT_MS}).
+ */
+function gitExitStatus(args: string[]): number | null {
+  const result = spawnSync("git", args, {
+    encoding: "utf8",
+    stdio: ["ignore", "pipe", "ignore"],
+    timeout: LS_REMOTE_TIMEOUT_MS,
+    // A remote that wants credentials must fail rather than block on a prompt
+    // no one is watching — inside `pnpm verify` there is nobody to type.
+    env: { ...process.env, GIT_TERMINAL_PROMPT: "0" },
+  });
+  if (result.error || result.status === null) return null;
+  return result.status;
+}
+
+/**
+ * The pure core of {@link deployRefResolves}: `git ls-remote --exit-code`'s exit
+ * status, mapped to the fence's three states.
+ *
+ * Separated out because the mapping is the load-bearing part and it is not
+ * testable through the network call. Its exit codes, per git-ls-remote(1):
+ *
+ *   0        the remote listed the ref — the branch is there.
+ *   2        `--exit-code`: the remote ANSWERED and matched no ref. This, and
+ *            only this, is the deletion the fence exists to catch.
+ *   other    128 and friends: no remote configured, no network, auth refused,
+ *            a repository that is not a repository. git did not find out.
+ *
+ * Collapsing the third row into `false` is exactly the bug fixed here, one
+ * layer down. Anything that is not a definite yes or a definite no is null.
+ */
+export function deployRefVerdict(status: number | null): boolean | null {
+  if (status === 0) return true;
+  if (status === 2) return false;
+  return null;
+}
+
+/**
+ * True/false when the deploy ref is resolvable/unresolvable; null when git
+ * cannot answer.
+ *
+ * Asks the REMOTE, and that is the fix. The previous version read this clone's
+ * local refs (`refs/remotes/origin/<DEPLOY_REF>`, then `refs/heads/<DEPLOY_REF>`)
+ * behind a guard on origin/<DEFAULT_BRANCH> being visible — a guard that tests
+ * the visibility of a DIFFERENT ref from the one being judged. On a CI run
+ * triggered by a push to the default branch, `actions/checkout` with no
+ * `fetch-depth` fetches only the triggering ref: origin/main IS visible and
+ * origin/<DEPLOY_REF> is NOT. So the guard passed, the local lookup missed, and
+ * the fence announced `DEPLOY_REF ... no longer names a branch` about a branch
+ * that was alive the whole time. Its own comment stated the correct rule — "I
+ * cannot see it" must not be reported as "it is gone" — while the code
+ * implemented it against the wrong ref.
+ *
+ * `ls-remote` puts the question to the server, so the answer stops depending on
+ * what the checkout happened to fetch. Three states, kept distinct in
+ * {@link deployRefVerdict}; the caller only ever reports on an exact `false`.
+ */
 export function deployRefResolves(): boolean | null {
-  // Gate on the default branch being visible. A CI checkout fetches only the
-  // ref that triggered it, so neither origin/main NOR origin/<deploy> exists
-  // there — and "I cannot see it" must not be reported as "it is gone".
-  if (git(["rev-parse", "--verify", "-q", `refs/remotes/origin/${DEFAULT_BRANCH}`]) === null) {
-    return null;
-  }
-  for (const ref of [`refs/remotes/origin/${DEPLOY_REF}`, `refs/heads/${DEPLOY_REF}`]) {
-    if (git(["rev-parse", "--verify", "-q", ref]) !== null) return true;
-  }
-  return false;
+  return deployRefVerdict(
+    gitExitStatus(["ls-remote", "--exit-code", "origin", `refs/heads/${DEPLOY_REF}`]),
+  );
 }
 
 // ---------------------------------------------------------------------------
@@ -686,8 +754,8 @@ function runCheck(): void {
   );
   console.log(
     refResolves === null
-      ? `  · ${DEPLOY_REF} resolvable: SKIPPED (this clone cannot see origin/${DEFAULT_BRANCH} either).`
-      : `  · ${DEPLOY_REF} resolvable: yes.`,
+      ? `  · ${DEPLOY_REF} resolvable: SKIPPED (git could not reach \`origin\` to ask — no remote, no network, or it did not answer in ${LS_REMOTE_TIMEOUT_MS / 1000}s).`
+      : `  · ${DEPLOY_REF} resolvable: yes, per \`git ls-remote origin\`.`,
   );
 
   // ---- What a scheduled run would ACTUALLY execute. -----------------------
