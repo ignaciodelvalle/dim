@@ -294,6 +294,21 @@ export async function loginAs(
 }
 
 /**
+ * The status flags that mark a pet as NOT a live credential, exactly as
+ * LnStatusFlag prints them on a registry row (components/ui/StatusFlag.tsx):
+ * `lost` -> PERDIDO / PERDIDA / PERDIDO/A, `deceased` -> EN MEMORIA.
+ *
+ * The complement — `ok` ("AL DÍA"), `registered`, `sick`, `pregnant` — is every
+ * state in which the pet is alive and its credential resolves, which is what
+ * every caller of {@link discoverPetToken} means by "active". Naming the two
+ * dead states is a closed list; naming the live ones is not.
+ *
+ * LnRegRow renders no other status text, so matching the row anchor's text is
+ * enough to identify the flag.
+ */
+const INACTIVE_PET_FLAG = /PERDID[AO]|EN MEMORIA/i;
+
+/**
  * Discover a REAL public DIM token from the signed-in owner's own registry.
  *
  * Bootstrap generates every pet token with `generatePublicToken()` — random by
@@ -309,13 +324,35 @@ export async function loginAs(
  * bare "first link" pick makes the caller's assertions depend on whatever state
  * a previous suite happened to leave behind. Measured: after one run of the
  * mark-lost journeys, owner@dim.test's first card was a LOST pet and the
- * carousel tests failed on a page that was behaving correctly. The
- * `hasText: /registrad[ao]/i` filter is the status flag on the card — the same
- * anchor e2e/crisis-owner-lost-flow.spec.ts uses to find a non-lost pet. The
- * character class is load-bearing: the flag agrees with the animal's sex
- * (REGISTRADO / REGISTRADA / REGISTRADO/A), and a locator hardcoded to one
- * gender finds nothing for the others — which surfaces as a SKIPPED test, not
- * a failing one.
+ * carousel tests failed on a page that was behaving correctly.
+ *
+ * THE FILTER EXCLUDES THE DEAD STATES; it does not enumerate the live ones.
+ * This used to read `hasText: /registrad[ao]/i`, which is the flag LnStatusFlag
+ * prints for status `registered` ONLY. But `lnPetStatusFromCompliance`
+ * (lib/projections/pet-compliance.ts) returns `ok` for a pet that satisfies
+ * every tracked obligation, and `ok` prints "AL DÍA"
+ * (components/ui/StatusFlag.tsx). So the "find me an ACTIVE pet" helper could
+ * not see the healthiest pets in the registry — the more compliant the seed,
+ * the fewer candidates it found. On a fresh CI database, where nothing is
+ * overdue yet, that is most of them.
+ *
+ * That failure is two-faced, which is why it survived: callers that assert on
+ * the result got a real red (e2e/rehome-by-titular.spec.ts hit it on CI run
+ * 32555456201), and callers that skip on an empty pick got a silent green. Its
+ * own comment says the sibling specs "had been skipping silently on the same
+ * condition" — they were fixed one spec at a time while this shared helper,
+ * the thing they all call, kept the bug.
+ *
+ * Inverting is the fix rather than adding "AL DÍA" to the allow-list, because
+ * excluding the dead states is what the helper actually means. Add a healthy
+ * status tomorrow — `sick`, `pregnant`, anything the compliance mapper starts
+ * returning — and an allow-list silently stops finding those pets again, in the
+ * same two-faced way. An exclusion is wrong only if a state is genuinely dead
+ * and unlisted, which is a louder, one-directional kind of wrong.
+ *
+ * The character class is load-bearing on this side too: the flag agrees with
+ * the animal's sex (PERDIDO / PERDIDA / PERDIDO/A), so a pattern hardcoded to
+ * one gender would let lost pets of the others straight through.
  */
 export async function discoverPetToken(
   page: Page,
@@ -326,7 +363,7 @@ export async function discoverPetToken(
   await page.goto("/mis-mascotas", { waitUntil: "domcontentloaded" });
   await page.waitForLoadState("networkidle", { timeout: 6_000 }).catch(() => {});
   const links = activeOnly
-    ? page.locator('a[href^="/mis-mascotas/DIM-"]', { hasText: /registrad[ao]/i })
+    ? page.locator('a[href^="/mis-mascotas/DIM-"]', { hasNotText: INACTIVE_PET_FLAG })
     : page.locator('a[href^="/mis-mascotas/DIM-"]');
   await expect(
     links.nth(index),
