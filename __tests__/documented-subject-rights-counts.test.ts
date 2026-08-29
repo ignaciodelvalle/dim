@@ -216,12 +216,18 @@ describe("the docs — AGENTS.md §7 is the only place that writes the KNOWN_GAP
     // either document is collected and must agree.
     const doc = readFileSync(join(REPO_ROOT, path), "utf8");
     const wrong: string[] = [];
-    // The hyphen in the class is not decoration. Without it `twenty-one tables`
-    // captures only "one", which is in no lookup table, so the whole statement
-    // was skipped as "not a count" — a mutation run caught exactly that hole
-    // before this file was committed. Compound English number words are the
-    // form the board uses, so they are the form that must not slip through.
-    const re = /([\d]+|[a-záéíóú-]+)\s+(?:tablas?|tables?)\b[^.|\n]{0,60}?KNOWN_GAP/gi;
+    // Two details here are load-bearing, and both were found by MUTATING this
+    // file's inputs rather than by reading the regex:
+    //
+    //   · The hyphen in the character class. Without it `twenty-one tables`
+    //     captures only "one", which is in no lookup table, so the statement was
+    //     skipped as "not a count" and passed green. The board writes English
+    //     compound numbers, so that was the exact form that would arrive.
+    //   · `\**` on both sides of the whitespace. These are Markdown documents
+    //     and a number worth stating is a number somebody bolds; `**21** tables`
+    //     put an asterisk pair between the digits and the noun and slipped
+    //     straight through the earlier version.
+    const re = /([\d]+|[a-záéíóú-]+)\**\s+\**(?:tablas?|tables?)\b[^.|\n]{0,60}?KNOWN_GAP/gi;
     for (const m of doc.matchAll(re)) {
       const token = m[1].toLowerCase();
       const value = /^\d+$/.test(token)

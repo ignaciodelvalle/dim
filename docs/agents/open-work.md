@@ -210,6 +210,32 @@ Left in place deliberately: this snapshot's lane does not own that file, and
 a parallel writer may be in it. **Whoever integrates next should retarget that
 section at row 1 of the table above.**
 
+### The subject-rights counts no longer lie, and cannot again in the same way
+
+Four documents wrote the size of the debt register and three were wrong —
+AGENTS.md §6b, the coverage fence's own header, and this page's debts row. Only
+§7 was current. Measured against the live lint on 2026-08-29: the two RPCs reach
+**22** of the 54 classified public tables, and the register holds **17**. The
+stale figures are not quoted here on purpose; a wrong number reads as current no
+matter what the sentence around it says.
+
+The literals were not simply retyped, because that had already been the fix
+twice and the number rotted anyway. Instead: §6b and this page's debts row carry
+no count at all, §7 carries one, and
+`__tests__/documented-subject-rights-counts.test.ts` derives every remaining
+number from `IN_EXPORT` / `IN_ERASE` / `KNOWN_GAP` and goes red when the prose
+disagrees — including a sweep of both this file and AGENTS.md for any second,
+contradicting count. **Do not add a fifth copy.** If you need the number, run
+`pnpm lint:subject-rights`.
+
+One number in that family is still NOT derived, and it is written down where it
+matters rather than only here: the header of
+`__tests__/rls/soft-delete-read-surface.test.ts` says eight read policies over
+the six `deleted_at`-bearing tables (it said ten, which was every policy
+including two UPDATEs). Its section 5 asserts only `rows.length > 0`, so an
+eventual ninth would not turn anything red. Pinning it is one line in that
+assertion.
+
 ## Branch topology — changed 2026-08-28
 
 `main` **is the working branch.** You commit and push to it directly. It is the
