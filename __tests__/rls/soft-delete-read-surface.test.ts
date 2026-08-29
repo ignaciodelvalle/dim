@@ -51,7 +51,19 @@
 //     mascota borrada es fuga, pero la del microchip sí lo era". The app-side
 //     guard landed; the RLS side never did. MEASURED: 1 row.
 //
-// A THIRD result that looks like a pass and is NOT one: `anon` reads zero rows
+//   FINDING 3 — `pet_tags`, role `authenticated` as the ACTIVE OWNER. The one
+//     that shows this is a PATTERN and not two oversights. Migration 0170 goes
+//     out of its way to NULL `pet_tags.activated_by_user_id` during erasure —
+//     an explicit, deliberate severing of the erased user from the tag. But
+//     "pet_tags select own" has a SECOND branch:
+//       activated_by_user_id = auth.uid()
+//       OR pet_id IN (SELECT o.pet_id FROM ownerships o
+//                     WHERE o.owner_user_id = auth.uid() AND o.ended_at IS NULL)
+//     and the same RPC never ends the ownership, so the second branch still
+//     matches. The severing the migration performs is undone by the policy it
+//     was never checked against. MEASURED: 1 row.
+//
+// A FOURTH result that looks like a pass and is NOT one: `anon` reads zero rows
 // from both tables. That zero has NOTHING to do with soft-delete — anon reads
 // zero from a LIVE pet too, because no `pets` policy names the anon role at all.
 // Scoring it as "suppression works for anon" is the exact false green this repo
@@ -93,7 +105,7 @@ import { type SupabaseClient, createClient } from "@supabase/supabase-js";
 import { and, eq, inArray, isNotNull, isNull, sql } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
-import { db, ownerships, petIdentifications, pets } from "@/db";
+import { db, ownerships, petIdentifications, petTags, pets } from "@/db";
 
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL ?? "";
 const SUPABASE_ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? "";
@@ -116,6 +128,9 @@ let deletedPetId: string | null = null;
 let livePetId: string | null = null;
 let deletedIdentificationId: string | null = null;
 let liveIdentificationId: string | null = null;
+/** A tag on the soft-deleted pet, in the state migration 0170 leaves: the RPC
+ *  NULLs `activated_by_user_id`, so only the ownership branch can still match. */
+let deletedTagId: string | null = null;
 
 function setupFailureMessage(cause: string): string {
   return `soft-delete RLS surface setup FAILED — refusing to report a read surface nothing probed. Cause: ${cause}`;
@@ -229,11 +244,32 @@ beforeAll(async () => {
     })
     .returning({ id: petIdentifications.id });
   liveIdentificationId = liveIdent.id;
+
+  // `activated_by_user_id: null` is the load-bearing detail, not tidiness. The
+  // erase RPC (migration 0170, lines 420-426) deliberately NULLs that column to
+  // sever the erased user from the tag. This fixture reproduces the state AFTER
+  // that severing, so a read here cannot come from the `activated_by_user_id =
+  // auth.uid()` branch — only from the ownership branch, which is the point.
+  const [deletedTag] = await db
+    .insert(petTags)
+    .values({
+      serial: `TAG-SDPROBE-${suffix}`,
+      activationCodeHash: `rls-soft-delete-probe-${suffix}`,
+      status: "active",
+      petId: deletedPetId,
+      activatedByUserId: null,
+      activatedAt: new Date(),
+    })
+    .returning({ id: petTags.id });
+  deletedTagId = deletedTag.id;
 });
 
 afterAll(async () => {
   for (const client of [ownerClient, otherClient, adminClient]) {
     await client?.auth.signOut().catch(() => {});
+  }
+  if (deletedTagId) {
+    await db.delete(petTags).where(eq(petTags.id, deletedTagId)).catch(() => {});
   }
   const identIds = [deletedIdentificationId, liveIdentificationId].filter(
     (id): id is string => id !== null,
@@ -415,6 +451,44 @@ describe("FINDING 2 — pet_identifications of a soft-deleted pet still reads fo
 });
 
 // ---------------------------------------------------------------------------
+// 3b. FINDING 3 — the erase RPC severs the user from the tag; RLS reattaches it.
+// ---------------------------------------------------------------------------
+
+describe("FINDING 3 — pet_tags: the RPC nulls activated_by_user_id, the ownership branch undoes it", () => {
+  it("the tag fixture really has activated_by_user_id NULL (positive control for the branch claim)", async () => {
+    const tagId = requireFixture(deletedTagId, "soft-deleted pet tag fixture");
+    // Without this the read below could be coming from the OTHER branch of the
+    // policy, and the finding would be a misreading rather than a finding.
+    const rows = await db
+      .select({ id: petTags.id })
+      .from(petTags)
+      .where(and(eq(petTags.id, tagId), isNull(petTags.activatedByUserId)))
+      .limit(1);
+    expect(
+      rows.length,
+      "the tag fixture does not reproduce the post-erase state (activated_by_user_id must be NULL)",
+    ).toBe(1);
+  });
+
+  it("owner READS the tag of the soft-deleted pet — OPEN FINDING, expected 1", async () => {
+    const client = requireFixture(ownerClient, "owner client");
+    const tagId = requireFixture(deletedTagId, "soft-deleted pet tag fixture");
+    expect(
+      await rowCount(client, "pet_tags", tagId),
+      'OPEN FINDING pinned, and the sharpest of the three: migration 0170 goes out of its way to NULL pet_tags.activated_by_user_id so the erased user is no longer attached to the tag — and "pet_tags select own" has a SECOND branch, pet_id IN (SELECT pet_id FROM ownerships WHERE owner_user_id = auth.uid() AND ended_at IS NULL), which still matches because the same RPC never ends the ownership. The deliberate severing is undone by the policy it was not checked against.',
+    ).toBe(1);
+  });
+
+  it("other_user and anon are denied the tag — the finding is about the OWNERSHIP branch, nothing wider", async () => {
+    const other = requireFixture(otherClient, "other_user client");
+    const anon = requireFixture(anonClient, "anon client");
+    const tagId = requireFixture(deletedTagId, "soft-deleted pet tag fixture");
+    expect(await rowCount(other, "pet_tags", tagId)).toBe(0);
+    expect(await rowCount(anon, "pet_tags", tagId)).toBe(0);
+  });
+});
+
+// ---------------------------------------------------------------------------
 // 4. The anon zero, and why it is NOT evidence that suppression works.
 // ---------------------------------------------------------------------------
 
@@ -450,7 +524,7 @@ describe("anon reads nothing — but the LIVE control proves that is not the sof
 // ---------------------------------------------------------------------------
 
 describe("no RLS policy over a deleted_at-bearing table mentions deleted_at (catalog level)", () => {
-  it("records the ZERO that the two findings above are consequences of", async () => {
+  it("records the ZERO that the three findings above are consequences of", async () => {
     // Fixture-free and session-free: pure pg_policies introspection, so it keeps
     // stating the gap even if every probe above were deleted. It is also the
     // cheapest possible tripwire for the fix — the moment ANY policy on these
@@ -480,7 +554,7 @@ describe("no RLS policy over a deleted_at-bearing table mentions deleted_at (cat
       .map((r) => `${r.tablename}."${r.policyname}"`);
     expect(
       aware,
-      `A read policy now references deleted_at: ${aware.join(", ")}. That is the FIX arriving — good. Re-measure FINDING 1 and FINDING 2 above, flip the expectations that closed, and rewrite this file's header from "open" to what is actually left.`,
+      `A read policy now references deleted_at: ${aware.join(", ")}. That is the FIX arriving — good. Re-measure FINDINGS 1, 2 and 3 above, flip the expectations that closed, and rewrite this file's header from "open" to what is actually left. Closing ONE policy does not close the others: the three findings are independent, and this catalog assertion goes red on the first of them.`,
     ).toEqual([]);
   });
 });
