@@ -4,7 +4,7 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 
-import { and, eq, inArray, isNull, like, or } from "drizzle-orm";
+import { and, eq, inArray, isNotNull, isNull, like, or } from "drizzle-orm";
 import { afterAll, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { arLocalities, arLocalitiesImportRuns, db } from "@/db";
@@ -192,12 +192,31 @@ async function cleanupFixtureRows() {
   // live AR-C row (if a future import ever wrote one) carries a real date here
   // and survives — which is the whole point, since deleting one is precisely
   // the accident that broke CI for three pushes.
+  //
+  // …plus the SUPERSEDED ones, whatever version wrote them. A bootstrapped
+  // database is not empty here: `pnpm db:bootstrap` runs the real INDEC import,
+  // which ingests 02014010 / 02098010 and then soft-deletes them under the AR-C
+  // rule. Those rows carry a genuine upstream Last-Modified as their
+  // source_version, so the marker-scoped delete above can never free the id —
+  // and three tests in this file assume it is free: two count rows for these
+  // ids, and one INSERTs 02014010 outright and hit
+  // `ar_localities_indec_id_unique`. The test that stands in for "a pre-fix
+  // catalog" even says in its own comment that staging and prod carry these
+  // rows; it just never claimed the key.
+  //
+  // `removedAt IS NOT NULL` is the safe half of that set: a superseded row is
+  // exactly what the next import recreates, so dropping it costs nothing, while
+  // a LIVE row (removedAt IS NULL) is still untouchable — the protection above
+  // is narrowed, not removed.
   await db
     .delete(arLocalities)
     .where(
       and(
         inArray(arLocalities.indecId, [...FIXTURE_CABA_IDS]),
-        inArray(arLocalities.sourceVersion, FIXTURE_SOURCE_VERSIONS),
+        or(
+          inArray(arLocalities.sourceVersion, FIXTURE_SOURCE_VERSIONS),
+          isNotNull(arLocalities.removedAt),
+        ),
       ),
     );
   // Un-soft-delete real catalog rows the soft-delete subtest may have stamped.
