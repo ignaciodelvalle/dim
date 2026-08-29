@@ -85,3 +85,42 @@ a working copy path (`C:\dim`) and a test count (6511) that no longer exist. Rea
 the tables, ignore the banner. Older initiative docs — the master integrity plan
 (Ola II) and the Ola 1 batch plan — date from July and may or may not still be
 live; ask before picking work from them.
+
+## Branch topology — changed 2026-08-28
+
+`main` **is the working branch.** You commit and push to it directly. It is the
+same commit as `integration/all-20260703`, CI triggers on push to it (`ci.yml`:
+`push: branches: [main, develop, "integration/**"]`), and the six scheduled
+fences finally execute today's tree instead of a frozen one.
+
+Protection is deliberately thin so ordinary work needs no PR dance: no required
+PR, no blocking status checks, `required_linear_history` off (the worktree flow
+generates merge commits by design). What stays on: the branch cannot be deleted
+and cannot be force-pushed. Those two cost nothing on a normal push and are the
+only ones that save you from a bad day.
+
+**CI on `main` is advisory, not blocking — and that moves the burden onto you.**
+The real gate is local: `pnpm verify` + `pnpm test:verified`, the Definition of
+Done in `/CLAUDE.md`. Nothing on the server will stop you from pushing red. Do
+not let that mean what it does not: the green local gate is still required, it
+is simply no longer enforced by a machine at the last moment.
+
+### Open follow-up: `DEPLOY_REF` still points at the integration branch
+
+`scripts/check-scheduled-fence-refs.ts` declares
+`DEPLOY_REF = "integration/all-20260703"`, and eleven `ref:` pins across six
+workflows follow it. Those pins exist because `main` used to be three weeks
+stale — they force a scheduled run to check out real code instead of the frozen
+default branch.
+
+That reasoning is now inverted, and the pins will re-create the original bug in
+mirror image the moment `integration/all-20260703` stops moving. **This is not
+fixed yet**, because it depends on something outside the repo: staging deploys
+from `integration/all-20260703` on Vercel, and `db-doctor-staging` and
+`staging-health` compare a tree against *that deployment*. Repointing the pins
+before Vercel's deploy branch moves would break them in the other direction.
+
+Sequence, once the PO decides: Vercel staging deploy branch → `main`, then
+`DEPLOY_REF` → `main`, then the eleven pins can be deleted outright (a scheduled
+`actions/checkout` with no `ref:` already checks out the default branch). Do not
+do any one of those steps alone.
