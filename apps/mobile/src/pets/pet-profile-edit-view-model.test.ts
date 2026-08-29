@@ -1,0 +1,209 @@
+// The pure half of Editar: what a person reads, and what a draft becomes.
+//
+// WHAT THIS FILE HAS TO PROVE
+//   1. THE TWO CAPABILITIES ARE READ, NEVER DERIVED. Each half of the screen is
+//      blocked by its own flag, with its own sentence, and the sentences differ
+//      because the two refusals are different facts about the reader.
+//   2. THE GRANDFATHERED BREED SURVIVES. A stored value the catalog does not
+//      carry is offered FIRST; that is the QA A5 rule reaching the picker.
+//   3. AN EMPTY FIELD CLEARS, and a cleared field is described honestly —
+//      including when the account default is empty too.
+//   4. A NO-OP SAVE IS REPORTED AS ONE.
+
+import { describe, expect, it } from "@jest/globals";
+
+import type { PetProfileEditV1 } from "@dim/contract/api";
+
+import {
+  accountFallbackLabel,
+  breedChoicesFor,
+  buildEmergencyContacts,
+  buildIdentityEdit,
+  contactsBlockedReason,
+  emergencyDraftFrom,
+  identityBlockedReason,
+  identityDraftFrom,
+  petProfileInputCodeMessage,
+  savedLabel,
+} from "./pet-profile-edit-view-model";
+
+function view(over: Partial<PetProfileEditV1> = {}): PetProfileEditV1 {
+  return {
+    payloadVersion: 1,
+    issuedAt: "2026-08-29T10:00:00.000Z",
+    staleAfter: "2026-08-29T10:01:00.000Z",
+    publicToken: "DIM-PAMP-0001",
+    species: "dog",
+    identity: { name: "Pampa", breed: "Mestizo", color: "Atigrada" },
+    emergencyContacts: {
+      preferredVetName: "Vet Norte",
+      preferredVetPhone: "1122334455",
+      emergencyContactName: "",
+      emergencyContactPhone: "",
+    },
+    emergencyAccountDefault: {
+      preferredVetName: null,
+      preferredVetPhone: null,
+      emergencyContactName: "Mamá",
+      emergencyContactPhone: "1199887766",
+    },
+    capabilities: { canEditIdentity: true, canEditEmergencyContacts: true },
+    ...over,
+  } as PetProfileEditV1;
+}
+
+describe("the drafts start from the server", () => {
+  it("turns a null breed and colour into empty inputs, not into the word null", () => {
+    const draft = identityDraftFrom(
+      view({ identity: { name: "Pampa", breed: null, color: null } }),
+    );
+    expect(draft).toEqual({ name: "Pampa", breed: "", color: "" });
+  });
+
+  it("hands back null — not four blank fields — when the caller may not read the contacts", () => {
+    // A blank form is an invitation to save something that can only be refused.
+    expect(emergencyDraftFrom(view({ emergencyContacts: null }))).toBeNull();
+  });
+});
+
+describe("the two capabilities are two different refusals", () => {
+  it("says nothing at all while both are allowed", () => {
+    expect(identityBlockedReason(view())).toBeNull();
+    expect(contactsBlockedReason(view())).toBeNull();
+  });
+
+  it("names the ARRANGEMENT for identity and the PERSON for the contacts", () => {
+    const blocked = view({
+      capabilities: { canEditIdentity: false, canEditEmergencyContacts: false },
+    });
+    const identity = identityBlockedReason(blocked);
+    const contacts = contactsBlockedReason(blocked);
+    expect(identity).toContain("cuidador");
+    expect(contacts).toContain("dueño");
+    // NOT the same sentence: a co-owner reaches the second and not the first,
+    // and telling them they are a caretaker would be false.
+    expect(identity).not.toEqual(contacts);
+  });
+
+  it("blocks the contacts alone for a holder who is not the legal owner", () => {
+    const foster = view({
+      capabilities: { canEditIdentity: true, canEditEmergencyContacts: false },
+      emergencyContacts: null,
+      emergencyAccountDefault: null,
+    });
+    expect(identityBlockedReason(foster)).toBeNull();
+    expect(contactsBlockedReason(foster)).not.toBeNull();
+  });
+});
+
+describe("the breed picker keeps what the catalog has forgotten", () => {
+  it("offers a stored off-catalog breed FIRST, so an unrelated edit cannot wipe it", () => {
+    const options = breedChoicesFor("dog", "Ovejero Patagónico Inventado");
+    expect(options[0]).toBe("Ovejero Patagónico Inventado");
+    expect(options.length).toBeGreaterThan(1);
+  });
+
+  it("does not duplicate a stored breed the catalog already carries", () => {
+    const options = breedChoicesFor("dog", "Mestizo / Cruza");
+    const catalog = breedChoicesFor("dog", null);
+    // Either it was in the catalog (same list) or it was appended (one longer).
+    expect(options.length - catalog.length).toBeLessThanOrEqual(1);
+    if (catalog.includes("Mestizo / Cruza")) expect(options).toEqual(catalog);
+  });
+
+  it("treats a blank stored breed as no stored breed", () => {
+    expect(breedChoicesFor("dog", "   ")).toEqual(breedChoicesFor("dog", null));
+  });
+});
+
+describe("what clearing a field will actually show", () => {
+  it("names the account default when there is one", () => {
+    expect(accountFallbackLabel(view(), "emergency")).toContain("Mamá");
+    expect(accountFallbackLabel(view(), "emergency")).toContain("1199887766");
+  });
+
+  it("says plainly that nothing will show when the account has nothing either", () => {
+    // The failure this prevents: a form that promises a fallback that does not
+    // exist, and an owner who clears their vet believing one is behind it.
+    expect(accountFallbackLabel(view(), "vet")).toContain("tampoco");
+  });
+
+  it("says nothing at all when the caller may not see the defaults", () => {
+    expect(accountFallbackLabel(view({ emergencyAccountDefault: null }), "vet")).toBe("");
+  });
+});
+
+describe("drafts become commands the contract accepts", () => {
+  it("sends an empty breed and colour as null — an empty box means empty", () => {
+    const built = buildIdentityEdit({ name: "Pampa", breed: "   ", color: "" });
+    expect(built.ok).toBe(true);
+    if (built.ok) {
+      expect(built.input).toEqual({
+        command: "edit_identity",
+        name: "Pampa",
+        breed: null,
+        color: null,
+      });
+    }
+  });
+
+  it("refuses an empty name locally, with the field's own sentence", () => {
+    const built = buildIdentityEdit({ name: "   ", breed: "", color: "" });
+    expect(built.ok).toBe(false);
+    if (!built.ok) {
+      expect(built.code).toBe("NAME_REQUIRED");
+      expect(built.message).toContain("nombre");
+    }
+  });
+
+  it("refuses a name past the contract's cap rather than posting it", () => {
+    const built = buildIdentityEdit({ name: "x".repeat(200), breed: "", color: "" });
+    expect(built.ok).toBe(false);
+    if (!built.ok) expect(built.code).toBe("NAME_TOO_LONG");
+  });
+
+  it("sends all four contact fields every time, so an empty one clears", () => {
+    const built = buildEmergencyContacts({
+      preferredVetName: "Vet Sur",
+      preferredVetPhone: "",
+      emergencyContactName: "",
+      emergencyContactPhone: "",
+    });
+    expect(built.ok).toBe(true);
+    if (built.ok) {
+      expect(built.input).toEqual({
+        command: "set_emergency_contacts",
+        preferredVetName: "Vet Sur",
+        preferredVetPhone: "",
+        emergencyContactName: "",
+        emergencyContactPhone: "",
+      });
+    }
+  });
+
+  it("refuses an over-long phone with the phone's cap, not the name's", () => {
+    const built = buildEmergencyContacts({
+      preferredVetName: "",
+      preferredVetPhone: "9".repeat(60),
+      emergencyContactName: "",
+      emergencyContactPhone: "",
+    });
+    expect(built.ok).toBe(false);
+    if (!built.ok) expect(built.code).toBe("CONTACT_PHONE_TOO_LONG");
+  });
+});
+
+describe("every input code has a sentence, and a no-op is not a lie", () => {
+  it("says something honest when the contract names no code at all", () => {
+    expect(petProfileInputCodeMessage(null)).toContain("no pudo interpretar");
+  });
+
+  it("tells a person nothing needed saving instead of congratulating them", () => {
+    expect(savedLabel("edit_identity", false)).toContain("nada que cambiar");
+    expect(savedLabel("set_emergency_contacts", false)).toContain("nada que cambiar");
+  });
+
+  it("says where a real identity change went — the libreta, not nowhere", () => {
+    expect(savedLabel("edit_identity", true)).toContain("libreta");
+  });
+});

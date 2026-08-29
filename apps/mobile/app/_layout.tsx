@@ -127,6 +127,11 @@ export default function RootLayout() {
         <Stack.Screen name="transferencias/[transferToken]" options={{ title: "Transferencia" }} />
         {/* The header says the ACT. Which animal is the screen's own title. */}
         <Stack.Screen name="mascotas/[publicToken]/transferir" options={{ title: "Transferir" }} />
+        {/* Registered for its TITLE and nothing else. An unregistered route
+            takes its header from the path segment, which here would read
+            "editar" — a lowercase English-looking verb in a Spanish stack. The
+            screen carries two forms under one act, and the header says the act. */}
+        <Stack.Screen name="mascotas/[publicToken]/editar" options={{ title: "Editar" }} />
       </Stack>
     </SafeAreaProvider>
   );
