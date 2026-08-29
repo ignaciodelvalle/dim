@@ -161,7 +161,7 @@
     "@biomejs/biome": "^1.9.0",
     "@playwright/test": "^1.60.0",
     "@tailwindcss/postcss": "^4.0.0",
-    "@testing-library/jest-dom": "^6.9.1",
+    "@testing-library/jest-dom": "^7.0.1",
     "@testing-library/react": "^16.3.2",
     "@types/node": "^22.10.0",
     "@types/polylabel": "^2.0.0",
