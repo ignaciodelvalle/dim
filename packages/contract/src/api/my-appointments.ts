@@ -86,10 +86,18 @@ export type AppointmentStatusV1 = (typeof APPOINTMENT_STATUSES_V1)[number];
  * Which of the web's three sections a row belongs to.
  *
  * DECIDED BY THE SERVER, and it is NOT a function of `status` alone — which is
- * exactly why it is on the wire. A `confirmed` row is "próximo" while its slot is
- * in the future and "pasado" once it is behind, and nothing writes to the row
- * when that moment passes: the transition is the clock's, not a writer's. A
- * client deriving it would be deriving it from a device clock.
+ * exactly why it is on the wire. A `confirmed` row is "próximo" while its slot
+ * has not finished and "pasado" once it has, and nothing writes to the row when
+ * that moment passes: the transition is the clock's, not a writer's. A client
+ * deriving it would be deriving it from a device clock.
+ *
+ * `upcoming` CLOSES AT `endsAt`, NOT AT `startsAt`, which is one deliberate step
+ * away from the web's own predicate. The reason is written out in
+ * `listAppointmentsForUser`: the browser drops a turno out of "Próximos" the
+ * instant it begins while still offering its check-in QR until it ends, so
+ * somebody arriving five minutes late goes looking under the wrong heading for
+ * the code they need. Here `section === "upcoming"` and `capabilities.canCheckIn`
+ * agree for every confirmed row.
  */
 export const APPOINTMENT_SECTIONS_V1 = ["upcoming", "past", "cancelled"] as const;
 export type AppointmentSectionV1 = (typeof APPOINTMENT_SECTIONS_V1)[number];
