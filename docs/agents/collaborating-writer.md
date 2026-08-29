@@ -47,10 +47,16 @@ first edit; read nothing else in full.
    adversarial pass over it. The gate is not a substitute: it proves the code
    matches its author's belief, not that the belief was right. Point the reviewer
    at what you are least able to audit — your own new tests and fences.
-9. **Spanish (es-AR) in the UI, English in the code.** Identifiers, comments,
-   docs and commit messages in English; user-facing copy in es-AR. Files are
-   UTF-8, no exceptions. No DNI in plaintext — `lib/utils/dni-hash.ts`
-   (`hashDni()` to compare, `dniLast4()` to display).
+9. **Spanish (es-AR) in the UI and in commit messages, English in the code.**
+   Identifiers, comments and docs in English; user-facing copy in es-AR.
+   **Commit messages are es-AR** (2026-08-29) — this page claimed English until
+   that date and was the only page in the repo that did. The practice flipped on
+   2026-08-05: all 867 commits since are Spanish with no exception, while
+   history older than 2026-08-04 is predominantly English. Follow the recent
+   end, not the bulk, and read `git log -20 --format='%s'` before writing your
+   first — subjects here name the lie or the domain problem, not the file, and
+   they run long. Files are UTF-8, no exceptions. No DNI in plaintext —
+   `lib/utils/dni-hash.ts` (`hashDni()` to compare, `dniLast4()` to display).
 10. **Stay in scope.** Touch only what your task names. Adjacent problems get
     reported, not fixed — this repo's history is full of one-line fixes that
     turned into eleven families of leak.
