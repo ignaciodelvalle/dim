@@ -7,7 +7,7 @@ import { fetchActiveIdentifications } from "@/lib/infra/pet-identifiers";
 import { parseDateInput } from "@/lib/utils/format";
 import type { EventFormState } from "@/src/modules/events/actions";
 import { replaceMicrochipForUser } from "@/src/modules/pets/application/microchip/replace-microchip";
-import { eq } from "drizzle-orm";
+import { and, eq, isNull } from "drizzle-orm";
 
 const ADMIN_REASONS = new Set([
   "damaged",
@@ -28,11 +28,20 @@ export async function replaceMicrochipAdminAction(
 ): Promise<EventFormState> {
   const { user } = await requireAdminOrRedirect();
 
+  // Art. 16 (Ley 25.326) — the WRITE twin of the page's read guard, and the
+  // half that actually matters: the page can stop OFFERING the form, but this
+  // action is hand-POSTable with a token alone. Same reasoning as the page —
+  // token-addressed, no state record about this pet mediating the access, so no
+  // welfare/health nexus to carve out (contrast `loadGobPetSubView`, which is
+  // unfiltered because an in-jurisdiction report or case is what gets it there).
+  // Erasure releases the pet's chip, so before this term the refusal came from
+  // `!canonicalIds.microchip` — a side effect of another invariant, with the
+  // wrong copy: "deleted" must read as "never existed", not as "has no chip".
   const [pet] = await db
     // dateOfBirth feeds the plausibility guard's BEFORE_BIRTH leg below.
     .select({ id: pets.id, dateOfBirth: pets.dateOfBirth })
     .from(pets)
-    .where(eq(pets.publicToken, publicToken))
+    .where(and(eq(pets.publicToken, publicToken), isNull(pets.deletedAt)))
     .limit(1);
   if (!pet) return { error: "Mascota no encontrada." };
 

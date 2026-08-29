@@ -1,7 +1,7 @@
 import { db, pets } from "@/db";
 import { requireAdminOrRedirect } from "@/lib/infra/auth-guards";
 import { fetchActiveIdentifications } from "@/lib/infra/pet-identifiers";
-import { eq } from "drizzle-orm";
+import { and, eq, isNull } from "drizzle-orm";
 import { notFound } from "next/navigation";
 
 import { OpCallout, OpCard, OpCardBody, OpCardHead, OpCrumbs } from "@/components/ui/dashboard";
@@ -17,10 +17,21 @@ export default async function ReplaceMicrochipAdminPage({
   const { publicToken } = await params;
   await requireAdminOrRedirect();
 
+  // Art. 16 (Ley 25.326) — this door is addressed by a pet TOKEN and nothing
+  // else: `requireAdminOrRedirect` proves the caller is a platform admin, but no
+  // state record about THIS pet mediates the access. That is the same door
+  // `loadOperatorPetSubView` (lib/infra/gob-pet-subview.ts) already filters for
+  // /admin/mascotas/[token] — and unlike its sibling `loadGobPetSubView`, which
+  // reaches a pet only THROUGH an in-jurisdiction welfare report or case and is
+  // unfiltered on purpose, there is no nexus here to carve out for. Without the
+  // term an admin holding an erased subject's token still read the pet's NAME
+  // from the crumb and the heading, including on the "sin microchip" branch
+  // below. The chip release the erasure performs made that branch the usual
+  // outcome, which hid the leak behind a side effect instead of a guard.
   const [pet] = await db
     .select({ id: pets.id, name: pets.name, publicToken: pets.publicToken })
     .from(pets)
-    .where(eq(pets.publicToken, publicToken))
+    .where(and(eq(pets.publicToken, publicToken), isNull(pets.deletedAt)))
     .limit(1);
   if (!pet) notFound();
 
