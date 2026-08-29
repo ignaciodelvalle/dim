@@ -1,0 +1,108 @@
+# Contract: a collaborating agent joining to WRITE code
+
+Ten rules. Each exists because its violation cost real time in this repo — the
+date in parentheses is when it last bit someone. Read this page before your
+first edit; read nothing else in full.
+
+## The ten
+
+1. **`origin/main` was rewritten on 2026-08-28. Never `git pull`.** The branch
+   was force-pushed from `1a32c926d` to `a3ec504c5`; the old tip is unreachable.
+   A `pull` tries to merge ~3900 divergent commits and produces ~1000 phantom
+   conflicts. Sync with `git fetch origin && git reset --hard origin/main`, and
+   move any unpushed work to a branch first. The 16 currently-open PRs are all
+   based on the dead tip — leave them alone, they are not your task.
+2. **The gate is `pnpm verify` AND `pnpm test:verified`. Never `pnpm test`.**
+   `pnpm test`'s exit code lies in both directions: a worker dying mid-run takes
+   its whole FILE with it and the summary still reads green. Your evidence is
+   the verdict line, not the exit code:
+   `reported N file(s); N discovered; 0 failing test(s); 0 broken file(s)`.
+   Anything else is a fail. There are three distinct red signatures with three
+   different rules — `/CLAUDE.md` spells them out. Read that section before you
+   interpret any red, and never re-run to get a nicer number.
+3. **Verify worktree freshness before touching anything.** `git log --oneline -1`
+   on the integration tip you were told to work from, compare against your own
+   `HEAD`, `git reset --hard` if they diverge. A clean `git status` proves
+   nothing about freshness: an agent with a clean tree was found 2,009 commits
+   behind.
+4. **A fresh worktree has no `.env.local`, and the red it causes is a liar.**
+   The file is gitignored, so it never arrives with a checkout, and the six
+   `__tests__/rls/*` files then report BROKEN with credential-shaped errors that
+   read exactly like real policy failures. Run `npx supabase status -o env` and
+   write the four keys it prints BEFORE you believe any RLS red.
+5. **Freeze the tree while a gate runs.** Several fences scan the repo as it is
+   on disk; editing any file during `pnpm verify` poisons them and you get a red
+   that belongs to nobody. Start the gate, then keep your hands off until it
+   returns.
+6. **Commit with an explicit pathspec. Never `git add .` or a bare
+   `git commit -a`.** Parallel agents share one index — a bare add steals their
+   staged files into your commit. Name your paths.
+7. **Domain facts enter through flows, never raw INSERTs; events are
+   append-only.** Corrections are new events, never edits. Migrations are
+   forward-only and immutable (`db/migrations/NNNN_*.sql`); recount the next free
+   integer at write time. **Writing a migration is your job; applying it to a
+   remote DB is Ignacio's** — hand it over, do not run it.
+8. **A fresh-context reviewer is a mandatory pre-push step.** Before pushing a
+   commit range, a read-only subagent that did NOT write the code does an
+   adversarial pass over it. The gate is not a substitute: it proves the code
+   matches its author's belief, not that the belief was right. Point the reviewer
+   at what you are least able to audit — your own new tests and fences.
+9. **Spanish (es-AR) in the UI, English in the code.** Identifiers, comments,
+   docs and commit messages in English; user-facing copy in es-AR. Files are
+   UTF-8, no exceptions. No DNI in plaintext — `lib/utils/dni-hash.ts`
+   (`hashDni()` to compare, `dniLast4()` to display).
+10. **Stay in scope.** Touch only what your task names. Adjacent problems get
+    reported, not fixed — this repo's history is full of one-line fixes that
+    turned into eleven families of leak.
+
+## Start here, in this order
+
+| Step | What | Why |
+|---|---|---|
+| 1 | `/CLAUDE.md` (86 lines) | The invariants and the Definition of Done. Short, and the highest-value thing you will read. |
+| 2 | This page's rule 2, again | The gate's failure modes are the single most expensive thing to learn late. |
+| 3 | Run `pnpm verify`, then `pnpm test:verified`, on a clean tree | Not ceremony. You need to see a real verdict line before you can judge your own. |
+| 4 | **`docs/agents/open-work.md`** | The board: milestones, everything still open, the declared debts, what is PO-gated and must be handed back rather than attempted. |
+| 5 | `docs/agents/README.md` | The other agent contracts, and the working norms. |
+| 6 | `AGENTS.md` — **the slim index only** | 1,833 lines. It has anchors mapping each topic to a section. Load the section you need; never the whole file. |
+
+`pwsh scripts/qa-up.ps1` brings up the local QA environment (Supabase
+containers, production server on :3000, smoke tests, seed accounts).
+
+## Your first task
+
+**Mobile: let an owner edit their pet's data and their emergency contacts.**
+
+Today an owner cannot change their pet's name, breed, colour or markings from
+the phone, and cannot record an emergency vet. The app is already published to
+Google Play internal testing, so these are not backlog items — they are the
+first three walls a live tester hits. The parity board says so explicitly, and
+ranks them above the cosmetic work.
+
+Where it lands: `apps/mobile/app/` is expo-router (screens: `ajustes.tsx`,
+`mascotas/`, `cuidado/`, `transferencias/`). `apps/mobile/src/account/` today
+contains only `AccountDeletionCard`. There is no edit screen of any kind — you
+are adding one, not modifying one. The web already serves both capabilities, so
+the server side and the guards exist; check them before writing new ones. Edit
+identity is titular-only on the web — match that guard exactly, do not re-derive
+it.
+
+**Do NOT start with the pet photo**, even though it looks adjacent and the
+server side is already done. It needs a native image picker, which needs a
+module, which needs an EAS build — and that pipeline cost six builds with five
+distinct root causes, three of which are invisible to every local gate. It is a
+bad first task. It is not blocked; it is just not yours on day one.
+
+Everything after that first task — the other five parity clusters, the declared
+debts, and the list of what is PO-gated — is in `docs/agents/open-work.md`.
+Pick from there, and pick by what a live tester hits, not by what is largest.
+
+## Two things to hand back, not solve
+
+- The pet photo's server design deliberately differs from the request: signed
+  upload lands in a **private** bucket, and a `confirm` step re-authorizes,
+  verifies magic bytes and re-encodes before writing to the public one. If you
+  touch that area, read why before changing it.
+- `required_linear_history` is OFF on `main` on purpose (2026-08-28). The
+  integration branch carries 118 worktree merge commits; turning the rule back
+  on re-blocks the next sync. Do not "restore" it.

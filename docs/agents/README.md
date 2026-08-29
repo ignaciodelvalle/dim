@@ -11,6 +11,7 @@ short role docs in this repo were followed on first use).
 | A read-only auditor / critique agent | `docs/design/handoffs/README.md` |
 | A QA or data agent that MUTATES the local DB | `docs/agents/qa-mutation-contract.md` |
 | A subagent spawned by the main agent | `docs/agents/subagent-card.md` |
+| A collaborating agent joining to WRITE code | `docs/agents/collaborating-writer.md` — ten rules, then a reading order and a first task. The board it points at (milestones, open work, declared debts, what is PO-gated) is `docs/agents/open-work.md` |
 | A human newcomer | `/README.md` → `AGENTS.md` slim index |
 | Cowork, haciendo el clickthrough de staging | `docs/agents/prompt-cowork-clickthrough-staging.md` (+ el guion `master-test-ciudadano-multiagente.md`) |
 | Cowork, recorriendo lo que nunca se recorrió | `docs/agents/prompt-cowork-clickthrough-territorio-nuevo.md` — el complemento del anterior: las 115 rutas que ningún guion ni spec nombró nunca |
