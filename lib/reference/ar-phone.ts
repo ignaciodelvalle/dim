@@ -1,16 +1,16 @@
-// Argentine phone-number heuristics.
+// Argentine phone-number heuristics — NOW A RE-EXPORT, not a definition.
 //
-// The regex below recognizes the most common written forms in Argentina:
-//   +54 9 11 1234-5678 | +5491112345678 | 011 15-1234-5678 | 11 1234-5678
+// The regex and the predicate moved to `@dim/contract/input`'s `ar-phone.ts` on
+// 2026-08-29 (WU-R), because the native "editar mis datos" form needs the same
+// soft warning this one gives and `lib/` is not reachable from `apps/mobile`.
+// The alternative was a second copy of the regex in the app: two opinions about
+// what an Argentine phone number looks like, drifting the first time either was
+// tuned, on the field a rescuer dials when they find somebody's dog.
 //
-// We use it ONLY as a soft client-side hint — not as server-side rejection.
-// Older landlines, satellite phones, foreign numbers, etc. should all save
-// without error; the warning just nudges the user to double-check.
+// THIS FILE STAYS so the three existing web call sites keep their import path —
+// `EditProfileForm.tsx` and `EmergencyContactFields.tsx` did not need to change
+// for a package move, and a rename touching them would have made the diff read
+// like a behaviour change. It is a re-export and nothing else: the rules,
+// including why the empty string answers `true`, live with the definition.
 
-export const AR_PHONE_RE =
-  /^(\+?54\s?9?\s?\d{2,4}[\s-]?\d{4}[\s-]?\d{4}|0\d{2,4}\s?(?:15[\s-]?)?\d{4}[\s-]?\d{4}|\d{2,4}[\s-]?\d{4}[\s-]?\d{4})$/;
-
-export function looksLikeArPhone(value: string): boolean {
-  const trimmed = value.replace(/\s/g, " ").trim();
-  return trimmed === "" || AR_PHONE_RE.test(trimmed);
-}
+export { AR_PHONE_RE, looksLikeArPhone } from "@dim/contract/input";

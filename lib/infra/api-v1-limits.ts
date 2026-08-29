@@ -952,6 +952,20 @@ export const API_V1_IP_BUCKET_FAMILIES: Readonly<Record<string, ApiV1IpFamily>> 
   // their own records".
   api_v1_me_privacy_read_ip: "authenticated-read",
   api_v1_me_privacy_write_ip: "account-security",
+
+  // Landed with the native "editar mis datos" door (WU-R, `me/profile`). Both
+  // halves take the GENERIC families, and the write's choice is the one worth a
+  // line: it is NOT `account-security`, even though its sibling one block up is
+  // and both live under `/me`.
+  //
+  // The family that route is in exists for acts whose failure mode is "you
+  // cannot sign out of the phone you lost" or "you cannot exercise a legal
+  // right" — rare, deliberate, irreversible. Correcting your own phone number is
+  // none of those: it is somebody in a form, possibly saving twice because the
+  // first tap did not register, and the anchor for that is the ordinary
+  // authenticated-write budget the pet's own editar door already runs on.
+  api_v1_me_profile_read_ip: "authenticated-read",
+  api_v1_me_profile_write_ip: "authenticated-write",
 };
 
 /**

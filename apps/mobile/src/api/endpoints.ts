@@ -60,11 +60,14 @@ import {
   MY_NOTIFICATIONS_PAYLOAD_VERSION,
   MY_PETS_PAYLOAD_VERSION,
   MY_PRIVACY_PAYLOAD_VERSION,
+  MY_PROFILE_PAYLOAD_VERSION,
   MY_TRANSFERS_PAYLOAD_VERSION,
   type MeV1,
   type MyCaretakerGrantsV1,
   type MyNotificationsV1,
   type MyPetsV1,
+  type MyProfileUpdatedV1,
+  type MyProfileV1,
   type MySubjectDataExportV1,
   type MyTransfersV1,
   type NotificationCommandAckV1,
@@ -94,6 +97,7 @@ import type {
   AmendEventInput,
   CaretakerCommandInput,
   LostCommandInput,
+  MyProfileEditInput,
   NotificationCommandInput,
   PetPhotoContentType,
   PetProfileCommandInput,
@@ -457,6 +461,43 @@ export function registerPet(
 export function revokeAllSessions(session: SessionPort): Promise<ApiResult<{ revoked: true }>> {
   return apiRequest<{ revoked: true }>(
     { path: "/api/v1/me/revoke-sessions", method: "POST" },
+    session,
+  );
+}
+
+/**
+ * `GET /me/profile` — what the "Editar mis datos" form pre-fills with.
+ *
+ * NOT A RICHER `/me`. That endpoint is the shell every cold launch fetches and
+ * it carries no phone by design; this one carries exactly the six fields the
+ * POST below writes back, and is fetched only when somebody opens the form. The
+ * full argument, and what breaks if a seventh field is ever added, is in
+ * `@dim/contract/api`'s `my-profile.ts` — read it before widening this payload.
+ */
+export function fetchMyProfile(session: SessionPort): Promise<ApiResult<MyProfileV1>> {
+  return apiRequest<MyProfileV1>(
+    { path: "/api/v1/me/profile", expectedPayloadVersion: MY_PROFILE_PAYLOAD_VERSION },
+    session,
+  );
+}
+
+/**
+ * `POST /me/profile` — save the person's own data.
+ *
+ * THE THREE-WAY FIELD RULE IS THE CALLER'S TO HONOUR and it is not decoration:
+ * an omitted key leaves the stored value alone, `""` CLEARS the column, and a
+ * string stores as given. A screen that sent `""` for a field it never rendered
+ * would silently erase a phone number the person entered on the web.
+ *
+ * NO `idempotencyKey`: a profile update is a value, not an append. Saving the
+ * same six fields twice is saving them once.
+ */
+export function saveMyProfile(
+  session: SessionPort,
+  input: MyProfileEditInput,
+): Promise<ApiResult<MyProfileUpdatedV1>> {
+  return apiRequest<MyProfileUpdatedV1>(
+    { path: "/api/v1/me/profile", method: "POST", body: input },
     session,
   );
 }

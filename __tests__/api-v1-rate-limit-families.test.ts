@@ -445,7 +445,14 @@ describe("/api/v1 rate-limit families — the numbers the derivation committed t
     // since it started being computed. That asymmetry is the derivation showing
     // through rather than a rounding: the read is a read like any other, and the
     // write is `revoke-sessions`'s kind of act, which is rare by construction.
-    expect(API_V1_CGNAT_FAMILY_IP_CEILING_PER_MINUTE).toBe(9_504);
+    //
+    // 9.504 → 10.224 with the "editar mis datos" door (`me/profile`, WU-R), one
+    // authenticated-read bucket (600/min) and one authenticated-write bucket
+    // (120/min) — the same pair, and the same two families, the pet's own editar
+    // door added. That the account form and the animal form land on identical
+    // ceilings is the derivation agreeing with itself: both are one person in a
+    // form correcting a value they own.
+    expect(API_V1_CGNAT_FAMILY_IP_CEILING_PER_MINUTE).toBe(10_224);
   });
 
   it("keeps pet-disclosure-write at N callers on BOTH windows", () => {

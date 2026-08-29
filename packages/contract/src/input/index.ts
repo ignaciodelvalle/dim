@@ -115,6 +115,18 @@ export {
   firstNotificationCommandInputCode,
   notificationCommandInputSchema,
 } from "./notification.ts";
+export { AR_PHONE_RE, looksLikeArPhone } from "./ar-phone.ts";
+export {
+  CONTACT_NAME_MAX_LENGTH,
+  CONTACT_PHONE_MAX_LENGTH,
+  DISPLAY_NAME_MAX_LENGTH,
+  DISPLAY_NAME_MIN_LENGTH,
+  MY_PROFILE_EDIT_INPUT_CODES,
+  type MyProfileEditInput,
+  type MyProfileEditInputCode,
+  firstMyProfileEditInputCode,
+  myProfileEditInputSchema,
+} from "./my-profile-edit.ts";
 export {
   ERASURE_REASON_MAX_LENGTH,
   ERASURE_REASON_MIN_LENGTH,

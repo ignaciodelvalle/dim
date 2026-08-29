@@ -149,6 +149,12 @@ export {
   type SubjectDataErasedV1,
 } from "./my-privacy.ts";
 export {
+  MY_PROFILE_PAYLOAD_VERSION,
+  MY_PROFILE_STALE_AFTER_MS,
+  type MyProfileUpdatedV1,
+  type MyProfileV1,
+} from "./my-profile.ts";
+export {
   CARETAKER_GRANT_STATUSES_V1,
   MY_CARETAKER_GRANTS_PAYLOAD_VERSION,
   MY_CARETAKER_GRANTS_STALE_AFTER_MS,

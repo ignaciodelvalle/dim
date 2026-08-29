@@ -122,6 +122,11 @@ export default function RootLayout() {
             somebody who came to download their file think they were on the
             deletion page. "Mis datos" is what both halves are about. */}
         <Stack.Screen name="cuenta/privacidad" options={{ title: "Mis datos" }} />
+        {/* The header says the ACT and the screen says the subject, which is the
+            rule `mascotas/[publicToken]/editar` follows one line down. Unlike
+            that one, this route's own segment would already read "editar" — the
+            registration is here for the capital letter and for the accent. */}
+        <Stack.Screen name="cuenta/editar" options={{ title: "Editar" }} />
         {/* The transfer hub is a SIBLING of the pet list, not a child of a pet:
             half of what it shows is offers from animals somebody else owns. */}
         <Stack.Screen name="transferencias/index" options={{ title: "Transferencias" }} />

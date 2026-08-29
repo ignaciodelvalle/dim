@@ -62,6 +62,18 @@ export const ROUTES = {
    */
   privacidad: "/cuenta/privacidad",
   /**
+   * Editar mis datos — name, phone, and the DEFAULT vet / emergency contact
+   * every pet's own override falls back to.
+   *
+   * Beside `privacidad` under `/cuenta` rather than under `/ajustes`, where its
+   * button is. The deep-link argument that pins `privacidad` does not apply here
+   * — nothing outside the app links in — but two account screens at two
+   * different depths, each for its own local reason, is how a route tree stops
+   * describing anything. The web's leaf is `/cuenta/editar` too, so the paths
+   * agree for free.
+   */
+  editarCuenta: "/cuenta/editar",
+  /**
    * The transfer hub — THE ONE TOP-LEVEL SCREEN THAT IS NOT ABOUT A PET THIS
    * PERSON HOLDS. Half of what it lists is offers from animals somebody else
    * owns, which is why it sits beside `/mascotas` rather than under it.
