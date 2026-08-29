@@ -9,26 +9,47 @@
 // and it disagreed with all of them: `">=22.13.0"` is an OPEN range, so the
 // manifest declared that Node 25, 26 and everything after were supported.
 //
-// THE CEILING. Measured 2026-08-29 on Node 25.8.1: the same tree that reports
-// 14 failing tests under a pinned 22.x reports 139 under 25. Node 25 ships a
-// built-in Web Storage that shadows jsdom's, and without a valid
-// `--localstorage-file` the shadowing implementation has no `.clear()`, so
-// every suite that resets storage between tests dies. Nothing in the repo
-// noticed: `pnpm install` printed no warning (the open range accepted 25), and
-// the gate's red looked like 125 ordinary product failures.
+// It was wrong at BOTH ends at once, in opposite directions, so the only Node
+// that actually worked was the one no file named. CI never noticed because
+// `node-version: "22"` floats to the latest 22.x — inside the true range by
+// luck rather than by declaration.
 //
-// THE FLOOR. The pin files said 22.13.0, and that was ALSO false — in the
-// other direction. `scripts/register-server-only-stub.mjs` imports
-// `registerHooks` from `node:module`, which does not exist before v22.15.0
-// (measured: 22.14.0 → `undefined`, 22.15.0 → `function`). Every script
-// launched through that loader — `seed:test`, `seed:panorama`, `seed:demo`,
-// `cube:refresh`, `rebuild:projections` and the rest — dies instantly on the
-// version the repo told you to install:
-//     SyntaxError: The requested module 'node:module' does not provide an
-//     export named 'registerHooks'
-// CI never saw it because `node-version: "22"` resolves to the latest 22.x. So
-// the pin was below the floor and the manifest's range was above the ceiling,
-// and the only Node that worked was the one nothing named.
+// FOUR CONSTRAINTS, MEASURED 2026-08-29 ON THIS REPO
+// ---------------------------------------------------------------------------
+//   version   registerHooks  features.typescript  localStorage  cp1252 0x97
+//   22.13.0   undefined      false                undefined     U+0097
+//   22.15.0   function       false                undefined     U+0097
+//   22.17.1   function       false                undefined     U+0097
+//   22.18.0   function       "strip"              undefined     U+0097
+//   22.22.0   function       "strip"              undefined     U+0097
+//   22.23.0   function       "strip"              undefined     U+2014
+//   25.8.1    function       "strip"              DEFINED       U+2014
+//
+//   · `registerHooks` (>= 22.15.0) — `scripts/register-server-only-stub.mjs`
+//     imports it from `node:module`. Below that every script behind the loader
+//     (`seed:test`, `seed:panorama`, `cube:refresh`, `rebuild:projections`, …)
+//     dies on import with "does not provide an export named 'registerHooks'".
+//   · Type stripping (>= 22.18.0) — `@dim/contract` ships raw `.ts` through its
+//     `exports` map with no build step, so `expo config --type public` (and
+//     therefore `verify:mobile`) can only read it where Node strips types.
+//     Measured: 22.17.1 → exit 1 "Unexpected identifier 'DeepLinkAccess'";
+//     22.18.0 → exit 0.
+//   · WHATWG windows-1252 (>= 22.23.0, i.e. ICU 78) — below it
+//     `new TextDecoder("windows-1252")` decodes 0x97 to U+0097 instead of the
+//     em dash, and `__tests__/_helpers/pdf-text.ts` reads the fiscalía PDF
+//     through that decoder. NOTE: this one is a TEST FRAGILITY, not a product
+//     requirement — that helper should carry its own 0x80-0x9F table instead of
+//     trusting the platform. Fix it and the floor can drop to 22.18.0.
+//   · No built-in Web Storage (< 23) — Node 25's `localStorage` shadows jsdom's
+//     and, without a valid `--localstorage-file`, has no `.clear()`. Every
+//     suite that resets storage between tests dies: 5 failures become 139.
+//
+// So the supported range is the intersection: `>=22.23.0 <23`.
+//
+// FLOOR vs PIN. They are different things and this fence treats them so. The
+// floor is the hard minimum above; the pin (`.nvmrc`) is the version everyone
+// installs, and it tracks what CI's `node-version: "22"` actually resolves to.
+// The rule is `floor <= pin < ceiling`, not `floor == pin`.
 //
 // A tool that asserts something false about itself is the exact class of defect
 // this repo's fences exist to catch, so the range is now closed and this fence
@@ -58,10 +79,10 @@ export const PACKAGE_JSON = "package.json";
 export const WORKFLOW_GLOB = ".github/workflows/*.yml";
 
 /**
- * The only `engines.node` shape this fence accepts: a floor pinned to the exact
- * patch version, and a ceiling at the next major. Anything else — an open
- * range, a caret, a disjunction — is reported rather than parsed, because a
- * shape this fence cannot read is a shape it cannot police.
+ * The only `engines.node` shape this fence accepts: an exact-patch floor and a
+ * ceiling at a major. Anything else — an open range, a caret, a disjunction —
+ * is reported rather than parsed, because a shape this fence cannot read is a
+ * shape it cannot police.
  */
 const CLOSED_RANGE = /^>=(\d+)\.(\d+)\.(\d+) <(\d+)$/;
 
@@ -147,7 +168,7 @@ function checkPinFiles(nvmrcRaw: string, nodeVersionRaw: string, pin: VersionPar
   return problems;
 }
 
-/** ── 2. engines.node must be a closed range whose floor IS the pin. ───────── */
+/** ── 2. engines.node must be a closed range CONTAINING the pin. ──────────── */
 function checkEngines(enginesRaw: string | undefined, pin: VersionParts | null, nvmrcRaw: string) {
   const problems: string[] = [];
   if (!enginesRaw) {
@@ -173,12 +194,16 @@ function checkEngines(enginesRaw: string | undefined, pin: VersionParts | null, 
     return { problems, range: null };
   }
 
-  if (pin && compare(range.floor, pin) !== 0) {
+  // The floor may sit BELOW the pin — they answer different questions ("the
+  // oldest Node that works" vs "the Node everyone installs"). What is never
+  // allowed is a pin the manifest itself would reject.
+  if (pin && compare(range.floor, pin) > 0) {
     const floor = `${range.floor.major}.${range.floor.minor}.${range.floor.patch}`;
     problems.push(
       [
-        `${PACKAGE_JSON} engines.node floors at ${floor}, but ${NVMRC} pins ${nvmrcRaw}.`,
-        "    The floor is the pin. Bump both together.",
+        `${PACKAGE_JSON} engines.node floors at ${floor}, above the ${nvmrcRaw} that ${NVMRC} pins.`,
+        "    The pin must satisfy the range it ships with — otherwise the repo tells",
+        "    you to install a version its own manifest rejects.",
       ].join("\n"),
     );
   }
@@ -242,10 +267,12 @@ function checkRunningNode(range: ClosedRange | null, enginesRaw: string | undefi
       "    Switch to the pinned version before you trust any gate:",
       `        fnm use            (or: nvm use, or: volta install node@${pin})`,
       `    Both ${NVMRC} and ${NODE_VERSION_FILE} name it, so those commands need no argument.`,
-      "    ABOVE the range (25.x): the built-in Web Storage shadows jsdom's and has",
+      "    ABOVE the range (23+): the built-in Web Storage shadows jsdom's and has",
       "    no .clear(), so ~125 suites fail for reasons that are not yours.",
-      "    BELOW it (< 22.15.0): node:module has no registerHooks, so every seed:*",
-      "    script dies before it opens a connection.",
+      "    BELOW it, three separate things break as you go down: ICU < 78 decodes",
+      "    windows-1252 wrong (the fiscalía PDF tests), < 22.18.0 cannot strip",
+      "    types (verify:mobile cannot read @dim/contract), and < 22.15.0 has no",
+      "    node:module registerHooks (every seed:* dies on import).",
       "    Red measured on the wrong Node is not evidence of anything.",
     ].join("\n"),
   ];

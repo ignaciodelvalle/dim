@@ -4,12 +4,17 @@ Thanks for jumping in. DIM is a Next.js + Drizzle + Postgres / Supabase app, eve
 
 ## Quickstart
 
-Requires **Node 22.15.0 – 22.x** (`.nvmrc` pins it; `fnm use` / `nvm use` picks
-it up), **pnpm**, and **Docker Desktop** running. The range is closed at both
-ends and `pnpm lint:node-version` enforces it: below 22.15.0 `node:module` has
-no `registerHooks`, so every `seed:*` script dies on import; on 23+ Node's
-built-in Web Storage shadows jsdom's and ~125 suites fail for reasons that are
-not yours.
+Requires **Node 22.23.0 – 22.x** (`.nvmrc` pins 22.23.2; `fnm use` / `nvm use`
+picks it up), **pnpm**, and **Docker Desktop** running. The range is closed at
+both ends and `pnpm lint:node-version` enforces it — four separate things break
+outside it:
+
+| below | what breaks |
+|---|---|
+| 22.15.0 | `node:module` has no `registerHooks` → every `seed:*` dies on import |
+| 22.18.0 | no type stripping → `verify:mobile` cannot read `@dim/contract`'s raw `.ts` |
+| 22.23.0 | ICU < 78 decodes windows-1252 `0x97` as U+0097, not an em dash → the fiscalía PDF tests |
+| — | **on 23+**: Node's built-in Web Storage shadows jsdom's and ~125 suites fail for reasons that are not yours |
 
 ```bash
 pnpm install

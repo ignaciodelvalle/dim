@@ -1,9 +1,10 @@
 // Offline guard for the Node version fence (scripts/check-node-version.ts).
 //
 // The fence exists because `engines.node` was the open range ">=22.13.0" while
-// the repo pinned 22.13.0 in three other places, and Node 25 — which that range
-// admits — breaks ~125 suites (its built-in Web Storage shadows jsdom's and has
-// no .clear()). These tests pin the parts that decide the verdict: what shapes
+// the repo pinned 22.13.0 in three other places, and BOTH ends were wrong: 25 —
+// which that range admits — breaks ~125 suites (its built-in Web Storage
+// shadows jsdom's and has no .clear()), while 22.13.0 could not run a single
+// seed script. These tests pin the parts that decide the verdict: what shapes
 // the parsers accept, what counts as "outside the range", and what counts as a
 // workflow DECLARING a version.
 //
@@ -42,8 +43,8 @@ describe("parseExact", () => {
 
 describe("parseClosedRange", () => {
   it("reads the closed range the manifest must carry", () => {
-    expect(parseClosedRange(">=22.13.0 <23")).toEqual({
-      floor: { major: 22, minor: 13, patch: 0 },
+    expect(parseClosedRange(">=22.23.0 <23")).toEqual({
+      floor: { major: 22, minor: 23, patch: 0 },
       ceilingMajor: 23,
     });
   });
@@ -54,7 +55,7 @@ describe("parseClosedRange", () => {
     expect(parseClosedRange(">=22.13.0")).toBeNull();
   });
 
-  it.each(["^22.13.0", "22.x", ">=22.13.0 <23.0.0", ">= 22.13.0 <23"])(
+  it.each(["^22.23.0", "22.x", ">=22.23.0 <23.0.0", ">= 22.23.0 <23"])(
     "refuses %s — a shape it cannot read is a shape it cannot police",
     (raw) => {
       expect(parseClosedRange(raw)).toBeNull();
@@ -78,19 +79,28 @@ describe("compare", () => {
 });
 
 describe("satisfies", () => {
-  const range = parseClosedRange(">=22.13.0 <23");
+  const range = parseClosedRange(">=22.23.0 <23");
   if (!range) throw new Error("fixture range must parse");
 
-  it("accepts the pinned version itself", () => {
-    expect(satisfies({ major: 22, minor: 13, patch: 0 }, range)).toBe(true);
+  it("accepts the floor itself", () => {
+    expect(satisfies({ major: 22, minor: 23, patch: 0 }, range)).toBe(true);
   });
 
-  it("accepts a later patch on the same line — CI runs latest 22.x", () => {
-    expect(satisfies({ major: 22, minor: 20, patch: 4 }, range)).toBe(true);
+  it("accepts a later patch on the same line — the pin tracks latest 22.x", () => {
+    expect(satisfies({ major: 22, minor: 23, patch: 2 }, range)).toBe(true);
   });
 
-  it("rejects a version below the floor", () => {
-    expect(satisfies({ major: 22, minor: 12, patch: 0 }, range)).toBe(false);
+  // Each of these is a REAL floor this repo measured on 2026-08-29, and every
+  // one of them is inside the old open range that shipped before this fence.
+  it.each([
+    [{ major: 22, minor: 13, patch: 0 }, "no registerHooks — every seed:* dies"],
+    [
+      { major: 22, minor: 17, patch: 1 },
+      "no type stripping — verify:mobile cannot read @dim/contract",
+    ],
+    [{ major: 22, minor: 22, patch: 0 }, "ICU 77 — windows-1252 0x97 is not an em dash"],
+  ])("rejects %o (%s)", (version) => {
+    expect(satisfies(version, range)).toBe(false);
   });
 
   // THE CASE THAT COST 125 MISREAD FAILURES.
