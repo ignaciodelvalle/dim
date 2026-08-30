@@ -47,6 +47,8 @@
 //
 // NO DNI, in any form, and nothing in this feature has ever asked for one.
 
+import type { AppointmentBookedV1 } from "./appointment-search.ts";
+
 export const MY_APPOINTMENTS_PAYLOAD_VERSION = 1;
 
 /**
@@ -244,7 +246,7 @@ export type MyAppointmentsV1 = {
 };
 
 /**
- * What `POST /api/v1/me/appointments` answers.
+ * What `POST /api/v1/me/appointments` answers for `command: "cancel"`.
  *
  * `changed` IS ALWAYS TRUE HERE, for `TransferCommandAckV1.changed`'s reason
  * rather than `ShareCommandAckV1.changed`'s: the cancel writer flips the row with
@@ -254,9 +256,26 @@ export type MyAppointmentsV1 = {
  * ack shape needs no special case, and so the day a command learns to absorb a
  * replay it has somewhere to say so without a version bump.
  */
-export type AppointmentCommandAckV1 = {
+export type AppointmentCancelledV1 = {
   command: "cancel";
   changed: boolean;
   /** The turno that was acted on. */
   appointmentToken: string;
 };
+
+/**
+ * What `POST /api/v1/me/appointments` answers, over both commands.
+ *
+ * A UNION SINCE `book` LANDED, and the two arms deliberately do NOT share a
+ * shape. The cancel arm carries `changed` because the day a command learns to
+ * absorb a replay it needs somewhere to say so; the booking arm does not, because
+ * a booking either minted an appointment or was refused and a boolean that is
+ * always `true` on its only success arm describes nothing. Widening the cancel
+ * arm's shape onto the new one to keep them "consistent" would have put a field
+ * on the wire whose value no reader could act on.
+ *
+ * The discriminant is `command`, and `@dim/contract/input`'s `appointment.ts`
+ * carries a compile-time proof that this union's commands and the input schema's
+ * are the same set in both directions.
+ */
+export type AppointmentCommandAckV1 = AppointmentCancelledV1 | AppointmentBookedV1;

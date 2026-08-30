@@ -206,8 +206,25 @@ export const V1_ROUTE_GLOB = "app/api/v1/**/route.ts";
  * only reason it was caught is that the floor was recounted rather than read.
  * That is the whole argument for the instruction, and it is why "the fence was
  * green" is not evidence a floor is right.
+ *
+ * THIRTY with the BUSCAR half of turnos: `app/api/v1/appointments/route.ts` and
+ * `appointments/[offeringToken]/route.ts`. That lane recounted on its OWN
+ * worktree and said so — 30, not 28 + 2 — and it added the instruction that the
+ * paragraph above only warned about: "a parallel lane is carrying
+ * `app/api/v1/welfare-reports/route.ts`, so whoever merges the two must RECOUNT
+ * rather than add."
+ *
+ * THIRTY-ONE, and this line is the integrator doing what both lanes asked for.
+ * `listV1RouteFiles().length` on the MERGED tree — denuncia's one route plus
+ * turnos' two on top of the twenty-eight that were already here — is 31, so the
+ * floor is 31: equal, not merely satisfied. Both lanes predicted 31 and both
+ * were right, which is not the point. The point is that 29 + 2 and 30 + 1 both
+ * also give 31, and the two previous windows on this constant were repaired
+ * because somebody added instead of counting and happened to be wrong. The
+ * arithmetic agreeing with the count is a coincidence of this merge, not a
+ * method.
  */
-export const MIN_V1_ROUTE_FILES = 29;
+export const MIN_V1_ROUTE_FILES = 31;
 
 export const HELPER_MODULE = "@/lib/infra/api-v1";
 

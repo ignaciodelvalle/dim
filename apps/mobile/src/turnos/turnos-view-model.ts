@@ -301,5 +301,14 @@ export function appointmentInputCodeMessage(code: AppointmentCommandInputCode | 
       return "La app no pudo armar la acción. Volvé a intentar.";
     case "APPOINTMENT_TOKEN_REQUIRED":
       return "No pudimos identificar el turno. Actualizá la pantalla y volvé a intentar.";
+    // THE TWO BOOKING CODES. Both are reachable only when the SCREEN and the
+    // payload disagree — the slot id and the pet token both come off a read the
+    // screen is already holding — so neither sentence blames the person for a
+    // field they never filled in. "Actualizá" is the honest instruction: the grid
+    // it was built from is stale.
+    case "SLOT_REQUIRED":
+      return "No pudimos identificar el horario. Actualizá la pantalla y elegí de nuevo.";
+    case "PET_REQUIRED":
+      return "Elegí para qué mascota es el turno.";
   }
 }

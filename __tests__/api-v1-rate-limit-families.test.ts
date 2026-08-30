@@ -136,8 +136,35 @@ const ROUTE_GLOB = "app/api/v1/**/route.ts";
  * above — which is the instruction this comment has now survived three doors
  * saying, and the value it would have produced this time happens to agree. That
  * agreement is not the reason it is written down; the recount is.
+ *
+ * 33 → 34 with the BUSCAR half of turnos, which adds ONE bucket for TWO routes
+ * (`api_v1_appointment_search_ip`, shared by `/api/v1/appointments` and
+ * `/api/v1/appointments/{offeringToken}`) and no bucket at all for the booking
+ * write — `book` lands beside `cancel` on `POST /me/appointments` and spends the
+ * counter that route already has. Recounted on this worktree:
+ * `Object.keys(API_V1_IP_BUCKET_FAMILIES).length` is 34.
+ *
+ * WHOEVER MERGES THIS ALONGSIDE THE DENUNCIAS LANE MUST RECOUNT, NOT ADD ONE.
+ * That lane's hand-off carries an `api_v1_welfare_reports_ip` entry, and 34 + 1
+ * is only right if nothing else lands in between — which is the assumption that
+ * produced every stale figure named in the paragraphs above.
+ *
+ * 35 AT THE 2026-08-30 INTEGRATION MERGE, and this is the first window in which
+ * BOTH lanes wrote that instruction and BOTH were the other's counter-example.
+ * Each declared 34 for its own worktree and each was right about a tree the
+ * other was about to invalidate. Recounted on the merged tree:
+ * `Object.keys(API_V1_IP_BUCKET_FAMILIES).length` is 35 —
+ * `api_v1_welfare_reports_ip` and `api_v1_appointment_search_ip` on top of the
+ * 33 that were already here.
+ *
+ * THIS IS THE ONE OF THE THREE PINS THAT WOULD HAVE LOOSENED IN SILENCE. The
+ * CGNAT aggregate below is a `toBe`, so it goes red on its own the instant the
+ * map grows; this line is a floor with `toBeGreaterThanOrEqual`, so taking
+ * either lane's 34 across the merge would have left it satisfied, green, and
+ * slack by one — exactly the drift the "20 → 29" paragraph at the top of this
+ * comment had to repair, arriving for the fourth time.
  */
-const MIN_IP_BUCKETS = 34;
+const MIN_IP_BUCKETS = 35;
 
 /**
  * Collects `enforceRateLimit`-style bucket literals from a route's source and
@@ -585,6 +612,7 @@ describe("/api/v1 rate-limit families — the numbers the derivation committed t
     // because the arithmetic is the evidence for the pin. `API_V1_IP_BUCKET_
     // FAMILIES` is still the list that cannot lie; recount it, do not trust
     // these tables.
+    //
     // RE-DERIVED 2026-08-30 for the denuncia door (WU-T), which adds ONE
     // `authenticated-write` bucket, `api_v1_welfare_reports_ip`. Hand-summed per
     // family over the merged map rather than read off the `reduce` this line
@@ -611,7 +639,57 @@ describe("/api/v1 rate-limit families — the numbers the derivation committed t
     // entry, so "adding the line fixes the fence" is half true and this third
     // one moves the opposite way — the aggregate is a sum over the map, so
     // growing the map grows the sum.
-    expect(API_V1_CGNAT_FAMILY_IP_CEILING_PER_MINUTE).toBe(12_444);
+    //
+    // 12.324 → 12.924 with the BUSCAR half of turnos, and the delta is ONE
+    // `authenticated-read` bucket at 600/min — `api_v1_appointment_search_ip`,
+    // shared by the two search routes. Hand-summed per family on this worktree
+    // rather than read off the `reduce` the assertion compares against, because a
+    // computed value agreeing with itself is not evidence:
+    //
+    //   authenticated-read     17 × 600 = 10.200
+    //   authenticated-write     7 × 120 =    840
+    //   account-security        2 ×  60 =    120
+    //   inbox-state             1 × 240 =    240
+    //   public-reference        1 × 600 =    600
+    //   pet-disclosure-write    2 × 180 =    360
+    //   pet-record-write        1 × 240 =    240
+    //   pet-registration        1 × 120 =    120
+    //   media-upload            1 × 144 =    144
+    //   adoption-application    1 ×  60 =     60
+    //                          ── 34 buckets ─────────
+    //                                     12.924
+    //
+    // and 12.324 + 600 = 12.924 agrees. Both had to.
+    //
+    // 13.044 AT THE 2026-08-30 INTEGRATION MERGE, and the two paragraphs above
+    // are BOTH stale the moment they are read — which is the first time on this
+    // constant that two doors landed in the same window and each hand-summed a
+    // tree the other was about to invalidate. WU-T added one
+    // `authenticated-write` (12.444, and its comment says "this pin goes red
+    // when the bucket lands"); WU-S added one `authenticated-read` (12.924).
+    // Neither number survives the merge. Hand-summed once more over the MERGED
+    // map, not off the `reduce` and not by adding the two deltas:
+    //
+    //   authenticated-read     17 × 600 = 10.200
+    //   authenticated-write     8 × 120 =    960
+    //   account-security        2 ×  60 =    120
+    //   public-reference        1 × 600 =    600
+    //   inbox-state             1 × 240 =    240
+    //   pet-disclosure-write    2 × 180 =    360
+    //   pet-record-write        1 × 240 =    240
+    //   pet-registration        1 × 120 =    120
+    //   media-upload            1 × 144 =    144
+    //   adoption-application    1 ×  60 =     60
+    //                          ── 35 buckets ─────────
+    //                                     13.044
+    //
+    // and 12.324 + 120 + 600 = 13.044 agrees. The agreement is worth one line
+    // ONLY because it is the pair of deltas that agrees, not either lane's
+    // figure: 12.444 + 600 and 12.924 + 120 both also give 13.044, while
+    // 12.444 and 12.924 on their own are each wrong by the other lane's bucket.
+    // A pin that is only ever incremented is right until two doors land at
+    // once, and then it is wrong in whichever direction the merge order fell.
+    expect(API_V1_CGNAT_FAMILY_IP_CEILING_PER_MINUTE).toBe(13_044);
   });
 
   it("keeps pet-disclosure-write at N callers on BOTH windows", () => {

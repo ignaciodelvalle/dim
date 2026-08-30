@@ -28,6 +28,8 @@ const ME = "11111111-1111-4111-8111-111111111111";
 /** A second live account, used to prove the WHERE follows the SESSION. */
 const SOMEBODY_ELSE = "22222222-2222-4222-8222-222222222222";
 const ORG_ID = "33333333-3333-4333-8333-333333333333";
+/** The address the stubbed `callerIp` reports, so the IP gates can be told apart. */
+const CALLER_IP = "200.5.4.3";
 
 const NOW = new Date("2026-08-29T15:00:00.000Z");
 
@@ -52,12 +54,31 @@ const control = vi.hoisted(() => ({
   joins: [] as Array<{ kind: "inner" | "left"; on: unknown }>,
   /** Buckets that should answer 429 instead of proceeding. */
   overLimit: new Set<string>(),
-  /** Every bucket a handler actually tried to spend, in order. */
-  spent: [] as string[],
+  /**
+   * Every bucket a handler tried to spend, WITH the identifier it keyed on.
+   *
+   * IT USED TO BE `string[]` — the bucket name alone — and that was a DECLARED
+   * DEBT on the board naming this file as its owner: the stub read
+   * `enforceRateLimit: async (endpoint: string)` and dropped the second argument,
+   * so collapsing all four gates onto shared constants left this file 36/36
+   * green. Ten sibling route tests already took the pair. This one does now.
+   */
+  spent: [] as Array<{ endpoint: string; identifier: string }>,
+  /**
+   * Buckets whose limiter is BROKEN — it throws something that is not a
+   * `RateLimitError`, the way an unreachable `rate_limit_buckets` table would.
+   * Distinct from `overLimit` on purpose: the two must produce OPPOSITE answers,
+   * and that is the second declared debt this file owned.
+   */
+  limiterBroken: new Set<string>(),
   /** What the cancel writer answers. */
   cancelResult: { ok: true } as Record<string, unknown>,
   /** Every call the cancel writer received. */
   cancelCalls: [] as Array<{ token: string; userId: string }>,
+  /** What the BOOKING writer answers. */
+  bookResult: { ok: true, appointmentToken: "APT-NEW-0001" } as Record<string, unknown>,
+  /** Every call the booking writer received. */
+  bookCalls: [] as Array<{ slotId: string; petPublicToken: string; userId: string }>,
 }));
 
 vi.mock("@/lib/infra/live-user", async (importOriginal) => {
@@ -76,12 +97,16 @@ vi.mock("@/lib/infra/rate-limit", async (importOriginal) => {
     // RECORDS THE BUCKET AND CAN REFUSE ONE. The old stub swallowed every call,
     // which made the four gates unfalsifiable: no test could tell a handler that
     // spends its budgets from one that never calls the limiter at all.
-    enforceRateLimit: async (endpoint: string) => {
-      control.spent.push(endpoint);
+    enforceRateLimit: async (endpoint: string, identifier: string) => {
+      control.spent.push({ endpoint, identifier });
+      if (control.limiterBroken.has(endpoint)) {
+        throw new Error("rate_limit_buckets is unreachable");
+      }
       if (control.overLimit.has(endpoint)) {
         throw new actual.RateLimitError(new Date(), endpoint);
       }
     },
+    callerIp: () => CALLER_IP,
   };
 });
 
@@ -152,12 +177,25 @@ vi.mock("@/src/modules/events/application/booking/cancel-appointment-by-owner", 
   },
 }));
 
+// THE BOOKING USE-CASE IS MOCKED HERE AND ITS PREDICATE IS TESTED ELSEWHERE.
+// `bookSlotForUser` carries the ownership guard, and mocking it in this file is
+// only legitimate because that guard has its own compiled-SQL fence next to it
+// (`src/modules/events/application/booking/__tests__/book-slot-for-user.test.ts`).
+// What this file is for is the DOOR: which budgets it spends, which id it acts
+// as, and how a typed refusal becomes a status.
+vi.mock("@/src/modules/events/application/booking/book-slot-for-user", () => ({
+  bookSlotForUser: async (args: { slotId: string; petPublicToken: string; userId: string }) => {
+    control.bookCalls.push(args);
+    return control.bookResult;
+  },
+}));
+
 import { type SQL, sql } from "drizzle-orm";
 import { PgDialect } from "drizzle-orm/pg-core";
 
-import { APPOINTMENT_REFUSAL_RULES } from "@/app/api/v1/me/appointments/commands";
+import { APPOINTMENT_REFUSAL_RULES, BOOK_REFUSALS } from "@/app/api/v1/me/appointments/commands";
 import { GET, POST } from "@/app/api/v1/me/appointments/route";
-import type { MyAppointmentV1, MyAppointmentsV1 } from "@dim/contract/api";
+import { API_V1_ERROR_CODES, type MyAppointmentV1, type MyAppointmentsV1 } from "@dim/contract/api";
 
 /**
  * Compiles a captured drizzle fragment to the SQL text and bound params Postgres
@@ -231,9 +269,12 @@ beforeEach(() => {
   control.projection = null;
   control.joins = [];
   control.overLimit = new Set();
+  control.limiterBroken = new Set();
   control.spent = [];
   control.cancelResult = { ok: true };
   control.cancelCalls = [];
+  control.bookResult = { ok: true, appointmentToken: "APT-NEW-0001" };
+  control.bookCalls = [];
 });
 
 describe("GET — the three sections are the server's clock, not the client's", () => {
@@ -598,15 +639,19 @@ describe("the four rate-limit gates — each one refuses on its own", () => {
   // buckets, two per method, and the pair on each method fires at a DIFFERENT
   // point: the per-IP one before the GoTrue round-trip, the per-user one after
   // it. A test per bucket is what keeps that ordering honest.
-  const gates: Array<[string, "GET" | "POST", boolean]> = [
-    ["api_v1_me_appointments_read_ip", "GET", false],
-    ["api_v1_me_appointments_read_user", "GET", true],
-    ["api_v1_me_appointments_write_ip", "POST", false],
-    ["api_v1_me_appointments_write_user", "POST", true],
+  // THE FOURTH COLUMN IS THE IDENTIFIER THE GATE MUST KEY ON, and it is the half
+  // this table did not have while the stub dropped the second argument: an IP gate
+  // keyed on the user id would still refuse, still be the last bucket spent, and
+  // still satisfy every assertion below.
+  const gates: Array<[string, "GET" | "POST", boolean, string]> = [
+    ["api_v1_me_appointments_read_ip", "GET", false, CALLER_IP],
+    ["api_v1_me_appointments_read_user", "GET", true, ME],
+    ["api_v1_me_appointments_write_ip", "POST", false, CALLER_IP],
+    ["api_v1_me_appointments_write_user", "POST", true, ME],
   ];
 
-  for (const [bucket, method, afterAuth] of gates) {
-    it(`answers 429 when ${bucket} is spent`, async () => {
+  for (const [bucket, method, afterAuth, identifier] of gates) {
+    it(`answers 429 when ${bucket} is spent, keyed on the right identifier`, async () => {
       control.overLimit = new Set([bucket]);
 
       const response =
@@ -615,8 +660,10 @@ describe("the four rate-limit gates — each one refuses on its own", () => {
       expect(response.status).toBe(429);
       expect(await response.json()).toEqual({ error: "rate_limited" });
       // The bucket that refused is the LAST one spent: a gate that let control
-      // through to the next budget is a gate that did not bind.
-      expect(control.spent.at(-1)).toBe(bucket);
+      // through to the next budget is a gate that did not bind. And it was spent
+      // against the right key — an address for the IP gates, a user id for the
+      // user gates.
+      expect(control.spent.at(-1)).toEqual({ endpoint: bucket, identifier });
       // The per-IP gate runs BEFORE `requireLiveUser`, so it refuses without a
       // GoTrue round-trip; the per-user gate necessarily runs after one. That
       // ordering is what the IP bucket exists for and it is asserted rather
@@ -636,10 +683,45 @@ describe("the four rate-limit gates — each one refuses on its own", () => {
     const response = await get();
 
     expect(response.status).toBe(200);
+    // THE PAIR, not just the name. The IP gate keys on the caller ADDRESS and the
+    // user gate on the user ID; asserting only the bucket names left "collapse all
+    // four onto one constant" invisible, which is the debt this closes.
     expect(control.spent).toEqual([
+      { endpoint: "api_v1_me_appointments_read_ip", identifier: CALLER_IP },
+      { endpoint: "api_v1_me_appointments_read_user", identifier: ME },
+    ]);
+  });
+
+  it("FAILS OPEN when the limiter itself is broken, on both methods", async () => {
+    // THE OTHER DEBT THIS FILE OWNED. The route's docblock argues it at length —
+    // "a limiter outage must not stand between somebody and CANCELLING a turno they
+    // cannot attend" — and flipping its `return true` to `return false` left this
+    // file 36/36 green. Five sibling route files carry a case named exactly this.
+    control.limiterBroken = new Set([
+      "api_v1_me_appointments_read_ip",
+      "api_v1_me_appointments_read_user",
+      "api_v1_me_appointments_write_ip",
+      "api_v1_me_appointments_write_user",
+    ]);
+    control.rows = [row()];
+
+    expect((await get()).status).toBe(200);
+    expect((await post({ command: "cancel", appointmentToken: "APT-7K2M-9QX4" })).status).toBe(200);
+  });
+
+  it("still fails CLOSED on authorization while the limiter is broken", async () => {
+    // The pair the case above only half proves: a fail-open limiter must not carry
+    // the guard open with it.
+    control.limiterBroken = new Set([
       "api_v1_me_appointments_read_ip",
       "api_v1_me_appointments_read_user",
     ]);
+    control.live = () => ({ ok: false, reason: "ACCOUNT_ERASED" });
+
+    const response = await get();
+    expect(response.status).toBe(403);
+    expect(await response.json()).toEqual({ error: "account_erased" });
+    expect(control.wherePredicate).toBe(null);
   });
 });
 
@@ -665,7 +747,12 @@ describe("POST — the one command, and who it acts as", () => {
     // `attend`, `no_show` and `cancel_by_org` are the clinic's, behind
     // `/org/{token}/agenda`. A citizen wallet that could run one would be doing
     // something the owner's browser cannot.
-    for (const command of ["attend", "no_show", "cancel_by_org", "book"]) {
+    //
+    // `book` USED TO BE IN THIS LIST and is not any more — it landed as the second
+    // command and has its own describe below. The three that remain are the three
+    // that are refused by RULE rather than by scope, which is what this case was
+    // always about.
+    for (const command of ["attend", "no_show", "cancel_by_org"]) {
       const response = await post({ command, appointmentToken: "APT-7K2M-9QX4" });
       expect(response.status).toBe(400);
       expect(await response.json()).toEqual({ error: "invalid_request" });
@@ -714,6 +801,119 @@ describe("POST — the one command, and who it acts as", () => {
     for (const sentence of sentences) {
       expect(mapped.has(sentence as string)).toBe(true);
     }
+  });
+});
+
+describe("POST book — the second command, and the coarseness of its refusals", () => {
+  const BOOK = {
+    command: "book",
+    slotId: "6f1c2d3e-4a5b-4c6d-8e9f-0a1b2c3d4e5f",
+    petPublicToken: "DIM-PAMP-0001",
+  };
+
+  it("books and acks, passing the caller id from the SESSION and not from the body", async () => {
+    const response = await post({
+      ...BOOK,
+      // A client trying to book as somebody else. The route never reads it.
+      userId: "99999999-9999-4999-8999-999999999999",
+    });
+
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({ command: "book", appointmentToken: "APT-NEW-0001" });
+    expect(control.bookCalls).toEqual([
+      { slotId: BOOK.slotId, petPublicToken: BOOK.petPublicToken, userId: ME },
+    ]);
+  });
+
+  it("carries NO `changed` field, unlike the cancel ack", async () => {
+    // A booking either minted an appointment or was refused; a boolean that is
+    // always `true` on its only success arm describes nothing. The cancel ack
+    // carries one for a real reason (see the contract) and copying it here to make
+    // the two "consistent" would put a field on the wire nobody can act on.
+    const body = (await (await post(BOOK)).json()) as Record<string, unknown>;
+    expect("changed" in body).toBe(false);
+  });
+
+  it("acts as whoever the LIVENESS GUARD says is calling, not whoever the first test did", async () => {
+    liveAs(SOMEBODY_ELSE);
+    await post(BOOK);
+    expect(control.bookCalls).toEqual([
+      { slotId: BOOK.slotId, petPublicToken: BOOK.petPublicToken, userId: SOMEBODY_ELSE },
+    ]);
+  });
+
+  it("maps every typed refusal to a code, and the map is TOTAL over the union", async () => {
+    // THE COARSENESS IS THE SUBJECT HERE. Six domain refusals collapse onto four
+    // existing codes because `API_V1_ERROR_CODES` gained no `booking_*` family in
+    // this window — `commands.ts` says why at length. This case pins the fold so
+    // that the day the codes land, changing it is a deliberate edit.
+    const expected: Array<[string, string, number]> = [
+      ["pet_not_yours", "not_found", 404],
+      ["pet_deceased", "event_not_allowed", 409],
+      ["slot_not_found", "appointment_already_resolved", 409],
+      ["slot_unavailable", "appointment_already_resolved", 409],
+      ["already_booked", "appointment_already_resolved", 409],
+      ["slot_past", "appointment_past", 409],
+    ];
+
+    for (const [failure, code, status] of expected) {
+      control.bookResult = { ok: false, code: failure };
+      const response = await post(BOOK);
+      expect(response.status).toBe(status);
+      expect(await response.json()).toEqual({ error: code });
+    }
+
+    // TOTAL, in both directions. A seventh member of `BookSlotFailureCode` added
+    // without a row here is a TYPE error in `commands.ts` (the map is a
+    // `Record<BookSlotFailureCode, …>`); what the type cannot catch is a row that
+    // stops being reachable, which this half names.
+    expect(Object.keys(BOOK_REFUSALS).sort()).toEqual(expected.map(([f]) => f).sort());
+  });
+
+  it("only ever answers a code the CONTRACT declares", async () => {
+    // The mobile copy switch is exhaustive over `API_V1_ERROR_CODES` with no
+    // `default`, so a code outside that vocabulary renders as a blank line under a
+    // "no se pudo" heading. The map is typed `ApiV1ErrorCode`, and this is the
+    // runtime half of the same claim.
+    for (const refusal of Object.values(BOOK_REFUSALS)) {
+      expect(API_V1_ERROR_CODES).toContain(refusal.code);
+    }
+  });
+
+  it("refuses a book with a malformed slot before reaching the writer", async () => {
+    const response = await post({ ...BOOK, slotId: "not-a-uuid" });
+    expect(response.status).toBe(400);
+    expect(await response.json()).toEqual({ error: "invalid_request" });
+    expect(control.bookCalls).toEqual([]);
+  });
+
+  it("refuses a book with no pet before reaching the writer", async () => {
+    const response = await post({ command: "book", slotId: BOOK.slotId });
+    expect(response.status).toBe(400);
+    expect(await response.json()).toEqual({ error: "invalid_request" });
+    expect(control.bookCalls).toEqual([]);
+  });
+
+  it("spends the WRITE budgets, not the read ones — booking is not a lookup", async () => {
+    // `book` shares `cancel`'s route and therefore its family. That is the
+    // decision `api-v1-limits.ts` records: both are a transaction across three
+    // tables that moves a place between people, so one anchor bounds both.
+    await post(BOOK);
+    expect(control.spent).toEqual([
+      { endpoint: "api_v1_me_appointments_write_ip", identifier: CALLER_IP },
+      { endpoint: "api_v1_me_appointments_write_user", identifier: ME },
+    ]);
+  });
+
+  it("refuses at the per-IP gate BEFORE the liveness round-trip", async () => {
+    control.overLimit = new Set(["api_v1_me_appointments_write_ip"]);
+    control.live = () => {
+      throw new Error("the guard must not run when the IP bucket already refused");
+    };
+
+    const response = await post(BOOK);
+    expect(response.status).toBe(429);
+    expect(control.bookCalls).toEqual([]);
   });
 });
 

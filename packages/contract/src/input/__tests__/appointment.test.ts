@@ -11,6 +11,13 @@
 // feature has four writes, three of them belong to the clinic's own agenda
 // screen, and shipping any of them on a citizen's phone would be a wallet acting
 // on somebody else's turno.
+//
+// THE FOURTH — `book` — USED TO BE REFUSED HERE AND NOW PARSES. That case had a
+// name and a paragraph ("scope rather than a rule … so that adding it later is a
+// deliberate edit here rather than something that quietly starts parsing"), and
+// this is that deliberate edit. It is REPLACED rather than deleted: the block
+// below asserts what the command accepts and what it refuses, so the three
+// provider commands are still the only members this union will not take.
 
 import { describe, expect, it } from "vitest";
 
@@ -27,10 +34,13 @@ function codeFor(body: unknown): string | null {
 }
 
 const TOKEN = "APT-7K2M-9QX4";
+const SLOT = "6f1c2d3e-4a5b-4c6d-8e9f-0a1b2c3d4e5f";
+const PET = "DIM-PAMP-0001";
 
 describe("appointmentCommandInputSchema — the command discriminator", () => {
-  it("accepts the one command the owner's browser offers", () => {
+  it("accepts the two commands the owner's browser offers", () => {
     expect(codeFor({ command: "cancel", appointmentToken: TOKEN })).toBe(null);
+    expect(codeFor({ command: "book", slotId: SLOT, petPublicToken: PET })).toBe(null);
   });
 
   it("names a missing command rather than falling through to null", () => {
@@ -53,12 +63,64 @@ describe("appointmentCommandInputSchema — the command discriminator", () => {
     expect(codeFor({ command: "cancel_by_org", appointmentToken: TOKEN })).toBe("COMMAND_REQUIRED");
   });
 
-  it("refuses `book` too, and that one is scope rather than a rule", () => {
-    // Booking IS an owner capability on the web. It is not in this union because
-    // it needs a slot id the search screen produces, and that screen is a
-    // different work unit. The assertion exists so that adding it later is a
-    // deliberate edit here rather than something that quietly starts parsing.
-    expect(codeFor({ command: "book", slotId: "…", petPublicToken: "…" })).toBe("COMMAND_REQUIRED");
+  it("still refuses a `book` whose slot is not uuid-shaped", () => {
+    // The predecessor of this case asserted that `book` did not parse AT ALL, with
+    // `slotId: "…"`. That body must still be refused now that the command exists,
+    // and for a reason one level down: the union takes the command and the FIELD
+    // refuses the value. Without this, "the schema stopped rejecting nonsense"
+    // would look identical to "the command landed".
+    expect(codeFor({ command: "book", slotId: "…", petPublicToken: "…" })).toBe("SLOT_REQUIRED");
+  });
+});
+
+describe("appointmentCommandInputSchema — booking's two fields", () => {
+  it("refuses an absent, empty or non-uuid slot", () => {
+    expect(codeFor({ command: "book", petPublicToken: PET })).toBe("SLOT_REQUIRED");
+    expect(codeFor({ command: "book", slotId: "", petPublicToken: PET })).toBe("SLOT_REQUIRED");
+    expect(codeFor({ command: "book", slotId: 42, petPublicToken: PET })).toBe("SLOT_REQUIRED");
+    // Uuid-SHAPED and nothing more. The slot's existence, its capacity, its
+    // offering's status and the future window are all re-resolved inside the
+    // booking transaction under an advisory lock, so this is a typo check.
+    expect(codeFor({ command: "book", slotId: `${SLOT}x`, petPublicToken: PET })).toBe(
+      "SLOT_REQUIRED",
+    );
+  });
+
+  it("refuses an absent or blank pet, and does NOT pin the token's format", () => {
+    expect(codeFor({ command: "book", slotId: SLOT })).toBe("PET_REQUIRED");
+    expect(codeFor({ command: "book", slotId: SLOT, petPublicToken: "   " })).toBe("PET_REQUIRED");
+    // `DIM-XXXX-XXXX` is NOT asserted, for `appointmentToken`'s reason: a client
+    // must not validate its own server's output format, or the contract refuses a
+    // token the server legitimately minted the day the generator changes.
+    expect(codeFor({ command: "book", slotId: SLOT, petPublicToken: "whatever" })).toBe(null);
+  });
+
+  it("trims both, so a value pasted with whitespace still reaches the server clean", () => {
+    const parsed = appointmentCommandInputSchema.safeParse({
+      command: "book",
+      slotId: `  ${SLOT}\n`,
+      petPublicToken: ` ${PET} `,
+    });
+    expect(parsed.success).toBe(true);
+    if (parsed.success && parsed.data.command === "book") {
+      expect(parsed.data.slotId).toBe(SLOT);
+      expect(parsed.data.petPublicToken).toBe(PET);
+    }
+  });
+
+  it("drops an `appointmentToken` sent alongside a book, rather than carrying it through", () => {
+    // The shape a client would produce by editing a cancel body into a booking
+    // one. zod's object parse strips unknown keys, so the writer never sees a
+    // field the command has no use for — asserted because "it happens to be
+    // ignored today" and "it cannot reach the writer" are different guarantees.
+    const parsed = appointmentCommandInputSchema.safeParse({
+      command: "book",
+      slotId: SLOT,
+      petPublicToken: PET,
+      appointmentToken: TOKEN,
+    });
+    expect(parsed.success).toBe(true);
+    if (parsed.success) expect("appointmentToken" in parsed.data).toBe(false);
   });
 });
 
@@ -78,7 +140,9 @@ describe("appointmentCommandInputSchema — the token", () => {
       appointmentToken: `  ${TOKEN}\n`,
     });
     expect(parsed.success).toBe(true);
-    if (parsed.success) expect(parsed.data.appointmentToken).toBe(TOKEN);
+    if (parsed.success && parsed.data.command === "cancel") {
+      expect(parsed.data.appointmentToken).toBe(TOKEN);
+    }
   });
 
   it("checks SHAPE and never format — a server-minted token is not the client's to validate", () => {

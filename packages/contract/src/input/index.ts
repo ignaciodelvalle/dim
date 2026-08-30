@@ -18,6 +18,14 @@ export {
   adoptionApplicationInputSchema,
   firstAdoptionApplicationInputCode,
 } from "./adoption-application.ts";
+// EXPORTED ON ITS OWN, not only through the two schemas that `.refine()` with
+// it. A QUERY STRING carries dates too, and a search floor is a filter rather
+// than a field — so `/api/v1/appointments` needs the rule without needing a zod
+// schema to hang it on. Its header records the rollover it exists for: a regex
+// accepts `2026-02-31`, `new Date` does not throw and is not `NaN`, and the
+// value silently becomes 3 March. Exporting it is what keeps the third door from
+// writing a fourth copy of the calendar.
+export { isRealArDay } from "./ar-calendar-day.ts";
 export {
   AMEND_EVENT_INPUT_CODES,
   AMEND_REASON_MIN_LENGTH,

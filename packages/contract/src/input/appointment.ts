@@ -1,6 +1,6 @@
 // What a client may SEND to `POST /api/v1/me/appointments`.
 //
-// ONE COMMAND, AND THE THREE THAT ARE MISSING ARE THE POINT
+// TWO COMMANDS, AND THE THREE THAT ARE MISSING ARE THE POINT
 // ---------------------------------------------------------------------------
 // The web's booking surface has four writes. Three of them —
 // `markAppointmentAttended`, `markAppointmentNoShow`, `cancelAppointmentByOrg` —
@@ -9,12 +9,24 @@
 // surface, so putting any of them here would be the phone doing something the
 // owner's browser cannot.
 //
-// The fourth is `bookSlotAction`, and its absence is a SCOPE line rather than a
-// rule: booking needs a search and a slot picker, which is a different work unit
-// (see the note on `POST` in the route). When it lands it joins this union as a
-// second member, which is why this is a discriminated union over `command` and
-// not a bare object with a token — a schema shaped for one command has to be
-// rewritten to admit a second, and rewriting a wire schema is a version bump.
+// The fourth is `bookSlotAction`. Its absence used to be a SCOPE line and this
+// paragraph used to say so: "when it lands it joins this union as a second
+// member, which is why this is a discriminated union over `command` and not a
+// bare object with a token — a schema shaped for one command has to be rewritten
+// to admit a second, and rewriting a wire schema is a version bump." IT LANDED,
+// as `book`, and it cost exactly what that sentence predicted it would: one more
+// member and no version bump.
+//
+// WHY `book` IS HERE AND NOT ON THE SEARCH ROUTES
+// ---------------------------------------------------------------------------
+// The two reads it depends on are `/api/v1/appointments` and
+// `/api/v1/appointments/{offeringToken}`, and the write could have hung off
+// either. It does not, because a write's home is the resource it MUTATES and not
+// the one it reads: booking inserts an `appointments` row that belongs to the
+// caller, and `/me/appointments` is where the caller's appointments live. The two
+// commands then also share an anchor — each is a transaction across three tables
+// that moves a place between people — so they share a rate-limit family without
+// anyone having to argue that they should.
 //
 // WHAT CANCELLING ACTUALLY MUTATES, SAID PLAINLY
 // ---------------------------------------------------------------------------
@@ -52,6 +64,8 @@ import type { AppointmentCommandAckV1 } from "../api/my-appointments.ts";
 export const APPOINTMENT_COMMAND_INPUT_CODES = [
   "COMMAND_REQUIRED",
   "APPOINTMENT_TOKEN_REQUIRED",
+  "SLOT_REQUIRED",
+  "PET_REQUIRED",
 ] as const;
 
 export type AppointmentCommandInputCode = (typeof APPOINTMENT_COMMAND_INPUT_CODES)[number];
@@ -73,7 +87,53 @@ const appointmentToken = z
 /** CANCELAR UN TURNO PROPIO. The owner's side; the provider's cancel is not here. */
 const cancel = z.object({ command: z.literal("cancel"), appointmentToken });
 
-export const appointmentCommandInputSchema = z.discriminatedUnion("command", [cancel]);
+/**
+ * The slot being taken, as `GET /api/v1/appointments/{offeringToken}` handed it
+ * over.
+ *
+ * A UUID AND NOT A MINTED TOKEN — the one identifier on this surface that is.
+ * `time_slots` has no `public_token` column; the web's own URL carries the raw id
+ * (`/turnos/buscar/{offering}/reservar/{slotId}`), and minting a second
+ * identifier for a materialised slot would be a migration rather than a contract
+ * decision. SHAPE ONLY: this validates that the string could be a uuid, which is
+ * the most a client can honestly check before the round trip. Existence, capacity,
+ * the offering's status and the future window are ALL re-resolved inside the
+ * booking transaction under an advisory lock, so nothing here is a guard.
+ */
+const slotId = z.string({ error: "SLOT_REQUIRED" }).trim().uuid({ error: "SLOT_REQUIRED" });
+
+/**
+ * WHICH ANIMAL, by its public token.
+ *
+ * NOT A PET UUID, and that asymmetry with `slotId` above is deliberate rather
+ * than an inconsistency: `pets.public_token` exists, it is the identifier every
+ * other endpoint on this surface takes, and it is the only one a phone ever
+ * holds. The pattern is NOT pinned here (`DIM-XXXX-XXXX`) for
+ * `appointmentToken`'s reason — a client must not validate its own server's
+ * output format.
+ *
+ * IT IS NOT A CAPABILITY EITHER. The writer resolves the animal from this token
+ * AND the caller's session together, and answers the same refusal for "not yours"
+ * and for "erased" (Ley 25.326 art. 16), so a stranger's token buys nothing.
+ */
+const petPublicToken = z.string({ error: "PET_REQUIRED" }).trim().min(1, { error: "PET_REQUIRED" });
+
+/**
+ * RESERVAR UN TURNO. The owner's side of the web's `bookSlotAction`.
+ *
+ * NO `Idempotency-Key`, AND THE ENDPOINT ASKS FOR NONE — the same refusal to
+ * promise `cancel` makes, arrived at from the other direction. `bookSlotWriter`
+ * takes no `clientIdempotencyKey`; what it has instead is a `pg_advisory_xact_lock`
+ * on the slot plus TWO partial unique indexes (`appointments_one_live_per_pet_slot`
+ * from migration 0177, `appointments_one_live_per_pet_offering` from 0181), and
+ * those REFUSE a replay rather than absorbing one. So a retry after a timeout that
+ * in fact committed comes back as a refusal — indistinguishable, on the wire, from
+ * somebody else having taken the last place. A caller must RE-READ the slot grid,
+ * never re-send.
+ */
+const book = z.object({ command: z.literal("book"), slotId, petPublicToken });
+
+export const appointmentCommandInputSchema = z.discriminatedUnion("command", [cancel, book]);
 
 export type AppointmentCommandInput = z.infer<typeof appointmentCommandInputSchema>;
 export type AppointmentCommand = AppointmentCommandInput["command"];
