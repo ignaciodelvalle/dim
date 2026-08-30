@@ -230,7 +230,6 @@ export {
   WELFARE_REPORT_KINDS,
   WELFARE_REPORT_SUBJECT_KINDS,
   WELFARE_SUBJECT_DESCRIPTION_MAX_LENGTH,
-  WELFARE_SYMPTOMS_MAX_LENGTH,
   type WelfareReportCitizenSeverity,
   type WelfareReportCommand,
   type WelfareReportCommandInput,

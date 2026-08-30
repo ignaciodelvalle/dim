@@ -52,7 +52,6 @@ const FILLED: DenunciaFormValues = {
   description: "Vi al perro atado al sol sin agua y con golpes visibles en el lomo.",
   subjectKind: "unowned_animal",
   subjectDescription: "Perro mestizo marrón, atado en el fondo de una casa.",
-  observedSymptoms: "Cojea de la pata trasera derecha.",
   place: PLACE,
   anonymous: true,
   contactEmail: "",

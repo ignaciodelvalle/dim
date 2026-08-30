@@ -251,7 +251,13 @@ async function fileWelfareReport(userId: string, input: WelfareReportInput) {
       occurredAt: input.occurredAt ? new Date(input.occurredAt) : null,
       reporterContactEmail,
       reporterContactPhone,
-      observedSymptoms: input.observedSymptoms,
+      // ALWAYS NULL, and the field stays in the call rather than being dropped
+      // from the use-case's input: `createWelfareReport` is the WEB's writer too
+      // and its signature is not this door's to narrow. What this door has is
+      // nothing to put there — the wire shape carries no symptoms field, because
+      // the only consumer of one is a bridge that needs a registered pet. See
+      // `@dim/contract/input`'s `welfare-report.ts`.
+      observedSymptoms: null,
       // NO ATTACHMENTS. Not "none were sent" — none can be. See the contract.
       attachments: [],
       uploadedPaths: [],

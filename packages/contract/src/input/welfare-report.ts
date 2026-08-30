@@ -188,7 +188,6 @@ export const WELFARE_DESCRIPTION_MIN_LENGTH = 20;
 export const WELFARE_DESCRIPTION_MAX_LENGTH = 4_000;
 export const WELFARE_SUBJECT_DESCRIPTION_MAX_LENGTH = 1_000;
 export const WELFARE_ADDRESS_MAX_LENGTH = 300;
-export const WELFARE_SYMPTOMS_MAX_LENGTH = 1_000;
 
 const optionalText = (max: number) =>
   z
@@ -234,7 +233,30 @@ const factsShape = {
     .min(-180, { error: "COORDS_OUT_OF_RANGE" })
     .max(180, { error: "COORDS_OUT_OF_RANGE" }),
   locationAddress: optionalText(WELFARE_ADDRESS_MAX_LENGTH),
-  observedSymptoms: optionalText(WELFARE_SYMPTOMS_MAX_LENGTH),
+  /**
+   * THERE IS NO `observedSymptoms` FIELD, AND ITS ABSENCE IS A REPAIR RATHER
+   * THAN SCOPE. This module carried one for most of a day, the screen asked
+   * "¿Notaste algún síntoma en el animal?", and the answer went NOWHERE.
+   *
+   * `welfare_reports` HAS NO SUCH COLUMN. The value's one and only consumer is
+   * `createWelfareReport`'s `symptom_observed` bridge, which is inside
+   * `if (subjectKind === "registered_pet" && subjectPetId)` — and this door
+   * accepts no registered pet by construction, so the branch is unreachable on
+   * every request it can make. A field on the wire that the server structurally
+   * discards is worse than a missing one: somebody describes an injured animal
+   * and the inspector never reads it.
+   *
+   * THE CITIZEN WIZARD DOES NOT ASK FOR IT EITHER. `DenunciaWizard`'s five steps
+   * have no symptoms field; the only surface that does is
+   * `WelfareReportForm.tsx`, the ORG form, whose subject may also be an
+   * `unowned_animal` — so the same silent discard exists there. **Reported, not
+   * fixed: it is the org intake, and closing it is either a column or a decision
+   * to fold the text into the description, which is not a thing to do to
+   * somebody's testimony without asking.**
+   *
+   * The right place for what a reporter observed is `description`, which is
+   * stored, read by the operator, and carried into the MPF export.
+   */
   /**
    * When it happened — an ISO-8601 instant, optional.
    *

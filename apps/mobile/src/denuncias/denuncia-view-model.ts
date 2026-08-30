@@ -198,7 +198,6 @@ export type DenunciaFormValues = {
   description: string;
   subjectKind: WelfareReportSubjectKind | null;
   subjectDescription: string;
-  observedSymptoms: string;
   /** The candidate the person TAPPED, never one this app resolved for them. */
   place: { label: string; lat: number; lng: number } | null;
   anonymous: boolean;
@@ -233,7 +232,6 @@ export function buildFileDenunciaCommand(values: DenunciaFormValues): DenunciaDr
     locationLat: values.place?.lat,
     locationLng: values.place?.lng,
     locationAddress: values.place?.label,
-    observedSymptoms: values.observedSymptoms,
   };
 
   if (values.anonymous) {

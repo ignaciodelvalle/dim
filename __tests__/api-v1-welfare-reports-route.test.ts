@@ -224,7 +224,6 @@ const FACTS = {
   locationLat: -41.135,
   locationLng: -71.3103,
   locationAddress: "Av. Bustillo 1200, San Carlos de Bariloche",
-  observedSymptoms: "Cojea de la pata trasera derecha.",
 } as const;
 
 const CONTACT_EMAIL = "vecina.testigo@example.com";
@@ -679,6 +678,24 @@ describe("the subject is never a registered animal on this door", () => {
 
     expect(response.status).toBe(400);
     expect(control.inserted).toEqual([]);
+  });
+
+  it("hands the writer NO observed symptoms, because there is nowhere for them to go", async () => {
+    // `welfare_reports` HAS NO COLUMN for them. The only consumer is the
+    // `symptom_observed` bridge, which is inside
+    // `subjectKind === "registered_pet" && subjectPetId` — unreachable here. The
+    // field carried a real value on the wire for most of a day and the server
+    // discarded it on every request; the wire shape has none now.
+    //
+    // Kill it by adding `observedSymptoms` back to the contract's `factsShape`
+    // and forwarding `input.observedSymptoms` here. Applied: the value arrives,
+    // still goes nowhere, and this test is what says so.
+    await post({ command: "file", contactMode: "anonymous", ...FACTS });
+    expect(control.petEvents).toEqual([]);
+    // NON-VACUITY for the assertion above: the use-case DOES append a
+    // `symptom_observed` when it is given both a pet and a symptom, so an empty
+    // `petEvents` means the inputs were empty rather than the bridge being dead.
+    expect(control.inserted[0].subjectPetId).toBeNull();
   });
 
   it("appends nothing to any pet's spine", async () => {

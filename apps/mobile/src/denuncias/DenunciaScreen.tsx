@@ -108,7 +108,6 @@ const EMPTY: DenunciaFormValues = {
   description: "",
   subjectKind: null,
   subjectDescription: "",
-  observedSymptoms: "",
   place: null,
   anonymous: true,
   contactEmail: "",
@@ -371,14 +370,14 @@ export function DenunciaScreen() {
         onChangeText={(description) => patch({ description })}
       />
 
-      <TextField
-        label="¿Notaste algún síntoma en el animal?"
-        multiline
-        editable={!working}
-        placeholder="Opcional. Heridas, cojera, delgadez extrema…"
-        value={values.observedSymptoms}
-        onChangeText={(observedSymptoms) => patch({ observedSymptoms })}
-      />
+      {/* NO "¿NOTASTE SÍNTOMAS?" FIELD, and it was here until it was measured.
+          `welfare_reports` has no column for it; the only consumer is the
+          `symptom_observed` bridge inside `createWelfareReport`, which is behind
+          `subjectKind === "registered_pet"` — a subject this door does not
+          accept. So the answer went nowhere, on every request this screen can
+          make. The citizen wizard on the web does not ask for it either. What a
+          reporter observed belongs in "Contanos qué pasó", which is stored, read
+          by the operator, and carried into the MPF export. */}
 
       {/* ---- 3. Cómo la enviás -------------------------------------------- */}
 
