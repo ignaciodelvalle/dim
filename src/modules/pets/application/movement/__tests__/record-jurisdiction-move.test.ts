@@ -170,7 +170,10 @@ describe("recordJurisdictionMove — the destination is resolved STRICTLY", () =
     // and that second one matters more than it looks: a 500 tells the client to
     // retry an address the catalog will refuse identically forever.
     control.normalized = () => {
-      throw new JurisdictionValidationError("Localidad no encontrada en el catálogo.");
+      throw new JurisdictionValidationError(
+        "INVALID_LOCALITY",
+        "Localidad no encontrada en el catálogo.",
+      );
     };
     const result = await run();
     expect(result).toMatchObject({ ok: false, code: "destination_invalid" });

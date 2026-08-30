@@ -403,6 +403,30 @@ export function editPetRoute(publicToken: string): `/mascotas/${string}/editar` 
 }
 
 /**
+ * MUDANZA — registrar que el animal cambió de jurisdicción.
+ *
+ * UNA RUTA APARTE DE `/editar`, Y NO ES UNA DECISIÓN DE ESTA APP. La
+ * jurisdicción es FULL-LOCK en el camino de editar (PO decision #40): el writer
+ * de perfil omite las tres columnas de su `SET` y cada una tiene su propio
+ * camino gobernado por eventos. Una mudanza APPENDS un `movement_recorded` a la
+ * libreta y mueve las columnas que deciden qué autoridad responde por el animal;
+ * un cambio de nombre no. Meterlas en una pantalla sería juntar dos actos que el
+ * servidor autoriza y registra distinto.
+ *
+ * SE LLEGA DESDE `/editar`, que es donde la web pone su entrada: un renglón
+ * bloqueado con la localidad actual y un enlace "Registrar mudanza"
+ * (`components/PetForm.tsx`). El anidamiento bajo la mascota es lo que hace que
+ * "atrás" caiga en el animal del que se vino.
+ *
+ * EL PATH COINCIDE CON EL DE LA WEB (`/mis-mascotas/{token}/mudanza`) por la
+ * razón de `/editar`: hoy no entra ningún deep link, y el día que entre las dos
+ * formas — `mimar://` y `https` — ya van a estar de acuerdo en la palabra.
+ */
+export function movePetRoute(publicToken: string): `/mascotas/${string}/mudanza` {
+  return `/mascotas/${encodeURIComponent(publicToken)}/mudanza`;
+}
+
+/**
  * The cuidador-temporal cockpit for one pet — the TITULAR'S side.
  *
  * NESTED UNDER THE PET, unlike its sibling below, and the split is the feature's
@@ -440,6 +464,7 @@ export type AppRoute =
   | ReturnType<typeof lostModeRoute>
   | ReturnType<typeof sharesRoute>
   | ReturnType<typeof editPetRoute>
+  | ReturnType<typeof movePetRoute>
   | ReturnType<typeof transferRoute>
   | ReturnType<typeof transferPetRoute>
   | ReturnType<typeof caretakerPetRoute>

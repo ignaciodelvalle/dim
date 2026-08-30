@@ -73,7 +73,7 @@ vi.mock("@/lib/infra/rate-limit", async (importOriginal) => {
     ...actual,
     enforceRateLimit: async (endpoint: string) => {
       if (control.limiterRefuses) {
-        throw new actual.RateLimitError(`rate limited: ${endpoint}`, 30);
+        throw new actual.RateLimitError(new Date("2026-08-30T15:05:00.000Z"), endpoint);
       }
       if (control.limiterThrows) {
         // PRODUCTION'S OWN MESSAGE SHAPE, not a tidier one. `enforceRateLimit`
