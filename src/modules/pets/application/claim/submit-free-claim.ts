@@ -24,11 +24,24 @@ import { auditLog, db, notifications, ownerships, petEvents, petIdentifications,
 import { validateEventPayload } from "@/lib/events/event-schemas";
 import { RateLimitError, enforceRateLimit } from "@/lib/infra/rate-limit";
 
-import type { FreeClaimResult } from "./types";
+import type { ClaimFailureCode, FreeClaimResult } from "./types";
 
 // Distinguishes intentional user-facing guard failures from unexpected DB
 // errors so the latter are never surfaced verbatim to the client.
-class FreeClaimGuardError extends Error {}
+//
+// IT NOW CARRIES A CODE ALONGSIDE THE SENTENCE. The sentence is es-AR prose
+// written for the claim wizard's error paragraph; a second door over this
+// use-case (`POST /api/v1/me/pet-claims`) has to answer a status and an error
+// key, and matching the prose to pick one would turn a copy edit into a silent
+// change of HTTP semantics. See `ClaimFailureCode` in ./types.
+class FreeClaimGuardError extends Error {
+  readonly code: ClaimFailureCode;
+
+  constructor(message: string, code: ClaimFailureCode) {
+    super(message);
+    this.code = code;
+  }
+}
 
 const MICROCHIP_PATTERN = /^\d{15}$/;
 
@@ -45,10 +58,16 @@ export async function submitFreeClaimForUser(
   // (or a malformed microchip) can never resolve to a pet, so reject early
   // before spending a rate-limit token or opening a transaction.
   if (!identifierValue) {
-    return { error: "Ingresá el número de microchip o el código del tatuaje." };
+    return {
+      error: "Ingresá el número de microchip o el código del tatuaje.",
+      code: "identifier_invalid",
+    };
   }
   if (input.identifierKind === "microchip" && !MICROCHIP_PATTERN.test(identifierValue)) {
-    return { error: "El microchip debe tener exactamente 15 dígitos." };
+    return {
+      error: "El microchip debe tener exactamente 15 dígitos.",
+      code: "identifier_invalid",
+    };
   }
 
   // Rate limit — same key as lookup so a burst of probes counts together.
@@ -56,7 +75,7 @@ export async function submitFreeClaimForUser(
     await enforceRateLimit("claim_lookup", userId, { maxPerMinute: 30, maxPerHour: 200 });
   } catch (err) {
     if (err instanceof RateLimitError) {
-      return { error: "Demasiados intentos. Probá en unos minutos." };
+      return { error: "Demasiados intentos. Probá en unos minutos.", code: "rate_limited" };
     }
     throw err;
   }
@@ -79,7 +98,7 @@ export async function submitFreeClaimForUser(
           ),
         )
         .limit(1);
-      if (!ident) throw new FreeClaimGuardError("No encontramos la mascota.");
+      if (!ident) throw new FreeClaimGuardError("No encontramos la mascota.", "not_found");
 
       const [pet] = await tx
         .select({
@@ -93,17 +112,24 @@ export async function submitFreeClaimForUser(
         .where(eq(pets.id, ident.petId))
         .limit(1)
         .for("update");
-      if (!pet) throw new FreeClaimGuardError("No encontramos la mascota.");
+      if (!pet) throw new FreeClaimGuardError("No encontramos la mascota.", "not_found");
       if (pet.status === "deceased") {
-        throw new FreeClaimGuardError("Esta mascota figura como fallecida en miMAR.");
+        throw new FreeClaimGuardError(
+          "Esta mascota figura como fallecida en miMAR.",
+          "not_claimable",
+        );
       }
       if (pet.status === "lost") {
         throw new FreeClaimGuardError(
           "Esta mascota figura como perdida. Si la encontraste, reportá un avistaje.",
+          "not_claimable",
         );
       }
       if (pet.inCustodyDispute) {
-        throw new FreeClaimGuardError("Hay una disputa abierta para esta mascota.");
+        throw new FreeClaimGuardError(
+          "Hay una disputa abierta para esta mascota.",
+          "not_claimable",
+        );
       }
 
       // Re-check inside the tx (the lookup result may be stale).
@@ -115,6 +141,7 @@ export async function submitFreeClaimForUser(
       if (activeCustody) {
         throw new FreeClaimGuardError(
           "Esta mascota ya tiene una custodia activa. Podés iniciar una disputa.",
+          "not_claimable",
         );
       }
 
@@ -167,9 +194,9 @@ export async function submitFreeClaimForUser(
     return { petToken: claimed.petToken, petName: claimed.petName };
   } catch (err) {
     if (err instanceof FreeClaimGuardError) {
-      return { error: err.message };
+      return { error: err.message, code: err.code };
     }
     const message = err instanceof Error ? err.message : "Error desconocido.";
-    return { error: `No se pudo completar el reclamo: ${message}` };
+    return { error: `No se pudo completar el reclamo: ${message}`, code: "failed" };
   }
 }
