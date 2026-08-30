@@ -61,7 +61,10 @@ import {
   serviceOfferings,
   timeSlots,
 } from "@/db";
-import { localitiesCoveringSearch, offeringCoverageLabel } from "@/lib/domain/jurisdiction-canonical";
+import {
+  localitiesCoveringSearch,
+  offeringCoverageLabel,
+} from "@/lib/domain/jurisdiction-canonical";
 import { findServiceKind } from "@/lib/reference/service-kinds";
 
 /**

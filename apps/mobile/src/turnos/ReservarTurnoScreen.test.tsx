@@ -182,9 +182,7 @@ describe("the animal picker", () => {
     render(<ReservarTurnoScreen offeringToken="SVO-7K2M-9QX4" onBooked={jest.fn()} />);
 
     await waitFor(() =>
-      expect(
-        screen.getByText("Lola — Ya tiene un turno reservado en este servicio."),
-      ).toBeTruthy(),
+      expect(screen.getByText("Lola — Ya tiene un turno reservado en este servicio.")).toBeTruthy(),
     );
   });
 
@@ -353,9 +351,7 @@ describe("the write", () => {
     await chooseSlotAndPet();
     fireEvent.press(screen.getByText("Reservar"));
 
-    await waitFor(() =>
-      expect(screen.getByText(/no correspondía a esta reserva/i)).toBeTruthy(),
-    );
+    await waitFor(() => expect(screen.getByText(/no correspondía a esta reserva/i)).toBeTruthy());
     expect(onBooked).not.toHaveBeenCalled();
   });
 });

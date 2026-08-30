@@ -202,7 +202,9 @@ describe("GET /appointments — the picker, and an unknown service", () => {
 
   it("carries the catalogue on a RESULTS response too, so a client redraws the picker offline", async () => {
     control.searchResult = [offering];
-    const body = (await (await search("?service_kind=vaccination_rabies")).json()) as AppointmentSearchV1;
+    const body = (await (
+      await search("?service_kind=vaccination_rabies")
+    ).json()) as AppointmentSearchV1;
     expect(body.serviceKinds.length).toBe(SERVICE_KINDS.length);
     expect(body.results.map((r) => r.offeringToken)).toEqual(["SVO-7K2M-9QX4"]);
     expect(body.windowDays).toBe(7);
@@ -246,7 +248,11 @@ describe("GET /appointments — the jurisdiction prefill", () => {
   });
 
   it("runs the prefill when only ONE half was named", async () => {
-    control.jurisdiction = { province: "Río Negro", locality: "El Bolsón", source: "defaulted-from-pet" };
+    control.jurisdiction = {
+      province: "Río Negro",
+      locality: "El Bolsón",
+      source: "defaulted-from-pet",
+    };
     await search("?service_kind=vaccination_rabies&province=Río+Negro");
     expect(control.jurisdictionCalls).toHaveLength(1);
   });

@@ -71,7 +71,7 @@ vi.mock("@/src/modules/events/application/booking/book-slot", () => ({
 
 import { readFileSync } from "node:fs";
 
-import { type SQL } from "drizzle-orm";
+import type { SQL } from "drizzle-orm";
 import { PgDialect } from "drizzle-orm/pg-core";
 
 import {

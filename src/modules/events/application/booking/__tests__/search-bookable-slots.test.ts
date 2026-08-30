@@ -93,7 +93,7 @@ vi.mock("@/db", async (importOriginal) => {
   return { ...actual, db: chain };
 });
 
-import { type SQL } from "drizzle-orm";
+import type { SQL } from "drizzle-orm";
 import { PgDialect } from "drizzle-orm/pg-core";
 
 import {
@@ -429,9 +429,7 @@ describe("readBookableOffering — which pets may be offered", () => {
       { terminal: "limit", rows: [offeringRow()] },
       {
         terminal: "orderBy",
-        rows: [
-          { slotId: "aaaa", startsAt: at(60), endsAt: at(75), capacity: 3, bookingsCount: 1 },
-        ],
+        rows: [{ slotId: "aaaa", startsAt: at(60), endsAt: at(75), capacity: 3, bookingsCount: 1 }],
       },
       { terminal: "orderBy", rows: petRows },
     ];

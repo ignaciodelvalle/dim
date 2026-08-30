@@ -25,7 +25,5 @@ export default function BuscarTurnoRoute() {
 
   if (!gate.allowed) return gate.element;
 
-  return (
-    <BuscarTurnoScreen onOpenOffering={(token) => router.push(buscarOfferingRoute(token))} />
-  );
+  return <BuscarTurnoScreen onOpenOffering={(token) => router.push(buscarOfferingRoute(token))} />;
 }

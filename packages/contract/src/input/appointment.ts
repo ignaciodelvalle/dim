@@ -100,10 +100,7 @@ const cancel = z.object({ command: z.literal("cancel"), appointmentToken });
  * the offering's status and the future window are ALL re-resolved inside the
  * booking transaction under an advisory lock, so nothing here is a guard.
  */
-const slotId = z
-  .string({ error: "SLOT_REQUIRED" })
-  .trim()
-  .uuid({ error: "SLOT_REQUIRED" });
+const slotId = z.string({ error: "SLOT_REQUIRED" }).trim().uuid({ error: "SLOT_REQUIRED" });
 
 /**
  * WHICH ANIMAL, by its public token.
@@ -119,10 +116,7 @@ const slotId = z
  * AND the caller's session together, and answers the same refusal for "not yours"
  * and for "erased" (Ley 25.326 art. 16), so a stranger's token buys nothing.
  */
-const petPublicToken = z
-  .string({ error: "PET_REQUIRED" })
-  .trim()
-  .min(1, { error: "PET_REQUIRED" });
+const petPublicToken = z.string({ error: "PET_REQUIRED" }).trim().min(1, { error: "PET_REQUIRED" });
 
 /**
  * RESERVAR UN TURNO. The owner's side of the web's `bookSlotAction`.

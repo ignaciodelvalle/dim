@@ -14,11 +14,7 @@
 
 import { describe, expect, it, jest } from "@jest/globals";
 
-import type {
-  BookableOfferingV1,
-  BookablePetV1,
-  BookableSlotV1,
-} from "@dim/contract/api";
+import type { BookableOfferingV1, BookablePetV1, BookableSlotV1 } from "@dim/contract/api";
 
 import {
   blockedReasonLabel,
@@ -61,13 +57,16 @@ const AR_TIME_ZONE = "America/Argentina/Buenos_Aires";
 function timeZonesAskedFor(run: () => unknown): Array<string | undefined> {
   const asked: Array<string | undefined> = [];
   const original = Intl.DateTimeFormat;
+  // The cast is what lets a plain function stand in for a CONSTRUCTOR that jest's
+  // signature types as its own overloaded self. `unknown` first, so the assertion
+  // is the narrow one `noExplicitAny` exists to keep out of production code.
+  const stand_in = (locale?: string, options?: Intl.DateTimeFormatOptions) => {
+    asked.push(options?.timeZone);
+    return new original(locale, options);
+  };
   const spy = jest
     .spyOn(Intl, "DateTimeFormat")
-    .mockImplementation(((locale?: string, options?: Intl.DateTimeFormatOptions) => {
-      asked.push(options?.timeZone);
-      return new original(locale, options);
-      // biome-ignore lint/suspicious/noExplicitAny: replacing a global constructor for one assertion
-    }) as any);
+    .mockImplementation(stand_in as unknown as typeof Intl.DateTimeFormat);
   try {
     run();
   } finally {

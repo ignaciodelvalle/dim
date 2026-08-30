@@ -174,11 +174,7 @@ import { PgDialect } from "drizzle-orm/pg-core";
 
 import { APPOINTMENT_REFUSAL_RULES, BOOK_REFUSALS } from "@/app/api/v1/me/appointments/commands";
 import { GET, POST } from "@/app/api/v1/me/appointments/route";
-import {
-  API_V1_ERROR_CODES,
-  type MyAppointmentV1,
-  type MyAppointmentsV1,
-} from "@dim/contract/api";
+import { API_V1_ERROR_CODES, type MyAppointmentV1, type MyAppointmentsV1 } from "@dim/contract/api";
 
 /**
  * Compiles a captured drizzle fragment to the SQL text and bound params Postgres

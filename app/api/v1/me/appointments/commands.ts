@@ -165,24 +165,24 @@ export function appointmentRefusal(error: string) {
 export const BOOK_REFUSALS: Readonly<
   Record<BookSlotFailureCode, { code: ApiV1ErrorCode; status: number }>
 > = {
-    // The animal is not this caller's, or it was erased. ONE answer for both, the
-    // fold `bookSlotAction` makes for its own reason: a distinct code would make
-    // this door an existence oracle over erased pets (Ley 25.326 art. 16).
-    pet_not_yours: { code: "not_found", status: 404 },
-    // The animal's life record is closed. `event_not_allowed` is documented as
-    // "the ANIMAL refuses, whoever is asking: its life record is closed
-    // (`status = 'deceased'`)", which is this refusal word for word — and a turno
-    // IS the appointment for a clinical act, since every service kind in the
-    // catalogue names the `pet_event` its attendance emits.
-    pet_deceased: { code: "event_not_allowed", status: 409 },
-    // The three that mean "re-read the grid" — see the docblock above.
-    slot_not_found: { code: "appointment_already_resolved", status: 409 },
-    slot_unavailable: { code: "appointment_already_resolved", status: 409 },
-    already_booked: { code: "appointment_already_resolved", status: 409 },
-    // The clock passed the start. A DIFFERENT move from the three above: nothing
-    // was taken, the slot simply aged out, and the next grid will not show it.
-    slot_past: { code: "appointment_past", status: 409 },
-  };
+  // The animal is not this caller's, or it was erased. ONE answer for both, the
+  // fold `bookSlotAction` makes for its own reason: a distinct code would make
+  // this door an existence oracle over erased pets (Ley 25.326 art. 16).
+  pet_not_yours: { code: "not_found", status: 404 },
+  // The animal's life record is closed. `event_not_allowed` is documented as
+  // "the ANIMAL refuses, whoever is asking: its life record is closed
+  // (`status = 'deceased'`)", which is this refusal word for word — and a turno
+  // IS the appointment for a clinical act, since every service kind in the
+  // catalogue names the `pet_event` its attendance emits.
+  pet_deceased: { code: "event_not_allowed", status: 409 },
+  // The three that mean "re-read the grid" — see the docblock above.
+  slot_not_found: { code: "appointment_already_resolved", status: 409 },
+  slot_unavailable: { code: "appointment_already_resolved", status: 409 },
+  already_booked: { code: "appointment_already_resolved", status: 409 },
+  // The clock passed the start. A DIFFERENT move from the three above: nothing
+  // was taken, the slot simply aged out, and the next grid will not show it.
+  slot_past: { code: "appointment_past", status: 409 },
+};
 
 export async function runAppointmentCommand(ctx: AppointmentCommandContext) {
   try {
