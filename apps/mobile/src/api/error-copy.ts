@@ -370,5 +370,48 @@ export function apiErrorMessage(code: ApiV1ErrorCode): string {
       // answered — `/denuncias/buscar`, the web's own lookup by reference code
       // — rather than inviting a blind re-send that files a second denuncia.
       return "No pudimos enviar la denuncia. Volvé a intentar en un momento; si ya te dimos un código antes, buscalo en la web antes de mandarla de nuevo.";
+    // Mudanza. Las cuatro terminan en instrucciones DISTINTAS y por eso son
+    // cuatro códigos: una manda a pedirle a otra persona, otra a corregir la
+    // localidad, otra a no hacer nada, y sólo la última a reintentar.
+    case "move_forbidden":
+      // La persona SÍ tiene a la mascota — es cuidadora — así que la copia no
+      // puede decir "no encontramos". Nombra el vínculo que tiene y quién sí
+      // puede hacerlo, que es lo que hace la web en su `NotTitularNotice`.
+      return "Sos cuidador/a de esta mascota: la mudanza la registra el titular.";
+    case "move_destination_invalid":
+      // NO es "escribí bien": el destino se elige de una lista que el servidor
+      // devuelve, así que llegar acá significa que se mandó un par que la lista
+      // no ofrece. La instrucción es volver a la lista.
+      return "Esa localidad no figura en el catálogo. Elegila de la lista de sugerencias.";
+    case "move_same_locality":
+      return "Esa ya es la localidad registrada de tu mascota. No hay mudanza que anotar.";
+    case "move_failed":
+      // Reintentar es seguro: el escritor valida el payload ANTES de abrir la
+      // transacción y el evento y la denormalización van en una sola, así que un
+      // intento fallido no deja media mudanza escrita.
+      return "No pudimos registrar la mudanza. Volvé a intentar en unos segundos.";
+    // Devolución. Las cinco terminan en instrucciones distintas y una sola manda
+    // a reintentar: dos mandan a MIRAR de nuevo (la propuesta se mueve sola,
+    // porque del otro lado hay otra persona), una a esperar, y una a no
+    // insistir porque nada va a cambiar.
+    case "return_forbidden":
+      // UN CÓDIGO PARA DOS SITUACIONES — "tenés a este animal en un rol que esta
+      // función no atiende" y "esa propuesta no está dirigida a vos" — así que
+      // la copia no puede nombrar ninguna de las dos. Manda a leer el estado,
+      // que es lo único que sabe cuál de las dos es.
+      return "Esta acción no es tuya en esta mascota. Volvé a abrir la devolución para ver qué podés hacer.";
+    case "return_no_proposal":
+      // Puede ser que la propuesta se haya resuelto — incluso por este mismo
+      // intento, después de un timeout. Por eso no dice "no había nada": dice
+      // que mires.
+      return "Ya no hay una propuesta de devolución pendiente. Volvé a abrir la pantalla para ver cómo quedó.";
+    case "return_already_pending":
+      return "Ya hay una propuesta de devolución en curso para esta mascota. Esperá la respuesta antes de mandar otra.";
+    case "return_no_source_org":
+      // ESTRUCTURAL Y NO TRANSITORIO: reintentar no lo cambia. La copia nombra
+      // la salida real, que es hablar con la organización por fuera.
+      return "No encontramos una organización a la que devolver esta mascota. Si la recibiste de un refugio fuera de miMAR, contactalo directamente.";
+    case "return_failed":
+      return "No pudimos completar la devolución. Volvé a abrir la pantalla antes de intentar de nuevo.";
   }
 }

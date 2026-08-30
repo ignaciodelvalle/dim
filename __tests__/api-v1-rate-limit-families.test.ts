@@ -163,8 +163,24 @@ const ROUTE_GLOB = "app/api/v1/**/route.ts";
  * either lane's 34 across the merge would have left it satisfied, green, and
  * slack by one — exactly the drift the "20 → 29" paragraph at the top of this
  * comment had to repair, arriving for the fourth time.
+ *
+ * 35 → 36 with the MUDANZA door (WU-P, `pets/{token}/move`), which adds ONE
+ * bucket because the route is POST-only: the form's two reads are
+ * `/pets/{token}` and `/localities`, both of which already carry their own, so
+ * there is no read bucket to declare. RECOUNTED on this worktree —
+ * `Object.keys(API_V1_IP_BUCKET_FAMILIES).length` is 36 — and not obtained by
+ * adding one to the 35 above, which is the instruction this comment has now
+ * survived five doors saying.
+ *
+ * 36 → 38 with the DEVOLUCIÓN door (WU-P, `pets/{token}/return`), which unlike
+ * mudanza is GET+POST and therefore brings two: `api_v1_return_read_ip` joins
+ * `authenticated-read` and `api_v1_return_write_ip` joins `authenticated-write`.
+ * RECOUNTED on this worktree with the mudanza bucket already present —
+ * `Object.keys(API_V1_IP_BUCKET_FAMILIES).length` is 38 — and not 36 + 2, which
+ * happens to give the same answer only because this lane is the one that added
+ * both. WHOEVER MERGES THIS ALONGSIDE ANOTHER LANE MUST RECOUNT.
  */
-const MIN_IP_BUCKETS = 35;
+const MIN_IP_BUCKETS = 38;
 
 /**
  * Collects `enforceRateLimit`-style bucket literals from a route's source and
@@ -689,7 +705,53 @@ describe("/api/v1 rate-limit families — the numbers the derivation committed t
     // 12.444 and 12.924 on their own are each wrong by the other lane's bucket.
     // A pin that is only ever incremented is right until two doors land at
     // once, and then it is wrong in whichever direction the merge order fell.
-    expect(API_V1_CGNAT_FAMILY_IP_CEILING_PER_MINUTE).toBe(13_044);
+    //
+    // 13.164 WITH THE MUDANZA DOOR (WU-P, `pets/{token}/move`): one more
+    // `authenticated-write` bucket, `api_v1_move_write_ip`. Hand-summed per
+    // family over the map as this lane leaves it, and NOT read off the `reduce`
+    // this assertion compares against — a computed value agreeing with itself is
+    // not evidence:
+    //
+    //   authenticated-read     17 × 600 = 10.200
+    //   authenticated-write     9 × 120 =  1.080
+    //   account-security        2 ×  60 =    120
+    //   public-reference        1 × 600 =    600
+    //   inbox-state             1 × 240 =    240
+    //   pet-disclosure-write    2 × 180 =    360
+    //   pet-record-write        1 × 240 =    240
+    //   pet-registration        1 × 120 =    120
+    //   media-upload            1 × 144 =    144
+    //   adoption-application    1 ×  60 =     60
+    //                          ── 36 buckets ─────────
+    //                                     13.164
+    //
+    // and 13.044 + 120 = 13.164 agrees.
+    //
+    // 13.884 WITH THE DEVOLUCIÓN DOOR (WU-P, `pets/{token}/return`), which is
+    // GET+POST and so contributes TWO buckets — one `authenticated-read` (600)
+    // and one `authenticated-write` (120). Hand-summed per family over the map
+    // as this lane leaves it, and NOT read off the `reduce` this assertion
+    // compares against, because a computed value agreeing with itself is not
+    // evidence:
+    //
+    //   authenticated-read     18 × 600 = 10.800
+    //   authenticated-write    10 × 120 =  1.200
+    //   account-security        2 ×  60 =    120
+    //   public-reference        1 × 600 =    600
+    //   inbox-state             1 × 240 =    240
+    //   pet-disclosure-write    2 × 180 =    360
+    //   pet-record-write        1 × 240 =    240
+    //   pet-registration        1 × 120 =    120
+    //   media-upload            1 × 144 =    144
+    //   adoption-application    1 ×  60 =     60
+    //                          ── 38 buckets ─────────
+    //                                     13.884
+    //
+    // and 13.164 + 600 + 120 = 13.884 agrees. WHOEVER MERGES THIS ALONGSIDE
+    // ANOTHER LANE MUST RE-SUM RATHER THAN ADD 720: this figure is right for a
+    // tree carrying this lane's two doors and no others, which is precisely the
+    // assumption the paragraphs above record going wrong twice.
+    expect(API_V1_CGNAT_FAMILY_IP_CEILING_PER_MINUTE).toBe(13_884);
   });
 
   it("keeps pet-disclosure-write at N callers on BOTH windows", () => {

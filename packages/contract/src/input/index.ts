@@ -201,6 +201,27 @@ export {
   firstCaretakerCommandInputCode,
 } from "./caretaker.ts";
 export {
+  OWNER_RETURN_REASONS,
+  PET_RETURN_COMMAND_INPUT_CODES,
+  RETURN_NOTES_MAX,
+  RETURN_REJECT_REASON_MAX,
+  type OwnerReturnReason,
+  type PetReturnCommand,
+  type PetReturnCommandInput,
+  type PetReturnCommandInputCode,
+  firstPetReturnCommandInputCode,
+  petReturnCommandInputSchema,
+} from "./pet-return.ts";
+export {
+  MOVE_REASON_MAX,
+  PET_MOVE_COMMAND_INPUT_CODES,
+  type PetMoveCommand,
+  type PetMoveCommandInput,
+  type PetMoveCommandInputCode,
+  firstPetMoveCommandInputCode,
+  petMoveCommandInputSchema,
+} from "./pet-move.ts";
+export {
   EMERGENCY_CONTACT_NAME_MAX,
   EMERGENCY_CONTACT_PHONE_MAX,
   PET_COLOR_MAX,

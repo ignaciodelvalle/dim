@@ -43,6 +43,7 @@ import {
   lostModeRoute,
   publicCredentialRoute,
   recordEventRoute,
+  returnPetRoute,
   sharesRoute,
   transferPetRoute,
 } from "../ui/routes";
@@ -364,6 +365,25 @@ function ActionFooter({ view }: { view: OwnerFaceView }) {
             onPress={() =>
               router.push({ pathname: caretakerPetRoute(view.publicToken), params: nameParams })
             }
+          />
+          {/* DEVOLUCIÓN — incondicional para todo holder por vía persona, y esa
+              es una diferencia con la web que se declara en vez de esconderse.
+              `deriveMasSheetItems` sólo agrega su fila "Confirmar devolución"
+              cuando ya hay una propuesta pendiente, con lo cual el MODO DE
+              INICIACIÓN de esa misma página —proponerle la devolución al refugio
+              que te dio el animal en adopción, o al que te lo dio en tránsito—
+              no se alcanza desde ninguna navegación del navegador. La capacidad
+              existe en el servidor y en la página; lo que falta ahí es el enlace.
+
+              LA FILA NO ADIVINA NADA. Qué se puede hacer lo contesta el servidor
+              en `capabilities`, y los tres estados que no ofrecen nada dicen por
+              qué. Es la misma regla que la fila de "Contactos de emergencia" de
+              arriba: si el bloque al que lleva es accionable o no es del
+              servidor, no de la fila. */}
+          <MoreRow
+            label="Devolución"
+            accessibilityHint="Responder a quien quiere devolverte la mascota, o proponer devolvérsela a la organización que te la dio."
+            onPress={() => router.push(returnPetRoute(view.publicToken))}
           />
           <MoreRow label="Chapa física" caption="Disponible en la web" />
           {isCaretaker ? null : (

@@ -38,6 +38,7 @@
 // `identityFieldCaps` handles the first half and `buildIdentityEdit`, given the
 // server's own values, the second.
 
+import { useRouter } from "expo-router";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 
@@ -51,6 +52,7 @@ import { sessionPort } from "../auth/session-store";
 import { Body, Card, Loading } from "../ui/components";
 import { FONTS } from "../ui/fonts";
 import { Callout, PrimaryButton, Screen, SecondaryButton, TextField, Title } from "../ui/kit";
+import { movePetRoute } from "../ui/routes";
 import { COLORS, SPACE, TYPE } from "../ui/theme";
 
 import {
@@ -97,6 +99,7 @@ type ScreenState =
 type Notice = { tone: "ok" | "err"; message: string } | null;
 
 export function PetProfileEditScreen({ publicToken }: { publicToken: string }) {
+  const router = useRouter();
   const [state, setState] = useState<ScreenState>({ phase: "loading" });
   const [notice, setNotice] = useState<Notice>(null);
   const [busy, setBusy] = useState(false);
@@ -228,6 +231,33 @@ export function PetProfileEditScreen({ publicToken }: { publicToken: string }) {
             />
           </View>
         )}
+      </Card>
+
+      {/* LA JURISDICCIÓN NO SE EDITA ACÁ, y el renglón existe para decirlo en el
+          lugar donde alguien la va a buscar. Es FULL-LOCK en este camino (PO
+          decision #40): `updatePetProfile` omite las tres columnas de su `SET`
+          y la localidad se corrige registrando un MOVIMIENTO, que appendea un
+          `movement_recorded` a la libreta y mueve las columnas que deciden qué
+          autoridad responde por el animal.
+
+          Es la misma entrada que la web pone en su propio formulario de editar
+          (`components/PetForm.tsx`): un renglón bloqueado con la pista "La
+          localidad se actualiza registrando un movimiento." y un enlace
+          "Registrar mudanza". La copia se transcribe, no se inventa.
+
+          NO SE DIBUJA LA LOCALIDAD ACTUAL, y esa es la diferencia con la web:
+          `PetProfileEditV1` no la trae — es la lectura estrecha que un
+          formulario escribe, no la cara del animal — y pedir `/pets/{token}`
+          desde acá sería un segundo round trip para un renglón. La pantalla de
+          mudanza la muestra, que es donde hace falta para leer una negativa. */}
+      <Card title="Localidad">
+        <View style={styles.stack}>
+          <Body>La localidad se actualiza registrando un movimiento.</Body>
+          <SecondaryButton
+            label="Registrar mudanza"
+            onPress={() => router.push(movePetRoute(publicToken))}
+          />
+        </View>
       </Card>
 
       <Card title="Contactos de emergencia">

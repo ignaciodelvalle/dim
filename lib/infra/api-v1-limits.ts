@@ -1133,6 +1133,60 @@ export const API_V1_IP_BUCKET_FAMILIES: Readonly<Record<string, ApiV1IpFamily>> 
   // direction. A `booking` family carrying identical numbers would be the
   // eleven-paragraphs problem from the top of this file, once more.
   api_v1_appointment_search_ip: "authenticated-read",
+
+  // Landed with the native MUDANZA door (WU-P, `pets/{token}/move`), added by
+  // the LANE that shipped the route rather than handed to an integrator — this
+  // file is this lane's territory in its window, so the pattern the two
+  // `me/pet-claims` and adopción comments record ("the route arrived with its
+  // bucket spent and undeclared") had no reason to repeat.
+  //
+  // `authenticated-write`, AND IT IS TWO NEIGHBOURS BEING REJECTED. It is NOT
+  // `pet-record-write`, which is the tempting one because what a move appends IS
+  // a row on the append-only spine: that family's anchor is spelled out above as
+  // "a vet day at a rescue is many animals from one egress in one afternoon",
+  // and this act is a person who moved house. Sizing a mudanza against a rounds
+  // day would hand the widest write budget on the surface to the rarest write on
+  // it. And it is NOT `pet-disclosure-write`, whose two members both change WHAT
+  // OTHER PEOPLE MAY SEE of an animal — a move publishes nothing new, since the
+  // locality was already on the public credential.
+  //
+  // What it IS, exactly, is one person in a form correcting their own record,
+  // which is the anchor `pets/{token}/profile` and `me/profile` already run on —
+  // and the web reaches the mudanza form FROM the editar screen, so the two are
+  // one act in the reader's hands as well as in this derivation.
+  //
+  // ONE bucket for a POST-only route: there is no GET here (see the route's own
+  // header — the form's two reads are `/pets/{token}` and `/localities`, both of
+  // which already have their own), so there is no read bucket to declare.
+  api_v1_move_write_ip: "authenticated-write",
+
+  // Landed with the native DEVOLUCIÓN door (WU-P, `pets/{token}/return`), added
+  // by the lane that shipped the route for the reason the mudanza block above
+  // gives.
+  //
+  // THE READ joins `authenticated-read` on the argument every pet-scoped read on
+  // this surface makes: a client that opens a pet and taps "Devolución" calls
+  // `/pets/{token}` and this inside one second, so one budget bounds the
+  // sequence or none of them does.
+  //
+  // THE WRITE IS `authenticated-write` AND THE FAMILY WAS DERIVED AGAINST THIS
+  // EXACT ACT. Its own paragraph above quotes `me/transfers`: "offering an animal
+  // to somebody is not [something an owner does in bursts] … What this write
+  // PRODUCES is not a row — it is a change of who owns an animal in the national
+  // registry." `accept_return` ends the actor's custody row, appends
+  // `custody_transferred`, moves `pets.status` and closes two cases; it is the
+  // same sentence in the other direction, so this is a family being JOINED
+  // rather than a shape being matched. The per-user anchor's own justification —
+  // "ten a minute is generous headroom for a person answering a backlog of
+  // proposals plus every retry a flaky connection produces" — describes this
+  // door literally.
+  //
+  // IT IS NOT `pet-disclosure-write`: a return publishes nothing new about the
+  // animal. It is not `inbox-state` either, whose anchor is one indexed UPDATE
+  // on the caller's own rows, and this is a transaction across four tables that
+  // moves custody between two parties.
+  api_v1_return_read_ip: "authenticated-read",
+  api_v1_return_write_ip: "authenticated-write",
 };
 
 /**
