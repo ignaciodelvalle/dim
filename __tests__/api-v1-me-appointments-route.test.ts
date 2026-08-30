@@ -46,6 +46,8 @@ const control = vi.hoisted(() => ({
   rows: [] as Array<Record<string, unknown>>,
   /** The predicate the use-case handed to `.where()`, uncompiled. */
   wherePredicate: null as unknown,
+  /** The column map the use-case handed to `.select()`. */
+  projection: null as unknown,
   /** Every join the use-case built, with the method it used to build it. */
   joins: [] as Array<{ kind: "inner" | "left"; on: unknown }>,
   /** Buckets that should answer 429 instead of proceeding. */
@@ -111,9 +113,13 @@ vi.mock("@/lib/supabase/bearer", async (importOriginal) => {
 // that the argument does not matter.
 const chain: Record<string, unknown> = vi.hoisted(() => {
   const self: Record<string, unknown> = {};
-  for (const method of ["select", "from", "orderBy", "limit"]) {
+  for (const method of ["from", "orderBy", "limit"]) {
     self[method] = () => self;
   }
+  self.select = (projection: unknown) => {
+    control.projection = projection;
+    return self;
+  };
   self.innerJoin = (_table: unknown, on: unknown) => {
     control.joins.push({ kind: "inner", on });
     return self;
@@ -146,7 +152,7 @@ vi.mock("@/src/modules/events/application/booking/cancel-appointment-by-owner", 
   },
 }));
 
-import type { SQL } from "drizzle-orm";
+import { type SQL, sql } from "drizzle-orm";
 import { PgDialect } from "drizzle-orm/pg-core";
 
 import { APPOINTMENT_REFUSAL_RULES } from "@/app/api/v1/me/appointments/commands";
@@ -222,6 +228,7 @@ beforeEach(() => {
   control.live = null;
   control.rows = [];
   control.wherePredicate = null;
+  control.projection = null;
   control.joins = [];
   control.overLimit = new Set();
   control.spent = [];
@@ -399,6 +406,37 @@ describe("GET — what each row carries", () => {
 
     expect(raw).not.toContain("muerde");
     expect(raw).not.toContain("cadera");
+  });
+
+  it("never asks the database for either notes column in the first place", async () => {
+    // THE TEST ABOVE ALONE IS DECORATION AND SAYING SO IS THE POINT: its rows
+    // are a fixture this file writes, so it proves the payload builder does not
+    // forward unknown keys — never that the QUERY leaves the columns alone. Add
+    // `notesFromOwner: appointments.notesFromOwner` to the SELECT and it stays
+    // green, because the fixture's key is what it was already reading.
+    //
+    // `notes_from_owner` and `notes_from_org` are plaintext columns the Ley
+    // 25.326 sweep named, and neither belongs on a citizen wallet's wire — the
+    // org's note in particular is a clinical remark written for the clinic. So
+    // the projection itself is asserted, out of what the use-case handed
+    // drizzle.
+    await get();
+
+    // A bare `Column` is not an SQL fragment, so each one is wrapped in a
+    // template first — `sql`${column}`` is what drizzle itself does to render a
+    // projection, and it yields the same qualified name the WHERE assertions
+    // above are written against.
+    const selected = Object.values(control.projection as Record<string, unknown>).map(
+      (column) => compile(sql`${column}`).sql,
+    );
+    // Non-vacuity: an empty projection would satisfy every `not.toContain` below.
+    expect(selected.length).toBeGreaterThanOrEqual(15);
+    expect(selected).not.toContain('"appointments"."notes_from_owner"');
+    expect(selected).not.toContain('"appointments"."notes_from_org"');
+    // And the row's own token IS asked for, which is what makes the two
+    // assertions above a statement about this query rather than about a stub
+    // that captured nothing.
+    expect(selected).toContain('"appointments"."public_token"');
   });
 });
 
