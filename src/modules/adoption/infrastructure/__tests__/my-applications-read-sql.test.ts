@@ -178,6 +178,54 @@ describe("readMyAdoptionApplications — the SQL Postgres receives", () => {
     expect(params.at(-1)).toBe(MY_APPLICATIONS_LIMIT);
   });
 
+  it("reads the note_added join ONLY for kind=adoption_info_requested", async () => {
+    // THIS ASSERTION IS A CONTENT-MODERATION FENCE WEARING A SQL TEST'S CLOTHES,
+    // and it is here because a claim was made about this query in a census that
+    // nothing else could check.
+    //
+    // `__tests__/content-report-read-coverage.test.ts` sweeps every file that
+    // reads `pet_events` in a way that can return a lost-feed `note_added` and
+    // demands each one either subtract reported items (`notReportedClause()`) or
+    // be triaged. This module is triaged as NOT_A_LOST_NOTE_READ on exactly one
+    // ground: its `note_added` join is narrowed to the shelter's
+    // `adoption_info_requested` marker, which is never a lost-feed message.
+    //
+    // That census is a list of file paths and free prose. It cannot see a
+    // predicate, so the day somebody widens this join the triage silently
+    // becomes a false statement and the sweep keeps passing — the file is still
+    // in the list, and the list is what it reads.
+    //
+    // MUTATION APPLIED: delete `AND n.payload->>'kind' = 'adoption_info_requested'`.
+    // The join then matches EVERY `note_added` on the pet — including a lost-feed
+    // sighting note somebody reported — `readMyAdoptionApplications` becomes a
+    // genuine lost-note reader, and `content-report-read-coverage` stays 8/8
+    // green because the path is still triaged. Red here, and only here.
+    const { text } = await compiledQuery();
+    expect(between(flat(text), "AND n.event_type = 'note_added'", "GROUP BY s.id")).toBe(
+      "AND n.payload->>'kind' = 'adoption_info_requested' " +
+        "AND n.payload->>'application_event_id' = s.id::text " +
+        "AND n.recorded_at >= s.submitted_at",
+    );
+  });
+
+  it("selects a TIMESTAMP off that note and never its text", async () => {
+    // The second half of the same triage claim, and the half that would actually
+    // put somebody's words on a screen. The CTE derives one of seven status
+    // values from WHETHER a marker exists and WHEN the latest one landed; the
+    // note's payload is never selected, so `RawRow` has no field that could
+    // carry a sentence and the mapping has nothing to render.
+    //
+    // MUTATION APPLIED: add `, n.payload->>'text' AS note_text` to this CTE's
+    // select list. The read now pulls moderatable prose out of `pet_events`
+    // while its triage still says it reads no note text — the precise thing the
+    // content-report census exists to prevent, arriving through a file the
+    // census has already been told to ignore. Red here.
+    const { text } = await compiledQuery();
+    expect(
+      between(flat(text), "info_requests AS (", "FROM my_submissions s JOIN pet_events n"),
+    ).toBe("SELECT s.id AS application_id, MAX(n.recorded_at) AS requested_at");
+  });
+
   it("binds the id it was CALLED with, not one it captured", async () => {
     // MUTATION APPLIED: hard-code the applicant predicate to a constant. Green
     // on every assertion above that only counts parameters, red here.
