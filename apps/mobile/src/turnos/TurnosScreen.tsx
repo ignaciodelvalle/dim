@@ -14,10 +14,20 @@
 // that split a flat list itself would file a turno by a device clock — see
 // `turnos-view-model.ts`'s header for what that costs in each direction.
 //
-// WHAT IS NOT HERE: buscar y reservar. The web serves both, natively they are a
-// later work unit, and this screen says so in words rather than pretending the
-// feature is complete — an empty state that reads "reservá tu primer turno" with
-// no way to reserve one is a promise the app cannot keep.
+// BUSCAR IS NOW HERE, AND THIS HEADER USED TO SAY THE OPPOSITE. It read "what is
+// not here: buscar y reservar … an empty state that reads 'reservá tu primer
+// turno' with no way to reserve one is a promise the app cannot keep", and the
+// empty state pointed at mimar.com.ar. Both were right while the search did not
+// exist; the promise is keepable now, so the button is the primary action of this
+// screen and the web link is gone rather than left as a second way to do one
+// thing.
+//
+// THE ENTRY POINT IS HERE AND NOT ON `/mascotas`. Every other top-level feature
+// of this app is reached from that screen's footer, and a "Buscar turno" row
+// there would be a fourth. It is not one, because the question this button
+// answers is asked HERE: somebody who opens Mis turnos and does not find the one
+// they need is exactly the person looking for it, and the empty state's own
+// sentence is the strongest place a control can sit.
 
 import { useCallback, useEffect, useState } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
@@ -30,7 +40,7 @@ import { apiErrorMessage } from "../api/error-copy";
 import { sessionPort } from "../auth/session-store";
 import { Body, EmptyState, Loading } from "../ui/components";
 import { FONTS } from "../ui/fonts";
-import { Callout, Eyebrow, Screen, SecondaryButton, Title } from "../ui/kit";
+import { Callout, Eyebrow, PrimaryButton, Screen, SecondaryButton, Title } from "../ui/kit";
 import { COLORS, LEADING, RADIUS, SPACE, TOUCH_TARGET, TRACKING, TYPE } from "../ui/theme";
 
 import {
@@ -64,7 +74,13 @@ type ScreenState =
   | { phase: "ready"; view: MyAppointmentsV1 }
   | { phase: "failed"; message: string };
 
-export function TurnosScreen({ onOpen }: { onOpen: (appointmentToken: string) => void }) {
+export function TurnosScreen({
+  onOpen,
+  onSearch,
+}: {
+  onOpen: (appointmentToken: string) => void;
+  onSearch: () => void;
+}) {
   const [state, setState] = useState<ScreenState>({ phase: "loading" });
 
   const load = useCallback(async () => {
@@ -107,15 +123,22 @@ export function TurnosScreen({ onOpen }: { onOpen: (appointmentToken: string) =>
           construction — see the view-model for the web bug that rule exists for. */}
       <Body>{appointmentsTotalLabel(state.view)}</Body>
 
+      {/* THE PRIMARY ACTION OF THIS SCREEN, above the sections rather than under
+          them: a person with a long history still opens this to book the next
+          one, and a control that has to be scrolled past three headings to reach
+          is a control that reads as absent. */}
+      <PrimaryButton label="Buscar un turno" onPress={onSearch} />
+
       <View style={styles.section}>
         <Eyebrow>Próximos</Eyebrow>
         {upcoming.length === 0 ? (
           <EmptyState
             headline={emptyUpcomingLabel()}
-            // SAYS WHERE, and says it honestly. Reserving is not in this app yet,
-            // and an empty state that told somebody to tap a button that does not
-            // exist is worse than one that sends them to the web.
-            body="Por ahora los turnos se reservan desde mimar.com.ar. Los que reserves aparecen acá."
+            // NAMES THE BUTTON THAT IS ON THIS SCREEN. It used to say "por ahora
+            // los turnos se reservan desde mimar.com.ar", which was the honest
+            // sentence while there was nothing to tap; pointing somebody at a
+            // browser that does not share their session is not, once there is.
+            body="Buscá un turno para tu mascota y reservalo desde acá."
           />
         ) : (
           upcoming.map((appointment) => (

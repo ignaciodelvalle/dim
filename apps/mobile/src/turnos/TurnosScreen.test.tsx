@@ -74,7 +74,7 @@ beforeEach(() => {
 describe("a failed read", () => {
   it("shows the failure and a retry, never an empty list", async () => {
     mockFetch.mockResolvedValue({ outcome: "unreachable", detail: "offline" });
-    render(<TurnosScreen onOpen={jest.fn()} />);
+    render(<TurnosScreen onOpen={jest.fn()} onSearch={jest.fn()} />);
 
     await waitFor(() => expect(screen.getByText("Reintentar")).toBeTruthy());
     expect(screen.getByText(/Revisá tu conexión/i)).toBeTruthy();
@@ -85,7 +85,7 @@ describe("a failed read", () => {
 
   it("reads again when the retry is pressed", async () => {
     mockFetch.mockResolvedValue({ outcome: "unreachable", detail: "offline" });
-    render(<TurnosScreen onOpen={jest.fn()} />);
+    render(<TurnosScreen onOpen={jest.fn()} onSearch={jest.fn()} />);
 
     await waitFor(() => expect(screen.getByText("Reintentar")).toBeTruthy());
     fireEvent.press(screen.getByText("Reintentar"));
@@ -94,7 +94,7 @@ describe("a failed read", () => {
 
   it("tells an out-of-date build to update instead of blaming the network", async () => {
     mockFetch.mockResolvedValue({ outcome: "unsupported-version", received: 2 });
-    render(<TurnosScreen onOpen={jest.fn()} />);
+    render(<TurnosScreen onOpen={jest.fn()} onSearch={jest.fn()} />);
 
     await waitFor(() => expect(screen.getByText(/Actualizá la app/i)).toBeTruthy());
   });
@@ -124,7 +124,7 @@ describe("the sections", () => {
         ],
       }),
     });
-    render(<TurnosScreen onOpen={jest.fn()} />);
+    render(<TurnosScreen onOpen={jest.fn()} onSearch={jest.fn()} />);
 
     await waitFor(() => expect(screen.getByText("Próximos")).toBeTruthy());
     expect(screen.getByText("Pasados")).toBeTruthy();
@@ -139,7 +139,7 @@ describe("the sections", () => {
       outcome: "ok",
       payload: payload({ upcoming: [anAppointment()] }),
     });
-    render(<TurnosScreen onOpen={jest.fn()} />);
+    render(<TurnosScreen onOpen={jest.fn()} onSearch={jest.fn()} />);
 
     await waitFor(() => expect(screen.getByText("Próximos")).toBeTruthy());
     expect(screen.queryByText("Pasados")).toBeNull();
@@ -152,7 +152,7 @@ describe("the sections", () => {
       outcome: "ok",
       payload: payload({ upcoming: [anAppointment({ appointmentToken: "APT-UP" })] }),
     });
-    render(<TurnosScreen onOpen={onOpen} />);
+    render(<TurnosScreen onOpen={onOpen} onSearch={jest.fn()} />);
 
     await waitFor(() =>
       expect(screen.getByText("Campaña antirrábica — Plaza San Martín")).toBeTruthy(),
@@ -163,15 +163,47 @@ describe("the sections", () => {
 });
 
 describe("the empty state", () => {
-  it("says where turnos are booked instead of offering a button that does not exist", async () => {
+  // THIS CASE USED TO ASSERT THE OPPOSITE and its old name is worth keeping in
+  // view: "says where turnos are booked instead of offering a button that does not
+  // exist". It demanded the sentence "mimar.com.ar" and demanded the ABSENCE of a
+  // search control, both correctly, because reserving was not in this app. It is
+  // now, so the assertion inverts — and it inverts rather than being deleted,
+  // because "the empty state points somewhere real" is the claim that survives.
+  it("offers the search that now exists, and no longer sends anybody to a browser", async () => {
     mockFetch.mockResolvedValue({ outcome: "ok", payload: payload() });
-    render(<TurnosScreen onOpen={jest.fn()} />);
+    render(<TurnosScreen onOpen={jest.fn()} onSearch={jest.fn()} />);
 
     await waitFor(() => expect(screen.getByText("No tenés turnos próximos.")).toBeTruthy());
     expect(screen.getByText("No tenés turnos reservados.")).toBeTruthy();
-    // BOOKING IS NOT IN THIS APP YET. An empty state that said "reservá tu primer
-    // turno" with nothing to tap is a promise the app cannot keep.
-    expect(screen.getByText(/mimar\.com\.ar/i)).toBeTruthy();
-    expect(screen.queryByText(/^Buscar turnos$/)).toBeNull();
+    expect(screen.getByText("Buscar un turno")).toBeTruthy();
+    // THE SENTENCE THAT MUST NOT COME BACK. A browser link stands in front of a
+    // session this app does not share, and it is a second way to do one thing.
+    expect(screen.queryByText(/mimar\.com\.ar/i)).toBeNull();
+  });
+
+  it("hands the search back to the router rather than navigating itself", async () => {
+    // The screen owns no route. `onSearch` is what the route shell binds, which is
+    // the arrangement every other screen in this app uses and the reason none of
+    // them imports `expo-router`.
+    const onSearch = jest.fn();
+    mockFetch.mockResolvedValue({ outcome: "ok", payload: payload() });
+    render(<TurnosScreen onOpen={jest.fn()} onSearch={onSearch} />);
+
+    await waitFor(() => expect(screen.getByText("Buscar un turno")).toBeTruthy());
+    fireEvent.press(screen.getByText("Buscar un turno"));
+    expect(onSearch).toHaveBeenCalledTimes(1);
+  });
+
+  it("offers the search on a screen that ALREADY has turnos, not only on an empty one", async () => {
+    // The button sits above the sections rather than inside the empty state. A
+    // person with a long history still opens this to book the next one, and a
+    // control reachable only by having nothing is a control most people never see.
+    mockFetch.mockResolvedValue({
+      outcome: "ok",
+      payload: payload({ upcoming: [anAppointment({ appointmentToken: "APT-UP" })] }),
+    });
+    render(<TurnosScreen onOpen={jest.fn()} onSearch={jest.fn()} />);
+
+    await waitFor(() => expect(screen.getByText("Buscar un turno")).toBeTruthy());
   });
 });
