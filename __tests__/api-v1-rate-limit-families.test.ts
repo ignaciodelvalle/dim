@@ -105,8 +105,16 @@ const ROUTE_GLOB = "app/api/v1/**/route.ts";
  * exactly like a clean run. Raise this when the surface grows; that is the whole
  * job of the number, and `check-api-v1-envelope.ts` has two written paragraphs
  * about the two times its own floor drifted instead.
+ *
+ * 20 → 29 with the turnos door, and the nine it moved by are NOT this lane's
+ * two. They are the drift the sibling paragraphs predict: the map holds 29
+ * buckets on this tree and this floor still said 20, so seven buckets' worth of
+ * slack had accumulated across the doors that landed since it was last touched.
+ * It never went red, and that is exactly the failure mode — a floor is satisfied
+ * by any number above it, so it loosens in SILENCE. Recounted from
+ * `API_V1_IP_BUCKET_FAMILIES` rather than incremented from 20.
  */
-const MIN_IP_BUCKETS = 20;
+const MIN_IP_BUCKETS = 29;
 
 /**
  * Collects `enforceRateLimit`-style bucket literals from a route's source and
@@ -452,7 +460,43 @@ describe("/api/v1 rate-limit families — the numbers the derivation committed t
     // door added. That the account form and the animal form land on identical
     // ceilings is the derivation agreeing with itself: both are one person in a
     // form correcting a value they own.
-    expect(API_V1_CGNAT_FAMILY_IP_CEILING_PER_MINUTE).toBe(10_224);
+    //
+    // 10.224 → 10.944 with the turnos door (`me/appointments`, WU-S), one
+    // authenticated-read bucket (600/min) and one authenticated-write bucket
+    // (120/min) — the third door in a row to add exactly that pair.
+    //
+    // RE-DERIVED FROM THE MAP, NOT FROM THE PREVIOUS PIN, because "10.224 + 720"
+    // is the reasoning that produced this lane's own rejection: the two buckets
+    // existed in the routes and were never added to `API_V1_IP_BUCKET_FAMILIES`,
+    // so the reduce never saw them, the sum never moved, and a pin adjusted to
+    // whatever made the file green would have recorded a ceiling 720/min BELOW
+    // what one address may actually spend. A pin that is fitted to the code it
+    // is meant to constrain is not a pin. So the terms are counted out of the
+    // map on this tree, once, and the two derivations are checked against each
+    // other:
+    //
+    //   authenticated-read     14 × 600 = 8.400
+    //   authenticated-write     6 × 120 =   720
+    //   account-security        2 ×  60 =   120
+    //   public-reference        1 × 600 =   600
+    //   inbox-state             1 × 240 =   240
+    //   pet-disclosure-write    2 × 180 =   360
+    //   pet-record-write        1 × 240 =   240
+    //   pet-registration        1 × 120 =   120
+    //   media-upload            1 × 144 =   144
+    //                          ── 29 buckets ─────────
+    //                                     10.944
+    //
+    // and 10.224 + 600 + 120 = 10.944 agrees. Both had to, and the point of
+    // doing both is that only the FIRST would have caught the missing entries.
+    //
+    // The enumeration above is the thing this comment warns about three
+    // paragraphs up — a second copy of a set — so it is dated rather than
+    // maintained: it is what the map held when the turnos door landed, kept
+    // because the arithmetic is the evidence for the pin. `API_V1_IP_BUCKET_
+    // FAMILIES` is still the list that cannot lie; recount it, do not trust
+    // this table.
+    expect(API_V1_CGNAT_FAMILY_IP_CEILING_PER_MINUTE).toBe(10_944);
   });
 
   it("keeps pet-disclosure-write at N callers on BOTH windows", () => {
