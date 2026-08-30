@@ -223,8 +223,17 @@ export const V1_ROUTE_GLOB = "app/api/v1/**/route.ts";
  * because somebody added instead of counting and happened to be wrong. The
  * arithmetic agreeing with the count is a coincidence of this merge, not a
  * method.
+ *
+ * THIRTY-TWO with mudanza (WU-P, `pets/{token}/move`), raised in the same commit
+ * that added the route and RECOUNTED rather than incremented:
+ * `listV1RouteFiles().length` on this worktree is 32, so the floor is 32 —
+ * equal, not merely satisfied. `pets/{token}/` takes back the record for densest
+ * directory on the surface with EIGHT sibling directories (`credential`,
+ * `events`, `libreta`, `lost`, `move`, `photo`, `profile`, `shares`) plus its own
+ * leaf, which is the arrangement the TWENTY-ONE paragraph above raised this
+ * number for and the reason it keeps being worth raising.
  */
-export const MIN_V1_ROUTE_FILES = 31;
+export const MIN_V1_ROUTE_FILES = 32;
 
 export const HELPER_MODULE = "@/lib/infra/api-v1";
 

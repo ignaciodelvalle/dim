@@ -240,6 +240,7 @@ export {
   type MyPetsV1Item,
   type PetRegisteredV1,
 } from "./pets.ts";
+export type { PetMoveJurisdictionV1, PetMoveRecordedV1 } from "./pet-move.ts";
 export {
   PET_PROFILE_EDIT_PAYLOAD_VERSION,
   PET_PROFILE_EDIT_STALE_AFTER_MS,

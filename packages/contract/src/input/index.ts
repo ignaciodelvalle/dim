@@ -201,6 +201,15 @@ export {
   firstCaretakerCommandInputCode,
 } from "./caretaker.ts";
 export {
+  MOVE_REASON_MAX,
+  PET_MOVE_COMMAND_INPUT_CODES,
+  type PetMoveCommand,
+  type PetMoveCommandInput,
+  type PetMoveCommandInputCode,
+  firstPetMoveCommandInputCode,
+  petMoveCommandInputSchema,
+} from "./pet-move.ts";
+export {
   EMERGENCY_CONTACT_NAME_MAX,
   EMERGENCY_CONTACT_PHONE_MAX,
   PET_COLOR_MAX,

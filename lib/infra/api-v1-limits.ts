@@ -1133,6 +1133,32 @@ export const API_V1_IP_BUCKET_FAMILIES: Readonly<Record<string, ApiV1IpFamily>> 
   // direction. A `booking` family carrying identical numbers would be the
   // eleven-paragraphs problem from the top of this file, once more.
   api_v1_appointment_search_ip: "authenticated-read",
+
+  // Landed with the native MUDANZA door (WU-P, `pets/{token}/move`), added by
+  // the LANE that shipped the route rather than handed to an integrator — this
+  // file is this lane's territory in its window, so the pattern the two
+  // `me/pet-claims` and adopción comments record ("the route arrived with its
+  // bucket spent and undeclared") had no reason to repeat.
+  //
+  // `authenticated-write`, AND IT IS TWO NEIGHBOURS BEING REJECTED. It is NOT
+  // `pet-record-write`, which is the tempting one because what a move appends IS
+  // a row on the append-only spine: that family's anchor is spelled out above as
+  // "a vet day at a rescue is many animals from one egress in one afternoon",
+  // and this act is a person who moved house. Sizing a mudanza against a rounds
+  // day would hand the widest write budget on the surface to the rarest write on
+  // it. And it is NOT `pet-disclosure-write`, whose two members both change WHAT
+  // OTHER PEOPLE MAY SEE of an animal — a move publishes nothing new, since the
+  // locality was already on the public credential.
+  //
+  // What it IS, exactly, is one person in a form correcting their own record,
+  // which is the anchor `pets/{token}/profile` and `me/profile` already run on —
+  // and the web reaches the mudanza form FROM the editar screen, so the two are
+  // one act in the reader's hands as well as in this derivation.
+  //
+  // ONE bucket for a POST-only route: there is no GET here (see the route's own
+  // header — the form's two reads are `/pets/{token}` and `/localities`, both of
+  // which already have their own), so there is no read bucket to declare.
+  api_v1_move_write_ip: "authenticated-write",
 };
 
 /**

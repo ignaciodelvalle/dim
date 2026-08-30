@@ -766,6 +766,31 @@
  *                            guard is per (pet, offering) and a client that said
  *                            "ya tiene este turno" would send somebody to try the
  *                            next slot, which changes nothing.
+ *
+ * THE MOVE CODES (WU-P). `POST /api/v1/pets/{publicToken}/move` — mudanza, the
+ * event-governed correction path for the one column `pets/{token}/profile`
+ * refuses to write. Four codes and not a fold, because the four moves a client
+ * must make are four different moves and three of them are not "try again".
+ *
+ * - `move_forbidden`   — the caller holds this animal as a CARETAKER, and a
+ *                        move is titular-only. 403, and deliberately NOT 404:
+ *                        `requireTitularAccess`'s own `not-titular` bucket
+ *                        exists because "pretending the pet does not exist to
+ *                        someone who is legitimately caring for it is a lie the
+ *                        UI cannot recover from". A caller who may not see the
+ *                        animal at all still gets `not_found`.
+ * - `move_destination_invalid`
+ *                      — the (province, locality) pair is not in the INDEC
+ *                        catalog. 400. The move is PICK FROM THE TYPEAHEAD:
+ *                        `GET /api/v1/localities` returns exactly the pairs
+ *                        this refuses to invent.
+ * - `move_same_locality`
+ *                      — the destination is where the animal already lives.
+ *                        409, its own code because the move is "nothing to do"
+ *                        rather than "fix the address", and a client that
+ *                        showed the catalog message would send somebody hunting
+ *                        for a spelling mistake in a locality that is correct.
+ * - `move_failed`      — the writer refused for any other reason. 500.
  */
 export const API_V1_ERROR_CODES = [
   "rate_limited",
@@ -839,6 +864,10 @@ export const API_V1_ERROR_CODES = [
   "booking_slot_taken",
   "booking_pet_not_bookable",
   "booking_already_in_offering",
+  "move_forbidden",
+  "move_destination_invalid",
+  "move_same_locality",
+  "move_failed",
 ] as const;
 
 export type ApiV1ErrorCode = (typeof API_V1_ERROR_CODES)[number];
