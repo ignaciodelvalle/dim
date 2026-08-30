@@ -113,8 +113,15 @@ const ROUTE_GLOB = "app/api/v1/**/route.ts";
  * It never went red, and that is exactly the failure mode — a floor is satisfied
  * by any number above it, so it loosens in SILENCE. Recounted from
  * `API_V1_IP_BUCKET_FAMILIES` rather than incremented from 20.
+ *
+ * 29 → 30 at the 2026-08-30 integration merge, with the reclamar door
+ * (`me/pet-claims`). RECOUNTED, not incremented, and the distinction had teeth
+ * this time: two lanes in that window each declared a bucket count for their own
+ * worktree (30 and 32) and a third lane was turned back, so any arithmetic over
+ * the reported numbers would have been wrong in one direction or the other.
+ * `Object.keys(API_V1_IP_BUCKET_FAMILIES).length` on the MERGED tree is 30.
  */
-const MIN_IP_BUCKETS = 29;
+const MIN_IP_BUCKETS = 30;
 
 /**
  * Collects `enforceRateLimit`-style bucket literals from a route's source and
@@ -490,13 +497,50 @@ describe("/api/v1 rate-limit families — the numbers the derivation committed t
     // and 10.224 + 600 + 120 = 10.944 agrees. Both had to, and the point of
     // doing both is that only the FIRST would have caught the missing entries.
     //
-    // The enumeration above is the thing this comment warns about three
-    // paragraphs up — a second copy of a set — so it is dated rather than
-    // maintained: it is what the map held when the turnos door landed, kept
+    // 10.944 → 11.064 at the 2026-08-30 integration merge, with the reclamar
+    // door (`me/pet-claims`, WU-V): ONE authenticated-write bucket, 120/min. It
+    // is the first door in five to add a single bucket rather than a read/write
+    // pair, because its two commands (`lookup`, `claim_free`) share one POST
+    // route AND one per-user budget on purpose — splitting the per-IP counter
+    // would hand a prober back at the gateway what the shared user budget
+    // refuses.
+    //
+    // THE MAP ENTRY WAS ADDED BY THE INTEGRATOR, NOT BY THE LANE, and that is
+    // the reason this paragraph exists rather than being a line in a merge
+    // commit. `lib/infra/api-v1-limits.ts` belonged to a parallel lane in that
+    // window, so the route landed spending a bucket the map did not name — the
+    // turnos rejection's exact shape, one window later, with the difference that
+    // this time the lane SAID SO in its handover instead of it being found by a
+    // reviewer. While the entry was missing the reduce did not see the bucket
+    // and this ceiling under-declared itself by 120/min.
+    //
+    // Counted out of the merged map, once, and checked both ways again:
+    //
+    //   authenticated-read     14 × 600 = 8.400
+    //   authenticated-write     7 × 120 =   840
+    //   account-security        2 ×  60 =   120
+    //   public-reference        1 × 600 =   600
+    //   inbox-state             1 × 240 =   240
+    //   pet-disclosure-write    2 × 180 =   360
+    //   pet-record-write        1 × 240 =   240
+    //   pet-registration        1 × 120 =   120
+    //   media-upload            1 × 144 =   144
+    //                          ── 30 buckets ─────────
+    //                                     11.064
+    //
+    // and 10.944 + 120 = 11.064 agrees. The second derivation is the cheap one
+    // and it is NOT the one that would have caught anything: a third lane in the
+    // same window declared 32 buckets and 12.204 and was turned back, so a pin
+    // moved by adding up what the lanes reported would have been wrong for a
+    // tree nobody was going to have.
+    //
+    // Both enumerations above are the thing this comment warns about three
+    // paragraphs up — a second copy of a set — so they are dated rather than
+    // maintained: each is what the map held on the day its door landed, kept
     // because the arithmetic is the evidence for the pin. `API_V1_IP_BUCKET_
     // FAMILIES` is still the list that cannot lie; recount it, do not trust
-    // this table.
-    expect(API_V1_CGNAT_FAMILY_IP_CEILING_PER_MINUTE).toBe(10_944);
+    // these tables.
+    expect(API_V1_CGNAT_FAMILY_IP_CEILING_PER_MINUTE).toBe(11_064);
   });
 
   it("keeps pet-disclosure-write at N callers on BOTH windows", () => {

@@ -168,6 +168,14 @@ export const V1_ROUTE_GLOB = "app/api/v1/**/route.ts";
  * satisfied and stale on the merged tree, which is the exact silent loosening
  * the TWENTY-THREE paragraph above had to repair. Recount
  * `listV1RouteFiles().length` after the merge — do not add one per lane.
+ *
+ * RECOUNTED AT THAT MERGE (2026-08-30) AND IT STAYS 25. The paragraph above was
+ * right to demand the recount and wrong about what it would find: the parallel
+ * lane that also moved this number — to 27, for two adoption routes — was turned
+ * back at the gate, so the merged tree carries this lane's one new route and no
+ * other. `listV1RouteFiles().length` is 25, equal and not merely satisfied. The
+ * number did not move; the recount is still the evidence, because "27 or 25?"
+ * had no answer that could be read off either lane's report.
  */
 export const MIN_V1_ROUTE_FILES = 25;
 

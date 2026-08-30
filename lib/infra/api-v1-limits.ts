@@ -996,6 +996,23 @@ export const API_V1_IP_BUCKET_FAMILIES: Readonly<Record<string, ApiV1IpFamily>> 
   // record, which is the authenticated-write anchor and nothing else.
   api_v1_me_appointments_read_ip: "authenticated-read",
   api_v1_me_appointments_write_ip: "authenticated-write",
+
+  // Landed with the native reclamar door (WU-V, `me/pet-claims`), and added HERE
+  // by the integrator rather than by the lane that shipped the route: this file
+  // was a second lane's territory in the same window, so the route arrived with
+  // its bucket spent and undeclared. That is the turnos rejection's exact shape,
+  // and it is why it is written down: a bucket the routes spend and the map does
+  // not name is not merely an untested line, it silently subtracts itself from
+  // `API_V1_CGNAT_FAMILY_IP_CEILING_PER_MINUTE` below — 120/min, in this case.
+  //
+  // ONE bucket for a POST route with TWO commands (`lookup`, `claim_free`), not
+  // two. They share the per-USER budget inside the use-cases (`claim_lookup`,
+  // 30/min + 200/hr) precisely so that alternating between them buys a prober
+  // nothing; splitting the per-IP counter would hand back at the gateway exactly
+  // what the shared user budget refuses. The route has no per-user bucket of its
+  // own on purpose — the use-cases already hold one, and it is the budget the
+  // WEB's own wizard spends.
+  api_v1_me_pet_claims_ip: "authenticated-write",
 };
 
 /**
