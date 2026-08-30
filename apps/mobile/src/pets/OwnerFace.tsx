@@ -41,6 +41,7 @@ import {
   caretakerPetRoute,
   editPetRoute,
   lostModeRoute,
+  petPhotoRoute,
   publicCredentialRoute,
   recordEventRoute,
   returnPetRoute,
@@ -351,6 +352,18 @@ function ActionFooter({ view }: { view: OwnerFaceView }) {
           <MoreRow
             label="Credencial pública"
             onPress={() => router.push(publicCredentialRoute(view.publicToken))}
+          />
+          {/* LA FOTO — deliberately NOT behind `isCaretaker`, matching the
+              server's own gate: `POST /pets/{token}/photo` takes any holder
+              role, because `titular-only.ts` lists photos among what a
+              caretaker MAY do and a caretaker photographing the animal in
+              their care is the case the role exists for. Whether this BUILD
+              can pick a photo is the image-picker seam's answer, and the
+              screen this row opens says it honestly either way. */}
+          <MoreRow
+            label="Foto de la mascota"
+            accessibilityHint="Elegir la foto que muestra la credencial."
+            onPress={() => router.push(petPhotoRoute(view.publicToken))}
           />
           <MoreRow
             label="Transferir la titularidad"

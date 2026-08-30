@@ -411,6 +411,14 @@ describe("PetDocumentScreen — controls with no native destination are drawn ho
     expect(mockPush).not.toHaveBeenCalled();
   });
 
+  it("reaches the photo screen from Más", async () => {
+    render(<PetDocumentScreen publicToken={TOKEN} />);
+    await screen.findByText("Pampa");
+    fireEvent.press(screen.getByText("Más"));
+    fireEvent.press(screen.getByText("Foto de la mascota"));
+    expect(mockPush).toHaveBeenCalledWith(`/mascotas/${TOKEN}/foto`);
+  });
+
   // A CARETAKER SEES NEITHER ROW, and that case is asserted where the rest of
   // the per-role rules live — see "tells a caretaker how they hold the animal"
   // below. It is named here so a reader of this block does not conclude the
@@ -446,5 +454,10 @@ describe("PetDocumentScreen — the viewer line survives, per role", () => {
     expect(screen.queryByText("Contactos de emergencia")).toBeNull();
     // The server-refused entries stay offered, as they always were.
     expect(screen.getByText("Transferir la titularidad")).toBeOnTheScreen();
+    // THE PHOTO STAYS, and that mirrors the server's own gate rather than the
+    // titular one: `POST /pets/{token}/photo` takes any holder role, because
+    // `titular-only.ts` lists photos among what a caretaker MAY do. Hiding the
+    // row here would be a stricter second copy of an authorization rule.
+    expect(screen.getByText("Foto de la mascota")).toBeOnTheScreen();
   });
 });

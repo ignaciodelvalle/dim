@@ -403,6 +403,24 @@ export function editPetRoute(publicToken: string): `/mascotas/${string}/editar` 
 }
 
 /**
+ * LA FOTO — the credential's image, picked and uploaded from the phone.
+ *
+ * A ROUTE OF ITS OWN, NOT A FIELD ON `/editar`, and the split mirrors the
+ * server's: the web's photo lives inside `updatePetAction` behind the titular
+ * gate BECAUSE of the other fields in that form, while `POST /pets/{token}/photo`
+ * takes ANY holder role — `lib/domain/titular-only.ts` lists photos among what
+ * a caretaker MAY do, and a caretaker photographing the animal in their care
+ * is the case the role exists for. Folding the photo into `/editar` here would
+ * bolt a caretaker-allowed act onto a screen a caretaker cannot use.
+ *
+ * NO WEB PATH TO MATCH: the web has no `/foto` page (its photo is a form
+ * field), so the segment is free to say the word the screen uses.
+ */
+export function petPhotoRoute(publicToken: string): `/mascotas/${string}/foto` {
+  return `/mascotas/${encodeURIComponent(publicToken)}/foto`;
+}
+
+/**
  * MUDANZA — registrar que el animal cambió de jurisdicción.
  *
  * UNA RUTA APARTE DE `/editar`, Y NO ES UNA DECISIÓN DE ESTA APP. La
@@ -486,6 +504,7 @@ export type AppRoute =
   | ReturnType<typeof lostModeRoute>
   | ReturnType<typeof sharesRoute>
   | ReturnType<typeof editPetRoute>
+  | ReturnType<typeof petPhotoRoute>
   | ReturnType<typeof movePetRoute>
   | ReturnType<typeof returnPetRoute>
   | ReturnType<typeof transferRoute>
