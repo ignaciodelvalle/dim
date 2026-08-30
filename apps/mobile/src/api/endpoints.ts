@@ -48,6 +48,11 @@
 // two screens end up disagreeing about what a 401 means.
 
 import {
+  ADOPTION_CATALOGUE_PAYLOAD_VERSION,
+  ADOPTION_DETAIL_PAYLOAD_VERSION,
+  type AdoptionApplicationSubmittedV1,
+  type AdoptionCatalogueV1,
+  type AdoptionDetailV1,
   type AppointmentCommandAckV1,
   type CaretakerCommandAckV1,
   type EventAmendedV1,
@@ -57,6 +62,7 @@ import {
   type LoginV1,
   type LostCommandAckV1,
   ME_PAYLOAD_VERSION,
+  MY_ADOPTION_APPLICATIONS_PAYLOAD_VERSION,
   MY_APPOINTMENTS_PAYLOAD_VERSION,
   MY_CARETAKER_GRANTS_PAYLOAD_VERSION,
   MY_NOTIFICATIONS_PAYLOAD_VERSION,
@@ -65,6 +71,7 @@ import {
   MY_PROFILE_PAYLOAD_VERSION,
   MY_TRANSFERS_PAYLOAD_VERSION,
   type MeV1,
+  type MyAdoptionApplicationsV1,
   type MyAppointmentsV1,
   type MyCaretakerGrantsV1,
   type MyNotificationsV1,
@@ -98,6 +105,7 @@ import {
   type TransferCommandAckV1,
 } from "@dim/contract/api";
 import type {
+  AdoptionApplicationInput,
   AmendEventInput,
   AppointmentCommandInput,
   CaretakerCommandInput,
@@ -1122,6 +1130,124 @@ export function confirmPetPhoto(
       path: `/api/v1/pets/${encodeURIComponent(publicToken)}/photo`,
       method: "POST",
       body: { command: "confirm", stagedPath },
+    },
+    session,
+  );
+}
+
+/**
+ * `GET /adoptions` — one page of the public adoption catalogue.
+ *
+ * A BEARER CALL, unlike `searchLocalities`, and that is not an oversight of the
+ * "it is public on the web" kind. The endpoint requires a session (its own
+ * header argues why: this app has no anonymous shell, the funnel ends at a
+ * session anyway, and an anonymous `/api/v1` read is a different rate-limit
+ * derivation rather than a smaller one), so a `performRequest` here would send a
+ * call the server refuses.
+ *
+ * `cursor` is the server's OWN string, echoed back verbatim. A client that
+ * parsed it would fork the keyset encoding the web already publishes in a URL.
+ */
+export function fetchAdoptionCatalogue(
+  session: SessionPort,
+  query: { cursor?: string | null; species?: string | null; province?: string | null } = {},
+): Promise<ApiResult<AdoptionCatalogueV1>> {
+  const params = new URLSearchParams();
+  if (query.species) params.set("species", query.species);
+  if (query.province) params.set("province", query.province);
+  if (query.cursor) params.set("cursor", query.cursor);
+  const suffix = params.size === 0 ? "" : `?${params.toString()}`;
+  return apiRequest<AdoptionCatalogueV1>(
+    {
+      path: `/api/v1/adoptions${suffix}`,
+      expectedPayloadVersion: ADOPTION_CATALOGUE_PAYLOAD_VERSION,
+    },
+    session,
+  );
+}
+
+/**
+ * `GET /adoptions/{petToken}` — one ficha.
+ *
+ * ITS ANSWER HAS FOUR SHAPES AND ONLY ONE IS A 404. `detail.state` is `listed`,
+ * `recently_adopted` or `paused`; a caller that treated the last two as errors
+ * would tell somebody who followed a shared link that the animal never existed,
+ * which is the exact case those states were added for.
+ *
+ * `canApply` AND `applyBlockedReason` ARE THE SERVER'S ANSWER AND MUST NOT BE
+ * RECOMPUTED. Both refusals need state this app does not hold — the account's
+ * type, and whether an unresolved application already exists for this pet — so a
+ * screen that derived either would draw a form the write throws away.
+ */
+export function fetchAdoptionDetail(
+  session: SessionPort,
+  petToken: string,
+): Promise<ApiResult<AdoptionDetailV1>> {
+  return apiRequest<AdoptionDetailV1>(
+    {
+      path: `/api/v1/adoptions/${encodeURIComponent(petToken)}`,
+      expectedPayloadVersion: ADOPTION_DETAIL_PAYLOAD_VERSION,
+    },
+    session,
+  );
+}
+
+/**
+ * `POST /adoptions/{petToken}` — postularse.
+ *
+ * THE ONE WRITE ON THIS SURFACE THAT LANDS IN SOMEBODY ELSE'S QUEUE. Every other
+ * write here changes the caller's own records, their animal's, or an exposure
+ * they control; this one appends a letter about the caller to a shelter's review
+ * list and notifies its members. It is also the only write whose per-user ceiling
+ * lives in the use-case rather than in a route, so the web form and this call
+ * spend ONE budget — see `adoption-application-limits.ts`.
+ *
+ * NO `idempotencyKey` PARAMETER, AND THAT IS THE CONTRACT AND NOT A SHORTCUT.
+ * The server refuses a second unresolved application for the same (pet,
+ * applicant) pair on its own, so a retry after a timeout that in fact landed
+ * comes back as a refusal rather than a duplicate letter. That is a stronger
+ * promise than a key buys; sending a header the server would ignore is a client
+ * believing it holds a guarantee nobody made.
+ *
+ * A 409 `adoption_application_refused` COVERS EVERY DOMAIN REFUSAL and a caller
+ * cannot tell them apart — which is why the screen re-reads the ficha rather
+ * than guessing: `applyBlockedReason` is where "you already applied" is said.
+ */
+export function submitAdoptionApplication(
+  session: SessionPort,
+  petToken: string,
+  input: AdoptionApplicationInput,
+): Promise<ApiResult<AdoptionApplicationSubmittedV1>> {
+  return apiRequest<AdoptionApplicationSubmittedV1>(
+    {
+      path: `/api/v1/adoptions/${encodeURIComponent(petToken)}`,
+      method: "POST",
+      body: input,
+    },
+    session,
+  );
+}
+
+/**
+ * `GET /me/adoption-applications` — THE FOURTH READ ON THIS SURFACE THAT IS NOT
+ * ABOUT A PET THIS PERSON HOLDS.
+ *
+ * A postulación is a thing a PERSON did, to somebody else's animal, so there is
+ * no token that would name the read — the same reason `/me/transfers` and
+ * `/me/notifications` hang off `/me`.
+ *
+ * IT CARRIES NOTHING ABOUT ANYBODY ELSE (D17): no count of other applications
+ * for the same pet, no names, no queue position. A screen must not invent one
+ * from the status either — "En revisión" says what the shelter is doing, not
+ * where the reader sits in a line.
+ */
+export function fetchMyAdoptionApplications(
+  session: SessionPort,
+): Promise<ApiResult<MyAdoptionApplicationsV1>> {
+  return apiRequest<MyAdoptionApplicationsV1>(
+    {
+      path: "/api/v1/me/adoption-applications",
+      expectedPayloadVersion: MY_ADOPTION_APPLICATIONS_PAYLOAD_VERSION,
     },
     session,
   );

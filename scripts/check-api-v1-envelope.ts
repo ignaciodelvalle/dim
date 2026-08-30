@@ -176,8 +176,27 @@ export const V1_ROUTE_GLOB = "app/api/v1/**/route.ts";
  * other. `listV1RouteFiles().length` is 25, equal and not merely satisfied. The
  * number did not move; the recount is still the evidence, because "27 or 25?"
  * had no answer that could be read off either lane's report.
+ *
+ * TWENTY-EIGHT with adopción (WU-U): `adoptions`, `adoptions/{petToken}` and
+ * `me/adoption-applications`. The first is the first route on this surface with
+ * NO segment under `me/` and no segment under `pets/` — a third top-level
+ * directory, `adoptions/`, which is exactly the arrangement this floor exists
+ * for in its other half: a set of siblings that no `me/`-shaped glob covers and
+ * that one directory rename would take out together.
+ *
+ * The number is NOT the previous floor plus the three routes this lane added,
+ * and this row is the clearest case on the page for why. This lane computed
+ * TWENTY-SIX first, against a tree that did not yet carry turnos; then
+ * TWENTY-SEVEN, against a tree that carried turnos but not the claim door. Both
+ * literals were correct when written and both were stale by the time they were
+ * read — the claim door landed in between, exactly the parallel-lane window the
+ * paragraph above warns about. Carrying either across the rebase would have
+ * pinned a floor SATISFIED by the real tree, which is the silent loosening the
+ * TWENTY-THREE paragraph had to repair. It is `listV1RouteFiles().length`
+ * RECOUNTED on this tree with all three routes and the claim door present: 28
+ * files, 28 floor, equal rather than merely satisfied.
  */
-export const MIN_V1_ROUTE_FILES = 25;
+export const MIN_V1_ROUTE_FILES = 28;
 
 export const HELPER_MODULE = "@/lib/infra/api-v1";
 

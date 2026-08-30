@@ -120,8 +120,18 @@ const ROUTE_GLOB = "app/api/v1/**/route.ts";
  * worktree (30 and 32) and a third lane was turned back, so any arithmetic over
  * the reported numbers would have been wrong in one direction or the other.
  * `Object.keys(API_V1_IP_BUCKET_FAMILIES).length` on the MERGED tree is 30.
+ *
+ * 30 → 33 with the adopción doors (WU-U), and this row is the one that proves
+ * the paragraph above rather than merely repeating it. The lane that wrote these
+ * routes declared 32 for its own worktree — the very "32" named two paragraphs
+ * up as the number that would have been wrong — because it counted against a
+ * tree carrying neither turnos nor the reclamar door. Both landed while it was
+ * open. Carrying 32 across the rebase would have pinned a floor SATISFIED by the
+ * real tree and silently loosened by one, which is the failure this whole comment
+ * is about. Recounted on the merged tree with all three adopción buckets and the
+ * reclamar door present: `Object.keys(API_V1_IP_BUCKET_FAMILIES).length` is 33.
  */
-const MIN_IP_BUCKETS = 30;
+const MIN_IP_BUCKETS = 33;
 
 /**
  * Collects `enforceRateLimit`-style bucket literals from a route's source and
@@ -174,6 +184,10 @@ const FAMILY_OF_SHARED_CEILING: Readonly<Record<string, ApiV1IpFamily>> = {
   API_V1_PET_RECORD_WRITE_IP_LIMIT: "pet-record-write",
   API_V1_PET_REGISTRATION_IP_LIMIT: "pet-registration",
   API_V1_MEDIA_UPLOAD_IP_LIMIT: "media-upload",
+  // KEYED BY THE IDENTIFIER, which is why this table names a constant it does
+  // not import: what the parser reads is the TEXT a route passes as its third
+  // argument, and importing the value would prove nothing about the call site.
+  API_V1_ADOPTION_APPLICATION_IP_LIMIT: "adoption-application",
 };
 
 /**
@@ -194,6 +208,7 @@ const WRITE_FAMILIES: readonly ApiV1IpFamily[] = [
   "pet-record-write",
   "pet-registration",
   "media-upload",
+  "adoption-application",
 ];
 
 type IpBucketSite = {
@@ -514,9 +529,35 @@ describe("/api/v1 rate-limit families — the numbers the derivation committed t
     // reviewer. While the entry was missing the reduce did not see the bucket
     // and this ceiling under-declared itself by 120/min.
     //
+    // 11.064 → 12.324 with the adopción doors (`adoptions`,
+    // `adoptions/{petToken}`, `me/adoption-applications`; WU-U). THREE buckets
+    // for three routes, and the first door on this surface to break the
+    // one-read-one-write pattern the ones above it all followed: the catalogue
+    // and the ficha SHARE one authenticated-read bucket (600/min) because
+    // tapping a card is what a person does from the list, "mis postulaciones"
+    // has its own (600/min), and the apply is the first and only member of a new
+    // family, `adoption-application`, at 60/min — the cheapest write ceiling on
+    // the surface, for an act whose cost is a shelter's attention rather than
+    // ours.
+    //
+    // RE-DERIVED FROM THE MAP, and this door is the second lane in a row whose
+    // rejection was exactly the failure that reasoning prevents. Its three
+    // buckets were spent by the routes and were never added to
+    // `API_V1_IP_BUCKET_FAMILIES`, so the reduce never saw them and this pin,
+    // adjusted to whatever made the file green, would have recorded a ceiling
+    // 1.260/min BELOW what one address may actually spend.
+    //
+    // THE LANE'S OWN FIGURE WAS 12.204 AND IT IS NOT THE ONE PINNED HERE. That
+    // number is correct for the tree the lane held — no reclamar door — and it is
+    // the very "12.204 from a third lane" the paragraph above records as the
+    // arithmetic that would have been wrong. The reclamar door landed while this
+    // work was open, so the merged tree carries its 120/min too. This is the
+    // case the whole comment argues for, arriving twice in three windows:
+    // 10.944 + 600 + 600 + 60 = 12.204 is right about the wrong tree.
+    //
     // Counted out of the merged map, once, and checked both ways again:
     //
-    //   authenticated-read     14 × 600 = 8.400
+    //   authenticated-read     16 × 600 = 9.600
     //   authenticated-write     7 × 120 =   840
     //   account-security        2 ×  60 =   120
     //   public-reference        1 × 600 =   600
@@ -525,22 +566,20 @@ describe("/api/v1 rate-limit families — the numbers the derivation committed t
     //   pet-record-write        1 × 240 =   240
     //   pet-registration        1 × 120 =   120
     //   media-upload            1 × 144 =   144
-    //                          ── 30 buckets ─────────
-    //                                     11.064
+    //   adoption-application    1 ×  60 =    60
+    //                          ── 33 buckets ─────────
+    //                                     12.324
     //
-    // and 10.944 + 120 = 11.064 agrees. The second derivation is the cheap one
-    // and it is NOT the one that would have caught anything: a third lane in the
-    // same window declared 32 buckets and 12.204 and was turned back, so a pin
-    // moved by adding up what the lanes reported would have been wrong for a
-    // tree nobody was going to have.
+    // and 11.064 + 600 + 600 + 60 = 12.324 agrees. Both had to, and the point of
+    // doing both is that only the FIRST would have caught the missing entries.
     //
-    // Both enumerations above are the thing this comment warns about three
+    // Every enumeration above is the thing this comment warns about three
     // paragraphs up — a second copy of a set — so they are dated rather than
     // maintained: each is what the map held on the day its door landed, kept
     // because the arithmetic is the evidence for the pin. `API_V1_IP_BUCKET_
     // FAMILIES` is still the list that cannot lie; recount it, do not trust
     // these tables.
-    expect(API_V1_CGNAT_FAMILY_IP_CEILING_PER_MINUTE).toBe(11_064);
+    expect(API_V1_CGNAT_FAMILY_IP_CEILING_PER_MINUTE).toBe(12_324);
   });
 
   it("keeps pet-disclosure-write at N callers on BOTH windows", () => {

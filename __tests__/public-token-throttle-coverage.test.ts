@@ -1067,6 +1067,32 @@ const ALIAS = "unerasedPetByToken(";
 const ALIAS_RESOLVERS = [
   "app/(app)/mis-mascotas/nueva/match/[matchedPetToken]/page.tsx",
   "app/actions/return-to-owner.ts",
+  // Added 2026-08-30 with the native adopción doors (WU-U). This entry is the
+  // "human decides which name it deserves" event the header above describes, so
+  // the decision is written here rather than assumed from the file's location.
+  //
+  // IT IS THE CITIZEN-FACING HALF SPLIT OUT OF `adoption-repository.ts`, one
+  // line below, which was already a pinned speller — so the alias did not enter
+  // the tree here, it MOVED. The split was forced by `lint:file-size` (1521
+  // against a hard 1500) and it lands five methods a citizen reaches in their
+  // own module.
+  //
+  // WHY IT IS AUTHENTICATED, TRACED RATHER THAN ASSUMED — this is the part that
+  // was got wrong once and cost a rejection. Two of the five spell the alias:
+  //   · `findPetForApplication` ← `submitAdoptionApplication`, whose step 1 is
+  //     `if (!applicant) return …`, before the lookup at step 3. The WEB action
+  //     does admit an anonymous caller and is refused exactly there.
+  //   · `findPetForPublicDetail` ← `readAdoptionDetail` ← `GET /api/v1/
+  //     adoptions/{petToken}` and nothing else, which runs `requireLiveUser`
+  //     first.
+  // The module's own header claimed the opposite — that two methods serve
+  // sessionless requests on the web's public `/adoptar/{token}` — and a reviewer
+  // reading it turned the lane back on this very fence. That page never calls
+  // this module: it carries its own inline query spelling `publicPetByToken` and
+  // taking `isPublicTokenReadThrottled`. The header was corrected in the same
+  // commit as this line, because a pin entry and the file's own account of
+  // itself must not be able to disagree.
+  "src/modules/adoption/infrastructure/adoption-public-reads.ts",
   "src/modules/adoption/infrastructure/adoption-repository.ts",
   "src/modules/foster/infrastructure/foster-repository.ts",
   "src/modules/rehome/infrastructure/rehome-repository.ts",

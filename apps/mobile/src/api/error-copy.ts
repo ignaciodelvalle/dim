@@ -329,5 +329,23 @@ export function apiErrorMessage(code: ApiV1ErrorCode): string {
       // still answer `claim_not_claimable` because the first attempt landed. So
       // the instruction is to look before re-tapping, not to re-tap.
       return "No pudimos completar el reclamo. Buscá el identificador de nuevo para ver si quedó registrado.";
+    case "adoption_application_refused":
+      // ONE SENTENCE FOR EVERY DOMAIN REFUSAL, because that is what the code is:
+      // the use-case returns es-AR prose rather than a discriminated reason, so
+      // the server sends one code and this app cannot tell "ya te postulaste"
+      // from "esta mascota ya no está disponible".
+      //
+      // SO THE COPY SENDS THE PERSON BACK TO THE FICHA, which is where the
+      // difference is actually stated: `canApply` and `applyBlockedReason` come
+      // back on the read, and the screen re-reads after this refusal instead of
+      // guessing. Copy that picked one of the two reasons would be right about
+      // half the time and confidently wrong the other half.
+      return "El refugio no pudo tomar tu postulación. Volvé a la ficha para ver por qué.";
+    case "adoption_application_failed":
+      // Retrying is safe, and for a stronger reason than most: if the first
+      // attempt in fact landed, the retry meets the duplicate-pending refusal
+      // and comes back as the code above — never as a second letter in the
+      // shelter's queue.
+      return "No pudimos enviar tu postulación. Volvé a intentar.";
   }
 }

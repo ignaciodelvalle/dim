@@ -135,6 +135,36 @@ export const ROUTES = {
    * of the flow that hands over an animal.
    */
   reclamar: "/reclamar",
+  /**
+   * El catálogo de adopción — THE FIRST SCREEN IN THIS APP ABOUT ANIMALS NOBODY
+   * IN IT HOLDS. `/mascotas` is what this person is responsible for;
+   * `/transferencias` and `/notificaciones` are addressed to them. This one is a
+   * public catalogue a shelter published, and it sits beside those three rather
+   * than under any of them for exactly that reason.
+   *
+   * THE PATH IS `/adoptar` AND NOT `/adopciones`, matching the WEB's public
+   * landing rather than the org-side queue's. That distinction is the whole
+   * feature: `/adopciones` on the web is what a REFUGIO opens to review
+   * applications, and this app has no org surfaces at all. Naming the citizen
+   * screen after the org one would put the two a rename apart.
+   */
+  adoptar: "/adoptar",
+  /**
+   * Mis postulaciones.
+   *
+   * UNDER `/adoptar` AND NOT UNDER `/mascotas`, which is where the WEB puts it
+   * (`/mis-mascotas/postulaciones`). The web's placement is a fact about its
+   * navigation — everything a citizen owns hangs off `/mis-mascotas` there — and
+   * following it here would file "animals I asked to adopt" under "animals I am
+   * responsible for", which is the one distinction this screen exists to keep.
+   * A person with no pets has postulaciones; a person with postulaciones has no
+   * pet yet, by definition.
+   *
+   * Nothing links in from outside the app, so no deep-link argument pins the
+   * path — and if one ever does, `DEEP_LINK_MAP` is where the two forms are
+   * reconciled, not here.
+   */
+  adoptarPostulaciones: "/adoptar/postulaciones",
 } as const;
 
 /**
@@ -151,6 +181,42 @@ export const ROUTES = {
  */
 export function turnoRoute(appointmentToken: string): `/turnos/${string}` {
   return `/turnos/${encodeURIComponent(appointmentToken)}`;
+}
+
+/**
+ * One adoption ficha.
+ *
+ * THE SEGMENT IS THE PET'S PUBLIC TOKEN, which makes this path collide in shape
+ * with `/adoptar/postulaciones` — expo-router resolves the STATIC segment first,
+ * so a shelter would have to publish an animal whose token is literally
+ * "postulaciones" for that to matter, and tokens are `DIM-XXXX-XXXX`. Said out
+ * loud because a future static sibling with a token-shaped name would not be so
+ * safe.
+ */
+export function adoptionDetailRoute(petToken: string): `/adoptar/${string}` {
+  return `/adoptar/${encodeURIComponent(petToken)}`;
+}
+
+/**
+ * The application form for one animal.
+ *
+ * NESTED UNDER THE FICHA rather than living beside it, and the reason is the
+ * back gesture: somebody who abandons the form should land on the animal they
+ * were reading about, not on the catalogue they scrolled past. The web nests it
+ * the same way (`/adoptar/{token}/postular`) for the same reason.
+ */
+export function adoptionApplyRoute(
+  petToken: string,
+  petName?: string | null,
+): `/adoptar/${string}/postular${string}` {
+  // THE NAME IS DISPLAY COPY AND NOTHING ELSE. It travels so the form can say
+  // "Adoptar a Lola" instead of "Postularme", and the screen it lands on already
+  // holds the animal's whole ficha — so this is one string, not a second round
+  // trip for a word the caller has in its hand. Nothing branches on it: if it is
+  // absent or stale the title degrades and no request changes, because the
+  // ANIMAL is named by the path segment the server resolves.
+  const suffix = petName ? `?petName=${encodeURIComponent(petName)}` : "";
+  return `/adoptar/${encodeURIComponent(petToken)}/postular${suffix}`;
 }
 
 /**

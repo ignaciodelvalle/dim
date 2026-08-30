@@ -128,6 +128,28 @@ const NOT_A_LOST_NOTE_READ: readonly string[] = [
   "app/(app)/mis-mascotas/postulaciones/page.tsx",
   "app/org/[orgToken]/adopciones/page.tsx",
   "src/modules/adoption/infrastructure/adoption-repository.ts",
+  // Same kind, and it is the SAME QUERY as the first entry above: the native
+  // adopción door (WU-U) lifted that page's inlined SQL into a module so the
+  // cookie door and the bearer door could not derive an application's status
+  // two different ways. The read did not change and neither did its triage —
+  // but lifting it moved the text across this fence's `src/` boundary, so the
+  // sweep saw it as a new reader. That is the fence working: an extraction is
+  // exactly when a read's classification should be re-stated rather than
+  // inherited.
+  //
+  // RE-STATED, then: its `note_added` join lives in the `info_requests` CTE,
+  // is filtered `payload->>'kind' = 'adoption_info_requested'` AND
+  // `payload->>'application_event_id' = s.id`, and selects `MAX(n.recorded_at)`
+  // and nothing else. No `payload` text is selected, so no sentence of
+  // anybody's is read here, let alone rendered — `RawRow` has no field that
+  // could hold one. The timestamp derives one of seven status values
+  // (`info_requested`) and is then discarded. This is a STRICTER case than the
+  // three above it, which is why it sits with them: two of those select payload
+  // for other kinds and rely on the kind filter alone.
+  //
+  // `my-applications-read-sql.test.ts` pins both halves of that claim against
+  // the COMPILED SQL, so this entry cannot quietly become false.
+  "src/modules/adoption/infrastructure/my-applications-read.ts",
   // The WRITE path for a finder report: it probes for an identical
   // finder_in_possession row to stay idempotent. It surfaces nothing.
   "app/(public)/p/[publicToken]/encontre/action.ts",
