@@ -160,6 +160,27 @@ export default function RootLayout() {
             under it three times — the lookup question, then the animal's name —
             and a header that tracked it would rename the page mid-flow. */}
         <Stack.Screen name="reclamar" options={{ title: "Reclamar una mascota" }} />
+        {/* ADOPCIÓN — four routes, and every one of them needs a title for the
+            reason `cuenta/privacidad` does: the path segments here are
+            "adoptar", "[petToken]", "postular" and "postulaciones", so an
+            unregistered stack would show a lowercase verb, a raw token, or a
+            word that names the ACT on a screen that is a LIST.
+
+            "Adoptar" for the catalogue and "Mascota en adopción" for the ficha,
+            NOT the animal's name — the header draws before the fetch resolves,
+            and a header that fills in after the body has painted reads as the
+            screen changing under the reader. The animal is named by the screen
+            itself, once. */}
+        <Stack.Screen name="adoptar/index" options={{ title: "Adoptar" }} />
+        <Stack.Screen name="adoptar/[petToken]" options={{ title: "Mascota en adopción" }} />
+        {/* THE ACT, on the form. Which animal is display copy the route already
+            carries in a query param, and it is the screen's own title. */}
+        <Stack.Screen name="adoptar/[petToken]/postular" options={{ title: "Postularme" }} />
+        {/* "Mis postulaciones" and not "Postulaciones": the same word means the
+            shelter's REVIEW QUEUE on the web (`/adopciones`), and this app has
+            no org surfaces at all. The possessive is what keeps a tester from
+            reading this screen as one they do not have. */}
+        <Stack.Screen name="adoptar/postulaciones" options={{ title: "Mis postulaciones" }} />
       </Stack>
     </SafeAreaProvider>
   );
