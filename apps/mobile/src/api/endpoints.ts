@@ -90,6 +90,7 @@ import {
   PET_LIBRETA_PAYLOAD_VERSION,
   PET_LOST_PAYLOAD_VERSION,
   PET_PROFILE_EDIT_PAYLOAD_VERSION,
+  PET_RETURN_PAYLOAD_VERSION,
   PET_SHARES_PAYLOAD_VERSION,
   type PasswordResetRequestedV1,
   type PetClaimCommandAckV1,
@@ -102,6 +103,8 @@ import {
   type PetProfileEditAckV1,
   type PetProfileEditV1,
   type PetRegisteredV1,
+  type PetReturnCommandAckV1,
+  type PetReturnV1,
   type PetSharesV1,
   type ShareCommandAckV1,
   type SignupV1,
@@ -121,6 +124,7 @@ import type {
   PetMoveCommandInput,
   PetPhotoContentType,
   PetProfileCommandInput,
+  PetReturnCommandInput,
   RecordEventInput,
   RegisterPetInput,
   ShareCommandInput,
@@ -1443,6 +1447,82 @@ export function sendPetMoveCommand(
   return apiRequest<PetMoveRecordedV1>(
     {
       path: `/api/v1/pets/${encodeURIComponent(publicToken)}/move`,
+      method: "POST",
+      body: input,
+    },
+    session,
+  );
+}
+
+/**
+ * `GET /pets/{publicToken}/return` — DEVOLUCIÓN: what may be done about this
+ * animal going back, right now.
+ *
+ * THE ONE PET-SCOPED READ WHOSE ANSWER IS ABOUT SOMEBODY ELSE'S NEXT MOVE, and
+ * that is why it exists rather than being derived from the pet payload. The
+ * three writers behind this feature disagree about whom they serve, and none of
+ * the disagreements is visible from anything else on the wire: accepting needs a
+ * pending proposal ADDRESSED to the caller, proposing needs an organisation the
+ * server derives from an `adoption_finalized` payload or an open custody row.
+ *
+ * `capabilities` IS THE SERVER'S AND MUST NOT BE RECOMPUTED, and `state.kind` is
+ * NOT a substitute for it. The two answer different questions — what is going on
+ * versus what this caller may do about it — and the arm that separates them is
+ * `awaiting_org`: the caller's OWN outgoing proposal, which looks pending and
+ * offers nothing. The web's page derives its buttons from the state alone and
+ * gets exactly that case wrong, drawing an "Aceptar" its own writer refuses.
+ *
+ * THE STALENESS WINDOW IS TEN SECONDS, the shortest on this surface, because the
+ * subject is a proposal another person can cancel or supersede at any moment
+ * while the animal is physically in their house.
+ */
+export function fetchPetReturn(
+  session: SessionPort,
+  publicToken: string,
+): Promise<ApiResult<PetReturnV1>> {
+  return apiRequest<PetReturnV1>(
+    {
+      path: `/api/v1/pets/${encodeURIComponent(publicToken)}/return`,
+      expectedPayloadVersion: PET_RETURN_PAYLOAD_VERSION,
+    },
+    session,
+  );
+}
+
+/**
+ * `POST /pets/{publicToken}/return` — run one of the three devolución commands.
+ *
+ * THE SECOND WRITE ON THIS SURFACE THAT CAN CHANGE WHO HOLDS AN ANIMAL, and
+ * unlike `sendTransferCommand` it can do it in the direction of ENDING somebody
+ * else's custody: `accept_return` closes the actor's `ownerships` row, appends
+ * `custody_transferred` and `status_changed`, moves `pets.status` back to
+ * `active` and closes two cases — one transaction, four tables.
+ *
+ * A 200 ON `accept_return` DOES NOT MEAN THE ANIMAL CAME BACK. Read
+ * `ack.autoCancelled`: the writer has a success arm in which the proposal's
+ * preconditions no longer held — the proposer lost custody, or the animal is no
+ * longer `lost` — and it then CANCELS instead of transferring, notifies the
+ * proposer and reports success. `ack.reason` is the server's own sentence saying
+ * which precondition failed, and it is the one place on this surface where a
+ * sentence crosses the wire on purpose.
+ *
+ * NO `idempotencyKey` PARAMETER, AND THAT IS THE CONTRACT AND NOT A SHORTCUT.
+ * None of the three writers takes a `clientIdempotencyKey`. What they have is
+ * different and stronger: each takes `pg_advisory_xact_lock` on the pet and
+ * re-reads the pending proposal UNDER the lock, so a replay is REFUSED rather
+ * than absorbed — `return_no_proposal` for the two answers,
+ * `return_already_pending` for the proposal. After a timeout a refusal may mean
+ * this caller's own first attempt landed OR that the other side moved first, so
+ * the move is always to re-read, never to re-send.
+ */
+export function sendPetReturnCommand(
+  session: SessionPort,
+  publicToken: string,
+  input: PetReturnCommandInput,
+): Promise<ApiResult<PetReturnCommandAckV1>> {
+  return apiRequest<PetReturnCommandAckV1>(
+    {
+      path: `/api/v1/pets/${encodeURIComponent(publicToken)}/return`,
       method: "POST",
       body: input,
     },

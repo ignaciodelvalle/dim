@@ -165,6 +165,18 @@ export default function RootLayout() {
           name="mascotas/[publicToken]/mudanza"
           options={{ title: "Registrar una mudanza" }}
         />
+        {/* DEVOLUCIÓN. Sin registrar, el encabezado saldría de la ruta —
+            "devolucion", en minúscula y sin tilde, que es la peor de las tres
+            formas que este archivo existe para evitar.
+
+            EL TÍTULO SE TRANSCRIBE: "Devolución" es el `<h1>` de la web en
+            `/mis-mascotas/{token}/devolucion` en sus tres estados y la etiqueta
+            de la fila del "⋯ Más" que lleva ahí. Va SIN el nombre del animal por
+            la razón que fijó "Mascota en adopción": el encabezado se dibuja antes
+            de que resuelva el fetch, y uno que se completa después se lee como
+            que la pantalla cambió abajo del lector — y acá el nombre además
+            aparece en el propio título de la pantalla. */}
+        <Stack.Screen name="mascotas/[publicToken]/devolucion" options={{ title: "Devolución" }} />
         {/* Registered BY THE INTEGRATOR at the 2026-08-30 merge, not by the lane
             that shipped the screen: this file was a parallel lane's territory in
             that window, and the lane that owned it did not land. The gap is the

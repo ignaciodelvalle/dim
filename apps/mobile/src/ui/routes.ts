@@ -427,6 +427,28 @@ export function movePetRoute(publicToken: string): `/mascotas/${string}/mudanza`
 }
 
 /**
+ * DEVOLUCIÓN — responder a quien quiere devolverte el animal, o proponer
+ * devolvérselo a la organización de origen.
+ *
+ * ANIDADA BAJO LA MASCOTA aunque la mitad de lo que muestra es sobre otra
+ * persona, y esa es la diferencia con `/transferencias`, que vive al lado de
+ * `/mascotas` precisamente porque la mitad de sus filas son de animales de
+ * terceros. Acá el animal SIEMPRE es uno que esta persona tiene: o lo tiene
+ * legalmente y alguien más lo tiene físicamente, o lo tiene en tránsito y quiere
+ * devolverlo. No hay ninguna fila sobre una mascota ajena, así que la mascota
+ * está de verdad en la dirección.
+ *
+ * EL PATH COINCIDE CON EL DE LA WEB (`/mis-mascotas/{token}/devolucion`). Hoy no
+ * entra ningún deep link — `DEEP_LINK_MAP` no tiene fila para esto — pero la
+ * notificación `custody_transfer_proposal_owner` es exactamente lo que un push
+ * abriría, así que las dos formas ya están de acuerdo en la palabra para cuando
+ * llegue.
+ */
+export function returnPetRoute(publicToken: string): `/mascotas/${string}/devolucion` {
+  return `/mascotas/${encodeURIComponent(publicToken)}/devolucion`;
+}
+
+/**
  * The cuidador-temporal cockpit for one pet — the TITULAR'S side.
  *
  * NESTED UNDER THE PET, unlike its sibling below, and the split is the feature's
@@ -465,6 +487,7 @@ export type AppRoute =
   | ReturnType<typeof sharesRoute>
   | ReturnType<typeof editPetRoute>
   | ReturnType<typeof movePetRoute>
+  | ReturnType<typeof returnPetRoute>
   | ReturnType<typeof transferRoute>
   | ReturnType<typeof transferPetRoute>
   | ReturnType<typeof caretakerPetRoute>
