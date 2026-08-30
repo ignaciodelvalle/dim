@@ -212,9 +212,19 @@ export function ClaimScreen({ onOpenPet }: { onOpenPet: (publicToken: string) =>
           </View>
         ) : null}
 
+        {/* CLEARS THE FIELD, like the web's own "Volver" (which resets the
+            wizard to `INITIAL`). Two reasons and only one of them is parity: the
+            label says ANOTHER identifier, and — the one that is not cosmetic —
+            the value sitting in that field is the evidence that authorizes a
+            claim. Leaving a stranger's 15-digit chip on screen after the answer
+            was "ya tiene dueño/a" is the one thing this screen holds that
+            `/p/{token}` deliberately refuses to render. */}
         <SecondaryButton
           label="Buscar otro identificador"
-          onPress={() => setState({ phase: "asking", error: null })}
+          onPress={() => {
+            setValue("");
+            setState({ phase: "asking", error: null });
+          }}
         />
       </Screen>
     );

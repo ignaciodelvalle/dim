@@ -175,6 +175,21 @@ describe("the confirmation card — what a person is allowed to do next", () => 
     expect(screen.queryByText("Reclamarla")).toBeNull();
   });
 
+  it("clears the identifier when the person goes back to look for another one", async () => {
+    // Parity with the web's "Volver" (it resets the wizard), and the half that
+    // is not cosmetic: the value in that field is the evidence that authorizes a
+    // claim, and leaving a stranger's chip on screen after "ya tiene dueño/a" is
+    // the one number `/p/{token}` refuses to render.
+    mockSend.mockResolvedValue(lookupAck({ variant: "active_owner", canClaim: false }));
+    render(<ClaimScreen onOpenPet={jest.fn()} />);
+    await search();
+
+    await waitFor(() => expect(screen.getByText("Buscar otro identificador")).toBeTruthy());
+    fireEvent.press(screen.getByText("Buscar otro identificador"));
+
+    expect(screen.getByLabelText("Número de microchip, obligatorio").props.value).toBe("");
+  });
+
   it("offers nothing at all for a deceased animal", async () => {
     mockSend.mockResolvedValue(lookupAck({ variant: "deceased", canClaim: false, petToken: null }));
     render(<ClaimScreen onOpenPet={jest.fn()} />);
