@@ -12,8 +12,13 @@
 // says a privacy property should be STRUCTURAL — "an anonymous caller cannot be
 // leaked what the query never selects" — applied one layer out.
 
+import type { GeocodeResult } from "@/lib/infra/geocoding";
 import { resolveSiteUrl } from "@/lib/infra/site-url";
-import { WELFARE_REPORT_PAYLOAD_VERSION, type WelfareReportFiledV1 } from "@dim/contract/api";
+import {
+  WELFARE_REPORT_PAYLOAD_VERSION,
+  type WelfareLocationResolvedV1,
+  type WelfareReportFiledV1,
+} from "@dim/contract/api";
 import { deepLinkUrl } from "@dim/contract/links";
 
 /**
@@ -27,8 +32,38 @@ import { deepLinkUrl } from "@dim/contract/links";
  */
 export function buildWelfareReportFiledAck(referenceCode: string): WelfareReportFiledV1 {
   return {
+    command: "file",
     version: WELFARE_REPORT_PAYLOAD_VERSION,
     referenceCode,
     followUpUrl: deepLinkUrl(resolveSiteUrl(), "welfareReport", { referenceCode }),
+  };
+}
+
+/**
+ * The geocoder's candidates, PROJECTED — five fields out of a Nominatim row.
+ *
+ * A PROJECTION AND NOT A PASS-THROUGH, for the reason `lookup-pet-for-denuncia.ts`
+ * gives about its own query: an anonymous caller cannot be leaked what was never
+ * selected. `GeocodeResult` is already narrow, and mapping it explicitly is what
+ * keeps it that way when the upstream shape grows — a spread would put whatever
+ * `lib/infra/geocoding.ts` starts parsing tomorrow straight onto the wire.
+ *
+ * The address the person TYPED is not echoed back, deliberately: it is the one
+ * string in this exchange that is theirs rather than the gazetteer's, spec D10
+ * forbids logging it, and a client already holds it.
+ */
+export function buildWelfareLocationResolvedAck(
+  matches: readonly GeocodeResult[],
+): WelfareLocationResolvedV1 {
+  return {
+    command: "resolve_location",
+    version: WELFARE_REPORT_PAYLOAD_VERSION,
+    matches: matches.map((match) => ({
+      label: match.display_name,
+      lat: match.lat,
+      lng: match.lng,
+      province: match.province,
+      locality: match.locality,
+    })),
   };
 }

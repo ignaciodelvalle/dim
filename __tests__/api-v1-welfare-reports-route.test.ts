@@ -85,6 +85,9 @@ const control = vi.hoisted(() => ({
   } as Record<string, unknown>,
   /** Every string the error sink was handed. */
   errors: [] as string[],
+  /** Every query handed to the web's anonymous geocoder, and what it answers. */
+  geocodeQueries: [] as string[],
+  geocodeResults: [] as Array<Record<string, unknown>>,
   /** Make the case transaction fail, to exercise the other 500 arm. */
   txThrows: false,
 }));
@@ -181,6 +184,16 @@ vi.mock("@/lib/infra/report-error", () => ({
   },
 }));
 
+// The WEB'S OWN anonymous geocoding action — the one the DenunciaWizard's
+// address field calls. Mocked at the module the route imports, not re-created,
+// so a rename of that export is a red here rather than a second geocoder.
+vi.mock("@/src/modules/localities/application/geocoding/geocoding", () => ({
+  geocodeAddressPublicAction: async (query: string) => {
+    control.geocodeQueries.push(query);
+    return control.geocodeResults;
+  },
+}));
+
 // A PARTIAL mock: only `db` is replaced, and only its `transaction`. The table
 // objects stay real, because half the app's infra transitively imports this
 // module — a hand-written object would report a missing export as a broken FILE,
@@ -265,6 +278,152 @@ beforeEach(() => {
   control.jurisdictionInputs = [];
   control.errors = [];
   control.txThrows = false;
+  control.geocodeQueries = [];
+  control.geocodeResults = [];
+});
+
+describe("resolve_location — the only way a phone can name a point", () => {
+  /** One Nominatim row, with the two fields the wire must NOT carry. */
+  function match(over: Record<string, unknown> = {}) {
+    return {
+      lat: -41.135,
+      lng: -71.3103,
+      display_name: "Avenida Bustillo 1200, San Carlos de Bariloche, Río Negro, Argentina",
+      province: "Río Negro",
+      locality: "San Carlos de Bariloche",
+      // Two fields `GeocodeResult` does not declare today, standing in for the
+      // ones it will. A pass-through would put both on the wire.
+      osm_id: 987654321,
+      boundingbox: ["-41.2", "-41.1", "-71.4", "-71.3"],
+      ...over,
+    };
+  }
+
+  it("asks the WEB'S geocoder, with the address verbatim", async () => {
+    // Kill it by importing `geocodeAddress` from `lib/infra/geocoding` directly
+    // instead of the public action. Applied: the module mock no longer
+    // intercepts, `control.geocodeQueries` stays empty and this fails — which is
+    // the point, because the public action is what spends the shared
+    // `geocode_public` bucket the browser spends.
+    control.geocodeResults = [match()];
+    const response = await post({
+      command: "resolve_location",
+      addressText: "  Av. Bustillo 1200, Bariloche  ",
+    });
+
+    expect(response.status).toBe(200);
+    expect(control.geocodeQueries).toEqual(["Av. Bustillo 1200, Bariloche"]);
+  });
+
+  it("PROJECTS the geocoder's rows — five fields, and nothing it grows later", async () => {
+    // Kill it by spreading the match (`...match`) in
+    // `buildWelfareLocationResolvedAck`. Applied: `osm_id` and `boundingbox`
+    // reach the wire and this fails.
+    control.geocodeResults = [match()];
+    const body = (await (
+      await post({ command: "resolve_location", addressText: "Av. Bustillo 1200" })
+    ).json()) as { matches: Array<Record<string, unknown>> };
+
+    expect(Object.keys(body.matches[0]).sort()).toEqual([
+      "label",
+      "lat",
+      "lng",
+      "locality",
+      "province",
+    ]);
+    expect(body.matches[0].label).toBe(
+      "Avenida Bustillo 1200, San Carlos de Bariloche, Río Negro, Argentina",
+    );
+  });
+
+  it("does NOT echo the address the person typed", async () => {
+    // Spec D10: user-supplied query strings are never persisted or logged by us,
+    // and on a maltrato form the typed address is the incident's — sometimes the
+    // reporter's own street. Echoing it costs a client nothing (it already holds
+    // it) and puts it in one more place.
+    //
+    // Kill it by adding `query: addressText` to the resolved ack. Applied: fails.
+    control.geocodeResults = [match()];
+    const raw = await (
+      await post({ command: "resolve_location", addressText: "Mi casa, Pasaje Los Notros 45" })
+    ).text();
+
+    expect(raw).not.toContain("Pasaje Los Notros");
+  });
+
+  it("caps the candidate list, so one address cannot return a gazetteer", async () => {
+    // Kill it by dropping the `.slice(0, MAX_LOCATION_MATCHES)`. Applied: fails
+    // on the length.
+    control.geocodeResults = Array.from({ length: 12 }, (_, i) =>
+      match({ display_name: `match ${i}` }),
+    );
+    const body = (await (
+      await post({ command: "resolve_location", addressText: "San Martín" })
+    ).json()) as { matches: unknown[] };
+
+    expect(body.matches).toHaveLength(5);
+  });
+
+  it("answers 200 with an EMPTY list when nothing resolves — never an error", async () => {
+    // The geocoder's miss, its timeout and its rate-limit refusal are
+    // deliberately indistinguishable (`lib/infra/geocoding.ts`). A 404 here
+    // would tell a client "that address does not exist" on evidence the server
+    // does not have.
+    control.geocodeResults = [];
+    const response = await post({ command: "resolve_location", addressText: "asdkjhasd" });
+
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({
+      command: "resolve_location",
+      version: 1,
+      matches: [],
+    });
+  });
+
+  it("does NOT spend the denuncia budget to look up an address", async () => {
+    // TEN DENUNCIAS AN HOUR is what `welfare_auth` buys. Spending it on address
+    // lookups would let somebody who mistyped a street four times find they can
+    // no longer REPORT.
+    //
+    // Kill it by moving `spendUserBudget` above the command switch in
+    // `commands.ts`. Applied: `welfare_auth` appears and this fails.
+    control.geocodeResults = [match()];
+    await post({ command: "resolve_location", addressText: "Av. Bustillo 1200" });
+
+    expect(control.spent.map((s) => s.endpoint)).toEqual(["api_v1_welfare_reports_ip"]);
+  });
+
+  it("writes nothing — it is a read wearing a POST", async () => {
+    control.geocodeResults = [match()];
+    await post({ command: "resolve_location", addressText: "Av. Bustillo 1200" });
+
+    expect(control.inserted).toEqual([]);
+    expect(control.cases).toEqual([]);
+    expect(control.signals).toEqual([]);
+  });
+
+  it("refuses an address too short to mean anything, without asking the geocoder", async () => {
+    const response = await post({ command: "resolve_location", addressText: "a" });
+    expect(response.status).toBe(400);
+    expect(control.geocodeQueries).toEqual([]);
+  });
+
+  it("still requires a live session — an address lookup is not a public door", async () => {
+    control.live = () => ({ ok: false, reason: "ACCOUNT_ERASED" });
+    const response = await post({ command: "resolve_location", addressText: "Av. Bustillo 1200" });
+
+    expect(response.status).toBe(403);
+    expect(control.geocodeQueries).toEqual([]);
+  });
+
+  it("refuses a body with no command at all", async () => {
+    // The union's own backstop: `{ contactMode: "anonymous", … }` without
+    // `command` was a VALID body before the location step landed, so a client
+    // built against the older shape must be refused rather than silently filed.
+    const response = await post({ contactMode: "anonymous", ...FACTS });
+    expect(response.status).toBe(400);
+    expect(control.inserted).toEqual([]);
+  });
 });
 
 describe("the anonymous denuncia leaves no trace of who filed it", () => {
@@ -274,7 +433,7 @@ describe("the anonymous denuncia leaves no trace of who filed it", () => {
     //     → reporterUserId = ctx.userId
     // Applied: this test fails on `inserted[0].reporterUserId` AND on the trace,
     // and so does the case's `openedByUserId`, because the use-case forwards it.
-    const response = await post({ contactMode: "anonymous", ...FACTS });
+    const response = await post({ command: "file", contactMode: "anonymous", ...FACTS });
     expect(response.status).toBe(201);
 
     expect(control.inserted).toHaveLength(1);
@@ -312,6 +471,7 @@ describe("the anonymous denuncia leaves no trace of who filed it", () => {
     // `insertReportWithRetry`. Neither half alone does, and that is the property
     // being claimed rather than an accident.
     const response = await post({
+      command: "file",
       contactMode: "anonymous",
       ...FACTS,
       reporterContactEmail: CONTACT_EMAIL,
@@ -331,7 +491,7 @@ describe("the anonymous denuncia leaves no trace of who filed it", () => {
     //
     // Kill it by passing `hasContact: true` unconditionally in `commands.ts`'s
     // signal adapter. Applied: this test fails on the false.
-    await post({ contactMode: "anonymous", ...FACTS });
+    await post({ command: "file", contactMode: "anonymous", ...FACTS });
     expect(control.signals).toHaveLength(1);
     expect(control.signals[0].hasContact).toBe(false);
     expect(Object.keys(control.signals[0]).sort()).toEqual([
@@ -352,7 +512,7 @@ describe("the anonymous denuncia leaves no trace of who filed it", () => {
     //   reportError(`api-v1-welfare-reports/insert:${ctx.userId}`, err)
     // Applied: this test fails on the `ME` assertion.
     control.insertThrows = true;
-    const response = await post({ contactMode: "anonymous", ...FACTS });
+    const response = await post({ command: "file", contactMode: "anonymous", ...FACTS });
 
     expect(response.status).toBe(500);
     expect(await response.json()).toEqual({ error: "welfare_report_failed" });
@@ -371,9 +531,12 @@ describe("the receipt is the same for both contact modes", () => {
     // Kill it by adding `anonymous: input.contactMode === "anonymous"` to
     // `buildWelfareReportFiledAck`'s output (and its argument). Applied: the two
     // bodies stop being equal and this fails.
-    const anon = (await (await post({ contactMode: "anonymous", ...FACTS })).json()) as unknown;
+    const anon = (await (
+      await post({ command: "file", contactMode: "anonymous", ...FACTS })
+    ).json()) as unknown;
     const named = (await (
       await post({
+        command: "file",
         contactMode: "with_contact",
         reporterContactEmail: CONTACT_EMAIL,
         ...FACTS,
@@ -385,7 +548,7 @@ describe("the receipt is the same for both contact modes", () => {
 
   it("hands back the reference code and the web door, and nothing about the case", async () => {
     const body = (await (
-      await post({ contactMode: "anonymous", ...FACTS })
+      await post({ command: "file", contactMode: "anonymous", ...FACTS })
     ).json()) as WelfareReportFiledV1;
 
     expect(body.referenceCode).toBe("DEN-9KSC-MRMZ");
@@ -395,7 +558,12 @@ describe("the receipt is the same for both contact modes", () => {
     //
     // Kill it by returning `reportId` from `buildWelfareReportFiledAck`.
     // Applied: this fails on the key list.
-    expect(Object.keys(body).sort()).toEqual(["followUpUrl", "referenceCode", "version"]);
+    expect(Object.keys(body).sort()).toEqual([
+      "command",
+      "followUpUrl",
+      "referenceCode",
+      "version",
+    ]);
     expect(JSON.stringify(body)).not.toContain("case-uuid");
     expect(JSON.stringify(body)).not.toContain("CAS-1234-5678");
     expect(JSON.stringify(body)).not.toContain("report-uuid");
@@ -410,6 +578,7 @@ describe("the named denuncia attaches the account, and only then", () => {
     // Kill it with `reporterUserId = null` unconditionally in `commands.ts`.
     // Applied: this test fails.
     await post({
+      command: "file",
       contactMode: "with_contact",
       reporterContactEmail: CONTACT_EMAIL,
       reporterContactPhone: CONTACT_PHONE,
@@ -428,17 +597,22 @@ describe("the named denuncia attaches the account, and only then", () => {
     //
     // Kill it by dropping the `if (!reporterUserId)` guard in
     // `createWelfareReport`. Applied: this fails on the empty array.
-    await post({ contactMode: "with_contact", reporterContactEmail: CONTACT_EMAIL, ...FACTS });
+    await post({
+      command: "file",
+      contactMode: "with_contact",
+      reporterContactEmail: CONTACT_EMAIL,
+      ...FACTS,
+    });
     expect(control.flagInputs).toEqual([]);
 
-    await post({ contactMode: "anonymous", ...FACTS });
+    await post({ command: "file", contactMode: "anonymous", ...FACTS });
     expect(control.flagInputs).toHaveLength(1);
   });
 
   it("requires at least one channel when the reporter says they want to be reachable", async () => {
     // Kill it by deleting the `superRefine` on the `with_contact` member.
     // Applied: this returns 201 and the test fails.
-    const response = await post({ contactMode: "with_contact", ...FACTS });
+    const response = await post({ command: "file", contactMode: "with_contact", ...FACTS });
     expect(response.status).toBe(400);
     expect(await response.json()).toEqual({ error: "invalid_request" });
     expect(control.inserted).toEqual([]);
@@ -452,7 +626,7 @@ describe("no attachments, and no way to pretend otherwise", () => {
     //
     // Kill it by passing `attachmentCount: 1` in `createWelfareReport`'s
     // `computeFlagReasons` call. Applied: this fails on the 0.
-    await post({ contactMode: "anonymous", ...FACTS });
+    await post({ command: "file", contactMode: "anonymous", ...FACTS });
 
     expect(control.attachments).toEqual([]);
     expect(control.flagInputs[0].attachmentCount).toBe(0);
@@ -465,7 +639,7 @@ describe("no attachments, and no way to pretend otherwise", () => {
     //
     // Kill it by sending `dwellTimeMs: 30_000` from `commands.ts`. Applied: this
     // fails on `toBeUndefined`.
-    await post({ contactMode: "anonymous", ...FACTS });
+    await post({ command: "file", contactMode: "anonymous", ...FACTS });
 
     expect(control.flagInputs[0].dwellTimeMs).toBeUndefined();
     expect(control.flagInputs[0].honeypotValue).toBe("");
@@ -473,6 +647,7 @@ describe("no attachments, and no way to pretend otherwise", () => {
 
   it("ignores an `attachment` key a client sends anyway", async () => {
     const response = await post({
+      command: "file",
       contactMode: "anonymous",
       ...FACTS,
       attachment: [{ storagePath: "welfare-evidence/x.heic", mimeType: "image/heic" }],
@@ -495,6 +670,7 @@ describe("the subject is never a registered animal on this door", () => {
     // Kill it by adding "registered_pet" to `WELFARE_REPORT_SUBJECT_KINDS` in
     // the contract. Applied: this returns 201 and the test fails.
     const response = await post({
+      command: "file",
       contactMode: "anonymous",
       ...FACTS,
       subjectKind: "registered_pet",
@@ -512,7 +688,7 @@ describe("the subject is never a registered animal on this door", () => {
     // Kill it by passing a pet id in `commands.ts`'s `createWelfareReport` call
     // together with `subjectKind: "registered_pet"`. Applied: a
     // `maltreatment_reported` event appears and this fails.
-    await post({ contactMode: "anonymous", ...FACTS });
+    await post({ command: "file", contactMode: "anonymous", ...FACTS });
     expect(control.petEvents).toEqual([]);
     expect(control.inserted[0].subjectPetId).toBeNull();
   });
@@ -524,7 +700,7 @@ describe("the budgets are the ones the derivation named", () => {
     //   spendBudget("api_v1_welfare_reports_ip", live.user.id, …)
     // Applied: the identifier assertion fails. This is the debt the turnos route
     // test carries; it is closed here rather than inherited.
-    await post({ contactMode: "anonymous", ...FACTS });
+    await post({ command: "file", contactMode: "anonymous", ...FACTS });
 
     expect(control.spent[0]).toEqual({
       endpoint: "api_v1_welfare_reports_ip",
@@ -539,7 +715,7 @@ describe("the budgets are the ones the derivation named", () => {
     // Kill it by renaming the bucket to `api_v1_welfare_reports_user`. Applied:
     // this fails — and the failure is the point, because a fresh bucket name is
     // a fresh budget a caller gets by switching transport.
-    await post({ contactMode: "anonymous", ...FACTS });
+    await post({ command: "file", contactMode: "anonymous", ...FACTS });
 
     expect(control.spent.map((s) => s.endpoint)).toEqual([
       "api_v1_welfare_reports_ip",
@@ -552,7 +728,7 @@ describe("the budgets are the ones the derivation named", () => {
     // Kill it by returning `true` from `spendUserBudget` on RateLimitError.
     // Applied: this returns 201 and the test fails.
     control.overLimit = new Set(["welfare_auth"]);
-    const response = await post({ contactMode: "anonymous", ...FACTS });
+    const response = await post({ command: "file", contactMode: "anonymous", ...FACTS });
 
     expect(response.status).toBe(429);
     expect(control.inserted).toEqual([]);
@@ -565,7 +741,7 @@ describe("the budgets are the ones the derivation named", () => {
     // Kill it by changing `return true` to `return false` in `spendUserBudget`'s
     // catch. Applied: this returns 429 and the test fails.
     control.limiterBroken = new Set(["welfare_auth"]);
-    const response = await post({ contactMode: "anonymous", ...FACTS });
+    const response = await post({ command: "file", contactMode: "anonymous", ...FACTS });
 
     expect(response.status).toBe(201);
     expect(control.inserted).toHaveLength(1);
@@ -579,11 +755,11 @@ describe("the budgets are the ones the derivation named", () => {
     // produce DIFFERENT outcomes on the same bucket, or the fail-open test is
     // only re-asserting that the stub was never asked to throw.
     control.limiterBroken = new Set(["api_v1_welfare_reports_ip"]);
-    expect((await post({ contactMode: "anonymous", ...FACTS })).status).toBe(201);
+    expect((await post({ command: "file", contactMode: "anonymous", ...FACTS })).status).toBe(201);
 
     control.limiterBroken = new Set();
     control.overLimit = new Set(["api_v1_welfare_reports_ip"]);
-    expect((await post({ contactMode: "anonymous", ...FACTS })).status).toBe(429);
+    expect((await post({ command: "file", contactMode: "anonymous", ...FACTS })).status).toBe(429);
   });
 });
 
@@ -595,7 +771,7 @@ describe("the jurisdiction is resolved the way both of the web's intakes resolve
     //
     // Kill it by hardcoding `jurisdictionUnverified: false` in `commands.ts`.
     // Applied: this fails.
-    await post({ contactMode: "anonymous", ...FACTS });
+    await post({ command: "file", contactMode: "anonymous", ...FACTS });
 
     expect(control.jurisdictionInputs[0]).toEqual({
       province: null,
@@ -613,7 +789,7 @@ describe("the jurisdiction is resolved the way both of the web's intakes resolve
     // `welfare_reports.location_lat/lng` are numeric(10,7); the column takes a
     // string and `writePoint` is what produces it. Kill it by passing
     // `String(input.locationLat)`. Applied: the precision assertion fails.
-    await post({ contactMode: "anonymous", ...FACTS });
+    await post({ command: "file", contactMode: "anonymous", ...FACTS });
 
     expect(control.inserted[0].locationLat).toBe("-41.1350000");
     expect(control.inserted[0].locationLng).toBe("-71.3103000");
@@ -625,7 +801,7 @@ describe("the refusals", () => {
     const response = await POST(
       new Request("https://x/api/v1/welfare-reports", {
         method: "POST",
-        body: JSON.stringify({ contactMode: "anonymous", ...FACTS }),
+        body: JSON.stringify({ command: "file", contactMode: "anonymous", ...FACTS }),
       }),
     );
     expect(response.status).toBe(401);
@@ -637,27 +813,28 @@ describe("the refusals", () => {
 
   it("refuses a DEACTIVATED account, stricter than the web page, and says why in the header", async () => {
     control.live = () => ({ ok: false, reason: "DEACTIVATED" });
-    const response = await post({ contactMode: "anonymous", ...FACTS });
+    const response = await post({ command: "file", contactMode: "anonymous", ...FACTS });
     expect(response.status).toBe(403);
     expect(await response.json()).toEqual({ error: "account_deactivated" });
   });
 
   it("refuses an ERASED account", async () => {
     control.live = () => ({ ok: false, reason: "ACCOUNT_ERASED" });
-    const response = await post({ contactMode: "anonymous", ...FACTS });
+    const response = await post({ command: "file", contactMode: "anonymous", ...FACTS });
     expect(response.status).toBe(403);
     expect(await response.json()).toEqual({ error: "account_erased" });
   });
 
   it("answers 503 with a retry-after during maintenance", async () => {
     control.live = () => ({ ok: false, reason: "MAINTENANCE" });
-    const response = await post({ contactMode: "anonymous", ...FACTS });
+    const response = await post({ command: "file", contactMode: "anonymous", ...FACTS });
     expect(response.status).toBe(503);
     expect(response.headers.get("retry-after")).toBe("5");
   });
 
   it("refuses a description under the twenty-character floor the web enforces", async () => {
     const response = await post({
+      command: "file",
       contactMode: "anonymous",
       ...FACTS,
       description: "no le dan agua",
@@ -670,12 +847,22 @@ describe("the refusals", () => {
     // `high` is a real column value and it is unreachable from a citizen
     // surface. Kill it by adding "high" to WELFARE_REPORT_CITIZEN_SEVERITIES.
     // Applied: this returns 201 and the test fails.
-    const response = await post({ contactMode: "anonymous", ...FACTS, severity: "high" });
+    const response = await post({
+      command: "file",
+      contactMode: "anonymous",
+      ...FACTS,
+      severity: "high",
+    });
     expect(response.status).toBe(400);
   });
 
   it("refuses a kind outside the Ley 14.346 catalogue", async () => {
-    const response = await post({ contactMode: "anonymous", ...FACTS, kind: "spam" });
+    const response = await post({
+      command: "file",
+      contactMode: "anonymous",
+      ...FACTS,
+      kind: "spam",
+    });
     expect(response.status).toBe(400);
   });
 
@@ -685,7 +872,7 @@ describe("the refusals", () => {
     // catalogue and forgotten in the contract fails here as well as in the
     // three-way pin.
     for (const kind of DOMAIN_KINDS) {
-      const response = await post({ contactMode: "anonymous", ...FACTS, kind });
+      const response = await post({ command: "file", contactMode: "anonymous", ...FACTS, kind });
       expect(response.status, kind).toBe(201);
     }
     expect(control.inserted).toHaveLength(DOMAIN_KINDS.length);
@@ -696,7 +883,7 @@ describe("the refusals", () => {
     // never sends — forwarding it would tell a person their photos failed to
     // save when they attached none.
     control.txThrows = true;
-    const response = await post({ contactMode: "anonymous", ...FACTS });
+    const response = await post({ command: "file", contactMode: "anonymous", ...FACTS });
 
     expect(response.status).toBe(500);
     const body = JSON.stringify(await response.json());

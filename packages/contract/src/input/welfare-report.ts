@@ -83,6 +83,8 @@ export const WELFARE_REPORT_INPUT_CODES = [
   "COORDS_OUT_OF_RANGE",
   "OCCURRED_AT_INVALID",
   "CONTACT_REQUIRED",
+  "COMMAND_REQUIRED",
+  "ADDRESS_REQUIRED",
 ] as const;
 
 export type WelfareReportInputCode = (typeof WELFARE_REPORT_INPUT_CODES)[number];
@@ -279,6 +281,7 @@ const factsShape = {
  * HAS no such fields, and that the handler destructuring it cannot reach for one.
  */
 const anonymous = z.object({
+  command: z.literal("file"),
   contactMode: z.literal("anonymous"),
   ...factsShape,
 });
@@ -295,6 +298,7 @@ const anonymous = z.object({
  */
 const withContact = z
   .object({
+    command: z.literal("file"),
     contactMode: z.literal("with_contact"),
     reporterContactEmail: z
       .email({ error: "CONTACT_REQUIRED" })
@@ -317,12 +321,76 @@ const withContact = z
     ctx.addIssue({ code: "custom", message: "CONTACT_REQUIRED", path: ["reporterContactEmail"] });
   });
 
-export const welfareReportInputSchema = z.discriminatedUnion("contactMode", [
+export const welfareReportFileInputSchema = z.discriminatedUnion("contactMode", [
   anonymous,
   withContact,
 ]);
 
-export type WelfareReportInput = z.infer<typeof welfareReportInputSchema>;
+/**
+ * ¿DÓNDE ES? — resolve a typed address into candidate points, so the person can
+ * pick the one they mean.
+ *
+ * WHY THIS COMMAND EXISTS AT ALL, WHICH IS THE HONEST VERSION OF "the phone has
+ * no map". `file` requires exact coordinates, because the web's intake requires
+ * them: `createWelfareReportAction` passes `requireCoords: true` with the reason
+ * written out (QA fix #3A) — the authority routes on the point. That rule is not
+ * weakened here and must not be.
+ *
+ * But a React Native client has no way to produce a point on its own. There is
+ * no `expo-location` in this app and no map component: both are native modules,
+ * which is an EAS build, which is the wall the attachments, the pet photo and
+ * the claim dispute all stand behind. Without this command the endpoint would be
+ * a door with no possible caller.
+ *
+ * SO THE SERVER RESOLVES IT, THROUGH THE WEB'S OWN GEOCODER — the same
+ * `geocodeAddressPublicAction` the DenunciaWizard's address field calls,
+ * spending the same `geocode_public` bucket. That is not a parallel path; it is
+ * the existing one, called from a second door.
+ *
+ * AND THE PERSON CONFIRMS, which is what keeps the point honest. The web
+ * auto-picks a single forward-geocode match and says "Encontramos: X. Ajustá el
+ * pin si no es el punto exacto" — so the browser's DEFAULT is a geocoded point
+ * somebody may or may not adjust. This command returns the candidates and the
+ * screen makes the person choose one; what it cannot offer is the drag, which is
+ * the map. The gap is a nudge, not a guarantee: it is written down here rather
+ * than described as parity.
+ *
+ * IT IS A READ WEARING A POST, and deliberately on this route rather than its
+ * own: the two commands are two halves of one act (nobody resolves an address
+ * for fun on a denuncia form), and one route means one per-IP counter that
+ * alternating between them cannot escape — the argument `me/pet-claims` makes
+ * about `lookup` and `claim_free`.
+ */
+const resolveLocation = z.object({
+  command: z.literal("resolve_location"),
+  addressText: z
+    .string({ error: "ADDRESS_REQUIRED" })
+    .trim()
+    .min(3, { error: "ADDRESS_REQUIRED" })
+    .max(WELFARE_ADDRESS_MAX_LENGTH, { error: "ADDRESS_REQUIRED" }),
+});
+
+/**
+ * A PLAIN UNION AND NOT A `discriminatedUnion("command")`, and the reason is a
+ * shape rather than a preference: `file` is ITSELF a discriminated union (on
+ * `contactMode`), so `command` cannot be the sole discriminator without
+ * flattening the four combinations into four schemas and losing the property
+ * this module exists for — that the anonymous member has nowhere to put a
+ * contact.
+ *
+ * The cost is worse zod error messages on a malformed body, and it is not a cost
+ * this surface pays: the route collapses every parse failure to one
+ * `invalid_request` key on purpose, and a client gets its per-field codes from
+ * `firstWelfareReportInputCode`, which scans the issues either way.
+ */
+export const welfareReportCommandInputSchema = z.union([
+  resolveLocation,
+  welfareReportFileInputSchema,
+]);
+
+export type WelfareReportCommandInput = z.infer<typeof welfareReportCommandInputSchema>;
+export type WelfareReportCommand = WelfareReportCommandInput["command"];
+export type WelfareReportInput = z.infer<typeof welfareReportFileInputSchema>;
 export type WelfareReportContactMode = WelfareReportInput["contactMode"];
 
 /**
@@ -358,6 +426,7 @@ export function firstWelfareReportInputCode(
     }
   }
   for (const issue of error.issues) {
+    if (issue.path[0] === "command") return "COMMAND_REQUIRED";
     if (
       issue.code === "invalid_union" ||
       issue.path.length === 0 ||

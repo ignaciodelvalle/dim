@@ -74,13 +74,14 @@ import { resolveRoutableJurisdiction } from "@/lib/infra/jurisdiction-from-text"
 import { RateLimitError, enforceRateLimit } from "@/lib/infra/rate-limit";
 import { reportError } from "@/lib/infra/report-error";
 import { computeFlagReasons } from "@/lib/infra/welfare-moderation";
+import { geocodeAddressPublicAction } from "@/src/modules/localities/application/geocoding/geocoding";
 import { createWelfareReport } from "@/src/modules/welfare/application/create-welfare-report";
 import { generateReferenceCode } from "@/src/modules/welfare/domain/reference-code";
 import { WELFARE_REPORT_KINDS } from "@/src/modules/welfare/domain/types";
 import { WelfareRepository } from "@/src/modules/welfare/infrastructure/welfare-repository";
-import type { WelfareReportInput } from "@dim/contract/input";
+import type { WelfareReportCommandInput, WelfareReportInput } from "@dim/contract/input";
 
-import { buildWelfareReportFiledAck } from "./payload";
+import { buildWelfareLocationResolvedAck, buildWelfareReportFiledAck } from "./payload";
 
 const UNAVAILABLE_RETRY_AFTER_SECONDS = 5;
 
@@ -111,10 +112,40 @@ const WELFARE_AUTH_USER_LIMIT = { maxPerHour: 10 } as const;
 
 export type WelfareReportCommandContext = {
   userId: string;
-  input: WelfareReportInput;
+  input: WelfareReportCommandInput;
 };
 
 const repo = new WelfareRepository();
+
+/**
+ * How many candidate points `resolve_location` hands back.
+ *
+ * The geocoder returns up to five; the web's field renders all of them in a
+ * list. This takes the same five rather than one, and the difference from the
+ * web is what happens with a SINGLE match: `LocationFields` auto-picks it and
+ * says "Ajustá el pin si no es el punto exacto" — an escape hatch that needs a
+ * map. With no map, auto-picking would be choosing a point on somebody's behalf
+ * and giving them no way to disagree, on a filing routed to an authority. So one
+ * match is still a list of one, and it is still tapped.
+ */
+const MAX_LOCATION_MATCHES = 5;
+
+/** Route the two commands. */
+export async function runWelfareReportCommand(ctx: WelfareReportCommandContext) {
+  if (ctx.input.command === "resolve_location") {
+    // NO `welfare_auth` HERE. That budget is ten denuncias an hour and this is
+    // not a denuncia — spending it on address lookups would let somebody who
+    // mistyped a street four times find themselves unable to REPORT. What bounds
+    // this command is the web's own `geocode_public` bucket (60/min + 400/hr per
+    // IP), spent inside `geocodeAddressPublicAction`, plus the route's per-IP
+    // bucket that already ran.
+    const matches = await geocodeAddressPublicAction(ctx.input.addressText);
+    return apiV1Json(buildWelfareLocationResolvedAck(matches.slice(0, MAX_LOCATION_MATCHES)), {
+      status: 200,
+    });
+  }
+  return fileWelfareReport(ctx.userId, ctx.input);
+}
 
 /**
  * File the denuncia.
@@ -125,10 +156,8 @@ const repo = new WelfareRepository();
  * of the last step leaves a `welfare_reports` row with no case, which is the
  * state the web already produces and which `/gob/denuncias` already handles.
  */
-export async function runWelfareReportCommand(ctx: WelfareReportCommandContext) {
-  const { input } = ctx;
-
-  if (!(await spendUserBudget(ctx.userId))) return apiV1Error("rate_limited", 429);
+async function fileWelfareReport(userId: string, input: WelfareReportInput) {
+  if (!(await spendUserBudget(userId))) return apiV1Error("rate_limited", 429);
 
   // THE RULE IS THE DOMAIN'S, and the schema's copy is the client's convenience.
   // `@dim/contract` may not import `@/src`, so the nine kinds exist in both
@@ -143,7 +172,7 @@ export async function runWelfareReportCommand(ctx: WelfareReportCommandContext) 
   // ANONYMOUS IS THE DEFAULT DIRECTION OF THIS TERNARY, and it reads off the
   // discriminator rather than off a flag. There is no branch below in which an
   // anonymous submission can pick up a user id.
-  const reporterUserId = input.contactMode === "anonymous" ? null : ctx.userId;
+  const reporterUserId = input.contactMode === "anonymous" ? null : userId;
   const reporterContactEmail =
     input.contactMode === "with_contact" ? input.reporterContactEmail : null;
   const reporterContactPhone =

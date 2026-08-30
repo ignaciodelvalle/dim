@@ -256,5 +256,8 @@ export {
 } from "./public-credential.ts";
 export {
   WELFARE_REPORT_PAYLOAD_VERSION,
+  type WelfareLocationMatchV1,
+  type WelfareLocationResolvedV1,
+  type WelfareReportCommandAckV1,
   type WelfareReportFiledV1,
 } from "./welfare-report.ts";

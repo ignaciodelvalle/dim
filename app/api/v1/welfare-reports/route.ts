@@ -110,7 +110,7 @@ import { type LiveUserFailureReason, requireLiveUser } from "@/lib/infra/live-us
 import { RateLimitError, callerIp, enforceRateLimit } from "@/lib/infra/rate-limit";
 import { reportError } from "@/lib/infra/report-error";
 import { createClientFromBearer } from "@/lib/supabase/bearer";
-import { welfareReportInputSchema } from "@dim/contract/input";
+import { welfareReportCommandInputSchema } from "@dim/contract/input";
 
 import { runWelfareReportCommand, unavailable } from "./commands";
 
@@ -174,7 +174,7 @@ export async function POST(request: Request) {
   // the wire: zod strips what the member does not declare, so a body pairing
   // `contactMode: "anonymous"` with an e-mail address arrives at `commands.ts`
   // with no e-mail address in it.
-  const parsed = welfareReportInputSchema.safeParse(body);
+  const parsed = welfareReportCommandInputSchema.safeParse(body);
   if (!parsed.success) return apiV1Error("invalid_request", 400);
 
   return runWelfareReportCommand({ userId: live.user.id, input: parsed.data });

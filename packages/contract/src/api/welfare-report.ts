@@ -75,6 +75,7 @@ export const WELFARE_REPORT_PAYLOAD_VERSION = 1;
  * turns this paragraph into a fence.
  */
 export type WelfareReportFiledV1 = {
+  command: "file";
   version: typeof WELFARE_REPORT_PAYLOAD_VERSION;
   /**
    * `DEN-XXXX-XXXX`. The receipt number — see the header for why handing it back
@@ -90,3 +91,59 @@ export type WelfareReportFiledV1 = {
    */
   followUpUrl: string;
 };
+
+/**
+ * One candidate point for a typed address.
+ *
+ * IT CARRIES THE COORDINATES, and a reader should be uncomfortable with that for
+ * exactly one beat before reading why. This is the geocoder's own answer to a
+ * string the caller just typed — the same array `geocodeAddressPublicAction`
+ * hands the web's anonymous address field, on the same bucket. Nothing about it
+ * is private to anybody: it is a public gazetteer's opinion about a street.
+ *
+ * `label` is the geocoder's `display_name`, rendered verbatim rather than
+ * re-composed from the parts. A client that rebuilt it from `province` and
+ * `locality` would show a different string from the one the web shows for the
+ * same match, and the whole point of confirming a point is that the words agree
+ * with what somebody is looking at.
+ *
+ * `province` and `locality` are NULLABLE and a client must not treat either as
+ * the jurisdiction. They are here to render — "¿es este?" — and the routing
+ * jurisdiction is re-derived server-side at `file` time through
+ * `resolveRoutableJurisdiction`, which is the only place that decides which
+ * authority sees a denuncia.
+ */
+export type WelfareLocationMatchV1 = {
+  label: string;
+  lat: number;
+  lng: number;
+  province: string | null;
+  locality: string | null;
+};
+
+/**
+ * The answer to `resolve_location`.
+ *
+ * AN EMPTY `matches` IS A NORMAL ANSWER AND NEVER AN ERROR, which is the rule
+ * `LocalitiesV1` already states for its own list and which matters more here:
+ * the geocoder's failure semantics are deliberately indistinguishable from "no
+ * such address" (`lib/infra/geocoding.ts` — a timeout and a miss come back the
+ * same way), and the shared `geocode_public` limiter answers `[]` on refusal
+ * rather than raising. So a client MUST NOT render "esa dirección no existe": it
+ * knows only that the server has no candidates right now, and the honest copy is
+ * "no pudimos encontrar esa dirección — probá escribirla de otra forma".
+ */
+export type WelfareLocationResolvedV1 = {
+  command: "resolve_location";
+  version: typeof WELFARE_REPORT_PAYLOAD_VERSION;
+  matches: WelfareLocationMatchV1[];
+};
+
+/**
+ * Either answer from `POST /api/v1/welfare-reports`.
+ *
+ * DISCRIMINATED ON `command` AND NOT ON THE SHAPE, so a client narrows on the
+ * thing it asked for rather than on the presence of a field. Same instrument as
+ * `PetClaimCommandAckV1`.
+ */
+export type WelfareReportCommandAckV1 = WelfareLocationResolvedV1 | WelfareReportFiledV1;
