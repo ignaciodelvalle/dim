@@ -25,14 +25,33 @@ import { readFileSync } from "node:fs";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const ME = "11111111-1111-4111-8111-111111111111";
+/** A second live account, used to prove the WHERE follows the SESSION. */
+const SOMEBODY_ELSE = "22222222-2222-4222-8222-222222222222";
 const ORG_ID = "33333333-3333-4333-8333-333333333333";
 
 const NOW = new Date("2026-08-29T15:00:00.000Z");
 
 const control = vi.hoisted(() => ({
+  /**
+   * What the liveness guard answers. `null` = a live session for `ME`.
+   *
+   * IT WAS DECLARED AND NEVER ASSIGNED until the authorization tests below
+   * landed, which is worse than not having it: scaffolding for a case nobody
+   * exercises advertises coverage that does not exist. It is now the instrument
+   * for two things — the five refusal reasons, and the proof that the read's
+   * WHERE is bound to whoever the guard says is calling.
+   */
   live: null as null | (() => unknown),
   /** Rows the stubbed drizzle chain resolves with. */
   rows: [] as Array<Record<string, unknown>>,
+  /** The predicate the use-case handed to `.where()`, uncompiled. */
+  wherePredicate: null as unknown,
+  /** Every join the use-case built, with the method it used to build it. */
+  joins: [] as Array<{ kind: "inner" | "left"; on: unknown }>,
+  /** Buckets that should answer 429 instead of proceeding. */
+  overLimit: new Set<string>(),
+  /** Every bucket a handler actually tried to spend, in order. */
+  spent: [] as string[],
   /** What the cancel writer answers. */
   cancelResult: { ok: true } as Record<string, unknown>,
   /** Every call the cancel writer received. */
@@ -50,7 +69,18 @@ vi.mock("@/lib/infra/live-user", async (importOriginal) => {
 
 vi.mock("@/lib/infra/rate-limit", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/lib/infra/rate-limit")>();
-  return { ...actual, enforceRateLimit: async () => {} };
+  return {
+    ...actual,
+    // RECORDS THE BUCKET AND CAN REFUSE ONE. The old stub swallowed every call,
+    // which made the four gates unfalsifiable: no test could tell a handler that
+    // spends its budgets from one that never calls the limiter at all.
+    enforceRateLimit: async (endpoint: string) => {
+      control.spent.push(endpoint);
+      if (control.overLimit.has(endpoint)) {
+        throw new actual.RateLimitError(new Date(), endpoint);
+      }
+    },
+  };
 });
 
 vi.mock("@/lib/supabase/bearer", async (importOriginal) => {
@@ -71,12 +101,31 @@ vi.mock("@/lib/supabase/bearer", async (importOriginal) => {
 // `Promise.resolve(chain)` somewhere in the stack — and naming the terminal call
 // is better documentation anyway: change the query's shape and this stub stops
 // resolving, loudly, instead of quietly answering the old rows.
+//
+// THE JOINS AND THE WHERE ARE CAPTURED, NOT SWALLOWED, and that is the whole
+// repair this stub needed. It used to read `self.where = async () => rows`,
+// which discards the predicate — so `.where(eq(appointments.ownerUserId, …))`
+// had ZERO coverage and a reviewer's mutation of it to a tautology left the file
+// 21/21 green with three authorization tests still passing. A stub that ignores
+// the argument does not merely fail to test it; it makes the whole file assert
+// that the argument does not matter.
 const chain: Record<string, unknown> = vi.hoisted(() => {
   const self: Record<string, unknown> = {};
-  for (const method of ["select", "from", "innerJoin", "leftJoin", "orderBy", "limit"]) {
+  for (const method of ["select", "from", "orderBy", "limit"]) {
     self[method] = () => self;
   }
-  self.where = async () => control.rows;
+  self.innerJoin = (_table: unknown, on: unknown) => {
+    control.joins.push({ kind: "inner", on });
+    return self;
+  };
+  self.leftJoin = (_table: unknown, on: unknown) => {
+    control.joins.push({ kind: "left", on });
+    return self;
+  };
+  self.where = async (predicate: unknown) => {
+    control.wherePredicate = predicate;
+    return control.rows;
+  };
   return self;
 });
 
@@ -97,9 +146,26 @@ vi.mock("@/src/modules/events/application/booking/cancel-appointment-by-owner", 
   },
 }));
 
+import type { SQL } from "drizzle-orm";
+import { PgDialect } from "drizzle-orm/pg-core";
+
 import { APPOINTMENT_REFUSAL_RULES } from "@/app/api/v1/me/appointments/commands";
 import { GET, POST } from "@/app/api/v1/me/appointments/route";
 import type { MyAppointmentV1, MyAppointmentsV1 } from "@dim/contract/api";
+
+/**
+ * Compiles a captured drizzle fragment to the SQL text and bound params Postgres
+ * would actually receive.
+ *
+ * THIS IS WHAT MAKES A PREDICATE TESTABLE WITHOUT A DATABASE. The alternative
+ * available to a stubbed driver is reading the use-case's source for a substring,
+ * which is what the Art. 16 join had and which cannot fail for a predicate that
+ * is still WRITTEN and no longer BINDS — `or(isNull(pets.deletedAt), sql`true`)`
+ * contains the substring. Compiling answers the only question worth asking: what
+ * does the database get?
+ */
+const dialect = new PgDialect();
+const compile = (fragment: unknown) => dialect.sqlToQuery(fragment as SQL);
 
 /** Minutes either side of the frozen `now`, as a Date. */
 const at = (minutes: number) => new Date(NOW.getTime() + minutes * 60_000);
@@ -145,11 +211,20 @@ async function payloadOf(response: Response): Promise<MyAppointmentsV1> {
   return (await response.json()) as MyAppointmentsV1;
 }
 
+/** Make the liveness guard answer a live session for `userId`. */
+function liveAs(userId: string) {
+  control.live = () => ({ ok: true, supabase: {}, user: { id: userId }, profile: null });
+}
+
 beforeEach(() => {
   vi.useFakeTimers();
   vi.setSystemTime(NOW);
   control.live = null;
   control.rows = [];
+  control.wherePredicate = null;
+  control.joins = [];
+  control.overLimit = new Set();
+  control.spent = [];
   control.cancelResult = { ok: true };
   control.cancelCalls = [];
 });
@@ -327,21 +402,206 @@ describe("GET — what each row carries", () => {
   });
 });
 
-describe("the Art. 16 join — an erased animal's turno is not a third party's to read", () => {
-  it("joins pets on `deleted_at IS NULL`, which a stubbed driver cannot prove", () => {
-    // AN ANCHOR OVER ONE LINE, and it is labelled as one rather than dressed up
-    // as a behavioural test: the predicate is SQL, the driver here is a stub, and
-    // proving it needs a live database — which is the integration suite's job.
-    // What this catches is the edit that deletes the guard, which is the way it
-    // would actually be lost. `bookSlotAction` accepts any active ownership role,
-    // so a foster holds appointments that OUTLIVE the owner's erasure; without
-    // this predicate an erased animal surfaces to a live third party.
+describe("the authorization predicate — whose turnos the query asks for", () => {
+  // WHY THIS BLOCK EXISTS, WRITTEN OUT BECAUSE IT IS THE EXPENSIVE LESSON.
+  //
+  // `listAppointmentsForUser` ends in `.where(eq(appointments.ownerUserId,
+  // args.userId))`. That single line is the ONLY thing standing between one
+  // citizen and every other citizen's veterinary appointments — there is no RLS
+  // fallback on this path (the read runs on the service-role `db` handle) and no
+  // pet-access guard above it (`commands.ts` explains, correctly, why there must
+  // not be one). It is the whole authorization boundary of this endpoint.
+  //
+  // It had ZERO coverage. A reviewer mutated it to a tautology returning every
+  // user's rows and the file stayed 21/21 green, with three tests that read like
+  // authorization fences passing throughout. The cause was not a missing test —
+  // it was the stub: `self.where = async () => control.rows` discards its
+  // argument, so every assertion in this file was made against rows the
+  // predicate had no say over. A stub that ignores an argument silently asserts
+  // that the argument does not matter.
+  //
+  // WHAT THESE TESTS DO INSTEAD is compile the fragment the use-case handed to
+  // drizzle and read the SQL and the bound parameters. That is not a live
+  // database and it is not claimed to be one: it proves what Postgres is ASKED,
+  // not what Postgres answers. The integration suite owns the second half. But
+  // "what is it asked" is exactly the half a tautology breaks.
+
+  it("binds the WHERE to the SESSION's user id and follows it when the session changes", async () => {
+    // THE BEHAVIOURAL ONE, and the one a text assertion cannot fake. Two live
+    // sessions, two reads, and the parameter the database is handed has to be
+    // the id the liveness guard just returned — not a constant, not a value
+    // from the request, and not nothing at all.
+    liveAs(SOMEBODY_ELSE);
+    await get();
+    expect(compile(control.wherePredicate).params).toEqual([SOMEBODY_ELSE]);
+
+    liveAs(ME);
+    await get();
+    expect(compile(control.wherePredicate).params).toEqual([ME]);
+  });
+
+  it("asks for exactly one condition — the appointment's own owner_user_id", async () => {
+    await get();
+    const { sql, params } = compile(control.wherePredicate);
+
+    // AN EXACT MATCH ON PURPOSE, and the exactness is the assertion. A
+    // `toContain("owner_user_id")` passes for `or(eq(ownerUserId, me), sql`true`)`
+    // — the predicate is still written, still mentions the column, and still
+    // returns every row in the table. Any edit to an authorization boundary has
+    // to be deliberate enough to come here and change this string.
+    expect(sql).toBe('"appointments"."owner_user_id" = $1');
+    // And the parameter is BOUND rather than interpolated: a comparison with no
+    // params is a column compared against a column, which is the other tautology.
+    expect(params).toEqual([ME]);
+  });
+
+  it("keeps the Art. 16 join on pets an INNER join whose ON clause still binds", async () => {
+    // THIS TEST REPLACES A SOURCE-TEXT ANCHOR, and the replacement is the point:
+    // the old one read the use-case's own file for `isNull(pets.deletedAt)`. That
+    // catches the edit that DELETES the guard and nothing else — it passes for
+    // `or(isNull(pets.deletedAt), sql`true`)`, which keeps the substring and
+    // stops filtering. Same hole as the WHERE above, one line higher up.
+    //
+    // WHY THE GUARD MATTERS: `bookSlotAction` accepts any active ownership role,
+    // so a foster or a co-owner books with their own id on the appointment. The
+    // erasure RPC soft-deletes the `role='owner'` pet and leaves that ownership —
+    // and this appointment — standing. Without the predicate an erased animal
+    // surfaces to a live third party.
+    await get();
+
+    const petsJoin = control.joins.find((j) => compile(j.on).sql.includes('"pets"."id"'));
+    // Non-vacuity: a join that stopped being built at all would make every
+    // assertion below run over `undefined` and read like a clean pass.
+    expect(petsJoin).toBeDefined();
+
+    // INNER AND NOT LEFT, which is half the guard. Demoting it to a LEFT join
+    // keeps the ON clause word-for-word and stops it excluding anything: the
+    // appointment row survives with every pet column null, and the payload
+    // publishes a turno whose animal was erased.
+    expect(petsJoin?.kind).toBe("inner");
+    expect(compile(petsJoin?.on).sql).toBe(
+      '("pets"."id" = "appointments"."pet_id" and "pets"."deleted_at" is null)',
+    );
+  });
+
+  it("still reads the use-case's source, as a second and weaker witness", () => {
+    // KEPT, DEMOTED, AND LABELLED. The compiled assertions above are strictly
+    // stronger, so this one earns its place only by failing DIFFERENTLY: it holds
+    // when the query is restructured in a way that keeps the compiled SQL
+    // identical but moves the guard somewhere a reader would not look for it.
+    // It is a second witness, not the fence — and saying so is the difference
+    // between documentation and an overclaim.
     const source = readFileSync(
       "src/modules/events/application/booking/list-appointments-for-user.ts",
       "utf8",
     );
     expect(source).toContain("isNull(pets.deletedAt)");
     expect(source).toMatch(/innerJoin\(\s*pets,\s*and\(/);
+  });
+});
+
+describe("POST — the cancel acts as the SESSION and never as the body", () => {
+  it("hands the writer the id the liveness guard returned, for two different sessions", async () => {
+    // THE WRITE'S HALF OF THE SAME QUESTION. The read's boundary is a WHERE; the
+    // write's is the second argument to `cancelAppointmentByOwner`, which is
+    // where that use-case matches `appointments.owner_user_id`. Both have to
+    // follow the session, and both are worth proving with two of them rather
+    // than one — an assertion against a single id also passes for a constant.
+    liveAs(SOMEBODY_ELSE);
+    await post({ command: "cancel", appointmentToken: "APT-A", ownerUserId: ME });
+    liveAs(ME);
+    await post({ command: "cancel", appointmentToken: "APT-B", ownerUserId: SOMEBODY_ELSE });
+
+    expect(control.cancelCalls).toEqual([
+      { token: "APT-A", userId: SOMEBODY_ELSE },
+      { token: "APT-B", userId: ME },
+    ]);
+  });
+});
+
+describe("the liveness guard's five refusals, on both methods", () => {
+  // THE SCAFFOLDING THAT WAS BUILT AND NEVER USED. `control.live` existed from
+  // the first commit and no test ever assigned it, so `liveUserRefusal` — five
+  // arms mapping a refusal reason to a status — shipped with none of them
+  // exercised. Four of the five are the difference between a client that
+  // re-authenticates and a client that shows the wrong sentence forever; the
+  // fifth (MAINTENANCE) is the only one that must NOT be a 4xx at all.
+  const cases: Array<[string, number, string]> = [
+    ["NO_SESSION", 401, "auth_expired"],
+    ["ACCOUNT_ERASED", 403, "account_erased"],
+    ["DEACTIVATED", 403, "account_deactivated"],
+    ["SHIFT_EXPIRED", 401, "session_shift_expired"],
+    ["MAINTENANCE", 503, "temporarily_unavailable"],
+  ];
+
+  for (const [reason, status, code] of cases) {
+    it(`answers ${code} for ${reason} on GET and on POST`, async () => {
+      control.live = () => ({ ok: false, reason });
+
+      const read = await get();
+      expect(read.status).toBe(status);
+      expect(await read.json()).toEqual({ error: code });
+
+      const write = await post({ command: "cancel", appointmentToken: "APT-7K2M-9QX4" });
+      expect(write.status).toBe(status);
+      expect(await write.json()).toEqual({ error: code });
+
+      // AND NEITHER SIDE-EFFECT RAN. A refusal that still queried, or still
+      // cancelled, would be a 403 wrapped around a completed action.
+      expect(control.wherePredicate).toBe(null);
+      expect(control.cancelCalls).toEqual([]);
+    });
+  }
+});
+
+describe("the four rate-limit gates — each one refuses on its own", () => {
+  // NONE OF THE FOUR WAS TESTED. The limiter was stubbed to a no-op, so the only
+  // thing the file knew about the gates was that they did not throw. Four
+  // buckets, two per method, and the pair on each method fires at a DIFFERENT
+  // point: the per-IP one before the GoTrue round-trip, the per-user one after
+  // it. A test per bucket is what keeps that ordering honest.
+  const gates: Array<[string, "GET" | "POST", boolean]> = [
+    ["api_v1_me_appointments_read_ip", "GET", false],
+    ["api_v1_me_appointments_read_user", "GET", true],
+    ["api_v1_me_appointments_write_ip", "POST", false],
+    ["api_v1_me_appointments_write_user", "POST", true],
+  ];
+
+  for (const [bucket, method, afterAuth] of gates) {
+    it(`answers 429 when ${bucket} is spent`, async () => {
+      control.overLimit = new Set([bucket]);
+
+      const response =
+        method === "GET" ? await get() : await post({ command: "cancel", appointmentToken: "APT" });
+
+      expect(response.status).toBe(429);
+      expect(await response.json()).toEqual({ error: "rate_limited" });
+      // The bucket that refused is the LAST one spent: a gate that let control
+      // through to the next budget is a gate that did not bind.
+      expect(control.spent.at(-1)).toBe(bucket);
+      // The per-IP gate runs BEFORE `requireLiveUser`, so it refuses without a
+      // GoTrue round-trip; the per-user gate necessarily runs after one. That
+      // ordering is what the IP bucket exists for and it is asserted rather
+      // than assumed.
+      expect(control.spent.length).toBe(afterAuth ? 2 : 1);
+      // Refused means refused: neither the read nor the writer ran.
+      expect(control.wherePredicate).toBe(null);
+      expect(control.cancelCalls).toEqual([]);
+    });
+  }
+
+  it("spends both budgets and proceeds when neither is over", async () => {
+    // NON-VACUITY for the four above: without this, a stub that threw on every
+    // bucket would satisfy all of them and the suite would be asserting that the
+    // endpoint always refuses.
+    control.rows = [row()];
+    const response = await get();
+
+    expect(response.status).toBe(200);
+    expect(control.spent).toEqual([
+      "api_v1_me_appointments_read_ip",
+      "api_v1_me_appointments_read_user",
+    ]);
   });
 });
 
