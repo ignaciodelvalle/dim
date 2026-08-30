@@ -11,11 +11,10 @@
 
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const createNotificationsBulk = vi.fn(async () => ({
-  insertedCount: 0,
-  duplicateCount: 0,
-  deadLetteredCount: 0,
-}));
+type BulkResult = { insertedCount: number; duplicateCount: number; deadLetteredCount: number };
+const createNotificationsBulk = vi.fn<
+  (rows: ReadonlyArray<Record<string, unknown>>) => Promise<BulkResult>
+>(async () => ({ insertedCount: 0, duplicateCount: 0, deadLetteredCount: 0 }));
 
 vi.mock("@/lib/infra/notification-service", () => ({
   createNotificationsBulk: (...args: unknown[]) =>
@@ -43,8 +42,7 @@ function row(overrides: Partial<NewNotification> = {}): NewNotification {
 
 /** The single argument the service was handed, as rows. */
 function sentRows(): ReadonlyArray<Record<string, unknown>> {
-  const call = createNotificationsBulk.mock.calls.at(-1);
-  return (call?.[0] ?? []) as ReadonlyArray<Record<string, unknown>>;
+  return createNotificationsBulk.mock.calls.at(-1)?.[0] ?? [];
 }
 
 describe("flushAdoptionNotifications", () => {

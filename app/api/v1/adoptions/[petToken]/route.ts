@@ -27,12 +27,14 @@
 // catalogue, because scrolling a list and tapping a card is one act on one
 // public catalogue.
 //
-// POST gets its OWN family. `authenticated-write`'s ceiling is derived from
-// what it costs to hand somebody an animal — "one person editing their own
-// records" — and this write is not that: it lands a free-text letter about a
-// stranger in a shelter's review queue and fans out to up to 25 of its members.
-// The derivation, and why the abuse it bounds is BREADTH rather than hammering,
-// is in `src/modules/adoption/application/adoption-application-limits.ts`.
+// POST gets its OWN family, `adoption-application`. `authenticated-write`'s
+// ceiling is derived from what it costs to hand somebody an animal — "one person
+// editing their own records" — and this write is not that: it lands a free-text
+// letter about a stranger in a shelter's review queue and fans out to up to 25
+// of its members. The per-IP half is derived in `lib/infra/api-v1-limits.ts`
+// with every other bucket on this surface; the per-USER anchor it is 12× of, and
+// why the abuse it bounds is BREADTH rather than hammering, is in
+// `src/modules/adoption/application/adoption-application-limits.ts`.
 //
 // THE PER-USER BUDGET IS NOT SPENT HERE, deliberately: it lives inside
 // `submitAdoptionApplication` so the web form and this endpoint spend ONE
@@ -49,13 +51,15 @@ import { adoptionApplicationInputSchema } from "@dim/contract/input";
 
 import { db } from "@/db";
 import { apiV1Envelope, apiV1Error, apiV1Json } from "@/lib/infra/api-v1";
-import { API_V1_AUTHENTICATED_READ_IP_LIMIT } from "@/lib/infra/api-v1-limits";
+import {
+  API_V1_ADOPTION_APPLICATION_IP_LIMIT,
+  API_V1_AUTHENTICATED_READ_IP_LIMIT,
+} from "@/lib/infra/api-v1-limits";
 import { DbBudgetExceededError, withDbBudgetOrThrow } from "@/lib/infra/db-budget";
 import { type LiveUserFailureReason, requireLiveUser } from "@/lib/infra/live-user";
 import { RateLimitError, callerIp, enforceRateLimit } from "@/lib/infra/rate-limit";
 import { reportError } from "@/lib/infra/report-error";
 import { createClientFromBearer } from "@/lib/supabase/bearer";
-import { API_V1_ADOPTION_APPLICATION_IP_LIMIT } from "@/src/modules/adoption/application/adoption-application-limits";
 import {
   buildAdoptionDetailClosed,
   buildAdoptionDetailListed,

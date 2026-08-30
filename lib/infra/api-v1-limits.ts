@@ -809,6 +809,45 @@ export const API_V1_MEDIA_UPLOAD_USER_LIMIT: RateLimitConfig = {
 };
 
 /**
+ * Adoption applications, per IP. `POST /api/v1/adoptions/{petToken}` only —
+ * 12× its per-user anchor, flat on both windows.
+ *
+ * ITS OWN FAMILY, AND THE FIRST ONE ON THIS SURFACE WHOSE ACT WRITES INTO
+ * SOMEBODY ELSE'S QUEUE. Every other write here touches the caller's own
+ * records: their animal's identity, their inbox, their session list, their
+ * account. One submission appends to the spine, opens or joins a case, fans out
+ * up to 25 notification rows to a shelter's staff, and lands a hand-written
+ * letter about a stranger in a review queue a person has to read. The abuse it
+ * is sized against is not hammering — a duplicate application for the same
+ * animal is refused outright — it is BREADTH: one account applying to every
+ * listed animal in the country, which spends the one resource this product
+ * cannot give a shelter back.
+ *
+ * THE PER-USER HALF IS NOT HERE, deliberately, and this is the shape
+ * `API_V1_ACCOUNT_SECURITY_IP_LIMIT` already uses: it lives beside its use-case
+ * in `src/modules/adoption/application/adoption-application-limits.ts`
+ * (`ADOPTION_APPLICATION_USER_LIMIT`, 5/min · 15/hr · 30/day) so the web form and
+ * the bearer door spend ONE counter. The whole three-window derivation, and why
+ * the DAY window is the binding one, is written out there and is not repeated
+ * here.
+ *
+ * FLAT 12× ON BOTH WINDOWS, like `API_V1_ACCOUNT_SECURITY_IP_LIMIT` and
+ * `API_V1_INBOX_STATE_IP_LIMIT` and unlike the generic write family: the
+ * per-user pair (5/min, 15/hr) is already proportionate, so multiplying both by
+ * `API_V1_SIMULTANEOUS_CALLERS` preserves its shape instead of propagating a
+ * deliberate narrowing upward.
+ *
+ * WHAT IT GIVES UP, stated as every sibling states it: the IP bucket runs BEFORE
+ * the liveness guard, so 60/min is 60 GoTrue round-trips a minute that a caller
+ * holding a well-formed but invalid token can force from one address. That is
+ * the lowest exposure of any bucket on this surface, which is where it belongs.
+ */
+export const API_V1_ADOPTION_APPLICATION_IP_LIMIT: RateLimitConfig = {
+  maxPerMinute: 60,
+  maxPerHour: 180,
+};
+
+/**
  * Which family each per-IP bucket on `/api/v1` belongs to.
  *
  * THIS IS THE FENCE, and it is the reason the prose list in the header is safe
@@ -836,6 +875,7 @@ export type ApiV1IpFamily =
   | "pet-record-write"
   | "pet-registration"
   | "media-upload"
+  | "adoption-application"
   | "route-local";
 
 /**
@@ -863,6 +903,7 @@ export const API_V1_IP_FAMILIES = [
   "pet-record-write",
   "pet-registration",
   "media-upload",
+  "adoption-application",
   "route-local",
 ] as const satisfies readonly ApiV1IpFamily[];
 
@@ -1013,6 +1054,34 @@ export const API_V1_IP_BUCKET_FAMILIES: Readonly<Record<string, ApiV1IpFamily>> 
   // own on purpose — the use-cases already hold one, and it is the budget the
   // WEB's own wizard spends.
   api_v1_me_pet_claims_ip: "authenticated-write",
+
+  // Landed with the native adopción doors (WU-U): the catalogue and the ficha
+  // (`adoptions`, `adoptions/{petToken}`) share ONE read bucket, "mis
+  // postulaciones" (`me/adoption-applications`) has its own, and the apply is
+  // the only bucket on this surface that is neither a read nor an ordinary
+  // authenticated write.
+  //
+  // ONE BUCKET FOR TWO READ ROUTES, which no other pair here does. It is
+  // deliberate and it is the catalogue's own shape: opening the ficha of an
+  // animal is what a person does FROM the catalogue, dozens of times in one
+  // browsing session, and the two calls are one act of reading. Splitting them
+  // would give a browser two budgets for one behaviour and tell a reader that
+  // the list and the detail are bounded independently, which they are not.
+  //
+  // THE APPLY IS `adoption-application`, its own family, and the derivation is
+  // in `API_V1_ADOPTION_APPLICATION_IP_LIMIT` above. The short version of why no
+  // existing family fits: every other write on this surface acts on the caller's
+  // OWN records, and this one lands a letter in a shelter's review queue.
+  //
+  // THESE THREE WERE THE FIRST LANE'S BLOCKER, and the shape of the miss is
+  // worth one line because it is the shape this file keeps being bitten by. The
+  // routes shipped spending three `api_v1_*` buckets that were never added here,
+  // so `__tests__/api-v1-rate-limit-families.test.ts` was 2-red AND the CGNAT
+  // aggregate — a `reduce` over this map — under-declared itself by 1.260/min
+  // while reading like a computed figure.
+  api_v1_adoptions_read_ip: "authenticated-read",
+  api_v1_me_adoption_applications_ip: "authenticated-read",
+  api_v1_adoption_apply_ip: "adoption-application",
 };
 
 /**
@@ -1057,6 +1126,8 @@ export const API_V1_CGNAT_FAMILY_IP_CEILING_PER_MINUTE: number = Object.values(
       return total + (API_V1_PET_REGISTRATION_IP_LIMIT.maxPerMinute ?? 0);
     case "media-upload":
       return total + (API_V1_MEDIA_UPLOAD_IP_LIMIT.maxPerMinute ?? 0);
+    case "adoption-application":
+      return total + (API_V1_ADOPTION_APPLICATION_IP_LIMIT.maxPerMinute ?? 0);
     case "route-local":
       // Unreachable while the map has no `route-local` entry, and the fence
       // asserts it has none. Kept as a case rather than folded into the default

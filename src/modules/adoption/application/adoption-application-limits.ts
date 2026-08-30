@@ -84,48 +84,29 @@
 // surface, which is where it belongs.
 //
 // ===========================================================================
-// WHERE THE PER-IP HALF BELONGS, AND WHY IT IS TEMPORARILY HERE
+// WHERE THE PER-IP HALF LIVES
 // ===========================================================================
-// `API_V1_ADOPTION_APPLICATION_IP_LIMIT` BELONGS IN `lib/infra/api-v1-limits.ts`
-// AND IS NOT THERE. That file is another worktree lane's territory in this
-// window (declaring its own buckets is that lane's blocking task), and editing
-// it from here would collide on the one file the whole `/api/v1` surface shares.
-// So the constant is defined beside its use-case with the derivation above, and
-// the move is a hand-off rather than a decision left open.
+// NOT HERE. `API_V1_ADOPTION_APPLICATION_IP_LIMIT` is in
+// `lib/infra/api-v1-limits.ts`, with every other per-IP bucket on the `/api/v1`
+// surface, under its own family `adoption-application`. This file keeps the
+// PER-USER anchor above, which is the half that actually bounds a person and the
+// half both doors share.
 //
-// `__tests__/api-v1-rate-limit-families.test.ts` IS RED UNTIL THAT MOVE HAPPENS,
-// deliberately and with a green build: the fence collects every `api_v1_*`
-// bucket a route spends on `callerIp(` and requires each to be declared in
-// `API_V1_IP_BUCKET_FAMILIES`. The three this lane adds are not, because that
-// map is in the file above. The exact hand-off is written in the lane's summary
-// and repeated here so it survives the summary:
+// IT WAS BRIEFLY HERE AND THAT COST THIS WORK A REJECTION, so the reason it can
+// never come back is written down rather than assumed. A route that owns its own
+// ceiling literal resolves to the family `route-local`, and
+// `__tests__/api-v1-rate-limit-families.test.ts` keeps that family EMPTY on
+// purpose — it is what a bucket lands in when nobody derived it, and the fence
+// exists so a `pre-cgnat`-shaped pile can never form again. Worse than the red
+// itself: the CGNAT aggregate `API_V1_CGNAT_FAMILY_IP_CEILING_PER_MINUTE` is a
+// `reduce` over `API_V1_IP_BUCKET_FAMILIES`, so three buckets missing from that
+// map made the ceiling a single address may spend under-declare itself by
+// 1.260/min while still reading like a computed figure.
 //
-//   1. MOVE `API_V1_ADOPTION_APPLICATION_IP_LIMIT` below into
-//      `lib/infra/api-v1-limits.ts` verbatim, with a docblock pointing back
-//      here for the per-user anchor (the shape
-//      `API_V1_ACCOUNT_SECURITY_IP_LIMIT` already uses for `revoke-sessions`).
-//   2. ADD `"adoption-application"` to `ApiV1IpFamily` and to
-//      `API_V1_IP_FAMILIES`.
-//   3. ADD three entries to `API_V1_IP_BUCKET_FAMILIES`:
-//        api_v1_adoptions_read_ip:            "authenticated-read"
-//        api_v1_adoption_apply_ip:            "adoption-application"
-//        api_v1_me_adoption_applications_ip:  "authenticated-read"
-//   4. In `__tests__/api-v1-rate-limit-families.test.ts`: add
-//      `API_V1_ADOPTION_APPLICATION_IP_LIMIT: "adoption-application"` to
-//      `FAMILY_OF_SHARED_CEILING`, add `"adoption-application"` to
-//      `WRITE_FAMILIES`, and move the aggregate pin from 10.224 to 11.484
-//      (+600 catalogue/ficha read, +600 mis-postulaciones read, +60 apply).
-//   5. Raise `MIN_V1_ROUTE_FILES` in `scripts/check-api-v1-envelope.ts` by the
-//      number of route files that landed — this lane adds three, and its own
-//      raise is in the same commit as the routes.
-//
-// Until step 1, the ROUTE spends this constant and `familyFromCeiling` resolves
-// it to `route-local`. That is the honest reading — the route does own its own
-// number today — and it is exactly what the fence is built to refuse. Naming the
-// bucket something other than `api_v1_*` to slip past the collector was
-// considered and rejected: it would make the fence quiet about a real gap, which
-// is the failure `public-token-throttle.ts` records and this repo keeps paying
-// for.
+// The 12× relationship between the two halves is asserted in
+// `adoption-application-limits.test.ts` across the module boundary, so raising
+// the per-USER ceiling still cannot carry a silent twelvefold raise on the
+// per-IP one.
 
 import type { RateLimitConfig } from "@/lib/infra/rate-limit";
 
@@ -154,22 +135,10 @@ export const ADOPTION_APPLICATION_USER_LIMIT: RateLimitConfig = {
 };
 
 /**
- * Per IP — 12× the per-user anchor, flat on both windows.
- *
- * TEMPORARILY IN THIS FILE. Its home is `lib/infra/api-v1-limits.ts`; see the
- * five-step hand-off in the header for why it is not there yet and exactly what
- * moving it requires.
- */
-export const API_V1_ADOPTION_APPLICATION_IP_LIMIT: RateLimitConfig = {
-  maxPerMinute: 60,
-  maxPerHour: 180,
-};
-
-/**
- * The multiple the ceiling above is derived from — the same twelve
+ * The multiple the per-IP ceiling is derived from — the same twelve
  * `API_V1_SIMULTANEOUS_CALLERS` names, restated here rather than imported so
- * that this file's arithmetic is readable on its own and so that moving the
- * constant to `api-v1-limits.ts` is a copy rather than an untangling.
+ * that this file's arithmetic is readable on its own even though the ceiling it
+ * produces now lives in `lib/infra/api-v1-limits.ts`.
  *
  * `adoption-application-limits.test.ts` asserts the relationship rather than the
  * digits: a per-USER raise must not silently carry a twelvefold per-IP raise

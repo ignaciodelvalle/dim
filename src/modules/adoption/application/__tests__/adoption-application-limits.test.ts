@@ -10,6 +10,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  API_V1_ADOPTION_APPLICATION_IP_LIMIT,
   API_V1_MEDIA_UPLOAD_USER_LIMIT,
   API_V1_PET_RECORD_WRITE_USER_LIMIT,
 } from "@/lib/infra/api-v1-limits";
@@ -17,11 +18,17 @@ import {
 import {
   ADOPTION_APPLICATION_SIMULTANEOUS_CALLERS,
   ADOPTION_APPLICATION_USER_LIMIT,
-  API_V1_ADOPTION_APPLICATION_IP_LIMIT,
 } from "../adoption-application-limits";
 
 describe("the adoption-application ceilings", () => {
   it("keeps the per-IP ceiling at N simultaneous callers on BOTH windows", () => {
+    // ACROSS A MODULE BOUNDARY, on purpose. The per-IP half lives in
+    // `lib/infra/api-v1-limits.ts` (it is a fact about the `/api/v1` surface and
+    // its family map) and the per-USER anchor lives beside its use-case (it is a
+    // fact about the act, and the web form spends it too). The relationship
+    // between them is what nobody may break silently, so the assertion reaches
+    // across rather than either half being restated on the other side.
+    //
     // FLAT on both, like `API_V1_ACCOUNT_SECURITY_IP_LIMIT` and
     // `API_V1_INBOX_STATE_IP_LIMIT` and unlike the authenticated-write family's
     // split multiple: this per-user pair is already proportionate, so 12× on
