@@ -144,6 +144,22 @@ export default function RootLayout() {
             "editar" — a lowercase English-looking verb in a Spanish stack. The
             screen carries two forms under one act, and the header says the act. */}
         <Stack.Screen name="mascotas/[publicToken]/editar" options={{ title: "Editar" }} />
+        {/* Registered BY THE INTEGRATOR at the 2026-08-30 merge, not by the lane
+            that shipped the screen: this file was a parallel lane's territory in
+            that window, and the lane that owned it did not land. The gap is the
+            one WU-S recorded for both `turnos` routes and that `cuidado/
+            [grantToken]` has carried longer — an unregistered route takes its
+            header from the path segment, so this one read "reclamar", lowercase,
+            over a screen whose own title is capitalised.
+
+            The wording was NOT invented here, which is why an integrator could
+            close it at all: "Reclamar una mascota" is already the string the
+            screen's own <Title> uses in its entry state AND the web's <h1> on
+            `/mis-mascotas/reclamar`. Naming the act rather than the step matters
+            more here than on most of these, because this screen's title changes
+            under it three times — the lookup question, then the animal's name —
+            and a header that tracked it would rename the page mid-flow. */}
+        <Stack.Screen name="reclamar" options={{ title: "Reclamar una mascota" }} />
       </Stack>
     </SafeAreaProvider>
   );
