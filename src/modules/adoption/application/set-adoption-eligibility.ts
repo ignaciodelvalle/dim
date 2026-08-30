@@ -43,7 +43,17 @@ export type NewNotification = {
   notificationType: string;
   title: string;
   body: string;
-  severity: "info" | "success" | "warning" | "error";
+  /**
+   * THE FOUR MEMBERS `notification_severity` ACTUALLY HAS. This union used to
+   * carry a fifth, `"error"`, which the pgEnum in `db/schema.ts` does not: a row
+   * built with it would have been rejected by Postgres at INSERT time, and the
+   * raw insert this module used to flush through swallowed the rejection in a
+   * `catch` that only logged. Nothing in the module ever produced one — the three
+   * values in use are `info`, `success` and `warning` — so narrowing it is a
+   * type error nobody can hit rather than a behaviour change, and it is what lets
+   * the fan-out hand these rows to `notification-service.ts` without a cast.
+   */
+  severity: "info" | "success" | "warning" | "urgent";
   // Tab filter category for /notificaciones. Adoption-module notifications set
   // "adoption" so they surface in the adoption tab (the page groups by this
   // column; a null category is counted in "all" only and never in a tab).

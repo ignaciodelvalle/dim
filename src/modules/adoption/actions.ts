@@ -14,7 +14,7 @@
 // dep into use-cases; db.insert for notifications is the sole direct db call).
 
 import { randomUUID } from "node:crypto";
-import { db } from "@/db";
+import { db, notifications } from "@/db";
 import { resolveOptionalLiveUser } from "@/lib/infra/live-user";
 import { RateLimitError, enforceRateLimit } from "@/lib/infra/rate-limit";
 import { uploadAttachmentIfPresent } from "@/lib/infra/uploads";
@@ -36,26 +36,30 @@ import { setAdoptionListingStatus } from "./application/set-adoption-listing-sta
 import { submitAdoptionApplication } from "./application/submit-adoption-application";
 import { updateAdoptionListingContent } from "./application/update-adoption-listing-content";
 import { withdrawAdoptionApplication } from "./application/withdraw-adoption-application";
+import { AdoptionRepository } from "./infrastructure/adoption-repository";
+
+import type { NewNotification } from "./application/set-adoption-eligibility";
 import { ADOPTER_DNI_CHECK_LIMITS } from "./domain/dni-check-policy";
 import type { AgeBucket, EnergyLevel, IneligibleReason, SizeEstimate } from "./domain/types";
-import { AdoptionRepository } from "./infrastructure/adoption-repository";
-import { flushAdoptionNotifications } from "./infrastructure/notification-flush";
 
 // ---------------------------------------------------------------------------
 // Shared helpers
 // ---------------------------------------------------------------------------
 
-/**
- * Flush notifications post-tx, best-effort. Never throws.
- *
- * THE BODY LEFT THIS FILE (WU-U, 2026-08-30) and lives in
- * `infrastructure/notification-flush.ts`, because `POST /api/v1/adoptions/
- * {petToken}` fans out the same rows and this is a `"use server"` module —
- * every export of one is an independently addressable server action, so it
- * could not be exported from here. The alias keeps the four call sites below
- * unchanged.
- */
-const flushNotifications = flushAdoptionNotifications;
+/** Flush notifications post-tx, best-effort. Never throws. */
+async function flushNotifications(pending: NewNotification[]): Promise<void> {
+  if (pending.length === 0) return;
+  try {
+    // Cast through unknown to bridge NewNotification (minimal shape) to Drizzle's
+    // notifications.$inferInsert (which uses enum literal types). All values are
+    // valid by construction; the cast avoids re-importing the full Drizzle schema type.
+    await db
+      .insert(notifications)
+      .values(pending as unknown as (typeof notifications.$inferInsert)[]);
+  } catch (e) {
+    console.error("[adoption/actions] notifications insert failed (action did succeed):", e);
+  }
+}
 
 // ---------------------------------------------------------------------------
 // setAdoptionEligibilityAction

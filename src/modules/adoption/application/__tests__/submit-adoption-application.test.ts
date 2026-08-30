@@ -257,6 +257,35 @@ describe("submitAdoptionApplication", () => {
     expect(repo.insertApplication).toHaveBeenCalledOnce();
   });
 
+  it("anchors every notification on the inserted spine event, which is what makes the dedupe key safe", async () => {
+    // A PIN FOR SOMETHING TWO FILES AWAY, and it is here rather than there
+    // because this is where the fact is PRODUCED.
+    // `infrastructure/notification-flush.ts` mints the fan-out's idempotency key
+    // as `adoption:{type}:{eventId}:{userId}` and falls back to the pet id when
+    // there is no event id. That fallback is the dangerous branch — two
+    // applications for one animal would collapse onto one notification and the
+    // shelter would never hear about the second person — and it is unreachable
+    // only for as long as this use-case keeps setting `relatedEventId`.
+    //
+    // MUTATION APPLIED: delete `relatedEventId: insertedEventId` from the
+    // pendingNotifications push in submit-adoption-application.ts. Red here, and
+    // green in every other test in this file and in the flush's own — which is
+    // the point: nothing else in the repo notices.
+    const repo = makeFakeRepo({ eventId: "evt-app-77" });
+    const result = await submitAdoptionApplication(validInput, {
+      repo,
+      applicant,
+      transaction: fakeTransaction,
+      spendApplicantBudget: fakeBudget,
+    });
+    const r = result as {
+      ok: true;
+      notifications: { relatedEventId?: string | null }[];
+    };
+    expect(r.notifications.length).toBeGreaterThan(0);
+    expect(r.notifications.every((n) => n.relatedEventId === "evt-app-77")).toBe(true);
+  });
+
   it("returns the applicationEventId in value", async () => {
     const repo = makeFakeRepo({ eventId: "evt-app-42" });
     const result = await submitAdoptionApplication(validInput, {
