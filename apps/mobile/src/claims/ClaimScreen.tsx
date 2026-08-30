@@ -20,14 +20,18 @@
 // took two hundred characters of explanation and then always failed would be
 // worse than a sentence naming the browser.
 //
-// THE CAMERA IS NOT HERE EITHER, and that is the same wall rather than a
-// different one. Reading a chip's barcode off a vet's sticker needs
+// THE CAMERA IS BEHIND A SEAM, and this screen reads the seam instead of
+// assuming either answer. Reading a chip's barcode off a vet's sticker needs
 // `expo-camera`, which is a native module, which is an EAS build — the pipeline
 // the board records as six builds with five distinct root causes, three of them
-// invisible to every local gate. The field below is a keyboard field with
-// `keyboardType="number-pad"`, which is what somebody with the number in their
-// hand actually needs, and the scan is a strictly additive change: it would set
-// the same string this field sets, and nothing else on this screen would move.
+// invisible to every local gate. So `chip-scanner-port.ts` hands this screen a
+// `ScanView` component or `null`: with `null` (every build until the module
+// ships) the field below is a keyboard field and a callout says the number goes
+// in by hand; with a component, an "Escanear el chip" control mounts it, and
+// what a scan reads goes through `chipCodeFromScan` — ONE validation door for
+// the camera and the keyboard — into the SAME field the keyboard writes.
+// Nothing else on this screen moves: the person still reads the card and still
+// taps Buscar, because a scan is an input method, not a command.
 //
 // NOTHING HERE DECIDES WHETHER A CLAIM IS ALLOWED. `canClaim` arrives on the
 // lookup ack and is read, never derived — see `claim-view-model.ts`'s header for
@@ -46,6 +50,7 @@ import { sendPetClaimCommand } from "../api/endpoints";
 import { apiErrorMessage } from "../api/error-copy";
 import { sessionPort } from "../auth/session-store";
 import { API_BASE_URL } from "../config/api";
+import { getChipScannerPort } from "../native/chip-scanner-port";
 import { Body } from "../ui/components";
 import {
   Callout,
@@ -61,7 +66,9 @@ import {
 import { SPACE } from "../ui/theme";
 
 import {
+  SCAN_NOT_A_CHIP_MESSAGE,
   buildClaimCommand,
+  chipCodeFromScan,
   claimDisputeUrl,
   claimIdentifierFieldLabel,
   claimIdentifierKindLabel,
@@ -91,6 +98,8 @@ function failureMessage(result: ApiResult<unknown>): string {
 
 type ScreenState =
   | { phase: "asking"; error: string | null }
+  /** The camera is up. Reachable only when the scanner port carries a view. */
+  | { phase: "scanning" }
   | { phase: "working" }
   | { phase: "result"; ack: PetClaimLookupAckV1; error: string | null }
   | { phase: "claimed"; petToken: string; petName: string };
@@ -230,6 +239,44 @@ export function ClaimScreen({ onOpenPet }: { onOpenPet: (publicToken: string) =>
     );
   }
 
+  // Read at render time, not at module load: the port is installed during app
+  // bootstrap, and a test swaps it per case. `ScanView === null` IS the "this
+  // build has no camera" signal — the seam makes the missing module
+  // unrepresentable as a mountable control.
+  const { ScanView } = getChipScannerPort();
+
+  if (state.phase === "scanning" && ScanView !== null) {
+    return (
+      <Screen>
+        <Title>Escanear el chip</Title>
+        <Subtitle>
+          Apuntá la cámara al código de barras de la etiqueta del microchip.
+        </Subtitle>
+        {/* The adapter's view owns the camera, the permission ask and its own
+            denial state — that is the port's contract. This screen only decides
+            what a read MEANS: through `chipCodeFromScan`, into the same field
+            the keyboard writes, and never straight into a lookup. A scan is an
+            input method, not a command — the person still taps Buscar looking
+            at the number the camera read. */}
+        <ScanView
+          onCode={(raw) => {
+            const code = chipCodeFromScan(raw);
+            if (code === null) {
+              // The field is left exactly as it was: a wrong barcode (a lot
+              // number, a product code) must not plant a value the person has
+              // to notice and delete.
+              setState({ phase: "asking", error: SCAN_NOT_A_CHIP_MESSAGE });
+              return;
+            }
+            setValue(code);
+            setState({ phase: "asking", error: null });
+          }}
+          onCancel={() => setState({ phase: "asking", error: null })}
+        />
+      </Screen>
+    );
+  }
+
   const working = state.phase === "working";
 
   return (
@@ -287,22 +334,36 @@ export function ClaimScreen({ onOpenPet }: { onOpenPet: (publicToken: string) =>
         </Callout>
       ) : null}
 
+      {/* Only for the CHIP, even with a camera on board: a tattoo is letters on
+          skin, not a barcode, and a scan control under "Tatuaje" would promise
+          a read that cannot happen. */}
+      {ScanView !== null && kind === "microchip" ? (
+        <SecondaryButton
+          label="Escanear el chip"
+          disabled={working}
+          onPress={() => setState({ phase: "scanning" })}
+        />
+      ) : null}
+
       <PrimaryButton
         label={working ? "Buscando…" : "Buscar"}
         disabled={working || value.trim().length === 0}
         onPress={() => void run("lookup")}
       />
 
-      {/* THE CAMERA'S ABSENCE, said in the interface and not only in a comment.
+      {/* THE CAMERA'S ABSENCE, said in the interface and not only in a comment —
+          drawn exactly when the seam says the module is not in this build.
           Somebody standing in front of a stray with a chip reader is the person
           this screen is for, and telling them the number goes in by hand is
           better than letting them hunt for a scan button that is not there. */}
-      <Callout tone="neutral" title="Todavía no se puede escanear">
-        <Body>
-          Por ahora el número se escribe a mano. Podés leerlo del carnet, del lector del veterinario
-          o de la etiqueta del chip.
-        </Body>
-      </Callout>
+      {ScanView === null ? (
+        <Callout tone="neutral" title="Todavía no se puede escanear">
+          <Body>
+            Por ahora el número se escribe a mano. Podés leerlo del carnet, del lector del
+            veterinario o de la etiqueta del chip.
+          </Body>
+        </Callout>
+      ) : null}
     </Screen>
   );
 }
