@@ -45,6 +45,37 @@ description: >-
 # without the anon policy being evaluated once. With the real key the same
 # request is authenticated as role `anon` and returns `200 []` — a real denial.
 
+# WHY EVERY `grep` HERE IS WRAPPED IN `{ ...; || true; }` (do not unwrap)
+# -----------------------------------------------------------------------
+# Measured 2026-08-30. Under `set -euo pipefail`, a command substitution in an
+# assignment carries the pipeline's exit status, and `grep` exits 1 when it
+# matches NOTHING — which is precisely the "the stack is down" case. So
+#
+#     ANON=$(echo "$CLEAN" | grep '^ANON_KEY=' | cut -d= -f2-)
+#     if [ -z "$ANON" ]; then echo "::error::...is the stack up?"; exit 1; fi
+#
+# killed the step ONE LINE ABOVE its own guard: the annotation was dead code and
+# had never been emitted once in this repo's history. The step still went red,
+# but with an empty log — no annotation, no reason, nothing to read. That is how
+# a reader ends up quoting these `::error::` strings off the runner's own echo
+# of this script (GitHub prints the whole `run:` block under `##[group]Run`, in
+# GREEN jobs too) and concluding the stack failed to start when it did not.
+# Measured over the 45 most recent CI runs: the e2e job failed 42 times inside
+# `Run Playwright e2e suite`, twice in `Build Next.js app` and once in
+# `Start Supabase local stack` — the stack was UP in 44 of 45.
+#
+# `supabase status` exiting non-zero, and the `CLEAN` extraction matching no
+# lines, had the same silent shape. All three now report before exiting.
+#
+# The `|| true` is scoped to the `grep` alone — a brace group, not the whole
+# pipeline — so `sed` and `cut` failures stay fatal under `pipefail`. "Matched
+# nothing" is a legitimate data outcome for grep and must be handled by the
+# guard below; anything else is still a bug that must abort.
+#
+# Note the asymmetry with the sibling `supabase-start` action, which had to be
+# taught to SURVIVE errexit: here errexit is wanted, and the bug was a guard
+# placed where errexit could never let it run.
+
 runs:
   using: composite
   steps:
@@ -55,21 +86,32 @@ runs:
         # 2>/dev/null drops the pnpm "[WARN] ..." stderr line; the grep keeps
         # only KEY=VALUE lines so nothing non-env pollutes $GITHUB_ENV (the
         # warning line previously broke the file command with "Invalid format").
-        STATUS_ENV=$(pnpm exec supabase status -o env 2>/dev/null)
+        #
+        # The status is taken explicitly instead of letting `set -e` abort on
+        # the assignment: a stopped stack must SAY so, not exit silently.
+        STATUS_RC=0
+        STATUS_ENV=$(pnpm exec supabase status -o env 2>/dev/null) || STATUS_RC=$?
+        if [ "$STATUS_RC" -ne 0 ]; then
+          echo "::error::\`supabase status -o env\` exited ${STATUS_RC} — the local Supabase stack is not running. Check the \`supabase start\` step above."
+          exit 1
+        fi
 
         # Strip ONE layer of surrounding double quotes from each value. The
         # `"(.*)"` form only matches fully-quoted values, so an unquoted value
         # (a future CLI may stop quoting) passes through untouched.
-        CLEAN=$(echo "$STATUS_ENV" \
-          | grep -E '^[A-Z_][A-Z0-9_]*=' \
+        CLEAN=$({ echo "$STATUS_ENV" | grep -E '^[A-Z_][A-Z0-9_]*=' || true; } \
           | sed -E 's/^([A-Z_][A-Z0-9_]*)="(.*)"$/\1=\2/')
+        if [ -z "$CLEAN" ]; then
+          echo "::error::supabase status -o env produced no KEY=VALUE lines — is the stack up?"
+          exit 1
+        fi
 
         echo "$CLEAN" >> "$GITHUB_ENV"
 
         # Alias ANON_KEY -> NEXT_PUBLIC_SUPABASE_ANON_KEY (the CLI uses a raw
         # name; Next.js and every supabase-js client in the test suites read the
         # NEXT_PUBLIC_* form).
-        ANON=$(echo "$CLEAN" | grep '^ANON_KEY=' | cut -d= -f2-)
+        ANON=$({ echo "$CLEAN" | grep '^ANON_KEY=' || true; } | cut -d= -f2-)
         if [ -z "$ANON" ]; then
           echo "::error::supabase status -o env produced no ANON_KEY — is the stack up?"
           exit 1

@@ -708,11 +708,15 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: Start Supabase local stack
-        # studio/inbucket/imgproxy/edge-runtime/realtime are excluded — the
-        # test suite doesn't touch any of them, and skipping them shaves
-        # several minutes off cold-cache startup. Add a service back to the
-        # list if a future test needs it.
-        run: pnpm exec supabase start --exclude studio,inbucket,imgproxy,edge-runtime,realtime
+        # The excluded set is now the composite action's `exclude` DEFAULT, and
+        # deliberately not repeated here: two copies of the list is how the two
+        # jobs drift into testing different stacks. Add a service back there if
+        # a future test needs it — and read that input's description first, it
+        # records a name the CLI had been silently ignoring.
+        #
+        # The action also retries a transient start after tearing the
+        # half-started stack down, and still fails on the last attempt.
+        uses: ./.github/actions/supabase-start
 
       - name: Extract Supabase env vars
         # Publishes the REAL anon key (and the rest of `supabase status -o env`)
@@ -958,9 +962,15 @@ jobs:
         run: pnpm exec playwright install --with-deps chromium
 
       - name: Start Supabase local stack
-        # Same exclusions as the vitest job — e2e tests don't need studio,
-        # inbucket, imgproxy, edge-runtime, or realtime.
-        run: pnpm exec supabase start --exclude studio,inbucket,imgproxy,edge-runtime,realtime
+        # Same exclusions as the vitest job, and now the same LINE: they come
+        # from the composite action's default, so the two jobs cannot drift.
+        #
+        # This job is the one that measured the failure the retry is for: run
+        # 33197145055 (2026-08-28) died here with `failed to bind host port for
+        # 0.0.0.0:54322 ... address already in use`. It is 1 of 90 stack-start
+        # executions across the 45 most recent runs — hardening, not the reason
+        # this job is red. The other 42 reds are in `Run Playwright e2e suite`.
+        uses: ./.github/actions/supabase-start
 
       - name: Extract Supabase env vars for runtime
         # Was an inline script AFTER db:bootstrap; now the shared composite
