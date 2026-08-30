@@ -361,7 +361,7 @@ export const welfareReportFileInputSchema = z.discriminatedUnion("contactMode", 
  * alternating between them cannot escape — the argument `me/pet-claims` makes
  * about `lookup` and `claim_free`.
  */
-const resolveLocation = z.object({
+export const welfareReportResolveLocationInputSchema = z.object({
   command: z.literal("resolve_location"),
   addressText: z
     .string({ error: "ADDRESS_REQUIRED" })
@@ -378,13 +378,22 @@ const resolveLocation = z.object({
  * this module exists for — that the anonymous member has nowhere to put a
  * contact.
  *
- * The cost is worse zod error messages on a malformed body, and it is not a cost
- * this surface pays: the route collapses every parse failure to one
- * `invalid_request` key on purpose, and a client gets its per-field codes from
- * `firstWelfareReportInputCode`, which scans the issues either way.
+ * THE COST IS REAL AND IT IS PAID BY THE CLIENT, NOT BY THE ROUTE, and this
+ * paragraph used to wave it away ("not a cost this surface pays"). Measured on
+ * 2026-08-30 by a screen test: `z.union` tries EVERY member and collects every
+ * member's issues, so a `file` body with no coordinates comes back carrying
+ * `ADDRESS_REQUIRED` — the OTHER member's complaint about a field the caller
+ * never meant to send. `firstWelfareReportInputCode` cannot tell the two apart,
+ * because at that point the intent is gone.
+ *
+ * The route is genuinely unaffected: it collapses every parse failure to one
+ * `invalid_request` key on purpose, so which member complained changes nothing.
+ * A CLIENT is affected, and the fix is that a client parses the member it is
+ * actually sending — both are exported for exactly that — and this union stays
+ * what it is, the server's backstop over a body whose intent it does not know.
  */
 export const welfareReportCommandInputSchema = z.union([
-  resolveLocation,
+  welfareReportResolveLocationInputSchema,
   welfareReportFileInputSchema,
 ]);
 
@@ -419,13 +428,14 @@ void _anonymousCarriesNoContact;
 export function firstWelfareReportInputCode(
   error: z.ZodError<unknown>,
 ): WelfareReportInputCode | null {
-  for (const issue of error.issues) {
+  const issues = flattenIssues(error.issues);
+  for (const issue of issues) {
     const code = issue.message;
     if ((WELFARE_REPORT_INPUT_CODES as readonly string[]).includes(code)) {
       return code as WelfareReportInputCode;
     }
   }
-  for (const issue of error.issues) {
+  for (const issue of issues) {
     if (issue.path[0] === "command") return "COMMAND_REQUIRED";
     if (
       issue.code === "invalid_union" ||
@@ -436,4 +446,47 @@ export function firstWelfareReportInputCode(
     }
   }
   return null;
+}
+
+/**
+ * Every issue in the tree, parents before children.
+ *
+ * WHY, MEASURED RATHER THAN REASONED ABOUT. `z.union` reports ONE issue —
+ * `{ code: "invalid_union", errors: [[…], […]] }` — whenever more than one
+ * member has something to say, and the per-field messages live inside `errors`
+ * rather than on `error.issues`. Without this walk the first loop matched
+ * nothing on those bodies and the fallback answered `CONTACT_MODE_REQUIRED` for
+ * all of them: a denuncia refused for a missing point would have told the person
+ * to choose whether to send it anonymously.
+ *
+ * IT IS A REPAIR AND NOT THE FIX, and saying so is the point of this paragraph.
+ * zod HOISTS the single-member case — a body whose `command` matches exactly one
+ * member comes back with that member's issues directly, which is why the
+ * `description: "corto"` case never showed the defect and why the fence for this
+ * walk has to use a body that fails in BOTH members. And on a genuinely nested
+ * body the walk yields the FIRST member's complaint, which for a `file` body is
+ * `resolve_location`'s `ADDRESS_REQUIRED` — a real code about a field the caller
+ * never meant to send. Better than the fallback, and still not right.
+ *
+ * The right answer is that a CLIENT parses the member it is sending
+ * (`welfareReportFileInputSchema` / `welfareReportResolveLocationInputSchema`,
+ * both exported for this), where zod narrows and every code is about a field the
+ * caller actually filled in. This walk is what keeps the union's own answer from
+ * being actively misleading for anyone who does not.
+ *
+ * The eight sibling `first…InputCode` functions in this package need none of
+ * this: `discriminatedUnion` narrows to ONE member. `welfare-report.ts` is the
+ * only module here whose top level is a plain union — because `file` is itself a
+ * discriminated union — so it is the only one where the nesting exists at all.
+ */
+function flattenIssues(issues: readonly z.core.$ZodIssue[]): z.core.$ZodIssue[] {
+  const out: z.core.$ZodIssue[] = [];
+  for (const issue of issues) {
+    out.push(issue);
+    const nested = (issue as { errors?: readonly (readonly z.core.$ZodIssue[])[] }).errors;
+    if (Array.isArray(nested)) {
+      for (const group of nested) out.push(...flattenIssues(group));
+    }
+  }
+  return out;
 }

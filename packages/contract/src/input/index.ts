@@ -242,4 +242,5 @@ export {
   firstWelfareReportInputCode,
   welfareReportCommandInputSchema,
   welfareReportFileInputSchema,
+  welfareReportResolveLocationInputSchema,
 } from "./welfare-report.ts";

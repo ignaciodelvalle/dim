@@ -103,6 +103,7 @@ import {
   type SignupV1,
   type SubjectDataErasedV1,
   type TransferCommandAckV1,
+  type WelfareReportCommandAckV1,
 } from "@dim/contract/api";
 import type {
   AdoptionApplicationInput,
@@ -120,6 +121,7 @@ import type {
   ShareCommandInput,
   SubjectRightsCommandInput,
   TransferCommandInput,
+  WelfareReportCommandInput,
 } from "@dim/contract/input";
 
 import { type ApiResult, type SessionPort, apiRequest, performRequest } from "./client";
@@ -1249,6 +1251,56 @@ export function fetchMyAdoptionApplications(
       path: "/api/v1/me/adoption-applications",
       expectedPayloadVersion: MY_ADOPTION_APPLICATIONS_PAYLOAD_VERSION,
     },
+    session,
+  );
+}
+
+/**
+ * `POST /welfare-reports` — DENUNCIAR MALTRATO. Ley 14.346.
+ *
+ * THE ONLY CALL ON THIS SURFACE THAT IS NOT ABOUT AN ANIMAL SOMEBODY HOLDS, and
+ * not about an animal at all in the ordinary case: a denuncia names a place, a
+ * situation and an animal nobody has registered. It is also the only one whose
+ * whole point is that the RECORD may not name the person making it.
+ *
+ * THE PATH HAS NO `/me`, and that is not tidiness. `/me/…` asserts that what it
+ * writes belongs to the caller, and an anonymous denuncia deliberately does not:
+ * `reporter_user_id` is null and the case names no opener. A URL that said
+ * otherwise would be a URL contradicting its own body.
+ *
+ * TWO COMMANDS, AND THE FIRST ONE EXISTS BECAUSE THIS APP HAS NO MAP.
+ * `resolve_location` hands the server a typed address and gets candidate points
+ * back — the server calls the same geocoder the web's address field calls. `file`
+ * then sends coordinates the PERSON picked from that list. Do not skip the first
+ * step and invent a point: the intake requires an exact one because the authority
+ * routes on it, and a coordinate this app made up would send an inspector to the
+ * wrong street.
+ *
+ * ANONYMOUS IS A `contactMode`, AND IT IS NOT THE SAME AS UNTRACEABLE. The bearer
+ * token identifies this caller to the server before the body is read; what
+ * `contactMode: "anonymous"` buys is that nothing is WRITTEN DOWN — not the row,
+ * not the case, not the log, not the response. A person who needs the stronger
+ * property files from a browser with no session, and the screen tells them so.
+ *
+ * NO ATTACHMENTS, AND DO NOT ADD ONE HERE. Evidence goes to a private bucket
+ * behind a signed upload; this transport is JSON. There is a second reason
+ * specific to this door: the web's denuncia form accepts HEIC, so an iPhone
+ * photo carries the GPS EXIF of where it was taken — often an anonymous
+ * reporter's own home. That leak is declared and deferred, it needs server-side
+ * transcoding, and a door that carries no bytes cannot widen it.
+ *
+ * WHAT COMES BACK IS A RECEIPT NUMBER, NOT A CASE. `DEN-XXXX-XXXX` opens
+ * `/denuncias/codigo/{code}` in a browser, which confirms the denuncia exists,
+ * shows the date, and offers to prove you are the denunciante. It is not a
+ * credential: the reporter's own view lives behind a separate, expiring token
+ * minted into an address already on the record.
+ */
+export function sendWelfareReportCommand(
+  session: SessionPort,
+  input: WelfareReportCommandInput,
+): Promise<ApiResult<WelfareReportCommandAckV1>> {
+  return apiRequest<WelfareReportCommandAckV1>(
+    { path: "/api/v1/welfare-reports", method: "POST", body: input },
     session,
   );
 }
