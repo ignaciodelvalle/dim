@@ -53,7 +53,9 @@ vi.mock("@/lib/infra/storage", () => ({
 // queries are the two `hasEvent` presence checks and the gallery read; none of
 // them is what this file is about, and all three terminate on `.limit()`.
 const chain = vi.hoisted(() => {
-  // biome-ignore lint/suspicious/noExplicitAny: a builder stub is untyped by nature.
+  // `any` is deliberate — a builder stub is untyped by nature — and it needs no
+  // `biome-ignore`: `noExplicitAny` is already "off" for this glob in
+  // `biome.json`, so the suppression this line used to carry suppressed nothing.
   const self: any = {};
   self.select = () => self;
   self.from = () => self;

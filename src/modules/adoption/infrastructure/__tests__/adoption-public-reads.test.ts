@@ -51,7 +51,10 @@ const control = vi.hoisted(() => ({
 // assertion in this file an assertion that the predicate does not matter, which
 // is exactly the defect the turnos post-mortem on the board describes.
 const chain = vi.hoisted(() => {
-  // biome-ignore lint/suspicious/noExplicitAny: a builder stub is untyped by nature.
+  // `any` is deliberate — a builder stub is untyped by nature — and it needs no
+  // `biome-ignore`: `noExplicitAny` is already "off" for this glob in
+  // `biome.json`, so the suppression this line used to carry suppressed nothing
+  // and biome reported it as `suppressions/unused`.
   const self: any = {};
   let current: RecordedQuery | null = null;
   const start = () => {
