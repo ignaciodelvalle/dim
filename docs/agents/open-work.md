@@ -299,6 +299,12 @@ What it did **not** solve:
 - **`/mis-turnos/page.tsx` still has its own inline predicate** and its own
   inline query. Two implementations of one bucketing rule, one of them now
   knowingly wrong about turnos in progress.
+- **Neither `turnos` route is registered in `apps/mobile/app/_layout.tsx`**, so
+  both take expo-router's default header instead of a title. The route resolves
+  and the screens draw their own titles, which is why the lane judged it
+  unnecessary; the same gap already exists on `cuidado/[grantToken]`. Left as
+  reported rather than fixed at the merge, because what a header should SAY is
+  copy, and every other registration in that file argues its wording.
 
 **Two blockers this row was REJECTED for, and what the second one is really
 about** — recorded because both are patterns, not incidents:
@@ -369,6 +375,8 @@ standing instruction.
 | Two band tints outside the contract | small | **Pregnancy** and **memorial** use colours absent from `@dim/contract/tokens`, so the shared contract does not carry the web's full palette. They fall back to the default tint and the chip still says what is happening — no information lost, but it is debt in the shared layer. |
 | Two files parked in the art.16 fence | small | `caretaker-public-contact.ts` and `app/page.tsx`, each with a rationale recorded in the fence. |
 | Checksum drift on migration `0188` | pre-existing | Someone edited that migration **after** applying it. The database is fine; the record of what was applied is not. |
+| The turnos endpoint's four rate-limit gates say nothing about **who** spends them | owner: the next lane in `me/appointments` (row 2) | Landed as an accepted reserve on 2026-08-30. The route passes the right identifier — `callerIp(request.headers)` on the two IP gates, `live.user.id` on the two user gates — but `__tests__/api-v1-me-appointments-route.test.ts` stubs `enforceRateLimit: async (endpoint: string)` and drops the second argument, so collapsing all four onto shared constants leaves the file 36/36 green. **Ten sibling route tests already take `(endpoint, identifier)` and assert the pair**; `api-v1-me-profile-route.test.ts` even pins the literal IP. One-line fix, in the file the next lane is already opening. Not a blocker: the production identifiers are correct and no authorization boundary is involved. |
+| The same endpoint's documented **fail-open** has no test | owner: same | `spendBudget` catches a non-`RateLimitError` and returns `true` on purpose — a limiter outage must not stand between an owner and cancelling a turno. Flipping that `return true` to `return false` leaves the file 36/36 green, so the invariant its docblock argues at length is unmeasured. Five sibling files carry a test literally named "FAILS OPEN when the limiter itself is broken"; this one does not. |
 
 ## PO-gated — not agent work, do not attempt
 
