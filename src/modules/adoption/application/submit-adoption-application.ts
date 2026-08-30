@@ -9,18 +9,45 @@
 //   2. Pet + org lookup + listability check
 //   3. Duplicate-pending check
 //   4. Consent gate
-//   5. Atomic: insert application event (inside tx)
-//   6. Returns notifications for fan-out (action flushes post-tx, best-effort)
+//   5. Per-applicant rate limit — see below
+//   6. Atomic: insert application event (inside tx)
+//   7. Returns notifications for fan-out (action flushes post-tx, best-effort)
 //
 // The caller (thin action) is responsible for:
 //   - Auth check (user logged in)
 //   - Parsing/casting the raw form input
 //   - Flushing returned notifications post-transaction
+//
+// THE RATE LIMIT IS IN HERE AND NOT IN A ROUTE (WU-U, 2026-08-30)
+// ---------------------------------------------------------------------------
+// The board's WU-U row says "the application flow earns its own rate limit
+// here", and FLOW is the operative word: neither door had one before, and a
+// ceiling placed on the bearer endpoint alone would be a ceiling a caller
+// escapes by opening the web form. So it lives at the joint both doors already
+// pass through, exactly as `revokeAllSessions` and `eraseSubjectDataFor` do.
+// The derivation — and why the abuse this bounds is BREADTH rather than
+// hammering — is in `adoption-application-limits.ts`.
+//
+// IT FAILS CLOSED, and that is the opposite of what the erasure decided.
+// `eraseSubjectDataFor` fails OPEN because "an abuse control must not stand
+// between a person and a legal right"; there is no legal right to apply for an
+// adoption, nothing leaves the caller's control by waiting, and what a limiter
+// outage would otherwise open is unmetered writes into every shelter's review
+// queue. Same instrument, opposite direction, and the difference is which side
+// pays for being wrong.
+
+import { RateLimitError, enforceRateLimit } from "@/lib/infra/rate-limit";
+import { reportError } from "@/lib/infra/report-error";
 
 import { validateApplicationInput } from "../domain/application-rules";
 import { isListable } from "../domain/listing-rules";
 import type { ApplicationInput } from "../domain/types";
 import type { AdoptionRepository } from "../infrastructure/adoption-repository";
+import {
+  ADOPTION_APPLICATION_RATE_LIMITED_COPY,
+  ADOPTION_APPLICATION_USER_BUCKET,
+  ADOPTION_APPLICATION_USER_LIMIT,
+} from "./adoption-application-limits";
 import type { NewNotification, UseCaseResult } from "./set-adoption-eligibility";
 
 // ---------------------------------------------------------------------------
@@ -29,12 +56,54 @@ import type { NewNotification, UseCaseResult } from "./set-adoption-eligibility"
 
 type Applicant = { userId: string } | null;
 
+/** `"denied"` covers both an exhausted budget and a limiter that could not answer. */
+export type ApplicantBudgetVerdict = "ok" | "denied";
+
 type Deps = {
   repo: typeof AdoptionRepository;
   applicant: Applicant;
   /** db.transaction — injected so unit tests can swap for a fake. */
   transaction: <T>(cb: (tx: unknown) => Promise<T>) => Promise<T>;
+  /**
+   * Spend the applicant's own budget. Injected for the reason `transaction` is:
+   * the unit tests run with no Postgres and a limiter is a DB write.
+   *
+   * OPTIONAL, AND THE DEFAULT IS THE REAL LIMITER. That direction is the whole
+   * safety of the seam — a door that forgets to pass one gets the ceiling
+   * rather than an exemption, so the only way to opt out is to write a fake on
+   * purpose. `spendApplicantBudget` below is what production runs.
+   */
+  spendApplicantBudget?: (userId: string) => Promise<ApplicantBudgetVerdict>;
 };
+
+/**
+ * The real budget, spent against `rate_limit_buckets`.
+ *
+ * FAILS CLOSED, which inverts what every other limiter in this repo does, and
+ * the inversion is the point: `eraseSubjectDataFor` fails open because "an abuse
+ * control must not stand between a person and a legal right", and `/me/
+ * notifications` fails open because refusing would empty a person's own inbox
+ * over rows that are only ever theirs. Neither reason holds here. Nobody has a
+ * legal right to apply for an adoption, nothing of the applicant's is withheld
+ * by waiting, and what an outage would otherwise open is unmetered writes into
+ * every shelter's review queue — the one thing on this surface that is not the
+ * caller's own.
+ */
+export async function spendApplicantBudget(userId: string): Promise<ApplicantBudgetVerdict> {
+  try {
+    await enforceRateLimit(
+      ADOPTION_APPLICATION_USER_BUCKET,
+      userId,
+      ADOPTION_APPLICATION_USER_LIMIT,
+    );
+    return "ok";
+  } catch (err) {
+    if (!(err instanceof RateLimitError)) {
+      reportError("adoption/submit-application-limit", err, { userId });
+    }
+    return "denied";
+  }
+}
 
 export type SubmitApplicationInput = ApplicationInput & {
   petPublicToken: string;
@@ -100,7 +169,28 @@ export async function submitAdoptionApplication(
   const fullValidation = validateApplicationInput(input, applicantProfile, existing);
   if (!fullValidation.ok) return { ok: false, error: fullValidation.error };
 
-  // 6. Atomic insert (event only — org member fan-out notification data collected,
+  // 6. The applicant's budget, spent LAST among the refusals and FIRST among
+  //    the writes.
+  //
+  //    AFTER VALIDATION, deliberately, which is the order `eraseSubjectDataFor`
+  //    reached for its own reason and this one reaches for a different one:
+  //    every check above is free and refuses without touching the queue, so a
+  //    person who mistyped a form, or tapped through to a pet that went off
+  //    listing while they wrote, has spent nothing. The budget bounds LETTERS
+  //    DELIVERED, and a refused submission delivers none.
+  //
+  //    A DUPLICATE COSTS NOTHING EITHER, and that matters more than it looks:
+  //    `findExistingApplication` already makes a second application for the
+  //    same animal impossible, so if this were spent first, the one thing a
+  //    person is most likely to do twice — tap "Enviar" again after a timeout
+  //    they could not see the result of — would be the thing that burns the
+  //    budget they need for the next animal.
+  const budget = deps.spendApplicantBudget ?? spendApplicantBudget;
+  if ((await budget(applicant.userId)) === "denied") {
+    return { ok: false, error: ADOPTION_APPLICATION_RATE_LIMITED_COPY };
+  }
+
+  // 7. Atomic insert (event only — org member fan-out notification data collected,
   //    actual DB insert is returned to the caller for post-tx flush).
   const now = new Date();
   let eventId = "";
