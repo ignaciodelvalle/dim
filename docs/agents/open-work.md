@@ -72,6 +72,15 @@ the same rot this preamble's counts keep dying of; **the number is a measurement
 of a moment, not a maintained fact, so re-run the command instead of quoting
 this figure.**
 
+**The twenty-six is now stale too, and the 2026-08-30 integrator of the next
+window RE-RATIFIED the call without replacing it with a fresh figure.** Two lane
+blocks and an integrator block have landed since, and the reason no new number
+goes here is sharper than "it rots": **the census counts matches in this file,
+and any paragraph that reports the census is in this file, so writing the figure
+down changes the figure.** It moved twice while that block was being drafted.
+Run the command. The argument for the gaps is stated by LOCATION, not by count,
+in the integrator block at the end of this page.
+
 Every one of the twenty-six was read. Nothing survives that points a LIVE
 instruction at a row that moved. The pointers at rows 2 and 5 are all either in
 the `Attempted and turned back` prose this page forbids editing, or in dated
@@ -812,12 +821,14 @@ the staging secrets are not merely empty at runtime, they **do not exist**.
 | ~~The same endpoint's documented **fail-open** has no test~~ | **CLOSED 2026-08-30** by the same lane | Flipping `spendBudget`'s `return true` to `return false` used to leave the file 36/36 green. It now carries the case five sibling files already had — and its PAIR, which none of them states: the authorization guard must still fail CLOSED while the limiter is broken, since a fail-open limiter that carried the guard open with it would be the same line doing two jobs. Both mutations applied, both red. |
 | **`submitFreeClaimForUser` can claim an ERASED pet, and tells you it was erased** | **pre-existing, and the biggest thing on this table** — owner: the next lane in `pets/application/claim`, or the PO if it wants a migration-grade answer | Found by the reviewer at the 2026-08-30 gate and MEASURED against real Postgres, not inferred. `lookup-for-claim.ts` resolves through `innerJoin(pets, and(eq(pets.id, …), isNull(pets.deletedAt)))`; `submit-free-claim.ts` resolves the same identifier and then selects the pet with a bare `eq(pets.id, ident.petId)`, because `pet_identifications` rows stay `status = 'active'` after an erasure. Two consequences: (1) an erased pet's chip answers `not_claimable` → **409** while an unregistered chip answers `not_found` → **404**, so any self-registered account can tell "this animal was erased" from "never existed" off the status line — the exact art. 16 distinction the endpoint's own header refuses to put there; (2) if that erased pet has no active custody, **the claim succeeds** — it returns the animal's name and public token, inserts the ownership, appends `ownership_claimed` to the spine, notifies and audits, while the lookup on the same door still answers `not_found`. **The bearer door did not introduce this** — it is one missing clause in a writer the web's `/mis-mascotas/reclamar` wizard drives identically, which is why the integrator recorded it instead of patching it in a merge commit: the fix changes browser behaviour and belongs with its own test. **No fence goes red for it and none can as written**: this is an ABSENCE of a predicate, not a mutable one, so the mutation instruments this repo relies on have nothing to flip. The shape of the fix is `isNull(pets.deletedAt)` on the in-transaction select (and/or filtering the identification by a live pet), copied from the sibling rather than re-derived. The two docblocks that claimed the invariant held end to end were corrected in the same merge — `claim/types.ts` and `me/pet-claims/commands.ts` — because a promise and the note that it is half kept have to travel together. |
 | `api-v1-me-pet-claims-route.test.ts` needs an env var no setup forces | small — owner: the next lane in that file | It is the ONLY one of the fifteen `/api/v1` route tests that does not mock `@/lib/supabase/bearer`, so it builds a real supabase-js client and reads `NEXT_PUBLIC_SUPABASE_ANON_KEY`. `__tests__/setup-env.ts` forces `NEXT_PUBLIC_SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY` and not that one. In a worktree with no `.env.local` the file reports 20 of 21 red with `Error: supabaseKey is required.` — credential-shaped, which is the FOURTH red signature `/CLAUDE.md` names, on a file that has nothing to do with RLS. Green in CI (the vitest job exports the real key) and green wherever the env is exported, so it hides no defect; it is a harness that is more coupled to the environment than its fourteen siblings, in the one direction that makes a red unreadable. Fix is the two `vi.mock` lines `api-v1-me-appointments-route.test.ts` already has. |
-| **`omnibox-search.test.ts` compares a NODE clock against a POSTGRES clock, and flaked the 2026-08-30 gate** | small — owner: the next lane in that file. **A FIFTH red signature, and `/CLAUDE.md` does not describe it.** | Two `test:verified` runs over the same tree: run 1 `reported 1473 file(s); 1473 discovered; 0 failing test(s); 0 broken file(s)`, run 2 `1 failing test(s); 0 broken file(s)`. **No `Worker exited unexpectedly` in either**, and nothing broken — so it is none of the three worker signatures, and none of their rules apply. The failing assertion is `expect(rows.length).toBe(1)` → `0`, in "writes a single `pii_queried` audit row". **Diagnosed rather than re-rolled.** The test takes `const since = new Date()` in Node, calls the action, sleeps 100 ms and then selects `where performed_at >= since`. Two things are wrong with that. (1) **The 100 ms sleep is dead and its comment is false**: it says "Fire-and-forget; give the insert a tick to land", and `search-omnibox.ts` awaits the write with a written argument for why it must NOT be fire-and-forget ("under Ley 25.326 the access audit must be durable"). The row is committed before the action returns, so lateness cannot be the cause. (2) What is left is the comparison itself — `since` is the host clock, `performed_at` defaults to Postgres's `now()` inside a container. Any moment where the container clock sits behind the host makes a row that really exists invisible to that predicate, and a Docker VM on macOS resyncs its clock without warning. **Evidence, all of it measured, none of it conclusive on its own**: the file passes 3/3 in isolation on the merged tree; the base `6671cff99` passes 2/2 under the full suite in a control worktree; the diff touches nothing the file imports and no audit path; and no previous integrator log in this scratchpad carries this failure. **Two clean control runs do not exonerate a coin that came up once in two** — recorded as unattributed rather than as "not mine". The fix is to take `since` from the database (`select now()`) or to drop the window and match on the payload, plus deleting the sleep and the sentence under it. |
+| ~~**`omnibox-search.test.ts` compares a NODE clock against a POSTGRES clock, and flaked the 2026-08-30 gate**~~ | **CLOSED 2026-08-30** by the `reloj-omnibox` lane — see its block at the end of this page. **The row's own sizing was wrong and that is the lesson to keep**: it said "small — owner: the next lane in that file", and the defect was TWO tests across THREE files, failing in OPPOSITE directions — the omnibox positive assertion could not see a row that existed, and the audit windows in `org-memberships` / `org-invitations` could see rows that belonged to an earlier run. A row that names one file is a hypothesis about blast radius, not a measurement of it. The fix took the clock from the database (`__tests__/_helpers/db-now.ts`) where a window is genuinely needed and deleted the window where it was not, plus the two dead sleeps and the comment that justified them. Proved by three applied mutations plus a ±5-minute host-clock control the new version survives 19/19 in both directions. The original diagnosis below is kept verbatim because it is the record of how a fifth red signature was read without re-rolling. | Two `test:verified` runs over the same tree: run 1 `reported 1473 file(s); 1473 discovered; 0 failing test(s); 0 broken file(s)`, run 2 `1 failing test(s); 0 broken file(s)`. **No `Worker exited unexpectedly` in either**, and nothing broken — so it is none of the three worker signatures, and none of their rules apply. The failing assertion is `expect(rows.length).toBe(1)` → `0`, in "writes a single `pii_queried` audit row". **Diagnosed rather than re-rolled.** The test takes `const since = new Date()` in Node, calls the action, sleeps 100 ms and then selects `where performed_at >= since`. Two things are wrong with that. (1) **The 100 ms sleep is dead and its comment is false**: it says "Fire-and-forget; give the insert a tick to land", and `search-omnibox.ts` awaits the write with a written argument for why it must NOT be fire-and-forget ("under Ley 25.326 the access audit must be durable"). The row is committed before the action returns, so lateness cannot be the cause. (2) What is left is the comparison itself — `since` is the host clock, `performed_at` defaults to Postgres's `now()` inside a container. Any moment where the container clock sits behind the host makes a row that really exists invisible to that predicate, and a Docker VM on macOS resyncs its clock without warning. **Evidence, all of it measured, none of it conclusive on its own**: the file passes 3/3 in isolation on the merged tree; the base `6671cff99` passes 2/2 under the full suite in a control worktree; the diff touches nothing the file imports and no audit path; and no previous integrator log in this scratchpad carries this failure. **Two clean control runs do not exonerate a coin that came up once in two** — recorded as unattributed rather than as "not mine". The fix is to take `since` from the database (`select now()`) or to drop the window and match on the payload, plus deleting the sleep and the sentence under it. |
 | **A professional's personal phone goes out on the national turno search** | **PO first, then a lane** — added at the 2026-08-30 merge | Found by the review of the buscar/reservar lane and NOT fixed in the merge, because it is a product call and not a defect on its face. `search-bookable-slots.ts`'s `OFFERING_COLUMNS` selects `profiles.phone` and `organizations.jurisdiction_locality`, and both reach the wire through `app/api/v1/appointments/payload.ts` for ANY authenticated caller with no prior relationship to the offering. **The two web pages the module's header says it negates line by line select neither**: `buscar/page.tsx` takes only `displayName`/`matriculaNumber` from the professional, and `[offeringToken]/page.tsx` carries an explicit comment saying it omits `jurisdictionLocality` on purpose after the 2026-08-13 incident — the same incident that header cites. `organizations.phone` has a public precedent (`lib/infra/org-public-profile.ts`); `profiles.phone` crossed to a non-owner only in `list-appointments-for-user.ts`, for a turno you ALREADY HOLD, and the widening rode in on that type being reused. The docblock's argument for the reuse is about RENDERING ("one thing"), which is true and is not an authorization argument. **No fence sees it** — `lint:subject-rights`, `no-personal-contact-in-ui` and `welfare-org-pii-fitness` are all green. Either it is a decision the PO makes, or the two columns come out of `OFFERING_COLUMNS`; what it must not stay is a side effect. |
 | **The `serviceKind` echoed in the search payload is unmeasured, and its comment is false about its own line** | small — owner: the next lane in `app/api/v1/appointments` | Mutation applied at the merge review: `serviceKind: \`${query.serviceKind}_MUTANT\`` leaves all 28 route tests GREEN — no case asserts the positive value of `body.serviceKind`. The docblock says "NON-NULL BY CONSTRUCTION … No `?? requested` fallback here — that is the very shape that printed a raw param as a heading", and the line is literally `findServiceKind(query.serviceKind)?.code ?? query.serviceKind`. Not exploitable today: the parser nulls an unknown code, and THAT half is fenced (mutating `query.ts` goes red, and so does bypassing the parser from the route). But it is the second layer of defence against S3-F07, it is described wrongly, and nothing would catch the parser loosening. |
 | **The booking refusal fence can be bypassed by ADDING a sentence, not by rewording one** | small — owner: the next lane in `src/modules/events/application/booking` | Three mutations were applied at the merge review. Rewording a refusal → RED (the orphan check catches it). Moving an existing sentence to a template literal → RED (`sentences.size >= 8`). **Adding a new refusal via `const msg = "…"; throw new BookingError(msg);` while keeping the eight literals → 10/10 GREEN**: the new sentence never enters the set, the table does not cover it, and `bookSlotRefusalCode` sends it to the `slot_unavailable` fall-through. The direction is safe — it is still a refusal and grants nothing — so this is MISCLASSIFICATION risk, not an authorization hole. The row exists because the fence's own comment claims more than it proves. |
 | **The reservar screen's primary button `disabled` has no fence** | small — owner: the next lane in `apps/mobile/src/turnos` | `disabled={submitting \|\| slotId === null \|\| petToken === null}` → `disabled={submitting}` leaves all 97 turnos tests green. It writes nothing — `submit` has its own `if (slotId === null \|\| petToken === null) return;` — so the failure is an enabled button that does nothing when tapped, not a write with no selection. Worth naming only because the five neighbouring mutations on the same screen (derived `canBook`, a blocked pet being selectable, no re-read after a refusal, navigating anyway, selection surviving a re-read) all go RED: the hole is one line wide and sits between fences that bite. |
 | `claimDisputeUrl` builds its URL by hand while its neighbour uses the map | small — owner: same | `apps/mobile/src/claims/claim-view-model.ts`: `claimSightingUrl`, two functions above it, goes through `deepLinkUrl` with the written argument that "a rename is a compile error rather than a 404 nobody notices" — and `claimDisputeUrl` interpolates `${origin}/mis-mascotas/reclamar` directly. If the web renames that path the dispute link becomes a silent 404 and nothing turns red. `DEEP_LINK_MAP` has no entry for the wizard, but `myPets` is an exact precedent for a parameterless one. The file's own principle, applied to one of its two functions. |
+| **The two-clock rule is a comment, and a comment puts nothing red** | small — owner: the next lane writing a `__tests__` sweeper. **Added at the 2026-08-30 merge, from the review of the lane that closed the row above it.** | Three instances of "assert a host `new Date()` against a column with `defaultNow()`" were closed this window, and the rule that closes them lives only in the docblock of `__tests__/_helpers/db-now.ts`. This repo fences every lesson it pays for — the 53 tree-sweeping fences exist for that reason — and this one is not fenced. Any new test that writes `const since = new Date()` and compares it to a `defaultNow()` column reintroduces exactly the defect that made the 2026-08-30 gate answer differently twice over one tree, and nothing goes red. **The nearest existing fence does NOT cover it**: `__tests__/no-raw-date-in-sql.test.ts` is about a `Date` interpolated into a `sql\`\`` template and it sweeps `lib` and `src`, not `__tests__`. The shape of the fix is a ~20-line sweeper over `*.test.ts*` for `(gte\|gt\|lte\|lt)(<column with defaultNow()>, <host Date>)`, with the column list DERIVED from `db/schema.ts` rather than typed by hand. **Recount it at write time and do not inherit this figure**: measured 2026-08-30 on the merged tree, `db/schema.ts` carries **77 column definitions** with `defaultNow()`, spread over **20 distinct column names** (`created_at`, `updated_at`, `performed_at`, `occurred_at` and sixteen more) — the review that raised this said "20 columns", which is the count of NAMES and not of columns, and a sweeper keyed on the wrong one of those two numbers scans the wrong set. Not done in the merge because a new fence needs its own mutation proof and its own gate, and an integrator writing one inside a merge commit is how an unproved fence enters the tree. |
+| **`read-return-state.test.ts` asserts against a stub that throws its arguments away** | serious, not blocking — owner: the next lane in `src/modules/return-to-owner`. **Found by the review of the WU-P lane and MEASURED, not inferred.** | `makeDb()` in that file builds a chain whose `.where()` and `.orderBy()` both `return self`, so every argument they receive is discarded. Mutation applied at the merge review: deleting `eq(petEvents.eventType, "custody_transfer_proposed")` **and** flipping `orderBy(desc(petEvents.occurredAt))` to ascending, in one change, leaves `src/modules/return-to-owner` (3 files) plus `__tests__/api-v1-return-route.test.ts` at **106/106 green**. The irony is the lane's own: its sibling file `resolve-return-target-org.test.ts` opens by condemning exactly this shape — "a drizzle stub whose `.where()` discards its argument does not merely fail to test it: it makes every assertion in the file assert that the argument does not matter" — and the rule was applied in one of the two new files and not the other. **What it costs**: that row is what decides `inbound_pending` vs `awaiting_org` and supplies `actorName`, `proposedAt` and `notes`, so a reversed order describes an OLD resolved proposal instead of the live one and the screen can draw "Aceptar / Rechazar" against the wrong one, or hide a real inbound. **What it does NOT cost**: custody. All three use-cases re-check `to_user_id` under `pg_advisory_xact_lock`, so the blast radius is a wrong screen, not a wrong transfer — which is why it was recorded rather than treated as a merge blocker. |
 
 ## PO-gated — not agent work, do not attempt
 
@@ -1864,7 +1875,23 @@ in writing. A baseline control at `6671cff99` was run **twice**, per the rule
 that one clean control just resets the coin, and came back clean both times —
 which narrows attribution without settling it, and is recorded that way.
 
-**So the Definition of Done is not met by the letter on this tree, and the next
+**CORRECTED 2026-08-30 by the integrator of the next window. The diagnosis above
+is no longer open: it was verified, found INCOMPLETE, and closed.** The
+`reloj-omnibox` lane confirmed the two-clock reading independently and then found
+that it was two tests across three files rather than one, failing in opposite
+directions — the omnibox assertion missing a row that existed, and two
+`audit_log` windows in `org-memberships` / `org-invitations` admitting rows from
+an earlier run. Both directions were measured, the fix is applied, and it is
+proved by three applied mutations plus a ±5-minute host-clock control. **The
+sentence about the control at `6671cff99` stays valid and is not withdrawn**:
+two clean control runs narrowed attribution without settling it, and settling it
+took a root cause, not another sample. The debts row above is struck; the
+capability write-up is the lane block at the end of this page. What remains
+unproven is the same thing that was unproven then — that this was the ONLY
+source of nondeterminism — and the gate at the end of THIS page's last block is
+the measurement that speaks to it.
+
+**So the Definition of Done was not met by the letter on this tree, and the next
 reader should know that before trusting the merge rather than after.** What the
 merge itself is standing on: `pnpm verify` green including the build, the mobile
 Jest suite at 58 suites / 916 tests, both typechecks clean, `biome check` clean
@@ -1972,6 +1999,18 @@ returning epoch leaves `org-invitations` green, because within a single run
 nothing else writes its triple. That change is DEFENSIVE — but the table is
 never cleaned, so between runs the previous run's row is exactly what its window
 has to exclude, and the host clock was the wrong instrument for that either way.
+
+**CORRECTED AT THE MERGE — the paragraph above understates its own change, and
+an understatement is a defect of evidence like any other.** The reviewer showed
+the instrument was the wrong one, not the change: `dbNow()` returning epoch
+WIDENS the window, and the defect being fixed NARROWS it, so widening it cannot
+turn the assertion red. The mutation that answers the question is a host-clock
+skew, and it was applied: on the OLD tree (`40c42d5c4`) with Node's clock pushed
+**+200 ms**, `acceptInvitationAction > happy path` in `org-invitations.test.ts`
+goes RED with `expected +0 to be 1`, alongside the other eight. **So the
+`org-invitations` change is load-bearing and proved, not speculative** — and the
+line was worth correcting because "not proved" left on this page is how the next
+lane re-opens a closed row as debt.
 
 #### What was measured
 
@@ -2220,11 +2259,18 @@ claimed the rule was.
   run twice (once over the mudanza tree, once over the return tree). The 53rd,
   `apps/mobile/src/release/release-config.test.ts`, is a mobile JEST test vitest
   does not collect; run under Jest, **31/31 green**.
-- **The whole `lint:*` chain, all 67, each run separately: 65 MEASURED AND
-  GREEN.** `lint:route-weight` and `lint:csp-prerender` are declared **NOT
-  MEASURED**, not counted green — both self-skip without a build and exit 0 while
-  saying so in words ("NO SE MIDIÓ NADA", "This run proved nothing about the
-  CSP"). Verified by running each on its own and reading its output.
+- **The whole `lint:*` chain, all 66, each run separately: 64 MEASURED AND
+  GREEN.** (**The block first said "all 67 … 65 measured" and that was wrong; the
+  integrator recounted it from `package.json` on the merged tree — 66 in the root
+  and zero in `apps/mobile` or `packages/contract`.** The 67 was inherited from a
+  sentence higher up this page, so the lane repeated a rotten number rather than
+  minting one, which is the failure mode this page exists to name. The stale
+  original sits inside `Attempted and turned back`, which this page forbids
+  editing, and is left standing there.) `lint:route-weight` and
+  `lint:csp-prerender` are declared **NOT MEASURED**, not counted green — both
+  self-skip without a build and exit 0 while saying so in words ("NO SE MIDIÓ
+  NADA", "This run proved nothing about the CSP"). Verified by running each on
+  its own and reading its output.
 - **The whole `unit` vitest project**: 646 files, 9396 passed, 3 skipped.
 - **Targeted blast radius**: every `__tests__/api-v1-*`, the redaction and
   public-token census fences, the soft-delete and content-report sweeps, and the
@@ -2256,3 +2302,189 @@ claimed the rule was.
   shared with a parallel lane and the brief forbids it. The full suite is the
   integrator's gate. Named rather than implied, because that is precisely the gap
   that sank an earlier lane on this page.
+
+## Appended 2026-08-30 by the integrator — the reloj-omnibox + WU-P window
+
+**Both lanes merged. Nothing was turned back, so `Attempted and turned back`
+above is unchanged and that is a statement, not an omission.** `reloj-omnibox`
+came back *aprobado* with five minor findings; `wu-p-custodia` came back
+*aprobado-con-reservas* with one **serio** the reviewer itself scoped as
+non-blocking (wrong screen, not wrong custody — the three use-cases re-check
+`to_user_id` under `pg_advisory_xact_lock`) and five minor. Neither carried a
+RECHAZADO or an open blocker, which is the only bar this step applies.
+
+### The merge: one conflict, and it was the one both lanes predicted
+
+`git merge --no-ff` twice onto `40c42d5c4`. The first lane merged clean. The
+second conflicted in **exactly one file — `docs/agents/open-work.md`** — because
+both lanes append their block at the end of it, which both said in advance.
+Resolved by keeping BOTH blocks in lane order and deleting only the three
+markers; verified afterwards with `git diff --stat 40c42d5c4 -- docs/agents/open-work.md`
+→ **380 insertions, 0 deletions**, so the append-only property survived the
+resolution rather than being asserted about it.
+
+**Zero conflicts in code.** The file sets are disjoint: the clock lane touched
+four test files (one of them new) and this page; the custody lane touched 40
+files and this page, and had verified in advance that `__tests__/omnibox-search.test.ts`
+was not among them. The additive-at-the-end discipline the WU-T window recorded
+held again — `lib/infra/api-v1-limits.ts`, `packages/contract/src/api/errors.ts`,
+`apps/mobile/app/_layout.tsx` all took their new entries at the tail of their
+lists and no other lane wrote there.
+
+### The renumbering call: RE-RATIFIED, after re-running the audit
+
+**The table still holds THREE rows and they are still numbered 1, 4 and 6.** The
+integrator owns this call and it is taken once per window, not inherited: the
+audit is `rg -io '\brows? [0-9]+\b'` over this file, re-run on the merged tree
+after every edit in this window. Every match was read.
+
+**This block deliberately writes NO total, and the reason is a finding.** The
+previous two windows each wrote the census figure into this page, and each
+figure was stale within a day. It is worse than stale: **the census counts
+matches in this file, and a paragraph reporting the census is itself in this
+file, so writing the number down changes the number.** Drafting the sentence
+above with a figure in it moved the count twice while it was being written. The
+audit is a command, it takes a second, and the page already says it in an italic
+nobody has been able to obey — *stop writing the number in more than one place.*
+This block obeys it.
+
+What the audit yields does not need a total, because the argument rides on
+LOCATIONS: the pointers that say "row 3" and mean **adopción** are the two WU-U
+attempt rows inside `Attempted and turned back`, and "Row 3 is off the table" in
+the WU-U landed block. **Closing the gap would repoint all three at WU-V, and two
+of the three sit inside the one table this page forbids editing** — so it would
+either falsify true sentences or force an edit into protected prose. Everything
+else the audit returns is either this preamble arguing about those pointers, or a
+dated write-up where the number is true of the table as it stood on a named day.
+**Nothing points a LIVE instruction at a row that moved.** These numbers are
+identifiers, not an ordering; **quote the count of rows, never the highest
+number.**
+
+### The three pins, RE-DERIVED on the merged tree — and why adding would have worked by luck
+
+The custody lane bumped all three on a tree carrying its two doors and no
+others, and said in writing that a merger must recount rather than add. Recounted
+here from the merged tree, not from arithmetic on the lane's figures:
+
+| Pin | Re-derived | How |
+|---|---|---|
+| `MIN_IP_BUCKETS` | **38**, and `Object.keys(API_V1_IP_BUCKET_FAMILIES).length` is **38** | the map on the merged tree, not `35 + 3` |
+| `MIN_V1_ROUTE_FILES` | **33**, and `listV1RouteFiles().length` is **33** | the glob on the merged tree, not `31 + 2` |
+| `API_V1_CGNAT_FAMILY_IP_CEILING_PER_MINUTE` | **13.884/min**, and the test pins `toBe(13_884)` | hand-summed per family, below |
+
+The CGNAT arithmetic, done from the family tally and the per-family
+`maxPerMinute` read out of `lib/infra/api-v1-limits.ts` **by hand** rather than
+off the `reduce` that computes the constant — because a computed value agreeing
+with itself is not evidence:
+
+`18×600 + 10×120 + 2×60 + 1×600 + 1×240 + 2×180 + 1×240 + 1×120 + 1×144 + 1×60`
+= `10.800 + 1.200 + 120 + 600 + 240 + 360 + 240 + 120 + 144 + 60` = **13.884**.
+
+The tally is 18 `authenticated-read` (600), 10 `authenticated-write` (120), 2
+`account-security` (60), 1 `public-reference` (600), 1 `inbox-state` (240), 2
+`pet-disclosure-write` (180), 1 `pet-record-write` (240), 1 `pet-registration`
+(120), 1 `media-upload` (144), 1 `adoption-application` (60) — **38 buckets**,
+which is the same number the floor pins, arrived at from the other side.
+
+**All three floors sit EXACTLY on the measured value, with no slack.** That is
+the outcome the last window did not get: two of its pins were loose by one and
+nothing went red, because each lane measured correctly on its own tree and both
+were stale after the merge. Here only one lane added routes and buckets, so its
+figures survived — but they were recounted rather than trusted, which is the
+whole point, and `lint:authz` on the merged tree reports **82 route handlers
+authorized** (13 intentionally public), not the 81 the lane's own report carried
+from a mid-lane reading.
+
+### What was done under `necesitaDelIntegrador`
+
+**From the clock lane, all four of its asks:**
+
+1. **The omnibox debts row is STRUCK** and points at that lane's block. Its
+   sizing was corrected in the strike rather than dropped: the row said "small —
+   owner: the next lane in that file" and the defect was two tests across three
+   files in opposite directions. A row that names one file is a hypothesis about
+   blast radius.
+2. **"The gate went red on the second run" is CORRECTED in place**, not deleted.
+   The sentence the lane asked to keep — two clean control runs at `6671cff99`
+   narrow attribution without settling it — is kept and explicitly not withdrawn.
+3. **The fifth signature DID go into `/CLAUDE.md`**, and not as a fourth
+   signature. The entry says what the lane proposed: this red was a **defect in a
+   test**, it is closed, and the general rule is that **no assertion compares a
+   clock read on the host against a column with `defaultNow()`** — take the
+   instant from the database or drop the window, never widen it with a tolerance.
+   Writing it as "a fourth signature with a fourth rule" would have taught the
+   next reader to tolerate a red that has a root cause and a fix.
+4. **The gate ran.** Verdicts at the end of this block.
+
+**From the custody lane:** the recount, above. It asked for nothing else and
+was right that it needed nothing else — every file it touched was its own
+declared territory.
+
+### Three claims inside the lanes' own blocks were corrected at the merge
+
+This page's recurring failure is a number or a claim that was true when written
+and false when read. Three were caught here and fixed in place, each marked as a
+correction rather than silently overwritten:
+
+- **"all 67 `lint:*` … 65 measured"** → **66 and 64.** Recounted from
+  `package.json` on the merged tree: 66 in the root, zero in `apps/mobile` and
+  zero in `packages/contract`. The 67 was inherited from a sentence higher up
+  this page, so the lane repeated a rotten number rather than minting one. The
+  stale original sits inside `Attempted and turned back` and is left standing.
+- **"One mutation did NOT go red"** about `org-invitations.test.ts` → it is
+  **load-bearing and proved.** The lane picked an instrument that could not
+  answer: `dbNow()` returning epoch WIDENS the window and the defect NARROWS it.
+  The mutation that answers is host-clock skew, and at **+200 ms** on the OLD
+  tree `acceptInvitationAction > happy path` goes red with `expected +0 to be 1`.
+  A lane understating its own evidence is a defect of evidence: left as written,
+  the next lane reopens a closed row as debt.
+- **"20 columns with `defaultNow()`"**, from the review that asked for a fence →
+  **77 column definitions over 20 distinct NAMES.** The 20 is a count of names.
+  A sweeper keyed on the wrong one of those two numbers scans the wrong set.
+
+### What was NOT fixed, and why
+
+Two review findings became **declared debts with owners** in the table above
+rather than merge-commit patches — the absent fence for the two-clock rule, and
+the `read-return-state.test.ts` stub whose `.where()` and `.orderBy()` discard
+their arguments. Both were re-verified here rather than inherited: the stub was
+read on the merged tree and it does `return self` on both. A fence needs its own
+mutation proof and its own gate; an integrator writing one inside a merge commit
+is how an unproved fence enters the tree.
+
+Three further minor findings are recorded here and NOT patched, because they are
+each inside a lane's declared territory and none of them changes behaviour:
+
+- **`packages/contract/src/api/errors.ts`** — the docblock says the return set is
+  "FOUR" and then lists **five** bullets. The array and the es-AR copy both carry
+  five; the sentence is the thing that is wrong, and it contradicts a correct
+  "Four codes" for `move` two paragraphs above it.
+- **`apps/mobile/app/_layout.tsx`** — the MUDANZA block claims the title was
+  transcribed from the web's `<h1>`. It was not: the web renders
+  `Mudanza de ${pet.name}` and the registered title is the new string
+  "Registrar una mudanza". The title is good; the claim about its provenance is
+  what is false. The DEVOLUCIÓN block's equivalent claim does hold.
+- **`__tests__/_helpers/db-now.ts`** — `as Array<{ now: Date | string }>` is
+  correct for postgres-js and would fail at RUNTIME, not at compile time, under a
+  driver that returns `{ rows: [...] }`. It is a type assertion at the one point
+  both surviving windows depend on.
+
+Also noted and not chased: **`docs/agents/collaborating-writer.md` calls
+`/CLAUDE.md` "86 lines"** and it is not, in either direction — before this
+window's edit or after it. That page is nobody's territory this window.
+
+### Two environment facts, verified before the gate rather than after
+
+- **The live database functions are RESTORED.** A previous window mutated
+  `public.erase_subject_data` and `public.export_subject_data` in the live
+  container to prove its fences bite. Both were dumped with
+  `pg_get_functiondef` on the merged tree and compared against
+  `db/migrations/0208_*.sql` — the newest migration defining each — and each
+  live body **contains the migration body exactly** after comment and whitespace
+  normalisation. Checked against the migration, not only against the previous
+  window's own restore snapshot: a snapshot of a mutated function would have
+  matched itself.
+- **The gate ran on the PINNED Node, 22.23.2, through `fnm`.** The machine's
+  default `node` is v25.8.1, and above the 22 line Node's built-in Web Storage
+  shadows jsdom's and ~125 suites fail for reasons that belong to nobody. A gate
+  run on the default node answers a different question than the one being asked.
