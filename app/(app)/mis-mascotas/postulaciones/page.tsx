@@ -3,13 +3,15 @@
 
 import Link from "next/link";
 
-import { sql } from "drizzle-orm";
-
 import { LnCallout } from "@/components/ui/DocElements";
 import { LnEmptyState } from "@/components/ui/EmptyState";
-import { db } from "@/db";
 import { requireUserOrRedirect } from "@/lib/infra/auth-guards";
 import { formatDateShort } from "@/lib/utils/format";
+import {
+  type MyApplicationRow,
+  type MyApplicationStatus,
+  readMyAdoptionApplications,
+} from "@/src/modules/adoption/infrastructure/my-applications-read";
 
 import { WithdrawApplicationButton } from "./WithdrawApplicationButton";
 
@@ -20,30 +22,20 @@ import { WithdrawApplicationButton } from "./WithdrawApplicationButton";
 // D17 enforced strictly: at no point do we expose how many other
 // applications exist for the same pet, who else applied, or any queue
 // position. The applicant only sees THEIR OWN row.
+//
+// THE QUERY LEFT THIS FILE (WU-U, 2026-08-30) and lives in
+// `src/modules/adoption/infrastructure/my-applications-read.ts`, because
+// `GET /api/v1/me/adoption-applications` now answers the same question to a
+// bearer client. A second copy of that seven-branch status CASE would have been
+// a second definition of what "aprobada" means. This page is presentation over
+// the reader's rows; the art. 16 guard and the `stillListed` predicate moved
+// with the SQL, and the module's header is where they are argued.
 
 export const dynamic = "force-dynamic";
 
-type ApplicationStatus =
-  | "pending"
-  | "info_requested"
-  | "approved"
-  | "finalized_to_me"
-  | "auto_rejected"
-  | "rejected"
-  | "withdrawn";
+type ApplicationStatus = MyApplicationStatus;
 
-type ApplicationRow = {
-  applicationId: string;
-  petPublicToken: string;
-  petName: string;
-  petCurrentStatus: string;
-  orgDisplayName: string;
-  orgPublicToken: string;
-  submittedAt: Date;
-  status: ApplicationStatus;
-  decisionAt: Date | null;
-  stillListed: boolean;
-};
+type ApplicationRow = MyApplicationRow;
 
 const STATUS_CONFIG: Record<ApplicationStatus, { label: string; cls: string }> = {
   pending: {
@@ -85,156 +77,7 @@ export default async function MisPostulacionesPage({
   const params = await searchParams;
   const justSubmittedId = params.nueva ?? null;
 
-  const rows = await db.execute<{
-    application_id: string;
-    pet_public_token: string;
-    pet_name: string;
-    pet_status: string;
-    pet_listed_at: string | null;
-    pet_listing_paused_at: string | null;
-    pet_eligible: boolean | null;
-    pet_in_dispute: boolean | null;
-    pet_rabies_status: string;
-    org_display_name: string;
-    org_public_token: string;
-    org_verified: boolean;
-    org_type: string;
-    submitted_at: string;
-    status: ApplicationStatus;
-    decision_at: string | null;
-  }>(sql`
-    WITH my_submissions AS (
-      SELECT
-        e.id,
-        e.pet_id,
-        e.recorded_at AS submitted_at
-      FROM pet_events e
-      WHERE e.event_type = 'adoption_application_submitted'
-        AND e.payload->>'applicant_user_id' = ${user.id}
-    ),
-    decisions AS (
-      SELECT
-        s.id AS application_id,
-        d.payload->>'outcome' AS outcome,
-        d.payload->>'auto_generated' AS auto_generated,
-        d.recorded_at AS decision_at
-      FROM my_submissions s
-      JOIN pet_events d
-        ON d.pet_id = s.pet_id
-       AND d.event_type = 'adoption_application_resolved'
-       AND d.payload->>'application_event_id' = s.id::text
-    ),
-    finalizations AS (
-      SELECT
-        s.id AS application_id,
-        f.recorded_at AS finalized_at
-      FROM my_submissions s
-      JOIN pet_events f
-        ON f.pet_id = s.pet_id
-       AND f.event_type = 'adoption_finalized'
-       AND f.payload->>'adopter_user_id' = ${user.id}
-    ),
-    info_requests AS (
-      -- Latest "more info requested" marker per application (UI-6). A
-      -- note_added with kind=adoption_info_requested, emitted AFTER the
-      -- application was submitted, signals the shelter probed for info.
-      SELECT
-        s.id AS application_id,
-        MAX(n.recorded_at) AS requested_at
-      FROM my_submissions s
-      JOIN pet_events n
-        ON n.pet_id = s.pet_id
-       AND n.event_type = 'note_added'
-       AND n.payload->>'kind' = 'adoption_info_requested'
-       AND n.payload->>'application_event_id' = s.id::text
-       AND n.recorded_at >= s.submitted_at
-      GROUP BY s.id
-    )
-    SELECT
-      s.id::text AS application_id,
-      p.public_token AS pet_public_token,
-      p.name AS pet_name,
-      p.status AS pet_status,
-      p.adoption_listed_at AS pet_listed_at,
-      p.adoption_listing_paused_at AS pet_listing_paused_at,
-      p.adoption_eligible AS pet_eligible,
-      p.in_custody_dispute AS pet_in_dispute,
-      p.rabies_observation_status AS pet_rabies_status,
-      o.display_name AS org_display_name,
-      o.public_token AS org_public_token,
-      o.verified AS org_verified,
-      o.org_type AS org_type,
-      s.submitted_at::text AS submitted_at,
-      CASE
-        WHEN f.finalized_at IS NOT NULL THEN 'finalized_to_me'
-        WHEN d.outcome = 'approved' THEN 'approved'
-        WHEN d.outcome = 'withdrawn' THEN 'withdrawn'
-        WHEN d.outcome = 'rejected'
-          AND COALESCE(d.auto_generated, 'false') = 'true' THEN 'auto_rejected'
-        WHEN d.outcome = 'rejected' THEN 'rejected'
-        WHEN ir.requested_at IS NOT NULL THEN 'info_requested'
-        ELSE 'pending'
-      END AS status,
-      COALESCE(f.finalized_at, d.decision_at)::text AS decision_at
-    FROM my_submissions s
-    JOIN pets p ON p.id = s.pet_id
-      -- Art. 16 (Ley 25.326): a soft-deleted pet reads as never registered.
-      -- The applicant's my_submissions row and the shelter_custody LATERAL both
-      -- survive a rehome-R4 titular's erasure, so without this the erased pet's
-      -- name and a live /adoptar link would still render to the third-party
-      -- applicant. Same guard the org-side adopciones queue already carries.
-      AND p.deleted_at IS NULL
-    LEFT JOIN LATERAL (
-      SELECT o2.*
-      FROM ownerships ow
-      JOIN organizations o2 ON o2.id = ow.owner_organization_id
-      WHERE ow.pet_id = s.pet_id
-        AND ow.role = 'shelter_custody'
-        AND ow.ended_at IS NULL
-      ORDER BY ow.started_at DESC
-      LIMIT 1
-    ) o ON TRUE
-    LEFT JOIN LATERAL (
-      SELECT *
-      FROM decisions
-      WHERE application_id = s.id
-      ORDER BY decision_at DESC
-      LIMIT 1
-    ) d ON TRUE
-    LEFT JOIN LATERAL (
-      SELECT *
-      FROM finalizations
-      WHERE application_id = s.id
-      LIMIT 1
-    ) f ON TRUE
-    LEFT JOIN info_requests ir ON ir.application_id = s.id
-    ORDER BY s.submitted_at DESC
-    LIMIT 100
-  `);
-
-  const applications: ApplicationRow[] = rows
-    .filter((r) => r.org_display_name !== null)
-    .map((r) => ({
-      applicationId: r.application_id,
-      petPublicToken: r.pet_public_token,
-      petName: r.pet_name,
-      petCurrentStatus: r.pet_status,
-      orgDisplayName: r.org_display_name,
-      orgPublicToken: r.org_public_token,
-      submittedAt: new Date(r.submitted_at),
-      decisionAt: r.decision_at ? new Date(r.decision_at) : null,
-      status: r.status,
-      stillListed:
-        r.pet_listed_at !== null &&
-        r.pet_listing_paused_at === null &&
-        r.pet_status !== "lost" &&
-        r.pet_status !== "deceased" &&
-        r.pet_eligible === true &&
-        r.pet_in_dispute !== true &&
-        r.pet_rabies_status !== "in_progress" &&
-        r.org_verified === true &&
-        (r.org_type === "shelter" || r.org_type === "rescue_network"),
-    }));
+  const applications = await readMyAdoptionApplications(user.id);
 
   return (
     <div className="mx-auto max-w-3xl px-8 py-7 pb-12">
