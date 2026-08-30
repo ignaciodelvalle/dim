@@ -4,17 +4,47 @@
 // `adoption-repository.ts` is reached through an ORG capability — a shelter
 // publishing an animal, reviewing a letter, finalising an adoption. These five
 // are the ones a CITIZEN reaches: the catalogue's ficha, the form that decides
-// whether it may be shown, and the submit that follows. Two of them
-// (`findPetForPublicDetail`, `findLatestAdoptionFinalizedAt`) answer a request
-// carrying no session at all on the web's public `/adoptar/{token}`.
+// whether it may be shown, and the submit that follows.
 //
-// That is the boundary worth having in one file, and it is the reason the split
-// was made HERE rather than at the seam a line count would have suggested: "what
-// can a stranger read about an animal in adoption" is now one screen of code
-// with `unerasedPetByToken` visible in it, instead of five methods scattered
-// through 1,500 lines of org-side writes. `__tests__/public-soft-delete-
-// resolution.test.ts` and `adoption-public-reads.test.ts` fence exactly this
-// file.
+// "CITIZEN" HERE MEANS A LOGGED-IN CITIZEN, AND THE DISTINCTION IS THE WHOLE
+// REASON THIS HEADER WAS REWRITTEN. It previously said that
+// `findPetForPublicDetail` and `findLatestAdoptionFinalizedAt` "answer a request
+// carrying no session at all on the web's public /adoptar/{token}". That was
+// FALSE, and it was expensive: a reviewer read it, correctly concluded the file
+// was an anonymous surface spelling the AUTHENTICATED alias, and turned the lane
+// back on `__tests__/public-token-throttle-coverage.test.ts`. The sentence
+// described how the web page was BUILT, not what calls this module.
+//
+// What actually reaches the two alias-spelling methods, traced rather than
+// assumed:
+//
+//   · `findPetForApplication` ← `submitAdoptionApplication`, whose STEP 1 is
+//     `if (!applicant) return { ok: false, … }` — before the lookup at step 3.
+//     Both doors pass through it: the web action `submitAdoptionApplicationAction`
+//     (which does admit an anonymous caller, and is refused at that step) and the
+//     bearer `POST /api/v1/adoptions/{petToken}`.
+//   · `findPetForPublicDetail` and `findLatestAdoptionFinalizedAt` ←
+//     `readAdoptionDetail` ← `GET /api/v1/adoptions/{petToken}` and NOTHING
+//     ELSE. That handler runs `requireLiveUser` before it.
+//
+// The public web ficha at `app/(public)/adoptar/[petToken]/page.tsx` never calls
+// this module. It carries its OWN inline query, spelling the anonymous name
+// `publicPetByToken` and taking `isPublicTokenReadThrottled` — which is exactly
+// the arrangement the throttle fence demands of a sessionless surface, and the
+// reason no method here needs to be that surface.
+//
+// So every path into this file passes an auth gate first, which is what makes it
+// a legitimate speller of `unerasedPetByToken` and what earns it its line in that
+// fence's `ALIAS_RESOLVERS` pin. IF THAT EVER STOPS BEING TRUE — if an anonymous
+// route starts resolving a token through this module — the fix is not to widen
+// the pin: it is to spell `publicPetByToken` and take the read limiter.
+//
+// That boundary is worth having in one file, and it is the reason the split was
+// made HERE rather than at the seam a line count would have suggested: "what can
+// a citizen read about an animal in adoption" is now one screen of code with
+// `unerasedPetByToken` visible in it, instead of five methods scattered through
+// 1,500 lines of org-side writes. `__tests__/public-soft-delete-resolution.test.ts`
+// and `adoption-public-reads.test.ts` fence exactly this file.
 //
 // THE OBJECT IS SPREAD BACK INTO `AdoptionRepository`, so no call site moved and
 // `typeof AdoptionRepository` still carries all of it. The split is a fact about
