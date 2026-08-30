@@ -89,12 +89,22 @@ afterEach(() => {
   resetImagePickerPort();
 });
 
-/** Render, pick a photo, land on review. The common opening move. */
+/**
+ * Render, pick a photo, land wherever the pick leads. The common opening move.
+ *
+ * The explicit `timeout` is load-bearing: this waits on a NEGATIVE (the
+ * transient "Abriendo tus fotos…" label vanishing), and under a fully parallel
+ * suite the default 1s ceiling was measured flaking — 2 of 11 on one full run,
+ * 1 on the next, always these, always green in isolation. 5000 is the ceiling
+ * `PetDocumentScreen.test.tsx` already uses for its slow finds.
+ */
 async function pickInto(result: ImagePickResult) {
   nextPick = result;
   render(<PetPhotoScreen publicToken={TOKEN} />);
   fireEvent.press(screen.getByText("Elegir una foto"));
-  await waitFor(() => expect(screen.queryByText("Abriendo tus fotos…")).toBeNull());
+  await waitFor(() => expect(screen.queryByText("Abriendo tus fotos…")).toBeNull(), {
+    timeout: 5000,
+  });
 }
 
 describe("the build without the module", () => {

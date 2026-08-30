@@ -27,8 +27,8 @@ jest.mock("../api/endpoints", () => ({
 }));
 
 import type { SessionPort } from "../api/client";
-import type { AcceptedImage } from "./pet-photo-view-model";
 import { runPetPhotoUpload } from "./pet-photo-upload-flow";
+import type { AcceptedImage } from "./pet-photo-view-model";
 
 const TOKEN = "DIM-PAMP-0001";
 const STAGED = "22222222-2222-4222-8222-222222222222/333.jpg";

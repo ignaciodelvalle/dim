@@ -67,18 +67,21 @@ export function PetPhotoScreen({ publicToken }: { publicToken: string }) {
     setState({ phase: "choosing", error: outcome.message });
   }, []);
 
-  const upload = useCallback(async (image: AcceptedImage) => {
-    const result = await runPetPhotoUpload(sessionPort, publicToken, image, (step) =>
-      setState({ phase: "uploading", image, step }),
-    );
-    if (result.outcome === "done") {
-      setState({ phase: "done", photo: result.photo });
-      return;
-    }
-    // BACK TO REVIEW WITH THE PHOTO INTACT — see the header. The sentence
-    // already says what a retry would honestly do for this particular failure.
-    setState({ phase: "review", image, error: petPhotoFailureMessage(result.failure) });
-  }, [publicToken]);
+  const upload = useCallback(
+    async (image: AcceptedImage) => {
+      const result = await runPetPhotoUpload(sessionPort, publicToken, image, (step) =>
+        setState({ phase: "uploading", image, step }),
+      );
+      if (result.outcome === "done") {
+        setState({ phase: "done", photo: result.photo });
+        return;
+      }
+      // BACK TO REVIEW WITH THE PHOTO INTACT — see the header. The sentence
+      // already says what a retry would honestly do for this particular failure.
+      setState({ phase: "review", image, error: petPhotoFailureMessage(result.failure) });
+    },
+    [publicToken],
+  );
 
   // THE BUILD WITHOUT THE MODULE. Read fresh on every render (a test swaps the
   // port per case; the app swaps it once, at bootstrap).

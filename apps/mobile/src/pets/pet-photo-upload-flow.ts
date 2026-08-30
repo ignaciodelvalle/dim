@@ -23,9 +23,9 @@
 //   4. `onStep` fires BEFORE each step starts, so the label on screen names
 //      the work in flight, not the work already done.
 
+import type { PetPhotoUpdatedV1 } from "@dim/contract/api";
 import type { ApiResult, SessionPort } from "../api/client";
 import { confirmPetPhoto, requestPetPhotoTicket, uploadPetPhotoBytes } from "../api/endpoints";
-import type { PetPhotoUpdatedV1 } from "@dim/contract/api";
 
 import type {
   AcceptedImage,

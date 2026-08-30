@@ -249,9 +249,7 @@ export function ClaimScreen({ onOpenPet }: { onOpenPet: (publicToken: string) =>
     return (
       <Screen>
         <Title>Escanear el chip</Title>
-        <Subtitle>
-          Apuntá la cámara al código de barras de la etiqueta del microchip.
-        </Subtitle>
+        <Subtitle>Apuntá la cámara al código de barras de la etiqueta del microchip.</Subtitle>
         {/* The adapter's view owns the camera, the permission ask and its own
             denial state — that is the port's contract. This screen only decides
             what a read MEANS: through `chipCodeFromScan`, into the same field
