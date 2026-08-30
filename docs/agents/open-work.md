@@ -2115,12 +2115,16 @@ claimed the rule was.
   typechecks clean** (`tsc --noEmit` at the root and `pnpm --filter mimar
   typecheck`), and `biome check` clean over `apps/mobile`, `packages/contract`,
   `src` and `app`.
-- **Mutations: 55 applied and RED** — 13 on `recordJurisdictionMove`, 9 on the
-  move route, 8 on `resolveReturnTargetOrg` (including both ORDER-BY ones), 7 on
+- **Mutations: 68 applied and RED.** The per-file tally below was RECOUNTED from
+  the run log after this block was first written, and the first figure in it was
+  wrong in five of its seven terms — a count written from memory a few minutes
+  after the fact, which is this page's own lesson arriving inside the paragraph
+  that reports it. Recounted: 13 on `recordJurisdictionMove`, 10 on the move
+  route, 7 on `resolveReturnTargetOrg` (including both ORDER-BY ones), 6 on
   `readPetReturnState` (including the one that reproduces the web page's defect),
-  9 on the return route, 9 on the mobile view-models and screens. Two more were
-  applied and came back GREEN; both are written up under "One false green" above,
-  one fixed and one closed with a new case.
+  8 on the return route, 11 on the mobile mudanza pair, 13 on the mobile
+  devolución pair. **Two more were applied and came back GREEN**; both are written
+  up under "One false green" above — one fixed, one closed with a new case.
 - **The three pins RECOUNTED from the tree, never incremented**:
   `Object.keys(API_V1_IP_BUCKET_FAMILIES).length` → **38**,
   `listV1RouteFiles().length` → **33**, and the CGNAT ceiling **13.884/min**,
