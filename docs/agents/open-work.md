@@ -58,10 +58,12 @@ the fourteen columns it left on the web.
 
 ## Landed since this snapshot — do not pick it up again
 
-**Five landings are written up below, and only four of them took a row off the
+**Six landings are written up below, and only four of them took a row off the
 table.** The fifth — WU-S, row 2 — is still on the table, narrowed to the two
-capabilities it did not close; the count is written this way because "five
-blocks" and "five rows gone" are not the same claim and the previous wording
+capabilities it did not close. The sixth was never a table row at all: the
+`supabase start` retry, at the end of this section, which replaces the branch the
+next section had marked as turned back. The count is written this way because
+"six blocks" and "six rows gone" are not the same claim and the previous wording
 could only carry one of them. Each block is written up the same way: what was
 done, what it **decided**, and what it did **not** solve. A row deleted without
 its remainder is how the remainder gets lost — and a row left on the table after
@@ -341,6 +343,64 @@ about** — recorded because both are patterns, not incidents:
    breaks, and it needs no database. Seven mutations were applied for real and
    each killed at least one test.
 
+### The `supabase start` retry that retried zero times — landed 2026-08-30 (lane 3d7aec24-53c-2)
+
+`.github/actions/supabase-start` (new), the two `ci.yml` call sites, the
+`::error::` repair in `.github/actions/supabase-env`, and the two fences
+`__tests__/supabase-start-action.test.ts` / `__tests__/supabase-env-action.test.ts`
+over a shared harness, `__tests__/_helpers/github-step-shell.ts`. This is the
+work the block below was turned back for; the diagnosis was kept and the fix and
+its fence were rewritten.
+
+What it **decided**:
+
+- **A `shell: bash` step runs under `-e` and a script may not pretend
+  otherwise.** GitHub executes `bash --noprofile --norc -e -o pipefail {0}`. The
+  rejected version opened with `set -uo pipefail` and a comment claiming errexit
+  was off, so its bare `pnpm exec supabase start` / `RC=$?` pair died on the
+  first failed attempt: the retry, both `::warning::`s and the `::error::` were
+  unreachable in CI, and the action retried **zero** times in the only
+  environment it runs in. The fix is `set -euo pipefail` DECLARED plus
+  `cmd || RC=$?` — the left of an AND-OR list is exempt from errexit and `$?` is
+  read at the `||`, so it holds whether or not the caller set `-e`. A `set +e`
+  around the call was rejected: it is a global switch that has to be re-armed by
+  guessing a state the script does not know, and it would make every later line
+  of the loop non-fatal.
+- **The harness derives the interpreter from the step, and refuses to guess.**
+  The old fence ran the script with `execFileSync("bash", [scriptPath])` — no
+  flags — so eight tests passed over a script that does not retry in production.
+  `readCompositeStep()` now returns the `run:` block WITH the `shell:` it
+  declares, and `runnerArgv()` throws for a shell it has no mapping for rather
+  than falling back to bash's. Same shape as the drizzle stub that discarded its
+  predicate: **the defect was in the scaffolding, so every assertion standing on
+  it inherited it.** One case runs the same script under bare `bash` and asserts
+  the two agree, because "retries only if the caller set the right flags" is the
+  original bug restated.
+- **`inbucket` was a dead name and the CLI only WARNS about one.** Run
+  33260290131: `not valid to exclude: inbucket` — renamed `mailpit` upstream, so
+  the mail catcher had been starting on every run. It is **dropped, not
+  translated**: dropping changes nothing about which containers come up (the CLI
+  was already ignoring it), while writing `mailpit` newly excludes a service on
+  two jobs this lane cannot watch. The fence checks every name against the CLI's
+  own accepted list, so the next typo goes red instead of silently starting a
+  service.
+
+What it did **not** solve:
+
+- **`panorama-qa-nightly.yml` still starts the stack inline, twice**, each with
+  its own copy of the exclude list. The drift the action prevents between the two
+  `ci.yml` jobs is therefore still live between `ci.yml` and the nightly.
+  Reported rather than migrated — it is a behaviour change to a job with no local
+  gate — and the count is PINNED at two, so a third copy goes red and so does
+  migrating these two without deleting the expectation.
+- **The E2E job is still red, and this was never the cure.** The stack was up in
+  44 of 45 measured runs; the other 42 reds are inside `Run Playwright e2e suite`
+  and are the suite's own assertions. Anyone reading this block as "the E2E fix"
+  has the wrong file.
+- **Excluding `mailpit` for real** — worth doing (one fewer anonymous ECR Public
+  pull on a stack throttled by pull volume), and left to whoever can watch the
+  job.
+
 ## Attempted and turned back — the work exists, on a branch, and did not land
 
 Written down for the same reason the landed blocks are: the next agent who picks
@@ -353,7 +413,7 @@ runtime that the lane's own evidence never exercised.
 | Row / topic | Branch | Why it did not land |
 |---|---|---|
 | Row 3 — **WU-U**, adoption from the phone | `worktree-wf_60cb7fe0-094-2` (`be4c73874`) | The lane declared **one** red fence (rate-limit families) and there were **four**. `check-file-size` (`adoption-repository.ts` at 1521 lines against a hard 1500 — the fix is splitting the file, not baselining it), `check-notifications-service` (new code doing a raw `db.insert(notifications)` where the fence exists to migrate call sites onto `createNotification()`), and `check-audit-log-coverage` (seven operator actions with no reachable audit write). All three go red at `bcbaf2ed9` and are green at the base. The audit one has a root cause the reviewer established empirically rather than inferred: a module-level alias `const flushNotifications = flushAdoptionNotifications;` is followed by the fence's `importedIdentifiers()`, which then resolves into a file with no audit write. |
-| The **E2E job's permanent red** (not a table row) | `worktree-wf_60cb7fe0-094-3` (`2010d7655`) | The diagnosis is worth keeping — the stack was **up in 44 of 45 runs**, so "is the stack up?" was never the failure — but the fix is not. GitHub runs a composite action's `shell: bash` as `bash --noprofile --norc -e -o pipefail`; the new `supabase-start` action sets `set -uo pipefail` and never `set +e`, so the runner's `-e` kills the step on the first failed attempt and the retry loop, its two `::warning::`s and the `::error::` it exists to emit are all unreachable in CI. The test that fences it runs the script under bare `bash` (no `-e`), so eight tests pass over a script that does not retry — the harness reproduced the author's belief about the runner instead of the runner. |
+| **[SUPERSEDED 2026-08-30 — see the landed block below]** The **E2E job's permanent red** (not a table row) | `worktree-wf_60cb7fe0-094-3` (`2010d7655`) | The diagnosis is worth keeping — the stack was **up in 44 of 45 runs**, so "is the stack up?" was never the failure — but the fix is not. GitHub runs a composite action's `shell: bash` as `bash --noprofile --norc -e -o pipefail`; the new `supabase-start` action sets `set -uo pipefail` and never `set +e`, so the runner's `-e` kills the step on the first failed attempt and the retry loop, its two `::warning::`s and the `::error::` it exists to emit are all unreachable in CI. The test that fences it runs the script under bare `bash` (no `-e`), so eight tests pass over a script that does not retry — the harness reproduced the author's belief about the runner instead of the runner. |
 
 Two findings from the second branch are real regardless of whether that branch
 ever lands, and both are **PO-gated**, so they are recorded here rather than
@@ -361,10 +421,15 @@ carried into code by an integrator: `e2e-nightly.yml` declares
 `STAGING_SUPABASE_URL` / `STAGING_SUPABASE_ANON_KEY` and the job log shows both
 **empty**, which is why the cross-tenant isolation spec dies naming the anon key;
 and the registry throttling in those runs is **ECR Public**, not Docker Hub, so a
-`docker/login-action` with Hub credentials would buy nothing. Neither is written
-into the numbered PO list below, because the branch that measured them was turned
-back and a rejected lane's evidence should be re-measured before it becomes a
-standing instruction.
+`docker/login-action` with Hub credentials would buy nothing. They were not
+written into the numbered PO list at the time, because the branch that measured
+them was turned back and a rejected lane's evidence should be re-measured before
+it becomes a standing instruction.
+
+**Both were re-measured on 2026-08-30 from a different lane and both held**, so
+they are now items **6 and 7** of the numbered PO list below, with the evidence
+that promoted them. The second one came back stronger than the original claim:
+the staging secrets are not merely empty at runtime, they **do not exist**.
 
 ## Declared debts, with an owner
 
@@ -387,6 +452,8 @@ Listed so you recognise them and hand them over instead of trying.
 3. Apply migrations **0205, 0206, 0207** to staging and production. Written and green locally. **Applying to a remote DB is Ignacio's call, never yours.**
 4. Resend email setup (domain verification → API key → SMTP in Supabase → env in Vercel). Until it lands, the 6-digit password-recovery code does not travel and the screen promises what the mail does not deliver.
 5. The two store graphics, pointing `mimar.com.ar` at Vercel, the tester acceptance link, the Supabase "exceeding limits" warning, and the 12 tester emails.
+6. Create the two **staging secrets the nightly e2e job reads**, `STAGING_SUPABASE_URL` and `STAGING_SUPABASE_ANON_KEY`. Re-measured 2026-08-30 and PROMOTED from the turned-back block above, with a root cause stronger than the original report: they are not empty by accident, **they were never created**. `gh secret list` on the repo returns exactly one row, `STAGING_DATABASE_URL`; `e2e-nightly.yml` declares no `environment:`, so no environment-scoped secret can supply them either, and `${{ secrets.X }}` on an undefined secret is the empty string with no warning. The consequence is visible in every run: the job log prints `NEXT_PUBLIC_SUPABASE_ANON_KEY:` with nothing after it, and `e2e/cross-tenant-isolation.spec.ts:265` throws `NEXT_PUBLIC_SUPABASE_ANON_KEY not set — the cross-tenant isolation suite cannot probe anything`. Present identically in run 33252469499 (2026-08-29) and run 32108115808 (2026-08-18); all **12** of the 12 most recent nightly runs are red. **Creating a secret is the PO's**, never an agent's — the values are the staging project's URL and anon key.
+7. Decide whether to authenticate **ECR Public** pulls in CI, or accept the throttling. Re-measured 2026-08-30 and PROMOTED from the turned-back block above. Every Supabase image resolves to `public.ecr.aws/supabase/*`, and in runs 33273180809 / 33269256483 / 33260290131 every `toomanyrequests: Rate exceeded` line is immediately followed by the CLI's own `Retrying after Ns: public.ecr.aws/supabase/<image>` — so the throttle is named, not inferred. The only `docker.io` reference in any of those runs is `library/postgres:16`, a service container that is not part of this stack. **A `docker/login-action` with Docker Hub credentials would change nothing**; write that down before someone spends a day on it. ECR Public throttles anonymous pulls by source IP and raising the ceiling needs an AWS account to authenticate against, which is a spend decision. Not urgent on its own: the CLI already retries a throttled pull and recovers.
 
 ## Two live hazards, today
 
