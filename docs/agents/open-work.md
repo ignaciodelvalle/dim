@@ -2263,10 +2263,15 @@ claimed the rule was.
   GREEN.** (**The block first said "all 67 … 65 measured" and that was wrong; the
   integrator recounted it from `package.json` on the merged tree — 66 in the root
   and zero in `apps/mobile` or `packages/contract`.** The 67 was inherited from a
-  sentence higher up this page, so the lane repeated a rotten number rather than
-  minting one, which is the failure mode this page exists to name. The stale
-  original sits inside `Attempted and turned back`, which this page forbids
-  editing, and is left standing there.) `lint:route-weight` and
+  sentence higher up this page rather than minted here, and the merge found where
+  it originally comes from: **`lint:ci-parity` prints "all 67 gate(s) in
+  `verify`", and that is a true number about a DIFFERENT set.** `verify` chains
+  **70** `&&`-separated terms — the 66 `lint:*` scripts (every one of them, none
+  left out) plus `typecheck`, `verify:mobile`, `lint` (biome) and `build`. So 67
+  was never rot; it was a correct count of gates transplanted into a sentence
+  about lint scripts, which is the same accident as the hourly figure this repo
+  once put in a per-minute slot. The stale copy sits inside `Attempted and turned
+  back`, which this page forbids editing, and is left standing there.) `lint:route-weight` and
   `lint:csp-prerender` are declared **NOT MEASURED**, not counted green — both
   self-skip without a build and exit 0 while saying so in words ("NO SE MIDIÓ
   NADA", "This run proved nothing about the CSP"). Verified by running each on
@@ -2428,9 +2433,12 @@ correction rather than silently overwritten:
 
 - **"all 67 `lint:*` … 65 measured"** → **66 and 64.** Recounted from
   `package.json` on the merged tree: 66 in the root, zero in `apps/mobile` and
-  zero in `packages/contract`. The 67 was inherited from a sentence higher up
-  this page, so the lane repeated a rotten number rather than minting one. The
-  stale original sits inside `Attempted and turned back` and is left standing.
+  zero in `packages/contract`. **And the 67 turned out not to be rot at all** —
+  `lint:ci-parity` prints "all 67 gate(s) in `verify`", a true count of a
+  different set. `verify` chains 70 terms: the 66 `lint:*` plus `typecheck`,
+  `verify:mobile`, `lint` and `build`. A correct number about one set, moved into
+  a sentence about another, is a shape this repo has been bitten by before. The
+  stale copy sits inside `Attempted and turned back` and is left standing.
 - **"One mutation did NOT go red"** about `org-invitations.test.ts` → it is
   **load-bearing and proved.** The lane picked an instrument that could not
   answer: `dbNow()` returning epoch WIDENS the window and the defect NARROWS it.
@@ -2488,3 +2496,85 @@ window's edit or after it. That page is nobody's territory this window.
   default `node` is v25.8.1, and above the 22 line Node's built-in Web Storage
   shadows jsdom's and ~125 suites fail for reasons that belong to nobody. A gate
   run on the default node answers a different question than the one being asked.
+
+### THE GATE: two `test:verified` runs over one tree, and they are IDENTICAL
+
+This is the measurement the whole window existed to take, so it is written out
+in full rather than summarised. Tree `134eac590`, `git status` clean before and
+after, Node **22.23.2** via `fnm`, nothing else running on the machine.
+
+**`pnpm verify` — exit 0**, including the build. Notable, because both lanes
+declared `lint:route-weight` and `lint:csp-prerender` **NOT MEASURED**: run
+standalone they self-skip for want of a build manifest, and inside `verify` they
+run **after** `pnpm build`, so here they measured for real —
+`✓ CSP × prerender — no prerendered pages; every route gets a request nonce` and
+`✓ route-weight clean — 2 ruta(s) vigilada(s) sobre un manifiesto de 546`. The
+lanes were right to refuse to count them green from a standalone run, and the
+gate is where they actually get counted.
+
+**`pnpm test:verified`, run TWICE over that one tree. The two verdict lines,
+quoted:**
+
+```
+reported 1478 file(s); 1478 discovered; 0 failing test(s); 0 broken file(s)
+reported 1478 file(s); 1478 discovered; 0 failing test(s); 0 broken file(s)
+```
+
+Both exit **0**. Neither log contains `Worker exited unexpectedly`. And the
+agreement goes past the verdict line, which is the part that answers the
+previous window: **both runs report `Test Files 1477 passed | 1 skipped (1478)`
+and `Tests 18946 passed | 15 skipped | 5 todo (18966)`** — the same file count,
+the same test count, the same skip and todo counts. The 2026-08-30 defect the
+`reloj-omnibox` lane closed showed up precisely as two runs over one tree
+disagreeing; two runs now agree down to the last of 18.966 tests.
+
+**So the Definition of Done IS met on this tree** — the first window in three to
+be able to say that without a caveat attached. What it does NOT prove is that no
+other source of nondeterminism exists: two agreeing runs are two samples, and
+this page's own rule is that one clean sample of a nondeterministic failure only
+resets the coin. What they do prove is that the source that was measured, named
+and fixed is gone, and that nothing the two lanes landed introduced another one
+that fires within two draws.
+
+**The mobile Jest suite is NOT in `test:verified`** and is reported separately,
+as this page requires: it runs inside `verify` as `verify:mobile` and came back
+**62 suites / 978 tests passed, 0 failed** (up from the 58 / 916 the previous
+window recorded — the custody lane's four new native test files).
+
+**Database probes, before and after every run**, because a suite that writes to
+a shared Supabase can move a number that a later fence reads:
+
+| Moment | audit_log | profiles | pets | pet_events | ownerships | public funcs |
+|---|---|---|---|---|---|---|
+| baseline, before `verify` | 119.243 | 4.280 | 30.006 | 109.773 | 30.006 | 50 |
+| after `verify` | 119.243 | 4.280 | 30.006 | 109.773 | 30.006 | 50 |
+| after `test:verified` run 1 | 121.610 | 4.366 | 30.006 | 109.773 | 30.006 | 50 |
+| after `test:verified` run 2 | 123.977 | 4.452 | 30.006 | 109.773 | 30.006 | 50 |
+
+**The deltas are identical run to run — exactly +2.367 `audit_log` and +86
+`profiles` each time**, and the spine (`pets`, `pet_events`, `ownerships`,
+`organizations`, `cases`) does not move at all. That is a second, independent
+witness to the same determinism: not only did the two runs report the same
+numbers, they did the same amount of work. `verify` writes nothing.
+
+**The two live subject-rights functions were re-dumped after the gate and are
+byte-identical to the pre-gate dump.** The suite mutates neither, and neither
+does the merge.
+
+### What this window did NOT verify
+
+- **Playwright.** e2e is a separate gate and is not in `pnpm verify`; the two
+  new bearer doors are `/api/v1` surfaces with no browser flow, but the nightly
+  job is still the only thing that speaks to the web pages they were copied from.
+- **That the gate is deterministic in general.** Two agreeing runs are two
+  samples. See above; this is stated rather than implied on purpose.
+- **The three minor findings listed under "What was NOT fixed"** — the contract
+  docblock's "FOUR", the `_layout.tsx` transcription claim, the `db-now.ts`
+  cast. Each was read and none was patched.
+- **Nothing was pushed.** `main` is at the hash below, local only.
+
+**These last two sections are the only commits standing above the gated tree**,
+which is the same disclosure the previous window made and for the same reason: a
+gate result has to be written where the next reader looks. The doc-sweeping
+fences were re-run afterwards against this final tree, so the disclosure is not
+also a hole.
