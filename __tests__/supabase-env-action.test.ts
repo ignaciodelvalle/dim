@@ -34,7 +34,7 @@
 // today — but "happens to agree" is not a property a harness may assume, and it
 // is exactly what the other file assumed.
 
-import { chmodSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { chmodSync, existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
@@ -49,11 +49,18 @@ afterEach(() => {
   for (const dir of temps.splice(0)) rmSync(dir, { recursive: true, force: true });
 });
 
-type Outcome = { status: number; output: string; githubEnv: string };
+type Outcome = { status: number; output: string; githubEnv: string; calls: string[] };
 
 /**
  * Run the shipped script with `pnpm` stubbed to print `statusOut` and exit
  * `statusRc`, and $GITHUB_ENV pointed at a scratch file.
+ *
+ * The stub LOGS ITS ARGV. Its first cut did not, and that is the same hole as a
+ * stub that discards a `where` predicate: with the arguments thrown away, every
+ * case in this file would be asserting that it does not matter WHAT the script
+ * asks the CLI for. It matters — `supabase status` without `-o env` prints a
+ * human table, not KEY=VALUE lines, and each of the guards below would then be
+ * firing for the wrong reason on a perfectly healthy stack.
  *
  * stderr is folded into stdout because that is how a runner reads a step: the
  * annotation must be visible in the job log wherever the script chose to put
@@ -63,10 +70,19 @@ function runAction(statusOut: string, statusRc = 0): Outcome {
   const dir = mkdtempSync(join(tmpdir(), "supabase-env-"));
   temps.push(dir);
 
+  const callLog = join(dir, "calls.log");
   const stub = join(dir, "pnpm");
   writeFileSync(
     stub,
-    `#!/bin/bash\ncat <<'PNPM_STUB_EOF'\n${statusOut}\nPNPM_STUB_EOF\nexit ${statusRc}\n`,
+    [
+      "#!/bin/bash",
+      `echo "$*" >> ${JSON.stringify(callLog)}`,
+      "cat <<'PNPM_STUB_EOF'",
+      statusOut,
+      "PNPM_STUB_EOF",
+      `exit ${statusRc}`,
+      "",
+    ].join("\n"),
   );
   chmodSync(stub, 0o755);
 
@@ -77,7 +93,10 @@ function runAction(statusOut: string, statusRc = 0): Outcome {
     dir,
     env: { ...process.env, PATH: `${dir}:${process.env.PATH ?? ""}`, GITHUB_ENV: githubEnvPath },
   });
-  return { status, output, githubEnv: readFileSync(githubEnvPath, "utf8") };
+  const calls = existsSync(callLog)
+    ? readFileSync(callLog, "utf8").split("\n").filter(Boolean)
+    : [];
+  return { status, output, githubEnv: readFileSync(githubEnvPath, "utf8"), calls };
 }
 
 /** A well-formed three-part JWT — shape only; the value is never verified. */
@@ -99,6 +118,14 @@ describe("the supabase-env action, executed under the runner's own shell", () =>
   it("declares `shell: bash`, which is what the harness's flags encode", () => {
     expect(step().shell).toBe("bash");
     expect(runnerArgv(step().shell)).toEqual(["--noprofile", "--norc", "-e", "-o", "pipefail"]);
+  });
+
+  it("asks the CLI for `status -o env`, exactly once", () => {
+    // `-o env` is what makes the output KEY=VALUE at all; without it the CLI
+    // prints a human table and every guard below fires on a healthy stack for
+    // the wrong reason. Observed from the stub's own argv log rather than read
+    // off the YAML, so a script that grew a second CLI call is also named.
+    expect(runAction(HEALTHY_STATUS).calls).toEqual(["exec supabase status -o env"]);
   });
 
   it("exports the anon key with the CLI's quotes stripped", () => {
