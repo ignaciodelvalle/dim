@@ -288,5 +288,30 @@ export function apiErrorMessage(code: ApiV1ErrorCode): string {
       // that promised an untouched account would be a promise this code cannot
       // keep for the case it does not cover. "Volvé a intentar" is true in both.
       return "No pudimos completar la baja. Volvé a intentar en unos minutos.";
+    // Turnos. The screen reads `capabilities` and does not draw "Cancelar" on a
+    // row it may not cancel, so every sentence below is reached when the world
+    // moved between the read and the tap — which is why all four end in an
+    // instruction to look again rather than in an apology.
+    case "appointment_forbidden":
+      // The turno exists and belongs to somebody else. The sentence says whose
+      // it is NOT, never whose it is.
+      return "Este turno no es tuyo. Volvé a Mis turnos para ver los que sí lo son.";
+    case "appointment_already_resolved":
+      // DELIBERATELY AMBIGUOUS, like the code (see the contract): this may be
+      // the caller's own retry landing on a cancel that already committed, or
+      // the clinic having moved first. Saying either one would report the
+      // provider's action as the person's own, so the copy says only that the
+      // row changed and sends them to look.
+      return "Este turno ya cambió de estado. Actualizá la pantalla para ver cómo quedó.";
+    case "appointment_past":
+      // A DIFFERENT MOVE from the one above: nothing changed, the clock simply
+      // passed the start time. The row is still there and still worth reading.
+      return "Ese turno ya pasó, así que no se puede cancelar.";
+    case "appointment_failed":
+      // NOT "volvé a intentar" on its own. A retry after a commit that did land
+      // answers `appointment_already_resolved`, so the honest instruction is to
+      // re-read first — the place is either freed or it is not, and the list is
+      // what says which.
+      return "No pudimos cancelar el turno. Actualizá la pantalla para ver si quedó cancelado.";
   }
 }

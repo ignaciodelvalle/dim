@@ -48,6 +48,7 @@
 // two screens end up disagreeing about what a 401 means.
 
 import {
+  type AppointmentCommandAckV1,
   type CaretakerCommandAckV1,
   type EventAmendedV1,
   type EventRecordedV1,
@@ -56,6 +57,7 @@ import {
   type LoginV1,
   type LostCommandAckV1,
   ME_PAYLOAD_VERSION,
+  MY_APPOINTMENTS_PAYLOAD_VERSION,
   MY_CARETAKER_GRANTS_PAYLOAD_VERSION,
   MY_NOTIFICATIONS_PAYLOAD_VERSION,
   MY_PETS_PAYLOAD_VERSION,
@@ -63,6 +65,7 @@ import {
   MY_PROFILE_PAYLOAD_VERSION,
   MY_TRANSFERS_PAYLOAD_VERSION,
   type MeV1,
+  type MyAppointmentsV1,
   type MyCaretakerGrantsV1,
   type MyNotificationsV1,
   type MyPetsV1,
@@ -95,6 +98,7 @@ import {
 } from "@dim/contract/api";
 import type {
   AmendEventInput,
+  AppointmentCommandInput,
   CaretakerCommandInput,
   LostCommandInput,
   MyProfileEditInput,
@@ -837,6 +841,65 @@ export function sendCaretakerCommand(
 ): Promise<ApiResult<CaretakerCommandAckV1>> {
   return apiRequest<CaretakerCommandAckV1>(
     { path: "/api/v1/me/caretaker-grants", method: "POST", body: input },
+    session,
+  );
+}
+
+/**
+ * `GET /me/appointments` — every turno this person booked.
+ *
+ * THE FOURTH READ ON THIS SURFACE THAT TAKES NO PET TOKEN, and the one where the
+ * reason is different from the other three. `/me/transfers`,
+ * `/me/caretaker-grants` and `/me/notifications` CANNOT name a pet. This one
+ * could — every row names an animal — and does not, because the question it
+ * answers is not per-pet: somebody opening it is asking "what do I have booked",
+ * across every animal they are responsible for, ordered by time. Per-pet would
+ * make this app ask N times to answer it.
+ *
+ * It also carries rows for animals this caller does not own: a foster or a
+ * co-owner books under their own id, and the turno is theirs even when the animal
+ * is not.
+ *
+ * THREE FACTS ON EVERY ROW ARE THE SERVER'S CLOCK AND MUST NOT BE RECOMPUTED —
+ * `section`, `capabilities.canCancel`, `capabilities.canCheckIn`. The contract's
+ * `my-appointments.ts` states it at length; the short version is that a phone
+ * whose clock is wrong takes the check-in QR away from somebody standing at the
+ * clinic desk.
+ */
+export function fetchMyAppointments(session: SessionPort): Promise<ApiResult<MyAppointmentsV1>> {
+  return apiRequest<MyAppointmentsV1>(
+    { path: "/api/v1/me/appointments", expectedPayloadVersion: MY_APPOINTMENTS_PAYLOAD_VERSION },
+    session,
+  );
+}
+
+/**
+ * `POST /me/appointments` — cancel a turno. The one command, and the only one.
+ *
+ * THE THREE THAT ARE MISSING ARE THE POINT. The web's booking surface has four
+ * writes; three of them (asistió, no asistió, cancelar por la organización) are
+ * the PROVIDER'S, behind `/org/{token}/agenda`. A citizen wallet that could run
+ * one would be doing something the owner's browser cannot. Booking itself is an
+ * owner capability and is absent for a different reason — it needs a search and a
+ * slot picker this app does not have yet — which is scope, not a rule.
+ *
+ * WHAT IT MUTATES IS NOT AN ASIENTO. `appointments.status`, three timestamps, and
+ * a DECREMENT of `time_slots.bookings_count` that frees the place for somebody
+ * else. Nothing on the spine: a turno nobody attended produced no fact about the
+ * animal.
+ *
+ * NO `idempotencyKey` PARAMETER, AND THAT IS THE CONTRACT AND NOT A SHORTCUT.
+ * The writer takes no `clientIdempotencyKey`. What it has — an UPDATE conditional
+ * on `status = 'confirmed'` — REFUSES a replay instead of absorbing one, which is
+ * a different promise: after a timeout, `appointment_already_resolved` may mean
+ * the first attempt landed OR that the clinic moved first. A caller must re-read.
+ */
+export function sendAppointmentCommand(
+  session: SessionPort,
+  input: AppointmentCommandInput,
+): Promise<ApiResult<AppointmentCommandAckV1>> {
+  return apiRequest<AppointmentCommandAckV1>(
+    { path: "/api/v1/me/appointments", method: "POST", body: input },
     session,
   );
 }

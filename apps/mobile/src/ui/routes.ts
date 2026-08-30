@@ -99,7 +99,40 @@ export const ROUTES = {
    * already agree are one less thing to reconcile when it lands.
    */
   notificaciones: "/notificaciones",
+  /**
+   * MIS TURNOS — the third top-level screen that is not one pet's.
+   *
+   * Every row DOES name an animal, unlike the two above, and it still sits
+   * beside `/mascotas` rather than under it: the question the screen answers is
+   * "what do I have booked", across every animal this person is responsible for,
+   * ordered by time. It also lists turnos for animals they do not own, because
+   * booking accepts any active ownership role — a foster's turno is the foster's.
+   *
+   * THE PATH SHORTENS THE WEB'S `/mis-turnos`, exactly as `/mascotas` shortens
+   * `/mis-mascotas` and for the same reason: in an app that only ever shows you
+   * your own, "mis" is a word the URL does not need. Nothing deep-links here —
+   * `DEEP_LINK_MAP.appointment` names the WEB path and its `mimar://` form is a
+   * QR payload for a reader that does not exist yet (see `turnos-view-model.ts`)
+   * — so unlike `/transferencias` this path is free to say what the screen is.
+   */
+  turnos: "/turnos",
 } as const;
+
+/**
+ * One turno.
+ *
+ * NOT A DEEP-LINK DESTINATION, and the distinction matters here more than
+ * anywhere else in this file. `DEEP_LINK_MAP.appointment` is the single entry
+ * whose `appPath` names no screen (`APP_PATH_NAMES_NO_SCREEN`): it is
+ * `appointment/{token}`, a QR payload kept byte-for-byte for a front-desk reader
+ * that has never been built, and it does NOT match this route. Adding this path
+ * to that table would change the string the web already prints on every check-in
+ * QR, which is a debt to close deliberately and not a side effect of adding a
+ * screen. Recorded here so the next reader does not "fix" the mismatch by hand.
+ */
+export function turnoRoute(appointmentToken: string): `/turnos/${string}` {
+  return `/turnos/${encodeURIComponent(appointmentToken)}`;
+}
 
 /**
  * One transfer proposal.
@@ -267,4 +300,5 @@ export type AppRoute =
   | ReturnType<typeof transferRoute>
   | ReturnType<typeof transferPetRoute>
   | ReturnType<typeof caretakerPetRoute>
-  | ReturnType<typeof caretakerGrantRoute>;
+  | ReturnType<typeof caretakerGrantRoute>
+  | ReturnType<typeof turnoRoute>;

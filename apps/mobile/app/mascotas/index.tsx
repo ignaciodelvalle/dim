@@ -131,6 +131,29 @@ export default function MisMascotasScreen() {
           accessibilityHint="Avisos sobre tus mascotas y tu cuenta."
           onPress={() => router.push(ROUTES.notificaciones)}
         />
+        {/* MIS TURNOS' ONLY ENTRY POINT, and the reason it needs one at all is
+            worth stating: on the WEB this capability is not in the navigation
+            either — `/mis-turnos` is reachable from a notification CTA and from
+            the booking flow's redirect, and from nowhere else. A browser makes
+            that survivable because a person can type the address. A phone does
+            not, so an unlinked native screen is a screen that does not exist.
+
+            It sits beside the two above rather than on a pet for their reason,
+            one step weaker: every turno DOES name an animal, but the question
+            "what do I have booked" is asked across all of them at once, and the
+            list also holds turnos for animals that are not above it — booking
+            accepts any active ownership role, so a foster's turno is the
+            foster's.
+
+            NO UPCOMING COUNT ON THE LABEL, for the reason the two buttons above
+            carry no badge: it would be a second round trip on the app's
+            most-opened screen to decorate a button. If it earns its cost it
+            belongs in `MyPetsV1`. */}
+        <SecondaryButton
+          label="Mis turnos"
+          accessibilityHint="Turnos reservados, y el código de check-in de cada uno."
+          onPress={() => router.push(ROUTES.turnos)}
+        />
         <SecondaryButton label="Ajustes" onPress={() => router.push(ROUTES.ajustes)} />
       </View>
     </Screen>

@@ -966,6 +966,36 @@ export const API_V1_IP_BUCKET_FAMILIES: Readonly<Record<string, ApiV1IpFamily>> 
   // authenticated-write budget the pet's own editar door already runs on.
   api_v1_me_profile_read_ip: "authenticated-read",
   api_v1_me_profile_write_ip: "authenticated-write",
+
+  // Landed with the native turnos door (WU-S, `me/appointments`). Both halves
+  // take the GENERIC families, and BOTH choices are the neighbouring one being
+  // rejected rather than a default being taken.
+  //
+  // THE READ is `authenticated-read` for the reason every pet-scoped read is:
+  // a client that opens "Mis turnos" is cold-launching or coming off a push,
+  // and it calls `/me`, `/me/pets` and this within the same second. One budget
+  // bounds the fan-out or none of them does.
+  //
+  // THE WRITE (the owner cancelling their own turno) is
+  // `authenticated-write` and NOT `inbox-state`, which is the tempting
+  // neighbour because both are `/me` writes that a person taps. The inbox
+  // family was derived from what its write COSTS — "one indexed UPDATE on
+  // `notifications` scoped to `user_id`" — and a cancellation is not that: it
+  // is a conditional UPDATE on `appointments`, a decrement of the slot's
+  // `bookings_count`, and a notification to the provider, which is a
+  // transaction across three tables that hands a place back to somebody else.
+  // Sizing it against clearing an inbox would put the ceiling of the cheapest
+  // authenticated write on this surface over one of the more expensive ones.
+  //
+  // IT IS ALSO NOT `account-security`, the other `/me` neighbour, even though a
+  // cancellation shares that family's "rare, deliberate, irreversible" shape.
+  // That family's derivation is not the shape — it is that the act's failure
+  // mode is "you cannot sign out of the phone you lost" or "you cannot exercise
+  // a legal right", and being refused a cancellation for sixty seconds is
+  // neither. What this is, exactly, is one person in a form acting on their own
+  // record, which is the authenticated-write anchor and nothing else.
+  api_v1_me_appointments_read_ip: "authenticated-read",
+  api_v1_me_appointments_write_ip: "authenticated-write",
 };
 
 /**

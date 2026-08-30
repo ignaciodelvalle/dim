@@ -155,6 +155,20 @@ export {
   type MyProfileV1,
 } from "./my-profile.ts";
 export {
+  APPOINTMENT_SECTIONS_V1,
+  APPOINTMENT_STATUSES_V1,
+  MY_APPOINTMENTS_PAYLOAD_VERSION,
+  MY_APPOINTMENTS_STALE_AFTER_MS,
+  type AppointmentCapabilitiesV1,
+  type AppointmentCommandAckV1,
+  type AppointmentPetV1,
+  type AppointmentProviderV1,
+  type AppointmentSectionV1,
+  type AppointmentStatusV1,
+  type MyAppointmentV1,
+  type MyAppointmentsV1,
+} from "./my-appointments.ts";
+export {
   CARETAKER_GRANT_STATUSES_V1,
   MY_CARETAKER_GRANTS_PAYLOAD_VERSION,
   MY_CARETAKER_GRANTS_STALE_AFTER_MS,

@@ -143,8 +143,21 @@ export const V1_ROUTE_GLOB = "app/api/v1/**/route.ts";
  * gate goes red. Nothing failed; it was caught by recounting
  * `listV1RouteFiles()` after the merge. Raising this number is part of adding a
  * route, and the recount belongs to whoever merges when the lane forgets.
+ *
+ * TWENTY-FOUR with turnos (`me/appointments`), raised in the same commit that
+ * added the route — the run of "same commit" resumes after the integrator's
+ * recount above. `me/` now has EIGHT sibling directories (`appointments`,
+ * `caretaker-grants`, `notifications`, `pets`, `privacy`, `profile`,
+ * `revoke-sessions`, `transfers`) plus its own leaf, which takes the title of
+ * densest place on the surface off `pets/{token}/` and its seven; both halves
+ * of the paragraph above now have a concrete directory a single rename would
+ * empty. The arithmetic behind 24 is NOT "23 + 1 because I added a route" —
+ * that reasoning is what produced the stale 21 the paragraph above had to
+ * repair, because it trusts the previous number instead of the tree. It is
+ * `listV1RouteFiles().length` RECOUNTED on this tree with the route present:
+ * 24 files, 24 floor, equal rather than merely satisfied.
  */
-export const MIN_V1_ROUTE_FILES = 23;
+export const MIN_V1_ROUTE_FILES = 24;
 
 export const HELPER_MODULE = "@/lib/infra/api-v1";
 

@@ -618,6 +618,42 @@
  *                         untouched, because a LATER step failing does not
  *                         reach this arm at all (it logs and still reports
  *                         success, by design: see `eraseSubjectDataFor`).
+ * - `appointment_forbidden`
+ *                       — the turno exists and is somebody else's. 403, and NOT
+ *                         collapsed into `not_found`, which is the choice
+ *                         `transfer_forbidden` made for the same reason: the
+ *                         token is a server-minted random string nobody guesses,
+ *                         and the web says these two things in these two cases
+ *                         (`cancelAppointmentByOwner` returns "Turno no
+ *                         encontrado." and "Este turno no te pertenece."
+ *                         separately). What must NOT differ is the animal's
+ *                         side, and it does not: the read drops every row whose
+ *                         pet is soft-deleted before the caller ever sees a
+ *                         token to send.
+ * - `appointment_already_resolved`
+ *                       — somebody already answered, or the world moved. 409,
+ *                         and it is DELIBERATELY AMBIGUOUS: after a timeout it
+ *                         may mean this caller's own first attempt landed, or
+ *                         that the clinic cancelled or attended the turno in the
+ *                         meantime. The writer's UPDATE is conditional on
+ *                         `status = 'confirmed'`, which refuses a replay rather
+ *                         than absorbing one, so a client must RE-READ and never
+ *                         re-send. Naming which of the two happened would report
+ *                         the provider's action as the caller's own.
+ * - `appointment_past`  — the slot's start time is behind us. 409, and its own
+ *                         code rather than `appointment_already_resolved`
+ *                         because the client's move differs: a resolved turno is
+ *                         gone and the screen re-reads, while a past one is
+ *                         still a row the person has to be told about ("no podés
+ *                         cancelar un turno que ya pasó") and may still need to
+ *                         look at.
+ * - `appointment_failed`
+ *                       — the cancel transaction failed. 500. RETRYING IS SAFE
+ *                         ONLY IN THE SENSE THAT NOTHING IS DOUBLE-FREED: the
+ *                         conditional UPDATE means a retry after a commit that
+ *                         did land answers `appointment_already_resolved`, not a
+ *                         second decrement of `bookings_count`. It is still not
+ *                         a signal that the first attempt failed.
  */
 export const API_V1_ERROR_CODES = [
   "rate_limited",
@@ -679,6 +715,10 @@ export const API_V1_ERROR_CODES = [
   "erasure_reason_required",
   "export_failed",
   "erasure_failed",
+  "appointment_forbidden",
+  "appointment_already_resolved",
+  "appointment_past",
+  "appointment_failed",
 ] as const;
 
 export type ApiV1ErrorCode = (typeof API_V1_ERROR_CODES)[number];
