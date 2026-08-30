@@ -1082,6 +1082,30 @@ export const API_V1_IP_BUCKET_FAMILIES: Readonly<Record<string, ApiV1IpFamily>> 
   api_v1_adoptions_read_ip: "authenticated-read",
   api_v1_me_adoption_applications_ip: "authenticated-read",
   api_v1_adoption_apply_ip: "adoption-application",
+
+  // Landed with the native denuncia door (WU-T, `POST /api/v1/welfare-reports`),
+  // and unlike the two blocks above it is added by the LANE that shipped the
+  // route rather than by an integrator afterwards — that lane owns this file in
+  // its window, so the pattern the two comments above record ("the route arrived
+  // with its bucket spent and undeclared") had no reason to repeat.
+  //
+  // `authenticated-write` AND NOT A DENUNCIA-SPECIFIC DERIVATION. What this
+  // family sizes is CGNAT exposure, and behind a carrier gateway a denuncia is
+  // one person filling in a long form — the same act `me/profile` and
+  // `pets/{token}/profile` are anchored on. It is NOT `pet-record-write`, whose
+  // anchor is a vet day at a rescue with many animals from one egress, and it is
+  // NOT `inbox-state`, whose anchor is one indexed UPDATE on the caller's own
+  // row: this write inserts a report, opens a case, links it and signals an
+  // authority.
+  //
+  // ONE bucket for a POST route with TWO commands (`resolve_location`, `file`),
+  // for the reason `me/pet-claims` above gives. The two are not independent
+  // acts — you resolve an address IN ORDER to file — so two counters would let
+  // alternating between them buy back at the gateway what neither ceiling meant
+  // to give. The per-USER budget is not here at all: it is `welfare_auth`,
+  // 10/hr, the same bucket the browser's own action spends, and it lives beside
+  // the act in `app/api/v1/welfare-reports/commands.ts`.
+  api_v1_welfare_reports_ip: "authenticated-write",
 };
 
 /**

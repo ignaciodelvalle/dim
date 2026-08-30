@@ -195,8 +195,19 @@ export const V1_ROUTE_GLOB = "app/api/v1/**/route.ts";
  * TWENTY-THREE paragraph had to repair. It is `listV1RouteFiles().length`
  * RECOUNTED on this tree with all three routes and the claim door present: 28
  * files, 28 floor, equal rather than merely satisfied.
+ *
+ * RECOUNTED AGAIN, 2026-08-30, for the denuncia door (WU-T,
+ * `app/api/v1/welfare-reports/route.ts`): `listV1RouteFiles().length` is 29.
+ *
+ * AND THIS ONE IS THE PARAGRAPH ABOVE HAPPENING FOR REAL, not a repetition of
+ * its warning. The denuncia route file landed in the tree BEFORE this floor was
+ * touched, so for the length of that lane the count was 29 against a floor of 28
+ * — satisfied, slack by one, and green. Nothing anywhere went red to say so; the
+ * only reason it was caught is that the floor was recounted rather than read.
+ * That is the whole argument for the instruction, and it is why "the fence was
+ * green" is not evidence a floor is right.
  */
-export const MIN_V1_ROUTE_FILES = 28;
+export const MIN_V1_ROUTE_FILES = 29;
 
 export const HELPER_MODULE = "@/lib/infra/api-v1";
 
