@@ -254,3 +254,7 @@ export {
   type RabiesVigencia,
   type VaccinationConfidenceTier,
 } from "./public-credential.ts";
+export {
+  WELFARE_REPORT_PAYLOAD_VERSION,
+  type WelfareReportFiledV1,
+} from "./welfare-report.ts";
