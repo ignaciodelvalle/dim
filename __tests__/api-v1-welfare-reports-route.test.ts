@@ -88,6 +88,16 @@ const control = vi.hoisted(() => ({
   /** Every query handed to the web's anonymous geocoder, and what it answers. */
   geocodeQueries: [] as string[],
   geocodeResults: [] as Array<Record<string, unknown>>,
+  /**
+   * Make the geocoder THROW, which is the arm the stub could not reach.
+   *
+   * `geocodeAddress` throws `rate_limited`, `fetch_failed` and `provider_error`
+   * (`lib/infra/geocoding.ts`) and `geocodeAddressPublicAction` re-throws all
+   * three, but a stub that only ever RESOLVES makes every assertion in this file
+   * an assertion about the happy path. The message is the control's so a case can
+   * pick which of the three it is exercising.
+   */
+  geocodeThrows: null as string | null,
   /** Make the case transaction fail, to exercise the other 500 arm. */
   txThrows: false,
 }));
@@ -190,6 +200,10 @@ vi.mock("@/lib/infra/report-error", () => ({
 vi.mock("@/src/modules/localities/application/geocoding/geocoding", () => ({
   geocodeAddressPublicAction: async (query: string) => {
     control.geocodeQueries.push(query);
+    // The query is recorded BEFORE the throw on purpose: a case asserting the
+    // failure arm still gets to assert the geocoder was in fact reached, so a
+    // 503 produced by something else upstream cannot pass for this one.
+    if (control.geocodeThrows !== null) throw new Error(control.geocodeThrows);
     return control.geocodeResults;
   },
 }));
@@ -279,6 +293,7 @@ beforeEach(() => {
   control.txThrows = false;
   control.geocodeQueries = [];
   control.geocodeResults = [];
+  control.geocodeThrows = null;
 });
 
 describe("resolve_location — the only way a phone can name a point", () => {
@@ -364,10 +379,16 @@ describe("resolve_location — the only way a phone can name a point", () => {
   });
 
   it("answers 200 with an EMPTY list when nothing resolves — never an error", async () => {
-    // The geocoder's miss, its timeout and its rate-limit refusal are
-    // deliberately indistinguishable (`lib/infra/geocoding.ts`). A 404 here
-    // would tell a client "that address does not exist" on evidence the server
-    // does not have.
+    // A MISS IS A 200 WITH NO MATCHES. A 404 here would tell a client "that
+    // address does not exist" on evidence the server does not have — the
+    // geocoder answering nothing is not the gazetteer asserting absence.
+    //
+    // THIS COMMENT USED TO SAY the miss, the timeout and the rate-limit refusal
+    // were "deliberately indistinguishable", and that was false in both
+    // directions: `lib/infra/geocoding.ts` THROWS for the other two rather than
+    // returning empty, and this file's stub could not throw, so the sentence
+    // described neither the code nor the test under it. They are distinguishable
+    // and they should be — see the 503 cases below.
     control.geocodeResults = [];
     const response = await post({ command: "resolve_location", addressText: "asdkjhasd" });
 
@@ -377,6 +398,63 @@ describe("resolve_location — the only way a phone can name a point", () => {
       version: 1,
       matches: [],
     });
+  });
+
+  // The three THROWING paths of the geocoder, which escaped this handler as a
+  // bare Next.js 500 until the try/catch in `commands.ts` landed. Each one is a
+  // real `throw new Error(...)` in `lib/infra/geocoding.ts` — `rate_limited` at
+  // its own token bucket, `fetch_failed` at the nominatim timeout,
+  // `provider_error` at any non-2xx — and `geocodeAddressPublicAction` re-throws
+  // all three rather than absorbing them.
+  //
+  // MUTATION, APPLIED: deleting the try/catch in `runWelfareReportCommand` makes
+  // all three of these red. Both halves of each assertion matter — the envelope
+  // is what a bare 500 does NOT have, and it is the whole reason a 503 beats
+  // letting it propagate.
+  for (const reason of ["rate_limited", "fetch_failed", "provider_error"] as const) {
+    it(`answers 503 with the ENVELOPE when the geocoder throws ${reason}`, async () => {
+      control.geocodeThrows = reason;
+      const response = await post({
+        command: "resolve_location",
+        addressText: "Av. Bustillo 1200",
+      });
+
+      expect(response.status).toBe(503);
+      expect(await response.json()).toEqual({ error: "temporarily_unavailable" });
+      expect(response.headers.get("retry-after")).toBe("5");
+      // The geocoder really was reached, so a 503 minted upstream cannot pass
+      // for this one.
+      expect(control.geocodeQueries).toEqual(["Av. Bustillo 1200"]);
+    });
+  }
+
+  it("does NOT answer an empty match list when the geocoder throws", async () => {
+    // THE FIX THAT WOULD HAVE BEEN WRONG, pinned so nobody applies it later.
+    // Collapsing a failure into `matches: []` makes the 200 path unreachable to
+    // distinguish, and the screen renders that as "no encontramos esa
+    // dirección" — telling somebody standing in front of an injured animal that
+    // the street they are looking at does not exist, on evidence the server does
+    // not have. This asserts the two are NOT the same answer.
+    control.geocodeThrows = "fetch_failed";
+    const failed = await post({ command: "resolve_location", addressText: "Av. Bustillo 1200" });
+
+    control.geocodeThrows = null;
+    control.geocodeResults = [];
+    const missed = await post({ command: "resolve_location", addressText: "Av. Bustillo 1200" });
+
+    expect(failed.status).not.toBe(missed.status);
+    expect(missed.status).toBe(200);
+  });
+
+  it("reports the geocoder failure to the sink WITHOUT the address", async () => {
+    // Spec D10: what the person typed is theirs and is not logged. A geocoder
+    // failure is the most tempting place to attach it "for debugging", so the
+    // absence is asserted rather than assumed.
+    control.geocodeThrows = "provider_error";
+    await post({ command: "resolve_location", addressText: "Av. Bustillo 1200" });
+
+    expect(control.errors).toContain("api-v1-welfare-reports/geocode");
+    expect(control.errors.join(" | ")).not.toContain("Bustillo");
   });
 
   it("does NOT spend the denuncia budget to look up an address", async () => {

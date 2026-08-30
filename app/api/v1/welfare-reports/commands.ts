@@ -16,6 +16,12 @@
 //     web's D.11 geocoder-down fallback produces.
 //   • no `audit_log` row. Spec R1: the public create writes none, on either
 //     door, and this one does not become the exception because it authenticated.
+//   • the geocoder's three throwing paths are CAUGHT, which is what
+//     `components/LocationFields.tsx` does around the same action. This one was
+//     the sentence above being false: the call had been copied without the
+//     try/catch that the web wraps it in, so a nominatim outage escaped the
+//     handler as a bare 500. Fixed at `resolve_location` with the reasoning
+//     beside it.
 //
 // THE ANONYMITY RULE, WHICH IS THE ONE THING THIS FILE OWNS
 // ---------------------------------------------------------------------------
@@ -139,7 +145,41 @@ export async function runWelfareReportCommand(ctx: WelfareReportCommandContext) 
     // this command is the web's own `geocode_public` bucket (60/min + 400/hr per
     // IP), spent inside `geocodeAddressPublicAction`, plus the route's per-IP
     // bucket that already ran.
-    const matches = await geocodeAddressPublicAction(ctx.input.addressText);
+    //
+    // THE GEOCODER THROWS AND THIS IS WHERE IT IS CAUGHT. `geocodeAddress` has
+    // three throwing paths — `rate_limited` (its own token bucket, which is NOT
+    // the `geocode_public` one above), `fetch_failed` (the nominatim timeout) and
+    // `provider_error` (any non-2xx) — and `geocodeAddressPublicAction` re-throws
+    // all three. Uncaught, they escape `route.ts`, which does not wrap this call
+    // either, and Next answers a bare 500 with no `{ error }` envelope at all:
+    // the one shape every `/api/v1` failure is required to have, missing on the
+    // only path this phone can turn an address into a point.
+    //
+    // A FAILURE IS NOT AN EMPTY LIST, and collapsing the two would be the more
+    // tempting fix. It is the wrong one: the screen renders `matches: []` as "no
+    // encontramos esa dirección", so a nominatim outage would tell somebody
+    // standing in front of an injured animal that the street they are looking at
+    // does not exist, and they would retype it until they gave up. That is an
+    // infrastructure failure wearing the costume of a user error. 503 says the
+    // true thing, the mobile client already has es-AR copy for it ("El servidor
+    // no pudo responder. Volvé a intentar en unos segundos."), and it carries a
+    // `retry-after`.
+    //
+    // IT IS ALSO WHAT THE WEB'S CALL SITE DOES, which is the rule this file's
+    // header states about every other guard on it: `components/LocationFields.tsx`
+    // wraps the same action and sets `geocodeMessage` to `"failed"`, a state it
+    // keeps DISTINCT from the `"empty"` it sets for a zero-length result. This
+    // door had copied the call and not the try/catch around it.
+    let matches: Awaited<ReturnType<typeof geocodeAddressPublicAction>>;
+    try {
+      matches = await geocodeAddressPublicAction(ctx.input.addressText);
+    } catch (err) {
+      // NO ADDRESS IN THE SINK. Spec D10 forbids logging what the person typed,
+      // and a geocoder failure is the one place it would be most tempting to
+      // attach for debugging.
+      reportError("api-v1-welfare-reports/geocode", err);
+      return unavailable();
+    }
     return apiV1Json(buildWelfareLocationResolvedAck(matches.slice(0, MAX_LOCATION_MATCHES)), {
       status: 200,
     });
