@@ -32,6 +32,14 @@ const control = vi.hoisted(() => ({
   limiterThrows: null as null | (() => never),
   limits: [] as Array<{ endpoint: string; identifier: string }>,
   live: null as unknown,
+  /** Everything the handler reported as an incident. */
+  reported: [] as string[],
+}));
+
+vi.mock("@/lib/infra/report-error", () => ({
+  reportError: (label: string) => {
+    control.reported.push(label);
+  },
 }));
 
 vi.mock("@/lib/supabase/server", () => ({
@@ -170,6 +178,7 @@ beforeEach(() => {
   control.cookieDoorTouched = false;
   control.limiterThrows = null;
   control.limits = [];
+  control.reported = [];
   control.live = { ok: true, user: { id: SUBJECT } };
   mockListing.mockReset();
   mockDetail.mockReset();
@@ -273,6 +282,32 @@ describe("GET /api/v1/adoptions — the catalogue", () => {
     const res = await GET_CATALOGUE(request("https://x.test/api/v1/adoptions"));
     expect(res.status).toBe(429);
     expect(mockListing).not.toHaveBeenCalled();
+  });
+
+  it("FAILS OPEN when the limiter itself is broken, and says so", async () => {
+    // THE DOCBLOCK ON `spendBudget` ARGUES THIS AT LENGTH AND NOTHING MEASURED
+    // IT. Five sibling route files carry a test named almost exactly this; the
+    // adoption door shipped without one, which is the same reserve the turnos
+    // endpoint entered the debts table with.
+    //
+    // The distinction being pinned: a `RateLimitError` is a SPENT BUDGET and
+    // refuses (the test above); anything else is the limiter's own outage —
+    // `rate_limit_buckets` unreachable, the pooler saturated — and a browse
+    // request must not be refused because our counter is sick.
+    //
+    // MUTATION APPLIED: `return false` in `spendBudget`'s catch. Red — the
+    // catalogue answers 429 during an outage that has nothing to do with the
+    // caller. A second mutation, deleting the `reportError` call, is red on the
+    // second assertion: failing open SILENTLY is how an outage becomes
+    // permanent.
+    control.limiterThrows = () => {
+      throw new Error("rate_limit_buckets unreachable");
+    };
+    mockListing.mockResolvedValue({ items: [], nextCursor: null });
+    const res = await GET_CATALOGUE(request("https://x.test/api/v1/adoptions"));
+    expect(res.status).toBe(200);
+    expect(mockListing).toHaveBeenCalled();
+    expect(control.reported).toContain("api-v1-adoptions/api_v1_adoptions_read_ip");
   });
 });
 
@@ -460,6 +495,66 @@ describe("POST /api/v1/adoptions/{petToken} — postularse", () => {
     const res = await POST(applyRequest(VALID_APPLICATION), params);
     expect(res.status).toBe(429);
     expect(mockSubmit).not.toHaveBeenCalled();
+  });
+
+  it("FAILS OPEN on the WRITE too, and the reason is that a second bucket is still closed", async () => {
+    // THE HALF OF THE CLAIM THAT NEEDED PROVING. `spendBudget`'s docblock says a
+    // limiter outage "does not open unmetered writes into a shelter's queue; it
+    // opens a wider pipe to a counter that is still refusing" — the per-APPLICANT
+    // budget inside `submitAdoptionApplication`, which fails CLOSED
+    // (`applicant-budget-fails-closed.test.ts` pins that half; the two
+    // directions are asserted against each other there).
+    //
+    // Failing open HERE is only defensible because of that. If somebody ever
+    // makes the use-case's budget fail open too, this pair of tests is where the
+    // combination becomes visible: an outage would then be unmetered writes into
+    // every shelter's review queue.
+    //
+    // MUTATION APPLIED: `return false` in `spendBudget`'s catch. Red. A second,
+    // deleting the `reportError` call, is red on the last assertion — a WRITE
+    // door that opens silently during an outage is how the outage becomes
+    // permanent, and this one opens wider than the read door does.
+    control.limiterThrows = () => {
+      throw new Error("rate_limit_buckets unreachable");
+    };
+    mockSubmit.mockResolvedValue({ ok: true, value: { eventId: "evt-42" }, notifications: [] });
+    const res = await POST(applyRequest(VALID_APPLICATION), params);
+    expect(res.status).toBe(201);
+    expect(mockSubmit).toHaveBeenCalled();
+    expect(control.reported).toContain("api-v1-adoptions/api_v1_adoption_apply_ip");
+  });
+
+  it("answers the envelope, not a raw 500, when the write itself throws", async () => {
+    // `adoption_application_failed` WAS DECLARED, DOCUMENTED AND UNREACHABLE.
+    // The contract gives it a paragraph, the app gives it es-AR copy, and no
+    // path produced it — which was not merely a dead code, it was a hole:
+    // `submitAdoptionApplication` returns `{ ok: false }` only for DOMAIN
+    // refusals, so a transaction that throws propagated out of the handler and
+    // Next answered with something that is not the one-key `{ error }` envelope
+    // every `/api/v1` failure is required to be.
+    //
+    // 500 AND NOT 409, and that distinction is what the app's copy turns into
+    // "volvé a intentar" instead of "volvé a la ficha para ver por qué".
+    //
+    // MUTATIONS APPLIED, both red: delete the try/catch (the handler rejects and
+    // this test fails on the rejection), and answer 409
+    // `adoption_application_refused` from the catch (a database fault would tell
+    // the person the shelter turned them down).
+    mockSubmit.mockRejectedValue(new Error("deadlock detected"));
+    const res = await POST(applyRequest(VALID_APPLICATION), params);
+    expect(res.status).toBe(500);
+    expect(await res.json()).toEqual({ error: "adoption_application_failed" });
+    expect(control.reported).toContain("api-v1-adoptions/submit");
+  });
+
+  it("still answers 409 for a DOMAIN refusal, so the two are not one code", async () => {
+    // NON-VACUITY for the test above: a catch that swallowed every non-ok result
+    // into 500 would make the refusal unreachable instead, and the app would
+    // tell somebody who already applied that something broke.
+    mockSubmit.mockResolvedValue({ ok: false, error: "Ya te postulaste para esta mascota." });
+    const res = await POST(applyRequest(VALID_APPLICATION), params);
+    expect(res.status).toBe(409);
+    expect(await res.json()).toEqual({ error: "adoption_application_refused" });
   });
 
   it("refuses a deactivated account before the write", async () => {

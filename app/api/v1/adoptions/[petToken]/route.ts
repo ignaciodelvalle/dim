@@ -235,23 +235,48 @@ export async function POST(request: Request, context: { params: Promise<{ petTok
   // is refused rather than duplicated. That is a stronger guarantee than a key
   // buys and it is why nothing here reads the header: asking for one the server
   // would ignore is a client believing it holds a promise nobody made.
-  const result = await submitAdoptionApplication(
-    {
-      petPublicToken: petToken,
-      housingType: parsed.data.housingType,
-      otherPets: parsed.data.otherPets ?? null,
-      dailyRoutine: parsed.data.dailyRoutine ?? null,
-      notes: parsed.data.notes ?? null,
-      profileSharingConsent: parsed.data.profileSharingConsent,
-      motivation: parsed.data.motivation,
-      priorPets: parsed.data.priorPets,
-    },
-    {
-      repo: AdoptionRepository,
-      applicant: { userId: live.user.id },
-      transaction: db.transaction.bind(db),
-    },
-  );
+  // THE TRY IS WHAT MAKES `adoption_application_failed` REACHABLE, and until it
+  // was written that code was declared in `@dim/contract/api`, documented at
+  // length, given es-AR copy in the app, and produced by nothing.
+  //
+  // What actually happened when the write failed was worse than a missing code.
+  // `submitAdoptionApplication` returns `{ ok: false }` only for its DOMAIN
+  // refusals; a transaction that throws — the pooler saturated, a constraint
+  // nobody expected, `insertApplication` failing on the spine — propagates out
+  // of the handler, and Next's default 500 is not the one-key `{ error: … }`
+  // envelope every `/api/v1` failure is required to be. So a client hitting a
+  // database fault got a body it could not parse on the one surface whose whole
+  // contract is that it always can.
+  //
+  // 500 AND NOT 409: the caller did nothing wrong, and the distinction is what
+  // the app's copy turns into "volvé a intentar" rather than "volvé a la ficha
+  // para ver por qué". Retrying really is safe, and for a stronger reason than
+  // most: if the first attempt in fact landed, the retry meets the
+  // duplicate-pending refusal and comes back 409 — never a second letter in the
+  // shelter's queue.
+  let result: Awaited<ReturnType<typeof submitAdoptionApplication>>;
+  try {
+    result = await submitAdoptionApplication(
+      {
+        petPublicToken: petToken,
+        housingType: parsed.data.housingType,
+        otherPets: parsed.data.otherPets ?? null,
+        dailyRoutine: parsed.data.dailyRoutine ?? null,
+        notes: parsed.data.notes ?? null,
+        profileSharingConsent: parsed.data.profileSharingConsent,
+        motivation: parsed.data.motivation,
+        priorPets: parsed.data.priorPets,
+      },
+      {
+        repo: AdoptionRepository,
+        applicant: { userId: live.user.id },
+        transaction: db.transaction.bind(db),
+      },
+    );
+  } catch (err) {
+    reportError("api-v1-adoptions/submit", err);
+    return apiV1Error("adoption_application_failed", 500);
+  }
 
   if (!result.ok) {
     // ONE CODE FOR EVERY DOMAIN REFUSAL, and the coarseness is argued in
