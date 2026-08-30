@@ -309,3 +309,113 @@ describe("bookSlotWriter — offering status gate (SC3)", () => {
     }
   });
 });
+
+// ---------------------------------------------------------------------------
+// The CAMPAIGN-level race — the one the advisory lock cannot serialize.
+//
+// `book-slot.ts` says so in its own comment and this file did not measure it:
+// "the advisory lock is keyed per SLOT, so two concurrent submits against
+// DIFFERENT slots of the same campaign do NOT serialize here; the partial unique
+// index from migration 0181 (appointments_one_live_per_pet_offering) is the
+// race-proof backstop below."
+//
+// `booking.test.ts` covers the campaign guard SEQUENTIALLY — book the 08:00, then
+// try the 08:15 — which exercises the in-transaction re-read and never the index.
+// The concurrent case is a different mechanism entirely: both transactions read
+// "no existing booking in this campaign" before either inserts, both pass the
+// in-lock check, and only the unique index can refuse the second.
+//
+// WHY IT MATTERS MORE THAN THE CAPACITY RACE ABOVE. The failure it prevents is
+// one animal eating N places of a FREE campaign — the exact staging incident of
+// 2026-08-13 (QA A3) — and a double tap on a phone with a slow connection is the
+// ordinary way to produce two concurrent submits, not an unusual one.
+// ---------------------------------------------------------------------------
+
+describe("bookSlotWriter — campaign-level race (migration 0181's index, not the lock)", () => {
+  it("refuses the second of two CONCURRENT bookings for one pet across two slots of one offering", async () => {
+    const [campaign] = await db
+      .insert(serviceOfferings)
+      .values({
+        publicToken: generateOfferingToken(),
+        providerUserId,
+        serviceKind: "vaccination_rabies",
+        displayName: "Campaign Race Offering",
+        durationMinutes: 15,
+        slotCapacity: 1,
+        status: "approved",
+      })
+      .returning();
+
+    const base = Date.now() + 7 * 24 * 60 * 60 * 1000;
+    const [slotEarly] = await db
+      .insert(timeSlots)
+      .values({
+        serviceOfferingId: campaign.id,
+        startsAt: new Date(base),
+        endsAt: new Date(base + 15 * 60 * 1000),
+        capacity: 1,
+        bookingsCount: 0,
+        status: "open",
+      })
+      .returning();
+    const [slotLate] = await db
+      .insert(timeSlots)
+      .values({
+        serviceOfferingId: campaign.id,
+        startsAt: new Date(base + 15 * 60 * 1000),
+        endsAt: new Date(base + 30 * 60 * 1000),
+        capacity: 1,
+        bookingsCount: 0,
+        status: "open",
+      })
+      .returning();
+
+    try {
+      // SAME PET, TWO SLOTS, AT ONCE. Two DIFFERENT advisory-lock keys, so the two
+      // transactions genuinely run in parallel past the in-lock re-read.
+      const [early, late] = await Promise.all([
+        bookSlotWriter(slotEarly.id, petAId, ownerAUserId),
+        bookSlotWriter(slotLate.id, petAId, ownerAUserId),
+      ]);
+
+      const successes = [early, late].filter((r) => "ok" in r);
+      const failures = [early, late].filter((r) => "error" in r);
+
+      expect(successes).toHaveLength(1);
+      expect(failures).toHaveLength(1);
+
+      // AND THE REFUSAL IS THE FRIENDLY SENTENCE, not a raw index name. That
+      // translation is the whole reason `isDuplicateLiveCampaignBooking` exists —
+      // without it the person reads "duplicate key value violates unique
+      // constraint appointments_one_live_per_pet_offering".
+      expect(failures[0]).toEqual({
+        error: "Esta mascota ya tiene un turno reservado en esta campaña.",
+      });
+
+      // ONE place taken in the whole campaign, not two. This is the assertion the
+      // sequential test cannot make, because it never has two writers in flight.
+      const counts = await db
+        .select({ id: timeSlots.id, bookingsCount: timeSlots.bookingsCount })
+        .from(timeSlots)
+        .where(eq(timeSlots.serviceOfferingId, campaign.id));
+      expect(counts.reduce((total, s) => total + s.bookingsCount, 0)).toBe(1);
+
+      // And exactly one CONFIRMED appointment exists for this pet in this campaign.
+      const live = await db
+        .select({ id: appointments.id })
+        .from(appointments)
+        .where(
+          sql`${appointments.petId} = ${petAId}
+              AND ${appointments.serviceOfferingId} = ${campaign.id}
+              AND ${appointments.status} = 'confirmed'`,
+        );
+      expect(live).toHaveLength(1);
+    } finally {
+      // CLEAN UP WHAT THIS CASE SEEDED, in a `finally` so a failed assertion does
+      // not leave rows behind. The local Supabase is shared with parallel lanes.
+      await db.delete(appointments).where(eq(appointments.serviceOfferingId, campaign.id));
+      await db.delete(timeSlots).where(eq(timeSlots.serviceOfferingId, campaign.id));
+      await db.delete(serviceOfferings).where(eq(serviceOfferings.id, campaign.id));
+    }
+  });
+});
