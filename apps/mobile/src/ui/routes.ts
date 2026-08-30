@@ -117,6 +117,18 @@ export const ROUTES = {
    */
   turnos: "/turnos",
   /**
+   * BUSCAR UN TURNO — el picker de servicio y los resultados.
+   *
+   * ANIDA BAJO `/turnos` Y LA WEB NO ANIDA SU EQUIVALENTE BAJO `/mis-turnos`. El
+   * navegador tiene dos árboles sin relación para una feature — `/turnos/buscar`
+   * para encontrar uno y `/mis-turnos` para ver los que tenés — porque su nav los
+   * hizo crecer aparte, y el tablero registra que ninguno de los dos está en esa
+   * nav: se llega por deep link. Un stack navigator no tiene esa historia, y en un
+   * teléfono el arreglo honesto es el que la persona camina: abrís tus turnos, no
+   * tenés el que necesitás, lo buscás.
+   */
+  buscarTurnos: "/turnos/buscar",
+  /**
    * RECLAMAR UNA MASCOTA — the only top-level screen that is about an animal
    * this person does NOT hold, and does not (yet) have any relationship to.
    *
@@ -208,6 +220,25 @@ export const ROUTES = {
  */
 export function turnoRoute(appointmentToken: string): `/turnos/${string}` {
   return `/turnos/${encodeURIComponent(appointmentToken)}`;
+}
+
+/**
+ * La grilla de horarios de una offering, y la reserva.
+ *
+ * UNA PANTALLA PARA LO QUE LA WEB PARTE EN DOS PÁGINAS. La grilla vive en
+ * `/turnos/buscar/{offering}` y el picker de mascota en `.../reservar/{slotId}`,
+ * que es una segunda página y un segundo round trip en el medio de un flujo de
+ * dos toques. La lectura acá trae la grilla Y las mascotas reservables juntas,
+ * porque la pantalla no puede ofrecer un horario honestamente a alguien sin
+ * mascota reservable — y eso lo tiene que saber ANTES de dibujar la grilla.
+ *
+ * EL SEGMENTO ES EL TOKEN PÚBLICO DE LA OFFERING (`SVO-XXXX-XXXX`), cubierto por
+ * `CAPABILITY_PATH_SEGMENTS` a través de `buscar` — la misma entrada que cubre
+ * `/turnos/buscar/[offeringToken]` de la web, porque la regla de redacción se
+ * fija en el segmento PADRE y los dos árboles lo escriben igual.
+ */
+export function buscarOfferingRoute(offeringToken: string): `/turnos/buscar/${string}` {
+  return `/turnos/buscar/${encodeURIComponent(offeringToken)}`;
 }
 
 /**
@@ -413,4 +444,5 @@ export type AppRoute =
   | ReturnType<typeof transferPetRoute>
   | ReturnType<typeof caretakerPetRoute>
   | ReturnType<typeof caretakerGrantRoute>
-  | ReturnType<typeof turnoRoute>;
+  | ReturnType<typeof turnoRoute>
+  | ReturnType<typeof buscarOfferingRoute>;

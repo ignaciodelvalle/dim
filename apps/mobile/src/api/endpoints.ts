@@ -50,10 +50,13 @@
 import {
   ADOPTION_CATALOGUE_PAYLOAD_VERSION,
   ADOPTION_DETAIL_PAYLOAD_VERSION,
+  APPOINTMENT_SEARCH_PAYLOAD_VERSION,
   type AdoptionApplicationSubmittedV1,
   type AdoptionCatalogueV1,
   type AdoptionDetailV1,
   type AppointmentCommandAckV1,
+  type AppointmentSearchV1,
+  type BookableOfferingDetailV1,
   type CaretakerCommandAckV1,
   type EventAmendedV1,
   type EventRecordedV1,
@@ -886,16 +889,25 @@ export function fetchMyAppointments(session: SessionPort): Promise<ApiResult<MyA
 }
 
 /**
- * `POST /me/appointments` — cancel a turno. The one command, and the only one.
+ * `POST /me/appointments` — take a turno (`book`) or give one back (`cancel`).
  *
- * THE THREE THAT ARE MISSING ARE THE POINT. The web's booking surface has four
- * writes; three of them (asistió, no asistió, cancelar por la organización) are
- * the PROVIDER'S, behind `/org/{token}/agenda`. A citizen wallet that could run
- * one would be doing something the owner's browser cannot. Booking itself is an
- * owner capability and is absent for a different reason — it needs a search and a
- * slot picker this app does not have yet — which is scope, not a rule.
+ * TWO COMMANDS SINCE 2026-08-30, AND NO SECOND FUNCTION FOR THE SECOND ONE. The
+ * input is a discriminated union and this wrapper takes the union, so `book`
+ * arrived as a contract widening and nothing here changed. A `sendBookingCommand`
+ * beside this one would be a second door onto one endpoint — which is the whole
+ * argument for discriminating the input, arriving on time.
  *
- * WHAT IT MUTATES IS NOT AN ASIENTO. `appointments.status`, three timestamps, and
+ * THE THREE THAT ARE MISSING ARE STILL THE POINT. Three of the web's booking
+ * writes (asistió, no asistió, cancelar por la organización) are the PROVIDER'S,
+ * behind `/org/{token}/agenda`. A citizen wallet that could run one would be
+ * doing something the owner's browser cannot. *Booking used to
+ * be a fourth absence and is no longer one* — this paragraph said it was "absent
+ * for a different reason … which is scope, not a rule", and that reason expired
+ * when `buscar` landed. The distinction it was drawing survives the correction:
+ * the three that remain are absent by RULE, and nothing about this app growing a
+ * search brings them any closer.
+ *
+ * WHAT `cancel` MUTATES IS NOT AN ASIENTO. `appointments.status`, three timestamps, and
  * a DECREMENT of `time_slots.bookings_count` that frees the place for somebody
  * else. Nothing on the spine: a turno nobody attended produced no fact about the
  * animal.
@@ -912,6 +924,90 @@ export function sendAppointmentCommand(
 ): Promise<ApiResult<AppointmentCommandAckV1>> {
   return apiRequest<AppointmentCommandAckV1>(
     { path: "/api/v1/me/appointments", method: "POST", body: input },
+    session,
+  );
+}
+
+/**
+ * `GET /appointments` — the service picker, or one service's results.
+ *
+ * TWO SHAPES ON ONE URL, and this wrapper does not split them: called with no
+ * `serviceKind` the payload carries the twelve-row catalogue and no results,
+ * which is what the picker screen draws. The web does the same on one URL and for
+ * the same reason — a second endpoint for a twelve-item constant is a route, a
+ * bucket and a payload version.
+ *
+ * A BEARER CALL, unlike `searchLocalities`, and that is not an oversight of the
+ * "it is public on the web" kind. The endpoint requires a session (its own header
+ * argues why: this app has no anonymous shell and an anonymous `/api/v1` read is
+ * a different rate-limit derivation rather than a smaller one), so a
+ * `performRequest` here would send a call the server refuses.
+ *
+ * THE PARAM NAMES ARE THE WEB'S, EXACTLY — `service_kind`, `province`,
+ * `locality`, `fecha_desde`, `solo_gratis`. `snake_case` and one of them in
+ * Spanish is not this file's taste; it is `/turnos/buscar`'s query string, and a
+ * person who shares a search from the browser and one who shares it from the
+ * phone should be describing the same thing.
+ *
+ * AN OMITTED FILTER IS NOT AN EMPTY ONE. A key is set only when it has a value,
+ * because `?province=` is a request to search the empty-string province and
+ * `?solo_gratis=false` is a string the server reads as "not true" — the same
+ * three-way rule `saveMyProfile` states for its fields.
+ */
+export function fetchAppointmentSearch(
+  session: SessionPort,
+  query: {
+    serviceKind?: string | null;
+    province?: string | null;
+    locality?: string | null;
+    fechaDesde?: string | null;
+    freeOnly?: boolean;
+  } = {},
+): Promise<ApiResult<AppointmentSearchV1>> {
+  const params = new URLSearchParams();
+  if (query.serviceKind) params.set("service_kind", query.serviceKind);
+  if (query.province) params.set("province", query.province);
+  if (query.locality) params.set("locality", query.locality);
+  if (query.fechaDesde) params.set("fecha_desde", query.fechaDesde);
+  if (query.freeOnly) params.set("solo_gratis", "true");
+  const suffix = params.size === 0 ? "" : `?${params.toString()}`;
+
+  return apiRequest<AppointmentSearchV1>(
+    {
+      path: `/api/v1/appointments${suffix}`,
+      expectedPayloadVersion: APPOINTMENT_SEARCH_PAYLOAD_VERSION,
+    },
+    session,
+  );
+}
+
+/**
+ * `GET /appointments/{offeringToken}` — one offering, its slot grid, and which of
+ * the caller's animals may take a place.
+ *
+ * `pets[].canBook` AND `blockedReason` ARE THE SERVER'S AND MUST NOT BE
+ * RECOMPUTED. The rule behind them is the writer's — one confirmed appointment per
+ * (pet, offering), re-checked inside the booking transaction and backed by a
+ * partial unique index — and it is invisible in a slot grid. A screen that derived
+ * eligibility from the slots alone would draw a button the write throws away.
+ *
+ * `pets` MAY BE EMPTY and that is not an error: it is a person with no animal
+ * registered yet, and the screen sends them to the alta form. It must NOT be
+ * rendered as "no encontramos tus mascotas".
+ *
+ * A 404 COVERS "NOT APPROVED" as well as "no such token", deliberately, so this
+ * URL is not an oracle for which offerings exist and which are merely switched
+ * off. A caller must not turn the two into different sentences.
+ */
+export function fetchBookableOffering(
+  session: SessionPort,
+  offeringToken: string,
+): Promise<ApiResult<BookableOfferingDetailV1>> {
+  return apiRequest<BookableOfferingDetailV1>(
+    {
+      path: `/api/v1/appointments/${encodeURIComponent(offeringToken)}`,
+      expectedPayloadVersion: APPOINTMENT_SEARCH_PAYLOAD_VERSION,
+    },
     session,
   );
 }

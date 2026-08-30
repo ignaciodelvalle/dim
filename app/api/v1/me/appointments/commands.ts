@@ -136,51 +136,57 @@ export function appointmentRefusal(error: string) {
 /**
  * `book`'s TYPED refusals, mapped onto the `/api/v1` error vocabulary.
  *
- * THIS TABLE IS COARSER THAN THE UNION IT READS, AND THE COARSENESS IS DECLARED
- * RATHER THAN DISCOVERED. Six domain refusals collapse onto four existing codes,
- * because `API_V1_ERROR_CODES` gained no `booking_*` family in this window — that
- * file and `apps/mobile/src/api/error-copy.ts` were another lane's territory, and
- * a second lane appending members to the same array is precisely the five-way
- * conflict that turned WU-T back. The exact codes and es-AR copy the refusals
- * DESERVE are handed to the integrator instead of half-added here.
+ * THIS TABLE WAS COARSER THAN THE UNION IT READS AND IS NOT ANY MORE. It shipped
+ * folding six domain refusals onto four codes written for CANCELLING, because
+ * `API_V1_ERROR_CODES` and `apps/mobile/src/api/error-copy.ts` were another
+ * lane's territory in that window and a second lane appending members to the same
+ * array is exactly the conflict that turned WU-T back once already. The lane
+ * declared the fold, wrote out the three codes and the es-AR copy the refusals
+ * deserved, and handed them to the integrator, who added them at the merge —
+ * where both files could be appended to once, with both lanes' entries in front
+ * of one reader.
  *
- * The fold is not arbitrary: `errors.ts` applies one bar — "a decision a client
- * has to be able to act on differently" — and by that bar three of the six really
- * are one answer. `slot_not_found`, `slot_unavailable` and `already_booked` all
- * mean the world moved between the read and the tap, and the move is identical in
- * all three: RE-READ THE GRID. `appointment_already_resolved` is documented in
- * exactly those words ("somebody already answered, or the world moved … a client
- * must RE-READ and never re-send") and is deliberately ambiguous for exactly this
- * case — `already_booked` may be this caller's own retry landing on a booking that
- * committed.
+ * WHAT THE FOLD COST, kept here because it is the argument for not doing it
+ * again: a person refused a booking read "Este turno ya cambió de estado" about a
+ * slot they never held. True, and not the sentence somebody deserves. The fold
+ * met `errors.ts`'s only bar — the client's move really was identical for three
+ * of the six — which is why it was the right thing to ship and still the wrong
+ * thing to leave.
  *
- * WHAT THE FOLD COSTS, said plainly so it is not read as free: the es-AR copy for
- * these four codes was written for CANCELLING, so a person refused a booking reads
- * "Este turno ya cambió de estado" about a slot they never held. It is true and it
- * is not the sentence somebody deserves. `pet_deceased` and `pet_not_yours` are
- * only reachable when the read and the tap disagree — the search drops a deceased
- * or erased animal from `pets` entirely — so the coarse copy lands on a race and
- * on a hand-posted request, never on ordinary use.
+ * `pet_deceased` AND `pet_not_yours` STILL SHARE ONE CODE, and that fold is not
+ * the window's; it is `bookSlotAction`'s own, for a reason no window changes.
+ * Telling them apart would make this door an existence oracle over erased pets
+ * (Ley 25.326 art. 16). `booking_pet_not_bookable` is 403 rather than the 404
+ * the old mapping used, because the caller is authenticated and the animal's
+ * existence is not what is being denied.
  */
 export const BOOK_REFUSALS: Readonly<
   Record<BookSlotFailureCode, { code: ApiV1ErrorCode; status: number }>
 > = {
-  // The animal is not this caller's, or it was erased. ONE answer for both, the
-  // fold `bookSlotAction` makes for its own reason: a distinct code would make
-  // this door an existence oracle over erased pets (Ley 25.326 art. 16).
-  pet_not_yours: { code: "not_found", status: 404 },
-  // The animal's life record is closed. `event_not_allowed` is documented as
-  // "the ANIMAL refuses, whoever is asking: its life record is closed
-  // (`status = 'deceased'`)", which is this refusal word for word — and a turno
-  // IS the appointment for a clinical act, since every service kind in the
-  // catalogue names the `pet_event` its attendance emits.
-  pet_deceased: { code: "event_not_allowed", status: 409 },
-  // The three that mean "re-read the grid" — see the docblock above.
-  slot_not_found: { code: "appointment_already_resolved", status: 409 },
-  slot_unavailable: { code: "appointment_already_resolved", status: 409 },
-  already_booked: { code: "appointment_already_resolved", status: 409 },
-  // The clock passed the start. A DIFFERENT move from the three above: nothing
-  // was taken, the slot simply aged out, and the next grid will not show it.
+  // The animal is not this caller's, it was erased, or its life record is
+  // closed. ONE answer for the three — see the docblock above.
+  pet_not_yours: { code: "booking_pet_not_bookable", status: 403 },
+  pet_deceased: { code: "booking_pet_not_bookable", status: 403 },
+  // The two that mean "re-read the grid": the slot filled, was cancelled, or its
+  // offering stopped taking bookings between the read and the tap.
+  slot_not_found: { code: "booking_slot_taken", status: 409 },
+  slot_unavailable: { code: "booking_slot_taken", status: 409 },
+  // Its OWN code, and not folded onto the two above, because the move is
+  // different: pick a different ANIMAL, not a different hour. The guard is per
+  // (pet, offering), so re-reading the grid and taking the next slot changes
+  // nothing.
+  already_booked: { code: "booking_already_in_offering", status: 409 },
+  // The clock passed the start. A DIFFERENT move again: nothing was taken, the
+  // slot simply aged out, and the next grid will not show it.
+  //
+  // THE ONE FOLD THE UNFOLD LEFT STANDING, and it is named rather than quietly
+  // kept: the hand-off asked for three codes, not four, so this refusal still
+  // borrows the cancel vocabulary — and `appointment_past`'s es-AR copy ends in
+  // "así que no se puede cancelar", which is a sentence about a turno the
+  // person does not hold. It is a smaller version of exactly the cost the
+  // docblock above describes, on the one path where the read and the tap have
+  // to disagree by minutes for anybody to reach it. Closing it is a fourth code
+  // and a fourth string, not a rewrite of this line.
   slot_past: { code: "appointment_past", status: 409 },
 };
 

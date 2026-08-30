@@ -17,7 +17,7 @@ import { useRouter } from "expo-router";
 
 import { useGate } from "../../../src/auth/useGate";
 import { BuscarTurnoScreen } from "../../../src/turnos/BuscarTurnoScreen";
-import { buscarOfferingRoute } from "../../../src/turnos/turnos-routes";
+import { buscarOfferingRoute } from "../../../src/ui/routes";
 
 export default function BuscarTurnoRoute() {
   const gate = useGate();

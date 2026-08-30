@@ -313,6 +313,16 @@ export function apiErrorMessage(code: ApiV1ErrorCode): string {
       // re-read first — the place is either freed or it is not, and the list is
       // what says which.
       return "No pudimos cancelar el turno. Actualizá la pantalla para ver si quedó cancelado.";
+    // Reservar un turno. Las tres terminan en una instrucción de MIRAR, no de
+    // reintentar: el escritor no toma llave de idempotencia y rechaza el replay
+    // en vez de absorberlo, así que una negativa después de un timeout es
+    // indistinguible de que otra persona se llevó el último lugar.
+    case "booking_slot_taken":
+      return "Ese horario ya no está disponible. Actualizá los horarios y elegí otro.";
+    case "booking_pet_not_bookable":
+      return "No podés reservar un turno para esa mascota. Volvé a Mis mascotas para ver cómo está.";
+    case "booking_already_in_offering":
+      return "Esa mascota ya tiene un turno reservado en este servicio. Elegí otra mascota.";
     // Reclamos. Both sentences end in "buscá de nuevo" rather than in an
     // apology, and that is the contract's own instruction rather than a style:
     // the LOOKUP's fresh `variant` is the only thing that says what the animal's

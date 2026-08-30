@@ -743,6 +743,29 @@
  *                         with no reference code to prove it. The person's move
  *                         is identical either way: try again, and check
  *                         `/denuncias/buscar` if in doubt.
+ *
+ * THE BOOKING CODES (WU-S). `command: "book"` on `POST /api/v1/me/appointments`
+ * landed folded onto four existing codes because this file was another lane's
+ * territory in that window. The fold met this file's only bar — the client's
+ * move was identical — and it cost the one thing a fold always costs: the es-AR
+ * copy for those four was written for CANCELLING, so a person refused a booking
+ * read a sentence about a turno they never held. These three unfold it.
+ *
+ * - `booking_slot_taken`   — the slot filled, was cancelled, or its offering
+ *                            stopped taking bookings between the read and the
+ *                            tap. 409. The move is RE-READ THE GRID.
+ * - `booking_pet_not_bookable`
+ *                          — the animal is not this caller's, was erased, or its
+ *                            life record is closed. 403. ONE code for the three,
+ *                            deliberately: telling them apart would make this
+ *                            door an existence oracle over erased pets (art. 16).
+ * - `booking_already_in_offering`
+ *                          — this animal already holds a place in THIS campaign.
+ *                            409, and its own code because the move is specific:
+ *                            pick a different animal, NOT a different hour. The
+ *                            guard is per (pet, offering) and a client that said
+ *                            "ya tiene este turno" would send somebody to try the
+ *                            next slot, which changes nothing.
  */
 export const API_V1_ERROR_CODES = [
   "rate_limited",
@@ -813,6 +836,9 @@ export const API_V1_ERROR_CODES = [
   "adoption_application_refused",
   "adoption_application_failed",
   "welfare_report_failed",
+  "booking_slot_taken",
+  "booking_pet_not_bookable",
+  "booking_already_in_offering",
 ] as const;
 
 export type ApiV1ErrorCode = (typeof API_V1_ERROR_CODES)[number];

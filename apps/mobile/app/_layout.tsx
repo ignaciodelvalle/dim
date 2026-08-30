@@ -201,6 +201,15 @@ export default function RootLayout() {
             down a reference code — the same argument `/reclamar` records about a
             screen whose title moves three times. */}
         <Stack.Screen name="denunciar" options={{ title: "Denunciar maltrato" }} />
+        {/* BUSCAR TURNO. El título es el `<Title>` que la pantalla ya dibuja en
+            su estado de picker y el `<h1>` de la web en `/turnos/buscar`, así que
+            transcribe una decisión que alguien ya tomó en vez de tomar una. */}
+        <Stack.Screen name="turnos/buscar/index" options={{ title: "Buscar turno" }} />
+        {/* La grilla de una offering. El encabezado NO es el nombre del servicio:
+            se dibuja antes de que resuelva el fetch, y uno que se completa después
+            se lee como que la pantalla cambió abajo del lector. Es el mismo
+            argumento que fijó "Mascota en adopción" para las fichas de adopción. */}
+        <Stack.Screen name="turnos/buscar/[offeringToken]" options={{ title: "Reservar turno" }} />
       </Stack>
     </SafeAreaProvider>
   );

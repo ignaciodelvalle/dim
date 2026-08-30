@@ -13,8 +13,7 @@ import { useRouter } from "expo-router";
 
 import { useGate } from "../../src/auth/useGate";
 import { TurnosScreen } from "../../src/turnos/TurnosScreen";
-import { BUSCAR_TURNOS_ROUTE } from "../../src/turnos/turnos-routes";
-import { turnoRoute } from "../../src/ui/routes";
+import { ROUTES, turnoRoute } from "../../src/ui/routes";
 
 export default function TurnosRoute() {
   const gate = useGate();
@@ -25,7 +24,7 @@ export default function TurnosRoute() {
   return (
     <TurnosScreen
       onOpen={(token) => router.push(turnoRoute(token))}
-      onSearch={() => router.push(BUSCAR_TURNOS_ROUTE)}
+      onSearch={() => router.push(ROUTES.buscarTurnos)}
     />
   );
 }

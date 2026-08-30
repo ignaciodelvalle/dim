@@ -22,7 +22,7 @@ jest.mock("expo-router", () => ({
   useRouter: () => ({ push: jest.fn(), replace: jest.fn(), back: jest.fn() }),
 }));
 
-jest.mock("./turnos-api", () => ({
+jest.mock("../api/endpoints", () => ({
   fetchAppointmentSearch: (...args: unknown[]) => mockSearch(...args),
 }));
 

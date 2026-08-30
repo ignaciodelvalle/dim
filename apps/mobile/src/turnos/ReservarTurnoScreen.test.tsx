@@ -26,11 +26,14 @@ jest.mock("expo-router", () => ({
   useRouter: () => ({ push: jest.fn(), replace: jest.fn(), back: jest.fn() }),
 }));
 
-jest.mock("./turnos-api", () => ({
-  fetchBookableOffering: (...args: unknown[]) => mockRead(...args),
-}));
-
+// ONE FACTORY FOR BOTH, and it has to be one: the read and the write moved into
+// the same module at the 2026-08-30 integration merge (the read lived in a
+// `turnos-api.ts` the lane could not put in `endpoints.ts`, because that file
+// was another lane's territory). Two `jest.mock` calls on one path do not
+// compose — the second replaces the first — so splitting them leaves whichever
+// was declared earlier `undefined` at call time.
 jest.mock("../api/endpoints", () => ({
+  fetchBookableOffering: (...args: unknown[]) => mockRead(...args),
   sendAppointmentCommand: (...args: unknown[]) => mockSend(...args),
 }));
 

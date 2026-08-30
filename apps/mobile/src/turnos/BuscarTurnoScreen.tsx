@@ -38,6 +38,7 @@ import { FONTS } from "../ui/fonts";
 import { Callout, Eyebrow, Screen, SecondaryButton, Title } from "../ui/kit";
 import { COLORS, LEADING, RADIUS, SPACE, TOUCH_TARGET, TRACKING, TYPE } from "../ui/theme";
 
+import { fetchAppointmentSearch } from "../api/endpoints";
 import {
   jurisdictionNoteLabel,
   noResultsLabel,
@@ -46,7 +47,6 @@ import {
   offeringMetaLabel,
   offeringTitle,
 } from "./buscar-view-model";
-import { fetchAppointmentSearch } from "./turnos-api";
 import { appointmentProviderLabel } from "./turnos-view-model";
 
 /** One sentence per failure arm. No arm falls through to a generic shrug. */

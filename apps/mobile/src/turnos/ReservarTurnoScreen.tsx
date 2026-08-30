@@ -32,7 +32,7 @@ import { Pressable, StyleSheet, Text, View } from "react-native";
 import type { BookableOfferingDetailV1, BookablePetV1, BookableSlotV1 } from "@dim/contract/api";
 
 import type { ApiResult } from "../api/client";
-import { sendAppointmentCommand } from "../api/endpoints";
+import { fetchBookableOffering, sendAppointmentCommand } from "../api/endpoints";
 import { apiErrorMessage } from "../api/error-copy";
 import { sessionPort } from "../auth/session-store";
 import { Body, EmptyState, Loading } from "../ui/components";
@@ -52,7 +52,6 @@ import {
   slotPlacesLabel,
   slotTimeLabel,
 } from "./buscar-view-model";
-import { fetchBookableOffering } from "./turnos-api";
 import { appointmentProviderLabel } from "./turnos-view-model";
 
 /** One sentence per failure arm. No arm falls through to a generic shrug. */

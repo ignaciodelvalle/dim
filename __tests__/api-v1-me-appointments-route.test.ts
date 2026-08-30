@@ -843,16 +843,24 @@ describe("POST book — the second command, and the coarseness of its refusals",
   });
 
   it("maps every typed refusal to a code, and the map is TOTAL over the union", async () => {
-    // THE COARSENESS IS THE SUBJECT HERE. Six domain refusals collapse onto four
-    // existing codes because `API_V1_ERROR_CODES` gained no `booking_*` family in
-    // this window — `commands.ts` says why at length. This case pins the fold so
-    // that the day the codes land, changing it is a deliberate edit.
+    // THE COARSENESS WAS THE SUBJECT HERE AND THE TABLE BELOW IS THE UNFOLD.
+    // Six domain refusals shipped collapsed onto four codes written for
+    // CANCELLING, because `API_V1_ERROR_CODES` was another lane's territory in
+    // that window; the lane pinned the fold so that the day the codes landed,
+    // changing it would be a deliberate edit rather than a drift. This is that
+    // edit, made at the 2026-08-30 integration merge with the three `booking_*`
+    // codes the hand-off specified.
+    //
+    // TWO FOLDS SURVIVE ON PURPOSE and both are named in `commands.ts`:
+    // `pet_not_yours`/`pet_deceased` share one code so this door is not an
+    // existence oracle over erased pets, and `slot_past` still borrows
+    // `appointment_past` from the cancel vocabulary.
     const expected: Array<[string, string, number]> = [
-      ["pet_not_yours", "not_found", 404],
-      ["pet_deceased", "event_not_allowed", 409],
-      ["slot_not_found", "appointment_already_resolved", 409],
-      ["slot_unavailable", "appointment_already_resolved", 409],
-      ["already_booked", "appointment_already_resolved", 409],
+      ["pet_not_yours", "booking_pet_not_bookable", 403],
+      ["pet_deceased", "booking_pet_not_bookable", 403],
+      ["slot_not_found", "booking_slot_taken", 409],
+      ["slot_unavailable", "booking_slot_taken", 409],
+      ["already_booked", "booking_already_in_offering", 409],
       ["slot_past", "appointment_past", 409],
     ];
 
