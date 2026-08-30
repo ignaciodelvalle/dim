@@ -193,6 +193,28 @@ export {
   type LocalityV1,
 } from "./localities.ts";
 export {
+  ADOPTION_CATALOGUE_PAGE_SIZE,
+  ADOPTION_CATALOGUE_PAYLOAD_VERSION,
+  ADOPTION_CATALOGUE_STALE_AFTER_MS,
+  ADOPTION_DETAIL_PAYLOAD_VERSION,
+  ADOPTION_DETAIL_STALE_AFTER_MS,
+  MY_ADOPTION_APPLICATIONS_PAYLOAD_VERSION,
+  MY_ADOPTION_APPLICATIONS_STALE_AFTER_MS,
+  type AdoptionApplicationSubmittedV1,
+  type AdoptionApplyBlockedReasonV1,
+  type AdoptionCatalogueItemV1,
+  type AdoptionCatalogueV1,
+  type AdoptionDetailClosedV1,
+  type AdoptionDetailHealthV1,
+  type AdoptionDetailListedV1,
+  type AdoptionDetailOrgV1,
+  type AdoptionDetailStateV1,
+  type AdoptionDetailV1,
+  type MyAdoptionApplicationStatusV1,
+  type MyAdoptionApplicationV1,
+  type MyAdoptionApplicationsV1,
+} from "./adoption.ts";
+export {
   IDEMPOTENCY_KEY_PATTERN,
   MY_PETS_PAYLOAD_VERSION,
   MY_PETS_STALE_AFTER_MS,

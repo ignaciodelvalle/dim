@@ -6,6 +6,19 @@
 // It is the reason the package takes its one dependency, zod — see the note in
 // scripts/check-contract-purity.ts.
 export {
+  ADOPTION_APPLICATION_INPUT_CODES,
+  ADOPTION_HOUSING_TYPES,
+  ADOPTION_MOTIVATION_MIN_LENGTH,
+  ADOPTION_PRIOR_PETS,
+  ADOPTION_TEXT_MAX_LENGTH,
+  type AdoptionApplicationInput,
+  type AdoptionApplicationInputCode,
+  type AdoptionHousingType,
+  type AdoptionPriorPets,
+  adoptionApplicationInputSchema,
+  firstAdoptionApplicationInputCode,
+} from "./adoption-application.ts";
+export {
   AMEND_EVENT_INPUT_CODES,
   AMEND_REASON_MIN_LENGTH,
   NON_AMENDABLE_PAYLOAD_KEYS,
