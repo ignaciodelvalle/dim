@@ -397,6 +397,21 @@ What it did **not** solve:
   44 of 45 measured runs; the other 42 reds are inside `Run Playwright e2e suite`
   and are the suite's own assertions. Anyone reading this block as "the E2E fix"
   has the wrong file.
+
+  **A lead for whoever takes that red, measured 2026-08-30 on run 33260290131
+  and reported rather than touched** — the specs were NOT edited to pass, which
+  is the whole point. The failures are their own PRECONDITIONS, not their
+  subjects: `e2e/cross-tenant-isolation.spec.ts` dies with `Owner A has no pets
+  visible via PostgREST — every cross-tenant probe below would compare against
+  nothing. Re-run pnpm seed:test.`, and `e2e/rehome-by-titular.spec.ts` with
+  `owner@dim.test has no active pet — the rehome walk needs one (seeded by
+  scripts/seed-test-users.ts).` The `Bootstrap DB` step runs and reports no
+  error, so this is not "the seed step failed"; it is that what the step leaves
+  behind is not what the specs look for. Counted by file across that run:
+  `executive-smoke` 41, `cross-tenant-isolation` 35, `rehome-by-titular` 19,
+  `synthetic-monitor` 18, `public-smoke` 17, `api-v1-auth-refusals` 15. Start at
+  the fixtures, not at the specs — and note this is a different failure from the
+  nightly's, which is PO item 6 (a secret that does not exist).
 - **Excluding `mailpit` for real** — worth doing (one fewer anonymous ECR Public
   pull on a stack throttled by pull volume), and left to whoever can watch the
   job.
