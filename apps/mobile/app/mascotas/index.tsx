@@ -171,6 +171,23 @@ export default function MisMascotasScreen() {
           accessibilityHint="Si tu mascota ya está registrada por su microchip o su tatuaje."
           onPress={() => router.push(ROUTES.reclamar)}
         />
+        {/* ADOPCIÓN'S ONLY ENTRY POINT, and the odd one out in this footer.
+            The two buttons above are about animals or messages that already
+            belong to this person; this one opens a catalogue of animals nobody
+            here holds. It sits with them anyway because the alternative — a
+            fifth top-level destination with no way in — is a screen that exists
+            and cannot be reached.
+
+            THE ENTRY IS HERE AND THE HEADER TITLES ARE IN `app/_layout.tsx`,
+            which this lane owns. Both are needed and neither substitutes for the
+            other: this button is how a person reaches the catalogue, and the
+            registration is what stops the header from reading `adoptar` in
+            lowercase English-looking form. */}
+        <SecondaryButton
+          label="Adoptar"
+          accessibilityHint="Mascotas publicadas por refugios verificados."
+          onPress={() => router.push(ROUTES.adoptar)}
+        />
         <SecondaryButton label="Ajustes" onPress={() => router.push(ROUTES.ajustes)} />
       </View>
     </Screen>
