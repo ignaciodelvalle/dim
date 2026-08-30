@@ -111,10 +111,14 @@ describe("what the screen says before it asks anything", () => {
   });
 
   it("tells somebody with a photo to use the browser BEFORE they fill anything in", () => {
-    // NOT "you can add them later". `uploadWelfareEvidence` has two call sites,
-    // both inside the CREATE actions; no surface accepts evidence for an
-    // existing denuncia. Copy that said otherwise would cost somebody their
-    // evidence and five minutes.
+    // NOT "you can add them later": no surface accepts evidence for an existing
+    // denuncia. Copy that said otherwise would cost somebody their evidence and
+    // five minutes.
+    //
+    // This comment used to say `uploadWelfareEvidence` has two call sites. It
+    // has THREE — the third is `submit-claim-dispute.ts`, a custody dispute
+    // rather than a denuncia, and also a creation path. Corrected in place; see
+    // `denuncia-view-model.ts`.
     //
     // THE MUTATION: move this Callout below the send button. Applied: the block
     // still renders, so this test is about the WORDS, and the words are what a

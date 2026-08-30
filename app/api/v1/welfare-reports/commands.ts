@@ -48,6 +48,22 @@
 // authenticates before it does anything. A person who needs the stronger
 // property has the browser, and the screen says so.
 //
+// THE ONE RESIDUAL WRITE, NAMED RATHER THAN LEFT TO BE FOUND
+// ---------------------------------------------------------------------------
+// "Nothing links the row to the account" is true of the four tables above and it
+// is NOT true of the whole database, because `spendUserBudget` writes the
+// caller's uuid on the anonymous path too. It is declared here with its exact
+// reach rather than glossed, since anonymity is the axis this endpoint exists
+// on. See `spendUserBudget` at the bottom of this file for the full derivation;
+// in one line: `rate_limit_buckets` gets a row keyed
+// `welfare_auth:{userId}:hour:{window}`, that table is deny-all under RLS with no
+// policy and no product reader, and the row deletes itself within the hour.
+//
+// It is also NOT this door's channel. `src/modules/welfare/actions.ts` branches
+// on whether a `user` exists, never on `contactMode`, so a logged-in person who
+// picks "Enviar anónima" in the BROWSER spends the identical bucket under the
+// identical key. Same table, same shape, one implementation.
+//
 // WHY THERE IS NO `registered_pet` SUBJECT, AND WHY THAT ALSO REMOVES A LOG
 // ---------------------------------------------------------------------------
 // `@dim/contract/input`'s `welfare-report.ts` drops that member: naming a
@@ -349,6 +365,53 @@ async function fileWelfareReport(userId: string, input: WelfareReportInput) {
  *
  * THE CONTRAST IS `me/privacy`'s EXPORT, which fails CLOSED because a limiter
  * outage there would be an unbounded PII dump. Nothing leaves the server here.
+ *
+ * THIS IS THE RESIDUAL DE-ANONYMIZATION CHANNEL, AND HERE IS ITS EXACT REACH
+ * ---------------------------------------------------------------------------
+ * This function runs on the anonymous branch too — `userId` is the caller's,
+ * unconditionally, while `reporterUserId` above is null. So an anonymous
+ * denuncia DOES write the caller's uuid to the database, and pretending
+ * otherwise is worse than the channel itself.
+ *
+ *   WHAT IS WRITTEN. `enforceRateLimit` upserts `rate_limit_buckets` with the
+ *   PRIMARY KEY `welfare_auth:{userId}:hour:{windowStartMs}`, plus `count` and
+ *   `first_seen_at`. The uuid is in the key, not in a column.
+ *
+ *   WHAT IT DISCLOSES TO SOMEBODY WHO CAN READ IT. `welfare_auth` has exactly
+ *   two spenders and both are denuncia creation (this door and
+ *   `createWelfareReportAction`), so the key's mere existence asserts "this user
+ *   filed at least one denuncia in this hour" and `count` says how many. Against
+ *   a `welfare_reports` row whose `reporter_user_id` is null but whose
+ *   `created_at` falls in that window, a reader could re-attach a name — and in
+ *   a quiet hour with one anonymous filing, unambiguously.
+ *
+ *   WHO CAN READ IT. Not `anon` and not `authenticated`: RLS is enabled on the
+ *   table (migrations 0113 and 0165) and NO policy and NO grant has ever been
+ *   written for it, so PostgREST denies every request. Migration 0139 cites this
+ *   table as the precedent for exactly that shape. What reaches it is the
+ *   service role, which bypasses RLS — the server's own Drizzle client, and
+ *   whoever holds the service key or a psql connection. No product surface reads
+ *   it at all: `lib/infra/rate-limit.ts` writes it and
+ *   `lib/infra/data-lifecycle.ts` deletes it, and nothing selects it for a
+ *   screen, an export or an analytic.
+ *
+ *   HOW LONG IT LIVES. The hour bucket carries `expires_at = window + 1h`, and
+ *   the first of the five purges behind `/api/cron/data-lifecycle` deletes rows
+ *   past expiry. One hour plus the cron's cadence, not indefinite retention.
+ *
+ *   DOES IT BREAK THE PROMISE. No — because of how narrowly the promise is
+ *   written, and that narrowness is now load-bearing rather than decorative.
+ *   This file and the screen both say anonymity here is a property of the
+ *   RECORD, not unattributability in flight. A deny-all counter with no reader
+ *   that erases itself within the hour is on the "in flight" side of that line.
+ *   What it is not is ZERO, which is why it is written down instead of implied.
+ *
+ *   WHY IT IS NOT SIMPLY CLOSED. Keying this bucket on anything but the user
+ *   would mean either no per-user ceiling on the anonymous path — which is the
+ *   flood control PO decision 2026-07-08 assumes — or a per-IP one, and the
+ *   web's own anonymous door shows that price: `welfare_anon` is 1/min and 3/hr
+ *   on an IP, which behind a CGNAT gateway is one denuncia per carrier per
+ *   minute for everybody on it. That trade is the PO's, not an agent's.
  */
 async function spendUserBudget(userId: string): Promise<boolean> {
   try {

@@ -207,10 +207,15 @@ describe("the two caveats say the true thing", () => {
   it("does not promise that evidence can be added later, because it cannot", () => {
     // THE DEFECT THIS CAUGHT ON THE WAY IN. The first draft of this string read
     // "sumalas desde la web con el código que te damos al final" — a promise the
-    // product cannot keep: `uploadWelfareEvidence` has exactly two call sites,
-    // both inside the CREATE actions, and no surface accepts evidence for an
-    // existing denuncia. The copy has to send somebody to the browser BEFORE
-    // they fill anything in.
+    // product cannot keep: no surface accepts evidence for an existing
+    // denuncia. The copy has to send somebody to the browser BEFORE they fill
+    // anything in.
+    //
+    // The count in this comment was WRONG and is corrected rather than dropped:
+    // `uploadWelfareEvidence` has THREE call sites, not two. The two denuncia
+    // ones are the CREATE actions; the third, `submit-claim-dispute.ts`, is a
+    // custody dispute and is also a creation path. The conclusion survives, the
+    // arithmetic did not. See `denuncia-view-model.ts` for the full note.
     expect(DENUNCIA_NO_ATTACHMENTS_CAVEAT).toContain("no se pueden sumar después");
     expect(DENUNCIA_NO_ATTACHMENTS_CAVEAT).toContain("desde el navegador");
     expect(DENUNCIA_NO_ATTACHMENTS_CAVEAT).not.toContain("al final");

@@ -312,12 +312,21 @@ export const DENUNCIA_ANONYMOUS_CAVEAT =
  * IT SENDS THEM TO THE WEB BEFORE THEY START, AND THE FIRST DRAFT OF THIS STRING
  * DID NOT — it said "sumalas desde la web con el código que te damos al final",
  * which is a promise this product cannot keep. Evidence can ONLY be attached at
- * CREATION: `uploadWelfareEvidence` has exactly two call sites in the whole repo
- * (`createWelfareReportAction` and `createOrgWelfareReportAction`, both in
- * `welfare/actions.ts`), and there is no "add evidence later" path on any
- * surface — not on `/denuncias/codigo`, not on `/denuncias/seguimiento`, not for
- * an authenticated reporter. `addReporterCommentAction` adds TEXT to the case and
- * nothing else.
+ * CREATION, and there is no "add evidence later" path on any surface — not on
+ * `/denuncias/codigo`, not on `/denuncias/seguimiento`, not for an authenticated
+ * reporter. `addReporterCommentAction` adds TEXT to the case and nothing else.
+ *
+ * `uploadWelfareEvidence` has THREE call sites in the repo, and this docblock
+ * said two until the count was actually run. The two denuncia ones are
+ * `createWelfareReportAction` and `createOrgWelfareReportAction` in
+ * `welfare/actions.ts`; the third is
+ * `src/modules/pets/application/claim/submit-claim-dispute.ts`, which predates
+ * this screen and uploads under `claims/{reportId}` for a CUSTODY DISPUTE rather
+ * than a denuncia. The miscount does not move the conclusion — the third is also
+ * a creation path, and it is not a denuncia at all — but the sentence above is
+ * the reason this screen's copy exists, so it does not get to be approximately
+ * true. Re-derive it with `rg uploadWelfareEvidence` rather than trusting this
+ * number.
  *
  * So the honest instruction is to file from the browser in the first place, and
  * the copy has to arrive BEFORE somebody spends five minutes filling in a form
