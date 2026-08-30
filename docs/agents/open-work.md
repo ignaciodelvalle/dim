@@ -44,8 +44,20 @@ Ordered by what a live tester hits first, not by size.
 | 1 | **Pet photo** — native image picker | M | Server side is **done**: signed upload → private bucket → `confirm` re-authorizes, verifies magic bytes, re-encodes, then writes to the public bucket. Only the picker is missing — which needs a native module, so an EAS build. That pipeline cost 6 builds / 5 distinct root causes. **Not a first task.** |
 | 2 | **WU-S** — appointments: **buscar and reservar** only. My appointments, cancel and the check-in QR landed 2026-08-30 — see the block below before starting. | M | **One unit of work, not two.** A search that cannot book is a screen listing slots nobody can take; a book with no search is unreachable. Needs a service-kind picker, jurisdiction-subsuming search, a slot list, and a concurrent write on `bookings_count` with its own route and rate-limit family. Not in the web nav either; deep links only. |
 | 4 | **WU-V** — the **camera scan** only. Confirmar el chip and reclamar landed 2026-08-30 — see the block below before starting. | M | The scan is the LAST of the three and the one the block did not attempt: reading a chip's barcode needs `expo-camera` → a native module → an EAS build, the same pipeline row 1 is held back by. It is strictly additive over what landed — it sets the same string the keyboard field sets. **Row left in place on purpose: one of three closed is not a row that comes off the table.** |
-| 5 | **WU-T** — citizen abuse reports. **A branch exists and it is nearly whole — do NOT start from zero.** | M | Attachments blocked on signed uploads. **Not the same thing as reporting content** — this is Ley 14.346, nine types, routed to an authority. **Turned back at the 2026-08-30 integration gate on five merge conflicts with the adoption lane, not on a fence** — the branch's own gate is green except for two declared reds it hands to the integrator. Read its entry in "Attempted and turned back" before opening it; the conflict surface, the resolution the integrator would not take, and one *serio* runtime finding are all recorded there. |
 | 6 | **WU-P** — rehoming, foster, return, relocation, org memberships | L | Advanced custody cycle. |
+
+**Row 5 (WU-T, denuncias) is GONE from the table above too, on the same terms and
+by the same rule, 2026-08-30.** Denunciar maltrato works from the phone — see the
+block at the end of this page. It leaves no narrowed remainder the way rows 2 and
+4 do: the capability is whole, and the one thing it does NOT carry, attachments,
+is **returned rather than deferred** and is written up in that block with the
+product question that has to be answered before anybody builds it. **The
+numbering was not closed up here either** — the table now holds **four** rows, 1,
+2, 4 and 6, and the count is the thing to quote, not the highest number. The
+audit is cheaper than the row-3 one was: `rg -io '\brows? [0-9]+\b'` returned
+exactly ONE pointer reading "row 5" and it was the `Attempted and turned back`
+entry being removed in the same edit, so nothing anywhere is left pointing at a
+row that moved.
 
 **Row 3 (WU-U, adopción) is GONE from the table above and the numbering was NOT
 closed up.** The four capabilities all landed on 2026-08-30 — see the block at
@@ -69,8 +81,15 @@ say "row 3" and all mean adopción** — two of them are the `Attempted and turn
 back` rows, which this page forbids editing on the ground that "a rejection
 edited away stops teaching anybody anything". So closing the gap would either
 repoint four true sentences at WU-V or force an edit into the one table the page
-protects. **The table below therefore holds five rows — 1, 2, 4, 5, 6 — and the
-count, not the highest number, is the thing to quote.**
+protects. **The count, not the highest number, is the thing to quote.**
+
+*This paragraph said "the table below therefore holds five rows — 1, 2, 4, 5, 6"
+until 2026-08-30, when WU-T landed and row 5 came off; it now holds four. The
+sentence was corrected rather than left standing, and the correction is left
+visible because it is the third time on this page that a COUNT written into prose
+has gone stale within a window — the same defect the deleted "Five landings"
+count above is a monument to. The rows are still 1, 2, 4 and 6; the enumeration
+was never the problem, the number in front of it was.*
 
 Also not done from the phone, each its own slice: correct species, rabies
 appointment, physical tag, printable lost poster, health-record export,
@@ -633,6 +652,17 @@ would have caught it, because the defect was not in either tree — it was betwe
 them. If you are the second lane in a window, the conflict surface is a thing to
 measure early, not a thing to discover at the gate.
 
+**WU-T's ROW IS GONE FROM THE TABLE BELOW, 2026-08-30, and this sentence is what
+replaces it** — the E2E precedent two paragraphs down from the table, and for the
+same reason it gives: a row that says "this landed" is still a row telling the
+next reader that work is waiting on a branch. It landed on the second attempt,
+rebased onto `6671cff99` with the five conflicts resolved once and deliberately;
+the write-up is the last block on this page. **The lesson in the paragraph above
+is NOT removed with it and is the reason that paragraph stays**: it is still the
+only entry in this section whose blocker was neither a fence nor a runtime, and
+the second lane in a window should still measure the conflict surface early. What
+changed is that the work is no longer waiting for anybody.
+
 **One row was turned back TWICE, on different blockers each time — and it LANDED
 on the third, 2026-08-30.** The two rows below are kept exactly as they were
 written, because a rejection edited away stops teaching anybody anything; the
@@ -647,7 +677,6 @@ here is the diagnosis, not the task.
 |---|---|---|
 | Row 3 — **WU-U**, adoption from the phone — **attempt 1** | `worktree-wf_60cb7fe0-094-2` (`be4c73874`) | The lane declared **one** red fence (rate-limit families) and there were **four**. `check-file-size` (`adoption-repository.ts` at 1521 lines against a hard 1500 — the fix is splitting the file, not baselining it), `check-notifications-service` (new code doing a raw `db.insert(notifications)` where the fence exists to migrate call sites onto `createNotification()`), and `check-audit-log-coverage` (seven operator actions with no reachable audit write). All three go red at `bcbaf2ed9` and are green at the base. The audit one has a root cause the reviewer established empirically rather than inferred: a module-level alias `const flushNotifications = flushAdoptionNotifications;` is followed by the fence's `importedIdentifiers()`, which then resolves into a file with no audit write. |
 | Row 3 — **WU-U**, adoption from the phone — **attempt 2** | `worktree-wf_3d7aec24-53c-1` (`4bf8cc280`) | **All four of attempt 1's fences were fixed, at the cause rather than the symptom, and the lane was turned back on two it never ran.** Both are vitest files, both under `pnpm test:verified`, both isolated green at `3a1a7f1c1` and red at `4bf8cc280` in the same environment. (1) `__tests__/public-token-throttle-coverage.test.ts` — "every file spelling `unerasedPetByToken(` is a reviewed authenticated resolver, in both directions": the new `src/modules/adoption/infrastructure/adoption-public-reads.ts` spells it and is not in the `ALIAS_RESOLVERS` pin. The fence's own comment says a new speller must fail until a human decides which name it deserves, and that an ANONYMOUS surface must spell `publicPetByToken` and take the read limiter — the file's docblock says two of its five methods serve sessionless requests on the public web. The answer may well be "add the path to the pin", since the bearer door does authenticate; **the decision is what the fence demands and it was not taken.** (2) `__tests__/content-report-read-coverage.test.ts` — "NO read of a lost-feed note is outside the list": `src/modules/adoption/infrastructure/my-applications-read.ts` comes back `unaccounted`. Lifting the page's raw SQL into a module put the reader inside the moderation sweep — it reads `pet_events`, matches `CAN_CARRY_LOST_NOTE`, carries no `notReportedClause()`, and is triaged into none of `MUST_SUBTRACT` / `DECLARED_EXEMPTIONS` / `NOT_A_LOST_NOTE_READ`. Probably a triable false positive (the query uses `note_added` only for a `MAX(recorded_at)` that derives `info_requested`, and renders no note text), but the triage is the fence's whole demand. |
-| Row 5 — **WU-T**, denunciar maltrato from the phone (Ley 14.346) | `worktree-wf_9fe8ac47-d4e-2` (`1f660b7c7`) | **Not a fence and not a red. Five content conflicts against WU-U, which merged first in the same window.** Measured on the merged tree, not predicted: `apps/mobile/app/mascotas/index.tsx`, `apps/mobile/src/api/endpoints.ts`, `apps/mobile/src/api/error-copy.ts`, `apps/mobile/src/ui/routes.ts`, `packages/contract/src/api/errors.ts`. Three more shared files auto-merged (`packages/contract/src/api/index.ts`, `packages/contract/src/input/index.ts`, and **this page**), so the count of *shared* files is eight and the count of *conflicts* is five — do not quote the first for the second. **The integrator's standing rule is that a conflict outside this page stops the merge and gets reported**, and the footer conflict shows why that rule is not bureaucracy: both lanes appended a `SecondaryButton` to the same `/mascotas` footer, and **both wrote a long comment arguing for the slot they took** — WU-U's says adoption "sits with them anyway because the alternative … is a screen that exists and cannot be reached", WU-T's says denunciar "is LAST, below reclamar, and the gap between the two is bigger than the gap between reclamar and registrar". A `git checkout --theirs` would leave one of those two comments standing over an arrangement it does not describe. That is a product decision about button order, and nobody took it. The other four are narrower (an endpoint, an error-copy switch arm, a `ROUTES` entry, one `API_V1_ERROR_CODES` member) but sit in the same append-at-the-end shape. **Everything else about this lane is sound**: 64 of 66 `lint:*` green with `route-weight`/`csp-prerender` honestly declared unmeasured, the whole `unit` vitest project at 645/645 files and 9373 tests, 31/31 targeted `db` files, mobile Jest 53 suites / 824 tests, both typechecks clean. It hands the integrator three things and **all three are still unapplied**, because applying them without the code they serve would break the tree: the `api_v1_welfare_reports_ip: "authenticated-write"` entry in `API_V1_IP_BUCKET_FAMILIES`, the `<Stack.Screen name="denunciar">` registration in `apps/mobile/app/_layout.tsx`, and the recount of the two floors. **Its reviewer found one *serio* the next lane must fix before re-offering it**: `geocodeAddressPublicAction` is called bare in `app/api/v1/welfare-reports/commands.ts:142` and `route.ts` does not wrap `runWelfareReportCommand` in try/catch, while `geocodeAddress` throws on three paths (`rate_limited`, `fetch_failed`, `provider_error`). The reviewer measured it with a `geocodeThrows` arm on the stub and got `PROBE thrown: Error: fetch_failed` escaping the handler — a bare Next.js 500 with no `{error: code}` envelope, on the only path this phone can produce a coordinate, against a test that asserts the geocoder's miss and its failures are "deliberately indistinguishable". The web caller it claims to mirror, `components/LocationFields.tsx:257`, does wrap. Also worth carrying: the aggregate-ceiling pin goes **red**, not green, when that bucket entry lands — the lane's handover says green twice, and it is wrong in a way that is easy to miss because the *other* two assertions really do go green. **The numbers the lane quotes are all stale now, so here are the merged-tree ones, re-derived by the integrator rather than incremented**: today `Object.keys(API_V1_IP_BUCKET_FAMILIES).length` is **33**, `listV1RouteFiles().length` is **28**, and the computed ceiling is **12 324/min**. Adding one `authenticated-write` bucket at 120/min makes them **34**, **29** and **12 444** — and all three are written down in three different places (`MIN_IP_BUCKETS`, `MIN_V1_ROUTE_FILES`, the `toBe()` in `api-v1-rate-limit-families`), of which only the third goes red on its own. **Re-derive them anyway; do not add 1 to these.** Last: `uploadWelfareEvidence` has a third call site the lane's docblocks deny — `src/modules/pets/application/claim/submit-claim-dispute.ts:164`, present since before the lane. |
 
 **The E2E row is GONE from this table**, and this sentence is what replaces it —
 not a marked row, because a row that says "this landed" is still a row telling
@@ -1203,3 +1232,255 @@ test, and the row names the two `it`s and the file to copy them from.
 The gate's verdict lines are not transcribed here on purpose: they belong to the
 window's handover, and quoting them would mean a doc commit landing *after* the
 tree the gate ran on. This block describes the tree that was gated.
+
+
+## Appended 2026-08-30 by lane a78516a7-c68-1
+
+### WU-T — denunciar maltrato from the phone — LANDED 2026-08-30, second attempt
+
+**Row 5 is off the table.** `POST /api/v1/welfare-reports` with two commands
+(`resolve_location`, `file`), the denuncia vocabulary in `@dim/contract`, and
+`apps/mobile/src/denuncias/` behind `/denunciar`, linked from the footer of
+`/mascotas` and titled in `app/_layout.tsx`. The endpoint is an adapter over
+`createWelfareReport` — the use-case `/denuncias/nueva` drives — and re-derives no
+guard.
+
+**The first attempt's code was whole and its review was
+*aprobado-con-reservas*.** It was turned back on **five content conflicts**
+against the adoption lane, which merged an hour earlier in the same window — not
+on a fence and not on a red. This attempt rebased its five commits onto
+`6671cff99`, where the other side is already in `main` and every conflict could be
+resolved ONCE, on purpose, with both arguments visible. That is the whole
+difference between the two attempts, and it is why the conflicts are written up
+below as decisions rather than as merge mechanics.
+
+#### The five conflicts, and how each was resolved
+
+Four were the same shape — **both lanes appended at the end of a list** — and all
+four kept both sides, adoption first because it landed first: one member in
+`API_V1_ERROR_CODES`, one arm in `error-copy.ts`'s switch, one entry in `ROUTES`,
+one function in `endpoints.ts`. Mechanical, and correctly so.
+
+**The fifth was not mechanical and is the one nobody had taken.** Both lanes
+appended a `SecondaryButton` to the same `/mascotas` footer and **both wrote a
+long comment arguing for the slot they took**, so any `--ours`/`--theirs` would
+leave one comment standing over an arrangement it does not describe.
+
+**Decided on the product question, not the merge: denunciar goes LAST, below
+adoptar.** The footer was already ordered by distance from what the reader is
+responsible for — Transferencias and Notificaciones are addressed to them, Mis
+turnos belong to their animals, Reclamar is an animal that IS theirs recorded
+under somebody else, Adoptar is one they may come to hold. **Denunciar is where
+that line ends rather than another point on it**: denunciar maltrato is not an act
+on your animals at all. It is a civic act about somebody else's, and it ends with
+a case file at an authority naming a person. It is on this screen because this
+list is the only hub either client has — which is exactly what the web says in its
+own comment ("about someone else's animal, so it can never live on your own
+credential") — and not because it belongs among what the list is about.
+
+**Adoption's comment was corrected in the same edit, because the decision left it
+lying.** It called itself "the odd one out in this footer", which was true while
+it was the last button and stopped being true underneath it.
+
+**Both comments are now FALSIFIABLE, which neither was before.**
+`apps/mobile/app/mascotas/index.tsx` is the app's most-opened screen and it had
+**no test of any kind** — every button in that footer, this lane's and the
+adoption lane's and reclamar's, was unfenced. `apps/mobile/src/pets/
+MisMascotasFooter.test.tsx` pins the order, the separation and the route off the
+RENDERED tree, never off the source: a source-text fence over a JSX order passes
+for any rearrangement that keeps the same lines. **And its own first version
+fenced nothing** — `renderedFooterOrder()` mapped over the expected labels and
+merely filtered the missing ones, so it handed that constant back regardless of
+the arrangement and the swap mutation left it **3/3 green**. Same defect as a stub
+that discards its argument, found by applying the mutation rather than by reading
+the helper. Three mutations now, one per test, each killing only its own.
+
+**And denuncia's own comment was lying too, in a way the conflict hid.** It
+claimed "the gap between the two is bigger", and `styles.footer` sets ONE uniform
+`gap` for every child — the separation was a sentence with nothing on the screen
+behind it. It exists now (`styles.civicAction`, a `marginTop` that stacks on the
+parent's gap, applied through a wrapper `View` because `SecondaryButton` takes no
+`style` prop and `kit.tsx` is not this lane's territory). The argument is real: a
+button that files a criminal allegation must not be reachable by a thumb aiming at
+the one above it.
+
+#### The *serio* from the first review, fixed
+
+**`geocodeAddressPublicAction` was called bare and the header claimed the
+opposite.** `geocodeAddress` throws on three paths — `rate_limited` (its own token
+bucket, not the `geocode_public` one the door already spent), `fetch_failed`,
+`provider_error` — and the public action re-throws all three. `route.ts` does not
+wrap `runWelfareReportCommand` either, so all three escaped as a **bare Next 500
+with no `{ error }` envelope**, on the only path this phone can turn an address
+into a point. Meanwhile the file's header said every guard on it "is a copy of a
+call site": `components/LocationFields.tsx` wraps that same action, so the call had
+been copied without the try/catch around it. Now caught → 503
+`temporarily_unavailable`, which already had es-AR copy on the client and already
+had `unavailable()` in this file: no new error code, no contract change.
+
+**A 503 and NOT an empty list, which was the tempting fix.** The screen renders
+`matches: []` as "no encontramos esa dirección", so a nominatim outage would tell
+somebody standing in front of an injured animal that the street they are looking at
+does not exist, and they would retype it until they gave up — an infrastructure
+failure wearing the costume of a user error. That wrong fix is now **pinned by a
+test** so nobody applies it later.
+
+**The test comment was false in both directions and is corrected.** It said the
+miss, the timeout and the rate-limit refusal are "deliberately indistinguishable":
+false about the code (the other two THROW rather than returning empty) and false
+about the test (the stub could not throw). A stub that only ever resolves makes
+every assertion in the file an assertion about the happy path — the drizzle-stub
+defect, one file over. `control.geocodeThrows` closes it, and the stub records the
+query BEFORE throwing so a 503 minted upstream cannot pass for this one.
+
+Three mutations applied, not predicted: deleting the try/catch → **5 red**;
+`return unavailable()` → `matches = []` → **4 red**; putting the address in the
+error sink → **1 red** (spec D10).
+
+#### The rate-limit bucket, and the pin that goes RED
+
+`api_v1_welfare_reports_ip: "authenticated-write"` is in
+`API_V1_IP_BUCKET_FAMILIES`, **added by the lane that shipped the route** rather
+than handed to an integrator — this file is this lane's territory in this window,
+so the pattern the map's own comments record ("the route arrived with its bucket
+spent and undeclared") had no reason to repeat.
+
+All three pins **recounted from the tree, never incremented**:
+`Object.keys(API_V1_IP_BUCKET_FAMILIES).length` → **34** (`MIN_IP_BUCKETS` 33 →
+34), `listV1RouteFiles().length` → **29** (`MIN_V1_ROUTE_FILES` 28 → 29), and the
+CGNAT aggregate → **12 444** (`toBe(12_324)` → `toBe(12_444)`). Hand-summed per
+family over the merged map rather than read off the `reduce` the test compares
+against, because a computed value agreeing with itself is not evidence: 16×600 +
+8×120 + 2×60 + 1×240 + 1×600 + 2×180 + 1×240 + 1×120 + 1×144 + 1×60 = **12 444**
+over 34 buckets in 10 families.
+
+**The aggregate pin goes RED when the bucket lands, and the first attempt's
+handover said twice that it stayed green.** Measured before touching the pins:
+`expected 12444 to be 12324`. The mistake is easy because it is half true — the
+other two assertions really do go red→green with the entry — but the aggregate is a
+sum OVER the map, so growing the map grows the sum.
+
+**`MIN_V1_ROUTE_FILES` was ALREADY slack before this commit**, and that is this
+page's own warning happening rather than being repeated. The route file entered the
+tree with the rebase, so for the whole lane the count was 29 against a floor of 28:
+satisfied, loose by one, green, with nothing anywhere going red to say so. It was
+caught only because the floor was recounted instead of read. **"The fence was
+green" is not evidence a floor is right.**
+
+#### The residual de-anonymization channel, declared with its exact reach
+
+An anonymous denuncia **does** write the caller's uuid to the database, and the
+file that owns the anonymity rule did not say so. `spendUserBudget` runs on the
+anonymous branch too: `reporterUserId` is null and `userId` is the caller's,
+unconditionally.
+
+- **What is written**: `rate_limit_buckets`, PRIMARY KEY
+  `welfare_auth:{userId}:hour:{windowStartMs}`, plus `count` and `first_seen_at`.
+  The uuid is in the key, not a column.
+- **What it discloses**: `welfare_auth` has exactly two spenders and both are
+  denuncia creation, so the key's existence asserts "this user filed at least one
+  denuncia in this hour" and `count` says how many. Against a `welfare_reports` row
+  with `reporter_user_id` null and `created_at` in that window, a reader could
+  re-attach a name — unambiguously, in a quiet hour.
+- **Who can read it**: not `anon`, not `authenticated`. RLS is enabled
+  (migrations 0113 and 0165) and **no policy and no grant has ever been written**,
+  so PostgREST denies everything; migration 0139 cites this table as the precedent
+  for that shape. What reaches it is the service role — the server's Drizzle
+  client, and whoever holds the service key or a psql connection. **No product
+  surface reads it at all.**
+- **How long it lives**: `expires_at = window + 1h`, deleted by the first of the
+  five purges behind `/api/cron/data-lifecycle`. Not indefinite retention.
+- **Does it break the promise**: no, and only because the promise is written
+  narrowly — this door and the screen both say anonymity here is a property of the
+  RECORD, not unattributability in flight. A deny-all counter with no reader that
+  erases itself within the hour is on the "in flight" side. **What it is not is
+  zero**, which is why it is written down.
+- **It is not this door's channel.** `src/modules/welfare/actions.ts` branches on
+  whether a `user` exists, never on `contactMode`, so a logged-in person choosing
+  "Enviar anónima" in the BROWSER spends the identical bucket under the identical
+  key. Closing it means either no per-user ceiling on the anonymous path (which the
+  PO decision of 2026-07-08 assumes) or a per-IP one, and the web's own anonymous
+  door shows that price: `welfare_anon` is 1/min + 3/hr per IP, which behind a
+  CGNAT gateway is one denuncia per carrier per minute for everyone on it. **A PO
+  trade, not an agent's.**
+
+#### What it RETURNS rather than solves
+
+- **ATTACHMENTS ARE RETURNED, NOT DEFERRED, and the reason is not "no native
+  picker".** That is the smaller half. The larger half is that **no surface in this
+  product accepts evidence for a denuncia that already exists** — not
+  `/denuncias/codigo`, not `/denuncias/seguimiento`, not even for an authenticated
+  reporter (`addReporterCommentAction` adds TEXT and nothing else). So "add them
+  later from the web" is a promise the product cannot keep on ANY client, and the
+  screen says so up front instead. **Whoever unblocks attachments has to answer a
+  product question first — is "add evidence after filing" a capability or not? —
+  and only then the picker.** Two blockers, and the second one is not an agent's to
+  decide.
+- **The HEIC/EXIF leak stays declared and untouched**, with the sentence that
+  matters: the web's denuncia form accepts HEIC, so an iPhone photo carries the GPS
+  EXIF of where it was taken — frequently an anonymous reporter's own home. Fixing
+  it needs server-side transcoding. **A door that carries no bytes is not a
+  mitigation of that; it is simply not a new mouth.** Anyone adding uploads here
+  lands the transcoding first.
+- **`observedSymptoms` was a black hole and the field is GONE**, recorded because
+  the reasoning generalises. It shipped on the wire and on the screen ("¿Notaste
+  algún síntoma en el animal?") before anybody checked where it LANDED:
+  `welfare_reports` has no such column, and its only consumer is
+  `createWelfareReport`'s `symptom_observed` bridge, which sits inside
+  `subjectKind === "registered_pet" && subjectPetId` — a subject this door does not
+  accept. The server discarded it on every request the door can make. **A form
+  field whose answer is structurally dropped is worse than a missing one**: somebody
+  describes an injured animal and no inspector ever reads it. **The same silent
+  discard exists on the WEB and is reported, not fixed**: `WelfareReportForm.tsx`
+  (the ORG intake) has an `observedSymptoms` textarea and an org report's subject
+  may equally be an `unowned_animal`. Closing it is either a column or a decision to
+  fold the text into the description, and rewriting somebody's testimony is not a
+  thing to do without asking.
+- **`uploadWelfareEvidence` has THREE call sites, not two**, and three docblocks in
+  this lane said two. The third is
+  `src/modules/pets/application/claim/submit-claim-dispute.ts`, a custody DISPUTE
+  rather than a denuncia, present since before the lane. The conclusion survives —
+  it is also a creation path — but that sentence is the reason the screen's copy
+  exists, so it does not get to be approximately true. Corrected in all three, with
+  the instruction to recount rather than trust the number.
+- **The pin drag is still missing versus the web**, which is the map. The screen
+  searches, the server returns candidates, the person taps one; retyping the address
+  INVALIDATES the chosen point, because the dangerous state is a denuncia filed
+  against the previous street after somebody corrected the text and never touched
+  the list again.
+- **This page's own pointer census is stale and is NOT this lane's to fix.** The
+  row-3 paragraph says `rg -i '\brows? [0-9]+\b'` "returns nine pointers"; run
+  today it returns **nineteen** matches. The census belongs to the adoption/row-3
+  renumbering decision, which is the integrator's call. Reported.
+
+#### What was measured
+
+- **The 53 tree-sweeping vitest fences, enumerated over the WHOLE tree** with
+  `rg -l 'readdirSync|globSync|discoverTestFiles' --glob '*.test.ts*' --glob
+  '!node_modules' .` — 53 files, the 46 under `__tests__/` plus the 7 that live
+  beside the code they police. **And the set spans TWO RUNNERS, which the recipe
+  does not say and which a vitest-only run hides**: 52 are vitest (**52 files /
+  1131 tests green**) and the 53rd,
+  `apps/mobile/src/release/release-config.test.ts`, is in neither vitest project's
+  include — it is a mobile **Jest** test and vitest answers "No test files found"
+  for it. Run under Jest: **31/31 green**. A run that reports 52 and stops looks
+  complete and is one short.
+- **The whole `lint:*` chain, all 66, each run separately**: **64 measured and
+  green**. `lint:route-weight` and `lint:csp-prerender` are declared **NOT
+  MEASURED**, not counted green — both self-skip without a build and exit **0**
+  while saying so in words ("NO SE MIDIÓ NADA", "This run proved nothing about the
+  CSP").
+- **The whole `unit` vitest project**: 646 files, 9391 passed, 3 skipped.
+- **Targeted blast radius** (the welfare module, the contract package, the
+  `/api/v1` envelope and limits fences, the deep-link map, the three
+  `uploadWelfareEvidence` callers, the redaction fences): 67 files, 1051 tests
+  green.
+- **Mobile Jest**: 55 suites, 860 tests. **Both typechecks clean**, and `biome
+  check` over the repo is clean apart from ONE pre-existing warning this lane did
+  not touch and does not own — the dead `suppressions/unused` at
+  `__tests__/auth-callback-redirect.test.ts:107`, already a reported item on this
+  page. Verified present at `6671cff99`.
+- **`pnpm verify` and `pnpm test:verified` were NOT run** — the local Supabase is
+  shared with a parallel lane and the brief forbids it. The full suite is the
+  integrator's gate. Named rather than implied, because that is precisely the gap
+  that sank an earlier lane on this page.

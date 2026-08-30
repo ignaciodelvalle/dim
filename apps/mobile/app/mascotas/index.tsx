@@ -171,23 +171,65 @@ export default function MisMascotasScreen() {
           accessibilityHint="Si tu mascota ya está registrada por su microchip o su tatuaje."
           onPress={() => router.push(ROUTES.reclamar)}
         />
-        {/* ADOPCIÓN'S ONLY ENTRY POINT, and the odd one out in this footer.
-            The two buttons above are about animals or messages that already
-            belong to this person; this one opens a catalogue of animals nobody
-            here holds. It sits with them anyway because the alternative — a
-            fifth top-level destination with no way in — is a screen that exists
-            and cannot be reached.
+        {/* ADOPCIÓN'S ONLY ENTRY POINT. The buttons above it are about animals
+            or messages that already belong to this person; this one opens a
+            catalogue of animals nobody here holds. It sits with them anyway
+            because the alternative — a top-level destination with no way in — is
+            a screen that exists and cannot be reached.
 
-            THE ENTRY IS HERE AND THE HEADER TITLES ARE IN `app/_layout.tsx`,
-            which this lane owns. Both are needed and neither substitutes for the
-            other: this button is how a person reaches the catalogue, and the
-            registration is what stops the header from reading `adoptar` in
-            lowercase English-looking form. */}
+            IT IS NO LONGER THIS FOOTER'S ODD ONE OUT, which is what this comment
+            claimed while it was the last button, and the claim had to be
+            corrected rather than left standing over an arrangement that changed.
+            "Denunciar maltrato" below it is one step further out, and the two are
+            not the same kind of outward: an adoption is an animal this person may
+            come to hold, and the screen is a catalogue they browse. See that
+            button's own note for where the line actually ends.
+
+            THE ENTRY IS HERE AND THE HEADER TITLES ARE IN `app/_layout.tsx`.
+            Both are needed and neither substitutes for the other: this button is
+            how a person reaches the catalogue, and the registration is what stops
+            the header from reading `adoptar` in lowercase English-looking
+            form. */}
         <SecondaryButton
           label="Adoptar"
           accessibilityHint="Mascotas publicadas por refugios verificados."
           onPress={() => router.push(ROUTES.adoptar)}
         />
+        {/* DENUNCIAR IS HERE BECAUSE THE WEB PUT IT HERE, and the web wrote down
+            why: `/mis-mascotas/page.tsx` carries "+ Denunciar maltrato animal"
+            under the comment "about someone else's animal, so it can never live
+            on your own credential (§9.2)". That rules out the pet screen and
+            leaves this list, which is the only hub either client has.
+
+            IT IS LAST, BELOW ADOPTAR, and the order is the footer's own: this
+            list runs from what the reader is responsible for towards what they
+            are not. Transferencias and Notificaciones are addressed to them, Mis
+            turnos belong to their animals, Reclamar is an animal that IS theirs
+            and is recorded under somebody else, Adoptar is one they may come to
+            hold. Denunciar is where that line ENDS rather than another point on
+            it: denunciar maltrato is not an act on your animals at all. It is a
+            civic act about somebody else's, and it ends with a case file at an
+            authority naming a person. It is on this screen because this list is
+            the only hub, not because it belongs among what the list is about.
+
+            THE EXTRA SPACE ABOVE IT IS THE POINT, AND THE WRAPPER IS WHAT MAKES
+            IT REAL. `styles.footer` sets ONE uniform `gap` for every child in
+            here, so "it sits apart from the others" was a sentence in a comment
+            and nothing on the screen until this `View` existed. A button that
+            files a criminal allegation against a named person must not be
+            reachable by a thumb that was aiming at the one above it.
+
+            NOT IN AJUSTES, which is the other place a footer button gets pushed
+            to. A denuncia is something somebody files standing in the street
+            looking at an animal; a settings screen is where you go when nothing
+            is happening. */}
+        <View style={styles.civicAction}>
+          <SecondaryButton
+            label="Denunciar maltrato"
+            accessibilityHint="Denunciar maltrato o abandono de un animal ante la autoridad. Ley 14.346."
+            onPress={() => router.push(ROUTES.denunciar)}
+          />
+        </View>
         <SecondaryButton label="Ajustes" onPress={() => router.push(ROUTES.ajustes)} />
       </View>
     </Screen>
@@ -303,6 +345,13 @@ function StatusChip({ status }: { status: MyPetsV1Item["status"] }) {
 
 const styles = StyleSheet.create({
   footer: { marginTop: SPACE.lg, gap: SPACE.sm },
+  // The one break in the footer's uniform `gap`, and it carries an argument
+  // rather than a taste: "Denunciar maltrato" opens a criminal allegation about
+  // a named third party, and every other child of this View is an act on the
+  // reader's own records. `marginTop` STACKS on the parent's gap, so the button
+  // sits at twice the distance of any other pair — the smallest amount of layout
+  // that makes a mis-tap cost a deliberate correction instead of a case file.
+  civicAction: { marginTop: SPACE.sm },
   petRow: {
     flexDirection: "row",
     alignItems: "center",

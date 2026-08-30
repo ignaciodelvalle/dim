@@ -130,8 +130,14 @@ const ROUTE_GLOB = "app/api/v1/**/route.ts";
  * real tree and silently loosened by one, which is the failure this whole comment
  * is about. Recounted on the merged tree with all three adopción buckets and the
  * reclamar door present: `Object.keys(API_V1_IP_BUCKET_FAMILIES).length` is 33.
+ *
+ * RECOUNTED AGAIN, 2026-08-30, with the denuncia door (WU-T) added: 34. Read off
+ * the tree with `Object.keys(...).length`, not obtained by adding 1 to the 33
+ * above — which is the instruction this comment has now survived three doors
+ * saying, and the value it would have produced this time happens to agree. That
+ * agreement is not the reason it is written down; the recount is.
  */
-const MIN_IP_BUCKETS = 33;
+const MIN_IP_BUCKETS = 34;
 
 /**
  * Collects `enforceRateLimit`-style bucket literals from a route's source and
@@ -579,7 +585,33 @@ describe("/api/v1 rate-limit families — the numbers the derivation committed t
     // because the arithmetic is the evidence for the pin. `API_V1_IP_BUCKET_
     // FAMILIES` is still the list that cannot lie; recount it, do not trust
     // these tables.
-    expect(API_V1_CGNAT_FAMILY_IP_CEILING_PER_MINUTE).toBe(12_324);
+    // RE-DERIVED 2026-08-30 for the denuncia door (WU-T), which adds ONE
+    // `authenticated-write` bucket, `api_v1_welfare_reports_ip`. Hand-summed per
+    // family over the merged map rather than read off the `reduce` this line
+    // compares against, because a computed value agreeing with itself is not
+    // evidence:
+    //
+    //   authenticated-read    16 × 600 = 9.600
+    //   authenticated-write    8 × 120 =   960
+    //   account-security       2 ×  60 =   120
+    //   inbox-state            1 × 240 =   240
+    //   public-reference       1 × 600 =   600
+    //   pet-disclosure-write   2 × 180 =   360
+    //   pet-record-write       1 × 240 =   240
+    //   pet-registration       1 × 120 =   120
+    //   media-upload           1 × 144 =   144
+    //   adoption-application   1 ×  60 =    60
+    //                          ── 34 buckets ─────────
+    //                                     12.444
+    //
+    // and 12.324 + 120 = 12.444 agrees. THIS PIN GOES RED WHEN THE BUCKET
+    // LANDS, and the lane that handed this entry to an integrator said twice
+    // that it stayed green. It is worth naming because the mistake is easy: the
+    // OTHER two assertions in this file really do go from red to green with the
+    // entry, so "adding the line fixes the fence" is half true and this third
+    // one moves the opposite way — the aggregate is a sum over the map, so
+    // growing the map grows the sum.
+    expect(API_V1_CGNAT_FAMILY_IP_CEILING_PER_MINUTE).toBe(12_444);
   });
 
   it("keeps pet-disclosure-write at N callers on BOTH windows", () => {

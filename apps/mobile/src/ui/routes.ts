@@ -165,6 +165,33 @@ export const ROUTES = {
    * reconciled, not here.
    */
   adoptarPostulaciones: "/adoptar/postulaciones",
+  /**
+   * DENUNCIAR MALTRATO — the route that is not about an animal anybody in this
+   * app holds, and often not about a registered animal at all.
+   *
+   * `/reclamar` is one step further out than `/transferencias` because ALL of
+   * what it carries is about somebody else's animal. This is one step further
+   * again: the subject is usually an animal with no owner in the registry, seen
+   * in a place the person walked past, and the denuncia accuses a NAMED THIRD
+   * PARTY of a crime under Ley 14.346. There is nothing in this tree it belongs
+   * under.
+   *
+   * THE PATH IS A VERB AND DOES NOT MATCH THE WEB'S `/denuncias/nueva`, which is
+   * the first path in this file to diverge for a reason other than shortening.
+   * The web nests the form under the public denuncia section because that section
+   * has other pages — `/denuncias`, `/denuncias/buscar`, `/denuncias/codigo/…`,
+   * `/denuncias/seguimiento` — and this app has none of them: it can file one and
+   * it can do nothing else with one, because following a denuncia needs the
+   * reporter-session cookie a bearer client has no jar for. A `/denuncias/nueva`
+   * here would be a "nueva" with nothing to be new AMONG.
+   *
+   * Nothing deep-links here and nothing may. `DEEP_LINK_MAP.welfareReport` names
+   * the CONSTANCIA (`/denuncias/codigo/:referenceCode`) with `appPath: null`,
+   * which is correct and must stay that way: a `mimar://denunciar` URL would be
+   * an unverified custom scheme any installed app can claim, standing in front of
+   * a form that files a criminal allegation.
+   */
+  denunciar: "/denunciar",
 } as const;
 
 /**

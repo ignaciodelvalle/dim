@@ -347,5 +347,18 @@ export function apiErrorMessage(code: ApiV1ErrorCode): string {
       // and comes back as the code above — never as a second letter in the
       // shelter's queue.
       return "No pudimos enviar tu postulación. Volvé a intentar.";
+    case "welfare_report_failed":
+      // TWO SERVER STATES BEHIND ONE CODE, and the copy has to be true in both:
+      // either nothing was written, or the denuncia landed and the case over it
+      // did not. The contract keeps them indistinguishable on purpose — telling a
+      // caller on a FAILURE path whether a legal filing about a named third
+      // party is now on record, with no reference code to prove it, is worse
+      // than not telling them.
+      //
+      // So the copy does NOT say "no se registró". It says to try again and
+      // names the place where the question "did it land?" can actually be
+      // answered — `/denuncias/buscar`, the web's own lookup by reference code
+      // — rather than inviting a blind re-send that files a second denuncia.
+      return "No pudimos enviar la denuncia. Volvé a intentar en un momento; si ya te dimos un código antes, buscalo en la web antes de mandarla de nuevo.";
   }
 }

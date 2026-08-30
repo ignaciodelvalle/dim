@@ -718,6 +718,31 @@
  *                         everything in one transaction, so nothing is half
  *                         written; a retry is safe and will either succeed or
  *                         answer `claim_not_claimable`.
+ *
+ * THE DENUNCIA CODE (WU-T). One, and the shortness is again the interesting
+ * part: `POST /api/v1/welfare-reports` has no vocabulary of refusals because it
+ * has no rules a client can violate beyond the shape of the body. There is no
+ * "you may not denounce this animal" — a citizen may report anything to an
+ * authority, which is what Ley 14.346 is — so every rejection this door has is
+ * either `invalid_request` (the body), `rate_limited` (the shared `welfare_auth`
+ * budget the browser also spends), or one of the liveness codes.
+ *
+ * - `welfare_report_failed`
+ *                       — the denuncia could not be filed. 500.
+ *
+ *                         DELIBERATELY OPAQUE, AND NOT FOR THE USUAL REASON. It
+ *                         covers two states the server can tell apart and the
+ *                         client cannot act on differently: the report row
+ *                         failed to insert (nothing was written), or the row
+ *                         landed and the case transaction over it did not (a
+ *                         denuncia exists with no case, the same state the web's
+ *                         action already produces, and one `/gob/denuncias`
+ *                         handles). Splitting them would tell a caller whether a
+ *                         legal filing about a named third party is now on
+ *                         record — over the same channel, on a failure path,
+ *                         with no reference code to prove it. The person's move
+ *                         is identical either way: try again, and check
+ *                         `/denuncias/buscar` if in doubt.
  */
 export const API_V1_ERROR_CODES = [
   "rate_limited",
@@ -787,6 +812,7 @@ export const API_V1_ERROR_CODES = [
   "claim_failed",
   "adoption_application_refused",
   "adoption_application_failed",
+  "welfare_report_failed",
 ] as const;
 
 export type ApiV1ErrorCode = (typeof API_V1_ERROR_CODES)[number];
