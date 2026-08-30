@@ -1282,6 +1282,19 @@ credential") — and not because it belongs among what the list is about.
 lying.** It called itself "the odd one out in this footer", which was true while
 it was the last button and stopped being true underneath it.
 
+**Both comments are now FALSIFIABLE, which neither was before.**
+`apps/mobile/app/mascotas/index.tsx` is the app's most-opened screen and it had
+**no test of any kind** — every button in that footer, this lane's and the
+adoption lane's and reclamar's, was unfenced. `apps/mobile/src/pets/
+MisMascotasFooter.test.tsx` pins the order, the separation and the route off the
+RENDERED tree, never off the source: a source-text fence over a JSX order passes
+for any rearrangement that keeps the same lines. **And its own first version
+fenced nothing** — `renderedFooterOrder()` mapped over the expected labels and
+merely filtered the missing ones, so it handed that constant back regardless of
+the arrangement and the swap mutation left it **3/3 green**. Same defect as a stub
+that discards its argument, found by applying the mutation rather than by reading
+the helper. Three mutations now, one per test, each killing only its own.
+
 **And denuncia's own comment was lying too, in a way the conflict hid.** It
 claimed "the gap between the two is bigger", and `styles.footer` sets ONE uniform
 `gap` for every child — the separation was a sentence with nothing on the screen
@@ -1462,7 +1475,11 @@ unconditionally.
   `/api/v1` envelope and limits fences, the deep-link map, the three
   `uploadWelfareEvidence` callers, the redaction fences): 67 files, 1051 tests
   green.
-- **Mobile Jest**: 54 suites, 857 tests. **Both typechecks clean.**
+- **Mobile Jest**: 55 suites, 860 tests. **Both typechecks clean**, and `biome
+  check` over the repo is clean apart from ONE pre-existing warning this lane did
+  not touch and does not own — the dead `suppressions/unused` at
+  `__tests__/auth-callback-redirect.test.ts:107`, already a reported item on this
+  page. Verified present at `6671cff99`.
 - **`pnpm verify` and `pnpm test:verified` were NOT run** — the local Supabase is
   shared with a parallel lane and the brief forbids it. The full suite is the
   integrator's gate. Named rather than implied, because that is precisely the gap
