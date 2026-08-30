@@ -22,8 +22,9 @@
 //      named in the interface with somewhere to go, rather than left as a
 //      missing control somebody hunts for.
 
-import { beforeEach, describe, expect, it, jest } from "@jest/globals";
-import { fireEvent, render, screen, waitFor } from "@testing-library/react-native";
+import { afterEach, beforeEach, describe, expect, it, jest } from "@jest/globals";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react-native";
+import { Text } from "react-native";
 
 const mockSend = jest.fn<(...args: unknown[]) => Promise<unknown>>();
 const mockOpenURL = jest.fn<(url: string) => Promise<unknown>>();
@@ -38,9 +39,30 @@ jest.mock("../auth/session-store", () => ({ sessionPort: {} }));
 
 import type { PetClaimLookupAckV1 } from "@dim/contract/api";
 
+import {
+  type ChipScanViewProps,
+  resetChipScannerPort,
+  setChipScannerPort,
+} from "../native/chip-scanner-port";
 import { ClaimScreen } from "./ClaimScreen";
 
 const CHIP = "982000123456789";
+
+/**
+ * A scan view that records its props, so a test can BE the camera: call
+ * `onCode`/`onCancel` exactly as an adapter would, without any native module.
+ */
+let lastScanProps: ChipScanViewProps | null = null;
+function FakeScanView(props: ChipScanViewProps) {
+  lastScanProps = props;
+  return <Text>cámara-falsa</Text>;
+}
+
+/** The camera, as the scan view hands it over. Throws when it is not mounted. */
+function cameraProps(): ChipScanViewProps {
+  if (lastScanProps === null) throw new Error("the fake scan view is not mounted");
+  return lastScanProps;
+}
 
 function lookupAck(over: Partial<PetClaimLookupAckV1> = {}): { outcome: "ok"; payload: unknown } {
   return {
@@ -67,6 +89,11 @@ async function search(value = CHIP) {
 beforeEach(() => {
   mockSend.mockReset();
   mockOpenURL.mockReset();
+  lastScanProps = null;
+});
+
+afterEach(() => {
+  resetChipScannerPort();
 });
 
 describe("the ask", () => {
@@ -293,5 +320,92 @@ describe("the failures", () => {
     await search();
 
     await waitFor(() => expect(screen.getByText(/Revisá tu conexión/)).toBeTruthy());
+  });
+});
+
+describe("the scanner behind the seam", () => {
+  it("offers no scan control when the module is missing — the callout instead", () => {
+    // The default port. The seam makes the missing camera unrepresentable as a
+    // mountable control, and this screen must not invent a button over it.
+    render(<ClaimScreen onOpenPet={jest.fn()} />);
+    expect(screen.queryByText("Escanear el chip")).toBeNull();
+    expect(screen.getByText("Todavía no se puede escanear")).toBeTruthy();
+  });
+
+  it("offers the scan when the seam carries a view, and drops the hand-typed callout", () => {
+    setChipScannerPort({ name: "fake", ScanView: FakeScanView });
+    render(<ClaimScreen onOpenPet={jest.fn()} />);
+    expect(screen.getByText("Escanear el chip")).toBeTruthy();
+    // The callout says the number goes in by hand BECAUSE this build cannot
+    // scan. With a camera on board it would be false, so it goes.
+    expect(screen.queryByText("Todavía no se puede escanear")).toBeNull();
+  });
+
+  it("offers no scan under Tatuaje, even with a camera on board", () => {
+    // A tattoo is letters on skin, not a barcode. The control would promise a
+    // read that cannot happen.
+    setChipScannerPort({ name: "fake", ScanView: FakeScanView });
+    render(<ClaimScreen onOpenPet={jest.fn()} />);
+    fireEvent.press(screen.getByText("Tatuaje"));
+    expect(screen.queryByText("Escanear el chip")).toBeNull();
+  });
+
+  it("a scan fills the SAME field the keyboard writes, normalized, and runs nothing", () => {
+    setChipScannerPort({ name: "fake", ScanView: FakeScanView });
+    render(<ClaimScreen onOpenPet={jest.fn()} />);
+    fireEvent.press(screen.getByText("Escanear el chip"));
+    expect(screen.getByText("cámara-falsa")).toBeTruthy();
+
+    act(() => cameraProps().onCode("982 000 123 456 789"));
+
+    // Back on the form, with the digits where the keyboard would have put them.
+    expect(screen.queryByText("cámara-falsa")).toBeNull();
+    expect(screen.getByLabelText("Número de microchip, obligatorio").props.value).toBe(CHIP);
+    // A scan is an input method, not a command: NOTHING was sent. The person
+    // still reads the number the camera read and still taps Buscar.
+    expect(mockSend).not.toHaveBeenCalled();
+  });
+
+  it("a scanned chip flows into the SAME lookup the keyboard feeds", async () => {
+    setChipScannerPort({ name: "fake", ScanView: FakeScanView });
+    mockSend.mockResolvedValue(lookupAck());
+    render(<ClaimScreen onOpenPet={jest.fn()} />);
+    fireEvent.press(screen.getByText("Escanear el chip"));
+    act(() => cameraProps().onCode(CHIP));
+
+    fireEvent.press(screen.getByText("Buscar"));
+    await waitFor(() => expect(mockSend).toHaveBeenCalled());
+    expect(mockSend.mock.calls[0]?.[1]).toEqual({
+      command: "lookup",
+      identifierKind: "microchip",
+      identifierValue: CHIP,
+    });
+  });
+
+  it("a barcode that is not a chip leaves the field alone and says so", () => {
+    setChipScannerPort({ name: "fake", ScanView: FakeScanView });
+    render(<ClaimScreen onOpenPet={jest.fn()} />);
+    fireEvent.changeText(screen.getByLabelText("Número de microchip, obligatorio"), "98200");
+    fireEvent.press(screen.getByText("Escanear el chip"));
+
+    // The sticker's OTHER barcode — a lot number. The field keeps what the
+    // person had typed; planting the wrong read would be worse than the miss.
+    act(() => cameraProps().onCode("LOT-2026-08-A"));
+
+    expect(screen.getByLabelText("Número de microchip, obligatorio").props.value).toBe("98200");
+    expect(screen.getByText(/no es un número de microchip/)).toBeTruthy();
+    expect(mockSend).not.toHaveBeenCalled();
+  });
+
+  it("backing out of the camera returns to the form unchanged", () => {
+    setChipScannerPort({ name: "fake", ScanView: FakeScanView });
+    render(<ClaimScreen onOpenPet={jest.fn()} />);
+    fireEvent.changeText(screen.getByLabelText("Número de microchip, obligatorio"), CHIP);
+    fireEvent.press(screen.getByText("Escanear el chip"));
+
+    act(() => cameraProps().onCancel());
+
+    expect(screen.getByLabelText("Número de microchip, obligatorio").props.value).toBe(CHIP);
+    expect(screen.queryByText(/no es un número de microchip/)).toBeNull();
   });
 });

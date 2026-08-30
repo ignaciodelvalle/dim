@@ -144,6 +144,18 @@ export default function RootLayout() {
             "editar" — a lowercase English-looking verb in a Spanish stack. The
             screen carries two forms under one act, and the header says the act. */}
         <Stack.Screen name="mascotas/[publicToken]/editar" options={{ title: "Editar" }} />
+        {/* LA FOTO. Sin registrar, el encabezado diría "foto" en minúscula. EL
+            TÍTULO SE TRANSCRIBE, NO SE INVENTA — la condición del integrador al
+            registrar `/reclamar`: "Foto de la mascota" es el `<Title>` que la
+            pantalla ya dibuja en su estado de entrada, y "Foto" es la etiqueta
+            del campo en el formulario de la web (`LnPhotoField`). Es el SUJETO
+            y no el resultado, como `/denunciar`: la pantalla se retitula sola
+            ("¿Usar esta foto?", "Foto actualizada") y un encabezado que la
+            siguiera renombraría la página mientras alguien decide. */}
+        <Stack.Screen
+          name="mascotas/[publicToken]/foto"
+          options={{ title: "Foto de la mascota" }}
+        />
         {/* MUDANZA. Sin registrar, el encabezado saldría de la ruta — "mudanza",
             en minúscula, sobre una pantalla cuyo propio título va capitalizado:
             el mismo hueco que `/reclamar` tenía y que WU-S dejó abierto en las

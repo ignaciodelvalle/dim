@@ -24,7 +24,9 @@ import { PET_CLAIM_VARIANTS_V1, type PetClaimLookupAckV1 } from "@dim/contract/a
 import { PET_CLAIM_COMMAND_INPUT_CODES } from "@dim/contract/input";
 
 import {
+  SCAN_NOT_A_CHIP_MESSAGE,
   buildClaimCommand,
+  chipCodeFromScan,
   claimDisputeUrl,
   claimIdentifierFieldLabel,
   claimIdentifierKindLabel,
@@ -194,5 +196,40 @@ describe("the field labels", () => {
     expect(claimIdentifierFieldLabel("tattoo")).toContain("tatuaje");
     expect(claimIdentifierPlaceholder("microchip")).toMatch(/^\d{15}$/);
     expect(claimIdentifierPlaceholder("tattoo")).not.toMatch(/^\d+$/);
+  });
+});
+
+describe("chipCodeFromScan — the camera and the keyboard share one door", () => {
+  it("accepts fifteen digits and returns them exactly — the string the field would hold", () => {
+    // The scanner sets the SAME string the keyboard sets, so what comes back
+    // must survive `buildClaimCommand` unchanged: same value, same schema.
+    const code = chipCodeFromScan("982000123456789");
+    expect(code).toBe("982000123456789");
+    expect(buildClaimCommand("lookup", "microchip", code as string)).toEqual({
+      ok: true,
+      input: { command: "lookup", identifierKind: "microchip", identifierValue: code },
+    });
+  });
+
+  it("strips the separators a sticker's barcode carries", () => {
+    expect(chipCodeFromScan("982 000 123 456 789")).toBe("982000123456789");
+    expect(chipCodeFromScan("982-000-123456789")).toBe("982000123456789");
+    expect(chipCodeFromScan("982.000.123.456.789")).toBe("982000123456789");
+  });
+
+  it("refuses everything that is not fifteen digits, with null and never a partial fill", () => {
+    // A vet's sticker carries other barcodes — lot numbers, product codes. A
+    // wrong scan must leave the field alone, not fill it with a value the
+    // person has to notice and delete.
+    expect(chipCodeFromScan("12345678901234")).toBeNull(); // fourteen
+    expect(chipCodeFromScan("1234567890123456")).toBeNull(); // sixteen
+    expect(chipCodeFromScan("LOT-2026-08-A")).toBeNull(); // a lot number
+    expect(chipCodeFromScan("98200012345678A")).toBeNull(); // one letter
+    expect(chipCodeFromScan("")).toBeNull();
+    expect(chipCodeFromScan("   ")).toBeNull();
+  });
+
+  it("has a sentence for the refusal that names the keyboard as the way forward", () => {
+    expect(SCAN_NOT_A_CHIP_MESSAGE).toContain("a mano");
   });
 });

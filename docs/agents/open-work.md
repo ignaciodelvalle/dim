@@ -2578,3 +2578,150 @@ which is the same disclosure the previous window made and for the same reason: a
 gate result has to be written where the next reader looks. The doc-sweeping
 fences were re-run afterwards against this final tree, so the disclosure is not
 also a hole.
+
+## Appended 2026-08-30 by lane wf_9beb61d4-fd6-1 — rows 1 and 4, closed up to the native wall
+
+### Rows 1 (pet photo) and 4 (WU-V camera scan) — everything writable without the EAS build LANDED; what remains is the module and the build, and both are the PO's
+
+**Neither row comes off the table, and this lane does not edit them — rows are
+the integrator's.** What changed is what the rows MEAN: both now name only the
+`npx expo install` + adapters commit and the EAS build, with every screen,
+state machine, sentence and test already in the tree behind two seams. The
+integrator is asked (below) to rewrite the two work cells to say so.
+
+**The handback document is `docs/mobile/camera-modules-handback.md`** — the
+page both seam files were already citing by name. It carries the install
+command, the FULL adapter sources (with the one API note that must be verified
+against the installed `expo-image-manipulator` major), the two wiring lines,
+the config plugins with es-AR permission strings, what happens to the
+fingerprint and why that rules out any OTA, the build order with an owner per
+step, and the on-device verification checklist — including downloading the
+public photo and running an EXIF viewer over it, because "the GPS leak is
+closed" is measured, not assumed.
+
+What it **decided**:
+
+- **Two seams, not one, and they are shaped differently on purpose.**
+  `image-picker-port.ts` is a function (`pickImage()`) because picking IS a
+  call; `chip-scanner-port.ts` carries a COMPONENT-or-`null` because a camera
+  is a view the screen mounts, and a `scan(): Promise` would force adapters to
+  mount UI from inside a promise. `null` — not an apology component — is the
+  module-missing signal, so a screen cannot mount a scanner that is not there.
+  Both defaults say the truth (`available: false` / `ScanView: null`), which is
+  what lets every screen ship TODAY without a single dead control.
+- **The scan is an input method, not a command.** A read goes through
+  `chipCodeFromScan` — fifteen digits after stripping a sticker's separators,
+  or `null` and the field is left alone — into the SAME field the keyboard
+  writes, and fires nothing. The person still reads the number and still taps
+  Buscar, which is what row 4's own text demanded ("sets the same string the
+  keyboard field sets"). One validation door for two input methods; a wrong
+  barcode (a lot number) cannot plant a value somebody has to notice and
+  delete. The scan control renders only under Microchip — a tattoo is not a
+  barcode — and only when the seam carries a view; the "el número va a mano"
+  callout renders exactly when it does not, so it can never be false.
+- **The photo reviews before it uploads.** Pick → preview → "Usar esta foto";
+  nothing travels until the tap, because the upload costs data on a phone plan
+  and the credential is the animal's public face. Every failure of the
+  ticket → PUT → confirm walk lands BACK ON REVIEW with the photo intact —
+  re-picking would punish the person for a network error — and the three
+  failure arms carry three different instructions because retrying does three
+  different things: an expired ticket promises the fresh permission the retry
+  actually mints, a dead PUT names the connection, a refused confirm speaks
+  the server's own sentence (`photo_not_an_image` copy exists already; a second
+  copy would drift). The ticket dies inside the flow function — no result
+  carries the capability.
+- **The screen-side gate mirrors, never invents.** jpeg/png/webp is membership
+  in the CONTRACT's own array; HEIC gets its own sentence because its fix
+  (export as JPG) differs from "not an image"; the 5 MiB cap transcribes
+  `MAX_IMAGE_BYTES` / migration 0206's `file_size_limit` so the refusal costs a
+  sentence instead of a full upload the bucket would refuse anyway.
+- **`/mascotas/{token}/foto` is a route, not a field on `/editar`, and the Más
+  row is NOT behind `isCaretaker` — that transcribes the server's own gate.**
+  `POST /pets/{token}/photo` takes any holder role (`titular-only.ts` lists
+  photos among what a caretaker MAY do); folding the photo into `/editar` would
+  bolt a caretaker-allowed act onto a screen a caretaker cannot use. The
+  caretaker test pins the row so it stays a decision. `_layout.tsx` registers
+  the route with "Foto de la mascota" — transcribed from the screen's own entry
+  `<Title>` and the web's field label, per the `/reclamar` condition. **The
+  registration sits beside `editar` in the pet-route group, not at the list's
+  tail** — said out loud because the tail is this file's collision discipline;
+  the only other lane this window is docs-only, so the discipline had no
+  counterparty, but a merger should know the entry is mid-list.
+
+What it did **not** solve, and none of it is agent-blocked:
+
+- **The modules and the build.** `expo-image-picker`, `expo-image-manipulator`
+  (not optional — it is the HEIC conversion AND the EXIF/GPS strip),
+  `expo-camera`; the fingerprint changes; the release is the SAME build 6 the
+  PO already owes Play (PO-gated item 1), so one release serves both and burns
+  one `versionCode`. Order and owners are in the handback doc.
+- **The Data Safety form is the FIRST step and it is the PO's** — PO-gated
+  item 2, restated here because the handback doc now depends on it: the form
+  declared on 27/08 that the app does not collect photos, that stops being
+  true the moment a build with these modules reaches Play, and a form that no
+  longer matches the binary is a policy violation by itself. Revise it before
+  or with build 6's rollout, never after.
+- **Two comments will grow half-stale the day the adapters land**, reported
+  rather than pre-edited: `ClaimScreen.tsx`'s header and
+  `claim-view-model.ts`'s both argue the dispute refusal partly from "this
+  build has no image picker". The refusal SURVIVES the modules (a JSON
+  transport still cannot carry the evidence file the dispute writer demands —
+  the WU-V block's own argument), but the premise sentence should be reworded
+  in the adapters commit, not silently left to read false.
+- **`apps/mobile/app/mascotas/index.tsx`'s placeholder note** (photo upload "is
+  an `expo install` rather than a protocol") is still true and was not touched.
+
+**Fences and evidence, exactly what ran and what did not:**
+
+- The sweeping-fence census over the WHOLE tree
+  (`rg -l 'readdirSync|globSync|discoverTestFiles' --glob '!node_modules'
+  --glob '*.test.ts*'`) returns **53** on this tree — the same 46 + 7 split the
+  preamble records, none of them new to this lane.
+- What actually ran is BROADER than the 53, and that is a disclosure, not a
+  boast: one targeted `vitest run` over all of `__tests__/`, the four
+  `lib/*` fence files and `src/modules/rehome/__tests__` —
+  `Test Files 965 passed | 1 skipped (966)`, `Tests 13814 passed | 18 skipped |
+  5 todo (13837)`, zero failing, zero broken, on the lane's worktree with the
+  four env keys exported and Node 22.23.2 via fnm. The brief said targeted
+  tests because the local Supabase is shared; this run was wider than
+  "targeted" and DID touch the shared database. Nothing went red and the spine
+  tables' writes are the suite's own, but the integrator should know the run
+  happened when reading its own before/after probes.
+- The mobile Jest suite (which contains the 53rd fence,
+  `release-config.test.ts`): **66 suites / 1027 tests, green TWICE in a row**,
+  plus mobile `tsc --noEmit` clean and Biome clean over `apps/mobile`.
+- **NOT MEASURED, declared per the standing lesson:** `lint:route-weight` and
+  `lint:csp-prerender` (they self-skip without a build; only the integrator's
+  full `pnpm verify` measures them), and the full `pnpm verify` +
+  `pnpm test:verified` themselves — forbidden to this lane, the merge gate's
+  job.
+- **One flake found, and it was this lane's own, fixed at the cause**: the
+  photo screen test's shared helper waited on a NEGATIVE (a transient label
+  vanishing) under `waitFor`'s default 1s ceiling; stable 11/11 in isolation,
+  2-then-1 red across two full parallel runs, always the same helper. The
+  ceiling is now the explicit 5000 the neighbouring `PetDocumentScreen.test`
+  already uses, and two consecutive full runs agree green. Diagnosed, not
+  re-rolled — recorded because "a test that answers differently under load"
+  is this page's favourite way to waste the next reader's day.
+- **Every new test carries an applied mutation**, listed per commit in the
+  commit messages: seventeen distinct mutations across the view-models, the
+  flow, the two screens and the entry row, each run to red and reverted. One
+  mutant came out INERT and is documented in its commit (`void run("lookup")`
+  after a scan is neutralized by `run`'s stale closure over `value`) — the
+  meaningful mutation for "a scan runs nothing" is the direct send, which its
+  test kills.
+
+**Para el integrador (`necesitaDelIntegrador`):**
+
+1. Rewrite the WORK cells of rows 1 and 4 to name only what remains: the
+   modules-install + adapters commit (mechanical agent work, on the PO's go)
+   and the PO's build — pointing at `docs/mobile/camera-modules-handback.md`.
+   Both rows stay on the table until a build with the modules ships.
+2. No pin moved and no shared file outside this lane's territory was touched:
+   `lib/infra/api-v1-limits.ts`, `packages/contract/*` and
+   `apps/mobile/src/api/*` are byte-identical to the base. `_layout.tsx` took
+   one entry (position disclosed above); `OwnerFace.tsx` one row;
+   `routes.ts` one helper. No new route under `app/api`, so no bucket, no
+   route-file floor, no redaction segment.
+3. The full gate on the merged tree is the integrator's, as always — this
+   lane's evidence stops at the boundary declared above.

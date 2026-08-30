@@ -201,3 +201,42 @@ export function claimSightingUrl(origin: string, petToken: string): string {
 export function claimDisputeUrl(origin: string): string {
   return `${origin.replace(/\/+$/, "")}/mis-mascotas/reclamar`;
 }
+
+/**
+ * What a scanned barcode contributes to the identifier field — or `null`.
+ *
+ * THE SCANNER AND THE KEYBOARD FEED ONE VALIDATION PATH. The camera seam's
+ * contract (`chip-scanner-port.ts`) hands over the barcode's RAW string,
+ * unparsed, and this function is the single place that decides whether that
+ * string is a chip number. What it returns is set into the SAME field the
+ * keyboard writes, so `buildClaimCommand` — the contract's schema — still runs
+ * on it exactly as it runs on a typed value. A scanner that bypassed the field
+ * would be a second door with its own validation, which is the drift this
+ * function exists to prevent.
+ *
+ * WHAT IT ACCEPTS: exactly fifteen digits, after stripping the separators a
+ * sticker's barcode may carry (spaces, hyphens, dots). ISO 11784 chip numbers
+ * are fifteen digits, the contract's schema demands fifteen digits, and the
+ * keyboard field caps at fifteen — so this is a transcription of the rule that
+ * already exists on both ends, not a new one.
+ *
+ * WHAT IT REFUSES, WITH `null`: everything else. A vet's sticker carries more
+ * than one barcode (lot numbers, product codes), and a camera pointed at the
+ * wrong one must not fill the field with a value the person then has to notice
+ * and delete — `null` keeps the field as it was, and the screen says what
+ * happened in a sentence instead.
+ */
+export function chipCodeFromScan(raw: string): string | null {
+  const digits = raw.replace(/[\s.-]/g, "");
+  return /^\d{15}$/.test(digits) ? digits : null;
+}
+
+/**
+ * The sentence for a scan that read SOMETHING, just not a chip number.
+ *
+ * It names the way forward that always works — the keyboard — because the
+ * person most likely scanned one of the sticker's other barcodes, and "volvé a
+ * intentar" alone would send them back to the same wrong code.
+ */
+export const SCAN_NOT_A_CHIP_MESSAGE =
+  "El código escaneado no es un número de microchip. Probá con el otro código de la etiqueta, o escribilo a mano.";
