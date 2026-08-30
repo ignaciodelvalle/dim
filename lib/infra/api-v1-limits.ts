@@ -1159,6 +1159,34 @@ export const API_V1_IP_BUCKET_FAMILIES: Readonly<Record<string, ApiV1IpFamily>> 
   // header — the form's two reads are `/pets/{token}` and `/localities`, both of
   // which already have their own), so there is no read bucket to declare.
   api_v1_move_write_ip: "authenticated-write",
+
+  // Landed with the native DEVOLUCIÓN door (WU-P, `pets/{token}/return`), added
+  // by the lane that shipped the route for the reason the mudanza block above
+  // gives.
+  //
+  // THE READ joins `authenticated-read` on the argument every pet-scoped read on
+  // this surface makes: a client that opens a pet and taps "Devolución" calls
+  // `/pets/{token}` and this inside one second, so one budget bounds the
+  // sequence or none of them does.
+  //
+  // THE WRITE IS `authenticated-write` AND THE FAMILY WAS DERIVED AGAINST THIS
+  // EXACT ACT. Its own paragraph above quotes `me/transfers`: "offering an animal
+  // to somebody is not [something an owner does in bursts] … What this write
+  // PRODUCES is not a row — it is a change of who owns an animal in the national
+  // registry." `accept_return` ends the actor's custody row, appends
+  // `custody_transferred`, moves `pets.status` and closes two cases; it is the
+  // same sentence in the other direction, so this is a family being JOINED
+  // rather than a shape being matched. The per-user anchor's own justification —
+  // "ten a minute is generous headroom for a person answering a backlog of
+  // proposals plus every retry a flaky connection produces" — describes this
+  // door literally.
+  //
+  // IT IS NOT `pet-disclosure-write`: a return publishes nothing new about the
+  // animal. It is not `inbox-state` either, whose anchor is one indexed UPDATE
+  // on the caller's own rows, and this is a transaction across four tables that
+  // moves custody between two parties.
+  api_v1_return_read_ip: "authenticated-read",
+  api_v1_return_write_ip: "authenticated-write",
 };
 
 /**

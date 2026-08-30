@@ -242,6 +242,15 @@ export {
 } from "./pets.ts";
 export type { PetMoveJurisdictionV1, PetMoveRecordedV1 } from "./pet-move.ts";
 export {
+  PET_RETURN_PAYLOAD_VERSION,
+  PET_RETURN_STALE_AFTER_MS,
+  type PetReturnCapabilitiesV1,
+  type PetReturnCommandAckV1,
+  type PetReturnStateV1,
+  type PetReturnV1,
+  type ReturnCallerRoleV1,
+} from "./pet-return.ts";
+export {
   PET_PROFILE_EDIT_PAYLOAD_VERSION,
   PET_PROFILE_EDIT_STALE_AFTER_MS,
   type PetEmergencyAccountDefaultV1,

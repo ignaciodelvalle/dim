@@ -390,5 +390,28 @@ export function apiErrorMessage(code: ApiV1ErrorCode): string {
       // transacción y el evento y la denormalización van en una sola, así que un
       // intento fallido no deja media mudanza escrita.
       return "No pudimos registrar la mudanza. Volvé a intentar en unos segundos.";
+    // Devolución. Las cinco terminan en instrucciones distintas y una sola manda
+    // a reintentar: dos mandan a MIRAR de nuevo (la propuesta se mueve sola,
+    // porque del otro lado hay otra persona), una a esperar, y una a no
+    // insistir porque nada va a cambiar.
+    case "return_forbidden":
+      // UN CÓDIGO PARA DOS SITUACIONES — "tenés a este animal en un rol que esta
+      // función no atiende" y "esa propuesta no está dirigida a vos" — así que
+      // la copia no puede nombrar ninguna de las dos. Manda a leer el estado,
+      // que es lo único que sabe cuál de las dos es.
+      return "Esta acción no es tuya en esta mascota. Volvé a abrir la devolución para ver qué podés hacer.";
+    case "return_no_proposal":
+      // Puede ser que la propuesta se haya resuelto — incluso por este mismo
+      // intento, después de un timeout. Por eso no dice "no había nada": dice
+      // que mires.
+      return "Ya no hay una propuesta de devolución pendiente. Volvé a abrir la pantalla para ver cómo quedó.";
+    case "return_already_pending":
+      return "Ya hay una propuesta de devolución en curso para esta mascota. Esperá la respuesta antes de mandar otra.";
+    case "return_no_source_org":
+      // ESTRUCTURAL Y NO TRANSITORIO: reintentar no lo cambia. La copia nombra
+      // la salida real, que es hablar con la organización por fuera.
+      return "No encontramos una organización a la que devolver esta mascota. Si la recibiste de un refugio fuera de miMAR, contactalo directamente.";
+    case "return_failed":
+      return "No pudimos completar la devolución. Volvé a abrir la pantalla antes de intentar de nuevo.";
   }
 }

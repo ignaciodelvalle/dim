@@ -233,7 +233,17 @@ export const V1_ROUTE_GLOB = "app/api/v1/**/route.ts";
  * leaf, which is the arrangement the TWENTY-ONE paragraph above raised this
  * number for and the reason it keeps being worth raising.
  */
-export const MIN_V1_ROUTE_FILES = 32;
+/*
+ * THIRTY-THREE with devolución (WU-P, `pets/{token}/return`), the second route
+ * this lane adds. RECOUNTED rather than incremented: `listV1RouteFiles().length`
+ * on this worktree is 33, equal and not merely satisfied. `pets/{token}/` now has
+ * NINE sibling directories, taking back the "densest place on the surface" title
+ * the TWENTY-FOUR paragraph handed to `me/`. Note that 32 + 1 also gives 33 here
+ * ONLY because this lane owns both new routes; a parallel lane adding one of its
+ * own makes that arithmetic wrong, which is exactly what the TWENTY-THREE
+ * paragraph above had to repair.
+ */
+export const MIN_V1_ROUTE_FILES = 33;
 
 export const HELPER_MODULE = "@/lib/infra/api-v1";
 

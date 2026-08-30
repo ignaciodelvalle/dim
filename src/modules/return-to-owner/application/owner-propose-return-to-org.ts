@@ -3,23 +3,16 @@
 //
 // Auth (requireUserOrRedirect) is handled by the caller (action).
 
-import { and, desc, eq, isNull, sql } from "drizzle-orm";
+import { and, eq, isNull, sql } from "drizzle-orm";
 
-import {
-  db,
-  notifications,
-  organizationMemberships,
-  organizations,
-  ownerships,
-  petEvents,
-  pets,
-} from "@/db";
+import { db, notifications, organizationMemberships, ownerships, petEvents, pets } from "@/db";
 import { validateEventPayload } from "@/lib/events/event-schemas";
 import { findOpenCaseForPetAndKind } from "@/lib/infra/case-helpers";
 import { unerasedPetByToken } from "@/lib/infra/public-pet-lookup";
 
 import type { OwnerProposeReturnToOrgResult } from "../domain/types";
 import { hasPendingProposal } from "./proposal-queries";
+import { resolveReturnTargetOrg } from "./resolve-return-target-org";
 
 export async function ownerProposeReturnToOrgUseCase({
   userId,
@@ -71,79 +64,50 @@ export async function ownerProposeReturnToOrgUseCase({
     return { error: "Ya existe una propuesta de devolución pendiente para esta mascota." };
   }
 
-  // Find the target org.
-  let toOrgId: string | null = null;
+  // THE TARGET ORGANISATION — resolved by `resolveReturnTargetOrg`, which this
+  // use-case used to do inline in two branches. It moved out because the bearer
+  // door's READ needs the SAME answer to decide whether a "Devolver" control may
+  // be drawn at all, and two implementations of "who receives this animal back"
+  // is how a screen ends up offering a control the writer refuses.
+  //
+  // ONE BEHAVIOUR CHANGE CAME WITH THE MOVE and it is the 2026-08-18 scar: the
+  // parallel `shelter_custody` lookup was `.limit(1)` with no `ORDER BY`, so a
+  // pet with two open custody rows addressed an ARBITRARY organisation. It is
+  // now `desc(ownerships.startedAt)` — the same remedy `adoption-public-reads.ts`
+  // applied after the public ficha credited a refuge that no longer answered for
+  // the animal. Two open rows should not exist; when the invariant breaks, the
+  // most recent wins, consistently.
+  //
+  // THE TWO REFUSAL SENTENCES STAY HERE, byte-for-byte, because they are copy a
+  // person reads and they differ by role. The resolver answers with a code.
+  const target = await resolveReturnTargetOrg({
+    petId: pet.id,
+    userId,
+    callerRole,
+    exec: db,
+  });
 
-  if (callerRole === "foster") {
-    const [parallelCustody] = await db
-      .select({ ownerOrganizationId: ownerships.ownerOrganizationId })
-      .from(ownerships)
-      .where(
-        and(
-          eq(ownerships.petId, pet.id),
-          eq(ownerships.role, "shelter_custody"),
-          isNull(ownerships.endedAt),
-        ),
-      )
-      .limit(1);
-    toOrgId = parallelCustody?.ownerOrganizationId ?? null;
-    if (!toOrgId) {
-      return {
-        error:
-          "No se encontró una organización activa asociada a este tránsito. Contactá directamente al refugio.",
-      };
+  if (!target.ok) {
+    if (target.code === "not_the_adopter") {
+      return { error: "No sos el adoptante registrado para esta mascota." };
     }
-  } else {
-    const [adoptionEvent] = await db
-      .select({ payload: petEvents.payload })
-      .from(petEvents)
-      .where(and(eq(petEvents.petId, pet.id), eq(petEvents.eventType, "adoption_finalized")))
-      .orderBy(desc(petEvents.occurredAt))
-      .limit(1);
-
-    if (adoptionEvent) {
-      const adoptionPayload = adoptionEvent.payload as {
-        previous_owner_organization_id?: string | null;
-        adopter_user_id?: string | null;
-      };
-      if (adoptionPayload.adopter_user_id !== userId) {
-        return { error: "No sos el adoptante registrado para esta mascota." };
-      }
-      toOrgId = adoptionPayload.previous_owner_organization_id ?? null;
-    }
-
-    // Fallback: active parallel shelter_custody.
-    if (!toOrgId) {
-      const [parallelCustody] = await db
-        .select({ ownerOrganizationId: ownerships.ownerOrganizationId })
-        .from(ownerships)
-        .where(
-          and(
-            eq(ownerships.petId, pet.id),
-            eq(ownerships.role, "shelter_custody"),
-            isNull(ownerships.endedAt),
-          ),
-        )
-        .limit(1);
-      toOrgId = parallelCustody?.ownerOrganizationId ?? null;
-    }
-
-    if (!toOrgId) {
-      return {
-        error:
-          "No se encontró una adopción ni una organización asociada para esta mascota. Solo podés devolver mascotas recibidas a través de miMAR.",
-      };
-    }
+    return callerRole === "foster"
+      ? {
+          error:
+            "No se encontró una organización activa asociada a este tránsito. Contactá directamente al refugio.",
+        }
+      : {
+          error:
+            "No se encontró una adopción ni una organización asociada para esta mascota. Solo podés devolver mascotas recibidas a través de miMAR.",
+        };
   }
 
-  // Resolve org display name + publicToken for the notification.
-  const [orgRow] = await db
-    .select({ displayName: organizations.displayName, publicToken: organizations.publicToken })
-    .from(organizations)
-    .where(eq(organizations.id, toOrgId))
-    .limit(1);
-  const orgDisplayName = orgRow?.displayName ?? "el refugio";
-  const orgPublicToken = orgRow?.publicToken ?? null;
+  const toOrgId = target.target.orgId;
+  // `?? "el refugio"` UNCHANGED: the id can dangle (a payload's
+  // `previous_owner_organization_id` carries no foreign key), and this string
+  // goes into a notification body rather than onto a screen.
+  const orgDisplayName = target.target.displayName ?? "el refugio";
+  const orgPublicToken = target.target.publicToken;
 
   // Look up the custody_episode case if one is open (for event attachment).
   const custodyCase = await findOpenCaseForPetAndKind(pet.id, "custody_episode");
