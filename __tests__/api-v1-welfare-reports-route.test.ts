@@ -725,6 +725,26 @@ describe("the budgets are the ones the derivation named", () => {
     });
   });
 
+  it("spends the per-IP bucket even when the liveness guard then REFUSES", async () => {
+    // THE ORDERING CLAIM, MEASURED RATHER THAN ASSERTED. The header says the IP
+    // bucket runs BEFORE the GoTrue round-trip so a caller with a well-formed
+    // but invalid token cannot spend `auth.getUser()` calls unbounded — and the
+    // test above only shows the bucket is spent FIRST on a request that
+    // succeeds, which is also true of a handler that spends it after a guard
+    // that happened to pass.
+    //
+    // A refused session is the case that separates the two. Kill it by moving
+    // `spendBudget` below `requireLiveUser` in `route.ts`. Applied: `spent` is
+    // empty and this fails.
+    control.live = () => ({ ok: false, reason: "DEACTIVATED" });
+    const response = await post({ command: "file", contactMode: "anonymous", ...FACTS });
+
+    expect(response.status).toBe(403);
+    expect(control.spent).toEqual([
+      { endpoint: "api_v1_welfare_reports_ip", identifier: CALLER_IP },
+    ]);
+  });
+
   it("spends the WEB'S OWN per-user denuncia budget, keyed on the caller", async () => {
     // `welfare_auth` is the bucket `createWelfareReportAction` spends for an
     // authenticated browser submission. One budget for one act, whichever door.
