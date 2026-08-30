@@ -166,6 +166,7 @@ export {
   APPOINTMENT_STATUSES_V1,
   MY_APPOINTMENTS_PAYLOAD_VERSION,
   MY_APPOINTMENTS_STALE_AFTER_MS,
+  type AppointmentCancelledV1,
   type AppointmentCapabilitiesV1,
   type AppointmentCommandAckV1,
   type AppointmentPetV1,
@@ -175,6 +176,22 @@ export {
   type MyAppointmentV1,
   type MyAppointmentsV1,
 } from "./my-appointments.ts";
+export {
+  APPOINTMENT_OFFERING_WINDOW_DAYS,
+  APPOINTMENT_SEARCH_LIST_WINDOW_DAYS,
+  APPOINTMENT_SEARCH_PAYLOAD_VERSION,
+  APPOINTMENT_SEARCH_STALE_AFTER_MS,
+  BOOKING_BLOCKED_REASONS_V1,
+  type AppointmentBookedV1,
+  type AppointmentProviderV1Search,
+  type AppointmentSearchV1,
+  type BookableOfferingDetailV1,
+  type BookableOfferingV1,
+  type BookablePetV1,
+  type BookableSlotV1,
+  type BookingBlockedReasonV1,
+  type ServiceKindOptionV1,
+} from "./appointment-search.ts";
 export {
   CARETAKER_GRANT_STATUSES_V1,
   MY_CARETAKER_GRANTS_PAYLOAD_VERSION,
