@@ -17,6 +17,7 @@ short role docs in this repo were followed on first use).
 | Cowork, recorriendo lo que nunca se recorrió | `docs/agents/prompt-cowork-clickthrough-territorio-nuevo.md` — el complemento del anterior: las 115 rutas que ningún guion ni spec nombró nunca |
 | Cowork, verificando arreglos + explorando | `docs/agents/prompt-cowork-clickthrough-verificacion-y-nuevo.md` — A verifica con el resultado esperado escrito, B explora lo no recorrido, C pregunta si el servidor rechaza lo que la UI esconde, D toma seis tiempos. Lleva las tres reglas de método que salieron de los 5 falsos positivos de TN0813, y una segunda vuelta de la parte A a las dos semanas |
 | Un revisor externo auditando el código | `docs/agents/prompt-cowork-review-codigo.md` |
+| The PO, running the adversarial review of the 2026-08-29→30 range | `docs/agents/handoff-2026-08-30.md` — the attack map: where to aim first, what changed per area with hashes, the decisions to ratify or revert, what was left undone, and the one-run validation recipe with its measured traps |
 | Un agente escribiendo material de onboarding para usuarios externos (funcionario, vet, refugio, dueño, vecino) | `docs/agents/prompt-cowork-onboarding-externos.md` |
 
 `AGENTS.md` is the knowledge base (data model, event catalog, legal framework)
