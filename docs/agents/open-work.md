@@ -42,7 +42,7 @@ Ordered by what a live tester hits first, not by size.
 | # | Work | Size | Notes |
 |---|---|---|---|
 | 1 | **Pet photo** — native image picker | M | Server side is **done**: signed upload → private bucket → `confirm` re-authorizes, verifies magic bytes, re-encodes, then writes to the public bucket. Only the picker is missing — which needs a native module, so an EAS build. That pipeline cost 6 builds / 5 distinct root causes. **Not a first task.** |
-| 2 | **WU-S** — appointments: search, book, my appointments, cancel, check-in QR | L | Not in the web nav either; deep links only. |
+| 2 | **[PARCIAL — tres de las cinco cerradas, ver abajo]** **WU-S** — appointments: search, book, my appointments, cancel, check-in QR | L | Not in the web nav either; deep links only. |
 | 3 | **WU-U** — adoption: catalogue, detail, apply, my applications | M | The application flow earns its own rate limit here. |
 | 4 | **WU-V** — camera scan + confirm chip + claim | M | |
 | 5 | **WU-T** — citizen abuse reports | M | Attachments blocked on signed uploads. **Not the same thing as reporting content** — this is Ley 14.346, nine types, routed to an authority. |
@@ -228,6 +228,100 @@ What it did **not** solve, and none of it is blocked:
   allowed on the other with no written reason. **This is a PO decision, not an
   agent one**, and it is recorded here because it was previously only a code
   comment.
+
+### WU-S — turnos from the phone, three of five — landed 2026-08-30 (lane 094-1)
+
+`GET/POST /api/v1/me/appointments`, `listAppointmentsForUser`, the turnos
+vocabulary in `@dim/contract`, and the two native screens
+(`apps/mobile/src/turnos/`). **Mis turnos, cancelar and the check-in QR are
+done. Buscar and reservar are not**, and they are the two with no native surface
+of any kind — a service-kind picker, a jurisdiction-subsuming search, a slot
+list, and the write. Row 2 above should be **M, not L**, when whoever integrates
+next renumbers the table; this block does not edit the size cell, because the
+board is append-only within a window and two lanes renumbering one table by hand
+is how the last conflict happened.
+
+What it **decided**:
+
+- **"Próximos" closes at `ends_at`, and this deliberately DIFFERS from the web.**
+  `/mis-turnos/page.tsx` buckets on `starts_at >= now`, so a consultation that
+  began ten minutes ago is filed under "Pasados" while its check-in QR is still
+  valid — somebody arriving late looks under the wrong heading for the code they
+  need. Here `section === "upcoming"` and `canCheckIn` agree for every confirmed
+  row. The price is that a turno stays in Próximos for its own duration (90 min
+  for the longest service in the catalogue) with `canCancel` saying plainly that
+  it can no longer be cancelled. **The page was NOT migrated**, so the two
+  surfaces really do disagree today; migrating it is a browser-facing change with
+  its own e2e gate.
+- **`section`, `canCancel` and `canCheckIn` are the SERVER'S**, and the phone
+  never recomputes them. A slow clock keeps offering "Cancelar" on a turno the
+  clinic already started; a fast one takes the QR away from somebody standing at
+  the desk. `canCheckIn` is not `canCancel`: cancelling closes at `starts_at`,
+  the QR lives until `ends_at`.
+- **The status vocabulary is FIVE values, not six.** The `appointment_status_valid`
+  CHECK admits `confirmed`, `attended`, `no_show`, `cancelled_by_owner` and
+  `cancelled_by_org`. The web additionally handles a bare `"cancelled"` in two
+  places that the database cannot write; those branches are dead and the wire
+  vocabulary does not copy them. An unknown status is **dropped**, not defaulted
+  to `confirmed` — which is how the web's detail page painted a green
+  "Confirmado" badge over a state it did not know.
+- **The write is `authenticated-write`, not `inbox-state`.** Both are `/me`
+  writes a person taps, but the inbox family was derived from what its write
+  costs (one indexed UPDATE on the caller's own rows) and a cancellation is a
+  transaction across three tables that hands a place back to somebody else.
+- **The QR encodes `mimar://appointment/{token}`, byte for byte the same string
+  the web already prints.** That is a DECLARED DEBT and this lane did not touch
+  it: `DEEP_LINK_MAP.appointment` is the one entry whose `appPath` names no
+  screen (`APP_PATH_NAMES_NO_SCREEN`), because it is a payload for a
+  counter-side reader that does not exist yet. Minting a second string would be
+  worse than the debt — the browser and the phone would print two different
+  codes for one turno.
+
+What it did **not** solve:
+
+- **Buscar and reservar** — see above. `@dim/contract`'s input union is shaped to
+  admit `book` without a version bump; leaving it out is scope, and the contract
+  test says so, so adding it later is a deliberate edit rather than a discovery.
+- **The web's cancel has NO rate limit of any kind.** It is a bare server action
+  behind `requireUserOrRedirect`; this door has one because every `/api/v1` write
+  takes the shared family. The gap is the WEB'S, and closing it means editing an
+  action the browser also uses.
+- **There is no cancellation WINDOW anywhere in this feature.** The only clock
+  rule is `starts_at > now()`, so an owner may cancel sixty seconds before the
+  slot and the clinic learns from a notification. Whether that deserves a floor
+  is a product question.
+- **`/mis-turnos/page.tsx` still has its own inline predicate** and its own
+  inline query. Two implementations of one bucketing rule, one of them now
+  knowingly wrong about turnos in progress.
+
+**Two blockers this row was REJECTED for, and what the second one is really
+about** — recorded because both are patterns, not incidents:
+
+1. The endpoint's two per-IP buckets were never added to
+   `API_V1_IP_BUCKET_FAMILIES`, so `__tests__/api-v1-rate-limit-families.test.ts`
+   was 2-red and, worse, the aggregate CGNAT ceiling — a `reduce` over that map —
+   silently under-declared itself by 720/min. Two floors had also drifted with no
+   red at all: `MIN_V1_ROUTE_FILES` (23 against 24 routes) and `MIN_IP_BUCKETS`
+   (20 against 29 buckets). **A floor is satisfied by any number above it, so it
+   loosens in silence; recount it from the tree, never increment it from the
+   previous value.**
+2. **`listAppointmentsForUser`'s authorization `WHERE` had ZERO coverage**, and
+   the cause is worth knowing before writing any use-case test in this repo. The
+   drizzle stub read `self.where = async () => control.rows` — it discarded the
+   predicate. A reviewer mutated `eq(appointments.ownerUserId, args.userId)` to a
+   tautology returning every user's appointments and the file stayed 21/21 green,
+   with three tests that read like authorization fences passing throughout. **A
+   stub that ignores an argument does not merely fail to test it: it makes every
+   assertion in the file assert that the argument does not matter.** The same
+   hole sat one line higher, in the art. 16 join, which was guarded by a
+   source-text `toContain("isNull(pets.deletedAt)")` — that passes for
+   `or(isNull(pets.deletedAt), sql\`true\`)`, which keeps the substring and stops
+   filtering. The instrument that closes both: capture the fragment the use-case
+   hands drizzle and compile it with `PgDialect().sqlToQuery()`, then assert the
+   SQL text **exactly** and the bound params. It proves what Postgres is asked,
+   not what Postgres answers — but "what is it asked" is the half a tautology
+   breaks, and it needs no database. Seven mutations were applied for real and
+   each killed at least one test.
 
 ## Declared debts, with an owner
 
