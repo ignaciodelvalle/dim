@@ -10,8 +10,11 @@
 //      row belongs to — that is the server's clock against the slot.
 //   3. THE EMPTY SECTIONS ARE NOT DRAWN. An empty "Pasados" heading over nothing
 //      is furniture, and the transfers hub already settled that rule.
-//   4. THE EMPTY STATE DOES NOT PROMISE A BUTTON THAT DOES NOT EXIST. Booking is
-//      not in this app yet; the copy says where it is instead.
+//   4. THE EMPTY STATE POINTS AT SOMETHING REAL. This used to read "does not
+//      promise a button that does not exist — booking is not in this app yet; the
+//      copy says where it is instead", and the copy said mimar.com.ar. Buscar y
+//      reservar landed, so the claim inverts: the search is on this screen, and
+//      the browser link is gone rather than left as a second way to do one thing.
 
 import { beforeEach, describe, expect, it, jest } from "@jest/globals";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react-native";
