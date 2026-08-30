@@ -43,7 +43,7 @@ Ordered by what a live tester hits first, not by size.
 |---|---|---|---|
 | 1 | **Pet photo** — native image picker | M | Server side is **done**: signed upload → private bucket → `confirm` re-authorizes, verifies magic bytes, re-encodes, then writes to the public bucket. Only the picker is missing — which needs a native module, so an EAS build. That pipeline cost 6 builds / 5 distinct root causes. **Not a first task.** |
 | 2 | **WU-S** — appointments: **buscar and reservar** only. My appointments, cancel and the check-in QR landed 2026-08-30 — see the block below before starting. | M | **One unit of work, not two.** A search that cannot book is a screen listing slots nobody can take; a book with no search is unreachable. Needs a service-kind picker, jurisdiction-subsuming search, a slot list, and a concurrent write on `bookings_count` with its own route and rate-limit family. Not in the web nav either; deep links only. |
-| 3 | **WU-U** — adoption: catalogue, detail, apply, my applications | M | The application flow earns its own rate limit here. |
+| 3 | **WU-U** — adoption: catalogue, detail, apply, my applications | M | The application flow earns its own rate limit here. **TURNED BACK TWICE — read both entries in "Attempted and turned back" before opening it.** Two branches exist and the second contains real work (all four of the first's red fences fixed at the cause); it was rejected on two vitest fences it never ran. Start from that branch and its review, not from zero, and run the vitest files your diff touches — not only the `lint:*` chain. |
 | 4 | **WU-V** — the **camera scan** only. Confirmar el chip and reclamar landed 2026-08-30 — see the block below before starting. | M | The scan is the LAST of the three and the one the block did not attempt: reading a chip's barcode needs `expo-camera` → a native module → an EAS build, the same pipeline row 1 is held back by. It is strictly additive over what landed — it sets the same string the keyboard field sets. **Row left in place on purpose: one of three closed is not a row that comes off the table.** |
 | 5 | **WU-T** — citizen abuse reports | M | Attachments blocked on signed uploads. **Not the same thing as reporting content** — this is Ley 14.346, nine types, routed to an authority. |
 | 6 | **WU-P** — rehoming, foster, return, relocation, org memberships | L | Advanced custody cycle. |
@@ -430,14 +430,22 @@ What it did **not** solve:
   callout rather than leaving somebody hunting for a scan button, and the change
   is strictly additive: a scanner would set the same string the keyboard field
   sets and nothing else on the screen would move.
-- **`api_v1_me_pet_claims_ip` IS NOT IN `API_V1_IP_BUCKET_FAMILIES`**, because
-  `lib/infra/api-v1-limits.ts` was another lane's territory in this window. Two
-  assertions in `__tests__/api-v1-rate-limit-families.test.ts` are red on the
-  branch and the fix is one map entry (`authenticated-write`) plus the floor and
-  the CGNAT pin, recounted from the merged tree. **The under-declaration is the
-  turnos rejection's exact shape and is called out here rather than left to be
-  discovered**: while the bucket is missing from the map, the computed ceiling
-  under-declares by 120/min.
+- ~~**`api_v1_me_pet_claims_ip` IS NOT IN `API_V1_IP_BUCKET_FAMILIES`**~~ —
+  **CLOSED AT THE MERGE, 2026-08-30.** It was left open on the branch because
+  `lib/infra/api-v1-limits.ts` was another lane's territory in the window, and
+  the lane called it out rather than leaving it to be discovered — which is the
+  difference from the turnos rejection this has the exact shape of. The
+  integrator added the entry (`authenticated-write`) and RECOUNTED both pins from
+  the merged tree rather than moving them by what the lanes reported:
+  `Object.keys(API_V1_IP_BUCKET_FAMILIES).length` → **30** (`MIN_IP_BUCKETS` 29 →
+  30) and the CGNAT ceiling hand-summed per family — 14×600 + 7×120 + 2×60 +
+  1×600 + 1×240 + 2×180 + 1×240 + 1×120 + 1×144 — → **11 064** (pin 10 944 →
+  11 064), with the computed `reduce` agreeing. **The recount was not ceremony
+  here:** a third lane in the same window reported 32 buckets and 12 204 and was
+  turned back, so arithmetic over the reported numbers would have pinned a tree
+  nobody was going to have. `MIN_V1_ROUTE_FILES` was recounted too and did NOT
+  move — 25, equal rather than merely satisfied, because the lane that would have
+  taken it to 27 is the one that did not land.
 - **The ceiling it spends is TIGHTER than this act's own derivation, knowingly.**
   `api-v1-limits.ts`'s rule is 12× the per-user anchor, which for
   `claim_lookup` would be a `pet-claim` family at 360/min + 2 400/hr. It spends
@@ -451,11 +459,17 @@ What it did **not** solve:
   `STUB_CLAIM_ENABLED` gate that is OFF (`__tests__/claim-gate.test.ts` asserts
   the pausado message). Nothing native was built for a flow the web itself has
   switched off.
-- **`/reclamar` is not registered in `apps/mobile/app/_layout.tsx`**, so it takes
-  expo-router's default header instead of a title — the same gap WU-S recorded
-  for both `turnos` routes and `cuidado/[grantToken]`. The screen draws its own
-  title. Left as reported rather than fixed, for WU-S's reason plus one: that
-  file was another lane's territory in this window.
+- ~~**`/reclamar` is not registered in `apps/mobile/app/_layout.tsx`**~~ —
+  **CLOSED AT THE MERGE, 2026-08-30**, with `title: "Reclamar una mascota"`. The
+  lane was right not to write it: that file was another lane's territory in the
+  window, and what a header should SAY is copy. The integrator could close it
+  because the copy did not have to be invented — that exact string is already the
+  screen's own `<Title>` in its entry state and the web's `<h1>` on
+  `/mis-mascotas/reclamar`, so the registration transcribes a decision somebody
+  already made rather than making one. **The two `turnos` routes and
+  `cuidado/[grantToken]` are still unregistered**, and were deliberately not
+  swept up: no such precedent exists for their wording, and picking three headers
+  in a merge commit is exactly how copy stops being argued.
 
 ### The `supabase start` retry that retried zero times — landed 2026-08-30 (lane 3d7aec24-53c-2)
 
@@ -530,30 +544,103 @@ What it did **not** solve:
   pull on a stack throttled by pull volume), and left to whoever can watch the
   job.
 
+**Four gaps in this lane's OWN fences, found by the reviewer at the gate and
+accepted as reserves rather than blockers** — the code that shipped is right in
+all four cases and it is the measurement that is narrower than its prose. Every
+one was established by applying the mutation and watching the suite stay green,
+so they are facts about the fence, not opinions about it. **Whoever next opens
+`__tests__/supabase-start-action.test.ts` should close them there**, since the
+file is already the right place for all four:
+
+1. **The `env:` block that wires the inputs into the script is fenced by
+   nothing** — the strongest of the four, and the same shape as the `inbucket`
+   defect this lane exists to have caught. The fence pins the `default:` (YAML
+   text) and the script pins the USE of `$SUPABASE_EXCLUDE`; the link between
+   them is unmeasured, and so is a call site's right to override the default with
+   `with:`. Three mutations, all 25/25 green: replacing
+   `SUPABASE_EXCLUDE: ${{ inputs.exclude }}` with a literal that both excludes
+   `gotrue` (auth dead on two jobs) and reinstates the dead `inbucket`; pointing
+   `SUPABASE_ATTEMPTS` at `inputs.backoff-seconds` (attempts silently becomes
+   15); and adding `with: exclude: studio` to one `ci.yml` call site, which
+   re-diverges the two jobs — the only reason this action exists. The test's own
+   prose says the default "is the single source of truth for which services the
+   CI stack skips — and nothing fenced it". Fix: parse the YAML and assert each
+   `env:` value is exactly `${{ inputs.<name> }}` for its input, and that no call
+   site passes `with:`.
+2. **A JOB-level `continue-on-error` walks past the assertion that says it
+   cannot.** Adding `continue-on-error: true` to `ci.yml`'s `e2e:` job leaves the
+   suite 25/25 green. The test is named "is not wired with `continue-on-error` at
+   any call site" and its comment says "the loop can be perfect and still be
+   neutralised one level up" — but `stepsUsing()` returns the STEP, and the job
+   is the level up it is talking about. The shipped YAML is clean at both levels
+   (verified by parsing); it is the promise that overreaches.
+3. **Nothing fences the `sleep` between attempts.** Every case runs with
+   `SUPABASE_BACKOFF: "0"`, so deleting the `sleep "${BACKOFF}"` line entirely is
+   25/25 green. The comment justifies the zero — "the doubling is arithmetic, not
+   behaviour" — which is true of the doubling and not of the sleep's existence,
+   and this is the one place it matters: the only measured failure motivating the
+   retry is a container still holding 54322, which is precisely the case that
+   needs the wait. Without it the retry re-hits the port AND the `::warning::`
+   that says "retrying in ${BACKOFF}s" starts lying.
+4. **The structural grep fence only sees single-line assignments**, so it does
+   not catch the original bug in its original form. The filter requires `grep` on
+   the same line that opens the assignment, and the broken `CLEAN=` this lane
+   repaired was multi-line with the `grep -E` on a continuation. Reverting it goes
+   red once — from the EXECUTED case, not from this fence. Reverting the
+   single-line `ANON=` goes red twice. Nothing ships broken, because the executed
+   case covers it; the declared purpose ("a future edit that reintroduces a bare
+   `grep` in an assignment is named") is narrower than it reads. Fix: join
+   backslash continuations before filtering.
+
 ## Attempted and turned back — the work exists, on a branch, and did not land
 
 Written down for the same reason the landed blocks are: the next agent who picks
 one of these rows should start from the branch and the review, not from zero.
-**Neither branch is merged and neither is a base to build on without reading its
-blockers first.** Both were turned back by a fresh-context reviewer at the
-integration gate on 2026-08-30, and in both cases the blocker was a fence or a
-runtime that the lane's own evidence never exercised.
+**No branch here is merged and none is a base to build on without reading its
+blockers first.** Each was turned back by a fresh-context reviewer at an
+integration gate, and in every case the blocker was a fence or a runtime that the
+lane's own evidence never exercised.
+
+**One row has been turned back TWICE, on different blockers each time**, and the
+pair is more instructive than either attempt. Read both before opening it a third
+time.
 
 | Row / topic | Branch | Why it did not land |
 |---|---|---|
-| Row 3 — **WU-U**, adoption from the phone | `worktree-wf_60cb7fe0-094-2` (`be4c73874`) | The lane declared **one** red fence (rate-limit families) and there were **four**. `check-file-size` (`adoption-repository.ts` at 1521 lines against a hard 1500 — the fix is splitting the file, not baselining it), `check-notifications-service` (new code doing a raw `db.insert(notifications)` where the fence exists to migrate call sites onto `createNotification()`), and `check-audit-log-coverage` (seven operator actions with no reachable audit write). All three go red at `bcbaf2ed9` and are green at the base. The audit one has a root cause the reviewer established empirically rather than inferred: a module-level alias `const flushNotifications = flushAdoptionNotifications;` is followed by the fence's `importedIdentifiers()`, which then resolves into a file with no audit write. |
-| **[SUPERSEDED 2026-08-30 — see the landed block below]** The **E2E job's permanent red** (not a table row) | `worktree-wf_60cb7fe0-094-3` (`2010d7655`) | The diagnosis is worth keeping — the stack was **up in 44 of 45 runs**, so "is the stack up?" was never the failure — but the fix is not. GitHub runs a composite action's `shell: bash` as `bash --noprofile --norc -e -o pipefail`; the new `supabase-start` action sets `set -uo pipefail` and never `set +e`, so the runner's `-e` kills the step on the first failed attempt and the retry loop, its two `::warning::`s and the `::error::` it exists to emit are all unreachable in CI. The test that fences it runs the script under bare `bash` (no `-e`), so eight tests pass over a script that does not retry — the harness reproduced the author's belief about the runner instead of the runner. |
+| Row 3 — **WU-U**, adoption from the phone — **attempt 1** | `worktree-wf_60cb7fe0-094-2` (`be4c73874`) | The lane declared **one** red fence (rate-limit families) and there were **four**. `check-file-size` (`adoption-repository.ts` at 1521 lines against a hard 1500 — the fix is splitting the file, not baselining it), `check-notifications-service` (new code doing a raw `db.insert(notifications)` where the fence exists to migrate call sites onto `createNotification()`), and `check-audit-log-coverage` (seven operator actions with no reachable audit write). All three go red at `bcbaf2ed9` and are green at the base. The audit one has a root cause the reviewer established empirically rather than inferred: a module-level alias `const flushNotifications = flushAdoptionNotifications;` is followed by the fence's `importedIdentifiers()`, which then resolves into a file with no audit write. |
+| Row 3 — **WU-U**, adoption from the phone — **attempt 2** | `worktree-wf_3d7aec24-53c-1` (`4bf8cc280`) | **All four of attempt 1's fences were fixed, at the cause rather than the symptom, and the lane was turned back on two it never ran.** Both are vitest files, both under `pnpm test:verified`, both isolated green at `3a1a7f1c1` and red at `4bf8cc280` in the same environment. (1) `__tests__/public-token-throttle-coverage.test.ts` — "every file spelling `unerasedPetByToken(` is a reviewed authenticated resolver, in both directions": the new `src/modules/adoption/infrastructure/adoption-public-reads.ts` spells it and is not in the `ALIAS_RESOLVERS` pin. The fence's own comment says a new speller must fail until a human decides which name it deserves, and that an ANONYMOUS surface must spell `publicPetByToken` and take the read limiter — the file's docblock says two of its five methods serve sessionless requests on the public web. The answer may well be "add the path to the pin", since the bearer door does authenticate; **the decision is what the fence demands and it was not taken.** (2) `__tests__/content-report-read-coverage.test.ts` — "NO read of a lost-feed note is outside the list": `src/modules/adoption/infrastructure/my-applications-read.ts` comes back `unaccounted`. Lifting the page's raw SQL into a module put the reader inside the moderation sweep — it reads `pet_events`, matches `CAN_CARRY_LOST_NOTE`, carries no `notReportedClause()`, and is triaged into none of `MUST_SUBTRACT` / `DECLARED_EXEMPTIONS` / `NOT_A_LOST_NOTE_READ`. Probably a triable false positive (the query uses `note_added` only for a `MAX(recorded_at)` that derives `info_requested`, and renders no note text), but the triage is the fence's whole demand. |
 
-Two findings from the second branch are real regardless of whether that branch
-ever lands, and both are **PO-gated**, so they are recorded here rather than
-carried into code by an integrator: `e2e-nightly.yml` declares
-`STAGING_SUPABASE_URL` / `STAGING_SUPABASE_ANON_KEY` and the job log shows both
-**empty**, which is why the cross-tenant isolation spec dies naming the anon key;
-and the registry throttling in those runs is **ECR Public**, not Docker Hub, so a
-`docker/login-action` with Hub credentials would buy nothing. They were not
-written into the numbered PO list at the time, because the branch that measured
-them was turned back and a rejected lane's evidence should be re-measured before
-it becomes a standing instruction.
+**The E2E row is GONE from this table**, and this sentence is what replaces it —
+not a marked row, because a row that says "this landed" is still a row telling
+the next reader that work is waiting on a branch. `worktree-wf_60cb7fe0-094-3`
+(`2010d7655`) was turned back on 2026-08-30 for running its fence under bare
+`bash` while GitHub runs the step under `-e`; the diagnosis was kept, the fix and
+its fence were rewritten from scratch by another lane, and both landed the same
+day. See "The `supabase start` retry that retried zero times" in the section
+above — which also carries the lead for the E2E red that is **still there**, since
+none of this was ever that red's cure.
+
+**What the two WU-U attempts have in common is the thing to fix on attempt 3.**
+Neither lane's evidence was thin — attempt 2 ran **68** fences and re-measured
+every one of attempt 1's four. What both missed is the same seam: the `lint:*`
+chain and the vitest suite fence overlapping surfaces, and a lane that runs the
+whole of one and none of the other can be exhaustive and still blind. Attempt 2
+could not run `pnpm test:verified` (the local Supabase is shared and the brief
+forbids it), which is correct and is not an excuse — the two files that turned it
+back need no database and would have run in seconds under a targeted
+`vitest run <file>`. **Before declaring a gate, list the vitest files whose
+subject your diff touches and run those**, not only the fences whose names you
+recognise.
+
+Two findings from the E2E branch were real regardless of whether that branch ever
+landed, and both are **PO-gated**, so they were recorded here rather than carried
+into code by an integrator: `e2e-nightly.yml` declares `STAGING_SUPABASE_URL` /
+`STAGING_SUPABASE_ANON_KEY` and the job log shows both **empty**, which is why the
+cross-tenant isolation spec dies naming the anon key; and the registry throttling
+in those runs is **ECR Public**, not Docker Hub, so a `docker/login-action` with
+Hub credentials would buy nothing. They were not written into the numbered PO list
+at the time, because the branch that measured them was turned back and a rejected
+lane's evidence should be re-measured before it becomes a standing instruction.
 
 **Both were re-measured on 2026-08-30 from a different lane and both held**, so
 they are now items **6 and 7** of the numbered PO list below, with the evidence
@@ -571,6 +658,9 @@ the staging secrets are not merely empty at runtime, they **do not exist**.
 | Checksum drift on migration `0188` | pre-existing | Someone edited that migration **after** applying it. The database is fine; the record of what was applied is not. |
 | The turnos endpoint's four rate-limit gates say nothing about **who** spends them | owner: the next lane in `me/appointments` (row 2) | Landed as an accepted reserve on 2026-08-30. The route passes the right identifier — `callerIp(request.headers)` on the two IP gates, `live.user.id` on the two user gates — but `__tests__/api-v1-me-appointments-route.test.ts` stubs `enforceRateLimit: async (endpoint: string)` and drops the second argument, so collapsing all four onto shared constants leaves the file 36/36 green. **Ten sibling route tests already take `(endpoint, identifier)` and assert the pair**; `api-v1-me-profile-route.test.ts` even pins the literal IP. One-line fix, in the file the next lane is already opening. Not a blocker: the production identifiers are correct and no authorization boundary is involved. |
 | The same endpoint's documented **fail-open** has no test | owner: same | `spendBudget` catches a non-`RateLimitError` and returns `true` on purpose — a limiter outage must not stand between an owner and cancelling a turno. Flipping that `return true` to `return false` leaves the file 36/36 green, so the invariant its docblock argues at length is unmeasured. Five sibling files carry a test literally named "FAILS OPEN when the limiter itself is broken"; this one does not. |
+| **`submitFreeClaimForUser` can claim an ERASED pet, and tells you it was erased** | **pre-existing, and the biggest thing on this table** — owner: the next lane in `pets/application/claim`, or the PO if it wants a migration-grade answer | Found by the reviewer at the 2026-08-30 gate and MEASURED against real Postgres, not inferred. `lookup-for-claim.ts` resolves through `innerJoin(pets, and(eq(pets.id, …), isNull(pets.deletedAt)))`; `submit-free-claim.ts` resolves the same identifier and then selects the pet with a bare `eq(pets.id, ident.petId)`, because `pet_identifications` rows stay `status = 'active'` after an erasure. Two consequences: (1) an erased pet's chip answers `not_claimable` → **409** while an unregistered chip answers `not_found` → **404**, so any self-registered account can tell "this animal was erased" from "never existed" off the status line — the exact art. 16 distinction the endpoint's own header refuses to put there; (2) if that erased pet has no active custody, **the claim succeeds** — it returns the animal's name and public token, inserts the ownership, appends `ownership_claimed` to the spine, notifies and audits, while the lookup on the same door still answers `not_found`. **The bearer door did not introduce this** — it is one missing clause in a writer the web's `/mis-mascotas/reclamar` wizard drives identically, which is why the integrator recorded it instead of patching it in a merge commit: the fix changes browser behaviour and belongs with its own test. **No fence goes red for it and none can as written**: this is an ABSENCE of a predicate, not a mutable one, so the mutation instruments this repo relies on have nothing to flip. The shape of the fix is `isNull(pets.deletedAt)` on the in-transaction select (and/or filtering the identification by a live pet), copied from the sibling rather than re-derived. The two docblocks that claimed the invariant held end to end were corrected in the same merge — `claim/types.ts` and `me/pet-claims/commands.ts` — because a promise and the note that it is half kept have to travel together. |
+| `api-v1-me-pet-claims-route.test.ts` needs an env var no setup forces | small — owner: the next lane in that file | It is the ONLY one of the fifteen `/api/v1` route tests that does not mock `@/lib/supabase/bearer`, so it builds a real supabase-js client and reads `NEXT_PUBLIC_SUPABASE_ANON_KEY`. `__tests__/setup-env.ts` forces `NEXT_PUBLIC_SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY` and not that one. In a worktree with no `.env.local` the file reports 20 of 21 red with `Error: supabaseKey is required.` — credential-shaped, which is the FOURTH red signature `/CLAUDE.md` names, on a file that has nothing to do with RLS. Green in CI (the vitest job exports the real key) and green wherever the env is exported, so it hides no defect; it is a harness that is more coupled to the environment than its fourteen siblings, in the one direction that makes a red unreadable. Fix is the two `vi.mock` lines `api-v1-me-appointments-route.test.ts` already has. |
+| `claimDisputeUrl` builds its URL by hand while its neighbour uses the map | small — owner: same | `apps/mobile/src/claims/claim-view-model.ts`: `claimSightingUrl`, two functions above it, goes through `deepLinkUrl` with the written argument that "a rename is a compile error rather than a 404 nobody notices" — and `claimDisputeUrl` interpolates `${origin}/mis-mascotas/reclamar` directly. If the web renames that path the dispute link becomes a silent 404 and nothing turns red. `DEEP_LINK_MAP` has no entry for the wizard, but `myPets` is an exact precedent for a parameterless one. The file's own principle, applied to one of its two functions. |
 
 ## PO-gated — not agent work, do not attempt
 
