@@ -156,8 +156,20 @@ export const V1_ROUTE_GLOB = "app/api/v1/**/route.ts";
  * repair, because it trusts the previous number instead of the tree. It is
  * `listV1RouteFiles().length` RECOUNTED on this tree with the route present:
  * 24 files, 24 floor, equal rather than merely satisfied.
+ *
+ * TWENTY-FIVE with the claim door (`me/pet-claims`), raised in the same commit
+ * that added the route and RECOUNTED the same way — `listV1RouteFiles().length`
+ * on this worktree is 25, so the floor is 25: equal, not merely satisfied. `me/`
+ * takes its own record back with NINE sibling directories.
+ *
+ * THE ONE THING A MERGE MUST NOT DO WITH THIS NUMBER is accept it. It was
+ * recounted on a worktree where this lane's route is the only new one, and
+ * parallel lanes are adding routes of their own in the same window; 25 is then
+ * satisfied and stale on the merged tree, which is the exact silent loosening
+ * the TWENTY-THREE paragraph above had to repair. Recount
+ * `listV1RouteFiles().length` after the merge — do not add one per lane.
  */
-export const MIN_V1_ROUTE_FILES = 24;
+export const MIN_V1_ROUTE_FILES = 25;
 
 export const HELPER_MODULE = "@/lib/infra/api-v1";
 

@@ -313,5 +313,21 @@ export function apiErrorMessage(code: ApiV1ErrorCode): string {
       // re-read first — the place is either freed or it is not, and the list is
       // what says which.
       return "No pudimos cancelar el turno. Actualizá la pantalla para ver si quedó cancelado.";
+    // Reclamos. Both sentences end in "buscá de nuevo" rather than in an
+    // apology, and that is the contract's own instruction rather than a style:
+    // the LOOKUP's fresh `variant` is the only thing that says what the animal's
+    // situation is now, and neither of these codes carries it.
+    case "claim_not_claimable":
+      // FOUR SITUATIONS BEHIND ONE CODE — an active custody of any role, a
+      // deceased animal, a lost one, an open dispute — and one of them is this
+      // caller's OWN successful claim being retried after a timeout. So the copy
+      // must not say "otra persona la reclamó": it says the situation changed and
+      // sends them to look, which is true in all four and wrong in none.
+      return "Esta mascota ya no se puede reclamar así. Buscá el identificador de nuevo para ver cómo está.";
+    case "claim_failed":
+      // Retrying IS safe (one transaction, `SELECT … FOR UPDATE`), and it may
+      // still answer `claim_not_claimable` because the first attempt landed. So
+      // the instruction is to look before re-tapping, not to re-tap.
+      return "No pudimos completar el reclamo. Buscá el identificador de nuevo para ver si quedó registrado.";
   }
 }

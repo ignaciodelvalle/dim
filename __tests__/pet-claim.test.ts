@@ -330,7 +330,16 @@ describe("submitFreeClaimAction", () => {
       identifierValue: chip,
     });
 
-    expect(result).toEqual({ error: "Demasiados intentos. Probá en unos minutos." });
+    // THE CODE TRAVELS BESIDE THE SENTENCE since the failure arm was typed
+    // (`ClaimFailureCode`): the prose is written for the web wizard's error
+    // paragraph and the code is what `POST /api/v1/me/pet-claims` maps to a
+    // status. Asserted here, against real Postgres, so the pairing is pinned on
+    // the path that actually runs the writer — the route test mocks the use-case
+    // and can therefore only pin what it is handed.
+    expect(result).toEqual({
+      error: "Demasiados intentos. Probá en unos minutos.",
+      code: "rate_limited",
+    });
   });
 
   it("rejects claiming a pet that already has active custody (FOR UPDATE re-check)", async () => {
@@ -347,6 +356,10 @@ describe("submitFreeClaimAction", () => {
 
     expect(result).toHaveProperty("error");
     expect((result as { error: string }).error).toContain("custodia activa");
+    // `not_claimable` and NOT `not_found`: the animal exists and this caller may
+    // not have it. The API door answers 409 for the first and 404 for the second,
+    // and the difference is what a client is told to do next.
+    expect((result as { code: string }).code).toBe("not_claimable");
 
     // No second ownership row was created for the claimant.
     const claimantRows = await db
@@ -370,7 +383,7 @@ describe("submitFreeClaimAction", () => {
       identifierKind: "microchip",
       identifierValue: "199999999999999",
     });
-    expect(result).toEqual({ error: "No encontramos la mascota." });
+    expect(result).toEqual({ error: "No encontramos la mascota.", code: "not_found" });
 
     // The pet was NOT claimed — no ownership row exists for the claimant.
     const [pet] = await db.select({ id: pets.id }).from(pets).where(eq(pets.publicToken, token));
@@ -387,7 +400,10 @@ describe("submitFreeClaimAction", () => {
       identifierKind: "microchip",
       identifierValue: "12345",
     });
-    expect(result).toEqual({ error: "El microchip debe tener exactamente 15 dígitos." });
+    expect(result).toEqual({
+      error: "El microchip debe tener exactamente 15 dígitos.",
+      code: "identifier_invalid",
+    });
   });
 });
 

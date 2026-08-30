@@ -116,6 +116,25 @@ export const ROUTES = {
    * — so unlike `/transferencias` this path is free to say what the screen is.
    */
   turnos: "/turnos",
+  /**
+   * RECLAMAR UNA MASCOTA — the only top-level screen that is about an animal
+   * this person does NOT hold, and does not (yet) have any relationship to.
+   *
+   * `/transferencias` and `/notificaciones` sit beside `/mascotas` because HALF
+   * of what they carry is about somebody else's animal. This one is further out:
+   * ALL of it is, by definition. It is also why the path names no pet — the
+   * server resolves the animal from the private identifier and refuses to be
+   * told which one it is, which is the whole authorization story of the feature
+   * (`submit-free-claim.ts` calls the identifier "the evidence").
+   *
+   * THE PATH SHORTENS THE WEB'S `/mis-mascotas/reclamar`, the way `/mascotas`
+   * shortens `/mis-mascotas`: the web nests it under the list because that is
+   * where its entry point is, and a stack navigator has no such requirement.
+   * Nothing deep-links here and nothing may — a `mimar://reclamar` URL would be
+   * an unverified custom scheme any installed app can claim, standing in front
+   * of the flow that hands over an animal.
+   */
+  reclamar: "/reclamar",
 } as const;
 
 /**

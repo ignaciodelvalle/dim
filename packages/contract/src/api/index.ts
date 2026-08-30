@@ -106,6 +106,13 @@ export {
   type LostPetStatus,
   type PetLostV1,
 } from "./pet-lost.ts";
+export {
+  PET_CLAIM_VARIANTS_V1,
+  type PetClaimCommandAckV1,
+  type PetClaimFreeAckV1,
+  type PetClaimLookupAckV1,
+  type PetClaimVariantV1,
+} from "./pet-claim.ts";
 export type { PetPhotoTicketV1, PetPhotoUpdatedV1 } from "./pet-photo.ts";
 export {
   PET_SHARES_PAYLOAD_VERSION,

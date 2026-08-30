@@ -44,7 +44,7 @@ Ordered by what a live tester hits first, not by size.
 | 1 | **Pet photo** — native image picker | M | Server side is **done**: signed upload → private bucket → `confirm` re-authorizes, verifies magic bytes, re-encodes, then writes to the public bucket. Only the picker is missing — which needs a native module, so an EAS build. That pipeline cost 6 builds / 5 distinct root causes. **Not a first task.** |
 | 2 | **WU-S** — appointments: **buscar and reservar** only. My appointments, cancel and the check-in QR landed 2026-08-30 — see the block below before starting. | M | **One unit of work, not two.** A search that cannot book is a screen listing slots nobody can take; a book with no search is unreachable. Needs a service-kind picker, jurisdiction-subsuming search, a slot list, and a concurrent write on `bookings_count` with its own route and rate-limit family. Not in the web nav either; deep links only. |
 | 3 | **WU-U** — adoption: catalogue, detail, apply, my applications | M | The application flow earns its own rate limit here. |
-| 4 | **WU-V** — camera scan + confirm chip + claim | M | |
+| 4 | **WU-V** — the **camera scan** only. Confirmar el chip and reclamar landed 2026-08-30 — see the block below before starting. | M | The scan is the LAST of the three and the one the block did not attempt: reading a chip's barcode needs `expo-camera` → a native module → an EAS build, the same pipeline row 1 is held back by. It is strictly additive over what landed — it sets the same string the keyboard field sets. **Row left in place on purpose: one of three closed is not a row that comes off the table.** |
 | 5 | **WU-T** — citizen abuse reports | M | Attachments blocked on signed uploads. **Not the same thing as reporting content** — this is Ley 14.346, nine types, routed to an authority. |
 | 6 | **WU-P** — rehoming, foster, return, relocation, org memberships | L | Advanced custody cycle. |
 
@@ -58,17 +58,32 @@ the fourteen columns it left on the web.
 
 ## Landed since this snapshot — do not pick it up again
 
-**Six landings are written up below, and only four of them took a row off the
-table.** The fifth — WU-S, row 2 — is still on the table, narrowed to the two
-capabilities it did not close. The sixth was never a table row at all: the
-`supabase start` retry, at the end of this section, which replaces the branch the
-next section had marked as turned back. The count is written this way because
-"six blocks" and "six rows gone" are not the same claim and the previous wording
-could only carry one of them. Each block is written up the same way: what was
-done, what it **decided**, and what it did **not** solve. A row deleted without
-its remainder is how the remainder gets lost — and a row left on the table after
-it landed is how the next agent spends a day rebuilding it. Both have happened
-here.
+**A landing written up below did not necessarily take a row off the table**, and
+three of them did not: WU-S (row 2) and WU-V (row 4) are both still there, each
+narrowed to the capabilities it did not close, and the `supabase start` retry at
+the end of this section was never a table row at all — it replaces a branch the
+next section had marked as turned back. Each block is written up the same way:
+what was done, what it **decided**, and what it did **not** solve. A row deleted
+without its remainder is how the remainder gets lost — and a row left on the
+table after it landed is how the next agent spends a day rebuilding it. Both have
+happened here.
+
+**THE COUNT THAT USED TO OPEN THIS PARAGRAPH IS GONE, deliberately.** It read
+"Five landings are written up below, and only four of them took a row off the
+table", and it was written that way precisely because "five blocks" and "five
+rows gone" are not the same claim. The distinction was right and the instrument
+was wrong: a number in prose has to be edited by every lane that appends a block,
+nothing goes red when it is not, and the very next window appended one. Two
+numbers in one sentence are two chances to rot. The claim survives without
+either — read the blocks, count them yourself if you need a figure, and do not
+write it down here.
+
+**This paragraph is itself the evidence.** In the same window that deleted the
+count, a second lane edited the very sentence being deleted — "Five landings" →
+"Six" — and the two edits collided at the merge. Both lanes were right about the
+same defect and only one of them fixed it; the integrator resolved the conflict
+in favour of no number and folded the sixth block into the prose. That is the
+whole argument for the deletion, played out in one merge.
 
 ### `auth_signup_ip` — the plaza registration drive
 
@@ -342,6 +357,105 @@ about** — recorded because both are patterns, not incidents:
    not what Postgres answers — but "what is it asked" is the half a tautology
    breaks, and it needs no database. Seven mutations were applied for real and
    each killed at least one test.
+
+### WU-V — reclamar desde el teléfono, two of three — landed 2026-08-30 (lane 53c-3)
+
+`POST /api/v1/me/pet-claims` with two commands (`lookup`, `claim_free`), the
+claim vocabulary in `@dim/contract`, and `apps/mobile/src/claims/` behind
+`/reclamar`, linked from the footer of `/mascotas`. **Confirmar el chip and
+reclamar are done. The camera scan is not**, and it is the one capability of the
+three that needs a native module.
+
+The endpoint is an adapter over `lookupForClaimForUser` and
+`submitFreeClaimForUser` — the same two use-cases `/mis-mascotas/reclamar` drives
+— and re-derives no guard.
+
+What it **decided**:
+
+- **The route hangs off `/me` and names no animal, because there may not be one
+  to name.** Both writers resolve the pet FROM the private identifier and consult
+  no caller-supplied token; `submit-claim-dispute.ts` records what a `petToken`
+  in that position cost the last time it was there — it went straight into a
+  `where` behind nothing but a session, which made the dispute writer "a national
+  denial-of-rescue button", because `/perdidas` publishes the token of every lost
+  animal with no login. A `/pets/{token}/claim` route would be a route whose
+  shape invites the bug back, so the wire shape has no token field at all and the
+  contract test asserts one sent anyway is dropped by the parse.
+- **`canClaim` is on the wire and the phone never derives it.** It equals
+  `variant === "free"` today and deriving it would still be wrong: "free" is an
+  authorization rule owned by the writer (no active custody of ANY role,
+  re-checked inside the claiming transaction under `SELECT … FOR UPDATE`, plus
+  three status gates). `ClaimScreen.test.tsx` pins it BY CONTRADICTION — a `free`
+  ack carrying `canClaim: false` must draw no button — which is the case that
+  separates "reads the flag" from "reads the variant and the flag happens to
+  agree".
+- **The DISPUTE is refused rather than deferred, and that is the difference from
+  WU-S's missing `book`.** `submitClaimDisputeForUser` requires at least one
+  evidence FILE and refuses without one (PO decision 2026-07-30), because raising
+  one notifies the registered owner, appends an uneditable row to the animal's
+  spine, flips `pets.in_custody_dispute` — which strips the owner's phone and the
+  finder form off the public credential — and opens a case an authority must
+  adjudicate. A JSON transport cannot carry a file, so a `dispute` member would
+  be a command the server refuses on every call while the client draws the
+  control anyway. The screen names the browser instead, and the input union has
+  two members with a test saying so.
+- **The failure arm of both use-cases is now TYPED** (`ClaimFailureCode`, five
+  values), so this door maps a code to a status instead of matching es-AR prose.
+  `me/appointments/commands.ts` does match sentences and states its own failure
+  mode — "a reworded sentence falls through to a 500" — and this is the repair
+  `AmendEventFailureCode` already is. The web reads `result.error` and is
+  unaffected; the field is REQUIRED so a new refusal arm cannot land without
+  deciding which of the five it is.
+- **`petToken` comes back only for `lost`,** one step tighter than the web's own
+  action, which returns one for `free` and `active_owner` too. A token is a
+  navigable capability and travels only where the client has a destination — the
+  avistaje form. `free` does not need it: the CLAIM's ack carries the token the
+  writer resolved, which is the one to navigate with.
+- **No per-user bucket at the route.** The per-user ceiling already exists inside
+  both use-cases (`claim_lookup`, 30/min + 200/hr, shared between lookup and
+  claim so a burst of probes counts as one) and it is the budget the WEB spends.
+  Adding `API_V1_AUTHENTICATED_WRITE_USER_LIMIT` on top would make the phone
+  three times tighter than the browser for the same act.
+- **Stricter than the web on a DEACTIVATED account, said out loud.**
+  `requireUserOrRedirect` passes one on purpose so the browser's wizard serves
+  it; `requireLiveUser` answers 403. The direction is the safe one — it grants
+  nothing the browser grants — and it is pinned by a test so it stays a decision
+  rather than becoming drift. It is the same divergence `me/privacy` recorded,
+  and it is NOT the same question: that one is about a legal right.
+
+What it did **not** solve:
+
+- **The camera.** `expo-camera` is a native module and that is an EAS build —
+  row 1's pipeline, six builds and five root causes. The screen says so in a
+  callout rather than leaving somebody hunting for a scan button, and the change
+  is strictly additive: a scanner would set the same string the keyboard field
+  sets and nothing else on the screen would move.
+- **`api_v1_me_pet_claims_ip` IS NOT IN `API_V1_IP_BUCKET_FAMILIES`**, because
+  `lib/infra/api-v1-limits.ts` was another lane's territory in this window. Two
+  assertions in `__tests__/api-v1-rate-limit-families.test.ts` are red on the
+  branch and the fix is one map entry (`authenticated-write`) plus the floor and
+  the CGNAT pin, recounted from the merged tree. **The under-declaration is the
+  turnos rejection's exact shape and is called out here rather than left to be
+  discovered**: while the bucket is missing from the map, the computed ceiling
+  under-declares by 120/min.
+- **The ceiling it spends is TIGHTER than this act's own derivation, knowingly.**
+  `api-v1-limits.ts`'s rule is 12× the per-user anchor, which for
+  `claim_lookup` would be a `pet-claim` family at 360/min + 2 400/hr. It spends
+  `API_V1_AUTHENTICATED_WRITE_IP_LIMIT` (120/min) meanwhile, which is FOUR
+  simultaneous callers per carrier gateway rather than twelve. Tighter is the
+  safe direction for a bucket, and the cost is named: four people behind one
+  CGNAT address each probing at their full personal rate exhaust the minute.
+- **`reclamar-dni` is untouched.** The web's claim page carries a second door —
+  "¿Te adoptó un refugio? reclamá por DNI" — pointing at
+  `/mis-mascotas/reclamar-dni`, and `claimStubProfile` is behind a
+  `STUB_CLAIM_ENABLED` gate that is OFF (`__tests__/claim-gate.test.ts` asserts
+  the pausado message). Nothing native was built for a flow the web itself has
+  switched off.
+- **`/reclamar` is not registered in `apps/mobile/app/_layout.tsx`**, so it takes
+  expo-router's default header instead of a title — the same gap WU-S recorded
+  for both `turnos` routes and `cuidado/[grantToken]`. The screen draws its own
+  title. Left as reported rather than fixed, for WU-S's reason plus one: that
+  file was another lane's territory in this window.
 
 ### The `supabase start` retry that retried zero times — landed 2026-08-30 (lane 3d7aec24-53c-2)
 

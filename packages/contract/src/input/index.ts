@@ -58,6 +58,17 @@ export {
   lostCommandInputSchema,
 } from "./lost-mode.ts";
 export {
+  MICROCHIP_DIGITS,
+  PET_CLAIM_COMMAND_INPUT_CODES,
+  PET_CLAIM_IDENTIFIER_KINDS,
+  type PetClaimCommand,
+  type PetClaimCommandInput,
+  type PetClaimCommandInputCode,
+  type PetClaimIdentifierKind,
+  firstPetClaimCommandInputCode,
+  petClaimCommandInputSchema,
+} from "./pet-claim.ts";
+export {
   PET_PHOTO_COMMAND_INPUT_CODES,
   PET_PHOTO_CONTENT_TYPES,
   type PetPhotoCommand,

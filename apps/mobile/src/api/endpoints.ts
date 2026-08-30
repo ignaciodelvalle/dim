@@ -82,6 +82,7 @@ import {
   PET_PROFILE_EDIT_PAYLOAD_VERSION,
   PET_SHARES_PAYLOAD_VERSION,
   type PasswordResetRequestedV1,
+  type PetClaimCommandAckV1,
   type PetEventDetailV1,
   type PetLibretaV1,
   type PetLostV1,
@@ -103,6 +104,7 @@ import type {
   LostCommandInput,
   MyProfileEditInput,
   NotificationCommandInput,
+  PetClaimCommandInput,
   PetPhotoContentType,
   PetProfileCommandInput,
   RecordEventInput,
@@ -900,6 +902,56 @@ export function sendAppointmentCommand(
 ): Promise<ApiResult<AppointmentCommandAckV1>> {
   return apiRequest<AppointmentCommandAckV1>(
     { path: "/api/v1/me/appointments", method: "POST", body: input },
+    session,
+  );
+}
+
+/**
+ * `POST /me/pet-claims` — buscar una mascota por su chip, y reclamarla.
+ *
+ * ONE CALL FOR BOTH COMMANDS, and they are two halves of one act rather than a
+ * read and a write that happen to share a URL. `lookup` answers which animal a
+ * private identifier resolves to and whether it may be claimed; `claim_free`
+ * takes it. Both spend the SAME per-user budget on the server (`claim_lookup`,
+ * 30/min + 200/hr) precisely so that alternating between them buys a prober
+ * nothing — which is also why this app must not "helpfully" re-lookup after
+ * every keystroke.
+ *
+ * THE THIRD STEP THE WEB HAS IS NOT MISSING, IT IS REFUSED. When the animal
+ * already has a custody, the browser offers a disputa — and that writer requires
+ * at least one evidence FILE, absolutely, because raising one notifies the
+ * registered owner, appends an uneditable row to the animal's spine, flips
+ * `pets.in_custody_dispute` (which strips the owner's phone off the public
+ * credential) and opens a case a local authority has to adjudicate. This app
+ * cannot attach a file — a picker is a native module, which is an EAS build —
+ * so the contract's input union has two members and a screen meeting
+ * `variant: "active_owner"` sends the person to the browser. Do not add a
+ * `dispute` command here without the bytes to back it.
+ *
+ * `canClaim` IS THE SERVER'S. It looks like `variant === "free"` and it is not
+ * a client's to derive: the rule behind it is "no active custody of ANY role",
+ * re-checked inside the claiming transaction under a row lock, plus three status
+ * gates. Drawing the button from the variant would be keeping a second copy of
+ * an authorization rule, on the most consequential act this app can perform.
+ *
+ * NO `idempotencyKey` PARAMETER, AND THAT IS THE CONTRACT AND NOT A SHORTCUT.
+ * The writer takes none. What it has — `SELECT … FOR UPDATE` plus a re-check of
+ * active custody inside the transaction — SERIALIZES two concurrent claims and
+ * REFUSES the second rather than absorbing it, so a retry after a timeout
+ * answers `claim_not_claimable` whether this caller's own first attempt landed
+ * or somebody else claimed the animal meanwhile. Re-run `lookup`; do not
+ * re-send.
+ *
+ * DO NOT PERSIST THE IDENTIFIER. Not to AsyncStorage, not to a log, not into a
+ * crash report. The 15-digit chip is the evidence that authorizes a claim, and
+ * `/p/{token}` deliberately renders "Microchip: Sí/No" and never the number.
+ */
+export function sendPetClaimCommand(
+  session: SessionPort,
+  input: PetClaimCommandInput,
+): Promise<ApiResult<PetClaimCommandAckV1>> {
+  return apiRequest<PetClaimCommandAckV1>(
+    { path: "/api/v1/me/pet-claims", method: "POST", body: input },
     session,
   );
 }

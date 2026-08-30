@@ -654,6 +654,41 @@
  *                         did land answers `appointment_already_resolved`, not a
  *                         second decrement of `bookings_count`. It is still not
  *                         a signal that the first attempt failed.
+ *
+ * THE CLAIM CODES (WU-V). `POST /api/v1/me/pet-claims` runs the two commands of
+ * the web's claim wizard that a phone can honestly run. TWO codes, and the
+ * shortness of the list is the interesting part: the LOOKUP has no failure
+ * vocabulary at all, because "nothing matches that chip" is a VARIANT it answers
+ * 200 with (`PetClaimLookupAckV1.variant === "not_found"`) rather than an error.
+ * A question that was answered is not a failure, and a 404 there would be
+ * indistinguishable from a transport one.
+ *
+ * - `claim_not_claimable`
+ *                       — `claim_free` was refused because the animal is not
+ *                         free: it already has an active custody of some role,
+ *                         it is registered deceased or lost, or it has an open
+ *                         custody dispute. 409.
+ *
+ *                         ONE CODE FOR ALL FOUR, and the bar this file applies is
+ *                         what makes that right rather than lazy: the client's
+ *                         move is identical in every case and it is not "show a
+ *                         different sentence" — it is RE-RUN THE LOOKUP, whose
+ *                         fresh `variant` carries the current situation and is
+ *                         the vocabulary the screen already renders. Splitting
+ *                         this into four would put a second copy of that
+ *                         vocabulary in the error channel, and the two would then
+ *                         have to be kept in step for no gain.
+ *
+ *                         IT IS ALSO WHAT A REPLAY LOOKS LIKE. A second
+ *                         `claim_free` after a successful one finds the caller's
+ *                         OWN ownership row as the active custody and lands here,
+ *                         so a client must never render this as "somebody else
+ *                         took it" — see `PetClaimFreeAckV1.changed`.
+ * - `claim_failed`      — the claim transaction itself failed. 500. The writer
+ *                         takes `SELECT … FOR UPDATE` on the pet row and does
+ *                         everything in one transaction, so nothing is half
+ *                         written; a retry is safe and will either succeed or
+ *                         answer `claim_not_claimable`.
  */
 export const API_V1_ERROR_CODES = [
   "rate_limited",
@@ -719,6 +754,8 @@ export const API_V1_ERROR_CODES = [
   "appointment_already_resolved",
   "appointment_past",
   "appointment_failed",
+  "claim_not_claimable",
+  "claim_failed",
 ] as const;
 
 export type ApiV1ErrorCode = (typeof API_V1_ERROR_CODES)[number];

@@ -48,14 +48,17 @@ export async function lookupForClaimForUser(
     await enforceRateLimit("claim_lookup", userId, { maxPerMinute: 30, maxPerHour: 200 });
   } catch (err) {
     if (err instanceof RateLimitError) {
-      return { error: "Demasiados intentos. Probá en unos minutos." };
+      return { error: "Demasiados intentos. Probá en unos minutos.", code: "rate_limited" };
     }
     throw err;
   }
 
   if (input.kind === "microchip") {
     if (!MICROCHIP_PATTERN.test(value)) {
-      return { error: "El microchip debe tener exactamente 15 dígitos." };
+      return {
+        error: "El microchip debe tener exactamente 15 dígitos.",
+        code: "identifier_invalid",
+      };
     }
     const result = await lookupByChip(value);
     if (!result) return { variant: "not_found" };
