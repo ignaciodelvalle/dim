@@ -28,6 +28,8 @@ const ME = "11111111-1111-4111-8111-111111111111";
 /** A second live account, used to prove the WHERE follows the SESSION. */
 const SOMEBODY_ELSE = "22222222-2222-4222-8222-222222222222";
 const ORG_ID = "33333333-3333-4333-8333-333333333333";
+/** The address the stubbed `callerIp` reports, so the IP gates can be told apart. */
+const CALLER_IP = "200.5.4.3";
 
 const NOW = new Date("2026-08-29T15:00:00.000Z");
 
@@ -52,8 +54,23 @@ const control = vi.hoisted(() => ({
   joins: [] as Array<{ kind: "inner" | "left"; on: unknown }>,
   /** Buckets that should answer 429 instead of proceeding. */
   overLimit: new Set<string>(),
-  /** Every bucket a handler actually tried to spend, in order. */
-  spent: [] as string[],
+  /**
+   * Every bucket a handler tried to spend, WITH the identifier it keyed on.
+   *
+   * IT USED TO BE `string[]` — the bucket name alone — and that was a DECLARED
+   * DEBT on the board naming this file as its owner: the stub read
+   * `enforceRateLimit: async (endpoint: string)` and dropped the second argument,
+   * so collapsing all four gates onto shared constants left this file 36/36
+   * green. Ten sibling route tests already took the pair. This one does now.
+   */
+  spent: [] as Array<{ endpoint: string; identifier: string }>,
+  /**
+   * Buckets whose limiter is BROKEN — it throws something that is not a
+   * `RateLimitError`, the way an unreachable `rate_limit_buckets` table would.
+   * Distinct from `overLimit` on purpose: the two must produce OPPOSITE answers,
+   * and that is the second declared debt this file owned.
+   */
+  limiterBroken: new Set<string>(),
   /** What the cancel writer answers. */
   cancelResult: { ok: true } as Record<string, unknown>,
   /** Every call the cancel writer received. */
@@ -80,12 +97,16 @@ vi.mock("@/lib/infra/rate-limit", async (importOriginal) => {
     // RECORDS THE BUCKET AND CAN REFUSE ONE. The old stub swallowed every call,
     // which made the four gates unfalsifiable: no test could tell a handler that
     // spends its budgets from one that never calls the limiter at all.
-    enforceRateLimit: async (endpoint: string) => {
-      control.spent.push(endpoint);
+    enforceRateLimit: async (endpoint: string, identifier: string) => {
+      control.spent.push({ endpoint, identifier });
+      if (control.limiterBroken.has(endpoint)) {
+        throw new Error("rate_limit_buckets is unreachable");
+      }
       if (control.overLimit.has(endpoint)) {
         throw new actual.RateLimitError(new Date(), endpoint);
       }
     },
+    callerIp: () => CALLER_IP,
   };
 });
 
@@ -248,6 +269,7 @@ beforeEach(() => {
   control.projection = null;
   control.joins = [];
   control.overLimit = new Set();
+  control.limiterBroken = new Set();
   control.spent = [];
   control.cancelResult = { ok: true };
   control.cancelCalls = [];
@@ -617,15 +639,19 @@ describe("the four rate-limit gates — each one refuses on its own", () => {
   // buckets, two per method, and the pair on each method fires at a DIFFERENT
   // point: the per-IP one before the GoTrue round-trip, the per-user one after
   // it. A test per bucket is what keeps that ordering honest.
-  const gates: Array<[string, "GET" | "POST", boolean]> = [
-    ["api_v1_me_appointments_read_ip", "GET", false],
-    ["api_v1_me_appointments_read_user", "GET", true],
-    ["api_v1_me_appointments_write_ip", "POST", false],
-    ["api_v1_me_appointments_write_user", "POST", true],
+  // THE FOURTH COLUMN IS THE IDENTIFIER THE GATE MUST KEY ON, and it is the half
+  // this table did not have while the stub dropped the second argument: an IP gate
+  // keyed on the user id would still refuse, still be the last bucket spent, and
+  // still satisfy every assertion below.
+  const gates: Array<[string, "GET" | "POST", boolean, string]> = [
+    ["api_v1_me_appointments_read_ip", "GET", false, CALLER_IP],
+    ["api_v1_me_appointments_read_user", "GET", true, ME],
+    ["api_v1_me_appointments_write_ip", "POST", false, CALLER_IP],
+    ["api_v1_me_appointments_write_user", "POST", true, ME],
   ];
 
-  for (const [bucket, method, afterAuth] of gates) {
-    it(`answers 429 when ${bucket} is spent`, async () => {
+  for (const [bucket, method, afterAuth, identifier] of gates) {
+    it(`answers 429 when ${bucket} is spent, keyed on the right identifier`, async () => {
       control.overLimit = new Set([bucket]);
 
       const response =
@@ -634,8 +660,10 @@ describe("the four rate-limit gates — each one refuses on its own", () => {
       expect(response.status).toBe(429);
       expect(await response.json()).toEqual({ error: "rate_limited" });
       // The bucket that refused is the LAST one spent: a gate that let control
-      // through to the next budget is a gate that did not bind.
-      expect(control.spent.at(-1)).toBe(bucket);
+      // through to the next budget is a gate that did not bind. And it was spent
+      // against the right key — an address for the IP gates, a user id for the
+      // user gates.
+      expect(control.spent.at(-1)).toEqual({ endpoint: bucket, identifier });
       // The per-IP gate runs BEFORE `requireLiveUser`, so it refuses without a
       // GoTrue round-trip; the per-user gate necessarily runs after one. That
       // ordering is what the IP bucket exists for and it is asserted rather
@@ -655,10 +683,45 @@ describe("the four rate-limit gates — each one refuses on its own", () => {
     const response = await get();
 
     expect(response.status).toBe(200);
+    // THE PAIR, not just the name. The IP gate keys on the caller ADDRESS and the
+    // user gate on the user ID; asserting only the bucket names left "collapse all
+    // four onto one constant" invisible, which is the debt this closes.
     expect(control.spent).toEqual([
+      { endpoint: "api_v1_me_appointments_read_ip", identifier: CALLER_IP },
+      { endpoint: "api_v1_me_appointments_read_user", identifier: ME },
+    ]);
+  });
+
+  it("FAILS OPEN when the limiter itself is broken, on both methods", async () => {
+    // THE OTHER DEBT THIS FILE OWNED. The route's docblock argues it at length —
+    // "a limiter outage must not stand between somebody and CANCELLING a turno they
+    // cannot attend" — and flipping its `return true` to `return false` left this
+    // file 36/36 green. Five sibling route files carry a case named exactly this.
+    control.limiterBroken = new Set([
+      "api_v1_me_appointments_read_ip",
+      "api_v1_me_appointments_read_user",
+      "api_v1_me_appointments_write_ip",
+      "api_v1_me_appointments_write_user",
+    ]);
+    control.rows = [row()];
+
+    expect((await get()).status).toBe(200);
+    expect((await post({ command: "cancel", appointmentToken: "APT-7K2M-9QX4" })).status).toBe(200);
+  });
+
+  it("still fails CLOSED on authorization while the limiter is broken", async () => {
+    // The pair the case above only half proves: a fail-open limiter must not carry
+    // the guard open with it.
+    control.limiterBroken = new Set([
       "api_v1_me_appointments_read_ip",
       "api_v1_me_appointments_read_user",
     ]);
+    control.live = () => ({ ok: false, reason: "ACCOUNT_ERASED" });
+
+    const response = await get();
+    expect(response.status).toBe(403);
+    expect(await response.json()).toEqual({ error: "account_erased" });
+    expect(control.wherePredicate).toBe(null);
   });
 });
 
@@ -837,8 +900,8 @@ describe("POST book — the second command, and the coarseness of its refusals",
     // tables that moves a place between people, so one anchor bounds both.
     await post(BOOK);
     expect(control.spent).toEqual([
-      "api_v1_me_appointments_write_ip",
-      "api_v1_me_appointments_write_user",
+      { endpoint: "api_v1_me_appointments_write_ip", identifier: CALLER_IP },
+      { endpoint: "api_v1_me_appointments_write_user", identifier: ME },
     ]);
   });
 

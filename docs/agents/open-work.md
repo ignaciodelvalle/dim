@@ -42,10 +42,24 @@ Ordered by what a live tester hits first, not by size.
 | # | Work | Size | Notes |
 |---|---|---|---|
 | 1 | **Pet photo** — native image picker | M | Server side is **done**: signed upload → private bucket → `confirm` re-authorizes, verifies magic bytes, re-encodes, then writes to the public bucket. Only the picker is missing — which needs a native module, so an EAS build. That pipeline cost 6 builds / 5 distinct root causes. **Not a first task.** |
-| 2 | **WU-S** — appointments: **buscar and reservar** only. My appointments, cancel and the check-in QR landed 2026-08-30 — see the block below before starting. | M | **One unit of work, not two.** A search that cannot book is a screen listing slots nobody can take; a book with no search is unreachable. Needs a service-kind picker, jurisdiction-subsuming search, a slot list, and a concurrent write on `bookings_count` with its own route and rate-limit family. Not in the web nav either; deep links only. |
 | 4 | **WU-V** — the **camera scan** only. Confirmar el chip and reclamar landed 2026-08-30 — see the block below before starting. | M | The scan is the LAST of the three and the one the block did not attempt: reading a chip's barcode needs `expo-camera` → a native module → an EAS build, the same pipeline row 1 is held back by. It is strictly additive over what landed — it sets the same string the keyboard field sets. **Row left in place on purpose: one of three closed is not a row that comes off the table.** |
 | 5 | **WU-T** — citizen abuse reports. **A branch exists and it is nearly whole — do NOT start from zero.** | M | Attachments blocked on signed uploads. **Not the same thing as reporting content** — this is Ley 14.346, nine types, routed to an authority. **Turned back at the 2026-08-30 integration gate on five merge conflicts with the adoption lane, not on a fence** — the branch's own gate is green except for two declared reds it hands to the integrator. Read its entry in "Attempted and turned back" before opening it; the conflict surface, the resolution the integrator would not take, and one *serio* runtime finding are all recorded there. |
 | 6 | **WU-P** — rehoming, foster, return, relocation, org memberships | L | Advanced custody cycle. |
+
+**Row 2 (WU-S, turnos) is GONE from the table above and the numbering was NOT
+closed up either.** Buscar and reservar were the two capabilities left, they were
+one unit of work by that row's own argument, and both landed on 2026-08-30 — see
+the block at the end of this page. So unlike row 4 there is no narrowed remainder
+to leave behind, and unlike row 3 there is no need to argue the case again: the
+gap between 1 and 4 is now two numbers wide and it is deliberate for the reason
+the paragraph below already states. **The table holds four rows — 1, 4, 5, 6 —
+and the count, not the highest number, is the thing to quote.**
+
+The `rg -i '\brows? [0-9]+\b'` audit that paragraph prescribes was re-run before
+this row was removed. Three pointers said **row 2** and all three are in prose
+this lane owns or in blocks it is appending to; they are rewritten in place to
+name the capability rather than the row, because a pointer at a row that no
+longer exists is worse than no pointer. Nothing else moves.
 
 **Row 3 (WU-U, adopción) is GONE from the table above and the numbering was NOT
 closed up.** The four capabilities all landed on 2026-08-30 — see the block at
@@ -83,10 +97,14 @@ the fourteen columns it left on the web.
 ## Landed since this snapshot — do not pick it up again
 
 **A landing written up below did not necessarily take a row off the table**, and
-three of them did not: WU-S (row 2) and WU-V (row 4) are both still there, each
-narrowed to the capabilities it did not close, and the `supabase start` retry at
-the end of this section was never a table row at all — it replaces a branch the
-next section had marked as turned back. Each block is written up the same way:
+some did not: WU-V (row 4) is still there, narrowed to the capability it did not
+close, and the `supabase start` retry was never a table row at all — it replaces
+a branch the next section had marked as turned back. **The count of exceptions
+that used to open this sentence is gone too**, for the same reason the count of
+blocks two paragraphs down went: it read "three of them did not", it was correct
+when written, and the very next landing made it wrong — WU-S closed its remainder
+and its row came off, so three became two while nothing turned red. A number in
+prose has to be edited by every lane that appends a block. Read the blocks. Each block is written up the same way:
 what was done, what it **decided**, and what it did **not** solve. A row deleted
 without its remainder is how the remainder gets lost — and a row left on the
 table after it landed is how the next agent spends a day rebuilding it. Both have
@@ -742,9 +760,9 @@ the staging secrets are not merely empty at runtime, they **do not exist**.
 | Two band tints outside the contract | small | **Pregnancy** and **memorial** use colours absent from `@dim/contract/tokens`, so the shared contract does not carry the web's full palette. They fall back to the default tint and the chip still says what is happening — no information lost, but it is debt in the shared layer. |
 | Two files parked in the art.16 fence | small | `caretaker-public-contact.ts` and `app/page.tsx`, each with a rationale recorded in the fence. |
 | Checksum drift on migration `0188` | pre-existing | Someone edited that migration **after** applying it. The database is fine; the record of what was applied is not. |
-| The turnos endpoint's four rate-limit gates say nothing about **who** spends them | owner: the next lane in `me/appointments` (row 2) | Landed as an accepted reserve on 2026-08-30. The route passes the right identifier — `callerIp(request.headers)` on the two IP gates, `live.user.id` on the two user gates — but `__tests__/api-v1-me-appointments-route.test.ts` stubs `enforceRateLimit: async (endpoint: string)` and drops the second argument, so collapsing all four onto shared constants leaves the file 36/36 green. **Ten sibling route tests already take `(endpoint, identifier)` and assert the pair**; `api-v1-me-profile-route.test.ts` even pins the literal IP. One-line fix, in the file the next lane is already opening. Not a blocker: the production identifiers are correct and no authorization boundary is involved. |
+| ~~The turnos endpoint's four rate-limit gates say nothing about **who** spends them~~ | **CLOSED 2026-08-30** by the buscar/reservar lane | The row read: "the route passes the right identifier … but the test stubs `enforceRateLimit: async (endpoint: string)` and drops the second argument, so collapsing all four onto shared constants leaves the file 36/36 green". The stub now takes `(endpoint, identifier)`, the gate table carries a fourth column naming which key each gate must use, and two mutations were applied to prove it: keying the read-IP gate on a user id, and keying the write-USER gate on the address. Both red. It was the lane's own file to open, which is what the row predicted. |
 | **The liveness gate on `GET /api/v1/adoptions/{petToken}` is fenced by nothing** | owner: the next lane in `src/modules/adoption` or that route | Accepted as a reserve at the 2026-08-30 gate, on the same terms as the two turnos rows below: the code is right today and no fence proves it. **Measured by mutation, not inferred.** `if (!live.ok && false) return liveUserRefusal(live.reason);` in the GET handler leaves **86 files / 1514 tests green** — the 46 sweeping fences, the whole adoption territory, `packages/contract` and all three route tests. The control that rules out a broken harness: the identical mutation in the **POST** handler of the same file turns two red, because `__tests__/api-v1-adoptions-route.test.ts:590-599` covers `DEACTIVATED` and `ACCOUNT_ERASED` on POST only — both `it`s sit inside `describe("POST … postularse")`, and the two GET describes have no equivalent. The sibling route `api-v1-me-adoption-applications-route.test.ts` does cover its own (lines 227/235), so this is an asymmetric hole in a **new** door, not a repo-wide convention. **Why it is worth a row rather than a shrug**: `createClientFromBearer` parses only the *shape* of the header — its own docblock says it decodes the token and "never reads a claim" — so `requireLiveUser` is the single barrier for `NO_SESSION` / `ACCOUNT_ERASED` / `DEACTIVATED` / `SHIFT_EXPIRED`, and an erased account keeps a syntactically valid JWT because erasure is state in the database, not revocation. A regression here opens adoption-detail reads to an ERASED account: the art. 16 class this repo has already been burned by four times over. Verified correct as merged — gate at line 110, read at 117. The fix is two `it`s copied from lines 590-599 into a GET describe. |
-| The same endpoint's documented **fail-open** has no test | owner: same | `spendBudget` catches a non-`RateLimitError` and returns `true` on purpose — a limiter outage must not stand between an owner and cancelling a turno. Flipping that `return true` to `return false` leaves the file 36/36 green, so the invariant its docblock argues at length is unmeasured. Five sibling files carry a test literally named "FAILS OPEN when the limiter itself is broken"; this one does not. |
+| ~~The same endpoint's documented **fail-open** has no test~~ | **CLOSED 2026-08-30** by the same lane | Flipping `spendBudget`'s `return true` to `return false` used to leave the file 36/36 green. It now carries the case five sibling files already had — and its PAIR, which none of them states: the authorization guard must still fail CLOSED while the limiter is broken, since a fail-open limiter that carried the guard open with it would be the same line doing two jobs. Both mutations applied, both red. |
 | **`submitFreeClaimForUser` can claim an ERASED pet, and tells you it was erased** | **pre-existing, and the biggest thing on this table** — owner: the next lane in `pets/application/claim`, or the PO if it wants a migration-grade answer | Found by the reviewer at the 2026-08-30 gate and MEASURED against real Postgres, not inferred. `lookup-for-claim.ts` resolves through `innerJoin(pets, and(eq(pets.id, …), isNull(pets.deletedAt)))`; `submit-free-claim.ts` resolves the same identifier and then selects the pet with a bare `eq(pets.id, ident.petId)`, because `pet_identifications` rows stay `status = 'active'` after an erasure. Two consequences: (1) an erased pet's chip answers `not_claimable` → **409** while an unregistered chip answers `not_found` → **404**, so any self-registered account can tell "this animal was erased" from "never existed" off the status line — the exact art. 16 distinction the endpoint's own header refuses to put there; (2) if that erased pet has no active custody, **the claim succeeds** — it returns the animal's name and public token, inserts the ownership, appends `ownership_claimed` to the spine, notifies and audits, while the lookup on the same door still answers `not_found`. **The bearer door did not introduce this** — it is one missing clause in a writer the web's `/mis-mascotas/reclamar` wizard drives identically, which is why the integrator recorded it instead of patching it in a merge commit: the fix changes browser behaviour and belongs with its own test. **No fence goes red for it and none can as written**: this is an ABSENCE of a predicate, not a mutable one, so the mutation instruments this repo relies on have nothing to flip. The shape of the fix is `isNull(pets.deletedAt)` on the in-transaction select (and/or filtering the identification by a live pet), copied from the sibling rather than re-derived. The two docblocks that claimed the invariant held end to end were corrected in the same merge — `claim/types.ts` and `me/pet-claims/commands.ts` — because a promise and the note that it is half kept have to travel together. |
 | `api-v1-me-pet-claims-route.test.ts` needs an env var no setup forces | small — owner: the next lane in that file | It is the ONLY one of the fifteen `/api/v1` route tests that does not mock `@/lib/supabase/bearer`, so it builds a real supabase-js client and reads `NEXT_PUBLIC_SUPABASE_ANON_KEY`. `__tests__/setup-env.ts` forces `NEXT_PUBLIC_SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY` and not that one. In a worktree with no `.env.local` the file reports 20 of 21 red with `Error: supabaseKey is required.` — credential-shaped, which is the FOURTH red signature `/CLAUDE.md` names, on a file that has nothing to do with RLS. Green in CI (the vitest job exports the real key) and green wherever the env is exported, so it hides no defect; it is a harness that is more coupled to the environment than its fourteen siblings, in the one direction that makes a red unreadable. Fix is the two `vi.mock` lines `api-v1-me-appointments-route.test.ts` already has. |
 | `claimDisputeUrl` builds its URL by hand while its neighbour uses the map | small — owner: same | `apps/mobile/src/claims/claim-view-model.ts`: `claimSightingUrl`, two functions above it, goes through `deepLinkUrl` with the written argument that "a rename is a compile error rather than a 404 nobody notices" — and `claimDisputeUrl` interpolates `${origin}/mis-mascotas/reclamar` directly. If the web renames that path the dispute link becomes a silent 404 and nothing turns red. `DEEP_LINK_MAP` has no entry for the wizard, but `myPets` is an exact precedent for a parameterless one. The file's own principle, applied to one of its two functions. |
@@ -1203,3 +1221,164 @@ test, and the row names the two `it`s and the file to copy them from.
 The gate's verdict lines are not transcribed here on purpose: they belong to the
 window's handover, and quoting them would mean a doc commit landing *after* the
 tree the gate ran on. This block describes the tree that was gated.
+
+## Appended 2026-08-30 by lane a78516a7-c68-2
+
+### WU-S — buscar y reservar, the two that were left — LANDED 2026-08-30
+
+**Row 2 is off the table.** A citizen can now find a turno and take it from the
+phone: `GET /api/v1/appointments` (the service picker and one service's results),
+`GET /api/v1/appointments/{offeringToken}` (the sixty-day slot grid plus which of
+the caller's animals may take a place), and `command: "book"` as the second member
+of `POST /api/v1/me/appointments`. Natively: `apps/mobile/src/turnos/`'s
+`BuscarTurnoScreen` and `ReservarTurnoScreen`, behind `/turnos/buscar` and
+`/turnos/buscar/{offeringToken}`, reached from a primary button on Mis turnos.
+
+**They landed as ONE unit because the row said they were one**, and the row was
+right in both directions: the search decides everything the write would refuse, so
+the write has almost no refusal a person can reach by ordinary use; and the write
+is what makes the search a screen rather than a list of things nobody can have.
+
+#### What it decided
+
+- **The contention is ALREADY SOLVED and this door reuses it rather than
+  re-deriving it.** `bookSlotWriter` takes `pg_advisory_xact_lock(hashtext(slot))`,
+  re-reads capacity inside the lock, and stands on a `CHECK` plus two partial
+  unique indexes (migrations 0177 and 0181). The bearer door calls that writer
+  unchanged. **The one race nobody had measured is the CAMPAIGN one**, and
+  `book-slot.ts` says in its own comment why the lock cannot cover it: the key is
+  per SLOT, so two concurrent submits against DIFFERENT slots of one campaign do
+  not serialise there. `booking.test.ts` covers that guard SEQUENTIALLY, which
+  exercises the in-transaction re-read and never the index. A concurrent case is
+  now in `__tests__/booking-race.test.ts`, and it was established by mutation
+  rather than assumed: with the 23505 translator removed the test goes red
+  carrying `duplicate key value violates unique constraint
+  "appointments_one_live_per_pet_offering"` — both transactions passed the in-lock
+  read and the INDEX refused the second. As a CONTROL, removing the in-lock read
+  entirely leaves the test GREEN, which is the comment's claim made measurable.
+- **The write hangs off `/me/appointments` beside `cancel`, and adds NO
+  rate-limit bucket.** A write's home is the resource it MUTATES, and the two
+  commands share an anchor `api-v1-limits.ts` already derived against: each is a
+  transaction across three tables that moves a place between people. A `booking`
+  family carrying identical numbers would be the eleven-paragraphs problem that
+  file exists to refuse.
+- **TWO read routes, ONE bucket** (`api_v1_appointment_search_ip`,
+  `authenticated-read`). Opening a grid is what a person does FROM the results,
+  several times in one sitting — the adoption catalogue and ficha's argument,
+  verbatim. It is `authenticated-read` and NOT `public-reference` even though what
+  it reads IS a public catalogue: that family's derivation turns on `localities`
+  having no identity to key on, so its per-IP bucket is the only one there is.
+  This route requires a session and spends a per-user bucket underneath.
+- **The three pins were RECOUNTED from the tree, not incremented**: 34 buckets,
+  30 route files, CGNAT ceiling **12 924/min** — hand-summed per family
+  (17×600 + 7×120 + 2×60 + 1×240 + 1×600 + 2×180 + 1×240 + 1×120 + 1×144 + 1×60)
+  as well as read off the `reduce`, because a computed value agreeing with itself
+  is not evidence. **Whoever merges this alongside the denuncias lane must recount
+  again**: that lane carries `api_v1_welfare_reports_ip` and its own route, and
+  34 + 1 is only right if nothing else lands in between.
+- **`appointments` joins `CAPABILITY_PATH_SEGMENTS`**, with the exact precedent
+  two lines above it: `adoptions` was added for `/api/v1/adoptions/[petToken]`
+  after `adoptar` already covered the screens carrying the same token. Without it
+  `lib/observability/redact-prefix-coverage.test.ts` goes red — the fence that
+  turned the WU-U integration red, and one of the seven no `__tests__`-scoped
+  command returns.
+- **The refusals speak the EXISTING error vocabulary, and the coarseness is
+  DECLARED rather than discovered.** `packages/contract/src/api/errors.ts` and
+  `apps/mobile/src/api/error-copy.ts` were another lane's territory in this
+  window, so no `booking_*` family was added. Six typed domain refusals
+  (`BookSlotFailureCode`) fold onto four codes: `pet_not_yours` → `not_found`,
+  `pet_deceased` → `event_not_allowed`, `slot_past` → `appointment_past`, and the
+  three that all mean "re-read the grid" → `appointment_already_resolved`. That
+  last fold meets `errors.ts`'s only bar — the client's move is identical in all
+  three — but the es-AR copy for those four was written for CANCELLING, so
+  somebody refused a booking reads "Este turno ya cambió de estado" about a slot
+  they never held. **The exact codes and copy they deserve are in the hand-off.**
+  The fold lands on races and on hand-posted requests and never on ordinary use:
+  the read drops a deceased or erased animal from `pets` entirely.
+- **The failure arm is TYPED**, which is the repair `me/appointments/commands.ts`
+  still needs for `cancel` — that one matches es-AR SENTENCES and its own header
+  admits a reworded one falls through to a 500. Third instance of the
+  `AmendEventFailureCode` / `ClaimFailureCode` shape.
+- **`pets[].canBook` is on the wire and the phone never derives it.** The rule is
+  ONE confirmed appointment per (pet, offering) — the guard that stopped one
+  animal eating the 08:00 AND the 08:15 of one free campaign (QA A3, 2026-08-13) —
+  and it is invisible in a slot grid. The blocked animal is drawn DISABLED with
+  its reason rather than hidden, because a silently missing row reads as a bug.
+- **`jurisdictionSource` is on the wire and the web has nothing like it.** The
+  server prefills the search from the person's first registered animal; the
+  browser draws that into its own filter form where it reads as something they
+  typed, so somebody whose pet is registered elsewhere concludes their barrio has
+  no campaigns when they never chose their barrio.
+- **The two guards on the write are copied as a negation of
+  `app/actions/booking.ts:51-79` and cited line by line**, not re-derived: an
+  ACTIVE ownership row of ANY role (a foster books under their own id and the
+  turno is theirs), not deceased, not erased — art. 16 folding into the same
+  "not yours" a stranger's token gets.
+- **The search floor rejects a day that does not exist.** `2026-02-31` matches
+  `^\d{4}-\d{2}-\d{2}$` and `new Date` neither throws nor returns `NaN` for it:
+  JavaScript ROLLS IT OVER to 3 March, so the floor moved three days forward and
+  hid every slot in between with nothing reporting a substitution. Found by a test
+  written believing the opposite. The fix is `isRealArDay`, IMPORTED from the
+  contract rather than restated — it already refuses exactly this on two schemas —
+  and it is now exported from `@dim/contract/input`, because a query string
+  carries dates too and a search floor is a filter rather than a field.
+
+#### What it did NOT solve
+
+- **The LOCALITY FILTER is not on the phone.** The web's filter form is a
+  typeahead over `/api/v1/localities`; the native screen searches where the server
+  defaulted to and SAYS SO, and its empty state names the place it looked in
+  rather than reading as "this service exists nowhere". Wiring the typeahead is a
+  further slice and needs no server work — the query param is already parsed.
+- **`bookSlotAction` is NOT migrated onto `bookSlotForUser`.** It is a
+  `"use server"` entry point the browser drives, three fences read that file, and
+  changing it is a browser-facing edit with its own e2e gate — the identical
+  arrangement `list-appointments-for-user.ts` recorded one file over, for the
+  identical reason. So one rule has two copies, declared, with the citation in the
+  module header and the predicate pinned on compiled SQL rather than on source
+  text. The migration is a small, self-contained follow-up.
+- **`turnos-routes.ts` and `turnos-api.ts` are DECLARED DEVIATIONS.** Their
+  contents belong in `apps/mobile/src/ui/routes.ts` and
+  `apps/mobile/src/api/endpoints.ts`, both of which were the denuncias lane's
+  territory this window and both of which are among the five files that lane was
+  turned back on. Each file says so at the top and the exact move is in the
+  hand-off. Note the WRITE needed no new client function at all —
+  `sendAppointmentCommand` already takes an `AppointmentCommandInput`, which is
+  the discriminated-union argument arriving on time.
+- **Neither new route is registered in `apps/mobile/app/_layout.tsx`**, so both
+  take expo-router's default header. Same lane's territory, and the two existing
+  `turnos` routes and `cuidado/[grantToken]` are unregistered for the same reason.
+  The titles are in the hand-off; what a header should SAY is copy, and this lane
+  did not invent it.
+- **`/mis-turnos/page.tsx` and `/turnos/buscar/page.tsx` still carry their own
+  inline queries.** The browser's search is now a second implementation of what
+  `search-bookable-slots.ts` does, with one difference this lane did not port
+  back: the web renders offerings in whatever order Postgres returns them, which
+  on a screen answering "when can I take my animal" is no order at all.
+- **`apps/mobile/src/turnos/turnos-view-model.test.ts` carries the false-green
+  this lane found in its OWN fences and did not fix in that one.**
+  `appointmentWhenLabel` and `appointmentShortWhenLabel` both pin
+  `timeZone: America/Argentina/Buenos_Aires`, and this project is developed on a
+  machine resolving to `America/Argentina/Salta` — the same offset. Deleting the
+  option changes not one character, so the three cases under "the clock and the
+  calendar are Argentina's" pass over exactly the mutation they exist to catch.
+  Setting `process.env.TZ` inside the module does not help either: the environment
+  has already resolved its default zone by the time a test body runs. The
+  instrument that works is in `buscar-view-model.test.ts` — `timeZonesAskedFor`, a
+  spy over `Intl.DateTimeFormat` collecting the requested `timeZone`, which asks
+  the question a compiled-SQL fence asks of a query: what did the code REQUEST?
+  Three mutations red there. **Copying it into the sibling file is a few lines**,
+  and it covers a capability that landed in a previous window rather than this one.
+
+#### The 53-file recipe is off by one, in the other direction
+
+`rg -l 'readdirSync|globSync|discoverTestFiles' --glob '*.test.ts*' --glob
+'!node_modules' .` returns **53**, as this page says. Running all 53 under vitest
+reports **52 files**. The 53rd is
+`apps/mobile/src/release/release-config.test.ts`, which is a MOBILE test: vitest's
+projects are computed from the Next tree, so it is silently NOT collected —
+`No test files found` — while `pnpm --filter mimar test` runs it, 31/31. Nothing
+is missing and no fence was skipped; the recipe spans two RUNNERS and the count
+does not say so. A reader who runs the command, sees 53, runs vitest and reads 52
+has the same doubt the trailing-filter paragraph above exists to remove. Both
+runners were used for this lane.
