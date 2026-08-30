@@ -58,6 +58,24 @@ vi.mock("@/lib/infra/rate-limit", async (importOriginal) => {
   };
 });
 
+// STUBBED SO THIS FILE DOES NOT BUILD A REAL SUPABASE CLIENT — see the same
+// mock in `api-v1-adoptions-route.test.ts` for the full derivation. Short
+// version: `createClientFromBearer` reads `NEXT_PUBLIC_SUPABASE_ANON_KEY`, which
+// `__tests__/setup-env.ts` does not force, so a worktree with no `.env.local`
+// turned this file red with `supabaseKey is required.` — a credential-shaped
+// error on a route with no RLS policy anywhere near it.
+//
+// `{ ok: false, reason: "MISSING" }` for a null header keeps the `auth_required`
+// case below running the handler's real branch.
+vi.mock("@/lib/supabase/bearer", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/supabase/bearer")>();
+  return {
+    ...actual,
+    createClientFromBearer: (header: string | null) =>
+      header ? { ok: true, supabase: {}, token: "tok" } : { ok: false, reason: "MISSING" },
+  };
+});
+
 vi.mock("@/lib/infra/live-user", () => ({
   requireLiveUser: async () => control.live,
 }));

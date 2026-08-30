@@ -71,6 +71,36 @@ vi.mock("@/lib/infra/rate-limit", async (importOriginal) => {
   };
 });
 
+// STUBBED SO THIS FILE DOES NOT BUILD A REAL SUPABASE CLIENT, which is a fact
+// about the HARNESS and not about the route.
+//
+// `createClientFromBearer` calls `createClient()` from supabase-js, which reads
+// `NEXT_PUBLIC_SUPABASE_ANON_KEY` and throws `supabaseKey is required.` when it
+// is absent. `__tests__/setup-env.ts` forces `NEXT_PUBLIC_SUPABASE_URL` and
+// `SUPABASE_SERVICE_ROLE_KEY` and NOT that one, so in a worktree with no
+// `.env.local` — which is every fresh worktree, the file being gitignored — this
+// file went 37-red across its two siblings with a credential-shaped error on a
+// route that touches no RLS policy at all. That is the FOURTH red signature
+// `/CLAUDE.md` names, in the one direction that makes a red unreadable: it looks
+// exactly like a real authorization failure.
+//
+// MEASURED, not inferred: with the key unset these two route files reported 37
+// failures and `api-v1-me-appointments-route.test.ts` — which already carries
+// this mock — reported 36/36 green in the same run.
+//
+// The route's own contract is untouched. `{ ok: false, reason: "MISSING" }` for
+// a null header is what makes the `auth_required` case below still exercise the
+// handler's real branch; the client object is opaque to this route, which only
+// passes it to `requireLiveUser`, itself stubbed above.
+vi.mock("@/lib/supabase/bearer", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/supabase/bearer")>();
+  return {
+    ...actual,
+    createClientFromBearer: (header: string | null) =>
+      header ? { ok: true, supabase: {}, token: "tok" } : { ok: false, reason: "MISSING" },
+  };
+});
+
 vi.mock("@/lib/infra/live-user", () => ({
   requireLiveUser: async () => control.live,
 }));
