@@ -764,3 +764,176 @@ Sequence, once the PO decides: Vercel staging deploy branch → `main`, then
 `DEPLOY_REF` → `main`, then the eleven pins can be deleted outright (a scheduled
 `actions/checkout` with no `ref:` already checks out the default branch). Do not
 do any one of those steps alone.
+
+## Appended 2026-08-30 by lane 3d7-1
+
+### WU-U — adopción from the phone, second attempt
+
+The four capabilities (catálogo, ficha, postular, mis postulaciones) were
+cherry-picked from `worktree-wf_60cb7fe0-094-2` onto `3a1a7f1c1` —
+`94ed9abfa 2b6bd04e0 40eaed224 bcbaf2ed9 8681cfbf7 7ce962839`, six commits, three
+conflicting files resolved by hand (`packages/contract/src/api/errors.ts`,
+`scripts/check-api-v1-envelope.ts`, and four `apps/mobile` files, all of them the
+adoption additions meeting the turnos additions that landed in between). The
+seventh commit on that branch was its own board edit and was NOT taken; this
+section replaces it.
+
+**Row 3 stays on the table until an integrator says otherwise**, for the reason
+the WU-S block gives: the board is append-only within a window, and a lane that
+renumbers a table by hand is how the last conflict happened.
+
+#### The four red fences, and what each one really was
+
+The rejection's headline was that the lane declared ONE and there were FOUR. The
+count matters less than what the four had in common: none of them had been RUN.
+
+1. **`lint:file-size`** — `adoption-repository.ts` at 1521 against a hard 1500.
+   Fixed by splitting, never by baselining: that tope is a ratchet. The split is
+   at the boundary that means something rather than the one a line count would
+   suggest — the five queries a CITIZEN reaches (`findPetForApplication`,
+   `findPetForPublicDetail`, `findLatestAdoptionFinalizedAt`,
+   `findApplicantProfile`, `findExistingApplication`) move to
+   `adoption-public-reads.ts`; everything left in that file is reached through an
+   ORG capability. The object is spread back into `AdoptionRepository`, so no call
+   site moved — and there is a test that the spread's methods are IDENTICAL to the
+   module's, because a key declared after a spread silently wins.
+2. **`lint:notifications`** — a raw `db.insert(notifications)` in new code. The
+   first attempt achieved "one implementation for both doors" by making the RAW
+   one the shared one, which is the opposite of what that fence is migrating
+   toward. `actions.ts` is back byte-for-byte at its baselined state and the
+   BEARER door goes through `createNotificationsBulk`, which is the shape the
+   editar door landed in at `ecc835aa4`.
+3. **`lint:audit-log`** — seven operator actions, and the mechanism is worth
+   knowing because nothing about it is obvious and this page's own note is one
+   word off. The alias `const flushNotifications = flushAdoptionNotifications;`
+   resolves **exactly as designed** (`importedIdentifiers` follows
+   `const alias = imported` — measured, not assumed); what broke is WHAT it
+   resolves into. That fence walks ONE hop out of an exported action into the
+   modules it calls; while the raw insert sat inside `actions.ts` as a private
+   function it was invisible to the walk, because `findCandidates` scans the
+   exported action's BODY and a module-level helper is not in it. Extracting it
+   put a mutation one resolvable hop from all seven actions for the first time,
+   and none of them writes an audit row. **Fixing (2) fixes this**: with the raw
+   insert gone from that module nothing reachable mutates, and the seven leave the
+   candidate set exactly as they were at the base.
+4. **`__tests__/api-v1-rate-limit-families.test.ts`, 2-red** — the one the lane
+   did declare, and the one whose real cost it understated. Three `api_v1_*`
+   buckets were spent by the routes and never added to
+   `API_V1_IP_BUCKET_FAMILIES`, so the CGNAT aggregate — a `reduce` over that
+   map — under-declared what a single address may spend by **1.260/min** while
+   still reading like a computed figure. Same defect as the turnos rejection, one
+   window later.
+
+#### What it decided
+
+- **`API_V1_ADOPTION_APPLICATION_IP_LIMIT` moved to `lib/infra/api-v1-limits.ts`
+  with a family of its own, `adoption-application`.** Leaving it beside its
+  use-case resolved it to `route-local`, and that family is kept **EMPTY** on
+  purpose — it is where a bucket lands when nobody derived it, and the fence
+  exists so a second `pre-cgnat` pile cannot form. The per-USER anchor stays
+  beside the use-case, because the web form spends the same counter; the 12×
+  relationship is asserted ACROSS the module boundary so a per-user raise cannot
+  carry a silent twelvefold per-IP raise with it.
+- **Both floors were RECOUNTED from the tree, not incremented.**
+  `Object.keys(API_V1_IP_BUCKET_FAMILIES).length` → **32** (pin 32);
+  `listV1RouteFiles().length` → **27** (pin 27, against the rejected branch's 26,
+  which was computed on a tree without turnos and would have crossed the rebase as
+  a stale literal); the aggregate hand-summed per family → **12 204**, and
+  10 944 + 600 + 600 + 60 agrees. Both derivations had to, and only the first
+  would have caught the missing buckets.
+- **One read bucket for TWO routes** (`adoptions` and `adoptions/{petToken}`),
+  which no other pair on the surface does. Opening a ficha is what a person does
+  FROM the catalogue, dozens of times in one session; two budgets for one
+  behaviour would say the list and the detail are bounded independently, and they
+  are not.
+- **The four adoption routes are registered in `apps/mobile/app/_layout.tsx`.**
+  The header says "Mascota en adopción" and not the animal's name — the header
+  draws before the fetch resolves, and one that fills in afterwards reads as the
+  screen changing under the reader — and "Mis postulaciones" rather than
+  "Postulaciones", because on the web that word is the REFUGIO's review queue and
+  this app has no org surfaces at all.
+
+#### Four claims from the first hand-off that were FALSE, and are now measured
+
+Recorded as claims rather than as bugs, because the pattern is the lesson: every
+one was a sentence about a guard that no test executed.
+
+- **"The soft-delete surface is closed on the way in, WITH A TEST"** — the first
+  half was true and the second was not. `public-soft-delete-resolution.test.ts` is
+  a source-text sweep over `app/` and never looks at
+  `src/modules/adoption/infrastructure/` at all. Now fenced on the COMPILED
+  predicate (`PgDialect().sqlToQuery()`): nine mutations applied to
+  `adoption-public-reads.ts`, nine red — including the reviewer's own, and the one
+  a `toContain` can never catch, `or(unerasedPetByToken(t), sql\`true\`)`.
+- **The ficha's privacy branch** — `readAdoptionDetail` had no test of any kind,
+  and the branch that needed one states a privacy rule in its own docblock: a
+  custody dispute and a rabies observation must keep answering 404, because the
+  "paused" screen NAMES THE SHELTER and would tell a stranger holding a token
+  which animal that organisation is fighting over. Eight mutations, eight red.
+- **The authorization predicates inside `readMyAdoptionApplications`'s raw SQL**
+  were mutable to tautology with everything green — the same defect that turned
+  turnos back. Anchored now on the compiled SQL by EQUALITY (never `toContain`)
+  plus the exact bound params `[userId, userId, 100]`. The params assertion alone
+  kills three of eight mutations; the equality kills the two `OR TRUE` ones that
+  leave params untouched.
+- **"The flow fails CLOSED, deliberately inverting the erasure's fail-open"** —
+  unmeasured, because `submit-adoption-application.test.ts` injects a fake budget
+  on every call and the real `spendApplicantBudget` was executed by nothing.
+  `return "ok"` in its catch left the whole module green. Both directions are now
+  asserted AGAINST EACH OTHER, because the argument only works as a pair: the
+  per-IP gate is allowed to fail OPEN precisely because the per-applicant one
+  still refuses.
+
+#### One code that was documented and unreachable, and the hole under it
+
+`adoption_application_failed` was declared in `@dim/contract/api`, given a
+paragraph there, given es-AR copy in `apps/mobile/src/api/error-copy.ts`, and
+produced by nothing. That was not a dead code — it was a hole:
+`submitAdoptionApplication` returns `{ ok: false }` only for its DOMAIN refusals,
+so a transaction that throws propagated out of the handler and Next answered with
+something that is **not the one-key `{ error }` envelope** every `/api/v1` failure
+is required to be. The route now catches, reports, and answers 500 with the code
+the contract already described.
+
+#### What it did NOT solve
+
+- **The cookie door still does the raw insert.** `actions.ts`'s private
+  `flushNotifications` is untouched and still baselined. Migrating it means
+  minting a dedupe key for the five other use-cases that build notifications, and
+  `finalize-adoption`'s three carry no `relatedEventId` — so a content-derived key
+  there would risk SILENTLY collapsing two legitimately distinct rows. That is a
+  change to a writer the web shares and it wants its own window. The bearer door's
+  key is `adoption:{type}:{eventId}:{userId}`, and its fallback branch is
+  unreachable on that door — pinned at the PRODUCER
+  (`submit-adoption-application.test.ts`) rather than asserted in a comment.
+- **`src/modules/adoption/` writes no audit rows at all, and the fence cannot see
+  it.** The actions pass `repo: AdoptionRepository` as a VALUE rather than calling
+  `AdoptionRepository.something()`, so `reachableSources`' one-hop walk never opens
+  the repository. Seven operator actions — eligibility, listing status, listing
+  content, approve, reject, finalize, reverse — mutate custody and the spine with
+  no `writeAuditLog` anywhere reachable, and `lint:audit-log` is green over all of
+  them. **Reported, not fixed:** it is pre-existing, it is the whole module's
+  shape, and inventing an audit trail for seven operator acts is not a
+  fence-fixing edit.
+- **`NewNotification.severity` declared `"error"`, which the `notification_severity`
+  pgEnum does not have.** Postgres would have rejected such a row and the raw
+  insert's `catch` would have eaten it. Nobody produces one, so the union was
+  narrowed to the four real values — which is also what let the fan-out reach the
+  service without a cast. Named here because it is a latent CLASS and not just a
+  typo: the raw path's `catch` makes every schema mismatch silent.
+- **`app/(public)/adoptar/[petToken]/page.tsx` still has its own query.** The
+  bearer door reads through `adoption-detail-read.ts`; the page does not. What is
+  shared is `isListable`, `findPetForPublicDetail`, `livesWithFamilyUnder` and the
+  payload builder — the parts that can DISAGREE rather than merely duplicate.
+  Carving the page out is a change to a live public surface with its own e2e gate.
+- **`/adopciones`, the org review queue, has no native surface**, and none was
+  attempted: this app has no organisation screens at all.
+
+#### The hand-off numbers the first attempt got wrong
+
+Written down because both were checkable and neither was checked. The previous
+summary said the hand-off was **five steps** and it was six (the sixth being the
+board edit itself), and claimed "biome clean over the 134 files touched" when the
+diff touched **40**. This lane's diff against `3a1a7f1c1` is **48 files**
+(`git diff --name-only 3a1a7f1c1..HEAD | wc -l`), and its fence results are
+reported per-fence by name rather than counted.
