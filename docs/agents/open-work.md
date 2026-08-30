@@ -1876,3 +1876,259 @@ omitting them — because that precedent exists to avoid describing a tree the
 gate did not run on, and a RED has to be written down where the next reader
 looks even at the cost of a doc commit landing on top of it. The only commits
 after the gated tree are this section and its debts row.
+
+## Appended 2026-08-30 by lane wf_02ec3f2f-339-2
+
+### WU-P — mudanza y devolución, dos de las cinco — LANDED 2026-08-30
+
+**Row 6 stays on the table, narrowed.** WU-P named five capabilities —
+rehoming, foster, return, relocation, org memberships — and two of them now work
+from the phone:
+
+- **RELOCALIZACIÓN (mudanza)**: `POST /api/v1/pets/{publicToken}/move` over
+  `recordJurisdictionMove`, and `apps/mobile/src/custody/MudanzaScreen` behind
+  `/mascotas/{token}/mudanza`, reached from a "Localidad" row inside EDITAR —
+  which is exactly where the web puts its own entry point.
+- **DEVOLUCIÓN (return)**: `GET|POST /api/v1/pets/{publicToken}/return` with
+  three commands (`accept_return`, `reject_return`, `propose_return`) over the
+  three use-cases `/mis-mascotas/{token}/devolucion` already drives, and
+  `apps/mobile/src/custody/DevolucionScreen` behind
+  `/mascotas/{token}/devolucion`, reached from the "⋯ Más" list.
+
+**Both routes are registered in `apps/mobile/app/_layout.tsx`** — that file was
+this lane's territory in this window — with titles TRANSCRIBED from the web's own
+`<h1>` and the screens' own `<Title>`, never invented, which is the condition the
+integrator set when it closed `/reclamar`'s registration.
+
+**RE-HOGAR, TRÁNSITO AND ORG MEMBERSHIPS ARE NOT DONE**, and they are returned
+rather than half-built — see "What it did NOT solve" below. Three of five open is
+a row that stays on the table.
+
+#### What it decided
+
+- **THE MOVE GUARD IS NOT A COPY OF THE WEB'S — IT IS THE WEB'S GUARD'S OWN TWO
+  HALVES.** `recordMoveAction` gates on `requireTitularAccess`, which is a
+  cookie-session guard a bearer door cannot call. What it decomposes into can be:
+  `resolvePetHolderAccess` (extracted precisely so "a second door can enforce the
+  SAME rule BY CONSTRUCTION rather than by resemblance") followed by
+  `isTitularHolder`, which is the predicate `requireTitularAccess` ITSELF calls.
+  So the two doors cannot drift into disagreeing about who a titular is. What
+  that admits is said out loud in the route: a co-owner passes, a FOSTER passes,
+  the ORG path passes, and the only refusal is a person-path caretaker — the deny
+  shape `isTitularHolder`'s docblock argues for. It does NOT check `deceased`,
+  because `recordMoveAction` uses `requireTitularAccess` and not
+  `requireAlivePetAccess`: a phone that refused what the browser allows is not
+  parity either.
+- **THE 2026-08-18 DESEMPATE WAS OPEN IN THE RETURN WRITER AND IS NOW CLOSED.**
+  `adoption-public-reads.ts` carries a paragraph about the scar: a `.limit(1)`
+  with no `ORDER BY` picked an ARBITRARY ownership row for a pet transferred
+  between orgs and, in the wild, picked the ORIGINAL shelter's ENDED row, so the
+  public ficha credited a refuge that no longer answered for the animal.
+  `ownerProposeReturnToOrgUseCase` had the same shape in TWO branches (and
+  `.../devolucion/page.tsx` has a third copy), deciding WHICH ORGANISATION is
+  asked to take an animal back. Both writer copies moved into
+  `resolveReturnTargetOrg`, which the writer now calls, with
+  `orderBy(desc(ownerships.startedAt))`. Extracting from the INSIDE of a use-case
+  changes no entry point and no e2e surface, which is why this is a shared
+  implementation rather than the declared-two-copies arrangement `bookSlotAction`
+  settled for. **Fenced on COMPILED SQL by equality** (`PgDialect().sqlToQuery()`),
+  never `toContain`, and both the delete-the-ORDER-BY and the flip-to-`asc`
+  mutations were applied and are red.
+- **THE WEB'S DEVOLUCIÓN PAGE HAS A DEFECT AND THIS DOOR DOES NOT COPY IT.**
+  That page renders the acceptance card whenever `hasPendingProposal` is true,
+  without checking the proposal is ADDRESSED to the viewer — so an owner whose
+  OWN outgoing proposal to a shelter is in flight is shown "Aceptar" and
+  "Rechazar", and `ownerAcceptReturnUseCase` refuses both with "Esta propuesta no
+  está dirigida a vos." A control that can only be refused. Here that case is its
+  own state (`awaiting_org`) with all three capabilities false. **Reported, not
+  fixed on the web**: that page is a browser-facing surface with its own e2e gate.
+- **`capabilities` AND `state.kind` ARE TWO DIFFERENT QUESTIONS, and the screen
+  reads the first.** The read and the write share ONE derivation
+  (`petReturnCapabilities`), so a client can never be offered a control the POST
+  refuses — the arrangement `pets/{token}/profile` uses. The screen test pins it
+  in BOTH directions: a capability true draws its control, and a capability false
+  draws none EVEN WHEN THE STATE LOOKS LIKE IT SHOULD, which is the half a screen
+  reading `kind` fails.
+- **THE RETURN REFUSALS DO NOT FOLD ONTO 403.** 403 is a fact about the CALLER
+  (`not_titular`, `not_the_adopter`); 409 is a fact about the animal's situation
+  (`return_no_proposal`, `return_already_pending`, `return_no_source_org`).
+  Collapsing them would tell somebody they lack a permission when what actually
+  happened is that the proposal they were answering had already been cancelled —
+  and they would go looking for the permission.
+- **`autoCancelled` IS ON THE WIRE WITH ITS SENTENCE.**
+  `ownerAcceptReturnUseCase` has a SUCCESS arm in which the animal did not come
+  back: preconditions failed, so it appends `custody_transfer_cancelled` instead
+  of transferring. The ack carries the flag and the server's own es-AR reason —
+  the one place on this surface where a sentence crosses the wire on purpose,
+  because the four `autoCancelBody` messages are already copy the web renders
+  verbatim — and the screen paints it in the ERROR tone. A green "Listo" there
+  would tell somebody their pet is home.
+- **THE MOVE'S NO-OP IS COMPUTED, NOT PATTERN-MATCHED.** `recordMoveAction` reads
+  the writer's failure as `result.error.includes("no-op") || .includes("differ")`,
+  a match on the text of a Zod message. `recordJurisdictionMove` makes the three
+  equality comparisons `movementJurisdictionChanged`'s `superRefine` makes,
+  against the CANONICALIZED destination, before the writer is called — same rule,
+  no prose in the path, and a no-op costs no transaction.
+- **BOTH FAILURE ARMS ARE TYPED** (`MoveFailureCode`, `resolveReturnTargetOrg`'s
+  codes), the shape `ClaimFailureCode` and `AmendEventFailureCode` already are.
+  The web reads `result.error` and is unaffected; the two role-specific refusal
+  SENTENCES stay byte-for-byte at the writer, because they are copy a person
+  reads.
+- **THE MOVE ACK CARRIES THE CANONICAL PAIR, not the posted one.** The
+  destination is resolved against the INDEC catalog in `strict` mode before it is
+  stored, so `AR-R`/`bariloche` comes back as `Río Negro`/`San Carlos de
+  Bariloche`. A screen that echoed the request would confirm a registration in
+  words that are not on the record.
+- **ART. 16 IS THE RESOLVER'S AND NEITHER DOOR OPENS A SECOND READ OF `pets`.**
+  `resolvePetHolderAccess` filters `isNull(pets.deletedAt)` on both paths, so an
+  erased animal answers `{ kind: "none" }` and both doors 404 it exactly as they
+  404 a stranger's token. **Neither door spells `unerasedPetByToken` or
+  `publicPetByToken`**, so neither is a new entry in the two census fences —
+  checked, not assumed: `public-token-throttle-coverage` and
+  `content-report-read-coverage` are green.
+- **BOTH DOORS ARE `authenticated-write` AND BOTH CHOICES REJECT A NEIGHBOUR.**
+  The move is NOT `pet-record-write` (whose anchor is "a vet day at a rescue is
+  many animals from one egress in one afternoon"; a person moves house) and NOT
+  `pet-disclosure-write` (a move publishes nothing new — the locality was already
+  on the public credential). The return's write JOINS the family `/me/transfers`
+  derived, because it is the same act: "a change of who owns an animal in the
+  national registry".
+- **THE MOBILE ENTRY POINTS ARE THE WEB'S, except one that is deliberately
+  WIDER.** Mudanza is reached from EDITAR, mirroring `PetForm.tsx`'s locked
+  "Localidad" row and its "Registrar mudanza" link. Devolución's "⋯ Más" row is
+  UNCONDITIONAL, and that is declared: `deriveMasSheetItems` adds its row only
+  when a proposal is already pending, so the INITIATION mode of the web's own page
+  — proposing a return to the shelter that placed or fostered the animal — is
+  reachable from no browser navigation at all. The capability exists in the server
+  and in the page; what is missing there is the link.
+
+#### What it did NOT solve
+
+- **RE-HOGAR (the titular's "acompañamiento de adopción") is not built.** It is
+  the largest of the three remaining and the one closest to a live tester: an org
+  picker over `organizationCoverage` narrowed by `coverageAreaCoversZone`, three
+  states (none / pending / active) and three writers
+  (`requestRehomeSponsorship`, `withdrawRehomeRequest`,
+  `withdrawRehomeSponsorship`). **Start here.** Two things a reader should know
+  before opening it: `buscar-hogar/page.tsx` serves TWO different people on one
+  route (a `foster` asking an org to find a permanent home, and a `titular`
+  asking for adoption accompaniment) and "the two never share an authorization
+  check (spec §3, REQ-14)"; and `findCoveringOrgs` deliberately does NOT decide
+  the zone half — `coverageAreaCoversZone`, the predicate the request use-case
+  refuses on, is the single rule, "so a POST straight at the action cannot
+  address an org this page would never have listed". Any bearer door must call
+  that same predicate rather than re-deriving a coverage query.
+- **TRÁNSITO (foster) is not built, and most of it is not a citizen surface.**
+  `src/modules/foster` has fourteen use-cases and the great majority are the
+  ORG's: proposing, assigning, expiring, allowing a co-foster. What a citizen
+  reaches is `upsertFosterVolunteer` (offering yourself as a transit home),
+  `acceptFosterProposal` / `rejectFosterProposal` / `withdrawFosterVolunteer`, and
+  `endFoster`. That is a real slice and it is a different SHAPE from this lane's
+  two — a `/me`-scoped inbox rather than a pet-scoped door, because a proposal
+  arrives about an animal the person does not yet hold.
+- **ORG MEMBERSHIPS is untouched and is the right thing to leave for last**, for
+  the reason WU-U recorded about `/adopciones`: this app has no organisation
+  screens at all, and a citizen wallet that could manage a membership would be the
+  first. It is also the furthest from anything a tester on the internal track can
+  reach.
+- **`recordMoveAction` IS NOT MIGRATED ONTO `recordJurisdictionMove`.** It is a
+  `"use server"` entry point the browser drives, so one rule has two thin copies
+  — declared, with the citation in the module header. The identical arrangement
+  `list-appointments-for-user.ts` and `bookSlotAction` record, for the identical
+  reason. What is duplicated is which arguments to pass: both call
+  `normalizeLocationForWrite(…, { locality: "strict" })` and both call
+  `recordMovementWriter`.
+- **`.../devolucion/page.tsx` STILL HAS A THIRD COPY of the custody lookup**, and
+  it is still unordered. The two WRITER copies moved into
+  `resolveReturnTargetOrg`; the page's own foster-branch query did not, because
+  editing that page is a browser-facing change with its own e2e gate
+  (`e2e/rehome-by-titular.spec.ts` is in the same territory). So the page and the
+  writer can still name different organisations for a pet with two open
+  `shelter_custody` rows — which the invariant says cannot exist, and which is
+  exactly what the 2026-08-18 scar was.
+- **THE WEB'S DEVOLUCIÓN PAGE RESOLVES ITS ACCESS ROW WITH AN UNORDERED
+  `.limit(1)`**, so a person who holds one animal as BOTH owner and foster gets a
+  random role and therefore a random branch of that page. It is the same class as
+  the `resolvePetHolderAccess` `.limit(1)` that was fixed when the role became
+  load-bearing ("harmless while the result was role-agnostic, a coin flip the
+  moment `role` became load-bearing"). The bearer door avoids it by construction —
+  that resolver ranks owner before co_owner before foster before caretaker — so
+  this is reported about the WEB, not carried.
+- **`actorCancelProposalAction` HAS NO NATIVE SURFACE and that is copied, not
+  omitted.** Withdrawing your own outgoing return proposal is reachable from the
+  web's ORG side and from no owner-facing page, so `awaiting_org` carries no
+  capability rather than a `canCancel: false` that would read like a rule.
+- **NO `proposedAt` FIELD on the propose command.** The web's form offers a date
+  input defaulting to today; there is no reader that treats `proposed_at` as
+  anything but "when this was proposed", so a phone offering to back-date one
+  would be offering a way to describe a conversation as having happened when it
+  did not. The server stamps its own clock. Written into the contract.
+- **The two doors are STRICTLY TIGHTER than the browser on rate limits and on
+  DEACTIVATED accounts.** The web has no limiter on `recordMoveAction` or on any
+  of the three return actions — all bare server actions behind
+  `requireUserOrRedirect`, which passes a deactivated account on purpose. Both
+  gaps are the WEB'S; closing either means editing actions the browser also uses.
+  Tighter is the safe direction and both are pinned by tests so they stay
+  decisions rather than becoming drift.
+
+#### One false green found in this lane's OWN fences, and one left standing
+
+`record-jurisdiction-move.test.ts` injected a clock of `2026-08-30` — the day the
+file was written. The mutation its `effective_date` case exists to catch,
+replacing the injected `now` with a second `new Date()`, left the file **14/14
+GREEN**, because the host clock produced the same string. That is
+`turnos-view-model.test.ts`'s timezone false-green one domain over. The clock is
+now a date in the past, which no host clock can agree with, and the note is in the
+file.
+
+A SECOND one was found and is written into the test rather than edited away,
+because the honest fix was a new case: `MudanzaScreen.test.tsx`'s "posts NOTHING
+when no destination was picked" fences the button's `disabled` and NOT
+`buildMove` — with the button disabled, `submit` is never reached, so deleting the
+`return` after the local validation's refusal leaves the suite green. The header
+said the opposite. A case that DOES reach `submit` (a reason past the cap, with a
+destination picked) was added and the mutation is red there. Same shape as the
+declared debt on the reservar screen's `disabled`, in mirror image: there the
+affordance was unfenced, here it was the only thing fenced while the comment
+claimed the rule was.
+
+#### What was measured
+
+- **The 53 tree-sweeping vitest fences, enumerated over the WHOLE tree** with
+  `rg -l 'readdirSync|globSync|discoverTestFiles' --glob '*.test.ts*' --glob
+  '!node_modules' .` — 53 files. **52 under vitest: 52 files / 1131 tests green**,
+  run twice (once over the mudanza tree, once over the return tree). The 53rd,
+  `apps/mobile/src/release/release-config.test.ts`, is a mobile JEST test vitest
+  does not collect; run under Jest, **31/31 green**.
+- **The whole `lint:*` chain, all 67, each run separately: 65 MEASURED AND
+  GREEN.** `lint:route-weight` and `lint:csp-prerender` are declared **NOT
+  MEASURED**, not counted green — both self-skip without a build and exit 0 while
+  saying so in words ("NO SE MIDIÓ NADA", "This run proved nothing about the
+  CSP"). Verified by running each on its own and reading its output.
+- **The whole `unit` vitest project**: 646 files, 9396 passed, 3 skipped.
+- **Targeted blast radius**: every `__tests__/api-v1-*`, the redaction and
+  public-token census fences, the soft-delete and content-report sweeps, and the
+  notification fences — **59 files / 1407 tests green**; plus `packages/contract`,
+  `src/modules/pets`, `src/modules/return-to-owner` and
+  `__tests__/return-to-owner.test.ts` — **33 files / 474 tests green**.
+- **Mobile Jest, the whole suite**: 62 suites / 978 tests green. **Both
+  typechecks clean** (`tsc --noEmit` at the root and `pnpm --filter mimar
+  typecheck`), and `biome check` clean over `apps/mobile`, `packages/contract`,
+  `src` and `app`.
+- **Mutations: 55 applied and RED** — 13 on `recordJurisdictionMove`, 9 on the
+  move route, 8 on `resolveReturnTargetOrg` (including both ORDER-BY ones), 7 on
+  `readPetReturnState` (including the one that reproduces the web page's defect),
+  9 on the return route, 9 on the mobile view-models and screens. Two more were
+  applied and came back GREEN; both are written up under "One false green" above,
+  one fixed and one closed with a new case.
+- **The three pins RECOUNTED from the tree, never incremented**:
+  `Object.keys(API_V1_IP_BUCKET_FAMILIES).length` → **38**,
+  `listV1RouteFiles().length` → **33**, and the CGNAT ceiling **13.884/min**,
+  hand-summed per family (18×600 + 10×120 + 2×60 + 1×600 + 1×240 + 2×180 + 1×240
+  + 1×120 + 1×144 + 1×60) as well as read off the `reduce`. **Whoever merges this
+  alongside another lane must RECOUNT rather than add 720**: these are right for a
+  tree carrying this lane's two doors and no others.
+- **`pnpm verify` and `pnpm test:verified` were NOT run** — the local Supabase is
+  shared with a parallel lane and the brief forbids it. The full suite is the
+  integrator's gate. Named rather than implied, because that is precisely the gap
+  that sank an earlier lane on this page.
