@@ -241,6 +241,73 @@ practice in the repo.
 
 ---
 
+## 11. What actually worked — the method, for whoever runs the next session
+
+The nine points above are what to change. This one is what to keep. Each of
+these was adopted mid-session because something broke without it, and each one
+paid for itself afterwards.
+
+**The window shape the repo already prescribed, rediscovered the expensive way.**
+`CLAUDE.md`'s working norms say it in one line: *parallel writers only in
+worktrees, with disjoint file territory + targeted tests, landing through a
+serial integration merge gate.* Two or three lanes writing at once, each running
+only targeted tests plus its own fences, and **one** integrator who merges,
+re-derives the pins and runs the full gate. The reason is in the norm itself —
+the local Supabase is shared. Gating per-lane *and* at integration was tried
+first; it poisoned three lanes at once (one measured 223 pets inserted by another
+process in fifteen seconds) and cost a full window.
+
+**One integrator, and it says no.** Six times a lane was left out of a window for
+an open blocker, and six times that was right. *A clean window of two beats a
+window of three with one broken inside it.* Rejecting is cheap — the worktree
+survives and the lane comes back from its own branch, not from zero. Two lanes
+were rejected twice and landed on the third try, better than they started.
+
+**The fresh-context adversarial reviewer, per lane.** Rule 8 of the contract, and
+it earns its cost. It found: an authorization `WHERE` mutable into a tautology
+with the suite 21/21 green; a fence whose text anchor let the mutation through; a
+lane that ran 68 `lint:*` fences and missed two vitest ones; and the stub that
+neutered 21 assertions at once. **None of these were visible to the author.** The
+brief that made it work is short: *apply the mutation, do not predict it; recount
+every number at the source; ask whether the harness reproduces production.*
+
+**Resolve conflicts where the context is, not at the merge.** One lane came back
+from rejection having resolved its five conflicts in its own worktree, one at a
+time, with the other side's code visible — and `git merge` had nothing left to
+do. The conflict that had blocked it was a product decision about button order
+that no merge strategy can make. Conflicts are not obligatorily paid at the
+merge; they are better paid by whoever can argue them.
+
+**Reset the worktree base; do not verify it.** This harness creates worktrees
+from `origin/main`, which can be far behind the local tip. Told to *verify and
+stop*, one lane correctly stopped — and its reasoning is the lesson: its own file
+territory was byte-identical between the two revisions, so continuing looked
+safe, but `main` had meanwhile extracted the `isTitularHolder` predicate. **A
+fence recognises guards by form**, so a sweep written against the old file pins a
+vocabulary that has already moved. Detecting was not enough; the first action has
+to be the reset.
+
+**Commit incrementally, and often.** Four session interruptions happened. Every
+time, the lanes that batched their work to the end lost all of it and the ones
+committing as they went kept everything. On the fourth, a lane's nine commits
+survived intact and the window resumed from them.
+
+**Append-only on any file every lane must touch.** The board is edited by every
+lane by rule, so with two writers it is a guaranteed collision. Lanes mark and
+append; the integrator renumbers once at the end.
+
+**Hand back rather than attempt.** Eleven items were returned to the PO instead
+of being half-done: the EAS builds, the Data Safety form, the remote migrations,
+the telemetry vendor, the retention policy. A returned item with its reason
+written is a finished piece of work, not a failure — and one lane's best
+contribution was a costed recommendation it explicitly declined to decide.
+
+**And the one that mattered most, restated because it belongs in this list too:**
+require every new test to name the production mutation that breaks it, and to
+**apply** it. It caught the dominant defect five separate times.
+
+---
+
 ## What is still open, and none of it was touched by this session
 
 Listed so it is in one place, with its weight named honestly:
