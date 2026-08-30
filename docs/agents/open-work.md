@@ -1876,3 +1876,123 @@ omitting them — because that precedent exists to avoid describing a tree the
 gate did not run on, and a RED has to be written down where the next reader
 looks even at the cost of a doc commit landing on top of it. The only commits
 after the gated tree are this section and its debts row.
+
+## Appended 2026-08-30 by lane wf_02ec3f2f-339-1
+
+### The fifth red signature is closed — the omnibox PII test compared two clocks
+
+**The debts row "`omnibox-search.test.ts` compares a NODE clock against a
+POSTGRES clock" is DONE and wants striking by the integrator**, along with the
+sentence in "The gate went red on the second run" that calls the diagnosis
+unfinished. This block does not edit either: the board is append-only within a
+window and striking a row is the integrator's call.
+
+**The diagnosis on that row was right, and it was verified here rather than
+inherited.** `db/schema.ts:2613` declares `performed_at` as
+`timestamp(...).notNull().defaultNow()`, and `logPiiQueryForAuthority` supplies
+no value for it — so the column is Postgres's `now()` inside the Docker
+container, while `const since = new Date()` is the host's. Two clocks, no reason
+to agree.
+
+**It was also incomplete in one way that matters: the defect was in TWO tests,
+not one, and they fail in OPPOSITE directions.** Measured on this tree by
+simulating each drift direction rather than waiting for one:
+
+- Postgres 200 ms **behind** the host → `writes a single pii_queried audit row`
+  fails `expected +0 to be 1`. That is byte for byte the failure the gate saw.
+- Postgres 200 ms **ahead** → `does not log or query for a query shorter than 2
+  chars` fails `expected 1 to be +0`, because the FIRST test's row then sits
+  past the second test's `since`. A negative assertion that leaks is the worse
+  half: it goes red on a tree where nothing is wrong.
+
+#### What it decided
+
+- **The window was not replaced in `omnibox-search.test.ts`. It was removed.**
+  `govtUserId` is a fresh `randomUUID()` per run, so the ACTOR already isolated
+  this run's rows and the timestamp was redundant scaffolding that imported a
+  second clock for nothing. Keying on the actor is **strictly stronger** than
+  the window it replaces — it also catches a row written with a timestamp the
+  window would have missed — so this is a tightening, not the loosening the
+  brief warned against. The negative test counts rows before and after the call
+  instead of filtering by time, which says "the short query added none" without
+  depending on either clock **or on test order**.
+- **`performed_at` stays covered**, on the one property no drift can move: the
+  row carries a timestamp at all (`toBeInstanceOf(Date)`). Asserting WHEN is
+  what was unsound; asserting THAT is free.
+- **The two sleeps are deleted and so is the sentence under them.** The comment
+  read "Fire-and-forget; give the insert a tick to land" over a use-case that
+  AWAITS the write and argues in writing that it must not be fire-and-forget
+  ("under Ley 25.326 the access audit must be durable",
+  `search-omnibox.ts:29-33`). The row is committed before the action resolves;
+  the sleep was 150 ms of dead wait per run and the file got faster without it
+  (2.62s → 1.33s).
+
+#### Two more files had the same defect, and there the window IS load-bearing
+
+Swept with `rg '\b(gte|gt|lte|lt)\((\w+)\.(<the 20 defaultNow columns>)'` over
+every `*.test.ts*` in the tree, the column list derived from `defaultNow()` in
+`db/schema.ts` rather than guessed. Four files match. Two use 365- and 730-day
+windows (`macro-invariants`, `pf1-consolidation-parity`) and are immune to
+millisecond drift — and the second is a parity comparison, so any window applies
+to both sides equally. **The other two had it exactly**:
+`org-memberships.test.ts` (`testStart`, seven assertions) and
+`org-invitations.test.ts` (`acceptStart`).
+
+**These were fixed the other way, and the difference is the point.** Their
+window carries real weight: `audit_log` is append-only (a trigger blocks
+DELETE), the org and member ids are reused, and four of the seven cases assert
+the same `(org, member, action)` triple — only the timestamp separates them. So
+the fix changes WHICH CLOCK the bound comes from, not whether the bound exists:
+`__tests__/_helpers/db-now.ts` returns Postgres's `now()`, putting both sides of
+the comparison on one clock. **A tolerance was rejected**: it is a guess about
+how far two clocks may drift, there is no honest value for it, and any value
+large enough to be safe is large enough to stop excluding what the window exists
+to exclude.
+
+There is no raw-SQL variant of this defect anywhere in the tree — searched
+separately, since a `sql` template interpolating a JS Date would not match the
+drizzle-operator sweep.
+
+#### The mutations, all applied rather than predicted
+
+| Mutation | Result |
+|---|---|
+| Remove the `await logPiiQueryForAuthority(...)` from `search-omnibox.ts` | RED, `expected +0 to be 1` |
+| Log twice instead of once | RED, `expected 2 to be 1` — the "single" in the test name is real |
+| Log on the `< MIN_QUERY_LENGTH` branch | RED **only** on the negative test, `expected 2 to be 1` |
+| `dbNow()` returns epoch | **7 RED** in `org-memberships` (`expected 4 to be 1`, `expected 5 to be 1`, four `expected 2 to be 1`, one `expected true to be false`) — the window still bites |
+
+**The control that makes the fix's claim falsifiable**: with Node's `Date.now`
+offset by **±5 minutes** — 1500× the 200 ms that broke the old version — the
+file is **19/19 green in both directions**. The old version died at 200 ms. You
+cannot be sensitive to a clock you never read.
+
+**One mutation did NOT go red and is reported rather than buried**: `dbNow()`
+returning epoch leaves `org-invitations` green, because within a single run
+nothing else writes its triple. That change is DEFENSIVE — but the table is
+never cleaned, so between runs the previous run's row is exactly what its window
+has to exclude, and the host clock was the wrong instrument for that either way.
+
+#### What was measured
+
+- **The 53 tree-sweeping fences, enumerated over the WHOLE tree** with the
+  command this page prescribes: **52 vitest files / 1131 tests green**, plus the
+  53rd (`apps/mobile/src/release/release-config.test.ts`) under **Jest, 31/31**.
+  Both numbers match what this page already records, which is the point of
+  quoting them.
+- **The whole `lint:*` chain, all 66, each run separately: 64 measured and
+  green.** `lint:route-weight` and `lint:csp-prerender` are declared **NOT
+  MEASURED** — both self-skip without a build and exit **0** while saying so
+  ("NO SE MIDIÓ NADA", "This run proved nothing about the CSP").
+- **Blast radius** — every test file naming `omnibox`, `auditLog`, `audit_log`,
+  `pii_queried` or `logPiiQuery`: **121 files / 1660 tests green**.
+- **`tsc --noEmit` clean**; `biome check` clean over the four touched files.
+- **`pnpm verify` and `pnpm test:verified` were NOT run** — the local Supabase is
+  shared with a parallel lane and the brief forbids it. Named rather than
+  implied, per this page's own standing instruction.
+
+**What this lane cannot claim**: that the gate will now be deterministic. It
+removes one proven source of nondeterminism and proves that one is gone; whether
+it was the ONLY one is not settled by anything measured here. The control at
+`6671cff99` came back clean twice, which the previous window already recorded as
+narrowing attribution without closing it, and that remains the honest reading.

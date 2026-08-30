@@ -25,7 +25,7 @@
 //    12. Short queries (<2 chars) are not logged and return empty.
 
 import { randomUUID } from "node:crypto";
-import { and, eq, gte, inArray, sql } from "drizzle-orm";
+import { and, eq, inArray, sql } from "drizzle-orm";
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 
 vi.mock("@/lib/infra/auth-guards", () => ({
@@ -467,52 +467,65 @@ describe("searchOmnibox — welfare denuncia by DEN- code", () => {
 // PII logging
 // ---------------------------------------------------------------------------
 
+// Every pii_queried row this run has written for the operator, keyed on the
+// ACTOR and deliberately on no time window at all.
+//
+// `govtUserId` is a fresh `randomUUID()` per run (see beforeAll), so the actor
+// is already a complete isolator — strictly stronger than a timestamp, because
+// it also catches a row written with a timestamp a window would have missed.
+//
+// The window it replaces was the repo's fifth red signature: both tests below
+// took `const since = new Date()` from the NODE clock and compared it against
+// `performed_at`, which `db/schema.ts` defaults from Postgres's own `now()`
+// inside a Docker container (`logPiiQueryForAuthority` supplies no value for
+// it). Two clocks that have no reason to agree, and a Docker VM on macOS
+// resyncs without warning. Measured on this tree by simulating each direction:
+// Postgres 200 ms behind the host turned the first test red with
+// `expected +0 to be 1` — byte for byte the failure that flaked the 2026-08-30
+// gate — and Postgres 200 ms ahead turned the second red with
+// `expected 1 to be +0`, because the first test's row then leaked past the
+// second's `since`. One defect, two tests, opposite directions.
+async function piiQueriedRowsForOperator() {
+  return db
+    .select({ payload: auditLog.payload, performedAt: auditLog.performedAt })
+    .from(auditLog)
+    .where(and(eq(auditLog.actorUserId, govtUserId), eq(auditLog.action, "pii_queried")));
+}
+
 describe("searchOmniboxAction — PII-query logging", () => {
   it("writes a single pii_queried audit row with surface=omnibox and the result count", async () => {
     vi.mocked(requireAdminOrGovtOrRedirect).mockResolvedValue(govtSession(govtUserId));
 
-    const since = new Date();
+    // No sleep. The deleted one was justified by "Fire-and-forget; give the
+    // insert a tick to land", and the code it tests says the opposite in
+    // writing: search-omnibox.ts AWAITS logPiiQueryForAuthority under a comment
+    // arguing it must not be fire-and-forget ("under Ley 25.326 the access
+    // audit must be durable"). The row is committed before the action resolves.
     const results = await searchOmniboxAction(`CASO-${TAG}`);
 
-    // Fire-and-forget; give the insert a tick to land.
-    await new Promise((res) => setTimeout(res, 100));
-
-    const rows = await db
-      .select({ payload: auditLog.payload })
-      .from(auditLog)
-      .where(
-        and(
-          eq(auditLog.actorUserId, govtUserId),
-          eq(auditLog.action, "pii_queried"),
-          gte(auditLog.performedAt, since),
-        ),
-      );
+    const rows = await piiQueriedRowsForOperator();
 
     expect(rows.length).toBe(1);
     const payload = rows[0].payload as { surface?: string; result_count?: number; query?: string };
     expect(payload.surface).toBe("omnibox");
     expect(payload.query).toBe(`CASO-${TAG}`);
     expect(payload.result_count).toBe(results.total);
+    // The column stays covered, on the one property of it no drift can move:
+    // the row carries a timestamp at all. Asserting WHEN is what was unsound.
+    expect(rows[0].performedAt).toBeInstanceOf(Date);
   });
 
   it("does not log or query for a query shorter than 2 chars", async () => {
     vi.mocked(requireAdminOrGovtOrRedirect).mockResolvedValue(govtSession(govtUserId));
 
-    const since = new Date();
+    // Counted across the call rather than filtered by time: this says "the
+    // short query added no row" without depending on either clock, and without
+    // depending on how many rows earlier tests in this file already wrote.
+    const before = (await piiQueriedRowsForOperator()).length;
+
     const results = await searchOmniboxAction("a");
     expect(results.total).toBe(0);
 
-    await new Promise((res) => setTimeout(res, 50));
-    const rows = await db
-      .select({ id: auditLog.id })
-      .from(auditLog)
-      .where(
-        and(
-          eq(auditLog.actorUserId, govtUserId),
-          eq(auditLog.action, "pii_queried"),
-          gte(auditLog.performedAt, since),
-        ),
-      );
-    expect(rows.length).toBe(0);
+    expect((await piiQueriedRowsForOperator()).length).toBe(before);
   });
 });

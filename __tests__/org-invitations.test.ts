@@ -43,6 +43,7 @@ import {
   inviteMemberAction,
   revokeInvitationAction,
 } from "@/src/modules/organizations/actions";
+import { dbNow } from "./_helpers/db-now";
 
 const SUPABASE_URL = "http://127.0.0.1:54321";
 const SECRET = "sb_secret_N7UND0UgjKTVK-Uodkm0Hg_xSvEMPvz";
@@ -457,8 +458,12 @@ describe("acceptInvitationAction", () => {
     if ("error" in invite) throw new Error(invite.error);
     const token = invite.inviteUrl.split("/r/invite/")[1];
 
-    // Capture timestamp immediately before accept so we can scope the audit query.
-    const acceptStart = new Date();
+    // Capture timestamp immediately before accept so we can scope the audit
+    // query. From POSTGRES, not `new Date()`: `performed_at` is defaulted from
+    // the database's own clock inside a container, and comparing it against the
+    // host's made this exact assertion shape flake an integration gate — see
+    // __tests__/_helpers/db-now.ts.
+    const acceptStart = await dbNow();
 
     // Invitee accepts.
     mockSessionAs(inviteeUserId, INVITEE_EMAIL);

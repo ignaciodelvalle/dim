@@ -46,6 +46,7 @@ import {
   removeMemberAction,
   setMemberEventWriteAction,
 } from "@/src/modules/organizations/actions";
+import { dbNow } from "./_helpers/db-now";
 
 const SUPABASE_URL = "http://127.0.0.1:54321";
 const SECRET = "sb_secret_N7UND0UgjKTVK-Uodkm0Hg_xSvEMPvz";
@@ -779,9 +780,16 @@ describe("leaveOrganizationAction", () => {
 describe("ARCH-T audit_log — org membership lifecycle", () => {
   // audit_log is append-only (DB trigger blocks DELETE). Use a per-test
   // timestamp to scope queries to rows created by that specific test run.
+  //
+  // The bound comes from POSTGRES, not from `new Date()`: `performed_at` is
+  // defaulted from the database's own `now()` inside a container, and comparing
+  // it against the host clock made the same assertion shape flake an
+  // integration gate (see __tests__/_helpers/db-now.ts). The window itself is
+  // load-bearing here and is NOT dropped — four of these cases assert the same
+  // (org, member, action) triple, so only the timestamp separates them.
   let testStart: Date;
-  beforeEach(() => {
-    testStart = new Date();
+  beforeEach(async () => {
+    testStart = await dbNow();
   });
 
   it("removeMemberAction writes org_member_removed with admin_remove payload", async () => {
