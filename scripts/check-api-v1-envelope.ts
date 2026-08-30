@@ -195,8 +195,17 @@ export const V1_ROUTE_GLOB = "app/api/v1/**/route.ts";
  * TWENTY-THREE paragraph had to repair. It is `listV1RouteFiles().length`
  * RECOUNTED on this tree with all three routes and the claim door present: 28
  * files, 28 floor, equal rather than merely satisfied.
+ *
+ * THIRTY with the BUSCAR half of turnos: `app/api/v1/appointments/route.ts` and
+ * `appointments/[offeringToken]/route.ts`. It is `listV1RouteFiles().length`
+ * recounted on THIS worktree and not 28 + 2 — the distinction the paragraph above
+ * exists for, and it matters again in this window: a parallel lane is carrying
+ * `app/api/v1/welfare-reports/route.ts`, so whoever merges the two must RECOUNT
+ * rather than add. Adding one to each lane's own figure gives a floor that is
+ * satisfied by the merged tree and no longer equal to it, which is exactly the
+ * silent loosening this number keeps being repaired for.
  */
-export const MIN_V1_ROUTE_FILES = 28;
+export const MIN_V1_ROUTE_FILES = 30;
 
 export const HELPER_MODULE = "@/lib/infra/api-v1";
 

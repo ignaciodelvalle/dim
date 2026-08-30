@@ -1082,6 +1082,33 @@ export const API_V1_IP_BUCKET_FAMILIES: Readonly<Record<string, ApiV1IpFamily>> 
   api_v1_adoptions_read_ip: "authenticated-read",
   api_v1_me_adoption_applications_ip: "authenticated-read",
   api_v1_adoption_apply_ip: "adoption-application",
+
+  // Landed with the native BUSCAR half of turnos (WU-S): `/api/v1/appointments`
+  // and `/api/v1/appointments/{offeringToken}` share ONE read bucket, which is
+  // the second pair on this surface to do so and it is the adoption catalogue's
+  // argument verbatim — opening one offering's slot grid is what a person does
+  // FROM the results, several times in one sitting, and the two calls are one act
+  // of looking for a turno. Two budgets would say the list and the grid are
+  // bounded independently, and they are not.
+  //
+  // `authenticated-read` AND NOT `public-reference`, which is the tempting
+  // neighbour: what this reads IS a public catalogue of approved offerings, and
+  // `/api/v1/localities` reads a public catalogue too. The difference is the one
+  // that family's derivation turns on — `localities` has NO IDENTITY TO KEY ON,
+  // so its per-IP bucket is the only bucket there is and carrier NAT bites
+  // undiluted. This route requires a session and spends a per-USER bucket
+  // underneath, which is what actually bounds a person; the per-IP half is the
+  // cheap pre-auth check in front of it, and that is the read family's shape.
+  //
+  // THE WRITE IS NOT HERE, and its absence is the decision worth reading. `book`
+  // lands on `POST /api/v1/me/appointments` beside `cancel` and spends
+  // `api_v1_me_appointments_write_ip`, because the two are one anchor: each is a
+  // transaction across three tables that moves a place between people. The
+  // block above derives that ceiling against exactly that act — "hands a place
+  // back to somebody else" — and booking is the same sentence in the other
+  // direction. A `booking` family carrying identical numbers would be the
+  // eleven-paragraphs problem from the top of this file, once more.
+  api_v1_appointment_search_ip: "authenticated-read",
 };
 
 /**

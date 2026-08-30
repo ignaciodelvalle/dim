@@ -1,4 +1,4 @@
-// The one owner-side appointment command, and the translation of its refusals.
+// The two owner-side appointment commands, and the translation of their refusals.
 //
 // THERE IS NO PET-ACCESS GUARD IN THIS FILE, AND ITS ABSENCE IS THE DESIGN
 // ---------------------------------------------------------------------------
@@ -18,6 +18,16 @@
 // The rule is the writer's, it is the row's own `owner_user_id`, and this file
 // neither re-implements it nor loosens it.
 //
+// `book` DOES HAVE A PET GUARD, AND IT IS NOT IN THIS FILE EITHER
+// ---------------------------------------------------------------------------
+// The paragraph above is about `cancel` and stops being true one command over:
+// booking names an ANIMAL, so somebody has to check that the caller may book for
+// it. That check is `bookSlotForUser`'s — an active ownership row of any role,
+// not deceased, not erased — copied as a negation of `app/actions/booking.ts`'s
+// own call site and cited there line by line. It is in the use-case rather than
+// here for the reason the cancel's rule is in ITS use-case: a guard in an adapter
+// is a guard the other door does not have.
+//
 // TRANSLATING PROSE INTO CODES
 // ---------------------------------------------------------------------------
 // `cancelAppointmentByOwner` answers `{ error: string }` carrying es-AR prose
@@ -35,6 +45,10 @@
 
 import { apiV1Error, apiV1Json } from "@/lib/infra/api-v1";
 import { DbBudgetExceededError, withDbBudgetOrThrow } from "@/lib/infra/db-budget";
+import {
+  type BookSlotFailureCode,
+  bookSlotForUser,
+} from "@/src/modules/events/application/booking/book-slot-for-user";
 import { cancelAppointmentByOwner } from "@/src/modules/events/application/booking/cancel-appointment-by-owner";
 import { listAppointmentsForUser } from "@/src/modules/events/application/booking/list-appointments-for-user";
 import type { ApiV1ErrorCode, AppointmentCommandAckV1 } from "@dim/contract/api";
@@ -119,9 +133,76 @@ export function appointmentRefusal(error: string) {
   return apiV1Error("appointment_failed", 500);
 }
 
+/**
+ * `book`'s TYPED refusals, mapped onto the `/api/v1` error vocabulary.
+ *
+ * THIS TABLE IS COARSER THAN THE UNION IT READS, AND THE COARSENESS IS DECLARED
+ * RATHER THAN DISCOVERED. Six domain refusals collapse onto four existing codes,
+ * because `API_V1_ERROR_CODES` gained no `booking_*` family in this window — that
+ * file and `apps/mobile/src/api/error-copy.ts` were another lane's territory, and
+ * a second lane appending members to the same array is precisely the five-way
+ * conflict that turned WU-T back. The exact codes and es-AR copy the refusals
+ * DESERVE are handed to the integrator instead of half-added here.
+ *
+ * The fold is not arbitrary: `errors.ts` applies one bar — "a decision a client
+ * has to be able to act on differently" — and by that bar three of the six really
+ * are one answer. `slot_not_found`, `slot_unavailable` and `already_booked` all
+ * mean the world moved between the read and the tap, and the move is identical in
+ * all three: RE-READ THE GRID. `appointment_already_resolved` is documented in
+ * exactly those words ("somebody already answered, or the world moved … a client
+ * must RE-READ and never re-send") and is deliberately ambiguous for exactly this
+ * case — `already_booked` may be this caller's own retry landing on a booking that
+ * committed.
+ *
+ * WHAT THE FOLD COSTS, said plainly so it is not read as free: the es-AR copy for
+ * these four codes was written for CANCELLING, so a person refused a booking reads
+ * "Este turno ya cambió de estado" about a slot they never held. It is true and it
+ * is not the sentence somebody deserves. `pet_deceased` and `pet_not_yours` are
+ * only reachable when the read and the tap disagree — the search drops a deceased
+ * or erased animal from `pets` entirely — so the coarse copy lands on a race and
+ * on a hand-posted request, never on ordinary use.
+ */
+export const BOOK_REFUSALS: Readonly<
+  Record<BookSlotFailureCode, { code: ApiV1ErrorCode; status: number }>
+> = {
+    // The animal is not this caller's, or it was erased. ONE answer for both, the
+    // fold `bookSlotAction` makes for its own reason: a distinct code would make
+    // this door an existence oracle over erased pets (Ley 25.326 art. 16).
+    pet_not_yours: { code: "not_found", status: 404 },
+    // The animal's life record is closed. `event_not_allowed` is documented as
+    // "the ANIMAL refuses, whoever is asking: its life record is closed
+    // (`status = 'deceased'`)", which is this refusal word for word — and a turno
+    // IS the appointment for a clinical act, since every service kind in the
+    // catalogue names the `pet_event` its attendance emits.
+    pet_deceased: { code: "event_not_allowed", status: 409 },
+    // The three that mean "re-read the grid" — see the docblock above.
+    slot_not_found: { code: "appointment_already_resolved", status: 409 },
+    slot_unavailable: { code: "appointment_already_resolved", status: 409 },
+    already_booked: { code: "appointment_already_resolved", status: 409 },
+    // The clock passed the start. A DIFFERENT move from the three above: nothing
+    // was taken, the slot simply aged out, and the next grid will not show it.
+    slot_past: { code: "appointment_past", status: 409 },
+  };
+
 export async function runAppointmentCommand(ctx: AppointmentCommandContext) {
   try {
     switch (ctx.input.command) {
+      case "book": {
+        const result = await bookSlotForUser({
+          slotId: ctx.input.slotId,
+          petPublicToken: ctx.input.petPublicToken,
+          // FROM THE SESSION, NEVER FROM THE BODY. `bookSlotWriter` takes a
+          // caller-supplied user id and says so in its own docblock, which is why
+          // it is not exported from a `"use server"` file; the one place that id
+          // may come from on this door is the liveness guard's answer.
+          userId: ctx.userId,
+        });
+        if (!result.ok) {
+          const refusal = BOOK_REFUSALS[result.code];
+          return apiV1Error(refusal.code, refusal.status);
+        }
+        return ack({ command: "book", appointmentToken: result.appointmentToken });
+      }
       case "cancel": {
         const result = await cancelAppointmentByOwner(ctx.input.appointmentToken, ctx.userId);
         if ("error" in result) return appointmentRefusal(result.error);

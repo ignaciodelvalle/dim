@@ -130,8 +130,20 @@ const ROUTE_GLOB = "app/api/v1/**/route.ts";
  * real tree and silently loosened by one, which is the failure this whole comment
  * is about. Recounted on the merged tree with all three adopción buckets and the
  * reclamar door present: `Object.keys(API_V1_IP_BUCKET_FAMILIES).length` is 33.
+ *
+ * 33 → 34 with the BUSCAR half of turnos, which adds ONE bucket for TWO routes
+ * (`api_v1_appointment_search_ip`, shared by `/api/v1/appointments` and
+ * `/api/v1/appointments/{offeringToken}`) and no bucket at all for the booking
+ * write — `book` lands beside `cancel` on `POST /me/appointments` and spends the
+ * counter that route already has. Recounted on this worktree:
+ * `Object.keys(API_V1_IP_BUCKET_FAMILIES).length` is 34.
+ *
+ * WHOEVER MERGES THIS ALONGSIDE THE DENUNCIAS LANE MUST RECOUNT, NOT ADD ONE.
+ * That lane's hand-off carries an `api_v1_welfare_reports_ip` entry, and 34 + 1
+ * is only right if nothing else lands in between — which is the assumption that
+ * produced every stale figure named in the paragraphs above.
  */
-const MIN_IP_BUCKETS = 33;
+const MIN_IP_BUCKETS = 34;
 
 /**
  * Collects `enforceRateLimit`-style bucket literals from a route's source and
@@ -579,7 +591,28 @@ describe("/api/v1 rate-limit families — the numbers the derivation committed t
     // because the arithmetic is the evidence for the pin. `API_V1_IP_BUCKET_
     // FAMILIES` is still the list that cannot lie; recount it, do not trust
     // these tables.
-    expect(API_V1_CGNAT_FAMILY_IP_CEILING_PER_MINUTE).toBe(12_324);
+    //
+    // 12.324 → 12.924 with the BUSCAR half of turnos, and the delta is ONE
+    // `authenticated-read` bucket at 600/min — `api_v1_appointment_search_ip`,
+    // shared by the two search routes. Hand-summed per family on this worktree
+    // rather than read off the `reduce` the assertion compares against, because a
+    // computed value agreeing with itself is not evidence:
+    //
+    //   authenticated-read     17 × 600 = 10.200
+    //   authenticated-write     7 × 120 =    840
+    //   account-security        2 ×  60 =    120
+    //   inbox-state             1 × 240 =    240
+    //   public-reference        1 × 600 =    600
+    //   pet-disclosure-write    2 × 180 =    360
+    //   pet-record-write        1 × 240 =    240
+    //   pet-registration        1 × 120 =    120
+    //   media-upload            1 × 144 =    144
+    //   adoption-application    1 ×  60 =     60
+    //                          ── 34 buckets ─────────
+    //                                     12.924
+    //
+    // and 12.324 + 600 = 12.924 agrees. Both had to.
+    expect(API_V1_CGNAT_FAMILY_IP_CEILING_PER_MINUTE).toBe(12_924);
   });
 
   it("keeps pet-disclosure-write at N callers on BOTH windows", () => {

@@ -153,6 +153,7 @@ export const CAPABILITY_PATH_SEGMENTS: readonly string[] = [
   "turnos", // /org/[orgToken]/agenda/turnos/[appointmentToken]
   "mis-turnos", // /mis-turnos/[appointmentToken]
   "buscar", // /turnos/buscar/[offeringToken]
+  "appointments", // /api/v1/appointments/[offeringToken] — the API twin of `buscar`
   "invite", // /r/invite/[token] — accepting it grants org membership
   "match", // /mis-mascotas/nueva/match/[matchedPetToken]
   "nueva", // /mis-mascotas/nueva/[publicToken]
