@@ -41,6 +41,18 @@
 // art. 16 promise — an erased animal must be indistinguishable from one that
 // never existed — into the status line, where a caller can tell it apart from a
 // transport failure only by guessing.
+//
+// THAT REASONING IS SOUND AND THE PROMISE IT PROTECTS IS ONLY HALF KEPT, which
+// the original of this paragraph did not say. Keeping 404 off the lookup buys
+// art. 16 nothing while the CLAIM arm leaks the same fact: `submitFreeClaimFor
+// User` resolves the pet without the `isNull(pets.deletedAt)` filter its lookup
+// sibling has, so an erased animal's chip comes back `not_claimable` (409) where
+// an unregistered one comes back `not_found` (404) — the distinction this
+// paragraph refuses to put in the status line, put in the status line one
+// command over. Worse, with no active custody on the erased pet the claim goes
+// through. Measured 2026-08-30; PRE-EXISTING, the web's wizard has it too, and
+// argued in full in `claim/types.ts` next to the code table that promises it.
+// Do not read this header as evidence the invariant holds end to end.
 
 import { apiV1Error, apiV1Json } from "@/lib/infra/api-v1";
 import { DbBudgetExceededError } from "@/lib/infra/db-budget";

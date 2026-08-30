@@ -25,12 +25,40 @@
  * - `identifier_invalid`— the value cannot resolve to anything: empty, or a
  *                         microchip that is not exactly fifteen digits. Refused
  *                         before any budget is spent and before any transaction.
- * - `not_found`         — the identifier resolved to no active row. Deliberately
- *                         indistinguishable from an erased pet (art. 16).
+ * - `not_found`         — the identifier resolved to no active row. Intended to
+ *                         be indistinguishable from an erased pet (art. 16),
+ *                         and TRUE OF THE LOOKUP ONLY — see the note below.
  * - `not_claimable`     — the animal exists and is not free: deceased, lost, in
  *                         an open custody dispute, or already held by somebody
  *                         under a custody of ANY role.
  * - `failed`            — the transaction itself failed. Nothing is half written.
+ *
+ * THE ART. 16 CLAIM ABOVE HOLDS FOR `lookupForClaimForUser` AND NOT FOR
+ * `submitFreeClaimForUser`. Recorded here, in the file that makes the claim,
+ * rather than only on the board — a promise and the note that it is half kept
+ * have to travel together or the promise is the only half anyone reads.
+ *
+ * `lookup-for-claim.ts` resolves the animal with
+ * `innerJoin(pets, and(eq(pets.id, petIdentifications.petId), isNull(pets.deletedAt)))`,
+ * so an erased pet answers `not_found` exactly like a chip that was never
+ * registered. `submit-free-claim.ts` resolves the SAME identifier and then
+ * selects the pet with a bare `eq(pets.id, ident.petId)` — no `deletedAt`
+ * filter — because `pet_identifications` rows stay `status = 'active'` after an
+ * erasure. Measured 2026-08-30 against real Postgres: an erased pet's chip
+ * answers `not_claimable` (409) where an unregistered chip answers `not_found`
+ * (404), so a self-registered account can tell "erased" from "never existed" off
+ * the status line; and if that erased pet has no active custody the claim
+ * SUCCEEDS — it returns the animal's name and token, writes the ownership,
+ * appends `ownership_claimed` to the spine, notifies and audits, while the
+ * lookup on the same door still says the animal is not there.
+ *
+ * The hole is PRE-EXISTING and the web's own wizard has it identically: this is
+ * one guard missing from a shared writer, not something the bearer door
+ * introduced. It is written down instead of patched because the fix changes
+ * behaviour for the browser too and belongs with a test, and because no fence
+ * goes red for it — it is an ABSENCE, not a mutable predicate, which is the
+ * category this repo has been bitten by before. Owner and the shape of the fix
+ * are on the board under "Declared debts".
  */
 export const CLAIM_FAILURE_CODES = [
   "rate_limited",
