@@ -559,7 +559,6 @@ describe("/api/v1 rate-limit families — the numbers the derivation committed t
     //
     //   authenticated-read     16 × 600 = 9.600
     //   authenticated-write     7 × 120 =   840
->>>>>>> 7a028b880 (fix(adopcion): tres baldes por IP que las rutas ya gastaban no estaban declarados, así que el techo CGNAT se sub-declaraba 1.260/min)
     //   account-security        2 ×  60 =   120
     //   public-reference        1 × 600 =   600
     //   inbox-state             1 × 240 =   240
