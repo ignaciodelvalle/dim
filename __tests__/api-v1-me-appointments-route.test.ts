@@ -58,6 +58,10 @@ const control = vi.hoisted(() => ({
   cancelResult: { ok: true } as Record<string, unknown>,
   /** Every call the cancel writer received. */
   cancelCalls: [] as Array<{ token: string; userId: string }>,
+  /** What the BOOKING writer answers. */
+  bookResult: { ok: true, appointmentToken: "APT-NEW-0001" } as Record<string, unknown>,
+  /** Every call the booking writer received. */
+  bookCalls: [] as Array<{ slotId: string; petPublicToken: string; userId: string }>,
 }));
 
 vi.mock("@/lib/infra/live-user", async (importOriginal) => {
@@ -152,12 +156,29 @@ vi.mock("@/src/modules/events/application/booking/cancel-appointment-by-owner", 
   },
 }));
 
+// THE BOOKING USE-CASE IS MOCKED HERE AND ITS PREDICATE IS TESTED ELSEWHERE.
+// `bookSlotForUser` carries the ownership guard, and mocking it in this file is
+// only legitimate because that guard has its own compiled-SQL fence next to it
+// (`src/modules/events/application/booking/__tests__/book-slot-for-user.test.ts`).
+// What this file is for is the DOOR: which budgets it spends, which id it acts
+// as, and how a typed refusal becomes a status.
+vi.mock("@/src/modules/events/application/booking/book-slot-for-user", () => ({
+  bookSlotForUser: async (args: { slotId: string; petPublicToken: string; userId: string }) => {
+    control.bookCalls.push(args);
+    return control.bookResult;
+  },
+}));
+
 import { type SQL, sql } from "drizzle-orm";
 import { PgDialect } from "drizzle-orm/pg-core";
 
-import { APPOINTMENT_REFUSAL_RULES } from "@/app/api/v1/me/appointments/commands";
+import { APPOINTMENT_REFUSAL_RULES, BOOK_REFUSALS } from "@/app/api/v1/me/appointments/commands";
 import { GET, POST } from "@/app/api/v1/me/appointments/route";
-import type { MyAppointmentV1, MyAppointmentsV1 } from "@dim/contract/api";
+import {
+  API_V1_ERROR_CODES,
+  type MyAppointmentV1,
+  type MyAppointmentsV1,
+} from "@dim/contract/api";
 
 /**
  * Compiles a captured drizzle fragment to the SQL text and bound params Postgres
@@ -234,6 +255,8 @@ beforeEach(() => {
   control.spent = [];
   control.cancelResult = { ok: true };
   control.cancelCalls = [];
+  control.bookResult = { ok: true, appointmentToken: "APT-NEW-0001" };
+  control.bookCalls = [];
 });
 
 describe("GET — the three sections are the server's clock, not the client's", () => {
@@ -665,7 +688,12 @@ describe("POST — the one command, and who it acts as", () => {
     // `attend`, `no_show` and `cancel_by_org` are the clinic's, behind
     // `/org/{token}/agenda`. A citizen wallet that could run one would be doing
     // something the owner's browser cannot.
-    for (const command of ["attend", "no_show", "cancel_by_org", "book"]) {
+    //
+    // `book` USED TO BE IN THIS LIST and is not any more — it landed as the second
+    // command and has its own describe below. The three that remain are the three
+    // that are refused by RULE rather than by scope, which is what this case was
+    // always about.
+    for (const command of ["attend", "no_show", "cancel_by_org"]) {
       const response = await post({ command, appointmentToken: "APT-7K2M-9QX4" });
       expect(response.status).toBe(400);
       expect(await response.json()).toEqual({ error: "invalid_request" });
@@ -714,6 +742,119 @@ describe("POST — the one command, and who it acts as", () => {
     for (const sentence of sentences) {
       expect(mapped.has(sentence as string)).toBe(true);
     }
+  });
+});
+
+describe("POST book — the second command, and the coarseness of its refusals", () => {
+  const BOOK = {
+    command: "book",
+    slotId: "6f1c2d3e-4a5b-4c6d-8e9f-0a1b2c3d4e5f",
+    petPublicToken: "DIM-PAMP-0001",
+  };
+
+  it("books and acks, passing the caller id from the SESSION and not from the body", async () => {
+    const response = await post({
+      ...BOOK,
+      // A client trying to book as somebody else. The route never reads it.
+      userId: "99999999-9999-4999-8999-999999999999",
+    });
+
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({ command: "book", appointmentToken: "APT-NEW-0001" });
+    expect(control.bookCalls).toEqual([
+      { slotId: BOOK.slotId, petPublicToken: BOOK.petPublicToken, userId: ME },
+    ]);
+  });
+
+  it("carries NO `changed` field, unlike the cancel ack", async () => {
+    // A booking either minted an appointment or was refused; a boolean that is
+    // always `true` on its only success arm describes nothing. The cancel ack
+    // carries one for a real reason (see the contract) and copying it here to make
+    // the two "consistent" would put a field on the wire nobody can act on.
+    const body = (await (await post(BOOK)).json()) as Record<string, unknown>;
+    expect("changed" in body).toBe(false);
+  });
+
+  it("acts as whoever the LIVENESS GUARD says is calling, not whoever the first test did", async () => {
+    liveAs(SOMEBODY_ELSE);
+    await post(BOOK);
+    expect(control.bookCalls).toEqual([
+      { slotId: BOOK.slotId, petPublicToken: BOOK.petPublicToken, userId: SOMEBODY_ELSE },
+    ]);
+  });
+
+  it("maps every typed refusal to a code, and the map is TOTAL over the union", async () => {
+    // THE COARSENESS IS THE SUBJECT HERE. Six domain refusals collapse onto four
+    // existing codes because `API_V1_ERROR_CODES` gained no `booking_*` family in
+    // this window — `commands.ts` says why at length. This case pins the fold so
+    // that the day the codes land, changing it is a deliberate edit.
+    const expected: Array<[string, string, number]> = [
+      ["pet_not_yours", "not_found", 404],
+      ["pet_deceased", "event_not_allowed", 409],
+      ["slot_not_found", "appointment_already_resolved", 409],
+      ["slot_unavailable", "appointment_already_resolved", 409],
+      ["already_booked", "appointment_already_resolved", 409],
+      ["slot_past", "appointment_past", 409],
+    ];
+
+    for (const [failure, code, status] of expected) {
+      control.bookResult = { ok: false, code: failure };
+      const response = await post(BOOK);
+      expect(response.status).toBe(status);
+      expect(await response.json()).toEqual({ error: code });
+    }
+
+    // TOTAL, in both directions. A seventh member of `BookSlotFailureCode` added
+    // without a row here is a TYPE error in `commands.ts` (the map is a
+    // `Record<BookSlotFailureCode, …>`); what the type cannot catch is a row that
+    // stops being reachable, which this half names.
+    expect(Object.keys(BOOK_REFUSALS).sort()).toEqual(expected.map(([f]) => f).sort());
+  });
+
+  it("only ever answers a code the CONTRACT declares", async () => {
+    // The mobile copy switch is exhaustive over `API_V1_ERROR_CODES` with no
+    // `default`, so a code outside that vocabulary renders as a blank line under a
+    // "no se pudo" heading. The map is typed `ApiV1ErrorCode`, and this is the
+    // runtime half of the same claim.
+    for (const refusal of Object.values(BOOK_REFUSALS)) {
+      expect(API_V1_ERROR_CODES).toContain(refusal.code);
+    }
+  });
+
+  it("refuses a book with a malformed slot before reaching the writer", async () => {
+    const response = await post({ ...BOOK, slotId: "not-a-uuid" });
+    expect(response.status).toBe(400);
+    expect(await response.json()).toEqual({ error: "invalid_request" });
+    expect(control.bookCalls).toEqual([]);
+  });
+
+  it("refuses a book with no pet before reaching the writer", async () => {
+    const response = await post({ command: "book", slotId: BOOK.slotId });
+    expect(response.status).toBe(400);
+    expect(await response.json()).toEqual({ error: "invalid_request" });
+    expect(control.bookCalls).toEqual([]);
+  });
+
+  it("spends the WRITE budgets, not the read ones — booking is not a lookup", async () => {
+    // `book` shares `cancel`'s route and therefore its family. That is the
+    // decision `api-v1-limits.ts` records: both are a transaction across three
+    // tables that moves a place between people, so one anchor bounds both.
+    await post(BOOK);
+    expect(control.spent).toEqual([
+      "api_v1_me_appointments_write_ip",
+      "api_v1_me_appointments_write_user",
+    ]);
+  });
+
+  it("refuses at the per-IP gate BEFORE the liveness round-trip", async () => {
+    control.overLimit = new Set(["api_v1_me_appointments_write_ip"]);
+    control.live = () => {
+      throw new Error("the guard must not run when the IP bucket already refused");
+    };
+
+    const response = await post(BOOK);
+    expect(response.status).toBe(429);
+    expect(control.bookCalls).toEqual([]);
   });
 });
 

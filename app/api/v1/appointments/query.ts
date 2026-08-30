@@ -19,6 +19,7 @@ import { and, asc, eq, isNull } from "drizzle-orm";
 import { db, ownerships, pets } from "@/db";
 import { findServiceKind } from "@/lib/reference/service-kinds";
 import type { AppointmentSearchV1 } from "@dim/contract/api";
+import { isRealArDay } from "@dim/contract/input";
 
 /** `2026-08-30`. Anything else is treated as absent rather than refused. */
 const ISO_DAY = /^\d{4}-\d{2}-\d{2}$/;
@@ -59,14 +60,25 @@ export function parseSearchQuery(params: URLSearchParams): AppointmentSearchQuer
   const requestedKind = trimmed(params, "service_kind");
   const fechaDesde = trimmed(params, "fecha_desde");
 
-  // A DAY THAT PARSES BUT DOES NOT EXIST (`2026-02-31`) becomes `Invalid Date`,
-  // and `Invalid Date` bound into a comparison is how a query returns nothing for
-  // no visible reason. It is folded into "no floor asked for", which is what a
-  // malformed date means.
+  // A DAY THAT PARSES AND DOES NOT EXIST IS THE CASE THE REGEX MISSES, and
+  // finding that out cost this file a test. `"2026-02-31"` matches `ISO_DAY`
+  // perfectly, and `new Date("2026-02-31")` does NOT throw and is NOT `NaN` —
+  // JavaScript ROLLS IT OVER to 3 March. A search floor silently moved three days
+  // forward hides every slot in between and reports nothing.
+  //
+  // `isRealArDay` is the contract's own round-trip check and it is IMPORTED
+  // rather than restated: it already refuses exactly this on the caretaker and
+  // record-event schemas, and its header records the same rollover measured twice
+  // before. Two implementations of one calendar in one repo is how they stop
+  // agreeing.
+  //
+  // A DAY THAT DOES NOT EXIST IS TREATED AS ABSENT, not refused. A floor is a
+  // FILTER, not an assertion — the honest answer to "show me from 31 February" is
+  // the whole window, and a 400 over a query param the web quietly ignores would
+  // make the phone stricter than the browser for no gain.
   let fromDate: Date | null = null;
-  if (fechaDesde && ISO_DAY.test(fechaDesde)) {
-    const parsed = new Date(fechaDesde);
-    if (!Number.isNaN(parsed.getTime())) fromDate = parsed;
+  if (fechaDesde && ISO_DAY.test(fechaDesde) && isRealArDay(fechaDesde)) {
+    fromDate = new Date(fechaDesde);
   }
 
   return {
