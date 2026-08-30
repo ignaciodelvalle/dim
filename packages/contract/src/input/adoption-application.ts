@@ -1,4 +1,4 @@
-// What a client may SEND to `POST /api/v1/adoptions/{petToken}/applications`.
+// What a client may SEND to `POST /api/v1/adoptions/{petToken}`.
 //
 // IT IS A MIRROR OF `validateApplicationInput`, NOT A SECOND OPINION
 // ---------------------------------------------------------------------------
@@ -31,6 +31,13 @@
 // from the path, and a body field naming a second pet would be a field somebody
 // eventually trusts. The web action takes `petPublicToken` in its input because
 // a server action has no path to read it from; an HTTP route does.
+//
+// ONE PATH, TWO METHODS. `GET /api/v1/adoptions/{petToken}` is the ficha and
+// `POST` is the application — the shape `pets/{token}/profile` and `me/privacy`
+// already use, and the reason is the same one WU-R wrote down: a sub-path per
+// verb is a second URL to authorize, to rate-limit and to keep in step with the
+// first. There is no command discriminator in this body because there is one
+// command; a union member is one line away the day there are two.
 
 import { z } from "zod";
 

@@ -1607,11 +1607,23 @@ describe("every app/(app) citizen read of `pets` carries the soft-delete filter 
     // SQL); a floor well below that stays non-vacuous while tolerating a page
     // being deleted, and still fails a graph walk that silently returns nothing.
     expect(readers.length).toBeGreaterThanOrEqual(15);
-    // Named anchors: the six tránsito/turno screens the sweep was seeded for,
-    // the eight readers the widening to the whole app/(app) tree pulled in, and
-    // postulaciones — the one RAW-SQL reader, invisible until PETS_READ learned
-    // to see `JOIN pets` inside a sql template (the whole point of this unit).
-    expect(rels).toContain("app/(app)/mis-mascotas/postulaciones/page.tsx");
+    // Named anchors: the six tránsito/turno screens the sweep was seeded for
+    // and the eight readers the widening to the whole app/(app) tree pulled in.
+    //
+    // POSTULACIONES IS NO LONGER ONE OF THEM, and its absence is the reason the
+    // describe block underneath exists. It was named here as "the one RAW-SQL
+    // reader, invisible until PETS_READ learned to see `JOIN pets` inside a sql
+    // template (the whole point of this unit)" — and on 2026-08-30 (WU-U) its
+    // query moved out of the page into
+    // `src/modules/adoption/infrastructure/my-applications-read.ts`, so that the
+    // bearer door and the cookie door could not derive an application's status
+    // two different ways.
+    //
+    // Deleting the anchor and stopping there would have quietly removed this
+    // unit's only subject: NOTHING under app/(app) spells raw SQL over `pets`
+    // any more (checked by hand, 2026-08-30), so the branch would still be code
+    // with no test behind it. The anchor therefore FOLLOWS THE CODE rather than
+    // being dropped — see "the raw-SQL reader that left app/(app)" below.
     expect(rels).toContain("app/(app)/cuenta/transitos/activos/page.tsx");
     expect(rels).toContain("app/(app)/cuenta/transitos/historial/page.tsx");
     expect(rels).toContain("app/(app)/cuenta/transitos/propuestas/page.tsx");
@@ -1634,6 +1646,37 @@ describe("every app/(app) citizen read of `pets` carries the soft-delete filter 
       return !pin || pin.reads !== r.reads || pin.guards !== r.guards;
     });
     expect(unexplained).toEqual([]);
+  });
+
+  // -------------------------------------------------------------------------
+  // The raw-SQL reader that left app/(app) (WU-U, 2026-08-30)
+  // -------------------------------------------------------------------------
+  // `readMyAdoptionApplications` is the query that used to sit inside
+  // `app/(app)/mis-mascotas/postulaciones/page.tsx`. It is the reason PETS_READ
+  // learned to match `JOIN pets` inside a `sql` template at all, and its guard
+  // is the one that stops an ERASED pet's name rendering to a third-party
+  // APPLICANT — the applicant's own submission row and the shelter's custody
+  // row both survive a rehome-R4 titular's erasure, so nothing upstream filters
+  // it for them.
+  //
+  // It now lives under src/, which no sweep in this file walks, and a module
+  // that moved out of every sweep is a guard nothing checks. Pinned by PATH
+  // rather than by a glob on purpose: this is one file with one guard and a
+  // specific reason, and a glob would turn a precise claim into a vague one.
+  it("keeps the guard on the raw-SQL applications reader after it moved to src/", () => {
+    const rel = "src/modules/adoption/infrastructure/my-applications-read.ts";
+    const source = readFileSync(resolve(ROOT, rel), "utf8");
+    const { reads, guards } = countPetsAccess(source);
+    // NON-VACUITY FIRST: a file that stopped reading `pets` (renamed, deleted,
+    // rewritten onto a view) would satisfy `guards >= reads` at 0 and 0, which
+    // reads exactly like a clean run.
+    expect(reads, `${rel} no longer reads pets — this pin is describing nothing`).toBeGreaterThan(
+      0,
+    );
+    expect(
+      guards,
+      `${rel} reads pets without the art. 16 guard — an erased pet's name would render to the applicant, who is a third party`,
+    ).toBeGreaterThanOrEqual(reads);
   });
 
   it("carries no stale or drifted pin — a pin describes exactly what was reviewed", () => {

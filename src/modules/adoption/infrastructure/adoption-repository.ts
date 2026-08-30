@@ -730,6 +730,82 @@ export const AdoptionRepository = {
   },
 
   /**
+   * The pet and its CURRENT custodian, for a public ficha read.
+   *
+   * TWO LOOKUPS, NOT ONE JOIN, AND BOTH HALVES OF THAT ARE SCARS.
+   *
+   * `findPetForApplication` above INNER JOINs the open `shelter_custody` row,
+   * which is right for a write (you cannot apply to an animal no shelter holds)
+   * and wrong for this read: an adoption ENDS that row, so the join would turn
+   * the ficha's "¡ya encontró su hogar!" — the whole point of which is that
+   * somebody followed a stale share link — into a hard 404 saying the animal
+   * never existed. So the pet resolves on its own and the custody is a second
+   * question, exactly as `app/(public)/adoptar/[petToken]/page.tsx` does it.
+   *
+   * The ORDER BY is the other scar and it is not decoration. That page's single
+   * query used to pick an ARBITRARY ownership row for a pet transferred between
+   * orgs, and in the wild it picked the ORIGINAL shelter's ENDED row: the public
+   * detail credited a refuge that no longer answered for the animal while the
+   * catalogue card and the transfer hub named the one that did (found live by
+   * the 9-role external run, 2026-08-18). Two open custody rows should not
+   * exist; if the invariant ever breaks, the MOST RECENT wins, consistently.
+   *
+   * Art. 16 comes from `unerasedPetByToken`: an erased pet answers like a token
+   * that never existed, on this door as on every other.
+   */
+  async findPetForPublicDetail(
+    petPublicToken: string,
+    tx?: Tx,
+  ): Promise<{
+    pet: PetRow;
+    org: typeof organizations.$inferSelect | null;
+    custodyStartedAt: Date | null;
+  } | null> {
+    const client = tx ?? db;
+    const [petRow] = await client
+      .select()
+      .from(pets)
+      .where(unerasedPetByToken(petPublicToken))
+      .limit(1);
+    if (!petRow) return null;
+
+    const [custodyRow] = await client
+      .select({ org: organizations, startedAt: ownerships.startedAt })
+      .from(ownerships)
+      .innerJoin(organizations, eq(organizations.id, ownerships.ownerOrganizationId))
+      .where(
+        and(
+          eq(ownerships.petId, petRow.id),
+          eq(ownerships.role, "shelter_custody"),
+          isNull(ownerships.endedAt),
+        ),
+      )
+      .orderBy(desc(ownerships.startedAt))
+      .limit(1);
+
+    return {
+      pet: petRow,
+      org: custodyRow?.org ?? null,
+      custodyStartedAt: custodyRow?.startedAt ?? null,
+    };
+  },
+
+  /**
+   * Whether this pet carries an `adoption_finalized` event, and when the most
+   * recent one landed. The ficha's D7.2 branch decides "recently" from it.
+   */
+  async findLatestAdoptionFinalizedAt(petId: string, tx?: Tx): Promise<Date | null> {
+    const client = tx ?? db;
+    const [row] = await client
+      .select({ recordedAt: petEvents.recordedAt })
+      .from(petEvents)
+      .where(and(eq(petEvents.petId, petId), eq(petEvents.eventType, "adoption_finalized")))
+      .orderBy(desc(petEvents.recordedAt))
+      .limit(1);
+    return row?.recordedAt ?? null;
+  },
+
+  /**
    * Finds the applicant's profile (accountType check).
    */
   async findApplicantProfile(

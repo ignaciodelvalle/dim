@@ -593,6 +593,35 @@
  * - `profile_failed`    — the write itself failed. 500. RETRYING IS SAFE: an
  *                         identity edit is a value, not an append, and a no-op
  *                         repeat appends no event at all.
+ * - `adoption_application_refused`
+ *                       — the adoption use-case refused the submission. 409,
+ *                         and ONE code for every one of its refusals rather
+ *                         than a family of them, which is a deliberate
+ *                         coarseness with a stated cost.
+ *
+ *                         `submitAdoptionApplication` returns es-AR PROSE, not
+ *                         a discriminated reason — it was written for a web
+ *                         form's inline error — so a route that mapped its
+ *                         sentences onto codes would be parsing copy, the most
+ *                         brittle thing a caller can do. What that costs is
+ *                         that "you already applied", "this animal is no longer
+ *                         listed" and "institutional accounts cannot adopt"
+ *                         arrive indistinguishable.
+ *
+ *                         It is paid down by the READ rather than left open:
+ *                         `GET /api/v1/adoptions/{petToken}` carries `canApply`
+ *                         and `applyBlockedReason`, so a client should never
+ *                         reach this code for the two refusals a person can act
+ *                         on. Splitting the use-case's return into codes is the
+ *                         right fix and it is a change to a writer the web
+ *                         shares.
+ * - `adoption_application_failed`
+ *                       — the write itself failed after every check passed.
+ *                         500. RETRYING IS SAFE, and for a stronger reason than
+ *                         `profile_failed`'s: if the first attempt in fact
+ *                         landed, the retry meets the duplicate-pending refusal
+ *                         and comes back 409 rather than appending a second
+ *                         letter to the shelter's queue.
  * - `erasure_reason_required`
  *                       — the supresión arrived without a usable motivo. 400,
  *                         and a code of its own rather than `invalid_request`
@@ -756,6 +785,8 @@ export const API_V1_ERROR_CODES = [
   "appointment_failed",
   "claim_not_claimable",
   "claim_failed",
+  "adoption_application_refused",
+  "adoption_application_failed",
 ] as const;
 
 export type ApiV1ErrorCode = (typeof API_V1_ERROR_CODES)[number];

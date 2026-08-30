@@ -253,7 +253,7 @@ export type AdoptionDetailV1 = {
 };
 
 // ---------------------------------------------------------------------------
-// The write ack — `POST /api/v1/adoptions/{petToken}/applications`
+// The write ack — `POST /api/v1/adoptions/{petToken}`
 // ---------------------------------------------------------------------------
 
 /**
