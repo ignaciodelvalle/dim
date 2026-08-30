@@ -181,6 +181,26 @@ export default function RootLayout() {
             no org surfaces at all. The possessive is what keeps a tester from
             reading this screen as one they do not have. */}
         <Stack.Screen name="adoptar/postulaciones" options={{ title: "Mis postulaciones" }} />
+        {/* DENUNCIAR MALTRATO. Unregistered, the header would read "denunciar" —
+            a lowercase Spanish verb, which is the one failure mode this file
+            exists to prevent, on the screen where it would be read as the app
+            addressing the reader in the imperative.
+
+            THE TITLE IS TRANSCRIBED, NOT INVENTED, which is the condition the
+            integrator set when it closed `/reclamar`'s registration and
+            deliberately left the two `turnos` routes open: what a header should
+            SAY is copy, and a merge is no place to argue it. Nothing is argued
+            here — "Denunciar maltrato" is already the screen's own `<Title>` in
+            its form state and already the label on the `/mascotas` footer button
+            that reaches it. Two surfaces had decided this string before this line
+            existed.
+
+            IT IS THE ACT AND NOT THE OUTCOME. The screen's other state titles
+            itself "Denuncia registrada", and a header that tracked it would
+            rename the page under somebody at the moment they are trying to write
+            down a reference code — the same argument `/reclamar` records about a
+            screen whose title moves three times. */}
+        <Stack.Screen name="denunciar" options={{ title: "Denunciar maltrato" }} />
       </Stack>
     </SafeAreaProvider>
   );
