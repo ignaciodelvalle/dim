@@ -689,6 +689,28 @@ vitest never collects it. Off by one against the command it prints is the worst
 shape a recipe can have — the next reader cannot tell whether they are missing a
 fence or looking at a non-test, which is the same class of doubt this page exists
 to remove.
+
+**And 46 is not the number of sweeping fences. It is the number that live in
+`__tests__/`, which is a different thing, and the gap cost this row its gate.**
+The integration run of WU-U came back `1 failing test(s)` on
+`lib/observability/redact-prefix-coverage.test.ts` — a fence that globs
+`{app,apps/mobile/app}/**/*.{ts,tsx}`, derives every route segment whose next
+segment is a token, and asserts each one is in the redaction list. It reported
+`adoptions (from app/api/v1/adoptions/[petToken])`. **The lane could not have
+caught it with the recipe above**, because the fence is not under `__tests__/`
+and no `__tests__`-scoped command will ever return it. Widen the search to the
+whole tree:
+
+```
+rg -l 'readdirSync|globSync|discoverTestFiles' --glob '*.test.ts*' --glob '!node_modules' .
+```
+
+**53 files: the 46 above plus 7 that live beside the code they police** —
+`lib/observability/redact-prefix-coverage`, `lib/analytics/jurisdiction-targets`,
+`lib/metrics/province-disclosure`, `lib/projections/pet-compliance`,
+`apps/mobile/src/release/release-config`, and two under
+`src/modules/rehome/__tests__/`. A fence's directory says nothing about how much
+of the tree it reads.
 Two were the known blockers; a third, `api-v1-rate-limit-families`, turned out to
 be a **broken file** rather than a failing test (a conflict marker survived the
 cherry-pick and the file did not parse) — invisible to all 67 `lint:*` scripts,
@@ -1150,6 +1172,28 @@ twice, and neither is in it.
 **No bucket was added by the integrator**, so no ceiling moved. WU-T's
 `api_v1_welfare_reports_ip` entry was NOT applied: the map may not declare a
 family for a bucket no route spends, and the route did not land.
+
+**The first full-suite run came back RED, and the fix is the only line of
+product code the integrator wrote.** `reported 1467 file(s); 1467 discovered;
+1 failing test(s); 0 broken file(s)` — one real failing assertion, no
+`Worker exited unexpectedly`, so **none of the three crash signatures in
+`/CLAUDE.md`** and no grounds for a re-run. The victim was
+`lib/observability/redact-prefix-coverage.test.ts`, reporting
+`adoptions (from app/api/v1/adoptions/[petToken])`: a route this merge created,
+whose URL carries a bearer token, on a path segment the redaction list did not
+name. Attribution is not a judgement call — the fence's output is a pure
+function of the directory layout, and `app/api/v1/adoptions/` does not exist at
+`235d22c8c`.
+
+The fix is one entry, `"adoptions"`, in `CAPABILITY_PATH_SEGMENTS`, and it has
+an exact precedent two lines below it: `pets` is listed for
+`/api/v1/pets/[publicToken]` even though `mascotas` already covers the screens
+carrying the same token. **That pair is the pattern, and the docblock now says
+so** — a capability ships as a Spanish screen segment, gets its entry, and the
+`/api/v1/<english-plural>/` twin arrives later as a second URL for the same
+token. `adoptar`/`adoptions` is the second instance. Reverting eighteen reviewed
+commits over a derived list that told you exactly what it was missing would have
+been the wrong trade; so would committing red.
 
 **One reservation from the fresh-context review was accepted rather than fixed**
 — the unfenced liveness gate on the detail GET, now a row in "Declared debts" with

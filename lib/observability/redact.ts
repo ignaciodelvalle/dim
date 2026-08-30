@@ -101,8 +101,20 @@ function escapeForRegex(literal: string): string {
  *
  * Holding the string IS the authorization for these, so a leaked one is a live
  * grant rather than merely an identifier. Recounted from the router on
- * 2026-08-29 by enumerating every dynamic segment under `app/` and
+ * 2026-08-30 by enumerating every dynamic segment under `app/` and
  * `apps/mobile/app/` whose param carries a token, code or serial.
+ *
+ * **Do not hand-maintain this against the router — it will go stale, and it
+ * has, twice.** `redact-prefix-coverage.test.ts` derives the same set from the
+ * filesystem and names what is missing; adding the entry it names is the whole
+ * fix. It found `/api/v1/pets/[publicToken]` on its first run, and on
+ * 2026-08-30 it caught `adoptions` at an integration gate, on a route that had
+ * merged an hour earlier. **The shape it keeps catching is an API twin**: a
+ * capability first ships as a Spanish screen segment, the entry gets added, and
+ * then `/api/v1/<english-plural>/` arrives later as a second URL carrying the
+ * same token. `mascotas`/`pets` and `adoptar`/`adoptions` are both that pair.
+ * If you are adding an `/api/v1` route whose next segment is a token, its
+ * segment belongs here even when the screen it mirrors is already listed.
  *
  * Most of the values behind these segments are ALSO covered by the credential
  * rule above, because they are `PREFIX-XXXX-XXXX` codes. That redundancy is
@@ -123,6 +135,7 @@ export const CAPABILITY_PATH_SEGMENTS: readonly string[] = [
   "compartir", // /libreta/compartir/[shareToken]
   "cuidado", // /cuidado/[grantToken] — CG- + 32 hex, prefix rules miss it
   "adoptar", // /adoptar/[petToken]
+  "adoptions", // /api/v1/adoptions/[petToken] — the API twin of `adoptar`
   "mis-mascotas", // /mis-mascotas/[publicToken]
   "mascotas", // /gob|/admin|/org/.../mascotas/[token], and apps/mobile
   "pets", // /api/v1/pets/[publicToken] — the public API, same token
