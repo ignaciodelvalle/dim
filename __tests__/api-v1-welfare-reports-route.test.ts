@@ -119,9 +119,25 @@ vi.mock("@/lib/infra/rate-limit", async (importOriginal) => {
     // `async (endpoint: string) => …` cannot tell a route that keys its per-IP
     // bucket on the address from one that keys it on the user — which is the
     // declared debt on the turnos route test, in this exact position.
+    // THE BROKEN-LIMITER ERROR CARRIES THE BUCKET KEY, because the real one
+    // does and this file's whole subject is what reaches a log. `rate-limit.ts`
+    // throws `enforceRateLimit: UPSERT returned no rows for key "{bucketKey}"`
+    // on its driver-glitch path, and `bucketKey` embeds the identifier — which
+    // on `welfare_auth` is the caller's uuid, on the ANONYMOUS branch. A stub
+    // that threw a tidy `"rate_limit_buckets is unavailable"` made every
+    // assertion in this file about logs pass for free: the sweep below asserts
+    // the uuid is nowhere in `trace()`, and `trace()` reads `control.errors`,
+    // but with a message that never contained an id there was nothing to catch.
+    // Same defect this lane wrote up one file over — "a stub that drops the
+    // predicate does not fail to test it, it makes the whole file assert that
+    // the argument does not matter."
     enforceRateLimit: async (endpoint: string, identifier: string) => {
       control.spent.push({ endpoint, identifier });
-      if (control.limiterBroken.has(endpoint)) throw new Error("rate_limit_buckets is unavailable");
+      if (control.limiterBroken.has(endpoint)) {
+        throw new Error(
+          `enforceRateLimit: UPSERT returned no rows for key "${endpoint}:${identifier}:hour:1756512000000"`,
+        );
+      }
       if (control.overLimit.has(endpoint)) throw new actual.RateLimitError(new Date(), endpoint);
     },
   };
@@ -863,6 +879,18 @@ describe("the budgets are the ones the derivation named", () => {
     // …and the outage is REPORTED rather than swallowed, so failing open does
     // not also mean failing silent.
     expect(control.errors.join(" ")).toContain("api-v1-welfare-reports/welfare_auth");
+
+    // …and the REPORT DOES NOT CARRY THE CALLER, which is the assertion this
+    // case was missing and the reason the stub above now throws production's
+    // own message. The limiter's key embeds the identifier, so on the anonymous
+    // branch the honest fail-open writes the reporter's uuid into the function
+    // logs unless something takes it out. `redactCallerId` in `commands.ts` is
+    // that something; delete it and this line goes red on its own, without the
+    // sweep below having to reach a path it never exercises.
+    expect(control.errors.join(" ")).not.toContain(ME);
+    // NON-VACUITY: the message really is the one that would have carried it —
+    // the bucket and the window survive, only the identity is gone.
+    expect(control.errors.join(" ")).toContain("welfare_auth:«caller»:hour:");
   });
 
   it("FAILS OPEN on the per-IP bucket too, and the two arms are not the same arm", async () => {

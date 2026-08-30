@@ -76,21 +76,29 @@
 // is `welfare_auth`, 10/hr, keyed on the user id — the SAME bucket the browser's
 // own action spends. See `commands.ts`.
 //
-// `api_v1_welfare_reports_ip` IS NOT YET IN `API_V1_IP_BUCKET_FAMILIES`, and
-// that is declared rather than discovered. `lib/infra/api-v1-limits.ts` is
-// another lane's territory in this window, so the entry
-// (`api_v1_welfare_reports_ip: "authenticated-write"`) is handed to the
-// integrator, exactly as the reclamar door handed over
-// `api_v1_me_pet_claims_ip`. Until it lands,
-// `__tests__/api-v1-rate-limit-families.test.ts` is TWO tests red, measured
-// rather than predicted — "declares a family for every per-IP bucket the routes
-// actually spend", and "files every bucket under the family whose ceiling it
-// actually spends" (`declared undefined, spends
-// API_V1_AUTHENTICATED_WRITE_IP_LIMIT`). Both are the same missing line and both
-// go green with it. The aggregate ceiling pin (11 064) stays green, because that
-// sum is computed over the MAP and the map has not moved — which is exactly the
-// silent subtraction the reclamar door's note warns about: the ceiling under-
-// declares itself by 120/min for as long as the entry is absent.
+// `api_v1_welfare_reports_ip` IS IN `API_V1_IP_BUCKET_FAMILIES`, and this
+// paragraph is the correction of the one that stood here until the 2026-08-30
+// integration merge. That version was written when the entry really was absent
+// and really was being handed over — `lib/infra/api-v1-limits.ts` was another
+// lane's territory when this file was last touched — and it said four things:
+// the entry is not in the map, it is handed to the integrator,
+// `__tests__/api-v1-rate-limit-families.test.ts` is TWO tests red, and the
+// aggregate ceiling pin (11 064) stays green. **All four went false inside this
+// lane's own branch**, six commits after this file stopped being edited, and
+// nothing turned red to say so: prose is not compiled.
+//
+// It is corrected rather than deleted because of what it was wrong ABOUT. The
+// hand-off it described was real and the ceiling really does under-declare
+// itself by 120/min while an entry is missing — that is the reclamar door's
+// warning and it still holds. What expired is the tense. A note that tells the
+// next reader to apply a line already applied costs somebody an afternoon
+// proving it is already there, which is the second time that has happened on
+// this surface.
+//
+// The pin is `toBe`, not a floor, so it is the one number here that cannot rot
+// quietly: it reads 13 044 on the merged tree — 11 064 was this file's own
+// figure two doors ago, and neither WU-T's 12 444 nor WU-S's 12 924 survived
+// the window either.
 //
 // NO `Idempotency-Key`, AND THAT IS A REFUSAL TO PROMISE
 // ---------------------------------------------------------------------------

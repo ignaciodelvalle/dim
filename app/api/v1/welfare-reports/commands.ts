@@ -64,6 +64,16 @@
 // picks "Enviar anónima" in the BROWSER spends the identical bucket under the
 // identical key. Same table, same shape, one implementation.
 //
+// THERE WAS A SECOND ONE AND IT WAS THIS DOOR'S. The integration review of
+// 2026-08-30 found that the limiter's driver-glitch error carries the bucket KEY
+// in its message — so the uuid — and that `spendUserBudget` handed it straight
+// to `reportError`, which writes `error.message` verbatim to the function logs.
+// That sink has none of the three properties the paragraph above rests on. It is
+// closed at the call site rather than declared; see `redactCallerId`. The lesson
+// is the shape of the miss: an enumeration titled "its exact reach" was written
+// carefully, was correct about the table it was looking at, and did not look at
+// the catch block eight lines below it.
+//
 // WHY THERE IS NO `registered_pet` SUBJECT, AND WHY THAT ALSO REMOVES A LOG
 // ---------------------------------------------------------------------------
 // `@dim/contract/input`'s `welfare-report.ts` drops that member: naming a
@@ -419,7 +429,44 @@ async function spendUserBudget(userId: string): Promise<boolean> {
     return true;
   } catch (err) {
     if (err instanceof RateLimitError) return false;
-    reportError("api-v1-welfare-reports/welfare_auth", err);
+    // THE UUID COMES OUT OF THE MESSAGE BEFORE THE LINE IS WRITTEN, and this is
+    // a SECOND residual channel that the enumeration above did not have. Found
+    // by the integration review, 2026-08-30, and closed here rather than added
+    // to the list, because it has none of the four properties that list leans
+    // on.
+    //
+    // `lib/infra/rate-limit.ts` throws `enforceRateLimit: UPSERT returned no
+    // rows for key "welfare_auth:{userId}:hour:{window}"` on its driver-glitch
+    // path — a plain `Error`, so it lands in this arm — and `reportError` writes
+    // `error.message` VERBATIM to `console.error`. On the ANONYMOUS branch that
+    // is the caller's uuid in Vercel's function logs: a sink with no RLS, no
+    // one-hour TTL, and a reader population of "anybody with dashboard access".
+    // The declared `rate_limit_buckets` channel is defensible precisely because
+    // it has all three; this one had none of them, and unlike that one it is
+    // this door's own — the web path (`src/modules/welfare/actions.ts`) rethrows
+    // and never reports.
+    //
+    // The stack is dropped with the message on purpose: it is a driver frame
+    // list from inside `enforceRateLimit`, the context string already says which
+    // bucket failed, and a `stack` field would carry the same string back in.
+    reportError("api-v1-welfare-reports/welfare_auth", redactCallerId(err, userId));
     return true;
   }
+}
+
+/**
+ * The caller's uuid, out of whatever was thrown, before it reaches a log line.
+ *
+ * REPLACED RATHER THAN DROPPED. `"…for key \"welfare_auth:«caller»:hour:…\""`
+ * still says which bucket and which window failed, which is the whole
+ * diagnostic; only the identity goes. A message with the id cut out entirely
+ * would read as a different failure.
+ *
+ * IT RETURNS A STRING AND NOT AN `Error`. `reportError` takes `unknown`
+ * and stringifies a non-Error through `String(err)`, so what is emitted is
+ * exactly this string and nothing carries a stack that could hold the id again.
+ */
+function redactCallerId(err: unknown, userId: string): string {
+  const message = err instanceof Error ? err.message : String(err);
+  return userId.length === 0 ? message : message.replaceAll(userId, "«caller»");
 }
