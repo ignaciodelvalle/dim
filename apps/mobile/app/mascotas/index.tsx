@@ -154,6 +154,23 @@ export default function MisMascotasScreen() {
           accessibilityHint="Turnos reservados, y el código de check-in de cada uno."
           onPress={() => router.push(ROUTES.turnos)}
         />
+        {/* RECLAMAR'S ONLY ENTRY POINT, and it needs one for the reason "Mis
+            turnos" above does, one step stronger: on the WEB this capability is
+            reached from a card on `/mis-mascotas` and from nowhere else, and a
+            phone has no address bar to type into. An unlinked native screen is a
+            screen that does not exist.
+
+            It sits at the bottom of this footer rather than beside "Registrar
+            otra mascota" on purpose. The two are genuinely close — both end with
+            an animal in this list — and they are not the same act: registering
+            creates a record, reclaiming asserts something about one that already
+            exists and that somebody else may hold. Putting them side by side
+            would invite a person to reach for whichever button is nearer. */}
+        <SecondaryButton
+          label="Reclamar una mascota"
+          accessibilityHint="Si tu mascota ya está registrada por su microchip o su tatuaje."
+          onPress={() => router.push(ROUTES.reclamar)}
+        />
         <SecondaryButton label="Ajustes" onPress={() => router.push(ROUTES.ajustes)} />
       </View>
     </Screen>
