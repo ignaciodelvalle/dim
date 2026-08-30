@@ -65,14 +65,24 @@ and its fix was stale before it was committed.
 
 **The integrator owns the renumbering call and RE-RATIFIED it here, by re-running
 the audit rather than inheriting the conclusion.** `rg -io '\brows? [0-9]+\b'`
-over this file after both merges returns **nineteen** pointers, not the nine the
-paragraph below still claims — a census that was itself stale, and is corrected
-in "Docs whose headers lie". Every one of them was read. Nothing survives that
-points a live instruction at a row that moved: the pointers to rows 2 and 5 are
-either in the `Attempted and turned back` prose this page forbids editing, or in
-dated write-ups where "row 2" is a historical fact about a table as it stood on a
-named day. The four that say "row 3" and mean adopción are untouched, and closing
-the gap would still repoint them at WU-V. **Gaps at 2, 3 and 5.**
+over this file, run on the merged tree on 2026-08-30, returns **twenty-six**
+matches — not the nine the paragraph below still claims. That census was correct
+when it was taken and two landings and one merge have happened since, which is
+the same rot this preamble's counts keep dying of; **the number is a measurement
+of a moment, not a maintained fact, so re-run the command instead of quoting
+this figure.**
+
+Every one of the twenty-six was read. Nothing survives that points a LIVE
+instruction at a row that moved. The pointers at rows 2 and 5 are all either in
+the `Attempted and turned back` prose this page forbids editing, or in dated
+write-ups where "row 2" is a true statement about the table as it stood on a
+named day — with three exceptions, which were the audit's actual yield and were
+repaired in the same edit: the sentence below that still said "five rows — 1, 2,
+4, 5, 6", the italic correction under it that had already been overtaken, and one
+in the WU-S landed block that said "Row 2 above asked to be resized M, not L"
+about a row no longer above. The four that say "row 3" and mean adopción are
+untouched, and closing the gap would still repoint them at WU-V. **Gaps at 2, 3
+and 5.**
 
 **Row 3 (WU-U, adopción) is GONE from the table above and the numbering was NOT
 closed up.** The four capabilities all landed on 2026-08-30 — see the block at
@@ -89,22 +99,27 @@ them at WU-V.
 the pointers rather than taking the argument on trust.** Renumbering is the
 integrator's job precisely so it happens once and not per-lane, so "the lane said
 not to" is not a reason on its own. The audit is: `rg -i '\brows? [0-9]+\b'` over
-this file returns nine pointers. Three say **row 1** (pet photo) and three say
-**row 2** (WU-S); both survive a renumber untouched, because nothing before the
-gap moves. One says **row 4** and is self-referential. The remaining **four all
-say "row 3" and all mean adopción** — two of them are the `Attempted and turned
-back` rows, which this page forbids editing on the ground that "a rejection
-edited away stops teaching anybody anything". So closing the gap would either
-repoint four true sentences at WU-V or force an edit into the one table the page
-protects. **The count, not the highest number, is the thing to quote.**
+this file. **The inventory that stood here — "nine pointers … three say row 1 …
+three say row 2 … four say row 3" — was the census AS OF THE WU-U MERGE and is
+kept in that tense rather than updated**, because the argument it carries does
+not depend on the count: two of the row-3 pointers are in the `Attempted and
+turned back` rows, which this page forbids editing on the ground that "a
+rejection edited away stops teaching anybody anything", so closing the gap would
+either repoint true sentences at WU-V or force an edit into the one table the
+page protects. That is still why the numbering stays open. The live figure is at
+the top of this section, where it is dated. **The count, not the highest number,
+is the thing to quote.**
 
-*This paragraph said "the table below therefore holds five rows — 1, 2, 4, 5, 6"
-until 2026-08-30, when WU-T landed and row 5 came off; it now holds four. The
-sentence was corrected rather than left standing, and the correction is left
-visible because it is the third time on this page that a COUNT written into prose
-has gone stale within a window — the same defect the deleted "Five landings"
-count above is a monument to. The rows are still 1, 2, 4 and 6; the enumeration
-was never the problem, the number in front of it was.*
+*The paragraph above once ended "the table below therefore holds five rows — 1,
+2, 4, 5, 6". WU-T landed and row 5 came off, and the lane that removed it
+corrected the sentence to "four … 1, 2, 4 and 6" — which was true of its own
+worktree and false of `main` before the day was out, because WU-S removed row 2
+in the same window. The count is now **three**, and it is stated once, in bold,
+sixty lines up. This italic is left standing as the monument: a COUNT WRITTEN
+INTO PROSE HAS NOW ROTTED FOUR TIMES ON THIS PAGE, and the fourth time it rotted
+while being repaired, by a careful lane that ran the audit first. The
+enumeration was never the problem. Stop writing the number in more than one
+place.*
 
 Also not done from the phone, each its own slice: correct species, rabies
 appointment, physical tag, printable lost poster, health-record export,
@@ -319,7 +334,9 @@ vocabulary in `@dim/contract`, and the two native screens
 (`apps/mobile/src/turnos/`). **Mis turnos, cancelar and the check-in QR are
 done. Buscar and reservar are not**, and they are the two with no native surface
 of any kind — a service-kind picker, a jurisdiction-subsuming search, a slot
-list, and the write. Row 2 above asked to be resized **M, not L**; the lane did
+list, and the write. The WU-S row — row 2, while it was still on the table above;
+it came off on 2026-08-30 when this lane's remainder landed — asked to be resized
+**M, not L**; the lane did
 not edit the size cell, because the board is append-only within a window and two
 lanes renumbering one table by hand is how the last conflict happened. **The
 integrator applied it on 2026-08-30** (lane 094-1's merge), rewrote the row's
@@ -795,6 +812,10 @@ the staging secrets are not merely empty at runtime, they **do not exist**.
 | ~~The same endpoint's documented **fail-open** has no test~~ | **CLOSED 2026-08-30** by the same lane | Flipping `spendBudget`'s `return true` to `return false` used to leave the file 36/36 green. It now carries the case five sibling files already had — and its PAIR, which none of them states: the authorization guard must still fail CLOSED while the limiter is broken, since a fail-open limiter that carried the guard open with it would be the same line doing two jobs. Both mutations applied, both red. |
 | **`submitFreeClaimForUser` can claim an ERASED pet, and tells you it was erased** | **pre-existing, and the biggest thing on this table** — owner: the next lane in `pets/application/claim`, or the PO if it wants a migration-grade answer | Found by the reviewer at the 2026-08-30 gate and MEASURED against real Postgres, not inferred. `lookup-for-claim.ts` resolves through `innerJoin(pets, and(eq(pets.id, …), isNull(pets.deletedAt)))`; `submit-free-claim.ts` resolves the same identifier and then selects the pet with a bare `eq(pets.id, ident.petId)`, because `pet_identifications` rows stay `status = 'active'` after an erasure. Two consequences: (1) an erased pet's chip answers `not_claimable` → **409** while an unregistered chip answers `not_found` → **404**, so any self-registered account can tell "this animal was erased" from "never existed" off the status line — the exact art. 16 distinction the endpoint's own header refuses to put there; (2) if that erased pet has no active custody, **the claim succeeds** — it returns the animal's name and public token, inserts the ownership, appends `ownership_claimed` to the spine, notifies and audits, while the lookup on the same door still answers `not_found`. **The bearer door did not introduce this** — it is one missing clause in a writer the web's `/mis-mascotas/reclamar` wizard drives identically, which is why the integrator recorded it instead of patching it in a merge commit: the fix changes browser behaviour and belongs with its own test. **No fence goes red for it and none can as written**: this is an ABSENCE of a predicate, not a mutable one, so the mutation instruments this repo relies on have nothing to flip. The shape of the fix is `isNull(pets.deletedAt)` on the in-transaction select (and/or filtering the identification by a live pet), copied from the sibling rather than re-derived. The two docblocks that claimed the invariant held end to end were corrected in the same merge — `claim/types.ts` and `me/pet-claims/commands.ts` — because a promise and the note that it is half kept have to travel together. |
 | `api-v1-me-pet-claims-route.test.ts` needs an env var no setup forces | small — owner: the next lane in that file | It is the ONLY one of the fifteen `/api/v1` route tests that does not mock `@/lib/supabase/bearer`, so it builds a real supabase-js client and reads `NEXT_PUBLIC_SUPABASE_ANON_KEY`. `__tests__/setup-env.ts` forces `NEXT_PUBLIC_SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY` and not that one. In a worktree with no `.env.local` the file reports 20 of 21 red with `Error: supabaseKey is required.` — credential-shaped, which is the FOURTH red signature `/CLAUDE.md` names, on a file that has nothing to do with RLS. Green in CI (the vitest job exports the real key) and green wherever the env is exported, so it hides no defect; it is a harness that is more coupled to the environment than its fourteen siblings, in the one direction that makes a red unreadable. Fix is the two `vi.mock` lines `api-v1-me-appointments-route.test.ts` already has. |
+| **A professional's personal phone goes out on the national turno search** | **PO first, then a lane** — added at the 2026-08-30 merge | Found by the review of the buscar/reservar lane and NOT fixed in the merge, because it is a product call and not a defect on its face. `search-bookable-slots.ts`'s `OFFERING_COLUMNS` selects `profiles.phone` and `organizations.jurisdiction_locality`, and both reach the wire through `app/api/v1/appointments/payload.ts` for ANY authenticated caller with no prior relationship to the offering. **The two web pages the module's header says it negates line by line select neither**: `buscar/page.tsx` takes only `displayName`/`matriculaNumber` from the professional, and `[offeringToken]/page.tsx` carries an explicit comment saying it omits `jurisdictionLocality` on purpose after the 2026-08-13 incident — the same incident that header cites. `organizations.phone` has a public precedent (`lib/infra/org-public-profile.ts`); `profiles.phone` crossed to a non-owner only in `list-appointments-for-user.ts`, for a turno you ALREADY HOLD, and the widening rode in on that type being reused. The docblock's argument for the reuse is about RENDERING ("one thing"), which is true and is not an authorization argument. **No fence sees it** — `lint:subject-rights`, `no-personal-contact-in-ui` and `welfare-org-pii-fitness` are all green. Either it is a decision the PO makes, or the two columns come out of `OFFERING_COLUMNS`; what it must not stay is a side effect. |
+| **The `serviceKind` echoed in the search payload is unmeasured, and its comment is false about its own line** | small — owner: the next lane in `app/api/v1/appointments` | Mutation applied at the merge review: `serviceKind: \`${query.serviceKind}_MUTANT\`` leaves all 28 route tests GREEN — no case asserts the positive value of `body.serviceKind`. The docblock says "NON-NULL BY CONSTRUCTION … No `?? requested` fallback here — that is the very shape that printed a raw param as a heading", and the line is literally `findServiceKind(query.serviceKind)?.code ?? query.serviceKind`. Not exploitable today: the parser nulls an unknown code, and THAT half is fenced (mutating `query.ts` goes red, and so does bypassing the parser from the route). But it is the second layer of defence against S3-F07, it is described wrongly, and nothing would catch the parser loosening. |
+| **The booking refusal fence can be bypassed by ADDING a sentence, not by rewording one** | small — owner: the next lane in `src/modules/events/application/booking` | Three mutations were applied at the merge review. Rewording a refusal → RED (the orphan check catches it). Moving an existing sentence to a template literal → RED (`sentences.size >= 8`). **Adding a new refusal via `const msg = "…"; throw new BookingError(msg);` while keeping the eight literals → 10/10 GREEN**: the new sentence never enters the set, the table does not cover it, and `bookSlotRefusalCode` sends it to the `slot_unavailable` fall-through. The direction is safe — it is still a refusal and grants nothing — so this is MISCLASSIFICATION risk, not an authorization hole. The row exists because the fence's own comment claims more than it proves. |
+| **The reservar screen's primary button `disabled` has no fence** | small — owner: the next lane in `apps/mobile/src/turnos` | `disabled={submitting \|\| slotId === null \|\| petToken === null}` → `disabled={submitting}` leaves all 97 turnos tests green. It writes nothing — `submit` has its own `if (slotId === null \|\| petToken === null) return;` — so the failure is an enabled button that does nothing when tapped, not a write with no selection. Worth naming only because the five neighbouring mutations on the same screen (derived `canBook`, a blocked pet being selectable, no re-read after a refusal, navigating anyway, selection surviving a re-read) all go RED: the hole is one line wide and sits between fences that bite. |
 | `claimDisputeUrl` builds its URL by hand while its neighbour uses the map | small — owner: same | `apps/mobile/src/claims/claim-view-model.ts`: `claimSightingUrl`, two functions above it, goes through `deepLinkUrl` with the written argument that "a rename is a compile error rather than a 404 nobody notices" — and `claimDisputeUrl` interpolates `${origin}/mis-mascotas/reclamar` directly. If the web renames that path the dispute link becomes a silent 404 and nothing turns red. `DEEP_LINK_MAP` has no entry for the wizard, but `myPets` is an exact precedent for a parameterless one. The file's own principle, applied to one of its two functions. |
 
 ## PO-gated — not agent work, do not attempt
@@ -807,7 +828,11 @@ Listed so you recognise them and hand them over instead of trying.
 4. Resend email setup (domain verification → API key → SMTP in Supabase → env in Vercel). Until it lands, the 6-digit password-recovery code does not travel and the screen promises what the mail does not deliver.
 5. The two store graphics, pointing `mimar.com.ar` at Vercel, the tester acceptance link, the Supabase "exceeding limits" warning, and the 12 tester emails.
 6. Create the two **staging secrets the nightly e2e job reads**, `STAGING_SUPABASE_URL` and `STAGING_SUPABASE_ANON_KEY`. Re-measured 2026-08-30 and PROMOTED from the turned-back block above, with a root cause stronger than the original report: they are not empty by accident, **they were never created**. `gh secret list` on the repo returns exactly one row, `STAGING_DATABASE_URL`; `e2e-nightly.yml` declares no `environment:`, so no environment-scoped secret can supply them either, and `${{ secrets.X }}` on an undefined secret is the empty string with no warning. The consequence is visible in every run: the job log prints `NEXT_PUBLIC_SUPABASE_ANON_KEY:` with nothing after it, and `e2e/cross-tenant-isolation.spec.ts:265` throws `NEXT_PUBLIC_SUPABASE_ANON_KEY not set — the cross-tenant isolation suite cannot probe anything`. Present identically in run 33252469499 (2026-08-29) and run 32108115808 (2026-08-18); all **12** of the 12 most recent nightly runs are red. **Creating a secret is the PO's**, never an agent's — the values are the staging project's URL and anon key.
-7. Decide whether to authenticate **ECR Public** pulls in CI, or accept the throttling. Re-measured 2026-08-30 and PROMOTED from the turned-back block above. Every Supabase image resolves to `public.ecr.aws/supabase/*`, and in runs 33273180809 / 33269256483 / 33260290131 every `toomanyrequests: Rate exceeded` line is immediately followed by the CLI's own `Retrying after Ns: public.ecr.aws/supabase/<image>` — so the throttle is named, not inferred. The only `docker.io` reference in any of those runs is `library/postgres:16`, a service container that is not part of this stack. **A `docker/login-action` with Docker Hub credentials would change nothing**; write that down before someone spends a day on it. ECR Public throttles anonymous pulls by source IP and raising the ceiling needs an AWS account to authenticate against, which is a spend decision. Not urgent on its own: the CLI already retries a throttled pull and recovers.
+7. **Accept or close the `rate_limit_buckets` de-anonymisation channel** (denuncia, WU-T). An anonymous denuncia filed from the phone writes no uuid into the record and DOES write one into `welfare_auth:{userId}:hour:{window}`. Fully derived in `app/api/v1/welfare-reports/commands.ts` — deny-all under RLS, no product reader, gone within the hour, and identical on the web because both spend the same bucket. Closing it means either no per-user ceiling on the anonymous path or a per-IP one, and the web's own anonymous door prices that: `welfare_anon` at 1/min and 3/hr per address is one denuncia per carrier per minute behind a CGNAT gateway. **A flood-control trade on a legal filing is not an agent's call.** (The second, worse channel found in the same window — the caller's uuid reaching Vercel's function logs through a limiter error message — was NOT left for this decision; it is closed in code, see `redactCallerId`.)
+8. **Decide whether `observedSymptoms` is a field or a paragraph.** The denuncia screen asked "¿notaste síntomas?" and the `/api/v1` door threw the answer away on every request; the mobile side was fixed by removing the question. **Its twin is still live on the web** — `WelfareReportForm.tsx`, the ORG's mouth — and discards it just as silently. Closing it is either a column on `welfare_reports` or a decision to fold the text into the description, **and rewriting somebody's testimony is not done without asking.**
+9. **Answer "is adding evidence to an existing denuncia a capability?" before anybody builds the attachment picker.** The picker is the small half. The large half: NO surface of this product accepts evidence for a denuncia that already exists — not `/denuncias/codigo`, not `/denuncias/seguimiento`, and not for an authenticated reporter (`addReporterCommentAction` adds TEXT and nothing else). So "sumalas después desde la web" is a promise no client can keep, and the native screen says so up front instead of lying. Two blockers, and this one is not an agent's.
+10. **Decide whether a professional's personal phone belongs in the national turno search payload.** See the debts row above; the two web pages that serve the same catalogue both decline to select it, one of them citing a dated incident.
+11. Decide whether to authenticate **ECR Public** pulls in CI, or accept the throttling. Re-measured 2026-08-30 and PROMOTED from the turned-back block above. Every Supabase image resolves to `public.ecr.aws/supabase/*`, and in runs 33273180809 / 33269256483 / 33260290131 every `toomanyrequests: Rate exceeded` line is immediately followed by the CLI's own `Retrying after Ns: public.ecr.aws/supabase/<image>` — so the throttle is named, not inferred. The only `docker.io` reference in any of those runs is `library/postgres:16`, a service container that is not part of this stack. **A `docker/login-action` with Docker Hub credentials would change nothing**; write that down before someone spends a day on it. ECR Public throttles anonymous pulls by source IP and raising the ceiling needs an AWS account to authenticate against, which is a spend decision. Not urgent on its own: the CLI already retries a throttled pull and recovers.
 
 ## Two live hazards, today
 
@@ -1267,11 +1292,19 @@ guard.
 **The first attempt's code was whole and its review was
 *aprobado-con-reservas*.** It was turned back on **five content conflicts**
 against the adoption lane, which merged an hour earlier in the same window — not
-on a fence and not on a red. This attempt rebased its five commits onto
-`6671cff99`, where the other side is already in `main` and every conflict could be
-resolved ONCE, on purpose, with both arguments visible. That is the whole
-difference between the two attempts, and it is why the conflicts are written up
-below as decisions rather than as merge mechanics.
+on a fence and not on a red. This attempt brought the first attempt's five code
+commits onto `6671cff99` — **by cherry-pick and not by rebase**, deliberately, so
+that each conflict could be stopped at rather than swept through in one
+operation — where the other side is already in `main` and every conflict could be
+resolved ONCE, with both arguments visible. That is the whole difference between
+the two attempts, and it is why the conflicts are written up below as decisions
+rather than as merge mechanics.
+
+*"Rebased" is what this sentence said until the integrator corrected it on
+2026-08-30. The mapping was verified — the five code commits of `1f660b7c7` are
+1:1, and the sixth, `e013b8dfa`, was a board commit deliberately left behind —
+so the FACT was right either way. Only the word was wrong, and the word is what
+the next lane copies when it has the same problem.*
 
 #### The five conflicts, and how each was resolved
 
@@ -1664,3 +1697,152 @@ is missing and no fence was skipped; the recipe spans two RUNNERS and the count
 does not say so. A reader who runs the command, sees 53, runs vitest and reads 52
 has the same doubt the trailing-filter paragraph above exists to remove. Both
 runners were used for this lane.
+
+## Appended 2026-08-30 by the integrator — the WU-T + WU-S window
+
+**Both lanes landed. Nothing was left out.** `merge(wu-t)` at `eb9784090` and
+`merge(wu-s)` at `a38650d7d`, in that order because the turnos lane's hand-off
+asked to be applied after the denuncias lane's entries so the two would not
+collide in the same arrays twice. Both reviews came back
+*aprobado-con-reservas*; neither carried a RECHAZADO and neither had an open
+blocker, which is the only bar this gate applies to a merge.
+
+### The denuncias lane merged with ZERO conflicts, and that is the finding
+
+It was turned back a window earlier on **five content conflicts**. Its second
+attempt cherry-picked onto `6671cff99` and resolved all five there, in its own
+worktree, one at a time. The result is that `git merge` on this side had nothing
+to do: **26 files, no conflict, not one marker.** Conflicts do not have to be
+paid for at the merge — they can be paid for earlier, by whoever has the context
+to argue them, and this window is the first clean demonstration on this page.
+
+### The turnos lane conflicted in four files, all on ONE axis
+
+Both lanes added a per-IP bucket and a route under `/api/v1` in the same window,
+and every pinned number on that surface is derived from those two sets.
+
+| File | What collided | How it was resolved |
+|---|---|---|
+| `lib/infra/api-v1-limits.ts` | Two bucket entries appended at the same place | Both kept, denuncia above turnos. No argument to settle — the two blocks reason about different families and neither cites the other. |
+| `scripts/check-api-v1-envelope.ts` | `MIN_V1_ROUTE_FILES`, 29 vs 30 | **Recounted: 31.** `listV1RouteFiles().length` on the merged tree. |
+| `__tests__/api-v1-rate-limit-families.test.ts` | `MIN_IP_BUCKETS` 34 vs 34, and the CGNAT `toBe` 12 444 vs 12 924 | **Recounted: 35 buckets. Re-summed by family: 13 044.** |
+| `docs/agents/open-work.md` | Each lane removed a row and rewrote the preamble | Both removals kept; the count rewritten once, by the owner of the renumbering. |
+
+### The three pins, and which two would have loosened in SILENCE
+
+This is the first window on this surface where **both** lanes wrote the
+"recount, do not add" instruction and **both** were the other's counter-example.
+Each declared 34 buckets for its own worktree and each was right about a tree
+the other was about to invalidate.
+
+- `MIN_IP_BUCKETS` — `toBeGreaterThanOrEqual`. Carrying either lane's 34 leaves
+  it satisfied, green, and slack by one. **Silent.** Recounted: 35.
+- `MIN_V1_ROUTE_FILES` — also a floor, also silent. Each lane said 29 and 30;
+  the merged count is 31. Both lanes' arithmetic would also have given 31 this
+  time, and that agreement is a coincidence of this merge, not a method: two
+  previous windows on this same constant were repaired because somebody added
+  instead of counting and was wrong.
+- `API_V1_CGNAT_FAMILY_IP_CEILING_PER_MINUTE` — `toBe`, so it is the one that
+  goes red on its own. 12 444 and 12 924 both die at the merge; the merged sum,
+  hand-checked per family and cross-checked as 12 324 + 120 + 600, is **13 044**.
+
+### What the integrator added under `necesitaDelIntegrador`
+
+The turnos lane could not touch five shared mobile files without re-creating the
+exact five-file collision that turned WU-T back once already. It wrote the text
+out and handed it over; all five landed here, in `a1599aaef`.
+
+- **Three booking error codes and their es-AR copy** — `booking_slot_taken`,
+  `booking_pet_not_bookable`, `booking_already_in_offering`. The fold they
+  replace was declared, not discovered, and it cost exactly what a fold costs: a
+  person refused a booking read "Este turno ya cambió de estado" about a turno
+  they never held. **Two folds survive on purpose and both are named in code**:
+  `pet_not_yours`/`pet_deceased` share one code so this door is not an existence
+  oracle over erased pets, and `slot_past` still borrows `appointment_past`,
+  whose copy ends in "no se puede cancelar" — a fourth code and a fourth string,
+  written down rather than quietly kept.
+- **`turnos-routes.ts` and `turnos-api.ts` deleted**, their contents moved into
+  `src/ui/routes.ts` and `src/api/endpoints.ts`. Each file existed as a declared
+  deviation from the one rule its destination exists to enforce — one place the
+  route tree is described, one screen that answers "what can this app do to my
+  account".
+- **Two `Stack.Screen` registrations.** Unregistered, the header comes from the
+  path segment, lowercase and English-shaped.
+- **`sendAppointmentCommand`'s docblock**, which said "cancel a turno. The one
+  command, and the only one" and explained that booking was absent for reasons
+  of scope. Booking arrived. The distinction the paragraph was drawing survives
+  the correction and is kept: the three writes still missing are missing by RULE.
+
+**One defect was introduced by the move and caught by the mobile suite**, worth
+one line because the shape recurs: the reservar test had two separate
+`jest.mock` calls, one per source file. Repointing both at one path made the
+second silently replace the first, and `fetchBookableOffering` came back
+`undefined` — 14 red in one suite. Two `jest.mock`s on one path do not compose.
+
+### Two *serio* findings were FIXED here rather than declared
+
+- **The anonymous branch wrote the reporter's uuid into Vercel's function logs.**
+  `enforceRateLimit` throws `UPSERT returned no rows for key
+  "welfare_auth:{userId}:hour:{window}"` on its driver-glitch path — a plain
+  `Error`, so it lands in the fail-open arm — and `reportError` writes
+  `error.message` verbatim. That sink has **none** of the three properties the
+  declared `rate_limit_buckets` channel rests on: no RLS, no one-hour TTL, and a
+  reader population of anybody with dashboard access. It is also this door's own
+  — the web path rethrows and never reports. Closed at the call site
+  (`redactCallerId`), and the enumeration that claimed to list "its exact reach"
+  now says what it missed and why: it was written carefully, was right about the
+  table it was looking at, and did not look at the catch block eight lines down.
+- **The harness could not have seen it**, which is why the same commit changed
+  the stub. It threw a tidy `"rate_limit_buckets is unavailable"` where
+  production throws a message carrying the bucket key. The sweep that asserts the
+  uuid appears nowhere in `trace()` — and `trace()` does read `control.errors` —
+  passed for free, because there was no id in the string to find. Same defect
+  this lane wrote up one file over: *a stub that drops the predicate does not
+  fail to test it, it makes the whole file assert that the argument does not
+  matter.* The stub now throws production's message and the fail-open case
+  asserts both halves — the uuid is gone, the bucket and window are still there.
+  Measured: reverting `redactCallerId` to `return message` turns it red.
+
+**One stale header was corrected**, `app/api/v1/welfare-reports/route.ts`. It
+said the bucket entry was not in the map, that it was being handed to the
+integrator, that two tests were red, and that the ceiling pin stayed green. All
+four went false **inside the lane's own branch**, six commits after that file was
+last edited, and nothing turned red: prose is not compiled. It cost a reader an
+afternoon proving a line was already applied, for the second time on this
+surface.
+
+### What was NOT fixed, and why
+
+**The professional's phone on the turno search is the one to read first.** It is
+now a debts row and a PO item. It was not stripped in the merge because removing
+two columns from a shipped payload is not a merge commit's decision, and because
+the reviewer was right that it might be a legitimate product call — what it must
+not be is a side effect of reusing a type derived for a turno you already hold.
+The other three reserves (the unmeasured `serviceKind` echo whose comment
+contradicts its own line, the refusal fence that a new sentence walks past, and
+the reservar button's unfenced `disabled`) are debts rows with their mutation
+evidence. `booking-race.test.ts` and `booking.test.ts` need real Postgres and
+were run here, in the gate, which is the half the lane could not measure.
+
+### The pointer census, which was itself a stale number
+
+`rg -io '\brows? [0-9]+\b'` over this page returned **nine** when it was written
+into the ratification paragraph and returns **twenty-six** now. Every one was
+read. The audit's actual yield was three live mis-pointers, all repaired: the
+sentence still claiming "five rows — 1, 2, 4, 5, 6", the italic correcting it to
+four (true of one lane's worktree, false of `main` before the day was out), and
+"Row 2 above asked to be resized M, not L" pointing at a row no longer above.
+
+**The table holds THREE rows — 1, 4 and 6.** The numbering stays open, for the
+third consecutive window and for the same reason: the row-3 pointers live in the
+`Attempted and turned back` table this page forbids editing.
+
+**A count in prose has now rotted four times on this page, and the fourth time it
+rotted while being repaired** — by a careful lane that ran the audit first, wrote
+"four", and was made wrong by a sibling lane in the same window. That is not a
+discipline problem and one more careful reader will not fix it. The number is
+stated once, in bold, in the preamble; everything else names the capability.
+
+The gate's verdict lines are not transcribed here, on the precedent the WU-U
+block set: quoting them would mean a doc commit landing after the tree the gate
+ran on. This block describes the tree that was gated.
