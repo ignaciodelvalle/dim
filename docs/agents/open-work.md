@@ -42,7 +42,7 @@ Ordered by what a live tester hits first, not by size.
 | # | Work | Size | Notes |
 |---|---|---|---|
 | 1 | **Pet photo** — native image picker | M | Server side is **done**: signed upload → private bucket → `confirm` re-authorizes, verifies magic bytes, re-encodes, then writes to the public bucket. Only the picker is missing — which needs a native module, so an EAS build. That pipeline cost 6 builds / 5 distinct root causes. **Not a first task.** |
-| 2 | **[PARCIAL — tres de las cinco cerradas, ver abajo]** **WU-S** — appointments: search, book, my appointments, cancel, check-in QR | L | Not in the web nav either; deep links only. |
+| 2 | **WU-S** — appointments: **buscar and reservar** only. My appointments, cancel and the check-in QR landed 2026-08-30 — see the block below before starting. | M | **One unit of work, not two.** A search that cannot book is a screen listing slots nobody can take; a book with no search is unreachable. Needs a service-kind picker, jurisdiction-subsuming search, a slot list, and a concurrent write on `bookings_count` with its own route and rate-limit family. Not in the web nav either; deep links only. |
 | 3 | **WU-U** — adoption: catalogue, detail, apply, my applications | M | The application flow earns its own rate limit here. |
 | 4 | **WU-V** — camera scan + confirm chip + claim | M | |
 | 5 | **WU-T** — citizen abuse reports | M | Attachments blocked on signed uploads. **Not the same thing as reporting content** — this is Ley 14.346, nine types, routed to an authority. |
@@ -58,11 +58,15 @@ the fourteen columns it left on the web.
 
 ## Landed since this snapshot — do not pick it up again
 
-Four rows have come off the table above. Each is written up the same way: what
-was done, what it **decided**, and what it did **not** solve. A row deleted
-without its remainder is how the remainder gets lost — and a row left on the
-table after it landed is how the next agent spends a day rebuilding it. Both
-have happened here.
+**Five landings are written up below, and only four of them took a row off the
+table.** The fifth — WU-S, row 2 — is still on the table, narrowed to the two
+capabilities it did not close; the count is written this way because "five
+blocks" and "five rows gone" are not the same claim and the previous wording
+could only carry one of them. Each block is written up the same way: what was
+done, what it **decided**, and what it did **not** solve. A row deleted without
+its remainder is how the remainder gets lost — and a row left on the table after
+it landed is how the next agent spends a day rebuilding it. Both have happened
+here.
 
 ### `auth_signup_ip` — the plaza registration drive
 
@@ -236,10 +240,12 @@ vocabulary in `@dim/contract`, and the two native screens
 (`apps/mobile/src/turnos/`). **Mis turnos, cancelar and the check-in QR are
 done. Buscar and reservar are not**, and they are the two with no native surface
 of any kind — a service-kind picker, a jurisdiction-subsuming search, a slot
-list, and the write. Row 2 above should be **M, not L**, when whoever integrates
-next renumbers the table; this block does not edit the size cell, because the
-board is append-only within a window and two lanes renumbering one table by hand
-is how the last conflict happened.
+list, and the write. Row 2 above asked to be resized **M, not L**; the lane did
+not edit the size cell, because the board is append-only within a window and two
+lanes renumbering one table by hand is how the last conflict happened. **The
+integrator applied it on 2026-08-30** (lane 094-1's merge), rewrote the row's
+work cell to name only buscar and reservar, and left the row in place — three of
+five closed is not a row that comes off the table.
 
 What it **decided**:
 
@@ -304,7 +310,13 @@ about** — recorded because both are patterns, not incidents:
    red at all: `MIN_V1_ROUTE_FILES` (23 against 24 routes) and `MIN_IP_BUCKETS`
    (20 against 29 buckets). **A floor is satisfied by any number above it, so it
    loosens in silence; recount it from the tree, never increment it from the
-   previous value.**
+   previous value.** All three were re-derived at the merge on 2026-08-30 rather
+   than trusted: `listV1RouteFiles().length` → **24** (pin 24),
+   `Object.keys(API_V1_IP_BUCKET_FAMILIES).length` → **29** (pin 29), and the
+   CGNAT ceiling hand-summed per family over the merged map — 14×600 + 6×120 +
+   2×60 + 1×240 + 1×600 + 2×180 + 1×240 + 1×120 + 1×144 — → **10 944** (pin
+   10 944). Exact on all three, not merely satisfied, which is the state that
+   makes the next route go red.
 2. **`listAppointmentsForUser`'s authorization `WHERE` had ZERO coverage**, and
    the cause is worth knowing before writing any use-case test in this repo. The
    drizzle stub read `self.where = async () => control.rows` — it discarded the
@@ -322,6 +334,31 @@ about** — recorded because both are patterns, not incidents:
    not what Postgres answers — but "what is it asked" is the half a tautology
    breaks, and it needs no database. Seven mutations were applied for real and
    each killed at least one test.
+
+## Attempted and turned back — the work exists, on a branch, and did not land
+
+Written down for the same reason the landed blocks are: the next agent who picks
+one of these rows should start from the branch and the review, not from zero.
+**Neither branch is merged and neither is a base to build on without reading its
+blockers first.** Both were turned back by a fresh-context reviewer at the
+integration gate on 2026-08-30, and in both cases the blocker was a fence or a
+runtime that the lane's own evidence never exercised.
+
+| Row / topic | Branch | Why it did not land |
+|---|---|---|
+| Row 3 — **WU-U**, adoption from the phone | `worktree-wf_60cb7fe0-094-2` (`be4c73874`) | The lane declared **one** red fence (rate-limit families) and there were **four**. `check-file-size` (`adoption-repository.ts` at 1521 lines against a hard 1500 — the fix is splitting the file, not baselining it), `check-notifications-service` (new code doing a raw `db.insert(notifications)` where the fence exists to migrate call sites onto `createNotification()`), and `check-audit-log-coverage` (seven operator actions with no reachable audit write). All three go red at `bcbaf2ed9` and are green at the base. The audit one has a root cause the reviewer established empirically rather than inferred: a module-level alias `const flushNotifications = flushAdoptionNotifications;` is followed by the fence's `importedIdentifiers()`, which then resolves into a file with no audit write. |
+| The **E2E job's permanent red** (not a table row) | `worktree-wf_60cb7fe0-094-3` (`2010d7655`) | The diagnosis is worth keeping — the stack was **up in 44 of 45 runs**, so "is the stack up?" was never the failure — but the fix is not. GitHub runs a composite action's `shell: bash` as `bash --noprofile --norc -e -o pipefail`; the new `supabase-start` action sets `set -uo pipefail` and never `set +e`, so the runner's `-e` kills the step on the first failed attempt and the retry loop, its two `::warning::`s and the `::error::` it exists to emit are all unreachable in CI. The test that fences it runs the script under bare `bash` (no `-e`), so eight tests pass over a script that does not retry — the harness reproduced the author's belief about the runner instead of the runner. |
+
+Two findings from the second branch are real regardless of whether that branch
+ever lands, and both are **PO-gated**, so they are recorded here rather than
+carried into code by an integrator: `e2e-nightly.yml` declares
+`STAGING_SUPABASE_URL` / `STAGING_SUPABASE_ANON_KEY` and the job log shows both
+**empty**, which is why the cross-tenant isolation spec dies naming the anon key;
+and the registry throttling in those runs is **ECR Public**, not Docker Hub, so a
+`docker/login-action` with Hub credentials would buy nothing. Neither is written
+into the numbered PO list below, because the branch that measured them was turned
+back and a rejected lane's evidence should be re-measured before it becomes a
+standing instruction.
 
 ## Declared debts, with an owner
 
@@ -357,14 +394,17 @@ the tables, ignore the banner. Older initiative docs — the master integrity pl
 (Ola II) and the Ola 1 batch plan — date from July and may or may not still be
 live; ask before picking work from them.
 
-`docs/agents/collaborating-writer.md` — its **"Your first task"** section still
-hands every new writer "let an owner edit their pet's data and their emergency
-contacts", and says "there is no edit screen of any kind". Both stopped being
-true at `ecc835aa4`; see the landed block above. The ten rules on that page are
-current — it is the first-task section, and only that section, that is stale.
-Left in place deliberately: this snapshot's lane does not own that file, and
-a parallel writer may be in it. **Whoever integrates next should retarget that
-section at row 1 of the table above.**
+`docs/agents/collaborating-writer.md` — **fixed on 2026-08-30 by the integrator**,
+after two consecutive windows reported it and neither owned the file. Its "Your
+first task" section had handed every new writer "let an owner edit their pet's
+data and their emergency contacts" and claimed "there is no edit screen of any
+kind"; both stopped being true at `ecc835aa4`. It was **not** retargeted at row 1
+as this page previously asked — row 1 is the pet photo, which the same table
+marks **"Not a first task"**, so that instruction contradicted itself. The
+section now names no task at all and points here instead, keeping only the
+guidance that does not go stale (pick by what a tester hits, copy the web's guard
+rather than re-deriving it, and do not start with the pet photo). The ten rules
+on that page were current and were not touched.
 
 ### The subject-rights counts no longer lie, and cannot again in the same way
 

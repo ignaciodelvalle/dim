@@ -77,31 +77,42 @@ containers, production server on :3000, smoke tests, seed accounts).
 
 ## Your first task
 
-**Mobile: let an owner edit their pet's data and their emergency contacts.**
+**It is not named here. Take it from the table in
+`docs/agents/open-work.md`, and read that page's "Landed since this snapshot"
+section before you start.**
 
-Today an owner cannot change their pet's name, breed, colour or markings from
-the phone, and cannot record an emergency vet. The app is already published to
-Google Play internal testing, so these are not backlog items — they are the
-first three walls a live tester hits. The parity board says so explicitly, and
-ranks them above the cosmetic work.
+This section used to name one ("let an owner edit their pet's data and their
+emergency contacts") and it kept sending new writers at work that had shipped at
+`ecc835aa4` — including the claim that "there is no edit screen of any kind",
+which stopped being true in the same commit. Two consecutive integration windows
+reported it and neither owned this file. **The task no longer lives on this
+page, deliberately**: the board is edited by every lane that lands something, and
+this page is not, so a task written down here goes stale between the moment it is
+written and the moment it is read.
 
-Where it lands: `apps/mobile/app/` is expo-router (screens: `ajustes.tsx`,
-`mascotas/`, `cuidado/`, `transferencias/`). `apps/mobile/src/account/` today
-contains only `AccountDeletionCard`. There is no edit screen of any kind — you
-are adding one, not modifying one. The web already serves both capabilities, so
-the server side and the guards exist; check them before writing new ones. Edit
-identity is titular-only on the web — match that guard exactly, do not re-derive
-it.
+What the board will not tell you, and this page can:
 
-**Do NOT start with the pet photo**, even though it looks adjacent and the
-server side is already done. It needs a native image picker, which needs a
-module, which needs an EAS build — and that pipeline cost six builds with five
-distinct root causes, three of which are invisible to every local gate. It is a
-bad first task. It is not blocked; it is just not yours on day one.
+- **Pick by what a live tester hits, not by what is largest.** The app is on
+  Google Play internal testing, so a gap a tester meets today outranks a gap that
+  is architecturally more interesting.
+- **The web already serves what the board still lists**, so for almost anything
+  you pick the server side and the guards exist. Read them and copy the guard as
+  a negation of the web's own call site; do not re-derive it. Guards that were
+  re-derived rather than copied are how this repo grew two rules for one act.
+- **Where it lands**: `apps/mobile/app/` is expo-router — the screen files ARE
+  the paths (`ajustes.tsx`, `alta.tsx`, `mascotas/`, `cuenta/`, `cuidado/`,
+  `turnos/`, `transferencias/`, `notificaciones.tsx`). A route that needs a
+  header title also needs a `Stack.Screen` in `app/_layout.tsx`; an unregistered
+  one takes its header from the path segment, lowercase and in English-looking
+  form.
+- **Do NOT start with the pet photo** — row 1 on the board, and the board says so
+  itself. It looks adjacent and the server side is genuinely done, but it needs a
+  native image picker → a native module → an EAS build, and that pipeline cost six
+  builds with five distinct root causes, three of which are invisible to every
+  local gate. It is not blocked; it is just not yours on day one.
 
-Everything after that first task — the other five parity clusters, the declared
-debts, and the list of what is PO-gated — is in `docs/agents/open-work.md`.
-Pick from there, and pick by what a live tester hits, not by what is largest.
+The declared debts and the list of what is PO-gated — hand those back, do not
+attempt them — are on the same board page.
 
 ## Two things to hand back, not solve
 
