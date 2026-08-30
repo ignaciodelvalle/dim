@@ -58,7 +58,9 @@ describe("petClaimCommandInputSchema — the command discriminator", () => {
 
   it("names a missing command rather than falling through to null", () => {
     expect(codeFor({})).toBe("COMMAND_REQUIRED");
-    expect(codeFor({ identifierKind: "microchip", identifierValue: CHIP })).toBe("COMMAND_REQUIRED");
+    expect(codeFor({ identifierKind: "microchip", identifierValue: CHIP })).toBe(
+      "COMMAND_REQUIRED",
+    );
     expect(codeFor(null)).toBe("COMMAND_REQUIRED");
   });
 });
@@ -115,9 +117,9 @@ describe("petClaimCommandInputSchema — the fifteen digits", () => {
     // client that skipped it would spend a rate-limit token on a value that
     // cannot resolve to any animal.
     for (const command of ["lookup", "claim_free"]) {
-      expect(codeFor({ command, identifierKind: "microchip", identifierValue: "12345678901234" })).toBe(
-        "MICROCHIP_MUST_BE_15_DIGITS",
-      );
+      expect(
+        codeFor({ command, identifierKind: "microchip", identifierValue: "12345678901234" }),
+      ).toBe("MICROCHIP_MUST_BE_15_DIGITS");
       expect(
         codeFor({ command, identifierKind: "microchip", identifierValue: "1234567890123456" }),
       ).toBe("MICROCHIP_MUST_BE_15_DIGITS");
@@ -135,7 +137,11 @@ describe("petClaimCommandInputSchema — the fifteen digits", () => {
       null,
     );
     expect(
-      codeFor({ command: "claim_free", identifierKind: "tattoo", identifierValue: "x".repeat(120) }),
+      codeFor({
+        command: "claim_free",
+        identifierKind: "tattoo",
+        identifierValue: "x".repeat(120),
+      }),
     ).toBe(null);
   });
 });

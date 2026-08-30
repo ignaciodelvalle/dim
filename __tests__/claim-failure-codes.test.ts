@@ -38,15 +38,19 @@ const control = vi.hoisted(() => ({
 /**
  * A chainable that answers the next queued row set.
  *
- * Every builder method returns `this` and the object is awaitable, which is what
- * makes `.select().from().where().limit(1).for("update")` resolve. The arguments
- * are dropped ON PURPOSE and the file header says so.
+ * A REAL PROMISE with builder methods bolted on, rather than an object carrying
+ * a hand-written `then` — drizzle's builders are awaited, and `lint/suspicious/
+ * noThenProperty` refuses the hand-written spelling for a good reason (a `then`
+ * key makes any object silently unwrappable by `await`, in places nobody meant).
+ * Every builder method returns the same promise, so
+ * `.select().from().where().limit(1).for("update")` resolves to the queued rows.
+ *
+ * The ARGUMENTS ARE DROPPED, on purpose, and the file header says what that
+ * costs: nothing here can say anything about a predicate.
  */
 function selectChain() {
   const rows = control.rows.shift() ?? [];
-  const chain: Record<string, unknown> = {
-    then: (resolve: (value: unknown[]) => unknown) => resolve(rows),
-  };
+  const chain = Promise.resolve(rows) as Promise<unknown[]> & Record<string, () => unknown>;
   for (const method of ["from", "where", "limit", "for", "innerJoin", "leftJoin", "orderBy"]) {
     chain[method] = () => chain;
   }
@@ -189,7 +193,10 @@ describe("submitFreeClaimForUser — inside the transaction", () => {
       { status: "active", inCustodyDispute: true },
     ];
     for (const pet of situations) {
-      control.rows = [[{ petId: "pet-1" }], [{ id: "pet-1", publicToken: "DIM", name: "Rocky", ...pet }]];
+      control.rows = [
+        [{ petId: "pet-1" }],
+        [{ id: "pet-1", publicToken: "DIM", name: "Rocky", ...pet }],
+      ];
       control.inserted = [];
       const result = await submitFreeClaimForUser(USER, {
         identifierKind: "microchip",
@@ -207,7 +214,15 @@ describe("submitFreeClaimForUser — inside the transaction", () => {
     // carries a non-owner role to say which case is being pinned.
     control.rows = [
       [{ petId: "pet-1" }],
-      [{ id: "pet-1", publicToken: "DIM", name: "Rocky", status: "active", inCustodyDispute: false }],
+      [
+        {
+          id: "pet-1",
+          publicToken: "DIM",
+          name: "Rocky",
+          status: "active",
+          inCustodyDispute: false,
+        },
+      ],
       [{ id: "ownership-1", role: "shelter_custody" }],
     ];
     const result = await submitFreeClaimForUser(USER, {
