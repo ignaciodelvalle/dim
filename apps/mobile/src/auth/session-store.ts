@@ -68,6 +68,7 @@ import {
   revokeAllSessions,
   signup as signupRequest,
 } from "../api/endpoints";
+import { planesLookCrossed } from "../config/api";
 import { forgetAllCachedCredentials } from "../credential/credential-cache";
 import { AUTH_STORAGE_KEY, authClient, dropLocalSession } from "./supabase-auth";
 
@@ -275,34 +276,70 @@ export async function signIn(email: string, password: string): Promise<SignInRes
     return { ok: false, message: apiFailureMessage(result) ?? "No pudimos iniciar sesión." };
   }
 
-  // BOTH FAILURE SHAPES LAND IN ONE BRANCH, and until 2026-08-25 only one of
-  // them existed: `setSession` returns `{ error }` for an AuthError and THROWS
-  // for anything else (GoTrueClient.js:2849-2854). An expo-secure-store write
-  // failure is a plain Error, so the storage failure this branch is named for was
-  // the one shape that never reached it — it propagated into the screen instead,
-  // where `submit()` has no catch and `setBusy(false)` never ran.
+  // BOTH FAILURE SHAPES REACH THIS CALL AND THEY MEAN OPPOSITE THINGS, so they
+  // are caught together and answered apart. Until 2026-08-25 only one of them
+  // existed; until 2026-08-31 both existed and shared one sentence, and that
+  // sentence cost a real diagnosis — see below.
+  //
+  //   · `{ error }` RETURNED  → an AuthError. The SERVER refused. `setSession`
+  //     calls `_getUser(access_token)` over the network BEFORE it saves anything
+  //     (GoTrueClient.js:2835 vs `_saveSession` at :2847), so on this path
+  //     storage is never even reached.
+  //   · REJECTED PROMISE      → not an AuthError, so auth-js rethrew it
+  //     (:2849-2854). An `expo-secure-store` failure is a plain Error, so THIS
+  //     is the device-storage shape, and the only one.
   let stored: { error: unknown } = { error: null };
+  let refusedByServer = false;
   try {
     stored = await client.auth.setSession({
       access_token: result.payload.session.accessToken,
       refresh_token: result.payload.session.refreshToken,
     });
+    // A returned error is the server's, by the contract above.
+    refusedByServer = Boolean(stored.error);
   } catch (err) {
     stored = { error: err instanceof Error ? err : new Error(String(err)) };
   }
 
   if (stored.error) {
-    // Signed in at the server, not stored on the device. Saying "listo" here
-    // produces a session that evaporates on the next cold start, which is the
-    // "it logs me out sometimes" report the whole storage adapter exists to
-    // prevent. Refuse visibly instead.
+    // Signed in at the server, not usable on the device either way. Saying
+    // "listo" here produces a session that evaporates on the next cold start,
+    // which is the "it logs me out sometimes" report the whole storage adapter
+    // exists to prevent. Refuse visibly — but say WHICH refusal it was.
+    //
+    // WHY THE SPLIT IS WORTH ITS LINES. One sentence blaming the device covered
+    // both shapes, and on 2026-08-30 it sent a walkthrough down the wrong path:
+    // the app was pointed at LOCAL Supabase while `API_BASE_URL` still defaulted
+    // to staging, so it signed in at staging, handed a staging-signed token to
+    // local GoTrue, and got `invalid JWT: unrecognized JWT kid`. Pure
+    // configuration, zero device involvement — and the screen said "este
+    // dispositivo". It was written up as an unexplained Keystore fault, an
+    // emulator PIN was tried and refuted, and `adb logcat` was searched for
+    // SecureStore lines that could not exist, because that code never ran.
+    //
+    // A message that names the wrong subsystem does not merely fail to help: it
+    // spends someone's afternoon in the wrong file.
     //
     // `clearSession` is itself unconditional and swallows its own signOut
     // failure, so this cleanup cannot turn one failure into two.
     await clearSession();
     return {
       ok: false,
-      message: "Iniciaste sesión, pero no pudimos guardarla en este dispositivo. Probá de nuevo.",
+      message: refusedByServer
+        ? // Deliberately NOT "revisá tu conexión": the request reached a server
+          // and came back refused. Naming neither the device nor the network
+          // keeps this honest for the two live causes — a token this server does
+          // not recognise, and a server that is not the one that issued it.
+          //
+          // And when the build's own two origins straddle local and remote, that
+          // IS the cause with overwhelming likelihood, so it gets named. A
+          // shipped build cannot reach this clause — both origins are baked from
+          // one environment — so the sentence only ever appears in front of the
+          // person who can act on it.
+          planesLookCrossed()
+          ? "Iniciaste sesión, pero el servidor no aceptó la sesión: esta compilación apunta a dos entornos distintos (API y Supabase). Alineá EXPO_PUBLIC_API_BASE_URL con EXPO_PUBLIC_SUPABASE_URL."
+          : "Iniciaste sesión, pero el servidor no aceptó la sesión en este dispositivo. Probá de nuevo."
+        : "Iniciaste sesión, pero no pudimos guardarla en este dispositivo. Probá de nuevo.",
     };
   }
 

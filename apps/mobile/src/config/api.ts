@@ -76,6 +76,66 @@ export function authPlaneConfigured(): boolean {
 }
 
 /**
+ * A host that is this machine, from the device's point of view.
+ *
+ * `10.0.2.2` is the Android emulator's alias for the host loopback and is the
+ * spelling the repo's own run-book uses; the others are what a simulator or a
+ * physical device on the LAN gets. Kept as a list rather than a regex over
+ * "private-looking" addresses because the question is not "is this address
+ * private", it is "does this point at the machine the developer is sitting at".
+ */
+function isLocalHost(host: string): boolean {
+  return (
+    host === "localhost" ||
+    host === "127.0.0.1" ||
+    host === "10.0.2.2" ||
+    host === "10.0.3.2" ||
+    host.endsWith(".local")
+  );
+}
+
+function hostOf(url: string): string | null {
+  try {
+    return new URL(url).hostname;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * True when the two planes point at DIFFERENT ENVIRONMENTS — one local, one not.
+ *
+ * NOT "different hosts", and the distinction is the whole point. The header says
+ * these two are deliberately different hosts: in staging the data plane is
+ * `dim-staging.vercel.app` and the auth plane is a `*.supabase.co` project. A
+ * fence asserting they match would be red on every correct configuration this
+ * app ships with.
+ *
+ * What is never correct is a build that CROSSES environments, and it produces a
+ * failure that reads as anything but its cause. Measured on 2026-08-30: with
+ * `EXPO_PUBLIC_SUPABASE_URL` pointed at a local stack and
+ * `EXPO_PUBLIC_API_BASE_URL` left on its staging default, the app signs in at
+ * STAGING, receives an access token signed with staging's key, and hands it to
+ * LOCAL GoTrue — which answers `invalid JWT: unrecognized JWT kid <…> for
+ * algorithm ES256`. `setSession` calls `_getUser` over the network before it
+ * saves anything, so nothing on the device is ever touched, and the sign-in
+ * screen reported a device-storage problem. That was investigated as an
+ * unexplained Keystore fault: an emulator PIN tried and refuted, `adb logcat`
+ * searched for SecureStore lines that could not exist.
+ *
+ * Returns false when either origin is missing or unparseable — those are
+ * `authPlaneConfigured()`'s business, and answering "crossed" for an
+ * unconfigured build would put a second explanation on a screen that already has
+ * the right one.
+ */
+export function planesLookCrossed(): boolean {
+  const apiHost = hostOf(API_BASE_URL);
+  const authHost = SUPABASE_URL.length > 0 ? hostOf(SUPABASE_URL) : null;
+  if (apiHost === null || authHost === null) return false;
+  return isLocalHost(apiHost) !== isLocalHost(authHost);
+}
+
+/**
  * The URL the QR encodes: the PUBLIC WEB PAGE, not this app and not the API.
  *
  * Invariant #1 — the pet is the credential — means the code has to resolve for

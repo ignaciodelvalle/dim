@@ -106,17 +106,56 @@ describe("signIn — a Keystore write that THROWS", () => {
     });
   });
 
-  it("reaches the SAME branch as an AuthError-shaped failure", async () => {
+  it("reaches the same REFUSAL as an AuthError, and says a different thing", async () => {
+    // THIS CASE USED TO ASSERT THE OPPOSITE, and its premise was wrong. It read
+    // `expect(viaThrow).toEqual(viaError)` under "the library reports the same
+    // condition two different ways ... and the user must not be able to tell".
+    //
+    // They are not the same condition. `setSession` calls `_getUser` over the
+    // network BEFORE it saves anything (GoTrueClient.js:2835, `_saveSession` at
+    // :2847), so a RETURNED AuthError means the server refused and storage was
+    // never reached — while a REJECTED promise is the storage failure, because
+    // auth-js rethrows non-AuthErrors (:2849-2854).
+    //
+    // What the collapse cost, on 2026-08-30: an app pointed at local Supabase
+    // while `API_BASE_URL` still defaulted to staging signed in at staging and
+    // handed a staging-signed token to local GoTrue, which answered
+    // `invalid JWT: unrecognized JWT kid`. The screen blamed "este dispositivo",
+    // and it was written up as an unexplained Keystore fault — an emulator PIN
+    // tried and refuted, `adb logcat` searched for SecureStore lines that could
+    // not exist, because that code never ran.
     mockAuth.setSession.mockResolvedValue({ data: {}, error: { message: "invalid session" } });
-
     const viaError = await signIn("ana@dim.test", "hunter2");
+
     mockAuth.setSession.mockRejectedValue(KEYSTORE_FAILURE);
     const viaThrow = await signIn("ana@dim.test", "hunter2");
 
-    // One failure, one message. The library reports the same condition two
-    // different ways depending on the error's class, and the user must not be
-    // able to tell.
-    expect(viaThrow).toEqual(viaError);
+    // Both still REFUSE — that half was right and is not being loosened.
+    expect(viaError.ok).toBe(false);
+    expect(viaThrow.ok).toBe(false);
+
+    // But they name different subsystems, and only the throw names the device.
+    expect(viaError).toEqual({
+      ok: false,
+      message:
+        "Iniciaste sesión, pero el servidor no aceptó la sesión en este dispositivo. Probá de nuevo.",
+    });
+    expect(viaThrow).toEqual({
+      ok: false,
+      message: "Iniciaste sesión, pero no pudimos guardarla en este dispositivo. Probá de nuevo.",
+    });
+    expect(viaThrow).not.toEqual(viaError);
+  });
+
+  it("cleans up on the SERVER-refused shape too, not just on the throw", async () => {
+    // The split must not turn one of the two into a softer path: a session the
+    // server refused is as unusable as one that failed to store, so both clear.
+    mockAuth.setSession.mockResolvedValue({ data: {}, error: { message: "invalid session" } });
+
+    await signIn("ana@dim.test", "hunter2");
+
+    expect(mockDropLocalSession).toHaveBeenCalledTimes(1);
+    expect(getSessionState().phase).not.toBe("signed-in");
   });
 
   it("cleans up so a half-stored session cannot survive to the next cold start", async () => {
