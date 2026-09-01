@@ -198,7 +198,28 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
   // The spread of `config.extra` is not decoration: the expo-router plugin puts
   // its own `extra.router` there during config resolution, and replacing the
   // object instead of merging it would drop that silently.
-  extra: { ...config.extra, eas: { projectId: "db4bebed-67f3-49a7-acf7-63c9f19ad511" } },
+  //
+  // `sentryDsn` RIDES `extra` BECAUSE THE EAS VARIABLE HAS NO EXPO_PUBLIC_
+  // PREFIX. Expo inlines only EXPO_PUBLIC_* env vars into the JS bundle, so
+  // `process.env.SENTRY_DSN` is undefined at runtime — but THIS file runs in
+  // Node at build time, where EAS injects the project's env, so the value is
+  // read here once and carried into the manifest. A DSN is a publish address,
+  // not a secret (every shipped app exposes its own), so `extra` is an
+  // appropriate home. Local dev has no SENTRY_DSN and gets `null`, which
+  // `src/observability/sentry.ts` treats as "do not init".
+  extra: {
+    ...config.extra,
+    eas: { projectId: "db4bebed-67f3-49a7-acf7-63c9f19ad511" },
+    sentryDsn: process.env.SENTRY_DSN ?? null,
+  },
+  // The Sentry config plugin wires the NATIVE crash layer during prebuild
+  // (Android/iOS init before the JS engine exists — a startup crash never
+  // reaches `Sentry.init` in _layout). Deliberately bare: the org/project
+  // options only parameterize SOURCEMAP UPLOAD, which also needs a
+  // SENTRY_AUTH_TOKEN that EAS does not hold yet — the plugin skips upload
+  // with a warning when the token is absent, and crashes still arrive (with
+  // minified frames until the PO adds the token; see the D2 handback).
+  plugins: [...(config.plugins ?? []), "@sentry/react-native/expo"],
   // See "THE SECOND DECLARATION THAT NEEDS PARAGRAPHS" at the top of this file
   // for why each of these keys is the value it is, and for the one thing this
   // block does NOT declare (the channel — that is per build profile).

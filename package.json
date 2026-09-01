@@ -112,6 +112,7 @@
     "seed:real-photos": "tsx scripts/seed-real-photos.ts",
     "verify:history": "node --import ./scripts/register-server-only-stub.mjs --import tsx scripts/verify-history-coverage.ts",
     "seed:demo:scenario": "node --conditions=react-server --import tsx scripts/seed-demo-scenario.ts",
+    "seed:turnos-testers": "node --conditions=react-server --import tsx scripts/seed-turnos-testers.ts",
     "seed:flagship": "node --conditions=react-server --import tsx scripts/seed-flagship-pampa.ts",
     "seed:play-reviewer": "node --conditions=react-server --import tsx scripts/seed-play-reviewer.ts",
     "seed:legal-baseline": "node --conditions=react-server --import tsx scripts/seed-legal-baseline.ts",
@@ -192,6 +193,6 @@
     "node": ">=22.23.0 <23"
   },
   "pnpm": {
-    "onlyBuiltDependencies": ["@biomejs/biome", "esbuild", "sharp", "supabase"]
+    "onlyBuiltDependencies": ["@biomejs/biome", "@sentry/cli", "esbuild", "sharp", "supabase"]
   }
 }

@@ -25,6 +25,10 @@ packages:
 
 allowBuilds:
   '@biomejs/biome': true
+  # true: its postinstall downloads the sentry-cli binary that uploads
+  # sourcemaps during EAS builds — without it a crash report shows minified
+  # frames, which defeats the reason the SDK is here at all.
+  '@sentry/cli': true
   core-js-pure: false
   esbuild: true
   sharp: true
