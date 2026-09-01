@@ -1,0 +1,279 @@
+/**
+ * Live, bookable turnos for the localities REAL testers live in.
+ *
+ * WHY THIS EXISTS (measured 2026-09-01, pre-test audit): the bulk seed's
+ * campaign windows are frozen on purpose — seed-panorama.ts anchors at
+ * ANCHOR_ISO 2026-06-20 for reproducibility, so its `effectiveUntil` passed on
+ * 2026-07-20 and re-running it cannot mint a single future slot
+ * (lib/infra/slot-materialization.ts clamps to the rule's window). The one
+ * run-relative campaign (seed-demo-scenario.ts) is locked to CABA/Palermo. So
+ * a tester whose pet lives anywhere else opens "Buscar turno" and gets an
+ * empty list forever — and the phone cannot search another locality (it uses
+ * the pet's own jurisdiction). This script plants an approved offering with
+ * OPEN FUTURE slots per locality the operator names — the 14 pilot testers'
+ * real localities, which only the PO knows.
+ *
+ * RELATIVE DATES, DELIBERATELY: everything derives from run time, so
+ * RE-RUNNING REFRESHES — an existing rule's `effectiveUntil` is pushed out to
+ * +30 days and missing future slots are filled in. That is the exact property
+ * the frozen seeds cannot have and this one must.
+ *
+ * RE-RUN SAFETY, per the rule seed-test-users.ts:43 wrote after the 2026-08-21
+ * staging incident: every step guards ON THE CONSTRAINT IT WILL HIT, and the
+ * function converges from a PARTIAL state, not just from nothing —
+ *   offering  → its deterministic publicToken (DIM-PILOT-…)
+ *   rule      → one per offering (updated, never duplicated)
+ *   slots     → time_slots_unique_starts UNIQUE (offering, starts_at)
+ *
+ * Usage (pairs are "Provincia|Localidad", catalog spelling for the province):
+ *   pnpm tsx scripts/seed-turnos-testers.ts "Buenos Aires|La Plata" "CABA|Palermo"
+ *
+ * DATABASE_URL decides the target (read from .env.local / .env, same as
+ * migrate.ts); the Destino line prints before anything is written. Writing to
+ * staging is an operator action — same rule as every seed here.
+ */
+
+import { config as loadEnv } from "dotenv";
+
+loadEnv({ path: ".env.local" });
+loadEnv({ path: ".env" });
+
+import { and, eq } from "drizzle-orm";
+
+import { provinceByName } from "../lib/reference/ar-provincias";
+import { describeTarget } from "./_db-target";
+
+const SLOT_DAYS_AHEAD = 14;
+const RULE_DAYS_AHEAD = 30;
+/** UTC hours that land in the AR working morning/afternoon (UTC-3: 11–14h). */
+const SLOT_HOURS_UTC = [14, 15, 16, 17];
+const SLOT_CAPACITY = 4;
+const DURATION_MINUTES = 15;
+
+/** Deterministic per-locality token so the offering guard has a constraint. */
+function pilotToken(province: string, locality: string): string {
+  const slug = `${province}-${locality}`
+    .toUpperCase()
+    .normalize("NFD")
+    .replace(/\p{Diacritic}/gu, "")
+    .replace(/[^A-Z0-9]+/g, "-")
+    .replace(/^-|-$/g, "")
+    .slice(0, 24);
+  return `DIM-PILOT-${slug}`;
+}
+
+function isoDate(d: Date): string {
+  return d.toISOString().slice(0, 10);
+}
+
+async function seedPair(
+  deps: {
+    db: typeof import("../db")["db"];
+    serviceOfferings: typeof import("../db")["serviceOfferings"];
+    serviceScheduleRules: typeof import("../db")["serviceScheduleRules"];
+    timeSlots: typeof import("../db")["timeSlots"];
+  },
+  hostOrgId: string,
+  province: string,
+  locality: string,
+  now: Date,
+  effFrom: string,
+  effUntil: string,
+): Promise<void> {
+  const { db, serviceOfferings, serviceScheduleRules, timeSlots } = deps;
+  const token = pilotToken(province, locality);
+
+  const [existingOffering] = await db
+    .select({ id: serviceOfferings.id })
+    .from(serviceOfferings)
+    .where(eq(serviceOfferings.publicToken, token))
+    .limit(1);
+
+  let offeringId = existingOffering?.id ?? null;
+  if (offeringId) {
+    console.log(`  SKIP  ${token} — offering exists (${province} / ${locality})`);
+  } else {
+    const [inserted] = await db
+      .insert(serviceOfferings)
+      .values({
+        publicToken: token,
+        organizationId: hostOrgId,
+        jurisdictionCountry: "AR",
+        jurisdictionProvince: province,
+        jurisdictionLocality: locality,
+        serviceKind: "vaccination_rabies",
+        displayName: "Vacunación antirrábica (prueba piloto)",
+        description:
+          "Campaña de la prueba piloto — turnos reales para los testers de esta localidad.",
+        durationMinutes: DURATION_MINUTES,
+        slotCapacity: SLOT_CAPACITY,
+        eligibilitySpecies: ["dog", "cat"],
+        status: "approved",
+        isPublic: true,
+      })
+      .returning({ id: serviceOfferings.id });
+    offeringId = inserted.id;
+    console.log(`  NEW   ${token} — offering created (${province} / ${locality})`);
+  }
+
+  // One rule per pilot offering; re-running REFRESHES its window instead of
+  // stacking a second rule.
+  const [existingRule] = await db
+    .select({ id: serviceScheduleRules.id })
+    .from(serviceScheduleRules)
+    .where(eq(serviceScheduleRules.serviceOfferingId, offeringId))
+    .limit(1);
+
+  let ruleId = existingRule?.id ?? null;
+  if (ruleId) {
+    await db
+      .update(serviceScheduleRules)
+      .set({ effectiveFrom: effFrom, effectiveUntil: effUntil, status: "active" })
+      .where(eq(serviceScheduleRules.id, ruleId));
+    console.log(`        rule window refreshed → ${effUntil}`);
+  } else {
+    const [rule] = await db
+      .insert(serviceScheduleRules)
+      .values({
+        serviceOfferingId: offeringId,
+        daysOfWeek: [1, 2, 3, 4, 5, 6],
+        startTimeLocal: "11:00:00",
+        endTimeLocal: "14:00:00",
+        effectiveFrom: effFrom,
+        effectiveUntil: effUntil,
+        status: "active",
+      })
+      .returning({ id: serviceScheduleRules.id });
+    ruleId = rule.id;
+    console.log(`        rule created → ${effUntil}`);
+  }
+
+  // Slots materialized here rather than left to the cron, so the operator
+  // sees bookable rows the moment the script exits. Guarded per
+  // (offering, starts_at); a re-run only fills what is missing.
+  let created = 0;
+  let kept = 0;
+  for (let day = 1; day <= SLOT_DAYS_AHEAD; day++) {
+    const base = new Date(now.getTime() + day * 24 * 3600 * 1000);
+    if (base.getUTCDay() === 0) continue; // rule excludes Sundays
+    for (const hour of SLOT_HOURS_UTC) {
+      const startsAt = new Date(base);
+      startsAt.setUTCHours(hour, 0, 0, 0);
+      const endsAt = new Date(startsAt.getTime() + DURATION_MINUTES * 60 * 1000);
+
+      const [existingSlot] = await db
+        .select({ id: timeSlots.id })
+        .from(timeSlots)
+        .where(and(eq(timeSlots.serviceOfferingId, offeringId), eq(timeSlots.startsAt, startsAt)))
+        .limit(1);
+      if (existingSlot) {
+        kept++;
+        continue;
+      }
+      await db.insert(timeSlots).values({
+        serviceOfferingId: offeringId,
+        ruleId,
+        startsAt,
+        endsAt,
+        capacity: SLOT_CAPACITY,
+        bookingsCount: 0,
+        status: "open",
+      });
+      created++;
+    }
+  }
+  console.log(`        slots: ${created} created, ${kept} already present\n`);
+}
+
+async function main() {
+  const pairs = process.argv.slice(2).map((raw) => {
+    const [province, locality] = raw.split("|").map((s) => s?.trim() ?? "");
+    return { raw, province, locality };
+  });
+
+  if (pairs.length === 0) {
+    console.error(
+      'Usage: pnpm tsx scripts/seed-turnos-testers.ts "Provincia|Localidad" ["Provincia|Localidad" ...]',
+    );
+    process.exit(2);
+  }
+
+  for (const p of pairs) {
+    if (!p.province || !p.locality) {
+      console.error(`✗ malformed pair ${JSON.stringify(p.raw)} — expected "Provincia|Localidad"`);
+      process.exit(2);
+    }
+    // The search filters offerings with province EQUALITY against what pets
+    // carry, so a misspelled province plants an offering nobody can find —
+    // fail loudly instead of writing an invisible row.
+    if (!provinceByName(p.province)) {
+      console.error(
+        `✗ unknown province ${JSON.stringify(p.province)} — use the catalog spelling (lib/reference/ar-provincias)`,
+      );
+      process.exit(2);
+    }
+  }
+
+  const DATABASE_URL = process.env.DATABASE_URL ?? "";
+  if (!DATABASE_URL) {
+    console.error("✗ DATABASE_URL is not set (read from .env.local / .env)");
+    process.exit(2);
+  }
+  const target = describeTarget(DATABASE_URL);
+  console.log(`\n  Destino: ${target.label}${target.isLocal ? "  [LOCAL]" : "  [REMOTO]"}\n`);
+
+  // Imported AFTER loadEnv — db/index.ts throws when DATABASE_URL is missing
+  // at module load, the same arrangement every seed in this directory uses.
+  const { db, organizations, serviceOfferings, serviceScheduleRules, timeSlots } = await import(
+    "../db"
+  );
+
+  // The offering needs an org that exists on BOTH stacks. Preference order:
+  // the seeded clinic (real vet login attached), then the seeded shelter.
+  const HOST_ORGS = ["Clínica Veterinaria Recoleta", "Refugio Test (Seed)"];
+  let hostOrgId: string | null = null;
+  let hostOrgName: string | null = null;
+  for (const name of HOST_ORGS) {
+    const [row] = await db
+      .select({ id: organizations.id })
+      .from(organizations)
+      .where(eq(organizations.displayName, name))
+      .limit(1);
+    if (row) {
+      hostOrgId = row.id;
+      hostOrgName = name;
+      break;
+    }
+  }
+  if (!hostOrgId) {
+    console.error(
+      `✗ none of the host orgs exist here (${HOST_ORGS.join(" / ")}) — run pnpm seed:test (and seed:demo) first`,
+    );
+    process.exit(1);
+  }
+  console.log(`  Host org: ${hostOrgName}`);
+
+  const now = new Date();
+  const effFrom = isoDate(new Date(now.getTime() - 24 * 3600 * 1000));
+  const effUntil = isoDate(new Date(now.getTime() + RULE_DAYS_AHEAD * 24 * 3600 * 1000));
+
+  for (const { province, locality } of pairs) {
+    await seedPair(
+      { db, serviceOfferings, serviceScheduleRules, timeSlots },
+      hostOrgId,
+      province,
+      locality,
+      now,
+      effFrom,
+      effUntil,
+    );
+  }
+
+  console.log("  Done. Verify with a real search from the app or the web (/turnos/buscar).\n");
+  process.exit(0);
+}
+
+main().catch((err) => {
+  console.error(err);
+  process.exit(1);
+});
