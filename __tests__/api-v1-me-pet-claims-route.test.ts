@@ -63,6 +63,23 @@ vi.mock("next/headers", () => ({
   },
 }));
 
+vi.mock("@/lib/supabase/bearer", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/supabase/bearer")>();
+  return {
+    ...actual,
+    // THE ONE ROUTE-TEST OF FIFTEEN THAT BUILT A REAL supabase-js CLIENT
+    // (open-work.md): unmocked, this module reads NEXT_PUBLIC_SUPABASE_ANON_KEY,
+    // the one Supabase variable `__tests__/setup-env.ts` does not force — so in
+    // a worktree with no `.env.local` this file reported 20 of 21 red with
+    // `Error: supabaseKey is required.`, credential-shaped, on a file that has
+    // nothing to do with RLS. Same stub as the fourteen siblings: the handler's
+    // whole contract with the client is handing `supabase`/`token` to
+    // `requireLiveUser`, itself stubbed below.
+    createClientFromBearer: (header: string | null) =>
+      header ? { ok: true, supabase: {}, token: "tok" } : { ok: false, reason: "MISSING" },
+  };
+});
+
 vi.mock("@/lib/infra/rate-limit", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/lib/infra/rate-limit")>();
   return {
