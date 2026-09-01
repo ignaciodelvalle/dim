@@ -27,6 +27,7 @@ import * as Linking from "expo-linking";
 import type { ReactNode } from "react";
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from "react-native";
 
+import { contactLink } from "./contact-link";
 import { FONTS } from "./fonts";
 import { PrimaryButton, SecondaryButton } from "./kit";
 import { COLORS, LABEL_TRACKING_EM, LEADING, RADIUS, SPACE, TOUCH_TARGET, TYPE } from "./theme";
@@ -55,24 +56,37 @@ export function Row({ label, value }: { label: string; value: string }) {
 }
 
 /**
- * A Row whose value is a PHONE NUMBER — tappable, because it renders in the
- * one flow where dialing is the whole point (QOL 2026-09-01): the owner's
- * phone in front of the finder holding the animal, and a finder's contact in
- * front of the owner reading the search feed. The web's own lost surfaces
- * link them (`tel:` in LostScanFeed:227, the "Llamar" CTA on the public
- * credential); on the phone — the device that CALLS — they were inert text.
- * Falls back to a plain Row shape when the dialer refuses the URL.
+ * A Row whose value is a CONTACT — a phone OR an email, the shape every
+ * schema carrying one promises (`finderContact` in
+ * `@dim/contract/api/pet-lost`, the lost owner's `phoneE164`). Tappable,
+ * because it renders in the one flow where reaching the other person is the
+ * whole point (QOL 2026-09-01): the owner's phone in front of the finder
+ * holding the animal, and a finder's contact in front of the owner reading
+ * the search feed. The web's own lost surfaces link them (`tel:` in
+ * LostScanFeed:227, the "Llamar" CTA on the public credential); on the phone
+ * — the device that CALLS — they were inert text.
+ *
+ * `contact-link.ts` decides which kind `value` is and builds the `tel:` /
+ * `mailto:` href and the accessible label — an email routed through `tel:`
+ * used to read "Llamar al juan@…" to a screen reader and then fail against a
+ * dialer that cannot open it, silently, since the tap handler swallows the
+ * rejection. A value neither kind can make sense of falls back to the plain
+ * `Row` shape.
  */
-export function PhoneRow({ label, value }: { label: string; value: string }) {
+export function ContactRow({ label, value }: { label: string; value: string }) {
+  const link = contactLink(value);
+  if (link === null) {
+    return <Row label={label} value={value} />;
+  }
   return (
     <Pressable
-      accessibilityRole="button"
-      accessibilityLabel={`Llamar al ${value}`}
-      onPress={() => void Linking.openURL(`tel:${value}`).catch(() => {})}
-      style={({ pressed }) => [styles.row, styles.phoneRow, pressed ? { opacity: 0.6 } : null]}
+      accessibilityRole="link"
+      accessibilityLabel={link.label}
+      onPress={() => void Linking.openURL(link.href).catch(() => {})}
+      style={({ pressed }) => [styles.row, styles.contactRow, pressed ? { opacity: 0.6 } : null]}
     >
       <Text style={styles.rowLabel}>{label}</Text>
-      <Text selectable style={[styles.rowValue, styles.phoneValue]}>
+      <Text selectable style={[styles.rowValue, styles.contactValue]}>
         {value}
       </Text>
     </Pressable>
@@ -187,10 +201,10 @@ const styles = StyleSheet.create({
     flexShrink: 1,
     textAlign: "right",
   },
-  // PhoneRow: the value reads as the link it is, and the row is a full
-  // touch target — a phone number nobody can hit is worse than plain text.
-  phoneRow: { minHeight: TOUCH_TARGET, alignItems: "center" },
-  phoneValue: { color: COLORS.accent, textDecorationLine: "underline" },
+  // ContactRow: the value reads as the link it is, and the row is a full
+  // touch target — a phone or email nobody can hit is worse than plain text.
+  contactRow: { minHeight: TOUCH_TARGET, alignItems: "center" },
+  contactValue: { color: COLORS.accent, textDecorationLine: "underline" },
   body: {
     fontFamily: FONTS.sans,
     color: COLORS.inkSoft,

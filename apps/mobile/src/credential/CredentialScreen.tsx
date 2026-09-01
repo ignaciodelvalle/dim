@@ -34,7 +34,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { StyleSheet, Text, View } from "react-native";
 
 import { publicCredentialPageUrl } from "../config/api";
-import { Alert, Body, Card, Loading, PhoneRow, Row, Unavailable } from "../ui/components";
+import { Alert, Body, Card, ContactRow, Loading, Row, Unavailable } from "../ui/components";
 import { FONTS } from "../ui/fonts";
 import { Eyebrow, PrimaryButton, Screen, Title } from "../ui/kit";
 import { COLORS, LEADING, RADIUS, SPACE, TRACKING, TYPE } from "../ui/theme";
@@ -341,7 +341,7 @@ function LostDetail({ data }: { data: CredentialLostSection }) {
     <>
       <Alert>Reportada como perdida.</Alert>
       {data.owner.firstName ? <Row label="Contacto" value={data.owner.firstName} /> : null}
-      {data.owner.phoneE164 ? <PhoneRow label="Teléfono" value={data.owner.phoneE164} /> : null}
+      {data.owner.phoneE164 ? <ContactRow label="Teléfono" value={data.owner.phoneE164} /> : null}
       {data.lastSeen?.locality ? <Row label="Visto en" value={data.lastSeen.locality} /> : null}
     </>
   );

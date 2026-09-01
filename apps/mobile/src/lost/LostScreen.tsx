@@ -61,7 +61,7 @@ import { apiErrorMessage } from "../api/error-copy";
 import { sessionPort } from "../auth/session-store";
 import { publicCredentialPageUrl } from "../config/api";
 import { createAttemptSession } from "../pets/idempotency";
-import { Body, Card, Loading, PhoneRow, Row } from "../ui/components";
+import { Body, Card, ContactRow, Loading, Row } from "../ui/components";
 import { FONTS } from "../ui/fonts";
 import { hapticConfirm, hapticError, hapticSuccess } from "../ui/haptics";
 import {
@@ -449,7 +449,7 @@ function FeedRow({
       <Text style={styles.feedTitle}>{feedItemTitle(item)}</Text>
       <Text style={styles.feedMeta}>{formatIsoDateTime(item.at)}</Text>
       {detail ? <Body>{detail}</Body> : null}
-      {contact ? <PhoneRow label="Contacto" value={contact} /> : null}
+      {contact ? <ContactRow label="Contacto" value={contact} /> : null}
       {item.kind !== "scan" && item.hasPhoto ? (
         // The file is not on this payload — see the contract header. Saying it
         // exists is honest; a broken image would not be.
