@@ -22,6 +22,7 @@ const GOB_WELFARE_DETAIL_SELECT = {
   severity: welfareReports.severity,
   status: welfareReports.status,
   description: welfareReports.description,
+  observedSymptoms: welfareReports.observedSymptoms,
   subjectKind: welfareReports.subjectKind,
   subjectPetId: welfareReports.subjectPetId,
   subjectDescription: welfareReports.subjectDescription,
@@ -357,6 +358,12 @@ export default async function GobMaltratoDetailPage({
         <OpCardHead title="¿Qué pasó?" />
         <OpCardBody className="space-y-2">
           <p className="text-md text-ln-op-ink whitespace-pre-wrap">{report.description}</p>
+          {report.observedSymptoms && (
+            <p className="text-sm text-ln-op-ink whitespace-pre-wrap">
+              <span className="font-semibold">Síntomas observados: </span>
+              {report.observedSymptoms}
+            </p>
+          )}
           {report.occurredAt && (
             <p className="text-sm text-ln-op-mute">Ocurrió el {formatDate(report.occurredAt)}</p>
           )}

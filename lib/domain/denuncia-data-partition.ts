@@ -123,6 +123,10 @@ export const REPORTER_IDENTITY_COLUMNS: readonly DenunciaColumn[] = [
  */
 export const DENUNCIA_CONTENT_COLUMNS: readonly DenunciaColumn[] = [
   { property: "description", column: "description" },
+  // What the reporter observed on the animal (migration 0209) — testimony
+  // prose of the same class as `description`: free text that can restate the
+  // allegation or name people, and must vanish with the content unit.
+  { property: "observedSymptoms", column: "observed_symptoms" },
   { property: "subjectPetId", column: "subject_pet_id" },
   { property: "subjectDescription", column: "subject_description" },
   { property: "locationAddress", column: "location_address" },
@@ -285,6 +289,9 @@ export const CONTENT_PURGE_PLAN: readonly PurgeAction[] = [
     action: "sentinel",
     sentinel: RETENTION_PURGE_SENTINEL,
   },
+  // Nullable in the schema (0209) — null, not sentinel: an absent observation
+  // needs no tombstone, unlike the NOT NULL description above.
+  { property: "observedSymptoms", column: "observed_symptoms", action: "null" },
   { property: "subjectPetId", column: "subject_pet_id", action: "null" },
   { property: "subjectDescription", column: "subject_description", action: "null" },
   { property: "locationAddress", column: "location_address", action: "null" },

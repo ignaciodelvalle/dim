@@ -198,8 +198,18 @@ export type DenunciaFormValues = {
   description: string;
   subjectKind: WelfareReportSubjectKind | null;
   subjectDescription: string;
-  /** The candidate the person TAPPED, never one this app resolved for them. */
-  place: { label: string; lat: number; lng: number } | null;
+  /** The candidate the person TAPPED, never one this app resolved for them.
+   * Carries the candidate's OWN jurisdiction pair (nullable on the wire) so
+   * `file` can echo it — dropping it here was walkthrough 2026-08-31 §2: the
+   * server geocoded the pair, the person picked it, and every mobile denuncia
+   * still landed "jurisdicción sin verificar". */
+  place: {
+    label: string;
+    lat: number;
+    lng: number;
+    province: string | null;
+    locality: string | null;
+  } | null;
   anonymous: boolean;
   contactEmail: string;
   contactPhone: string;
@@ -232,6 +242,11 @@ export function buildFileDenunciaCommand(values: DenunciaFormValues): DenunciaDr
     locationLat: values.place?.lat,
     locationLng: values.place?.lng,
     locationAddress: values.place?.label,
+    // The picked candidate's jurisdiction, echoed. Absent (typed address, no
+    // geocoder confirmation) the server's D.11 gate infers from text and marks
+    // the row unverified — which is then true.
+    locationProvince: values.place?.province,
+    locationLocality: values.place?.locality,
   };
 
   if (values.anonymous) {
@@ -240,8 +255,11 @@ export function buildFileDenunciaCommand(values: DenunciaFormValues): DenunciaDr
   return parseDraft(welfareReportFileInputSchema, {
     ...facts,
     contactMode: "with_contact",
-    reporterContactEmail: values.contactEmail,
-    reporterContactPhone: values.contactPhone,
+    // Trimmed at the same point the web's wizard trims (DenunciaWizard.tsx:365)
+    // — a trailing space from mobile autocomplete otherwise reaches the case
+    // record as part of the address someone will try to write to.
+    reporterContactEmail: values.contactEmail.trim(),
+    reporterContactPhone: values.contactPhone.trim(),
   });
 }
 

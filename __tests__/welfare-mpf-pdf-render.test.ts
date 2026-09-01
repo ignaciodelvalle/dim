@@ -31,6 +31,7 @@ function makeDto(overrides: Partial<WelfareMpfDto> = {}): WelfareMpfDto {
     kindLabel: "Abandono",
     severityLabel: "Alta",
     description: "Perro atado a la intemperie sin agua ni alimento.",
+    observedSymptoms: null,
     occurredAtLabel: "19 de junio de 2026 a las 21:00",
     jurisdictionProvince: "CABA",
     jurisdictionLocality: "CABA",
@@ -75,6 +76,25 @@ describe("extractPdfText — the reading apparatus itself", () => {
 
   it("recovers accented Spanish", async () => {
     expect(await renderText()).toContain("Descripción".toUpperCase());
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Síntomas observados — the field that used to die between form and column
+// ---------------------------------------------------------------------------
+
+describe("observed symptoms in the legal export", () => {
+  it("prints the reporter's observation verbatim when one was recorded", async () => {
+    // Column since migration 0209. The MPF export is the read that makes the
+    // repair real: a vet's clinical observation reaching the fiscal document,
+    // not just a database row.
+    const text = await renderText({ observedSymptoms: "Costillas visibles, pelaje opaco" });
+    expect(text).toContain("Síntomas observados".toUpperCase());
+    expect(text).toContain("Costillas visibles, pelaje opaco");
+  });
+
+  it("omits the label entirely when nothing was observed — no empty legal field", async () => {
+    expect(await renderText()).not.toContain("Síntomas observados".toUpperCase());
   });
 });
 

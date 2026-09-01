@@ -96,6 +96,7 @@ const GOB_WELFARE_DETAIL_SELECT = {
   severity: welfareReports.severity,
   status: welfareReports.status,
   description: welfareReports.description,
+  observedSymptoms: welfareReports.observedSymptoms,
   subjectKind: welfareReports.subjectKind,
   subjectPetId: welfareReports.subjectPetId,
   subjectDescription: welfareReports.subjectDescription,
@@ -148,6 +149,7 @@ export type WelfareInspectorDetail = {
   severity: string;
   status: string;
   description: string;
+  observedSymptoms: string | null;
   subjectKind: string;
   subjectDescription: string | null;
   subjectPetToken: string | null;
@@ -361,6 +363,7 @@ export async function loadWelfareInspectorDetail(
       severity: report.severity,
       status: report.status,
       description: report.description,
+      observedSymptoms: report.observedSymptoms,
       subjectKind: report.subjectKind,
       subjectDescription: report.subjectDescription,
       subjectPetToken,

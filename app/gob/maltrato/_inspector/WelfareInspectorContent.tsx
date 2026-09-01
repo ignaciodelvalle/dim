@@ -134,6 +134,12 @@ function ResumenTab({
         <OpCardHead title="¿Qué pasó?" />
         <OpCardBody className="space-y-2">
           <p className="whitespace-pre-wrap text-sm text-ln-op-ink">{detail.description}</p>
+          {detail.observedSymptoms && (
+            <p className="whitespace-pre-wrap text-sm text-ln-op-ink">
+              <span className="font-semibold">Síntomas observados: </span>
+              {detail.observedSymptoms}
+            </p>
+          )}
           {detail.occurredAt && (
             <p className="text-xs text-ln-op-mute">Ocurrió el {formatDate(detail.occurredAt)}</p>
           )}

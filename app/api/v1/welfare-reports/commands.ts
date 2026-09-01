@@ -250,13 +250,17 @@ async function fileWelfareReport(userId: string, input: WelfareReportInput) {
   // invisible to every govt queue, so recover one from the address text and MARK
   // IT UNVERIFIED. The mark is not bookkeeping — the triage row renders it.
   //
-  // The phone sends coordinates and no geocoder result, so `province` is always
-  // null here and this always takes the inference path. That is the same shape
-  // the web hits when nominatim is unreachable, which is why the mark is right:
-  // the jurisdiction really was read out of text.
+  // The phone now echoes the jurisdiction of the `resolve_location` candidate
+  // the person PICKED (walkthrough 2026-08-31 §2: this handler used to hardcode
+  // nulls, so the pair the server had geocoded moments earlier was discarded
+  // and 100% of the mobile channel landed "sin verificar" — the badge stopped
+  // separating a careful address from a vague one, its only job). With the
+  // pair present the gate marks the row verified, same trust shape as the
+  // web's own echo of a picked candidate; absent — the person typed an address
+  // no geocoder confirmed — the inference path below earns the mark honestly.
   const routable = await resolveRoutableJurisdiction({
-    province: null,
-    locality: null,
+    province: input.locationProvince ?? null,
+    locality: input.locationLocality ?? null,
     localityId: null,
     addressText: input.locationAddress,
   });
@@ -284,6 +288,9 @@ async function fileWelfareReport(userId: string, input: WelfareReportInput) {
         locationLat: point.locationLat,
         locationLng: point.locationLng,
         occurredAt: input.occurredAt ? new Date(input.occurredAt) : null,
+        // Stored since migration 0209. The wire field came BACK with the
+        // column — it was removed while the server had nowhere to put it.
+        observedSymptoms: input.observedSymptoms,
         referenceCode: generateReferenceCode(),
       },
       undefined,
@@ -317,13 +324,12 @@ async function fileWelfareReport(userId: string, input: WelfareReportInput) {
       occurredAt: input.occurredAt ? new Date(input.occurredAt) : null,
       reporterContactEmail,
       reporterContactPhone,
-      // ALWAYS NULL, and the field stays in the call rather than being dropped
-      // from the use-case's input: `createWelfareReport` is the WEB's writer too
-      // and its signature is not this door's to narrow. What this door has is
-      // nothing to put there — the wire shape carries no symptoms field, because
-      // the only consumer of one is a bridge that needs a registered pet. See
-      // `@dim/contract/input`'s `welfare-report.ts`.
-      observedSymptoms: null,
+      // Forwarded since migration 0209 gave it a column (the row insert above
+      // is what STORES it). Inside the use-case its only consumer is still the
+      // `symptom_observed` bridge, which needs a registered pet this door
+      // never passes — so forwarding it here changes no event, and the honest
+      // value beats a hardcoded null that would read as "this door has none".
+      observedSymptoms: input.observedSymptoms,
       // NO ATTACHMENTS. Not "none were sent" — none can be. See the contract.
       attachments: [],
       uploadedPaths: [],

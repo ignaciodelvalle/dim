@@ -44,6 +44,8 @@ const PLACE = {
   label: "Avenida Bustillo 1200, San Carlos de Bariloche, Río Negro, Argentina",
   lat: -41.135,
   lng: -71.3103,
+  province: "Río Negro",
+  locality: "San Carlos de Bariloche",
 };
 
 const FILLED: DenunciaFormValues = {
@@ -173,7 +175,10 @@ describe("the two builders", () => {
     expect(denunciaInputMessage("COORDS_REQUIRED")).toContain("de la lista");
   });
 
-  it("carries the chosen candidate's own three values, and not the typed address", () => {
+  it("carries the chosen candidate's own values, jurisdiction pair included", () => {
+    // The pair is the walkthrough 2026-08-31 §2 fix: dropping it here is what
+    // made every mobile denuncia land "jurisdicción sin verificar" while the
+    // server had geocoded province and locality moments earlier.
     const draft = buildFileDenunciaCommand(FILLED);
     expect(draft.ok).toBe(true);
     if (!draft.ok) return;
@@ -181,7 +186,22 @@ describe("the two builders", () => {
       locationLat: PLACE.lat,
       locationLng: PLACE.lng,
       locationAddress: PLACE.label,
+      locationProvince: PLACE.province,
+      locationLocality: PLACE.locality,
     });
+  });
+
+  it("sends NO jurisdiction pair when the candidate carried none", () => {
+    // A nominatim candidate can come back with null province/locality (the
+    // contract says a client must not treat either as present) — the draft then
+    // carries nulls and the server's inference path earns the unverified mark.
+    const draft = buildFileDenunciaCommand({
+      ...FILLED,
+      place: { ...PLACE, province: null, locality: null },
+    });
+    expect(draft.ok).toBe(true);
+    if (!draft.ok) return;
+    expect(draft.input).toMatchObject({ locationProvince: null, locationLocality: null });
   });
 
   it("refuses a description under the floor, with the sentence that explains the rule", () => {

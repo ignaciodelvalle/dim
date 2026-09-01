@@ -1052,6 +1052,9 @@ export async function createWelfareReportAction(
         locationLat,
         locationLng,
         occurredAt,
+        // Stored since migration 0209 — before it, this value died between the
+        // form parse above and a pet-event bridge that needs a registered pet.
+        observedSymptoms,
         referenceCode: generateReferenceCode(),
       },
       undefined,
@@ -1306,6 +1309,9 @@ export async function createOrgWelfareReportAction(
         locationLat,
         locationLng,
         occurredAt,
+        // Stored since migration 0209 — before it, this value died between the
+        // form parse above and a pet-event bridge that needs a registered pet.
+        observedSymptoms,
         referenceCode: generateReferenceCode(),
       },
       undefined,

@@ -201,6 +201,7 @@ export async function generateMpfExport(
       kindLabel: report.kind,
       severityLabel: report.severity,
       description: report.description,
+      observedSymptoms: report.observedSymptoms,
       // AR-pinned (bug 4) — note the production action ignores this inline DTO
       // and rebuilds via welfareReportToMpfDto (the real mapper, also fixed);
       // kept consistent so no ambient-zone formatting survives anywhere.

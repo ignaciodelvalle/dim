@@ -58,6 +58,8 @@ export type WelfareMpfDto = {
   kindLabel: string;
   severityLabel: string;
   description: string;
+  // What the reporter observed on the animal, verbatim (column since 0209).
+  observedSymptoms: string | null;
   occurredAtLabel: string; // "no especificada" when null
   // Lugar
   jurisdictionProvince: string | null;
@@ -253,6 +255,7 @@ export function welfareReportToMpfDto(
     kindLabel: welfareReportKindLabel(report.kind),
     severityLabel: welfareReportSeverityLabel(report.severity),
     description: report.description,
+    observedSymptoms: report.observedSymptoms,
     // AR-pinned (bug 4, staging validation 2026-07-04): every timestamp in a
     // legal export routes through the lib/utils/format helpers — a bare
     // toLocale* call uses the AMBIENT zone (UTC on the server) and printed
@@ -508,6 +511,17 @@ export async function generateWelfareMpfPdf(dto: WelfareMpfDto): Promise<Uint8Ar
     regularFont,
     maxWidth: contentWidth,
   });
+  if (dto.observedSymptoms) {
+    y = drawField(page, {
+      label: "Síntomas observados",
+      value: dto.observedSymptoms,
+      x: margin,
+      y,
+      boldFont,
+      regularFont,
+      maxWidth: contentWidth,
+    });
+  }
   y -= 4;
 
   // ------------------------------------------------------------------

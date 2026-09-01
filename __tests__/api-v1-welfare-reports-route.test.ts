@@ -774,22 +774,32 @@ describe("the subject is never a registered animal on this door", () => {
     expect(control.inserted).toEqual([]);
   });
 
-  it("hands the writer NO observed symptoms, because there is nowhere for them to go", async () => {
-    // `welfare_reports` HAS NO COLUMN for them. The only consumer is the
-    // `symptom_observed` bridge, which is inside
-    // `subjectKind === "registered_pet" && subjectPetId` — unreachable here. The
-    // field carried a real value on the wire for most of a day and the server
-    // discarded it on every request; the wire shape has none now.
-    //
-    // Kill it by adding `observedSymptoms` back to the contract's `factsShape`
-    // and forwarding `input.observedSymptoms` here. Applied: the value arrives,
-    // still goes nowhere, and this test is what says so.
-    await post({ command: "file", contactMode: "anonymous", ...FACTS });
+  it("STORES observed symptoms in the row, and still appends no pet event", async () => {
+    // THE INVERSION OF THE TEST THAT STOOD HERE. Until migration 0209 there
+    // was no column, the wire had no field, and this spot asserted the
+    // discard out loud. The PO decided campo propio (2026-09-01): the field
+    // is back on the wire, the INSERT is what stores it — and the
+    // `symptom_observed` bridge stays unreachable on this door, because it
+    // needs the registered pet this transport never passes. Both halves
+    // matter: the value landing in the column, and the spine staying clean.
+    await post({
+      command: "file",
+      contactMode: "anonymous",
+      ...FACTS,
+      observedSymptoms: "Costillas visibles, pelaje opaco",
+    });
+    expect(control.inserted[0].observedSymptoms).toBe("Costillas visibles, pelaje opaco");
     expect(control.petEvents).toEqual([]);
-    // NON-VACUITY for the assertion above: the use-case DOES append a
+    // NON-VACUITY for the spine assertion: the use-case DOES append a
     // `symptom_observed` when it is given both a pet and a symptom, so an empty
-    // `petEvents` means the inputs were empty rather than the bridge being dead.
+    // `petEvents` means this door passed no pet rather than the bridge being
+    // dead.
     expect(control.inserted[0].subjectPetId).toBeNull();
+  });
+
+  it("stores NULL when no symptoms were sent — absent is absent, not empty prose", async () => {
+    await post({ command: "file", contactMode: "anonymous", ...FACTS });
+    expect(control.inserted[0].observedSymptoms).toBeNull();
   });
 
   it("appends nothing to any pet's spine", async () => {
@@ -926,6 +936,39 @@ describe("the jurisdiction is resolved the way both of the web's intakes resolve
     expect(control.inserted[0].jurisdictionLocality).toBe("San Carlos de Bariloche");
     expect(control.inserted[0].jurisdictionUnverified).toBe(true);
     expect(control.cases[0].jurisdictionProvince).toBe("Río Negro");
+  });
+
+  it("passes the PICKED candidate's jurisdiction to the gate instead of hardcoding nulls", async () => {
+    // Walkthrough 2026-08-31 §2: `resolve_location` handed the phone candidates
+    // CARRYING province and locality, the person picked one, and `file` dropped
+    // the pair — commands.ts hardcoded nulls into the D.11 gate, so 100% of the
+    // mobile channel landed "jurisdicción sin verificar" and the badge stopped
+    // separating a careful address from a vague one. The echo now flows.
+    //
+    // Kill it by restoring `province: null` in commands.ts. Applied: red here.
+    control.jurisdiction = {
+      province: "CABA",
+      locality: "Palermo",
+      localityId: null,
+      unverified: false,
+    };
+    await post({
+      command: "file",
+      contactMode: "anonymous",
+      ...FACTS,
+      locationProvince: "CABA",
+      locationLocality: "Palermo",
+    });
+
+    expect(control.jurisdictionInputs[0]).toEqual({
+      province: "CABA",
+      locality: "Palermo",
+      localityId: null,
+      addressText: FACTS.locationAddress,
+    });
+    // And the row honors the gate's VERIFIED answer — the inference mark is for
+    // rows whose pair really did come out of text, which this one did not.
+    expect(control.inserted[0].jurisdictionUnverified).toBe(false);
   });
 
   it("writes the coordinates through the shared point writer", async () => {

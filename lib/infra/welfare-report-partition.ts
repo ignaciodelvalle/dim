@@ -94,6 +94,7 @@ export const DENUNCIA_CONTENT_SELECT = {
   seedTag: welfareReports.seedTag,
   // --- denuncia_content (the R1/R2 purge unit) ---
   description: welfareReports.description,
+  observedSymptoms: welfareReports.observedSymptoms,
   subjectPetId: welfareReports.subjectPetId,
   subjectDescription: welfareReports.subjectDescription,
   locationAddress: welfareReports.locationAddress,

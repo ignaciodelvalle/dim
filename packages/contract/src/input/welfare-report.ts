@@ -188,6 +188,8 @@ export const WELFARE_DESCRIPTION_MIN_LENGTH = 20;
 export const WELFARE_DESCRIPTION_MAX_LENGTH = 4_000;
 export const WELFARE_SUBJECT_DESCRIPTION_MAX_LENGTH = 1_000;
 export const WELFARE_ADDRESS_MAX_LENGTH = 300;
+export const WELFARE_JURISDICTION_MAX_LENGTH = 120;
+export const WELFARE_SYMPTOMS_MAX_LENGTH = 1_000;
 
 const optionalText = (max: number) =>
   z
@@ -234,29 +236,38 @@ const factsShape = {
     .max(180, { error: "COORDS_OUT_OF_RANGE" }),
   locationAddress: optionalText(WELFARE_ADDRESS_MAX_LENGTH),
   /**
-   * THERE IS NO `observedSymptoms` FIELD, AND ITS ABSENCE IS A REPAIR RATHER
-   * THAN SCOPE. This module carried one for most of a day, the screen asked
-   * "¿Notaste algún síntoma en el animal?", and the answer went NOWHERE.
-   *
-   * `welfare_reports` HAS NO SUCH COLUMN. The value's one and only consumer is
-   * `createWelfareReport`'s `symptom_observed` bridge, which is inside
-   * `if (subjectKind === "registered_pet" && subjectPetId)` — and this door
-   * accepts no registered pet by construction, so the branch is unreachable on
-   * every request it can make. A field on the wire that the server structurally
-   * discards is worse than a missing one: somebody describes an injured animal
-   * and the inspector never reads it.
-   *
-   * THE CITIZEN WIZARD DOES NOT ASK FOR IT EITHER. `DenunciaWizard`'s five steps
-   * have no symptoms field; the only surface that does is
-   * `WelfareReportForm.tsx`, the ORG form, whose subject may also be an
-   * `unowned_animal` — so the same silent discard exists there. **Reported, not
-   * fixed: it is the org intake, and closing it is either a column or a decision
-   * to fold the text into the description, which is not a thing to do to
-   * somebody's testimony without asking.**
-   *
-   * The right place for what a reporter observed is `description`, which is
-   * stored, read by the operator, and carried into the MPF export.
+   * The jurisdiction of the CANDIDATE the person picked in `resolve_location`,
+   * echoed back here — the same echo shape the web's intake already uses, and
+   * the fix for the gap the 2026-08-31 walkthrough measured: `resolve_location`
+   * handed the phone candidates CARRYING province and locality, the person
+   * picked one, and `file` dropped the pair — so every mobile denuncia landed
+   * "jurisdicción sin verificar" while the best-resolved row in the table was
+   * the only one flagged. Optional and nullable on purpose: absent means the
+   * person typed an address no geocoder confirmed, and the D.11 gate then takes
+   * its text-inference path and earns the mark honestly.
    */
+  locationProvince: optionalText(WELFARE_JURISDICTION_MAX_LENGTH),
+  locationLocality: optionalText(WELFARE_JURISDICTION_MAX_LENGTH),
+  /**
+   * What the reporter observed on the animal, verbatim — optional.
+   *
+   * THIS FIELD WAS ABSENT FOR A WHILE, AND ITS ABSENCE WAS A REPAIR. The
+   * module carried one for most of a day, the mobile screen asked "¿Notaste
+   * algún síntoma en el animal?", and the answer went NOWHERE:
+   * `welfare_reports` had no column, and the value's only consumer was the
+   * `symptom_observed` pet-event bridge inside `if (subjectKind ===
+   * "registered_pet" && subjectPetId)` — a branch this door cannot reach. A
+   * field the server structurally discards is worse than a missing one, so
+   * the field was removed and the hole documented here for the PO.
+   *
+   * THE COLUMN EXISTS NOW (migration 0209, PO decision 2026-09-01: campo
+   * propio rather than folding testimony into `description`). The writers
+   * store it and the /gob detail and MPF export read it, so the field is back
+   * on the wire honestly. The citizen wizard and the mobile screen still do
+   * not ASK — reopening that question is a product decision, not a transport
+   * one — but a client that sends the value now sends it somewhere real.
+   */
+  observedSymptoms: optionalText(WELFARE_SYMPTOMS_MAX_LENGTH),
   /**
    * When it happened — an ISO-8601 instant, optional.
    *

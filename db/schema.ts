@@ -1818,6 +1818,11 @@ export const welfareReports = pgTable(
     kind: welfareReportKindEnum("kind").notNull(),
     severity: welfareReportSeverityEnum("severity").notNull(),
     description: text("description").notNull(),
+    // What the reporter observed on the animal, verbatim (migration 0209, PO
+    // decision 2026-09-01: campo propio). Free text and NOT coded symptoms:
+    // the coded pipeline (symptom_observed events) needs a registered pet,
+    // and this column exists precisely for the reports that have none.
+    observedSymptoms: text("observed_symptoms"),
 
     // Subject
     subjectKind: welfareReportSubjectKindEnum("subject_kind").notNull(),
