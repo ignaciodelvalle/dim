@@ -21,7 +21,14 @@ export function SterilizationForm({
   defaults,
 }: {
   action: FormAction;
-  defaults?: { occurredAt: string | null; notes: string | null };
+  defaults?: {
+    occurredAt: string | null;
+    notes: string | null;
+    /** Preselects the procedure radio the confirm link already names — the
+     * atender card's summary displays the same value, so this discloses
+     * nothing; the radio stays editable. Owner-flow callers omit it. */
+    procedure?: string | null;
+  };
 }) {
   const [state, formAction, isPending] = useActionState(action, initialState);
   // N3 redirect contract: the action returns `redirectTo` on success and the
@@ -56,10 +63,19 @@ export function SterilizationForm({
               </span>
             </p>
             <div className="flex flex-col gap-1.5">
-              <LnRadio name="procedure" value="castration" required>
+              <LnRadio
+                name="procedure"
+                value="castration"
+                required
+                defaultChecked={defaults?.procedure === "castration"}
+              >
                 Castración
               </LnRadio>
-              <LnRadio name="procedure" value="spay">
+              <LnRadio
+                name="procedure"
+                value="spay"
+                defaultChecked={defaults?.procedure === "spay"}
+              >
                 Ovariectomía
               </LnRadio>
             </div>

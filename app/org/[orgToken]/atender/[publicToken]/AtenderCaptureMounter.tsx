@@ -136,7 +136,10 @@ export function AtenderCaptureMounter({
       sp("confirmEventId"),
     );
     form = (
-      <SterilizationForm action={action} defaults={{ occurredAt: sp("occurredAt"), notes: null }} />
+      <SterilizationForm
+        action={action}
+        defaults={{ occurredAt: sp("occurredAt"), notes: null, procedure: sp("procedure") }}
+      />
     );
   } else {
     return null;

@@ -259,11 +259,24 @@ function toPendingDeclaredEvent(
       : procedure === "spay"
         ? "Ovariectomía"
         : "Esterilización";
+  // The PROCEDURE prefills, unlike the chip number above, and the asymmetry is
+  // reasoned: the summary on this very card already names it ("Castración"),
+  // so the query string discloses nothing the row does not; and there is no
+  // scan-verification argument — the vet confirms an act, not an artifact, and
+  // the radio stays editable. Measured 2026-08-31: the link carried the date
+  // but both radios arrived unchecked, making the vet re-pick a value the
+  // system was already displaying, on every confirmation. Closed vocabulary
+  // only — an unknown/legacy value prefills nothing rather than smuggling an
+  // arbitrary payload string into a URL.
+  const prefill: Record<string, string> = { occurredAt: occurredAtStr };
+  if (procedure === "castration" || procedure === "spay") {
+    prefill.procedure = procedure;
+  }
   return {
     id: row.id,
     eventType,
     summary: label,
-    prefill: { occurredAt: occurredAtStr },
+    prefill,
   };
 }
 

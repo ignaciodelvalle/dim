@@ -103,7 +103,7 @@ describe("fetchPendingDeclaredEvents", () => {
     expect(JSON.stringify(pending[0])).not.toContain("985141004321456");
   });
 
-  it("surfaces an owner-declared, unverified sterilization event", async () => {
+  it("surfaces an owner-declared, unverified sterilization event, procedure prefilled", async () => {
     queue([
       ownerRow({
         id: "evt-2",
@@ -119,6 +119,27 @@ describe("fetchPendingDeclaredEvents", () => {
         summary: "Castración",
       }),
     ]);
+    // Fila 10 (walkthrough 2026-08-31): the confirm link carried the date but
+    // both procedure radios arrived unchecked — the vet re-picked a value the
+    // card's own summary was displaying. The prefill now carries it. Unlike
+    // the chip number, this discloses nothing: the summary above already says
+    // "Castración" on the same card.
+    expect(pending[0].prefill.procedure).toBe("castration");
+  });
+
+  it("does not prefill a procedure outside the closed vocabulary", async () => {
+    // An unknown/legacy payload value must not ride a query string into the
+    // form — the radio simply arrives unchecked, as before.
+    queue([
+      ownerRow({
+        id: "evt-3",
+        eventType: "sterilization_performed",
+        payload: { procedure: "something-else" },
+      }),
+    ]);
+    const pending = await fetchPendingDeclaredEvents("pet-1");
+    expect(pending[0].summary).toBe("Esterilización");
+    expect(pending[0].prefill.procedure).toBeUndefined();
   });
 
   it("excludes a declaration once a SEPARATE vet row signs the same chip", async () => {
