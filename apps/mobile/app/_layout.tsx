@@ -270,12 +270,12 @@ function RootLayout() {
         <Stack.Screen name="turnos/buscar/[offeringToken]" options={{ title: "Reservar turno" }} />
         {/* LAS CINCO QUE EL RECUENTO DEL 31/08 DEJÓ SIN ENCABEZADO y cuyo string
             ya estaba decidido por dos superficies — transcriptas, no inventadas,
-            2026-09-01. Las tres restantes del recuento (`perdida`,
-            `turnos/[appointmentToken]`, `cuidado/[grantToken]`) NO se registran
-            acá a propósito: sus superficies dicen strings DISTINTOS y esa es una
-            discusión de copy, no de merge — están exentas con su pregunta
-            escrita en __tests__/mobile-screen-titles.test.ts, que además cierra
-            la clase: una ruta nueva sin registrar pone el gate en rojo.
+            2026-09-01. Las otras tres del recuento (`perdida`,
+            `turnos/[appointmentToken]`, `cuidado/[grantToken]`) tenían
+            superficies en desacuerdo y se registran más abajo con la
+            resolución del PO del 01/09 — ver ese bloque.
+            __tests__/mobile-screen-titles.test.ts cierra la clase: una ruta
+            nueva sin registrar pone el gate en rojo.
 
             · "Mis turnos": el <Title> de la pantalla en sus dos estados y el
               botón del pie de /mascotas que la alcanza. Verificado en pantalla
