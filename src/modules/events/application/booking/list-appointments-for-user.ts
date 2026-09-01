@@ -11,10 +11,12 @@
 // whether the check-in QR is still good — has to be settled on the server or it
 // is settled by a device that may be days wrong, in the flattering direction.
 //
-// This module is the single answer. The page is NOT migrated onto it in this
-// commit (that is a browser-facing change with its own e2e gate), so the two do
-// coexist for now — but the API door reads only from here, and any future
-// correction to the bucketing belongs in this file.
+// This module is the single answer. The page's inline SPLIT is migrated onto it
+// as of 2026-08-31 — it imports `sectionOf` and no longer carries a predicate of
+// its own — while its inline QUERY stays, because pulling the page through this
+// whole use-case is a larger change than the bucketing decision was. So the two
+// still coexist as queries and no longer as RULES, which is the half that was
+// silently disagreeing.
 //
 // THE ART. 16 GUARD IS NOT OPTIONAL AND IS NOT COSMETIC
 // ---------------------------------------------------------------------------
@@ -92,6 +94,19 @@ const KNOWN_STATUSES: ReadonlySet<string> = new Set([
 ]);
 
 /**
+ * Narrow a status column to the union, or say it is not one.
+ *
+ * EXPORTED ALONGSIDE `sectionOf` BECAUSE THE TWO TRAVEL TOGETHER. Drizzle types
+ * `appointments.status` as `string` — the CHECK constraint is a database fact the
+ * compiler cannot see — so every caller holding raw rows needs this before it can
+ * ask `sectionOf` anything. Handing out the section rule without the narrowing
+ * that feeds it is how the second caller ends up writing its own `as`.
+ */
+export function isKnownAppointmentStatus(status: string): status is AppointmentStatusV1 {
+  return KNOWN_STATUSES.has(status);
+}
+
+/**
  * `price_ars` as a number, or `null`.
  *
  * `numeric(10,2)` arrives as a STRING from the driver. `null` means gratuito and
@@ -107,13 +122,13 @@ function priceToNumber(raw: unknown): number | null {
 /**
  * Which section a row belongs to, by the SERVER'S clock.
  *
- * ONE DELIBERATE DIVERGENCE FROM THE WEB, AND IT IS A FIX RATHER THAN A PORT.
- * `/mis-turnos/page.tsx` buckets on `starts_at >= now`, so a turno that is
- * HAPPENING RIGHT NOW leaves "Próximos" the instant it begins — while the detail
- * page keeps offering its check-in QR until `ends_at`. The result on the web is a
+ * IT WAS A FIX RATHER THAN A PORT, AND THE WEB HAS NOW BEEN BROUGHT ONTO IT.
+ * `/mis-turnos/page.tsx` used to bucket on `starts_at >= now`, so a turno that
+ * was HAPPENING RIGHT NOW left "Próximos" the instant it began — while the detail
+ * page kept offering its check-in QR until `ends_at`. The result on the web was a
  * person standing at the clinic desk five minutes late, looking for their turno
- * under "Próximos", and finding it filed under "Pasados". The QR they need is one
- * tap inside a row they have stopped looking for.
+ * under "Próximos", and finding it filed under "Pasados". The QR they needed was
+ * one tap inside a row they had stopped looking for.
  *
  * So `upcoming` closes at `ends_at` here, which makes `section === "upcoming"`
  * and `canCheckIn` agree for every confirmed row: while the QR is good, the turno
@@ -122,10 +137,19 @@ function priceToNumber(raw: unknown): number | null {
  * longest service in the catalogue — and `canCancel` says plainly that it can no
  * longer be cancelled. That is the honest state of a consultation in progress.
  *
- * This function is NOT what the browser calls (the page still has its predicate
- * inline), so the divergence is real and lives here until the page is migrated.
+ * THE DIVERGENCE IS CLOSED (PO, 2026-08-31), and it was closed by DELETING the
+ * second copy rather than by syncing two. `app/(app)/mis-turnos/page.tsx` had
+ * this predicate inline and bucketed on `startsAt`; it now imports this function
+ * and reads its rows through it. The page still runs its own query — pulling it
+ * through the whole use-case is a bigger change than the one decided — but the
+ * RULE has exactly one definition, so "the two surfaces agree" is a property of
+ * the code and not a promise a comment makes.
+ *
+ * EXPORTED FOR THAT REASON AND NO OTHER. It is a pure function of (status, slot,
+ * now) so a caller with its own rows can apply it without this module's query;
+ * `__tests__/appointment-section-boundary.test.ts` pins the boundary itself.
  */
-function sectionOf(
+export function sectionOf(
   status: AppointmentStatusV1,
   slot: { startsAt: Date; endsAt: Date },
   now: Date,
@@ -173,8 +197,8 @@ export async function listAppointmentsForUser(args: {
   const items: AppointmentListItem[] = [];
 
   for (const row of rows) {
-    if (!KNOWN_STATUSES.has(row.status)) continue;
-    const status = row.status as AppointmentStatusV1;
+    if (!isKnownAppointmentStatus(row.status)) continue;
+    const status = row.status;
 
     items.push({
       appointmentToken: row.appointmentToken,

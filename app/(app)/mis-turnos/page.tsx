@@ -11,6 +11,10 @@ import { LnEmptyState } from "@/components/ui/EmptyState";
 import { appointments, db, organizations, pets, profiles, serviceOfferings, timeSlots } from "@/db";
 import { requireUserOrRedirect } from "@/lib/infra/auth-guards";
 import { pluralizeEs } from "@/lib/utils/format";
+import {
+  isKnownAppointmentStatus,
+  sectionOf,
+} from "@/src/modules/events/application/booking/list-appointments-for-user";
 
 export default async function MisTurnosPage() {
   const { user } = await requireUserOrRedirect();
@@ -58,21 +62,38 @@ export default async function MisTurnosPage() {
 
   const now = new Date();
 
-  const upcoming = rows.filter(
-    (r) => r.appointment.status === "confirmed" && r.slot.startsAt >= now,
+  // THE SECTION RULE IS IMPORTED, NOT WRITTEN HERE, and that import is the whole
+  // point of this block. This page used to bucket on `startsAt`, so a turno
+  // HAPPENING RIGHT NOW left "Próximos" the instant it began — while
+  // `/mis-turnos/[appointmentToken]` kept offering its check-in QR until
+  // `endsAt`. Somebody five minutes late looked for their turno under "Próximos"
+  // and found it filed under "Pasados", with the QR they needed one tap inside a
+  // row they had stopped looking for. The phone's server-side `sectionOf` had
+  // already been written the right way and the two surfaces disagreed in
+  // silence, because neither predicate had a test.
+  //
+  // Migrated on the PO's decision of 2026-08-31 by DELETING this page's copy
+  // rather than syncing it: `sectionOf` is now the one definition, and the
+  // boundary it draws is pinned by `__tests__/appointment-section-boundary.test.ts`.
+  //
+  // The cost, derived at that function and accepted here: a turno stays in
+  // "Próximos" for its own duration after it started — at most 90 minutes for
+  // the longest service in the catalogue — and the card's own copy says it can
+  // no longer be cancelled. That is the honest state of a consultation in
+  // progress.
+  // A row whose status is none of the five the CHECK constraint admits is
+  // DROPPED, not defaulted — the policy `isKnownAppointmentStatus` documents,
+  // and the same thing this page's old chain of equality filters did by
+  // accident. `status` is typed `string` here because the constraint is a
+  // database fact the compiler cannot see.
+  const classified = rows.flatMap((row) =>
+    isKnownAppointmentStatus(row.appointment.status)
+      ? [{ row, section: sectionOf(row.appointment.status, row.slot, now) }]
+      : [],
   );
-  const past = rows.filter(
-    (r) =>
-      r.appointment.status === "attended" ||
-      (r.appointment.status === "confirmed" && r.slot.startsAt < now),
-  );
-  const cancelled = rows.filter(
-    (r) =>
-      r.appointment.status === "cancelled" ||
-      r.appointment.status === "cancelled_by_owner" ||
-      r.appointment.status === "cancelled_by_org" ||
-      r.appointment.status === "no_show",
-  );
+  const upcoming = classified.filter((c) => c.section === "upcoming").map((c) => c.row);
+  const past = classified.filter((c) => c.section === "past").map((c) => c.row);
+  const cancelled = classified.filter((c) => c.section === "cancelled").map((c) => c.row);
 
   // Derived from the buckets actually rendered below — NOT rows.length — so
   // the header count always matches what's on screen. A cancelled_by_org
