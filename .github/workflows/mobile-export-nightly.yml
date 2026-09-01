@@ -95,7 +95,7 @@ jobs:
           # schedule fires on. See the header. Kept in sync by
           # `pnpm lint:sched-refs`, which names every file to change when the
           # branch is renamed or merged.
-          ref: integration/all-20260703
+          ref: main
 
       - name: Setup pnpm
         # No `version:` input on purpose. The version comes from the
@@ -218,7 +218,7 @@ jobs:
           # Local composite actions resolve from the checked-out tree, so this
           # job needs the same pin as the one above — otherwise the alert would
           # run the default branch's copy of the action.
-          ref: integration/all-20260703
+          ref: main
 
       - name: Open or update the alert issue
         uses: ./.github/actions/red-streak-alert

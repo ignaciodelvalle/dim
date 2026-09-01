@@ -72,8 +72,17 @@ export const DEFAULT_BRANCH = "main";
  * The branch staging is deployed from: the code every scheduled fence is meant
  * to guard. THIS is the single source of truth for the `ref:` literals in
  * `.github/workflows/*.yml`.
+ *
+ * `main` since 2026-09-01: the PO repointed Vercel's Production Branch after
+ * the pre-test audit measured 13 of 33 /api/v1 routes missing from the frozen
+ * integration tree. `integration/all-20260703` was 0 commits ahead at the
+ * switch, so nothing was stranded. DEPLOY_REF now equals DEFAULT_BRANCH — the
+ * pins are momentarily redundant, and they STAY: the fence keeps every
+ * scheduled workflow's checkout tied to this constant, so the next branch
+ * divergence is a one-line change here instead of a silent regrade of stale
+ * code (which is how this file earned its existence).
  */
-export const DEPLOY_REF = "integration/all-20260703";
+export const DEPLOY_REF = "main";
 
 /**
  * The local composite action every scheduled fence must wire, spelled exactly as

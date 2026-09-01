@@ -183,8 +183,19 @@ describe("refFindings", () => {
   });
 
   it("flags a checkout pinned to the wrong branch", () => {
-    const wrong = PINNED_STEP.replace(DEPLOY_REF, "main");
-    expect(refFindings([{ file: "nightly.yml", yaml: wrong }])[0].problem).toContain("pins `main`");
+    // "main" used to be the wrong-branch literal here, and on 2026-09-01 it
+    // silently became the RIGHT one: DEPLOY_REF moved to `main` when the PO
+    // repointed Vercel's Production Branch, the replace became a no-op,
+    // refFindings correctly returned [] and this line died on `[0].problem` —
+    // the gate's only red, identical on both runs. The wrong branch is now
+    // wrong BY CONSTRUCTION, and the guard turns any future vacuity into a
+    // named assertion failure instead of a TypeError.
+    const WRONG_REF = "a-branch-nobody-deploys-from";
+    expect(WRONG_REF).not.toBe(DEPLOY_REF);
+    const wrong = PINNED_STEP.replace(DEPLOY_REF, WRONG_REF);
+    expect(refFindings([{ file: "nightly.yml", yaml: wrong }])[0].problem).toContain(
+      `pins \`${WRONG_REF}\``,
+    );
   });
 
   // The exemption list is checked in BOTH directions on purpose. An exemption
