@@ -214,9 +214,11 @@ import {
   type PanoramaConsoleProps,
   type SavedBoard,
   type SeededLayer,
+  applyHintsAfterActivate,
   buildViewMeta,
   calendarEmptyMessage,
   canonicalLayersKey,
+  fetchLandingOverridden,
   findRankedFeature,
   initBoardOnMount,
   initialState,
@@ -1637,19 +1639,25 @@ export function PanoramaConsole({
             } else {
               dataRef.current.set(id, body.features);
             }
-            setStates((s) => ({
-              ...s,
-              [id]: {
-                active: true,
-                loading: false,
-                count: body.features.features.length,
-                suppressedCount: body.suppressedCount,
-                noLocalityCount: body.noLocalityCount ?? 0,
-                truncated: body.truncated,
-                // Honesty: a budget-fallback empty is NOT "sin datos".
-                degraded: body.degraded === true,
-              },
-            }));
+            setStates((s) => {
+              // A mid-flight deactivation outranks this resolution — the full
+              // rationale lives with fetchLandingOverridden (helpers).
+              const overridden = fetchLandingOverridden(s[id]);
+              if (overridden) return { ...s, [id]: overridden };
+              return {
+                ...s,
+                [id]: {
+                  active: true,
+                  loading: false,
+                  count: body.features.features.length,
+                  suppressedCount: body.suppressedCount,
+                  noLocalityCount: body.noLocalityCount ?? 0,
+                  truncated: body.truncated,
+                  // Honesty: a budget-fallback empty is NOT "sin datos".
+                  degraded: body.degraded === true,
+                },
+              };
+            });
           } catch (err) {
             // Superseded fetch (keyed abort): the NEWER request owns this
             // layer's state — running the failure branch here would
@@ -1995,23 +2003,8 @@ export function PanoramaConsole({
         return;
       }
 
-      // Helper: apply F2 hint recomputation after `id` becomes active.
-      // `nextActiveIds` is the new active set (including `id`).
-      // Returns a function compatible with `setStates` updater so it can
-      // be composed inside a single state update or called immediately after.
-      const applyHintsAfterActivate = (
-        s: Record<LayerId, LayerPanelState>,
-        nextActiveIds: LayerId[],
-      ): Record<LayerId, LayerPanelState> => {
-        const hints = computeHints(nextActiveIds);
-        const next = { ...s };
-        for (const [lid, patch] of Object.entries(hints) as [LayerId, Partial<LayerPanelState>][]) {
-          if (lid !== id) next[lid] = { ...next[lid], ...patch };
-        }
-        // The newly activated layer never carries a compatibility hint.
-        next[id] = { ...next[id], compatibilityHint: undefined };
-        return next;
-      };
+      // F2 hint recomputation moved to helpers (applyHintsAfterActivate) —
+      // pure over (states, nextActiveIds, id, computeHints).
 
       // Choropleth or aggregated-point layer toggled on while the axis is
       // "Provincia": resolve at province level, reading/writing the province cache.
@@ -2027,7 +2020,7 @@ export function PanoramaConsole({
               ...withSwapOut(s),
               [id]: { ...s[id], active: true, loading: false, count: fc.features.length },
             };
-            return applyHintsAfterActivate(base, nextActive);
+            return applyHintsAfterActivate(base, nextActive, id, computeHints);
           });
           setLevelVersion((v) => v + 1);
           return;
@@ -2043,6 +2036,8 @@ export function PanoramaConsole({
           body = null;
         }
         setStates((s) => {
+          const overridden = fetchLandingOverridden(s[id]);
+          if (overridden) return { ...s, [id]: overridden };
           const nextActive = remainingActiveIds.concat(id);
           const layerState: LayerPanelState = body
             ? {
@@ -2058,7 +2053,7 @@ export function PanoramaConsole({
           // The swap only lands when the activation succeeded — a failed fetch
           // leaves the current base on instead of clearing both.
           const base = { ...(body ? withSwapOut(s) : s), [id]: layerState };
-          return applyHintsAfterActivate(base, body ? nextActive : activeIds);
+          return applyHintsAfterActivate(base, body ? nextActive : activeIds, id, computeHints);
         });
         setLevelVersion((v) => v + 1);
         return;
@@ -2073,7 +2068,7 @@ export function PanoramaConsole({
             ...withSwapOut(s),
             [id]: { ...s[id], active: true, loading: false, count: fc.features.length },
           };
-          return applyHintsAfterActivate(base, nextActive);
+          return applyHintsAfterActivate(base, nextActive, id, computeHints);
         });
         // Mid-scrub: also resolve this temporal layer's as-of view if missing.
         if (asOf !== null && isTemporalLayer(id) && !asOfDataRef.current.has(id)) {
@@ -2101,6 +2096,8 @@ export function PanoramaConsole({
         const body = (await res.json()) as ApiResponse;
         dataRef.current.set(id, body.features);
         setStates((s) => {
+          const overridden = fetchLandingOverridden(s[id]);
+          if (overridden) return { ...s, [id]: overridden };
           const nextActive = remainingActiveIds.concat(id);
           const base = {
             ...withSwapOut(s),
@@ -2114,7 +2111,7 @@ export function PanoramaConsole({
               degraded: body.degraded === true,
             },
           };
-          return applyHintsAfterActivate(base, nextActive);
+          return applyHintsAfterActivate(base, nextActive, id, computeHints);
         });
         // Mid-scrub: also resolve this temporal layer's as-of view.
         if (asOf !== null && isTemporalLayer(id)) {

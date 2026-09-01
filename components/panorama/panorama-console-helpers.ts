@@ -947,3 +947,54 @@ export function shouldParkAtLive(input: {
 }): boolean {
   return input.asOf !== null && !input.dockOpen;
 }
+
+/**
+ * Whether a layer fetch's resolution has been OVERRIDDEN by the operator — and
+ * the state it must land as when it has. `null` means "land your patch".
+ *
+ * THE OPERATOR'S DEACTIVATION OUTRANKS A FETCH THAT WAS IN FLIGHT WHEN THEY
+ * CLICKED. Measured 2026-09-01, after a gate's two `test:verified` runs
+ * answered differently over one tree: every caller marks a layer
+ * active+loading BEFORE fetching, so on the happy path this returns null and
+ * the success arm lands its patch verbatim — but `applyPreset`'s 200ms
+ * debounced burst (and real network latency in production) leaves a window
+ * where the operator unchecks the layer first, and the success arms used to
+ * write `active: true` unconditionally. The checkbox silently re-checked
+ * itself, and when it was the last temporal layer the scrubber gate
+ * re-enabled against an explicit choice. Deactivation deliberately aborts
+ * neither the debounce timer nor the fetch — the data stays useful in the
+ * refs for an instant re-toggle — so the arbitration happens at LANDING time,
+ * here, once, for all three success arms in PanoramaConsole.
+ */
+export function fetchLandingOverridden(
+  current: LayerPanelState | undefined,
+): LayerPanelState | null {
+  if (current?.active === true) return null;
+  return {
+    ...(current ?? { count: 0, suppressedCount: 0, truncated: false }),
+    active: false,
+    loading: false,
+  };
+}
+
+/**
+ * F2 hint recomputation after `id` becomes active, over the new active set.
+ * Extracted from PanoramaConsole's onToggle (2026-09-01, paying the file-size
+ * debt down instead of feeding it): pure over its inputs, `computeHints`
+ * threaded in because the hint rules live with the console's own catalog.
+ */
+export function applyHintsAfterActivate(
+  s: Record<LayerId, LayerPanelState>,
+  nextActiveIds: LayerId[],
+  id: LayerId,
+  computeHints: (activeIds: LayerId[]) => Partial<Record<LayerId, Partial<LayerPanelState>>>,
+): Record<LayerId, LayerPanelState> {
+  const hints = computeHints(nextActiveIds);
+  const next = { ...s };
+  for (const [lid, patch] of Object.entries(hints) as [LayerId, Partial<LayerPanelState>][]) {
+    if (lid !== id) next[lid] = { ...next[lid], ...patch };
+  }
+  // The newly activated layer never carries a compatibility hint.
+  next[id] = { ...next[id], compatibilityHint: undefined };
+  return next;
+}

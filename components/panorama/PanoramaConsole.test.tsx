@@ -2278,6 +2278,24 @@ describe("PanoramaConsole — scrubber temporal-gating cluster (QA fix)", () => 
     // only ever paid on a genuine failure, never on a pass — a passing run
     // settles in seconds and the docblock above explains why the 30s budgets
     // themselves must not be touched.
+    //
+    // 2026-09-01, THE ACTUAL CAUSE, found when gate C's two runs answered
+    // differently and the legible failure ("the notice NEVER appeared") could
+    // finally be diagnosed: applyPreset's 200ms debounced fetch resolved AFTER
+    // this test's uncheck and its success arm wrote `active: true`
+    // unconditionally — resurrecting zoonosis, so `temporalAvailable` never
+    // flipped and the notice never rendered. Not slowness, a real product
+    // race (an operator unchecking a layer during its vista's spinner had the
+    // checkbox re-check itself). Guarded at every async success arm in
+    // PanoramaConsole.tsx ("the operator's deactivation outranks a fetch that
+    // was in flight"), which makes both interleavings of this test's window
+    // converge on the same outcome. A deterministic repro via deferMode was
+    // attempted and hit a harness wall worth recording: a newly-activated
+    // layer's Filtro row only MOUNTS once its fetch resolves, so the uncheck
+    // cannot be delivered while the racing fetch is held open — the row to
+    // click does not exist yet. If someone wants the deterministic pin, the
+    // seam is a second fetch for an ALREADY-cached layer (row persists), held
+    // open while unchecking.
   }, 90_000);
 
   it("keyed-aborts a superseded as-of fetch on a rapid scrub (finding 4)", async () => {
