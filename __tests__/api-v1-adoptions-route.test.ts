@@ -445,6 +445,35 @@ describe("GET /api/v1/adoptions/{petToken} — who may apply", () => {
   });
 });
 
+describe("GET /api/v1/adoptions/{petToken} — the liveness gate", () => {
+  // THE ASYMMETRY THIS CLOSES, measured by mutation before these were written
+  // (open-work.md, accepted as a reserve at the 2026-08-30 gate):
+  // `if (!live.ok && false) return liveUserRefusal(live.reason);` in the GET
+  // handler left 86 files / 1514 tests green, while the identical mutation in
+  // POST turned two red — both liveness cases sat inside the POST describe and
+  // the two GET describes had none. `createClientFromBearer` parses only the
+  // SHAPE of the header and an erased account keeps a syntactically valid JWT
+  // (erasure is state in the database, not revocation), so `requireLiveUser` is
+  // the single barrier between that account and an adoption ficha — the art. 16
+  // class this repo has already been burned by four times. Copied from the POST
+  // cases below, plus the half they imply: the read must never have run.
+  it("refuses a deactivated account before the read", async () => {
+    control.live = { ok: false, reason: "DEACTIVATED" };
+    const res = await GET_DETAIL(request(`https://x.test/api/v1/adoptions/${PET_TOKEN}`), params);
+    expect(res.status).toBe(403);
+    expect(await res.json()).toEqual({ error: "account_deactivated" });
+    expect(mockDetail).not.toHaveBeenCalled();
+  });
+
+  it("refuses an erased account before the read", async () => {
+    control.live = { ok: false, reason: "ACCOUNT_ERASED" };
+    const res = await GET_DETAIL(request(`https://x.test/api/v1/adoptions/${PET_TOKEN}`), params);
+    expect(res.status).toBe(403);
+    expect(await res.json()).toEqual({ error: "account_erased" });
+    expect(mockDetail).not.toHaveBeenCalled();
+  });
+});
+
 describe("POST /api/v1/adoptions/{petToken} — postularse", () => {
   function applyRequest(body: unknown) {
     return request(`https://x.test/api/v1/adoptions/${PET_TOKEN}`, {
