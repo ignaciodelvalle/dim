@@ -2264,7 +2264,21 @@ describe("PanoramaConsole — scrubber temporal-gating cluster (QA fix)", () => 
       },
       { timeout: 30_000 },
     );
-  }, 15_000);
+    // THE TEST BOUND MUST EXCEED THE SUM OF ITS OWN waitFor BUDGETS, and 15_000
+    // did not: the four explicit budgets above total 80s (10+10+30+30), so under
+    // a saturated full-suite run the earlier waits can legitimately spend the
+    // whole bound while PASSING, and what fails first is the test itself with a
+    // bare "Exceeded timeout" instead of a waitFor's own message — the exact
+    // inversion this file's header rules out ("waitFor bounds itself and fails
+    // first"). Measured 2026-08-31: two test:verified runs over one tree
+    // answered 1-failing / 0-failing on this test, dying at 15012 ms against
+    // 15000 — the sixth instance of the wall-clock-under-load class, and the
+    // second whose two ceilings left no margin for each other (the first was
+    // PetPhotoScreen at 5000/5000). 90s = the 80s worst case plus margin; it is
+    // only ever paid on a genuine failure, never on a pass — a passing run
+    // settles in seconds and the docblock above explains why the 30s budgets
+    // themselves must not be touched.
+  }, 90_000);
 
   it("keyed-aborts a superseded as-of fetch on a rapid scrub (finding 4)", async () => {
     deferMode = true;
