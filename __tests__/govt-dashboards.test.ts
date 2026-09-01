@@ -1695,9 +1695,28 @@ describe("fetchZoonosisTrend", () => {
     }
     // There must be at least one point (the current month).
     expect(trend.length).toBeGreaterThanOrEqual(1);
-    // Current month's count must include our 2 signals.
-    const lastPoint = trend[trend.length - 1];
-    expect(lastPoint.y).toBeGreaterThanOrEqual(2);
+
+    // THE LAST TWO POINTS, NOT THE LAST ONE, and it is a correctness fix rather
+    // than a loosening.
+    //
+    // The comment above says "Two signals this month" and that is false for four
+    // hours of every month: the signals are emitted at `hoursAgo: 2` and
+    // `hoursAgo: 4`, so between 00:00 and 04:00 on the first day, one or both
+    // land in the PREVIOUS month's bucket while `trend`'s last point is the new
+    // one. Measured 2026-09-01: a gate started at 23:25 on 31/08 crossed
+    // midnight mid-run and this assertion read `expected 1 to be greater than or
+    // equal to 2`, identically on two `test:verified` runs over one tree —
+    // deterministic, and nothing to do with the change being gated.
+    //
+    // Summing two adjacent buckets is exactly as strict: the signals are inside
+    // a four-hour window, and a four-hour window spans at most two consecutive
+    // months. Both must still be found. What stops being asserted is WHICH side
+    // of a month boundary the clock happened to be on when the suite ran, which
+    // was never the property under test — this case is about grouping by month,
+    // and it still fails if the grouping drops an event.
+    const recent = trend.slice(-2);
+    const counted = recent.reduce((total, point) => total + point.y, 0);
+    expect(counted).toBeGreaterThanOrEqual(2);
   });
 
   it("govt scope restricts trend to their assigned jurisdictions", async () => {
