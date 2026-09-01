@@ -408,6 +408,14 @@ export const MARK_FOUND_BUTTON = /^marcar como encontrada$/i;
  * found action fires its own client-side navigation on its own schedule, so
  * the first goto can lose that race as net::ERR_ABORTED (not a page failure),
  * and the reload re-establishes a deterministic fresh document either way.
+ *
+ * A POSITIVE MARKER RUNS FIRST, on purpose: `[data-section="lost-case-block"]`
+ * having count 0 is also true of a login redirect, a 404, or any other page
+ * that is not this pet's profile — a dropped session in the `finally` this
+ * helper runs from would report success without the profile ever having been
+ * checked. `PetActionRow`'s "Marcar como perdida" control only renders for
+ * the OWNER on an ACTIVE pet, so seeing it proves both facts the absence
+ * check alone cannot: this is the profile, and the pet is active.
  */
 export async function ensurePetFound(page: Page, token: string): Promise<void> {
   await page
@@ -420,6 +428,10 @@ export async function ensurePetFound(page: Page, token: string): Promise<void> {
   }
   await page.goto(`/mis-mascotas/${token}`, { waitUntil: "domcontentloaded" }).catch(() => {});
   await page.reload({ waitUntil: "domcontentloaded" });
+  await expect(
+    page.getByRole("link", { name: /marcar como perdida/i }),
+    `pet ${token} does not show the owner's "Marcar como perdida" control after the mark-found cleanup — this is not the pet's profile in its active state (dropped session, wrong page, or the write failed)`,
+  ).toBeVisible({ timeout: 20_000 });
   await expect(
     page.locator('[data-section="lost-case-block"]'),
     `pet ${token} still shows its lost case after the mark-found cleanup — the sheet's commit control drifted or the write failed, and every later spec would inherit a lost fixture`,
