@@ -3,7 +3,7 @@ import { type Browser, type BrowserContext, type Page, expect, test } from "@pla
 import { ZERO_PET_OWNER_EMAIL } from "../scripts/seed-reserved-accounts";
 import { SIGN_IN_PATH, leftSignIn } from "./_sign-in-route";
 import { resetAuthLoginRateLimits } from "./demo/_db-cleanup";
-import { ACCOUNTS, discoverPetToken, resolveOrgToken } from "./demo/_helpers";
+import { ACCOUNTS, discoverPetToken, ensurePetFound, resolveOrgToken } from "./demo/_helpers";
 
 /**
  * Owner IA redesign — P6 LIVE validation pass.
@@ -710,21 +710,16 @@ test("10 — lost pet: public page shows the lost banner; owner profile shows Lo
       await pub.context.close();
     }
   } finally {
-    // Restore: hand the pet back to active so the shared fixture is unchanged.
-    // Same control e2e/crisis-owner-lost-flow.spec.ts uses — a bare
-    // /^confirmar$/ button on the marcar-encontrada sheet. Getting this regex
-    // wrong is not a cosmetic slip: the revert silently no-ops and the owner is
-    // left holding a LOST pet, which changes what every later spec sees (it
-    // stranded the carousel tests in this very file on the first run).
+    // Restore: hand the pet back to active so the shared fixture is unchanged
+    // — and PROVE it. The comment that stood here warned that getting the
+    // button regex wrong makes the revert no-op silently; then the button
+    // renamed and exactly that happened (this cleanup clicked /^confirmar$/,
+    // the sheet says "Marcar como encontrada"). The leak, plus its twin in
+    // crisis-owner-lost-flow, marked owner@dim.test's whole registry PERDIDO
+    // on CI and killed two OTHER specs' preconditions. ensurePetFound asserts
+    // the restored state, so the next drift fails HERE.
     if (token) {
-      await page
-        .goto(`/mis-mascotas/${token}?sheet=marcar-encontrada`, { waitUntil: "domcontentloaded" })
-        .catch(() => {});
-      const confirmBtn = page.getByRole("button", { name: /^confirmar$/i });
-      if (await confirmBtn.count().catch(() => 0)) {
-        await confirmBtn.click().catch(() => {});
-        await page.waitForLoadState("networkidle", { timeout: 10_000 }).catch(() => {});
-      }
+      await ensurePetFound(page, token);
     }
     await context.close();
   }

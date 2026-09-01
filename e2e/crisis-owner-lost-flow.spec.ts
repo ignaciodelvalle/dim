@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test";
-import { ACCOUNTS, loginAs } from "./demo/_helpers";
+import { ACCOUNTS, ensurePetFound, loginAs } from "./demo/_helpers";
 
 /**
  * Crisis path — AUTHENTICATED owner flow.
@@ -138,14 +138,11 @@ test("owner marks a pet lost — public credential flips to lost state for a str
       await strangerContext.close();
     }
   } finally {
-    // Revert the pet to "found" so re-runs and other suites see it active again.
-    await page
-      .goto(`/mis-mascotas/${token}?sheet=marcar-encontrada`, { waitUntil: "domcontentloaded" })
-      .catch(() => {});
-    const confirmBtn = page.getByRole("button", { name: /^confirmar$/i });
-    if (await confirmBtn.count().catch(() => 0)) {
-      await confirmBtn.click().catch(() => {});
-      await page.waitForLoadState("networkidle").catch(() => {});
-    }
+    // Revert the pet to "found" so re-runs and other suites see it active
+    // again — and PROVE it. The inline cleanup this replaced clicked a button
+    // named "Confirmar" that had been renamed under it, so its count-guard
+    // no-opped silently on every run and this spec (green) left the shared
+    // fixture LOST for every later suite. See ensurePetFound's header.
+    await ensurePetFound(page, token);
   }
 });

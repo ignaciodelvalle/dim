@@ -376,6 +376,57 @@ export async function discoverPetToken(
 }
 
 /**
+ * The commit button of the `?sheet=marcar-encontrada` sheet.
+ *
+ * It read "Confirmar" until SheetMounter/MarkFoundConfirmation renamed it to
+ * "Marcar como encontrada"; the specs that kept the old regex are the story
+ * `ensurePetFound` below exists to end.
+ */
+export const MARK_FOUND_BUTTON = /^marcar como encontrada$/i;
+
+/**
+ * Force a pet back to the ACTIVE state, and PROVE it — the mark-found cleanup
+ * every lost-marking spec runs in its `finally`.
+ *
+ * ONE COPY, ON PURPOSE. Three specs used to carry their own: when the sheet's
+ * commit button renamed, crisis-seams updated its local regex and the other
+ * two kept the dead `/^confirmar$/` — whose `count() > 0` guard turned the
+ * drifted locator into a SILENT NO-OP. The spec stayed green and the pet
+ * stayed lost. On CI's minimal seed (three owner pets, one seeded lost) the
+ * two leaks marked the whole registry PERDIDO, and rehome-by-titular +
+ * synthetic-monitor then died on their "an active pet exists" preconditions —
+ * run 33477869992 (2026-09-01), whose failure screenshot shows all three
+ * chips red while the DB held every pet the seed promised.
+ *
+ * THE ASSERTION AT THE END IS THE ACTUAL FIX, not the shared location: a
+ * cleanup whose control has drifted must fail THE SPEC THAT OWNS THE STATE,
+ * never hand the corpse to whichever spec runs next. Idempotent: on an
+ * already-active pet the sheet offers no commit button, the click is skipped,
+ * and the profile assertion is already true.
+ *
+ * The goto → reload pair is the freshness idiom crisis-seams measured: the
+ * found action fires its own client-side navigation on its own schedule, so
+ * the first goto can lose that race as net::ERR_ABORTED (not a page failure),
+ * and the reload re-establishes a deterministic fresh document either way.
+ */
+export async function ensurePetFound(page: Page, token: string): Promise<void> {
+  await page
+    .goto(`/mis-mascotas/${token}?sheet=marcar-encontrada`, { waitUntil: "domcontentloaded" })
+    .catch(() => {});
+  const confirm = page.getByRole("button", { name: MARK_FOUND_BUTTON });
+  if ((await confirm.count().catch(() => 0)) > 0) {
+    await confirm.click().catch(() => {});
+    await page.waitForLoadState("networkidle").catch(() => {});
+  }
+  await page.goto(`/mis-mascotas/${token}`, { waitUntil: "domcontentloaded" }).catch(() => {});
+  await page.reload({ waitUntil: "domcontentloaded" });
+  await expect(
+    page.locator('[data-section="lost-case-block"]'),
+    `pet ${token} still shows its lost case after the mark-found cleanup — the sheet's commit control drifted or the write failed, and every later spec would inherit a lost fixture`,
+  ).toHaveCount(0, { timeout: 20_000 });
+}
+
+/**
  * The signed-in account's display name, read from /cuenta at runtime.
  *
  * For privacy assertions ("this public surface must not leak the owner's

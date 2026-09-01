@@ -74,6 +74,8 @@ import { provinceByName } from "@/lib/reference/ar-provincias";
 
 import {
   ACCOUNTS,
+  MARK_FOUND_BUTTON,
+  ensurePetFound,
   loginAs,
   resolveOrgToken,
   submitAndWait,
@@ -92,15 +94,8 @@ async function relogin(page: Page, email: string): Promise<void> {
   await loginAs(page, email);
 }
 
-// The commit button of the `?sheet=marcar-encontrada` sheet. It used to read
-// the generic "Confirmar"; decision D.3 (commit f50e2064, 2026-07-30) renamed
-// 24 confirmation buttons to the VERB OF THE ACT, and this one became "Marcar
-// como encontrada" (SheetMounter → MarkFoundConfirmation). The specs kept the
-// old locator, which is why seam (a) failed the first CI run that reported a
-// verdict — and why ensurePetFound below had silently stopped cleaning up
-// (its `count() > 0` guard turns a drifted locator into a no-op, so every run
-// left the pet marked lost).
-const MARK_FOUND_BUTTON = /^marcar como encontrada$/i;
+// MARK_FOUND_BUTTON and the drift story it encodes live in demo/_helpers.ts,
+// beside the `ensurePetFound` cleanup that story produced.
 
 /**
  * owner@dim.test's first pet, READ FROM THEIR OWN REGISTRY — never hardcoded.
@@ -139,18 +134,6 @@ async function libretaAsientos(page: Page, token: string): Promise<Locator> {
   await page.waitForTimeout(1_500); // Suspense boundary + flip settle
   await expect(page.getByText(/application error/i)).not.toBeVisible();
   return page.locator("#pet-face-libreta").locator('[data-section="asiento"]');
-}
-
-/** Force a pet back to the active state (idempotent mark-found cleanup). */
-async function ensurePetFound(page: Page, token: string): Promise<void> {
-  await page
-    .goto(`/mis-mascotas/${token}?sheet=marcar-encontrada`, { waitUntil: "domcontentloaded" })
-    .catch(() => {});
-  const confirm = page.getByRole("button", { name: MARK_FOUND_BUTTON });
-  if ((await confirm.count().catch(() => 0)) > 0) {
-    await confirm.click().catch(() => {});
-    await page.waitForLoadState("networkidle").catch(() => {});
-  }
 }
 
 test.describe.configure({ mode: "serial" });
