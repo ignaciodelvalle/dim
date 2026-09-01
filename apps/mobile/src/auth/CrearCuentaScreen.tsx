@@ -73,6 +73,7 @@ import {
   Eyebrow,
   LabelledDivider,
   LinkText,
+  PasswordField,
   PrimaryButton,
   Screen,
   SecondaryButton,
@@ -247,7 +248,7 @@ export function CrearCuentaScreen({ onGoToSignIn }: { onGoToSignIn: () => void }
           value={draft.email}
         />
 
-        <TextField
+        <PasswordField
           accessibilityLabel="Contraseña"
           autoCapitalize="none"
           // `new-password`, not `current-password`: it is what tells a password
@@ -258,12 +259,11 @@ export function CrearCuentaScreen({ onGoToSignIn }: { onGoToSignIn: () => void }
           label="Contraseña"
           onChangeText={(password) => patch({ password })}
           required
-          secureTextEntry
           value={draft.password}
         />
         <Body>Mínimo 8 caracteres.</Body>
 
-        <TextField
+        <PasswordField
           accessibilityLabel="Repetir contraseña"
           autoCapitalize="none"
           autoComplete="new-password"
@@ -273,7 +273,6 @@ export function CrearCuentaScreen({ onGoToSignIn }: { onGoToSignIn: () => void }
           onSubmitEditing={() => void submit()}
           required
           returnKeyType="go"
-          secureTextEntry
           value={draft.confirmPassword}
         />
 

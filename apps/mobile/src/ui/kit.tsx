@@ -44,8 +44,8 @@
 // never registered renders Regular, silently. Every style here names a face
 // (`FONTS.sansSemibold`) and no style sets `fontWeight`. See fonts.ts.
 
-import type { ReactNode } from "react";
-import { useState } from "react";
+import type { ReactNode, Ref, RefObject } from "react";
+import { createContext, useRef, useState } from "react";
 import {
   KeyboardAvoidingView,
   Platform,
@@ -61,6 +61,7 @@ import {
 } from "react-native";
 import { type Edge, SafeAreaView } from "react-native-safe-area-context";
 
+import { Icon } from "./Icon";
 import { FONTS } from "./fonts";
 import {
   COLORS,
@@ -84,6 +85,16 @@ import {
  * between blocks is the caller's business — screens differ — so this sets the
  * gutter and a default rhythm and gets out of the way.
  */
+/**
+ * The Screen's own ScrollView, offered to descendants that need to move it —
+ * today that is `useScrollToError` (src/ui/use-scroll-to-error.ts), the mobile
+ * mirror of the web's `useFormErrorFocus`. A context and not a prop because
+ * the consumer is an ANCHOR deep inside a form, and threading a ref through
+ * every intermediate component would tax screens that never scroll anywhere.
+ * Null outside a Screen, and consumers must treat null as "nothing to move".
+ */
+export const ScreenScrollContext = createContext<RefObject<ScrollView | null> | null>(null);
+
 export function Screen({
   children,
   edges = ["bottom"],
@@ -98,13 +109,15 @@ export function Screen({
   refreshControl?: ScrollViewProps["refreshControl"];
   gap?: number;
 }) {
+  const scrollRef = useRef<ScrollView>(null);
   const scroll = (
     <ScrollView
+      ref={scrollRef}
       contentContainerStyle={[styles.scroll, { gap }]}
       keyboardShouldPersistTaps="handled"
       refreshControl={refreshControl}
     >
-      {children}
+      <ScreenScrollContext.Provider value={scrollRef}>{children}</ScreenScrollContext.Provider>
     </ScrollView>
   );
 
@@ -212,6 +225,10 @@ export type TextFieldProps = Omit<TextInputProps, "style"> & {
   invalid?: boolean;
   /** Mono variant — codes, tokens, dates. */
   mono?: boolean;
+  /** Ref to the underlying TextInput — return-key chains focus through it
+   * (`useReturnKeyChain`). A dedicated prop rather than `ref` because this
+   * component's own ref would name the wrapper View, not the input. */
+  inputRef?: Ref<TextInput>;
 };
 
 /**
@@ -248,6 +265,7 @@ export function TextField({
   mono = false,
   onBlur,
   onFocus,
+  inputRef,
   ...rest
 }: TextFieldProps) {
   const [focused, setFocused] = useState(false);
@@ -256,6 +274,7 @@ export function TextField({
       <FieldLabel required={required}>{label}</FieldLabel>
       <View style={[styles.ring, focused ? styles.ringOn : null]}>
         <TextInput
+          ref={inputRef}
           accessibilityLabel={required ? `${label}, obligatorio` : label}
           placeholderTextColor={COLORS.inkFaint}
           {...rest}
@@ -274,6 +293,65 @@ export function TextField({
             invalid ? styles.inputInvalid : null,
           ]}
         />
+      </View>
+    </View>
+  );
+}
+
+/**
+ * `TextField` for passwords, with the reveal toggle the web has had all along
+ * (`LnPasswordInput`, components/ui/Field.tsx:433) — QOL audit 2026-09-01,
+ * the PO's own first example. The toggle matters MOST off the login screen:
+ * signup and reset type a NEW password blind, twice, and a typo there is a
+ * lockout on a pilot where mail recovery is days old. Visibility is per-field
+ * local state — revealing one field never reveals its sibling — and the
+ * control owns `secureTextEntry`, so a caller cannot half-wire it.
+ */
+export function PasswordField({
+  label,
+  required = false,
+  invalid = false,
+  onBlur,
+  onFocus,
+  ...rest
+}: Omit<TextFieldProps, "mono" | "secureTextEntry">) {
+  const [focused, setFocused] = useState(false);
+  const [visible, setVisible] = useState(false);
+  return (
+    <View style={styles.field}>
+      <FieldLabel required={required}>{label}</FieldLabel>
+      <View style={[styles.ring, focused ? styles.ringOn : null, styles.passwordRow]}>
+        <TextInput
+          accessibilityLabel={required ? `${label}, obligatorio` : label}
+          placeholderTextColor={COLORS.inkFaint}
+          {...rest}
+          secureTextEntry={!visible}
+          onBlur={(e) => {
+            setFocused(false);
+            onBlur?.(e);
+          }}
+          onFocus={(e) => {
+            setFocused(true);
+            onFocus?.(e);
+          }}
+          style={[
+            styles.input,
+            styles.passwordInput,
+            focused ? styles.inputFocused : null,
+            invalid ? styles.inputInvalid : null,
+          ]}
+        />
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={visible ? "Ocultar contraseña" : "Mostrar contraseña"}
+          onPress={() => setVisible((v) => !v)}
+          style={({ pressed }) => [
+            styles.passwordEye,
+            pressed ? { opacity: PRESSED_OPACITY } : null,
+          ]}
+        >
+          <Icon name={visible ? "ocultar" : "ver"} size="md" color={COLORS.inkFaint} />
+        </Pressable>
       </View>
     </View>
   );
@@ -465,7 +543,17 @@ export function Callout({
   title?: string;
 }) {
   return (
-    <View style={[styles.callout, CALLOUT_TONE[tone].box]}>
+    <View
+      // The err tone announces itself (QOL 2026-09-01): the web's error
+      // surfaces carry role="alert" (Alert.tsx:18) so a screen reader hears a
+      // failed submit immediately — without this, a TalkBack user had to
+      // explore the screen to discover WHY nothing happened. Android reads the
+      // live region; iOS reads the alert role. Non-error tones stay silent:
+      // announcing an informational callout on mount is noise.
+      accessibilityLiveRegion={tone === "err" ? "assertive" : undefined}
+      accessibilityRole={tone === "err" ? "alert" : undefined}
+      style={[styles.callout, CALLOUT_TONE[tone].box]}
+    >
       {title === undefined ? null : (
         <Text style={[styles.calloutTitle, CALLOUT_TONE[tone].title]}>{title}</Text>
       )}
@@ -569,6 +657,15 @@ const styles = StyleSheet.create({
     color: COLORS.ink,
   },
   inputMono: { fontFamily: FONTS.mono, letterSpacing: TYPE.base * TRACKING.wide },
+  // PasswordField: the input yields the ring's right edge to the eye toggle.
+  passwordRow: { flexDirection: "row", alignItems: "center" },
+  passwordInput: { flex: 1 },
+  passwordEye: {
+    minWidth: TOUCH_TARGET,
+    minHeight: TOUCH_TARGET,
+    alignItems: "center",
+    justifyContent: "center",
+  },
   inputFocused: { borderColor: COLORS.accent },
   inputInvalid: { borderColor: COLORS.danger },
 

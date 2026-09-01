@@ -76,22 +76,33 @@ export function authPlaneConfigured(): boolean {
 }
 
 /**
- * A host that is this machine, from the device's point of view.
+ * A host that is the developer's machine or network, from the device's point
+ * of view.
  *
- * `10.0.2.2` is the Android emulator's alias for the host loopback and is the
- * spelling the repo's own run-book uses; the others are what a simulator or a
- * physical device on the LAN gets. Kept as a list rather than a regex over
- * "private-looking" addresses because the question is not "is this address
- * private", it is "does this point at the machine the developer is sitting at".
+ * `localhost`/`127.0.0.1` are the web and simulator spellings, `10.0.2.2` and
+ * `10.0.3.2` the Android emulators' aliases for the host loopback (covered by
+ * the 10/8 range below), `.local` an mDNS name. The RFC 1918 ranges are the
+ * spelling a PHYSICAL device on the developer's wifi actually uses
+ * (`http://192.168.x.x:3000`) — the 2026-09-01 pre-push review measured that
+ * the original enumerated list missed exactly that one, so the crossed-planes
+ * message stayed generic on a real phone, the device this check most needs to
+ * speak on; and the reverse hole too: one machine wearing two spellings (LAN
+ * IP for one plane, emulator alias for the other) read as "dos entornos". A
+ * private address is never a public deployment, so "RFC 1918" and "the
+ * machine the developer is sitting at" coincide for every build this app can
+ * make.
  */
 function isLocalHost(host: string): boolean {
   return (
-    host === "localhost" ||
-    host === "127.0.0.1" ||
-    host === "10.0.2.2" ||
-    host === "10.0.3.2" ||
-    host.endsWith(".local")
+    host === "localhost" || host === "127.0.0.1" || host.endsWith(".local") || isPrivateLanIp(host)
   );
+}
+
+/** RFC 1918: 10/8 (includes the emulator aliases), 172.16/12, 192.168/16. */
+function isPrivateLanIp(host: string): boolean {
+  if (host.startsWith("10.") || host.startsWith("192.168.")) return true;
+  const octets = host.match(/^172\.(\d{1,3})\./);
+  return octets !== null && Number(octets[1]) >= 16 && Number(octets[1]) <= 31;
 }
 
 function hostOf(url: string): string | null {

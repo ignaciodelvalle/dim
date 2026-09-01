@@ -137,8 +137,9 @@ describe("signIn — a Keystore write that THROWS", () => {
     // But they name different subsystems, and only the throw names the device.
     expect(viaError).toEqual({
       ok: false,
-      message:
-        "Iniciaste sesión, pero el servidor no aceptó la sesión en este dispositivo. Probá de nuevo.",
+      // NOT "en este dispositivo": the device is the one subsystem provably not
+      // involved on the returned-error path (2026-09-01 review, finding 3a).
+      message: "Iniciaste sesión, pero el servidor no aceptó la sesión. Probá de nuevo.",
     });
     expect(viaThrow).toEqual({
       ok: false,
@@ -154,6 +155,33 @@ describe("signIn — a Keystore write that THROWS", () => {
 
     await signIn("ana@dim.test", "hunter2");
 
+    expect(mockDropLocalSession).toHaveBeenCalledTimes(1);
+    expect(getSessionState().phase).not.toBe("signed-in");
+  });
+
+  it("names the NETWORK for auth-js's retryable shape — not the server, not the device", async () => {
+    // The THIRD shape, measured by the 2026-09-01 pre-push review: a fetch that
+    // never reaches a server comes back as AuthRetryableFetchError — RETURNED,
+    // not thrown (auth-js lib/fetch.js:33-40 wraps it, GoTrueClient.js:2836
+    // returns it). Under the old two-way split it read as "el servidor no
+    // aceptó", sending the reader to auth configuration when the actual fault
+    // was the Supabase plane being unreachable — the WinNAT/container-down
+    // class this repo's own memory documents. The guard is the library's own
+    // (`__isAuthError` + name), so this fake is the exact shape it tests for.
+    mockAuth.setSession.mockResolvedValue({
+      data: {},
+      error: { __isAuthError: true, name: "AuthRetryableFetchError", message: "fetch failed" },
+    });
+
+    const result = await signIn("ana@dim.test", "hunter2");
+
+    expect(result).toEqual({
+      ok: false,
+      message:
+        "Iniciaste sesión, pero no pudimos confirmarla con el servidor. Revisá tu conexión y probá de nuevo.",
+    });
+    // Same cleanup as every other refusal — a half-usable session must not
+    // survive to the next cold start.
     expect(mockDropLocalSession).toHaveBeenCalledTimes(1);
     expect(getSessionState().phase).not.toBe("signed-in");
   });

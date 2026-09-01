@@ -82,6 +82,7 @@ import {
   Callout,
   LabelledDivider,
   LinkText,
+  PasswordField,
   PrimaryButton,
   Screen,
   SecondaryButton,
@@ -170,7 +171,7 @@ export default function IngresoScreen() {
           value={email}
         />
 
-        <TextField
+        <PasswordField
           accessibilityLabel="Contraseña"
           autoCapitalize="none"
           autoComplete="current-password"
@@ -180,7 +181,6 @@ export default function IngresoScreen() {
           onSubmitEditing={() => void submit()}
           required
           returnKeyType="go"
-          secureTextEntry
           value={password}
         />
 

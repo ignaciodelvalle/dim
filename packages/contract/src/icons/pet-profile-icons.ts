@@ -37,6 +37,8 @@ export const PET_PROFILE_ICONS = {
   perdida: "Siren",
   shield: "Shield",
   ver: "Eye",
+  // The reveal toggle's second state (PasswordField, QOL 2026-09-01).
+  ocultar: "EyeOff",
   medicacion: "Pill",
   embarazo: "Baby",
   corazon: "Heart",

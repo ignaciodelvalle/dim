@@ -57,11 +57,23 @@ describe("planesLookCrossed — the combination that produced a wrong diagnosis"
     expect(planesLookCrossed()).toBe(true);
   });
 
-  it("knows the emulator's host alias, the simulator's, and a LAN name", () => {
+  it("knows the emulator's host alias, the simulator's, a LAN name, and the LAN IPs", () => {
     // Asserted as pairs rather than a bare boolean per host: Jest's `expect`
     // takes no message argument (that is vitest), so this is how a failure names
     // WHICH host stopped reading as local instead of just saying `false`.
-    const hosts = ["localhost", "127.0.0.1", "10.0.2.2", "10.0.3.2", "macbook.local"];
+    // The three RFC 1918 spellings are the 2026-09-01 review's finding: a
+    // physical device on the developer's wifi says `192.168.x.x`, and the
+    // original list missed it — the exact device this check most needs.
+    const hosts = [
+      "localhost",
+      "127.0.0.1",
+      "10.0.2.2",
+      "10.0.3.2",
+      "macbook.local",
+      "192.168.1.50",
+      "172.16.0.10",
+      "10.1.2.3",
+    ];
     const seen = hosts.map((host) => {
       const { planesLookCrossed } = loadWith({
         api: STAGING_API,
@@ -101,6 +113,28 @@ describe("planesLookCrossed — every correct build stays quiet", () => {
 
   it("is FALSE for an origin it cannot parse, rather than guessing", () => {
     const { planesLookCrossed } = loadWith({ api: STAGING_API, supabase: "not-a-url" });
+    expect(planesLookCrossed()).toBe(false);
+  });
+
+  it("is FALSE when one machine wears two spellings — LAN IP and emulator alias", () => {
+    // The review's false-POSITIVE case: an emulator reaching the API by the
+    // host's LAN IP while auth uses the 10.0.2.2 alias is ONE machine, not two
+    // environments. Before the RFC 1918 ranges landed, this read as crossed.
+    const { planesLookCrossed } = loadWith({
+      api: "http://192.168.1.50:3000",
+      supabase: "http://10.0.2.2:54321",
+    });
+    expect(planesLookCrossed()).toBe(false);
+  });
+
+  it("does not read 172.32.x — outside RFC 1918 — as the developer's machine", () => {
+    // The 172 block is /12, not /8: only 172.16 through 172.31 are private. A
+    // public 172.32 address reading as "local" would cross against staging
+    // here and put the config message on a screen whose real cause is remote.
+    const { planesLookCrossed } = loadWith({
+      api: "http://172.32.0.1:3000",
+      supabase: STAGING_AUTH,
+    });
     expect(planesLookCrossed()).toBe(false);
   });
 });

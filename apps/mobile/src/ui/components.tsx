@@ -23,12 +23,13 @@
 // `theme.ts`, which reads `@dim/contract/tokens`, which `pnpm lint:token-parity`
 // holds against app/globals.css.
 
+import * as Linking from "expo-linking";
 import type { ReactNode } from "react";
-import { ActivityIndicator, StyleSheet, Text, View } from "react-native";
+import { ActivityIndicator, Pressable, StyleSheet, Text, View } from "react-native";
 
 import { FONTS } from "./fonts";
 import { PrimaryButton, SecondaryButton } from "./kit";
-import { COLORS, LABEL_TRACKING_EM, LEADING, RADIUS, SPACE, TYPE } from "./theme";
+import { COLORS, LABEL_TRACKING_EM, LEADING, RADIUS, SPACE, TOUCH_TARGET, TYPE } from "./theme";
 
 /**
  * A titled panel. `LnCard` on the web: white fill, warm hairline, 4px corners,
@@ -53,8 +54,47 @@ export function Row({ label, value }: { label: string; value: string }) {
   );
 }
 
-export function Body({ children }: { children: ReactNode }) {
-  return <Text style={styles.body}>{children}</Text>;
+/**
+ * A Row whose value is a PHONE NUMBER — tappable, because it renders in the
+ * one flow where dialing is the whole point (QOL 2026-09-01): the owner's
+ * phone in front of the finder holding the animal, and a finder's contact in
+ * front of the owner reading the search feed. The web's own lost surfaces
+ * link them (`tel:` in LostScanFeed:227, the "Llamar" CTA on the public
+ * credential); on the phone — the device that CALLS — they were inert text.
+ * Falls back to a plain Row shape when the dialer refuses the URL.
+ */
+export function PhoneRow({ label, value }: { label: string; value: string }) {
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={`Llamar al ${value}`}
+      onPress={() => void Linking.openURL(`tel:${value}`).catch(() => {})}
+      style={({ pressed }) => [styles.row, styles.phoneRow, pressed ? { opacity: 0.6 } : null]}
+    >
+      <Text style={styles.rowLabel}>{label}</Text>
+      <Text selectable style={[styles.rowValue, styles.phoneValue]}>
+        {value}
+      </Text>
+    </Pressable>
+  );
+}
+
+export function Body({
+  children,
+  selectable = false,
+}: {
+  children: ReactNode;
+  /** Long-press select/copy — for codes and tokens a person has to carry
+   * somewhere else (QOL 2026-09-01; TurnoDetailScreen set the idiom: "so the
+   * token can be copied as well as read aloud"). A copy BUTTON needs
+   * expo-clipboard, a native dep — that lands with the D2 build batch. */
+  selectable?: boolean;
+}) {
+  return (
+    <Text selectable={selectable} style={styles.body}>
+      {children}
+    </Text>
+  );
 }
 
 /** Something the reader has to act on. Never used for anything merely emphatic. */
@@ -75,10 +115,12 @@ export function Unavailable({
   );
 }
 
-/** A failed read, with the way to try again attached. */
+/** A failed read, with the way to try again attached. Announces itself to a
+ * screen reader the way the web's error surfaces do (role="alert") — QOL
+ * 2026-09-01, same rationale as Callout's err tone in kit.tsx. */
 export function ErrorNotice({ message, onRetry }: { message: string; onRetry?: () => void }) {
   return (
-    <View style={styles.errorNotice}>
+    <View accessibilityLiveRegion="assertive" accessibilityRole="alert" style={styles.errorNotice}>
       <Text style={styles.errorTitle}>No se pudo</Text>
       <Text style={styles.errorBody}>{message}</Text>
       {onRetry === undefined ? null : (
@@ -145,6 +187,10 @@ const styles = StyleSheet.create({
     flexShrink: 1,
     textAlign: "right",
   },
+  // PhoneRow: the value reads as the link it is, and the row is a full
+  // touch target — a phone number nobody can hit is worse than plain text.
+  phoneRow: { minHeight: TOUCH_TARGET, alignItems: "center" },
+  phoneValue: { color: COLORS.accent, textDecorationLine: "underline" },
   body: {
     fontFamily: FONTS.sans,
     color: COLORS.inkSoft,

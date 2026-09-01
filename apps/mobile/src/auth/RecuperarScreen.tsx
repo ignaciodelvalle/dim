@@ -52,7 +52,16 @@ import { StyleSheet, View } from "react-native";
 
 import { PASSWORD_RECOVERY_URL } from "../config/api";
 import { Body, ErrorNotice } from "../ui/components";
-import { Callout, LinkText, PrimaryButton, Screen, Subtitle, TextField, Title } from "../ui/kit";
+import {
+  Callout,
+  LinkText,
+  PasswordField,
+  PrimaryButton,
+  Screen,
+  Subtitle,
+  TextField,
+  Title,
+} from "../ui/kit";
 import { SPACE } from "../ui/theme";
 import { requestPasswordReset, resetPasswordWithCode } from "./session-store";
 
@@ -184,7 +193,7 @@ export function RecuperarScreen({ onGoToSignIn }: { onGoToSignIn: () => void }) 
             value={code}
           />
 
-          <TextField
+          <PasswordField
             autoCapitalize="none"
             // `new-password`, not `current-password`: it tells a password manager
             // to OFFER one rather than look one up, and the one it would look up
@@ -194,12 +203,11 @@ export function RecuperarScreen({ onGoToSignIn }: { onGoToSignIn: () => void }) 
             label="Nueva contraseña"
             onChangeText={setPassword}
             required
-            secureTextEntry
             value={password}
           />
           <Body>Mínimo 8 caracteres.</Body>
 
-          <TextField
+          <PasswordField
             autoCapitalize="none"
             autoComplete="new-password"
             editable={!busy}
@@ -208,7 +216,6 @@ export function RecuperarScreen({ onGoToSignIn }: { onGoToSignIn: () => void }) 
             onSubmitEditing={() => void redeem()}
             required
             returnKeyType="go"
-            secureTextEntry
             value={confirmPassword}
           />
 

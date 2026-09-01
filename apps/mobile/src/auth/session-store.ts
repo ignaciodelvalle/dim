@@ -53,6 +53,7 @@
 
 import type { MeV1User } from "@dim/contract/api";
 import { MIN_PASSWORD_LENGTH } from "@dim/contract/input";
+import { isAuthRetryableFetchError } from "@supabase/supabase-js";
 
 import {
   type ApiResult,
@@ -276,13 +277,23 @@ export async function signIn(email: string, password: string): Promise<SignInRes
     return { ok: false, message: apiFailureMessage(result) ?? "No pudimos iniciar sesión." };
   }
 
-  // BOTH FAILURE SHAPES REACH THIS CALL AND THEY MEAN OPPOSITE THINGS, so they
-  // are caught together and answered apart. Until 2026-08-25 only one of them
-  // existed; until 2026-08-31 both existed and shared one sentence, and that
-  // sentence cost a real diagnosis — see below.
+  // THREE FAILURE SHAPES REACH THIS CALL AND THEY NAME THREE SUBSYSTEMS, so
+  // they are caught together and answered apart. Until 2026-08-25 only one of
+  // them existed; until 2026-08-31 all of them shared one sentence, and that
+  // sentence cost a real diagnosis (see below); until 2026-09-01 every
+  // RETURNED error was read as "the server refused", and the pre-push review
+  // measured the shape that is not:
   //
-  //   · `{ error }` RETURNED  → an AuthError. The SERVER refused. `setSession`
-  //     calls `_getUser(access_token)` over the network BEFORE it saves anything
+  //   · `{ error }` RETURNED, retryable → the fetch inside `_getUser` never
+  //     reached a server. auth-js wraps a network-level failure in
+  //     AuthRetryableFetchError and RETURNS it (lib/fetch.js:33-40, returned by
+  //     GoTrueClient.js:2836) — the Supabase plane down or unreachable, the
+  //     WinNAT/container class this repo has already been burned by. Neither
+  //     the device nor any refusal is involved.
+  //   · `{ error }` RETURNED, anything else → a refusal. Either the server
+  //     examined the token and said no, or auth-js refused it locally before
+  //     sending (malformed JWT, missing session) — `setSession` calls
+  //     `_getUser(access_token)` over the network BEFORE it saves anything
   //     (GoTrueClient.js:2835 vs `_saveSession` at :2847), so on this path
   //     storage is never even reached.
   //   · REJECTED PROMISE      → not an AuthError, so auth-js rethrew it
@@ -290,25 +301,27 @@ export async function signIn(email: string, password: string): Promise<SignInRes
   //     is the device-storage shape, and the only one.
   let stored: { error: unknown } = { error: null };
   let refusedByServer = false;
+  let serverUnreachable = false;
   try {
     stored = await client.auth.setSession({
       access_token: result.payload.session.accessToken,
       refresh_token: result.payload.session.refreshToken,
     });
-    // A returned error is the server's, by the contract above.
-    refusedByServer = Boolean(stored.error);
+    // Returned errors split by the library's own guard, per the contract above.
+    serverUnreachable = isAuthRetryableFetchError(stored.error);
+    refusedByServer = Boolean(stored.error) && !serverUnreachable;
   } catch (err) {
     stored = { error: err instanceof Error ? err : new Error(String(err)) };
   }
 
   if (stored.error) {
-    // Signed in at the server, not usable on the device either way. Saying
+    // Signed in at the API, not usable on the device either way. Saying
     // "listo" here produces a session that evaporates on the next cold start,
     // which is the "it logs me out sometimes" report the whole storage adapter
-    // exists to prevent. Refuse visibly — but say WHICH refusal it was.
+    // exists to prevent. Refuse visibly — and say WHICH subsystem it was.
     //
     // WHY THE SPLIT IS WORTH ITS LINES. One sentence blaming the device covered
-    // both shapes, and on 2026-08-30 it sent a walkthrough down the wrong path:
+    // every shape, and on 2026-08-30 it sent a walkthrough down the wrong path:
     // the app was pointed at LOCAL Supabase while `API_BASE_URL` still defaulted
     // to staging, so it signed in at staging, handed a staging-signed token to
     // local GoTrue, and got `invalid JWT: unrecognized JWT kid`. Pure
@@ -323,23 +336,38 @@ export async function signIn(email: string, password: string): Promise<SignInRes
     // `clearSession` is itself unconditional and swallows its own signOut
     // failure, so this cleanup cannot turn one failure into two.
     await clearSession();
+    if (serverUnreachable) {
+      // The one branch that MAY say "conexión": the guard above fires only on a
+      // fetch that failed at the network level, never on an examined-and-refused
+      // token.
+      return {
+        ok: false,
+        message:
+          "Iniciaste sesión, pero no pudimos confirmarla con el servidor. Revisá tu conexión y probá de nuevo.",
+      };
+    }
+    if (refusedByServer) {
+      // Deliberately NOT "revisá tu conexión" — the retryable shape was peeled
+      // off above, so what remains is a refusal: a token this server does not
+      // recognise, a server that is not the one that issued it, or a token
+      // auth-js refused to decode. And NOT "este dispositivo" either: the
+      // device is the one subsystem provably not involved on this path.
+      //
+      // When the build's own two origins straddle local and remote, that IS
+      // the cause with overwhelming likelihood, so it gets named. A shipped
+      // build cannot reach that clause — both origins are baked from one
+      // environment — so the sentence only ever appears in front of the person
+      // who can act on it.
+      return {
+        ok: false,
+        message: planesLookCrossed()
+          ? "Iniciaste sesión, pero el servidor no aceptó la sesión: esta compilación apunta a dos entornos distintos (API y Supabase). Alineá EXPO_PUBLIC_API_BASE_URL con EXPO_PUBLIC_SUPABASE_URL."
+          : "Iniciaste sesión, pero el servidor no aceptó la sesión. Probá de nuevo.",
+      };
+    }
     return {
       ok: false,
-      message: refusedByServer
-        ? // Deliberately NOT "revisá tu conexión": the request reached a server
-          // and came back refused. Naming neither the device nor the network
-          // keeps this honest for the two live causes — a token this server does
-          // not recognise, and a server that is not the one that issued it.
-          //
-          // And when the build's own two origins straddle local and remote, that
-          // IS the cause with overwhelming likelihood, so it gets named. A
-          // shipped build cannot reach this clause — both origins are baked from
-          // one environment — so the sentence only ever appears in front of the
-          // person who can act on it.
-          planesLookCrossed()
-          ? "Iniciaste sesión, pero el servidor no aceptó la sesión: esta compilación apunta a dos entornos distintos (API y Supabase). Alineá EXPO_PUBLIC_API_BASE_URL con EXPO_PUBLIC_SUPABASE_URL."
-          : "Iniciaste sesión, pero el servidor no aceptó la sesión en este dispositivo. Probá de nuevo."
-        : "Iniciaste sesión, pero no pudimos guardarla en este dispositivo. Probá de nuevo.",
+      message: "Iniciaste sesión, pero no pudimos guardarla en este dispositivo. Probá de nuevo.",
     };
   }
 
