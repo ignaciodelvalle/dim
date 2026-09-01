@@ -851,17 +851,22 @@ describe("POST book — the second command, and the coarseness of its refusals",
     // edit, made at the 2026-08-30 integration merge with the three `booking_*`
     // codes the hand-off specified.
     //
-    // TWO FOLDS SURVIVE ON PURPOSE and both are named in `commands.ts`:
+    // ONE FOLD SURVIVES ON PURPOSE and it is named in `commands.ts`:
     // `pet_not_yours`/`pet_deceased` share one code so this door is not an
-    // existence oracle over erased pets, and `slot_past` still borrows
-    // `appointment_past` from the cancel vocabulary.
+    // existence oracle over erased pets. Ratified by the PO on 2026-08-31.
+    //
+    // The second fold is GONE as of the same decision. `slot_past` borrowed
+    // `appointment_past` — a code whose es-AR copy ends in "así que no se puede
+    // cancelar" — so a person refused a BOOKING read a sentence about cancelling
+    // a turno they never held. It now has `booking_slot_past` and its own
+    // string. This row is what would go red if anybody re-folded it.
     const expected: Array<[string, string, number]> = [
       ["pet_not_yours", "booking_pet_not_bookable", 403],
       ["pet_deceased", "booking_pet_not_bookable", 403],
       ["slot_not_found", "booking_slot_taken", 409],
       ["slot_unavailable", "booking_slot_taken", 409],
       ["already_booked", "booking_already_in_offering", 409],
-      ["slot_past", "appointment_past", 409],
+      ["slot_past", "booking_slot_past", 409],
     ];
 
     for (const [failure, code, status] of expected) {

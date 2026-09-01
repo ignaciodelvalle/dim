@@ -179,15 +179,18 @@ export const BOOK_REFUSALS: Readonly<
   // The clock passed the start. A DIFFERENT move again: nothing was taken, the
   // slot simply aged out, and the next grid will not show it.
   //
-  // THE ONE FOLD THE UNFOLD LEFT STANDING, and it is named rather than quietly
-  // kept: the hand-off asked for three codes, not four, so this refusal still
-  // borrows the cancel vocabulary — and `appointment_past`'s es-AR copy ends in
-  // "así que no se puede cancelar", which is a sentence about a turno the
-  // person does not hold. It is a smaller version of exactly the cost the
-  // docblock above describes, on the one path where the read and the tap have
-  // to disagree by minutes for anybody to reach it. Closing it is a fourth code
-  // and a fourth string, not a rewrite of this line.
-  slot_past: { code: "appointment_past", status: 409 },
+  // THE FOLD THE UNFOLD LEFT STANDING IS NOW CLOSED (PO, 2026-08-31). This line
+  // borrowed `appointment_past` because WU-S was handed a budget of three codes,
+  // and the borrow cost exactly what the previous comment predicted: that code's
+  // es-AR copy ends in "así que no se puede cancelar", so a person refused a
+  // BOOKING read a sentence about cancelling a turno they never held. The fourth
+  // code and the fourth string were already derived and waiting on a decision;
+  // this is that decision applied.
+  //
+  // The OTHER fold on this surface stays: `pet_not_yours` / `pet_deceased` share
+  // `booking_pet_not_bookable` on purpose, so the door is not an existence
+  // oracle over erased pets. That one is ratified, not pending.
+  slot_past: { code: "booking_slot_past", status: 409 },
 };
 
 export async function runAppointmentCommand(ctx: AppointmentCommandContext) {

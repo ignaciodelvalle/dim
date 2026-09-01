@@ -323,6 +323,13 @@ export function apiErrorMessage(code: ApiV1ErrorCode): string {
       return "No podés reservar un turno para esa mascota. Volvé a Mis mascotas para ver cómo está.";
     case "booking_already_in_offering":
       return "Esa mascota ya tiene un turno reservado en este servicio. Elegí otra mascota.";
+    case "booking_slot_past":
+      // NOT the sibling above's "ya no está disponible". Nobody took this hour —
+      // it simply passed while the grid was open, so "elegí otro" is the whole
+      // instruction and there is nothing to re-read first. It also must not say
+      // "no se puede cancelar": that is `appointment_past`, this code's previous
+      // home, and it talks about a turno the person actually holds.
+      return "Ese horario ya empezó. Elegí uno más adelante.";
     // Reclamos. Both sentences end in "buscá de nuevo" rather than in an
     // apology, and that is the contract's own instruction rather than a style:
     // the LOOKUP's fresh `variant` is the only thing that says what the animal's

@@ -749,7 +749,14 @@
  * territory in that window. The fold met this file's only bar — the client's
  * move was identical — and it cost the one thing a fold always costs: the es-AR
  * copy for those four was written for CANCELLING, so a person refused a booking
- * read a sentence about a turno they never held. These three unfold it.
+ * read a sentence about a turno they never held. These FOUR unfold it.
+ *
+ * The fourth arrived later than the other three and that is the whole story:
+ * WU-S was handed a budget of three codes, so `slot_past` stayed folded onto
+ * `appointment_past` and its comment said out loud what the fold cost —
+ * somebody refused a BOOKING read "ya pasó, así que no se puede cancelar".
+ * Ratified as debt by the PO on 2026-08-31 and closed here rather than carried,
+ * because it is the one of the two surviving folds that a person actually READS.
  *
  * - `booking_slot_taken`   — the slot filled, was cancelled, or its offering
  *                            stopped taking bookings between the read and the
@@ -766,6 +773,18 @@
  *                            guard is per (pet, offering) and a client that said
  *                            "ya tiene este turno" would send somebody to try the
  *                            next slot, which changes nothing.
+ * - `booking_slot_past`    — the clock passed the slot's start between the read
+ *                            and the tap. 409, and its own code for the same
+ *                            reason the three above have theirs: the move is
+ *                            different again. Nothing was taken and nobody moved
+ *                            first — the hour simply aged out, and the next grid
+ *                            will not offer it. Distinct from
+ *                            `booking_slot_taken` because "someone beat you to
+ *                            it" and "that hour is gone" send a person to look
+ *                            for different things, and distinct from
+ *                            `appointment_past`, which it used to borrow, because
+ *                            THAT code's copy is about cancelling a turno the
+ *                            caller holds.
  *
  * THE MOVE CODES (WU-P). `POST /api/v1/pets/{publicToken}/move` — mudanza, the
  * event-governed correction path for the one column `pets/{token}/profile`
@@ -892,6 +911,7 @@ export const API_V1_ERROR_CODES = [
   "booking_slot_taken",
   "booking_pet_not_bookable",
   "booking_already_in_offering",
+  "booking_slot_past",
   "move_forbidden",
   "move_destination_invalid",
   "move_same_locality",
