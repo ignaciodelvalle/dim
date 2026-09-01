@@ -24,16 +24,26 @@
 // the same render that would have drawn the protected content, so there is no
 // frame in which it is visible.
 
+import * as Sentry from "@sentry/react-native";
 import { Stack } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import { ActivityIndicator, View } from "react-native";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 
 import { useSessionBootstrap } from "../src/auth/useSession";
+import { initSentry } from "../src/observability/sentry";
+import { OfflineBanner } from "../src/ui/OfflineBanner";
 import { FONTS, useLnFonts } from "../src/ui/fonts";
 import { COLORS, TYPE } from "../src/ui/theme";
 
-export default function RootLayout() {
+// AT MODULE SCOPE, before the first render: an error during the initial render
+// is precisely the kind the pilot needs reported, and an init inside an effect
+// runs after it. `initSentry` no-ops (returning false) when the build carries
+// no DSN — local dev and the emulator stay silent by design; see
+// src/observability/sentry.ts for everything that is deliberately off.
+initSentry();
+
+function RootLayout() {
   const fontsReady = useLnFonts();
   useSessionBootstrap();
 
@@ -65,6 +75,9 @@ export default function RootLayout() {
   return (
     <SafeAreaProvider>
       <StatusBar style="dark" />
+      {/* Once, above the Stack: the network's absence said proactively, on
+          every screen, before anybody spends a tap on a dead spot. */}
+      <OfflineBanner />
       <Stack
         screenOptions={{
           headerStyle: { backgroundColor: COLORS.canvas },
@@ -255,7 +268,63 @@ export default function RootLayout() {
             se lee como que la pantalla cambió abajo del lector. Es el mismo
             argumento que fijó "Mascota en adopción" para las fichas de adopción. */}
         <Stack.Screen name="turnos/buscar/[offeringToken]" options={{ title: "Reservar turno" }} />
+        {/* LAS CINCO QUE EL RECUENTO DEL 31/08 DEJÓ SIN ENCABEZADO y cuyo string
+            ya estaba decidido por dos superficies — transcriptas, no inventadas,
+            2026-09-01. Las tres restantes del recuento (`perdida`,
+            `turnos/[appointmentToken]`, `cuidado/[grantToken]`) NO se registran
+            acá a propósito: sus superficies dicen strings DISTINTOS y esa es una
+            discusión de copy, no de merge — están exentas con su pregunta
+            escrita en __tests__/mobile-screen-titles.test.ts, que además cierra
+            la clase: una ruta nueva sin registrar pone el gate en rojo.
+
+            · "Mis turnos": el <Title> de la pantalla en sus dos estados y el
+              botón del pie de /mascotas que la alcanza. Verificado en pantalla
+              el 31/08 — la condición que WU-S dejó escrita quedó cumplida.
+            · "Recuperar contraseña": el <Title> de RecuperarScreen y el <h1> de
+              la web en /recuperar.
+            · "Compartir": el <Title> de SharesScreen en sus dos estados y la
+              FaceAction de /mascotas que la abre.
+            · "Cuidador temporal": el <Title> de CaretakerPetScreen (dos
+              estados), la FaceAction, y el <h1> de la web ("Cuidador temporal
+              de {nombre}" — acá sin el nombre, por la razón que fijó Mudanza:
+              el encabezado se dibuja antes del fetch).
+            · "Credencial pública": la FaceAction que la abre y la
+              autodescripción de la página pública (funcionalidades + el OG de
+              /p/{token}). El "Credencial" pelado de la pantalla es su
+              placeholder de carga, no un título decidido. */}
+        <Stack.Screen name="turnos/index" options={{ title: "Mis turnos" }} />
+        <Stack.Screen name="recuperar" options={{ title: "Recuperar contraseña" }} />
+        <Stack.Screen name="mascotas/[publicToken]/compartir" options={{ title: "Compartir" }} />
+        <Stack.Screen
+          name="mascotas/[publicToken]/cuidado"
+          options={{ title: "Cuidador temporal" }}
+        />
+        <Stack.Screen
+          name="mascotas/[publicToken]/credencial"
+          options={{ title: "Credencial pública" }}
+        />
+        {/* LAS TRES QUE TENÍAN SUPERFICIES EN DESACUERDO, decididas por el PO el
+            01/09 (las preguntas vivieron en la fence, TITLE_PENDING):
+            · «Modo perdida» — el string del botón que la abre y el nombre con
+              que el proyecto entero habla de la función; «Búsqueda» queda como
+              título interno del estado activo.
+            · «Turno» — lo que la pantalla ya dice en carga y error; corto como
+              Mascota/Registro/Transferencia. El nombre del servicio vive en el
+              contenido, no en el encabezado (la regla de Mudanza).
+            · «Cuidado temporal» — el ACTO que le confiaron al invitado; el lado
+              del dueño sigue «Cuidador temporal» (la PERSONA que designó) y la
+              asimetría es la decisión, no un descuido. */}
+        <Stack.Screen name="mascotas/[publicToken]/perdida" options={{ title: "Modo perdida" }} />
+        <Stack.Screen name="turnos/[appointmentToken]" options={{ title: "Turno" }} />
+        <Stack.Screen name="cuidado/[grantToken]" options={{ title: "Cuidado temporal" }} />
       </Stack>
     </SafeAreaProvider>
   );
 }
+
+// `Sentry.wrap` is what attaches the SDK's own error boundary to the root, so
+// a render-phase throw is captured WITH its component stack instead of only
+// surfacing as the native crash that follows it. With no DSN the wrapper is
+// inert chrome around an unreported tree — harmless in dev, load-bearing in
+// the pilot build.
+export default Sentry.wrap(RootLayout);

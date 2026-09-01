@@ -34,7 +34,7 @@ import { searchLocalities } from "../api/endpoints";
 import { Body, ErrorNotice, Loading } from "../ui/components";
 import { FONTS } from "../ui/fonts";
 import { TextField } from "../ui/kit";
-import { COLORS, LEADING, RADIUS, SPACE, TRACKING, TYPE } from "../ui/theme";
+import { COLORS, LEADING, RADIUS, SPACE, TOUCH_TARGET, TRACKING, TYPE } from "../ui/theme";
 
 const MIN_QUERY_LENGTH = 2;
 const DEBOUNCE_MS = 300;
@@ -194,6 +194,8 @@ function SearchBody({
 
 const styles = StyleSheet.create({
   option: {
+    minHeight: TOUCH_TARGET,
+    justifyContent: "center",
     backgroundColor: COLORS.surface,
     borderRadius: RADIUS.control,
     borderWidth: 1,
@@ -212,6 +214,7 @@ const styles = StyleSheet.create({
   // The chosen row is the institutional blue, not ink: a filled selection is an
   // ACTION's result, and blue is what this design gives to actions.
   selected: {
+    minHeight: TOUCH_TARGET,
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",

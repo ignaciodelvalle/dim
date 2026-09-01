@@ -69,7 +69,8 @@ import {
   TextField,
   Title,
 } from "../ui/kit";
-import { COLORS, RADIUS, SPACE, TYPE } from "../ui/theme";
+import { COLORS, RADIUS, SPACE, TOUCH_TARGET, TYPE } from "../ui/theme";
+import { useScrollToError } from "../ui/use-scroll-to-error";
 
 import {
   DENUNCIA_ANONYMOUS_CAVEAT,
@@ -122,6 +123,7 @@ type Phase =
 export function DenunciaScreen() {
   const [values, setValues] = useState<DenunciaFormValues>(EMPTY);
   const [phase, setPhase] = useState<Phase>({ name: "form", error: null });
+  const errorAnchor = useScrollToError(phase.name === "form" ? phase.error : null);
   const [addressText, setAddressText] = useState("");
   const [matches, setMatches] = useState<WelfareLocationMatchV1[] | null>(null);
   const [searching, setSearching] = useState(false);
@@ -183,7 +185,10 @@ export function DenunciaScreen() {
       <Screen>
         <Title>Denuncia registrada</Title>
         <Callout tone="ok" title="Guardá este código">
-          <Body>{phase.referenceCode}</Body>
+          {/* selectable: "guardá este código" must not mean "transcribílo a
+              mano" — long-press copies it into the note or chat where it will
+              actually be kept. */}
+          <Body selectable>{phase.referenceCode}</Body>
         </Callout>
         <Subtitle>
           Con ese código podés confirmar que la denuncia está registrada y pedir acceso al
@@ -286,7 +291,15 @@ export function DenunciaScreen() {
                 accessibilityRole="radio"
                 accessibilityState={{ checked: active }}
                 onPress={() =>
-                  patch({ place: { label: match.label, lat: match.lat, lng: match.lng } })
+                  patch({
+                    place: {
+                      label: match.label,
+                      lat: match.lat,
+                      lng: match.lng,
+                      province: match.province,
+                      locality: match.locality,
+                    },
+                  })
                 }
                 style={[styles.match, active ? styles.matchActive : null]}
               >
@@ -370,14 +383,17 @@ export function DenunciaScreen() {
         onChangeText={(description) => patch({ description })}
       />
 
-      {/* NO "¿NOTASTE SÍNTOMAS?" FIELD, and it was here until it was measured.
-          `welfare_reports` has no column for it; the only consumer is the
-          `symptom_observed` bridge inside `createWelfareReport`, which is behind
-          `subjectKind === "registered_pet"` — a subject this door does not
-          accept. So the answer went nowhere, on every request this screen can
-          make. The citizen wizard on the web does not ask for it either. What a
-          reporter observed belongs in "Contanos qué pasó", which is stored, read
-          by the operator, and carried into the MPF export. */}
+      {/* NO "¿NOTASTE SÍNTOMAS?" FIELD — but the reason CHANGED on 2026-09-01
+          and the old one must not be cited. This screen carried the field for
+          most of a day while `welfare_reports` had no column, so the answer
+          went nowhere and the field was removed as a repair. Migration 0209
+          closed that hole (campo propio, PO decision): the wire accepts
+          `observedSymptoms` again and the server now stores and shows it. The
+          field stays OFF this screen as product scope — the citizen wizard on
+          the web does not ask either, and adding a question both citizen doors
+          skip is a product decision, not a transport one. Meanwhile "Contanos
+          qué pasó" remains the place a reporter's observations reach the
+          operator and the MPF export. */}
 
       {/* ---- 3. Cómo la enviás -------------------------------------------- */}
 
@@ -399,6 +415,7 @@ export function DenunciaScreen() {
         <>
           <TextField
             label="Correo"
+            autoComplete="email"
             editable={!working}
             keyboardType="email-address"
             autoCapitalize="none"
@@ -409,6 +426,7 @@ export function DenunciaScreen() {
           />
           <TextField
             label="Teléfono"
+            autoComplete="tel"
             editable={!working}
             keyboardType="phone-pad"
             placeholder="opcional si dejás un correo"
@@ -419,9 +437,13 @@ export function DenunciaScreen() {
       )}
 
       {phase.name === "form" && phase.error !== null ? (
-        <Callout tone="err">
-          <Body>{phase.error}</Body>
-        </Callout>
+        // Anchored for useScrollToError — same rationale as RecordEventScreen:
+        // this form is long enough for the refusal to land out of view.
+        <View ref={errorAnchor}>
+          <Callout tone="err">
+            <Body>{phase.error}</Body>
+          </Callout>
+        </View>
       ) : null}
 
       <PrimaryButton
@@ -437,6 +459,8 @@ const styles = StyleSheet.create({
   spacer: { height: SPACE.xs },
   matches: { gap: SPACE.xs },
   match: {
+    minHeight: TOUCH_TARGET,
+    justifyContent: "center",
     borderWidth: 1,
     borderColor: COLORS.border,
     borderRadius: RADIUS.control,

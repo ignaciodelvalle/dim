@@ -49,7 +49,7 @@
 // pair is already optional and both-or-neither.
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Pressable, StyleSheet, Text, View } from "react-native";
+import { Pressable, Share, StyleSheet, Text, View } from "react-native";
 
 import type { LostCommandAckV1, LostFeedItemV1, PetLostV1 } from "@dim/contract/api";
 import type { ContentReportCategory } from "@dim/contract/events";
@@ -59,9 +59,11 @@ import type { ApiResult } from "../api/client";
 import { fetchPetLostMode, sendLostCommand } from "../api/endpoints";
 import { apiErrorMessage } from "../api/error-copy";
 import { sessionPort } from "../auth/session-store";
+import { publicCredentialPageUrl } from "../config/api";
 import { createAttemptSession } from "../pets/idempotency";
-import { Body, Card, Loading, Row } from "../ui/components";
+import { Body, Card, Loading, PhoneRow, Row } from "../ui/components";
 import { FONTS } from "../ui/fonts";
+import { hapticConfirm, hapticError, hapticSuccess } from "../ui/haptics";
 import {
   Callout,
   Eyebrow,
@@ -101,8 +103,27 @@ import {
   feedTruncationNote,
   lostAdjective,
   reportCategoryLabel,
+  shareSearchMessage,
   situationHeadline,
 } from "./lost-view-model";
+
+/**
+ * Hand the search to the OS share sheet — the 2 a.m. action this screen exists
+ * for, since "share to the neighbourhood WhatsApp group" is how a search
+ * actually spreads. BEST-EFFORT: the sheet belongs to the OS, sends nothing to
+ * our server, and a device with no share targets throwing here is not a failure
+ * the person can act on — so no error surface, no busy state.
+ */
+async function shareSearch(view: PetLostV1): Promise<void> {
+  try {
+    await Share.share({
+      message: shareSearchMessage(view, publicCredentialPageUrl(view.publicToken)),
+    });
+  } catch {
+    // Nothing to say: the person is looking at the sheet's own failure, or at
+    // its silent refusal to open, and a second banner would explain neither.
+  }
+}
 
 /** One sentence per failure arm. No arm may fall through to a generic shrug. */
 function failureMessage(result: ApiResult<unknown>): string {
@@ -190,9 +211,15 @@ export function LostScreen({ publicToken }: { publicToken: string }) {
       );
       setBusy(false);
       if (result.outcome !== "ok") {
+        hapticError();
         setError(failureMessage(result));
         return;
       }
+      // The haptic tracks `changed` the way the copy does: a replay that
+      // changed nothing gets the warn sentence and NO success buzz — a buzz
+      // saying "done" over "ya estaba así" would be the two channels
+      // disagreeing.
+      if (result.payload.changed) hapticSuccess();
       setNotice(
         result.payload.changed
           ? { tone: "ok", message: commandDoneLabel(result.payload.command, petSex) }
@@ -352,9 +379,23 @@ function Overview({
           <SecondaryButton
             label="Marcar como encontrada"
             disabled={busy}
-            onPress={() => setConfirmingFound(true)}
+            onPress={() => {
+              // The confirm haptic marks the WEIGHT of what just armed, not an
+              // outcome — closing a search notifies everyone who was looking.
+              hapticConfirm();
+              setConfirmingFound(true);
+            }}
           />
         )
+      ) : null}
+
+      {/* ON `status === "lost"`, INCLUDING a search closed for inactivity: the
+          public page's sighting writer refuses on the pet's status alone
+          (report-pet-sighting.ts:172), not on an open episode, so the link the
+          message invites people to use keeps working in both lost states. NOT
+          gated on `busy`: sharing runs no command and touches no state. */}
+      {view.status === "lost" ? (
+        <SecondaryButton label="Compartir la búsqueda" onPress={() => void shareSearch(view)} />
       ) : null}
 
       <Card title="Avistajes y escaneos">
@@ -408,7 +449,7 @@ function FeedRow({
       <Text style={styles.feedTitle}>{feedItemTitle(item)}</Text>
       <Text style={styles.feedMeta}>{formatIsoDateTime(item.at)}</Text>
       {detail ? <Body>{detail}</Body> : null}
-      {contact ? <Row label="Contacto" value={contact} /> : null}
+      {contact ? <PhoneRow label="Contacto" value={contact} /> : null}
       {item.kind !== "scan" && item.hasPhoto ? (
         // The file is not on this payload — see the contract header. Saying it
         // exists is honest; a broken image would not be.

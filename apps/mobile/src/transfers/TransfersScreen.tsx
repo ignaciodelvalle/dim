@@ -18,7 +18,7 @@
 // would tell the sender of a proposal that they can accept it.
 
 import { useCallback, useEffect, useState } from "react";
-import { Pressable, StyleSheet, Text, View } from "react-native";
+import { Pressable, RefreshControl, StyleSheet, Text, View } from "react-native";
 
 import type { MyTransferV1, MyTransfersV1 } from "@dim/contract/api";
 
@@ -26,9 +26,10 @@ import type { ApiResult } from "../api/client";
 import { fetchMyTransfers } from "../api/endpoints";
 import { apiErrorMessage } from "../api/error-copy";
 import { sessionPort } from "../auth/session-store";
-import { Body, Card, EmptyState, Loading } from "../ui/components";
+import { Body, Card, EmptyState } from "../ui/components";
 import { FONTS } from "../ui/fonts";
 import { Callout, Eyebrow, Screen, SecondaryButton, Title } from "../ui/kit";
+import { ListSkeleton } from "../ui/skeleton";
 import { COLORS, LEADING, RADIUS, SPACE, TOUCH_TARGET, TRACKING, TYPE } from "../ui/theme";
 
 import {
@@ -63,9 +64,17 @@ type ScreenState =
 export function TransfersScreen({ onOpen }: { onOpen: (transferToken: string) => void }) {
   const [state, setState] = useState<ScreenState>({ phase: "loading" });
 
-  const load = useCallback(async () => {
-    setState({ phase: "loading" });
+  // Pull-to-refresh (QOL 2026-09-01): the shared Screen carried the prop all
+  // along and /mascotas + notificaciones already used it — these lists were
+  // the odd ones out. A refresh keeps the list on screen instead of blanking
+  // to the loading phase; only the very first load does that.
+  const [refreshing, setRefreshing] = useState(false);
+
+  const load = useCallback(async (mode: "initial" | "refresh" = "initial") => {
+    if (mode === "refresh") setRefreshing(true);
+    else setState({ phase: "loading" });
     const result = await fetchMyTransfers(sessionPort);
+    if (mode === "refresh") setRefreshing(false);
     if (result.outcome === "ok") {
       setState({ phase: "ready", view: result.payload });
       return;
@@ -77,7 +86,21 @@ export function TransfersScreen({ onOpen }: { onOpen: (transferToken: string) =>
     void load();
   }, [load]);
 
-  if (state.phase === "loading") return <Loading label="Cargando transferencias…" />;
+  const refresher = (
+    <RefreshControl
+      colors={[COLORS.accent]}
+      onRefresh={() => void load("refresh")}
+      refreshing={refreshing}
+      tintColor={COLORS.accent}
+    />
+  );
+
+  if (state.phase === "loading")
+    return (
+      <Screen>
+        <ListSkeleton rows={3} label="Cargando transferencias…" />
+      </Screen>
+    );
 
   if (state.phase === "failed") {
     return (
@@ -97,7 +120,7 @@ export function TransfersScreen({ onOpen }: { onOpen: (transferToken: string) =>
   const { incoming, outgoing } = state.view;
 
   return (
-    <Screen>
+    <Screen refreshControl={refresher}>
       <Title>Transferencias</Title>
       <Body>Transferencias de mascotas recibidas y enviadas.</Body>
 

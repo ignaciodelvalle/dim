@@ -28,9 +28,10 @@ import { Pressable, RefreshControl, StyleSheet, Text, View } from "react-native"
 import { apiFailureMessage } from "../api/client";
 import { fetchMyAdoptionApplications } from "../api/endpoints";
 import { sessionPort } from "../auth/session-store";
-import { Body, EmptyState, ErrorNotice, Loading } from "../ui/components";
+import { Body, EmptyState, ErrorNotice } from "../ui/components";
 import { FONTS } from "../ui/fonts";
 import { Screen, Subtitle, Title } from "../ui/kit";
+import { ListSkeleton } from "../ui/skeleton";
 import { COLORS, LEADING, RADIUS, SPACE, TOUCH_TARGET, TRACKING, TYPE } from "../ui/theme";
 
 import {
@@ -97,7 +98,7 @@ export function MyApplicationsScreen({
   if (state.phase === "loading") {
     return (
       <Screen>
-        <Loading label="Buscando tus postulaciones…" />
+        <ListSkeleton rows={3} label="Buscando tus postulaciones…" />
       </Screen>
     );
   }

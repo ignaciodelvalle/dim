@@ -30,7 +30,7 @@
 // sentence is the strongest place a control can sit.
 
 import { useCallback, useEffect, useState } from "react";
-import { Pressable, StyleSheet, Text, View } from "react-native";
+import { Pressable, RefreshControl, StyleSheet, Text, View } from "react-native";
 
 import type { MyAppointmentV1, MyAppointmentsV1 } from "@dim/contract/api";
 
@@ -38,9 +38,10 @@ import type { ApiResult } from "../api/client";
 import { fetchMyAppointments } from "../api/endpoints";
 import { apiErrorMessage } from "../api/error-copy";
 import { sessionPort } from "../auth/session-store";
-import { Body, EmptyState, Loading } from "../ui/components";
+import { Body, EmptyState } from "../ui/components";
 import { FONTS } from "../ui/fonts";
 import { Callout, Eyebrow, PrimaryButton, Screen, SecondaryButton, Title } from "../ui/kit";
+import { ListSkeleton } from "../ui/skeleton";
 import { COLORS, LEADING, RADIUS, SPACE, TOUCH_TARGET, TRACKING, TYPE } from "../ui/theme";
 
 import {
@@ -83,9 +84,17 @@ export function TurnosScreen({
 }) {
   const [state, setState] = useState<ScreenState>({ phase: "loading" });
 
-  const load = useCallback(async () => {
-    setState({ phase: "loading" });
+  // Pull-to-refresh (QOL 2026-09-01): the shared Screen carried the prop all
+  // along and /mascotas + notificaciones already used it — these lists were
+  // the odd ones out. A refresh keeps the list on screen instead of blanking
+  // to the loading phase; only the very first load does that.
+  const [refreshing, setRefreshing] = useState(false);
+
+  const load = useCallback(async (mode: "initial" | "refresh" = "initial") => {
+    if (mode === "refresh") setRefreshing(true);
+    else setState({ phase: "loading" });
     const result = await fetchMyAppointments(sessionPort);
+    if (mode === "refresh") setRefreshing(false);
     if (result.outcome === "ok") {
       setState({ phase: "ready", view: result.payload });
       return;
@@ -97,7 +106,21 @@ export function TurnosScreen({
     void load();
   }, [load]);
 
-  if (state.phase === "loading") return <Loading label="Cargando tus turnos…" />;
+  const refresher = (
+    <RefreshControl
+      colors={[COLORS.accent]}
+      onRefresh={() => void load("refresh")}
+      refreshing={refreshing}
+      tintColor={COLORS.accent}
+    />
+  );
+
+  if (state.phase === "loading")
+    return (
+      <Screen>
+        <ListSkeleton rows={3} label="Cargando tus turnos…" />
+      </Screen>
+    );
 
   if (state.phase === "failed") {
     return (
@@ -117,7 +140,7 @@ export function TurnosScreen({
   const { upcoming, past, cancelled } = state.view;
 
   return (
-    <Screen>
+    <Screen refreshControl={refresher}>
       <Title>Mis turnos</Title>
       {/* The count comes from the SAME three arrays rendered below, by
           construction — see the view-model for the web bug that rule exists for. */}

@@ -241,6 +241,23 @@ export const REPORT_CATEGORY_OPTIONS: readonly ContentReportCategory[] = CONTENT
 export const FEED_EMPTY_LABEL = "Todavía no hay avistajes ni escaneos.";
 
 /**
+ * The text handed to the OS share sheet when the owner spreads the search.
+ *
+ * NO PII AND NO LAST-SEEN PLACE, deliberately. The message travels to WhatsApp
+ * groups and beyond the owner's control the moment it is sent, so everything a
+ * disclosure toggle governs stays OFF it — the credential URL is the message's
+ * whole payload, and that page already obeys the toggles at read time. A place
+ * name pasted here would outlive the owner turning `discloseLastLocationWhenLost`
+ * off.
+ *
+ * "La" is the codebase's article for `la mascota` (see `disclosureLabel`'s
+ * "dónde la vieron"); only the adjective carries the animal's sex.
+ */
+export function shareSearchMessage(view: PetLostV1, url: string): string {
+  return `Estamos buscando a ${view.petName}, está ${lostAdjective(view.petSex)}. Si la viste, avisá desde su credencial: ${url}`;
+}
+
+/**
  * The note a CAPPED feed owes.
  *
  * A list that shows some of what exists and does not say so is the same

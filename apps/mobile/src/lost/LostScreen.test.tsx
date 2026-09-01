@@ -33,6 +33,8 @@ jest.mock("../api/endpoints", () => ({
 
 jest.mock("../auth/session-store", () => ({ sessionPort: {} }));
 
+import { Share } from "react-native";
+
 import type { PetLostV1 } from "@dim/contract/api";
 import { LostScreen } from "./LostScreen";
 
@@ -197,6 +199,53 @@ describe("LostScreen — the affordances come from capabilities, never from stat
     render(<LostScreen publicToken={TOKEN} />);
     await screen.findByText("Marcar como encontrada");
     expect(screen.queryByText("Reactivar búsqueda")).toBeNull();
+  });
+});
+
+describe("LostScreen — compartir la búsqueda", () => {
+  it("hands the OS sheet a message carrying the public URL, mid-search", async () => {
+    const shareSpy = jest
+      .spyOn(Share, "share")
+      .mockResolvedValue({ action: "sharedAction" } as Awaited<ReturnType<typeof Share.share>>);
+    mockFetch.mockResolvedValue(ok(searching()));
+    render(<LostScreen publicToken={TOKEN} />);
+    fireEvent.press(await screen.findByText("Compartir la búsqueda"));
+    await waitFor(() => expect(shareSpy).toHaveBeenCalledTimes(1));
+    const message = (shareSpy.mock.calls[0]?.[0] as { message: string }).message;
+    expect(message).toContain("Pampa");
+    expect(message).toContain(TOKEN);
+    // The disclosure surface stays off the message — a group chat outlives
+    // every toggle; the credential page obeys them at read time instead.
+    expect(message).not.toContain(LOST_EPISODE.placeName);
+    shareSpy.mockRestore();
+  });
+
+  it("still offers sharing on a STALE search — the public page takes sightings on status alone", async () => {
+    // report-pet-sighting.ts refuses on `pet.status !== "lost"`, not on an open
+    // episode, so the link keeps working after the cron closes the case.
+    mockFetch.mockResolvedValue(
+      ok(
+        payload({
+          status: "lost",
+          episode: null,
+          capabilities: {
+            canMarkLost: false,
+            canReportLastSeen: false,
+            canMarkFound: true,
+            canReactivateSearch: true,
+            editableDisclosureKeys: [...ALL_KEYS],
+          },
+        }),
+      ),
+    );
+    render(<LostScreen publicToken={TOKEN} />);
+    expect(await screen.findByText("Compartir la búsqueda")).toBeOnTheScreen();
+  });
+
+  it("offers NO share for an animal that is not lost — there is no search to spread", async () => {
+    render(<LostScreen publicToken={TOKEN} />);
+    await screen.findByText("Marcar como perdida");
+    expect(screen.queryByText("Compartir la búsqueda")).toBeNull();
   });
 });
 

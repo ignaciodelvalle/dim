@@ -42,10 +42,11 @@ import { Pressable, RefreshControl, StyleSheet, Text, View } from "react-native"
 import { type ApiResult, apiFailureMessage } from "../api/client";
 import { fetchMyNotifications, sendNotificationCommand } from "../api/endpoints";
 import { sessionPort } from "../auth/session-store";
-import { Body, Card, EmptyState, Loading } from "../ui/components";
+import { Body, Card, EmptyState } from "../ui/components";
 import { FONTS } from "../ui/fonts";
 import { Callout, Screen, SecondaryButton, Title } from "../ui/kit";
 import { credentialRoute } from "../ui/routes";
+import { ListSkeleton } from "../ui/skeleton";
 import { COLORS, LEADING, RADIUS, SPACE, TOUCH_TARGET, TRACKING, TYPE } from "../ui/theme";
 
 import {
@@ -141,7 +142,12 @@ export function NotificationsScreen({
     [category, load],
   );
 
-  if (state.phase === "loading") return <Loading label="Cargando notificaciones…" />;
+  if (state.phase === "loading")
+    return (
+      <Screen>
+        <ListSkeleton rows={4} label="Cargando notificaciones…" />
+      </Screen>
+    );
 
   if (state.phase === "failed") {
     return (

@@ -35,6 +35,7 @@ import {
   lostAdjective,
   lostInputCodeMessage,
   reportCategoryLabel,
+  shareSearchMessage,
   situationHeadline,
 } from "./lost-view-model";
 
@@ -124,6 +125,29 @@ describe("situationHeadline — the three states, and the one people find confus
 
   it("says a deceased animal is deceased rather than talking about a search", () => {
     expect(situationHeadline(view({ status: "deceased" }))).toContain("fallecida");
+  });
+});
+
+describe("shareSearchMessage — what leaves the owner's phone when they spread the search", () => {
+  const URL = "https://mimar.example/p/DIM-PAMP-0001";
+
+  it("names the animal, carries the URL verbatim, and genders the adjective", () => {
+    const line = shareSearchMessage(view({ status: "lost", episode: EPISODE }), URL);
+    expect(line).toContain("Pampa");
+    expect(line).toContain("perdida");
+    expect(line).toContain(URL);
+    expect(shareSearchMessage(view({ petSex: "male" }), URL)).toContain("perdido");
+    expect(shareSearchMessage(view({ petSex: null }), URL)).toContain("perdido/a");
+  });
+
+  it("carries NOTHING a disclosure toggle governs — the URL is the whole payload", () => {
+    // The message outlives every toggle the moment it lands in a group chat;
+    // the credential page obeys them at read time, so it alone carries them.
+    const line = shareSearchMessage(view({ status: "lost", episode: EPISODE }), URL);
+    expect(line).not.toContain(EPISODE.placeName);
+    expect(line).not.toContain(EPISODE.jurisdictionLocality);
+    expect(line).not.toContain(EPISODE.ownerNote);
+    expect(line).not.toContain(EPISODE.publicCode);
   });
 });
 

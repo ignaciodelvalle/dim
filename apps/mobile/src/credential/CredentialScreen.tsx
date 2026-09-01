@@ -34,7 +34,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { StyleSheet, Text, View } from "react-native";
 
 import { publicCredentialPageUrl } from "../config/api";
-import { Alert, Body, Card, Loading, Row, Unavailable } from "../ui/components";
+import { Alert, Body, Card, Loading, PhoneRow, Row, Unavailable } from "../ui/components";
 import { FONTS } from "../ui/fonts";
 import { Eyebrow, PrimaryButton, Screen, Title } from "../ui/kit";
 import { COLORS, LEADING, RADIUS, SPACE, TRACKING, TYPE } from "../ui/theme";
@@ -53,6 +53,7 @@ import {
   rabiesVigenciaLabel,
   situationLabel,
 } from "./credential-view-model";
+import { useQrSpotlight } from "./use-qr-spotlight";
 
 type ScreenState =
   | { phase: "loading" }
@@ -64,6 +65,9 @@ type ScreenState =
 export function CredentialScreen({ publicToken }: { publicToken: string }) {
   const [state, setState] = useState<ScreenState>({ phase: "loading" });
   const generation = useRef(0);
+  // Awake + bright for as long as this screen is up — the QR is its hero and
+  // a dimming, locking screen is how a scan fails mid-conversation.
+  useQrSpotlight();
 
   const load = useCallback(async () => {
     const mine = ++generation.current;
@@ -109,7 +113,14 @@ export function CredentialScreen({ publicToken }: { publicToken: string }) {
     <Screen>
       <View style={styles.masthead}>
         <Eyebrow>Credencial pública</Eyebrow>
-        <Text style={styles.token}>{publicToken}</Text>
+        {/* `selectable` so the token can be copied as well as read aloud —
+            the same rule TurnoDetailScreen wrote for its token (QOL
+            2026-09-01): DIM-XXXX-XXXX is exactly what a person dictates to a
+            vet or pastes into a chat, and transcribing it invites the typo
+            the chip-format was designed to avoid. */}
+        <Text selectable style={styles.token}>
+          {publicToken}
+        </Text>
       </View>
 
       {state.phase === "loading" ? (
@@ -330,7 +341,7 @@ function LostDetail({ data }: { data: CredentialLostSection }) {
     <>
       <Alert>Reportada como perdida.</Alert>
       {data.owner.firstName ? <Row label="Contacto" value={data.owner.firstName} /> : null}
-      {data.owner.phoneE164 ? <Row label="Teléfono" value={data.owner.phoneE164} /> : null}
+      {data.owner.phoneE164 ? <PhoneRow label="Teléfono" value={data.owner.phoneE164} /> : null}
       {data.lastSeen?.locality ? <Row label="Visto en" value={data.lastSeen.locality} /> : null}
     </>
   );

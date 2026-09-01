@@ -53,7 +53,8 @@ import { Body, Card, Loading } from "../ui/components";
 import { FONTS } from "../ui/fonts";
 import { Callout, PrimaryButton, Screen, SecondaryButton, TextField, Title } from "../ui/kit";
 import { movePetRoute } from "../ui/routes";
-import { COLORS, SPACE, TYPE } from "../ui/theme";
+import { COLORS, SPACE, TOUCH_TARGET, TYPE } from "../ui/theme";
+import { useReturnKeyChain } from "../ui/use-return-key-chain";
 
 import {
   type EmergencyDraft,
@@ -106,6 +107,12 @@ export function PetProfileEditScreen({ publicToken }: { publicToken: string }) {
   const [identity, setIdentity] = useState<IdentityDraft | null>(null);
   const [contacts, setContacts] = useState<EmergencyDraft | null>(null);
   const [breedQuery, setBreedQuery] = useState("");
+  // One return-key chain per SAVE GROUP; the BreedPicker between the two
+  // identity fields is deliberately outside both (see use-return-key-chain).
+  // Called HERE, above the loading/failed early returns — hooks may not sit
+  // below a conditional return.
+  const identityChain = useReturnKeyChain(2);
+  const contactsChain = useReturnKeyChain(4);
 
   const load = useCallback(async () => {
     setState({ phase: "loading" });
@@ -196,6 +203,7 @@ export function PetProfileEditScreen({ publicToken }: { publicToken: string }) {
           <View style={styles.stack}>
             <Body>Cualquier cambio queda registrado en la libreta.</Body>
             <TextField
+              {...identityChain(0)}
               label="Nombre"
               required
               maxLength={identityCaps.name}
@@ -211,6 +219,7 @@ export function PetProfileEditScreen({ publicToken }: { publicToken: string }) {
               onSelect={(breed) => setIdentity({ ...identity, breed })}
             />
             <TextField
+              {...identityChain(1)}
               label="Color"
               maxLength={identityCaps.color}
               onChangeText={(color) => setIdentity({ ...identity, color })}
@@ -273,12 +282,14 @@ export function PetProfileEditScreen({ publicToken }: { publicToken: string }) {
 
             <Text style={styles.groupTitle}>Veterinario</Text>
             <TextField
+              {...contactsChain(0)}
               label="Nombre del veterinario"
               maxLength={FIELD_LIMITS.contactName}
               onChangeText={(preferredVetName) => setContacts({ ...contacts, preferredVetName })}
               value={contacts.preferredVetName}
             />
             <TextField
+              {...contactsChain(1)}
               label="Teléfono del veterinario"
               keyboardType="phone-pad"
               maxLength={FIELD_LIMITS.contactPhone}
@@ -289,6 +300,7 @@ export function PetProfileEditScreen({ publicToken }: { publicToken: string }) {
 
             <Text style={styles.groupTitle}>Contacto de emergencia</Text>
             <TextField
+              {...contactsChain(2)}
               label="Nombre del contacto"
               maxLength={FIELD_LIMITS.contactName}
               onChangeText={(emergencyContactName) =>
@@ -297,6 +309,7 @@ export function PetProfileEditScreen({ publicToken }: { publicToken: string }) {
               value={contacts.emergencyContactName}
             />
             <TextField
+              {...contactsChain(3)}
               label="Teléfono del contacto"
               keyboardType="phone-pad"
               maxLength={FIELD_LIMITS.contactPhone}
@@ -406,6 +419,7 @@ const styles = StyleSheet.create({
   },
   detail: { fontFamily: FONTS.sans, fontSize: TYPE.sm, color: COLORS.inkMuted },
   selected: {
+    minHeight: TOUCH_TARGET,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
@@ -418,6 +432,8 @@ const styles = StyleSheet.create({
   selectedLabel: { fontFamily: FONTS.sansSemibold, fontSize: TYPE.base, color: COLORS.ink },
   selectedClear: { fontFamily: FONTS.mono, fontSize: TYPE.sm, color: COLORS.accent },
   option: {
+    minHeight: TOUCH_TARGET,
+    justifyContent: "center",
     borderBottomWidth: StyleSheet.hairlineWidth,
     borderBottomColor: COLORS.border,
     paddingVertical: SPACE.sm,

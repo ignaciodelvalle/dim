@@ -37,6 +37,7 @@ import { apiErrorMessage } from "../api/error-copy";
 import { sessionPort } from "../auth/session-store";
 import { Body, EmptyState, Loading } from "../ui/components";
 import { FONTS } from "../ui/fonts";
+import { hapticSuccess } from "../ui/haptics";
 import { Callout, Eyebrow, PrimaryButton, Screen, SecondaryButton, Title } from "../ui/kit";
 import { COLORS, LEADING, RADIUS, SPACE, TOUCH_TARGET, TYPE } from "../ui/theme";
 
@@ -122,6 +123,7 @@ export function ReservarTurnoScreen({
     setSubmitting(false);
 
     if (result.outcome === "ok" && result.payload.command === "book") {
+      hapticSuccess();
       onBooked(result.payload.appointmentToken);
       return;
     }

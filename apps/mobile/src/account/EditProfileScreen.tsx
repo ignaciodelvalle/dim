@@ -51,6 +51,7 @@ import { Body, Card, Loading } from "../ui/components";
 import { FONTS } from "../ui/fonts";
 import { Callout, PrimaryButton, Screen, SecondaryButton, TextField, Title } from "../ui/kit";
 import { COLORS, LEADING, SPACE, TYPE } from "../ui/theme";
+import { useReturnKeyChain } from "../ui/use-return-key-chain";
 
 import { type ProfileDraft, draftFrom, looksLikeArPhone, toEditInput } from "./profile-draft";
 
@@ -128,6 +129,10 @@ export function EditProfileScreen() {
     [load],
   );
 
+  // Return-key advance across the six single-line fields (QOL 2026-09-01).
+  // Above the early returns — hooks may not sit below a conditional return.
+  const chain = useReturnKeyChain(6);
+
   if (state.phase === "loading") return <Loading label="Abriendo tus datos…" />;
 
   if (state.phase === "failed" || draft === null) {
@@ -164,6 +169,7 @@ export function EditProfileScreen() {
 
       <Card title="Cómo te mostramos">
         <TextField
+          {...chain(0)}
           label="Nombre"
           required
           value={draft.displayName}
@@ -178,6 +184,7 @@ export function EditProfileScreen() {
           </Text>
         )}
         <TextField
+          {...chain(1)}
           label="Teléfono"
           value={draft.phone}
           onChangeText={set("phone")}
@@ -195,6 +202,7 @@ export function EditProfileScreen() {
           vacíos en la mascota, se usan estos.
         </Body>
         <TextField
+          {...chain(2)}
           label="Veterinaria de cabecera"
           value={draft.preferredVetName}
           onChangeText={set("preferredVetName")}
@@ -202,6 +210,7 @@ export function EditProfileScreen() {
           editable={!busy}
         />
         <TextField
+          {...chain(3)}
           label="Teléfono de la veterinaria"
           value={draft.preferredVetPhone}
           onChangeText={set("preferredVetPhone")}
@@ -211,6 +220,7 @@ export function EditProfileScreen() {
         />
         <PhoneHint value={draft.preferredVetPhone} />
         <TextField
+          {...chain(4)}
           label="Contacto de emergencia"
           value={draft.emergencyContactName}
           onChangeText={set("emergencyContactName")}
@@ -218,6 +228,7 @@ export function EditProfileScreen() {
           editable={!busy}
         />
         <TextField
+          {...chain(5)}
           label="Teléfono de emergencia"
           value={draft.emergencyContactPhone}
           onChangeText={set("emergencyContactPhone")}

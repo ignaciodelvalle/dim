@@ -68,6 +68,7 @@ import {
 } from "../ui/kit";
 import { credentialRoute } from "../ui/routes";
 import { SPACE } from "../ui/theme";
+import { useScrollToError } from "../ui/use-scroll-to-error";
 
 import { createAttemptSession } from "./idempotency";
 import {
@@ -192,6 +193,7 @@ function EventForm({
   const [draft, setDraft] = useState<EventDraft>(() => emptyDraft());
   const [state, setState] = useState<FormPhase>({ phase: "editing" });
   const [error, setError] = useState<string | null>(null);
+  const errorAnchor = useScrollToError(error);
   // ONE key for this whole asiento. `useRef` and not `useState` because a
   // re-render must not be able to produce a different key, and because nothing
   // renders from it. Never `restart()`-ed: this form IS one attempt, and the
@@ -262,9 +264,13 @@ function EventForm({
       </Card>
 
       {error === null ? null : (
-        <Callout tone="err" title="No se pudo guardar">
-          <Body>{error}</Body>
-        </Callout>
+        // The anchor useScrollToError drives: on a form this long the refusal
+        // can appear under the keyboard or below the fold. See the hook.
+        <View ref={errorAnchor}>
+          <Callout tone="err" title="No se pudo guardar">
+            <Body>{error}</Body>
+          </Callout>
+        </View>
       )}
 
       {state.phase === "confirming-same-day" ? (

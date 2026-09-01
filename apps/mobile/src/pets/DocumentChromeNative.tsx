@@ -43,7 +43,7 @@ import Svg, { Defs, Line, LinearGradient, Rect, Stop } from "react-native-svg";
 
 import { Icon } from "../ui/Icon";
 import { FONTS } from "../ui/fonts";
-import { COLORS, LABEL_TRACKING_EM, RADIUS } from "../ui/theme";
+import { COLORS, LABEL_TRACKING_EM, RADIUS, TOUCH_TARGET } from "../ui/theme";
 
 export type DocumentFace = "credencial" | "libreta";
 
@@ -314,7 +314,7 @@ const styles = StyleSheet.create({
     position: "absolute",
     right: 16,
     top: 14,
-    minHeight: 40,
+    minHeight: TOUCH_TARGET,
     flexDirection: "row",
     alignItems: "center",
     gap: 9,

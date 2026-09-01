@@ -25,7 +25,7 @@
 // the failure it prevents is a duplicate animal in somebody's account.
 
 import { breedsForSpecies } from "@dim/contract/reference";
-import { useRouter } from "expo-router";
+import { useNavigation, useRouter } from "expo-router";
 import { useCallback, useMemo, useRef, useState } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 
@@ -45,8 +45,10 @@ import {
   toRegisterPetInput,
 } from "../src/pets/register-input";
 import { SPECIES_OPTIONS, speciesLabel } from "../src/pets/species";
+import { useDiscardGuard } from "../src/pets/use-discard-guard";
 import { Body, Card, ErrorNotice, Row } from "../src/ui/components";
 import { FONTS } from "../src/ui/fonts";
+import { hapticError, hapticSuccess } from "../src/ui/haptics";
 import {
   Eyebrow,
   FieldLabel,
@@ -84,9 +86,17 @@ type Submission =
 export default function AltaMascotaScreen() {
   const gate = useGate();
   const router = useRouter();
+  const navigation = useNavigation();
   const [stepIndex, setStepIndex] = useState(0);
   const [draft, setDraft] = useState<PetDraft>(EMPTY_DRAFT);
   const [submission, setSubmission] = useState<Submission>({ phase: "idle" });
+
+  // Back-guard (QOL 2026-09-01, walkthrough-measured): hardware back, the
+  // header arrow and the iOS swipe all discarded a six-step form in silence.
+  // Dirty is object identity — EMPTY_DRAFT is only ever replaced by a patch,
+  // so any touched field flips it. The success navigation calls allowLeave()
+  // first: the pet exists by then, and there is nothing left to protect.
+  const { allowLeave } = useDiscardGuard(navigation, draft !== EMPTY_DRAFT);
 
   // ONE key for this whole registration. `useRef` and not `useState` because a
   // re-render must not be able to produce a different key, and because nothing
@@ -116,6 +126,8 @@ export default function AltaMascotaScreen() {
         // the phone never heard the answer. Either way the destination is the
         // credential, and the next registration gets a new key.
         attempt.current.restart();
+        hapticSuccess();
+        allowLeave();
         router.replace(credentialRoute(result.payload.publicToken));
         return;
       }
@@ -125,12 +137,13 @@ export default function AltaMascotaScreen() {
         return;
       }
 
+      hapticError();
       setSubmission({
         phase: "failed",
         message: apiFailureMessage(result) ?? "No pudimos completar el registro.",
       });
     },
-    [draft, router],
+    [draft, router, allowLeave],
   );
 
   if (!gate.allowed) return gate.element;

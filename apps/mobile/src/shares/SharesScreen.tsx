@@ -45,7 +45,7 @@
 // hands it to one chosen recipient and keeps nothing.
 
 import { useCallback, useEffect, useState } from "react";
-import { Share, StyleSheet, Text, View } from "react-native";
+import { RefreshControl, Share, StyleSheet, Text, View } from "react-native";
 
 import type { PetSharesV1, ShareCommandAckV1 } from "@dim/contract/api";
 import { LIBRETA_SHARE_LABEL_MAX } from "@dim/contract/input";
@@ -56,7 +56,7 @@ import { fetchPetShares, sendShareCommand } from "../api/endpoints";
 import { apiErrorMessage } from "../api/error-copy";
 import { sessionPort } from "../auth/session-store";
 import { API_BASE_URL } from "../config/api";
-import { Body, Card, Loading } from "../ui/components";
+import { Body, Card } from "../ui/components";
 import { FONTS } from "../ui/fonts";
 import {
   Callout,
@@ -67,6 +67,7 @@ import {
   TextField,
   Title,
 } from "../ui/kit";
+import { ListSkeleton } from "../ui/skeleton";
 import { COLORS, SPACE, TYPE } from "../ui/theme";
 
 import {
@@ -149,15 +150,26 @@ export function SharesScreen({ publicToken }: { publicToken: string }) {
   const [label, setLabel] = useState("");
   const [days, setDays] = useState<number | null>(30);
 
-  const load = useCallback(async () => {
-    setState({ phase: "loading" });
-    const result = await fetchPetShares(sessionPort, publicToken);
-    if (result.outcome === "ok") {
-      setState({ phase: "ready", view: result.payload });
-      return;
-    }
-    setState({ phase: "failed", message: failureMessage(result) });
-  }, [publicToken]);
+  // Pull-to-refresh (QOL 2026-09-01): the shared Screen carried the prop all
+  // along and /mascotas + notificaciones already used it — these lists were
+  // the odd ones out. A refresh keeps the list on screen instead of blanking
+  // to the loading phase; only the very first load does that.
+  const [refreshing, setRefreshing] = useState(false);
+
+  const load = useCallback(
+    async (mode: "initial" | "refresh" = "initial") => {
+      if (mode === "refresh") setRefreshing(true);
+      else setState({ phase: "loading" });
+      const result = await fetchPetShares(sessionPort, publicToken);
+      if (mode === "refresh") setRefreshing(false);
+      if (result.outcome === "ok") {
+        setState({ phase: "ready", view: result.payload });
+        return;
+      }
+      setState({ phase: "failed", message: failureMessage(result) });
+    },
+    [publicToken],
+  );
 
   useEffect(() => {
     void load();
@@ -199,7 +211,21 @@ export function SharesScreen({ publicToken }: { publicToken: string }) {
     }
   }, []);
 
-  if (state.phase === "loading") return <Loading label="Cargando compartidos…" />;
+  const refresher = (
+    <RefreshControl
+      colors={[COLORS.accent]}
+      onRefresh={() => void load("refresh")}
+      refreshing={refreshing}
+      tintColor={COLORS.accent}
+    />
+  );
+
+  if (state.phase === "loading")
+    return (
+      <Screen>
+        <ListSkeleton rows={3} label="Cargando compartidos…" />
+      </Screen>
+    );
 
   if (state.phase === "failed") {
     return (
@@ -221,7 +247,7 @@ export function SharesScreen({ publicToken }: { publicToken: string }) {
     // `keyboardAvoiding` because the create form has a text input near the
     // bottom of a long scroll — without it the keyboard covers the field a
     // person is typing into.
-    <Screen keyboardAvoiding>
+    <Screen keyboardAvoiding refreshControl={refresher}>
       <Title>Compartir</Title>
       <Body>{view.petName}</Body>
 
