@@ -42,6 +42,7 @@
 
 import type {
   AppointmentProviderV1,
+  AppointmentProviderV1Search,
   AppointmentStatusV1,
   MyAppointmentV1,
   MyAppointmentsV1,
@@ -99,8 +100,16 @@ export function appointmentKindLabel(appointment: MyAppointmentV1): string | nul
  * in the detail — and the two have already drifted in what they show for a
  * missing provider. The server sends the discriminated union precisely so a
  * client can make the sentence once.
+ *
+ * Takes BOTH provider types because the sentence needs only name/matrícula —
+ * the search variant's professional deliberately carries no phone (PO decision
+ * 2026-09-01), and this formatter is exactly the part the two shapes share.
+ * `appointmentProviderPhone` below stays `MyAppointments`-only on purpose: a
+ * held turno is the relationship that earns the number.
  */
-export function appointmentProviderLabel(provider: AppointmentProviderV1): string {
+export function appointmentProviderLabel(
+  provider: AppointmentProviderV1 | AppointmentProviderV1Search,
+): string {
   switch (provider.kind) {
     case "organization":
       return provider.displayName;
@@ -311,4 +320,41 @@ export function appointmentInputCodeMessage(code: AppointmentCommandInputCode | 
     case "PET_REQUIRED":
       return "Elegí para qué mascota es el turno.";
   }
+}
+
+/**
+ * The Google Calendar TEMPLATE URL for a reserved turno — the add-to-calendar
+ * path that costs NO permission.
+ *
+ * DELIBERATELY NOT `expo-calendar`. The native module needs READ/WRITE
+ * calendar permissions, which expands the Play Data Safety declaration — a
+ * surface the PO signs, not something a QOL item grows silently — and its
+ * silent-insert UX needs a calendar picker anyway. The template URL opens the
+ * person's own calendar app with the event PREFILLED and lets them tap
+ * "guardar": zero deps, zero permissions, and the person sees exactly what is
+ * being written. If the PO ever wants silent insert, expo-calendar is the
+ * upgrade path and this helper keeps building the event's fields.
+ *
+ * Dates travel in UTC basic format (YYYYMMDDTHHMMSSZ) — the calendar app
+ * renders them in the phone's zone, so no AR-zone math happens here.
+ */
+export function appointmentCalendarUrl(appointment: MyAppointmentV1): string | null {
+  const start = new Date(appointment.startsAt);
+  if (Number.isNaN(start.getTime())) return null;
+  const end = new Date(start.getTime() + appointment.durationMinutes * 60_000);
+  const basic = (d: Date) =>
+    d
+      .toISOString()
+      .replace(/[-:]/g, "")
+      .replace(/\.\d{3}/, "");
+  const params = new URLSearchParams({
+    action: "TEMPLATE",
+    text: `${appointmentServiceLabel(appointment)} — ${appointment.pet.name}`,
+    dates: `${basic(start)}/${basic(end)}`,
+    details: `Turno reservado en MiMAR con ${appointmentProviderLabel(appointment.provider)}.`,
+  });
+  const locality =
+    appointment.provider.kind === "organization" ? appointment.provider.locality : null;
+  if (locality !== null) params.set("location", locality);
+  return `https://calendar.google.com/calendar/render?${params.toString()}`;
 }

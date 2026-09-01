@@ -41,6 +41,7 @@
 // thing that can tell them apart, which is why the error copy says "actualizá"
 // rather than "volvé a intentar".
 
+import * as Linking from "expo-linking";
 import { useCallback, useEffect, useState } from "react";
 import { StyleSheet, Text, View } from "react-native";
 
@@ -57,6 +58,7 @@ import { Callout, PrimaryButton, Screen, SecondaryButton, Title } from "../ui/ki
 import { COLORS, RADIUS, SPACE, TRACKING, TYPE } from "../ui/theme";
 
 import {
+  appointmentCalendarUrl,
   appointmentKindLabel,
   appointmentPriceLabel,
   appointmentProviderLabel,
@@ -177,6 +179,7 @@ export function TurnoDetailScreen({ appointmentToken }: { appointmentToken: stri
   const { canCancel, canCheckIn } = appointment.capabilities;
   const kind = appointmentKindLabel(appointment);
   const phone = appointmentProviderPhone(appointment.provider);
+  const calendarUrl = appointmentCalendarUrl(appointment);
 
   return (
     <Screen>
@@ -218,6 +221,17 @@ export function TurnoDetailScreen({ appointmentToken }: { appointmentToken: stri
         )}
         {phone !== null && <Row label="Teléfono" value={phone} />}
       </Card>
+
+      {/* CONFIRMED ONLY: a cancelled or attended turno is not an event anybody
+          should be adding to next week. Opens the person's own calendar app
+          with the event prefilled — no permission, no silent write; see
+          appointmentCalendarUrl for why this is not expo-calendar. */}
+      {appointment.status === "confirmed" && calendarUrl !== null && (
+        <SecondaryButton
+          label="Agregar al calendario"
+          onPress={() => void Linking.openURL(calendarUrl).catch(() => {})}
+        />
+      )}
 
       {/* THE SERVER'S FLAG AND NOTHING ELSE. See the header. */}
       {canCheckIn && (

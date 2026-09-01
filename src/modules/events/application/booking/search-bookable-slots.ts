@@ -86,11 +86,18 @@ const DAY_MS = 24 * 60 * 60 * 1000;
 /**
  * Who is providing the service, resolved from the `provider_xor` pair.
  *
- * The SAME shape `listAppointmentsForUser` returns, and deliberately the same
- * type rather than a second one: a client that renders a provider on the turnos
- * list and on a search result is rendering one thing. The collapse into es-AR
- * ("Dr/a. …") stays on the client, which is where the web does it too — in two
- * files that each wrote their own copy of it.
+ * ALMOST the shape `listAppointmentsForUser` returns — and the difference is
+ * the point, not an accident (PO decision 2026-09-01). A turno you ALREADY
+ * HOLD carries the professional's phone, because you need to call the person
+ * you are about to see. A SEARCH RESULT reaches any authenticated caller with
+ * no relationship to the offering, so the professional variant here carries
+ * NO phone: `profiles.phone` is a personal number, and the two web pages this
+ * module's header negates line by line never selected it — one with an
+ * explicit comment, after the 2026-08-13 incident. The earlier "deliberately
+ * the same type" rationale was about RENDERING convenience, which is true and
+ * was never an authorization argument; the widening rode in on it. The
+ * organization's phone stays: it is the clinic's public number, with precedent
+ * (`lib/infra/org-public-profile.ts`).
  */
 export type BookableProvider =
   | { kind: "organization"; displayName: string; phone: string | null; locality: string | null }
@@ -98,7 +105,6 @@ export type BookableProvider =
       kind: "professional";
       displayName: string;
       matriculaNumber: string | null;
-      phone: string | null;
     }
   | { kind: "unknown" };
 
@@ -181,7 +187,6 @@ type ProviderColumns = {
   orgLocality: string | null;
   providerDisplayName: string | null;
   providerMatricula: string | null;
-  providerPhone: string | null;
 };
 
 /**
@@ -193,7 +198,8 @@ type ProviderColumns = {
  * with; nothing is booked yet, so the offering's own column is the only one there
  * is. The two are the same value at insert time (`book-slot.ts:156-166`).
  */
-function resolveProvider(row: ProviderColumns): BookableProvider {
+// Exported for the PII fence (__tests__/appointment-search-provider-pii.test.ts).
+export function resolveProvider(row: ProviderColumns): BookableProvider {
   if (row.organizationId !== null && row.orgDisplayName !== null) {
     return {
       kind: "organization",
@@ -203,11 +209,13 @@ function resolveProvider(row: ProviderColumns): BookableProvider {
     };
   }
   if (row.organizationId === null && row.providerDisplayName !== null) {
+    // No phone, and not by omission — see the BookableProvider docblock. The
+    // column is not even selected (OFFERING_COLUMNS), so re-adding it here
+    // would fail to compile before it could leak.
     return {
       kind: "professional",
       displayName: row.providerDisplayName,
       matriculaNumber: row.providerMatricula,
-      phone: row.providerPhone,
     };
   }
   return { kind: "unknown" };
@@ -279,7 +287,9 @@ const OFFERING_COLUMNS = {
   orgLocality: organizations.jurisdictionLocality,
   providerDisplayName: profiles.displayName,
   providerMatricula: profiles.matriculaNumber,
-  providerPhone: profiles.phone,
+  // profiles.phone DELIBERATELY ABSENT — PO decision 2026-09-01, see
+  // BookableProvider. The org's phone above has a public precedent; the
+  // professional's personal number does not cross on a national search.
 } as const;
 
 type OfferingRow = {

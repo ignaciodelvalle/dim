@@ -24,10 +24,16 @@
 // already on the web's own grid ("2 lugares"). No name, no count of who booked,
 // no queue position — the same refusal `MyAdoptionApplicationsV1` makes (D17).
 //
-// PII: the PROVIDER'S phone crosses, exactly as it does on `MyAppointmentsV1`,
-// and it is the number a person needs to call the clinic they are about to book
-// at. It belongs to the provider, never to another citizen. No owner notes, no
-// DNI, and nothing about the caller's own pets beyond a token and a name.
+// PII: the ORGANIZATION'S phone crosses — the clinic's public number, the one
+// a person needs to call the place they are about to book at, with precedent
+// on the org public profile. The PROFESSIONAL'S phone does NOT (PO decision
+// 2026-09-01): `profiles.phone` is a personal number, this payload reaches any
+// authenticated caller with no relationship to the offering, and the two web
+// pages this endpoint mirrors never selected it — one omits it with a written
+// comment, after the 2026-08-13 incident. `MyAppointmentsV1` still carries it
+// for a turno the caller already HOLDS, which is the relationship that earns
+// it. No owner notes, no DNI, and nothing about the caller's own pets beyond
+// a token and a name.
 
 export const APPOINTMENT_SEARCH_PAYLOAD_VERSION = 1;
 
@@ -95,7 +101,7 @@ export type AppointmentProviderV1Search =
       kind: "professional";
       displayName: string;
       matriculaNumber: string | null;
-      phone: string | null;
+      // No `phone` — see the PII note in this file's header.
     }
   | { kind: "unknown" };
 

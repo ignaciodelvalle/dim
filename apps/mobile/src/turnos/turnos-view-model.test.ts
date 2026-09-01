@@ -20,6 +20,7 @@ import type { MyAppointmentV1, MyAppointmentsV1 } from "@dim/contract/api";
 
 import {
   allAppointments,
+  appointmentCalendarUrl,
   appointmentInputCodeMessage,
   appointmentPriceLabel,
   appointmentProviderLabel,
@@ -252,5 +253,49 @@ describe("appointmentInputCodeMessage", () => {
     // `null` is "the parse failed on something the contract does not name", which
     // is a real state and must not render as an empty line.
     expect(appointmentInputCodeMessage(null).length).toBeGreaterThan(0);
+  });
+});
+
+describe("appointmentCalendarUrl — the no-permission add-to-calendar", () => {
+  it("builds the template with the turno's real window, in UTC basic format", () => {
+    const url = appointmentCalendarUrl(anAppointment());
+    expect(url).not.toBeNull();
+    const params = new URL(url as string).searchParams;
+    expect(new URL(url as string).origin + new URL(url as string).pathname).toBe(
+      "https://calendar.google.com/calendar/render",
+    );
+    expect(params.get("action")).toBe("TEMPLATE");
+    // 13:30Z + 15 minutes — the END comes from durationMinutes, not from a
+    // second parse of endsAt, so the two cannot disagree on the event length.
+    expect(params.get("dates")).toBe("20260903T133000Z/20260903T134500Z");
+  });
+
+  it("names the service and the animal in the title, the provider in the details", () => {
+    const url = appointmentCalendarUrl(anAppointment()) as string;
+    const params = new URL(url).searchParams;
+    expect(params.get("text")).toContain("Pampa");
+    // appointmentServiceLabel prefers the OFFERING's name over the generic
+    // service kind — the calendar entry inherits that, correctly.
+    expect(params.get("text")).toContain("Campaña antirrábica — Plaza San Martín");
+    expect(params.get("details")).toContain("Zoonosis Bariloche");
+    expect(params.get("location")).toBe("San Carlos de Bariloche");
+  });
+
+  it("omits the location when the provider has none, instead of an empty field", () => {
+    const url = appointmentCalendarUrl(
+      anAppointment({
+        provider: {
+          kind: "professional",
+          displayName: "Dra. Paz",
+          matriculaNumber: null,
+          phone: null,
+        },
+      }),
+    ) as string;
+    expect(new URL(url).searchParams.get("location")).toBeNull();
+  });
+
+  it("returns null on an unparseable start — no event is better than a wrong one", () => {
+    expect(appointmentCalendarUrl(anAppointment({ startsAt: "no-es-fecha" }))).toBeNull();
   });
 });
