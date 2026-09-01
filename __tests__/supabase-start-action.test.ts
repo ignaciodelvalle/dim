@@ -32,7 +32,7 @@
 import { chmodSync, existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { readdirSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { join, posix as posixPath } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import { execStep, readCompositeStep, runnerArgv } from "./_helpers/github-step-shell";
 
@@ -143,10 +143,31 @@ function stepsUsing(workflow: string, needle: string): string[] {
   return blocks;
 }
 
+// `posixPath.join`, NOT `join`, and the difference is the whole reason this file
+// could not go green on the machine where this repo's Definition of Done is
+// actually run.
+//
+// The two cases at the bottom compare these paths against literals written with
+// forward slashes — `".github/workflows/ci.yml"` — because that is how a
+// workflow path is spelled everywhere else in this repo and in GitHub's own UI.
+// The platform `join` spells it with the platform's separator, so on Windows
+// every one of those comparisons received `.github\workflows\ci.yml` and failed
+// on the separator while agreeing on the file. Measured 2026-08-31: two failing
+// tests, identical across two `test:verified` runs, on a tree whose CI job was
+// green — because CI runs Ubuntu and the PO runs Windows.
+//
+// That asymmetry is the part worth keeping: a green CI does NOT stand in for the
+// local gate here, and a path assembled with the platform separator is a fence
+// that only fences one platform. Node accepts forward slashes for filesystem
+// calls on Windows, so `readFileSync` further down is unaffected — only the
+// spelling changes, and it now matches the literals it is checked against.
+//
+// The `join` import stays for the tmpdir scaffolding above, which builds REAL
+// OS paths for an executable and must keep the native separator.
 const workflowFiles = () =>
   readdirSync(WORKFLOW_DIR)
     .filter((f) => f.endsWith(".yml") || f.endsWith(".yaml"))
-    .map((f) => join(WORKFLOW_DIR, f))
+    .map((f) => posixPath.join(WORKFLOW_DIR, f))
     .sort();
 
 describe("the supabase-start action, executed under the runner's own shell", () => {
