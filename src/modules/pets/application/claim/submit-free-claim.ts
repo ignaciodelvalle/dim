@@ -100,6 +100,38 @@ export async function submitFreeClaimForUser(
         .limit(1);
       if (!ident) throw new FreeClaimGuardError("No encontramos la mascota.", "not_found");
 
+      // ART. 16: `isNull(pets.deletedAt)` IS LOAD-BEARING AND IT CLOSES TWO
+      // HOLES AT ONCE, which is why it belongs here and not in a later guard.
+      //
+      // `pet_identifications` rows stay `status = 'active'` after an erasure, so
+      // the lookup above still resolves an erased pet's chip. Without this
+      // clause the writer then found the row and fell through to the status
+      // guards, and the two outcomes were:
+      //
+      //   1. AN ORACLE. An erased pet answered `not_claimable` → 409 while an
+      //      unregistered chip answered `not_found` → 404, so any self-registered
+      //      account could tell "this animal was erased" from "never existed" off
+      //      the status line. That is precisely the distinction art. 16 forbids,
+      //      and this endpoint's own header refuses to put there.
+      //   2. WORSE: an erased pet with NO active custody was CLAIMED. The writer
+      //      inserted the ownership, appended `ownership_claimed` to the spine,
+      //      notified and audited — and returned the animal's name and public
+      //      token to the claimant — while `lookupForClaim` on the same door
+      //      still answered `not_found`.
+      //
+      // Both die on the same clause: with the pet filtered out, `!pet` below
+      // throws `not_found`, which is exactly the answer an unregistered chip
+      // gets. The sibling resolver already carried this and said why —
+      // `lookup-for-claim.ts` joins `isNull(pets.deletedAt)` under "erased must
+      // not be distinguishable from never existed" — so this is that rule
+      // applied where it was missing, not a new one derived here.
+      //
+      // NOT A NEW GUARD BRANCH, deliberately: a dedicated `pet_erased` refusal
+      // would rebuild the oracle with better manners. There is one answer, and
+      // it is the one that says nothing.
+      //
+      // Pre-existing, and the web's `/mis-mascotas/reclamar` wizard drives this
+      // same writer, so it was live on both surfaces.
       const [pet] = await tx
         .select({
           id: pets.id,
@@ -109,7 +141,7 @@ export async function submitFreeClaimForUser(
           inCustodyDispute: pets.inCustodyDispute,
         })
         .from(pets)
-        .where(eq(pets.id, ident.petId))
+        .where(and(eq(pets.id, ident.petId), isNull(pets.deletedAt)))
         .limit(1)
         .for("update");
       if (!pet) throw new FreeClaimGuardError("No encontramos la mascota.", "not_found");

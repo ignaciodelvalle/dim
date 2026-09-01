@@ -369,6 +369,70 @@ describe("submitFreeClaimAction", () => {
     expect(claimantRows).toHaveLength(0);
   });
 
+  // ART. 16 — AN ERASED PET IS INDISTINGUISHABLE FROM ONE THAT NEVER EXISTED.
+  //
+  // `pet_identifications` rows survive an erasure with `status = 'active'`, so
+  // the chip still resolves and the writer used to fall through to its status
+  // guards. These two cases are the two things that produced, and they are
+  // measured against real Postgres because the second one WROTE.
+  it("answers not_found for an ERASED pet, not the 409 that would out it", async () => {
+    const token = "DIM-CLAIM-ERASED-OWNED";
+    const chip = "100000000000010";
+    const petId = await insertOwnedPet(token, "Borrada Con Dueño", ownerUserId);
+    await addMicrochip(petId, chip);
+    await db.update(pets).set({ deletedAt: new Date() }).where(eq(pets.id, petId));
+    mockSessionAs(claimantUserId);
+
+    const result = await submitFreeClaimAction({
+      identifierKind: "microchip",
+      identifierValue: chip,
+    });
+
+    // THE ORACLE THIS CLOSES: before the fix this answered `not_claimable` —
+    // "esta mascota ya tiene una custodia activa" — while an unregistered chip
+    // answered `not_found`. The API door maps the first to 409 and the second to
+    // 404, so any self-registered account could read "this animal was erased"
+    // off the status line. Both must now be the SAME answer.
+    expect((result as { code: string }).code).toBe("not_found");
+    expect((result as { error: string }).error).toBe("No encontramos la mascota.");
+  });
+
+  it("does not CLAIM an erased pet that has no active custody", async () => {
+    // THE GRAVE ONE. With no active custody there was nothing left to refuse on:
+    // the writer inserted the ownership, appended `ownership_claimed` to the
+    // spine, notified and audited, and handed back the animal's name and public
+    // token — while `lookupForClaim` on the same door answered `not_found` for
+    // the same chip.
+    const token = "DIM-CLAIM-ERASED-FREE";
+    const chip = "100000000000011";
+    const petId = await insertFreePet(token, "Borrada Sin Dueño");
+    await addMicrochip(petId, chip);
+    await db.update(pets).set({ deletedAt: new Date() }).where(eq(pets.id, petId));
+    mockSessionAs(claimantUserId);
+
+    const result = await submitFreeClaimAction({
+      identifierKind: "microchip",
+      identifierValue: chip,
+    });
+
+    expect((result as { code: string }).code).toBe("not_found");
+
+    // AND NOTHING WAS WRITTEN. The refusal is only half the property — a writer
+    // that answered `not_found` after committing would satisfy the assertion
+    // above and still have transferred the animal.
+    const ownershipRows = await db
+      .select({ id: ownerships.id })
+      .from(ownerships)
+      .where(and(eq(ownerships.petId, petId), eq(ownerships.ownerUserId, claimantUserId)));
+    expect(ownershipRows).toHaveLength(0);
+
+    const eventRows = await db
+      .select({ id: petEvents.id })
+      .from(petEvents)
+      .where(and(eq(petEvents.petId, petId), eq(petEvents.eventType, "ownership_claimed")));
+    expect(eventRows).toHaveLength(0);
+  });
+
   // EVIDENCE GATE (audit 26-#6). Knowing a pet's PUBLIC token is NOT enough to
   // claim it — the writer resolves the pet from the PRIVATE identifier value and
   // never trusts a caller-supplied token. An unknown identifier resolves to
