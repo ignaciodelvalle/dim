@@ -875,7 +875,11 @@ async function isolateActiveAdmins(keepIds: string[]): Promise<string[]> {
   return toDeactivate;
 }
 
-describe("deactivateAdminForAuthority — C21 human-only last-admin floor", () => {
+// DB round trips — gate 0901f measured two tests here at 2983ms and 2916ms
+// clean; 30s matches the repo's convention for DB-backed cases.
+const DB_BUDGET = { timeout: 30_000 };
+
+describe("deactivateAdminForAuthority — C21 human-only last-admin floor", DB_BUDGET, () => {
   const HUMAN_ACTOR = "c21-human-actor@dim-test.local";
   const HUMAN_TARGET = "c21-human-target@dim-test.local";
   const SYSTEM_ADMIN = "c21-system-admin@dim-test.local";

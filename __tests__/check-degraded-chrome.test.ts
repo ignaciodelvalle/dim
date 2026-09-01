@@ -131,7 +131,12 @@ describe("taint — both directions, or the fence is a no-op", () => {
   });
 });
 
-describe("anti-vacuity", () => {
+// scanAll() walks the repo per call — gate 0901f measured this test at
+// 3218ms clean; 30s matches the repo's convention for machine-bound suites
+// and leaves ample margin without weakening hang detection.
+const SCAN_BUDGET = { timeout: 30_000 };
+
+describe("anti-vacuity", SCAN_BUDGET, () => {
   // Rename a wrapper and the anchor stops matching; without this the check
   // prints "clean" having judged nothing. Three fences did exactly that.
   it("scans a corpus well above the floor", () => {

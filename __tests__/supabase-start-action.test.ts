@@ -170,7 +170,29 @@ const workflowFiles = () =>
     .map((f) => posixPath.join(WORKFLOW_DIR, f))
     .sort();
 
-describe("the supabase-start action, executed under the runner's own shell", () => {
+// THIS SUITE'S COST IS PROCESS SPAWNS, AND ITS BUDGET IS DECLARED, NOT INHERITED
+// ---------------------------------------------------------------------------
+// Every case below executes the real script under a real `bash`, and the
+// script invokes the `pnpm` stub — itself a bash process — once per attempt and
+// once per teardown. A single `runAction(2)` is ~12 spawns; the bare-bash case
+// runs it twice. On Windows, spawning bash is the operation that degrades most
+// under load, so this file's wall time is a function of what else the machine
+// is doing, not of what the tests assert.
+//
+// Measured 2026-09-01 on the PO's machine, the bare-bash case alone: 0.58 s in
+// isolation, ~1.6 s inside the full suite across three green runs, and 5.04 s
+// — the default 5 s ceiling, timed out — in a fourth run where every
+// neighbouring file was 1.3–1.6× slower and its own sibling case 2.9× slower.
+// It was in every measurement exactly twice its sibling. The default budget
+// therefore left a 3× margin against an observed variance of more than 3×,
+// and a suite that answers differently twice over one tree fails the
+// Definition of Done whatever the second answer is. The 30 s budget matches
+// the one the repo's DB-backed cases already declare and is ~6× the worst
+// observed run; it is set on the suite so no case here inherits a ceiling it
+// never chose.
+const SPAWN_BUDGET = { timeout: 30_000 };
+
+describe("the supabase-start action, executed under the runner's own shell", SPAWN_BUDGET, () => {
   it("uses the interpreter GitHub uses, derived from the step's own `shell:`", () => {
     // Not decoration. If this step ever declares a shell whose flags differ,
     // every case below silently starts measuring a different runtime — which is

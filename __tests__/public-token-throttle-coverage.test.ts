@@ -542,7 +542,15 @@ function guardPrecedesLookup(src: string): boolean {
 // The fence, over the real tree
 // ---------------------------------------------------------------------------
 
-describe("public-token routes are rate limited", () => {
+// This suite does a cold recursive walk of app/ + src/ per call (allSources()
+// is not memoized) — gate 0901f: pnpm test:verified run 1 timed out at
+// 5000ms here right after pnpm verify's Next build had just written .next;
+// run 2 over the same tree took 3915ms. Whole file measured 3316-4347ms
+// across four clean runs, no single test >=2s. 30s matches the repo's
+// DB-case convention; memoizing allSources() is a separate, later follow-up.
+const SCAN_BUDGET = { timeout: 30_000 };
+
+describe("public-token routes are rate limited", SCAN_BUDGET, () => {
   it("finds every public-token resolver across app/ AND src/", () => {
     // NON-VACUITY. If the walk or the lookup match breaks, every assertion
     // below passes over an empty list — the exact failure shape this repo keeps
@@ -1107,7 +1115,7 @@ const ALIAS_RESOLVERS = [
   "src/modules/transfers/infrastructure/transfers-repository.ts",
 ] as const;
 
-describe("the authenticated alias is a pinned set, not an open door", () => {
+describe("the authenticated alias is a pinned set, not an open door", SCAN_BUDGET, () => {
   it("every file spelling unerasedPetByToken( is a reviewed authenticated resolver — in both directions", () => {
     const spellers = allSources()
       .filter((s) => code(s.src).includes(ALIAS))

@@ -77,7 +77,12 @@ function filesHardcodingReservedEmail(): string[] {
   return hits;
 }
 
-describe("reserved seed accounts — single source of truth", () => {
+// SOURCE_FILES is a full repo scan — gate 0901f measured the "is hardcoded
+// nowhere else" test at 2379ms clean; 30s matches the repo's convention for
+// machine-bound suites.
+const SCAN_BUDGET = { timeout: 30_000 };
+
+describe("reserved seed accounts — single source of truth", SCAN_BUDGET, () => {
   it("scans a real tree — the fence must not go inert", () => {
     // A glob that silently matches nothing passes forever.
     expect(SOURCE_FILES.length).toBeGreaterThan(200);

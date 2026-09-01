@@ -63,7 +63,15 @@ function mintedPrefixes(): Set<string> {
   return found;
 }
 
-describe("credential prefix coverage — the redaction list cannot go stale in silence", () => {
+// Every test below re-scans the repo (mintedPrefixes / globSync), so the cost
+// is bound to the disk, not to the assertions: the smoke test measured 2484 ms
+// on a clean run (gate 0901f, 2026-09-01) against vitest's 5 s default, and a
+// sibling scan suite timed out under I/O contention the same day. Declared,
+// not inherited — 30 s is the repo's convention for machine-bound suites.
+const SCAN_BUDGET = { timeout: 30_000 };
+const SUITE = "credential prefix coverage — the redaction list cannot go stale in silence";
+
+describe(SUITE, SCAN_BUDGET, () => {
   it("finds the prefixes it is supposed to find (the fence's own smoke test)", () => {
     // If the extraction regexes rot, every other assertion here passes
     // vacuously. Anchor on prefixes minted from three DIFFERENT places: the

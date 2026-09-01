@@ -176,7 +176,11 @@ describe("findAuthoritiesForJurisdiction — whole-province subsumption (writer 
   });
 });
 
-describe("findAuthoritiesForJurisdiction — an empty fan-out leaves a trace", () => {
+// DB round trips + audit rows — gate 0901f measured these tests at 3006ms
+// and 2967ms clean; 30s matches the repo's convention for DB-backed cases.
+const DB_BUDGET = { timeout: 30_000 };
+
+describe("findAuthoritiesForJurisdiction — an empty fan-out leaves a trace", DB_BUDGET, () => {
   it("writes a notification_fanout_empty audit row when NOBODY can be reached", async () => {
     // The fallback is global by construction, so the only way to observe an
     // empty fan-out is to make the fallback empty. Deactivate every active
