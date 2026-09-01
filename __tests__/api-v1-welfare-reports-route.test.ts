@@ -83,6 +83,13 @@ const control = vi.hoisted(() => ({
     localityId: "44444444-4444-4444-8444-444444444444",
     unverified: true,
   } as Record<string, unknown>,
+  /**
+   * What the catalog lookup behind `normalizeLocationForWrite`'s "soft" mode
+   * was asked, and what it answers. `null` answers as the real function does on
+   * a miss: the pair back unchanged, `canonical: false`, no FK.
+   */
+  localityLookups: [] as Array<Record<string, unknown>>,
+  localityAnswer: null as Record<string, unknown> | null,
   /** Every string the error sink was handed. */
   errors: [] as string[],
   /** Every query handed to the web's anonymous geocoder, and what it answers. */
@@ -190,6 +197,32 @@ vi.mock("@/lib/infra/jurisdiction-from-text", () => ({
     return control.jurisdiction;
   },
 }));
+
+// PARTIAL: the province canonicalizer upstream of this is pure and stays real —
+// it is the thing under test. Only the catalog lookup is replaced, because the
+// `@/db` mock below has no `select`, and the real `tryResolveCanonicalJurisdiction`
+// would swallow that as a miss and hand every case the raw pair: green for the
+// wrong reason.
+vi.mock("@/lib/infra/jurisdiction-validation", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/infra/jurisdiction-validation")>();
+  return {
+    ...actual,
+    tryResolveCanonicalJurisdiction: async (input: {
+      rawProvince: string;
+      rawLocality: string;
+    }) => {
+      control.localityLookups.push(input);
+      return (
+        control.localityAnswer ?? {
+          province: input.rawProvince,
+          locality: input.rawLocality,
+          canonical: false,
+          localityId: null,
+        }
+      );
+    },
+  };
+});
 
 vi.mock("@/lib/infra/welfare-moderation", () => ({
   computeFlagReasons: async (input: Record<string, unknown>) => {
@@ -305,6 +338,8 @@ beforeEach(() => {
   control.flagged = [];
   control.signals = [];
   control.jurisdictionInputs = [];
+  control.localityLookups = [];
+  control.localityAnswer = null;
   control.errors = [];
   control.txThrows = false;
   control.geocodeQueries = [];
@@ -969,6 +1004,84 @@ describe("the jurisdiction is resolved the way both of the web's intakes resolve
     // And the row honors the gate's VERIFIED answer — the inference mark is for
     // rows whose pair really did come out of text, which this one did not.
     expect(control.inserted[0].jurisdictionUnverified).toBe(false);
+  });
+
+  it("canonicalizes the geocoder's long-form province BEFORE the gate's verified pass-through", async () => {
+    // The case above pins the wiring with "CABA" — a spelling the phone never
+    // sends. `resolve_location` echoes `address.state` as Nominatim spells it,
+    // and for every point inside CABA that is the long form below; the catalog
+    // and the CHECK on `welfare_reports.jurisdiction_province` (migration 0055)
+    // hold "CABA". The gate's verified arm is a byte-identical pass-through, so
+    // a raw echo would reach the insert as the long form and fail the CHECK —
+    // a 500 on the one channel this phone has for a denuncia. The web runs the
+    // same normalizer before the same gate; so does this door now.
+    //
+    // Kill it by handing `input.locationProvince ?? null` straight to the gate.
+    // Applied: the gate sees the long form and the lookup never runs.
+    control.localityAnswer = {
+      province: "CABA",
+      locality: "Palermo",
+      canonical: true,
+      localityId: "cccccccc-cccc-4ccc-8ccc-cccccccccccc",
+    };
+    control.jurisdiction = {
+      province: "CABA",
+      locality: "Palermo",
+      localityId: "cccccccc-cccc-4ccc-8ccc-cccccccccccc",
+      unverified: false,
+    };
+    await post({
+      command: "file",
+      contactMode: "anonymous",
+      ...FACTS,
+      locationProvince: "Ciudad Autónoma de Buenos Aires",
+      locationLocality: "Palermo",
+    });
+
+    // The catalog lookup already receives the canonical province — the
+    // normalizer resolves the name before it asks for the locality row.
+    expect(control.localityLookups).toEqual([{ rawProvince: "CABA", rawLocality: "Palermo" }]);
+    // And the gate receives the catalog pair WITH its FK, which the hardcoded
+    // `localityId: null` of the previous wiring threw away.
+    expect(control.jurisdictionInputs[0]).toEqual({
+      province: "CABA",
+      locality: "Palermo",
+      localityId: "cccccccc-cccc-4ccc-8ccc-cccccccccccc",
+      addressText: FACTS.locationAddress,
+    });
+    expect(control.inserted[0].jurisdictionProvince).toBe("CABA");
+    expect(control.inserted[0].localityId).toBe("cccccccc-cccc-4ccc-8ccc-cccccccccccc");
+  });
+
+  it("keeps the province canonical on a locality the catalog does not know — soft, like the web", async () => {
+    // "soft" is the web's mode for both denuncia intakes: an unknown locality
+    // is not a refusal (the person is reporting an animal, not filling a
+    // census), so the raw locality text passes through with no FK — but the
+    // province is canonical regardless, because THAT is what the CHECK and the
+    // scoped queues compare. Kill it by passing `{ locality: "strict" }`.
+    // Applied: nothing reaches the gate; the request fails instead.
+    control.jurisdiction = {
+      province: "CABA",
+      locality: "Barrio inexistente",
+      localityId: null,
+      unverified: false,
+    };
+    await post({
+      command: "file",
+      contactMode: "anonymous",
+      ...FACTS,
+      locationProvince: "Ciudad Autónoma de Buenos Aires",
+      locationLocality: "Barrio inexistente",
+    });
+
+    expect(control.jurisdictionInputs[0]).toEqual({
+      province: "CABA",
+      locality: "Barrio inexistente",
+      localityId: null,
+      addressText: FACTS.locationAddress,
+    });
+    expect(control.inserted[0].jurisdictionProvince).toBe("CABA");
+    expect(control.inserted[0].localityId).toBeNull();
   });
 
   it("writes the coordinates through the shared point writer", async () => {

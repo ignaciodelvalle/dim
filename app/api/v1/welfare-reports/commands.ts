@@ -100,6 +100,7 @@
 import { db } from "@/db";
 import { signalWelfareReport } from "@/lib/domain/authority";
 import { writePoint } from "@/lib/domain/location";
+import { CoordError, normalizeLocationForWrite } from "@/lib/domain/location-normalize";
 import { apiV1Error, apiV1Json } from "@/lib/infra/api-v1";
 import { openCase } from "@/lib/infra/case-helpers";
 import { resolveRoutableJurisdiction } from "@/lib/infra/jurisdiction-from-text";
@@ -258,10 +259,41 @@ async function fileWelfareReport(userId: string, input: WelfareReportInput) {
   // pair present the gate marks the row verified, same trust shape as the
   // web's own echo of a picked candidate; absent — the person typed an address
   // no geocoder confirmed — the inference path below earns the mark honestly.
+  //
+  // THE ECHO IS RAW NOMINATIM AND THE GATE'S VERIFIED ARM IS A PASS-THROUGH.
+  // `resolve_location` hands the phone `address.state` as the geocoder spells
+  // it — "Ciudad Autónoma de Buenos Aires" for every point inside CABA — while
+  // the catalog, and the 24-name CHECK on `welfare_reports.jurisdiction_province`
+  // (migration 0055), hold "CABA". The web never hands the gate a raw pair:
+  // both of its intakes run `normalizeLocationForWrite` first, which resolves
+  // the province to its catalog name and the locality to its catalog row —
+  // with the FK a hardcoded `localityId: null` here used to discard. Same
+  // normalizer, same gate, same order. Without it a CABA denuncia from the
+  // phone would not even land unrouted: it would fail the CHECK and answer 500.
+  let normalizedLoc: Awaited<ReturnType<typeof normalizeLocationForWrite>>;
+  try {
+    normalizedLoc = await normalizeLocationForWrite(
+      {
+        province: input.locationProvince ?? null,
+        provinceCode: null,
+        locality: input.locationLocality ?? null,
+        localityIndecId: null,
+        lat: input.locationLat,
+        lng: input.locationLng,
+        address: input.locationAddress,
+      },
+      { locality: "soft" },
+    );
+  } catch (err) {
+    // Under "soft" only the coordinate range can throw, and the schema already
+    // bounds it — this is the same rule read twice, not a second rule.
+    if (err instanceof CoordError) return apiV1Error("invalid_request", 400);
+    throw err;
+  }
   const routable = await resolveRoutableJurisdiction({
-    province: input.locationProvince ?? null,
-    locality: input.locationLocality ?? null,
-    localityId: null,
+    province: normalizedLoc.province,
+    locality: normalizedLoc.locality,
+    localityId: normalizedLoc.localityId,
     addressText: input.locationAddress,
   });
 
