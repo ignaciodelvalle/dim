@@ -843,7 +843,7 @@ Listed so you recognise them and hand them over instead of trying.
 
 1. Upload **build 6** to Play. Build 5 is published and **cannot sign in** — it shipped without `EXPO_PUBLIC_SUPABASE_*`, which are baked at build time.
 2. Revise the **Data Safety** form before any build with uploads reaches Play. It declared on 27/08 that the app does not collect photos; that stops being true the moment uploads ship, and a form that no longer matches the binary is a policy violation by itself.
-3. Apply migrations **0205, 0206, 0207** to staging and production. Written and green locally. **Applying to a remote DB is Ignacio's call, never yours.**
+3. Apply migrations **0205, 0206, 0207 and 0208** to staging and production. Written and green locally. **Applying to a remote DB is Ignacio's call, never yours.** **This row said three until 2026-08-31 and there are four** — `0208_subject_rights_watermarks_tag_interest_org_invitations.sql` was written 2026-08-29 (`eb4ae835c`) and no list was recounted. It was found the way this repo's rotted numbers usually are: not by reading, but by a fence going red — `check-subject-rights-coverage` failed on the three tables that migration adds, because the local database did not have it either. Recount with `pnpm db:migrate:status`, never off this line.
 4. Resend email setup (domain verification → API key → SMTP in Supabase → env in Vercel). Until it lands, the 6-digit password-recovery code does not travel and the screen promises what the mail does not deliver.
 5. The two store graphics, pointing `mimar.com.ar` at Vercel, the tester acceptance link, the Supabase "exceeding limits" warning, and the 12 tester emails.
 6. Create the two **staging secrets the nightly e2e job reads**, `STAGING_SUPABASE_URL` and `STAGING_SUPABASE_ANON_KEY`. Re-measured 2026-08-30 and PROMOTED from the turned-back block above, with a root cause stronger than the original report: they are not empty by accident, **they were never created**. `gh secret list` on the repo returns exactly one row, `STAGING_DATABASE_URL`; `e2e-nightly.yml` declares no `environment:`, so no environment-scoped secret can supply them either, and `${{ secrets.X }}` on an undefined secret is the empty string with no warning. The consequence is visible in every run: the job log prints `NEXT_PUBLIC_SUPABASE_ANON_KEY:` with nothing after it, and `e2e/cross-tenant-isolation.spec.ts:265` throws `NEXT_PUBLIC_SUPABASE_ANON_KEY not set — the cross-tenant isolation suite cannot probe anything`. Present identically in run 33252469499 (2026-08-29) and run 32108115808 (2026-08-18); all **12** of the 12 most recent nightly runs are red. **Creating a secret is the PO's**, never an agent's — the values are the staging project's URL and anon key.
@@ -2732,3 +2732,148 @@ What it did **not** solve, and none of it is agent-blocked:
    route-file floor, no redaction segment.
 3. The full gate on the merged tree is the integrator's, as always — this
    lane's evidence stops at the boundary declared above.
+
+## Appended 2026-08-31 — the PO answered the twelve of handoff section C
+
+Every decision in `docs/agents/handoff-2026-08-30.md` §C was put to Ignacio on
+2026-08-31 with a recommendation attached, and he answered all twelve. **None of
+them is "live behaviour nobody ratified" any more**, which was the state that
+page was written to end.
+
+### Ratified as they stand — nine
+
+1, 2, 4, 5, 7, 8, 9, 11 and 12 of §C. No code change; they are decisions now
+rather than side effects. Two carry a note the ratification is not complete
+without:
+
+- **§C.4 (signup 60/min · 180/hr · 360/día)** — ratified INCLUDING the burst,
+  which is the number the derivation does not put first. 360/day is neutral
+  (15/hr × 24 already handed it over), but the rolling 4 h window straddling
+  00:00 UTC goes from 75 to 720 — **9.6×**. Ratified knowing that; the real
+  close is email verification (PO item 4), and no arrangement of windows
+  substitutes for it.
+- **§C.9 (the phone stricter than the web on DEACTIVATED)** — ratified as a
+  PATTERN, with its boundary now written: **"stricter is always safe" holds for
+  product writes and NOT for legal rights, where refusing IS the harm.** That
+  exception is not decorative — it is the rule that produced §C.6 below, which
+  is the one the same window got wrong.
+
+### Decided and implemented — three
+
+- **§C.6 — art. 16 outranks a deactivation.** DECIDED (not ratified): the phone
+  now GRANTS erasure to a DEACTIVATED account and still refuses the export. The
+  asymmetry is the decision. The export refusal was argued at length in
+  `app/api/v1/me/privacy/route.ts`; the erasure refusal was never argued at all
+  — it rode in on symmetry with art. 14, and the web has always granted it
+  (`lib/infra/auth-guards.ts`: `DEACTIVATED → PASSES`). An organisation closing
+  an account must not stand between a person and Ley 25.326 art. 16.
+  Four cases in `__tests__/api-v1-me-privacy-route.test.ts`, one of which pins
+  the asymmetry itself (same caller, both doors, one case) so a future symmetry
+  has to delete it deliberately. Mutation: routing the reason back to
+  `liveUserRefusal` → 2 red.
+- **§C.10 — the surviving copy fold is closed.** `slot_past` had its own
+  `booking_slot_past` code and string; it no longer borrows `appointment_past`,
+  whose es-AR copy ends in "así que no se puede cancelar" and was being read by
+  people refused a BOOKING. The OTHER fold (`pet_not_yours`/`pet_deceased` on
+  one code, so the door is not an existence oracle over erased pets) is
+  explicitly RATIFIED and stays. The route test's mapping table is the fence.
+- **§C.3 — the turnos divergence is closed by deletion, not by syncing.**
+  `app/(app)/mis-turnos/page.tsx` bucketed on `startsAt` and the phone's
+  `sectionOf` on `endsAt`; the page now IMPORTS `sectionOf` and has no predicate
+  of its own. Its query stays inline — pulling the page through the whole
+  use-case is a larger change than the one decided — so the two coexist as
+  QUERIES and no longer as RULES.
+
+### What the §C.3 work found on the way, and it is the reusable part
+
+**Neither copy of the section rule had a single test.** That is why they could
+disagree for weeks across reviews and green gates: nothing asserted where the
+boundary was, so moving it cost nothing and neither copy could go red for being
+wrong about the other. `__tests__/appointment-section-boundary.test.ts` closes
+it, and the shape is worth copying — **every case sits INSIDE the slot's own
+duration**, which is the only interval where `startsAt` and `endsAt` give
+different answers. A test asserting "a turno next week is upcoming" passes under
+both rules, which is exactly how the divergence survived being looked at.
+Mutation: `endsAt > now` → `startsAt > now` turns 2 of 6 red.
+
+Two smaller things measured in the same pass:
+
+- The page filtered on `status === "cancelled"`, **a branch the database cannot
+  produce**: `appointment_status_valid` admits exactly the five in
+  `APPOINTMENT_STATUSES_V1` and that is not among them. Dead since the
+  constraint was written; gone with the rewrite.
+- `isKnownAppointmentStatus` is exported alongside `sectionOf` on purpose.
+  Drizzle types `appointments.status` as `string` — the CHECK is a database fact
+  the compiler cannot see — so a caller handed the section rule WITHOUT the
+  narrowing that feeds it writes its own `as`, which is how the second copy
+  starts again.
+
+### The gate, and the three reds it took to get there
+
+**The DoD is met.** `pnpm verify` exit 0 including the build, and
+`pnpm test:verified` twice over one tree:
+
+```
+reported 1479 file(s); 1479 discovered; 0 failing test(s); 0 broken file(s)
+reported 1479 file(s); 1479 discovered; 0 failing test(s); 0 broken file(s)
+Tests  18955 passed | 15 skipped | 5 todo (18975)   ← both runs, identical
+```
+
+Getting there took three reds and **none of them was this change**. Each is
+worth more than the fix.
+
+**1. The PO's machine could not run the gate at all.** Node v24.15.0 against
+`engines.node: >=22.23.0 <23`. Cured by installing **fnm** + Node 22.23.2
+alongside the existing 24 (`FNM_DIR` is under **Roaming**, not Local — the
+binary is at `AppData/Roaming/fnm/node-versions/v22.23.2/installation`).
+
+**2. `check-subject-rights-coverage` failed on six violations, and it was
+right.** Three tables declared IN_EXPORT/IN_ERASE while the LIVE function body
+never named them. Not the code — **migration 0208 was not applied to the local
+database**. The filename says so without a query:
+`0208_subject_rights_watermarks_tag_interest_org_invitations.sql` carries all
+three table names. Applied locally, the fence passed on its own.
+
+Two numbers fell out of it, both correcting documents:
+- **Migrations pending against remote are FOUR (0205–0208), not three.** The
+  PO-gated list on this page and the handoff both say "0205, 0206, 0207"; 0208
+  was written 2026-08-29 (`eb4ae835c`) and nobody recounted.
+- The Ley 25.326 `KNOWN_GAP` register reads **17 tables** today, live off
+  `pnpm lint:subject-rights`. The parity board carried 21.
+
+And the SHAPE repeats a lesson this repo learned two days earlier with
+`check-catalog-drift`: a fence whose verdict is a function of your **local
+database** rather than of the tree means `pnpm verify` does not mean the same
+thing on two machines — and the one environment where it would be consistent is
+the one where it is skipped. Second of that class in three days.
+
+**3. `supabase-start-action.test.ts` cannot pass on Windows, and that broke the
+DoD itself.** Two tests, **identical across two `test:verified` runs** — no
+crash signature, deterministic. `workflowFiles()` built paths with the platform
+`join` and compared them against literals written with forward slashes, so
+Windows produced `.github\workflows\ci.yml` and failed **on the separator while
+agreeing on the file**.
+
+Why it matters past the one-line fix: **CI runs Ubuntu and was green, while this
+repo's DoD is met locally, on Windows, on the PO's machine.** A test landed that
+made the local gate unpassable, and CI could not see it *even in principle*.
+Fixed with `posix.join`; the rest of the suite was swept for the same class and
+it is a single instance — and the repo already had the idiom
+(`.split(sep).join("/")`) in four other files.
+
+**One more, found in the same run and fixed here.**
+`apps/mobile/src/pets/PetPhotoScreen.test.tsx` timed out under `verify`. The
+cause was NOT the one patched at `8469e3f3a`: **the `waitFor` ceiling and Jest's
+per-test ceiling were both 5000 ms**, so the `waitFor` could never fail with its
+own message (Jest killed the test first, reporting a timeout that names no
+label, step or cause) and nothing was left for the asserts. Measured: the two
+slowest cases take **2244 ms and 2211 ms in isolation** — 45% of the budget
+before the suite is under load. Test ceiling moved to 15000 (3× the `waitFor` it
+must contain, derived rather than borrowed; the 5000 was borrowed from
+`PetDocumentScreen.test.tsx`, which is how the two ended up equal).
+
+**The trap that hides it**: `npx jest` in `apps/mobile` passed **66/66 suites,
+1027/1027** on the same tree minutes after `verify` failed that one file. The
+mobile suite run on its own NEVER reproduces this — it only appears inside
+`verify`, where the build and the lint chain compete for the same cores. Running
+`pnpm --filter mimar test` proves nothing about this failure mode.
