@@ -118,6 +118,19 @@ export async function submitClaimDisputeForUser(
   // is the whole authorization. No caller-supplied token is consulted anywhere
   // in this function, so there is no token/pet pair that could disagree.
   // The active-status partial unique index guarantees at most one match.
+  //
+  // ART. 16: `isNull(pets.deletedAt)` on the join is load-bearing, same clause
+  // and same reason as `submit-free-claim.ts` and `lookup-for-claim.ts` —
+  // `pet_identifications` rows stay `status = 'active'` after an erasure, and
+  // `ownerships` rows survive it too (erase-subject-data soft-deletes only
+  // `pets`). Without the clause an erased pet's chip answered "figura como
+  // fallecida" / "no tiene dueño activo registrado" — both distinguishable
+  // from "No encontramos la mascota." — and with a surviving active-owner row
+  // the dispute PROCEEDED: case opened, `custody_dispute_raised` appended to
+  // the erased spine, `in_custody_dispute` flipped, the erased subject
+  // notified. Filtered out, `!pet` below answers exactly what an unregistered
+  // chip answers. Found by the 2026-09-01 pre-push review of the free-claim
+  // fix, which had named only `lookup-for-claim` as "the sibling".
   const identificationKind = input.identifierKind === "microchip" ? "microchip_iso" : "tattoo";
   const [pet] = await db
     .select({
@@ -130,7 +143,7 @@ export async function submitClaimDisputeForUser(
       jurisdictionLocality: pets.jurisdictionLocality,
     })
     .from(petIdentifications)
-    .innerJoin(pets, eq(pets.id, petIdentifications.petId))
+    .innerJoin(pets, and(eq(pets.id, petIdentifications.petId), isNull(pets.deletedAt)))
     .where(
       and(
         eq(petIdentifications.kind, identificationKind),

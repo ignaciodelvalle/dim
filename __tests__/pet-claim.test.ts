@@ -587,6 +587,77 @@ describe("submitClaimDisputeAction", () => {
     expect(result).toEqual({ error: "Esta mascota ya está registrada a tu nombre." });
   });
 
+  // ART. 16 — THE SIBLING HOLE THE FREE-CLAIM FIX MISSED, found by the
+  // 2026-09-01 pre-push review: the dispute door resolved the chip with a bare
+  // join, so an erased pet answered "figura como fallecida" or "no tiene dueño
+  // activo registrado" — both distinguishable from never-existed — and with a
+  // surviving active-owner row (ownerships outlive an erasure by design) a full
+  // dispute could be RAISED against the erased spine. Same clause, same single
+  // answer, measured against real Postgres because the grave case WROTE.
+  it("answers not_found for an ERASED pet with an active owner, and writes NOTHING", async () => {
+    const token = "DIM-DISPUTE-ERASED-OWNED";
+    const chip = "100000000000012";
+    const petId = await insertOwnedPet(token, "Disputa Borrada Con Dueño", ownerUserId);
+    await addMicrochip(petId, chip);
+    await db.update(pets).set({ deletedAt: new Date() }).where(eq(pets.id, petId));
+    mockSessionAs(claimantUserId);
+
+    const result = await submitClaimDisputeAction(
+      {
+        identifierKind: "microchip",
+        identifierValue: chip,
+        reason: "Es mi perro, lo reconozco por la mancha del lomo.",
+      },
+      [evidenceFile()],
+    );
+
+    // ONE answer, the one that says nothing — not the deceased leak, not the
+    // no-active-owner leak, and above all not a disputeToken.
+    expect(result).toEqual({ error: "No encontramos la mascota." });
+
+    // And the accusation machinery never ran: no case, no spine event, no flag.
+    const disputes = await db
+      .select({ id: custodyDisputes.id })
+      .from(custodyDisputes)
+      .where(eq(custodyDisputes.petId, petId));
+    expect(disputes).toHaveLength(0);
+
+    const events = await db
+      .select({ id: petEvents.id })
+      .from(petEvents)
+      .where(and(eq(petEvents.petId, petId), eq(petEvents.eventType, "custody_dispute_raised")));
+    expect(events).toHaveLength(0);
+
+    const [pet] = await db
+      .select({ inCustodyDispute: pets.inCustodyDispute })
+      .from(pets)
+      .where(eq(pets.id, petId))
+      .limit(1);
+    expect(pet?.inCustodyDispute).toBe(false);
+  });
+
+  it("answers the SAME not_found for an ERASED pet with no owner", async () => {
+    // Kills the second oracle: without the clause this path answered "Esta
+    // mascota no tiene dueño activo registrado", which reads "it existed".
+    const token = "DIM-DISPUTE-ERASED-FREE";
+    const chip = "100000000000013";
+    const petId = await insertFreePet(token, "Disputa Borrada Sin Dueño");
+    await addMicrochip(petId, chip);
+    await db.update(pets).set({ deletedAt: new Date() }).where(eq(pets.id, petId));
+    mockSessionAs(claimantUserId);
+
+    const result = await submitClaimDisputeAction(
+      {
+        identifierKind: "microchip",
+        identifierValue: chip,
+        reason: "La encontré en la calle hace meses y la cuidé yo.",
+      },
+      [evidenceFile()],
+    );
+
+    expect(result).toEqual({ error: "No encontramos la mascota." });
+  });
+
   it("rejects raising a second dispute while one is already open", async () => {
     const token = "DIM-DISPUTE-DUP";
     const petId = await insertOwnedPet(token, "Doble Disputa", ownerUserId);
