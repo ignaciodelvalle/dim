@@ -89,14 +89,43 @@ afterEach(() => {
   resetImagePickerPort();
 });
 
+// THE TEST CEILING MUST OUTRANK THE `waitFor` CEILING, and until 2026-08-31 it
+// did not: `pickInto` waited up to 5000 ms while Jest's own per-test default is
+// also 5000 ms. Two consequences, and the second is why this kept coming back.
+//
+// One: the `waitFor` could never fail with its own message. Jest killed the test
+// first, so the report always read "Exceeded timeout of 5000 ms for a test" —
+// which names no label, no step and no cause — instead of "Abriendo tus fotos…
+// is still on screen", which names all three.
+//
+// Two: there was NO margin left for the rest of the test. `pickInto` renders,
+// presses and waits; everything after it — the asserts, and for the upload cases
+// a second `waitFor` — had to fit inside whatever the first wait did not spend.
+// A run where the pick took 4.2 s left 800 ms for the other half.
+//
+// Measured on this machine 2026-08-31: the two slowest cases in this file take
+// **2244 ms and 2211 ms in isolation**, so an isolated run already spends 45% of
+// a 5000 ms budget. Under `pnpm verify` — which is where this actually failed,
+// with the build and the lint chain competing for the same cores — that margin
+// is gone. The suite alone never reproduces it: `npx jest` in this package
+// passed 66/66 on the same tree minutes after `verify` failed this one file.
+//
+// 15000 is derived, not borrowed: 3× the `waitFor` ceiling it has to contain.
+// The previous value was borrowed — the docblock below said 5000 because
+// `PetDocumentScreen.test.tsx` used 5000 — and a number chosen by imitation is
+// how both ceilings ended up equal.
+jest.setTimeout(15_000);
+
 /**
  * Render, pick a photo, land wherever the pick leads. The common opening move.
  *
  * The explicit `timeout` is load-bearing: this waits on a NEGATIVE (the
  * transient "Abriendo tus fotos…" label vanishing), and under a fully parallel
  * suite the default 1s ceiling was measured flaking — 2 of 11 on one full run,
- * 1 on the next, always these, always green in isolation. 5000 is the ceiling
- * `PetDocumentScreen.test.tsx` already uses for its slow finds.
+ * 1 on the next, always these, always green in isolation.
+ *
+ * It stays at 5000 and the TEST ceiling moved instead — see the block above.
+ * Raising this one again would recreate the equality that hid the real message.
  */
 async function pickInto(result: ImagePickResult) {
   nextPick = result;
