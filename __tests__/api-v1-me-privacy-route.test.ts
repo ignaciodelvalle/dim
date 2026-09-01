@@ -373,17 +373,67 @@ describe("POST — derecho de supresión (art. 16)", () => {
     ]);
   });
 
-  it("refuses an erased or deactivated caller before the use-case runs", async () => {
+  it("refuses an ERASED caller before the use-case runs", async () => {
     control.live = { ok: false, reason: "ACCOUNT_ERASED" };
+
     const erased = await POST(postRequest({ command: "erase_account", reason: "de nuevo no" }));
+
     expect(erased.status).toBe(403);
-
-    control.live = { ok: false, reason: "DEACTIVATED" };
-    const deactivated = await POST(
-      postRequest({ command: "erase_account", reason: "de nuevo no" }),
-    );
-    expect(deactivated.status).toBe(403);
-
     expect(mockErase).not.toHaveBeenCalled();
+  });
+
+  it("ERASES for a DEACTIVATED caller — art. 16 outranks a deactivation", async () => {
+    // PO decision, 2026-08-31. The organisation closed the account; the right to
+    // be erased is the PERSON'S. Refusing here would let an employer stand
+    // between a data subject and Ley 25.326 art. 16 by flipping one column, and
+    // the web has always granted it (`requireUserOrRedirect`: DEACTIVATED
+    // PASSES), so the phone refusing it was an unargued divergence.
+    //
+    // The mutation this catches is the one that was live until today: routing
+    // this reason to `liveUserRefusal` with the read half. It is not enough to
+    // assert the 200 — a handler that answered 200 and erased NOBODY would pass
+    // that. The subject id is what proves the erasure was actually reached.
+    mockErase.mockResolvedValue({ ok: true });
+    control.live = { ok: false, reason: "DEACTIVATED", user: { id: SUBJECT } };
+
+    const res = await POST(postRequest({ command: "erase_account", reason: "cierro mi cuenta" }));
+
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ erased: true });
+    expect(mockErase).toHaveBeenCalledWith(
+      expect.objectContaining({ userId: SUBJECT, reason: "cierro mi cuenta" }),
+    );
+  });
+
+  it("still refuses a DEACTIVATED caller it cannot identify", async () => {
+    // The null check at the call site is NOT decorative. `requireLiveUser`
+    // carries the id on this branch by construction today; this is the case that
+    // goes red if that ever stops being true, instead of the route erasing on an
+    // id it does not have.
+    control.live = { ok: false, reason: "DEACTIVATED", user: null };
+
+    const res = await POST(postRequest({ command: "erase_account", reason: "cierro mi cuenta" }));
+
+    expect(res.status).toBe(403);
+    expect(await res.json()).toEqual({ error: "account_deactivated" });
+    expect(mockErase).not.toHaveBeenCalled();
+  });
+
+  it("diverges from the export ON PURPOSE — same account, both doors", async () => {
+    // The asymmetry IS the decision, so it is pinned in one case rather than
+    // inferred from two describes. Read refused, write granted, one caller.
+    // A future change that makes them symmetric again has to delete this.
+    mockErase.mockResolvedValue({ ok: true });
+    control.live = { ok: false, reason: "DEACTIVATED", user: { id: SUBJECT } };
+
+    const read = await GET(getRequest(`Bearer ${TOKEN}`));
+    const write = await POST(postRequest({ command: "erase_account", reason: "cierro mi cuenta" }));
+
+    expect(read.status).toBe(403);
+    expect(await read.json()).toEqual({ error: "account_deactivated" });
+    expect(mockExport).not.toHaveBeenCalled();
+
+    expect(write.status).toBe(200);
+    expect(mockErase).toHaveBeenCalledTimes(1);
   });
 });

@@ -202,7 +202,39 @@ export async function POST(request: Request) {
     if (err instanceof DbBudgetExceededError) return unavailable();
     throw err;
   }
-  if (!live.ok) return liveUserRefusal(live.reason);
+
+  // ART. 16 OUTRANKS A DEACTIVATION. This is the ONE handler on this surface
+  // that does not hand every refusal to `liveUserRefusal`, and the divergence is
+  // deliberate — see that function's docblock for the read half, which stays
+  // refused.
+  //
+  // An INSTITUTIONALLY deactivated account is one whose organisation closed it.
+  // That is a decision the organisation took, and the right to be erased is the
+  // person's, not the organisation's. Refusing it here would let an employer
+  // stand between a data subject and Ley 25.326 art. 16 by flipping one column.
+  // The web has always granted it — `requireUserOrRedirect` documents
+  // `DEACTIVATED → PASSES` — so the phone refusing it was a DIVERGENCE, and it
+  // was never argued: the surrounding docblock derives the export refusal at
+  // length and says nothing about erasure. It was carried in by symmetry with
+  // art. 14, and symmetry is not a reason.
+  //
+  // Ratified by the PO on 2026-08-31: grant the erasure, keep the export
+  // refused. The general rule this is the written exception to — "the phone may
+  // be stricter than the web, that direction is safe" — holds for product
+  // writes and NOT for legal rights, where refusing IS the harm.
+  //
+  // `live.user` is populated on this branch by construction: `requireLiveUser`
+  // carries the id and email on DEACTIVATED specifically because it is the one
+  // refusal a caller is allowed to tolerate. The null check is here so that
+  // stops being an assumption if that ever changes.
+  let subjectUserId: string;
+  if (live.ok) {
+    subjectUserId = live.user.id;
+  } else if (live.reason === "DEACTIVATED" && live.user !== null) {
+    subjectUserId = live.user.id;
+  } else {
+    return liveUserRefusal(live.reason);
+  }
 
   let body: unknown;
   try {
@@ -234,7 +266,7 @@ export async function POST(request: Request) {
   // account was being erased underneath the message. That is the worst available
   // answer on an irreversible act. The web button has no timeout either.
   const result = await eraseSubjectDataFor({
-    userId: live.user.id,
+    userId: subjectUserId,
     supabase: client.supabase,
     reason: parsed.data.reason,
   });
@@ -317,14 +349,21 @@ function unavailable() {
  * refreshing it will keep working, so a 401 would produce a refresh loop that
  * succeeds forever against an account that no longer exists.
  *
- * `DEACTIVATED` refuses BOTH methods, and the read half is worth one line
- * because the repo's written policy after the 2026-07-04 redirect incident is
- * "reads stay open so the user can see why". This read is not that kind of read:
+ * `DEACTIVATED` refuses the READ ONLY, and reaches this function only from GET.
+ * The repo's written policy after the 2026-07-04 redirect incident is "reads
+ * stay open so the user can see why", and this read is not that kind of read:
  * it does not show somebody their situation, it hands them a copy of their PII
  * record — and an INSTITUTIONALLY deactivated account is one whose organisation
  * closed it, which is exactly the state in which a full export should not be
  * minted on a token nobody has re-verified. If the PO decides an art. 14 request
  * outranks a deactivation, the change is here and it needs its own decision.
+ *
+ * The WRITE half used to come here too and no longer does. Art. 16 outranks a
+ * deactivation (PO, 2026-08-31): the organisation closed the account, but the
+ * right to be erased is the person's. POST resolves its own subject and never
+ * calls this function with `DEACTIVATED` — the argument is at that call site,
+ * where the decision lives. The two halves diverge ON PURPOSE; if a future
+ * change makes them symmetric again, it has to say which one it moved and why.
  */
 function liveUserRefusal(reason: LiveUserFailureReason) {
   switch (reason) {
