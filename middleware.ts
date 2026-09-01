@@ -43,14 +43,33 @@ const { supabaseHttpOrigin, supabaseWsOrigin } = (() => {
   }
 })();
 
-function buildContentSecurityPolicy(nonce: string): string {
+// Exported for the fence (__tests__/csp-dev-branch.test.ts): the `dev`
+// parameter exists so BOTH directions are pinned — dev must carry the branch,
+// production must never inherit it. Next.js allows extra exports here.
+export function buildContentSecurityPolicy(
+  nonce: string,
+  dev: boolean = process.env.NODE_ENV === "development",
+): string {
   return [
     // Default deny — any fetch directive without an explicit rule falls here.
     "default-src 'self'",
     // Scripts: same-origin + the per-request nonce only. 'strict-dynamic' lets
     // a nonce'd script load further chunks (Next hydration → app chunks)
-    // without host allowlisting. No 'unsafe-inline' / no 'unsafe-eval'.
-    `script-src 'self' 'nonce-${nonce}' 'strict-dynamic'`,
+    // without host allowlisting. No 'unsafe-inline' / no 'unsafe-eval' — in
+    // PRODUCTION.
+    //
+    // THE DEV BRANCH (walkthrough 2026-08-31 §1, measured A/B on one commit):
+    // `next dev` needs eval() for React Refresh, and Next reads the nonce off
+    // this very policy and stamps it onto its scripts — so under dev the
+    // policy without 'unsafe-eval' serves a web app whose client NEVER BOOTS:
+    // flight payload present, zero `__reactFiber` on any node, and Server
+    // Actions make the login work without JS, which disguises the corpse as
+    // "my machine is broken". Every path this repo has for looking at the web
+    // skips dev (NEXT_BUILT for Playwright, qa-up.ps1's production server,
+    // staging for the clickthroughs), so nothing else could see it. DO NOT
+    // LOOSEN PRODUCTION: the branch is keyed to the build mode, and the fence
+    // pins both directions.
+    `script-src 'self' 'nonce-${nonce}' 'strict-dynamic'${dev ? " 'unsafe-eval'" : ""}`,
     // Styles: Tailwind utility classes and styled-jsx inject inline <style> and
     // style="" at runtime, which a nonce cannot cover — 'unsafe-inline' for
     // STYLES ONLY is the accepted trade-off (inline styles cannot execute JS).
