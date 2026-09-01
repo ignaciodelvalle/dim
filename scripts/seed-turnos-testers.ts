@@ -40,7 +40,6 @@ loadEnv({ path: ".env" });
 
 import { and, eq } from "drizzle-orm";
 
-import { provinceByName } from "../lib/reference/ar-provincias";
 import { describeTarget } from "./_db-target";
 
 const SLOT_DAYS_AHEAD = 14;
@@ -203,15 +202,6 @@ async function main() {
       console.error(`✗ malformed pair ${JSON.stringify(p.raw)} — expected "Provincia|Localidad"`);
       process.exit(2);
     }
-    // The search filters offerings with province EQUALITY against what pets
-    // carry, so a misspelled province plants an offering nobody can find —
-    // fail loudly instead of writing an invisible row.
-    if (!provinceByName(p.province)) {
-      console.error(
-        `✗ unknown province ${JSON.stringify(p.province)} — use the catalog spelling (lib/reference/ar-provincias)`,
-      );
-      process.exit(2);
-    }
   }
 
   const DATABASE_URL = process.env.DATABASE_URL ?? "";
@@ -227,6 +217,37 @@ async function main() {
   const { db, organizations, serviceOfferings, serviceScheduleRules, timeSlots } = await import(
     "../db"
   );
+  // Same reason, transitively: jurisdiction-validation → ar-localidades → db.
+  const { resolveCanonicalJurisdiction, JurisdictionValidationError } = await import(
+    "../lib/infra/jurisdiction-validation"
+  );
+
+  // Resolved against the ar_localities catalog, not merely checked for a
+  // known province: the search this offering must be found by filters
+  // province AND locality by EQUALITY against what pets carry, so an alias
+  // ("Ciudad Autónoma de Buenos Aires" for "CABA") or a locality outside the
+  // catalog plants a row nobody's search can ever match — fail loudly
+  // instead of writing an invisible one. The CANONICAL names come back out
+  // of this resolution and are what gets stored below, never the raw typed
+  // strings.
+  const resolvedPairs: { raw: string; province: string; locality: string }[] = [];
+  for (const p of pairs) {
+    try {
+      const canonical = await resolveCanonicalJurisdiction({
+        rawProvince: p.province,
+        rawLocality: p.locality,
+      });
+      resolvedPairs.push({
+        raw: p.raw,
+        province: canonical.province.name,
+        locality: canonical.locality.localityName,
+      });
+    } catch (err) {
+      const message = err instanceof JurisdictionValidationError ? err.message : String(err);
+      console.error(`✗ ${JSON.stringify(p.raw)} — ${message}`);
+      process.exit(2);
+    }
+  }
 
   // The offering needs an org that exists on BOTH stacks. Preference order:
   // the seeded clinic (real vet login attached), then the seeded shelter.
@@ -257,7 +278,7 @@ async function main() {
   const effFrom = isoDate(new Date(now.getTime() - 24 * 3600 * 1000));
   const effUntil = isoDate(new Date(now.getTime() + RULE_DAYS_AHEAD * 24 * 3600 * 1000));
 
-  for (const { province, locality } of pairs) {
+  for (const { province, locality } of resolvedPairs) {
     await seedPair(
       { db, serviceOfferings, serviceScheduleRules, timeSlots },
       hostOrgId,
