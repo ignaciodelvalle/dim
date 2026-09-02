@@ -12,6 +12,13 @@
 //   - __tests__/seed-hygiene.test.ts — same `findSeedHygieneOffenders`
 //     against the local DB, so CI enforces this even without re-seeding.
 //
+// It also enforces the SEED ACCOUNT CONTRACTS (see SEED_ACCOUNT_CONTRACTS
+// below): the accounts whose value is what they must NOT have. Staging drift
+// of exactly that kind — owner@dim.test holding an organization membership,
+// which lands every owner e2e spec on /org instead of the owner surface — was
+// observed between 2026-08-26 and 2026-09-02, and is what the
+// NO_ORG_MEMBERSHIP_EMAILS rows guard.
+//
 // Mirrors check-locality-integrity.ts's connection/skip conventions: if the
 // DB is unreachable, exit 0 with a warning rather than hard-failing CI that
 // has no local Supabase running.
@@ -127,7 +134,45 @@ export async function findNotificationHygieneOffenders(
 }
 
 /**
- * Reserved-account hygiene — the DETECTOR behind the zero-pet owner contract.
+ * Accounts that must hold NO organization membership, and that legitimately
+ * OWN PETS — so they cannot join RESERVED_ACCOUNT_EMAILS, whose whole contract
+ * is emptiness (scripts/seed-reserved-accounts.ts, and the static fence in
+ * __tests__/seed-reserved-accounts.test.ts that forbids spelling a reserved
+ * address anywhere but its definition file — these two are spelled out across
+ * a dozen specs and could never satisfy it).
+ *
+ * WHY THE ROW EXISTS. lib/infra/role-landing.ts rule 7: an owner with an active
+ * org-ADMIN membership lands on `/org`, not `/inicio`. owner@dim.test is the
+ * account every owner-side e2e spec signs in as, so one membership turns the
+ * whole owner suite into "expected /mis-mascotas, got /org" — a product-shaped
+ * red with a data-shaped cause. That drift was observed on staging between
+ * 2026-08-26 and 2026-09-02, and is exactly what these rows guard.
+ *
+ * owner2@dim.test is here for the same reason from the other direction:
+ * e2e/authz-ab-isolation.spec.ts uses it as Owner B *and* as the non-member,
+ * so its emptiness of memberships is an ASSERTED property of three tests.
+ *
+ * The counterpart accounts are deliberately absent: orgadmin@dim.test and
+ * vet@dim.test hold memberships by design (scripts/seed-test-users.ts).
+ */
+export const NO_ORG_MEMBERSHIP_EMAILS: readonly string[] = ["owner@dim.test", "owner2@dim.test"];
+
+/**
+ * One account's seed contract. Both kinds forbid an org membership; only a
+ * reserved account must also own nothing.
+ */
+type SeedAccountContract = { email: string; mustOwnNoPets: boolean };
+
+const SEED_ACCOUNT_CONTRACTS: readonly SeedAccountContract[] = [
+  ...RESERVED_ACCOUNT_EMAILS.map((email) => ({ email, mustOwnNoPets: true })),
+  ...NO_ORG_MEMBERSHIP_EMAILS.map((email) => ({ email, mustOwnNoPets: false })),
+];
+
+/**
+ * Reserved-account hygiene — the DETECTOR behind the zero-pet owner contract,
+ * and behind the no-org-membership contract above. "Reserved" here means an
+ * account whose value is what it must NOT have, whether that is pets or a
+ * membership.
  *
  * scripts/seed-reserved-accounts.ts guarantees an owner with no pets so the
  * owner empty state is verifiable (e2e/owner-ia-p6.spec.ts test 6). The seed
@@ -155,7 +200,7 @@ export async function findReservedAccountOffenders(
 ): Promise<ReservedAccountOffender[]> {
   const offenders: ReservedAccountOffender[] = [];
 
-  for (const email of RESERVED_ACCOUNT_EMAILS) {
+  for (const { email, mustOwnNoPets } of SEED_ACCOUNT_CONTRACTS) {
     const rows = await sql.unsafe<
       Array<{ id: string; pet_count: string; membership_count: string }>
     >(
@@ -180,7 +225,7 @@ export async function findReservedAccountOffenders(
     }
 
     const petCount = Number(row.pet_count);
-    if (petCount > 0) {
+    if (mustOwnNoPets && petCount > 0) {
       offenders.push({
         email,
         issue: "owns_pets",
@@ -193,7 +238,7 @@ export async function findReservedAccountOffenders(
       offenders.push({
         email,
         issue: "has_org_membership",
-        detail: `${membershipCount} organization membership(s) — an org member does not land on the owner empty state`,
+        detail: `${membershipCount} organization membership(s) — an owner with an active org-admin membership lands on /org (lib/infra/role-landing.ts rule 7), not on the owner surface every e2e spec asserts against`,
       });
     }
   }
@@ -255,7 +300,7 @@ async function runCheck(): Promise<void> {
       console.error(`✗ reserved account ${o.email}: ${o.issue} — ${o.detail}`);
     }
     console.error(
-      `\n✗ ${reservedOffenders.length} reserved-account offender(s) — an account that exists to stay EMPTY no longer is. Do NOT delete its pets to make this pass unless they were created by mistake; read scripts/seed-reserved-accounts.ts and fix whatever assigned them.`,
+      `\n✗ ${reservedOffenders.length} seed-account contract offender(s) — an account no longer lacks what it exists to lack. Do NOT delete its rows to make this pass unless they were created by mistake; read scripts/seed-reserved-accounts.ts (pets) and NO_ORG_MEMBERSHIP_EMAILS in this file (memberships), and fix whatever assigned them.`,
     );
   }
 
@@ -264,7 +309,7 @@ async function runCheck(): Promise<void> {
   }
 
   console.log(
-    `✓ Seed hygiene clean — 0 seed-marker hits across ${RENDERABLE_TEXT_COLUMNS.length} renderable column(s), 0 notification-hygiene offenders, ${RESERVED_ACCOUNT_EMAILS.length} reserved account(s) still empty.`,
+    `✓ Seed hygiene clean — 0 seed-marker hits across ${RENDERABLE_TEXT_COLUMNS.length} renderable column(s), 0 notification-hygiene offenders, ${RESERVED_ACCOUNT_EMAILS.length} reserved account(s) still empty, ${NO_ORG_MEMBERSHIP_EMAILS.length} owner account(s) still in no organization.`,
   );
 }
 

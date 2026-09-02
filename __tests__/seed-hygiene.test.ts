@@ -15,6 +15,7 @@ import postgres from "postgres";
 import { afterAll, describe, expect, it } from "vitest";
 
 import {
+  NO_ORG_MEMBERSHIP_EMAILS,
   findNotificationHygieneOffenders,
   findReservedAccountOffenders,
   findSeedHygieneOffenders,
@@ -76,7 +77,7 @@ describe("notification hygiene — brand casing + welcome category (migration 01
 // `pnpm test`, so the next account to be eaten is named on the spot instead of
 // surfacing as a mystery e2e failure weeks later.
 describe("reserved seed accounts — the zero-pet owner is still empty", () => {
-  it(`keeps ${RESERVED_ACCOUNT_EMAILS.length} reserved account(s) with 0 pets and 0 org memberships`, async () => {
+  it(`keeps ${RESERVED_ACCOUNT_EMAILS.length} reserved account(s) with 0 pets, and ${NO_ORG_MEMBERSHIP_EMAILS.length} owner account(s) in no organization`, async () => {
     const offenders = await findReservedAccountOffenders(sql);
 
     if (offenders.length > 0) {
@@ -122,5 +123,70 @@ describe("reserved seed accounts — the zero-pet owner is still empty", () => {
     }
 
     expect(Number(populated.pet_count)).toBeGreaterThan(0);
+  });
+});
+
+// The other half of the contract: accounts that must hold NO organization
+// membership while legitimately OWNING pets.
+//
+// owner@dim.test is the account every owner-side e2e spec signs in as, and
+// lib/infra/role-landing.ts rule 7 sends an owner with an active org-admin
+// membership to /org. Staging drifted into exactly that between 2026-08-26 and
+// 2026-09-02: the specs failed as if the owner surface had regressed, and the
+// cause was one row in organization_memberships.
+describe("seed owner accounts — still in no organization", () => {
+  it("reports no membership offender for any of them", async () => {
+    const offenders = (await findReservedAccountOffenders(sql)).filter((o) =>
+      NO_ORG_MEMBERSHIP_EMAILS.some((email) => email.toLowerCase() === o.email.toLowerCase()),
+    );
+
+    if (offenders.length > 0) {
+      const summary = offenders.map((o) => `  ${o.email}: ${o.issue} — ${o.detail}`).join("\n");
+      throw new Error(
+        [
+          `${offenders.length} offender(s) against the no-org-membership contract.`,
+          summary,
+          "",
+          "Fix the assigner, not the row — unless the membership itself was the",
+          "mistake. See NO_ORG_MEMBERSHIP_EMAILS in scripts/check-seed-hygiene.ts.",
+        ].join("\n"),
+      );
+    }
+
+    expect(offenders).toEqual([]);
+  });
+
+  it("covers accounts that DO own pets — the contract is memberships only", async () => {
+    // Non-vacuity in the direction this contract could silently break: these
+    // accounts are NOT reserved-empty, so a copy-paste that gave them
+    // `mustOwnNoPets: true` would red the gate on correctly seeded data. Prove
+    // both halves at once — the accounts exist, they own pets, and the scan
+    // does not complain about the pets.
+    const rows = await sql<Array<{ email: string; pet_count: string }>>`
+      SELECT u.email,
+             (SELECT count(*) FROM ownerships o
+               WHERE o.owner_user_id = u.id AND o.ended_at IS NULL)::text AS pet_count
+        FROM auth.users u
+       WHERE lower(u.email) = ANY(${NO_ORG_MEMBERSHIP_EMAILS.map((e) => e.toLowerCase())}::text[])
+    `;
+
+    if (rows.length !== NO_ORG_MEMBERSHIP_EMAILS.length) {
+      throw new Error(
+        `Expected ${NO_ORG_MEMBERSHIP_EMAILS.length} seeded owner account(s), found ${rows.length}. Seed the data (\`pnpm seed:test\`) and re-run.`,
+      );
+    }
+
+    const petless = rows.filter((r) => Number(r.pet_count) === 0).map((r) => r.email);
+    expect(
+      petless,
+      "these accounts own pets by design; if one is empty the seed is incomplete, not the contract wrong",
+    ).toEqual([]);
+
+    const petOffenders = (await findReservedAccountOffenders(sql)).filter(
+      (o) =>
+        o.issue === "owns_pets" &&
+        NO_ORG_MEMBERSHIP_EMAILS.some((email) => email.toLowerCase() === o.email.toLowerCase()),
+    );
+    expect(petOffenders, "owning a pet is not an offence for these accounts").toEqual([]);
   });
 });
