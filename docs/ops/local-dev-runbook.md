@@ -62,7 +62,7 @@ run the seed command your task needs first.
 ## 3. Run the tests
 
 ```sh
-pnpm test          # vitest run — the whole suite
+pnpm test:verified # vitest run — the whole suite (not `pnpm test`: its exit code lies when a worker dies mid-file)
 pnpm test:watch    # vitest — watch mode
 ```
 
@@ -81,7 +81,7 @@ anything that does not touch the database:
 pnpm exec vitest run --project unit
 ```
 
-### `pnpm test` exits 1 even when nothing fails — known, being worked
+### `pnpm test:verified` exits 1 even when nothing fails — known, being worked
 
 The run ends with `Worker exited unexpectedly` and a non-zero exit while
 reporting **zero failing tests**. Read the test counts, not the exit code, until
@@ -172,7 +172,7 @@ not a failing test.
 ## 5. Never run two vitest instances at once
 
 The suite serializes on purpose (§3) because it shares one local Postgres. A
-second concurrent `vitest` run (e.g. `pnpm test` in one terminal while a watch
+second concurrent `vitest` run (e.g. `pnpm test:verified` in one terminal while a watch
 run or an agent's run is live in another) writes to the same DB and produces
 flaky, non-reproducible failures — rows appear/disappear mid-test. One vitest
 process at a time, full stop. This also applies to parallel-writer worktrees:

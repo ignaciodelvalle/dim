@@ -316,37 +316,46 @@ general: `docs/reviews/2026-09-fresh/SYNTHESIS.md` y
 - **Frase tentadora:** "Todos los controles automáticos están en verde."
 - **Por qué no se sostiene:** la suite de navegador es una **compuerta aparte** —
   no está dentro de la cadena de verificación (`pnpm verify`)— y su trabajo en integración continua está en
-  rojo. La medición del 2026-08-30 es específica y vale la pena no redondearla: el
-  entorno se levantó en todas las corridas medidas menos una, y los rojos
-  restantes están **dentro** del paso de la suite, es decir son sus propias
-  aserciones. La causa que se dejó documentada sin tocar los specs es que fallan
-  sus **precondiciones**, no sus sujetos: la semilla deja la base en un estado
-  distinto del que los specs buscan.
+  rojo, por dos causas distintas y ya documentadas. En el job de integración continua
+  regular (`ci.yml`), la medición del 2026-08-30 es específica y vale la pena no
+  redondearla: el entorno se levantó en todas las corridas medidas menos una, y
+  los rojos restantes están **dentro** del paso de la suite, es decir son sus
+  propias aserciones. La causa que se dejó documentada sin tocar los specs es que
+  fallan sus **precondiciones**, no sus sujetos: la semilla deja la base en un
+  estado distinto del que los specs buscan. Aparte, el trabajo nocturno
+  (`e2e-nightly.yml`) está en rojo por una causa distinta: dos secretos que la
+  suite necesita nunca se crearon en el repositorio, así que llegan vacíos al
+  job.
 - **Estado:** el lente que audita esa práctica quedó diferido
   (`docs/reviews/2026-09-fresh/briefs/C09.md`), y su propio texto advierte que uno
   de los archivos de limpieza cambió después de la auditoría.
 - **Fuente:** `docs/agents/open-work.md`; `e2e/README.md`.
 - **Lo que sí se puede decir:** "El control local —reglas de estilo, tipos, cercos
   y la suite unitaria— es la definición de terminado del proyecto y se corre en cada cambio.
-  La suite de navegador es una compuerta separada y hoy está en rojo por
-  precondiciones de datos de prueba; está identificado y tiene lente asignado."
+  La suite de navegador es una compuerta separada y hoy está en rojo por dos causas
+  identificadas y con lente asignado: precondiciones de datos de prueba en la
+  corrida regular, y secretos de configuración pendientes de crear en la corrida
+  nocturna."
   Hay <!-- fact:e2e_specs -->45<!-- /fact --> recorridos de navegador y
   <!-- fact:ci_workflows -->7<!-- /fact --> flujos de integración continua.
 
 ### D.6 — La aplicación Android no está en la tienda
 
 - **Frase tentadora:** "La app está publicada en Google Play."
-- **Por qué no se sostiene:** está publicada en la **pista de pruebas internas**
-  desde el 2026-08-27, con personas reales instalándola. No está en la pista de
-  producción y no es descargable por el público. Además hay dos cosas pendientes
-  antes de cualquier salida: la compilación 5 que está publicada **no puede
-  iniciar sesión** —salió sin las variables del entorno, que se hornean al
-  compilar— y hay que reemplazarla; y el formulario de seguridad de datos debe
-  actualizarse antes de que llegue a la tienda cualquier compilación con subida de
-  fotos, porque declaró que la app no recolecta fotos y eso deja de ser cierto.
+- **Por qué no se sostiene:** existe una compilación piloto, con personas reales
+  instalándola desde el 2026-08-27, pero no es descargable por el público
+  general. La versión que circula hoy y el número de compilación pendiente no
+  se confirman en este documento — se los confirma el PO antes de exponerlos
+  (`docs/presentation/2026-09-oficiales/00-guion.md`, notas de alcance). Además
+  hay dos cosas pendientes conocidas antes de cualquier salida: una compilación
+  publicada sin las variables del entorno, que se hornean al compilar, **no
+  puede iniciar sesión** y hay que reemplazarla; y el formulario de seguridad de
+  datos debe actualizarse antes de que llegue a la tienda cualquier compilación
+  con subida de fotos, porque declaró que la app no recolecta fotos y eso deja
+  de ser cierto.
 - **Fuente:** `docs/agents/open-work.md`.
-- **Lo que sí se puede decir:** "La aplicación Android está en pruebas internas
-  en Google Play desde fines de agosto, con personas reales probándola. La publicación
+- **Lo que sí se puede decir:** "La aplicación Android existe como compilación
+  piloto, con personas reales probándola desde fines de agosto. La publicación
   abierta tiene dos ítems pendientes identificados."
 
 ---

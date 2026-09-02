@@ -16,7 +16,7 @@ regla que sigue el resto de la familia (`docs/agents/prompt-cowork-review-codigo
 
 | Marcador | Qué es | Cómo lo obtenés |
 |---|---|---|
-| `{{SHA}}` | El commit sobre el que se escribió el pack, siete caracteres | `git -C C:/dev/dim rev-parse --short HEAD` el día que entregás el pack. Hoy es `c10f4ff03` |
+| `{{SHA}}` | El commit sobre el que se escribió el pack, nueve caracteres | `git -C C:/dev/dim rev-parse --short HEAD` el día que entregás el pack. Hoy es `c10f4ff03` |
 | `{{FECHA_PRESENTACION}}` | La fecha de la reunión con los funcionarios, en formato `DD/MM/AAAA` | La agenda. Va en la portada y en el pie de cada lámina |
 
 **Dónde se pega.** En una sesión nueva de Cowork con acceso de lectura al repo. No

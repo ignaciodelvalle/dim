@@ -61,7 +61,7 @@ The whole backlog lands and the branch goes green.
 
 **Exit gate (all required):**
 - [ ] `pnpm verify` green on `integration/all-20260703` — a **clean run from the orchestrator**, not an agent's mid-flight view (concurrent work produces false failures + `lint:tokens` ratchet noise; attribute every failure to a real cause).
-- [ ] `pnpm test` green (paste output as evidence).
+- [ ] `pnpm test:verified` green (paste output as evidence) — not `pnpm test`: its exit code lies when a worker dies mid-file.
 - [ ] The 🔴 GO-blockers verified fixed **by driving the flow**, not just tests: lost-pet photo no longer blocks finder CTAs (elementFromPoint on a photographed pet), adoptions detail no longer crashes, login click fires without console tricks, admin logout works.
 - [ ] Authz `*ForUser` unexport landed (the confirmed-exploitable class) + `lint:authz`/`lint:rls` green.
 - [ ] All marathon migrations present and numbered forward-only (recount the next free integer at write time — never hardcode from a plan).

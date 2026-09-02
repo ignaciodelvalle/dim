@@ -241,7 +241,7 @@ nombre, y hay que nombrarlos igual en las cuatro láminas que los tocan.
 
 ## I. Integraciones externas — todas con trama punteada
 
-Ninguna de estas cinco existe hoy. La trama punteada es obligatoria y no se
+Ninguna de estas siete existe hoy. La trama punteada es obligatoria y no se
 reemplaza por gris, y **ninguna se ablanda con un "en desarrollo" simpático**.
 
 | Identificador (código) | Etiqueta en la lámina | Nota | Origen |
@@ -290,14 +290,14 @@ reemplaza por gris, y **ninguna se ablanda con un "en desarrollo" simpático**.
 
 | Identificador (código) | Etiqueta en la lámina | Nota | Origen |
 |---|---|---|---|
-| `pnpm verify` | Cadena de verificación | <!-- fact:verify_fences -->66<!-- /fact --> guardas automatizadas. **Nunca "compuerta de calidad" ni "reglas automáticas"**: eran tres nombres para la misma cosa | acuñada |
+| `pnpm verify` | Cadena de verificación | <!-- fact:verify_fences -->67<!-- /fact --> guardas automatizadas. **Nunca "compuerta de calidad" ni "reglas automáticas"**: eran tres nombres para la misma cosa | acuñada |
 | `pnpm test:verified` | Suite verificada | Desconfía del código de salida de la suite en las dos direcciones (`scripts/run-verified-suite.ts`) | acuñada |
 | `.github/workflows` | Integración continua | <!-- fact:ci_workflows -->7<!-- /fact --> flujos | acuñada |
 | `e2e` | Recorrido de navegador | <!-- fact:e2e_specs -->45<!-- /fact --> recorridos. Compuerta **aparte**, nocturna, hoy en rojo | acuñada |
 | `docs/reviews/2026-09-fresh/README.md` | Auditoría 2026-09 · Lentes ejecutados · Lentes diferidos | Los lentes diferidos van rayados: no dibujarlos como cobertura | acuñada |
 | refutación adversarial | Refutadores independientes · Revisión con contexto fresco | Quien revisa no escribió el código. Es lo que encontró el hallazgo crítico de la auditoría | acuñada |
 | `docs/reviews/2026-09-fresh/BACKLOG.md` | Hallazgos abiertos | **Nunca "backlog"**: es una lámina en castellano | acuñada |
-| canon de convenciones | Regla del canon | <!-- fact:canon_enforced -->175<!-- /fact --> de <!-- fact:canon_rows -->512<!-- /fact --> reglas tienen quién las haga cumplir. El resto no está roto: nadie se daría cuenta | acuñada |
+| canon de convenciones | Regla del canon | <!-- fact:canon_enforced -->175<!-- /fact --> de <!-- fact:canon_rows -->513<!-- /fact --> reglas tienen quién las haga cumplir. El resto no está roto: nadie se daría cuenta | acuñada |
 
 ---
 

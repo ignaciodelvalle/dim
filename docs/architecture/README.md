@@ -36,7 +36,11 @@ in this directory (and, once it exists, `docs/presentation/`) must cite
 through — never as a bare literal. `pnpm facts:write` (`scripts/architecture-facts.ts`)
 **regenerates** the file by recomputing every fact from the tree (file
 counts, array lengths imported from source, canon JSON row counts) and
-overwriting `facts.json`. `__tests__/architecture-facts.test.ts` **checks,
+overwriting `facts.json`. `facts.json`'s own `sha` field is the commit at
+which `pnpm facts:write` last ran, and it can legitimately TRAIL the
+`Snapshot:` SHA in a doc header when the commits in between moved no fact —
+that gap is not staleness by itself, only a fact whose generated value
+disagrees with the marker in a doc is. `__tests__/architecture-facts.test.ts` **checks,
 never rewrites**: it re-runs the same generator in-process and asserts the
 result equals the committed `facts.json` exactly (no floor, no tolerance —
 a silent upward drift is exactly the failure this fence exists to catch), and

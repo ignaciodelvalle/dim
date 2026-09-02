@@ -294,6 +294,12 @@ funciona si las dos láminas incómodas están donde se ven.
 - **Hechos.**
   - Tablas con reglas de acceso fila por fila declaradas:
     <!-- fact:rls_enabled_tables -->55<!-- /fact -->.
+  - Este número no se compara con el de tablas de la lámina 15: cuenta toda
+    tabla que alguna migración declaró con seguridad fila por fila a lo largo
+    de toda la historia SQL del repo, tablas internas incluidas (por ejemplo,
+    la que lleva el registro de las propias migraciones); la lámina 15 cuenta
+    en cambio las tablas vivas del esquema de hoy. Son dos conjuntos
+    distintos, no una resta pendiente.
   - Capacidades otorgables dentro de una organización:
     <!-- fact:org_capabilities -->16<!-- /fact -->.
   - Duración del turno de un operador institucional antes de exigir reingreso:
@@ -394,15 +400,15 @@ funciona si las dos láminas incómodas están donde se ven.
   cumplir, y el propio verificador de la suite desconfía del resultado de la suite.
 - **Hechos.**
   - Guardas automatizadas en la cadena de verificación:
-    <!-- fact:verify_fences -->66<!-- /fact -->.
-  - Archivos de prueba de la web: <!-- fact:vitest_files -->1487<!-- /fact -->.
+    <!-- fact:verify_fences -->67<!-- /fact -->.
+  - Archivos de prueba de la web: <!-- fact:vitest_files -->1489<!-- /fact -->.
   - Recorridos de navegador: <!-- fact:e2e_specs -->45<!-- /fact -->.
   - Archivos de prueba de la aplicación de celular:
     <!-- fact:mobile_jest_files -->78<!-- /fact -->.
   - Flujos de integración continua: <!-- fact:ci_workflows -->7<!-- /fact -->.
   - Reglas del canon de convenciones que algo hace cumplir:
     <!-- fact:canon_enforced -->175<!-- /fact --> de
-    <!-- fact:canon_rows -->512<!-- /fact -->.
+    <!-- fact:canon_rows -->513<!-- /fact -->.
 - **Respaldo.**
   - `scripts/run-verified-suite.ts` — el verificador que ignora a propósito el código
     de salida de la suite y lo vuelve a plegar, para que una corrida que se cayó no
@@ -467,8 +473,12 @@ funciona si las dos láminas incómodas están donde se ven.
 - **Hechos.**
   - Pantallas: <!-- fact:pages -->262<!-- /fact -->.
   - Migraciones de base de datos aplicadas en orden:
-    <!-- fact:migrations -->210<!-- /fact -->.
+    <!-- fact:migrations -->211<!-- /fact -->.
   - Tablas: <!-- fact:tables -->53<!-- /fact -->.
+  - Este conteo son las tablas vivas del esquema de hoy, distinto del conteo
+    de tablas con seguridad fila por fila declarada de la lámina 10 (que
+    incluye también tablas internas y toda la historia de migraciones). Son
+    dos conjuntos distintos, no una resta pendiente.
 - **Respaldo.**
   - `docs/presentation/2026-09-oficiales/limites-honestos.md` — la lista completa de
     lo que no existe, con su fuente.

@@ -290,6 +290,12 @@ applying them risks duplicate/conflicting policies.
    GitHub integration — this changes the entire rest of this runbook (manual archive
    push vs. auto-deploy-on-merge). No committed doc currently answers this for
    production (see W3).
+
+   > Correction 2026-09-02: the Vercel project (`dim-staging`) is git-connected —
+   > verified against the Vercel API on 2026-09-02. Every push to `main` now
+   > deploys the code; migrations still travel only through `pnpm deploy:staging`.
+   > This is a dated handoff and the paragraph above is left as written for the
+   > record. Current state lives in `docs/ops/staging-deploy.md`.
 2. Environment Variables → Production — set explicitly (do not rely on defaults):
    - `DATABASE_URL` — **Transaction pooler** string (`...pooler.supabase.com:6543`),
      distinct from any Session pooler URL used for migrations (see W4).
