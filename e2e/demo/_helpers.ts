@@ -385,6 +385,74 @@ export async function discoverPetToken(
 export const MARK_FOUND_BUTTON = /^marcar como encontrada$/i;
 
 /**
+ * True for the browser having CANCELLED a navigation this helper asked for,
+ * because the page started one of its own.
+ *
+ * `net::ERR_ABORTED` is not a page failure and not generic flake: Chromium
+ * emits it when a document load is superseded, and Playwright appends "maybe
+ * frame was detached?" because from its side the two are indistinguishable.
+ * Matched narrowly on purpose — a timeout, a closed target or a real network
+ * error must still throw.
+ */
+function isSupersededNavigation(error: unknown): boolean {
+  return error instanceof Error && /net::ERR_ABORTED/.test(error.message);
+}
+
+/**
+ * Reload into a guaranteed-fresh document, tolerating the page navigating on
+ * its own while we ask.
+ *
+ * THE DEFECT THIS CLOSES — twice red on CI in two days, in two different specs,
+ * at ONE line. Run 33649350226 (`owner-ia-p6.spec.ts:639`) and run 33663840887
+ * (`crisis-owner-lost-flow.spec.ts:149`, on a DOCS-ONLY commit) both died with
+ * `page.reload: net::ERR_ABORTED; maybe frame was detached?` inside
+ * `ensurePetFound`. Classified by spec name it looked like run-level noise —
+ * "a different victim each run" — and it is not: the spec is the caller, the
+ * shared helper is the victim, and the failing frame was identical both times.
+ *
+ * WHY IT ABORTS. `setPetFoundAction` completes, and the client half of the N3
+ * contract (`useActionRedirect` → `window.location.assign`,
+ * lib/ui/full-page-action-nav.ts) fires a DOCUMENT navigation on its own
+ * schedule — after the RSC re-render that unmounts the sheet, so the
+ * `toBeHidden` wait above cannot fence it. Whatever load is in flight when it
+ * lands is cancelled. The `goto` on the line before already tolerates exactly
+ * this (`.catch(() => {})`, documented in `ensurePetFound`'s docblock); the
+ * reload right after it did not, and got the same race with none of the
+ * tolerance.
+ *
+ * WHY A RETRY AND NOT A WAIT. The two obvious fixes are both barred here.
+ * Waiting for the post-action URL is forbidden by name (e2e/README.md, "Never
+ * wait on a post-action URL") because that navigation is precisely the thing
+ * known to drop — waiting on something optional turns a flake into a hang.
+ * `networkidle` does not fence it either: `assign()` can fire after the network
+ * went quiet, which is how this survived a `waitForLoadState` in the sibling
+ * copy in crisis-seams.spec.ts. So the honest move is to let the competing
+ * navigation WIN, let it land, and take the fresh document from there.
+ *
+ * WHY SWALLOWING THE SECOND ABORT CANNOT BUY A FALSE GREEN. This function
+ * asserts nothing; it is a freshness device. The document it settles on after
+ * an abort was loaded by a navigation that started AFTER ours, so it is never
+ * staler than the one we asked for — and the assertions in `ensurePetFound`
+ * are auto-retrying with 20s budgets and their own messages, so a stale or
+ * wrong page fails them. The only outcome removed here is a red raised by a
+ * helper that was not testing anything.
+ */
+async function reloadPastCompetingNavigation(page: Page): Promise<void> {
+  for (let attempt = 1; attempt <= 2; attempt++) {
+    try {
+      await page.reload({ waitUntil: "domcontentloaded" });
+      return;
+    } catch (error) {
+      if (!isSupersededNavigation(error)) throw error;
+      // The page's own navigation won. Let it commit before asking again;
+      // if it wins the second time too, its document is the fresh one and
+      // the caller's assertions judge it.
+      await page.waitForLoadState("domcontentloaded").catch(() => {});
+    }
+  }
+}
+
+/**
  * Force a pet back to the ACTIVE state, and PROVE it — the mark-found cleanup
  * every lost-marking spec runs in its `finally`.
  *
@@ -431,7 +499,13 @@ export const MARK_FOUND_BUTTON = /^marcar como encontrada$/i;
  * The goto → reload pair is the freshness idiom crisis-seams measured: the
  * found action fires its own client-side navigation on its own schedule, so
  * the first goto can lose that race as net::ERR_ABORTED (not a page failure),
- * and the reload re-establishes a deterministic fresh document either way.
+ * and the reload re-establishes a fresh document afterwards.
+ *
+ * THE RELOAD LOSES THE SAME RACE, and for two CI runs it was the only half of
+ * the pair with no tolerance for it — the sentence that used to end this
+ * paragraph, "either way", was simply wrong about the second line. It is
+ * `reloadPastCompetingNavigation` now; the reasoning, the two run ids and why a
+ * URL wait is not the fix are in that function's docblock.
  *
  * A POSITIVE MARKER RUNS FIRST, on purpose: `[data-section="lost-case-block"]`
  * having count 0 is also true of a login redirect, a 404, or any other page
@@ -469,7 +543,7 @@ export async function ensurePetFound(page: Page, token: string): Promise<void> {
       .catch(() => {});
   }
   await page.goto(`/mis-mascotas/${token}`, { waitUntil: "domcontentloaded" }).catch(() => {});
-  await page.reload({ waitUntil: "domcontentloaded" });
+  await reloadPastCompetingNavigation(page);
   await expect(
     page.getByRole("link", { name: /marcar como perdida/i }),
     `pet ${token} does not show the owner's "Marcar como perdida" control after the mark-found cleanup — this is not the pet's profile in its active state (dropped session, wrong page, or the write failed)`,

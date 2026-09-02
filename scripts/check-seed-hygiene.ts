@@ -134,7 +134,7 @@ export async function findNotificationHygieneOffenders(
 }
 
 /**
- * Accounts that must hold NO organization membership, and that legitimately
+ * Accounts that must hold NO ACTIVE organization membership, and that legitimately
  * OWN PETS — so they cannot join RESERVED_ACCOUNT_EMAILS, whose whole contract
  * is emptiness (scripts/seed-reserved-accounts.ts, and the static fence in
  * __tests__/seed-reserved-accounts.test.ts that forbids spelling a reserved
@@ -208,7 +208,7 @@ export async function findReservedAccountOffenders(
               (SELECT count(*) FROM ownerships o
                 WHERE o.owner_user_id = u.id AND o.ended_at IS NULL)::text AS pet_count,
               (SELECT count(*) FROM organization_memberships m
-                WHERE m.user_id = u.id)::text AS membership_count
+                WHERE m.user_id = u.id AND m.left_at IS NULL)::text AS membership_count
          FROM auth.users u
         WHERE lower(u.email) = lower($1)`,
       [email],
@@ -233,12 +233,23 @@ export async function findReservedAccountOffenders(
       });
     }
 
+    // ACTIVE ONLY — `left_at IS NULL`, the same predicate role-landing itself
+    // uses (lib/infra/role-landing.ts, three `isNull(organizationMemberships
+    // .leftAt)` clauses) and the same shape as the pet count above, which has
+    // always said `ended_at IS NULL` and called the result "active".
+    //
+    // The word was right and the count was wrong, and the mismatch had teeth:
+    // a membership someone properly ENDED changes no landing and breaks no
+    // spec, but it made this gate red — and the failure text below forbids
+    // deleting rows to clear it, so the only exits were an untrue "fix
+    // whatever assigned them" or a hand-edit of the row. A guard whose only
+    // remedy is to disobey its own instructions is a guard people switch off.
     const membershipCount = Number(row.membership_count);
     if (membershipCount > 0) {
       offenders.push({
         email,
         issue: "has_org_membership",
-        detail: `${membershipCount} organization membership(s) — an owner with an active org-admin membership lands on /org (lib/infra/role-landing.ts rule 7), not on the owner surface every e2e spec asserts against`,
+        detail: `${membershipCount} active organization membership(s) — an owner with an active org-admin membership lands on /org (lib/infra/role-landing.ts rule 7), not on the owner surface every e2e spec asserts against`,
       });
     }
   }
@@ -309,7 +320,7 @@ async function runCheck(): Promise<void> {
   }
 
   console.log(
-    `✓ Seed hygiene clean — 0 seed-marker hits across ${RENDERABLE_TEXT_COLUMNS.length} renderable column(s), 0 notification-hygiene offenders, ${RESERVED_ACCOUNT_EMAILS.length} reserved account(s) still empty, ${NO_ORG_MEMBERSHIP_EMAILS.length} owner account(s) still in no organization.`,
+    `✓ Seed hygiene clean — 0 seed-marker hits across ${RENDERABLE_TEXT_COLUMNS.length} renderable column(s), 0 notification-hygiene offenders, ${RESERVED_ACCOUNT_EMAILS.length} reserved account(s) still empty, ${NO_ORG_MEMBERSHIP_EMAILS.length} owner account(s) still in no active organization membership.`,
   );
 }
 

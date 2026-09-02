@@ -253,8 +253,26 @@ function code(src: string): string {
   return out;
 }
 
-/** Every non-test source file under the scanned roots, with its contents. */
+/**
+ * Every non-test source file under the scanned roots, with its contents.
+ *
+ * MEMOISED, per call, for the whole file (2026-09-02). Every predicate below
+ * starts from this walk and each test re-asks for it — ~1400 files read from
+ * disk, a dozen times over. Run 1 of `pnpm test:verified` in gate 0901f timed
+ * out at the 5000 ms default here, immediately after `pnpm verify`'s Next build
+ * had just written `.next` and left the page cache cold; run 2 over the same
+ * tree took 3915 ms. The 30 s ceiling below bought room; this removes the cost.
+ *
+ * The cache is safe because the tree does NOT change during a run — the repo
+ * forbids editing files while a gate is in flight for exactly the reason that
+ * would break it — and because `code()` already memoises the stripped form of
+ * the same contents, so the two caches now have the same lifetime. Nothing here
+ * mutates a `Source`; the RED controls all build their own inline fixtures and
+ * never touch this list.
+ */
+let sourcesCache: Source[] | null = null;
 function allSources(): Source[] {
+  if (sourcesCache !== null) return sourcesCache;
   const found: Source[] = [];
   for (const root of SCAN_ROOTS) {
     const abs = join(ROOT, root);
@@ -269,7 +287,8 @@ function allSources(): Source[] {
       });
     }
   }
-  return found.sort((a, b) => a.file.localeCompare(b.file));
+  sourcesCache = found.sort((a, b) => a.file.localeCompare(b.file));
+  return sourcesCache;
 }
 
 /** Every file that resolves a public credential token — in CODE, not in prose. */
@@ -542,12 +561,16 @@ function guardPrecedesLookup(src: string): boolean {
 // The fence, over the real tree
 // ---------------------------------------------------------------------------
 
-// This suite does a cold recursive walk of app/ + src/ per call (allSources()
-// is not memoized) — gate 0901f: pnpm test:verified run 1 timed out at
-// 5000ms here right after pnpm verify's Next build had just written .next;
-// run 2 over the same tree took 3915ms. Whole file measured 3316-4347ms
-// across four clean runs, no single test >=2s. 30s matches the repo's
-// DB-case convention; memoizing allSources() is a separate, later follow-up.
+// This suite reads app/ + src/ off disk once and reuses it (allSources() is
+// memoised above; that WAS the "separate, later follow-up" this comment used to
+// promise, landed 2026-09-02). The ceiling stays where it is: the FIRST call
+// still pays the full recursive walk, and gate 0901f measured what that costs
+// on a cold page cache — pnpm test:verified run 1 timed out at the 5000ms
+// default here right after pnpm verify's Next build had just written .next,
+// while run 2 over the same tree took 3915ms. Whole file measured 3316-4347ms
+// across four clean runs before the memo, no single test >=2s. 30s matches the
+// repo's DB-case convention and is headroom for that first walk, not a budget
+// the suite is expected to spend.
 const SCAN_BUDGET = { timeout: 30_000 };
 
 describe("public-token routes are rate limited", SCAN_BUDGET, () => {
@@ -727,9 +750,10 @@ describe("public-token routes are rate limited", SCAN_BUDGET, () => {
 // ---------------------------------------------------------------------------
 
 // Same budget: ONE control below — the "real tree does NOT look like that"
-// half of the first test — calls publicTokenPages() and walks the tree cold.
-// The rest run against inline fixtures and cost nothing. One cold walk is the
-// same cost class as the suites above, so this describe inherits their ceiling
+// half of the first test — calls publicTokenPages() over the real tree. The
+// rest run against inline fixtures and cost nothing. It shares the memoised
+// walk with the suites above (and pays for it in full if this describe is the
+// one that runs first under a `-t` filter), so it inherits their ceiling
 // instead of a hand-tuned one.
 describe("the fence bites", SCAN_BUDGET, () => {
   it("flags a src resolver that takes no limiter at all", () => {

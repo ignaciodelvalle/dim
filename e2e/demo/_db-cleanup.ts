@@ -103,15 +103,6 @@ function announceUndeclared(): void {
 }
 
 /**
- * Delete every pet whose name starts with `prefix`, plus the rows that hang off
- * it. Returns how many pets were removed.
- *
- * `pet_events` has a BEFORE DELETE trigger enforcing the append-only spine; the
- * sanctioned escape hatch is the same GUC pair the vitest helpers use
- * (__tests__/_helpers/db-overrides.ts), set LOCAL inside the transaction so it
- * cannot leak to another session.
- */
-/**
  * Reset the auth login rate-limit buckets (fixture cleanup, NOT a weakening
  * of the control).
  *
@@ -287,6 +278,28 @@ export async function deleteTagsByLotePrefix(prefix: string): Promise<number> {
   }
 }
 
+/**
+ * Delete every pet whose name starts with `prefix`, plus the rows that hang off
+ * it. Returns how many pets were removed.
+ *
+ * (This docblock used to sit ~180 lines above, stranded on top of
+ * `resetAuthLoginRateLimits`, where it read as that function's contract. Moved
+ * onto the function it describes in the same commit that fixed the delete order
+ * below — a comment attached to the wrong function is worse than none.)
+ *
+ * `pet_events` has a BEFORE DELETE trigger enforcing the append-only spine; the
+ * sanctioned escape hatch is the same GUC pair the vitest helpers use
+ * (__tests__/_helpers/db-overrides.ts), set LOCAL inside the transaction so it
+ * cannot leak to another session.
+ *
+ * THE CHILD ROWS ARE NOT A STYLE CHOICE — one of them is load-bearing. Every
+ * table that points at `pets.id` carries `ON DELETE CASCADE` (migration 0038
+ * swept the whole set) EXCEPT `pet_tags`, which arrived later, in 0169, as a
+ * bare `pet_id uuid REFERENCES public.pets(id)` — i.e. NO ACTION. See the
+ * comment on that DELETE below for what its absence costs.
+ *
+ * LOCAL ONLY — a no-op against any non-local database.
+ */
 export async function deletePetsByNamePrefix(prefix: string): Promise<number> {
   const target = resolveCleanupTarget();
   if (target.kind === "undeclared") {
@@ -324,6 +337,24 @@ export async function deletePetsByNamePrefix(prefix: string): Promise<number> {
       await tx`DELETE FROM pet_events WHERE pet_id = ANY(${ids}::uuid[])`;
       await tx`DELETE FROM ownerships WHERE pet_id = ANY(${ids}::uuid[])`;
       await tx`DELETE FROM pet_identifications WHERE pet_id = ANY(${ids}::uuid[])`;
+      // pet_tags IS THE ONE CHILD THAT HAD TO BE NAMED, and it was missing.
+      // Its FK is `pet_id uuid REFERENCES public.pets(id)` with no ON DELETE
+      // (db/migrations/0169_pet_tags.sql:44) — the only non-CASCADE reference
+      // to `pets.id` left in the schema. So a single activated chapa on a
+      // doomed pet raises 23503 on the DELETE below, the whole transaction
+      // rolls back, and NO pet is removed: the pile this file exists to
+      // prevent comes back in full, quietly, the first time a spec activates a
+      // tag on a pet it registered. Latent today only because chapas.spec.ts
+      // binds its lote to a SEEDED owner pet, which no prefix here sweeps.
+      //
+      // DELETED, NOT DETACHED. The `pet_tags_state_machine` check forbids an
+      // `active`/`revoked` row with a NULL pet_id (0169:57-60), so "orphan the
+      // chapa" is not an option the schema offers — and a chapa bound to a
+      // test pet is spec-manufactured stock, the same thing
+      // deleteTagsByLotePrefix removes by lote. The `tag_activated` /
+      // `tag_revoked` events it produced are already gone with the pet's
+      // events above.
+      await tx`DELETE FROM pet_tags WHERE pet_id = ANY(${ids}::uuid[])`;
       await tx`DELETE FROM pets WHERE id = ANY(${ids}::uuid[])`;
     });
     return ids.length;

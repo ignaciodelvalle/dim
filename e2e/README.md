@@ -24,7 +24,12 @@ NEXT_BUILT=1 pnpm playwright test e2e/crisis-public.spec.ts
 NEXT_BUILT=1 pnpm playwright test e2e/crisis-*.spec.ts
 ```
 
-`pnpm e2e` is a shorthand for `playwright test` (see `package.json`).
+`pnpm e2e` is `playwright test` with `.env.local` (then `.env`) loaded first —
+so the local-DB cleanups in `demo/_db-cleanup.ts` get their `DATABASE_URL`
+without anyone exporting it by hand, and the run prints which host they will be
+allowed to touch. A variable already in the environment always wins, so CI's
+explicit `env:` block is untouched. See `scripts/run-e2e.ts`; a bare
+`pnpm exec playwright test` still loads nothing.
 
 ## Layout
 
