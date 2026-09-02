@@ -284,6 +284,11 @@ test.describe("crisis seams — cross-POV critical journeys", () => {
       }
     } finally {
       // Never leave the owner's pet in the lost state for other suites / demos.
+      // The body switches actors (admin for the /gob board, owner after), so a
+      // throw on the admin leg would hand the cleanup an admin session — and
+      // ensurePetFound would then fail its own "sheet never mounted" assertion
+      // instead of curing the leak. Re-establish the owner unconditionally.
+      await relogin(page, ACCOUNTS.owner);
       await ensurePetFound(page, token);
     }
   });
