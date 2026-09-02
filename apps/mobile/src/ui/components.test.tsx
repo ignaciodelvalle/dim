@@ -4,9 +4,12 @@
 // a hardcoded `tel:` used to get wrong for an email value.
 
 import { describe, expect, it, jest } from "@jest/globals";
-import { render, screen } from "@testing-library/react-native";
+import { fireEvent, render, screen } from "@testing-library/react-native";
 
-const mockOpenURL = jest.fn<(url: string) => Promise<unknown>>();
+// Resolved by default: the component chains `.catch()` off the return value,
+// and an unmocked `jest.fn()` resolves that call against `undefined`, not a
+// promise.
+const mockOpenURL = jest.fn<(url: string) => Promise<unknown>>().mockResolvedValue(undefined);
 
 jest.mock("expo-linking", () => ({ openURL: (url: string) => mockOpenURL(url) }));
 
@@ -18,6 +21,12 @@ describe("email value", () => {
     const link = screen.getByRole("link", { name: /^escribir a juan@example\.com$/i });
     expect(link).toBeOnTheScreen();
   });
+
+  it("opens mailto: on press, not tel: — the failure mode this row used to have", () => {
+    render(<ContactRow label="Contacto" value="juan@example.com" />);
+    fireEvent.press(screen.getByRole("link", { name: /^escribir a juan@example\.com$/i }));
+    expect(mockOpenURL).toHaveBeenCalledWith("mailto:juan@example.com");
+  });
 });
 
 describe("phone value", () => {
@@ -25,6 +34,12 @@ describe("phone value", () => {
     render(<ContactRow label="Contacto" value="+54 294 412-3456" />);
     const link = screen.getByRole("link", { name: /^llamar al \+54 294 412-3456$/i });
     expect(link).toBeOnTheScreen();
+  });
+
+  it("opens tel: on press, sanitized to digits and a leading +", () => {
+    render(<ContactRow label="Contacto" value="+54 294 412-3456" />);
+    fireEvent.press(screen.getByRole("link", { name: /^llamar al \+54 294 412-3456$/i }));
+    expect(mockOpenURL).toHaveBeenCalledWith("tel:+542944123456");
   });
 });
 

@@ -62,6 +62,7 @@ const easJson = readJson("eas.json") as {
       developmentClient?: boolean;
       autoIncrement?: boolean;
       android?: { buildType?: string };
+      env?: Record<string, string>;
     }
   >;
 };
@@ -126,6 +127,60 @@ describe("EAS build profiles", () => {
     expect(easJson.build.production?.android?.buildType).toBe("app-bundle");
     expect(easJson.build.production?.distribution).toBe("store");
     expect(easJson.build.production?.autoIncrement).toBe(true);
+  });
+});
+
+describe("EAS build profile env", () => {
+  // WHY THIS LIVES IN eas.json AND NOT ONLY IN config/api.ts's FALLBACKS.
+  // Expo inlines EXPO_PUBLIC_* at bundle time, and an EAS build sets
+  // process.env from the profile's `env` block before that inlining runs —
+  // so a value missing or wrong here is baked into the binary permanently,
+  // unlike a runtime misconfiguration a person can still correct.
+  //
+  // THE ANON KEY IS DELIBERATELY ABSENT FROM THIS FILE. config/api.ts reads
+  // it as EXPO_PUBLIC_SUPABASE_ANON_KEY, but it is set as an EAS environment
+  // variable (created 2026-08-27), not a value in this committed JSON — a
+  // key belongs in EAS's own store, not in git history. The exact-key-set
+  // assertion below is what would catch it landing here by accident.
+
+  it.each(["development", "preview", "production"])(
+    "names exactly the two vars config/api.ts reads, on %s",
+    (profile) => {
+      const env = easJson.build[profile]?.env ?? {};
+      expect(Object.keys(env).sort()).toEqual([
+        "EXPO_PUBLIC_API_BASE_URL",
+        "EXPO_PUBLIC_SUPABASE_URL",
+      ]);
+    },
+  );
+
+  it("points production at a real domain, never staging's default or a preview host", () => {
+    // The staging URL is config/api.ts's OWN fallback for a build with no env
+    // at all — asserting production differs from it is what catches a
+    // profile block copy-pasted from development/preview with the value
+    // never swapped in.
+    const productionApi = easJson.build.production?.env?.EXPO_PUBLIC_API_BASE_URL;
+    expect(productionApi).not.toBe("https://dim-staging.vercel.app");
+    expect(productionApi).not.toMatch(/\.vercel\.app$/);
+  });
+
+  it("carries only https:// URLs in every profile's env", () => {
+    for (const profile of ["development", "preview", "production"]) {
+      const env = easJson.build[profile]?.env ?? {};
+      for (const value of Object.values(env)) {
+        expect(value).toMatch(/^https:\/\//);
+      }
+    }
+  });
+
+  it("never names an env var that reads as a credential — those stay EAS environment variables, not committed JSON", () => {
+    const forbidden = /key|secret|token|dsn/i;
+    for (const profile of ["development", "preview", "production"]) {
+      const env = easJson.build[profile]?.env ?? {};
+      for (const name of Object.keys(env)) {
+        expect(name).not.toMatch(forbidden);
+      }
+    }
   });
 });
 

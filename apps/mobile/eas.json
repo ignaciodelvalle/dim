@@ -8,6 +8,10 @@
       "developmentClient": true,
       "distribution": "internal",
       "channel": "development",
+      "env": {
+        "EXPO_PUBLIC_API_BASE_URL": "https://dim-staging.vercel.app",
+        "EXPO_PUBLIC_SUPABASE_URL": "https://agnwyifsdxxoznodutgq.supabase.co"
+      },
       "android": {
         "buildType": "apk"
       }
@@ -15,6 +19,10 @@
     "preview": {
       "distribution": "internal",
       "channel": "preview",
+      "env": {
+        "EXPO_PUBLIC_API_BASE_URL": "https://dim-staging.vercel.app",
+        "EXPO_PUBLIC_SUPABASE_URL": "https://agnwyifsdxxoznodutgq.supabase.co"
+      },
       "android": {
         "buildType": "apk"
       }
@@ -23,6 +31,10 @@
       "distribution": "store",
       "channel": "production",
       "autoIncrement": true,
+      "env": {
+        "EXPO_PUBLIC_API_BASE_URL": "https://www.mimar.com.ar",
+        "EXPO_PUBLIC_SUPABASE_URL": "https://agnwyifsdxxoznodutgq.supabase.co"
+      },
       "android": {
         "buildType": "app-bundle"
       }
