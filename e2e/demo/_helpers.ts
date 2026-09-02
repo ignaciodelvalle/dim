@@ -404,6 +404,22 @@ export const MARK_FOUND_BUTTON = /^marcar como encontrada$/i;
  * already-active pet the sheet offers no commit button, the click is skipped,
  * and the profile assertion is already true.
  *
+ * THE SHEET IS WAITED FOR BEFORE THE BUTTON IS COUNTED. `Sheet` (VaulSheet →
+ * Radix Dialog) renders inside a Portal, which mounts only AFTER hydration:
+ * at `domcontentloaded` neither the commit button nor the not-lost notice
+ * exists yet. The first version of this helper counted the button straight
+ * after the goto, and on CI — run 33568726968, the first one to carry the
+ * assertion — the count answered 0 some 300 ms after navigation, the click
+ * was skipped, the pet stayed lost, and the assertion fired exactly as
+ * designed (trace: goto 6.6 s, count 6.9 s, goto 6.9 s, no click). The
+ * inline cleanups it replaced had the same race and never noticed, because
+ * their regex was already dead. crisis-seams never hit it: its body commits
+ * the found action behind a real `toBeVisible` wait, so its cleanup only ever
+ * takes the already-active branch. Waiting on `data-sheet-id` — the `id` prop
+ * both branches pass — decides "is there something to click" on a mounted
+ * sheet, and stays a plain count afterwards because the not-lost branch is a
+ * legitimate "nothing to click", not a failure.
+ *
  * The goto → reload pair is the freshness idiom crisis-seams measured: the
  * found action fires its own client-side navigation on its own schedule, so
  * the first goto can lose that race as net::ERR_ABORTED (not a page failure),
@@ -421,10 +437,21 @@ export async function ensurePetFound(page: Page, token: string): Promise<void> {
   await page
     .goto(`/mis-mascotas/${token}?sheet=marcar-encontrada`, { waitUntil: "domcontentloaded" })
     .catch(() => {});
-  const confirm = page.getByRole("button", { name: MARK_FOUND_BUTTON });
-  if ((await confirm.count().catch(() => 0)) > 0) {
-    await confirm.click().catch(() => {});
-    await page.waitForLoadState("networkidle").catch(() => {});
+  const sheet = page.locator('[data-sheet-id="marcar-encontrada"]');
+  await expect(
+    sheet,
+    `the marcar-encontrada sheet never mounted for pet ${token} — the owner session dropped, this is not the pet's profile, or hydration failed`,
+  ).toBeVisible({ timeout: 20_000 });
+  const confirm = sheet.getByRole("button", { name: MARK_FOUND_BUTTON });
+  if ((await confirm.count()) > 0) {
+    await confirm.click();
+    // setPetFoundAction returns `redirectTo` only after the write committed,
+    // and useActionRedirect then loads the profile URL without `?sheet=`; the
+    // URL losing the param is the write landing. A miss here is not fatal —
+    // the assertions below judge the state on a fresh document either way.
+    await page
+      .waitForURL((url) => !url.searchParams.has("sheet"), { timeout: 20_000 })
+      .catch(() => {});
   }
   await page.goto(`/mis-mascotas/${token}`, { waitUntil: "domcontentloaded" }).catch(() => {});
   await page.reload({ waitUntil: "domcontentloaded" });
