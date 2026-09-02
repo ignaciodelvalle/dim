@@ -726,8 +726,11 @@ describe("public-token routes are rate limited", SCAN_BUDGET, () => {
 // fence nobody has proved works.
 // ---------------------------------------------------------------------------
 
-// Same budget: the "real tree does NOT look like that" controls below call
-// publicTokenPages() and walk the tree cold, exactly like the suite above.
+// Same budget: ONE control below — the "real tree does NOT look like that"
+// half of the first test — calls publicTokenPages() and walks the tree cold.
+// The rest run against inline fixtures and cost nothing. One cold walk is the
+// same cost class as the suites above, so this describe inherits their ceiling
+// instead of a hand-tuned one.
 describe("the fence bites", SCAN_BUDGET, () => {
   it("flags a src resolver that takes no limiter at all", () => {
     const fixture = `
