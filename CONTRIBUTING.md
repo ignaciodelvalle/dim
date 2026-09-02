@@ -75,7 +75,7 @@ Run these locally before pushing. Don't outsource this to CI:
 
 ```bash
 pnpm verify            # one shot: typecheck + ~30 fitness fences + build
-pnpm test              # Vitest, both projects (db project needs db:start)
+pnpm test:verified     # Vitest, both projects — not `pnpm test`, whose exit code lies when a worker dies mid-file (db project needs db:start)
 pnpm test:unit         # parallel no-DB project only (~30s, no Docker needed)
 pnpm test:e2e:smoke    # Playwright smoke (public routes + owner lost-mode flow)
 ```
@@ -87,7 +87,7 @@ before pushing feature ranges that touch **public or lost-mode surfaces**
 (`/p/[token]`, `/encontre`, `/perdidas`, mark-lost, landing). The full suite
 also runs nightly against staging (`.github/workflows/e2e-nightly.yml`).
 
-`pnpm verify` is the static gate: tsc + Biome + the full fitness-fence chain (design tokens, UI invariants, authz guards, dep-direction, RLS coverage, file-size/uuid/plural/eyebrow ratchets, jscpd duplication ceiling, and the rest of the `lint:*` scripts in package.json — that list is the source of truth) + `next build`. **`next build` is non-negotiable** — it catches `"use server"` export, `server-only`, and module-level-evaluation errors that `tsc` and Vitest do *not*. Then run `pnpm test`: the `unit` project runs in parallel with no database; the serial `db` project needs the local Supabase stack via `pnpm db:start`.
+`pnpm verify` is the static gate: tsc + Biome + the full fitness-fence chain (design tokens, UI invariants, authz guards, dep-direction, RLS coverage, file-size/uuid/plural/eyebrow ratchets, jscpd duplication ceiling, and the rest of the `lint:*` scripts in package.json — that list is the source of truth) + `next build`. **`next build` is non-negotiable** — it catches `"use server"` export, `server-only`, and module-level-evaluation errors that `tsc` and Vitest do *not*. Then run `pnpm test:verified`, not `pnpm test`: it runs the same Vitest suite (the `unit` project in parallel with no database; the serial `db` project via the local Supabase stack, `pnpm db:start`) but fails loudly instead of reporting green when a worker dies mid-file.
 
 If a step fails on your branch but passes on `develop`, your branch is the source. Fix it before opening the PR.
 

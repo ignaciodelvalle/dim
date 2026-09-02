@@ -28,9 +28,13 @@ forward-only no-op when the DB is already up to date, so it is safe to run on
 every deploy, including code-only changes.
 
 > Run it from the staging working tree (`chore/hobby-preview` — `develop` + the
-> Hobby cron config). The Vercel project is not git-connected; the deploy ships
-> the current working directory, archived (`--archive=tgz`) because the tree has
-> too many files for the default upload.
+> Hobby cron config). The Vercel project (`dim-staging`) **is git-connected** —
+> verified 2026-09-02 via the Vercel API — so every push to `main` also
+> auto-deploys code on its own. That auto-deploy ships code only, never
+> migrations, so `pnpm deploy:staging` still matters: it is the only path that
+> applies migrations, and it pairs that with its own manual, archived deploy
+> (`--archive=tgz`, because the tree has too many files for the default upload)
+> rather than relying on the git-triggered deploy to carry the schema forward.
 
 ---
 

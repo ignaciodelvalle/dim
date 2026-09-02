@@ -7,7 +7,10 @@ their gotchas.
 
 > First executed: 2026-06-14, staging (project `DIM`, ref `<project-ref>`,
 > region `sa-east-1`). Result: 95 migrations, 44 functions, 7 triggers,
-> 64 RLS policies, 7 buckets, 4075 localities.
+> 64 RLS policies, 7 buckets, 4075 localities. That `DIM` project is now
+> INACTIVE — the live staging project is `DIM-staging`. Before reusing this
+> runbook against `DIM`, delete it or fully re-migrate it; never restore or
+> bootstrap onto its stale schema.
 
 ---
 

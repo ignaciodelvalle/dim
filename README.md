@@ -57,7 +57,7 @@ The `account_type ↔ role` invariant (personal→{owner,vet}, institutional→{
 | ORM              | Drizzle                                 |
 | File storage     | Supabase Storage                        |
 | Lint / format    | Biome                                   |
-| Tests            | Vitest (strict TDD) — split into a parallel `unit` project (no DB) and a serial `db` project (against local Postgres); `pnpm test` runs both |
+| Tests            | Vitest (strict TDD) — split into a parallel `unit` project (no DB) and a serial `db` project (against local Postgres); run `pnpm test:verified`, not `pnpm test` — its exit code lies when a worker dies mid-file |
 | Local dev        | Supabase CLI (Docker)                   |
 | Deploy (when)    | Vercel + Supabase Cloud                 |
 | Locale           | Spanish (es-AR)                         |

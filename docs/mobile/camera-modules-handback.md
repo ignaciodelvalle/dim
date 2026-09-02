@@ -260,9 +260,10 @@ so the fingerprint CHANGES. Two consequences, both by design:
 
 Per `eas-build-profiles.md`: `development` is the PO's own iteration build,
 `preview` is the testers' APK, `production` is the Play `.aab`. This change
-rides the **same release as build 6** — the one PO-gated item 1 already owes
-Play, because build 5 shipped without `EXPO_PUBLIC_SUPABASE_*` and cannot sign
-in. One release, both fixes: the env vars and the camera modules. Do not spend
+rides the **same release as build 7** — the one PO-gated item 1 already owes
+Play (build 6, tree `371a2122`, was never uploaded), because build 5 shipped
+without `EXPO_PUBLIC_SUPABASE_*` and cannot sign in. One release, both fixes:
+the env vars and the camera modules. Do not spend
 two `versionCode`s where one release serves (every build burns one,
 `autoIncrement` — the tally in that doc is the record).
 
@@ -275,7 +276,7 @@ Order, with the owner of each step:
 | 3 | Commit the two adapters above + the two `set…Port` lines + the config plugins; `pnpm --filter mimar exec tsc --noEmit` and the mobile Jest suite green; full `pnpm verify` + `pnpm test:verified` per the Definition of Done | agent, same window as 2 |
 | 4 | `npx eas-cli build --profile development --platform android`, install on the PO's device, walk the two flows against staging (checklist below) | **PO** (agent can watch logs) |
 | 5 | `--profile preview` for the 12 testers, **with `EXPO_PUBLIC_SUPABASE_*` set** — the build-5 lesson; they are baked at build time | **PO** |
-| 6 | `--profile production`, upload to Play internal testing as build 6 | **PO** |
+| 6 | `--profile production`, upload to Play internal testing as build 7 | **PO** |
 
 ---
 
@@ -305,12 +306,13 @@ What changes in the form:
   regress it.
 
 The form is edited in Play Console → App content → Data safety, and the edit
-must be submitted **before or together with** build 6's rollout, never after.
+must be submitted **before or together with** build 7's rollout, never after.
 
 ### The rest of the PO list, unchanged
 
-Items 1 (build 6 with the env vars) and 3–11 of the board's PO-gated list are
-untouched by this handback; item 1 simply gains a second reason to happen.
+Items 1 (build 7 with the env vars — build 6 was never uploaded) and 3–11 of
+the board's PO-gated list are untouched by this handback; item 1 simply gains
+a second reason to happen.
 
 ---
 

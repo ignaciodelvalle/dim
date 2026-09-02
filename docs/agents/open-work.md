@@ -32,7 +32,7 @@ artifact, which the PO keeps updated.
 | Milestone | What it means | State |
 |---|---|---|
 | **M6** | "A citizen installs the app and registers their pet" — install → sign up → sign in → register → credential + QR + offline cache → owner's pet view → health record → lost mode → share → P2P transfer → temporary caretaker | **Parity side complete.** No parity box gates M6 any more. |
-| M6 remainder | What still gates the launch is **not** parity: build 6 must replace the broken build 5 on Play, and the Data Safety form must match the binary | PO-gated, see below |
+| M6 remainder | What still gates the launch is **not** parity: build 7 must replace the broken build 5 on Play (build 6 was never uploaded), and the Data Safety form must match the binary | PO-gated, see below |
 | M7+ | The six remaining parity clusters (WU-P/R/S/T/U/V). None gates launch — the web already serves all of them | open |
 
 ## Open work an agent can pick up
@@ -845,7 +845,7 @@ the staging secrets are not merely empty at runtime, they **do not exist**.
 
 Listed so you recognise them and hand them over instead of trying.
 
-1. Upload **build 6** to Play. Build 5 is published and **cannot sign in** — it shipped without `EXPO_PUBLIC_SUPABASE_*`, which are baked at build time.
+1. Upload **build 7** to Play (build 6, tree `371a2122`, was never uploaded). Build 5 is published and **cannot sign in** — it shipped without `EXPO_PUBLIC_SUPABASE_*`, which are baked at build time.
 2. Revise the **Data Safety** form before any build with uploads reaches Play. It declared on 27/08 that the app does not collect photos; that stops being true the moment uploads ship, and a form that no longer matches the binary is a policy violation by itself.
 3. Apply migrations **0205, 0206, 0207 and 0208** to staging and production. Written and green locally. **Applying to a remote DB is Ignacio's call, never yours.** **Staging: done 2026-09-01** — the PO ran `--status` → `--dry-run` → `pnpm db:migrate` → `pnpm db:migrate:check` against the staging pooler, and the check reports `Applied 209 / Pending 0`, i.e. 0205–0210 (the two welfare ones from this row's item 8 included), BEFORE the push that needs them. Production stays on this row. **This row said three until 2026-08-31 and there are four** — `0208_subject_rights_watermarks_tag_interest_org_invitations.sql` was written 2026-08-29 (`eb4ae835c`) and no list was recounted. It was found the way this repo's rotted numbers usually are: not by reading, but by a fence going red — `check-subject-rights-coverage` failed on the three tables that migration adds, because the local database did not have it either. Recount with `pnpm db:migrate:status`, never off this line.
 4. Resend email setup (domain verification → API key → SMTP in Supabase → env in Vercel). Until it lands, the 6-digit password-recovery code does not travel and the screen promises what the mail does not deliver.
@@ -2663,15 +2663,16 @@ What it did **not** solve, and none of it is agent-blocked:
 
 - **The modules and the build.** `expo-image-picker`, `expo-image-manipulator`
   (not optional — it is the HEIC conversion AND the EXIF/GPS strip),
-  `expo-camera`; the fingerprint changes; the release is the SAME build 6 the
-  PO already owes Play (PO-gated item 1), so one release serves both and burns
-  one `versionCode`. Order and owners are in the handback doc.
+  `expo-camera`; the fingerprint changes; the release is the SAME build 7 the
+  PO already owes Play (PO-gated item 1; build 6 was never uploaded), so one
+  release serves both and burns one `versionCode`. Order and owners are in the
+  handback doc.
 - **The Data Safety form is the FIRST step and it is the PO's** — PO-gated
   item 2, restated here because the handback doc now depends on it: the form
   declared on 27/08 that the app does not collect photos, that stops being
   true the moment a build with these modules reaches Play, and a form that no
   longer matches the binary is a policy violation by itself. Revise it before
-  or with build 6's rollout, never after.
+  or with build 7's rollout, never after.
 - **Two comments will grow half-stale the day the adapters land**, reported
   rather than pre-edited: `ClaimScreen.tsx`'s header and
   `claim-view-model.ts`'s both argue the dispute refusal partly from "this

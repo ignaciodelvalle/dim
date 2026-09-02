@@ -12,7 +12,7 @@ Both platforms are already provisioned from the May–June preview deploys. We a
 
 | Platform | What exists | State |
 |---|---|---|
-| **Vercel** | Project `<vercel-scope>/<project>`, git-integration auto-deploys Preview per push, prod URL `<prod-url>.vercel.app`, **no custom domain** | CLI authenticated (`<vercel-account>`), repo linked |
+| **Vercel** | Project `<vercel-scope>/<project>`, git-integration auto-deploys per push (Production target on `main`, Preview otherwise), prod URL `<prod-url>.vercel.app`, **no custom domain** | CLI authenticated (`<vercel-account>`), repo linked |
 | **Supabase** | One project `DIM` (`<project-ref>`, region `sa-east-1`, Postgres 17, healthy) | **STAGING** — 15 users, 2069 seed pets. NOT production data |
 | **Migrations** | Remote applied 106, latest `0107`; local repo at `0117` | **Remote is 10 behind** (`0108`–`0117`), incl. the security-advisor fixes `0113`/`0114` |
 | **DS** | Light-only (dark mode disabled in `globals.css`) | — |
@@ -96,7 +96,10 @@ Resolve D1–D5, then:
 
 ### Phase 4 — Post-cutover hardening
 Feeds the capstone readiness assessment (task #20).
-- [ ] Verify Supabase automated backups + do one restore drill.
+- [ ] Verify Supabase automated backups + do one restore drill. Before any
+      restore or reuse of the old `DIM` project (now INACTIVE — `DIM-staging`
+      is the live one), delete it or fully re-migrate it; never restore data
+      onto its stale schema.
 - [ ] Confirm the 21 crons run in prod and record `cron_runs` telemetry (cron-health card green).
 - [ ] Stand up **some** monitoring/alerting (there is none today — a real gap for a government tenant).
 - [ ] Run the production-readiness capstone (task #20) against the live prod deploy.

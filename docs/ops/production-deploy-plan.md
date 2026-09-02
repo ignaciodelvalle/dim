@@ -124,17 +124,22 @@ overall order.
 ## 2. Vercel production setup (ordered)
 
 1. **Confirm the deploy mode first** — this changes the shape of every step
-   after it. `docs/ops/staging-deploy.md` documents that the **staging**
-   Vercel project is explicitly **not git-connected** and is deployed via
-   `npx vercel --prod --archive=tgz` from a specific local working tree.
-   Decide, and record the decision here once made:
-   - **Option A — manual CLI archive** (same model as staging): deploys are
-     an explicit `pnpm deploy:staging`-style command run from a known working
-     tree. Nothing auto-deploys on push.
-   - **Option B — standard GitHub integration**: Vercel auto-deploys on
-     merge to a designated branch. If chosen, migrations must still not
-     auto-apply (see step 5) — the git-integration deploy hook must not run
-     `db:migrate`.
+   after it. Note that the **staging** Vercel project (`dim-staging`) **is
+   git-connected** — every push to `main` auto-deploys code to the Production
+   target (aliases `www.mimar.com.ar` and `dim-staging.vercel.app`), verified
+   2026-09-02 via the Vercel API. That auto-deploy ships code only; migrations
+   still reach the database only through the manual `pnpm deploy:staging`
+   chain (`pnpm verify && tsx scripts/migrate.ts && npx vercel --prod
+   --archive=tgz`, per `docs/ops/staging-deploy.md`). The choice below is
+   about the separate **production** project, which staging's already-settled
+   mode does not decide by itself:
+   - **Option A — manual CLI archive** (same model as staging's migration
+     step): deploys are an explicit `pnpm deploy:staging`-style command run
+     from a known working tree. Nothing auto-deploys on push.
+   - **Option B — standard GitHub integration** (already the model staging's
+     code path uses): Vercel auto-deploys on merge to a designated branch. If
+     chosen, migrations must still not auto-apply (see step 5) — the
+     git-integration deploy hook must not run `db:migrate`.
    Either is workable; what breaks things is leaving it undecided and
    discovering the answer during an incident.
 2. **Environment Variables → Production** — set explicitly, do not rely on
