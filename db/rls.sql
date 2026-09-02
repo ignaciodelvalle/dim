@@ -3,7 +3,9 @@
 -- NOTE (V0-4): This file is now REFERENCE ONLY. The source of truth for
 -- applying RLS is db/migrations/0086_track_rls_in_migrations.sql (applied by
 -- db:migrate and replayed by db:bootstrap step 2). This file is no longer
--- applied by db-bootstrap.ts. Keep edits here in sync with migration 0086.
+-- applied by db-bootstrap.ts. Keep edits here in sync with migration 0086 and
+-- the later migrations that reshaped these policies (0163 ownerships, 0211
+-- profiles).
 -- Enforces per-user isolation on the seven core tables an authenticated owner
 -- touches: profiles, pets, ownerships, pet_events, reminders, attachments,
 -- notifications.
@@ -43,19 +45,31 @@ create policy "Profiles readable by self"
   to authenticated
   using (id = auth.uid());
 
--- UPDATE for self (display_name, phone, avatar). No public form yet, but the
--- policy is needed so future settings UI can update via supabase-js.
-drop policy if exists "Profiles updatable by self" on public.profiles;
-create policy "Profiles updatable by self"
-  on public.profiles
-  for update
-  to authenticated
-  using (id = auth.uid())
-  with check (id = auth.uid());
-
--- No INSERT policy: rows are created by the handle_new_user trigger
--- (security definer, runs as postgres, bypasses RLS). See db/triggers.sql.
--- No DELETE policy: profiles are never owner-deleted.
+-- NO INSERT / UPDATE / DELETE POLICY — deny-all for writes (migration 0211,
+-- fresh-review lens A01).
+--
+-- This table used to carry "Profiles updatable by self"
+-- (for update to authenticated, using / with check `id = auth.uid()`), added
+-- "so future settings UI can update via supabase-js". That UI was never built,
+-- and the policy pinned the ROW without pinning a COLUMN — while `profiles`
+-- holds the three columns the authorization layer trusts (`role`,
+-- `account_type`, `deactivated_at`; read by lib/infra/request-cache.ts and
+-- turned into a verdict by lib/infra/auth-guards.ts). One
+-- PATCH /rest/v1/profiles?id=eq.<self> {"role":"admin",
+-- "account_type":"institutional"}, signed with the caller's own JWT, minted a
+-- universal admin. The same surface cleared `deactivated_at` (undoing a
+-- deactivation) and `deleted_at` (undoing an art. 16 erasure).
+--
+-- Every legitimate writer (update-profile, upload-avatar, complete-identity,
+-- verify-dni, the admin decisions, the self-deactivations, vet-self-resign,
+-- claim-stub-profile, seeds) writes through Drizzle's BYPASSRLS connection,
+-- which never consults these policies; row creation is the handle_new_user
+-- trigger (security definer), which is why there was never an INSERT policy.
+-- Zero legitimate writers reach this table via PostgREST, so the policy that
+-- admits exactly them is no write policy at all.
+--
+-- Profiles are never owner-deleted: deactivation sets deactivated_at and
+-- erasure sets deleted_at — and both writes, too, are server-side only.
 
 -- ============================================================================
 -- pets

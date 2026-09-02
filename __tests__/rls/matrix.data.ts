@@ -177,7 +177,9 @@ export const RLS_MATRIX: RlsMatrix = {
     owner: {
       select: allow("user can read own profile"),
       insert: deny("profile created by trigger, not PostgREST"),
-      update: allow("user can edit own profile"),
+      update: deny(
+        "profile writes go through Drizzle server actions only — PostgREST UPDATE dropped in 0211 (self-escalation of role/account_type)",
+      ),
       delete: deny("profiles are retained (deactivated_at instead)"),
     },
     other_user: {

@@ -42,12 +42,20 @@
 //   name the column.
 //
 //   This paragraph said "the 10 SELECT policies" until 2026-08-29 and that was
-//   wrong twice over: ten is every policy on those tables regardless of
-//   command, and the two that make up the difference are `Pets updatable by
+//   wrong twice over: ten was every policy on those tables regardless of
+//   command, and the two that made up the difference were `Pets updatable by
 //   active owner` and `Profiles updatable by self` — both UPDATE, neither one
 //   a read. The finding does not change (zero is zero), but a reader checking
 //   the claim would have counted ten rows out of a query that returns eight
 //   and had no way to tell which of the two was wrong.
+//
+//   `Profiles updatable by self` NO LONGER EXISTS: migration 0211 dropped it
+//   (a row-scoped, column-blind UPDATE policy let a caller PATCH their own
+//   `role`/`account_type` through PostgREST — see
+//   __tests__/rls/profiles-write-lockdown.test.ts). The paragraph above is
+//   kept as the 2026-08-29 record of how the ten was miscounted; the live
+//   population is one policy smaller. Section 5 still returns the same EIGHT
+//   read policies — dropping an UPDATE policy cannot change a count of reads.
 //
 //   NOT PINNED, AND SAY SO: section 5 asserts `rows.length > 0` as an
 //   anti-vacuous guard, never `=== 8`. So this eight can rot the way the ten

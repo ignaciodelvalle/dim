@@ -1,7 +1,7 @@
 -- Staging repair #2 — 2026-08-05
 --
--- WHAT: recreate the 25 policies across the 11 tables that db:doctor found on
--- staging with RLS enabled and ZERO policies (alert_subscriptions,
+-- WHAT: recreate 24 of the 25 policies across the 11 tables that db:doctor
+-- found on staging with RLS enabled and ZERO policies (alert_subscriptions,
 -- approval_requests, audit_log, govt_assignments, libreta_share_tokens,
 -- notifications, ownerships, pet_transfers, pets, profiles, reminders) —
 -- including ownerships' SELECT policy whose absence failed the 0163 probe.
@@ -17,6 +17,16 @@
 -- pg_policies on 2026-08-05, where ledger and real state agree (db:doctor
 -- clean). Predicates, roles and command scopes are byte-exact from local.
 -- Idempotent (drop if exists + create).
+--
+-- ONE POLICY WAS REMOVED FROM THIS INSTRUMENT (2026-09-02, migration 0211):
+-- "Profiles updatable by self" was generated into this file on 2026-08-05
+-- because it was live locally at the time. Migration 0211 has since DROPPED it
+-- everywhere — a row-scoped, column-blind UPDATE policy on `profiles` let any
+-- authenticated caller PATCH their own `role` / `account_type` and mint an
+-- admin. Re-running this file must NOT resurrect it, so the block is gone and
+-- its absence here is deliberate: profiles keeps only "Profiles readable by
+-- self". Was 25 policies, is 24. Do not regenerate this dated instrument from
+-- a database that predates 0211.
 --
 -- RUN (Ignacio-gated), then re-run the doctor:
 --   node --env-file=.env.staging.local --import tsx scripts/ops/apply-ops-sql.ts \
@@ -170,13 +180,6 @@ create policy "Profiles readable by self"
   on public.profiles for select
   to authenticated
   using ((id = ( SELECT auth.uid() AS uid)));
-
-drop policy if exists "Profiles updatable by self" on public.profiles;
-create policy "Profiles updatable by self"
-  on public.profiles for update
-  to authenticated
-  using ((id = ( SELECT auth.uid() AS uid)))
-  with check ((id = ( SELECT auth.uid() AS uid)));
 
 drop policy if exists "Reminders deletable by self" on public.reminders;
 create policy "Reminders deletable by self"
