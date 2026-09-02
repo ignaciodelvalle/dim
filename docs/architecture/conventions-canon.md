@@ -286,14 +286,16 @@ Ids folded into another row during extraction. Kept so an old citation still res
 ## Unmapped enforcers
 
 Enforcement machinery that exists in the tree and that NO canon row cites. Every
-`lint:*` key in `package.json`, every `scripts/check-*.ts`, and every
-`__tests__/**/*{fence,parity,coverage}*.test.ts` is either cited by a row's enforcer
-or listed here. The parity fence pins this list's length: it may be lowered by hand
-when a row learns to cite one of these, never raised in silence.
+`lint:*` key in `package.json`, every `scripts/check-*.ts`, every
+`__tests__/**/*{fence,parity,coverage}*.test.ts`, and every path listed in the parity
+fence's `EXTRA_FENCES` (fences whose FILENAME hides them from that glob) is either
+cited by a row's enforcer or listed here. The parity fence pins this list's length
+EXACTLY: growing it and shrinking it are both hand edits, and both are reviewable.
 
-2 unmapped.
+3 unmapped.
 
 | Kind | Item | Why it is unmapped |
 | --- | --- | --- |
+| fence-test | `__tests__/architecture-facts.test.ts` | Postdates the d7dbf25f7 snapshot; fences the facts markers, no canon row yet. Its filename carries none of fence/parity/coverage, so the census reaches it only through EXTRA_FENCES in __tests__/conventions-canon-parity.test.ts. |
 | fence-test | `__tests__/check-function-parity.test.ts` | Pins scripts/check-function-parity.ts, which no canon row cites either: the rule it guards (a SQL function declared in a migration must match the one the app calls) was never written down in prose, so extraction had nothing to harvest. |
 | fence-test | `__tests__/conventions-canon-parity.test.ts` | This canon's own fence. It postdates the d7dbf25f7 snapshot the rows were harvested from, so no row can cite it without describing a tree that did not exist when the canon was taken. |

@@ -8,27 +8,40 @@
 //
 // This file pins the four things that make that canon worth reading:
 //
-//   (a) The markdown is a faithful RENDER, not a parallel document. Exactly one
-//       table row per JSON row, with the same status and the same enforcer set.
-//       Hand-editing a verdict into the markdown turns this red — which is the
-//       whole point of having a generated view.
-//   (b) Every enforcer path the canon cites EXISTS. A canon that cites a file
-//       deleted three refactors ago is worse than no canon: it reads as evidence
-//       and is not. Three citations were already stale when this fence was first
-//       run (two `lib/domain/opened-reason-*.ts` paths that moved to
-//       `src/modules/cases/domain/`, one citation that packed a symbol name into
-//       its `:line` suffix) — that is the failure mode, and it is not theoretical.
-//   (c) No enforcement machinery escapes the census. Every `lint:*` key, every
-//       `scripts/check-*.{ts,mjs}`, and every fence/parity/coverage test is
-//       either cited by a row or listed in the JSON's `unmapped` array. That
-//       array's length is pinned as a CEILING: lowering it is a real improvement
-//       and must be done by hand; raising it silently is how a canon rots.
+//   (a) The markdown is a RENDER, byte for byte. The renderer is re-run
+//       in-process and every file it emits must equal the file committed at that
+//       path — the index and all seven scope pages. Not "the same ids with the
+//       same status": the same BYTES. A hand edit ANYWHERE in a rendered file
+//       turns this red — a reworded Rule, a softened Basis, an invented Source
+//       quote, a paragraph added to the index prose. The previous version of
+//       this fence re-parsed the tables and compared three of the six columns,
+//       which left Rule, Source, Basis and the whole of the index editable in
+//       silence: a canon whose verdicts are pinned and whose RULE TEXT is not
+//       can be made to say anything.
+//   (b) Every enforcer path the canon cites EXISTS, and is a FILE. A canon that
+//       cites a file deleted three refactors ago is worse than no canon: it
+//       reads as evidence and is not. Three citations were already stale when
+//       this fence was first run (two `lib/domain/opened-reason-*.ts` paths that
+//       moved to `src/modules/cases/domain/`, one citation that packed a symbol
+//       name into its `:line` suffix) — that is the failure mode, and it is not
+//       theoretical. A directory passes `existsSync` and enforces nothing, so
+//       the check is `isFile`, not "something is there".
+//   (c) The census covers what its inputs can see, and states which those are:
+//       every `lint:*` key in `package.json`, every `scripts/check-*.{ts,mjs}`,
+//       every `__tests__/**` test whose FILENAME carries fence, parity or
+//       coverage, and the files listed in `EXTRA_FENCES` — enforcement the
+//       filename glob cannot see, which would otherwise be neither cited, nor
+//       unmapped, nor even detected as missing. Each is either cited by a row or
+//       listed in the JSON's `unmapped` array. That array's length is pinned
+//       EXACTLY: growing it and shrinking it are both deliberate edits here.
+//       Machinery outside those four inputs is outside the census, and this
+//       fence does not claim otherwise.
 //   (d) Row ids are unique and sorted, so a diff of the JSON reads as a diff of
 //       the canon rather than as a reshuffle.
 //
 // DB-less by construction: it reads the repo, nothing else.
 
-import { existsSync, readFileSync, readdirSync } from "node:fs";
+import { readFileSync, readdirSync, statSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 
@@ -36,65 +49,53 @@ import {
   CANON_INDEX,
   CANON_SCOPE_DIR,
   type Canon,
-  type CanonRow,
+  FACTS_JSON,
   REPO_ROOT,
   enforcerPath,
+  factsGeneratedAt,
   loadCanon,
-  statusLabel,
+  renderCanon,
 } from "@/scripts/conventions-canon-render";
 
 const canon: Canon = loadCanon(REPO_ROOT);
 
-// The `unmapped` ceiling. Measured at d7dbf25f7 against the whole census below.
-// LOWER it when a canon row learns to cite one of these; never raise it.
-const UNMAPPED_CEILING = 2;
+// The `unmapped` length, pinned EXACTLY. Measured at d7dbf25f7 against the whole
+// census below, plus one entry for the facts fence that postdates that snapshot.
+// A ceiling would let the list grow up to it in silence; a floor would let it be
+// emptied. Both directions are a hand edit, and both are reviewable.
+const UNMAPPED_COUNT = 3;
 
-// ---------------------------------------------------------------------------
-// Markdown parsing
-// ---------------------------------------------------------------------------
+/**
+ * Enforcement the filename glob below cannot see.
+ *
+ * The census globs `__tests__/**` for names carrying fence / parity / coverage.
+ * `__tests__/architecture-facts.test.ts` is a fence by every measure that
+ * matters — it is the doc-drift fence for every number the architecture docs
+ * state — and carries none of those three words, so before this list existed it
+ * was neither cited by a row, nor listed as unmapped, nor reported as escaping.
+ * A census blind to its own sibling is the exact shape of the rot it exists to
+ * catch. Add a path here when a fence's NAME hides it.
+ */
+const EXTRA_FENCES = ["__tests__/architecture-facts.test.ts"];
 
-/** Cells of one markdown table row, splitting on UNESCAPED pipes only. */
-function cells(line: string): string[] {
-  const parts = line.split(/(?<!\\)\|/);
-  // A well-formed row is `| a | b | ... |`, so the first and last are empty.
-  return parts.slice(1, -1).map((c) => c.trim());
-}
+/** Read a committed doc, LF-normalised: `.gitattributes` sets `* text=auto eol=lf`. */
+const readDoc = (rel: string): string =>
+  readFileSync(join(REPO_ROOT, rel), "utf8").replace(/\r\n/g, "\n");
 
-type ParsedRow = { id: string; status: string; enforcers: Set<string>; file: string };
-
-/** Every `| CANON-… |` data row across the rendered scope pages. */
-function parseRenderedRows(): ParsedRow[] {
-  const dir = join(REPO_ROOT, CANON_SCOPE_DIR);
-  const out: ParsedRow[] = [];
-  for (const name of readdirSync(dir).sort()) {
-    if (!name.endsWith(".md")) continue;
-    const rel = `${CANON_SCOPE_DIR}/${name}`;
-    for (const line of readFileSync(join(dir, name), "utf8").split("\n")) {
-      if (!/^\|\s*CANON-\d+\s*\|/.test(line)) continue;
-      const c = cells(line);
-      expect(
-        c,
-        `${rel}: row does not have the six canon columns: ${line.slice(0, 120)}`,
-      ).toHaveLength(6);
-      out.push({ id: c[0], status: c[3], enforcers: renderedEnforcers(c[4]), file: rel });
-    }
+/** Where two texts first diverge, for a failure message a human can act on. */
+function firstDivergence(actual: string, expected: string): string {
+  const a = actual.split("\n");
+  const b = expected.split("\n");
+  for (let i = 0; i < Math.max(a.length, b.length); i++) {
+    if (a[i] === b[i]) continue;
+    return (
+      ` first difference at line ${i + 1}:\n` +
+      `  on disk: ${JSON.stringify(a[i] ?? "<end of file>").slice(0, 240)}\n` +
+      `  rendered: ${JSON.stringify(b[i] ?? "<end of file>").slice(0, 240)}`
+    );
   }
-  return out;
+  return "";
 }
-
-/** The repo paths named in a rendered Enforcer cell. */
-function renderedEnforcers(cell: string): Set<string> {
-  if (cell === "—") return new Set();
-  const paths = new Set<string>();
-  for (const segment of cell.split("<br>")) {
-    const m = /^`([^`]+)`/.exec(segment.trim());
-    if (m) paths.add(enforcerPath(m[1]));
-  }
-  return paths;
-}
-
-const expectedEnforcers = (row: CanonRow): Set<string> =>
-  new Set((row.enforcer ?? []).map((e) => enforcerPath(e)));
 
 // ---------------------------------------------------------------------------
 // Census inputs
@@ -113,27 +114,37 @@ const checkScripts = readdirSync(join(REPO_ROOT, "scripts"))
   .map((n) => `scripts/${n}`)
   .sort();
 
-/** `__tests__/**` files whose name carries fence / parity / coverage. */
+/** `__tests__/**` files whose name carries fence / parity / coverage, plus the extras. */
 function fenceTests(): string[] {
-  const acc: string[] = [];
+  const acc = new Set<string>(EXTRA_FENCES);
   const walk = (rel: string): void => {
     for (const ent of readdirSync(join(REPO_ROOT, rel), { withFileTypes: true })) {
       const child = `${rel}/${ent.name}`;
       if (ent.isDirectory()) walk(child);
       else if (/\.test\.tsx?$/.test(ent.name) && /(fence|parity|coverage)/i.test(ent.name))
-        acc.push(child);
+        acc.add(child);
     }
   };
   walk("__tests__");
-  return acc.sort();
+  return [...acc].sort();
 }
 
 /** Every repo path cited by any row's `enforcer`. */
 const citedPaths = new Set(
   canon.rows.flatMap((r) => (r.enforcer ?? []).map((e) => enforcerPath(e))),
 );
-/** Raw enforcer text, so a `lint:*` key cited by name counts as mapped. */
-const citedText = canon.rows.flatMap((r) => r.enforcer ?? []).join("\n");
+
+/**
+ * `lint:*` keys cited by name, as WHOLE TOKENS.
+ *
+ * A substring test answers yes for `lint:authz` the moment any row cites
+ * `lint:authz-scoping`, and the key that actually escaped the canon is then
+ * reported as mapped. Tokenise, then compare exactly.
+ */
+const citedLintKeys = new Set(
+  canon.rows.flatMap((r) => r.enforcer ?? []).flatMap((entry) => entry.match(/lint:[\w-]+/g) ?? []),
+);
+
 const unmappedIds = new Set(canon.unmapped.map((u) => u.id));
 
 /** The `scripts/*.ts|mjs` a `lint:*` key runs, when it runs one. */
@@ -156,7 +167,7 @@ describe("conventions canon — JSON is the source of truth", () => {
     for (const r of canon.rows) byStatus[r.status] = (byStatus[r.status] ?? 0) + 1;
     expect(canon.stats.byStatus).toEqual(byStatus);
 
-    const index = readFileSync(join(REPO_ROOT, CANON_INDEX), "utf8");
+    const index = readDoc(CANON_INDEX);
     const fact = (key: string): number => {
       const m = new RegExp(`<!-- fact:${key} -->(\\d+)<!-- /fact -->`).exec(index);
       expect(m, `${CANON_INDEX} is missing the fact:${key} marker`).not.toBeNull();
@@ -170,11 +181,36 @@ describe("conventions canon — JSON is the source of truth", () => {
 });
 
 describe("conventions canon — the markdown is a faithful render", () => {
-  const rendered = parseRenderedRows();
-  const byId = new Map(rendered.map((r) => [r.id, r]));
+  const rendered = renderCanon(canon);
+
+  it("(a) every rendered file is byte-identical to the file committed at its path", () => {
+    for (const [rel, expected] of rendered) {
+      const actual = readDoc(rel);
+      expect(
+        actual,
+        `${rel} is not what the renderer produces — hand edits do not survive here. Change` +
+          ` docs/architecture/conventions-canon.json and run \`pnpm canon:render\`.${firstDivergence(actual, expected)}`,
+      ).toEqual(expected);
+    }
+  });
+
+  it("(a) the render covers the index and one page per scope, and nothing else", () => {
+    const scopes = [...new Set(canon.rows.map((r) => r.scope))].sort();
+    expect([...rendered.keys()].sort()).toEqual(
+      [CANON_INDEX, ...scopes.map((s) => `${CANON_SCOPE_DIR}/${s}.md`)].sort(),
+    );
+    // An orphan page left behind by a removed scope is invisible to byte
+    // equality: nothing renders it, so nothing compares it.
+    const onDisk = readdirSync(join(REPO_ROOT, CANON_SCOPE_DIR))
+      .filter((n) => n.endsWith(".md"))
+      .sort();
+    expect(onDisk, `${CANON_SCOPE_DIR} holds a page no scope renders`).toEqual(
+      scopes.map((s) => `${s}.md`),
+    );
+  });
 
   it("(a) the index links to every scope page", () => {
-    const index = readFileSync(join(REPO_ROOT, CANON_INDEX), "utf8");
+    const index = readDoc(CANON_INDEX);
     for (const scope of new Set(canon.rows.map((r) => r.scope))) {
       expect(index, `${CANON_INDEX} does not link to the ${scope} page`).toContain(
         `./conventions-canon/${scope}.md`,
@@ -185,7 +221,7 @@ describe("conventions canon — the markdown is a faithful render", () => {
   it("(a) every scope page carries the header block and the canon columns", () => {
     for (const scope of new Set(canon.rows.map((r) => r.scope))) {
       const rel = `${CANON_SCOPE_DIR}/${scope}.md`;
-      const text = readFileSync(join(REPO_ROOT, rel), "utf8");
+      const text = readDoc(rel);
       expect(text, `${rel} lost the snapshot header`).toContain(`> Snapshot: \`${canon.sha}\``);
       expect(text, `${rel} lost the canon table columns`).toContain(
         "| Id | Rule | Source | Status | Enforcer | Basis |",
@@ -193,57 +229,38 @@ describe("conventions canon — the markdown is a faithful render", () => {
     }
   });
 
-  it("(a) contains exactly one table row per JSON row", () => {
-    expect(
-      rendered.length,
-      "rendered rows and JSON rows differ in count — run `pnpm canon:render`",
-    ).toBe(canon.rows.length);
-    expect(byId.size, "the rendered pages repeat a canon id").toBe(rendered.length);
-    const missing = canon.rows.filter((r) => !byId.has(r.id)).map((r) => r.id);
-    expect(missing, "JSON rows with no rendered table row — run `pnpm canon:render`").toEqual([]);
-  });
-
-  it("(a) renders every row on the page for its scope", () => {
-    const wrongPage = canon.rows
-      .filter((r) => byId.get(r.id) && byId.get(r.id)?.file !== `${CANON_SCOPE_DIR}/${r.scope}.md`)
-      .map((r) => `${r.id} -> ${byId.get(r.id)?.file} (scope ${r.scope})`);
-    expect(wrongPage).toEqual([]);
-  });
-
-  it("(a) renders the same status as the JSON", () => {
-    const drifted = canon.rows
-      .filter((r) => byId.has(r.id) && byId.get(r.id)?.status !== statusLabel(r))
-      .map((r) => `${r.id}: json=${statusLabel(r)} markdown=${byId.get(r.id)?.status}`);
-    expect(drifted, "status drifted between the JSON and its render").toEqual([]);
-  });
-
-  it("(a) renders the same enforcer set as the JSON", () => {
-    const drifted: string[] = [];
-    for (const r of canon.rows) {
-      const got = byId.get(r.id);
-      if (!got) continue;
-      const want = expectedEnforcers(r);
-      const missing = [...want].filter((p) => !got.enforcers.has(p));
-      const extra = [...got.enforcers].filter((p) => !want.has(p));
-      if (missing.length || extra.length) {
-        drifted.push(`${r.id}: missing=[${missing.join(", ")}] extra=[${extra.join(", ")}]`);
-      }
+  it("(a) the header states the date facts.json was generated, not one the render invented", () => {
+    const generatedAt = (
+      JSON.parse(readFileSync(join(REPO_ROOT, FACTS_JSON), "utf8")) as { generatedAt: string }
+    ).generatedAt;
+    expect(factsGeneratedAt(REPO_ROOT)).toBe(generatedAt);
+    for (const rel of rendered.keys()) {
+      expect(readDoc(rel), `${rel} states a header date that is not facts.json's`).toContain(
+        `\`${FACTS_JSON}\` generated ${generatedAt}`,
+      );
     }
-    expect(drifted, "enforcer set drifted between the JSON and its render").toEqual([]);
   });
 });
 
 describe("conventions canon — the evidence resolves", () => {
-  it("(b) every cited enforcer path exists on disk", () => {
+  it("(b) every cited enforcer path is a file on disk", () => {
     const dangling: string[] = [];
     for (const row of canon.rows) {
       for (const entry of row.enforcer ?? []) {
         const path = enforcerPath(entry);
         if (!path) continue;
-        if (!existsSync(join(REPO_ROOT, path))) dangling.push(`${row.id}: ${entry}`);
+        // A directory satisfies `existsSync` and enforces nothing: `scripts/`
+        // exists, and "the rule is enforced by `scripts/`" is not a citation.
+        let isFile = false;
+        try {
+          isFile = statSync(join(REPO_ROOT, path)).isFile();
+        } catch {
+          isFile = false;
+        }
+        if (!isFile) dangling.push(`${row.id}: ${entry}`);
       }
     }
-    expect(dangling, "canon rows cite enforcer paths that do not exist").toEqual([]);
+    expect(dangling, "canon rows cite enforcer paths that are not files on disk").toEqual([]);
   });
 
   it("(b) every `source` path that looks like a repo path exists on disk", () => {
@@ -254,17 +271,24 @@ describe("conventions canon — the evidence resolves", () => {
       for (const entry of row.sources ?? []) {
         const path = enforcerPath(entry);
         if (!REPO_PATH.test(path)) continue;
-        if (!existsSync(join(REPO_ROOT, path))) dangling.push(`${row.id}: ${entry}`);
+        let exists = false;
+        try {
+          statSync(join(REPO_ROOT, path));
+          exists = true;
+        } catch {
+          exists = false;
+        }
+        if (!exists) dangling.push(`${row.id}: ${entry}`);
       }
     }
     expect(dangling, "canon rows cite source paths that do not exist").toEqual([]);
   });
 });
 
-describe("conventions canon — nothing enforcing escapes the census", () => {
+describe("conventions canon — nothing in the census escapes it", () => {
   it("(c) every lint:* key is cited by a row or listed as unmapped", () => {
     const escaped = lintKeys.filter((key) => {
-      if (citedText.includes(key)) return false;
+      if (citedLintKeys.has(key)) return false;
       const path = lintScriptPath(key);
       if (path && citedPaths.has(path)) return false;
       return !unmappedIds.has(key);
@@ -281,22 +305,36 @@ describe("conventions canon — nothing enforcing escapes the census", () => {
     );
   });
 
-  it("(c) every fence/parity/coverage test is cited by a row or listed as unmapped", () => {
-    const escaped = fenceTests().filter((p) => !citedPaths.has(p) && !unmappedIds.has(p));
+  it("(c) every fence/parity/coverage test and every EXTRA_FENCES entry is cited or unmapped", () => {
+    const census = fenceTests();
+    for (const extra of EXTRA_FENCES) {
+      expect(census, `${extra} is listed in EXTRA_FENCES but the census dropped it`).toContain(
+        extra,
+      );
+    }
+    const escaped = census.filter((p) => !citedPaths.has(p) && !unmappedIds.has(p));
     expect(escaped, "fence tests neither cited by a canon row nor listed in `unmapped`").toEqual(
       [],
     );
   });
 
-  it("(c) the unmapped list is at or below its pinned ceiling", () => {
+  it("(c) the unmapped list is exactly as long as it was pinned", () => {
     expect(
       canon.unmapped.length,
-      `unmapped grew past its ceiling of ${UNMAPPED_CEILING}. Cite the new machinery from a canon row, or lower nothing and raise this deliberately.`,
-    ).toBeLessThanOrEqual(UNMAPPED_CEILING);
+      `unmapped is pinned at ${UNMAPPED_COUNT}. It grew when new machinery escaped the canon (cite it from a row instead) or shrank when a row learned to cite one. Either way, change this number on purpose.`,
+    ).toBe(UNMAPPED_COUNT);
   });
 
   it("(c) every unmapped entry still exists in the tree", () => {
-    const stale = canon.unmapped.filter((u) => u.path && !existsSync(join(REPO_ROOT, u.path)));
+    const stale = canon.unmapped.filter((u) => {
+      if (!u.path) return false;
+      try {
+        statSync(join(REPO_ROOT, u.path));
+        return false;
+      } catch {
+        return true;
+      }
+    });
     expect(
       stale.map((u) => u.id),
       "`unmapped` lists machinery that no longer exists",

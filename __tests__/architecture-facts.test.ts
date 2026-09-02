@@ -18,9 +18,18 @@
 //   (b) the markers vs facts.json — every `fact:` marker in the scanned docs
 //       must carry the generated value, and an unknown key fails rather than
 //       being ignored. A marker nobody generates is a number nobody owns.
-//   (c) backticked repo paths in `docs/architecture/**` and
+//   (c) backticked repo paths in `docs/architecture/**` and, WHEN IT EXISTS,
 //       `docs/presentation/**` must exist on disk. A doc that cites a file
 //       deleted two refactors ago reads as evidence and is not.
+//       `docs/presentation/` does NOT exist on this tree today: the 2026-09 doc
+//       pack creates it, and the scan is written to tolerate its absence rather
+//       than be rewritten on the day it lands. Tolerating a missing directory is
+//       how a scope becomes a silent no-op, so the roots are asserted rather
+//       than assumed: `DOC_TREE_ROOTS` + `ROOT_DOCS` are reported present or
+//       absent by name, and every entry of `REQUIRED_ROOTS` (`docs/architecture`,
+//       `AGENTS.md`, `CLAUDE.md`) must exist. Renaming a real root cannot
+//       quietly empty this fence, and the marker count is checked PER root so
+//       markers in one cannot cover for a scan that stopped reading another.
 //
 // DB-less: the generator imports only pure constant modules and reads the
 // filesystem, so this runs in the `unit` project with no database.
@@ -52,10 +61,20 @@ function markdownUnder(rel: string): string[] {
   return acc.sort();
 }
 
-/** The two doc trees this fence owns end to end. */
-const DOC_TREES = [...markdownUnder("docs/architecture"), ...markdownUnder("docs/presentation")];
+/** The doc trees this fence owns end to end. `docs/presentation` is not here yet. */
+const DOC_TREE_ROOTS = ["docs/architecture", "docs/presentation"];
 /** Root docs that also carry markers, but whose paths are NOT asserted yet. */
 const ROOT_DOCS = ["AGENTS.md", "CLAUDE.md"];
+
+/**
+ * Roots that MUST exist, so no rename can empty the marker scan in silence.
+ *
+ * `docs/presentation` is deliberately absent from this list and present in
+ * `DOC_TREE_ROOTS`: it is scanned when it lands and tolerated until then.
+ */
+const REQUIRED_ROOTS = ["docs/architecture", ...ROOT_DOCS];
+
+const DOC_TREES = DOC_TREE_ROOTS.flatMap((root) => markdownUnder(root));
 
 const read = (rel: string): string => readFileSync(join(REPO_ROOT, rel), "utf8");
 
@@ -136,10 +155,37 @@ describe("architecture facts — the docs cite them by marker", () => {
     [...read(rel).matchAll(MARKER)].map((m) => ({ rel, key: m[1], text: m[2] })),
   );
 
-  it("the marker scan is not vacuous", () => {
+  it("the declared roots are real, and the absent one is named", () => {
+    // `markdownUnder` returns [] for a missing directory, so a scope declared
+    // here and absent from the tree is a no-op that reads like coverage. State
+    // which roots exist, and require the ones that carry markers today.
+    const present = [...DOC_TREE_ROOTS, ...ROOT_DOCS].filter((r) => existsSync(join(REPO_ROOT, r)));
+    const absent = [...DOC_TREE_ROOTS, ...ROOT_DOCS].filter((r) => !present.includes(r));
+    console.log(
+      `[architecture-facts] roots present: ${present.join(", ") || "none"}` +
+        ` — absent (scanned when they land): ${absent.join(", ") || "none"}`,
+    );
+    const missing = REQUIRED_ROOTS.filter((r) => !present.includes(r));
+    expect(
+      missing,
+      "roots this fence depends on are gone — a rename would empty the marker scan without failing it",
+    ).toEqual([]);
+  });
+
+  it("the marker scan is not vacuous, per root", () => {
     // Without this, a broken regex turns the next two tests into no-ops that
     // pass forever. R3 of the canon's own rulebook: an enforcer that cannot
-    // fail is no enforcer.
+    // fail is no enforcer. Counting globally is not enough: markers in
+    // `docs/architecture` alone would mask a scan that stopped reading
+    // `AGENTS.md`, which is the file the stale "48 event types" line lived in.
+    const under = (root: string): number =>
+      markers.filter((m) => m.rel === root || m.rel.startsWith(`${root}/`)).length;
+    for (const root of ["docs/architecture", "AGENTS.md"]) {
+      expect(
+        under(root),
+        `no \`fact:\` markers found under ${root} — the scan or the docs broke`,
+      ).toBeGreaterThan(0);
+    }
     expect(
       markers.length,
       "no `fact:` markers found at all — the scan or the docs broke",

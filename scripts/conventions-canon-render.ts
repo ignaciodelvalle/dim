@@ -9,9 +9,10 @@
 //
 //   pnpm canon:render
 //
-// `__tests__/conventions-canon-parity.test.ts` pins the two together: one table
-// row per JSON row, same status, same enforcer set. Editing the markdown by hand
-// turns that test red — which is the point. Change the JSON, re-render.
+// `__tests__/conventions-canon-parity.test.ts` pins the two together BYTE FOR
+// BYTE: it re-runs this renderer in-process and compares every rendered file
+// against the one on disk. Editing the markdown by hand turns that test red —
+// which is the point. Change the JSON, re-render.
 //
 // The output is split ONE FILE PER SCOPE (plus an index) rather than one giant
 // document. Nothing in `pnpm verify` fences the size of a markdown file — the
@@ -22,7 +23,7 @@
 // where anyone can read it. The split is a legibility decision, stated here so
 // nobody mistakes it for a fence requirement.
 
-import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -32,9 +33,27 @@ export const REPO_ROOT = resolve(HERE, "..");
 export const CANON_JSON = "docs/architecture/conventions-canon.json";
 export const CANON_INDEX = "docs/architecture/conventions-canon.md";
 export const CANON_SCOPE_DIR = "docs/architecture/conventions-canon";
+export const FACTS_JSON = "docs/architecture/facts.json";
 
-/** The date this canon was verified against the tree. Rendered into the header. */
-const VERIFIED_ON = "2026-09-02";
+/**
+ * The date the header states, read from `facts.json` rather than hardcoded.
+ *
+ * A date typed into this file is a number with no owner: it stays at whatever
+ * the last editor believed while the facts it claims to date move underneath
+ * it. Read it from the artifact it describes, and FAIL when that artifact is
+ * missing or dateless — a render that invents a date is worse than no render.
+ */
+export function factsGeneratedAt(repoRoot: string = REPO_ROOT): string {
+  const abs = join(repoRoot, FACTS_JSON);
+  if (!existsSync(abs)) {
+    throw new Error(`${FACTS_JSON} does not exist — run \`pnpm facts:write\` before rendering.`);
+  }
+  const { generatedAt } = JSON.parse(readFileSync(abs, "utf8")) as { generatedAt?: unknown };
+  if (typeof generatedAt !== "string" || generatedAt.trim() === "") {
+    throw new Error(`${FACTS_JSON} has no \`generatedAt\` — the canon header will not invent one.`);
+  }
+  return generatedAt;
+}
 
 // ---------------------------------------------------------------------------
 // Types
@@ -138,10 +157,10 @@ const scopeFile = (scope: string): string => `${CANON_SCOPE_DIR}/${scope}.md`;
 // Rendering
 // ---------------------------------------------------------------------------
 
-function headerBlock(canon: Canon): string {
+function headerBlock(canon: Canon, verifiedOn: string): string {
   return [
-    `> Snapshot: \`${canon.sha}\` (\`main\`) · Facts: \`docs/architecture/facts.json\` generated ${VERIFIED_ON}`,
-    `> Verified against code on ${VERIFIED_ON} by canon v4 + blind calibration · Status: reviewed`,
+    `> Snapshot: \`${canon.sha}\` (\`main\`) · Facts: \`${FACTS_JSON}\` generated ${verifiedOn}`,
+    `> Verified against code on ${verifiedOn} by canon v4 + blind calibration · Status: reviewed`,
     "> Numbers in this file are `<!-- fact:key -->` markers checked by `__tests__/architecture-facts.test.ts`.",
   ].join("\n");
 }
@@ -268,13 +287,18 @@ function basisCell(row: CanonRow): string {
   return parts.length ? parts.join(" ") : "—";
 }
 
-export function renderScopePage(canon: Canon, scope: string): string {
-  const rows = canon.rows.filter((r) => r.scope === scope).sort((a, b) => a.id.localeCompare(b.id));
+export function renderScopePage(canon: Canon, scope: string, verifiedOn: string): string {
+  // Code-unit order, NOT `localeCompare`: the parity fence sorts ids with a bare
+  // `.sort()`, and the two disagree on non-ASCII. One id outside [A-Za-z0-9-]
+  // would put the render and its fence in different orders forever.
+  const rows = canon.rows
+    .filter((r) => r.scope === scope)
+    .sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
   const n = (status: string) => rows.filter((r) => r.status === status).length;
   const lines = [
     `# Conventions canon — ${scopeTitle(scope)}`,
     "",
-    headerBlock(canon),
+    headerBlock(canon, verifiedOn),
     "",
     `[← canon index](../conventions-canon.md) · scope \`${scope}\` · ${rows.length} rules ` +
       `(${n("ENFORCED")} ENFORCED, ${n("PARTIAL")} PARTIAL, ${n("UNENFORCED")} UNENFORCED).`,
@@ -320,10 +344,11 @@ function unmappedSection(canon: Canon): string {
     "## Unmapped enforcers",
     "",
     "Enforcement machinery that exists in the tree and that NO canon row cites. Every",
-    "`lint:*` key in `package.json`, every `scripts/check-*.ts`, and every",
-    "`__tests__/**/*{fence,parity,coverage}*.test.ts` is either cited by a row's enforcer",
-    "or listed here. The parity fence pins this list's length: it may be lowered by hand",
-    "when a row learns to cite one of these, never raised in silence.",
+    "`lint:*` key in `package.json`, every `scripts/check-*.ts`, every",
+    "`__tests__/**/*{fence,parity,coverage}*.test.ts`, and every path listed in the parity",
+    "fence's `EXTRA_FENCES` (fences whose FILENAME hides them from that glob) is either",
+    "cited by a row's enforcer or listed here. The parity fence pins this list's length",
+    "EXACTLY: growing it and shrinking it are both hand edits, and both are reviewable.",
     "",
     `${canon.unmapped.length} unmapped.`,
     "",
@@ -340,11 +365,11 @@ function unmappedSection(canon: Canon): string {
   return lines.join("\n");
 }
 
-export function renderIndex(canon: Canon): string {
+export function renderIndex(canon: Canon, verifiedOn: string): string {
   return [
     "# Conventions canon",
     "",
-    headerBlock(canon),
+    headerBlock(canon, verifiedOn),
     "",
     "Every convention this repository states about itself, with the answer to the only",
     "question that matters about a convention: **what fails when you break it?**",
@@ -402,16 +427,19 @@ export function renderIndex(canon: Canon): string {
 }
 
 /** Every rendered file, as repo-relative path -> content. */
-export function renderCanon(canon: Canon): Map<string, string> {
+export function renderCanon(
+  canon: Canon,
+  verifiedOn: string = factsGeneratedAt(),
+): Map<string, string> {
   const out = new Map<string, string>();
   out.set(
     CANON_INDEX,
-    `${renderIndex(canon)
+    `${renderIndex(canon, verifiedOn)
       .replace(/\n{3,}/g, "\n\n")
       .trimEnd()}\n`,
   );
   for (const scope of scopesOf(canon)) {
-    out.set(scopeFile(scope), `${renderScopePage(canon, scope).trimEnd()}\n`);
+    out.set(scopeFile(scope), `${renderScopePage(canon, scope, verifiedOn).trimEnd()}\n`);
   }
   return out;
 }

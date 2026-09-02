@@ -9542,6 +9542,12 @@
   "unmapped": [
     {
       "kind": "fence-test",
+      "id": "__tests__/architecture-facts.test.ts",
+      "path": "__tests__/architecture-facts.test.ts",
+      "note": "Postdates the d7dbf25f7 snapshot; fences the facts markers, no canon row yet. Its filename carries none of fence/parity/coverage, so the census reaches it only through EXTRA_FENCES in __tests__/conventions-canon-parity.test.ts."
+    },
+    {
+      "kind": "fence-test",
       "id": "__tests__/check-function-parity.test.ts",
       "path": "__tests__/check-function-parity.test.ts",
       "note": "Pins scripts/check-function-parity.ts, which no canon row cites either: the rule it guards (a SQL function declared in a migration must match the one the app calls) was never written down in prose, so extraction had nothing to harvest."
