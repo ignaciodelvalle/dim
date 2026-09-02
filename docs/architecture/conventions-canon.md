@@ -70,7 +70,7 @@ Adoption convention (from the blind calibration on CANON-479): a tested helper w
 
 ## Totals
 
-<!-- fact:canon_rows -->512<!-- /fact --> rules, of which <!-- fact:canon_enforced -->175<!-- /fact --> are ENFORCED, <!-- fact:canon_partial -->92<!-- /fact --> PARTIAL and <!-- fact:canon_unenforced -->245<!-- /fact --> UNENFORCED.
+<!-- fact:canon_rows -->513<!-- /fact --> rules, of which <!-- fact:canon_enforced -->175<!-- /fact --> are ENFORCED, <!-- fact:canon_partial -->93<!-- /fact --> PARTIAL and <!-- fact:canon_unenforced -->245<!-- /fact --> UNENFORCED.
 
 | Scope | Rules | ENFORCED | PARTIAL | UNENFORCED | Page |
 | --- | --- | --- | --- | --- | --- |
@@ -80,7 +80,7 @@ Adoption convention (from the blind calibration on CANON-479): a tested helper w
 | End-to-end (Playwright) | 29 | 3 | 2 | 24 | [`e2e.md`](./conventions-canon/e2e.md) |
 | Mobile (`apps/mobile`) | 35 | 11 | 4 | 20 | [`mobile.md`](./conventions-canon/mobile.md) |
 | Process, CI and the gate chain | 151 | 19 | 19 | 113 | [`process.md`](./conventions-canon/process.md) |
-| Web application | 166 | 88 | 37 | 41 | [`web.md`](./conventions-canon/web.md) |
+| Web application | 167 | 88 | 38 | 41 | [`web.md`](./conventions-canon/web.md) |
 
 ## Recommendations
 

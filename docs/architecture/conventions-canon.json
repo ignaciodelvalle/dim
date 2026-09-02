@@ -31,11 +31,11 @@
     ]
   },
   "stats": {
-    "rows": 512,
+    "rows": 513,
     "byStatus": {
       "UNENFORCED": 245,
       "ENFORCED": 175,
-      "PARTIAL": 92
+      "PARTIAL": 93
     },
     "byScopeStatus": {
       "process": {
@@ -56,7 +56,7 @@
       "web": {
         "UNENFORCED": 41,
         "ENFORCED": 88,
-        "PARTIAL": 37
+        "PARTIAL": 38
       },
       "mobile": {
         "UNENFORCED": 20,
@@ -76,7 +76,7 @@
     "wired": {
       "none": 244,
       "ci": 10,
-      "verify": 129,
+      "verify": 130,
       "test:verified": 109,
       "manual": 6,
       "db": 14
@@ -9295,6 +9295,28 @@
       "notes": "The 4 entries are argued as deliberate <code>/font-mono technical references rather than leaks; anything new fails. Previous basis was inherited from the reclassifying group with no line-level evidence.",
       "confidence": 0.5,
       "verifiedAt": "d7dbf25f7"
+    },
+    {
+      "id": "CANON-526",
+      "rule": "Writes to the database from `app/**` go ONLY through a `src/modules/<domain>` use case called from `actions.ts`; page-level READS from `app/**` straight through Drizzle are tolerated under a shrink-only baseline; and no `app/**` file beyond the one already recorded may insert into the `petEvents` spine.",
+      "scope": "web",
+      "sources": [
+        "docs/reviews/2026-09-fresh/BACKLOG.md:242-253"
+      ],
+      "enforcer": [
+        "scripts/check-app-db-boundary.ts",
+        "scripts/app-db-boundary-baseline.json",
+        "__tests__/check-app-db-boundary.test.ts"
+      ],
+      "enforcementKind": "ratchet",
+      "wired": "verify",
+      "status": "PARTIAL",
+      "partialShape": "ratchet",
+      "clause": "R6",
+      "statusBasis": "scripts/check-app-db-boundary.ts classifies every non-test app/**/*.{ts,tsx} file that imports @/db or drizzle-orm and fails on four things: a writer absent from scripts/app-db-boundary-baseline.json, a baselined entry whose file is gone or no longer writes, a baselined writer whose idiom or table set changed, and any drift in the count of app/ files inserting straight into petEvents (pinned exactly at _meta.spineWriters = 1). Anti-vacuity: an empty corpus, or a corpus in which nothing reaches the database, is a failure and not a pass. Wired as lint:app-db-boundary inside `verify` and mirrored in .github/workflows/ci.yml, so lint:ci-parity holds the two together. R6 caps it at PARTIAL: the rule as the PO stated it is ABSOLUTE ('writes go ONLY through src/modules use cases, no exceptions') and the baseline still carries 22 live app/ writers, so the ratchet stops the 23rd without closing the 22.",
+      "notes": "The READ half is deliberately NOT enforced — 175 read-class files are counted and printed, and a new one fails nothing. That is the decision (page reads are tolerated so the pilot is not blocked on a rewrite), not a gap in the fence. Postdates the d7dbf25f7 snapshot: decision taken by the PO on 2026-09-02, fence landed at c10f4ff03. scripts/check-dependency-direction.ts polices only src/modules/<A> to <B> edges and has never had anything to say about app/, which is the hole this closes.",
+      "confidence": 0.95,
+      "verifiedAt": "c10f4ff03"
     }
   ],
   "recommendations": [

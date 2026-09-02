@@ -193,6 +193,20 @@ jobs:
           pnpm lint:ui && pnpm lint:actions && pnpm lint:deps && pnpm lint:contract &&
           pnpm lint:app-fence && pnpm lint:lib-root && pnpm lint:mocks && pnpm lint:buttons
 
+      - name: "Fence: app/ -> db boundary (lint:app-db-boundary)"
+        # Canon B02 (PO 2026-09-02). WRITES go only through src/modules use
+        # cases: every app/** file that writes directly is frozen in
+        # scripts/app-db-boundary-baseline.json, and that list may only SHRINK —
+        # a new writer fails, a stale entry fails, a grandfathered writer that
+        # grows a new idiom or table fails. The count of app/ files inserting
+        # straight into petEvents is pinned EXACTLY at 1 (invariant #2).
+        # Page-level READS are TOLERATED and only counted, on purpose: banning
+        # them outright is a rewrite nobody asked for. lint:deps says nothing
+        # about app/ — it only polices src/modules/<A> -> <B> edges.
+        # Offline — static analysis over app/**. See
+        # scripts/check-app-db-boundary.ts.
+        run: pnpm lint:app-db-boundary
+
       - name: Lint (notifications single write path)
         # Bans NEW direct db.insert(notifications). Every notification must go
         # through createNotification()/createNotificationsBulk() in
