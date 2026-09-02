@@ -149,18 +149,36 @@ test.describe("crisis seams — cross-POV critical journeys", () => {
     test.setTimeout(120_000);
     await relogin(page, ACCOUNTS.owner);
 
-    // Discover an ACTIVE (non-lost) pet from the owner's own registry — the
-    // The REGISTRADO/REGISTRADA badge on /mis-mascotas marks a pet that is not
-    // lost/deceased. Sex-agnostic on purpose: the flag inflects with the animal.
+    // Discover an ACTIVE (non-lost) pet from the owner's own registry. Either
+    // non-urgent flag on /mis-mascotas marks a pet that is not lost/deceased:
+    // the row reads REGISTRADO/REGISTRADA until compliance is derived and
+    // "AL DÍA" afterwards, and matching only the first shape is what made
+    // rehome-by-titular red on CI's fresh DB (run 32555456201). Sex-agnostic on
+    // purpose: the flag inflects with the animal.
     await page.goto("/mis-mascotas", { waitUntil: "domcontentloaded" });
     await page.waitForLoadState("networkidle").catch(() => {});
+    // Same locator shape as crisis-owner-lost-flow: `DIM-` keeps registry
+    // chrome links out, and `hasNotText` keeps caretaker rows out — this seam
+    // marks the pet LOST, which only its titular may do.
     const petLink = page
-      .locator('a[href^="/mis-mascotas/"]', { hasText: /registrad[ao]/i })
+      .locator('a[href^="/mis-mascotas/DIM-"]', {
+        hasText: /AL DÍA|REGISTRAD[AO]/i,
+        hasNotText: /Al cuidado/i,
+      })
       .first();
-    test.skip(
-      (await petLink.count()) === 0,
-      "owner@dim.test has no active pet — skipping lost→found seam.",
-    );
+    // An ASSERTION, not a skip: scripts/seed-test-users.ts guarantees
+    // owner@dim.test an active pet, so an empty registry is never an
+    // environment this seam cannot run in — it is a LOST FIXTURE LEAKED by an
+    // earlier spec whose mark-found cleanup did not commit. The skip this
+    // replaced was `test.skip(await x.count() === 0, …)`, the shape
+    // e2e/README.md forbids by name, and in CI run 33568726968 — the run whose
+    // leak produced `ensurePetFound` — it reported that leak as a deliberate,
+    // green skip. Auto-retrying, so it also absorbs the registry's streaming
+    // render (`Locator.count()` is one-shot and does not wait).
+    await expect(
+      petLink,
+      "owner@dim.test has no active pet — the seed guarantees one (scripts/seed-test-users.ts), so an empty registry means an earlier spec leaked a lost fixture.",
+    ).toBeVisible({ timeout: 20_000 });
     const href = (await petLink.getAttribute("href")) ?? "";
     const token = href.split("/mis-mascotas/")[1] ?? "";
     expect(token, "pet token parsed from registry link").toBeTruthy();
