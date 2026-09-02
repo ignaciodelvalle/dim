@@ -17,7 +17,8 @@
       "apps/mobile/android",
       "apps/mobile/ios",
       "docs/design/handoffs/**",
-      "docs/reviews/results/**"
+      "docs/reviews/results/**",
+      "docs/architecture/conventions-canon.json"
     ]
   },
   "formatter": {

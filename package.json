@@ -135,7 +135,8 @@
     "qa:panorama-chaos": "tsx scripts/qa-panorama-chaos.ts",
     "qa:panorama-vis": "tsx scripts/qa-panorama-vis.ts",
     "lint:empty-states": "tsx scripts/check-empty-state-consistency.ts",
-    "mobile:icons": "tsx scripts/build-mobile-app-icons.ts"
+    "mobile:icons": "tsx scripts/build-mobile-app-icons.ts",
+    "canon:render": "tsx scripts/conventions-canon-render.ts"
   },
   "dependencies": {
     "@dim/contract": "workspace:*",
