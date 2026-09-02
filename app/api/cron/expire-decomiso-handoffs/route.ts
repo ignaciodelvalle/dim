@@ -1,7 +1,9 @@
 // Cron route — escalate custody_episode handoffs open >7 days without
 // receiver acceptance (decomiso spec §13.5 + DC8).
 //
-// Runs every 12 hours per spec (decomisos are time-sensitive).
+// Dispatched once daily via /api/cron/daily (vercel.json "0 4 * * *" = 04:00
+// UTC / 01:00 ART) — sub-daily scheduling is impossible on the Vercel Hobby
+// plan, not a 12-hour choice per spec.
 // Emits decomiso_handoff_stale notifications only — does NOT close the case.
 // Idempotency handled by the helper (checks for a recent stale notification).
 
@@ -30,7 +32,8 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
   // NOTE: no keyset `batchSize` here. findStaleDecomisoCandidates post-filters
   // in JS (latest-proposal age), so candidate.id is not a safe keyset cursor
   // over the raw scan. The finder instead caps its raw scan with `.limit()` to
-  // bound memory; decomiso volume is low and the cron runs every 12h.
+  // bound memory; decomiso volume is low and the cron runs once daily (see the
+  // route header above), not every 12h.
   const result = await runCaseCron<StaleDecomisoCandidateFull>({
     name: CRON_NAME,
     // RN #9 half b: bound by min(own 45 s default, the dispatcher's share) so

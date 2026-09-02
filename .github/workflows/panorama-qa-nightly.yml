@@ -24,11 +24,15 @@ name: Panorama QA nightly (local stack)
 #    reason. `main` was then moved to the integration tip (`a3ec504c5`), which is
 #    the only thing that could fix it; no `ref:` could. Its first scheduled run
 #    is the confirmation, not this comment.
-# 2. IT MUST NOT CHECK OUT `main`. Every job here builds and serves THE CHECKED-
+# 2. THE `ref:` BELOW MUST TRACK WHATEVER BRANCH STAGING DEPLOYS FROM, not the
+#    default branch by assumption. Every job here builds and serves THE CHECKED-
 #    OUT TREE (`pnpm db:bootstrap`, `pnpm build`, `pnpm start`) and then reports
 #    on it, so the checkout is the entire subject of the report. Measured
 #    2026-08-27, `main` was 3876 commits behind the deployed app; a report about
-#    that tree describes a product nobody is running.
+#    that tree described a product nobody was running. Staging deploys from
+#    `main` since 2026-09-01 (`scripts/check-scheduled-fence-refs.ts:76-83`),
+#    so `ref: main` below is correct today — the pin stays so the next
+#    divergence is a one-line fix here instead of a silent regrade.
 #
 # The branch name is a LITERAL on purpose: `${{ vars.X }}` resolves to the empty
 # string when unset, and an empty `ref:` silently falls back to the default

@@ -18,10 +18,13 @@ name: Mobile export nightly (Metro bundle)
 #    ZERO times for exactly that reason. `main` was then moved to the integration
 #    tip (`a3ec504c5`), which is the only thing that could fix it; no `ref:`
 #    could. Its first scheduled run is the confirmation, not this comment.
-# 2. IT MUST NOT CHECK OUT `main`. A schedule fires from the default branch AND
-#    checks it out, and staging ships from `integration/all-*` — so once (1) is
-#    done, this job would bundle three-week-old mobile sources unless the
-#    explicit `ref:` below says otherwise.
+# 2. THE `ref:` BELOW MUST TRACK WHATEVER BRANCH STAGING DEPLOYS FROM, not the
+#    default branch by assumption. Staging deployed from `integration/all-*`
+#    until 2026-09-01, when the PO repointed Vercel's Production Branch to
+#    `main` (`scripts/check-scheduled-fence-refs.ts:76-83`) — the two now
+#    happen to be the same branch, which is why `ref: main` below is correct
+#    today, but the pin stays so the next divergence is a one-line fix here
+#    instead of a silent regrade of stale mobile sources.
 #
 # The branch name is a LITERAL on purpose: `${{ vars.X }}` resolves to the empty
 # string when unset, and an empty `ref:` silently falls back to the default

@@ -53,6 +53,17 @@ import type { EraseSubjectDataResult } from "./types";
 // docs/architecture/retention-policy-pending-decision.md. Do not add purge
 // logic here on the strength of this note.
 // ---------------------------------------------------------------------------
+// ERRATA #2 — 0208's claim that organization_memberships was already covered
+// ---------------------------------------------------------------------------
+// `db/migrations/0208_subject_rights_watermarks_tag_interest_org_invitations.sql:42`
+// says `organization_memberships` is "already in both RPCs since 0059". It is
+// not, and the migration is immutable, so the wrong premise is corrected here
+// instead: `organization_memberships` has no match in 0059 and first appears
+// on the EXPORT side only, in 0087. It has never been read by
+// `erase_subject_data` — closing the erase side (`left_at = now()`,
+// `title = NULL`, mirroring how 0207 closed pet_caretaker_grants.caretaker_email)
+// is a still-open art. 16 item, not a fact 0208 could assume was covered.
+// ---------------------------------------------------------------------------
 
 /**
  * Page size for the `uploads-staging` sweep below.

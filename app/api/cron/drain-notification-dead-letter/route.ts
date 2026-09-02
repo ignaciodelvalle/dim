@@ -10,7 +10,9 @@
 // GET /api/cron/drain-notification-dead-letter
 // Auth: Vercel Cron `Authorization: Bearer <CRON_SECRET>` (or legacy
 //   `x-cron-secret`), via authorizeCronRequest.
-// Schedule: hourly (vercel.json crons).
+// Schedule: daily, dispatched via /api/cron/daily (lib/infra/cron-registry.ts's
+//   `runsVia: "daily"` for drain_notification_dead_letter) — the real window is
+//   24h, not the hourly this header used to claim.
 //
 // Behaviour (idempotent, bounded):
 //   - Scan at most BATCH_SIZE unresolved rows (resolved_at IS NULL), oldest first.

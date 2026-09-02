@@ -21,12 +21,14 @@ name: DB doctor (staging)
 # ---------------------------------------------------------------------------
 # A `schedule:` event only fires from the DEFAULT branch and checks out the
 # DEFAULT branch. This job compares `db/migrations/` ON DISK against the ledger
-# in the STAGING database — and staging is deployed from `integration/all-*`, not
-# from `main`. Without the explicit `ref:` below, the two sides of the comparison
-# came from different trees, which is not a comparison at all.
+# in the STAGING database, and staging deploys from `main` since 2026-09-01
+# (`scripts/check-scheduled-fence-refs.ts:76-83`). Without the explicit `ref:`
+# below, the two sides of the comparison could still come from different trees
+# if the default branch ever moves again — the pin stays for that reason, not
+# because a divergence exists today.
 #
 # Measured on run 33109613780 (2026-08-27), the last one before this pin: main's
-# tree stops at migration 0170 while staging has 0202 applied, so section A
+# tree stopped at migration 0170 while staging had 0202 applied, so section A
 # reported every migration in between as "in the ledger, NOT on disk" — pure
 # phantom drift, an alarm about nothing. Sections B (real RLS state) and C
 # (effect probes) ask the database directly and are ref-independent; both passed.

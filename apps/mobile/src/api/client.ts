@@ -283,10 +283,15 @@ export async function apiRequest<T>(
  * without adding its copy does not compile.
  *
  * The 429 refinement in front of it is deliberate and is NOT a second switch: it
- * replaces one arm's sentence with a more specific one when the server told us
- * how long to wait. "Esperá un momento" is honest but useless; "en 30 segundos"
- * is what stops a person tapping the button eight more times and spending the
- * budget of the finder standing over a lost animal in the street.
+ * replaces one arm's sentence with a more specific one IF the server ever tells
+ * us how long to wait. It does not today — no `/api/v1` 429 sets `Retry-After`
+ * yet (`docs/architecture/api-invariants.md:860` records why: only one of the
+ * two 429 branches can carry an honest value today, and setting it on one and
+ * not the other would fabricate a hint on the other). This branch is defensive
+ * against a future server that closes that gap, not dead code: when it does,
+ * "Esperá un momento" (honest but useless) becomes "en 30 segundos" — what
+ * stops a person tapping the button eight more times and spending the budget
+ * of the finder standing over a lost animal in the street.
  */
 export function apiFailureMessage(result: ApiResult<unknown>): string | null {
   if (

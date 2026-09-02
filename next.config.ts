@@ -55,10 +55,16 @@ const nextConfig: NextConfig = {
         // (Ley 14.346 art. 1) about a person who has not been investigated yet.
         // Two headers, because page metadata alone was not enough:
         //
-        //  • X-Robots-Tag. There is no robots.txt in this repo, so before this a
-        //    leaked denuncia URL had nothing telling a crawler to stay away. The
-        //    header (unlike `export const metadata.robots`) also covers the 303
-        //    from /seguimiento/entrar and any non-HTML response on the subtree.
+        //  • X-Robots-Tag. Before `app/robots.ts` landed (2026-08-22, closing
+        //    report M8 / fix queue row 17), there was no robots.txt in this
+        //    repo, so a leaked denuncia URL had nothing telling a crawler to
+        //    stay away. `app/robots.ts` now disallows `/denuncias/codigo` and
+        //    `/denuncias/seguimiento`, but that only stops a well-behaved
+        //    crawler from REQUESTING the URL in the first place — this header
+        //    (unlike `export const metadata.robots`) still earns its place
+        //    because it also covers the 303 from /seguimiento/entrar and any
+        //    non-HTML response on the subtree, neither of which a disallow
+        //    line alone reaches.
         //  • Referrer-Policy: no-referrer. The global policy is
         //    strict-origin-when-cross-origin, which already keeps the DEN code
         //    out of cross-origin referrers — but it still sends the FULL URL

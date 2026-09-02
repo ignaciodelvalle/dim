@@ -96,9 +96,12 @@
 // this surface.
 //
 // The pin is `toBe`, not a floor, so it is the one number here that cannot rot
-// quietly: it reads 13 044 on the merged tree — 11 064 was this file's own
-// figure two doors ago, and neither WU-T's 12 444 nor WU-S's 12 924 survived
-// the window either.
+// quietly — but this file transcribed it wrong at least three times already
+// (11 064, then 12 444, then 12 924, none of which survived the window), so
+// the number is named and not repeated here either: read
+// `API_V1_CGNAT_FAMILY_IP_CEILING_PER_MINUTE` (`lib/infra/api-v1-limits.ts`)
+// and its `toBe` assertion at
+// `__tests__/api-v1-rate-limit-families.test.ts:754`.
 //
 // NO `Idempotency-Key`, AND THAT IS A REFUSAL TO PROMISE
 // ---------------------------------------------------------------------------

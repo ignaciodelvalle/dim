@@ -45,7 +45,9 @@ export interface EscalateStaleDecomisosOptions {
    * Ceiling on the raw scan (review 23 item 13). This finder post-filters in JS
    * (latest-proposal age), so a keyset cursor over the raw rows isn't safe; a
    * plain LIMIT bounds memory instead. Decomiso volume is low and the cron runs
-   * every 12h, so a per-run cap is acceptable. Default 500.
+   * once daily via /api/cron/daily (04:00 UTC / 01:00 ART), not every 12h — the
+   * 24h accumulation window is what a per-run cap actually has to cover, and
+   * decomiso volume stays low enough that 500 (the default) still is.
    */
   maxRawScan?: number;
 }

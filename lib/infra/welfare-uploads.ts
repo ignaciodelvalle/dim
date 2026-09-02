@@ -45,19 +45,20 @@ const STRIP_EXIF_MIME = new Set(["image/jpeg", "image/png", "image/webp"]);
  * bytes se suben tal cual, así que el GPS de la cámara sobrevive — y HEIC es el
  * formato por defecto del iPhone, o sea el camino más común de un denunciante.
  *
- * POR QUÉ ESTO ES EXPORTADO Y NO UN DETALLE INTERNO. El comprobante público
- * (`/denuncias/codigo/[code]`) es una lectura SIN sesión: cualquiera con el
- * código ve la denuncia. Esa página se esfuerza en no revelar el lugar exacto
- * —redondea el punto con `coarsenPoint(…, "approx")` y excluye la dirección de
- * calle por Ley 25.326— pero servía el archivo original, que derrota justamente
- * ese control: se descarga y se lee la coordenada del metadato.
+ * POR QUÉ SIGUE EXPORTADA AUNQUE HOY NO GATEA NINGUNA SUPERFICIE VIVA. Guardaba
+ * el comprobante público (`/denuncias/codigo/[code]`): esa lectura SIN sesión
+ * condicionaba a esto si firmaba una URL hacia la evidencia. La página fue
+ * endurecida después y hoy NO lee `welfareReportAttachments` ni firma ninguna
+ * URL en absoluto — el denunciante conserva sus propios archivos y el organismo
+ * los recibe por su camino autenticado (Ley 14.346) — así que esta función no
+ * gatea nada en producción. Sigue exportada y probada
+ * (`__tests__/welfare-coordinates-precision.test.ts`, que además pin-ea que el
+ * comprobante NO la llama) por si una superficie pública vuelve a servir
+ * evidencia y necesita el mismo criterio.
  *
- * La autoridad SÍ necesita el original intacto (Ley 14.346, cadena de
- * evidencia), así que la respuesta no es dejar de guardarlo ni transcodificarlo:
- * es no servirlo en la superficie pública. Esta función es el gate.
- *
- * Falla cerrado por construcción: si mañana se agrega un formato a ALLOWED_MIME
- * sin sumarlo acá, el comprobante público no lo muestra en vez de filtrarlo.
+ * Si se reactiva, falla cerrado por construcción: si mañana se agrega un
+ * formato a ALLOWED_MIME sin sumarlo acá, la respuesta correcta es NO
+ * exponerlo, no filtrarlo.
  */
 export function isMetadataStripped(mimeType: string | null | undefined): boolean {
   return mimeType !== null && mimeType !== undefined && STRIP_EXIF_MIME.has(mimeType);
