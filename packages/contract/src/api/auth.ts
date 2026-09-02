@@ -28,11 +28,14 @@
  *
  * This does NOT reopen the trap PO decision #2 closed. That decision is about
  * the DATA plane: a native client must not read or write pets, events or
- * custody through PostgREST, because 14 of 15 `ownerships`-derived RLS policies
- * carry no role predicate and `pet_events` INSERT checks neither role nor event
- * type (RLS audit 2026-08-18) — so direct Supabase access would hand a bearer
- * token reach that `requireLiveUser` and `requirePetAccess` are the only things
- * bounding. Refresh touches none of that: it exchanges one credential for
+ * custody through PostgREST. It was taken because 14 of 15 `ownerships`-derived
+ * RLS policies carried no role predicate and the `pet_events` INSERT policy
+ * checked neither role nor event type (RLS audit 2026-08-18); migration 0212
+ * (2026-09-02) has since dropped that policy, leaving `pet_events` with no
+ * caller-facing write surface. The decision does not depend on that hole being
+ * open: direct Supabase access still hands a bearer token reach that
+ * `requireLiveUser` and `requirePetAccess` are the only things bounding.
+ * Refresh touches none of that: it exchanges one credential for
  * another inside GoTrue and reads no application table. Auth plane, not data
  * plane.
  *

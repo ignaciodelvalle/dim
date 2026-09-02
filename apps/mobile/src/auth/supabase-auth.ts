@@ -11,9 +11,13 @@
 // refresh-token rotation window wrong.
 //
 // THIS DOES NOT REOPEN PO DECISION #2. That decision is about the DATA plane:
-// pets, events and custody must not be read or written through PostgREST,
-// because 14 of 15 `ownerships`-derived RLS policies carry no role predicate and
-// `pet_events` INSERT checks neither role nor event type (RLS audit 2026-08-18).
+// pets, events and custody must not be read or written through PostgREST. It was
+// taken because 14 of 15 `ownerships`-derived RLS policies carried no role
+// predicate and the `pet_events` INSERT policy checked neither role nor event
+// type (RLS audit 2026-08-18); migration 0212 (2026-09-02) has since dropped
+// that policy and `pet_events` has no caller-facing write surface any more. The
+// decision stands anyway — the data plane belongs behind the app's guards and
+// validation, which a bearer token pointed at PostgREST does not reach.
 // Nothing in this file touches `.from(...)`, and nothing in this app imports
 // this module for anything but the auth plane.
 //

@@ -95,7 +95,14 @@ export const RLS_MATRIX: RlsMatrix = {
     },
     owner: {
       select: allow("owner sees events for own pets"),
-      insert: deny("owners insert events only via server action"),
+      // This cell said "only via server action" while a PostgREST INSERT policy
+      // (0086, narrowed by 0190) was live — the intent was right and the
+      // database disagreed, and nothing compared the two because
+      // OPERATIONS_UNDER_TEST is ["select"] (A02-5). Migration 0212 made the
+      // database agree: no INSERT policy at all.
+      insert: deny(
+        "owners insert events only via server action — PostgREST INSERT dropped in 0212 (author_role/author_verified were forgeable, permanently, in the append-only spine)",
+      ),
       update: deny("append-only invariant: even own events are immutable via PostgREST"),
       delete: deny("append-only invariant: even own events cannot be deleted"),
     },

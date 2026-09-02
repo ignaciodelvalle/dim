@@ -19,10 +19,15 @@
 // TWO PLANES, ONE RULE
 // ---------------------------------------------------------------------------
 // DATA (pets, events, custody, the credential) goes through `/api/v1` with a
-// bearer token, never through PostgREST — PO decision #2, taken because 14 of 15
-// `ownerships`-derived RLS policies carry no role predicate and `pet_events`
-// INSERT checks neither role nor event type (RLS audit 2026-08-18). AUTH (token
-// refresh) goes to GoTrue directly, because that is what the Supabase SDK does
+// bearer token, never through PostgREST — PO decision #2. It was taken because
+// 14 of 15 `ownerships`-derived RLS policies carried no role predicate and the
+// `pet_events` INSERT policy checked neither role nor event type (RLS audit
+// 2026-08-18); migration 0212 (2026-09-02) has since dropped that policy, so
+// `pet_events` now has no caller-facing write surface at all. The decision
+// stands on its own terms regardless: the data plane belongs behind
+// `requireLiveUser` / `requirePetAccess` and the app's own validation, and a
+// bearer token pointed at PostgREST bypasses every one of them by design.
+// AUTH (token refresh) goes to GoTrue directly, because that is what the Supabase SDK does
 // on a timer and is unambiguously better at than a hand-rolled endpoint (clock
 // skew, concurrent-refresh collapsing, retry). The two constants below are
 // separate so nothing can quietly start reading tables with the auth client.

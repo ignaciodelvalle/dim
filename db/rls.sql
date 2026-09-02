@@ -5,7 +5,7 @@
 -- db:migrate and replayed by db:bootstrap step 2). This file is no longer
 -- applied by db-bootstrap.ts. Keep edits here in sync with migration 0086 and
 -- the later migrations that reshaped these policies (0163 ownerships, 0211
--- profiles).
+-- profiles, 0212 pet_events).
 -- Enforces per-user isolation on the seven core tables an authenticated owner
 -- touches: profiles, pets, ownerships, pet_events, reminders, attachments,
 -- notifications.
@@ -25,10 +25,13 @@
 -- owners at the PostgREST layer.
 --
 -- AGENTS.md:39, 231, 465 are absolute: pet_events are append-only — never edit
--- or delete. We enforce that here by writing INSERT/SELECT policies only and
--- providing no UPDATE/DELETE policy, which results in PostgREST denying both
--- for `authenticated` and `anon` roles. The `service_role` bypasses RLS by
--- Supabase design; we never use service_role for event mutations.
+-- or delete. We enforce that here by providing no UPDATE/DELETE policy, which
+-- results in PostgREST denying both for `authenticated` and `anon` roles. The
+-- `service_role` bypasses RLS by Supabase design; we never use service_role for
+-- event mutations.
+-- Since migration 0212 there is no INSERT policy either: `pet_events` has NO
+-- caller-facing write surface at all, only the SELECT policy. See the
+-- pet_events section below.
 
 -- ============================================================================
 -- profiles
@@ -189,45 +192,45 @@ create policy "Pet events readable by active owner"
     )
   );
 
--- INSERT only by the active owner, AND only when author_organization_id is NULL
--- (owner-self writes). Org-attributed writes (author_organization_id IS NOT NULL)
--- are the activated form of the stub previously sketched in
--- db/organizations_rls.sql; that branch lands when the refugio portal does and
--- adds a parallel policy checking active organization_memberships with
--- can_write_pet_events = true.
+-- NO INSERT / UPDATE / DELETE POLICY — deny-all for writes (migration 0212,
+-- fresh-review lens A02, finding A02-1).
 --
--- INVARIANT: the `author_organization_id is null` predicate assumes the column
--- default is NULL (it is, per db/schema.ts). If anyone ever sets a non-null
--- default on that column, owner-facing PostgREST INSERTs will silently start
--- failing here — change this policy alongside any such schema change.
-drop policy if exists "Pet events insertable by active owner (owner-self only)" on public.pet_events;
-create policy "Pet events insertable by active owner (owner-self only)"
-  on public.pet_events
-  for insert
-  to authenticated
-  with check (
-    author_organization_id is null
-    and exists (
-      select 1
-      from public.ownerships o
-      where o.pet_id = pet_events.pet_id
-        and o.owner_user_id = auth.uid()
-        and o.ended_at is null
-    )
-    -- Migration 0190 (custodia-temporal). NOT a blanket deny: a caretaker must
-    -- be able to insert medical events, so only the titular-only event types
-    -- additionally demand titular write access. A forged custody_transferred is
-    -- the worst case in this table — there is no UPDATE and no DELETE policy,
-    -- so it would be a PERMANENT lie in the append-only spine.
-    and (
-      not (event_type = any (public.titular_only_event_types()))
-      or public.has_titular_write_access(pet_events.pet_id, (select auth.uid()))
-    )
-  );
-
--- No UPDATE policy. No DELETE policy. Append-only.
+-- This table used to carry "Pet events insertable by active owner (owner-self
+-- only)" — for insert to authenticated, with check on three conjuncts:
+-- `author_organization_id is null`, an active ownership row on
+-- `pet_events.pet_id`, and (from migration 0190) titular write access whenever
+-- `event_type` is one of `titular_only_event_types()`.
+--
+-- Those conjuncts pinned WHICH PET the row could name and WHICH FAMILY of
+-- event_type a caretaker could not forge. They pinned none of the provenance
+-- columns. `author_role`, `author_verified` and `recorded_by_user_id` were
+-- entirely caller-supplied, and `event_type` was never compared to the
+-- EVENT_TYPES catalog (the column is TEXT with no CHECK and no enum). So one
+-- POST /rest/v1/pet_events on the caller's OWN pet, with
+-- {"author_role":"govt","author_verified":true}, satisfied all three conjuncts
+-- and minted a row claiming a sanitary authority wrote it —
+-- lib/events/event-confidence.ts ranks that `institutional_verified`,
+-- lib/domain/credential-badges.ts renders the tier on the public credential,
+-- and lib/projections/pet-compliance.ts clears obligations on the strength of
+-- it. With no UPDATE and no DELETE policy and invariant #2 forbidding deletion,
+-- the forgery was permanent.
+--
+-- Every legitimate append is db.insert(petEvents) / tx.insert(petEvents)
+-- through EventsRepository over the Drizzle BYPASSRLS connection, which never
+-- consults these policies; /api/v1/pets/[publicToken]/events is a server route
+-- over that same connection; apps/mobile reaches the server only through
+-- /api/v1. Zero legitimate writers reach this table via PostgREST, so the policy
+-- that admits exactly them is no write policy at all. Same shape as 0163
+-- (ownerships) and 0211 (profiles).
+--
+-- The caretaker arrangement 0190 protected is unchanged: a caretaker still
+-- records medical events through the app, which writes over Drizzle after
+-- requirePetAccess authorized them. What narrows is the bearer token, not the
+-- role. `has_titular_write_access()` stays — it still backs the pets UPDATE and
+-- libreta_share_tokens INSERT policies.
+--
 -- credential_scanned events are inserted server-side in the public page handler
--- via Drizzle (bypasses RLS) — no anon INSERT policy needed.
+-- via Drizzle (bypasses RLS) — no anon INSERT policy needed, and never was.
 
 -- ============================================================================
 -- reminders

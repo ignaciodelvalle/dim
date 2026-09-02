@@ -52,7 +52,7 @@ RLS declared in a migration and no row here yet. Absence from this table means
 | organization_memberships | Y | Y | self, peers. |
 | organization_capability_grants | Y | Y | self grants, org-admin grants (`0004`). |
 | ownerships | Y | Y (read) | self read only. The insert/update policies were dropped by `0163` (they pinned the holder, never the pet). Writes are service-role Drizzle only. No admin PostgREST policy. |
-| pet_events | Y | Y | owner read, owner-self insert. Append-only enforced by trigger (`enforce_pet_events_append_only`), not RLS. |
+| pet_events | Y | Y (read) | owner read only. The owner-self INSERT policy (`0086`, narrowed by `0190`) was dropped by `0212`: every event enters through service-role Drizzle use-cases; PostgREST has no write path. Append-only enforced by trigger (`enforce_pet_events_append_only`), not RLS. |
 | reminders | Y | Y | self CRUD. |
 | attachments | Y | Y | pet-owner read/insert/update. |
 | notifications | Y | Y | self read/update. |

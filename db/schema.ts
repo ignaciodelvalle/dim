@@ -1286,7 +1286,18 @@ export const petEvents = pgTable(
     petId: uuid("pet_id")
       .notNull()
       .references(() => pets.id, { onDelete: "cascade" }),
-    eventType: text("event_type").notNull(), // validated in app code against EVENT_TYPES
+    // TEXT with no CHECK and no enum: the catalog lives in TypeScript
+    // (EVENT_TYPES) and is enforced by `validateEventPayload` on the way in.
+    // That is a statement about ONE writer. Name both, because until migration
+    // 0212 the second one made the comment false: the Drizzle/BYPASSRLS path
+    // (every use case, every server action, /api/v1) validates; the PostgREST
+    // path never reaches app code, and 0190's INSERT policy constrained only
+    // the titular-only event-type family, never this column against the
+    // catalog and never `author_role`/`author_verified` at all. Migration 0212
+    // dropped that policy, so `pet_events` now has no caller-facing write
+    // surface and the Drizzle path is the only writer left — fenced by
+    // __tests__/rls/pet-events-write-lockdown.test.ts.
+    eventType: text("event_type").notNull(),
     occurredAt: timestamp("occurred_at", { withTimezone: true }).notNull(),
     recordedAt: timestamp("recorded_at", { withTimezone: true }).notNull().defaultNow(),
     recordedByUserId: uuid("recorded_by_user_id").references(() => profiles.id, {
