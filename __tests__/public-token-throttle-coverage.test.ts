@@ -726,7 +726,9 @@ describe("public-token routes are rate limited", SCAN_BUDGET, () => {
 // fence nobody has proved works.
 // ---------------------------------------------------------------------------
 
-describe("the fence bites", () => {
+// Same budget: the "real tree does NOT look like that" controls below call
+// publicTokenPages() and walk the tree cold, exactly like the suite above.
+describe("the fence bites", SCAN_BUDGET, () => {
   it("flags a src resolver that takes no limiter at all", () => {
     const fixture = `
       import { publicPetByToken } from "@/lib/infra/public-pet-lookup";
