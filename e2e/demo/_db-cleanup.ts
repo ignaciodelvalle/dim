@@ -21,18 +21,85 @@
 //
 // LOCAL ONLY. Every call is a no-op against a non-local database — an e2e run
 // pointed at staging must never delete rows there.
+//
+// AND NO DATABASE_URL MEANS NO CLEANUP AT ALL. This used to default to
+// DEFAULT_LOCAL_URL when the variable was unset, which made "is this database
+// local?" answer YES on a machine that has no database at all. The nightly
+// (.github/workflows/e2e-nightly.yml) drives the DEPLOYED staging origin and
+// deliberately sets no DATABASE_URL, so every run since 2026-08-26 got the
+// localhost default: the cleanups tried to connect to a Postgres that does not
+// exist on the runner (AggregateError, 24 failures a night), and — worse —
+// e2e/degraded-states.spec.ts, which skips itself on `!isLocalDatabase()`
+// precisely so it never registers an undeletable pet in a shared registry,
+// believed it was local and ran. An absent DATABASE_URL is now the "no target
+// declared" answer, not a guess. Deliberately NOT wired to
+// STAGING_DATABASE_URL: the secret exists, and pointing this file at it would
+// give a nightly the power to delete rows on staging, which is the one thing
+// the LOCAL ONLY rule above exists to forbid.
+//
+// The cost, and it is real: a local `pnpm e2e` no longer cleans up unless the
+// shell exports DATABASE_URL (no Playwright config loads .env.local). The skip
+// says so on the first call rather than leaving the pile to be discovered on
+// /perdidas weeks later.
 
 import postgres from "postgres";
 
-const DEFAULT_LOCAL_URL = "postgresql://postgres:postgres@localhost:54322/postgres";
+/**
+ * What database, if any, this run is allowed to clean.
+ *
+ * Three answers, not two: "there is no declared database" is NOT the same
+ * claim as "the declared database is remote", and collapsing them into a
+ * localhost default is the defect described in the header.
+ */
+export type CleanupTarget =
+  | { kind: "local"; url: string }
+  | { kind: "remote"; url: string }
+  | { kind: "undeclared" };
 
-function resolveUrl(): string {
-  return process.env.DATABASE_URL?.trim() || DEFAULT_LOCAL_URL;
+const LOCAL_HOST = /@(localhost|127\.0\.0\.1)[:/]/;
+
+/** Hide the password before any URL reaches a log. */
+function mask(url: string): string {
+  return url.replace(/:[^:@]*@/, ":***@");
 }
 
-/** True only for a database on this machine. */
-export function isLocalDatabase(url: string = resolveUrl()): boolean {
-  return /@(localhost|127\.0\.0\.1)[:/]/.test(url);
+/**
+ * The decision every entry point below starts from. Pure over an injected env
+ * so it is unit-testable without a database (__tests__/e2e-db-cleanup.test.ts).
+ */
+export function resolveCleanupTarget(
+  env: Record<string, string | undefined> = process.env,
+): CleanupTarget {
+  const declared = env.DATABASE_URL?.trim();
+  if (!declared) return { kind: "undeclared" };
+  return LOCAL_HOST.test(declared)
+    ? { kind: "local", url: declared }
+    : { kind: "remote", url: declared };
+}
+
+/**
+ * True only for a database on this machine, and only when one was declared.
+ *
+ * Specs use the no-argument form as an ENVIRONMENT gate (see
+ * e2e/degraded-states.spec.ts): "may this run create rows only a direct-to-
+ * Postgres helper can remove?".
+ */
+export function isLocalDatabase(url?: string): boolean {
+  if (url === undefined) return resolveCleanupTarget().kind === "local";
+  return LOCAL_HOST.test(url);
+}
+
+const UNDECLARED_SKIP =
+  "[e2e cleanup] skipped — DATABASE_URL is not set, so no database was declared for this run. A run against a deployed origin is expected to hit this; a LOCAL run that wants cleanup must export DATABASE_URL (`npx supabase status -o env`).";
+
+// Announced once per worker process: loginAs calls resetAuthLoginRateLimits
+// before every real sign-in, and one line per login would bury the report.
+let undeclaredAnnounced = false;
+
+function announceUndeclared(): void {
+  if (undeclaredAnnounced) return;
+  undeclaredAnnounced = true;
+  console.warn(UNDECLARED_SKIP);
 }
 
 /**
@@ -64,8 +131,10 @@ export function isLocalDatabase(url: string = resolveUrl()): boolean {
  * non-local database.
  */
 export async function resetAuthLoginRateLimits(): Promise<void> {
-  const url = resolveUrl();
-  if (!isLocalDatabase(url)) return;
+  const target = resolveCleanupTarget();
+  if (target.kind === "undeclared") announceUndeclared();
+  if (target.kind !== "local") return;
+  const url = target.url;
 
   const sql = postgres(url, { max: 1, onnotice: () => {} });
   try {
@@ -111,9 +180,11 @@ export async function ensureDenunciaJurisdiction(
   province: string,
   locality: string,
 ): Promise<void> {
-  const url = resolveUrl();
-  if (!isLocalDatabase(url)) return;
+  const target = resolveCleanupTarget();
+  if (target.kind === "undeclared") announceUndeclared();
+  if (target.kind !== "local") return;
   if (!referenceCode) return;
+  const url = target.url;
 
   const sql = postgres(url, { max: 1, onnotice: () => {} });
   try {
@@ -163,11 +234,16 @@ export async function ensureDenunciaJurisdiction(
  * LOCAL ONLY — a no-op against any non-local database.
  */
 export async function deleteTagsByLotePrefix(prefix: string): Promise<number> {
-  const url = resolveUrl();
-  if (!isLocalDatabase(url)) {
-    console.warn(`[e2e cleanup] skipped — ${url.replace(/:[^:@]*@/, ":***@")} is not local.`);
+  const target = resolveCleanupTarget();
+  if (target.kind === "undeclared") {
+    announceUndeclared();
     return 0;
   }
+  if (target.kind === "remote") {
+    console.warn(`[e2e cleanup] skipped — ${mask(target.url)} is not local.`);
+    return 0;
+  }
+  const url = target.url;
 
   const sql = postgres(url, { max: 1, onnotice: () => {} });
   try {
@@ -212,11 +288,16 @@ export async function deleteTagsByLotePrefix(prefix: string): Promise<number> {
 }
 
 export async function deletePetsByNamePrefix(prefix: string): Promise<number> {
-  const url = resolveUrl();
-  if (!isLocalDatabase(url)) {
-    console.warn(`[e2e cleanup] skipped — ${url.replace(/:[^:@]*@/, ":***@")} is not local.`);
+  const target = resolveCleanupTarget();
+  if (target.kind === "undeclared") {
+    announceUndeclared();
     return 0;
   }
+  if (target.kind === "remote") {
+    console.warn(`[e2e cleanup] skipped — ${mask(target.url)} is not local.`);
+    return 0;
+  }
+  const url = target.url;
 
   const sql = postgres(url, { max: 1, onnotice: () => {} });
   try {
