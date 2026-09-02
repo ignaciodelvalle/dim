@@ -70,6 +70,19 @@ module.exports = {
   roots: ["<rootDir>/src"],
   testMatch: ["**/*.test.ts", "**/*.test.tsx"],
 
+  // Derived, not borrowed. The first test of every screen file pays the lazy
+  // React Native requires that jest-expo defers until first render, so it runs
+  // several times slower than its siblings. Measured on 2026-09-02 over two
+  // full `jest --json` runs on an idle machine: the slowest first test without
+  // a ceiling of its own was SharesScreen at 4432 ms, i.e. 89% of jest's
+  // 5000 ms default. On a loaded machine (three orphaned grep.exe pinning
+  // cores, gate 0902i attempt 1) the same test crossed 5000 ms and the file
+  // failed with no assertion wrong. 15 s is 3x the measured idle worst case —
+  // the same ratio PetPhotoScreen.test.tsx already uses for its own file-level
+  // `jest.setTimeout(15_000)`, which stays as is. Re-measure before raising
+  // this: a ceiling that grows with the slowdown stops being a ceiling.
+  testTimeout: 15_000,
+
   // The preset's list, plus `lucide-react-native`. That package ships
   // untransformed ESM (`dist/esm/*.mjs`) and its exports map puts the
   // `react-native` condition before `require`, so the test environment's
