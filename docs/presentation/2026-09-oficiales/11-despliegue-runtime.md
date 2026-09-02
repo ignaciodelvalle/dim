@@ -44,8 +44,8 @@ sube si pasan. Ninguna migración viaja por el primero.
 
 **Lo que hay que poder decir de memoria:**
 
-- La cadena de verificación local es `pnpm verify` —<!-- fact:verify_fences -->66<!-- /fact -->
-  controles automáticos— más la suite de <!-- fact:vitest_files -->1487<!-- /fact -->
+- La cadena de verificación local es `pnpm verify` —<!-- fact:verify_fences -->67<!-- /fact -->
+  controles automáticos— más la suite de <!-- fact:vitest_files -->1489<!-- /fact -->
   archivos de prueba, corrida por un verificador que desconfía del código de
   salida en las dos direcciones (`scripts/run-verified-suite.ts`). En la nube
   hay <!-- fact:ci_workflows -->7<!-- /fact --> flujos de integración continua.
@@ -72,7 +72,7 @@ sube si pasan. Ninguna migración viaja por el primero.
 - Los recorridos de navegador (<!-- fact:e2e_specs -->45<!-- /fact -->) son un
   control **aparte**, nocturno, y no forman parte de la cadena de verificación
   local (`.github/workflows/e2e-nightly.yml`).
-- <!-- fact:migrations -->210<!-- /fact --> migraciones, solo hacia adelante y
+- <!-- fact:migrations -->211<!-- /fact --> migraciones, solo hacia adelante y
   nunca editadas.
 
 ## Mermaid

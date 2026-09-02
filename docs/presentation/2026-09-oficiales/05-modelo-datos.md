@@ -44,7 +44,7 @@ mensaje clave se reemplaza por "el historial es el registro".
 | `detector` | Detector de deriva (solo lee, nunca repara) | `scripts/detect-pet-cache-drift.ts` |
 
 Tamaño y vocabulario: <!-- fact:tables -->53<!-- /fact --> tablas sobre
-<!-- fact:migrations -->210<!-- /fact --> migraciones, un catálogo de
+<!-- fact:migrations -->211<!-- /fact --> migraciones, un catálogo de
 <!-- fact:event_types -->55<!-- /fact --> tipos de asiento
 (`packages/contract/src/events/event-types.ts`),
 <!-- fact:projections -->13<!-- /fact --> vistas derivadas puras en

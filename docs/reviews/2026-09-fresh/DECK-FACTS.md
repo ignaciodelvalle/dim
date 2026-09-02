@@ -74,7 +74,7 @@ Each item names the property, the file it lives in, the fence that would fail if
 
 | property | path | guardedBy | lens |
 |---|---|---|---|
-| CI runs **every** gate `pnpm verify` runs — 67 of 67 (66 `lint:*` fences plus `verify:mobile`) — and adding a gate to `verify` without adding it to the workflow fails the build naming it. | `scripts/check-ci-lint-parity.ts:79` | itself, wired as `lint:ci-parity` and run in CI | C06 |
+| CI runs **every** gate `pnpm verify` runs — 68 of 68 (67 `lint:*` fences plus `verify:mobile`) — and adding a gate to `verify` without adding it to the workflow fails the build naming it. | `scripts/check-ci-lint-parity.ts:79` | itself, wired as `lint:ci-parity` and run in CI | C06 |
 | CI's test step is `test:verified`, which distrusts vitest's exit code **in both directions**: it grades "did every discovered test file report?" from a filesystem census independent of vitest's own report, then re-folds vitest's status so a crashing run cannot be normalised. | `scripts/run-verified-suite.ts:98` | itself + `scripts/check-suite-coverage.ts` | C06 |
 | A repo-walking fence proves every public-token resolver carries a throttle **before** the token is resolved: it discovers resolvers by walking `app/` and `src/` rather than reading a hand list, checks guard-before-resolve ordering, requires a distinct bucket per route, and requires every exemption to still point at a real file with a written reason over 40 characters. It ships with ~15 RED-control tests fed synthetic broken sources. | `__tests__/public-token-throttle-coverage.test.ts:592` | self-guarded | A03 |
 | One response envelope for the entire `/api/v1` surface, with a non-vacuous fence: a route missing the envelope import fails, a hand-built response fails, and discovery dropping below the real route count fails. | `lib/infra/api-v1.ts:58` | `scripts/check-api-v1-envelope.ts` (`lint:api-v1`, in the verify chain) | A11 |
@@ -111,14 +111,14 @@ All 35 keys of `docs/architecture/facts.json`. The file at this snapshot declare
 | key | value with marker |
 |---|---|
 | `event_types` | `<!-- fact:event_types -->55<!-- /fact -->` |
-| `verify_fences` | `<!-- fact:verify_fences -->66<!-- /fact -->` |
-| `lint_scripts` | `<!-- fact:lint_scripts -->66<!-- /fact -->` |
-| `check_scripts` | `<!-- fact:check_scripts -->71<!-- /fact -->` |
+| `verify_fences` | `<!-- fact:verify_fences -->67<!-- /fact -->` |
+| `lint_scripts` | `<!-- fact:lint_scripts -->67<!-- /fact -->` |
+| `check_scripts` | `<!-- fact:check_scripts -->72<!-- /fact -->` |
 | `modules` | `<!-- fact:modules -->22<!-- /fact -->` |
 | `pages` | `<!-- fact:pages -->262<!-- /fact -->` |
 | `route_handlers` | `<!-- fact:route_handlers -->82<!-- /fact -->` |
 | `layouts` | `<!-- fact:layouts -->10<!-- /fact -->` |
-| `migrations` | `<!-- fact:migrations -->210<!-- /fact -->` |
+| `migrations` | `<!-- fact:migrations -->211<!-- /fact -->` |
 | `tables` | `<!-- fact:tables -->53<!-- /fact -->` |
 | `enums` | `<!-- fact:enums -->22<!-- /fact -->` |
 | `rls_enabled_tables` | `<!-- fact:rls_enabled_tables -->55<!-- /fact -->` |
@@ -127,7 +127,7 @@ All 35 keys of `docs/architecture/facts.json`. The file at this snapshot declare
 | `vercel_crons_declared` | `<!-- fact:vercel_crons_declared -->2<!-- /fact -->` |
 | `cron_jobs` | `<!-- fact:cron_jobs -->23<!-- /fact -->` |
 | `ci_workflows` | `<!-- fact:ci_workflows -->7<!-- /fact -->` |
-| `vitest_files` | `<!-- fact:vitest_files -->1487<!-- /fact -->` |
+| `vitest_files` | `<!-- fact:vitest_files -->1489<!-- /fact -->` |
 | `e2e_specs` | `<!-- fact:e2e_specs -->45<!-- /fact -->` |
 | `mobile_jest_files` | `<!-- fact:mobile_jest_files -->78<!-- /fact -->` |
 | `org_capabilities` | `<!-- fact:org_capabilities -->16<!-- /fact -->` |
@@ -141,17 +141,17 @@ All 35 keys of `docs/architecture/facts.json`. The file at this snapshot declare
 | `signed_url_ttl_seconds` | `<!-- fact:signed_url_ttl_seconds -->3600<!-- /fact -->` |
 | `projections` | `<!-- fact:projections -->13<!-- /fact -->` |
 | `service_role_call_sites` | `<!-- fact:service_role_call_sites -->34<!-- /fact -->` |
-| `canon_rows` | `<!-- fact:canon_rows -->512<!-- /fact -->` |
+| `canon_rows` | `<!-- fact:canon_rows -->513<!-- /fact -->` |
 | `canon_enforced` | `<!-- fact:canon_enforced -->175<!-- /fact -->` |
-| `canon_partial` | `<!-- fact:canon_partial -->92<!-- /fact -->` |
+| `canon_partial` | `<!-- fact:canon_partial -->93<!-- /fact -->` |
 | `canon_unenforced` | `<!-- fact:canon_unenforced -->245<!-- /fact -->` |
 
 Four numbers that need a caveat if a slide uses them:
 
 - **`service_role_call_sites = 34`.** Every one of these bypasses RLS by design. That is a fine thing to say out loud; it is not a fine thing to leave unexplained next to a slide that says "Row Level Security".
-- **`canon_enforced = 175` of `canon_rows = 512`.** The canon's own rulebook is explicit that `ENFORCED` means *something in the tree fails when the rule is broken* — not that the rule is good, current, or covered beyond its literal predicate. 245 rules are UNENFORCED, which does not mean broken; it means nothing would notice.
-- **`migrations = 210`** counts `.sql` files, and it is now exact: `db/migrations/` holds 210 `.sql` files at this snapshot. The directory listing returns **211 entries** because the 211th is `db/migrations/meta/`, Drizzle's journal directory — not a migration. The 209-vs-210 discrepancy the drafts flagged is resolved: migration `0211` landed and `facts.json` was regenerated with it.
-- **`vitest_files = 1487`** moved twice after the lenses ran (1485 → 1486 with migration 0211's fence, → 1487 with the e2e-cleanup test). A slide quoting a test count should quote it with a date.
+- **`canon_enforced = 175` of `canon_rows = 513`.** The canon's own rulebook is explicit that `ENFORCED` means *something in the tree fails when the rule is broken* — not that the rule is good, current, or covered beyond its literal predicate. 245 rules are UNENFORCED, which does not mean broken; it means nothing would notice. (The 513th row is the app→db boundary rule that landed with its fence on 2026-09-02; it is PARTIAL — the fence pins a baseline rather than forbidding the import outright — so neither the ENFORCED nor the UNENFORCED count moved.)
+- **`migrations = 211`** counts `.sql` files, and it is now exact: `db/migrations/` holds 211 `.sql` files at this snapshot. The directory listing returns **212 entries** because the extra one is `db/migrations/meta/`, Drizzle's journal directory — not a migration. The 209-vs-210 discrepancy the drafts flagged is resolved: migration `0211` landed and `facts.json` was regenerated with it; `0212` (the `pet_events` PostgREST write lockdown) followed on 2026-09-02.
+- **`vitest_files = 1489`** moved four times after the lenses ran (1485 → 1486 with migration 0211's fence, → 1487 with the e2e-cleanup test, → 1489 with the app→db boundary fence and migration 0212's write-lockdown fence). A slide quoting a test count should quote it with a date.
 
 ---
 
