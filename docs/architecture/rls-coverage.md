@@ -40,14 +40,14 @@ RLS declared in a migration and no row here yet. Absence from this table means
 
 | Table | RLS | Policies | Notes / source |
 |---|:---:|:---:|---|
-| profiles | Y | Y | self read/update (`db/rls.sql`, `0086`). No admin PostgREST read — admin reads via service role. |
+| profiles | Y | Y (read) | self read only (`db/rls.sql`, `0086`); the self-UPDATE policy was dropped by `0211` — it was row-scoped but column-blind, so a caller could PATCH their own `role`/`account_type`. Writes are service-role Drizzle only. No admin PostgREST read — admin reads via service role. |
 | pets | Y | Y | owner read/update, any-authenticated insert. Admin has no PostgREST read policy. |
 | organizations | Y | Y | verified-public read, member read (`organizations_rls.sql`). |
 | org_contact_messages | Y | Y | org members, platform admins (`0051`). |
 | organization_coverage | Y | Y | public-if-verified, member. |
 | organization_memberships | Y | Y | self, peers. |
 | organization_capability_grants | Y | Y | self grants, org-admin grants (`0004`). |
-| ownerships | Y | Y | self read/insert/update. No admin PostgREST policy. |
+| ownerships | Y | Y (read) | self read only. The insert/update policies were dropped by `0163` (they pinned the holder, never the pet). Writes are service-role Drizzle only. No admin PostgREST policy. |
 | pet_events | Y | Y | owner read, owner-self insert. Append-only enforced by trigger (`enforce_pet_events_append_only`), not RLS. |
 | reminders | Y | Y | self CRUD. |
 | attachments | Y | Y | pet-owner read/insert/update. |
