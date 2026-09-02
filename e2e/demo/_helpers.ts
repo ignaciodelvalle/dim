@@ -413,12 +413,20 @@ export const MARK_FOUND_BUTTON = /^marcar como encontrada$/i;
  * was skipped, the pet stayed lost, and the assertion fired exactly as
  * designed (trace: goto 6.6 s, count 6.9 s, goto 6.9 s, no click). The
  * inline cleanups it replaced had the same race and never noticed, because
- * their regex was already dead. crisis-seams never hit it: its body commits
- * the found action behind a real `toBeVisible` wait, so its cleanup only ever
- * takes the already-active branch. Waiting on `data-sheet-id` — the `id` prop
- * both branches pass — decides "is there something to click" on a mounted
- * sheet, and stays a plain count afterwards because the not-lost branch is a
- * legitimate "nothing to click", not a failure.
+ * their regex was already dead. crisis-seams reaches the CLICK branch too: its
+ * `finally` runs after every leg of the seam, and any throw between the
+ * mark-lost commit and the mark-found click — the stranger POV, the admin
+ * `/gob/perdidas` leg — arrives here with the pet still lost. That is exactly
+ * why that spec re-establishes the owner session before calling this helper:
+ * the admin leg would otherwise hand the cleanup the wrong actor. Waiting on
+ * `data-sheet-id` — the `id` prop both branches pass — decides "is there
+ * something to click" on a mounted sheet, and stays a plain count afterwards
+ * because the not-lost branch is a legitimate "nothing to click", not a
+ * failure.
+ *
+ * WHAT THE CLICK IS FOLLOWED BY IS A DOM SIGNAL, never the post-action URL:
+ * the commit control leaving the document holds whether `useActionRedirect`
+ * navigates or drops (e2e/README.md, "Never wait on a post-action URL").
  *
  * The goto → reload pair is the freshness idiom crisis-seams measured: the
  * found action fires its own client-side navigation on its own schedule, so
@@ -445,12 +453,19 @@ export async function ensurePetFound(page: Page, token: string): Promise<void> {
   const confirm = sheet.getByRole("button", { name: MARK_FOUND_BUTTON });
   if ((await confirm.count()) > 0) {
     await confirm.click();
-    // setPetFoundAction returns `redirectTo` only after the write committed,
-    // and useActionRedirect then loads the profile URL without `?sheet=`; the
-    // URL losing the param is the write landing. A miss here is not fatal —
-    // the assertions below judge the state on a fresh document either way.
-    await page
-      .waitForURL((url) => !url.searchParams.has("sheet"), { timeout: 20_000 })
+    // A DOM SIGNAL, NOT THE POST-ACTION URL. `setPetFoundAction` returns
+    // `redirectTo` only after the write committed, but the client half of the
+    // N3 contract (useActionRedirect → window.location.assign) drops often
+    // enough to matter, which is why e2e/README.md forbids waiting on that URL
+    // by name. The commit control leaving the document is the signal that holds
+    // in BOTH outcomes: the sheet unmounts when the redirect fires, and when it
+    // drops the RSC re-render replaces the button with the not-lost notice.
+    // Something has to be awaited here regardless — navigating away while the
+    // action's POST is still in flight would abort the write this cleanup
+    // exists to commit. A miss is not fatal: the assertions below judge the
+    // state on a fresh document either way.
+    await expect(confirm)
+      .toBeHidden({ timeout: 20_000 })
       .catch(() => {});
   }
   await page.goto(`/mis-mascotas/${token}`, { waitUntil: "domcontentloaded" }).catch(() => {});

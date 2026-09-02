@@ -39,9 +39,12 @@ import { ACCOUNTS, ensurePetFound, loginAs } from "./demo/_helpers";
  * Skipping it keeps the run fast and avoids depending on the live Nominatim
  * geocoder that LocationFields mode="l2" calls out to.
  *
- * Cleanup: the pet is reverted to "found" (?sheet=marcar-encontrada →
- * Confirmar) in a `finally` block regardless of pass/fail, so the local dev
- * DB is left as it started for other suites / manual QA.
+ * Cleanup: the pet is reverted to "found" by `ensurePetFound` (demo/_helpers)
+ * in a `finally` block regardless of pass/fail, so the local dev DB is left as
+ * it started for other suites / manual QA. This header used to spell out the
+ * sheet's commit label; that label had already been renamed under it, and a
+ * copy of a dead string in a comment is how the drift stayed invisible in
+ * three specs at once. The control is named ONCE, in `MARK_FOUND_BUTTON`.
  */
 
 test("owner marks a pet lost — public credential flips to lost state for a stranger", async ({
