@@ -15,6 +15,14 @@
 // test and manufactured exactly the cache-vs-spine drift the fence exists to
 // detect. A blunt tool used in a hurry is worse than no tool.
 //
+// TENTH instance of the class, 2026-09-02, and the first from an OPERATOR KILL
+// rather than a dying worker: a gate was stopped by hand mid-file and
+// __tests__/tag-lifecycle.test.ts never reached its afterAll. It left a pet the
+// cleaner could see in NEITHER way — the name was not listed, and its token is
+// `DIM-TAGT-XXXX`, a legal real-token shape no prefix here may match. It also
+// left `pet_tags` rows, whose `pet_id` FK carries no ON DELETE (migration 0169),
+// so even a matched pet would have failed to delete. Both are fixed below.
+//
 // WHAT IT DOES NOT DO
 // ---------------------------------------------------------------------------
 // It does not touch real data. It removes pets matching KNOWN TEST PREFIXES
@@ -50,7 +58,18 @@ export const TEST_PET_PREFIXES = {
   // uppercase initialisms, so `name LIKE 'UC CD %'` requires a third word after
   // them. No Spanish pet name begins "UC CD ". Widening to `UC ` would NOT be
   // safe by the same reasoning (one initialism, and it prefixes real words).
-  byName: ["E2EPet-", "ProbeAlta-", "DdxPet", "Transit Compliance Test", "UC CD "],
+  // "Tag Lifecycle Pet" added 2026-09-02, TENTH instance (see the header).
+  // A NAME entry for the same reason "UC CD " is one, and with no alternative:
+  // __tests__/tag-lifecycle.test.ts mints `DIM-TAGT-${4 chars}`, which is a
+  // legal real token, so no byToken prefix could ever be safe here.
+  byName: [
+    "E2EPet-",
+    "ProbeAlta-",
+    "DdxPet",
+    "Transit Compliance Test",
+    "UC CD ",
+    "Tag Lifecycle Pet",
+  ],
   // MC-DUP- added 2026-07-30: `__tests__/microchip-replaced.test.ts` HAS a
   // correct afterAll, but a worker killed mid-file never runs it, and the row
   // then fails check-spine-integrity on the next verify. Leaked exactly that
@@ -191,6 +210,17 @@ async function main(): Promise<void> {
       await tx`DELETE FROM pet_events WHERE pet_id = ANY(${ids}::uuid[])`;
       await tx`DELETE FROM ownerships WHERE pet_id = ANY(${ids}::uuid[])`;
       await tx`DELETE FROM pet_identifications WHERE pet_id = ANY(${ids}::uuid[])`;
+      // pet_tags.pet_id is the ONE foreign key to pets.id with no ON DELETE
+      // action (migration 0169; every other child table cascades or sets null),
+      // so a tagged pet cannot be deleted while its chapa row survives. The
+      // fixture that leaks them says the same thing at its own cleanup:
+      // __tests__/tag-lifecycle.test.ts, "clear tag rows before the pets".
+      //
+      // Not covered, and worth knowing: an UNACTIVATED tag (pet_id NULL, lote
+      // TEST-LOTE-TAGLC) hangs off no pet, so this sweep cannot see it. Its
+      // serial is random per run, it trips no fence, and it is noise rather
+      // than breakage — the same standing as the DIM-REHOME-001 org above.
+      await tx`DELETE FROM pet_tags WHERE pet_id = ANY(${ids}::uuid[])`;
       await tx`DELETE FROM pets WHERE id = ANY(${ids}::uuid[])`;
     });
     console.log(`\n✓ Removed ${ids.length} test-fixture pet(s).`);
