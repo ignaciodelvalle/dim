@@ -31,7 +31,7 @@ Ultimate trajectory: **Mi Argentina integration** — federation with the Argent
 | Domain specs & plans index | `docs/superpowers/README.md` |
 | External-agent handoffs + orientation protocol | `docs/design/handoffs/README.md` — auditors/proposers MUST read it; canonical checkout only, never `.claude/worktrees/` |
 | Implementation plans | `docs/superpowers/plans/` |
-| Event types — the `EVENT_TYPES` const IS the count (48 at last read; recount there, never trust a number written here) | `db/schema.ts` |
+| Event types — the `EVENT_TYPES` const IS the count (<!-- fact:event_types -->55<!-- /fact --> — generated from that const by `pnpm facts:write`, not typed by hand) | `db/schema.ts` |
 | Per-event Zod schemas | `lib/events/event-schemas.ts` |
 | Libreta sanitaria event filter | `lib/infra/libreta-sanitaria.ts` |
 | Metrics / projection primitives | `lib/metrics/` (context, scope, period, anonymity, population, cache) |
@@ -664,7 +664,7 @@ A conditional whose justification NAMES a specific flow becomes wrong the day th
 - `app/gob/layout.tsx` swapped the ADMIN rail in for an admin viewer, because an admin used to arrive via `/admin/moderacion`'s **redirect**. The F1 fusion (2026-07-22) removed that redirect. What was left: the switcher offered "Ir a Gobierno" and the layout then served 19 links back to `/admin`, so the sections never changed and every click bounced. A door the product opened and then refused.
 - `lib/ui/shell-nav.ts` pointed the operator's "Volver a mi app" at `/mis-mascotas`, calling it a "personal escape hatch" — while `app/(app)/layout.tsx` redirects govt→`/gob` and admin→`/admin` before that page renders. The link advertised a destination the product refuses to serve.
 
-**The rule**: when you delete or reroute a flow, `rg` its name (route, redirect, entry point) across **comments**, not just code. The justification for someone else's `if` is written in prose, so it will not show up in a type error, a test, or any of the 45 fences.
+**The rule**: when you delete or reroute a flow, `rg` its name (route, redirect, entry point) across **comments**, not just code. The justification for someone else's `if` is written in prose, so it will not show up in a type error, a test, or any of the <!-- fact:verify_fences -->66<!-- /fact --> fences.
 
 **The tell**: two pieces of the product disagreeing about whether a state is reachable. One offers it, the other denies it. When you find that, one of the two is stale — establish which before picking a side. Both bugs above also had the correct helper sitting in the same file (`roleHome()`), already used by a sibling branch.
 
@@ -1527,7 +1527,7 @@ All migrations use `IF EXISTS` / `IF NOT EXISTS` guards — do not remove them.
 
 ### Fences (the `pnpm verify` chain)
 
-`pnpm verify` is `typecheck && lint` + **every `lint:*` fence in package.json** (46 at last read — package.json is the source of truth, this number is not) + `build`, in
+`pnpm verify` is `typecheck && lint` + **every `lint:*` fence in package.json** (<!-- fact:verify_fences -->66<!-- /fact --> — counted out of the `verify` script itself by `pnpm facts:write`; package.json remains the source of truth and this marker is regenerated from it) + `build`, in
 that order (`package.json` → `verify` script is the literal source of truth —
 read it before assuming this list, it grows). Each fence is a standalone
 `pnpm lint:<name>` script so it can be run in isolation while iterating.
