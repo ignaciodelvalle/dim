@@ -1,5 +1,9 @@
 # `/api/v1` invariants
 
+> Snapshot: `c10f4ff03` (`main`) · Facts: `docs/architecture/facts.json` generated 2026-09-02
+> Verified against code on 2026-09-02 by writer D (sonnet subagent) · Status: reviewed
+> Numbers in this file are `<!-- fact:key -->` markers checked by `__tests__/architecture-facts.test.ts`.
+
 **Status:** active · written 2026-08-21 · gates Track 2 (B8) · **all four open decisions closed 2026-08-21** · **first endpoint landed 2026-08-21 (§10)**
 
 > **Path rectification (2026-08-21).** Earlier drafts of this file wrote the

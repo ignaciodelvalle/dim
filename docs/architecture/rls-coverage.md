@@ -1,5 +1,9 @@
 # RLS coverage — authoritative inventory
 
+> Snapshot: `c10f4ff03` (`main`) · Facts: `docs/architecture/facts.json` generated 2026-09-02
+> Verified against code on 2026-09-02 by writer D (sonnet subagent) · Status: reviewed
+> Numbers in this file are `<!-- fact:key -->` markers checked by `__tests__/architecture-facts.test.ts`.
+
 > Date: 2026-07-01 · Source: reviews & hardening handoff WS-A. Transcribed from the
 > live, CI-enforced classification in `__tests__/rls/coverage.test.ts` +
 > `__tests__/rls/matrix.data.ts` (fitness-tested against `pg_class.relrowsecurity`).
@@ -30,7 +34,7 @@ tables that are RLS-enabled with **zero permissive policies** (= deny-all to
 PostgREST). That is safe *because* the app never reads those tables through the
 anon-key/PostgREST surface — only via the service-role Drizzle connection.
 
-## Table-by-table (45 tables)
+## Table-by-table (declared: <!-- fact:rls_enabled_tables -->55<!-- /fact --> tables; the live truth is `__tests__/rls/*`)
 
 The 45 below are the tables this inventory was transcribed for on 2026-07-01, not
 the whole declared set: the generated count above is

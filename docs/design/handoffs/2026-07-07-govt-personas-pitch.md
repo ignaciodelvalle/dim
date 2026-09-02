@@ -1,5 +1,7 @@
 # MiMAR para el Estado — personas, journeys y propuesta de valor
 
+> **Superseded for the 2026-09 presentation by `docs/presentation/2026-09-oficiales/00-guion.md`.** The persona table still holds. Everything else is graded stale by lens D05: the roadmap (two of five items shipped), the "Gap" on jurisdictional moderation (shipped end to end), the three-legged queue claim (two legs), "legally anchored" (2 statute-backed KPIs, both CABA / Buenos Aires), the comparative against private alternatives (no benchmark on the axes named), and the brand casing throughout (the brand is `miMAR`, lowercase m). Read `docs/reviews/2026-09-fresh/DECK-FACTS.md` §3 before quoting any sentence in this file.
+
 Artefacto de pitch para una dirección de zoonosis / bienestar animal (GCBA, provincia o municipio). Destila la persona-review 2026-07-07. Úsalo para armar el deck o guiar una demo con un funcionario.
 
 ## El modelo de roles (aclarar SIEMPRE al inicio)

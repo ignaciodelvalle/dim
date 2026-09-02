@@ -1,5 +1,11 @@
 # Data retention (`retention_until`) — pending product/legal decision
 
+> Snapshot: `c10f4ff03` (`main`) · Facts: `docs/architecture/facts.json` generated 2026-09-02
+> Verified against code on 2026-09-02 by writer D (sonnet subagent) · Status: draft
+> Numbers in this file are `<!-- fact:key -->` markers checked by `__tests__/architecture-facts.test.ts`.
+>
+> Status: PENDING PO DECISION as of 2026-09
+
 **Status: OPEN — requires legal sign-off. No engineering action until then.**
 **Date raised: 2026-06-11 (ARCH-G / ARCH-U of the data-architecture remediation series)**
 

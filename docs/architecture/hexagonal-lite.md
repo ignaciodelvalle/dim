@@ -1,7 +1,12 @@
 # DIM Architecture — Hexagonal-lite + Screaming Architecture
 
+> Snapshot: `c10f4ff03` (`main`) · Facts: `docs/architecture/facts.json` generated 2026-09-02
+> Verified against code on 2026-09-02 by writer D (sonnet subagent) · Status: reviewed
+> Numbers in this file are `<!-- fact:key -->` markers checked by `__tests__/architecture-facts.test.ts`.
+
 > Status: **adopted** · Applies to: all backend logic (server actions, business rules, persistence)
 > Companion docs: [`AGENTS.md`](../../AGENTS.md) (domain model & event-sourcing principles), [`CONTRIBUTING.md`](../../CONTRIBUTING.md)
+> Related diagrams: `docs/presentation/2026-09-oficiales/04-espina-eventos-y-caches.md` (the event-spine + cache diagram this pattern backs) and `docs/architecture/README.md` (the full doc map).
 
 ---
 

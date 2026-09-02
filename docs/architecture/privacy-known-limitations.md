@@ -1,5 +1,9 @@
 # Privacy — known, accepted limitations
 
+> Snapshot: `c10f4ff03` (`main`) · Facts: `docs/architecture/facts.json` generated 2026-09-02
+> Verified against code on 2026-09-02 by writer D (sonnet subagent) · Status: reviewed
+> Numbers in this file are `<!-- fact:key -->` markers checked by `__tests__/architecture-facts.test.ts`.
+
 > Register of privacy findings the PO reviewed and **deliberately accepted** instead of fixing,
 > with the reasoning and the triggers that would reopen them. Companion to the k-anonymity
 > architecture (`lib/metrics/anonymity.ts`, the panorama cube) and the privacy checklist in

@@ -1,5 +1,11 @@
 # Client error telemetry — pending product/legal decision
 
+> Snapshot: `c10f4ff03` (`main`) · Facts: `docs/architecture/facts.json` generated 2026-09-02
+> Verified against code on 2026-09-02 by writer D (sonnet subagent) · Status: draft
+> Numbers in this file are `<!-- fact:key -->` markers checked by `__tests__/architecture-facts.test.ts`.
+>
+> Status: PENDING PO DECISION as of 2026-09
+
 **Status: OPEN — requires PO decision and, for options C and D, legal sign-off.**
 **Date raised: 2026-08-29 (observability-sink lane)**
 
@@ -14,11 +20,11 @@ international-data-transfer consequences and is explicitly the PO's call.
 |---|---|---|
 | Server (route handlers, server actions, RSC) | `lib/infra/report-error.ts` → one structured JSON line to stdout → Vercel function logs | **Yes.** Queryable by `level` / `context` / `message`. Works, no vendor needed. |
 | Web client (error boundaries, `lib/analytics`) | `lib/observability/report-error.ts` → `console.error` in the visitor's browser | **No.** It dies in the tab. |
-| Mobile (`apps/mobile`) | nothing | **No.** Verified: zero occurrences of sentry / bugsnag / crashlytics / datadog / logrocket across the three `package.json` files, and no source-map upload step. A crash reaches us only if a tester says "se cerró sola". |
+| Mobile (`apps/mobile`) | `apps/mobile/src/observability/sentry.ts` → Sentry, DSN-gated | **Partly, and unfiltered.** Crashes reach a third party since 2026-08-30, with `sendDefaultPii: false` and `tracesSampleRate: 0` — but **no `beforeSend` hook**, so nothing passes through `lib/observability/redact.ts`. Finding A06-2 (MED). |
 
 The server row is why this is easy to under-estimate: production errors *feel*
 observable because half of them are. The client half is not, and the mobile
-half does not exist at all.
+half reports to a vendor with no redaction hook.
 
 ## What is already true (no decision needed)
 
@@ -86,8 +92,8 @@ Three questions for counsel, in order:
 | | Option | Money | Effort | What you get | What you give up |
 |---|---|---|---|---|---|
 | **A** | **Do nothing** (keep `consoleSink`) | $0 | none | — | Client and mobile errors stay invisible. This is a choice, not a default; it is only defensible while the tester pool is small enough to phone in. |
-| **B** | **Vercel only** — add an `/api/telemetry/client-error` route that re-emits the redacted report through `lib/infra/report-error.ts`, so client errors land in the function logs the server already uses | ~$0 marginal (function invocations); log **retention** is the real cost — short on lower plans, longer retention is a paid add-on | small: one route + one adapter | Client errors become visible to the team, in the tool already in use | No grouping or dedup (one noisy bug = thousands of lines), no alerting, no release health, no symbolication of minified stacks, **nothing for mobile** |
-| **C** | **Hosted APM (Sentry or equivalent)** | free tier exists at low volume; paid team tiers commonly start around **USD 25–30/month**, and scale by event volume — *verify* | small–medium: adapter + source-map upload in CI + `beforeSend` wired to our redactor | Grouping, dedup, alerting, release health, source maps, **and a React Native SDK that closes the mobile hole with the same vendor** | New data processor → the art. 12 analysis above. Default SDK capture is aggressive (breadcrumbs, request bodies, IP, session replay) and must be turned down deliberately — our `redact.ts` is the `beforeSend`, and the SDK's own auto-capture must be disabled, not merely filtered |
+| **B** | **Vercel only** — add an `/api/telemetry/client-error` route that re-emits the redacted report through `lib/infra/report-error.ts`, so client errors land in the function logs the server already uses | ~$0 marginal (function invocations); log **retention** is the real cost — short on lower plans, longer retention is a paid add-on | small: one route + one adapter | Client errors become visible to the team, in the tool already in use | No grouping or dedup (one noisy bug = thousands of lines), no alerting, no release health, no symbolication of minified stacks, **nothing for the web-client redaction gap on mobile, which already ships to a vendor** |
+| **C** | **Hosted APM (Sentry or equivalent)** | free tier exists at low volume; paid team tiers commonly start around **USD 25–30/month**, and scale by event volume — *verify* | small–medium: adapter + source-map upload in CI + `beforeSend` wired to our redactor | Grouping, dedup, alerting, release health, source maps, **and one vendor for both, so the mobile SDK already in the tree gains the same `beforeSend` redactor** | New data processor → the art. 12 analysis above. Default SDK capture is aggressive (breadcrumbs, request bodies, IP, session replay) and must be turned down deliberately — our `redact.ts` is the `beforeSend`, and the SDK's own auto-capture must be disabled, not merely filtered |
 | **D** | **Self-hosted** (GlitchTip, or self-hosted Sentry) | no licence cost; **infra + ops time** is the cost, and it is recurring | medium–large: someone must run, patch, back up and monitor it | Same feature shape as C; data can stay under our control and, if hosted in-country, sidesteps the transfer question almost entirely | Ops burden lands on a one-developer project with a non-technical PO. A crash reporter that is itself down is worse than none, because it is trusted |
 
 ## Recommendation (sequencing, not vendor choice)
@@ -102,8 +108,8 @@ they are not equally gated:
    no legal review, and it is a small PR. It also makes the redaction layer
    earn its keep immediately rather than sitting unused behind a decision.
 2. **Then decide C vs D deliberately**, driven by the two things B cannot do:
-   alerting on a spike, and **mobile crashes** — which today have no path to
-   anyone at all and, unlike web errors, cannot be reconstructed from a user's
+   alerting on a spike, and **mobile crashes** — which today reach a vendor
+   unredacted and, unlike web errors, cannot be reconstructed from a user's
    description.
 
 If only one thing is done, it should be B, because it is the one with no gate
