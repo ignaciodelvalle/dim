@@ -19,9 +19,16 @@ local stack, on the PO's Windows box. Every duration below was measured on
 | Android SDK | `C:\Users\ignac\AppData\Local\Android\Sdk` |
 | AVD | `mimar` — API 35 (Android 15), x86_64 |
 | NDK / CMake | NDK 27.1.12297006, CMake 3.22.1 (both under the SDK) |
-| Node / pnpm / Expo | 24.15 · 11.1.1 · Expo CLI 57.0.19 |
+| Node / pnpm / Expo | **22.23.x** (`package.json` engines: `>=22.23.0 <23`) · pnpm 11.1.1 · Expo CLI 57.0.19 |
 | Supabase | local stack up (`supabase_*_DIM` containers) |
 | Web/API | production server on `:3000` via `pwsh scripts/qa-up.ps1` |
+
+**The 2026-09-01 run was NOT on the supported Node**, and it said so on its first
+line: `[WARN] Unsupported engine: wanted: {"node":">=22.23.0 <23"} (current:
+{"node":"v24.15.0","pnpm":"11.1.1"})`. fnm already has the supported line
+installed — `%APPDATA%\fnm\node-versions\v22.23.2` — so `fnm use 22.23.2` costs
+nothing. Nothing below has been re-measured on it; the durations and the failure
+in T5 are Node 24.15.0 numbers.
 
 `JAVA_HOME` is set at User level but **a shell started before that does not have
 it** — export it per command. `ANDROID_HOME` is not set anywhere; export it too.
@@ -51,6 +58,7 @@ Expected tail, all of it:
 ```
 Supabase: Up 6 days (healthy)
 Build is fresh relative to HEAD (5092aa525).
+Starting production server on port 3000...
 Serving the on-disk build (wc8Dom-e9_nOi8cKcXvZV) - verified after start.
 smoke / -> 200
 smoke /login -> 308
@@ -94,13 +102,21 @@ Two rules, both paid for in lost hours (see
 
 1. **From the AVD, the host is `10.0.2.2`** — not `localhost`, which is the
    emulator itself.
-2. **Both `EXPO_PUBLIC_*` origins must name the same host.** Point only Supabase
-   at the local stack and the app signs in against *staging*, gets a token signed
-   with staging's key, hands it to *local* GoTrue, and gets
-   `invalid JWT: unrecognized JWT kid <…> for algorithm ES256`. The screen then
-   blames device storage, which is why this cost a day the first time.
-   `apps/mobile/src/config/api.ts` now detects the crossed-planes case
-   (`planesLookCrossed()`) and says so out loud — trust that message.
+2. **Both `EXPO_PUBLIC_*` origins must name the same ENVIRONMENT — which is not
+   the same thing as the same host.** `planesLookCrossed()` in
+   `apps/mobile/src/config/api.ts` reduces each plane to one bit: is its host
+   local — `localhost`, `127.0.0.1`, a `*.local` mDNS name, or an RFC 1918
+   address, which is how `10.0.2.2` qualifies — or is it not. Two different
+   local spellings agree, and so do two different remote hosts: the app's own
+   staging configuration is exactly that, `dim-staging.vercel.app` for the data
+   plane (`API_BASE_URL`'s built-in default) and a `*.supabase.co` project for
+   auth, so a same-host rule would condemn every correct build this app ships.
+   One of each is what is never correct. Point only Supabase at the local stack
+   and the app signs in against *staging*, gets a token signed with staging's
+   key, hands it to *local* GoTrue, and gets `invalid JWT: unrecognized JWT kid
+   <…> for algorithm ES256`. The screen then blames device storage, which is why
+   this cost a day the first time. `api.ts` detects the crossed-planes case and
+   says so out loud — trust that message.
 
 Never read, create, or edit any `.env*` file for this (PO rule). Take the anon
 key from the running stack and pass it inline:
@@ -136,9 +152,25 @@ export ANDROID_HOME="C:/Users/ignac/AppData/Local/Android/Sdk"
 export ANDROID_SDK_ROOT="$ANDROID_HOME"
 export PATH="/c/Users/ignac/AppData/Local/Android/Sdk/platform-tools:$PATH"
 
+# Step 3's three variables AGAIN — babel inlines them into THIS binary, so a
+# build shell that lacks them ships an app pointed at staging with no auth
+# plane, and nothing later can notice. Same pure-bash read, never a literal key.
+ANON=""
+while IFS= read -r kv; do
+  case "$kv" in ANON_KEY=*) ANON=${kv#ANON_KEY=}; ANON=${ANON//\"/}; ANON=${ANON%$'\r'} ;; esac
+done < <(npx supabase status -o env 2>/dev/null)
+[ -n "$ANON" ] || { echo "FATAL: no ANON_KEY"; exit 1; }
+
+export EXPO_PUBLIC_API_BASE_URL="http://10.0.2.2:3000"
+export EXPO_PUBLIC_SUPABASE_URL="http://10.0.2.2:54321"
+export EXPO_PUBLIC_SUPABASE_ANON_KEY="$ANON"
+
 cd apps/mobile
 npx expo run:android            # background it, redirect to a log, and poll the log
 ```
+
+The `supabase status` read runs from the repo root, before the `cd` — it is the
+CLI's project, not the app's.
 
 This is a 10–25 minute command on a cold tree; background it and poll the log
 file rather than blocking a foreground shell (600 s tool ceiling). Poll for the
@@ -261,11 +293,23 @@ would write measure **382 characters** — because worklets' sources live outsid
 its CMakeLists tree (`android/../Common/cpp`), so CMake mirrors the *absolute
 source path* inside the object directory, and pnpm's virtual-store segment
 (`.pnpm/react-native-worklets@0.10._<32-hex>/node_modules/react-native-worklets/`,
-~85 chars) is therefore spent **twice**.
+**102 chars** once the placeholder is the real 32-hex hash) is therefore spent
+**twice**.
+
+Not ruled out, and stated as such rather than left implied:
+
+* **Node 24 vs the `engines` range.** Every attempt ran on Node 24.15.0 against
+  a repo that declares `>=22.23.0 <23`, with the mismatch warned on the first
+  line of the build log (see Prerequisites). Nothing was re-run on 22.23.2, so
+  "the toolchain is out of range" remains a live explanation — cheap to
+  eliminate (`fnm use 22.23.2`) and worth eliminating before any of the cures
+  below is paid for.
 
 Every real cure is a repo-level decision, not an environment fix:
 
-* `node-linker=hoisted` in `.npmrc` (drops ~130 chars, forces a full reinstall);
+* `node-linker=hoisted` in `.npmrc` (drops ~160 chars — the 102-char segment
+  twice, less the plain `react-native-worklets/` that replaces each; forces a
+  full reinstall);
 * moving the checkout to a shorter root (`C:\dev\dim` is already only 10 chars —
   buys ~7, almost certainly not enough on its own);
 * patching the dependency's `externalNativeBuild.cmake.buildStagingDirectory` to
