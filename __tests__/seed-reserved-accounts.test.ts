@@ -77,9 +77,18 @@ function filesHardcodingReservedEmail(): string[] {
   return hits;
 }
 
-// SOURCE_FILES is a full repo scan — gate 0901f measured the "is hardcoded
-// nowhere else" test at 2379ms clean; 30s matches the repo's convention for
-// machine-bound suites.
+// The budget belongs to ONE step, and it is not the one at line 60.
+//
+// `SOURCE_FILES` above is a module-level directory walk: it runs at COLLECTION,
+// before any test starts, so no per-test timeout covers it. What this budget
+// covers is the third test's `filesHardcodingReservedEmail()` — a readFileSync
+// of every file the walk found — which gate 0901f measured at 2379ms clean.
+//
+// It is written on the `describe`, so vitest applies it to all three tests in
+// the block, not only to the expensive one. That is deliberate and not an
+// oversight: the cheap two share the same corpus, and a budget that only the
+// slow test carries goes stale the moment the cost moves. 30s matches the
+// repo's convention for machine-bound suites.
 const SCAN_BUDGET = { timeout: 30_000 };
 
 describe("reserved seed accounts — single source of truth", SCAN_BUDGET, () => {

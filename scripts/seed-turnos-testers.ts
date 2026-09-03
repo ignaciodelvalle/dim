@@ -49,7 +49,30 @@ const SLOT_HOURS_UTC = [14, 15, 16, 17];
 const SLOT_CAPACITY = 4;
 const DURATION_MINUTES = 15;
 
-/** Deterministic per-locality token so the offering guard has a constraint. */
+/**
+ * Deterministic per-locality token so the offering guard has a constraint.
+ *
+ * OFF-FORMAT ON PURPOSE. The app mints `service_offerings.public_token` as
+ * `OFR-XXXX-XXXX` (lib/infra/publicToken.ts:82 → generatePrefixedToken, a
+ * random 31-char-alphabet draw). This one is `DIM-PILOT-<slug>`: derived, not
+ * drawn, so re-running converges instead of minting a second offering — and
+ * unmistakable, at a glance, for seeded pilot stock rather than a real row.
+ *
+ * WHY 24 CHARACTERS: nothing requires it. The column is `text NOT NULL UNIQUE`
+ * (db/schema.ts:2795) with no length constraint, and the format is this
+ * function's own. 24 is a readability cap on an operator-typed
+ * "Provincia|Localidad" pair, chosen so the token stays scannable in the SKIP /
+ * insert log lines below.
+ *
+ * WHAT THE CAP COSTS, since a cap on a derived unique key is never free: the
+ * province is slugged FIRST, so it eats the budget first — "Santiago del
+ * Estero" leaves four characters for the locality. Two localities in one
+ * province whose slugs agree through character 24 produce the SAME token, and
+ * the guard below reads that as "offering exists" and SKIPs the second one,
+ * silently. Nobody has hit it (the pilot is 14 localities the PO names one at a
+ * time, and the SKIP line prints the pair), and widening the cap or hashing the
+ * tail would close it.
+ */
 function pilotToken(province: string, locality: string): string {
   const slug = `${province}-${locality}`
     .toUpperCase()
@@ -222,14 +245,27 @@ async function main() {
     "../lib/infra/jurisdiction-validation"
   );
 
-  // Resolved against the ar_localities catalog, not merely checked for a
-  // known province: the search this offering must be found by filters
-  // province AND locality by EQUALITY against what pets carry, so an alias
-  // ("Ciudad Autónoma de Buenos Aires" for "CABA") or a locality outside the
-  // catalog plants a row nobody's search can ever match — fail loudly
-  // instead of writing an invisible one. The CANONICAL names come back out
-  // of this resolution and are what gets stored below, never the raw typed
-  // strings.
+  // Resolved against the ar_localities catalog, not merely checked for a known
+  // province. The search this offering must be found by
+  // (src/modules/events/application/booking/search-bookable-slots.ts:245-272)
+  // matches the two columns DIFFERENTLY, and both halves need the canonical
+  // spelling:
+  //   · PROVINCE by equality — `eq(jurisdictionProvince, args.province)`.
+  //   · LOCALITY by SUBSUMPTION, never equality — `inArray(jurisdictionLocality,
+  //     localitiesCoveringSearch(province, locality))`, which accepts the
+  //     searched locality itself OR a whole-province marker, so a
+  //     province-wide offering answers a barrio search
+  //     (lib/domain/jurisdiction-canonical.ts:264-270).
+  // The subsumption widens which OFFERING answers a search — it does not widen
+  // what the offering may be SPELLED as. The accepted set is built from the
+  // SEARCHER's canonical locality plus the whole-province forms, and the search
+  // takes that locality from the pet's own jurisdiction. So a province typed as
+  // an alias ("Ciudad Autónoma de Buenos Aires" instead of the catalog's
+  // "CABA") fails the equality, and a locality outside the catalog is in no
+  // subsumption set: either one plants a row nobody's search can ever match.
+  // Fail loudly instead of writing an invisible one. The CANONICAL names come
+  // back out of this resolution and are what gets stored below, never the raw
+  // typed strings.
   const resolvedPairs: { raw: string; province: string; locality: string }[] = [];
   for (const p of pairs) {
     try {

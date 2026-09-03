@@ -339,13 +339,17 @@ export async function deletePetsByNamePrefix(prefix: string): Promise<number> {
       await tx`DELETE FROM pet_identifications WHERE pet_id = ANY(${ids}::uuid[])`;
       // pet_tags IS THE ONE CHILD THAT HAD TO BE NAMED, and it was missing.
       // Its FK is `pet_id uuid REFERENCES public.pets(id)` with no ON DELETE
-      // (db/migrations/0169_pet_tags.sql:44) — the only non-CASCADE reference
-      // to `pets.id` left in the schema. So a single activated chapa on a
-      // doomed pet raises 23503 on the DELETE below, the whole transaction
-      // rolls back, and NO pet is removed: the pile this file exists to
-      // prevent comes back in full, quietly, the first time a spec activates a
-      // tag on a pet it registered. Latent today only because chapas.spec.ts
-      // binds its lote to a SEEDED owner pet, which no prefix here sweeps.
+      // (db/migrations/0169_pet_tags.sql:44) — so it defaults to NO ACTION, and
+      // it is the only reference to `pets.id` that BLOCKS the delete. Not the
+      // only non-CASCADE one: `notifications.related_pet_id` (db/schema.ts:1618)
+      // and `welfare_reports.subject_pet_id` (db/schema.ts:1840) are ON DELETE
+      // SET NULL, which resolves itself and needs no line here. So a single
+      // activated chapa on a doomed pet raises 23503 on the DELETE below, the
+      // whole transaction rolls back, and NO pet is removed: the pile this
+      // file exists to prevent comes back in full, quietly, the first time a
+      // spec activates a tag on a pet it registered. Latent today only because
+      // chapas.spec.ts binds its lote to a SEEDED owner pet, which no prefix
+      // here sweeps.
       //
       // DELETED, NOT DETACHED. The `pet_tags_state_machine` check forbids an
       // `active`/`revoked` row with a NULL pet_id (0169:57-60), so "orphan the

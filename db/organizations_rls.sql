@@ -123,10 +123,24 @@ create policy "Members can read peers in same org"
 -- No insert / update / delete in v1.
 
 -- ----------------------------------------------------------------------------
--- pet_events org-attributed write policy
+-- pet_events write policies: there are none, and that is deliberate
 -- ----------------------------------------------------------------------------
--- Owner-self writes (author_organization_id IS NULL) are gated by db/rls.sql.
--- The org-attributed branch (author_organization_id IS NOT NULL gated on an
--- active organization_membership with can_write_pet_events = true) will be
--- added in db/rls.sql when the refugio / professional portal lands. Until
--- then, org-attributed inserts via PostgREST are denied.
+-- Since db/migrations/0212_pet_events_lock_postgrest_writes.sql (2026-09-02),
+-- public.pet_events carries NO INSERT, UPDATE or DELETE policy for anon or
+-- authenticated. 0212 dropped the owner-self INSERT policy this section used to
+-- point at (its WITH CHECK left author_role / author_verified unconstrained, so
+-- any owner could self-issue an institutionally-verified event) and refuses to
+-- complete if a caller-reachable write policy survives under any name. Reads
+-- are untouched -- owners keep a SELECT policy, and 0212 fails if that is gone
+-- too.
+--
+-- Every legitimate append reaches this table over the Drizzle connection as a
+-- BYPASSRLS role, through src/modules/events/infrastructure, so the count of
+-- legitimate PostgREST writers is zero and deny-all is the exact policy rather
+-- than a blunt one. 0212's header carries the enumeration.
+--
+-- So the org-attributed branch (author_organization_id IS NOT NULL, gated on an
+-- active organization_membership with can_write_pet_events = true) is not
+-- merely "not written yet": opening it when the refugio / professional portal
+-- lands takes a NEW migration that argues against 0212, not an edit here. This
+-- file is a REFERENCE SNAPSHOT (see the header) and applying it grants nothing.
