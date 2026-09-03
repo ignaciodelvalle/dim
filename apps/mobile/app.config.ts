@@ -215,10 +215,29 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
   // The Sentry config plugin wires the NATIVE crash layer during prebuild
   // (Android/iOS init before the JS engine exists — a startup crash never
   // reaches `Sentry.init` in _layout). Deliberately bare: the org/project
-  // options only parameterize SOURCEMAP UPLOAD, which also needs a
-  // SENTRY_AUTH_TOKEN that EAS does not hold yet — the plugin skips upload
-  // with a warning when the token is absent, and crashes still arrive (with
-  // minified frames until the PO adds the token; see the D2 handback).
+  // options only parameterize SOURCEMAP UPLOAD, and SENTRY_ORG/SENTRY_PROJECT
+  // reach the build as EAS environment variables instead, which is what the
+  // plugin's "Missing config for organization, project" build warning is
+  // reporting — it is expected, not a defect.
+  //
+  // THE UPLOAD IS NOW LIVE, AND THAT IS WHAT BROKE BUILD 7. This comment used
+  // to say EAS "does not hold" a SENTRY_AUTH_TOKEN yet, so the plugin skipped
+  // the upload and the whole path was inert. The token was added to the
+  // `production` and `preview` EAS environments, the upload switched on, and
+  // the first build to carry it failed in Gradle — not on anything Sentry did,
+  // but on WHERE IT LOOKS FOR ITS CLI. `sentry.gradle` resolves `@sentry/cli`
+  // by shelling out to `require.resolve`, and when that fails it falls back to
+  // `<project>/node_modules/@sentry/cli` — a flat-node_modules assumption pnpm
+  // never satisfies for a TRANSITIVE dependency. Its own pnpm fallback is dead
+  // code: Groovy's `execute()` returns empty stdout on a non-zero exit instead
+  // of throwing, so the `catch` holding that fallback never runs.
+  //
+  // That is why `@sentry/cli` is a DIRECT dependency in this package's
+  // `package.json`, pinned to the exact version `@sentry/react-native` already
+  // pins. It buys nothing at runtime and adds nothing to the store — pnpm
+  // symlinks the same entry — it exists so the path Gradle guesses is a path
+  // that is there. Removing it puts the upload task back on that dead branch
+  // and the store build fails again. See `docs/mobile/eas-build-profiles.md`.
   plugins: [...(config.plugins ?? []), "@sentry/react-native/expo"],
   // See "THE SECOND DECLARATION THAT NEEDS PARAGRAPHS" at the top of this file
   // for why each of these keys is the value it is, and for the one thing this
