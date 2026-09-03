@@ -107,7 +107,7 @@ export type AppointmentProviderV1Search =
 
 /** One offering that has at least one takeable slot. */
 export type BookableOfferingV1 = {
-  /** `SVO-XXXX-XXXX`. The handle the detail read takes. */
+  /** `OFR-XXXX-XXXX`. The handle the detail read takes. */
   offeringToken: string;
   /**
    * What the provider called this service.

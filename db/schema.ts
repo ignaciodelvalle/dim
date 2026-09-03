@@ -2791,7 +2791,14 @@ export const serviceOfferings = pgTable(
   "service_offerings",
   {
     id: uuid("id").primaryKey().defaultRandom(),
-    // Short URL-safe token. Format: SVO-XXXX-XXXX. Generated in application code.
+    // Short URL-safe token. Format: OFR-XXXX-XXXX. Generated in application code
+    // by `generateOfferingToken()` (lib/infra/publicToken.ts), which is the only
+    // producer and the authority on the prefix. This comment said `SVO-` until
+    // 2026-09-02; the migration that created the column carries the same stale
+    // example and cannot be edited (migrations are immutable), so the producer
+    // is the thing to check, never a comment.
+    // Seed scripts mint their own recognisable prefixes on purpose
+    // (`PANO-SVO-…`, `DEMO-SVO-…`) and are not this format.
     publicToken: text("public_token").notNull().unique(),
 
     // Polymorphic provider: exactly one of these two must be set (XOR enforced

@@ -232,7 +232,7 @@ export function turnoRoute(appointmentToken: string): `/turnos/${string}` {
  * porque la pantalla no puede ofrecer un horario honestamente a alguien sin
  * mascota reservable — y eso lo tiene que saber ANTES de dibujar la grilla.
  *
- * EL SEGMENTO ES EL TOKEN PÚBLICO DE LA OFFERING (`SVO-XXXX-XXXX`), cubierto por
+ * EL SEGMENTO ES EL TOKEN PÚBLICO DE LA OFFERING (`OFR-XXXX-XXXX`), cubierto por
  * `CAPABILITY_PATH_SEGMENTS` a través de `buscar` — la misma entrada que cubre
  * `/turnos/buscar/[offeringToken]` de la web, porque la regla de redacción se
  * fija en el segmento PADRE y los dos árboles lo escriben igual.
