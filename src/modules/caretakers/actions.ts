@@ -98,11 +98,21 @@ function deps() {
   };
 }
 
-/** Caller's authenticated email — the invitation may be addressed to it. */
-async function callerEmail(): Promise<string> {
+/**
+ * Caller's authenticated email — the invitation may be addressed to it — AND
+ * whether anybody ever proved the account controls it.
+ *
+ * The two travel together on purpose (A09-1): the address alone is what the
+ * e-mail arm of the addressee match compares, and comparing it without the
+ * confirmation term treats "I typed this at signup" as "I read this mailbox".
+ */
+async function callerIdentity(): Promise<{ email: string; emailConfirmed: boolean }> {
   const supabase = await createClient();
   const { data } = await supabase.auth.getUser();
-  return (data?.user?.email ?? "").toLowerCase();
+  return {
+    email: (data?.user?.email ?? "").toLowerCase(),
+    emailConfirmed: data?.user?.email_confirmed_at != null,
+  };
 }
 
 // ---------------------------------------------------------------------------
@@ -200,12 +210,14 @@ export async function acceptCaretakerGrantAction(input: {
   publicContactConsent?: boolean;
 }): Promise<AcceptCaretakerGrantActionResult> {
   const { user } = await requireUserOrRedirect();
+  const caller = await callerIdentity();
 
   const result = await acceptCaretakerGrant(
     {
       grantPublicToken: input.grantToken,
       callerUserId: user.id,
-      callerEmail: await callerEmail(),
+      callerEmail: caller.email,
+      callerEmailConfirmed: caller.emailConfirmed,
       publicContactConsent: input.publicContactConsent === true,
     },
     deps(),
@@ -242,12 +254,14 @@ export async function rejectCaretakerGrantAction(input: {
   grantToken: string;
 }): Promise<RejectCaretakerGrantActionResult> {
   const { user } = await requireUserOrRedirect();
+  const caller = await callerIdentity();
 
   const result = await rejectCaretakerGrant(
     {
       grantPublicToken: input.grantToken,
       callerUserId: user.id,
-      callerEmail: await callerEmail(),
+      callerEmail: caller.email,
+      callerEmailConfirmed: caller.emailConfirmed,
     },
     { repo: CaretakersRepository, now: () => new Date() },
   );

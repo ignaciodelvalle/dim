@@ -197,12 +197,16 @@ export async function acceptPetTransferAction(
   const { user } = await requireUserOrRedirect();
 
   // Resolve caller email — recipient may have been invited by email only.
+  // `emailConfirmed` travels with it: the e-mail arm of the addressee rule is
+  // what moves titularidad, and an unproved address is not addressee proof
+  // (A09-1).
   const supabase = await createClient();
   const { data: sessionData } = await supabase.auth.getUser();
   const callerEmail = (sessionData?.user?.email ?? "").toLowerCase();
+  const callerEmailConfirmed = sessionData?.user?.email_confirmed_at != null;
 
   const result = await acceptPetTransfer(
-    { transferToken, callerEmail },
+    { transferToken, callerEmail, callerEmailConfirmed },
     {
       repo: TransfersRepository,
       actor: { user },
@@ -252,9 +256,15 @@ export async function rejectPetTransferAction(
   const supabase = await createClient();
   const { data: sessionData } = await supabase.auth.getUser();
   const callerEmail = (sessionData?.user?.email ?? "").toLowerCase();
+  const callerEmailConfirmed = sessionData?.user?.email_confirmed_at != null;
 
   const result = await rejectPetTransfer(
-    { transferToken: input.transferToken, reason: input.reason ?? null, callerEmail },
+    {
+      transferToken: input.transferToken,
+      reason: input.reason ?? null,
+      callerEmail,
+      callerEmailConfirmed,
+    },
     {
       repo: TransfersRepository,
       actor: { user },
@@ -358,10 +368,11 @@ export async function getTransferForViewerAction(
   const supabase = await createClient();
   const { data: sessionData } = await supabase.auth.getUser();
   const callerEmail = (sessionData?.user?.email ?? "").toLowerCase();
+  const callerEmailConfirmed = sessionData?.user?.email_confirmed_at != null;
 
   // Run auth check via use-case (id-or-email match).
   const authResult = await getTransferForViewer(
-    { transferToken, callerEmail },
+    { transferToken, callerEmail, callerEmailConfirmed },
     { repo: TransfersRepository, actor: { user } },
   );
 

@@ -7,7 +7,10 @@
 // READ ONLY — no mutations.
 // Returns a view DTO with isSender/isRecipient flags.
 
-import { validateRecipientMatch } from "../domain/owner-transfer-rules";
+import {
+  UNCONFIRMED_EMAIL_TRANSFER_ERROR,
+  resolveRecipientMatch,
+} from "../domain/owner-transfer-rules";
 import type { TransfersRepository } from "../infrastructure/transfers-repository";
 import type { UseCaseResult } from "./types";
 
@@ -42,6 +45,8 @@ export type GetTransferForViewerInput = {
   transferToken: string;
   /** Caller's authenticated email — resolved by action. */
   callerEmail: string;
+  /** GoTrue's `email_confirmed_at` is non-null for this account (A09-1). */
+  callerEmailConfirmed: boolean;
 };
 
 // ---------------------------------------------------------------------------
@@ -59,13 +64,23 @@ export async function getTransferForViewer(
   if (!transfer) return { ok: false, error: "Transferencia no encontrada." };
 
   const isSender = transfer.fromOwnerId === user.id;
-  const isRecipient = validateRecipientMatch({
+  const match = resolveRecipientMatch({
     toOwnerId: transfer.toOwnerId,
     toOwnerEmail: transfer.toOwnerEmail,
     callerId: user.id,
     callerEmail: input.callerEmail,
+    callerEmailConfirmed: input.callerEmailConfirmed,
   });
+  const isRecipient = match === "id" || match === "email";
 
+  // THIS PAGE IS WHERE THE INVITATION LINK LANDS, so it is the door that has to
+  // name the remedy. An account holding the token whose address matches the row
+  // but is unconfirmed learns nothing here it did not already supply, and the
+  // alternative — "no es accesible desde tu cuenta" — sends a legitimate invitee
+  // to support instead of to their inbox.
+  if (!isSender && match === "email_unconfirmed") {
+    return { ok: false, error: UNCONFIRMED_EMAIL_TRANSFER_ERROR };
+  }
   if (!isSender && !isRecipient) {
     return { ok: false, error: "Esta propuesta no es accesible desde tu cuenta." };
   }

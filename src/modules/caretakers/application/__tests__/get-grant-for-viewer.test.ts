@@ -23,7 +23,11 @@ describe("getGrantForViewer — unknown token", () => {
   it("returns null rather than a shell the page has to interpret", async () => {
     const repo = makeFakeRepo({ findGrantByToken: async () => null });
     expect(
-      await getGrantForViewer("CG-nope", { userId: "u", email: "u@x" }, deps(repo)),
+      await getGrantForViewer(
+        "CG-nope",
+        { userId: "u", email: "u@x", emailConfirmed: true },
+        deps(repo),
+      ),
     ).toBeNull();
   });
 });
@@ -35,7 +39,7 @@ describe("getGrantForViewer — the invitee, pending invitation", () => {
     });
     const view = await getGrantForViewer(
       "CG-abc123",
-      { userId: CARETAKER_ID, email: "other@example.com" },
+      { userId: CARETAKER_ID, email: "other@example.com", emailConfirmed: true },
       deps(repo),
     );
     expect(view?.relation).toBe("invitee");
@@ -49,7 +53,7 @@ describe("getGrantForViewer — the invitee, pending invitation", () => {
     });
     const view = await getGrantForViewer(
       "CG-abc123",
-      { userId: "fresh-signup", email: "ANA@example.com" },
+      { userId: "fresh-signup", email: "ANA@example.com", emailConfirmed: true },
       deps(repo),
     );
     expect(view?.relation).toBe("invitee");
@@ -61,7 +65,7 @@ describe("getGrantForViewer — the invitee, pending invitation", () => {
     });
     const view = await getGrantForViewer(
       "CG-abc123",
-      { userId: CARETAKER_ID, email: "ana@example.com" },
+      { userId: CARETAKER_ID, email: "ana@example.com", emailConfirmed: true },
       deps(repo),
     );
     expect(view?.pet).toEqual({
@@ -80,7 +84,7 @@ describe("getGrantForViewer — the invitee, pending invitation", () => {
     });
     const view = await getGrantForViewer(
       "CG-abc123",
-      { userId: CARETAKER_ID, email: "ana@example.com" },
+      { userId: CARETAKER_ID, email: "ana@example.com", emailConfirmed: true },
       deps(repo),
     );
     expect(view?.scopeSentence).toContain("Podés cargar eventos médicos");
@@ -93,7 +97,7 @@ describe("getGrantForViewer — the invitee, pending invitation", () => {
     });
     const view = await getGrantForViewer(
       "CG-abc123",
-      { userId: CARETAKER_ID, email: "ana@example.com" },
+      { userId: CARETAKER_ID, email: "ana@example.com", emailConfirmed: true },
       deps(repo),
     );
     expect(view?.canRespond).toBe(true);
@@ -111,7 +115,7 @@ describe("getGrantForViewer — the titular", () => {
     });
     const view = await getGrantForViewer(
       "CG-abc123",
-      { userId: TITULAR_ID, email: "titular@example.com" },
+      { userId: TITULAR_ID, email: "titular@example.com", emailConfirmed: true },
       deps(repo),
     );
     expect(view?.relation).toBe("titular");
@@ -126,7 +130,7 @@ describe("getGrantForViewer — an outsider holding the link", () => {
     });
     const view = await getGrantForViewer(
       "CG-abc123",
-      { userId: "stranger", email: "stranger@example.com" },
+      { userId: "stranger", email: "stranger@example.com", emailConfirmed: true },
       deps(repo),
     );
     expect(view?.relation).toBe("outsider");
@@ -144,7 +148,7 @@ describe("getGrantForViewer — a resolved invitation", () => {
     });
     const view = await getGrantForViewer(
       "CG-abc123",
-      { userId: CARETAKER_ID, email: "ana@example.com" },
+      { userId: CARETAKER_ID, email: "ana@example.com", emailConfirmed: true },
       deps(repo),
     );
     expect(view?.status).toBe("accepted");
@@ -168,7 +172,7 @@ describe("getGrantForViewer — a resolved invitation", () => {
     });
     const view = await getGrantForViewer(
       "CG-abc123",
-      { userId: CARETAKER_ID, email: "ana@example.com" },
+      { userId: CARETAKER_ID, email: "ana@example.com", emailConfirmed: true },
       { repo, now: () => new Date("2026-09-20T12:00:00Z") },
     );
     expect(view?.endedNotice).toBe(
@@ -185,7 +189,7 @@ describe("getGrantForViewer — a resolved invitation", () => {
     });
     const view = await getGrantForViewer(
       "CG-abc123",
-      { userId: CARETAKER_ID, email: "ana@example.com" },
+      { userId: CARETAKER_ID, email: "ana@example.com", emailConfirmed: true },
       deps(repo),
     );
     expect(view?.status).toBe("expired");

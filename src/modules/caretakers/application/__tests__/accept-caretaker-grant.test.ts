@@ -36,6 +36,9 @@ function input(overrides: Record<string, unknown> = {}) {
     grantPublicToken: "CG-abc123",
     callerUserId: CARETAKER_ID,
     callerEmail: "ana@example.com",
+    // The default is the ordinary case: an account whose address GoTrue has a
+    // non-null `email_confirmed_at` for. The A09-1 tests below flip it.
+    callerEmailConfirmed: true,
     publicContactConsent: false,
     ...overrides,
   };
@@ -119,6 +122,53 @@ describe("acceptCaretakerGrant", () => {
 
     expect(result.ok).toBe(false);
     expect(repo.insertAcceptGrant).not.toHaveBeenCalled();
+  });
+
+  // -------------------------------------------------------------------------
+  // A09-1: an UNCONFIRMED address is not addressee proof.
+  //
+  // `caretaker_user_id` is NULL exactly when the invited address had no account
+  // — which is the default this file's fake grant already models — so the e-mail
+  // comparison is the whole of the proof. Somebody who merely KNOWS the address
+  // could register it and take write access on the animal, plus their name and
+  // phone on its public credential under lost-mode disclosure.
+  // -------------------------------------------------------------------------
+
+  it("A09-1: refuses the e-mail arm when the caller's address is unconfirmed", async () => {
+    const repo = repoWithPendingGrant();
+    const result = await acceptCaretakerGrant(input({ callerEmailConfirmed: false }), deps(repo));
+
+    expect(result.ok).toBe(false);
+    expect(result.ok === false && result.error).toBe(
+      "Confirmá tu correo electrónico para aceptar esta invitación.",
+    );
+  });
+
+  it("A09-1: that refusal writes NOTHING — no ownership row, no event, no status flip", async () => {
+    const repo = repoWithPendingGrant();
+    await acceptCaretakerGrant(input({ callerEmailConfirmed: false }), deps(repo));
+
+    expect(repo.insertAcceptGrant).not.toHaveBeenCalled();
+    expect(repo.findGrantByIdForUpdate).not.toHaveBeenCalled();
+  });
+
+  it("A09-1: the ID arm still accepts with an unconfirmed address", async () => {
+    // Non-vacuity control: the two cases above must refuse because the ADDRESS
+    // was unproved, not because the flag refuses everything. An invitee the
+    // titular resolved by id is unaffected.
+    const byId = makeGrant({ caretakerUserId: CARETAKER_ID });
+    const repo = makeFakeRepo({
+      findGrantByToken: vi.fn().mockResolvedValue(byId),
+      findGrantByIdForUpdate: vi.fn().mockResolvedValue(byId),
+    });
+
+    const result = await acceptCaretakerGrant(
+      input({ callerEmail: "not-the-invited-address@example.com", callerEmailConfirmed: false }),
+      deps(repo),
+    );
+
+    expect(result.ok).toBe(true);
+    expect(repo.insertAcceptGrant).toHaveBeenCalledTimes(1);
   });
 
   // -------------------------------------------------------------------------
@@ -268,7 +318,12 @@ describe("acceptCaretakerGrant", () => {
     // No `publicContactConsent` key at all, the shape a form sends when the
     // checkbox is untouched.
     await acceptCaretakerGrant(
-      { grantPublicToken: "CG-abc123", callerUserId: CARETAKER_ID, callerEmail: "ana@example.com" },
+      {
+        grantPublicToken: "CG-abc123",
+        callerUserId: CARETAKER_ID,
+        callerEmail: "ana@example.com",
+        callerEmailConfirmed: true,
+      },
       deps(repo),
     );
 

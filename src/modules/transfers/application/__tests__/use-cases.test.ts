@@ -385,6 +385,9 @@ describe("acceptPetTransfer", () => {
   const baseInput = {
     transferToken: "PTR-tok",
     callerEmail: "recipient@example.com",
+    // The ordinary case: GoTrue holds a non-null `email_confirmed_at`. The
+    // A09-1 block below flips it.
+    callerEmailConfirmed: true,
   };
 
   beforeEach(() => {
@@ -477,6 +480,74 @@ describe("acceptPetTransfer", () => {
       transaction: fakeTransaction,
     });
     expect(result).toMatchObject({ ok: true });
+  });
+
+  // -------------------------------------------------------------------------
+  // A09-1: an UNCONFIRMED address is not addressee proof.
+  //
+  // The exploit these two close: `to_owner_id` is NULL when the invited address
+  // had no account, so the e-mail arm is the whole of the proof. Somebody who
+  // merely KNOWS the address could register it and accept — and the write here
+  // is a change of who owns an animal in the national registry, so "nothing was
+  // written" is the assertion that matters, not just the refusal sentence.
+  // -------------------------------------------------------------------------
+
+  it("A09-1: refuses an e-mail-arm accept when the caller's address is unconfirmed", async () => {
+    const repo = makeFakeRepo({
+      findTransferByToken: vi
+        .fn()
+        .mockResolvedValue(
+          makeTransfer({ toOwnerId: null, toOwnerEmail: "recipient@example.com" }),
+        ),
+      findPetByToken: vi.fn().mockResolvedValue(makePet()),
+    });
+    const result = await acceptPetTransfer(
+      { ...baseInput, callerEmailConfirmed: false },
+      { repo, actor, transaction: fakeTransaction },
+    );
+
+    expect(result).toMatchObject({
+      ok: false,
+      error: "Confirmá tu correo electrónico para aceptar esta transferencia.",
+    });
+  });
+
+  it("A09-1: that refusal writes NOTHING — no ownership row, no event, no status flip", async () => {
+    const repo = makeFakeRepo({
+      findTransferByToken: vi
+        .fn()
+        .mockResolvedValue(
+          makeTransfer({ toOwnerId: null, toOwnerEmail: "recipient@example.com" }),
+        ),
+      findPetByToken: vi.fn().mockResolvedValue(makePet()),
+    });
+    await acceptPetTransfer(
+      { ...baseInput, callerEmailConfirmed: false },
+      { repo, actor, transaction: fakeTransaction },
+    );
+
+    expect(fakeTransaction).not.toHaveBeenCalled();
+    expect(repo.closeOwnerOwnerships).not.toHaveBeenCalled();
+    expect(repo.insertOwnerOwnership).not.toHaveBeenCalled();
+    expect(repo.insertPetEvent).not.toHaveBeenCalled();
+    expect(repo.updateTransferStatus).not.toHaveBeenCalled();
+  });
+
+  it("A09-1: the ID arm still accepts with an unconfirmed address", async () => {
+    // Non-vacuity control for the two cases above: they must refuse because the
+    // ADDRESS was unproved, not because `callerEmailConfirmed: false` refuses
+    // everything. A recipient the sender resolved by id at initiate time is
+    // unaffected by the new term.
+    const repo = makeFakeRepo({
+      findTransferByToken: vi.fn().mockResolvedValue(makeTransfer({ toOwnerId: "user-recipient" })),
+    });
+    const result = await acceptPetTransfer(
+      { ...baseInput, callerEmailConfirmed: false },
+      { repo, actor, transaction: fakeTransaction },
+    );
+
+    expect(result).toMatchObject({ ok: true });
+    expect(repo.insertOwnerOwnership).toHaveBeenCalledTimes(1);
   });
 
   it("calls closeOwnerOwnerships then insertOwnerOwnership inside tx", async () => {
@@ -788,6 +859,7 @@ describe("rejectPetTransfer", () => {
   const baseInput = {
     transferToken: "PTR-tok",
     callerEmail: "recipient@example.com",
+    callerEmailConfirmed: true,
     reason: null as string | null,
   };
 
@@ -960,6 +1032,7 @@ describe("getTransferForViewer", () => {
   const baseInput = {
     transferToken: "PTR-tok",
     callerEmail: "sender@example.com",
+    callerEmailConfirmed: true,
   };
 
   it("returns error when transfer not found", async () => {

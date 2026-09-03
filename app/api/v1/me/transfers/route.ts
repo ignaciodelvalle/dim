@@ -32,6 +32,14 @@
 // back to the id predicate alone, which cannot match an open e-mail invitation
 // and therefore hides nothing that caller is entitled to see through it.
 //
+// AND VERIFIED IS NOT PROVED. `callerEmailConfirmed` travels beside it for the
+// reason audit A09-1 found the hard way: GoTrue vouches for the TOKEN, not for
+// the address inside it, so "I signed up with bob@example.com" reached the
+// e-mail arm of the addressee rule as if it were "I read bob@example.com's
+// mail". Both the read and the write now carry the confirmation bit, and an
+// unconfirmed address degrades the read exactly as an empty one does — the
+// proposal, and its `transferToken`, never leave the database.
+//
 // `Idempotency-Key` IS NOT READ, AND THAT IS A REFUSAL TO PROMISE
 // ---------------------------------------------------------------------------
 // None of the four use-cases takes a `clientIdempotencyKey`. What they have —
@@ -143,6 +151,7 @@ export async function GET(request: Request) {
     transfers = await readTransfers({
       userId: live.user.id,
       callerEmail: live.user.email ?? "",
+      callerEmailConfirmed: live.user.emailConfirmed,
     });
   } catch (err) {
     // NOT an empty hub. A read that failed and a person with no transfers are
@@ -215,6 +224,8 @@ export async function POST(request: Request) {
     userId: live.user.id,
     // From the VERIFIED session. The body cannot name it; see the header.
     callerEmail: live.user.email ?? "",
+    // Verified is not the same claim as PROVED — see the header's second note.
+    callerEmailConfirmed: live.user.emailConfirmed,
     input: parsed.data,
   });
 }

@@ -141,7 +141,9 @@ describe("physical tag continuity across an owner→owner transfer", () => {
     expect(lookupBefore).toEqual({ status: "active", publicToken: PET_TOKEN });
 
     const result = await acceptPetTransfer(
-      { transferToken: TRANSFER_TOKEN, callerEmail: NEW_OWNER_EMAIL },
+      // `callerEmailConfirmed: true` mirrors the seeded auth user, which is
+      // created with `email_confirm: true` like every account this suite makes.
+      { transferToken: TRANSFER_TOKEN, callerEmail: NEW_OWNER_EMAIL, callerEmailConfirmed: true },
       {
         repo: TransfersRepository,
         actor: { user: { id: newOwnerId } },

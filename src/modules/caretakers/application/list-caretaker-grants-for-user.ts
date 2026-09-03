@@ -92,6 +92,14 @@ export type ListCaretakerGrantsForUserInput = {
   userId: string;
   /** The caller's authenticated e-mail, from the session. May be empty. */
   callerEmail: string;
+  /**
+   * GoTrue's `email_confirmed_at` is non-null for this account (A09-1).
+   *
+   * The hub read is what HANDS OUT `grantToken`, so it takes the same term the
+   * writers do. Gating only `canAccept` would still show an unconfirmed account
+   * somebody else's invitation with its token attached.
+   */
+  callerEmailConfirmed: boolean;
 };
 
 export async function listCaretakerGrantsForUser(
@@ -103,7 +111,13 @@ export async function listCaretakerGrantsForUser(
   // column `designateCaretaker` lowercases before insert, and because the match
   // below lowercases both sides again. Normalising at the boundary is what keeps
   // those two from disagreeing about a capital A.
-  const callerEmail = input.callerEmail.trim().toLowerCase();
+  //
+  // AN UNCONFIRMED ADDRESS IS DEGRADED TO NO ADDRESS, which the repository
+  // already handles for an empty string: the predicate falls back to
+  // `caretaker_user_id = me`, so an open e-mail invitation cannot match and the
+  // row never leaves the database. Done here rather than in SQL because "is this
+  // address proved" is a fact about the caller, not about the query.
+  const callerEmail = input.callerEmailConfirmed ? input.callerEmail.trim().toLowerCase() : "";
 
   const rows = await deps.repo.listGrantsForUser({ userId: input.userId, callerEmail });
 

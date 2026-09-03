@@ -24,6 +24,7 @@
 // The repository method carries an inner-writer suffix so the fence can see the
 // exemption in the name instead of an allowlist entry.
 
+import { UNCONFIRMED_EMAIL_CARETAKER_ERROR } from "../domain/grant-copy";
 import type { CaretakersRepositoryPort } from "./ports";
 import type { NewNotification, UseCaseResult } from "./types";
 
@@ -38,6 +39,17 @@ export type AcceptCaretakerGrantInput = {
   callerUserId: string;
   /** The caller's authenticated email, resolved by the action from the session. */
   callerEmail: string;
+  /**
+   * GoTrue's `email_confirmed_at` is non-null for the accepting account.
+   *
+   * Load-bearing on the e-mail arm below, for the same reason the transfer twin
+   * carries it (audit A09-1, PO decision 2026-09-02): `caretaker_user_id` is
+   * NULL exactly when the address had no account at designation time, so this
+   * comparison is the whole of the proof that the caller is the invitee — and
+   * the prize is write access on somebody else's animal plus, with lost-mode
+   * disclosure on, the caretaker's name and phone on its public credential.
+   */
+  callerEmailConfirmed: boolean;
   /**
    * KEY 2 of the two-key public-contact model. Absent means NOT consented —
    * an unchecked checkbox sends no field, and silence is never consent.
@@ -76,10 +88,20 @@ export async function acceptCaretakerGrant(
 
   // Id-or-email match: the invitation may have been addressed to an email with
   // no account, and the account created afterwards through the invite link.
+  //
+  // THE E-MAIL ARM ALSO NEEDS THE ADDRESS TO BE PROVED (A09-1). Knowing an
+  // invited address is not the same fact as reading its mail, and only the
+  // second one is evidence the row was addressed to whoever is calling. The id
+  // arm is untouched: an id was resolved by the titular at designation time and
+  // is not a claim about a mailbox.
   const matchesId = grant.caretakerUserId !== null && grant.caretakerUserId === input.callerUserId;
-  const matchesEmail =
-    grant.caretakerEmail.toLowerCase() === (input.callerEmail ?? "").trim().toLowerCase();
-  if (!matchesId && !matchesEmail) {
+  const callerEmail = (input.callerEmail ?? "").trim().toLowerCase();
+  const addressedToCallerEmail =
+    callerEmail.length > 0 && grant.caretakerEmail.trim().toLowerCase() === callerEmail;
+  if (!matchesId && addressedToCallerEmail && !input.callerEmailConfirmed) {
+    return { ok: false, error: UNCONFIRMED_EMAIL_CARETAKER_ERROR };
+  }
+  if (!matchesId && !addressedToCallerEmail) {
     return { ok: false, error: "Esta invitación no es para tu cuenta." };
   }
 

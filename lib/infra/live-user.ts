@@ -92,18 +92,23 @@ export type LiveUserSuccess = {
   // rediscovered as a contradiction: an ADDRESSEE match is not a principal
   // check. `pet_transfers` and `pet_caretaker_grants` can be addressed to
   // somebody who has no account yet, so the row stores an e-mail and
-  // `validateRecipientMatch` (transfers/domain/owner-transfer-rules.ts:124-134)
-  // compares it — id when `to_owner_id` resolved, e-mail only when it did not.
-  // The web's own actions already feed that comparison from
-  // `supabase.auth.getUser()`, i.e. this same verified value
-  // (`src/modules/transfers/actions.ts:200-202`), and
-  // `app/api/v1/me/transfers/route.ts` reads it here instead of paying a second
-  // GoTrue round-trip for the identical answer.
+  // `validateRecipientMatch` (transfers/domain/owner-transfer-rules.ts) compares
+  // it — id when `to_owner_id` resolved, e-mail only when it did not. The web's
+  // own actions already feed that comparison from `supabase.auth.getUser()`,
+  // i.e. this same verified value, and `app/api/v1/me/transfers/route.ts` reads
+  // it here instead of paying a second GoTrue round-trip for the identical
+  // answer.
   //
-  // What makes it safe is that the value is VERIFIED — it comes from the token
-  // GoTrue just validated, never from a request body or header — and that the
-  // rule it feeds is "was this row addressed to you", not "may you do this".
-  user: { id: string; email?: string };
+  // WHAT "VERIFIED" DOES AND DOES NOT MEAN HERE, corrected 2026-09-02 (audit
+  // A09-1). This value being verified means GoTrue vouched for the TOKEN it came
+  // out of — never a request body or header. It does NOT mean anybody proved the
+  // ADDRESS belongs to this person: an account can be created with any address
+  // and the token will then carry it. The paragraph above used to stop at
+  // "verified" and read as if that cleared the addressee arm; it does not, and
+  // an unproved address on the e-mail arm is what moves titularidad. That is why
+  // `emailConfirmed` travels beside it and why every consumer of the addressee
+  // rule now has to state it.
+  user: { id: string; email?: string; emailConfirmed: boolean };
   // Already-resolved profile, so a caller that needs the role does not pay a
   // second round-trip. Null only in the mid-signup window where auth.users
   // exists and the profile row does not yet.
@@ -354,7 +359,29 @@ export async function requireLiveUser(options?: RequireLiveUserOptions): Promise
     }
   }
 
-  return { ok: true, supabase, user, profile, sessionStartedAt };
+  return { ok: true, supabase, user: withEmailConfirmed(user), profile, sessionStartedAt };
+}
+
+/**
+ * The GoTrue user, plus the one bit the addressee rules need (A09-1).
+ *
+ * `email_confirmed_at` is GoTrue's own column and the ONLY server-side record
+ * that somebody read the address on the account. It is folded into a boolean
+ * here so no caller has to reach into a snake_case SDK field, and so the whole
+ * codebase asks the question in one shape.
+ *
+ * IT IS NOT A MAILBOX PROOF ON ITS OWN. A project with `enable_confirmations`
+ * OFF auto-confirms at signup and stamps this column itself, so the flag is
+ * always true there. It closes the shapes a project WITH confirmations on can
+ * still produce — an admin-created account, an identity imported from a provider
+ * that did not verify the address — and it is a second lock, never the setting's
+ * replacement. The premise and its limit are written up in
+ * `docs/architecture/mobile-contract.md` section 1.4.
+ */
+function withEmailConfirmed<T extends { email_confirmed_at?: string | null }>(
+  user: T,
+): T & { emailConfirmed: boolean } {
+  return { ...user, emailConfirmed: user.email_confirmed_at != null };
 }
 
 /**

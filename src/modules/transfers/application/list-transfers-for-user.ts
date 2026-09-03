@@ -82,6 +82,17 @@ export type ListTransfersForUserInput = {
   userId: string;
   /** The caller's authenticated e-mail, from the session. May be empty. */
   callerEmail: string;
+  /**
+   * GoTrue's `email_confirmed_at` is non-null for this account (A09-1).
+   *
+   * THE LIST TAKES THE SAME TERM THE WRITERS DO, and it has to: this read is
+   * what HANDS OUT `transferToken`. Leaving it out of the SQL predicate and
+   * gating only `canAccept` would still show an unconfirmed account somebody
+   * else's proposal, token included — and a token is the only thing the accept
+   * door asks for besides the addressee match. Hiding the row is what keeps the
+   * two halves of this feature saying the same thing.
+   */
+  callerEmailConfirmed: boolean;
 };
 
 const HISTORY_STATUSES = new Set(["accepted", "rejected", "expired", "cancelled"]);
@@ -95,7 +106,14 @@ export async function listTransfersForUser(
   // column that `initiatePetTransfer` lowercases before insert, and because
   // `validateRecipientMatch` lowercases both sides again below. Normalising at
   // the boundary is what keeps those two from disagreeing about a capital A.
-  const callerEmail = input.callerEmail.trim().toLowerCase();
+  //
+  // AN UNCONFIRMED ADDRESS IS DEGRADED TO NO ADDRESS, which is exactly what the
+  // repository's own docblock already describes for an empty string: the
+  // predicate falls back to `to_owner_id = me`, an open e-mail invitation can no
+  // longer match, and the row never leaves the database. Done here rather than
+  // in the repository because "is this address proved" is a rule about the
+  // caller, not about how the query is written.
+  const callerEmail = input.callerEmailConfirmed ? input.callerEmail.trim().toLowerCase() : "";
 
   const rows = await deps.repo.listTransfersForUser({ userId: input.userId, callerEmail });
 
@@ -113,6 +131,7 @@ export async function listTransfersForUser(
       toOwnerEmail: transfer.toOwnerEmail,
       callerId: input.userId,
       callerEmail,
+      callerEmailConfirmed: input.callerEmailConfirmed,
     });
 
     // A row can be BOTH only if a self-transfer slipped past

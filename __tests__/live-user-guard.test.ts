@@ -58,6 +58,18 @@ function session(id = "user-001", email = "user@dim-test.local") {
   return { data: { user: { id, email } }, error: null };
 }
 
+// A session whose address GoTrue has stamped as read. `email_confirmed_at` is
+// the only server-side record that anyone opened that mailbox, and it is the
+// bit the transfer/caretaker addressee rules read through `user.emailConfirmed`
+// (A09-1). The plain `session()` above leaves it unset on purpose, so the two
+// helpers between them cover both states of the derivation.
+function confirmedSession(id = "user-001", email = "user@dim-test.local") {
+  return {
+    data: { user: { id, email, email_confirmed_at: "2026-09-01T12:00:00.000Z" } },
+    error: null,
+  };
+}
+
 function noSession() {
   return { data: { user: null }, error: null };
 }
@@ -199,8 +211,34 @@ describe("requireLiveUser() — session and account state", () => {
 
     expect(result.ok).toBe(true);
     if (!result.ok) throw new Error("unreachable");
-    expect(result.user).toEqual({ id: "user-001", email: "user@dim-test.local" });
+    expect(result.user).toEqual({
+      id: "user-001",
+      email: "user@dim-test.local",
+      emailConfirmed: false,
+    });
     expect(result.profile?.role).toBe("owner");
+  });
+
+  // `emailConfirmed` is a boolean derived from a nullable GoTrue column, and an
+  // e-mail-addressed transfer or caretaker grant reads it to decide whether an
+  // address match proves the invitation is yours. A derivation exercised in one
+  // state only is not covered, so this pins the other one — and, because the
+  // assertion is exact, it also pins that the GoTrue user is spread through
+  // rather than narrowed: a later narrowing turns this red on purpose.
+  it("reports a stamped email_confirmed_at as a confirmed address", async () => {
+    mockGetUser.mockResolvedValue(confirmedSession());
+    mockGetProfileCached.mockResolvedValue(profile());
+
+    const result = await requireLiveUser();
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) throw new Error("unreachable");
+    expect(result.user).toEqual({
+      id: "user-001",
+      email: "user@dim-test.local",
+      email_confirmed_at: "2026-09-01T12:00:00.000Z",
+      emailConfirmed: true,
+    });
   });
 
   // Signup writes auth.users before the profile row exists; the pre-existing

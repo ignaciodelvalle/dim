@@ -36,6 +36,8 @@ const control = vi.hoisted(() => ({
   live: null as null | (() => unknown),
   /** Rows the repository answers the list query with. */
   rows: [] as Array<Record<string, unknown>>,
+  /** Every argument set the list query was asked with. */
+  listArgs: [] as Array<{ userId: string; callerEmail: string }>,
   /** What each write use-case returns. Keyed by command. */
   results: {} as Record<string, unknown>,
   /** Every use-case call, with the arguments it actually received. */
@@ -52,7 +54,14 @@ vi.mock("@/lib/infra/live-user", async (importOriginal) => {
     requireLiveUser: async () =>
       control.live
         ? control.live()
-        : { ok: true, supabase: {}, user: { id: ME, email: MY_EMAIL }, profile: null },
+        : {
+            ok: true,
+            supabase: {},
+            // `emailConfirmed` is what the real guard folds out of GoTrue's
+            // `email_confirmed_at` (A09-1). The default is the ordinary account.
+            user: { id: ME, email: MY_EMAIL, emailConfirmed: true },
+            profile: null,
+          },
   };
 });
 
@@ -75,7 +84,10 @@ vi.mock("@/lib/supabase/bearer", async (importOriginal) => {
 // this file.
 vi.mock("@/src/modules/transfers/infrastructure/transfers-repository", () => ({
   TransfersRepository: {
-    listTransfersForUser: async () => control.rows,
+    listTransfersForUser: async (args: { userId: string; callerEmail: string }) => {
+      control.listArgs.push(args);
+      return control.rows;
+    },
     insertNotifications: async (values: unknown[]) => {
       control.notifications.push(...values);
     },
@@ -165,6 +177,7 @@ async function bodyOf(res: Response) {
 beforeEach(() => {
   control.live = null;
   control.rows = [];
+  control.listArgs = [];
   control.results = {};
   control.calls = [];
   control.notifications = [];
@@ -240,6 +253,47 @@ describe("the addressee rule is validateRecipientMatch, not a custody check", ()
     const payload = await bodyOf(await read());
     expect(payload).toMatchObject({
       incoming: { pending: [{ capabilities: { canAccept: true } }] },
+    });
+  });
+
+  // A09-1: the e-mail arm needs a PROVED address, on the READ as well as the
+  // write. This read is what hands out `transferToken`, and a token is the only
+  // thing the accept door asks for besides the addressee match — so gating only
+  // `canAccept` would still show a stranger somebody else's proposal and the
+  // credential to answer it with.
+  it("A09-1: an UNCONFIRMED session asks the repository with an EMPTY e-mail", async () => {
+    control.live = () => ({
+      ok: true,
+      supabase: {},
+      user: { id: ME, email: MY_EMAIL, emailConfirmed: false },
+      profile: null,
+    });
+    control.rows = [];
+    await read();
+
+    // Empty is the documented degradation: the repository predicate falls back
+    // to `to_owner_id = me`, so an open e-mail invitation cannot be selected at
+    // all and its token never leaves the database.
+    expect(control.listArgs).toEqual([{ userId: ME, callerEmail: "" }]);
+  });
+
+  it("A09-1: a CONFIRMED session still asks with the address (non-vacuity control)", async () => {
+    control.rows = [];
+    await read();
+    expect(control.listArgs).toEqual([{ userId: ME, callerEmail: MY_EMAIL }]);
+  });
+
+  it("A09-1: an UNCONFIRMED session cannot accept an open e-mail invitation", async () => {
+    control.live = () => ({
+      ok: true,
+      supabase: {},
+      user: { id: ME, email: MY_EMAIL, emailConfirmed: false },
+      profile: null,
+    });
+    control.rows = [row({ transfer: { toOwnerId: null, toOwnerEmail: MY_EMAIL } })];
+    const payload = await bodyOf(await read());
+    expect(payload).toMatchObject({
+      incoming: { pending: [{ capabilities: { canAccept: false, canReject: false } }] },
     });
   });
 
@@ -347,8 +401,36 @@ describe("callerEmail comes from the session and nowhere else", () => {
       callerEmail: "victima@example.com",
     });
     expect(control.calls).toEqual([
-      { command: "accept", input: { transferToken: "PTR-ABCD-2345", callerEmail: MY_EMAIL } },
+      {
+        command: "accept",
+        input: {
+          transferToken: "PTR-ABCD-2345",
+          callerEmail: MY_EMAIL,
+          // From the session too, and for the same reason: a body that could
+          // name it would be a way to declare your own address proved (A09-1).
+          callerEmailConfirmed: true,
+        },
+      },
     ]);
+  });
+
+  it("A09-1: an UNCONFIRMED session reaches the accept use-case as such", async () => {
+    control.live = () => ({
+      ok: true,
+      supabase: {},
+      user: { id: ME, email: MY_EMAIL, emailConfirmed: false },
+      profile: null,
+    });
+    control.results.accept = {
+      ok: true,
+      value: { petId: PET_ID, fromOwnerId: OTHER, petPublicToken: "DIM-PAMP-0001" },
+      notifications: [],
+    };
+    await send({ command: "accept", transferToken: "PTR-ABCD-2345" });
+    expect(control.calls[0].input).toMatchObject({
+      callerEmail: MY_EMAIL,
+      callerEmailConfirmed: false,
+    });
   });
 
   it("does not pass an e-mail to cancel at all — that command's party is the sender", async () => {

@@ -22,6 +22,26 @@
 import { formatDateArOmitCurrentYear } from "@/lib/utils/format";
 
 /**
+ * The refusal an account sees when the invitation IS addressed to its e-mail
+ * address but nobody ever proved the account controls that address (audit
+ * A09-1, PO decision 2026-09-02).
+ *
+ * It names the one action that unblocks the person it is written for: somebody
+ * invited by address who created the account by hand instead of following the
+ * invitation link. "Esta invitación no es para tu cuenta." would be a lie by
+ * omission — the invitation IS for their address.
+ *
+ * HERE RATHER THAN BESIDE THE USE-CASE THAT RETURNS IT, and the reason is
+ * mechanical: `app/api/v1/me/caretaker-grants/commands.ts` builds its refusal
+ * table from the sentence itself so the two cannot drift, and the route test
+ * replaces every `application/*` module with a mock. A constant imported from a
+ * mocked module is `undefined` at module load, which takes the whole test file
+ * down with a collection error rather than a failing assertion.
+ */
+export const UNCONFIRMED_EMAIL_CARETAKER_ERROR =
+  "Confirmá tu correo electrónico para aceptar esta invitación.";
+
+/**
  * What an active caretaker MAY do. Mirrors the allowed set in the spec
  * ("Allowed caretaker actions") — medical events, notes, photos, lost/found.
  */

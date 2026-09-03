@@ -20,9 +20,10 @@
 // PARITY QUIRK: close BEFORE insert (unique-active-owner partial index validates at commit).
 
 import {
+  UNCONFIRMED_EMAIL_TRANSFER_ERROR,
+  resolveRecipientMatch,
   validatePetNotSponsored,
   validatePetStatusForTransfer,
-  validateRecipientMatch,
 } from "../domain/owner-transfer-rules";
 import type { TransfersRepository } from "../infrastructure/transfers-repository";
 import type { NewNotification, UseCaseResult } from "./types";
@@ -45,6 +46,13 @@ export type AcceptPetTransferInput = {
   transferToken: string;
   /** Caller's authenticated email — resolved by the action via Supabase session. */
   callerEmail: string;
+  /**
+   * Whether GoTrue holds a non-null `email_confirmed_at` for the accepting
+   * account. Load-bearing, not informational: it is the only term separating
+   * "this address is mine" from "I typed this address at signup", and the
+   * e-mail arm of the addressee rule is what moves titularidad (A09-1).
+   */
+  callerEmailConfirmed: boolean;
 };
 
 // ---------------------------------------------------------------------------
@@ -68,14 +76,22 @@ export async function acceptPetTransfer(
     return { ok: false, error: "La transferencia expiró. Pedile al dueño que la inicie de nuevo." };
   }
 
-  // 2. Recipient auth (id-or-email).
-  const isRecipient = validateRecipientMatch({
+  // 2. Recipient auth (id-or-email, and the e-mail arm needs a proved address).
+  //
+  // The richer `resolveRecipientMatch` rather than the boolean, so the person
+  // whose address IS the one on the row but who never confirmed it is told to
+  // confirm instead of being told the proposal belongs to somebody else.
+  const match = resolveRecipientMatch({
     toOwnerId: transfer.toOwnerId,
     toOwnerEmail: transfer.toOwnerEmail,
     callerId: user.id,
     callerEmail: input.callerEmail,
+    callerEmailConfirmed: input.callerEmailConfirmed,
   });
-  if (!isRecipient) {
+  if (match === "email_unconfirmed") {
+    return { ok: false, error: UNCONFIRMED_EMAIL_TRANSFER_ERROR };
+  }
+  if (match === "no_match") {
     return { ok: false, error: "Esta propuesta no es para tu cuenta." };
   }
   if (transfer.fromOwnerId === user.id) {

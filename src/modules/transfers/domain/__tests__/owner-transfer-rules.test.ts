@@ -6,6 +6,7 @@ import { describe, expect, it } from "vitest";
 import {
   computeTransferExpiresAt,
   isValidTransferEmail,
+  resolveRecipientMatch,
   validateOwnerTransferReason,
   validatePetStatusForTransfer,
   validateRecipientMatch,
@@ -133,6 +134,7 @@ describe("validateRecipientMatch", () => {
         toOwnerEmail: "other@example.com",
         callerId: "abc",
         callerEmail: "caller@example.com",
+        callerEmailConfirmed: true,
       }),
     ).toBe(true);
   });
@@ -144,6 +146,7 @@ describe("validateRecipientMatch", () => {
         toOwnerEmail: "Recipient@Example.com",
         callerId: "xyz",
         callerEmail: "recipient@example.com",
+        callerEmailConfirmed: true,
       }),
     ).toBe(true);
   });
@@ -155,6 +158,7 @@ describe("validateRecipientMatch", () => {
         toOwnerEmail: "recipient@example.com",
         callerId: "caller-id",
         callerEmail: "recipient@example.com",
+        callerEmailConfirmed: true,
       }),
     ).toBe(false);
   });
@@ -166,8 +170,105 @@ describe("validateRecipientMatch", () => {
         toOwnerEmail: "other@example.com",
         callerId: "xyz",
         callerEmail: "caller@example.com",
+        callerEmailConfirmed: true,
       }),
     ).toBe(false);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// resolveRecipientMatch — the confirmed-address term (audit A09-1)
+// ---------------------------------------------------------------------------
+//
+// The exploit this closes, in one sentence: Alice offers her dog to an address
+// with no account; Mallory, who knows the address, registers it and accepts.
+// The e-mail arm was a bare string compare, so "I typed this address" counted as
+// "I read this mailbox". These cases pin the three answers that separate them.
+
+describe("resolveRecipientMatch — the e-mail arm needs a proved address", () => {
+  const OPEN_INVITATION = {
+    toOwnerId: null,
+    toOwnerEmail: "recipient@example.com",
+    callerId: "mallory",
+  };
+
+  it("answers 'email' for an addressee whose address is confirmed", () => {
+    expect(
+      resolveRecipientMatch({
+        ...OPEN_INVITATION,
+        callerEmail: "recipient@example.com",
+        callerEmailConfirmed: true,
+      }),
+    ).toBe("email");
+  });
+
+  it("answers 'email_unconfirmed' — NOT a match — when the address was never proved", () => {
+    expect(
+      resolveRecipientMatch({
+        ...OPEN_INVITATION,
+        callerEmail: "recipient@example.com",
+        callerEmailConfirmed: false,
+      }),
+    ).toBe("email_unconfirmed");
+  });
+
+  it("keeps case-insensitivity on the confirmed arm", () => {
+    expect(
+      resolveRecipientMatch({
+        toOwnerId: null,
+        toOwnerEmail: "Recipient@Example.COM",
+        callerId: "xyz",
+        callerEmail: "  RECIPIENT@example.com  ",
+        callerEmailConfirmed: true,
+      }),
+    ).toBe("email");
+  });
+
+  it("leaves the ID arm untouched: an unconfirmed address still matches by id", () => {
+    // The id was resolved by the SENDER at initiate time against an existing
+    // account. It is not a claim about a mailbox, so the new term must not
+    // narrow it — doing so would lock out every ordinary recipient.
+    expect(
+      resolveRecipientMatch({
+        toOwnerId: "abc",
+        toOwnerEmail: "other@example.com",
+        callerId: "abc",
+        callerEmail: "caller@example.com",
+        callerEmailConfirmed: false,
+      }),
+    ).toBe("id");
+  });
+
+  it("answers 'no_match' for a confirmed address that is simply not the addressee", () => {
+    expect(
+      resolveRecipientMatch({
+        ...OPEN_INVITATION,
+        callerEmail: "somebody-else@example.com",
+        callerEmailConfirmed: true,
+      }),
+    ).toBe("no_match");
+  });
+
+  it("never matches an EMPTY caller address, confirmed or not", () => {
+    // Removes the reliance on `to_owner_email` being non-empty by side effect of
+    // a NOT NULL column (A11 nit).
+    for (const callerEmailConfirmed of [true, false]) {
+      expect(
+        resolveRecipientMatch({
+          toOwnerId: null,
+          toOwnerEmail: "",
+          callerId: "xyz",
+          callerEmail: "",
+          callerEmailConfirmed,
+        }),
+      ).toBe("no_match");
+    }
+  });
+
+  it("validateRecipientMatch is false for the unconfirmed arm and true for the confirmed one", () => {
+    const base = { ...OPEN_INVITATION, callerEmail: "recipient@example.com" };
+    expect(validateRecipientMatch({ ...base, callerEmailConfirmed: false })).toBe(false);
+    expect(validateRecipientMatch({ ...base, callerEmailConfirmed: true })).toBe(true);
   });
 });
 

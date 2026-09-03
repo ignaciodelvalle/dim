@@ -36,9 +36,12 @@ export default async function TransferenciasHubPage() {
 
   const { data: authData } = await supabase.auth.getUser();
   const callerEmail = (authData?.user?.email ?? "").toLowerCase();
+  // An address nobody proved is not an addressee (A09-1): the list degrades to
+  // the id predicate, so an open e-mail invitation and its token stay hidden.
+  const callerEmailConfirmed = authData?.user?.email_confirmed_at != null;
 
   const { incoming, outgoing } = await listTransfersForUser(
-    { userId: user.id, callerEmail },
+    { userId: user.id, callerEmail, callerEmailConfirmed },
     { repo: TransfersRepository },
   );
   const activeRows = incoming.pending;

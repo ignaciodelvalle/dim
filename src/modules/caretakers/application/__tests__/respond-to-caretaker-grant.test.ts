@@ -30,6 +30,7 @@ describe("rejectCaretakerGrant", () => {
     grantPublicToken: "CG-abc123",
     callerUserId: CARETAKER_ID,
     callerEmail: "ana@example.com",
+    callerEmailConfirmed: true,
   };
 
   it("moves a pending invitation to rejected under the expectedStatus guard", async () => {

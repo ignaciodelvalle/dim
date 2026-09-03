@@ -74,6 +74,7 @@ import { endCaretakerGrant } from "@/src/modules/caretakers/application/end-care
 import { listCaretakerGrantsForUser } from "@/src/modules/caretakers/application/list-caretaker-grants-for-user";
 import { rejectCaretakerGrant } from "@/src/modules/caretakers/application/reject-caretaker-grant";
 import type { NewNotification } from "@/src/modules/caretakers/application/types";
+import { UNCONFIRMED_EMAIL_CARETAKER_ERROR } from "@/src/modules/caretakers/domain/grant-copy";
 import { validateDesignation } from "@/src/modules/caretakers/domain/grant-rules";
 import { MAX_GRANT_DURATION_DAYS } from "@/src/modules/caretakers/domain/types";
 import { CaretakersRepository } from "@/src/modules/caretakers/infrastructure/caretakers-repository";
@@ -113,6 +114,11 @@ export type CaretakerCommandContext = {
   userId: string;
   /** From the VERIFIED session. Never from the body — see the header. */
   callerEmail: string;
+  /**
+   * GoTrue's `email_confirmed_at` for the same session (A09-1). Verified says
+   * the TOKEN is genuine; this says somebody proved the ADDRESS.
+   */
+  callerEmailConfirmed: boolean;
   input: CaretakerCommandInput;
 };
 
@@ -221,6 +227,15 @@ const RULES: readonly Rule[] = [
     code: "caretaker_forbidden",
     status: 403,
     matches: exact("Esta invitación no es para tu cuenta."),
+  },
+  // The addressee arm matched the ADDRESS and refused the ACCOUNT (A09-1). Same
+  // code as its siblings on purpose: the sentence carries the remedy, and a code
+  // of its own would let a client branch on "this address has an open
+  // invitation", which is the oracle the 403 exists to avoid.
+  {
+    code: "caretaker_forbidden",
+    status: 403,
+    matches: exact(UNCONFIRMED_EMAIL_CARETAKER_ERROR),
   },
   { code: "caretaker_forbidden", status: 403, matches: exact("Esta invitación no es tuya.") },
   {
@@ -538,6 +553,7 @@ async function accept(
       grantPublicToken: input.grantToken,
       callerUserId: ctx.userId,
       callerEmail: ctx.callerEmail,
+      callerEmailConfirmed: ctx.callerEmailConfirmed,
       // KEY 2 of the two-key public-contact model. Absent means NOT consented —
       // an unticked checkbox sends no field and silence is never consent.
       publicContactConsent: input.publicContactConsent === true,
@@ -577,6 +593,7 @@ async function reject(
       grantPublicToken: input.grantToken,
       callerUserId: ctx.userId,
       callerEmail: ctx.callerEmail,
+      callerEmailConfirmed: ctx.callerEmailConfirmed,
     },
     { repo: CaretakersRepository, now: () => new Date() },
   );
@@ -670,7 +687,11 @@ async function revoke(
  * this repo has already paid for once — and there is nothing here a lazy import
  * would buy.
  */
-export async function readCaretakerGrants(args: { userId: string; callerEmail: string }) {
+export async function readCaretakerGrants(args: {
+  userId: string;
+  callerEmail: string;
+  callerEmailConfirmed: boolean;
+}) {
   return withDbBudgetOrThrow(
     listCaretakerGrantsForUser(args, { repo: CaretakersRepository }),
     READ_BUDGET_MS,

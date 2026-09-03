@@ -43,6 +43,13 @@
 // back to the id predicate alone, which cannot match an open e-mail invitation
 // and therefore hides nothing that caller is entitled to see through it.
 //
+// AND VERIFIED IS NOT PROVED. `callerEmailConfirmed` travels beside it (audit
+// A09-1): GoTrue vouches for the TOKEN, not for the address inside it, so an
+// account created with a known invited address reached the e-mail arm as if it
+// had read that mailbox. An UNCONFIRMED address now degrades exactly as an empty
+// one does — the invitation and its `grantToken` never leave the database, and
+// the accept writer refuses with the sentence that names the remedy.
+//
 // `Idempotency-Key` IS NOT READ, AND THAT IS A REFUSAL TO PROMISE
 // ---------------------------------------------------------------------------
 // None of the five use-cases takes a `clientIdempotencyKey`. What they have — two
@@ -152,6 +159,7 @@ export async function GET(request: Request) {
     grants = await readCaretakerGrants({
       userId: live.user.id,
       callerEmail: live.user.email ?? "",
+      callerEmailConfirmed: live.user.emailConfirmed,
     });
   } catch (err) {
     // NOT an empty hub. A read that failed and a person with no arrangements are
@@ -224,6 +232,8 @@ export async function POST(request: Request) {
       userId: live.user.id,
       // From the VERIFIED session. The body cannot name it; see the header.
       callerEmail: live.user.email ?? "",
+      // Verified is not the same claim as PROVED — see the header's second note.
+      callerEmailConfirmed: live.user.emailConfirmed,
       input: parsed.data,
     });
   } catch (err) {

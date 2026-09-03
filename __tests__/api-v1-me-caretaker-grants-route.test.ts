@@ -40,6 +40,8 @@ const control = vi.hoisted(() => ({
   live: null as null | (() => unknown),
   /** Rows the repository answers the list query with. */
   rows: [] as Array<Record<string, unknown>>,
+  /** Every argument set the list query was asked with. */
+  listArgs: [] as Array<{ userId: string; callerEmail: string }>,
   /** What `resolvePetHolderAccess` answers. */
   access: { kind: "owner", holderRole: "owner" } as Record<string, unknown>,
   /** Every call the pet guard made — empty is what the invitee commands must produce. */
@@ -59,7 +61,14 @@ vi.mock("@/lib/infra/live-user", async (importOriginal) => {
     requireLiveUser: async () =>
       control.live
         ? control.live()
-        : { ok: true, supabase: {}, user: { id: ME, email: MY_EMAIL }, profile: null },
+        : {
+            ok: true,
+            supabase: {},
+            // `emailConfirmed` is what the real guard folds out of GoTrue's
+            // `email_confirmed_at` (A09-1). The default is the ordinary account.
+            user: { id: ME, email: MY_EMAIL, emailConfirmed: true },
+            profile: null,
+          },
   };
 });
 
@@ -125,7 +134,10 @@ vi.mock("@/db", async (importOriginal) => {
 // get, so mocking it would delete the subject of half this file.
 vi.mock("@/src/modules/caretakers/infrastructure/caretakers-repository", () => ({
   CaretakersRepository: {
-    listGrantsForUser: async () => control.rows,
+    listGrantsForUser: async (args: { userId: string; callerEmail: string }) => {
+      control.listArgs.push(args);
+      return control.rows;
+    },
   },
 }));
 
@@ -218,6 +230,7 @@ const DESIGNATE = {
 beforeEach(() => {
   control.live = null;
   control.rows = [];
+  control.listArgs = [];
   control.access = { kind: "owner", holderRole: "owner" };
   control.accessCalls = [];
   control.results = {};
@@ -459,13 +472,53 @@ describe("callerEmail comes from the verified session", () => {
   });
 
   it("degrades to the id predicate alone when the session carries no address", async () => {
-    control.live = () => ({ ok: true, supabase: {}, user: { id: ME, email: null }, profile: null });
+    control.live = () => ({
+      ok: true,
+      supabase: {},
+      user: { id: ME, email: null, emailConfirmed: true },
+      profile: null,
+    });
     control.rows = [row({ grant: { caretakerUserId: null, caretakerEmail: MY_EMAIL } })];
     const payload = await bodyOf(await read());
     // An empty address cannot be the addressee of an open invitation, so the row
     // is shown without the answers rather than with them.
     expect(payload).toMatchObject({
       incoming: [{ capabilities: { canAccept: false, canReject: false } }],
+    });
+  });
+
+  // A09-1: an UNPROVED address is not addressee proof, on the read as well as
+  // the write. This read is what hands out `grantToken`.
+  it("A09-1: an UNCONFIRMED session asks the repository with an EMPTY e-mail", async () => {
+    control.live = () => ({
+      ok: true,
+      supabase: {},
+      user: { id: ME, email: MY_EMAIL, emailConfirmed: false },
+      profile: null,
+    });
+    control.rows = [];
+    await read();
+    expect(control.listArgs).toEqual([{ userId: ME, callerEmail: "" }]);
+  });
+
+  it("A09-1: a CONFIRMED session still asks with the address (non-vacuity control)", async () => {
+    control.rows = [];
+    await read();
+    expect(control.listArgs).toEqual([{ userId: ME, callerEmail: MY_EMAIL }]);
+  });
+
+  it("A09-1: the accept command carries the confirmation bit into the use-case", async () => {
+    control.live = () => ({
+      ok: true,
+      supabase: {},
+      user: { id: ME, email: MY_EMAIL, emailConfirmed: false },
+      profile: null,
+    });
+    await send({ command: "accept", grantToken: GRANT });
+    expect(control.calls[0].input).toMatchObject({
+      callerUserId: ME,
+      callerEmail: MY_EMAIL,
+      callerEmailConfirmed: false,
     });
   });
 });

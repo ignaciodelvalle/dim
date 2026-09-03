@@ -66,10 +66,14 @@ export default async function CaretakerGrantPage({
   const supabase = await createClient();
   const { data: authData } = await supabase.auth.getUser();
   const viewerEmail = (authData?.user?.email ?? "").toLowerCase();
+  // And whether anybody ever proved it (A09-1). Without this, "I signed up with
+  // that address" reads as "I read that mailbox" on the one branch that decides
+  // who may take write access to somebody else's animal.
+  const viewerEmailConfirmed = authData?.user?.email_confirmed_at != null;
 
   const view = await getGrantForViewer(
     grantToken,
-    { userId: user.id, email: viewerEmail },
+    { userId: user.id, email: viewerEmail, emailConfirmed: viewerEmailConfirmed },
     { repo: CaretakersRepository, now: () => new Date() },
   );
 

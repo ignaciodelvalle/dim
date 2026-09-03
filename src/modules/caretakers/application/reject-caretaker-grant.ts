@@ -14,6 +14,15 @@ export type RejectCaretakerGrantInput = {
   grantPublicToken: string;
   callerUserId: string;
   callerEmail: string;
+  /**
+   * GoTrue's `email_confirmed_at` is non-null for this account (A09-1).
+   *
+   * THE GENERIC REFUSAL, not the "confirmá tu correo" sentence the accept path
+   * returns: a reject is reachable only from a screen `getGrantForViewer`
+   * rendered first, and that read already names the remedy. Repeating it here
+   * would only ever answer a hand-made request.
+   */
+  callerEmailConfirmed: boolean;
 };
 
 export async function rejectCaretakerGrant(
@@ -26,9 +35,13 @@ export async function rejectCaretakerGrant(
   const grant = await repo.findGrantByToken(input.grantPublicToken);
   if (!grant) return { ok: false, error: "Invitación no encontrada." };
 
+  // The e-mail arm needs a PROVED address, like its accept twin (A09-1).
   const matchesId = grant.caretakerUserId !== null && grant.caretakerUserId === input.callerUserId;
+  const callerEmail = (input.callerEmail ?? "").trim().toLowerCase();
   const matchesEmail =
-    grant.caretakerEmail.toLowerCase() === (input.callerEmail ?? "").trim().toLowerCase();
+    input.callerEmailConfirmed &&
+    callerEmail.length > 0 &&
+    grant.caretakerEmail.trim().toLowerCase() === callerEmail;
   if (!matchesId && !matchesEmail) {
     return { ok: false, error: "Esta invitación no es para tu cuenta." };
   }

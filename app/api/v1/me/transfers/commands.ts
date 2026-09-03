@@ -64,6 +64,7 @@ import { listTransfersForUser } from "@/src/modules/transfers/application/list-t
 import { rejectPetTransfer } from "@/src/modules/transfers/application/reject-pet-transfer";
 import {
   SPONSORED_PET_TRANSFER_ERROR,
+  UNCONFIRMED_EMAIL_TRANSFER_ERROR,
   validateOwnerTransferReason,
   validatePetStatusForTransfer,
   validateSelfTransfer,
@@ -112,6 +113,11 @@ export type TransferCommandContext = {
   userId: string;
   /** From the VERIFIED session. Never from the body — see the header. */
   callerEmail: string;
+  /**
+   * GoTrue's `email_confirmed_at` for the same session (A09-1). Verified says
+   * the TOKEN is genuine; this says somebody proved the ADDRESS.
+   */
+  callerEmailConfirmed: boolean;
   input: TransferCommandInput;
 };
 
@@ -200,6 +206,15 @@ const RULES: readonly Rule[] = [
     code: "transfer_forbidden",
     status: 403,
     matches: exact("Esta propuesta no es accesible desde tu cuenta."),
+  },
+  // The addressee arm matched the ADDRESS and refused the ACCOUNT (A09-1).
+  // Same code as its three siblings on purpose: the sentence carries the remedy,
+  // and a code of its own would let a client branch on "this address has an open
+  // invitation", which is the oracle the 403 exists to avoid.
+  {
+    code: "transfer_forbidden",
+    status: 403,
+    matches: exact(UNCONFIRMED_EMAIL_TRANSFER_ERROR),
   },
 
   // ---- the seven days ran out (409) ---------------------------------------
@@ -377,7 +392,11 @@ async function accept(
   input: Extract<TransferCommandInput, { command: "accept" }>,
 ) {
   const result = await acceptPetTransfer(
-    { transferToken: input.transferToken, callerEmail: ctx.callerEmail },
+    {
+      transferToken: input.transferToken,
+      callerEmail: ctx.callerEmail,
+      callerEmailConfirmed: ctx.callerEmailConfirmed,
+    },
     { ...deps(), actor: { user: { id: ctx.userId } } },
   );
   if (!result.ok) return transferRefusal(result.error);
@@ -415,7 +434,12 @@ async function reject(
   input: Extract<TransferCommandInput, { command: "reject" }>,
 ) {
   const result = await rejectPetTransfer(
-    { transferToken: input.transferToken, reason: input.reason, callerEmail: ctx.callerEmail },
+    {
+      transferToken: input.transferToken,
+      reason: input.reason,
+      callerEmail: ctx.callerEmail,
+      callerEmailConfirmed: ctx.callerEmailConfirmed,
+    },
     { ...deps(), actor: { user: { id: ctx.userId } } },
   );
   if (!result.ok) return transferRefusal(result.error);
@@ -489,7 +513,11 @@ async function cancel(
  * this repo has already paid for once — and there is nothing here that a lazy
  * import would buy.
  */
-export async function readTransfers(args: { userId: string; callerEmail: string }) {
+export async function readTransfers(args: {
+  userId: string;
+  callerEmail: string;
+  callerEmailConfirmed: boolean;
+}) {
   return withDbBudgetOrThrow(
     listTransfersForUser(args, { repo: TransfersRepository }),
     READ_BUDGET_MS,

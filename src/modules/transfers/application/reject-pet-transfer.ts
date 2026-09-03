@@ -34,6 +34,16 @@ export type RejectPetTransferInput = {
   reason?: string | null;
   /** Caller's authenticated email — resolved by the action via Supabase session. */
   callerEmail: string;
+  /**
+   * GoTrue's `email_confirmed_at` is non-null for this account (A09-1).
+   *
+   * THE GENERIC REFUSAL, not the "confirmá tu correo" sentence the accept path
+   * returns, and the asymmetry is deliberate: a reject is reachable only from a
+   * screen the viewer read first, and that read (`getTransferForViewer`) already
+   * says what to do. Repeating it here would only ever answer a hand-made
+   * request.
+   */
+  callerEmailConfirmed: boolean;
 };
 
 // ---------------------------------------------------------------------------
@@ -60,6 +70,7 @@ export async function rejectPetTransfer(
     toOwnerEmail: transfer.toOwnerEmail,
     callerId: user.id,
     callerEmail: input.callerEmail,
+    callerEmailConfirmed: input.callerEmailConfirmed,
   });
   if (!isRecipient) {
     return { ok: false, error: "Esta propuesta no es para tu cuenta." };

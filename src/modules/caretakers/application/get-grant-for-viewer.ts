@@ -49,7 +49,17 @@ export type GrantView = {
   endedNotice: string | null;
 };
 
-export type GrantViewer = { userId: string; email: string };
+export type GrantViewer = {
+  userId: string;
+  email: string;
+  /**
+   * GoTrue's `email_confirmed_at` is non-null for this account (A09-1). The
+   * e-mail branch of `resolveRelation` is an ADDRESSEE proof, and an address
+   * nobody proved proves nothing — an unconfirmed viewer resolves to `outsider`,
+   * which is the fail-closed shape this file already documents.
+   */
+  emailConfirmed: boolean;
+};
 
 export async function getGrantForViewer(
   grantPublicToken: string,
@@ -112,6 +122,11 @@ export async function getGrantForViewer(
  * very first visit — the one that matters — an id match is impossible. Same
  * id-or-email pair the accept/reject use-cases match on, so the page cannot
  * offer a button the action would then refuse.
+ *
+ * `emailConfirmed` is part of that pair as of A09-1, and keeping it here is what
+ * preserves the sentence above: the accept use-case refuses an unproved address,
+ * so a relation resolved without the term would render "Aceptar el cuidado" over
+ * an action that answers "confirmá tu correo".
  */
 function resolveRelation(
   grant: { grantedByUserId: string; caretakerUserId: string | null; caretakerEmail: string },
@@ -121,6 +136,7 @@ function resolveRelation(
   if (
     !grant.caretakerUserId &&
     viewer.email &&
+    viewer.emailConfirmed &&
     grant.caretakerEmail.toLowerCase() === viewer.email.toLowerCase()
   ) {
     return "invitee";

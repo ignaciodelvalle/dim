@@ -117,20 +117,92 @@ export function validateSelfTransfer(callerId: string, toOwnerId: string): Domai
 // ---------------------------------------------------------------------------
 
 /**
+ * The refusal an account sees when the proposal IS addressed to its e-mail
+ * address but the account has never proved it controls that address.
+ *
+ * Written for the ONE person who legitimately hits it: somebody who was invited
+ * by address, created the account by hand instead of following the invitation
+ * link, and is now looking at a proposal they cannot answer. It names the single
+ * action that unblocks them. "Esta propuesta no es para tu cuenta." would be a
+ * lie by omission here — the proposal IS for their address.
+ */
+export const UNCONFIRMED_EMAIL_TRANSFER_ERROR =
+  "Confirmá tu correo electrónico para aceptar esta transferencia.";
+
+/**
+ * Which arm of the addressee rule answered, and how.
+ *
+ * `email_unconfirmed` exists so a caller can tell "you are not the addressee"
+ * apart from "you are the addressee but your address is not proved". They are
+ * the same refusal for authorization and DIFFERENT sentences for a person.
+ */
+export type RecipientMatchOutcome = "id" | "email" | "email_unconfirmed" | "no_match";
+
+/**
+ * Is the caller the intended recipient, and by which arm?
+ *
+ * Semantics: if toOwnerId is set, match by id only. If toOwnerId is null (open
+ * invitation by e-mail), match by e-mail (lowercased, trimmed) AND only when the
+ * caller's address is CONFIRMED.
+ *
+ * WHY THE E-MAIL ARM NEEDS `callerEmailConfirmed` (audit 2026-09 A09-1, PO
+ * decision 2026-09-02). `to_owner_id` is NULL precisely when the address had no
+ * account at initiate time, so the row stores a string and this comparison is
+ * the whole of the proof that the caller is the addressee. A bare string compare
+ * treats "I signed up with that address" as "I read that mailbox", and those are
+ * only the same claim when the platform made the account prove it. Without the
+ * confirmation term, anyone who KNOWS an invited address can register it and the
+ * accept moves titularidad in the national registry.
+ *
+ * THE ID ARM IS UNAFFECTED. When `to_owner_id` resolved, the sender's own
+ * initiate already bound the proposal to an existing account by id, and an id is
+ * not a claim about a mailbox.
+ *
+ * WHAT THIS GUARD DOES NOT DO, said here rather than left to be assumed: it is
+ * NOT a substitute for `enable_confirmations` being ON in the Supabase project.
+ * With confirmations OFF, GoTrue auto-confirms at signup and stamps
+ * `email_confirmed_at` itself, so the column carries no mailbox proof and this
+ * term degrades to always-true. It is a second lock on the same door — it closes
+ * the shapes where an account exists with an unproved address under a project
+ * that DOES require confirmation (admin-created accounts, identities imported
+ * from a provider that did not verify the address).
+ *
+ * An EMPTY `callerEmail` never matches, which removes the reliance on
+ * `to_owner_email` being non-empty by side effect of a NOT NULL column.
+ */
+export function resolveRecipientMatch(args: {
+  toOwnerId: string | null;
+  toOwnerEmail: string;
+  callerId: string;
+  callerEmail: string;
+  /** GoTrue's `email_confirmed_at` is non-null for the accepting account. */
+  callerEmailConfirmed: boolean;
+}): RecipientMatchOutcome {
+  if (args.toOwnerId !== null) {
+    return args.toOwnerId === args.callerId ? "id" : "no_match";
+  }
+  const callerEmail = args.callerEmail.trim().toLowerCase();
+  if (callerEmail.length === 0) return "no_match";
+  if (args.toOwnerEmail.trim().toLowerCase() !== callerEmail) return "no_match";
+  return args.callerEmailConfirmed ? "email" : "email_unconfirmed";
+}
+
+/**
  * Returns true when the caller is the intended recipient.
- * Semantics: if toOwnerId is set, match by id only.
- * If toOwnerId is null (open invitation by email), match by email (lowercased).
+ *
+ * The boolean face of `resolveRecipientMatch`, for the readers that only need a
+ * yes/no: the list capabilities, the reject writer and the viewer read. The
+ * accept writer asks the richer question so it can say WHY it refused.
  */
 export function validateRecipientMatch(args: {
   toOwnerId: string | null;
   toOwnerEmail: string;
   callerId: string;
   callerEmail: string;
+  callerEmailConfirmed: boolean;
 }): boolean {
-  if (args.toOwnerId !== null) {
-    return args.toOwnerId === args.callerId;
-  }
-  return args.toOwnerEmail.toLowerCase() === args.callerEmail.toLowerCase();
+  const outcome = resolveRecipientMatch(args);
+  return outcome === "id" || outcome === "email";
 }
 
 // ---------------------------------------------------------------------------
