@@ -43,10 +43,58 @@ describe("phone value", () => {
   });
 });
 
+describe("phone AND email in one value", () => {
+  // The shape encontre/action.ts:218-219 writes into the single finderContact
+  // column when a finder leaves both. One row per contact, each opening its own
+  // scheme — before the split, the whole string went into a single mailto:.
+  const BOTH = "11 4123-4567 / ana@example.com";
+
+  it("renders one link per contact, each with its own accessible name", () => {
+    render(<ContactRow label="Contacto" value={BOTH} />);
+    expect(screen.getAllByRole("link")).toHaveLength(2);
+    expect(screen.getByRole("link", { name: /^llamar al 11 4123-4567$/i })).toBeOnTheScreen();
+    expect(screen.getByRole("link", { name: /^escribir a ana@example\.com$/i })).toBeOnTheScreen();
+  });
+
+  it("shows each contact on its own row, never the joined string", () => {
+    render(<ContactRow label="Contacto" value={BOTH} />);
+    expect(screen.getByText("11 4123-4567")).toBeOnTheScreen();
+    expect(screen.getByText("ana@example.com")).toBeOnTheScreen();
+    expect(screen.queryByText(BOTH)).toBeNull();
+  });
+
+  it("opens tel: from the phone row", () => {
+    render(<ContactRow label="Contacto" value={BOTH} />);
+    fireEvent.press(screen.getByRole("link", { name: /^llamar al 11 4123-4567$/i }));
+    expect(mockOpenURL).toHaveBeenCalledWith("tel:1141234567");
+  });
+
+  it("opens mailto: from the email row — with no phone number inside the address", () => {
+    render(<ContactRow label="Contacto" value={BOTH} />);
+    fireEvent.press(screen.getByRole("link", { name: /^escribir a ana@example\.com$/i }));
+    expect(mockOpenURL).toHaveBeenCalledWith("mailto:ana@example.com");
+  });
+
+  it("still SHOWS a half that cannot become a link, next to the half that can", () => {
+    // Rendering per part rather than per link is what keeps this text on the
+    // screen. Dropping it would hide a contact in the one flow whose whole
+    // point is reaching the person holding the animal.
+    render(<ContactRow label="Contacto" value="abc / ana@example.com" />);
+    expect(screen.getAllByRole("link")).toHaveLength(1);
+    expect(screen.getByText("abc")).toBeOnTheScreen();
+  });
+});
+
 describe("unlinkable value", () => {
   it("renders no link role — the plain Row fallback", () => {
     render(<ContactRow label="Contacto" value="abc" />);
     expect(screen.queryByRole("link")).toBeNull();
     expect(screen.getByText("abc")).toBeOnTheScreen();
+  });
+
+  it("keeps a joined value VERBATIM when neither half links — no cosmetic split", () => {
+    render(<ContactRow label="Contacto" value="abc / def" />);
+    expect(screen.queryByRole("link")).toBeNull();
+    expect(screen.getByText("abc / def")).toBeOnTheScreen();
   });
 });

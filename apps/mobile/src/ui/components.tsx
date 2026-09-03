@@ -27,7 +27,7 @@ import * as Linking from "expo-linking";
 import type { ReactNode } from "react";
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from "react-native";
 
-import { contactLink } from "./contact-link";
+import { type ContactLink, contactLink, contactLinks, contactParts } from "./contact-link";
 import { FONTS } from "./fonts";
 import { PrimaryButton, SecondaryButton } from "./kit";
 import { COLORS, LABEL_TRACKING_EM, LEADING, RADIUS, SPACE, TOUCH_TARGET, TYPE } from "./theme";
@@ -56,9 +56,9 @@ export function Row({ label, value }: { label: string; value: string }) {
 }
 
 /**
- * A Row whose value is a CONTACT — a phone OR an email, the shape every
- * schema carrying one promises (`finderContact` in
- * `@dim/contract/api/pet-lost`, the lost owner's `phoneE164`). Tappable,
+ * A Row whose value is a CONTACT — a phone, an email, or (see below) one field
+ * carrying both (`finderContact` in `@dim/contract/api/pet-lost`, the lost
+ * owner's `phoneE164`). Tappable,
  * because it renders in the one flow where reaching the other person is the
  * whole point (QOL 2026-09-01): the owner's phone in front of the finder
  * holding the animal, and a finder's contact in front of the owner reading
@@ -66,17 +66,53 @@ export function Row({ label, value }: { label: string; value: string }) {
  * LostScanFeed:227, the "Llamar" CTA on the public credential); on the phone
  * — the device that CALLS — they were inert text.
  *
- * `contact-link.ts` decides which kind `value` is and builds the `tel:` /
+ * `contact-link.ts` decides which kind each contact is and builds the `tel:` /
  * `mailto:` href and the accessible label — an email routed through `tel:`
  * used to read "Llamar al juan@…" to a screen reader and then fail against a
  * dialer that cannot open it, silently, since the tap handler swallows the
  * rejection. A value neither kind can make sense of falls back to the plain
  * `Row` shape.
+ *
+ * ONE ROW PER CONTACT, because one field can carry two. The web writes
+ * `"<teléfono> / <email>"` into the single `finderContact` column when a finder
+ * leaves both (encontre/action.ts:218-219), and read as one value that string
+ * became a `mailto:` with the phone number inside it. Splitting is
+ * `contact-link.ts`'s job; rendering the result is this one's.
+ *
+ * WHY N ROWS AND NOT ONE ROW WITH TWO ACTIONS: the row IS the touch target
+ * (`styles.contactRow` pins it at TOUCH_TARGET, and the note beside that style
+ * says why). Two actions inside one row halve it. Stacking rows keeps every
+ * property the single-contact path already had — full-width target, `link`
+ * role, the accessible label from `contact-link.ts` — and adds no new layout
+ * primitive. The visible `label` repeats, which is what a label/value list does
+ * with a multi-valued field; the ACCESSIBLE name does not, since "Llamar al …"
+ * and "Escribir a …" already distinguish the rows for a screen reader.
  */
 export function ContactRow({ label, value }: { label: string; value: string }) {
-  const link = contactLink(value);
-  if (link === null) {
+  // Nothing here is tappable: one plain Row carrying the value verbatim, which
+  // is the pre-split behaviour and keeps an unparseable string readable.
+  if (contactLinks(value).length === 0) {
     return <Row label={label} value={value} />;
+  }
+  // Per PART, not per link: a half that produced no link still renders as text
+  // rather than disappearing off a screen whose whole purpose is reaching the
+  // person on the other end.
+  return (
+    <>
+      {contactParts(value).map((part) => (
+        <ContactPartRow key={part} label={label} part={part} link={contactLink(part)} />
+      ))}
+    </>
+  );
+}
+
+function ContactPartRow({
+  label,
+  part,
+  link,
+}: { label: string; part: string; link: ContactLink | null }) {
+  if (link === null) {
+    return <Row label={label} value={part} />;
   }
   return (
     <Pressable
@@ -87,7 +123,7 @@ export function ContactRow({ label, value }: { label: string; value: string }) {
     >
       <Text style={styles.rowLabel}>{label}</Text>
       <Text selectable style={[styles.rowValue, styles.contactValue]}>
-        {value}
+        {part}
       </Text>
     </Pressable>
   );

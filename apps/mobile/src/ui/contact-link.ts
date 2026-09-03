@@ -1,7 +1,13 @@
-// Turns a free-text contact value — the shape every schema that carries one
-// promises to be "a phone OR an email" (`finderContact` in
-// @dim/contract/api/pet-lost, `phoneE164` on the lost owner) — into a
-// tappable link, or refuses to when the value cannot become one.
+// Turns a free-text contact value into tappable links, or refuses to when the
+// value cannot become one.
+//
+// "A PHONE OR AN EMAIL" IS WHAT THE SCHEMA SAYS, NOT WHAT ARRIVES. The lost
+// owner's `phoneE164` really is one phone, but `finderContact`
+// (@dim/contract/api/pet-lost) is a single text column that the web's finder
+// form fills with BOTH contacts, joined by `CONTACT_SEPARATOR`, when the finder
+// leaves both. So the entry point for a stored value is `contactParts` /
+// `contactLinks`, and `contactLink` is the single-contact decision underneath
+// them.
 //
 // PURE ON PURPOSE: `ContactRow` in components.tsx is a rendering shell
 // around this. Deciding WHICH kind a value is, and what href/label it
@@ -35,4 +41,53 @@ export function contactLink(value: string): ContactLink | null {
 
   const sanitized = hasLeadingPlus ? `+${digits}` : digits;
   return { href: `tel:${sanitized}`, label: `Llamar al ${trimmed}`, kind: "phone" };
+}
+
+/**
+ * The separator the WEB writes when a finder leaves both a phone and an email.
+ *
+ * `app/(public)/p/[publicToken]/encontre/action.ts:218-219` builds the single
+ * `finderContact` text column as `${finderPhone} / ${finderEmail}` — the schema
+ * carries one field, so two contacts arrive concatenated. Read as ONE value,
+ * that string contains an "@" and `contactLink` turns the whole thing into
+ * `mailto:11 4123-4567 / ana@example.com`: an address no mail client can send
+ * to, with the phone number swallowed inside it. The producer is the web's and
+ * cannot be changed from here without a migration of every stored value, so the
+ * split belongs on the CONSUMER side, keyed on the exact literal the producer
+ * writes.
+ */
+export const CONTACT_SEPARATOR = " / ";
+
+/**
+ * One free-text contact value split into the individual contacts it carries.
+ *
+ * Trimmed, empties dropped, DUPLICATES DROPPED — the same number written twice
+ * is one contact, and two identical rows would be two identical touch targets
+ * doing the same thing. A value with no separator yields one part, which is why
+ * every single-contact caller behaves exactly as it did before this existed.
+ */
+export function contactParts(value: string): string[] {
+  const seen = new Set<string>();
+  for (const part of value.split(CONTACT_SEPARATOR)) {
+    const trimmed = part.trim();
+    if (trimmed !== "") seen.add(trimmed);
+  }
+  return [...seen];
+}
+
+/**
+ * Every contact in `value` that can become a link, in the order written.
+ *
+ * Parts that cannot become one are DROPPED, so an empty array means "nothing
+ * here is tappable" and the caller falls back to plain text — the same contract
+ * `contactLink`'s `null` has for a single value. `ContactRow` renders per PART
+ * rather than per link, so a half that drops out here is still shown as text.
+ */
+export function contactLinks(value: string): ContactLink[] {
+  const links: ContactLink[] = [];
+  for (const part of contactParts(value)) {
+    const link = contactLink(part);
+    if (link !== null) links.push(link);
+  }
+  return links;
 }
