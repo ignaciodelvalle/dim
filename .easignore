@@ -154,6 +154,9 @@ scripts/bulk-cursor-pets-staging.mjs
 # vitest --reporter=json output
 .vitest-report.json
 
+# Local Definition-of-Done gate evidence (one dir per run)
+gate-*/
+
 # QA session-minting output — carries live session tokens
 qa-sessions*.json
 
