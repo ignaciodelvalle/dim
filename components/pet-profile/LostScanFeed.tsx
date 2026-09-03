@@ -1,6 +1,7 @@
 import { Icon } from "@/components/Icon";
 import { LostFeedItemReport } from "@/components/pet-profile/LostFeedItemReport";
 import { LOST_SCAN_FEED_CAP } from "@/lib/infra/lost-mode";
+import { contactPartLinks } from "@/lib/utils/contact-parts";
 import type { ContentReportCategory } from "@dim/contract/events";
 
 // LostScanFeed — unified feed of QR scans and finder messages for an
@@ -162,6 +163,47 @@ const CONDITION_LABELS: Record<string, string> = {
 };
 
 /**
+ * El contacto del hallador, un enlace por contacto.
+ *
+ * `finderContact` is ONE text column that carries up to TWO contacts: the finder
+ * form takes a phone and an e-mail and `encontre/action.ts` joins them with
+ * `CONTACT_SEPARATOR`. Rendered as one value this row built
+ * `tel:11 4123-4567 / ana@example.com` — a URL no dialer accepts, on the one
+ * surface whose whole purpose is reaching the person holding the animal. The
+ * split lives in `lib/utils/contact-parts.ts` and mirrors, part for part, what
+ * `apps/mobile/src/ui/contact-link.ts` does for the native client.
+ *
+ * ONE LINK PER PART, each with its own accessible name ("Llamar al …" /
+ * "Escribir a …"): two actions inside one anchor would give a keyboard or screen
+ * reader user one target for two different things. A part that cannot become a
+ * link is still rendered as text — a half that disappears is worse than a half
+ * that cannot be tapped.
+ *
+ * The icon is per part and follows the KIND, so an e-mail no longer sits behind
+ * a telephone glyph.
+ */
+function FinderContactLinks({ value }: { value: string }) {
+  const parts = contactPartLinks(value);
+  if (parts.length === 0) return null;
+  return (
+    <div className="mt-1 flex flex-col gap-0.5">
+      {parts.map(({ part, link }) => (
+        <p key={part} className="flex items-center gap-1 text-sm font-semibold text-ln-azul">
+          <Icon name={link?.kind === "email" ? "mail" : "telefono"} size="sm" decorative />
+          {link ? (
+            <a href={link.href} aria-label={link.label} className="hover:underline">
+              {part}
+            </a>
+          ) : (
+            <span className="font-normal text-ln-ink-2">{part}</span>
+          )}
+        </p>
+      ))}
+    </div>
+  );
+}
+
+/**
  * El control de reportar, o nada.
  *
  * SOLO EN LAS DOS CLASES CON AUTOR. Un `scan` es una máquina leyendo un QR: no
@@ -221,14 +263,7 @@ function FeedRow({
           {!conditionLabel && item.localityLabel && (
             <p className="mt-0.5 text-xs text-ln-mute">{item.localityLabel}</p>
           )}
-          {item.finderContact && (
-            <p className="mt-1 flex items-center gap-1 text-sm font-semibold text-ln-azul">
-              <Icon name="telefono" size="sm" decorative />
-              <a href={`tel:${item.finderContact}`} className="hover:underline">
-                {item.finderContact}
-              </a>
-            </p>
-          )}
+          {item.finderContact && <FinderContactLinks value={item.finderContact} />}
           {item.availabilityLabel && (
             <p className="mt-0.5 text-sm text-ln-mute">
               {item.availabilityLabel === "indefinido"

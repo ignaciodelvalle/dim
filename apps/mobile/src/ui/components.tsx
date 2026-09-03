@@ -27,7 +27,7 @@ import * as Linking from "expo-linking";
 import type { ReactNode } from "react";
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from "react-native";
 
-import { type ContactLink, contactLink, contactLinks, contactParts } from "./contact-link";
+import { type ContactLink, contactLink, contactParts } from "./contact-link";
 import { FONTS } from "./fonts";
 import { PrimaryButton, SecondaryButton } from "./kit";
 import { COLORS, LABEL_TRACKING_EM, LEADING, RADIUS, SPACE, TOUCH_TARGET, TYPE } from "./theme";
@@ -62,9 +62,9 @@ export function Row({ label, value }: { label: string; value: string }) {
  * because it renders in the one flow where reaching the other person is the
  * whole point (QOL 2026-09-01): the owner's phone in front of the finder
  * holding the animal, and a finder's contact in front of the owner reading
- * the search feed. The web's own lost surfaces link them (`tel:` in
- * LostScanFeed:227, the "Llamar" CTA on the public credential); on the phone
- * — the device that CALLS — they were inert text.
+ * the search feed. The web's own lost surfaces link them (the finder contact in
+ * `components/pet-profile/LostScanFeed.tsx`, the "Llamar" CTA on the public
+ * credential); on the phone — the device that CALLS — they were inert text.
  *
  * `contact-link.ts` decides which kind each contact is and builds the `tel:` /
  * `mailto:` href and the accessible label — an email routed through `tel:`
@@ -74,10 +74,13 @@ export function Row({ label, value }: { label: string; value: string }) {
  * `Row` shape.
  *
  * ONE ROW PER CONTACT, because one field can carry two. The web writes
- * `"<teléfono> / <email>"` into the single `finderContact` column when a finder
- * leaves both (encontre/action.ts:218-219), and read as one value that string
- * became a `mailto:` with the phone number inside it. Splitting is
- * `contact-link.ts`'s job; rendering the result is this one's.
+ * `"<phone> / <email>"` into the single `finderContact` column when a finder
+ * leaves both (`app/(public)/p/[publicToken]/encontre/action.ts`), and read as
+ * one value that string became a `mailto:` with the phone number inside it.
+ * Splitting is `contact-link.ts`'s job; rendering the result is this one's. The
+ * web now renders the same split, through its own twin of that module
+ * (`lib/utils/contact-parts.ts`) — the two trees cannot import from each other,
+ * so when one changes the other is the second half of the change.
  *
  * WHY N ROWS AND NOT ONE ROW WITH TWO ACTIONS: the row IS the touch target
  * (`styles.contactRow` pins it at TOUCH_TARGET, and the note beside that style
@@ -89,9 +92,15 @@ export function Row({ label, value }: { label: string; value: string }) {
  * and "Escribir a …" already distinguish the rows for a screen reader.
  */
 export function ContactRow({ label, value }: { label: string; value: string }) {
+  // SPLIT ONCE. This used to call `contactLinks(value)` for the emptiness test,
+  // `contactParts(value)` for the map and `contactLink(part)` inside it — three
+  // passes over the same string, and three chances for the "is anything here
+  // tappable" question and the rendering to be answered by different code.
+  const parts = contactParts(value).map((part) => ({ part, link: contactLink(part) }));
+
   // Nothing here is tappable: one plain Row carrying the value verbatim, which
   // is the pre-split behaviour and keeps an unparseable string readable.
-  if (contactLinks(value).length === 0) {
+  if (parts.every(({ link }) => link === null)) {
     return <Row label={label} value={value} />;
   }
   // Per PART, not per link: a half that produced no link still renders as text
@@ -99,8 +108,8 @@ export function ContactRow({ label, value }: { label: string; value: string }) {
   // person on the other end.
   return (
     <>
-      {contactParts(value).map((part) => (
-        <ContactPartRow key={part} label={label} part={part} link={contactLink(part)} />
+      {parts.map(({ part, link }) => (
+        <ContactPartRow key={part} label={label} part={part} link={link} />
       ))}
     </>
   );

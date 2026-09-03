@@ -38,6 +38,7 @@ import { reportError } from "@/lib/infra/report-error";
 import { uploadAttachmentIfPresent } from "@/lib/infra/uploads";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { DISPUTE_TIP_NOTICE } from "@/lib/ui/dispute-copy";
+import { CONTACT_SEPARATOR } from "@/lib/utils/contact-parts";
 import { AR_TIME_ZONE, parseArDatetimeLocal } from "@/lib/utils/format";
 
 export type FinderInPossessionState = {
@@ -215,8 +216,16 @@ export async function reportFinderInPossessionAction(
   // Build the canonical contact string: phone takes precedence; append email
   // when both are provided. The schema's finderContact is a single text field;
   // null = anonymous handoff (PO 2026-07-24).
+  //
+  // THE SEPARATOR IS A NAMED CONSTANT because two consumers split on it — the
+  // web feed (`lib/utils/contact-parts.ts`) and the native lost screen
+  // (`apps/mobile/src/ui/contact-link.ts`, which cannot import from this tree
+  // and holds its own copy of the literal). Every one of them turned this joined
+  // string into a single `tel:` href with an e-mail inside it until 2026-09.
   const finderContact =
-    finderPhone && finderEmail ? `${finderPhone} / ${finderEmail}` : (finderPhone ?? finderEmail);
+    finderPhone && finderEmail
+      ? `${finderPhone}${CONTACT_SEPARATOR}${finderEmail}`
+      : (finderPhone ?? finderEmail);
 
   // Idempotency: skip the INSERT when an identical finder_in_possession event
   // for (petId, finderContact) already exists in the last 5 minutes. Only keyed

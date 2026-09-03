@@ -3,7 +3,7 @@
 // the dialer/mail client, which is the part a fossilized "PhoneRow" name and
 // a hardcoded `tel:` used to get wrong for an email value.
 
-import { describe, expect, it, jest } from "@jest/globals";
+import { beforeEach, describe, expect, it, jest } from "@jest/globals";
 import { fireEvent, render, screen } from "@testing-library/react-native";
 
 // Resolved by default: the component chains `.catch()` off the return value,
@@ -14,6 +14,15 @@ const mockOpenURL = jest.fn<(url: string) => Promise<unknown>>().mockResolvedVal
 jest.mock("expo-linking", () => ({ openURL: (url: string) => mockOpenURL(url) }));
 
 import { ContactRow } from "./components";
+
+// The mock is module-scoped, so without this every `toHaveBeenCalledWith`
+// assertion below is satisfied by ANY earlier test's press. That is not
+// hypothetical bookkeeping: the two-contact block presses a tel: row and a
+// mailto: row in separate tests, so a row that stopped opening anything at all
+// would still pass on a call another test made.
+beforeEach(() => {
+  mockOpenURL.mockClear();
+});
 
 describe("email value", () => {
   it("renders a link labeled 'Escribir a …', not 'Llamar al …'", () => {
@@ -44,8 +53,9 @@ describe("phone value", () => {
 });
 
 describe("phone AND email in one value", () => {
-  // The shape encontre/action.ts:218-219 writes into the single finderContact
-  // column when a finder leaves both. One row per contact, each opening its own
+  // The shape `app/(public)/p/[publicToken]/encontre/action.ts` writes into the
+  // single finderContact column when a finder leaves both, joined by
+  // CONTACT_SEPARATOR. One row per contact, each opening its own
   // scheme — before the split, the whole string went into a single mailto:.
   const BOTH = "11 4123-4567 / ana@example.com";
 

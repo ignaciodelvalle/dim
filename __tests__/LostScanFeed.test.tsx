@@ -148,7 +148,9 @@ function makeScanItem(): ScanFeedItem {
   };
 }
 
-function makeFinderItem(): ScanFeedItem {
+function makeFinderItem(
+  overrides: Partial<Extract<ScanFeedItem, { kind: "finder" }>> = {},
+): ScanFeedItem {
   return {
     kind: "finder",
     id: "test-finder-id",
@@ -159,6 +161,7 @@ function makeFinderItem(): ScanFeedItem {
     localityLabel: null,
     message: null,
     availabilityLabel: null,
+    ...overrides,
   };
 }
 
@@ -166,6 +169,54 @@ function makeFinderItem(): ScanFeedItem {
 function count(haystack: string, needle: string): number {
   return haystack.split(needle).length - 1;
 }
+
+describe("LostScanFeed — el contacto del hallador, un enlace por contacto", () => {
+  // `finderContact` is ONE column carrying up to TWO contacts, joined by
+  // `CONTACT_SEPARATOR` in `encontre/action.ts`. This row used to build
+  // `tel:${value}` over the whole string.
+  const BOTH = "11 4123-4567 / ana@example.com";
+
+  it("no longer builds a tel: href with an e-mail inside it", () => {
+    const html = renderFeed([makeFinderItem({ finderContact: BOTH })]);
+    // The exact defect, as one assertion.
+    expect(html).not.toContain("tel:11 4123-4567 / ana@example.com");
+    expect(html).not.toContain("mailto:11");
+  });
+
+  it("renders one link per contact, each with its own href", () => {
+    const html = renderFeed([makeFinderItem({ finderContact: BOTH })]);
+    expect(html).toContain('href="tel:1141234567"');
+    expect(html).toContain('href="mailto:ana@example.com"');
+    // Both parts stay readable as the finder wrote them.
+    expect(html).toContain("11 4123-4567");
+    expect(html).toContain("ana@example.com");
+  });
+
+  it("labels each link so the two targets are distinguishable", () => {
+    const html = renderFeed([makeFinderItem({ finderContact: BOTH })]);
+    expect(html).toContain('aria-label="Llamar al 11 4123-4567"');
+    expect(html).toContain('aria-label="Escribir a ana@example.com"');
+  });
+
+  it("gives the e-mail a mail glyph rather than a telephone one", () => {
+    const html = renderFeed([makeFinderItem({ finderContact: BOTH })]);
+    expect(count(html, 'data-icon-name="telefono"')).toBe(1);
+    expect(count(html, 'data-icon-name="mail"')).toBe(1);
+  });
+
+  it("leaves a single contact exactly as it behaved before the split", () => {
+    const html = renderFeed([makeFinderItem({ finderContact: "11 4123-4567" })]);
+    expect(html).toContain('href="tel:1141234567"');
+    expect(count(html, 'data-icon-name="telefono"')).toBe(1);
+    expect(html).not.toContain("mailto:");
+  });
+
+  it("keeps an unlinkable contact visible as text instead of dropping it", () => {
+    const html = renderFeed([makeFinderItem({ finderContact: "preguntá por Ana" })]);
+    expect(html).toContain("preguntá por Ana");
+    expect(html).not.toContain("tel:");
+  });
+});
 
 describe("LostScanFeed — reportar un mensaje", () => {
   it("ofrece el control en el avistaje y en el 'la tengo', y NUNCA en el escaneo", () => {
