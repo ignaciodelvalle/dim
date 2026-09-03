@@ -269,7 +269,10 @@ describe("the real tree against the committed baseline", () => {
     // and the decision quoted at :47-52). The code proves it: `checkAppDbBoundary`
     // raises no violation from that field — the only reader of it is `report()`
     // (:434-442), which prints the count with a `+N since the baseline` delta and
-    // then exits 0. The fixture test above ("tolerates an UNLIMITED number of new
+    // then moves on WITHOUT it reaching the exit code. The exit is decided one
+    // block later, by `r.violations.length` alone (:444-447), so the reader count
+    // can grow by any amount and the fence still exits 0 — while a real violation
+    // still exits 1. The fixture test above ("tolerates an UNLIMITED number of new
     // readers — that is the decision, not an oversight") says the same thing from
     // the other side.
     //
