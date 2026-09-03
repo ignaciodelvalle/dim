@@ -21,7 +21,10 @@
  * RE-RUN SAFETY, per the rule seed-test-users.ts:43 wrote after the 2026-08-21
  * staging incident: every step guards ON THE CONSTRAINT IT WILL HIT, and the
  * function converges from a PARTIAL state, not just from nothing —
- *   offering  → its deterministic publicToken (DIM-PILOT-…)
+ *   offering  → (host org, province, locality, kind) among this script's own
+ *               `DIM-PILOT-…` stock. NOT the token: the token derivation changed
+ *               on 2026-09-02 and rows seeded before it keep the old one, so a
+ *               lookup by token would plant a duplicate. See `seedPair`.
  *   rule      → one per offering (updated, never duplicated)
  *   slots     → time_slots_unique_starts UNIQUE (offering, starts_at)
  *
@@ -38,7 +41,7 @@ import { config as loadEnv } from "dotenv";
 loadEnv({ path: ".env.local" });
 loadEnv({ path: ".env" });
 
-import { and, eq } from "drizzle-orm";
+import { and, eq, like } from "drizzle-orm";
 
 import { describeTarget } from "./_db-target";
 
@@ -49,29 +52,33 @@ const SLOT_HOURS_UTC = [14, 15, 16, 17];
 const SLOT_CAPACITY = 4;
 const DURATION_MINUTES = 15;
 
+/** Every offering this script has ever minted starts with it. */
+const PILOT_TOKEN_PREFIX = "DIM-PILOT-";
+
 /**
  * Deterministic per-locality token so the offering guard has a constraint.
  *
  * OFF-FORMAT ON PURPOSE. The app mints `service_offerings.public_token` as
- * `OFR-XXXX-XXXX` (lib/infra/publicToken.ts:82 → generatePrefixedToken, a
- * random 31-char-alphabet draw). This one is `DIM-PILOT-<slug>`: derived, not
- * drawn, so re-running converges instead of minting a second offering — and
- * unmistakable, at a glance, for seeded pilot stock rather than a real row.
+ * `OFR-XXXX-XXXX` (`generateOfferingToken`, lib/infra/publicToken.ts — a random
+ * 31-char-alphabet draw). This one is derived, not drawn, so re-running
+ * converges instead of minting a second offering, and it is unmistakable at a
+ * glance for seeded pilot stock rather than a real row.
  *
- * WHY 24 CHARACTERS: nothing requires it. The column is `text NOT NULL UNIQUE`
- * (db/schema.ts:2795) with no length constraint, and the format is this
- * function's own. 24 is a readability cap on an operator-typed
- * "Provincia|Localidad" pair, chosen so the token stays scannable in the SKIP /
- * insert log lines below.
+ * SHAPE: `DIM-PILOT-<readable head, <=24 chars>-<6 hex of the FULL slug>`.
  *
- * WHAT THE CAP COSTS, since a cap on a derived unique key is never free: the
- * province is slugged FIRST, so it eats the budget first — "Santiago del
+ * WHY THE HASH TAIL EXISTS (fixed 2026-09-02, cola item 30(ii)). The head is a
+ * readability cap and nothing more — `public_token` is `text NOT NULL UNIQUE`
+ * with no length constraint. But a cap on a derived UNIQUE key is never free:
+ * the province is slugged FIRST and eats the budget first, so "Santiago del
  * Estero" leaves four characters for the locality. Two localities in one
- * province whose slugs agree through character 24 produce the SAME token, and
- * the guard below reads that as "offering exists" and SKIPs the second one,
- * silently. Nobody has hit it (the pilot is 14 localities the PO names one at a
- * time, and the SKIP line prints the pair), and widening the cap or hashing the
- * tail would close it.
+ * province whose slugs agreed through character 24 produced the SAME token, and
+ * the guard below read that as "offering exists" and SKIPped the second one
+ * silently — a tester in that locality would open "Buscar turno" and find the
+ * empty list this whole script exists to prevent. The tail is taken over the
+ * UNCAPPED slug, so the token stays scannable AND distinct.
+ *
+ * Still deterministic across runs and machines: the digest is computed here from
+ * the string, with no salt, clock or randomness in it.
  */
 function pilotToken(province: string, locality: string): string {
   const slug = `${province}-${locality}`
@@ -79,9 +86,28 @@ function pilotToken(province: string, locality: string): string {
     .normalize("NFD")
     .replace(/\p{Diacritic}/gu, "")
     .replace(/[^A-Z0-9]+/g, "-")
-    .replace(/^-|-$/g, "")
-    .slice(0, 24);
-  return `DIM-PILOT-${slug}`;
+    .replace(/^-|-$/g, "");
+  const head = slug.slice(0, 24).replace(/-$/, "");
+  return `${PILOT_TOKEN_PREFIX}${head}-${slugDigest(slug)}`;
+}
+
+/**
+ * Six hex characters of FNV-1a over the full slug.
+ *
+ * FNV-1a rather than `crypto.createHash`: this has to be a pure, synchronous,
+ * dependency-free derivation that a reader can check by eye, and the property
+ * needed is "two different localities differ", not preimage resistance. 24 bits
+ * over a pilot of a few dozen localities is a collision probability in the
+ * 1-in-10^4 range, and the pair it would take is also visible in the log lines
+ * below, which print the token beside the province/locality that produced it.
+ */
+function slugDigest(value: string): string {
+  let h = 0x811c9dc5;
+  for (let i = 0; i < value.length; i++) {
+    h ^= value.charCodeAt(i);
+    h = Math.imul(h, 0x01000193) >>> 0;
+  }
+  return h.toString(16).toUpperCase().padStart(8, "0").slice(-6);
 }
 
 function isoDate(d: Date): string {
@@ -105,15 +131,45 @@ async function seedPair(
   const { db, serviceOfferings, serviceScheduleRules, timeSlots } = deps;
   const token = pilotToken(province, locality);
 
+  // THE GUARD LOOKS UP THE LOCALITY, NOT THE TOKEN, and that is what makes the
+  // 2026-09-02 token change safe on a database this script has already run
+  // against. Rows seeded before it carry the OLD 24-char token, which the new
+  // derivation does not reproduce; a lookup by token would miss them and plant a
+  // SECOND approved offering for the same locality — every tester there would
+  // then see two identical campaigns. Matching on (host org, province, locality,
+  // service kind) is what "this locality's pilot offering" actually means, and it
+  // converges from both shapes.
+  //
+  // The `DIM-PILOT-` predicate is not decoration: without it this tuple could
+  // also match a REAL offering, or one of the demo seeds' rabies campaigns in the
+  // same org and locality, and the script would then push its window and slots
+  // onto a row it does not own. Narrowed to its own stock, it cannot.
+  //
+  // Already-seeded rows KEEP their old token. Nothing reads the shape (no test,
+  // no e2e spec, no query outside this file), the column only has to be unique,
+  // and rewriting live tokens would break any link an operator already shared.
   const [existingOffering] = await db
-    .select({ id: serviceOfferings.id })
+    .select({ id: serviceOfferings.id, publicToken: serviceOfferings.publicToken })
     .from(serviceOfferings)
-    .where(eq(serviceOfferings.publicToken, token))
+    .where(
+      and(
+        eq(serviceOfferings.organizationId, hostOrgId),
+        eq(serviceOfferings.jurisdictionProvince, province),
+        eq(serviceOfferings.jurisdictionLocality, locality),
+        eq(serviceOfferings.serviceKind, "vaccination_rabies"),
+        like(serviceOfferings.publicToken, `${PILOT_TOKEN_PREFIX}%`),
+      ),
+    )
     .limit(1);
 
   let offeringId = existingOffering?.id ?? null;
   if (offeringId) {
-    console.log(`  SKIP  ${token} — offering exists (${province} / ${locality})`);
+    // The EXISTING token, never the freshly derived one: on a pre-2026-09-02 row
+    // they differ, and printing the derived one would tell the operator a token
+    // that resolves to nothing.
+    console.log(
+      `  SKIP  ${existingOffering.publicToken} — offering exists (${province} / ${locality})`,
+    );
   } else {
     const [inserted] = await db
       .insert(serviceOfferings)
