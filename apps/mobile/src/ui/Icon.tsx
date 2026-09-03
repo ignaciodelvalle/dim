@@ -26,14 +26,14 @@
 import { PET_PROFILE_ICONS } from "@dim/contract/icons";
 import {
   AlertTriangle,
-  Baby,
   BookOpen,
+  CalendarHeart,
   Check,
   CheckCircle,
-  Circle,
   Eye,
   EyeOff,
   Heart,
+  HeartOff,
   HelpCircle,
   Home,
   type LucideIcon,
@@ -61,14 +61,14 @@ import { COLORS } from "./theme";
  */
 const LUCIDE_GLYPHS: Record<string, LucideIcon> = {
   AlertTriangle,
-  Baby,
   BookOpen,
+  CalendarHeart,
   Check,
   CheckCircle,
-  Circle,
   Eye,
   EyeOff,
   Heart,
+  HeartOff,
   Home,
   MapPin,
   MoreHorizontal,

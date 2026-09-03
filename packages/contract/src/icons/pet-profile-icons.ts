@@ -40,10 +40,10 @@ export const PET_PROFILE_ICONS = {
   // The reveal toggle's second state (PasswordField, QOL 2026-09-01).
   ocultar: "EyeOff",
   medicacion: "Pill",
-  embarazo: "Baby",
+  embarazo: "CalendarHeart",
   corazon: "Heart",
   casa: "Home",
-  fallecimiento: "Circle",
+  fallecimiento: "HeartOff",
 
   // Identity row
   paw: "PawPrint",

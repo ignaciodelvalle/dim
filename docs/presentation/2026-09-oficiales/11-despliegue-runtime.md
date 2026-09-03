@@ -44,7 +44,7 @@ sube si pasan. Ninguna migración viaja por el primero.
 
 **Lo que hay que poder decir de memoria:**
 
-- La cadena de verificación local es `pnpm verify` —<!-- fact:verify_fences -->67<!-- /fact -->
+- La cadena de verificación local es `pnpm verify` —<!-- fact:verify_fences -->68<!-- /fact -->
   controles automáticos— más la suite de <!-- fact:vitest_files -->1490<!-- /fact -->
   archivos de prueba, corrida por un verificador que desconfía del código de
   salida en las dos direcciones (`scripts/run-verified-suite.ts`). En la nube

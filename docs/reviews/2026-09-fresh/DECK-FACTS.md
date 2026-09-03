@@ -111,9 +111,9 @@ All 35 keys of `docs/architecture/facts.json`. The file at this snapshot declare
 | key | value with marker |
 |---|---|
 | `event_types` | `<!-- fact:event_types -->55<!-- /fact -->` |
-| `verify_fences` | `<!-- fact:verify_fences -->67<!-- /fact -->` |
-| `lint_scripts` | `<!-- fact:lint_scripts -->67<!-- /fact -->` |
-| `check_scripts` | `<!-- fact:check_scripts -->72<!-- /fact -->` |
+| `verify_fences` | `<!-- fact:verify_fences -->68<!-- /fact -->` |
+| `lint_scripts` | `<!-- fact:lint_scripts -->68<!-- /fact -->` |
+| `check_scripts` | `<!-- fact:check_scripts -->73<!-- /fact -->` |
 | `modules` | `<!-- fact:modules -->22<!-- /fact -->` |
 | `pages` | `<!-- fact:pages -->262<!-- /fact -->` |
 | `route_handlers` | `<!-- fact:route_handlers -->82<!-- /fact -->` |
@@ -127,7 +127,7 @@ All 35 keys of `docs/architecture/facts.json`. The file at this snapshot declare
 | `vercel_crons_declared` | `<!-- fact:vercel_crons_declared -->2<!-- /fact -->` |
 | `cron_jobs` | `<!-- fact:cron_jobs -->23<!-- /fact -->` |
 | `ci_workflows` | `<!-- fact:ci_workflows -->7<!-- /fact -->` |
-| `vitest_files` | `<!-- fact:vitest_files -->1489<!-- /fact -->` |
+| `vitest_files` | `<!-- fact:vitest_files -->1490<!-- /fact -->` |
 | `e2e_specs` | `<!-- fact:e2e_specs -->45<!-- /fact -->` |
 | `mobile_jest_files` | `<!-- fact:mobile_jest_files -->78<!-- /fact -->` |
 | `org_capabilities` | `<!-- fact:org_capabilities -->16<!-- /fact -->` |
@@ -141,8 +141,8 @@ All 35 keys of `docs/architecture/facts.json`. The file at this snapshot declare
 | `signed_url_ttl_seconds` | `<!-- fact:signed_url_ttl_seconds -->3600<!-- /fact -->` |
 | `projections` | `<!-- fact:projections -->13<!-- /fact -->` |
 | `service_role_call_sites` | `<!-- fact:service_role_call_sites -->34<!-- /fact -->` |
-| `canon_rows` | `<!-- fact:canon_rows -->513<!-- /fact -->` |
-| `canon_enforced` | `<!-- fact:canon_enforced -->175<!-- /fact -->` |
+| `canon_rows` | `<!-- fact:canon_rows -->514<!-- /fact -->` |
+| `canon_enforced` | `<!-- fact:canon_enforced -->176<!-- /fact -->` |
 | `canon_partial` | `<!-- fact:canon_partial -->93<!-- /fact -->` |
 | `canon_unenforced` | `<!-- fact:canon_unenforced -->245<!-- /fact -->` |
 

@@ -258,7 +258,7 @@ jobs:
         run: >-
           pnpm lint:select && pnpm lint:op-controls && pnpm lint:tablist && pnpm lint:eyebrow &&
           pnpm lint:states && pnpm lint:empty-states && pnpm lint:screens &&
-          pnpm lint:icons && pnpm lint:maplibre && pnpm lint:hard-nav
+          pnpm lint:icons && pnpm lint:mobile-icons && pnpm lint:maplibre && pnpm lint:hard-nav
 
       - name: Lint (copy, brand, and identifiers)
         run: >-

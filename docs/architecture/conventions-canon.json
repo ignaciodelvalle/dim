@@ -31,10 +31,10 @@
     ]
   },
   "stats": {
-    "rows": 513,
+    "rows": 514,
     "byStatus": {
       "UNENFORCED": 245,
-      "ENFORCED": 175,
+      "ENFORCED": 176,
       "PARTIAL": 93
     },
     "byScopeStatus": {
@@ -60,7 +60,7 @@
       },
       "mobile": {
         "UNENFORCED": 20,
-        "ENFORCED": 11,
+        "ENFORCED": 12,
         "PARTIAL": 4
       },
       "e2e": {
@@ -76,7 +76,7 @@
     "wired": {
       "none": 244,
       "ci": 10,
-      "verify": 130,
+      "verify": 131,
       "test:verified": 109,
       "manual": 6,
       "db": 14
@@ -9317,6 +9317,26 @@
       "notes": "The READ half is deliberately NOT enforced — 175 read-class files are counted and printed, and a new one fails nothing. That is the decision (page reads are tolerated so the pilot is not blocked on a rewrite), not a gap in the fence. Postdates the d7dbf25f7 snapshot: decision taken by the PO on 2026-09-02, fence landed at c10f4ff03. scripts/check-dependency-direction.ts polices only src/modules/<A> to <B> edges and has never had anything to say about app/, which is the hole this closes.",
       "confidence": 0.95,
       "verifiedAt": "c10f4ff03"
+    },
+    {
+      "id": "CANON-527",
+      "rule": "The shared pet-profile icon vocabulary may not map a concept to a bare geometric placeholder, and no two concept keys may wear the same glyph without a declared alias.",
+      "scope": "mobile",
+      "sources": [
+        "scripts/check-mobile-icon-vocabulary.ts:3"
+      ],
+      "enforcer": [
+        "scripts/check-mobile-icon-vocabulary.ts:29",
+        "scripts/check-mobile-icon-vocabulary.ts:35"
+      ],
+      "enforcementKind": "lint-script",
+      "wired": "verify",
+      "status": "ENFORCED",
+      "clause": "R1",
+      "statusBasis": "scripts/check-mobile-icon-vocabulary.ts parses PET_PROFILE_ICONS out of packages/contract/src/icons/pet-profile-icons.ts and applies three rules. Rule A fails any value in PLACEHOLDER_GLYPHS (Circle, Square, Box, Dot, Minus, Slash, HelpCircle, CircleDashed, SquareDashed) with no baseline; Rule B fails any glyph used by more than one key unless the key set matches a DECLARED_ALIASES entry exactly; Rule C fails a parse of zero entries, a count below MIN_ENTRIES, or any drift from PINNED_ENTRY_COUNT. Exit 1 on any violation. package.json lint:mobile-icons is in the verify chain and .github/workflows/ci.yml runs it in the `check` job, so CI blocks a merge on it too (check-ci-lint-parity enforces that pairing).",
+      "notes": "Written 2026-09-03 after `embarazo: \"Baby\"` and `fallecimiento: \"Circle\"` both shipped to a store build. apps/mobile/src/ui/Icon.test.tsx had fenced this table since 2026-09-01 and was GREEN on both, because it only asserts that each value resolves to a real lucide-react-native export — a question that cannot detect a glyph which resolves and means nothing. The three rules here are the mechanically decidable part; semantic correctness is NOT automatable and Rule C's pinned count is what makes a change to the table visible in review instead of quiet. This fence is also the first that scans anything outside the root Next.js tree: the six web design fences (lint:icons, lint:buttons, lint:states, lint:empty-states, lint:screens, lint:copy-contract) all resolve their globs against app/ and components/ and none of them includes apps/mobile, so the Expo client had no design fence at all before this one.",
+      "confidence": 0.9,
+      "verifiedAt": "working-tree-2026-09-03"
     }
   ],
   "recommendations": [
