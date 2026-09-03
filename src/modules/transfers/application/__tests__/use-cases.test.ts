@@ -1085,6 +1085,65 @@ describe("getTransferForViewer", () => {
     const r = result as { ok: true; value: { isRecipient: boolean } };
     expect(r.value.isRecipient).toBe(true);
   });
+
+  // A09-1. THE ONLY PLACE A REAL PERSON IS TOLD WHAT TO DO ABOUT IT. This read
+  // is where the invitation link lands, so the `email_unconfirmed` arm exists to
+  // separate "this is not yours" from "this IS yours and your address is not
+  // proved" — two refusals for authorization, two different sentences for a
+  // human. Every other case in this describe pins `callerEmailConfirmed: true`
+  // through `baseInput`, so without this one the arm ships untested.
+  //
+  // NON-VACUITY: delete the `match === "email_unconfirmed"` branch from
+  // get-transfer-for-viewer.ts and this goes red — the caller falls through to
+  // "Esta propuesta no es accesible desde tu cuenta.", which sends a legitimate
+  // invitee to support instead of to their inbox. The test above is the control:
+  // same row, same address, confirmed, and it resolves as recipient.
+  it("names the remedy when the address matches but was never confirmed", async () => {
+    const repo = makeFakeRepo({
+      findTransferByToken: vi.fn().mockResolvedValue(
+        makeTransfer({
+          fromOwnerId: "other-user",
+          toOwnerId: null,
+          toOwnerEmail: "sender@example.com",
+        }),
+      ),
+    });
+    const result = await getTransferForViewer(
+      { ...baseInput, callerEmailConfirmed: false },
+      { repo, actor },
+    );
+
+    // The literal, not the imported constant: this assertion has to fail if the
+    // sentence itself drifts, and a symbol compared against itself never would.
+    expect(result).toMatchObject({
+      ok: false,
+      error: "Confirmá tu correo electrónico para aceptar esta transferencia.",
+    });
+  });
+
+  it("still refuses a stranger with the generic sentence, confirmed or not", async () => {
+    // The other half of the pair: `email_unconfirmed` must not widen into "any
+    // refusal now names the remedy". A caller whose address does NOT match the
+    // row learns nothing about whose proposal it is.
+    const repo = makeFakeRepo({
+      findTransferByToken: vi.fn().mockResolvedValue(
+        makeTransfer({
+          fromOwnerId: "other-user",
+          toOwnerId: null,
+          toOwnerEmail: "somebody-else@example.com",
+        }),
+      ),
+    });
+    const result = await getTransferForViewer(
+      { ...baseInput, callerEmailConfirmed: false },
+      { repo, actor },
+    );
+
+    expect(result).toMatchObject({
+      ok: false,
+      error: "Esta propuesta no es accesible desde tu cuenta.",
+    });
+  });
 });
 
 // ---------------------------------------------------------------------------

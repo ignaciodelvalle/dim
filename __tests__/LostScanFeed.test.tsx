@@ -16,6 +16,9 @@ import {
   type ScanFeedItem,
   relativeShort,
 } from "@/components/pet-profile/LostScanFeed";
+// The producer's literal, imported rather than retyped: the assertion below is
+// about "the joined value", and the separator is what makes it recognisable.
+import { CONTACT_SEPARATOR } from "@/lib/utils/contact-parts";
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -176,11 +179,22 @@ describe("LostScanFeed — el contacto del hallador, un enlace por contacto", ()
   // `tel:${value}` over the whole string.
   const BOTH = "11 4123-4567 / ana@example.com";
 
-  it("no longer builds a tel: href with an e-mail inside it", () => {
+  it("builds no href that carries BOTH contacts, whatever the scheme", () => {
     const html = renderFeed([makeFinderItem({ finderContact: BOTH })]);
-    // The exact defect, as one assertion.
+    // The exact defect that shipped, as one assertion.
     expect(html).not.toContain("tel:11 4123-4567 / ana@example.com");
-    expect(html).not.toContain("mailto:11");
+
+    // And the SHAPE of it. This replaces `not.toContain("mailto:11")`, which
+    // pinned one scheme against one fixture's leading digits — the mobile
+    // client's spelling of the same bug — and would have missed a third. The
+    // subject is "an href that still holds the joined value", and the joined
+    // value is recognisable by the separator its producer writes.
+    const hrefs = [...html.matchAll(/href="([^"]*)"/g)].map(([, href]) => href);
+    expect(hrefs.filter((href) => href.includes(CONTACT_SEPARATOR))).toEqual([]);
+
+    // Non-vacuity: the sweep above passes trivially over a row that rendered no
+    // links at all, which is the same green as a correct split.
+    expect(hrefs.length).toBeGreaterThan(0);
   });
 
   it("renders one link per contact, each with its own href", () => {

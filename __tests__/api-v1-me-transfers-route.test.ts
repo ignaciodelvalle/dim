@@ -468,6 +468,13 @@ describe("the refusal map", () => {
     ["Solo el emisor puede cancelar la propuesta.", "transfer_forbidden", 403],
     ["Esta propuesta no es para tu cuenta.", "transfer_forbidden", 403],
     ["Esta propuesta no es accesible desde tu cuenta.", "transfer_forbidden", 403],
+    // A09-1. The address matched and the ACCOUNT did not prove it. The literal
+    // rather than the imported constant on purpose: commands.ts builds the rule
+    // from that same constant, so a symbol compared against itself would stay
+    // green through any rewording — and an unmapped sentence here answers 500,
+    // which the mobile client renders as "volvé a intentarlo en unos minutos" to
+    // somebody whose only problem is an unconfirmed mailbox.
+    ["Confirmá tu correo electrónico para aceptar esta transferencia.", "transfer_forbidden", 403],
     // time, and answers already given
     ["La transferencia expiró. Pedile al dueño que la inicie de nuevo.", "transfer_expired", 409],
     ["La transferencia ya está accepted.", "transfer_already_resolved", 409],

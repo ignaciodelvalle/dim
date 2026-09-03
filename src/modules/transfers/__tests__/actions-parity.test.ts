@@ -56,7 +56,17 @@ vi.mock("@/lib/supabase/server", () => ({
   createClient: vi.fn().mockResolvedValue({
     auth: {
       getUser: vi.fn().mockResolvedValue({
-        data: { user: { email: "caller@example.com" } },
+        // `email_confirmed_at` IS LOAD-BEARING HERE, not scenery. The actions read
+        // `sessionData?.user?.email_confirmed_at != null` and forward it as
+        // `callerEmailConfirmed` (A09-1) — so a session without the field makes
+        // every accept/reject case below exercise the REJECTION arm while the
+        // assertions still read green, because `expect.objectContaining` ignores
+        // a field it was not asked about. That is exactly what happened until
+        // 2026-09-03. If you remove this, the "passes callerEmail…" tests go back
+        // to testing the opposite of what their names say, silently.
+        data: {
+          user: { email: "caller@example.com", email_confirmed_at: "2026-09-01T10:00:00.000Z" },
+        },
       }),
     },
   }),
@@ -307,8 +317,15 @@ describe("acceptPetTransferAction — auth-scope: recipient USER (id-or-email ma
       notifications: [],
     });
     await acceptPetTransferAction("PTR-abc");
+    // BOTH halves of the addressee input, and the second one is named on purpose:
+    // `callerEmailConfirmed` is what decides whether the e-mail arm is addressee
+    // proof at all (A09-1), and asserting only `callerEmail` let this test pass
+    // against `callerEmailConfirmed: false` — the refusal path — for a day.
     expect(acceptPetTransferUc).toHaveBeenCalledWith(
-      expect.objectContaining({ callerEmail: "caller@example.com" }),
+      expect.objectContaining({
+        callerEmail: "caller@example.com",
+        callerEmailConfirmed: true,
+      }),
       expect.any(Object),
     );
   });
@@ -376,8 +393,13 @@ describe("rejectPetTransferAction — auth-scope: recipient USER (id-or-email)",
       notifications: [],
     });
     await rejectPetTransferAction({ transferToken: "PTR-abc" });
+    // Same pair as the accept case above — see the comment there for why the
+    // confirmation bit is named rather than left to `objectContaining`.
     expect(rejectPetTransferUc).toHaveBeenCalledWith(
-      expect.objectContaining({ callerEmail: "caller@example.com" }),
+      expect.objectContaining({
+        callerEmail: "caller@example.com",
+        callerEmailConfirmed: true,
+      }),
       expect.any(Object),
     );
   });

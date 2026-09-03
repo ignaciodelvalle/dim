@@ -154,8 +154,10 @@ scripts/bulk-cursor-pets-staging.mjs
 # vitest --reporter=json output
 .vitest-report.json
 
-# Local Definition-of-Done gate evidence (one dir per run)
-gate-*/
+# Local Definition-of-Done gate evidence (one dir per run, at the repo root).
+# Anchored: an unanchored `gate-*/` matches at any depth. Verbatim from
+# .gitignore — release-config.test.ts compares the two rule for rule.
+/gate-*/
 
 # QA session-minting output — carries live session tokens
 qa-sessions*.json

@@ -26,10 +26,32 @@ import { formatDateArOmitCurrentYear } from "@/lib/utils/format";
  * address but nobody ever proved the account controls that address (audit
  * A09-1, PO decision 2026-09-02).
  *
- * It names the one action that unblocks the person it is written for: somebody
- * invited by address who created the account by hand instead of following the
- * invitation link. "Esta invitación no es para tu cuenta." would be a lie by
+ * It is WRITTEN FOR somebody invited by address who created the account by hand
+ * instead of following the invitation link, and it names the one action that
+ * would unblock them. "Esta invitación no es para tu cuenta." would be a lie by
  * omission — the invitation IS for their address.
+ *
+ * AS OF 2026-09-03 THAT PERSON NEVER READS IT, and this paragraph replaces one
+ * that claimed otherwise. Its single producer is `accept-caretaker-grant.ts`,
+ * and every published route to that accept is closed before it: the web page
+ * `app/(app)/cuidado/[grantToken]/page.tsx` renders the invitee's buttons only
+ * for `relation === "invitee"`, which `get-grant-for-viewer.ts` refuses to an
+ * unconfirmed address; the list read behind every hub
+ * (`list-caretaker-grants-for-user.ts`) blanks `callerEmail` for that same
+ * account, so the row is never offered there either; and the mobile surface
+ * answers `/api/v1/me/caretaker-grants` with the CODE `caretaker_forbidden`,
+ * never with this sentence. What it does today is be the exact literal
+ * `app/api/v1/me/caretaker-grants/commands.ts` keys its 403 rule on — a mapping
+ * that stops the same refusal degrading to a 500 — and be the right words the
+ * day a surface does show it.
+ *
+ * TRANSFERS IS NOT LIKE THIS, and the difference is a gap rather than a policy:
+ * `UNCONFIRMED_EMAIL_TRANSFER_ERROR` travels `get-transfer-for-viewer.ts` →
+ * `getTransferForViewerAction` → the callout in
+ * `app/(app)/transferencias/[transferToken]/page.tsx`, so on that side the person
+ * IS told what to do. Naming the remedy on the cuidado page means changing
+ * user-facing copy, which is a PO decision nobody has taken — see the field
+ * comment on `RejectCaretakerGrantInput.callerEmailConfirmed`.
  *
  * HERE RATHER THAN BESIDE THE USE-CASE THAT RETURNS IT, and the reason is
  * mechanical: `app/api/v1/me/caretaker-grants/commands.ts` builds its refusal

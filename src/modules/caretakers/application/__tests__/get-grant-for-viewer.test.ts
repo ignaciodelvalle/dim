@@ -140,6 +140,40 @@ describe("getGrantForViewer — an outsider holding the link", () => {
   });
 });
 
+describe("getGrantForViewer — the invited address, never proved", () => {
+  // A09-1, and the ONE case every other viewer in this file — all of them
+  // `emailConfirmed: true` until this one — cannot see. Until 2026-09-03
+  // `viewer.emailConfirmed &&` had no test in either direction, so deleting it
+  // from `resolveRelation` broke nothing visible.
+  //
+  // The e-mail arm of `resolveRelation` is an ADDRESSEE proof and an
+  // unconfirmed address proves nothing: anybody who KNOWS an invited address can
+  // register it, and without this term the page would render "Aceptar el
+  // cuidado" over an accept use-case that answers "confirmá tu correo".
+  //
+  // NON-VACUITY, stated because it is the whole value of this case: delete
+  // `viewer.emailConfirmed &&` from get-grant-for-viewer.ts's `resolveRelation`
+  // and this test goes red — the viewer resolves to `invitee` and every
+  // assertion below flips. Its twin at "resolves the invitee by EMAIL" is the
+  // control: same row, same address, confirmed, and it still resolves.
+  it("folds an UNCONFIRMED invitee into the outsider shape, payload and all", async () => {
+    const repo = makeFakeRepo({
+      findGrantByToken: async () => makeGrant({ caretakerUserId: null }),
+    });
+    const view = await getGrantForViewer(
+      "CG-abc123",
+      { userId: "fresh-signup", email: "ana@example.com", emailConfirmed: false },
+      deps(repo),
+    );
+    expect(view?.relation).toBe("outsider");
+    expect(view?.canRespond).toBe(false);
+    // The outsider shape is not cosmetic: it is what keeps the pet's name and
+    // the titular's from reaching an account that only claimed the address.
+    expect(view?.pet).toBeNull();
+    expect(view?.titularName).toBeNull();
+  });
+});
+
 describe("getGrantForViewer — a resolved invitation", () => {
   it("does not offer a second response on an accepted grant", async () => {
     const repo = makeFakeRepo({

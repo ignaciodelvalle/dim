@@ -18,9 +18,28 @@ export type RejectCaretakerGrantInput = {
    * GoTrue's `email_confirmed_at` is non-null for this account (A09-1).
    *
    * THE GENERIC REFUSAL, not the "confirmá tu correo" sentence the accept path
-   * returns: a reject is reachable only from a screen `getGrantForViewer`
-   * rendered first, and that read already names the remedy. Repeating it here
-   * would only ever answer a hand-made request.
+   * returns — and the reason is NOT that the screen upstream already named the
+   * remedy. It does not. This comment said it did until 2026-09-03; here is what
+   * actually happens.
+   *
+   * `get-grant-for-viewer.ts`'s `resolveRelation` folds an invitee whose address
+   * is unconfirmed into `"outsider"`, and the outsider branch of
+   * `app/(app)/cuidado/[grantToken]/page.tsx` renders "Esta invitación no es para
+   * esta cuenta … cerrá sesión y volvé a entrar con la cuenta que recibió la
+   * invitación" — advice for somebody in the WRONG account, shown to somebody in
+   * the right one. So on the caretaker side the remedy is named nowhere, and this
+   * refusal is generic because nothing better reaches a person here either: a
+   * reject with an unproved address is a request no published client can build.
+   *
+   * TRANSFERS DOES NAME IT, which is what makes the caretaker side an asymmetry
+   * rather than a policy: `get-transfer-for-viewer.ts` returns
+   * `UNCONFIRMED_EMAIL_TRANSFER_ERROR` on its `email_unconfirmed` arm,
+   * `getTransferForViewerAction` passes it through, and
+   * `app/(app)/transferencias/[transferToken]/page.tsx` renders it in the callout.
+   *
+   * Closing the gap means changing user-facing copy on a page nobody has decided
+   * about — a PO decision, deliberately out of scope of the pass that corrected
+   * this comment. It is an OPEN GAP, not a property this file may rely on.
    */
   callerEmailConfirmed: boolean;
 };

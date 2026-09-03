@@ -2797,8 +2797,14 @@ export const serviceOfferings = pgTable(
     // 2026-09-02; the migration that created the column carries the same stale
     // example and cannot be edited (migrations are immutable), so the producer
     // is the thing to check, never a comment.
-    // Seed scripts mint their own recognisable prefixes on purpose
-    // (`PANO-SVO-…`, `DEMO-SVO-…`) and are not this format.
+    // SEED SCRIPTS DO NOT USE THIS FORMAT. Each one mints its own recognisable,
+    // usually deterministic prefix so a re-run converges instead of minting a
+    // second offering — `scripts/seed-*.ts` are the authority on which, and the
+    // set grows whenever a seed is added. `PANO-SVO-…` (seed-panorama.ts) and
+    // `DEMO-SVO-…` (seed-demo-scenario.ts) are examples, NOT the list: at the
+    // time of writing `DIM-PILOT-…` (seed-turnos-testers.ts) and
+    // `PERF-COV-SVO-…` (seed-coverage.ts) were also live, and an earlier version
+    // of this comment named only the first two.
     publicToken: text("public_token").notNull().unique(),
 
     // Polymorphic provider: exactly one of these two must be set (XOR enforced

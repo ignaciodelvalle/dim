@@ -67,6 +67,28 @@ describe("rejectCaretakerGrant", () => {
     expect(repo.updateGrantStatus).not.toHaveBeenCalled();
   });
 
+  it("refuses the e-mail arm when the address was never confirmed (A09-1)", async () => {
+    // `makeGrant()` leaves `caretakerUserId` NULL — the shape of an invitation
+    // sent to an address that had no account — so the e-mail comparison is the
+    // whole of the addressee proof here, exactly as in the accept twin.
+    //
+    // NON-VACUITY: delete `input.callerEmailConfirmed &&` from
+    // reject-caretaker-grant.ts and this goes red — `matchesEmail` turns true and
+    // the invitation is rejected by an account that only CLAIMED the address.
+    // The first case in this describe is the control: same row, same address,
+    // confirmed, and it resolves the invitation.
+    const repo = repoWithPending();
+    const result = await rejectCaretakerGrant(
+      { ...input, callerUserId: "fresh-signup", callerEmailConfirmed: false },
+      deps(repo),
+    );
+
+    // The GENERIC refusal on purpose, not the "confirmá tu correo" sentence the
+    // accept path returns — see the field's comment in reject-caretaker-grant.ts.
+    expect(result).toEqual({ ok: false, error: "Esta invitación no es para tu cuenta." });
+    expect(repo.updateGrantStatus).not.toHaveBeenCalled();
+  });
+
   it("refuses an illegal transition instead of writing a status the machine rejects", async () => {
     const repo = repoWithPending({
       findGrantByToken: vi.fn().mockResolvedValue(makeGrant({ status: "accepted" })),

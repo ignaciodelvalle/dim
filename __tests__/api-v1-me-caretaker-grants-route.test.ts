@@ -546,6 +546,13 @@ describe("the refusal map", () => {
     ["Invitación no encontrada.", "not_found", 404],
     ["No podés aceptar tu propia invitación.", "caretaker_self", 400],
     ["Esta invitación no es para tu cuenta.", "caretaker_forbidden", 403],
+    // A09-1. The address matched and the ACCOUNT did not prove it. Written as
+    // the literal rather than as the imported constant on purpose: the map is
+    // built from the same constant, so a symbol compared against itself would
+    // stay green through any rewording — and an unmapped sentence here answers
+    // 500 with "volvé a intentarlo en unos minutos" to somebody whose only
+    // problem is an unconfirmed mailbox.
+    ["Confirmá tu correo electrónico para aceptar esta invitación.", "caretaker_forbidden", 403],
     ["Esta invitación ya no está disponible.", "caretaker_already_resolved", 409],
     [
       "El período de cuidado ya terminó. Pedile al titular que te invite de nuevo.",

@@ -5,9 +5,15 @@
 // owner's `phoneE164` really is one phone, but `finderContact`
 // (@dim/contract/api/pet-lost) is a single text column that the web's finder
 // form fills with BOTH contacts, joined by `CONTACT_SEPARATOR`, when the finder
-// leaves both. So the entry point for a stored value is `contactParts` /
-// `contactLinks`, and `contactLink` is the single-contact decision underneath
-// them.
+// leaves both. So a stored value is read by SPLITTING it first: `contactParts`
+// for the parts and `contactLink` for the single-contact decision on each one.
+// That PAIR is the entry point on this side — `ContactRow` in components.tsx
+// calls exactly those two — and the web reaches the same place through one call,
+// `contactPartLinks` (lib/utils/contact-parts.ts), which is the same two steps
+// composed. `contactLinks` below composes them too and, since components.tsx
+// stopped importing it, has no caller but its own test; it stays because
+// removing exported code is a separate decision, not because anything renders
+// through it.
 //
 // PURE ON PURPOSE: `ContactRow` in components.tsx is a rendering shell
 // around this. Deciding WHICH kind a value is, and what href/label it
@@ -46,15 +52,20 @@ export function contactLink(value: string): ContactLink | null {
 /**
  * The separator the WEB writes when a finder leaves both a phone and an email.
  *
- * `app/(public)/p/[publicToken]/encontre/action.ts:218-219` builds the single
- * `finderContact` text column as `${finderPhone} / ${finderEmail}` — the schema
- * carries one field, so two contacts arrive concatenated. Read as ONE value,
- * that string contains an "@" and `contactLink` turns the whole thing into
- * `mailto:11 4123-4567 / ana@example.com`: an address no mail client can send
- * to, with the phone number swallowed inside it. The producer is the web's and
- * cannot be changed from here without a migration of every stored value, so the
- * split belongs on the CONSUMER side, keyed on the exact literal the producer
- * writes.
+ * THE PRODUCER IS THE AUTHORITY, so it is named and not quoted: the finder
+ * action `app/(public)/p/[publicToken]/encontre/action.ts` builds the single
+ * `finderContact` text column by joining the two form fields with its own
+ * `CONTACT_SEPARATOR`. This comment used to pin a line number and restate the
+ * template literal; the line number was already stale one commit later, which is
+ * the whole argument for naming the symbol instead.
+ *
+ * The schema carries one field, so two contacts arrive concatenated. Read as ONE
+ * value that string contains an "@", and `contactLink` turns the whole thing
+ * into a single `mailto:` with the phone number swallowed inside it — an address
+ * no mail client can send to. The producer cannot be changed from here without
+ * migrating every stored value, so the split belongs on the CONSUMER side, keyed
+ * on the exact literal the producer writes. `lib/utils/contact-parts.ts` holds
+ * the web's copy of it, and the two must stay byte-identical.
  */
 export const CONTACT_SEPARATOR = " / ";
 

@@ -121,7 +121,12 @@ scripts/bulk-cursor-pets-staging.mjs
 
 # Local Definition-of-Done gate evidence (one dir per run: logs, .exit markers,
 # the vitest JSON report). Reproduced by re-running the gate, never committed.
-gate-*/
+# ANCHORED AT THE ROOT on purpose: an unanchored `gate-*/` matches at ANY depth,
+# so a future `docs/gate-chain/` or `scripts/gate-runner/` would stop being
+# tracked in silence. The gate writes one directory per run at the repo root.
+# .easignore carries this line verbatim (release-config.test.ts compares them
+# rule for rule) — change both or that fence goes red.
+/gate-*/
 
 # QA session-minting output — carries live session tokens for seed accounts.
 # The repo is public: this file must never be committable, same reasoning as
