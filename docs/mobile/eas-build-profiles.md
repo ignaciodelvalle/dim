@@ -6,7 +6,7 @@
 > gone the other way. This is where the "why" lives. Change one of them, change
 > the other.
 
-**Status as of 2026-08-27: the running tally under
+**Status as of 2026-09-03: the running tally under
 [First-run order, when the PO logs in](#first-run-order-when-the-po-logs-in) is the
 record — read it rather than a count in a sentence.** Every build recorded there
 before `94ab653c…` errored, each one further along than the last (fingerprint,
@@ -15,13 +15,25 @@ the end of this file. `94ab653c…` is the first to produce an artifact and the
 first to reach Play — internal testing, 2026-08-27 — and Play answered it with
 exactly one warning, which is
 [its own section below](#the-play-warning-about-a-deobfuscation-file-and-why-there-is-nothing-to-upload).
-`npx eas-cli whoami` answers `ignaciodelvalle2014@gmail.com`, account `nachi7`.
-No update, channel or OTA has been published, and claims below about *those* are
-still read from EAS's contract rather than measured.
+`npx eas-cli whoami` answers accounts `nachi7` and `nachi7s-team` (the project
+lives under the latter).
 
-One sentence is worth carrying out of the failures: **every one of them was a
-dependency this repo did not declare**, resolved by accident on one machine and
-differently — or not at all — on the worker.
+**The round is not running. It is stopped, and has been since 2026-08-28.**
+Build 6 shipped but predates "env in the profiles", so it has no
+`EXPO_PUBLIC_SUPABASE_URL` and no tester can sign in. Build 7 carried the fix
+and errored, which is
+[the fifth failure](#the-fifth-failure--a-catch-block-that-never-runs-and-the-tester-round-that-stalled-behind-it).
+Until a build after `972717c86` finishes, the newest installable artifact is one
+that shows a configuration error instead of a login screen. Every build to date
+has used the `production` profile; no `preview` APK existed before 2026-09-03.
+
+One sentence is worth carrying out of the failures, and the fifth is the fifth
+data point for it rather than an exception: **every one of them was a dependency
+this repo did not declare**, resolved by accident on one machine and differently
+— or not at all — on the worker. Four of them were packages the app's own code
+imports. The fifth was a package only somebody else's *build script* executes,
+which is why nothing that reads `import` statements could have caught it — but
+the shape is identical, and so is the fix.
 
 ---
 
@@ -229,25 +241,40 @@ decision, the fence is `runtimeVersion`, and the whole argument lives in
    | 2 | `9900114a-c134-41cf-af38-6aaf789d2942` | errored — fingerprint mismatch, two causes |
    | 3 | `e2a89561-910b-4ad7-97fa-ab0f2a481db8` | errored — `Cannot find module 'babel-preset-expo'` in Gradle |
    | 4 | `9bdab7b8-b5e2-4aa5-8272-f8e990c0cce3` | errored — C++ compile: `no member named 'executeSync'` in `expo-modules-core` |
-   | 5 | `94ab653c…` | **shipped** — first artifact; uploaded to Play internal testing 2026-08-27 |
+   | 5 | `94ab653c-7436-4334-b958-f08510222e93` | **shipped** — first artifact; uploaded to Play internal testing 2026-08-27 |
+   | 6 | `371a2122-a333-4d24-8272-c64ed910d1da` | shipped — commit `47189da6f`, 2026-08-28. **Cannot log anyone in**: predates "env in the profiles", so no `EXPO_PUBLIC_SUPABASE_URL` is baked in |
+   | 7 | `4a4f4dac-9bc3-4986-a5d2-25a083840c83` | errored — Gradle could not START `sentry-cli`; the path it guesses does not exist under pnpm |
 
    Every number above a failing row was spent for nothing, and Play will never
    see them — that is fine, the counter only has to increase, but it is the
    reason each failure earns a written-down cause rather than a retry. Those
    causes are the `##` sections at the end of this file: one per section, and the
-   sections are the list, not this paragraph. They sit at three different LAYERS
-   (fingerprint, Metro, native compile) and share one shape, which the last of
-   them names.
+   sections are the list, not this paragraph. They sit at four different LAYERS
+   (fingerprint, Metro, native compile, and now a build-script path assumption)
+   and share one shape, which the last of them names.
 
-   **Two things in the `94ab653c…` row are reported rather than measured**, and
-   the distinction is the whole reason this file exists. The build id is recorded
-   at the prefix the PO quoted, and the upload to Play is his report — nothing on
-   this machine can reach EAS to confirm either (`eas-cli` is deliberately not a
-   repo dependency, per `cli.version` above, so there is no session and no
-   `build:list` here). The `versionCode` of `5` is neither: it is *derived* from
-   `autoIncrement: true` plus the rows above it, i.e. from this file's own rule
-   that a failed build costs a number. If EAS ever reports a different one, the
-   rule is what was wrong, and both belong in this table.
+   **The two "reported rather than measured" caveats on the `94ab653c…` row are
+   now closed, and the way they closed is worth keeping.** This paragraph used to
+   say that "nothing on this machine can reach EAS to confirm either (`eas-cli`
+   is deliberately not a repo dependency, per `cli.version` above, so there is no
+   session and no `build:list` here)". That inference was wrong in one step:
+   `eas-cli` not being a *dependency* does not mean it is unreachable — `npx
+   eas-cli build:list --json` runs without installing anything into the repo, and
+   the login persists in the user profile, not the project. On 2026-09-03 that
+   command answered for every row above.
+
+   And it confirmed the derivation. `appBuildVersion` in the EAS record is the
+   `versionCode`, and the measured sequence is exactly 2, 3, 4, 5, 6, 7 against
+   the ids in this table — so the rule this file invented, *a failed build costs
+   a number*, was right, and rows 2–5 were never guesses after all. Keep the
+   habit anyway: the rule earned its confidence by being checkable, not by being
+   plausible.
+
+   Rows 6 and 7 were never in this table before 2026-09-03, and that is the real
+   cost recorded here. Build 7 failed on 2026-09-02 and sat unnoticed for a day
+   while the tester round was assumed to be under way. It was not: build 6 is the
+   newest artifact, and build 6 is the one that cannot sign anyone in. **A tally
+   nobody updates stops being a record and becomes a reassurance.**
 
 ---
 
@@ -1037,6 +1064,169 @@ under five milliseconds, with no NDK anywhere.
    validates versions in this repo looks at it.
 5. Fix the whole class, not the one that failed. Three native modules had
    drifted; one had compiled.
+
+---
+
+## The fifth failure — a `catch` block that never runs, and the tester round that stalled behind it
+
+Build 7 (`4a4f4dac-9bc3-4986-a5d2-25a083840c83`, commit `d9c03dab3`, profile
+`production`) ended `errored` with no artifact, and nobody noticed for a day.
+That delay is the expensive part of this entry, so it goes first: **build 6 was
+still the newest artifact, and build 6 cannot log anyone in.** It predates the
+"env in the profiles" change, so it carries no `EXPO_PUBLIC_SUPABASE_URL`;
+`authPlaneConfigured()` (`src/config/api.ts`) requires the URL *and* the anon
+key, returns false, and `useGate.tsx` tells the tester to go complain to
+whoever sent them the app. The native round was not running slowly. It was
+stopped, and the dashboard was the only place that said so.
+
+### What actually failed
+
+```
+> Task :app:createBundleReleaseJsAndAssets_SentryUpload_ar.mimar.app@0.0.1+7_7 FAILED
+
+FAILURE: Build failed with an exception.
+* What went wrong:
+Execution failed for task ':app:createBundleReleaseJsAndAssets_SentryUpload_…'.
+> A problem occurred starting process 'command
+  '/home/expo/workingdir/build/apps/mobile/node_modules/@sentry/cli/bin/sentry-cli''
+```
+
+Gradle is not reporting that `sentry-cli` ran and returned non-zero. It is
+reporting that it could not **start** it. The path does not exist. Under pnpm
+it never did.
+
+### Why the path is wrong, and why the guard against that is dead code
+
+`@sentry/react-native`'s `sentry.gradle` locates the CLI in
+`resolveSentryCliPackagePath()`:
+
+```groovy
+def resolvedCliPath = null
+try {
+    resolvedCliPath = new File(["node", "--print",
+        "require.resolve('@sentry/cli/package.json')"].execute(null, rootDir).text.trim())
+        .getParentFile();
+} catch (Throwable ignored) {   // ← the pnpm fallback lives in here
+    …reads NODE_PATH out of node_modules/@sentry/react-native/node_modules/.bin/sentry-cli…
+}
+def cliPackage = resolvedCliPath != null && resolvedCliPath.exists()
+    ? resolvedCliPath.getAbsolutePath()
+    : "$reactRoot/node_modules/@sentry/cli"
+```
+
+Two independent things have to go wrong together, and both do:
+
+1. **`require.resolve` genuinely fails here.** `@sentry/cli` is a TRANSITIVE
+   dependency — `@sentry/react-native` declares it, this workspace did not — so
+   pnpm's isolated layout puts it in `node_modules/.pnpm/@sentry+cli@2.58.4/…`
+   and links it only where a declared dependent can see it. It is not
+   resolvable from `apps/mobile/android`, which is the `rootDir` that `execute`
+   is handed.
+2. **The `catch` that exists to handle exactly this NEVER RUNS.** Groovy's
+   `execute()` does not throw when the child exits non-zero; it returns a
+   `Process` whose `.text` is the empty stdout. So `new File("").getParentFile()`
+   yields `null`, no `Throwable` is ever constructed, and the carefully written
+   pnpm branch is unreachable. Control falls to the ternary, `resolvedCliPath`
+   is null, and `cliPackage` becomes the flat-`node_modules` guess
+   `$reactRoot/node_modules/@sentry/cli` — which is the path in the error.
+
+A failure the library anticipated, wrote a fallback for, and then could not
+reach. Worth remembering the shape: **a `try/catch` around a call that reports
+failure by return value instead of by exception is not a guard, it is
+decoration.**
+
+### Why it fired now and not in build 6
+
+Sentry entered the tree on 2026-09-01 in `6939838cb`, **after** build 6
+(`47189da6f`, 2026-08-27). Build 7 is the first build that carried it at all.
+
+But carrying Sentry was not sufficient either, and this is the part that makes
+the timing look mysterious until you see it. `app.config.ts` used to state, as
+settled fact, that the upload was inert:
+
+> …which also needs a `SENTRY_AUTH_TOKEN` that EAS does not hold yet — the
+> plugin skips upload with a warning when the token is absent…
+
+That stopped being true when the token was added to the `production` and
+`preview` EAS environments. Adding a secret is not usually thought of as a code
+change, and it is not usually reviewed like one — but it is what switched the
+upload task on and walked the build straight into a path bug that had been
+sitting there, harmless and invisible, since the day pnpm and `@sentry/cli` met.
+**A comment describing a configuration is a claim with an expiry date, and
+nothing in the build tells you when it expired.**
+
+### The fix, and why it is a dependency rather than a patch
+
+`apps/mobile/package.json` now declares:
+
+```json
+"@sentry/cli": "2.58.4",
+```
+
+pinned to the **exact** version `@sentry/react-native@7.11.0` already pins, so
+pnpm links the same store entry rather than resolving a second copy — the
+lockfile diff is five lines and nothing is downloaded. The point is not that
+the app needs the CLI at runtime; it does not. The point is that declaring it
+makes pnpm create `apps/mobile/node_modules/@sentry/cli`, which is *precisely
+the path Gradle already guesses*. The library's broken resolver stops mattering
+because its fallback becomes correct.
+
+Three alternatives were considered and rejected:
+
+| Alternative | Why not |
+|---|---|
+| Pin `cli.executable` in `android/sentry.properties` | `apps/mobile/android/` is gitignored (`apps/mobile/.gitignore:42`) and regenerated by prebuild on every EAS run. Anything written there is erased before Gradle reads it. And the real path contains a pnpm content hash that differs per platform and per lockfile change — pinning it would break on the next `pnpm install`. |
+| `SENTRY_DISABLE_AUTO_UPLOAD=true` on EAS | Works in one minute and throws away the reason Sentry was wired. Crash reports from testers arrive with minified frames, which is the state the D2 handback set out to leave behind. A shortcut that removes the feature is not a fix for the feature. |
+| Patch `sentry.gradle` via a patch file | Correct diagnosis, wrong leverage. It pins us to one upstream version, silently rots on the next bump, and the one-line dependency gets the same result without owning a fork of someone else's build script. |
+
+### What guards it now
+
+Nothing automated, and that should be stated plainly rather than implied. No
+local gate can see this: `pnpm verify` and `pnpm test:verified` never invoke
+Gradle, and the failure needs a real EAS worker with a real pnpm store to
+reproduce. The guard is the comment block above `plugins:` in `app.config.ts`,
+which now says why the dependency exists and what removing it breaks — a
+tidy-up commit that deletes an "unused" dependency is the exact way this
+regresses.
+
+### If a Gradle task fails with "A problem occurred starting process"
+
+1. Read the **path in the quotes**, not the task name. Gradle is telling you it
+   could not exec that file, and the overwhelmingly common reason is that the
+   file is not there.
+2. Check whether the package is a DIRECT dependency of the workspace whose
+   `node_modules` the path names. Under pnpm, transitive packages are not in a
+   sibling's `node_modules`, and any tool that builds a path by string
+   concatenation assumes they are.
+3. If a third-party build script "supports pnpm", read the support. In this
+   case it existed, was correct, and was unreachable.
+4. Ask what changed OUTSIDE the repo. Build 7's diff does not contain this bug.
+   An environment variable added on a dashboard does.
+
+### Reading an EAS build log without the dashboard
+
+`eas build:list --platform android --limit 8 --json` gives the status, profile,
+commit and `error.errorCode` per build, and `logFiles[0]` is a signed URL to the
+full worker log. Two things about that file cost time on 2026-09-03 and are
+worth writing down:
+
+- **It is brotli, not gzip.** `gunzip` says `not in gzip format` and `file`
+  gives nothing useful; `zlib.brotliDecompressSync` reads it.
+- **It is newline-delimited JSON**, one object per line with `phase`, `msg` and
+  `time`. Grep against the raw file works, but parsing the lines and filtering
+  on `phase` is what makes the `SPIN_UP_BUILDER` env dump and the `RUN_GRADLEW`
+  failure legible next to each other.
+
+That dump is also how the OTHER suspect was cleared without a build: build 7's
+`SPIN_UP_BUILDER` phase lists `EXPO_PUBLIC_SUPABASE_ANON_KEY`,
+`EXPO_PUBLIC_SUPABASE_URL` and `EXPO_PUBLIC_API_BASE_URL` all injected
+correctly. The env was never the problem. One failure, one cause — and the
+handoff note that suspected the env was reasoning from build 6's symptom, which
+is a different build with a different disease.
+
+Note while you are in there: `eas env:list` takes the environment as a
+POSITIONAL argument (`eas env:list production`), and `--non-interactive` is not
+one of its flags.
 
 ---
 
