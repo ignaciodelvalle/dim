@@ -51,6 +51,7 @@ import {
   Platform,
   Pressable,
   type PressableStateCallbackType,
+  RefreshControl,
   ScrollView,
   type ScrollViewProps,
   StyleSheet,
@@ -94,6 +95,36 @@ import {
  * Null outside a Screen, and consumers must treat null as "nothing to move".
  */
 export const ScreenScrollContext = createContext<RefObject<ScrollView | null> | null>(null);
+
+/**
+ * The pull-to-refresh control for `Screen`, with this app's colours already on
+ * it. Pass the result straight to `<Screen refreshControl={…}>`.
+ *
+ * WHY IT IS HERE. `Screen` has accepted `refreshControl` since it was written,
+ * and seven list screens use it — each declaring the same four props with the
+ * same accent colour, because there was nothing to call. Meanwhile FIVE detail
+ * screens reached for a full-width button labelled "Actualizar" instead:
+ * CredentialScreen, PetDocumentScreen, LibretaScreen, EventDetailScreen,
+ * LostScreen. On the pet document that produced a hierarchy inversion worth
+ * stating plainly — the only blue, full-width, primary-weight button on a
+ * national credential said "reload".
+ *
+ * Reloading is not an action a document offers. It is a gesture the platform
+ * already has, every Android user already knows, and it costs no pixels.
+ *
+ * The seven existing screens still inline their own copy; migrating them is
+ * mechanical and deliberately not bundled with the credential work.
+ */
+export function pullToRefresh(onRefresh: () => void, refreshing: boolean) {
+  return (
+    <RefreshControl
+      colors={[COLORS.accent]}
+      onRefresh={onRefresh}
+      refreshing={refreshing}
+      tintColor={COLORS.accent}
+    />
+  );
+}
 
 export function Screen({
   children,
@@ -423,9 +454,72 @@ export function Choice<T extends string>({
 
 // ---------- Buttons --------------------------------------------------------
 
-/** `active:scale-[0.98] active:opacity-90` on the web, for touch feedback. */
-function pressedOpacity({ pressed }: PressableStateCallbackType) {
+/**
+ * `active:scale-[0.98] active:opacity-90` on the web, for touch feedback.
+ *
+ * EXPORTED since 2026-09-03, and the reason is a measurement. The app holds 36
+ * `Pressable`s; before this export, FIVE gave any visual response to a touch,
+ * and all five were inside this file and `components.tsx`. The other 31 — the
+ * credential's own action row included — were visually inert under a thumb,
+ * because this helper existed and could not be reached from a screen. A
+ * control that does not acknowledge a press is indistinguishable from a dead
+ * one, which is exactly how the "Anotar" pill was reported on 2026-09-03: not
+ * as "wrong", as *missing its event catcher*.
+ *
+ * Pass it straight to `style`, and add the static styles in the returned
+ * array: `style={(s) => [styles.thing, pressedOpacity(s)]}`.
+ */
+export function pressedOpacity({ pressed }: PressableStateCallbackType) {
   return pressed ? { opacity: PRESSED_OPACITY } : null;
+}
+
+/**
+ * A row that is a destination, or a row that explains why it is not one.
+ *
+ * WHY THIS IS IN THE KIT NOW. Until 2026-09-03 this file offered exactly two
+ * controls — `PrimaryButton` and `SecondaryButton`, both full-width stretched
+ * pills — and nothing else. Every screen that needed a *row* rather than a
+ * call-to-action invented one, and at least six private shapes existed:
+ * `PetRow`, `EntryCard`, `MoreRow`, and the hand-rolled pressables in
+ * TurnosScreen, TransfersScreen and NotificationsScreen. The kit was a form
+ * system pretending to be a design system, and the divergence it produced is
+ * what the 2026-09-03 review reported as separate defects.
+ *
+ * THE INERT VARIANT IS THE POINT, not an afterthought. Omitting `onPress`
+ * gives a row that renders in the same shape, states `disabled` to the
+ * accessibility layer, and carries a `caption` saying why — the doctrine this
+ * app already follows ("controls without a native destination are drawn
+ * disabled, not omitted"). Before this existed, `RecordEventScreen` needed
+ * that shape for "Terminar una medicación", found no such primitive, and
+ * reached for a `Card` — so one entry in a list of eleven pills rendered as a
+ * bordered information box. That is the whole of the "se ve diferente, como en
+ * una caja" report: not a styling mistake, a missing primitive.
+ */
+export function ListRow({
+  label,
+  caption,
+  accessibilityHint,
+  onPress,
+}: {
+  label: string;
+  caption?: string;
+  accessibilityHint?: string;
+  onPress?: () => void;
+}) {
+  const isInert = onPress === undefined;
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityHint={accessibilityHint}
+      accessibilityState={{ disabled: isInert }}
+      disabled={isInert}
+      onPress={onPress}
+      style={(state) => [styles.listRow, pressedOpacity(state)]}
+    >
+      <Text style={isInert ? styles.listRowLabelMuted : styles.listRowLabel}>{label}</Text>
+      {caption === undefined ? null : <Text style={styles.listRowCaption}>{caption}</Text>}
+    </Pressable>
+  );
 }
 
 export type ButtonTone = "primary" | "seal";
@@ -682,6 +776,25 @@ const styles = StyleSheet.create({
   buttonPrimary: { backgroundColor: COLORS.accent, borderColor: COLORS.accent },
   buttonSeal: { backgroundColor: COLORS.seal, borderColor: COLORS.seal },
   buttonGhost: { backgroundColor: COLORS.surface, borderColor: COLORS.borderStrong },
+  // ListRow. Lifted verbatim from OwnerFace's private `MoreRow` so the
+  // promotion changes nothing visually at its original call site — a refactor
+  // that also restyles is two changes wearing one commit.
+  listRow: {
+    minHeight: TOUCH_TARGET,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: SPACE.md,
+    paddingHorizontal: SPACE.md,
+    paddingVertical: SPACE.sm,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: COLORS.border,
+    borderRadius: RADIUS.control,
+    backgroundColor: COLORS.canvas2,
+  },
+  listRowLabel: { fontFamily: FONTS.sansMedium, fontSize: TYPE.md, color: COLORS.ink },
+  listRowLabelMuted: { fontFamily: FONTS.sans, fontSize: TYPE.md, color: COLORS.inkMuted },
+  listRowCaption: { fontFamily: FONTS.sans, fontSize: TYPE.sm, color: COLORS.inkFaint },
   buttonDisabled: { opacity: DISABLED_OPACITY },
   buttonGhostDisabled: { backgroundColor: "transparent" },
   buttonLabelOnFill: {
