@@ -264,8 +264,35 @@ describe("the real tree against the committed baseline", () => {
     expect(result.spineWriters).toEqual(["app/(public)/p/[publicToken]/encontre/action.ts"]);
   });
 
-  it("records the read-path count the decision calls a tablero number", () => {
-    expect(committed._meta.readers).toBe(result.readers.length);
+  it("keeps the read-path count a SNAPSHOT — this test may not enforce what the fence reports", () => {
+    // `_meta.readers` is "reported, never enforced" (check-app-db-boundary.ts:111,
+    // and the decision quoted at :47-52). The code proves it: `checkAppDbBoundary`
+    // raises no violation from that field — the only reader of it is `report()`
+    // (:434-442), which prints the count with a `+N since the baseline` delta and
+    // then exits 0. The fixture test above ("tolerates an UNLIMITED number of new
+    // readers — that is the decision, not an oversight") says the same thing from
+    // the other side.
+    //
+    // So this assertion may NOT pin the number. A `toBe(result.readers.length)`
+    // would make adding one read-only page under `app/` turn vitest red while
+    // `pnpm lint:app-db-boundary` stayed green and printed `+1 since the
+    // baseline` — a rule the fence disowns, enforced by its own test, with a
+    // failure message that names no rule anybody agreed to. What IS enforced
+    // against the real tree is the writer set, and that is asserted above.
+    //
+    // Pinned here instead: the shape the generator (`writeBaseline`) guarantees.
+    expect(Number.isInteger(committed._meta.readers)).toBe(true);
+    expect(committed._meta.readers).toBeGreaterThanOrEqual(0);
+    // Non-vacuity: a read detector that stopped matching would report a clean
+    // zero, and every "reads are tolerated" claim above would be true of nothing.
     expect(result.readers.length).toBeGreaterThan(0);
+    // Read-class and write-class PARTITION the files that touch the database,
+    // sorted by path. The disjointness half restates, from the reader end, the
+    // property test (d) enforces from the writer end: a hand-edited baseline
+    // that adds a read-only page to `writers` inflates the grandfathered list
+    // and must fail, which it does as a `stale-baseline / no-longer-writes`.
+    const readerPaths = result.readers.map((f) => f.path);
+    expect(readerPaths).toEqual([...readerPaths].sort());
+    expect(readerPaths.filter((p) => Object.hasOwn(committed.writers, p))).toEqual([]);
   });
 });
