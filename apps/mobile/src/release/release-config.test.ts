@@ -164,6 +164,43 @@ describe("EAS build profile env", () => {
     expect(productionApi).not.toMatch(/\.vercel\.app$/);
   });
 
+  it("pairs production's API origin with the ONE live Supabase project — the pilot's deliberate topology", () => {
+    // DECIDED 2026-09-02, and it looks wrong on purpose, so it is pinned here
+    // rather than left to be "fixed" by the next reader of eas.json.
+    //
+    // `production` points EXPO_PUBLIC_API_BASE_URL at www.mimar.com.ar while
+    // EXPO_PUBLIC_SUPABASE_URL still names the Supabase project labelled
+    // "DIM-staging" in the dashboard. That is not a copy-paste left over from
+    // the preview profile: the pilot has exactly ONE live Supabase project, and
+    // the web deployment serving www.mimar.com.ar uses that same project. A
+    // store build pointed at a second, empty database would be the actual
+    // defect — the phone would authenticate against a project holding none of
+    // the pilot's pets. The project's NAME is a historical label, not a
+    // statement about which environment it serves.
+    //
+    // JSON carries no comments, which is why the pairing is recorded here.
+    //
+    // Splitting the pilot onto a dedicated production Supabase project is a PO
+    // decision, not a cleanup: it needs a data migration and a cutover, and it
+    // must change eas.json and THIS TEST in the same commit. A change to one
+    // without the other is the thing this assertion exists to stop.
+    //
+    // Hosts only — no key is named here, and the anon key is deliberately not
+    // in this file at all (see the block comment above).
+    const production = easJson.build.production?.env ?? {};
+    expect(production.EXPO_PUBLIC_API_BASE_URL).toBe("https://www.mimar.com.ar");
+    expect(production.EXPO_PUBLIC_SUPABASE_URL).toBe("https://agnwyifsdxxoznodutgq.supabase.co");
+    // The same project answers development and preview. If these ever diverge
+    // from production's, the single-live-database premise above is gone and the
+    // comment is stale.
+    expect(easJson.build.development?.env?.EXPO_PUBLIC_SUPABASE_URL).toBe(
+      production.EXPO_PUBLIC_SUPABASE_URL,
+    );
+    expect(easJson.build.preview?.env?.EXPO_PUBLIC_SUPABASE_URL).toBe(
+      production.EXPO_PUBLIC_SUPABASE_URL,
+    );
+  });
+
   it("carries only https:// URLs in every profile's env", () => {
     for (const profile of ["development", "preview", "production"]) {
       const env = easJson.build[profile]?.env ?? {};
