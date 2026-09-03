@@ -69,6 +69,37 @@ paid for that once with a QR encoding a host-less relative URL. Every value here
 is trimmed first and falls back on anything falsy
 (`apps/mobile/src/config/api.ts:32-41`).
 
+### 1.4 A verified token is not a proved address
+
+`requireLiveUser` hands the data plane a `user.email` that GoTrue vouched for.
+That vouching is about the **token**, never about the address inside it: an
+account can be created with any address, and the token then carries it. Two
+rules on this surface are addressee matches rather than principal checks — a
+`pet_transfers` row and a `pet_caretaker_grants` row can both be addressed to
+somebody who has no account yet, so they store an e-mail and the accept compares
+it. Audit A09-1 (2026-09-02) found the consequence: knowing an invited address
+was enough to register it and take titularidad.
+
+Both surfaces now carry a second value beside the address,
+`callerEmailConfirmed`, folded out of GoTrue's `email_confirmed_at`
+(`lib/infra/live-user.ts`). The e-mail arm of the addressee rule refuses without
+it; the id arm is unaffected. The list reads (`GET /api/v1/me/transfers`, `GET
+/api/v1/me/caretaker-grants`) apply the same term, so an unconfirmed account is
+never handed the `transferToken` / `grantToken` either.
+
+**Premise, and its limit.** That guard only means something where the Supabase
+project requires confirmation: with `enable_confirmations` OFF, GoTrue
+auto-confirms at signup and stamps `email_confirmed_at` itself, so the column
+carries no mailbox proof and the term degrades to always-true. It is a second
+lock on the same door, not the setting's replacement — it closes the shapes a
+project WITH confirmations on can still produce (an admin-created account, an
+identity imported from a provider that did not verify the address). The setting
+is currently **OFF by deliberate decision** on the remote projects
+(`docs/design/handoffs/2026-07-07-deploy-checklist.md` §3, task #65: two-step
+onboarding assumes a live session after step 1), so the day that decision is
+revisited is the day this guard starts carrying weight. Nobody on this change
+verified the live staging or production setting.
+
 ---
 
 ## 2. `packages/contract` — the wire truth
