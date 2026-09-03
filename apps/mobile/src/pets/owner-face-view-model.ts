@@ -284,11 +284,19 @@ export type OwnerFaceView = {
   cases: SectionView<OwnerPetCasesSection>;
   pregnancy: SectionView<OwnerPetPregnancySection>;
   carousel: SectionView<OwnerPetCarouselSection>;
+  /**
+   * When the server composed this read, from the payload ENVELOPE rather than
+   * from any one section — so it survives a section that failed, which is the
+   * point: the credential's foot states when the document was issued, and a
+   * document that cannot say that is not one.
+   */
+  issuedAt: string;
 };
 
 export function buildOwnerFaceView(payload: OwnerPetDetailV1): OwnerFaceView {
   return {
     publicToken: payload.publicToken,
+    issuedAt: payload.issuedAt,
     viewerLabel: viewerRoleLabel(payload.viewer.role),
     viewerRole: payload.viewer.role,
     isTitular: payload.viewer.isTitular,

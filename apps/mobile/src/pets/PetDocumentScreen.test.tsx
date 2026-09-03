@@ -118,6 +118,9 @@ function payload(overrides: Partial<Record<string, unknown>> = {}): OwnerPetDeta
   return {
     payloadVersion: 1,
     publicToken: TOKEN,
+    // Envelope field, and the issuing foot reads it from HERE rather than from
+    // a section — so the foot survives an identity read that failed.
+    issuedAt: "2026-09-03T08:00:00.000Z",
     viewer: { role: "owner", isTitular: true },
     identity: OK({
       name: "Pampa",
@@ -144,7 +147,27 @@ function payload(overrides: Partial<Record<string, unknown>> = {}): OwnerPetDeta
       worstTone: "ok",
       worstIsUnknown: false,
     }),
-    reminders: OK({ items: [], total: 0 }),
+    // ONE reminder, not zero, and the difference is load-bearing since
+    // 2026-09-03. Sections below the document render nothing when they are
+    // ok-and-empty, so a fixture with no reminders draws no "Recordatorios"
+    // card — and two tests in this file use that card as their marker for
+    // "the sections are BELOW the sheet, not on it". They test face scoping,
+    // not emptiness; an empty fixture would have them passing for the wrong
+    // reason or failing for one. The hide-when-empty rule has its own test.
+    reminders: OK({
+      items: [
+        {
+          reminderId: "rem-1",
+          title: "Antirrábica anual",
+          dueAt: "2026-10-01T12:00:00.000Z",
+          daysUntilDue: 28,
+          variant: "vacuna",
+          isReportable: true,
+        },
+      ],
+      total: 1,
+      truncated: false,
+    }),
     banners: OK({ caretaker: null, rehome: null, transit: null }),
     cases: OK({ openCount: 0, truncated: false }),
     pregnancy: OK(null),
@@ -337,11 +360,18 @@ describe("PetDocumentScreen — a failure is never drawn as an absence", () => {
       }),
     });
     render(<PetDocumentScreen publicToken={TOKEN} />);
-    // One refusal per section — nine sections, nine refusals, none collapsed
-    // into a blank. (identity, status, compliance, alerts on the face;
-    // reminders, arreglos, trámites, preñez, carousel below it.)
+    // One refusal per RENDERED section — eight sections, eight refusals, none
+    // collapsed into a blank. (identity, status, compliance, alerts on the
+    // face; reminders, arreglos, trámites, preñez below it.)
+    //
+    // Eight and not nine since 2026-09-03: `carousel` is still set to
+    // UNAVAILABLE above ON PURPOSE, and this assertion is what proves the
+    // section is GONE rather than merely hidden when empty. A section that
+    // only skipped its empty arm would still print a refusal here, and this
+    // count would still read nine. "Tus otras mascotas" does not belong on one
+    // animal's credential in any state — see the note in OwnerFace.tsx.
     const refusals = await screen.findAllByText("No se pudo leer esta sección.");
-    expect(refusals).toHaveLength(9);
+    expect(refusals).toHaveLength(8);
     // The document is still a document: band, title, turn button.
     expect(
       screen.getByText("Credencial · frente", { includeHiddenElements: true }),
@@ -350,6 +380,70 @@ describe("PetDocumentScreen — a failure is never drawn as an absence", () => {
     // And the QR block still stands — it renders from the token alone, and
     // the public document exists whether or not this read worked.
     expect(screen.getByLabelText("Ver credencial pública")).toBeOnTheScreen();
+  });
+
+  it("names its issuer, its jurisdiction and its date at the foot of the face", async () => {
+    // The four marks that separate a credential from a card. Three are here
+    // (the fourth, a seal, is the situation chip in the band); a funcionario
+    // asked to accept an identification looks for exactly these.
+    render(<PetDocumentScreen publicToken={TOKEN} />);
+    await screen.findByText("Pampa");
+
+    expect(screen.getByText("República Argentina")).toBeOnTheScreen();
+    expect(screen.getByText("Libreta Sanitaria Nacional · Palermo, CABA")).toBeOnTheScreen();
+    expect(screen.getByText("Emitida el 03/09/2026")).toBeOnTheScreen();
+  });
+
+  it("keeps the issuing foot when the identity read failed, minus the jurisdiction", async () => {
+    // `issuedAt` rides the payload ENVELOPE, so the document can still say who
+    // issued it and when even though it cannot say whose animal it is. The
+    // jurisdiction lives in the identity section and correctly disappears with
+    // it — the line degrades, it does not invent a place.
+    mockFetchOwnerPetDetail.mockResolvedValue({
+      outcome: "ok",
+      payload: payload({ identity: UNAVAILABLE }),
+    });
+    render(<PetDocumentScreen publicToken={TOKEN} />);
+    await screen.findByText("República Argentina");
+
+    expect(screen.getByText("Libreta Sanitaria Nacional")).toBeOnTheScreen();
+    expect(screen.getByText("Emitida el 03/09/2026")).toBeOnTheScreen();
+    expect(screen.queryByText(/Palermo/)).toBeNull();
+  });
+
+  it("draws nothing for a section that is ok and empty, and still draws its refusal", async () => {
+    // The pair this file exists to keep apart. An EMPTY section and an
+    // UNAVAILABLE one used to look identical — both a titled card with a
+    // sentence in it — so a healthy animal's credential was followed by four
+    // boxes announcing absences, drawn with the same weight as a real failure.
+    //
+    // Empty renders nothing. A refusal always renders. Asserting both in one
+    // test is deliberate: either rule alone can be satisfied by a mistake that
+    // breaks the other (hide everything, or show everything), and only the
+    // pair pins the actual behaviour.
+    mockFetchOwnerPetDetail.mockResolvedValue({
+      outcome: "ok",
+      payload: payload({
+        reminders: OK({ items: [], total: 0, truncated: false }),
+        cases: OK({ openCount: 0, truncated: false }),
+        pregnancy: OK(null),
+        banners: UNAVAILABLE,
+      }),
+    });
+    render(<PetDocumentScreen publicToken={TOKEN} />);
+    await screen.findByText("Pampa");
+
+    // Empty: gone entirely — not the title, not the sentence it used to carry.
+    expect(screen.queryByText("Recordatorios")).toBeNull();
+    expect(screen.queryByText("Trámites")).toBeNull();
+    expect(screen.queryByText("Preñez")).toBeNull();
+    expect(screen.queryByText("No está preñada.")).toBeNull();
+    expect(screen.queryByText("No tiene trámites abiertos.")).toBeNull();
+
+    // Unavailable: still there, still saying so. A server that could not
+    // answer is not an animal with nothing to report.
+    expect(screen.getByText("Arreglos")).toBeOnTheScreen();
+    expect(screen.getByText("No se pudo leer esta sección.")).toBeOnTheScreen();
   });
 
   it("says the whole read failed inside the card, and keeps the turn usable", async () => {

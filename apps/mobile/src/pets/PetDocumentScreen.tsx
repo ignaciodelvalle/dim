@@ -45,7 +45,7 @@ import { apiErrorMessage } from "../api/error-copy";
 import { sessionPort } from "../auth/session-store";
 import { Body, Card, Loading } from "../ui/components";
 import { FONTS } from "../ui/fonts";
-import { Eyebrow, PrimaryButton, Screen } from "../ui/kit";
+import { Screen, pullToRefresh } from "../ui/kit";
 import { COLORS, LEADING, SPACE, TYPE } from "../ui/theme";
 import { DocumentChromeNative, type DocumentFace } from "./DocumentChromeNative";
 import { TurningSheet, useDocumentTurn } from "./DocumentTurn";
@@ -86,10 +86,22 @@ export function PetDocumentScreen({ publicToken }: { publicToken: string }) {
   const turn = useDocumentTurn(face);
   const painted = turn.paintedFace;
   const [owner, setOwner] = useState<OwnerState>({ phase: "loading" });
-  // Guards against a stale response overwriting a newer one after a fast
-  // double-tap on "Actualizar" — the same generation counter CredentialScreen
-  // uses, and for the same reason.
+  // Guards against a stale response overwriting a newer one after two fast
+  // pulls — the same generation counter CredentialScreen uses, and for the
+  // same reason. (It guarded a double-tapped "Actualizar" button until
+  // 2026-09-03; the race is identical, the gesture is not.)
   const generation = useRef(0);
+  /**
+   * Bumped by every pull-to-refresh, and it is what gives the LIBRETA face a
+   * way to reload now that its own "Actualizar" button is gone.
+   *
+   * The two faces have SEPARATE reads — this screen owns the owner detail,
+   * `LibretaScreen` owns the ledger — so refreshing one does not refresh the
+   * other, and a single pull has to reach both. Keying the libreta by this
+   * counter remounts it, which re-runs its read; that is cheap and correct for
+   * a read-only list, and it holds no state a remount would lose.
+   */
+  const [refreshNonce, setRefreshNonce] = useState(0);
 
   const load = useCallback(async () => {
     const mine = ++generation.current;
@@ -110,9 +122,21 @@ export function PetDocumentScreen({ publicToken }: { publicToken: string }) {
   const view = owner.phase === "ready" ? owner.view : null;
 
   return (
-    <Screen>
+    // PULL TO REFRESH, and no button. A national credential's only blue
+    // full-width control used to say "Actualizar" — the loudest thing on the
+    // document was reload. The gesture Android already has does the same job
+    // and costs no pixels. See `pullToRefresh` in the kit.
+    <Screen
+      refreshControl={pullToRefresh(() => {
+        setRefreshNonce((n) => n + 1);
+        void load();
+      }, owner.phase === "loading")}
+    >
       <View style={styles.masthead}>
-        <Eyebrow>Ficha del dueño</Eyebrow>
+        {/* The "Ficha del dueño" eyebrow was deleted on 2026-09-03: an
+            ALL-CAPS mono label floating above the document with no heading
+            under it, saying what the band says two lines lower ("Libreta
+            Sanitaria Nacional / Credencial · frente"). */}
         {/* The viewer line — a caretaker or a foster reading this document
             needs to know WHY some things are missing from it; an unexplained
             gap reads as a bug. */}
@@ -129,21 +153,12 @@ export function PetDocumentScreen({ publicToken }: { publicToken: string }) {
           {painted === "credencial" ? (
             <FrontFaceBody state={owner} />
           ) : (
-            <LibretaScreen publicToken={publicToken} />
+            <LibretaScreen key={refreshNonce} publicToken={publicToken} />
           )}
         </DocumentChromeNative>
       </TurningSheet>
 
-      {painted === "credencial" ? (
-        <>
-          {view === null ? null : <OwnerExtraSections view={view} />}
-          <PrimaryButton
-            label="Actualizar"
-            onPress={() => void load()}
-            disabled={owner.phase === "loading"}
-          />
-        </>
-      ) : null}
+      {painted === "credencial" && view !== null ? <OwnerExtraSections view={view} /> : null}
     </Screen>
   );
 }

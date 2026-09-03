@@ -36,7 +36,7 @@ import { apiErrorMessage } from "../api/error-copy";
 import { sessionPort } from "../auth/session-store";
 import { Body, Card, Loading, Row, Unavailable } from "../ui/components";
 import { FONTS } from "../ui/fonts";
-import { PrimaryButton, SecondaryButton } from "../ui/kit";
+import { PrimaryButton } from "../ui/kit";
 import { libretaEventRoute, recordEventRoute } from "../ui/routes";
 import { COLORS, LEADING, RADIUS, SPACE, TOUCH_TARGET, TRACKING, TYPE } from "../ui/theme";
 import {
@@ -121,20 +121,21 @@ export function LibretaScreen({ publicToken }: { publicToken: string }) {
         </Card>
       ) : null}
       {state.phase === "ready" ? <LibretaBody view={state.view} /> : null}
-      {/* THE WRITE, offered from the face it writes into. Above "Actualizar"
-          because it is the reason a person opened the libreta on a phone: the
-          refresh is maintenance, this is the act. Offered even while the read
-          failed — a section this app could not load says nothing about whether
-          the animal was vaccinated this morning, and the server is the one that
-          decides whether the write is allowed. */}
+      {/* THE WRITE, offered from the face it writes into, and now the ONLY
+          control here. It is the reason a person opens the libreta on a phone,
+          so it keeps its primary weight. Offered even while the read failed —
+          a section this app could not load says nothing about whether the
+          animal was vaccinated this morning, and the server is the one that
+          decides whether the write is allowed.
+          "Actualizar" used to sit under it and is gone (2026-09-03). The two
+          were never the same kind of thing: this is an act, that was
+          maintenance dressed as one, and the platform already has a gesture
+          for maintenance. The read still has a way to happen —
+          `PetDocumentScreen` keys this face by its refresh nonce, so a pull
+          remounts it. */}
       <PrimaryButton
         label="Asentar"
         onPress={() => router.push(recordEventRoute(publicToken))}
-        disabled={state.phase === "loading"}
-      />
-      <SecondaryButton
-        label="Actualizar"
-        onPress={() => void load()}
         disabled={state.phase === "loading"}
       />
     </View>

@@ -149,7 +149,29 @@ function BandBackground({ situationKey }: { situationKey: string | undefined }) 
   );
 }
 
-const BAND_H = 120;
+/**
+ * Band height, and it is a LAYOUT BUDGET rather than a taste.
+ *
+ * Four things share this strip and three of them are absolutely positioned, so
+ * the number has to be derived rather than picked. Reading down a 360dp card:
+ * the title block occupies y∈[16,42]; the flip control y∈[14,58]; the state
+ * chip needs its own line clear of both, y∈[62,87]; and the identity frames
+ * (photo, and the QR beside it) are pulled up by IDENTITY_POKE_OUT from the
+ * body, so they enter the band at BAND_H − IDENTITY_POKE_OUT and must start
+ * BELOW the chip.
+ *
+ *   152 − 56 = 96, and the chip ends at 87. Nine points of clearance.
+ *
+ * It was 120 until 2026-09-03, which put the poke-out at 64 — twenty-three
+ * points ABOVE where the chip ended, which is the occlusion described at the
+ * chip. Anything that lowers this constant, or deepens the poke-out, has to
+ * redo this arithmetic; the chip is the credential's headline signal and it
+ * cannot be allowed to slide back under a photograph.
+ */
+const BAND_H = 152;
+
+/** How far the identity frames rise into the band. See BAND_H. */
+export const IDENTITY_POKE_OUT = 56;
 const BAND_VIEWBOX_W = 400;
 
 type DocumentChromeNativeProps = {
@@ -174,7 +196,6 @@ export function DocumentChromeNative({
 }: DocumentChromeNativeProps) {
   const isCredencial = face === "credencial";
   const bandSubtitle = isCredencial ? "Credencial · frente" : "Libreta · dorso";
-  const turnLabel = isCredencial ? "Dar vuelta" : "Ver credencial";
   // The accessible name always names the TARGET face — the web's exact wording.
   const turnAria = isCredencial ? "Girar a Libreta" : "Girar a Credencial";
   const skin = bandSkin(situation?.key);
@@ -189,7 +210,21 @@ export function DocumentChromeNative({
         </View>
         {/* State chip — icon + label, never color alone. OUTSIDE the hidden
             title wrapper: on the back face this chip is the only textual
-            carrier of the state, so it must stay accessible text. */}
+            carrier of the state, so it must stay accessible text.
+
+            IT HAS ITS OWN LINE IN THE BAND, and that is a fix, not a
+            preference. Until 2026-09-03 it sat at top:82 centred, inside the
+            vertical range the identity photo occupies once its -56 margin
+            pulls it up over the band. The photo lives in `body` (zIndex 2) and
+            the chip in `band` (no zIndex), so the parent stacking context
+            decides and the chip's own zIndex:4 never mattered: the photo
+            painted over it. On a 360dp device the photo held x∈[18,102] and
+            every label longer than about eight characters reached under it —
+            "En tratamiento", "Custodia oficial", "En adopción", "Observación
+            antirrábica". The credential's single most important signal was
+            partially hidden for most of its own vocabulary, and it took a
+            geometry read to see it because the SHORT label ("Perdida") clears
+            by a few pixels and is the one anybody tests with. */}
         {situation === null ? null : (
           <View style={styles.bandChip}>
             <Icon name={situation.icon} size="sm" color="#fff" />
@@ -208,8 +243,15 @@ export function DocumentChromeNative({
           onPress={onTurn}
           style={styles.turn}
         >
+          {/* ICON ONLY since 2026-09-03. Three names for one control was two
+              too many: the visible text said "Dar vuelta" then "Ver
+              credencial", while the accessible name said "Girar a Libreta" —
+              and the web calls it Girar. The accessible name is the one that
+              survives, because it names the TARGET face and is what a screen
+              reader announces; the visible text was the least precise of the
+              three and the one competing with a title, a subtitle and the
+              state chip inside a 152-point band. */}
           <Icon name="girar" size="sm" color="#fff" />
-          <Text style={styles.turnLabel}>{turnLabel}</Text>
         </Pressable>
       </View>
 
@@ -289,12 +331,17 @@ const styles = StyleSheet.create({
   },
   bandChip: {
     position: "absolute",
-    top: 82,
+    // Its own line: below the title (ends 42) and the flip control (ends 58),
+    // above the identity poke-out (starts 96). See BAND_H.
+    top: 62,
     alignSelf: "center",
     flexDirection: "row",
     alignItems: "center",
     gap: 7,
-    maxWidth: "60%",
+    // Nothing else occupies this line, so the longest label in the vocabulary
+    // ("Observación antirrábica") gets the width it needs instead of being
+    // truncated by a cap that existed to dodge the photo.
+    maxWidth: "88%",
     paddingHorizontal: 12,
     paddingVertical: 6,
     borderRadius: RADIUS.button,
@@ -326,11 +373,6 @@ const styles = StyleSheet.create({
     backgroundColor: "rgba(255,255,255,0.22)",
     borderWidth: 1,
     borderColor: "rgba(255,255,255,0.55)",
-  },
-  turnLabel: {
-    fontFamily: FONTS.sansSemibold,
-    fontSize: 14,
-    color: "#fff",
   },
   body: {
     zIndex: 2,

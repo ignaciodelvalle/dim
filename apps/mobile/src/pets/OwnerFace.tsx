@@ -36,7 +36,7 @@ import { CredentialQr } from "../credential/CredentialQr";
 import { Icon } from "../ui/Icon";
 import { Body, Card, Row, Unavailable } from "../ui/components";
 import { FONTS } from "../ui/fonts";
-import { Callout } from "../ui/kit";
+import { Callout, ListRow, pressedOpacity } from "../ui/kit";
 import {
   caretakerPetRoute,
   editPetRoute,
@@ -49,7 +49,7 @@ import {
   transferPetRoute,
 } from "../ui/routes";
 import { COLORS, LEADING, RADIUS, SPACE, TOUCH_TARGET, TRACKING, TYPE } from "../ui/theme";
-import { FaceDivider, FaceSection } from "./DocumentChromeNative";
+import { FaceDivider, FaceSection, IDENTITY_POKE_OUT } from "./DocumentChromeNative";
 import {
   type OwnerFaceView,
   REMINDERS_EMPTY_LABEL,
@@ -139,7 +139,47 @@ export function OwnerCredentialFace({ view }: { view: OwnerFaceView }) {
       <FaceSection>
         <ActionFooter view={view} />
       </FaceSection>
+
+      {/* ISSUING FOOT ---------------------------------------------------- */}
+      <IssuingFoot view={view} />
     </>
+  );
+}
+
+/**
+ * The line that makes this a document issued BY somebody rather than a screen
+ * about an animal.
+ *
+ * Four things separate a credential from a card, and until 2026-09-03 this face
+ * carried none of them: the issuing authority, the jurisdiction, the date of
+ * issue, and a seal. This is the first three. A funcionario asked to accept an
+ * identification looks for exactly these, and their absence is why the
+ * 2026-09-03 review answered "no" to whether this reads as a national document.
+ *
+ * THE AUTHORITY IS A CONSTANT, NOT A FIELD, and saying so matters. The payload
+ * has no `authority`; it is the same for every credential this system issues,
+ * so a constant is the honest home for it. The other two ARE data:
+ * `jurisdictionProvince`/`jurisdictionLocality` ride the identity section, and
+ * `issuedAt` is a payload-envelope field — which is why it survives an identity
+ * read that failed, and why the foot still names the issuer on a broken card.
+ */
+function IssuingFoot({ view }: { view: OwnerFaceView }) {
+  const identity = view.identity.state === "ok" ? view.identity.data : null;
+  const place = [identity?.jurisdictionLocality, identity?.jurisdictionProvince]
+    .filter((part): part is string => typeof part === "string" && part.length > 0)
+    .join(", ");
+
+  // An unreadable date does not become "Emitida el —". A document either
+  // states when it was issued or does not raise the subject; a dash where a
+  // date belongs is the empty-state-as-fact this file's header argues against.
+  const issued = formatIsoDate(view.issuedAt);
+
+  return (
+    <View style={styles.foot}>
+      <Text style={styles.footAuthority}>República Argentina</Text>
+      <Text style={styles.footLine}>Libreta Sanitaria Nacional{place ? ` · ${place}` : ""}</Text>
+      {issued === "—" ? null : <Text style={styles.footLine}>Emitida el {issued}</Text>}
+    </View>
   );
 }
 
@@ -148,16 +188,38 @@ export function OwnerCredentialFace({ view }: { view: OwnerFaceView }) {
 // ---------------------------------------------------------------------------
 
 /**
- * The web's phone identity layout (`@media (max-width: 720px)`): photo +
- * identity side by side, the name at 26px, and the QR on its OWN full-width
- * centered row below — a phone is always ≤720, so the desktop three-column
- * grid is never the reference here.
+ * The identity row: photo · name · QR, both frames rising into the band by the
+ * same amount, with everything else full width underneath. It is the
+ * composition of an identity document, and that is the point — this screen is
+ * the thing a funcionario is asked to accept as identification.
  *
- * THE QR ROW IS UNCONDITIONAL AND TAPPABLE. It renders from the token alone,
- * so a degraded identity read must not take down the one block that links to
- * the public document a stranger can already see. Tapping it opens the
- * public credential route — the QR was inert before this rewrite, and an
- * inert QR on a screen is a control-shaped decoration.
+ * WHAT IT REPLACED, AND WHY THE OLD DOCBLOCK WAS WRONG. This file used to say,
+ * as fact, that the web's phone layout put "the QR on its OWN full-width
+ * centered row below". That was true of a flex layout the web no longer has.
+ * `app/globals.css:1358` is now `display: grid` with
+ * `grid-template-columns: auto minmax(0,1fr) auto` — a symmetric three-column
+ * row — and the phone override that used to force the wrap
+ * (`.ln-idrow { flex-wrap }`, `.ln-qr { flex-basis: 100% }`) applies FLEX
+ * properties to a GRID and is inert. Mobile faithfully transcribed a rule that
+ * had stopped firing, which is the cost of transcribing CSS by hand with
+ * nothing fencing the result: token parity is fenced, layout parity is not.
+ *
+ * The visible symptom was a wasted column. The photo is 84 wide but only
+ * contributes 28 points of layout height (the rest is pulled up into the
+ * band), so the tall meta column beside it left an empty 84-wide rectangle
+ * underneath — the "se pierde mucho espacio" in the 2026-09-03 review.
+ *
+ * WHY THE CENTRE COLUMN CARRIES ONLY THE NAME. A 360dp card is ~312 wide;
+ * photo (84) + QR (84) + two 12 gaps leaves ~120 for the middle. The breed
+ * line and the tag chips do not fit in 120 and would wrap into a ragged
+ * stack, so they move BELOW the row where the full width is. The name and its
+ * registration marker stay, centred, which is where a document puts them.
+ *
+ * THE QR IS UNCONDITIONAL AND TAPPABLE. It renders from the token alone, so a
+ * degraded identity read must not take down the one block that links to the
+ * public document a stranger can already see — hence the standalone arm below.
+ * Tapping it opens the public credential route: an inert QR on a screen is a
+ * control-shaped decoration.
  */
 function IdentityRow({ view }: { view: OwnerFaceView }) {
   const router = useRouter();
@@ -169,10 +231,38 @@ function IdentityRow({ view }: { view: OwnerFaceView }) {
     view.identity.state === "ok" ? view.identity.data.sex : null,
   );
 
+  const qr = (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel="Ver credencial pública"
+      accessibilityHint="Abre el documento público que ve cualquier persona que escanea el código."
+      onPress={() => router.push(publicCredentialRoute(view.publicToken))}
+      style={styles.qrFrame}
+    >
+      <CredentialQr
+        value={publicCredentialPageUrl(view.publicToken)}
+        size={64}
+        label={`Código QR de la credencial pública de ${view.publicToken}`}
+      />
+    </Pressable>
+  );
+
   return (
     <View style={styles.idWrap}>
       {view.identity.state === "unavailable" ? (
-        <Unavailable title="Identidad" message={view.identity.message} />
+        <>
+          <Unavailable title="Identidad" message={view.identity.message} />
+          {/* The row cannot be built without an identity, but the public
+              document exists regardless, so the QR keeps its old standalone
+              form here rather than disappearing with the read that failed. */}
+          <View style={styles.qrStandalone}>
+            {qr}
+            <Text style={styles.qrCaption}>
+              <Text style={styles.qrCaptionStrong}>Credencial pública{"\n"}</Text>
+              {view.publicToken}
+            </Text>
+          </View>
+        </>
       ) : (
         <View style={styles.idRow}>
           <View style={styles.photo}>
@@ -190,62 +280,60 @@ function IdentityRow({ view }: { view: OwnerFaceView }) {
               </View>
             )}
           </View>
-          <View style={styles.idMeta}>
-            <View style={styles.nameRow}>
-              <Text style={styles.petName}>{view.identity.data.name}</Text>
-              {/* Default state: the registration badge sits beside the name.
-                  With an active situation it is DEMOTED to the quiet marker
-                  below — the situation (in the band chip) is the headline,
-                  registration the footnote. The web's exact demotion. */}
-              {showBadge && !situationActive ? (
-                <View style={styles.badgeReg}>
-                  <Icon name="check" size="sm" color={COLORS.accent} />
-                  <Text style={styles.badgeRegText}>{badgeWord}</Text>
-                </View>
-              ) : null}
-            </View>
-            {showBadge && situationActive ? (
-              <View style={styles.regQuiet}>
-                <Icon name="check" size="sm" color={COLORS.inkMuted} />
-                <Text style={styles.regQuietText}>{badgeWord}</Text>
-              </View>
-            ) : null}
-            {view.identity.data.breedLine ? <Body>{view.identity.data.breedLine}</Body> : null}
-            {view.identity.data.tags.length > 0 ? (
-              <View style={styles.chipRow}>
-                {view.identity.data.tags.map((tag) => (
-                  <View key={tag.key} style={styles.chip}>
-                    {tag.key === "loc" ? (
-                      <Icon name="map-pin" size="sm" color={COLORS.inkSoft} />
-                    ) : null}
-                    <Text style={styles.chipText}>{tag.label}</Text>
-                  </View>
-                ))}
-              </View>
-            ) : null}
-          </View>
+          {qr}
         </View>
       )}
 
-      <Pressable
-        accessibilityRole="button"
-        accessibilityLabel="Ver credencial pública"
-        accessibilityHint="Abre el documento público que ve cualquier persona que escanea el código."
-        onPress={() => router.push(publicCredentialRoute(view.publicToken))}
-        style={styles.qrBlock}
-      >
-        <View style={styles.qrFrame}>
-          <CredentialQr
-            value={publicCredentialPageUrl(view.publicToken)}
-            size={76}
-            label={`Código QR de la credencial pública de ${view.publicToken}`}
-          />
+      {/* EVERYTHING ELSE IS BELOW THE FRAMES, AT FULL WIDTH, AND THE NAME
+          LEADS IT. Measured on a real 360dp device on 2026-09-03: with the
+          name in a centre column between the two frames it had ~120 points and
+          "Pampa" — FIVE characters at the 26px serif step — was already
+          truncating. The estimate in this file said ~120 would be tight; the
+          phone said it was not enough, and the phone is the instrument.
+
+          The frames still flank, which is the part that reads as a document,
+          and the name gets the whole card width instead of the gap between
+          them. Centred, because a document centres its subject. */}
+      {view.identity.state === "unavailable" ? null : (
+        <View style={styles.idFacts}>
+          <View style={styles.nameRow}>
+            <Text style={styles.petName}>{view.identity.data.name}</Text>
+            {/* Default state: the registration badge sits beside the name.
+                With an active situation it is DEMOTED to the quiet marker
+                below — the situation (in the band chip) is the headline,
+                registration the footnote. The web's exact demotion. */}
+            {showBadge && !situationActive ? (
+              <View style={styles.badgeReg}>
+                <Icon name="check" size="sm" color={COLORS.accent} />
+                <Text style={styles.badgeRegText}>{badgeWord}</Text>
+              </View>
+            ) : null}
+          </View>
+          {showBadge && situationActive ? (
+            <View style={styles.regQuiet}>
+              <Icon name="check" size="sm" color={COLORS.inkMuted} />
+              <Text style={styles.regQuietText}>{badgeWord}</Text>
+            </View>
+          ) : null}
+          {view.identity.data.breedLine ? <Body>{view.identity.data.breedLine}</Body> : null}
+          {view.identity.data.tags.length > 0 ? (
+            <View style={styles.chipRow}>
+              {view.identity.data.tags.map((tag) => (
+                <View key={tag.key} style={styles.chip}>
+                  {tag.key === "loc" ? (
+                    <Icon name="map-pin" size="sm" color={COLORS.inkSoft} />
+                  ) : null}
+                  <Text style={styles.chipText}>{tag.label}</Text>
+                </View>
+              ))}
+            </View>
+          ) : null}
+          <Text style={styles.qrCaption}>
+            <Text style={styles.qrCaptionStrong}>Credencial pública · </Text>
+            {view.publicToken}
+          </Text>
         </View>
-        <Text style={styles.qrCaption}>
-          <Text style={styles.qrCaptionStrong}>Credencial pública{"\n"}</Text>
-          {view.publicToken}
-        </Text>
-      </Pressable>
+      )}
     </View>
   );
 }
@@ -465,7 +553,7 @@ function FaceAction({
       accessibilityState={{ disabled: isInert, ...(expanded === undefined ? {} : { expanded }) }}
       disabled={isInert}
       onPress={onPress}
-      style={[styles.action, danger ? styles.actionDanger : null]}
+      style={(state) => [styles.action, danger ? styles.actionDanger : null, pressedOpacity(state)]}
     >
       <Icon name={icon} size="sm" color={inkColor} />
       <View>
@@ -476,50 +564,58 @@ function FaceAction({
   );
 }
 
-/** One row of the expanded "Más" list. No `onPress` → honest-disabled row. */
-function MoreRow({
-  label,
-  caption,
-  accessibilityHint,
-  onPress,
-}: {
-  label: string;
-  caption?: string;
-  accessibilityHint?: string;
-  onPress?: () => void;
-}) {
-  const isInert = onPress === undefined;
-  return (
-    <Pressable
-      accessibilityRole="button"
-      accessibilityHint={accessibilityHint}
-      accessibilityState={{ disabled: isInert }}
-      disabled={isInert}
-      onPress={onPress}
-      style={styles.moreRow}
-    >
-      <Text style={isInert ? styles.moreRowLabelMuted : styles.moreRowLabel}>{label}</Text>
-      {caption === undefined ? null : <Text style={styles.moreRowCaption}>{caption}</Text>}
-    </Pressable>
-  );
-}
+/**
+ * One row of the expanded "Más" list. No `onPress` → honest-disabled row.
+ *
+ * This WAS the primitive, hand-rolled here, and it is now `ListRow` in the kit
+ * — same markup, same styles, same inert arm — because RecordEventScreen
+ * needed exactly this shape, could not reach it, and reached for a `Card`
+ * instead. The alias stays so the call sites below read as they always did.
+ */
+const MoreRow = ListRow;
 
 // ---------------------------------------------------------------------------
 // The sections the document does not carry
 // ---------------------------------------------------------------------------
 
-/** Renders a section, or its refusal. The two are never the same view. */
+/**
+ * Renders a section, its refusal, or nothing at all. The three are never the
+ * same view, and the distinction between the last two is the whole point.
+ *
+ * A REFUSAL ALWAYS RENDERS. `unavailable` means the server could not answer,
+ * and a gap where an answer should be reads as "nothing to report" — the one
+ * thing it does not mean. That arm is untouched.
+ *
+ * AN EMPTY SECTION RENDERS NOTHING. This is the rule the face above already
+ * follows for the Avisos strip ("empty strip → renders nothing", AGENTS.md §6)
+ * and that this block used to contradict twelve lines later: every section
+ * rendered a titled Card unconditionally, so a healthy animal's credential was
+ * followed by a column of identical boxes each announcing an absence — "No hay
+ * recordatorios activos.", "No está preñada.", "No tiene trámites abiertos."
+ * Four sentences saying nothing is wrong, drawn with the same weight as the
+ * document above them.
+ *
+ * `isEmpty` is per-section and required to be explicit because emptiness is not
+ * a property of the wrapper: an empty list, a null pregnancy and a zero case
+ * count are three different shapes. A section that omits it always renders,
+ * which is the safe default — a new section cannot vanish by forgetting.
+ */
 function Section<T>({
   view,
   title,
+  isEmpty,
   children,
 }: {
   view: SectionView<T>;
   title: string;
+  isEmpty?: (data: T) => boolean;
   children: (data: T) => React.ReactNode;
 }) {
   if (view.state === "unavailable") {
     return <Unavailable title={title} message={view.message} />;
+  }
+  if (isEmpty?.(view.data) === true) {
+    return null;
   }
   return <Card title={title}>{children(view.data)}</Card>;
 }
@@ -539,7 +635,11 @@ export function OwnerExtraSections({ view }: { view: OwnerFaceView }) {
   return (
     <>
       {/* REMINDERS ------------------------------------------------------- */}
-      <Section view={view.reminders} title="Recordatorios">
+      <Section
+        view={view.reminders}
+        title="Recordatorios"
+        isEmpty={(reminders) => reminders.items.length === 0}
+      >
         {(reminders) =>
           reminders.items.length === 0 ? (
             <Body>{REMINDERS_EMPTY_LABEL}</Body>
@@ -564,7 +664,24 @@ export function OwnerExtraSections({ view }: { view: OwnerFaceView }) {
       </Section>
 
       {/* THE BANNERS ------------------------------------------------------ */}
-      <Section view={view.banners} title="Arreglos">
+      {/* The empty test here is NOT symmetric with the others, and the
+          asymmetry is the information. For the TITULAR, no arrangements is an
+          empty state and the section disappears like the rest. For a caretaker
+          or a foster it is a PERMISSION BOUNDARY — they see nothing because
+          arrangements are the titular's to make, not because none exist — and
+          "Solo el titular ve los arreglos" is the sentence that stops an
+          unexplained gap from reading as a bug. Hiding that would delete an
+          answer, which is the same mistake as hiding a refusal. */}
+      <Section
+        view={view.banners}
+        title="Arreglos"
+        isEmpty={(banners) =>
+          view.isTitular &&
+          caretakerBannerLines(banners).length === 0 &&
+          !rehomeBannerLine(banners) &&
+          !transitBannerLine(banners)
+        }
+      >
         {(banners) => {
           const caretakerLines = caretakerBannerLines(banners);
           const rehome = rehomeBannerLine(banners);
@@ -594,12 +711,12 @@ export function OwnerExtraSections({ view }: { view: OwnerFaceView }) {
       </Section>
 
       {/* OPEN CASES ------------------------------------------------------- */}
-      <Section view={view.cases} title="Trámites">
+      <Section view={view.cases} title="Trámites" isEmpty={(cases) => cases.openCount === 0}>
         {(cases) => <Body>{casesLine(cases)}</Body>}
       </Section>
 
       {/* PREGNANCY -------------------------------------------------------- */}
-      <Section view={view.pregnancy} title="Preñez">
+      <Section view={view.pregnancy} title="Preñez" isEmpty={(pregnancy) => pregnancy === null}>
         {(pregnancy) =>
           pregnancy === null ? (
             <Body>No está preñada.</Body>
@@ -615,31 +732,28 @@ export function OwnerExtraSections({ view }: { view: OwnerFaceView }) {
         }
       </Section>
 
-      {/* THE CAROUSEL ----------------------------------------------------- */}
-      {/* The server excludes THIS animal from both `items` and `total` — the
-          section is the owner's OTHER pets and the contract says so. This
-          screen used to filter it out for RENDERING and then branch and count
-          on the unfiltered array, which produced the two states this file's
-          own header forbids: a one-pet owner got a card containing literally
-          nothing, and a nine-pet owner read "Mostrando 8 de 9" above seven
-          rows. One list, filtered once, on the side that knows which animal is
-          being read. */}
-      <Section view={view.carousel} title="Tus otras mascotas">
-        {(carousel) =>
-          carousel.items.length === 0 ? (
-            <Body>No tenés otras mascotas registradas.</Body>
-          ) : (
-            <>
-              {carousel.items.map((item) => (
-                <Row key={item.publicToken} label={item.name || item.publicToken} value="" />
-              ))}
-              {truncationNote(carousel.items.length, carousel.total, "mascotas") ? (
-                <Body>{truncationNote(carousel.items.length, carousel.total, "mascotas")}</Body>
-              ) : null}
-            </>
-          )
-        }
-      </Section>
+      {/* THE CAROUSEL IS DELIBERATELY NOT HERE ---------------------------- */}
+      {/* "Tus otras mascotas" was rendered here until 2026-09-03 and is gone,
+          not hidden. Three reasons, in order of weight:
+
+          It does not belong on this screen. This is ONE animal's credential;
+          the other animals are not a property of it. The web draws exactly
+          this line and the header above quotes the decision ("el carousel lo
+          quiero FUERA de la credencial") — this file kept it anyway.
+
+          The destination already exists and is better. `/mascotas` lists the
+          same pets with photo, species and status, one tap away. What rendered
+          here was `<Row label={name} value="" />` — a label/value row with a
+          permanently empty value column, i.e. a worse copy of a better screen,
+          printed inside a national credential.
+
+          And the reasoning that put it here is the bug. The header argued that
+          DROPPING a section the server read would be quiet data loss. That
+          turns every field in the payload into a UI block and lets the
+          endpoint dictate the information architecture. `view.carousel` is
+          still built by the view-model and still typed by the contract; not
+          rendering it here loses nothing, because nothing was ever lost — the
+          data has a home, and this was not it. */}
     </>
   );
 }
@@ -663,17 +777,53 @@ function formatIsoDate(iso: string): string {
 
 const styles = StyleSheet.create({
   stack: { gap: SPACE.sm },
+  /**
+   * The issuing foot. Quiet on purpose — an authority line that shouts is a
+   * letterhead, not a seal. It sits on the document's ground with a hairline
+   * above it so it reads as part of the sheet rather than as another block,
+   * and it is the last thing on the face because that is where a certificate
+   * puts its issuer.
+   */
+  foot: {
+    gap: 2,
+    alignItems: "center",
+    paddingHorizontal: 18,
+    paddingTop: 14,
+    paddingBottom: 20,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: COLORS.borderSoft,
+    marginHorizontal: 16,
+  },
+  footAuthority: {
+    fontFamily: FONTS.monoSemibold,
+    fontSize: TYPE.xs,
+    letterSpacing: TYPE.xs * 0.18,
+    textTransform: "uppercase",
+    color: COLORS.inkSoft,
+  },
+  footLine: {
+    fontFamily: FONTS.mono,
+    fontSize: TYPE.xs,
+    color: COLORS.inkFaint,
+    textAlign: "center",
+  },
 
   // Identity row — the web's phone layout: photo + meta side by side, QR on
   // its own centered full-width row. The photo pokes up into the band
   // (negative margin), ringed in the card's white like the web's box-shadow
   // ring. 84 / -56 / 12 are the web's own `.ln-photo` values.
   idWrap: { gap: SPACE.md },
-  idRow: { flexDirection: "row", gap: 14, alignItems: "flex-start" },
+  /**
+   * The two frames, flanking. `space-between` and nothing between them: the
+   * photo takes the left edge, the QR the right, both rising into the band by
+   * IDENTITY_POKE_OUT. Nothing lives in the gap — see the note at the facts
+   * block for why the name came out of it.
+   */
+  idRow: { flexDirection: "row", alignItems: "flex-start", justifyContent: "space-between" },
   photo: {
     width: 84,
     height: 84,
-    marginTop: -56,
+    marginTop: -IDENTITY_POKE_OUT,
     borderRadius: 12,
     borderWidth: 4,
     borderColor: COLORS.surface,
@@ -683,8 +833,23 @@ const styles = StyleSheet.create({
   },
   photoImage: { width: "100%", height: "100%" },
   photoEmpty: { flex: 1, alignItems: "center", justifyContent: "center" },
-  idMeta: { flex: 1, gap: SPACE.xs },
-  nameRow: { flexDirection: "row", flexWrap: "wrap", alignItems: "center", gap: 10 },
+  /**
+   * The centre column. `flex: 1` so it takes exactly what the two fixed
+   * frames leave, `minWidth: 0` so a long name shrinks the column instead of
+   * pushing the QR off the card — without it a flex child refuses to go below
+   * its content width and the row overflows silently.
+   */
+
+  /** Everything that is not the name, at full card width under the row. */
+  /** The name and the facts, full width under the frames, centred. */
+  idFacts: { gap: SPACE.xs, alignItems: "center" },
+  nameRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 10,
+  },
   petName: {
     fontFamily: FONTS.serif,
     // The web's phone step for the credential name — globals.css
@@ -735,13 +900,30 @@ const styles = StyleSheet.create({
   },
   chipText: { fontFamily: FONTS.mono, fontSize: TYPE.sm, color: COLORS.inkSoft },
 
-  qrBlock: { alignItems: "center", gap: SPACE.xs, marginTop: SPACE.sm },
+  /** The degraded-identity arm, where the QR is the only thing left to draw. */
+  qrStandalone: { alignItems: "center", gap: SPACE.xs, marginTop: SPACE.sm },
+  /**
+   * The QR frame MIRRORS THE PHOTO, deliberately and to the point: same 84
+   * box, same 12 radius, same 4-point surface ring, same -56 rise into the
+   * band. Two matched frames at the two edges of the row with the name
+   * centred between them is the composition of an identity document, and the
+   * mirroring is what makes it read as one rather than as a photo with a
+   * decoration beside it. Change one of the four numbers and change both.
+   *
+   * The code inside is 64 rather than 76 so the ring and padding land the
+   * outer box on the photo's 84 exactly.
+   */
   qrFrame: {
+    width: 84,
+    height: 84,
+    marginTop: -IDENTITY_POKE_OUT,
+    alignItems: "center",
+    justifyContent: "center",
     backgroundColor: COLORS.surface,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    borderRadius: RADIUS.control,
-    padding: SPACE.sm,
+    borderWidth: 4,
+    borderColor: COLORS.surface,
+    borderRadius: 12,
+    zIndex: 3,
   },
   qrCaption: {
     fontFamily: FONTS.mono,
@@ -764,13 +946,35 @@ const styles = StyleSheet.create({
     color: COLORS.ink,
   },
 
-  actionRow: { flexDirection: "row", flexWrap: "wrap", gap: SPACE.sm },
+  /**
+   * The action row, and what "ordenado" turned out to mean.
+   *
+   * It was `flexWrap` over CONTENT-SIZED pills, so five actions of five
+   * different label lengths ("Anotar", "Compartir", "Editar datos", "Modo
+   * perdida", "Más") wrapped into ragged rows with a different right edge on
+   * each line. Centring alone would have kept the ragged widths and only moved
+   * the ragged edge to both sides.
+   *
+   * So the cells are EQUAL: `flexBasis: 48%` gives two per row whatever the
+   * label says, and `justifyContent: center` centres the odd one left over on
+   * the last row instead of stranding it against the left margin. A grid reads
+   * ordered because the eye can find the column; a wrap never can.
+   */
+  actionRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    justifyContent: "center",
+    gap: SPACE.sm,
+  },
   action: {
+    flexBasis: "48%",
+    flexGrow: 0,
     minHeight: TOUCH_TARGET,
     flexDirection: "row",
     alignItems: "center",
+    justifyContent: "center",
     gap: 7,
-    paddingHorizontal: SPACE.md,
+    paddingHorizontal: SPACE.sm,
     paddingVertical: SPACE.sm,
     borderWidth: 1,
     borderColor: COLORS.borderStrong,
@@ -782,20 +986,4 @@ const styles = StyleSheet.create({
   actionCaption: { fontFamily: FONTS.sans, fontSize: TYPE.xs, color: COLORS.inkMuted },
 
   moreList: { gap: SPACE.xs },
-  moreRow: {
-    minHeight: TOUCH_TARGET,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    gap: SPACE.md,
-    paddingHorizontal: SPACE.md,
-    paddingVertical: SPACE.sm,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: COLORS.border,
-    borderRadius: RADIUS.control,
-    backgroundColor: COLORS.canvas2,
-  },
-  moreRowLabel: { fontFamily: FONTS.sansMedium, fontSize: TYPE.md, color: COLORS.ink },
-  moreRowLabelMuted: { fontFamily: FONTS.sans, fontSize: TYPE.md, color: COLORS.inkMuted },
-  moreRowCaption: { fontFamily: FONTS.sans, fontSize: TYPE.sm, color: COLORS.inkFaint },
 });

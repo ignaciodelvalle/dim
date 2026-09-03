@@ -60,6 +60,7 @@ import {
   Callout,
   Choice,
   Eyebrow,
+  ListRow,
   PrimaryButton,
   Screen,
   SecondaryButton,
@@ -161,11 +162,17 @@ function KindPicker({ onPick }: { onPick: (kind: RecordKind) => void }) {
           onPress={() => onPick(kind)}
         />
       ))}
-      <Card title="Terminar una medicación">
-        <Body>
-          Abrí el asiento del inicio del tratamiento en la libreta y usá "Terminar medicación".
-        </Body>
-      </Card>
+      {/* Eleven pills and then this. It is NOT one of the eleven — ending a
+          treatment happens on the asiento that started it, deliberately (see
+          this file's header) — but until 2026-09-03 it was drawn as a `Card`,
+          a bordered box among stretched pills, because the kit had no row that
+          could say "this is here, and it is not a destination". It has one
+          now. Same list, same rhythm, visibly not tappable, and the caption
+          says where the real control lives. */}
+      <ListRow
+        label="Terminar una medicación"
+        caption='Se hace desde el asiento del inicio del tratamiento, en la libreta: "Terminar medicación".'
+      />
     </Screen>
   );
 }
