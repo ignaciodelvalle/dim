@@ -296,14 +296,37 @@ source path* inside the object directory, and pnpm's virtual-store segment
 **102 chars** once the placeholder is the real 32-hex hash) is therefore spent
 **twice**.
 
-Not ruled out, and stated as such rather than left implied:
+Ruled out on 2026-09-03, and it was the last live alternative:
 
-* **Node 24 vs the `engines` range.** Every attempt ran on Node 24.15.0 against
-  a repo that declares `>=22.23.0 <23`, with the mismatch warned on the first
-  line of the build log (see Prerequisites). Nothing was re-run on 22.23.2, so
-  "the toolchain is out of range" remains a live explanation — cheap to
-  eliminate (`fnm use 22.23.2`) and worth eliminating before any of the cures
-  below is paid for.
+* **Node 24 vs the `engines` range — ELIMINATED, measured.** This entry used to
+  read "not ruled out": every attempt had run on Node 24.15.0 against a repo
+  declaring `>=22.23.0 <23`, so "the toolchain is out of range" was a live
+  explanation and the cheapest one to test. It was tested. A fifth attempt ran
+  with `C:\Users\ignac\AppData\Roaming\fnm\node-versions\v22.23.2\installation`
+  first on `PATH` (`node --version` → `v22.23.2`, captured before the build),
+  `ANDROID_HOME` set, against the booted `mimar` AVD:
+
+  ```
+  > Task :react-native-worklets:buildCMakeDebug[x86_64][worklets] FAILED
+  ninja: error: manifest 'build.ninja' still dirty after 100 tries
+  BUILD FAILED in 47s
+  ```
+
+  Same task, same ninja message, same duration as the 46 s fourth attempt. The
+  Node version changes nothing, which is what the path-length analysis above
+  already predicted: `CMAKE_OBJECT_PATH_MAX` is a property of where the object
+  files would be written, and no JavaScript runtime moves them.
+
+  One trap worth having written down, because it cost a first run: a detached
+  `cmd.exe` launcher does NOT inherit `ANDROID_HOME`, and Gradle fails at
+  *configuration* with "SDK location not found" long before any native
+  compile — a red that looks like progress and proves nothing. Set
+  `ANDROID_HOME` explicitly in any backgrounded launcher and confirm the
+  `CMAKE_OBJECT_PATH_MAX` warnings appear before believing a result.
+
+So every alternative is now eliminated and the object-path budget is the
+remaining explanation. The cures below are the list, and they are repo-level
+decisions.
 
 Every real cure is a repo-level decision, not an environment fix:
 
