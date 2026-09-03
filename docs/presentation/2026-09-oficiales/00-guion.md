@@ -41,12 +41,15 @@ funciona si las dos láminas incómodas están donde se ven.
 
 - **El spec `05-modelo-datos.md` no entra en las quince láminas.** Es material de
   anexo técnico, para la pregunta de un informático en la sala, no para el flujo.
-- **Estado del piloto Android — a confirmar con el PO antes de exponer.** Lo que se
-  puede leer en el repo es que la aplicación tiene tres perfiles de compilación
-  (`apps/mobile/eas.json`: desarrollo, previa y producción, esta última con
-  distribución a tienda). La versión que circula hoy en prueba interna y el número de
-  compilación pendiente **no** se pueden verificar desde el código: se los confirma el
-  PO o no se dicen. La lámina 15 tiene reservado el lugar.
+- **Estado del piloto Android — confirmado por el PO (2026-09-02).** Se dice así, con
+  estas palabras: **aplicación Android en prueba interna con un grupo de testers.** Ni
+  una cifra: no digas cuántos testers son, ni en la lámina ni de palabra. Un número
+  invita a la pregunta que sigue ("¿y cuántos de esos la usaron esta semana?"), y esa
+  no la podés contestar desde el escenario. Lo que se puede leer en el repo es que la
+  aplicación tiene tres perfiles de compilación (`apps/mobile/eas.json`: desarrollo,
+  previa y producción, esta última con distribución a tienda). El número de
+  compilación **no** se dice: no se puede verificar desde el código. La lámina 15 es
+  donde va.
 
 ---
 
@@ -401,7 +404,7 @@ funciona si las dos láminas incómodas están donde se ven.
 - **Hechos.**
   - Guardas automatizadas en la cadena de verificación:
     <!-- fact:verify_fences -->67<!-- /fact -->.
-  - Archivos de prueba de la web: <!-- fact:vitest_files -->1489<!-- /fact -->.
+  - Archivos de prueba de la web: <!-- fact:vitest_files -->1490<!-- /fact -->.
   - Recorridos de navegador: <!-- fact:e2e_specs -->45<!-- /fact -->.
   - Archivos de prueba de la aplicación de celular:
     <!-- fact:mobile_jest_files -->78<!-- /fact -->.
@@ -458,8 +461,9 @@ funciona si las dos láminas incómodas están donde se ven.
     Se puede decir "piloto corriendo en un entorno vivo"; no se puede dibujar una
     promoción entre dos extremos que no existen los dos.
   - No se dibuja ninguna tarea programada que limpie almacenamiento: no hay ninguna.
-  - No se dice que la aplicación de celular esté publicada al público general. El
-    estado real se confirma con el PO — ver la nota de alcance del preámbulo.
+  - No se dice que la aplicación de celular esté publicada al público general. Es una
+    aplicación Android en prueba interna con un grupo de testers — ver la nota de
+    alcance del preámbulo, y no agregues una cifra.
 
 ## Lámina 15 — Estado del piloto y hoja de ruta
 
@@ -479,6 +483,9 @@ funciona si las dos láminas incómodas están donde se ven.
     de tablas con seguridad fila por fila declarada de la lámina 10 (que
     incluye también tablas internas y toda la historia de migraciones). Son
     dos conjuntos distintos, no una resta pendiente.
+  - Celular: **aplicación Android en prueba interna con un grupo de testers.**
+    Confirmado por el PO el 2026-09-02, y esa es la frase entera. Sin cifra de
+    testers, sin número de compilación, sin fecha de publicación.
 - **Respaldo.**
   - `docs/presentation/2026-09-oficiales/limites-honestos.md` — la lista completa de
     lo que no existe, con su fuente.
@@ -497,5 +504,8 @@ funciona si las dos láminas incómodas están donde se ven.
     no existe la pantalla ni el envío.
   - No se promete importación de padrones municipales preexistentes: no hay
     importador, y los datos del territorio arrancan de cero.
-  - **El estado del piloto Android se confirma con el PO antes de exponer.** Si no se
-    confirma, la lámina no menciona número de compilación ni canal de distribución.
+  - **No se dice cuántos testers son.** La frase es "en prueba interna con un grupo de
+    testers" y termina ahí. Una cifra en esta lámina se lee como una medida de
+    adopción, que es justo lo que no es, y abre la repregunta que no se puede contestar
+    desde el escenario. Tampoco se menciona número de compilación ni fecha de
+    publicación en la tienda: ninguno de los dos se verifica desde el código.
