@@ -94,11 +94,19 @@ const supabaseAdmin = createSupabaseClient(SUPABASE_URL, SECRET, {
 const CLAIMANT_EMAIL = "petclaim-claimant@dim-test.local";
 const OWNER_EMAIL = "petclaim-owner@dim-test.local";
 const ORG_MEMBER_EMAIL = "petclaim-orgmember@dim-test.local";
+// A member whose `left_at` is set — the control for "the refusal is keyed on
+// ACTIVE membership", which is the only thing that makes the org self-dispute
+// guard a rule rather than a blanket ban on disputing org-held animals.
+const EX_MEMBER_EMAIL = "petclaim-exmember@dim-test.local";
+// A second USER holder, so HOLDER_ROLE_RANK has two rows to choose between.
+const CARETAKER_EMAIL = "petclaim-caretaker@dim-test.local";
 const PASS = "PetClaim_2026!";
 
 let claimantUserId: string;
 let ownerUserId: string;
 let orgMemberUserId: string;
+let exMemberUserId: string;
+let caretakerUserId: string;
 let shelterOrgId: string;
 const SHELTER_ORG_TOKEN = "DIM-PETCLAIM-ORG1";
 
@@ -237,6 +245,8 @@ beforeAll(async () => {
   await purgeUserByEmail(CLAIMANT_EMAIL);
   await purgeUserByEmail(OWNER_EMAIL);
   await purgeUserByEmail(ORG_MEMBER_EMAIL);
+  await purgeUserByEmail(EX_MEMBER_EMAIL);
+  await purgeUserByEmail(CARETAKER_EMAIL);
 
   const c = await supabaseAdmin.auth.admin.createUser({
     email: CLAIMANT_EMAIL,
@@ -261,6 +271,22 @@ beforeAll(async () => {
   });
   if (m.error || !m.data.user) throw new Error(`createUser org member: ${m.error?.message}`);
   orgMemberUserId = m.data.user.id;
+
+  const x = await supabaseAdmin.auth.admin.createUser({
+    email: EX_MEMBER_EMAIL,
+    password: PASS,
+    email_confirm: true,
+  });
+  if (x.error || !x.data.user) throw new Error(`createUser ex member: ${x.error?.message}`);
+  exMemberUserId = x.data.user.id;
+
+  const k = await supabaseAdmin.auth.admin.createUser({
+    email: CARETAKER_EMAIL,
+    password: PASS,
+    email_confirm: true,
+  });
+  if (k.error || !k.data.user) throw new Error(`createUser caretaker: ${k.error?.message}`);
+  caretakerUserId = k.data.user.id;
 
   // The shelter that holds the org-custody pets below, plus one active member
   // — the population the org-side notification fans out to.
@@ -318,6 +344,8 @@ afterAll(async () => {
   await purgeUserByEmail(CLAIMANT_EMAIL);
   await purgeUserByEmail(OWNER_EMAIL);
   await purgeUserByEmail(ORG_MEMBER_EMAIL);
+  await purgeUserByEmail(EX_MEMBER_EMAIL);
+  await purgeUserByEmail(CARETAKER_EMAIL);
 });
 
 beforeEach(() => {
@@ -1253,5 +1281,271 @@ describe("dispute against an org-held animal (D4)", () => {
       .from(custodyDisputes)
       .where(eq(custodyDisputes.petId, petId));
     expect(disputes).toHaveLength(0);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// The self-dispute guard, and the sponsorship PAIR
+// ---------------------------------------------------------------------------
+// Two defects found by the 2026-09-04 fresh review of the org-held fix above,
+// both of them the same shape: the widened lookup returns a SET, and the two
+// things reading it still read row zero.
+//
+//   · THE GUARD. `holder.ownerUserId === userId` compares against NULL on an
+//     org row, so a member of the very shelter that holds the animal could
+//     dispute it — flipping `in_custody_dispute` on their own adoption
+//     pipeline, filing their own organisation as the counter-party and
+//     notifying their colleagues. A claimant holding a lower-ranked row
+//     (foster, caretaker) under somebody else's top row escaped for the same
+//     reason: the comparison never saw their row.
+//   · THE PAIR. `db/schema.ts` says a live `owner` row and a live org
+//     `shelter_custody` row coexist — that IS the rehome-by-titular
+//     sponsorship. Filing only the rank-winner left the other subject out of a
+//     proceeding that stops them both.
+//
+// HOLDER_ROLE_RANK gets a test here for the first time. It is only observable
+// where TWO user rows compete, which is exactly the titular-vs-caretaker pair
+// `scripts/check-titular-row-resolution.ts` exists for.
+
+const SELF_ORG_CHIP = "900000000000211";
+const FOSTER_SELF_CHIP = "900000000000212";
+const EX_MEMBER_CHIP = "900000000000213";
+const SPONSORSHIP_CHIP = "900000000000214";
+const RANK_CARETAKER_CHIP = "900000000000215";
+
+describe("nobody disputes themselves — and that includes their refugio", () => {
+  it("refuses an ACTIVE member of the shelter that holds the animal", async () => {
+    const petId = await insertShelterHeldPet("DIM-SELFORG-1", "Perro Del Refugio", shelterOrgId);
+    await addMicrochip(petId, SELF_ORG_CHIP);
+    // `orgMemberUserId` is an active `admin` of `shelterOrgId` (beforeAll).
+    mockSessionAs(orgMemberUserId);
+
+    const result = await submitClaimDisputeAction(
+      {
+        identifierKind: "microchip",
+        identifierValue: SELF_ORG_CHIP,
+        reason: "Trabajo en el refugio que lo tiene y quiero abrir una disputa contra nosotros.",
+      },
+      [evidenceFile()],
+    );
+
+    // Its own sentence: the two existing refusals both claim a PERSONAL
+    // relationship this caller does not have — no row here carries their name.
+    expect(result).toEqual({ error: "Tu organización ya tiene la custodia de esta mascota." });
+
+    // Nothing written: no dispute, and the flag that blocks the shelter's own
+    // adoption pipeline was never flipped.
+    const disputes = await db
+      .select({ id: custodyDisputes.id })
+      .from(custodyDisputes)
+      .where(eq(custodyDisputes.petId, petId));
+    expect(disputes).toHaveLength(0);
+    const [blocked] = await db
+      .select({ inCustodyDispute: pets.inCustodyDispute })
+      .from(pets)
+      .where(eq(pets.id, petId))
+      .limit(1);
+    expect(blocked?.inCustodyDispute).toBe(false);
+  });
+
+  it("refuses a claimant holding a LOWER-ranked row on an org-held animal", async () => {
+    // The org's `shelter_custody` outranks a user `foster` row, so the old
+    // guard only ever compared against the org row — and the foster, who is
+    // holding the animal, was allowed to dispute it.
+    const petId = await insertShelterHeldPet("DIM-FOSTERSELF-1", "En Transito", shelterOrgId);
+    await db.insert(ownerships).values({
+      petId,
+      ownerUserId: claimantUserId,
+      role: "foster",
+      startedAt: new Date(),
+    });
+    await addMicrochip(petId, FOSTER_SELF_CHIP);
+    mockSessionAs(claimantUserId);
+
+    const result = await submitClaimDisputeAction(
+      {
+        identifierKind: "microchip",
+        identifierValue: FOSTER_SELF_CHIP,
+        reason: "Lo tengo yo en transito, pero igual quiero disputar la custodia del refugio.",
+      },
+      [evidenceFile()],
+    );
+
+    // A foster holds without owning, so "registrada a tu nombre" would be the
+    // lie the caretaker case above already refuses to tell.
+    expect(result).toEqual({ error: "Ya tenés la custodia activa de esta mascota." });
+
+    const disputes = await db
+      .select({ id: custodyDisputes.id })
+      .from(custodyDisputes)
+      .where(eq(custodyDisputes.petId, petId));
+    expect(disputes).toHaveLength(0);
+  });
+
+  it("still allows a DEPARTED member — the refusal is keyed on ACTIVE membership", async () => {
+    // The control that makes the guard a rule about `left_at IS NULL` rather
+    // than about org-held animals in general (an unrelated stranger is already
+    // covered by "files the REFUGIO as the counter-party" above, where the
+    // claimant belongs to no organisation at all). `isActiveOrgMember` is the
+    // shared definition; a private copy that dropped the clause refuses here.
+    const petId = await insertShelterHeldPet("DIM-EXMEMBER-1", "Ex Colega", shelterOrgId);
+    await addMicrochip(petId, EX_MEMBER_CHIP);
+    await db.insert(organizationMemberships).values({
+      organizationId: shelterOrgId,
+      userId: exMemberUserId,
+      role: "volunteer",
+      leftAt: new Date(),
+    });
+    mockSessionAs(exMemberUserId);
+
+    const result = await submitClaimDisputeAction(
+      {
+        identifierKind: "microchip",
+        identifierValue: EX_MEMBER_CHIP,
+        reason: "Ya no trabajo en ese refugio y creo que ese animal es mio desde antes.",
+      },
+      [evidenceFile()],
+    );
+    expect(result).toHaveProperty("disputeToken");
+  });
+});
+
+describe("the sponsorship pair — a titular AND the org that sponsors the listing", () => {
+  it("files BOTH as parties and tells both", async () => {
+    const petId = await insertOwnedPet("DIM-SPONSOR-1", "Apadrinado", ownerUserId);
+    // The second live row the schema explicitly permits alongside `owner`:
+    // "a live owner row and a live shelter_custody row CAN coexist — that pair
+    // is the rehome-by-titular sponsorship".
+    await db.insert(ownerships).values({
+      petId,
+      ownerOrganizationId: shelterOrgId,
+      role: "shelter_custody",
+      startedAt: new Date(),
+    });
+    await addMicrochip(petId, SPONSORSHIP_CHIP);
+    mockSessionAs(claimantUserId);
+
+    const result = await submitClaimDisputeAction(
+      {
+        identifierKind: "microchip",
+        identifierValue: SPONSORSHIP_CHIP,
+        reason: "Es mi perro, lo publicaron en adopcion y el refugio lo esta apadrinando.",
+      },
+      [evidenceFile()],
+    );
+    expect(result).toHaveProperty("disputeToken");
+    const disputeToken = (result as { disputeToken: string }).disputeToken;
+
+    const [dispute] = await db
+      .select({ id: custodyDisputes.id })
+      .from(custodyDisputes)
+      .where(eq(custodyDisputes.publicToken, disputeToken))
+      .limit(1);
+
+    const parties = await db
+      .select({
+        role: custodyDisputeParties.partyRole,
+        userId: custodyDisputeParties.partyUserId,
+        orgId: custodyDisputeParties.partyOrganizationId,
+      })
+      .from(custodyDisputeParties)
+      .where(eq(custodyDisputeParties.disputeId, dispute.id));
+
+    // THREE parties, not two. The org used to be dropped on this exact shape.
+    expect(parties.map((p) => p.role).sort()).toEqual([
+      "claimant_owner",
+      "current_org_custody",
+      "current_owner",
+    ]);
+    expect(parties.find((p) => p.role === "current_owner")?.userId).toBe(ownerUserId);
+    expect(parties.find((p) => p.role === "current_org_custody")?.orgId).toBe(shelterOrgId);
+
+    // Both legs notified — the branch used to be `if user … else if org`, so
+    // the org heard nothing on the one case where its listing is what stops.
+    const ownerNotifications = await db
+      .select({ id: notifications.id })
+      .from(notifications)
+      .where(
+        and(
+          eq(notifications.userId, ownerUserId),
+          eq(notifications.relatedPetId, petId),
+          eq(notifications.notificationType, "custody_dispute_raised_against_you"),
+        ),
+      );
+    expect(ownerNotifications).toHaveLength(1);
+
+    const orgNotifications = await db
+      .select({ ctaUrl: notifications.ctaUrl })
+      .from(notifications)
+      .where(
+        and(
+          eq(notifications.userId, orgMemberUserId),
+          eq(notifications.relatedPetId, petId),
+          eq(notifications.notificationType, "custody_dispute_raised_against_you"),
+        ),
+      );
+    expect(orgNotifications).toHaveLength(1);
+    expect(orgNotifications[0].ctaUrl).toBe("/org/DIM-PETCLAIM-ORG1/mascotas/DIM-SPONSOR-1");
+  });
+
+  it("HOLDER_ROLE_RANK picks the TITULAR over the caretaker holding the animal", async () => {
+    // The rank is only observable where two USER rows compete, and this is the
+    // pair `scripts/check-titular-row-resolution.ts` was written for: seven
+    // shipped defects, every one of them a caretaker's identity served where
+    // the titular's belonged. Swap `owner` and `caretaker` inside
+    // HOLDER_ROLE_RANK and both assertions below fail.
+    const petId = await insertOwnedPet("DIM-RANKCARE-1", "Con Cuidadora", ownerUserId);
+    await db.insert(ownerships).values({
+      petId,
+      ownerUserId: caretakerUserId,
+      role: "caretaker",
+      startedAt: new Date(),
+    });
+    await addMicrochip(petId, RANK_CARETAKER_CHIP);
+    mockSessionAs(claimantUserId);
+
+    const result = await submitClaimDisputeAction(
+      {
+        identifierKind: "microchip",
+        identifierValue: RANK_CARETAKER_CHIP,
+        reason: "Es mi perro y ahora lo tiene una cuidadora que no conozco de nada.",
+      },
+      [evidenceFile()],
+    );
+    expect(result).toHaveProperty("disputeToken");
+    const disputeToken = (result as { disputeToken: string }).disputeToken;
+
+    const [dispute] = await db
+      .select({ id: custodyDisputes.id })
+      .from(custodyDisputes)
+      .where(eq(custodyDisputes.publicToken, disputeToken))
+      .limit(1);
+
+    const parties = await db
+      .select({ role: custodyDisputeParties.partyRole, userId: custodyDisputeParties.partyUserId })
+      .from(custodyDisputeParties)
+      .where(eq(custodyDisputeParties.disputeId, dispute.id));
+    // ONE counter-party, and it is the titular. Two live user rows do not make
+    // two counter-parties — the rank chooses which one answers the claim.
+    expect(parties.map((p) => p.role).sort()).toEqual(["claimant_owner", "current_owner"]);
+    expect(parties.find((p) => p.role === "current_owner")?.userId).toBe(ownerUserId);
+
+    // And the accusation reached the titular, not the cuidadora.
+    const caretakerNotifications = await db
+      .select({ id: notifications.id })
+      .from(notifications)
+      .where(and(eq(notifications.userId, caretakerUserId), eq(notifications.relatedPetId, petId)));
+    expect(caretakerNotifications).toHaveLength(0);
+    const titularNotifications = await db
+      .select({ id: notifications.id })
+      .from(notifications)
+      .where(
+        and(
+          eq(notifications.userId, ownerUserId),
+          eq(notifications.relatedPetId, petId),
+          eq(notifications.notificationType, "custody_dispute_raised_against_you"),
+        ),
+      );
+    expect(titularNotifications).toHaveLength(1);
   });
 });

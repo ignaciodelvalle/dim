@@ -48,6 +48,7 @@ import {
   pets,
 } from "@/db";
 import { validateEventPayload } from "@/lib/events/event-schemas";
+import { isActiveOrgMember } from "@/lib/infra/case-access";
 import { openCase } from "@/lib/infra/case-helpers";
 import { RateLimitError, enforceRateLimit } from "@/lib/infra/rate-limit";
 import { removeWelfareEvidence, uploadWelfareEvidence } from "@/lib/infra/welfare-uploads";
@@ -64,6 +65,17 @@ const MICROCHIP_PATTERN = /^\d{15}$/;
 const ORG_NOTIFICATION_CAP = 10;
 
 /**
+ * Rank an organisation's members so the ten that fit under the cap are CHOSEN.
+ *
+ * A cap without an order is a lottery: `.limit(10)` over a 40-member refugio
+ * returns whichever ten Postgres reaches first, so the one person who can act
+ * on a dispute — an admin, a coordinator — may be none of them, and the
+ * notification then goes only to volunteers with no authority over the case.
+ * Same defect the holder rank below exists for, one table over.
+ */
+const MEMBER_NOTIFICATION_RANK = sql`case ${organizationMemberships.role} when 'admin' then 0 when 'coordinator' then 1 else 2 end`;
+
+/**
  * Rank the pet's ACTIVE custody rows so the counter-party is chosen, not drawn.
  *
  * `ownerships` can carry several live rows for one animal (a shelter's
@@ -72,6 +84,10 @@ const ORG_NOTIFICATION_CAP = 10;
  * return — the exact defect `resolvePetHolderAccess` and `resolveReturnTargetOrg`
  * each had to fix once the row became load-bearing. Titularidad outranks
  * custody, and `startedAt desc` breaks a tie inside one role.
+ *
+ * It orders the WHOLE set rather than picking one row (`limit(1)` is gone, and
+ * the reason is below at the party fan-out): the rank decides which holder is
+ * the PRIMARY counter-party, not which holders exist.
  */
 const HOLDER_ROLE_RANK = sql`case ${ownerships.role} when 'owner' then 0 when 'co_owner' then 1 when 'shelter_custody' then 2 when 'foster' then 3 when 'caretaker' then 4 else 5 end`;
 
@@ -202,7 +218,11 @@ export async function submitClaimDisputeForUser(
   // writer rejects; the return-to-owner module says the same thing in
   // `resolveReturnTargetOrg`'s docblock, having been bitten by it. The set is
   // now the SAME set the lookup uses.
-  const [holder] = await db
+  //
+  // EVERY live row, not the top one. The self-dispute guard and the party
+  // fan-out below each need the whole set for their own reason; the rank still
+  // decides which of them is PRIMARY.
+  const holders = await db
     .select({
       ownerUserId: ownerships.ownerUserId,
       ownerOrganizationId: ownerships.ownerOrganizationId,
@@ -215,24 +235,82 @@ export async function submitClaimDisputeForUser(
     .from(ownerships)
     .leftJoin(organizations, eq(organizations.id, ownerships.ownerOrganizationId))
     .where(and(eq(ownerships.petId, pet.id), isNull(ownerships.endedAt)))
-    .orderBy(HOLDER_ROLE_RANK, desc(ownerships.startedAt))
-    .limit(1);
+    .orderBy(HOLDER_ROLE_RANK, desc(ownerships.startedAt));
   // Copy unchanged: this is still the answer for an animal nobody holds, and
   // `__tests__/pet-claim.test.ts` pins it as the ERASED-pet oracle it must not
   // become.
-  if (!holder) return { error: "Esta mascota no tiene dueño activo registrado." };
-  if (holder.ownerUserId === userId) {
+  if (holders.length === 0) return { error: "Esta mascota no tiene dueño activo registrado." };
+
+  // NOBODY DISPUTES THEMSELVES — AND "THEMSELVES" INCLUDES THEIR REFUGIO.
+  //
+  // This guard used to read `holder.ownerUserId === userId` on the SINGLE
+  // top-ranked row, which became two holes the moment the lookup above widened
+  // to every role and every subject:
+  //
+  //   · AN ORG ROW CARRIES `owner_user_id` NULL, so the comparison was
+  //     `null === userId` and an active member of the shelter that holds the
+  //     animal passed straight through it. They could dispute their own
+  //     shelter's pet: `in_custody_dispute` flips (blocking that same shelter's
+  //     adoption pipeline), their organisation is filed as the counter-party,
+  //     and the fan-out below tells their own colleagues that somebody claims
+  //     the animal. An organisation acts through its members, so this is the
+  //     same self-dispute wearing an institution's name.
+  //   · A LOWER-RANKED USER ROW never reached the comparison at all. A foster
+  //     or a caretaker on an animal whose top row belongs to somebody else (the
+  //     titular, or the sponsoring refugio) is holding it and was allowed to
+  //     dispute it.
+  //
+  // The guard now reads the whole set the lookup returned, which is the only
+  // version that does not have to be re-derived the next time the rank changes.
+  const ownRow = holders.find((h) => h.ownerUserId === userId);
+  if (ownRow) {
     // Two sentences because there are two facts. "Registrada a tu nombre" is
     // titularidad and would be a lie told to a foster or a caretaker, who hold
     // the animal without owning it — and whose refusal is nonetheless the same
     // refusal: nobody disputes themselves.
     return {
       error:
-        holder.role === "owner" || holder.role === "co_owner"
+        ownRow.role === "owner" || ownRow.role === "co_owner"
           ? "Esta mascota ya está registrada a tu nombre."
           : "Ya tenés la custodia activa de esta mascota.",
     };
   }
+  // A THIRD sentence, because it states a third fact. Either sentence above
+  // would claim a PERSONAL relationship this caller does not have — their name
+  // is on no row here; their organisation's is.
+  const heldByOrgIds = [
+    ...new Set(holders.map((h) => h.ownerOrganizationId).filter((id): id is string => !!id)),
+  ];
+  for (const orgId of heldByOrgIds) {
+    // `isActiveOrgMember` rather than a fourth hand-written membership read:
+    // `left_at IS NULL` is what "member" means across every org-party branch of
+    // canReadCase, and a private copy here is how the two definitions drift.
+    if (await isActiveOrgMember(orgId, userId)) {
+      return { error: "Tu organización ya tiene la custodia de esta mascota." };
+    }
+  }
+
+  // THE COUNTER-PARTIES: the top-ranked USER row and the top-ranked ORG row,
+  // and BOTH when both exist.
+  //
+  // The pair is not hypothetical — `db/schema.ts` names it: "a live owner row
+  // and a live shelter_custody row CAN coexist — that pair is the
+  // rehome-by-titular sponsorship, where the animal keeps living with its
+  // titular while a verified org sponsors the adoption listing". Filing only
+  // the rank-winner left the other one out of a proceeding that stops them
+  // both: `in_custody_dispute` blocks the org's adoption pipeline exactly as it
+  // blocks the titular's transfers, and an organisation that is not a party is
+  // neither notified here nor reached when the authority rules (resolve-dispute
+  // fans out over the party rows).
+  //
+  // `custody_dispute_parties` already allowed it. `dispute_party_exactly_one_subject`
+  // constrains one subject PER ROW, not per dispute, and there is no
+  // one-party-per-dispute index — the exclusivity was this writer's alone.
+  const userHolder = holders.find((h) => h.ownerUserId);
+  const orgHolder = holders.find((h) => h.ownerOrganizationId);
+  // Filtered by identity against those two picks so the list keeps the RANK
+  // order the query returned, instead of re-inventing an order of its own.
+  const counterparties = holders.filter((h) => h === userHolder || h === orgHolder);
 
   // Evidence upload — happens BEFORE the tx so failures don't dangle.
   const reportId = crypto.randomUUID();
@@ -314,7 +392,7 @@ export async function submitClaimDisputeForUser(
         jurisdictionProvince: pet.jurisdictionProvince ?? "",
         jurisdictionLocality: pet.jurisdictionLocality ?? "",
         initialParties: [
-          // The counter-party carries whichever subject actually holds the
+          // Each counter-party carries whichever subject actually holds the
           // animal. `custody_dispute_parties` was always polymorphic — the
           // CHECK `dispute_party_exactly_one_subject` (db/schema.ts) admits a
           // user OR an org, `party_organization_id` has had its FK and its
@@ -329,9 +407,11 @@ export async function submitClaimDisputeForUser(
           // adding one is a CHECK migration plus the label table plus the
           // add-party form — a decision, not a rename, the same call the
           // `raised_by_role` comment above records for its own axis.
-          holder.ownerOrganizationId
-            ? { orgId: holder.ownerOrganizationId, role: "current_org_custody" as const }
-            : { userId: holder.ownerUserId, role: "current_owner" as const },
+          ...counterparties.map((h) =>
+            h.ownerOrganizationId
+              ? { orgId: h.ownerOrganizationId, role: "current_org_custody" as const }
+              : { userId: h.ownerUserId, role: "current_owner" as const },
+          ),
           { userId: userId, role: "claimant_owner", positionSummary: input.reason.trim() },
         ],
         preCreatedCaseId: disputeCase.id,
@@ -352,7 +432,12 @@ export async function submitClaimDisputeForUser(
         );
       }
 
-      // Notify the counter-party — the SAME holder the party row names.
+      // Notify the counter-parties — the SAME holders the party rows name.
+      //
+      // TWO INDEPENDENT LEGS, not one `if/else`. The branch mirrored the single
+      // party row it was written against, so on a sponsorship pair (titular +
+      // sponsoring refugio) it told exactly one of the two — and told the org
+      // nothing on the very case where its adoption listing is what stops.
       //
       // The org leg is not a nicety. Raising a dispute flips
       // `pets.in_custody_dispute`, and that flag blocks the animal for
@@ -362,9 +447,9 @@ export async function submitClaimDisputeForUser(
       // introduced, not one it found: the writer already intends "tell the
       // holder", and until now the holder was always a user. Member fan-out and
       // cap mirror `ownerProposeReturnToOrgUseCase`.
-      if (holder.ownerUserId) {
+      if (userHolder?.ownerUserId) {
         await tx.insert(notifications).values({
-          userId: holder.ownerUserId,
+          userId: userHolder.ownerUserId,
           notificationType: "custody_dispute_raised_against_you",
           title: `Reclamo de propiedad sobre ${pet.name}`,
           body: "Otro usuario reclamó ser dueño/a de tu mascota. El gobierno local va a revisar la disputa. Te avisaremos cuando se resuelva.",
@@ -376,16 +461,21 @@ export async function submitClaimDisputeForUser(
           ctaUrl: `/mis-mascotas/${pet.publicToken}`,
           category: "custody",
         });
-      } else if (holder.ownerOrganizationId) {
+      }
+      if (orgHolder?.ownerOrganizationId) {
         const members = await tx
           .select({ userId: organizationMemberships.userId })
           .from(organizationMemberships)
           .where(
             and(
-              eq(organizationMemberships.organizationId, holder.ownerOrganizationId),
+              eq(organizationMemberships.organizationId, orgHolder.ownerOrganizationId),
               isNull(organizationMemberships.leftAt),
             ),
           )
+          // ORDERED, so the cap picks the members who can act on the dispute
+          // rather than the ten Postgres reached first. `joined_at` breaks a
+          // tie inside a rank so the same ten answer twice.
+          .orderBy(MEMBER_NOTIFICATION_RANK, organizationMemberships.joinedAt)
           .limit(ORG_NOTIFICATION_CAP);
         const memberRows = members.filter((m) => !!m.userId);
         if (memberRows.length > 0) {
@@ -401,8 +491,8 @@ export async function submitClaimDisputeForUser(
               // The org portal, not /mis-mascotas — an org member has no
               // owner-side page for this animal. `publicToken` on both
               // segments; never a UUID.
-              ctaUrl: holder.orgPublicToken
-                ? `/org/${holder.orgPublicToken}/mascotas/${pet.publicToken}`
+              ctaUrl: orgHolder.orgPublicToken
+                ? `/org/${orgHolder.orgPublicToken}/mascotas/${pet.publicToken}`
                 : "/org",
               category: "custody" as const,
             })),

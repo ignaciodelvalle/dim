@@ -48,6 +48,16 @@ import type { ResolveDisputeInput, ResolveDisputeResult } from "../domain/types"
 /** Members reached per org party — same cap, same reason, as the raise path. */
 const ORG_PARTY_NOTIFICATION_CAP = 10;
 
+/**
+ * Rank an organisation's members so the ten that fit under the cap are CHOSEN.
+ *
+ * Same expression and same reason as `MEMBER_NOTIFICATION_RANK` on the raise
+ * path (submit-claim-dispute.ts): a cap without an order is a lottery, and on a
+ * 40-member refugio the ten Postgres happens to reach first may contain nobody
+ * who can act on the ruling.
+ */
+const MEMBER_NOTIFICATION_RANK = sql`case ${organizationMemberships.role} when 'admin' then 0 when 'coordinator' then 1 else 2 end`;
+
 type Session = {
   user: { id: string };
   profile: { role: string };
@@ -419,6 +429,10 @@ export async function resolveDisputeUseCase(
               isNull(organizationMemberships.leftAt),
             ),
           )
+          // ORDERED, so the cap picks the members who can act on the ruling
+          // rather than the ten Postgres reached first. `joined_at` breaks a
+          // tie inside a rank so the same ten answer twice.
+          .orderBy(MEMBER_NOTIFICATION_RANK, organizationMemberships.joinedAt)
           .limit(ORG_PARTY_NOTIFICATION_CAP);
         for (const m of members) if (m.userId) userIds.add(m.userId);
       }
