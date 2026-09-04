@@ -140,8 +140,9 @@ ds-bundle/
 .vercel
 .env*
 
-# Playwright MCP session artifacts
+# Playwright MCP session artifacts, and playwright-cli's page snapshots
 .playwright-mcp/
+.playwright-cli/
 
 # Graphify knowledge-graph output
 graphify-out/

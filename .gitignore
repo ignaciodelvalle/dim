@@ -99,8 +99,10 @@ ds-bundle/
 .vercel
 .env*
 
-# Playwright MCP session artifacts (screenshots, snapshots)
+# Playwright MCP session artifacts (screenshots, snapshots), and the page
+# snapshots Microsoft's playwright-cli writes to CWD under its own directory
 .playwright-mcp/
+.playwright-cli/
 
 # Graphify knowledge-graph output (local index, rebuilt on demand)
 graphify-out/
