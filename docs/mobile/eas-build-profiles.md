@@ -244,6 +244,8 @@ decision, the fence is `runtimeVersion`, and the whole argument lives in
    | 5 | `94ab653c-7436-4334-b958-f08510222e93` | **shipped** — first artifact; uploaded to Play internal testing 2026-08-27 |
    | 6 | `371a2122-a333-4d24-8272-c64ed910d1da` | shipped — commit `47189da6f`, 2026-08-28. **Cannot log anyone in**: predates "env in the profiles", so no `EXPO_PUBLIC_SUPABASE_URL` is baked in |
    | 7 | `4a4f4dac-9bc3-4986-a5d2-25a083840c83` | errored — Gradle could not START `sentry-cli`; the path it guesses does not exist under pnpm |
+   | 7 (again) | `3016d593-fc7c-4773-9351-43e4cb990e22` | finished — `preview` profile, commit `71f7b8ca0`, 2026-09-03. Same number because only `production` auto-increments; the PO installed it and validated the credential redesign on the phone |
+   | 8 | `f18a4d30-7100-41bc-98d0-f14103e81789` | finished — `production`, commit `2d0b3f5d7`, 2026-09-03. AAB uploaded to Play internal testing and **held, not promoted**: the PO refused to publish a build without the brand mark ("no una a medias"); 9 is the one that ships |
 
    Every number above a failing row was spent for nothing, and Play will never
    see them — that is fine, the counter only has to increase, but it is the

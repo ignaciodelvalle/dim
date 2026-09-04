@@ -325,8 +325,7 @@ Ruled out on 2026-09-03, and it was the last live alternative:
   `CMAKE_OBJECT_PATH_MAX` warnings appear before believing a result.
 
 So every alternative is now eliminated and the object-path budget is the
-remaining explanation. The cures below are the list, and they are repo-level
-decisions.
+remaining explanation.
 
 Every real cure is a repo-level decision, not an environment fix:
 
