@@ -4,6 +4,11 @@
 //
 // Only accessible to org members with at least `pet.read_held` capability
 // who have an active ownership row (shelter_custody or foster) on this pet.
+//
+// With ONE deliberate exception: when the org has no active row but the animal
+// still exists, the page renders a terminal panel instead of a 404 — and that
+// panel carries the two actions that outlive custody, `ReverseAdoptionAction`
+// and the adopter's pending return proposal. See the comment on that branch.
 
 import Link from "next/link";
 import { notFound } from "next/navigation";
@@ -35,6 +40,49 @@ import { ADOPTION_LISTING_LABELS } from "../mascota-ctas";
 import { OrgPetSheetMounter } from "./OrgPetSheetMounter";
 import { OwnerReturnProposalCard } from "./OwnerReturnProposalCard";
 import { ReverseAdoptionAction } from "./ReverseAdoptionAction";
+
+/** What `OwnerReturnProposalCard` needs, or null when nothing is pending. */
+type PendingOwnerReturn = {
+  ownerDisplayName: string | null;
+  proposedAt: string;
+  proposalNotes: string | null;
+};
+
+/**
+ * The pending owner-initiated return proposal addressed to this org, resolved
+ * to the shape the card renders.
+ *
+ * Hoisted out of the held-pet path because the NOT-held path needs the same
+ * answer: a post-adoption return is proposed precisely when the org no longer
+ * holds the animal, so the branch that used to be the only caller was the one
+ * branch that could never see one. `fetchPendingOwnerReturnProposalForOrg`
+ * reads the spine alone — no ownership row is consulted — so it answers the
+ * same either side of the custody boundary.
+ */
+async function loadPendingOwnerReturn(
+  petId: string,
+  orgId: string,
+): Promise<PendingOwnerReturn | null> {
+  const pending = await fetchPendingOwnerReturnProposalForOrg(petId, orgId, db);
+  if (!pending) return null;
+
+  const proposalPayload = pending.proposal.payload as Record<string, unknown>;
+  const notes = (proposalPayload.notes as string | null) ?? null;
+  const proposedAt =
+    (proposalPayload.proposed_at as string | null) ?? pending.proposal.occurredAt.toISOString();
+
+  const [ownerProfile] = await db
+    .select({ displayName: profiles.displayName })
+    .from(profiles)
+    .where(eq(profiles.id, pending.ownerUserId))
+    .limit(1);
+
+  return {
+    ownerDisplayName: ownerProfile?.displayName ?? null,
+    proposedAt,
+    proposalNotes: notes,
+  };
+}
 
 export default async function OrgPetDetailPage({
   params,
@@ -112,6 +160,27 @@ export default async function OrgPetDetailPage({
       ? await AdoptionRepository.findReversibleAdoption(stillExists.id, organization.id)
       : null;
 
+    // THE ADOPTER'S RETURN PROPOSAL LIVES HERE, not on the held-pet path.
+    //
+    // `ownerProposeReturnToOrgUseCase` already writes `custody_transfer_proposed`
+    // and already notifies this org's members with
+    // `ctaUrl: /org/{orgToken}/mascotas/{petToken}` — this exact page. But the
+    // proposal only exists AFTER the adoption finalized, which is exactly when
+    // the org's ownership row ended, so every one of those notifications landed
+    // on the panel below and stopped: the org's only offer was
+    // `ReverseAdoptionAction`, a unilateral override of an adoption, in answer
+    // to a consented handshake the adopter had opened. `/transitos`,
+    // `/transferencias/recibidas` and the org panel showed nothing either (QA
+    // batch 2, D5; fixture Rocco #2 DIM-BJBB-SKZU).
+    //
+    // The two accept/reject writers were already reachable — both
+    // `orgAcceptOwnerReturnAction` and `orgRejectOwnerReturnAction` authorize on
+    // `requireOrgAccessByToken` + `custody.transfer` and never consult an
+    // ownership row. Only the render was missing.
+    const pendingReturn = granted.has("custody.transfer")
+      ? await loadPendingOwnerReturn(stillExists.id, organization.id)
+      : null;
+
     return (
       <main className="min-h-screen bg-ln-op-page p-6 flex items-center justify-center">
         <div className="max-w-md text-center space-y-4">
@@ -120,9 +189,26 @@ export default async function OrgPetDetailPage({
             Esta mascota ya no está bajo tu custodia
           </h1>
           <p className="text-md text-ln-op-ink-2">
-            Pasó a un nuevo dueño o fue transferida, así que salió del listado de tu organización.
-            Es el resultado esperado de una adopción o transferencia finalizada.
+            {pendingReturn
+              ? "Salió del listado de tu organización cuando se finalizó la adopción o la transferencia. Quien la adoptó propone devolvértela: podés aceptar o rechazar la propuesta acá abajo."
+              : "Pasó a un nuevo dueño o fue transferida, así que salió del listado de tu organización. Es el resultado esperado de una adopción o transferencia finalizada."}
           </p>
+          {/* Before ReverseAdoptionAction on purpose: the consented handshake is
+              the answer to a proposal; reverting the adoption is the unilateral
+              override, and it should not read as the first option while the
+              adopter is waiting on this one. */}
+          {pendingReturn && (
+            <div className="text-left">
+              <OwnerReturnProposalCard
+                orgToken={orgToken}
+                petPublicToken={publicToken}
+                petName={stillExists.name}
+                ownerDisplayName={pendingReturn.ownerDisplayName}
+                proposedAt={pendingReturn.proposedAt}
+                proposalNotes={pendingReturn.proposalNotes}
+              />
+            </div>
+          )}
           {reversible?.ok && (
             <div className="text-left">
               <ReverseAdoptionAction
@@ -212,34 +298,10 @@ export default async function OrgPetDetailPage({
   // Pending owner-initiated return proposal (owner proposes returning the pet to this org).
   // Surfaced when the org has custody.transfer capability. The proposal is for pets the
   // org previously adopted out — the adopter now wants to return them.
-  let pendingOwnerReturn: {
-    ownerDisplayName: string | null;
-    proposedAt: string;
-    proposalNotes: string | null;
-  } | null = null;
-
-  if (granted.has("custody.transfer")) {
-    const pending = await fetchPendingOwnerReturnProposalForOrg(pet.id, organization.id, db);
-    if (pending) {
-      const proposalPayload = pending.proposal.payload as Record<string, unknown>;
-      const notes = (proposalPayload.notes as string | null) ?? null;
-      const proposedAt =
-        (proposalPayload.proposed_at as string | null) ?? pending.proposal.occurredAt.toISOString();
-
-      // Resolve owner display name.
-      const [ownerProfile] = await db
-        .select({ displayName: profiles.displayName })
-        .from(profiles)
-        .where(eq(profiles.id, pending.ownerUserId))
-        .limit(1);
-
-      pendingOwnerReturn = {
-        ownerDisplayName: ownerProfile?.displayName ?? null,
-        proposedAt,
-        proposalNotes: notes,
-      };
-    }
-  }
+  // Same resolver the NOT-held branch above uses; the two must not drift.
+  const pendingOwnerReturn: PendingOwnerReturn | null = granted.has("custody.transfer")
+    ? await loadPendingOwnerReturn(pet.id, organization.id)
+    : null;
 
   const canonicalIds = await fetchActiveIdentifications(pet.id);
 
