@@ -20,9 +20,12 @@
 // WHAT A FENCE CAN AND CANNOT DECIDE. It cannot decide that `Baby` is the wrong
 // picture for `embarazo` — that is a judgement, and pretending to automate it
 // would produce exactly the false comfort described above. What it CAN decide
-// is mechanical, and the two mechanical rules below would each have caught a
-// real defect that shipped. For the rest, Rule C pins the table so that any
-// edit is visible and deliberate in review rather than quiet.
+// is mechanical. Rule A would have caught `fallecimiento: "Circle"` on the
+// shipped table. Rule B fires on nothing that has ever shipped — its one
+// collision (`alert`/`alert-triangle`) is declared below, and it exists to stop
+// the NEXT one, which is a forward guard and not a caught defect. Saying that
+// plainly matters here of all places: the whole reason this file exists is that
+// a green check was read as evidence it had never earned.
 //
 // THREE RULES:
 //
@@ -39,18 +42,31 @@
 //       DECLARED below with a reason, so the next one is a decision instead of
 //       an accident. This rule is also what stops the `girar` → `RefreshCw`
 //       collision from spreading: the flip control and a future data-refresh
-//       control cannot quietly wear the same picture.
+//       control cannot quietly wear the same picture. The declarations are
+//       checked in BOTH directions — an alias that no longer collides is a dead
+//       permission, and a dead permission is how the next real collision gets
+//       waved through.
 //
-//   (C) NON-VACUITY. Every rule above scans a table this script must first
-//       FIND and PARSE. If the path moves, the export is renamed, or the regex
-//       stops matching, a scan of zero entries would satisfy A and B perfectly
-//       and this fence would report success forever. So the entry count is
-//       pinned: fewer than MIN_ENTRIES, or a count that drifts from
-//       PINNED_ENTRY_COUNT without the constant being updated in the same
-//       commit, is a FAILURE and not a pass.
+//   (C) NON-VACUITY, AND THE PIN. Every rule above scans a table this script
+//       must first FIND and PARSE. If the path moves, the export is renamed, or
+//       the regex stops matching, a scan of zero entries would satisfy A and B
+//       perfectly and this fence would report success forever. So the whole
+//       table is pinned, PAIR BY PAIR, in `PINNED_TABLE`: an unreadable file, a
+//       parse of zero, a count under the floor, or any key→glyph pair that
+//       differs from the pin is a FAILURE and not a pass.
 //
-//       This rule is the reason the file exists in this shape. The six design
-//       fences this repo runs over the web (lint:icons, lint:buttons,
+//       PAIRS AND NOT A COUNT, and that change has one purpose. A count (or a
+//       digest) tells a reviewer that something moved and nothing about what;
+//       the update ritual is "paste the number the tool printed", which is the
+//       same reflex that let `Baby` through. A pair list makes the failure read
+//       `- embarazo:CalendarHeart / + embarazo:Baby` inside THIS file — the file
+//       whose header argues about what glyphs may mean — so a glyph swap is a
+//       two-file diff whose second file is the one reviewers read for intent.
+//       It does not make the fence able to judge `Baby`. Nothing can. It makes
+//       the judgement unavoidable instead of optional.
+//
+//       This rule is also the reason the file exists in this shape. The six
+//       design fences this repo runs over the web (lint:icons, lint:buttons,
 //       lint:states, lint:empty-states, lint:screens, lint:copy-contract) all
 //       resolve their globs against the root Next.js tree and NONE of them
 //       include apps/mobile — `lint:buttons` even counts literal `<button>`
@@ -59,6 +75,11 @@
 //       looked at something is indistinguishable from no fence, and it is worse
 //       than no fence because it appears in a green list.
 //
+// THE OTHER SIDE OF THE TABLE is fenced elsewhere and deliberately not here:
+// `components/Icon.test.tsx` (root vitest) compares the shared table against
+// the web's own ICON_MAP by component REFERENCE, which a string-matching parser
+// in this file could not do without reading an alias rename as a violation.
+//
 // Run: pnpm tsx scripts/check-mobile-icon-vocabulary.ts   (or: pnpm lint:mobile-icons)
 // Exits 1 with a reason per violation. Exits 0 if clean.
 
@@ -66,6 +87,7 @@ import { readFileSync } from "node:fs";
 
 const TABLE_FILE = "packages/contract/src/icons/pet-profile-icons.ts";
 const TABLE_EXPORT = "PET_PROFILE_ICONS";
+const THIS_FILE = "scripts/check-mobile-icon-vocabulary.ts";
 
 /**
  * Lucide exports that are bare geometry and therefore never a considered
@@ -102,15 +124,37 @@ const DECLARED_ALIASES: Record<string, { keys: string[]; reason: string }> = {
 const MIN_ENTRIES = 15;
 
 /**
- * The exact number of entries in the table as of the last reviewed change.
- * Update this in the SAME commit that adds or removes a vocabulary entry — the
- * point is that the count cannot move without someone saying so.
+ * Exact `key:glyph` pairs, sorted by key, as of the last reviewed change.
+ * Update this in the SAME commit that changes any glyph or any key — the point
+ * is that a swap like `embarazo: CalendarHeart → Baby` shows up in THIS file's
+ * diff, next to the rules that decide what a glyph may mean.
  */
-const PINNED_ENTRY_COUNT = 20;
+const PINNED_TABLE = [
+  "alert:AlertTriangle",
+  "alert-triangle:AlertTriangle",
+  "casa:Home",
+  "check:Check",
+  "check-circle:CheckCircle",
+  "corazon:Heart",
+  "edit:Pencil",
+  "ellipsis:MoreHorizontal",
+  "embarazo:CalendarHeart",
+  "fallecimiento:HeartOff",
+  "girar:RefreshCw",
+  "libreta:BookOpen",
+  "map-pin:MapPin",
+  "medicacion:Pill",
+  "ocultar:EyeOff",
+  "paw:PawPrint",
+  "perdida:Siren",
+  "share:Share2",
+  "shield:Shield",
+  "ver:Eye",
+];
 
-type Entry = { key: string; glyph: string; line: number };
+export type Entry = { key: string; glyph: string; line: number };
 
-function parseTable(source: string): Entry[] {
+export function parseTable(source: string): Entry[] {
   const start = source.indexOf(`export const ${TABLE_EXPORT} = {`);
   if (start === -1) return [];
   const end = source.indexOf("} as const;", start);
@@ -130,64 +174,127 @@ function parseTable(source: string): Entry[] {
   return entries;
 }
 
-const failures: string[] = [];
-
-let source = "";
-try {
-  source = readFileSync(TABLE_FILE, "utf8");
-} catch {
-  failures.push(
-    `Rule C (non-vacuity): could not read ${TABLE_FILE}. The vocabulary moved; this fence is blind until the path is updated.`,
-  );
+/**
+ * Every violation the three rules find in one table source, in order.
+ *
+ * Separated from the runner so it can be exercised against fixtures — the fence
+ * itself is code, and a fence nobody tests is the shape of failure this file's
+ * header is about. `source` is the table file's text; the empty string means
+ * "could not be read", which is a Rule C failure and stops there rather than
+ * producing a second, misleading "parsed zero" alongside it.
+ */
+export function evaluate(source: string): string[] {
+  // Rule C first: everything below is meaningless without it, and an
+  // unreadable source stops here rather than producing a second, misleading
+  // "parsed zero" beside the one failure that names the remedy.
+  if (!source) {
+    return [
+      `Rule C (non-vacuity): could not read ${TABLE_FILE}, or it is empty. The vocabulary moved; this fence is blind until the path is updated, and a blind fence must not report success.`,
+    ];
+  }
+  const entries = parseTable(source);
+  return [...ruleC(entries), ...ruleA(entries), ...ruleB(entries)];
 }
 
-const entries = source ? parseTable(source) : [];
+/** Rule C over a parsed table: the floors, then the pinned pair list. */
+function ruleC(entries: Entry[]): string[] {
+  if (entries.length === 0) {
+    return [
+      `Rule C (non-vacuity): parsed ZERO entries from ${TABLE_FILE}. The export \`${TABLE_EXPORT}\` was renamed, reshaped, or the parser no longer matches it. Rules A and B would pass vacuously, so this is a failure.`,
+    ];
+  }
+  if (entries.length < MIN_ENTRIES) {
+    return [
+      `Rule C (non-vacuity): parsed only ${entries.length} entries from ${TABLE_FILE}, below the floor of ${MIN_ENTRIES}. Either the table really shrank that far — in which case say so by lowering MIN_ENTRIES — or the parser is missing rows.`,
+    ];
+  }
+  // Sorted BY KEY, not by the pair string: `-` sorts before `:` in UTF-16, so
+  // sorting the joined pairs would put `alert-triangle` above `alert` and make
+  // the pin's reading order disagree with its own comparison.
+  const actual = entries
+    .slice()
+    .sort((a, b) => (a.key < b.key ? -1 : a.key > b.key ? 1 : 0))
+    .map((e) => `${e.key}:${e.glyph}`);
+  if (actual.join("\n") === PINNED_TABLE.join("\n")) return [];
 
-// ---- Rule C first: everything below is meaningless without it. ----
-if (source && entries.length === 0) {
-  failures.push(
-    `Rule C (non-vacuity): parsed ZERO entries from ${TABLE_FILE}. The export \`${TABLE_EXPORT}\` was renamed, reshaped, or the parser no longer matches it. Rules A and B would pass vacuously, so this is a failure.`,
-  );
-} else if (entries.length > 0 && entries.length < MIN_ENTRIES) {
-  failures.push(
-    `Rule C (non-vacuity): parsed only ${entries.length} entries from ${TABLE_FILE}, below the floor of ${MIN_ENTRIES}. Either the table really shrank that far — in which case say so by lowering MIN_ENTRIES — or the parser is missing rows.`,
-  );
-} else if (entries.length !== PINNED_ENTRY_COUNT) {
-  failures.push(
-    `Rule C (pinned count): the vocabulary has ${entries.length} entries, pinned at ${PINNED_ENTRY_COUNT}. Adding or removing a vocabulary entry is a product decision — update PINNED_ENTRY_COUNT in ${"scripts/check-mobile-icon-vocabulary.ts"} in the same commit, so the change is visible in review instead of quiet.`,
-  );
+  const removed = PINNED_TABLE.filter((p) => !actual.includes(p));
+  const added = actual.filter((p) => !PINNED_TABLE.includes(p));
+  const diff = [...removed.map((p) => `  - ${p}`), ...added.map((p) => `  + ${p}`)].join("\n");
+  return [
+    `Rule C (pinned table): the vocabulary no longer matches PINNED_TABLE in ${THIS_FILE}.\n${diff}\nA glyph change is a product decision (the web's components/Icon.tsx is the authority, the contract table follows it): update PINNED_TABLE in the same commit so the change is visible in review instead of quiet.`,
+  ];
 }
 
-// ---- Rule A: placeholder glyphs. ----
-for (const { key, glyph, line } of entries) {
-  if (PLACEHOLDER_GLYPHS.has(glyph)) {
+/** Rule A: a bare geometric primitive is never a considered choice. */
+function ruleA(entries: Entry[]): string[] {
+  return entries
+    .filter((e) => PLACEHOLDER_GLYPHS.has(e.glyph))
+    .map(
+      ({ key, glyph, line }) =>
+        `Rule A (placeholder glyph): ${TABLE_FILE}:${line} maps \`${key}\` to \`${glyph}\`, a bare geometric primitive. It resolves in lucide, which is why the existing Icon.test.tsx passes on it, but it does not mean anything. Choose a glyph that is about ${key}.`,
+    );
+}
+
+/** Rule B, both directions: an undeclared collision, and a declaration that no
+ *  longer describes one. */
+function ruleB(entries: Entry[]): string[] {
+  const byGlyph = new Map<string, Entry[]>();
+  for (const e of entries) {
+    const list = byGlyph.get(e.glyph) ?? [];
+    list.push(e);
+    byGlyph.set(e.glyph, list);
+  }
+
+  const failures: string[] = [];
+  for (const [glyph, list] of byGlyph) {
+    if (list.length < 2) continue;
+    const keys = list.map((e) => e.key).sort();
+    const declared = DECLARED_ALIASES[glyph];
+    if (declared && declared.keys.slice().sort().join(",") === keys.join(",")) continue;
     failures.push(
-      `Rule A (placeholder glyph): ${TABLE_FILE}:${line} maps \`${key}\` to \`${glyph}\`, a bare geometric primitive. It resolves in lucide, which is why the existing Icon.test.tsx passes on it, but it does not mean anything. Choose a glyph that is about ${key}.`,
+      `Rule B (glyph collision): \`${glyph}\` is used by ${keys.length} keys — ${keys.map((k) => `\`${k}\``).join(", ")} — at ${TABLE_FILE}:${list.map((e) => e.line).join(", ")}. Two names for one picture, or one picture for two meanings. If it is deliberate, declare it in DECLARED_ALIASES with the reason.`,
     );
   }
+
+  // NO STALE BASELINE. A declaration that no longer describes a real collision
+  // is a standing permission for a collision nobody decided on — the same shape
+  // scripts/check-audit-log-coverage.ts guards. Skipped when the table did not
+  // parse at all: every alias would look dead, burying the real failure.
+  if (entries.length === 0) return failures;
+  for (const [glyph, declared] of Object.entries(DECLARED_ALIASES)) {
+    const keys = (byGlyph.get(glyph) ?? []).map((e) => e.key).sort();
+    if (keys.length >= 2 && keys.join(",") === declared.keys.slice().sort().join(",")) continue;
+    failures.push(
+      `Rule B (stale alias): DECLARED_ALIASES in ${THIS_FILE} declares \`${glyph}\` shared by ${declared.keys.map((k) => `\`${k}\``).join(", ")}, but the table now has ${keys.length === 0 ? "no key" : keys.map((k) => `\`${k}\``).join(", ")} on that glyph. Remove the declaration in the same commit that removed the collision — a declaration nobody re-reads is how the next real collision gets waved through.`,
+    );
+  }
+  return failures;
 }
 
-// ---- Rule B: one glyph, one concept. ----
-const byGlyph = new Map<string, Entry[]>();
-for (const e of entries) {
-  const list = byGlyph.get(e.glyph) ?? [];
-  list.push(e);
-  byGlyph.set(e.glyph, list);
-}
-for (const [glyph, list] of byGlyph) {
-  if (list.length < 2) continue;
-  const keys = list.map((e) => e.key).sort();
-  const declared = DECLARED_ALIASES[glyph];
-  if (declared && declared.keys.slice().sort().join(",") === keys.join(",")) continue;
-  failures.push(
-    `Rule B (glyph collision): \`${glyph}\` is used by ${keys.length} keys — ${keys.map((k) => `\`${k}\``).join(", ")} — at ${TABLE_FILE}:${list.map((e) => e.line).join(", ")}. Two names for one picture, or one picture for two meanings. If it is deliberate, declare it in DECLARED_ALIASES with the reason.`,
-  );
+function run(): void {
+  let source = "";
+  try {
+    source = readFileSync(TABLE_FILE, "utf8");
+  } catch {
+    source = "";
+  }
+
+  const failures = evaluate(source);
+  if (failures.length > 0) {
+    console.error(`\n✗ Mobile icon vocabulary — ${failures.length} violation(s):\n`);
+    for (const f of failures) console.error(`  · ${f}\n`);
+    process.exit(1);
+  }
+
+  const scanned = parseTable(source).length;
+  console.log(`✓ Mobile icon vocabulary clean — ${scanned} entries scanned in ${TABLE_FILE}.`);
 }
 
-if (failures.length > 0) {
-  console.error(`\n✗ Mobile icon vocabulary — ${failures.length} violation(s):\n`);
-  for (const f of failures) console.error(`  · ${f}\n`);
-  process.exit(1);
-}
+const isMain =
+  typeof process !== "undefined" &&
+  process.argv[1] !== undefined &&
+  (process.argv[1].endsWith("check-mobile-icon-vocabulary.ts") ||
+    process.argv[1].endsWith("check-mobile-icon-vocabulary.js") ||
+    import.meta.url === `file:///${process.argv[1].replaceAll("\\", "/")}`);
 
-console.log(`✓ Mobile icon vocabulary clean — ${entries.length} entries scanned in ${TABLE_FILE}.`);
+if (isMain) run();

@@ -118,12 +118,20 @@ import type { HTMLAttributes } from "react";
 export type IconName = string;
 
 /**
- * Internal map: app icon name → Lucide component.
+ * App icon name → Lucide component. THE AUTHORITY for what a name draws.
  *
  * Spanish semantic names match what callers pass (vacuna, corazon, …).
  * English/UI names cover Alert / EmptyState / Badge slots (info, close, …).
+ *
+ * EXPORTED since 2026-09-03, for one consumer: `components/Icon.test.tsx`,
+ * which compares this map against `@dim/contract/icons`' shared table by
+ * component REFERENCE. That table's header says "change a glyph THERE first —
+ * this table follows", and until the export existed that sentence was a
+ * comment with nothing behind it: a web-only glyph edit left the phone on the
+ * old picture with every gate green. Nothing else should import this — the
+ * `<Icon>` component below is the API.
  */
-const ICON_MAP: Record<string, LucideIcon> = {
+export const ICON_MAP: Record<string, LucideIcon> = {
   // ── Event form icons ─────────────────────────────────────────────────────
   vacuna: Syringe,
   microchip: Nfc,
@@ -175,6 +183,15 @@ const ICON_MAP: Record<string, LucideIcon> = {
   // 2026-07-22): a surveillance surface with nothing reported IN, as
   // distinct from shield-check's "verified safe" meaning.
   "eye-off": EyeOff,
+  // The reveal toggle's hidden state, named the way `ver` above is named. It
+  // came from the phone (PasswordField, QOL 2026-09-01), which is backwards —
+  // this map is the authority and the shared table follows it — and the key
+  // lived only in `@dim/contract/icons` until 2026-09-03, when
+  // components/Icon.test.tsx made that asymmetry fail instead of pass. Added
+  // here rather than renaming the phone's key to `eye-off`: `ver`/`ocultar` is
+  // one Spanish pair for one toggle, and `eye-off` is the English slot above
+  // with a different meaning of its own.
+  ocultar: EyeOff,
   casa: Home,
   home: Home,
   camara: Camera,
