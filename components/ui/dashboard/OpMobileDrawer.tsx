@@ -68,8 +68,17 @@ export function OpMobileDrawer({
             railBg,
             "text-ln-op-rail-text",
           ].join(" ")}
-          aria-label="Menú principal"
         >
+          {/* Radix's DialogPrimitive.Content (vaul's Drawer.Content wraps it)
+              requires a DialogTitle descendant — vaul's Drawer.Title IS that
+              Title — or it dev-warns "DialogContent requires a DialogTitle"
+              even though the brand header below already shows "miMAR" as
+              real text. Visually hidden for that reason; no id/aria override
+              here (mirrors components/ui/VaulSheet.tsx) because Radix
+              auto-wires aria-labelledby to its own generated titleId and only
+              resolves it when Drawer.Title renders undisturbed — an explicit
+              aria-label on Content does not satisfy the same dev check. */}
+          <Drawer.Title className="sr-only">Menú principal</Drawer.Title>
           {/* Brand header */}
           <div className="flex items-center gap-2.5 border-b border-[rgba(255,255,255,0.10)] px-4 py-4 pb-[13px]">
             <div className="grid h-[34px] w-[34px] flex-shrink-0 place-items-center rounded-[var(--radius-sm)] bg-ln-op-card font-ln-mono text-md font-bold text-ln-op-navy">
