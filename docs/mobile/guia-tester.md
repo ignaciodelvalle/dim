@@ -77,6 +77,8 @@ Dentro de los primeros 3 días, respondé este mensaje con una frase:
 
 Si podés, mandá también una captura de pantalla de lo que viste.
 
+Si nos escribís por un problema, agregá la versión que figura al final de Ajustes.
+
 ¿Dónde nos escribís? Respondé por el mismo WhatsApp por el que te escribí.
 
 ## Privacidad

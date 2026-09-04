@@ -41,6 +41,7 @@ import { useRouter } from "expo-router";
 import { useState } from "react";
 import { StyleSheet, Text, View } from "react-native";
 
+import { AboutSection } from "../src/account/AboutSection";
 import { AccountDeletionCard } from "../src/account/AccountDeletionCard";
 import { signOut, signOutEverywhere } from "../src/auth/session-store";
 import { useGate } from "../src/auth/useGate";
@@ -187,6 +188,8 @@ export default function AjustesScreen() {
         El alta de mascotas con foto, las notificaciones y el ingreso con Mi Argentina todavía no
         están en la app.
       </Text>
+
+      <AboutSection />
     </Screen>
   );
 }
