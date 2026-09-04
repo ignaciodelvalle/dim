@@ -15,7 +15,7 @@
 // welfare_denuncia used to be a fourth entry; see the note on
 // PUBLIC_ANONYMOUS_KINDS for why it is gone.
 
-import { and, eq, isNull } from "drizzle-orm";
+import { and, eq, isNotNull, isNull } from "drizzle-orm";
 
 import { custodyDisputeParties, db, organizationMemberships, ownerships } from "@/db";
 import { jurisdictionScopeContains } from "@/lib/domain/jurisdiction-canonical";
@@ -185,7 +185,10 @@ export async function canReadCase(detail: CaseDetail, viewer: CaseViewer | null)
     }
   }
 
-  // custody_dispute — registered parties (user-side).
+  // custody_dispute — registered parties. The party model is POLYMORPHIC by
+  // construction: migration 0025's `dispute_party_exactly_one_subject` CHECK
+  // says a row names EITHER a user OR an organization, never both. Both shapes
+  // are real counter-parties to the same dispute, so both read the case.
   if (detail.caseKind === "custody_dispute" && detail.custodyDispute) {
     const [partyRow] = await db
       .select({ id: custodyDisputeParties.id })
@@ -198,6 +201,36 @@ export async function canReadCase(detail: CaseDetail, viewer: CaseViewer | null)
       )
       .limit(1);
     if (partyRow) return true;
+
+    // Org-side parties. This branch closes a DRIFT, not a policy gap: the SQL
+    // `can_read_case` this file mirrors has carried the org arm since migration
+    // 0034 (`cdp.party_organization_id in (select ... where left_at is null)`,
+    // mirrored in db/cases_rls.sql) — only this TypeScript mirror was user-only. It
+    // stopped being harmless on 2026-09-04, when submit-claim-dispute began
+    // filing a shelter that holds the pet as `current_org_custody` with
+    // party_organization_id AND notifying that org's members with a link to
+    // /casos/<code>. Every one of those notifications landed on notFound().
+    //
+    // `isActiveOrgMember` is reused verbatim so this cannot drift from the
+    // adoption_listing / rehome_request / foster_placement branches on what a
+    // member IS (`left_at IS NULL`) — an ex-member of a party org is a stranger.
+    const orgPartyRows = await db
+      .select({ organizationId: custodyDisputeParties.partyOrganizationId })
+      .from(custodyDisputeParties)
+      .where(
+        and(
+          eq(custodyDisputeParties.disputeId, detail.custodyDispute.id),
+          isNotNull(custodyDisputeParties.partyOrganizationId),
+        ),
+      );
+    const partyOrgIds = new Set(
+      orgPartyRows
+        .map((row) => row.organizationId)
+        .filter((id): id is string => typeof id === "string"),
+    );
+    for (const orgId of partyOrgIds) {
+      if (await isActiveOrgMember(orgId, viewer.userId)) return true;
+    }
   }
 
   return false;
