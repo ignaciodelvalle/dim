@@ -103,8 +103,36 @@ export function AppCitizenMasthead({
         className="flex flex-shrink-0 items-center gap-3 no-underline transition-opacity hover:opacity-90"
         aria-label={`${BRANDING.appName} — ${BRANDING.appNameLong}, ir al inicio`}
       >
-        <span className="grid h-[38px] w-[38px] flex-shrink-0 place-items-center rounded-full border-[2px] border-white/50 bg-white/[0.06] font-ln-serif text-lg font-semibold tracking-[-0.02em]">
-          m
+        {/* THE MARK, on a paper tile. This was a serif "m" in a translucent
+            circle — a typographic stand-in from when the product had no mark.
+            `public/logo-mimar-mark.svg` is the mark (a QR finder pattern with
+            chamfered corners holding a paw) and it is already the SOURCE the
+            mobile launcher icons are composed from
+            (scripts/build-mobile-app-icons.ts), so the CITIZEN chrome and the
+            app icon are now one drawing instead of two brands.
+
+            CITIZEN, and not "the site" — the operator chrome still draws a
+            typographic `m·` monogram in two places, and claiming otherwise
+            here would retire a follow-up nobody did: the rail's brand block
+            (components/ui/dashboard/OpRail.tsx:56) and the operator drawer's
+            brand header (components/layout/AppShellDrawer.tsx:99). Both are
+            outside the PO's 2026-09-04 scope and deliberately untouched; they
+            are what is left to convert.
+
+            WHY A LIGHT TILE AND NOT THE BARE FILE. The asset paints with
+            `currentColor` and defaults to brand blue (#0E5A99), which an
+            `<img>` cannot recolour — on this azul-900 band that is blue on
+            navy. The app-icon recipe already answered this: blue mark on the
+            cream paper ground. The tile reuses the same colour rather than
+            inventing a second one — `--color-ln-paper` is #fbfaf5, the literal
+            build-mobile-app-icons.ts bakes in.
+
+            DECORATIVE ON PURPOSE (`alt=""`). The link wrapping it already
+            carries the accessible name, and the wordmark beside it is real
+            text; a third announcement of "miMAR" would be the three-names-for-
+            one-control defect, in the header. */}
+        <span className="grid h-[38px] w-[38px] flex-shrink-0 place-items-center rounded-[var(--radius-lg)] bg-[var(--color-ln-paper)]">
+          <img src="/logo-mimar-mark.svg" alt="" width={28} height={28} />
         </span>
         <span className="leading-[1.1]">
           <span className="block font-ln-serif text-xl font-semibold tracking-[-0.01em]">
@@ -416,8 +444,12 @@ function CitizenMobileDrawer({
         >
           {/* Brand header */}
           <div className="flex items-center gap-2.5 border-b border-white/10 px-4 py-3.5">
-            <span className="grid h-[34px] w-[34px] flex-shrink-0 place-items-center rounded-full border border-white/30 bg-white/[0.06] font-ln-serif text-base font-semibold">
-              m
+            {/* Same mark, same reasoning as the masthead brand slot above —
+                the drawer's brand header is the same brand slot at 34px, and
+                leaving the letter here would put two different marks one tap
+                apart. */}
+            <span className="grid h-[34px] w-[34px] flex-shrink-0 place-items-center rounded-[var(--radius-lg)] bg-[var(--color-ln-paper)]">
+              <img src="/logo-mimar-mark.svg" alt="" width={25} height={25} />
             </span>
             <span className="flex flex-col leading-tight">
               <span className="font-ln-serif text-base font-semibold">{BRANDING.appName}</span>
