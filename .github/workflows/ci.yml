@@ -18,7 +18,7 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Setup pnpm
         # No `version:` input on purpose. The version comes from the
@@ -425,7 +425,7 @@ jobs:
     #   Compare the IDs against your allowlist and decide whether to skip.
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Setup pnpm
         # No `version:` input on purpose. The version comes from the
@@ -485,7 +485,7 @@ jobs:
     # can verify the claim.
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           # Need the base ref to diff against
           fetch-depth: 0
@@ -562,7 +562,7 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Setup pnpm
         # No `version:` input on purpose. The version comes from the
@@ -702,7 +702,7 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Setup pnpm
         # No `version:` input on purpose. The version comes from the
@@ -953,7 +953,7 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Setup pnpm
         # No `version:` input on purpose. The version comes from the
