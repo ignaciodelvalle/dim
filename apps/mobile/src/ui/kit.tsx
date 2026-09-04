@@ -458,7 +458,8 @@ export function Choice<T extends string>({
  * `active:scale-[0.98] active:opacity-90` on the web, for touch feedback.
  *
  * EXPORTED since 2026-09-03, and the reason is a measurement. The app holds 36
- * `Pressable`s; before this export, FIVE gave any visual response to a touch,
+ * `<Pressable` JSX tags in NON-TEST files, counted at the tree this export
+ * landed on; before this export, FIVE gave any visual response to a touch,
  * and all five were inside this file and `components.tsx`. The other 31 — the
  * credential's own action row included — were visually inert under a thumb,
  * because this helper existed and could not be reached from a screen. A
@@ -480,7 +481,9 @@ export function pressedOpacity({ pressed }: PressableStateCallbackType) {
  * controls — `PrimaryButton` and `SecondaryButton`, both full-width stretched
  * pills — and nothing else. Every screen that needed a *row* rather than a
  * call-to-action invented one, and at least six private shapes existed:
- * `PetRow`, `EntryCard`, `MoreRow`, and the hand-rolled pressables in
+ * `PetRow` (app/mascotas/index.tsx — outside src/, which is why an rg over
+ * src/ alone reads as if it were gone), `EntryCard` (pets/LibretaScreen.tsx),
+ * `MoreRow` (pets/OwnerFace.tsx), and the hand-rolled pressables in
  * TurnosScreen, TransfersScreen and NotificationsScreen. The kit was a form
  * system pretending to be a design system, and the divergence it produced is
  * what the 2026-09-03 review reported as separate defects.
@@ -516,8 +519,23 @@ export function ListRow({
       onPress={onPress}
       style={(state) => [styles.listRow, pressedOpacity(state)]}
     >
-      <Text style={isInert ? styles.listRowLabelMuted : styles.listRowLabel}>{label}</Text>
-      {caption === undefined ? null : <Text style={styles.listRowCaption}>{caption}</Text>}
+      {/* LABEL ABOVE CAPTION, always in a column — see `listRowText`. The
+          column is rendered whether or not there is a caption so the row's
+          anatomy does not change shape with its content, and so a trailing
+          element (a chevron, a value) can be added beside it later without
+          moving the text. */}
+      <View style={styles.listRowText}>
+        <Text style={isInert ? styles.listRowLabelMuted : styles.listRowLabel}>{label}</Text>
+        {/* Two lines is a HEIGHT CAP, not the wrap: at the column's full width
+            the 90-character RecordEventScreen caption fits in two lines at
+            TYPE.sm, and the cap is what keeps a list of rows reading as a list
+            instead of as a page of paragraphs. */}
+        {caption === undefined ? null : (
+          <Text numberOfLines={2} style={styles.listRowCaption}>
+            {caption}
+          </Text>
+        )}
+      </View>
     </Pressable>
   );
 }
@@ -776,9 +794,17 @@ const styles = StyleSheet.create({
   buttonPrimary: { backgroundColor: COLORS.accent, borderColor: COLORS.accent },
   buttonSeal: { backgroundColor: COLORS.seal, borderColor: COLORS.seal },
   buttonGhost: { backgroundColor: COLORS.surface, borderColor: COLORS.borderStrong },
-  // ListRow. Lifted verbatim from OwnerFace's private `MoreRow` so the
-  // promotion changes nothing visually at its original call site — a refactor
-  // that also restyles is two changes wearing one commit.
+  // ListRow. Lifted verbatim from OwnerFace's private `MoreRow`, because a
+  // refactor that also restyles is two changes wearing one commit.
+  //
+  // THAT "changes nothing visually" IS NO LONGER TRUE, and saying so is the
+  // point of keeping the sentence. The captioned rows in OwnerFace's ⋯ Más
+  // list ("Chapa física · Disponible en la web", "Viaje y movilidad ·
+  // Próximamente") now stack instead of sitting beside their label. It is not a
+  // regression: `Acompañamiento de adopción` + `Disponible en la web` measured
+  // ~317 points side by side against a row budget of ~288, so that row was
+  // already overflowing — the promotion did not restyle those rows, it exposed
+  // what they had been doing. See `listRowText` for why the column won.
   listRow: {
     minHeight: TOUCH_TARGET,
     flexDirection: "row",
@@ -792,9 +818,40 @@ const styles = StyleSheet.create({
     borderRadius: RADIUS.control,
     backgroundColor: COLORS.canvas2,
   },
+  /**
+   * THE COLUMN IS THE BOUND, and neither Text is. Two facts decide this shape.
+   *
+   * First the RN one: `flexShrink` defaults to 0, and `listRow` is
+   * `flexDirection: "row"` — a Text with an intrinsic width wider than what the
+   * row has left does NOT wrap, it overflows the row's right edge in silence.
+   * That is what the 90-character RecordEventScreen caption did on 2026-09-03.
+   * Something in the row has to be allowed to give way.
+   *
+   * Second, WHICH something. Making both Texts shrinkable was the first fix and
+   * it was wrong: Yoga hands out the negative space in proportion to each
+   * child's basis, so the LABEL gives up ~66 points and "Terminar una
+   * medicación" — the row's primary text, the thing a person is looking for —
+   * wraps to two lines. The label styles below therefore carry NO `flexShrink`,
+   * deliberately, exactly as `components.tsx`'s `row`/`rowLabel`/`rowValue`
+   * already decided it (the value shrinks, the label does not).
+   *
+   * And side by side is not enough even with the caption bounded: it leaves the
+   * caption ~108 points, about 17 characters a line, so two lines show ~34 of
+   * the 90 — the sentence that says where the real control lives, truncated.
+   * So the two stack, and this column takes the shrink for both of them.
+   */
+  listRowText: { flexShrink: 1, gap: 2 },
   listRowLabel: { fontFamily: FONTS.sansMedium, fontSize: TYPE.md, color: COLORS.ink },
   listRowLabelMuted: { fontFamily: FONTS.sans, fontSize: TYPE.md, color: COLORS.inkMuted },
-  listRowCaption: { fontFamily: FONTS.sans, fontSize: TYPE.sm, color: COLORS.inkFaint },
+  listRowCaption: {
+    fontFamily: FONTS.sans,
+    fontSize: TYPE.sm,
+    // A caption that is allowed to wrap needs a line height; without one the
+    // second line sits on the first. `body` in components.tsx sets it the same
+    // way, off the shared LEADING scale.
+    lineHeight: TYPE.sm * LEADING.sm,
+    color: COLORS.inkFaint,
+  },
   buttonDisabled: { opacity: DISABLED_OPACITY },
   buttonGhostDisabled: { backgroundColor: "transparent" },
   buttonLabelOnFill: {

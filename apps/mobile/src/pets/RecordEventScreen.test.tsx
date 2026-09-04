@@ -72,6 +72,16 @@ describe("RecordEventScreen — the picker", () => {
     // Ending a treatment needs the asiento it ends, so it is NOT a choice here
     // — and the screen says so rather than leaving a gap a person hunts for.
     expect(screen.getByText("Terminar una medicación")).toBeOnTheScreen();
+    // THE CAPTION IS THE HALF THAT ANSWERS "then where?". The row without it
+    // is a dead control with no reason, so the label alone is not the
+    // assertion. Reached by text and not by `getByRole("button", { name })`:
+    // with no accessibilityLabel that name is derived from concatenated child
+    // text, which would make this pass on the label alone.
+    expect(
+      screen.getByText(
+        'Se hace desde el asiento del inicio del tratamiento, en la libreta: "Terminar medicación".',
+      ),
+    ).toBeOnTheScreen();
   });
 
   it("opens the form for the kind that was pressed", () => {
