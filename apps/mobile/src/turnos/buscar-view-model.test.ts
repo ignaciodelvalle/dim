@@ -405,6 +405,15 @@ describe("the animal picker", () => {
     expect(petChoiceLabel(aPet({ publicToken: "" }))).toBe("Pampa");
   });
 
+  it("falls back to the bare name for a publicToken that is not token-shaped either", () => {
+    // The overclaim code review #5 found: petTokenSuffix's doc comment said ""
+    // for anything not shaped like a token, but `"Rocco".split("-")` has one
+    // block, so the old code upper-cased the whole string and printed
+    // "Pampa · ROCCO" — a disambiguator manufactured from a string that just
+    // happens to share a hyphen-free shape with a name.
+    expect(petChoiceLabel(aPet({ publicToken: "Rocco" }))).toBe("Pampa");
+  });
+
   it("draws a blocked animal WITH its reason, rather than hiding it", () => {
     expect(
       petChoiceLabel(

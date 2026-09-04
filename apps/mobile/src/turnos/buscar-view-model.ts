@@ -306,6 +306,17 @@ export function blockedReasonLabel(reason: BookingBlockedReasonV1): string {
 }
 
 /**
+ * The shape a pet's public token always has on the wire: `DIM-XXXX-XXXX`.
+ *
+ * `DIM` fixed, because `BookablePetV1.publicToken` is always a PET token —
+ * the other prefixed shapes this system generates (`LBR`, `APR`, `OFR`, `APT`,
+ * `INV`, `TAG`; `lib/infra/publicToken.ts`) belong to other entities and never
+ * reach this screen. Case-insensitive because the check is about SHAPE, not
+ * about the generator's own uppercase alphabet.
+ */
+const PET_TOKEN_SHAPE = /^DIM-[A-Z0-9]+-[A-Z0-9]+$/i;
+
+/**
  * The last block of a `DIM-XXXX-XXXX` token — the shortest thing on the wire
  * that tells two animals apart.
  *
@@ -324,11 +335,19 @@ export function blockedReasonLabel(reason: BookingBlockedReasonV1): string {
  * possible and is not what this fixes — it fixes the picker that offered two
  * identical rows.
  *
- * Returns "" for anything that is not shaped like a token, and the caller then
- * falls back to the bare name rather than printing a stray separator.
+ * Returns "" for anything that does not match `PET_TOKEN_SHAPE`, and the
+ * caller then falls back to the bare name rather than printing a stray
+ * separator. THIS IS A REAL CHECK AND NOT MERELY "IS THERE A HYPHEN" (code
+ * review #5, 2026-09-04): a bare `split("-")` on a name with no hyphen at all —
+ * `"Rocco"` — has exactly one block, so the old code upper-cased the whole
+ * string and printed "Rocco · ROCCO", a disambiguator manufactured from the
+ * animal's own name. The doc comment already claimed "" for anything not
+ * token-shaped; the shape now has a definition that makes the claim true.
  */
 export function petTokenSuffix(publicToken: string): string {
-  const blocks = publicToken.trim().split("-");
+  const trimmed = publicToken.trim();
+  if (!PET_TOKEN_SHAPE.test(trimmed)) return "";
+  const blocks = trimmed.split("-");
   const last = blocks[blocks.length - 1] ?? "";
   return last.toUpperCase();
 }
