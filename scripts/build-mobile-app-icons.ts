@@ -212,6 +212,17 @@ import path from "node:path";
 import { pathToFileURL } from "node:url";
 import sharp from "sharp";
 
+// UNLIKE PAPER AND BRAND_BLUE BELOW, this one IS imported rather than
+// restated. Those two are colour tokens with no cheap JS module to pull from
+// (see PAPER's own doc comment: the workspace tokens package is not worth
+// resolving for one hex string). BRANDING is a plain, dependency-free object
+// in a sibling file, and branding.ts's own header already explains why a
+// hardcoded copy of the brand strings is the mistake this repo just finished
+// fixing: "a rebrand editing this line would have missed both places the
+// mark is actually drawn." Hardcoding "miMAR" here would be that mistake a
+// third time.
+import { BRANDING } from "../lib/ui/branding";
+
 /** Repo root, from `scripts/`. */
 const ROOT = path.resolve(import.meta.dirname, "..");
 
@@ -476,6 +487,182 @@ export const RECIPES: readonly Recipe[] = [
   },
 ];
 
+// ---------------------------------------------------------------------------
+// THE PLAY STORE LOCKUP — mark + wordmark, the "pending product item" above
+// ---------------------------------------------------------------------------
+// RATIO_FEATURE's own comment, on the `feature-graphic` recipe above, already
+// names this: "a DESIGNED LOCKUP — the plaque beside the wordmark, laid out
+// by a person — and that is a pending product item, not something a
+// compositing script can invent." It now exists, as the function below.
+//
+// WHY IT IS NOT A Recipe. Every Recipe above is ONE mark, centred on ONE flat
+// ground. This is three layers — a navy field, a rounded paper tile carrying
+// the mark, and two lines of set type — which the shared loop's vocabulary
+// (`markSize`, `ground`) has no way to say. Forcing it into that shape would
+// either flatten the type until it described nothing, or grow fields only
+// this one recipe would ever set. A dedicated function is the honest shape.
+//
+// WHY THIS DOES NOT REPLACE `assets/feature-graphic.png` ABOVE. That file is
+// still the lone plaque RATIO_FEATURE describes, still written by the recipe
+// loop, still asserted on by release-config.test.ts. Retargeting that recipe
+// to this composition in the same change that adds it would delete a
+// committed, tested file as a side effect of an "add" — the opposite of what
+// was asked. So the two coexist for now: `assets/feature-graphic.png` (the
+// placeholder) and `assets/store/feature-graphic.png` (this lockup, the one
+// meant for the actual Play listing). Retiring the placeholder — and
+// re-pointing whatever eventually uploads to Play at the new path — is a
+// follow-up decision, not a side effect of this function existing.
+//
+// THE TILE'S CORNER RADIUS is measured, not invented. It is the SAME ratio
+// the mark already wears on a rounded paper tile elsewhere in this product —
+// the masthead brand slot, `components/layout/AppCitizenMasthead.tsx`:
+// `h-[38px] w-[38px] rounded-[var(--radius-lg)]` with `--radius-lg: 8px`
+// (app/globals.css). 8/38 is computed below rather than restated, so the two
+// stay locked together if the masthead's tile ever resizes.
+//
+// THE TEXT IS RENDERED, THEN TRIMMED — not measured in advance. Two lines of
+// SVG `<text>` are rasterised onto a canvas sized deliberately larger than
+// either line could plausibly need, then `.trim()`'d to their own ink — the
+// same technique `main()` already uses to turn the source mark's viewBox
+// border into an ink measurement (see "THE TRIM, AND THE ONE RULE BEHIND IT"
+// in the file header). Predicting glyph widths for "a system sans-serif"
+// ahead of time is not knowable from this script: the font that actually
+// renders depends on what the machine running `pnpm mobile:icons` has
+// installed, and this repo runs that command on both the PO's Windows
+// machine and Linux CI. Trimming after the fact is what makes the placement
+// correct on either, and the safe-margin check below is what makes a bad
+// substitution loud instead of silently shipping a clipped graphic.
+
+/** The tile's own side, square, "~300px tall" per the brief. */
+const LOCKUP_TILE_PX = 300;
+
+/** How far the tile's left edge sits from the canvas edge. */
+const LOCKUP_TILE_LEFT_PX = 90;
+
+/**
+ * The tile's corner radius, as a fraction of its own side — see "THE TILE'S
+ * CORNER RADIUS" above. 8px of a 38px masthead tile.
+ */
+const LOCKUP_TILE_RADIUS_RATIO = 8 / 38;
+
+/** Gap between the tile's right edge and the wordmark's left edge. */
+const LOCKUP_TEXT_GAP_PX = 56;
+
+/**
+ * Minimum clearance every element must keep from every canvas edge. Play
+ * crops this graphic's edges on some surfaces (the brief's own words);
+ * nothing load-bearing may sit closer.
+ */
+const LOCKUP_SAFE_MARGIN_PX = 60;
+
+/**
+ * `--color-ln-azul-900`, restated as a literal — same posture as PAPER above
+ * and the same reason: this script does not import app/globals.css or
+ * @dim/contract/tokens, so nothing guards this beyond the fact that the navy
+ * field has not moved since Libreta Nacional. Exported so the test can
+ * measure against it instead of restating a third copy.
+ */
+export const NAVY = { r: 0x0a, g: 0x35, b: 0x56, alpha: 1 } as const;
+
+/** `--color-ln-celeste-100`, same posture as NAVY above. Tagline colour only. */
+const CELESTE_100_HEX = "#DCEBF7";
+
+/**
+ * Composes the Play Store feature graphic's designed lockup and writes it to
+ * `apps/mobile/assets/store/feature-graphic.png`. See the header above this
+ * function for what it is and is not.
+ */
+async function buildFeatureGraphicLockup(trimmedMark: Buffer): Promise<void> {
+  const outDir = path.join(MOBILE_OUT_DIR, "store");
+  mkdirSync(outDir, { recursive: true });
+
+  // --- The rounded paper tile, mark centred on it, launcher-style -----------
+  // Same posture as icon.png's own recipe above (RATIO_LAUNCHER, paper
+  // ground): this tile IS a launcher icon in miniature, just with a drawn
+  // corner radius instead of an OS mask, because nothing here goes through a
+  // launcher.
+  const tileRadius = Math.round(LOCKUP_TILE_PX * LOCKUP_TILE_RADIUS_RATIO);
+  const tileBase = await sharp(
+    Buffer.from(
+      `<svg xmlns="http://www.w3.org/2000/svg" width="${LOCKUP_TILE_PX}" height="${LOCKUP_TILE_PX}">` +
+        `<rect width="${LOCKUP_TILE_PX}" height="${LOCKUP_TILE_PX}" rx="${tileRadius}" ry="${tileRadius}" fill="#FBFAF5"/></svg>`,
+    ),
+  )
+    .png()
+    .toBuffer();
+
+  const markOnTile = await sharp(trimmedMark)
+    .resize({ width: Math.round(LOCKUP_TILE_PX * RATIO_LAUNCHER), kernel: "lanczos3" })
+    .png()
+    .toBuffer();
+
+  const tile = await sharp(tileBase)
+    .composite([{ input: markOnTile, gravity: "centre" }])
+    .png()
+    .toBuffer();
+
+  // --- The wordmark, set as SVG text and trimmed to its own ink -------------
+  const TEXT_CANVAS_WIDTH = 700;
+  const TEXT_CANVAS_HEIGHT = 220;
+  const FONT_STACK = "-apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif";
+  const textSvg =
+    `<svg xmlns="http://www.w3.org/2000/svg" width="${TEXT_CANVAS_WIDTH}" height="${TEXT_CANVAS_HEIGHT}">` +
+    `<text x="4" y="112" font-family="${FONT_STACK}" font-weight="700" font-size="104" ` +
+    `fill="#FFFFFF">${BRANDING.appName}</text>` +
+    `<text x="4" y="182" font-family="${FONT_STACK}" font-weight="500" font-size="40" ` +
+    `fill="${CELESTE_100_HEX}">${BRANDING.appNameLong}</text></svg>`;
+  const textRaw = await sharp(Buffer.from(textSvg)).png().toBuffer();
+  const text = await sharp(textRaw).trim({ threshold: 10 }).png().toBuffer();
+  const textMeta = await sharp(text).metadata();
+  if (!textMeta.width || !textMeta.height) {
+    throw new Error("feature graphic lockup: could not measure the rendered wordmark");
+  }
+
+  // --- Placement, checked against the safe margin, not assumed into it ------
+  const tileLeft = LOCKUP_TILE_LEFT_PX;
+  const tileTop = Math.round((FEATURE_GRAPHIC_HEIGHT - LOCKUP_TILE_PX) / 2);
+  const textLeft = tileLeft + LOCKUP_TILE_PX + LOCKUP_TEXT_GAP_PX;
+  const textTop = Math.round((FEATURE_GRAPHIC_HEIGHT - textMeta.height) / 2);
+
+  if (
+    tileLeft < LOCKUP_SAFE_MARGIN_PX ||
+    tileTop < LOCKUP_SAFE_MARGIN_PX ||
+    textTop < LOCKUP_SAFE_MARGIN_PX ||
+    textLeft + textMeta.width > FEATURE_GRAPHIC_WIDTH - LOCKUP_SAFE_MARGIN_PX ||
+    textTop + textMeta.height > FEATURE_GRAPHIC_HEIGHT - LOCKUP_SAFE_MARGIN_PX
+  ) {
+    throw new Error(
+      `feature graphic lockup: composition crossed the 60px safe margin — measured wordmark ${textMeta.width}x${textMeta.height}; adjust font sizes or LOCKUP_TEXT_GAP_PX`,
+    );
+  }
+
+  const out = path.join(outDir, "feature-graphic.png");
+  await sharp({
+    create: {
+      width: FEATURE_GRAPHIC_WIDTH,
+      height: FEATURE_GRAPHIC_HEIGHT,
+      channels: 4,
+      background: NAVY,
+    },
+  })
+    .composite([
+      { input: tile, left: tileLeft, top: tileTop },
+      { input: text, left: textLeft, top: textTop },
+    ])
+    // OPAQUE — Play's spec for this asset forbids an alpha channel, the same
+    // rule the `feature-graphic` recipe above answers to. See its own
+    // comment for the citation; it is Play's rule, not a style choice here.
+    .flatten({ background: NAVY })
+    .removeAlpha()
+    .png({ compressionLevel: 9 })
+    .toFile(out);
+
+  const written = await sharp(out).metadata();
+  console.log(
+    `  ${path.relative(ROOT, out).replaceAll("\\", "/").padEnd(44)} ${written.width}×${written.height}  tile ${LOCKUP_TILE_PX}px@(${tileLeft},${tileTop})  text ${textMeta.width}×${textMeta.height}@(${textLeft},${textTop})  alpha=${written.hasAlpha}  Google Play Store listing feature graphic — mark + wordmark lockup`,
+  );
+}
+
 async function main(): Promise<void> {
   const meta = await sharp(SOURCE, { density: RASTER_DENSITY }).metadata();
   if (!meta.width || !meta.height) {
@@ -573,8 +760,13 @@ async function main(): Promise<void> {
     );
   }
 
+  await buildFeatureGraphicLockup(trimmed);
+
   const dirs = [...new Set(RECIPES.map((recipe) => path.relative(ROOT, recipe.dir)))];
-  console.log(`\nwrote ${RECIPES.length} file(s) to ${dirs.join(", ")}`);
+  console.log(
+    `\nwrote ${RECIPES.length} file(s) to ${dirs.join(", ")}, plus the Play Store lockup graphic ` +
+      `to ${path.relative(ROOT, path.join(MOBILE_OUT_DIR, "store"))}`,
+  );
 }
 
 /**

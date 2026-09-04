@@ -279,6 +279,12 @@ decision, the fence is `runtimeVersion`, and the whole argument lives in
    newest artifact, and build 6 is the one that cannot sign anyone in. **A tally
    nobody updates stops being a record and becomes a reassurance.**
 
+   **Store listing assets are not part of any build.** The Play feature graphic
+   is generated from the brand mark by `pnpm mobile:icons` and committed at
+   `apps/mobile/assets/store/feature-graphic.png`; upload it by hand in Play
+   Console alongside the `.aab` — there is no `submit` block wiring this
+   automatically (see "What is deliberately NOT in `eas.json`" above).
+
 ---
 
 ## Two ways to break a fingerprint, and the first real build found both

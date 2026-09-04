@@ -844,7 +844,101 @@ describe("app identity assets", () => {
     // square. Tolerance unchanged.
     expect(ink.width / ink.height).toBeCloseTo(1, 1);
   });
+});
 
+describe("Play Store feature graphic — the designed lockup", () => {
+  // WHY A DIFFERENT INSTRUMENT FROM THE TEST ABOVE. inkBoundsOpaque() finds
+  // "ink" as everything that differs from the PAPER ground — right for a lone
+  // plaque on paper, wrong here: build-mobile-app-icons.ts's
+  // buildFeatureGraphicLockup() composes a NAVY field carrying a rounded
+  // paper tile AND two lines of set type, so "everything that is not paper"
+  // is nearly the whole canvas. The right instrument for a lockup is coarse
+  // and regional — does the LEFT THIRD read as the tile's blend, does the
+  // RIGHT TWO-THIRDS read as navy — and every number below is a MEAN over a
+  // region, never a single sampled pixel. A resampled point sample moves by a
+  // channel or two between runs for the same reason
+  // __tests__/pwa-icons.test.ts measures its mark's colour by MODE rather
+  // than by centre pixel (see that file's `dominant` doc comment); a mean
+  // over tens of thousands of pixels does not carry that instability.
+  const RELATIVE = "assets/store/feature-graphic.png";
+
+  // Restated from build-mobile-app-icons.ts's exported NAVY / PAPER, same
+  // posture as every colour literal already in this file (see PAPER's own
+  // doc comment there for why nothing is imported instead) — `{r,g,b}` only,
+  // to match what readPngChunksRgb's decode produces.
+  const NAVY_RGB = { r: 0x0a, g: 0x35, b: 0x56 };
+  const PAPER_RGB = { r: 0xfb, g: 0xfa, b: 0xf5 };
+
+  /** Mean R/G/B over a rectangular region of an OPAQUE RGB PNG. */
+  function meanColourInRegion(
+    relative: string,
+    region: { left: number; top: number; width: number; height: number },
+  ): { r: number; g: number; b: number } {
+    const BPP = 3;
+    const bytes = readFileSync(path.join(MOBILE_ROOT, relative));
+    const { width, height, pixels } = readPngChunksRgb(bytes, relative);
+    const raw = decodeRgba(pixels, width, height, BPP);
+    const stride = width * BPP;
+    const right = Math.min(region.left + region.width, width);
+    const bottom = Math.min(region.top + region.height, height);
+    let sumR = 0;
+    let sumG = 0;
+    let sumB = 0;
+    let count = 0;
+    for (let y = region.top; y < bottom; y++) {
+      for (let x = region.left; x < right; x++) {
+        const i = y * stride + x * BPP;
+        sumR += raw[i] ?? 0;
+        sumG += raw[i + 1] ?? 0;
+        sumB += raw[i + 2] ?? 0;
+        count += 1;
+      }
+    }
+    if (count === 0) throw new Error(`${relative}: empty region`);
+    return { r: sumR / count, g: sumG / count, b: sumB / count };
+  }
+
+  it("exists at exactly the size Play accepts, opaque", () => {
+    const graphic = readPng(RELATIVE);
+    expect(graphic).toMatchObject({ width: 1024, height: 500, hasAlpha: false });
+  });
+
+  it("reads as the paper tile's blend over its left third — not pure navy, not pure paper", () => {
+    const mean = meanColourInRegion(RELATIVE, {
+      left: 0,
+      top: 0,
+      width: Math.floor(1024 / 3),
+      height: 500,
+    });
+    // MEASURED on the generated file: (82.7, 116.9, 142.5) — lifted well off
+    // navy (10, 53, 86) by the tile, short of paper (251, 250, 245) because
+    // roughly half this strip is still navy margin above, below and left of
+    // the tile. Floor and ceiling are the navy/paper values ±20 on every
+    // channel: wide enough to survive ordinary resampling drift, tight
+    // enough that "tile missing" (reads as navy) or "tile fills the strip"
+    // (reads as paper) both fail.
+    for (const channel of ["r", "g", "b"] as const) {
+      expect(mean[channel]).toBeGreaterThan(NAVY_RGB[channel] + 20);
+      expect(mean[channel]).toBeLessThan(PAPER_RGB[channel] - 20);
+    }
+  });
+
+  it("stays navy-dominant over its right two-thirds", () => {
+    const left = Math.floor(1024 / 3);
+    const mean = meanColourInRegion(RELATIVE, { left, top: 0, width: 1024 - left, height: 500 });
+    // MEASURED: (30.5, 69.9, 100.0) — the wordmark's white/celeste ink and
+    // the tile's own right edge are a small fraction of this region's area,
+    // so the mean sits within ~21 of navy on every channel. 30 is the
+    // ceiling: a lockup with the navy field gone (recoloured background, or
+    // the tile/text somehow covering the region) blows through it, while
+    // ordinary font-substitution differences across platforms do not.
+    for (const channel of ["r", "g", "b"] as const) {
+      expect(Math.abs(mean[channel] - NAVY_RGB[channel])).toBeLessThan(30);
+    }
+  });
+});
+
+describe("app identity assets — splash plugin wiring", () => {
   it("configures the splash plugin against the file it ships", () => {
     const plugins = appJson.expo.plugins ?? [];
     const splashPlugin = plugins.find(
