@@ -17,7 +17,8 @@
       "Bash(npx eas-cli@latest whoami)",
       "Bash(npx eas-cli@latest build:list *)",
       "Bash(npx eas-cli@latest build:view *)",
-      "Bash(npx eas-cli@latest env:list *)",
+      "Bash(npx eas-cli@latest env:list production)",
+      "Bash(npx eas-cli@latest env:list preview)",
       "Bash(fnm *)",
       "Bash(pnpm vitest *)",
       "Bash(pnpm --filter mimar test)",
@@ -25,8 +26,24 @@
       "Bash(pnpm --filter mimar typecheck)",
       "Bash(pnpm --filter mimar exec jest *)",
       "Bash(pnpm --filter mimar exec expo config *)",
-      "Bash(git fetch *)",
-      "Bash(bat *)"
+      "Bash(git fetch *)"
+    ],
+    "deny": [
+      "Bash(npx biome check *--write*)",
+      "Bash(pnpm biome check *--write*)",
+      "Bash(pnpm exec biome check *--write*)",
+      "Bash(npx biome check --write*)",
+      "Bash(pnpm biome check --write*)",
+      "Bash(npx biome check *--fix*)",
+      "Bash(pnpm biome check *--fix*)",
+      "Bash(pnpm exec biome check *--fix*)",
+      "Bash(npx biome check --fix*)",
+      "Bash(pnpm biome check --fix*)",
+      "Bash(npx biome check *--unsafe*)",
+      "Bash(pnpm biome check *--unsafe*)",
+      "Bash(pnpm exec biome check *--unsafe*)",
+      "Bash(npx biome check --unsafe*)",
+      "Bash(pnpm biome check --unsafe*)"
     ]
   },
   "hooks": {
