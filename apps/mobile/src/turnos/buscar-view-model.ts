@@ -244,10 +244,44 @@ export function blockedReasonLabel(reason: BookingBlockedReasonV1): string {
   }
 }
 
-/** One pet's row label: its name, plus why it cannot be chosen. */
+/**
+ * The last block of a `DIM-XXXX-XXXX` token — the shortest thing on the wire
+ * that tells two animals apart.
+ *
+ * WHY THE TOKEN AND NOT THE SPECIES (native QA batch 2, C2). The obvious
+ * disambiguator is "Rocco · Perro", and it is not available: `BookablePetV1`
+ * carries `publicToken`, `name`, `canBook` and `blockedReason` and nothing else
+ * (packages/contract/src/api/appointment-search.ts). Adding species would be a
+ * contract change, a payload version and a server edit for a picker label —
+ * and it would still not separate two dogs with one name, which is the case
+ * that produced the finding. The token does, because the token IS the identity
+ * in this system (invariant #1) and it is already in hand.
+ *
+ * THE LAST BLOCK AND NOT THE WHOLE TOKEN, because the row is read at a glance
+ * beside a name: `DIM-PAMP-0001` doubles the label's length to add four
+ * characters of signal. Two of a person's own animals sharing a last block is
+ * possible and is not what this fixes — it fixes the picker that offered two
+ * identical rows.
+ *
+ * Returns "" for anything that is not shaped like a token, and the caller then
+ * falls back to the bare name rather than printing a stray separator.
+ */
+export function petTokenSuffix(publicToken: string): string {
+  const blocks = publicToken.trim().split("-");
+  const last = blocks[blocks.length - 1] ?? "";
+  return last.toUpperCase();
+}
+
+/** One pet's row label: its name, a disambiguator, plus why it cannot be chosen. */
 export function petChoiceLabel(pet: BookablePetV1): string {
-  if (pet.canBook || pet.blockedReason === null) return pet.name;
-  return `${pet.name} — ${blockedReasonLabel(pet.blockedReason)}`;
+  const suffix = petTokenSuffix(pet.publicToken);
+  // The disambiguator goes on BOTH arms. A blocked row is the one a person
+  // stares at longest — they are working out which of their animals is already
+  // booked — so it is the last row that should be ambiguous about which animal
+  // it names.
+  const named = suffix === "" ? pet.name : `${pet.name} · ${suffix}`;
+  if (pet.canBook || pet.blockedReason === null) return named;
+  return `${named} — ${blockedReasonLabel(pet.blockedReason)}`;
 }
 
 /**

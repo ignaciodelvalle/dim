@@ -312,8 +312,27 @@ describe("the animal picker", () => {
     );
   });
 
-  it("draws a bookable animal as its bare name", () => {
-    expect(petChoiceLabel(aPet())).toBe("Pampa");
+  it("draws a bookable animal as its name plus the token's last block", () => {
+    expect(petChoiceLabel(aPet())).toBe("Pampa · 0001");
+  });
+
+  it("tells two animals with the SAME NAME apart", () => {
+    // The finding (native QA batch 2, C2): the picker offered two identical rows
+    // and the person had to guess which Rocco they were booking. Species is not
+    // on the wire — `BookablePetV1` is token + name + canBook + blockedReason —
+    // so the token's last block is the disambiguator that exists.
+    const first = petChoiceLabel(aPet({ name: "Rocco", publicToken: "DIM-SKZU-1111" }));
+    const second = petChoiceLabel(aPet({ name: "Rocco", publicToken: "DIM-MTQP-2222" }));
+
+    expect(first).not.toBe(second);
+    expect(first).toBe("Rocco · 1111");
+    expect(second).toBe("Rocco · 2222");
+  });
+
+  it("falls back to the bare name rather than printing a stray separator", () => {
+    // An empty token is not a shape this endpoint produces; what matters is that
+    // the label degrades to the old behaviour instead of reading "Pampa · ".
+    expect(petChoiceLabel(aPet({ publicToken: "" }))).toBe("Pampa");
   });
 
   it("draws a blocked animal WITH its reason, rather than hiding it", () => {
@@ -321,7 +340,7 @@ describe("the animal picker", () => {
       petChoiceLabel(
         aPet({ name: "Lola", canBook: false, blockedReason: "already_booked_in_offering" }),
       ),
-    ).toBe("Lola — Ya tiene un turno reservado en este servicio.");
+    ).toBe("Lola · 0001 — Ya tiene un turno reservado en este servicio.");
   });
 
   it("reads `canBook` and not the absence of a reason, in BOTH directions", () => {
@@ -332,7 +351,7 @@ describe("the animal picker", () => {
     // answer under either rule, which is exactly how this case passed over a
     // mutant that read the reason instead. Measured, not assumed.
     expect(petChoiceLabel(aPet({ name: "Rocco", canBook: false, blockedReason: null }))).toBe(
-      "Rocco",
+      "Rocco · 0001",
     );
     // THE ONE THAT BITES. `canBook: true` with a reason set is contradictory, and
     // the flag is the authority: the animal is offered, bare. A label derived from
@@ -341,7 +360,7 @@ describe("the animal picker", () => {
       petChoiceLabel(
         aPet({ name: "Rocco", canBook: true, blockedReason: "already_booked_in_offering" }),
       ),
-    ).toBe("Rocco");
+    ).toBe("Rocco · 0001");
   });
 
   it("says what an empty list MEANS, not that the read failed", () => {

@@ -106,8 +106,14 @@ function detail(over: Partial<BookableOfferingDetailV1> = {}): BookableOfferingD
   };
 }
 
-/** Walk the two taps a booking needs: a time, then an animal. */
-async function chooseSlotAndPet(time = "10:30", pet = "Pampa") {
+/**
+ * Walk the two taps a booking needs: a time, then an animal.
+ *
+ * The animal's row label carries the token's last block since native QA batch 2
+ * C2 ("Pampa · 0001"), because two animals sharing a name were two identical
+ * rows. `petChoiceLabel` owns that string; this default just tracks it.
+ */
+async function chooseSlotAndPet(time = "10:30", pet = "Pampa · 0001") {
   await waitFor(() => expect(screen.getByText(time)).toBeTruthy());
   fireEvent.press(screen.getByText(time));
   fireEvent.press(screen.getByText(pet));
@@ -185,7 +191,9 @@ describe("the animal picker", () => {
     render(<ReservarTurnoScreen offeringToken="SVO-7K2M-9QX4" onBooked={jest.fn()} />);
 
     await waitFor(() =>
-      expect(screen.getByText("Lola — Ya tiene un turno reservado en este servicio.")).toBeTruthy(),
+      expect(
+        screen.getByText("Lola · 0002 — Ya tiene un turno reservado en este servicio."),
+      ).toBeTruthy(),
     );
   });
 
@@ -201,12 +209,12 @@ describe("the animal picker", () => {
     });
     render(<ReservarTurnoScreen offeringToken="SVO-7K2M-9QX4" onBooked={jest.fn()} />);
 
-    await waitFor(() => expect(screen.getByText("Pampa")).toBeTruthy());
+    await waitFor(() => expect(screen.getByText("Pampa · 0001")).toBeTruthy());
     // NO "Reservar" AT ALL: there is no bookable animal, so the control that would
     // promise a booking is not drawn.
     expect(screen.queryByText("Reservar")).toBeNull();
 
-    fireEvent.press(screen.getByText("Pampa"));
+    fireEvent.press(screen.getByText("Pampa · 0001"));
     expect(mockSend).not.toHaveBeenCalled();
   });
 
@@ -238,10 +246,12 @@ describe("the animal picker", () => {
 
     await waitFor(() => expect(screen.getByText("10:30")).toBeTruthy());
     fireEvent.press(screen.getByText("10:30"));
-    fireEvent.press(screen.getByText("Pampa"));
+    fireEvent.press(screen.getByText("Pampa · 0001"));
     // The blocked row is pressed AFTER a valid choice, so a screen that let it
     // through would overwrite a good selection with a refusable one.
-    fireEvent.press(screen.getByText("Lola — Ya tiene un turno reservado en este servicio."));
+    fireEvent.press(
+      screen.getByText("Lola · 0002 — Ya tiene un turno reservado en este servicio."),
+    );
     fireEvent.press(screen.getByText("Reservar"));
 
     await waitFor(() => expect(mockSend).toHaveBeenCalledTimes(1));
