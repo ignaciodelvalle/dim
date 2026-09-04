@@ -8,9 +8,15 @@
 
 import { and, eq, gte, isNull, lt } from "drizzle-orm";
 import Link from "next/link";
-import { notFound } from "next/navigation";
 
-import { OpCard, OpCardBody, OpCardHead, OpCrumbs, OpPill } from "@/components/ui/dashboard";
+import {
+  OpAccessDenied,
+  OpCard,
+  OpCardBody,
+  OpCardHead,
+  OpCrumbs,
+  OpPill,
+} from "@/components/ui/dashboard";
 import { appointments, db, pets, profiles, serviceOfferings, timeSlots } from "@/db";
 import { requireOrgAccessByToken } from "@/lib/infra/auth-guards";
 import { findServiceKind } from "@/lib/reference/service-kinds";
@@ -67,7 +73,24 @@ export default async function OrgAgendaPage({
 
   const { organization, membership } = await requireOrgAccessByToken(orgToken);
   const granted = await getGrantedCapabilities(membership);
-  if (!granted.has("appointment.manage")) notFound();
+  // AUTHORIZATION UNCHANGED — only the ANSWER changed (native QA batch 2, C3).
+  // This used to be `notFound()`, so a member of this organization whose
+  // membership simply lacks `appointment.manage` was told "No encontramos esta
+  // página" about a page that exists, inside an org they provably belong to
+  // (requireOrgAccessByToken above already refused every non-member). Its
+  // sibling `/org/{token}/checkins` has always answered the honest "Sin acceso
+  // — pedile el alta a un administrador"; two screens of one portal answering
+  // one refusal in two languages is how a tester ends up hunting a broken link
+  // instead of asking an administrator. The string is requireCapability's own,
+  // so both surfaces refuse in the same words.
+  if (!granted.has("appointment.manage")) {
+    return (
+      <OpAccessDenied
+        reason="No tenés permiso para esta acción. Pedile el alta a un administrador."
+        orgToken={orgToken}
+      />
+    );
+  }
 
   // Parse target date (default = today Argentina time).
   const targetDateStr =

@@ -9,7 +9,7 @@
 import { and, asc, desc, eq, inArray, isNull, sql } from "drizzle-orm";
 import Link from "next/link";
 
-import { OpCard, OpCardBody } from "@/components/ui/dashboard";
+import { OpAccessDenied, OpCard, OpCardBody } from "@/components/ui/dashboard";
 import { AnalyticsLoadFallback } from "@/components/ui/dashboard/AnalyticsLoadFallback";
 import { db, petEvents, pets, profiles, reminders } from "@/db";
 import { loadWithTimeout } from "@/lib/analytics/analytics-load";
@@ -43,18 +43,9 @@ export default async function CheckinsPage({
   // lib/infra/auth-guards.ts:60-70 — reads stay open, writes stop.
   const auth = await requireCapability("adoption.review", orgFromToken.id, { access: "read" });
   if (auth.error !== null) {
-    return (
-      <div className="max-w-2xl space-y-4 py-8">
-        <h1 className="text-title font-semibold text-ln-op-ink">Sin acceso</h1>
-        <p className="text-md text-ln-op-mute">{auth.error}</p>
-        <Link
-          href={`/org/${orgToken}`}
-          className="text-md text-ln-op-azul hover:underline no-underline"
-        >
-          ← Volver al panel
-        </Link>
-      </div>
-    );
+    // Same panel, same words, now from one place — see OpAccessDenied for the
+    // agenda/checkins divergence that made it a component (native QA batch 2, C3).
+    return <OpAccessDenied reason={auth.error} orgToken={orgToken} />;
   }
   const { organization } = auth;
 

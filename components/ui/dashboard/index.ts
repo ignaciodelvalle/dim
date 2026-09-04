@@ -40,6 +40,8 @@ export { OpBreach } from "./OpBreach";
 export { OpCallout } from "./OpCallout";
 export { OpOfflineBanner } from "./OpOfflineBanner";
 export { OpMaintenanceScreen } from "./OpMaintenanceScreen";
+export { OpAccessDenied } from "./OpAccessDenied";
+export type { OpAccessDeniedProps } from "./OpAccessDenied";
 export { OpStateBadge } from "./OpStateBadge";
 export { OpOmnibox } from "./OpOmnibox";
 export { OpBulkBar } from "./OpBulkBar";
