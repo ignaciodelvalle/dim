@@ -127,7 +127,9 @@ export function Sheet({
 
           {/* Body — scrollable. pb-safe keeps the last row clear of the iOS
               home indicator when the bottom sheet sits at the viewport edge. */}
-          <div className="pb-safe flex-1 overflow-y-auto px-5 py-4">{children}</div>
+          <div className="pb-safe flex-1 overflow-y-auto overscroll-contain px-5 py-4">
+            {children}
+          </div>
         </Drawer.Content>
       </Drawer.Portal>
     </Drawer.Root>
