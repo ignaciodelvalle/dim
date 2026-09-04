@@ -73,4 +73,33 @@ describe("the privacy posture is stated in the options, not assumed from default
     expect(options?.sendDefaultPii).toBe(false);
     expect(options?.tracesSampleRate).toBe(0);
   });
+
+  it("scrubs on the way out — BOTH hooks, wired to the redactor", () => {
+    // `sendDefaultPii: false` above stops the SDK ATTACHING identifying data.
+    // It says nothing about the strings this app throws, and those are where
+    // the DNIs, e-mails, phone numbers and access tokens actually are. The two
+    // hooks are the mechanism; `redact.test.ts` pins what they do.
+    //
+    // BOTH, because either alone leaves a channel open: `beforeBreadcrumb` is
+    // the only one that runs for a breadcrumb the SDK synthesises before any
+    // event exists, and `beforeSend` is the only one that runs for an event
+    // assembled without passing through the breadcrumb buffer.
+    mockExtra = { sentryDsn: "https://key@o1.ingest.sentry.io/42" };
+    initSentry();
+    const options = mockInit.mock.calls[0]?.[0];
+
+    const beforeSend = options?.beforeSend as (e: unknown) => { message?: string };
+    const beforeBreadcrumb = options?.beforeBreadcrumb as (b: unknown) => { message?: string };
+    expect(typeof beforeSend).toBe("function");
+    expect(typeof beforeBreadcrumb).toBe("function");
+
+    // Not "a function is present" — what it does. A hook wired to the wrong
+    // helper, or to an identity function, passes the two assertions above.
+    expect(beforeSend({ message: "DNI 12345678 de ana@example.com" }).message).toBe(
+      "DNI [redacted:digits] de [redacted:email]",
+    );
+    expect(beforeBreadcrumb({ message: "login ana@example.com" }).message).toBe(
+      "login [redacted:email]",
+    );
+  });
 });

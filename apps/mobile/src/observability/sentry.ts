@@ -19,9 +19,23 @@
 //   · Tracing (`tracesSampleRate: 0`) — the pilot's question is "does it
 //     crash", not "is it fast". Performance spans multiply events against a
 //     free-tier quota and can drown the one crash that mattered.
+//
+// AND WHAT `sendDefaultPii: false` DOES NOT COVER — the gap this file carried
+// until 2026-09-04. That flag stops the SDK ATTACHING identifying data of its
+// own (IP, cookies, the user object). It has nothing to say about the strings
+// the APP throws, and those are where this product's PII actually is: a DNI
+// interpolated into a claim error, the e-mail an account was created with, a
+// phone number off a lost-pet form, an access token echoed by a failed fetch.
+// The web has scrubbed its own reports since task #56b
+// (`lib/observability/redact.ts`); the two hooks below are that mechanism,
+// applied to every event and every breadcrumb before either leaves the device.
+// `./redact` explains which of the web's rules were ported and which were
+// deliberately not.
 
 import * as Sentry from "@sentry/react-native";
 import Constants from "expo-constants";
+
+import { redactBreadcrumb, redactEvent } from "./redact";
 
 /** The DSN the build carried, or null when this build has none. */
 export function sentryDsnFromConfig(): string | null {
@@ -42,6 +56,13 @@ export function initSentry(): boolean {
     dsn,
     sendDefaultPii: false,
     tracesSampleRate: 0,
+    // BOTH HOOKS, not one. `beforeSend` sees the breadcrumbs already attached to
+    // an event, and `beforeBreadcrumb` sees each one as it is recorded — but
+    // only the second runs for breadcrumbs the SDK itself synthesises before an
+    // event exists, and only the first runs for an event assembled without going
+    // through the breadcrumb buffer. Either alone leaves a channel open.
+    beforeSend: (event) => redactEvent(event),
+    beforeBreadcrumb: (breadcrumb) => redactBreadcrumb(breadcrumb),
   });
   return true;
 }
