@@ -69,11 +69,38 @@ export type SessionEndReason =
  * under Jest. With a port the policy is exercised with three fakes and no mocks
  * of anything native.
  */
+/**
+ * What came back from a refresh attempt — and WHY "it failed" is not one answer.
+ *
+ * TWO FAILURES, TWO DIFFERENT FACTS ABOUT THE SESSION (native QA batch 2, D7):
+ *
+ *   · `refused`     — GoTrue examined the refresh token and said no (rotated,
+ *                     revoked, the session timeboxed out). The session is over
+ *                     and no amount of waiting fixes it.
+ *   · `unreachable` — the refresh request never reached a server. auth-js wraps
+ *                     that in `AuthRetryableFetchError` and RETURNS it
+ *                     (lib/fetch.js:33-40); nothing was examined and nothing was
+ *                     refused. The refresh token on the device is still perfectly
+ *                     good.
+ *
+ * They used to collapse into `null`, and `apiRequest` answered both by calling
+ * `endSession("auth_expired")` — so one dead spot at the wrong moment signed a
+ * person out and made them retype a password, over a session GoTrue would have
+ * renewed. The screen said "Tu sesión venció", which was not true.
+ *
+ * `session-store.ts` already draws exactly this line for `signIn` (see the long
+ * note above `setSession` there, and `isAuthRetryableFetchError`): the same file
+ * knew the distinction and this port could not carry it.
+ */
+export type RefreshOutcome =
+  | { ok: true; token: string }
+  | { ok: false; reason: "refused" | "unreachable" };
+
 export type SessionPort = {
   /** The current access token, or null when there is no session at all. */
   accessToken(): Promise<string | null>;
-  /** Refresh against GoTrue. Returns the new access token, or null on failure. */
-  refreshAccessToken(): Promise<string | null>;
+  /** Refresh against GoTrue. See RefreshOutcome for why failure has two arms. */
+  refreshAccessToken(): Promise<RefreshOutcome>;
   /** Drop the local session and send the user to sign-in, with a reason. */
   endSession(reason: SessionEndReason): Promise<void>;
 };
@@ -255,11 +282,20 @@ export async function apiRequest<T>(
     const code = apiV1ErrorCode(raw.body);
     if (code === "auth_expired") {
       const refreshed = await session.refreshAccessToken();
-      if (refreshed === null) {
+      // A REFRESH THAT NEVER REACHED A SERVER IS NOT AN EXPIRED SESSION (native
+      // QA batch 2, D7). Ending the session here would sign somebody out — and
+      // make them retype a password — over a dead spot, holding a refresh token
+      // GoTrue would have honoured a second later. It is reported as what it is:
+      // a request that could not be made, which every screen already renders as
+      // "revisá tu conexión" with a retry.
+      if (!refreshed.ok && refreshed.reason === "unreachable") {
+        return { outcome: "unreachable", detail: "refresh unreachable" };
+      }
+      if (!refreshed.ok) {
         await session.endSession("auth_expired");
         return { outcome: "api-error", code: "auth_expired", retryAfterSeconds: null };
       }
-      raw = await performRequest(spec, { authorization: `Bearer ${refreshed}` });
+      raw = await performRequest(spec, { authorization: `Bearer ${refreshed.token}` });
     }
   }
 

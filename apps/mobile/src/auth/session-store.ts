@@ -127,15 +127,37 @@ export const sessionPort: SessionPort = {
 
   async refreshAccessToken() {
     const client = authClient();
-    if (client === null) return null;
+    // No auth plane in this build: nothing to refresh against, ever. "Refused"
+    // and not "unreachable" — waiting will not produce a server that this build
+    // was never pointed at.
+    if (client === null) return { ok: false, reason: "refused" } as const;
     try {
       const { data, error } = await client.auth.refreshSession();
-      if (error) return null;
-      return data.session?.access_token ?? null;
+      if (error) {
+        // THE SPLIT THIS FUNCTION USED TO COLLAPSE (native QA batch 2, D7). It
+        // is the same guard `signIn` below already applies to `setSession`'s
+        // returned error, for the same measured reason: auth-js RETURNS a
+        // network-level failure as `AuthRetryableFetchError` (lib/fetch.js:33-40)
+        // rather than throwing it, so `{ error }` covers both "GoTrue refused
+        // this refresh token" and "the request never got there". Answering both
+        // with `null` made `apiRequest` end the session over a dead spot — a
+        // forced re-login for a session nobody had revoked.
+        return {
+          ok: false,
+          reason: isAuthRetryableFetchError(error) ? "unreachable" : "refused",
+        } as const;
+      }
+      const token = data.session?.access_token;
+      // No error and no token is not a shape GoTrue produces; it is answered
+      // rather than assumed away, and "refused" is the honest reading of "the
+      // provider said yes and handed over nothing".
+      return token ? ({ ok: true, token } as const) : ({ ok: false, reason: "refused" } as const);
     } catch {
       // `_callRefreshToken` rethrows non-AuthErrors, so a Keystore write failure
-      // during rotation lands here rather than in `error`. Same answer: no token.
-      return null;
+      // during rotation lands here rather than in `error`. That is a DEVICE
+      // failure, not a network one: the tokens on this phone cannot be updated,
+      // so retrying the same request would fail the same way. "Refused".
+      return { ok: false, reason: "refused" } as const;
     }
   },
 

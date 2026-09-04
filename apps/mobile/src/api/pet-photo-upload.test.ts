@@ -36,7 +36,7 @@ const ended: string[] = [];
 
 const session: SessionPort = {
   accessToken: async () => "access-token",
-  refreshAccessToken: async () => "refreshed",
+  refreshAccessToken: async () => ({ ok: true, token: "refreshed" }),
   endSession: async (reason) => {
     ended.push(reason);
   },

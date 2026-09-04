@@ -65,7 +65,15 @@ type FakeSession = SessionPort & {
 };
 
 function fakeSession(
-  options: { token?: string | null; refreshTo?: string | null } = {},
+  options: {
+    token?: string | null;
+    refreshTo?: string | null;
+    /**
+     * Why the refresh failed, when `refreshTo` is null. Defaults to "refused" —
+     * the session-ending arm the pre-D7 port had as its only failure.
+     */
+    refreshFailure?: "refused" | "unreachable";
+  } = {},
 ): FakeSession {
   const ended: SessionEndReason[] = [];
   let refreshes = 0;
@@ -82,8 +90,9 @@ function fakeSession(
     async refreshAccessToken() {
       refreshes += 1;
       const next = options.refreshTo === undefined ? "token-2" : options.refreshTo;
-      if (next !== null) token = next;
-      return next;
+      if (next === null) return { ok: false, reason: options.refreshFailure ?? "refused" };
+      token = next;
+      return { ok: true, token: next };
     },
     async endSession(reason) {
       ended.push(reason);
@@ -216,13 +225,42 @@ describe("apiRequest — the session policy", () => {
     }
   });
 
-  it("does not retry when the refresh itself fails", async () => {
+  it("does not retry when the refresh is REFUSED, and ends the session", async () => {
     const fetchStub = stubFetch([{ status: 401, body: { error: "auth_expired" } }]);
-    const session = fakeSession({ refreshTo: null });
+    const session = fakeSession({ refreshTo: null, refreshFailure: "refused" });
     try {
       await apiRequest({ path: "/api/v1/me" }, session);
       expect(fetchStub.calls).toBe(1);
       expect(session.ended).toEqual(["auth_expired"]);
+    } finally {
+      fetchStub.restore();
+    }
+  });
+
+  // -------------------------------------------------------------------------
+  // A REFRESH THAT NEVER REACHED A SERVER (native QA batch 2, D7)
+  //
+  // The port used to answer `null` for both "GoTrue refused this refresh token"
+  // and "the refresh request never got there", and this layer ended the session
+  // for both. One dead spot at the wrong moment therefore signed a person out
+  // and made them retype a password, holding a refresh token nobody had revoked
+  // — a forced re-login where a silent refresh was available a second later.
+  // -------------------------------------------------------------------------
+  it("does NOT end the session when the refresh could not reach a server", async () => {
+    const fetchStub = stubFetch([{ status: 401, body: { error: "auth_expired" } }]);
+    const session = fakeSession({ refreshTo: null, refreshFailure: "unreachable" });
+    try {
+      const result = await apiRequest({ path: "/api/v1/me" }, session);
+
+      // THE ASSERTION THIS WHOLE ARM EXISTS FOR.
+      expect(session.ended).toEqual([]);
+      // Reported as what it was — a request that could not be made. Screens
+      // render this as "revisá tu conexión" with a retry, not as a sign-out.
+      expect(result.outcome).toBe("unreachable");
+      // Still ONE refresh and no retry: the policy in this file's header is
+      // unchanged, only the answer to a failure that means something else.
+      expect(session.refreshes).toBe(1);
+      expect(fetchStub.calls).toBe(1);
     } finally {
       fetchStub.restore();
     }

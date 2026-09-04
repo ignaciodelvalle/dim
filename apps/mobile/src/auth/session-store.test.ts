@@ -15,6 +15,11 @@
 // a happy-path test, which is why they get their own file.
 
 import { beforeEach, describe, expect, it, jest } from "@jest/globals";
+// The REAL error classes, not hand-rolled stand-ins: `isAuthRetryableFetchError`
+// matches on `isAuthError(e) && e.name === "AuthRetryableFetchError"`, so a fake
+// with the right shape would pin the fake. `@supabase/supabase-js` re-exports
+// everything from `@supabase/auth-js` (dist/index.d.mts: `export * from`).
+import { AuthApiError, AuthRetryableFetchError } from "@supabase/supabase-js";
 
 // ---------------------------------------------------------------------------
 // Test doubles
@@ -239,12 +244,69 @@ describe("sessionPort — a keychain that will not answer", () => {
     await expect(sessionPort.accessToken()).resolves.toBeNull();
   });
 
-  it("refreshAccessToken() returns null rather than rejecting", async () => {
+  it("refreshAccessToken() answers 'refused' rather than rejecting", async () => {
     // `_callRefreshToken` rethrows non-AuthErrors, so a Keystore write failure
-    // during token ROTATION lands here and not in `error`.
+    // during token ROTATION lands here and not in `error`. It is a DEVICE
+    // failure: retrying the same call fails the same way, so it is not the
+    // "unreachable" arm — see RefreshOutcome.
     mockAuth.refreshSession.mockRejectedValue(KEYSTORE_FAILURE);
 
-    await expect(sessionPort.refreshAccessToken()).resolves.toBeNull();
+    await expect(sessionPort.refreshAccessToken()).resolves.toEqual({
+      ok: false,
+      reason: "refused",
+    });
+  });
+
+  // -------------------------------------------------------------------------
+  // A REFRESH THAT NEVER REACHED A SERVER IS NOT A DEAD SESSION (QA batch 2, D7)
+  //
+  // auth-js RETURNS a network-level failure as `AuthRetryableFetchError`
+  // (lib/fetch.js:33-40) instead of throwing it, so `{ error }` covers both
+  // "GoTrue refused this refresh token" and "the request never got there". This
+  // port answered `null` for both and `apiRequest` ended the session for both —
+  // a forced re-login over a dead spot, holding a refresh token nobody had
+  // revoked. `signIn` in the same file has drawn this line since 2026-09-01.
+  // -------------------------------------------------------------------------
+  it("reports 'unreachable' for a refresh that never reached a server", async () => {
+    mockAuth.refreshSession.mockResolvedValue({
+      data: { session: null },
+      error: new AuthRetryableFetchError("network request failed", 0),
+    });
+
+    await expect(sessionPort.refreshAccessToken()).resolves.toEqual({
+      ok: false,
+      reason: "unreachable",
+    });
+  });
+
+  it("reports 'refused' for a refresh the server examined and rejected", async () => {
+    // The shape GoTrue produces for a rotated or revoked refresh token: a plain
+    // AuthError, not the retryable one. This session really is over.
+    mockAuth.refreshSession.mockResolvedValue({
+      data: { session: null },
+      error: new AuthApiError(
+        "Invalid Refresh Token: Already Used",
+        400,
+        "refresh_token_already_used",
+      ),
+    });
+
+    await expect(sessionPort.refreshAccessToken()).resolves.toEqual({
+      ok: false,
+      reason: "refused",
+    });
+  });
+
+  it("hands back the rotated token when the refresh works", async () => {
+    mockAuth.refreshSession.mockResolvedValue({
+      data: { session: { access_token: "rotated-token" } },
+      error: null,
+    });
+
+    await expect(sessionPort.refreshAccessToken()).resolves.toEqual({
+      ok: true,
+      token: "rotated-token",
+    });
   });
 
   it("still reads a token when the keychain is healthy", async () => {
