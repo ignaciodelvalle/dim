@@ -7861,15 +7861,15 @@
         "docs/mobile/eas-build-profiles.md#what-guards-it-now"
       ],
       "enforcer": [
-        "apps/mobile/src/release/release-config.test.ts:1189"
+        "apps/mobile/src/release/release-config.test.ts:1296"
       ],
       "enforcementKind": "jest",
       "wired": "test:verified",
       "status": "PARTIAL",
       "partialShape": "subset",
       "clause": "R4",
-      "statusBasis": "release-config.test.ts:1189 is the line that FAILS when the rule is broken — `expect(named.filter((name) => !declared.has(name))).toEqual([])`, with a non-vacuity floor at :1195. The citation was `:931` until 2026-09-04; that line had drifted onto an unrelated assertion in the workflow-pin test, and the icon work of that day shifted it again onto a comment, which is what the canon-parity fence (b) reported. The test requires ../../babel.config.js, CALLS it, and derives package names from presets+plugins against apps/mobile/package.json's deps+devDeps — babel.config.js ONLY. The rule says 'every package a mobile config file imports by name': apps/mobile/metro.config.js:25 requires \"expo/metro-config\" and jest.config.js:54/:97 require \"@react-native/jest-preset\" and \"jest-expo/jest-preset\", none of them swept.",
-      "notes": "Independently reached the judge's conclusion, and jest.config.js is a second uncovered config file the judge's note did not name. The derivation-not-hardcoding half of the rule is genuinely honoured (standardizeBabelName at :903).",
+      "statusBasis": "release-config.test.ts:1296 is the line that FAILS when the rule is broken — `expect(named.filter((name) => !declared.has(name))).toEqual([])`, with a non-vacuity floor at :1302. The citation was `:931` until 2026-09-04; that line had drifted onto an unrelated assertion in the workflow-pin test, the icon work of that day shifted it onto a comment (`:1189`), which is what the canon-parity fence (b) reported, and the feature-graphic tests added later that day moved it once more. The test requires ../../babel.config.js, CALLS it, and derives package names from presets+plugins against apps/mobile/package.json's deps+devDeps — babel.config.js ONLY. The rule says 'every package a mobile config file imports by name': apps/mobile/metro.config.js:25 requires \"expo/metro-config\" and jest.config.js:54/:97 require \"@react-native/jest-preset\" and \"jest-expo/jest-preset\", none of them swept.",
+      "notes": "Independently reached the judge's conclusion, and jest.config.js is a second uncovered config file the judge's note did not name. The derivation-not-hardcoding half of the rule is genuinely honoured (standardizeBabelName at :1208).",
       "confidence": 0.85,
       "verifiedAt": "d7dbf25f7"
     },
