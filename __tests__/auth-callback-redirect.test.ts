@@ -104,7 +104,6 @@ describe("auth/callback failed exchange lands on recovery, not a flag nobody rea
           error: { message: "code verifier not found" },
         })),
       },
-      // biome-ignore lint/suspicious/noExplicitAny: partial mock of the client.
     } as any);
     const location = await locationFor({ code: "stale-cross-device-code" });
     expect(location).toBe(`${ORIGIN}/recuperar?error=enlace_invalido`);
