@@ -363,6 +363,33 @@ export function ClaimWizard() {
   );
 }
 
+/**
+ * The heading for variant B — the animal is already in somebody's custody.
+ *
+ * `ownerInitials === null` DOES NOT MEAN "NO CUSTODY", and reading it that way is
+ * the bug this function exists to fix. A refugio holding an animal under
+ * `shelter_custody` has no owner row and therefore no initials, and the variant is
+ * still `active_owner` — so the old single sentence ("ya tiene dueño/a
+ * registrado/a" with the parenthetical simply omitted) told the person a
+ * shelter-held animal has a registered OWNER, which is false and is exactly the
+ * claim they are about to dispute.
+ *
+ * The two-armed wording is the NATIVE app's, copied rather than re-invented:
+ * `apps/mobile/src/claims/claim-view-model.ts` `claimVariantHeadline` already
+ * splits on the same field for the same reason, and two apps answering one lookup
+ * differently is how the two sentences stop agreeing.
+ *
+ * EXPORTED because it is the testable half of a component whose other half is a
+ * three-step state machine behind two server actions. The doctrine is the one the
+ * mobile view-models state: a sentence built inside a component is a sentence
+ * testable only by rendering.
+ */
+export function activeOwnerHeadline(petName: string, ownerInitials: string | null): string {
+  return ownerInitials
+    ? `${petName} ya tiene dueño/a registrado/a (${ownerInitials}).`
+    : `${petName} ya está bajo la custodia de otra persona u organización.`;
+}
+
 function ResultStep({
   lookup,
   pending,
@@ -518,8 +545,7 @@ function ResultStep({
         tabIndex={-1}
         className="font-medium text-[var(--color-ln-warn)] focus:outline-none"
       >
-        {lookup.petName} ya tiene dueño/a registrado/a
-        {lookup.ownerInitials ? ` (${lookup.ownerInitials})` : ""}.
+        {activeOwnerHeadline(lookup.petName, lookup.ownerInitials)}
       </p>
       <p className="text-[var(--color-ln-warn)]">
         Si pensás que la mascota es tuya, podés iniciar una disputa. Una autoridad local va a
