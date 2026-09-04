@@ -301,9 +301,33 @@ export function transferPetRoute(publicToken: string): `/mascotas/${string}/tran
   return `/mascotas/${encodeURIComponent(publicToken)}/transferir`;
 }
 
-/** One pet's credential. */
-export function credentialRoute(publicToken: string): `/mascotas/${string}` {
-  return `/mascotas/${encodeURIComponent(publicToken)}`;
+/**
+ * The query parameter that names which face of the document to open on.
+ *
+ * Named once, here, because it is written by `credentialRoute` and read by
+ * `app/mascotas/[publicToken].tsx` — two files that would otherwise agree on a
+ * string literal by coincidence, which is the failure this whole module exists
+ * to prevent for paths.
+ */
+export const DOCUMENT_FACE_PARAM = "face";
+
+/**
+ * One pet's document.
+ *
+ * `face` IS OPTIONAL AND THE OMISSION IS THE DEFAULT, not a shrug: the document
+ * opens on the credential, which is what a person navigating to an animal
+ * expects to see. It is passed only by a caller that knows better — today just
+ * the writer's "Volver a la libreta", which returns a person to the face they
+ * were writing into (native QA batch 1, D3). A return that landed on the front
+ * of a document whose back had just been written is not a wrong screen, it is a
+ * lost place.
+ */
+export function credentialRoute(
+  publicToken: string,
+  options: { face?: "credencial" | "libreta" } = {},
+): `/mascotas/${string}` {
+  const suffix = options.face ? `?${DOCUMENT_FACE_PARAM}=${options.face}` : "";
+  return `/mascotas/${encodeURIComponent(publicToken)}${suffix}`;
 }
 
 /**

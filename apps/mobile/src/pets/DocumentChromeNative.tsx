@@ -47,6 +47,24 @@ import { COLORS, LABEL_TRACKING_EM, RADIUS, TOUCH_TARGET } from "../ui/theme";
 
 export type DocumentFace = "credencial" | "libreta";
 
+/**
+ * Is this string one of the document's two faces?
+ *
+ * A TYPE GUARD FOR A QUERY PARAMETER, mirroring `isWritableKind` in
+ * `record-event-view-model.ts` and used the same way: the route file validates
+ * what the URL carried and falls back to the default rather than trusting it.
+ * Written here, beside the union, so a third face could never be added without
+ * this guard being in the same diff.
+ *
+ * It exists for `?face=libreta` (native QA batch 1, D3). Saving an asiento used
+ * to return the reader to the CREDENTIAL side of the document they had just
+ * written into the back of, because `PetDocumentScreen` always opened on
+ * `"credencial"` and the return carried nothing to say otherwise.
+ */
+export function isDocumentFace(raw: string): raw is DocumentFace {
+  return raw === "credencial" || raw === "libreta";
+}
+
 /** The band's gradient stops + the face's border tint, per situation key —
  *  mirroring the `.ln-face[data-situation]` CSS variants, tokens only. */
 function bandSkin(situationKey: string | undefined): {

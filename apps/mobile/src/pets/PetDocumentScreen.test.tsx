@@ -202,6 +202,23 @@ describe("PetDocumentScreen — two faces of one document", () => {
     expect(screen.getByText("Registrada")).toBeOnTheScreen();
   });
 
+  it("opens on Libreta · dorso when the caller asked for that face", async () => {
+    // D3 (native QA batch 1). The face is `useState`'s INITIAL value, so no turn
+    // runs and the band names the back immediately — which is what makes this
+    // assertion safe without the fake timers the turning tests need.
+    //
+    // The one caller is the writer's "Volver a la libreta": before this, saving
+    // an asiento returned the reader to the FRONT of the document they had just
+    // written into the back of.
+    render(<PetDocumentScreen publicToken={TOKEN} initialFace="libreta" />);
+    expect(
+      await screen.findByText("Libreta · dorso", { includeHiddenElements: true }),
+    ).toBeOnTheScreen();
+    // And the turn button offers the OTHER face, so the reader is really there
+    // rather than looking at a mislabelled front.
+    expect(screen.getByLabelText("Girar a Credencial")).toBeOnTheScreen();
+  });
+
   it("turns to Libreta · dorso and back, and the button carries the toggle state", async () => {
     render(<PetDocumentScreen publicToken={TOKEN} />);
     await screen.findByText("Pampa");

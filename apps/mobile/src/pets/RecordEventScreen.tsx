@@ -246,9 +246,15 @@ function EventForm({
         <Callout tone="ok" title={state.wasDuplicate ? "Ya estaba registrado" : "Listo"}>
           <Body>{state.wasDuplicate ? RECORD_DUPLICATE_LABEL : RECORD_DONE_LABEL}</Body>
         </Callout>
+        {/* BACK TO THE FACE THIS WROTE INTO, which is what the label has always
+            promised (native QA batch 1, D3). `credentialRoute` with no options
+            opens the document on the credential, so the person who had just
+            written an asiento landed on the FRONT of the card and had to find
+            the turn button to see what they had done. The asiento is on the
+            back; so is the return. */}
         <PrimaryButton
           label="Volver a la libreta"
-          onPress={() => router.replace(credentialRoute(publicToken))}
+          onPress={() => router.replace(credentialRoute(publicToken, { face: "libreta" }))}
         />
       </Screen>
     );

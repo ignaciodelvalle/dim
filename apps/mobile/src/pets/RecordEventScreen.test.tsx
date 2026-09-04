@@ -108,6 +108,25 @@ describe("RecordEventScreen — a weight, end to end", () => {
     expect(await screen.findByText("Asiento registrado.")).toBeOnTheScreen();
   });
 
+  it("returns to the LIBRETA face, not to the front of the document", async () => {
+    // D3 (native QA batch 1). "Volver a la libreta" used to call
+    // `credentialRoute(token)`, which opens `PetDocumentScreen` on its default
+    // face — so the person who had just written an asiento landed on the
+    // CREDENTIAL side of the card and had to find the turn button to see what
+    // they had done. The label promised the back; the navigation delivered the
+    // front.
+    //
+    // The literal is spelled out rather than built with `credentialRoute`: a
+    // test that re-derives its expected value from the function under test
+    // agrees with a broken one.
+    render(<RecordEventScreen publicToken={TOKEN} initialKind="weight" />);
+    fireEvent.changeText(screen.getByLabelText("Peso (kg), obligatorio"), "12");
+    fireEvent.press(screen.getByText("Guardar"));
+
+    fireEvent.press(await screen.findByText("Volver a la libreta"));
+    expect(mockReplace).toHaveBeenCalledWith(`/mascotas/${TOKEN}?face=libreta`);
+  });
+
   it("says a REPLAY was a replay, instead of claiming a second asiento", async () => {
     mockRecordPetEvent.mockResolvedValue(recorded(true));
     render(<RecordEventScreen publicToken={TOKEN} initialKind="weight" />);

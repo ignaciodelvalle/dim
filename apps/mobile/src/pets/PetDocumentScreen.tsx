@@ -81,8 +81,26 @@ function situationOf(view: OwnerFaceView | null): OwnerPetSituationV1 | null {
   return view.status.data.situation;
 }
 
-export function PetDocumentScreen({ publicToken }: { publicToken: string }) {
-  const [face, setFace] = useState<DocumentFace>("credencial");
+export function PetDocumentScreen({
+  publicToken,
+  initialFace = "credencial",
+}: {
+  publicToken: string;
+  /**
+   * Which face the document opens on. Defaults to the credential — that is what
+   * a person navigating to an animal expects to see, and every caller but one
+   * omits it.
+   *
+   * THE ONE THAT DOES NOT is the writer's "Volver a la libreta" (native QA batch
+   * 1, D3): saving an asiento used to return the reader to the FRONT of the
+   * document they had just written into the back of. It is an INITIAL value and
+   * not a controlled prop on purpose — the turn button owns the face from the
+   * first tap onwards, and a prop that kept re-asserting itself would fight the
+   * reader for control of their own document.
+   */
+  initialFace?: DocumentFace;
+}) {
+  const [face, setFace] = useState<DocumentFace>(initialFace);
   const turn = useDocumentTurn(face);
   const painted = turn.paintedFace;
   const [owner, setOwner] = useState<OwnerState>({ phase: "loading" });

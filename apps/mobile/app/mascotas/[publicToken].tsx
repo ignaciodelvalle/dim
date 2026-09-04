@@ -32,13 +32,18 @@
 import { useLocalSearchParams } from "expo-router";
 
 import { useGate } from "../../src/auth/useGate";
+import { type DocumentFace, isDocumentFace } from "../../src/pets/DocumentChromeNative";
 import { PetDocumentScreen } from "../../src/pets/PetDocumentScreen";
 import { ErrorNotice } from "../../src/ui/components";
 import { Screen } from "../../src/ui/kit";
+import { DOCUMENT_FACE_PARAM } from "../../src/ui/routes";
 
 export default function PetDetailRoute() {
   const gate = useGate();
-  const params = useLocalSearchParams<{ publicToken?: string | string[] }>();
+  const params = useLocalSearchParams<{
+    publicToken?: string | string[];
+    [DOCUMENT_FACE_PARAM]?: string | string[];
+  }>();
 
   if (!gate.allowed) return gate.element;
 
@@ -53,5 +58,15 @@ export default function PetDetailRoute() {
     );
   }
 
-  return <PetDocumentScreen publicToken={publicToken} />;
+  // AN UNKNOWN `?face=` IS NOT AN ERROR, it is the default — the same posture
+  // `asentar.tsx` takes with an unknown `kind`. A link that names a face this
+  // build does not have still points at a real animal, and refusing to draw the
+  // document over a query string would turn a cosmetic disagreement into a dead
+  // link. Only the path parameter is worth a refusal, because without it there
+  // is no animal at all.
+  const rawFace = params[DOCUMENT_FACE_PARAM];
+  const face = (Array.isArray(rawFace) ? rawFace[0] : rawFace)?.trim() ?? "";
+  const initialFace: DocumentFace = isDocumentFace(face) ? face : "credencial";
+
+  return <PetDocumentScreen publicToken={publicToken} initialFace={initialFace} />;
 }
