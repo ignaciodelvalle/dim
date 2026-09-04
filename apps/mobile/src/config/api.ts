@@ -192,8 +192,22 @@ export function publicCredentialPageUrl(publicToken: string): string {
  * so opening the link lands on a signed-out browser. The person has to sign in
  * again there with the same email. Saying so is the difference between a link
  * that works and a link that looks broken.
+ *
+ * `?from=app` IS THE HANDOFF MARKER, and it is why this link stops landing a
+ * tester on a signup form (native QA batch 2, D6). The browser opens SIGNED OUT
+ * — that is the paragraph above — so `/registro` had no way to tell this visitor
+ * from a stranger and showed "Crear cuenta · Paso 1 de 2": the natural action on
+ * the screen was to create a SECOND account for somebody who already has one.
+ * With the marker the page leads with "Ya tenés cuenta en miMAR: iniciá sesión
+ * para completar tu registro", and its login link carries `returnTo` back to
+ * this same URL, so signing in lands on step 2 instead of on `/mis-mascotas`
+ * with a banner to notice.
+ *
+ * IT AUTHORIZES NOTHING. It is a query parameter anybody can paste; the signup
+ * form is still rendered underneath. All it decides is which door is offered
+ * first, which is exactly as much trust as a query parameter has earned.
  */
-export const IDENTITY_COMPLETION_URL = `${API_BASE_URL}/registro`;
+export const IDENTITY_COMPLETION_URL = `${API_BASE_URL}/registro?from=app`;
 
 /**
  * The two legal documents the crear-cuenta checkbox accepts.

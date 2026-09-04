@@ -91,12 +91,16 @@ export default async function LoginPage({
 
   // Build the signup link — preserve intent + returnTo so the round-trip
   // doesn't lose context if the visitor switches from login to signup.
-  const signupHref =
-    intent && returnTo
-      ? `/registro?intent=${encodeURIComponent(intent)}&returnTo=${encodeURIComponent(returnTo)}`
-      : intent
-        ? `/registro?intent=${encodeURIComponent(intent)}`
-        : "/registro";
+  //
+  // `returnTo` USED TO SURVIVE ONLY ALONGSIDE AN INTENT here too (the mirror of
+  // the bug fixed on /registro, native QA batch 2 D6): the old expression fell
+  // through to a bare "/registro" whenever there was a destination and no
+  // intent, so the round trip this comment promises was only half true.
+  const signupParams = new URLSearchParams();
+  if (intent) signupParams.set("intent", intent);
+  if (returnTo) signupParams.set("returnTo", returnTo);
+  const signupQuery = signupParams.toString();
+  const signupHref = signupQuery === "" ? "/registro" : `/registro?${signupQuery}`;
 
   return (
     <main

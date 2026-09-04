@@ -46,6 +46,8 @@ Desde "Mis mascotas" tocá **Registrar una mascota**. Son 6 pasos cortos:
 5. Detalles como edad, color o peso — opcional, se puede completar después
 6. Revisá y tocá **Registrar**
 
+La búsqueda de turnos usa la localidad de la **primera** mascota que registres, así que si vas a cargar varias, registrá primero la de La Matanza (o movela después desde **Más** → **Editar datos** → **Registrar mudanza**).
+
 ## Qué probar esta semana
 
 Con tu mascota ya registrada, probá estas 8 cosas y contanos cómo te fue:

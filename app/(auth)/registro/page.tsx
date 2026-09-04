@@ -1,4 +1,4 @@
-import { getIntentCopy } from "@/lib/domain/auth-intent-copy";
+import { type IntentCopy, getIntentCopy } from "@/lib/domain/auth-intent-copy";
 import { isIdentityPending } from "@/lib/domain/identity-completeness";
 import { getProfileCached } from "@/lib/infra/request-cache";
 import { safeReturnTo } from "@/lib/infra/role-landing";
@@ -18,10 +18,47 @@ import { SignupForm } from "./SignupForm";
 // "apply" has a flow branch. Other intents use the same form flow as the
 // default path.
 
+/**
+ * The heading and subheading, as ONE decision over the four faces this page has.
+ *
+ * Extracted rather than inlined as nested ternaries: the two strings always move
+ * together (a "Completá tu perfil" headline over "Creá la libreta digital de tu
+ * mascota" is nonsense), and writing them as two independent ternary chains made
+ * that pairing something the reader has to re-derive — as well as pushing the
+ * page past biome's cognitive-complexity ceiling.
+ *
+ * ORDER IS PRECEDENCE. Resume beats the handoff (an authenticated visitor with
+ * a provisional name is finishing, not choosing a door), and both beat the
+ * intent copy — telling somebody who already has an account to "create" one is
+ * the confusing part.
+ */
+function signupPageCopy(face: {
+  identityPending: boolean;
+  appHandoff: boolean;
+  intentCopy: IntentCopy | null;
+}): { headline: string; subcopy: string } {
+  if (face.identityPending) {
+    return {
+      headline: "Completá tu perfil",
+      subcopy: "Tu cuenta ya está creada. Nos falta tu nombre para completar tu credencial.",
+    };
+  }
+  if (face.appHandoff) {
+    return {
+      headline: "Completá tu registro",
+      subcopy: "Seguí desde donde quedaste en la app.",
+    };
+  }
+  if (face.intentCopy) {
+    return { headline: face.intentCopy.headline, subcopy: face.intentCopy.subcopy };
+  }
+  return { headline: "Crear cuenta", subcopy: "Creá la libreta digital de tu mascota" };
+}
+
 export default async function SignupPage({
   searchParams,
 }: {
-  searchParams: Promise<{ intent?: string; returnTo?: string }>;
+  searchParams: Promise<{ intent?: string; returnTo?: string; from?: string }>;
 }) {
   const sp = await searchParams;
   // Preserve raw intent for the copy map. SignupForm still gets only
@@ -29,6 +66,17 @@ export default async function SignupPage({
   const rawIntent = sp.intent ?? null;
   const intent = rawIntent === "apply" ? "apply" : null;
   const returnTo = safeReturnTo(sp.returnTo);
+  // THE NATIVE HANDOFF MARKER (native QA batch 2, D6). `identidad-pendiente`
+  // opens IDENTITY_COMPLETION_URL in the browser to finish a registration that
+  // already has an account behind it — and the browser opens SIGNED OUT, because
+  // the app holds a bearer token and this page resolves a cookie
+  // (apps/mobile/app/identidad-pendiente.tsx says so out loud). Without this
+  // marker the page has no way to tell that visitor from a stranger, so it
+  // showed "Crear cuenta — Paso 1 de 2" and the natural action on the screen was
+  // to create a SECOND account. The marker does not authorize anything and is
+  // never trusted for a decision that matters: all it changes is which of the
+  // two doors is offered first.
+  const fromApp = sp.from === "app";
   const supabase = await createClient();
   const {
     data: { user },
@@ -61,13 +109,45 @@ export default async function SignupPage({
 
   const intentCopy = getIntentCopy(rawIntent);
 
+  // The handoff face of this page: signed out, arrived from the app. `user`
+  // being null is what makes it the SIGNED-OUT case — an authenticated visitor
+  // with the same marker is already covered by `identityPending` above, which
+  // mounts step 2 directly and needs no login CTA at all.
+  const appHandoff = fromApp && user === null;
+  const copy = signupPageCopy({ identityPending, appHandoff, intentCopy });
+
   // Build the login link — preserve intent + returnTo.
-  const loginHref =
-    rawIntent && returnTo
-      ? `/iniciar-sesion?intent=${encodeURIComponent(rawIntent)}&returnTo=${encodeURIComponent(returnTo)}`
-      : rawIntent
-        ? `/iniciar-sesion?intent=${encodeURIComponent(rawIntent)}`
-        : "/iniciar-sesion";
+  //
+  // TWO FIXES LIVE IN THESE LINES (native QA batch 2, D6).
+  //
+  // 1. `returnTo` USED TO SURVIVE ONLY ALONGSIDE AN INTENT. The old expression
+  //    was `intent && returnTo ? … : intent ? … : "/iniciar-sesion"`, so a
+  //    visitor who arrived at `/registro?returnTo=/mis-mascotas/X` and clicked
+  //    "¿Ya tenés cuenta?" lost the destination on the way to the login form —
+  //    the one link out of this page dropped the reason they were on it.
+  //    `loginAction` has honoured a same-origin `returnTo` all along
+  //    (src/modules/auth/application/login.ts, sanitized by `safeReturnTo`:
+  //    relative path only, no scheme, no protocol-relative `//`, no backslash);
+  //    the link simply never handed it one.
+  //
+  // 2. WITH THE APP'S HANDOFF MARKER AND NO EXPLICIT DESTINATION, the login link
+  //    comes BACK HERE rather than to the role landing. That is what closes the
+  //    loop the tester walked: sign in, return to `/registro?from=app`, and the
+  //    identity-pending guard above keeps them on the page and mounts step 2.
+  //    Without it they land on `/mis-mascotas` and have to notice the "Falta tu
+  //    nombre" banner to find the step they came here to finish.
+  //
+  //    DELIBERATELY NOT DONE FOR EVERY VISITOR. A blanket self-`returnTo` would
+  //    route a vet or a govt operator who clicked "Iniciar sesión" from this page
+  //    through `/registro`, whose complete-identity guard falls back to
+  //    `/mis-mascotas` — it would cost them their role landing. The marker is the
+  //    evidence that the person is mid-registration; nothing else here is.
+  const loginParams = new URLSearchParams();
+  if (rawIntent) loginParams.set("intent", rawIntent);
+  const loginReturnTo = returnTo ?? (fromApp ? "/registro?from=app" : null);
+  if (loginReturnTo) loginParams.set("returnTo", loginReturnTo);
+  const loginQuery = loginParams.toString();
+  const loginHref = loginQuery === "" ? "/iniciar-sesion" : `/iniciar-sesion?${loginQuery}`;
 
   return (
     <main
@@ -90,31 +170,51 @@ export default async function SignupPage({
             id="auth-heading"
             className="font-ln-serif text-3xl font-semibold tracking-[-0.02em] text-[var(--color-ln-ink)]"
           >
-            {identityPending
-              ? "Completá tu perfil"
-              : intentCopy
-                ? intentCopy.headline
-                : "Crear cuenta"}
+            {copy.headline}
           </h1>
           {/* 24.1 Subcopy: tied to the heading via aria-describedby.
               Resume copy wins over intent copy — telling someone who already
               has an account to "create" one is the confusing part. */}
           <p className="text-sm text-[var(--color-ln-ink-2)]" aria-describedby="auth-heading">
-            {identityPending
-              ? "Tu cuenta ya está creada. Nos falta tu nombre para completar tu credencial."
-              : intentCopy
-                ? intentCopy.subcopy
-                : "Creá la libreta digital de tu mascota"}
+            {copy.subcopy}
           </p>
         </div>
+        {/* THE LOGIN DOOR FIRST, AND THE SIGNUP FORM SECOND (native QA batch 2,
+            D6). Somebody who got here from the app HAS an account: the app sent
+            them precisely because the server answered `profilePending: true` for
+            it. The form below stays — the marker is a query parameter and a
+            stranger can paste it — but the natural action on the screen has to
+            be the one that is right for the person the link was built for. */}
+        {appHandoff && (
+          <div className="space-y-4">
+            <div className="space-y-3 rounded-[var(--radius-sm)] border border-[var(--color-ln-line)] bg-[var(--color-ln-paper-2)] px-4 py-4">
+              <p className="text-sm text-[var(--color-ln-ink)]">
+                Ya tenés cuenta en miMAR: iniciá sesión para completar tu registro. Es el mismo
+                correo y la misma contraseña que usás en la app.
+              </p>
+              <Link
+                href={loginHref}
+                className="block w-full rounded-[var(--radius-pill)] bg-[var(--color-ln-azul)] px-4 py-3 text-center font-medium text-white no-underline hover:bg-[var(--color-ln-azul-700)]"
+              >
+                Iniciar sesión
+              </Link>
+            </div>
+            <p className="text-center text-sm text-[var(--color-ln-ink-2)]">
+              ¿Todavía no tenés cuenta? Creala acá:
+            </p>
+          </div>
+        )}
         <SignupForm
           intent={intent}
           returnTo={returnTo}
           initialStep={identityPending ? "identity" : "account"}
         />
         {/* Meaningless to someone who is already signed in and just finishing
-            their profile — they HAVE the account. */}
-        {!identityPending && (
+            their profile — they HAVE the account. Suppressed for the app handoff
+            too, and for the opposite reason: that face already leads with the
+            same link, in a panel, above the form. Two "Iniciar sesión" links to
+            one destination on one screen is furniture. */}
+        {!identityPending && !appHandoff && (
           <p className="text-center text-sm text-[var(--color-ln-ink-2)]">
             ¿Ya tenés cuenta?{" "}
             <Link
