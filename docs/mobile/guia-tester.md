@@ -1,6 +1,6 @@
 # Guía para testers de miMAR
 
-miMAR es la app donde vas a tener la libreta sanitaria de tu mascota, su credencial digital y el modo perdida, todo desde el celular. Estás probando una versión piloto, del [[FECHA DE INICIO]] al [[FECHA DE FIN]], para encontrar qué funciona y qué no antes de abrirla a todo el mundo.
+miMAR es la app donde vas a tener la libreta sanitaria de tu mascota, su credencial digital y el modo perdida, todo desde el celular. Estás probando una versión piloto, del lunes 7 de septiembre al domingo 4 de octubre de 2026, para encontrar qué funciona y qué no antes de abrirla a todo el mundo.
 
 Si algo no anda, no es que lo hiciste mal — es exactamente lo que estamos buscando. Cuanto más nos cuentes, mejor.
 
@@ -42,11 +42,11 @@ Desde "Mis mascotas" tocá **Registrar una mascota**. Son 6 pasos cortos:
 1. Nombre
 2. Especie y sexo
 3. Raza (opcional)
-4. Localidad — escribí tu barrio real de La Matanza (San Justo, Ramos Mejía, Isidro Casanova, Laferrere, González Catán, Villa Luzuriaga, Ciudad Evita, o el que corresponda). Importante: los turnos que probamos esta semana dependen de este dato.
+4. Localidad — escribí tu barrio real de La Matanza (San Justo, Ramos Mejía, Isidro Casanova, Laferrere, González Catán, Villa Luzuriaga, Ciudad Evita, o el que corresponda). Es el dato con el que arranca la búsqueda de turnos, así que conviene que sea el de verdad.
 5. Detalles como edad, color o peso — opcional, se puede completar después
 6. Revisá y tocá **Registrar**
 
-La búsqueda de turnos usa la localidad de la **primera** mascota que registres, así que si vas a cargar varias, registrá primero la de La Matanza (o movela después desde **Más** → **Editar datos** → **Registrar mudanza**).
+La búsqueda de turnos **arranca** en la localidad de la primera mascota que registres, y desde ahí la podés cambiar: en la pantalla de búsqueda tocá **Cambiar** y elegí otra localidad. Si querés que arranque sola en el barrio correcto, registrá primero la mascota de La Matanza (o movela después desde **Más** → **Editar datos** → **Registrar mudanza**).
 
 ## Qué probar esta semana
 
@@ -56,7 +56,7 @@ Con tu mascota ya registrada, probá estas 8 cosas y contanos cómo te fue:
 2. **Mostrar tu QR.** Tocá el código QR de la credencial. Se abre la página pública de tu mascota: la misma que ve cualquiera que escanee el código.
 3. **Anotar algo en la libreta.** Desde la Libreta, tocá **Asentar**, elegí un tipo (por ejemplo "Peso" o "Nota"), completá y tocá **Guardar**.
 4. **Activar y desactivar Modo perdida.** En la Credencial, tocá **Modo perdida** y después **Marcar como perdida** (puede decir "perdido", según el sexo de tu mascota). Podés completar los datos o dejarlos vacíos. Después volvé a entrar, tocá **Marcar como encontrada** y confirmá con **Sí, la encontré**.
-5. **Buscar y reservar un turno.** Desde "Mis mascotas" tocá **Mis turnos** → **Buscar un turno** → elegí un servicio → tocá un resultado → elegí un horario y tu mascota → **Reservar**. (La campaña de vacunación antirrábica en La Matanza corre de lunes a sábado de 11 a 14, hasta el 4 de octubre.)
+5. **Buscar y reservar un turno.** Desde "Mis mascotas" tocá **Mis turnos** → **Buscar un turno** → elegí un servicio → tocá un resultado → elegí un horario y tu mascota → **Reservar**. Arriba de los resultados dice en qué localidad está buscando: si querés mirar en otra, tocá **Cambiar** y elegila. (La campaña de vacunación antirrábica en La Matanza corre de lunes a sábado de 11 a 14, hasta el 4 de octubre.)
 6. **Contactos de emergencia.** En la Credencial, tocá **Más** → **Contactos de emergencia**, cargá un veterinario o un contacto, y tocá **Guardar contactos**.
 7. **Cambiar un dato de tu mascota.** Tocá **Más** → **Editar datos**, cambiá el color o la raza, y tocá **Guardar datos**.
 8. **Exportar tus datos.** Andá a **Ajustes** → **Ver mis datos o eliminar mi cuenta** → **Pedir mis datos** → **Compartir el archivo**.
@@ -77,7 +77,7 @@ Dentro de los primeros 3 días, respondé este mensaje con una frase:
 
 Si podés, mandá también una captura de pantalla de lo que viste.
 
-¿Dónde nos escribís? [[CANAL O CONTACTO PARA MANDAR FEEDBACK]]
+¿Dónde nos escribís? Respondé por el mismo WhatsApp por el que te escribí.
 
 ## Privacidad
 
