@@ -503,10 +503,18 @@ export async function signUp(input: {
 
   // `/me` RATHER THAN A USER OFF THE SIGNUP RESPONSE, because there is none:
   // `SignupV1` carries a session and nothing else, deliberately. That is also
-  // the honest shape — a brand-new account has no profile row yet, so `/me`
-  // answers `profilePending: true` and the gate sends the person to
-  // `identidad-pendiente`, which is step 2 and lives on the web. Fabricating a
-  // user here would be this app inventing an answer the server declined to give.
+  // the honest shape — a brand-new account has an identity that is not yet
+  // COMPLETE, so `/me` answers `profilePending: true` and the gate sends the
+  // person to `identidad-pendiente`, which is step 2 and lives on the web.
+  // Fabricating a user here would be this app inventing an answer the server
+  // declined to give.
+  //
+  // "No profile row yet" is what this used to say, and it was never true:
+  // `handle_new_user` (db/triggers.sql) inserts the `profiles` row inside the
+  // same transaction that creates the account. `profilePending` means THE NAME
+  // IS STILL PROVISIONAL — the trigger's `split_part(email, '@', 1)` — which is
+  // what `isIdentityPending` detects and why `/me` had to stop testing row
+  // existence (native QA batch 1, D1).
   const me = await fetchMe(sessionPort);
   applyMeResult(me);
   return { ok: true, signedIn: true };

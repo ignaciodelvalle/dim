@@ -17,12 +17,19 @@
 //     browser to come back. It travels through the person's own eyes, which is
 //     the one channel that survives a device with no verified App Links.
 //
-// The premise that DID hold is why the browser bridge is still on this screen
-// rather than deleted: Supabase's default recovery template renders the link and
-// not the code, so until that template is edited in the dashboard (PO-gated,
-// like "email confirmations ON") the browser is where a real tester finishes.
-// A secondary affordance that says so is honest; removing it while the gate is
-// open would be this screen claiming a loop it cannot close yet.
+// THE CODE DOES TRAVEL — MEASURED 2026-09-04, and this paragraph used to say
+// the opposite. It claimed Supabase's default recovery template renders the link
+// and not the code, so "the browser is where a real tester finishes" until a
+// PO-gated dashboard edit. A real recovery mail from the hosted project was read
+// end to end that day and it carries the six-digit code, so the native loop
+// closes on its own and no dashboard change is pending for it.
+//
+// The browser bridge stays anyway, and for a smaller reason than the one it was
+// given: a mail client, a forwarded message or a template somebody edits later
+// can still deliver a link and no code, and a person holding one has no other
+// way through. It is a fallback now, not a workaround for a missing feature —
+// which is exactly what its copy asks ("¿El correo trae un enlace y no un
+// código?").
 //
 // TWO STEPS, ONE SCREEN, AND THE EMAIL IS NOT RE-TYPED. `verifyOtp` needs the
 // address as well as the code — a six-digit code is not globally unique — so

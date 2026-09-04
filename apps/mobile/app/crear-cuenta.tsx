@@ -16,12 +16,14 @@
 // signup does.
 //
 // THE BOUNCE GOES TO `/` — THE GATE — AND NOT TO A DESTINATION. A brand-new
-// account has no profile row, so `/me` answers `profilePending: true` and the
-// gate sends the person to `identidad-pendiente` (step 2, on the web: see
-// IDENTITY_COMPLETION_URL for why this app must not fake it). Naming that
-// screen here would duplicate a decision `useGate` already makes for every
-// route, and it would be the wrong one the day identity completion gets an
-// `/api/v1` door of its own.
+// account still carries the provisional, email-derived display name the
+// `handle_new_user` trigger writes (the row is created with the account; "no
+// profile row" is not a state signup produces, and this comment used to say it
+// was), so `/me` answers `profilePending: true` and the gate sends the person to
+// `identidad-pendiente` (step 2, on the web: see IDENTITY_COMPLETION_URL for why
+// this app must not fake it). Naming that screen here would duplicate a decision
+// `useGate` already makes for every route, and it would be the wrong one the day
+// identity completion gets an `/api/v1` door of its own.
 
 import { Redirect, useRouter } from "expo-router";
 

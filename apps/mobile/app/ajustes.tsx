@@ -103,10 +103,13 @@ export default function AjustesScreen() {
             <Row label="Nombre" value={user.displayName} />
             <Row label="Rol" value={ROLE_LABELS[user.role]} />
             <Row label="Tipo de cuenta" value={ACCOUNT_TYPE_LABELS[user.accountType]} />
-            {/* THE EDIT DOOR IS INSIDE THIS CARD and hidden while the profile is
-                pending, which is not a styling choice. There is no `profiles`
-                row to edit in that window — the endpoint 404s and the writer
-                answers NOT_FOUND — so offering the control would be a button
+            {/* THE EDIT DOOR IS INSIDE THIS CARD and hidden while the identity
+                is pending, which is not a styling choice. The row exists — the
+                `handle_new_user` trigger writes one with every account — but it
+                is still carrying the provisional, email-derived name, and
+                `/api/v1/me/profile` answers 404 for exactly that state on BOTH
+                methods (2026-09-04): a save here is not signup step 2, which
+                also collects a DNI. So offering the control would be a button
                 whose only outcome is an error. The gate on the route refuses it
                 too; this is what stops a person reaching the refusal at all. */}
             <View style={styles.editRow}>

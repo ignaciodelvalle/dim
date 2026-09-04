@@ -33,10 +33,14 @@
 //     decision 2026-07-10) the store seeds the SDK, reads `/me`, and flips to
 //     `signed-in`. The redirect below then goes to `/` — THE GATE — and the
 //     gate decides. It will find `profilePending: true`, because a brand-new
-//     account has no profile row, and send the person to `identidad-pendiente`.
-//     Routing straight there from here would be this screen re-deciding
-//     something `useGate` already decides for every other screen, and it would
-//     be wrong the day identity completion gets an `/api/v1` door.
+//     account still carries the PROVISIONAL, email-derived display name the
+//     `handle_new_user` trigger writes (the row itself is created in the same
+//     transaction as the account — "no profile row" is not a state signup
+//     produces, and this comment used to claim it was). The gate then sends the
+//     person to `identidad-pendiente`. Routing straight there from here would be
+//     this screen re-deciding something `useGate` already decides for every
+//     other screen, and it would be wrong the day identity completion gets an
+//     `/api/v1` door.
 //
 //   · WITHOUT one, the screen shows the panel at the bottom and points at
 //     ingreso. It does NOT say why, and MUST not: `session: null` means the
