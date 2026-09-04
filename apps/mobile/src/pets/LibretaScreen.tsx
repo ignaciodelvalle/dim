@@ -155,13 +155,6 @@ export function LibretaScreen({
   // the one scroll view, and this face renders inside the card's body.
   return (
     <View style={styles.faceBody}>
-      {state.phase === "loading" ? <Loading label="Leyendo la libreta…" /> : null}
-      {state.phase === "failed" ? (
-        <Card title="No disponible">
-          <Body>{state.message}</Body>
-        </Card>
-      ) : null}
-      {state.phase === "ready" ? <LibretaBody view={state.view} /> : null}
       {/* THE WRITE, offered from the face it writes into, and now the ONLY
           control here. It is the reason a person opens the libreta on a phone,
           so it keeps its primary weight. Offered even while the read failed —
@@ -173,12 +166,31 @@ export function LibretaScreen({
           maintenance dressed as one, and the platform already has a gesture
           for maintenance. The read still has a way to happen —
           `PetDocumentScreen` hands this face a refresh nonce, and a pull
-          re-runs the read underneath the ledger instead of replacing it. */}
+          re-runs the read underneath the ledger instead of replacing it.
+
+          ABOVE THE LEDGER, NOT UNDER IT (native QA batch 1, D2). It used to be
+          the LAST child of this face, which is fine on the pet the fixtures use
+          and wrong on a real one: an animal with 26 asientos puts its whole
+          history between the reader and the only thing they came here to do,
+          and this face lives inside `PetDocumentScreen`'s single scroll view,
+          so there is no per-face scroll for it to sit at the bottom of. The
+          ledger has no fixed height and the action does, so the action is the
+          one that can be placed. Kept as the same PrimaryButton in the same
+          flow rather than pinned: the kit has no sticky-footer primitive, and
+          inventing one for a control that now needs no scrolling would be a new
+          pattern bought for nothing. */}
       <PrimaryButton
         label="Asentar"
         onPress={() => router.push(recordEventRoute(publicToken))}
         disabled={state.phase === "loading"}
       />
+      {state.phase === "loading" ? <Loading label="Leyendo la libreta…" /> : null}
+      {state.phase === "failed" ? (
+        <Card title="No disponible">
+          <Body>{state.message}</Body>
+        </Card>
+      ) : null}
+      {state.phase === "ready" ? <LibretaBody view={state.view} /> : null}
     </View>
   );
 }

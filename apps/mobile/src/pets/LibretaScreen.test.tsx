@@ -40,6 +40,32 @@ import { LibretaScreen } from "./LibretaScreen";
 const TOKEN = "DIM-PAMP-0001";
 const EVENT_ID = "33333333-3333-4333-8333-333333333333";
 
+/**
+ * Every rendered string, in the order the tree draws them.
+ *
+ * `getByText` answers "is it there", which is the wrong question for a control
+ * whose defect was WHERE it was. The rendered JSON is the only thing that
+ * carries document order, so the walk is over that rather than over queries.
+ */
+function renderedTextsInOrder(): string[] {
+  const found: string[] = [];
+  const walk = (node: unknown): void => {
+    if (typeof node === "string") {
+      found.push(node);
+      return;
+    }
+    if (Array.isArray(node)) {
+      for (const child of node) walk(child);
+      return;
+    }
+    if (node !== null && typeof node === "object" && "children" in node) {
+      walk((node as { children: unknown }).children);
+    }
+  };
+  walk(screen.toJSON());
+  return found;
+}
+
 function entry(overrides: Record<string, unknown> = {}) {
   return {
     eventId: EVENT_ID,
@@ -114,6 +140,25 @@ describe("LibretaScreen — what a read that worked shows", () => {
     render(<LibretaScreen publicToken={TOKEN} />);
     fireEvent.press(await screen.findByText("Asentar"));
     expect(mockPush).toHaveBeenCalledWith(`/mascotas/${TOKEN}/asentar`);
+  });
+
+  it("draws ASENTAR BEFORE the ledger, so a long history cannot bury it", async () => {
+    // D2 (native QA batch 1). The button used to be this face's last child, and
+    // this face renders inside `PetDocumentScreen`'s single scroll view — so on
+    // a pet with 26 asientos the only act the libreta offers sat under the whole
+    // history, with no per-face scroll to pin it to.
+    //
+    // ORDER, not presence: every case around this one already proves the button
+    // renders. Asserted against the masthead ("Pampa", the first thing the body
+    // draws) AND against a timeline entry, because passing only the second would
+    // still allow it to sit between the vaccination card and the ledger.
+    render(<LibretaScreen publicToken={TOKEN} />);
+    await screen.findByText("Pampa");
+
+    const order = renderedTextsInOrder();
+    expect(order).toContain("Asentar");
+    expect(order.indexOf("Asentar")).toBeLessThan(order.indexOf("Pampa"));
+    expect(order.indexOf("Asentar")).toBeLessThan(order.indexOf("Antirrábica"));
   });
 });
 
