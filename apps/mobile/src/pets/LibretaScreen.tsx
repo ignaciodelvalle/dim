@@ -26,7 +26,7 @@
 // justification does not carry over. A failed read says so and offers a retry.
 
 import { useFocusEffect, useRouter } from "expo-router";
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 
 import type { LibretaEntryV1, PetLibretaV1 } from "@dim/contract/api";
@@ -79,25 +79,52 @@ function failureMessage(result: ApiResult<PetLibretaV1>): string {
   }
 }
 
-export function LibretaScreen({ publicToken }: { publicToken: string }) {
+export function LibretaScreen({
+  publicToken,
+  refreshNonce = 0,
+  onRefreshSettled,
+}: {
+  publicToken: string;
+  /**
+   * Bumped by `PetDocumentScreen`'s pull-to-refresh. A PROP and not a `key`:
+   * keying this face by the counter remounted it, so a pull threw the ledger
+   * away and drew "Leyendo la libreta…" over the face it was refreshing.
+   */
+  refreshNonce?: number;
+  /** Called when the refresh this face owns has landed, so the document's
+   *  platform spinner stops on the read the reader is actually looking at. */
+  onRefreshSettled?: () => void;
+}) {
   const router = useRouter();
   const [state, setState] = useState<ScreenState>({ phase: "loading" });
-  // Guards against a stale response overwriting a newer one after a fast
-  // double-tap on "Actualizar" — the same generation counter its sibling
-  // screens use, for the same reason.
+  // Guards against a stale response overwriting a newer one when a focus and a
+  // pull overlap — the same generation counter its sibling screens use, for
+  // the same reason. (It guarded a double-tapped "Actualizar" until
+  // 2026-09-03; the button is gone, the race is not.)
   const generation = useRef(0);
+  // The settle callback must not re-run the refresh effect when the parent
+  // hands down a new closure; a ref keeps the effect keyed on the nonce alone.
+  const settled = useRef(onRefreshSettled);
+  settled.current = onRefreshSettled;
 
-  const load = useCallback(async () => {
-    const mine = ++generation.current;
-    setState({ phase: "loading" });
-    const result = await fetchPetLibreta(sessionPort, publicToken);
-    if (mine !== generation.current) return;
-    if (result.outcome === "ok") {
-      setState({ phase: "ready", view: buildLibretaView(result.payload) });
-      return;
-    }
-    setState({ phase: "failed", message: failureMessage(result) });
-  }, [publicToken]);
+  const load = useCallback(
+    async (mode: "initial" | "refresh" = "initial") => {
+      const mine = ++generation.current;
+      // A refresh leaves the ledger on screen; only a first read has nothing
+      // to show. `PrimaryButton`'s "Asentar" keys off this phase too, so
+      // resetting it on a pull also disabled the one control this face offers.
+      if (mode === "initial") setState({ phase: "loading" });
+      const result = await fetchPetLibreta(sessionPort, publicToken);
+      if (mine !== generation.current) return;
+      if (mode === "refresh") settled.current?.();
+      if (result.outcome === "ok") {
+        setState({ phase: "ready", view: buildLibretaView(result.payload) });
+        return;
+      }
+      setState({ phase: "failed", message: failureMessage(result) });
+    },
+    [publicToken],
+  );
 
   // ON FOCUS, NOT ONLY ON MOUNT, and that changed the day this screen grew a
   // write. "Asentar" pushes a route on top of this one; coming back does not
@@ -109,6 +136,20 @@ export function LibretaScreen({ publicToken }: { publicToken: string }) {
       void load();
     }, [load]),
   );
+
+  // The pull the document owns. The ref is what makes a MOUNT with a nonce
+  // already set inert: `useFocusEffect` above already reads on every mount, so
+  // a face that mounts after a pull fired anywhere (the nonce is shared with
+  // the front face) would otherwise fire that focus read AND this effect —
+  // two calls, the first discarded by the generation guard, the second's
+  // settle callback clearing a spinner for a pull that already finished. Only
+  // a nonce CHANGE while this face stays mounted is a pull to honour.
+  const handledNonce = useRef(refreshNonce);
+  useEffect(() => {
+    if (refreshNonce === handledNonce.current) return;
+    handledNonce.current = refreshNonce;
+    void load("refresh");
+  }, [refreshNonce, load]);
 
   // No <Screen> of its own since the two-face rewrite: PetDocumentScreen owns
   // the one scroll view, and this face renders inside the card's body.
@@ -131,8 +172,8 @@ export function LibretaScreen({ publicToken }: { publicToken: string }) {
           were never the same kind of thing: this is an act, that was
           maintenance dressed as one, and the platform already has a gesture
           for maintenance. The read still has a way to happen —
-          `PetDocumentScreen` keys this face by its refresh nonce, so a pull
-          remounts it. */}
+          `PetDocumentScreen` hands this face a refresh nonce, and a pull
+          re-runs the read underneath the ledger instead of replacing it. */}
       <PrimaryButton
         label="Asentar"
         onPress={() => router.push(recordEventRoute(publicToken))}

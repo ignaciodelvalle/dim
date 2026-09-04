@@ -86,6 +86,18 @@ export function PetDocumentScreen({ publicToken }: { publicToken: string }) {
   const turn = useDocumentTurn(face);
   const painted = turn.paintedFace;
   const [owner, setOwner] = useState<OwnerState>({ phase: "loading" });
+  /**
+   * The PLATFORM spinner's flag, and it is a different thing from
+   * `owner.phase === "loading"` — which is what it used to be wired to, and
+   * the bug that cost the document two ways at once. Bound to the read's
+   * phase, the gesture's indicator ran during the FIRST read (next to the
+   * screen's own "Leyendo la ficha…"), and a pull reset the phase to
+   * `loading`, replacing the whole credential with that placeholder. A refresh
+   * that unmounts what it is refreshing is a reload. The four list screens
+   * that adopted `pullToRefresh` first (TurnosScreen, SharesScreen,
+   * NotificationsScreen, TransfersScreen) already carry this separate boolean.
+   */
+  const [refreshing, setRefreshing] = useState(false);
   // Guards against a stale response overwriting a newer one after two fast
   // pulls — the same generation counter CredentialScreen uses, and for the
   // same reason. (It guarded a double-tapped "Actualizar" button until
@@ -97,23 +109,36 @@ export function PetDocumentScreen({ publicToken }: { publicToken: string }) {
    *
    * The two faces have SEPARATE reads — this screen owns the owner detail,
    * `LibretaScreen` owns the ledger — so refreshing one does not refresh the
-   * other, and a single pull has to reach both. Keying the libreta by this
-   * counter remounts it, which re-runs its read; that is cheap and correct for
-   * a read-only list, and it holds no state a remount would lose.
+   * other, and a single pull has to reach both. It is a PROP the libreta
+   * watches, not a `key` that remounts it: a remount threw the ledger away to
+   * fetch it again, which is the same "reload, not refresh" defect the
+   * spinner had. The one thing the libreta held that a remount would have
+   * re-taken is `LibretaBody`'s `now`, frozen at mount for the day-boundary
+   * labels — it is now re-taken only when the face is genuinely mounted, and a
+   * screen left open across midnight keeps the labels it was drawn with.
    */
   const [refreshNonce, setRefreshNonce] = useState(0);
 
-  const load = useCallback(async () => {
-    const mine = ++generation.current;
-    setOwner({ phase: "loading" });
-    const result = await fetchOwnerPetDetail(sessionPort, publicToken);
-    if (mine !== generation.current) return;
-    if (result.outcome === "ok") {
-      setOwner({ phase: "ready", view: buildOwnerFaceView(result.payload) });
-      return;
-    }
-    setOwner({ phase: "failed", message: failureMessage(result) });
-  }, [publicToken]);
+  const load = useCallback(
+    async (mode: "initial" | "refresh" = "initial") => {
+      const mine = ++generation.current;
+      // A refresh leaves the previous view mounted; only the first read has
+      // nothing to show.
+      if (mode === "refresh") setRefreshing(true);
+      else setOwner({ phase: "loading" });
+      const result = await fetchOwnerPetDetail(sessionPort, publicToken);
+      if (mine !== generation.current) return;
+      // AFTER the guard, deliberately: a stale response must not stop the
+      // spinner of the newer read that superseded it.
+      if (mode === "refresh") setRefreshing(false);
+      if (result.outcome === "ok") {
+        setOwner({ phase: "ready", view: buildOwnerFaceView(result.payload) });
+        return;
+      }
+      setOwner({ phase: "failed", message: failureMessage(result) });
+    },
+    [publicToken],
+  );
 
   useEffect(() => {
     void load();
@@ -129,8 +154,8 @@ export function PetDocumentScreen({ publicToken }: { publicToken: string }) {
     <Screen
       refreshControl={pullToRefresh(() => {
         setRefreshNonce((n) => n + 1);
-        void load();
-      }, owner.phase === "loading")}
+        void load("refresh");
+      }, refreshing)}
     >
       <View style={styles.masthead}>
         {/* The "Ficha del dueño" eyebrow was deleted on 2026-09-03: an
@@ -153,7 +178,11 @@ export function PetDocumentScreen({ publicToken }: { publicToken: string }) {
           {painted === "credencial" ? (
             <FrontFaceBody state={owner} />
           ) : (
-            <LibretaScreen key={refreshNonce} publicToken={publicToken} />
+            <LibretaScreen
+              publicToken={publicToken}
+              refreshNonce={refreshNonce}
+              onRefreshSettled={() => setRefreshing(false)}
+            />
           )}
         </DocumentChromeNative>
       </TurningSheet>

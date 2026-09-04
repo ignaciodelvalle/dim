@@ -10,9 +10,12 @@
 // is drawn disabled — never as a working-looking button, never omitted.
 
 import { beforeEach, describe, expect, it, jest } from "@jest/globals";
-import { fireEvent, render, screen } from "@testing-library/react-native";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react-native";
+import { RefreshControl, StyleSheet } from "react-native";
 
 import type { OwnerPetDetailV1 } from "@dim/contract/api";
+
+import { TOUCH_TARGET } from "../ui/theme";
 
 const mockPush = jest.fn();
 const mockFetchOwnerPetDetail = jest.fn<(...args: unknown[]) => Promise<unknown>>();
@@ -599,5 +602,140 @@ describe("PetDocumentScreen — the viewer line survives, per role", () => {
     // `titular-only.ts` lists photos among what a caretaker MAY do. Hiding the
     // row here would be a stricter second copy of an authorization rule.
     expect(screen.getByText("Foto de la mascota")).toBeOnTheScreen();
+  });
+});
+
+describe("PetDocumentScreen — a pull re-reads the document without taking it away", () => {
+  // WHAT THIS BLOCK EXISTS FOR. "Actualizar" became a pull gesture on
+  // 2026-09-03, and the screen adopted `pullToRefresh` WITHOUT the
+  // `mode: "initial" | "refresh"` split its four siblings (TurnosScreen,
+  // SharesScreen, NotificationsScreen, TransfersScreen) already use. The two
+  // consequences were both visible on a device and invisible to the suite:
+  // the platform spinner ran during the FIRST read, next to "Leyendo la
+  // ficha…", and a pull replaced the whole credential with that placeholder
+  // instead of refreshing it underneath. A refresh that unmounts what it is
+  // refreshing is a reload.
+
+  const control = () => screen.UNSAFE_getByType(RefreshControl);
+  const pull = () => fireEvent(control(), "refresh");
+
+  /** A read that has not answered yet, plus the handle that lands it. */
+  function deferredRead() {
+    let land!: (value: unknown) => void;
+    const promise = new Promise((resolve) => {
+      land = resolve;
+    });
+    return { promise, land: (value: unknown) => land(value) };
+  }
+
+  it("does not spin the platform refresher during the first read", async () => {
+    const first = deferredRead();
+    mockFetchOwnerPetDetail.mockReturnValueOnce(first.promise as Promise<unknown>);
+    render(<PetDocumentScreen publicToken={TOKEN} />);
+
+    // The screen's own placeholder is the first read's indicator. The
+    // platform's is for the gesture, and no gesture happened.
+    expect(screen.getByText("Leyendo la ficha…")).toBeOnTheScreen();
+    expect(control().props.refreshing).toBe(false);
+
+    await act(async () => {
+      first.land({ outcome: "ok", payload: payload() });
+    });
+    expect(screen.getByText("Pampa")).toBeOnTheScreen();
+  });
+
+  it("keeps the credential on screen while a pull re-reads it, and stops when it lands", async () => {
+    render(<PetDocumentScreen publicToken={TOKEN} />);
+    await screen.findByText("Pampa");
+    expect(mockFetchOwnerPetDetail).toHaveBeenCalledTimes(1);
+
+    const second = deferredRead();
+    mockFetchOwnerPetDetail.mockReturnValueOnce(second.promise as Promise<unknown>);
+    act(() => {
+      pull();
+    });
+
+    // The document is STILL THERE, being refreshed underneath — the animal,
+    // the sections below the card, and no placeholder.
+    expect(screen.getByText("Pampa")).toBeOnTheScreen();
+    expect(screen.getByText("Recordatorios")).toBeOnTheScreen();
+    expect(screen.queryByText("Leyendo la ficha…")).toBeNull();
+    expect(control().props.refreshing).toBe(true);
+    expect(mockFetchOwnerPetDetail).toHaveBeenCalledTimes(2);
+
+    await act(async () => {
+      second.land({ outcome: "ok", payload: payload() });
+    });
+    await waitFor(() => expect(control().props.refreshing).toBe(false));
+    expect(screen.getByText("Pampa")).toBeOnTheScreen();
+  });
+
+  it("re-reads the libreta from the back face without taking the face away", async () => {
+    render(<PetDocumentScreen publicToken={TOKEN} />);
+    await screen.findByText("Pampa");
+    fireEvent.press(screen.getByLabelText("Girar a Libreta"));
+    await screen.findByText("Libreta · dorso", { includeHiddenElements: true }, { timeout: 5000 });
+    await waitFor(() => expect(mockFetchPetLibreta).toHaveBeenCalledTimes(1));
+
+    // Both reads held in flight, so the assertions below describe the pull
+    // WHILE it is happening rather than after it has finished.
+    const ledger = deferredRead();
+    const detail = deferredRead();
+    mockFetchPetLibreta.mockReturnValueOnce(ledger.promise as Promise<unknown>);
+    mockFetchOwnerPetDetail.mockReturnValueOnce(detail.promise as Promise<unknown>);
+    act(() => {
+      pull();
+    });
+
+    // The two faces have SEPARATE reads, and one pull has to reach both — but
+    // reaching the libreta must not mean throwing it away and mounting a new
+    // one. The placeholder is the witness that it was: it only renders while
+    // the libreta's own state is `loading`.
+    expect(screen.queryByText("Leyendo la libreta…")).toBeNull();
+    // "Asentar" is the reason a person opens this face, and it is disabled
+    // while the read is loading. A refresh must not take it away either.
+    expect(screen.getByRole("button", { name: "Asentar" }).props.accessibilityState.disabled).toBe(
+      false,
+    );
+    expect(mockFetchPetLibreta).toHaveBeenCalledTimes(2);
+    expect(mockFetchOwnerPetDetail).toHaveBeenCalledTimes(2);
+
+    await act(async () => {
+      ledger.land({ outcome: "unreachable", detail: "not under test" });
+      detail.land({ outcome: "ok", payload: payload() });
+    });
+    await waitFor(() => expect(control().props.refreshing).toBe(false));
+  });
+
+  it("does not read the libreta at all from the front face", async () => {
+    render(<PetDocumentScreen publicToken={TOKEN} />);
+    await screen.findByText("Pampa");
+    act(() => {
+      pull();
+    });
+    await waitFor(() => expect(mockFetchOwnerPetDetail).toHaveBeenCalledTimes(2));
+    // The libreta face is not mounted, so there is nothing to refresh there.
+    expect(mockFetchPetLibreta).not.toHaveBeenCalled();
+
+    // THE REGRESSION: the nonce this pull bumped is still non-zero when the
+    // libreta mounts later. `useFocusEffect` alone must account for the read —
+    // a nonce that arrives already set is a fact about an EARLIER pull, not a
+    // new one to honour, and mounting must not fire the focus read AND a
+    // spurious "refresh" on top of it.
+    fireEvent.press(screen.getByLabelText("Girar a Libreta"));
+    await screen.findByText("Libreta · dorso", { includeHiddenElements: true }, { timeout: 5000 });
+    expect(mockFetchPetLibreta).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("OwnerFace — the QR frame's ring arithmetic", () => {
+  it("leaves the code enough room inside the ring", () => {
+    // The frame is 84 and React Native is border-box, so the 4-point surface
+    // ring leaves 76 — which is `QR_SIZE`, and the web's own
+    // `.ln-qr-frame svg { width: 76px }`. jest has no Yoga, so this is
+    // arithmetic over the real style object rather than a measurement; what it
+    // pins is that the box, the ring and the code cannot drift apart silently.
+    const frame = ownerFaceStyles.qrFrame;
+    expect(frame.width - 2 * frame.borderWidth).toBeGreaterThanOrEqual(QR_SIZE);
   });
 });
