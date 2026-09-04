@@ -88,6 +88,7 @@ import { registerPetInputSchema } from "@dim/contract/input";
 
 import { db } from "@/db";
 import { resolveBreedForWrite } from "@/lib/domain/breed-validation";
+import { isIdentityPending } from "@/lib/domain/identity-completeness";
 import { canonicalProvinceNameForStorage } from "@/lib/domain/jurisdiction-canonical";
 import {
   JurisdictionValidationError,
@@ -243,6 +244,29 @@ export async function POST(request: Request) {
     API_V1_PET_REGISTRATION_USER_LIMIT,
   );
   if (!userAllowed) return apiV1Error("rate_limited", 429);
+
+  // IDENTITY GATE — DEFENCE IN DEPTH, and the server is where the rule lives.
+  //
+  // This system is an identity registry: the whole point of a credential is
+  // that it names a real titular. An account that never completed signup step 2
+  // still carries the provisional, email-derived display name the
+  // `handle_new_user` trigger writes, and a pet registered under it produces a
+  // credential whose owner is a string nobody typed.
+  //
+  // Two gates already stop somebody REACHING this — the native client's
+  // `useGate` sends a `profilePending` account to `identidad-pendiente`, and the
+  // web `(app)` layout does the same for a cookie session — and neither is the
+  // rule. Both are decisions made by a CLIENT about a screen; this endpoint is
+  // independently addressable with a bearer token, and a client's gate has never
+  // been an authorization boundary in this repo.
+  //
+  // Read off `live.profile`, which `requireLiveUser` already resolved, so the
+  // gate costs no round-trip. `profile === null` is folded in by
+  // `isIdentityPending` (a blank name is pending), which is the state a
+  // service-role delete or a half-restored account leaves behind.
+  if (isIdentityPending({ displayName: live.profile?.displayName, email: live.user.email })) {
+    return apiV1Error("identity_pending", 403);
+  }
 
   let body: unknown;
   try {

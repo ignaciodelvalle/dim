@@ -43,9 +43,18 @@ export type GoTrueSessionLike = {
   token_type: string;
 };
 
-/** What `signInWithPassword` / `signUp` resolve to, narrowed to what is read. */
+/**
+ * What `signInWithPassword` / `signUp` resolve to, narrowed to what is read.
+ *
+ * `user.email` was added when `login` started needing the account's OWN address
+ * rather than the one the caller typed (`LoginValue.email`): the port names what
+ * the code reads, so reading a new field means widening it here first — which is
+ * the point at which somebody asks why. Optional and nullable because GoTrue's
+ * `User.email` is optional (a phone-only account is representable there), so the
+ * consumer has to decide what absence means instead of receiving `""`.
+ */
 export type GoTrueAuthResponse = {
-  data: { user: { id: string } | null; session: GoTrueSessionLike | null };
+  data: { user: { id: string; email?: string | null } | null; session: GoTrueSessionLike | null };
   // GoTrue's `AuthError`. Only `message` is read, and only to classify the
   // "already registered" case — never surfaced to a client verbatim, because
   // the provider's text can itself hint at account state.

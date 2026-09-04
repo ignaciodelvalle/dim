@@ -445,7 +445,7 @@ describe("POST /api/v1/auth/login — what a native client receives", () => {
       // who had never entered a name straight to "Mis mascotas", where pets can
       // be registered under it.
       control.answer = {
-        data: { user: { id: provisionalId }, session: GOTRUE_SESSION },
+        data: { user: { id: provisionalId, email: EMAIL }, session: GOTRUE_SESSION },
         error: null,
       };
 
@@ -456,11 +456,38 @@ describe("POST /api/v1/auth/login — what a native client receives", () => {
       expect(body.user).toEqual({ profilePending: true, id: provisionalId });
     });
 
+    it("computes it from GOTRUE's address, not from the one in the request body", async () => {
+      // Nit F5, 2026-09-04. `isIdentityPending` compares the display name
+      // against an address's local part, and this route used to feed it
+      // `parsed.data.email` — a request-body field. Production cannot make the
+      // two disagree (GoTrue resolved the account BY that address), which is
+      // exactly why the mock does: what is being pinned is the SOURCE, so the
+      // next edit cannot quietly put a client-supplied string back into a
+      // server-side decision.
+      //
+      // The discriminator is sharp. Read off the body ("otro"), the provisional
+      // name "d1-provisional" does not match and the answer is
+      // `profilePending: false` — the D1 blocker, back. Read off GoTrue, it
+      // matches and the answer is `true`.
+      control.answer = {
+        data: { user: { id: provisionalId, email: EMAIL }, session: GOTRUE_SESSION },
+        error: null,
+      };
+
+      const res = await loginRoute(
+        post("/auth/login", { email: "otro@dim-test.local", password: "x" }),
+      );
+
+      expect(res.status).toBe(200);
+      const body = (await res.json()) as { user: unknown };
+      expect(body.user).toEqual({ profilePending: true, id: provisionalId });
+    });
+
     it("reports the full shell once step 2 has written a real name", async () => {
       // The other side of the same predicate, so the case above cannot be
       // satisfied by an endpoint that simply stopped reporting profiles.
       control.answer = {
-        data: { user: { id: completedId }, session: GOTRUE_SESSION },
+        data: { user: { id: completedId, email: EMAIL }, session: GOTRUE_SESSION },
         error: null,
       };
 

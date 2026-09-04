@@ -108,6 +108,32 @@
  * is a decision a client has to be able to act on differently, which is the only
  * bar for adding a code here.
  *
+ * - `identity_pending`    — the caller's account exists and is live, but its
+ *                           identity was never completed: `profiles` still
+ *                           carries the provisional, email-derived display name
+ *                           `handle_new_user` writes (`isIdentityPending`). 403,
+ *                           not 401 — the credential is fine and refreshing it
+ *                           changes nothing — and not `not_found`, because the
+ *                           caller and the resource both exist.
+ *
+ *                           It clears the bar: the action is neither "retry" nor
+ *                           "sign in again" but "go and finish registering",
+ *                           which is a third destination. A client already knows
+ *                           the state from `profilePending` on `GET /api/v1/me`
+ *                           and `POST /api/v1/auth/login`, so this code is the
+ *                           server saying the same thing at the moment of the
+ *                           write — defence in depth behind the native gate
+ *                           (`useGate` → `identidad-pendiente`) and the web
+ *                           layout gate, neither of which binds a bearer token
+ *                           addressing the URL directly.
+ *
+ *                           `/api/v1/me/profile` answers `not_found` for the
+ *                           same state rather than this code, and deliberately:
+ *                           that route's 404 has shipped, its client handles it,
+ *                           and the resource it names (an editable profile) does
+ *                           NOT exist for a pending account. Here the resource
+ *                           is the caller's pets, which do.
+ *
  * - `idempotency_key_required`
  *                         — the `Idempotency-Key` request header was absent,
  *                           blank, or NOT A UUID on a write that requires it.
@@ -851,6 +877,7 @@ export const API_V1_ERROR_CODES = [
   "session_shift_expired",
   "invalid_request",
   "signup_failed",
+  "identity_pending",
   "idempotency_key_required",
   "duplicate_pet_suspected",
   "pet_registration_failed",

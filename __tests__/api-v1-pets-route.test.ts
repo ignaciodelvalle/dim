@@ -61,7 +61,17 @@ vi.mock("@/lib/infra/live-user", async (importOriginal) => {
     requireLiveUser: async () =>
       control.live
         ? control.live()
-        : { ok: true, supabase: {}, user: { id: OWNER_ID }, profile: null },
+        : {
+            ok: true,
+            supabase: {},
+            // A COMPLETED identity by default. `profile: null` used to stand
+            // here and is now the pending state the identity gate refuses — a
+            // blank display name is exactly what `isIdentityPending` catches —
+            // so the happy path has to state what a registered person looks
+            // like: a real name that is not the address's local part.
+            user: { id: OWNER_ID, email: "ana.gomez@example.com" },
+            profile: { displayName: "Ana Gómez" },
+          },
   };
 });
 
@@ -388,6 +398,40 @@ describe("POST /api/v1/pets — authorization", () => {
     const res = await POST(post(VALID_BODY));
     expect(res.status).toBe(403);
     expect(control.registerCalls).toEqual([]);
+  });
+
+  it("refuses an account whose IDENTITY was never completed, and registers nothing", async () => {
+    // DEFENCE IN DEPTH, and the reason it is worth having: this system is an
+    // identity registry, so a credential registered by an account still wearing
+    // the `handle_new_user` trigger's email-derived name names a titular nobody
+    // typed. The native gate (`useGate` → `identidad-pendiente`) and the web
+    // `(app)` layout both stop somebody reaching this URL through a screen;
+    // neither binds a bearer token addressing it directly.
+    control.live = () => ({
+      ok: true,
+      supabase: {},
+      user: { id: OWNER_ID, email: "ana.gomez@example.com" },
+      // The provisional name: `split_part(email, '@', 1)`.
+      profile: { displayName: "ana.gomez" },
+    });
+
+    const res = await POST(post(VALID_BODY));
+
+    // 403 and its own code: the credential is valid (so not a 401 that invites
+    // a refresh) and both caller and resource exist (so not a 404). The action
+    // is "go and finish registering", which is neither of the other two.
+    expect(res.status).toBe(403);
+    expect(await res.json()).toEqual({ error: "identity_pending" });
+    expect(control.registerCalls).toEqual([]);
+  });
+
+  it("registers normally once the identity IS complete", async () => {
+    // The control that keeps the gate from being a blanket refusal. Same
+    // request, same account, a real name instead of the provisional one.
+    const res = await POST(post(VALID_BODY));
+
+    expect(res.status).toBe(201);
+    expect(control.registerCalls).toHaveLength(1);
   });
 });
 

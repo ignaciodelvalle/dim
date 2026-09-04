@@ -78,6 +78,13 @@ export function apiErrorMessage(code: ApiV1ErrorCode): string {
       return "La app envió un pedido que el servidor no pudo leer. Actualizá la app.";
     case "signup_failed":
       return "No pudimos crear la cuenta. Volvé a intentar en unos minutos.";
+    // Says WHAT IS MISSING and WHERE it gets fixed. "No tenés permiso" would be
+    // the wrong sentence twice over: nothing was denied to this person, and the
+    // remedy is a step they can take right now. The app already routes a
+    // `profilePending` session to `identidad-pendiente`, so a person only reads
+    // this if a gate was skipped — which is the case the code exists for.
+    case "identity_pending":
+      return "Todavía no completaste tus datos. Terminá el registro para poder registrar una mascota.";
     // Covers BOTH halves of the code: the header was absent, OR it was present
     // and not a UUID. They were joined into one code deliberately (see
     // `idempotency_key_required` in @dim/contract/api — the fix is the same

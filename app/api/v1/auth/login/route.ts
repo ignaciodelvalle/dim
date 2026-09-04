@@ -180,13 +180,21 @@ export async function POST(request: Request) {
   // list and the app would have moved the person to `identidad-pendiente` on
   // the next launch, which reads as a bug rather than as a step.
   //
-  // The email is the one that just authenticated, so it IS the account's — a
-  // password grant that matched a different address does not exist. The
-  // predicate trims and compares case-insensitively, which is the whole gap
-  // between what the client typed and what GoTrue stored.
-  const { userId, profile } = result.value;
+  // THE E-MAIL COMES FROM GOTRUE, NOT FROM THE BODY (fresh-review nit F5,
+  // 2026-09-04). This used to pass `parsed.data.email` — a request-body field —
+  // into `toMeV1User`, whose `isIdentityPending` compares the display name
+  // against that address's local part. The old comment argued the two could not
+  // differ ("the email is the one that just authenticated"), and on the current
+  // GoTrue behaviour that holds: the match is case-insensitive and the predicate
+  // lowercases both sides. It is still the wrong input. A value the caller
+  // controls has no business deciding a server-side answer about the account,
+  // and keeping it meant every future reader had to re-derive the argument for
+  // why it was safe. `login()` now carries the address GoTrue holds
+  // (`LoginValue.email`), read off the same `signInData.user` the id comes from,
+  // so there is no client-supplied string in this decision at all.
+  const { userId, email, profile } = result.value;
   const payload: LoginV1 = {
-    user: toMeV1User({ id: userId, email: parsed.data.email, profile }),
+    user: toMeV1User({ id: userId, email, profile }),
     session: result.value.session,
   };
   return apiV1Json(payload, { status: 200 });

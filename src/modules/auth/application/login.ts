@@ -86,6 +86,25 @@ export type LoginErrorCode =
 export type LoginValue = {
   userId: string;
   /**
+   * The address GoTrue holds for the account that just authenticated, or null
+   * if it holds none (a phone-only account is representable in GoTrue even
+   * though nothing in this product mints one).
+   *
+   * IT IS NOT THE ADDRESS THE CALLER TYPED, and that is the whole reason it
+   * exists. `POST /api/v1/auth/login` needs an e-mail to compute
+   * `profilePending` — `isIdentityPending` compares the display name against
+   * the address's local part — and it was passing `parsed.data.email`, i.e. a
+   * REQUEST BODY field, into that predicate. The two agree today (GoTrue matches
+   * addresses case-insensitively and the predicate lowercases both sides), so
+   * this is a shape fix rather than a live hole; a value the client controls
+   * must not be an input to a server-side decision, because the next reader of
+   * that line has to re-derive why it is safe.
+   *
+   * Never an authorization key: see `LiveUserSuccess.user.email` for why an
+   * address answers WHO ONLY as a display fallback and never WHETHER.
+   */
+  email: string | null;
+  /**
    * The role used to resolve `landingPath`, DEFAULTED to "owner" when the
    * account has no profile row yet.
    *
@@ -183,6 +202,9 @@ export async function login(input: LoginInput, deps: LoginDeps): Promise<LoginRe
   }
 
   const userId = signInData.user.id;
+  // GoTrue's own record for the account it just authenticated, not the string
+  // the caller sent. See `LoginValue.email`.
+  const accountEmail = signInData.user.email ?? null;
 
   // returnTo wins over role-based landing when it's a safe same-origin path
   // (set by the apply-intent flow on the login form). For institutional
@@ -241,7 +263,14 @@ export async function login(input: LoginInput, deps: LoginDeps): Promise<LoginRe
   if (returnTo && role !== "admin" && role !== "govt") {
     return {
       ok: true,
-      value: { userId, role, profile: resolvedProfile, landingPath: returnTo, session },
+      value: {
+        userId,
+        email: accountEmail,
+        role,
+        profile: resolvedProfile,
+        landingPath: returnTo,
+        session,
+      },
     };
   }
 
@@ -250,6 +279,7 @@ export async function login(input: LoginInput, deps: LoginDeps): Promise<LoginRe
       ok: true,
       value: {
         userId,
+        email: accountEmail,
         role,
         profile: resolvedProfile,
         landingPath: await resolveVetLanding(userId),
@@ -280,6 +310,7 @@ export async function login(input: LoginInput, deps: LoginDeps): Promise<LoginRe
     ok: true,
     value: {
       userId,
+      email: accountEmail,
       role,
       profile: resolvedProfile,
       landingPath: pathForRole(role, { hasOrgAdminMembership }),

@@ -120,10 +120,35 @@ function postRequest(body: unknown, authorization: string | null = `Bearer ${TOK
   });
 }
 
+/**
+ * A caller whose identity is COMPLETE — the display name is not the local part
+ * of the address, so `isIdentityPending` is false and both handlers proceed.
+ *
+ * It has to be spelled out now that the route reads the profile the guard
+ * already resolved: `profile: {}` (what this fixture used to be) IS the pending
+ * state, because a blank display name is exactly what the predicate refuses.
+ */
+const LIVE_COMPLETE = {
+  ok: true,
+  user: { id: SUBJECT, email: "lucia.belen@example.com" },
+  profile: { displayName: "Lucía Belén" },
+};
+
+/**
+ * The same account before signup step 2: the `profiles` row EXISTS — the
+ * `handle_new_user` trigger always writes one — and carries the provisional name
+ * it derives from the address (`split_part(email, '@', 1)`).
+ */
+const LIVE_PENDING = {
+  ok: true,
+  user: { id: SUBJECT, email: "lucia.belen@example.com" },
+  profile: { displayName: "lucia.belen" },
+};
+
 beforeEach(() => {
   control.limiterThrows = null;
   control.limits = [];
-  control.live = { ok: true, user: { id: SUBJECT }, profile: {} };
+  control.live = LIVE_COMPLETE;
   mockRead.mockReset();
   mockUpdate.mockReset();
 });
@@ -189,6 +214,24 @@ describe("GET — the form pre-fill", () => {
 
     expect(res.status).toBe(404);
     expect(await res.json()).toEqual({ error: "not_found" });
+  });
+
+  it("answers 404 for a PENDING identity — the row exists and is still provisional", async () => {
+    // THE STATE THE OLD CHECK MISSED. `handle_new_user` inserts a `profiles` row
+    // in the same transaction that creates the account, so `readMyEditableProfile`
+    // returns a real row for a brand-new signup and the `profile === null` branch
+    // never fired. This route then served 200 with the trigger's email-derived
+    // name pre-filled into an identity form the person never completed.
+    control.live = LIVE_PENDING;
+    mockRead.mockResolvedValue({ ...STORED, displayName: "lucia.belen" });
+
+    const res = await GET(getRequest());
+
+    expect(res.status).toBe(404);
+    expect(await res.json()).toEqual({ error: "not_found" });
+    // And it refuses BEFORE the read: the answer is about the account, so there
+    // is nothing to fetch.
+    expect(mockRead).not.toHaveBeenCalled();
   });
 
   it("refuses an erased or deactivated caller before reading anything", async () => {
@@ -338,5 +381,34 @@ describe("POST — saving it", () => {
 
     expect(res.status).toBe(400);
     expect(await res.json()).toEqual({ error: "invalid_request" });
+  });
+
+  it("refuses a PENDING identity — a save here is not signup step 2", async () => {
+    // THE HOLE THIS CLOSES, and it is the write half rather than the read half.
+    // `myProfileEditInputSchema` accepts `displayName`, so a provisional account
+    // could POST a real-looking name, flip `isIdentityPending` to false, and be
+    // treated as a completed identity everywhere — without the first name, last
+    // name and DNI that `completeIdentityAction` collects. The gates that stop
+    // somebody REACHING this are a native screen and a web layout; a bearer
+    // token addresses the URL directly.
+    control.live = LIVE_PENDING;
+
+    const res = await POST(postRequest({ displayName: "Nombre Inventado" }));
+
+    expect(res.status).toBe(404);
+    expect(await res.json()).toEqual({ error: "not_found" });
+    expect(mockUpdate).not.toHaveBeenCalled();
+  });
+
+  it("refuses the pending identity before the body is even read", async () => {
+    // The refusal is about the CALLER, not the payload: a pending account must
+    // not learn whether its JSON would have been accepted. An unparseable body
+    // therefore still answers 404 here, not the 400 a complete account gets.
+    control.live = LIVE_PENDING;
+
+    const res = await POST(postRequest("{not json"));
+
+    expect(res.status).toBe(404);
+    expect(await res.json()).toEqual({ error: "not_found" });
   });
 });

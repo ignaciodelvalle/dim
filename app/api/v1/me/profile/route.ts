@@ -37,6 +37,7 @@
 // same six fields twice is setting them once, and the writer's own diff means
 // the second save changes nothing and writes an audit row saying so.
 
+import { isIdentityPending } from "@/lib/domain/identity-completeness";
 import { apiV1Envelope, apiV1Error, apiV1Json } from "@/lib/infra/api-v1";
 import {
   API_V1_AUTHENTICATED_READ_IP_LIMIT,
@@ -119,6 +120,10 @@ export async function GET(request: Request) {
     return apiV1Error("rate_limited", 429);
   }
 
+  if (isIdentityPending({ displayName: live.profile?.displayName, email: live.user.email })) {
+    return apiV1Error("not_found", 404);
+  }
+
   let profile: Awaited<ReturnType<typeof readMyEditableProfile>>;
   try {
     profile = await withDbBudgetOrThrow(
@@ -131,14 +136,30 @@ export async function GET(request: Request) {
     throw err;
   }
 
-  // NO PROFILE ROW → 404, and the alternative was worse. An account exists in
-  // `auth.users` before its profile row is completed (the window `MeV1` reports
-  // as `profilePending: true`), and this endpoint could have answered a payload
-  // of six empty strings for it. That would hand a half-registered person an
-  // edit form whose save is guaranteed to fail — `updateProfileForUser` answers
-  // NOT_FOUND — instead of the identity flow they actually need. A client that
-  // reaches this is one whose gate let a pending profile through, and the 404 is
-  // what tells it so.
+  // A PENDING IDENTITY → 404, and until 2026-09-04 this comment described a
+  // refusal the route did not make.
+  //
+  // What it promised was right: an account exists in `auth.users` before its
+  // identity is completed (the window `MeV1` reports as `profilePending: true`),
+  // and answering it a payload of six empty strings would hand a half-registered
+  // person an edit form whose save is guaranteed to fail — `updateProfileForUser`
+  // answers NOT_FOUND — instead of the identity flow they actually need.
+  //
+  // What it got WRONG is the state it keyed on. `profile === null` is not the
+  // pending window and has not been since `handle_new_user` existed: the trigger
+  // inserts a `profiles` row inside the same transaction that creates the
+  // `auth.users` row (db/triggers.sql), carrying a PROVISIONAL, email-derived
+  // display name. So the row is always there, this read never returned null for
+  // a fresh signup, and the endpoint served 200 — while `POST` below accepted a
+  // `displayName` and would have completed the identity without web step 2 ever
+  // running. `isIdentityPending` above is the predicate the rest of the product
+  // already uses for this (app/(app)/layout.tsx, `toMeV1User`), and it answers
+  // BOTH states: no row at all, and a row still wearing the trigger's name.
+  //
+  // This null check stays as the second half of the same refusal — the row can
+  // be deleted between `requireLiveUser`'s read and this one — and is no longer
+  // the only half. The native settings screen already handles the 404
+  // (`apps/mobile/app/ajustes.tsx` hides the edit door while pending).
   if (profile === null) return apiV1Error("not_found", 404);
 
   const payload: MyProfileV1 = {
@@ -203,6 +224,25 @@ export async function POST(request: Request) {
     ))
   ) {
     return apiV1Error("rate_limited", 429);
+  }
+
+  // THE WRITE'S HALF OF THE SAME GATE, and the one that was load-bearing.
+  //
+  // `myProfileEditInputSchema` accepts a `displayName`, and this route wrote it
+  // through `updateProfileForUser` with no identity check of its own. A
+  // provisional account calling `POST` could therefore replace the trigger's
+  // email-derived name with a real-looking one and flip `isIdentityPending` to
+  // false — completing signup step 2 without ever running it, and so without
+  // the first name / last name / DNI that step collects
+  // (`completeIdentityAction`). The web layout gate and the native gate both
+  // stop somebody REACHING this; neither is the rule, because a bearer token
+  // addresses this URL directly.
+  //
+  // Before the body is read on purpose: the refusal is about the caller, not
+  // about the payload, and a pending account must not learn whether its JSON
+  // would have been accepted.
+  if (isIdentityPending({ displayName: live.profile?.displayName, email: live.user.email })) {
+    return apiV1Error("not_found", 404);
   }
 
   let body: unknown;
