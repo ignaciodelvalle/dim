@@ -4,7 +4,16 @@ import { BRANDING } from "@/lib/ui/branding";
 
 /**
  * PWA Fase A — installable manifest (native Next 15 route, zero deps).
- * Icons generated from public/logo-dim.png; see docs/design/handoffs/2026-07-04-pwa-gap-analysis.md.
+ *
+ * The three icons below are GENERATED, not hand-made: `pnpm mobile:icons`
+ * (scripts/build-mobile-app-icons.ts) composes them from public/logo-mimar-mark.svg,
+ * the same source and the same recipe that produces the phone app's launcher
+ * icon — which is the point, because until 2026-09-04 this manifest served the
+ * retired fingerprint mark while the phone shipped the plaque. Renaming or
+ * resizing any of them means editing that script, and __tests__/pwa-icons.test.ts
+ * fails if this list and the generator's output list stop agreeing.
+ * Background: docs/design/handoffs/2026-07-04-pwa-gap-analysis.md.
+ *
  * theme_color / background_color mirror the app chrome tokens in app/globals.css
  * (--color-primary / --color-ln-azul and --color-background / --color-ln-paper).
  * Fase B (service worker / offline) is out of scope here.

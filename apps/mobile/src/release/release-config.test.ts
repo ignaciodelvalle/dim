@@ -443,6 +443,26 @@ function inkBounds(relative: string): {
   top: number;
   width: number;
   height: number;
+  /**
+   * Distance from the CANVAS centre to the farthest inked pixel, in pixels.
+   *
+   * The bounding box cannot answer the question Android actually asks. Every
+   * OEM mask is a CLOSED CURVE — circle, squircle, teardrop — and the 66.6%
+   * guarantee is a DIAMETER, so what has to fit is a radius. A box is a
+   * conservative under-estimate of a radius on one hand (its corners may be
+   * empty) and a dangerous over-estimate on the other (a box entirely inside
+   * 0.666 in both dimensions still pokes out of the circle at its corners).
+   *
+   * Measured against the mark this file guarded until 2026-09-03: its ink box
+   * was 588x427 of 1024, comfortably under 0.666 on both axes, with a box
+   * half-diagonal of 363px — a diameter of 0.71 — so a BOX assertion of this
+   * shape alone could pass a mark whose corners sit outside the circle. That
+   * mark's own ink never did: its measured max radius was 299.5px, 0.2925 of
+   * the canvas, inside both the 0.333 guarantee and the 0.3056 keyline below.
+   * This is a forward guard against a square-cornered mark this file has
+   * never shipped, not a defect the box assertion let through.
+   */
+  maxRadius: number;
 } {
   const BPP = 4;
   const bytes = readFileSync(path.join(MOBILE_ROOT, relative));
@@ -450,25 +470,38 @@ function inkBounds(relative: string): {
   const raw = decodeRgba(pixels, width, height, BPP);
   const stride = width * BPP;
 
-  // The box. Threshold at 8/255 rather than 0 so the resampler's faintest
-  // anti-aliased fringe does not count as ink and inflate every measurement.
-  let left = width;
-  let right = -1;
-  let top = height;
-  let bottom = -1;
+  // The box AND the radius in ONE walk over the pixels. Threshold at 8/255
+  // rather than 0 so the resampler's faintest anti-aliased fringe does not
+  // count as ink and inflate every measurement.
+  //
+  // WRITTEN AS Math.min/Math.max RATHER THAN AS FIVE NESTED `if`s, which is not
+  // a style preference: the `if` form scored 28 on biome's cognitive-complexity
+  // rule (max 25) because every comparison sits two loops deep and each nested
+  // branch is charged for its depth. The extremes are what this function is FOR,
+  // so the fix is to say "extremes" instead of branching five times to compute
+  // them. Same walk, same threshold, same numbers.
+  const cx = (width - 1) / 2;
+  const cy = (height - 1) / 2;
+  const extremes = { left: width, right: -1, top: height, bottom: -1, maxRadiusSq: 0 };
   for (let y = 0; y < height; y++) {
     for (let x = 0; x < width; x++) {
-      if ((raw[y * stride + x * BPP + 3] ?? 0) > 8) {
-        if (x < left) left = x;
-        if (x > right) right = x;
-        if (y < top) top = y;
-        if (y > bottom) bottom = y;
-      }
+      if ((raw[y * stride + x * BPP + 3] ?? 0) <= 8) continue;
+      extremes.left = Math.min(extremes.left, x);
+      extremes.right = Math.max(extremes.right, x);
+      extremes.top = Math.min(extremes.top, y);
+      extremes.bottom = Math.max(extremes.bottom, y);
+      extremes.maxRadiusSq = Math.max(extremes.maxRadiusSq, (x - cx) ** 2 + (y - cy) ** 2);
     }
   }
 
-  if (right < 0) throw new Error(`${relative}: fully transparent — nothing is painted`);
-  return { left, top, width: right - left + 1, height: bottom - top + 1 };
+  if (extremes.right < 0) throw new Error(`${relative}: fully transparent — nothing is painted`);
+  return {
+    left: extremes.left,
+    top: extremes.top,
+    width: extremes.right - extremes.left + 1,
+    height: extremes.bottom - extremes.top + 1,
+    maxRadius: Math.sqrt(extremes.maxRadiusSq),
+  };
 }
 
 /**
@@ -628,6 +661,47 @@ describe("app identity assets", () => {
     expect(ink.width / layer.width).toBeLessThan(0.666);
     expect(ink.height / layer.height).toBeLessThan(0.666);
 
+    // AND THE RADIUS, which is the assertion the box could not make. Every OEM
+    // mask is a closed curve and 66.6% is a DIAMETER, so the real constraint is
+    // that no inked pixel sits farther than 0.333 x canvas from the centre. The
+    // two box assertions above are necessary and NOT sufficient: a box under
+    // 0.666 on both axes still pokes out of the circle at its own corners.
+    //
+    // THE BOX ALONE CANNOT PROVE THIS SAFE, though it never let a real defect
+    // through: the mark this file guarded until 2026-09-03 had an ink box of
+    // 588x427 — green on both lines above — with a half-diagonal of 363px, a
+    // diameter of 0.71. A box that shape COULD wrap a mark whose corners sit
+    // outside the circle. Measured with this file's own predicate, though,
+    // that mark's ink never did — max radius 299.5px, 0.2925 of the canvas,
+    // inside both circles below. This is a forward guard against a
+    // square-cornered mark, not a defect it caught retroactively.
+    //
+    // TWO CIRCLES, AND THEY ARE NOT THE SAME PROMISE. 72dp of the 108dp layer
+    // (radius 0.333) is what Android GUARANTEES survives every OEM mask; the
+    // 66dp content keyline (radius 33/108 = 0.3056) is what Google RECOMMENDS
+    // for content, and it is the tighter of the two. Both are asserted, because
+    // a change that keeps the guarantee while crossing the recommendation is a
+    // real regression that a single line cannot report.
+    expect(ink.maxRadius / layer.width).toBeLessThan(0.333);
+    expect(ink.maxRadius / layer.width).toBeLessThan(33 / 108);
+
+    // WHAT BUYS THE MARGIN IS THE RATIO, NOT THE CHAMFER — an earlier version
+    // of this comment credited the geometry and was wrong about which number
+    // was doing the work. The chamfer sets the CONSTANT (a square's corner sits
+    // at 1.414 x its half-width; cutting it at 45 degrees brings the plaque's
+    // circumradius down to 0.5667 x its ink width) but the ratio sets the SCALE,
+    // and the scale is where the air came from:
+    //
+    //   0.574 ink → circumradius 32.98dp of 108 → 0.86dp inside the 72dp mask,
+    //                                             2.14dp OUTSIDE the 66dp keyline
+    //   0.530 ink → circumradius 32.45dp of 108 → 3.55dp inside the mask,
+    //                                             0.55dp inside the keyline
+    //
+    // Same chamfered mark in both rows. It passed by less than a dp, and it
+    // failed the recommendation outright, until RATIO_MASKABLE moved.
+    // Non-vacuity for the radius too — a centred dot satisfies the lines above.
+    expect(ink.maxRadius / layer.width).toBeGreaterThan(0.25);
+
     // The non-vacuity floor. Without it, a 1×1 dot in the middle of a
     // transparent canvas — or a fully transparent file — satisfies every
     // assertion above and this test goes green on an invisible launcher icon.
@@ -646,9 +720,30 @@ describe("app identity assets", () => {
     const splash = readPng("assets/splash-icon.png");
     expect(splash.hasAlpha).toBe(true);
 
-    // The source mark is 637×463 with 610×443 of ink in it. Anything wider than
-    // that ink would be interpolation; this one is a downscale, on purpose.
-    expect(splash.width).toBeLessThan(610);
+    // BIG ENOUGH FOR THE DENSEST SCREEN, which is a FLOOR and used to be a
+    // ceiling. The old line was `expect(splash.width).toBeLessThan(610)` with a
+    // comment about the source mark being 637x463 with 610x443 of ink — a
+    // raster-era guard against UPSCALING a photographic scan. The source is a
+    // vector now (public/logo-mimar-mark.svg, rasterised at density 1536 to a
+    // 1921px master), so no output can be an upscale and there is nothing left
+    // for a ceiling to protect.
+    //
+    // The live risk runs the other way. expo-splash-screen renders this file at
+    // `imageWidth` DP; xxxhdpi — every recent flagship — is 4x, so anything
+    // under imageWidth × 4 physical pixels is blown up by the OS on the first
+    // screen of the app. The old 588px file was being upscaled 1.36x there and
+    // the retired ceiling was the reason it could not grow.
+    //
+    // Read from app.json rather than restated, so changing imageWidth moves this
+    // floor with it instead of silently invalidating it.
+    const plugins = appJson.expo.plugins ?? [];
+    const splashOptions = plugins.find(
+      (entry): entry is [string, Record<string, unknown>] =>
+        Array.isArray(entry) && entry[0] === "expo-splash-screen",
+    )?.[1];
+    const imageWidthDp = splashOptions?.imageWidth;
+    expect(typeof imageWidthDp).toBe("number");
+    expect(splash.width).toBeGreaterThanOrEqual((imageWidthDp as number) * 4);
 
     // TIGHT CROP, asserted against the ink rather than declared. expo-splash-
     // screen renders this file at `imageWidth` dp, so transparent padding baked
@@ -658,11 +753,15 @@ describe("app identity assets", () => {
     const ink = inkBounds("assets/splash-icon.png");
     expect(splash.width - ink.width).toBeLessThanOrEqual(4);
 
-    // Same mark, same shape: the source's ink is 610×443, so whatever the
-    // splash was scaled to must still carry that aspect ratio. This is what
-    // would catch a second, differently-drawn mark dropped in under the same
-    // filename — the one failure the dimension checks above cannot see.
-    expect(splash.width / splash.height).toBeCloseTo(610 / 443, 1);
+    // Same mark, same shape: whatever the splash was scaled to must still carry
+    // the source's aspect ratio. This is what would catch a second,
+    // differently-drawn mark dropped in under the same filename — the one
+    // failure the dimension checks above cannot see.
+    // 1:1, and the number is the MARK: the chamfered plaque adopted 2026-09-03
+    // is square, where the scanned-fingerprint oval it replaced was 610x443
+    // (1.377). Updated deliberately, tolerance UNCHANGED — a ratio assertion
+    // loosened to survive a redesign stops being an assertion.
+    expect(splash.width / splash.height).toBeCloseTo(1, 1);
   });
 
   it("ships a Google Play feature graphic at the exact size Play accepts", () => {
@@ -698,9 +797,11 @@ describe("app identity assets", () => {
     // mark by HEIGHT (500px is what runs out first on a 1024-wide canvas,
     // see the recipe's comment) — so the floor and ceiling that catch "mark
     // is a degenerate dot" or "mark fills the whole canvas" both have to be
-    // read off height, not width. Measured at build time: ink height is 384
-    // of 500 (76.8%). Floor well below that catches a shrunk-to-nothing
-    // mark; ceiling well above it catches a mark stretched edge to edge.
+    // read off height, not width. Measured on the file: ink height is 275 of
+    // 500 (RATIO_FEATURE = 0.55). Floor well below that catches a
+    // shrunk-to-nothing mark; ceiling well above it catches a mark stretched
+    // edge to edge. Both survived the 0.768 → 0.55 move unchanged, which is
+    // the point of setting them wide of the value rather than around it.
     const heightFraction = ink.height / graphic.height;
     expect(heightFraction).toBeGreaterThan(0.5);
     expect(heightFraction).toBeLessThan(0.95);
@@ -710,9 +811,19 @@ describe("app identity assets", () => {
     // because on a 1024×500 canvas the two axes disagree by more than 2×.
     // This is what catches a mark that is tall enough to pass the height
     // check above but a sliver wide (or vice versa) — a failure mode the
-    // per-axis check alone is blind to. Measured: ~39.7% of the canvas.
+    // per-axis check alone is blind to.
+    //
+    // THE FLOOR MOVED, DELIBERATELY, AND HERE IS THE ARITHMETIC. It was 0.15
+    // against a measured 0.288 (the old 384×384 ink of 1024×500). The mark is
+    // now 275×275: 75625 / 512000 = 0.148, which is BELOW the old floor — so
+    // leaving 0.15 in place would have failed on a correct file, and nudging it
+    // to 0.147 "so it passes" would have turned a non-vacuity floor into a
+    // restatement of the measurement. 0.10 is the deliberate replacement: a
+    // third below the measured value, so no rounding can trip it, and tight
+    // enough that a mark narrower than ~0.68 of its own height still fails.
+    // The ceiling is untouched.
     const areaFraction = (ink.width * ink.height) / (graphic.width * graphic.height);
-    expect(areaFraction).toBeGreaterThan(0.15);
+    expect(areaFraction).toBeGreaterThan(0.1);
     expect(areaFraction).toBeLessThan(0.9);
 
     // Centred on BOTH axes, independently — not just horizontally the way a
@@ -729,7 +840,9 @@ describe("app identity assets", () => {
 
     // Same mark, same shape: catches a second, differently-drawn mark landing
     // under this filename, exactly as the splash check above does.
-    expect(ink.width / ink.height).toBeCloseTo(610 / 443, 1);
+    // 1:1, same reason as the splash assertion above: the chamfered plaque is
+    // square. Tolerance unchanged.
+    expect(ink.width / ink.height).toBeCloseTo(1, 1);
   });
 
   it("configures the splash plugin against the file it ships", () => {
@@ -743,6 +856,12 @@ describe("app identity assets", () => {
       image: "./assets/splash-icon.png",
       backgroundColor: "#fbfaf5",
     });
+  });
+
+  it("pins the interface style to light — the design system has no dark mode", () => {
+    // scripts/build-mobile-app-icons.ts's "WHY THERE IS NO DARK SPLASH": automatic
+    // invited a dark variant this light-only design system forbids (2026-09-03).
+    expect(appJson.expo.userInterfaceStyle).toBe("light");
   });
 });
 

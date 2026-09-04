@@ -1,128 +1,154 @@
-// Generates the Expo client's launcher, adaptive and splash images from the ONE
-// brand mark this project has.
+// Generates BOTH clients' identity images — the Expo client's launcher,
+// adaptive and splash images, the Play Store's feature graphic, and the web's
+// three PWA icons — from the ONE brand mark this project has.
 //
 // Run with: pnpm mobile:icons
 //
+// THE FILE NAME IS NOW NARROWER THAN THE SCRIPT. It was written when the only
+// outputs were the phone's; the web icons joined on 2026-09-04 precisely so
+// there would stop being two marks. Renaming it ripples into package.json, the
+// conventions canon, docs/architecture/facts.json and several handoffs, which is
+// not this cycle's work — so the scope is stated here instead of in the name.
+//
 // ---------------------------------------------------------------------------
-// WHY THIS IS A SCRIPT AND NOT THREE HAND-DRAWN FILES
+// WHY THIS IS A SCRIPT AND NOT SEVEN HAND-DRAWN FILES
 // ---------------------------------------------------------------------------
-// The mark already exists. `public/logo-dim.png` is the fingerprint oval with
-// the dog and the cat inside it, and `public/icons/icon-512*.png` are the PWA
-// icons already generated from it — the same picture a user sees when they
-// install the web app to their home screen. The phone app must be that picture
-// and not a second one, because two marks is a brand problem no amount of
-// tooling fixes later.
+// The mark already exists, once, as a vector: `public/logo-mimar-mark.svg`.
+// Every surface that shows the brand — the icon on a phone's home screen, the
+// icon an installed PWA gets, the Android adaptive layer, the splash, the Play
+// listing — must be THAT picture and not a second one, because two marks is a
+// brand problem no amount of tooling fixes later.
 //
 // So nothing here is drawn. Everything is COMPOSED, from one source, by a
-// recipe that is readable and re-runnable. What would otherwise be three opaque
-// binaries "somebody made in Figma once" is instead three binaries whose
+// recipe that is readable and re-runnable. What would otherwise be seven opaque
+// binaries "somebody made in Figma once" is instead seven binaries whose
 // provenance is fifty lines of arithmetic.
 //
 // The outputs ARE committed. EAS Build and CI both run `pnpm install
 // --frozen-lockfile` and then read the config; neither runs this script, and a
 // build that regenerated its own icons would be a build whose icons depend on
-// which version of sharp the runner resolved. Committed pixels; reproducible
-// recipe. Re-run it when the mark changes, and only then.
+// which version of sharp the runner resolved. Next.js serves `public/icons/*`
+// as static bytes for the same reason. Committed pixels; reproducible recipe.
+// Re-run it when the mark changes, and only then.
 //
 // ---------------------------------------------------------------------------
-// THE NUMBERS, AND WHERE THEY CAME FROM
+// THE SOURCE
 // ---------------------------------------------------------------------------
-// Not invented — MEASURED off the shipped PWA icons, so the phone icon and the
-// installed-PWA icon are the same composition and not merely the same artwork:
+// `public/logo-mimar-mark.svg` — a QR finder pattern with CHAMFERED corners
+// holding a paw, on a 100x100 viewBox with the plaque painted from 5 to 95 on
+// both axes (90x90 units, square). The SVG's own comments carry the design
+// argument; what matters to this script is the geometry and the colour:
 //
-//   public/icons/icon-512.png           mark occupies 393 of 512 px  → 76.8%
-//   public/icons/icon-512-maskable.png  mark occupies 294 of 512 px  → 57.4%
+//   · the plaque is SQUARE (90x90), so every output below is square-ink;
+//   · the frame stroke is 14 units — 15.56% of the ink width — which is what
+//     the launcher ratio below is chosen against;
+//   · the corners are cut at 45 degrees, so the octagon's circumradius is 51 of
+//     the 100-unit viewBox: maxRadius / inkWidth = 51/90 = 0.5667. That single
+//     number is what makes a CIRCULAR mask assertion possible at all (see
+//     release-config.test.ts) — a bounding box cannot answer it;
+//   · the mark is `currentColor` throughout, with `style="color:#0E5A99"` on
+//     the root. It is BLUE, not black — see "WHY THE MARK IS NOT RECOLOURED";
+//   · the inner octagon is a genuine `evenodd` KNOCKOUT — a hole, transparent,
+//     showing whatever sits behind it — and the paw inside that window is a
+//     SOLID BLUE POSITIVE FILL, not a second knockout.
 //
-// THOSE ARE INK MEASUREMENTS, WHICH IS WHY THE SOURCE IS TRIMMED FIRST. Getting
-// the mechanism behind that sentence right has now taken THREE authors, so the
-// wrong answers are kept next to the right one — a corrected paragraph that
-// deletes its own history is a paragraph the next reader gets wrong the same way.
+// The last point is why the recipes below divide into two postures: an output
+// with `ground: PAPER` fills the window with Libreta Nacional paper; one with
+// `ground: null` leaves it transparent for the OS to fill.
 //
-//   ATTEMPT 1 (wrong): "both numbers came from trimming the PWA icon to its
-//     non-transparent bounding box". Alpha is 255 at every pixel of both icons,
-//     so their non-transparent bounding box IS the 512×512 canvas. A trim on
-//     alpha could not produce 393 or 294.
-//   ATTEMPT 2 (also wrong, 2026-08-26): "sharp trims on ALPHA when an alpha
-//     channel is present, so `trim()` returns 512×512 and the numbers require an
-//     explicit `{ background: '#FBFAF5', threshold: 10 }`". The first half is
-//     false and the second half is redundant. Both icons DO carry an alpha
-//     channel (`channels: 4`, `hasAlpha: true`) — they are opaque, not
-//     alpha-less — and plain `trim()` on them does not return 512×512.
-//
-// WHAT SHARP ACTUALLY DOES, measured against the locked sharp 0.34.5 /
-// libvips 8.17.3 before this paragraph was written:
-//
-//   sharp("public/icons/icon-512.png").trim()          → 393×286
-//   sharp("public/icons/icon-512-maskable.png").trim() → 294×215
-//   sharp("public/logo-dim.png").trim()                → 610×443
+// ---------------------------------------------------------------------------
+// THE TRIM, AND THE ONE RULE BEHIND IT
+// ---------------------------------------------------------------------------
+// Every ratio below is an INK measurement — how much of the canvas the ARTWORK
+// covers, not how wide a rectangle containing it is — which is why the source is
+// trimmed before anything else happens to it. Getting the mechanism behind that
+// sentence right took THREE authors on the previous, raster source, so the rule
+// is kept even though its worked example has been replaced.
 //
 // ONE RULE, NOT TWO: default `trim()` trims against the TOP-LEFT PIXEL — its
 // colour and its alpha together — at a default threshold of 10. It is not an
 // alpha trim that happens to work on transparent images; alpha is just one of
-// the channels it compares. This is what sharp documents for `trim()`'s
-// `background` option ("defaults to that of the top-left pixel"), and the three
-// measurements above are what confirmed it on THESE files rather than in
-// general — both halves stated, because attempts 1 and 2 each had a plausible
-// rule and neither had a measurement. That single rule explains all three lines
-// above, and the corner pixels are why:
+// the channels it compares. Two earlier authors each proposed a plausible
+// mechanism ("sharp trims transparency", then "sharp trims alpha when an alpha
+// channel is present, so you must pass `background: '#FBFAF5'`") and each
+// checked it only against the file where it happened to predict the right
+// answer. The lesson survives them; their numbers do not.
 //
-//   icon-512.png           top-left #FBFAF5, alpha 255  → trims the cream field
-//   icon-512-maskable.png  top-left #FBFAF5, alpha 255  → trims the cream field
-//   logo-dim.png           top-left #FFFFFF, alpha 0    → trims the transparency
+// MEASURED ON TODAY'S SOURCE, sharp 0.34.5 / libvips 8.17.3:
 //
-// SO THE DEFAULT ALREADY YIELDS THE INK NUMBERS, and `{ background: "#FBFAF5",
-// threshold: 10 }` is REDUNDANT on the icons rather than required: it names the
-// colour the default would have inferred, and 10 is the default threshold. It is
-// worse than redundant on the source mark — `sharp("public/logo-dim.png")
-// .trim({ background: "#FBFAF5", threshold: 10 })` returns 637×463, the whole
-// untrimmed canvas, because the mark's border is transparent and not cream.
-// Attempt 2's "fix" would have destroyed the one trim this script actually runs.
+//   sharp(SOURCE, { density: 1536 })                   → 2133x2133, top-left (0,0,0,0)
+//   sharp(SOURCE, { density: 1536 }).trim({threshold:10}) → 1921x1921
 //
-// THRESHOLD MATTERS AND IS THE DEFAULT, which is the one thing worth pinning:
-// at `threshold: 1` the same two files measure 394×288 and 296×217, at 50 they
-// measure 392×286 and 294×214. 393 and 294 are the threshold-10 answers, so the
-// reproducing recipe is bare `trim()` and nothing else.
+// — a symmetric 106px margin removed on every side, which is exactly the
+// viewBox's 5-unit border rendered at this density. The top-left pixel is
+// transparent, so the default background is what the trim wants and passing the
+// icons' cream `#FBFAF5` here would return the untrimmed canvas.
 //
-// THE NUMBERS WERE ALWAYS RIGHT through all three attempts. What kept going
-// wrong is a reflex worth naming, because it is what a plausible mechanism does
-// to a reader: "the file has transparency, sharp trims transparency" is a rule
-// that predicts the right answer on `logo-dim.png` and the wrong one on the
-// icons, and both authors checked it against the file where it works.
+// A sharp trap worth naming for the next person who measures this: `.trim()
+// .metadata()` does NOT report the trimmed size — `metadata()` reads the source
+// header. Materialise with `.toBuffer({ resolveWithObject: true })` (or
+// `toFile`) before measuring anything.
 //
-// Either way all three figures describe how much of the canvas the ARTWORK
-// covers, not how wide a rectangle containing it is. `public/logo-dim.png` is
-// 637×463 with the oval painted across 610×443 of that, off-centre inside its
-// own frame: 27px of transparent margin distributed unevenly.
+// ---------------------------------------------------------------------------
+// THE RATIOS ARE CHOSEN, AND HERE IS WHY
+// ---------------------------------------------------------------------------
+// They used to be MEASURED off the shipped PWA icons — 393/512 and 294/512 —
+// back when those icons were the only place the old mark lived at a known size.
+// That inheritance is over: the PWA icons are now OUTPUTS of this script, so
+// quoting them would be the script measuring itself. Each ratio below is a
+// decision with an argument.
 //
-// Scaling the untrimmed rectangle to those ratios therefore did two wrong
-// things at once, and the test caught both. The ink came out SMALLER than the
-// PWA icons it was supposed to match (the margin ate the difference), and
-// centring the rectangle left the ink 10px off-centre — which on an adaptive
-// icon is 10px of asymmetry inside a mask that assumes none. So every recipe
-// below composes the TRIMMED mark, and `markWidth` means the width of the
-// artwork, exactly as measured.
+// RATIO_LAUNCHER = 0.68. The mark is a square plaque with a 15.56% frame
+// stroke, and the paper margin around it reads as a SECOND concentric band. At
+// the old 0.768 the margin was 119px against a 122px stroke — margin/stroke =
+// 0.97, two rings of identical weight, which is a picture of a frame inside a
+// frame rather than a plaque on paper. Requiring the margin to be at least 1.5
+// stroke-widths:
 //
-// The maskable ratio is the one Android's adaptive icon needs. Android composes
-// a launcher icon from a foreground and a background layer, then lets the OEM
-// mask it to whatever shape that launcher uses — circle, squircle, teardrop,
-// rounded square. Only the CENTRE 66.6% of the layer is guaranteed to survive
-// the mask; the rest is parallax margin the launcher may crop at will. 57.4%
-// sits comfortably inside that, which is exactly why the maskable PWA icon was
-// drawn to it.
+//     (1024 - W)/2  >=  1.5 * 0.1556 * W     →     W <= 698
 //
-// THE ONE PLACE PIXELS ARE INVENTED: the trimmed mark is 610×443, and a store
-// icon must be 1024×1024. At 76.8% the mark lands at 786px wide — a 1.29×
-// upscale, i.e. roughly a quarter of the pixels in the launcher icon are Lanczos
-// interpolation. On a fingerprint, whose entire subject is fine parallel lines,
-// that is the worst possible thing to interpolate. It is accepted here because
-// the alternative is worse (a second, "cleaner" mark that does not match the
-// web), and it is recorded here because the real fix is a vector or a
-// higher-resolution scan of the original, not a better resampling filter. If
-// one ever arrives, drop it in as SOURCE and re-run; nothing else changes.
+// which is 0.6817 of the canvas, rounded to 0.68 (696px, margin 164px, stroke
+// 108px, margin/stroke = 1.51). iOS's mask is NOT the binding constraint and
+// was checked rather than assumed: at 0.768 the superellipse still cleared the
+// plaque's flat-edge midpoints by 119px and its chamfers by ~204px.
 //
-// The other two outputs DOWNSCALE (588 from 610), which is why the splash
-// deliberately reuses the adaptive icon's composition instead of getting its
-// own larger one.
+// RATIO_MASKABLE = 0.53. This one answers to Android, in dp on a 108dp layer.
+// Only the centre 72dp is GUARANTEED to survive every OEM mask, and Google
+// additionally RECOMMENDS keeping content inside a 66dp keyline. Both are
+// diameters of CIRCLES, so what has to fit is the mark's circumradius —
+// 0.5667 x ink width, from the chamfer geometry above:
+//
+//     0.53 x 1024 = 543px ink  →  circumradius 32.45dp of 108
+//         · 3.55dp inside the 72dp guaranteed mask (36dp radius)
+//         · 0.55dp inside the 66dp content keyline (33dp radius)
+//
+// The old 0.574 put it at 0.86dp inside the mask and 2.14dp OUTSIDE the
+// keyline — passing the guarantee, failing the recommendation, with less than a
+// dp of air.
+//
+// RATIO_FEATURE = 0.55, by HEIGHT, on Play's 1024x500 canvas. This is the one
+// output whose real answer is a DESIGNED LOCKUP — the plaque beside the
+// wordmark, laid out by a person — and that is a pending product item, not
+// something a compositing script can invent. Until it exists this is a lone
+// plaque centred on paper, and the honest choice is to make it read as a
+// deliberate emblem rather than as a cropped icon: at the old 0.768 the mark
+// filled 384 of 500 vertically (11.6% of margin above and below) while 62.5% of
+// the canvas width sat empty beside it, which looks like an accident. At 0.55
+// (275px) the margins are 22.5% vertically and the emptiness reads as intended
+// space waiting for the wordmark.
+//
+// SPLASH_PX is not a ratio at all. `expo-splash-screen` renders the file at
+// `imageWidth` dp, and the densest Android bucket (xxxhdpi) is 4x — so a 200dp
+// declaration needs 800 physical pixels or the OS upscales. It is read from
+// app.json below rather than restated, so the two cannot drift.
+//
+// EVERY OUTPUT IS A DOWNSCALE from the 1921px trimmed master — icon 696px
+// (0.36x), adaptive/maskable 543px (0.28x), splash 800px (0.42x), feature 275px
+// (0.14x), web 348px (0.18x) and 131px (0.07x). Nothing here is interpolated
+// UP any more. The previous mark was a 610px-wide photographic scan and the
+// launcher icon was a 1.29x upscale of it, i.e. roughly a quarter of its pixels
+// were Lanczos invention on a subject made of fine parallel lines. That whole
+// problem left with the raster source.
 //
 // ---------------------------------------------------------------------------
 // WHY THERE IS NO adaptive-icon-background.png
@@ -146,7 +172,7 @@
 //   3. Weight in every APK, for a rectangle.
 //
 // The moment the background stops being a flat colour, it becomes a PNG and it
-// becomes a fourth recipe below. Until then, the colour is the honest form.
+// becomes another recipe below. Until then, the colour is the honest form.
 //
 // ---------------------------------------------------------------------------
 // WHY THERE IS NO DARK SPLASH
@@ -158,36 +184,62 @@
 // paper document; it does not have a night mode on the web and must not acquire
 // one on the phone, least of all on the first screen a user sees.
 //
-// (`userInterfaceStyle: "automatic"` in app.json predates this work unit and
-// disagrees with the above. Left alone here — changing it is a UI decision, not
-// a release-plumbing one — but it is worth someone's attention.)
+// (`userInterfaceStyle` in app.json is pinned to "light" for exactly this
+// reason (2026-09-03) — it no longer disagrees with the above.)
 //
 // ---------------------------------------------------------------------------
 // WHY THE MARK IS NOT RECOLOURED
 // ---------------------------------------------------------------------------
-// It is black on transparent, and the animal silhouettes inside it are KNOCKED
-// OUT — they are holes, not white paint. So whatever sits behind the mark shows
-// through them. Every output below puts Libreta Nacional paper (#fbfaf5,
-// `--color-ln-paper`) behind it, which is why the dog reads as cream in all
-// three and matches the web icon exactly.
+// Because it already carries its colour, and this script has no opinion to add.
+// The SVG paints everything with `currentColor` and sets `color:#0E5A99` on the
+// root element, so the mark arrives BLUE — the brand blue, the same
+// `--color-ln-azul` the web chrome and `manifest.ts`'s `theme_color` use.
 //
-// The ink is pure #000 rather than the palette's `--color-ln-ink` (#1b2a33).
-// That is the mark as it exists, and adjusting it here would make this file a
-// second opinion about the brand — the exact failure `apps/mobile/src/ui/theme.ts`
-// was rewritten to stop committing. If the mark should be ink, the mark should
-// be ink, and that is one edit to one PNG upstream of this script.
+// Recolouring it is therefore a ONE-ATTRIBUTE EDIT to one SVG, upstream of
+// here, and that is where it belongs. Doing it in this file would make the
+// script a second opinion about the brand — the exact failure
+// `apps/mobile/src/ui/theme.ts` was rewritten to stop committing.
+//
+// What this script DOES decide is what shows through the knockout. The inner
+// octagon is a hole; the paw inside it is a solid blue positive fill, not a
+// second hole. So an output with `ground: PAPER` reads as a blue plaque with a
+// blue paw on cream, and one with `ground: null` hands that decision to
+// whatever composites it — Android's background layer, or the splash's
+// configured `backgroundColor`.
 
-import { mkdirSync } from "node:fs";
+import { mkdirSync, readFileSync } from "node:fs";
 import path from "node:path";
+import { pathToFileURL } from "node:url";
 import sharp from "sharp";
 
 /** Repo root, from `scripts/`. */
 const ROOT = path.resolve(import.meta.dirname, "..");
 
 /** The single home of the brand mark. */
-const SOURCE = path.join(ROOT, "public", "logo-dim.png");
+const SOURCE = path.join(ROOT, "public", "logo-mimar-mark.svg");
 
-const OUT_DIR = path.join(ROOT, "apps", "mobile", "assets");
+/**
+ * The rasterisation density, and it is NOT decoration — it is the whole reason
+ * a vector source is worth having.
+ *
+ * sharp renders an SVG at its INTRINSIC size unless told otherwise, and this
+ * mark declares `width="100" height="100"`. Feed it straight into the recipes
+ * below and every output is a 100px render scaled UP to 1024 — blurrier than
+ * the scanned PNG this replaced, which is the opposite of the point. At
+ * 1536 DPI against libvips' 72 DPI baseline the master render is
+ * 100 × 1536/72 ≈ 2133px, so every output below is a DOWNscale, which is where
+ * raster quality comes from.
+ *
+ * Raise this if the canvas ever exceeds ~2000px. Do not lower it to save time:
+ * the whole run is under two seconds.
+ */
+const RASTER_DENSITY = 1536;
+
+/** Phone assets: the Expo client reads these by relative path from app.json. */
+const MOBILE_OUT_DIR = path.join(ROOT, "apps", "mobile", "assets");
+
+/** Web assets: Next.js serves `public/` verbatim, so these are `/icons/*.png`. */
+const WEB_OUT_DIR = path.join(ROOT, "public", "icons");
 
 /**
  * `--color-ln-paper`, restated as a literal.
@@ -200,22 +252,61 @@ const OUT_DIR = path.join(ROOT, "apps", "mobile", "assets");
  * fences `--color-ln-paper` between app/globals.css and the contract; it has
  * never heard of this file. `release-config.test.ts` asserts that app.json's
  * two `#fbfaf5` literals match each other, so the ground under the mark and the
- * adaptive background cannot diverge — but all three of those literals could
- * drift away from the token together and nothing would notice.
+ * adaptive background cannot diverge, and `__tests__/pwa-icons.test.ts` asserts
+ * the same hex is the top-left pixel of all three web icons — but every one of
+ * those literals could drift away from the token together and nothing would
+ * notice.
  *
  * That is a small, contained risk (paper has not moved since the Libreta
  * Nacional handoff, and a wrong ground is visible on the first launch), and the
  * fix if it stops being small is a fence, not a comment. Do not read this
  * paragraph as saying the value is protected.
  */
-const PAPER = { r: 0xfb, g: 0xfa, b: 0xf5, alpha: 1 } as const;
+export const PAPER = { r: 0xfb, g: 0xfa, b: 0xf5, alpha: 1 } as const;
 
-/** The measured ratios. See the header. */
-const RATIO_LAUNCHER = 393 / 512;
-const RATIO_MASKABLE = 294 / 512;
+/**
+ * The mark's own colour, restated so tests can assert a pixel against it.
+ *
+ * Not a decision made here: it is `style="color:#0E5A99"` on the SVG's root
+ * element, which every `currentColor` fill in the file inherits. Stated in
+ * upper case because that is how the SVG spells it; PNG pixels carry no case.
+ */
+export const BRAND_BLUE = "#0E5A99";
+
+/**
+ * How much of a SQUARE canvas the plaque covers on a launcher-style icon.
+ *
+ * CHOSEN, not measured off anything — see "THE RATIOS ARE CHOSEN" in the
+ * header. 0.68 is the largest ratio at which the paper margin is at least 1.5×
+ * the plaque's own frame stroke, so the two do not read as concentric bands.
+ */
+export const RATIO_LAUNCHER = 0.68;
+
+/**
+ * How much of a MASKABLE canvas the plaque covers — Android's adaptive
+ * foreground layer, and the web manifest's `purpose: "maskable"` icon.
+ *
+ * CHOSEN against Android's two circles: 0.53 puts the plaque's circumradius at
+ * 32.45dp of a 108dp layer, inside both the 72dp guaranteed mask and the 66dp
+ * content keyline. See the header for the full derivation.
+ */
+export const RATIO_MASKABLE = 0.53;
+
+/**
+ * How much of Play's 1024×500 feature graphic the plaque covers, BY HEIGHT.
+ *
+ * Deliberately modest: this canvas wants a designed lockup (plaque + wordmark)
+ * that does not exist yet, and a lone plaque sized to fill the height reads as
+ * a cropped icon rather than an emblem. See the header.
+ */
+export const RATIO_FEATURE = 0.55;
 
 /** Store icon canvas. Non-negotiable: both stores want 1024×1024. */
 const CANVAS = 1024;
+
+/** The two sizes `app/manifest.ts` declares. 512 also serves the maskable icon. */
+const WEB_ICON_LARGE = 512;
+const WEB_ICON_SMALL = 192;
 
 /**
  * Google Play's feature graphic. Also non-negotiable, and unlike the icon
@@ -225,7 +316,44 @@ const CANVAS = 1024;
 const FEATURE_GRAPHIC_WIDTH = 1024;
 const FEATURE_GRAPHIC_HEIGHT = 500;
 
+/**
+ * `expo-splash-screen`'s declared `imageWidth`, in dp, READ FROM app.json.
+ *
+ * Read rather than restated because the two numbers are one decision: the file
+ * this script writes and the width the plugin renders it at. A literal here
+ * would be a second copy free to drift, and the drift is invisible — the splash
+ * would simply be soft on the densest phones, which is exactly the class of
+ * defect nobody files a bug about.
+ *
+ * It THROWS rather than defaulting if the plugin entry is gone: a splash sized
+ * against a guess is worse than a script that refuses to run.
+ */
+function readSplashImageWidthDp(): number {
+  const appJson = JSON.parse(
+    readFileSync(path.join(ROOT, "apps", "mobile", "app.json"), "utf8"),
+  ) as { expo?: { plugins?: readonly unknown[] } };
+  for (const entry of appJson.expo?.plugins ?? []) {
+    if (!Array.isArray(entry) || entry[0] !== "expo-splash-screen") continue;
+    const options = entry[1] as { imageWidth?: unknown } | undefined;
+    if (typeof options?.imageWidth === "number") return options.imageWidth;
+  }
+  throw new Error("apps/mobile/app.json declares no expo-splash-screen imageWidth");
+}
+
+/**
+ * The splash image's width in PHYSICAL pixels.
+ *
+ * `imageWidth` is dp. xxxhdpi — the densest Android bucket in the wild, and
+ * what every recent flagship reports — is 4×, so 200dp needs 800px or the OS
+ * upscales the file it was handed. Before this was derived, the splash reused
+ * the adaptive icon's 588px composition and was being blown up 1.36× on 4×
+ * phones, on the very first screen of the app.
+ */
+export const SPLASH_PX = readSplashImageWidthDp() * 4;
+
 type Recipe = {
+  /** Directory the file is written to. Two clients, two trees. */
+  readonly dir: string;
   readonly file: string;
   readonly what: string;
   /**
@@ -238,20 +366,21 @@ type Recipe = {
   /**
    * How the mark is resized onto that canvas: `sharp` derives the other axis
    * from the source aspect ratio either way, so this is just which axis is
-   * the BINDING one. For the three square outputs it is `width` — on a
-   * square canvas either axis gives the same answer, so `width` was picked
-   * arbitrarily. It stops being arbitrary for the feature graphic: 1024×500
-   * is wide and short, height (500) is the dimension that runs out first, and
-   * sizing off width there would either overflow the canvas or require a
-   * second, undocumented shrink to compensate.
+   * the BINDING one. For the square outputs it is `width` — on a square canvas
+   * either axis gives the same answer, so `width` was picked arbitrarily. It
+   * stops being arbitrary for the feature graphic: 1024×500 is wide and short,
+   * height (500) is the dimension that runs out first, and sizing off width
+   * there would either overflow the canvas or require a second, undocumented
+   * shrink to compensate.
    */
   readonly markSize: { readonly by: "width" | "height"; readonly px: number };
   /** `null` means a transparent ground. */
   readonly ground: typeof PAPER | null;
 };
 
-const RECIPES: readonly Recipe[] = [
+export const RECIPES: readonly Recipe[] = [
   {
+    dir: MOBILE_OUT_DIR,
     file: "icon.png",
     what: "iOS app icon and the Android legacy/fallback launcher icon",
     canvasWidth: CANVAS,
@@ -260,10 +389,11 @@ const RECIPES: readonly Recipe[] = [
     // OPAQUE, and this is a hard requirement rather than a preference: the App
     // Store rejects an icon with an alpha channel outright, and Android's
     // legacy launcher composites it over an unknown ground. Paper is also what
-    // the knocked-out silhouettes need behind them to read at all.
+    // the knocked-out window needs behind it to read at all.
     ground: PAPER,
   },
   {
+    dir: MOBILE_OUT_DIR,
     file: "adaptive-icon-foreground.png",
     what: "Android adaptive icon, foreground layer",
     canvasWidth: CANVAS,
@@ -275,6 +405,7 @@ const RECIPES: readonly Recipe[] = [
     ground: null,
   },
   {
+    dir: MOBILE_OUT_DIR,
     file: "splash-icon.png",
     what: "expo-splash-screen image",
     // Tight crop, no canvas. expo-splash-screen renders this at `imageWidth`
@@ -282,27 +413,22 @@ const RECIPES: readonly Recipe[] = [
     // declared width and force a compensating number in the config.
     canvasWidth: null,
     canvasHeight: null,
-    markSize: { by: "width", px: Math.round(CANVAS * RATIO_MASKABLE) },
+    // NOT a ratio of any canvas — there is no canvas. See SPLASH_PX.
+    markSize: { by: "width", px: SPLASH_PX },
     ground: null,
   },
   {
+    dir: MOBILE_OUT_DIR,
     file: "feature-graphic.png",
     what: "Google Play Store listing feature graphic",
     canvasWidth: FEATURE_GRAPHIC_WIDTH,
     canvasHeight: FEATURE_GRAPHIC_HEIGHT,
-    // RATIO_LAUNCHER, not RATIO_MASKABLE: this graphic answers to nobody's
-    // safe-zone mask, so there is no 66.6%-survives-the-crop ceiling pulling
-    // it down to the maskable ratio. It is a marketing surface arguing for
-    // the credential's identity at a glance, which is what the full-bleed
-    // icon ratio is FOR — reusing it here is reusing a measurement, not
-    // inventing a new fraction for this one canvas.
-    //
     // Sized BY HEIGHT (500px), the binding dimension of a 1024×500 rectangle:
-    // 500 × 0.768 ≈ 384px of mark height, which at the source's 610:443 ink
-    // ratio comes out to roughly 529px wide — comfortably inside the 1024px
-    // canvas, with margin on the left and right rather than the mark
-    // spanning edge to edge.
-    markSize: { by: "height", px: Math.round(FEATURE_GRAPHIC_HEIGHT * RATIO_LAUNCHER) },
+    // 500 × 0.55 = 275px of mark, square, centred on paper. RATIO_FEATURE and
+    // not RATIO_LAUNCHER because this canvas is not an icon and the plaque is
+    // not the finished artwork for it — the wordmark lockup is a pending
+    // product item. See the header for why filling the height was wrong.
+    markSize: { by: "height", px: Math.round(FEATURE_GRAPHIC_HEIGHT * RATIO_FEATURE) },
     // OPAQUE. Play's feature graphic spec requires no alpha channel — same
     // requirement as icon.png above, different store. See the fence in
     // release-config.test.ts for why this one additionally cannot borrow the
@@ -310,34 +436,72 @@ const RECIPES: readonly Recipe[] = [
     // and Play's rule, not this app's convention, governs it.
     ground: PAPER,
   },
+  {
+    dir: WEB_OUT_DIR,
+    file: "icon-512.png",
+    what: 'PWA manifest icon, purpose "any" — the installed web app\'s home-screen icon',
+    canvasWidth: WEB_ICON_LARGE,
+    canvasHeight: WEB_ICON_LARGE,
+    markSize: { by: "width", px: Math.round(WEB_ICON_LARGE * RATIO_LAUNCHER) },
+    // OPAQUE PAPER, same composition as the phone's icon.png at half the size.
+    // That identity is the entire point of these three recipes existing: until
+    // 2026-09-04 the web shipped the RETIRED fingerprint mark here while the
+    // phone shipped the plaque, and nothing in the repo compared them.
+    ground: PAPER,
+  },
+  {
+    dir: WEB_OUT_DIR,
+    file: "icon-192.png",
+    what: "PWA manifest icon and the <link rel=icon> / apple-touch-icon in app/layout.tsx",
+    canvasWidth: WEB_ICON_SMALL,
+    canvasHeight: WEB_ICON_SMALL,
+    markSize: { by: "width", px: Math.round(WEB_ICON_SMALL * RATIO_LAUNCHER) },
+    ground: PAPER,
+  },
+  {
+    dir: WEB_OUT_DIR,
+    file: "icon-512-maskable.png",
+    what: 'PWA manifest icon, purpose "maskable" — the browser masks this one itself',
+    canvasWidth: WEB_ICON_LARGE,
+    canvasHeight: WEB_ICON_LARGE,
+    markSize: { by: "width", px: Math.round(WEB_ICON_LARGE * RATIO_MASKABLE) },
+    // OPAQUE PAPER, unlike the phone's adaptive FOREGROUND which is
+    // transparent — and the difference is real rather than an oversight. An
+    // Android adaptive icon is TWO layers and the OS paints the background
+    // itself from `adaptiveIcon.backgroundColor`; a maskable web icon is ONE
+    // image the browser crops, with no second layer to supply a ground. So the
+    // ground has to be in the file, and it is the same paper, which keeps the
+    // two maskable surfaces one composition instead of two.
+    ground: PAPER,
+  },
 ];
 
 async function main(): Promise<void> {
-  const meta = await sharp(SOURCE).metadata();
+  const meta = await sharp(SOURCE, { density: RASTER_DENSITY }).metadata();
   if (!meta.width || !meta.height) {
     throw new Error(`Could not read dimensions from ${SOURCE}`);
   }
 
   // THE TRIM IS THE FIRST OPERATION, and everything downstream measures against
-  // its result rather than against the file. See "THOSE ARE INK MEASUREMENTS"
-  // in the header: the mark is painted off-centre inside its own frame, so the
-  // rectangle's dimensions and its centre are both the wrong thing to compose
-  // with.
+  // its result rather than against the file. See "THE TRIM, AND THE ONE RULE
+  // BEHIND IT" in the header: the ratios are ink measurements, and the SVG
+  // carries a 5-unit border the ratios must not be paying for.
   //
-  // Threshold 10 rather than 0: the source's margin is not perfectly clean, and
-  // a handful of near-transparent stray pixels would otherwise defeat the trim
-  // entirely and silently — the failure would be a mark 27px smaller than
-  // intended, which nobody sees on a phone.
+  // Threshold 10 rather than 0: a rasteriser's edge is never perfectly clean,
+  // and a handful of near-transparent stray pixels would otherwise defeat the
+  // trim entirely and silently — the failure would be a mark a few percent
+  // smaller than intended, which nobody sees on a phone.
   //
-  // WRITTEN OUT EVEN THOUGH 10 IS ALSO SHARP'S DEFAULT (measured, 0.34.5: bare
-  // `trim()` reproduces the threshold-10 result on all three files the header
-  // cites, and differs at 1 and at 50). The explicit value is a pin, not an
-  // override: a default that changes in a minor release would move the ink
-  // measurement under a script whose whole claim is that its outputs are
+  // WRITTEN OUT EVEN THOUGH 10 IS ALSO SHARP'S DEFAULT. The explicit value is a
+  // pin, not an override: a default that changes in a minor release would move
+  // the ink measurement under a script whose whole claim is that its outputs are
   // reproducible. What is NOT passed is `background` — the default compares
   // against the top-left pixel, which on this file is transparent, and naming
-  // the icons' cream `#FBFAF5` here would return the untrimmed 637×463.
-  const trimmed = await sharp(SOURCE).trim({ threshold: 10 }).png().toBuffer();
+  // the icons' cream `#FBFAF5` here would return the untrimmed canvas.
+  const trimmed = await sharp(SOURCE, { density: RASTER_DENSITY })
+    .trim({ threshold: 10 })
+    .png()
+    .toBuffer();
   const ink = await sharp(trimmed).metadata();
   if (!ink.width || !ink.height) {
     throw new Error(`Could not measure the trimmed mark from ${SOURCE}`);
@@ -347,14 +511,16 @@ async function main(): Promise<void> {
     `source: ${path.relative(ROOT, SOURCE)} — ${meta.width}×${meta.height}, ` +
       `ink ${ink.width}×${ink.height} after trim`,
   );
-  mkdirSync(OUT_DIR, { recursive: true });
+  for (const dir of new Set(RECIPES.map((recipe) => recipe.dir))) {
+    mkdirSync(dir, { recursive: true });
+  }
 
   for (const recipe of RECIPES) {
     // Only ONE axis is ever passed to `resize` — sharp derives the other from
-    // the source aspect ratio. The mark is landscape and squashing it by a
-    // rounding pixel is the one distortion nobody would notice until it was
-    // on 12 phones. Which axis is passed is `markSize.by`; see the Recipe
-    // type for why that stops being arbitrary once the canvas is not square.
+    // the source aspect ratio. The plaque is square today, but squashing a mark
+    // by a rounding pixel is the one distortion nobody would notice until it was
+    // on 12 phones. Which axis is passed is `markSize.by`; see the Recipe type
+    // for why that stops being arbitrary once the canvas is not square.
     const mark = await sharp(trimmed)
       .resize(
         recipe.markSize.by === "width"
@@ -364,7 +530,7 @@ async function main(): Promise<void> {
       .png()
       .toBuffer();
 
-    const out = path.join(OUT_DIR, recipe.file);
+    const out = path.join(recipe.dir, recipe.file);
     const scaleBasis = recipe.markSize.by === "width" ? ink.width : ink.height;
     const scale = recipe.markSize.px / scaleBasis;
     const scaleLabel = scale >= 1 ? `↑${scale.toFixed(2)}×` : `↓${scale.toFixed(2)}×`;
@@ -386,7 +552,7 @@ async function main(): Promise<void> {
       // whether every pixel in it happens to be opaque, which is what a
       // composite over a solid ground produces. Two separate calls because
       // they answer two separate questions: `flatten` decides what shows
-      // through the knocked-out silhouettes, `removeAlpha` decides how many
+      // through the knocked-out window, `removeAlpha` decides how many
       // channels the file declares.
       if (recipe.ground !== null) {
         canvas = canvas.flatten({ background: recipe.ground }).removeAlpha();
@@ -400,16 +566,36 @@ async function main(): Promise<void> {
     // a log that cannot tell you it got something else.
     const written = await sharp(out).metadata();
     console.log(
-      `  ${recipe.file.padEnd(30)} ${written.width}×${written.height}` +
+      `  ${path.relative(ROOT, out).replaceAll("\\", "/").padEnd(44)} ` +
+        `${written.width}×${written.height}` +
         `  mark ${recipe.markSize.px}px-${recipe.markSize.by} ${scaleLabel}` +
         `  alpha=${written.hasAlpha}  ${recipe.what}`,
     );
   }
 
-  console.log(`\nwrote ${RECIPES.length} file(s) to ${path.relative(ROOT, OUT_DIR)}`);
+  const dirs = [...new Set(RECIPES.map((recipe) => path.relative(ROOT, recipe.dir)))];
+  console.log(`\nwrote ${RECIPES.length} file(s) to ${dirs.join(", ")}`);
 }
 
-main().catch((error: unknown) => {
-  console.error(error);
-  process.exit(1);
-});
+/**
+ * Only run when this file IS the entry point.
+ *
+ * Without this guard, importing the module to read `RATIO_LAUNCHER` from a test
+ * would regenerate seven binaries as a side effect of an import — which is both
+ * a slow test and a test that can rewrite the very files it is about to assert
+ * on. Same shape as scripts/check-icon-registry.ts, with the filename fallbacks
+ * for the tsx/Windows paths where the URL comparison is not exact.
+ */
+const isMain =
+  typeof process !== "undefined" &&
+  process.argv[1] !== undefined &&
+  (process.argv[1].endsWith("build-mobile-app-icons.ts") ||
+    process.argv[1].endsWith("build-mobile-app-icons.js") ||
+    import.meta.url === pathToFileURL(process.argv[1]).href);
+
+if (isMain) {
+  main().catch((error: unknown) => {
+    console.error(error);
+    process.exit(1);
+  });
+}

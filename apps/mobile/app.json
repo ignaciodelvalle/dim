@@ -5,7 +5,7 @@
     "scheme": "mimar",
     "version": "0.0.1",
     "orientation": "portrait",
-    "userInterfaceStyle": "automatic",
+    "userInterfaceStyle": "light",
     "platforms": ["android", "ios"],
     "icon": "./assets/icon.png",
     "ios": {
