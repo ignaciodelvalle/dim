@@ -47,6 +47,25 @@ type SearchState =
   | { phase: "results"; rows: LocalityV1[] }
   | { phase: "failed"; message: string };
 
+/**
+ * What selecting a row hands back.
+ *
+ * BOTH HALVES OF THE PROVINCE, and the second one is not redundant. `POST
+ * /api/v1/pets` and the mudanza command take `provinceCode` (`"AR-B"`), because
+ * they resolve against `ar_localities` in `strict` mode. The TURNO SEARCH takes
+ * the province NAME (`"Buenos Aires"`), because it matches
+ * `service_offerings.jurisdiction_province`, which stores the display name — the
+ * web's own filter form submits `result.provinceName` for exactly that reason
+ * (`SearchFiltersForm.tsx`). One picker feeding both means carrying both, and a
+ * consumer picking the wrong one gets an empty search rather than an error, which
+ * is the failure mode worth spending a field to avoid.
+ */
+export type LocalitySelection = {
+  provinceCode: string;
+  provinceName: string;
+  localityName: string;
+};
+
 export function LocalityPicker({
   provinceCode,
   localityName,
@@ -54,7 +73,7 @@ export function LocalityPicker({
 }: {
   provinceCode: string;
   localityName: string;
-  onSelect: (selection: { provinceCode: string; localityName: string }) => void;
+  onSelect: (selection: LocalitySelection) => void;
 }) {
   const [query, setQuery] = useState("");
   const [state, setState] = useState<SearchState>({ phase: "idle" });
@@ -98,7 +117,7 @@ export function LocalityPicker({
         <Pressable
           accessibilityRole="button"
           accessibilityLabel={`Localidad elegida: ${localityName}, ${provinceCode}. Tocá para cambiarla.`}
-          onPress={() => onSelect({ provinceCode: "", localityName: "" })}
+          onPress={() => onSelect({ provinceCode: "", provinceName: "", localityName: "" })}
           style={styles.selected}
         >
           <View style={styles.selectedText}>
@@ -138,7 +157,7 @@ function SearchBody({
 }: {
   state: SearchState;
   query: string;
-  onPick: (selection: { provinceCode: string; localityName: string }) => void;
+  onPick: (selection: LocalitySelection) => void;
   onRetry: () => void;
 }) {
   switch (state.phase) {
@@ -172,7 +191,11 @@ function SearchBody({
               accessibilityRole="button"
               key={`${row.provinceCode}:${row.localitySlug}`}
               onPress={() =>
-                onPick({ provinceCode: row.provinceCode, localityName: row.localityName })
+                onPick({
+                  provinceCode: row.provinceCode,
+                  provinceName: row.provinceName,
+                  localityName: row.localityName,
+                })
               }
               style={styles.option}
             >

@@ -17,13 +17,19 @@ import { beforeEach, describe, expect, it, jest } from "@jest/globals";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react-native";
 
 const mockSearch = jest.fn<(...args: unknown[]) => Promise<unknown>>();
+const mockLocalities = jest.fn<(...args: unknown[]) => Promise<unknown>>();
 
 jest.mock("expo-router", () => ({
   useRouter: () => ({ push: jest.fn(), replace: jest.fn(), back: jest.fn() }),
 }));
 
+// BOTH endpoints, because the zone control mounts `pets/LocalityPicker` and that
+// component calls `searchLocalities`. A factory that named only the appointment
+// read would hand the picker `undefined` and fail as a TypeError inside a
+// debounce — a crash three layers from the missing line.
 jest.mock("../api/endpoints", () => ({
   fetchAppointmentSearch: (...args: unknown[]) => mockSearch(...args),
+  searchLocalities: (...args: unknown[]) => mockLocalities(...args),
 }));
 
 jest.mock("../auth/session-store", () => ({ sessionPort: {} }));
@@ -75,6 +81,24 @@ function payload(over: Partial<AppointmentSearchV1> = {}): AppointmentSearchV1 {
 
 beforeEach(() => {
   mockSearch.mockReset();
+  mockLocalities.mockReset();
+  mockLocalities.mockResolvedValue({
+    outcome: "ok",
+    payload: {
+      payloadVersion: 1,
+      issuedAt: "2026-08-30T12:00:00.000Z",
+      staleAfter: "2026-08-30T12:05:00.000Z",
+      results: [
+        {
+          localityName: "El Bolsón",
+          localitySlug: "el-bolson",
+          provinceCode: "AR-R",
+          provinceName: "Río Negro",
+          departmentName: "Bariloche",
+        },
+      ],
+    },
+  });
 });
 
 describe("the service picker", () => {
@@ -169,7 +193,9 @@ describe("the results", () => {
     // THE WINDOW COMES FROM THE PAYLOAD, so this sentence cannot claim a figure
     // the read did not use.
     expect(screen.getByText("3 turnos disponibles en 7 días")).toBeTruthy();
-    expect(screen.getByText("Buscando en San Carlos de Bariloche.")).toBeTruthy();
+    // THE ZONE IS A CONTROL, not a sentence. It used to read "Buscando en San
+    // Carlos de Bariloche."; it is now the label of the row that changes it.
+    expect(screen.getByText("Buscar cerca de: San Carlos de Bariloche, Río Negro")).toBeTruthy();
   });
 
   it("says a GUESSED jurisdiction was guessed", async () => {
@@ -273,5 +299,137 @@ describe("the results", () => {
 
     await waitFor(() => expect(mockSearch).toHaveBeenCalledTimes(3));
     expect(mockSearch.mock.calls[2]?.[1]).toEqual({ serviceKind: null });
+  });
+});
+
+describe("choosing the zone", () => {
+  /** Walk the screen to the results state, which is where the zone row lives. */
+  async function reachResults(over: Partial<AppointmentSearchV1> = {}) {
+    mockSearch.mockResolvedValueOnce({ outcome: "ok", payload: payload() });
+    mockSearch.mockResolvedValue({
+      outcome: "ok",
+      payload: payload({
+        serviceKind: "vaccination_rabies",
+        appliedProvince: "Buenos Aires",
+        appliedLocality: "San Justo",
+        jurisdictionSource: "defaulted-from-pet",
+        results: [anOffering()],
+        ...over,
+      }),
+    });
+    render(<BuscarTurnoScreen onOpenOffering={jest.fn()} />);
+    await waitFor(() => expect(screen.getByText("Vacunación antirrábica")).toBeTruthy());
+    fireEvent.press(screen.getByText("Vacunación antirrábica"));
+    await waitFor(() =>
+      expect(screen.getByText("Buscar cerca de: San Justo, Buenos Aires")).toBeTruthy(),
+    );
+  }
+
+  it("asks the SERVER for the default and sends no jurisdiction of its own", async () => {
+    // THE DEFAULT IS NOT THIS SCREEN'S TO COMPUTE. The route's first-pet prefill
+    // runs only when a half is MISSING from the query string, so sending an empty
+    // province would suppress the very default this screen relies on.
+    await reachResults();
+    expect(mockSearch.mock.calls[1]?.[1]).toEqual({ serviceKind: "vaccination_rabies" });
+  });
+
+  it("draws the zone the server actually used, and says it was a guess", async () => {
+    await reachResults();
+    expect(screen.getByText("Cambiar la localidad.")).toBeTruthy();
+    expect(screen.getByText(/la zona donde registraste tu primera mascota/i)).toBeTruthy();
+  });
+
+  it("opens the locality picker when the zone row is tapped", async () => {
+    await reachResults();
+    fireEvent.press(screen.getByText("Buscar cerca de: San Justo, Buenos Aires"));
+    await waitFor(() => expect(screen.getByText("Elegir localidad")).toBeTruthy());
+    expect(screen.getByLabelText("Buscar localidad")).toBeTruthy();
+  });
+
+  it("searches again with the CHOSEN locality, and sends the province NAME", async () => {
+    // THE NAME AND NOT THE ISO CODE. The search matches
+    // `service_offerings.jurisdiction_province`, which stores "Río Negro" and not
+    // "AR-R" — sending the code returns an empty result rather than an error,
+    // which reads to a citizen as "there are no campaigns here".
+    await reachResults();
+    fireEvent.press(screen.getByText("Buscar cerca de: San Justo, Buenos Aires"));
+    await waitFor(() => expect(screen.getByLabelText("Buscar localidad")).toBeTruthy());
+
+    fireEvent.changeText(screen.getByLabelText("Buscar localidad"), "Bolsón");
+    await waitFor(() => expect(screen.getByText("El Bolsón")).toBeTruthy());
+    fireEvent.press(screen.getByText("El Bolsón"));
+
+    await waitFor(() => expect(mockSearch).toHaveBeenCalledTimes(3));
+    expect(mockSearch.mock.calls[2]?.[1]).toEqual({
+      serviceKind: "vaccination_rabies",
+      province: "Río Negro",
+      locality: "El Bolsón",
+    });
+  });
+
+  it("keeps the chosen zone when the service changes", async () => {
+    // The zone is where this person is, not a property of the service they picked.
+    // Resetting it on every service change would make the control feel broken.
+    await reachResults();
+    fireEvent.press(screen.getByText("Buscar cerca de: San Justo, Buenos Aires"));
+    await waitFor(() => expect(screen.getByLabelText("Buscar localidad")).toBeTruthy());
+    fireEvent.changeText(screen.getByLabelText("Buscar localidad"), "Bolsón");
+    await waitFor(() => expect(screen.getByText("El Bolsón")).toBeTruthy());
+    fireEvent.press(screen.getByText("El Bolsón"));
+    await waitFor(() => expect(mockSearch).toHaveBeenCalledTimes(3));
+
+    fireEvent.press(screen.getByText("Elegir otro servicio"));
+    await waitFor(() => expect(mockSearch).toHaveBeenCalledTimes(4));
+    expect(mockSearch.mock.calls[3]?.[1]).toEqual({
+      serviceKind: null,
+      province: "Río Negro",
+      locality: "El Bolsón",
+    });
+  });
+
+  it("closes the picker without changing anything when it is cancelled", async () => {
+    await reachResults();
+    fireEvent.press(screen.getByText("Buscar cerca de: San Justo, Buenos Aires"));
+    await waitFor(() => expect(screen.getByText("Cancelar")).toBeTruthy());
+    fireEvent.press(screen.getByText("Cancelar"));
+
+    await waitFor(() =>
+      expect(screen.getByText("Buscar cerca de: San Justo, Buenos Aires")).toBeTruthy(),
+    );
+    // Two reads: the catalogue and the results. Cancelling is not a search.
+    expect(mockSearch).toHaveBeenCalledTimes(2);
+  });
+
+  it("points an empty result at the control, not at the website", async () => {
+    // THE SENTENCE THAT MUST NOT COME BACK. While this screen had no locality
+    // control, the honest empty state sent people to mimar.com.ar to look
+    // somewhere else — a phone app telling you to open a browser.
+    await reachResults({ results: [] });
+    expect(
+      screen.getByText("Probá con otro servicio, o cambiá la localidad en la fila de arriba."),
+    ).toBeTruthy();
+    expect(screen.queryByText(/mimar\.com\.ar/i)).toBeNull();
+  });
+
+  it("offers to CHOOSE a locality when the server applied none at all", async () => {
+    // A person with no animal registered gets an unfiltered national search. The
+    // row is the only way they can narrow it, so it must still be drawn.
+    mockSearch.mockResolvedValueOnce({ outcome: "ok", payload: payload() });
+    mockSearch.mockResolvedValue({
+      outcome: "ok",
+      payload: payload({
+        serviceKind: "vaccination_rabies",
+        appliedProvince: null,
+        appliedLocality: null,
+        jurisdictionSource: "none",
+        results: [anOffering()],
+      }),
+    });
+    render(<BuscarTurnoScreen onOpenOffering={jest.fn()} />);
+    await waitFor(() => expect(screen.getByText("Vacunación antirrábica")).toBeTruthy());
+    fireEvent.press(screen.getByText("Vacunación antirrábica"));
+
+    await waitFor(() => expect(screen.getByText("Buscando en todo el país")).toBeTruthy());
+    expect(screen.getByText("Elegir una localidad.")).toBeTruthy();
   });
 });

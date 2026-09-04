@@ -10,20 +10,37 @@
 // stale one the day a kind is added, and a raw `snake_case` code is the exact
 // defect QA 2026-08-08 (S3-F07) found on the web's version of this page.
 //
-// WHY THE JURISDICTION LINE EXISTS AND THE WEB HAS NOTHING LIKE IT
+// WHERE THE SEARCH LOOKS, AND WHO DECIDED THAT
 // ---------------------------------------------------------------------------
 // The server prefills the search from the person's first registered animal when
 // they named no place. The browser draws those values into its own filter form,
 // where they read as something the person typed — so somebody whose pet is
 // registered in another province concludes their barrio has no campaigns when
 // they never chose their barrio. `jurisdictionSource` is on the wire so this
-// screen can say which of the two happened.
+// screen can say which of the two happened, and it still does.
 //
-// THIS SCREEN CANNOT FILTER BY LOCALITY YET, and it says so rather than drawing a
-// control that does nothing. The web's filter form is a locality typeahead over
-// `/api/v1/localities`; wiring it here is a further slice, and what stands in for
-// it is the honest note plus the search the server already defaulted to. An empty
-// result never reads as "there is nothing" — it names the place it looked in.
+// THE LOCALITY IS NOW CHOOSABLE HERE (PO decision, 2026-09-04). Until then this
+// screen drew a sentence naming the zone and an empty state that sent people to
+// the website to look anywhere else — a phone app telling you to go use a
+// browser. Nothing on the wire had to change for it: the request already took
+// `province` and `locality` (`app/api/v1/appointments/query.ts`), the route
+// already reported `jurisdictionSource: "requested"` when both were supplied
+// (`route.ts`), and `fetchAppointmentSearch` already put them on the query
+// string. Only this screen never sent them.
+//
+// THE ROW IS THE DISCLOSURE AND THE CONTROL, ONE THING. The zone is named in
+// exactly one place, and that place is the button that changes it — so the label
+// and the search it describes cannot drift. The picker behind it is
+// `pets/LocalityPicker`, the same typeahead over `ar_localities` the alta and the
+// mudanza use; a second locality control in this app would be a second thing to
+// keep in step with the catalogue.
+//
+// THE CHOICE LASTS THE SCREEN SESSION AND IS NOT STORED. Nothing here writes to
+// disk: leaving and coming back returns to the pet's own zone, which is the
+// default a person did not have to think about. Persisting it would mean a
+// stale zone silently outliving the reason it was picked — somebody who looked
+// at their mother's barrio once, then wonders for weeks why their own campaigns
+// are missing.
 
 import { useCallback, useEffect, useState } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
@@ -35,12 +52,15 @@ import { apiErrorMessage } from "../api/error-copy";
 import { sessionPort } from "../auth/session-store";
 import { Body, EmptyState, Loading } from "../ui/components";
 import { FONTS } from "../ui/fonts";
-import { Callout, Eyebrow, Screen, SecondaryButton, Title } from "../ui/kit";
+import { Callout, Eyebrow, ListRow, Screen, SecondaryButton, Title } from "../ui/kit";
 import { COLORS, LEADING, RADIUS, SPACE, TOUCH_TARGET, TRACKING, TYPE } from "../ui/theme";
 
 import { fetchAppointmentSearch } from "../api/endpoints";
+import { LocalityPicker } from "../pets/LocalityPicker";
 import {
   jurisdictionNoteLabel,
+  jurisdictionRowCaption,
+  jurisdictionRowLabel,
   noResultsLabel,
   offeringAvailabilityLabel,
   offeringKindLabel,
@@ -70,17 +90,40 @@ type ScreenState =
   | { phase: "ready"; view: AppointmentSearchV1 }
   | { phase: "failed"; message: string };
 
+/**
+ * A locality this person CHOSE, as the search names it.
+ *
+ * THE PROVINCE IS THE DISPLAY NAME AND NOT THE ISO CODE. The search matches
+ * `service_offerings.jurisdiction_province`, which stores "Buenos Aires" and not
+ * "AR-B"; sending the code returns an empty result rather than an error, which is
+ * the kind of wrong that reads as "there are no campaigns here".
+ */
+type ChosenPlace = { provinceName: string; localityName: string };
+
 export function BuscarTurnoScreen({
   onOpenOffering,
 }: {
   onOpenOffering: (offeringToken: string) => void;
 }) {
   const [serviceKind, setServiceKind] = useState<string | null>(null);
+  // `null` MEANS "LET THE SERVER DECIDE", not "no locality". The server's default
+  // is the person's first registered animal, and this screen deliberately does
+  // NOT re-derive it: that would be a second copy of a rule the wire already
+  // answers, and the answer comes back on every response as `appliedLocality`.
+  const [chosen, setChosen] = useState<ChosenPlace | null>(null);
+  const [picking, setPicking] = useState(false);
   const [state, setState] = useState<ScreenState>({ phase: "loading" });
 
-  const load = useCallback(async (kind: string | null) => {
+  const load = useCallback(async (kind: string | null, place: ChosenPlace | null) => {
     setState({ phase: "loading" });
-    const result = await fetchAppointmentSearch(sessionPort, { serviceKind: kind });
+    const result = await fetchAppointmentSearch(sessionPort, {
+      serviceKind: kind,
+      // OMITTED ENTIRELY WHEN NOTHING WAS CHOSEN, rather than sent as null. The
+      // route runs its first-pet prefill only when a half is missing from the
+      // query string, so an explicit empty value would be a request to search
+      // nowhere in particular and would suppress the default.
+      ...(place === null ? {} : { province: place.provinceName, locality: place.localityName }),
+    });
     if (result.outcome === "ok") {
       setState({ phase: "ready", view: result.payload });
       return;
@@ -89,8 +132,8 @@ export function BuscarTurnoScreen({
   }, []);
 
   useEffect(() => {
-    void load(serviceKind);
-  }, [load, serviceKind]);
+    void load(serviceKind, chosen);
+  }, [load, serviceKind, chosen]);
 
   if (state.phase === "loading") {
     return <Loading label={serviceKind ? "Buscando turnos…" : "Cargando servicios…"} />;
@@ -106,12 +149,59 @@ export function BuscarTurnoScreen({
         <Callout tone="err">
           <Body>{state.message}</Body>
         </Callout>
-        <SecondaryButton label="Reintentar" onPress={() => void load(serviceKind)} />
+        <SecondaryButton label="Reintentar" onPress={() => void load(serviceKind, chosen)} />
       </Screen>
     );
   }
 
   const view = state.view;
+
+  // CHOOSING THE ZONE — a full screen, not a sheet or an inline field.
+  //
+  // The typeahead draws up to eight result rows under an open keyboard, and
+  // squeezing that under a list of offerings puts the thing you are reading and
+  // the thing you are typing into a fight for the same 200px. Taking the screen is
+  // also what makes the back affordance obvious, which matters because this
+  // control can be opened by accident from a row the whole width of the display.
+  //
+  // NO CURRENT VALUE IS PASSED TO THE PICKER (`provinceCode`/`localityName` are
+  // empty). Its "selected" chip is for a form field that holds a value; here the
+  // current zone is already on the row behind this screen, and pre-filling the
+  // chip would draw it twice and invite a tap that clears it to nothing.
+  if (picking) {
+    return (
+      <Screen>
+        <Title>Elegir localidad</Title>
+        <Body>Buscá la localidad donde querés que miMAR busque turnos.</Body>
+        <View style={styles.section}>
+          <LocalityPicker
+            provinceCode=""
+            localityName=""
+            onSelect={(selection) => {
+              // THE CLEAR ARM IS NOT A CHOICE. `LocalityPicker` emits empty
+              // strings when its "Cambiar" chip is tapped to reset, and treating
+              // that as a selection would search a place called "" — a national
+              // search wearing the label of whatever was last typed.
+              //
+              // IT CANNOT FIRE FROM HERE TODAY and is kept anyway: the chip is
+              // drawn only when the picker is given a non-empty current value,
+              // and this call site deliberately passes none (see above). The
+              // guard is one line and the coupling it defends against — a future
+              // edit passing the chosen zone in, to show the chip — is exactly
+              // the change somebody would make without re-reading this handler.
+              if (selection.localityName === "" || selection.provinceName === "") return;
+              setChosen({
+                provinceName: selection.provinceName,
+                localityName: selection.localityName,
+              });
+              setPicking(false);
+            }}
+          />
+        </View>
+        <SecondaryButton label="Cancelar" onPress={() => setPicking(false)} />
+      </Screen>
+    );
+  }
 
   // THE PICKER. `view.serviceKind` is the SERVER's answer and not this screen's
   // `serviceKind` state — an unrecognised code comes back `null`, which is how a
@@ -147,14 +237,36 @@ export function BuscarTurnoScreen({
   return (
     <Screen>
       <Title>{heading}</Title>
-      {note === null ? null : <Body>{note}</Body>}
+
+      {/* THE ZONE, AND THE WAY TO CHANGE IT — drawn BEFORE the results, because
+          it is the question the results answer. A filter under its own output
+          reads as a footnote about a search that already happened. */}
+      <View style={styles.section}>
+        <Eyebrow>Zona</Eyebrow>
+        <ListRow
+          label={jurisdictionRowLabel(view)}
+          caption={jurisdictionRowCaption(view)}
+          accessibilityHint="Abre el buscador de localidades"
+          onPress={() => setPicking(true)}
+        />
+        {/* ONLY WHEN THE ZONE WAS GUESSED. See `jurisdictionNoteLabel` — a
+            prefilled control still reads as a choice, so the provenance is the
+            one thing the row above cannot say about itself. */}
+        {note === null ? null : <Body>{note}</Body>}
+      </View>
 
       <View style={styles.section}>
         <Eyebrow>Resultados</Eyebrow>
         {view.results.length === 0 ? (
           <EmptyState
             headline={noResultsLabel(view)}
-            body="Probá con otro servicio, o buscá desde mimar.com.ar para elegir otra localidad."
+            // NO LONGER "buscá desde mimar.com.ar". Sending somebody from a phone
+            // app to a browser to change a locality was the honest answer only
+            // while this screen had no control; it now has one, three rows up,
+            // and the empty state points at it — by POSITION and not by quoting
+            // the caption, so a reworded control cannot leave this sentence
+            // naming a label that is no longer on screen.
+            body="Probá con otro servicio, o cambiá la localidad en la fila de arriba."
           />
         ) : (
           view.results.map((offering) => (

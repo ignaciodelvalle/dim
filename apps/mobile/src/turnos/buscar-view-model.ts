@@ -109,28 +109,89 @@ export function offeringAvailabilityLabel(
 }
 
 /**
- * Where the search actually looked, and whether the person chose it.
+ * The place the search actually ran in, as a person would name it.
  *
- * `null` WHEN THERE IS NOTHING HONEST TO SAY. A search with no jurisdiction at
- * all is national, and a line saying so would be furniture.
+ * LOCALITY AND PROVINCE TOGETHER when both are known, because the locality alone
+ * is ambiguous across the country and this string now labels a CONTROL rather
+ * than a passive note: "San Martín" names a place in most provinces, and somebody
+ * about to decide whether to change it needs to know which one they are in.
  *
- * THE "defaulted-from-pet" SENTENCE IS THE ONE THIS SCREEN HAS AND THE WEB DOES
- * NOT. The browser prefills its filter form from the person's first registered
- * pet and then draws those values as if they had been typed, so somebody whose
- * animal is registered in another province concludes their barrio has no
- * campaigns when they never chose their barrio.
+ * `null` WHEN NEITHER HALF IS KNOWN. That is a national search, and the caller
+ * says so in its own words rather than getting an empty string to interpolate.
+ */
+export function jurisdictionPlaceLabel(view: {
+  appliedProvince: string | null;
+  appliedLocality: string | null;
+}): string | null {
+  const { appliedLocality: locality, appliedProvince: province } = view;
+  if (locality && province) return `${locality}, ${province}`;
+  return locality ?? province ?? null;
+}
+
+/**
+ * The label on the row that OPENS the locality picker.
+ *
+ * IT IS A CONTROL AND NOT A CAPTION, which is what changed on 2026-09-04. Until
+ * then this screen could not filter by locality at all: it drew a sentence saying
+ * where the server had looked, and the empty state told people to go to the
+ * website to look somewhere else. The row says the same fact and is the way to
+ * change it, so the two cannot drift apart — there is only one place the zone is
+ * named, and tapping it is how you edit what it says.
+ *
+ * ALWAYS A STRING, unlike the note below. A search with no jurisdiction is
+ * national and the row must still be drawn, because for somebody with no animal
+ * registered yet it is the ONLY way to narrow the search at all.
+ */
+export function jurisdictionRowLabel(view: {
+  appliedProvince: string | null;
+  appliedLocality: string | null;
+}): string {
+  const place = jurisdictionPlaceLabel(view);
+  return place === null ? "Buscando en todo el país" : `Buscar cerca de: ${place}`;
+}
+
+/**
+ * The row's second line — what tapping it does, worded for the state it is in.
+ *
+ * IT STARTS WITH THE VERB THE TESTER GUIDE NAMES. `docs/mobile/guia-tester.md`
+ * tells people to tap "Cambiar", and a caption reading "Tocá para modificar…"
+ * would send them hunting for a control that is under their thumb. `ListRow` has
+ * no trailing action slot, so the caption IS the affordance's name — which is why
+ * the word is first and not buried mid-sentence.
+ */
+export function jurisdictionRowCaption(view: {
+  appliedProvince: string | null;
+  appliedLocality: string | null;
+}): string {
+  return jurisdictionPlaceLabel(view) === null ? "Elegir una localidad." : "Cambiar la localidad.";
+}
+
+/**
+ * Where a GUESSED jurisdiction came from — and nothing else.
+ *
+ * `null` FOR EVERY OTHER CASE, and that is the whole of this function now. It
+ * used to carry two sentences: "Buscando en X." for a chosen place and "Buscando
+ * cerca de X, la zona donde registraste tu primera mascota." for a guessed one.
+ * The first arm existed only because nothing else on the screen named the place;
+ * `jurisdictionRowLabel` now does, and a second line repeating it under the
+ * control that sets it is furniture.
+ *
+ * WHAT SURVIVES IS THE PART THE ROW CANNOT SAY: that nobody chose this. The
+ * browser prefills its filter form from the person's first registered pet and
+ * draws those values as if they had been typed, so somebody whose animal is
+ * registered in another province concludes their barrio has no campaigns when
+ * they never chose their barrio. That is the defect `jurisdictionSource` is on
+ * the wire for, and it is not fixed by a control — a prefilled control still
+ * reads as a choice.
  */
 export function jurisdictionNoteLabel(view: {
   appliedProvince: string | null;
   appliedLocality: string | null;
   jurisdictionSource: "requested" | "defaulted-from-pet" | "none";
 }): string | null {
-  const place = view.appliedLocality ?? view.appliedProvince;
-  if (!place) return null;
-  if (view.jurisdictionSource === "defaulted-from-pet") {
-    return `Buscando cerca de ${place}, la zona donde registraste tu primera mascota.`;
-  }
-  return `Buscando en ${place}.`;
+  if (view.jurisdictionSource !== "defaulted-from-pet") return null;
+  if (jurisdictionPlaceLabel(view) === null) return null;
+  return "Es la zona donde registraste tu primera mascota. Podés cambiarla.";
 }
 
 /** The empty result, said in the words of the search that produced it. */

@@ -21,6 +21,8 @@ import {
   buildBookSlot,
   groupSlotsByDay,
   jurisdictionNoteLabel,
+  jurisdictionRowCaption,
+  jurisdictionRowLabel,
   noBookablePetsLabel,
   noResultsLabel,
   offeringAvailabilityLabel,
@@ -172,6 +174,58 @@ describe("the availability sentence", () => {
   });
 });
 
+describe("the zone row — the control that names where the search looked", () => {
+  it("names locality AND province, because a locality alone is ambiguous", () => {
+    // "San Martín" is a place in most provinces. The string labels a CONTROL now,
+    // so somebody deciding whether to change it has to know which one they are in.
+    expect(
+      jurisdictionRowLabel({
+        appliedProvince: "Buenos Aires",
+        appliedLocality: "San Justo",
+      }),
+    ).toBe("Buscar cerca de: San Justo, Buenos Aires");
+  });
+
+  it("falls back to the province when only that half is known", () => {
+    expect(jurisdictionRowLabel({ appliedProvince: "Río Negro", appliedLocality: null })).toBe(
+      "Buscar cerca de: Río Negro",
+    );
+  });
+
+  it("falls back to the locality when only THAT half is known", () => {
+    expect(jurisdictionRowLabel({ appliedProvince: null, appliedLocality: "El Bolsón" })).toBe(
+      "Buscar cerca de: El Bolsón",
+    );
+  });
+
+  it("is still a row when there is no place at all, because it is the only way to narrow", () => {
+    // The old note returned `null` here and the screen drew nothing. That was
+    // right for a caption and wrong for a control: a person with no animal
+    // registered has no other way to scope the search.
+    expect(jurisdictionRowLabel({ appliedProvince: null, appliedLocality: null })).toBe(
+      "Buscando en todo el país",
+    );
+  });
+
+  it("offers to CHANGE a place and to CHOOSE one when there is none", () => {
+    expect(
+      jurisdictionRowCaption({ appliedProvince: "Buenos Aires", appliedLocality: "San Justo" }),
+    ).toBe("Cambiar la localidad.");
+    expect(jurisdictionRowCaption({ appliedProvince: null, appliedLocality: null })).toBe(
+      "Elegir una localidad.",
+    );
+  });
+
+  it("starts the caption with the verb the tester guide tells people to look for", () => {
+    // `docs/mobile/guia-tester.md` says to tap "Cambiar". `ListRow` has no
+    // trailing action slot, so the caption IS the affordance's name — if the verb
+    // stops leading the sentence, the guide is pointing at nothing.
+    expect(
+      jurisdictionRowCaption({ appliedProvince: "Buenos Aires", appliedLocality: "San Justo" }),
+    ).toMatch(/^Cambiar/);
+  });
+});
+
 describe("the jurisdiction note", () => {
   it("says a GUESSED place was guessed, which the web does not", () => {
     expect(
@@ -180,19 +234,32 @@ describe("the jurisdiction note", () => {
         appliedLocality: "San Carlos de Bariloche",
         jurisdictionSource: "defaulted-from-pet",
       }),
-    ).toBe(
-      "Buscando cerca de San Carlos de Bariloche, la zona donde registraste tu primera mascota.",
-    );
+    ).toBe("Es la zona donde registraste tu primera mascota. Podés cambiarla.");
   });
 
-  it("says a REQUESTED place plainly", () => {
+  it("does NOT repeat the place, which the row above already names", () => {
+    // The note used to open with "Buscando cerca de <place>". Under a control
+    // that says exactly that, a second copy is furniture — and two copies of one
+    // fact are two things that can disagree.
+    const note = jurisdictionNoteLabel({
+      appliedProvince: "Río Negro",
+      appliedLocality: "San Carlos de Bariloche",
+      jurisdictionSource: "defaulted-from-pet",
+    });
+    expect(note).not.toContain("San Carlos de Bariloche");
+    expect(note).not.toContain("Río Negro");
+  });
+
+  it("says NOTHING for a place the person CHOSE — the row already said it", () => {
+    // This arm used to return "Buscando en Dina Huapi.". It existed only because
+    // nothing else on the screen named the place; `jurisdictionRowLabel` does now.
     expect(
       jurisdictionNoteLabel({
         appliedProvince: "Río Negro",
         appliedLocality: "Dina Huapi",
         jurisdictionSource: "requested",
       }),
-    ).toBe("Buscando en Dina Huapi.");
+    ).toBe(null);
   });
 
   it("says NOTHING when there is no place, rather than drawing furniture", () => {
@@ -207,14 +274,17 @@ describe("the jurisdiction note", () => {
     ).toBe(null);
   });
 
-  it("falls back to the province when only that half is known", () => {
+  it("says nothing for a GUESS that produced no place either", () => {
+    // `defaulted-from-pet` with both halves null is reachable: a caller whose
+    // first pet carries no jurisdiction at all. The provenance sentence would be
+    // explaining where a place that does not exist came from.
     expect(
       jurisdictionNoteLabel({
-        appliedProvince: "Río Negro",
+        appliedProvince: null,
         appliedLocality: null,
-        jurisdictionSource: "requested",
+        jurisdictionSource: "defaulted-from-pet",
       }),
-    ).toBe("Buscando en Río Negro.");
+    ).toBe(null);
   });
 });
 
