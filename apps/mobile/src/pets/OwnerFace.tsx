@@ -434,14 +434,6 @@ function ActionFooter({ view }: { view: OwnerFaceView }) {
           accessibilityHint="Crear o revocar links de la libreta, y mostrarla en la credencial pública."
           onPress={() => router.push(sharesRoute(view.publicToken))}
         />
-        {isCaretaker ? null : (
-          <FaceAction
-            icon="edit"
-            label="Editar datos"
-            accessibilityHint="Cambiar el nombre, la raza y el color. Queda registrado en la libreta."
-            onPress={() => router.push(editPetRoute(view.publicToken))}
-          />
-        )}
         <FaceAction
           icon="alert-triangle"
           label="Modo perdida"
@@ -459,6 +451,30 @@ function ActionFooter({ view }: { view: OwnerFaceView }) {
 
       {moreOpen ? (
         <View style={styles.moreList}>
+          {/* EDITAR DATOS LIVES HERE, not on the face, since 2026-09-04. The
+              face had five pills in a two-column grid, so the fifth stood
+              alone on a third row; the one to move is the one with no moment.
+              Anotar and Compartir both happen with the animal in front of you
+              (a symptom as it appears, a credential handed to a vet), and Modo
+              perdida is the emergency. Correcting a name or a colour is a
+              once-ever edit that can afford a tap.
+
+              FIRST IN THE LIST, and that position is the precedent rather than
+              a leftover: the web's `deriveMasSheetItems` opens with "Editar
+              datos y ficha". This row landed eighth when it was first moved,
+              because it was folded into the non-caretaker fragment further
+              down and inherited that fragment's place — citing the web for the
+              destination while contradicting it on the order. It carries its
+              own `isCaretaker` gate now so position and permission are two
+              decisions instead of one accident; the gate itself is unchanged
+              from the face row it replaces. */}
+          {isCaretaker ? null : (
+            <MoreRow
+              label="Editar datos"
+              accessibilityHint="Cambiar el nombre, la raza y el color. Queda registrado en la libreta."
+              onPress={() => router.push(editPetRoute(view.publicToken))}
+            />
+          )}
           <MoreRow
             label="Credencial pública"
             onPress={() => router.push(publicCredentialRoute(view.publicToken))}
@@ -974,16 +990,23 @@ const styles = StyleSheet.create({
   /**
    * The action row, and what "ordenado" turned out to mean.
    *
-   * It was `flexWrap` over CONTENT-SIZED pills, so five actions of five
-   * different label lengths ("Anotar", "Compartir", "Editar datos", "Modo
-   * perdida", "Más") wrapped into ragged rows with a different right edge on
-   * each line. Centring alone would have kept the ragged widths and only moved
-   * the ragged edge to both sides.
+   * It was `flexWrap` over CONTENT-SIZED pills, so the actions — of
+   * different label lengths — wrapped into ragged rows with a different right
+   * edge on each line. Centring alone would have kept the ragged widths and
+   * only moved the ragged edge to both sides.
    *
    * So the cells are EQUAL: `flexBasis: 48%` gives two per row whatever the
-   * label says, and `justifyContent: center` centres the odd one left over on
-   * the last row instead of stranding it against the left margin. A grid reads
-   * ordered because the eye can find the column; a wrap never can.
+   * label says. A grid reads ordered because the eye can find the column; a
+   * wrap never can.
+   *
+   * THE GRID IS NOW FULL, which is the second half of the fix. Two columns over
+   * five pills left a 2+2+1 orphan on the last row, and `justifyContent:
+   * center` only moved that orphan to the middle — a lone centred pill still
+   * reads as an unfinished row rather than a deliberate one. "Editar datos"
+   * moved into the ⋯ Más sheet (see the row there for why it was the one to
+   * move), so the four remaining pills — "Anotar", "Compartir", "Modo perdida",
+   * "Más" — fill 2+2 exactly. The centring stays because the org-viewer branch
+   * above renders a single pill and wants it centred.
    */
   actionRow: {
     flexDirection: "row",

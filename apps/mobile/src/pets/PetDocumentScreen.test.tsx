@@ -10,7 +10,7 @@
 // is drawn disabled — never as a working-looking button, never omitted.
 
 import { beforeEach, describe, expect, it, jest } from "@jest/globals";
-import { act, fireEvent, render, screen, waitFor } from "@testing-library/react-native";
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react-native";
 import { RefreshControl, StyleSheet } from "react-native";
 
 import type { OwnerPetDetailV1 } from "@dim/contract/api";
@@ -525,11 +525,44 @@ describe("PetDocumentScreen — controls with no native destination are drawn ho
     // avoid. The assertion is kept pointing at the same row on purpose — it is
     // the one that fails if the destination is ever removed again without the
     // caption coming back.
+    //
+    // IT IS NOW REACHED THROUGH ⋯ Más (2026-09-04): the face carries four pills
+    // in two columns, and the fifth was this one. The row and its destination
+    // are unchanged — only where you press it from.
     render(<PetDocumentScreen publicToken={TOKEN} />);
     await screen.findByText("Pampa");
+    expect(screen.queryByText("Editar datos")).toBeNull();
+    fireEvent.press(screen.getByText("Más"));
     fireEvent.press(screen.getByText("Editar datos"));
     expect(mockPush).toHaveBeenCalledWith(`/mascotas/${TOKEN}/editar`);
     expect(screen.queryByText("Desde la web")).toBeNull();
+  });
+
+  it("leaves the face at four action pills, two per row", async () => {
+    // THE 2+2 GRID, MEASURED. Four labels being on the screen is not the
+    // claim — all four were on the screen when there were FIVE pills too, so
+    // an assertion that only reads labels passes on the layout it was written
+    // to reject. The claim has two halves and needs both: exactly four buttons
+    // INSIDE the action row, and a cell basis that puts two of them on a line.
+    // Four pills at a 100% basis is 4+0+0+0; a 48% basis over five pills is
+    // the 2+2+1 orphan this change removed.
+    //
+    // NO testID: the mobile convention is that production stays a11y-only and
+    // the test reaches under it with UNSAFE_* (ui/skeleton.test.tsx states it,
+    // ui/kit.test.tsx repeats it). The row is found by the style OBJECT it was
+    // built from, so renaming the label of any pill cannot fake this pass.
+    render(<PetDocumentScreen publicToken={TOKEN} />);
+    await screen.findByText("Pampa");
+
+    const rows = screen.UNSAFE_getAllByProps({ style: ownerFaceStyles.actionRow });
+    const actionRow = rows.at(-1);
+    if (!actionRow) throw new Error("action row not rendered");
+    expect(within(actionRow).getAllByRole("button")).toHaveLength(4);
+    expect(StyleSheet.flatten(ownerFaceStyles.action).flexBasis).toBe("48%");
+
+    // "Modo perdida" is the emergency and stays on the FACE by decision, not
+    // by whichever four happened to be left over.
+    expect(within(actionRow).getByText("Modo perdida")).toBeOnTheScreen();
   });
 
   it("takes Contactos de emergencia to the same screen, and leaves the rest honest", async () => {
@@ -591,9 +624,12 @@ describe("PetDocumentScreen — the viewer line survives, per role", () => {
     render(<PetDocumentScreen publicToken={TOKEN} />);
     expect(await screen.findByText("Sos su cuidador")).toBeOnTheScreen();
     // A dead control has no server to refuse it, so the client mirrors the
-    // web's own caretaker deny-list for the DISABLED rows only.
-    expect(screen.queryByText("Editar datos")).toBeNull();
+    // web's own caretaker deny-list for the DISABLED rows only. Both rows now
+    // live INSIDE the ⋯ Más sheet, so the sheet has to be open for the
+    // assertion to mean anything — asserted before the press it would pass on
+    // any caretaker AND on any titular, which is the vacuous shape.
     fireEvent.press(screen.getByText("Más"));
+    expect(screen.queryByText("Editar datos")).toBeNull();
     expect(screen.queryByText("Contactos de emergencia")).toBeNull();
     // The server-refused entries stay offered, as they always were.
     expect(screen.getByText("Transferir la titularidad")).toBeOnTheScreen();
