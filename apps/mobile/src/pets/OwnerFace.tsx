@@ -52,7 +52,6 @@ import { COLORS, LEADING, RADIUS, SPACE, TOUCH_TARGET, TRACKING, TYPE } from "..
 import { FaceDivider, FaceSection, IDENTITY_POKE_OUT } from "./DocumentChromeNative";
 import {
   type OwnerFaceView,
-  REMINDERS_EMPTY_LABEL,
   type SectionView,
   alertHeadline,
   alertTone,
@@ -66,6 +65,21 @@ import {
   transitBannerLine,
   truncationNote,
 } from "./owner-face-view-model";
+
+/**
+ * The QR code's own size, inside the frame.
+ *
+ * The frame is 84 and React Native is border-box, so the 4-point surface ring
+ * leaves 84 − 2×4 = 76 — the same 76 the photo's image fills, and the web's own
+ * `.ln-qr-frame svg { width: 76px }`. The quiet zone is already inside the SVG
+ * (`CredentialQr`'s QUIET_ZONE), so no padding is owed here.
+ *
+ * It was 64 between 61c4978f3 and 2026-09-03, under a docblock claiming the
+ * smaller code was what landed the outer box on the photo's 84. That sentence
+ * was false — `width: 84` is what sets the box — and the code has been restored
+ * to the web's value. `PetDocumentScreen.test.tsx` pins the arithmetic.
+ */
+export const QR_SIZE = 76;
 
 // ---------------------------------------------------------------------------
 // The face
@@ -231,17 +245,25 @@ function IdentityRow({ view }: { view: OwnerFaceView }) {
     view.identity.state === "ok" ? view.identity.data.sex : null,
   );
 
-  const qr = (
+  /**
+   * The QR block, in whichever of the two arms is drawing it.
+   *
+   * `inRow` is not a style preference: the rise into the band belongs to the
+   * flanking row, where there IS a band above the frame. In the standalone arm
+   * the thing above the QR is the identity refusal box, and a frame that rose
+   * 56 points there covered most of the sentence a reader is meant to read.
+   */
+  const renderQr = (inRow: boolean) => (
     <Pressable
       accessibilityRole="button"
       accessibilityLabel="Ver credencial pública"
       accessibilityHint="Abre el documento público que ve cualquier persona que escanea el código."
       onPress={() => router.push(publicCredentialRoute(view.publicToken))}
-      style={styles.qrFrame}
+      style={inRow ? [styles.qrFrame, styles.qrFrameInRow] : styles.qrFrame}
     >
       <CredentialQr
         value={publicCredentialPageUrl(view.publicToken)}
-        size={64}
+        size={QR_SIZE}
         label={`Código QR de la credencial pública de ${view.publicToken}`}
       />
     </Pressable>
@@ -256,7 +278,7 @@ function IdentityRow({ view }: { view: OwnerFaceView }) {
               document exists regardless, so the QR keeps its old standalone
               form here rather than disappearing with the read that failed. */}
           <View style={styles.qrStandalone}>
-            {qr}
+            {renderQr(false)}
             <Text style={styles.qrCaption}>
               <Text style={styles.qrCaptionStrong}>Credencial pública{"\n"}</Text>
               {view.publicToken}
@@ -280,7 +302,7 @@ function IdentityRow({ view }: { view: OwnerFaceView }) {
               </View>
             )}
           </View>
-          {qr}
+          {renderQr(true)}
         </View>
       )}
 
@@ -640,27 +662,26 @@ export function OwnerExtraSections({ view }: { view: OwnerFaceView }) {
         title="Recordatorios"
         isEmpty={(reminders) => reminders.items.length === 0}
       >
-        {(reminders) =>
-          reminders.items.length === 0 ? (
-            <Body>{REMINDERS_EMPTY_LABEL}</Body>
-          ) : (
-            <>
-              {reminders.items.map((reminder) => (
-                <Row
-                  key={reminder.reminderId}
-                  label={reminder.title}
-                  value={reminderDueLabel(reminder.daysUntilDue)}
-                />
-              ))}
-              {/* A list that shows some of what exists must SAY so. */}
-              {truncationNote(reminders.items.length, reminders.total, "recordatorios") ? (
-                <Body>
-                  {truncationNote(reminders.items.length, reminders.total, "recordatorios")}
-                </Body>
-              ) : null}
-            </>
-          )
-        }
+        {/* No empty arm: `isEmpty` above already returned null for a list of
+            zero, so a "No hay recordatorios activos." branch here was dead
+            code that read as a second, contradictory empty-state policy. */}
+        {(reminders) => (
+          <>
+            {reminders.items.map((reminder) => (
+              <Row
+                key={reminder.reminderId}
+                label={reminder.title}
+                value={reminderDueLabel(reminder.daysUntilDue)}
+              />
+            ))}
+            {/* A list that shows some of what exists must SAY so. */}
+            {truncationNote(reminders.items.length, reminders.total, "recordatorios") ? (
+              <Body>
+                {truncationNote(reminders.items.length, reminders.total, "recordatorios")}
+              </Body>
+            ) : null}
+          </>
+        )}
       </Section>
 
       {/* THE BANNERS ------------------------------------------------------ */}
@@ -687,16 +708,12 @@ export function OwnerExtraSections({ view }: { view: OwnerFaceView }) {
           const rehome = rehomeBannerLine(banners);
           const transit = transitBannerLine(banners);
           if (caretakerLines.length === 0 && !rehome && !transit) {
-            // A caretaker or a foster genuinely has no arrangements to see —
-            // they are the titular's to make. Say which of the two this is
-            // instead of leaving an unexplained gap that reads as a bug.
-            return (
-              <Body>
-                {view.isTitular
-                  ? "No hay arreglos activos."
-                  : "Solo el titular ve los arreglos de esta mascota."}
-              </Body>
-            );
+            // Only a caretaker or a foster reaches here — for the titular the
+            // section already returned null via `isEmpty` above. They
+            // genuinely have no arrangements to see, because arrangements are
+            // the titular's to make; say so instead of leaving an unexplained
+            // gap that reads as a bug.
+            return <Body>Solo el titular ve los arreglos de esta mascota.</Body>;
           }
           return (
             <>
@@ -718,9 +735,10 @@ export function OwnerExtraSections({ view }: { view: OwnerFaceView }) {
       {/* PREGNANCY -------------------------------------------------------- */}
       <Section view={view.pregnancy} title="Preñez" isEmpty={(pregnancy) => pregnancy === null}>
         {(pregnancy) =>
-          pregnancy === null ? (
-            <Body>No está preñada.</Body>
-          ) : (
+          // `null` never reaches here — `isEmpty` above already returned null
+          // for it — but the contract types the section as `V1 | null`, so the
+          // guard stays for the narrowing, not for a sentence.
+          pregnancy === null ? null : (
             <>
               <Row label="Comenzó" value={formatIsoDate(pregnancy.startedAt)} />
               <Row label="Parto estimado" value={formatIsoDate(pregnancy.expectedBirthAt)} />
@@ -808,10 +826,12 @@ const styles = StyleSheet.create({
     textAlign: "center",
   },
 
-  // Identity row — the web's phone layout: photo + meta side by side, QR on
-  // its own centered full-width row. The photo pokes up into the band
-  // (negative margin), ringed in the card's white like the web's box-shadow
-  // ring. 84 / -56 / 12 are the web's own `.ln-photo` values.
+  // Identity row — the two frames flank the card's edges and everything else
+  // sits full width underneath; see IdentityRow's docblock for why the web's
+  // "QR on its own row" was a rule that had already stopped firing. The photo
+  // pokes up into the band (negative margin), ringed in the card's white like
+  // the web's box-shadow ring. 84 / -56 / 12 are the web's own `.ln-photo`
+  // values.
   idWrap: { gap: SPACE.md },
   /**
    * The two frames, flanking. `space-between` and nothing between them: the
@@ -833,14 +853,6 @@ const styles = StyleSheet.create({
   },
   photoImage: { width: "100%", height: "100%" },
   photoEmpty: { flex: 1, alignItems: "center", justifyContent: "center" },
-  /**
-   * The centre column. `flex: 1` so it takes exactly what the two fixed
-   * frames leave, `minWidth: 0` so a long name shrinks the column instead of
-   * pushing the QR off the card — without it a flex child refuses to go below
-   * its content width and the row overflows silently.
-   */
-
-  /** Everything that is not the name, at full card width under the row. */
   /** The name and the facts, full width under the frames, centred. */
   idFacts: { gap: SPACE.xs, alignItems: "center" },
   nameRow: {
@@ -903,28 +915,41 @@ const styles = StyleSheet.create({
   /** The degraded-identity arm, where the QR is the only thing left to draw. */
   qrStandalone: { alignItems: "center", gap: SPACE.xs, marginTop: SPACE.sm },
   /**
-   * The QR frame MIRRORS THE PHOTO, deliberately and to the point: same 84
-   * box, same 12 radius, same 4-point surface ring, same -56 rise into the
-   * band. Two matched frames at the two edges of the row with the name
-   * centred between them is the composition of an identity document, and the
-   * mirroring is what makes it read as one rather than as a photo with a
-   * decoration beside it. Change one of the four numbers and change both.
+   * The QR frame MIRRORS THE PHOTO in everything that is about the FRAME: same
+   * 84 box, same 12 radius, same 4-point surface ring. Two matched frames at
+   * the two edges of the row with the name centred between them is the
+   * composition of an identity document, and the mirroring is what makes it
+   * read as one rather than as a photo with a decoration beside it. Change one
+   * of those three numbers and change both.
    *
-   * The code inside is 64 rather than 76 so the ring and padding land the
-   * outer box on the photo's 84 exactly.
+   * WHAT IS NOT HERE, AND WHY. The -56 rise is NOT part of the frame; it is
+   * part of being IN THE ROW, so it lives in `qrFrameInRow` below and only the
+   * row arm applies it. It used to sit here, shared by both arms, and the
+   * degraded-identity arm — where the QR stands alone under the identity
+   * refusal, with no band above it — pulled the frame up over that refusal's
+   * own text. A frame that rises into a band that is not there is not a
+   * mirror, it is a bug (2026-09-03 review, B1).
+   *
+   * The code inside is `QR_SIZE` (76): 84 minus the 4-point ring on each side,
+   * border-box. See that constant for the arithmetic and the web parity.
    */
   qrFrame: {
     width: 84,
     height: 84,
-    marginTop: -IDENTITY_POKE_OUT,
     alignItems: "center",
     justifyContent: "center",
     backgroundColor: COLORS.surface,
     borderWidth: 4,
     borderColor: COLORS.surface,
     borderRadius: 12,
-    zIndex: 3,
   },
+  /**
+   * The rise, and ONLY in the flanking row — exactly what `photo` carries, so
+   * the two frames enter the band together. Mirror any change to `photo`'s
+   * marginTop/zIndex here; that pairing is what `DocumentChromeNative`'s band
+   * budget assumes, and `DocumentChromeNative.geometry.test.ts` pins it.
+   */
+  qrFrameInRow: { marginTop: -IDENTITY_POKE_OUT, zIndex: 3 },
   qrCaption: {
     fontFamily: FONTS.mono,
     fontSize: TYPE.xs,
@@ -987,3 +1012,14 @@ const styles = StyleSheet.create({
 
   moreList: { gap: SPACE.xs },
 });
+
+/**
+ * The face's StyleSheet, exported for the geometry fences.
+ *
+ * jest has no Yoga, so the only way to keep the numbers the docblocks above
+ * quote honest is arithmetic over the real style objects — see the QR ring
+ * assertion in `PetDocumentScreen.test.tsx` and the band budget in
+ * `DocumentChromeNative.geometry.test.ts`. Production reads `styles`; only the
+ * tests read this alias.
+ */
+export const ownerFaceStyles = styles;

@@ -153,25 +153,66 @@ function BandBackground({ situationKey }: { situationKey: string | undefined }) 
  * Band height, and it is a LAYOUT BUDGET rather than a taste.
  *
  * Four things share this strip and three of them are absolutely positioned, so
- * the number has to be derived rather than picked. Reading down a 360dp card:
- * the title block occupies y∈[16,42]; the flip control y∈[14,58]; the state
- * chip needs its own line clear of both, y∈[62,87]; and the identity frames
- * (photo, and the QR beside it) are pulled up by IDENTITY_POKE_OUT from the
- * body, so they enter the band at BAND_H − IDENTITY_POKE_OUT and must start
- * BELOW the chip.
+ * the number has to be derived rather than picked. Every row below is
+ * band-relative y on a 360dp card, measured from the face's content box (inside
+ * the 1px border), with IBM Plex Mono at its shipped 1.30em line height:
  *
- *   152 − 56 = 96, and the chip ends at 87. Nine points of clearance.
+ *   | Element        | Derivation                                        | y       |
+ *   |----------------|---------------------------------------------------|---------|
+ *   | Title block    | top 16; the 26-char title needs 218pt at 55% of    | [16,~55]|
+ *   |                | 310 = 170 available, so it WRAPS: 2 × 13.0 lines,  |         |
+ *   |                | + 3 marginTop + the 10.4 subtitle line             |         |
+ *   | Flip control   | top 14; a TOUCH_TARGET square                      | [14,58] |
+ *   | Situation chip | top BAND_CHIP_TOP; 2×1 border + 2×6 padding +      | [62,92] |
+ *   |                | max(icon 16, text 13) — the 16px ICON_SM is the    |         |
+ *   |                | tallest child, NOT the 10px text                   |         |
+ *   | Frames enter   | BAND_H + FACE_SECTION_PAD_V − IDENTITY_POKE_OUT    | 100     |
  *
- * It was 120 until 2026-09-03, which put the poke-out at 64 — twenty-three
- * points ABOVE where the chip ended, which is the occlusion described at the
- * chip. Anything that lowers this constant, or deepens the poke-out, has to
- * redo this arithmetic; the chip is the credential's headline signal and it
- * cannot be allowed to slide back under a photograph.
+ * So the clearance between the chip's bottom and the frames' white ring is
+ * `BAND_H + 20 − 56 − 92` = 8 points at BAND_H 136, and that 8 is the budget.
+ *
+ * WHAT THE PREVIOUS VERSION OF THIS DOCBLOCK GOT WRONG, because the numbers it
+ * quoted are still quoted elsewhere in this repo. It said the title ended at
+ * 42, the chip at 87, the frames entered at 96, and that the clearance was 9 —
+ * and every one of those was off for one of two reasons. It omitted
+ * `FaceSection`'s own paddingVertical, so the frames were placed 20 points
+ * higher than they are; and it took the chip's 10px TEXT as the tallest child
+ * when the 16px icon beside it is taller, so the chip measured 25 instead of
+ * 30. The two errors happened to cancel into a plausible-looking 9. At the old
+ * BAND_H of 152 the real clearance was 24, not 9 — the layout was SAFER than
+ * its own justification claimed, which is exactly as dangerous, because the
+ * next person to move a constant would have been trusting arithmetic that did
+ * not describe the layout.
+ *
+ * HISTORY. It was 120 until 2026-09-03, with the chip at top:82: that put the
+ * frames at 84 while the chip ran [82,112], so 28 of the chip's 30 points were
+ * under the photo — the occlusion described at the chip. Raising it to 152
+ * fixed that and left 24 points of unplanned slack; 136 is the same fix with
+ * the slack spent, keeping the 8-point clearance the geometry test pins.
+ *
+ * Anything that lowers this constant, deepens the poke-out, moves the chip or
+ * changes the section padding has to redo this arithmetic — and does not have
+ * to redo it by hand: `DocumentChromeNative.geometry.test.ts` computes it from
+ * the exported constants and fails when the clearance goes under 8.
  */
-const BAND_H = 152;
+export const BAND_H = 136;
 
 /** How far the identity frames rise into the band. See BAND_H. */
 export const IDENTITY_POKE_OUT = 56;
+
+/** `FaceSection`'s vertical padding — the frames' first parent, and the term
+ *  the old band arithmetic omitted. See BAND_H. */
+export const FACE_SECTION_PAD_V = 20;
+
+/** The situation chip's own line in the band. See BAND_H. */
+export const BAND_CHIP_TOP = 62;
+export const BAND_CHIP_PAD_V = 6;
+export const BAND_CHIP_BORDER = 1;
+
+/** `Icon size="sm"` in points — the chip's tallest child. Mirrors the `sm`
+ *  branch of `resolveSize` in ../ui/Icon.tsx. */
+export const ICON_SM = 16;
+
 const BAND_VIEWBOX_W = 400;
 
 type DocumentChromeNativeProps = {
@@ -220,9 +261,9 @@ export function DocumentChromeNative({
             decides and the chip's own zIndex:4 never mattered: the photo
             painted over it. On a 360dp device the photo held x∈[18,102] and
             every label longer than about eight characters reached under it —
-            "En tratamiento", "Custodia oficial", "En adopción", "Observación
-            antirrábica". The credential's single most important signal was
-            partially hidden for most of its own vocabulary, and it took a
+            "En tratamiento", "Bajo custodia oficial", "En adopción", "En
+            observación antirrábica". The credential's single most important
+            signal was partially hidden for most of its own vocabulary, and it took a
             geometry read to see it because the SHORT label ("Perdida") clears
             by a few pixels and is the one anybody tests with. */}
         {situation === null ? null : (
@@ -250,7 +291,7 @@ export function DocumentChromeNative({
               survives, because it names the TARGET face and is what a screen
               reader announces; the visible text was the least precise of the
               three and the one competing with a title, a subtitle and the
-              state chip inside a 152-point band. */}
+              state chip inside the band's height budget. */}
           <Icon name="girar" size="sm" color="#fff" />
         </Pressable>
       </View>
@@ -331,22 +372,23 @@ const styles = StyleSheet.create({
   },
   bandChip: {
     position: "absolute",
-    // Its own line: below the title (ends 42) and the flip control (ends 58),
-    // above the identity poke-out (starts 96). See BAND_H.
-    top: 62,
+    // Its own line: below the wrapped title (ends ~55) and the flip control
+    // (ends 58), above the identity poke-out (enters at BAND_H + 20 − 56 =
+    // 100). See BAND_H for the whole budget and where each number comes from.
+    top: BAND_CHIP_TOP,
     alignSelf: "center",
     flexDirection: "row",
     alignItems: "center",
     gap: 7,
     // Nothing else occupies this line, so the longest label in the vocabulary
-    // ("Observación antirrábica") gets the width it needs instead of being
+    // ("En observación antirrábica") gets the width it needs instead of being
     // truncated by a cap that existed to dodge the photo.
     maxWidth: "88%",
     paddingHorizontal: 12,
-    paddingVertical: 6,
+    paddingVertical: BAND_CHIP_PAD_V,
     borderRadius: RADIUS.button,
     backgroundColor: "rgba(0,0,0,0.22)",
-    borderWidth: 1,
+    borderWidth: BAND_CHIP_BORDER,
     borderColor: "rgba(255,255,255,0.38)",
     zIndex: 4,
   },
@@ -357,18 +399,26 @@ const styles = StyleSheet.create({
     textTransform: "uppercase",
     color: "#fff",
   },
+  /**
+   * The flip control: a CENTRED SQUARE, since 2026-09-03.
+   *
+   * It was a pill built for a label — `flexDirection: "row"` with a `gap: 9`
+   * between an icon and text, and asymmetric 13/16 horizontal padding to
+   * balance that text optically. The label was removed the same day (see the
+   * note at the control), which left the gap separating one child from
+   * nothing, the padding off-centre by 3 points, and a 47-wide target for a
+   * 16-point glyph. `TOUCH_TARGET` on both axes with the icon centred is what
+   * the control has actually been since the text went: the height it already
+   * had, and 44 rather than 47 across, with the glyph at exactly (22,22).
+   */
   turn: {
     position: "absolute",
     right: 16,
     top: 14,
-    minHeight: TOUCH_TARGET,
-    flexDirection: "row",
+    width: TOUCH_TARGET,
+    height: TOUCH_TARGET,
     alignItems: "center",
-    gap: 9,
-    paddingTop: 10,
-    paddingBottom: 10,
-    paddingLeft: 13,
-    paddingRight: 16,
+    justifyContent: "center",
     borderRadius: RADIUS.button,
     backgroundColor: "rgba(255,255,255,0.22)",
     borderWidth: 1,
@@ -378,7 +428,7 @@ const styles = StyleSheet.create({
     zIndex: 2,
   },
   sec: {
-    paddingVertical: 20,
+    paddingVertical: FACE_SECTION_PAD_V,
     paddingHorizontal: 18,
   },
   divider: {
@@ -406,3 +456,14 @@ const styles = StyleSheet.create({
     color: COLORS.inkMuted,
   },
 });
+
+/**
+ * The chrome's StyleSheet, exported for the geometry fence.
+ *
+ * jest has no Yoga, so the band budget in `BAND_H`'s docblock can only be kept
+ * honest by arithmetic over the real style objects —
+ * `DocumentChromeNative.geometry.test.ts` reads the chip's top, padding and
+ * border from HERE and compares them against the exported constants, so a
+ * literal that drifts from the number the docblock quotes fails.
+ */
+export const documentChromeStyles = styles;

@@ -35,6 +35,8 @@ jest.mock("../api/endpoints", () => ({
 
 jest.mock("../auth/session-store", () => ({ sessionPort: {} }));
 
+import { IDENTITY_POKE_OUT } from "./DocumentChromeNative";
+import { QR_SIZE, ownerFaceStyles } from "./OwnerFace";
 import { PetDocumentScreen } from "./PetDocumentScreen";
 import { TURN_PERSPECTIVE } from "./document-turn";
 
@@ -230,11 +232,35 @@ describe("PetDocumentScreen — two faces of one document", () => {
     ).toBeOnTheScreen();
   });
 
+  it("draws the flip control as a centred square touch target", async () => {
+    // It was a PILL built around a label until 2026-09-03. The label went that
+    // day and what survived it did not: a `gap` separating one child from
+    // nothing, and 13/16 horizontal padding balancing text that is no longer
+    // there — a 47-wide box, off centre by 3 points, around a 16-point glyph.
+    // Asserted on the RENDERED control rather than on the StyleSheet, so it
+    // also proves the style reaches it.
+    render(<PetDocumentScreen publicToken={TOKEN} />);
+    await screen.findByText("Pampa");
+    const style = StyleSheet.flatten(screen.getByLabelText("Girar a Libreta").props.style);
+    expect(style.width).toBe(TOUCH_TARGET);
+    expect(style.height).toBe(TOUCH_TARGET);
+    expect(style.gap).toBeUndefined();
+    expect(style.paddingLeft ?? 0).toBe(style.paddingRight ?? 0);
+  });
+
   it("navigates to the public credential route from the QR block", async () => {
     // The QR was INERT before the two-face rewrite — a control-shaped
     // decoration. Now it is the tap the web's QR block is.
     render(<PetDocumentScreen publicToken={TOKEN} />);
     await screen.findByText("Pampa");
+    // THE POSITIVE HALF OF THE PAIR the standalone-QR test below completes.
+    // In the identity ROW the QR mirrors the photo and rises into the band; a
+    // fix that removed the rise from both arms would still pass that test and
+    // would take the flanking composition apart, so the rise is pinned here.
+    expect(screen.getByLabelText("Ver credencial pública")).toHaveStyle({
+      marginTop: -IDENTITY_POKE_OUT,
+      zIndex: 3,
+    });
     fireEvent.press(screen.getByLabelText("Ver credencial pública"));
     expect(mockPush).toHaveBeenCalledWith(`/mascotas/${TOKEN}/credencial`);
   });
@@ -409,6 +435,26 @@ describe("PetDocumentScreen — a failure is never drawn as an absence", () => {
     expect(screen.getByText("Libreta Sanitaria Nacional")).toBeOnTheScreen();
     expect(screen.getByText("Emitida el 03/09/2026")).toBeOnTheScreen();
     expect(screen.queryByText(/Palermo/)).toBeNull();
+  });
+
+  it("keeps the standalone QR on the sheet when the identity read failed — it does not rise into the band", async () => {
+    mockFetchOwnerPetDetail.mockResolvedValue({
+      outcome: "ok",
+      payload: payload({ identity: UNAVAILABLE }),
+    });
+    render(<PetDocumentScreen publicToken={TOKEN} />);
+    // "Pampa" never renders in this arm; the issuing foot is the marker its
+    // sibling test above already uses.
+    await screen.findByText("República Argentina");
+    const frame = screen.getByLabelText("Ver credencial pública");
+    // The rise and the stacking belong to the flanking ROW, where the band is
+    // above the frame. Below a refusal box there is no band to rise into —
+    // only the refusal's own text to cover, which is the message the
+    // "a failure is never drawn as an absence" doctrine exists to protect.
+    expect(frame).not.toHaveStyle({ marginTop: -IDENTITY_POKE_OUT });
+    expect(frame).not.toHaveStyle({ zIndex: 3 });
+    // …and the fix may not shrink the frame to dodge the overlap.
+    expect(frame).toHaveStyle({ width: 84, height: 84 });
   });
 
   it("draws nothing for a section that is ok and empty, and still draws its refusal", async () => {
