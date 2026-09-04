@@ -47,7 +47,7 @@ describe("WRONG_CASE_BRAND — precision (correct casing, technical lowercase, i
   const GOOD = [
     "miMAR", // canonical casing — must never self-flag
     "mimar.ar", // email domain — technical, lowercase
-    "logo-mimar.svg", // asset path — technical, lowercase
+    "logo-mimar-mark.svg", // asset path — technical, lowercase
     "MiMARBadge", // hypothetical identifier — "MiMAR" is a prefix, not a standalone word
     "isMiMARFeature", // hypothetical identifier — no word boundary either side
     "DIM-1234-5678", // internal codename token — unrelated

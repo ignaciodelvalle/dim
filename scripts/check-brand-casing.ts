@@ -95,7 +95,7 @@
 // Deliberately NOT flagged by Rule 1 (by construction — the regex only
 // matches the three wrong-cased forms above): the correct "miMAR" casing, and
 // technical/lowercase "mimar" (e.g. the mimar.ar email domain, the
-// logo-mimar.svg asset path, package/slug names). The codename is Rule 2's
+// logo-mimar-mark.svg asset path, package/slug names). The codename is Rule 2's
 // business, not Rule 1's.
 //
 // Scope (BOTH rules): app/**, components/**, src/**, lib/** — .ts/.tsx,

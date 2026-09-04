@@ -52,9 +52,12 @@ export function OpRail({
     >
       {/* Brand */}
       <div className="flex items-center gap-2.5 border-b border-[rgba(255,255,255,0.10)] px-4 py-4 pb-[13px]">
-        {/* Monogram */}
-        <div className="grid h-[34px] w-[34px] flex-shrink-0 place-items-center rounded-[var(--radius-sm)] bg-ln-op-card font-ln-mono text-md font-bold text-ln-op-navy">
-          m·
+        {/* Same mark, same paper-tile recipe as the citizen masthead
+            (components/layout/AppCitizenMasthead.tsx) — was a typographic
+            `m·` monogram; alt="" because the wordmark + subtitle beside it
+            already carry the brand name. */}
+        <div className="grid h-[34px] w-[34px] flex-shrink-0 place-items-center rounded-[var(--radius-lg)] bg-[var(--color-ln-paper)]">
+          <img src="/logo-mimar-mark.svg" alt="" width={25} height={25} />
         </div>
         <div className="flex flex-col leading-tight">
           <span className="font-ln-serif text-base font-semibold tracking-[-0.005em] text-white">

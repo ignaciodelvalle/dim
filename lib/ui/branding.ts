@@ -11,7 +11,9 @@
  * "/logo-mimar.svg"` sat here pointing at a wordmark no component ever
  * rendered, so the "one-file change" it promised was false in the only way
  * that matters: a rebrand editing this line would have missed both places the
- * mark is actually drawn. The mark is `public/logo-mimar-mark.svg`, referenced
+ * mark is actually drawn. The asset itself was deleted 2026-09-04 (dead file,
+ * zero references). The mark is
+ * `public/logo-mimar-mark.svg`, referenced
  * by path where it is used — the masthead brand slot
  * (components/layout/AppCitizenMasthead.tsx) and the launcher-icon build
  * (scripts/build-mobile-app-icons.ts) — which is two call sites a grep finds
