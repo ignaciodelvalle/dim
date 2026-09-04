@@ -92,12 +92,25 @@ export function AppShellDrawer({
             railBg,
             "text-ln-op-rail-text",
           ].join(" ")}
-          aria-label="Menú principal"
         >
+          {/* Radix's DialogPrimitive.Content (vaul's Drawer.Content wraps it)
+              requires a DialogTitle descendant — vaul's Drawer.Title IS that
+              Title — or it dev-warns "DialogContent requires a DialogTitle"
+              even though the brand header below already shows "miMAR" as
+              real text. Visually hidden for that reason; no id/aria override
+              here (mirrors components/ui/VaulSheet.tsx) because Radix
+              auto-wires aria-labelledby to its own generated titleId and only
+              resolves it when Drawer.Title renders undisturbed — an explicit
+              aria-label on Content does not satisfy the same dev check. */}
+          <Drawer.Title className="sr-only">Menú principal</Drawer.Title>
           {/* Brand header */}
           <div className="flex items-center gap-2.5 border-b border-[rgba(255,255,255,0.10)] px-4 py-4 pb-[13px]">
-            <div className="grid h-[34px] w-[34px] flex-shrink-0 place-items-center rounded-[var(--radius-sm)] bg-ln-op-card font-ln-mono text-md font-bold text-ln-op-navy">
-              m·
+            {/* Same mark, same paper-tile recipe as OpRail's brand block and
+                the citizen masthead (components/layout/AppCitizenMasthead.tsx)
+                — was a typographic `m·` monogram; alt="" because the wordmark
+                + subtitle beside it already carry the brand name. */}
+            <div className="grid h-[34px] w-[34px] flex-shrink-0 place-items-center rounded-[var(--radius-lg)] bg-[var(--color-ln-paper)]">
+              <img src="/logo-mimar-mark.svg" alt="" width={25} height={25} />
             </div>
             <div className="flex flex-col leading-tight">
               <span className="font-ln-serif text-base font-semibold text-white">
@@ -111,7 +124,7 @@ export function AppShellDrawer({
               <button
                 type="button"
                 aria-label="Cerrar menú"
-                className="ml-auto inline-flex h-8 w-8 items-center justify-center rounded-md text-ln-op-rail-mute hover:bg-[rgba(255,255,255,0.08)]"
+                className="ml-auto inline-flex min-h-11 min-w-11 items-center justify-center rounded-md text-ln-op-rail-mute hover:bg-[rgba(255,255,255,0.08)]"
               >
                 <Icon name="close" size="sm" decorative />
               </button>
@@ -121,7 +134,7 @@ export function AppShellDrawer({
           {/* Nav sections */}
           <nav
             aria-label="Navegación principal"
-            className="op-scroll flex flex-1 flex-col gap-4 overflow-y-auto px-[9px] py-[13px]"
+            className="op-scroll flex flex-1 flex-col gap-4 overflow-y-auto overscroll-contain px-[9px] py-[13px]"
           >
             {resolved.map((section) => {
               const sectionItems = (
@@ -153,7 +166,7 @@ export function AppShellDrawer({
                             : "border-l-2 border-transparent text-ln-op-rail-text hover:bg-[rgba(255,255,255,0.05)]",
                         ].join(" ")}
                       >
-                        <span className="flex-1 truncate">{item.label}</span>
+                        <span className="min-w-0 flex-1 truncate">{item.label}</span>
                         {item.badge != null && item.badge > 0 && (
                           <span className="font-ln-mono inline-flex items-center justify-center rounded-[var(--radius-sm)] bg-[rgba(255,255,255,0.08)] px-1.5 py-0.5 text-xs font-bold leading-none text-white">
                             {item.badge}

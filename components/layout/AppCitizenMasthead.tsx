@@ -111,13 +111,11 @@ export function AppCitizenMasthead({
             (scripts/build-mobile-app-icons.ts), so the CITIZEN chrome and the
             app icon are now one drawing instead of two brands.
 
-            CITIZEN, and not "the site" — the operator chrome still draws a
-            typographic `m·` monogram in two places, and claiming otherwise
-            here would retire a follow-up nobody did: the rail's brand block
-            (components/ui/dashboard/OpRail.tsx:56) and the operator drawer's
-            brand header (components/layout/AppShellDrawer.tsx:99). Both are
-            outside the PO's 2026-09-04 scope and deliberately untouched; they
-            are what is left to convert.
+            The operator chrome draws this exact tile too now — the rail's
+            brand block (components/ui/dashboard/OpRail.tsx) and the operator
+            drawer's brand header (components/layout/AppShellDrawer.tsx) — so
+            a funcionario who is also a citizen sees one mark, not two,
+            crossing between `/` and `/gob`.
 
             WHY A LIGHT TILE AND NOT THE BARE FILE. The asset paints with
             `currentColor` and defaults to brand blue (#0E5A99), which an
@@ -287,7 +285,7 @@ function CitizenUserMenu({ user }: { user: CitizenUser }) {
         aria-controls={panelId}
         aria-label="Menú de cuenta"
         onClick={() => setOpen((v) => !v)}
-        className="flex items-center gap-[9px] rounded-full no-underline transition-opacity hover:opacity-80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/50"
+        className="flex min-h-11 min-w-11 items-center gap-[9px] rounded-full no-underline transition-opacity hover:opacity-80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/50"
       >
         <span className="grid h-[30px] w-[30px] flex-shrink-0 place-items-center rounded-full bg-[var(--color-ln-celeste)] font-ln-mono text-sm font-semibold text-[var(--color-ln-azul-900)]">
           {user.initials}
@@ -438,10 +436,17 @@ function CitizenMobileDrawer({
       </Drawer.Trigger>
       <Drawer.Portal>
         <Drawer.Overlay className="fixed inset-0 z-40 bg-black/40 md:hidden" />
-        <Drawer.Content
-          className="fixed bottom-0 left-0 top-0 z-50 flex w-[232px] flex-col bg-[var(--color-ln-azul-900)] text-white shadow-xl outline-none md:hidden"
-          aria-label="Menú principal"
-        >
+        <Drawer.Content className="fixed bottom-0 left-0 top-0 z-50 flex w-[232px] flex-col bg-[var(--color-ln-azul-900)] text-white shadow-xl outline-none md:hidden">
+          {/* Radix's DialogPrimitive.Content (vaul's Drawer.Content wraps it)
+              requires a DialogTitle descendant — vaul's Drawer.Title IS that
+              Title — or it dev-warns "DialogContent requires a DialogTitle"
+              even though the brand header below already shows "miMAR" as
+              real text. Visually hidden for that reason; no id/aria override
+              here (mirrors components/ui/VaulSheet.tsx) because Radix
+              auto-wires aria-labelledby to its own generated titleId and only
+              resolves it when Drawer.Title renders undisturbed — an explicit
+              aria-label on Content does not satisfy the same dev check. */}
+          <Drawer.Title className="sr-only">Menú principal</Drawer.Title>
           {/* Brand header */}
           <div className="flex items-center gap-2.5 border-b border-white/10 px-4 py-3.5">
             {/* Same mark, same reasoning as the masthead brand slot above —
@@ -475,7 +480,7 @@ function CitizenMobileDrawer({
           {nav.length > 0 && (
             <nav
               aria-label="Navegación principal"
-              className="flex flex-1 flex-col gap-0.5 overflow-y-auto px-2 py-3"
+              className="flex flex-1 flex-col gap-0.5 overflow-y-auto overscroll-contain px-2 py-3"
             >
               {nav.map((item) => {
                 const active = isNavItemActive(item, pathname);
@@ -492,7 +497,7 @@ function CitizenMobileDrawer({
                         : "border-l-2 border-transparent text-white/75 hover:bg-white/5 hover:text-white active:bg-white/10",
                     ].join(" ")}
                   >
-                    <span className="flex-1 truncate">{item.label}</span>
+                    <span className="min-w-0 flex-1 truncate">{item.label}</span>
                   </Link>
                 );
               })}
