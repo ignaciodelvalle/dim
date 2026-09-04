@@ -57,9 +57,21 @@ supabase/snippets/Untitled*.sql
 # agent/script scratch output (also the launchworthy audit report target)
 tmp/
 
-# agent tool caches
+# agent tool caches — but project-scoped agent skills, settings, and agent/hook
+# definitions are versioned on purpose (PO decision 2026-09-04, extended
+# 2026-09-04): `.claude/*` ignores worktrees, local settings and caches, and
+# the negations below re-include only `.claude/skills/`, `.claude/settings.json`
+# (verified secret-free: `enabledPlugins` + a `permissions.allow` command
+# allowlist, nothing else), `.claude/agents/` and `.claude/hooks/`.
+# `.claude/settings.local.json` (session-specific paths), `.claude/worktrees/`
+# (full worktree checkouts), `.claude/scratch/` and `.claude/scheduled_tasks.lock`
+# stay ignored on purpose — none of those are meant to leave this machine.
 .atl/
-.claude/
+.claude/*
+!.claude/skills/
+!.claude/settings.json
+!.claude/agents/
+!.claude/hooks/
 
 # design handoff reference (local only — source for the Libreta Nacional redesign, not production)
 design_handoff_*/
