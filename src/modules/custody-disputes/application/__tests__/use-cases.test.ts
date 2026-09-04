@@ -58,6 +58,7 @@ import {
   custodyDisputes,
   db,
   notifications,
+  organizationMemberships,
   organizations,
   ownerships,
   petEvents,
@@ -821,6 +822,205 @@ describe("resolveDisputeUseCase", () => {
     };
     expect(payload.from_user_id).toBe(ownerUserId);
     expect(payload.from_role).toBe("owner");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// resolveDisputeUseCase — the ORG party
+// ---------------------------------------------------------------------------
+//
+// The resolution fan-out read `party_user_id` alone. `custody_dispute_parties`
+// is polymorphic by CHECK (`dispute_party_exactly_one_subject`), so an org-side
+// party has that column NULL and was dropped from the notification set without
+// a trace — harmless while no writer produced one, which stopped being true
+// when the claim wizard started filing a `current_org_custody` party for
+// animals held by a refugio (submit-claim-dispute.ts). A shelter told its
+// animal was claimed would otherwise never be told the authority had ruled.
+
+describe("resolveDisputeUseCase — an ORG party is an address, not a dropped row", () => {
+  const LONG_SUMMARY =
+    "El gobierno local revisó la evidencia presentada por ambas partes y resolvió " +
+    "la disputa de custodia de forma definitiva conforme la normativa vigente aplicable.";
+
+  const UC_ORG_MEMBER_EMAIL = "uc-cd-orgmember@dim-test.local";
+  let partyOrgId!: string;
+  let orgMemberUserId!: string;
+  let orgHeldPetId: string | null = null;
+
+  beforeAll(async () => {
+    await purgeUserByEmail(UC_ORG_MEMBER_EMAIL);
+    orgMemberUserId = await createUser(UC_ORG_MEMBER_EMAIL);
+    const [org] = await db
+      .insert(organizations)
+      .values({
+        publicToken: generatePublicToken(),
+        legalName: "Refugio Parte Asociación Civil",
+        displayName: "Refugio Parte",
+        orgType: "shelter",
+        email: "uc-cd-party-org@dim-test.local",
+        verified: true,
+        jurisdictionProvince: PROV,
+        jurisdictionLocality: LOCALITY,
+      })
+      .returning({ id: organizations.id });
+    partyOrgId = org.id;
+    await db.insert(organizationMemberships).values({
+      organizationId: partyOrgId,
+      userId: orgMemberUserId,
+      role: "admin",
+      canWritePetEvents: true,
+    });
+  }, 90_000);
+
+  afterAll(async () => {
+    // The pet goes FIRST and by hand. `party_organization_id` is ON DELETE SET
+    // NULL, so dropping the org while a party row still points at it would set
+    // both subject columns to NULL and trip the exactly-one-subject CHECK.
+    if (orgHeldPetId) {
+      const petId = orgHeldPetId;
+      const disputeRows = await db
+        .select({ id: custodyDisputes.id })
+        .from(custodyDisputes)
+        .where(eq(custodyDisputes.petId, petId));
+      await withMutationOverride(async (tx) => {
+        await tx.delete(notifications).where(eq(notifications.relatedPetId, petId));
+        await tx.execute(sql`DELETE FROM pet_events WHERE pet_id = ${petId}`);
+        for (const { id } of disputeRows) {
+          await tx.delete(custodyDisputeParties).where(eq(custodyDisputeParties.disputeId, id));
+        }
+        await tx.execute(sql`DELETE FROM cases WHERE primary_pet_id = ${petId}`);
+        await tx.delete(custodyDisputes).where(eq(custodyDisputes.petId, petId));
+        await tx.delete(ownerships).where(eq(ownerships.petId, petId));
+        await tx.delete(pets).where(eq(pets.id, petId));
+      });
+    }
+    await withMutationOverride(async (tx) => {
+      await tx.delete(organizations).where(eq(organizations.id, partyOrgId));
+    });
+    await purgeUserByEmail(UC_ORG_MEMBER_EMAIL);
+  }, 90_000);
+
+  /** A dispute over an animal held by `partyOrgId`, filed the way the claim
+   * wizard files it: the org as `current_org_custody`, the claimant as the
+   * `claimant_owner`. */
+  async function seedOrgHeldDispute(): Promise<{ disputeToken: string }> {
+    const [pet] = await db
+      .insert(pets)
+      .values({
+        publicToken: generatePublicToken(),
+        name: "UC CD Org Party",
+        species: "dog",
+        status: "active",
+        jurisdictionProvince: PROV,
+        jurisdictionLocality: LOCALITY,
+      })
+      .returning({ id: pets.id });
+    orgHeldPetId = pet.id;
+
+    await db.insert(ownerships).values({
+      petId: pet.id,
+      ownerOrganizationId: partyOrgId,
+      role: "shelter_custody",
+      startedAt: new Date(),
+    });
+
+    return db.transaction(async (tx) => {
+      const disputeCase = await openCase(
+        {
+          kind: "custody_dispute",
+          primarySubjectKind: "registered_pet",
+          primaryPetId: pet.id,
+          jurisdictionProvince: PROV,
+          jurisdictionLocality: LOCALITY,
+          openedByUserId: claimantUserId,
+          openedByOrganizationId: null,
+          openedReason: { code: "custody_dispute_raised", raisedByRole: "owner" },
+        },
+        tx,
+      );
+      const payload = validateEventPayload("custody_dispute_raised", {
+        raised_by_role: "owner",
+        raised_by_user_id: claimantUserId,
+        external_proceeding_reference: null,
+        reason: "Reclamo sobre un animal que tiene el refugio, con motivo suficiente.",
+      });
+      const [raisingEvent] = await tx
+        .insert(petEvents)
+        .values({
+          petId: pet.id,
+          eventType: "custody_dispute_raised",
+          occurredAt: new Date(),
+          recordedAt: new Date(),
+          recordedByUserId: claimantUserId,
+          authorRole: "finder",
+          payload,
+          caseId: disputeCase.id,
+        })
+        .returning({ id: petEvents.id });
+      const { publicToken } = await openDisputeFromEvent(tx, {
+        petId: pet.id,
+        raisingEventId: raisingEvent.id,
+        raisedByUserId: claimantUserId,
+        raisedByOrgId: null,
+        raisedByRole: "owner",
+        jurisdictionProvince: PROV,
+        jurisdictionLocality: LOCALITY,
+        initialParties: [
+          { orgId: partyOrgId, role: "current_org_custody" },
+          { userId: claimantUserId, role: "claimant_owner" },
+        ],
+        preCreatedCaseId: disputeCase.id,
+      });
+      return { disputeToken: publicToken };
+    });
+  }
+
+  it("tells the org party's active members that the authority ruled", async () => {
+    const { disputeToken } = await seedOrgHeldDispute();
+
+    // The claimant is shared with every other resolve test in this file, so
+    // count the DELTA rather than the total — an absolute count would assert
+    // this file's execution order instead of this use-case's behaviour.
+    const claimantBefore = await db
+      .select({ id: notifications.id })
+      .from(notifications)
+      .where(
+        and(
+          eq(notifications.userId, claimantUserId),
+          eq(notifications.notificationType, "custody_dispute_resolved"),
+        ),
+      );
+
+    const result = await resolveDisputeUseCase(adminSession(), {
+      disputeToken,
+      resolution: "case_dismissed",
+      resolutionSummary: LONG_SUMMARY,
+    });
+    expect(result).toHaveProperty("resolvedAt");
+
+    const memberRows = await db
+      .select({ id: notifications.id })
+      .from(notifications)
+      .where(
+        and(
+          eq(notifications.userId, orgMemberUserId),
+          eq(notifications.notificationType, "custody_dispute_resolved"),
+        ),
+      );
+    expect(memberRows).toHaveLength(1);
+
+    // The user-side party still gets exactly one — the org leg adds an
+    // address, it does not duplicate the existing ones.
+    const claimantAfter = await db
+      .select({ id: notifications.id })
+      .from(notifications)
+      .where(
+        and(
+          eq(notifications.userId, claimantUserId),
+          eq(notifications.notificationType, "custody_dispute_resolved"),
+        ),
+      );
+    expect(claimantAfter.length - claimantBefore.length).toBe(1);
   });
 });
 

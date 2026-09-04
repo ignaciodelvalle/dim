@@ -1,8 +1,10 @@
 // Use-case: submitClaimDisputeForUser (variant B)
 //
-// Raises a custody_dispute against the active owner of a chip/tattoo-matched
-// pet. Uploads evidence BEFORE the tx so failures don't dangle, then opens
-// a case + raising event + dispute row in one atomic transaction.
+// Raises a custody_dispute against the active HOLDER of a chip/tattoo-matched
+// pet — a person or an organisation; see the holder lookup below for why the
+// distinction was a blocker and not a nicety. Uploads evidence BEFORE the tx so
+// failures don't dangle, then opens a case + raising event + dispute row in one
+// atomic transaction.
 //
 // AUTHORIZATION: the private identifier, never a caller-supplied pet token.
 //
@@ -31,13 +33,15 @@
 // bulk abuse against arbitrary animals: a 15-digit keyspace at 30 attempts a
 // minute instead of a token list anyone can download.
 
-import { and, eq, isNull } from "drizzle-orm";
+import { and, desc, eq, isNull, sql } from "drizzle-orm";
 
 import {
   attachments,
   auditLog,
   db,
   notifications,
+  organizationMemberships,
+  organizations,
   ownerships,
   petEvents,
   petIdentifications,
@@ -52,6 +56,24 @@ import { openDisputeFromEvent } from "@/src/modules/custody-disputes/application
 import type { ClaimDisputeInput, ClaimDisputeResult } from "./types";
 
 const MICROCHIP_PATTERN = /^\d{15}$/;
+
+/** Cap on the org members notified when the counter-party is an organization —
+ * same number and same reason as `ownerProposeReturnToOrgUseCase`: a shelter's
+ * membership list is unbounded and a dispute is one notification, not a mailing.
+ */
+const ORG_NOTIFICATION_CAP = 10;
+
+/**
+ * Rank the pet's ACTIVE custody rows so the counter-party is chosen, not drawn.
+ *
+ * `ownerships` can carry several live rows for one animal (a shelter's
+ * `shelter_custody` alongside a volunteer's `foster`, a titular alongside a
+ * `caretaker`), so a bare `.limit(1)` picks whichever row Postgres happens to
+ * return — the exact defect `resolvePetHolderAccess` and `resolveReturnTargetOrg`
+ * each had to fix once the row became load-bearing. Titularidad outranks
+ * custody, and `startedAt desc` breaks a tie inside one role.
+ */
+const HOLDER_ROLE_RANK = sql`case ${ownerships.role} when 'owner' then 0 when 'co_owner' then 1 when 'shelter_custody' then 2 when 'foster' then 3 when 'caretaker' then 4 else 5 end`;
 
 export async function submitClaimDisputeForUser(
   userId: string,
@@ -160,16 +182,56 @@ export async function submitClaimDisputeForUser(
     return { error: "Ya hay una disputa abierta para esta mascota." };
   }
 
-  const [ownership] = await db
-    .select({ ownerUserId: ownerships.ownerUserId })
+  // THE ACTIVE HOLDER, WHATEVER ROLE HOLDS — not `role = 'owner'`.
+  //
+  // This clause used to read `eq(ownerships.role, "owner")`, which made an
+  // animal held only by a refugio UNDISPUTABLE: an org-held row sets
+  // `owner_organization_id` and leaves `owner_user_id` null under a
+  // `shelter_custody` role, so the query found nothing and the writer answered
+  // "Esta mascota no tiene dueño activo registrado." — on an animal that
+  // demonstrably has a holder. Measured by the 2026-09-04 QA batch against
+  // Toby DIM-3UVE-9QH8, held by Refugio Test: a full submit with evidence left
+  // `in_custody_dispute` false and wrote no event.
+  //
+  // The step BEFORE this one already disagreed. `lookupForClaimForUser` calls
+  // `hasAnyActiveCustody` — every role, no filter — so the wizard reached the
+  // dispute step (and the mobile lookup says it in words: "ya está bajo la
+  // custodia de otra persona u organización", claim-view-model.ts:138) for
+  // exactly the population this writer then refused. Two implementations of
+  // "who holds this animal" is how a screen ends up offering a control the
+  // writer rejects; the return-to-owner module says the same thing in
+  // `resolveReturnTargetOrg`'s docblock, having been bitten by it. The set is
+  // now the SAME set the lookup uses.
+  const [holder] = await db
+    .select({
+      ownerUserId: ownerships.ownerUserId,
+      ownerOrganizationId: ownerships.ownerOrganizationId,
+      role: ownerships.role,
+      // Only the token: the notification below addresses the org's own members,
+      // who do not need to be told their organisation's name, but do need a
+      // destination — and a destination is a public token, never a UUID.
+      orgPublicToken: organizations.publicToken,
+    })
     .from(ownerships)
-    .where(
-      and(eq(ownerships.petId, pet.id), eq(ownerships.role, "owner"), isNull(ownerships.endedAt)),
-    )
+    .leftJoin(organizations, eq(organizations.id, ownerships.ownerOrganizationId))
+    .where(and(eq(ownerships.petId, pet.id), isNull(ownerships.endedAt)))
+    .orderBy(HOLDER_ROLE_RANK, desc(ownerships.startedAt))
     .limit(1);
-  if (!ownership) return { error: "Esta mascota no tiene dueño activo registrado." };
-  if (ownership.ownerUserId === userId) {
-    return { error: "Esta mascota ya está registrada a tu nombre." };
+  // Copy unchanged: this is still the answer for an animal nobody holds, and
+  // `__tests__/pet-claim.test.ts` pins it as the ERASED-pet oracle it must not
+  // become.
+  if (!holder) return { error: "Esta mascota no tiene dueño activo registrado." };
+  if (holder.ownerUserId === userId) {
+    // Two sentences because there are two facts. "Registrada a tu nombre" is
+    // titularidad and would be a lie told to a foster or a caretaker, who hold
+    // the animal without owning it — and whose refusal is nonetheless the same
+    // refusal: nobody disputes themselves.
+    return {
+      error:
+        holder.role === "owner" || holder.role === "co_owner"
+          ? "Esta mascota ya está registrada a tu nombre."
+          : "Ya tenés la custodia activa de esta mascota.",
+    };
   }
 
   // Evidence upload — happens BEFORE the tx so failures don't dangle.
@@ -252,7 +314,24 @@ export async function submitClaimDisputeForUser(
         jurisdictionProvince: pet.jurisdictionProvince ?? "",
         jurisdictionLocality: pet.jurisdictionLocality ?? "",
         initialParties: [
-          { userId: ownership.ownerUserId, role: "current_owner" },
+          // The counter-party carries whichever subject actually holds the
+          // animal. `custody_dispute_parties` was always polymorphic — the
+          // CHECK `dispute_party_exactly_one_subject` (db/schema.ts) admits a
+          // user OR an org, `party_organization_id` has had its FK and its
+          // index since migration 0025, and `current_org_custody`
+          // ("Organización en custodia", _party-roles.ts) is the role that
+          // names this case. No schema change was needed to open the door;
+          // only this writer was pinning `userId`.
+          //
+          // A USER holder that is not the titular (a neighbour holding a found
+          // animal under `shelter_custody`, a foster) still lands as
+          // `current_owner`. The union has no "current user custody" member and
+          // adding one is a CHECK migration plus the label table plus the
+          // add-party form — a decision, not a rename, the same call the
+          // `raised_by_role` comment above records for its own axis.
+          holder.ownerOrganizationId
+            ? { orgId: holder.ownerOrganizationId, role: "current_org_custody" as const }
+            : { userId: holder.ownerUserId, role: "current_owner" as const },
           { userId: userId, role: "claimant_owner", positionSummary: input.reason.trim() },
         ],
         preCreatedCaseId: disputeCase.id,
@@ -273,10 +352,19 @@ export async function submitClaimDisputeForUser(
         );
       }
 
-      // Notify current owner.
-      if (ownership.ownerUserId) {
+      // Notify the counter-party — the SAME holder the party row names.
+      //
+      // The org leg is not a nicety. Raising a dispute flips
+      // `pets.in_custody_dispute`, and that flag blocks the animal for
+      // transfers and adoption ("la mascota queda bloqueada para transferencias
+      // o adopción", app/gob/disputas/[disputeToken]/page.tsx). A refugio whose
+      // adoption pipeline stops without a word would be an asymmetry this fix
+      // introduced, not one it found: the writer already intends "tell the
+      // holder", and until now the holder was always a user. Member fan-out and
+      // cap mirror `ownerProposeReturnToOrgUseCase`.
+      if (holder.ownerUserId) {
         await tx.insert(notifications).values({
-          userId: ownership.ownerUserId,
+          userId: holder.ownerUserId,
           notificationType: "custody_dispute_raised_against_you",
           title: `Reclamo de propiedad sobre ${pet.name}`,
           body: "Otro usuario reclamó ser dueño/a de tu mascota. El gobierno local va a revisar la disputa. Te avisaremos cuando se resuelva.",
@@ -288,6 +376,38 @@ export async function submitClaimDisputeForUser(
           ctaUrl: `/mis-mascotas/${pet.publicToken}`,
           category: "custody",
         });
+      } else if (holder.ownerOrganizationId) {
+        const members = await tx
+          .select({ userId: organizationMemberships.userId })
+          .from(organizationMemberships)
+          .where(
+            and(
+              eq(organizationMemberships.organizationId, holder.ownerOrganizationId),
+              isNull(organizationMemberships.leftAt),
+            ),
+          )
+          .limit(ORG_NOTIFICATION_CAP);
+        const memberRows = members.filter((m) => !!m.userId);
+        if (memberRows.length > 0) {
+          await tx.insert(notifications).values(
+            memberRows.map((m) => ({
+              userId: m.userId,
+              notificationType: "custody_dispute_raised_against_you",
+              title: `Reclamo de propiedad sobre ${pet.name}`,
+              body: "Una persona reclamó ser dueña de un animal bajo la custodia de tu organización. El gobierno local va a revisar la disputa. Mientras tanto, el animal queda bloqueado para transferencias y adopción.",
+              severity: "warning" as const,
+              relatedPetId: pet.id,
+              ctaLabel: "Ver la ficha",
+              // The org portal, not /mis-mascotas — an org member has no
+              // owner-side page for this animal. `publicToken` on both
+              // segments; never a UUID.
+              ctaUrl: holder.orgPublicToken
+                ? `/org/${holder.orgPublicToken}/mascotas/${pet.publicToken}`
+                : "/org",
+              category: "custody" as const,
+            })),
+          );
+        }
       }
 
       // Confirmation to claimant.

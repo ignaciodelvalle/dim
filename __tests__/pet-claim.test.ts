@@ -74,6 +74,8 @@ import {
   custodyDisputes,
   db,
   notifications,
+  organizationMemberships,
+  organizations,
   ownerships,
   petEvents,
   petIdentifications,
@@ -91,10 +93,14 @@ const supabaseAdmin = createSupabaseClient(SUPABASE_URL, SECRET, {
 
 const CLAIMANT_EMAIL = "petclaim-claimant@dim-test.local";
 const OWNER_EMAIL = "petclaim-owner@dim-test.local";
+const ORG_MEMBER_EMAIL = "petclaim-orgmember@dim-test.local";
 const PASS = "PetClaim_2026!";
 
 let claimantUserId: string;
 let ownerUserId: string;
+let orgMemberUserId: string;
+let shelterOrgId: string;
+const SHELTER_ORG_TOKEN = "DIM-PETCLAIM-ORG1";
 
 const insertedPetIds: string[] = [];
 
@@ -202,9 +208,35 @@ async function insertOwnedPet(token: string, name: string, owner: string): Promi
   return pet.id;
 }
 
+// Insert a pet whose ONLY active custody row is an org-held `shelter_custody`
+// — `owner_organization_id` set, `owner_user_id` null. This is the population
+// the dispute writer used to refuse outright (QA batch 2, D4).
+async function insertShelterHeldPet(token: string, name: string, orgId: string): Promise<string> {
+  const [pet] = await db
+    .insert(pets)
+    .values({
+      publicToken: token,
+      name,
+      species: "dog",
+      status: "active",
+      jurisdictionProvince: "Buenos Aires",
+      jurisdictionLocality: "La Plata",
+    })
+    .returning({ id: pets.id });
+  insertedPetIds.push(pet.id);
+  await db.insert(ownerships).values({
+    petId: pet.id,
+    ownerOrganizationId: orgId,
+    role: "shelter_custody",
+    startedAt: new Date(),
+  });
+  return pet.id;
+}
+
 beforeAll(async () => {
   await purgeUserByEmail(CLAIMANT_EMAIL);
   await purgeUserByEmail(OWNER_EMAIL);
+  await purgeUserByEmail(ORG_MEMBER_EMAIL);
 
   const c = await supabaseAdmin.auth.admin.createUser({
     email: CLAIMANT_EMAIL,
@@ -221,6 +253,40 @@ beforeAll(async () => {
   });
   if (o.error || !o.data.user) throw new Error(`createUser owner: ${o.error?.message}`);
   ownerUserId = o.data.user.id;
+
+  const m = await supabaseAdmin.auth.admin.createUser({
+    email: ORG_MEMBER_EMAIL,
+    password: PASS,
+    email_confirm: true,
+  });
+  if (m.error || !m.data.user) throw new Error(`createUser org member: ${m.error?.message}`);
+  orgMemberUserId = m.data.user.id;
+
+  // The shelter that holds the org-custody pets below, plus one active member
+  // — the population the org-side notification fans out to.
+  await withMutationOverride(async (tx) => {
+    await tx.delete(organizations).where(eq(organizations.publicToken, SHELTER_ORG_TOKEN));
+  });
+  const [org] = await db
+    .insert(organizations)
+    .values({
+      publicToken: SHELTER_ORG_TOKEN,
+      legalName: "Refugio Reclamos Asociación Civil",
+      displayName: "Refugio Reclamos",
+      orgType: "shelter",
+      email: "petclaim-org@dim-test.local",
+      verified: true,
+      jurisdictionProvince: "Buenos Aires",
+      jurisdictionLocality: "La Plata",
+    })
+    .returning({ id: organizations.id });
+  shelterOrgId = org.id;
+  await db.insert(organizationMemberships).values({
+    organizationId: shelterOrgId,
+    userId: orgMemberUserId,
+    role: "admin",
+    canWritePetEvents: true,
+  });
 }, 60_000);
 
 afterAll(async () => {
@@ -246,8 +312,12 @@ afterAll(async () => {
       await tx.delete(pets).where(eq(pets.id, petId));
     });
   }
+  await withMutationOverride(async (tx) => {
+    await tx.delete(organizations).where(eq(organizations.publicToken, SHELTER_ORG_TOKEN));
+  });
   await purgeUserByEmail(CLAIMANT_EMAIL);
   await purgeUserByEmail(OWNER_EMAIL);
+  await purgeUserByEmail(ORG_MEMBER_EMAIL);
 });
 
 beforeEach(() => {
@@ -996,5 +1066,192 @@ describe("dispute evidence gate — the accusation needs proof", () => {
     expect(rows).toHaveLength(1);
     expect(rows[0].eventId).toBe(raisingEvent.id);
     expect(rows[0].storagePath).toContain("chip-escaneado.jpg");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// D4 — the counter-party can be an ORGANISATION
+// ---------------------------------------------------------------------------
+//
+// The holder lookup was `eq(ownerships.role, "owner")`, so an animal whose only
+// live custody row is a refugio's `shelter_custody` (owner_organization_id set,
+// owner_user_id null) answered "Esta mascota no tiene dueño activo registrado."
+// — a sentence that is false about the animal AND contradicts the step before
+// it: `lookupForClaimForUser` asks `hasAnyActiveCustody` with no role filter, so
+// the wizard offered "Iniciar disputa" for exactly this population, and the
+// mobile lookup says it out loud ("ya está bajo la custodia de otra persona u
+// organización"). QA batch 2 measured it on Toby DIM-3UVE-9QH8 held by Refugio
+// Test: full submit with evidence, `in_custody_dispute` still false, no event.
+//
+// Nothing in the schema was in the way. `custody_dispute_parties` has carried
+// `party_organization_id` (with its FK and index) and the `current_org_custody`
+// role since migration 0025, and `PARTY_ROLE_LABELS` already names it
+// "Organización en custodia".
+
+const ORG_DISPUTE_CHIP = "900000000000201";
+const ORG_NOTIFY_CHIP = "900000000000202";
+const NO_CUSTODY_CHIP = "900000000000203";
+const SELF_CUSTODY_CHIP = "900000000000204";
+
+describe("dispute against an org-held animal (D4)", () => {
+  it("opens the dispute and files the REFUGIO as the counter-party, not nobody", async () => {
+    const petId = await insertShelterHeldPet("DIM-ORGHELD-1", "Toby Refugiado", shelterOrgId);
+    await addMicrochip(petId, ORG_DISPUTE_CHIP);
+    mockSessionAs(claimantUserId);
+
+    const result = await submitClaimDisputeAction(
+      {
+        identifierKind: "microchip",
+        identifierValue: ORG_DISPUTE_CHIP,
+        reason: "Es mi perro, se escapó en marzo y el refugio lo levantó de la calle.",
+      },
+      [evidenceFile()],
+    );
+
+    // The refusal that used to be the ONLY outcome here.
+    expect(result).not.toEqual({ error: "Esta mascota no tiene dueño activo registrado." });
+    expect(result).toHaveProperty("disputeToken");
+    const disputeToken = (result as { disputeToken: string }).disputeToken;
+
+    const [dispute] = await db
+      .select({ id: custodyDisputes.id, status: custodyDisputes.status })
+      .from(custodyDisputes)
+      .where(eq(custodyDisputes.publicToken, disputeToken))
+      .limit(1);
+    expect(dispute?.status).toBe("open");
+
+    // The flag QA watched, and the spine row behind it.
+    const [pet] = await db
+      .select({ inCustodyDispute: pets.inCustodyDispute })
+      .from(pets)
+      .where(eq(pets.id, petId))
+      .limit(1);
+    expect(pet?.inCustodyDispute).toBe(true);
+
+    const raised = await db
+      .select({ payload: petEvents.payload, authorRole: petEvents.authorRole })
+      .from(petEvents)
+      .where(and(eq(petEvents.petId, petId), eq(petEvents.eventType, "custody_dispute_raised")));
+    expect(raised).toHaveLength(1);
+    // `raised_by_role` is the CAPACITY axis (a private party asserting
+    // ownership) and stays "owner" whoever the holder is; `authorRole` is who
+    // wrote the row, and the claimant is demonstrably not the holder.
+    expect((raised[0].payload as { raised_by_role: string }).raised_by_role).toBe("owner");
+    expect(raised[0].authorRole).toBe("finder");
+
+    // The counter-party is the ORG, on the org column, under the org role.
+    const parties = await db
+      .select({
+        role: custodyDisputeParties.partyRole,
+        userId: custodyDisputeParties.partyUserId,
+        orgId: custodyDisputeParties.partyOrganizationId,
+      })
+      .from(custodyDisputeParties)
+      .where(eq(custodyDisputeParties.disputeId, dispute.id));
+    expect(parties.map((p) => p.role).sort()).toEqual(["claimant_owner", "current_org_custody"]);
+
+    const counterparty = parties.find((p) => p.role === "current_org_custody");
+    expect(counterparty?.orgId).toBe(shelterOrgId);
+    // The CHECK `dispute_party_exactly_one_subject` allows exactly one subject:
+    // an org party that also carried a user id could not have been inserted,
+    // and one that carried neither would render "Desconocido" to the official.
+    expect(counterparty?.userId).toBeNull();
+
+    const claimantParty = parties.find((p) => p.role === "claimant_owner");
+    expect(claimantParty?.userId).toBe(claimantUserId);
+    expect(claimantParty?.orgId).toBeNull();
+  });
+
+  it("tells the refugio — a blocked adoption pipeline is not something to discover", async () => {
+    const petId = await insertShelterHeldPet("DIM-ORGHELD-2", "Nala Refugiada", shelterOrgId);
+    await addMicrochip(petId, ORG_NOTIFY_CHIP);
+    mockSessionAs(claimantUserId);
+
+    const result = await submitClaimDisputeAction(
+      {
+        identifierKind: "microchip",
+        identifierValue: ORG_NOTIFY_CHIP,
+        reason: "La reconozco por la cicatriz de la pata, es la mía sin ninguna duda.",
+      },
+      [evidenceFile()],
+    );
+    expect(result).toHaveProperty("disputeToken");
+
+    const memberNotifications = await db
+      .select({
+        notificationType: notifications.notificationType,
+        ctaUrl: notifications.ctaUrl,
+        severity: notifications.severity,
+      })
+      .from(notifications)
+      .where(
+        and(
+          eq(notifications.userId, orgMemberUserId),
+          eq(notifications.relatedPetId, petId),
+          eq(notifications.notificationType, "custody_dispute_raised_against_you"),
+        ),
+      );
+    expect(memberNotifications).toHaveLength(1);
+    expect(memberNotifications[0].severity).toBe("warning");
+    // The ORG portal, addressed by public tokens on both segments — an org
+    // member has no /mis-mascotas page for an animal they hold.
+    expect(memberNotifications[0].ctaUrl).toBe("/org/DIM-PETCLAIM-ORG1/mascotas/DIM-ORGHELD-2");
+  });
+
+  it("still refuses an animal NOBODY holds, with the sentence unchanged", async () => {
+    // The refusal is load-bearing elsewhere: the erased-pet tests above rely on
+    // this sentence NOT being the answer for a soft-deleted animal, so widening
+    // the lookup must not have widened the refusal away.
+    const petId = await insertFreePet("DIM-NOCUSTODY-1", "Sin Custodia");
+    await addMicrochip(petId, NO_CUSTODY_CHIP);
+    mockSessionAs(claimantUserId);
+
+    const result = await submitClaimDisputeAction(
+      {
+        identifierKind: "microchip",
+        identifierValue: NO_CUSTODY_CHIP,
+        reason: "Quiero disputar un animal que no tiene ninguna custodia activa.",
+      },
+      [evidenceFile()],
+    );
+    expect(result).toEqual({ error: "Esta mascota no tiene dueño activo registrado." });
+
+    const disputes = await db
+      .select({ id: custodyDisputes.id })
+      .from(custodyDisputes)
+      .where(eq(custodyDisputes.petId, petId));
+    expect(disputes).toHaveLength(0);
+  });
+
+  it("refuses a self-dispute by a NON-titular holder without claiming titularidad", async () => {
+    // The widened lookup can now resolve the caller's own custody row. Refusing
+    // is right — nobody disputes themselves — but "ya está registrada a tu
+    // nombre" would be a lie told to a caretaker, who holds without owning.
+    const petId = await insertFreePet("DIM-SELFCUSTODY-1", "Bajo Mi Cuidado");
+    await db.insert(ownerships).values({
+      petId,
+      ownerUserId: claimantUserId,
+      role: "caretaker",
+      startedAt: new Date(),
+    });
+    await addMicrochip(petId, SELF_CUSTODY_CHIP);
+    mockSessionAs(claimantUserId);
+
+    const result = await submitClaimDisputeAction(
+      {
+        identifierKind: "microchip",
+        identifierValue: SELF_CUSTODY_CHIP,
+        reason: "Ya la tengo yo, pero igual quiero abrir una disputa contra mí mismo.",
+      },
+      [evidenceFile()],
+    );
+    expect(result).toEqual({ error: "Ya tenés la custodia activa de esta mascota." });
+    expect(result).not.toEqual({ error: "Esta mascota ya está registrada a tu nombre." });
+
+    const disputes = await db
+      .select({ id: custodyDisputes.id })
+      .from(custodyDisputes)
+      .where(eq(custodyDisputes.petId, petId));
+    expect(disputes).toHaveLength(0);
   });
 });

@@ -26,6 +26,7 @@ import {
   custodyDisputes,
   db,
   notifications,
+  organizationMemberships,
   organizations,
   ownerships,
   petEvents,
@@ -43,6 +44,9 @@ import {
 } from "@/lib/infra/end-pet-ownerships";
 
 import type { ResolveDisputeInput, ResolveDisputeResult } from "../domain/types";
+
+/** Members reached per org party — same cap, same reason, as the raise path. */
+const ORG_PARTY_NOTIFICATION_CAP = 10;
 
 type Session = {
   user: { id: string };
@@ -379,13 +383,45 @@ export async function resolveDisputeUseCase(
       });
 
       // Fan out to every party + the raiser.
+      //
+      // ORG PARTIES REACH THEIR MEMBERS. `custody_dispute_parties` is
+      // polymorphic (the `dispute_party_exactly_one_subject` CHECK), so an
+      // org-side party carries `party_organization_id` and a NULL
+      // `party_user_id` — and this loop, reading only the user column, dropped
+      // it silently. That was harmless while no writer produced one; the claim
+      // wizard now files a `current_org_custody` party whenever the disputed
+      // animal is held by a refugio (see submit-claim-dispute.ts), so a shelter
+      // that was told its animal was claimed would never have been told the
+      // authority had ruled. An organisation has no inbox of its own — the
+      // active membership is the address, capped for the same reason the raise
+      // path caps it.
       const parties = await tx
-        .select({ partyUserId: custodyDisputeParties.partyUserId })
+        .select({
+          partyUserId: custodyDisputeParties.partyUserId,
+          partyOrganizationId: custodyDisputeParties.partyOrganizationId,
+        })
         .from(custodyDisputeParties)
         .where(eq(custodyDisputeParties.disputeId, dispute.id));
       const userIds = new Set<string>();
       for (const p of parties) if (p.partyUserId) userIds.add(p.partyUserId);
       if (dispute.raisedByUserId) userIds.add(dispute.raisedByUserId);
+
+      const partyOrgIds = [
+        ...new Set(parties.map((p) => p.partyOrganizationId).filter((id): id is string => !!id)),
+      ];
+      for (const orgId of partyOrgIds) {
+        const members = await tx
+          .select({ userId: organizationMemberships.userId })
+          .from(organizationMemberships)
+          .where(
+            and(
+              eq(organizationMemberships.organizationId, orgId),
+              isNull(organizationMemberships.leftAt),
+            ),
+          )
+          .limit(ORG_PARTY_NOTIFICATION_CAP);
+        for (const m of members) if (m.userId) userIds.add(m.userId);
+      }
       for (const uid of userIds) {
         await tx.insert(notifications).values({
           userId: uid,
