@@ -108,7 +108,11 @@ tmp/
 
 # agent tool caches
 .atl/
-.claude/
+.claude/*
+!.claude/skills/
+!.claude/settings.json
+!.claude/agents/
+!.claude/hooks/
 
 # design handoff reference
 design_handoff_*/
@@ -192,3 +196,10 @@ e2e/
 # native build on their own machine.
 apps/mobile/android/
 apps/mobile/ios/
+
+# The five .claude/* mirror lines above (verbatim from .gitignore) re-include
+# skills/, settings.json, agents/ and hooks/ for GIT TRACKING purposes — none
+# of that is read by a native build. This bare rule sits AFTER those
+# negations, so gitignore's "a later parent-directory exclusion wins"
+# ordering takes the whole folder back out of the archive.
+.claude/
