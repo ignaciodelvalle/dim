@@ -84,4 +84,35 @@ config.resolver.nodeModulesPaths = [
 // Recorded rather than deleted: a future reader hitting a resolution failure
 // will find the same advice on the internet and try the same thing.
 
+// 4. DO NOT CRAWL WHAT THE BUNDLE CAN NEVER IMPORT.
+//
+// Watching the workspace root (1.) means Metro's file map crawls EVERYTHING
+// under it, and on Windows there is no Watchman: it is node's own recursive
+// fs.watch plus a full crawl on every cold start. Measured 2026-09-04: the dev
+// server wedged twice in one day at 1.6-4 GB RSS with `/status` gone silent,
+// and the crawl included nine agent worktrees under `.claude/worktrees/`,
+// eight of them with their own `node_modules`, plus `docs/` (84 MB of review
+// screenshots), `.next/`, the web test suites and the session scratch. None
+// of that can ever be imported by this app. Anchored at the workspace root so
+// a package's own `docs/` folder inside the pnpm store is still crawled.
+const rootPattern = workspaceRoot.replace(/[.*+?^${}()|[\]]/g, "\\$&").replace(/[\\/]/g, "[\\\\/]");
+const neverImported = [
+  "\\.claude[\\\\/]worktrees",
+  "\\.git",
+  "\\.next",
+  "docs",
+  "scratchpad",
+  "e2e",
+  "__tests__",
+  "gate-[^\\\\/]*",
+  "\\.playwright-(mcp|cli)",
+].join("|");
+const crawlExclusion = new RegExp(`^${rootPattern}[\\\\/](${neverImported})([\\\\/]|$)`);
+const defaultBlockList = config.resolver.blockList;
+config.resolver.blockList = Array.isArray(defaultBlockList)
+  ? [...defaultBlockList, crawlExclusion]
+  : defaultBlockList
+    ? [defaultBlockList, crawlExclusion]
+    : [crawlExclusion];
+
 module.exports = config;
