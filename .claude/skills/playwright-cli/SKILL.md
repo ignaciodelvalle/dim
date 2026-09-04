@@ -4,6 +4,13 @@ description: Automate browser interactions, test web pages and work with Playwri
 allowed-tools: Bash(playwright-cli:*) Bash(npx:*) Bash(npm:*)
 ---
 
+> **In this repo:** `playwright-cli` (the CLI this skill wraps) is installed
+> GLOBALLY — `@playwright/cli@0.1.19` on the fnm Node 22 PATH — and is NOT a
+> repo dependency. The repo's own e2e suite runs on `@playwright/test` (root
+> `package.json`), invoked via `pnpm playwright test` / `pnpm e2e` — a
+> separate tool from this CLI. Anyone writing or fixing an e2e spec MUST read
+> `e2e/README.md` first (CLAUDE.md mandates it).
+
 # Browser Automation with playwright-cli
 
 ## Quick start

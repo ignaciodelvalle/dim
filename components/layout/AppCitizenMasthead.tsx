@@ -285,7 +285,7 @@ function CitizenUserMenu({ user }: { user: CitizenUser }) {
         aria-controls={panelId}
         aria-label="Menú de cuenta"
         onClick={() => setOpen((v) => !v)}
-        className="flex min-h-11 min-w-11 items-center gap-[9px] rounded-full no-underline transition-opacity hover:opacity-80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/50"
+        className="flex min-h-11 min-w-11 items-center justify-center gap-[9px] rounded-full no-underline transition-opacity hover:opacity-80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/50"
       >
         <span className="grid h-[30px] w-[30px] flex-shrink-0 place-items-center rounded-full bg-[var(--color-ln-celeste)] font-ln-mono text-sm font-semibold text-[var(--color-ln-azul-900)]">
           {user.initials}

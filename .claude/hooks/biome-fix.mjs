@@ -1,7 +1,9 @@
 #!/usr/bin/env node
-// PostToolUse hook (Edit|Write|MultiEdit): format the just-touched file with
-// Biome. Advisory only — it must NEVER block the tool call and NEVER throw,
-// so every branch below funnels into a plain `process.exit(0)`.
+// PostToolUse hook (Edit|Write|MultiEdit): formats the just-touched file with
+// Biome. Never lint-fixes or reorders imports — a mid-edit unused import
+// survives this hook on purpose. Advisory only — it must NEVER block the
+// tool call and NEVER throw, so every branch below funnels into a plain
+// `process.exit(0)`.
 //
 // Claude Code hook contract: the PostToolUse payload arrives as JSON on
 // stdin, file path at `tool_input.file_path` (Edit, Write and MultiEdit all
@@ -62,7 +64,7 @@ process.stdin.on("end", () => {
 
     const biomeBin = path.join(projectDir, "node_modules", "@biomejs", "biome", "bin", "biome");
 
-    const result = spawnSync(process.execPath, [biomeBin, "check", "--write", absPath], {
+    const result = spawnSync(process.execPath, [biomeBin, "format", "--write", absPath], {
       encoding: "utf8",
       timeout: 15000,
     });

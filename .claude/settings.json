@@ -18,7 +18,6 @@
       "Bash(npx eas-cli@latest build:list *)",
       "Bash(npx eas-cli@latest build:view *)",
       "Bash(npx eas-cli@latest env:list *)",
-      "Bash(npx eas-cli@latest credentials *)",
       "Bash(fnm *)",
       "Bash(pnpm vitest *)",
       "Bash(pnpm --filter mimar test)",
