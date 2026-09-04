@@ -51,6 +51,7 @@ import {
   type Canon,
   FACTS_JSON,
   REPO_ROOT,
+  enforcerLines,
   enforcerPath,
   factsGeneratedAt,
   loadCanon,
@@ -261,6 +262,60 @@ describe("conventions canon — the evidence resolves", () => {
       }
     }
     expect(dangling, "canon rows cite enforcer paths that are not files on disk").toEqual([]);
+  });
+
+  it("(b) an enforcer citation pinned to ONE line points at code, not at a comment", () => {
+    // THE DEFECT CLASS THIS CATCHES is the canon's own version of a green
+    // check that measured nothing: a row whose `enforcer` cites the paragraph
+    // in the fence's header that DESCRIBES the rule, rather than the line that
+    // fails when the rule is broken. It reads as evidence, it survives review
+    // because the path is real and the file is a fence, and it is satisfied by
+    // prose. CANON-527 cited scripts/check-mobile-icon-vocabulary.ts:29 and
+    // :35 — two bullet points in a comment block — which is how this was
+    // found. `sources` is exempt on purpose: a source citation is SUPPOSED to
+    // point at the prose that states the rule.
+    //
+    // Scoped to single-line citations. A range (`:1-25`, `:1,183-207`) names a
+    // region whose first line is routinely the file's header comment, and
+    // demanding otherwise would fail rows whose evidence is honest.
+    const RANGE_FREE = /^\d+$/;
+    const COMMENT_LINE = /^\s*(\/\/|\*|\/\*)/;
+    const violations: string[] = [];
+    let checked = 0;
+    for (const row of canon.rows) {
+      for (const entry of row.enforcer ?? []) {
+        const lines = enforcerLines(entry);
+        if (!RANGE_FREE.test(lines)) continue;
+        const path = enforcerPath(entry);
+        let source: string;
+        try {
+          source = readFileSync(join(REPO_ROOT, path), "utf8");
+        } catch {
+          continue; // the (b) test above owns "the path resolves"
+        }
+        const sourceLines = source.split("\n");
+        const line = sourceLines[Number(lines) - 1];
+        checked += 1;
+        // A line number past the end of the file is not "nothing to check" —
+        // it is a citation pointing at code that does not exist, which rule
+        // (b) exists to catch. Silently skipping it let `enforcer:
+        // "scripts/foo.ts:9999"` pass this test forever.
+        if (line === undefined) {
+          violations.push(
+            `${row.id}: ${entry} → cites line ${lines} but the file has ${sourceLines.length} lines`,
+          );
+          continue;
+        }
+        if (COMMENT_LINE.test(line)) violations.push(`${row.id}: ${entry} → ${line.trim()}`);
+      }
+    }
+    // Non-vacuity: a change to the citation format that made every entry a
+    // range would empty the loop and pass. Say what was actually read.
+    expect(checked, "no single-line enforcer citation was examined").toBeGreaterThan(20);
+    expect(
+      violations,
+      "canon rows cite a COMMENT line, or a line past the end of the file, as the enforcer",
+    ).toEqual([]);
   });
 
   it("(b) every `source` path that looks like a repo path exists on disk", () => {

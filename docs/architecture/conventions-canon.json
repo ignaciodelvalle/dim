@@ -2764,7 +2764,7 @@
         "__tests__/rls/coverage.test.ts:1-20,226-317"
       ],
       "enforcer": [
-        "scripts/check-rls-coverage.ts:5",
+        "scripts/check-rls-coverage.ts:422",
         "package.json:36 lint:rls",
         "__tests__/rls/coverage.test.ts:226-317",
         "__tests__/check-rls-coverage.test.ts"
@@ -2950,7 +2950,7 @@
         "__tests__/check-subject-rights-coverage.test.ts:1-9,74-171"
       ],
       "enforcer": [
-        "scripts/check-subject-rights-coverage.ts:14",
+        "scripts/check-subject-rights-coverage.ts:254",
         "package.json:37 lint:subject-rights",
         "__tests__/check-subject-rights-coverage.test.ts:154,160,170"
       ],
@@ -4003,7 +4003,7 @@
         "scripts/check-audit-log-actions-declared.ts:28"
       ],
       "enforcer": [
-        "scripts/check-audit-log-actions-declared.ts:28",
+        "scripts/check-audit-log-actions-declared.ts:1034",
         "package.json:21 lint:audit-actions",
         "db/migrations/0184_audit_log_action_check.sql"
       ],
@@ -4045,7 +4045,7 @@
         "scripts/check-env-schema-drift.ts:21"
       ],
       "enforcer": [
-        "scripts/check-env-schema-drift.ts:21",
+        "scripts/check-env-schema-drift.ts:164",
         "package.json:92 db:drift"
       ],
       "enforcementKind": "lint-script",
@@ -4109,7 +4109,7 @@
       "enforcer": [
         "__tests__/seed-hygiene.test.ts:6,14,22,34",
         "scripts/hygiene-rules.ts",
-        "scripts/check-seed-hygiene.ts:4"
+        "scripts/check-seed-hygiene.ts:62"
       ],
       "enforcementKind": "vitest",
       "wired": "test:verified",
@@ -4129,7 +4129,7 @@
         "scripts/check-storage-write-policies.ts:25"
       ],
       "enforcer": [
-        "scripts/check-storage-write-policies.ts:25",
+        "scripts/check-storage-write-policies.ts:503",
         "package.json:38 lint:storage-policies"
       ],
       "enforcementKind": "lint-script",
@@ -4226,7 +4226,7 @@
       ],
       "enforcer": [
         "__tests__/event-schemas.test.ts:27-40",
-        "db/schema.ts:1289"
+        "db/schema.ts:1300"
       ],
       "enforcementKind": "vitest",
       "wired": "test:verified",
@@ -4960,7 +4960,7 @@
       ],
       "enforcer": [
         "scripts/check-authz-guards.ts:50-106",
-        "scripts/check-authz-scoping.ts:59",
+        "scripts/check-authz-scoping.ts:248",
         "__tests__/server-actions-auth-coverage.test.ts"
       ],
       "enforcementKind": "lint-script",
@@ -5192,7 +5192,7 @@
         "__tests__/check-ui-invariants.test.ts:108-333"
       ],
       "enforcer": [
-        "scripts/check-ui-invariants.ts:6 (rule 3)",
+        "scripts/check-ui-invariants.ts:887 (rule 3 — the symbol-position exemption)",
         "__tests__/check-ui-invariants.test.ts:108-333"
       ],
       "enforcementKind": "lint-script",
@@ -6164,7 +6164,7 @@
       ],
       "enforcer": [
         "scripts/check-confused-deputy.ts:9-22",
-        "scripts/check-authz-scoping.ts:59"
+        "scripts/check-authz-scoping.ts:248"
       ],
       "enforcementKind": "lint-script",
       "wired": "verify",
@@ -6531,7 +6531,7 @@
       ],
       "enforcer": [
         "lib/open-data/__tests__/datasets.test.ts:219-460",
-        "lib/open-data/datasets.ts:427 (declared containment lattice)"
+        "lib/open-data/datasets.ts:434 (declared containment lattice)"
       ],
       "enforcementKind": "vitest",
       "wired": "test:verified",
@@ -6671,7 +6671,7 @@
         "scripts/check-brand-casing.ts:3"
       ],
       "enforcer": [
-        "scripts/check-brand-casing.ts:3",
+        "scripts/check-brand-casing.ts:140",
         "scripts/brand-casing-baseline.json"
       ],
       "enforcementKind": "lint-script",
@@ -7061,7 +7061,7 @@
         "scripts/check-icon-registry.ts:29"
       ],
       "enforcer": [
-        "scripts/check-icon-registry.ts:29"
+        "scripts/check-icon-registry.ts:199"
       ],
       "enforcementKind": "lint-script",
       "wired": "verify",
@@ -7202,7 +7202,7 @@
         "scripts/check-route-weight.ts:38"
       ],
       "enforcer": [
-        "scripts/check-route-weight.ts:38"
+        "scripts/check-route-weight.ts:95"
       ],
       "enforcementKind": "lint-script",
       "wired": "verify",
@@ -7462,7 +7462,7 @@
         "scripts/check-ui-invariants.ts:7"
       ],
       "enforcer": [
-        "scripts/check-ui-invariants.ts:7"
+        "scripts/check-ui-invariants.ts:804"
       ],
       "enforcementKind": "lint-script",
       "wired": "verify",
@@ -7861,14 +7861,14 @@
         "docs/mobile/eas-build-profiles.md#what-guards-it-now"
       ],
       "enforcer": [
-        "apps/mobile/src/release/release-config.test.ts:931"
+        "apps/mobile/src/release/release-config.test.ts:1189"
       ],
       "enforcementKind": "jest",
       "wired": "test:verified",
       "status": "PARTIAL",
       "partialShape": "subset",
       "clause": "R4",
-      "statusBasis": "release-config.test.ts:964 requires ../../babel.config.js, CALLS it, and derives package names from presets+plugins (:903-929) against apps/mobile/package.json's deps+devDeps — babel.config.js ONLY. The rule says 'every package a mobile config file imports by name': apps/mobile/metro.config.js:25 requires \"expo/metro-config\" and jest.config.js:54/:97 require \"@react-native/jest-preset\" and \"jest-expo/jest-preset\", none of them swept.",
+      "statusBasis": "release-config.test.ts:1189 is the line that FAILS when the rule is broken — `expect(named.filter((name) => !declared.has(name))).toEqual([])`, with a non-vacuity floor at :1195. The citation was `:931` until 2026-09-04; that line had drifted onto an unrelated assertion in the workflow-pin test, and the icon work of that day shifted it again onto a comment, which is what the canon-parity fence (b) reported. The test requires ../../babel.config.js, CALLS it, and derives package names from presets+plugins against apps/mobile/package.json's deps+devDeps — babel.config.js ONLY. The rule says 'every package a mobile config file imports by name': apps/mobile/metro.config.js:25 requires \"expo/metro-config\" and jest.config.js:54/:97 require \"@react-native/jest-preset\" and \"jest-expo/jest-preset\", none of them swept.",
       "notes": "Independently reached the judge's conclusion, and jest.config.js is a second uncovered config file the judge's note did not name. The derivation-not-hardcoding half of the rule is genuinely honoured (standardizeBabelName at :903).",
       "confidence": 0.85,
       "verifiedAt": "d7dbf25f7"
@@ -7881,7 +7881,7 @@
         "docs/mobile/eas-build-profiles.md#what-guards-it-now"
       ],
       "enforcer": [
-        "apps/mobile/src/release/release-config.test.ts:1104"
+        "apps/mobile/src/release/release-config.test.ts:1138-1158"
       ],
       "enforcementKind": "jest",
       "wired": "test:verified",
