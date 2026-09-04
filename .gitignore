@@ -151,6 +151,19 @@ scripts/bulk-cursor-pets-staging.mjs
 # e2e/.auth/ above.
 qa-sessions*.json
 
+# playwright-cli (the vendored .claude/skills/playwright-cli agent skill)
+# writes browser storage state — cookies, localStorage, live session tokens —
+# to CWD on request. Same reasoning as qa-sessions*.json above: the repo is
+# public and none of these may ever be committable. Covers the auto-generated
+# default name, the skill's own recommended save-file suffix
+# (references/storage-state.md: "Add *.auth-state.json to .gitignore"), and
+# the two names its own worked examples save to.
+*.auth-state.json
+*-auth-state.json
+storage-state*.json
+/auth.json
+my-session.json
+
 # A ROOT app.json is Expo debris. The real one is apps/mobile/app.json.
 #
 # `@expo/config`'s `modifyConfigAsync()` writes `path.join(projectRoot, "app.json")`

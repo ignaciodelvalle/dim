@@ -168,6 +168,15 @@ scripts/bulk-cursor-pets-staging.mjs
 # QA session-minting output — carries live session tokens
 qa-sessions*.json
 
+# playwright-cli's browser storage-state files — same reasoning as
+# qa-sessions*.json above. Verbatim from .gitignore — release-config.test.ts
+# compares the two rule for rule.
+*.auth-state.json
+*-auth-state.json
+storage-state*.json
+/auth.json
+my-session.json
+
 # A ROOT app.json is Expo debris. The real one is apps/mobile/app.json.
 /app.json
 
