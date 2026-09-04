@@ -61,6 +61,8 @@ export type Fact = {
 
 export type FactsFile = {
   generatedAt: string;
+  /** HEAD at generation time — necessarily the PARENT of the commit carrying
+   *  this file. See `headSha` for why, and why no fence can pin it. */
   sha: string;
   facts: Record<string, Fact>;
 };
@@ -541,7 +543,22 @@ export function computeFacts(repoRoot: string = REPO_ROOT): Record<string, Fact>
 
 // ---------------------------------------------------------------------------
 
-/** The short SHA of HEAD, or "unknown" outside a git checkout. */
+/**
+ * The short SHA of HEAD at GENERATION time, or "unknown" outside a git
+ * checkout.
+ *
+ * READ IT AS THE PARENT, and that is structural rather than a slip. `pnpm
+ * facts:write` runs BEFORE the commit that carries the file it writes, so the
+ * sha it records can never be the sha of that commit — it is the tree the
+ * counts were computed from, plus whatever working-tree changes were committed
+ * alongside them. Every facts.json this repo has ever committed has that same
+ * off-by-one-commit relationship; it is not drift.
+ *
+ * Consequently there is no fence to write here: an assertion that `sha` equals
+ * HEAD would be unsatisfiable by construction, and one that it equals HEAD's
+ * parent would fail on any commit that did not regenerate the facts. The
+ * instrument for this field is this comment.
+ */
 function headSha(repoRoot: string): string {
   try {
     return execFileSync("git", ["-C", repoRoot, "rev-parse", "--short", "HEAD"], {
