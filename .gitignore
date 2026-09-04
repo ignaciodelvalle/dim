@@ -56,6 +56,10 @@ supabase/snippets/Untitled*.sql
 
 # agent/script scratch output (also the launchworthy audit report target)
 tmp/
+# Session scratch at the repo root: QA state files, downloaded build artifacts
+# (an AAB is ~80 MB) and one-off notes. Never history; anchored so a future
+# docs/scratchpad/ stays trackable.
+/scratchpad/
 
 # agent tool caches — but project-scoped agent skills, settings, and agent/hook
 # definitions are versioned on purpose (PO decision 2026-09-04, extended
