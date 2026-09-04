@@ -96,19 +96,34 @@ const EMAILS = {
   erased: "meroute-erased@dim-test.local",
   deactivated: "meroute-deact@dim-test.local",
   noProfile: "meroute-noprofile@dim-test.local",
+  provisional: "meroute-provisional@dim-test.local",
 } as const;
+
+/**
+ * The real name signup step 2 writes for the `owner` fixture.
+ *
+ * It has to be set EXPLICITLY, and that is the point of this constant. Until
+ * 2026-09-04 this fixture kept whatever `handle_new_user` derived from its email
+ * and the file asserted `profilePending: false` for it — so the case that was
+ * supposed to prove "a completed profile is reported completed" was in fact a
+ * PROVISIONAL profile, and the assertion pinned the D1 defect in place. A
+ * fixture that never completes step 2 cannot certify the completed arm.
+ */
+const OWNER_REAL_NAME = "Ana Pérez";
 
 const ids: Record<keyof typeof EMAILS, string> = {
   owner: "",
   erased: "",
   deactivated: "",
   noProfile: "",
+  provisional: "",
 };
 const tokens: Record<keyof typeof EMAILS, string> = {
   owner: "",
   erased: "",
   deactivated: "",
   noProfile: "",
+  provisional: "",
 };
 
 function meRequest(authorization?: string) {
@@ -158,6 +173,13 @@ beforeAll(async () => {
     );
   }
   for (const key of Object.keys(EMAILS) as Array<keyof typeof EMAILS>) await seed(key);
+
+  // Signup step 2, applied to the fixture that stands for a FINISHED
+  // registration. `handle_new_user` seeded every row above with the email local
+  // part; completeIdentityAction is what overwrites it with a real First Last,
+  // and this is that write. The `provisional` fixture deliberately does NOT get
+  // it — it is the account that stopped after step 1.
+  await db.update(profiles).set({ displayName: OWNER_REAL_NAME }).where(eq(profiles.id, ids.owner));
 
   // The erased subject (Ley 25.326 art. 16): the profile is soft-deleted while
   // the access token stays valid until it expires on its own.
@@ -244,9 +266,10 @@ describe("GET /api/v1/me — a live caller", () => {
     expect(body.user).toEqual({
       profilePending: false,
       id: ids.owner,
-      // handle_new_user derives a provisional display_name from the email
-      // local-part when signup supplies no metadata.
-      displayName: EMAILS.owner.split("@")[0],
+      // The name signup step 2 wrote. NOT the email local-part: that value is
+      // what marks an identity as still provisional, and it is answered on the
+      // other arm now (see the provisional case below).
+      displayName: OWNER_REAL_NAME,
       role: "owner",
       accountType: "personal",
     });
@@ -282,6 +305,40 @@ describe("GET /api/v1/me — a live caller", () => {
     expect(res.status).toBe(200);
     const body = (await res.json()) as { user: Record<string, unknown> };
     expect(body.user).toEqual({ profilePending: true, id: ids.noProfile });
+  });
+
+  it("reports profilePending for a row still carrying the TRIGGER'S provisional name", async () => {
+    // THE D1 REGRESSION (native QA batch 1). This account is what every native
+    // signup produces: step 1 completed, `handle_new_user` inserted a profile
+    // row inside the same transaction, and step 2 — the web form that collects
+    // a real name, the DNI and the Ley 25.326 consent — was never done.
+    //
+    // The row EXISTS, so the old `live.profile ? … : …` answered
+    // `profilePending: false` and `useGate` (apps/mobile/src/auth/useGate.tsx)
+    // let the account into "Mis mascotas", where it could register a pet under
+    // a name nobody had entered. The comments in session-store.ts and
+    // CrearCuentaScreen.tsx that predicted `profilePending: true` here were
+    // right about the intent and wrong about the mechanism: they said "a
+    // brand-new account has no profile row", and the trigger has always written
+    // one.
+    const res = await meRoute(meRequest(`Bearer ${tokens.provisional}`));
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as { user: Record<string, unknown> };
+    expect(body.user).toEqual({ profilePending: true, id: ids.provisional });
+  });
+
+  it("names no role and no display name for a pending identity, even though the row has both", async () => {
+    // The row this reads carries role='owner' and the email local part, because
+    // that is what the trigger writes for every account (migration 0134
+    // hard-codes the role). Reporting either would be handing a client the
+    // trigger's DEFAULT dressed as an answer about a person — the exact
+    // fabrication the discriminated union exists to prevent — and the local
+    // part is PII this payload is otherwise careful not to carry.
+    const res = await meRoute(meRequest(`Bearer ${tokens.provisional}`));
+    const raw = JSON.stringify(await res.json());
+
+    expect(raw).not.toContain("owner");
+    expect(raw).not.toContain(EMAILS.provisional.split("@")[0]);
   });
 });
 

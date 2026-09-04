@@ -196,23 +196,44 @@ export const ME_STALE_AFTER_MS = 5 * 60_000;
  *
  * `displayName` IS here: it is what the shell greets the user with, and the
  * `handle_new_user` trigger guarantees it is never null (it falls back to the
- * email local-part). That fallback means it can BE an email local-part, which
- * is the one PII-adjacent thing this payload carries — and it is the same
- * string the web has always rendered in the nav.
+ * email local-part). It used to be able to BE that local-part on the wire — the
+ * one PII-adjacent thing this payload carried. It no longer can: a name equal
+ * to the local-part is exactly what marks an identity as still provisional, and
+ * such an account is answered on the `profilePending: true` arm, which carries
+ * no name at all. The narrowing is a side effect of the D1 fix rather than its
+ * goal, and it is worth stating because the old sentence is the reason a reader
+ * would expect otherwise.
  */
 export type MeV1User =
   | {
       /**
-       * The mid-signup window: `auth.users` exists and `profiles` does not yet
-       * (`requireLiveUser` returns `profile: null` there, and it is a SUCCESS —
-       * the caller is live, they simply have no profile). A client sees this
-       * between step 1 and step 2 of signup and should send the user to
-       * complete their identity rather than render an empty shell.
+       * SIGNUP IS NOT FINISHED. A client sees this between step 1 and step 2
+       * and should send the user to complete their identity rather than render
+       * an empty shell.
+       *
+       * TWO STATES COLLAPSE INTO THIS ARM, and the reason the wire does not
+       * distinguish them is that a client does the same thing for both:
+       *
+       *   · no `profiles` row at all (`requireLiveUser` returns `profile: null`
+       *     and it is a SUCCESS — the caller is live, they simply have no
+       *     profile);
+       *   · a `profiles` row still carrying the PROVISIONAL, email-derived name
+       *     that `handle_new_user` writes, meaning step 2 was never completed.
+       *
+       * This docblock used to name only the first, and every server that read
+       * it built the arm by testing row existence — which is why a brand-new
+       * native account walked straight into the pet list under a name nobody
+       * had entered (native QA batch 1, D1). The row is created by a trigger
+       * INSIDE the transaction that creates `auth.users`, so the first state is
+       * not what a fresh signup produces; the second is. Both servers now
+       * answer this arm through one projection,
+       * `toMeV1User` in `lib/domain/identity-completeness.ts`.
        *
        * A DISCRIMINATED arm rather than a flag beside optional fields: the
        * alternative is a payload whose `role` is a placeholder someone will
        * eventually render, and "owner" is a bad guess to make about a person
-       * who has not finished registering.
+       * who has not finished registering — which is precisely the value a
+       * provisional row holds, since the trigger hard-codes it.
        */
       profilePending: true;
       id: string;

@@ -36,7 +36,8 @@
 
 import { randomUUID } from "node:crypto";
 
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { inArray } from "drizzle-orm";
+import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 
 const control = vi.hoisted(() => ({
   /** GoTrue's answer for the next call. */
@@ -90,6 +91,7 @@ vi.mock("@/lib/infra/rate-limit", async (importOriginal) => {
   };
 });
 
+import { db, profiles } from "@/db";
 import { RateLimitError, emailRateLimitKey } from "@/lib/infra/rate-limit";
 import {
   LOGIN_EMAIL_LIMIT,
@@ -401,6 +403,79 @@ describe("POST /api/v1/auth/login — what a native client receives", () => {
     expect(res.status).toBe(503);
     expect(await res.json()).toEqual({ error: "temporarily_unavailable" });
     expect(res.headers.get("retry-after")).toBe("5");
+  });
+
+  // -------------------------------------------------------------------------
+  // Identity completeness — the D1 blocker (native QA batch 1)
+  // -------------------------------------------------------------------------
+  // The profile query below is REAL, against a row this file inserts. That is
+  // the only way to reach the branch: a random UUID resolves to no rows, which
+  // is the state the cases above use and is NOT what a native signup produces.
+  // `handle_new_user` writes a profile row in the same transaction as the
+  // `auth.users` row, so the account this endpoint actually meets on a
+  // first-ever sign-in HAS a row — one holding the trigger's provisional,
+  // email-derived name.
+  describe("with a real profiles row", () => {
+    const provisionalId = randomUUID();
+    const completedId = randomUUID();
+    const EMAIL = "d1-provisional@dim-test.local";
+
+    beforeAll(async () => {
+      await db.insert(profiles).values([
+        {
+          id: provisionalId,
+          role: "owner",
+          accountType: "personal",
+          // Exactly what the trigger writes: split_part(email, '@', 1).
+          displayName: EMAIL.split("@")[0],
+        },
+        { id: completedId, role: "owner", accountType: "personal", displayName: "Ana Pérez" },
+      ]);
+    });
+
+    afterAll(async () => {
+      await db.delete(profiles).where(inArray(profiles.id, [provisionalId, completedId]));
+    });
+
+    it("reports profilePending for a row still carrying the provisional name", async () => {
+      // THE BLOCKER. This endpoint tested row EXISTENCE, so it answered
+      // `profilePending: false` here — and `signIn`
+      // (apps/mobile/src/auth/session-store.ts) seeds its session state from
+      // THIS payload, not from a later `/me`. So the native gate sent a person
+      // who had never entered a name straight to "Mis mascotas", where pets can
+      // be registered under it.
+      control.answer = {
+        data: { user: { id: provisionalId }, session: GOTRUE_SESSION },
+        error: null,
+      };
+
+      const res = await loginRoute(post("/auth/login", { email: EMAIL, password: "x" }));
+
+      expect(res.status).toBe(200);
+      const body = (await res.json()) as { user: unknown };
+      expect(body.user).toEqual({ profilePending: true, id: provisionalId });
+    });
+
+    it("reports the full shell once step 2 has written a real name", async () => {
+      // The other side of the same predicate, so the case above cannot be
+      // satisfied by an endpoint that simply stopped reporting profiles.
+      control.answer = {
+        data: { user: { id: completedId }, session: GOTRUE_SESSION },
+        error: null,
+      };
+
+      const res = await loginRoute(post("/auth/login", { email: EMAIL, password: "x" }));
+
+      expect(res.status).toBe(200);
+      const body = (await res.json()) as { user: unknown };
+      expect(body.user).toEqual({
+        profilePending: false,
+        id: completedId,
+        displayName: "Ana Pérez",
+        role: "owner",
+        accountType: "personal",
+      });
+    });
   });
 });
 

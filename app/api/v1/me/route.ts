@@ -64,6 +64,7 @@
 
 import { ME_PAYLOAD_VERSION, ME_STALE_AFTER_MS, type MeV1 } from "@dim/contract/api";
 
+import { toMeV1User } from "@/lib/domain/identity-completeness";
 import { apiV1Envelope, apiV1Error, apiV1Json } from "@/lib/infra/api-v1";
 import {
   API_V1_AUTHENTICATED_READ_IP_LIMIT,
@@ -201,19 +202,26 @@ export async function GET(request: Request) {
   });
 
   // The profile is already resolved by the guard, so the shell costs ONE
-  // round-trip and not two. Null only in the mid-signup window.
-  const payload: MeV1 = live.profile
-    ? {
-        ...envelope,
-        user: {
-          profilePending: false,
-          id: live.user.id,
-          displayName: live.profile.displayName,
-          role: live.profile.role,
-          accountType: live.profile.accountType,
-        },
-      }
-    : { ...envelope, user: { profilePending: true, id: live.user.id } };
+  // round-trip and not two.
+  //
+  // `toMeV1User`, NOT `live.profile ? … : …`. This handler used to test ROW
+  // EXISTENCE, and the row always exists: `handle_new_user` (db/triggers.sql)
+  // inserts a `profiles` row in the same transaction as the `auth.users` row,
+  // with a display name derived from the email local part. So a native account
+  // that had completed step 1 and nothing else answered `profilePending: false`
+  // here, the gate let it through, and a person who had never given a name
+  // could register pets under it (native QA batch 1, D1). The shared projection
+  // asks the question the gate actually needs answered — is this identity
+  // COMPLETE — using the same predicate the web's own gates use
+  // (`app/(app)/layout.tsx`, `app/(auth)/registro/page.tsx`).
+  const payload: MeV1 = {
+    ...envelope,
+    user: toMeV1User({
+      id: live.user.id,
+      email: live.user.email,
+      profile: live.profile,
+    }),
+  };
 
   // Nothing beyond the four shell fields. No email (the guard exposes one for a
   // web nav-avatar fallback that never leaves the server render; putting it on

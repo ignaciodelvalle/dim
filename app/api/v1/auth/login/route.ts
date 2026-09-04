@@ -53,6 +53,7 @@
 import type { LoginV1 } from "@dim/contract/api";
 import { loginInputSchema } from "@dim/contract/input";
 
+import { toMeV1User } from "@/lib/domain/identity-completeness";
 import { apiV1Error, apiV1Json } from "@/lib/infra/api-v1";
 import { DbBudgetExceededError, withDbBudgetOrThrow } from "@/lib/infra/db-budget";
 import { callerIp } from "@/lib/infra/rate-limit";
@@ -168,17 +169,24 @@ export async function POST(request: Request) {
   // `profilePending: true` is reachable and NORMAL here: signup parks a native
   // account in exactly that window, because identity completion has no `/api/v1`
   // door yet. A client seeing it sends the user to finish registering.
+  //
+  // AND IT HAS TO BE COMPUTED, NOT READ OFF THE ROW'S EXISTENCE (native QA batch
+  // 1, D1). `handle_new_user` writes a `profiles` row for every account at
+  // creation time, so `profile === null` is not the state signup parks people
+  // in — a row holding the trigger's provisional, email-derived name is. This
+  // endpoint is the one the native client believes FIRST: `signIn` sets its
+  // session state from THIS payload and only re-reads `/me` on a later cold
+  // start, so had only `/me` been fixed, a sign-in would have landed on the pet
+  // list and the app would have moved the person to `identidad-pendiente` on
+  // the next launch, which reads as a bug rather than as a step.
+  //
+  // The email is the one that just authenticated, so it IS the account's — a
+  // password grant that matched a different address does not exist. The
+  // predicate trims and compares case-insensitively, which is the whole gap
+  // between what the client typed and what GoTrue stored.
   const { userId, profile } = result.value;
   const payload: LoginV1 = {
-    user: profile
-      ? {
-          profilePending: false,
-          id: userId,
-          displayName: profile.displayName,
-          role: profile.role,
-          accountType: profile.accountType,
-        }
-      : { profilePending: true, id: userId },
+    user: toMeV1User({ id: userId, email: parsed.data.email, profile }),
     session: result.value.session,
   };
   return apiV1Json(payload, { status: 200 });

@@ -30,6 +30,29 @@
 // local-part. completeIdentityAction requires BOTH firstName and lastName and
 // joins them with a space, and an unquoted email local-part cannot contain a
 // space — so the form itself can never produce that collision.
+//
+// WHY THE `MeV1User` PROJECTION LIVES HERE TOO (native QA batch 1, D1)
+// ---------------------------------------------------------------------------
+// `GET /api/v1/me` and `POST /api/v1/auth/login` both answered
+// `profilePending: false` for a brand-new native account, and the native gate
+// therefore let it straight into "Mis mascotas" — where it could register a pet
+// under a name nobody had entered. Both handlers were reading ROW EXISTENCE
+// (`profile ? … : …`), on a stated belief that "a brand-new account has no
+// profile row yet" (session-store.ts, CrearCuentaScreen.tsx). That belief is
+// false and has been since the trigger existed: `handle_new_user`
+// (db/triggers.sql) inserts a `profiles` row inside the same transaction that
+// creates the `auth.users` row, so the window those comments describe is never
+// observed by anything that runs after signup returns. The provisional name it
+// writes is exactly what `isIdentityPending` above was built to detect.
+//
+// The projection is shared rather than written twice because the two payloads
+// are ONE type on purpose — `LoginV1.user` IS `MeV1User`, so a native client can
+// write a single exhaustive switch — and the last time these handlers each built
+// that union by hand they disagreed about the same account in the same second
+// (see the `LoginV1` docblock). One function is what makes "one type, one
+// answer" a fact instead of a promise.
+
+import type { MeV1User } from "@dim/contract/api";
 
 /**
  * The provisional display name the `handle_new_user` trigger derives from an
@@ -68,4 +91,56 @@ export function isIdentityPending(input: {
   if (localPart === "") return false;
 
   return name.toLowerCase() === localPart.toLowerCase();
+}
+
+/**
+ * The `/api/v1` shell projection of "who is this caller", for the two endpoints
+ * that answer it: `GET /api/v1/me` and `POST /api/v1/auth/login`.
+ *
+ * `profilePending: true` means THE IDENTITY IS NOT COMPLETE — not "there is no
+ * row". Two distinct states collapse into that arm and both are the same thing
+ * to a client:
+ *
+ *   · no `profiles` row at all — the window the contract's docblock describes.
+ *     Unreachable through signup while `handle_new_user` exists, but still the
+ *     shape a service-role delete or a partially-restored account produces, so
+ *     it is answered rather than assumed away;
+ *   · a row still carrying the trigger's PROVISIONAL, email-derived name —
+ *     signup step 2 was never completed. This is the state every native signup
+ *     lands in, because the app deliberately has no identity form of its own
+ *     (apps/mobile/app/identidad-pendiente.tsx explains why).
+ *
+ * The completed arm deliberately drops nothing and adds nothing: same four
+ * fields, same union, same payload version. What changed is only WHICH arm a
+ * provisional account gets.
+ *
+ * Role and accountType are NOT reported for a pending identity, and that is the
+ * original reasoning unchanged: "owner" is a bad guess to make about a person
+ * who has not finished registering, and a provisional profile row carries
+ * exactly that guess — the trigger hard-codes `'owner'` for every row it writes
+ * (migration 0134).
+ */
+export function toMeV1User(input: {
+  id: string;
+  email: string | null | undefined;
+  profile: {
+    displayName: string;
+    role: "owner" | "vet" | "govt" | "admin";
+    accountType: "personal" | "institutional";
+  } | null;
+}): MeV1User {
+  if (
+    input.profile === null ||
+    isIdentityPending({ displayName: input.profile.displayName, email: input.email })
+  ) {
+    return { profilePending: true, id: input.id };
+  }
+
+  return {
+    profilePending: false,
+    id: input.id,
+    displayName: input.profile.displayName,
+    role: input.profile.role,
+    accountType: input.profile.accountType,
+  };
 }

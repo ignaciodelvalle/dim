@@ -6,7 +6,7 @@
 
 import { describe, expect, it } from "vitest";
 
-import { emailLocalPart, isIdentityPending } from "@/lib/domain/identity-completeness";
+import { emailLocalPart, isIdentityPending, toMeV1User } from "@/lib/domain/identity-completeness";
 
 describe("emailLocalPart", () => {
   it("returns the segment before the first @, like Postgres split_part(email, '@', 1)", () => {
@@ -94,5 +94,81 @@ describe("isIdentityPending", () => {
 
   it("compares against the local part only — a name equal to the FULL email is not the trigger's output", () => {
     expect(isIdentityPending({ displayName: EMAIL, email: EMAIL })).toBe(false);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// The wire projection (native QA batch 1, D1)
+// ---------------------------------------------------------------------------
+
+describe("toMeV1User", () => {
+  const EMAIL = "ana.perez@gmail.com";
+  const ID = "11111111-1111-4111-8111-111111111111";
+  const COMPLETE = {
+    displayName: "Ana Pérez",
+    role: "owner",
+    accountType: "personal",
+  } as const;
+
+  it("reports the full shell for a completed identity", () => {
+    expect(toMeV1User({ id: ID, email: EMAIL, profile: COMPLETE })).toEqual({
+      profilePending: false,
+      id: ID,
+      displayName: "Ana Pérez",
+      role: "owner",
+      accountType: "personal",
+    });
+  });
+
+  it("reports pending when there is no profile row at all", () => {
+    expect(toMeV1User({ id: ID, email: EMAIL, profile: null })).toEqual({
+      profilePending: true,
+      id: ID,
+    });
+  });
+
+  it("reports pending for a row still carrying the trigger's provisional name", () => {
+    // THE D1 DEFECT. The row exists — `handle_new_user` writes one inside the
+    // transaction that creates the auth user — so an endpoint that tested row
+    // existence answered `profilePending: false` for every brand-new native
+    // account, and the native gate let it into the pet list.
+    expect(
+      toMeV1User({
+        id: ID,
+        email: EMAIL,
+        profile: { ...COMPLETE, displayName: "ana.perez" },
+      }),
+    ).toEqual({ profilePending: true, id: ID });
+  });
+
+  it("leaks neither the provisional name nor the trigger's default role", () => {
+    // Stated as an absence, because both values EXIST on the row and reporting
+    // either would be handing a client a default dressed as an answer: the
+    // trigger hard-codes role='owner' (migration 0134), and the name it wrote is
+    // the email local part.
+    const projected = toMeV1User({
+      id: ID,
+      email: EMAIL,
+      profile: { ...COMPLETE, displayName: "ana.perez" },
+    });
+    expect(Object.keys(projected).sort()).toEqual(["id", "profilePending"]);
+  });
+
+  it("does not nag an account with no email to compare against", () => {
+    // Service accounts and imported rows. Same carve-out as isIdentityPending —
+    // the projection must not invent a stricter rule than the predicate.
+    expect(
+      toMeV1User({
+        id: ID,
+        email: null,
+        profile: { ...COMPLETE, displayName: "Servicio Interno" },
+      }),
+    ).toEqual({
+      profilePending: false,
+      id: ID,
+      displayName: "Servicio Interno",
+      role: "owner",
+      accountType: "personal",
+    });
   });
 });
