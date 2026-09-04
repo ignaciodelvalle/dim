@@ -17,12 +17,34 @@
 //      the browser link is gone rather than left as a second way to do one thing.
 
 import { beforeEach, describe, expect, it, jest } from "@jest/globals";
-import { fireEvent, render, screen, waitFor } from "@testing-library/react-native";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react-native";
 
 const mockFetch = jest.fn<(...args: unknown[]) => Promise<unknown>>();
 
+/**
+ * Every focus callback currently mounted, so a test can fire a RE-focus.
+ *
+ * The stand-in LibretaScreen uses ("run it on mount") is not enough here: the
+ * defect is about a screen that is ALREADY MOUNTED when it regains focus, and a
+ * mount-only stand-in can only be re-fired by remounting — which is precisely
+ * the case that never had the bug.
+ */
+const mockFocusCallbacks: Array<() => void> = [];
+
 jest.mock("expo-router", () => ({
   useRouter: () => ({ push: jest.fn(), replace: jest.fn(), back: jest.fn() }),
+  useFocusEffect: (callback: () => void) => {
+    const { useEffect } = require("react");
+    useEffect(() => {
+      mockFocusCallbacks.push(callback);
+      // A mount IS a first focus, which is what the real hook does too.
+      callback();
+      return () => {
+        const at = mockFocusCallbacks.indexOf(callback);
+        if (at >= 0) mockFocusCallbacks.splice(at, 1);
+      };
+    }, [callback]);
+  },
 }));
 
 jest.mock("../api/endpoints", () => ({
@@ -70,8 +92,16 @@ function payload(over: Partial<MyAppointmentsV1> = {}): MyAppointmentsV1 {
   };
 }
 
+/** Re-focus every mounted screen, the way popping back to it does. */
+async function refocus(): Promise<void> {
+  await act(async () => {
+    for (const callback of [...mockFocusCallbacks]) callback();
+  });
+}
+
 beforeEach(() => {
   mockFetch.mockReset();
+  mockFocusCallbacks.length = 0;
 });
 
 describe("a failed read", () => {
@@ -100,6 +130,92 @@ describe("a failed read", () => {
     render(<TurnosScreen onOpen={jest.fn()} onSearch={jest.fn()} />);
 
     await waitFor(() => expect(screen.getByText(/Actualizá la app/i)).toBeTruthy());
+  });
+});
+
+// ---------------------------------------------------------------------------
+// COMING BACK TO A SCREEN THAT IS STILL MOUNTED (native QA batch 2, C1)
+//
+// Booking pushes `turnos/buscar` on top of this screen. Popping back does not
+// remount it, so a mount-only effect left the list — and the "N turnos en
+// total." line above it — showing the state from before the reservation. The
+// person had just booked a turno the screen said they did not have.
+// ---------------------------------------------------------------------------
+describe("coming back into focus", () => {
+  it("re-reads the list instead of showing the count from before the booking", async () => {
+    mockFetch.mockResolvedValue({
+      outcome: "ok",
+      payload: payload({ upcoming: [anAppointment({ appointmentToken: "APT-ONE" })] }),
+    });
+    render(<TurnosScreen onOpen={jest.fn()} onSearch={jest.fn()} />);
+
+    await waitFor(() => expect(screen.getByText("1 turno en total.")).toBeTruthy());
+    expect(mockFetch).toHaveBeenCalledTimes(1);
+
+    // A second turno was booked on the screen that was pushed on top of this one.
+    mockFetch.mockResolvedValue({
+      outcome: "ok",
+      payload: payload({
+        upcoming: [
+          anAppointment({ appointmentToken: "APT-ONE" }),
+          anAppointment({
+            appointmentToken: "APT-TWO",
+            pet: { publicToken: "DIM-ROCC-0002", name: "Rocco" },
+          }),
+        ],
+      }),
+    });
+    await refocus();
+
+    await waitFor(() => expect(mockFetch).toHaveBeenCalledTimes(2));
+    await waitFor(() => expect(screen.getByText("2 turnos en total.")).toBeTruthy());
+    expect(screen.getByText("Rocco")).toBeTruthy();
+  });
+
+  it("keeps the rows on screen while it re-reads, instead of blanking to a skeleton", async () => {
+    // The mode matters: an "initial" read sets phase:"loading" and would replace
+    // the list with a skeleton EVERY time somebody comes back from a detail
+    // screen — trading a stale count for a flicker on every navigation.
+    let resolveSecond: ((value: unknown) => void) | null = null;
+    mockFetch.mockResolvedValue({
+      outcome: "ok",
+      payload: payload({ upcoming: [anAppointment()] }),
+    });
+    render(<TurnosScreen onOpen={jest.fn()} onSearch={jest.fn()} />);
+    await waitFor(() => expect(screen.getByText("1 turno en total.")).toBeTruthy());
+
+    mockFetch.mockReturnValue(
+      new Promise((resolve) => {
+        resolveSecond = resolve;
+      }),
+    );
+    await refocus();
+
+    // Mid-flight: the list is still there and the skeleton is not.
+    expect(screen.getByText("1 turno en total.")).toBeTruthy();
+    // The skeleton announces itself as a progressbar with this label, not as
+    // visible text — `ListSkeleton` hides its own bones from the reader.
+    expect(screen.queryByLabelText("Cargando tus turnos…")).toBeNull();
+
+    await act(async () => {
+      resolveSecond?.({ outcome: "ok", payload: payload({ upcoming: [anAppointment()] }) });
+    });
+  });
+
+  it("still shows the skeleton on the FIRST appearance, when there is nothing to keep", async () => {
+    let resolveFirst: ((value: unknown) => void) | null = null;
+    mockFetch.mockReturnValue(
+      new Promise((resolve) => {
+        resolveFirst = resolve;
+      }),
+    );
+    render(<TurnosScreen onOpen={jest.fn()} onSearch={jest.fn()} />);
+
+    expect(screen.getByLabelText("Cargando tus turnos…")).toBeTruthy();
+
+    await act(async () => {
+      resolveFirst?.({ outcome: "ok", payload: payload() });
+    });
   });
 });
 
@@ -185,9 +301,11 @@ describe("the empty state", () => {
   });
 
   it("hands the search back to the router rather than navigating itself", async () => {
-    // The screen owns no route. `onSearch` is what the route shell binds, which is
-    // the arrangement every other screen in this app uses and the reason none of
-    // them imports `expo-router`.
+    // The screen owns no route. `onSearch` is what the route shell binds, which
+    // is the arrangement every other screen in this app uses: a screen never
+    // navigates itself. (It DOES read `useFocusEffect` from expo-router now —
+    // knowing you were re-entered is not navigating, and LibretaScreen has the
+    // same pair.)
     const onSearch = jest.fn();
     mockFetch.mockResolvedValue({ outcome: "ok", payload: payload() });
     render(<TurnosScreen onOpen={jest.fn()} onSearch={onSearch} />);

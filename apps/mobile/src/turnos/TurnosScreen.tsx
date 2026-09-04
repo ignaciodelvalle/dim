@@ -29,7 +29,8 @@
 // they need is exactly the person looking for it, and the empty state's own
 // sentence is the strongest place a control can sit.
 
-import { useCallback, useEffect, useState } from "react";
+import { useFocusEffect } from "expo-router";
+import { useCallback, useRef, useState } from "react";
 import { Pressable, RefreshControl, StyleSheet, Text, View } from "react-native";
 
 import type { MyAppointmentV1, MyAppointmentsV1 } from "@dim/contract/api";
@@ -102,9 +103,26 @@ export function TurnosScreen({
     setState({ phase: "failed", message: failureMessage(result) });
   }, []);
 
-  useEffect(() => {
-    void load();
-  }, [load]);
+  // ON FOCUS, NOT ONLY ON MOUNT (native QA batch 2, C1). Booking pushes
+  // `turnos/buscar` on top of this screen; popping back does not remount it, so
+  // a plain mount effect left the list showing the count from before the
+  // reservation — the person had just booked a turno the screen said they did
+  // not have. Same fix and same reasoning as `LibretaScreen`, which grew a write
+  // on top of it for the same reason.
+  //
+  // THE RETURN IS A "refresh" AND NOT AN "initial" READ, and that distinction is
+  // the whole difference between a fix and an annoyance: `initial` sets
+  // `phase: "loading"`, which would blank the list to a skeleton every single
+  // time somebody comes back from a detail screen. `refresh` keeps the rows on
+  // screen and shows the pull-to-refresh spinner instead. The FIRST appearance
+  // still takes the loading phase, because there is nothing yet to keep.
+  const hasLoaded = useRef(false);
+  useFocusEffect(
+    useCallback(() => {
+      void load(hasLoaded.current ? "refresh" : "initial");
+      hasLoaded.current = true;
+    }, [load]),
+  );
 
   const refresher = (
     <RefreshControl
