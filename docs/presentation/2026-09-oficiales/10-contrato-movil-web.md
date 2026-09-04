@@ -47,7 +47,7 @@ Los techos de pedidos y el formato de respuesta no se repiten acá: están en
 El vocabulario compartido incluye los <!-- fact:event_types -->55<!-- /fact -->
 tipos de asiento, las formas de cada respuesta, los esquemas de lo que un
 cliente puede enviar y la tabla de enlaces. La aplicación se prueba con
-<!-- fact:mobile_jest_files -->83<!-- /fact --> archivos de prueba propios.
+<!-- fact:mobile_jest_files -->84<!-- /fact --> archivos de prueba propios.
 
 ## Mermaid
 
