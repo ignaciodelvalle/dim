@@ -45,7 +45,7 @@ const CURRENT_ROWS = [
   '  embarazo: "CalendarHeart",',
   '  corazon: "Heart",',
   '  casa: "Home",',
-  '  fallecimiento: "HeartOff",',
+  '  fallecimiento: "Flower2",',
   "",
   "  // Identity row",
   '  paw: "PawPrint",',
@@ -72,7 +72,7 @@ const current = tableSource(CURRENT_ROWS);
  */
 const shipped = tableSource(
   CURRENT_ROWS.replace('embarazo: "CalendarHeart"', 'embarazo: "Baby"').replace(
-    'fallecimiento: "HeartOff"',
+    'fallecimiento: "Flower2"',
     'fallecimiento: "Circle"',
   ),
 );

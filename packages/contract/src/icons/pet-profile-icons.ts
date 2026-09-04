@@ -57,7 +57,7 @@ export const PET_PROFILE_ICONS = {
   embarazo: "CalendarHeart",
   corazon: "Heart",
   casa: "Home",
-  fallecimiento: "HeartOff",
+  fallecimiento: "Flower2",
 
   // Identity row
   paw: "PawPrint",

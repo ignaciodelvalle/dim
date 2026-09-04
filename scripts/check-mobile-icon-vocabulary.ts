@@ -124,10 +124,10 @@ const DECLARED_ALIASES: Record<string, { keys: string[]; reason: string }> = {
 const MIN_ENTRIES = 15;
 
 /**
- * Exact `key:glyph` pairs, sorted by key, as of the last reviewed change.
- * Update this in the SAME commit that changes any glyph or any key — the point
- * is that a swap like `embarazo: CalendarHeart → Baby` shows up in THIS file's
- * diff, next to the rules that decide what a glyph may mean.
+ * Exact `key:glyph` pairs, sorted by key, as of the last reviewed change; update
+ * it in the SAME commit that changes any glyph or key, so the swap lands in THIS
+ * file's diff next to the rules that decide what a glyph may mean. Last change:
+ * `fallecimiento: HeartOff → Flower2` — a crossed heart is not how you mourn.
  */
 const PINNED_TABLE = [
   "alert:AlertTriangle",
@@ -139,7 +139,7 @@ const PINNED_TABLE = [
   "edit:Pencil",
   "ellipsis:MoreHorizontal",
   "embarazo:CalendarHeart",
-  "fallecimiento:HeartOff",
+  "fallecimiento:Flower2",
   "girar:RefreshCw",
   "libreta:BookOpen",
   "map-pin:MapPin",
