@@ -1,5 +1,9 @@
 "use client";
 
+// 2026-09-04: brand mark now matches AppShellDrawer's paper-tile recipe (no
+// more typographic text monogram), plus that day's close-button, overscroll,
+// and min-w-0 accessibility fixes.
+
 import { Icon } from "@/components/Icon";
 import type { NavItem } from "@/components/layout/HeaderNav";
 import { BRANDING } from "@/lib/ui/branding";
@@ -81,8 +85,8 @@ export function OpMobileDrawer({
           <Drawer.Title className="sr-only">Menú principal</Drawer.Title>
           {/* Brand header */}
           <div className="flex items-center gap-2.5 border-b border-[rgba(255,255,255,0.10)] px-4 py-4 pb-[13px]">
-            <div className="grid h-[34px] w-[34px] flex-shrink-0 place-items-center rounded-[var(--radius-sm)] bg-ln-op-card font-ln-mono text-md font-bold text-ln-op-navy">
-              m·
+            <div className="grid h-[34px] w-[34px] flex-shrink-0 place-items-center rounded-[var(--radius-lg)] bg-[var(--color-ln-paper)]">
+              <img src="/logo-mimar-mark.svg" alt="" width={25} height={25} />
             </div>
             <div className="flex flex-col leading-tight">
               <span className="font-ln-serif text-base font-semibold text-white">
@@ -96,7 +100,7 @@ export function OpMobileDrawer({
               <button
                 type="button"
                 aria-label="Cerrar menú"
-                className="ml-auto inline-flex h-8 w-8 items-center justify-center rounded-md text-ln-op-rail-mute hover:bg-[rgba(255,255,255,0.08)]"
+                className="ml-auto inline-flex min-h-11 min-w-11 items-center justify-center rounded-md text-ln-op-rail-mute hover:bg-[rgba(255,255,255,0.08)]"
               >
                 <Icon name="close" size="sm" decorative />
               </button>
@@ -106,7 +110,7 @@ export function OpMobileDrawer({
           {/* Nav sections */}
           <nav
             aria-label="Navegación principal"
-            className="op-scroll flex flex-1 flex-col gap-4 overflow-y-auto px-[9px] py-[13px]"
+            className="op-scroll flex flex-1 flex-col gap-4 overflow-y-auto overscroll-contain px-[9px] py-[13px]"
           >
             {resolved.map((section) => {
               const sectionItems = (
@@ -127,7 +131,7 @@ export function OpMobileDrawer({
                             "text-ln-op-rail-mute cursor-not-allowed select-none",
                           ].join(" ")}
                         >
-                          <span className="flex-1 truncate">{item.label}</span>
+                          <span className="min-w-0 flex-1 truncate">{item.label}</span>
                           <span className="inline-flex items-center rounded-[var(--radius-sm)] border border-[rgba(255,255,255,0.18)] px-1.5 py-0.5 text-xs font-semibold uppercase tracking-[0.08em] text-ln-op-rail-mute">
                             Próximamente
                           </span>
@@ -158,7 +162,7 @@ export function OpMobileDrawer({
                             : "border-l-2 border-transparent text-ln-op-rail-text hover:bg-[rgba(255,255,255,0.05)]",
                         ].join(" ")}
                       >
-                        <span className="flex-1 truncate">{item.label}</span>
+                        <span className="min-w-0 flex-1 truncate">{item.label}</span>
                         {item.badge != null && item.badge > 0 && (
                           <span className="font-ln-mono inline-flex items-center justify-center rounded-[var(--radius-sm)] bg-[rgba(255,255,255,0.08)] px-1.5 py-0.5 text-xs font-bold leading-none text-white">
                             {item.badge}
