@@ -21,7 +21,7 @@ import { appointments, db, pets, profiles, serviceOfferings, timeSlots } from "@
 import { requireOrgAccessByToken } from "@/lib/infra/auth-guards";
 import { findServiceKind } from "@/lib/reference/service-kinds";
 import { AR_TIME_ZONE, formatTime, pluralizeEs } from "@/lib/utils/format";
-import { getGrantedCapabilities } from "@/src/modules/organizations/infrastructure/authz-resolver";
+import { requireCapability } from "@/src/modules/organizations/infrastructure/authz-resolver";
 
 import { BlockSlotButton } from "./BlockSlotButton";
 
@@ -71,26 +71,35 @@ export default async function OrgAgendaPage({
   const { orgToken } = await params;
   const { fecha } = await searchParams;
 
-  const { organization, membership } = await requireOrgAccessByToken(orgToken);
-  const granted = await getGrantedCapabilities(membership);
-  // AUTHORIZATION UNCHANGED — only the ANSWER changed (native QA batch 2, C3).
-  // This used to be `notFound()`, so a member of this organization whose
-  // membership simply lacks `appointment.manage` was told "No encontramos esta
-  // página" about a page that exists, inside an org they provably belong to
-  // (requireOrgAccessByToken above already refused every non-member). Its
-  // sibling `/org/{token}/checkins` has always answered the honest "Sin acceso
-  // — pedile el alta a un administrador"; two screens of one portal answering
-  // one refusal in two languages is how a tester ends up hunting a broken link
-  // instead of asking an administrator. The string is requireCapability's own,
-  // so both surfaces refuse in the same words.
-  if (!granted.has("appointment.manage")) {
-    return (
-      <OpAccessDenied
-        reason="No tenés permiso para esta acción. Pedile el alta a un administrador."
-        orgToken={orgToken}
-      />
-    );
+  // Pre-validate membership. requireCapability below also checks, but we need
+  // the organization.id to scope requireCapability to the right org.
+  const { organization: orgFromToken } = await requireOrgAccessByToken(orgToken);
+  // A page READ: a deactivated institutional account keeps it, per
+  // lib/infra/auth-guards.ts:60-70 — reads stay open, writes stop.
+  //
+  // AUTHORIZATION UNCHANGED FROM THE ORIGINAL FIX — only the ANSWER changed
+  // (native QA batch 2, C3). This used to be `notFound()`, so a member of this
+  // organization whose membership simply lacks `appointment.manage` was told
+  // "No encontramos esta página" about a page that exists, inside an org they
+  // provably belong to (requireOrgAccessByToken above already refused every
+  // non-member). Its sibling `/org/{token}/checkins` has always answered the
+  // honest "Sin acceso — pedile el alta a un administrador"; two screens of one
+  // portal answering one refusal in two languages is how a tester ends up
+  // hunting a broken link instead of asking an administrator.
+  //
+  // THIS NOW CALLS requireCapability DIRECTLY (code review #4, 2026-09-04)
+  // instead of reading `getGrantedCapabilities` and hardcoding a copy of its
+  // refusal sentence. The earlier version's own comment here already claimed
+  // "the string is requireCapability's own" — but the literal below it was a
+  // manual copy that could have drifted silently the moment authz-resolver.ts's
+  // wording changed. checkins/page.tsx has always gone through requireCapability
+  // for the same reason; the two surfaces now share one source for the
+  // sentence instead of two copies that merely agreed today.
+  const auth = await requireCapability("appointment.manage", orgFromToken.id, { access: "read" });
+  if (auth.error !== null) {
+    return <OpAccessDenied reason={auth.error} orgToken={orgToken} />;
   }
+  const { organization } = auth;
 
   // Parse target date (default = today Argentina time).
   const targetDateStr =
