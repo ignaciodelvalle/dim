@@ -40,9 +40,18 @@ const LAST_ORG_COOKIE = "dim_last_org";
 function MiMarBrandHeader({ subtitle }: { subtitle: string }) {
   return (
     <div className="flex items-center gap-2.5">
-      <div className="grid h-[34px] w-[34px] flex-shrink-0 place-items-center rounded-[var(--radius-sm)] bg-ln-op-navy font-ln-mono text-md font-bold text-white">
-        m·
-      </div>
+      {/* Same mark as the citizen masthead and the operator rail/drawer
+          (components/layout/AppCitizenMasthead.tsx) — was a typographic `m·`
+          monogram, INVERTED (white text on a navy tile). No paper tile here:
+          unlike those navy surfaces, this page's own ground is bg-ln-op-page
+          (#eef1f4, light — app/globals.css) and the mark's currentColor
+          default IS --color-ln-op-azul (#0e5a99), the exact blue this page
+          already uses for its own text link (the /cuenta/upgrade link in the
+          empty state below) — plenty of contrast directly on the light
+          ground, so a tile would only be a redundant light-on-light square.
+          alt="" because the wordmark + subtitle beside it already carry the
+          brand name. */}
+      <img src="/logo-mimar-mark.svg" alt="" width={34} height={34} className="flex-shrink-0" />
       <div className="flex flex-col leading-tight">
         <span className="font-ln-serif text-base font-semibold tracking-[-0.005em] text-ln-op-ink">
           {BRANDING.appName}
