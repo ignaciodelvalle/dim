@@ -14,12 +14,34 @@
 //      anything" and "I have not sent anything" are different facts.
 
 import { beforeEach, describe, expect, it, jest } from "@jest/globals";
-import { fireEvent, render, screen, waitFor } from "@testing-library/react-native";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react-native";
 
 const mockFetch = jest.fn<(...args: unknown[]) => Promise<unknown>>();
 
+/**
+ * Every focus callback currently mounted, so a test can fire a RE-focus.
+ *
+ * A mount-only stand-in is not enough here: the defect is about a screen that
+ * is ALREADY MOUNTED when it regains focus, and a mount-only stand-in can only
+ * be re-fired by remounting — which is precisely the case that never had the
+ * bug.
+ */
+const mockFocusCallbacks: Array<() => void> = [];
+
 jest.mock("expo-router", () => ({
   useRouter: () => ({ push: jest.fn(), replace: jest.fn(), back: jest.fn() }),
+  useFocusEffect: (callback: () => void) => {
+    const { useEffect } = require("react");
+    useEffect(() => {
+      mockFocusCallbacks.push(callback);
+      // A mount IS a first focus, which is what the real hook does too.
+      callback();
+      return () => {
+        const at = mockFocusCallbacks.indexOf(callback);
+        if (at >= 0) mockFocusCallbacks.splice(at, 1);
+      };
+    }, [callback]);
+  },
 }));
 
 jest.mock("../api/endpoints", () => ({
@@ -64,8 +86,16 @@ function payload(over: Partial<MyTransfersV1> = {}): MyTransfersV1 {
 
 const noop = () => {};
 
+/** Re-focus every mounted screen, the way popping back to it does. */
+async function refocus(): Promise<void> {
+  await act(async () => {
+    for (const callback of [...mockFocusCallbacks]) callback();
+  });
+}
+
 beforeEach(() => {
   mockFetch.mockReset();
+  mockFocusCallbacks.length = 0;
 });
 
 describe("a failed read", () => {
@@ -95,6 +125,97 @@ describe("a failed read", () => {
     mockFetch.mockResolvedValue({ outcome: "unsupported-version", received: 2 });
     render(<TransfersScreen onOpen={noop} />);
     await waitFor(() => expect(screen.getByText(/Actualizá la app/)).toBeTruthy());
+  });
+});
+
+// ---------------------------------------------------------------------------
+// COMING BACK TO A SCREEN THAT IS STILL MOUNTED (native QA batch 3, C4)
+//
+// Opening a proposal pushes `transferencias/[transferToken]` on top of this
+// screen. Popping back — after a reject, which answers in place and leaves
+// the person to go back themselves, or after an accept, whose `replace`
+// still leaves the hub one step behind in the stack — does not remount it.
+// A mount-only effect left the hub showing the pending state from before the
+// decision. The person had just rejected an offer the screen still listed as
+// something to answer.
+// ---------------------------------------------------------------------------
+describe("coming back into focus", () => {
+  it("re-reads the hub instead of showing the state from before the decision", async () => {
+    mockFetch.mockResolvedValue({
+      outcome: "ok",
+      payload: payload({ incoming: { pending: [aTransfer()], history: [] } }),
+    });
+    render(<TransfersScreen onOpen={noop} />);
+
+    await waitFor(() => expect(screen.getByText("Pampa")).toBeTruthy());
+    expect(screen.queryByText("No tenés transferencias pendientes.")).toBeNull();
+    expect(mockFetch).toHaveBeenCalledTimes(1);
+
+    // The proposal was rejected on the detail screen pushed on top of this one.
+    mockFetch.mockResolvedValue({
+      outcome: "ok",
+      payload: payload({
+        incoming: { pending: [], history: [aTransfer({ status: "rejected" })] },
+      }),
+    });
+    await refocus();
+
+    await waitFor(() => expect(mockFetch).toHaveBeenCalledTimes(2));
+    await waitFor(() =>
+      expect(screen.getByText("No tenés transferencias pendientes.")).toBeTruthy(),
+    );
+    expect(screen.getByText("Recibidas · Historial")).toBeTruthy();
+    expect(screen.getByText("Rechazada")).toBeTruthy();
+  });
+
+  it("keeps the rows on screen while it re-reads, instead of blanking to a skeleton", async () => {
+    // The mode matters: an "initial" read sets phase:"loading" and would
+    // replace the hub with a skeleton EVERY time somebody comes back from a
+    // proposal's detail screen — trading a stale row for a flicker on every
+    // navigation.
+    let resolveSecond: ((value: unknown) => void) | null = null;
+    mockFetch.mockResolvedValue({
+      outcome: "ok",
+      payload: payload({ incoming: { pending: [aTransfer()], history: [] } }),
+    });
+    render(<TransfersScreen onOpen={noop} />);
+    await waitFor(() => expect(screen.getByText("Pampa")).toBeTruthy());
+
+    mockFetch.mockReturnValue(
+      new Promise((resolve) => {
+        resolveSecond = resolve;
+      }),
+    );
+    await refocus();
+
+    // Mid-flight: the row is still there and the skeleton is not.
+    expect(screen.getByText("Pampa")).toBeTruthy();
+    // The skeleton announces itself as a progressbar with this label, not as
+    // visible text — `ListSkeleton` hides its own bones from the reader.
+    expect(screen.queryByLabelText("Cargando transferencias…")).toBeNull();
+
+    await act(async () => {
+      resolveSecond?.({
+        outcome: "ok",
+        payload: payload({ incoming: { pending: [aTransfer()], history: [] } }),
+      });
+    });
+  });
+
+  it("still shows the skeleton on the FIRST appearance, when there is nothing to keep", async () => {
+    let resolveFirst: ((value: unknown) => void) | null = null;
+    mockFetch.mockReturnValue(
+      new Promise((resolve) => {
+        resolveFirst = resolve;
+      }),
+    );
+    render(<TransfersScreen onOpen={noop} />);
+
+    expect(screen.getByLabelText("Cargando transferencias…")).toBeTruthy();
+
+    await act(async () => {
+      resolveFirst?.({ outcome: "ok", payload: payload() });
+    });
   });
 });
 

@@ -17,7 +17,8 @@
 // server's clock. A screen that decided "this one is answerable" from `status`
 // would tell the sender of a proposal that they can accept it.
 
-import { useCallback, useEffect, useState } from "react";
+import { useFocusEffect } from "expo-router";
+import { useCallback, useRef, useState } from "react";
 import { Pressable, RefreshControl, StyleSheet, Text, View } from "react-native";
 
 import type { MyTransferV1, MyTransfersV1 } from "@dim/contract/api";
@@ -82,9 +83,28 @@ export function TransfersScreen({ onOpen }: { onOpen: (transferToken: string) =>
     setState({ phase: "failed", message: failureMessage(result) });
   }, []);
 
-  useEffect(() => {
-    void load();
-  }, [load]);
+  // ON FOCUS, NOT ONLY ON MOUNT (native QA batch 3, C4). Opening a proposal
+  // pushes `transferencias/[transferToken]` on top of this screen; popping back
+  // — after a reject, which answers in place and leaves the person to go back
+  // themselves, or after an accept, whose `replace` still leaves the hub one
+  // step behind in the stack — does not remount it. A plain mount effect left
+  // the hub showing the pending state from before the decision. Same fix and
+  // same reasoning as `TurnosScreen`.
+  //
+  // THE RETURN IS A "refresh" AND NOT AN "initial" READ, and that distinction is
+  // the whole difference between a fix and an annoyance: `initial` sets
+  // `phase: "loading"`, which would blank the hub to a skeleton every single
+  // time somebody comes back from a proposal's detail screen. `refresh` keeps
+  // the rows on screen and shows the pull-to-refresh spinner instead. The FIRST
+  // appearance still takes the loading phase, because there is nothing yet to
+  // keep.
+  const hasLoaded = useRef(false);
+  useFocusEffect(
+    useCallback(() => {
+      void load(hasLoaded.current ? "refresh" : "initial");
+      hasLoaded.current = true;
+    }, [load]),
+  );
 
   const refresher = (
     <RefreshControl
