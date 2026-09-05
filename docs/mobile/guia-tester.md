@@ -8,7 +8,7 @@ Si algo no anda, no es que lo hiciste mal — es exactamente lo que estamos busc
 
 Vas a recibir un link para sumarte a las pruebas internas de Google Play:
 
-[[LINK DE INVITACIÓN A PRUEBAS INTERNAS DE PLAY]]
+https://play.google.com/apps/internaltest/4701563537823002634
 
 Abrilo desde tu celular Android, aceptá ser tester, y te lleva a la Play Store para instalar miMAR. Por ahora la app es solo para Android — todavía no hay versión para iPhone.
 
