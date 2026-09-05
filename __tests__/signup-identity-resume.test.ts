@@ -261,6 +261,32 @@ describe("/registro — the app handoff (?from=app), signed out", () => {
     expect(findSignupForm(tree).props.initialStep).toBe("account");
   });
 
+  // SAYING THE FORM WAS SECONDARY WAS NOT ENOUGH (batch-4 QA, 2026-09-05). The
+  // panel above already led with "Ya tenés cuenta en miMAR" and the signup form
+  // still rendered underneath at full prominence — four labelled inputs and a
+  // filled CTA read as THE form on the page whatever the paragraph above says.
+  // Testers filled it in and created a second account for an address that
+  // already had one; the duplicate masquerade then answered "ya podés ingresar"
+  // with no explanation, because the server must not confirm the address exists.
+  it("collapses the signup form behind a disclosure on the handoff face", async () => {
+    anonymous();
+
+    const tree = await renderPage({ from: "app" });
+
+    expect(isInsideDetails(tree, "SignupForm")).toBe(true);
+  });
+
+  it("leaves the signup form open on every other face", async () => {
+    anonymous();
+
+    // The default face and the resume face both LEAD with the form; hiding it
+    // there would collapse the only thing the page is for.
+    expect(isInsideDetails(await renderPage(), "SignupForm")).toBe(false);
+
+    authenticatedWith(PROVISIONAL);
+    expect(isInsideDetails(await renderPage({ from: "app" }), "SignupForm")).toBe(false);
+  });
+
   it("lets an explicit returnTo win over the self-return", async () => {
     anonymous();
 
@@ -306,6 +332,36 @@ function walk(node: unknown, visit: (n: Node) => void): void {
   const n = node as Node;
   visit(n);
   walk(n.props?.children, visit);
+}
+
+/**
+ * Whether the named component sits inside a `<details>` on this page.
+ *
+ * Walks the tree keeping a depth counter of open `details` ancestors, so the
+ * answer is about CONTAINMENT rather than about the two elements both existing.
+ * `walk` is depth-first pre-order and only descends through `props.children`,
+ * which is the same containment the DOM will have.
+ */
+function isInsideDetails(tree: unknown, componentName: string): boolean {
+  let found = false;
+  const visit = (node: unknown, insideDetails: boolean): void => {
+    if (Array.isArray(node)) {
+      for (const child of node) visit(child, insideDetails);
+      return;
+    }
+    if (!node || typeof node !== "object") return;
+    const n = node as Node;
+    if (
+      insideDetails &&
+      typeof n.type === "function" &&
+      (n.type as { name?: string }).name === componentName
+    ) {
+      found = true;
+    }
+    visit(n.props?.children, insideDetails || n.type === "details");
+  };
+  visit(tree, false);
+  return found;
 }
 
 function findSignupForm(tree: unknown): { props: Record<string, unknown> } {

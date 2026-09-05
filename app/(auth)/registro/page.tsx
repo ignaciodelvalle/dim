@@ -186,29 +186,54 @@ export default async function SignupPage({
             stranger can paste it — but the natural action on the screen has to
             be the one that is right for the person the link was built for. */}
         {appHandoff && (
-          <div className="space-y-4">
-            <div className="space-y-3 rounded-[var(--radius-sm)] border border-[var(--color-ln-line)] bg-[var(--color-ln-paper-2)] px-4 py-4">
-              <p className="text-sm text-[var(--color-ln-ink)]">
-                Ya tenés cuenta en miMAR: iniciá sesión para completar tu registro. Es el mismo
-                correo y la misma contraseña que usás en la app.
-              </p>
-              <Link
-                href={loginHref}
-                className="block w-full rounded-[var(--radius-pill)] bg-[var(--color-ln-azul)] px-4 py-3 text-center font-medium text-white no-underline hover:bg-[var(--color-ln-azul-700)]"
-              >
-                Iniciar sesión
-              </Link>
-            </div>
-            <p className="text-center text-sm text-[var(--color-ln-ink-2)]">
-              ¿Todavía no tenés cuenta? Creala acá:
+          <div className="space-y-3 rounded-[var(--radius-sm)] border border-[var(--color-ln-line)] bg-[var(--color-ln-paper-2)] px-4 py-4">
+            <p className="text-sm text-[var(--color-ln-ink)]">
+              Ya tenés cuenta en miMAR: iniciá sesión para completar tu registro. Es el mismo correo
+              y la misma contraseña que usás en la app.
             </p>
+            <Link
+              href={loginHref}
+              className="block w-full rounded-[var(--radius-pill)] bg-[var(--color-ln-azul)] px-4 py-3 text-center font-medium text-white no-underline hover:bg-[var(--color-ln-azul-700)]"
+            >
+              Iniciar sesión
+            </Link>
           </div>
         )}
-        <SignupForm
-          intent={intent}
-          returnTo={returnTo}
-          initialStep={identityPending ? "identity" : "account"}
-        />
+        {/* SAYING THE FORM IS SECONDARY WAS NOT ENOUGH (batch-4 QA, 2026-09-05).
+            The panel above already led with "Ya tenés cuenta en miMAR", and the
+            signup form still rendered underneath at full prominence — four
+            labelled inputs and a filled CTA, which reads as THE form on the page
+            whatever the paragraph above it says. Testers filled it in and made a
+            second account for an address that already had one; the server's
+            duplicate masquerade then answered them with "ya podés ingresar" and
+            no explanation, because it must not confirm the address exists.
+            (2 duplicate signups and 8 invalid-credential attempts in one hour of
+            GoTrue log.)
+
+            So on THIS face the form is collapsed behind a disclosure. It is
+            still present and still one tap away — the marker is a query
+            parameter, a stranger can paste it, and a genuine new visitor must
+            not be locked out of signing up — but it is no longer competing with
+            the door this page was opened for. `<details>` and not a client
+            toggle: it works with JavaScript off, it is keyboard-operable and
+            screen-reader-announced without any ARIA of ours, and this page is a
+            Server Component with no client state of its own to spend. */}
+        {appHandoff ? (
+          <details className="group">
+            <summary className="cursor-pointer list-none text-center text-sm text-[var(--color-ln-ink-2)] underline underline-offset-4 hover:text-[var(--color-ln-azul)]">
+              ¿Todavía no tenés cuenta? Creá una
+            </summary>
+            <div className="mt-6">
+              <SignupForm intent={intent} returnTo={returnTo} initialStep="account" />
+            </div>
+          </details>
+        ) : (
+          <SignupForm
+            intent={intent}
+            returnTo={returnTo}
+            initialStep={identityPending ? "identity" : "account"}
+          />
+        )}
         {/* Meaningless to someone who is already signed in and just finishing
             their profile — they HAVE the account. Suppressed for the app handoff
             too, and for the opposite reason: that face already leads with the
