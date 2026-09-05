@@ -23,13 +23,22 @@ vi.mock("@/lib/supabase/server", () => ({
   })),
 }));
 
-// `.returning()` SINCE 2026-09-05, and the extra link is not decoration. The act
-// moved into `completeIdentityForUser`, which needs the fresh row to build the
-// `MeV1User` its OTHER caller (`POST /api/v1/me/identity`) answers with — so the
-// UPDATE ends in a RETURNING rather than in a bare await. `mockWhere` still
-// records the write, which is what the happy-path assertion below is about.
-vi.mock("@/db", () => ({
-  db: {
+// A TRANSACTION SINCE 2026-09-05, and the extra links are not decoration. The
+// act moved into `completeIdentityForUser`, which now (a) reads the prior name so
+// the audit row has a `before`, (b) ends its UPDATE in a `RETURNING` because its
+// other caller (`POST /api/v1/me/identity`) answers with the fresh `MeV1User`,
+// and (c) writes a `profile_self_updated` row in the same transaction —
+// `lib/infra/audit-history-query.ts` renders operator labels from
+// `profiles.display_name` at READ time, so a rename retroactively relabels
+// history and has to leave a trail.
+//
+// `mockWhere` still records the UPDATE, which is what both assertions below turn
+// on: no write attempted on the no-session path, exactly one on the happy path.
+vi.mock("@/db", () => {
+  const tx = {
+    select: () => ({
+      from: () => ({ where: () => ({ limit: async () => [{ displayName: "ana.perez" }] }) }),
+    }),
     update: () => ({
       set: () => ({
         where: (...args: unknown[]) => {
@@ -42,9 +51,14 @@ vi.mock("@/db", () => ({
         },
       }),
     }),
-  },
-  profiles: {},
-}));
+    insert: () => ({ values: () => ({ returning: async () => [{ id: "audit-0001" }] }) }),
+  };
+  return {
+    db: { transaction: async (fn: (t: unknown) => Promise<unknown>) => fn(tx) },
+    profiles: {},
+    auditLog: {},
+  };
+});
 
 // Fail the test loudly if the production code ever reaches for a redirect again —
 // the honest-failure contract must NOT bounce the user back to step 1.

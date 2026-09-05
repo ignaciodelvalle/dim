@@ -102,6 +102,16 @@ const COMPLETED_USER = {
   accountType: "personal",
 };
 
+/**
+ * The SAME account once its identity is complete — a caller this door has
+ * nothing left to do for, and the one the rename gate refuses.
+ */
+const LIVE_COMPLETE = {
+  ok: true,
+  user: { id: SUBJECT, email: EMAIL },
+  profile: { displayName: "Ana Pérez", role: "owner", accountType: "personal" },
+};
+
 function postRequest(body: unknown, authorization: string | null = `Bearer ${TOKEN}`) {
   return new Request("http://localhost:3000/api/v1/me/identity", {
     method: "POST",
@@ -137,6 +147,9 @@ describe("POST /api/v1/me/identity — a PENDING identity is the caller, not the
     expect(res.status).toBe(200);
     expect(await res.json()).toEqual({ user: COMPLETED_USER });
     expect(mockComplete).toHaveBeenCalledTimes(1);
+    // The audit trail is the WRITER's, and `complete-identity-for-user.test.ts`
+    // is where it is pinned. Named here so a reader of this file knows the rename
+    // record exists and where to find it.
   });
 
   it("does NOT answer identity_pending, which would send the client back to this screen", async () => {
@@ -154,6 +167,82 @@ describe("POST /api/v1/me/identity — a PENDING identity is the caller, not the
     // decision rather than as a gate somebody forgot to copy.
     const res = await POST(postRequest(VALID_BODY));
     expect(res.status).not.toBe(404);
+  });
+
+  it("still runs the writer for a pending account submitting a name of any shape", async () => {
+    // The rename gate below must not leak into the state this door exists to
+    // leave: a PENDING caller may store whatever the schema accepts.
+    const res = await POST(postRequest({ firstName: "Otra", lastName: "Persona" }));
+
+    expect(res.status).toBe(200);
+    expect(mockComplete).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("POST /api/v1/me/identity — the rename gate (security review, 2026-09-05)", () => {
+  it("refuses a RENAME on an account whose identity is already complete", async () => {
+    // THE GATE, INVERTED. `/me/profile` refuses a caller whose identity is
+    // PENDING; this one refuses one that is already COMPLETE and submitting a
+    // different name. Left open, this was a second writer onto
+    // `profiles.display_name` addressable by any bearer token — and
+    // `lib/infra/audit-history-query.ts` renders the operator labels in
+    // /gob/historial from that column at READ time, so a rename through here
+    // retroactively relabels every past row that person appears in.
+    control.live = LIVE_COMPLETE;
+
+    const res = await POST(postRequest({ firstName: "Otra", lastName: "Persona" }));
+
+    expect(res.status).toBe(409);
+    expect(await res.json()).toEqual({ error: "identity_already_complete" });
+    expect(mockComplete).not.toHaveBeenCalled();
+  });
+
+  it("answers 200 to the SAME names on a complete account, writing nothing", async () => {
+    // The lost-response retry the endpoint promises, and the reason the gate is
+    // not a blanket refusal: the first call landed, the answer never arrived, the
+    // client re-sends the same body. Answered from the guard's own profile — no
+    // write, and no audit row claiming a change that did not happen.
+    control.live = LIVE_COMPLETE;
+
+    const res = await POST(postRequest(VALID_BODY));
+
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ user: COMPLETED_USER });
+    expect(mockComplete).not.toHaveBeenCalled();
+  });
+
+  it("treats a differently-cased name as a rename, not as a retry", async () => {
+    // `display_name` is stored and rendered verbatim, so "ana pérez" is a
+    // different label from "Ana Pérez" everywhere it appears. On an ambiguous
+    // retry the safe direction is to refuse rather than to silently relabel.
+    control.live = LIVE_COMPLETE;
+
+    const res = await POST(postRequest({ firstName: "ana", lastName: "pérez" }));
+
+    expect(res.status).toBe(409);
+    expect(mockComplete).not.toHaveBeenCalled();
+  });
+
+  it("compares the JOINED name, so surrounding whitespace is still a retry", async () => {
+    control.live = LIVE_COMPLETE;
+
+    const res = await POST(postRequest({ firstName: "  Ana ", lastName: " Pérez  " }));
+
+    expect(res.status).toBe(200);
+    expect(mockComplete).not.toHaveBeenCalled();
+  });
+
+  it("refuses a rename BEFORE spending the write budget, but AFTER the limiters", async () => {
+    control.live = LIVE_COMPLETE;
+
+    await POST(postRequest({ firstName: "Otra", lastName: "Persona" }));
+
+    // The limiters still ran: a caller hammering this door with renames must not
+    // get a free counter by being refused.
+    expect(control.limits).toEqual([
+      { endpoint: "api_v1_me_identity_ip", identifier: "203.0.113.55" },
+      { endpoint: "api_v1_me_identity_user", identifier: SUBJECT },
+    ]);
   });
 
   it("carries the completed user, never a still-pending one", async () => {

@@ -128,10 +128,17 @@ export async function completeIdentityAction(
     // so this branch cannot accidentally learn to tell them apart. The duplicate
     // is still prevented — the index rejects the write.
     if (result.error === "VALIDATION") {
-      // Reached only for a name past the per-half bound; the empty case is
-      // already refused above with the sentence this form has always shown.
+      // THE CODE, NOT AN ASSUMPTION ABOUT WHICH RULE FIRED. This branch answered
+      // "es demasiado largo" to every schema refusal, on the reasoning that the
+      // empty case is already caught above — true until `NAME_INVALID` landed
+      // (2026-09-05), at which point it told somebody who had pasted a zero-width
+      // character that their four-letter name was too long.
+      const noun = result.field === "lastName" ? "apellido" : "nombre";
       return {
-        error: `Ese ${result.field === "lastName" ? "apellido" : "nombre"} es demasiado largo. Escribilo más corto.`,
+        error:
+          result.code === "NAME_TOO_LONG"
+            ? `Ese ${noun} es demasiado largo. Escribilo más corto.`
+            : `Revisá ese ${noun}: necesita al menos una letra y no puede llevar caracteres invisibles. Si lo copiaste y pegaste, escribilo a mano.`,
         firstName,
         lastName,
       };

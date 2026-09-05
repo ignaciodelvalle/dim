@@ -25,15 +25,64 @@ vi.mock("@/lib/supabase/server", () => ({
   })),
 }));
 
-// Profile UPDATE chain — db.update(profiles).set({...}).where(...) resolves or
-// rejects under our control so we can simulate a DNI unique-violation.
+// THE PROFILE WRITE, AS IT NOW HAPPENS: one transaction carrying a read, the
+// UPDATE (which ends in `RETURNING`) and the audit row.
+//
+// WHAT THIS DOUBLE USED TO BE, AND WHY IT WENT SILENTLY WRONG (2026-09-05). It
+// stopped at `.where()`, and the writer grew a `.returning()` when signup step 2
+// moved into `completeIdentityForUser`. Three things then happened at once and
+// only one of them was visible:
+//
+//   · the happy-path case went RED, because `.where()` returned a promise with
+//     no `.returning` on it and the resulting TypeError was caught by the
+//     writer's own catch and reported as a write failure;
+//   · both DNI-enumeration cases went VACUOUSLY GREEN. `mockWhere.mockRejected‐
+//     Value(dniUniqueViolation())` was never awaited — `.returning()` threw
+//     first — so the 23505 branch these tests exist for was exercised by
+//     nothing, and they would have passed with the defence deleted.
+//
+// So the rejection is driven through `returning` now, which is where the driver
+// actually raises a unique violation, and the double models the transaction
+// rather than one link of it. `writeAuditLog` is deliberately NOT mocked: it
+// runs for real against the `insert` below, which is what keeps this file honest
+// about the audit row now sharing the transaction with the DNI write.
 const mockWhere = vi.fn();
-vi.mock("@/db", () => ({
-  db: {
-    update: () => ({ set: () => ({ where: (...args: unknown[]) => mockWhere(...args) }) }),
-  },
-  profiles: {},
-}));
+const mockReturning = vi.fn<() => Promise<unknown[]>>();
+const mockAuditValues = vi.fn();
+
+/** The row the UPDATE hands back for a completed profile. */
+const UPDATED_ROW = { displayName: "Ana Pérez", role: "owner", accountType: "personal" };
+
+vi.mock("@/db", () => {
+  const tx = {
+    select: () => ({
+      from: () => ({
+        where: () => ({ limit: async () => [{ displayName: "ana.perez" }] }),
+      }),
+    }),
+    update: () => ({
+      set: () => ({
+        where: (...args: unknown[]) => {
+          mockWhere(...args);
+          return { returning: () => mockReturning() };
+        },
+      }),
+    }),
+    insert: () => ({
+      values: (values: unknown) => ({
+        returning: async () => {
+          mockAuditValues(values);
+          return [{ id: "audit-0001" }];
+        },
+      }),
+    }),
+  };
+  return {
+    db: { transaction: async (fn: (t: unknown) => Promise<unknown>) => fn(tx) },
+    profiles: {},
+    auditLog: {},
+  };
+});
 
 vi.mock("next/navigation", () => ({ redirect: vi.fn() }));
 
@@ -110,6 +159,7 @@ function dniUniqueViolation(): Error {
 beforeEach(() => {
   vi.clearAllMocks();
   mockGetUser.mockResolvedValue({ data: { user: { id: "user-0001" } } });
+  mockReturning.mockResolvedValue([UPDATED_ROW]);
 });
 
 // ---------------------------------------------------------------------------
@@ -152,26 +202,55 @@ describe("signupAction — email enumeration defense", () => {
 
 describe("completeIdentityAction — DNI enumeration defense", () => {
   it("returns a generic error on a DNI unique violation (does not confirm existence)", async () => {
-    mockWhere.mockRejectedValue(dniUniqueViolation());
+    mockReturning.mockRejectedValue(dniUniqueViolation());
     const result = await completeIdentityAction({ error: null }, identityForm());
     expect(result.error).toMatch(/No pudimos guardar tus datos/);
     expect(result.error).not.toMatch(/DNI ya está registrado|otra cuenta/i);
+    // NON-VACUITY: the rejection has to have been REACHED. Without this the case
+    // passes when nothing at all runs, which is exactly how it passed for the
+    // length of the `.returning()` regression this file's mock header describes.
+    expect(mockReturning).toHaveBeenCalledTimes(1);
   });
 
   it("returns the SAME generic error for a DNI collision and an unrelated failure", async () => {
-    mockWhere.mockRejectedValueOnce(dniUniqueViolation());
+    mockReturning.mockRejectedValueOnce(dniUniqueViolation());
     const collision = await completeIdentityAction({ error: null }, identityForm());
-    mockWhere.mockRejectedValueOnce(new Error("connection reset"));
+    mockReturning.mockRejectedValueOnce(new Error("connection reset"));
     const other = await completeIdentityAction({ error: null }, identityForm());
     // Indistinguishable — an attacker cannot tell a taken DNI from any error.
     expect(collision).toEqual(other);
     // And the raw internal error is never surfaced.
     expect(other.error).not.toMatch(/connection reset/i);
+    expect(mockReturning).toHaveBeenCalledTimes(2);
   });
 
   it("succeeds when the write goes through (no collision)", async () => {
-    mockWhere.mockResolvedValue(undefined);
     const result = await completeIdentityAction({ error: null }, identityForm());
     expect(result).toEqual({ error: null, ok: true });
+    expect(mockWhere).toHaveBeenCalledTimes(1);
+  });
+
+  it("writes the audit row inside the same transaction, carrying no DNI", async () => {
+    await completeIdentityAction({ error: null }, identityForm());
+
+    expect(mockAuditValues).toHaveBeenCalledTimes(1);
+    const [[values]] = mockAuditValues.mock.calls as [[Record<string, unknown>]];
+    expect(values.action).toBe("profile_self_updated");
+    // THE DNI NEVER REACHES THE AUDIT ROW, in any form. `audit_log.payload` is
+    // free-form jsonb read by operators in `/gob/historial`; a DNI in it would be
+    // plaintext PII on a surface the hashing exists to keep it off (invariant #5).
+    const serialised = JSON.stringify(values);
+    expect(serialised).not.toContain("30111222");
+    expect(serialised).not.toContain("dni");
+  });
+
+  it("does not write an audit row when the profile write fails", async () => {
+    mockReturning.mockRejectedValue(dniUniqueViolation());
+
+    await completeIdentityAction({ error: null }, identityForm());
+
+    // The audit row is written AFTER the update inside the same transaction, so a
+    // failed write cannot leave a row claiming a rename that never happened.
+    expect(mockAuditValues).not.toHaveBeenCalled();
   });
 });

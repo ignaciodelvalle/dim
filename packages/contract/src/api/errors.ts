@@ -174,6 +174,42 @@
  *                           on the next cold start, so the endpoint refuses
  *                           instead of trusting the arithmetic.
  *
+ * - `identity_already_complete`
+ *                         — `POST /api/v1/me/identity` only. The caller's identity
+ *                           is ALREADY complete and the submitted names would
+ *                           store a DIFFERENT `display_name`. 409 — the status
+ *                           this surface already uses for "the resource is not in
+ *                           a state that accepts this command"
+ *                           (`transfer_already_resolved`,
+ *                           `caretaker_already_resolved`, `return_no_proposal`).
+ *
+ *                           WHY A RENAME IS REFUSED HERE RATHER THAN PERFORMED
+ *                           (security review, 2026-09-05). This endpoint exists
+ *                           to END the provisional state, once; it is not the
+ *                           rename door. That is `POST /api/v1/me/profile`, which
+ *                           takes a whole `displayName` and refuses a PENDING
+ *                           caller for the mirror-image reason. Left open, this
+ *                           route was a second writer onto `profiles.display_name`
+ *                           addressable by any bearer token — and
+ *                           `lib/infra/audit-history-query.ts` resolves the
+ *                           operator labels shown in `/gob/historial` from that
+ *                           column at READ time, so a rename through it
+ *                           retroactively relabels every past row that person
+ *                           appears in.
+ *
+ *                           IDENTICAL NAMES ON A COMPLETE ACCOUNT ARE STILL A
+ *                           200, and that is not a hole in the refusal — it is
+ *                           the lost-response retry the endpoint promises. The
+ *                           first call landed, the answer never arrived, the
+ *                           client sends the same body again and gets the same
+ *                           user back, with nothing written.
+ *
+ *                           NOT `identity_pending`, which is its inverse, and NOT
+ *                           `not_found`: caller and resource both exist, and the
+ *                           move is neither "retry" nor "go finish registering"
+ *                           but "your data is already loaded — editar mis datos
+ *                           is where it changes".
+ *
  * - `identity_failed`     — `POST /api/v1/me/identity` only. The caller is live,
  *                           the names are usable, and the write did not land:
  *                           the `profiles` row was gone between the guard's read
@@ -927,6 +963,7 @@ export const API_V1_ERROR_CODES = [
   "signup_failed",
   "identity_pending",
   "identity_name_provisional",
+  "identity_already_complete",
   "identity_failed",
   "idempotency_key_required",
   "duplicate_pet_suspected",

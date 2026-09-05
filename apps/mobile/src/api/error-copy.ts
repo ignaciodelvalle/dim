@@ -85,8 +85,8 @@ export function apiErrorMessage(code: ApiV1ErrorCode): string {
     // this if a gate was skipped — which is the case the code exists for.
     case "identity_pending":
       return "Todavía no completaste tus datos. Terminá el registro para poder registrar una mascota.";
-    // The two codes of `POST /api/v1/me/identity`, which is the screen that
-    // FIXES the state above — so neither sentence may send the person to
+    // The three codes of `POST /api/v1/me/identity`, which is the screen that
+    // FIXES the state above — so none of these sentences may send the person to
     // "terminá el registro". They are already there.
     case "identity_name_provisional":
       // NAMES THE FIELD, not the request. The person typed something the server
@@ -94,6 +94,13 @@ export function apiErrorMessage(code: ApiV1ErrorCode): string {
       // move is to type a different one. Nearly unreachable in practice (see the
       // contract), which is why it says what to do rather than apologising.
       return "Ese nombre no nos sirve para identificarte. Escribí tu nombre y apellido reales.";
+    case "identity_already_complete":
+      // NOT "no tenés permiso": nothing was denied and nothing is missing. The
+      // person's data is already loaded and this door only ever loads it once, so
+      // the sentence names the place where a name actually changes. A gate that
+      // is working sends nobody here — reaching it means the app's copy of
+      // `profilePending` was stale, which "actualizá" alone would not explain.
+      return "Tus datos ya están cargados. Si querés corregirlos, entrá a Ajustes → Editar mis datos.";
     case "identity_failed":
       // Retrying IS safe and the copy says so: completing an identity is a value,
       // not an append, so writing the same two names twice writes them once.

@@ -42,6 +42,7 @@
 // VALUE, not an append. Sending the same two names twice sets them once, and the
 // second call answers the same 200 with the same user.
 
+import { isIdentityPending, toMeV1User } from "@/lib/domain/identity-completeness";
 import { apiV1Error, apiV1Json } from "@/lib/infra/api-v1";
 import {
   API_V1_AUTHENTICATED_WRITE_IP_LIMIT,
@@ -54,7 +55,7 @@ import { reportError } from "@/lib/infra/report-error";
 import { createClientFromBearer } from "@/lib/supabase/bearer";
 import { completeIdentityForUser } from "@/src/modules/auth/application/complete-identity-for-user";
 import type { IdentityCompletedV1 } from "@dim/contract/api";
-import { completeIdentityInputSchema } from "@dim/contract/input";
+import { completeIdentityInputSchema, identityDisplayName } from "@dim/contract/input";
 
 export const dynamic = "force-dynamic";
 
@@ -110,11 +111,11 @@ export async function POST(request: Request) {
   }
   if (!live.ok) return liveUserRefusal(live.reason);
 
-  // THERE IS NO `isIdentityPending` REFUSAL HERE, and its absence is the whole
-  // design — see the header. Nothing in this file imports the predicate, which is
-  // said out loud so a reader comparing this route against `/me/profile` can see
-  // the omission is a decision rather than a line somebody forgot. The rule it
-  // would enforce is enforced instead by the writer, on the value being STORED.
+  // THE PENDING GATE IS INVERTED HERE, NOT ABSENT — see the block after the body
+  // parse. `/me/profile` refuses a caller whose identity is PENDING; this route
+  // refuses one whose identity is already COMPLETE and who is trying to store a
+  // different name. Same predicate, opposite arm, and between the two of them
+  // `profiles.display_name` has exactly one door per state.
 
   // Per-user budget, spent only once the caller is KNOWN — the bucket carrier NAT
   // cannot dilute, because identities are not shared.
@@ -143,6 +144,58 @@ export async function POST(request: Request) {
   // wire does not.
   const parsed = completeIdentityInputSchema.safeParse(body);
   if (!parsed.success) return apiV1Error("invalid_request", 400);
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // THE RENAME GATE (security review, 2026-09-05)
+  // ═══════════════════════════════════════════════════════════════════════════
+  // This route ends the provisional state, ONCE. It is not the rename door —
+  // that is `POST /api/v1/me/profile`, which takes a whole `displayName`, writes
+  // its own audit row, and refuses a PENDING caller for the mirror-image reason.
+  //
+  // Without this block the endpoint was a SECOND writer onto
+  // `profiles.display_name` addressable by any bearer token, and that column is
+  // not only this person's label: `lib/infra/audit-history-query.ts` resolves the
+  // operator names shown in `/gob/historial` from it at READ time, so renaming
+  // through here retroactively relabels every past row that person appears in.
+  // The audit row `completeIdentityForUser` now writes records such a rename;
+  // this block is what stops it being available in the first place.
+  //
+  // IDENTICAL NAMES STILL ANSWER 200. That is the lost-response retry the
+  // docblock promises and it must survive the gate: the first call landed, the
+  // answer did not arrive, the client re-sends the same body. It is answered
+  // from the guard's own profile with NO write and NO audit row — writing again
+  // would claim a change that did not happen.
+  //
+  // AFTER THE BODY IS PARSED, unlike `/me/profile`'s pending check, and the
+  // difference is deliberate rather than an inconsistency. That one refuses
+  // before reading the body so a half-registered caller cannot learn whether its
+  // JSON would have been accepted; this one is about a COMPLETE account, which
+  // already has full access to this surface, so there is no asymmetry to
+  // protect — and the refusal genuinely depends on what was submitted.
+  const storedDisplayName = live.profile?.displayName ?? "";
+  if (!isIdentityPending({ displayName: storedDisplayName, email: live.user.email })) {
+    const submitted = identityDisplayName(parsed.data.firstName, parsed.data.lastName);
+    if (submitted !== storedDisplayName) return apiV1Error("identity_already_complete", 409);
+
+    // The retry arm. `live.profile` is non-null here: `isIdentityPending` answers
+    // true for a missing profile, so reaching this line means the guard resolved
+    // one — but it is narrowed explicitly rather than asserted, because a
+    // non-null assertion is how that reasoning stops being checked.
+    if (live.profile) {
+      const payload: IdentityCompletedV1 = {
+        user: toMeV1User({
+          id: live.user.id,
+          email: live.user.email,
+          profile: {
+            displayName: live.profile.displayName,
+            role: live.profile.role,
+            accountType: live.profile.accountType,
+          },
+        }),
+      };
+      return apiV1Json(payload, { status: 200 });
+    }
+  }
 
   let result: Awaited<ReturnType<typeof completeIdentityForUser>>;
   try {
