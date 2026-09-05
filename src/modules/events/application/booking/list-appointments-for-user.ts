@@ -179,7 +179,10 @@ export async function listAppointmentsForUser(args: {
       petName: pets.name,
       orgDisplayName: organizations.displayName,
       orgPhone: organizations.phone,
-      orgLocality: organizations.jurisdictionLocality,
+      // THE OFFERING'S OWN locality, never the organisation's registered
+      // address — see `resolveProvider` below for why. `serviceOfferings` is
+      // already INNER joined here.
+      offeringLocality: serviceOfferings.jurisdictionLocality,
       providerDisplayName: profiles.displayName,
       providerMatricula: profiles.matriculaNumber,
       providerPhone: profiles.phone,
@@ -249,12 +252,22 @@ export async function listAppointmentsForUser(args: {
  * so it is what the row itself says about who it was booked with. The names come
  * from LEFT joins, so either side can be absent for a deleted org or profile;
  * that is `unknown`, and the client owns the sentence for it.
+ *
+ * `locality` IS THE OFFERING'S, NOT THE ORGANISATION'S — fixed 2026-09-04. This
+ * query used to select `organizations.jurisdiction_locality` here, so a turno
+ * booked with an org that runs offerings away from its own registered address
+ * (e.g. the La Matanza and Palermo pilot offerings run by one Recoleta-based
+ * clinic) showed that home address on every turno, regardless of which
+ * offering was actually booked. Same bug, same fix as `coverageLabel` in
+ * `appointment-search.ts` (2026-08-13): the offering's own jurisdiction
+ * columns are what the booking is valid against, and `serviceOfferings` is
+ * already joined in this query.
  */
 function resolveProvider(row: {
   organizationId: string | null;
   orgDisplayName: string | null;
   orgPhone: string | null;
-  orgLocality: string | null;
+  offeringLocality: string | null;
   providerDisplayName: string | null;
   providerMatricula: string | null;
   providerPhone: string | null;
@@ -264,7 +277,7 @@ function resolveProvider(row: {
       kind: "organization",
       displayName: row.orgDisplayName,
       phone: row.orgPhone,
-      locality: row.orgLocality,
+      locality: row.offeringLocality,
     };
   }
   if (row.organizationId === null && row.providerDisplayName !== null) {

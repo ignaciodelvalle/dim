@@ -184,7 +184,7 @@ type ProviderColumns = {
   organizationId: string | null;
   orgDisplayName: string | null;
   orgPhone: string | null;
-  orgLocality: string | null;
+  jurisdictionLocality: string | null;
   providerDisplayName: string | null;
   providerMatricula: string | null;
 };
@@ -197,6 +197,15 @@ type ProviderColumns = {
  * onto the booking, because that is what the row says about who it was booked
  * with; nothing is booked yet, so the offering's own column is the only one there
  * is. The two are the same value at insert time (`book-slot.ts:156-166`).
+ *
+ * `locality` IS THE OFFERING'S, NOT THE ORGANISATION'S — fixed 2026-09-04,
+ * same shape as `list-appointments-for-user.ts`'s `resolveProvider`. This one
+ * reused `organizations.jurisdiction_locality` (`OFFERING_COLUMNS.orgLocality`,
+ * now removed) even though `jurisdictionLocality` — the offering's own column,
+ * already selected here for `coverageLabel` — was sitting right next to it.
+ * Same root cause as the 2026-08-13 `coverageLabel` incident this file's header
+ * already cites: an org running an offering away from its own registered
+ * address must show THAT place, not its home address.
  */
 // Exported for the PII fence (__tests__/appointment-search-provider-pii.test.ts).
 export function resolveProvider(row: ProviderColumns): BookableProvider {
@@ -205,7 +214,7 @@ export function resolveProvider(row: ProviderColumns): BookableProvider {
       kind: "organization",
       displayName: row.orgDisplayName,
       phone: row.orgPhone,
-      locality: row.orgLocality,
+      locality: row.jurisdictionLocality,
     };
   }
   if (row.organizationId === null && row.providerDisplayName !== null) {
@@ -284,7 +293,10 @@ const OFFERING_COLUMNS = {
   organizationId: serviceOfferings.organizationId,
   orgDisplayName: organizations.displayName,
   orgPhone: organizations.phone,
-  orgLocality: organizations.jurisdictionLocality,
+  // NOTE: no `orgLocality` column here on purpose. `resolveProvider` reads
+  // `jurisdictionLocality` above — the offering's own — for `provider.locality`
+  // too; a second selection of `organizations.jurisdiction_locality` would only
+  // recreate the column the 2026-09-04 fix removed.
   providerDisplayName: profiles.displayName,
   providerMatricula: profiles.matriculaNumber,
   // profiles.phone DELIBERATELY ABSENT — PO decision 2026-09-01, see

@@ -36,7 +36,6 @@ export default async function AppointmentDetailPage({
         avatarUrl: organizations.avatarUrl,
         email: organizations.email,
         phone: organizations.phone,
-        jurisdictionLocality: organizations.jurisdictionLocality,
       },
       provider: {
         displayName: profiles.displayName,
@@ -172,8 +171,16 @@ export default async function AppointmentDetailPage({
                 ? `$${Number(offering.priceArs).toLocaleString("es-AR")}`
                 : "Gratuito"}
             </DetailRow>
-            {org?.jurisdictionLocality && (
-              <DetailRow label="Localidad">{org.jurisdictionLocality}</DetailRow>
+            {/* THE OFFERING'S OWN locality, never the organisation's
+                registered address — this used to read
+                `org.jurisdictionLocality`. Same bug, same fix as
+                `list-appointments-for-user.ts` (2026-09-04) and
+                `coverageLabel` in `appointment-search.ts` (2026-08-13).
+                Gated on `organizationId`, matching `providerLabel` above: an
+                independent professional's offering carries no locality row
+                on any appointments surface. */}
+            {appointment.organizationId && offering.jurisdictionLocality && (
+              <DetailRow label="Localidad">{offering.jurisdictionLocality}</DetailRow>
             )}
             {org?.phone && <DetailRow label="Teléfono">{org.phone}</DetailRow>}
             {!org && provider?.phone && <DetailRow label="Teléfono">{provider.phone}</DetailRow>}

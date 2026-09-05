@@ -95,6 +95,18 @@ export type AppointmentProviderV1Search =
       displayName: string;
       /** The clinic's number, for the person who has to get there. */
       phone: string | null;
+      /**
+       * The OFFERING's own jurisdiction locality, never the organisation's
+       * registered address.
+       *
+       * SAME RULE, SAME 2026-08-13 INCIDENT `coverageLabel` states above: a
+       * label naming the org's own address instead of the offering's names a
+       * place the search itself rejects. `search-bookable-slots.ts`'s
+       * `resolveProvider` carried the org's locality on THIS field until
+       * 2026-09-04 — `coverageLabel` was fixed in 2026-08-13 and this nested
+       * field was not, so an org running an offering away from its own
+       * address still showed its home address here.
+       */
       locality: string | null;
     }
   | {

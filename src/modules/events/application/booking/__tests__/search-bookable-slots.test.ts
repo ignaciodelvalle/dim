@@ -399,6 +399,41 @@ describe("searchBookableOfferings — what comes back", () => {
     });
     expect(result?.coverageLabel).toBe("Dina Huapi");
   });
+
+  it("resolves the organization's provider.locality from the OFFERING too, never the org's own address", async () => {
+    // Same root cause as the coverageLabel case above, one field over: fixed
+    // 2026-09-04. `resolveProvider` used to read `organizations.jurisdiction_
+    // locality` (a decoy here, "San Carlos de Bariloche") for this nested
+    // field even after `coverageLabel` was fixed in 2026-08-13 to read the
+    // offering's own column. The two columns are deliberately made to
+    // disagree, exactly as above.
+    control.plan = [
+      {
+        terminal: "where",
+        rows: [
+          offeringRow({
+            jurisdictionLocality: "Dina Huapi",
+            orgLocality: "San Carlos de Bariloche",
+          }),
+        ],
+      },
+      { terminal: "orderBy", rows: [{ serviceOfferingId: OFFERING_ID, startsAt: at(60) }] },
+    ];
+    const [result] = await searchBookableOfferings({
+      serviceKind: "vaccination_rabies",
+      province: null,
+      locality: null,
+      fromDate: null,
+      freeOnly: false,
+      now: NOW,
+    });
+    expect(result?.provider).toEqual({
+      kind: "organization",
+      displayName: "Zoonosis Bariloche",
+      phone: "+54 294 442-0000",
+      locality: "Dina Huapi",
+    });
+  });
 });
 
 describe("readBookableOffering — the offering lookup", () => {

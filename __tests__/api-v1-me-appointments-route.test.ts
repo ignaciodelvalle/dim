@@ -229,7 +229,9 @@ function row(over: Record<string, unknown> = {}) {
     petName: "Pampa",
     orgDisplayName: "Zoonosis Bariloche",
     orgPhone: "+54 294 442-0000",
-    orgLocality: "San Carlos de Bariloche",
+    // The OFFERING's own locality (`serviceOfferings.jurisdictionLocality`),
+    // not the organisation's registered address — see `resolveProvider`.
+    offeringLocality: "San Carlos de Bariloche",
     providerDisplayName: null,
     providerMatricula: null,
     providerPhone: null,
@@ -383,13 +385,38 @@ describe("GET — what each row carries", () => {
     });
   });
 
+  it("uses the OFFERING's own locality, never the organisation's registered address", async () => {
+    // Root cause of the QA bug found 2026-09-04: this query used to select
+    // `organizations.jurisdiction_locality` here, so every turno booked with
+    // an org read that org's OWN address regardless of which offering (which
+    // may run outreach campaigns in other neighbourhoods) was actually
+    // booked — the La Matanza and Palermo pilot offerings both read
+    // "Recoleta". Same bug, same fix as `coverageLabel` in
+    // `appointment-search.ts` shipped for search on 2026-08-13.
+    control.rows = [
+      row({
+        // A decoy under the OLD key: if `resolveProvider` ever reads this
+        // again instead of `offeringLocality`, this assertion catches it.
+        orgLocality: "Recoleta",
+        offeringLocality: "La Matanza",
+      }),
+    ];
+    const [item] = (await payloadOf(await get())).upcoming;
+
+    expect(item?.provider).toEqual({
+      kind: "organization",
+      displayName: "Zoonosis Bariloche",
+      phone: "+54 294 442-0000",
+      locality: "La Matanza",
+    });
+  });
+
   it("resolves an independent vet to the professional arm and never to the org one", async () => {
     control.rows = [
       row({
         organizationId: null,
         orgDisplayName: null,
         orgPhone: null,
-        orgLocality: null,
         providerDisplayName: "Ana Beatriz Rossi",
         providerMatricula: "MP 4821",
         providerPhone: "+54 294 415-1111",
@@ -406,7 +433,7 @@ describe("GET — what each row carries", () => {
   });
 
   it("answers `unknown` when the LEFT join found nobody, instead of inventing a name", async () => {
-    control.rows = [row({ orgDisplayName: null, orgPhone: null, orgLocality: null })];
+    control.rows = [row({ orgDisplayName: null, orgPhone: null })];
     const [item] = (await payloadOf(await get())).upcoming;
 
     expect(item?.provider).toEqual({ kind: "unknown" });
@@ -478,6 +505,16 @@ describe("GET — what each row carries", () => {
     // assertions above a statement about this query rather than about a stub
     // that captured nothing.
     expect(selected).toContain('"appointments"."public_token"');
+
+    // Same projection, same `selected` array — pinning the turno-locality
+    // regression here too instead of a second query-compile test. QA bug
+    // found 2026-09-04: this query used to select
+    // `organizations.jurisdiction_locality`, so every turno read the ORG's
+    // own registered address regardless of which offering was booked. Fixed
+    // alongside `coverageLabel` in `appointment-search.ts` (2026-08-13).
+    // `resolveProvider` must read the OFFERING's own locality.
+    expect(selected).toContain('"service_offerings"."jurisdiction_locality"');
+    expect(selected).not.toContain('"organizations"."jurisdiction_locality"');
   });
 });
 

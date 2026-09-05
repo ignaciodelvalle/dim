@@ -39,7 +39,7 @@ const ROW_BASE = {
   organizationId: null as string | null,
   orgDisplayName: null as string | null,
   orgPhone: null as string | null,
-  orgLocality: null as string | null,
+  jurisdictionLocality: null as string | null,
   providerDisplayName: null as string | null,
   providerMatricula: null as string | null,
 };
@@ -70,7 +70,7 @@ describe("resolveProvider — whose phone the search payload may carry", () => {
       organizationId: "org-1",
       orgDisplayName: "Zoonosis Central",
       orgPhone: "+54 11 4000-0000",
-      orgLocality: "Palermo",
+      jurisdictionLocality: "Palermo",
     });
 
     expect(provider).toEqual({

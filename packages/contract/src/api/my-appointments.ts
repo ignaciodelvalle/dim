@@ -151,6 +151,19 @@ export type AppointmentProviderV1 =
       displayName: string;
       /** The clinic's number, for the person who has to get there. See the header. */
       phone: string | null;
+      /**
+       * The OFFERING's own jurisdiction locality, never the organisation's
+       * registered address.
+       *
+       * SAME RULE, SAME INCIDENT `coverageLabel` states in
+       * `appointment-search.ts`: on 2026-08-13 a web detail page printed the
+       * org's locality while search matched the offering's, so a label named
+       * a place the search rejected. `list-appointments-for-user.ts` carried
+       * the identical bug on THIS field until 2026-09-04 — a turno booked
+       * with an org running offerings away from its own address (outreach
+       * campaigns in a different neighbourhood) showed that home address on
+       * every turno, regardless of which offering was actually booked.
+       */
       locality: string | null;
     }
   | {
