@@ -161,6 +161,7 @@ export {
   type MyProfileUpdatedV1,
   type MyProfileV1,
 } from "./my-profile.ts";
+export type { IdentityCompletedV1 } from "./my-identity.ts";
 export {
   APPOINTMENT_SECTIONS_V1,
   APPOINTMENT_STATUSES_V1,

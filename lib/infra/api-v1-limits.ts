@@ -1008,6 +1008,27 @@ export const API_V1_IP_BUCKET_FAMILIES: Readonly<Record<string, ApiV1IpFamily>> 
   api_v1_me_profile_read_ip: "authenticated-read",
   api_v1_me_profile_write_ip: "authenticated-write",
 
+  // Landed with the native identity door (`POST /me/identity`, PO 2026-09-05) —
+  // signup step 2, moved off the browser handoff that pilot testers were reading
+  // as "confirm your email".
+  //
+  // `authenticated-write` AND NOT `account-security`, which is the tempting
+  // neighbour twice over: it is a `/me` write, and it is a once-per-lifetime act
+  // on the caller's own account, which is two thirds of that family's shape. It
+  // is not the third: that family's derivation is that the act's failure mode is
+  // "you cannot sign out of the phone you lost" or "you cannot exercise a legal
+  // right", and its ceiling (60/min) is sized for something nobody does twice.
+  // What this actually is, at the moment somebody is doing it, is one person in a
+  // two-field form who may well tap "Guardar" again because the first tap did not
+  // look like it registered — the `me/profile` anchor exactly, and the same
+  // family it takes.
+  //
+  // The per-USER bucket is the one that matters here and it is the ordinary
+  // authenticated-write anchor rather than something tighter: the act is
+  // idempotent (a name is a value, not an append), so a retry storm from one
+  // account costs one UPDATE per request and buys the caller nothing.
+  api_v1_me_identity_ip: "authenticated-write",
+
   // Landed with the native turnos door (WU-S, `me/appointments`). Both halves
   // take the GENERIC families, and BOTH choices are the neighbouring one being
   // rejected rather than a default being taken.

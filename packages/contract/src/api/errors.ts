@@ -134,6 +134,54 @@
  *                           NOT exist for a pending account. Here the resource
  *                           is the caller's pets, which do.
  *
+ * - `identity_name_provisional`
+ *                         — `POST /api/v1/me/identity` only. The body PARSED —
+ *                           two non-empty names inside the length bound — and
+ *                           the display name they join into would STILL read as
+ *                           provisional to `isIdentityPending`, because it
+ *                           equals the local part of the caller's own address.
+ *                           422: the request is well-formed and the server
+ *                           understood it; what it cannot do is accept a value
+ *                           that leaves the caller in the exact state the call
+ *                           was made to leave.
+ *
+ *                           NOT `invalid_request`, which this surface reserves
+ *                           for a body that failed the shared schema — a client
+ *                           validates against `completeIdentityInputSchema`
+ *                           locally first, so `invalid_request` means "your
+ *                           build is out of step with the contract, update the
+ *                           app" and that is the wrong sentence to put in front
+ *                           of somebody who typed their real name. This refusal
+ *                           depends on the caller's EMAIL, which no wire schema
+ *                           can see, so it can only arrive from the server.
+ *
+ *                           And emphatically NOT `identity_pending`, whose whole
+ *                           meaning is "go and finish registering". Answering it
+ *                           from the endpoint that finishes registering sends a
+ *                           client back to the screen it is already on.
+ *
+ *                           NEARLY UNREACHABLE, AND KEPT ANYWAY. The schema
+ *                           requires both halves, so the stored value always
+ *                           contains a space, and an unquoted email local part
+ *                           cannot — which is the same argument
+ *                           `isIdentityPending`'s own header makes about the web
+ *                           form. What it does NOT cover is a QUOTED local part
+ *                           (`"ana perez"@example.com` is a legal address), and
+ *                           it stops covering anything the day either the schema
+ *                           or the predicate is relaxed. A 200 that leaves the
+ *                           caller `profilePending: true` is a client flipping
+ *                           its stored session to a state `/me` will contradict
+ *                           on the next cold start, so the endpoint refuses
+ *                           instead of trusting the arithmetic.
+ *
+ * - `identity_failed`     — `POST /api/v1/me/identity` only. The caller is live,
+ *                           the names are usable, and the write did not land:
+ *                           the `profiles` row was gone between the guard's read
+ *                           and the update, or the driver refused. 500. Retrying
+ *                           IS safe and the copy says so — completing an identity
+ *                           is a VALUE, not an append, so writing the same two
+ *                           names twice is writing them once.
+ *
  * - `idempotency_key_required`
  *                         — the `Idempotency-Key` request header was absent,
  *                           blank, or NOT A UUID on a write that requires it.
@@ -878,6 +926,8 @@ export const API_V1_ERROR_CODES = [
   "invalid_request",
   "signup_failed",
   "identity_pending",
+  "identity_name_provisional",
+  "identity_failed",
   "idempotency_key_required",
   "duplicate_pet_suspected",
   "pet_registration_failed",

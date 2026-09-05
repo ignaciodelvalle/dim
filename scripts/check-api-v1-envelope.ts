@@ -242,8 +242,18 @@ export const V1_ROUTE_GLOB = "app/api/v1/**/route.ts";
  * ONLY because this lane owns both new routes; a parallel lane adding one of its
  * own makes that arithmetic wrong, which is exactly what the TWENTY-THREE
  * paragraph above had to repair.
+ *
+ * THIRTY-FOUR with the native identity door (`me/identity`, PO 2026-09-05) —
+ * signup step 2, which had no `/api/v1` door at all until now and whose absence
+ * is quoted verbatim in two other files as the reason the app could not collect
+ * a name. RECOUNTED rather than incremented: `listV1RouteFiles().length` on this
+ * worktree is 34, equal and not merely satisfied. `me/` returns to TEN sibling
+ * directories plus its own leaf, retaking the "densest place on the surface"
+ * title from `pets/{token}/` and its nine — the arrangement this floor exists
+ * for, since one directory rename would take all ten out together and nothing
+ * but this number would say so.
  */
-export const MIN_V1_ROUTE_FILES = 33;
+export const MIN_V1_ROUTE_FILES = 34;
 
 export const HELPER_MODULE = "@/lib/infra/api-v1";
 

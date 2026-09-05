@@ -339,6 +339,31 @@ ten `pets/**` buckets folded into the first two rows, landed on 2026-08-27 — s
 per-user 20/min · 200/hr) arrived with WU-Q-1 between the two and was missing
 from this table until the second pass; the fence has always had it.
 
+**The table is that migration's snapshot, not the inventory.** Doors that landed
+afterwards join a family without earning a row here — `API_V1_IP_BUCKET_FAMILIES`
+in `lib/infra/api-v1-limits.ts` is the list that cannot lie, and
+`__tests__/api-v1-rate-limit-families.test.ts` pins it against the routes in both
+directions. The newest one is named in prose because its family choice is the
+neighbouring one being rejected rather than a default being taken:
+
+- **`POST /api/v1/me/identity`** — signup step 2, in the app (PO 2026-09-05).
+  Buckets `api_v1_me_identity_ip` (`authenticated-write`) and
+  `api_v1_me_identity_user` (that family's per-user ceiling). NOT
+  `account-security`, which is the tempting neighbour — a `/me` write, once per
+  lifetime, on your own account. That family's derivation is the FAILURE MODE
+  ("you cannot sign out of the phone you lost", "you cannot exercise a legal
+  right"), not the shape; at the moment somebody does this it is one person in a
+  two-field form who may well tap Guardar again, which is the `me/profile` anchor
+  exactly.
+- It is also **the one authenticated door a `profilePending` caller may use.**
+  `/api/v1/pets` answers `identity_pending` for that state and
+  `/api/v1/me/profile` answers `not_found` on both halves; both are right, and
+  copying either into this route would refuse the only callers it exists for. The
+  rules those gates protect are run by the writer instead
+  (`completeIdentityForUser`), against the value being stored — including the
+  refusal, `identity_name_provisional` (422), for a name that would leave the
+  caller pending anyway.
+
 **Two different rules produced those numbers, and mixing them up is the mistake
 to avoid.** The read families are sized against a *push-broadcast burst* (half a
 gateway's app-holders opening within the same minute). Every write family is

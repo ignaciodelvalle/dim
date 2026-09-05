@@ -23,9 +23,25 @@ vi.mock("@/lib/supabase/server", () => ({
   })),
 }));
 
+// `.returning()` SINCE 2026-09-05, and the extra link is not decoration. The act
+// moved into `completeIdentityForUser`, which needs the fresh row to build the
+// `MeV1User` its OTHER caller (`POST /api/v1/me/identity`) answers with — so the
+// UPDATE ends in a RETURNING rather than in a bare await. `mockWhere` still
+// records the write, which is what the happy-path assertion below is about.
 vi.mock("@/db", () => ({
   db: {
-    update: () => ({ set: () => ({ where: (...args: unknown[]) => mockWhere(...args) }) }),
+    update: () => ({
+      set: () => ({
+        where: (...args: unknown[]) => {
+          mockWhere(...args);
+          return {
+            returning: async () => [
+              { displayName: "Ana Pérez", role: "owner", accountType: "personal" },
+            ],
+          };
+        },
+      }),
+    }),
   },
   profiles: {},
 }));
@@ -58,7 +74,15 @@ describe("completeIdentityAction — no-session anti-loop guard", () => {
     const result = await completeIdentityAction({ error: null }, identityForm());
 
     // Honest, actionable message — never a silent bounce to step 1.
-    expect(result.error).toMatch(/sesión no está activa|confirmar tu correo|iniciá sesión/i);
+    expect(result.error).toMatch(/no pudimos activar tu sesión|iniciá sesión/i);
+    // AND IT MUST NOT MENTION CONFIRMING AN EMAIL (2026-09-05). Confirmations
+    // have been OFF since the PO decided it on 2026-07-10, and the old sentence
+    // hedged about them anyway — testers read the hedge as an instruction, went
+    // looking for a mail that is never sent, and some created a second account
+    // instead. A conditional about a switched-off feature is a wrong instruction
+    // with a "si" in front of it. If confirmations are ever turned on, this
+    // assertion is one of the things that has to change with them.
+    expect(result.error).not.toMatch(/confirmar tu correo|casilla|spam/i);
     expect(result.ok).toBeUndefined();
     // The typed name survives (echoed back so the React 19 form reset lands on it).
     expect(result.firstName).toBe("Ana");

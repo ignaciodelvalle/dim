@@ -179,8 +179,16 @@ const ROUTE_GLOB = "app/api/v1/**/route.ts";
  * `Object.keys(API_V1_IP_BUCKET_FAMILIES).length` is 38 — and not 36 + 2, which
  * happens to give the same answer only because this lane is the one that added
  * both. WHOEVER MERGES THIS ALONGSIDE ANOTHER LANE MUST RECOUNT.
+ *
+ * 38 → 39 with the native IDENTITY door (`POST /me/identity`, PO 2026-09-05),
+ * which adds ONE bucket because the route is POST-only: there is no read half to
+ * declare — the screen already holds `profilePending` from `/me`, and the write's
+ * own response carries the fresh user rather than sending the client back for it.
+ * RECOUNTED on this worktree, `Object.keys(API_V1_IP_BUCKET_FAMILIES).length` is
+ * 39, and not obtained by adding one to the 38 above — the instruction this
+ * comment has now survived six doors saying.
  */
-const MIN_IP_BUCKETS = 38;
+const MIN_IP_BUCKETS = 39;
 
 /**
  * Collects `enforceRateLimit`-style bucket literals from a route's source and
@@ -751,7 +759,28 @@ describe("/api/v1 rate-limit families — the numbers the derivation committed t
     // ANOTHER LANE MUST RE-SUM RATHER THAN ADD 720: this figure is right for a
     // tree carrying this lane's two doors and no others, which is precisely the
     // assumption the paragraphs above record going wrong twice.
-    expect(API_V1_CGNAT_FAMILY_IP_CEILING_PER_MINUTE).toBe(13_884);
+    //
+    // 14.004 WITH THE NATIVE IDENTITY DOOR (`POST /me/identity`, PO 2026-09-05),
+    // which is POST-only and so contributes exactly ONE `authenticated-write`
+    // bucket (120). Hand-summed per family over the map as this lane leaves it,
+    // and NOT read off the `reduce` this assertion compares against — a computed
+    // value agreeing with itself is not evidence:
+    //
+    //   authenticated-read     18 × 600 = 10.800
+    //   authenticated-write    11 × 120 =  1.320
+    //   account-security        2 ×  60 =    120
+    //   public-reference        1 × 600 =    600
+    //   inbox-state             1 × 240 =    240
+    //   pet-disclosure-write    2 × 180 =    360
+    //   pet-record-write        1 × 240 =    240
+    //   pet-registration        1 × 120 =    120
+    //   media-upload            1 × 144 =    144
+    //   adoption-application    1 ×  60 =     60
+    //                          ── 39 buckets ─────────
+    //                                     14.004
+    //
+    // and 13.884 + 120 = 14.004 agrees.
+    expect(API_V1_CGNAT_FAMILY_IP_CEILING_PER_MINUTE).toBe(14_004);
   });
 
   it("keeps pet-disclosure-write at N callers on BOTH windows", () => {

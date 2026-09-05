@@ -51,6 +51,20 @@ export {
   passwordResetRequestInputSchema,
   signupInputSchema,
 } from "./auth.ts";
+// Signup STEP 2, which `./auth.ts` above deliberately does not carry: that module
+// is the three GoTrue-shaped acts (login, signup, password reset) and this one
+// writes a `profiles` column. Kept apart so a client that only signs in does not
+// import the identity rules, and so the two files' codes cannot be confused for
+// one vocabulary.
+export {
+  COMPLETE_IDENTITY_INPUT_CODES,
+  IDENTITY_NAME_MAX_LENGTH,
+  type CompleteIdentityInput,
+  type CompleteIdentityInputCode,
+  completeIdentityInputSchema,
+  firstCompleteIdentityInputCode,
+  identityDisplayName,
+} from "./complete-identity.ts";
 export {
   CREATE_INTAKE_INPUT_CODES,
   CUSTODY_ROLES,
