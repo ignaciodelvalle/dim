@@ -169,7 +169,7 @@
     "@tailwindcss/postcss": "^4.0.0",
     "@testing-library/jest-dom": "^6.9.1",
     "@testing-library/react": "^16.3.2",
-    "@types/node": "^22.10.0",
+    "@types/node": "^26.3.0",
     "@types/polylabel": "^2.0.0",
     "@types/qrcode": "^1.5.6",
     "@types/react": "^19.0.0",
