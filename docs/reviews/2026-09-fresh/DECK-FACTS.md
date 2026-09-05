@@ -116,7 +116,7 @@ All 35 keys of `docs/architecture/facts.json`. The file at this snapshot declare
 | `check_scripts` | `<!-- fact:check_scripts -->73<!-- /fact -->` |
 | `modules` | `<!-- fact:modules -->22<!-- /fact -->` |
 | `pages` | `<!-- fact:pages -->262<!-- /fact -->` |
-| `route_handlers` | `<!-- fact:route_handlers -->82<!-- /fact -->` |
+| `route_handlers` | `<!-- fact:route_handlers -->83<!-- /fact -->` |
 | `layouts` | `<!-- fact:layouts -->10<!-- /fact -->` |
 | `migrations` | `<!-- fact:migrations -->211<!-- /fact -->` |
 | `tables` | `<!-- fact:tables -->53<!-- /fact -->` |
@@ -127,7 +127,7 @@ All 35 keys of `docs/architecture/facts.json`. The file at this snapshot declare
 | `vercel_crons_declared` | `<!-- fact:vercel_crons_declared -->2<!-- /fact -->` |
 | `cron_jobs` | `<!-- fact:cron_jobs -->23<!-- /fact -->` |
 | `ci_workflows` | `<!-- fact:ci_workflows -->7<!-- /fact -->` |
-| `vitest_files` | `<!-- fact:vitest_files -->1496<!-- /fact -->` |
+| `vitest_files` | `<!-- fact:vitest_files -->1498<!-- /fact -->` |
 | `e2e_specs` | `<!-- fact:e2e_specs -->45<!-- /fact -->` |
 | `mobile_jest_files` | `<!-- fact:mobile_jest_files -->85<!-- /fact -->` |
 | `org_capabilities` | `<!-- fact:org_capabilities -->16<!-- /fact -->` |

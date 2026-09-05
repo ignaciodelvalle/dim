@@ -404,7 +404,7 @@ funciona si las dos láminas incómodas están donde se ven.
 - **Hechos.**
   - Guardas automatizadas en la cadena de verificación:
     <!-- fact:verify_fences -->68<!-- /fact -->.
-  - Archivos de prueba de la web: <!-- fact:vitest_files -->1496<!-- /fact -->.
+  - Archivos de prueba de la web: <!-- fact:vitest_files -->1498<!-- /fact -->.
   - Recorridos de navegador: <!-- fact:e2e_specs -->45<!-- /fact -->.
   - Archivos de prueba de la aplicación de celular:
     <!-- fact:mobile_jest_files -->85<!-- /fact -->.
@@ -446,7 +446,7 @@ funciona si las dos láminas incómodas están donde se ven.
   - Trabajos diarios hacia los que reparte:
     <!-- fact:cron_jobs -->23<!-- /fact -->.
   - Puntos de entrada de la interfaz de programación:
-    <!-- fact:route_handlers -->82<!-- /fact -->.
+    <!-- fact:route_handlers -->83<!-- /fact -->.
 - **Respaldo.**
   - `vercel.json` — las tareas programadas declaradas.
   - `lib/infra/cron-dispatcher.ts` — el repartidor de tareas: cada trabajo corre aislado y el

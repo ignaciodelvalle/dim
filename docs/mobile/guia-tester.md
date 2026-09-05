@@ -28,12 +28,13 @@ Tocá **Continuar**. No te va a llegar ningún mail para confirmar la cuenta —
 
 ## Tu identidad — un paso más
 
-Después de crear la cuenta vas a ver una pantalla que dice "Falta completar tu registro". Es normal — es un segundo paso que se hace una sola vez, y funciona así:
+Después de crear la cuenta vas a ver una pantalla que dice "Completá tu registro". Es normal — es un segundo paso que se hace una sola vez, y ahora se hace acá mismo, en la app:
 
-1. Tocá **Abrir en el navegador**. Se abre el navegador de tu celular.
-2. Te va a pedir que ingreses de nuevo con el mismo correo y la misma contraseña. Sí, otra vez: el navegador no comparte la sesión de la app, así que esto es esperado.
-3. Ahí completás tu nombre y tus datos.
-4. Volvé a la app de miMAR y volvé a entrar. Ya vas a tener tu perfil listo.
+1. Escribí tu **nombre** y tu **apellido**.
+2. Tocá **Guardar**.
+3. Listo, entrás directo a "Mis mascotas". No hay que salir de la app ni volver a ingresar.
+
+Si además querés cargar tu **DNI**, eso todavía se hace en la web: en esa misma pantalla tocá **Prefiero completarlo en la web**. Ahí el navegador te va a pedir el mismo correo y la misma contraseña otra vez, porque el navegador no comparte la sesión de la app. Es esperado, y no es un mail de confirmación: no te vamos a mandar ninguno.
 
 ## Registrar a tu mascota
 
