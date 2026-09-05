@@ -327,7 +327,7 @@ describe("POST /api/v1/me/identity — the limiters", () => {
 
   it("answers 429 with no retry-after when a bucket is spent", async () => {
     control.limiterThrows = () => {
-      throw new RateLimitError("api_v1_me_identity_ip", 60);
+      throw new RateLimitError(new Date(), "maxPerMinute");
     };
 
     const res = await POST(postRequest(VALID_BODY));

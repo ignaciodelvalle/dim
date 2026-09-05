@@ -176,10 +176,13 @@ describe("the form", () => {
   });
 
   it("does not send twice while a save is in flight", async () => {
-    let release: (() => void) | null = null;
+    // Held in an object rather than a `let`: TypeScript narrows a `let` assigned
+    // only inside a callback to `never` at the call site below, and the test
+    // would not compile.
+    const inFlight: { release: () => void } = { release: () => {} };
     mockCompleteIdentity.mockReturnValue(
       new Promise((resolve) => {
-        release = () => resolve({ ok: true });
+        inFlight.release = () => resolve({ ok: true });
       }),
     );
     render(<IdentidadPendienteScreen profilePending={true} />);
@@ -194,7 +197,7 @@ describe("the form", () => {
     fireEvent(screen.getByLabelText("Apellido, obligatorio"), "submitEditing");
 
     expect(mockCompleteIdentity).toHaveBeenCalledTimes(1);
-    release?.();
+    inFlight.release();
   });
 });
 
