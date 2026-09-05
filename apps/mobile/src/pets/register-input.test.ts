@@ -18,6 +18,7 @@ import {
   MAX_PET_AGE_MONTHS,
   MAX_PET_AGE_YEARS,
   REGISTER_PET_INPUT_CODES,
+  registerPetInputSchema,
 } from "@dim/contract/input";
 
 import { createAttemptSession } from "./idempotency";
@@ -124,6 +125,23 @@ describe("toRegisterPetInput — the coercions a hand-rolled form would get wron
   it("defaults duplicateOverride to false and carries it when set", () => {
     expect(inputFor({}).duplicateOverride).toBe(false);
     expect(inputFor({ duplicateOverride: true }).duplicateOverride).toBe(true);
+  });
+
+  // `alta.tsx` posts `verdict.input` — this function's OUTPUT — and the route
+  // re-parses it with the same schema. The promise this module's header makes
+  // ("the same verdict") is only true if that re-parse succeeds. It did not,
+  // for every blank optional, on the first real registration from the Play
+  // build (2026-09-05): `null` went out and `null` was refused back.
+  it.each([
+    ["every optional blank", VALID],
+    ["optionals filled", { ...VALID, breed: "Caniche", ageYears: "3", color: "Blanco" }],
+  ])("produces a body the server's schema accepts back — %s", (_label, draft) => {
+    const verdict = toRegisterPetInput(draft);
+    if (!verdict.ok) throw new Error(`draft refused: ${verdict.code}`);
+    const wire = JSON.parse(JSON.stringify(verdict.input));
+    const again = registerPetInputSchema.safeParse(wire);
+    expect(again.success).toBe(true);
+    expect(again.success && again.data).toEqual(verdict.input);
   });
 });
 

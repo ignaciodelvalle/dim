@@ -262,6 +262,58 @@ describe("registerPetInputSchema — duplicateOverride", () => {
   });
 });
 
+describe("registerPetInputSchema — its own output is a valid input", () => {
+  // The native wizard parses its draft with this schema and sends `parsed.data`
+  // as the body; the route parses that body with the same schema. The promise
+  // only holds if everything the schema EMITS is something it ACCEPTS. It was
+  // broken for every blank optional (`null` out, `null` refused in) and the
+  // first real registration from the Play build answered 400 (2026-09-05).
+  const FULL = {
+    ...MINIMAL,
+    sex: "female",
+    breed: "Caniche",
+    color: "Blanco",
+    estimatedWeightKg: "5",
+    ageYears: "3",
+    ageMonths: "2",
+    // A MEMBER of ACQUISITION_METHODS, deliberately: anything else is mapped
+    // to null by the preprocess, and this case would then round-trip the same
+    // null the minimum already covers.
+    acquisitionMethod: "adopted",
+    duplicateOverride: true,
+  };
+
+  it.each([
+    ["the minimum — every optional blank, so every optional is emitted as null", MINIMAL],
+    ["a body with every optional filled", FULL],
+  ])("re-parses %s to a deep-equal value after a JSON round-trip", (_label, body) => {
+    const out = registerPetInputSchema.parse(body);
+    const again = registerPetInputSchema.safeParse(JSON.parse(JSON.stringify(out)));
+    expect(again.success).toBe(true);
+    expect(again.success && again.data).toEqual(out);
+  });
+
+  it("keeps a filled optional filled across the round-trip — the FULL case is not the minimum in disguise", () => {
+    const out = registerPetInputSchema.parse(FULL);
+    expect(out).toMatchObject({
+      breed: "Caniche",
+      estimatedWeightKg: "5",
+      ageYears: 3,
+      ageMonths: 2,
+      acquisitionMethod: "adopted",
+    });
+  });
+
+  it.each(["breed", "color", "estimatedWeightKg", "ageYears", "ageMonths"] as const)(
+    "accepts an explicit null for %s and reads it as not stated",
+    (field) => {
+      const parsed = registerPetInputSchema.safeParse({ ...MINIMAL, [field]: null });
+      expect(parsed.success).toBe(true);
+      expect(parsed.success && parsed.data[field]).toBeNull();
+    },
+  );
+});
+
 describe("registerPetInputSchema — what it deliberately does NOT accept", () => {
   it.each(["microchipId", "clientIdempotencyKey", "custodyKind", "photo"])(
     "ignores %s rather than honouring it",

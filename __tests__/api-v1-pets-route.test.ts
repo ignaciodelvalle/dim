@@ -35,6 +35,7 @@
 
 import { randomUUID } from "node:crypto";
 
+import { registerPetInputSchema } from "@dim/contract/input";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const control = vi.hoisted(() => ({
@@ -538,6 +539,40 @@ describe("POST /api/v1/pets — server-side gates", () => {
     const res = await POST(post({ ...VALID_BODY, provinceCode: "AR-ZZZ" }));
     expect(res.status).toBe(400);
     expect(await res.json()).toEqual({ error: "invalid_request" });
+  });
+
+  it("accepts the schema's OWN output as a body — blank optionals arrive as null", async () => {
+    // What the native wizard actually sends: it parses its draft with
+    // `registerPetInputSchema` and posts `parsed.data`, in which every optional
+    // the person left blank is `null`. The first real registration from the
+    // Play build (2026-09-05) was refused here with invalid_request because the
+    // schema emitted `null` and did not accept it back.
+    const wire = JSON.parse(
+      JSON.stringify(
+        registerPetInputSchema.parse({
+          name: "Pampa",
+          species: "dog",
+          provinceCode: "AR-C",
+          localityName: "Villa Crespo",
+        }),
+      ),
+    );
+    expect(wire).toMatchObject({
+      breed: null,
+      color: null,
+      estimatedWeightKg: null,
+      ageYears: null,
+      ageMonths: null,
+    });
+
+    const res = await POST(post(wire));
+
+    expect(res.status).toBe(201);
+    expect(control.registerCalls).toHaveLength(1);
+    // The nulls reached the use case as "not stated", not as a refusal upstream.
+    expect(control.registerCalls[0]).toMatchObject({
+      parsed: { breed: null, color: null, estimatedWeightKg: null },
+    });
   });
 
   it.each([

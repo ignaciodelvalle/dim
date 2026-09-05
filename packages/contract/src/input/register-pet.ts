@@ -98,11 +98,39 @@ export type AcquisitionMethod = (typeof ACQUISITION_METHODS)[number];
 // Field helpers (same semantics as intake.ts — see the notes there)
 // ---------------------------------------------------------------------------
 
-/** A trimmed optional string; empty becomes null. */
+// ---------------------------------------------------------------------------
+// THE OUTPUT OF THIS SCHEMA MUST BE A VALID INPUT TO IT
+// ---------------------------------------------------------------------------
+// The native wizard parses its draft with this object and sends `parsed.data`
+// — the OUTPUT — as the request body, which the route re-parses with the same
+// object. That is the whole point of sharing the schema: one verdict, reached
+// twice. It holds only if every value this schema EMITS is a value it ACCEPTS.
+//
+// It did not hold. The optional helpers below emit `null` for a blank field,
+// and their input side was `.optional()`, which admits `undefined` and refuses
+// `null`. So a registration that left ANY optional blank — breed, colour,
+// weight, age — validated on the phone, travelled as `"breed": null`, and came
+// back 400 `invalid_request` from the server. Every optional filled in, it
+// passed; which is exactly why an emulator run through the wizard never caught
+// it and the PO's first real registration on the Play build did (2026-09-05).
+//
+// Hence every field whose absent value is `null` must ACCEPT `null`:
+// `.nullish()` for the text and age helpers below, and the preprocess on
+// `acquisitionMethod`, which already did. The contract test parses the
+// schema's own output back through it so the fixed point stays fenced.
+//
+// THE CLASS IS NOT CLOSED ACROSS THE PACKAGE. `record-event.ts`, `lost-mode.ts`
+// and `welfare-report.ts` accept `null`. `intake.ts` (thirteen optionals) and
+// `auth.ts`'s `returnTo` still do not — they are safe only because their sole
+// consumers build the body from FormData, which omits a blank key rather than
+// nulling it. A native client that parses a draft with either schema and posts
+// the output is this bug again; give that schema the same round-trip test first.
+
+/** A trimmed optional string: absent, blank and `null` all mean "not stated". */
 const optionalText = z
   .string()
   .trim()
-  .optional()
+  .nullish()
   .transform((v) => (v ? v : null));
 
 /** A required trimmed string, failing with the given code when blank. */
@@ -144,21 +172,22 @@ export const MAX_PET_AGE_YEARS = 250;
 export const MAX_PET_AGE_MONTHS = MAX_PET_AGE_YEARS * 12;
 
 /**
- * A whole-number count of years or months, as the owner typed it. Absent or
- * blank → null; unparseable → 0; negatives clamp to 0; anything past `max`
- * clamps to `max` (see MAX_PET_AGE_YEARS).
+ * A whole-number count of years or months, as the owner typed it. Absent,
+ * blank or `null` → null; unparseable → 0; negatives clamp to 0; anything past
+ * `max` clamps to `max` (see MAX_PET_AGE_YEARS).
  *
  * Otherwise byte-identical to the wizard's behaviour
  * (`Math.max(0, parseInt(x) || 0)`) and intentional. Accepts a NUMBER too,
  * which the FormData path could not — a JSON client has no reason to quote an
- * integer.
+ * integer. Accepts `null` because that is what this very transform emits for
+ * an untouched field, and the wizard sends the transform's output back.
  */
 const ageCount = (max: number) =>
   z
     .union([z.string(), z.number()])
-    .optional()
+    .nullish()
     .transform((v) => {
-      if (v === undefined) return null;
+      if (v === undefined || v === null) return null;
       if (typeof v === "number") {
         // The `isFinite` arm is a belt, not the guard that matters: `z.number()`
         // refuses NaN and ±Infinity BEFORE any transform runs (measured against
