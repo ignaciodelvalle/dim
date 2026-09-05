@@ -77,10 +77,15 @@ describe("the form", () => {
     expect(stub).toBeTruthy();
   });
 
-  it("says the identity step is coming BEFORE it happens", () => {
+  it("says the identity step is coming BEFORE it happens, and that it is in the app", () => {
     // Arriving at identidad-pendiente unannounced reads like the signup failed.
     renderScreen();
-    expect(screen.getByText(/te vamos a pedir tu nombre/)).toBeTruthy();
+    expect(screen.getByText(/te vamos a pedir tu nombre y tu apellido/)).toBeTruthy();
+    // AND IT NO LONGER SENDS ANYBODY TO THE WEB (PO 2026-09-05). This callout
+    // used to end "Ese paso se hace en la web por ahora", which was true until the
+    // identity door landed and is now an instruction to leave the app for a step
+    // the next screen performs.
+    expect(screen.queryByText(/se hace en la web/)).toBeNull();
   });
 
   it("opens each legal document in the browser", () => {

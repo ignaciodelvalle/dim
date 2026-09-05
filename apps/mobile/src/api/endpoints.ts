@@ -60,6 +60,7 @@ import {
   type CaretakerCommandAckV1,
   type EventAmendedV1,
   type EventRecordedV1,
+  type IdentityCompletedV1,
   LOCALITIES_PAYLOAD_VERSION,
   type LocalitiesV1,
   type LoginV1,
@@ -117,6 +118,7 @@ import type {
   AmendEventInput,
   AppointmentCommandInput,
   CaretakerCommandInput,
+  CompleteIdentityInput,
   LostCommandInput,
   MyProfileEditInput,
   NotificationCommandInput,
@@ -267,6 +269,34 @@ export async function requestPasswordReset(input: {
 export function fetchMe(session: SessionPort): Promise<ApiResult<MeV1>> {
   return apiRequest<MeV1>(
     { path: "/api/v1/me", expectedPayloadVersion: ME_PAYLOAD_VERSION },
+    session,
+  );
+}
+
+/**
+ * `POST /me/identity` — signup step 2, finished in the app.
+ *
+ * THE ONE BEARER CALL A `profilePending` SESSION MAY MAKE. Every other
+ * authenticated door refuses that state — `/pets` with `identity_pending`,
+ * `/me/profile` with `not_found` — and this one exists to end it. See the route's
+ * own header for why copying either gate here would be an endpoint that refuses
+ * the only callers it has.
+ *
+ * IT RETURNS THE FRESH USER AND THE CALLER MUST STORE IT. That is the difference
+ * between this and `saveMyProfile` below, and it is deliberate: the response IS
+ * the new session state (`profilePending: false`), so a screen that discarded it
+ * and called `fetchMe` instead would spend a second round trip to learn what it
+ * already holds — and would leave a window in which its own gate still refuses.
+ *
+ * NO `idempotencyKey`: completing an identity is a VALUE, not an append. Sending
+ * the same two names twice sets them once and answers the same user.
+ */
+export function completeIdentity(
+  session: SessionPort,
+  input: CompleteIdentityInput,
+): Promise<ApiResult<IdentityCompletedV1>> {
+  return apiRequest<IdentityCompletedV1>(
+    { path: "/api/v1/me/identity", method: "POST", body: input },
     session,
   );
 }

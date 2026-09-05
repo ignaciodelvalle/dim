@@ -85,6 +85,19 @@ export function apiErrorMessage(code: ApiV1ErrorCode): string {
     // this if a gate was skipped — which is the case the code exists for.
     case "identity_pending":
       return "Todavía no completaste tus datos. Terminá el registro para poder registrar una mascota.";
+    // The two codes of `POST /api/v1/me/identity`, which is the screen that
+    // FIXES the state above — so neither sentence may send the person to
+    // "terminá el registro". They are already there.
+    case "identity_name_provisional":
+      // NAMES THE FIELD, not the request. The person typed something the server
+      // cannot tell apart from the provisional name it is replacing, and the only
+      // move is to type a different one. Nearly unreachable in practice (see the
+      // contract), which is why it says what to do rather than apologising.
+      return "Ese nombre no nos sirve para identificarte. Escribí tu nombre y apellido reales.";
+    case "identity_failed":
+      // Retrying IS safe and the copy says so: completing an identity is a value,
+      // not an append, so writing the same two names twice writes them once.
+      return "No pudimos guardar tus datos. Volvé a intentar.";
     // Covers BOTH halves of the code: the header was absent, OR it was present
     // and not a UUID. They were joined into one code deliberately (see
     // `idempotency_key_required` in @dim/contract/api — the fix is the same

@@ -309,8 +309,8 @@ export function CrearCuentaScreen({ onGoToSignIn }: { onGoToSignIn: () => void }
             hands them a URL, and arriving there unannounced reads like the
             signup failed. */}
         <Body>
-          Después de crear la cuenta te vamos a pedir tu nombre para completar la credencial. Ese
-          paso se hace en la web por ahora.
+          Después de crear la cuenta te vamos a pedir tu nombre y tu apellido para completar la
+          credencial. Es acá mismo y una sola vez.
         </Body>
       </Callout>
 

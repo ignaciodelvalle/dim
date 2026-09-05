@@ -62,6 +62,7 @@ import {
   apiFailureMessage,
 } from "../api/client";
 import {
+  completeIdentity as completeIdentityRequest,
   eraseMyAccount,
   fetchMe,
   login,
@@ -518,6 +519,49 @@ export async function signUp(input: {
   const me = await fetchMe(sessionPort);
   applyMeResult(me);
   return { ok: true, signedIn: true };
+}
+
+export type CompleteIdentityResult = { ok: true } | { ok: false; message: string };
+
+/**
+ * Signup STEP 2, in the app: `POST /api/v1/me/identity`.
+ *
+ * WHAT THIS REPLACES (PO decision 2026-09-05). Until now the only way out of
+ * `profilePending: true` was `IDENTITY_COMPLETION_URL` — open a browser, sign in
+ * AGAIN (this app holds a bearer token, the web resolves a cookie), type a name
+ * there, come back, and cycle the session so the app re-read `/me`. Pilot testers
+ * read the second login as "confirm your email" and stopped: 8 invalid-credential
+ * attempts and 2 duplicate signups in one hour of GoTrue log. The name is now
+ * collected here; the DNI still lives on the web and the screen still offers that
+ * link for it.
+ *
+ * IT LIVES IN THIS FILE FOR `signOutEverywhere`'S REASON: the call and the
+ * session-state transition are ONE act. A screen that made the request and then
+ * remembered to update the store is a screen that will one day forget, and the
+ * failure would be invisible — the write lands, the person stays on the gate.
+ *
+ * THE STORED USER COMES FROM THE RESPONSE, NOT FROM A FOLLOW-UP `/me`. The
+ * endpoint answers `IdentityCompletedV1` precisely so this can be one round trip:
+ * a `fetchMe` here would spend a second call to learn what the first already
+ * said, and would leave a window in which `useGate` still refuses. It is the same
+ * shape `signIn` uses with `LoginV1.user` and for the same reason — one type, one
+ * answer.
+ *
+ * ON FAILURE THE STATE IS LEFT ALONE, deliberately. `apiRequest` has already
+ * ended the session for every code that means the session is over (and set its
+ * own reason); for everything else the person is still signed in, still pending,
+ * and still looking at a form whose values they have not lost.
+ */
+export async function completeIdentity(input: {
+  firstName: string;
+  lastName: string;
+}): Promise<CompleteIdentityResult> {
+  const result = await completeIdentityRequest(sessionPort, input);
+  if (result.outcome !== "ok") {
+    return { ok: false, message: apiFailureMessage(result) ?? "No pudimos guardar tus datos." };
+  }
+  setState({ phase: "signed-in", user: result.payload.user });
+  return { ok: true };
 }
 
 // ===========================================================================

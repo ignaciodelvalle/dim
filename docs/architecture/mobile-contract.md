@@ -186,6 +186,25 @@ operation: a 429, a 404 for a token that resolves to nothing, a 503, a phone
 with no signal. Folding them into one `catch` produces the "algo salió mal" copy
 this product's per-section honesty exists to avoid.
 
+**A `profilePending` session is signed in, and exactly one door accepts it.**
+`GET /api/v1/me` and `POST /api/v1/auth/login` both answer
+`MeV1User.profilePending: true` for an account that finished step 1 and nothing
+else; `useGate` routes it to `identidad-pendiente`, and every other authenticated
+endpoint refuses it (`/pets` with `identity_pending`, `/me/profile` with
+`not_found`). The exception is **`POST /api/v1/me/identity`** — signup step 2,
+moved into the app on 2026-09-05 because the browser handoff it replaces was
+reading as "confirm your email" to pilot testers. It takes
+`{ firstName, lastName }` (`completeIdentityInputSchema` in
+`@dim/contract/input`), it answers the FRESH `MeV1User` (`IdentityCompletedV1`)
+rather than `{ saved: true }` — so the client swaps its stored session in one
+round trip instead of two, with no window in which its own gate still refuses —
+and `session-store.ts`'s `completeIdentity` is the only caller, for the reason
+`signOutEverywhere` gives: the request and the session-state transition are one
+act. Its two own error codes are `identity_name_provisional` (422 — the name
+would leave the caller pending anyway) and `identity_failed` (500, safely
+retryable: an identity is a value, not an append). **The DNI did not move** — the
+screen still links to `/registro?from=app` for it.
+
 `expectedPayloadVersion` is checked **before any field is read**, so an old build
 says "actualizá la app" instead of rendering half a screen from a shape it is
 guessing at.
