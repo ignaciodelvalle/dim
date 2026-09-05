@@ -41,7 +41,13 @@ export function signInHref(
   pathname: string,
 ): string | { pathname: string; params: { next: string } } {
   const next = pathname.trim();
-  if (next === "" || next === "/" || next === ROUTES.ingreso || next === ROUTES.misMascotas) {
+  if (
+    next === "" ||
+    next === "/" ||
+    next === ROUTES.ingreso ||
+    next === ROUTES.misMascotas ||
+    next === ROUTES.identidadPendiente
+  ) {
     return ROUTES.ingreso;
   }
   return { pathname: ROUTES.ingreso, params: { next } };

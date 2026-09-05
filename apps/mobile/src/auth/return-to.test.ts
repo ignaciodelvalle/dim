@@ -34,6 +34,7 @@ describe("signInHref", () => {
     expect(signInHref(ROUTES.ingreso)).toBe(ROUTES.ingreso);
     expect(signInHref("/")).toBe(ROUTES.ingreso);
     expect(signInHref(ROUTES.misMascotas)).toBe(ROUTES.ingreso);
+    expect(signInHref(ROUTES.identidadPendiente)).toBe(ROUTES.ingreso);
     expect(signInHref("   ")).toBe(ROUTES.ingreso);
   });
 });
