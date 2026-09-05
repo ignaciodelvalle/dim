@@ -171,7 +171,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
   ...config,
   // `name`/`slug` come from app.json and are required by the ExpoConfig type;
   // the spread cannot prove that to TypeScript, so they are restated.
-  name: config.name ?? "MiMAR",
+  name: config.name ?? "miMAR",
   slug: config.slug ?? "mimar",
   // THE IDENTIFIERS COME FROM THE CONTRACT, not from app.json.
   //

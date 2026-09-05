@@ -1,7 +1,7 @@
 {
   "name": "mimar",
   "version": "0.0.0",
-  "description": "MiMAR — the Expo client. Native M1: workspace member + credential spike.",
+  "description": "miMAR — the Expo client. Native M1: workspace member + credential spike.",
   "private": true,
   "license": "UNLICENSED",
   "main": "expo-router/entry",

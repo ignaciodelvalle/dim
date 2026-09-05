@@ -23,7 +23,7 @@
 // ---------------------------------------------------------------------------
 // The PO compared the two side by side. Where the SURFACE is the same, the
 // web's literal copy wins — the title is "Iniciar sesión" and not "Ingresá a
-// MiMAR", the fields are "Correo electrónico" and "Contraseña", the subtitle is
+// miMAR", the fields are "Correo electrónico" and "Contraseña", the subtitle is
 // "Hola de nuevo", and the button says what the web's button says. Two
 // different sentences for one act is how a product starts feeling like two
 // products, which is the whole complaint this work unit answers.

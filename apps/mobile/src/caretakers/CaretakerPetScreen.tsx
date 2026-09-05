@@ -87,7 +87,7 @@ function ackLabel(ack: CaretakerCommandAckV1): string {
   switch (ack.command) {
     case "designate":
       return ack.inviteeNeedsAccount === true
-        ? "Invitación creada. Esa dirección todavía no tiene cuenta en MiMAR, así que avisale vos."
+        ? "Invitación creada. Esa dirección todavía no tiene cuenta en miMAR, así que avisale vos."
         : "Invitación enviada. Le avisamos a esa persona.";
     case "cancel":
       return "Retiraste la invitación.";

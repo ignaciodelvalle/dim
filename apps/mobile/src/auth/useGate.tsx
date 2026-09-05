@@ -90,7 +90,7 @@ export function useGate(options: { allowPendingIdentity?: boolean } = {}): Gate 
 function Splash() {
   return (
     <Screen edges={["top", "bottom"]}>
-      <Loading label="Abriendo MiMAR…" />
+      <Loading label="Abriendo miMAR…" />
     </Screen>
   );
 }

@@ -155,7 +155,7 @@ export function planesLookCrossed(): boolean {
  * The URL the QR encodes: the PUBLIC WEB PAGE, not this app and not the API.
  *
  * Invariant #1 — the pet is the credential — means the code has to resolve for
- * whoever scans it, and that is a stranger with a phone camera and no MiMAR
+ * whoever scans it, and that is a stranger with a phone camera and no miMAR
  * install. `mimar://` would resolve for nobody; the API URL would hand them
  * JSON. Once verified App Links land (see `app.config.ts`) this exact `https`
  * URL starts opening the app for people who DO have it installed, and keeps

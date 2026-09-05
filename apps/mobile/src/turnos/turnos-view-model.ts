@@ -351,7 +351,7 @@ export function appointmentCalendarUrl(appointment: MyAppointmentV1): string | n
     action: "TEMPLATE",
     text: `${appointmentServiceLabel(appointment)} — ${appointment.pet.name}`,
     dates: `${basic(start)}/${basic(end)}`,
-    details: `Turno reservado en MiMAR con ${appointmentProviderLabel(appointment.provider)}.`,
+    details: `Turno reservado en miMAR con ${appointmentProviderLabel(appointment.provider)}.`,
   });
   const locality =
     appointment.provider.kind === "organization" ? appointment.provider.locality : null;
