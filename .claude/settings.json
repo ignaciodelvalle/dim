@@ -19,7 +19,10 @@
       "Bash(npx eas-cli@latest build:view *)",
       "Bash(npx eas-cli@latest env:list production)",
       "Bash(npx eas-cli@latest env:list preview)",
-      "Bash(fnm *)",
+      "Bash(fnm current)",
+      "Bash(fnm list)",
+      "Bash(fnm env *)",
+      "Bash(fnm use *)",
       "Bash(pnpm vitest *)",
       "Bash(pnpm --filter mimar test)",
       "Bash(pnpm --filter mimar test *)",
@@ -43,7 +46,12 @@
       "Bash(pnpm biome check *--unsafe*)",
       "Bash(pnpm exec biome check *--unsafe*)",
       "Bash(npx biome check --unsafe*)",
-      "Bash(pnpm biome check --unsafe*)"
+      "Bash(pnpm biome check --unsafe*)",
+      "Bash(npx biome check *--apply*)",
+      "Bash(pnpm biome check *--apply*)",
+      "Bash(pnpm exec biome check *--apply*)",
+      "Bash(npx biome check --apply*)",
+      "Bash(pnpm biome check --apply*)"
     ]
   },
   "hooks": {

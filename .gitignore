@@ -161,7 +161,7 @@ qa-sessions*.json
 *.auth-state.json
 *-auth-state.json
 storage-state*.json
-/auth.json
+auth.json
 my-session.json
 
 # A ROOT app.json is Expo debris. The real one is apps/mobile/app.json.
