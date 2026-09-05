@@ -353,8 +353,13 @@ describe("POST /api/v1/auth/login — what a native client receives", () => {
     expect(await res.json()).toEqual({
       // THE REGRESSION THIS PINS (pre-push review of the WU-A range). A UUID with
       // no profile row is the brand-new-account path, and it is the NORMAL state
-      // of a native user: signup parks them there because identity completion has
-      // no /api/v1 door yet. This endpoint used to answer `role: "owner"` for it —
+      // of a native user: signup parks them there, and they leave it through
+      // `POST /api/v1/me/identity` — which landed 2026-09-05, so this comment's
+      // "identity completion has no /api/v1 door yet" is no longer the reason the
+      // state exists; it is simply the state between step 1 and step 2. Nothing
+      // about the assertion changes: a brand-new account is still
+      // `profilePending: true` here. This endpoint used to answer `role: "owner"`
+      // for it —
       // the use-case's LANDING default, which exists to pick a web destination —
       // while `GET /api/v1/me`, for the same account in the same second, answered
       // `profilePending: true` and deliberately declined to name a role. Two

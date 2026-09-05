@@ -20,10 +20,13 @@
 // `handle_new_user` trigger writes (the row is created with the account; "no
 // profile row" is not a state signup produces, and this comment used to say it
 // was), so `/me` answers `profilePending: true` and the gate sends the person to
-// `identidad-pendiente` (step 2, on the web: see IDENTITY_COMPLETION_URL for why
-// this app must not fake it). Naming that screen here would duplicate a decision
-// `useGate` already makes for every route, and it would be the wrong one the day
-// identity completion gets an `/api/v1` door of its own.
+// `identidad-pendiente`, which since 2026-09-05 COLLECTS nombre and apellido and
+// posts them to `POST /api/v1/me/identity` — this comment used to say step 2 was
+// "on the web: see IDENTITY_COMPLETION_URL for why this app must not fake it",
+// and it also predicted its own expiry ("the day identity completion gets an
+// /api/v1 door of its own"). That day was 2026-09-05. Naming the screen here
+// would still be wrong: it duplicates a decision `useGate` already makes for
+// every route.
 
 import { Redirect, useRouter } from "expo-router";
 

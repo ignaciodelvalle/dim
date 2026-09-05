@@ -214,9 +214,19 @@ export function IdentidadPendienteScreen({ profilePending }: { profilePending: b
           no session and the browser opens signed out. `LinkText` and not a
           button: this is the secondary path now. */}
       <Card title="¿Querés cargar tu DNI?">
+        {/* SAYS "OPCIONAL" AND SAYS WHERE ELSE, because this screen DISAPPEARS.
+            Once Guardar lands, `profilePending` is false, the redirect fires and
+            this link is gone — and `/registro?from=app` then bounces a completed
+            account straight to `/mis-mascotas`, so the URL stops leading anywhere
+            useful too. Somebody who skips the DNI here would otherwise read the
+            vanished link as the door having closed. */}
         <Body>
-          El DNI se carga en la web. Vas a tener que ingresar de nuevo con el mismo correo: el
-          navegador no comparte la sesión de esta app.
+          El DNI es opcional y se carga en la web. Vas a tener que ingresar de nuevo con el mismo
+          correo: el navegador no comparte la sesión de esta app.
+        </Body>
+        <Body>
+          Si preferís dejarlo para después, podés cargarlo cuando quieras desde tu cuenta en la web,
+          en Verificar DNI.
         </Body>
         <View style={styles.webDoor}>
           <LinkText

@@ -21,8 +21,11 @@
 //   signed-out          → sign-in, carrying the reason it ended AND where they
 //                         were going. See below.
 //   profilePending      → the identity gate. They ARE signed in; what is missing
-//                         is a registration step this app deliberately does not
-//                         implement.
+//                         is signup step 2 — and since 2026-09-05 that screen
+//                         COLLECTS it (`POST /api/v1/me/identity`) rather than
+//                         handing over a web URL, so the gate now leads
+//                         somewhere the person can finish. `allowPendingIdentity`
+//                         is what lets that one screen render in this state.
 //
 // THE SIGN-IN REDIRECT CARRIES A DESTINATION (WU-O), AND IT HAS TO NOW
 // ---------------------------------------------------------------------------

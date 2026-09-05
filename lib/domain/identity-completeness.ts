@@ -107,8 +107,11 @@ export function isIdentityPending(input: {
  *     it is answered rather than assumed away;
  *   · a row still carrying the trigger's PROVISIONAL, email-derived name —
  *     signup step 2 was never completed. This is the state every native signup
- *     lands in, because the app deliberately has no identity form of its own
- *     (apps/mobile/app/identidad-pendiente.tsx explains why).
+ *     lands in, and since 2026-09-05 it is also one the app can LEAVE on its own:
+ *     `identidad-pendiente` collects nombre and apellido and posts them to
+ *     `POST /api/v1/me/identity`. This paragraph used to say the app
+ *     "deliberately has no identity form of its own", which was true until that
+ *     door landed; the DNI is still web-only.
  *
  * The completed arm deliberately drops nothing and adds nothing: same four
  * fields, same union, same payload version. What changed is only WHICH arm a

@@ -34,7 +34,12 @@ Después de crear la cuenta vas a ver una pantalla que dice "Completá tu regist
 2. Tocá **Guardar**.
 3. Listo, entrás directo a "Mis mascotas". No hay que salir de la app ni volver a ingresar.
 
-Si además querés cargar tu **DNI**, eso todavía se hace en la web: en esa misma pantalla tocá **Prefiero completarlo en la web**. Ahí el navegador te va a pedir el mismo correo y la misma contraseña otra vez, porque el navegador no comparte la sesión de la app. Es esperado, y no es un mail de confirmación: no te vamos a mandar ninguno.
+El **DNI** es opcional y todavía se carga en la web. Tenés dos momentos para hacerlo:
+
+- **Antes de tocar Guardar**, desde esa misma pantalla, con el link **Prefiero completarlo en la web**.
+- **Después, cuando quieras**, entrando desde el navegador a `/cuenta/verificar-dni`. (Una vez que guardaste tu nombre, esa pantalla no vuelve a aparecer y el link deja de estar a mano — es a propósito: ya completaste el paso.)
+
+En los dos casos el navegador te va a pedir el mismo correo y la misma contraseña otra vez, porque no comparte la sesión de la app. Es esperado, y no es un mail de confirmación: no te vamos a mandar ninguno.
 
 ## Registrar a tu mascota
 
