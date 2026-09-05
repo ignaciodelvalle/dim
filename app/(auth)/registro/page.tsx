@@ -219,8 +219,13 @@ export default async function SignupPage({
             screen-reader-announced without any ARIA of ours, and this page is a
             Server Component with no client state of its own to spend. */}
         {appHandoff ? (
-          <details className="group">
-            <summary className="cursor-pointer list-none text-center text-sm text-[var(--color-ln-ink-2)] underline underline-offset-4 hover:text-[var(--color-ln-azul)]">
+          <details>
+            {/* BOTH marker rules, because `list-none` alone is a Blink/Gecko fix:
+                WebKit draws the disclosure triangle from a shadow pseudo-element
+                that ignores `list-style`, so Safari and every iOS browser would
+                show a stray triangle beside a centred sentence. Paired the way
+                every other summary in this repo pairs them (components/ui/Tabs.tsx). */}
+            <summary className="cursor-pointer list-none text-center text-sm text-[var(--color-ln-ink-2)] underline underline-offset-4 hover:text-[var(--color-ln-azul)] [&::-webkit-details-marker]:hidden">
               ¿Todavía no tenés cuenta? Creá una
             </summary>
             <div className="mt-6">
