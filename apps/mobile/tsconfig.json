@@ -30,6 +30,16 @@
       "@/*": ["./src/*"]
     }
   },
-  "include": ["**/*.ts", "**/*.tsx", ".expo/types/**/*.ts", "expo-env.d.ts"],
+  // DO NOT ADD `.expo/types/**/*.ts` OR `expo-env.d.ts` HERE. Typed routes are
+  // off (`app.config.ts` never sets `experiments.typedRoutes`), so neither
+  // file exists in this project. Every `expo start` runs a doctor that, for a
+  // project with typed routes off, force-REMOVES those two strings from
+  // `include` if it finds them (`getTSConfigRemoveUpdates` in
+  // `@expo/cli/build/src/start/server/type-generation/tsconfig.js`) — and
+  // that removal is a full `JSON.stringify` rewrite of this whole file, which
+  // is what was stripping every comment above and reformatting `paths` onto
+  // multiple lines. The filter is a no-op when there is nothing to remove,
+  // which is what keeps this file untouched: leave the two entries out.
+  "include": ["**/*.ts", "**/*.tsx"],
   "exclude": ["node_modules", "dist", ".expo"]
 }
