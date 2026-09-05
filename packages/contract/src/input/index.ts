@@ -61,8 +61,10 @@ export {
   IDENTITY_NAME_MAX_LENGTH,
   type CompleteIdentityInput,
   type CompleteIdentityInputCode,
+  type IdentityNameField,
   completeIdentityInputSchema,
   firstCompleteIdentityInputCode,
+  firstCompleteIdentityIssue,
   identityDisplayName,
 } from "./complete-identity.ts";
 export {

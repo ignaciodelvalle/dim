@@ -56,29 +56,72 @@ export const IDENTITY_NAME_MAX_LENGTH = Math.floor((DISPLAY_NAME_MAX_LENGTH - 1)
  * a client computes for ITSELF before any round trip.
  *
  * FIRST AND LAST ARE SEPARATE CODES because they are separate boxes on the
- * screen and the message has to name the empty one. The length code is SHARED,
- * because the sentence is the same either way and the field that overflowed is
- * the one the person is looking at.
+ * screen and the message has to name the empty one. The length and shape codes
+ * are SHARED, because the sentence is the same either way and the issue's own
+ * `path` says which half produced it.
  */
 export const COMPLETE_IDENTITY_INPUT_CODES = [
   "FIRST_NAME_REQUIRED",
   "LAST_NAME_REQUIRED",
   "NAME_TOO_LONG",
+  "NAME_INVALID",
 ] as const;
 
 export type CompleteIdentityInputCode = (typeof COMPLETE_IDENTITY_INPUT_CODES)[number];
+
+/**
+ * WHY LENGTH IS NOT ENOUGH (security review, 2026-09-05)
+ * ---------------------------------------------------------------------------
+ * `"​"` — ZERO WIDTH SPACE — is one character long, survives
+ * `String.prototype.trim()` (it is `Cf`, not `White_Space`, and has been since
+ * Unicode 4.0.1), and joins into a `display_name` that makes `isIdentityPending`
+ * false while rendering as NOTHING. The result is a titular whose name is blank
+ * on their own credential, on the public page and in `/gob/historial`, with
+ * every gate in the product reporting the identity as complete. `U+202E`
+ * (RIGHT-TO-LEFT OVERRIDE) is the same hole pointed the other way: it renders
+ * the rest of the line reversed, wherever it is displayed.
+ *
+ * So two rules, per HALF, on the SHARED schema rather than at a call site — both
+ * doors inherit them and neither can drift:
+ *
+ *   · NO `\p{C}` — the whole Other category: `Cc` (controls, newline included),
+ *     `Cf` (format: zero-width, the bidi marks and overrides, `U+FEFF`), plus
+ *     `Cs`/`Co`/`Cn`. REJECTED rather than STRIPPED, deliberately: a form that
+ *     silently rewrites what somebody typed is worse than one that says no, and
+ *     the person cannot see the difference to check it for themselves.
+ *   · AT LEAST ONE `\p{L}` — a name is written with letters. This is what
+ *     refuses `"12345"` and `"---"`, and it is also what makes the `Cn`
+ *     (unassigned) arm of `\p{C}` harmless in the only case it could be wrong: a
+ *     script so new that the runtime's tables do not know it would fail this
+ *     rule anyway, so the ban adds no refusal of its own.
+ *
+ * DELIBERATELY NOT AN ALLOWLIST of letters and punctuation. `O'Connor`,
+ * `Ñandú-López`, `María José`, `D'Angelo` — every apostrophe, hyphen, space,
+ * accent and particle a real Argentine name carries has to pass, and a list of
+ * the ones somebody thought of is a list that eventually refuses a real person
+ * on a national registry. These two rules ban what cannot be part of a name and
+ * let everything else through.
+ */
+const CONTROL_OR_INVISIBLE = /\p{C}/u;
+const HAS_A_LETTER = /\p{L}/u;
+
+function isWritableName(value: string): boolean {
+  return !CONTROL_OR_INVISIBLE.test(value) && HAS_A_LETTER.test(value);
+}
 
 export const completeIdentityInputSchema = z.object({
   firstName: z
     .string()
     .trim()
     .min(1, { error: "FIRST_NAME_REQUIRED" })
-    .max(IDENTITY_NAME_MAX_LENGTH, { error: "NAME_TOO_LONG" }),
+    .max(IDENTITY_NAME_MAX_LENGTH, { error: "NAME_TOO_LONG" })
+    .refine(isWritableName, { error: "NAME_INVALID" }),
   lastName: z
     .string()
     .trim()
     .min(1, { error: "LAST_NAME_REQUIRED" })
-    .max(IDENTITY_NAME_MAX_LENGTH, { error: "NAME_TOO_LONG" }),
+    .max(IDENTITY_NAME_MAX_LENGTH, { error: "NAME_TOO_LONG" })
+    .refine(isWritableName, { error: "NAME_INVALID" }),
 });
 
 export type CompleteIdentityInput = z.infer<typeof completeIdentityInputSchema>;
@@ -90,11 +133,34 @@ export type CompleteIdentityInput = z.infer<typeof completeIdentityInputSchema>;
 export function firstCompleteIdentityInputCode(
   error: z.ZodError<unknown>,
 ): CompleteIdentityInputCode | null {
+  return firstCompleteIdentityIssue(error)?.code ?? null;
+}
+
+/** Which half of the name a refusal is about. */
+export type IdentityNameField = "firstName" | "lastName";
+
+/**
+ * The first refusal, with the BOX it belongs to.
+ *
+ * `NAME_TOO_LONG` and `NAME_INVALID` are shared by both halves, so a caller that
+ * only had the code had to guess which field to put the red border on — and the
+ * two doors guessed DIFFERENTLY (the server read the issue path, the app
+ * re-measured the draft). The issue's own `path` is the answer neither of them
+ * has to reconstruct, so it is returned here once and both consume it.
+ */
+export function firstCompleteIdentityIssue(
+  error: z.ZodError<unknown>,
+): { code: CompleteIdentityInputCode; field: IdentityNameField } | null {
   for (const issue of error.issues) {
     const code = issue.message;
-    if ((COMPLETE_IDENTITY_INPUT_CODES as readonly string[]).includes(code)) {
-      return code as CompleteIdentityInputCode;
-    }
+    if (!(COMPLETE_IDENTITY_INPUT_CODES as readonly string[]).includes(code)) continue;
+    return {
+      code: code as CompleteIdentityInputCode,
+      // `firstName` is the fallback rather than a guess: an issue with no usable
+      // path is a malformed body (a non-object, a missing key), and the first box
+      // is where a person reads a form's first complaint.
+      field: issue.path[0] === "lastName" ? "lastName" : "firstName",
+    };
   }
   return null;
 }

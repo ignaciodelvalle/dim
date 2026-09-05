@@ -8,6 +8,7 @@ import {
 } from "@/app/actions/auth";
 import { LnCheckbox, LnField, LnInput, LnPasswordInput } from "@/components/ui/Field";
 import { useStepFocus } from "@/lib/ui/use-step-focus";
+import { IDENTITY_NAME_MAX_LENGTH } from "@dim/contract/input";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useActionState, useEffect, useRef, useState } from "react";
@@ -113,6 +114,12 @@ export function SignupForm({
                 type="text"
                 autoComplete="given-name"
                 required
+                // The SERVER's own bound, imported rather than repeated. Both
+                // halves land in one `profiles.display_name`, so the schema
+                // derives the per-half ceiling from that column's; a number typed
+                // here would be a fourth place to keep in step. It is a courtesy,
+                // not the rule — `completeIdentityInputSchema` is what refuses.
+                maxLength={IDENTITY_NAME_MAX_LENGTH}
                 aria-describedby={describedBy}
                 invalid={invalid}
                 // Uncontrolled (DOM-owned). React 19 auto-resets this form once
@@ -132,6 +139,7 @@ export function SignupForm({
                 type="text"
                 autoComplete="family-name"
                 required
+                maxLength={IDENTITY_NAME_MAX_LENGTH}
                 aria-describedby={describedBy}
                 invalid={invalid}
                 defaultValue={identityState.lastName ?? ""}

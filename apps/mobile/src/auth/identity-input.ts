@@ -30,7 +30,7 @@ import {
   type CompleteIdentityInputCode,
   IDENTITY_NAME_MAX_LENGTH,
   completeIdentityInputSchema,
-  firstCompleteIdentityInputCode,
+  firstCompleteIdentityIssue,
 } from "@dim/contract/input";
 
 /** What the form holds. Two strings, because that is what it asks for. */
@@ -59,6 +59,12 @@ export function identityErrorMessage(code: CompleteIdentityInputCode): string {
       return "Escribí tu apellido.";
     case "NAME_TOO_LONG":
       return `El nombre y el apellido pueden tener hasta ${IDENTITY_NAME_MAX_LENGTH} caracteres cada uno.`;
+    case "NAME_INVALID":
+      // NAMES BOTH RULES AND THE USUAL CAUSE. Somebody who pasted a name out of
+      // a chat or a PDF cannot SEE the zero-width character that got refused, so
+      // a message that only said "inválido" would be a dead end; "escribilo a
+      // mano" is the fix that actually works.
+      return "Revisá ese dato: necesita al menos una letra y no puede llevar caracteres invisibles. Si lo copiaste y pegaste, escribilo a mano.";
   }
 }
 
@@ -70,8 +76,13 @@ export function toIdentityInput(draft: IdentityDraft): IdentityDraftVerdict {
   });
   if (parsed.success) return { ok: true, input: parsed.data };
 
-  const code = firstCompleteIdentityInputCode(parsed.error);
-  if (code === null) {
+  // ONE RESOLVER, IN THE CONTRACT. This used to re-measure the draft to decide
+  // which box to mark, because `NAME_TOO_LONG` is shared by both halves — a
+  // second answer to a question the zod issue's own `path` already answers, and
+  // one that would have been wrong the moment `NAME_INVALID` arrived (a
+  // zero-width character has no length to compare).
+  const issue = firstCompleteIdentityIssue(parsed.error);
+  if (issue === null) {
     // The schema refused for something outside the declared code list. That is a
     // CONTRACT violation, not a user error, and it must not be shown as a field
     // hint — it would blame the person for the app's bug.
@@ -83,16 +94,12 @@ export function toIdentityInput(draft: IdentityDraft): IdentityDraftVerdict {
     };
   }
 
-  // WHICH BOX GETS THE RED BORDER. The length code is shared between the two
-  // fields, so it is resolved against the draft rather than against the code:
-  // the first half that actually overflows is the one the person is looking at.
-  const field: keyof IdentityDraft =
-    code === "LAST_NAME_REQUIRED" ||
-    (code === "NAME_TOO_LONG" && draft.firstName.trim().length <= IDENTITY_NAME_MAX_LENGTH)
-      ? "lastName"
-      : "firstName";
-
-  return { ok: false, code, field, message: identityErrorMessage(code) };
+  return {
+    ok: false,
+    code: issue.code,
+    field: issue.field,
+    message: identityErrorMessage(issue.code),
+  };
 }
 
 /**
