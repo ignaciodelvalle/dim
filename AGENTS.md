@@ -321,7 +321,7 @@ The vecino-helps-stray case is explicit and intentional. An existing DIM owner c
 
 **Post-adoption follow-up is enforced through notifications, not credential shaming.** Missed check-ins generate notifications to both adopter and refugio. The public credential does not degrade visually. The refugio retains read access during the followup window declared on the `adoption_finalized` event.
 
-**No bulk operations in v1.** Refugios with 200+ animals do exist in CABA (El Campito, Patitas Vagabundas, Proyecto 4 Patas). Bulk intake, bulk vaccination logging, and table-shaped UIs are deferred. The schema supports them without change; the UX work is the missing piece.
+**Bulk operations shipped for high-capacity refugios.** Refugios with 200+ animals (El Campito, Patitas Vagabundas, Proyecto 4 Patas) get multi-select bulk actions at `/org/[orgToken]/mascotas` — vaccination logging, adoption-eligibility, publish/unpublish listing (Sprint 8, #399-401).
 
 ## Legal framework
 
@@ -1412,7 +1412,6 @@ If a new feature seems to need an exception, write the exception into the PR des
 - DNI verification provider when we get there (RENAPER direct vs. intermediary like Didit / Truora)
 - **`/gob` portal** and **`/admin` portal** — built. `/gob` is govt scope-bound (locality approvals + regional dashboards via `requireAdminOrGovtOrRedirect()`); `/admin` holds universal-scope surfaces. Admin page spec v2.2 and the fases 10-14 follow-up plan are both archived (implemented). See Feature inventory → Admin & govt.
 - **Lost-pet broadcast distribution** — Argentine channel mix (WhatsApp share-intent + Instagram Story template + barrio Facebook groups + verified-refugio voluntario alerts via `organization_coverage`). Animales BA interoperability is an open integration question; the goal is to complement it.
-- **Bulk operations for high-capacity refugios** — El Campito-scale shelters (200+ animals) need table-shaped UIs for bulk intake, vaccination logging, listing edits. Deferred to a later iteration; schema does not change.
 - **Cross-org transfer UX** — refugio-to-refugio handoffs need a sender-confirms / receiver-accepts flow. Event always emitted on completion (`custody_transferred`).
 - Government dashboards: three audiences in scope (sanitary authority, analyst, welfare officer); build order TBD by where adoption lands first
 - **Mascotas CABA program integration** — the GCBA's existing (non-digitalized) free-vet-attention program. DIM is the data layer it lacks; explore as a partnership path.

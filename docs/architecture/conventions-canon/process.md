@@ -1,7 +1,7 @@
 # Conventions canon — Process, CI and the gate chain
 
-> Snapshot: `d7dbf25f7` (`main`) · Facts: `docs/architecture/facts.json` generated 2026-09-04
-> Verified against code on 2026-09-04 by canon v4 + blind calibration · Status: reviewed
+> Snapshot: `d7dbf25f7` (`main`) · Facts: `docs/architecture/facts.json` generated 2026-09-05
+> Verified against code on 2026-09-05 by canon v4 + blind calibration · Status: reviewed
 > Numbers in this file are `<!-- fact:key -->` markers checked by `__tests__/architecture-facts.test.ts`.
 
 [← canon index](../conventions-canon.md) · scope `process` · 151 rules (19 ENFORCED, 19 PARTIAL, 113 UNENFORCED).

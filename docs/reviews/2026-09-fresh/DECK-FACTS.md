@@ -129,7 +129,7 @@ All 35 keys of `docs/architecture/facts.json`. The file at this snapshot declare
 | `ci_workflows` | `<!-- fact:ci_workflows -->7<!-- /fact -->` |
 | `vitest_files` | `<!-- fact:vitest_files -->1496<!-- /fact -->` |
 | `e2e_specs` | `<!-- fact:e2e_specs -->45<!-- /fact -->` |
-| `mobile_jest_files` | `<!-- fact:mobile_jest_files -->84<!-- /fact -->` |
+| `mobile_jest_files` | `<!-- fact:mobile_jest_files -->85<!-- /fact -->` |
 | `org_capabilities` | `<!-- fact:org_capabilities -->16<!-- /fact -->` |
 | `kpi_descriptors` | `<!-- fact:kpi_descriptors -->86<!-- /fact -->` |
 | `k_anonymity_k` | `<!-- fact:k_anonymity_k -->5<!-- /fact -->` |

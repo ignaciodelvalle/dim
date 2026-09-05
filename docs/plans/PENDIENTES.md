@@ -226,6 +226,18 @@ completo, 13 commits, `b6ccb7f0`..`c7d27d31`:
   resolviendo. El control pasa al nuevo titular: la chapa sigue a la MASCOTA,
   no a la persona (invariante #1).
 
+### Verificación pendiente — CERRADA la tarde del 2026-08-05
+
+> Movida aquí desde 🟠 ABIERTO — estaba **cerrada** y quedó bajo el encabezado
+> equivocado.
+
+| # | Qué | Cierre |
+|---|---|---|
+| ~~**MAP-1-v**~~ | ~~La parte **visual** del encuadre al alcance~~ | **HECHO 05/08** — capturas reales contra el QA sano: export nacional (admin) con el país entero y el pie honesto de CABA; export provincial (funcionario TdF+SC) encuadrado exacto a su mandato. Entregadas al PO. Observación abierta: el provincial salió sin burbujas de datos (¿k-anon legítimo en ventana de 30 días o algo que mirar?) |
+| ~~**e2e de chapas**~~ | ~~Ninguna spec para `/t/[serial]`, `cuenta/chapas`, `admin/chapas`~~ | **HECHO 05/08** — `e2e/chapas.spec.ts` (`9968324d`), 6 tests verdes contra navegador real: 4 estados del resolver, activación feliz, código equivocado = rechazo byte-idéntico, y la emisión REAL con captura del CSV de un solo uso (así el test también prueba ese contrato) |
+| ~~**S1 + higiene de errores**~~ | ~~Límite de tasa en revocación + `err.message` crudo~~ | **HECHO 05/08** (`91ae871a`) — revocación: 10/min·40/h por IP + 3/min·10/h por serial (presupuesto razonado: no hay secreto que adivinar); errores desconocidos → `UNKNOWN_ERROR_FALLBACK` con el real a consola; la compuerta uniforme de evidencia intacta. Presupuestos documentados en AGENTS.md (`28772e58`) |
+| ~~**Mapa nacional no determinista**~~ | ~~`.limit()` sin `ORDER BY`~~ | **DECIDIDO Y HECHO 05/08** (PO eligió ordenar por tamaño; `dcfa5feb`) — `ORDER BY n DESC, province, locality` (el desempate es lo que lo vuelve total). Medido: el tope viejo guardaba localidades de n=1 y descartaba más grandes, **perdiendo ~20% del conteo nacional** (7.695→9.642 cubierto). Paridad del cubo: 4 corridas consecutivas verdes — el orden la aprieta, no la rompe |
+
 ---
 
 ## 🟠 ABIERTO — 2026-08-05
@@ -253,15 +265,6 @@ Las cuatro estaban bloqueando código escrito. Ninguna bloquea nada ahora.
 |---|---|---|
 | **A1-ops** | **Quién fabrica la chapa y cómo se distribuye** | El software está entero. Esto no. La tarjeta de demanda por localidad (`/admin/programa`, `1450a311`) es la entrada para esa decisión |
 | **Logo** | **Cerrado para toda la chrome —ciudadana y de operador— el 2026-09-04.** El concepto viejo —huella dactilar con un perro y un gato adentro— lo retiró el PO el 2026-09-03 | Restricciones que deciden si funciona, no preferencias: **(a)** legible a **16px** en la pestaña y en la **chapita física** al lado de un QR de dos centímetros —las crestas finas se vuelven gris sucio ahí—; **(b)** reproducible **a un solo color**, porque va a convivir con escudos municipales que se bordan, se graban y se sellan; **(c)** invierte limpio en modo oscuro; **(d)** vector, no escaneo; **(e)** las dos siluetas se distinguen **de un vistazo**. Nota 2026-09-04: **ya no es tipográfica en la chrome ciudadana**. Las dos siluetas se retiraron porque chocaban de frente con la restricción (a) —a 16px un perro y un gato no se distinguen—, y la marca vigente es `public/logo-mimar-mark.svg`: un patrón de detección QR con esquinas achaflanadas y una huella adentro, que cumple (a) a (d). La dibuja el masthead ciudadano (`components/layout/AppCitizenMasthead.tsx`) y de ahí se componen los íconos de la app (`scripts/build-mobile-app-icons.ts`). **La chrome de operador dibuja la misma marca ahora**: el monograma tipográfico `m·` en `components/ui/dashboard/OpRail.tsx` y en `components/layout/AppShellDrawer.tsx` se reemplazó por la misma teja de papel. El mismo cambio alcanzó a `app/org/page.tsx` y a `components/ui/dashboard/OpMobileDrawer.tsx` el 2026-09-04: ningún lugar de la chrome dibuja ya el monograma tipográfico `m·`. El wordmark viejo `logo-mimar.svg` se borró de `public/` el 2026-09-04 — no lo consumía ningún componente |
-
-### Verificación pendiente — CERRADA la tarde del 2026-08-05
-
-| # | Qué | Cierre |
-|---|---|---|
-| ~~**MAP-1-v**~~ | ~~La parte **visual** del encuadre al alcance~~ | **HECHO 05/08** — capturas reales contra el QA sano: export nacional (admin) con el país entero y el pie honesto de CABA; export provincial (funcionario TdF+SC) encuadrado exacto a su mandato. Entregadas al PO. Observación abierta: el provincial salió sin burbujas de datos (¿k-anon legítimo en ventana de 30 días o algo que mirar?) |
-| ~~**e2e de chapas**~~ | ~~Ninguna spec para `/t/[serial]`, `cuenta/chapas`, `admin/chapas`~~ | **HECHO 05/08** — `e2e/chapas.spec.ts` (`9968324d`), 6 tests verdes contra navegador real: 4 estados del resolver, activación feliz, código equivocado = rechazo byte-idéntico, y la emisión REAL con captura del CSV de un solo uso (así el test también prueba ese contrato) |
-| ~~**S1 + higiene de errores**~~ | ~~Límite de tasa en revocación + `err.message` crudo~~ | **HECHO 05/08** (`91ae871a`) — revocación: 10/min·40/h por IP + 3/min·10/h por serial (presupuesto razonado: no hay secreto que adivinar); errores desconocidos → `UNKNOWN_ERROR_FALLBACK` con el real a consola; la compuerta uniforme de evidencia intacta. Presupuestos documentados en AGENTS.md (`28772e58`) |
-| ~~**Mapa nacional no determinista**~~ | ~~`.limit()` sin `ORDER BY`~~ | **DECIDIDO Y HECHO 05/08** (PO eligió ordenar por tamaño; `dcfa5feb`) — `ORDER BY n DESC, province, locality` (el desempate es lo que lo vuelve total). Medido: el tope viejo guardaba localidades de n=1 y descartaba más grandes, **perdiendo ~20% del conteo nacional** (7.695→9.642 cubierto). Paridad del cubo: 4 corridas consecutivas verdes — el orden la aprieta, no la rompe |
 
 ### Decisión de diseño nueva para el PO — 2026-08-05 (noche)
 
