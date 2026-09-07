@@ -28,6 +28,7 @@ import type {
 
 import { unknownEnumLabel } from "../ui/enum-label";
 import { type SectionView, sectionView } from "./owner-face-view-model";
+import { speciesLabel } from "./species";
 
 /**
  * The immutability note the web prints at the foot of the libreta, verbatim.
@@ -84,19 +85,28 @@ export function buildLibretaView(payload: PetLibretaV1): LibretaView {
  * reads "Perro" rather than "Perro · ".
  */
 export function speciesLine(identity: { species: string; sex: string | null }): string {
-  const species = SPECIES_LABELS[identity.species] ?? identity.species;
+  const species = speciesLabel(identity.species);
   const sex = identity.sex === "male" ? "macho" : identity.sex === "female" ? "hembra" : null;
   return [species, sex].filter(Boolean).join(" · ");
 }
 
-const SPECIES_LABELS: Record<string, string> = {
-  dog: "Perro",
-  cat: "Gato",
-  rabbit: "Conejo",
-  guinea_pig: "Cobayo",
-  ferret: "Hurón",
-  other: "Otra especie",
-};
+// THIS FILE USED TO CARRY ITS OWN COPY of the species table, and the copy had
+// drifted in the way a second copy always does. Two defects in one:
+//
+//   1. `SPECIES_LABELS[identity.species] ?? identity.species` fell back to the
+//      RAW WIRE VALUE, so a species this bundle had never heard of printed
+//      `chinchilla` on the libreta — the same defect `speciesLabel` was written
+//      to close (finding M1, review 2026-09-07), one file over.
+//   2. It mapped `other` to "Otra especie", while the canonical table maps the
+//      real `other` member to "Otro" and RESERVES "Otra especie" for a value the
+//      build does not know. The same phrase meant two different things
+//      depending on which module rendered it, and the difference is exactly the
+//      one a citizen would need: "the owner chose Other" vs "this app is older
+//      than the server".
+//
+// `lib/analytics/export-attribution.ts` already states the rule this breaks —
+// triplication is what let one wrong word reach three legal surfaces, so the
+// fix is a single origin and not three edits. One table, in `./species`.
 
 // ---------------------------------------------------------------------------
 // Vaccination

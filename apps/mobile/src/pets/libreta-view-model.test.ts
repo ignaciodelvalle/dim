@@ -14,6 +14,7 @@ import {
   vaccineStatusLabel,
 } from "./libreta-view-model";
 import { SECTION_UNAVAILABLE_MESSAGE } from "./owner-face-view-model";
+import { UNKNOWN_SPECIES_LABEL } from "./species";
 
 function summary(overrides: Partial<LibretaVaccinationSection> = {}): LibretaVaccinationSection {
   return {
@@ -120,8 +121,27 @@ describe("the masthead and the ledger's own copy", () => {
     expect(speciesLine({ species: "dog", sex: null })).toBe("Perro");
   });
 
-  it("keeps an unknown species readable rather than blank", () => {
-    expect(speciesLine({ species: "axolotl", sex: null })).toBe("axolotl");
+  it("names an unknown species in es-AR instead of printing the wire value", () => {
+    // THIS ASSERTION USED TO EXPECT `"axolotl"`, and the change is deliberate.
+    //
+    // It was pinning the argument `species.ts` records as the one that was
+    // wrong: that showing "Otro" for an animal the server called `chinchilla`
+    // hides a gap in this app behind a word that looks deliberate. The
+    // objection stands — the remedy did not. `axolotl`, `chinchilla`,
+    // `bearded_dragon` are internal English identifiers in a wallet whose whole
+    // UI is es-AR, and the libreta is a health document a vet reads.
+    //
+    // `UNKNOWN_SPECIES_LABEL` answers both halves: it is real es-AR, and it is
+    // NOT the label of the real `other` member ("Otro"), so a species this
+    // build has never met still does not vanish into a deliberate-looking
+    // category. Lote 1c moved `species.ts` to that rule and fixed its own
+    // tests; this module kept a hand-typed copy of the table, and this
+    // assertion is what held the old behaviour in place.
+    expect(speciesLine({ species: "axolotl", sex: null })).toBe(UNKNOWN_SPECIES_LABEL);
+    // And the real member keeps its own, different word — the collision the
+    // duplicated table had created.
+    expect(speciesLine({ species: "other", sex: null })).toBe("Otro");
+    expect(UNKNOWN_SPECIES_LABEL).not.toBe("Otro");
   });
 
   it("agrees in number on the asiento count", () => {

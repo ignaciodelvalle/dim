@@ -34,6 +34,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { StyleSheet, Text, View } from "react-native";
 
 import { publicCredentialPageUrl } from "../config/api";
+import { speciesLabel } from "../pets/species";
 import { Alert, Body, Card, ContactRow, Loading, Row, Unavailable } from "../ui/components";
 import { FONTS } from "../ui/fonts";
 import { Eyebrow, PrimaryButton, Screen, Title } from "../ui/kit";
@@ -255,7 +256,36 @@ function IdentitySection({ section }: { section: SectionView<CredentialIdentityS
         <Unavailable message={section.message} />
       ) : (
         <>
-          <Row label="Especie" value={section.data.species} />
+          {/* THROUGH THE LABEL TABLE, not the wire value. `species` arrives as a
+              plain string and printing it put "dog" on the credential face, in
+              a wallet whose entire UI is es-AR. Measured on the flagship pet
+              2026-09-07.
+
+              WHO ACTUALLY READS THIS, because the first draft of this comment
+              got it wrong and the claim is the kind a later triage would trust:
+              NOT a stranger. This screen is the one at
+              `app/mascotas/[publicToken]/credencial.tsx`, which mounts BEHIND
+              THE GATE on purpose — the anonymous reader the QR sends is served
+              by the web page at `/p/{token}`, a different codebase, and that
+              one was already routing species through its own `speciesLabel`
+              (guarded by `__tests__/species-label-single-source.test.ts`). The
+              population reachable here is a device carrying a stored session
+              that has not re-verified yet (`useDisplayOnlyGate`, the
+              `session-unverified` arm): the owner or a caretaker, on a cold
+              start or while verification is still in flight, reading their own
+              animal's credential. Smaller than "anybody with a phone", still
+              a citizen reading an English identifier off a health document.
+
+              `speciesLabel` already carries the argument for this and the
+              answer to the obvious objection (finding M1, review 2026-09-07):
+              an unknown species does not collapse into "Otro", it gets
+              `UNKNOWN_SPECIES_LABEL`, so a vocabulary this build never heard of
+              still does not disappear into a deliberate-looking category.
+
+              The enum-fallback fence could not see this one: it inspects
+              `switch` statements with a `default:` arm, and a raw value
+              interpolated straight into a row is neither. */}
+          <Row label="Especie" value={speciesLabel(section.data.species)} />
           <Row label="Raza" value={section.data.breed ?? "Sin registrar"} />
           <Row
             label="Edad"
