@@ -230,7 +230,7 @@ function deletedTables(recorded: string[]): string[] {
 }
 
 describe("deletePetsByNamePrefix deletes every child row before the pet", () => {
-  it("names pet_tags — the ONE reference to pets.id that is not ON DELETE CASCADE", async () => {
+  it("names pet_tags and pet_caretaker_grants — the two children a CASCADE read does not catch", async () => {
     vi.stubEnv("DATABASE_URL", LOCAL_URL);
     const recorded: string[] = [];
     (postgres as unknown as Mock).mockImplementation(() => fakeSql(recorded));
@@ -245,7 +245,22 @@ describe("deletePetsByNamePrefix deletes every child row before the pet", () => 
     // Pinned as an exact sequence, in both directions. A child that stops being
     // deleted disappears from the left; a new one has to be added here on
     // purpose, which is the review this file exists to force.
+    //
+    // `pet_caretaker_grants` WAS ADDED 2026-09-07, and this fence is how it got
+    // reviewed rather than slipped in — it went red on the first gate after the
+    // writer changed, which is the whole point of pinning the sequence.
+    //
+    // It is FIRST, and the position is the claim. Unlike `pet_tags`, its FK to
+    // `pets` IS ON DELETE CASCADE, so a reader auditing the children of `pets`
+    // concludes it needs no line at all. The blocker is one statement earlier:
+    // `ownership_id` references `ownerships` with ON DELETE SET NULL, and
+    // `pet_caretaker_grants_accept_check` forbids an ACCEPTED grant without an
+    // ownership — so the `ownerships` delete raises 23514, the transaction
+    // rolls back, and NOTHING is removed. Measured on the shared registry the
+    // same day, with 12 grants on doomed pets. Anywhere after `ownerships` and
+    // the fix does not work.
     expect(deletedTables(recorded)).toEqual([
+      "pet_caretaker_grants",
       "pet_events",
       "ownerships",
       "pet_identifications",

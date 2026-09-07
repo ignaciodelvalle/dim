@@ -334,6 +334,30 @@ export async function deletePetsByNamePrefix(prefix: string): Promise<number> {
     await sql.begin(async (tx) => {
       await tx`SELECT set_config('app.allow_event_mutation', 'true', true)`;
       await tx`SELECT set_config('app.allow_event_mutation_actor', ${actorId}, true)`;
+      // pet_caretaker_grants IS A SECOND CHILD THAT HAD TO BE NAMED, and it was
+      // missing for a subtler reason than pet_tags below: its FK to `pets` IS
+      // `ON DELETE CASCADE`, so reading the FK map alone says it needs no line
+      // here. The blocker is not the pet delete — it is the OWNERSHIPS delete on
+      // the very next statement.
+      //
+      // `pet_caretaker_grants.ownership_id` references `ownerships` with ON
+      // DELETE SET NULL, and the table also carries a CHECK
+      // (`pet_caretaker_grants_accept_check`) that an ACCEPTED grant must keep
+      // an ownership. So nulling the column on an accepted grant raises 23514,
+      // the whole transaction rolls back, and — exactly as the pet_tags note
+      // below describes — NO pet is removed and the pile comes back in full,
+      // quietly.
+      //
+      // MEASURED, not predicted (2026-09-07): sweeping the E2EPet-/RI0823-
+      // prefixes on the shared registry failed on precisely this, with 12 grants
+      // sitting on doomed pets. Locally this is latent only until a spec accepts
+      // a caretaker grant on a pet it registered — `caretaker-temporal.spec.ts`
+      // is one keystroke away from it.
+      //
+      // Deleting the grant is right rather than detaching it: a grant on a test
+      // pet is spec-manufactured, and the CHECK forbids the detached state
+      // anyway. It goes FIRST so the ownerships delete never sees a live row.
+      await tx`DELETE FROM pet_caretaker_grants WHERE pet_id = ANY(${ids}::uuid[])`;
       await tx`DELETE FROM pet_events WHERE pet_id = ANY(${ids}::uuid[])`;
       await tx`DELETE FROM ownerships WHERE pet_id = ANY(${ids}::uuid[])`;
       await tx`DELETE FROM pet_identifications WHERE pet_id = ANY(${ids}::uuid[])`;
