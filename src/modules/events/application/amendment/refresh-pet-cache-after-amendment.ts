@@ -30,11 +30,12 @@
 
 import { and, asc, eq, isNull } from "drizzle-orm";
 
-import { type db, petEvents, pets, reminders } from "@/db";
+import { arLocalities, type db, petEvents, pets, reminders } from "@/db";
 import { normalizeLocationForWrite } from "@/lib/domain/location-normalize";
 import { overlayAmendments } from "@/lib/infra/amendment";
 import { replayPetPregnancy } from "@/lib/projections/pet-pregnancy";
 import { replayPetWeight } from "@/lib/projections/pet-weight";
+import { provinceByCode } from "@/lib/reference/ar-provincias";
 
 type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0];
 
@@ -49,6 +50,9 @@ type StreamEvent = {
 };
 
 type OverlaidEvent = StreamEvent & { amendedAt: Date | string | null };
+
+/** Canonical uuid shape — see `refreshJurisdiction`'s `to_locality_id` guard. */
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 type Refresher = (
   tx: Tx,
@@ -166,6 +170,34 @@ async function refreshVaccinationReminder(
  * amended stream. The destination is canonicalized against the INDEC catalog
  * exactly as recordMovementWriter does on the write path, so an off-catalog
  * amended locality can't fork the jurisdiction-keyed read paths.
+ *
+ * THE EVENT'S OWN ROW WINS OVER A NAME LOOKUP (L2-3, closed here 2026-09-07).
+ * This runs on ANY amendment to ANY movement_recorded — the dispatch above is
+ * keyed by the ROOT event's type, not by which field moved — so correcting a
+ * `reason`, which is free text and legitimately editable from both surfaces, used
+ * to re-resolve the destination BY NAME with `localityIndecId: null`.
+ * `localityByName` settles a homonym alphabetically (`.orderBy(departmentName)
+ * .limit(1)`, its own comment says so) and the INDEC catalogue ships 68
+ * (province, name) collisions — four "San Pedro"s in Santiago del Estero. So a
+ * correction that touched nothing about the destination silently relocated the
+ * animal to the alphabetically first department: a different responding
+ * authority, a different PPP regime, a different epidemiological unit.
+ *
+ * `recordMovementWriter` was fixed for this on the WRITE path (it stamps
+ * `to_locality_id` from the same variable it writes into `pets.locality_id`);
+ * this path was not, so it overruled the write on every later amendment. It now
+ * reads that id and writes `pets.locality_id` from the row the EVENT names. Only
+ * that column moves: the three TEXT columns stay derived by name, because a
+ * homonym's names are identical anyway and `rederivePetCache` checks them against
+ * the same name-based canonicalization — the id is the only thing a name lookup
+ * cannot answer, and the only thing taken from it here.
+ *
+ * THE NAMES ARE CROSS-CHECKED, NOT OVERRULED — the posture `resolveByIndecId`
+ * already takes for a claimed province. An amendment can move `to_locality` text
+ * without moving the id (the web's form edits raw keys one at a time), and a
+ * cache built from a row the payload no longer names would contradict the text
+ * columns that `rederivePetCache` checks. When they disagree, the id is stale for
+ * this purpose and the name path runs exactly as before.
  */
 async function refreshJurisdiction(
   tx: Tx,
@@ -187,6 +219,14 @@ async function refreshJurisdiction(
   const toCountry = typeof latest.to_country === "string" ? latest.to_country : "AR";
   const toProvince = typeof latest.to_province === "string" ? latest.to_province : null;
   const toLocality = typeof latest.to_locality === "string" ? latest.to_locality : null;
+  // SHAPE-CHECKED BEFORE IT REACHES A QUERY. The schema says `.uuid()`, but an
+  // AMENDED payload is never re-validated — that is the defect this whole change
+  // is about — and a non-uuid string here would make Postgres throw INSIDE the
+  // amendment's transaction, turning a bad correction into a failed one.
+  const toLocalityId =
+    typeof latest.to_locality_id === "string" && UUID.test(latest.to_locality_id)
+      ? latest.to_locality_id
+      : null;
 
   let province = toProvince;
   let locality = toLocality;
@@ -194,9 +234,11 @@ async function refreshJurisdiction(
   // denormalized pets.locality_id tracks the amended jurisdiction alongside the
   // free-text columns. Null when the destination does not resolve.
   let localityId: string | null = null;
-  // Mirror recordMovementWriter.canonicalizeMovement: only AR destinations with
-  // both fields present are resolved; "soft" mode never throws (an off-catalog
-  // pair falls through as-is).
+
+  // (1) Mirror recordMovementWriter.canonicalizeMovement: only AR destinations
+  // with both fields present are resolved; "soft" mode never throws (an
+  // off-catalog pair falls through as-is). This settles the TEXT columns, which
+  // is all it is trusted for.
   if (toCountry === "AR" && toProvince && toLocality) {
     const normalized = await normalizeLocationForWrite(
       {
@@ -215,6 +257,24 @@ async function refreshJurisdiction(
     localityId = normalized.localityId;
   }
 
+  // (2) IDENTITY COMES FROM THE EVENT, not from the name lookup above. The
+  // comparison is between two CANONICAL strings — the catalogue produced both,
+  // so no second normalizer is needed and none is written here. A homonym passes
+  // it by construction (that is what a homonym is), which is exactly the case the
+  // id exists to settle; a destination whose text was amended to a different
+  // locality fails it and keeps the name path's answer. Events predating
+  // `to_locality_id` carry none and skip this entirely.
+  if (toCountry === "AR" && toLocalityId) {
+    const named = await localityRowById(tx, toLocalityId);
+    if (
+      named &&
+      named.localityName === locality &&
+      (provinceByCode(named.provinceCode)?.name ?? null) === province
+    ) {
+      localityId = named.id;
+    }
+  }
+
   await tx
     .update(pets)
     .set({
@@ -224,4 +284,31 @@ async function refreshJurisdiction(
       localityId,
     })
     .where(eq(pets.id, petId));
+}
+
+/**
+ * One `ar_localities` row by its uuid PK, read inside the amendment's tx.
+ *
+ * `lib/infra/ar-localidades.ts` has `localityByIndecId` and `localityByName` and
+ * nothing keyed on the PK, because until now no read path held one: the id is
+ * what write paths PRODUCE. `to_locality_id` is that same uuid (recordMovementWriter
+ * stamps it from the variable it writes into `pets.locality_id`), so this is the
+ * lookup that turns it back into a row. Removed rows are excluded — the catalogue
+ * soft-deletes, and a destination whose row is gone must fall back to the name
+ * path rather than re-point the cache at a retired locality.
+ */
+async function localityRowById(
+  tx: Tx,
+  localityId: string,
+): Promise<{ id: string; provinceCode: string; localityName: string } | null> {
+  const [row] = await tx
+    .select({
+      id: arLocalities.id,
+      provinceCode: arLocalities.provinceCode,
+      localityName: arLocalities.localityName,
+    })
+    .from(arLocalities)
+    .where(and(eq(arLocalities.id, localityId), isNull(arLocalities.removedAt)))
+    .limit(1);
+  return row ?? null;
 }

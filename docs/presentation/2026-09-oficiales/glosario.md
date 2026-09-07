@@ -297,7 +297,7 @@ reemplaza por gris, y **ninguna se ablanda con un "en desarrollo" simpático**.
 | `docs/reviews/2026-09-fresh/README.md` | Auditoría 2026-09 · Lentes ejecutados · Lentes diferidos | Los lentes diferidos van rayados: no dibujarlos como cobertura | acuñada |
 | refutación adversarial | Refutadores independientes · Revisión con contexto fresco | Quien revisa no escribió el código. Es lo que encontró el hallazgo crítico de la auditoría | acuñada |
 | `docs/reviews/2026-09-fresh/BACKLOG.md` | Hallazgos abiertos | **Nunca "backlog"**: es una lámina en castellano | acuñada |
-| canon de convenciones | Regla del canon | <!-- fact:canon_enforced -->176<!-- /fact --> de <!-- fact:canon_rows -->514<!-- /fact --> reglas tienen quién las haga cumplir. El resto no está roto: nadie se daría cuenta | acuñada |
+| canon de convenciones | Regla del canon | <!-- fact:canon_enforced -->178<!-- /fact --> de <!-- fact:canon_rows -->516<!-- /fact --> reglas tienen quién las haga cumplir. El resto no está roto: nadie se daría cuenta | acuñada |
 
 ---
 

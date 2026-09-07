@@ -2,7 +2,13 @@ import type { EventAttachmentV1, EventFactV1 } from "@dim/contract/api";
 import { describe, expect, it } from "@jest/globals";
 
 import {
+  AMEND_NO_CURATED_FACTS_NOTE,
+  AMEND_NO_EDITABLE_FACTS_NOTE,
+  AMEND_READ_ONLY_NOTE,
   ATTACHMENT_UNAVAILABLE_LABEL,
+  amendNoEditableFactsNote,
+  amendRequiredFactMessage,
+  amendableFacts,
   amendmentChangeLine,
   amendmentHeadline,
   attachmentExpired,
@@ -10,7 +16,11 @@ import {
   authorLine,
   buildAmendChanges,
   buildAmendEventCommand,
+  clearedRequiredFact,
   initialAmendEdits,
+  isPassThroughFact,
+  isRequiredFact,
+  readOnlyFacts,
 } from "./event-detail-view-model";
 
 const NOW = new Date("2026-08-25T15:00:00Z");
@@ -108,6 +118,7 @@ describe("attachment expiry — the link genuinely stops working, so the screen 
 });
 
 describe("buildAmendChanges — a correction names what CHANGED", () => {
+  const VACUNA = "vaccination_administered";
   const facts = [
     fact("vaccine_name", "Vacuna", "Antirrábica"),
     fact("brand", "Marca", "Nobivac"),
@@ -115,7 +126,7 @@ describe("buildAmendChanges — a correction names what CHANGED", () => {
   ];
 
   it("starts from the record's own values", () => {
-    expect(initialAmendEdits(facts)).toEqual({
+    expect(initialAmendEdits(VACUNA, facts)).toEqual({
       vaccine_name: "Antirrábica",
       brand: "Nobivac",
       batch: "L-42",
@@ -123,33 +134,258 @@ describe("buildAmendChanges — a correction names what CHANGED", () => {
   });
 
   it("sends nothing when nothing moved", () => {
-    expect(buildAmendChanges(facts, initialAmendEdits(facts))).toEqual([]);
+    expect(buildAmendChanges(VACUNA, facts, initialAmendEdits(VACUNA, facts))).toEqual([]);
   });
 
   it("sends ONLY the fields that moved", () => {
     // Submitting every field would write "Lote: «L-42» → «L-42»" into a history
     // somebody reads and make the real change impossible to find.
-    const edits = { ...initialAmendEdits(facts), batch: "L-99" };
-    expect(buildAmendChanges(facts, edits)).toEqual([{ field: "batch", value: "L-99" }]);
+    const edits = { ...initialAmendEdits(VACUNA, facts), batch: "L-99" };
+    expect(buildAmendChanges(VACUNA, facts, edits)).toEqual([{ field: "batch", value: "L-99" }]);
   });
 
   it("ignores whitespace a keyboard added", () => {
-    const edits = { ...initialAmendEdits(facts), brand: "  Nobivac  " };
-    expect(buildAmendChanges(facts, edits)).toEqual([]);
+    const edits = { ...initialAmendEdits(VACUNA, facts), brand: "  Nobivac  " };
+    expect(buildAmendChanges(VACUNA, facts, edits)).toEqual([]);
   });
 
   it("sends NULL for an emptied field, never an empty string", () => {
     // `null` clears the field; "" would store a blank value that later reads as
     // something somebody typed.
-    const edits = { ...initialAmendEdits(facts), batch: "   " };
-    expect(buildAmendChanges(facts, edits)).toEqual([{ field: "batch", value: null }]);
+    const edits = { ...initialAmendEdits(VACUNA, facts), batch: "   " };
+    expect(buildAmendChanges(VACUNA, facts, edits)).toEqual([{ field: "batch", value: null }]);
   });
 
   it("can only name fields the curated projection already renders", () => {
     // The form is built from `facts`, so a key the whitelist never emitted —
     // a hash, an internal id — has no input and cannot become a change.
-    const edits = { ...initialAmendEdits(facts), firma_hash: "tampered" };
-    expect(buildAmendChanges(facts, edits).map((c) => c.field)).toEqual([]);
+    const edits = { ...initialAmendEdits(VACUNA, facts), firma_hash: "tampered" };
+    expect(buildAmendChanges(VACUNA, facts, edits).map((c) => c.field)).toEqual([]);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// A2-alta-asentar-02 — A FORMATTED VALUE MAY NEVER BE POSTED AS A RAW ONE
+// ---------------------------------------------------------------------------
+//
+// The wire carries `{field, label, value}` and `value` is the DISPLAY string, so
+// the form was pre-filling "12/03/2026" for `next_due_at` and posting the edited
+// TEXT into a field the projection reads as an instant. The row then vanishes and
+// the correction history says "se borró"; edited to "12/04/2026" it is parsed
+// US-style as 4 December, and NOTHING in the data marks that as wrong. The spine
+// is append-only, so both are permanent.
+//
+// EVERY ASSERTION BELOW IS ON THE LAYER THAT PERSISTS. `buildAmendChanges` is
+// what the submit hands to the writer; a test that only proved the screen drew
+// fewer boxes could not see a state map that still carried the formatted date.
+
+describe("A2-alta-asentar-02 — only a row whose text IS the wire value may be corrected", () => {
+  it("refuses a FORMATTED DATE even when the edits map carries one", () => {
+    // The exact defect: `next_due_at` holds an instant and renders dd/mm/yyyy.
+    const facts = [
+      fact("batch", "Lote", "L-42"),
+      fact("next_due_at", "Próxima dosis", "12/03/2026"),
+    ];
+    const changes = buildAmendChanges("vaccination_administered", facts, {
+      batch: "L-42",
+      next_due_at: "15/03/2026",
+    });
+
+    expect(changes).toEqual([]);
+  });
+
+  it("refuses an ENUM rendered as its es-AR label", () => {
+    // `type` is one of internal|external|both; the ledger shows "interno".
+    // Posting "externo" would write the LABEL into the enum key.
+    const facts = [fact("product", "Producto", "Endogard"), fact("type", "Tipo", "interno")];
+    const changes = buildAmendChanges("deworming_administered", facts, {
+      product: "Endogard",
+      type: "externo",
+    });
+
+    expect(changes).toEqual([]);
+  });
+
+  it("refuses a weight, whose row is the FORMATTED number and nothing else", () => {
+    // `kg` is a parseable string in the spine and renders as "12,5 kg". A peso
+    // therefore has no editable row at all — which is why the screen does not
+    // offer the form for one.
+    const facts = [fact("kg", "Peso", "12,5 kg")];
+
+    expect(amendableFacts("weight_recorded", facts)).toEqual([]);
+    expect(buildAmendChanges("weight_recorded", facts, { kg: "13 kg" })).toEqual([]);
+  });
+
+  it("still corrects the free-text rows beside them", () => {
+    // The mitigation removes a capability; it must not remove the whole feature.
+    const facts = [
+      fact("batch", "Lote", "L-42"),
+      fact("next_due_at", "Próxima dosis", "12/03/2026"),
+    ];
+    const changes = buildAmendChanges("vaccination_administered", facts, {
+      batch: "L-99",
+      next_due_at: "15/03/2026",
+    });
+
+    expect(changes).toEqual([{ field: "batch", value: "L-99" }]);
+  });
+
+  it("never seeds the form's state with a value it will not accept back", () => {
+    // Belt: an entry in `edits` is an input on screen. A formatted date sitting
+    // in that map is a box somebody can type into and a value the submit would
+    // have to filter twice.
+    const facts = [
+      fact("batch", "Lote", "L-42"),
+      fact("next_due_at", "Próxima dosis", "12/03/2026"),
+    ];
+
+    expect(initialAmendEdits("vaccination_administered", facts)).toEqual({ batch: "L-42" });
+  });
+
+  it("is an ALLOWLIST: an unknown event type and an unknown key are read-only", () => {
+    // The direction is the point. A fact key or an event type that appears next
+    // month is refused by DEFAULT rather than admitted until somebody notices it
+    // is formatted — the opposite of banning the shapes known to be dangerous
+    // today.
+    expect(isPassThroughFact("vaccination_administered", "batch")).toBe(true);
+    expect(isPassThroughFact("una_cosa_nueva", "batch")).toBe(false);
+    expect(isPassThroughFact("vaccination_administered", "un_campo_nuevo")).toBe(false);
+  });
+
+  it("names the destination for the rows it will not edit, and names it as the web", () => {
+    // A capability removed with no destination leaves somebody hunting. The web's
+    // own form seeds from the RAW payload, so it is a real place to go.
+    const facts = [
+      fact("batch", "Lote", "L-42"),
+      fact("next_due_at", "Próxima dosis", "12/03/2026"),
+    ];
+
+    expect(readOnlyFacts("vaccination_administered", facts).map((f) => f.field)).toEqual([
+      "next_due_at",
+    ]);
+    expect(AMEND_READ_ONLY_NOTE).toContain("miMAR en la web");
+    expect(AMEND_NO_EDITABLE_FACTS_NOTE).toContain("miMAR en la web");
+  });
+
+  it("refuses an ISO COUNTRY CODE even though the projection renders it verbatim", () => {
+    // VERBATIM IS NECESSARY AND NOT SUFFICIENT — the rule's first draft stopped
+    // at verbatim and admitted these two. `to_country` is hardcoded `AR` by the
+    // writer and `origin_country` is `z.string().length(2)`; the phone drew a box
+    // labelled "País de destino" containing `AR`. An owner "correcting" it to
+    // `Argentina` lands (nothing re-validates an amended payload), and the cache
+    // refresher then gates canonicalisation on `toCountry === "AR"` — so
+    // `pets.localityId` goes null and province and locality stop being canonical.
+    const facts = [
+      fact("to_country", "País de destino", "AR"),
+      fact("reason", "Motivo", "mudanza"),
+    ];
+
+    expect(isPassThroughFact("movement_recorded", "to_country")).toBe(false);
+    expect(isPassThroughFact("movement_recorded", "origin_country")).toBe(false);
+    expect(amendableFacts("movement_recorded", facts).map((f) => f.field)).toEqual(["reason"]);
+    expect(
+      buildAmendChanges("movement_recorded", facts, {
+        to_country: "Argentina",
+        reason: "mudanza",
+      }),
+    ).toEqual([]);
+  });
+
+  it("refuses the two halves of a jurisdiction IDENTITY, and keeps the reason editable", () => {
+    // Correcting where an animal lives is a MOVE, not a text edit: the
+    // destination is identified by `to_locality_id`, and a box that edits only
+    // the NAME leaves the id on the original row. Worse, the server's own cache
+    // refresher re-resolves the destination on ANY amendment to the event, so
+    // correcting the free-text `reason` must not be able to carry a new name
+    // with it.
+    const facts = [
+      fact("to_province", "Provincia de destino", "Santiago del Estero"),
+      fact("to_locality", "Localidad de destino", "San Pedro"),
+      fact("reason", "Motivo", "mudanza"),
+    ];
+
+    expect(readOnlyFacts("movement_recorded", facts).map((f) => f.field)).toEqual([
+      "to_province",
+      "to_locality",
+    ]);
+    expect(
+      buildAmendChanges("movement_recorded", facts, {
+        to_province: "Buenos Aires",
+        to_locality: "La Plata",
+        reason: "traslado laboral",
+      }),
+    ).toEqual([{ field: "reason", value: "traslado laboral" }]);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// A2-alta-asentar-02 (F6) — THE ALLOWLIST GOVERNS ROWS, NOT VALUES
+// ---------------------------------------------------------------------------
+
+describe("an emptied box may not write null into a field the spine requires", () => {
+  it("drops the change instead of posting `value: null` on a required key", () => {
+    // `vaccine_name` is `z.string()` in the spine, not `z.string().nullable()`,
+    // and nothing re-validates an amended payload — so this used to land, and
+    // the projection then dropped the row entirely.
+    const facts = [fact("vaccine_name", "Vacuna", "Antirrábica"), fact("batch", "Lote", "L-42")];
+
+    expect(
+      buildAmendChanges("vaccination_administered", facts, { vaccine_name: "", batch: "L-99" }),
+    ).toEqual([{ field: "batch", value: "L-99" }]);
+  });
+
+  it("still CLEARS a key the spine declares nullable", () => {
+    // The mitigation removes a dangerous write, not the capability: `batch` is
+    // `z.string().nullable()`, and "se borró «L-42»" is a fact somebody may need
+    // to record.
+    const facts = [fact("batch", "Lote", "L-42")];
+
+    expect(buildAmendChanges("vaccination_administered", facts, { batch: "  " })).toEqual([
+      { field: "batch", value: null },
+    ]);
+  });
+
+  it("names the emptied field so the refusal is not silence", () => {
+    const facts = [fact("text", "Nota", "hola"), fact("vaccine_name", "Vacuna", "Antirrábica")];
+
+    expect(clearedRequiredFact("note_added", facts, { text: "hola" })).toBeNull();
+    expect(clearedRequiredFact("note_added", facts, { text: "   " })?.label).toBe("Nota");
+    // Only rows this app actually put in a box are consulted: `vaccine_name` is
+    // required on a vaccination and is not a `note_added` row at all.
+    expect(clearedRequiredFact("note_added", facts, { text: "hola", vaccine_name: "" })).toBeNull();
+    expect(amendRequiredFactMessage("Nota")).toContain("«Nota»");
+  });
+
+  it("is a two-way list: cvi_number is required, purpose is not", () => {
+    expect(isRequiredFact("movement_recorded", "cvi_number")).toBe(true);
+    expect(isRequiredFact("movement_recorded", "issuing_authority")).toBe(true);
+    expect(isRequiredFact("movement_recorded", "purpose")).toBe(false);
+    expect(isRequiredFact("sterilization_performed", "clinic")).toBe(false);
+    expect(isRequiredFact("una_cosa_nueva", "text")).toBe(false);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// A2-alta-asentar-02 (F4) — THE HANDOFF SENTENCE MUST BE TRUE
+// ---------------------------------------------------------------------------
+
+describe("the no-editable-rows copy states a reason that holds", () => {
+  it("does not claim formatted rows on an asiento that renders none", () => {
+    // `medication_started` and `clinical_info_logged` are amendable and have no
+    // arm in `eventPayloadDetails`. Telling that person "los que tiene se
+    // muestran con formato" right after the screen said "Sin campos adicionales"
+    // is a false statement on a citizen surface.
+    expect(amendNoEditableFactsNote([])).toBe(AMEND_NO_CURATED_FACTS_NOTE);
+    expect(AMEND_NO_CURATED_FACTS_NOTE).not.toContain("se muestran con formato");
+    // The destination clause survives: the web's form lists every raw key, so
+    // `drug_name` and `dose` genuinely are correctable there.
+    expect(AMEND_NO_CURATED_FACTS_NOTE).toContain("miMAR en la web");
+  });
+
+  it("keeps the formatted-rows reason where it is true", () => {
+    expect(amendNoEditableFactsNote([fact("kg", "Peso", "12,5 kg")])).toBe(
+      AMEND_NO_EDITABLE_FACTS_NOTE,
+    );
   });
 });
 

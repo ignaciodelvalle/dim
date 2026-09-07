@@ -206,6 +206,212 @@ export const AMEND_IMMUTABILITY_NOTE =
 
 export const AMEND_CONFIRM_LABEL = "Confirmar corrección";
 
+// ---------------------------------------------------------------------------
+// WHICH ROWS THIS APP MAY CORRECT — A2-alta-asentar-02
+// ---------------------------------------------------------------------------
+//
+// THE DEFECT. `EventFactV1` is `{ field, label, value }` and `value` is the
+// DISPLAY string: `eventPayloadDetails` (the server's curated projection) renders
+// a date through `toLocaleDateString("es-AR")`, an enum through a label table and
+// a weight through `formatWeightKg`. The correction form pre-filled that text and
+// posted it back as the RAW payload value. So "Próxima dosis 12/03/2026" edited to
+// 15/03/2026 wrote the STRING `"15/03/2026"` into `next_due_at` — the projection
+// then drops the row and the history reads "se borró" — and edited to 12/04/2026
+// it is parsed US-style as 4 December, which nothing downstream can tell from a
+// date somebody meant. On a desparasitación, "interno" → "externo" writes the
+// es-AR LABEL into an enum key. On a peso, "13 kg" writes `"13 kg"` where a
+// parseable number-as-string lives.
+//
+// WHY THAT IS WORSE THAN A NORMAL BUG. The spine is APPEND-ONLY (CLAUDE.md
+// invariant 2). A wrong value written here is permanent; only another correction
+// can sit on top of it, and the mis-dated case is not recognisable as wrong
+// afterwards. The spine's own schema is no defence either — `next_due_at` is
+// `z.string().nullable()`, so `"15/03/2026"` validates.
+//
+// THE RULE, AND WHY IT IS SHAPED THIS WAY. A row is editable ONLY when this app
+// can NAME it as one the projection renders VERBATIM **AND** whose value is FREE
+// TEXT. That is an allowlist, and the direction matters more than its contents:
+// everything absent from it is read-only, so an event type or a fact key that
+// appears next month is SAFE by default instead of dangerous by default. The
+// alternative — banning "dates and enums" — is this repo's standing failure (a
+// fence that enumerates spellings misses one): the next transform will not be a
+// date or an enum.
+//
+// VERBATIM IS NECESSARY AND NOT SUFFICIENT, and the first draft of this list got
+// that wrong. `to_country` is pushed with no transform, so the phone drew a text
+// box labelled "País de destino" containing `AR` — an ISO-3166 code the writer
+// hardcodes, not prose. An owner "correcting" it to `Argentina` would land:
+// nothing re-validates an amended payload. Then
+// `refresh-pet-cache-after-amendment.ts` gates canonicalisation on
+// `toCountry === "AR"`, which is now false, so `pets.jurisdictionCountry` becomes
+// "Argentina", `pets.localityId` becomes null, and province and locality stop
+// being canonical. `origin_country` is the same shape (`z.string().length(2)`,
+// rendered raw as `ES`). A code rendered verbatim is still a code.
+//
+// THE SECOND CUT IS IDENTITY. `to_province` and `to_locality` ARE free text and
+// ARE pass-through, and they are still refused: the destination of a jurisdiction
+// move is identified by `to_locality_id` (a catalogue row), and a box that edits
+// only the NAME leaves the id pointing at the original row — an event that
+// contradicts itself on the identity its own schema refinement calls
+// authoritative. Correcting where an animal lives is a MOVE, not a text edit.
+//
+// IT IS A CACHE OF A SERVER FACT, AND IT SAYS SO. Only `lib/events/events.ts`
+// decides what is rendered verbatim, and a phone cannot see it. So this list is
+// declared a cache with a drift detector, exactly as CLAUDE.md invariant 3
+// requires: `__tests__/mobile-amend-passthrough-fence.test.ts` reads that switch
+// and fails the moment an entry here stops being a bare two-argument `push`.
+// Without the fence this would be a second copy of the whitelist, which is how
+// two doors onto one spine stop agreeing.
+//
+// SCOPE. Only the nine types in `AMENDABLE_EVENT_TYPES` can reach a correction
+// form at all, and two of them (`medication_started`, `clinical_info_logged`)
+// render no curated rows, so they are absent here rather than empty.
+const PASS_THROUGH_FACTS: Readonly<Record<string, readonly string[]>> = {
+  vaccination_administered: ["vaccine_name", "brand", "batch", "administered_by"],
+  deworming_administered: ["product"],
+  sterilization_performed: ["performed_by", "clinic"],
+  vet_visit_logged: ["reason", "vet_name", "clinic", "diagnosis"],
+  note_added: ["text"],
+  movement_recorded: ["reason", "cvi_number", "issuing_authority", "purpose"],
+};
+
+/**
+ * WHICH OF THOSE ROWS MAY NOT BE EMPTIED.
+ *
+ * THE ALLOWLIST ABOVE GOVERNS WHICH ROWS, NEVER WHICH VALUES — and an emptied box
+ * is a value. `buildAmendChanges` sends `null` for one, because clearing a field
+ * and blanking it are different facts; but six of the keys it may touch are
+ * `z.string()` in the spine, not `z.string().nullable()`. Nothing re-validates an
+ * amended payload, so emptying "Vacuna" wrote `null` into a required field and the
+ * projection then dropped the row — visible and re-correctable, unlike the
+ * mis-dating this file exists for, but still a write the schema would have
+ * refused.
+ *
+ * A SECOND CACHE OF A SERVER FACT, with the same detector. The nullability lives
+ * in `lib/events/event-schemas.ts`; this is the phone's copy, and
+ * `__tests__/mobile-amend-passthrough-fence.test.ts` parses BOTH lists out of this
+ * file and parses a real payload through the real schema to prove each side still
+ * holds. A type with no required allowlisted key is ABSENT here rather than empty,
+ * the same convention the list above uses.
+ */
+const NON_NULLABLE_FACTS: Readonly<Record<string, readonly string[]>> = {
+  vaccination_administered: ["vaccine_name"],
+  deworming_administered: ["product"],
+  vet_visit_logged: ["reason"],
+  note_added: ["text"],
+  movement_recorded: ["cvi_number", "issuing_authority"],
+};
+
+/**
+ * Would clearing this row write `null` where the spine refuses one?
+ *
+ * `false` for an unknown type or an unknown key, like every other question this
+ * module asks — but here the safe default is the OTHER way round, so it is only
+ * ever consulted about a key the allowlist already admitted.
+ */
+export function isRequiredFact(eventType: string, field: string): boolean {
+  return NON_NULLABLE_FACTS[eventType]?.includes(field) ?? false;
+}
+
+/**
+ * The first allowlisted row the person emptied that may not be empty, or `null`.
+ *
+ * SURFACED, not swallowed. `buildAmendChanges` refuses to emit the `null` on its
+ * own — that is the guarantee, and it lives at the layer that persists — but a
+ * box that quietly ignores what somebody typed (or deleted) is the same silence
+ * this whole change is about. The screen asks this first and names the field.
+ */
+export function clearedRequiredFact(
+  eventType: string,
+  current: EventFactV1[],
+  edits: Record<string, string>,
+): EventFactV1 | null {
+  for (const fact of current) {
+    if (!isPassThroughFact(eventType, fact.field)) continue;
+    if (!isRequiredFact(eventType, fact.field)) continue;
+    if ((edits[fact.field] ?? "").trim().length === 0) return fact;
+  }
+  return null;
+}
+
+/** What the person is told when they emptied a box the spine requires. */
+export function amendRequiredFactMessage(label: string): string {
+  return `«${label}» no puede quedar vacío. Escribí un valor o dejá el que estaba.`;
+}
+
+/**
+ * Is this row's DISPLAYED text the value the spine actually holds?
+ *
+ * The only question the correction form is allowed to ask. An unknown event
+ * type, an unknown key, or a key this app has not proven answers `false` — and
+ * `false` means read-only, never "probably fine".
+ */
+export function isPassThroughFact(eventType: string, field: string): boolean {
+  return PASS_THROUGH_FACTS[eventType]?.includes(field) ?? false;
+}
+
+/** The rows this app may put in a text box. */
+export function amendableFacts(eventType: string, facts: EventFactV1[]): EventFactV1[] {
+  return facts.filter((fact) => isPassThroughFact(eventType, fact.field));
+}
+
+/**
+ * The rows it may not — SHOWN, not hidden.
+ *
+ * A capability that disappears with no trace reads as a missing feature, and the
+ * person is left believing the app simply cannot correct anything. Naming the
+ * rows and naming the destination is what turns a removal into a handoff.
+ */
+export function readOnlyFacts(eventType: string, facts: EventFactV1[]): EventFactV1[] {
+  return facts.filter((fact) => !isPassThroughFact(eventType, fact.field));
+}
+
+/**
+ * The sentence under the rows this app will not edit.
+ *
+ * IT NAMES THE DESTINATION, and the destination was verified rather than
+ * assumed: the web's own correction form seeds every input from
+ * `stringifyValue(currentPayload[key])` — the RAW payload value — so somebody
+ * there sees `2026-03-12` and `internal` and edits them in the shape the spine
+ * holds. That is the one surface where these fields are expressible at all.
+ */
+export const AMEND_READ_ONLY_NOTE =
+  "Estos datos se muestran con formato (una fecha como 12/03/2026, un tipo como «interno»), así que la app no puede guardarlos sin arruinar el registro. Corregilos desde miMAR en la web: abrí el asiento y usá «Corregir registro», que edita el valor tal como está guardado.";
+
+/** The heading over that group. Says what the rows ARE, not what they lack. */
+export const AMEND_READ_ONLY_TITLE = "Se corrigen desde la web";
+
+/**
+ * When NOTHING on the record is editable from here.
+ *
+ * A peso is the whole case: its only row is the formatted weight, so the form
+ * would have zero boxes and its submit could only ever answer "no modificaste
+ * ningún campo" — the contract requires at least one change. A dead-end form is
+ * worse than an honest handoff, so the form is not offered at all.
+ */
+export const AMEND_NO_EDITABLE_FACTS_NOTE =
+  "Este asiento no tiene datos que se puedan corregir desde la app: los que tiene se muestran con formato. Corregilo desde miMAR en la web, con «Corregir registro» en el asiento.";
+
+/**
+ * The same handoff, for an asiento with NO curated rows at all.
+ *
+ * THE SENTENCE ABOVE STATES A REASON, AND THE REASON IS FALSE HERE.
+ * `medication_started` and `clinical_info_logged` are amendable and have no arm
+ * in `eventPayloadDetails`, so they render zero rows — the screen has already
+ * said "Sin campos adicionales" — and telling that person "los que tiene se
+ * muestran con formato" is a false statement on a citizen surface, about a very
+ * common asiento. The DESTINATION is unchanged and still true: the web's form
+ * lists every key of the raw payload, so `drug_name` and `dose` genuinely are
+ * correctable there even though this screen shows none of them.
+ */
+export const AMEND_NO_CURATED_FACTS_NOTE =
+  "Este asiento no muestra campos que la app pueda corregir. Corregilo desde miMAR en la web, con «Corregir registro» en el asiento: ahí se ven todos los datos guardados del registro.";
+
+/** Which of the two sentences this asiento gets. */
+export function amendNoEditableFactsNote(facts: EventFactV1[]): string {
+  return facts.length === 0 ? AMEND_NO_CURATED_FACTS_NOTE : AMEND_NO_EDITABLE_FACTS_NOTE;
+}
+
 /**
  * The change list a correction submits: the fields whose text the user actually
  * moved, and nothing else.
@@ -222,31 +428,52 @@ export const AMEND_CONFIRM_LABEL = "Confirmar corrección";
  * The comparison is on TRIMMED text: a trailing space a keyboard inserted is not
  * a correction, and appending an event to say so would be noise in a legal-ish
  * record.
+ *
+ * THE PASS-THROUGH FILTER LIVES HERE AND NOT ONLY IN THE SCREEN (A2-alta-asentar-02),
+ * because this is the layer that decides what gets WRITTEN. A screen that renders
+ * only the safe boxes is a screen; a screen plus a state map plus a submit is
+ * three places a formatted value could re-enter, and the one that matters is the
+ * last. `eventType` is taken as an argument for the same reason `canEndMedication`
+ * matches on it: the spine's own name is the only stable key, and matching on a
+ * worded label would break the day somebody rewords one.
  */
 export function buildAmendChanges(
+  eventType: string,
   current: EventFactV1[],
   edits: Record<string, string>,
 ): AmendEventInput["changes"] {
   const changes: AmendEventInput["changes"] = [];
   for (const fact of current) {
+    if (!isPassThroughFact(eventType, fact.field)) continue;
     const next = (edits[fact.field] ?? "").trim();
     if (next === fact.value.trim()) continue;
+    // THE ROW WAS ALLOWED; THIS VALUE IS NOT. See `NON_NULLABLE_FACTS`: the
+    // allowlist decides which rows get a box, and an emptied box is a `null` the
+    // spine's own schema would refuse. Dropped here rather than posted, so a
+    // caller that skipped `clearedRequiredFact` still cannot write it.
+    if (next.length === 0 && isRequiredFact(eventType, fact.field)) continue;
     changes.push({ field: fact.field, value: next.length === 0 ? null : next });
   }
   return changes;
 }
 
 /**
- * The form's starting text, one entry per curated row.
+ * The form's starting text, one entry per EDITABLE curated row.
  *
  * THE FORM EDITS THE CURATED ROWS AND NOTHING ELSE, which is narrower than the
  * web — its form lists every key of the raw payload, including ones no screen
  * renders. Narrower on purpose: a field the ledger does not show is a field
  * nobody can see themselves correcting, and `firma_hash` appearing in a
  * correction form is an invitation to break a record.
+ *
+ * NARROWER AGAIN SINCE A2-alta-asentar-02: a row whose displayed text is a
+ * TRANSFORMATION of the wire value never becomes an entry here, so the form's
+ * state cannot hold a formatted date waiting to be posted as a raw one.
  */
-export function initialAmendEdits(facts: EventFactV1[]): Record<string, string> {
-  return Object.fromEntries(facts.map((fact) => [fact.field, fact.value]));
+export function initialAmendEdits(eventType: string, facts: EventFactV1[]): Record<string, string> {
+  return Object.fromEntries(
+    amendableFacts(eventType, facts).map((fact) => [fact.field, fact.value]),
+  );
 }
 
 /**

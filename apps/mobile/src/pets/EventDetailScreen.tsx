@@ -40,10 +40,15 @@ import {
   AMENDMENT_NO_VISIBLE_CHANGE,
   AMEND_CONFIRM_LABEL,
   AMEND_IMMUTABILITY_NOTE,
+  AMEND_READ_ONLY_NOTE,
+  AMEND_READ_ONLY_TITLE,
   ATTACHMENTS_EMPTY_LABEL,
   ATTACHMENT_EXTERNAL_HINT,
   ATTACHMENT_UNAVAILABLE_LABEL,
   type EventDetailView,
+  amendNoEditableFactsNote,
+  amendRequiredFactMessage,
+  amendableFacts,
   amendmentChangeLine,
   amendmentHeadline,
   attachmentExpired,
@@ -52,7 +57,9 @@ import {
   buildAmendEventCommand,
   buildEventDetailView,
   canEndMedication,
+  clearedRequiredFact,
   initialAmendEdits,
+  readOnlyFacts,
 } from "./event-detail-view-model";
 import { createAttemptSession } from "./idempotency";
 import { formatArDate } from "./libreta-view-model";
@@ -342,6 +349,13 @@ function AttachmentRow({ attachment, now }: { attachment: EventAttachmentV1; now
  * type that has its own reversal path, a viewer who only holds the pet through
  * an organization. A disabled control with no explanation reads as a bug; no
  * control at all reads as a missing feature.
+ *
+ * AND WHEN THE SERVER ALLOWS IT BUT NO ROW IS EDITABLE FROM HERE
+ * (A2-alta-asentar-02), the form is not offered either — for the same reason,
+ * one step further in. A peso's only curated row is the FORMATTED weight, so the
+ * form would open with zero boxes and its submit could only ever answer "no
+ * modificaste ningún campo": the contract requires at least one change. A dead
+ * end with a button is worse than a sentence naming where the correction lives.
  */
 function AmendBlock({
   view,
@@ -360,6 +374,20 @@ function AmendBlock({
         <Text style={styles.calloutBody}>{view.amendRefusal}</Text>
       </Callout>
     ) : null;
+  }
+
+  if (amendableFacts(view.eventType, view.facts).length === 0) {
+    return (
+      <Card title="Corregir">
+        {/* TWO SENTENCES, because the reason differs. An asiento whose rows are
+            all formatted is told exactly that; one with NO curated rows —
+            `medication_started` and `clinical_info_logged` render none — is not,
+            because the screen just said "Sin campos adicionales" and "los que
+            tiene se muestran con formato" would be a false statement about a
+            record that has none. The destination is the same either way. */}
+        <Body>{amendNoEditableFactsNote(view.facts)}</Body>
+      </Card>
+    );
   }
 
   if (!open) {
@@ -395,7 +423,11 @@ function AmendForm({
   onCancel: () => void;
   onDone: () => void;
 }) {
-  const [edits, setEdits] = useState<Record<string, string>>(() => initialAmendEdits(view.facts));
+  const editable = amendableFacts(view.eventType, view.facts);
+  const readOnly = readOnlyFacts(view.eventType, view.facts);
+  const [edits, setEdits] = useState<Record<string, string>>(() =>
+    initialAmendEdits(view.eventType, view.facts),
+  );
   const [reason, setReason] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
@@ -434,9 +466,21 @@ function AmendForm({
     // other form in this app. Without it a four-character motivo was a round
     // trip that came back `invalid_request` — rendered as "Actualizá la app",
     // which is both false and impossible to act on.
+    //
+    // THE EMPTIED REQUIRED BOX IS ANSWERED BEFORE THE SCHEMA RUNS, because the
+    // contract's schema cannot see it: `changes` is `{field, value}` and a `null`
+    // value is perfectly valid there — the field's own nullability lives in the
+    // SPINE's schema, which this app cannot run. `buildAmendChanges` drops the
+    // change either way; this is what makes the drop visible instead of a box
+    // that quietly ignored what somebody deleted.
+    const cleared = clearedRequiredFact(view.eventType, view.facts, edits);
+    if (cleared) {
+      setError(amendRequiredFactMessage(cleared.label));
+      return;
+    }
     const built = buildAmendEventCommand({
       reason,
-      changes: buildAmendChanges(view.facts, edits),
+      changes: buildAmendChanges(view.eventType, view.facts, edits),
     });
     if (!built.ok) {
       setError(built.message);
@@ -466,7 +510,7 @@ function AmendForm({
     <Card title="Corregir registro">
       <Body>{AMEND_IMMUTABILITY_NOTE}</Body>
 
-      {view.facts.map((fact) => (
+      {editable.map((fact) => (
         <TextField
           key={fact.field}
           label={fact.label}
@@ -475,6 +519,21 @@ function AmendForm({
           editable={!submitting}
         />
       ))}
+
+      {/* THE ROWS THIS APP WILL NOT EDIT, SHOWN RATHER THAN DROPPED
+          (A2-alta-asentar-02). A person who came here to fix "Próxima dosis"
+          must find out that it is not editable HERE and where it is — a row
+          that silently vanished from the form would read as the app having
+          forgotten a field, and they would keep looking for it. */}
+      {readOnly.length > 0 ? (
+        <View style={styles.readOnlyBlock}>
+          <Text style={styles.readOnlyTitle}>{AMEND_READ_ONLY_TITLE}</Text>
+          {readOnly.map((fact) => (
+            <Row key={fact.field} label={fact.label} value={fact.value} />
+          ))}
+          <Body>{AMEND_READ_ONLY_NOTE}</Body>
+        </View>
+      ) : null}
 
       {/* Optional for an owner correcting their own record — the CHANGE is the
           record. The five-character floor is the SPINE's, and it applies only
@@ -549,6 +608,22 @@ const styles = StyleSheet.create({
     paddingLeft: SPACE.sm,
   },
   amendHeadline: { fontFamily: FONTS.monoSemibold, fontSize: TYPE.sm, color: COLORS.inkSoft },
+  // Set apart from the editable boxes above it by a rule and a ground, so the
+  // boundary between "you can change this" and "you cannot" is visible without
+  // reading a word.
+  readOnlyBlock: {
+    gap: SPACE.xs,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: COLORS.border,
+    paddingTop: SPACE.md,
+  },
+  readOnlyTitle: {
+    fontFamily: FONTS.monoSemibold,
+    fontSize: TYPE.xs,
+    letterSpacing: TYPE.xs * TRACKING.wider,
+    textTransform: "uppercase",
+    color: COLORS.inkMuted,
+  },
   calloutBody: {
     fontFamily: FONTS.sans,
     fontSize: TYPE.md,
