@@ -170,6 +170,37 @@ export function stepTitle(step: WizardStep): string {
   }
 }
 
+/**
+ * WHY the wizard will not advance — `null` when it will.
+ *
+ * CA-M5 (2026-09-05 audit): the "Siguiente" button was disabled and mute. A
+ * disabled control announces "atenuado" and nothing else, so a person using a
+ * screen reader — or anyone who did not connect a greyed button to the field
+ * above it — was left tapping a dead key with no way to learn what was
+ * missing. The button stays disabled (an enabled button that refuses is a
+ * worse lie); the screen says the reason out loud instead.
+ *
+ * Mirrors `canAdvance` step for step and is exhaustive over `WizardStep`, so a
+ * new step is a compile error here rather than a silent mute button.
+ */
+export function advanceBlockedReason(step: WizardStep, draft: PetDraft): string | null {
+  if (canAdvance(step, draft)) return null;
+  switch (step) {
+    case "nombre":
+      return "Escribí el nombre para seguir.";
+    case "especie":
+      return "Elegí si es perro o gato para seguir.";
+    case "lugar":
+      return "Elegí la localidad donde vive para seguir.";
+    case "confirmar":
+      return "Faltan datos: volvé a los pasos anteriores y revisá el nombre, la especie y el lugar.";
+    // Both are optional: `canAdvance` is always true, so this is unreachable.
+    case "raza":
+    case "detalles":
+      return null;
+  }
+}
+
 /** Whether the wizard may advance past `step` with this draft. */
 export function canAdvance(step: WizardStep, draft: PetDraft): boolean {
   switch (step) {

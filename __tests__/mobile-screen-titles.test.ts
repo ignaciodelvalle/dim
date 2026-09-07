@@ -34,8 +34,23 @@ const LAYOUT = join(APP_DIR, "_layout.tsx");
  * header. */
 const TITLE_PENDING: ReadonlyArray<{ route: string; question: string }> = [];
 
-/** Expo Router's own file — not a screen anybody navigates to by name. */
-const ROUTER_OWN = new Set(["+not-found"]);
+/**
+ * NOTHING IS EXCLUDED ANY MORE, and `+not-found` is why the list is gone
+ * rather than empty.
+ *
+ * It sat here as "Expo Router's own file — not a screen anybody navigates to by
+ * name", which was true of the ROUTE and false of the SCREEN: nobody navigates
+ * to it deliberately, and it is the one header in the app that is guaranteed to
+ * be read by somebody arriving from OUTSIDE — a mail link, a QR — which is the
+ * worst possible place to render "+not-found" out of a filename. It is now
+ * registered in `_layout.tsx` with a transcribed title ("No pudimos abrir ese
+ * link", NAV-M1), so the exclusion no longer describes anything: it only
+ * protected the one route from the fence that would have caught the defect.
+ *
+ * Asserted like every other route from here on. If a future refactor drops that
+ * `<Stack.Screen>`, this file goes red instead of quietly shipping a router
+ * string to the person least able to interpret it.
+ */
 
 function routeFiles(dir: string, prefix = ""): string[] {
   const out: string[] = [];
@@ -59,13 +74,16 @@ function registeredNames(): Set<string> {
 }
 
 describe("mobile screen headers — registered or exempt with a written question", () => {
-  const routes = routeFiles(APP_DIR).filter((r) => !ROUTER_OWN.has(r));
+  const routes = routeFiles(APP_DIR);
   const registered = registeredNames();
   const pending = new Set(TITLE_PENDING.map((e) => e.route));
 
   it("sees the app directory at all — the sweep must never pass on an empty set", () => {
     expect(routes.length).toBeGreaterThan(20);
     expect(registered.has("turnos/index")).toBe(true);
+    // The route that used to be exempt is now in the corpus AND registered —
+    // both halves, so a walk that stopped seeing it would not read as a pass.
+    expect(routes).toContain("+not-found");
   });
 
   it("every route is registered in _layout.tsx or carries a pending copy question", () => {

@@ -343,7 +343,15 @@ describe("choosing the zone", () => {
     await reachResults();
     fireEvent.press(screen.getByText("Buscar cerca de: San Justo, Buenos Aires"));
     await waitFor(() => expect(screen.getByText("Elegir localidad")).toBeTruthy());
-    expect(screen.getByLabelText("Buscar localidad")).toBeTruthy();
+    // THE FIELD IS NOT ANNOUNCED AS OBLIGATORIA, and that is the assertion.
+    // `LocalityPicker` is shared with the alta and the mudanza, where the
+    // locality IS required, and it announced ", obligatorio" on every consumer
+    // — including this one, where the zone is a filter a person may skip and
+    // the server picks a default when they do. A screen reader reading
+    // "obligatorio" here is the app telling somebody to fill in a field they
+    // are free to leave alone.
+    expect(screen.getByLabelText("Localidad")).toBeTruthy();
+    expect(screen.queryByLabelText("Localidad, obligatorio")).toBeNull();
   });
 
   it("searches again with the CHOSEN locality, and sends the province NAME", async () => {
@@ -353,9 +361,9 @@ describe("choosing the zone", () => {
     // which reads to a citizen as "there are no campaigns here".
     await reachResults();
     fireEvent.press(screen.getByText("Buscar cerca de: San Justo, Buenos Aires"));
-    await waitFor(() => expect(screen.getByLabelText("Buscar localidad")).toBeTruthy());
+    await waitFor(() => expect(screen.getByLabelText("Localidad")).toBeTruthy());
 
-    fireEvent.changeText(screen.getByLabelText("Buscar localidad"), "Bolsón");
+    fireEvent.changeText(screen.getByLabelText("Localidad"), "Bolsón");
     await waitFor(() => expect(screen.getByText("El Bolsón")).toBeTruthy());
     fireEvent.press(screen.getByText("El Bolsón"));
 
@@ -372,8 +380,8 @@ describe("choosing the zone", () => {
     // Resetting it on every service change would make the control feel broken.
     await reachResults();
     fireEvent.press(screen.getByText("Buscar cerca de: San Justo, Buenos Aires"));
-    await waitFor(() => expect(screen.getByLabelText("Buscar localidad")).toBeTruthy());
-    fireEvent.changeText(screen.getByLabelText("Buscar localidad"), "Bolsón");
+    await waitFor(() => expect(screen.getByLabelText("Localidad")).toBeTruthy());
+    fireEvent.changeText(screen.getByLabelText("Localidad"), "Bolsón");
     await waitFor(() => expect(screen.getByText("El Bolsón")).toBeTruthy());
     fireEvent.press(screen.getByText("El Bolsón"));
     await waitFor(() => expect(mockSearch).toHaveBeenCalledTimes(3));

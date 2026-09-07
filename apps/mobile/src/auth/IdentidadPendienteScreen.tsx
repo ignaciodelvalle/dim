@@ -238,7 +238,13 @@ export function IdentidadPendienteScreen({ profilePending }: { profilePending: b
         </View>
       </Card>
 
-      <SecondaryButton label="Cerrar sesión" onPress={() => void signOut()} />
+      {/* The path travels with the sign-out so the gate suppresses the `next`
+          parameter for THIS screen only — see `signedOutHref`. A constant and
+          not `usePathname()` because this screen has exactly one address. */}
+      <SecondaryButton
+        label="Cerrar sesión"
+        onPress={() => void signOut(ROUTES.identidadPendiente)}
+      />
     </Screen>
   );
 }

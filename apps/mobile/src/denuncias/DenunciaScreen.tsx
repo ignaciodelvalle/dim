@@ -123,7 +123,12 @@ type Phase =
 export function DenunciaScreen() {
   const [values, setValues] = useState<DenunciaFormValues>(EMPTY);
   const [phase, setPhase] = useState<Phase>({ name: "form", error: null });
-  const errorAnchor = useScrollToError(phase.name === "form" ? phase.error : null);
+  // `scrollRef` and not the context: this component RENDERS the Screen, so it
+  // sits above the provider and `useContext` answered null here — the scroll
+  // never fired once (forms-F4). See `use-scroll-to-error.ts`.
+  const { anchorRef: errorAnchor, scrollRef } = useScrollToError(
+    phase.name === "form" ? phase.error : null,
+  );
   const [addressText, setAddressText] = useState("");
   const [matches, setMatches] = useState<WelfareLocationMatchV1[] | null>(null);
   const [searching, setSearching] = useState(false);
@@ -231,7 +236,7 @@ export function DenunciaScreen() {
   const working = phase.name === "working";
 
   return (
-    <Screen keyboardAvoiding>
+    <Screen keyboardAvoiding scrollRef={scrollRef}>
       <Title>Denunciar maltrato</Title>
       <Subtitle>
         La denuncia va a la autoridad de la zona donde ocurre. Es un trámite con consecuencias

@@ -70,10 +70,24 @@ export function LocalityPicker({
   provinceCode,
   localityName,
   onSelect,
+  required = true,
 }: {
   provinceCode: string;
   localityName: string;
   onSelect: (selection: LocalitySelection) => void;
+  /**
+   * Whether the field announces itself as obligatorio. TRUE BY DEFAULT because
+   * two of the three call sites are writes — the alta and the mudanza both
+   * refuse to submit without a locality — and a default that lied about the
+   * common case is the failure this prop exists to fix, in reverse.
+   *
+   * The turno search passes `false`: there the locality is a ZONE FILTER a
+   * person may skip, and the server picks a default for them. Telling a screen
+   * reader that an optional filter is obligatorio is not a cosmetic slip — it
+   * is the app instructing somebody to fill in a field they are free to leave
+   * alone, in the one modality where the visible screen cannot correct it.
+   */
+  required?: boolean;
 }) {
   const [query, setQuery] = useState("");
   const [state, setState] = useState<SearchState>({ phase: "idle" });
@@ -128,14 +142,20 @@ export function LocalityPicker({
         </Pressable>
       ) : null}
 
+      {/* NO explicit `accessibilityLabel` (CA-M2, WCAG 2.5.3 "Label in Name").
+          It said "Buscar localidad" while the visible label said "Localidad",
+          so a person driving the phone by voice who read the screen and said
+          "Localidad" named a control the system could not match. The kit
+          derives the name from the visible label and adds ", obligatorio" WHEN
+          THE FIELD IS ONE; the verb the old name carried is in the placeholder,
+          where it belongs. */}
       <TextField
-        accessibilityLabel="Buscar localidad"
         autoCapitalize="words"
         autoCorrect={false}
         label="Localidad"
         onChangeText={setQuery}
         placeholder="Escribí el nombre de tu localidad"
-        required
+        required={required}
         value={query}
       />
 

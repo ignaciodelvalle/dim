@@ -42,6 +42,7 @@ import { sessionPort } from "../auth/session-store";
 import { LocalityPicker } from "../pets/LocalityPicker";
 import { Body, Card, Loading } from "../ui/components";
 import { Callout, PrimaryButton, Screen, SecondaryButton, TextField, Title } from "../ui/kit";
+import { useScrollToError } from "../ui/use-scroll-to-error";
 
 import {
   type CurrentJurisdiction,
@@ -84,6 +85,11 @@ export function MudanzaScreen({ publicToken }: { publicToken: string }) {
   const [draft, setDraft] = useState<MoveDraft>(EMPTY_MOVE_DRAFT);
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState<Notice>(null);
+  // A REFUSAL moves the view; the "ok" notice does not. Going to fetch somebody
+  // who just succeeded is a jump nobody asked for.
+  const { anchorRef: errorAnchor, scrollRef } = useScrollToError(
+    notice !== null && notice.tone === "err" ? notice.message : null,
+  );
   /** Set once the move landed — the form is gone and only the ack remains. */
   const [done, setDone] = useState(false);
 
@@ -157,7 +163,7 @@ export function MudanzaScreen({ publicToken }: { publicToken: string }) {
     // `keyboardAvoiding` because the destination search and the reason are both
     // text inputs down a scroll — without it the keyboard covers the field being
     // typed into.
-    <Screen keyboardAvoiding>
+    <Screen keyboardAvoiding scrollRef={scrollRef}>
       <Title>Mudanza de {subject}</Title>
       <Body>
         La jurisdicción decide qué autoridad responde por {subject} y qué vacunas le corresponden,
@@ -165,9 +171,11 @@ export function MudanzaScreen({ publicToken }: { publicToken: string }) {
       </Body>
 
       {notice !== null && (
-        <Callout tone={notice.tone}>
-          <Body>{notice.message}</Body>
-        </Callout>
+        <View ref={errorAnchor}>
+          <Callout tone={notice.tone}>
+            <Body>{notice.message}</Body>
+          </Callout>
+        </View>
       )}
 
       <Card title="Dónde figura hoy">

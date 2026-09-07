@@ -24,8 +24,9 @@
 // leaving them refreshing a list that will never change.
 
 import { useCallback, useState } from "react";
+import { View } from "react-native";
 
-import type { OwnerTransferReason } from "@dim/contract/input";
+import type { OwnerTransferReason, TransferCommandInputCode } from "@dim/contract/input";
 import { TRANSFER_NOTE_MAX } from "@dim/contract/input";
 
 import type { ApiResult } from "../api/client";
@@ -34,6 +35,7 @@ import { apiErrorMessage } from "../api/error-copy";
 import { sessionPort } from "../auth/session-store";
 import { Body } from "../ui/components";
 import { Callout, Choice, PrimaryButton, Screen, TextField, Title } from "../ui/kit";
+import { useScrollToError } from "../ui/use-scroll-to-error";
 
 import {
   TRANSFER_REASON_CHOICES,
@@ -76,6 +78,19 @@ export function TransferInitiateScreen({
   const [note, setNote] = useState("");
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState<Notice>(null);
+  // Only a REFUSAL moves the view. A notice with any other tone is news, not a
+  // thing to go fix, and yanking the scroll for it is the "jarring focus jump"
+  // the web hook this mirrors refuses to make.
+  const { anchorRef: errorAnchor, scrollRef } = useScrollToError(
+    notice !== null && notice.tone === "err" ? notice.message : null,
+  );
+
+  // WHICH field the refusal was about, for the red border (forms-F3: the kit
+  // has an `invalid` prop and almost nothing used it). The CODE and not a
+  // boolean per field, because the code is what the contract already told us —
+  // this invents no validation of its own. Cleared the moment a field is
+  // edited, so the box stops being red on the keystroke and not on the retry.
+  const [invalidCode, setInvalidCode] = useState<TransferCommandInputCode | null>(null);
 
   const submit = useCallback(async () => {
     setNotice(null);
@@ -90,8 +105,10 @@ export function TransferInitiateScreen({
     });
     if (!built.ok) {
       setNotice({ tone: "err", message: built.message });
+      setInvalidCode(built.code);
       return;
     }
+    setInvalidCode(null);
 
     setBusy(true);
     const result = await sendTransferCommand(sessionPort, built.input);
@@ -106,7 +123,7 @@ export function TransferInitiateScreen({
   const subject = petName ?? "esta mascota";
 
   return (
-    <Screen keyboardAvoiding>
+    <Screen keyboardAvoiding scrollRef={scrollRef}>
       <Title>Transferir {subject}</Title>
       <Body>
         Le pasás la titularidad a otra persona. Recibe una propuesta y tiene {TRANSFER_WINDOW_DAYS}{" "}
@@ -114,9 +131,11 @@ export function TransferInitiateScreen({
       </Body>
 
       {notice !== null && (
-        <Callout tone={notice.tone}>
-          <Body>{notice.message}</Body>
-        </Callout>
+        <View ref={errorAnchor}>
+          <Callout tone={notice.tone}>
+            <Body>{notice.message}</Body>
+          </Callout>
+        </View>
       )}
 
       <TextField
@@ -126,8 +145,12 @@ export function TransferInitiateScreen({
         autoCorrect={false}
         editable={!busy}
         inputMode="email"
+        invalid={invalidCode === "EMAIL_INVALID"}
         label="Email del receptor"
-        onChangeText={setEmail}
+        onChangeText={(value) => {
+          setEmail(value);
+          setInvalidCode(null);
+        }}
         placeholder="receptor@ejemplo.com"
         required
         value={email}
@@ -152,10 +175,14 @@ export function TransferInitiateScreen({
       <TextField
         accessibilityLabel="Comentario para el receptor"
         editable={!busy}
+        invalid={invalidCode === "NOTE_TOO_LONG"}
         label="Comentario (opcional)"
         maxLength={TRANSFER_NOTE_MAX}
         multiline
-        onChangeText={setNote}
+        onChangeText={(value) => {
+          setNote(value);
+          setInvalidCode(null);
+        }}
         value={note}
       />
 

@@ -184,11 +184,26 @@ export type NoteCategory = (typeof NOTE_CATEGORIES)[number];
 export const SYMPTOM_SEVERITIES = ["mild", "moderate", "severe"] as const;
 export type SymptomSeverity = (typeof SYMPTOM_SEVERITIES)[number];
 
+/**
+ * TWO CODES PER DATE, NOT ONE — split 2026-09-06 (mobile QoL audit, forms-F2).
+ *
+ * `*_MALFORMED` is the SHAPE refusal: the string is not `YYYY-MM-DD` at all.
+ * `*_INVALID` is the CALENDAR refusal: the shape is right and the day does not
+ * exist (`2026-02-31`). They used to share one code, so a person who typed
+ * `20/08/2026` into the app read "esa fecha no existe" — a sentence about a
+ * calendar, aimed at somebody whose only mistake was the format. The consumer
+ * owns the words, but it cannot say two different things over one code.
+ *
+ * The server still accepts ISO only; the app converts before sending. Splitting
+ * the code changes nothing about what the endpoint takes.
+ */
 export const RECORD_EVENT_INPUT_CODES = [
   "KIND_REQUIRED",
   "OCCURRED_AT_REQUIRED",
+  "OCCURRED_AT_MALFORMED",
   "OCCURRED_AT_INVALID",
   "VACCINE_NAME_REQUIRED",
+  "NEXT_DUE_AT_MALFORMED",
   "NEXT_DUE_AT_INVALID",
   "WEIGHT_REQUIRED",
   "WEIGHT_INVALID",
@@ -201,6 +216,7 @@ export const RECORD_EVENT_INPUT_CODES = [
   "CUSTOM_HOURS_INVALID",
   "DURATION_DAYS_INVALID",
   "FIRST_DOSE_AT_REQUIRED",
+  "FIRST_DOSE_AT_MALFORMED",
   "FIRST_DOSE_AT_INVALID",
   "MEDICATION_SOURCE_REQUIRED",
   "TEXT_REQUIRED",
@@ -212,6 +228,7 @@ export const RECORD_EVENT_INPUT_CODES = [
   "CLINICAL_TITLE_REQUIRED",
   "SYMPTOM_TEXT_REQUIRED",
   "SYMPTOM_SEVERITY_INVALID",
+  "ONSET_AT_MALFORMED",
   "ONSET_AT_INVALID",
 ] as const;
 export type RecordEventInputCode = (typeof RECORD_EVENT_INPUT_CODES)[number];
@@ -242,12 +259,16 @@ function isRealDayAndTime(value: string): boolean {
   return h >= 0 && h <= 23 && m >= 0 && m <= 59;
 }
 
-const isoDate = (required: RecordEventInputCode, invalid: RecordEventInputCode) =>
+const isoDate = (
+  required: RecordEventInputCode,
+  malformed: RecordEventInputCode,
+  invalid: RecordEventInputCode,
+) =>
   z
     .string({ error: required })
     .trim()
     .min(1, { error: required })
-    .regex(ISO_DATE_RE, { error: invalid })
+    .regex(ISO_DATE_RE, { error: malformed })
     .refine(isRealDay, { error: invalid });
 
 /** An optional free-text field: absent, blank and `null` all mean "not stated". */
@@ -257,7 +278,7 @@ const optionalText = z
   .nullish()
   .transform((v) => (v ? v : null));
 
-const occurredAt = isoDate("OCCURRED_AT_REQUIRED", "OCCURRED_AT_INVALID");
+const occurredAt = isoDate("OCCURRED_AT_REQUIRED", "OCCURRED_AT_MALFORMED", "OCCURRED_AT_INVALID");
 
 /**
  * An OPTIONAL day: absent, `null` and blank all mean "not stated".
@@ -276,7 +297,7 @@ const nextDueAt = z
     const trimmed = typeof v === "string" ? v.trim() : "";
     return trimmed.length === 0 ? null : trimmed;
   })
-  .refine((v) => v === null || ISO_DATE_RE.test(v), { error: "NEXT_DUE_AT_INVALID" })
+  .refine((v) => v === null || ISO_DATE_RE.test(v), { error: "NEXT_DUE_AT_MALFORMED" })
   .refine((v) => v === null || isRealDay(v), { error: "NEXT_DUE_AT_INVALID" });
 
 const vaccination = z.object({
@@ -352,7 +373,7 @@ const medicationStart = z.object({
     .string({ error: "FIRST_DOSE_AT_REQUIRED" })
     .trim()
     .min(1, { error: "FIRST_DOSE_AT_REQUIRED" })
-    .regex(AR_DATETIME_LOCAL_RE, { error: "FIRST_DOSE_AT_INVALID" })
+    .regex(AR_DATETIME_LOCAL_RE, { error: "FIRST_DOSE_AT_MALFORMED" })
     .refine(isRealDayAndTime, { error: "FIRST_DOSE_AT_INVALID" }),
   notes: optionalText,
 });
@@ -509,7 +530,7 @@ const symptom = z.object({
       const trimmed = typeof v === "string" ? v.trim() : "";
       return trimmed.length === 0 ? null : trimmed;
     })
-    .refine((v) => v === null || ISO_DATE_RE.test(v), { error: "ONSET_AT_INVALID" })
+    .refine((v) => v === null || ISO_DATE_RE.test(v), { error: "ONSET_AT_MALFORMED" })
     .refine((v) => v === null || isRealDay(v), { error: "ONSET_AT_INVALID" }),
 });
 

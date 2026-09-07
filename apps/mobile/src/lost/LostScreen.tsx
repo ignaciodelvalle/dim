@@ -610,7 +610,9 @@ function MarkLostForm({
         placeholder="982000123456789"
         autoCapitalize="none"
         autoCorrect={false}
-        keyboardType="numbers-and-punctuation"
+        // `inputMode`, not `keyboardType="numbers-and-punctuation"`: that
+        // keyboard type is iOS-only and Android opened QWERTY (forms-F1).
+        inputMode="numeric"
       />
 
       <Card title="Qué se muestra en la credencial pública">

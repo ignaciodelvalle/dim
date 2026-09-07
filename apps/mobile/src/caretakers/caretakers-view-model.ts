@@ -52,6 +52,7 @@ import {
 } from "@dim/contract/input";
 
 import { todayInAr } from "../pets/record-event-view-model";
+import { dateInputToIso } from "../ui/date-input";
 
 export { todayInAr };
 
@@ -182,7 +183,16 @@ function validated(wire: unknown): CommandResult {
   return { ok: false, code, message: caretakerInputCodeMessage(code) };
 }
 
-/** DESIGNAR A ALGUIEN, from the form's four fields. */
+/**
+ * DESIGNAR A ALGUIEN, from the form's four fields.
+ *
+ * THE TWO DAYS ARRIVE AS `DD/MM/AAAA` and leave as the wire's `AAAA-MM-DD`
+ * (forms-F2). `dateInputToIso` converts the shape and judges nothing: a value
+ * it cannot read passes through as typed, the contract answers `DATE_INVALID`,
+ * and the person reads the one sentence about dates. ISO passes through
+ * untouched, so a caller that already speaks the wire format — every test that
+ * predates the masked field — still works.
+ */
 export function buildDesignateCaretaker(draft: {
   petPublicToken: string;
   inviteeEmail: string;
@@ -194,8 +204,8 @@ export function buildDesignateCaretaker(draft: {
     command: "designate",
     petPublicToken: draft.petPublicToken,
     inviteeEmail: draft.inviteeEmail,
-    startsAt: draft.startsAt.trim(),
-    endsAt: draft.endsAt.trim(),
+    startsAt: dateInputToIso(draft.startsAt),
+    endsAt: dateInputToIso(draft.endsAt),
     note: draft.note.trim() || null,
   });
 }
@@ -261,7 +271,10 @@ export function caretakerInputCodeMessage(code: CaretakerCommandInputCode | null
       // Covers a malformed shape AND a day that does not exist. `2026-02-31` is
       // the second: it looks fine and the server's own boundary parser would roll
       // it over to the 3rd of March, so the contract refuses it here instead.
-      return "Revisá las fechas: escribilas como AAAA-MM-DD y que sean días reales.";
+      // ONE CODE, so ONE SENTENCE that has to carry both facts — unlike the
+      // asiento form, whose contract now splits them (forms-F2). The format it
+      // names is the one the FIELD shows; the view-model converts.
+      return "Revisá las fechas: escribilas como DD/MM/AAAA y que sean días reales.";
     case "NOTE_TOO_LONG":
       return "La nota es demasiado larga.";
   }

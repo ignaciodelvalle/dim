@@ -158,7 +158,10 @@ export function EditProfileScreen() {
   const nameUsable = nameLength >= DISPLAY_NAME_MIN_LENGTH && nameLength <= DISPLAY_NAME_MAX_LENGTH;
 
   return (
-    <Screen>
+    // `keyboardAvoiding` like every sibling form (forms-M1): this screen is six
+    // single-line fields down a scroll, and without it the keyboard covered the
+    // one being typed into — the same defect its siblings fixed and it did not.
+    <Screen keyboardAvoiding>
       <Title>Mis datos</Title>
 
       {notice === null ? null : (

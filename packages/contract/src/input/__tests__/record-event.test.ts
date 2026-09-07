@@ -79,6 +79,38 @@ describe("recordEventInputSchema — the calendar", () => {
     ).toBe("NEXT_DUE_AT_INVALID");
   });
 
+  it("tells a WRONG SHAPE apart from a DAY THAT DOES NOT EXIST — two codes, two sentences", () => {
+    // forms-F2 (mobile QoL audit 2026-09-05): one code covered both, so a
+    // person who typed `20/08/2026` read "esa fecha no existe" — a calendar
+    // sentence aimed at a format mistake. The consumer owns the words; it
+    // cannot say two things over one code.
+    const vax = { kind: "vaccination", vaccineName: "X" };
+    expect(codeFor({ ...vax, occurredAt: "20/08/2026" })).toBe("OCCURRED_AT_MALFORMED");
+    expect(codeFor({ ...vax, occurredAt: "2026-8-20" })).toBe("OCCURRED_AT_MALFORMED");
+    expect(codeFor({ ...vax, occurredAt: "2026-02-31" })).toBe("OCCURRED_AT_INVALID");
+
+    const dew = { kind: "deworming", product: "Endogard", type: "internal", occurredAt: A_DAY };
+    expect(codeFor({ ...dew, nextDueAt: "31/06/2026" })).toBe("NEXT_DUE_AT_MALFORMED");
+    expect(codeFor({ ...dew, nextDueAt: "2026-06-31" })).toBe("NEXT_DUE_AT_INVALID");
+
+    const med = {
+      kind: "medication_start",
+      drugName: "Amoxicilina",
+      dose: "250 mg",
+      occurredAt: A_DAY,
+      frequency: "once_daily",
+    };
+    expect(codeFor({ ...med, firstDoseAt: "20/08/2026 08:00" })).toBe("FIRST_DOSE_AT_MALFORMED");
+    expect(codeFor({ ...med, firstDoseAt: "2026-08-20T25:00" })).toBe("FIRST_DOSE_AT_INVALID");
+
+    expect(codeFor({ kind: "symptom", freeText: "Tos", onsetAt: "20/08/2026" })).toBe(
+      "ONSET_AT_MALFORMED",
+    );
+    expect(codeFor({ kind: "symptom", freeText: "Tos", onsetAt: "2026-02-31" })).toBe(
+      "ONSET_AT_INVALID",
+    );
+  });
+
   it("refuses an hour that does not exist on a first dose", () => {
     expect(
       codeFor({
@@ -343,7 +375,7 @@ describe("recordEventInputSchema — síntoma", () => {
       "ONSET_AT_INVALID",
     );
     expect(codeFor({ kind: "symptom", freeText: "Tos", onsetAt: "20/08/2026" })).toBe(
-      "ONSET_AT_INVALID",
+      "ONSET_AT_MALFORMED",
     );
     expect(codeFor({ kind: "symptom", freeText: "Tos", onsetAt: A_DAY })).toBe(null);
   });

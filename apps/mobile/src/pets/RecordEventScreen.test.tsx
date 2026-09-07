@@ -14,6 +14,7 @@
 
 import { beforeEach, describe, expect, it, jest } from "@jest/globals";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react-native";
+import { TextInput } from "react-native";
 
 const mockPush = jest.fn();
 const mockReplace = jest.fn();
@@ -97,7 +98,7 @@ describe("RecordEventScreen — a weight, end to end", () => {
     render(<RecordEventScreen publicToken={TOKEN} initialKind="weight" />);
 
     fireEvent.changeText(screen.getByLabelText("Peso (kg), obligatorio"), "12,5");
-    fireEvent.changeText(screen.getByLabelText("Fecha, obligatorio"), "2026-08-20");
+    fireEvent.changeText(screen.getByLabelText("Fecha, obligatorio"), "20/08/2026");
     fireEvent.press(screen.getByText("Guardar"));
 
     await waitFor(() => expect(mockRecordPetEvent).toHaveBeenCalledTimes(1));
@@ -206,8 +207,8 @@ describe("RecordEventScreen — medicación", () => {
     render(<RecordEventScreen publicToken={TOKEN} initialKind="medication_start" />);
     fireEvent.changeText(screen.getByLabelText("Medicamento, obligatorio"), "Amoxicilina");
     fireEvent.changeText(screen.getByLabelText("Dosis, obligatorio"), "250 mg");
-    fireEvent.changeText(screen.getByLabelText("Fecha de inicio, obligatorio"), "2026-08-20");
-    fireEvent.changeText(screen.getByLabelText("Primera dosis — día, obligatorio"), "2026-08-20");
+    fireEvent.changeText(screen.getByLabelText("Fecha de inicio, obligatorio"), "20/08/2026");
+    fireEvent.changeText(screen.getByLabelText("Primera dosis — día, obligatorio"), "20/08/2026");
     fireEvent.changeText(screen.getByLabelText("Primera dosis — hora, obligatorio"), "08:00");
     fireEvent.press(screen.getByText("Guardar"));
 
@@ -223,7 +224,7 @@ describe("RecordEventScreen — medicación", () => {
         sourceEventId={EVENT_ID}
       />,
     );
-    fireEvent.changeText(screen.getByLabelText("Fecha de fin, obligatorio"), "2026-08-20");
+    fireEvent.changeText(screen.getByLabelText("Fecha de fin, obligatorio"), "20/08/2026");
     fireEvent.press(screen.getByText("Guardar"));
 
     await waitFor(() => expect(mockRecordPetEvent).toHaveBeenCalledTimes(1));
@@ -294,7 +295,7 @@ describe("RecordEventScreen — visita veterinaria", () => {
       screen.getByLabelText("Motivo de la visita, obligatorio"),
       "Control anual",
     );
-    fireEvent.changeText(screen.getByLabelText("Fecha, obligatorio"), "2026-08-20");
+    fireEvent.changeText(screen.getByLabelText("Fecha, obligatorio"), "20/08/2026");
     fireEvent.changeText(screen.getByLabelText("Diagnóstico"), "Otitis externa");
     fireEvent.changeText(screen.getByLabelText("Veterinario/a"), "Dra. Sosa");
     fireEvent.press(screen.getByText("Guardar"));
@@ -332,7 +333,7 @@ describe("RecordEventScreen — información clínica", () => {
       screen.getByLabelText("Estudio o procedimiento, obligatorio"),
       "Radiografía de tórax",
     );
-    fireEvent.changeText(screen.getByLabelText("Fecha, obligatorio"), "2026-08-20");
+    fireEvent.changeText(screen.getByLabelText("Fecha, obligatorio"), "20/08/2026");
     fireEvent.press(screen.getByText("Guardar"));
 
     await waitFor(() => expect(mockRecordPetEvent).toHaveBeenCalledTimes(1));
@@ -374,7 +375,7 @@ describe("RecordEventScreen — esterilización", () => {
     render(<RecordEventScreen publicToken={TOKEN} initialKind="sterilization" />);
 
     fireEvent.press(screen.getByText("Ovariectomía"));
-    fireEvent.changeText(screen.getByLabelText("Fecha de la cirugía, obligatorio"), "2026-08-20");
+    fireEvent.changeText(screen.getByLabelText("Fecha de la cirugía, obligatorio"), "20/08/2026");
     fireEvent.changeText(screen.getByLabelText("Clínica"), "Veterinaria del Parque");
     fireEvent.press(screen.getByText("Guardar"));
 
@@ -397,7 +398,7 @@ describe("RecordEventScreen — microchip", () => {
       screen.getByLabelText("Número de microchip, obligatorio"),
       "982000123456789",
     );
-    fireEvent.changeText(screen.getByLabelText("Fecha de implantación, obligatorio"), "2026-08-20");
+    fireEvent.changeText(screen.getByLabelText("Fecha de implantación, obligatorio"), "20/08/2026");
     fireEvent.changeText(screen.getByLabelText("Zona del cuerpo"), "Cuello, lado izquierdo");
     fireEvent.press(screen.getByText("Guardar"));
 
@@ -430,6 +431,28 @@ describe("RecordEventScreen — microchip", () => {
     for (const kind of [...RECORD_KINDS, "medication_end" as const]) {
       const view = render(<RecordEventScreen publicToken={TOKEN} initialKind={kind} />);
       expect(screen.getByText(/no se editan ni se borran/i)).toBeOnTheScreen();
+      view.unmount();
+    }
+  });
+
+  it("chains the return key across every kind — one 'done', and it is the LAST field", () => {
+    // forms-F6: the return key was a dead key on this form, so a person closed
+    // and reopened the keyboard between six fields.
+    //
+    // THIS ALSO AUDITS `chainLength`, which is a hand-written count per kind
+    // and the one thing about the chain that can silently drift: a count one
+    // too low puts "done" on a middle field and orphans the last one; one too
+    // high leaves no "done" at all. Both are invisible on a screenshot.
+    for (const kind of [...RECORD_KINDS, "medication_end" as const]) {
+      const view = render(<RecordEventScreen publicToken={TOKEN} initialKind={kind} />);
+      const chained = screen
+        .UNSAFE_getAllByType(TextInput)
+        .filter((input) => input.props.returnKeyType !== undefined);
+
+      expect(chained.length).toBeGreaterThan(0);
+      const keys = chained.map((input) => input.props.returnKeyType);
+      const expected = keys.map((_, index) => (index === keys.length - 1 ? "done" : "next"));
+      expect({ kind, keys }).toEqual({ kind, keys: expected });
       view.unmount();
     }
   });
@@ -477,7 +500,7 @@ describe("RecordEventScreen — síntoma", () => {
     render(<RecordEventScreen publicToken={TOKEN} initialKind="symptom" />);
     fireEvent.changeText(screen.getByLabelText("Qué le viste, obligatorio"), "Vómitos");
     fireEvent.press(screen.getByText("Grave"));
-    fireEvent.changeText(screen.getByLabelText("Desde cuándo (si sabés)"), "2026-08-20");
+    fireEvent.changeText(screen.getByLabelText("Desde cuándo (si sabés)"), "20/08/2026");
     fireEvent.press(screen.getByText("Guardar"));
 
     await waitFor(() => expect(mockRecordPetEvent).toHaveBeenCalledTimes(1));

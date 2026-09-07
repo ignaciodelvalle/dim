@@ -201,19 +201,22 @@ describe("retirar and finalizar are different facts", () => {
 });
 
 describe("the designation form", () => {
+  // The names carry ", obligatorio" (CA-M1/CA-M2): these three fields pass an
+  // explicit `accessibilityLabel`, which used to REPLACE the kit's derived name
+  // and take the requiredness suffix with it. See the a11y describe below.
   function fill(values: { email: string; endsAt: string }) {
-    fireEvent.changeText(screen.getByLabelText("Correo de la persona"), values.email);
-    fireEvent.changeText(screen.getByLabelText("Hasta"), values.endsAt);
+    fireEvent.changeText(screen.getByLabelText("Correo de la persona, obligatorio"), values.email);
+    fireEvent.changeText(screen.getByLabelText("Hasta, obligatorio"), values.endsAt);
   }
 
   it("refuses an impossible day BEFORE the network", async () => {
-    // `2026-02-31` looks fine and the server's own boundary parser rolls it over
+    // `31/02/2026` looks fine and the server's own boundary parser rolls it over
     // to the 3rd of March — three days of somebody else's access nobody asked for.
     loads([]);
     render(<CaretakerPetScreen publicToken={PET} petName="Pampa" />);
 
     await waitFor(() => expect(screen.getByText("Invitar como cuidador/a")).toBeTruthy());
-    fill({ email: "ana@example.com", endsAt: "2026-02-31" });
+    fill({ email: "ana@example.com", endsAt: "31/02/2026" });
     fireEvent.press(screen.getByText("Invitar como cuidador/a"));
 
     await waitFor(() => expect(screen.getByText(/días reales/)).toBeTruthy());
@@ -225,7 +228,7 @@ describe("the designation form", () => {
     render(<CaretakerPetScreen publicToken={PET} petName="Pampa" />);
 
     await waitFor(() => expect(screen.getByText("Invitar como cuidador/a")).toBeTruthy());
-    fill({ email: "ana", endsAt: "2026-09-15" });
+    fill({ email: "ana", endsAt: "15/09/2026" });
     fireEvent.press(screen.getByText("Invitar como cuidador/a"));
 
     await waitFor(() => expect(screen.getByText(/correo válido/)).toBeTruthy());
@@ -241,7 +244,7 @@ describe("the designation form", () => {
     render(<CaretakerPetScreen publicToken={PET} petName="Pampa" />);
 
     await waitFor(() => expect(screen.getByText("Invitar como cuidador/a")).toBeTruthy());
-    fill({ email: "ana@example.com", endsAt: "2026-09-15" });
+    fill({ email: "ana@example.com", endsAt: "15/09/2026" });
     fireEvent.press(screen.getByText("Invitar como cuidador/a"));
 
     await waitFor(() => expect(screen.getByText(/avisale vos/)).toBeTruthy());
@@ -253,10 +256,51 @@ describe("the designation form", () => {
     render(<CaretakerPetScreen publicToken={PET} petName="Pampa" />);
 
     await waitFor(() => expect(screen.getByText("Invitar como cuidador/a")).toBeTruthy());
-    fill({ email: "ana@example.com", endsAt: "2026-09-15" });
+    fill({ email: "ana@example.com", endsAt: "15/09/2026" });
     fireEvent.press(screen.getByText("Invitar como cuidador/a"));
 
     await waitFor(() => expect(screen.getByText(/Le avisamos a esa persona/)).toBeTruthy());
+  });
+
+  it("takes the two days as DD/MM/AAAA off a number pad and posts them as the wire's ISO", async () => {
+    // forms-F1/F2: both fields asked for `AAAA-MM-DD` over
+    // `keyboardType="numbers-and-punctuation"` — an iOS-only value, so Android
+    // opened QWERTY. Now the field shows the format an Argentine form uses, the
+    // mask draws the slashes, and the view-model converts before the contract.
+    loads([]);
+    mockSend.mockResolvedValue(designateAck(false));
+    render(<CaretakerPetScreen publicToken={PET} petName="Pampa" />);
+
+    await waitFor(() => expect(screen.getByText("Invitar como cuidador/a")).toBeTruthy());
+    const desde = screen.getByLabelText("Desde, obligatorio");
+    expect(desde.props.inputMode).toBe("numeric");
+    expect(desde.props.keyboardType).toBeUndefined();
+    expect(desde.props.placeholder).toBe("DD/MM/AAAA");
+
+    // Eight digits, the way a number pad hands them over: the mask makes the date.
+    fireEvent.changeText(desde, "01092026");
+    fill({ email: "ana@example.com", endsAt: "15/09/2026" });
+    fireEvent.press(screen.getByText("Invitar como cuidador/a"));
+
+    await waitFor(() => expect(mockSend).toHaveBeenCalledTimes(1));
+    expect(mockSend.mock.calls[0]?.[1]).toMatchObject({
+      command: "designate",
+      startsAt: "2026-09-01",
+      endsAt: "2026-09-15",
+    });
+  });
+
+  it("keeps ', obligatorio' on fields that name their own accessibility label", async () => {
+    // CA-M1/CA-M2: these three pass an explicit `accessibilityLabel`, which the
+    // kit used to let REPLACE the derived name — suffix and all — so a screen
+    // reader announced no requiredness on any of them.
+    loads([]);
+    render(<CaretakerPetScreen publicToken={PET} petName="Pampa" />);
+
+    await waitFor(() => expect(screen.getByText("Invitar como cuidador/a")).toBeTruthy());
+    expect(screen.getByLabelText("Correo de la persona, obligatorio")).toBeTruthy();
+    expect(screen.getByLabelText("Desde, obligatorio")).toBeTruthy();
+    expect(screen.getByLabelText("Hasta, obligatorio")).toBeTruthy();
   });
 
   it("renders the server's refusal when the caller may not designate", async () => {
@@ -271,7 +315,7 @@ describe("the designation form", () => {
     render(<CaretakerPetScreen publicToken={PET} petName="Pampa" />);
 
     await waitFor(() => expect(screen.getByText("Invitar como cuidador/a")).toBeTruthy());
-    fill({ email: "ana@example.com", endsAt: "2026-09-15" });
+    fill({ email: "ana@example.com", endsAt: "15/09/2026" });
     fireEvent.press(screen.getByText("Invitar como cuidador/a"));
 
     await waitFor(() => expect(screen.getByText(/no es tuya para hacer/)).toBeTruthy());

@@ -33,7 +33,7 @@ import { Body, Card, EmptyState, ErrorNotice, Loading } from "../../src/ui/compo
 import { FONTS } from "../../src/ui/fonts";
 import { PrimaryButton, Screen, SecondaryButton } from "../../src/ui/kit";
 import { ROUTES, credentialRoute } from "../../src/ui/routes";
-import { COLORS, LEADING, RADIUS, SPACE, TRACKING, TYPE } from "../../src/ui/theme";
+import { COLORS, LEADING, RADIUS, SPACE, TOUCH_TARGET, TRACKING, TYPE } from "../../src/ui/theme";
 
 type ListState = { phase: "loading" } | { phase: "loaded"; result: ApiResult<MyPetsV1> };
 
@@ -361,6 +361,11 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: COLORS.border,
     padding: SPACE.md,
+    // The 44dp floor, stated (CA-3). A row with a 52pt photo clears it today by
+    // accident, and the day somebody renders a row for a pet with no photo and
+    // a one-line name it stops clearing it silently. The a11y fence now walks
+    // `app/` too, and this is the discipline it asks every pressable file for.
+    minHeight: TOUCH_TARGET,
   },
   photo: { width: 52, height: 52, borderRadius: RADIUS.control, backgroundColor: COLORS.stripe },
   photoFallback: {

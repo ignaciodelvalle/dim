@@ -40,6 +40,7 @@ import {
   type PetDraft,
   WIZARD_STEPS,
   type WizardStep,
+  advanceBlockedReason,
   canAdvance,
   stepTitle,
   toRegisterPetInput,
@@ -59,7 +60,7 @@ import {
   Title,
 } from "../src/ui/kit";
 import { credentialRoute } from "../src/ui/routes";
-import { COLORS, RADIUS, SPACE, TYPE } from "../src/ui/theme";
+import { COLORS, RADIUS, SPACE, TOUCH_TARGET, TYPE } from "../src/ui/theme";
 
 const SEX_OPTIONS = [
   { value: "female", label: "Hembra" },
@@ -150,6 +151,7 @@ export default function AltaMascotaScreen() {
 
   const isLast = stepIndex === WIZARD_STEPS.length - 1;
   const busy = submission.phase === "sending";
+  const blocked = advanceBlockedReason(step, draft);
 
   return (
     <Screen keyboardAvoiding>
@@ -172,6 +174,15 @@ export default function AltaMascotaScreen() {
           }}
         />
       ) : null}
+
+      {/* CA-M5: a disabled button announces "atenuado" and nothing else. The
+          sentence says what is missing, and `accessibilityLiveRegion` makes a
+          screen reader read it when it appears rather than only on a visit. */}
+      {blocked === null ? null : (
+        <Text accessibilityLiveRegion="polite" style={styles.blockedReason}>
+          {blocked}
+        </Text>
+      )}
 
       <View style={styles.nav}>
         {isLast ? (
@@ -211,8 +222,10 @@ function StepBody({
   switch (step) {
     case "nombre":
       return (
+        // No explicit `accessibilityLabel`: it repeated the visible label and,
+        // before the kit's `accessibleName` fix (CA-M1), took ", obligatorio"
+        // with it — a required field that announced nothing about being one.
         <TextField
-          accessibilityLabel="Nombre"
           autoFocus
           label="Nombre"
           onChangeText={(name) => patch({ name })}
@@ -461,18 +474,23 @@ function ChoiceGroup({
   onChange: (value: string) => void;
 }) {
   return (
-    <View style={styles.choices}>
+    // CA-1: `radiogroup` on the container, and `checked` — not `selected` — on
+    // each radio. A radio whose state is only `selected` is announced by
+    // TalkBack and VoiceOver as an un-checkable control: the person hears which
+    // pill has focus and never hears which one is CHOSEN. `checked` is the
+    // state a radio has; `selected` is the one a tab or a list row has.
+    <View accessibilityRole="radiogroup" style={styles.choices}>
       {options.map((option) => {
-        const selected = option.value === value;
+        const checked = option.value === value;
         return (
           <Pressable
             accessibilityRole="radio"
-            accessibilityState={{ selected }}
+            accessibilityState={{ checked }}
             key={option.value}
             onPress={() => onChange(option.value)}
-            style={[styles.choice, selected ? styles.choiceSelected : null]}
+            style={[styles.choice, checked ? styles.choiceSelected : null]}
           >
-            <Text style={selected ? styles.choiceSelectedLabel : styles.choiceLabel}>
+            <Text style={checked ? styles.choiceSelectedLabel : styles.choiceLabel}>
               {option.label}
             </Text>
           </Pressable>
@@ -498,6 +516,11 @@ const styles = StyleSheet.create({
     borderRadius: RADIUS.button,
     paddingHorizontal: SPACE.lg,
     paddingVertical: SPACE.sm + 2,
+    // CA-2: the padding alone left these pills a few points under the 44pt
+    // floor every other control in the kit honours. `justifyContent` keeps the
+    // label centred once the box is taller than its text.
+    minHeight: TOUCH_TARGET,
+    justifyContent: "center",
   },
   choiceSelected: { backgroundColor: COLORS.accent, borderColor: COLORS.accent },
   choiceLabel: { fontFamily: FONTS.sansSemibold, color: COLORS.ink, fontSize: TYPE.md },
@@ -524,4 +547,10 @@ const styles = StyleSheet.create({
   selectedClear: { fontFamily: FONTS.sansMedium, color: COLORS.surface, fontSize: TYPE.md },
   dialogActions: { gap: SPACE.sm, marginTop: SPACE.sm },
   nav: { gap: SPACE.sm, marginTop: SPACE.lg },
+  blockedReason: {
+    fontFamily: FONTS.sans,
+    fontSize: TYPE.base,
+    color: COLORS.inkMuted,
+    marginTop: SPACE.lg,
+  },
 });

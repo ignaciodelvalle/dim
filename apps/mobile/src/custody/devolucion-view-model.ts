@@ -104,7 +104,14 @@ export function returnStateHeadline(state: PetReturnStateV1, petName: string): s
     case "not_titular":
       // The web's own sentence on this page, which names the caller's link to
       // the animal rather than pretending it does not exist to them.
-      return `Tu vínculo actual con ${petName} es de ${holderRoleLabel(state.holderRole)}. Aceptar o proponer una devolución es acción del dueño legal.`;
+      //
+      // "TITULAR" AND NOT "DUEÑO LEGAL" (CA-5). Titular is the word this whole
+      // product uses for the person the credential answers to — the role name
+      // in the schema, in `holderRoleLabel` one function down, and on every
+      // other screen that talks about it. "Dueño legal" invented a second name
+      // for the same role, in a sentence whose only job is to explain to
+      // somebody which role they are NOT.
+      return `Tu vínculo actual con ${petName} es de ${holderRoleLabel(state.holderRole)}. Aceptar o proponer una devolución es acción del titular.`;
     case "no_source_org":
       return state.callerRole === "foster"
         ? "No encontramos el refugio de origen de este tránsito. Contactá a la organización directamente para coordinar la devolución."

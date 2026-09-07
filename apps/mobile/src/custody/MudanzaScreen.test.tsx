@@ -71,7 +71,7 @@ function detail(over: Record<string, unknown> = {}): OwnerPetDetailV1 {
 
 /** Walk the typeahead: type, let the debounce fire, tap the row. */
 async function pickBariloche() {
-  fireEvent.changeText(screen.getByLabelText("Buscar localidad"), "barilo");
+  fireEvent.changeText(screen.getByLabelText("Localidad, obligatorio"), "barilo");
   const row = await screen.findByText("San Carlos de Bariloche", {}, { timeout: 3000 });
   fireEvent.press(row);
 }

@@ -35,6 +35,8 @@ import {
   recordEventInputSchema,
 } from "@dim/contract/input";
 
+import { dateInputToIso, isoToDateInput } from "../ui/date-input";
+
 /**
  * The kinds the "Asentar" picker offers.
  *
@@ -343,9 +345,17 @@ export type EventDraft = {
   onsetAt: string;
 };
 
-/** A blank draft, dated today. */
+/**
+ * A blank draft, dated today.
+ *
+ * THE DATES ARE PRE-FILLED AS `DD/MM/AAAA`, which is what the field shows and
+ * masks (forms-F2). `todayInAr` still speaks the wire format — it is also what
+ * the caretaker form and the tests reason in — and `isoToDateInput` is the one
+ * conversion between the two. A draft pre-filled with `2026-09-06` would be
+ * read by the mask as eight digits and drawn as `20/26/0906`.
+ */
 export function emptyDraft(now: Date = new Date()): EventDraft {
-  const today = todayInAr(now);
+  const today = isoToDateInput(todayInAr(now));
   return {
     occurredAt: today,
     notes: "",
@@ -400,6 +410,16 @@ function orNull(value: string): string | null {
   return trimmed.length === 0 ? null : trimmed;
 }
 
+/**
+ * A typed day → the wire's `YYYY-MM-DD`, or the text as typed when it is not a
+ * day this app can read — so the SCHEMA refuses it with `*_MALFORMED` and the
+ * person gets the format sentence, never a silent guess. See `date-input.ts`.
+ */
+function dayOrNull(value: string): string | null {
+  const iso = dateInputToIso(value);
+  return iso.length === 0 ? null : iso;
+}
+
 /** `""` → `null`, otherwise the number — leaving the SCHEMA to judge it. */
 function numberOrNull(value: string): number | null {
   const trimmed = value.trim();
@@ -429,11 +449,11 @@ function draftToWire(
       return {
         kind,
         vaccineName: draft.vaccineName,
-        occurredAt: draft.occurredAt.trim(),
+        occurredAt: dateInputToIso(draft.occurredAt),
         brand: orNull(draft.brand),
         batch: orNull(draft.batch),
         administeredBy: orNull(draft.administeredBy),
-        nextDueAt: orNull(draft.nextDueAt),
+        nextDueAt: dayOrNull(draft.nextDueAt),
         notes: orNull(draft.notes),
         sameDayOverride,
       };
@@ -441,7 +461,7 @@ function draftToWire(
       return {
         kind,
         kg: numberOrNull(draft.kg) ?? Number.NaN,
-        occurredAt: draft.occurredAt.trim(),
+        occurredAt: dateInputToIso(draft.occurredAt),
         notes: orNull(draft.notes),
       };
     case "deworming":
@@ -449,8 +469,8 @@ function draftToWire(
         kind,
         product: draft.product,
         type: draft.dewormingType,
-        occurredAt: draft.occurredAt.trim(),
-        nextDueAt: orNull(draft.nextDueAt),
+        occurredAt: dateInputToIso(draft.occurredAt),
+        nextDueAt: dayOrNull(draft.nextDueAt),
         notes: orNull(draft.notes),
         sameDayOverride,
       };
@@ -460,21 +480,21 @@ function draftToWire(
         drugName: draft.drugName,
         dose: draft.dose,
         prescribedBy: orNull(draft.prescribedBy),
-        occurredAt: draft.occurredAt.trim(),
+        occurredAt: dateInputToIso(draft.occurredAt),
         frequency: draft.frequency,
         customHours: draft.frequency === "custom" ? numberOrNull(draft.customHours) : null,
         durationDays: numberOrNull(draft.durationDays),
         // The two halves the form collects separately, joined into the one
         // string the contract describes. A single free-text
         // "AAAA-MM-DDTHH:mm" field would ask a person to type a `T`.
-        firstDoseAt: `${draft.firstDoseDay.trim()}T${draft.firstDoseTime.trim()}`,
+        firstDoseAt: `${dateInputToIso(draft.firstDoseDay)}T${draft.firstDoseTime.trim()}`,
         notes: orNull(draft.notes),
       };
     case "medication_end":
       return {
         kind,
         medicationStartedEventId: sourceEventId ?? "",
-        occurredAt: draft.occurredAt.trim(),
+        occurredAt: dateInputToIso(draft.occurredAt),
         reason: orNull(draft.reason),
         notes: orNull(draft.notes),
       };
@@ -482,7 +502,7 @@ function draftToWire(
       return {
         kind,
         chipNumber: draft.chipNumber,
-        occurredAt: draft.occurredAt.trim(),
+        occurredAt: dateInputToIso(draft.occurredAt),
         countryCode: orNull(draft.countryCode),
         implantedBy: orNull(draft.implantedBy),
         locationOnBody: orNull(draft.locationOnBody),
@@ -492,7 +512,7 @@ function draftToWire(
       return {
         kind,
         procedure: draft.procedure,
-        occurredAt: draft.occurredAt.trim(),
+        occurredAt: dateInputToIso(draft.occurredAt),
         performedBy: orNull(draft.performedBy),
         clinic: orNull(draft.clinic),
         notes: orNull(draft.notes),
@@ -501,7 +521,7 @@ function draftToWire(
       return {
         kind,
         reason: draft.visitReason,
-        occurredAt: draft.occurredAt.trim(),
+        occurredAt: dateInputToIso(draft.occurredAt),
         diagnosis: orNull(draft.diagnosis),
         vetName: orNull(draft.vetName),
         clinic: orNull(draft.clinic),
@@ -512,7 +532,7 @@ function draftToWire(
         kind,
         subKind: draft.clinicalSubKind,
         title: draft.title,
-        occurredAt: draft.occurredAt.trim(),
+        occurredAt: dateInputToIso(draft.occurredAt),
         details: orNull(draft.details),
         performedBy: orNull(draft.performedBy),
         notes: orNull(draft.notes),
@@ -521,7 +541,7 @@ function draftToWire(
       return {
         kind,
         text: draft.text,
-        occurredAt: draft.occurredAt.trim(),
+        occurredAt: dateInputToIso(draft.occurredAt),
         category: draft.category,
       };
     case "symptom":
@@ -532,7 +552,7 @@ function draftToWire(
         kind,
         freeText: draft.freeText,
         severity: draft.severity,
-        onsetAt: orNull(draft.onsetAt),
+        onsetAt: dayOrNull(draft.onsetAt),
       };
   }
 }
@@ -611,12 +631,19 @@ export function inputCodeMessage(code: RecordEventInputCode | null): string {
       return "Esta versión de la app no puede registrar este tipo de asiento. Actualizá la app.";
     case "OCCURRED_AT_REQUIRED":
       return "Falta la fecha.";
+    // TWO SENTENCES FOR TWO FACTS (forms-F2). One code used to cover both and
+    // a person who typed the date in the wrong shape read that the day did
+    // not exist.
+    case "OCCURRED_AT_MALFORMED":
+      return "Escribí la fecha como DD/MM/AAAA.";
     case "OCCURRED_AT_INVALID":
-      return "La fecha no existe. Usá el formato AAAA-MM-DD.";
+      return "Esa fecha no existe. Revisá el día y el mes.";
     case "VACCINE_NAME_REQUIRED":
       return "Falta el nombre de la vacuna.";
+    case "NEXT_DUE_AT_MALFORMED":
+      return "Escribí la fecha de la próxima dosis como DD/MM/AAAA.";
     case "NEXT_DUE_AT_INVALID":
-      return "La fecha de la próxima dosis no existe. Usá el formato AAAA-MM-DD.";
+      return "La fecha de la próxima dosis no existe. Revisá el día y el mes.";
     case "WEIGHT_REQUIRED":
       return "Falta el peso.";
     case "WEIGHT_INVALID":
@@ -639,8 +666,10 @@ export function inputCodeMessage(code: RecordEventInputCode | null): string {
       return `La duración tiene que estar entre 1 y ${MAX_DURATION_DAYS} días.`;
     case "FIRST_DOSE_AT_REQUIRED":
       return "Falta la fecha y la hora de la primera dosis.";
+    case "FIRST_DOSE_AT_MALFORMED":
+      return "Escribí el día de la primera dosis como DD/MM/AAAA y la hora como HH:MM.";
     case "FIRST_DOSE_AT_INVALID":
-      return "La fecha y hora de la primera dosis no existen. Usá AAAA-MM-DD y HH:mm.";
+      return "El día o la hora de la primera dosis no existen. Revisá los dos.";
     case "MEDICATION_SOURCE_REQUIRED":
       // Reachable only if the app opened this form without the asiento it ends.
       return "No pudimos identificar la medicación que estás terminando. Abrila desde su asiento.";
@@ -666,9 +695,86 @@ export function inputCodeMessage(code: RecordEventInputCode | null): string {
       // Reachable from a build out of step with the contract, not from the
       // chips: the chooser only ever offers the three the contract accepts.
       return "Esa gravedad no existe. Elegí una de la lista.";
+    case "ONSET_AT_MALFORMED":
+      return "Escribí la fecha de inicio como DD/MM/AAAA.";
     case "ONSET_AT_INVALID":
-      return "La fecha de inicio no existe. Usá el formato AAAA-MM-DD.";
+      return "La fecha de inicio no existe. Revisá el día y el mes.";
   }
+}
+
+/**
+ * Which draft fields a refusal is ABOUT, so the screen can draw the red border
+ * on them (forms-F3: the kit's `invalid` prop existed and four sites used it).
+ *
+ * A SET, because one code can name two boxes: the first dose is a day and an
+ * hour collected in two fields and refused as one string. Empty for the codes
+ * that are not about a field a person can see — a kind this build does not
+ * know, or a medication end opened without its asiento. Exhaustive over the
+ * contract, like `inputCodeMessage`: a new code without a row here is a compile
+ * error, not a refusal with no red box.
+ */
+export function invalidFields(code: RecordEventInputCode | null): ReadonlySet<keyof EventDraft> {
+  if (code === null) return new Set();
+  const fields = ((): ReadonlyArray<keyof EventDraft> => {
+    switch (code) {
+      case "KIND_REQUIRED":
+      case "MEDICATION_SOURCE_REQUIRED":
+        return [];
+      case "OCCURRED_AT_REQUIRED":
+      case "OCCURRED_AT_MALFORMED":
+      case "OCCURRED_AT_INVALID":
+        return ["occurredAt"];
+      case "VACCINE_NAME_REQUIRED":
+        return ["vaccineName"];
+      case "NEXT_DUE_AT_MALFORMED":
+      case "NEXT_DUE_AT_INVALID":
+        return ["nextDueAt"];
+      case "WEIGHT_REQUIRED":
+      case "WEIGHT_INVALID":
+      case "WEIGHT_TOO_HIGH":
+        return ["kg"];
+      case "PRODUCT_REQUIRED":
+        return ["product"];
+      case "DEWORMING_TYPE_INVALID":
+        return ["dewormingType"];
+      case "DRUG_NAME_REQUIRED":
+        return ["drugName"];
+      case "DOSE_REQUIRED":
+        return ["dose"];
+      case "FREQUENCY_INVALID":
+        return ["frequency"];
+      case "CUSTOM_HOURS_INVALID":
+        return ["customHours"];
+      case "DURATION_DAYS_INVALID":
+        return ["durationDays"];
+      case "FIRST_DOSE_AT_REQUIRED":
+      case "FIRST_DOSE_AT_MALFORMED":
+      case "FIRST_DOSE_AT_INVALID":
+        return ["firstDoseDay", "firstDoseTime"];
+      case "TEXT_REQUIRED":
+        return ["text"];
+      case "NOTE_CATEGORY_INVALID":
+        return ["category"];
+      case "CHIP_NUMBER_REQUIRED":
+        return ["chipNumber"];
+      case "STERILIZATION_PROCEDURE_INVALID":
+        return ["procedure"];
+      case "VISIT_REASON_REQUIRED":
+        return ["visitReason"];
+      case "CLINICAL_SUB_KIND_INVALID":
+        return ["clinicalSubKind"];
+      case "CLINICAL_TITLE_REQUIRED":
+        return ["title"];
+      case "SYMPTOM_TEXT_REQUIRED":
+        return ["freeText"];
+      case "SYMPTOM_SEVERITY_INVALID":
+        return ["severity"];
+      case "ONSET_AT_MALFORMED":
+      case "ONSET_AT_INVALID":
+        return ["onsetAt"];
+    }
+  })();
+  return new Set(fields);
 }
 
 /** The sentence shown after a successful append. */

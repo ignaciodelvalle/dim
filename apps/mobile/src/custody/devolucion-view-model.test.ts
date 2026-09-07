@@ -144,6 +144,15 @@ describe("returnStateHeadline — six states, six different sentences", () => {
     expect(named({ kind: "not_titular", holderRole: "co_owner" })).toContain("co-dueño");
   });
 
+  it("names the role it is talking about 'titular' — the product's own word (CA-5)", () => {
+    // It said "dueño legal", a second name for the role every other surface
+    // calls `titular` — in the one sentence whose whole job is to tell somebody
+    // which role they are not.
+    const sentence = named({ kind: "not_titular", holderRole: "co_owner" });
+    expect(sentence).toContain("acción del titular");
+    expect(sentence).not.toContain("dueño legal");
+  });
+
   it("says something DIFFERENT to a foster and to an owner with no source org", () => {
     // MUTATION APPLIED: one sentence for both roles. Red — a foster is told to
     // contact the shelter of a transit that exists, an owner is told no adoption

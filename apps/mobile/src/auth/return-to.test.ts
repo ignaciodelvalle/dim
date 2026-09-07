@@ -17,7 +17,7 @@
 import { describe, expect, it } from "@jest/globals";
 
 import { ROUTES } from "../ui/routes";
-import { returnHref, signInHref } from "./return-to";
+import { endedByThePerson, returnHref, signInHref, signedOutHref } from "./return-to";
 
 describe("signInHref", () => {
   it("carries a real destination", () => {
@@ -89,5 +89,91 @@ describe("the round trip", () => {
     const href = signInHref(ROUTES.misMascotas);
     const carried = typeof href === "string" ? undefined : href.params.next;
     expect(returnHref(carried)).toBe(ROUTES.root);
+  });
+});
+
+describe("endedByThePerson — NAV-2, confirmed on a device", () => {
+  it("is TRUE for the three ends a person asked for", () => {
+    // The gate skips `next` on these, so signing out from Ajustes and signing
+    // back in no longer re-opens Ajustes — the screen whose button they pressed.
+    expect(endedByThePerson("user_action")).toBe(true);
+    expect(endedByThePerson("revoked_all")).toBe(true);
+    expect(endedByThePerson("account_erased")).toBe(true);
+  });
+
+  it("is FALSE for every end that was done TO them — that is what `next` is for", () => {
+    // A session taken mid-task is the case the destination exists to serve: a
+    // notification opened, the token had expired, and after signing in the
+    // person must arrive at the link, not at a pet list.
+    expect(endedByThePerson("auth_expired")).toBe(false);
+    expect(endedByThePerson("session_shift_expired")).toBe(false);
+    expect(endedByThePerson("auth_required")).toBe(false);
+    expect(endedByThePerson("account_deactivated")).toBe(false);
+    expect(endedByThePerson(null)).toBe(false);
+  });
+
+  it("composes with signInHref the way the gate composes them", () => {
+    const atAjustes = "/ajustes";
+    // Deliberate: the gate never builds the parameter at all.
+    expect(endedByThePerson("user_action") ? ROUTES.ingreso : signInHref(atAjustes)).toBe(
+      ROUTES.ingreso,
+    );
+    // Expired at the same screen: the destination survives.
+    expect(endedByThePerson("auth_expired") ? ROUTES.ingreso : signInHref(atAjustes)).toEqual({
+      pathname: ROUTES.ingreso,
+      params: { next: atAjustes },
+    });
+  });
+});
+
+describe("signedOutHref — the suppression is scoped to ONE screen", () => {
+  const PROPOSAL = "/transferencias/PTR-ABCD-2345";
+
+  it("drops the destination on the screen the person signed out from", () => {
+    // NAV-2, unchanged: "Cerrar sesión" in Ajustes must not hand Ajustes back
+    // at the next sign-in.
+    expect(
+      signedOutHref({ reason: "user_action", endedAt: ROUTES.ajustes, pathname: ROUTES.ajustes }),
+    ).toBe(ROUTES.ingreso);
+  });
+
+  it("KEEPS the destination of a deep link opened AFTER a deliberate sign-out", () => {
+    // THE REASON IS STICKY. `signOut()` writes "user_action" and nothing clears
+    // it until the next sign-in, so this is the real state of the store when
+    // somebody signs out in Ajustes, stays in the app, and taps a
+    // transfer-proposal notification. Reading the reason alone sent them to a
+    // bare `ingreso`, and after signing in they landed on their pet list with
+    // the proposal — which goes on expiring — nowhere in sight.
+    expect(
+      signedOutHref({ reason: "user_action", endedAt: ROUTES.ajustes, pathname: PROPOSAL }),
+    ).toEqual({ pathname: ROUTES.ingreso, params: { next: PROPOSAL } });
+  });
+
+  it("keeps the destination for an EXPIRED session at that very screen", () => {
+    // The other half of the invariant: nobody closed anything, so nothing is
+    // withheld — not even on the screen a sign-out would have erased.
+    expect(
+      signedOutHref({ reason: "auth_expired", endedAt: undefined, pathname: ROUTES.ajustes }),
+    ).toEqual({ pathname: ROUTES.ingreso, params: { next: ROUTES.ajustes } });
+  });
+
+  it("carries nothing for the paths that would loop, whatever ended the session", () => {
+    // `signInHref`'s rule still applies underneath: the pet list is the default
+    // landing and sign-in itself would loop.
+    expect(signedOutHref({ reason: null, endedAt: undefined, pathname: ROUTES.misMascotas })).toBe(
+      ROUTES.ingreso,
+    );
+    expect(signedOutHref({ reason: null, endedAt: undefined, pathname: ROUTES.ingreso })).toBe(
+      ROUTES.ingreso,
+    );
+  });
+
+  it("does not suppress on a reason with no screen attached to it", () => {
+    // `endedAt` is required at every ender, so this shape can only come from a
+    // store written before one existed. Suppressing everywhere on it would be
+    // the sticky-reason bug again, so it suppresses nowhere.
+    expect(
+      signedOutHref({ reason: "user_action", endedAt: undefined, pathname: PROPOSAL }),
+    ).toEqual({ pathname: ROUTES.ingreso, params: { next: PROPOSAL } });
   });
 });

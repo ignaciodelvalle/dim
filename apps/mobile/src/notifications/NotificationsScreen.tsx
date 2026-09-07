@@ -36,7 +36,8 @@ import type {
   MyNotificationsV1,
   NotificationCategoryV1,
 } from "@dim/contract/api";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useFocusEffect } from "expo-router";
+import { useCallback, useRef, useState } from "react";
 import { Pressable, RefreshControl, StyleSheet, Text, View } from "react-native";
 
 import { type ApiResult, apiFailureMessage } from "../api/client";
@@ -110,9 +111,26 @@ export function NotificationsScreen({
     [],
   );
 
-  useEffect(() => {
-    void load(category, "initial");
-  }, [load, category]);
+  // ON FOCUS, NOT ON MOUNT (NAV-3, the fix `TransfersScreen` and `TurnosScreen`
+  // already carry). Every row here leads somewhere that CHANGES the row: opening
+  // a transfer proposal, accepting a caretaker invitation. Coming back does not
+  // remount this screen, so the inbox kept showing the state from before the
+  // decision — an unread badge on something already read.
+  //
+  // THE MODE IS THE WHOLE DIFFERENCE between a fix and an annoyance. `initial`
+  // blanks the list to a skeleton, which is right the first time and wrong every
+  // time somebody returns from a detail screen; `refresh` keeps the rows and
+  // spins the pull-to-refresh control instead. The ref remembers WHICH category
+  // was loaded, so switching tabs still takes the skeleton (it is a different
+  // list) while returning to the same tab does not.
+  const loadedCategory = useRef<NotificationCategoryV1 | null | undefined>(undefined);
+  useFocusEffect(
+    useCallback(() => {
+      const mode = loadedCategory.current === category ? "refresh" : "initial";
+      loadedCategory.current = category;
+      void load(category, mode);
+    }, [load, category]),
+  );
 
   /**
    * Run one command, then re-read.

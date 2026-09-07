@@ -159,7 +159,14 @@ describe("art. 16 — eliminar mi cuenta", () => {
 
     fireEvent.press(screen.getByText("Confirmar borrado"));
 
-    await waitFor(() => expect(mockEraseAccount).toHaveBeenCalledWith("ya no uso miMAR"));
+    // THE SECOND ARGUMENT IS THIS SCREEN'S OWN PATH, and it is not decoration:
+    // the gate suppresses the sign-in `next` parameter for the screen a
+    // deliberate end happened on, and only that one. Passing nothing — or
+    // passing somebody else's path — would either resurrect this screen at the
+    // next sign-in or swallow the destination of a deep link tapped afterwards.
+    await waitFor(() =>
+      expect(mockEraseAccount).toHaveBeenCalledWith("ya no uso miMAR", "/cuenta/privacidad"),
+    );
   });
 
   it("keeps the person on the form when the erasure is refused, and says why", async () => {

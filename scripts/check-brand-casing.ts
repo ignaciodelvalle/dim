@@ -98,11 +98,11 @@
 // logo-mimar-mark.svg asset path, package/slug names). The codename is Rule 2's
 // business, not Rule 1's.
 //
-// Scope (BOTH rules): app/**, components/**, src/**, lib/** — .ts/.tsx,
+// Scope (BOTH rules), the glob below verbatim: app/**, components/**, lib/**,
+// packages/**, src/**, apps/mobile/app/**, apps/mobile/src/** — .ts/.tsx,
 // excluding *.test.*, __tests__/**, *.stories.* (display copy lives in source,
-// not in the tests that assert on it — mirrors check-professionalism.ts's
-// scope carve-out). lib/** matters: that is where the PDF renderers live, and
-// where the codename leak Rule 2 exists to catch actually shipped.
+// not in the tests that assert on it). lib/** is where the PDF renderers live;
+// the two apps/mobile roots are the Expo client (CA-3, see the glob's note).
 //
 // Run: pnpm tsx scripts/check-brand-casing.ts
 // Or:  pnpm lint:brand
@@ -128,7 +128,17 @@ function isExcluded(relPath: string): boolean {
   return false;
 }
 
-const FILES = globSync("{app,components,lib,packages,src}/**/*.{ts,tsx}")
+// THE PHONE APP IS A SURFACE TOO (CA-3, 2026-09-06). The glob named five roots
+// and every one of them is the WEB tree: `app/` here is Next.js's route
+// directory, not `apps/mobile/app`. So the Expo client — a build that carries
+// the brand on its own splash screen — was outside both rules: it could write
+// "MiMAR" in a Spanish sentence a person reads, or leak the internal codename
+// into UI copy, and nothing in `pnpm verify` would say so. Its two source roots
+// are added by name rather than by widening to `apps/**`, because a second app
+// arriving is a decision somebody should make here rather than inherit.
+const FILES = globSync(
+  "{app,components,lib,packages,src,apps/mobile/app,apps/mobile/src}/**/*.{ts,tsx}",
+)
   .map((f) => f.replaceAll("\\", "/"))
   .filter((f) => !isExcluded(f));
 

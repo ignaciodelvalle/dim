@@ -28,7 +28,13 @@ export default function AdoptionFichaRoute() {
     <AdoptionDetailScreen
       petToken={petToken}
       onApply={(token, name) => router.push(adoptionApplyRoute(token, name))}
-      onBackToCatalogue={() => router.push(ROUTES.adoptar)}
+      // `dismissTo` AND NOT `push` (NAV-4). "Volver al catálogo" pushed a
+      // SECOND catalogue on top of the ficha, so the stack grew
+      // catálogo → ficha → catálogo → ficha and hardware back walked a chain of
+      // duplicates. `dismissTo` pops to the catalogue when it is behind us and
+      // replaces the ficha when it is not — which is the deep-link case, where
+      // there is no catalogue to go back to.
+      onBackToCatalogue={() => router.dismissTo(ROUTES.adoptar)}
     />
   );
 }

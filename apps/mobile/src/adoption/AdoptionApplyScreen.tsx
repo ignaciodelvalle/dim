@@ -42,6 +42,7 @@ import {
   Title,
 } from "../ui/kit";
 import { COLORS, SPACE, TYPE } from "../ui/theme";
+import { useScrollToError } from "../ui/use-scroll-to-error";
 
 import {
   EMPTY_APPLICATION_DRAFT,
@@ -73,6 +74,10 @@ export function AdoptionApplyScreen({
   const [draft, setDraft] = useState<ApplicationDraft>(EMPTY_APPLICATION_DRAFT);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // The refusal appears at the BOTTOM of a form this long — below the fold on
+  // any phone, and under the keyboard when a field is focused. See
+  // `use-scroll-to-error.ts`; `scrollRef` is the door, the context is not.
+  const { anchorRef: errorAnchor, scrollRef } = useScrollToError(error);
 
   const patch = (next: Partial<ApplicationDraft>) => {
     setDraft((current) => ({ ...current, ...next }));
@@ -96,7 +101,7 @@ export function AdoptionApplyScreen({
   }
 
   return (
-    <Screen keyboardAvoiding>
+    <Screen keyboardAvoiding scrollRef={scrollRef}>
       <Title>{petName === null ? "Postularme" : `Adoptar a ${petName}`}</Title>
 
       <Card>
@@ -177,9 +182,11 @@ export function AdoptionApplyScreen({
       </View>
 
       {error === null ? null : (
-        <Callout tone="warn">
-          <Body>{error}</Body>
-        </Callout>
+        <View ref={errorAnchor}>
+          <Callout tone="warn">
+            <Body>{error}</Body>
+          </Callout>
+        </View>
       )}
 
       <PrimaryButton

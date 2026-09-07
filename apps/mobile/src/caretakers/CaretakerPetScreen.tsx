@@ -39,15 +39,29 @@ import { useCallback, useEffect, useState } from "react";
 import { StyleSheet, View } from "react-native";
 
 import type { CaretakerCommandAckV1, MyCaretakerGrantV1 } from "@dim/contract/api";
-import { CARETAKER_NOTE_MAX, type CaretakerCommandInput } from "@dim/contract/input";
+import {
+  CARETAKER_NOTE_MAX,
+  type CaretakerCommandInput,
+  type CaretakerCommandInputCode,
+} from "@dim/contract/input";
 
 import type { ApiResult } from "../api/client";
 import { fetchMyCaretakerGrants, sendCaretakerCommand } from "../api/endpoints";
 import { apiErrorMessage } from "../api/error-copy";
 import { sessionPort } from "../auth/session-store";
 import { Body, Card, Loading, Row } from "../ui/components";
-import { Callout, PrimaryButton, Screen, SecondaryButton, TextField, Title } from "../ui/kit";
+import { isoToDateInput } from "../ui/date-input";
+import {
+  Callout,
+  DateField,
+  PrimaryButton,
+  Screen,
+  SecondaryButton,
+  TextField,
+  Title,
+} from "../ui/kit";
 import { SPACE } from "../ui/theme";
+import { useScrollToError } from "../ui/use-scroll-to-error";
 
 import {
   CARETAKER_WINDOW_DAYS,
@@ -119,6 +133,11 @@ export function CaretakerPetScreen({
   const [notice, setNotice] = useState<Notice>(null);
   const [busy, setBusy] = useState(false);
   const [confirmingEnd, setConfirmingEnd] = useState(false);
+  // A REFUSAL moves the view, an "ok" notice does not: the refusal sits above
+  // a form the person is at the bottom of, so without this it lands off-screen.
+  const { anchorRef: errorAnchor, scrollRef } = useScrollToError(
+    notice !== null && notice.tone === "err" ? notice.message : null,
+  );
 
   const load = useCallback(async () => {
     setState({ phase: "loading" });
@@ -176,13 +195,15 @@ export function CaretakerPetScreen({
   }
 
   return (
-    <Screen keyboardAvoiding>
+    <Screen keyboardAvoiding scrollRef={scrollRef}>
       <Title>Cuidador temporal</Title>
 
       {notice !== null && (
-        <Callout tone={notice.tone}>
-          <Body>{notice.message}</Body>
-        </Callout>
+        <View ref={errorAnchor}>
+          <Callout tone={notice.tone}>
+            <Body>{notice.message}</Body>
+          </Callout>
+        </View>
       )}
 
       {state.grant === null ? (
@@ -324,9 +345,16 @@ function DesignateForm({
   // Today in ARGENTINE time, computed rather than taken from the device's locale:
   // a phone that travels with its owner would otherwise offer "yesterday" from a
   // plane over the Atlantic, and the server would refuse a day nobody chose.
-  const [startsAt, setStartsAt] = useState(() => todayInAr());
+  // Pre-filled in the format the FIELD shows, not the wire's: `todayInAr`
+  // speaks `AAAA-MM-DD` and the mask would read it as eight digits.
+  const [startsAt, setStartsAt] = useState(() => isoToDateInput(todayInAr()));
   const [endsAt, setEndsAt] = useState("");
   const [note, setNote] = useState("");
+  // WHICH field the refusal was about, for the red border (forms-F3). The code
+  // the contract already returned picks the box; nothing new is validated here.
+  // `DATE_INVALID` names both days, because the contract judges them together.
+  const [invalidCode, setInvalidCode] = useState<CaretakerCommandInputCode | null>(null);
+  const clearInvalid = () => setInvalidCode(null);
 
   const submit = useCallback(() => {
     // The CONTRACT's schema, run locally first, so a bad address or an impossible
@@ -341,8 +369,10 @@ function DesignateForm({
     });
     if (!built.ok) {
       onInvalid(built.message);
+      setInvalidCode(built.code);
       return;
     }
+    setInvalidCode(null);
     onSubmit(built.input);
   }, [email, endsAt, note, onInvalid, onSubmit, publicToken, startsAt]);
 
@@ -361,37 +391,44 @@ function DesignateForm({
         autoCorrect={false}
         editable={!busy}
         inputMode="email"
+        invalid={invalidCode === "EMAIL_INVALID"}
         label="Correo de la persona"
-        onChangeText={setEmail}
+        onChangeText={(value) => {
+          setEmail(value);
+          clearInvalid();
+        }}
         placeholder="persona@ejemplo.com"
         required
         value={email}
       />
 
-      <TextField
+      {/* `DateField` and not a mono TextField asking for the wire format
+          (forms-F1/F2): `keyboardType="numbers-and-punctuation"` is iOS-only,
+          so Android opened QWERTY on both of these, and the field asked for
+          `AAAA-MM-DD` — the format nobody in Argentina writes. The view-model
+          converts before the contract judges. */}
+      <DateField
         accessibilityLabel="Desde"
-        autoCapitalize="none"
-        autoCorrect={false}
         editable={!busy}
-        keyboardType="numbers-and-punctuation"
+        invalid={invalidCode === "DATE_INVALID"}
         label="Desde"
-        mono
-        onChangeText={setStartsAt}
-        placeholder="AAAA-MM-DD"
+        onChangeText={(value) => {
+          setStartsAt(value);
+          clearInvalid();
+        }}
         required
         value={startsAt}
       />
 
-      <TextField
+      <DateField
         accessibilityLabel="Hasta"
-        autoCapitalize="none"
-        autoCorrect={false}
         editable={!busy}
-        keyboardType="numbers-and-punctuation"
+        invalid={invalidCode === "DATE_INVALID"}
         label="Hasta"
-        mono
-        onChangeText={setEndsAt}
-        placeholder="AAAA-MM-DD"
+        onChangeText={(value) => {
+          setEndsAt(value);
+          clearInvalid();
+        }}
         required
         value={endsAt}
       />
@@ -400,10 +437,14 @@ function DesignateForm({
       <TextField
         accessibilityLabel="Nota para quien cuida"
         editable={!busy}
+        invalid={invalidCode === "NOTE_TOO_LONG"}
         label="Nota (opcional)"
         maxLength={CARETAKER_NOTE_MAX}
         multiline
-        onChangeText={setNote}
+        onChangeText={(value) => {
+          setNote(value);
+          clearInvalid();
+        }}
         placeholder="Rutina, medicación, lo que necesite saber"
         value={note}
       />

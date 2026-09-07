@@ -63,6 +63,7 @@ import {
 import { type Edge, SafeAreaView } from "react-native-safe-area-context";
 
 import { Icon } from "./Icon";
+import { maskDateInput, maskTimeInput } from "./date-input";
 import { FONTS } from "./fonts";
 import {
   COLORS,
@@ -89,10 +90,17 @@ import {
 /**
  * The Screen's own ScrollView, offered to descendants that need to move it —
  * today that is `useScrollToError` (src/ui/use-scroll-to-error.ts), the mobile
- * mirror of the web's `useFormErrorFocus`. A context and not a prop because
- * the consumer is an ANCHOR deep inside a form, and threading a ref through
- * every intermediate component would tax screens that never scroll anywhere.
- * Null outside a Screen, and consumers must treat null as "nothing to move".
+ * mirror of the web's `useFormErrorFocus`. Null outside a Screen, and consumers
+ * must treat null as "nothing to move".
+ *
+ * THE CONTEXT IS THE SECOND DOOR, NOT THE FIRST (forms-F4, 2026-09-05 audit).
+ * It was the only one, and it reached nobody: every screen that calls
+ * `useScrollToError` calls it from the component that RENDERS the Screen —
+ * above the provider, where `useContext` answers null — so the hook never
+ * scrolled once on any screen that used it. A context serves a consumer
+ * nested INSIDE the Screen; the screens are all outside. `Screen` therefore
+ * also accepts a `scrollRef` prop, which is what the hook hands back for the
+ * caller to pass down. The context stays for the nested case.
  */
 export const ScreenScrollContext = createContext<RefObject<ScrollView | null> | null>(null);
 
@@ -132,6 +140,7 @@ export function Screen({
   keyboardAvoiding = false,
   refreshControl,
   gap = SPACE.lg,
+  scrollRef: scrollRefProp,
 }: {
   children: ReactNode;
   edges?: readonly Edge[];
@@ -139,8 +148,15 @@ export function Screen({
   keyboardAvoiding?: boolean;
   refreshControl?: ScrollViewProps["refreshControl"];
   gap?: number;
+  /**
+   * The ref `useScrollToError` returns, so a screen that calls the hook from
+   * OUTSIDE its own Screen (every form screen does) can still reach the scroll
+   * view. See `ScreenScrollContext`.
+   */
+  scrollRef?: RefObject<ScrollView | null>;
 }) {
-  const scrollRef = useRef<ScrollView>(null);
+  const ownScrollRef = useRef<ScrollView>(null);
+  const scrollRef = scrollRefProp ?? ownScrollRef;
   const scroll = (
     <ScrollView
       ref={scrollRef}
@@ -196,6 +212,22 @@ export function Eyebrow({ children }: { children: ReactNode }) {
  * The asterisk is `aria-hidden` on the web and its native equivalent here is
  * not to expose it at all: it is decoration, and the requiredness that matters
  * to a screen reader travels on the control's own `accessibilityLabel`.
+ *
+ * A SIBLING NODE, NOT A NESTED <Text> (CA-M3, 2026-09-05 audit). It was nested,
+ * with the same two hiding flags — and React Native flattens nested text into
+ * one native node on Android, so the flags on the inner span were lost and
+ * TalkBack read "Nombre asterisco". Two Texts in a row keep two native nodes,
+ * and the flags on the second one survive.
+ *
+ * THE LABEL SHRINKS AND THE ASTERISK DOES NOT, which is the price of that row.
+ * Yoga defaults every child to `flexShrink: 0`, so a long required label
+ * measures at its full intrinsic width and lays the asterisk out PAST the
+ * parent's right edge — where it is clipped or drawn over the next control.
+ * "¿QUÉ O A QUIÉN ESTÁS DENUNCIANDO?" (DenunciaScreen) is 33 characters drawn
+ * uppercase in mono with letterspacing, and at the Android font scales this app
+ * is expected to survive (≥ 1.3, measured on a device) it is wider than the
+ * screen on its own. The label yields, the asterisk keeps its width, and the
+ * label wraps instead of pushing the mark it is marked by out of the frame.
  */
 export function FieldLabel({
   children,
@@ -205,15 +237,35 @@ export function FieldLabel({
   required?: boolean;
 }) {
   return (
-    <Text style={styles.fieldLabel}>
-      {children}
+    <View style={styles.fieldLabelRow}>
+      <Text style={[styles.fieldLabel, styles.fieldLabelText]}>{children}</Text>
       {required ? (
-        <Text accessibilityElementsHidden importantForAccessibility="no" style={styles.asterisk}>
-          {" *"}
+        <Text
+          accessibilityElementsHidden
+          importantForAccessibility="no"
+          style={[styles.fieldLabel, styles.asterisk]}
+        >
+          *
         </Text>
       ) : null}
-    </Text>
+    </View>
   );
+}
+
+/**
+ * The control's accessible name.
+ *
+ * DERIVED FROM THE VISIBLE LABEL, and an explicit `accessibilityLabel` REPLACES
+ * THE LABEL, NOT THE SUFFIX (CA-M1/CA-M2, 2026-09-05 audit). Before this, the
+ * suffix was computed first and `...rest` spread after it, so any call site
+ * that named its own label — the alta's "Nombre", the locality picker — wiped
+ * ", obligatorio" along with it, and a screen reader on those fields heard no
+ * requiredness at all. The suffix is a fact about the field; a caller may
+ * rename the field, and may not make it optional by renaming it.
+ */
+function accessibleName(label: string, explicit: string | undefined, required: boolean): string {
+  const name = explicit ?? label;
+  return required ? `${name}, obligatorio` : name;
 }
 
 /**
@@ -280,14 +332,16 @@ export type TextFieldProps = Omit<TextInputProps, "style"> & {
  * happened to pass `accessibilityLabel` by hand: a convention, and a convention
  * is one forgetful call site away from a screen reader reading nothing.
  *
- * Deriving it also makes the required-asterisk suppression moot. The asterisk
- * is a nested <Text> marked `accessibilityElementsHidden`, and RN flattens
- * nested text into its parent on Android — the flag may not survive, in which
- * case the name would end in a spoken "asterisco". The derived name never reads
- * the visual node at all; it says ", obligatorio", which is the fact the
- * asterisk was standing for.
+ * Deriving it also means the asterisk never reaches the name. `FieldLabel`
+ * draws that mark as its own sibling <Text>, hidden from assistive tech — the
+ * fix for the Android flattening that used to make TalkBack say "Nombre
+ * asterisco" — and the derived name does not read the visual node at all: it
+ * says ", obligatorio", which is the fact the asterisk stands for. Two
+ * independent mechanisms for one requirement, which is what keeps a change to
+ * the label's layout from changing what a screen reader hears.
  *
- * An explicit `accessibilityLabel` still wins: `...rest` is spread AFTER this.
+ * An explicit `accessibilityLabel` replaces the NAME and keeps the suffix —
+ * see `accessibleName`.
  */
 export function TextField({
   label,
@@ -297,6 +351,7 @@ export function TextField({
   onBlur,
   onFocus,
   inputRef,
+  accessibilityLabel,
   ...rest
 }: TextFieldProps) {
   const [focused, setFocused] = useState(false);
@@ -306,7 +361,7 @@ export function TextField({
       <View style={[styles.ring, focused ? styles.ringOn : null]}>
         <TextInput
           ref={inputRef}
-          accessibilityLabel={required ? `${label}, obligatorio` : label}
+          accessibilityLabel={accessibleName(label, accessibilityLabel, required)}
           placeholderTextColor={COLORS.inkFaint}
           {...rest}
           onBlur={(e) => {
@@ -344,6 +399,7 @@ export function PasswordField({
   invalid = false,
   onBlur,
   onFocus,
+  accessibilityLabel,
   ...rest
 }: Omit<TextFieldProps, "mono" | "secureTextEntry">) {
   const [focused, setFocused] = useState(false);
@@ -353,7 +409,7 @@ export function PasswordField({
       <FieldLabel required={required}>{label}</FieldLabel>
       <View style={[styles.ring, focused ? styles.ringOn : null, styles.passwordRow]}>
         <TextInput
-          accessibilityLabel={required ? `${label}, obligatorio` : label}
+          accessibilityLabel={accessibleName(label, accessibilityLabel, required)}
           placeholderTextColor={COLORS.inkFaint}
           {...rest}
           secureTextEntry={!visible}
@@ -385,6 +441,64 @@ export function PasswordField({
         </Pressable>
       </View>
     </View>
+  );
+}
+
+// ---------- Date and time fields -------------------------------------------
+
+type MaskedFieldProps = Omit<
+  TextFieldProps,
+  "mono" | "inputMode" | "keyboardType" | "placeholder" | "maxLength" | "onChangeText"
+> & {
+  onChangeText: (value: string) => void;
+};
+
+/**
+ * A calendar day typed as `DD/MM/AAAA`, off a number pad.
+ *
+ * THE FIELD IS A MASK, NOT A CALENDAR, and the reason is unchanged from the
+ * text field it replaces: the kit has no date picker and adding a native one is
+ * a dependency decision that does not belong in a hotfix. What changed
+ * (forms-F1/F2, 2026-09-05 audit) is the format and the keyboard. The old field
+ * asked for the WIRE format, `AAAA-MM-DD`, over `numbers-and-punctuation` — a
+ * keyboard type iOS has and Android does not, so an Android phone opened
+ * QWERTY. This one asks for the date the way every Argentine form does, opens a
+ * number pad, and inserts the slashes itself; `dateInputToIso` in
+ * `date-input.ts` converts at the view-model boundary and the server never
+ * learns the difference.
+ *
+ * The mask is applied on the way IN (`onChangeText`), so the caller's state and
+ * the field's `value` agree — a caller that stored the unmasked keystrokes would
+ * render a field that fights its own controlled value.
+ */
+export function DateField({ onChangeText, ...rest }: MaskedFieldProps) {
+  return (
+    <TextField
+      mono
+      inputMode="numeric"
+      placeholder="DD/MM/AAAA"
+      maxLength={10}
+      autoCapitalize="none"
+      autoCorrect={false}
+      onChangeText={(text) => onChangeText(maskDateInput(text))}
+      {...rest}
+    />
+  );
+}
+
+/** A wall-clock time typed as `HH:MM`. Same mask discipline as `DateField`. */
+export function TimeField({ onChangeText, ...rest }: MaskedFieldProps) {
+  return (
+    <TextField
+      mono
+      inputMode="numeric"
+      placeholder="HH:MM"
+      maxLength={5}
+      autoCapitalize="none"
+      autoCorrect={false}
+      onChangeText={(text) => onChangeText(maskTimeInput(text))}
+      {...rest}
+    />
   );
 }
 
@@ -714,15 +828,24 @@ const styles = StyleSheet.create({
     textTransform: "uppercase",
     color: COLORS.inkMuted,
   },
+  // The label and its asterisk sit in one row so the asterisk can be its own
+  // native node (see FieldLabel). The gap is the space the old `" *"` took.
+  fieldLabelRow: { flexDirection: "row", alignItems: "baseline", marginBottom: SPACE.xs + 2 },
   fieldLabel: {
     fontFamily: FONTS.monoSemibold,
     fontSize: TYPE.xs,
     letterSpacing: TYPE.xs * LABEL_TRACKING_EM,
     textTransform: "uppercase",
     color: COLORS.inkMuted,
-    marginBottom: SPACE.xs + 2,
   },
-  asterisk: { color: COLORS.seal },
+  /**
+   * The label's share of the row: it SHRINKS, so a label wider than the screen
+   * wraps instead of pushing the asterisk out of the container. Separate from
+   * `fieldLabel` because the asterisk wears that same typography and must NOT
+   * shrink — see FieldLabel.
+   */
+  fieldLabelText: { flexShrink: 1 },
+  asterisk: { color: COLORS.seal, marginLeft: SPACE.xs, flexShrink: 0 },
   link: {
     fontFamily: FONTS.sansMedium,
     fontSize: TYPE.md,

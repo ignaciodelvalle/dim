@@ -59,16 +59,19 @@ import { Body, Card } from "../ui/components";
 import {
   Callout,
   Choice,
+  DateField,
   Eyebrow,
   ListRow,
   PrimaryButton,
   Screen,
   SecondaryButton,
   TextField,
+  TimeField,
   Title,
 } from "../ui/kit";
 import { credentialRoute } from "../ui/routes";
 import { SPACE } from "../ui/theme";
+import { useReturnKeyChain } from "../ui/use-return-key-chain";
 import { useScrollToError } from "../ui/use-scroll-to-error";
 
 import { createAttemptSession } from "./idempotency";
@@ -91,6 +94,7 @@ import {
   dewormingTypeLabel,
   emptyDraft,
   frequencyLabel,
+  invalidFields,
   kindSubtitle,
   kindTitle,
   noteCategoryLabel,
@@ -200,7 +204,11 @@ function EventForm({
   const [draft, setDraft] = useState<EventDraft>(() => emptyDraft());
   const [state, setState] = useState<FormPhase>({ phase: "editing" });
   const [error, setError] = useState<string | null>(null);
-  const errorAnchor = useScrollToError(error);
+  // The fields the last refusal was about, for the red border (forms-F3).
+  // Cleared per field as the person edits it, so the box stops being red the
+  // moment they touch it rather than after the next submit.
+  const [invalid, setInvalid] = useState<ReadonlySet<keyof EventDraft>>(() => new Set());
+  const { anchorRef: errorAnchor, scrollRef } = useScrollToError(error);
   // ONE key for this whole asiento. `useRef` and not `useState` because a
   // re-render must not be able to produce a different key, and because nothing
   // renders from it. Never `restart()`-ed: this form IS one attempt, and the
@@ -209,16 +217,24 @@ function EventForm({
 
   function set<K extends keyof EventDraft>(field: K, value: EventDraft[K]) {
     setDraft((current) => ({ ...current, [field]: value }));
+    setInvalid((current) => {
+      if (!current.has(field)) return current;
+      const next = new Set(current);
+      next.delete(field);
+      return next;
+    });
   }
 
   async function submit(sameDayOverride: boolean) {
     const validated = validateDraft(kind, draft, { sourceEventId, sameDayOverride });
     if (!validated.ok) {
       setError(validated.message);
+      setInvalid(invalidFields(validated.code));
       setState({ phase: "editing" });
       return;
     }
     setError(null);
+    setInvalid(new Set());
     setState({ phase: "sending" });
     const result = await recordPetEvent(
       sessionPort,
@@ -263,14 +279,14 @@ function EventForm({
   const busy = state.phase === "sending";
 
   return (
-    <Screen keyboardAvoiding>
+    <Screen keyboardAvoiding scrollRef={scrollRef}>
       <View style={styles.header}>
         <Eyebrow>Asentar</Eyebrow>
         <Title>{kindTitle(kind)}</Title>
         <Body>{kindSubtitle(kind)}</Body>
       </View>
 
-      <Fields kind={kind} draft={draft} set={set} />
+      <Fields kind={kind} draft={draft} set={set} invalid={invalid} />
 
       <Card>
         <Body>{RECORD_IMMUTABILITY_NOTE}</Body>
@@ -305,36 +321,82 @@ function EventForm({
   );
 }
 
-/** The fields for one kind. Every date is `AAAA-MM-DD`; see the note below. */
+/**
+ * How many SINGLE-LINE fields a kind's form has, in the order they are drawn —
+ * the length of its return-key chain (forms-F6). Multiline fields and choice
+ * rows are not in the chain: a multiline return types a newline, and a chip
+ * row has no keyboard. The custom-interval field appears only for a custom
+ * frequency, which is why this reads the draft.
+ *
+ * Kept beside the fields it counts, because a count and a form that drift
+ * apart give the wrong field the "done" key — and a `switch` with no default
+ * is what makes a new kind a compile error here rather than a wrong count.
+ */
+function chainLength(kind: WritableKind, draft: EventDraft): number {
+  switch (kind) {
+    case "vaccination":
+      return 6;
+    case "weight":
+      return 2;
+    case "deworming":
+      return 3;
+    case "medication_start":
+      return draft.frequency === "custom" ? 8 : 7;
+    case "medication_end":
+      return 2;
+    case "vet_visit":
+      return 4;
+    case "clinical_info":
+      return 3;
+    case "sterilization":
+      return 3;
+    case "microchip":
+      return 5;
+    case "note":
+      return 1;
+    case "symptom":
+      return 1;
+  }
+}
+
+/** The fields for one kind. Every date is `DD/MM/AAAA`; see `DateField`. */
 function Fields({
   kind,
   draft,
   set,
+  invalid,
 }: {
   kind: WritableKind;
   draft: EventDraft;
   set: <K extends keyof EventDraft>(field: K, value: EventDraft[K]) => void;
+  /** The fields the last refusal named — they draw the red border. */
+  invalid: ReadonlySet<keyof EventDraft>;
 }) {
-  // A MONO TEXT FIELD AND NOT A CALENDAR, deliberately and temporarily. The kit
-  // has no date picker and adding a native one is a dependency decision that
-  // does not belong inside this change; the format is the same "AAAA-MM-DD" the
-  // web posts, the field is pre-filled with today in ARGENTINE time, and the
-  // contract refuses a day that does not exist rather than rolling it over.
+  // The return key walks the single-line fields in draw order. `link()` hands
+  // out the next slot each time it is called, and it is called in JSX order.
+  const chain = useReturnKeyChain(chainLength(kind, draft));
+  let slot = 0;
+  const link = () => chain(slot++);
+
+  // A MASKED TEXT FIELD AND NOT A CALENDAR, deliberately and temporarily. The
+  // kit has no date picker and adding a native one is a dependency decision
+  // that does not belong inside this change. The field asks for `DD/MM/AAAA`
+  // over a number pad, is pre-filled with today in ARGENTINE time, and the
+  // view-model converts to the wire's `AAAA-MM-DD` before the contract judges
+  // it — which still refuses a day that does not exist rather than rolling it
+  // over.
   const dateField = (
     label: string,
     field: "occurredAt" | "nextDueAt" | "onsetAt",
     required: boolean,
   ) => (
-    <TextField
+    <DateField
       label={label}
       required={required}
-      mono
       value={draft[field]}
+      invalid={invalid.has(field)}
       onChangeText={(value) => set(field, value)}
-      placeholder="AAAA-MM-DD"
-      autoCapitalize="none"
-      autoCorrect={false}
-      keyboardType="numbers-and-punctuation"
+      {...link()}
     />
   );
 
@@ -346,16 +408,30 @@ function Fields({
             label="Vacuna"
             required
             value={draft.vaccineName}
+            invalid={invalid.has("vaccineName")}
             onChangeText={(v) => set("vaccineName", v)}
             placeholder="Antirrábica"
+            {...link()}
           />
           {dateField("Fecha de aplicación", "occurredAt", true)}
-          <TextField label="Marca" value={draft.brand} onChangeText={(v) => set("brand", v)} />
-          <TextField label="Lote" mono value={draft.batch} onChangeText={(v) => set("batch", v)} />
+          <TextField
+            label="Marca"
+            value={draft.brand}
+            onChangeText={(v) => set("brand", v)}
+            {...link()}
+          />
+          <TextField
+            label="Lote"
+            mono
+            value={draft.batch}
+            onChangeText={(v) => set("batch", v)}
+            {...link()}
+          />
           <TextField
             label="Aplicada por"
             value={draft.administeredBy}
             onChangeText={(v) => set("administeredBy", v)}
+            {...link()}
           />
           {dateField("Próxima dosis", "nextDueAt", false)}
           <NotesField draft={draft} set={set} />
@@ -370,9 +446,11 @@ function Fields({
             required
             mono
             value={draft.kg}
+            invalid={invalid.has("kg")}
             onChangeText={(v) => set("kg", v)}
             placeholder="12,5"
-            keyboardType="decimal-pad"
+            inputMode="decimal"
+            {...link()}
           />
           {dateField("Fecha", "occurredAt", true)}
           <NotesField draft={draft} set={set} />
@@ -386,7 +464,9 @@ function Fields({
             label="Producto"
             required
             value={draft.product}
+            invalid={invalid.has("product")}
             onChangeText={(v) => set("product", v)}
+            {...link()}
           />
           <Choice
             label="Tipo"
@@ -409,19 +489,24 @@ function Fields({
             label="Medicamento"
             required
             value={draft.drugName}
+            invalid={invalid.has("drugName")}
             onChangeText={(v) => set("drugName", v)}
+            {...link()}
           />
           <TextField
             label="Dosis"
             required
             value={draft.dose}
+            invalid={invalid.has("dose")}
             onChangeText={(v) => set("dose", v)}
             placeholder="250 mg"
+            {...link()}
           />
           <TextField
             label="Recetada por"
             value={draft.prescribedBy}
             onChangeText={(v) => set("prescribedBy", v)}
+            {...link()}
           />
           {dateField("Fecha de inicio", "occurredAt", true)}
           <Choice
@@ -438,42 +523,40 @@ function Fields({
               required
               mono
               value={draft.customHours}
+              invalid={invalid.has("customHours")}
               onChangeText={(v) => set("customHours", v)}
               placeholder="8"
-              keyboardType="number-pad"
+              inputMode="numeric"
+              {...link()}
             />
           ) : null}
           <TextField
             label="Duración (días)"
             mono
             value={draft.durationDays}
+            invalid={invalid.has("durationDays")}
             onChangeText={(v) => set("durationDays", v)}
             placeholder="7"
-            keyboardType="number-pad"
+            inputMode="numeric"
+            {...link()}
           />
           {/* TWO FIELDS FOR ONE VALUE, joined by the view-model. A single
               "AAAA-MM-DDTHH:mm" box would ask a person to type a `T`. */}
-          <TextField
+          <DateField
             label="Primera dosis — día"
             required
-            mono
             value={draft.firstDoseDay}
+            invalid={invalid.has("firstDoseDay")}
             onChangeText={(v) => set("firstDoseDay", v)}
-            placeholder="AAAA-MM-DD"
-            autoCapitalize="none"
-            autoCorrect={false}
-            keyboardType="numbers-and-punctuation"
+            {...link()}
           />
-          <TextField
+          <TimeField
             label="Primera dosis — hora"
             required
-            mono
             value={draft.firstDoseTime}
+            invalid={invalid.has("firstDoseTime")}
             onChangeText={(v) => set("firstDoseTime", v)}
-            placeholder="08:00"
-            autoCapitalize="none"
-            autoCorrect={false}
-            keyboardType="numbers-and-punctuation"
+            {...link()}
           />
           <NotesField draft={draft} set={set} />
         </>
@@ -488,6 +571,7 @@ function Fields({
             value={draft.reason}
             onChangeText={(v) => set("reason", v)}
             placeholder="Tratamiento completo"
+            {...link()}
           />
           <NotesField draft={draft} set={set} />
         </>
@@ -500,8 +584,10 @@ function Fields({
             label="Motivo de la visita"
             required
             value={draft.visitReason}
+            invalid={invalid.has("visitReason")}
             onChangeText={(v) => set("visitReason", v)}
             placeholder="Control anual"
+            {...link()}
           />
           {dateField("Fecha", "occurredAt", true)}
           {/* FREE TEXT, and deliberately not a disease picker. A diagnosis
@@ -519,8 +605,14 @@ function Fields({
             label="Veterinario/a"
             value={draft.vetName}
             onChangeText={(v) => set("vetName", v)}
+            {...link()}
           />
-          <TextField label="Clínica" value={draft.clinic} onChangeText={(v) => set("clinic", v)} />
+          <TextField
+            label="Clínica"
+            value={draft.clinic}
+            onChangeText={(v) => set("clinic", v)}
+            {...link()}
+          />
           <NotesField draft={draft} set={set} />
         </>
       );
@@ -540,8 +632,10 @@ function Fields({
             label="Estudio o procedimiento"
             required
             value={draft.title}
+            invalid={invalid.has("title")}
             onChangeText={(v) => set("title", v)}
             placeholder="Hemograma completo"
+            {...link()}
           />
           {dateField("Fecha", "occurredAt", true)}
           <TextField
@@ -555,6 +649,7 @@ function Fields({
             label="Realizado por"
             value={draft.performedBy}
             onChangeText={(v) => set("performedBy", v)}
+            {...link()}
           />
           <NotesField draft={draft} set={set} />
         </>
@@ -576,8 +671,14 @@ function Fields({
             label="Realizada por"
             value={draft.performedBy}
             onChangeText={(v) => set("performedBy", v)}
+            {...link()}
           />
-          <TextField label="Clínica" value={draft.clinic} onChangeText={(v) => set("clinic", v)} />
+          <TextField
+            label="Clínica"
+            value={draft.clinic}
+            onChangeText={(v) => set("clinic", v)}
+            {...link()}
+          />
           <NotesField draft={draft} set={set} />
         </>
       );
@@ -595,11 +696,15 @@ function Fields({
             required
             mono
             value={draft.chipNumber}
+            invalid={invalid.has("chipNumber")}
             onChangeText={(v) => set("chipNumber", v)}
             placeholder="982000123456789"
             autoCapitalize="none"
             autoCorrect={false}
-            keyboardType="numbers-and-punctuation"
+            // `inputMode`, not `keyboardType="numbers-and-punctuation"`: that
+            // keyboard type is iOS-only and Android opened QWERTY (forms-F1).
+            inputMode="numeric"
+            {...link()}
           />
           {dateField("Fecha de implantación", "occurredAt", true)}
           <TextField
@@ -609,17 +714,20 @@ function Fields({
             placeholder="AR"
             autoCapitalize="characters"
             autoCorrect={false}
+            {...link()}
           />
           <TextField
             label="Implantado por"
             value={draft.implantedBy}
             onChangeText={(v) => set("implantedBy", v)}
+            {...link()}
           />
           <TextField
             label="Zona del cuerpo"
             value={draft.locationOnBody}
             onChangeText={(v) => set("locationOnBody", v)}
             placeholder="Cuello, lado izquierdo"
+            {...link()}
           />
           <NotesField draft={draft} set={set} />
         </>
@@ -633,6 +741,7 @@ function Fields({
             required
             multiline
             value={draft.text}
+            invalid={invalid.has("text")}
             onChangeText={(v) => set("text", v)}
           />
           {dateField("Fecha", "occurredAt", true)}
@@ -658,6 +767,7 @@ function Fields({
             required
             multiline
             value={draft.freeText}
+            invalid={invalid.has("freeText")}
             onChangeText={(v) => set("freeText", v)}
             placeholder="Decaído, no come desde ayer, vómitos"
           />

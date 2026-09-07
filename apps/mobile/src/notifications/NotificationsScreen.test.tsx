@@ -19,13 +19,35 @@
 //      lives in `__tests__/notification-ordering-parity.test.ts`.
 
 import { beforeEach, describe, expect, it, jest } from "@jest/globals";
-import { fireEvent, render, screen, waitFor } from "@testing-library/react-native";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react-native";
 
 const mockFetch = jest.fn<(...args: unknown[]) => Promise<unknown>>();
 const mockSend = jest.fn<(...args: unknown[]) => Promise<unknown>>();
 
+/**
+ * Every focus callback currently mounted, so a test can fire a RE-focus.
+ *
+ * The same stand-in `TransfersScreen.test.tsx` uses, and for the same reason:
+ * the defect (NAV-3) is about a screen that is ALREADY MOUNTED when it regains
+ * focus, and a mount-only stand-in can only be re-fired by remounting — which
+ * is precisely the case that never had the bug.
+ */
+const mockFocusCallbacks: Array<() => void> = [];
+
 jest.mock("expo-router", () => ({
   useRouter: () => ({ push: jest.fn(), replace: jest.fn(), back: jest.fn() }),
+  useFocusEffect: (callback: () => void) => {
+    const { useEffect } = require("react");
+    useEffect(() => {
+      mockFocusCallbacks.push(callback);
+      // A mount IS a first focus, which is what the real hook does too.
+      callback();
+      return () => {
+        const at = mockFocusCallbacks.indexOf(callback);
+        if (at >= 0) mockFocusCallbacks.splice(at, 1);
+      };
+    }, [callback]);
+  },
 }));
 
 jest.mock("../api/endpoints", () => ({
@@ -75,9 +97,70 @@ function renderScreen(onOpenRoute = noop as (route: string) => void) {
   return render(<NotificationsScreen onOpenRoute={onOpenRoute} onOpenPets={noop} />);
 }
 
+/** Re-focus every mounted screen, the way popping back to it does. */
+async function refocus(): Promise<void> {
+  await act(async () => {
+    for (const callback of [...mockFocusCallbacks]) callback();
+  });
+}
+
 beforeEach(() => {
   mockFetch.mockReset();
   mockSend.mockReset();
+  mockFocusCallbacks.length = 0;
+});
+
+describe("NotificationsScreen — coming back into focus (NAV-3)", () => {
+  it("re-reads the inbox on RE-focus, not only on mount", async () => {
+    // Every row here leads somewhere that changes the row. Returning from a
+    // transfer proposal does not remount this screen, so the inbox kept
+    // showing the state from before the decision.
+    mockFetch.mockResolvedValue({
+      outcome: "ok",
+      payload: payload({ total: 1, unreadCount: 1, notifications: [aNotification()] }),
+    });
+    renderScreen();
+    await waitFor(() => expect(mockFetch).toHaveBeenCalledTimes(1));
+
+    await refocus();
+    expect(mockFetch).toHaveBeenCalledTimes(2);
+  });
+
+  it("keeps the rows on screen while it re-reads — a refresh, not a skeleton", async () => {
+    // `initial` blanks the list. Doing that every time somebody comes back
+    // from a detail screen would trade one annoyance for a worse one.
+    mockFetch.mockResolvedValue({
+      outcome: "ok",
+      payload: payload({
+        total: 1,
+        unreadCount: 1,
+        notifications: [aNotification({ title: "Avistaje de Pampa" })],
+      }),
+    });
+    renderScreen();
+    await waitFor(() => expect(screen.getByText("Avistaje de Pampa")).toBeTruthy());
+
+    let resolveSecond: ((value: unknown) => void) | undefined;
+    mockFetch.mockReturnValueOnce(
+      new Promise((resolve) => {
+        resolveSecond = resolve;
+      }),
+    );
+    await refocus();
+    // The second read is in flight and the row is STILL THERE.
+    expect(screen.getByText("Avistaje de Pampa")).toBeTruthy();
+
+    await act(async () => {
+      resolveSecond?.({
+        outcome: "ok",
+        payload: payload({
+          total: 1,
+          unreadCount: 0,
+          notifications: [aNotification({ title: "Avistaje de Pampa" })],
+        }),
+      });
+    });
+  });
 });
 
 describe("NotificationsScreen — reading", () => {

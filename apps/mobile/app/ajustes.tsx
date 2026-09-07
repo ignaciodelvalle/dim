@@ -80,7 +80,7 @@ export default function AjustesScreen() {
 
   async function confirmRevoke() {
     setRevoke({ phase: "sending" });
-    const result = await signOutEverywhere();
+    const result = await signOutEverywhere(ROUTES.ajustes);
     if (!result.ok) {
       // The session is untouched on failure. A half-done revocation that also
       // signed you out locally would be the worst of both: the other devices
@@ -88,7 +88,14 @@ export default function AjustesScreen() {
       setRevoke({ phase: "failed", message: result.message });
       return;
     }
-    // On success the store flips to `signed-out` and the gate redirects.
+    // On success the store flips to `signed-out` (reason `revoked_all`) and the
+    // gate redirects. Routed EXPLICITLY here too (NAV-2), the same shape as the
+    // plain sign-out above: leaving it to the gate means the destination
+    // depends on which screen re-renders first. The gate is what stops the
+    // `next` parameter from carrying "/ajustes" through the sign-in — see
+    // `signedOutHref`, which is why both enders here name the path they were
+    // pressed on — and this is what stops the flash.
+    router.replace("/");
   }
 
   return (
@@ -143,7 +150,7 @@ export default function AjustesScreen() {
             // bounced it back. The cost of doing it in the right order is one
             // keychain delete, and `signOut` cannot reject (see clearSession).
             void (async () => {
-              await signOut();
+              await signOut(ROUTES.ajustes);
               router.replace("/");
             })();
           }}

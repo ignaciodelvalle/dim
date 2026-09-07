@@ -15,6 +15,9 @@
 
 import { beforeEach, describe, expect, it, jest } from "@jest/globals";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react-native";
+import { type StyleProp, StyleSheet, type TextStyle } from "react-native";
+
+import { COLORS } from "../ui/theme";
 
 const mockSend = jest.fn<(...args: unknown[]) => Promise<unknown>>();
 
@@ -35,6 +38,23 @@ const noop = () => {};
 
 function renderScreen(onSent: (t: string) => void = noop) {
   return render(<TransferInitiateScreen publicToken={TOKEN} petName="Pampa" onSent={onSent} />);
+}
+
+/**
+ * The address field, by its ACCESSIBLE name — which carries ", obligatorio"
+ * (CA-M1): the field names its own `accessibilityLabel`, and the kit used to
+ * let that replace the derived name, suffix included.
+ */
+function emailField() {
+  return screen.getByLabelText("Email del receptor, obligatorio");
+}
+
+/**
+ * The border colour the kit resolved for a field, out of its style array. The
+ * `invalid` prop is the LAST entry, so this reads what actually painted.
+ */
+function borderColorOf(input: { props: { style?: StyleProp<TextStyle> } }) {
+  return StyleSheet.flatten(input.props.style)?.borderColor;
 }
 
 function ok(transferToken: string) {
@@ -74,7 +94,7 @@ describe("the form", () => {
     // A DEFAULT WOULD BE A CHOICE SOMEBODY DID NOT MAKE. The submit stays
     // disabled until one is picked, which is how that is enforced rather than
     // merely stated.
-    fireEvent.changeText(screen.getByLabelText("Email del receptor"), "vecina@example.com");
+    fireEvent.changeText(emailField(), "vecina@example.com");
     fireEvent.press(screen.getByText("Enviar la propuesta"));
     expect(mockSend).not.toHaveBeenCalled();
   });
@@ -83,7 +103,7 @@ describe("the form", () => {
 describe("validation before the network", () => {
   it("refuses a malformed address with a FIELD sentence and never calls the API", async () => {
     renderScreen();
-    fireEvent.changeText(screen.getByLabelText("Email del receptor"), "vecina");
+    fireEvent.changeText(emailField(), "vecina");
     fireEvent.press(screen.getByText("Regalo"));
     fireEvent.press(screen.getByText("Enviar la propuesta"));
 
@@ -91,6 +111,24 @@ describe("validation before the network", () => {
       expect(screen.getByText("Escribí un email válido para el receptor.")).toBeTruthy(),
     );
     expect(mockSend).not.toHaveBeenCalled();
+  });
+
+  it("draws the red border on the field the refusal is ABOUT, and clears it on the next keystroke", async () => {
+    // forms-F3: the kit has had an `invalid` prop since it was written and
+    // almost nothing passed it, so a refusal named a field in a sentence at the
+    // top of the screen and left every box looking equally fine. The code the
+    // contract already returned is what picks the box — no new validation.
+    renderScreen();
+    fireEvent.changeText(emailField(), "vecina");
+    fireEvent.press(screen.getByText("Regalo"));
+    fireEvent.press(screen.getByText("Enviar la propuesta"));
+
+    await waitFor(() => expect(borderColorOf(emailField())).toBe(COLORS.danger));
+
+    // Touching the field takes the red away — waiting for the next submit to
+    // clear it would keep shouting at somebody already fixing it.
+    fireEvent.changeText(emailField(), "vecina@");
+    expect(borderColorOf(emailField())).not.toBe(COLORS.danger);
   });
 });
 
@@ -100,7 +138,7 @@ describe("sending", () => {
     mockSend.mockResolvedValue(ok("PTR-NEW0-0001"));
     renderScreen(onSent);
 
-    fireEvent.changeText(screen.getByLabelText("Email del receptor"), "  Vecina@Example.COM ");
+    fireEvent.changeText(emailField(), "  Vecina@Example.COM ");
     fireEvent.press(screen.getByText("Herencia"));
     fireEvent.changeText(screen.getByLabelText("Comentario para el receptor"), " se muda ");
     fireEvent.press(screen.getByText("Enviar la propuesta"));
@@ -126,7 +164,7 @@ describe("sending", () => {
     mockSend.mockResolvedValue({ outcome: "api-error", code: "transfer_forbidden" });
     renderScreen();
 
-    fireEvent.changeText(screen.getByLabelText("Email del receptor"), "vecina@example.com");
+    fireEvent.changeText(emailField(), "vecina@example.com");
     fireEvent.press(screen.getByText("Regalo"));
     fireEvent.press(screen.getByText("Enviar la propuesta"));
 
@@ -139,7 +177,7 @@ describe("sending", () => {
     mockSend.mockResolvedValue({ outcome: "api-error", code: "transfer_pending_exists" });
     renderScreen();
 
-    fireEvent.changeText(screen.getByLabelText("Email del receptor"), "vecina@example.com");
+    fireEvent.changeText(emailField(), "vecina@example.com");
     fireEvent.press(screen.getByText("Regalo"));
     fireEvent.press(screen.getByText("Enviar la propuesta"));
 

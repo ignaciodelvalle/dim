@@ -23,7 +23,78 @@
 // idea what the link was for. The proposal is still there and still expiring,
 // and the only route back is the notification they already dismissed.
 
+import type { SessionEndReason } from "../api/client";
 import { ROUTES } from "../ui/routes";
+
+/**
+ * The three ways a session ends BECAUSE THE PERSON SAID SO — and the reason
+ * `next` must not survive them (NAV-2, confirmed on a device 2026-09-05:
+ * signing out from Ajustes and signing back in landed on Ajustes).
+ *
+ * `next` exists for a session that was TAKEN from somebody mid-task: the link
+ * they followed is still where they were going, so sign-in returns them to it.
+ * A deliberate sign-out is the opposite fact. "Cerrar sesión" is a person
+ * saying they are done with that screen, and handing it back to them at the
+ * next sign-in re-opens a page they closed — from Ajustes, the very screen
+ * whose button they pressed.
+ *
+ * Erasing the account is the sharpest case: `next` would name a screen that no
+ * longer has anything behind it.
+ *
+ * The router-side attempts do not close this. `ajustes.tsx` already replaced
+ * the route with `/` after awaiting `signOut`, and the bug was still reproduced
+ * on the device, because the gate's own `<Redirect>` renders from the same
+ * store flip and can commit after that replace. The cure has to be that the
+ * destination is never built, not that something overwrites it afterwards.
+ */
+const DELIBERATE_END: ReadonlySet<SessionEndReason> = new Set<SessionEndReason>([
+  "user_action",
+  "revoked_all",
+  "account_erased",
+]);
+
+/** Whether the person ended this session themselves. `null` = we do not know. */
+export function endedByThePerson(reason: SessionEndReason | null): boolean {
+  return reason !== null && DELIBERATE_END.has(reason);
+}
+
+/**
+ * Where a signed-out visitor goes — the ONE decision the gate makes, composed
+ * here rather than in the switch so it can be tested without a router.
+ *
+ * THE SUPPRESSION IS SCOPED TO THE SCREEN THE SIGN-OUT HAPPENED ON, and that
+ * scope is the whole point of this function. `reason` is STICKY: `signOut()`
+ * writes "user_action" into the store and nothing clears it until the next
+ * sign-in, so a rule that read the reason alone kept suppressing `next` for the
+ * entire signed-out session. The failure that fell out of it is not
+ * hypothetical: somebody signs out in Ajustes, stays in the app, taps a
+ * transfer-proposal notification, and lands on sign-in with NO destination —
+ * so after signing in they arrive at their pet list, and the proposal they were
+ * answering is gone from view while it goes on expiring.
+ *
+ * So a deliberate end erases exactly one destination: the pathname the person
+ * was standing on when they pressed the button. That is precisely the screen
+ * NAV-2 is about ("handing it back re-opens a page they closed"), and it leaves
+ * every other destination — including one they deliberately asked for
+ * afterwards — carried the way it is for anybody else.
+ *
+ * The other half of the invariant is unchanged and still pinned by the tests:
+ * an EXPIRED session at that same screen keeps its destination, because nobody
+ * closed anything.
+ */
+export function signedOutHref(args: {
+  reason: SessionEndReason | null;
+  /** The path the deliberate end happened on. Absent when it was not one. */
+  endedAt: string | undefined;
+  /** `usePathname()` — where the visitor is NOW. */
+  pathname: string;
+}): string | { pathname: string; params: { next: string } } {
+  const closed = args.endedAt?.trim() ?? "";
+  if (endedByThePerson(args.reason) && closed !== "" && closed === args.pathname.trim()) {
+    return ROUTES.ingreso;
+  }
+  return signInHref(args.pathname);
+}
 
 /**
  * Where to send a signed-out visitor, carrying where they were going.

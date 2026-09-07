@@ -25,7 +25,10 @@ export default function PostulacionesRoute() {
   return (
     <MyApplicationsScreen
       onOpenFicha={(petToken) => router.push(adoptionDetailRoute(petToken))}
-      onBrowse={() => router.push(ROUTES.adoptar)}
+      // `dismissTo` (NAV-4): the catalogue is usually the screen this list was
+      // opened FROM, and pushing another copy of it is how a back button ends
+      // up walking through two catalogues. See `adoptar/[petToken].tsx`.
+      onBrowse={() => router.dismissTo(ROUTES.adoptar)}
     />
   );
 }

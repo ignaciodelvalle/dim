@@ -52,6 +52,7 @@ import { ACCOUNT_DELETION_URL } from "../config/api";
 import { Body, Card, Row } from "../ui/components";
 import { FONTS } from "../ui/fonts";
 import { Callout, PrimaryButton, Screen, SecondaryButton, TextField, Title } from "../ui/kit";
+import { ROUTES } from "../ui/routes";
 import { COLORS, LEADING, SPACE, TYPE } from "../ui/theme";
 
 import { type ExportSection, exportSections, exportShareText } from "./subject-data-summary";
@@ -119,7 +120,11 @@ export function PrivacyScreen() {
 
   const confirmErase = useCallback(async () => {
     setErase({ phase: "sending" });
-    const result = await eraseAccount(reason);
+    // The path travels with the erasure for the reason `signOut` takes one: the
+    // gate must suppress the sign-in `next` for THIS screen and no other, since
+    // the reason it reads ("account_erased") outlives the navigation that
+    // caused it. See `signedOutHref`.
+    const result = await eraseAccount(reason, ROUTES.privacidad);
     if (!result.ok) {
       setErase({ phase: "failed", message: result.message });
       return;

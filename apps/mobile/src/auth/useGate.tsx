@@ -49,7 +49,7 @@
 // checks it again before using it.
 
 import type { MeV1User } from "@dim/contract/api";
-import { Redirect, usePathname } from "expo-router";
+import { Redirect, usePathname, useRouter } from "expo-router";
 import type { ReactElement } from "react";
 import { StyleSheet, View } from "react-native";
 
@@ -57,7 +57,7 @@ import { Body, Card, ErrorNotice, Loading } from "../ui/components";
 import { Screen, SecondaryButton, Title } from "../ui/kit";
 import { ROUTES } from "../ui/routes";
 import { SPACE } from "../ui/theme";
-import { signInHref } from "./return-to";
+import { signedOutHref } from "./return-to";
 import { bootstrapSession, signOut } from "./session-store";
 import { useSession } from "./useSession";
 
@@ -77,10 +77,27 @@ export function useGate(options: { allowPendingIdentity?: boolean } = {}): Gate 
       return { allowed: false, element: <UnconfiguredScreen /> };
 
     case "session-unverified":
-      return { allowed: false, element: <UnverifiedScreen message={state.message} /> };
+      return {
+        allowed: false,
+        element: <UnverifiedScreen message={state.message} pathname={pathname} />,
+      };
 
     case "signed-out":
-      return { allowed: false, element: <Redirect href={signInHref(pathname)} /> };
+      // NO `next` ON THE SCREEN THE PERSON SIGNED OUT FROM (NAV-2), and `next`
+      // everywhere else. The destination is for a session that was TAKEN
+      // mid-task; carrying it out of a deliberate sign-out re-opens the screen
+      // they just closed — which on Ajustes is the screen with the button. But
+      // the reason is sticky for the whole signed-out session, so the rule is
+      // scoped to WHERE it happened: a deep link tapped afterwards still
+      // carries its destination. See `signedOutHref`.
+      return {
+        allowed: false,
+        element: (
+          <Redirect
+            href={signedOutHref({ reason: state.reason, endedAt: state.endedAt, pathname })}
+          />
+        ),
+      };
 
     case "signed-in":
       if (state.user.profilePending && options.allowPendingIdentity !== true) {
@@ -121,7 +138,8 @@ function UnconfiguredScreen() {
 }
 
 /** Tokens on the device, identity unconfirmed. The subway case. */
-function UnverifiedScreen({ message }: { message: string }) {
+function UnverifiedScreen({ message, pathname }: { message: string; pathname: string }) {
+  const router = useRouter();
   return (
     <Screen edges={["top", "bottom"]}>
       <Title>No pudimos verificar tu sesión</Title>
@@ -133,7 +151,23 @@ function UnverifiedScreen({ message }: { message: string }) {
         </Body>
       </Card>
       <View style={styles.footer}>
-        <SecondaryButton label="Cerrar sesión" onPress={() => void signOut()} />
+        <SecondaryButton
+          label="Cerrar sesión"
+          onPress={() => {
+            // AWAITED, then routed (NAV-2, the shape `ajustes.tsx` established):
+            // `signOut` flips the store as its LAST act, so firing and
+            // navigating in the same tick draws a frame of the wrong screen.
+            // The gate is what redirects either way — this makes the
+            // destination explicit instead of leaving it to whichever screen
+            // happens to re-render first.
+            void (async () => {
+              // The path is passed so the gate knows which screen must not be
+              // re-opened at the next sign-in, and only that one.
+              await signOut(pathname);
+              router.replace(ROUTES.root);
+            })();
+          }}
+        />
       </View>
     </Screen>
   );

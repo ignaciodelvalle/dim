@@ -25,6 +25,8 @@ import { createAttemptSession } from "./idempotency";
 import {
   EMPTY_DRAFT,
   type PetDraft,
+  WIZARD_STEPS,
+  advanceBlockedReason,
   canAdvance,
   draftErrorMessage,
   toRegisterPetInput,
@@ -168,6 +170,40 @@ describe("canAdvance", () => {
   it("defers the final verdict to the schema", () => {
     expect(canAdvance("confirmar", VALID)).toBe(true);
     expect(canAdvance("confirmar", EMPTY_DRAFT)).toBe(false);
+  });
+});
+
+describe("advanceBlockedReason — the disabled button stops being mute (CA-M5)", () => {
+  it("says WHAT is missing on each step that can block", () => {
+    // The button was disabled and silent: a screen reader announces "atenuado"
+    // and nothing else, so nobody was told which field was holding the wizard.
+    expect(advanceBlockedReason("nombre", EMPTY_DRAFT)).toBe("Escribí el nombre para seguir.");
+    expect(advanceBlockedReason("especie", EMPTY_DRAFT)).toBe(
+      "Elegí si es perro o gato para seguir.",
+    );
+    expect(advanceBlockedReason("lugar", EMPTY_DRAFT)).toBe(
+      "Elegí la localidad donde vive para seguir.",
+    );
+    expect(advanceBlockedReason("confirmar", EMPTY_DRAFT)).toMatch(/Faltan datos/);
+  });
+
+  it("says NOTHING when the step can advance — silence is the normal state", () => {
+    // Including the two optional steps, which never block at all.
+    expect(advanceBlockedReason("nombre", { ...EMPTY_DRAFT, name: "Pampa" })).toBeNull();
+    expect(advanceBlockedReason("raza", EMPTY_DRAFT)).toBeNull();
+    expect(advanceBlockedReason("detalles", EMPTY_DRAFT)).toBeNull();
+    expect(advanceBlockedReason("confirmar", VALID)).toBeNull();
+  });
+
+  it("agrees with `canAdvance` on every step — one gate, two voices", () => {
+    // The sentence is derived from the same predicate the button reads, so the
+    // two cannot drift into a mute disabled button or a reason under an
+    // enabled one.
+    for (const step of WIZARD_STEPS) {
+      for (const draft of [EMPTY_DRAFT, VALID]) {
+        expect(advanceBlockedReason(step, draft) === null).toBe(canAdvance(step, draft));
+      }
+    }
   });
 });
 

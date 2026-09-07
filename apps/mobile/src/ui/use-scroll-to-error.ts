@@ -15,10 +15,21 @@
 // visible error is the "jarring focus jumps" the web hook's header warns
 // about, in scroll form.
 //
-// EVERY NATIVE CALL IS BEST-EFFORT. A missing provider (a form rendered
-// outside `Screen`, or a test), an unmounted anchor, or a measurement error
-// must degrade to "no scroll" — the refusal itself is already visible to
-// assistive tech and this hook is a courtesy, never a gate.
+// TWO REFS COME BACK, AND THE SECOND ONE IS THE FIX (forms-F4, 2026-09-05
+// audit — filed as "never scrolls", and worse than filed). The hook used to
+// find the ScrollView through `ScreenScrollContext`, whose provider lives
+// INSIDE `Screen`. Every consumer calls this hook from the component that
+// RENDERS its Screen — above the provider — so `useContext` answered null on
+// every screen, and the courtesy rule below turned that into a silent no-op.
+// Two screens shipped with the hook wired and neither ever moved. The hook now
+// owns a ref to the ScrollView and hands it back; the caller passes it to
+// `<Screen scrollRef={…}>`, and the context remains as the fallback for a
+// consumer that IS nested inside a Screen.
+//
+// EVERY NATIVE CALL IS BEST-EFFORT. A ref nobody attached, an unmounted
+// anchor, or a measurement error must degrade to "no scroll" — the refusal
+// itself is already visible to assistive tech and this hook is a courtesy,
+// never a gate.
 
 import { type RefObject, useContext, useEffect, useRef } from "react";
 import type { ScrollView, View } from "react-native";
@@ -29,8 +40,16 @@ import { SPACE } from "./theme";
 /** Breathing room above the anchored message, so it lands readable, not flush. */
 const SCROLL_MARGIN = SPACE.lg;
 
-export function useScrollToError(error: string | null): RefObject<View | null> {
-  const scrollRef = useContext(ScreenScrollContext);
+export type ScrollToError = {
+  /** Put on the View that wraps the error Callout. */
+  anchorRef: RefObject<View | null>;
+  /** Pass to `<Screen scrollRef={…}>` — the door that actually reaches the scroll view. */
+  scrollRef: RefObject<ScrollView | null>;
+};
+
+export function useScrollToError(error: string | null): ScrollToError {
+  const contextRef = useContext(ScreenScrollContext);
+  const scrollRef = useRef<ScrollView>(null);
   const anchorRef = useRef<View>(null);
   const prevRef = useRef<string | null>(null);
 
@@ -39,7 +58,7 @@ export function useScrollToError(error: string | null): RefObject<View | null> {
     prevRef.current = error;
     if (!appeared) return;
 
-    const scroll: ScrollView | null = scrollRef?.current ?? null;
+    const scroll: ScrollView | null = scrollRef.current ?? contextRef?.current ?? null;
     const anchor = anchorRef.current;
     if (scroll === null || anchor === null) return;
 
@@ -54,7 +73,7 @@ export function useScrollToError(error: string | null): RefObject<View | null> {
       },
       () => {},
     );
-  }, [error, scrollRef]);
+  }, [error, contextRef]);
 
-  return anchorRef;
+  return { anchorRef, scrollRef };
 }

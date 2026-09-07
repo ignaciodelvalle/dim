@@ -42,13 +42,19 @@ function renderScreen(onGoToSignIn: () => void = noop) {
   return render(<CrearCuentaScreen onGoToSignIn={onGoToSignIn} />);
 }
 
-/** Fill the form. `accept` false leaves the legal checkbox alone. */
+/**
+ * Fill the form. `accept` false leaves the legal checkbox alone.
+ *
+ * The three names carry ", obligatorio" (CA-M1, finding A1-entrada-07): these
+ * fields name their own `accessibilityLabel`, which the kit used to let REPLACE
+ * the derived name — so the whole signup form announced no requiredness at all.
+ */
 function fill(overrides: { password?: string; confirmPassword?: string; accept?: boolean } = {}) {
   const password = overrides.password ?? "unaClaveLarga";
-  fireEvent.changeText(screen.getByLabelText("Correo electrónico"), "ana@example.com");
-  fireEvent.changeText(screen.getByLabelText("Contraseña"), password);
+  fireEvent.changeText(screen.getByLabelText("Correo electrónico, obligatorio"), "ana@example.com");
+  fireEvent.changeText(screen.getByLabelText("Contraseña, obligatorio"), password);
   fireEvent.changeText(
-    screen.getByLabelText("Repetir contraseña"),
+    screen.getByLabelText("Repetir contraseña, obligatorio"),
     overrides.confirmPassword ?? password,
   );
   if (overrides.accept !== false) fireEvent.press(screen.getByLabelText(TOS_LABEL));
@@ -251,6 +257,24 @@ describe("the server's refusals", () => {
     fireEvent.press(screen.getByText("Continuar"));
 
     await waitFor(() => expect(screen.getByText("No pudimos crear la cuenta.")).toBeTruthy());
-    expect(screen.getByLabelText("Correo electrónico").props.value).toBe("ana@example.com");
+    expect(screen.getByLabelText("Correo electrónico, obligatorio").props.value).toBe(
+      "ana@example.com",
+    );
+  });
+});
+
+describe("the accessible names — CA-M1 / finding A1-entrada-07", () => {
+  it("announces requiredness on all three fields, though each names its own label", () => {
+    // The kit spread `...rest` AFTER the name it derived, so an explicit
+    // `accessibilityLabel` — which these three pass, and five more sites across
+    // signup and sign-in — silently took ", obligatorio" with it. A screen
+    // reader on this form announced three optional-sounding fields, all of
+    // which the submit gates on.
+    renderScreen();
+    expect(screen.getByLabelText("Correo electrónico, obligatorio")).toBeTruthy();
+    expect(screen.getByLabelText("Contraseña, obligatorio")).toBeTruthy();
+    expect(screen.getByLabelText("Repetir contraseña, obligatorio")).toBeTruthy();
+    // The bare names are GONE, not merely joined by the suffixed ones.
+    expect(screen.queryByLabelText("Correo electrónico")).toBeNull();
   });
 });

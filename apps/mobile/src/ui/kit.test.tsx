@@ -35,7 +35,7 @@ import { describe, expect, it, jest } from "@jest/globals";
 import { fireEvent, render, screen } from "@testing-library/react-native";
 import { RefreshControl, StyleSheet, Text } from "react-native";
 
-import { ListRow, Screen, pullToRefresh } from "./kit";
+import { DateField, FieldLabel, ListRow, Screen, TextField, TimeField, pullToRefresh } from "./kit";
 import { COLORS } from "./theme";
 
 /**
@@ -125,6 +125,101 @@ describe("ListRow — the inert row says why", () => {
     // direction lives one level up, on the Pressable.
     const style = StyleSheet.flatten(column.props.style) as { flexDirection?: string };
     expect(style.flexDirection).toBeUndefined();
+  });
+});
+
+describe("FieldLabel — the asterisk is decoration, and stays out of the a11y tree", () => {
+  it("renders the asterisk as a SIBLING node hidden from assistive tech, not nested text", () => {
+    // CA-M3 (2026-09-05 audit): a nested <Text> is flattened into its parent's
+    // native node on Android, so hiding flags on the inner span were lost and
+    // TalkBack read "Nombre asterisco". Two Texts in a row are two nodes.
+    render(<FieldLabel required>Nombre</FieldLabel>);
+    const label = screen.getByText("Nombre");
+    expect(label.props.children).toBe("Nombre"); // the label text alone, no nested span
+    // Hidden from the a11y tree means hidden from the default query too — the
+    // opt-in is the assertion: an asterisk `getByText` finds WITHOUT it is one a
+    // screen reader would also find.
+    expect(screen.queryByText("*")).toBeNull();
+    const asterisk = screen.getByText("*", { includeHiddenElements: true });
+    expect(asterisk.props.accessibilityElementsHidden).toBe(true);
+    expect(asterisk.props.importantForAccessibility).toBe("no");
+    expect(columnOf(asterisk)).toBe(columnOf(label)); // siblings under one host View
+  });
+
+  it("renders no asterisk at all on an optional field", () => {
+    render(<FieldLabel>Marca</FieldLabel>);
+    expect(screen.queryByText("*", { includeHiddenElements: true })).toBeNull();
+  });
+
+  it("lets a long label WRAP rather than push the asterisk out of the row", () => {
+    // The sibling asterisk turned this label into a flex ROW, and yoga defaults
+    // every child to `flexShrink: 0` — so a label wider than the row measured at
+    // its full intrinsic width and laid the asterisk out past the parent's right
+    // edge. This is `DenunciaScreen`'s longest one, verbatim: 33 characters
+    // rendered uppercase in mono with letterspacing, which overflows on its own
+    // at the Android font scales this app is expected to survive (≥ 1.3,
+    // measured on a device).
+    //
+    // ASSERTED ON THE STYLE AND NOT ON A MEASURED WIDTH because jsdom lays
+    // nothing out: there is no width here to overflow. What is checkable is the
+    // intent — which of the two children yields — and it is the whole fix.
+    const LONG = "¿Qué o a quién estás denunciando?";
+    render(<FieldLabel required>{LONG}</FieldLabel>);
+    expect(screen.getByText(LONG)).toHaveStyle({ flexShrink: 1 });
+    // And the mark itself does NOT yield: an asterisk squeezed to zero width is
+    // the same defect wearing a different name.
+    expect(screen.getByText("*", { includeHiddenElements: true })).toHaveStyle({ flexShrink: 0 });
+  });
+});
+
+describe("TextField — the accessible name", () => {
+  it("keeps the ', obligatorio' suffix when a caller passes its own accessibilityLabel", () => {
+    // CA-M1/CA-M2 (2026-09-05 audit): `...rest` used to be spread AFTER the
+    // derived name, so an explicit label wiped the suffix and a screen reader
+    // heard no requiredness on the alta's name field or the locality picker.
+    render(
+      <TextField
+        label="Nombre"
+        required
+        accessibilityLabel="Nombre de la mascota"
+        value=""
+        onChangeText={() => {}}
+      />,
+    );
+    expect(screen.getByLabelText("Nombre de la mascota, obligatorio")).toBeOnTheScreen();
+  });
+
+  it("derives the name from the visible label when nothing is passed", () => {
+    render(<TextField label="Lote" value="" onChangeText={() => {}} />);
+    expect(screen.getByLabelText("Lote")).toBeOnTheScreen();
+  });
+});
+
+describe("DateField / TimeField — a number pad and a mask", () => {
+  it("opens a numeric keyboard on BOTH platforms — inputMode, never an iOS-only keyboardType", () => {
+    // forms-F1: `keyboardType="numbers-and-punctuation"` exists on iOS only;
+    // Android fell back to QWERTY on every date field in the app.
+    render(<DateField label="Fecha" required value="" onChangeText={() => {}} />);
+    const input = screen.getByLabelText("Fecha, obligatorio");
+    expect(input.props.inputMode).toBe("numeric");
+    expect(input.props.keyboardType).toBeUndefined();
+    expect(input.props.placeholder).toBe("DD/MM/AAAA");
+  });
+
+  it("hands the caller the MASKED value, so the field and its state agree", () => {
+    const onChangeText = jest.fn();
+    render(<DateField label="Fecha" value="" onChangeText={onChangeText} />);
+    fireEvent.changeText(screen.getByLabelText("Fecha"), "20082026");
+    expect(onChangeText).toHaveBeenCalledWith("20/08/2026");
+  });
+
+  it("masks a time with a colon", () => {
+    const onChangeText = jest.fn();
+    render(<TimeField label="Hora" value="" onChangeText={onChangeText} />);
+    const input = screen.getByLabelText("Hora");
+    expect(input.props.inputMode).toBe("numeric");
+    fireEvent.changeText(input, "0800");
+    expect(onChangeText).toHaveBeenCalledWith("08:00");
   });
 });
 

@@ -79,7 +79,18 @@ export type SessionState =
   | { phase: "starting" }
   /** This build has no auth plane. Nothing can sign in; say so. */
   | { phase: "unconfigured" }
-  | { phase: "signed-out"; reason: SessionEndReason | null }
+  /**
+   * `endedAt` is THE PATH THE PERSON WAS ON when they ended the session
+   * themselves, and it is absent for every end that was done TO them.
+   *
+   * It exists because `reason` alone is sticky: nothing clears it until the
+   * next sign-in, so "user_action" is still the reason five screens later.
+   * The gate suppresses the sign-in `next` parameter for a deliberate end
+   * (NAV-2), and without a place to scope that suppression it also swallowed
+   * the destination of a deep link opened AFTER the sign-out — see
+   * `signedOutHref` in `return-to.ts`.
+   */
+  | { phase: "signed-out"; reason: SessionEndReason | null; endedAt?: string }
   /** Tokens on the device, identity unconfirmed — see the header. */
   | { phase: "session-unverified"; message: string }
   | { phase: "signed-in"; user: MeV1User };
@@ -755,10 +766,20 @@ export async function resetPasswordWithCode(input: {
   return { ok: true };
 }
 
-/** "Cerrar sesión" — this device. */
-export async function signOut(): Promise<void> {
+/**
+ * "Cerrar sesión" — this device.
+ *
+ * `endedAt` IS REQUIRED, not optional, and TypeScript is the enforcement. It is
+ * the path the person was standing on when they pressed the button, and the
+ * gate needs it to know WHICH screen must not be re-opened at the next sign-in
+ * (`signedOutHref`). A call site that could omit it would silently re-open the
+ * bug in one direction or the other: default "suppress everywhere" swallows a
+ * deep link's destination, default "suppress nowhere" resurrects the screen the
+ * person just closed.
+ */
+export async function signOut(endedAt: string): Promise<void> {
   await clearSession();
-  setState({ phase: "signed-out", reason: "user_action" });
+  setState({ phase: "signed-out", reason: "user_action", endedAt });
 }
 
 export type RevokeResult = { ok: true } | { ok: false; message: string };
@@ -777,7 +798,7 @@ export type RevokeResult = { ok: true } | { ok: false; message: string };
  * you out locally is the worst of both: the other devices keep working and you
  * lost the one you were holding.
  */
-export async function signOutEverywhere(): Promise<RevokeResult> {
+export async function signOutEverywhere(endedAt: string): Promise<RevokeResult> {
   const result = await revokeAllSessions(sessionPort);
   if (result.outcome !== "ok") {
     return {
@@ -786,7 +807,7 @@ export async function signOutEverywhere(): Promise<RevokeResult> {
     };
   }
   await clearSession();
-  setState({ phase: "signed-out", reason: "revoked_all" });
+  setState({ phase: "signed-out", reason: "revoked_all", endedAt });
   return { ok: true };
 }
 
@@ -819,7 +840,7 @@ export type EraseAccountResult = { ok: true } | { ok: false; message: string };
  * their account still exists — and the honest answer, "it does, try again", is
  * unavailable from there.
  */
-export async function eraseAccount(reason: string): Promise<EraseAccountResult> {
+export async function eraseAccount(reason: string, endedAt: string): Promise<EraseAccountResult> {
   const result = await eraseMyAccount(sessionPort, { command: "erase_account", reason });
   if (result.outcome !== "ok") {
     return {
@@ -833,7 +854,7 @@ export async function eraseAccount(reason: string): Promise<EraseAccountResult> 
   // clear must not turn a completed supresión into an error message.
   await forgetAllCachedCredentials().catch(() => undefined);
   await clearSession();
-  setState({ phase: "signed-out", reason: "account_erased" });
+  setState({ phase: "signed-out", reason: "account_erased", endedAt });
   return { ok: true };
 }
 

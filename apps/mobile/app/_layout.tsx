@@ -43,6 +43,25 @@ import { COLORS, TYPE } from "../src/ui/theme";
 // src/observability/sentry.ts for everything that is deliberately off.
 initSentry();
 
+/**
+ * THE ANCHOR: where hardware BACK goes when there is nothing behind (NAV-1).
+ *
+ * A person who opens this app from a link — a notification, an invitation
+ * e-mail, a QR — lands on a stack ONE screen deep. Android's back button on
+ * that screen had nowhere to go, so it quit the app: they read a transfer
+ * proposal, pressed back to see the rest of miMAR, and the app closed.
+ *
+ * `anchor` tells expo-router which sibling route to place UNDER a deep-linked
+ * screen, so back unwinds into the app instead of out of it. `index` is the
+ * gate — it is a decision, not a page, and it forwards to wherever the person
+ * belongs — which is exactly what "one step back from a deep link" means here.
+ *
+ * expo-router 57 validates this against the layout's real children and throws
+ * on a name that does not exist (`getRoutesCore.js`, "has invalid anchor"), so
+ * a rename cannot leave it silently pointing at nothing.
+ */
+export const unstable_settings = { anchor: "index" };
+
 function RootLayout() {
   const fontsReady = useLnFonts();
   useSessionBootstrap();
@@ -317,6 +336,16 @@ function RootLayout() {
         <Stack.Screen name="mascotas/[publicToken]/perdida" options={{ title: "Modo perdida" }} />
         <Stack.Screen name="turnos/[appointmentToken]" options={{ title: "Turno" }} />
         <Stack.Screen name="cuidado/[grantToken]" options={{ title: "Cuidado temporal" }} />
+        {/* LA RUTA NO RECONOCIDA (NAV-M1). Sin registrar, el encabezado sale del
+            nombre del archivo: "+not-found", en inglés y con un signo más, sobre
+            la única pantalla que por definición ve alguien que llegó desde
+            AFUERA de la app — un link de un mail o un QR. Es el peor lugar para
+            que el producto hable como un router.
+
+            EL TÍTULO SE TRANSCRIBE: es el `<Title>` que la pantalla ya dibuja,
+            el mismo criterio con el que se registró "Recuperar contraseña" (la
+            misma frase en el encabezado y en la página). */}
+        <Stack.Screen name="+not-found" options={{ title: "No pudimos abrir ese link" }} />
       </Stack>
     </SafeAreaProvider>
   );

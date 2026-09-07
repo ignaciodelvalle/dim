@@ -29,7 +29,18 @@ import { readFileSync, readdirSync, statSync } from "node:fs";
 import { join, relative, resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 
-const MOBILE_SRC = resolve(__dirname, "../apps/mobile/src");
+// BOTH ROOTS (CA-3, 2026-09-06). The scan read `src` only, and `app/` is not a
+// thinner tree: it is expo-router's screens, and `alta.tsx` alone renders the
+// registration wizard's radio pills. Everything this file fences was
+// unenforced there — the pills shipped under the 44dp floor and announced
+// `accessibilityState={{ selected }}` on a `radio`, and no gate said a word.
+// Jest cannot cover them either: apps/mobile's `roots` is `<rootDir>/src`
+// (CANON-431), so `app/` has no render tests at all and this fence is the only
+// mechanism that reaches it.
+const MOBILE_ROOTS = [
+  resolve(__dirname, "../apps/mobile/src"),
+  resolve(__dirname, "../apps/mobile/app"),
+];
 
 function walk(dir: string): string[] {
   const out: string[] = [];
@@ -41,7 +52,7 @@ function walk(dir: string): string[] {
   return out;
 }
 
-const files = walk(MOBILE_SRC).map((full) => ({
+const files = MOBILE_ROOTS.flatMap(walk).map((full) => ({
   rel: relative(resolve(__dirname, ".."), full).replaceAll("\\", "/"),
   content: readFileSync(full, "utf-8"),
 }));
@@ -71,6 +82,31 @@ function pressableOpenings(content: string): string[] {
   return openings;
 }
 
+/**
+ * The property NAMES in a tag's `accessibilityState={{ … }}`.
+ *
+ * Shorthand (`{{ selected }}`) yields "selected"; `{{ checked: selected }}`
+ * yields "checked" — which is the whole point, since the value there is a
+ * variable that happens to be called `selected`.
+ *
+ * KNOWN BLIND SPOT: a computed state object (`accessibilityState={someVar}`,
+ * one pair of braces) matches nothing here and yields `[]`, so a radio built
+ * that way is neither accused nor cleared — it is simply not seen. Nothing in
+ * `apps/mobile` writes one today, and the shape is worth naming because the
+ * rule below would go on passing if one appeared. Reading it would take
+ * resolving a variable across a file, which is where static analysis stops
+ * being honest; the per-control truth for such a control belongs in a render
+ * test.
+ */
+function stateKeys(opening: string): string[] {
+  const match = /accessibilityState=\{\{([^}]*)\}\}/.exec(opening);
+  if (match === null) return [];
+  return (match[1] ?? "")
+    .split(",")
+    .map((entry) => (entry.split(":")[0] ?? "").trim())
+    .filter((key) => key.length > 0);
+}
+
 const pressableFiles = files
   .map((f) => ({ ...f, openings: pressableOpenings(f.content) }))
   .filter((f) => f.openings.length > 0);
@@ -82,6 +118,48 @@ describe("mobile a11y fences (C3)", () => {
     // fencing a smaller app.
     expect(files.length).toBeGreaterThan(80);
     expect(pressableFiles.length).toBeGreaterThanOrEqual(15);
+    // And it sees the SECOND root. A walk that silently lost `app/` would keep
+    // passing on `src` alone — the exact shape of the gap CA-3 closed.
+    expect(files.some((f) => f.rel.startsWith("apps/mobile/app/"))).toBe(true);
+  });
+
+  it("a radio's state is `checked`, never `selected` — a radio is not a tab", () => {
+    // CA-1: `accessibilityState={{ selected }}` on `accessibilityRole="radio"`
+    // is announced by TalkBack and VoiceOver as an UN-CHECKABLE control. The
+    // person hears which pill has focus and never hears which one is chosen.
+    // Caught here rather than in a render test because the only radio group in
+    // the app lives in `app/alta.tsx`, where jest does not reach.
+    const offenders: string[] = [];
+    const radios: string[] = [];
+    for (const f of files) {
+      for (const opening of pressableOpenings(f.content)) {
+        if (!/accessibilityRole=["']radio["']/.test(opening)) continue;
+        radios.push(f.rel);
+        // THE KEYS, not the text: `{{ checked: selected }}` is CORRECT and a
+        // substring search for "selected" flags it — the first draft of this
+        // fence did exactly that and accused two innocent files. Only a
+        // property NAMED `selected` is the defect.
+        if (stateKeys(opening).includes("selected")) {
+          offenders.push(`${f.rel}: ${opening.split("\n")[0]}…`);
+        }
+      }
+    }
+    // NON-VACUITY, and this rule is the one that needed it most. The filter is
+    // two regexes over a brace-depth walk: if the walk regresses — a `>` inside
+    // a string, a renamed prop — the loop iterates ZERO radios and
+    // `expect([]).toEqual([])` passes forever, which is the silent clean sweep
+    // the other two rules already guard against. SEVEN radio openings existed
+    // when this was written, across six files: `alta.tsx`'s species pills,
+    // `kit.tsx`'s `Choice`, `LostScreen`'s report categories, plus
+    // `DenunciaScreen`, `NotificationsScreen` and `ReservarTurnoScreen` (two).
+    // The floor is
+    // three, low enough to survive a screen being deleted and high enough that
+    // a broken walk cannot reach it.
+    expect(radios.length, `radio openings seen: ${radios.join(", ")}`).toBeGreaterThanOrEqual(3);
+    expect(
+      offenders,
+      `A radio must report \`checked\`. \`selected\` is a tab's state:\n${offenders.join("\n")}`,
+    ).toEqual([]);
   });
 
   it("every <Pressable> names its accessibilityRole — per BLOCK, not per file", () => {

@@ -35,7 +35,10 @@ export default function NotificacionesRoute() {
       // case the screen never offers the tap) and a pet link's came from
       // `credentialRoute`. Nothing web-shaped reaches this cast.
       onOpenRoute={(route) => router.push(route as Parameters<typeof router.push>[0])}
-      onOpenPets={() => router.push(ROUTES.misMascotas)}
+      // `dismissTo` (NAV-4): the empty inbox's way out. The pet list is nearly
+      // always the screen the inbox was opened from, and pushing a second copy
+      // of it leaves a back button that walks through the notifications again.
+      onOpenPets={() => router.dismissTo(ROUTES.misMascotas)}
     />
   );
 }

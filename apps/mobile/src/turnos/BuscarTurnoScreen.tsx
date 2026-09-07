@@ -177,6 +177,13 @@ export function BuscarTurnoScreen({
           <LocalityPicker
             provinceCode=""
             localityName=""
+            // NOT OBLIGATORIA HERE, and the picker defaults to saying it is.
+            // The alta and the mudanza refuse to submit without a locality;
+            // this one is a zone FILTER over the search, and a person who
+            // leaves it alone gets the server's default zone rather than an
+            // error. Announcing ", obligatorio" would tell a screen-reader user
+            // to fill in a field they may skip.
+            required={false}
             onSelect={(selection) => {
               // THE CLEAR ARM IS NOT A CHOICE. `LocalityPicker` emits empty
               // strings when its "Cambiar" chip is tapped to reset, and treating
