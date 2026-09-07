@@ -47,9 +47,10 @@ import type { ApiResult } from "../api/client";
 import { fetchMyProfile, saveMyProfile } from "../api/endpoints";
 import { apiErrorMessage } from "../api/error-copy";
 import { sessionPort } from "../auth/session-store";
-import { Body, Card, Loading } from "../ui/components";
+import { Body, Card, Loading, StaleNotice } from "../ui/components";
 import { FONTS } from "../ui/fonts";
 import { Callout, PrimaryButton, Screen, SecondaryButton, TextField, Title } from "../ui/kit";
+import { type ReadyState, loaded, reloadFailed } from "../ui/reload-state";
 import { COLORS, LEADING, SPACE, TYPE } from "../ui/theme";
 import { useReturnKeyChain } from "../ui/use-return-key-chain";
 
@@ -74,7 +75,10 @@ function failureMessage(result: ApiResult<unknown>): string {
   }
 }
 
-type ScreenState = { phase: "loading" } | { phase: "ready" } | { phase: "failed"; message: string };
+type ScreenState =
+  | { phase: "loading" }
+  | ReadyState<MyProfileV1>
+  | { phase: "failed"; message: string };
 
 /** What just happened, for the line above the form. */
 type Notice = { tone: "ok" | "err"; message: string } | null;
@@ -94,18 +98,26 @@ export function EditProfileScreen() {
   const [notice, setNotice] = useState<Notice>(null);
   const [busy, setBusy] = useState(false);
 
-  const load = useCallback(async () => {
-    setState({ phase: "loading" });
+  const load = useCallback(async (mode: "initial" | "refresh" = "initial") => {
+    // A RE-READ DOES NOT BLANK THE FORM (S-2). `load` runs again after every
+    // landed save, and setting `loading` there replaced the six filled fields
+    // with a spinner for the length of a round trip — on a screen whose save had
+    // just succeeded.
+    if (mode === "initial") setState({ phase: "loading" });
     const result = await fetchMyProfile(sessionPort);
     if (result.outcome === "ok") {
       // THE DRAFT IS SEEDED FROM THE SERVER ON EVERY LOAD, including the re-read
       // after a save: the writer trims `displayName`, so the field has to end up
       // saying what was actually stored rather than what was typed.
       setDraft(draftFrom(result.payload as MyProfileV1));
-      setState({ phase: "ready" });
+      setState(loaded(result.payload as MyProfileV1));
       return;
     }
-    setState({ phase: "failed", message: failureMessage(result) });
+    // AND A FAILED RE-READ DOES NOT DELETE IT EITHER. The save LANDED — the
+    // server has the new values — so a full-screen "no pudimos abrir tus datos"
+    // over it reads as if the save had failed, which is the opposite of what
+    // happened.
+    setState((current) => reloadFailed(current, result, failureMessage(result)));
   }, []);
 
   useEffect(() => {
@@ -124,7 +136,7 @@ export function EditProfileScreen() {
       }
       setNotice({ tone: "ok", message: "Tus datos fueron actualizados." });
       // Re-read rather than trust the draft: see `load`.
-      await load();
+      await load("refresh");
     },
     [load],
   );
@@ -169,6 +181,10 @@ export function EditProfileScreen() {
           <Text style={styles.calloutText}>{notice.message}</Text>
         </Callout>
       )}
+
+      {state.phase === "ready" && state.staleFailure !== null ? (
+        <StaleNotice message={state.staleFailure} onRetry={() => void load("refresh")} />
+      ) : null}
 
       <Card title="Cómo te mostramos">
         <TextField

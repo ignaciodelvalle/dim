@@ -167,6 +167,55 @@ describe("the two builders", () => {
     });
   });
 
+  // -------------------------------------------------------------------------
+  // A5-ciudadanas-01 — "CON MI CONTACTO" WITH A PHONE AND NOTHING ELSE
+  // -------------------------------------------------------------------------
+  it("sends a phone-only contact instead of an empty e-mail key", () => {
+    // The whole path was unsendable: `""` reached `z.email()`, which runs
+    // before the schema's nullable/optional AND before its at-least-one rule,
+    // so the form answered "dejanos un contacto" to somebody who had just left
+    // one.
+    //
+    // WHAT `input` IS, because the old comment here claimed something this
+    // assertion could not check (lote 1b review, F13). The builder OMITS the key
+    // from the wire body, but `input` is the PARSED result — and the contract's
+    // `.optional().transform()` turns the absent key into an explicit `null`. So
+    // "the key is omitted" is a fact about `buildFileDenunciaCommand`'s input to
+    // zod and is invisible here; what IS observable, and what actually matters
+    // downstream, is that the address field carries NO ADDRESS rather than a
+    // blank string. `toMatchObject` cannot assert an absence, so it asserts the
+    // value instead of implying a shape.
+    const draft = buildFileDenunciaCommand({
+      ...FILLED,
+      anonymous: false,
+      contactEmail: "   ",
+      contactPhone: "+54 294 4123456",
+    });
+
+    expect(draft.ok).toBe(true);
+    if (!draft.ok) return;
+    expect(draft.input).toMatchObject({
+      contactMode: "with_contact",
+      reporterContactEmail: null,
+      reporterContactPhone: "+54 294 4123456",
+    });
+    // And not the empty string, which is the value that used to make the parse
+    // fail. `toMatchObject` above would accept `""` as "present"; this does not.
+    expect((draft.input as { reporterContactEmail?: unknown }).reporterContactEmail).not.toBe("");
+  });
+
+  it("still refuses when BOTH contact boxes are blank", () => {
+    // The control: omitting the keys must not turn the at-least-one rule off.
+    const draft = buildFileDenunciaCommand({
+      ...FILLED,
+      anonymous: false,
+      contactEmail: "",
+      contactPhone: "",
+    });
+
+    expect(draft).toEqual({ ok: false, code: "CONTACT_REQUIRED" });
+  });
+
   it("refuses to build a denuncia with no place chosen, and says which list to tap", () => {
     // A phone cannot produce a point on its own; the only way through is tapping
     // a candidate. The message has to say that rather than "faltan coordenadas".

@@ -86,6 +86,28 @@ describe("the gate", () => {
     expect(mockRedirect).toHaveBeenCalledTimes(1);
     expect(mockRedirect).toHaveBeenCalledWith({ href: ROUTES.misMascotas });
   });
+
+  // -------------------------------------------------------------------------
+  // A4-custodia-03 — WHERE THEY WERE GOING, WHEN THERE WAS SOMEWHERE
+  // -------------------------------------------------------------------------
+  it("lands on the interrupted destination when the gate carried one", () => {
+    // The person tapped a caretaker invitation in their mail, installed the app,
+    // created an account, and reached this screen through the gate's SIGNED-IN
+    // arm — which now carries `next` the way the signed-out arm has since WU-O.
+    // Finishing step 2 must take them to the invitation, not to an empty list.
+    render(<IdentidadPendienteScreen next="/cuidado/GRT-ABCD-2345" profilePending={false} />);
+
+    expect(mockRedirect).toHaveBeenCalledWith({ href: "/cuidado/GRT-ABCD-2345" });
+  });
+
+  it("refuses a `next` that would leave the app", () => {
+    // `mimar://identidad-pendiente?next=…` is a URL anybody can compose, so the
+    // value is re-checked here through `returnHref` and not trusted because the
+    // gate produced it. Same shape check as the sign-in round trip.
+    render(<IdentidadPendienteScreen next="https://evil.example/phish" profilePending={false} />);
+
+    expect(mockRedirect).toHaveBeenCalledWith({ href: ROUTES.misMascotas });
+  });
 });
 
 describe("the form", () => {

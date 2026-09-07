@@ -24,16 +24,19 @@
 // build lands this is a render and not a round trip.
 
 import type { AdoptionDetailListedV1, AdoptionDetailV1 } from "@dim/contract/api";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useFocusEffect } from "expo-router";
+import { type ReactNode, useCallback, useRef, useState } from "react";
 import { StyleSheet, Text, View } from "react-native";
 
 import { apiFailureMessage } from "../api/client";
 import { fetchAdoptionDetail } from "../api/endpoints";
 import { sessionPort } from "../auth/session-store";
-import { Body, Card, ErrorNotice, Loading, Row } from "../ui/components";
+import { Body, Card, ErrorNotice, Loading, Row, StaleNotice } from "../ui/components";
 import { FONTS } from "../ui/fonts";
 import { Callout, Eyebrow, PrimaryButton, Screen, SecondaryButton, Title } from "../ui/kit";
+import { type ReadyState, loaded, reloadFailed } from "../ui/reload-state";
 import { COLORS, LEADING, RADIUS, SPACE, TRACKING, TYPE } from "../ui/theme";
+import { useReconnect } from "../ui/use-reconnect";
 
 import {
   applyBlockedCopy,
@@ -47,7 +50,7 @@ import {
 
 type ScreenState =
   | { phase: "loading" }
-  | { phase: "ready"; view: AdoptionDetailV1 }
+  | ReadyState<AdoptionDetailV1>
   | { phase: "failed"; message: string };
 
 export function AdoptionDetailScreen({
@@ -62,20 +65,53 @@ export function AdoptionDetailScreen({
   const [state, setState] = useState<ScreenState>({ phase: "loading" });
   const generation = useRef(0);
 
-  const load = useCallback(async () => {
-    const mine = ++generation.current;
-    const result = await fetchAdoptionDetail(sessionPort, petToken);
-    if (generation.current !== mine) return;
-    if (result.outcome === "ok") {
-      setState({ phase: "ready", view: result.payload });
-      return;
-    }
-    setState({ phase: "failed", message: apiFailureMessage(result) ?? "No pudimos cargar." });
-  }, [petToken]);
+  /**
+   * Read the ficha.
+   *
+   * THE MODE WAS WRITTEN AND NEVER WIRED (lote 1b review, F7). `hasLoaded` below
+   * was assigned and never read, so a failed focus read took
+   * `{ phase: "failed" }` and DELETED a ficha somebody was looking at — returning
+   * from the postulación form in a dead spot replaced the animal with a refusal.
+   * That is the S-2 rule this batch is about, newly violated on a screen that had
+   * just started re-reading on focus.
+   */
+  const load = useCallback(
+    async (mode: "initial" | "refresh" = "initial") => {
+      const mine = ++generation.current;
+      if (mode === "initial") setState({ phase: "loading" });
+      const result = await fetchAdoptionDetail(sessionPort, petToken);
+      if (generation.current !== mine) return;
+      if (result.outcome === "ok") {
+        setState(loaded(result.payload));
+        return;
+      }
+      setState((current) =>
+        reloadFailed(current, result, apiFailureMessage(result) ?? "No pudimos cargar."),
+      );
+    },
+    [petToken],
+  );
 
-  useEffect(() => {
-    void load();
-  }, [load]);
+  // ON FOCUS, NOT ONLY ON MOUNT (A5-ciudadanas-05 / A4-custodia-07 — the shape
+  // `TransfersScreen` has carried since QA batch 3). This screen pushes
+  // something on top of itself that CHANGES it, and coming back pops rather than
+  // remounts, so a mount-only effect left the reader looking at the state from
+  // before their own write.
+  //
+  // THE REF IS READ AT THE CALL SITE, which is what makes the mode above mean
+  // anything. Only the first appearance has nothing to keep.
+  const hasLoaded = useRef(false);
+  useFocusEffect(
+    useCallback(() => {
+      void load(hasLoaded.current ? "refresh" : "initial");
+      hasLoaded.current = true;
+    }, [load]),
+  );
+
+  // WHEN THE NETWORK COMES BACK, TRY AGAIN (B-05, the other half of S-2). The
+  // ficha holds no input of its own — the postulación form is a separate screen —
+  // so an unprompted re-read cannot discard anything somebody typed.
+  useReconnect(() => void load("refresh"));
 
   if (state.phase === "loading") {
     return (
@@ -88,18 +124,26 @@ export function AdoptionDetailScreen({
   if (state.phase === "failed") {
     return (
       <Screen>
-        <ErrorNotice message={state.message} onRetry={() => void load()} />
+        <ErrorNotice message={state.message} onRetry={() => void load("initial")} />
         <SecondaryButton label="Ver otras en adopción" onPress={onBackToCatalogue} />
       </Screen>
     );
   }
 
   const { detail } = state.view;
+  // The failed RE-read, over the ficha it could not replace (S-2). It sits above
+  // whichever of the three shapes below is drawn, because "esto puede estar
+  // desactualizado" is equally true of a closed ficha and a listed one.
+  const stale =
+    state.staleFailure === null ? null : (
+      <StaleNotice message={state.staleFailure} onRetry={() => void load("refresh")} />
+    );
 
   if (detail.state !== "listed") {
     const copy = closedFichaCopy(detail);
     return (
       <Screen>
+        {stale}
         <Title>{copy.title}</Title>
         <Body>{copy.body}</Body>
         <PrimaryButton label="Ver otras en adopción" onPress={onBackToCatalogue} />
@@ -107,14 +151,19 @@ export function AdoptionDetailScreen({
     );
   }
 
-  return <ListedFicha detail={detail} onApply={() => onApply(petToken, detail.name)} />;
+  return (
+    <ListedFicha detail={detail} stale={stale} onApply={() => onApply(petToken, detail.name)} />
+  );
 }
 
 function ListedFicha({
   detail,
+  stale,
   onApply,
 }: {
   detail: AdoptionDetailListedV1;
+  /** The S-2 banner, when the last re-read did not land. */
+  stale: ReactNode;
   onApply: () => void;
 }) {
   const place = [detail.locality, detail.province].filter(Boolean).join(", ");
@@ -124,6 +173,7 @@ function ListedFicha({
 
   return (
     <Screen>
+      {stale}
       <Title>{detail.name}</Title>
       {detail.breed === null ? null : <Text style={styles.breed}>{detail.breed}</Text>}
       <Text style={styles.meta}>

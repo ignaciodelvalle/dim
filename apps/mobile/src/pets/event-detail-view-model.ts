@@ -11,7 +11,13 @@ import type {
   EventFactV1,
   PetEventDetailV1,
 } from "@dim/contract/api";
-import type { AmendEventInput } from "@dim/contract/input";
+import {
+  AMEND_REASON_MIN_LENGTH,
+  type AmendEventInput,
+  type AmendEventInputCode,
+  amendEventInputSchema,
+  firstAmendEventInputCode,
+} from "@dim/contract/input";
 
 import { AR_TIME_ZONE, formatArDate } from "./libreta-view-model";
 import { type SectionView, sectionView } from "./owner-face-view-model";
@@ -241,4 +247,50 @@ export function buildAmendChanges(
  */
 export function initialAmendEdits(facts: EventFactV1[]): Record<string, string> {
   return Object.fromEntries(facts.map((fact) => [fact.field, fact.value]));
+}
+
+/**
+ * One es-AR sentence per way the CONTRACT can refuse a correction.
+ *
+ * IT EXISTS BECAUSE THE WIRE CANNOT SAY WHICH BOX (A2-alta-asentar-07). The
+ * error envelope is one key (§2), so a 400 from this write arrives as
+ * `invalid_request` — whose copy is "Esta versión de la app no entiende…
+ * Actualizá la app", which is false and unactionable: the app understood
+ * perfectly, the reason was four characters long. Every other form in this app
+ * runs the contract's own schema locally first, for exactly this.
+ */
+export function amendInputMessage(code: AmendEventInputCode): string {
+  switch (code) {
+    case "CHANGES_REQUIRED":
+      return AMEND_NO_CHANGES_LABEL;
+    case "CHANGE_FIELD_REQUIRED":
+      return "Una de las correcciones no dice qué campo cambia.";
+    case "CHANGE_FIELD_NOT_AMENDABLE":
+      return "Ese campo no se puede corregir desde acá.";
+    case "REASON_TOO_SHORT":
+      return `El motivo tiene que tener al menos ${AMEND_REASON_MIN_LENGTH} caracteres, o dejalo vacío.`;
+  }
+}
+
+/**
+ * Build and validate the correction, with the contract's own schema.
+ *
+ * THE EMPTY REASON IS `null` AND NOT `""`: the schema asks for five characters
+ * when a reason is PRESENT, and a blank string would be refused for a field the
+ * owner deliberately left alone.
+ */
+export function buildAmendEventCommand(values: {
+  reason: string;
+  changes: AmendEventInput["changes"];
+}):
+  | { ok: true; input: AmendEventInput }
+  | { ok: false; code: AmendEventInputCode; message: string } {
+  const trimmed = values.reason.trim();
+  const parsed = amendEventInputSchema.safeParse({
+    reason: trimmed.length === 0 ? null : trimmed,
+    changes: values.changes,
+  });
+  if (parsed.success) return { ok: true, input: parsed.data };
+  const code = firstAmendEventInputCode(parsed.error) ?? "CHANGES_REQUIRED";
+  return { ok: false, code, message: amendInputMessage(code) };
 }

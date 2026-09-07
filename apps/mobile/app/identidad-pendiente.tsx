@@ -16,13 +16,20 @@
 // out from this screen no longer round-trips `next=/identidad-pendiente`
 // through sign-in.
 
+import { useLocalSearchParams } from "expo-router";
+
 import { IdentidadPendienteScreen } from "../src/auth/IdentidadPendienteScreen";
 import { useGate } from "../src/auth/useGate";
 
 export default function IdentidadPendienteRoute() {
   const gate = useGate({ allowPendingIdentity: true });
+  // `next` IS READ HERE AND PASSED DOWN, exactly like `profilePending` and for
+  // the same reason. The gate puts it on the redirect (A4-custodia-03,
+  // `pendingIdentityHref`) so somebody who arrived from a deep link finishes
+  // step 2 and lands on the link instead of on an empty pet list.
+  const { next } = useLocalSearchParams<{ next?: string }>();
 
   if (!gate.allowed) return gate.element;
 
-  return <IdentidadPendienteScreen profilePending={gate.user.profilePending} />;
+  return <IdentidadPendienteScreen next={next} profilePending={gate.user.profilePending} />;
 }

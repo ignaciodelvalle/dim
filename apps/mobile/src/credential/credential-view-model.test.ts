@@ -27,6 +27,7 @@ import {
   STALE_NOTICE,
   buildCredentialView,
   cachedCredentialNotice,
+  cachedCredentialReason,
   describeFreshness,
   lostView,
   noticeLines,
@@ -344,5 +345,51 @@ describe("cachedCredentialNotice — the offline banner", () => {
     expect(
       cachedCredentialNotice(describeFreshness({ issuedAt, staleAfter: "x" }, justOutside)).warning,
     ).toBe(STALE_NOTICE);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// A3-documento-credencial-02 — THE BANNER NAMES THE ACTUAL REASON
+// ---------------------------------------------------------------------------
+
+describe("cachedCredentialNotice — why the live read failed", () => {
+  const fresh = describeFreshness(
+    { issuedAt: "2026-09-06T12:00:00.000Z", staleAfter: "2026-09-06T12:00:30.000Z" },
+    new Date("2026-09-06T12:00:10.000Z"),
+  );
+
+  it("says 'sin conexión' only when there was no connection", () => {
+    expect(cachedCredentialNotice(fresh, "offline").headline).toContain("sin conexión");
+  });
+
+  it("names the SERVER for a refusal, and the app for a version it cannot read", () => {
+    // Somebody in a vet's waiting room with four bars was told to check their
+    // connection, and the action actually available to them — wait, or update
+    // the app — was never named.
+    const server = cachedCredentialNotice(fresh, "server").headline;
+    expect(server).toContain("servidor no disponible");
+    expect(server).not.toContain("sin conexión");
+
+    const version = cachedCredentialNotice(fresh, "version").headline;
+    expect(version).toContain("actualizar la app");
+    expect(version).not.toContain("sin conexión");
+  });
+
+  it("maps every failed outcome to a reason", () => {
+    expect(cachedCredentialReason("unreachable")).toBe("offline");
+    expect(cachedCredentialReason("api-error")).toBe("server");
+    expect(cachedCredentialReason("degraded")).toBe("server");
+    expect(cachedCredentialReason("unsupported-version")).toBe("version");
+    expect(cachedCredentialReason("malformed")).toBe("unreadable");
+  });
+
+  it("keeps the stale warning whatever the reason was", () => {
+    // The reason is about the READ; the warning is about the AGE of what is on
+    // screen. Naming one must not silence the other.
+    const stale = describeFreshness(
+      { issuedAt: "2026-09-01T12:00:00.000Z", staleAfter: "2026-09-01T12:00:30.000Z" },
+      new Date("2026-09-06T12:00:00.000Z"),
+    );
+    expect(cachedCredentialNotice(stale, "server").warning).not.toBeNull();
   });
 });

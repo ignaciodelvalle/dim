@@ -40,7 +40,6 @@ import {
   AMENDMENT_NO_VISIBLE_CHANGE,
   AMEND_CONFIRM_LABEL,
   AMEND_IMMUTABILITY_NOTE,
-  AMEND_NO_CHANGES_LABEL,
   ATTACHMENTS_EMPTY_LABEL,
   ATTACHMENT_EXTERNAL_HINT,
   ATTACHMENT_UNAVAILABLE_LABEL,
@@ -50,6 +49,7 @@ import {
   attachmentExpired,
   attachmentExpiryLabel,
   buildAmendChanges,
+  buildAmendEventCommand,
   buildEventDetailView,
   canEndMedication,
   initialAmendEdits,
@@ -430,21 +430,24 @@ function AmendForm({
   const attempt = useRef(createAttemptSession());
 
   async function submit() {
-    const changes = buildAmendChanges(view.facts, edits);
-    if (changes.length === 0) {
-      setError(AMEND_NO_CHANGES_LABEL);
+    // THE CONTRACT'S SCHEMA, RUN LOCALLY FIRST (A2-alta-asentar-07), like every
+    // other form in this app. Without it a four-character motivo was a round
+    // trip that came back `invalid_request` — rendered as "Actualizá la app",
+    // which is both false and impossible to act on.
+    const built = buildAmendEventCommand({
+      reason,
+      changes: buildAmendChanges(view.facts, edits),
+    });
+    if (!built.ok) {
+      setError(built.message);
       return;
     }
     setError(null);
     setSubmitting(true);
-    const trimmed = reason.trim();
     const result = await amendPetEvent(
       sessionPort,
       { publicToken, eventId: view.eventId },
-      // An empty reason is `null`, not "": the schema requires five characters
-      // when a reason is PRESENT, and sending a blank string would be refused
-      // for a field the owner deliberately left alone.
-      { reason: trimmed.length === 0 ? null : trimmed, changes },
+      built.input,
       attempt.current.key(),
     );
     setSubmitting(false);

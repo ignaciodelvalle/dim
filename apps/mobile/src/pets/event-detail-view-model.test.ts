@@ -9,6 +9,7 @@ import {
   attachmentExpiryLabel,
   authorLine,
   buildAmendChanges,
+  buildAmendEventCommand,
   initialAmendEdits,
 } from "./event-detail-view-model";
 
@@ -149,5 +150,46 @@ describe("buildAmendChanges — a correction names what CHANGED", () => {
     // a hash, an internal id — has no input and cannot become a change.
     const edits = { ...initialAmendEdits(facts), firma_hash: "tampered" };
     expect(buildAmendChanges(facts, edits).map((c) => c.field)).toEqual([]);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// A2-alta-asentar-07 — THE CORRECTION IS VALIDATED BEFORE IT IS SENT
+// ---------------------------------------------------------------------------
+
+describe("buildAmendEventCommand", () => {
+  const CHANGE = { field: "lote", value: "AB-12" };
+
+  it("names the reason's length instead of letting the wire say 'Actualizá la app'", () => {
+    // The error envelope is one key, so a 400 from this write arrives as
+    // `invalid_request` — whose copy tells somebody with a four-character
+    // motivo to update an app that understood them perfectly.
+    const built = buildAmendEventCommand({ reason: "typo", changes: [CHANGE] });
+
+    expect(built.ok).toBe(false);
+    if (built.ok) return;
+    expect(built.code).toBe("REASON_TOO_SHORT");
+    expect(built.message).toContain("5 caracteres");
+    expect(built.message).not.toContain("Actualizá");
+  });
+
+  it("treats an empty motivo as ABSENT, not as a five-character failure", () => {
+    // A correction by an owner may omit the reason entirely — the CHANGE is the
+    // record. Sending "" would be refused for a field they deliberately left
+    // alone.
+    const built = buildAmendEventCommand({ reason: "   ", changes: [CHANGE] });
+
+    expect(built.ok).toBe(true);
+    if (!built.ok) return;
+    expect(built.input.reason).toBeNull();
+    expect(built.input.changes).toEqual([CHANGE]);
+  });
+
+  it("still refuses a correction that changes nothing", () => {
+    const built = buildAmendEventCommand({ reason: "", changes: [] });
+
+    expect(built.ok).toBe(false);
+    if (built.ok) return;
+    expect(built.code).toBe("CHANGES_REQUIRED");
   });
 });

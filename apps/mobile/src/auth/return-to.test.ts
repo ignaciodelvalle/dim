@@ -17,7 +17,13 @@
 import { describe, expect, it } from "@jest/globals";
 
 import { ROUTES } from "../ui/routes";
-import { endedByThePerson, returnHref, signInHref, signedOutHref } from "./return-to";
+import {
+  endedByThePerson,
+  pendingIdentityHref,
+  returnHref,
+  signInHref,
+  signedOutHref,
+} from "./return-to";
 
 describe("signInHref", () => {
   it("carries a real destination", () => {
@@ -175,5 +181,68 @@ describe("signedOutHref — the suppression is scoped to ONE screen", () => {
     expect(
       signedOutHref({ reason: "user_action", endedAt: undefined, pathname: PROPOSAL }),
     ).toEqual({ pathname: ROUTES.ingreso, params: { next: PROPOSAL } });
+  });
+
+  // -------------------------------------------------------------------------
+  // A6-cuenta-resiliencia-06 — AN ERASED ACCOUNT IS NOT A SCOPED SUPPRESSION
+  // -------------------------------------------------------------------------
+  it("carries NOTHING after a supresión, whatever screen the gate renders on", () => {
+    // The measured shape was `next=/cuenta/privacidad` surviving into the next
+    // sign-in — the third NAV-2 site — so the first thing the next person to use
+    // that phone saw was the deletion screen. The scoped rule cannot cover it:
+    // the gate can render on any path once the store flips, and none of those
+    // destinations has an account behind it any more.
+    expect(
+      signedOutHref({
+        reason: "account_erased",
+        endedAt: ROUTES.privacidad,
+        pathname: ROUTES.privacidad,
+      }),
+    ).toBe(ROUTES.ingreso);
+    expect(
+      signedOutHref({ reason: "account_erased", endedAt: ROUTES.privacidad, pathname: PROPOSAL }),
+    ).toBe(ROUTES.ingreso);
+    expect(
+      signedOutHref({ reason: "account_erased", endedAt: undefined, pathname: PROPOSAL }),
+    ).toBe(ROUTES.ingreso);
+  });
+
+  it("still carries a destination for a revocation, which leaves the account alive", () => {
+    // The control that keeps the fix narrow. "Cerrar sesión en todos los
+    // dispositivos" ends sessions, not the account, so a deep link tapped
+    // afterwards is still a place the person can go.
+    expect(
+      signedOutHref({ reason: "revoked_all", endedAt: ROUTES.ajustes, pathname: PROPOSAL }),
+    ).toEqual({ pathname: ROUTES.ingreso, params: { next: PROPOSAL } });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// A4-custodia-03 — THE ARM THE DESTINATION WAS MISSING FROM
+// ---------------------------------------------------------------------------
+
+describe("pendingIdentityHref", () => {
+  const INVITATION = "/cuidado/GRT-ABCD-2345";
+
+  it("carries the destination through the identity gate", () => {
+    // Somebody taps a caretaker invitation in their mail, installs the app,
+    // creates an account — and reaches the gate on the SIGNED-IN arm, which
+    // dropped the link. They finish step 2 and land on an empty pet list.
+    expect(pendingIdentityHref(INVITATION)).toEqual({
+      pathname: ROUTES.identidadPendiente,
+      params: { next: INVITATION },
+    });
+  });
+
+  it("carries nothing for the paths that would loop or mean nothing", () => {
+    expect(pendingIdentityHref(ROUTES.identidadPendiente)).toBe(ROUTES.identidadPendiente);
+    expect(pendingIdentityHref(ROUTES.misMascotas)).toBe(ROUTES.identidadPendiente);
+    expect(pendingIdentityHref("/")).toBe(ROUTES.identidadPendiente);
+    expect(pendingIdentityHref("")).toBe(ROUTES.identidadPendiente);
+  });
+
+  it("hands `returnHref` something it accepts — the two halves have to agree", () => {
+    const href = pendingIdentityHref(INVITATION);
+    expect(typeof href === "string" ? href : returnHref(href.params.next)).toBe(INVITATION);
   });
 });

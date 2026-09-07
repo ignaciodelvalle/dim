@@ -48,7 +48,8 @@
 // pin later is a widget here and nothing at all on the server — the contract's
 // pair is already optional and both-or-neither.
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useFocusEffect } from "expo-router";
+import { useCallback, useRef, useState } from "react";
 import { Pressable, Share, StyleSheet, Text, View } from "react-native";
 
 import type { LostCommandAckV1, LostFeedItemV1, PetLostV1 } from "@dim/contract/api";
@@ -61,7 +62,7 @@ import { apiErrorMessage } from "../api/error-copy";
 import { sessionPort } from "../auth/session-store";
 import { publicCredentialPageUrl } from "../config/api";
 import { createAttemptSession } from "../pets/idempotency";
-import { Body, Card, ContactRow, Loading, Row } from "../ui/components";
+import { Body, Card, ContactRow, Loading, Row, StaleNotice } from "../ui/components";
 import { FONTS } from "../ui/fonts";
 import { hapticConfirm, hapticError, hapticSuccess } from "../ui/haptics";
 import {
@@ -73,6 +74,7 @@ import {
   TextField,
   Title,
 } from "../ui/kit";
+import { type ReadyState, loaded, reloadFailed } from "../ui/reload-state";
 import { COLORS, LABEL_TRACKING_EM, RADIUS, SPACE, TOUCH_TARGET, TYPE } from "../ui/theme";
 
 import {
@@ -143,7 +145,7 @@ function failureMessage(result: ApiResult<unknown>): string {
 
 type ScreenState =
   | { phase: "loading" }
-  | { phase: "ready"; view: PetLostV1 }
+  | ReadyState<PetLostV1>
   | { phase: "failed"; message: string };
 
 /**
@@ -172,21 +174,48 @@ export function LostScreen({ publicToken }: { publicToken: string }) {
   // tap on "Actualizar" — the same generation counter every other screen uses.
   const generation = useRef(0);
 
-  const load = useCallback(async () => {
-    const mine = ++generation.current;
-    setState({ phase: "loading" });
-    const result = await fetchPetLostMode(sessionPort, publicToken);
-    if (mine !== generation.current) return;
-    if (result.outcome === "ok") {
-      setState({ phase: "ready", view: result.payload });
-      return;
-    }
-    setState({ phase: "failed", message: failureMessage(result) });
-  }, [publicToken]);
+  /**
+   * Read the search.
+   *
+   * THE MODE IS NOT DECORATION AND THIS SCREEN SHIPPED WITHOUT IT (lote 1b
+   * review, F7). `hasLoaded` below was assigned and never read, so every focus —
+   * including returning from the avistaje form, which is a PANE two lines away —
+   * took the `loading` branch and blanked the whole panel; and every failure took
+   * `{ phase: "failed" }`, deleting a search that was on screen a moment before.
+   * That is the exact S-2 rule this batch exists to enforce, violated on the
+   * screen somebody opens at 2 a.m. looking for their dog. `PetDocumentScreen`
+   * had the shape right; it was written there and not wired here.
+   */
+  const load = useCallback(
+    async (mode: "initial" | "refresh" = "initial") => {
+      const mine = ++generation.current;
+      if (mode === "initial") setState({ phase: "loading" });
+      const result = await fetchPetLostMode(sessionPort, publicToken);
+      if (mine !== generation.current) return;
+      if (result.outcome === "ok") {
+        setState(loaded(result.payload));
+        return;
+      }
+      setState((current) => reloadFailed(current, result, failureMessage(result)));
+    },
+    [publicToken],
+  );
 
-  useEffect(() => {
-    void load();
-  }, [load]);
+  // ON FOCUS, NOT ONLY ON MOUNT (A5-ciudadanas-05 / A4-custodia-07 — the shape
+  // `TransfersScreen` has carried since QA batch 3). This screen pushes
+  // something on top of itself that CHANGES it, and coming back pops rather than
+  // remounts, so a mount-only effect left the reader looking at the state from
+  // before their own write.
+  //
+  // THE REF IS READ AT THE CALL SITE, which is what makes the mode above mean
+  // anything. Only the first appearance has nothing to keep.
+  const hasLoaded = useRef(false);
+  useFocusEffect(
+    useCallback(() => {
+      void load(hasLoaded.current ? "refresh" : "initial");
+      hasLoaded.current = true;
+    }, [load]),
+  );
 
   const petSex = state.phase === "ready" ? state.view.petSex : null;
 
@@ -226,7 +255,11 @@ export function LostScreen({ publicToken }: { publicToken: string }) {
           : { tone: "warn", message: commandUnchangedLabel(result.payload.command) },
       );
       setPane("overview");
-      await load();
+      // A REFRESH: the command already succeeded and its notice is on screen.
+      // Blanking the panel to re-read what the person just changed would hide
+      // that notice behind a spinner, and a re-read that then failed would
+      // delete the search along with the confirmation of their own write.
+      await load("refresh");
     },
     [load, petSex, publicToken],
   );
@@ -243,8 +276,13 @@ export function LostScreen({ publicToken }: { publicToken: string }) {
       {state.phase === "failed" ? (
         <Card title="No disponible">
           <Body>{state.message}</Body>
-          <PrimaryButton label="Reintentar" onPress={() => void load()} />
+          <PrimaryButton label="Reintentar" onPress={() => void load("initial")} />
         </Card>
+      ) : null}
+
+      {/* The failed RE-read, over the search it could not replace (S-2). */}
+      {state.phase === "ready" && state.staleFailure !== null ? (
+        <StaleNotice message={state.staleFailure} onRetry={() => void load("refresh")} />
       ) : null}
 
       {notice === null ? null : (
@@ -270,7 +308,7 @@ export function LostScreen({ publicToken }: { publicToken: string }) {
             setPane("report-content");
           }}
           onRun={run}
-          onReload={() => void load()}
+          onReload={() => void load("refresh")}
         />
       ) : null}
 

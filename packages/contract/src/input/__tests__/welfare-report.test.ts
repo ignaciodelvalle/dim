@@ -92,6 +92,74 @@ describe("the anonymous member has nowhere to put an identity", () => {
   it("refuses a `with_contact` submission with no channel at all", () => {
     expect(fileCode({ ...FACTS, contactMode: "with_contact" })).toBe("CONTACT_REQUIRED");
   });
+
+  // -------------------------------------------------------------------------
+  // A5-ciudadanas-01 — A BLANK E-MAIL BOX IS NOT A MALFORMED ADDRESS
+  // -------------------------------------------------------------------------
+  it("accepts a phone-only submission whose e-mail box was left empty", () => {
+    // What a form sends for a box nobody typed in is `""`, and `z.email()` ran
+    // before `.nullable()` could help — so "dejo mi teléfono" answered
+    // CONTACT_REQUIRED pointing at the e-mail field, and the at-least-one rule
+    // below it never ran. The whole contact path was unsendable that way.
+    const parsed = welfareReportCommandInputSchema.safeParse({
+      ...FACTS,
+      contactMode: "with_contact",
+      reporterContactEmail: "",
+      reporterContactPhone: "11 5555 4444",
+    });
+
+    expect(parsed.success).toBe(true);
+    if (!parsed.success) return;
+    expect(parsed.data).toMatchObject({
+      reporterContactEmail: null,
+      reporterContactPhone: "11 5555 4444",
+    });
+  });
+
+  it("accepts a phone-only submission whose e-mail key is ABSENT, not blank", () => {
+    // THE SHAPE THE NATIVE CLIENT ACTUALLY SENDS, and the one the `""` tests
+    // above cannot speak for. `buildWelfareReportDraft` spreads the key in only
+    // when the box is non-empty (`denuncia-view-model.ts:270-271`), so a
+    // phone-only denuncia arrives with NO `reporterContactEmail` key at all —
+    // `undefined`, which travels a different path through
+    // `.optional().transform().pipe()` than `""` does.
+    const parsed = welfareReportCommandInputSchema.safeParse({
+      ...FACTS,
+      contactMode: "with_contact",
+      reporterContactPhone: "11 5555 4444",
+    });
+
+    expect(parsed.success).toBe(true);
+    if (!parsed.success) return;
+    expect(parsed.data).toMatchObject({
+      reporterContactEmail: null,
+      reporterContactPhone: "11 5555 4444",
+    });
+  });
+
+  it("still refuses a REAL malformed address on that field", () => {
+    // The control: normalising the blank must not turn the check off.
+    expect(
+      fileCode({
+        ...FACTS,
+        contactMode: "with_contact",
+        reporterContactEmail: "no-es-un-mail",
+      }),
+    ).toBe("CONTACT_REQUIRED");
+  });
+
+  it("still refuses two blank contact boxes", () => {
+    // The second control: `""` becoming `null` must not satisfy the
+    // at-least-one rule by accident.
+    expect(
+      fileCode({
+        ...FACTS,
+        contactMode: "with_contact",
+        reporterContactEmail: "",
+        reporterContactPhone: "",
+      }),
+    ).toBe("CONTACT_REQUIRED");
+  });
 });
 
 describe("firstWelfareReportInputCode names the field that failed", () => {

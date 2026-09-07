@@ -386,6 +386,37 @@ describe("apiRequest — transport vs body", () => {
     }
   });
 
+  // -------------------------------------------------------------------------
+  // A6-cuenta-resiliencia-07 — THE STATUS IS READ BEFORE THE BODY
+  // -------------------------------------------------------------------------
+  it("reads a 503 with an unreadable body as an outage, not as a broken payload", async () => {
+    // A load balancer's HTML 502, a deploy's 503, a captive portal's login
+    // page. Every one of them arrived as "El servidor respondió algo que no
+    // pudimos leer" — a sentence about JSON, in front of somebody who can only
+    // act on the outage.
+    const original = globalThis.fetch;
+    globalThis.fetch = (async () =>
+      ({
+        status: 503,
+        ok: false,
+        headers: { get: (name: string) => (name === "retry-after" ? "30" : null) },
+        json: async () => {
+          throw new SyntaxError("Unexpected token < in JSON at position 0");
+        },
+      }) as unknown as Response) as typeof fetch;
+    try {
+      const result = await apiRequest({ path: "/api/v1/me" }, fakeSession());
+      expect(result).toEqual({
+        outcome: "api-error",
+        code: "temporarily_unavailable",
+        retryAfterSeconds: 30,
+      });
+      expect(apiFailureMessage(result)).not.toContain("no pudimos leer");
+    } finally {
+      globalThis.fetch = original;
+    }
+  });
+
   it("calls a dead connection unreachable", async () => {
     const original = globalThis.fetch;
     globalThis.fetch = (async () => {

@@ -89,6 +89,16 @@ export function signedOutHref(args: {
   /** `usePathname()` — where the visitor is NOW. */
   pathname: string;
 }): string | { pathname: string; params: { next: string } } {
+  // AN ERASED ACCOUNT SUPPRESSES EVERY DESTINATION, not just the one it was
+  // erased from (A6-cuenta-resiliencia-06, the third NAV-2 site). The scoping
+  // rule below is right for a sign-out — the person closed ONE screen and the
+  // rest of the app is still theirs — and wrong for a supresión: there is no
+  // account left for any destination to be about. The measured shape was
+  // `next=/cuenta/privacidad` surviving into the next sign-in, so the first
+  // thing the next person to use that phone saw was the deletion screen; but
+  // the same leak carries any pathname the gate happens to render on after the
+  // erasure lands, which is why the cure is the reason and not the path.
+  if (args.reason === "account_erased") return ROUTES.ingreso;
   const closed = args.endedAt?.trim() ?? "";
   if (endedByThePerson(args.reason) && closed !== "" && closed === args.pathname.trim()) {
     return ROUTES.ingreso;
@@ -112,16 +122,47 @@ export function signInHref(
   pathname: string,
 ): string | { pathname: string; params: { next: string } } {
   const next = pathname.trim();
-  if (
-    next === "" ||
-    next === "/" ||
-    next === ROUTES.ingreso ||
-    next === ROUTES.misMascotas ||
-    next === ROUTES.identidadPendiente
-  ) {
-    return ROUTES.ingreso;
-  }
+  if (!worthCarrying(next)) return ROUTES.ingreso;
   return { pathname: ROUTES.ingreso, params: { next } };
+}
+
+/**
+ * The paths that are not a destination: sign-in and the identity gate would
+ * loop, the pet list is where a `next`-less sign-in lands anyway, and an empty
+ * string is not a path.
+ */
+function worthCarrying(next: string): boolean {
+  return (
+    next !== "" &&
+    next !== "/" &&
+    next !== ROUTES.ingreso &&
+    next !== ROUTES.misMascotas &&
+    next !== ROUTES.identidadPendiente
+  );
+}
+
+/**
+ * Where a signed-in visitor whose IDENTITY is still pending goes — carrying
+ * where they were going.
+ *
+ * THE ARM THE DESTINATION WAS MISSING FROM (A4-custodia-03). `signedOutHref`
+ * has carried `next` since WU-O, and the gate has four other arms; this is the
+ * one a first-time user actually hits. Somebody taps a caretaker invitation in
+ * their mail, installs the app, creates an account, completes step 2 — and lands
+ * on their (empty) pet list, because the redirect to this screen dropped the
+ * link. The invitation is still expiring and the only way back is the mail they
+ * already opened.
+ *
+ * Same shape and same security as `signInHref`: the caller passes
+ * `usePathname()`, a path the ROUTER resolved, and `returnHref` re-checks it
+ * before anything navigates to it.
+ */
+export function pendingIdentityHref(
+  pathname: string,
+): string | { pathname: string; params: { next: string } } {
+  const next = pathname.trim();
+  if (!worthCarrying(next)) return ROUTES.identidadPendiente;
+  return { pathname: ROUTES.identidadPendiente, params: { next } };
 }
 
 /**

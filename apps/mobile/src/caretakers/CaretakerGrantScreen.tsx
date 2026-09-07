@@ -96,6 +96,8 @@ function ackLabel(ack: CaretakerCommandAckV1): string {
 type ScreenState =
   | { phase: "loading" }
   | { phase: "ready"; grant: MyCaretakerGrantV1 }
+  /** The command LANDED and this invitation is over. See `run` (A4-custodia-02). */
+  | { phase: "done"; message: string }
   | { phase: "missing" }
   | { phase: "failed"; message: string };
 
@@ -155,7 +157,14 @@ export function CaretakerGrantScreen({
         onAccepted(result.payload.petPublicToken);
         return;
       }
-      await load();
+      // A SUCCESSFUL REJECT IS NOT A RE-READ (A4-custodia-02). The hub carries
+      // OPEN grants only, so the invitation this person just answered is gone
+      // from it by construction — and re-loading turned their success into the
+      // `missing` arm: "No encontramos esta invitación en tu cuenta. Puede que
+      // ya no esté disponible o que no sea para vos", with a "Reintentar" that
+      // can only ever produce the same screen. The server's own ack is the
+      // truth here and it already says what happened.
+      setState({ phase: "done", message: ackLabel(result.payload) });
     },
     [load, onAccepted],
   );
@@ -170,6 +179,17 @@ export function CaretakerGrantScreen({
           <Body>{state.message}</Body>
         </Callout>
         <SecondaryButton label="Reintentar" onPress={() => void load()} />
+      </Screen>
+    );
+  }
+
+  if (state.phase === "done") {
+    return (
+      <Screen>
+        <Title>Cuidado temporal</Title>
+        <Callout tone="ok">
+          <Body>{state.message}</Body>
+        </Callout>
       </Screen>
     );
   }

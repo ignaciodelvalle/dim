@@ -236,6 +236,10 @@ function IssuingFoot({ view }: { view: OwnerFaceView }) {
  * control-shaped decoration.
  */
 function IdentityRow({ view }: { view: OwnerFaceView }) {
+  // A photo the record HAS and this phone could not fetch (S-1 / VT-2). RN's
+  // <Image> draws nothing on a failed load, and a blank frame reads as "this
+  // animal has no photo" — a different, false claim.
+  const [photoFailed, setPhotoFailed] = useState(false);
   const router = useRouter();
 
   const status = view.status.state === "ok" ? view.status.data : null;
@@ -288,17 +292,23 @@ function IdentityRow({ view }: { view: OwnerFaceView }) {
       ) : (
         <View style={styles.idRow}>
           <View style={styles.photo}>
-            {view.identity.data.photoUrl ? (
+            {view.identity.data.photoUrl && !photoFailed ? (
               <Image
                 source={{ uri: view.identity.data.photoUrl }}
                 style={styles.photoImage}
                 accessibilityIgnoresInvertColors
                 accessible
                 accessibilityLabel={`Foto de ${view.identity.data.name}`}
+                onError={() => setPhotoFailed(true)}
               />
             ) : (
               <View style={styles.photoEmpty}>
                 <Icon name="paw" size="lg" color={COLORS.inkFaint} />
+                {/* NAMED, NOT BLANK (S-1 / VT-2). A photo that exists on the
+                    record and would not load is a fact about this phone's last
+                    ten seconds; the paw alone says "no hay foto", which is a
+                    claim about the animal's record and is false here. */}
+                {photoFailed ? <Text style={styles.photoFailed}>Foto no disponible</Text> : null}
               </View>
             )}
           </View>
@@ -868,7 +878,13 @@ const styles = StyleSheet.create({
     zIndex: 3,
   },
   photoImage: { width: "100%", height: "100%" },
-  photoEmpty: { flex: 1, alignItems: "center", justifyContent: "center" },
+  photoEmpty: { flex: 1, alignItems: "center", justifyContent: "center", gap: SPACE.xs },
+  photoFailed: {
+    fontFamily: FONTS.sans,
+    fontSize: TYPE.xs,
+    color: COLORS.inkFaint,
+    textAlign: "center",
+  },
   /** The name and the facts, full width under the frames, centred. */
   idFacts: { gap: SPACE.xs, alignItems: "center" },
   nameRow: {

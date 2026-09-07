@@ -92,3 +92,36 @@ export function authClient(): SupabaseClient | null {
 export async function dropLocalSession(): Promise<void> {
   await storage.removeItem(AUTH_STORAGE_KEY);
 }
+
+/**
+ * The stored session AS BYTES, read past auth-js.
+ *
+ * TWO CALLERS AND ONE REASON: auth-js answers `{ session: null }` both for "this
+ * device has never signed in" and for "there are tokens here and I could not
+ * check them", and those two are opposite facts about the person holding the
+ * phone. The keystore is the tiebreaker, and it is the only one this app has —
+ * `getSession()` will not say which of the two it meant.
+ *
+ * It returns the RAW string and never parses it: nothing here has any business
+ * reading a token, and a parse would only add a way to be wrong about a value
+ * that is only ever handed back to the library that wrote it.
+ */
+export async function readStoredSession(): Promise<string | null> {
+  const raw = await storage.getItem(AUTH_STORAGE_KEY);
+  return raw !== null && raw.length > 0 ? raw : null;
+}
+
+/**
+ * Put back a session auth-js deleted while answering a question it could not
+ * answer — see `refreshAccessToken` in `session-store.ts`.
+ *
+ * `_callRefreshToken` removes the stored session for every AuthError that is not
+ * in its retry list, and `AuthUnknownError` (an answer whose body would not
+ * parse: an HTML 502 page, a captive portal, a proxy) is not in that list. So a
+ * coffee-shop wifi that intercepts one request deletes a refresh token GoTrue
+ * never refused. This is the undo, and it is only ever called with a value read
+ * seconds earlier from this same key.
+ */
+export async function restoreStoredSession(raw: string): Promise<void> {
+  await storage.setItem(AUTH_STORAGE_KEY, raw);
+}

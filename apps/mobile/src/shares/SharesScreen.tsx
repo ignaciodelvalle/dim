@@ -56,7 +56,7 @@ import { fetchPetShares, sendShareCommand } from "../api/endpoints";
 import { apiErrorMessage } from "../api/error-copy";
 import { sessionPort } from "../auth/session-store";
 import { API_BASE_URL } from "../config/api";
-import { Body, Card } from "../ui/components";
+import { Body, Card, StaleNotice } from "../ui/components";
 import { FONTS } from "../ui/fonts";
 import {
   Callout,
@@ -67,6 +67,7 @@ import {
   TextField,
   Title,
 } from "../ui/kit";
+import { type ReadyState, loaded, reloadFailed } from "../ui/reload-state";
 import { ListSkeleton } from "../ui/skeleton";
 import { COLORS, SPACE, TYPE } from "../ui/theme";
 
@@ -109,7 +110,7 @@ function failureMessage(result: ApiResult<unknown>): string {
 
 type ScreenState =
   | { phase: "loading" }
-  | { phase: "ready"; view: PetSharesV1 }
+  | ReadyState<PetSharesV1>
   | { phase: "failed"; message: string };
 
 /** What just happened, for the line above the list. */
@@ -163,10 +164,13 @@ export function SharesScreen({ publicToken }: { publicToken: string }) {
       const result = await fetchPetShares(sessionPort, publicToken);
       if (mode === "refresh") setRefreshing(false);
       if (result.outcome === "ok") {
-        setState({ phase: "ready", view: result.payload });
+        setState(loaded(result.payload));
         return;
       }
-      setState({ phase: "failed", message: failureMessage(result) });
+      // KEEPING WHAT IS ON SCREEN (S-2). This panel holds live share links and
+      // the Tier-2 window; a failed refresh that deleted them would leave
+      // somebody unable to revoke a link that is still public.
+      setState((current) => reloadFailed(current, result, failureMessage(result)));
     },
     [publicToken],
   );
@@ -250,6 +254,10 @@ export function SharesScreen({ publicToken }: { publicToken: string }) {
     <Screen keyboardAvoiding refreshControl={refresher}>
       <Title>Compartir</Title>
       <Body>{view.petName}</Body>
+
+      {state.staleFailure === null ? null : (
+        <StaleNotice message={state.staleFailure} onRetry={() => void load("refresh")} />
+      )}
 
       {/* `Callout` renders its children into a bare <View>, so the text has to
           arrive already wrapped — a raw string there is invalid in React Native

@@ -16,14 +16,36 @@
 //   4. "NOTHING CHANGED" IS SAID OUT LOUD rather than dressed as success.
 
 import { beforeEach, describe, expect, it, jest } from "@jest/globals";
-import { fireEvent, render, screen, waitFor } from "@testing-library/react-native";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react-native";
 
 const mockPush = jest.fn();
 const mockFetch = jest.fn<(...args: unknown[]) => Promise<unknown>>();
 const mockSend = jest.fn<(...args: unknown[]) => Promise<unknown>>();
 
+/**
+ * Every focus callback currently mounted, so a test can fire a RE-focus.
+ *
+ * The stand-in `TransfersScreen.test.tsx` and `NotificationsScreen.test.tsx`
+ * use, for their reason: the defect (A4-custodia-07) is about a screen that is
+ * ALREADY MOUNTED when it regains focus, and a mount-only stand-in can only be
+ * re-fired by remounting — precisely the case that never had the bug.
+ */
+const mockFocusCallbacks: Array<() => void> = [];
+
 jest.mock("expo-router", () => ({
   useRouter: () => ({ push: mockPush, replace: jest.fn(), back: jest.fn() }),
+  useFocusEffect: (callback: () => void) => {
+    const { useEffect } = require("react");
+    useEffect(() => {
+      mockFocusCallbacks.push(callback);
+      // A mount IS a first focus, which is what the real hook does too.
+      callback();
+      return () => {
+        const at = mockFocusCallbacks.indexOf(callback);
+        if (at >= 0) mockFocusCallbacks.splice(at, 1);
+      };
+    }, [callback]);
+  },
 }));
 
 jest.mock("../api/endpoints", () => ({
@@ -493,6 +515,63 @@ describe("LostScreen — the refusals a person sees", () => {
 });
 
 // ---------------------------------------------------------------------------
+// lote 1b F7 — THE MODE THAT WAS WRITTEN AND NEVER WIRED
+//
+// This screen grew a `hasLoaded` ref and never READ it, so every focus took the
+// `loading` branch and every failure took `{ phase: "failed" }`. The pane the
+// person just closed is two lines away from a focus, and the S-2 rule the rest
+// of this batch enforces was newly broken on the screen somebody opens at 2 a.m.
+// looking for their dog.
+// ---------------------------------------------------------------------------
+
+/** Re-focus every mounted screen, the way popping back to a pane does. */
+async function refocus(): Promise<void> {
+  await act(async () => {
+    for (const callback of [...mockFocusCallbacks]) callback();
+  });
+}
+
+describe("LostScreen — coming back does not blank or delete the search (F7)", () => {
+  it("does not spin the whole panel when the screen regains focus", async () => {
+    mockFetch.mockResolvedValue(ok(searching()));
+    render(<LostScreen publicToken={TOKEN} />);
+    await screen.findByText("Actualizar dónde la vieron");
+
+    // A read held in flight, so the assertion below describes the window the
+    // person actually sees rather than the state after it closes.
+    mockFetch.mockReturnValue(new Promise(() => {}));
+    await refocus();
+
+    expect(screen.queryByText("Leyendo la búsqueda…")).toBeNull();
+    expect(screen.getByText("Actualizar dónde la vieron")).toBeOnTheScreen();
+  });
+
+  it("keeps the search when a focus re-read fails, and says so in a banner", async () => {
+    mockFetch.mockResolvedValue(ok(searching()));
+    render(<LostScreen publicToken={TOKEN} />);
+    await screen.findByText("Actualizar dónde la vieron");
+
+    mockFetch.mockResolvedValue({ outcome: "unreachable", detail: "offline" });
+    await refocus();
+
+    await waitFor(() => expect(screen.getByText("No pudimos actualizar")).toBeOnTheScreen());
+    // The search is STILL THERE. Deleting it is the exact defect S-2 names, and
+    // this screen is the worst place in the app to do it.
+    expect(screen.getByText("Actualizar dónde la vieron")).toBeOnTheScreen();
+  });
+
+  it("still empties the screen when the FIRST read fails", async () => {
+    // The control: with nothing on screen there is nothing to keep. It is the
+    // assertion the block above must not have loosened.
+    mockFetch.mockResolvedValue({ outcome: "unreachable", detail: "offline" });
+    render(<LostScreen publicToken={TOKEN} />);
+
+    expect(await screen.findByText("Reintentar")).toBeOnTheScreen();
+    expect(screen.queryByText("No pudimos actualizar")).toBeNull();
+  });
+});
+
+// ---------------------------------------------------------------------------
 // Reportar — the affordance a content-rating declaration already promised
 // ---------------------------------------------------------------------------
 //
@@ -641,5 +720,26 @@ describe("LostScreen — reportar un mensaje del feed", () => {
     fireEvent.press(screen.getByText("Reportar"));
 
     expect(await screen.findByText("Ese mensaje ya estaba reportado.")).toBeOnTheScreen();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// A4-custodia-07 — COMING BACK RE-READS
+// ---------------------------------------------------------------------------
+
+describe("LostScreen — regaining focus", () => {
+  it("re-reads the search instead of showing the state from before", async () => {
+    // A lost-mode command can be refused for a reason that is ABOUT this
+    // screen's data (`lost_episode_closed`), and the reader's next move is to
+    // come back to it. A mount-only effect left them looking at the affordances
+    // the refusal had just invalidated.
+    render(<LostScreen publicToken={TOKEN} />);
+    await waitFor(() => expect(mockFetch).toHaveBeenCalledTimes(1));
+
+    await act(async () => {
+      for (const callback of [...mockFocusCallbacks]) callback();
+    });
+
+    expect(mockFetch).toHaveBeenCalledTimes(2);
   });
 });

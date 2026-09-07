@@ -208,3 +208,53 @@ describe("LibretaScreen — a failure is never drawn as an absence", () => {
     expect(mockFetchPetLibreta).toHaveBeenCalledWith({}, TOKEN);
   });
 });
+
+// ---------------------------------------------------------------------------
+// S-3 — A DEAD ANIMAL HAS NO NEXT VACCINATION
+// ---------------------------------------------------------------------------
+
+describe("a deceased animal's ledger", () => {
+  const UPCOMING = {
+    status: "ok" as const,
+    data: {
+      items: [
+        {
+          id: "up-1",
+          kind: "reminder" as const,
+          label: "Antirrábica",
+          dueAt: "2026-12-01T03:00:00.000Z",
+        },
+      ],
+    },
+  };
+
+  it("does not print a due date for an animal that has died", async () => {
+    // The schedule is a property of the VACCINE, so the server goes on
+    // computing one. The libreta printed it under the name of an animal whose
+    // memorial is on the other face of the same document.
+    mockFetchPetLibreta.mockResolvedValue({
+      outcome: "ok",
+      payload: payload({ upcoming: UPCOMING }),
+    });
+
+    render(<LibretaScreen publicToken={TOKEN} deceased />);
+
+    await waitFor(() => expect(screen.getByText("Libreta sanitaria")).toBeTruthy());
+    expect(screen.queryByText("Próximo")).toBeNull();
+    expect(screen.queryByText(/Recordatorio · Antirrábica/)).toBeNull();
+  });
+
+  it("still prints it for a live one", async () => {
+    // The control: the suppression must be about the animal, not about the
+    // section.
+    mockFetchPetLibreta.mockResolvedValue({
+      outcome: "ok",
+      payload: payload({ upcoming: UPCOMING }),
+    });
+
+    render(<LibretaScreen publicToken={TOKEN} />);
+
+    await waitFor(() => expect(screen.getByText("Próximo")).toBeTruthy());
+    expect(screen.getByText(/Recordatorio · Antirrábica/)).toBeTruthy();
+  });
+});

@@ -43,12 +43,14 @@ import { Pressable, RefreshControl, StyleSheet, Text, View } from "react-native"
 import { type ApiResult, apiFailureMessage } from "../api/client";
 import { fetchMyNotifications, sendNotificationCommand } from "../api/endpoints";
 import { sessionPort } from "../auth/session-store";
-import { Body, Card, EmptyState } from "../ui/components";
+import { Body, Card, EmptyState, StaleNotice } from "../ui/components";
 import { FONTS } from "../ui/fonts";
 import { Callout, Screen, SecondaryButton, Title } from "../ui/kit";
+import { type ReadyState, loaded, reloadFailed } from "../ui/reload-state";
 import { credentialRoute } from "../ui/routes";
 import { ListSkeleton } from "../ui/skeleton";
 import { COLORS, LEADING, RADIUS, SPACE, TOUCH_TARGET, TRACKING, TYPE } from "../ui/theme";
+import { useReconnect } from "../ui/use-reconnect";
 
 import {
   ALL_CATEGORIES_LABEL,
@@ -67,10 +69,24 @@ import {
   truncationNote,
 } from "./notifications-view-model";
 
-type ScreenState =
-  | { phase: "loading" }
-  | { phase: "ready"; view: MyNotificationsV1 }
-  | { phase: "failed"; message: string };
+/**
+ * The ready arm CARRIES THE CATEGORY IT WAS LOADED FOR, and that field is the
+ * whole of the S-2b/F4 fix (lote 1b review).
+ *
+ * S-2 says a failed re-read keeps the last good payload; S-2b says a tab switch
+ * keeps the chrome. Together, offline, they said something neither of them
+ * meant: tapping "Custodia" left the Custodia chip reading active, put the
+ * "lo último que pudimos leer" banner up, and rendered THE ENTIRE INBOX under
+ * it — the previous query's rows, labelled as this query's answer. `staleFailure`
+ * can honestly say "this may be old"; it cannot say "this may be about something
+ * else". So the state records which list it holds, and a failure under a
+ * DIFFERENT tab falls through to the full error rather than mislabelling rows.
+ */
+type ReadyInbox = ReadyState<MyNotificationsV1> & {
+  category: NotificationCategoryV1 | null;
+};
+
+type ScreenState = { phase: "loading" } | ReadyInbox | { phase: "failed"; message: string };
 
 export function NotificationsScreen({
   onOpenRoute,
@@ -84,6 +100,8 @@ export function NotificationsScreen({
   const [state, setState] = useState<ScreenState>({ phase: "loading" });
   const [category, setCategory] = useState<NotificationCategoryV1 | null>(null);
   const [refreshing, setRefreshing] = useState(false);
+  // A category change is a different LIST under the same chrome — see `load`.
+  const [listReloading, setListReloading] = useState(false);
   const [busy, setBusy] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
   // A read started before the screen unmounted must not write into a dead
@@ -93,20 +111,41 @@ export function NotificationsScreen({
   const load = useCallback(
     async (cat: NotificationCategoryV1 | null, mode: "initial" | "refresh") => {
       const mine = ++generation.current;
-      if (mode === "initial") setState({ phase: "loading" });
-      else setRefreshing(true);
+      if (mode === "initial") {
+        // THE HEADER AND THE TABS STAY (S-2b). `initial` used to blank the whole
+        // screen to a skeleton, and it runs on every TAB SWITCH — so tapping
+        // "Custodia" removed the title, the tab bar you had just tapped and the
+        // "marcar todas" button, then put them back a moment later. Only the
+        // LIST is unknown while a category loads; everything above it is the
+        // same chrome, and it is what the person is aiming at.
+        setListReloading(true);
+        setState((current) => (current.phase === "ready" ? current : { phase: "loading" }));
+      } else setRefreshing(true);
 
       const result = await fetchMyNotifications(sessionPort, cat);
       if (mine !== generation.current) return;
       setRefreshing(false);
+      setListReloading(false);
       if (result.outcome === "ok") {
-        setState({ phase: "ready", view: result.payload });
+        setState({ ...loaded(result.payload), category: cat });
         return;
       }
       // NOT an empty inbox. A read that failed and a person with nothing waiting
       // are different facts, and "tu bandeja está vacía" over a server outage
       // tells somebody that nobody reported seeing their dog.
-      setState({ phase: "failed", message: failureMessage(result) });
+      //
+      // AND NOT AN EMPTY SCREEN EITHER (S-2). With rows already drawn, a failed
+      // re-read keeps them and says so in a banner — see `reload-state.ts`.
+      //
+      // UNLESS THE ROWS ANSWER A DIFFERENT QUESTION (F4). The banner's sentence
+      // is "lo último que pudimos leer", and holding the whole inbox under a
+      // Custodia tab makes that sentence say something false about WHICH rows
+      // these are. There is nothing to keep for a tab that has never loaded.
+      setState((current) =>
+        current.phase === "ready" && current.category !== cat
+          ? { phase: "failed", message: failureMessage(result) }
+          : reloadFailed(current, result, failureMessage(result)),
+      );
     },
     [],
   );
@@ -131,6 +170,12 @@ export function NotificationsScreen({
       void load(category, mode);
     }, [load, category]),
   );
+
+  // WHEN THE NETWORK COMES BACK, TRY AGAIN (B-05, the other half of S-2). It
+  // re-reads THE TAB THAT IS OPEN — `category` is in the closure and the hook
+  // holds the callback in a ref, so it does not re-subscribe per render. A
+  // `refresh`, so the rows stay put while it happens.
+  useReconnect(() => void load(category, "refresh"));
 
   /**
    * Run one command, then re-read.
@@ -237,7 +282,14 @@ export function NotificationsScreen({
         </Callout>
       )}
 
-      {entries.length === 0 ? (
+      {/* The failed RE-read, over the rows it could not replace (S-2). */}
+      {state.staleFailure !== null && (
+        <StaleNotice message={state.staleFailure} onRetry={() => void load(category, "refresh")} />
+      )}
+
+      {listReloading ? (
+        <ListSkeleton rows={4} label="Cargando notificaciones…" />
+      ) : entries.length === 0 ? (
         <EmptyState
           headline={emptyTitle(category)}
           body={emptyBody(category)}

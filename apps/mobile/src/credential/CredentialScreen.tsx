@@ -42,11 +42,13 @@ import { CredentialQr } from "./CredentialQr";
 import { type CredentialFetchResult, fetchCredential, fetchFailureMessage } from "./credential-api";
 import { readCachedCredential, writeCachedCredential } from "./credential-cache";
 import {
+  type CachedReason,
   type LostView,
   STALE_NOTICE,
   type SectionView,
   buildCredentialView,
   cachedCredentialNotice,
+  cachedCredentialReason,
   noticeLines,
   petStatusLabel,
   rabiesProvenanceLabel,
@@ -60,7 +62,14 @@ type ScreenState =
   /** What the server just said, whatever that was. */
   | { phase: "live"; result: CredentialFetchResult; readAt: Date }
   /** The server did not answer; this is the copy on disk, and it says so. */
-  | { phase: "cached"; payload: PublicCredentialV1; readAt: Date; failure: string };
+  | {
+      phase: "cached";
+      payload: PublicCredentialV1;
+      readAt: Date;
+      failure: string;
+      /** WHY the live read failed — the banner names it. See A3-documento-credencial-02. */
+      reason: CachedReason;
+    };
 
 export function CredentialScreen({ publicToken }: { publicToken: string }) {
   const [state, setState] = useState<ScreenState>({ phase: "loading" });
@@ -99,6 +108,7 @@ export function CredentialScreen({ publicToken }: { publicToken: string }) {
         payload: cached,
         readAt: new Date(),
         failure: fetchFailureMessage(result) ?? "No pudimos conectarnos.",
+        reason: cachedCredentialReason(result.outcome),
       });
       return;
     }
@@ -144,6 +154,7 @@ function ScreenBody({ state, publicToken }: { state: ScreenState; publicToken: s
   if (state.phase === "cached") {
     const notice = cachedCredentialNotice(
       buildCredentialView(state.payload, state.readAt).freshness,
+      state.reason,
     );
     return (
       <>

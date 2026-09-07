@@ -191,17 +191,58 @@ export type CachedNotice = {
  * se pudo determinar la antigüedad." and "No se pudo determinar la antigüedad. ·
  * sin conexión" is not a sentence anyone wrote.
  */
-export function cachedCredentialNotice(freshness: Freshness): CachedNotice {
+export function cachedCredentialNotice(
+  freshness: Freshness,
+  reason: CachedReason = "offline",
+): CachedNotice {
+  const because = CACHED_REASON_LABEL[reason];
   if (freshness.state === "unknown") {
     return {
-      headline: "Copia guardada en este dispositivo · sin conexión",
+      headline: `Copia guardada en este dispositivo · ${because}`,
       warning: "No sabemos de cuándo es esta copia. Conectate para ver el estado actual.",
     };
   }
   return {
-    headline: `${freshness.label} · sin conexión`,
+    headline: `${freshness.label} · ${because}`,
     warning: freshness.state === "stale" ? STALE_NOTICE : null,
   };
+}
+
+/**
+ * WHY the live read failed — the half of the banner that used to be a guess
+ * (A3-documento-credencial-02).
+ *
+ * The banner said "sin conexión" for EVERY failed read: a 503 from a deploy, a
+ * payload this build cannot parse, a body that would not decode. Somebody
+ * standing in a vet's waiting room with four bars was told to check their
+ * connection, and the one action available to them — wait, or update the app —
+ * was never named. The cached document is drawn either way; what changes is
+ * whether the sentence over it is true.
+ */
+export type CachedReason = "offline" | "server" | "version" | "unreadable";
+
+const CACHED_REASON_LABEL: Record<CachedReason, string> = {
+  offline: "sin conexión",
+  server: "servidor no disponible",
+  version: "hay que actualizar la app",
+  unreadable: "respuesta ilegible",
+};
+
+/** The reason, from the outcome of the read that failed. Exhaustive on purpose. */
+export function cachedCredentialReason(
+  outcome: "unreachable" | "api-error" | "degraded" | "unsupported-version" | "malformed",
+): CachedReason {
+  switch (outcome) {
+    case "unreachable":
+      return "offline";
+    case "api-error":
+    case "degraded":
+      return "server";
+    case "unsupported-version":
+      return "version";
+    case "malformed":
+      return "unreadable";
+  }
 }
 
 // ---------------------------------------------------------------------------

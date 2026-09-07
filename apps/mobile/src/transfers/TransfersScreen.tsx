@@ -27,11 +27,13 @@ import type { ApiResult } from "../api/client";
 import { fetchMyTransfers } from "../api/endpoints";
 import { apiErrorMessage } from "../api/error-copy";
 import { sessionPort } from "../auth/session-store";
-import { Body, Card, EmptyState } from "../ui/components";
+import { Body, Card, EmptyState, StaleNotice } from "../ui/components";
 import { FONTS } from "../ui/fonts";
 import { Callout, Eyebrow, Screen, SecondaryButton, Title } from "../ui/kit";
+import { type ReadyState, loaded, reloadFailed } from "../ui/reload-state";
 import { ListSkeleton } from "../ui/skeleton";
 import { COLORS, LEADING, RADIUS, SPACE, TOUCH_TARGET, TRACKING, TYPE } from "../ui/theme";
+import { useReconnect } from "../ui/use-reconnect";
 
 import {
   emptyIncomingLabel,
@@ -59,7 +61,7 @@ function failureMessage(result: ApiResult<unknown>): string {
 
 type ScreenState =
   | { phase: "loading" }
-  | { phase: "ready"; view: MyTransfersV1 }
+  | ReadyState<MyTransfersV1>
   | { phase: "failed"; message: string };
 
 export function TransfersScreen({ onOpen }: { onOpen: (transferToken: string) => void }) {
@@ -77,10 +79,13 @@ export function TransfersScreen({ onOpen }: { onOpen: (transferToken: string) =>
     const result = await fetchMyTransfers(sessionPort);
     if (mode === "refresh") setRefreshing(false);
     if (result.outcome === "ok") {
-      setState({ phase: "ready", view: result.payload });
+      setState(loaded(result.payload));
       return;
     }
-    setState({ phase: "failed", message: failureMessage(result) });
+    // KEEPING WHAT IS ON SCREEN (S-2). A failed re-read of a hub whose rows are
+    // already drawn must not delete them: the proposals are still pending and
+    // still expiring, and the network is not the subject of this screen.
+    setState((current) => reloadFailed(current, result, failureMessage(result)));
   }, []);
 
   // ON FOCUS, NOT ONLY ON MOUNT (native QA batch 3, C4). Opening a proposal
@@ -105,6 +110,12 @@ export function TransfersScreen({ onOpen }: { onOpen: (transferToken: string) =>
       hasLoaded.current = true;
     }, [load]),
   );
+
+  // WHEN THE NETWORK COMES BACK, TRY AGAIN (B-05, the other half of S-2). Keeping
+  // the last good payload stops a dead spot from deleting the hub; this stops the
+  // hub sitting stale beside an offline banner that has already cleared itself. A
+  // `refresh`, so nothing on screen moves while it happens.
+  useReconnect(() => void load("refresh"));
 
   const refresher = (
     <RefreshControl
@@ -143,6 +154,10 @@ export function TransfersScreen({ onOpen }: { onOpen: (transferToken: string) =>
     <Screen refreshControl={refresher}>
       <Title>Transferencias</Title>
       <Body>Transferencias de mascotas recibidas y enviadas.</Body>
+
+      {state.staleFailure === null ? null : (
+        <StaleNotice message={state.staleFailure} onRetry={() => void load("refresh")} />
+      )}
 
       <View style={styles.section}>
         <Eyebrow>Recibidas · Pendientes</Eyebrow>

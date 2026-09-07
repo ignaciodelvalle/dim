@@ -26,7 +26,7 @@ import { Pressable, RefreshControl, StyleSheet, Text, View } from "react-native"
 import { type ApiResult, apiFailureMessage } from "../api/client";
 import { fetchAdoptionCatalogue } from "../api/endpoints";
 import { sessionPort } from "../auth/session-store";
-import { EmptyState, ErrorNotice, Loading } from "../ui/components";
+import { EmptyState, ErrorNotice, Loading, StaleNotice } from "../ui/components";
 import { FONTS } from "../ui/fonts";
 import { Choice, Screen, SecondaryButton, Subtitle, Title } from "../ui/kit";
 import { COLORS, LEADING, RADIUS, SPACE, TOUCH_TARGET, TRACKING, TYPE } from "../ui/theme";
@@ -54,6 +54,8 @@ export function AdoptionCatalogueScreen({
   const [species, setSpecies] = useState<Species | null>(null);
   const [refreshing, setRefreshing] = useState(false);
   const [loadingMore, setLoadingMore] = useState(false);
+  /** Why the LAST "Mostrar más" produced nothing. See `onMore` (A5-ciudadanas-06). */
+  const [moreFailure, setMoreFailure] = useState<string | null>(null);
   // A read started before the screen unmounted must not write into a dead
   // component; and two overlapping reads must not race to be last.
   const generation = useRef(0);
@@ -92,6 +94,7 @@ export function AdoptionCatalogueScreen({
   const onMore = useCallback(async () => {
     if (state.phase !== "ready" || state.nextCursor === null) return;
     setLoadingMore(true);
+    setMoreFailure(null);
     const mine = ++generation.current;
     const result = await fetchAdoptionCatalogue(sessionPort, {
       species,
@@ -113,6 +116,15 @@ export function AdoptionCatalogueScreen({
             }
           : prev,
       );
+    } else {
+      // A PAGE THAT DID NOT ARRIVE IS NOT A PAGE THAT IS NOT THERE
+      // (A5-ciudadanas-06). This arm did not exist: the button spun, came back,
+      // and nothing changed — so the only reading available to the person was
+      // "there are no more animals", which is exactly what the cursor says is
+      // false. The list itself stays (S-2's rule): the failure is about the
+      // NEXT page, not about the ones already on screen, and the button stays
+      // pressable because the next tap is the fix.
+      setMoreFailure(apiFailureMessage(result) ?? "No pudimos traer más mascotas.");
     }
     setLoadingMore(false);
   }, [species, state]);
@@ -173,6 +185,7 @@ export function AdoptionCatalogueScreen({
               onPress={() => onOpenPet(item.petToken)}
             />
           ))}
+          {moreFailure === null ? null : <StaleNotice message={moreFailure} />}
           {state.nextCursor === null ? null : (
             <SecondaryButton
               label={loadingMore ? "Cargando…" : "Mostrar más"}

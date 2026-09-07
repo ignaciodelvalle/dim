@@ -333,13 +333,25 @@ const withContact = z
   .object({
     command: z.literal("file"),
     contactMode: z.literal("with_contact"),
+    // AN EMPTY STRING IS "NO E-MAIL", NOT A MALFORMED ONE (A5-ciudadanas-01).
+    // `z.email()` runs BEFORE `.nullable().optional()` can help, so `""` — what
+    // a form sends for a box somebody left alone — failed with CONTACT_REQUIRED
+    // pointing at the e-mail field, and the "dejo mi teléfono" path could not be
+    // sent AT ALL: the at-least-one rule below never ran. Measured on the native
+    // client, where the only two contact fields are these; the same shape is
+    // reachable from any caller that sends both keys.
+    //
+    // The blank is normalised to `null` FIRST and the address check runs after
+    // it, so a real typo still answers CONTACT_REQUIRED on this field and the
+    // superRefine still refuses a submission with neither.
     reporterContactEmail: z
-      .email({ error: "CONTACT_REQUIRED" })
+      .string()
       .trim()
       .max(320)
       .nullable()
       .optional()
-      .transform((value) => value ?? null),
+      .transform((value) => (value ? value : null))
+      .pipe(z.email({ error: "CONTACT_REQUIRED" }).nullable()),
     reporterContactPhone: z
       .string()
       .trim()

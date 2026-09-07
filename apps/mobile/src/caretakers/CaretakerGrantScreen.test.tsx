@@ -305,3 +305,35 @@ describe("a failed command", () => {
     await waitFor(() => expect(screen.getByText(/titular actual/)).toBeTruthy());
   });
 });
+
+// ---------------------------------------------------------------------------
+// A4-custodia-02 — A SUCCESSFUL REJECT IS A SUCCESS
+// ---------------------------------------------------------------------------
+
+describe("rejecting an invitation", () => {
+  it("shows the ack instead of the 'no encontramos esta invitación' dead end", async () => {
+    // The hub carries OPEN grants only, so the invitation this person just
+    // rejected is gone from it by construction. Re-reading after the ack turned
+    // their own success into the `missing` arm — "puede que no sea para vos",
+    // with a Reintentar that can only produce the same screen.
+    loads(aGrant());
+    mockSend.mockResolvedValue({
+      outcome: "ok",
+      payload: { command: "reject", grantToken: TOKEN, petPublicToken: "DIM-PAMP-0001" },
+    });
+    render(<CaretakerGrantScreen grantToken={TOKEN} onAccepted={noop} />);
+
+    await waitFor(() => expect(screen.getByText("Rechazar la invitación")).toBeTruthy());
+    fireEvent.press(screen.getByText("Rechazar la invitación"));
+    await waitFor(() => expect(screen.getByText("Confirmar el rechazo")).toBeTruthy());
+    fireEvent.press(screen.getByText("Confirmar el rechazo"));
+
+    await waitFor(() =>
+      expect(screen.getByText("Rechazaste la invitación. Le avisamos al titular.")).toBeTruthy(),
+    );
+    expect(screen.queryByText(/No encontramos esta invitación/)).toBeNull();
+    expect(screen.queryByText("Reintentar")).toBeNull();
+    // And it does not spend a read whose only possible answer is the dead end.
+    expect(mockFetch).toHaveBeenCalledTimes(1);
+  });
+});

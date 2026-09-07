@@ -24,12 +24,19 @@
 import NetInfo from "@react-native-community/netinfo";
 import { useEffect, useState } from "react";
 import { StyleSheet, Text, View } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { FONTS } from "./fonts";
 import { COLORS, SPACE, TYPE } from "./theme";
 
 export function OfflineBanner() {
   const [offline, setOffline] = useState(false);
+  // THE TOP INSET, BECAUSE THIS BANNER IS THE FIRST THING UNDER THE STATUS BAR
+  // (A6-cuenta-resiliencia-09). It is mounted above the Stack in
+  // `app/_layout.tsx`, outside every `Screen` and therefore outside the only
+  // component in this app that applies safe-area padding — so on an
+  // edge-to-edge Android build its text drew under the clock and the battery.
+  const insets = useSafeAreaInsets();
 
   useEffect(() => {
     const unsubscribe = NetInfo.addEventListener((state) => {
@@ -42,7 +49,11 @@ export function OfflineBanner() {
   if (!offline) return null;
 
   return (
-    <View accessibilityLiveRegion="polite" accessibilityRole="alert" style={styles.banner}>
+    <View
+      accessibilityLiveRegion="polite"
+      accessibilityRole="alert"
+      style={[styles.banner, { paddingTop: insets.top + SPACE.xs }]}
+    >
       <Text style={styles.text}>Sin conexión a internet</Text>
     </View>
   );

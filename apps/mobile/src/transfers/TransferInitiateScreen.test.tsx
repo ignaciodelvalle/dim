@@ -184,3 +184,52 @@ describe("sending", () => {
     await waitFor(() => expect(screen.getByText(/Cancelala antes de enviar otra/)).toBeTruthy());
   });
 });
+
+// ---------------------------------------------------------------------------
+// A4-custodia-01 — AN ADDRESS WITH NO ACCOUNT IS A DIFFERENT OUTCOME
+// ---------------------------------------------------------------------------
+
+describe("a recipient who has no account", () => {
+  it("tells the sender what happens instead of navigating away silently", async () => {
+    // The app fires no invitation — the web's magic link lands in a browser, so
+    // the native write deliberately does not send one. Both outcomes used to
+    // look identical from here: a proposal in somebody's inbox, and a proposal
+    // nobody has been told about.
+    const onSent = jest.fn();
+    const answer = ok("PTR-NEW0-0002");
+    mockSend.mockResolvedValue({
+      ...answer,
+      payload: { ...answer.payload, recipientNeedsInvite: true },
+    });
+    renderScreen(onSent);
+
+    fireEvent.changeText(emailField(), "sincuenta@example.com");
+    fireEvent.press(screen.getByText("Herencia"));
+    fireEvent.press(screen.getByText("Enviar la propuesta"));
+
+    await waitFor(() =>
+      expect(screen.getByText("Esa persona todavía no tiene cuenta en miMAR")).toBeTruthy(),
+    );
+    expect(screen.getByText(/Avisale vos/)).toBeTruthy();
+    // It did NOT walk off to the proposal on its own.
+    expect(onSent).not.toHaveBeenCalled();
+
+    // …and the way there is still one tap.
+    fireEvent.press(screen.getByText("Ver la propuesta"));
+    expect(onSent).toHaveBeenCalledWith("PTR-NEW0-0002");
+  });
+
+  it("goes straight through when the address DOES have an account", async () => {
+    // The control: the new arm must not swallow the ordinary success.
+    const onSent = jest.fn();
+    mockSend.mockResolvedValue(ok("PTR-NEW0-0003"));
+    renderScreen(onSent);
+
+    fireEvent.changeText(emailField(), "vecina@example.com");
+    fireEvent.press(screen.getByText("Herencia"));
+    fireEvent.press(screen.getByText("Enviar la propuesta"));
+
+    await waitFor(() => expect(onSent).toHaveBeenCalledWith("PTR-NEW0-0003"));
+    expect(screen.queryByText("Esa persona todavía no tiene cuenta en miMAR")).toBeNull();
+  });
+});

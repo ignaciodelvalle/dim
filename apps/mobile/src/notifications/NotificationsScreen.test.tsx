@@ -55,6 +55,14 @@ jest.mock("../api/endpoints", () => ({
   sendNotificationCommand: (...args: unknown[]) => mockSend(...args),
 }));
 
+// The screen now re-reads when the network comes back (B-05, `useReconnect`),
+// and the real NetInfo has no native module under jest — it crashes inside its
+// own reachability timer, several frames from anything this file is about. The
+// stand-in `MisMascotasFooter.test.tsx` already uses.
+jest.mock("@react-native-community/netinfo", () => ({
+  __esModule: true,
+  default: { addEventListener: () => () => undefined },
+}));
 jest.mock("../auth/session-store", () => ({ sessionPort: {} }));
 
 import type { MyNotificationV1, MyNotificationsV1 } from "@dim/contract/api";
@@ -414,5 +422,127 @@ describe("NotificationsScreen — grouping", () => {
     fireEvent.press(screen.getByText("+ 2 más del mismo tipo"));
     expect(screen.getByText("Avistaje a2")).toBeTruthy();
     expect(screen.getByText("Ocultar")).toBeTruthy();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// S-2 / S-2b — WHAT SURVIVES A FAILED RE-READ, AND WHAT SURVIVES A TAB SWITCH
+// ---------------------------------------------------------------------------
+
+describe("NotificationsScreen — a failed re-read keeps the inbox (S-2)", () => {
+  it("keeps the rows and reports the failure as a banner", async () => {
+    // The first read landed and its rows are on screen. A refresh in a dead
+    // spot used to replace them with a full-screen error: the inbox the phone
+    // was still holding, deleted because the network went away.
+    mockFetch.mockResolvedValueOnce({
+      outcome: "ok",
+      payload: payload({ total: 1, unreadCount: 1, notifications: [aNotification()] }),
+    });
+    renderScreen();
+    await waitFor(() => expect(screen.getByText("Avistaje de Pampa")).toBeTruthy());
+
+    mockFetch.mockResolvedValue({ outcome: "unreachable", detail: "network" });
+    await refocus();
+
+    await waitFor(() => expect(screen.getByText("No pudimos actualizar")).toBeTruthy());
+    expect(screen.getByText("Avistaje de Pampa")).toBeTruthy();
+    expect(screen.getByText("Notificaciones")).toBeTruthy();
+  });
+
+  it("still shows the full error when the FIRST read fails", async () => {
+    // The control: with nothing on screen there is nothing to keep, and the
+    // error is the only thing this screen can honestly say.
+    mockFetch.mockResolvedValue({ outcome: "unreachable", detail: "network" });
+    renderScreen();
+
+    await waitFor(() => expect(screen.getByText("Reintentar")).toBeTruthy());
+    expect(screen.queryByText("No pudimos actualizar")).toBeNull();
+  });
+});
+
+describe("NotificationsScreen — switching tabs keeps the chrome (S-2b)", () => {
+  it("skeletons the list only, with the title and the tabs still mounted", async () => {
+    mockFetch.mockResolvedValueOnce({
+      outcome: "ok",
+      payload: payload({
+        total: 1,
+        unreadCount: 1,
+        notifications: [aNotification()],
+        categories: [{ category: "custody", count: 1 }],
+      }),
+    });
+    renderScreen();
+    await waitFor(() => expect(screen.getByLabelText("Custodia, 1")).toBeTruthy());
+
+    // The second read never answers, which is the whole window under test: the
+    // screen used to blank to a skeleton — title, tab bar and all — for as long
+    // as it lasted, having just been tapped in the tab bar it removed.
+    mockFetch.mockReturnValue(new Promise(() => {}));
+    await act(async () => {
+      fireEvent.press(screen.getByLabelText("Custodia, 1"));
+    });
+
+    expect(screen.getByText("Notificaciones")).toBeTruthy();
+    expect(screen.getByLabelText("Custodia, 1")).toBeTruthy();
+    expect(screen.getByLabelText("Cargando notificaciones…")).toBeTruthy();
+  });
+
+  // -------------------------------------------------------------------------
+  // lote 1b F4 — S-2 AND S-2b TOGETHER SAID SOMETHING NEITHER OF THEM MEANT
+  //
+  // S-2 keeps the last good payload through a failed re-read; S-2b keeps the
+  // chrome through a tab switch. Offline, tapping "Custodia" produced both at
+  // once: the Custodia chip active, "lo último que pudimos leer" over the list,
+  // and THE WHOLE INBOX still drawn under it. The banner can honestly say the
+  // rows may be old. It cannot say they may be about something else.
+  // -------------------------------------------------------------------------
+  it("does not label the previous tab's rows as this tab's answer", async () => {
+    // "Avistaje de Pampa" is a `perdidas` row and the first read is unfiltered,
+    // so it is on screen when the Custodia tab is tapped.
+    mockFetch.mockResolvedValueOnce({
+      outcome: "ok",
+      payload: payload({
+        total: 1,
+        unreadCount: 1,
+        notifications: [aNotification()],
+        categories: [{ category: "custody", count: 1 }],
+      }),
+    });
+    renderScreen();
+    await waitFor(() => expect(screen.getByLabelText("Custodia, 1")).toBeTruthy());
+    expect(screen.getByText("Avistaje de Pampa")).toBeTruthy();
+
+    mockFetch.mockResolvedValue({ outcome: "unreachable", detail: "network" });
+    await act(async () => {
+      fireEvent.press(screen.getByLabelText("Custodia, 1"));
+    });
+
+    // The Custodia read failed and there is no Custodia list to keep. The full
+    // error is the honest answer; the `perdidas` row must not survive under it.
+    expect(screen.queryByText("Avistaje de Pampa")).toBeNull();
+    expect(screen.queryByText("No pudimos actualizar")).toBeNull();
+    expect(screen.getByText("Reintentar")).toBeTruthy();
+  });
+
+  it("still keeps the rows when the SAME tab fails to re-read", async () => {
+    // The control for the tag. Without it the assertion above would pass on a
+    // screen that had simply lost S-2 altogether — which is the bug S-2 fixed.
+    mockFetch.mockResolvedValueOnce({
+      outcome: "ok",
+      payload: payload({
+        total: 1,
+        unreadCount: 1,
+        notifications: [aNotification()],
+        categories: [{ category: "custody", count: 1 }],
+      }),
+    });
+    renderScreen();
+    await waitFor(() => expect(screen.getByText("Avistaje de Pampa")).toBeTruthy());
+
+    mockFetch.mockResolvedValue({ outcome: "unreachable", detail: "network" });
+    await refocus();
+
+    await waitFor(() => expect(screen.getByText("No pudimos actualizar")).toBeTruthy());
+    expect(screen.getByText("Avistaje de Pampa")).toBeTruthy();
   });
 });

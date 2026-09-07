@@ -51,12 +51,13 @@
 // opposite — a failed write is reported to the person in front of the phone,
 // because swallowing it produces the "it logs me out sometimes" mystery.
 
-import type { MeV1User } from "@dim/contract/api";
+import type { ApiV1ErrorCode, MeV1User } from "@dim/contract/api";
 import { MIN_PASSWORD_LENGTH } from "@dim/contract/input";
 import { isAuthRetryableFetchError } from "@supabase/supabase-js";
 
 import {
   type ApiResult,
+  REQUEST_TIMEOUT_MS,
   type SessionEndReason,
   type SessionPort,
   apiFailureMessage,
@@ -72,7 +73,13 @@ import {
 } from "../api/endpoints";
 import { planesLookCrossed } from "../config/api";
 import { forgetAllCachedCredentials } from "../credential/credential-cache";
-import { AUTH_STORAGE_KEY, authClient, dropLocalSession } from "./supabase-auth";
+import {
+  AUTH_STORAGE_KEY,
+  authClient,
+  dropLocalSession,
+  readStoredSession,
+  restoreStoredSession,
+} from "./supabase-auth";
 
 export type SessionState =
   /** Before `bootstrapSession()` has answered. Render a splash, not a screen. */
@@ -115,6 +122,187 @@ export function subscribeToSession(listener: () => void): () => void {
 }
 
 /**
+ * The sentence every "we could not check, and it was not your fault" path says
+ * WHEN NOTHING CAME BACK. A cold start with no signal, a refresh that never
+ * landed, a `/me` that timed out, a captive portal: one fact for the person
+ * holding the phone, and one constant, because four literals had drifted.
+ */
+export const SESSION_UNREACHABLE_MESSAGE =
+  "No pudimos verificar tu sesión: no hay conexión con el servidor. Tus datos siguen guardados en este teléfono.";
+
+/**
+ * The same fact when the SERVER answered and the answer was not usable.
+ *
+ * IT NAMES A DIFFERENT SUBSYSTEM AND THAT IS THE WHOLE POINT. Until now the
+ * sentence above was served for every unreachable arm, including a GoTrue that
+ * returned 500 or 429 — so somebody with four bars in a vet's waiting room was
+ * told to check their connection, and the one thing they could do (wait) was
+ * never named. It is the identical defect `cachedCredentialReason` fixed for the
+ * credential banner (A3-documento-credencial-02), whose wording — "servidor no
+ * disponible" for an answered-but-refused read — is the precedent this follows.
+ */
+export const SESSION_SERVER_UNAVAILABLE_MESSAGE =
+  "No pudimos verificar tu sesión: el servidor no está disponible. Tus datos siguen guardados en este teléfono.";
+
+/** Distinguishes a raced timeout from a real answer without a nullable. */
+const TIMED_OUT = Symbol("session-timed-out");
+
+/**
+ * The 10 s budget `client.ts` gives every request, applied to the auth plane too.
+ *
+ * IT WAS MISSING EXACTLY WHERE IT MATTERS MOST (A6-cuenta-resiliencia-04).
+ * `performRequest` aborts at `REQUEST_TIMEOUT_MS`, but `getSession()`,
+ * `refreshSession()` and `signOut()` go to GoTrue through the SDK's own fetch,
+ * which this app never configured a timeout on. On a network that accepts a
+ * connection and then answers nothing — a captive portal, a hotel wifi — those
+ * calls hang for as long as the platform lets them, and every one of them is
+ * under a screen: the splash on a cold start, a spinner behind `void load()`,
+ * and a "Cerrar sesión" button that stays pressed. A budget makes the failure
+ * arrive as an answer this file already knows how to render.
+ */
+async function withSessionTimeout<T>(work: Promise<T>): Promise<T | typeof TIMED_OUT> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const budget = new Promise<typeof TIMED_OUT>((resolve) => {
+    timer = setTimeout(() => resolve(TIMED_OUT), REQUEST_TIMEOUT_MS);
+  });
+  try {
+    return await Promise.race([work, budget]);
+  } finally {
+    if (timer !== undefined) clearTimeout(timer);
+  }
+}
+
+/**
+ * The HTTP statuses on which GoTrue has EXAMINED a credential and said no.
+ *
+ * AN ALLOW-LIST, AND THE DIRECTION IS THE FIX (lote 1b review, F1). This used to
+ * be a denylist — "retryable, unparseable or 5xx is unreachable, EVERYTHING ELSE
+ * is a refusal" — and the everything-else was wrong for the statuses that carry
+ * no verdict at all. auth-js maps only [502,503,504,520,521,522,523,524,530] to
+ * `AuthRetryableFetchError` (lib/fetch.js:32-40); every other status becomes a
+ * plain `AuthApiError`, so a 429 from a per-IP rate limit — a clinic, a
+ * municipal office, anything behind CGNAT — arrived here as "refused". In
+ * `accessToken()` the refused arm runs `clearSession()`, which drops the tokens
+ * AND calls `forgetAllCachedCredentials()`: a rate limit nobody asked for
+ * destroying a refresh token the server never rejected and wiping the offline
+ * credential cache with it. 408 has the same shape.
+ *
+ * The remaining risk of the inverted default is the mirror one — reading a
+ * genuine revocation as unreachable would leave somebody at a retry button that
+ * cannot succeed — and it is bounded: every refusal GoTrue produces carries one
+ * of these five statuses, and `AuthApiError` is always constructed with a
+ * numeric status (`error.status || 500`, lib/fetch.js:82), so there is no
+ * status-less refusal to fall through.
+ */
+const AUTH_REFUSAL_STATUSES: ReadonlySet<number> = new Set([400, 401, 403, 404, 422]);
+
+/**
+ * Did the SERVER examine this credential and refuse it, or did the answer never
+ * arrive intact?
+ *
+ * `isAuthRetryableFetchError` is auth-js's own guard and it covers the case it
+ * was written for: a fetch that failed at the transport. TWO MORE SHAPES REACH
+ * THE SAME PLACE AND MEAN THE SAME THING (A6-refuter-M1), and auth-js treats
+ * both as fatal — `_callRefreshToken` calls `_removeSession()` for every
+ * AuthError outside its retry list, so each of these DELETES a refresh token
+ * GoTrue never rejected:
+ *
+ *   · `AuthUnknownError` — the answer's body would not parse as JSON
+ *     (lib/fetch.js). An HTML 502 page, a captive portal's login screen, a proxy
+ *     error. Nothing was examined; the request did not really reach GoTrue.
+ *   · any status outside `AUTH_REFUSAL_STATUSES` — 500 and 520, and equally 429
+ *     and 408. A server that fell over, or that is shedding load, is not a
+ *     server that said no.
+ *
+ * Only a status in that set is a refusal. See it for why the default is
+ * "unreachable" and not the reverse.
+ */
+function authFailureReason(error: unknown): "refused" | "unreachable" {
+  if (isAuthRetryableFetchError(error)) return "unreachable";
+  const candidate = error as { name?: unknown; status?: unknown } | null;
+  if (candidate?.name === "AuthUnknownError") return "unreachable";
+  const status = candidate?.status;
+  if (typeof status === "number" && AUTH_REFUSAL_STATUSES.has(status)) return "refused";
+  return "unreachable";
+}
+
+/**
+ * WHICH unreachable sentence this failure earns — see the two constants above.
+ *
+ * The split is "did anything come back with a status on it". A transport failure
+ * (`AuthRetryableFetchError` is constructed with status 0 for those) and an
+ * answer whose body would not parse are "no hay conexión"; a 500, a 503 or a 429
+ * are a server that answered, and telling that person to check their connection
+ * sends them to restart a router while the problem is ours.
+ */
+function authUnverifiedMessage(error: unknown): string {
+  const status = (error as { status?: unknown } | null)?.status;
+  return typeof status === "number" && status > 0
+    ? SESSION_SERVER_UNAVAILABLE_MESSAGE
+    : SESSION_UNREACHABLE_MESSAGE;
+}
+
+/**
+ * "We could not check" — WITHOUT overwriting a session that has already ended.
+ *
+ * The guard is `applyMeResult`'s, for its reason: `apiRequest` ends the session
+ * with a REASON for every code that means the session is over, and replacing that
+ * with "revisá tu conexión" would hide the explanation behind a retry button that
+ * cannot work.
+ */
+function markSessionUnverified(message: string): void {
+  if (state.phase === "signed-out") return;
+  setState({ phase: "session-unverified", message });
+}
+
+/**
+ * How many times this process has torn a session down.
+ *
+ * IT EXISTS BECAUSE "IS THE KEY EMPTY?" CANNOT TELL TWO OPPOSITE EVENTS APART
+ * (lote 1b review, F2). An empty key is what `_removeSession()` leaves behind
+ * after a failure nobody asked for — and it is also exactly what a DELIBERATE
+ * "Cerrar sesión" produces. The sequence that cost the review its HIGH: a 401
+ * starts `refreshAccessToken` and it snapshots the key; the refresh hangs; the
+ * person taps "Cerrar sesión" and `clearSession()` empties the key; the refresh
+ * finally resolves `unreachable` and `restoreSnapshot` writes the live refresh
+ * token BACK. The UI says signed out and the next cold start signs back in — on
+ * a shared phone, with this batch's display-only gate, rendering the previous
+ * person's cached credentials.
+ *
+ * A counter and not a boolean: it has to survive being read across an await by
+ * two overlapping refreshes, and "did the number change" answers that where
+ * "is a flag set" does not.
+ */
+let signOutEpoch = 0;
+
+/**
+ * Put a snapshotted session back, if there was one and it is now gone.
+ *
+ * IT CHECKS TWICE, and both checks are load-bearing:
+ *
+ *   · the KEY must still be empty — a refresh that ROTATED the token writes a
+ *     newer value under the same key, and blindly writing the snapshot back
+ *     would replace a live refresh token with the one it just replaced.
+ *   · no sign-out may have happened SINCE the snapshot was taken. See
+ *     `signOutEpoch`: an empty key is `_removeSession()`'s leftovers and a
+ *     deliberate sign-out's result, and only the caller's epoch tells them apart.
+ */
+async function restoreSnapshot(snapshot: string | null, epoch: number): Promise<void> {
+  if (snapshot === null) return;
+  if (signOutEpoch !== epoch) return;
+  try {
+    if ((await readStoredSession()) !== null) return;
+    // Re-read AFTER the await too: the sign-out may have landed while this was
+    // reading the key it is about to write to.
+    if (signOutEpoch !== epoch) return;
+    await restoreStoredSession(snapshot);
+  } catch {
+    // A keystore that will not answer cannot be repaired from here, and the
+    // caller is already reporting a failure the person can retry.
+  }
+}
+
+/**
  * The port `client.ts` uses. One instance, module-level, because there is one
  * session.
  */
@@ -127,8 +315,40 @@ export const sessionPort: SessionPort = {
       // which is why this is not `session.access_token` read out of our own state:
       // the library's copy is the one that is kept current. That autorefresh is
       // also why a READ can throw a WRITE's error — see the header.
-      const { data } = await client.auth.getSession();
-      return data.session?.access_token ?? null;
+      const answered = await withSessionTimeout(client.auth.getSession());
+      if (answered === TIMED_OUT) {
+        // Ten seconds without an answer from the auth plane. The tokens are
+        // still here and nobody refused them.
+        markSessionUnverified(SESSION_UNREACHABLE_MESSAGE);
+        return null;
+      }
+      const { data, error } = answered;
+      const token = data.session?.access_token ?? null;
+      if (token !== null) return token;
+
+      // A NULL TOKEN IS NOT ONE FACT, AND THIS FUNCTION USED TO REPORT IT AS ONE
+      // (A1-refuter-M1). `apiRequest` reads null as "no session at all" and
+      // answers `auth_required` WITHOUT ending anything, so the store stayed
+      // `signed-in` while every screen rendered "Necesitás iniciar sesión" — a
+      // shell with no way to sign in, because the gate never saw a signed-out
+      // state to redirect on. The two causes need opposite answers:
+      //
+      //   refused     → the session really is over. End it here, so the gate
+      //                 shows the sign-in screen with its reason.
+      //   unreachable → the refresh never landed. Say so, keep the tokens, and
+      //                 let the unverified screen offer its retry.
+      //
+      // No error and no session is the third case and the ordinary one: this
+      // device is simply signed out. Nothing to announce.
+      if (error) {
+        if (authFailureReason(error) === "unreachable") {
+          markSessionUnverified(authUnverifiedMessage(error));
+        } else {
+          await clearSession();
+          setState({ phase: "signed-out", reason: "auth_expired" });
+        }
+      }
+      return null;
     } catch {
       // No usable token, which is what the caller does with a null anyway. It
       // must not become a rejected request: the screens call `void load()`, so a
@@ -143,8 +363,22 @@ export const sessionPort: SessionPort = {
     // and not "unreachable" — waiting will not produce a server that this build
     // was never pointed at.
     if (client === null) return { ok: false, reason: "refused" } as const;
+    // SNAPSHOT BEFORE THE CALL, because the call is what deletes it. See
+    // `authFailureReason` and `restoreStoredSession`: auth-js removes the stored
+    // session for every AuthError outside its retry list, including the two
+    // shapes that mean "nothing was examined". Best-effort — a keystore that will
+    // not read is not a reason to refuse a refresh that might still work.
+    const snapshot = await readStoredSession().catch(() => null);
+    // THE EPOCH IS READ HERE, BEFORE THE CALL, for `restoreSnapshot`'s reason: a
+    // sign-out that lands while this is in flight must not be undone by it.
+    const epoch = signOutEpoch;
     try {
-      const { data, error } = await client.auth.refreshSession();
+      const answered = await withSessionTimeout(client.auth.refreshSession());
+      if (answered === TIMED_OUT) {
+        await restoreSnapshot(snapshot, epoch);
+        return { ok: false, reason: "unreachable" } as const;
+      }
+      const { data, error } = answered;
       if (error) {
         // THE SPLIT THIS FUNCTION USED TO COLLAPSE (native QA batch 2, D7). It
         // is the same guard `signIn` below already applies to `setSession`'s
@@ -154,10 +388,13 @@ export const sessionPort: SessionPort = {
         // this refresh token" and "the request never got there". Answering both
         // with `null` made `apiRequest` end the session over a dead spot — a
         // forced re-login for a session nobody had revoked.
-        return {
-          ok: false,
-          reason: isAuthRetryableFetchError(error) ? "unreachable" : "refused",
-        } as const;
+        //
+        // The classifier is `authFailureReason` and no longer the library's guard
+        // alone: two more shapes mean "nothing was examined" and auth-js answers
+        // both by DELETING the stored session, which is what `snapshot` undoes.
+        const reason = authFailureReason(error);
+        if (reason === "unreachable") await restoreSnapshot(snapshot, epoch);
+        return { ok: false, reason } as const;
       }
       const token = data.session?.access_token;
       // No error and no token is not a shape GoTrue produces; it is answered
@@ -190,10 +427,41 @@ export const sessionPort: SessionPort = {
  * person holding the phone.
  */
 async function clearSession(): Promise<void> {
+  // FIRST LINE, BEFORE ANY AWAIT. Everything below this point is a teardown, and
+  // every in-flight refresh that resolves from here on must be refused its
+  // `restoreSnapshot` — see `signOutEpoch`.
+  const epoch = ++signOutEpoch;
   const client = authClient();
   if (client !== null) {
     try {
-      await client.auth.signOut({ scope: "local" });
+      // UNDER THE 10 s BUDGET, like every other call to the auth plane
+      // (A6-cuenta-resiliencia-04). `signOut` reaches GoTrue through the SDK's
+      // own fetch, which has no timeout of its own, and this call is what
+      // "Cerrar sesión" waits on: a network that accepts the connection and
+      // then answers nothing left the button pressed indefinitely. The local
+      // delete below is what actually ends the session, and it does not need a
+      // server's permission to run.
+      //
+      // THE BUDGET BOUGHT A RACE AND THIS IS ITS OTHER HALF (lote 1b review,
+      // F6). Before it, this awaited auth-js to completion and the library's own
+      // storage lock ordered the writes; now the local delete below can run
+      // while auth-js still has queued work, and a `_saveSession` landing after
+      // it puts the session back — the same resurrection F2 fixes for our own
+      // refresh, on a path the epoch alone cannot reach because the write is
+      // inside the library. So the delete is repeated once the abandoned call
+      // finally settles.
+      const settled = Promise.resolve(client.auth.signOut({ scope: "local" })).catch(
+        () => undefined,
+      );
+      if ((await withSessionTimeout(settled)) === TIMED_OUT) {
+        void settled.then(async () => {
+          // Only if nothing has happened since. A later `clearSession` does its
+          // own delete, and a person who signed back IN during those seconds
+          // holds a session this must never touch.
+          if (signOutEpoch !== epoch || state.phase !== "signed-out") return;
+          await dropLocalSession().catch(() => undefined);
+        });
+      }
     } catch {
       // Ignored on purpose — see above.
     }
@@ -232,10 +500,41 @@ export async function bootstrapSession(): Promise<void> {
     return;
   }
 
-  let hasStoredSession: boolean;
+  let hasStoredSession = false;
+  // "There are tokens here and we could not check them" — the subway cold start.
+  let couldNotCheck = false;
+  // WHICH of the two unverified sentences this cold start earned. It defaults to
+  // the transport one because the TIMED_OUT arm below has no error to read a
+  // status off: ten seconds of silence really is "nothing came back".
+  let couldNotCheckMessage = SESSION_UNREACHABLE_MESSAGE;
   try {
-    const { data } = await client.auth.getSession();
-    hasStoredSession = data.session !== null;
+    const answered = await withSessionTimeout(client.auth.getSession());
+    if (answered === TIMED_OUT) {
+      couldNotCheck = true;
+    } else {
+      hasStoredSession = answered.data.session !== null;
+      if (!hasStoredSession) {
+        // THE COLD START THIS FUNCTION USED TO GET WRONG (A1-entrada-01 /
+        // A6-cuenta-resiliencia-01). An access token past its expiry makes
+        // `getSession()` refresh before it answers, and a refresh that cannot
+        // reach GoTrue comes back `{ session: null }` — indistinguishable, at
+        // this line, from a phone nobody ever signed in on. The app read it as
+        // the second and drew the sign-in screen, on a device holding a
+        // perfectly good refresh token, asking for a password over a network
+        // that could not have checked it.
+        //
+        // TWO SIGNALS, EITHER OF WHICH IS ENOUGH. auth-js RETURNS the failure
+        // (`AuthRetryableFetchError` and the two shapes `authFailureReason`
+        // adds), and the keystore still holds the session for anything it did
+        // not delete. The raw read is what covers the versions and paths that
+        // answer `{ session: null, error: null }` after swallowing a failure of
+        // their own.
+        const unreachable =
+          answered.error !== null && authFailureReason(answered.error) === "unreachable";
+        if (unreachable) couldNotCheckMessage = authUnverifiedMessage(answered.error);
+        couldNotCheck = unreachable || (await readStoredSession().catch(() => null)) !== null;
+      }
+    }
   } catch {
     // A keychain that will not answer at cold start is a signed-out user, not a
     // splash screen forever. The root layout calls this as `void
@@ -245,6 +544,10 @@ export async function bootstrapSession(): Promise<void> {
   }
 
   if (!hasStoredSession) {
+    if (couldNotCheck) {
+      setState({ phase: "session-unverified", message: couldNotCheckMessage });
+      return;
+    }
     setState({ phase: "signed-out", reason: null });
     return;
   }
@@ -252,6 +555,28 @@ export async function bootstrapSession(): Promise<void> {
   const me = await fetchMe(sessionPort);
   applyMeResult(me);
 }
+
+/**
+ * The `/me` refusals that mean THIS SESSION IS OVER.
+ *
+ * IT IS ALMOST `sessionEndingReason`'s list in `client.ts`, AND THE "ALMOST" IS
+ * THE PART THAT BIT (lote 1b review, F5). That function decides when
+ * `apiRequest` ends a session and this one decides when a `/me` read may draw
+ * the sign-in screen, so they must agree — a code missing here is a person told
+ * to sign in over a server outage. What they do NOT mirror is the STATUS:
+ * `sessionEndingReason` gates `auth_required` on a real 401, while `apiRequest`
+ * also SYNTHESIZES `{ outcome: "api-error", code: "auth_required" }` with no
+ * status at all when `accessToken()` hands it a null token. That synthesized
+ * code is not a server verdict about anything, which is why the arm below refuses
+ * to act on it while the store says `session-unverified`.
+ */
+const SESSION_ENDING_CODES: ReadonlySet<ApiV1ErrorCode> = new Set<ApiV1ErrorCode>([
+  "auth_expired",
+  "session_shift_expired",
+  "auth_required",
+  "account_deactivated",
+  "account_erased",
+]);
 
 /**
  * Turn a `/me` read into a session state.
@@ -268,9 +593,31 @@ function applyMeResult(result: ApiResult<{ user: MeV1User }>): void {
     return;
   }
   if (result.outcome === "api-error") {
-    if (state.phase !== "signed-out") {
+    // Already ended, WITH ITS REASON, by `apiRequest`. See the note above.
+    if (state.phase === "signed-out") return;
+    // NOT EVERY REFUSAL IS A DEAD SESSION, and this arm used to answer all of
+    // them with the sign-in screen (A1-entrada-02). A 503 from a deploy and a
+    // 429 from the limiter say nothing whatsoever about the tokens on the
+    // device — and "iniciá sesión de nuevo" is the one instruction that cannot
+    // help, because signing in hits the same unavailable server. The codes that
+    // DO end a session are the ones `apiRequest` already ends it for; anything
+    // else is "we could not check", with the code's own sentence and its
+    // retry-after when the server sent one.
+    if (SESSION_ENDING_CODES.has(result.code)) {
+      // AND NOT OVER A `session-unverified` THIS SAME CALL CHAIN JUST SET (lote
+      // 1b review, F5). `apiRequest` synthesizes `auth_required` whenever
+      // `accessToken()` returns null — including the arm where `accessToken()`
+      // could not reach GoTrue and set `session-unverified` on its way out. A
+      // real `auth_required` from the server has already gone through
+      // `endSession`, so it arrives here as `signed-out` and is caught by the
+      // guard above; the only refusal that reaches THIS line while the store
+      // says "we could not check" is the synthesized one, and answering it with
+      // a blank sign-in screen throws away the one sentence explaining why.
+      if (state.phase === "session-unverified") return;
       setState({ phase: "signed-out", reason: null });
+      return;
     }
+    markSessionUnverified(apiFailureMessage(result) ?? SESSION_UNREACHABLE_MESSAGE);
     return;
   }
   // unreachable / malformed / unsupported-version: the tokens are fine, the
@@ -529,6 +876,20 @@ export async function signUp(input: {
   // existence (native QA batch 1, D1).
   const me = await fetchMe(sessionPort);
   applyMeResult(me);
+  // THE `/me` READ CAN FAIL AND THIS USED TO REPORT `signedIn: true` ANYWAY
+  // (A1-entrada-03). The screen reads that as "the gate will redirect now" and
+  // leaves its button disabled on purpose — so a 503 on this second call left a
+  // brand-new account staring at "Creando la cuenta…" with nothing to press and
+  // no sentence explaining it. The account EXISTS either way, so the honest
+  // answer names that first and points at the door that works.
+  if (state.phase !== "signed-in") {
+    return {
+      ok: false,
+      message: `Creamos tu cuenta, pero no pudimos confirmarla con el servidor: ${
+        apiFailureMessage(me) ?? "no pudimos conectarnos."
+      } Entrá desde la pantalla de ingreso con ese mismo email.`,
+    };
+  }
   return { ok: true, signedIn: true };
 }
 
@@ -569,6 +930,19 @@ export async function completeIdentity(input: {
 }): Promise<CompleteIdentityResult> {
   const result = await completeIdentityRequest(sessionPort, input);
   if (result.outcome !== "ok") {
+    // ALREADY DONE IS NOT A FAILURE (A1-entrada-04). The identity can be
+    // completed on the WEB — that is where the DNI still lives, and the screen
+    // itself offers the link — so somebody who finishes there and comes back to
+    // a phone that is still on this form gets a 409 for a step they HAVE taken.
+    // The old answer was the code's own sentence ("Ya completaste tus datos.
+    // Volvé a Ajustes"), which sends a person to a screen that cannot advance
+    // them: the gate only lets go when `/me` says `profilePending: false`, and
+    // nothing here was re-reading it. So re-read, and if the server agrees the
+    // step is done, this call succeeded — a moment earlier, elsewhere.
+    if (result.outcome === "api-error" && result.code === "identity_already_complete") {
+      applyMeResult(await fetchMe(sessionPort));
+      if (state.phase === "signed-in" && !state.user.profilePending) return { ok: true };
+    }
     return { ok: false, message: apiFailureMessage(result) ?? "No pudimos guardar tus datos." };
   }
   setState({ phase: "signed-in", user: result.payload.user });
@@ -763,6 +1137,19 @@ export async function resetPasswordWithCode(input: {
   // same call `signUp` makes, for the same reason.
   const me = await fetchMe(sessionPort);
   applyMeResult(me);
+  // Same trap as `signUp`, one step sharper (A1-entrada-03): the PASSWORD IS
+  // ALREADY CHANGED and the code is already spent, so a failure here must never
+  // read as "the reset did not work" — that sends somebody to ask for a second
+  // code with the new password in their hands. It says what happened and where
+  // to go.
+  if (state.phase !== "signed-in") {
+    return {
+      ok: false,
+      message: `Cambiamos tu contraseña, pero no pudimos abrir la sesión: ${
+        apiFailureMessage(me) ?? "no pudimos conectarnos."
+      } Entrá desde la pantalla de ingreso con la contraseña nueva.`,
+    };
+  }
   return { ok: true };
 }
 

@@ -36,17 +36,20 @@
 // reasoning carries over. A failed read says so and offers a retry.
 
 import type { OwnerPetDetailV1, OwnerPetSituationV1 } from "@dim/contract/api";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useFocusEffect } from "expo-router";
+import { useCallback, useRef, useState } from "react";
 import { StyleSheet, Text, View } from "react-native";
 
 import type { ApiResult } from "../api/client";
 import { fetchOwnerPetDetail } from "../api/endpoints";
 import { apiErrorMessage } from "../api/error-copy";
 import { sessionPort } from "../auth/session-store";
-import { Body, Card, Loading } from "../ui/components";
+import { Body, Card, Loading, StaleNotice } from "../ui/components";
 import { FONTS } from "../ui/fonts";
 import { Screen, pullToRefresh } from "../ui/kit";
+import { type ReadyState, loaded, reloadFailed } from "../ui/reload-state";
 import { COLORS, LEADING, SPACE, TYPE } from "../ui/theme";
+import { useReconnect } from "../ui/use-reconnect";
 import { DocumentChromeNative, type DocumentFace } from "./DocumentChromeNative";
 import { TurningSheet, useDocumentTurn } from "./DocumentTurn";
 import { LibretaScreen } from "./LibretaScreen";
@@ -55,7 +58,7 @@ import { type OwnerFaceView, buildOwnerFaceView } from "./owner-face-view-model"
 
 type OwnerState =
   | { phase: "loading" }
-  | { phase: "ready"; view: OwnerFaceView }
+  | ReadyState<OwnerFaceView>
   | { phase: "failed"; message: string };
 
 /** One sentence per failure arm. No arm may fall through to a generic shrug. */
@@ -137,30 +140,70 @@ export function PetDocumentScreen({
    */
   const [refreshNonce, setRefreshNonce] = useState(0);
 
+  /**
+   * THREE MODES AND NOT TWO, because the middle one has no gesture behind it
+   * (lote 1b review, F9):
+   *
+   *   · `initial` — nothing on screen yet. Blank to the placeholder.
+   *   · `refresh` — the PULL. `refreshing` is the RefreshControl's own prop, so
+   *     setting it drops the platform spinner; that is correct when a finger put
+   *     it there and wrong otherwise.
+   *   · `focus`   — coming back from "Editar datos". Keep the document, re-read
+   *     underneath it, and touch NEITHER the phase nor the spinner. Bound to
+   *     `refresh`, every single return from a pushed screen span the pull-to-
+   *     refresh control at somebody who had not pulled anything.
+   */
   const load = useCallback(
-    async (mode: "initial" | "refresh" = "initial") => {
+    async (mode: "initial" | "refresh" | "focus" = "initial") => {
       const mine = ++generation.current;
       // A refresh leaves the previous view mounted; only the first read has
       // nothing to show.
       if (mode === "refresh") setRefreshing(true);
-      else setOwner({ phase: "loading" });
+      else if (mode === "initial") setOwner({ phase: "loading" });
       const result = await fetchOwnerPetDetail(sessionPort, publicToken);
       if (mine !== generation.current) return;
       // AFTER the guard, deliberately: a stale response must not stop the
       // spinner of the newer read that superseded it.
       if (mode === "refresh") setRefreshing(false);
       if (result.outcome === "ok") {
-        setOwner({ phase: "ready", view: buildOwnerFaceView(result.payload) });
+        setOwner(loaded(buildOwnerFaceView(result.payload)));
         return;
       }
-      setOwner({ phase: "failed", message: failureMessage(result) });
+      // KEEPING THE DOCUMENT ON SCREEN (S-2 / A3-documento-credencial-07). A
+      // pull-to-refresh that failed used to replace the credential — chip,
+      // face and every section — with a refusal, on a screen somebody may have
+      // opened precisely because they are standing in front of a vet with no
+      // signal. The document that was already read is still the document.
+      setOwner((current) => reloadFailed(current, result, failureMessage(result)));
     },
     [publicToken],
   );
 
-  useEffect(() => {
-    void load();
-  }, [load]);
+  // ON FOCUS, NOT ONLY ON MOUNT (A3-documento-credencial-01 / A5-ciudadanas-05 /
+  // A4-custodia-07 — the shape `TransfersScreen` has carried since QA batch 3).
+  // Every screen here pushes something ON TOP of itself that CHANGES it —
+  // "Editar datos", the postulación form, a lost-mode command — and coming back
+  // pops rather than remounts, so a mount-only effect left the reader looking at
+  // the state from before their own write.
+  //
+  // THE RETURN IS A "focus" AND NOT AN "initial" READ: `initial` blanks the
+  // screen to a skeleton, which would happen every single time somebody comes
+  // back. The FIRST appearance still takes the loading phase, because there is
+  // nothing yet to keep. And not a "refresh" either — see `load`: that mode owns
+  // the RefreshControl's flag, and a focus return is not a pull.
+  const hasLoaded = useRef(false);
+  useFocusEffect(
+    useCallback(() => {
+      void load(hasLoaded.current ? "focus" : "initial");
+      hasLoaded.current = true;
+    }, [load]),
+  );
+
+  // WHEN THE NETWORK COMES BACK, TRY AGAIN (B-05, the other half of S-2). A
+  // `focus` read and not a `refresh`: nobody pulled, so the platform spinner must
+  // stay still — the same distinction F9 is about. The libreta's own ledger is a
+  // separate read and keeps its own trigger; this one owns the owner detail.
+  useReconnect(() => void load("focus"));
 
   const view = owner.phase === "ready" ? owner.view : null;
 
@@ -198,6 +241,9 @@ export function PetDocumentScreen({
           ) : (
             <LibretaScreen
               publicToken={publicToken}
+              // S-3: the ledger's "Próximo" block is not drawn for an animal
+              // that has died. This screen is the one that knows.
+              deceased={view?.status.state === "ok" && view.status.data.petStatus === "deceased"}
               refreshNonce={refreshNonce}
               onRefreshSettled={() => setRefreshing(false)}
             />
@@ -229,7 +275,16 @@ function FrontFaceBody({ state }: { state: OwnerState }) {
       </View>
     );
   }
-  return <OwnerCredentialFace view={state.view} />;
+  return (
+    <>
+      {state.staleFailure === null ? null : (
+        <View style={styles.facePad}>
+          <StaleNotice message={state.staleFailure} />
+        </View>
+      )}
+      <OwnerCredentialFace view={state.view} />
+    </>
+  );
 }
 
 const styles = StyleSheet.create({

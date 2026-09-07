@@ -51,6 +51,14 @@ jest.mock("../api/endpoints", () => ({
   fetchMyAppointments: (...args: unknown[]) => mockFetch(...args),
 }));
 
+// The screen now re-reads when the network comes back (B-05, `useReconnect`),
+// and the real NetInfo has no native module under jest — it crashes inside its
+// own reachability timer, several frames from anything this file is about. The
+// stand-in `MisMascotasFooter.test.tsx` already uses.
+jest.mock("@react-native-community/netinfo", () => ({
+  __esModule: true,
+  default: { addEventListener: () => () => undefined },
+}));
 jest.mock("../auth/session-store", () => ({ sessionPort: {} }));
 
 import type { MyAppointmentV1, MyAppointmentsV1 } from "@dim/contract/api";

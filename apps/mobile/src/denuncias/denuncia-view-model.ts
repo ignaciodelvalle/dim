@@ -252,14 +252,23 @@ export function buildFileDenunciaCommand(values: DenunciaFormValues): DenunciaDr
   if (values.anonymous) {
     return parseDraft(welfareReportFileInputSchema, { ...facts, contactMode: "anonymous" });
   }
+  // Trimmed at the same point the web's wizard trims (DenunciaWizard.tsx:365) —
+  // a trailing space from mobile autocomplete otherwise reaches the case record
+  // as part of the address someone will try to write to.
+  const email = values.contactEmail.trim();
+  const phone = values.contactPhone.trim();
   return parseDraft(welfareReportFileInputSchema, {
     ...facts,
     contactMode: "with_contact",
-    // Trimmed at the same point the web's wizard trims (DenunciaWizard.tsx:365)
-    // — a trailing space from mobile autocomplete otherwise reaches the case
-    // record as part of the address someone will try to write to.
-    reporterContactEmail: values.contactEmail.trim(),
-    reporterContactPhone: values.contactPhone.trim(),
+    // A BOX NOBODY TYPED IN IS OMITTED, NOT SENT AS "" (A5-ciudadanas-01).
+    // Somebody who chose "Con mi contacto" and left a phone could not send the
+    // denuncia at all: `""` reached `z.email()`, which runs before the schema's
+    // nullable/optional and before its at-least-one rule, so the form answered
+    // "dejanos un contacto" to a person who had just left one. The contract now
+    // normalises the blank too (welfare-report.ts) — that half is deployed with
+    // the server; this one is what makes the SHIPPED build stop sending it.
+    ...(email === "" ? {} : { reporterContactEmail: email }),
+    ...(phone === "" ? {} : { reporterContactPhone: phone }),
   });
 }
 

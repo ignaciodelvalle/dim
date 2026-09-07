@@ -34,9 +34,10 @@ import type { ApiResult } from "../api/client";
 import { fetchPetLibreta } from "../api/endpoints";
 import { apiErrorMessage } from "../api/error-copy";
 import { sessionPort } from "../auth/session-store";
-import { Body, Card, Loading, Row, Unavailable } from "../ui/components";
+import { Body, Card, Loading, Row, StaleNotice, Unavailable } from "../ui/components";
 import { FONTS } from "../ui/fonts";
 import { PrimaryButton } from "../ui/kit";
+import { type ReadyState, loaded, reloadFailed } from "../ui/reload-state";
 import { libretaEventRoute, recordEventRoute } from "../ui/routes";
 import { COLORS, LEADING, RADIUS, SPACE, TOUCH_TARGET, TRACKING, TYPE } from "../ui/theme";
 import {
@@ -60,7 +61,7 @@ import type { SectionView } from "./owner-face-view-model";
 
 type ScreenState =
   | { phase: "loading" }
-  | { phase: "ready"; view: LibretaView }
+  | ReadyState<LibretaView>
   | { phase: "failed"; message: string };
 
 /** One sentence per failure arm. No arm may fall through to a generic shrug. */
@@ -81,10 +82,21 @@ function failureMessage(result: ApiResult<PetLibretaV1>): string {
 
 export function LibretaScreen({
   publicToken,
+  deceased = false,
   refreshNonce = 0,
   onRefreshSettled,
 }: {
   publicToken: string;
+  /**
+   * The animal's lifecycle status, from the document that owns this face.
+   *
+   * A PROP AND NOT A SECOND READ: `PetDocumentScreen` already holds
+   * `status.petStatus` and re-reading it here would be a second place the two
+   * could disagree — on the one question where disagreeing is unbearable. The
+   * libreta's own payload carries no lifecycle status at all (its `status` field
+   * is a VACCINE's), which is why nothing here could tell before (S-3).
+   */
+  deceased?: boolean;
   /**
    * Bumped by `PetDocumentScreen`'s pull-to-refresh. A PROP and not a `key`:
    * keying this face by the counter remounted it, so a pull threw the ledger
@@ -118,10 +130,13 @@ export function LibretaScreen({
       if (mine !== generation.current) return;
       if (mode === "refresh") settled.current?.();
       if (result.outcome === "ok") {
-        setState({ phase: "ready", view: buildLibretaView(result.payload) });
+        setState(loaded(buildLibretaView(result.payload)));
         return;
       }
-      setState({ phase: "failed", message: failureMessage(result) });
+      // KEEPING THE LEDGER (S-2). A vet with one bar reading a vaccination
+      // history must not lose it because the re-read on focus failed: the
+      // asientos are already on the phone and every one of them is still true.
+      setState((current) => reloadFailed(current, result, failureMessage(result)));
     },
     [publicToken],
   );
@@ -190,7 +205,10 @@ export function LibretaScreen({
           <Body>{state.message}</Body>
         </Card>
       ) : null}
-      {state.phase === "ready" ? <LibretaBody view={state.view} /> : null}
+      {state.phase === "ready" && state.staleFailure !== null ? (
+        <StaleNotice message={state.staleFailure} onRetry={() => void load("refresh")} />
+      ) : null}
+      {state.phase === "ready" ? <LibretaBody view={state.view} deceased={deceased} /> : null}
     </View>
   );
 }
@@ -211,14 +229,14 @@ function Section<T>({
   return <Card title={title}>{children(view.data)}</Card>;
 }
 
-function LibretaBody({ view }: { view: LibretaView }) {
+function LibretaBody({ view, deceased }: { view: LibretaView; deceased: boolean }) {
   const router = useRouter();
   // Frozen at mount and threaded into every relative label, so a screen sitting
   // on a day boundary cannot flip "Mañana" to "Hoy" between re-renders. The web
   // libreta face freezes its own `now` for exactly this.
   const [now] = useState(() => new Date());
 
-  const upcomingItems = view.upcoming.state === "ok" ? view.upcoming.data.items : [];
+  const upcomingItems = !deceased && view.upcoming.state === "ok" ? view.upcoming.data.items : [];
   const entries = view.timeline.state === "ok" ? view.timeline.data.entries : [];
   const bothSectionsRead = view.upcoming.state === "ok" && view.timeline.state === "ok";
   const isEmpty = bothSectionsRead && upcomingItems.length === 0 && entries.length === 0;
@@ -265,24 +283,33 @@ function LibretaBody({ view }: { view: LibretaView }) {
         </Card>
       ) : null}
 
-      {/* PRÓXIMO ---------------------------------------------------------- */}
-      <Section view={view.upcoming} title="Próximo">
-        {(upcoming) =>
-          upcoming.items.length === 0 ? (
-            <Body>{UPCOMING_EMPTY_LABEL}</Body>
-          ) : (
-            <>
-              {upcoming.items.map((item) => (
-                <Row
-                  key={item.id}
-                  label={`${upcomingKindLabel(item.kind)} · ${item.label}`}
-                  value={upcomingDueLabel(item.dueAt, now)}
-                />
-              ))}
-            </>
-          )
-        }
-      </Section>
+      {/* PRÓXIMO ----------------------------------------------------------
+          NOT DRAWN FOR A DEAD ANIMAL (S-3). The server keeps computing the next
+          due date — the schedule is a property of the vaccine, not of the
+          patient — and the libreta printed "Vacuna antirrábica · Vence en 43
+          días" under the name of an animal whose memorial is on the other face.
+          The history STAYS: the asientos below are the record, and the record
+          does not end when the animal does. It is only the FUTURE that is no
+          longer anybody's to act on. */}
+      {deceased ? null : (
+        <Section view={view.upcoming} title="Próximo">
+          {(upcoming) =>
+            upcoming.items.length === 0 ? (
+              <Body>{UPCOMING_EMPTY_LABEL}</Body>
+            ) : (
+              <>
+                {upcoming.items.map((item) => (
+                  <Row
+                    key={item.id}
+                    label={`${upcomingKindLabel(item.kind)} · ${item.label}`}
+                    value={upcomingDueLabel(item.dueAt, now)}
+                  />
+                ))}
+              </>
+            )
+          }
+        </Section>
+      )}
 
       {/* The directional divider the web prints between the two halves. A bare
           "hoy" read as a date tag for the row above it. */}

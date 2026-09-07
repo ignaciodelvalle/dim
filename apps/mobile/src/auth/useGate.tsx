@@ -57,7 +57,7 @@ import { Body, Card, ErrorNotice, Loading } from "../ui/components";
 import { Screen, SecondaryButton, Title } from "../ui/kit";
 import { ROUTES } from "../ui/routes";
 import { SPACE } from "../ui/theme";
-import { signedOutHref } from "./return-to";
+import { pendingIdentityHref, signedOutHref } from "./return-to";
 import { bootstrapSession, signOut } from "./session-store";
 import { useSession } from "./useSession";
 
@@ -101,10 +101,51 @@ export function useGate(options: { allowPendingIdentity?: boolean } = {}): Gate 
 
     case "signed-in":
       if (state.user.profilePending && options.allowPendingIdentity !== true) {
-        return { allowed: false, element: <Redirect href={ROUTES.identidadPendiente} /> };
+        // CARRYING `next`, like the signed-out arm (A4-custodia-03). A deep link
+        // opened by somebody who has just created an account reaches THIS arm,
+        // not the signed-out one, and dropping the destination here costs the
+        // same thing it costs there: the person finishes step 2 and lands on an
+        // empty pet list with no idea what the link was for.
+        return { allowed: false, element: <Redirect href={pendingIdentityHref(pathname)} /> };
       }
       return { allowed: true, user: state.user };
   }
+}
+
+export type DisplayOnlyGate =
+  /** `user` is null exactly when `unverifiedMessage` is not — see below. */
+  | { allowed: true; user: MeV1User | null; unverifiedMessage: string | null }
+  | { allowed: false; element: ReactElement };
+
+/**
+ * The gate for a screen that can still say something TRUE with no server.
+ *
+ * ONE SCREEN NEEDS THIS AND IT IS THE ONE THE OFFLINE CACHE EXISTS FOR
+ * (A6-cuenta-resiliencia-05). `credential-cache.ts` stores a complete credential
+ * so a vet with no signal can read it — and the route that renders it sat behind
+ * `useGate`, which answers `session-unverified` with a retry screen. So the cache
+ * was reachable only from a session the app had already verified, i.e. only when
+ * the network that makes the cache pointless was available. The one state it was
+ * built for was the one state that could not reach it.
+ *
+ * IT IS NOT A HOLE IN THE GATE. `session-unverified` means THIS DEVICE HOLDS
+ * TOKENS and the server could not be asked whose they are — the phone is not
+ * anonymous, it is unconfirmed. `signed-out`, `unconfigured` and `starting` are
+ * answered exactly as before, and a caller in the unverified arm gets `user:
+ * null`, so nothing that needs an identity can compile against it by accident.
+ * What it may render is what is already on the device, under a banner that says
+ * why it is stale.
+ */
+export function useDisplayOnlyGate(): DisplayOnlyGate {
+  const state = useSession();
+  // Called UNCONDITIONALLY and before any branch: `useGate` is a hook.
+  const gate = useGate();
+
+  if (state.phase === "session-unverified") {
+    return { allowed: true, user: null, unverifiedMessage: state.message };
+  }
+  if (gate.allowed) return { allowed: true, user: gate.user, unverifiedMessage: null };
+  return gate;
 }
 
 function Splash() {

@@ -21,13 +21,26 @@ const mockPush = jest.fn();
 const mockFetchOwnerPetDetail = jest.fn<(...args: unknown[]) => Promise<unknown>>();
 const mockFetchPetLibreta = jest.fn<(...args: unknown[]) => Promise<unknown>>();
 
+/** Every focus callback currently mounted, so a test can fire a RE-focus. */
+const mockFocusCallbacks: Array<() => void> = [];
+
 jest.mock("expo-router", () => ({
   useRouter: () => ({ push: mockPush, replace: jest.fn(), back: jest.fn() }),
   // The real one runs its callback when the screen gains focus. Under test
-  // there is no navigator, so the honest stand-in is "run it on mount".
+  // there is no navigator, so the stand-in runs it on mount AND keeps a handle
+  // on it, because the F9 defect is about a screen that is ALREADY MOUNTED when
+  // it regains focus — a mount-only stand-in can only be re-fired by remounting,
+  // which is precisely the case that never had the bug.
   useFocusEffect: (callback: () => void) => {
     const { useEffect } = require("react");
-    useEffect(callback, [callback]);
+    useEffect(() => {
+      mockFocusCallbacks.push(callback);
+      callback();
+      return () => {
+        const at = mockFocusCallbacks.indexOf(callback);
+        if (at >= 0) mockFocusCallbacks.splice(at, 1);
+      };
+    }, [callback]);
   },
 }));
 
@@ -36,6 +49,14 @@ jest.mock("../api/endpoints", () => ({
   fetchPetLibreta: (...args: unknown[]) => mockFetchPetLibreta(...args),
 }));
 
+// The screen now re-reads when the network comes back (B-05, `useReconnect`),
+// and the real NetInfo has no native module under jest — it crashes inside its
+// own reachability timer, several frames from anything this file is about. The
+// stand-in `MisMascotasFooter.test.tsx` already uses.
+jest.mock("@react-native-community/netinfo", () => ({
+  __esModule: true,
+  default: { addEventListener: () => () => undefined },
+}));
 jest.mock("../auth/session-store", () => ({ sessionPort: {} }));
 
 import { IDENTITY_POKE_OUT } from "./DocumentChromeNative";
@@ -185,9 +206,17 @@ beforeEach(() => {
   mockPush.mockReset();
   mockFetchOwnerPetDetail.mockReset();
   mockFetchPetLibreta.mockReset();
+  mockFocusCallbacks.length = 0;
   mockFetchOwnerPetDetail.mockResolvedValue({ outcome: "ok", payload: payload() });
   mockFetchPetLibreta.mockResolvedValue({ outcome: "unreachable", detail: "not under test" });
 });
+
+/** Re-focus every mounted screen, the way popping back from "Editar datos" does. */
+async function refocus(): Promise<void> {
+  await act(async () => {
+    for (const callback of [...mockFocusCallbacks]) callback();
+  });
+}
 
 describe("PetDocumentScreen — two faces of one document", () => {
   it("opens on Credencial · frente, with the animal on it", async () => {
@@ -697,6 +726,37 @@ describe("PetDocumentScreen — a pull re-reads the document without taking it a
     expect(screen.getByText("Pampa")).toBeOnTheScreen();
   });
 
+  // -------------------------------------------------------------------------
+  // lote 1b F9 — THE SPINNER BELONGS TO THE GESTURE
+  //
+  // `refreshing` is the RefreshControl's OWN prop, and the focus read was wired
+  // to `load("refresh")` — so every single return from a pushed screen dropped
+  // the platform spinner on somebody who had not pulled anything. The two facts
+  // ("a read is happening" and "a finger asked for it") are not the same, and
+  // only the second may drive the control.
+  // -------------------------------------------------------------------------
+  it("does not spin the platform refresher when the screen merely regains focus", async () => {
+    render(<PetDocumentScreen publicToken={TOKEN} />);
+    await screen.findByText("Pampa");
+    expect(mockFetchOwnerPetDetail).toHaveBeenCalledTimes(1);
+
+    // Held in flight, so the assertion describes the window the person sees.
+    const second = deferredRead();
+    mockFetchOwnerPetDetail.mockReturnValueOnce(second.promise as Promise<unknown>);
+    await refocus();
+
+    // The re-read IS happening — that half is NAV-3 and stays.
+    expect(mockFetchOwnerPetDetail).toHaveBeenCalledTimes(2);
+    // And the document is still there, with no spinner nobody asked for.
+    expect(screen.getByText("Pampa")).toBeOnTheScreen();
+    expect(screen.queryByText("Leyendo la ficha…")).toBeNull();
+    expect(control().props.refreshing).toBe(false);
+
+    await act(async () => {
+      second.land({ outcome: "ok", payload: payload() });
+    });
+  });
+
   it("keeps the credential on screen while a pull re-reads it, and stops when it lands", async () => {
     render(<PetDocumentScreen publicToken={TOKEN} />);
     await screen.findByText("Pampa");
@@ -790,5 +850,46 @@ describe("OwnerFace — the QR frame's ring arithmetic", () => {
     // pins is that the box, the ring and the code cannot drift apart silently.
     const frame = ownerFaceStyles.qrFrame;
     expect(frame.width - 2 * frame.borderWidth).toBeGreaterThanOrEqual(QR_SIZE);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// S-1 / VT-2 — A PHOTO THAT WOULD NOT LOAD IS NOT AN ANIMAL WITH NO PHOTO
+// ---------------------------------------------------------------------------
+
+describe("the credential photo", () => {
+  it("names the failure when the image cannot be fetched", async () => {
+    // RN's <Image> draws NOTHING on a failed load: a blank frame the size of
+    // the photo, which reads as "this animal has no photo" — a claim about the
+    // record, made by a ten-second network failure.
+    mockFetchOwnerPetDetail.mockResolvedValue({
+      outcome: "ok",
+      payload: payload({
+        identity: {
+          status: "ok",
+          data: {
+            name: "Pampa",
+            species: "Perro",
+            sex: "female",
+            breed: "Mestiza",
+            breedLine: "Mestiza · Hembra · 2 años · Perro",
+            photoUrl: "https://cdn.example/pampa.jpg",
+            jurisdictionProvince: "CABA",
+            jurisdictionLocality: "Palermo",
+            tags: [],
+          },
+        },
+      }),
+    });
+    render(<PetDocumentScreen publicToken={TOKEN} />);
+
+    const photo = await screen.findByLabelText("Foto de Pampa");
+    expect(screen.queryByText("Foto no disponible")).toBeNull();
+
+    await act(async () => {
+      fireEvent(photo, "error");
+    });
+
+    expect(screen.getByText("Foto no disponible")).toBeOnTheScreen();
   });
 });

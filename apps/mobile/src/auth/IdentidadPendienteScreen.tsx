@@ -79,9 +79,23 @@ import {
   canSubmitIdentity,
   toIdentityInput,
 } from "./identity-input";
+import { returnHref } from "./return-to";
 import { completeIdentity, signOut } from "./session-store";
 
-export function IdentidadPendienteScreen({ profilePending }: { profilePending: boolean }) {
+export function IdentidadPendienteScreen({
+  profilePending,
+  next,
+}: {
+  profilePending: boolean;
+  /**
+   * The destination the gate was interrupting, when there was one — a PROP for
+   * `profilePending`'s reason: the thin route already asked, and a second read
+   * here is a second place the two could disagree. `returnHref` re-checks it
+   * before it is navigated to, because `mimar://identidad-pendiente?next=…` is a
+   * URL anybody can compose.
+   */
+  next?: string | string[];
+}) {
   const [draft, setDraft] = useState<IdentityDraft>(EMPTY_IDENTITY_DRAFT);
   const [busy, setBusy] = useState(false);
   const [failure, setFailure] = useState<string | null>(null);
@@ -149,7 +163,20 @@ export function IdentidadPendienteScreen({ profilePending }: { profilePending: b
   // must not keep seeing this screen. `allowPendingIdentity: true` on the gate is
   // a build-time relaxation that lets THIS screen render while identity is
   // pending; it says nothing about whether it still is.
-  if (!profilePending) return <Redirect href={ROUTES.misMascotas} />;
+  //
+  // IT LANDS ON `next` WHEN THERE IS ONE (A4-custodia-03). The pet list is still
+  // the default and still what an ordinary signup gets; what changed is that a
+  // person who arrived here from a caretaker invitation now finishes step 2 and
+  // lands on the invitation instead of on an empty list.
+  //
+  // `returnHref` ANSWERS `/` FOR "NOTHING USABLE" — an absent parameter and a
+  // hostile one alike — and this screen keeps sending that to the pet list
+  // rather than to the gate. `/` would forward there anyway; going straight
+  // spends one fewer render of a screen that redirects.
+  if (!profilePending) {
+    const destination = returnHref(next);
+    return <Redirect href={destination === ROUTES.root ? ROUTES.misMascotas : destination} />;
+  }
 
   return (
     <Screen edges={["top", "bottom"]} keyboardAvoiding gap={SPACE.xl}>

@@ -41,6 +41,14 @@ jest.mock("../api/endpoints", () => ({
   fetchMyPets: (...args: unknown[]) => mockFetchMyPets(...args),
 }));
 
+// The list now re-reads when the network comes back (B-05, `useReconnect`), and
+// the real NetInfo has no native module under jest — it crashes inside its own
+// reachability timer, several frames from anything this file is about.
+jest.mock("@react-native-community/netinfo", () => ({
+  __esModule: true,
+  default: { addEventListener: () => () => undefined },
+}));
+
 jest.mock("../auth/session-store", () => ({ sessionPort: {} }));
 jest.mock("../auth/useGate", () => ({ useGate: () => ({ allowed: true }) }));
 

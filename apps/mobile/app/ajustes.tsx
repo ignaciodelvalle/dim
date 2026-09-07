@@ -74,6 +74,9 @@ export default function AjustesScreen() {
   const gate = useGate({ allowPendingIdentity: true });
   const router = useRouter();
   const [revoke, setRevoke] = useState<RevokeState>({ phase: "idle" });
+  // Never cleared on purpose: this screen unmounts when the sign-out lands, and
+  // an "idle" button between the store flip and the unmount is a second tap.
+  const [signingOut, setSigningOut] = useState(false);
 
   if (!gate.allowed) return gate.element;
   const { user } = gate;
@@ -139,7 +142,8 @@ export default function AjustesScreen() {
 
       <View style={styles.actions}>
         <SecondaryButton
-          label="Cerrar sesión"
+          label={signingOut ? "Cerrando sesión…" : "Cerrar sesión"}
+          disabled={signingOut}
           onPress={() => {
             // AWAITED, and the await is the fix. `signOut()` flips the store
             // to `signed-out` as its LAST act, after the keychain delete.
@@ -149,6 +153,13 @@ export default function AjustesScreen() {
             // authenticated request — before the state landed and the gate
             // bounced it back. The cost of doing it in the right order is one
             // keychain delete, and `signOut` cannot reject (see clearSession).
+            // AND A BUSY STATE (A6-cuenta-resiliencia-04). `signOut` reaches
+            // GoTrue, which now has the same 10 s budget as everything else —
+            // but ten seconds is long enough to press a button that looks idle
+            // four more times, and each press is another sign-out racing the
+            // first. The label says what is happening and the control refuses a
+            // second tap.
+            setSigningOut(true);
             void (async () => {
               await signOut(ROUTES.ajustes);
               router.replace("/");

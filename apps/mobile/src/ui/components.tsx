@@ -189,6 +189,31 @@ export function ErrorNotice({ message, onRetry }: { message: string; onRetry?: (
   );
 }
 
+/**
+ * A read that FAILED over content that is still on screen — S-2's banner.
+ *
+ * NOT `ErrorNotice`, and the difference is the whole point (see
+ * `reload-state.ts`). `ErrorNotice` replaces the screen: it says "No se pudo"
+ * and offers a retry, which is right when there is nothing else to show. This
+ * one sits ABOVE a payload the phone still holds and says that what is under it
+ * may be old. Warn, not danger — nothing is broken, the refresh is.
+ *
+ * `polite` rather than `assertive`: the person did not lose anything, so this
+ * must not interrupt what a screen reader is already saying.
+ */
+export function StaleNotice({ message, onRetry }: { message: string; onRetry?: () => void }) {
+  return (
+    <View accessibilityLiveRegion="polite" accessibilityRole="alert" style={styles.staleNotice}>
+      <Text style={styles.staleTitle}>No pudimos actualizar</Text>
+      <Text style={styles.staleBody}>{message}</Text>
+      <Text style={styles.staleBody}>Lo que ves es lo último que pudimos leer.</Text>
+      {onRetry === undefined ? null : (
+        <SecondaryButton label="Volver a intentar" onPress={onRetry} />
+      )}
+    </View>
+  );
+}
+
 /** An absence that offers a next step. See the header. */
 export function EmptyState({
   headline,
@@ -284,6 +309,21 @@ const styles = StyleSheet.create({
   errorBody: {
     fontFamily: FONTS.sans,
     color: COLORS.danger,
+    fontSize: TYPE.md,
+    lineHeight: TYPE.md * LEADING.md,
+  },
+  staleNotice: {
+    backgroundColor: COLORS.warnSurface,
+    borderWidth: 1,
+    borderColor: COLORS.warnBorder,
+    borderRadius: RADIUS.control,
+    padding: SPACE.lg,
+    gap: SPACE.sm,
+  },
+  staleTitle: { fontFamily: FONTS.sansSemibold, color: COLORS.warnInk, fontSize: TYPE.md },
+  staleBody: {
+    fontFamily: FONTS.sans,
+    color: COLORS.warnInk,
     fontSize: TYPE.md,
     lineHeight: TYPE.md * LEADING.md,
   },

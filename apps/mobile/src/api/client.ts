@@ -200,6 +200,27 @@ export async function performRequest(
     try {
       body = await response.json();
     } catch (error) {
+      // THE STATUS IS READ FIRST, AND IT USUALLY ANSWERS THE QUESTION
+      // (A6-cuenta-resiliencia-07). A 502 from a load balancer, a 503 from a
+      // deploy and a captive portal's login page all arrive as a body that will
+      // not parse — and reporting "el servidor respondió algo que no pudimos
+      // leer" for them describes the JSON rather than the outage, on a screen
+      // whose person can only act on the outage. A non-2xx WITH an unreadable
+      // body is a refusal we could not read the code of, which `interpret`
+      // already has an honest answer for (`temporarily_unavailable`, plus the
+      // `retry-after` this same response may carry).
+      //
+      // A 2xx whose body will not parse stays `malformed`, and that distinction
+      // is the point: there the transport worked, the server said yes, and what
+      // is broken really is the payload.
+      if (response.status < 200 || response.status >= 300) {
+        return {
+          transport: "answered",
+          status: response.status,
+          body: null,
+          retryAfterSeconds: retryAfterSeconds(response.headers),
+        };
+      }
       return { transport: "malformed", detail: describeError(error) };
     }
 

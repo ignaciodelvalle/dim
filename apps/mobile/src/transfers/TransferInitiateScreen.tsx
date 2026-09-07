@@ -33,7 +33,7 @@ import type { ApiResult } from "../api/client";
 import { sendTransferCommand } from "../api/endpoints";
 import { apiErrorMessage } from "../api/error-copy";
 import { sessionPort } from "../auth/session-store";
-import { Body } from "../ui/components";
+import { Body, Card } from "../ui/components";
 import { Callout, Choice, PrimaryButton, Screen, TextField, Title } from "../ui/kit";
 import { useScrollToError } from "../ui/use-scroll-to-error";
 
@@ -63,6 +63,26 @@ function failureMessage(result: ApiResult<unknown>): string {
 
 type Notice = { tone: "ok" | "err"; message: string } | null;
 
+/**
+ * What the sender is told when the address they typed has no account
+ * (A4-custodia-01).
+ *
+ * THE SCREEN USED TO NAVIGATE AWAY ON EVERY SUCCESS, which made the two outcomes
+ * of a transfer look identical: one is a proposal sitting in somebody's inbox,
+ * the other is a proposal nobody has been told about. The server reports which —
+ * `recipientNeedsInvite` — precisely so this can be said, and nothing said it.
+ *
+ * THE APP SENDS NO INVITATION AND MUST NOT PRETEND IT DOES. The web's flow calls
+ * `inviteUserByEmail` with a redirect into a BROWSER session
+ * (`src/modules/transfers/actions.ts`), which is why the native write
+ * deliberately does not fire it (`app/api/v1/me/transfers/commands.ts`): a magic
+ * link would land the recipient on a web page on a phone that has this app
+ * installed. So the honest sentence is "avisale vos", and the web's own hint —
+ * "Si todavía no tiene cuenta en miMAR, le enviamos un link de signup" — is the
+ * WEB's behaviour and would be a lie here.
+ */
+const NEEDS_INVITE_HEADLINE = "Esa persona todavía no tiene cuenta en miMAR";
+
 export function TransferInitiateScreen({
   publicToken,
   petName,
@@ -91,6 +111,8 @@ export function TransferInitiateScreen({
   // this invents no validation of its own. Cleared the moment a field is
   // edited, so the box stops being red on the keystroke and not on the retry.
   const [invalidCode, setInvalidCode] = useState<TransferCommandInputCode | null>(null);
+  /** The proposal's token, once it landed for an address with NO account. */
+  const [sent, setSent] = useState<string | null>(null);
 
   const submit = useCallback(async () => {
     setNotice(null);
@@ -117,10 +139,36 @@ export function TransferInitiateScreen({
       setNotice({ tone: "err", message: failureMessage(result) });
       return;
     }
+    if (result.payload.recipientNeedsInvite === true) {
+      // NOT a navigation. Leaving for the proposal screen here would show the
+      // sender a pending transfer and no hint that the other side has no way to
+      // learn about it — the exact wait that never ends.
+      setSent(result.payload.transferToken);
+      return;
+    }
     onSent(result.payload.transferToken);
   }, [email, note, onSent, publicToken, reason]);
 
   const subject = petName ?? "esta mascota";
+
+  if (sent !== null) {
+    return (
+      <Screen>
+        <Title>Propuesta enviada</Title>
+        <Card title={NEEDS_INVITE_HEADLINE}>
+          <Body>
+            La propuesta de {subject} quedó creada y espera {TRANSFER_WINDOW_DAYS} días. Como ese
+            correo todavía no tiene cuenta, desde la app no le llega ningún aviso.
+          </Body>
+          <Body>
+            Avisale vos y pedile que cree una cuenta en miMAR con ese mismo correo: cuando entre, la
+            propuesta la está esperando.
+          </Body>
+        </Card>
+        <PrimaryButton label="Ver la propuesta" onPress={() => onSent(sent)} />
+      </Screen>
+    );
+  }
 
   return (
     <Screen keyboardAvoiding scrollRef={scrollRef}>

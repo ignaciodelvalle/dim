@@ -23,19 +23,21 @@ import { useFocusEffect, useRouter } from "expo-router";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Image, Pressable, RefreshControl, StyleSheet, Text, View } from "react-native";
 
-import { type ApiResult, apiFailureMessage } from "../../src/api/client";
+import { apiFailureMessage } from "../../src/api/client";
 import { fetchMyPets } from "../../src/api/endpoints";
 import { sessionPort } from "../../src/auth/session-store";
 import { useGate } from "../../src/auth/useGate";
 import { petStatusLabel } from "../../src/credential/credential-view-model";
 import { speciesLabel } from "../../src/pets/species";
-import { Body, Card, EmptyState, ErrorNotice, Loading } from "../../src/ui/components";
+import { Body, Card, EmptyState, ErrorNotice, Loading, StaleNotice } from "../../src/ui/components";
 import { FONTS } from "../../src/ui/fonts";
 import { PrimaryButton, Screen, SecondaryButton } from "../../src/ui/kit";
+import { type ReadyState, loaded, reloadFailed } from "../../src/ui/reload-state";
 import { ROUTES, credentialRoute } from "../../src/ui/routes";
 import { COLORS, LEADING, RADIUS, SPACE, TOUCH_TARGET, TRACKING, TYPE } from "../../src/ui/theme";
+import { useReconnect } from "../../src/ui/use-reconnect";
 
-type ListState = { phase: "loading" } | { phase: "loaded"; result: ApiResult<MyPetsV1> };
+type ListState = { phase: "loading" } | ReadyState<MyPetsV1> | { phase: "failed"; message: string };
 
 export default function MisMascotasScreen() {
   const gate = useGate();
@@ -53,7 +55,17 @@ export default function MisMascotasScreen() {
 
     const result = await fetchMyPets(sessionPort);
     if (mine !== generation.current) return;
-    setState({ phase: "loaded", result });
+    if (result.outcome === "ok") setState(loaded(result.payload));
+    // THE MEASURED ONE (S-2 / B-05, shots 137-140): with airplane mode on, a
+    // pull-to-refresh replaced the two pets on screen AND the "Registrar otra
+    // mascota" button with a full-screen error — and turning the network back on
+    // cleared the offline banner while the list stayed broken until the person
+    // found "Volver a intentar". The animals were still in the phone the whole
+    // time. See `reload-state.ts`.
+    else
+      setState((current) =>
+        reloadFailed(current, result, apiFailureMessage(result) ?? "No se pudo leer."),
+      );
     setRefreshing(false);
   }, []);
 
@@ -75,6 +87,12 @@ export default function MisMascotasScreen() {
     }, [load]),
   );
 
+  // WHEN THE NETWORK COMES BACK, TRY AGAIN (B-05). The offline banner already
+  // clears itself on this exact event; the list used to sit broken beside it
+  // until somebody pressed a button. A refresh and not an initial read: whatever
+  // is on screen stays there while it happens.
+  useReconnect(() => void load("refresh"));
+
   if (!gate.allowed) return gate.element;
 
   return (
@@ -92,13 +110,21 @@ export default function MisMascotasScreen() {
     >
       {state.phase === "loading" ? (
         <Loading label="Buscando tus mascotas…" />
+      ) : state.phase === "failed" ? (
+        // NOT an empty list. See the header. Only the FIRST read reaches this:
+        // once there are animals on screen they stay.
+        <ErrorNotice message={state.message} onRetry={() => void load("initial")} />
       ) : (
-        <ListBody
-          result={state.result}
-          onRetry={() => void load("initial")}
-          onOpen={(token) => router.push(credentialRoute(token))}
-          onRegister={() => router.push(ROUTES.altaMascota)}
-        />
+        <>
+          {state.staleFailure === null ? null : (
+            <StaleNotice message={state.staleFailure} onRetry={() => void load("refresh")} />
+          )}
+          <ListBody
+            view={state.view}
+            onOpen={(token) => router.push(credentialRoute(token))}
+            onRegister={() => router.push(ROUTES.altaMascota)}
+          />
+        </>
       )}
 
       <View style={styles.footer}>
@@ -237,24 +263,15 @@ export default function MisMascotasScreen() {
 }
 
 function ListBody({
-  result,
-  onRetry,
+  view,
   onOpen,
   onRegister,
 }: {
-  result: ApiResult<MyPetsV1>;
-  onRetry: () => void;
+  view: MyPetsV1;
   onOpen: (publicToken: string) => void;
   onRegister: () => void;
 }) {
-  if (result.outcome !== "ok") {
-    // NOT an empty list. See the header.
-    return (
-      <ErrorNotice message={apiFailureMessage(result) ?? "No se pudo leer."} onRetry={onRetry} />
-    );
-  }
-
-  const { pets, total, truncated } = result.payload;
+  const { pets, total, truncated } = view;
 
   if (pets.length === 0) {
     return (
@@ -287,6 +304,11 @@ function ListBody({
 }
 
 function PetRow({ pet, onPress }: { pet: MyPetsV1Item; onPress: () => void }) {
+  // A photo the server HAS and this phone could not fetch (S-1 / VT-2). RN's
+  // <Image> draws nothing on a failed load — a blank box the size of the frame,
+  // which reads as "this animal has no photo" and is a different claim.
+  const [photoFailed, setPhotoFailed] = useState(false);
+
   return (
     <Pressable
       accessibilityRole="button"
@@ -294,7 +316,7 @@ function PetRow({ pet, onPress }: { pet: MyPetsV1Item; onPress: () => void }) {
       onPress={onPress}
       style={styles.petRow}
     >
-      {pet.photoUrl === null ? (
+      {pet.photoUrl === null || photoFailed ? (
         // A placeholder that says WHAT is missing. A grey square says nothing.
         //
         // THE SERVER SIDE OF THE UPLOAD NOW EXISTS — `POST /pets/{token}/photo`
@@ -306,13 +328,21 @@ function PetRow({ pet, onPress }: { pet: MyPetsV1Item; onPress: () => void }) {
         // then, and it is no longer describing a blocked path — only an unbuilt
         // one.
         <View style={styles.photoFallback}>
-          <Text style={styles.photoFallbackText}>Sin foto</Text>
+          {/* TWO DIFFERENT ABSENCES, TWO DIFFERENT WORDS (S-1 / VT-2). "Sin
+              foto" is a fact about the animal's record; a photo that was
+              uploaded and would not LOAD is a fact about this phone's last ten
+              seconds, and drawing the same square for both told an owner their
+              photo was gone. */}
+          <Text style={styles.photoFallbackText}>
+            {photoFailed ? "Foto no disponible" : "Sin foto"}
+          </Text>
         </View>
       ) : (
         <Image
           source={{ uri: pet.photoUrl }}
           style={styles.photo}
           accessibilityIgnoresInvertColors
+          onError={() => setPhotoFailed(true)}
         />
       )}
 

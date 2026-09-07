@@ -39,11 +39,13 @@ import type { ApiResult } from "../api/client";
 import { fetchMyAppointments } from "../api/endpoints";
 import { apiErrorMessage } from "../api/error-copy";
 import { sessionPort } from "../auth/session-store";
-import { Body, EmptyState } from "../ui/components";
+import { Body, EmptyState, StaleNotice } from "../ui/components";
 import { FONTS } from "../ui/fonts";
 import { Callout, Eyebrow, PrimaryButton, Screen, SecondaryButton, Title } from "../ui/kit";
+import { type ReadyState, loaded, reloadFailed } from "../ui/reload-state";
 import { ListSkeleton } from "../ui/skeleton";
 import { COLORS, LEADING, RADIUS, SPACE, TOUCH_TARGET, TRACKING, TYPE } from "../ui/theme";
+import { useReconnect } from "../ui/use-reconnect";
 
 import {
   appointmentProviderLabel,
@@ -73,7 +75,7 @@ function failureMessage(result: ApiResult<unknown>): string {
 
 type ScreenState =
   | { phase: "loading" }
-  | { phase: "ready"; view: MyAppointmentsV1 }
+  | ReadyState<MyAppointmentsV1>
   | { phase: "failed"; message: string };
 
 export function TurnosScreen({
@@ -97,10 +99,13 @@ export function TurnosScreen({
     const result = await fetchMyAppointments(sessionPort);
     if (mode === "refresh") setRefreshing(false);
     if (result.outcome === "ok") {
-      setState({ phase: "ready", view: result.payload });
+      setState(loaded(result.payload));
       return;
     }
-    setState({ phase: "failed", message: failureMessage(result) });
+    // KEEPING WHAT IS ON SCREEN (S-2). A turno is something a person physically
+    // attends: deleting the list because a re-read failed is how somebody stops
+    // being able to check the time of the appointment they are on their way to.
+    setState((current) => reloadFailed(current, result, failureMessage(result)));
   }, []);
 
   // ON FOCUS, NOT ONLY ON MOUNT (native QA batch 2, C1). Booking pushes
@@ -123,6 +128,12 @@ export function TurnosScreen({
       hasLoaded.current = true;
     }, [load]),
   );
+
+  // WHEN THE NETWORK COMES BACK, TRY AGAIN (B-05, the other half of S-2). Keeping
+  // the last good payload stops a dead spot from deleting the list; this stops
+  // the list sitting stale beside an offline banner that has already cleared
+  // itself. A `refresh`, so nothing on screen moves while it happens.
+  useReconnect(() => void load("refresh"));
 
   const refresher = (
     <RefreshControl
@@ -163,6 +174,10 @@ export function TurnosScreen({
       {/* The count comes from the SAME three arrays rendered below, by
           construction — see the view-model for the web bug that rule exists for. */}
       <Body>{appointmentsTotalLabel(state.view)}</Body>
+
+      {state.staleFailure === null ? null : (
+        <StaleNotice message={state.staleFailure} onRetry={() => void load("refresh")} />
+      )}
 
       {/* THE PRIMARY ACTION OF THIS SCREEN, above the sections rather than under
           them: a person with a long history still opens this to book the next
