@@ -17,7 +17,7 @@ function render(node: React.ReactElement): string {
 const defaultProps = {
   petName: "Luna",
   publicToken: "abc-123-def",
-  credentialUrl: "https://mimar.ar/p/abc-123-def",
+  credentialUrl: "https://www.mimar.com.ar/p/abc-123-def",
   printableQrEnabled: true,
 };
 
@@ -37,9 +37,9 @@ describe("<PetCreatedAha>", () => {
 
   it("renders the QR with an aria-label containing the credential URL", () => {
     const html = render(<PetCreatedAha {...defaultProps} />);
-    expect(html).toContain("https://mimar.ar/p/abc-123-def");
+    expect(html).toContain("https://www.mimar.com.ar/p/abc-123-def");
     // aria-label on the QR svg describes the link
-    expect(html).toMatch(/aria-label="[^"]*https:\/\/mimar\.ar\/p\/abc-123-def/);
+    expect(html).toMatch(/aria-label="[^"]*https:\/\/www\.mimar\.com\.ar\/p\/abc-123-def/);
   });
 
   it("renders the QR SVG content", () => {
@@ -140,7 +140,7 @@ describe("<PetCreatedAha>", () => {
   it("draws the QR as a real svg named after the pet and the URL it encodes", () => {
     const html = render(<PetCreatedAha {...defaultProps} />);
     expect(html).toContain(
-      'aria-label="Código QR que enlaza a la credencial pública de Luna: https://mimar.ar/p/abc-123-def"',
+      'aria-label="Código QR que enlaza a la credencial pública de Luna: https://www.mimar.com.ar/p/abc-123-def"',
     );
     expect(html).toMatch(/<svg[^>]*role="img"[^>]*>\s*<path fill="currentColor" d="M/);
     // No injected markup path survives on this screen.

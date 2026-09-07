@@ -9641,9 +9641,21 @@
     },
     {
       "kind": "fence-test",
+      "id": "__tests__/contact-email-domain-fence.test.tsx",
+      "path": "__tests__/contact-email-domain-fence.test.tsx",
+      "note": "Postdates the d7dbf25f7 snapshot (added 2026-09-07 with lib/ui/contact.ts); no canon row can cite it without describing prose that did not exist when the canon was taken. It bans the class rather than a spelling: every email address a shipped file under app/ or components/ names must be at a domain in OWNED_MAIL_DOMAINS, with input placeholders and RFC 2606 example domains as the two structural exemptions."
+    },
+    {
+      "kind": "fence-test",
       "id": "__tests__/conventions-canon-parity.test.ts",
       "path": "__tests__/conventions-canon-parity.test.ts",
       "note": "This canon's own fence. It postdates the d7dbf25f7 snapshot the rows were harvested from, so no row can cite it without describing a tree that did not exist when the canon was taken."
+    },
+    {
+      "kind": "fence-test",
+      "id": "__tests__/public-hostname-fence.test.ts",
+      "path": "__tests__/public-hostname-fence.test.ts",
+      "note": "Postdates the d7dbf25f7 snapshot (added 2026-09-07 alongside __tests__/contact-email-domain-fence.test.tsx); no canon row can cite it without describing prose that did not exist when the canon was taken. Hostname half of the same class its sibling covers for mailboxes: RULE A holds every domain the product declares as its own (PUBLIC_BRAND_DOMAIN, the resolveSiteUrl fallback, the credential-QR host) against OWNED_WEB_DOMAINS in lib/infra/site-url.ts, read through the public API rather than off the constant; RULE B bans any hardcoded absolute URL into a route this app serves, with the route table derived from the app/ tree at scan time so it cannot rot."
     }
   ]
 }

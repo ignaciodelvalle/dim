@@ -234,7 +234,7 @@ async function call(
   const key = init.key === undefined ? KEY : init.key;
   if (key) headers["idempotency-key"] = key;
   return POST(
-    new Request(`https://mimar.ar/api/v1/pets/${TOKEN}/events`, {
+    new Request(`https://www.mimar.com.ar/api/v1/pets/${TOKEN}/events`, {
       method: "POST",
       headers,
       body: JSON.stringify(body),

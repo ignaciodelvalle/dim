@@ -413,14 +413,14 @@ describe("deepLinkPath", () => {
 
 describe("deepLinkUrl", () => {
   it("prefixes the origin", () => {
-    expect(deepLinkUrl("https://mimar.ar", "credential", { publicToken: "DIM-PAMP-0001" })).toBe(
-      "https://mimar.ar/p/DIM-PAMP-0001",
-    );
+    expect(
+      deepLinkUrl("https://www.mimar.com.ar", "credential", { publicToken: "DIM-PAMP-0001" }),
+    ).toBe("https://www.mimar.com.ar/p/DIM-PAMP-0001");
   });
 
   it("tolerates a trailing slash on the origin", () => {
-    expect(deepLinkUrl("https://mimar.ar/", "credential", { publicToken: "X" })).toBe(
-      "https://mimar.ar/p/X",
+    expect(deepLinkUrl("https://www.mimar.com.ar/", "credential", { publicToken: "X" })).toBe(
+      "https://www.mimar.com.ar/p/X",
     );
   });
 });

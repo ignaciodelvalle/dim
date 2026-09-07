@@ -250,7 +250,7 @@ async function post(
   const key = init.key === undefined ? KEY : init.key;
   if (key) headers["idempotency-key"] = key;
   return POST(
-    new Request(`https://mimar.ar/api/v1/pets/${TOKEN}/lost`, {
+    new Request(`https://www.mimar.com.ar/api/v1/pets/${TOKEN}/lost`, {
       method: "POST",
       headers,
       body: JSON.stringify(body),
@@ -263,7 +263,7 @@ async function get(init: { authorization?: string | null } = {}) {
   const headers: Record<string, string> = {};
   const auth = init.authorization === undefined ? "Bearer tok" : init.authorization;
   if (auth) headers.authorization = auth;
-  return GET(new Request(`https://mimar.ar/api/v1/pets/${TOKEN}/lost`, { headers }), {
+  return GET(new Request(`https://www.mimar.com.ar/api/v1/pets/${TOKEN}/lost`, { headers }), {
     params: Promise.resolve({ publicToken: TOKEN }),
   });
 }

@@ -61,7 +61,7 @@ function renderDocument(situationKey: "custodia-oficial" | "perdida", petSex: st
       <CredentialFace
         heroProps={{ name: "Pampa", breed: "Mestizo" }}
         complianceState={complianceState()}
-        credentialUrl="https://mimar.ar/p/abc"
+        credentialUrl="https://www.mimar.com.ar/p/abc"
         publicHref="/p/abc"
         petPublicToken="abc"
         petSex={petSex}

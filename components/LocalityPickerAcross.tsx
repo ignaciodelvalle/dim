@@ -25,22 +25,11 @@ import { searchLocalitiesAction } from "@/app/actions/localities";
 import type { SearchLocalitiesResult } from "@/app/actions/localities";
 import { LnCombobox } from "@/components/ui/LnCombobox";
 import type { LocalitySearchResult } from "@/lib/infra/ar-localidades";
+import { CONTACT_EMAILS, mailtoHref } from "@/lib/ui/contact";
 import { NO_BROWSER_AUTOFILL } from "@/lib/ui/no-browser-autofill";
 
 const DEBOUNCE_MS = 200;
 const MIN_QUERY_LENGTH = 2;
-
-// Institutional inbox for "my locality is missing from the INDEC catalog".
-//
-// This used to be a maintainer's personal Gmail address (cold-start review
-// RA-6, finding 3), and this component is not an internal tool: the zero-result
-// state renders on the PUBLIC /adoptar and /perdidas filters, on citizen
-// registration, and on /admin/govts/new — the screen where a jurisdiction is
-// onboarded. A funcionario creating a government account was being asked to
-// email a personal address. Same inbox the other institutional escalations
-// already use (/gob/perdidas' locality-assignment link, /gob/analytics' access
-// request, /terminos).
-const CATALOG_CONTACT_EMAIL = "hola@mimar.ar";
 
 type DefaultValue = {
   provinceCode?: string | null;
@@ -358,11 +347,24 @@ function LocalityFieldStatusLine({
     // resultados." reads to a funcionario as "my municipality is not in the
     // national registry" rather than "check the spelling" — and the catalog
     // holds every INDEC locality, so that reading is always wrong.
+    //
+    // The escalation address MUST be institutional, and this file has twice
+    // been the reason why. It shipped a maintainer's personal Gmail (cold-start
+    // review RA-6, finding 3) because the state looks internal and is not: it
+    // renders on the PUBLIC /adoptar and /perdidas filters, on citizen
+    // registration, and on /admin/govts/new, the screen where a funcionario
+    // onboards a jurisdiction. The cure was a local `CATALOG_CONTACT_EMAIL`
+    // const, which was a single source of truth for this file and a decoy for
+    // the four others that kept retyping the same address — all five at a
+    // domain that does not resolve. Hence lib/ui/contact.ts.
     return (
       <p className="text-xs text-ln-mute mt-1" aria-live="polite">
         No encontramos “{query}”. Probá con menos letras o revisá la ortografía.{" "}
         <a
-          href={`mailto:${CATALOG_CONTACT_EMAIL}?subject=miMAR%20%E2%80%94%20Agregar%20localidad&body=Localidad:%20${encodeURIComponent(query)}`}
+          href={mailtoHref(CONTACT_EMAILS.general, {
+            subject: "miMAR — Agregar localidad",
+            body: `Localidad: ${query}`,
+          })}
           className="underline"
         >
           Sugerí esta localidad

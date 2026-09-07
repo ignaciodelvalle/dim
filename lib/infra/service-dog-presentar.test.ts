@@ -48,12 +48,17 @@ describe("buildPublicVerifyUrl", () => {
     vi.stubEnv("NEXT_PUBLIC_SITE_URL", "");
     const url = buildPublicVerifyUrl("abc123");
     expect(url.startsWith("http")).toBe(true);
-    expect(url).toBe("https://mimar.ar/p/abc123");
+    // Pinned to the literal the resolver actually falls back to, moved off
+    // `https://mimar.ar` on 2026-09-07 — that domain does not exist, so this
+    // assertion was pinning an unscannable QR payload for a service dog's
+    // public verification page, the one surface a business owner is asked to
+    // check on the spot.
+    expect(url).toBe("https://www.mimar.com.ar/p/abc123");
   });
 
   it("handles tokens with special chars in the path segment", () => {
-    vi.stubEnv("NEXT_PUBLIC_SITE_URL", "https://mimar.ar");
+    vi.stubEnv("NEXT_PUBLIC_SITE_URL", "https://www.mimar.com.ar");
     const url = buildPublicVerifyUrl("tok-xyz_789");
-    expect(url).toBe("https://mimar.ar/p/tok-xyz_789");
+    expect(url).toBe("https://www.mimar.com.ar/p/tok-xyz_789");
   });
 });

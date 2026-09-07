@@ -46,7 +46,7 @@ describe("WRONG_CASE_BRAND — recall (the wrong-cased forms)", () => {
 describe("WRONG_CASE_BRAND — precision (correct casing, technical lowercase, identifiers, DIM)", () => {
   const GOOD = [
     "miMAR", // canonical casing — must never self-flag
-    "mimar.ar", // email domain — technical, lowercase
+    "mimar.com.ar", // email domain — technical, lowercase
     "logo-mimar-mark.svg", // asset path — technical, lowercase
     "MiMARBadge", // hypothetical identifier — "MiMAR" is a prefix, not a standalone word
     "isMiMARFeature", // hypothetical identifier — no word boundary either side
@@ -148,7 +148,7 @@ describe("INTERNAL_CODENAME — precision (the token is public by design)", () =
     "dim", // lowercase
     "Dimensiones", // capitalised but not the codename
     "miMAR", // the brand itself
-    "mimar.ar",
+    "mimar.com.ar",
   ];
   for (const text of GOOD) {
     it(`does NOT flag "${text}"`, () => {

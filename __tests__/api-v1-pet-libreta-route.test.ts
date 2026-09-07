@@ -211,7 +211,7 @@ function okSection<T>(section: { status: string; data?: T }): T {
 }
 
 async function call(headers: Record<string, string> = { authorization: "Bearer tok" }) {
-  return GET(new Request(`https://mimar.ar/api/v1/pets/${TOKEN}/libreta`, { headers }), {
+  return GET(new Request(`https://www.mimar.com.ar/api/v1/pets/${TOKEN}/libreta`, { headers }), {
     params: Promise.resolve({ publicToken: TOKEN }),
   });
 }

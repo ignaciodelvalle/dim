@@ -33,7 +33,7 @@ const ONBOARDING_PAGE = "app/(app)/mis-mascotas/nueva/[publicToken]/credencial/p
 
 // A flagship-shaped credential URL. At level "M" this encodes to a version-3
 // symbol — 29 modules — so the rendered viewBox is 29 + 2 (quiet zone) = 31.
-const VALUE = "https://mimar.ar/p/DIM-PAMP-0001";
+const VALUE = "https://www.mimar.com.ar/p/DIM-PAMP-0001";
 const MODULES = 29;
 const EXTENT = MODULES + 2;
 
@@ -115,7 +115,7 @@ describe("<CredentialQr> — deterministic encoding", () => {
     const a = mine.container.querySelector("path")?.getAttribute("d");
     mine.unmount();
 
-    const other = render(qr({ value: "https://mimar.ar/p/DIM-PAMP-0002" }));
+    const other = render(qr({ value: "https://www.mimar.com.ar/p/DIM-PAMP-0002" }));
     expect(other.container.querySelector("path")?.getAttribute("d")).not.toBe(a);
   });
 

@@ -10,8 +10,12 @@
 // A government product asked a public official to email a personal Gmail.
 //
 // The institutional inboxes already used elsewhere in the app are the answer:
-// hola@mimar.ar (/terminos, /gob/perdidas, /gob/analytics) and
-// privacidad@mimar.ar (/privacidad).
+// CONTACT_EMAILS.general (/terminos, /gob/perdidas, /gob/analytics) and
+// CONTACT_EMAILS.privacy (/privacidad), both from lib/ui/contact.ts. They are
+// named by CONSTANT and not spelled out here on purpose: this fence's own
+// remediation text used to quote them literally at `@mimar.ar`, a domain that
+// does not resolve, so the advice for curing one dead address handed you
+// another. A fence that names its cure must name it the way the code does.
 //
 // SCOPE — app/ and components/ only, on purpose
 // ---------------------------------------------------------------------------
@@ -27,6 +31,8 @@ import { readFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 
 import { describe, expect, it } from "vitest";
+
+import { CONTACT_EMAILS } from "@/lib/ui/contact";
 
 // Free consumer mail providers. A product address lives on a domain the project
 // controls; anything here is a person's private mailbox, whoever they are.
@@ -110,9 +116,10 @@ describe("no personal contact address in a user-facing surface (RA-6 finding 3)"
         "A government product must escalate to an address the institution owns, not to",
         "whoever happened to write the component.",
         "",
-        "Use one of the institutional inboxes the app already uses:",
-        "  hola@mimar.ar        general / catalog / access requests",
-        "  privacidad@mimar.ar  data-protection requests (/privacidad)",
+        "Use one of the institutional inboxes the app already uses — import them",
+        "from lib/ui/contact.ts, never retype them:",
+        `  CONTACT_EMAILS.general (${CONTACT_EMAILS.general})  general / catalog / access requests`,
+        `  CONTACT_EMAILS.privacy (${CONTACT_EMAILS.privacy})  data-protection requests (/privacidad)`,
         "",
         "If no inbox fits, drop the mailto rather than inventing one — a dead end that",
         "looks official beats a live link to somebody's personal Gmail.",

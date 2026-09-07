@@ -1,4 +1,5 @@
 import { LEGAL_VERSION, LEGAL_VERSION_LABEL } from "@/lib/reference/legal-version";
+import { CONTACT_EMAILS, mailtoHref } from "@/lib/ui/contact";
 import type { Metadata } from "next";
 
 export const metadata: Metadata = {
@@ -88,10 +89,10 @@ export default function TerminosPage() {
             Podemos actualizar estos términos. Los cambios relevantes se notificarán por correo a
             los usuarios registrados. Para consultas, escribinos a{" "}
             <a
-              href="mailto:hola@mimar.ar"
+              href={mailtoHref(CONTACT_EMAILS.general)}
               className="underline underline-offset-4 hover:text-[var(--color-ln-azul)] transition-colors"
             >
-              hola@mimar.ar
+              {CONTACT_EMAILS.general}
             </a>
             .
           </p>

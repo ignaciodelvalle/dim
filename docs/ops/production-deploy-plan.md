@@ -196,12 +196,29 @@ never exercised.
 (`www.mimar.gob.ar` vs `mimar.gob.ar` vs `mimar.ar`) are unified. Every
 public-origin call site now routes through the single resolver
 `lib/infra/site-url.ts` (`resolveSiteUrl()`): it trims the env var, strips
-trailing slashes, and falls back to ONE canonical default `https://mimar.ar`
-when unset OR set-but-empty (the empty-string case is what caused the earlier
-unscannable-QR bug — the resolver's unit test pins it). Interim canonical is
-`mimar.ar`; the real prod origin (`www.mimar.gob.ar`, pending `.gob.ar`
-delegation) is set explicitly via `NEXT_PUBLIC_SITE_URL` in Vercel, so the
-fallback only ever fires in local/preview.
+trailing slashes, and falls back to ONE canonical default when unset OR
+set-but-empty (the empty-string case is what caused the earlier unscannable-QR
+bug — the resolver's unit test pins it).
+
+**Corrected 2026-09-07.** That canonical default was `https://mimar.ar` for
+seven weeks, and `mimar.ar` **was never registered** — NXDOMAIN, undelegated, no
+NS and therefore no A and no MX. So the "one canonical origin" this paragraph
+celebrates was a domain that resolves to nothing: any environment where
+`NEXT_PUBLIC_SITE_URL` was missing or blank minted credential QRs pointing at
+it, and the same string was printed at the foot of every exported MPF, PPP and
+travel document through `PUBLIC_BRAND_DOMAIN`. Unifying three fallbacks into one
+made the blast radius bigger, not smaller, because nobody re-asked whether the
+survivor was real. The default is now `https://www.mimar.com.ar` — the domain
+the project owns and the origin the site already serves — derived from a single
+`CANONICAL_DOMAIN` that `export-attribution.ts` re-exports instead of retyping.
+`__tests__/public-hostname-fence.test.ts` fails on a hostname the project does
+not own and on any absolute URL into one of the app's own routes.
+
+The real prod origin (`www.mimar.gob.ar`, pending `.gob.ar` delegation) is still
+set explicitly via `NEXT_PUBLIC_SITE_URL` in Vercel, so the fallback only ever
+fires in local/preview — but "only in local/preview" is exactly the reasoning
+that let a dead domain sit here unnoticed, so the fallback is now expected to be
+a real host on its own.
 
 Three readers are intentionally NOT routed through the resolver and keep their
 own fallbacks by design:

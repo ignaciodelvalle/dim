@@ -1,4 +1,5 @@
 import { LEGAL_VERSION, LEGAL_VERSION_LABEL } from "@/lib/reference/legal-version";
+import { CONTACT_EMAILS, mailtoHref } from "@/lib/ui/contact";
 import type { Metadata } from "next";
 import Link from "next/link";
 
@@ -234,10 +235,10 @@ export default function PrivacidadPage() {
             Para consultas sobre privacidad o ejercicio de derechos de los titulares, podés
             escribirnos a{" "}
             <a
-              href="mailto:privacidad@mimar.ar"
+              href={mailtoHref(CONTACT_EMAILS.privacy)}
               className="underline underline-offset-4 hover:text-[var(--color-ln-azul)] transition-colors"
             >
-              privacidad@mimar.ar
+              {CONTACT_EMAILS.privacy}
             </a>
             .
           </p>

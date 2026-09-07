@@ -20,11 +20,29 @@
 // The codename is NOT a secret — /acerca discloses it deliberately. It simply
 // is not the name the product signs documents with.
 
+import { CANONICAL_DOMAIN } from "@/lib/infra/site-url";
+
 /** User-facing brand. The codename never appears in document attribution. */
 export const PUBLIC_BRAND_NAME = "miMAR";
 
-/** Public domain printed alongside the attribution. */
-export const PUBLIC_BRAND_DOMAIN = "mimar.ar";
+/**
+ * Public domain printed alongside the attribution.
+ *
+ * It read `mimar.ar` until 2026-09-07, and that domain DOES NOT EXIST — no NS,
+ * no A, on both 8.8.8.8 and 1.1.1.1. Unlike the site-url fallback, nothing
+ * conditioned this: every denuncia, PPP certificate and travel document ever
+ * exported footed a legal instrument with an address its reader cannot reach,
+ * under the one line whose job is to say where to go and check.
+ *
+ * Re-exported from lib/infra/site-url.ts rather than typed again. A domain
+ * spelled in two modules is the same defect this file's header opens with —
+ * "triplication is what let one wrong word ship to three legal surfaces, so
+ * the fix is a single origin, not three edits" — and it is exactly how the
+ * dead value survived here after the mailbox sweep had already replaced it
+ * everywhere else. `www.` is deliberately absent: this is read off paper and
+ * typed by hand, and the apex resolves.
+ */
+export const PUBLIC_BRAND_DOMAIN: string = CANONICAL_DOMAIN;
 
 /**
  * The one-line attribution printed at the foot of every exported PDF.

@@ -1,6 +1,7 @@
 "use client";
 
 import { Sheet } from "@/components/ui/VaulSheet";
+import { CONTACT_EMAILS, mailtoHref } from "@/lib/ui/contact";
 import { buildCloseSheetUrl } from "@/lib/ui/sheet-helpers";
 import { closeSheetNav } from "@/lib/ui/sheet-nav";
 import { AR_TIME_ZONE } from "@/lib/utils/format";
@@ -53,8 +54,11 @@ export function VerificacionInfoSheet({ verifiedByName, verifiedAt }: Props) {
         <p>
           Si tenés dudas sobre esta organización en particular o pensás que algo no encaja,
           escribinos a{" "}
-          <a className="text-[var(--color-ln-azul)] underline" href="mailto:hola@mimar.ar">
-            hola@mimar.ar
+          <a
+            className="text-[var(--color-ln-azul)] underline"
+            href={mailtoHref(CONTACT_EMAILS.general)}
+          >
+            {CONTACT_EMAILS.general}
           </a>
           .
         </p>

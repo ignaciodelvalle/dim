@@ -26,7 +26,12 @@ const FULLY_WIRED: EnvLike = {
   // Un dominio propio verificado. Sin esto el remitente cae al compartido del
   // proveedor y el canal queda RESTRINGIDO, no listo — que es exactamente lo
   // que pasa hoy en staging.
-  RESEND_FROM: "miMAR <noreply@mimar.ar>",
+  //
+  // El dominio es `mimar.com.ar` y no `mimar.ar` desde 2026-09-07: el segundo
+  // NO EXISTE (sin NS ni MX en 8.8.8.8 ni 1.1.1.1), así que como ejemplo de
+  // "dominio propio verificado" era falso en el único punto que importa — y
+  // este valor es el que alguien copia al configurar RESEND_FROM de verdad.
+  RESEND_FROM: "miMAR <noreply@mimar.com.ar>",
   NEXT_PUBLIC_VAPID_PUBLIC_KEY: "BPub",
   VAPID_PRIVATE_KEY: "priv",
 };
@@ -198,11 +203,11 @@ describe("estado restringido — clave puesta, sin dominio propio", () => {
     // La detección va por el dominio del proveedor, no por igualdad de cadena:
     // "Equipo <onboarding@resend.dev>" sigue siendo el compartido.
     expect(senderIsProviderFallback("Equipo <onboarding@resend.dev>")).toBe(true);
-    expect(senderIsProviderFallback("miMAR <noreply@mimar.ar>")).toBe(false);
+    expect(senderIsProviderFallback("miMAR <noreply@mimar.com.ar>")).toBe(false);
   });
 
   it("usa el remitente configurado cuando existe, y el compartido cuando no", () => {
-    expect(resolveMailSender(FULLY_WIRED)).toBe("miMAR <noreply@mimar.ar>");
+    expect(resolveMailSender(FULLY_WIRED)).toBe("miMAR <noreply@mimar.com.ar>");
     expect(resolveMailSender(SIN_DOMINIO_PROPIO)).toBe(FALLBACK_MAIL_SENDER);
     // Una cadena vacía NO es un remitente configurado — mismo criterio que el
     // resto del módulo aplica a las claves.

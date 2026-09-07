@@ -66,13 +66,35 @@ test.describe("/api/v1/localities — the pre-account typeahead", () => {
     // `ar_localities` uuid (the app's structural FK) and a `matchKind` ranking
     // signal; neither belongs on a wire, and a client that started receiving
     // them would start depending on them.
+    //
+    // `indecId` WIDENED this projection on 2026-09-07 (lote L2, commit
+    // 31ab9247a) and that was deliberate, so the list moves with it rather than
+    // the assertion being loosened. The homonym fix needs it: the picker shows
+    // the department to tell two same-named localities apart and then had to
+    // send something the server could resolve BY IDENTITY, because
+    // `localityByName` is province-scoped and takes the alphabetically-first
+    // department — and the INDEC catalogue ships 68 (province, name)
+    // collisions. Jurisdiction decides the responding authority, so the id is
+    // the payload, not a leak.
+    //
+    // WHY THIS TEST CAUGHT IT AND NOTHING ELSE DID: it is the only fence on the
+    // shape of a PUBLIC wire, and it lives in e2e — which is not in
+    // `pnpm verify` nor in `pnpm test:verified` (CLAUDE.md says so out loud).
+    // Six green gates went past this. The `ar_localities` uuid staying off the
+    // wire is still the rule; `indecId` is a published national reference
+    // number, which is a different thing.
     expect(Object.keys(body.results[0]).sort()).toEqual([
       "departmentName",
+      "indecId",
       "localityName",
       "localitySlug",
       "provinceCode",
       "provinceName",
     ]);
+    // The structural FK must STILL not travel — that half of the rule did not
+    // change, and without this line the assertion above would accept it.
+    expect(body.results[0]).not.toHaveProperty("id");
+    expect(body.results[0]).not.toHaveProperty("matchKind");
   });
 
   test("a one-character query is 200 with no results, NOT an error", async ({ request }) => {

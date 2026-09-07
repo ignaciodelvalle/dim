@@ -156,7 +156,7 @@ async function call(
   if (key) headers["idempotency-key"] = key;
   const eventId = init.eventId ?? EVENT_ID;
   return POST(
-    new Request(`https://mimar.ar/api/v1/pets/${TOKEN}/events/${eventId}/amend`, {
+    new Request(`https://www.mimar.com.ar/api/v1/pets/${TOKEN}/events/${eventId}/amend`, {
       method: "POST",
       headers,
       body: JSON.stringify(body),

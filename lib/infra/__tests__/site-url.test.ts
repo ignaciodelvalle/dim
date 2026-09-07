@@ -2,7 +2,11 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { credentialQrUrl, resolveSiteUrl } from "@/lib/infra/site-url";
 
-const CANONICAL = "https://mimar.ar";
+// The literal, not the constant: pinning it to CANONICAL_SITE_URL would assert
+// that the resolver returns whatever it was set to, which is true of any value
+// including a domain that does not exist — the defect this pin now guards.
+// Moved off `https://mimar.ar` on 2026-09-07 (NXDOMAIN on 8.8.8.8 and 1.1.1.1).
+const CANONICAL = "https://www.mimar.com.ar";
 
 describe("resolveSiteUrl", () => {
   afterEach(() => {
@@ -59,7 +63,7 @@ describe("credentialQrUrl", () => {
     vi.stubEnv("NEXT_PUBLIC_SITE_URL", "");
     const url = credentialQrUrl("DIM-XXXX-XXXX");
     expect(url.startsWith("http")).toBe(true);
-    expect(url).toBe("https://mimar.ar/p/DIM-XXXX-XXXX");
+    expect(url).toBe(`${CANONICAL}/p/DIM-XXXX-XXXX`);
   });
 
   it("never doubles the slash when the env var carries a trailing slash", () => {

@@ -31,7 +31,7 @@
 // So Rule 2 matches `DIM` as a standalone word with NO hyphen on either side:
 // /(?<!-)\bDIM\b(?!-)/. Word boundaries already spare identifiers, because `_`
 // is a word character — `DIM_TOKEN_RE` and `petDimensions` never match. Case
-// sensitivity spares "dimension", "dim", and the mimar.ar domain.
+// sensitivity spares "dimension", "dim", and the mimar.com.ar domain.
 //
 // Across ~1.900 in-scope files this leaves SEVEN hits: four were the real
 // leak (three PDF footers plus the MPF "GENERADO POR" fallback, fixed in the
@@ -94,7 +94,7 @@
 //
 // Deliberately NOT flagged by Rule 1 (by construction — the regex only
 // matches the three wrong-cased forms above): the correct "miMAR" casing, and
-// technical/lowercase "mimar" (e.g. the mimar.ar email domain, the
+// technical/lowercase "mimar" (e.g. the mimar.com.ar email domain, the
 // logo-mimar-mark.svg asset path, package/slug names). The codename is Rule 2's
 // business, not Rule 1's.
 //
@@ -188,7 +188,7 @@ export function findBrandHits(src: string): BrandHit[] {
 // those are exactly the usages this rule is for. Symmetry was the wrong
 // instinct; the asymmetry is the point.
 //
-// Case-sensitive and word-boundary matched, so "dimension", "dim", "mimar.ar"
+// Case-sensitive and word-boundary matched, so "dimension", "dim", "mimar.com.ar"
 // and identifiers like `DIM_TOKEN_RE` (underscore is a word character) never
 // match.
 // ---------------------------------------------------------------------------

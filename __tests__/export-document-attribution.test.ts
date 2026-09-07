@@ -55,8 +55,15 @@ describe("documentAttributionLine — the brand signs the document, not the code
   });
 
   it("carries the public domain", () => {
-    // Literal for the same reason as above.
-    expect(documentAttributionLine("DEN-2026-000123")).toContain("mimar.ar");
+    // Literal for the same reason as above — and this one had to be paid for.
+    // It read "mimar.ar", a domain with no NS and no A record on either 8.8.8.8
+    // or 1.1.1.1, so the assertion faithfully pinned a footer that told every
+    // fiscal, veterinarian and border officer to go and verify the document at
+    // an address that does not exist. A tautological pin to PUBLIC_BRAND_DOMAIN
+    // would have gone on passing through the fix. Whether the domain RESOLVES
+    // is not something a unit test can know: __tests__/public-hostname-fence
+    // holds it against the owned-domain registry instead.
+    expect(documentAttributionLine("DEN-2026-000123")).toContain("mimar.com.ar");
   });
 
   it("does NOT flag a DIM-XXXX-XXXX pet token passed as the traceability code — the token is public by design", () => {

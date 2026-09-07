@@ -20,7 +20,7 @@ import { useEffect, useState } from "react";
 import { Icon } from "@/components/Icon";
 
 interface Props {
-  /** Public credential URL. e.g. https://mimar.ar/p/{token} */
+  /** Public credential URL. e.g. https://www.mimar.com.ar/p/{token} */
   publicUrl: string;
   /** Pre-built share copy, already filtered by disclosure prefs. */
   shareText: string;

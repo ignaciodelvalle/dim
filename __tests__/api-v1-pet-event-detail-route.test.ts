@@ -171,7 +171,7 @@ function build(input: {
 
 async function call(eventId: string = EVENT_ID) {
   return GET(
-    new Request(`https://mimar.ar/api/v1/pets/${TOKEN}/events/${eventId}`, {
+    new Request(`https://www.mimar.com.ar/api/v1/pets/${TOKEN}/events/${eventId}`, {
       headers: { authorization: "Bearer tok" },
     }),
     {

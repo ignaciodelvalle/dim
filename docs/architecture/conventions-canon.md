@@ -292,10 +292,12 @@ fence's `EXTRA_FENCES` (fences whose FILENAME hides them from that glob) is eith
 cited by a row's enforcer or listed here. The parity fence pins this list's length
 EXACTLY: growing it and shrinking it are both hand edits, and both are reviewable.
 
-3 unmapped.
+5 unmapped.
 
 | Kind | Item | Why it is unmapped |
 | --- | --- | --- |
 | fence-test | `__tests__/architecture-facts.test.ts` | Postdates the d7dbf25f7 snapshot; fences the facts markers, no canon row yet. Its filename carries none of fence/parity/coverage, so the census reaches it only through EXTRA_FENCES in __tests__/conventions-canon-parity.test.ts. |
 | fence-test | `__tests__/check-function-parity.test.ts` | Pins scripts/check-function-parity.ts, which no canon row cites either: the rule it guards (a SQL function declared in a migration must match the one the app calls) was never written down in prose, so extraction had nothing to harvest. |
+| fence-test | `__tests__/contact-email-domain-fence.test.tsx` | Postdates the d7dbf25f7 snapshot (added 2026-09-07 with lib/ui/contact.ts); no canon row can cite it without describing prose that did not exist when the canon was taken. It bans the class rather than a spelling: every email address a shipped file under app/ or components/ names must be at a domain in OWNED_MAIL_DOMAINS, with input placeholders and RFC 2606 example domains as the two structural exemptions. |
 | fence-test | `__tests__/conventions-canon-parity.test.ts` | This canon's own fence. It postdates the d7dbf25f7 snapshot the rows were harvested from, so no row can cite it without describing a tree that did not exist when the canon was taken. |
+| fence-test | `__tests__/public-hostname-fence.test.ts` | Postdates the d7dbf25f7 snapshot (added 2026-09-07 alongside __tests__/contact-email-domain-fence.test.tsx); no canon row can cite it without describing prose that did not exist when the canon was taken. Hostname half of the same class its sibling covers for mailboxes: RULE A holds every domain the product declares as its own (PUBLIC_BRAND_DOMAIN, the resolveSiteUrl fallback, the credential-QR host) against OWNED_WEB_DOMAINS in lib/infra/site-url.ts, read through the public API rather than off the constant; RULE B bans any hardcoded absolute URL into a route this app serves, with the route table derived from the app/ tree at scan time so it cannot rot. |

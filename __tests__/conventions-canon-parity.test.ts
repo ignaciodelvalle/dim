@@ -61,10 +61,16 @@ import {
 const canon: Canon = loadCanon(REPO_ROOT);
 
 // The `unmapped` length, pinned EXACTLY. Measured at d7dbf25f7 against the whole
-// census below, plus one entry for the facts fence that postdates that snapshot.
-// A ceiling would let the list grow up to it in silence; a floor would let it be
-// emptied. Both directions are a hand edit, and both are reviewable.
-const UNMAPPED_COUNT = 3;
+// census below, plus three entries for fences that postdate that snapshot: the
+// facts fence, and the two dead-domain fences of 2026-09-07 —
+// __tests__/contact-email-domain-fence.test.tsx, which lands with
+// lib/ui/contact.ts, and __tests__/public-hostname-fence.test.ts, which lands
+// with the owned-domain registry in lib/infra/site-url.ts. None can be cited
+// from a row without that row claiming `verifiedAt: d7dbf25f7` for prose that
+// did not exist yet. A ceiling would let the list grow up to it in silence; a
+// floor would let it be emptied. Both directions are a hand edit, and both are
+// reviewable.
+const UNMAPPED_COUNT = 5;
 
 /**
  * Enforcement the filename glob below cannot see.

@@ -1,5 +1,6 @@
-// Android Digital Asset Links — the document that lets an installed MiMAR app
-// open `https://mimar.ar/p/{token}` itself instead of handing it to Chrome.
+// Android Digital Asset Links — the document that lets an installed miMAR app
+// open `https://www.mimar.com.ar/p/{token}` itself instead of handing it to
+// Chrome.
 //
 // WHAT THE FILE IS FOR
 // ---------------------------------------------------------------------------

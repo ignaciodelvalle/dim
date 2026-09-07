@@ -4,6 +4,7 @@ import { useState } from "react";
 
 import { Icon } from "@/components/Icon";
 import { Sheet } from "@/components/ui/VaulSheet";
+import { resolveSiteUrl } from "@/lib/infra/site-url";
 import { buildCloseSheetUrl } from "@/lib/ui/sheet-helpers";
 import { closeSheetNav } from "@/lib/ui/sheet-nav";
 import { usePathname, useSearchParams } from "next/navigation";
@@ -21,10 +22,15 @@ export function CompartirOrgSheet({ orgToken, orgDisplayName }: Props) {
   const [copied, setCopied] = useState(false);
 
   const open = searchParams.get("sheet") === "compartir-org";
+  // The SSR branch used to hardcode `https://mimar.ar`, a domain that does not
+  // resolve — so a share performed before hydration handed someone a dead link
+  // for a shelter. It is a second spelling of an origin that already has one
+  // source; `resolveSiteUrl()` is that source, and it is safe in a client
+  // component because NEXT_PUBLIC_SITE_URL is inlined into the bundle at build.
   const url =
     typeof window !== "undefined"
       ? `${window.location.origin}/refugios/${orgToken}`
-      : `https://mimar.ar/refugios/${orgToken}`;
+      : `${resolveSiteUrl()}/refugios/${orgToken}`;
   const shareText = `Conocé ${orgDisplayName} en miMAR. Tienen mascotas en adopción y servicios para la comunidad.`;
 
   async function copy() {

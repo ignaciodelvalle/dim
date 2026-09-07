@@ -56,6 +56,7 @@ import {
   VET_ACCESS_DESERT_MIN_PERIOD_DAYS,
   VET_ACCESS_MIN_ACTIVE_PETS,
 } from "@/lib/metrics/vet-access";
+import { CONTACT_EMAILS, mailtoHref } from "@/lib/ui/contact";
 import { describeNarrowedView } from "@/lib/ui/view-scope-caption";
 import { deathCauseLabel, formatCount, formatPercent } from "@/lib/utils/format";
 import { AcquisitionChartDynamic } from "./_components/AcquisitionChartDynamic";
@@ -118,7 +119,7 @@ export async function AnalyticsScreen({
           action={
             <a
               className="text-sm text-[var(--color-ln-azul)] underline underline-offset-4"
-              href="mailto:hola@mimar.ar?subject=miMAR%20%E2%80%94%20Acceso%20a%20analytics"
+              href={mailtoHref(CONTACT_EMAILS.general, { subject: "miMAR — Acceso a analytics" })}
             >
               Solicitar acceso
             </a>

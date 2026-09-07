@@ -92,10 +92,17 @@ export const FALLBACK_MAIL_SENDER = "miMAR <onboarding@resend.dev>";
  * practical one: a provider will not send from a domain nobody has verified,
  * so every send would have been refused no matter what key was set. Second the
  * one this project already has a rule for: DIM is the INTERNAL codename and
- * MiMAR is the public brand (there is a lint fence for exactly this), so mail
+ * miMAR is the public brand (there is a lint fence for exactly this), so mail
  * signed by the codename domain was off-brand even in the hypothetical where
- * the domain existed. The canonical public domain the rest of the code uses is
- * `mimar.ar` (PUBLIC_BRAND_DOMAIN, site-url.ts).
+ * the domain existed.
+ *
+ * This paragraph used to close by naming `mimar.ar` as "the canonical public
+ * domain the rest of the code uses", which was doubly wrong by 2026-09-07: it
+ * does not exist either (no NS, no MX on 8.8.8.8 or 1.1.1.1), so the sentence
+ * held up one dead domain as the cure for another. The domain the project owns
+ * is CANONICAL_DOMAIN in lib/infra/site-url.ts, `mimar.com.ar`, verified at
+ * Resend since 2026-08-28 — which is what makes it a usable RESEND_FROM and
+ * not just a better-looking string.
  *
  * Making it configuration means the day a domain is registered and verified,
  * the switch is one env var — no code change, no redeploy of a constant.

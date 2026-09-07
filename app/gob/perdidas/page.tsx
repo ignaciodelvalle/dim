@@ -40,6 +40,7 @@ import {
   windows,
 } from "@/lib/metrics";
 import { KPI_CATALOG } from "@/lib/metrics/kpi-catalog";
+import { CONTACT_EMAILS, mailtoHref } from "@/lib/ui/contact";
 import {
   describeNarrowedView,
   isNarrowedToOperativeJurisdiction,
@@ -403,7 +404,9 @@ export default async function GobPerdidasPage({
           Tu cuenta no tiene localidades asignadas. Un administrador debe asignarte al menos una
           para ver casos.{" "}
           <a
-            href="mailto:hola@mimar.ar?subject=miMAR%20%E2%80%94%20Asignaci%C3%B3n%20de%20localidad"
+            href={mailtoHref(CONTACT_EMAILS.general, {
+              subject: "miMAR — Asignación de localidad",
+            })}
             className="underline underline-offset-4"
           >
             Solicitar asignación

@@ -48,7 +48,7 @@ function sterilization(prov: Partial<ComplianceEvent>): ComplianceEvent {
 
 const baseProps: Omit<CredentialFaceProps, "complianceState"> = {
   heroProps: { name: "Firulais", breed: "Mestizo" },
-  credentialUrl: "https://mimar.ar/p/abc",
+  credentialUrl: "https://www.mimar.com.ar/p/abc",
   publicHref: "/p/abc",
   petPublicToken: "abc",
 };
@@ -438,7 +438,7 @@ describe("CredentialFace — credential QR (client-side, native-readiness Track 
     const other = renderToStaticMarkup(
       <CredentialFace
         {...baseProps}
-        credentialUrl="https://mimar.ar/p/zzz"
+        credentialUrl="https://www.mimar.com.ar/p/zzz"
         complianceState={state}
       />,
     );
