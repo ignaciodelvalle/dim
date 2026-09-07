@@ -35,7 +35,16 @@ import { describe, expect, it, jest } from "@jest/globals";
 import { fireEvent, render, screen } from "@testing-library/react-native";
 import { RefreshControl, StyleSheet, Text } from "react-native";
 
-import { DateField, FieldLabel, ListRow, Screen, TextField, TimeField, pullToRefresh } from "./kit";
+import {
+  DateField,
+  FieldLabel,
+  ListRow,
+  PasswordField,
+  Screen,
+  TextField,
+  TimeField,
+  pullToRefresh,
+} from "./kit";
 import { COLORS } from "./theme";
 
 /**
@@ -251,5 +260,29 @@ describe("pullToRefresh — the kit's RefreshControl, already coloured", () => {
     expect(control.props.refreshing).toBe(false);
     fireEvent(control, "refresh");
     expect(onRefresh).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("PasswordField — the eye toggle may not cap the input (B-08)", () => {
+  it("stretches its row instead of centring it", () => {
+    // MEASURED on build 10 at font scale 1.5 (shot 157): the e-mail field grew
+    // to 54.9dp and the password field beside it stayed at 44.6dp. The cause is
+    // in one word of one style: `alignItems: "center"` sizes each child by its
+    // own content, so the row took the eye toggle's `minHeight: TOUCH_TARGET`
+    // as its answer — a 44pt TAP TARGET was capping the height of the text
+    // somebody was typing. `stretch` makes the row as tall as the input and
+    // grows the toggle to match.
+    //
+    // ASSERTED ON THE STYLE AND NOT ON A MEASURED HEIGHT, for kit.test.tsx's
+    // standing reason: jsdom lays nothing out, so there is no height here to be
+    // wrong. The style IS the mechanism.
+    render(<PasswordField label="Contraseña" value="" onChangeText={() => {}} />);
+    const row = columnOf(screen.getByLabelText("Contraseña"));
+    const style = StyleSheet.flatten(row.props.style as never) as { alignItems?: string };
+    // ONE assertion, because `not.toBe("center")` after `toBe("stretch")` cannot
+    // fail without the line above failing first — a vacuous line that reads like
+    // a second check (nit N2, review 2026-09-07). The value IS the mechanism, so
+    // pinning the value is the whole test.
+    expect(style.alignItems).toBe("stretch");
   });
 });

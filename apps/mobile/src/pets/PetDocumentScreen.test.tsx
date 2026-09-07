@@ -59,7 +59,7 @@ jest.mock("@react-native-community/netinfo", () => ({
 }));
 jest.mock("../auth/session-store", () => ({ sessionPort: {} }));
 
-import { IDENTITY_POKE_OUT } from "./DocumentChromeNative";
+import { BAND_MAX_FONT_SCALE, IDENTITY_POKE_OUT } from "./DocumentChromeNative";
 import { QR_SIZE, ownerFaceStyles } from "./OwnerFace";
 import { PetDocumentScreen } from "./PetDocumentScreen";
 import { TURN_PERSPECTIVE } from "./document-turn";
@@ -466,7 +466,10 @@ describe("PetDocumentScreen — a failure is never drawn as an absence", () => {
 
     expect(screen.getByText("República Argentina")).toBeOnTheScreen();
     expect(screen.getByText("Libreta Sanitaria Nacional · Palermo, CABA")).toBeOnTheScreen();
-    expect(screen.getByText("Emitida el 03/09/2026")).toBeOnTheScreen();
+    expect(screen.getByText("Consultada el 03/09/2026")).toBeOnTheScreen();
+    // NOT "Emitida": the envelope stamp is when the server composed THIS READ,
+    // not when the libreta was issued (A3-documento-credencial-06).
+    expect(screen.queryByText(/Emitida el/)).toBeNull();
   });
 
   it("keeps the issuing foot when the identity read failed, minus the jurisdiction", async () => {
@@ -482,8 +485,53 @@ describe("PetDocumentScreen — a failure is never drawn as an absence", () => {
     await screen.findByText("República Argentina");
 
     expect(screen.getByText("Libreta Sanitaria Nacional")).toBeOnTheScreen();
-    expect(screen.getByText("Emitida el 03/09/2026")).toBeOnTheScreen();
+    expect(screen.getByText("Consultada el 03/09/2026")).toBeOnTheScreen();
+    // NOT "Emitida": the envelope stamp is when the server composed THIS READ,
+    // not when the libreta was issued (A3-documento-credencial-06).
+    expect(screen.queryByText(/Emitida el/)).toBeNull();
     expect(screen.queryByText(/Palermo/)).toBeNull();
+  });
+
+  it("caps the band's chrome text so it cannot overrun a fixed-height band (B-06)", async () => {
+    // MEASURED on build 10 at the system font size "Máximo" (scale 1.5, shot
+    // 146 vs 142): "LIBRETA SANITARIA NACIONAL" wrapped to three lines, ran past
+    // the band's `height: BAND_H` and cut "CREDENCIAL · FRENTE" in half. Clean
+    // at 1.3.
+    //
+    // The cap goes on these three and nowhere else: they are 8-10pt uppercase
+    // mono CHROME inside a geometry whose budget `DocumentChromeNative.geometry.
+    // test.ts` fences at 8 points of clearance. Every sentence the person READS
+    // still scales without a ceiling.
+    // A SITUATION, so the THIRD capped node exists to be read. The chip is only
+    // rendered when the server decided one, and it is the node carrying the
+    // longest strings in the band ("Bajo custodia oficial", "En observación
+    // antirrábica") — so a fixture with no situation left the widest text in the
+    // fenced geometry unexercised (nit N1, review 2026-09-07).
+    mockFetchOwnerPetDetail.mockResolvedValue({
+      outcome: "ok",
+      payload: payload({
+        status: OK({
+          petStatus: "lost",
+          ringStatus: "alerta",
+          situation: { key: "perdida", tone: "alerta", icon: "perdida", label: "Perdida" },
+          memorial: null,
+          pregnancyStatus: null,
+        }),
+      }),
+    });
+    render(<PetDocumentScreen publicToken={TOKEN} />);
+    await screen.findByText("Pampa");
+
+    // THE ASSERTION WITH TEETH IS THE NUMBER, and it is the only one kept.
+    // `toBe(BAND_MAX_FONT_SCALE)` compared the constant to itself through the
+    // render: raising it to 3 would have kept that test green while re-opening
+    // the exact overrun it was written for. What the cap has to be is BOUNDED,
+    // and what the nodes have to be is CAPPED AT ALL.
+    expect(BAND_MAX_FONT_SCALE).toBeLessThanOrEqual(1.3);
+    for (const text of ["Libreta Sanitaria Nacional", "Credencial · frente", "Perdida"]) {
+      const node = screen.getByText(text, { includeHiddenElements: true });
+      expect(node.props.maxFontSizeMultiplier).toBeLessThanOrEqual(1.3);
+    }
   });
 
   it("keeps the standalone QR on the sheet when the identity read failed — it does not rise into the band", async () => {

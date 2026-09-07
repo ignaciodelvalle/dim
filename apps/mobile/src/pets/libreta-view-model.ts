@@ -26,6 +26,7 @@ import type {
   PetLibretaV1,
 } from "@dim/contract/api";
 
+import { unknownEnumLabel } from "../ui/enum-label";
 import { type SectionView, sectionView } from "./owner-face-view-model";
 
 /**
@@ -139,12 +140,12 @@ export function vaccineStatusLabel(
       return "Nunca aplicada";
     case "unconfirmed":
       return "Sin confirmar";
-    default: {
+    default:
       // A state a newer server knows and this build does not. Say so rather than
-      // print an empty cell, which reads as "nothing to report".
-      const unknown: never = status;
-      return `Estado desconocido (${String(unknown)})`;
-    }
+      // print an empty cell, which reads as "nothing to report" — but WITHOUT
+      // the raw value: `Estado desconocido (rabies_pending)` put an English
+      // identifier in the middle of a libreta. See `ui/enum-label.ts`.
+      return unknownEnumLabel(status, "Estado desconocido");
   }
 }
 
@@ -175,10 +176,12 @@ export function upcomingKindLabel(kind: LibretaUpcomingItemV1["kind"]): string {
       return "Turno";
     case "medication":
       return "Dosis";
-    default: {
-      const unknown: never = kind;
-      return String(unknown);
-    }
+    default:
+      // A kind a newer server sent. "Registro" is deliberately vague and
+      // deliberately Spanish: the row still has a real date beside it, so the
+      // person can act on it, and `medication` printed raw could not have been
+      // read by anybody this app is for. See `ui/enum-label.ts`.
+      return unknownEnumLabel(kind, "Registro");
   }
 }
 

@@ -18,10 +18,18 @@
 // landing somebody on their own animals would answer a question they did not
 // ask.
 
+// THE "VERSIÓN MÁS NUEVA" SENTENCE NOW HAS SOMEWHERE TO GO (critic gap 3).
+// The copy below has always named the most likely cause of an unmatched link —
+// the link belongs to a build newer than this one — and then left the person
+// holding it with no way to act on that. Since the OTA hotfix of 2026-09-07
+// there IS one: "Acerca de miMAR" in Ajustes carries a "Buscar actualización"
+// button. Naming a cause without naming its remedy is the same defect as a
+// disabled button with no reason (CA-M5), one screen over.
+
 import { useRouter } from "expo-router";
 
 import { Body, Card } from "../src/ui/components";
-import { PrimaryButton, Screen, Title } from "../src/ui/kit";
+import { PrimaryButton, Screen, SecondaryButton, Title } from "../src/ui/kit";
 import { ROUTES } from "../src/ui/routes";
 
 export default function NotFoundRoute() {
@@ -34,6 +42,16 @@ export default function NotFoundRoute() {
           El link que seguiste no corresponde a ninguna pantalla de esta app. Puede que sea de una
           versión más nueva, o que se haya copiado incompleto.
         </Body>
+        <Body>
+          Si puede ser una versión más nueva, buscá una actualización en Ajustes → Acerca de miMAR.
+        </Body>
+        {/* THE LABEL NAMES WHAT THE BUTTON DOES, AND DID NOT (finding L1,
+            review 2026-09-07). It said "Buscar una actualización" and only
+            navigated to Ajustes — a promise the next screen has to keep, in a
+            string that is not even the real control's ("Buscar actualización",
+            `UPDATE_CHECK_LABEL`). Two nearly-identical sentences, one of which
+            is a lie about which one it is. */}
+        <SecondaryButton label="Ir a Ajustes" onPress={() => router.push(ROUTES.ajustes)} />
         <Body>Si te lo mandaron por mail, probá abrirlo desde el navegador.</Body>
       </Card>
       <PrimaryButton label="Ir a mis mascotas" onPress={() => router.replace(ROUTES.misMascotas)} />

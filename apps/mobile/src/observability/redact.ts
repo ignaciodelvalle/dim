@@ -160,12 +160,43 @@ export type RedactableBreadcrumb = {
   data?: Record<string, unknown>;
 };
 
+/**
+ * The `request` block Sentry attaches to an event, narrowed to the two fields
+ * that carry app-authored text.
+ *
+ * WHY IT IS HERE AND WAS NOT (2026-09-07 review, finding C2). `initSentry` turns
+ * `enableCaptureFailedRequests` ON, and `@sentry/react-native`'s default
+ * integration set answers that flag by pushing `httpClientIntegration()` with NO
+ * options — which means `@sentry/browser`'s defaults: every request whose status
+ * lands in `[[500, 599]]`, against a catch-all target regex. Its `_createEvent`
+ * then writes `request: { url: data.url, … }` — the FULL url, unconditionally.
+ * `sendDefaultPii: false` suppresses the headers and the cookies on that block;
+ * it has never had anything to say about the url.
+ *
+ * So one 5xx from `/api/v1/pets/DIM-PAMP-0001/libreta` filed an event carrying a
+ * pet's public token verbatim — the exact string the credential rule above
+ * exists for, and the exact value `report.ts` refuses to put in a tag because a
+ * tag is indexed forever. A signed-storage PUT carrying `?token=…` was the same
+ * hole with a different value in it.
+ *
+ * `query_string` is typed `unknown` deliberately: the SDK types it
+ * `string | Record<string, string> | Array<[string, string]>`, and a narrower
+ * declaration here would stop Sentry's own `Event` satisfying this structural
+ * view — `redactEvent` is called straight out of `beforeSend`. The scrubber
+ * narrows instead, and drops what it cannot scrub.
+ */
+export type RedactableRequest = {
+  url?: string;
+  query_string?: unknown;
+};
+
 /** The event shape this module touches. Same reasoning as the breadcrumb. */
 export type RedactableEvent = {
   message?: string;
   extra?: Record<string, unknown>;
   exception?: { values?: Array<{ value?: string; type?: string }> };
   breadcrumbs?: RedactableBreadcrumb[];
+  request?: RedactableRequest;
 };
 
 /**
@@ -187,14 +218,41 @@ export function redactBreadcrumb<T extends RedactableBreadcrumb>(breadcrumb: T):
 }
 
 /**
+ * Scrub the `request` block a failed-request event carries. See
+ * `RedactableRequest` for why this channel exists at all.
+ *
+ * A bare `query_string` is scrubbed by putting a `?` in front of it and taking
+ * it off again, which is not a trick: the sensitive-parameter rule keys on the
+ * `?`/`&`/`#` that starts a parameter, and a query string handed over on its own
+ * has had that character removed by whoever split it. Prefixing reuses the ONE
+ * rule set rather than adding a second, near-identical pattern that could drift
+ * away from it.
+ *
+ * A NON-STRING `query_string` IS DROPPED, not walked. The SDK also types it as
+ * an object or a list of pairs, and those hold parameter VALUES with no key
+ * attached to give the rule something to key on — the same reason
+ * `redactContextValue` drops objects rather than guessing at them.
+ */
+function redactRequest(request: RedactableRequest): void {
+  if (typeof request.url === "string") request.url = redactText(request.url);
+  if (request.query_string === undefined) return;
+  if (typeof request.query_string === "string") {
+    request.query_string = redactText(`?${request.query_string}`).slice(1);
+    return;
+  }
+  request.query_string = undefined;
+}
+
+/**
  * Scrub an event in place and hand it back.
  *
- * Covers the four channels an app-authored string reaches Sentry through: the
+ * Covers the five channels an app-authored string reaches Sentry through: the
  * event `message`, the `value` and `type` of every exception in the chain, the
- * `extra` bag, and the breadcrumb trail attached to the event. The stack FRAMES
- * are deliberately untouched — a frame is a file path plus a function name plus
- * two integers, none of it app-authored text, and scrubbing the integers would
- * destroy the only thing a stack is for.
+ * `extra` bag, the breadcrumb trail attached to the event, and the `request`
+ * block a captured failed request carries. The stack FRAMES are deliberately
+ * untouched — a frame is a file path plus a function name plus two integers,
+ * none of it app-authored text, and scrubbing the integers would destroy the
+ * only thing a stack is for.
  *
  * In place, and returning the same object, for the reason `redactBreadcrumb`
  * gives: `beforeSend` takes the return value as the event.
@@ -216,6 +274,9 @@ export function redactEvent<T extends RedactableEvent>(event: T): T {
   }
   if (event.breadcrumbs) {
     for (const breadcrumb of event.breadcrumbs) redactBreadcrumb(breadcrumb);
+  }
+  if (event.request && typeof event.request === "object") {
+    redactRequest(event.request);
   }
   return event;
 }

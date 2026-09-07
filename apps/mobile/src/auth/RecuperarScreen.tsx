@@ -194,7 +194,12 @@ export function RecuperarScreen({ onGoToSignIn }: { onGoToSignIn: () => void }) 
             inputMode="numeric"
             invalid={failure !== null}
             label="Código"
-            maxLength={CODE_LENGTH}
+            // NO maxLength (A1-refuter-M3). The docblock on CODE_LENGTH says this
+            // number is used "never to refuse a code", and a hard cap on the
+            // input is exactly that refusal wearing a different hat: raising
+            // GoTrue otp_length in the dashboard would leave every shipped build
+            // silently truncating the code it was sent. The >= gate below is what
+            // decides when the button lights up.
             onChangeText={setCode}
             required
             value={code}

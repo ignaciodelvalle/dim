@@ -183,16 +183,25 @@ function IssuingFoot({ view }: { view: OwnerFaceView }) {
     .filter((part): part is string => typeof part === "string" && part.length > 0)
     .join(", ");
 
-  // An unreadable date does not become "Emitida el —". A document either
-  // states when it was issued or does not raise the subject; a dash where a
-  // date belongs is the empty-state-as-fact this file's header argues against.
-  const issued = formatIsoDate(view.issuedAt);
+  // "CONSULTADA", NOT "EMITIDA" (A3-documento-credencial-06). `issuedAt` is the
+  // envelope's freshness stamp — the moment the SERVER COMPOSED THIS READ
+  // (`app/api/v1/pets/[publicToken]/payload.ts`, `issuedAt: now`) — and printing
+  // it under "date of issue" told a funcionario that a pet registered in 2024
+  // had its libreta issued today, and something different again tomorrow. The
+  // contract carries no real issuance date (the identity section has no
+  // registration date), so the honest move is to name the date for what it is:
+  // this is when the copy in your hand was read.
+  //
+  // An unreadable date does not become "Consultada el —". A document either
+  // states the date or does not raise the subject; a dash where a date belongs
+  // is the empty-state-as-fact this file's header argues against.
+  const readOn = formatIsoDate(view.issuedAt);
 
   return (
     <View style={styles.foot}>
       <Text style={styles.footAuthority}>República Argentina</Text>
       <Text style={styles.footLine}>Libreta Sanitaria Nacional{place ? ` · ${place}` : ""}</Text>
-      {issued === "—" ? null : <Text style={styles.footLine}>Emitida el {issued}</Text>}
+      {readOn === "—" ? null : <Text style={styles.footLine}>Consultada el {readOn}</Text>}
     </View>
   );
 }

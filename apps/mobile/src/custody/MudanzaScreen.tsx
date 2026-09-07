@@ -42,6 +42,7 @@ import { sessionPort } from "../auth/session-store";
 import { LocalityPicker } from "../pets/LocalityPicker";
 import { Body, Card, Loading } from "../ui/components";
 import { Callout, PrimaryButton, Screen, SecondaryButton, TextField, Title } from "../ui/kit";
+import { useDraftDiscardGuard } from "../ui/use-draft-discard-guard";
 import { useScrollToError } from "../ui/use-scroll-to-error";
 
 import {
@@ -92,6 +93,10 @@ export function MudanzaScreen({ publicToken }: { publicToken: string }) {
   );
   /** Set once the move landed — the form is gone and only the ack remains. */
   const [done, setDone] = useState(false);
+  // THE BACK GESTURE MAY NOT DISCARD A TYPED MOVE (critic gap 2). `done`
+  // clears it: once the move landed there is nothing left to lose, and asking
+  // would trap the person on an acknowledgement.
+  useDraftDiscardGuard(!done && draft !== EMPTY_MOVE_DRAFT);
 
   const load = useCallback(async () => {
     setState({ phase: "loading" });

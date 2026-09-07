@@ -15,14 +15,43 @@
 
 import { beforeEach, describe, expect, it, jest } from "@jest/globals";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react-native";
-import { type StyleProp, StyleSheet, type TextStyle } from "react-native";
+import { Alert, type StyleProp, StyleSheet, type TextStyle } from "react-native";
 
 import { COLORS } from "../ui/theme";
 
 const mockSend = jest.fn<(...args: unknown[]) => Promise<unknown>>();
 
+type RemoveEvent = { preventDefault: () => void; data: { action: unknown } };
+const mockListeners: ((event: RemoveEvent) => void)[] = [];
+
+// ONE navigation object, and an unsubscribe that really unsubscribes. Both
+// halves matter: React Navigation hands back a STABLE object (a fresh one per
+// render would re-run the guard's effect on every keystroke) and a real
+// unsubscribe (without it the fake accumulates one stale listener per render,
+// and firing the back gesture would ask the question several times over).
+const mockNavigation = {
+  addListener: (_type: string, cb: (event: RemoveEvent) => void) => {
+    mockListeners.push(cb);
+    return () => {
+      const at = mockListeners.indexOf(cb);
+      if (at >= 0) mockListeners.splice(at, 1);
+    };
+  },
+  dispatch: () => {},
+};
+
 jest.mock("expo-router", () => ({
   useRouter: () => ({ push: jest.fn(), replace: jest.fn(), back: jest.fn() }),
+  // A REAL LISTENER REGISTRY, not the no-op stub this file used to carry
+  // (finding H1, review 2026-09-07). The stub was
+  // `addListener: () => () => {}` — the guard subscribed, the listener was
+  // never fired, and a whole class of defect became untestable from any screen:
+  // this screen shipped without `allowLeave`, so its OWN success navigation was
+  // intercepted with "¿Salir sin guardar?" and nothing here could see it. What
+  // the guard DOES is still pinned in ui/use-draft-discard-guard.test.tsx; what
+  // this registry adds is the ability to ask whether THIS screen exempted its
+  // own exit.
+  useNavigation: () => mockNavigation,
 }));
 
 jest.mock("../api/endpoints", () => ({
@@ -70,8 +99,28 @@ function ok(transferToken: string) {
   };
 }
 
+/** Fire the back gesture at whatever the guard subscribed. */
+function pressBack(): { prevented: boolean } {
+  let prevented = false;
+  const event: RemoveEvent = {
+    preventDefault: () => {
+      prevented = true;
+    },
+    data: { action: { type: "POP" } },
+  };
+  for (const listener of mockListeners) listener(event);
+  return { prevented };
+}
+
+let alerts: string[] = [];
+
 beforeEach(() => {
   mockSend.mockReset();
+  mockListeners.length = 0;
+  alerts = [];
+  jest.spyOn(Alert, "alert").mockImplementation((title: string) => {
+    alerts.push(title);
+  });
 });
 
 describe("the form", () => {
@@ -182,6 +231,41 @@ describe("sending", () => {
     fireEvent.press(screen.getByText("Enviar la propuesta"));
 
     await waitFor(() => expect(screen.getByText(/Cancelala antes de enviar otra/)).toBeTruthy());
+  });
+});
+
+// ---------------------------------------------------------------------------
+// H1 — THE DISCARD GUARD MAY NOT INTERCEPT THIS SCREEN'S OWN SUCCESS
+// ---------------------------------------------------------------------------
+
+describe("the back guard, and the exit it must let through", () => {
+  it("asks before discarding a proposal somebody typed and never sent", () => {
+    // The control. Without this the test below would pass against a screen that
+    // simply has no guard at all.
+    renderScreen();
+    fireEvent.changeText(emailField(), "vecina@example.com");
+
+    expect(pressBack().prevented).toBe(true);
+    expect(alerts).toEqual(["¿Salir sin guardar?"]);
+  });
+
+  it("does NOT ask once the proposal is on the server", async () => {
+    // THE DEFECT (finding H1): the screen called `useDraftDiscardGuard(...)` and
+    // threw away its `allowLeave`, so after the server had created the transfer
+    // the person was asked "¿Salir sin guardar?" on the way to the proposal —
+    // and "Seguir editando" left them on a form whose submission had landed.
+    // Re-sending from there is refused as `transfer_pending_exists`.
+    const onSent = jest.fn();
+    mockSend.mockResolvedValue(ok("PTR-NEW0-0004"));
+    renderScreen(onSent);
+
+    fireEvent.changeText(emailField(), "vecina@example.com");
+    fireEvent.press(screen.getByText("Regalo"));
+    fireEvent.press(screen.getByText("Enviar la propuesta"));
+    await waitFor(() => expect(onSent).toHaveBeenCalledWith("PTR-NEW0-0004"));
+
+    expect(pressBack().prevented).toBe(false);
+    expect(alerts).toEqual([]);
   });
 });
 

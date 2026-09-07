@@ -18,7 +18,11 @@
 //      web has one; a phone that drew a complete-looking list would be hiding
 //      the gap rather than not having it.
 
-import type { MyNotificationV1, MyNotificationsV1 } from "@dim/contract/api";
+import {
+  type MyNotificationV1,
+  type MyNotificationsV1,
+  NOTIFICATION_CATEGORIES_V1,
+} from "@dim/contract/api";
 import { describe, expect, it } from "@jest/globals";
 
 import {
@@ -218,5 +222,27 @@ describe("copy", () => {
   it("never prints an unreadable date as Invalid Date", () => {
     expect(notificationDateLabel("2026-08-20T10:00:00.000Z")).toMatch(/2026/);
     expect(notificationDateLabel("no es una fecha")).toBe("fecha desconocida");
+  });
+});
+
+describe("the empty state does not say the same thing twice (S-4)", () => {
+  it("never repeats the headline in the body, on any category", () => {
+    // "Sin notificaciones de salud" over "Tu bandeja está vacía" is one claim
+    // printed twice — and on a filtered tab the second one is false as well.
+    for (const category of [null, ...NOTIFICATION_CATEGORIES_V1] as const) {
+      const title = emptyTitle(category);
+      const body = emptyBody(category);
+      expect(body).not.toBe(title);
+      expect(body.toLowerCase()).not.toContain("bandeja está vacía");
+    }
+  });
+
+  it("tells a person on a FILTERED tab that the other tabs are a different question", () => {
+    // Eleven unread custody rows one tab away, under a sentence that said the
+    // inbox was empty. The unfiltered inbox keeps the shorter sentence, because
+    // there it IS the whole answer.
+    expect(emptyBody("health")).toContain("en esta categoría");
+    expect(emptyBody("health")).toContain("Las otras pueden tener novedades");
+    expect(emptyBody(null)).not.toContain("Las otras");
   });
 });

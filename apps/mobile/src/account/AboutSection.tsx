@@ -42,14 +42,49 @@
 
 import Constants from "expo-constants";
 import * as Updates from "expo-updates";
+import { useCallback, useState } from "react";
 
+import { crashReportingActive } from "../observability/sentry";
 import { Body, Card, Row } from "../ui/components";
+import { SecondaryButton } from "../ui/kit";
+import {
+  type UpdateCheckState,
+  type UpdatesPort,
+  checkForUpdate,
+  downloadUpdate,
+  restartForUpdate,
+  updateActionBusy,
+  updateActionLabel,
+  updateCheckMessage,
+} from "./update-check";
 
 /** Enough of an update id to tell two updates apart in a screenshot, without
  * asking a tester to read out a full UUID over WhatsApp. */
 const UPDATE_ID_PREFIX_LENGTH = 8;
 
-function appInfo(): { version: string; update: string; channel: string } {
+/**
+ * The runtime version, truncated the same way (OTA-4).
+ *
+ * WHY IT BELONGS BESIDE THE OTHER THREE. `runtimeVersion` is what decides
+ * whether an OTA update reaches a phone AT ALL: the policy is `fingerprint`
+ * (app.config.ts, CANON-449), so two installs on the same `version` and the
+ * same `channel` can still be on different native fingerprints — and the one
+ * whose fingerprint moved will never see the update, silently and forever. When
+ * a tester reports "no me llegó la actualización" this is the single field that
+ * answers it, and until now it was readable only from an EAS dashboard.
+ *
+ * A fingerprint is 40 hex characters, which nobody reads out loud. The first
+ * eight distinguish every build this pilot will ever have.
+ */
+const RUNTIME_VERSION_PREFIX_LENGTH = 8;
+
+function appInfo(): {
+  version: string;
+  update: string;
+  channel: string;
+  runtime: string;
+  reporting: string;
+} {
   const version = Constants.expoConfig?.version ?? "—";
 
   // "integrada" covers two different facts with one honest word: either this
@@ -64,17 +99,76 @@ function appInfo(): { version: string; update: string; channel: string } {
 
   const channel = Updates.channel ?? "—";
 
-  return { version, update, channel };
+  const runtimeVersion = Updates.runtimeVersion;
+  const runtime =
+    runtimeVersion === null || runtimeVersion === ""
+      ? "—"
+      : runtimeVersion.slice(0, RUNTIME_VERSION_PREFIX_LENGTH);
+
+  // The word, not the boolean: "activo"/"inactivo" is what a tester reads back
+  // over WhatsApp, and "false" would need a translator.
+  const reporting = crashReportingActive() ? "activo" : "inactivo";
+
+  return { version, update, channel, runtime, reporting };
 }
 
-export function AboutSection() {
-  const { version, update, channel } = appInfo();
+/**
+ * `expo-updates` behind the port `update-check.ts` declares.
+ *
+ * Built here rather than imported as the module itself because the module's
+ * functions are native: bound as a value, the screen's test can hand the same
+ * component a fake and exercise all four outcomes without a device.
+ */
+const EXPO_UPDATES_PORT: UpdatesPort = {
+  isEnabled: Updates.isEnabled,
+  checkForUpdateAsync: () => Updates.checkForUpdateAsync(),
+  fetchUpdateAsync: () => Updates.fetchUpdateAsync(),
+  reloadAsync: () => Updates.reloadAsync(),
+};
+
+export function AboutSection({ updates = EXPO_UPDATES_PORT }: { updates?: UpdatesPort } = {}) {
+  const { version, update, channel, runtime, reporting } = appInfo();
+  const [state, setState] = useState<UpdateCheckState>({ phase: "idle" });
+
+  const onPress = useCallback(async () => {
+    if (state.phase === "ready") {
+      // `restarting` FIRST, and that is a change from the first draft (finding
+      // M2). The old comment here argued that a "Reiniciando…" label surviving a
+      // rejection would be a screen frozen on a lie — true of a label with no
+      // failure arm behind it, and the answer is the failure arm, not the
+      // silence: `restartForUpdate` lands on `failed` with its own sentence, so
+      // the label is only ever shown while the reload is genuinely in flight.
+      // It is also what disables the button: nothing stopped a second tap from
+      // firing a second `reloadAsync` against the first.
+      setState({ phase: "restarting" });
+      setState(await restartForUpdate(updates));
+      return;
+    }
+    setState({ phase: "checking" });
+    const checked = await checkForUpdate(updates);
+    setState(checked);
+    if (checked.phase !== "downloading") return;
+    setState(await downloadUpdate(updates));
+  }, [state.phase, updates]);
+
+  const message = updateCheckMessage(state);
+
   return (
     <Card title="Acerca de miMAR">
       <Row label="Versión" value={version} />
       <Row label="Actualización" value={update} />
       <Row label="Canal" value={channel} />
+      <Row label="Versión nativa" value={runtime} />
+      <Row label="Reporte de errores" value={reporting} />
       <Body>Decinos esto si nos escribís por un problema.</Body>
+      <SecondaryButton
+        label={updateActionLabel(state)}
+        disabled={updateActionBusy(state)}
+        onPress={() => {
+          void onPress();
+        }}
+      />
+      {message === null ? null : <Body>{message}</Body>}
     </Card>
   );
 }

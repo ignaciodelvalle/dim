@@ -215,6 +215,31 @@ function BandBackground({ situationKey }: { situationKey: string | undefined }) 
  */
 export const BAND_H = 136;
 
+/**
+ * The one place in this app that caps text scaling, and why it is this one.
+ *
+ * B-06 / A6-cuenta-resiliencia-15, MEASURED on the shipped build 10 at the
+ * system font size "Máximo" (scale 1.5, shot 146 vs 142): "LIBRETA SANITARIA
+ * NACIONAL" wrapped to three lines inside a `maxWidth: 55%` box positioned
+ * absolutely at top 16, ran past the band's fixed `height: BAND_H`, and cut
+ * "CREDENCIAL · FRENTE" in half. The chip's label overprinted at the same
+ * scale. Clean at 1.3.
+ *
+ * WHY A CAP AND NOT A CONTENT-DRIVEN HEIGHT. `BAND_H` is not a spacing
+ * preference — it is one term in a published budget (the identity frames' -56
+ * poke-out, `FACE_SECTION_PAD_V`, `BAND_CHIP_TOP`) that
+ * `DocumentChromeNative.geometry.test.ts` recomputes and fences at 8 points of
+ * clearance. A `minHeight` here would move the band's floor at runtime and
+ * every one of those absolute positions with it, silently, per device.
+ *
+ * WHY IT IS DEFENSIBLE HERE AND NOWHERE ELSE. These three are 8-10pt uppercase
+ * mono CHROME — the engraved wordmark on a document, not its content. The
+ * animal's name, the sections, the libreta's rows and every sentence the person
+ * reads still scale without a ceiling. A printed credential has the same
+ * constraint for the same reason.
+ */
+export const BAND_MAX_FONT_SCALE = 1.3;
+
 /** How far the identity frames rise into the band. See BAND_H. */
 export const IDENTITY_POKE_OUT = 56;
 
@@ -264,8 +289,12 @@ export function DocumentChromeNative({
       <View style={styles.band}>
         <BandBackground situationKey={situation?.key} />
         <View style={styles.bandTitle} accessibilityElementsHidden importantForAccessibility="no">
-          <Text style={styles.bandTitleText}>Libreta Sanitaria Nacional</Text>
-          <Text style={styles.bandSubtitleText}>{bandSubtitle}</Text>
+          <Text maxFontSizeMultiplier={BAND_MAX_FONT_SCALE} style={styles.bandTitleText}>
+            Libreta Sanitaria Nacional
+          </Text>
+          <Text maxFontSizeMultiplier={BAND_MAX_FONT_SCALE} style={styles.bandSubtitleText}>
+            {bandSubtitle}
+          </Text>
         </View>
         {/* State chip — icon + label, never color alone. OUTSIDE the hidden
             title wrapper: on the back face this chip is the only textual
@@ -287,7 +316,11 @@ export function DocumentChromeNative({
         {situation === null ? null : (
           <View style={styles.bandChip}>
             <Icon name={situation.icon} size="sm" color="#fff" />
-            <Text style={styles.bandChipText} numberOfLines={1}>
+            <Text
+              maxFontSizeMultiplier={BAND_MAX_FONT_SCALE}
+              style={styles.bandChipText}
+              numberOfLines={1}
+            >
               {situation.label}
             </Text>
           </View>

@@ -58,6 +58,7 @@ import { isAuthRetryableFetchError } from "@supabase/supabase-js";
 import {
   type ApiResult,
   REQUEST_TIMEOUT_MS,
+  type RefreshOutcome,
   type SessionEndReason,
   type SessionPort,
   apiFailureMessage,
@@ -73,6 +74,7 @@ import {
 } from "../api/endpoints";
 import { planesLookCrossed } from "../config/api";
 import { forgetAllCachedCredentials } from "../credential/credential-cache";
+import { addAuthBreadcrumb } from "../observability/report";
 import {
   AUTH_STORAGE_KEY,
   authClient,
@@ -358,11 +360,39 @@ export const sessionPort: SessionPort = {
   },
 
   async refreshAccessToken() {
-    const client = authClient();
-    // No auth plane in this build: nothing to refresh against, ever. "Refused"
-    // and not "unreachable" — waiting will not produce a server that this build
-    // was never pointed at.
-    if (client === null) return { ok: false, reason: "refused" } as const;
+    // ONE BREADCRUMB PER OUTCOME, WRITTEN IN ONE PLACE (OBS-6). Every session
+    // defect this app has had reads the same in a bug report — "me sacó de la
+    // sesión" — and the three answers below are what tell a refusal from a dead
+    // spot after the fact. Wrapped rather than repeated at each `return`
+    // because a fourth arm added later must not be able to forget it.
+    const outcome = await refreshAccessTokenOutcome();
+    addAuthBreadcrumb(
+      outcome.ok
+        ? "refresh-ok"
+        : outcome.reason === "refused"
+          ? "refresh-refused"
+          : "refresh-unreachable",
+    );
+    return outcome;
+  },
+
+  async endSession(reason) {
+    await clearSession();
+    setState({ phase: "signed-out", reason });
+  },
+};
+
+/**
+ * The refresh itself. Wrapped by the port above, which is where the breadcrumb
+ * is written — see `refreshAccessToken` there for why it is not written here.
+ */
+async function refreshAccessTokenOutcome(): Promise<RefreshOutcome> {
+  const client = authClient();
+  // No auth plane in this build: nothing to refresh against, ever. "Refused"
+  // and not "unreachable" — waiting will not produce a server that this build
+  // was never pointed at.
+  if (client === null) return { ok: false, reason: "refused" } as const;
+  {
     // SNAPSHOT BEFORE THE CALL, because the call is what deletes it. See
     // `authFailureReason` and `restoreStoredSession`: auth-js removes the stored
     // session for every AuthError outside its retry list, including the two
@@ -408,13 +438,8 @@ export const sessionPort: SessionPort = {
       // so retrying the same request would fail the same way. "Refused".
       return { ok: false, reason: "refused" } as const;
     }
-  },
-
-  async endSession(reason) {
-    await clearSession();
-    setState({ phase: "signed-out", reason });
-  },
-};
+  }
+}
 
 /**
  * Drop the session locally, unconditionally.
@@ -431,6 +456,12 @@ async function clearSession(): Promise<void> {
   // every in-flight refresh that resolves from here on must be refused its
   // `restoreSnapshot` — see `signOutEpoch`.
   const epoch = ++signOutEpoch;
+  // The third auth breadcrumb (OBS-6). It goes HERE and not in `endSession`
+  // because this is the function every way of ending a session funnels
+  // through — the port's `endSession`, "Cerrar sesión", "Cerrar todas", and the
+  // erasure — so a trail that shows a refresh refusal and no sign-out means the
+  // session ended somewhere else, which is a fact worth being able to read.
+  addAuthBreadcrumb("sign-out");
   const client = authClient();
   if (client !== null) {
     try {
@@ -552,6 +583,16 @@ export async function bootstrapSession(): Promise<void> {
     return;
   }
 
+  // THE FOURTH CAUSE OF "me sacó de la sesión", finally on the trail (finding
+  // L2, review 2026-09-07). `AUTH_EVENTS` has carried `session-restored` since
+  // OBS-6 and NOBODY EMITTED IT — `report.test.ts` iterated the union and
+  // asserted all five land, which reads as coverage of an event that could not
+  // occur. This is the transition it names: the keystore had a session, this
+  // cold start found it, and everything after it in the trail happened to a
+  // restored session rather than a fresh sign-in. Without the crumb, a
+  // keystore restore that then lost a race to `/me` is indistinguishable,
+  // after the fact, from a refusal.
+  addAuthBreadcrumb("session-restored");
   const me = await fetchMe(sessionPort);
   applyMeResult(me);
 }

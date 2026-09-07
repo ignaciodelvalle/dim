@@ -346,9 +346,20 @@ function PetRow({ pet, onPress }: { pet: MyPetsV1Item; onPress: () => void }) {
         />
       )}
 
+      {/* ONE LINE EACH (S-6). The row is a photo, a text column and a status
+          chip in a fixed-height row; `pets.name` is unbounded `text` with no cap
+          anywhere in the web's writer (see PetProfileEditScreen's header), so a
+          long name wrapped to three lines, pushed the species under the chip and
+          left the list looking broken for the one owner who has such a name. The
+          full name is still on the row's accessibilityLabel above, and one tap
+          away on the document. */}
       <View style={styles.petText}>
-        <Text style={styles.petName}>{pet.name}</Text>
-        <Text style={styles.petSpecies}>{speciesLabel(pet.species)}</Text>
+        <Text numberOfLines={1} style={styles.petName}>
+          {pet.name}
+        </Text>
+        <Text numberOfLines={1} style={styles.petSpecies}>
+          {speciesLabel(pet.species)}
+        </Text>
       </View>
 
       <StatusChip status={pet.status} />

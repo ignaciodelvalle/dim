@@ -25,13 +25,14 @@
 // frame in which it is visible.
 
 import * as Sentry from "@sentry/react-native";
-import { Stack } from "expo-router";
+import { Stack, usePathname } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import { ActivityIndicator, View } from "react-native";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 
 import { useSessionBootstrap } from "../src/auth/useSession";
 import { initSentry } from "../src/observability/sentry";
+import { useNavigationBreadcrumb } from "../src/observability/use-navigation-breadcrumb";
 import { OfflineBanner } from "../src/ui/OfflineBanner";
 import { FONTS, useLnFonts } from "../src/ui/fonts";
 import { COLORS, TYPE } from "../src/ui/theme";
@@ -65,6 +66,10 @@ export const unstable_settings = { anchor: "index" };
 function RootLayout() {
   const fontsReady = useLnFonts();
   useSessionBootstrap();
+  // One breadcrumb per screen change, ids stripped (OBS-5). Called BEFORE the
+  // font gate returns early — a hook that runs conditionally is not a hook, and
+  // the cold-start screens are the ones whose order matters most.
+  useNavigationBreadcrumb(usePathname());
 
   // THE FIRST PAINT WAITS FOR THE TYPEFACE, and the alternative is worse than a
   // pause. React Native draws immediately with the system face and re-lays-out

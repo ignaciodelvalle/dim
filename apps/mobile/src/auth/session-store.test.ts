@@ -62,6 +62,21 @@ jest.mock("../credential/credential-cache", () => ({
   forgetAllCachedCredentials: () => mockForgetAllCachedCredentials(),
 }));
 
+/**
+ * The breadcrumb trail, captured (OBS-6, finding L2).
+ *
+ * The SDK, not `observability/report`: mocking the reporter would prove the
+ * store calls a function this file wrote, which is the assertion that never
+ * catches anything. This proves the crumb reaches the transport.
+ */
+const mockCrumbs: { category?: string; message?: string }[] = [];
+jest.mock("@sentry/react-native", () => ({
+  addBreadcrumb: (crumb: { category?: string; message?: string }) => {
+    mockCrumbs.push(crumb);
+  },
+  captureException: () => undefined,
+}));
+
 jest.mock("../api/endpoints", () => ({
   login: (...args: unknown[]) => mockLogin(...args),
   completeIdentity: (...args: unknown[]) => mockCompleteIdentity(...args),
@@ -117,6 +132,7 @@ beforeEach(() => {
   // keeps reading "this device is signed out" exactly as it did.
   mockReadStoredSession.mockResolvedValue(null);
   mockRestoreStoredSession.mockResolvedValue(undefined);
+  mockCrumbs.length = 0;
 });
 
 // ---------------------------------------------------------------------------
@@ -429,6 +445,41 @@ describe("bootstrapSession — tokens on the device, server unreachable", () => 
 // ---------------------------------------------------------------------------
 // A1-entrada-02 — A 503 IS NOT A DEAD SESSION
 // ---------------------------------------------------------------------------
+
+// ---------------------------------------------------------------------------
+// L2 — `session-restored` is an event that HAPPENS, not a member of a union
+// ---------------------------------------------------------------------------
+
+describe("bootstrapSession — the restore leaves a mark on the trail (OBS-6)", () => {
+  it("emits `session-restored` when the keystore had a session this cold start found", async () => {
+    // `AUTH_EVENTS` declared this member and NOTHING emitted it, while
+    // `report.test.ts` iterated the union and asserted all five land — which
+    // reads as coverage of an event that could not occur. It is the fourth of
+    // the four causes of "me sacó de la sesión" that OBS-6's own docblock
+    // names: a keystore restore that then lost a race is indistinguishable
+    // from a refusal without this crumb in front of it.
+    mockAuth.getSession.mockResolvedValue({
+      data: { session: { access_token: "live-token" } },
+      error: null,
+    });
+
+    await bootstrapSession();
+
+    expect(mockCrumbs).toContainEqual(
+      expect.objectContaining({ category: "auth", message: "session-restored" }),
+    );
+  });
+
+  it("says nothing on a device that never had a session", async () => {
+    // The control. A crumb written unconditionally would say "restored" on a
+    // phone somebody just installed the app on, which is the opposite fact.
+    mockAuth.getSession.mockResolvedValue({ data: { session: null }, error: null });
+
+    await bootstrapSession();
+
+    expect(mockCrumbs.map((crumb) => crumb.message)).not.toContain("session-restored");
+  });
+});
 
 describe("bootstrapSession — /me refuses for a reason that is not about the session", () => {
   beforeEach(async () => {

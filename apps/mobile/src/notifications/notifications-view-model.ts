@@ -168,11 +168,25 @@ export function emptyTitle(category: NotificationCategoryV1 | null): string {
   }
 }
 
+/**
+ * The sentence UNDER the headline, and it may not repeat it (S-4).
+ *
+ * "Tu bandeja está vacía" was printed under every headline including
+ * "Sin notificaciones de salud", which is the same claim twice — and on a
+ * FILTERED tab it is also false: the inbox is not empty, this category is. A
+ * person reading "sin notificaciones de salud / tu bandeja está vacía" with
+ * eleven unread custody rows one tab away is being told something they can see
+ * is untrue, on the screen whose whole job is telling them what happened.
+ *
+ * So the body says what the HEADLINE cannot: what will arrive here, and — on a
+ * filter — that the other tabs are a different question.
+ */
 export function emptyBody(category: NotificationCategoryV1 | null): string {
   if (category === "perdidas") {
     return "Te avisamos acá cuando alguien reporte un avistaje de tus mascotas perdidas.";
   }
-  return "Tu bandeja está vacía. Te avisaremos por acá cuando haya algo nuevo.";
+  if (category === null) return "Te avisamos por acá cuando haya algo nuevo.";
+  return "Te avisamos por acá cuando haya algo nuevo en esta categoría. Las otras pueden tener novedades.";
 }
 
 /**

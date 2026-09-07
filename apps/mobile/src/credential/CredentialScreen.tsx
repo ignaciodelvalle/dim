@@ -44,6 +44,7 @@ import { readCachedCredential, writeCachedCredential } from "./credential-cache"
 import {
   type CachedReason,
   type LostView,
+  SECTION_UNAVAILABLE_MESSAGE,
   STALE_NOTICE,
   type SectionView,
   buildCredentialView,
@@ -332,6 +333,25 @@ function LostSection({ lost }: { lost: LostView }) {
   return <Card title="Búsqueda">{lostBody(lost)}</Card>;
 }
 
+/**
+ * THE DEFAULT ARM DOES NOT THROW ANY MORE (finding M1, review 2026-09-07).
+ *
+ * It used to be `throw new Error(\`Unhandled lost state: ${…}\`)`, which was the
+ * right instinct — a blank card is worse than a loud failure — aimed at the
+ * wrong runtime. On a phone there is no error boundary between this and the
+ * credential: an unknown `LostView` did not print an identifier, it took the
+ * whole screen down. And the way it becomes reachable is not a bug, it is the
+ * ordinary case an OTA channel creates: `docs/mobile/ota-policy.md` requires the
+ * SERVER to stay compatible with the oldest install still opening, so a
+ * published bundle meets a newer vocabulary by design. The credential is the one
+ * screen in this app that has to work when everything else has failed — it is
+ * the thing a person shows a vet — so its worst legal answer is a sentence, not
+ * a crash and not a blank.
+ *
+ * The `never` binding stays: a member added to `LostView` still fails to compile
+ * here, which is the guarantee worth keeping. What changed is what happens on
+ * the day the compiler was not consulted, because the server moved instead.
+ */
 function lostBody(lost: LostView) {
   switch (lost.state) {
     case "unavailable":
@@ -342,7 +362,8 @@ function lostBody(lost: LostView) {
       return <LostDetail data={lost.data} />;
     default: {
       const unhandled: never = lost;
-      throw new Error(`Unhandled lost state: ${JSON.stringify(unhandled)}`);
+      void unhandled;
+      return <Unavailable message={SECTION_UNAVAILABLE_MESSAGE} />;
     }
   }
 }

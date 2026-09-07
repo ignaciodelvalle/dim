@@ -175,6 +175,138 @@ export function denunciaInputMessage(code: WelfareReportInputCode | null): strin
 }
 
 /**
+ * The required fields, IN THE ORDER THE SCREEN DRAWS THEM.
+ *
+ * B-07, measured on the shipped build 10 (shots 133-134). Submitting an empty
+ * denuncia answered "Elegí qué tipo de situación estás denunciando." while
+ * "¿DÓNDE ESTÁ PASANDO? *", the field ABOVE it, was equally empty. That is not
+ * a wrong sentence — it is the right sentence about the wrong field, and it
+ * happens because the only ordering in play was zod's, which follows the schema
+ * object's key order and knows nothing about where anything is on a phone.
+ *
+ * A person fixing one field at a time, from an error that keeps pointing
+ * somewhere other than the first gap, learns that the form is arguing with them.
+ */
+export const DENUNCIA_FIELD_ORDER = [
+  "ADDRESS_REQUIRED",
+  "COORDS_REQUIRED",
+  "KIND_REQUIRED",
+  "SEVERITY_REQUIRED",
+  "SUBJECT_KIND_REQUIRED",
+  "SUBJECT_DESCRIPTION_REQUIRED",
+  "DESCRIPTION_REQUIRED",
+  "CONTACT_REQUIRED",
+] as const satisfies readonly WelfareReportInputCode[];
+
+type DenunciaFieldCode = (typeof DENUNCIA_FIELD_ORDER)[number];
+
+/**
+ * The heading each missing field wears on screen, verbatim.
+ *
+ * TRANSCRIBED, NOT INVENTED: a summary that renames the fields makes the person
+ * hunt for a label the screen does not contain. `DenunciaScreen.tsx` draws these
+ * exact strings.
+ */
+const DENUNCIA_FIELD_HEADING: Record<DenunciaFieldCode, string> = {
+  ADDRESS_REQUIRED: "¿Dónde está pasando?",
+  COORDS_REQUIRED: "¿Dónde está pasando?",
+  KIND_REQUIRED: "¿Qué está pasando?",
+  SEVERITY_REQUIRED: "¿Qué tan grave es?",
+  SUBJECT_KIND_REQUIRED: "¿Sobre qué es la denuncia?",
+  SUBJECT_DESCRIPTION_REQUIRED: "¿Qué o a quién estás denunciando?",
+  DESCRIPTION_REQUIRED: "Contanos qué pasó",
+  CONTACT_REQUIRED: "¿Cómo querés enviarla?",
+};
+
+/**
+ * Is this field still blank? One predicate per code, keyed by the code.
+ *
+ * THE ARRAY ABOVE IS NOW THE MECHANISM AND NOT A COMMENT (finding L3, review
+ * 2026-09-07). `DENUNCIA_FIELD_ORDER` was documented as "the order the screen
+ * draws them" and used only for its `[number]` type: the list was actually built
+ * by hand-written `push` order in `missingDenunciaFields`, so the two agreed by
+ * transcription and could drift in silence — and `ADDRESS_REQUIRED` sat in the
+ * array unreachable, because nothing ever pushed it.
+ *
+ * A `Record` keyed by `DenunciaFieldCode` is what makes that impossible: the
+ * compiler demands a predicate for every code in the array, the ORDER comes from
+ * the array, and neither can move without the other.
+ */
+const DENUNCIA_FIELD_BLANK: Record<
+  DenunciaFieldCode,
+  (values: DenunciaFormValues, addressText: string) => boolean
+> = {
+  // The place is one heading with two failure modes, and only one can be true:
+  // nothing typed at all, and typed but never confirmed against the geocoder's
+  // list. They earn DIFFERENT sentences — "escribí la dirección" is useless
+  // advice to somebody looking at the address they just typed.
+  ADDRESS_REQUIRED: (values, addressText) => values.place === null && addressText.trim() === "",
+  COORDS_REQUIRED: (values, addressText) => values.place === null && addressText.trim() !== "",
+  KIND_REQUIRED: (values) => values.kind === null,
+  SEVERITY_REQUIRED: (values) => values.severity === null,
+  SUBJECT_KIND_REQUIRED: (values) => values.subjectKind === null,
+  SUBJECT_DESCRIPTION_REQUIRED: (values) => values.subjectDescription.trim() === "",
+  DESCRIPTION_REQUIRED: (values) => values.description.trim() === "",
+  CONTACT_REQUIRED: (values) =>
+    !values.anonymous && values.contactEmail.trim() === "" && values.contactPhone.trim() === "",
+};
+
+/**
+ * Every required field still blank, top to bottom.
+ *
+ * DELIBERATELY ONLY "BLANK", never "wrong". A description of eleven characters
+ * is not missing — it is too short, and that is the contract's judgement to make
+ * (`DESCRIPTION_TOO_SHORT` carries the number and the reason). This function
+ * answers one question, "what has the person not filled in yet", and leaves
+ * every rule about CONTENT to the single validation door below.
+ *
+ * `addressText` IS A SECOND ARGUMENT because the screen holds it outside
+ * `DenunciaFormValues`: it is what the person typed into the search box, and it
+ * only ever becomes a `place` once the geocoder answers and they TAP a
+ * candidate. Without it this function cannot tell the two place failures apart,
+ * which is why `ADDRESS_REQUIRED` was unreachable. It defaults to `""` — the
+ * "nothing typed" reading — so a caller that has no box to read from gets the
+ * sentence that asks for one.
+ */
+export function missingDenunciaFields(
+  values: DenunciaFormValues,
+  addressText = "",
+): DenunciaFieldCode[] {
+  return DENUNCIA_FIELD_ORDER.filter((code) => DENUNCIA_FIELD_BLANK[code](values, addressText));
+}
+
+/**
+ * What to say about everything that is missing, or `null` when nothing is.
+ *
+ * ONE missing field keeps its own sentence, unchanged — it already says what to
+ * do and says it better than a list of one would.
+ *
+ * SEVERAL KEEP THE FIRST FIELD'S SENTENCE AND LIST THE REST (finding L4, review
+ * 2026-09-07). The list used to be headings ALL the way down, and that flattened
+ * the one distinction the codes carry: `COORDS_REQUIRED` — an address typed and
+ * never resolved — appeared as "¿Dónde está pasando?", so somebody staring at a
+ * filled-in box read that it was missing. The heading says WHERE; only the code's
+ * own sentence says WHAT TO DO, and the field a person will fix first is the one
+ * that deserves it. The rest stay headings, because an empty form is a person
+ * who has not started rather than a person who made a mistake, and naming seven
+ * fields one at a time turns filling it in into a guessing game with seven
+ * rounds.
+ */
+export function denunciaMissingMessage(missing: readonly DenunciaFieldCode[]): string | null {
+  if (missing.length === 0) return null;
+  const first = missing[0];
+  if (first === undefined) return null;
+  if (missing.length === 1) return denunciaInputMessage(first);
+  const headings = missing.slice(1).map((code) => DENUNCIA_FIELD_HEADING[code]);
+  const last = headings.pop();
+  const rest = headings.length === 0 ? `${last}` : `${headings.join(", ")} y ${last}`;
+  // Singular and plural, because "Faltan además: Contanos qué pasó." about one
+  // field is a sentence nobody would write by hand.
+  const lead = missing.length === 2 ? "Falta además" : "Faltan además";
+  return `${denunciaInputMessage(first)} ${lead}: ${rest}.`;
+}
+
+/**
  * Build and validate the `resolve_location` command.
  *
  * Separate from the file command rather than one builder with a mode, because

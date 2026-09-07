@@ -343,7 +343,10 @@ describe("apiRequest — the payloadVersion gate", () => {
         { path: "/api/v1/me", expectedPayloadVersion: ME_PAYLOAD_VERSION },
         fakeSession(),
       );
-      expect(result).toEqual({ outcome: "unsupported-version", received: 99 });
+      // `toMatchObject` rather than `toEqual` since OBS-3: every reported
+      // failure also carries the `correlationId` the screen prints, and this
+      // test's subject is the version gate, not the key set.
+      expect(result).toMatchObject({ outcome: "unsupported-version", received: 99 });
     } finally {
       fetchStub.restore();
     }
@@ -357,7 +360,7 @@ describe("apiRequest — the payloadVersion gate", () => {
           { path: "/api/v1/me", expectedPayloadVersion: ME_PAYLOAD_VERSION },
           fakeSession(),
         );
-        expect(result).toEqual({ outcome: "unsupported-version", received: null });
+        expect(result).toMatchObject({ outcome: "unsupported-version", received: null });
       } finally {
         fetchStub.restore();
       }

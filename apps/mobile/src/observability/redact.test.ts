@@ -174,6 +174,65 @@ describe("every channel an event carries text through", () => {
     expect(out.level).toBe("info");
   });
 
+  it("scrubs the URL of a captured failed request — the channel `enableCaptureFailedRequests` opened", () => {
+    // FINDING C2 (review 2026-09-07). `initSentry` turns
+    // `enableCaptureFailedRequests` on; `@sentry/react-native` answers that flag
+    // with `httpClientIntegration()` and no options, so `@sentry/browser`'s
+    // defaults apply — every 5xx, every target — and its `_createEvent` writes
+    // `request: { url }` with the FULL url. `sendDefaultPii: false` suppresses
+    // the headers and the cookies on that block and says nothing about the url,
+    // so one 502 from a libreta read filed a pet's public token verbatim.
+    const event = {
+      message: "HTTP Client Error with status code: 502",
+      request: {
+        url: "https://www.mimar.com.ar/api/v1/pets/DIM-PAMP-0001/libreta",
+        method: "GET",
+      },
+    };
+
+    const out = redactEvent(event);
+
+    expect(out).toBe(event);
+    expect(out.request.url).toBe(
+      "https://www.mimar.com.ar/api/v1/pets/[redacted:credential]/libreta",
+    );
+    expect(JSON.stringify(out)).not.toContain("DIM-PAMP-0001");
+    // The method survives: it is what tells a reader which request failed.
+    expect(out.request.method).toBe("GET");
+  });
+
+  it("scrubs a signed-storage token out of the request URL and out of a bare query string", () => {
+    // The other value on this channel. A signed upload PUT carries its grant in
+    // the query, and a 5xx from the storage host would have filed it whole.
+    const event = {
+      request: {
+        url: "https://storage.example.com/object?token=eyJhbGciOiJIUzI1NiJ9.cGF5bG9hZA.c2ln&x=1",
+        query_string: "token=eyJhbGciOiJIUzI1NiJ9.cGF5bG9hZA.c2ln&x=1",
+      },
+    };
+
+    const out = redactEvent(event);
+
+    expect(out.request.url).toBe("https://storage.example.com/object?token=[redacted]&x=1");
+    // A bare query string has no leading `?` for the parameter rule to key on.
+    // The scrubber lends it one and takes it back off, so the SAME rule covers
+    // both shapes — and the non-sensitive parameter still comes out readable.
+    expect(out.request.query_string).toBe("token=[redacted]&x=1");
+  });
+
+  it("DROPS a query_string the SDK handed over as an object rather than guessing at it", () => {
+    // Sentry types `query_string` as a string, a record OR a list of pairs. The
+    // last two hold parameter values with no `?key=` for the rule to key on, so
+    // they are refused for `redactContextValue`'s reason: an unscrubabble value
+    // is dropped, never forwarded.
+    const event = { request: { url: "/api/v1/me", query_string: { token: "sb_secret_abcdef" } } };
+
+    const out = redactEvent(event);
+
+    expect(out.request.query_string).toBeUndefined();
+    expect(JSON.stringify(out)).not.toContain("sb_secret_abcdef");
+  });
+
   it("handles an event with none of the fields it scrubs", () => {
     // The SDK sends plenty of these. A redactor that threw here would turn a
     // crash reporter into a second crash.

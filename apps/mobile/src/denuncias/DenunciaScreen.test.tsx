@@ -33,6 +33,13 @@ const mockOpenURL = jest.fn<(url: string) => Promise<unknown>>();
 
 jest.mock("expo-linking", () => ({ openURL: (url: string) => mockOpenURL(url) }));
 
+// The discard guard on this screen reads the navigation object (critic gap 2).
+// A no-op stub: what the guard DOES is pinned in ui/use-draft-discard-guard.test.tsx;
+// here it only has to exist.
+jest.mock("expo-router", () => ({
+  useNavigation: () => ({ addListener: () => () => {}, dispatch: () => {} }),
+}));
+
 jest.mock("../api/endpoints", () => ({
   sendWelfareReportCommand: (...args: unknown[]) => mockSend(...args),
 }));
@@ -141,15 +148,32 @@ describe("what the screen says before it asks anything", () => {
 });
 
 describe("the place comes from a tap, never from this app", () => {
-  it("refuses to send until a candidate has been chosen, naming the list", () => {
+  it("refuses to send with nothing typed, and asks for the ADDRESS rather than the list", async () => {
     // THE MUTATION: default `place` to a hardcoded coordinate in `EMPTY`.
     // Applied: the send goes through and this fails.
+    //
+    // THE SENTENCE CHANGED (finding L3, review 2026-09-07). It used to be "Elegí
+    // el lugar de la lista", which is advice about a list that does not exist
+    // until somebody types an address and searches: `ADDRESS_REQUIRED` sat in
+    // `DENUNCIA_FIELD_ORDER` and nothing could ever produce it, so both place
+    // failures answered with the second one's copy.
     render(<DenunciaScreen />);
     fillFacts();
     fireEvent.press(screen.getByText("Enviar la denuncia"));
 
-    expect(screen.getByText(/Elegí el lugar de la lista/)).toBeTruthy();
+    expect(screen.getByText(/Escribí la dirección o el lugar/)).toBeTruthy();
     expect(mockSend).not.toHaveBeenCalled();
+  });
+
+  it("asks for the LIST once an address was typed and no candidate tapped", async () => {
+    // The other half of the same heading, and the reason the two codes exist.
+    render(<DenunciaScreen />);
+    await searchAddress();
+    fillFacts();
+    fireEvent.press(screen.getByText("Enviar la denuncia"));
+
+    expect(screen.getByText(/Elegí el lugar de la lista/)).toBeTruthy();
+    expect(mockSend).toHaveBeenCalledTimes(1); // the search only
   });
 
   it("sends the chosen candidate's own coordinates and label", async () => {
@@ -340,5 +364,31 @@ describe("the emergency off-ramp", () => {
     expect(screen.queryByText(/911/)).toBeNull();
     fireEvent.press(screen.getByText("Grave / urgente"));
     expect(screen.getByText(/911/)).toBeTruthy();
+  });
+});
+
+describe("two candidates with the SAME name are still two places (A5-ciudadanas-13)", () => {
+  it("checks only the row that was tapped", async () => {
+    // The geocoder returns identical `display_name`s for a corner, and the row
+    // used to highlight on the label alone — so tapping either lit BOTH, while
+    // the point actually filed was the one under the thumb. `matchesAck` gives
+    // each row its own lat/lng, which is what the key already compared on.
+    render(<DenunciaScreen />);
+    const twin = "Calle San Martín 100, San Carlos de Bariloche, Río Negro";
+    // NOT `searchAddress`: its own wait uses `getByText`, which throws on the
+    // duplicate this test exists to create.
+    mockSend.mockResolvedValueOnce(matchesAck([twin, twin]));
+    fireEvent.changeText(screen.getByLabelText("¿Dónde está pasando?, obligatorio"), ADDRESS);
+    fireEvent.press(screen.getByText("Buscar el lugar"));
+    await waitFor(() => expect(screen.getAllByRole("radio", { name: twin })).toHaveLength(2));
+
+    const rows = screen.getAllByRole("radio", { name: twin });
+    expect(rows).toHaveLength(2);
+    expect(rows.map((row) => row.props.accessibilityState?.checked)).toEqual([false, false]);
+
+    fireEvent.press(rows[1] as never);
+
+    const after = screen.getAllByRole("radio", { name: twin });
+    expect(after.map((row) => row.props.accessibilityState?.checked)).toEqual([false, true]);
   });
 });

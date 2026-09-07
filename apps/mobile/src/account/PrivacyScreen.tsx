@@ -140,7 +140,11 @@ export function PrivacyScreen() {
     reason.trim().length <= ERASURE_REASON_MAX_LENGTH;
 
   return (
-    <Screen>
+    // A6-cuenta-resiliencia-17: this and EditProfileScreen were the last two
+    // text-input screens without it. The motivo box sits under the confirm
+    // button, so an iOS keyboard covered both what was being typed and the
+    // control that submits it.
+    <Screen keyboardAvoiding>
       <Title>Privacidad y datos personales</Title>
       <Body>
         Ejercé los derechos que te garantiza la Ley 25.326 de Protección de Datos Personales. El

@@ -70,6 +70,7 @@ import {
   Title,
 } from "../ui/kit";
 import { COLORS, RADIUS, SPACE, TOUCH_TARGET, TYPE } from "../ui/theme";
+import { useDraftDiscardGuard } from "../ui/use-draft-discard-guard";
 import { useScrollToError } from "../ui/use-scroll-to-error";
 
 import {
@@ -81,10 +82,12 @@ import {
   buildResolveLocationCommand,
   denunciaInputMessage,
   denunciaKindLabel,
+  denunciaMissingMessage,
   denunciaSeverityHint,
   denunciaSeverityLabel,
   denunciaSubjectLabel,
   denunciaSubjectPlaceholder,
+  missingDenunciaFields,
 } from "./denuncia-view-model";
 
 /** One sentence per failure arm. No arm falls through to a generic shrug. */
@@ -132,6 +135,11 @@ export function DenunciaScreen() {
   const [addressText, setAddressText] = useState("");
   const [matches, setMatches] = useState<WelfareLocationMatchV1[] | null>(null);
   const [searching, setSearching] = useState(false);
+  // THE BACK GESTURE MAY NOT DISCARD A TYPED DENUNCIA (critic gap 2). This is
+  // the longest thing a citizen writes in this app and the only one that cannot
+  // be re-read from the server afterwards. `filed` clears the guard: the
+  // allegation is on record and the screen is a receipt.
+  useDraftDiscardGuard(phase.name !== "filed" && (values !== EMPTY || addressText !== ""));
 
   const patch = useCallback((next: Partial<DenunciaFormValues>) => {
     setValues((current) => ({ ...current, ...next }));
@@ -162,6 +170,17 @@ export function DenunciaScreen() {
   }, [addressText]);
 
   const send = useCallback(async () => {
+    // IN FIELD ORDER, AND ALL OF THEM (B-07). The contract's parse answers with
+    // the first issue ZOD found, which follows the schema's key order and has
+    // nothing to do with where the field sits on the phone — so an empty form
+    // pointed at "¿Qué está pasando?" while the heading above it was just as
+    // empty. This runs first and names every gap, top to bottom; the parse below
+    // is still the single door for every rule about CONTENT.
+    const missing = denunciaMissingMessage(missingDenunciaFields(values, addressText));
+    if (missing !== null) {
+      setPhase({ name: "form", error: missing });
+      return;
+    }
     const draft = buildFileDenunciaCommand(values);
     if (!draft.ok) {
       setPhase({ name: "form", error: denunciaInputMessage(draft.code) });
@@ -183,7 +202,7 @@ export function DenunciaScreen() {
       referenceCode: result.payload.referenceCode,
       followUpUrl: result.payload.followUpUrl,
     });
-  }, [values]);
+  }, [addressText, values]);
 
   if (phase.name === "filed") {
     return (
@@ -289,7 +308,16 @@ export function DenunciaScreen() {
       {matches !== null && matches.length > 0 ? (
         <View style={styles.matches} accessibilityRole="radiogroup">
           {matches.map((match) => {
-            const active = values.place?.label === match.label;
+            // THE SAME TRIPLE THE key USES (A5-ciudadanas-13). Comparing on the
+            // label alone lit BOTH rows when the geocoder returned two entries
+            // with an identical display_name — which it does for a corner — and
+            // the point actually filed was whichever was tapped. A highlight
+            // that does not identify the chosen row is worse than none.
+            const active =
+              values.place !== null &&
+              values.place.lat === match.lat &&
+              values.place.lng === match.lng &&
+              values.place.label === match.label;
             return (
               <Pressable
                 key={`${match.lat},${match.lng},${match.label}`}

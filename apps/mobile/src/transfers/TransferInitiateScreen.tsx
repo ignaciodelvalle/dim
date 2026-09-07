@@ -35,6 +35,7 @@ import { apiErrorMessage } from "../api/error-copy";
 import { sessionPort } from "../auth/session-store";
 import { Body, Card } from "../ui/components";
 import { Callout, Choice, PrimaryButton, Screen, TextField, Title } from "../ui/kit";
+import { useDraftDiscardGuard } from "../ui/use-draft-discard-guard";
 import { useScrollToError } from "../ui/use-scroll-to-error";
 
 import {
@@ -113,6 +114,21 @@ export function TransferInitiateScreen({
   const [invalidCode, setInvalidCode] = useState<TransferCommandInputCode | null>(null);
   /** The proposal's token, once it landed for an address with NO account. */
   const [sent, setSent] = useState<string | null>(null);
+  // THE BACK GESTURE MAY NOT DISCARD A TYPED PROPOSAL (critic gap 2). `sent`
+  // clears it: the proposal exists on the server and the screen is an
+  // acknowledgement, so there is nothing left for the person to lose.
+  //
+  // `allowLeave` IS NOT OPTIONAL, and the first draft of this screen dropped it
+  // (finding H1, review 2026-09-07). The guard fires on EVERY navigation away,
+  // including the one this screen makes itself after the proposal has landed on
+  // the server — so a successful transfer asked "¿Salir sin guardar?" and
+  // "Seguir editando" stranded the person on a form whose submission had already
+  // gone through. Re-sending from there is refused as `transfer_pending_exists`,
+  // which is the honest answer to a question nobody should have been asked.
+  // `app/alta.tsx` is the precedent: `allowLeave()` immediately before the exit.
+  const { allowLeave } = useDraftDiscardGuard(
+    sent === null && (email !== "" || reason !== null || note !== ""),
+  );
 
   const submit = useCallback(async () => {
     setNotice(null);
@@ -146,8 +162,11 @@ export function TransferInitiateScreen({
       setSent(result.payload.transferToken);
       return;
     }
+    // The proposal exists. Nothing is left to protect, and the guard may not
+    // stand between the person and the screen that shows what they just did.
+    allowLeave();
     onSent(result.payload.transferToken);
-  }, [email, note, onSent, publicToken, reason]);
+  }, [allowLeave, email, note, onSent, publicToken, reason]);
 
   const subject = petName ?? "esta mascota";
 

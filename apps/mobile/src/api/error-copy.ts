@@ -41,6 +41,52 @@ export function apiV1ErrorCode(body: unknown): ApiV1ErrorCode | null {
   return typeof code === "string" && KNOWN_ERROR_CODES.has(code) ? (code as ApiV1ErrorCode) : null;
 }
 
+/**
+ * The body DID declare a code and this build has never heard of it (CANON-451).
+ *
+ * `apiV1ErrorCode` answers `null` for three different situations — no body, no
+ * `error` field, and a code outside the vocabulary — and collapsing them cost
+ * the app its only signal for version skew. An OTA channel makes that skew
+ * ordinary in BOTH directions: a bundle can outlive the server it was written
+ * against, and a server can ship a code a published bundle will never know.
+ *
+ * Distinguishing it matters because the two answers send a person to different
+ * places. "El servidor no pudo responder, volvé a intentar en unos segundos" is
+ * an instruction to wait, and waiting will never help — the code will still be
+ * unknown tomorrow. "Actualizá la app" is the only move that works.
+ */
+export function carriesUnknownErrorCode(body: unknown): boolean {
+  if (typeof body !== "object" || body === null) return false;
+  const code = (body as { error?: unknown }).error;
+  return typeof code === "string" && code.length > 0 && !KNOWN_ERROR_CODES.has(code);
+}
+
+/**
+ * What to say about a refusal whose code this build cannot read.
+ *
+ * NOT the raw code. `error: "welfare_case_reopen_forbidden"` on screen is a
+ * developer's string in a citizen's wallet: unreadable, untranslated, and it
+ * names an internal concept rather than anything the person can act on.
+ */
+export const UNKNOWN_API_ERROR_MESSAGE =
+  "El servidor respondió con un motivo que esta versión de la app no conoce. Actualizá la app.";
+
+/**
+ * es-AR copy for a code that arrived ON THE WIRE — known or not.
+ *
+ * `apiErrorMessage` below stays exhaustive with no `default` and no trailing
+ * return, which is what makes a code added to the contract a COMPILE error
+ * here. That guarantee is worth keeping exactly as it is, so the runtime
+ * fallback lives in this second door instead of being folded into the switch:
+ * a `default:` arm would answer for the new code and the typechecker would stop
+ * asking anybody to write its sentence.
+ */
+export function apiErrorMessageForWireCode(code: string): string {
+  return KNOWN_ERROR_CODES.has(code)
+    ? apiErrorMessage(code as ApiV1ErrorCode)
+    : UNKNOWN_API_ERROR_MESSAGE;
+}
+
 /** es-AR copy for each API error code. Exhaustive: every code has a sentence. */
 export function apiErrorMessage(code: ApiV1ErrorCode): string {
   switch (code) {

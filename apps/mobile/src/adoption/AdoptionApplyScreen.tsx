@@ -42,6 +42,7 @@ import {
   Title,
 } from "../ui/kit";
 import { COLORS, SPACE, TYPE } from "../ui/theme";
+import { useDraftDiscardGuard } from "../ui/use-draft-discard-guard";
 import { useScrollToError } from "../ui/use-scroll-to-error";
 
 import {
@@ -74,6 +75,16 @@ export function AdoptionApplyScreen({
   const [draft, setDraft] = useState<ApplicationDraft>(EMPTY_APPLICATION_DRAFT);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // THE BACK GESTURE MAY NOT DISCARD A TYPED APPLICATION (critic gap 2). This
+  // form is the longest in the app and the one a person writes about an animal
+  // they want to take home.
+  //
+  // `allowLeave` IS NOT OPTIONAL, and the first draft of this screen dropped it
+  // (finding H1, review 2026-09-07). The guard fires on EVERY navigation away,
+  // this screen's own post-submit exit included — so a postulación the shelter
+  // already had asked "¿Salir sin guardar?", and "Seguir editando" left the
+  // person on a form they had already sent. `app/alta.tsx` is the precedent.
+  const { allowLeave } = useDraftDiscardGuard(draft !== EMPTY_APPLICATION_DRAFT);
   // The refusal appears at the BOTTOM of a form this long — below the fold on
   // any phone, and under the keyboard when a field is focused. See
   // `use-scroll-to-error.ts`; `scrollRef` is the door, the context is not.
@@ -94,6 +105,8 @@ export function AdoptionApplyScreen({
     const result = await submitAdoptionApplication(sessionPort, petToken, validated.input);
     setBusy(false);
     if (result.outcome === "ok") {
+      // The letter is in the shelter's queue. See the guard above.
+      allowLeave();
       onSubmitted();
       return;
     }

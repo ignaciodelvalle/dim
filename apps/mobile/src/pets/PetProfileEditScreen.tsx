@@ -364,19 +364,35 @@ function BreedPicker({
   onSelect: (value: string) => void;
 }) {
   const options = useMemo(() => breedChoicesFor(species, storedBreed), [species, storedBreed]);
+  const needle = query.trim().toLowerCase();
   const filtered = useMemo(() => {
-    const needle = query.trim().toLowerCase();
-    const matches =
-      needle.length === 0 ? options : options.filter((b) => b.toLowerCase().includes(needle));
+    // THE STORED BREED AND NOTHING ELSE UNTIL SOMEBODY TYPES (B-01, measured on
+    // build 10, shot 102). An empty query used to mean "show the whole catalog",
+    // so opening "Editar datos" drew twelve breeds inline under the filter box
+    // and pushed COLOR and "Guardar datos" a full screen down — on the screen
+    // whose job is editing four fields, not browsing a catalog. The alta
+    // wizard's locality step already searches this way: the list is an ANSWER to
+    // a query.
+    //
+    // NOT an empty list, though, and the difference is the grandfather rule this
+    // picker exists for: the one row kept is the animal's STORED breed, so a
+    // person who taps "Quitar" by accident can put back a value the catalog may
+    // no longer contain — and which they would then have to spell from memory.
+    if (needle.length === 0) {
+      return storedBreed === null || storedBreed.length === 0 ? [] : [storedBreed];
+    }
     // Capped, not scrolled forever: 12 rows is a decision, 180 is a list the
     // user has to read. The alta wizard's number, for the same reason.
-    return matches.slice(0, 12);
-  }, [options, query]);
+    return options.filter((b) => b.toLowerCase().includes(needle)).slice(0, 12);
+  }, [options, needle, storedBreed]);
 
   return (
     <View style={styles.stack}>
       <TextField
-        accessibilityLabel="Buscar raza"
+        // NO explicit accessibilityLabel (WCAG 2.5.3, carried from lote 1a's
+        // LocalityPicker fix): the visible label is "Raza", so a voice user
+        // saying "Buscar raza" named a control that did not exist under that
+        // name. The placeholder still says what the field does.
         autoCapitalize="none"
         label="Raza"
         onChangeText={onQuery}
@@ -392,7 +408,12 @@ function BreedPicker({
         <Body>Sin raza registrada. Es opcional.</Body>
       )}
       {filtered.length === 0 ? (
-        <Body>No encontramos esa raza en el catálogo.</Body>
+        // "No encontramos esa raza" is an answer to a SEARCH. With nothing typed
+        // there was no search, so an empty list says nothing rather than
+        // reporting a failure the person did not cause.
+        needle.length === 0 ? null : (
+          <Body>No encontramos esa raza en el catálogo.</Body>
+        )
       ) : (
         filtered.map((breed) => (
           <Pressable

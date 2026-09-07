@@ -893,7 +893,16 @@ const styles = StyleSheet.create({
   },
   inputMono: { fontFamily: FONTS.mono, letterSpacing: TYPE.base * TRACKING.wide },
   // PasswordField: the input yields the ring's right edge to the eye toggle.
-  passwordRow: { flexDirection: "row", alignItems: "center" },
+  //
+  // `stretch`, NOT `center` (B-08, measured on build 10 at font scale 1.5, shot
+  // 157): the e-mail field grew to 54.9dp and the password field beside it
+  // stayed at 44.6dp, because `center` sizes each child by its own content and
+  // the row then took the eye toggle's `minHeight: TOUCH_TARGET` as the answer —
+  // so the toggle, a 44pt tap target, was capping the height of the text the
+  // person was typing. `stretch` makes the row as tall as its tallest child (the
+  // input, once its text scales) and grows the toggle to match. The icon stays
+  // centred inside the toggle, which has its own `alignItems`/`justifyContent`.
+  passwordRow: { flexDirection: "row", alignItems: "stretch" },
   passwordInput: { flex: 1 },
   passwordEye: {
     minWidth: TOUCH_TARGET,

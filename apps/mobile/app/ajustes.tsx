@@ -205,9 +205,15 @@ export default function AjustesScreen() {
 
       <AccountDeletionCard />
 
+      {/* B-02, measured on the shipped build 10 (shot 114). This said photos,
+          NOTIFICATIONS and Mi Argentina were all missing, on a build where
+          `notificaciones` is a registered route with a working screen and
+          Mascota → Más offers "Foto de la mascota". A footnote that denies two
+          features the person can reach from the same app teaches them to
+          distrust the third, which is the only one that is actually true. */}
       <Text style={styles.footnote}>
-        El alta de mascotas con foto, las notificaciones y el ingreso con Mi Argentina todavía no
-        están en la app.
+        Cargar una foto al registrar una mascota y el ingreso con Mi Argentina todavía no están en
+        la app.
       </Text>
 
       <AboutSection />

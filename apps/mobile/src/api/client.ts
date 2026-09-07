@@ -45,7 +45,8 @@
 import type { ApiV1ErrorCode } from "@dim/contract/api";
 
 import { API_BASE_URL } from "../config/api";
-import { apiErrorMessage, apiV1ErrorCode } from "./error-copy";
+import { reportHandledFailure, telemetryPath } from "../observability/report";
+import { apiErrorMessage, apiV1ErrorCode, carriesUnknownErrorCode } from "./error-copy";
 
 /** Nothing in this app is worth a spinner that never ends. */
 export const REQUEST_TIMEOUT_MS = 10_000;
@@ -113,12 +114,20 @@ export type RawResponse =
   /** Never got an answer: no signal, DNS, TLS, or the timeout above. */
   | { transport: "unreachable"; detail: string };
 
+/**
+ * Eight hex characters naming the Sentry event this failure produced, when one
+ * was produced (OBS-3). Optional on purpose: it is added by `apiRequest` after
+ * `interpret` runs, it is absent on every arm nobody reports, and every switch
+ * over `outcome` in this app keeps compiling without touching it.
+ */
+type Correlated = { correlationId?: string };
+
 export type ApiResult<T> =
   | { outcome: "ok"; payload: T }
-  | { outcome: "api-error"; code: ApiV1ErrorCode; retryAfterSeconds: number | null }
+  | ({ outcome: "api-error"; code: ApiV1ErrorCode; retryAfterSeconds: number | null } & Correlated)
   /** `received` is `null` when the field was absent or not a number at all. */
-  | { outcome: "unsupported-version"; received: number | null }
-  | { outcome: "malformed"; detail: string }
+  | ({ outcome: "unsupported-version"; received: number | null } & Correlated)
+  | ({ outcome: "malformed"; detail: string } & Correlated)
   | { outcome: "unreachable"; detail: string };
 
 export type RequestSpec = {
@@ -245,9 +254,43 @@ function interpret<T>(raw: RawResponse, spec: RequestSpec): ApiResult<T> {
     // raw. Anything unexpected reads as a failed read, never as 404 — answering
     // 404 to a read failure is what the contract calls "the worst lie a public
     // surface can tell".
+    const code = apiV1ErrorCode(raw.body);
+    if (code !== null) {
+      return { outcome: "api-error", code, retryAfterSeconds: raw.retryAfterSeconds };
+    }
+    // A 4xx THAT DECLARED A CODE THIS BUILD DOES NOT KNOW IS VERSION SKEW, not
+    // an outage (CANON-451, critic gap 3). `/api/v1` answers every 4xx from a
+    // closed vocabulary, so a string outside it can only mean the server is
+    // newer than this bundle — and an OTA channel makes exactly that ordinary.
+    // Calling it `temporarily_unavailable` told the person to wait for a code
+    // that will still be unknown tomorrow.
+    //
+    // 5xx is left alone deliberately: a load balancer's `{"error":"Bad
+    // Gateway"}` is an outage, and telling somebody to update their app during
+    // one is the same lie in the other direction.
+    //
+    // AND SO ARE 401, 403 AND 429, BELT AND BRACES (P1, review 2026-09-07).
+    // Those three are answered by layers that are NOT this app's `/api/v1`
+    // vocabulary — an auth proxy, a WAF, a rate limiter, a platform edge — and
+    // any of them can put a string in `error` that this build has never heard
+    // of. "Actualizá la app" is the wrong instruction for every one of them:
+    // signing in again, waiting, or nothing at all is. Today `apiV1ErrorCode`
+    // recognises the codes those statuses actually carry, so this guard changes
+    // no measured behaviour; it is here so that the day something in front of
+    // the app answers 429 with its own vocabulary, the app does not tell a whole
+    // fleet to update.
+    const skewCandidate = raw.status !== 401 && raw.status !== 403 && raw.status !== 429;
+    if (
+      raw.status >= 400 &&
+      raw.status < 500 &&
+      skewCandidate &&
+      carriesUnknownErrorCode(raw.body)
+    ) {
+      return { outcome: "unsupported-version", received: null };
+    }
     return {
       outcome: "api-error",
-      code: apiV1ErrorCode(raw.body) ?? "temporarily_unavailable",
+      code: "temporarily_unavailable",
       retryAfterSeconds: raw.retryAfterSeconds,
     };
   }
@@ -263,6 +306,45 @@ function interpret<T>(raw: RawResponse, spec: RequestSpec): ApiResult<T> {
   }
 
   return { outcome: "ok", payload: raw.body as T };
+}
+
+/**
+ * The api-error codes worth a Sentry event, and it is a SHORT list on purpose.
+ *
+ * Everything else in the vocabulary is either a person's situation (`not_found`,
+ * `duplicate_pet_suspected`, `transfer_expired`) or an outage the server has
+ * already logged with far more context than a phone can add (`*_failed`,
+ * `temporarily_unavailable`). Reporting those would file thousands of events
+ * that say nothing and bury the two below.
+ *
+ * These two mean THIS BUILD AND THIS SERVER DISAGREE — the app sent a body or a
+ * header the server could not accept — which is exactly the version-skew class
+ * an OTA channel can create (CANON-451) and the one class no server log
+ * attributes to a client build.
+ */
+const REPORTABLE_API_ERROR_CODES: ReadonlySet<ApiV1ErrorCode> = new Set<ApiV1ErrorCode>([
+  "invalid_request",
+  "idempotency_key_required",
+]);
+
+/**
+ * File the handled failure, and stamp the result with the id the screen prints.
+ *
+ * `unreachable` is deliberately NOT reported: a phone in a lift is not a defect,
+ * and the events would arrive by the thousand from the subway and drown the one
+ * malformed payload that mattered.
+ */
+function reportFailure<T>(result: ApiResult<T>, route: string): ApiResult<T> {
+  if (result.outcome === "ok" || result.outcome === "unreachable") return result;
+  if (result.outcome === "api-error" && !REPORTABLE_API_ERROR_CODES.has(result.code)) return result;
+
+  const correlationId = reportHandledFailure({
+    surface: "api",
+    failure: result.outcome,
+    route,
+    ...(result.outcome === "api-error" ? { code: result.code } : {}),
+  });
+  return { ...result, correlationId };
 }
 
 /** The codes that mean "this session is over", with the reason to end it under. */
@@ -330,7 +412,7 @@ export async function apiRequest<T>(
     if (reason !== null) await session.endSession(reason);
   }
 
-  return result;
+  return reportFailure(result, telemetryPath(spec.path));
 }
 
 /**
@@ -351,6 +433,30 @@ export async function apiRequest<T>(
  * of the finder standing over a lost animal in the street.
  */
 export function apiFailureMessage(result: ApiResult<unknown>): string | null {
+  const sentence = failureSentence(result);
+  if (sentence === null) return null;
+  // THE CORRELATION ID, WHERE THE PERSON CAN READ IT (OBS-3). A tester says "no
+  // me dejó entrar"; without a shared token the only way to find their event is
+  // to guess at a timestamp across fourteen phones. Eight hex characters is
+  // short enough to read out over WhatsApp and specific enough to land on one
+  // event.
+  //
+  // ADDED HERE AND NOT IN THE NOTICE COMPONENTS, and the reason is that this is
+  // the only function that sees the `ApiResult` the id is attached to —
+  // `ErrorNotice`, `StaleNotice` and `Callout` all receive a finished string.
+  // The consequence is worth stating: the 23 screens that still hand-roll their
+  // own `failureMessage` switch instead of calling this (A6-cuenta-resiliencia-14)
+  // do NOT print a code, and they will start to on the day those switches are
+  // deleted — which is the point of deleting them.
+  //
+  // Only a REPORTED failure carries an id, so the ordinary refusals (`not_found`,
+  // `rate_limited`, a dead spot) keep their sentence exactly as it was: a code
+  // nobody can look up is noise on a screen somebody is already annoyed at.
+  const correlationId = "correlationId" in result ? result.correlationId : undefined;
+  return correlationId === undefined ? sentence : `${sentence}\nCódigo: ${correlationId}`;
+}
+
+function failureSentence(result: ApiResult<unknown>): string | null {
   if (
     result.outcome === "api-error" &&
     result.code === "rate_limited" &&

@@ -223,6 +223,44 @@ describe("PetProfileEditScreen — the breed the catalog forgot", () => {
   });
 });
 
+describe("PetProfileEditScreen — the breed picker does not dump the catalog (B-01)", () => {
+  it("shows only the stored breed until somebody types, then the matches", async () => {
+    // MEASURED on the shipped build 10 (shot 102): opening "Editar datos" drew
+    // twelve breeds inline under the filter box and pushed COLOR and "Guardar
+    // datos" a full screen down. The list is an ANSWER to a query; with no
+    // query there is nothing to answer. The one row kept is the animal's own
+    // stored breed, so "Quitar" stays undoable without spelling it from memory.
+    mockFetch.mockResolvedValue({
+      outcome: "ok",
+      payload: payload({ identity: { name: "Pampa", breed: "Beagle", color: null } }),
+    });
+    render(<PetProfileEditScreen publicToken={TOKEN} />);
+    await screen.findByDisplayValue("Pampa");
+
+    // Two other catalog entries, absent on mount.
+    expect(screen.queryByText("Akita Inu")).toBeNull();
+    expect(screen.queryByText("Mixto / Cruza")).toBeNull();
+    // And no "we found nothing" over a search nobody performed.
+    expect(screen.queryByText("No encontramos esa raza en el catálogo.")).toBeNull();
+    // The stored breed IS there — once in the chip, once as the row that puts
+    // it back after a "Quitar".
+    expect(screen.getAllByText("Beagle")).toHaveLength(2);
+
+    fireEvent.changeText(screen.getByLabelText("Raza"), "akita");
+    expect(screen.getByText("Akita Inu")).toBeOnTheScreen();
+  });
+
+  it("names itself after its visible label, not 'Buscar raza' (WCAG 2.5.3)", async () => {
+    // The same defect lote 1a fixed on LocalityPicker: a voice user reading
+    // "Raza" off the screen and saying it named nothing at all.
+    render(<PetProfileEditScreen publicToken={TOKEN} />);
+    await screen.findByDisplayValue("Pampa");
+
+    expect(screen.getByLabelText("Raza")).toBeOnTheScreen();
+    expect(screen.queryByLabelText("Buscar raza")).toBeNull();
+  });
+});
+
 describe("PetProfileEditScreen — a name longer than the cap invented after it", () => {
   // `pets.name` is unbounded `text` and the web's parser caps it nowhere, so
   // over-long values already exist. This animal's owner has a phone and no

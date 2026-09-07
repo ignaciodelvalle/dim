@@ -33,6 +33,10 @@ const mockSearchLocalities = jest.fn<(...args: unknown[]) => Promise<unknown>>()
 
 jest.mock("expo-router", () => ({
   useRouter: () => ({ push: jest.fn(), replace: jest.fn(), back: jest.fn() }),
+  // The guard on this screen reads the navigation object (critic gap 2). A
+  // no-op stub: what the guard DOES is pinned in ui/use-draft-discard-guard.test.tsx;
+  // here it only has to exist.
+  useNavigation: () => ({ addListener: () => () => {}, dispatch: () => {} }),
 }));
 
 jest.mock("../api/endpoints", () => ({

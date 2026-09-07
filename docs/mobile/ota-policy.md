@@ -180,15 +180,58 @@ production migration: **an agent prepares it; Ignacio presses the button.**
    patched. Do not infer it from the diff; the fingerprint covers things a diff
    does not obviously touch. If the fingerprints differ, this is not a hotfix,
    and publishing it would silently reach nobody.
-3. **Confirm it is subtractive.** Ask the one question from "What may go out"
+3. **Prove the bundle points at the right backend.** Export it and read the
+   emitted JavaScript. See "Why the export step exists" below — the fingerprint
+   does *not* cover this, and the failure is silent.
+
+   ```bash
+   # From apps/mobile, with the SAME environment the publish will use.
+   npx expo export --platform android --output-dir /tmp/ota-check
+   rg -l "dim-staging\.vercel\.app" /tmp/ota-check   # must print NOTHING for production
+   rg -o "https://[a-z0-9.-]*mimar[a-z0-9.-]*" /tmp/ota-check --no-filename | sort -u
+   ```
+
+   The first search must find nothing before a `production` publish. The second
+   is the positive control: it must print the production origin, so "found
+   nothing" is a fact about the bundle rather than about the search.
+4. **Confirm it is subtractive.** Ask the one question from "What may go out"
    above, out loud, and answer it in the update message.
-4. **`eas update --channel preview`**, with a message carrying the commit sha
+5. **`eas update --channel preview`**, with a message carrying the commit sha
    and one line of what it fixes. Install on a device, open it twice — see
    `fallbackToCacheTimeout` below for why twice — and confirm.
-5. **`eas update --channel production`**, same message. Ignacio-gated.
-6. **The next store release must contain the same commit.** An OTA is never the
+6. **`eas update --channel production --environment production`**, same message.
+   Ignacio-gated. The `--environment` flag is not optional: it is what decides
+   which `EXPO_PUBLIC_*` values get inlined, and step 3 is what proves it worked.
+7. **The next store release must contain the same commit.** An OTA is never the
    final home of a fix; it is a bridge to the release that carries it properly.
    A hotfix that is still only on a channel three releases later is a fork.
+
+### Why the export step exists
+
+`eas update` **re-inlines every `EXPO_PUBLIC_*` variable** — it does not reuse
+the values the installed binary was built with. Under Expo these are substituted
+by babel as literals at bundle time (see the header of
+`apps/mobile/src/config/api.ts`), so the origin the app talks to is baked into
+the JavaScript an update ships, and an update published from an environment that
+does not define them takes the code's fallbacks instead.
+
+That matters here because the fallbacks are not neutral:
+
+- `API_BASE_URL` falls back to **`https://dim-staging.vercel.app`** — so a
+  production OTA published without `EXPO_PUBLIC_API_BASE_URL` silently repoints
+  the whole fleet's data plane at staging.
+- `SUPABASE_URL` / `SUPABASE_ANON_KEY` have **no fallback at all**, so the same
+  publish leaves `authPlaneConfigured()` false and nobody can refresh a session.
+
+**Neither is covered by anything already in this list.** `eas fingerprint:compare`
+hashes what determines the NATIVE runtime; env inlining is JavaScript, so a
+bundle pointed at the wrong backend has an identical fingerprint and publishes
+cleanly. And the failure is silent on the device: the app starts, the screens
+render, and the data is somebody else's.
+
+`eas env:list --environment production` answers a different question — what the
+project HAS — and step 3 answers the one that matters: what this bundle GOT.
+Read the artifact, not the configuration.
 
 ### Why "open it twice"
 

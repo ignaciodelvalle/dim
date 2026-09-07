@@ -33,24 +33,60 @@ type GuardableNavigation<A> = {
 };
 
 /**
+ * The words the confirm uses. One shape, so every writer screen asks the same
+ * question in the same order and only the noun changes.
+ *
+ * `DISCARD_COPY.alta` is the wizard's original wording, kept verbatim: it is
+ * the one this app has shipped and the one its test pins. `DISCARD_COPY.form`
+ * is the general one — "Salir sin guardar" rather than "Salir del alta",
+ * because most writer screens are a single form and there is nothing to "seguir
+ * cargando" on them.
+ */
+export type DiscardCopy = { title: string; body: string; stay: string; leave: string };
+
+export const DISCARD_COPY = {
+  alta: {
+    title: "¿Salir del alta?",
+    body: "Lo que cargaste hasta acá se pierde.",
+    stay: "Seguir cargando",
+    leave: "Salir",
+  },
+  form: {
+    title: "¿Salir sin guardar?",
+    body: "Lo que escribiste hasta acá se pierde.",
+    stay: "Seguir editando",
+    leave: "Salir",
+  },
+} as const satisfies Record<string, DiscardCopy>;
+
+/**
  * Confirm-before-discard on any navigation away while `dirty`.
  *
  * Returns `allowLeave` — call it right before a PROGRAMMATIC exit that must
  * not be intercepted (the post-submit `router.replace` to the credential:
  * blocking one's own success navigation would trap the person on a form whose
  * pet already exists).
+ *
+ * `copy` defaults to the ALTA wording for exactly one reason: alta was the only
+ * consumer when this was written, and a default that changed its sentence would
+ * be a copy change disguised as a refactor. Every new consumer passes
+ * `DISCARD_COPY.form`.
  */
-export function useDiscardGuard<A>(navigation: GuardableNavigation<A>, dirty: boolean) {
+export function useDiscardGuard<A>(
+  navigation: GuardableNavigation<A>,
+  dirty: boolean,
+  copy: DiscardCopy = DISCARD_COPY.alta,
+) {
   const allowedRef = useRef(false);
 
   useEffect(() => {
     return navigation.addListener("beforeRemove", (e) => {
       if (!dirty || allowedRef.current) return;
       e.preventDefault();
-      Alert.alert("¿Salir del alta?", "Lo que cargaste hasta acá se pierde.", [
-        { text: "Seguir cargando", style: "cancel" },
+      Alert.alert(copy.title, copy.body, [
+        { text: copy.stay, style: "cancel" },
         {
-          text: "Salir",
+          text: copy.leave,
           style: "destructive",
           onPress: () => {
             allowedRef.current = true;
@@ -59,7 +95,7 @@ export function useDiscardGuard<A>(navigation: GuardableNavigation<A>, dirty: bo
         },
       ]);
     });
-  }, [navigation, dirty]);
+  }, [navigation, dirty, copy]);
 
   // Stable identity so a caller may list it in a useCallback deps array
   // without re-creating that callback every render.

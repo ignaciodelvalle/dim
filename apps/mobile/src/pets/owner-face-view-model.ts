@@ -26,6 +26,8 @@ import type {
   OwnerPetStatusSection,
 } from "@dim/contract/api";
 
+import { unknownEnumLabel } from "../ui/enum-label";
+
 /** The es-AR sentence every unavailable section shows. Decided once. */
 export const SECTION_UNAVAILABLE_MESSAGE = "No se pudo leer esta sección.";
 
@@ -72,13 +74,13 @@ export function alertHeadline(alert: OwnerPetAlertV1): string {
       return "Tiene trámites abiertos";
     case "pregnancy":
       return "Está preñada";
-    default: {
-      // A tone the client does not know is a payload from a newer server. Say
-      // so plainly instead of dropping the row: an alert the owner cannot see is
-      // worse than one they cannot fully read.
-      const unknown: never = alert.id;
-      return `Aviso sin descripción (${String(unknown)})`;
-    }
+    default:
+      // An alert id the client does not know is a payload from a newer server.
+      // The row is still shown — an alert the owner cannot see is worse than one
+      // they cannot fully read — but the raw id is NOT: `open-cases` in
+      // parentheses is an internal identifier in a citizen's wallet, and it told
+      // them nothing the sentence does not already say. See `ui/enum-label.ts`.
+      return unknownEnumLabel(alert.id, "Tiene un aviso que esta versión no sabe mostrar");
   }
 }
 
@@ -112,10 +114,11 @@ export function viewerRoleLabel(role: OwnerPetDetailViewerRole): string {
       return "Sos su cuidador";
     case "org_member":
       return "La ves como miembro de la organización";
-    default: {
-      const unknown: never = role;
-      return String(unknown);
-    }
+    default:
+      // A role from a newer server. The sentence still answers the question the
+      // line exists for — WHY parts of this face are missing — without printing
+      // `org_member`-shaped English at somebody. See `ui/enum-label.ts`.
+      return unknownEnumLabel(role, "Tenés acceso a esta mascota");
   }
 }
 

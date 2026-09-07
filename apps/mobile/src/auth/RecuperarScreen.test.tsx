@@ -298,3 +298,21 @@ describe("the browser bridge", () => {
     expect(onGoToSignIn).toHaveBeenCalledTimes(1);
   });
 });
+
+describe("the code input does not refuse a longer code (A1-refuter-M3)", () => {
+  it("carries no maxLength, so a raised otp_length is not silently truncated", async () => {
+    // `CODE_LENGTH`'s own docblock says the number is used "never to refuse a
+    // code" — and a hard cap on the input is that refusal wearing a different
+    // hat. GoTrue's `otp_length` is a dashboard setting; every shipped bundle
+    // would start cutting the code it was sent, with no error anywhere.
+    render(<RecuperarScreen onGoToSignIn={() => {}} />);
+    await reachCodeStep();
+
+    const field = screen.getByLabelText("Código, obligatorio");
+    expect(field.props.maxLength).toBeUndefined();
+
+    // And a longer code reaches the state, rather than being cut to six.
+    fireEvent.changeText(field, "12345678");
+    expect(screen.getByLabelText("Código, obligatorio").props.value).toBe("12345678");
+  });
+});
