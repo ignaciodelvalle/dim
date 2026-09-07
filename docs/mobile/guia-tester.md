@@ -12,7 +12,15 @@ https://play.google.com/apps/internaltest/4701563537823002634
 
 Abrilo desde tu celular Android, aceptá ser tester, y te lleva a la Play Store para instalar miMAR. Por ahora la app es solo para Android — todavía no hay versión para iPhone.
 
-Las actualizaciones te llegan solas por la Play Store, como cualquier otra app. No son instantáneas: si te pedimos que actualices algo, fijate ahí.
+### Cómo te llegan las actualizaciones
+
+Hay dos vías distintas, y conviene que sepas cuál es cuál porque la mayoría de los arreglos del piloto viajan por la segunda.
+
+**Por la Play Store**, como cualquier otra app, cuando cambia algo del programa en sí: permisos nuevos, la cámara, el ícono. No son instantáneas y las vas a ver en la lista de actualizaciones de Play.
+
+**Adentro de la app**, sin pasar por Play, cuando cambia solo la parte que se dibuja en pantalla — que es la mayoría de lo que corregimos durante el piloto. Estas se bajan solas al volver a abrir la app y se aplican en la siguiente apertura, así que a veces vas a tener que salir y entrar una vez más para verlas.
+
+Si querés forzarla, andá a **Ajustes → Acerca de miMAR → Buscar actualización**. Ahí mismo, la fila **Actualización** te dice cuál tenés puesta: si nos reportás algo, copiala, porque nos dice exactamente qué versión estabas viendo.
 
 ## Crear tu cuenta
 
